@@ -10,7 +10,8 @@ export type MenuIcon =
   | 'gun'
   | 'cube'
   | 'domino'
-  | 'portal';
+  | 'portal'
+  | 'settings';
 
 /** One row (or grid cell) of the wrist menu. */
 export interface MenuEntry {
@@ -25,6 +26,11 @@ export interface MenuEntry {
   children?: MenuEntry[];
   /** Draw the children as a grid of icons instead of a list. */
   grid?: boolean;
+  /**
+   * Shows a switch instead of a chevron. `run` should flip it — the panel
+   * redraws itself afterwards.
+   */
+  checked?: boolean;
   /** @param hand the hand that selected the entry, when known. */
   run?(hand: Handedness | null): void;
 }
@@ -156,6 +162,23 @@ export function drawMenuIcon(
       ctx.arc(0, -s * 0.4, s * 0.12, 0, Math.PI * 2);
       ctx.arc(0, s * 0.4, s * 0.12, 0, Math.PI * 2);
       ctx.fill();
+      break;
+    }
+    case 'settings': {
+      for (const [y, knob] of [
+        [-s * 0.45, -s * 0.2],
+        [0, s * 0.25],
+        [s * 0.45, -s * 0.1],
+      ] as const) {
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.7, y);
+        ctx.lineTo(s * 0.7, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(knob, y, s * 0.16, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
       break;
     }
     case 'portal': {

@@ -48,6 +48,8 @@ export interface PhysicsBody {
   object: THREE.Object3D;
   body: RigidBody;
   collider: Collider;
+  /** Half size of the collider — the reach test grows this by a fixed margin. */
+  halfExtents: THREE.Vector3;
   /** Set while the body is inside a portal funnel and may pass through walls. */
   phasing: boolean;
   /** Set while a hand holds the body — it then ignores the player capsule. */
@@ -198,6 +200,7 @@ export class PhysicsWorld {
       object,
       body,
       collider,
+      halfExtents: half.clone(),
       phasing: false,
       carried: false,
       membership,

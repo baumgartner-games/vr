@@ -18,6 +18,7 @@ import {
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
 import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
+import { FreeLocomotion } from '../../core/Locomotion';
 
 const ROOM = { half: 8, height: 4.6, thickness: 0.4 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
@@ -25,13 +26,20 @@ const COLOR_BLUE = 0x2f8fff;
 const COLOR_RED = 0xff3b2f;
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
-const GRAB_RADIUS = 0.34;
+/** The grab box is the collider grown by this much — same for every object. */
+const GRAB_MARGIN = 0.09;
+/** How far a remote grab reaches, and how hard you have to pull. */
+const REMOTE_RANGE = 9;
+const REMOTE_PULL_SPEED = 1.5;
 
 const _direction = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
 const _probe = new THREE.Vector3();
 const _placeUp = new THREE.Vector3();
+const _local = new THREE.Vector3();
+const _target = new THREE.Vector3();
+const _velocity = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _cross = new THREE.Vector3();
 const _point = new THREE.Vector3();
@@ -55,11 +63,24 @@ interface GunSlot {
   heldBy: Handedness | null;
   /** Blocks a shot on the very frame the gun was picked up. */
   justGrabbed: boolean;
+  /** Preview of where this gun would place its portal. */
+  ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
 }
 
 interface HandProbe {
   object: THREE.Object3D;
   entry: PhysicsBody;
+}
+
+interface HandMotion {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+}
+
+/** A prop on its way to a hand after a remote pull. */
+interface Flight {
+  hand: Handedness;
+  time: number;
 }
 
 interface HandGrab {
@@ -89,6 +110,10 @@ export class PortalWorld implements World {
   private readonly probes = new Map<Handedness, HandProbe>();
   private readonly grabs = new Map<Handedness, HandGrab>();
   private readonly spawned = new Set<PhysicsBody>();
+  private readonly motions = new Map<Handedness, HandMotion>();
+  private readonly flights = new Map<PhysicsBody, Flight>();
+  /** Setting: pull distant objects towards you with a flick of the wrist. */
+  private remoteGrab = false;
   private highlighted = new Set<PhysicsBody>();
   private reopenBag = false;
   private readonly previousHead = new THREE.Vector3();
@@ -97,7 +122,6 @@ export class PortalWorld implements World {
   private locomotion: PhysicsLocomotion | null = null;
   private context: WorldContext | null = null;
   private portalRenderer: PortalRenderer | null = null;
-  private aimRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> | null = null;
   private hasPreviousHead = false;
   private time = 0;
   private canvas: HTMLCanvasElement | null = null;
@@ -120,21 +144,6 @@ export class PortalWorld implements World {
     this.portalBlue.link = this.portalRed;
     this.portalRed.link = this.portalBlue;
     this.root.add(this.portalBlue, this.portalRed);
-
-    this.aimRing = new THREE.Mesh(
-      new THREE.RingGeometry(0.96, 1, 48),
-      new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.5,
-        toneMapped: false,
-        side: THREE.DoubleSide,
-      }),
-    );
-    this.aimRing.scale.set(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, 1);
-    this.aimRing.renderOrder = 5;
-    this.aimRing.visible = false;
-    this.root.add(this.aimRing);
 
     this.portalRenderer = new PortalRenderer(ctx.renderer);
 
@@ -174,6 +183,20 @@ export class PortalWorld implements World {
 
   menu(): MenuEntry[] {
     const ctx = () => this.context!;
+    const remote: MenuEntry = {
+      id: 'setting:remote-grab',
+      label: 'Fernangeln',
+      sub: 'Zielen, dann die Hand zurückreißen',
+      icon: 'settings',
+      accent: 0x4aa8ff,
+      checked: this.remoteGrab,
+      run: () => {
+        this.remoteGrab = !this.remoteGrab;
+        remote.checked = this.remoteGrab;
+        this.context?.notify(this.remoteGrab ? 'Fernangeln an' : 'Fernangeln aus');
+      },
+    };
+
     return [
       {
         id: 'tools',
@@ -225,6 +248,14 @@ export class PortalWorld implements World {
         ],
       },
       {
+        id: 'settings',
+        label: 'Einstellungen',
+        sub: 'Was darf die Hand?',
+        icon: 'settings',
+        accent: 0x4aa8ff,
+        children: [remote],
+      },
+      {
         id: 'reset',
         label: 'Labor zurücksetzen',
         sub: 'Portale, Würfel und Dominos',
@@ -263,6 +294,11 @@ export class PortalWorld implements World {
     ctx.hands.setGestureOverride('left', null);
     ctx.hands.setGestureOverride('right', null);
 
+    // The character controller lives in the physics world, so it has to go
+    // before that world is freed.
+    ctx.rig.setLocomotion(new FreeLocomotion());
+    this.locomotion = null;
+
     this.portalRenderer?.dispose();
     this.portalRenderer = null;
     this.portalBlue.dispose();
@@ -272,11 +308,12 @@ export class PortalWorld implements World {
     this.spawns.clear();
     this.surfaces.length = 0;
 
+    this.flights.clear();
+    this.motions.clear();
     disposeTree(this.root);
     ctx.scene.background = null;
     this.physics?.dispose();
     this.physics = null;
-    this.locomotion = null;
   }
 
   // --- chamber ------------------------------------------------------------
@@ -437,7 +474,23 @@ export class PortalWorld implements World {
       const holster = new THREE.Object3D();
       ctx.rig.add(holster);
       holster.add(gun);
-      this.slots.push({ gun, portal, side, holster, heldBy: null, justGrabbed: false });
+
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.96, 1, 48),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.6,
+          toneMapped: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      ring.scale.set(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, 1);
+      ring.renderOrder = 5;
+      ring.visible = false;
+      this.root.add(ring);
+
+      this.slots.push({ gun, portal, side, holster, heldBy: null, justGrabbed: false, ring });
     }
   }
 
@@ -612,7 +665,7 @@ export class PortalWorld implements World {
       if (this.gunHeldBy(hand)) continue;
 
       anchor.getWorldPosition(_hand);
-      const entry = this.findProp(_hand, GRAB_RADIUS);
+      const entry = this.findProp(_hand);
       if (entry) reachable.add(entry);
       if (!entry || !pressed) continue;
 
@@ -623,8 +676,128 @@ export class PortalWorld implements World {
       controller.pulse(0.5, 30);
     }
 
+    this.updateRemote(dt, ctx, reachable);
+    this.updateFlights(dt, ctx);
     this.updateHighlights(reachable);
     this.updateHandGestures(ctx, reachable);
+  }
+
+  /**
+   * Remote grabbing: aim at something, then pull the hand back sharply and the
+   * object is thrown towards you in an arc. Keep holding grab and it lands in
+   * your hand; let go and it simply flies on.
+   */
+  private updateRemote(dt: number, ctx: WorldContext, reachable: Set<PhysicsBody>): void {
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand || !controller.tracked) continue;
+
+      const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+      anchor.getWorldPosition(_hand);
+      let motion = this.motions.get(hand);
+      if (!motion) {
+        motion = { position: _hand.clone(), velocity: new THREE.Vector3() };
+        this.motions.set(hand, motion);
+      }
+      _velocity.copy(_hand).sub(motion.position).divideScalar(Math.max(dt, 1 / 120));
+      motion.velocity.lerp(_velocity, 0.5);
+      motion.position.copy(_hand);
+
+      if (!this.remoteGrab) continue;
+      if (this.grabs.has(hand) || this.gunHeldBy(hand)) continue;
+      const holding = controller.isHand
+        ? controller.trigger.pressed
+        : controller.squeeze.pressed;
+      if (!holding) continue;
+
+      controller.getRay(_ray);
+      const entry = this.findRemoteTarget(_ray);
+      if (!entry) continue;
+      reachable.add(entry);
+
+      if (-motion.velocity.dot(_ray.direction) < REMOTE_PULL_SPEED) continue;
+      this.launchToHand(entry, hand, _hand);
+      controller.pulse(0.6, 40);
+    }
+  }
+
+  private findRemoteTarget(ray: THREE.Ray): PhysicsBody | null {
+    let best: PhysicsBody | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const entry of this.props) {
+      if (this.flights.has(entry) || this.handHolding(entry)) continue;
+      const t = entry.body.translation();
+      _probe.set(t.x, t.y, t.z);
+
+      const along = _target.copy(_probe).sub(ray.origin).dot(ray.direction);
+      if (along < 0.35 || along > REMOTE_RANGE || along >= bestDistance) continue;
+
+      ray.closestPointToPoint(_probe, _point);
+      const size = Math.max(entry.halfExtents.x, entry.halfExtents.y, entry.halfExtents.z);
+      if (_point.distanceTo(_probe) > size + 0.28) continue;
+
+      best = entry;
+      bestDistance = along;
+    }
+    return best;
+  }
+
+  /** Ballistic arc from the prop to the hand. */
+  private launchToHand(entry: PhysicsBody, hand: Handedness, handPosition: THREE.Vector3): void {
+    const physics = this.physics!;
+    const t = entry.body.translation();
+    _point.set(t.x, t.y, t.z);
+
+    const distance = _point.distanceTo(handPosition);
+    const time = THREE.MathUtils.clamp(distance / 7, 0.35, 1);
+    _velocity.copy(handPosition).sub(_point).divideScalar(time);
+    _velocity.y += 0.5 * 9.81 * time;
+
+    entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
+    physics.setCarried(entry, true);
+    entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
+    entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.flights.set(entry, { hand, time: 0 });
+  }
+
+  private updateFlights(dt: number, ctx: WorldContext): void {
+    const physics = this.physics!;
+
+    for (const [entry, flight] of [...this.flights]) {
+      flight.time += dt;
+      const controller = ctx.input.get(flight.hand);
+      const holding =
+        controller?.tracked &&
+        (controller.isHand ? controller.trigger.pressed : controller.squeeze.pressed);
+
+      if (!holding || flight.time > 2.5 || this.grabs.has(flight.hand)) {
+        this.flights.delete(entry);
+        physics.setCarried(entry, false);
+        continue;
+      }
+
+      const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+      anchor.getWorldPosition(_hand);
+      const t = entry.body.translation();
+      _point.set(t.x, t.y, t.z);
+
+      if (_point.distanceTo(_hand) < 0.3) {
+        this.flights.delete(entry);
+        anchor.updateWorldMatrix(true, false);
+        this.attach(flight.hand, anchor, entry);
+        controller.pulse(0.5, 30);
+        continue;
+      }
+
+      // Steer it home a little, so a good flick always connects.
+      const linear = entry.body.linvel();
+      _velocity.set(linear.x, linear.y, linear.z);
+      const speed = Math.max(_velocity.length(), 2.5);
+      _target.copy(_hand).sub(_point).normalize().multiplyScalar(speed);
+      _velocity.lerp(_target, Math.min(1, dt * 2.5));
+      entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
+    }
   }
 
   private attach(hand: Handedness, anchor: THREE.Object3D, entry: PhysicsBody): void {
@@ -668,15 +841,18 @@ export class PortalWorld implements World {
     return null;
   }
 
-  private findProp(position: THREE.Vector3, radius: number): PhysicsBody | null {
+  /**
+   * Closest prop whose grab box contains the point. The box is the collider
+   * plus a fixed margin, so a small domino is as easy to catch as a big cube.
+   */
+  private findProp(position: THREE.Vector3): PhysicsBody | null {
     let best: PhysicsBody | null = null;
-    let bestDistance = radius;
+    let bestDepth = Number.POSITIVE_INFINITY;
     for (const entry of this.props) {
-      const t = entry.body.translation();
-      const distance = position.distanceTo(_probe.set(t.x, t.y, t.z));
-      if (distance < bestDistance) {
+      const depth = reachDepth(entry, position);
+      if (depth !== null && depth < bestDepth) {
         best = entry;
-        bestDistance = distance;
+        bestDepth = depth;
       }
     }
     return best;
@@ -704,8 +880,7 @@ export class PortalWorld implements World {
       if (reachable.size > 0 && controller.tracked) {
         const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
         anchor.getWorldPosition(_hand);
-        const entry = this.findProp(_hand, GRAB_RADIUS);
-        ctx.hands.setGestureOverride(hand, entry ? 'ready' : null);
+        ctx.hands.setGestureOverride(hand, this.findProp(_hand) ? 'ready' : null);
         continue;
       }
       ctx.hands.setGestureOverride(hand, null);
@@ -765,6 +940,7 @@ export class PortalWorld implements World {
         if (grab.entry === entry) this.grabs.delete(hand);
       }
       this.highlighted.delete(entry);
+      this.flights.delete(entry);
       this.spawns.delete(entry);
       const index = this.props.indexOf(entry);
       if (index >= 0) this.props.splice(index, 1);
@@ -847,7 +1023,7 @@ export class PortalWorld implements World {
       ctx.notify('Keine Fläche getroffen');
       return;
     }
-    this.surfaceUp(ctx, hit.normal, _placeUp);
+    surfaceUp(ray.direction, hit.normal, _placeUp);
     if (!this.fits(hit.point, hit.normal, _placeUp, hit.object)) {
       ctx.notify('Hier passt kein Portal hin');
       return;
@@ -883,26 +1059,28 @@ export class PortalWorld implements World {
     return _ray;
   }
 
+  /** Every gun in a hand shows its own preview, in its own colour. */
   private updateAim(ctx: WorldContext): void {
-    if (!this.aimRing) return;
-    const held = this.slots.find((entry) => entry.heldBy);
-    if (ctx.renderer.xr.isPresenting && !held) {
-      this.aimRing.visible = false;
-      return;
+    const presenting = ctx.renderer.xr.isPresenting;
+    for (const [index, slot] of this.slots.entries()) {
+      const active = presenting ? Boolean(slot.heldBy) : index === 0;
+      if (!active) {
+        slot.ring.visible = false;
+        continue;
+      }
+      const ray = this.getAimRay(ctx, slot);
+      const hit = this.castSurface(ray);
+      if (!hit) {
+        slot.ring.visible = false;
+        continue;
+      }
+      surfaceUp(ray.direction, hit.normal, _placeUp);
+      const valid = this.fits(hit.point, hit.normal, _placeUp, hit.object);
+      slot.ring.visible = true;
+      slot.ring.position.copy(hit.point).addScaledVector(hit.normal, 0.012 + index * 0.002);
+      orientToSurface(slot.ring, hit.normal, _placeUp);
+      slot.ring.material.opacity = valid ? 0.6 : 0.25;
     }
-    const ray = this.getAimRay(ctx, held ?? this.slots[1]!);
-    const hit = this.castSurface(ray);
-    if (!hit) {
-      this.aimRing.visible = false;
-      return;
-    }
-    this.aimRing.visible = true;
-    this.aimRing.position.copy(hit.point).addScaledVector(hit.normal, 0.012);
-    this.surfaceUp(ctx, hit.normal, _placeUp);
-    orientToSurface(this.aimRing, hit.normal, _placeUp);
-    const valid = this.fits(hit.point, hit.normal, _placeUp, hit.object);
-    this.aimRing.material.color.setHex(valid ? 0xffffff : 0xff5a5a);
-    this.aimRing.material.opacity = valid ? 0.5 : 0.3;
   }
 
   // --- portals ------------------------------------------------------------
@@ -1018,6 +1196,8 @@ export class PortalWorld implements World {
   private resetWorld(ctx: WorldContext): void {
     this.portalBlue.reset();
     this.portalRed.reset();
+    for (const entry of this.flights.keys()) this.physics?.setCarried(entry, false);
+    this.flights.clear();
     this.clearSpawned();
     for (const entry of this.props) this.respawn(entry);
     ctx.notify('Labor zurückgesetzt');
@@ -1037,23 +1217,6 @@ export class PortalWorld implements World {
     _hitPoint.copy(hit.point);
     _hit.object = hit.object;
     return _hit;
-  }
-
-  /**
-   * Reference "up" for a portal on this surface. On walls that is the world up,
-   * on floors and ceilings the direction the player is looking — so a portal at
-   * your feet is always aligned with your view.
-   */
-  private surfaceUp(
-    ctx: WorldContext,
-    normal: THREE.Vector3,
-    target: THREE.Vector3,
-  ): THREE.Vector3 {
-    if (Math.abs(normal.y) <= 0.9) return target.copy(UP);
-    ctx.rig.getHeadForward(target);
-    target.y = 0;
-    if (target.lengthSq() < 1e-6) target.set(0, 0, -1);
-    return target.normalize();
   }
 
   /** Does the whole ellipse sit on the same flat surface? */
@@ -1084,6 +1247,23 @@ export class PortalWorld implements World {
   }
 }
 
+/**
+ * Reference "up" for a portal on this surface. On walls that is the world up,
+ * on floors and ceilings the direction the gun points — so the opening lines up
+ * with how you aimed at it.
+ */
+function surfaceUp(
+  direction: THREE.Vector3,
+  normal: THREE.Vector3,
+  target: THREE.Vector3,
+): THREE.Vector3 {
+  if (Math.abs(normal.y) <= 0.9) return target.copy(UP);
+  target.copy(direction);
+  target.y = 0;
+  if (target.lengthSq() < 1e-6) target.set(0, 0, -1);
+  return target.normalize();
+}
+
 /** Aligns an object's +Z with a surface normal, using `up` as the roll reference. */
 function orientToSurface(object: THREE.Object3D, normal: THREE.Vector3, up: THREE.Vector3): void {
   _right.crossVectors(up, normal).normalize();
@@ -1104,4 +1284,22 @@ function setEmissive(entry: PhysicsBody, on: boolean): void {
   } else if (store.baseEmissive) {
     material.emissive.copy(store.baseEmissive);
   }
+}
+
+/**
+ * How deep a point sits inside a prop's grab box, or null when it is outside.
+ * Smaller means "more inside", which makes picking the nearest one trivial.
+ */
+function reachDepth(entry: PhysicsBody, point: THREE.Vector3): number | null {
+  const t = entry.body.translation();
+  const r = entry.body.rotation();
+  _local
+    .set(point.x - t.x, point.y - t.y, point.z - t.z)
+    .applyQuaternion(_quaternion.set(r.x, r.y, r.z, r.w).invert());
+
+  const dx = Math.abs(_local.x) - entry.halfExtents.x;
+  const dy = Math.abs(_local.y) - entry.halfExtents.y;
+  const dz = Math.abs(_local.z) - entry.halfExtents.z;
+  const depth = Math.max(dx, dy, dz);
+  return depth <= GRAB_MARGIN ? depth : null;
 }

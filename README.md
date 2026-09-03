@@ -15,8 +15,9 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Fingertipp; ohne getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor), **Werkzeuge** (die beiden Portal
   Waffen direkt in die Hand), **Magischer Beutel** (Raster mit Companion Cube
-  und Domino — das Objekt landet sofort in der greifenden Hand, das Raster
-  kommt zurück, sobald du loslässt) und die Aktionen der Welt.
+  und Domino), **Einstellungen** und die Aktionen der Welt. Im Raster wird
+  nicht getippt: Du zielst auf ein Feld, drückst Greifen — und das Objekt liegt
+  in genau dieser Hand. Das Raster kommt zurück, sobald du loslässt.
 - **Portal Labor** (experimentell): Physik-Sandkasten mit zwei Portal-Guns am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
   Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
@@ -63,6 +64,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Portal schießen | Trigger der Hand mit der Waffe | Links-/Rechtsklick | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Weitergeben | mit der freien Hand danach greifen | – | – |
+| Fernangeln (optional) | zielen, Grip halten, Hand zurückreißen | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 
 **Handgesten** (mit Controllern): Grip = Pistolenhand — damit lassen sich
@@ -72,7 +74,16 @@ Hand-Tracking werden die echten Finger gerendert; dort schaltet ein Pinch am
 Gürtel die Waffe zwischen Halfter und Hand um.
 
 Die Waffe zielt entlang des Pointing-Rays des Controllers, nicht entlang der
-Griffachse — sonst schießt man deutlich an der Zielrichtung vorbei.
+Griffachse — sonst schießt man deutlich an der Zielrichtung vorbei. Jede Waffe
+in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden und Decke
+richtet sich das Portal nach der Waffe, mit der du zielst.
+
+Die Greifbox ist der Collider plus 9 cm — ein fester Zuschlag, kein
+prozentualer, damit ein Dominostein genauso gut in die Hand springt wie ein
+Companion Cube. **Fernangeln** (Einstellungen) erweitert das: auf ein Objekt
+zielen, Greifen halten und die Hand ruckartig zurückziehen — das Objekt fliegt
+in einem Bogen heran und landet in der Hand, solange du gedrückt hältst. Lässt
+du los, fliegt es einfach weiter.
 
 ## Architektur
 

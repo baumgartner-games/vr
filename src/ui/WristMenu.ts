@@ -8,6 +8,7 @@ const _wrist = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _handUp = new THREE.Vector3();
+const _roll = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _mat = new THREE.Matrix4();
@@ -142,6 +143,8 @@ export class WristMenu extends THREE.Group {
     _local.copy(this.matrixWorld).invert().multiply(headWorld);
     _head.setFromMatrixPosition(_local);
 
+    this.updateGrabTake(input);
+
     const controller = input.get(this.hand);
     const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
 
@@ -160,11 +163,15 @@ export class WristMenu extends THREE.Group {
       const distance = _dir.length() || 1;
       _dir.divideScalar(distance);
 
+      // The panel floats above the hand, but reads the right way up when you
+      // turn your wrist towards you like a watch.
+      _roll.copy(_handUp).negate();
+
       this.button.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
-      faceTowards(this.button, _head, _handUp);
+      faceTowards(this.button, _head, _roll);
 
       this.panel.position.copy(_wrist).addScaledVector(_dir, 0.08).addScaledVector(_handUp, 0.2);
-      faceTowards(this.panel, _head, _handUp);
+      faceTowards(this.panel, _head, _roll);
       return;
     }
 
@@ -212,6 +219,28 @@ export class WristMenu extends THREE.Group {
     this.applyPage();
   }
 
+  /**
+   * On a grid page the entries are not tapped: point at a cell and press grab,
+   * then the item lands in that hand. Otherwise one press spawns a whole pile.
+   */
+  private updateGrabTake(input: XRInput): void {
+    if (!this.open || !this.page.grid) return;
+    const { index, hand } = this.panel.hovered;
+    if (!hand) return;
+    const entry = this.displayed()[index];
+    if (!entry || entry === BACK || !entry.run) return;
+
+    const controller = input.get(hand);
+    if (!controller) return;
+    const pressed = controller.isHand
+      ? controller.trigger.justPressed
+      : controller.squeeze.justPressed;
+    if (!pressed) return;
+
+    entry.run(hand);
+    this.applyPage();
+  }
+
   private handleSelect(index: number, hand: Handedness | null): void {
     const entry = this.displayed()[index];
     if (!entry) return;
@@ -225,7 +254,10 @@ export class WristMenu extends THREE.Group {
       this.pushPage(entry);
       return;
     }
+    // Grid items are taken with the grab button; only the mouse may tap them.
+    if (this.page.grid && hand !== null) return;
     entry.run?.(hand);
+    this.panel.refresh();
   }
 
   // --- button -------------------------------------------------------------

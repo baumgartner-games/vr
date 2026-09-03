@@ -43,6 +43,7 @@ export class PhysicsLocomotion implements Locomotion {
   private readonly lastHead = new THREE.Vector3();
   private hasLastHead = false;
   private halfHeight = 0.6;
+  private disposed = false;
 
   constructor(
     private readonly physics: PhysicsWorld,
@@ -76,7 +77,7 @@ export class PhysicsLocomotion implements Locomotion {
   }
 
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
-    if (dt <= 0) return;
+    if (dt <= 0 || this.disposed) return;
     this.updateShape(rig);
 
     rig.getHeadPosition(_head);
@@ -156,6 +157,8 @@ export class PhysicsLocomotion implements Locomotion {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.physics.world.removeCharacterController(this.controller);
     this.physics.world.removeRigidBody(this.body);
   }

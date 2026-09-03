@@ -83,13 +83,27 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
+  /** Entry the pointer currently rests on, with the hand that points at it. */
+  hovered: { index: number; hand: Handedness | null } = { index: -1, hand: null };
+
   asPointerTarget(): PointerTarget {
     return {
       object: this,
-      onHover: (hit) => this.setHover(hit.uv ? this.indexAt(hit.uv) : -1),
-      onBlur: () => this.setHover(-1),
+      onHover: (hit) => {
+        this.hovered.hand = hit.hand;
+        this.setHover(hit.uv ? this.indexAt(hit.uv) : -1);
+      },
+      onBlur: () => {
+        this.hovered.hand = null;
+        this.setHover(-1);
+      },
       onSelect: (hit) => this.handleSelect(hit),
     };
+  }
+
+  /** Redraws after an entry changed, e.g. a toggle. */
+  refresh(): void {
+    this.draw();
   }
 
   update(dt: number): void {
@@ -114,6 +128,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   private setHover(index: number): void {
+    this.hovered.index = index;
     if (this.hover === index) return;
     this.hover = index;
     this.draw();
@@ -230,7 +245,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       textX = PAD + 46;
     }
 
-    const rightEdge = CANVAS_W - PAD - (entry.children ? 60 : 30);
+    const rightEdge = CANVAS_W - PAD - (entry.children ? 60 : entry.checked !== undefined ? 110 : 30);
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 36px system-ui, sans-serif';
     ctx.fillText(clip(ctx, entry.label, rightEdge - textX), textX, y + (entry.sub ? 52 : 74));
@@ -241,7 +256,20 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       ctx.fillText(clip(ctx, entry.sub, rightEdge - textX), textX, y + 90);
     }
 
-    if (entry.children) {
+    if (entry.checked !== undefined) {
+      const width = 74;
+      const height = 38;
+      const left = CANVAS_W - PAD - 24 - width;
+      const top = y + ROW_H / 2 - height / 2;
+      ctx.beginPath();
+      ctx.roundRect(left, top, width, height, height / 2);
+      ctx.fillStyle = entry.checked ? accent : 'rgba(255,255,255,0.14)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(left + (entry.checked ? width - height / 2 : height / 2), top + height / 2, height / 2 - 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+    } else if (entry.children) {
       ctx.strokeStyle = accent;
       ctx.lineWidth = 5;
       ctx.lineCap = 'round';
