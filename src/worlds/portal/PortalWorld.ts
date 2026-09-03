@@ -395,7 +395,7 @@ export class PortalWorld implements World {
     ];
   }
 
-  /** One row of the tool shelf. Built lazily, so unused tools cost nothing. */
+  /** One row of the tool shelf. Building the row builds the tool. */
   private toolEntry(id: string): MenuEntry {
     const preview = this.tool(id);
     return {
@@ -766,12 +766,12 @@ export class PortalWorld implements World {
         continue;
       }
 
-      // A sticky tool stays in the hand until it is held against a hip; the
-      // others are dropped the moment the grab button comes back up.
-      const stow = tool.sticky
-        ? grabPressed && slot !== null
-        : controller.isHand
-          ? grabPressed
+      // A controller holds a tool while the grip is down. A sticky tool, and
+      // every tool on a tracked hand, is instead put away by holding it
+      // against a hip — a pinch is the trigger there and has work to do.
+      const stow =
+        tool.sticky || controller.isHand
+          ? grabPressed && slot !== null
           : !controller.squeeze.pressed;
       if (stow) {
         this.stowTool(tool, slot?.side);
@@ -882,8 +882,14 @@ export class PortalWorld implements World {
 
   /** Everything a tool may ask of this room. */
   private buildHost(ctx: WorldContext): ToolHost {
+    const world = this;
+    void ctx;
     return {
-      ctx,
+      // The engine hands out a fresh context object every frame, so this reads
+      // the current one rather than keeping the one from init.
+      get ctx(): WorldContext {
+        return world.context!;
+      },
       root: this.root,
       physics: this.physics!,
       props: () => this.props,

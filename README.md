@@ -113,6 +113,12 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Zuschauer-Kamera drehen | – (Kopf bleibt deiner) | ziehen mit der Maus | wischen |
 | Zuschauer-Abstand | Menüeintrag *Abstand* | Mausrad oder Regler | Regler |
 
+Die Seite einer prozeduralen Hand hängt an genau einer Konstante — `mirror` in
+`src/core/HandVisuals.ts`. Sieht die linke Hand im Headset nach einer rechten
+aus, ist das Vorzeichen dort das Einzige, was umgestellt werden muss. Wechselt
+ein Controller-Slot die Hand, wird das Mesh neu gebaut, sonst behält es die
+alte Seite.
+
 **Handgesten** (mit Controllern): Grip = Pistolenhand — damit lassen sich
 Dominosteine antippen. Grip + Trigger = Daumen hoch. Kommt etwas Greifbares in
 Reichweite, leuchtet es auf und die Hand geht leicht in Griffhaltung. Mit

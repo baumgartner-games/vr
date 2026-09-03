@@ -37,7 +37,10 @@ class ProceduralHand extends THREE.Group {
   ) {
     super();
     this.name = `hand-${side}`;
-    const mirror = side === 'left' ? -1 : 1;
+    // Which way round the thumb sits. In the headset the two hands read as
+    // each other's mirror image with the opposite sign here — one constant, and
+    // it is the only thing that tells a left hand from a right one.
+    const mirror = side === 'left' ? 1 : -1;
 
     // The grip space points -Z forward with the back of the hand towards +Y.
     const palm = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
