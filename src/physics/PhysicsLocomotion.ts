@@ -175,18 +175,34 @@ export class PhysicsLocomotion implements Locomotion {
   syncCapsuleToRig(rig: PlayerRig, immediate = false): void {
     const height = rig.getHeadHeight();
     rig.getHeadPosition(_head);
-    const centre = { x: _head.x, y: rig.position.y + height / 2, z: _head.z };
+    // A crouching rig hangs below its own floor, so the feet come from the rig.
+    const centre = { x: _head.x, y: rig.getFloorY() + height / 2, z: _head.z };
     this.body.setTranslation(centre, true);
     if (immediate) this.body.setNextKinematicTranslation(centre);
     this.lastHead.copy(_head);
     this.hasLastHead = true;
   }
 
+  /**
+   * Keeps the capsule as tall as the player is right now — standing, ducking,
+   * or halfway between the two.
+   *
+   * A capsule is resized around its centre, so a shorter one would leave the
+   * ground with its feet. Moving the centre by the same amount the half height
+   * lost keeps the soles exactly where they were: crouching lowers the head,
+   * not the feet.
+   */
   private updateShape(rig: PlayerRig): void {
     const target = Math.max(0.06, rig.getHeadHeight() / 2 - RADIUS);
-    if (Math.abs(target - this.halfHeight) < 0.02) return;
+    const delta = target - this.halfHeight;
+    if (Math.abs(delta) < 0.005) return;
     this.halfHeight = target;
     this.collider.setShape(new this.physics.rapier.Capsule(target, RADIUS));
+
+    const t = this.body.translation();
+    const centre = { x: t.x, y: t.y + delta, z: t.z };
+    this.body.setTranslation(centre, true);
+    this.body.setNextKinematicTranslation(centre);
   }
 }
 

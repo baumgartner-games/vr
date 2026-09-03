@@ -51,6 +51,8 @@ export class ControllerState {
   readonly select = new ButtonState();
   readonly primary = new ButtonState(); // A / X
   readonly secondary = new ButtonState(); // B / Y
+  /** The stick pressed in like a button — sprint on the left, crouch on the right. */
+  readonly stick = new ButtonState();
   readonly thumbstick = new THREE.Vector2();
   /** Index fingertip object, provided by the hand visuals. */
   fingertip: THREE.Object3D | null = null;
@@ -101,6 +103,7 @@ export class ControllerState {
     this.select.reset();
     this.primary.reset();
     this.secondary.reset();
+    this.stick.reset();
     this.thumbstick.set(0, 0);
     this.fingertip = null;
   }
@@ -166,6 +169,7 @@ export class XRInput {
       state.select.beginFrame();
       state.primary.beginFrame();
       state.secondary.beginFrame();
+      state.stick.beginFrame();
 
       const gamepad = state.inputSource?.gamepad;
       if (!gamepad) {
@@ -178,6 +182,7 @@ export class XRInput {
       state.squeeze.value = gamepad.buttons[1]?.value ?? 0;
       syncFromGamepad(state.primary, gamepad.buttons[4]);
       syncFromGamepad(state.secondary, gamepad.buttons[5]);
+      syncFromGamepad(state.stick, gamepad.buttons[3]);
 
       const axes = gamepad.axes;
       const x = axes.length >= 4 ? axes[2] : (axes[0] ?? 0);

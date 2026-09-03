@@ -35,7 +35,12 @@ export interface ToolHost {
   /** 1 = normal speed, less = slow motion. */
   setTimeScale(scale: number): void;
   /** Fires a bullet the world keeps track of and cleans up again. */
-  spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3, speed: number): void;
+  spawnBullet(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    speed: number,
+    options?: BulletOptions,
+  ): void;
   /** Repaints a prop, for everybody in the session. */
   paintProp(entry: PhysicsBody, color: number): void;
   /** Marks a prop as picked out, so the world can leave its glow alone. */
@@ -57,6 +62,21 @@ export interface ToolHost {
    * the drone flies with it. `null` gives the player their body back.
    */
   setViewOverride(position: THREE.Vector3 | null): void;
+  /** What that hand is carrying — the adjustment tool works on the other one. */
+  heldTool(hand: Handedness): Tool | null;
+  /**
+   * Leaves a held tool hanging in mid-air, out of the hand but still that
+   * hand's. The hand can then be moved without it; `unparkTool` puts it back
+   * with whatever hold pose it has by then.
+   */
+  parkTool(tool: Tool): boolean;
+  unparkTool(tool: Tool): boolean;
+}
+
+/** How hard a round hits: the punch is its mass times its speed. */
+export interface BulletOptions {
+  /** Kilograms. Heavier rounds shove more and drop faster. */
+  mass?: number;
 }
 
 /** Two props, the points the joint sits between them, and what kind it is. */
@@ -106,11 +126,40 @@ export abstract class Tool extends THREE.Group {
   /** The hand currently holding this, or null while it is stowed. */
   heldBy: Handedness | null = null;
 
+  /**
+   * Hanging in the air while the adjustment tool measures a new hold pose.
+   * Still owned by its hand, but the hand does not carry it around and does
+   * not put it away — see `ToolHost.parkTool`.
+   */
+  parked = false;
+
+  /**
+   * Just came back from being parked while the grab button was not held. A
+   * non-sticky tool is normally dropped the moment the grip goes up — which
+   * would send a freshly adjusted tool straight to the belt. So the rule waits
+   * until the hand has taken hold of it once more.
+   */
+  regrip = false;
+
   /** Pose inside the hand's grip space. */
   readonly holdPosition = new THREE.Vector3(0, -0.012, 0.03);
 
   /** Extra tilt on top of the aim, for tools that are not held like a pistol. */
   readonly holdRotation = new THREE.Quaternion();
+
+  /**
+   * The pose the tool was *built* with, before anything the player measured
+   * was put on top of it. `createTool` fills these in, so "back to how it
+   * came" stays possible without rebuilding the tool.
+   */
+  readonly factoryPosition = new THREE.Vector3();
+  readonly factoryRotation = new THREE.Quaternion();
+
+  /** Forgets a measured hold pose and goes back to the built-in one. */
+  resetHold(): void {
+    this.holdPosition.copy(this.factoryPosition);
+    this.holdRotation.copy(this.factoryRotation);
+  }
 
   /** Taken into a hand. */
   onTake(_controller: ControllerState, _host: ToolHost): void {}
@@ -131,20 +180,25 @@ export abstract class Tool extends THREE.Group {
   onPrimary(_controller: ControllerState, _host: ToolHost): void {}
 
   /**
-   * Puts the tool into the hand so that its -Z runs along the pointing ray
-   * instead of along the grip. The world calls this every frame before
-   * `update`, so a tool never has to think about it — and a new tool cannot
-   * forget it.
+   * Puts the tool into the hand: the offset from `holdPosition`, and a
+   * rotation that runs its -Z along the pointing ray instead of along the
+   * grip, with `holdRotation` on top.
+   *
+   * The world calls this every frame before `update`, so a tool never has to
+   * think about it — and a new tool cannot forget it. Doing it every frame is
+   * also what lets the adjustment tool change a pose while the tool is held.
    */
-  applyAim(controller: ControllerState | null): void {
-    // A stowed tool belongs to the belt, which sets its pose.
-    if (!this.alignToAim || !this.heldBy) return;
-    if (!controller || !controller.grip.visible) {
+  applyHold(controller: ControllerState | null): void {
+    // Stowed tools belong to the belt and parked ones to the room; both set
+    // their own pose.
+    if (!this.heldBy || this.parked) return;
+    this.position.copy(this.holdPosition);
+    if (!this.alignToAim || !controller || !controller.grip.visible) {
       // Hanging in the target ray already: that *is* the aim.
       this.quaternion.copy(this.holdRotation);
       return;
     }
-    aimRotation(controller.grip.quaternion, controller.targetRay.quaternion, this.quaternion);
+    aimQuaternion(controller, this.quaternion);
     this.quaternion.multiply(this.holdRotation);
   }
 
@@ -153,6 +207,21 @@ export abstract class Tool extends THREE.Group {
 
   /** Frees geometries and materials this tool built. */
   disposeTool(): void {}
+}
+
+/**
+ * The rotation that turns something parented to a hand out of the grip and
+ * onto the pointing ray. Identity when the runtime gives no separate grip —
+ * then the tool already hangs in the ray.
+ */
+export function aimQuaternion(
+  controller: ControllerState | null,
+  target: THREE.Quaternion,
+): THREE.Quaternion {
+  if (!controller || !controller.grip.visible) return target.identity();
+  // `aimRotation` writes into whatever it is given; a Quaternion is one.
+  aimRotation(controller.grip.quaternion, controller.targetRay.quaternion, target);
+  return target;
 }
 
 /** Disposes every geometry and material below an object. */

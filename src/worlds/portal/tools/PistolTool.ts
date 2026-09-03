@@ -7,7 +7,30 @@ import type { ControllerState } from '../../../core/XRInput';
 const MAGAZINE = 12;
 /** Seconds a reload takes. */
 const RELOAD_TIME = 1.15;
-const MUZZLE_SPEED = 26;
+/** Rounds a burst fires. */
+const BURST = 3;
+
+/** How the trigger behaves. */
+export type FireMode = 'single' | 'burst' | 'auto';
+
+/** The settings menu steps through these, in this order. */
+export const POWER_STEPS = [
+  { label: 'leicht', mass: 0.03 },
+  { label: 'normal', mass: 0.06 },
+  { label: 'stark', mass: 0.14 },
+  { label: 'brutal', mass: 0.3 },
+] as const;
+
+export const SPEED_STEPS = [14, 26, 45, 70] as const;
+/** Rounds per second. */
+export const RATE_STEPS = [2, 5, 9, 14] as const;
+export const FIRE_MODES: readonly FireMode[] = ['single', 'burst', 'auto'];
+
+export const FIRE_MODE_LABELS: Record<FireMode, string> = {
+  single: 'Einzelfeuer',
+  burst: 'Dreifachschuss',
+  auto: 'Automatik',
+};
 
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
@@ -32,13 +55,27 @@ export class PistolTool extends Tool {
   private rounds = MAGAZINE;
   private reloading = 0;
   private recoil = 0;
+  /** Seconds until the next round may leave the barrel. */
+  private cooldown = 0;
+  /** Rounds still owed by a burst. */
+  private burst = 0;
+  /**
+   * The trigger went down on the gun — not on a menu. Automatic fire keeps
+   * running off this, so pointing at the wrist panel with the finger down does
+   * not empty a magazine into it.
+   */
+  private firing = false;
+  private powerStep = 1;
+  private speedStep = 1;
+  private rateStep = 1;
+  private modeStep = 0;
 
   constructor() {
     super();
     this.name = 'tool-pistol';
     this.icon = 'pistol';
     this.accent = 0xd7dce8;
-    this.hint = 'Trigger schießt · lädt selbst nach';
+    this.hint = 'Trigger schießt · Einstellungen im Menü';
 
     const steel = new THREE.MeshStandardMaterial({
       color: 0x9aa6bd,
@@ -93,26 +130,25 @@ export class PistolTool extends Tool {
   }
 
   override onTrigger(controller: ControllerState, host: ToolHost): void {
-    if (this.reloading > 0) return;
-    if (this.rounds <= 0) {
-      playEmpty();
-      this.startReload();
-      return;
-    }
-
-    this.rounds--;
-    this.recoil = 1;
-    this.muzzle.getWorldPosition(_origin);
-    _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
-    host.spawnBullet(_origin, _direction, MUZZLE_SPEED);
-    playShot();
-    controller.pulse(0.6, 40);
-    this.draw();
-
-    if (this.rounds === 0) this.startReload();
+    // A burst is ordered once and then walks itself down the magazine at the
+    // set rate; automatic fire keeps going for as long as the finger is down.
+    if (this.mode === 'burst') this.burst = BURST;
+    this.firing = true;
+    this.fire(controller, host);
   }
 
-  override update(dt: number, _host: ToolHost, _controller: ControllerState | null): void {
+  /** Letting go stops automatic fire; a burst finishes what it started. */
+  override onTriggerUp(_controller: ControllerState, _host: ToolHost): void {
+    this.firing = false;
+  }
+
+  override update(dt: number, host: ToolHost, controller: ControllerState | null): void {
+    this.cooldown = Math.max(0, this.cooldown - dt);
+    if (controller && this.heldBy) {
+      if (!controller.trigger.pressed) this.firing = false;
+      if (this.burst > 0 || (this.mode === 'auto' && this.firing)) this.fire(controller, host);
+    }
+
     if (this.reloading > 0) {
       this.reloading = Math.max(0, this.reloading - dt);
       if (this.reloading === 0) {
@@ -133,6 +169,85 @@ export class PistolTool extends Tool {
   override disposeTool(): void {
     disposeToolTree(this);
     this.texture.dispose();
+  }
+
+  // --- what the settings menu turns ----------------------------------------
+
+  get mode(): FireMode {
+    return FIRE_MODES[this.modeStep]!;
+  }
+
+  /** Muzzle velocity in m/s. */
+  get muzzleSpeed(): number {
+    return SPEED_STEPS[this.speedStep]!;
+  }
+
+  /** Rounds per second. */
+  get fireRate(): number {
+    return RATE_STEPS[this.rateStep]!;
+  }
+
+  get powerLabel(): string {
+    return POWER_STEPS[this.powerStep]!.label;
+  }
+
+  get modeLabel(): string {
+    return FIRE_MODE_LABELS[this.mode];
+  }
+
+  /** Each of these steps one notch and wraps around — one menu entry each. */
+  cyclePower(): string {
+    this.powerStep = (this.powerStep + 1) % POWER_STEPS.length;
+    this.draw();
+    return this.powerLabel;
+  }
+
+  cycleSpeed(): number {
+    this.speedStep = (this.speedStep + 1) % SPEED_STEPS.length;
+    this.draw();
+    return this.muzzleSpeed;
+  }
+
+  cycleRate(): number {
+    this.rateStep = (this.rateStep + 1) % RATE_STEPS.length;
+    this.draw();
+    return this.fireRate;
+  }
+
+  cycleMode(): FireMode {
+    this.modeStep = (this.modeStep + 1) % FIRE_MODES.length;
+    this.burst = 0;
+    this.draw();
+    return this.mode;
+  }
+
+  // --- shooting -------------------------------------------------------------
+
+  /** One round, if the gun is ready for it. */
+  private fire(controller: ControllerState, host: ToolHost): void {
+    if (this.cooldown > 0) return;
+    if (this.reloading > 0) return;
+    if (this.rounds <= 0) {
+      this.burst = 0;
+      playEmpty();
+      this.startReload();
+      return;
+    }
+
+    this.rounds--;
+    if (this.burst > 0) this.burst--;
+    this.cooldown = 1 / this.fireRate;
+    this.recoil = 1;
+    this.muzzle.getWorldPosition(_origin);
+    _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
+    host.spawnBullet(_origin, _direction, this.muzzleSpeed, {
+      mass: POWER_STEPS[this.powerStep]!.mass,
+    });
+    playShot();
+    controller.pulse(0.6, 40);
+    this.draw();
+
+    if (this.rounds === 0) this.startReload();
   }
 
   private startReload(): void {
@@ -159,10 +274,21 @@ export class PistolTool extends Tool {
       ctx.font = '700 46px system-ui, sans-serif';
       ctx.fillText('LADEN', 128, 66);
     } else {
-      ctx.font = '700 62px system-ui, sans-serif';
+      ctx.font = '700 54px system-ui, sans-serif';
       // Rounds left over an endless supply of magazines.
-      ctx.fillText(`${this.rounds}/∞`, 128, 68);
+      ctx.fillText(`${this.rounds}/∞`, 128, 54);
+      // Below it what the trigger is going to do — three letters is enough.
+      ctx.font = '600 26px system-ui, sans-serif';
+      ctx.fillStyle = '#9fe3ff';
+      ctx.fillText(MODE_TAGS[this.mode], 128, 98);
     }
     this.texture.needsUpdate = true;
   }
 }
+
+/** Short label under the round counter. */
+const MODE_TAGS: Record<FireMode, string> = {
+  single: 'EINZEL',
+  burst: '3-SCHUSS',
+  auto: 'AUTO',
+};

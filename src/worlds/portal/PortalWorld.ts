@@ -17,10 +17,14 @@ import {
   COLOR_BLUE,
   COLOR_RED,
   DroneTool,
+  PistolTool,
   PortalGunTool,
   TOOL_IDS,
   Tool,
+  clearPoses,
   createTool,
+  storedPoseCount,
+  type BulletOptions,
   type ToolHost,
   type SurfaceHit,
   type WeldRequest,
@@ -407,6 +411,22 @@ export class PortalWorld implements World {
             accent: 0x4aa8ff,
             children: [remoteOn, remoteLine],
           },
+          this.pistolMenu(),
+          {
+            id: 'setting:poses',
+            label: 'Werkzeug-Posen zurücksetzen',
+            sub: 'Alles, was der Justierer gemessen hat',
+            icon: 'wrench',
+            accent: 0xffc857,
+            run: () => {
+              const count = storedPoseCount();
+              clearPoses();
+              for (const tool of this.tools.values()) tool.resetHold();
+              this.context?.notify(
+                count ? `${count} Pose(n) zurückgesetzt` : 'Keine gespeicherten Posen',
+              );
+            },
+          },
         ],
       },
       {
@@ -418,6 +438,70 @@ export class PortalWorld implements World {
         run: () => this.resetWorld(ctx()),
       },
     ];
+  }
+
+  /**
+   * The pistol's four dials. Each entry steps one notch and writes the new
+   * value into its own label — the panel redraws itself right after `run`.
+   */
+  private pistolMenu(): MenuEntry {
+    const pistol = this.tool('pistol') as PistolTool | null;
+    if (!pistol) return { id: 'setting:pistol', label: 'Pistole', accent: 0xd7dce8 };
+
+    const power: MenuEntry = {
+      id: 'setting:pistol-power',
+      label: `Stärke: ${pistol.powerLabel}`,
+      sub: 'Wie hart die Kugel zuschlägt',
+      icon: 'pistol',
+      accent: 0xd7dce8,
+      run: () => {
+        power.label = `Stärke: ${pistol.cyclePower()}`;
+        this.context?.notify(power.label);
+      },
+    };
+    const speed: MenuEntry = {
+      id: 'setting:pistol-speed',
+      label: `Tempo: ${pistol.muzzleSpeed} m/s`,
+      sub: 'Wie schnell sie fliegt',
+      icon: 'pistol',
+      accent: 0xd7dce8,
+      run: () => {
+        speed.label = `Tempo: ${pistol.cycleSpeed()} m/s`;
+        this.context?.notify(speed.label);
+      },
+    };
+    const rate: MenuEntry = {
+      id: 'setting:pistol-rate',
+      label: `Feuerrate: ${pistol.fireRate}/s`,
+      sub: 'Schuss pro Sekunde',
+      icon: 'pistol',
+      accent: 0xd7dce8,
+      run: () => {
+        rate.label = `Feuerrate: ${pistol.cycleRate()}/s`;
+        this.context?.notify(rate.label);
+      },
+    };
+    const mode: MenuEntry = {
+      id: 'setting:pistol-mode',
+      label: `Modus: ${pistol.modeLabel}`,
+      sub: 'Einzeln, dreifach oder automatisch',
+      icon: 'pistol',
+      accent: 0xd7dce8,
+      run: () => {
+        pistol.cycleMode();
+        mode.label = `Modus: ${pistol.modeLabel}`;
+        this.context?.notify(mode.label);
+      },
+    };
+
+    return {
+      id: 'setting:pistol',
+      label: 'Pistole',
+      sub: 'Stärke, Tempo, Feuerrate, Modus',
+      icon: 'pistol',
+      accent: 0xd7dce8,
+      children: [power, speed, rate, mode],
+    };
   }
 
   /** One row of the tool shelf. Building the row builds the tool. */
@@ -559,6 +643,17 @@ export class PortalWorld implements World {
 
   protected welcome(): string {
     return 'Werkzeuge am Gürtel greifen · Trigger schießt · A springt';
+  }
+
+  /**
+   * What hangs on the belt when the world opens. Everything else is one trip
+   * to the shelf away, so this is only about what the room is *for*.
+   */
+  protected beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
+    return [
+      ['gun-blue', 'left'],
+      ['gun-red', 'right'],
+    ];
   }
 
   private buildChamber(): void {
@@ -751,10 +846,7 @@ export class PortalWorld implements World {
     const belt = new ToolBelt(ctx.rig);
     this.belt = belt;
 
-    for (const [id, side] of [
-      ['gun-blue', 'left'],
-      ['gun-red', 'right'],
-    ] as const) {
+    for (const [id, side] of this.beltLoadout()) {
       const tool = this.tool(id);
       if (tool) belt.stow(tool, side);
     }
@@ -816,6 +908,9 @@ export class PortalWorld implements World {
       const hand = controller.handedness;
       if (!hand) continue;
       const tool = this.held.get(hand) ?? null;
+      // A parked tool hangs in the room while it is being adjusted: that hand
+      // is free to move without it, and must not put it away by accident.
+      if (tool?.parked) continue;
 
       if (!controller.tracked) {
         if (tool) this.stowTool(tool);
@@ -838,10 +933,13 @@ export class PortalWorld implements World {
       // A controller holds a tool while the grip is down. A sticky tool, and
       // every tool on a tracked hand, is instead put away by holding it
       // against a hip — a pinch is the trigger there and has work to do.
+      // A tool that just came back from the adjustment tool waits for the hand
+      // to close around it again before the usual "grip up = drop" applies.
+      if (tool.regrip && controller.squeeze.pressed) tool.regrip = false;
       const stow =
         tool.sticky || controller.isHand
           ? grabPressed && slot !== null
-          : !controller.squeeze.pressed;
+          : !controller.squeeze.pressed && !tool.regrip;
       if (stow) {
         this.stowTool(tool, slot?.side);
         continue;
@@ -859,7 +957,7 @@ export class PortalWorld implements World {
       const controller = tool.heldBy ? ctx.input.get(tool.heldBy) : null;
       // Every held tool is turned out of the grip and onto the pointing ray
       // before it runs — one place, so no tool can aim 30° high again.
-      tool.applyAim(controller);
+      tool.applyHold(controller);
       tool.update(dt, host, controller);
     }
   }
@@ -887,8 +985,9 @@ export class PortalWorld implements World {
     tool.position.copy(tool.holdPosition);
     tool.quaternion.identity();
     tool.heldBy = hand;
+    tool.regrip = false;
     // Aimed before it is ever drawn, so it never flashes up along the grip.
-    tool.applyAim(controller);
+    tool.applyHold(controller);
     tool.visible = true;
     this.held.set(hand, tool);
     tool.onTake(controller, host);
@@ -905,6 +1004,8 @@ export class PortalWorld implements World {
     const host = this.host;
     if (tool.heldBy) this.held.delete(tool.heldBy);
     tool.heldBy = null;
+    tool.regrip = false;
+    tool.parked = false;
     if (host) tool.onStow(host);
     tool.removeFromParent();
     if (!belt) return;
@@ -987,7 +1088,8 @@ export class PortalWorld implements World {
       setTimeScale: (scale) => {
         this.timeScale = THREE.MathUtils.clamp(scale, 0.05, 1);
       },
-      spawnBullet: (origin, direction, speed) => this.spawnBullet(origin, direction, speed),
+      spawnBullet: (origin, direction, speed, options) =>
+        this.spawnBullet(origin, direction, speed, options),
       paintProp: (entry, color) => this.paintProp(entry, color, true),
       setSelection: (entries) => {
         this.selected = entries;
@@ -1013,7 +1115,44 @@ export class PortalWorld implements World {
         if (velocity.lengthSq() > 0) locomotion.grounded = false;
       },
       setViewOverride: (position) => this.setViewOverride(position),
+      heldTool: (hand) => this.held.get(hand) ?? null,
+      parkTool: (tool) => this.parkTool(tool),
+      unparkTool: (tool) => this.unparkTool(tool),
     };
+  }
+
+  /**
+   * Leaves a held tool hanging where it is. It keeps its hand — the hand just
+   * stops carrying it — so the player can move that hand to where the tool
+   * *should* sit and have the adjustment tool measure the difference.
+   */
+  private parkTool(tool: Tool): boolean {
+    if (!tool.heldBy || tool.parked) return false;
+    tool.updateWorldMatrix(true, false);
+    _matrix.copy(tool.matrixWorld);
+    this.root.add(tool);
+    // `add` keeps the local transform, so the world pose has to be put back.
+    _matrix.premultiply(_rotationMatrix.copy(this.root.matrixWorld).invert());
+    _matrix.decompose(tool.position, tool.quaternion, _probe);
+    tool.parked = true;
+    return true;
+  }
+
+  /** Puts a parked tool back into its hand, with the hold pose it has now. */
+  private unparkTool(tool: Tool): boolean {
+    if (!tool.parked) return false;
+    tool.parked = false;
+    const hand = tool.heldBy;
+    const controller = hand ? this.context?.input.get(hand) : null;
+    if (!controller?.tracked) {
+      // Nothing to go back to: the belt takes it instead of the room keeping it.
+      this.stowTool(tool);
+      return true;
+    }
+    gripOf(controller).add(tool);
+    tool.applyHold(controller);
+    tool.regrip = !tool.sticky && !controller.squeeze.pressed;
+    return true;
   }
 
   // --- what the tools may do to the room -----------------------------------
@@ -1182,12 +1321,20 @@ export class PortalWorld implements World {
    * The pistol's rounds. They are real bodies so they can knock a domino over,
    * but they are not props: nothing grabs them and they tidy themselves up.
    */
-  private spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3, speed: number): void {
+  private spawnBullet(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    speed: number,
+    options: BulletOptions = {},
+  ): void {
     const physics = this.physics;
     if (!physics) return;
+    const mass = options.mass ?? 0.06;
+    // A heavier round is a bigger one — otherwise "brutal" looks like "leicht".
+    const radius = 0.014 * Math.cbrt(mass / 0.06);
 
     const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.014, 10, 8),
+      new THREE.SphereGeometry(radius, 10, 8),
       new THREE.MeshBasicMaterial({ color: 0xffd98a, toneMapped: false }),
     );
     mesh.name = 'bullet';
@@ -1197,8 +1344,8 @@ export class PortalWorld implements World {
 
     const entry = physics.addDynamic(mesh, {
       shape: { kind: 'ball' },
-      halfExtents: new THREE.Vector3(0.014, 0.014, 0.014),
-      mass: 0.06,
+      halfExtents: new THREE.Vector3(radius, radius, radius),
+      mass,
       friction: 0.4,
       restitution: 0.2,
       ccd: true,

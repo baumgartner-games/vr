@@ -292,6 +292,9 @@ export class App {
     this.scene.background = null;
     this.scene.fog = null;
     this.scene.environment = null;
+    // A crouch is a drop of the whole rig; carrying it into the next world
+    // would put the new spawn point half a metre into the floor.
+    this.rig.standUp();
     this.rig.setLocomotion(new FreeLocomotion());
     this.pointer.clear();
     this.wristMenu.attachPointer();
@@ -319,6 +322,7 @@ export class App {
         children: worlds,
       },
       this.networkMenu(),
+      this.movementMenu(),
       ...this.worldMenu,
       {
         id: 'menu:close',
@@ -334,6 +338,76 @@ export class App {
     // spectator switches change under the player's nose.
     if (this.wristMenu.isOpen) this.wristMenu.refreshRoot(root);
     else this.wristMenu.setRoot(root);
+  }
+
+  /**
+   * How the body moves: sprinting on the left stick, ducking on the right one.
+   * Both live here rather than in a world, because both are the engine's — a
+   * world may change the ground under the player, never their legs.
+   */
+  private movementMenu(): MenuEntry {
+    const rig = this.rig;
+    const cycle = (): void => {
+      this.menuDirty = true;
+    };
+
+    return {
+      id: 'move',
+      label: 'Bewegung',
+      sub: `Sprint ${rig.sprintToggle ? 'umschalten' : 'halten'} · Ducken ${
+        rig.crouchToggle ? 'umschalten' : 'halten'
+      }`,
+      icon: 'settings',
+      accent: 0x5ee0a0,
+      children: [
+        {
+          id: 'move:sprint-mode',
+          label: rig.sprintToggle ? 'Sprint: Umschalten' : 'Sprint: Halten',
+          sub: 'Linken Stick reindrücken',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            rig.sprintToggle = !rig.sprintToggle;
+            this.notify(rig.sprintToggle ? 'Sprint schaltet um' : 'Sprint wird gehalten');
+            cycle();
+          },
+        },
+        {
+          id: 'move:sprint-speed',
+          label: `Sprint-Tempo ${rig.sprintFactor.toFixed(1)}×`,
+          sub: 'Nochmal drücken für die nächste Stufe',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            rig.sprintFactor = rig.sprintFactor >= 2.4 ? 1.4 : rig.sprintFactor + 0.25;
+            cycle();
+          },
+        },
+        {
+          id: 'move:crouch-mode',
+          label: rig.crouchToggle ? 'Ducken: Umschalten' : 'Ducken: Halten',
+          sub: 'Rechten Stick reindrücken',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            rig.crouchToggle = !rig.crouchToggle;
+            this.notify(rig.crouchToggle ? 'Ducken schaltet um' : 'Ducken wird gehalten');
+            cycle();
+          },
+        },
+        {
+          id: 'move:crouch-depth',
+          label: `Duck-Tiefe ${Math.round(rig.crouchDepth * 100)} cm`,
+          sub: 'Wie tief es nach unten geht',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            rig.crouchDepth = rig.crouchDepth >= 0.75 ? 0.3 : rig.crouchDepth + 0.15;
+            cycle();
+          },
+        },
+      ],
+    };
   }
 
   /**

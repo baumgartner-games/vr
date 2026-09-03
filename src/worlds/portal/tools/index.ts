@@ -1,3 +1,4 @@
+import { AdjustTool } from './AdjustTool';
 import { BrushTool } from './BrushTool';
 import { DroneTool } from './DroneTool';
 import { EraserTool } from './EraserTool';
@@ -7,9 +8,11 @@ import { PistolTool } from './PistolTool';
 import { StopwatchTool } from './StopwatchTool';
 import { TapeTool } from './TapeTool';
 import { TransformTool } from './TransformTool';
+import { TranslateGloveTool } from './TranslateGloveTool';
 import { WelderTool } from './WelderTool';
 import { XrayTool } from './XrayTool';
 import { createPortalGunTool } from './PortalGunTool';
+import { applyStoredPose } from './poseStore';
 import type { Tool } from './Tool';
 
 /** Every tool the portal lab knows, in the order the shelf lists them. */
@@ -23,10 +26,12 @@ export const TOOL_IDS = [
   'stopwatch',
   'grapple',
   'gravity-glove',
+  'translate-glove',
   'welder',
   'xray',
   'drone',
   'tape',
+  'adjust',
   'eraser',
 ] as const;
 
@@ -37,6 +42,17 @@ export type ToolId = (typeof TOOL_IDS)[number];
  * other players' hands, so everybody sees the same thing being carried around.
  */
 export function createTool(id: string): Tool | null {
+  const tool = buildTool(id);
+  if (!tool) return null;
+  // Remember how it was built, then put a pose the player measured with the
+  // adjustment tool back on top — that one outlives the reload.
+  tool.factoryPosition.copy(tool.holdPosition);
+  tool.factoryRotation.copy(tool.holdRotation);
+  applyStoredPose(tool);
+  return tool;
+}
+
+function buildTool(id: string): Tool | null {
   switch (id) {
     case 'gizmo':
       return new TransformTool();
@@ -50,6 +66,8 @@ export function createTool(id: string): Tool | null {
       return new GrappleTool();
     case 'gravity-glove':
       return new GravityGloveTool();
+    case 'translate-glove':
+      return new TranslateGloveTool();
     case 'welder':
       return new WelderTool();
     case 'xray':
@@ -58,6 +76,8 @@ export function createTool(id: string): Tool | null {
       return new DroneTool();
     case 'tape':
       return new TapeTool();
+    case 'adjust':
+      return new AdjustTool();
     case 'eraser':
       return new EraserTool();
     default:
@@ -66,6 +86,7 @@ export function createTool(id: string): Tool | null {
 }
 
 export {
+  AdjustTool,
   BrushTool,
   DroneTool,
   EraserTool,
@@ -75,9 +96,36 @@ export {
   StopwatchTool,
   TapeTool,
   TransformTool,
+  TranslateGloveTool,
   WelderTool,
   XrayTool,
 };
+export { applyStoredPose, clearPoses, savePose, storedPoseCount } from './poseStore';
+export {
+  eulerXYZ,
+  formatPose,
+  holdPoseFrom,
+  readPose,
+  type HoldPose,
+  type PoseReadout,
+} from './toolPose';
+export { matchAxes, type AxisMatch, type Basis } from './axisMatch';
+export {
+  FIRE_MODES,
+  FIRE_MODE_LABELS,
+  POWER_STEPS,
+  RATE_STEPS,
+  SPEED_STEPS,
+  type FireMode,
+} from './PistolTool';
 export { PortalGunTool, createPortalGunTool, COLOR_BLUE, COLOR_RED } from './PortalGunTool';
-export { Tool, disposeToolTree, type ToolHost, type SurfaceHit, type WeldRequest } from './Tool';
+export {
+  Tool,
+  aimQuaternion,
+  disposeToolTree,
+  type BulletOptions,
+  type ToolHost,
+  type SurfaceHit,
+  type WeldRequest,
+} from './Tool';
 export { aimRotation, aimError, type Quat as AimQuat } from './aim';

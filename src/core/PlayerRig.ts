@@ -19,6 +19,20 @@ const _delta = new THREE.Vector3();
 export class PlayerRig extends THREE.Group {
   /** Metres per second for stick locomotion. */
   moveSpeed = 2.6;
+  /** How much faster sprinting is than walking. */
+  sprintFactor = 1.9;
+  /**
+   * Sprint is held down by default (left stick pressed in). Switched over in
+   * the settings it toggles instead — for anybody who does not want to keep a
+   * stick pressed while crossing the whole map.
+   */
+  sprintToggle = false;
+  /** Crouch toggles by default; held works the same way as sprint. */
+  crouchToggle = true;
+  /** How far the view drops while crouching. */
+  crouchDepth = 0.55;
+  /** Metres per second the view sinks and rises again. */
+  crouchSpeed = 1.8;
   /** Radians per snap turn. */
   snapAngle = THREE.MathUtils.degToRad(30);
   /** Eye height used while not in VR. */
@@ -41,6 +55,14 @@ export class PlayerRig extends THREE.Group {
   private readonly intent = new THREE.Vector3();
   private intentJump = false;
   private snapArmed = true;
+  /**
+   * How far the view currently sits below the standing pose. The headset owns
+   * the camera inside the rig, so crouching can only happen by lowering the
+   * rig itself — `getFloorY()` is what keeps the feet where they were.
+   */
+  private crouchOffset = 0;
+  private crouchWanted = false;
+  private sprintWanted = false;
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -103,9 +125,37 @@ export class PlayerRig extends THREE.Group {
     return target.setFromMatrixPosition(_mat);
   }
 
-  /** Eye height above the rig floor. */
+  /** Eye height above the floor — crouching makes the body shorter, not lower. */
   getHeadHeight(): number {
-    return Math.max(0.6, this.camera.position.y);
+    return Math.max(0.6, this.camera.position.y - this.crouchOffset);
+  }
+
+  /**
+   * Where the feet are. The rig sinks while crouching, the floor does not —
+   * everything that stands the player on the ground asks here, not for
+   * `position.y`.
+   */
+  getFloorY(): number {
+    return this.position.y + this.crouchOffset;
+  }
+
+  /** How far the view is currently dropped below the standing pose. */
+  get crouch(): number {
+    return this.crouchOffset;
+  }
+
+  /** True while the player is sprinting. */
+  get sprinting(): boolean {
+    return this.sprintWanted;
+  }
+
+  /** Stands back up, e.g. when a world is left. */
+  standUp(): void {
+    this.position.y -= this.crouchOffset;
+    this.crouchOffset = 0;
+    this.crouchWanted = false;
+    this.sprintWanted = false;
+    this.updateMatrixWorld(true);
   }
 
   /** Horizontal viewing direction of the head, normalised. */
@@ -142,7 +192,9 @@ export class PlayerRig extends THREE.Group {
 
   /** Places the player at a spawn point looking along `yaw` (radians). */
   placeAt(position: THREE.Vector3, yaw = 0): void {
+    // `position` is where the feet go; a crouching player sits below that.
     this.position.copy(position);
+    this.position.y -= this.crouchOffset;
     this.quaternion.setFromEuler(_euler.set(0, yaw, 0));
     this.updateMatrixWorld(true);
   }
@@ -162,13 +214,14 @@ export class PlayerRig extends THREE.Group {
 
     if (presenting) {
       const left = input.get('left');
+      this.updateStance(dt, input);
       const stick = left?.thumbstick;
       if (stick && (stick.x !== 0 || stick.y !== 0)) {
         this.getHeadForward(_forward);
         _strafe.copy(_forward).cross(UP).normalize();
         _head.set(0, 0, 0).addScaledVector(_forward, -stick.y).addScaledVector(_strafe, stick.x);
         if (_head.lengthSq() > 1) _head.normalize();
-        this.intent.copy(_head.multiplyScalar(this.moveSpeed));
+        this.intent.copy(_head.multiplyScalar(this.speedNow()));
       }
       // A also confirms menu entries, so it must not jump while pointing at one.
       if (!uiActive && input.get('right')?.primary.justPressed) this.intentJump = true;
@@ -187,5 +240,55 @@ export class PlayerRig extends THREE.Group {
         this.snapArmed = true;
       }
     }
+  }
+
+  /** Walking speed right now — sprinting is a factor on top of it. */
+  private speedNow(): number {
+    return this.moveSpeed * (this.sprintWanted ? this.sprintFactor : 1);
+  }
+
+  /**
+   * The sticks pressed in: left sprints, right crouches. Both can either be
+   * held or toggled, which is what the settings switch between.
+   *
+   * Crouching lowers the rig, because in VR the headset — not us — decides
+   * where the camera sits inside it. The body keeps its feet on the floor:
+   * `getFloorY()` adds the drop back on, and the character controller shrinks
+   * its capsule from the head height, which the drop has already shortened.
+   */
+  private updateStance(dt: number, input: XRInput): void {
+    const left = input.get('left')?.stick;
+    if (left) {
+      if (this.sprintToggle) {
+        if (left.justPressed) this.sprintWanted = !this.sprintWanted;
+      } else {
+        this.sprintWanted = left.pressed;
+      }
+    }
+
+    const right = input.get('right')?.stick;
+    if (right) {
+      if (this.crouchToggle) {
+        if (right.justPressed) this.crouchWanted = !this.crouchWanted;
+      } else {
+        this.crouchWanted = right.pressed;
+      }
+    }
+    // Sprinting off somewhere stands the player up first — nobody sprints in
+    // a crouch, and the two settings must not fight each other.
+    const stick = input.get('left')?.thumbstick;
+    const moving = stick ? stick.x !== 0 || stick.y !== 0 : false;
+    if (this.crouchWanted && this.sprintWanted && moving) this.crouchWanted = false;
+
+    const target = this.crouchWanted ? this.crouchDepth : 0;
+    if (target === this.crouchOffset) return;
+    const step = THREE.MathUtils.clamp(
+      target - this.crouchOffset,
+      -this.crouchSpeed * dt,
+      this.crouchSpeed * dt,
+    );
+    this.crouchOffset += step;
+    this.position.y -= step;
+    this.updateMatrixWorld(true);
   }
 }
