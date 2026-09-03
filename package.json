@@ -1,0 +1,22 @@
+{
+  "name": "baumgartner-vr",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WebXR playground: hub world, world/game selection and experimental VR prototypes.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "@types/three": "^0.185.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.0.2"
+  }
+}

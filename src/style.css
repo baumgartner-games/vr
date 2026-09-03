@@ -1,0 +1,226 @@
+:root {
+  color-scheme: dark;
+  --bg: #05070d;
+  --fg: #e8ecf7;
+  --muted: #8e9ab8;
+  --accent: #4aa8ff;
+  --accent-2: #ff9d3d;
+  --panel: rgba(12, 18, 32, 0.72);
+  --border: rgba(140, 170, 230, 0.22);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* ---------- Landing ---------- */
+
+.landing {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(120% 90% at 20% 0%, rgba(74, 168, 255, 0.18), transparent 60%),
+    radial-gradient(90% 80% at 90% 100%, rgba(255, 157, 61, 0.14), transparent 60%),
+    var(--bg);
+  z-index: 10;
+  transition: opacity 400ms ease;
+}
+
+.landing[hidden] { display: none; }
+.landing.is-hiding { opacity: 0; pointer-events: none; }
+
+.landing__inner {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(34px, 8vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #ffffff, var(--accent) 60%, var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lead {
+  margin: 0 auto 32px;
+  max-width: 44ch;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 200ms ease, background 200ms ease;
+}
+
+.btn:active { transform: translateY(1px) scale(0.995); }
+
+.btn--primary {
+  padding: 26px 24px;
+  margin-bottom: 12px;
+  font-size: clamp(20px, 5vw, 26px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #04121f;
+  background: linear-gradient(120deg, #7cc4ff, var(--accent));
+  box-shadow: 0 18px 50px -18px rgba(74, 168, 255, 0.9);
+}
+
+.btn--primary:disabled {
+  cursor: default;
+  color: var(--muted);
+  background: rgba(140, 170, 230, 0.12);
+  box-shadow: none;
+}
+
+.btn--ghost {
+  padding: 14px 20px;
+  color: var(--fg);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.btn--ghost:hover { background: rgba(140, 170, 230, 0.1); }
+
+.status {
+  min-height: 1.4em;
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.status.is-error { color: #ff8f8f; }
+
+.hints {
+  margin: 28px 0 0;
+  padding: 16px 18px;
+  list-style: none;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.hints strong { color: var(--fg); font-weight: 600; }
+
+/* ---------- HUD (2D fallback) ---------- */
+
+.hud {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+
+.hud[hidden] { display: none; }
+
+.hud__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 8px 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+}
+
+.hud__world { font-size: 13px; color: var(--muted); }
+
+.hud__btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(140, 170, 230, 0.12);
+  cursor: pointer;
+}
+
+.hud__btn:hover { background: rgba(140, 170, 230, 0.22); }
+
+/* ---------- Touch controls (phone) ---------- */
+
+.touch {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.touch[hidden] { display: none; }
+
+.touch__stick {
+  position: absolute;
+  left: max(24px, env(safe-area-inset-left));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(12, 18, 32, 0.45);
+  display: grid;
+  place-items: center;
+}
+
+.touch__stick span {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(140, 170, 230, 0.4);
+  transition: transform 60ms linear;
+}
+
+.touch__hint {
+  position: absolute;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.7;
+}
