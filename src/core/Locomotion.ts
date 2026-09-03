@@ -17,6 +17,8 @@ export interface Locomotion {
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void;
   /** Called after a portal moved the rig, so the body can follow. */
   teleport?(rig: PlayerRig, transform: THREE.Matrix4): void;
+  /** Called after something else moved the rig, e.g. leaving a spectator view. */
+  resync?(rig: PlayerRig): void;
   dispose?(): void;
 }
 

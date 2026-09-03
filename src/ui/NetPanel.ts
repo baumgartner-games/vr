@@ -121,7 +121,7 @@ export class NetPanel {
 
     for (const button of this.modeButtons) {
       button.addEventListener('click', () => {
-        this.app.spectator.setMode(button.dataset['mode'] as SpectatorMode);
+        this.app.spectate(this.app.spectator.settings.targetId, button.dataset['mode'] as SpectatorMode);
         this.refresh();
       });
     }
@@ -230,11 +230,14 @@ export class NetPanel {
       role.className = 'peers__role';
       role.textContent = ROLE_LABELS[peer.role] ?? peer.role;
 
-      item.append(dot, name, role);
+      const watch = document.createElement('span');
+      watch.className = 'peers__watch';
+      watch.textContent = peer.id === active ? 'wird gezeigt' : 'Zuschauen';
+
+      item.append(dot, name, role, watch);
       item.addEventListener('click', () => {
         const settings = this.app.spectator.settings;
-        settings.targetId = settings.targetId === peer.id ? null : peer.id;
-        if (settings.mode === 'free') this.app.spectator.setMode('third');
+        this.app.spectate(settings.targetId === peer.id ? null : peer.id);
         this.refresh();
       });
       this.peerList.append(item);

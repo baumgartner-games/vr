@@ -114,6 +114,19 @@ export class Portal extends THREE.Object3D {
     this.updateMatrixWorld(true);
   }
 
+  /**
+   * Places the portal at a pose that was worked out somewhere else — another
+   * player shot it, and their result is the one everybody has to see.
+   */
+  setPose(position: THREE.Vector3, quaternion: THREE.Quaternion, surfaceGroup = 0): void {
+    this.position.copy(position);
+    this.quaternion.copy(quaternion);
+    this.surfaceGroup = surfaceGroup;
+    this.placed = true;
+    this.visible = true;
+    this.updateMatrixWorld(true);
+  }
+
   /** Removes the portal from the wall (keeps it in the scene, just hidden). */
   reset(): void {
     this.placed = false;

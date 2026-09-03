@@ -457,6 +457,20 @@ input[type="range"] {
   color: var(--muted);
 }
 
+.peers__watch {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid rgba(140, 170, 230, 0.35);
+  border-radius: 999px;
+}
+
+.peers__item.is-active .peers__watch {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
 .seg {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

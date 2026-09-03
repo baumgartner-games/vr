@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { AvatarBody, type AvatarLimb } from '../core/AvatarBody';
 import { SmoothPose } from './PoseSmoothing';
 import type { NetSession, Peer } from './NetSession';
 import type { PoseArray } from './types';
+
+export type HandSide = 'left' | 'right';
 
 const ROLE_COLORS: Record<string, number> = {
   vr: 0x4aa8ff,
@@ -12,25 +15,34 @@ const ROLE_COLORS: Record<string, number> = {
 /** Poses arrive at 20 Hz; this much lag buys smooth motion without feeling limp. */
 const SMOOTH_TAU = 0.06;
 
+const _head: AvatarLimb = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+const _left: AvatarLimb = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+const _right: AvatarLimb = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+
 interface Avatar {
-  group: THREE.Group;
-  head: THREE.Mesh;
-  hands: [THREE.Object3D, THREE.Object3D];
+  body: AvatarBody;
+  tag: NameTag;
   poses: { head: SmoothPose; left: SmoothPose; right: SmoothPose };
-  material: THREE.MeshStandardMaterial;
   /** Peers usually announce as `desktop` first and upgrade to `vr` later. */
   role: string;
+  name: string;
 }
 
-/** Renders the other players as a simple head + hands avatar. */
+/**
+ * Draws the other players with the same body the local player has — head,
+ * torso, arms and legs — so you can tell from across the room where somebody
+ * is looking, where they point their portal gun and what they are holding.
+ */
 export class RemoteAvatars extends THREE.Group {
   /**
-   * Peer whose head is skipped — you do not want to look at the inside of a box
-   * while spectating them in first person.
+   * Peer whose body is skipped down to the hands — you do not want to look at
+   * the inside of a torso while spectating them in first person.
    */
   hiddenPeer: string | null = null;
 
   private readonly avatars = new Map<string, Avatar>();
+  /** Tools hung into a peer's hand, keyed `peerId:side`. */
+  private readonly attachments = new Map<string, THREE.Object3D>();
 
   constructor(private readonly net: NetSession) {
     super();
@@ -39,80 +51,135 @@ export class RemoteAvatars extends THREE.Group {
 
   update(dt: number): void {
     for (const [id, avatar] of this.avatars) {
-      if (!this.net.peers.has(id)) {
-        this.remove(avatar.group);
-        disposeTree(avatar.group);
-        this.avatars.delete(id);
-      }
+      if (!this.net.peers.has(id)) this.destroy(id, avatar);
     }
 
     for (const peer of this.net.peers.values()) {
       const inWorld = peer.world === this.net.world && peer.pose !== null && !peer.pose.hidden;
       const existing = this.avatars.get(peer.id);
       if (!inWorld) {
-        if (existing) existing.group.visible = false;
+        if (existing) existing.body.visible = false;
         continue;
       }
 
       const avatar = existing ?? this.createAvatar(peer);
-      avatar.group.visible = true;
+      avatar.body.visible = true;
       if (avatar.role !== peer.role) {
         avatar.role = peer.role;
-        applyRoleColor(avatar.material, peer.role);
+        avatar.body.setColor(ROLE_COLORS[peer.role] ?? 0xffffff);
+      }
+      if (avatar.name !== peer.name) {
+        avatar.name = peer.name;
+        avatar.tag.setText(peer.name);
       }
       const pose = peer.pose!;
 
       avatar.poses.head.setTarget(pose.head);
       avatar.poses.head.update(dt, SMOOTH_TAU);
-      avatar.head.position.copy(avatar.poses.head.position);
-      avatar.head.quaternion.copy(avatar.poses.head.quaternion);
-      avatar.head.visible = peer.id !== this.hiddenPeer;
+      _head.position.copy(avatar.poses.head.position);
+      _head.quaternion!.copy(avatar.poses.head.quaternion);
 
-      setHand(avatar.hands[0]!, avatar.poses.left, pose.left, dt);
-      setHand(avatar.hands[1]!, avatar.poses.right, pose.right, dt);
+      const left = limbOf(avatar.poses.left, pose.left, _left, dt);
+      const right = limbOf(avatar.poses.right, pose.right, _right, dt);
+      avatar.body.setSelfView(peer.id === this.hiddenPeer);
+      avatar.body.update(dt, _head, left, right);
+
+      avatar.tag.visible = peer.id !== this.hiddenPeer;
+      avatar.tag.position.copy(_head.position).y += 0.36;
     }
+  }
+
+  /**
+   * Hangs an object into a peer's hand — a portal gun, say. Pass null to take
+   * it out again. Works before the avatar exists; it is applied on creation.
+   */
+  setAttachment(peerId: string, side: HandSide, object: THREE.Object3D | null): void {
+    const key = `${peerId}:${side}`;
+    const previous = this.attachments.get(key);
+    if (previous === object) return;
+    previous?.removeFromParent();
+    if (!object) {
+      this.attachments.delete(key);
+      return;
+    }
+    this.attachments.set(key, object);
+    const avatar = this.avatars.get(peerId);
+    if (avatar) avatar.body.handAnchors[side === 'left' ? 0 : 1].add(object);
+  }
+
+  /**
+   * The node a peer's hand hangs on, or null while that hand is not tracked.
+   * Whatever is attached to it rides along — a portal gun, say.
+   */
+  handAnchor(peerId: string, side: HandSide): THREE.Object3D | null {
+    const avatar = this.avatars.get(peerId);
+    if (!avatar?.body.visible) return null;
+    const anchor = avatar.body.handAnchors[side === 'left' ? 0 : 1];
+    return anchor.visible ? anchor : null;
+  }
+
+  /** Latest smoothed world pose of a peer's hand, false when it is not tracked. */
+  getHandPose(
+    peerId: string,
+    side: HandSide,
+    position: THREE.Vector3,
+    quaternion?: THREE.Quaternion,
+  ): boolean {
+    const avatar = this.avatars.get(peerId);
+    if (!avatar) return false;
+    const pose = side === 'left' ? avatar.poses.left : avatar.poses.right;
+    if (!pose.primed) return false;
+    position.copy(pose.position);
+    quaternion?.copy(pose.quaternion);
+    return true;
+  }
+
+  /** Latest smoothed world head pose of a peer. */
+  getHeadPose(peerId: string, position: THREE.Vector3): boolean {
+    const avatar = this.avatars.get(peerId);
+    if (!avatar?.poses.head.primed) return false;
+    position.copy(avatar.poses.head.position);
+    return true;
   }
 
   private createAvatar(peer: Peer): Avatar {
-    const material = new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.1 });
-    applyRoleColor(material, peer.role);
+    const body = new AvatarBody({ color: ROLE_COLORS[peer.role] ?? 0xffffff, hands: true });
+    body.name = `avatar:${peer.id}`;
+    body.setColor(ROLE_COLORS[peer.role] ?? 0xffffff);
+    this.add(body);
 
-    const group = new THREE.Group();
-    group.name = `avatar:${peer.id}`;
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.22), material);
-    const visor = new THREE.Mesh(
-      new THREE.BoxGeometry(0.17, 0.07, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0x0a0f1c }),
-    );
-    visor.position.set(0, 0.01, -0.115);
-    head.add(visor);
-    group.add(head);
-
-    const hands: THREE.Object3D[] = [];
-    for (let i = 0; i < 2; i++) {
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.11), material);
-      hand.visible = false;
-      group.add(hand);
-      hands.push(hand);
-    }
+    const tag = new NameTag(peer.name);
+    this.add(tag);
 
     const avatar: Avatar = {
-      group,
-      head,
-      hands: [hands[0]!, hands[1]!],
+      body,
+      tag,
       poses: { head: new SmoothPose(), left: new SmoothPose(), right: new SmoothPose() },
-      material,
       role: peer.role,
+      name: peer.name,
     };
-    this.add(group);
     this.avatars.set(peer.id, avatar);
+
+    for (const side of ['left', 'right'] as const) {
+      const object = this.attachments.get(`${peer.id}:${side}`);
+      if (object) body.handAnchors[side === 'left' ? 0 : 1].add(object);
+    }
     return avatar;
   }
 
+  private destroy(id: string, avatar: Avatar): void {
+    for (const side of ['left', 'right'] as const) {
+      this.attachments.get(`${id}:${side}`)?.removeFromParent();
+    }
+    avatar.body.dispose();
+    avatar.tag.dispose();
+    avatar.tag.removeFromParent();
+    this.avatars.delete(id);
+  }
+
   override clear(): this {
-    for (const avatar of this.avatars.values()) disposeTree(avatar.group);
-    this.avatars.clear();
+    for (const [id, avatar] of [...this.avatars]) this.destroy(id, avatar);
+    this.attachments.clear();
     return super.clear();
   }
 
@@ -122,37 +189,59 @@ export class RemoteAvatars extends THREE.Group {
   }
 }
 
-function applyRoleColor(material: THREE.MeshStandardMaterial, role: string): void {
-  const color = ROLE_COLORS[role] ?? 0xffffff;
-  material.color.setHex(color);
-  material.emissive.setHex(color).multiplyScalar(0.15);
+/** Floating name plate above a remote player. */
+class NameTag extends THREE.Sprite {
+  private readonly canvas: HTMLCanvasElement;
+  private readonly texture: THREE.CanvasTexture;
+
+  constructor(text: string) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    super(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+    this.canvas = canvas;
+    this.texture = texture;
+    this.scale.set(0.5, 0.125, 1);
+    this.renderOrder = 8;
+    this.setText(text);
+  }
+
+  setText(text: string): void {
+    const ctx = this.canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, 512, 128);
+    ctx.beginPath();
+    ctx.roundRect(6, 24, 500, 80, 40);
+    ctx.fillStyle = 'rgba(9, 14, 26, 0.72)';
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 52px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text.slice(0, 18), 256, 66);
+    this.texture.needsUpdate = true;
+  }
+
+  dispose(): void {
+    this.texture.dispose();
+    this.material.dispose();
+  }
 }
 
-function setHand(
-  object: THREE.Object3D,
+function limbOf(
   smooth: SmoothPose,
   pose: PoseArray | null,
+  target: AvatarLimb,
   dt: number,
-): void {
+): AvatarLimb | null {
   if (!pose) {
-    object.visible = false;
     smooth.reset();
-    return;
+    return null;
   }
   smooth.setTarget(pose);
   smooth.update(dt, SMOOTH_TAU);
-  object.position.copy(smooth.position);
-  object.quaternion.copy(smooth.quaternion);
-  object.visible = true;
-}
-
-function disposeTree(root: THREE.Object3D): void {
-  root.traverse((object) => {
-    const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.geometry?.dispose();
-    const material = mesh.material;
-    if (Array.isArray(material)) material.forEach((m) => m.dispose());
-    else material?.dispose();
-  });
+  target.position.copy(smooth.position);
+  target.quaternion!.copy(smooth.quaternion);
+  return target;
 }
