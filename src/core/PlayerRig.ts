@@ -166,6 +166,17 @@ export class PlayerRig extends THREE.Group {
     return target.normalize();
   }
 
+  /**
+   * Where the head actually looks, pitch included. `getHeadForward` flattens
+   * the direction because walking happens on the floor; flying does not.
+   */
+  getHeadLook(target: THREE.Vector3): THREE.Vector3 {
+    this.getHeadMatrix(_mat);
+    target.set(-_mat.elements[8]!, -_mat.elements[9]!, -_mat.elements[10]!);
+    if (target.lengthSq() < 1e-6) target.set(0, 0, -1);
+    return target.normalize();
+  }
+
   /** Rotates the player around the head, so the world does not swing away. */
   rotateAroundHead(angle: number): void {
     this.getHeadPosition(_head);

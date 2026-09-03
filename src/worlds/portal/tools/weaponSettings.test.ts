@@ -34,15 +34,33 @@ describe('clampWeapon', () => {
   });
 
   it('replaces a name it does not know with the built-in one', () => {
-    const settings = clampWeapon({ mode: 'rapid' as never, ammo: 'plasma' as never, sight: 'x' as never });
+    const settings = clampWeapon({
+      mode: 'rapid' as never,
+      ammo: 'plasma' as never,
+      sights: ['x' as never],
+    });
     expect(settings.mode).toBe(DEFAULT_WEAPON.mode);
     expect(settings.ammo).toBe(DEFAULT_WEAPON.ammo);
-    expect(settings.sight).toBe(DEFAULT_WEAPON.sight);
+    expect(settings.sights).toEqual([]);
   });
 
   it('leaves a sound configuration exactly as it is', () => {
-    const settings = { ...DEFAULT_WEAPON, magazine: 30, ammo: 'tracer' as const, sight: 'reddot' as const };
+    const settings = {
+      ...DEFAULT_WEAPON,
+      magazine: 30,
+      ammo: 'tracer' as const,
+      sights: ['reddot' as const, 'trace' as const],
+    };
     expect(clampWeapon(settings)).toEqual(settings);
+  });
+
+  it('takes over the single aiming aid an older browser still holds', () => {
+    expect(clampWeapon({ sight: 'irons' }).sights).toEqual(['irons']);
+  });
+
+  it('keeps the aiming aids in the order the grid lists them, without doubles', () => {
+    const settings = clampWeapon({ sights: ['trace', 'reddot', 'trace'] });
+    expect(settings.sights).toEqual(['reddot', 'trace']);
   });
 
   it('rounds to the decimals the field is shown with', () => {

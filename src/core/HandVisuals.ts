@@ -148,6 +148,50 @@ function buildChain(
 }
 
 /**
+ * A see-through copy of a hand, standing still in the room.
+ *
+ * The adjustment tool leaves one behind where the hand was, so that while the
+ * real hand is being moved into its new place there is something to compare it
+ * with. It is a normal procedural hand in a glass material — the same
+ * geometry, so what you compare against is genuinely the same shape.
+ */
+export class GhostHand extends THREE.Group {
+  private readonly material: THREE.MeshStandardMaterial;
+
+  constructor(side: Handedness, pose: HandPose, color = 0x5ee0a0) {
+    super();
+    this.name = `ghost-hand-${side}`;
+    this.material = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      roughness: 0.5,
+      emissive: new THREE.Color(color).multiplyScalar(0.35),
+    });
+    const hand = new ProceduralHand(side, this.material);
+    hand.setPose(pose);
+    // A full second of blending: the fingers are where they belong at once,
+    // because nobody watches a ghost grow into its pose.
+    hand.update(1);
+    // The offset in the pose belongs to a hand sitting on a controller. This
+    // one is placed in the room, so it starts from where it is put.
+    hand.position.set(0, 0, 0);
+    hand.quaternion.identity();
+    this.add(hand);
+  }
+
+  dispose(): void {
+    this.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh) mesh.geometry.dispose();
+    });
+    this.material.dispose();
+    this.removeFromParent();
+  }
+}
+
+/**
  * Hands for both input kinds: joint spheres when the runtime tracks real hands,
  * a procedural hand with gestures when the player holds controllers.
  */
@@ -304,11 +348,15 @@ export class HandVisuals extends THREE.Group {
     // The dialled-in pose is the base; the short-lived gestures (pointing at
     // something, a thumbs-up) still win while they last.
     hand.setPose(this.poseOf(controller.handedness));
+    const forced = this.overrides.get(controller.handedness) ?? null;
     const gesture = this.gestureOf(controller);
     // `open` is the idle pose and a held tool brings its own grip, so those two
-    // are already covered; a bare hand closing around a cube is not.
+    // are already covered; a bare hand closing around a cube is not. A gesture
+    // a tool explicitly asked for is never covered — the Superman glove wants
+    // a fist out of a hand that is holding something.
     const covered =
-      gesture === 'open' || (gesture === 'grip' && this.holding.get(controller.handedness));
+      !forced &&
+      (gesture === 'open' || (gesture === 'grip' && this.holding.get(controller.handedness)));
     if (gesture && !covered) hand.setGesture(gesture);
     hand.update(dt);
   }

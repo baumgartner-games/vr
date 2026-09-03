@@ -19,6 +19,12 @@ export interface Locomotion {
   teleport?(rig: PlayerRig, transform: THREE.Matrix4): void;
   /** Called after something else moved the rig, e.g. leaving a spectator view. */
   resync?(rig: PlayerRig): void;
+  /**
+   * Flying instead of walking: a full 3-D velocity in m/s that replaces both
+   * the stick and gravity, or `null` for feet back on the ground. The Superman
+   * glove is what asks for it.
+   */
+  setFlight?(velocity: THREE.Vector3 | null): void;
   dispose?(): void;
 }
 

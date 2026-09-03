@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
 import { createSky } from '../shared/environment';
 import { TextPlane } from '../../ui/TextPlane';
+import { playTone } from '../../core/Audio';
+import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 
@@ -19,6 +21,64 @@ const POST_HEIGHT = 1.9;
 const STANDOFF = 0.14;
 
 /**
+ * The rings of a bullseye, from the middle out: how far out each one reaches
+ * as a share of the radius, and what it is worth. The same five rings the face
+ * is painted with, so what is counted is what is seen.
+ */
+const RINGS: ReadonlyArray<{ upTo: number; points: number }> = [
+  { upTo: 0.21, points: 10 },
+  { upTo: 0.4, points: 8 },
+  { upTo: 0.58, points: 6 },
+  { upTo: 0.77, points: 4 },
+  { upTo: 1, points: 2 },
+];
+
+/** A steel plate is a hit or a miss, nothing in between. */
+const PLATE_POINTS = 5;
+/** Seconds a score stays in the air, and how far it drifts up in that time. */
+const POP_TIME = 1.6;
+const POP_RISE = 0.5;
+/** More than this many at once and the oldest goes — it is a range, not a wall. */
+const MAX_POPS = 14;
+
+const _from = new THREE.Vector3();
+const _to = new THREE.Vector3();
+const _hit = new THREE.Vector3();
+const _eye = new THREE.Vector3();
+const _box = new THREE.Box3();
+const _ray = new THREE.Ray();
+const _corner = new THREE.Vector3();
+const _towards = new THREE.Vector3();
+
+/** A disc that can be scored, and how far out it stands. */
+interface ScoreTarget {
+  entry: PhysicsBody;
+  /** Radius of a bullseye, or half the width of a plate. */
+  radius: number;
+  /** Metres from the firing line, for the label on a hit. */
+  distance: number;
+  /** A steel plate counts flat; a bullseye counts by its rings. */
+  plate: boolean;
+}
+
+/** One of the two switches on the firing line. */
+interface RangeSwitch {
+  /** What a bullet is tested against. */
+  body: THREE.Mesh;
+  face: TextPlane;
+  group: THREE.Group;
+  label: string;
+  on: () => boolean;
+  toggle: () => void;
+}
+
+/** A score hanging in the air, on its way up and out. */
+interface ScorePop {
+  plane: TextPlane;
+  life: number;
+}
+
+/**
  * A shooting range: a covered firing line and targets out in the distance.
  *
  * Five lanes, bullseyes at 10, 25 and 50 m, two more at 75 and 100 m for
@@ -26,6 +86,17 @@ const STANDOFF = 0.14;
  * plates that go down when they are hit. The distance markers are readable
  * from the line — the whole point of the place is to see what a setting does
  * to a shot.
+ *
+ * Every hit is **counted**: a bullseye by the ring it lands in (10 down to 2,
+ * the same five rings the face is painted with), a steel plate flat. The score
+ * appears in the air where the round went through and a short tone rises with
+ * it — the two things that turn shooting at a disc a hundred metres away into
+ * something you can tell apart from missing it.
+ *
+ * Both can be switched off, and the switches are where they belong: two boards
+ * on the firing line that can be **shot** or picked with the **trigger**. The
+ * score and the tone are yours (and your spectators'); nobody else's range
+ * fills up with your numbers.
  *
  * Everything else is the portal lab's: the same belt, the same tools, the same
  * physics and shared session. Portals stick to the white boards beside the
@@ -49,6 +120,43 @@ export class RangeWorld extends PortalWorld {
   });
   /** The bullseye face, built once and shared by every disc. */
   private targetFace: THREE.MeshStandardMaterial | null = null;
+
+  /** Everything a shot can score on. */
+  private readonly targets: ScoreTarget[] = [];
+  private readonly switches: RangeSwitch[] = [];
+  private readonly pops: ScorePop[] = [];
+  /** Both on to start with: that is what a range is for. */
+  private sound = true;
+  private showPoints = true;
+
+  override async init(ctx: WorldContext): Promise<void> {
+    await super.init(ctx);
+    // The switches answer to the pointer as well as to a bullet: aim at one
+    // and pull, or poke it with a finger.
+    for (const entry of this.switches) {
+      ctx.pointer.add({ object: entry.body, onSelect: () => entry.toggle() });
+    }
+  }
+
+  override update(dt: number, ctx: WorldContext): void {
+    super.update(dt, ctx);
+    this.updatePops(dt, ctx);
+  }
+
+  override dispose(ctx: WorldContext): void {
+    for (const entry of this.switches) {
+      ctx.pointer.remove(entry.body);
+      entry.face.dispose();
+    }
+    this.switches.length = 0;
+    this.targets.length = 0;
+    for (const pop of this.pops) {
+      pop.plane.dispose();
+      pop.plane.removeFromParent();
+    }
+    this.pops.length = 0;
+    super.dispose(ctx);
+  }
 
   protected override spawnPoint(): THREE.Vector3 {
     // On the firing line of the middle lane, looking downrange.
@@ -111,6 +219,108 @@ export class RangeWorld extends PortalWorld {
       this.buildRail(x, 18);
       this.spawnPlate(x, 0.93, -18, `range-plate-${index++}`);
     }
+  }
+
+  // --- counting hits --------------------------------------------------------
+
+  /**
+   * A round's path since the last frame, against everything worth hitting.
+   *
+   * Both tests are done on the segment rather than on the round's current
+   * position: at 120 m/s a bullet moves two metres between two frames, and a
+   * target it went straight through would otherwise never have been touched.
+   */
+  protected override bulletTravelled(from: THREE.Vector3, to: THREE.Vector3): boolean {
+    for (const entry of this.switches) {
+      if (!segmentHitsBox(entry.body, from, to)) continue;
+      entry.toggle();
+      return true;
+    }
+
+    for (let i = this.targets.length - 1; i >= 0; i--) {
+      const target = this.targets[i]!;
+      // Somebody erased it. A hole in the air is not worth any points.
+      if (!target.entry.object.parent) {
+        this.targets.splice(i, 1);
+        continue;
+      }
+      const radial = discHit(target, from, to, _hit);
+      if (radial === null) continue;
+      // Back along the shot and a little up: a number inside the disc it
+      // belongs to is a number nobody can read.
+      _towards.copy(from).sub(to).normalize().multiplyScalar(0.3);
+      _hit.add(_towards).y += 0.3;
+      this.score(target, radial, _hit);
+      return true;
+    }
+    return false;
+  }
+
+  /** A hit, in points, in the air and in the ear. */
+  private score(target: ScoreTarget, radial: number, at: THREE.Vector3): void {
+    const points = target.plate
+      ? PLATE_POINTS
+      : (RINGS.find((ring) => radial <= ring.upTo)?.points ?? 2);
+
+    if (this.sound) {
+      // The better the hit, the higher it rings.
+      const base = 420 + points * 46;
+      playTone({ type: 'sine', from: base, to: base * 1.5, duration: 0.14, gain: 0.06 });
+    }
+    if (this.showPoints) this.popScore(points, target.distance, at);
+  }
+
+  /** The number, hanging in the air where the round went through. */
+  private popScore(points: number, distance: number, at: THREE.Vector3): void {
+    const plane = new TextPlane({
+      width: 0.5,
+      height: 0.22,
+      // One line, as large as the plane allows: at fifty metres a second line
+      // is not something anybody reads, it is something that makes the first
+      // one smaller.
+      title: `+${points} · ${Math.round(distance)} m`,
+      accent: points >= 8 ? 0x5ee0a0 : points >= 4 ? 0xffc857 : 0x9fb0d0,
+      background: 'rgba(9, 14, 26, 0.72)',
+      align: 'center',
+    });
+    plane.position.copy(at);
+    // Big enough to read from the firing line: a hundred metres is a long way,
+    // and the number has to stay the same size on the eye whatever it is.
+    plane.scale.setScalar(1 + distance * 0.085);
+    this.root.add(plane);
+    this.pops.push({ plane, life: POP_TIME });
+    // Everything has its limit, and a wall of numbers is not a scoreboard.
+    while (this.pops.length > MAX_POPS) {
+      const oldest = this.pops.shift()!;
+      oldest.plane.dispose();
+      oldest.plane.removeFromParent();
+    }
+  }
+
+  /** Every score drifts up, turns to face the eye, and fades out. */
+  private updatePops(dt: number, ctx: WorldContext): void {
+    if (this.pops.length === 0) return;
+    ctx.camera.getWorldPosition(_eye);
+    for (let i = this.pops.length - 1; i >= 0; i--) {
+      const pop = this.pops[i]!;
+      pop.life -= dt;
+      if (pop.life <= 0) {
+        pop.plane.dispose();
+        pop.plane.removeFromParent();
+        this.pops.splice(i, 1);
+        continue;
+      }
+      const left = pop.life / POP_TIME;
+      pop.plane.position.y += (POP_RISE / POP_TIME) * dt;
+      pop.plane.lookAt(_eye);
+      // It only starts fading in the last third — a number that goes pale at
+      // once cannot be read at all.
+      pop.plane.material.opacity = Math.min(1, left * 3);
+    }
+  }
+
+  private notifySwitch(entry: RangeSwitch): void {
+    this.context?.notify(`${entry.label}: ${entry.on() ? 'an' : 'aus'}`);
   }
 
   // --- the place ------------------------------------------------------------
@@ -178,6 +388,78 @@ export class RangeWorld extends PortalWorld {
     sign.position.set(0, 2.6, 4.82);
     sign.rotation.y = Math.PI;
     parent.add(sign);
+
+    // The two switches, one to each side of the middle lane, facing the line.
+    // They stand head high: a lane divider is 1.4 m, and a board behind one is
+    // a board nobody can hit.
+    this.buildSwitch(
+      parent,
+      -2.4,
+      'Ton',
+      () => this.sound,
+      () => {
+        this.sound = !this.sound;
+      },
+    );
+    this.buildSwitch(
+      parent,
+      2.4,
+      'Punkte',
+      () => this.showPoints,
+      () => {
+        this.showPoints = !this.showPoints;
+      },
+    );
+  }
+
+  /**
+   * One switch on a post: a board with its state written on it, and a solid
+   * plate behind it that a bullet can be tested against. It answers to the
+   * pointer as well, so it works whether you shoot it or point and pull.
+   */
+  private buildSwitch(
+    parent: THREE.Object3D,
+    x: number,
+    label: string,
+    on: () => boolean,
+    flip: () => void,
+  ): void {
+    const height = 1.95;
+    const group = new THREE.Group();
+    group.name = `range-switch-${label}`;
+    group.position.set(x, height, 0.4);
+    parent.add(group);
+
+    this.slab(group, this.steel, [0.08, height, 0.08], [0, -height / 2, 0], false);
+    // Its own material: the board changes colour with its state, and the rest
+    // of the range's steel must not change with it.
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.44, 0.06), this.steel.clone());
+    group.add(body);
+    body.updateWorldMatrix(true, false);
+    // Solid, so a round that switches it also bounces off it.
+    this.physics!.addStatic(body);
+
+    const face = new TextPlane({ width: 0.58, height: 0.4, title: '', accent: 0x5ee0a0 });
+    face.position.set(0, 0, 0.035);
+    group.add(face);
+
+    const entry: RangeSwitch = { body, face, group, label, on, toggle: () => undefined };
+    entry.toggle = () => {
+      flip();
+      this.drawSwitch(entry);
+      playTone({ type: 'square', from: on() ? 520 : 780, to: on() ? 880 : 420, duration: 0.1, gain: 0.05 });
+      this.notifySwitch(entry);
+    };
+    this.switches.push(entry);
+    this.drawSwitch(entry);
+  }
+
+  /** What the board says right now, and what colour it says it in. */
+  private drawSwitch(entry: RangeSwitch): void {
+    entry.face.setText(`${entry.label}: ${entry.on() ? 'an' : 'aus'}`, 'Anschießen oder Trigger');
+    (entry.body.material as THREE.MeshStandardMaterial).color.setHex(
+      entry.on() ? 0x4f8f6a : 0x6d7385,
+    );
   }
 
   /** The distance markers along the left-hand side. */
@@ -232,6 +514,7 @@ export class RangeWorld extends PortalWorld {
       { x: 1, y: 0, z: 0 },
     );
     physics.world.createImpulseJoint(data, post.body, entry.body, true);
+    this.targets.push({ entry, radius, distance, plate: false });
   }
 
   /** The rail a steel plate rests on. */
@@ -286,14 +569,13 @@ export class RangeWorld extends PortalWorld {
     this.root.add(plate);
     plate.updateWorldMatrix(true, false);
 
-    this.registerProp(
-      this.physics!.addDynamic(plate, {
-        mass: 4,
-        friction: 0.8,
-        restitution: 0.05,
-      }),
-      id,
-    );
+    const entry = this.physics!.addDynamic(plate, {
+      mass: 4,
+      friction: 0.8,
+      restitution: 0.05,
+    });
+    this.registerProp(entry, id);
+    this.targets.push({ entry, radius: 0.22, distance: -z, plate: true });
   }
 
   /** The painted face of a target, drawn once and shared. */
@@ -331,4 +613,64 @@ export class RangeWorld extends PortalWorld {
     this.targetFace = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.8 });
     return this.targetFace;
   }
+}
+
+/**
+ * Where a segment goes through a target's face, in the target's own space.
+ *
+ * A bullseye is a cylinder standing on its local Y, so its face is the plane
+ * `y = 0` and a hit is a radius. A steel plate is a box whose face looks along
+ * its local Z, and there a hit is simply inside the square.
+ *
+ * @returns how far out the hit is, 0 in the middle and 1 at the rim — or null
+ *          when the segment misses. The world point lands in `out`.
+ */
+function discHit(
+  target: ScoreTarget,
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  out: THREE.Vector3,
+): number | null {
+  const object = target.entry.object;
+  object.updateWorldMatrix(true, false);
+  object.worldToLocal(_from.copy(from));
+  object.worldToLocal(_to.copy(to));
+
+  const along = target.plate ? 'z' : 'y';
+  const start = _from[along];
+  const end = _to[along];
+  const span = end - start;
+  // Parallel to the face: it may pass beside it, it cannot go through it.
+  if (Math.abs(span) < 1e-6) return null;
+  const t = -start / span;
+  if (t < 0 || t > 1) return null;
+
+  const x = _from.x + (_to.x - _from.x) * t;
+  const y = _from.y + (_to.y - _from.y) * t;
+  const z = _from.z + (_to.z - _from.z) * t;
+
+  let radial: number;
+  if (target.plate) {
+    if (Math.abs(x) > target.radius || Math.abs(y) > target.radius) return null;
+    radial = 0;
+  } else {
+    radial = Math.hypot(x, z) / target.radius;
+    if (radial > 1) return null;
+  }
+
+  out.set(x, y, z);
+  object.localToWorld(out);
+  return radial;
+}
+
+/** True when the segment runs into an object's box — used for the switches. */
+function segmentHitsBox(object: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3): boolean {
+  _box.setFromObject(object);
+  if (_box.isEmpty()) return false;
+  if (_box.containsPoint(from)) return true;
+  _to.copy(to).sub(from);
+  const length = _to.length();
+  if (length < 1e-6) return false;
+  _ray.set(from, _to.divideScalar(length));
+  return _ray.intersectBox(_box, _corner) !== null && from.distanceTo(_corner) <= length;
 }

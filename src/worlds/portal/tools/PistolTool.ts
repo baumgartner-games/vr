@@ -17,6 +17,8 @@ import {
   nextPower,
   nextStep,
   powerLabel,
+  sightsLabel,
+  toggleSight,
   type AmmoKind,
   type FireMode,
   type SightKind,
@@ -37,9 +39,11 @@ const _axisX = new THREE.Vector3(1, 0, 0);
  * Every number it runs on — the weight of a round, how fast it leaves the
  * barrel, how many are in the magazine, how long a reload takes — is a setting
  * (`weaponSettings.ts`), and every one of them can be stepped through a few
- * sensible notches *or* typed in directly. On top of that goes one aiming aid
- * at a time (`attachments.ts`) and a choice of round: plain, or tracer, which
- * draws its own line through the room.
+ * sensible notches *or* typed in directly.
+ *
+ * On top of that go the aiming aids (`attachments.ts`) — as many at once as
+ * you like, because a red dot and a trajectory line are not rivals — and a
+ * choice of round: plain, or tracer, which draws its own line through the room.
  *
  * There is no ammunition to pick up anywhere, so the counter on the side of the
  * magazine reads "rounds left / ∞".
@@ -54,8 +58,8 @@ export class PistolTool extends Tool {
   private readonly counter: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly canvas: HTMLCanvasElement;
   private readonly texture: THREE.CanvasTexture;
-  /** The aiming aid currently clipped on, if any. */
-  private sight: Attachment | null = null;
+  /** The aiming aids currently clipped on, by their kind. */
+  private readonly sights = new Map<SightKind, Attachment>();
   private settings: WeaponSettings;
   private rounds: number;
   private reloading = 0;
@@ -134,7 +138,7 @@ export class PistolTool extends Tool {
     this.rail.name = 'pistol-rail';
     this.add(this.rail);
 
-    this.mountSight(this.settings.sight);
+    this.mountSights(this.settings.sights);
     this.draw();
   }
 
@@ -176,11 +180,15 @@ export class PistolTool extends Tool {
       this.quaternion.multiply(_kick.setFromAxisAngle(_axisX, this.recoil * 0.18));
     }
 
-    if (this.sight) this.sight.update(dt, this.attachmentContext(host));
+    if (this.sights.size > 0) {
+      const ctx = this.attachmentContext(host);
+      for (const sight of this.sights.values()) sight.update(dt, ctx);
+    }
   }
 
   override disposeTool(): void {
-    this.sight?.disposeAttachment();
+    for (const sight of this.sights.values()) sight.disposeAttachment();
+    this.sights.clear();
     disposeToolTree(this);
     this.texture.dispose();
   }
@@ -193,7 +201,7 @@ export class PistolTool extends Tool {
   }
 
   override attachments(): readonly Attachment[] {
-    return this.sight ? [this.sight] : [];
+    return [...this.sights.values()];
   }
 
   /** Muzzle velocity in m/s. */
@@ -236,7 +244,7 @@ export class PistolTool extends Tool {
     // "30/∞" with 12 rounds' worth of ammunition in it either.
     this.rounds = Math.min(this.rounds, this.settings.magazine);
     if (this.settings.mode !== 'burst') this.burst = 0;
-    if (this.settings.sight !== before.sight) this.mountSight(this.settings.sight);
+    if (this.settings.sights.join() !== before.sights.join()) this.mountSights(this.settings.sights);
     this.draw();
     return this.settings;
   }
@@ -245,7 +253,7 @@ export class PistolTool extends Tool {
   reloadSettings(): void {
     this.settings = weaponSettings();
     this.rounds = Math.min(this.rounds, this.settings.magazine);
-    this.mountSight(this.settings.sight);
+    this.mountSights(this.settings.sights);
     this.draw();
   }
 
@@ -281,6 +289,16 @@ export class PistolTool extends Tool {
 
   cycleAmmo(): AmmoKind {
     return this.set({ ammo: nextIn(AMMO_KINDS, this.settings.ammo) }).ammo;
+  }
+
+  /** Clips one aiming aid on or takes it off; `none` clears the rail. */
+  toggleSight(kind: SightKind): readonly SightKind[] {
+    return this.set({ sights: toggleSight(this.settings.sights, kind) }).sights;
+  }
+
+  /** What the menu writes next to "Zielhilfen". */
+  get sightsLabel(): string {
+    return sightsLabel(this.settings.sights);
   }
 
   /** Puts a magazine in by hand, whatever is left in the old one. */
@@ -325,18 +343,27 @@ export class PistolTool extends Tool {
     this.draw();
   }
 
-  /** Clips an aiming aid on, or takes the last one off. */
-  private mountSight(kind: SightKind): void {
-    if (this.sight) {
-      this.sight.disposeAttachment();
-      this.sight.removeFromParent();
-      this.sight = null;
+  /**
+   * Brings the rail in line with the settings: whatever is asked for and not
+   * yet mounted is built, whatever is mounted and no longer wanted comes off.
+   * Anything already on stays exactly where it is — rebuilding a red dot that
+   * nobody touched would throw its pose away for a frame.
+   */
+  private mountSights(kinds: readonly SightKind[]): void {
+    for (const [kind, sight] of this.sights) {
+      if (kinds.includes(kind)) continue;
+      sight.disposeAttachment();
+      sight.removeFromParent();
+      this.sights.delete(kind);
     }
-    const sight = createSight(kind);
-    if (!sight) return;
-    sight.applyStoredPose(this.toolId);
-    this.rail.add(sight);
-    this.sight = sight;
+    for (const kind of kinds) {
+      if (this.sights.has(kind)) continue;
+      const sight = createSight(kind);
+      if (!sight) continue;
+      sight.applyStoredPose(this.toolId);
+      this.rail.add(sight);
+      this.sights.set(kind, sight);
+    }
   }
 
   private attachmentContext(host: ToolHost): AttachmentContext {

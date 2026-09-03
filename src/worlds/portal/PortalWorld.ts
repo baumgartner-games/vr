@@ -123,11 +123,6 @@ const SIGHT_ICONS: Record<SightKind, MenuIcon> = {
   xray: 'xray',
 };
 
-/** What the row above the grid says the gun is wearing. */
-function sightLabel(kind: SightKind): string {
-  return SIGHTS.find((sight) => sight.id === kind)?.label ?? kind;
-}
-
 /** Two decimals is as fine as any of these settings needs to read. */
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -222,6 +217,10 @@ interface Bullet {
   life: number;
   /** Tracer rounds drag a streak behind them; plain ones do not. */
   trail: Trail | null;
+  /** Where it was last frame — the segment a hit is looked for along. */
+  from: THREE.Vector3;
+  /** Already counted somewhere. A round only ever hits once. */
+  spent: boolean;
 }
 
 /** The streak behind a tracer: the last few places it has been. */
@@ -331,7 +330,7 @@ export class PortalWorld implements World {
   protected physics: PhysicsWorld | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
-  private context: WorldContext | null = null;
+  protected context: WorldContext | null = null;
   private portalRenderer: PortalRenderer | null = null;
   private ghosts: PortalGhosts | null = null;
   private clippingWasEnabled = false;
@@ -683,8 +682,8 @@ export class PortalWorld implements World {
   private sightMenu(pistol: PistolTool): MenuEntry {
     const entry: MenuEntry = {
       id: 'setting:pistol-sight',
-      label: `Zielhilfe: ${sightLabel(pistol.weapon.sight)}`,
-      sub: 'Rotpunkt, Kimme & Korn, Flugbahn, Röntgen',
+      label: `Zielhilfen: ${pistol.sightsLabel}`,
+      sub: 'Mehrere gleichzeitig · Alles ab räumt die Schiene',
       icon: 'reddot',
       accent: 0xd7dce8,
       grid: true,
@@ -696,24 +695,34 @@ export class PortalWorld implements World {
         label: sight.label,
         caption: sight.caption,
         icon: SIGHT_ICONS[sight.id],
-        accent: pistol.weapon.sight === sight.id ? 0x5ee0a0 : 0xd7dce8,
-        selected: pistol.weapon.sight === sight.id,
+        accent: 0xd7dce8,
         run: () => {
-          pistol.set({ sight: sight.id });
-          for (const child of entry.children ?? []) {
-            const id = child.id.slice('sight:'.length);
-            child.selected = id === sight.id;
-            child.accent = child.selected ? 0x5ee0a0 : 0xd7dce8;
-          }
+          const mounted = pistol.toggleSight(sight.id);
+          this.markSights(entry, mounted);
           this.refreshMenuLabels();
-          this.context?.notify(sight.caption);
+          this.context?.notify(
+            sight.id === 'none'
+              ? 'Schiene frei'
+              : `${sight.label}: ${mounted.includes(sight.id) ? 'dran' : 'ab'}`,
+          );
         },
       })),
     };
+    this.markSights(entry, pistol.weapon.sights);
     this.menuLabels.push(() => {
-      entry.label = `Zielhilfe: ${sightLabel(pistol.weapon.sight)}`;
+      entry.label = `Zielhilfen: ${pistol.sightsLabel}`;
+      this.markSights(entry, pistol.weapon.sights);
     });
     return entry;
+  }
+
+  /** Ticks the cells of the aids that are actually on the gun. */
+  private markSights(entry: MenuEntry, mounted: readonly SightKind[]): void {
+    for (const child of entry.children ?? []) {
+      const id = child.id.slice('sight:'.length) as SightKind;
+      child.selected = id === 'none' ? mounted.length === 0 : mounted.includes(id);
+      child.accent = child.selected ? 0x5ee0a0 : 0xd7dce8;
+    }
   }
 
   /** Normal rounds or tracer. */
@@ -1141,6 +1150,7 @@ export class PortalWorld implements World {
     ctx.hands.setHeldTool('right', null);
 
     for (const tool of this.tools.values()) {
+      if (tool instanceof DroneTool) tool.forgetPointer(ctx.pointer);
       tool.removeFromParent();
       tool.disposeTool();
     }
@@ -1709,6 +1719,7 @@ export class PortalWorld implements World {
         // again is one frame of the character controller away.
         if (velocity.lengthSq() > 0) locomotion.grounded = false;
       },
+      setFlight: (velocity) => this.locomotion?.setFlight?.(velocity),
       setViewOverride: (position) => this.setViewOverride(position),
       heldTool: (hand) => this.held.get(hand) ?? null,
       parkTool: (tool) => this.parkTool(tool),
@@ -1888,6 +1899,9 @@ export class PortalWorld implements World {
       if (!this.viewOverride) {
         this.bodyHome.copy(ctx.rig.position);
         this.viewOverride = new THREE.Vector3();
+        // The body stays standing where it was — and, for as long as the view
+        // is away, it is drawn for its owner, so you can look back at yourself.
+        ctx.avatar.leaveBehind(ctx.rig.getHeadMatrix(_matrix));
       }
       this.viewOverride.copy(position);
       ctx.rig.frozen = true;
@@ -1896,6 +1910,7 @@ export class PortalWorld implements World {
 
     if (!this.viewOverride) return;
     this.viewOverride = null;
+    ctx.avatar.comeBack();
     ctx.rig.frozen = false;
     ctx.rig.position.copy(this.bodyHome);
     ctx.rig.updateMatrixWorld(true);
@@ -1951,7 +1966,13 @@ export class PortalWorld implements World {
     });
     _velocity.copy(direction).multiplyScalar(speed);
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
-    this.bullets.push({ entry, life: BULLET_LIFETIME, trail: tracer ? this.newTrail() : null });
+    this.bullets.push({
+      entry,
+      life: BULLET_LIFETIME,
+      trail: tracer ? this.newTrail() : null,
+      from: mesh.position.clone(),
+      spent: false,
+    });
   }
 
   /**
@@ -2011,12 +2032,29 @@ export class PortalWorld implements World {
       bullet.life -= dt;
       const t = bullet.entry.body.translation();
       if (bullet.trail) this.extendTrail(bullet.trail, t);
+      // A round travels metres between two frames, so what it passed through
+      // is a line, not a point. Worlds that count hits get that line.
+      if (!bullet.spent) {
+        _point.set(t.x, t.y, t.z);
+        if (this.bulletTravelled(bullet.from, _point)) bullet.spent = true;
+      }
+      bullet.from.set(t.x, t.y, t.z);
       if (bullet.life > 0 && t.y > -30) continue;
       this.bullets.splice(i, 1);
       physics.remove(bullet.entry);
       this.dropTrail(bullet.trail);
       disposeTree(bullet.entry.object);
     }
+  }
+
+  /**
+   * One round's path since the last frame. The lab does not care where its
+   * bullets go; the shooting range counts them, so it overrides this.
+   *
+   * @returns true when the round was used up by whatever it ran into
+   */
+  protected bulletTravelled(_from: THREE.Vector3, _to: THREE.Vector3): boolean {
+    return false;
   }
 
   private clearBullets(): void {

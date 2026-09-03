@@ -6,9 +6,9 @@
  * settings over and wants the same thing for the other hand.
  *
  * ```bash
- * npm run config -- decode BGVR1…        # the settings behind a code
- * npm run config -- encode config.json   # a code from a file
- * npm run config -- mirror BGVR1… left   # left hand's poses onto the right
+ * npm run config -- decode BG2…        # the settings behind a code
+ * npm run config -- encode config.json # a code from a file
+ * npm run config -- mirror BG2… left   # left hand's poses onto the right
  * ```
  *
  * Node runs the TypeScript directly (22.6+ strips the types), so there is no
@@ -16,31 +16,25 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { decode, encode } from '../src/core/configCode.ts';
+import { packCode, unpackCode } from '../src/core/configCode.ts';
+import { readGear, writeGear, type GearData } from '../src/worlds/portal/tools/gearCodec.ts';
 import { handPoseFromArray, handPoseToArray, mirrorHandPose } from '../src/core/handPose.ts';
 
 const [command, ...rest] = process.argv.slice(2);
-
-/** The shape the game writes; only what this script touches is spelled out. */
-interface Config {
-  hands?: {
-    idle?: Record<string, number[]>;
-    hold?: Record<string, Record<string, number[]>>;
-  };
-}
 
 function usage(): never {
   console.error('Aufrufe:\n  decode <code>\n  encode <datei.json>\n  mirror <code> left|right');
   process.exit(1);
 }
 
-function read(code: string): Config {
-  const value = decode(code);
-  if (!value || typeof value !== 'object') {
-    console.error('Kein gültiger Konfig-Code (beginnt er mit BGVR1?)');
+function read(code: string): GearData {
+  const payload = unpackCode(code);
+  const data = payload ? readGear(payload) : null;
+  if (!data) {
+    console.error('Kein gültiger Konfig-Code (beginnt er mit BG2?)');
     process.exit(2);
   }
-  return value as Config;
+  return data;
 }
 
 switch (command) {
@@ -54,12 +48,10 @@ switch (command) {
   case 'encode': {
     const file = rest[0];
     if (!file) usage();
-    const value = JSON.parse(readFileSync(file, 'utf8')) as unknown;
-    const code = encode(value);
+    const value = JSON.parse(readFileSync(file, 'utf8')) as GearData;
+    const code = packCode(writeGear(value));
     console.log(code);
-    console.error(
-      `${JSON.stringify(value).length} Zeichen JSON → ${code.length} Zeichen Code`,
-    );
+    console.error(`${JSON.stringify(value).length} Zeichen JSON → ${code.length} Zeichen Code`);
     break;
   }
 
@@ -69,7 +61,7 @@ switch (command) {
     if (!code || (from !== 'left' && from !== 'right')) usage();
     const to = from === 'left' ? 'right' : 'left';
     const config = read(code);
-    const hands = (config.hands ??= {});
+    const hands = config.hands;
 
     const idle = hands.idle?.[from];
     if (idle) {
@@ -84,7 +76,7 @@ switch (command) {
       hands.hold = { ...hands.hold, [to]: { ...hands.hold?.[to], ...mirrored } };
     }
 
-    console.log(encode(config));
+    console.log(packCode(writeGear(config)));
     console.error(`${from} → ${to} gespiegelt`);
     break;
   }

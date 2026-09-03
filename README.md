@@ -70,7 +70,7 @@ eine kopierbare Zeile (`BGVR1…`) — in VR unter *Einstellungen → Konfig-Cod
 am Rechner über die Kommandozeile:
 
 ```bash
-npm run config -- decode BGVR1…        # zeigt die Einstellungen als JSON
+npm run config -- decode BG2…          # zeigt die Einstellungen als JSON
 npm run config -- encode config.json   # macht wieder einen Code daraus
-npm run config -- mirror BGVR1… left   # linke Handhaltungen nach rechts
+npm run config -- mirror BG2… left     # linke Handhaltungen nach rechts
 ```

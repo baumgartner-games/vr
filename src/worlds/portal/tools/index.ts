@@ -5,6 +5,7 @@ import { EraserTool } from './EraserTool';
 import { GrappleTool } from './GrappleTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
+import { SupermanGloveTool } from './SupermanGloveTool';
 import { StopwatchTool } from './StopwatchTool';
 import { TapeTool } from './TapeTool';
 import { TransformTool } from './TransformTool';
@@ -27,6 +28,7 @@ export const TOOL_IDS = [
   'grapple',
   'gravity-glove',
   'translate-glove',
+  'superman-glove',
   'welder',
   'xray',
   'drone',
@@ -68,6 +70,8 @@ function buildTool(id: string): Tool | null {
       return new GravityGloveTool();
     case 'translate-glove':
       return new TranslateGloveTool();
+    case 'superman-glove':
+      return new SupermanGloveTool();
     case 'welder':
       return new WelderTool();
     case 'xray':
@@ -94,6 +98,7 @@ export {
   GravityGloveTool,
   PistolTool,
   StopwatchTool,
+  SupermanGloveTool,
   TapeTool,
   TransformTool,
   TranslateGloveTool,
@@ -135,13 +140,17 @@ export {
   RATE_STEPS,
   RELOAD_STEPS,
   SIGHTS,
+  SIGHT_KINDS,
   SPEED_STEPS,
   WEAPON_FIELDS,
   clampField,
   clampWeapon,
   nextIn,
   nextStep,
+  normalizeSights,
   powerLabel,
+  sightsLabel,
+  toggleSight,
   type AmmoKind,
   type FireMode,
   type SightKind,
@@ -153,10 +162,21 @@ export {
   attachmentPose,
   attachmentPoseCount,
   clearAttachmentPoses,
+  droneSettings,
   onGearChange,
   saveAttachmentPose,
+  saveDroneSettings,
   weaponSettings,
 } from './gearStore';
+export {
+  DEFAULT_DRONE,
+  DRONE_PROFILES,
+  clampDrone,
+  droneProfileLabel,
+  type DroneProfile,
+  type DroneSettings,
+} from './droneSettings';
+export { readGear, writeGear, type GearData } from './gearCodec';
 export {
   applyGearConfig,
   clearGearConfig,
