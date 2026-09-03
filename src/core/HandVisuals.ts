@@ -141,6 +141,17 @@ export class HandVisuals extends THREE.Group {
     this.overrides.set(handedness, gesture);
   }
 
+  /**
+   * The object that visually *is* this hand: the procedural one for controllers,
+   * the joint tree for tracked hands. Portals need it to draw the half that
+   * sticks out on the other side.
+   */
+  handObject(controller: ControllerState): THREE.Object3D | null {
+    if (controller.isHand) return controller.hand.visible ? controller.hand : null;
+    const hand = this.hands.get(controller);
+    return hand?.visible ? hand : null;
+  }
+
   /** Current gesture of a controller hand, or null for tracked hands. */
   gestureOf(controller: ControllerState): HandGesture | null {
     if (controller.isHand || !controller.handedness) return null;
