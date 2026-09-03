@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { aimRotation } from './aim';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
@@ -39,6 +40,37 @@ export interface ToolHost {
   paintProp(entry: PhysicsBody, color: number): void;
   /** Marks a prop as picked out, so the world can leave its glow alone. */
   setSelection(entries: readonly PhysicsBody[]): void;
+  /** Reels a prop in to a hand, exactly like the remote grab does. */
+  pullProp(entry: PhysicsBody, hand: Handedness): void;
+  /** Shoves a prop away along a direction. */
+  pushProp(entry: PhysicsBody, direction: THREE.Vector3, strength: number): void;
+  /** Deletes a prop, for everybody in the session. */
+  removeProp(entry: PhysicsBody): void;
+  /** Ties two props together; `hinge` leaves one axis free. */
+  weld(link: WeldRequest): boolean;
+  /** Cuts every joint this prop is part of. Returns how many were cut. */
+  unweld(entry: PhysicsBody): number;
+  /** Throws the player's body along a velocity — the grappling hook reels. */
+  launchPlayer(velocity: THREE.Vector3): void;
+  /**
+   * Takes the view away from the body and puts it at a point in the world —
+   * the drone flies with it. `null` gives the player their body back.
+   */
+  setViewOverride(position: THREE.Vector3 | null): void;
+}
+
+/** Two props, the points the joint sits between them, and what kind it is. */
+export interface WeldRequest {
+  a: PhysicsBody;
+  b: PhysicsBody;
+  /** World point on `a` the joint is anchored at. */
+  pointA: THREE.Vector3;
+  /** World point on `b`. */
+  pointB: THREE.Vector3;
+  /** A hinge instead of a rigid joint. */
+  hinge: boolean;
+  /** World axis the hinge turns around; ignored for rigid joints. */
+  axis: THREE.Vector3;
 }
 
 /**
@@ -58,11 +90,27 @@ export abstract class Tool extends THREE.Group {
   hint = '';
   sticky = false;
 
+  /**
+   * Turn the tool out of the grip and onto the pointing ray while it is held.
+   * On by default: everything that aims at something wants this, and a tool
+   * that forgets it shoots about 30° over the target. Switch it off only for
+   * something that is deliberately strapped to the hand.
+   */
+  alignToAim = true;
+  /**
+   * While this tool is held, that hand stops shoving props around. The welder
+   * needs it: reaching into a stack to pick a joint point must not scatter it.
+   */
+  phaseHands = false;
+
   /** The hand currently holding this, or null while it is stowed. */
   heldBy: Handedness | null = null;
 
   /** Pose inside the hand's grip space. */
   readonly holdPosition = new THREE.Vector3(0, -0.012, 0.03);
+
+  /** Extra tilt on top of the aim, for tools that are not held like a pistol. */
+  readonly holdRotation = new THREE.Quaternion();
 
   /** Taken into a hand. */
   onTake(_controller: ControllerState, _host: ToolHost): void {}
@@ -78,6 +126,27 @@ export abstract class Tool extends THREE.Group {
 
   /** Grab went down while a sticky tool is held — never for the others. */
   onGrab(_controller: ControllerState, _host: ToolHost): void {}
+
+  /** The A/X button of the holding hand. */
+  onPrimary(_controller: ControllerState, _host: ToolHost): void {}
+
+  /**
+   * Puts the tool into the hand so that its -Z runs along the pointing ray
+   * instead of along the grip. The world calls this every frame before
+   * `update`, so a tool never has to think about it — and a new tool cannot
+   * forget it.
+   */
+  applyAim(controller: ControllerState | null): void {
+    // A stowed tool belongs to the belt, which sets its pose.
+    if (!this.alignToAim || !this.heldBy) return;
+    if (!controller || !controller.grip.visible) {
+      // Hanging in the target ray already: that *is* the aim.
+      this.quaternion.copy(this.holdRotation);
+      return;
+    }
+    aimRotation(controller.grip.quaternion, controller.targetRay.quaternion, this.quaternion);
+    this.quaternion.multiply(this.holdRotation);
+  }
 
   /** @param controller the hand holding it, or null while it is stowed. */
   update(_dt: number, _host: ToolHost, _controller: ControllerState | null): void {}

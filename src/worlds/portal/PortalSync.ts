@@ -50,6 +50,8 @@ type Message =
   | { t: 'move'; items: Array<[string, ...Pose7]> }
   | { t: 'portal'; key: PortalKey; state: PortalState | null }
   | { t: 'spawn'; id: string; kind: PropKind; pose: Pose7 }
+  /** Somebody rubbed a prop out; it goes on every machine. */
+  | { t: 'despawn'; id: string }
   /** Claim or hand back a prop. `vel` carries the throw when it is handed back. */
   | { t: 'own'; id: string; owner: string | null; vel?: [number, number, number] }
   | { t: 'reset' }
@@ -68,6 +70,8 @@ export interface PortalSyncOptions {
   dropLocal(id: string): void;
   /** Conjure a prop that another player pulled out of their bag. */
   spawnRemote(id: string, kind: PropKind, pose: Pose7): void;
+  /** Somebody else deleted a prop. */
+  despawnRemote(id: string): void;
   /** Move (or clear, with `null`) a portal because somebody else shot it. */
   applyPortal(key: PortalKey, state: PortalState | null): void;
   portalState(key: PortalKey): PortalState | null;
@@ -202,6 +206,14 @@ export class PortalSync {
   spawned(id: string, kind: PropKind, pose: Pose7): void {
     if (this.alone) return;
     this.send({ t: 'spawn', id, kind, pose });
+  }
+
+  /** A prop was erased here — everybody else drops it too. */
+  despawned(id: string): void {
+    this.forget(id);
+    this.owners.delete(id);
+    if (this.alone) return;
+    this.send({ t: 'despawn', id });
   }
 
   resetShared(): void {
@@ -377,6 +389,12 @@ export class PortalSync {
           this.options.spawnRemote(message.id, message.kind, message.pose);
           this.setFollow(message.id, message.pose);
         }
+        break;
+      }
+      case 'despawn': {
+        this.forget(message.id);
+        this.owners.delete(message.id);
+        this.options.despawnRemote(message.id);
         break;
       }
       case 'own': {

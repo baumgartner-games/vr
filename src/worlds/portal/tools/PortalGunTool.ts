@@ -64,17 +64,9 @@ export class PortalGunTool extends Tool {
     if (this.grabKey) this.shoot(this.grabKey, controller, host);
   }
 
-  override update(dt: number, _host: ToolHost, controller: ControllerState | null): void {
-    // The grip axis is tilted against the pointing ray; aiming along the ray is
-    // what makes a shot land where the player is actually looking.
-    if (controller && this.gun.parent === this && controller.grip.visible) {
-      this.quaternion
-        .copy(controller.grip.quaternion)
-        .invert()
-        .multiply(controller.targetRay.quaternion);
-    } else if (!this.heldBy) {
-      this.quaternion.identity();
-    }
+  override update(dt: number, _host: ToolHost, _controller: ControllerState | null): void {
+    // Aiming along the pointing ray instead of the grip is the base class's
+    // job now (`Tool.applyAim`) — every tool gets it, not just this one.
     this.gun.update(dt);
   }
 

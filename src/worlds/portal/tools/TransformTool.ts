@@ -144,7 +144,7 @@ export class TransformTool extends Tool {
   }
 
   /** `A` switches between picking objects and editing them. */
-  primary(host: ToolHost): void {
+  override onPrimary(_controller: ControllerState, host: ToolHost): void {
     if (this.editing) {
       this.leaveEdit(host);
       host.notify('Auswahl-Modus');

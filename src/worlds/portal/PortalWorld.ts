@@ -16,13 +16,14 @@ import { ToolBelt } from './ToolBelt';
 import {
   COLOR_BLUE,
   COLOR_RED,
+  DroneTool,
   PortalGunTool,
   TOOL_IDS,
   Tool,
-  TransformTool,
   createTool,
   type ToolHost,
   type SurfaceHit,
+  type WeldRequest,
 } from './tools';
 import {
   createCompanionCube,
@@ -104,6 +105,9 @@ const _carryB = new THREE.Vector3();
 const _carried: THREE.Vector3[] = [];
 const _otherHand = new THREE.Vector3();
 const _thisHand = new THREE.Vector3();
+const _localOrigin = new THREE.Vector3();
+const _rotationB = new THREE.Quaternion();
+const _localRotation = new THREE.Quaternion();
 
 /** What the magic bag offers, in the order the grid shows it. */
 const BAG_ITEMS: Array<[PropKind, string, MenuIcon]> = [
@@ -143,6 +147,12 @@ interface Flight {
   time: number;
   duration: number;
   from: THREE.Vector3;
+  /**
+   * Pulled by a tool instead of by the bare hand. That hand is not going to
+   * catch anything — it is holding the tool — so the pull lives as long as the
+   * tool does and hands the prop to the free hand at the end.
+   */
+  viaTool: boolean;
 }
 
 /** A bullet in flight, with the time left before it is cleaned up. */
@@ -157,6 +167,13 @@ interface RemotePlayer {
   capsule: PhysicsBody;
   hands: [PhysicsBody, PhysicsBody];
   handObjects: [THREE.Object3D, THREE.Object3D];
+}
+
+/** A joint the welder made, with the two props it holds together. */
+interface WeldJoint {
+  joint: import('@dimforge/rapier3d-compat').ImpulseJoint;
+  a: PhysicsBody;
+  b: PhysicsBody;
 }
 
 interface HandGrab {
@@ -175,12 +192,15 @@ interface HandGrab {
  * shoots blue, the right one red.
  */
 export class PortalWorld implements World {
-  private readonly root = new THREE.Group();
+  protected readonly root = new THREE.Group();
   private readonly portalBlue = new Portal('a', COLOR_BLUE);
   private readonly portalRed = new Portal('b', COLOR_RED);
   private readonly raycaster = new THREE.Raycaster();
-  private readonly surfaces: THREE.Object3D[] = [];
-  private readonly props: PhysicsBody[] = [];
+  /** Surfaces a portal may stick to. */
+  protected readonly surfaces: THREE.Object3D[] = [];
+  /** Every solid piece of the room — what the grapple and the tape hit. */
+  protected readonly solids: THREE.Object3D[] = [];
+  protected readonly props: PhysicsBody[] = [];
   private readonly spawns = new Map<PhysicsBody, THREE.Matrix4>();
   /** Everything that has been built so far, by tool id. */
   private readonly tools = new Map<string, Tool>();
@@ -196,7 +216,7 @@ export class PortalWorld implements World {
   private readonly flights = new Map<PhysicsBody, Flight>();
   private readonly links = new Map<Handedness, RemoteLink>();
   private readonly ropes = new Map<Handedness, THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>>();
-  private readonly surfaceGroups = new Map<THREE.Object3D, number>();
+  protected readonly surfaceGroups = new Map<THREE.Object3D, number>();
   /** Shared id of every prop, in both directions. */
   private readonly bodies = new Map<string, PhysicsBody>();
   private readonly ids = new Map<PhysicsBody, string>();
@@ -218,6 +238,11 @@ export class PortalWorld implements World {
   private timeScale = 1;
   private highlighted = new Set<PhysicsBody>();
   private locked = new Set<PhysicsBody>();
+  /** Joints the welder tied, so they can be cut again. */
+  private readonly joints: WeldJoint[] = [];
+  /** Where the view sits while a drone is flown, and the pose to come back to. */
+  private viewOverride: THREE.Vector3 | null = null;
+  private readonly bodyHome = new THREE.Vector3();
   private reopenBag = false;
   private readonly previousHead = new THREE.Vector3();
 
@@ -225,7 +250,7 @@ export class PortalWorld implements World {
   private readonly homes = new Map<Tool, Handedness>();
   private belt: ToolBelt | null = null;
   private host: ToolHost | null = null;
-  private physics: PhysicsWorld | null = null;
+  protected physics: PhysicsWorld | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   private context: WorldContext | null = null;
@@ -243,13 +268,12 @@ export class PortalWorld implements World {
     this.context = ctx;
     this.root.name = 'portal-world';
     ctx.scene.add(this.root);
-    ctx.scene.background = new THREE.Color(0x0a0f18);
+    ctx.scene.background = new THREE.Color(this.skyColor());
     ctx.scene.fog = null;
-    this.root.add(createLighting(0.6));
+    this.root.add(createLighting(this.lightIntensity()));
 
     this.physics = await PhysicsWorld.create();
-    this.buildChamber();
-    this.buildProps();
+    this.buildEnvironment();
     this.sync = this.createSync(ctx);
 
     this.portalBlue.link = this.portalRed;
@@ -262,7 +286,7 @@ export class PortalWorld implements World {
     this.clippingWasEnabled = ctx.renderer.localClippingEnabled;
     ctx.renderer.localClippingEnabled = true;
 
-    ctx.rig.placeAt(SPAWN, 0);
+    ctx.rig.placeAt(this.spawnPoint(), this.spawnYaw());
     this.locomotion = new PhysicsLocomotion(this.physics, ctx.rig);
     ctx.rig.setLocomotion(this.locomotion);
     this.hasPreviousHead = false;
@@ -271,7 +295,7 @@ export class PortalWorld implements World {
     this.setupTools(ctx);
     this.bindFlatInput(ctx);
 
-    ctx.notify('Werkzeuge am Gürtel greifen · Trigger schießt · A springt');
+    ctx.notify(this.welcome());
   }
 
   update(dt: number, ctx: WorldContext): void {
@@ -304,6 +328,7 @@ export class PortalWorld implements World {
     this.traversePlayer(ctx);
     this.updatePortalDepth(ctx);
     this.updateAim(ctx);
+    this.applyViewOverride(ctx);
   }
 
   menu(): MenuEntry[] {
@@ -409,6 +434,11 @@ export class PortalWorld implements World {
   }
 
   render(ctx: WorldContext): boolean {
+    // The drone's display is a camera in the room, so it is drawn before the
+    // frame it appears in — same order as the portal views.
+    for (const tool of this.held.values()) {
+      if (tool instanceof DroneTool) tool.renderFeed(ctx.renderer, ctx.scene);
+    }
     this.portalRenderer?.render(ctx.scene, ctx.camera, [this.portalBlue, this.portalRed]);
     ctx.renderer.render(ctx.scene, ctx.camera);
     return true;
@@ -448,6 +478,9 @@ export class PortalWorld implements World {
     }
     this.rings.clear();
     this.clearBullets();
+    this.setViewOverride(null);
+    ctx.rig.frozen = false;
+    this.joints.length = 0;
     this.timeScale = 1;
     this.selected = [];
     this.clearLinks();
@@ -482,6 +515,7 @@ export class PortalWorld implements World {
     this.props.length = 0;
     this.spawns.clear();
     this.surfaces.length = 0;
+    this.solids.length = 0;
     this.surfaceGroups.clear();
 
     this.flights.clear();
@@ -494,7 +528,38 @@ export class PortalWorld implements World {
     this.physics = null;
   }
 
-  // --- chamber ------------------------------------------------------------
+  // --- the room, and what a different room may change ----------------------
+
+  /**
+   * Everything that makes this world *this* world. A world that wants the same
+   * tools, portals and physics in a different place overrides this (and the
+   * handful of small hooks below) instead of copying the machinery.
+   */
+  protected buildEnvironment(): void {
+    this.buildChamber();
+    this.buildProps();
+  }
+
+  /** Where the player starts, and which way they look. */
+  protected spawnPoint(): THREE.Vector3 {
+    return SPAWN;
+  }
+
+  protected spawnYaw(): number {
+    return 0;
+  }
+
+  protected skyColor(): number {
+    return 0x0a0f18;
+  }
+
+  protected lightIntensity(): number {
+    return 0.6;
+  }
+
+  protected welcome(): string {
+    return 'Werkzeuge am Gürtel greifen · Trigger schießt · A springt';
+  }
 
   private buildChamber(): void {
     const chamber = new THREE.Group();
@@ -587,7 +652,7 @@ export class PortalWorld implements World {
   }
 
   /** Adds a box that is both visible and solid. */
-  private slab(
+  protected slab(
     parent: THREE.Object3D,
     material: THREE.Material,
     size: readonly [number, number, number],
@@ -600,6 +665,10 @@ export class PortalWorld implements World {
     mesh.name = portalable ? 'surface:panel' : 'surface:shielded';
     parent.add(mesh);
     mesh.updateWorldMatrix(true, false);
+
+    // Solid for everything that points at the room; whether a portal sticks to
+    // it is a separate question.
+    this.solids.push(mesh);
 
     // Every portal surface gets a bit of its own, so a portal on the wall does
     // not also open up the floor you are standing on.
@@ -615,7 +684,7 @@ export class PortalWorld implements World {
     return mesh;
   }
 
-  private buildProps(): void {
+  protected buildProps(): void {
     const physics = this.physics!;
 
     const cube = createCompanionCube(0.5);
@@ -653,7 +722,7 @@ export class PortalWorld implements World {
    * The fixture props are built the same way on every machine, so a fixed id
    * is enough to talk about them. Conjured ones carry the id of their creator.
    */
-  private registerProp(entry: PhysicsBody, id: string): void {
+  protected registerProp(entry: PhysicsBody, id: string): void {
     entry.object.updateWorldMatrix(true, false);
     this.spawns.set(entry, entry.object.matrixWorld.clone());
     this.props.push(entry);
@@ -783,11 +852,15 @@ export class PortalWorld implements World {
       if (!presenting || ctx.pointer.hovering) continue;
       if (controller.trigger.justPressed) tool.onTrigger(controller, host);
       if (controller.trigger.justReleased) tool.onTriggerUp(controller, host);
-      if (controller.primary.justPressed && tool instanceof TransformTool) tool.primary(host);
+      if (controller.primary.justPressed) tool.onPrimary(controller, host);
     }
 
     for (const tool of this.tools.values()) {
-      tool.update(dt, host, tool.heldBy ? ctx.input.get(tool.heldBy) : null);
+      const controller = tool.heldBy ? ctx.input.get(tool.heldBy) : null;
+      // Every held tool is turned out of the grip and onto the pointing ray
+      // before it runs — one place, so no tool can aim 30° high again.
+      tool.applyAim(controller);
+      tool.update(dt, host, controller);
     }
   }
 
@@ -813,8 +886,10 @@ export class PortalWorld implements World {
     gripOf(controller).add(tool);
     tool.position.copy(tool.holdPosition);
     tool.quaternion.identity();
-    tool.visible = true;
     tool.heldBy = hand;
+    // Aimed before it is ever drawn, so it never flashes up along the grip.
+    tool.applyAim(controller);
+    tool.visible = true;
     this.held.set(hand, tool);
     tool.onTake(controller, host);
     controller.pulse(0.45, 28);
@@ -904,7 +979,9 @@ export class PortalWorld implements World {
       castSurface: (origin, direction) => {
         _ray.origin.copy(origin);
         _ray.direction.copy(direction).normalize();
-        const hit = this.castSurface(_ray);
+        // Tools hit whatever is solid; only portals care about the difference
+        // between a wall that holds a portal and one that does not.
+        const hit = this.castSurface(_ray, 60, this.solids);
         return hit ? ({ point: hit.point, normal: hit.normal } as SurfaceHit) : null;
       },
       setTimeScale: (scale) => {
@@ -915,7 +992,188 @@ export class PortalWorld implements World {
       setSelection: (entries) => {
         this.selected = entries;
       },
+      pullProp: (entry, hand) => {
+        if (this.flights.has(entry) || this.handHolding(entry)) return;
+        const controller = this.context?.input.get(hand);
+        if (!controller) return;
+        gripOf(controller).getWorldPosition(_hand);
+        this.startFlight(entry, hand, _hand, true);
+      },
+      pushProp: (entry, direction, strength) => this.pushProp(entry, direction, strength),
+      removeProp: (entry) => this.removeProp(entry, true),
+      weld: (link) => this.weld(link),
+      unweld: (entry) => this.unweld(entry),
+      launchPlayer: (velocity) => {
+        const locomotion = this.locomotion;
+        if (!locomotion) return;
+        locomotion.velocity.copy(velocity);
+        // A grounded body has its horizontal speed replaced by the stick every
+        // frame — so being pulled means being off the ground. Standing still
+        // again is one frame of the character controller away.
+        if (velocity.lengthSq() > 0) locomotion.grounded = false;
+      },
+      setViewOverride: (position) => this.setViewOverride(position),
     };
+  }
+
+  // --- what the tools may do to the room -----------------------------------
+
+  /** Shoves a prop away; the gravity glove's second button. */
+  private pushProp(entry: PhysicsBody, direction: THREE.Vector3, strength: number): void {
+    const physics = this.physics;
+    if (!physics) return;
+    this.endFlight(entry, true);
+    const hand = this.handHolding(entry);
+    if (hand) this.release(this.context!, hand, this.grabs.get(hand)!, true);
+
+    entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
+    physics.setCarried(entry, false);
+    _velocity.copy(direction).normalize().multiplyScalar(strength);
+    entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
+    const id = this.idOf(entry);
+    if (id) this.sync?.release(id, _velocity);
+  }
+
+  /**
+   * Deletes a prop and every trace of it. `share` also tells the others, so
+   * the eraser works on the whole session and not just on your own copy.
+   */
+  private removeProp(entry: PhysicsBody, share: boolean): void {
+    const physics = this.physics;
+    if (!physics) return;
+    const index = this.props.indexOf(entry);
+    if (index < 0) return;
+
+    const id = this.idOf(entry);
+    this.unweld(entry);
+    this.endFlight(entry, false);
+    for (const [hand, grab] of [...this.grabs]) {
+      if (grab.entry === entry) this.grabs.delete(hand);
+    }
+    for (const [hand, link] of [...this.links]) {
+      if (link.entry === entry) this.dropLink(hand);
+    }
+    this.highlighted.delete(entry);
+    this.locked.delete(entry);
+    this.remoteBusy.delete(entry);
+    this.selected = this.selected.filter((candidate) => candidate !== entry);
+    this.spawns.delete(entry);
+    this.spawned.delete(entry);
+    this.ghosts?.untrack(propKey(entry));
+    this.props.splice(index, 1);
+    if (id) {
+      this.bodies.delete(id);
+      this.kinds.delete(id);
+      this.ids.delete(entry);
+      if (share) this.sync?.despawned(id);
+    }
+    physics.remove(entry);
+    disposeTree(entry.object);
+  }
+
+  /**
+   * Ties two props together. A rigid joint keeps them exactly as they are to
+   * each other; a hinge leaves one axis free. Joints live in the local
+   * simulation — whoever runs the physics streams the result to everybody.
+   */
+  private weld(link: WeldRequest): boolean {
+    const physics = this.physics;
+    if (!physics || link.a === link.b) return false;
+    const rapier = physics.rapier;
+
+    // Anchors in each body's own frame, so the joint sits where the iron was.
+    const rotA = link.a.body.rotation();
+    const rotB = link.b.body.rotation();
+    _quaternion.set(rotA.x, rotA.y, rotA.z, rotA.w);
+    _rotation.set(rotB.x, rotB.y, rotB.z, rotB.w);
+    // Both anchors are the *same* world point, halfway between the two picks:
+    // a joint whose ends do not already coincide yanks the props together the
+    // moment it appears.
+    _far.lerpVectors(link.pointA, link.pointB, 0.5);
+    const anchorA = localPoint(link.a, _far, _point);
+    const anchorB = localPoint(link.b, _far, _target);
+
+    let data;
+    if (link.hinge) {
+      // The same world axis, written down in *each* body's own frame — one
+      // shared axis would twist whichever body is not aligned with it.
+      _direction.copy(link.axis).normalize();
+      _up.copy(_direction).applyQuaternion(_rotationB.copy(_rotation).invert());
+      _direction.applyQuaternion(_rotationB.copy(_quaternion).invert());
+      data = rapier.JointData.revoluteWithAxes(
+        { x: anchorA.x, y: anchorA.y, z: anchorA.z },
+        { x: anchorB.x, y: anchorB.y, z: anchorB.z },
+        { x: _direction.x, y: _direction.y, z: _direction.z },
+        { x: _up.x, y: _up.y, z: _up.z },
+      );
+    } else {
+      // Frames chosen so the current relative pose is the rest pose: no jolt
+      // when the joint appears.
+      _rotation.invert().multiply(_quaternion);
+      data = rapier.JointData.fixed(
+        { x: anchorA.x, y: anchorA.y, z: anchorA.z },
+        { x: 0, y: 0, z: 0, w: 1 },
+        { x: anchorB.x, y: anchorB.y, z: anchorB.z },
+        { x: _rotation.x, y: _rotation.y, z: _rotation.z, w: _rotation.w },
+      );
+    }
+
+    const joint = physics.world.createImpulseJoint(data, link.a.body, link.b.body, true);
+    this.joints.push({ joint, a: link.a, b: link.b });
+    // Welded props are one object now; waking both keeps the pair honest.
+    link.a.body.wakeUp();
+    link.b.body.wakeUp();
+    return true;
+  }
+
+  /** Cuts every joint this prop is part of, and says how many there were. */
+  private unweld(entry: PhysicsBody): number {
+    const physics = this.physics;
+    if (!physics) return 0;
+    let cut = 0;
+    for (let i = this.joints.length - 1; i >= 0; i--) {
+      const weld = this.joints[i]!;
+      if (weld.a !== entry && weld.b !== entry) continue;
+      physics.world.removeImpulseJoint(weld.joint, true);
+      this.joints.splice(i, 1);
+      cut++;
+    }
+    return cut;
+  }
+
+  /**
+   * Hands the view to something that is not the player's body — the drone.
+   * The body stays where it stands and is frozen while it is away, and gets
+   * its place back when the view comes home.
+   */
+  private setViewOverride(position: THREE.Vector3 | null): void {
+    const ctx = this.context;
+    if (!ctx) return;
+
+    if (position) {
+      if (!this.viewOverride) {
+        this.bodyHome.copy(ctx.rig.position);
+        this.viewOverride = new THREE.Vector3();
+      }
+      this.viewOverride.copy(position);
+      ctx.rig.frozen = true;
+      return;
+    }
+
+    if (!this.viewOverride) return;
+    this.viewOverride = null;
+    ctx.rig.frozen = false;
+    ctx.rig.position.copy(this.bodyHome);
+    ctx.rig.updateMatrixWorld(true);
+    this.locomotion?.resync(ctx.rig);
+    this.hasPreviousHead = false;
+  }
+
+  /** Carries the view out to the drone, once everything else has had its say. */
+  private applyViewOverride(ctx: WorldContext): void {
+    if (!this.viewOverride) return;
+    ctx.rig.setHeadWorldPosition(this.viewOverride);
+    this.hasPreviousHead = false;
   }
 
   // --- bullets ------------------------------------------------------------
@@ -1232,7 +1490,12 @@ export class PortalWorld implements World {
    * it clips a crate and the pull simply fails, and a pull that does not
    * arrive is worse than none at all.
    */
-  private startFlight(entry: PhysicsBody, hand: Handedness, handPosition: THREE.Vector3): void {
+  private startFlight(
+    entry: PhysicsBody,
+    hand: Handedness,
+    handPosition: THREE.Vector3,
+    viaTool = false,
+  ): void {
     const physics = this.physics!;
     const t = entry.body.translation();
     _point.set(t.x, t.y, t.z);
@@ -1248,6 +1511,7 @@ export class PortalWorld implements World {
       time: 0,
       duration: flightDuration(_point.distanceTo(handPosition)),
       from: _point.clone(),
+      viaTool,
     });
     const id = this.idOf(entry);
     if (id) this.sync?.claim(id);
@@ -1258,12 +1522,16 @@ export class PortalWorld implements World {
 
     for (const [entry, flight] of [...this.flights]) {
       const controller = ctx.input.get(flight.hand);
-      const holding =
-        controller?.tracked &&
-        (controller.isHand ? controller.trigger.pressed : controller.squeeze.pressed);
+      // A hand pull lasts while the grab button is down; a tool pull lasts
+      // while the tool is still in that hand.
+      const holding = flight.viaTool
+        ? controller?.tracked && this.held.has(flight.hand)
+        : controller?.tracked &&
+          (controller.isHand ? controller.trigger.pressed : controller.squeeze.pressed) &&
+          !this.grabs.has(flight.hand) &&
+          !this.held.has(flight.hand);
 
-      // Letting go of the button, or filling that hand, cancels the pull.
-      if (!holding || this.grabs.has(flight.hand) || this.held.has(flight.hand)) {
+      if (!holding || !controller) {
         this.endFlight(entry, true);
         continue;
       }
@@ -1278,11 +1546,22 @@ export class PortalWorld implements World {
 
       if (!flightArrived(_point, _hand, progress)) continue;
 
+      // Arrived. A hand catches it; a tool passes it to the free hand, and
+      // simply lets it go when that one is busy too.
+      const catcher = flight.viaTool ? this.freeHand(flight.hand) : flight.hand;
+      const catcherController = catcher ? ctx.input.get(catcher) : null;
+      if (!catcher || !catcherController?.tracked) {
+        this.endFlight(entry, true);
+        controller.pulse(0.4, 25);
+        continue;
+      }
+
+
       this.flights.delete(entry);
       physics.setGhost(entry, false);
-      gripOf(controller).updateWorldMatrix(true, false);
-      this.attach(flight.hand, gripOf(controller), entry);
-      controller.pulse(0.5, 30);
+      gripOf(catcherController).updateWorldMatrix(true, false);
+      this.attach(catcher, gripOf(catcherController), entry);
+      catcherController.pulse(0.5, 30);
     }
   }
 
@@ -1338,6 +1617,13 @@ export class PortalWorld implements World {
       this.reopenBag = false;
       ctx.menu.openSubmenu('bag');
     }
+  }
+
+  /** The other hand, if it is empty enough to catch something. */
+  private freeHand(from: Handedness): Handedness | null {
+    const other: Handedness = from === 'left' ? 'right' : 'left';
+    if (this.held.has(other) || this.grabs.has(other)) return null;
+    return other;
   }
 
   private handHolding(entry: PhysicsBody): Handedness | null {
@@ -1508,8 +1794,13 @@ export class PortalWorld implements World {
       if (!hand) continue;
 
       const gesture = ctx.hands.gestureOf(controller);
+      // A tool like the welder lets its hand reach into a stack without
+      // knocking it over: that hand simply stops being a physical thing.
+      const phasing = this.held.get(hand)?.phaseHands ?? false;
       const active =
-        controller.tracked && (controller.isHand || gesture === 'point' || gesture === 'open');
+        !phasing &&
+        controller.tracked &&
+        (controller.isHand || gesture === 'point' || gesture === 'open');
       const tip = active ? controller.getFingertip(_point) : null;
       this.placeProbe(hand, tip);
 
@@ -1876,6 +2167,10 @@ export class PortalWorld implements World {
         _quaternion.set(pose[3], pose[4], pose[5], pose[6]);
         this.createProp(id, kind, _point, _quaternion);
       },
+      despawnRemote: (id) => {
+        const entry = this.bodies.get(id);
+        if (entry) this.removeProp(entry, false);
+      },
       applyPortal: (key, state) => this.applyPortal(key, state),
       portalState: (key) => this.portalState(key),
       spawnedProps: () =>
@@ -2095,10 +2390,14 @@ export class PortalWorld implements World {
 
   // --- surface helpers ----------------------------------------------------
 
-  private castSurface(ray: THREE.Ray, maxDistance = 60): typeof _hit | null {
+  private castSurface(
+    ray: THREE.Ray,
+    maxDistance = 60,
+    objects: readonly THREE.Object3D[] = this.surfaces,
+  ): typeof _hit | null {
     this.raycaster.set(ray.origin, ray.direction);
     this.raycaster.far = maxDistance;
-    const hit = this.raycaster.intersectObjects(this.surfaces, false)[0];
+    const hit = this.raycaster.intersectObjects(objects as THREE.Object3D[], false)[0];
     if (!hit || !hit.face) return null;
 
     _normalMatrix.getNormalMatrix(hit.object.matrixWorld);
@@ -2167,6 +2466,16 @@ function poseOf(entry: PhysicsBody): Pose7 {
   const t = entry.body.translation();
   const r = entry.body.rotation();
   return [t.x, t.y, t.z, r.x, r.y, r.z, r.w];
+}
+
+/** A world point written down in a body's own frame — where a joint sits. */
+function localPoint(entry: PhysicsBody, world: THREE.Vector3, target: THREE.Vector3): THREE.Vector3 {
+  const t = entry.body.translation();
+  const r = entry.body.rotation();
+  return target
+    .copy(world)
+    .sub(_localOrigin.set(t.x, t.y, t.z))
+    .applyQuaternion(_localRotation.set(r.x, r.y, r.z, r.w).invert());
 }
 
 /** Ghost key for another player's hand. */

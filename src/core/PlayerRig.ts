@@ -30,6 +30,13 @@ export class PlayerRig extends THREE.Group {
    * rig — the player is a camera then, not a body in the world.
    */
   paused = false;
+  /**
+   * The same, but asked for by the world instead of by the engine: the drone
+   * takes the view away from the body, and a body that keeps walking and
+   * falling while nobody is looking is a body you come back to somewhere else.
+   * The engine folds this into `paused` every frame.
+   */
+  frozen = false;
 
   private readonly intent = new THREE.Vector3();
   private intentJump = false;

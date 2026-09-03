@@ -41,6 +41,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private footer: string;
   private hint = '';
   private status = '';
+  /** Index of the first entry drawn — a long page is scrolled, not cut off. */
+  private scroll = 0;
   private flash = 0;
   private onSelect?: (index: number, hand: Handedness | null) => void;
 
@@ -77,7 +79,32 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.grid = grid;
     this.hint = hint ?? '';
     this.hover = -1;
+    this.scroll = 0;
     this.draw();
+  }
+
+  /** True while the page holds more than fits — then the stick has a job. */
+  get scrollable(): boolean {
+    return this.entries.length > this.pageSize;
+  }
+
+  /**
+   * Moves the page by whole rows. More tools than rows is the normal case now,
+   * so the shelf scrolls instead of quietly hiding the bottom of the list.
+   *
+   * @returns true when something actually moved
+   */
+  scrollBy(rows: number): boolean {
+    if (!this.scrollable) return false;
+    const step = this.grid ? GRID_COLS : 1;
+    const max = Math.max(0, this.entries.length - this.pageSize);
+    const next = THREE.MathUtils.clamp(this.scroll + rows * step, 0, max);
+    if (next === this.scroll) return false;
+    this.scroll = next;
+    this.hover = -1;
+    this.hovered.index = -1;
+    this.draw();
+    return true;
   }
 
   setStatus(status: string): void {
@@ -137,8 +164,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
+  /** How many entries fit on one page. */
+  private get pageSize(): number {
+    return this.grid ? MAX_GRID_ROWS * GRID_COLS : MAX_ROWS;
+  }
+
   private get visibleCount(): number {
-    return Math.min(this.entries.length, this.grid ? MAX_GRID_ROWS * GRID_COLS : MAX_ROWS);
+    return Math.min(this.entries.length - this.scroll, this.pageSize);
   }
 
   private indexAt(uv: THREE.Vector2): number {
@@ -153,13 +185,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       if ((x - PAD) % (CELL_W + GRID_GAP) > CELL_W) return -1;
       if (y % (CELL_H + GRID_GAP) > CELL_H) return -1;
       const index = row * GRID_COLS + column;
-      return index < this.visibleCount ? index : -1;
+      return index < this.visibleCount ? this.scroll + index : -1;
     }
 
     const index = Math.floor(y / (ROW_H + ROW_GAP));
     if (index < 0 || index >= this.visibleCount) return -1;
     if (y % (ROW_H + ROW_GAP) > ROW_H) return -1;
-    return index;
+    return this.scroll + index;
   }
 
   private cardHeight(): number {
@@ -194,7 +226,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.fillText(this.title, PAD, 118);
 
     for (let i = 0; i < this.visibleCount; i++) {
-      const entry = this.entries[i]!;
+      const index = this.scroll + i;
+      const entry = this.entries[index]!;
       if (this.grid) {
         const column = i % GRID_COLS;
         const row = Math.floor(i / GRID_COLS);
@@ -202,14 +235,16 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
           entry,
           PAD + column * (CELL_W + GRID_GAP),
           HEADER_H + row * (CELL_H + GRID_GAP),
-          i === this.hover,
+          index === this.hover,
         );
       } else {
-        this.drawRow(entry, HEADER_H + i * (ROW_H + ROW_GAP), i === this.hover);
+        this.drawRow(entry, HEADER_H + i * (ROW_H + ROW_GAP), index === this.hover);
       }
     }
+    this.drawScrollbar(cardH);
 
-    const footer = this.status || this.hint || this.footer;
+    const footer =
+      this.status || (this.scrollable ? 'Stick hoch/runter blättert' : '') || this.hint || this.footer;
     if (footer) {
       ctx.fillStyle = this.status ? '#9fd0ff' : '#71809e';
       ctx.font = '400 24px system-ui, sans-serif';
@@ -219,13 +254,34 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.texture.needsUpdate = true;
   }
 
+  /** Where in a long page we are, drawn along the right edge. */
+  private drawScrollbar(cardH: number): void {
+    if (!this.scrollable) return;
+    const ctx = this.ctx;
+    const top = HEADER_H - 6;
+    const height = cardH - FOOTER_H - top;
+    const x = CANVAS_W - 24;
+    const portion = this.pageSize / this.entries.length;
+    const thumb = Math.max(40, height * portion);
+    const travel = (height - thumb) * (this.scroll / Math.max(1, this.entries.length - this.pageSize));
+
+    ctx.beginPath();
+    ctx.roundRect(x, top, 9, height, 5);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(x, top + travel, 9, thumb, 5);
+    ctx.fillStyle = 'rgba(174, 208, 255, 0.9)';
+    ctx.fill();
+  }
+
   private drawRow(entry: MenuEntry, y: number, hovered: boolean): void {
     const ctx = this.ctx;
     const accent = toCss(entry.accent ?? 0x4aa8ff);
     const active = hovered && this.flash > 0;
 
     ctx.beginPath();
-    ctx.roundRect(PAD, y, CANVAS_W - PAD * 2, ROW_H, 24);
+    ctx.roundRect(PAD, y, CANVAS_W - PAD * 2 - (this.scrollable ? 18 : 0), ROW_H, 24);
     ctx.fillStyle = active
       ? withAlpha(accent, 0.45)
       : hovered

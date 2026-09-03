@@ -17,21 +17,51 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Seiten **Werkzeuge** und **Magischer Beutel** nimmt dagegen nur **Greifen
   oder `A`**, damit der Zieltrigger nicht versehentlich die Hand füllt. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
-  Aufbau: **Welten** (Hub, Portal Labor), **Werkzeuge** (das ganze Regal
+  Aufbau: **Welten** (Hub, Portal Labor, Dust), **Werkzeuge** (das ganze Regal
   direkt in die Hand), **Magischer Beutel** (Raster mit Companion Cube,
   Kugel, Domino, Pyramide, Quader, Planke und Zylinder), **Einstellungen**
   und die Aktionen der Welt. In beiden wird auf einen Eintrag gezielt und
   **Greifen** oder `A` gedrückt — das Werkzeug bzw. Objekt liegt dann in
   genau dieser Hand. Das Raster kommt zurück, sobald du loslässt.
+  Passt eine Seite nicht aufs Panel — das Werkzeugregal tut das längst nicht
+  mehr —, wird **mit dem Stick der zeigenden Hand hoch/runter geblättert**;
+  rechts zeigt ein Balken, wo man gerade ist. Links/rechts bleibt der
+  Snap-Turn.
 - **Werkzeuggürtel**: an beiden Hüften hängt ein Platz für ein Werkzeug. Was
   in der Hand ist und in die Nähe eines Platzes kommt, lässt den Ring
   aufleuchten — dort loslassen legt es ab, Greifen nimmt es wieder. Jedes
   Werkzeug passt auf jeden Platz, sie lassen sich also frei tauschen.
-- **Werkzeuge**: die beiden einzelnen Portal-Waffen, eine kombinierte
-  (Trigger rot, Greifen blau, muss nicht dauerhaft gehalten werden), ein
-  Blender-artiger Griff für Größe und Position, Pinsel samt Farbpalette auf
-  der anderen Hand, eine Pistole mit Magazin (`x/∞` an der Seite) und eine
-  Stoppuhr, die die Welt in Zeitlupe schaltet.
+- **Werkzeuge** (alle in jeder Welt mit Gürtel):
+  - **Portal-Waffen**: zwei einzelne und eine kombinierte (Trigger rot,
+    Greifen blau, muss nicht dauerhaft gehalten werden).
+  - **Größe & Position**: Blender-artiger Griff mit Achsen.
+  - **Pinsel** samt Farbpalette auf der anderen Hand.
+  - **Pistole** mit Magazin (`x/∞` an der Seite).
+  - **Stoppuhr**: Trigger schaltet Zeitlupe an und aus, Loslassen der Uhr
+    stellt die normale Geschwindigkeit wieder her.
+  - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
+    er ein Objekt, kommt stattdessen das Objekt.
+  - **Gravitationshandschuh**: Trigger zieht das anvisierte Objekt geradewegs
+    in die Hand, Greifen stößt es weg. Bleibt in der Hand, bis er am Gürtel
+    abgelegt wird.
+  - **Lötkolben**: zwei Punkte antippen und die Objekte hängen zusammen —
+    starr oder als Scharnier (Achse = Querachse des Kolbens). Der Modus wird
+    mit der anderen Hand umgeschaltet (kleines Panel über ihr), *Trennen*
+    löst alle Verbindungen eines Objekts wieder. Solange der Kolben in der
+    Hand ist, stößt diese Hand nichts mehr an — man greift durch den Stapel,
+    ohne ihn umzuwerfen.
+  - **Röntgen-Scanner**: ein Bilderrahmen, den man vors Gesicht hält. Was
+    darin liegt, wird durch Wände hindurch gezeichnet — begrenzt durch die
+    vier Clipping-Ebenen vom Auge durch die Rahmenecken, deshalb bleibt der
+    Effekt im Rahmen.
+  - **Drohne**: ein Display in der Hand, die Drohne schwebt davor. Trigger
+    schaltet die Sicht auf die Drohne und die Sticks fliegen sie; nochmal
+    Trigger (oder das Werkzeug loslassen) parkt sie. Das Display zeigt immer
+    das Drohnenbild, auch vom Boden aus.
+  - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
+    bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
+    letzte Messung wieder da.
+  - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
 - **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
   Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
@@ -43,6 +73,11 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
   selbst, wenn man durch ein Portal schaut. Die anderen Spieler bekommen
   denselben Körper, samt Namensschild und der Waffe in ihrer Hand.
+- **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
+  zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
+  aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
+  dieselbe geteilte Sitzung wie im Portal Labor; Portale haften dort an den
+  hellen Tafeln und am Boden.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Peer-to-Peer-Sitzungen** (experimentell): beide Geräte tragen denselben
   Raum-Code ein und sind danach direkt verbunden — ohne eigenen Server.
@@ -73,9 +108,11 @@ ausnahmsweise einen Branch will, sagt das im Auftrag dazu.
 ### Tests
 
 Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
-Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`). Das
-Modul kommt bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
-weder WebGL noch WebXR noch wasm. Alles, was schwer zu testen ist, gehört
+Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`) und die
+Zielrichtung der Werkzeuge (`src/worlds/portal/tools/aim.ts` — der Test hält
+fest, dass ein Werkzeug in der Hand exakt entlang des Pointing-Rays zeigt und
+nicht 30° darüber). Beide Module kommen bewusst ohne three.js und ohne Rapier
+aus, deshalb braucht Jest weder WebGL noch WebXR noch wasm. Alles, was schwer zu testen ist, gehört
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
@@ -108,6 +145,13 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Weitergeben | mit der freien Hand danach greifen | – | – |
 | Ferngreifen | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen | – | – |
+| Menüseite blättern | Stick der zeigenden Hand hoch/runter | – | – |
+| Greifhaken | Trigger (halten zieht) | – | – |
+| Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
+| Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
+| Drohne | Trigger fliegt/parkt, Sticks steuern | – | – |
+| Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
+| Radiergummi | Trigger löscht | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 | Zuschauen | Menü → Verbindung → Zuschauen | Panel *Verbindung* → *Zuschauen* | dito |
 | Zuschauer-Kamera drehen | – (Kopf bleibt deiner) | ziehen mit der Maus | wischen |
@@ -125,10 +169,18 @@ Reichweite, leuchtet es auf und die Hand geht leicht in Griffhaltung. Mit
 Hand-Tracking werden die echten Finger gerendert; dort schaltet ein Pinch am
 Gürtel das Werkzeug zwischen Gürtel und Hand um.
 
-Die Waffe zielt entlang des Pointing-Rays des Controllers, nicht entlang der
-Griffachse — sonst schießt man deutlich an der Zielrichtung vorbei. Jede Waffe
-in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden und Decke
-richtet sich das Portal nach der Waffe, mit der du zielst.
+**Jedes** Werkzeug zielt entlang des Pointing-Rays des Controllers, nicht
+entlang der Griffachse. Die beiden Posen liegen auf der Quest gut 30°
+auseinander — genau so weit schossen Pistole, Pinsel und Co. früher zu hoch.
+Die Korrektur steckt jetzt einmal in `Tool.applyAim()` (Mathe in
+`src/worlds/portal/tools/aim.ts`, mit Jest-Test), nicht in jedem Werkzeug
+einzeln: Ein neues Werkzeug bekommt sie geschenkt und kann sie nicht
+vergessen. Wer ein Werkzeug bewusst starr an der Hand haben will, setzt
+`alignToAim = false`; eine feste Zusatzneigung (das Drohnen-Display) kommt in
+`holdRotation`.
+
+Jede Waffe in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden
+und Decke richtet sich das Portal nach der Waffe, mit der du zielst.
 
 Die Greifbox ist der Collider plus 9 cm — ein fester Zuschlag, kein
 prozentualer, damit ein Dominostein genauso gut in die Hand springt wie ein
@@ -186,6 +238,13 @@ das Portal Labor nutzt das für seine Zusatzdurchgänge.
 2. In `src/worlds/index.ts` einen Eintrag in `WORLDS` ergänzen — Titel,
    Beschreibung, Akzentfarbe, unterstützte Rollen und ein `load()` mit
    dynamischem Import.
+
+Soll die neue Welt dieselben Werkzeuge, Portale und Physik haben wie das
+Portal Labor, erbt sie stattdessen von `PortalWorld` und ersetzt nur den Raum:
+`buildEnvironment()`, dazu die kleinen Haken `spawnPoint()`, `spawnYaw()`,
+`skyColor()`, `lightIntensity()` und `welcome()`. Genau das macht `DustWorld` —
+die ganze Maschinerie (Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt
+mit, ohne kopiert zu werden.
 
 Mehr braucht es nicht: Menü, Hub-Tor, Deep-Link (`#<id>`) und das Aufräumen
 beim Wechsel erledigt die Engine. Alles, was eine Welt der Szene hinzufügt,

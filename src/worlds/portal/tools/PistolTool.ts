@@ -12,6 +12,8 @@ const MUZZLE_SPEED = 26;
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
+const _kick = new THREE.Quaternion();
+const _axisX = new THREE.Vector3(1, 0, 0);
 
 /**
  * A plain pistol. The trigger fires, and once the magazine runs dry it reloads
@@ -121,11 +123,11 @@ export class PistolTool extends Tool {
     // The slide kicks back and settles again.
     this.recoil = Math.max(0, this.recoil - dt * 7);
     this.slide.position.z = -0.06 + this.recoil * 0.016;
-    this.rotation.x = this.heldBy ? this.recoil * 0.18 : 0;
-  }
-
-  override onStow(_host: ToolHost): void {
-    this.rotation.x = 0;
+    // The muzzle flip rides on top of the aim the base class just set, so the
+    // kick must be multiplied in — assigning a rotation would throw the aim away.
+    if (this.heldBy && this.recoil > 0) {
+      this.quaternion.multiply(_kick.setFromAxisAngle(_axisX, this.recoil * 0.18));
+    }
   }
 
   override disposeTool(): void {

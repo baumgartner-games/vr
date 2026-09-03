@@ -20,6 +20,13 @@ export type MenuIcon =
   | 'brush'
   | 'pistol'
   | 'stopwatch'
+  | 'grapple'
+  | 'magnet'
+  | 'weld'
+  | 'xray'
+  | 'drone'
+  | 'tape'
+  | 'eraser'
   | 'palette';
 
 /** One row (or grid cell) of the wrist menu. */
@@ -310,6 +317,125 @@ export function drawMenuIcon(
       ctx.moveTo(0, s * 0.1);
       ctx.lineTo(0, -s * 0.32);
       ctx.stroke();
+      break;
+    }
+    case 'grapple': {
+      // A hook on a line.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.7, -s * 0.75);
+      ctx.lineTo(0, s * 0.1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, s * 0.34, s * 0.32, Math.PI * 1.15, Math.PI * 2.35);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.3, s * 0.2);
+      ctx.lineTo(s * 0.42, s * 0.52);
+      ctx.stroke();
+      break;
+    }
+    case 'magnet': {
+      // Horseshoe magnet: the pull, drawn the way everybody knows it.
+      ctx.beginPath();
+      ctx.arc(0, s * 0.12, s * 0.55, Math.PI, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.55, s * 0.12);
+      ctx.lineTo(-s * 0.55, s * 0.62);
+      ctx.moveTo(s * 0.55, s * 0.12);
+      ctx.lineTo(s * 0.55, s * 0.62);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(3, size * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.55, s * 0.62);
+      ctx.lineTo(-s * 0.55, s * 0.78);
+      ctx.moveTo(s * 0.55, s * 0.62);
+      ctx.lineTo(s * 0.55, s * 0.78);
+      ctx.stroke();
+      break;
+    }
+    case 'weld': {
+      // Soldering iron with a spark.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.72, s * 0.6);
+      ctx.lineTo(s * 0.1, -s * 0.2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.1, -s * 0.2);
+      ctx.lineTo(s * 0.42, -s * 0.5);
+      ctx.stroke();
+      for (const angle of [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]) {
+        ctx.beginPath();
+        ctx.moveTo(s * 0.52 + Math.cos(angle) * s * 0.1, -s * 0.6 + Math.sin(angle) * s * 0.1);
+        ctx.lineTo(s * 0.52 + Math.cos(angle) * s * 0.28, -s * 0.6 + Math.sin(angle) * s * 0.28);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'xray': {
+      // A frame you look through, with something showing behind it.
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.78, -s * 0.6, s * 1.56, s * 1.2, s * 0.14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.3, s * 0.3);
+      ctx.lineTo(-s * 0.3, -s * 0.2);
+      ctx.lineTo(s * 0.1, -s * 0.2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(s * 0.32, s * 0.06, s * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case 'drone': {
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.24, -s * 0.16, s * 0.48, s * 0.32, s * 0.08);
+      ctx.stroke();
+      for (const [x, y] of [
+        [-s * 0.6, -s * 0.5],
+        [s * 0.6, -s * 0.5],
+        [-s * 0.6, s * 0.5],
+        [s * 0.6, s * 0.5],
+      ] as const) {
+        ctx.beginPath();
+        ctx.moveTo(x * 0.35, y * 0.35);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(x, y, s * 0.26, s * 0.09, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'tape': {
+      // Tape measure: a spool with the band pulled out.
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.78, -s * 0.1, s * 0.86, s * 0.82, s * 0.14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-s * 0.35, s * 0.3, s * 0.18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.08, s * 0.16);
+      ctx.lineTo(s * 0.78, -s * 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.5, -s * 0.62);
+      ctx.lineTo(s * 0.8, -s * 0.34);
+      ctx.stroke();
+      break;
+    }
+    case 'eraser': {
+      ctx.save();
+      ctx.rotate(-Math.PI / 6);
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.7, -s * 0.3, s * 1.4, s * 0.6, s * 0.12);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.1, -s * 0.3);
+      ctx.lineTo(s * 0.1, s * 0.3);
+      ctx.stroke();
+      ctx.restore();
       break;
     }
     case 'palette': {

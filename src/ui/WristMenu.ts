@@ -29,6 +29,13 @@ interface Page {
 
 const BACK: MenuEntry = { id: 'menu:back', label: 'Zurück', icon: 'back', accent: 0x6f7d99 };
 
+/** Stick deflection that counts as "scroll", and the one that re-arms it. */
+const SCROLL_ON = 0.55;
+const SCROLL_OFF = 0.3;
+/** Holding the stick keeps scrolling: the first repeat waits, the rest run. */
+const SCROLL_FIRST_DELAY = 0.42;
+const SCROLL_REPEAT = 0.16;
+
 /**
  * The menu button rides on the left hand; pressing it opens a panel that keeps
  * following that hand, tilting along with it. The other hand points and selects.
@@ -52,6 +59,9 @@ export class WristMenu extends THREE.Group {
    * to derive "up" from the hand every frame is what made it keel over.
    */
   private tiltRef: THREE.Quaternion | null = null;
+  /** Seconds until the held stick scrolls another row; 0 while it is idle. */
+  private scrollTimer = 0;
+  private scrollArmed = true;
 
   constructor(
     private readonly pointer: Pointer,
@@ -178,6 +188,7 @@ export class WristMenu extends THREE.Group {
     _head.setFromMatrixPosition(_local);
 
     this.updateGrabTake(input);
+    this.updateScroll(dt, input);
 
     const controller = input.get(this.hand);
     const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
@@ -283,6 +294,44 @@ export class WristMenu extends THREE.Group {
 
     entry.run(hand);
     this.applyPage();
+  }
+
+  /**
+   * The pointing hand's stick pages through a long list. Only the up/down axis:
+   * left/right is the snap turn, and a menu is no reason to give that up.
+   */
+  private updateScroll(dt: number, input: XRInput): void {
+    if (!this.open || !this.panel.scrollable) {
+      this.scrollArmed = true;
+      this.scrollTimer = 0;
+      return;
+    }
+
+    // Whichever hand points at the panel; otherwise the free hand, so the
+    // stick works even while the pointer has wandered off the list.
+    const side: Handedness = this.panel.hovered.hand ?? (this.hand === 'left' ? 'right' : 'left');
+    const stick = input.get(side)?.thumbstick;
+    const y = stick?.y ?? 0;
+
+    if (Math.abs(y) < SCROLL_OFF) {
+      this.scrollArmed = true;
+      this.scrollTimer = 0;
+      return;
+    }
+    if (Math.abs(y) < SCROLL_ON) return;
+
+    // Stick forward (negative y) walks up the list, like a scroll wheel.
+    const rows = y > 0 ? 1 : -1;
+    if (this.scrollArmed) {
+      this.scrollArmed = false;
+      this.scrollTimer = SCROLL_FIRST_DELAY;
+      this.panel.scrollBy(rows);
+      return;
+    }
+    this.scrollTimer -= dt;
+    if (this.scrollTimer > 0) return;
+    this.scrollTimer = SCROLL_REPEAT;
+    this.panel.scrollBy(rows);
   }
 
   private handleSelect(index: number, hand: Handedness | null): void {

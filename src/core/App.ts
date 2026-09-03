@@ -565,7 +565,8 @@ export class App {
     this.spectating = this.spectator.following;
     // In VR the rig itself is carried around, so freeze walking and gravity
     // while it is — otherwise the character controller fights the camera.
-    this.rig.paused = this.spectating && presenting;
+    // A world may freeze the body too (the drone flies the view away).
+    this.rig.paused = (this.spectating && presenting) || this.rig.frozen;
 
     this.rig.getHeadMatrix(_head);
     _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);

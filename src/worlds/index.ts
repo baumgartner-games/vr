@@ -25,6 +25,17 @@ export const WORLDS: WorldDefinition[] = [
     experimental: true,
     load: async () => new (await import('./portal/PortalWorld')).PortalWorld(),
   },
+  {
+    id: 'dust',
+    title: 'Dust',
+    tagline: 'Große Karte, vier Stockwerke',
+    description:
+      'Zwei Plätze, ein Tunnel und begehbare Häuser. Alle Werkzeuge, Portale haften an den hellen Tafeln.',
+    accent: 0xffc857,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./dust/DustWorld')).DustWorld(),
+  },
 ];
 
 export const DEFAULT_WORLD = 'hub';
