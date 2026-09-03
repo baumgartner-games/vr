@@ -45,8 +45,9 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
     Salve, Automatik). Jede Zeile schaltet auf die nächste Raste weiter **und
     zeigt die rohe Zahl daneben** — und unter *Werte eingeben* lässt sich jede
     davon über eine Tastatur direkt tippen. Dazu **Zielhilfen** (Rotpunkt,
-    Kimme & Korn, Flugbahn, Röntgen — oder alles ab) und die **Munition**
-    (normal oder Leuchtspur).
+    Kimme & Korn, Flugbahn, Röntgen) — **beliebig viele gleichzeitig**, jede
+    Rasterzelle schaltet ihre einzeln an und ab, *Alles ab* räumt die Schiene
+    — und die **Munition** (normal oder Leuchtspur).
   - **Stoppuhr**: Trigger schaltet Zeitlupe an und aus, Loslassen der Uhr
     stellt die normale Geschwindigkeit wieder her.
   - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
@@ -59,6 +60,12 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
     stehen, wo es ist (Handdrehung dreht es), **Steuern** macht die Hand zum
     Joystick — Hand nach links, Objekt nach links; Hand nach vorne, Objekt nach
     vorne; je weiter aus der Mitte, desto schneller.
+  - **Supermanhandschuh**: **Greifen** hebt dich vom Boden ab und lässt dich
+    an Ort und Stelle schweben (leicht auf und ab). Der **Trigger** macht eine
+    Faust daraus und du fliegst: vorne ist, **wohin du schaust** (mitsamt
+    Neigung — ein Blick nach unten ist ein Sturzflug), und **wie weit du die
+    Hand aus der Stelle drückst**, in der du den Trigger gedrückt hast, ist
+    dein Tempo. Trigger loslassen schwebt wieder, Greifen landet.
   - **Lötkolben**: zwei Punkte antippen und die Objekte hängen zusammen —
     starr oder als Scharnier (Achse = Querachse des Kolbens). Der Modus wird
     mit der anderen Hand umgeschaltet (kleines Panel über ihr), *Trennen*
@@ -72,7 +79,13 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   - **Drohne**: ein Display in der Hand, die Drohne schwebt davor. Trigger
     schaltet die Sicht auf die Drohne und die Sticks fliegen sie; nochmal
     Trigger (oder das Werkzeug loslassen) parkt sie. Das Display zeigt immer
-    das Drohnenbild, auch vom Boden aus.
+    das Drohnenbild, auch vom Boden aus. Im Flug wird die Drohne **für dich
+    nicht gezeichnet** (der Blick sitzt in ihr), und dein **Körper bleibt
+    stehen, wo er war** — du kannst ihn dir dabei ansehen. Über dem Display
+    hängt ein kleines Menü: **Kopter-Profi** (linker Stick bewegt, rechter
+    dreht und steigt) oder **Racing-Drohne** (linker Stick Gas und Gieren,
+    rechter Roll und Nick), dazu ein Schalter, ob eine noch irgendwo stehende
+    Drohne beim Herausnehmen verschrottet und neu gesetzt wird.
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
@@ -82,7 +95,11 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
     Trigger in der Luft an (Hand hinlegen, wo sie es halten soll, Trigger
     nochmal), ein **Anbauteil** — der Rotpunkt etwa — hängt sich beim
     gehaltenen Trigger an die Spitze und bleibt beim Loslassen dort auf der
-    Waffe. Beides zeigt danach die sechs Werte (x, y, z in cm,
+    Waffe. Zeigt er auf die **leere andere Hand**, richtet derselbe Ablauf
+    deren Grundhaltung aus: der erste Trigger stellt eine durchsichtige
+    **Geisterhand** dorthin, wo die Hand gerade steht, du legst die echte
+    Hand hin, wie sie sitzen soll, und der zweite Trigger übernimmt die
+    Differenz. Alles drei zeigt danach die sechs Werte (x, y, z in cm,
     roll/pitch/yaw in Grad). **Greifen** legt den ganzen Konfig-Code in die
     Zwischenablage.
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
@@ -104,13 +121,16 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   stecken und sie drüben sehen — und damit auch dort etwas anstoßen.
 - **Eigener Körper**: Torso, Arme und Beine gibt es, sie werden aber nur in
   Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
-  selbst, wenn man durch ein Portal schaut. Die anderen Spieler bekommen
+  selbst, wenn man durch ein Portal schaut oder von der Drohne aus zurück. Die anderen Spieler bekommen
   denselben Körper, samt Namensschild und der Waffe in ihrer Hand.
 - **Schießstand** (experimentell): überdachte Schießlinie mit fünf Bahnen und
   Zielscheiben auf 10, 25 und 50 m, zwei großen auf 75 und 100 m sowie einer
   Reihe Stahlplatten auf 18 m. Die Scheiben hängen an Scharnieren und schwingen
-  beim Treffer zurück. Am Gürtel hängt hier die Pistole. Gedacht zum
-  Ausprobieren der Waffeneinstellungen.
+  beim Treffer zurück. Am Gürtel hängt hier die Pistole. Jeder Treffer wird
+  **gezählt** — nach dem Ring, in dem die Kugel durchgeht — und erscheint als
+  schwebende Zahl am Einschlag, dazu ein Ton, der mit dem Ergebnis höher wird.
+  Beides nur für dich und deine Zuschauer, und beides über zwei Tafeln auf der
+  Schießlinie abschaltbar: **anschießen oder Trigger**.
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
@@ -151,9 +171,12 @@ Achsenzuordnung der Griffe (`src/worlds/portal/tools/axisMatch.ts`), die
 gemessene Werkzeug-Pose samt Spiegelung
 (`src/worlds/portal/tools/toolPose.ts`), die Handhaltung
 (`src/core/handPose.ts`), die Waffenwerte
-(`src/worlds/portal/tools/weaponSettings.ts`), der **Konfig-Code**
-(`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
-und abgeschnittener Zeile) und die Zielrichtung der Werkzeuge
+(`src/worlds/portal/tools/weaponSettings.ts`), der **Konfig-Code** — die
+Hülle (`src/core/configCode.ts`: packen und wieder auspacken, inklusive
+Tippfehler und abgeschnittener Zeile) wie das Schema darin
+(`src/worlds/portal/tools/gearCodec.ts`: jedes Feld zurück, kurz genug, und
+ein Werkzeug, das die Tabelle nicht kennt, reist trotzdem mit) — und die
+Zielrichtung der Werkzeuge
 (`src/worlds/portal/tools/aim.ts` — der Test hält fest, dass ein Werkzeug in
 der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
@@ -196,12 +219,14 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
 | Translationshandschuh | Trigger hält aus der Ferne, `A` wechselt Modus | – | – |
+| Supermanhandschuh | Greifen schwebt/landet, Trigger fliegt (Blick lenkt) | – | – |
 | Größe & Position | Trigger wählt, `A` holt die Griffe vor dich | – | – |
 | Griff ziehen | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand | – | – |
-| Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil, Trigger übernimmt, Greifen kopiert den Code, `A` bricht ab | – | – |
+| Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil / stellt die Geisterhand ab, Trigger übernimmt, Greifen kopiert den Code, `A` bricht ab | – | – |
 | Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
-| Drohne | Trigger fliegt/parkt, Sticks steuern | – | – |
+| Drohne | Trigger fliegt/parkt, Sticks steuern, Menü über dem Display | – | – |
+| Schießstand-Schalter | anschießen oder zielen + Trigger | Linksklick | tippen |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
 | Radiergummi | Trigger löscht | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
@@ -266,11 +291,17 @@ Werts (mit Test).
 
 **Zielhilfen** liegen als Raster im Menü — und weil in eine Rasterzelle zwei
 Wörter passen, steht über dem Panel eine Zeile darüber, worauf gerade gezeigt
-wird. Zur Wahl stehen *alles ab*, **Rotpunkt** (der Punkt sitzt 25 m weit
-draußen und wird auf Größe skaliert, wandert beim Kopfbewegen also nicht),
-**Kimme & Korn**, **Flugbahn** (rechnet die Parabel der nächsten Kugel voraus
-und markiert, wo sie aufschlägt) und das **Röntgengerät** (derselbe Scanner wie
-das Handgerät, nur klein — beide benutzen `XrayScope`).
+wird. Zur Wahl stehen **Rotpunkt** (der Punkt sitzt 25 m weit draußen und wird
+auf Größe skaliert, wandert beim Kopfbewegen also nicht), **Kimme & Korn**,
+**Flugbahn** (rechnet die Parabel der nächsten Kugel voraus und markiert, wo
+sie aufschlägt) und das **Röntgengerät** (derselbe Scanner wie das Handgerät,
+nur klein — beide benutzen `XrayScope`).
+
+Jede Zelle ist ein **Schalter, keine Wahl**: Rotpunkt *und* Flugbahn ist eine
+vernünftige Kombination, und jedes Anbauteil hat seine eigene Pose, sie sitzen
+sich also nicht im Weg (`WeaponSettings.sights`). *Alles ab* räumt die Schiene
+in einem Zug. Die Pistole baut beim Umschalten nur um, was sich geändert hat —
+ein Rotpunkt, den niemand angefasst hat, verliert seine Ausrichtung nicht.
 
 **Munition**: normal oder **Leuchtspur**. Eine Leuchtspurkugel glüht und zieht
 eine kurze Linie hinter sich her, so dass man einem Schuss zusehen kann,
@@ -332,6 +363,14 @@ Hand) und je eine **Griffhaltung pro Werkzeug**, jeweils für links und rechts:
 Raum, und die Hand bewegt sich schon *während* getippt wird — eine Krümmung
 von 0.6 sagt auf dem Papier nichts.
 
+Die sechs Zahlen der **Grundhaltung** lassen sich auch messen statt tippen:
+Justierer in die eine Hand, auf die leere andere zeigen, Trigger. Dort, wo die
+Hand stand, bleibt eine **Geisterhand** stehen — dieselbe Geometrie in Glas —,
+du legst die echte Hand hin, wie sie sitzen soll, und der zweite Trigger
+rechnet die Differenz aus (dieselbe Mathematik wie beim Werkzeug, nur ohne
+Aim-Korrektur: eine Hand hängt am Griff, sie zielt nirgendwohin). Krümmung und
+Spreizung bleiben dabei unangetastet — die gehören ins Menü, nicht in die Luft.
+
 Weil beide Hände Spiegelbilder sind, ist die andere Seite eine Kopie mit drei
 umgedrehten Vorzeichen: seitlicher Versatz, Yaw und Roll. Mehr nicht — genau
 das prüft der Test zu `mirrorHandPose` in `src/core/handPose.ts`, und dieselbe
@@ -341,19 +380,38 @@ spiegeln* macht es für eine Haltung, *Links auf rechts spiegeln* für alle.
 ### Konfig-Code
 
 Alle diese Zahlen zusammen — Werkzeug-Posen, Handhaltungen, Anbauteile,
-Waffenwerte — passen in eine Zeile:
+Waffenwerte und die Drohnensteuerung — passen in eine Zeile:
 
 ```
-BGVR1mAL_eyJ2IjoxLCL_dCI6eyJwaXP_dG9sIjpbMCy_LTEuMiwzAGAy_ywwLDBd…
+BG2mAL_eyJ2Ijox3dG9sIjpbMCy_LTEuMiwz
 ```
 
-Das ist **kein Hash**, sondern gepacktes JSON: `src/core/configCode.ts`
-schreibt die Einstellungen kompakt, komprimiert sie mit einem winzigen
-LZSS-Verfahren (Wörterbuch im Datenstrom, deshalb ohne Bibliothek und ohne
-`CompressionStream`) und packt das Ergebnis in base64url mit einer Prüfsumme
-hinten dran. `decode(encode(x))` gibt exakt `x` zurück — der Jest-Test besteht
-darauf, mitsamt Umlauten, leeren Objekten und einem verdrehten Zeichen, das
-abgelehnt werden muss.
+Das ist **kein Hash**, sondern ein Schema: Beide Seiten kennen denselben
+Aufbau, also reist nur der Inhalt. Früher war es gepacktes JSON — und JSON
+besteht zum größten Teil aus sich selbst: `{"pistol":[0,-1.2,3,…]}` sind
+neunzehn Zeichen Klammern, Anführungszeichen und Feldname um sechs Zahlen
+herum. `src/worlds/portal/tools/gearCodec.ts` schreibt nur noch die Zahlen, in
+genau der Auflösung, in der sie auch angezeigt werden (Zehntelzentimeter, Grad,
+Hundertstel-Krümmung), als **Varints** — eine Null kostet ein Byte, −12° auch —
+und Werkzeug- wie Anbauteilnamen als Nummer gegen eine feste Tabelle. Über das
+Ergebnis läuft ein winziges **LZSS** (`src/core/configCode.ts`, Wörterbuch im
+Datenstrom, deshalb ohne Bibliothek und ohne `CompressionStream`) — aber nur,
+wenn es tatsächlich kürzer wird —, dann base64url mit einer Prüfsumme hinten
+dran.
+
+Das macht den Unterschied:
+
+| | vorher | jetzt |
+| --- | --- | --- |
+| Eine übliche Konfiguration | 459 Zeichen | **131** |
+| Alle Werkzeuge, beide Hände, jede Zielhilfe | 747 Zeichen | **323** |
+
+Die Tabellen in `gearCodec.ts` sind ein **Datenformat**: Einträge dürfen
+angehängt, aber nie umsortiert oder entfernt werden, sonst bedeutet ein alter
+Code plötzlich etwas anderes. Ein Name, der nicht in der Tabelle steht, reist
+trotzdem mit — als Text, der kostet mehr, geht aber nie schief. Der Jest-Test
+besteht auf dem Rundweg Feld für Feld, auf der Kürze und darauf, dass ein
+verdrehtes Zeichen abgelehnt wird.
 
 In VR liegt der Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
 legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
@@ -361,13 +419,51 @@ laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Am
 Rechner geht dasselbe auf der Kommandozeile:
 
 ```bash
-npm run config -- decode BGVR1…        # zeigt die Einstellungen als JSON
+npm run config -- decode BG2…          # zeigt die Einstellungen als JSON
 npm run config -- encode config.json   # macht wieder einen Code daraus
-npm run config -- mirror BGVR1… left   # linke Handhaltungen nach rechts
+npm run config -- mirror BG2… left     # linke Handhaltungen nach rechts
 ```
 
 Damit ist „hier sind meine Einstellungen, mach das für die andere Hand auch"
 eine Zeile statt vierzig Zahlen.
+
+### Fliegen
+
+Der **Supermanhandschuh** ist der Translationshandschuh, andersherum: dort
+schiebt die Hand ein Objekt durch den Raum, hier schiebt sie dich. **Greifen**
+hebt ab, **Trigger** fliegt, und die Richtung sind die zwei Dinge, die ein
+fliegender Mensch tatsächlich hat — wohin er schaut und wohin er die Hand
+drückt. Beim Drücken des Triggers wird die Handposition gemerkt; ab da ist der
+Versatz davon ein Joystick im eigenen Bezugssystem: vorne ist die aktuelle
+Blickrichtung samt Neigung, seitlich dein Links und Rechts, Hand heben hebt
+dich. Der Kopf lenkt also mit, ohne dass die Hand etwas anderes tun muss.
+
+Dafür kennt die Fortbewegung einen Flugmodus: `PhysicsLocomotion.setFlight()`
+nimmt eine volle 3-D-Geschwindigkeit, schaltet die Schwerkraft ab und lässt den
+Stick schweigen. Die Kapsel bleibt dieselbe, Wände halten also weiterhin —
+durch den Raum fliegen ist der Sinn der Sache, durch seine Wände nicht. Landen
+gibt den Körper der Schwerkraft zurück, mitsamt der Geschwindigkeit, die er
+gerade hatte: oben loslassen ist ein echter Sturz.
+
+### Treffer zählen
+
+Am Schießstand wird jeder Treffer gewertet — nach dem Ring, in dem die Kugel
+durchgeht (10 in der Mitte bis 2 außen, dieselben fünf Ringe, die auf die
+Scheibe gemalt sind), eine Stahlplatte pauschal. Die Punkte hängen als Zahl in
+der Luft, wo die Kugel durch ist, steigen langsam auf und verblassen; dazu ein
+kurzer Ton, der mit dem Ergebnis höher wird. Beides ist lokal — nur du und
+deine Zuschauer bekommen es mit, niemandem sonst füllt sich der Stand mit
+deinen Zahlen.
+
+Gerechnet wird gegen die **Strecke**, die die Kugel seit dem letzten Bild
+zurückgelegt hat, nicht gegen ihren Ort: Bei 120 m/s liegen zwei Meter zwischen
+zwei Bildern, und eine glatt durchschossene Scheibe wäre sonst nie getroffen
+worden. `PortalWorld.bulletTravelled()` reicht diese Strecke an die Welt weiter
+— das Labor interessiert sich nicht dafür, der Schießstand schon.
+
+Ton und Punkte hängen an zwei **Tafeln auf der Schießlinie**, und die sind
+selbst Teil des Stands: Man kann sie **anschießen** oder mit dem **Trigger**
+umlegen (sie sind auch fest genug, dass die Kugel abprallt).
 
 Die **Linie** zwischen Hand und Objekt ist standardmäßig aus (sie steht meist
 im Weg) und lässt sich unter *Einstellungen → Ferngreifen → Linie anzeigen*
