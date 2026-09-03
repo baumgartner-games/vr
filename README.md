@@ -26,8 +26,11 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
   selbst, wenn man durch ein Portal schaut.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
-- **Rollen & Netzwerk-Grundgerüst** für spätere asymmetrische Spiele
-  (VR-Spieler + Handy-Spieler).
+- **Peer-to-Peer-Sitzungen** (experimentell): beide Geräte tragen denselben
+  Raum-Code ein und sind danach direkt verbunden — ohne eigenen Server.
+- **Zuschauer-Kamera**: der PC/Tablet kann dem VR-Spieler zusehen, wahlweise
+  aus dessen Augen (First Person) oder mit weicher Verfolgung von hinten
+  (Third Person), inklusive Maus-Drag zum Drehen.
 
 ## Entwicklung
 
@@ -47,7 +50,8 @@ Nützliche Query-/Hash-Parameter:
 | --- | --- |
 | `#portal` | startet direkt in dieser Welt (jede Welt-ID funktioniert) |
 | `?world=portal` | dasselbe als Query-Parameter |
-| `?room=test` | verbindet Tabs über `BroadcastChannel` zu einer lokalen Session |
+| `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) |
+| `?net=local` | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner |
 
 Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 
@@ -66,6 +70,8 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Weitergeben | mit der freien Hand danach greifen | – | – |
 | Fernangeln (optional) | zielen, Grip halten, Hand zurückreißen | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
+| Zuschauer-Kamera drehen | – | ziehen mit der Maus | wischen |
+| Zuschauer-Abstand | – | Mausrad oder Regler | Regler |
 
 **Handgesten** (mit Controllern): Grip = Pistolenhand — damit lassen sich
 Dominosteine antippen. Grip + Trigger = Daumen hoch. Kommt etwas Greifbares in
@@ -92,7 +98,8 @@ src/
   core/      Engine, Player-Rig, Locomotion, XR-Input, Pointer, Hände, Avatar
   physics/   Rapier-Wrapper und der Charakter-Controller (dynamisch geladen)
   ui/        Canvas-basierte 3D-UI (Panel, Textflächen, Handgelenk-Menü)
-  net/       Transport-Interface, BroadcastChannel-Transport, Presence, Avatare
+  net/       Transport-Interface, WebRTC/BroadcastChannel, Presence, Avatare,
+             Zuschauer-Kamera
   worlds/    Weltenregistry + je eine Welt pro Ordner
 ```
 
@@ -140,15 +147,80 @@ Bekannte Grenzen des Prototyps: Objekte springen beim Durchtritt (kein
 Clipping an der Portalebene), Portale nur auf ebenen Flächen, und es gibt eine
 Rekursionsstufe — im Portal zeigt das gegenüberliegende seinen Ruhewirbel.
 
-### Asymmetrisches Spielen (Vorbereitung)
+### Zusammen spielen (Peer-to-Peer)
 
-`PlayerRole` unterscheidet `vr`, `desktop` und `handheld`; jede Welt gibt in
-der Registry an, welche Rollen sie unterstützt. `NetSession` kümmert sich um
-Presence, Pose-Sync (15 Hz) und freie Nachrichten-Kanäle für Welten-Events,
-`RemoteAvatars` zeichnet die anderen Spieler. Der einzige heute enthaltene
-Transport ist `BroadcastChannelTransport` (mehrere Tabs im selben Browser) —
-ein WebSocket- oder WebRTC-Transport lässt sich ohne Änderung an den Welten
-ergänzen, er muss nur `NetTransport` implementieren.
+Zwei Geräte, ein Raum-Code, keine eigene Infrastruktur. Auf der Startseite (oder
+im HUD unter **Verbindung**) tragen beide denselben Code ein — `Würfeln` erzeugt
+einen sprechbaren wie `mond-riff-47`, `Link kopieren` legt ihn als `?room=` in
+die URL, damit das zweite Gerät nur noch tippen muss.
+
+**Warum kein eigener Signaling-Server?** WebRTC braucht nur für den Handshake
+einen Umweg (Austausch der SDP-Beschreibungen). Danach läuft alles direkt
+zwischen den Browsern. Diesen Handshake übernimmt
+[Trystero](https://github.com/dmotz/trystero): es legt die Angebote in ein
+öffentliches Relay-Netz statt auf einen Server, den wir betreiben müssten.
+
+| Vermittlung | Netz | Anmerkung |
+| --- | --- | --- |
+| **Nostr** (Standard) | hunderte öffentliche Relays | am robustesten, `wss://` |
+| **MQTT** | öffentliche Broker | gute Alternative, wenn Nostr blockiert ist |
+| **BitTorrent** | öffentliche Tracker | funktioniert, aber Tracker kommen und gehen |
+
+Umschalten geht im Panel unter *Vermittlung* — hilfreich in Netzen, die eine
+der Varianten wegfiltern. Findet keins der Relays einen Weg, sagt das Panel das
+auch so (`Kein nostr-Relay erreichbar`), statt still zu warten.
+
+Was **nicht** über die Relays läuft: alles Inhaltliche. Posen, Welt-Events und
+Chat gehen ausschließlich über den direkten, verschlüsselten Datenkanal. Der
+Raum-Code dient zugleich als Passwort, mit dem Trystero die Handshake-Daten auf
+dem Relay verschlüsselt.
+
+**Grenzen.** Ohne TURN-Server scheitert die direkte Verbindung bei symmetrischem
+NAT (manche Mobilfunknetze, strenge Firmennetze). Im selben WLAN — der
+Hauptfall: Brille und PC im gleichen Raum — reicht STUN. Wer einen TURN-Server
+hat, gibt ihn beim Build mit:
+
+```bash
+VITE_TURN_URL=turn:example.org:3478 VITE_TURN_USER=user VITE_TURN_CREDENTIAL=secret npm run build
+```
+
+Zum Entwickeln ohne Netz reicht `?net=local`: dann übernimmt
+`BroadcastChannelTransport` und zwei Tabs im selben Browser bilden eine Session.
+
+### Zuschauen: First und Third Person
+
+Ist ein VR-Spieler im Raum, kann der PC im Panel unter *Kamera* umschalten:
+
+- **Frei** — die normale Desktop-Steuerung, eigene Kamera.
+- **First Person** — die Kamera sitzt exakt im Kopf des VR-Spielers. Der eigene
+  Avatar wird für die anderen ausgeblendet (man steckt ja in deren Kopf), und
+  der Kopf des Beobachteten wird lokal nicht gezeichnet.
+- **Third Person** — die Kamera schwebt hinter dem Spieler. Sie bleibt immer
+  waagerecht; nur die Drehung zieht weich nach, damit das Bild nicht bei jedem
+  Kopfruck mitzuckt.
+
+Der Regler **Kamera-Glättung** bestimmt, wie träge das passiert: ganz links
+folgt die Kamera 1:1, ganz rechts schwenkt sie deutlich verzögert nach. In First
+Person glättet derselbe Regler die Kopfbewegung; **Horizont stabilisieren** wirft
+zusätzlich die Kopfneigung weg, was gegen Übelkeit hilft.
+
+Ziehen mit Maus oder Finger dreht die Kamera zusätzlich — in Third Person orbitet
+sie um den Spieler, in First Person schaut man sich aus dessen Kopf um. Das
+Mausrad ändert den Abstand, *Ansicht zentrieren* setzt den Drag zurück.
+
+Technisch: `NetSession` verschickt Posen mit 20 Hz, `SmoothPose` zieht dazwischen
+exponentiell nach (dieselbe Glättung nutzen auch die `RemoteAvatars`), und
+`SpectatorCamera` setzt daraus die Kamera per `PlayerRig.setHeadWorldPose()` —
+der eigene Rig bleibt dabei stehen, es wandert nur die Kamera darin.
+
+### Asymmetrisches Spielen
+
+`PlayerRole` unterscheidet `vr`, `desktop` und `handheld`; jede Welt gibt in der
+Registry an, welche Rollen sie unterstützt. `NetSession` kümmert sich um
+Presence, Pose-Sync und freie Nachrichten-Kanäle für Welten-Events,
+`RemoteAvatars` zeichnet die anderen Spieler. Welten sehen nie, welcher
+Transport darunter liegt — ein WebSocket-Transport ließe sich ohne Änderung an
+den Welten ergänzen, er muss nur `NetTransport` implementieren.
 
 ## Deployment
 

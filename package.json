@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
-    "three": "^0.185.1"
+    "@trystero-p2p/mqtt": "^0.25.4",
+    "@trystero-p2p/torrent": "^0.25.4",
+    "three": "^0.185.1",
+    "trystero": "^0.25.4"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

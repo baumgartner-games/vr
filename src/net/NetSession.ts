@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import type { PlayerRole } from '../core/types';
-import type { NetMessage, NetTransport, PeerPose, PoseArray } from './types';
+import type {
+  NetMessage,
+  NetStatus,
+  NetTransport,
+  NetTransportEvents,
+  PeerPose,
+  PoseArray,
+} from './types';
 import type { PlayerRig } from '../core/PlayerRig';
 import type { XRInput } from '../core/XRInput';
 
@@ -13,10 +20,17 @@ export interface Peer {
   lastSeen: number;
 }
 
-type Listener = (peer: Peer) => void;
+type PeerListener = (peer: Peer) => void;
+type StatusListener = (status: NetStatus, detail: string) => void;
+type ChangeListener = () => void;
 
-const POSE_INTERVAL = 1 / 15;
-const PEER_TIMEOUT = 5;
+/**
+ * A WebRTC data channel copes with this easily and it is what makes
+ * first-person spectating watchable.
+ */
+const POSE_INTERVAL = 1 / 20;
+/** Only a fallback: transports that know about links report leaving directly. */
+const PEER_TIMEOUT = 8;
 
 const _mat = new THREE.Matrix4();
 const _pos = new THREE.Vector3();
@@ -28,24 +42,72 @@ const _scale = new THREE.Vector3();
  * sessions (a VR player plus phone players) only need a different transport.
  */
 export class NetSession {
-  readonly localId = `p-${Math.random().toString(36).slice(2, 8)}`;
+  /** Replaced by the transport's own id once connected, so both agree. */
+  localId = `p-${Math.random().toString(36).slice(2, 8)}`;
   readonly peers = new Map<string, Peer>();
 
   role: PlayerRole = 'desktop';
   name = 'Spieler';
   world = 'hub';
   connected = false;
+  room = '';
+  /** Cleared while the local camera is glued to someone else's head. */
+  visible = true;
+  status: NetStatus = 'offline';
+  statusDetail = '';
 
   private transport: NetTransport | null = null;
   private poseTimer = 0;
-  private joinListeners: Listener[] = [];
-  private leaveListeners: Listener[] = [];
+  private joinListeners: PeerListener[] = [];
+  private leaveListeners: PeerListener[] = [];
+  private changeListeners: ChangeListener[] = [];
+  private statusListeners: StatusListener[] = [];
   private channelListeners = new Map<string, Array<(data: unknown, from: string) => void>>();
 
+  get transportKind(): string {
+    return this.transport?.kind ?? 'none';
+  }
+
   async connect(transport: NetTransport, room = 'lobby'): Promise<void> {
+    this.disconnect();
     this.transport = transport;
-    await transport.connect(room, (message) => this.receive(message));
+    this.room = room;
+    this.setStatus('connecting', 'Verbinde …');
+
+    const events: NetTransportEvents = {
+      message: (message) => this.receive(message),
+      peerUp: () => this.announce(),
+      peerDown: (id) => this.dropPeer(id),
+      status: (status, detail) => this.setStatus(status, detail ?? ''),
+    };
+
+    try {
+      await transport.connect(room, events);
+    } catch (error) {
+      this.transport = null;
+      this.setStatus('error', (error as Error).message);
+      throw error;
+    }
+
+    if (transport.id) this.localId = transport.id;
     this.connected = true;
+    this.announce();
+  }
+
+  disconnect(): void {
+    if (!this.transport) return;
+    this.send({ type: 'bye', from: this.localId });
+    this.transport.close();
+    this.transport = null;
+    this.connected = false;
+    this.room = '';
+    for (const id of [...this.peers.keys()]) this.dropPeer(id);
+    this.setStatus('offline', '');
+  }
+
+  /** Tells everyone who and where we are. Cheap, so call it whenever it changes. */
+  announce(): void {
+    if (!this.connected) return;
     this.send({
       type: 'hello',
       from: this.localId,
@@ -55,21 +117,21 @@ export class NetSession {
     });
   }
 
-  disconnect(): void {
-    if (!this.transport) return;
-    this.send({ type: 'bye', from: this.localId });
-    this.transport.close();
-    this.transport = null;
-    this.connected = false;
-    this.peers.clear();
-  }
-
-  onPeerJoin(listener: Listener): void {
+  onPeerJoin(listener: PeerListener): void {
     this.joinListeners.push(listener);
   }
 
-  onPeerLeave(listener: Listener): void {
+  onPeerLeave(listener: PeerListener): void {
     this.leaveListeners.push(listener);
+  }
+
+  /** Fires whenever the peer list or one of its entries changed. */
+  onPeersChanged(listener: ChangeListener): void {
+    this.changeListeners.push(listener);
+  }
+
+  onStatus(listener: StatusListener): void {
+    this.statusListeners.push(listener);
   }
 
   /** Subscribe to a world-specific message channel. */
@@ -108,6 +170,7 @@ export class NetSession {
           head: poseFromMatrix(_mat),
           left: poseFromObject(input.get('left')?.grip ?? null),
           right: poseFromObject(input.get('right')?.grip ?? null),
+          hidden: !this.visible,
         },
       });
     }
@@ -115,6 +178,12 @@ export class NetSession {
     for (const peer of [...this.peers.values()]) {
       if (now - peer.lastSeen > PEER_TIMEOUT) this.dropPeer(peer.id);
     }
+  }
+
+  private setStatus(status: NetStatus, detail: string): void {
+    this.status = status;
+    this.statusDetail = detail;
+    for (const listener of this.statusListeners) listener(status, detail);
   }
 
   private send(message: NetMessage): void {
@@ -127,22 +196,20 @@ export class NetSession {
 
     switch (message.type) {
       case 'hello': {
+        const known = this.peers.has(message.from);
         const peer = this.touchPeer(message.from, now);
         peer.role = message.role;
         peer.name = message.name;
         peer.world = message.world;
-        // Answer so the newcomer learns about us too.
-        this.send({
-          type: 'hello',
-          from: this.localId,
-          role: this.role,
-          name: this.name,
-          world: this.world,
-        });
+        // Answer so the newcomer learns about us too — but only once, otherwise
+        // two peers keep greeting each other forever.
+        if (!known) this.announce();
+        this.notifyChanged();
         break;
       }
       case 'world': {
         this.touchPeer(message.from, now).world = message.world;
+        this.notifyChanged();
         break;
       }
       case 'pose': {
@@ -169,9 +236,14 @@ export class NetSession {
       peer = { id, role: 'desktop', name: id, world: 'hub', pose: null, lastSeen: now };
       this.peers.set(id, peer);
       for (const listener of this.joinListeners) listener(peer);
+      this.notifyChanged();
     }
     peer.lastSeen = now;
     return peer;
+  }
+
+  private notifyChanged(): void {
+    for (const listener of this.changeListeners) listener();
   }
 
   private dropPeer(id: string): void {
@@ -179,6 +251,7 @@ export class NetSession {
     if (!peer) return;
     this.peers.delete(id);
     for (const listener of this.leaveListeners) listener(peer);
+    this.notifyChanged();
   }
 }
 
