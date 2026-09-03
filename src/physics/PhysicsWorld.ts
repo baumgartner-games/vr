@@ -50,6 +50,8 @@ export interface PhysicsBody {
   collider: Collider;
   /** Set while the body is inside a portal funnel and may pass through walls. */
   phasing: boolean;
+  /** Set while a hand holds the body — it then ignores the player capsule. */
+  carried: boolean;
   membership: number;
   filter: number;
   previousPosition: THREE.Vector3;
@@ -123,7 +125,23 @@ export class PhysicsWorld {
   setPhasing(entry: PhysicsBody, phasing: boolean): void {
     if (entry.phasing === phasing) return;
     entry.phasing = phasing;
-    const filter = phasing ? entry.filter & ~GROUP_PORTAL_SURFACE : entry.filter;
+    this.applyFilter(entry);
+  }
+
+  /**
+   * A carried body stops interacting with the player, otherwise pulling a cube
+   * towards yourself launches you across the room.
+   */
+  setCarried(entry: PhysicsBody, carried: boolean): void {
+    if (entry.carried === carried) return;
+    entry.carried = carried;
+    this.applyFilter(entry);
+  }
+
+  private applyFilter(entry: PhysicsBody): void {
+    let filter = entry.filter;
+    if (entry.phasing) filter &= ~GROUP_PORTAL_SURFACE;
+    if (entry.carried) filter &= ~GROUP_PLAYER;
     entry.collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }
 
@@ -181,6 +199,7 @@ export class PhysicsWorld {
       body,
       collider,
       phasing: false,
+      carried: false,
       membership,
       filter,
       previousPosition: _position.clone(),

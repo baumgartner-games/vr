@@ -4,6 +4,8 @@ import type { XRInput } from './XRInput';
 import type { Pointer } from './Pointer';
 import type { PlayerAvatar } from './PlayerAvatar';
 import type { HandVisuals } from './HandVisuals';
+import type { WristMenu } from '../ui/WristMenu';
+import type { MenuEntry } from '../ui/menu';
 import type { NetSession } from '../net/NetSession';
 
 /**
@@ -23,6 +25,7 @@ export interface WorldContext {
   readonly pointer: Pointer;
   readonly avatar: PlayerAvatar;
   readonly hands: HandVisuals;
+  readonly menu: WristMenu;
   readonly net: NetSession;
   readonly role: PlayerRole;
   /** Seconds since the app started. */
@@ -31,15 +34,6 @@ export interface WorldContext {
   goTo(worldId: string): void;
   /** Short message shown on the wrist menu / HUD. */
   notify(message: string): void;
-}
-
-/** An extra entry a world contributes to the wrist menu. */
-export interface WorldAction {
-  id: string;
-  label: string;
-  sub?: string;
-  accent?: number;
-  run(ctx: WorldContext): void;
 }
 
 export interface World {
@@ -54,8 +48,8 @@ export interface World {
    * when the world has drawn the frame itself, otherwise the engine renders.
    */
   render?(ctx: WorldContext): boolean;
-  /** Menu entries for this world, e.g. "reset". Read once after `init`. */
-  actions?(): WorldAction[];
+  /** Entries this world adds to the wrist menu. Read once after `init`. */
+  menu?(): MenuEntry[];
   dispose(ctx: WorldContext): void;
 }
 

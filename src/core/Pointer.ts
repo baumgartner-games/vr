@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { XRInput } from './XRInput';
+import type { Handedness, XRInput } from './XRInput';
 import type { PlayerRig } from './PlayerRig';
 
 export interface PointerHit {
@@ -8,6 +8,8 @@ export interface PointerHit {
   distance: number;
   /** True when the hit came from a fingertip/controller poke instead of a ray. */
   poke: boolean;
+  /** Which hand triggered this, when the pointer came from a controller. */
+  hand: Handedness | null;
 }
 
 export interface PointerTarget {
@@ -114,7 +116,7 @@ export class Pointer {
     hand.getRay(_ray);
     this.raycaster.set(_ray.origin, _ray.direction);
     this.raycaster.far = 12;
-    const hit = this.castAll();
+    const hit = this.castAll(hand.handedness);
 
     this.rayLine.visible = true;
     this.rayLine.scale.z = hit ? hit.hit.distance : 1.6;
@@ -135,13 +137,13 @@ export class Pointer {
     }
     this.raycaster.setFromCamera(this.screen, this.rig.camera);
     this.raycaster.far = 12;
-    const hit = this.castAll();
+    const hit = this.castAll(null);
     this.setHover(hit?.target ?? null, hit?.hit ?? null);
     if (hit && this.screenClick) hit.target.onSelect?.(hit.hit);
     this.screenClick = false;
   }
 
-  private castAll(): { target: PointerTarget; hit: PointerHit } | null {
+  private castAll(hand: Handedness | null): { target: PointerTarget; hit: PointerHit } | null {
     let best: { target: PointerTarget; hit: PointerHit } | null = null;
     for (const target of this.targets) {
       if (!target.object.visible) continue;
@@ -156,6 +158,7 @@ export class Pointer {
           uv: first.uv ? first.uv.clone() : null,
           distance: first.distance,
           poke: false,
+          hand,
         },
       };
     }
@@ -185,7 +188,7 @@ export class Pointer {
 
       for (const target of this.targets) {
         if (target.pokeable === false || !target.object.visible) continue;
-        const hit = pokeTest(target.object, _tip);
+        const hit = pokeTest(target.object, _tip, controller.handedness);
         if (!hit) continue;
         active.add(target.object);
         if (!this.poking.has(target.object)) target.onSelect?.(hit);
@@ -226,7 +229,11 @@ export class Pointer {
 }
 
 /** Poke test against a flat object: inside its bounds and within 3 cm depth. */
-function pokeTest(object: THREE.Object3D, tipWorld: THREE.Vector3): PointerHit | null {
+function pokeTest(
+  object: THREE.Object3D,
+  tipWorld: THREE.Vector3,
+  hand: Handedness | null,
+): PointerHit | null {
   const mesh = object as THREE.Mesh;
   const geometry = mesh.geometry;
   if (!geometry) return null;
@@ -245,5 +252,5 @@ function pokeTest(object: THREE.Object3D, tipWorld: THREE.Vector3): PointerHit |
     size.x > 0 ? (_local.x - box.min.x) / size.x : 0.5,
     size.y > 0 ? (_local.y - box.min.y) / size.y : 0.5,
   );
-  return { point: tipWorld.clone(), uv, distance: 0, poke: true };
+  return { point: tipWorld.clone(), uv, distance: 0, poke: true, hand };
 }

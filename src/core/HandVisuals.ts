@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import type { ControllerState, Handedness, XRInput } from './XRInput';
 
-export type HandGesture = 'open' | 'point' | 'thumbsUp' | 'grip';
+export type HandGesture = 'open' | 'ready' | 'point' | 'thumbsUp' | 'grip';
 
 /** Curl per finger: thumb, index, middle, ring, pinky (0 = straight, 1 = closed). */
 const GESTURES: Record<HandGesture, number[]> = {
   open: [0.1, 0.08, 0.08, 0.1, 0.12],
+  // Slightly curled: something is close enough to grab.
+  ready: [0.35, 0.4, 0.45, 0.5, 0.55],
   point: [0.15, 0, 1, 1, 1],
   thumbsUp: [0, 1, 1, 1, 1],
   grip: [0.55, 0.35, 0.85, 0.9, 0.9],

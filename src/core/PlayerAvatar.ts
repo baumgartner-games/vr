@@ -114,7 +114,8 @@ export class PlayerAvatar extends THREE.Group {
 
     // Torso yaw trails the head; it only catches up past a dead zone.
     _forward.set(-headLocal.elements[8]!, 0, -headLocal.elements[10]!);
-    const headYaw = Math.atan2(_forward.x, _forward.z);
+    // three's yaw convention: rotation.y = 0 looks along -Z.
+    const headYaw = Math.atan2(-_forward.x, -_forward.z);
     const difference = wrapAngle(headYaw - this.bodyYaw);
     const slack = THREE.MathUtils.degToRad(38);
     if (Math.abs(difference) > slack) {

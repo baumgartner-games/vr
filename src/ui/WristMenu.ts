@@ -1,38 +1,53 @@
 import * as THREE from 'three';
-import { UIPanel, type PanelItem } from './UIPanel';
+import { UIPanel } from './UIPanel';
+import type { MenuEntry } from './menu';
 import type { Pointer } from '../core/Pointer';
-import type { XRInput } from '../core/XRInput';
+import type { Handedness, XRInput } from '../core/XRInput';
 
 const _wrist = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _dir = new THREE.Vector3();
+const _handUp = new THREE.Vector3();
+const _offset = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _mat = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
-const _offset = new THREE.Vector3();
+
+interface Page {
+  title: string;
+  entries: MenuEntry[];
+  grid: boolean;
+  /** Id of the entry this page belongs to, for reopening it later. */
+  id: string;
+}
+
+const BACK: MenuEntry = { id: 'menu:back', label: 'Zurück', icon: 'back', accent: 0x6f7d99 };
 
 /**
  * The menu button rides on the left hand; pressing it opens a panel that keeps
- * following that hand. The right hand points at it and selects.
+ * following that hand, tilting along with it. The other hand points and selects.
  */
 export class WristMenu extends THREE.Group {
   readonly panel: UIPanel;
   readonly button: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
 
+  /** Which hand carries the menu. */
+  hand: Handedness = 'left';
+
   private open = false;
   private buttonTexture: THREE.CanvasTexture;
   private buttonCanvas: HTMLCanvasElement;
   private buttonHot = false;
-  private onSelect?: (id: string) => void;
+  private root: MenuEntry[] = [];
+  private stack: Page[] = [];
 
   constructor(
     private readonly pointer: Pointer,
-    options: { onSelect?(id: string): void; title?: string; footer?: string } = {},
+    options: { title?: string; footer?: string } = {},
   ) {
     super();
     this.name = 'wrist-menu';
-    this.onSelect = options.onSelect;
 
     this.buttonCanvas = document.createElement('canvas');
     this.buttonCanvas.width = 256;
@@ -56,9 +71,9 @@ export class WristMenu extends THREE.Group {
 
     this.panel = new UIPanel({
       width: 0.26,
-      title: options.title ?? 'Welten',
-      footer: options.footer ?? 'Rechte Hand: zielen + Trigger',
-      onSelect: (id) => this.handleSelect(id),
+      title: options.title ?? 'Menü',
+      footer: options.footer ?? 'Andere Hand: zielen + Trigger',
+      onSelect: (index, hand) => this.handleSelect(index, hand),
     });
     this.panel.visible = false;
     this.add(this.panel);
@@ -80,12 +95,20 @@ export class WristMenu extends THREE.Group {
     this.pointer.add(this.panel.asPointerTarget());
   }
 
-  setItems(items: PanelItem[]): void {
-    this.panel.setItems(items);
+  /** Replaces the whole menu tree and returns to the top level. */
+  setRoot(entries: MenuEntry[], title = 'Menü'): void {
+    this.root = entries;
+    this.stack = [{ title, entries, grid: false, id: 'root' }];
+    this.applyPage();
   }
 
-  setTitle(title: string): void {
-    this.panel.setTitle(title);
+  /** Opens the submenu of a root entry, e.g. after using an item from it. */
+  openSubmenu(id: string): void {
+    const entry = this.root.find((candidate) => candidate.id === id);
+    if (!entry?.children) return;
+    this.stack.length = 1;
+    this.pushPage(entry);
+    this.toggle(true);
   }
 
   setStatus(status: string): void {
@@ -99,6 +122,10 @@ export class WristMenu extends THREE.Group {
   toggle(force?: boolean): void {
     this.open = force ?? !this.open;
     this.panel.visible = this.open;
+    if (!this.open && this.stack.length > 1) {
+      this.stack.length = 1;
+      this.applyPage();
+    }
     this.drawButton();
   }
 
@@ -115,27 +142,33 @@ export class WristMenu extends THREE.Group {
     _local.copy(this.matrixWorld).invert().multiply(headWorld);
     _head.setFromMatrixPosition(_local);
 
-    const left = input.get('left');
-    const anchor = left?.tracked ? wristObject(left.isHand, left) : null;
+    const controller = input.get(this.hand);
+    const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
 
     this.button.visible = true;
     this.panel.visible = this.open;
 
     if (anchor) {
       _wrist.copy(anchor.position);
+      // The hand's own up axis is the roll reference, so the menu tilts along.
+      _handUp.set(0, 1, 0).applyQuaternion(anchor.quaternion);
+      if (Math.abs(_handUp.dot(_dir.copy(_head).sub(_wrist).normalize())) > 0.97) {
+        _handUp.copy(_up);
+      }
+
       _dir.copy(_head).sub(_wrist);
       const distance = _dir.length() || 1;
       _dir.divideScalar(distance);
 
-      this.button.position.copy(_wrist).addScaledVector(_dir, 0.055).addScaledVector(_up, 0.02);
-      faceTowards(this.button, _head);
+      this.button.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
+      faceTowards(this.button, _head, _handUp);
 
-      this.panel.position.copy(_wrist).addScaledVector(_dir, 0.09).addScaledVector(_up, 0.19);
-      faceTowards(this.panel, _head);
+      this.panel.position.copy(_wrist).addScaledVector(_dir, 0.08).addScaledVector(_handUp, 0.2);
+      faceTowards(this.panel, _head, _handUp);
       return;
     }
 
-    // No left hand (desktop/phone): dock the menu to the view instead.
+    // No tracked hand (desktop/phone): dock the menu to the view instead.
     _quat.setFromRotationMatrix(_local);
     this.button.position.copy(_head).add(_offset.set(0.2, -0.16, -0.55).applyQuaternion(_quat));
     this.button.quaternion.copy(_quat);
@@ -153,14 +186,54 @@ export class WristMenu extends THREE.Group {
     this.removeFromParent();
   }
 
+  // --- pages --------------------------------------------------------------
+
+  private get page(): Page {
+    return this.stack[this.stack.length - 1]!;
+  }
+
+  private displayed(): MenuEntry[] {
+    const entries = this.page.entries;
+    return this.stack.length > 1 ? [BACK, ...entries] : entries;
+  }
+
+  private applyPage(): void {
+    const page = this.page;
+    this.panel.setPage(page.title, this.displayed(), page.grid);
+  }
+
+  private pushPage(entry: MenuEntry): void {
+    this.stack.push({
+      title: entry.label,
+      entries: entry.children ?? [],
+      grid: entry.grid ?? false,
+      id: entry.id,
+    });
+    this.applyPage();
+  }
+
+  private handleSelect(index: number, hand: Handedness | null): void {
+    const entry = this.displayed()[index];
+    if (!entry) return;
+
+    if (entry === BACK) {
+      this.stack.pop();
+      this.applyPage();
+      return;
+    }
+    if (entry.children) {
+      this.pushPage(entry);
+      return;
+    }
+    entry.run?.(hand);
+  }
+
+  // --- button -------------------------------------------------------------
+
   private setButtonHot(hot: boolean): void {
     if (this.buttonHot === hot) return;
     this.buttonHot = hot;
     this.drawButton();
-  }
-
-  private handleSelect(id: string): void {
-    this.onSelect?.(id);
   }
 
   private drawButton(): void {
@@ -213,8 +286,8 @@ function wristObject(isHand: boolean, controller: { hand: THREE.XRHandSpace; gri
   return controller.grip.visible ? controller.grip : null;
 }
 
-/** Points an object's +Z axis at a target given in the same parent space. */
-function faceTowards(object: THREE.Object3D, target: THREE.Vector3): void {
-  _mat.lookAt(target, object.position, _up);
+/** Points an object's +Z at a target, rolling around the given up axis. */
+function faceTowards(object: THREE.Object3D, target: THREE.Vector3, up: THREE.Vector3): void {
+  _mat.lookAt(target, object.position, up);
   object.quaternion.setFromRotationMatrix(_mat);
 }

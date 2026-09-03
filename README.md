@@ -10,15 +10,17 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
 - **Startseite** mit großem `Enter VR`-Button (plus Flat-Modus für Desktop/Handy).
 - **Hub-Welt**: helle Halle, Hände bzw. Controller, Tore zu den anderen Welten.
 - **Handgelenk-Menü**: an der linken Hand schwebt ein Button; ein Druck öffnet ein
-  Panel, das der Hand folgt. Ausgewählt wird mit der rechten Hand (Zielstrahl +
-  Trigger) oder direkt per Fingertipp. Ohne getrackte Hand (Desktop/Handy) hängt
-  dasselbe Menü an der Blickrichtung. Neben der Weltenauswahl liegen dort der
-  Weg zurück zum Hub und die Aktionen der aktuellen Welt (im Labor: alles
-  zurücksetzen).
+  Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
+  Ausgewählt wird mit der anderen Hand (Zielstrahl + Trigger) oder per
+  Fingertipp; ohne getrackte Hand hängt dasselbe Menü an der Blickrichtung.
+  Aufbau: **Welten** (Hub, Portal Labor), **Werkzeuge** (die beiden Portal
+  Waffen direkt in die Hand), **Magischer Beutel** (Raster mit Companion Cube
+  und Domino — das Objekt landet sofort in der greifenden Hand, das Raster
+  kommt zurück, sobald du loslässt) und die Aktionen der Welt.
 - **Portal Labor** (experimentell): Physik-Sandkasten mit zwei Portal-Guns am
-  Gürtel (links blau, rechts rot), Schwerkraft, Sprung, Companion Cubes und
-  einer Reihe Dominosteine. Portale gehen auch auf Boden und Decke — samt
-  Sturz und Schwung beim Herausfliegen.
+  Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
+  Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
+  gehen auch auf Boden und Decke — samt Sturz und Schwung beim Herausfliegen.
 - **Eigener Körper**: Torso, Arme und Beine gibt es, sie werden aber nur in
   Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
   selbst, wenn man durch ein Portal schaut.
@@ -57,16 +59,20 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Springen | `A` rechts | `Leertaste` | – |
 | Menü | Button an der linken Hand | Button `Menü` im HUD | Button `Menü` im HUD |
 | Auswählen | rechte Hand zielen + Trigger, oder antippen | Linksklick | tippen |
-| Waffe ziehen | Grip an der Hüfte halten | – (immer bereit) | – |
-| Portal blau | Trigger links (Waffe in der Hand) | Linksklick | – |
-| Portal rot | Trigger rechts (Waffe in der Hand) | Rechtsklick | – |
+| Waffe ziehen | Grip an der Hüfte halten (jede Hand, jede Waffe) | – (immer bereit) | – |
+| Portal schießen | Trigger der Hand mit der Waffe | Links-/Rechtsklick | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
+| Weitergeben | mit der freien Hand danach greifen | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 
 **Handgesten** (mit Controllern): Grip = Pistolenhand — damit lassen sich
-Dominosteine antippen. Grip + Trigger = Daumen hoch. Mit Hand-Tracking werden
-die echten Finger gerendert; dort schaltet ein Pinch am Gürtel die Waffe
-zwischen Halfter und Hand um.
+Dominosteine antippen. Grip + Trigger = Daumen hoch. Kommt etwas Greifbares in
+Reichweite, leuchtet es auf und die Hand geht leicht in Griffhaltung. Mit
+Hand-Tracking werden die echten Finger gerendert; dort schaltet ein Pinch am
+Gürtel die Waffe zwischen Halfter und Hand um.
+
+Die Waffe zielt entlang des Pointing-Rays des Controllers, nicht entlang der
+Griffachse — sonst schießt man deutlich an der Zielrichtung vorbei.
 
 ## Architektur
 

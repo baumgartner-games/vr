@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { World, WorldAction, WorldContext } from '../../core/types';
+import type { World, WorldContext } from '../../core/types';
+import type { MenuEntry } from '../../ui/menu';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 import { Portal, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH } from './Portal';
 import { PortalRenderer } from './PortalRenderer';
@@ -24,6 +25,7 @@ const COLOR_BLUE = 0x2f8fff;
 const COLOR_RED = 0xff3b2f;
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
+const GRAB_RADIUS = 0.34;
 
 const _direction = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -47,9 +49,10 @@ const _hit = { point: _hitPoint, normal: _hitNormal, object: null as unknown as 
 interface GunSlot {
   gun: PortalGun;
   portal: Portal;
-  hand: Handedness;
+  /** The hip this gun rests on. Either hand may pick it up. */
+  side: Handedness;
   holster: THREE.Object3D;
-  held: boolean;
+  heldBy: Handedness | null;
   /** Blocks a shot on the very frame the gun was picked up. */
   justGrabbed: boolean;
 }
@@ -85,10 +88,14 @@ export class PortalWorld implements World {
   private readonly slots: GunSlot[] = [];
   private readonly probes = new Map<Handedness, HandProbe>();
   private readonly grabs = new Map<Handedness, HandGrab>();
+  private readonly spawned = new Set<PhysicsBody>();
+  private highlighted = new Set<PhysicsBody>();
+  private reopenBag = false;
   private readonly previousHead = new THREE.Vector3();
 
   private physics: PhysicsWorld | null = null;
   private locomotion: PhysicsLocomotion | null = null;
+  private context: WorldContext | null = null;
   private portalRenderer: PortalRenderer | null = null;
   private aimRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> | null = null;
   private hasPreviousHead = false;
@@ -99,6 +106,7 @@ export class PortalWorld implements World {
   private blockContextMenu: ((event: Event) => void) | null = null;
 
   async init(ctx: WorldContext): Promise<void> {
+    this.context = ctx;
     this.root.name = 'portal-world';
     ctx.scene.add(this.root);
     ctx.scene.background = new THREE.Color(0x0a0f18);
@@ -142,6 +150,7 @@ export class PortalWorld implements World {
   }
 
   update(dt: number, ctx: WorldContext): void {
+    this.context = ctx;
     if (!this.physics || !this.locomotion) return;
 
     this.time += dt;
@@ -163,14 +172,65 @@ export class PortalWorld implements World {
     this.updateAim(ctx);
   }
 
-  actions(): WorldAction[] {
+  menu(): MenuEntry[] {
+    const ctx = () => this.context!;
     return [
+      {
+        id: 'tools',
+        label: 'Werkzeuge',
+        sub: 'Ausrüstung in die Hand',
+        icon: 'tools',
+        accent: 0x9d7bff,
+        children: [
+          {
+            id: 'tool:gun-blue',
+            label: 'Portal Waffe blau',
+            sub: 'Setzt das blaue Portal',
+            icon: 'gun',
+            accent: COLOR_BLUE,
+            run: (hand) => this.equipGun(ctx(), hand, 'a'),
+          },
+          {
+            id: 'tool:gun-red',
+            label: 'Portal Waffe rot',
+            sub: 'Setzt das rote Portal',
+            icon: 'gun',
+            accent: COLOR_RED,
+            run: (hand) => this.equipGun(ctx(), hand, 'b'),
+          },
+        ],
+      },
+      {
+        id: 'bag',
+        label: 'Magischer Beutel',
+        sub: 'Objekte herbeirufen',
+        icon: 'bag',
+        accent: 0xffc857,
+        grid: true,
+        children: [
+          {
+            id: 'bag:cube',
+            label: 'Cube',
+            icon: 'cube',
+            accent: 0xffc857,
+            run: (hand) => this.spawnProp(ctx(), hand, 'cube'),
+          },
+          {
+            id: 'bag:domino',
+            label: 'Domino',
+            icon: 'domino',
+            accent: 0xffc857,
+            run: (hand) => this.spawnProp(ctx(), hand, 'domino'),
+          },
+        ],
+      },
       {
         id: 'reset',
         label: 'Labor zurücksetzen',
         sub: 'Portale, Würfel und Dominos',
+        icon: 'reset',
         accent: COLOR_RED,
-        run: (ctx) => this.resetWorld(ctx),
+        run: () => this.resetWorld(ctx()),
       },
     ];
   }
@@ -197,6 +257,9 @@ export class PortalWorld implements World {
     for (const slot of this.slots) slot.gun.dispose();
     this.slots.length = 0;
     this.grabs.clear();
+    this.spawned.clear();
+    this.highlighted.clear();
+    this.context = null;
     ctx.hands.setGestureOverride('left', null);
     ctx.hands.setGestureOverride('right', null);
 
@@ -369,15 +432,19 @@ export class PortalWorld implements World {
       ['left', this.portalBlue, COLOR_BLUE],
       ['right', this.portalRed, COLOR_RED],
     ];
-    for (const [hand, portal, color] of definitions) {
+    for (const [side, portal, color] of definitions) {
       const gun = new PortalGun(portal.key, color);
       const holster = new THREE.Object3D();
       ctx.rig.add(holster);
       holster.add(gun);
-      this.slots.push({ gun, portal, hand, holster, held: false, justGrabbed: false });
+      this.slots.push({ gun, portal, side, holster, heldBy: null, justGrabbed: false });
     }
   }
 
+  /**
+   * Both guns hang on the belt and either hand can take either one — the gun
+   * decides the colour, not the hand.
+   */
   private updateGuns(dt: number, ctx: WorldContext): void {
     const height = ctx.rig.getHeadHeight();
     const yaw = ctx.avatar.bodyYaw;
@@ -387,52 +454,108 @@ export class PortalWorld implements World {
     ctx.rig.worldToLocal(_head);
 
     for (const slot of this.slots) {
-      const side = slot.hand === 'left' ? -1 : 1;
+      slot.justGrabbed = false;
+      const side = slot.side === 'left' ? -1 : 1;
       slot.holster.position.set(
         _head.x + cos * side * 0.26 + sin * 0.04,
         height * 0.5,
         _head.z - sin * side * 0.26 + cos * 0.04,
       );
       slot.holster.rotation.set(0, yaw, 0);
+    }
 
-      const controller = ctx.input.get(slot.hand);
-      const canReach = controller?.tracked ? this.handNearHolster(ctx, controller, slot) : false;
-      slot.justGrabbed = false;
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand) continue;
+      const held = this.slots.find((slot) => slot.heldBy === hand) ?? null;
 
-      // Controllers hold the gun while the grip is pressed. Tracked hands have
-      // no grip button, so there a pinch at the belt toggles it.
-      const grab = controller
-        ? controller.isHand
-          ? controller.trigger.justPressed && canReach
-          : controller.squeeze.justPressed && canReach
-        : false;
-      const letGo = controller
-        ? controller.isHand
-          ? controller.trigger.justPressed && canReach
-          : !controller.squeeze.pressed || !controller.tracked
-        : true;
-
-      if (!slot.held && grab && controller) {
-        slot.held = true;
-        slot.justGrabbed = true;
-        const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
-        anchor.add(slot.gun);
-        slot.gun.position.set(0, -0.012, 0.03);
-        slot.gun.rotation.set(0, 0, 0);
-        slot.gun.holstered = false;
-        controller.pulse(0.4, 25);
-        ctx.hands.setGestureOverride(slot.hand, 'grip');
-      } else if (slot.held && letGo) {
-        slot.held = false;
-        slot.holster.add(slot.gun);
-        slot.gun.position.set(0, 0, 0);
-        slot.gun.rotation.set(0, 0, 0);
-        slot.gun.holstered = true;
-        ctx.hands.setGestureOverride(slot.hand, null);
+      if (!controller.tracked) {
+        if (held) this.holsterGun(ctx, held);
+        continue;
       }
 
-      slot.gun.update(dt);
+      // Controllers hold the gun while the grip is down. Tracked hands have no
+      // grip button, so there a pinch at the belt toggles it.
+      const pressed = controller.isHand
+        ? controller.trigger.justPressed
+        : controller.squeeze.justPressed;
+
+      if (held) {
+        const letGo = controller.isHand
+          ? pressed && this.handNearHolster(ctx, controller, held)
+          : !controller.squeeze.pressed;
+        if (letGo) this.holsterGun(ctx, held);
+        else this.alignGun(controller, held);
+        continue;
+      }
+
+      if (!pressed) continue;
+      const target = this.slots.find(
+        (slot) => !slot.heldBy && this.handNearHolster(ctx, controller, slot),
+      );
+      if (target) this.takeGun(ctx, controller, target);
     }
+
+    for (const slot of this.slots) slot.gun.update(dt);
+  }
+
+  private takeGun(ctx: WorldContext, controller: ControllerState, slot: GunSlot): void {
+    const hand = controller.handedness;
+    if (!hand) return;
+
+    const grab = this.grabs.get(hand);
+    if (grab) this.release(ctx, hand, grab, true);
+
+    slot.heldBy = hand;
+    slot.justGrabbed = true;
+    const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+    anchor.add(slot.gun);
+    slot.gun.position.set(0, -0.012, 0.03);
+    slot.gun.holstered = false;
+    this.alignGun(controller, slot);
+    controller.pulse(0.4, 25);
+  }
+
+  private holsterGun(ctx: WorldContext, slot: GunSlot): void {
+    slot.holster.add(slot.gun);
+    slot.gun.position.set(0, 0, 0);
+    slot.gun.quaternion.identity();
+    slot.gun.holstered = true;
+    slot.heldBy = null;
+    void ctx;
+  }
+
+  /**
+   * Aims the gun along the pointing ray instead of along the controller handle
+   * — the grip axis is tilted, which made every shot go up and away.
+   */
+  private alignGun(controller: ControllerState, slot: GunSlot): void {
+    if (slot.gun.parent === controller.grip) {
+      slot.gun.quaternion
+        .copy(controller.grip.quaternion)
+        .invert()
+        .multiply(controller.targetRay.quaternion);
+    } else {
+      slot.gun.quaternion.identity();
+    }
+  }
+
+  /** Puts a specific gun into a hand, used by the tool menu. */
+  private equipGun(ctx: WorldContext, hand: Handedness | null, key: 'a' | 'b'): void {
+    const slot = this.slots.find((entry) => entry.gun.key === key);
+    if (!slot) return;
+    // Without a known hand, take whichever one is still free.
+    const target: Handedness =
+      hand ?? (this.gunHeldBy('right') || this.grabs.has('right') ? 'left' : 'right');
+    const controller = ctx.input.get(target);
+    if (!controller?.tracked) {
+      ctx.notify('Keine Hand für die Waffe gefunden');
+      return;
+    }
+    if (slot.heldBy === target) return;
+    if (slot.heldBy) this.holsterGun(ctx, slot);
+    this.takeGun(ctx, controller, slot);
+    ctx.notify(key === 'a' ? 'Blaue Portal Waffe' : 'Rote Portal Waffe');
   }
 
   private handNearHolster(ctx: WorldContext, controller: ControllerState, slot: GunSlot): boolean {
@@ -442,25 +565,34 @@ export class PortalWorld implements World {
     return _hand.distanceTo(slot.holster.position) < 0.32;
   }
 
-  /** Empty hands can pick up the cubes and dominoes. */
+  private gunHeldBy(hand: Handedness): GunSlot | null {
+    return this.slots.find((slot) => slot.heldBy === hand) ?? null;
+  }
+
+  /** Empty hands can pick up props, pass them over and throw them. */
   private updateGrabs(dt: number, ctx: WorldContext): void {
-    const rapier = this.physics!.rapier;
+    const reachable = new Set<PhysicsBody>();
 
-    for (const slot of this.slots) {
-      const controller = ctx.input.get(slot.hand);
-      const grab = this.grabs.get(slot.hand);
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand) continue;
+      const grab = this.grabs.get(hand);
 
-      if (!controller?.tracked) {
-        if (grab) this.release(slot.hand, grab);
+      if (!controller.tracked) {
+        if (grab) this.release(ctx, hand, grab, true);
         continue;
       }
 
       const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
       anchor.updateWorldMatrix(true, false);
+      const pressed = controller.isHand
+        ? controller.trigger.justPressed
+        : controller.squeeze.justPressed;
 
       if (grab) {
-        if (!controller.squeeze.pressed) {
-          this.release(slot.hand, grab);
+        const holding = controller.isHand ? !pressed : controller.squeeze.pressed;
+        if (!holding) {
+          this.release(ctx, hand, grab, true);
           continue;
         }
         _matrix.multiplyMatrices(anchor.matrixWorld, grab.offset);
@@ -477,43 +609,69 @@ export class PortalWorld implements World {
         continue;
       }
 
-      if (slot.held || !controller.squeeze.justPressed) continue;
-      anchor.getWorldPosition(_hand);
-      const entry = this.findProp(_hand, 0.42);
-      if (!entry) continue;
+      if (this.gunHeldBy(hand)) continue;
 
-      entry.body.setBodyType(rapier.RigidBodyType.KinematicPositionBased, true);
-      const offset = new THREE.Matrix4()
-        .copy(anchor.matrixWorld)
-        .invert()
-        .multiply(entry.object.matrixWorld);
-      entry.object.getWorldPosition(_point);
-      this.grabs.set(slot.hand, {
-        entry,
-        offset,
-        lastPosition: _point.clone(),
-        velocity: new THREE.Vector3(),
-      });
+      anchor.getWorldPosition(_hand);
+      const entry = this.findProp(_hand, GRAB_RADIUS);
+      if (entry) reachable.add(entry);
+      if (!entry || !pressed) continue;
+
+      // Already in the other hand? Then this is a hand-over, not a pick-up.
+      const other = this.handHolding(entry);
+      if (other) this.release(ctx, other, this.grabs.get(other)!, false);
+      this.attach(hand, anchor, entry);
       controller.pulse(0.5, 30);
+    }
+
+    this.updateHighlights(reachable);
+    this.updateHandGestures(ctx, reachable);
+  }
+
+  private attach(hand: Handedness, anchor: THREE.Object3D, entry: PhysicsBody): void {
+    const physics = this.physics!;
+    entry.body.setBodyType(physics.rapier.RigidBodyType.KinematicPositionBased, true);
+    physics.setCarried(entry, true);
+    entry.object.updateWorldMatrix(true, false);
+    const offset = new THREE.Matrix4()
+      .copy(anchor.matrixWorld)
+      .invert()
+      .multiply(entry.object.matrixWorld);
+    entry.object.getWorldPosition(_point);
+    this.grabs.set(hand, {
+      entry,
+      offset,
+      lastPosition: _point.clone(),
+      velocity: new THREE.Vector3(),
+    });
+  }
+
+  private release(ctx: WorldContext, hand: Handedness, grab: HandGrab, drop: boolean): void {
+    const physics = this.physics!;
+    this.grabs.delete(hand);
+    if (!drop) return;
+
+    physics.setCarried(grab.entry, false);
+    grab.entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
+    const thrown = grab.velocity.clampLength(0, 9);
+    grab.entry.body.setLinvel({ x: thrown.x, y: thrown.y, z: thrown.z }, true);
+
+    if (this.reopenBag && this.spawned.has(grab.entry)) {
+      this.reopenBag = false;
+      ctx.menu.openSubmenu('bag');
     }
   }
 
-  private release(hand: Handedness, grab: HandGrab): void {
-    const rapier = this.physics!.rapier;
-    grab.entry.body.setBodyType(rapier.RigidBodyType.Dynamic, true);
-    const throwVelocity = grab.velocity.clampLength(0, 9);
-    grab.entry.body.setLinvel(
-      { x: throwVelocity.x, y: throwVelocity.y, z: throwVelocity.z },
-      true,
-    );
-    this.grabs.delete(hand);
+  private handHolding(entry: PhysicsBody): Handedness | null {
+    for (const [hand, grab] of this.grabs) {
+      if (grab.entry === entry) return hand;
+    }
+    return null;
   }
 
   private findProp(position: THREE.Vector3, radius: number): PhysicsBody | null {
     let best: PhysicsBody | null = null;
     let bestDistance = radius;
     for (const entry of this.props) {
-      if ([...this.grabs.values()].some((grab) => grab.entry === entry)) continue;
       const t = entry.body.translation();
       const distance = position.distanceTo(_probe.set(t.x, t.y, t.z));
       if (distance < bestDistance) {
@@ -522,6 +680,98 @@ export class PortalWorld implements World {
       }
     }
     return best;
+  }
+
+  /** Glow on everything a hand could grab right now. */
+  private updateHighlights(reachable: Set<PhysicsBody>): void {
+    for (const entry of this.highlighted) {
+      if (!reachable.has(entry)) setEmissive(entry, false);
+    }
+    for (const entry of reachable) {
+      if (!this.highlighted.has(entry)) setEmissive(entry, true);
+    }
+    this.highlighted = reachable;
+  }
+
+  private updateHandGestures(ctx: WorldContext, reachable: Set<PhysicsBody>): void {
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand) continue;
+      if (this.gunHeldBy(hand) || this.grabs.has(hand)) {
+        ctx.hands.setGestureOverride(hand, 'grip');
+        continue;
+      }
+      if (reachable.size > 0 && controller.tracked) {
+        const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+        anchor.getWorldPosition(_hand);
+        const entry = this.findProp(_hand, GRAB_RADIUS);
+        ctx.hands.setGestureOverride(hand, entry ? 'ready' : null);
+        continue;
+      }
+      ctx.hands.setGestureOverride(hand, null);
+    }
+  }
+
+  /** Conjures a new prop straight into the hand that picked it from the bag. */
+  private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: 'cube' | 'domino'): void {
+    const physics = this.physics;
+    if (!physics) return;
+
+    const mesh = kind === 'cube' ? createCompanionCube(0.32) : createDominoes(1, COLOR_RED)[0]!;
+    const controller = hand ? ctx.input.get(hand) : null;
+    const anchor = controller?.tracked
+      ? controller.grip.visible
+        ? controller.grip
+        : controller.targetRay
+      : null;
+
+    if (anchor) {
+      anchor.getWorldPosition(_point);
+    } else {
+      ctx.rig.getHeadPosition(_point);
+      ctx.rig.getHeadForward(_direction);
+      _point.addScaledVector(_direction, 0.7);
+    }
+    mesh.position.copy(_point);
+    this.root.add(mesh);
+    mesh.updateWorldMatrix(true, false);
+
+    const entry = physics.addDynamic(mesh, {
+      mass: kind === 'cube' ? 4 : 0.35,
+      friction: 0.7,
+      restitution: 0.05,
+      ccd: kind === 'domino',
+    });
+    entry.previousPosition.copy(_point);
+    this.props.push(entry);
+    this.spawned.add(entry);
+
+    ctx.menu.toggle(false);
+    if (hand && anchor) {
+      const existing = this.grabs.get(hand);
+      if (existing) this.release(ctx, hand, existing, true);
+      this.attach(hand, anchor, entry);
+      this.reopenBag = true;
+    }
+    ctx.notify(kind === 'cube' ? 'Companion Cube' : 'Domino');
+  }
+
+  /** Removes everything that came out of the bag again. */
+  private clearSpawned(): void {
+    const physics = this.physics;
+    if (!physics) return;
+    for (const entry of [...this.spawned]) {
+      for (const [hand, grab] of [...this.grabs]) {
+        if (grab.entry === entry) this.grabs.delete(hand);
+      }
+      this.highlighted.delete(entry);
+      this.spawns.delete(entry);
+      const index = this.props.indexOf(entry);
+      if (index >= 0) this.props.splice(index, 1);
+      physics.remove(entry);
+      disposeTree(entry.object);
+    }
+    this.spawned.clear();
   }
 
   // --- hands that can touch things ----------------------------------------
@@ -578,9 +828,11 @@ export class PortalWorld implements World {
     // The trigger also drives the wrist menu, so pointing at UI wins.
     if (ctx.pointer.hovering) return;
     for (const slot of this.slots) {
-      const controller = ctx.input.get(slot.hand);
-      if (!controller) continue;
-      if (slot.held && !slot.justGrabbed && controller.trigger.justPressed) this.shoot(ctx, slot);
+      if (!slot.heldBy || slot.justGrabbed) continue;
+      const controller = ctx.input.get(slot.heldBy);
+      if (controller?.trigger.justPressed) this.shoot(ctx, slot);
+    }
+    for (const controller of ctx.input.controllers) {
       if (controller.secondary.justPressed) this.resetWorld(ctx);
     }
   }
@@ -589,7 +841,7 @@ export class PortalWorld implements World {
     const ray = this.getAimRay(ctx, slot);
     const hit = this.castSurface(ray);
     slot.gun.fire();
-    ctx.input.get(slot.hand)?.pulse(0.35, 25);
+    if (slot.heldBy) ctx.input.get(slot.heldBy)?.pulse(0.35, 25);
 
     if (!hit) {
       ctx.notify('Keine Fläche getroffen');
@@ -616,8 +868,8 @@ export class PortalWorld implements World {
 
   /** Ray the gun points along; the head ray while not in VR. */
   private getAimRay(ctx: WorldContext, slot: GunSlot): THREE.Ray {
-    const controller = ctx.input.get(slot.hand);
-    if (ctx.renderer.xr.isPresenting && slot.held && controller?.tracked) {
+    const controller = slot.heldBy ? ctx.input.get(slot.heldBy) : null;
+    if (ctx.renderer.xr.isPresenting && slot.heldBy && controller?.tracked) {
       slot.gun.muzzle.getWorldPosition(_ray.origin);
       _ray.direction
         .set(0, 0, -1)
@@ -633,7 +885,7 @@ export class PortalWorld implements World {
 
   private updateAim(ctx: WorldContext): void {
     if (!this.aimRing) return;
-    const held = this.slots.find((entry) => entry.held);
+    const held = this.slots.find((entry) => entry.heldBy);
     if (ctx.renderer.xr.isPresenting && !held) {
       this.aimRing.visible = false;
       return;
@@ -766,6 +1018,7 @@ export class PortalWorld implements World {
   private resetWorld(ctx: WorldContext): void {
     this.portalBlue.reset();
     this.portalRed.reset();
+    this.clearSpawned();
     for (const entry of this.props) this.respawn(entry);
     ctx.notify('Labor zurückgesetzt');
   }
@@ -837,4 +1090,18 @@ function orientToSurface(object: THREE.Object3D, normal: THREE.Vector3, up: THRE
   _up.crossVectors(normal, _right).normalize();
   _matrix.makeBasis(_right, _up, normal);
   object.quaternion.setFromRotationMatrix(_matrix);
+}
+
+/** Highlight for props that are within grabbing distance. */
+function setEmissive(entry: PhysicsBody, on: boolean): void {
+  const mesh = entry.object as THREE.Mesh;
+  const material = mesh.material as THREE.MeshStandardMaterial | undefined;
+  if (!material?.emissive) return;
+  const store = entry.object.userData as { baseEmissive?: THREE.Color };
+  if (on) {
+    store.baseEmissive ??= material.emissive.clone();
+    material.emissive.setHex(0x6fb6ff).multiplyScalar(0.55);
+  } else if (store.baseEmissive) {
+    material.emissive.copy(store.baseEmissive);
+  }
 }

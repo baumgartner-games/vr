@@ -1,51 +1,51 @@
 import * as THREE from 'three';
 import type { PointerHit, PointerTarget } from '../core/Pointer';
-
-export interface PanelItem {
-  id: string;
-  label: string;
-  sub?: string;
-  badge?: string;
-  accent?: number;
-  disabled?: boolean;
-  selected?: boolean;
-}
+import type { Handedness } from '../core/XRInput';
+import { drawMenuIcon, type MenuEntry } from './menu';
 
 export interface PanelOptions {
   width?: number;
-  height?: number;
   title?: string;
   footer?: string;
-  onSelect?(id: string): void;
+  onSelect?(index: number, hand: Handedness | null): void;
 }
 
 const CANVAS_W = 768;
 const CANVAS_H = 1280;
 const PAD = 34;
 const HEADER_H = 150;
+const FOOTER_H = 76;
+
 const ROW_H = 122;
 const ROW_GAP = 14;
-const FOOTER_H = 76;
 const MAX_ROWS = Math.floor((CANVAS_H - HEADER_H - FOOTER_H) / (ROW_H + ROW_GAP));
 
+const GRID_COLS = 3;
+const GRID_GAP = 16;
+const CELL_W = Math.floor((CANVAS_W - PAD * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
+const CELL_H = CELL_W + 44;
+const MAX_GRID_ROWS = Math.floor((CANVAS_H - HEADER_H - FOOTER_H) / (CELL_H + GRID_GAP));
+
 /**
- * A canvas-textured panel with a list of buttons. Works with laser pointing and
- * with direct poking, because it only needs a UV coordinate to hit-test.
+ * A canvas-textured panel that shows a page of menu entries — as a list, or as
+ * a grid of icons. It only needs a UV coordinate to hit-test, so pointing and
+ * poking work the same way.
  */
 export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly texture: THREE.CanvasTexture;
-  private items: PanelItem[] = [];
+  private entries: MenuEntry[] = [];
+  private grid = false;
   private hover = -1;
   private title: string;
   private footer: string;
   private status = '';
   private flash = 0;
-  private onSelect?: (id: string) => void;
+  private onSelect?: (index: number, hand: Handedness | null) => void;
 
   constructor(options: PanelOptions = {}) {
     const width = options.width ?? 0.3;
-    const height = options.height ?? (width * CANVAS_H) / CANVAS_W;
+    const height = (width * CANVAS_H) / CANVAS_W;
     const canvas = document.createElement('canvas');
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
@@ -69,13 +69,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
-  setItems(items: PanelItem[]): void {
-    this.items = items;
-    this.draw();
-  }
-
-  setTitle(title: string): void {
+  setPage(title: string, entries: MenuEntry[], grid = false): void {
     this.title = title;
+    this.entries = entries;
+    this.grid = grid;
+    this.hover = -1;
     this.draw();
   }
 
@@ -85,11 +83,10 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
-  /** Registers this panel with the pointer system. */
   asPointerTarget(): PointerTarget {
     return {
       object: this,
-      onHover: (hit) => this.handleHover(hit),
+      onHover: (hit) => this.setHover(hit.uv ? this.indexAt(hit.uv) : -1),
       onBlur: () => this.setHover(-1),
       onSelect: (hit) => this.handleSelect(hit),
     };
@@ -108,17 +105,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.texture.dispose();
   }
 
-  private handleHover(hit: PointerHit): void {
-    this.setHover(hit.uv ? this.indexAt(hit.uv) : -1);
-  }
-
   private handleSelect(hit: PointerHit): void {
     const index = hit.uv ? this.indexAt(hit.uv) : -1;
-    const item = this.items[index];
-    if (!item || item.disabled) return;
+    if (index < 0) return;
     this.flash = 0.18;
     this.setHover(index);
-    this.onSelect?.(item.id);
+    this.onSelect?.(index, hit.hand);
   }
 
   private setHover(index: number): void {
@@ -127,22 +119,37 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
+  private get visibleCount(): number {
+    return Math.min(this.entries.length, this.grid ? MAX_GRID_ROWS * GRID_COLS : MAX_ROWS);
+  }
+
   private indexAt(uv: THREE.Vector2): number {
-    const y = (1 - uv.y) * CANVAS_H;
     const x = uv.x * CANVAS_W;
-    if (x < PAD || x > CANVAS_W - PAD) return -1;
-    const local = y - HEADER_H;
-    if (local < 0) return -1;
-    const index = Math.floor(local / (ROW_H + ROW_GAP));
-    if (index < 0 || index >= Math.min(this.items.length, MAX_ROWS)) return -1;
-    if (local - index * (ROW_H + ROW_GAP) > ROW_H) return -1;
+    const y = (1 - uv.y) * CANVAS_H - HEADER_H;
+    if (y < 0 || x < PAD || x > CANVAS_W - PAD) return -1;
+
+    if (this.grid) {
+      const column = Math.floor((x - PAD) / (CELL_W + GRID_GAP));
+      const row = Math.floor(y / (CELL_H + GRID_GAP));
+      if (column < 0 || column >= GRID_COLS || row < 0) return -1;
+      if ((x - PAD) % (CELL_W + GRID_GAP) > CELL_W) return -1;
+      if (y % (CELL_H + GRID_GAP) > CELL_H) return -1;
+      const index = row * GRID_COLS + column;
+      return index < this.visibleCount ? index : -1;
+    }
+
+    const index = Math.floor(y / (ROW_H + ROW_GAP));
+    if (index < 0 || index >= this.visibleCount) return -1;
+    if (y % (ROW_H + ROW_GAP) > ROW_H) return -1;
     return index;
   }
 
-  /** Height of the drawn card — the panel only uses as much as it needs. */
   private cardHeight(): number {
-    const rows = Math.min(this.items.length, MAX_ROWS);
-    return Math.min(CANVAS_H, HEADER_H + rows * (ROW_H + ROW_GAP) + FOOTER_H);
+    const count = this.visibleCount;
+    const body = this.grid
+      ? Math.ceil(count / GRID_COLS) * (CELL_H + GRID_GAP)
+      : count * (ROW_H + ROW_GAP);
+    return Math.min(CANVAS_H, HEADER_H + body + FOOTER_H);
   }
 
   private draw(): void {
@@ -150,13 +157,15 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     const cardH = this.cardHeight();
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    roundRect(ctx, 0, 0, CANVAS_W, cardH, 40);
+    ctx.beginPath();
+    ctx.roundRect(0, 0, CANVAS_W, cardH, 40);
     ctx.fillStyle = 'rgba(9, 14, 26, 0.93)';
     ctx.fill();
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(140, 180, 255, 0.35)';
     ctx.stroke();
 
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#8ea0c4';
     ctx.font = '600 26px system-ui, sans-serif';
@@ -166,9 +175,20 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.font = '700 46px system-ui, sans-serif';
     ctx.fillText(this.title, PAD, 118);
 
-    for (let i = 0; i < Math.min(this.items.length, MAX_ROWS); i++) {
-      const item = this.items[i]!;
-      this.drawRow(item, HEADER_H + i * (ROW_H + ROW_GAP), i === this.hover);
+    for (let i = 0; i < this.visibleCount; i++) {
+      const entry = this.entries[i]!;
+      if (this.grid) {
+        const column = i % GRID_COLS;
+        const row = Math.floor(i / GRID_COLS);
+        this.drawCell(
+          entry,
+          PAD + column * (CELL_W + GRID_GAP),
+          HEADER_H + row * (CELL_H + GRID_GAP),
+          i === this.hover,
+        );
+      } else {
+        this.drawRow(entry, HEADER_H + i * (ROW_H + ROW_GAP), i === this.hover);
+      }
     }
 
     const footer = this.status || this.footer;
@@ -181,83 +201,110 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.texture.needsUpdate = true;
   }
 
-  private drawRow(item: PanelItem, y: number, hovered: boolean): void {
+  private drawRow(entry: MenuEntry, y: number, hovered: boolean): void {
     const ctx = this.ctx;
-    const accent = `#${(item.accent ?? 0x4aa8ff).toString(16).padStart(6, '0')}`;
+    const accent = toCss(entry.accent ?? 0x4aa8ff);
     const active = hovered && this.flash > 0;
 
-    roundRect(ctx, PAD, y, CANVAS_W - PAD * 2, ROW_H, 24);
-    ctx.fillStyle = item.disabled
-      ? 'rgba(255, 255, 255, 0.03)'
-      : active
-        ? hexToRgba(accent, 0.45)
-        : hovered
-          ? hexToRgba(accent, 0.22)
-          : 'rgba(255, 255, 255, 0.06)';
+    ctx.beginPath();
+    ctx.roundRect(PAD, y, CANVAS_W - PAD * 2, ROW_H, 24);
+    ctx.fillStyle = active
+      ? withAlpha(accent, 0.45)
+      : hovered
+        ? withAlpha(accent, 0.22)
+        : 'rgba(255, 255, 255, 0.06)';
     ctx.fill();
     ctx.lineWidth = hovered ? 3 : 2;
-    ctx.strokeStyle = item.disabled
-      ? 'rgba(255,255,255,0.08)'
-      : hovered
-        ? accent
-        : 'rgba(255,255,255,0.12)';
+    ctx.strokeStyle = hovered ? accent : 'rgba(255,255,255,0.12)';
     ctx.stroke();
 
-    // Accent bar
-    if (!item.disabled) {
-      roundRect(ctx, PAD + 18, y + 22, 8, ROW_H - 44, 4);
+    let textX = PAD + 30;
+    if (entry.icon) {
+      drawMenuIcon(ctx, entry.icon, PAD + 58, y + ROW_H / 2, 52, accent);
+      textX = PAD + 100;
+    } else {
+      ctx.beginPath();
+      ctx.roundRect(PAD + 18, y + 22, 8, ROW_H - 44, 4);
       ctx.fillStyle = accent;
       ctx.fill();
+      textX = PAD + 46;
     }
 
-    const textX = PAD + 46;
-    ctx.fillStyle = item.disabled ? '#5a6480' : '#ffffff';
+    const rightEdge = CANVAS_W - PAD - (entry.children ? 60 : 30);
+    ctx.fillStyle = '#ffffff';
     ctx.font = '600 36px system-ui, sans-serif';
-    ctx.fillText(clip(ctx, item.label, CANVAS_W - textX - PAD - 60), textX, y + 52);
+    ctx.fillText(clip(ctx, entry.label, rightEdge - textX), textX, y + (entry.sub ? 52 : 74));
 
-    if (item.sub) {
-      ctx.fillStyle = item.disabled ? '#4b546c' : '#93a3c4';
+    if (entry.sub) {
+      ctx.fillStyle = '#93a3c4';
       ctx.font = '400 25px system-ui, sans-serif';
-      ctx.fillText(clip(ctx, item.sub, CANVAS_W - textX - PAD - 20), textX, y + 90);
+      ctx.fillText(clip(ctx, entry.sub, rightEdge - textX), textX, y + 90);
     }
 
-    if (item.selected) {
+    if (entry.children) {
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(CANVAS_W - PAD - 46, y + ROW_H / 2 - 14);
+      ctx.lineTo(CANVAS_W - PAD - 32, y + ROW_H / 2);
+      ctx.lineTo(CANVAS_W - PAD - 46, y + ROW_H / 2 + 14);
+      ctx.stroke();
+    } else if (entry.selected) {
       ctx.beginPath();
       ctx.arc(CANVAS_W - PAD - 34, y + ROW_H / 2, 9, 0, Math.PI * 2);
       ctx.fillStyle = accent;
       ctx.fill();
     }
 
-    if (item.badge) {
+    if (entry.badge) {
       ctx.font = '600 20px system-ui, sans-serif';
-      const w = ctx.measureText(item.badge).width + 26;
-      roundRect(ctx, CANVAS_W - PAD - 22 - w, y + 18, w, 34, 17);
-      ctx.fillStyle = hexToRgba(accent, 0.25);
+      const width = ctx.measureText(entry.badge).width + 26;
+      ctx.beginPath();
+      ctx.roundRect(CANVAS_W - PAD - 70 - width, y + 18, width, 34, 17);
+      ctx.fillStyle = withAlpha(accent, 0.25);
       ctx.fill();
       ctx.fillStyle = accent;
-      ctx.fillText(item.badge, CANVAS_W - PAD - 22 - w + 13, y + 42);
+      ctx.fillText(entry.badge, CANVAS_W - PAD - 70 - width + 13, y + 42);
     }
+  }
+
+  private drawCell(entry: MenuEntry, x: number, y: number, hovered: boolean): void {
+    const ctx = this.ctx;
+    const accent = toCss(entry.accent ?? 0x4aa8ff);
+    const active = hovered && this.flash > 0;
+
+    ctx.beginPath();
+    ctx.roundRect(x, y, CELL_W, CELL_H, 22);
+    ctx.fillStyle = active
+      ? withAlpha(accent, 0.45)
+      : hovered
+        ? withAlpha(accent, 0.22)
+        : 'rgba(255, 255, 255, 0.06)';
+    ctx.fill();
+    ctx.lineWidth = hovered ? 3 : 2;
+    ctx.strokeStyle = hovered ? accent : 'rgba(255,255,255,0.12)';
+    ctx.stroke();
+
+    if (entry.icon) {
+      drawMenuIcon(ctx, entry.icon, x + CELL_W / 2, y + CELL_W / 2, CELL_W * 0.52, accent);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 24px system-ui, sans-serif';
+    ctx.fillText(clip(ctx, entry.label, CELL_W - 20), x + CELL_W / 2, y + CELL_H - 16);
+    ctx.textAlign = 'left';
   }
 }
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
+function toCss(color: number): string {
+  return `#${color.toString(16).padStart(6, '0')}`;
 }
 
-function hexToRgba(hex: string, alpha: number): string {
+function withAlpha(hex: string, alpha: number): string {
   const value = parseInt(hex.slice(1), 16);
-  const r = (value >> 16) & 255;
-  const g = (value >> 8) & 255;
-  const b = value & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
 }
 
 function clip(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
