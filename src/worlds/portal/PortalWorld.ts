@@ -1146,6 +1146,7 @@ export class PortalWorld implements World {
     ctx.hands.setHeldTool('right', null);
 
     for (const tool of this.tools.values()) {
+      if (tool instanceof DroneTool) tool.forgetPointer(ctx.pointer);
       tool.removeFromParent();
       tool.disposeTool();
     }
@@ -1894,6 +1895,9 @@ export class PortalWorld implements World {
       if (!this.viewOverride) {
         this.bodyHome.copy(ctx.rig.position);
         this.viewOverride = new THREE.Vector3();
+        // The body stays standing where it was — and, for as long as the view
+        // is away, it is drawn for its owner, so you can look back at yourself.
+        ctx.avatar.leaveBehind(ctx.rig.getHeadMatrix(_matrix));
       }
       this.viewOverride.copy(position);
       ctx.rig.frozen = true;
@@ -1902,6 +1906,7 @@ export class PortalWorld implements World {
 
     if (!this.viewOverride) return;
     this.viewOverride = null;
+    ctx.avatar.comeBack();
     ctx.rig.frozen = false;
     ctx.rig.position.copy(this.bodyHome);
     ctx.rig.updateMatrixWorld(true);
