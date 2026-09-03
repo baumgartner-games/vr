@@ -25,6 +25,30 @@
 
         <p id="xr-status" class="status"></p>
 
+        <details id="net-setup" class="net">
+          <summary class="net__summary">
+            Zusammen spielen <span class="net__tag">experimentell</span>
+          </summary>
+          <p class="net__lead">
+            Beide Geräte tragen denselben Raum-Code ein. Die Verbindung läuft danach
+            direkt von Browser zu Browser (WebRTC) — ohne eigenen Server.
+          </p>
+          <div class="field">
+            <label for="net-name-landing">Dein Name</label>
+            <input id="net-name-landing" type="text" autocomplete="nickname" placeholder="VR-Spieler" />
+          </div>
+          <div class="field">
+            <label for="net-room-landing">Raum-Code</label>
+            <div class="field__row">
+              <input id="net-room-landing" type="text" autocapitalize="none" autocorrect="off"
+                     spellcheck="false" placeholder="mond-riff-47" />
+              <button type="button" id="net-dice-landing" class="btn--mini">Würfeln</button>
+            </div>
+          </div>
+          <button type="button" id="net-connect-landing" class="btn btn--ghost">Verbinden</button>
+          <p id="net-status-landing" class="status"></p>
+        </details>
+
         <ul class="hints">
           <li><strong>Linke Hand:</strong> Button am Handgelenk öffnet das Menü.</li>
           <li><strong>Rechte Hand:</strong> Zeigen &amp; Trigger zum Auswählen.</li>
@@ -37,9 +61,75 @@
       <div class="hud__row">
         <span id="hud-world" class="hud__world"></span>
         <button id="hud-menu" class="hud__btn">Menü</button>
+        <button id="hud-net" class="hud__btn">Verbindung</button>
         <button id="hud-vr" class="hud__btn">VR</button>
       </div>
     </div>
+
+    <section id="net-panel" class="panel" hidden aria-label="Verbindung und Kamera">
+      <header class="panel__head">
+        <strong>Verbindung</strong>
+        <button type="button" id="net-close" class="panel__x" aria-label="Schließen">×</button>
+      </header>
+
+      <p id="net-status" class="panel__status"></p>
+
+      <div class="field">
+        <label for="net-room">Raum-Code</label>
+        <div class="field__row">
+          <input id="net-room" type="text" autocapitalize="none" autocorrect="off"
+                 spellcheck="false" placeholder="mond-riff-47" />
+          <button type="button" id="net-dice" class="btn--mini">Würfeln</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="net-name">Dein Name</label>
+        <input id="net-name" type="text" autocomplete="nickname" placeholder="Desktop" />
+      </div>
+      <div class="field">
+        <label for="net-strategy">Vermittlung</label>
+        <select id="net-strategy">
+          <option value="nostr">Nostr-Relays (Standard)</option>
+          <option value="mqtt">Öffentliche MQTT-Broker</option>
+          <option value="torrent">BitTorrent-Tracker</option>
+        </select>
+        <p class="field__hint">
+          Nur für den Verbindungsaufbau. Klappt eine Variante im Netz nicht, hilft oft eine andere.
+        </p>
+      </div>
+      <div class="panel__row">
+        <button type="button" id="net-connect" class="btn--mini btn--grow">Verbinden</button>
+        <button type="button" id="net-link" class="btn--mini">Link kopieren</button>
+      </div>
+
+      <h3 class="panel__title">Wen ansehen</h3>
+      <div id="net-peers" class="peers"></div>
+
+      <h3 class="panel__title">Kamera</h3>
+      <div id="net-modes" class="seg">
+        <button type="button" data-mode="free">Frei</button>
+        <button type="button" data-mode="first">First Person</button>
+        <button type="button" data-mode="third">Third Person</button>
+      </div>
+
+      <div class="field" id="net-smooth-field">
+        <label for="net-smooth">Kamera-Glättung <output id="net-smooth-out"></output></label>
+        <input id="net-smooth" type="range" min="0" max="100" step="1" />
+        <p class="field__hint">Ganz links folgt die Kamera exakt, weiter rechts dreht sie träge nach.</p>
+      </div>
+
+      <div class="field" id="net-distance-field">
+        <label for="net-distance">Abstand <output id="net-distance-out"></output></label>
+        <input id="net-distance" type="range" min="60" max="800" step="10" />
+      </div>
+
+      <label class="check">
+        <input id="net-level" type="checkbox" /> Horizont stabilisieren
+      </label>
+
+      <button type="button" id="net-center" class="btn--mini btn--grow">Ansicht zentrieren</button>
+      <p class="panel__hint">Ziehen dreht die Kamera · Mausrad ändert den Abstand</p>
+    </section>
 
     <div id="touch" class="touch" hidden>
       <div id="touch-stick" class="touch__stick"><span></span></div>

@@ -1,6 +1,8 @@
 import './style.css';
 import { App } from './core/App';
+import { NetPanel } from './ui/NetPanel';
 import { detectFlatRole, detectXRSupport } from './core/device';
+import { normalizeRoomCode } from './net/room';
 import { DEFAULT_WORLD, findWorld } from './worlds';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
@@ -19,6 +21,8 @@ const params = new URLSearchParams(window.location.search);
 const requested = window.location.hash.slice(1) || params.get('world') || DEFAULT_WORLD;
 const startWorld = findWorld(requested)?.id ?? DEFAULT_WORLD;
 
+let netPanel: NetPanel | null = null;
+
 const app = new App(canvas, stick, {
   onWorldChanged: (id, title) => {
     hudWorld.textContent = title;
@@ -30,18 +34,29 @@ const app = new App(canvas, stick, {
     hud.hidden = presenting;
     touch.hidden = presenting || detectFlatRole() !== 'handheld';
     hudVr.textContent = presenting ? 'VR beenden' : 'VR';
-    if (presenting) hideLanding();
+    if (presenting) {
+      netPanel?.toggle(false);
+      hideLanding();
+    }
   },
+  onNetChanged: () => netPanel?.refresh(),
 });
+
+netPanel = new NetPanel(app, { local: params.get('net') === 'local' });
 
 void app.goTo(startWorld);
 
 // Handy for debugging from the browser console.
 (window as unknown as { bgvr: App }).bgvr = app;
 
-// Optional: several tabs (or devices on the same browser profile) share a room.
-const room = params.get('room');
-if (room) void app.connectLocalNetwork(room);
+// `?room=` prefills the code (a shared link), so only one tap is left to join.
+const room = normalizeRoomCode(params.get('room') ?? '');
+if (room) {
+  netPanel.setRoom(room);
+  document.querySelector<HTMLDetailsElement>('#net-setup')?.setAttribute('open', '');
+} else {
+  netPanel.restoreLastRoom();
+}
 
 void detectXRSupport().then((support) => {
   enterVrButton.textContent = 'Enter VR';

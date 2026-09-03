@@ -60,6 +60,20 @@ export class PlayerRig extends THREE.Group {
     return target.copy(this.camera.matrixWorld);
   }
 
+  /**
+   * Places the head at a world pose by moving the camera inside the rig — the
+   * rig itself stays where the locomotion put it. Used by the spectator camera,
+   * which borrows the view without disturbing the player's position.
+   */
+  setHeadWorldPose(position: THREE.Vector3, quaternion: THREE.Quaternion): void {
+    this.updateMatrixWorld(true);
+    _mat.copy(this.matrixWorld).invert();
+    this.camera.position.copy(position).applyMatrix4(_mat);
+    // The rig is never scaled, so the inverse's 3x3 part is a plain rotation.
+    this.camera.quaternion.setFromRotationMatrix(_mat).multiply(quaternion);
+    this.camera.updateMatrixWorld(true);
+  }
+
   getHeadPosition(target: THREE.Vector3): THREE.Vector3 {
     this.getHeadMatrix(_mat);
     return target.setFromMatrixPosition(_mat);

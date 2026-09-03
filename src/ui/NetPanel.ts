@@ -1,0 +1,312 @@
+import { normalizeRoomCode, randomRoomCode } from '../net/room';
+import type { App } from '../core/App';
+import type { SpectatorMode } from '../net/SpectatorCamera';
+import type { SignalingStrategy } from '../net/TrysteroTransport';
+import type { NetStatus } from '../net/types';
+
+const STORAGE_NAME = 'bgvr:name';
+const STORAGE_ROOM = 'bgvr:room';
+const STORAGE_STRATEGY = 'bgvr:strategy';
+
+const STATUS_TEXT: Record<NetStatus, string> = {
+  offline: 'Nicht verbunden',
+  connecting: 'Verbinde …',
+  waiting: 'Im Raum — warte auf Mitspieler',
+  online: 'Verbunden',
+  error: 'Fehler',
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  vr: 'VR',
+  desktop: 'Desktop',
+  handheld: 'Handy',
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  vr: '#4aa8ff',
+  desktop: '#9d7bff',
+  handheld: '#ff9d3d',
+};
+
+function el<T extends HTMLElement>(id: string): T {
+  const found = document.getElementById(id);
+  if (!found) throw new Error(`[ui] Element #${id} fehlt im HTML`);
+  return found as T;
+}
+
+/**
+ * The flat-screen side of multiplayer: room code in, and once a VR player is in
+ * the room, the controls for watching them.
+ *
+ * The same fields exist twice — once on the landing page, so the code can be
+ * typed before the headset goes on, and once in the in-game panel. Both write
+ * into the same state.
+ */
+export interface NetPanelOptions {
+  /**
+   * Use `BroadcastChannel` instead of WebRTC (`?net=local`). Two tabs on one
+   * machine, no relays involved — the quickest way to try the spectator views.
+   */
+  local?: boolean;
+}
+
+export class NetPanel {
+  private readonly panel = el('net-panel');
+  private readonly statusLine = el('net-status');
+  private readonly landingStatus = el('net-status-landing');
+  private readonly connectButtons = [
+    el<HTMLButtonElement>('net-connect'),
+    el<HTMLButtonElement>('net-connect-landing'),
+  ];
+  private readonly roomInputs = [
+    el<HTMLInputElement>('net-room'),
+    el<HTMLInputElement>('net-room-landing'),
+  ];
+  private readonly nameInputs = [
+    el<HTMLInputElement>('net-name'),
+    el<HTMLInputElement>('net-name-landing'),
+  ];
+  private readonly peerList = el('net-peers');
+  private readonly modeButtons = [...el('net-modes').querySelectorAll('button')];
+  private readonly smooth = el<HTMLInputElement>('net-smooth');
+  private readonly smoothOut = el<HTMLOutputElement>('net-smooth-out');
+  private readonly smoothField = el('net-smooth-field');
+  private readonly distance = el<HTMLInputElement>('net-distance');
+  private readonly distanceOut = el<HTMLOutputElement>('net-distance-out');
+  private readonly distanceField = el('net-distance-field');
+  private readonly level = el<HTMLInputElement>('net-level');
+  private readonly linkButton = el<HTMLButtonElement>('net-link');
+  private readonly strategy = el<HTMLSelectElement>('net-strategy');
+
+  private busy = false;
+  private message = '';
+  private messageIsError = false;
+
+  constructor(
+    private readonly app: App,
+    private readonly options: NetPanelOptions = {},
+  ) {
+    const settings = this.app.spectator.settings;
+    this.smooth.value = String(Math.round(settings.smoothing * 100));
+    this.distance.value = String(Math.round(settings.distance * 100));
+    this.level.checked = settings.levelHorizon;
+
+    this.strategy.value = localStorage.getItem(STORAGE_STRATEGY) ?? 'nostr';
+    this.strategy.addEventListener('change', () =>
+      localStorage.setItem(STORAGE_STRATEGY, this.strategy.value),
+    );
+
+    for (const input of this.nameInputs) {
+      input.value = localStorage.getItem(STORAGE_NAME) ?? '';
+      input.addEventListener('input', () => this.mirror(this.nameInputs, input));
+    }
+    for (const input of this.roomInputs) {
+      input.addEventListener('input', () => this.mirror(this.roomInputs, input));
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') void this.toggleConnection();
+      });
+    }
+
+    for (const button of [el('net-dice'), el('net-dice-landing')]) {
+      button.addEventListener('click', () => this.setRoom(randomRoomCode()));
+    }
+    for (const button of this.connectButtons) {
+      button.addEventListener('click', () => void this.toggleConnection());
+    }
+
+    el('net-close').addEventListener('click', () => this.toggle(false));
+    el('hud-net').addEventListener('click', () => this.toggle());
+    el('net-center').addEventListener('click', () => this.app.spectator.recenter());
+    this.linkButton.addEventListener('click', () => void this.copyLink());
+
+    for (const button of this.modeButtons) {
+      button.addEventListener('click', () => {
+        this.app.spectator.setMode(button.dataset['mode'] as SpectatorMode);
+        this.refresh();
+      });
+    }
+
+    this.smooth.addEventListener('input', () => {
+      settings.smoothing = Number(this.smooth.value) / 100;
+      this.refresh();
+    });
+    this.distance.addEventListener('input', () => {
+      settings.distance = Number(this.distance.value) / 100;
+      this.refresh();
+    });
+    this.level.addEventListener('change', () => {
+      settings.levelHorizon = this.level.checked;
+    });
+
+    this.refresh();
+  }
+
+  /** Prefills the code from `?room=` (or the last session) without connecting. */
+  setRoom(room: string): void {
+    for (const input of this.roomInputs) input.value = room;
+  }
+
+  get room(): string {
+    return this.roomInputs[0]!.value;
+  }
+
+  restoreLastRoom(): void {
+    this.setRoom(localStorage.getItem(STORAGE_ROOM) ?? '');
+  }
+
+  toggle(force?: boolean): void {
+    this.panel.hidden = force === undefined ? !this.panel.hidden : !force;
+    if (!this.panel.hidden) this.refresh();
+  }
+
+  /** Repaints everything that depends on the session — cheap enough to spam. */
+  refresh(): void {
+    const net = this.app.net;
+    const settings = this.app.spectator.settings;
+
+    const detail = net.statusDetail ? ` · ${net.statusDetail}` : '';
+    const text =
+      this.message ||
+      (net.status === 'error' && net.statusDetail
+        ? net.statusDetail
+        : `${STATUS_TEXT[net.status]}${net.connected ? ` in "${net.room}"` : ''}${detail}`);
+    this.statusLine.textContent = text;
+    this.landingStatus.textContent = text;
+    const error = this.messageIsError || net.status === 'error';
+    this.statusLine.classList.toggle('is-error', error);
+    this.statusLine.classList.toggle('is-online', !error && net.status === 'online');
+    this.landingStatus.classList.toggle('is-error', error);
+
+    for (const button of this.connectButtons) {
+      button.textContent = this.busy ? '…' : net.connected ? 'Trennen' : 'Verbinden';
+      button.disabled = this.busy;
+    }
+    for (const input of this.roomInputs) input.disabled = net.connected || this.busy;
+    this.strategy.disabled = net.connected || this.busy;
+    this.linkButton.disabled = !normalizeRoomCode(this.room);
+
+    for (const button of this.modeButtons) {
+      button.classList.toggle('is-active', button.dataset['mode'] === settings.mode);
+    }
+
+    this.smoothOut.textContent = describeSmoothing(settings.smoothing);
+    this.distanceOut.textContent = `${settings.distance.toFixed(1)} m`;
+    this.distance.value = String(Math.round(settings.distance * 100));
+    this.smoothField.classList.toggle('is-off', settings.mode === 'free');
+    this.distanceField.classList.toggle('is-off', settings.mode !== 'third');
+
+    this.renderPeers();
+  }
+
+  private renderPeers(): void {
+    const peers = [...this.app.net.peers.values()];
+    this.peerList.replaceChildren();
+
+    if (!peers.length) {
+      const empty = document.createElement('p');
+      empty.className = 'peers__empty';
+      empty.textContent = this.app.net.connected
+        ? 'Noch niemand sonst im Raum.'
+        : 'Erst verbinden, dann erscheinen hier die Mitspieler.';
+      this.peerList.append(empty);
+      return;
+    }
+
+    const active = this.app.spectatorTarget?.id ?? null;
+    for (const peer of peers) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'peers__item';
+      item.classList.toggle('is-active', peer.id === active);
+
+      const dot = document.createElement('span');
+      dot.className = 'peers__dot';
+      dot.style.color = ROLE_COLORS[peer.role] ?? '#ffffff';
+
+      const name = document.createElement('span');
+      name.textContent = peer.name;
+
+      const role = document.createElement('span');
+      role.className = 'peers__role';
+      role.textContent = ROLE_LABELS[peer.role] ?? peer.role;
+
+      item.append(dot, name, role);
+      item.addEventListener('click', () => {
+        const settings = this.app.spectator.settings;
+        settings.targetId = settings.targetId === peer.id ? null : peer.id;
+        if (settings.mode === 'free') this.app.spectator.setMode('third');
+        this.refresh();
+      });
+      this.peerList.append(item);
+    }
+  }
+
+  private mirror(inputs: HTMLInputElement[], source: HTMLInputElement): void {
+    for (const input of inputs) if (input !== source) input.value = source.value;
+    this.refresh();
+  }
+
+  private async toggleConnection(): Promise<void> {
+    if (this.app.net.connected) {
+      this.app.disconnect();
+      this.setMessage('');
+      return;
+    }
+
+    const room = normalizeRoomCode(this.room);
+    if (!room) {
+      this.setMessage('Bitte einen Raum-Code eintragen (oder würfeln).', true);
+      return;
+    }
+
+    this.busy = true;
+    this.setMessage('');
+    try {
+      await this.app.connect({
+        room,
+        name: this.nameInputs[0]!.value,
+        strategy: this.strategy.value as SignalingStrategy,
+        local: this.options.local ?? false,
+      });
+      localStorage.setItem(STORAGE_ROOM, room);
+      localStorage.setItem(STORAGE_NAME, this.nameInputs[0]!.value);
+      this.setRoom(room);
+    } catch (error) {
+      this.setMessage(`Verbindung fehlgeschlagen: ${(error as Error).message}`, true);
+    } finally {
+      this.busy = false;
+      this.refresh();
+    }
+  }
+
+  private async copyLink(): Promise<void> {
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', normalizeRoomCode(this.room));
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      this.setMessage('Link kopiert — auf dem anderen Gerät öffnen.');
+    } catch {
+      this.setMessage(url.toString());
+    }
+  }
+
+  private setMessage(message: string, isError = false): void {
+    this.message = message;
+    this.messageIsError = isError;
+    this.refresh();
+    if (message && !isError) {
+      window.setTimeout(() => {
+        if (this.message !== message) return;
+        this.message = '';
+        this.refresh();
+      }, 4000);
+    }
+  }
+}
+
+function describeSmoothing(value: number): string {
+  if (value < 0.08) return 'exakt';
+  if (value < 0.35) return 'leicht';
+  if (value < 0.7) return 'weich';
+  return 'sehr träge';
+}
