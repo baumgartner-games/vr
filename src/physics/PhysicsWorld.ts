@@ -70,6 +70,8 @@ export interface PhysicsBody {
   collider: Collider;
   /** Half size of the collider — the reach test grows this by a fixed margin. */
   halfExtents: THREE.Vector3;
+  /** Silhouette of the collider, kept so it can be resized later. */
+  shape: ColliderShape;
   /** Surface bits this body currently phases through (portal funnels). */
   phaseMask: number;
   /** Set while a hand holds the body — it then ignores the player capsule. */
@@ -190,6 +192,34 @@ export class PhysicsWorld {
     entry.collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }
 
+  /**
+   * Grows or shrinks a collider to match a rescaled mesh. The transform tool
+   * needs it: a cube that looks twice as big has to feel twice as big too.
+   */
+  resize(entry: PhysicsBody, halfExtents: THREE.Vector3): void {
+    entry.halfExtents.set(
+      Math.max(halfExtents.x, 0.01),
+      Math.max(halfExtents.y, 0.01),
+      Math.max(halfExtents.z, 0.01),
+    );
+    const { rapier } = this;
+    const half = entry.halfExtents;
+    switch (entry.shape.kind) {
+      case 'ball':
+        entry.collider.setShape(new rapier.Ball(Math.max(half.x, half.y, half.z)));
+        break;
+      case 'cylinder':
+        entry.collider.setShape(new rapier.Cylinder(half.y, Math.max(half.x, half.z)));
+        break;
+      case 'cone':
+        entry.collider.setShape(new rapier.Cone(half.y, Math.max(half.x, half.z)));
+        break;
+      case 'box':
+        entry.collider.setShape(new rapier.Cuboid(half.x, half.y, half.z));
+        break;
+    }
+  }
+
   remove(entry: PhysicsBody): void {
     const index = this.dynamicBodies.indexOf(entry);
     if (index >= 0) this.dynamicBodies.splice(index, 1);
@@ -244,6 +274,7 @@ export class PhysicsWorld {
       body,
       collider,
       halfExtents: half.clone(),
+      shape: options.shape ?? { kind: 'box' },
       phaseMask: 0,
       carried: false,
       ghost: false,

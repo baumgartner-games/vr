@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * One-handed portal gun. Each hand carries its own colour: the left one only
- * places the blue portal, the right one only the red.
+ * One-handed portal gun. A single-colour one only ever places its own portal;
+ * pass a second colour and it becomes the two-portal model, which carries both
+ * and shows both prongs lit in their own colour.
  */
 export class PortalGun extends THREE.Group {
   readonly muzzle = new THREE.Object3D();
@@ -12,17 +13,22 @@ export class PortalGun extends THREE.Group {
   private readonly core: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly emitters: Array<THREE.MeshStandardMaterial> = [];
   private readonly tint: THREE.Color;
+  private readonly second: THREE.Color | null;
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly materials: THREE.Material[] = [];
   private flash = 0;
+  private flashTint: THREE.Color;
 
   constructor(
-    readonly key: 'a' | 'b',
+    readonly key: string,
     colorHex: number,
+    secondHex?: number,
   ) {
     super();
     this.name = `portal-gun-${key}`;
     this.tint = new THREE.Color(colorHex);
+    this.second = secondHex === undefined ? null : new THREE.Color(secondHex);
+    this.flashTint = this.tint.clone();
 
     const shell = new THREE.MeshStandardMaterial({
       color: 0xd7dce8,
@@ -47,13 +53,16 @@ export class PortalGun extends THREE.Group {
     barrel.position.set(0, 0.01, -0.16);
 
     for (const side of [-1, 1]) {
+      // On the two-portal model each prong wears the colour it fires.
+      const prongTint = side < 0 || !this.second ? this.tint : this.second;
       const material = new THREE.MeshStandardMaterial({
         color: 0x222b3d,
         roughness: 0.5,
-        emissive: this.tint.clone().multiplyScalar(0.35),
+        emissive: prongTint.clone().multiplyScalar(0.35),
       });
       this.materials.push(material);
       this.emitters.push(material);
+      material.userData['tint'] = prongTint;
       const prong = this.mesh(new THREE.BoxGeometry(0.015, 0.015, 0.12), material);
       prong.position.set(side * 0.038, 0.012, -0.18);
       prong.rotation.y = side * -0.14;
@@ -65,6 +74,7 @@ export class PortalGun extends THREE.Group {
       coreGeometry,
       new THREE.MeshBasicMaterial({ color: this.tint.clone(), toneMapped: false }),
     );
+    this.core.name = 'portal-gun-core';
     this.materials.push(this.core.material);
     this.core.position.set(0, 0.01, -0.13);
     this.add(this.core);
@@ -73,16 +83,19 @@ export class PortalGun extends THREE.Group {
     this.add(this.muzzle);
   }
 
-  fire(): void {
+  /** @param color which barrel lit up; the core flashes in that colour. */
+  fire(color?: number): void {
     this.flash = 1;
+    this.flashTint = color === undefined ? this.tint : new THREE.Color(color);
   }
 
   update(dt: number): void {
     this.flash = Math.max(0, this.flash - dt * 3.4);
     const glow = 0.45 + this.flash * 1.6;
-    this.core.material.color.copy(this.tint).multiplyScalar(glow);
+    this.core.material.color.copy(this.flashTint).multiplyScalar(glow);
     for (const material of this.emitters) {
-      material.emissive.copy(this.tint).multiplyScalar(0.25 + this.flash * 0.9);
+      const tint = (material.userData['tint'] as THREE.Color | undefined) ?? this.tint;
+      material.emissive.copy(tint).multiplyScalar(0.25 + this.flash * 0.9);
     }
   }
 

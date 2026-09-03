@@ -42,12 +42,21 @@ function el<T extends HTMLElement>(id: string): T {
  * typed before the headset goes on, and once in the in-game panel. Both write
  * into the same state.
  */
+/** What should happen once a connection is up. */
+export type StartMode = 'vr' | 'flat';
+
 export interface NetPanelOptions {
   /**
    * Use `BroadcastChannel` instead of WebRTC (`?net=local`). Two tabs on one
    * machine, no relays involved — the quickest way to try the spectator views.
    */
   local?: boolean;
+  /**
+   * Called after connecting from the landing page. Joining a room is the same
+   * step as starting the game, so the two buttons there say what happens next
+   * — headset on, or straight into the flat view.
+   */
+  onStart?(mode: StartMode): void;
 }
 
 export class NetPanel {
@@ -57,7 +66,10 @@ export class NetPanel {
   private readonly connectButtons = [
     el<HTMLButtonElement>('net-connect'),
     el<HTMLButtonElement>('net-connect-landing'),
+    el<HTMLButtonElement>('net-connect-flat-landing'),
   ];
+  /** The landing buttons carry a start mode; the in-game one only connects. */
+  private readonly startModes: Array<StartMode | null> = [null, 'vr', 'flat'];
   private readonly roomInputs = [
     el<HTMLInputElement>('net-room'),
     el<HTMLInputElement>('net-room-landing'),
@@ -110,8 +122,9 @@ export class NetPanel {
     for (const button of [el('net-dice'), el('net-dice-landing')]) {
       button.addEventListener('click', () => this.setRoom(randomRoomCode()));
     }
-    for (const button of this.connectButtons) {
-      button.addEventListener('click', () => void this.toggleConnection());
+    for (const [index, button] of this.connectButtons.entries()) {
+      const mode = this.startModes[index] ?? null;
+      button.addEventListener('click', () => void this.toggleConnection(mode));
     }
 
     el('net-close').addEventListener('click', () => this.toggle(false));
@@ -177,8 +190,8 @@ export class NetPanel {
     this.statusLine.classList.toggle('is-online', !error && net.status === 'online');
     this.landingStatus.classList.toggle('is-error', error);
 
-    for (const button of this.connectButtons) {
-      button.textContent = this.busy ? '…' : net.connected ? 'Trennen' : 'Verbinden';
+    for (const [index, button] of this.connectButtons.entries()) {
+      button.textContent = this.busy ? '…' : net.connected ? 'Trennen' : CONNECT_LABELS[index]!;
       button.disabled = this.busy;
     }
     for (const input of this.roomInputs) input.disabled = net.connected || this.busy;
@@ -249,7 +262,7 @@ export class NetPanel {
     this.refresh();
   }
 
-  private async toggleConnection(): Promise<void> {
+  private async toggleConnection(start: StartMode | null = null): Promise<void> {
     if (this.app.net.connected) {
       this.app.disconnect();
       this.setMessage('');
@@ -274,6 +287,7 @@ export class NetPanel {
       localStorage.setItem(STORAGE_ROOM, room);
       localStorage.setItem(STORAGE_NAME, this.nameInputs[0]!.value);
       this.setRoom(room);
+      if (start) this.options.onStart?.(start);
     } catch (error) {
       this.setMessage(`Verbindung fehlgeschlagen: ${(error as Error).message}`, true);
     } finally {
@@ -306,6 +320,9 @@ export class NetPanel {
     }
   }
 }
+
+/** Same order as `connectButtons`: in-game panel, then the two landing ones. */
+const CONNECT_LABELS = ['Verbinden', 'Verbinden & Enter VR', 'Verbinden & ohne VR starten'];
 
 function describeSmoothing(value: number): string {
   if (value < 0.08) return 'exakt';

@@ -13,14 +13,26 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
   Das Panel steht senkrecht auf dem Handrücken und schaut den Kopf an.
   Ausgewählt wird mit der anderen Hand: zielen und **Trigger oder `A`** drücken
-  — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
+  — Hovern allein löst nichts aus, und angetippt wird auch nichts. Auf den
+  Seiten **Werkzeuge** und **Magischer Beutel** nimmt dagegen nur **Greifen
+  oder `A`**, damit der Zieltrigger nicht versehentlich die Hand füllt. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
-  Aufbau: **Welten** (Hub, Portal Labor), **Werkzeuge** (die beiden Portal
-  Waffen direkt in die Hand), **Magischer Beutel** (Raster mit Companion Cube
-  und Domino), **Einstellungen** und die Aktionen der Welt. Im Raster wird
-  auf ein Feld gezielt und Trigger/`A` gedrückt — das Objekt liegt dann in
+  Aufbau: **Welten** (Hub, Portal Labor), **Werkzeuge** (das ganze Regal
+  direkt in die Hand), **Magischer Beutel** (Raster mit Companion Cube,
+  Kugel, Domino, Pyramide, Quader, Planke und Zylinder), **Einstellungen**
+  und die Aktionen der Welt. In beiden wird auf einen Eintrag gezielt und
+  **Greifen** oder `A` gedrückt — das Werkzeug bzw. Objekt liegt dann in
   genau dieser Hand. Das Raster kommt zurück, sobald du loslässt.
-- **Portal Labor** (experimentell): Physik-Sandkasten mit zwei Portal-Guns am
+- **Werkzeuggürtel**: an beiden Hüften hängt ein Platz für ein Werkzeug. Was
+  in der Hand ist und in die Nähe eines Platzes kommt, lässt den Ring
+  aufleuchten — dort loslassen legt es ab, Greifen nimmt es wieder. Jedes
+  Werkzeug passt auf jeden Platz, sie lassen sich also frei tauschen.
+- **Werkzeuge**: die beiden einzelnen Portal-Waffen, eine kombinierte
+  (Trigger rot, Greifen blau, muss nicht dauerhaft gehalten werden), ein
+  Blender-artiger Griff für Größe und Position, Pinsel samt Farbpalette auf
+  der anderen Hand, eine Pistole mit Magazin (`x/∞` an der Seite) und eine
+  Stoppuhr, die die Welt in Zeitlupe schaltet.
+- **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
   Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
   gehen auch auf Boden und Decke — samt Sturz und Schwung beim Herausfliegen.
@@ -48,7 +60,23 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # Typecheck + Produktionsbuild nach dist/
 npm run preview  # gebautes Ergebnis lokal servieren
+npm test         # Jest — die reine Rechen-Logik, ohne Browser
 ```
+
+### Wohin gepusht wird
+
+**Alles geht direkt auf `main`** — kein Feature-Branch, kein Pull Request,
+solange nicht ausdrücklich etwas anderes gewünscht ist. Das gilt für Menschen
+wie für Agenten: entwickeln, committen, `git push -u origin main`. Wer
+ausnahmsweise einen Branch will, sagt das im Auftrag dazu.
+
+### Tests
+
+Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
+Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`). Das
+Modul kommt bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
+weder WebGL noch WebXR noch wasm. Alles, was schwer zu testen ist, gehört
+möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
 selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
@@ -73,8 +101,10 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Springen | `A` rechts | `Leertaste` | – |
 | Menü | Button an der linken Hand | Button `Menü` im HUD | Button `Menü` im HUD |
 | Auswählen | rechte Hand zielen + Trigger oder `A` | Linksklick | tippen |
-| Waffe ziehen | Grip an der Hüfte halten (jede Hand, jede Waffe) | – (immer bereit) | – |
+| Werkzeug nehmen | Grip an der Hüfte halten (jede Hand, jedes Werkzeug) | – (immer bereit) | – |
+| Werkzeug ablegen | Grip loslassen; am Gürtel landet es dort | – | – |
 | Portal schießen | Trigger der Hand mit der Waffe | Links-/Rechtsklick | – |
+| Zweites Portal (Doppel-Waffe) | Greifen | Rechtsklick | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Weitergeben | mit der freien Hand danach greifen | – | – |
 | Ferngreifen | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen | – | – |
@@ -87,7 +117,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 Dominosteine antippen. Grip + Trigger = Daumen hoch. Kommt etwas Greifbares in
 Reichweite, leuchtet es auf und die Hand geht leicht in Griffhaltung. Mit
 Hand-Tracking werden die echten Finger gerendert; dort schaltet ein Pinch am
-Gürtel die Waffe zwischen Halfter und Hand um.
+Gürtel das Werkzeug zwischen Gürtel und Hand um.
 
 Die Waffe zielt entlang des Pointing-Rays des Controllers, nicht entlang der
 Griffachse — sonst schießt man deutlich an der Zielrichtung vorbei. Jede Waffe
@@ -98,16 +128,27 @@ Die Greifbox ist der Collider plus 9 cm — ein fester Zuschlag, kein
 prozentualer, damit ein Dominostein genauso gut in die Hand springt wie ein
 Companion Cube.
 
-**Ferngreifen** (Einstellungen, standardmäßig an) erweitert das auf 9 m und
+**Ferngreifen** (Einstellungen → Ferngreifen, standardmäßig an) erweitert das auf 9 m und
 läuft in zwei Schritten. Der Zielstrahl trifft die tatsächliche Box eines
 Objekts — plus etwas Rand und einen Kegel, der mit der Entfernung aufgeht, so
 dass ein weit entfernter Dominostein erreichbar bleibt, ohne einem näheren
-Objekt das Ziel wegzunehmen. Was getroffen ist, leuchtet auf und bekommt ein
-dünnes Seil zur Hand. Mit **Grip** rastet es ein: Es bleibt markiert und
-angeseilt, auch wenn die Hand woanders hinzeigt. Kippst du die Hand danach
-mehr als **30°** nach oben/hinten, spannt sich das Seil (es wird orange) und
-das Objekt fliegt in einem Bogen heran — hältst du weiter gedrückt, landet es
-in der Hand. Grip loslassen löst die Verbindung wieder.
+Objekt das Ziel wegzunehmen. Was getroffen ist, leuchtet auf. Mit **Grip**
+rastet es ein: Es bleibt markiert, auch wenn die Hand woanders hinzeigt.
+Kippst du die Hand danach mehr als **30°** nach oben/hinten, kommt das Objekt
+geflogen und landet in der Hand.
+
+Der Flug ist bewusst *keine* Physik: eine feste Bahn über eine feste Zeit, und
+das Objekt geht dabei durch alles hindurch. Eine ballistische Kurve sieht
+schöner aus, bis sie unterwegs an einer Kiste hängen bleibt — und ein
+Ferngriff, der nicht ankommt, ist schlimmer als gar keiner. Die Bahn wird
+jeden Frame gegen die *aktuelle* Handposition gerechnet, eine Hand, die sich
+bewegt, zieht das Objekt also mit. Genau das prüfen die Jest-Tests.
+
+Die **Linie** zwischen Hand und Objekt ist standardmäßig aus (sie steht meist
+im Weg) und lässt sich unter *Einstellungen → Ferngreifen → Linie anzeigen*
+einschalten. Ferngreifen schaltet sich außerdem selbst ab, solange beide Hände
+dicht beieinander sind und eine davon schon etwas hält — dann will man das
+Objekt übergeben und nicht quer durch den Raum zielen.
 
 ## Architektur
 

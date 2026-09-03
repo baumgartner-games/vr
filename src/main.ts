@@ -42,7 +42,15 @@ const app = new App(canvas, stick, {
   onNetChanged: () => netPanel?.refresh(),
 });
 
-netPanel = new NetPanel(app, { local: params.get('net') === 'local' });
+netPanel = new NetPanel(app, {
+  local: params.get('net') === 'local',
+  // Joining a room from the landing page also starts the game — the two
+  // buttons there say which way.
+  onStart: (mode) => {
+    if (mode === 'vr') void startVR();
+    else startFlat();
+  },
+});
 
 void app.goTo(startWorld);
 
@@ -66,7 +74,11 @@ void detectXRSupport().then((support) => {
     : (support.reason ?? 'Kein VR-Gerät gefunden.');
 });
 
-enterVrButton.addEventListener('click', async () => {
+enterVrButton.addEventListener('click', () => void startVR());
+
+enterFlatButton.addEventListener('click', () => startFlat());
+
+async function startVR(): Promise<void> {
   enterVrButton.disabled = true;
   try {
     await app.enterVR();
@@ -75,13 +87,13 @@ enterVrButton.addEventListener('click', async () => {
     statusLine.classList.add('is-error');
     enterVrButton.disabled = false;
   }
-});
+}
 
-enterFlatButton.addEventListener('click', () => {
+function startFlat(): void {
   hideLanding();
   hud.hidden = false;
   touch.hidden = detectFlatRole() !== 'handheld';
-});
+}
 
 hudMenu.addEventListener('click', () => app.toggleMenu());
 

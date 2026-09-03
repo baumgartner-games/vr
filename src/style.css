@@ -501,3 +501,10 @@ input[type="range"] {
 }
 
 .field.is-off { display: none; }
+
+/* The two ways out of the room-code form: headset on, or straight to flat. */
+.net__actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}

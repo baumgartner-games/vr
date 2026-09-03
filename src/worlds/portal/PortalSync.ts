@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { weight } from '../../net/PoseSmoothing';
 import type { NetSession } from '../../net/NetSession';
 import type { PhysicsBody, PhysicsWorld } from '../../physics/PhysicsWorld';
+import type { PropKind } from './props';
 
 /** Position + quaternion, flattened. */
 export type Pose7 = [number, number, number, number, number, number, number];
-export type PropKind = 'cube' | 'domino';
+export type { PropKind };
 export type PortalKey = 'a' | 'b';
 /**
  * A placed portal. The surface bit travels along: the chamber is built the
@@ -17,7 +18,7 @@ export interface PortalState {
   group: number;
 }
 /** What a hand is busy with, so the others can draw it. */
-export type HandBusy = { gun: PortalKey } | { grab: string } | null;
+export type HandBusy = { tool: string } | { grab: string } | null;
 
 /** World traffic rides on this channel of the session. */
 const CHANNEL = 'portal';
@@ -52,6 +53,8 @@ type Message =
   /** Claim or hand back a prop. `vel` carries the throw when it is handed back. */
   | { t: 'own'; id: string; owner: string | null; vel?: [number, number, number] }
   | { t: 'reset' }
+  /** Somebody painted a prop; the colour is part of the shared world. */
+  | { t: 'paint'; id: string; color: number }
   | { t: 'hands'; left: HandBusy; right: HandBusy };
 
 export interface PortalSyncOptions {
@@ -71,6 +74,8 @@ export interface PortalSyncOptions {
   /** Props that came out of a bag, so a joining player can rebuild them. */
   spawnedProps(): Array<{ id: string; kind: PropKind }>;
   resetRemote(): void;
+  /** Somebody else repainted a prop. */
+  paintRemote(id: string, color: number): void;
   /** What the peers are holding, for the hand attachments. */
   onHands(peerId: string, left: HandBusy, right: HandBusy): void;
 }
@@ -202,6 +207,12 @@ export class PortalSync {
   resetShared(): void {
     if (this.alone) return;
     this.send({ t: 'reset' });
+  }
+
+  /** A prop was repainted — the colour belongs to everybody. */
+  painted(id: string, color: number): void {
+    if (this.alone) return;
+    this.send({ t: 'paint', id, color });
   }
 
   /** Tools and props in the local hands, sent only when they change. */
@@ -385,6 +396,10 @@ export class PortalSync {
           if (!this.options.bodies.has(id)) this.forget(id);
         }
         this.options.resetRemote();
+        break;
+      }
+      case 'paint': {
+        this.options.paintRemote(message.id, message.color);
         break;
       }
       case 'hands': {
