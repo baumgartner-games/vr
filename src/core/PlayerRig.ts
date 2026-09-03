@@ -126,8 +126,10 @@ export class PlayerRig extends THREE.Group {
   /**
    * Reads the sticks while in VR, hands the movement wish to the locomotion and
    * resets the intent for the next frame.
+   *
+   * @param uiActive the pointer rests on a menu — the buttons belong to it then.
    */
-  update(dt: number, input: XRInput, presenting: boolean): void {
+  update(dt: number, input: XRInput, presenting: boolean, uiActive = false): void {
     if (presenting) {
       const left = input.get('left');
       const stick = left?.thumbstick;
@@ -138,7 +140,8 @@ export class PlayerRig extends THREE.Group {
         if (_head.lengthSq() > 1) _head.normalize();
         this.intent.copy(_head.multiplyScalar(this.moveSpeed));
       }
-      if (input.get('right')?.primary.justPressed) this.intentJump = true;
+      // A also confirms menu entries, so it must not jump while pointing at one.
+      if (!uiActive && input.get('right')?.primary.justPressed) this.intentJump = true;
     }
 
     this.locomotion.apply(this, this.intent, this.intentJump, dt);

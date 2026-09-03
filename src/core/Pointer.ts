@@ -122,7 +122,10 @@ export class Pointer {
     this.rayLine.scale.z = hit ? hit.hit.distance : 1.6;
     this.setHover(hit?.target ?? null, hit?.hit ?? null);
 
-    if (hit && hand.trigger.justPressed) hit.target.onSelect?.(hit.hit);
+    // Deliberately a button press: hovering alone never triggers anything.
+    if (hit && (hand.trigger.justPressed || hand.primary.justPressed)) {
+      hit.target.onSelect?.(hit.hit);
+    }
   }
 
   // --- ray from the 2D screen --------------------------------------------

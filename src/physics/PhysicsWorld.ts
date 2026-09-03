@@ -5,17 +5,28 @@ export type RapierModule = typeof import('@dimforge/rapier3d-compat');
 
 /** Collision membership bits. */
 export const GROUP_WORLD = 1 << 0;
-/** Surfaces that can hold a portal — anything phasing through a portal ignores these. */
-export const GROUP_PORTAL_SURFACE = 1 << 1;
 export const GROUP_PROP = 1 << 2;
 export const GROUP_PLAYER = 1 << 3;
 export const GROUP_HAND = 1 << 4;
+
+/**
+ * Every surface that can hold a portal gets a bit of its own. A portal only
+ * opens up *its* wall, so standing in front of one no longer lets you sink
+ * through the floor — that used to be one shared bit for all of them.
+ */
+const PORTAL_SURFACE_BASE = 5;
+const PORTAL_SURFACE_SLOTS = 10;
+
+/** Membership bit for the n-th portal surface. Wraps around when they run out. */
+export function portalSurfaceGroup(index: number): number {
+  return 1 << (PORTAL_SURFACE_BASE + (index % PORTAL_SURFACE_SLOTS));
+}
 
 export const ALL_GROUPS = 0xffff;
 
 /** Rapier packs membership and filter into one 32 bit value. */
 export function interactionGroups(membership: number, filter: number): number {
-  return ((membership & 0xffff) << 16) | (filter & 0xffff);
+  return (((membership & 0xffff) << 16) | (filter & 0xffff)) >>> 0;
 }
 
 let modulePromise: Promise<RapierModule> | null = null;
@@ -50,8 +61,8 @@ export interface PhysicsBody {
   collider: Collider;
   /** Half size of the collider — the reach test grows this by a fixed margin. */
   halfExtents: THREE.Vector3;
-  /** Set while the body is inside a portal funnel and may pass through walls. */
-  phasing: boolean;
+  /** Surface bits this body currently phases through (portal funnels). */
+  phaseMask: number;
   /** Set while a hand holds the body — it then ignores the player capsule. */
   carried: boolean;
   membership: number;
@@ -123,10 +134,13 @@ export class PhysicsWorld {
     }
   }
 
-  /** Lets a body fall through portal surfaces (or stops it from doing so). */
-  setPhasing(entry: PhysicsBody, phasing: boolean): void {
-    if (entry.phasing === phasing) return;
-    entry.phasing = phasing;
+  /**
+   * Lets a body fall through the surfaces named by `mask` — the walls the
+   * portals it currently sits in front of are mounted on. 0 = solid again.
+   */
+  setPhasing(entry: PhysicsBody, mask: number): void {
+    if (entry.phaseMask === mask) return;
+    entry.phaseMask = mask;
     this.applyFilter(entry);
   }
 
@@ -142,7 +156,7 @@ export class PhysicsWorld {
 
   private applyFilter(entry: PhysicsBody): void {
     let filter = entry.filter;
-    if (entry.phasing) filter &= ~GROUP_PORTAL_SURFACE;
+    filter &= ~entry.phaseMask;
     if (entry.carried) filter &= ~GROUP_PLAYER;
     entry.collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }
@@ -201,7 +215,7 @@ export class PhysicsWorld {
       body,
       collider,
       halfExtents: half.clone(),
-      phasing: false,
+      phaseMask: 0,
       carried: false,
       membership,
       filter,
