@@ -244,6 +244,8 @@ und Portale auf allen Geräten gleich und hängt am freien Nachrichten-Kanal von
 
 Was du davon siehst: den vollen Körper des anderen, sein Namensschild, die
 Portal-Waffe in seiner Hand und ein Leuchten an dem Objekt, das er gerade hält.
+Greift er durch ein Portal, wird seine Hand genauso geschnitten und auf der
+anderen Seite weitergezeichnet wie deine eigene.
 
 ### Zuschauen: First und Third Person
 

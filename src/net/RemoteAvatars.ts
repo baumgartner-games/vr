@@ -107,6 +107,17 @@ export class RemoteAvatars extends THREE.Group {
     if (avatar) avatar.body.handAnchors[side === 'left' ? 0 : 1].add(object);
   }
 
+  /**
+   * The node a peer's hand hangs on, or null while that hand is not tracked.
+   * Whatever is attached to it rides along — a portal gun, say.
+   */
+  handAnchor(peerId: string, side: HandSide): THREE.Object3D | null {
+    const avatar = this.avatars.get(peerId);
+    if (!avatar?.body.visible) return null;
+    const anchor = avatar.body.handAnchors[side === 'left' ? 0 : 1];
+    return anchor.visible ? anchor : null;
+  }
+
   /** Latest smoothed world pose of a peer's hand, false when it is not tracked. */
   getHandPose(
     peerId: string,

@@ -1262,6 +1262,14 @@ export class PortalWorld implements World {
       ghosts.track(`gun:${hand}`, this.gunHeldBy(hand)?.gun ?? null, 0.3, 0.8);
     }
 
+    // The others reach through portals too, and their hand should come out on
+    // the far side just like yours does. Their gun hangs on the same node.
+    for (const id of this.remotePlayers.keys()) {
+      for (const side of ['left', 'right'] as const) {
+        ghosts.track(peerHandKey(id, side), ctx.avatars.handAnchor(id, side), 0.26, 0.8);
+      }
+    }
+
     for (const entry of this.props) {
       ghosts.track(propKey(entry), entry.object, entry.halfExtents.length());
     }
@@ -1699,7 +1707,12 @@ export class PortalWorld implements World {
     player.torso.removeFromParent();
     for (const object of player.handObjects) object.removeFromParent();
     this.remotePlayers.delete(id);
-    for (const side of ['left', 'right'] as const) this.updateRemoteGun(ctx, id, side, null);
+    for (const side of ['left', 'right'] as const) {
+      // Untrack before the avatar is torn down, so the ghost hands the real
+      // materials back while they still exist.
+      this.ghosts?.untrack(peerHandKey(id, side));
+      this.updateRemoteGun(ctx, id, side, null);
+    }
   }
 
   private clearRemotePlayers(ctx: WorldContext): void {
@@ -1827,6 +1840,11 @@ function poseOf(entry: PhysicsBody): Pose7 {
   const t = entry.body.translation();
   const r = entry.body.rotation();
   return [t.x, t.y, t.z, r.x, r.y, r.z, r.w];
+}
+
+/** Ghost key for another player's hand. */
+function peerHandKey(peerId: string, side: Handedness): string {
+  return `peer:${peerId}:${side}`;
 }
 
 /** Stable ghost key for a prop — props come and go through the magic bag. */
