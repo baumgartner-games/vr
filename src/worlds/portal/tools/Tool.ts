@@ -59,6 +59,12 @@ export interface ToolHost {
   /** Throws the player's body along a velocity — the grappling hook reels. */
   launchPlayer(velocity: THREE.Vector3): void;
   /**
+   * Takes the player off the ground and drives them by this velocity, gravity
+   * and stick alike switched off; `null` gives the body back to both. The
+   * Superman glove flies on it.
+   */
+  setFlight(velocity: THREE.Vector3 | null): void;
+  /**
    * Takes the view away from the body and puts it at a point in the world —
    * the drone flies with it. `null` gives the player their body back.
    */

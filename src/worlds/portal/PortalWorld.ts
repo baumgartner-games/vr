@@ -1714,6 +1714,7 @@ export class PortalWorld implements World {
         // again is one frame of the character controller away.
         if (velocity.lengthSq() > 0) locomotion.grounded = false;
       },
+      setFlight: (velocity) => this.locomotion?.setFlight?.(velocity),
       setViewOverride: (position) => this.setViewOverride(position),
       heldTool: (hand) => this.held.get(hand) ?? null,
       parkTool: (tool) => this.parkTool(tool),

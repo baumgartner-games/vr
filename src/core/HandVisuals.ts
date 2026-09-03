@@ -348,11 +348,15 @@ export class HandVisuals extends THREE.Group {
     // The dialled-in pose is the base; the short-lived gestures (pointing at
     // something, a thumbs-up) still win while they last.
     hand.setPose(this.poseOf(controller.handedness));
+    const forced = this.overrides.get(controller.handedness) ?? null;
     const gesture = this.gestureOf(controller);
     // `open` is the idle pose and a held tool brings its own grip, so those two
-    // are already covered; a bare hand closing around a cube is not.
+    // are already covered; a bare hand closing around a cube is not. A gesture
+    // a tool explicitly asked for is never covered — the Superman glove wants
+    // a fist out of a hand that is holding something.
     const covered =
-      gesture === 'open' || (gesture === 'grip' && this.holding.get(controller.handedness));
+      !forced &&
+      (gesture === 'open' || (gesture === 'grip' && this.holding.get(controller.handedness)));
     if (gesture && !covered) hand.setGesture(gesture);
     hand.update(dt);
   }

@@ -41,6 +41,13 @@ export class PhysicsLocomotion implements Locomotion {
    */
   phaseMask = 0;
 
+  /**
+   * While this is set the capsule flies: the vector *is* the velocity, gravity
+   * is off and the stick has nothing to say. Walls still stop it — flying
+   * through the room is the point, flying through its walls is not.
+   */
+  private flight: THREE.Vector3 | null = null;
+
   private readonly controller: KinematicCharacterController;
   private readonly body: RigidBody;
   private readonly collider: Collider;
@@ -80,6 +87,17 @@ export class PhysicsLocomotion implements Locomotion {
     return target.set(t.x, t.y, t.z);
   }
 
+  /** Takes off, or hands the body back to gravity. */
+  setFlight(velocity: THREE.Vector3 | null): void {
+    if (!velocity) {
+      if (this.flight) this.velocity.copy(this.flight);
+      this.flight = null;
+      return;
+    }
+    if (!this.flight) this.flight = new THREE.Vector3();
+    this.flight.copy(velocity);
+  }
+
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
     if (dt <= 0 || this.disposed) return;
     this.updateShape(rig);
@@ -93,7 +111,11 @@ export class PhysicsLocomotion implements Locomotion {
     // Movement the player made physically (room scale) since the last frame.
     _drift.set(_head.x - this.lastHead.x, 0, _head.z - this.lastHead.z);
 
-    if (this.grounded) {
+    if (this.flight) {
+      // Flying: the glove owns the whole velocity, gravity does not get a say.
+      this.velocity.copy(this.flight);
+      this.grounded = false;
+    } else if (this.grounded) {
       this.velocity.x = velocity.x;
       this.velocity.z = velocity.z;
       this.velocity.y = jump ? this.jumpSpeed : Math.min(this.velocity.y, 0);
@@ -105,8 +127,10 @@ export class PhysicsLocomotion implements Locomotion {
         this.velocity.z += (velocity.z - this.velocity.z) * blend;
       }
     }
-    this.velocity.y -= 9.81 * dt;
-    if (this.velocity.y < -TERMINAL_VELOCITY) this.velocity.y = -TERMINAL_VELOCITY;
+    if (!this.flight) {
+      this.velocity.y -= 9.81 * dt;
+      if (this.velocity.y < -TERMINAL_VELOCITY) this.velocity.y = -TERMINAL_VELOCITY;
+    }
 
     _desired.copy(this.velocity).multiplyScalar(dt).add(_drift);
 
@@ -132,7 +156,7 @@ export class PhysicsLocomotion implements Locomotion {
       true,
     );
 
-    if (this.grounded && this.velocity.y < 0) this.velocity.y = 0;
+    if (this.grounded && !this.flight && this.velocity.y < 0) this.velocity.y = 0;
     // Actually blocked by something: drop that part of the momentum. The
     // threshold has to stay generous, otherwise a portal fling dies instantly.
     if (blocked(_applied.x, _desired.x)) this.velocity.x *= 0.3;
@@ -160,6 +184,7 @@ export class PhysicsLocomotion implements Locomotion {
   /** The rig was moved from the outside — put the capsule back under the head. */
   resync(rig: PlayerRig): void {
     this.velocity.set(0, 0, 0);
+    this.flight = null;
     this.syncCapsuleToRig(rig, true);
     this.grounded = false;
   }

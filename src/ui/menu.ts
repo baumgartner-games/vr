@@ -23,6 +23,7 @@ export type MenuIcon =
   | 'grapple'
   | 'magnet'
   | 'glove'
+  | 'superman'
   | 'weld'
   | 'wrench'
   | 'xray'
@@ -386,6 +387,23 @@ export function drawMenuIcon(
       ctx.lineTo(-s * 0.72, -s * 0.34);
       ctx.closePath();
       ctx.fill();
+      break;
+    }
+    case 'superman': {
+      // A shield with a bolt through it: the crest, not the letter.
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.8);
+      ctx.lineTo(s * 0.68, -s * 0.5);
+      ctx.quadraticCurveTo(s * 0.6, s * 0.5, 0, s * 0.82);
+      ctx.quadraticCurveTo(-s * 0.6, s * 0.5, -s * 0.68, -s * 0.5);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.18, -s * 0.46);
+      ctx.lineTo(-s * 0.22, s * 0.06);
+      ctx.lineTo(s * 0.1, s * 0.06);
+      ctx.lineTo(-s * 0.18, s * 0.52);
+      ctx.stroke();
       break;
     }
     case 'wrench': {

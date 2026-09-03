@@ -5,6 +5,7 @@ import { EraserTool } from './EraserTool';
 import { GrappleTool } from './GrappleTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
+import { SupermanGloveTool } from './SupermanGloveTool';
 import { StopwatchTool } from './StopwatchTool';
 import { TapeTool } from './TapeTool';
 import { TransformTool } from './TransformTool';
@@ -27,6 +28,7 @@ export const TOOL_IDS = [
   'grapple',
   'gravity-glove',
   'translate-glove',
+  'superman-glove',
   'welder',
   'xray',
   'drone',
@@ -68,6 +70,8 @@ function buildTool(id: string): Tool | null {
       return new GravityGloveTool();
     case 'translate-glove':
       return new TranslateGloveTool();
+    case 'superman-glove':
+      return new SupermanGloveTool();
     case 'welder':
       return new WelderTool();
     case 'xray':
@@ -94,6 +98,7 @@ export {
   GravityGloveTool,
   PistolTool,
   StopwatchTool,
+  SupermanGloveTool,
   TapeTool,
   TransformTool,
   TranslateGloveTool,
