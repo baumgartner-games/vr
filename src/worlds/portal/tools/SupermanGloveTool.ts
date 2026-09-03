@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playTone } from '../../../core/Audio';
-import type { ControllerState } from '../../../core/XRInput';
+import type { ControllerState, Handedness } from '../../../core/XRInput';
 
 /** Hand movement inside this radius does nothing — a held hand is never still. */
 const DEADZONE = 0.06;
@@ -53,6 +53,12 @@ export class SupermanGloveTool extends Tool {
   private readonly display: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   /** Off the ground. Everything else only matters while this is true. */
   private hovering = false;
+  /**
+   * Which hand wears it. Not `heldBy`: a tool is cleared off its hand *before*
+   * it is told it has been put away, and a fist left behind on a hand nobody
+   * clears is a fist for the rest of the session.
+   */
+  private side: Handedness | null = null;
   /** Where the hand was when the trigger went down — the middle of the stick. */
   private origin: THREE.Vector3 | null = null;
   /** Seconds since take-off, for the bob. */
@@ -120,6 +126,10 @@ export class SupermanGloveTool extends Tool {
     this.display.rotation.x = -Math.PI / 2;
     this.add(this.display);
     this.draw();
+  }
+
+  override onTake(controller: ControllerState, _host: ToolHost): void {
+    this.side = controller.handedness;
   }
 
   /** Greifen: off the ground, or back onto it. */
@@ -224,17 +234,21 @@ export class SupermanGloveTool extends Tool {
     this.speed = 0;
     host.setFlight(null);
     this.setFist(host, false);
+    if (!this.heldBy) this.side = null;
     this.draw();
   }
 
   /** A hand that is flying is a fist, whatever it happens to be holding. */
   private setFist(host: ToolHost, closed: boolean): void {
-    if (!this.heldBy) return;
-    host.ctx.hands.setGestureOverride(this.heldBy, closed ? 'grip' : null);
+    const side = this.heldBy ?? this.side;
+    if (!side) return;
+    host.ctx.hands.setGestureOverride(side, closed ? 'grip' : null);
   }
 
   private draw(): void {
-    const text = !this.hovering ? 'AUS' : this.origin ? `${this.speed.toFixed(1)} m/s` : 'SCHWEBEN';
+    // Whole metres per second: the canvas is redrawn when the line changes,
+    // and a tenth that flickers every frame would redraw it every frame.
+    const text = !this.hovering ? 'AUS' : this.origin ? `${Math.round(this.speed)} m/s` : 'SCHWEBEN';
     if (text === this.drawn) return;
     this.drawn = text;
 
