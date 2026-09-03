@@ -18,8 +18,11 @@ export type FireMode = 'single' | 'burst' | 'auto';
 /** What leaves the barrel. */
 export type AmmoKind = 'normal' | 'tracer';
 
-/** What sits on top of the gun. */
+/** What can sit on top of the gun. `none` is the "take everything off" cell. */
 export type SightKind = 'none' | 'reddot' | 'irons' | 'trace' | 'xray';
+
+/** The aiming aids that are real attachments, in the order they are stored. */
+export const SIGHT_KINDS: readonly SightKind[] = ['reddot', 'irons', 'trace', 'xray'];
 
 export interface WeaponSettings {
   /** Kilograms per round — the punch is mass times speed. */
@@ -36,7 +39,12 @@ export interface WeaponSettings {
   burst: number;
   mode: FireMode;
   ammo: AmmoKind;
-  sight: SightKind;
+  /**
+   * Everything clipped onto the rail at once — a red dot *and* the trajectory
+   * line is a perfectly sensible thing to want, and each one carries its own
+   * pose, so they never fight over the same spot.
+   */
+  sights: SightKind[];
 }
 
 export const DEFAULT_WEAPON: WeaponSettings = {
@@ -48,7 +56,7 @@ export const DEFAULT_WEAPON: WeaponSettings = {
   burst: 3,
   mode: 'single',
   ammo: 'normal',
-  sight: 'none',
+  sights: [],
 };
 
 /** The notches the menu steps through, each with the name it goes by. */
@@ -89,7 +97,7 @@ export const SIGHTS: ReadonlyArray<{
   /** The line that appears over the menu while the cell is looked at. */
   caption: string;
 }> = [
-  { id: 'none', label: 'Alles ab', caption: 'Nichts auf der Waffe — freies Visier' },
+  { id: 'none', label: 'Alles ab', caption: 'Nimmt jede Zielhilfe von der Waffe' },
   { id: 'reddot', label: 'Rotpunkt', caption: 'Roter Punkt, schwebt über der Waffe' },
   { id: 'irons', label: 'Kimme & Korn', caption: 'Kimme hinten, Korn vorn — klassisch' },
   { id: 'trace', label: 'Flugbahn', caption: 'Zeigt die Bahn der Kugel voraus' },
@@ -126,16 +134,42 @@ export const WEAPON_FIELDS: readonly WeaponField[] = [
   { key: 'burst', label: 'Salve', unit: 'Schuss', min: 1, max: 20, decimals: 0, sub: 'Wie viele der Dreifachschuss abgibt' },
 ];
 
-/** Every value inside its range, and the three names spelled correctly. */
-export function clampWeapon(settings: Partial<WeaponSettings>): WeaponSettings {
+/** Every value inside its range, and the names spelled correctly. */
+export function clampWeapon(
+  settings: Partial<WeaponSettings> & { sight?: SightKind },
+): WeaponSettings {
   const next: WeaponSettings = { ...DEFAULT_WEAPON, ...settings };
   for (const field of WEAPON_FIELDS) {
     next[field.key] = clampField(field, next[field.key] as number) as never;
   }
   if (!FIRE_MODES.includes(next.mode)) next.mode = DEFAULT_WEAPON.mode;
   if (!AMMO_KINDS.includes(next.ammo)) next.ammo = DEFAULT_WEAPON.ammo;
-  if (!SIGHTS.some((sight) => sight.id === next.sight)) next.sight = DEFAULT_WEAPON.sight;
+  // A single `sight` is how one aiming aid used to be stored; a browser that
+  // still holds one of those must not lose it.
+  next.sights = normalizeSights(settings.sights ?? (settings.sight ? [settings.sight] : next.sights));
   return next;
+}
+
+/** Known aids, each at most once, in the order the grid lists them. */
+export function normalizeSights(sights: readonly SightKind[] | undefined): SightKind[] {
+  if (!Array.isArray(sights)) return [];
+  return SIGHT_KINDS.filter((kind) => sights.includes(kind));
+}
+
+/** The same list with one aid switched on or off; `none` clears the lot. */
+export function toggleSight(sights: readonly SightKind[], kind: SightKind): SightKind[] {
+  if (kind === 'none') return [];
+  return normalizeSights(
+    sights.includes(kind) ? sights.filter((entry) => entry !== kind) : [...sights, kind],
+  );
+}
+
+/** What the menu writes next to "Zielhilfen". */
+export function sightsLabel(sights: readonly SightKind[]): string {
+  if (sights.length === 0) return 'keine';
+  return sights
+    .map((kind) => SIGHTS.find((sight) => sight.id === kind)?.label ?? kind)
+    .join(' + ');
 }
 
 /** One value inside its range and rounded to the decimals it is shown with. */

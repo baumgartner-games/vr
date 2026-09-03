@@ -1,3 +1,4 @@
+import { clampDrone, DEFAULT_DRONE, type DroneSettings } from './droneSettings';
 import { clampWeapon, DEFAULT_WEAPON, type WeaponSettings } from './weaponSettings';
 import { readoutFromArray, readoutToArray, type PoseReadout } from './toolPose';
 
@@ -16,6 +17,7 @@ import { readoutFromArray, readoutToArray, type PoseReadout } from './toolPose';
 
 const POSE_KEY = 'bgvr.attachPoses';
 const WEAPON_KEY = 'bgvr.weapon';
+const DRONE_KEY = 'bgvr.drone';
 
 type Listener = () => void;
 
@@ -98,4 +100,20 @@ export function saveWeaponSettings(settings: WeaponSettings): void {
 
 export function clearWeaponSettings(): void {
   writeJson(WEAPON_KEY, { ...DEFAULT_WEAPON });
+}
+
+// --- the drone -------------------------------------------------------------
+
+export function droneSettings(): DroneSettings {
+  return clampDrone(readJson<Partial<DroneSettings>>(DRONE_KEY, {}));
+}
+
+export function saveDroneSettings(settings: Partial<DroneSettings>): DroneSettings {
+  const next = clampDrone({ ...droneSettings(), ...settings });
+  writeJson(DRONE_KEY, next);
+  return next;
+}
+
+export function clearDroneSettings(): void {
+  writeJson(DRONE_KEY, { ...DEFAULT_DRONE });
 }

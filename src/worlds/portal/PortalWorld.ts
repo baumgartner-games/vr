@@ -123,11 +123,6 @@ const SIGHT_ICONS: Record<SightKind, MenuIcon> = {
   xray: 'xray',
 };
 
-/** What the row above the grid says the gun is wearing. */
-function sightLabel(kind: SightKind): string {
-  return SIGHTS.find((sight) => sight.id === kind)?.label ?? kind;
-}
-
 /** Two decimals is as fine as any of these settings needs to read. */
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -683,8 +678,8 @@ export class PortalWorld implements World {
   private sightMenu(pistol: PistolTool): MenuEntry {
     const entry: MenuEntry = {
       id: 'setting:pistol-sight',
-      label: `Zielhilfe: ${sightLabel(pistol.weapon.sight)}`,
-      sub: 'Rotpunkt, Kimme & Korn, Flugbahn, Röntgen',
+      label: `Zielhilfen: ${pistol.sightsLabel}`,
+      sub: 'Mehrere gleichzeitig · Alles ab räumt die Schiene',
       icon: 'reddot',
       accent: 0xd7dce8,
       grid: true,
@@ -696,24 +691,34 @@ export class PortalWorld implements World {
         label: sight.label,
         caption: sight.caption,
         icon: SIGHT_ICONS[sight.id],
-        accent: pistol.weapon.sight === sight.id ? 0x5ee0a0 : 0xd7dce8,
-        selected: pistol.weapon.sight === sight.id,
+        accent: 0xd7dce8,
         run: () => {
-          pistol.set({ sight: sight.id });
-          for (const child of entry.children ?? []) {
-            const id = child.id.slice('sight:'.length);
-            child.selected = id === sight.id;
-            child.accent = child.selected ? 0x5ee0a0 : 0xd7dce8;
-          }
+          const mounted = pistol.toggleSight(sight.id);
+          this.markSights(entry, mounted);
           this.refreshMenuLabels();
-          this.context?.notify(sight.caption);
+          this.context?.notify(
+            sight.id === 'none'
+              ? 'Schiene frei'
+              : `${sight.label}: ${mounted.includes(sight.id) ? 'dran' : 'ab'}`,
+          );
         },
       })),
     };
+    this.markSights(entry, pistol.weapon.sights);
     this.menuLabels.push(() => {
-      entry.label = `Zielhilfe: ${sightLabel(pistol.weapon.sight)}`;
+      entry.label = `Zielhilfen: ${pistol.sightsLabel}`;
+      this.markSights(entry, pistol.weapon.sights);
     });
     return entry;
+  }
+
+  /** Ticks the cells of the aids that are actually on the gun. */
+  private markSights(entry: MenuEntry, mounted: readonly SightKind[]): void {
+    for (const child of entry.children ?? []) {
+      const id = child.id.slice('sight:'.length) as SightKind;
+      child.selected = id === 'none' ? mounted.length === 0 : mounted.includes(id);
+      child.accent = child.selected ? 0x5ee0a0 : 0xd7dce8;
+    }
   }
 
   /** Normal rounds or tracer. */

@@ -1,113 +1,83 @@
-import { decode, encode, formatCode } from './configCode';
+import { ByteReader, ByteWriter, formatCode, packCode, unpackCode } from './configCode';
 
-/** A configuration of the size the game actually produces. */
-const CONFIG = {
-  v: 1,
-  tools: {
-    pistol: { x: 0, y: -1.2, z: 3, pitch: -12, yaw: 0, roll: 0 },
-    xray: { x: 0, y: 2, z: -2, pitch: 0, yaw: 0, roll: 0 },
-    'gun-blue': { x: 0.5, y: -1.2, z: 3, pitch: -8, yaw: 2, roll: 0 },
-  },
-  hands: {
-    left: {
-      idle: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0, curls: [0.1, 0.08, 0.08, 0.1, 0.12] },
-      hold: {
-        pistol: { x: 0, y: -1, z: 1, pitch: 5, yaw: 0, roll: 0, curls: [0.6, 0.2, 0.9, 0.95, 0.95] },
-      },
-    },
-    right: {
-      idle: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0, curls: [0.1, 0.08, 0.08, 0.1, 0.12] },
-      hold: {},
-    },
-  },
-  attachments: {
-    'pistol:reddot': { x: 0, y: 3.4, z: -4, pitch: 0, yaw: 0, roll: 0 },
-    'pistol:irons': { x: 0, y: 3.2, z: -8, pitch: 0, yaw: 0, roll: 0 },
-  },
-  weapon: {
-    mass: 0.14,
-    speed: 45,
-    rate: 9,
-    magazine: 12,
-    reload: 1.15,
-    burst: 3,
-    mode: 'burst',
-    ammo: 'tracer',
-    sight: 'reddot',
-  },
-};
+describe('packCode/unpackCode', () => {
+  const payload = Uint8Array.from([0, 1, 2, 250, 255, 7, 7, 7]);
 
-describe('encode/decode', () => {
-  it('gives the very same object back', () => {
-    const code = encode(CONFIG);
-    expect(decode(code)).toEqual(CONFIG);
+  it('gives the very same bytes back', () => {
+    expect(Array.from(unpackCode(packCode(payload))!)).toEqual(Array.from(payload));
   });
 
-  it('makes the line markedly shorter than the raw JSON', () => {
-    const code = encode(CONFIG);
-    const raw = JSON.stringify(CONFIG);
-    expect(code.length).toBeLessThan(raw.length * 0.7);
-    // And it says whose code it is, so a wrong paste is caught at a glance.
-    expect(code.startsWith('BGVR1')).toBe(true);
-  });
-
-  it('turns the repetition JSON is made of into almost nothing', () => {
-    const rows = Array.from({ length: 60 }, (_, i) => ({
-      id: `tool-${i}`,
-      pose: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
-    }));
-    const code = encode(rows);
-    expect(code.length).toBeLessThan(JSON.stringify(rows).length * 0.12);
-    expect(decode(code)).toEqual(rows);
-  });
-
-  it('round-trips the small and awkward values too', () => {
-    for (const value of [
-      {},
-      { a: [] },
-      { nested: { deep: { deeper: [1, 2, 3, { x: null }] } } },
-      { negative: -12.5, zero: 0, big: 1234567.25, exp: 1e-7 },
-      { text: 'Röntgen-Scanner · 30° · „Kimme und Korn"' },
-      { repeated: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-      { list: Array.from({ length: 200 }, (_, i) => ({ id: `tool-${i}`, pose: [i, -(i + 1), 0] })) },
-      true,
-      42,
-      'plain string',
-      null,
-    ]) {
-      expect(decode(encode(value))).toEqual(value);
-    }
-  });
-
-  it('is deterministic — the same settings always read the same', () => {
-    expect(encode(CONFIG)).toBe(encode(CONFIG));
+  it('says whose code it is, so a wrong paste is caught at a glance', () => {
+    expect(packCode(payload).startsWith('BG2')).toBe(true);
   });
 
   it('survives being read out loud in groups', () => {
-    const code = encode(CONFIG);
-    expect(decode(formatCode(code))).toEqual(CONFIG);
+    const code = packCode(payload);
+    expect(Array.from(unpackCode(formatCode(code))!)).toEqual(Array.from(payload));
     expect(formatCode(code).replace(/ /g, '')).toBe(code);
   });
 
   it('refuses what is not one of ours', () => {
-    expect(decode('')).toBeNull();
-    expect(decode('hallo')).toBeNull();
-    expect(decode('BGVR1')).toBeNull();
-    expect(decode('BGVR1!!!!')).toBeNull();
+    expect(unpackCode('')).toBeNull();
+    expect(unpackCode('hallo')).toBeNull();
+    expect(unpackCode('BG2')).toBeNull();
+    expect(unpackCode('BG2!!!!')).toBeNull();
   });
 
   it('refuses a code with a typo in it', () => {
-    const code = encode(CONFIG);
-    // Swap one character in the body for another from the same alphabet.
-    const at = 12;
+    const code = packCode(payload);
+    const at = 5;
     const swapped = code[at] === 'A' ? 'B' : 'A';
     const broken = code.slice(0, at) + swapped + code.slice(at + 1);
     expect(broken).not.toBe(code);
-    expect(decode(broken)).toBeNull();
+    expect(unpackCode(broken)).toBeNull();
   });
 
   it('refuses a truncated code', () => {
-    const code = encode(CONFIG);
-    expect(decode(code.slice(0, code.length - 4))).toBeNull();
+    const code = packCode(payload);
+    expect(unpackCode(code.slice(0, code.length - 4))).toBeNull();
+  });
+
+  it('is deterministic — the same bytes always read the same', () => {
+    expect(packCode(payload)).toBe(packCode(payload));
+  });
+});
+
+describe('ByteWriter/ByteReader', () => {
+  it('round-trips whole numbers, signed and unsigned', () => {
+    const values = [0, 1, 127, 128, 300, 65535, 1234567, -1, -127, -128, -100000];
+    const out = new ByteWriter();
+    for (const value of values) out.int(value);
+    const input = new ByteReader(out.bytes());
+    expect(values.map(() => input.int())).toEqual(values);
+  });
+
+  it('spends one byte on a small number', () => {
+    expect(new ByteWriter().int(0).bytes().length).toBe(1);
+    expect(new ByteWriter().int(-12).bytes().length).toBe(1);
+    expect(new ByteWriter().uint(127).bytes().length).toBe(1);
+  });
+
+  it('keeps a value on the grid it was written on', () => {
+    const out = new ByteWriter().fixed(-1.2, 10).fixed(3.45, 100).fixed(0.06, 1000);
+    const input = new ByteReader(out.bytes());
+    expect(input.fixed(10)).toBe(-1.2);
+    expect(input.fixed(100)).toBe(3.45);
+    expect(input.fixed(1000)).toBe(0.06);
+  });
+
+  it('round-trips text with umlauts and punctuation', () => {
+    const text = 'Röntgen-Scanner · 30° · „Kimme und Korn"';
+    const input = new ByteReader(new ByteWriter().text(text).bytes());
+    expect(input.text()).toBe(text);
+  });
+
+  it('reads zeros past the end instead of throwing', () => {
+    const input = new ByteReader(Uint8Array.from([]));
+    expect(input.done).toBe(true);
+    expect(input.byte()).toBe(0);
+    expect(input.uint()).toBe(0);
+    expect(input.int()).toBe(0);
+    expect(input.text()).toBe('');
   });
 });
