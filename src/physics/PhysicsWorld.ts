@@ -42,9 +42,18 @@ export function loadRapier(): Promise<RapierModule> {
   return modulePromise;
 }
 
+/** Collider silhouette. `halfExtents` gives the size for all of them. */
+export type ColliderShape =
+  | { kind: 'box' }
+  | { kind: 'ball' }
+  | { kind: 'cylinder' }
+  | { kind: 'cone' };
+
 export interface BodyOptions {
   /** Half extents; taken from the mesh geometry when omitted. */
   halfExtents?: THREE.Vector3;
+  /** Collider silhouette, a box by default. */
+  shape?: ColliderShape;
   mass?: number;
   friction?: number;
   restitution?: number;
@@ -65,6 +74,11 @@ export interface PhysicsBody {
   phaseMask: number;
   /** Set while a hand holds the body — it then ignores the player capsule. */
   carried: boolean;
+  /**
+   * Set while the body is flying to a hand after a remote grab. It touches
+   * nothing at all then, so the pull always arrives.
+   */
+  ghost: boolean;
   membership: number;
   filter: number;
   previousPosition: THREE.Vector3;
@@ -154,7 +168,22 @@ export class PhysicsWorld {
     this.applyFilter(entry);
   }
 
+  /**
+   * A ghost body passes through everything. The remote grab uses it: an object
+   * reeled in on a fixed path must not be knocked off course by the crate it
+   * happens to fly past.
+   */
+  setGhost(entry: PhysicsBody, ghost: boolean): void {
+    if (entry.ghost === ghost) return;
+    entry.ghost = ghost;
+    this.applyFilter(entry);
+  }
+
   private applyFilter(entry: PhysicsBody): void {
+    if (entry.ghost) {
+      entry.collider.setCollisionGroups(interactionGroups(entry.membership, 0));
+      return;
+    }
     let filter = entry.filter;
     filter &= ~entry.phaseMask;
     if (entry.carried) filter &= ~GROUP_PLAYER;
@@ -202,7 +231,7 @@ export class PhysicsWorld {
 
     const body = world.createRigidBody(description);
 
-    const colliderDesc = rapier.ColliderDesc.cuboid(half.x, half.y, half.z)
+    const colliderDesc = colliderFor(rapier, options.shape ?? { kind: 'box' }, half)
       .setFriction(options.friction ?? 0.7)
       .setRestitution(options.restitution ?? 0.05)
       .setCollisionGroups(interactionGroups(membership, filter));
@@ -217,10 +246,28 @@ export class PhysicsWorld {
       halfExtents: half.clone(),
       phaseMask: 0,
       carried: false,
+      ghost: false,
       membership,
       filter,
       previousPosition: _position.clone(),
     };
+  }
+}
+
+function colliderFor(
+  rapier: RapierModule,
+  shape: ColliderShape,
+  half: THREE.Vector3,
+): import('@dimforge/rapier3d-compat').ColliderDesc {
+  switch (shape.kind) {
+    case 'ball':
+      return rapier.ColliderDesc.ball(Math.max(half.x, half.y, half.z));
+    case 'cylinder':
+      return rapier.ColliderDesc.cylinder(half.y, Math.max(half.x, half.z));
+    case 'cone':
+      return rapier.ColliderDesc.cone(half.y, Math.max(half.x, half.z));
+    case 'box':
+      return rapier.ColliderDesc.cuboid(half.x, half.y, half.z);
   }
 }
 

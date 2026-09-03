@@ -10,15 +10,19 @@ const _dir = new THREE.Vector3();
 const _handUp = new THREE.Vector3();
 const _roll = new THREE.Vector3();
 const _offset = new THREE.Vector3();
+const _panelUp = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _mat = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
+const _delta = new THREE.Quaternion();
 
 interface Page {
   title: string;
   entries: MenuEntry[];
   grid: boolean;
+  /** Entries are taken with the grab button instead of tapped. */
+  take: boolean;
   /** Id of the entry this page belongs to, for reopening it later. */
   id: string;
 }
@@ -42,6 +46,12 @@ export class WristMenu extends THREE.Group {
   private buttonHot = false;
   private root: MenuEntry[] = [];
   private stack: Page[] = [];
+  /**
+   * Hand pose at the moment the menu opened. The panel starts upright from
+   * there and only tilts by however much the wrist has turned since — trying
+   * to derive "up" from the hand every frame is what made it keel over.
+   */
+  private tiltRef: THREE.Quaternion | null = null;
 
   constructor(
     private readonly pointer: Pointer,
@@ -101,7 +111,7 @@ export class WristMenu extends THREE.Group {
   /** Replaces the whole menu tree and returns to the top level. */
   setRoot(entries: MenuEntry[], title = 'Menü'): void {
     this.root = entries;
-    this.stack = [{ title, entries, grid: false, id: 'root' }];
+    this.stack = [{ title, entries, grid: false, take: false, id: 'root' }];
     this.applyPage();
   }
 
@@ -118,12 +128,7 @@ export class WristMenu extends THREE.Group {
     for (const id of path) {
       const entry = level.find((candidate) => candidate.id === id);
       if (!entry?.children) break;
-      this.stack.push({
-        title: entry.label,
-        entries: entry.children,
-        grid: entry.grid ?? false,
-        id: entry.id,
-      });
+      this.stack.push(pageOf(entry));
       level = entry.children;
     }
     this.applyPage();
@@ -147,8 +152,11 @@ export class WristMenu extends THREE.Group {
   }
 
   toggle(force?: boolean): void {
+    const wasOpen = this.open;
     this.open = force ?? !this.open;
     this.panel.visible = this.open;
+    // Every fresh opening re-centres the tilt on however the hand is held now.
+    if (this.open !== wasOpen) this.tiltRef = null;
     if (!this.open && this.stack.length > 1) {
       this.stack.length = 1;
       this.applyPage();
@@ -179,7 +187,7 @@ export class WristMenu extends THREE.Group {
 
     if (anchor) {
       _wrist.copy(anchor.position);
-      // The hand's own up axis is the roll reference, so the menu tilts along.
+      // The hand's own up axis carries the button on the back of the hand.
       _handUp.set(0, 1, 0).applyQuaternion(anchor.quaternion);
       if (Math.abs(_handUp.dot(_dir.copy(_head).sub(_wrist).normalize())) > 0.97) {
         _handUp.copy(_up);
@@ -189,18 +197,24 @@ export class WristMenu extends THREE.Group {
       const distance = _dir.length() || 1;
       _dir.divideScalar(distance);
 
-      // The panel stands up from the back of the hand and faces the head. Its
-      // top edge follows the back of the hand, so the text reads the right way
-      // up — negating this is what used to put the whole menu on its head.
       _roll.copy(_handUp);
-
       this.button.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
       faceTowards(this.button, _head, _roll);
 
-      this.panel.position.copy(_wrist).addScaledVector(_dir, 0.08).addScaledVector(_handUp, 0.2);
-      faceTowards(this.panel, _head, _roll);
+      // The panel starts upright above the wrist and tilts by however far the
+      // wrist has turned since it was opened — no absolute hand axis involved,
+      // so it can never flip over on its own.
+      this.tiltRef ??= anchor.quaternion.clone();
+      _delta.copy(anchor.quaternion).multiply(_quat.copy(this.tiltRef).invert());
+      _panelUp.copy(_up).applyQuaternion(_delta);
+      if (Math.abs(_panelUp.dot(_dir)) > 0.97) _panelUp.copy(_up);
+
+      this.panel.position.copy(_wrist).addScaledVector(_dir, 0.08).addScaledVector(_panelUp, 0.2);
+      faceTowards(this.panel, _head, _panelUp);
       return;
     }
+
+    this.tiltRef = null;
 
     // No tracked hand (desktop/phone): dock the menu to the view instead.
     _quat.setFromRotationMatrix(_local);
@@ -233,16 +247,16 @@ export class WristMenu extends THREE.Group {
 
   private applyPage(): void {
     const page = this.page;
-    this.panel.setPage(page.title, this.displayed(), page.grid);
+    this.panel.setPage(
+      page.title,
+      this.displayed(),
+      page.grid,
+      page.take ? 'Zeigen + Greifen/A nimmt es in die Hand' : undefined,
+    );
   }
 
   private pushPage(entry: MenuEntry): void {
-    this.stack.push({
-      title: entry.label,
-      entries: entry.children ?? [],
-      grid: entry.grid ?? false,
-      id: entry.id,
-    });
+    this.stack.push(pageOf(entry));
     this.applyPage();
   }
 
@@ -252,7 +266,7 @@ export class WristMenu extends THREE.Group {
    * spawns a whole pile.
    */
   private updateGrabTake(input: XRInput): void {
-    if (!this.open || !this.page.grid) return;
+    if (!this.open || !this.page.take) return;
     const { index, hand } = this.panel.hovered;
     if (!hand) return;
     const entry = this.displayed()[index];
@@ -260,7 +274,12 @@ export class WristMenu extends THREE.Group {
 
     const controller = input.get(hand);
     if (!controller?.tracked) return;
-    if (!controller.trigger.justPressed && !controller.primary.justPressed) return;
+    // Grab or `A` — never the trigger, which is busy aiming at the panel.
+    // Tracked hands have no grip button, so a pinch stands in for it.
+    const take = controller.isHand
+      ? controller.trigger.justPressed
+      : controller.squeeze.justPressed || controller.primary.justPressed;
+    if (!take) return;
 
     entry.run(hand);
     this.applyPage();
@@ -279,8 +298,8 @@ export class WristMenu extends THREE.Group {
       this.pushPage(entry);
       return;
     }
-    // Grid items are taken with the grab button; only the mouse may tap them.
-    if (this.page.grid && hand !== null) return;
+    // Taken items need the grab button; only the mouse may tap them.
+    if (this.page.take && hand !== null) return;
     entry.run?.(hand);
     this.panel.refresh();
   }
@@ -333,6 +352,18 @@ export class WristMenu extends THREE.Group {
 
     this.buttonTexture.needsUpdate = true;
   }
+}
+
+/** A menu page, derived from the entry that opens it. */
+function pageOf(entry: MenuEntry): Page {
+  const grid = entry.grid ?? false;
+  return {
+    title: entry.label,
+    entries: entry.children ?? [],
+    grid,
+    take: entry.take ?? grid,
+    id: entry.id,
+  };
 }
 
 function wristObject(isHand: boolean, controller: { hand: THREE.XRHandSpace; grip: THREE.Group }) {

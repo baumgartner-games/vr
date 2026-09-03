@@ -557,7 +557,9 @@ export class App {
     this.avatars.hiddenPeer =
       following && this.spectator.settings.mode === 'first' ? (target?.id ?? null) : null;
 
-    this.net.visible = this.avatars.hiddenPeer === null;
+    // Whoever is watching somebody else is a camera, not a player: the others
+    // must not see a body standing around while its owner is spectating.
+    this.net.visible = !following;
 
     if (this.spectating && !this.spectator.following) this.releaseCamera();
     this.spectating = this.spectator.following;

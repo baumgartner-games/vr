@@ -31,7 +31,10 @@ class ProceduralHand extends THREE.Group {
   private readonly curls = [0, 0, 0, 0, 0];
   private readonly targets = [0, 0, 0, 0, 0];
 
-  constructor(side: Handedness, material: THREE.Material) {
+  constructor(
+    readonly side: Handedness,
+    material: THREE.Material,
+  ) {
     super();
     this.name = `hand-${side}`;
     const mirror = side === 'left' ? -1 : 1;
@@ -176,17 +179,19 @@ export class HandVisuals extends THREE.Group {
   dispose(): void {
     for (const [joint, mesh] of this.jointMeshes) joint.remove(mesh);
     this.jointMeshes.clear();
-    for (const hand of this.hands.values()) {
-      hand.traverse((object) => {
-        const mesh = object as THREE.Mesh;
-        if (mesh.isMesh) mesh.geometry.dispose();
-      });
-      hand.removeFromParent();
-    }
+    for (const hand of this.hands.values()) this.disposeHand(hand);
     this.hands.clear();
     this.jointGeometry.dispose();
     this.material.dispose();
     this.removeFromParent();
+  }
+
+  private disposeHand(hand: ProceduralHand): void {
+    hand.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh) mesh.geometry.dispose();
+    });
+    hand.removeFromParent();
   }
 
   private updateTrackedHand(controller: ControllerState): void {
@@ -207,6 +212,13 @@ export class HandVisuals extends THREE.Group {
   private updateControllerHand(dt: number, controller: ControllerState): void {
     if (!controller.handedness) return;
     let hand = this.hands.get(controller);
+    // The runtime may hand the same slot to the other hand later on — a left
+    // hand mesh on the right controller is what made both look mirrored.
+    if (hand && hand.side !== controller.handedness) {
+      this.disposeHand(hand);
+      this.hands.delete(controller);
+      hand = undefined;
+    }
     if (!hand) {
       hand = new ProceduralHand(controller.handedness, this.material);
       this.hands.set(controller, hand);

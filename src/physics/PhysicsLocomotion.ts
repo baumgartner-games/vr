@@ -4,6 +4,13 @@ import type { Locomotion } from '../core/Locomotion';
 import type { PlayerRig } from '../core/PlayerRig';
 import { ALL_GROUPS, GROUP_PLAYER, interactionGroups, type PhysicsWorld } from './PhysicsWorld';
 
+/**
+ * Everything the player capsule may bump into. Other players are deliberately
+ * missing: bodies that block each other in a shared room are only ever in the
+ * way — you cannot see your own, so you cannot avoid theirs either.
+ */
+const PLAYER_FILTER = ALL_GROUPS & ~GROUP_PLAYER;
+
 const RADIUS = 0.24;
 const TERMINAL_VELOCITY = 32;
 
@@ -59,7 +66,7 @@ export class PhysicsLocomotion implements Locomotion {
     this.body = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased());
     this.collider = world.createCollider(
       rapier.ColliderDesc.capsule(this.halfHeight, RADIUS).setCollisionGroups(
-        interactionGroups(GROUP_PLAYER, ALL_GROUPS),
+        interactionGroups(GROUP_PLAYER, PLAYER_FILTER),
       ),
       this.body,
     );
@@ -107,7 +114,7 @@ export class PhysicsLocomotion implements Locomotion {
       this.collider,
       _desired,
       undefined,
-      interactionGroups(GROUP_PLAYER, ALL_GROUPS & ~this.phaseMask),
+      interactionGroups(GROUP_PLAYER, PLAYER_FILTER & ~this.phaseMask),
     );
     const movement = this.controller.computedMovement();
     _applied.set(movement.x, movement.y, movement.z);

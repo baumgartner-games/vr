@@ -39,6 +39,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private hover = -1;
   private title: string;
   private footer: string;
+  private hint = '';
   private status = '';
   private flash = 0;
   private onSelect?: (index: number, hand: Handedness | null) => void;
@@ -69,10 +70,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
-  setPage(title: string, entries: MenuEntry[], grid = false): void {
+  /** @param hint replaces the standing footer while this page is shown. */
+  setPage(title: string, entries: MenuEntry[], grid = false, hint?: string): void {
     this.title = title;
     this.entries = entries;
     this.grid = grid;
+    this.hint = hint ?? '';
     this.hover = -1;
     this.draw();
   }
@@ -206,7 +209,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       }
     }
 
-    const footer = this.status || this.footer;
+    const footer = this.status || this.hint || this.footer;
     if (footer) {
       ctx.fillStyle = this.status ? '#9fd0ff' : '#71809e';
       ctx.font = '400 24px system-ui, sans-serif';

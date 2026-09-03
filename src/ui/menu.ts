@@ -11,7 +11,16 @@ export type MenuIcon =
   | 'cube'
   | 'domino'
   | 'portal'
-  | 'settings';
+  | 'settings'
+  | 'sphere'
+  | 'pyramid'
+  | 'plank'
+  | 'cylinder'
+  | 'gizmo'
+  | 'brush'
+  | 'pistol'
+  | 'stopwatch'
+  | 'palette';
 
 /** One row (or grid cell) of the wrist menu. */
 export interface MenuEntry {
@@ -26,6 +35,13 @@ export interface MenuEntry {
   children?: MenuEntry[];
   /** Draw the children as a grid of icons instead of a list. */
   grid?: boolean;
+  /**
+   * Entries on this page are *taken* rather than tapped: point at one and press
+   * the grab button (or `A`) and it lands in that hand. The trigger does
+   * nothing there, so aiming around cannot fill your hands by accident.
+   * Grid pages behave this way automatically.
+   */
+  take?: boolean;
   /**
    * Shows a switch instead of a chevron. `run` should flip it — the panel
    * redraws itself afterwards.
@@ -185,6 +201,131 @@ export function drawMenuIcon(
       ctx.beginPath();
       ctx.ellipse(0, 0, s * 0.5, s * 0.78, 0, 0, Math.PI * 2);
       ctx.stroke();
+      break;
+    }
+    case 'sphere': {
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.74, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.74, s * 0.3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-s * 0.24, -s * 0.28, s * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'pyramid': {
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.8);
+      ctx.lineTo(s * 0.8, s * 0.6);
+      ctx.lineTo(-s * 0.8, s * 0.6);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.8);
+      ctx.lineTo(s * 0.16, s * 0.24);
+      ctx.lineTo(-s * 0.8, s * 0.6);
+      ctx.moveTo(s * 0.16, s * 0.24);
+      ctx.lineTo(s * 0.8, s * 0.6);
+      ctx.stroke();
+      break;
+    }
+    case 'plank': {
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.85, -s * 0.3, s * 1.7, s * 0.42, s * 0.08);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.85, s * 0.12);
+      ctx.lineTo(-s * 0.6, s * 0.42);
+      ctx.lineTo(s * 1.1, s * 0.42);
+      ctx.lineTo(s * 0.85, s * 0.12);
+      ctx.stroke();
+      break;
+    }
+    case 'cylinder': {
+      ctx.beginPath();
+      ctx.ellipse(0, -s * 0.5, s * 0.55, s * 0.22, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.55, -s * 0.5);
+      ctx.lineTo(-s * 0.55, s * 0.5);
+      ctx.moveTo(s * 0.55, -s * 0.5);
+      ctx.lineTo(s * 0.55, s * 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.5, s * 0.55, s * 0.22, 0, 0, Math.PI);
+      ctx.stroke();
+      break;
+    }
+    case 'gizmo': {
+      const arrow = (dx: number, dy: number) => {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(dx, dy);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(dx, dy, s * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      arrow(s * 0.72, 0);
+      arrow(0, -s * 0.72);
+      arrow(-s * 0.6, s * 0.5);
+      break;
+    }
+    case 'brush': {
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.6, s * 0.7);
+      ctx.lineTo(s * 0.35, -s * 0.25);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.2, -s * 0.4);
+      ctx.lineTo(s * 0.72, -s * 0.72);
+      ctx.lineTo(s * 0.5, -s * 0.1);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'pistol': {
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.75, -s * 0.42);
+      ctx.lineTo(s * 0.75, -s * 0.42);
+      ctx.lineTo(s * 0.75, -s * 0.05);
+      ctx.lineTo(-s * 0.1, -s * 0.05);
+      ctx.lineTo(-s * 0.42, s * 0.75);
+      ctx.lineTo(-s * 0.75, s * 0.75);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+    }
+    case 'stopwatch': {
+      ctx.beginPath();
+      ctx.arc(0, s * 0.1, s * 0.66, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.2, -s * 0.72);
+      ctx.lineTo(s * 0.2, -s * 0.72);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.1);
+      ctx.lineTo(0, -s * 0.32);
+      ctx.stroke();
+      break;
+    }
+    case 'palette': {
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.76, 0, Math.PI * 2);
+      ctx.stroke();
+      for (const [x, y] of [
+        [-s * 0.34, -s * 0.3],
+        [s * 0.3, -s * 0.34],
+        [s * 0.36, s * 0.26],
+        [-s * 0.3, s * 0.34],
+      ] as const) {
+        ctx.beginPath();
+        ctx.arc(x, y, s * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      }
       break;
     }
   }

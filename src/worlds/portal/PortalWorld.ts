@@ -82,6 +82,7 @@ const _far = new THREE.Vector3();
 const _rayOrigin = new THREE.Vector3();
 const _rayDirection = new THREE.Vector3();
 const _translation = new THREE.Vector3();
+const _funnelNormal = new THREE.Vector3();
 
 interface GunSlot {
   gun: PortalGun;
@@ -430,8 +431,11 @@ export class PortalWorld implements World {
     const t = ROOM.thickness;
 
     // Floor and ceiling take portals too — that is what makes falling fun.
-    this.slab(chamber, floorMaterial, [half * 2, t, half * 2], [0, -t / 2, 0], true);
-    this.slab(chamber, panel, [half * 2, t, half * 2], [0, ROOM.height + t / 2, 0], true);
+    // They reach out past the walls: a portal opens up the wall it sits on, and
+    // without floor underneath that wall you sink away right in front of it.
+    const shell = (half + t) * 2;
+    this.slab(chamber, floorMaterial, [shell, t, shell], [0, -t / 2, 0], true);
+    this.slab(chamber, panel, [shell, t, shell], [0, ROOM.height + t / 2, 0], true);
 
     this.slab(chamber, panel, [half * 2, ROOM.height, t], [0, ROOM.height / 2, -half - t / 2], true);
     this.slab(chamber, panel, [t, ROOM.height, half * 2], [half + t / 2, ROOM.height / 2, 0], true);
@@ -1388,20 +1392,28 @@ export class PortalWorld implements World {
    * Standing near a wall portal used to open up *every* portal surface, which
    * is what made the floor give way just before a portal.
    */
-  private funnelMask(point: THREE.Vector3): number {
+  private funnelMask(point: THREE.Vector3, head?: THREE.Vector3): number {
     let mask = 0;
     for (const portal of [this.portalBlue, this.portalRed]) {
       if (!portal.placed || !portal.link?.placed) continue;
       if (Math.abs(portal.signedDistance(point)) > FUNNEL_DEPTH) continue;
-      if (portal.isInOpening(point, 1.1)) mask |= portal.surfaceGroup;
+      if (!portal.isInOpening(point, 1.1)) continue;
+      // A portal on a wall only dissolves that wall while the head lines up
+      // with the opening as well. Otherwise the body walks into a wall the
+      // head never passes — and there is nothing to stand on inside it.
+      if (head && Math.abs(portal.getWorldNormal(_funnelNormal).y) < 0.7) {
+        if (!portal.isInOpening(head, 1.15)) continue;
+      }
+      mask |= portal.surfaceGroup;
     }
     return mask;
   }
 
   /** Lets the player fall through a wall while standing in a portal opening. */
   private playerFunnelMask(): number {
-    this.locomotion!.getPosition(_probe);
-    return this.funnelMask(_probe);
+    this.locomotion!.getPosition(_point);
+    this.context!.rig.getHeadPosition(_head);
+    return this.funnelMask(_point, _head);
   }
 
   private updatePropPhasing(): void {
@@ -1632,6 +1644,12 @@ export class PortalWorld implements World {
 
     for (const peer of ctx.net.peers.values()) {
       if (peer.world !== ctx.net.world) continue;
+      // Someone who is watching another player is a camera, not a body.
+      if (peer.pose?.hidden) {
+        const player = this.remotePlayers.get(peer.id);
+        if (player) this.dropRemotePlayer(ctx, peer.id, player);
+        continue;
+      }
       if (!ctx.avatars.getHeadPose(peer.id, _head)) continue;
 
       const player = this.remotePlayers.get(peer.id) ?? this.createRemotePlayer(peer.id);
@@ -1672,7 +1690,10 @@ export class PortalWorld implements World {
     const capsule = physics.addKinematic(torso, {
       halfExtents: new THREE.Vector3(0.22, 0.8, 0.22),
       membership: GROUP_PLAYER,
-      filter: ALL_GROUPS,
+      // Their body shoves props around but never the other players — two
+      // people standing in the same spot is far less annoying than being
+      // pushed by somebody you cannot see coming.
+      filter: ALL_GROUPS & ~GROUP_PLAYER,
     });
 
     const handObjects: THREE.Object3D[] = [];

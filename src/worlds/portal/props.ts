@@ -1,4 +1,15 @@
 import * as THREE from 'three';
+import type { ColliderShape } from '../../physics/PhysicsWorld';
+
+/** Everything the magic bag can conjure. The name travels over the network. */
+export type PropKind =
+  | 'cube'
+  | 'domino'
+  | 'sphere'
+  | 'pyramid'
+  | 'plank'
+  | 'block'
+  | 'cylinder';
 
 /** Weighted Companion Cube — canvas texture, no asset download. */
 export function createCompanionCube(size = 0.5): THREE.Mesh {
@@ -54,7 +65,8 @@ export function createCompanionCube(size = 0.5): THREE.Mesh {
   return cube;
 }
 
-export const DOMINO_SIZE = new THREE.Vector3(0.09, 0.18, 0.025);
+/** Twice the old size: big enough to line up and knock over with a whole hand. */
+export const DOMINO_SIZE = new THREE.Vector3(0.18, 0.36, 0.05);
 
 /** A row of dominoes, ready to be knocked over. */
 export function createDominoes(count: number, accent: number): THREE.Mesh[] {
@@ -71,4 +83,134 @@ export function createDominoes(count: number, accent: number): THREE.Mesh[] {
     dominoes.push(domino);
   }
   return dominoes;
+}
+
+/** Mesh plus the physics the bag should give it. */
+export interface PropBlueprint {
+  mesh: THREE.Mesh;
+  mass: number;
+  shape: ColliderShape;
+  /** Half size of the collider, for the grab boxes. */
+  halfExtents: THREE.Vector3;
+  ccd?: boolean;
+  label: string;
+}
+
+const PROP_COLORS: Record<Exclude<PropKind, 'cube' | 'domino'>, number> = {
+  sphere: 0xffb35c,
+  pyramid: 0x5ee0a0,
+  plank: 0xd2a06a,
+  block: 0x9d7bff,
+  cylinder: 0x4aa8ff,
+};
+
+function solid(color: number): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.15 });
+}
+
+/**
+ * One conjured object. Everything the bag offers goes through here, so the
+ * mesh, the collider and the mass can never drift apart — and both sides of a
+ * session build the very same thing from the same `kind`.
+ */
+export function createPropShape(kind: PropKind): PropBlueprint {
+  switch (kind) {
+    case 'cube':
+      return {
+        mesh: createCompanionCube(0.32),
+        mass: 4,
+        shape: { kind: 'box' },
+        halfExtents: new THREE.Vector3(0.16, 0.16, 0.16),
+        label: 'Companion Cube',
+      };
+    case 'domino': {
+      const mesh = createDominoes(1, 0xff3b2f)[0]!;
+      return {
+        mesh,
+        mass: 2,
+        shape: { kind: 'box' },
+        halfExtents: DOMINO_SIZE.clone().multiplyScalar(0.5),
+        ccd: true,
+        label: 'Domino',
+      };
+    }
+    case 'sphere': {
+      const radius = 0.16;
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 26, 18),
+        solid(PROP_COLORS.sphere),
+      );
+      mesh.name = 'prop-sphere';
+      return {
+        mesh,
+        mass: 3,
+        shape: { kind: 'ball' },
+        halfExtents: new THREE.Vector3(radius, radius, radius),
+        label: 'Kugel',
+      };
+    }
+    case 'pyramid': {
+      const radius = 0.24;
+      const height = 0.36;
+      // Four radial segments make a cone a square pyramid.
+      const mesh = new THREE.Mesh(
+        new THREE.ConeGeometry(radius, height, 4),
+        solid(PROP_COLORS.pyramid),
+      );
+      mesh.name = 'prop-pyramid';
+      return {
+        mesh,
+        mass: 3,
+        shape: { kind: 'cone' },
+        halfExtents: new THREE.Vector3(radius, height / 2, radius),
+        label: 'Pyramide',
+      };
+    }
+    case 'plank': {
+      const size = new THREE.Vector3(0.7, 0.05, 0.18);
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(size.x, size.y, size.z),
+        solid(PROP_COLORS.plank),
+      );
+      mesh.name = 'prop-plank';
+      return {
+        mesh,
+        mass: 2,
+        shape: { kind: 'box' },
+        halfExtents: size.clone().multiplyScalar(0.5),
+        label: 'Planke',
+      };
+    }
+    case 'block': {
+      const size = new THREE.Vector3(0.44, 0.22, 0.28);
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(size.x, size.y, size.z),
+        solid(PROP_COLORS.block),
+      );
+      mesh.name = 'prop-block';
+      return {
+        mesh,
+        mass: 5,
+        shape: { kind: 'box' },
+        halfExtents: size.clone().multiplyScalar(0.5),
+        label: 'Quader',
+      };
+    }
+    case 'cylinder': {
+      const radius = 0.13;
+      const height = 0.34;
+      const mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, height, 22),
+        solid(PROP_COLORS.cylinder),
+      );
+      mesh.name = 'prop-cylinder';
+      return {
+        mesh,
+        mass: 3,
+        shape: { kind: 'cylinder' },
+        halfExtents: new THREE.Vector3(radius, height / 2, radius),
+        label: 'Zylinder',
+      };
+    }
+  }
 }
