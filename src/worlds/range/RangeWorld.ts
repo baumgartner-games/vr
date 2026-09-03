@@ -48,6 +48,7 @@ const _eye = new THREE.Vector3();
 const _box = new THREE.Box3();
 const _ray = new THREE.Ray();
 const _corner = new THREE.Vector3();
+const _towards = new THREE.Vector3();
 
 /** A disc that can be scored, and how far out it stands. */
 interface ScoreTarget {
@@ -149,7 +150,10 @@ export class RangeWorld extends PortalWorld {
     }
     this.switches.length = 0;
     this.targets.length = 0;
-    for (const pop of this.pops) pop.plane.dispose();
+    for (const pop of this.pops) {
+      pop.plane.dispose();
+      pop.plane.removeFromParent();
+    }
     this.pops.length = 0;
     super.dispose(ctx);
   }
@@ -233,9 +237,19 @@ export class RangeWorld extends PortalWorld {
       return true;
     }
 
-    for (const target of this.targets) {
+    for (let i = this.targets.length - 1; i >= 0; i--) {
+      const target = this.targets[i]!;
+      // Somebody erased it. A hole in the air is not worth any points.
+      if (!target.entry.object.parent) {
+        this.targets.splice(i, 1);
+        continue;
+      }
       const radial = discHit(target, from, to, _hit);
       if (radial === null) continue;
+      // Back along the shot and a little up: a number inside the disc it
+      // belongs to is a number nobody can read.
+      _towards.copy(from).sub(to).normalize().multiplyScalar(0.3);
+      _hit.add(_towards).y += 0.3;
       this.score(target, radial, _hit);
       return true;
     }
@@ -260,16 +274,19 @@ export class RangeWorld extends PortalWorld {
   private popScore(points: number, distance: number, at: THREE.Vector3): void {
     const plane = new TextPlane({
       width: 0.5,
-      height: 0.26,
-      title: `+${points}`,
-      body: `${Math.round(distance)} m`,
+      height: 0.22,
+      // One line, as large as the plane allows: at fifty metres a second line
+      // is not something anybody reads, it is something that makes the first
+      // one smaller.
+      title: `+${points} · ${Math.round(distance)} m`,
       accent: points >= 8 ? 0x5ee0a0 : points >= 4 ? 0xffc857 : 0x9fb0d0,
       background: 'rgba(9, 14, 26, 0.72)',
       align: 'center',
     });
     plane.position.copy(at);
-    // Big enough to read from the firing line: a hundred metres is a long way.
-    plane.scale.setScalar(1 + distance * 0.06);
+    // Big enough to read from the firing line: a hundred metres is a long way,
+    // and the number has to stay the same size on the eye whatever it is.
+    plane.scale.setScalar(1 + distance * 0.085);
     this.root.add(plane);
     this.pops.push({ plane, life: POP_TIME });
     // Everything has its limit, and a wall of numbers is not a scoreboard.
@@ -373,9 +390,11 @@ export class RangeWorld extends PortalWorld {
     parent.add(sign);
 
     // The two switches, one to each side of the middle lane, facing the line.
+    // They stand head high: a lane divider is 1.4 m, and a board behind one is
+    // a board nobody can hit.
     this.buildSwitch(
       parent,
-      -2.6,
+      -2.4,
       'Ton',
       () => this.sound,
       () => {
@@ -384,7 +403,7 @@ export class RangeWorld extends PortalWorld {
     );
     this.buildSwitch(
       parent,
-      2.6,
+      2.4,
       'Punkte',
       () => this.showPoints,
       () => {
@@ -405,12 +424,13 @@ export class RangeWorld extends PortalWorld {
     on: () => boolean,
     flip: () => void,
   ): void {
+    const height = 1.95;
     const group = new THREE.Group();
     group.name = `range-switch-${label}`;
-    group.position.set(x, 1.45, 0.6);
+    group.position.set(x, height, 0.4);
     parent.add(group);
 
-    this.slab(group, this.steel, [0.08, 1.45, 0.08], [0, -0.72, 0], false);
+    this.slab(group, this.steel, [0.08, height, 0.08], [0, -height / 2, 0], false);
     // Its own material: the board changes colour with its state, and the rest
     // of the range's steel must not change with it.
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.44, 0.06), this.steel.clone());
