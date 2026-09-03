@@ -22,7 +22,9 @@ export type MenuIcon =
   | 'stopwatch'
   | 'grapple'
   | 'magnet'
+  | 'glove'
   | 'weld'
+  | 'wrench'
   | 'xray'
   | 'drone'
   | 'tape'
@@ -352,6 +354,43 @@ export function drawMenuIcon(
       ctx.moveTo(s * 0.55, s * 0.62);
       ctx.lineTo(s * 0.55, s * 0.78);
       ctx.stroke();
+      break;
+    }
+    case 'glove': {
+      // A mitten with an arrow through it: grabbing, and moving what you got.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.42, s * 0.75);
+      ctx.lineTo(-s * 0.42, -s * 0.25);
+      ctx.quadraticCurveTo(-s * 0.42, -s * 0.8, -s * 0.1, -s * 0.8);
+      ctx.quadraticCurveTo(s * 0.2, -s * 0.8, s * 0.2, -s * 0.25);
+      ctx.lineTo(s * 0.2, s * 0.05);
+      ctx.quadraticCurveTo(s * 0.5, s * 0.1, s * 0.42, s * 0.75);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.85, -s * 0.5);
+      ctx.lineTo(-s * 0.55, -s * 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.5, -s * 0.5);
+      ctx.lineTo(-s * 0.72, -s * 0.66);
+      ctx.lineTo(-s * 0.72, -s * 0.34);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'wrench': {
+      // Open-ended spanner: the tool that adjusts the other tools.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.62, s * 0.72);
+      ctx.lineTo(s * 0.24, -s * 0.14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(s * 0.46, -s * 0.4, s * 0.34, Math.PI * 0.62, Math.PI * 0.12, true);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-s * 0.7, s * 0.72, s * 0.14, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
     case 'weld': {

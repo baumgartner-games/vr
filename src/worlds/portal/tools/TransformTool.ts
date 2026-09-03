@@ -1,16 +1,25 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { matchAxes, type AxisMatch, type Basis } from './axisMatch';
 import { playPick } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
 
 /** Length of the arrows; the scale balls sit a little further out. */
-const ARM = 0.22;
-const BALL_ARM = ARM * 1.34;
+const ARM = 0.16;
+const BALL_ARM = ARM * 1.32;
 /** How close a hand has to come before a handle answers. */
-const HANDLE_REACH = 0.09;
+const HANDLE_REACH = 0.075;
+/** Where the handles appear: this far in front of the eyes, this far below. */
+const REACH_AHEAD = 0.52;
+const REACH_BELOW = 0.16;
+/** The player walked away this far — the handles come along. */
+const FOLLOW_DISTANCE = 0.75;
 const AXIS_COLORS = [0xff4d4d, 0x5ee06a, 0x4aa8ff];
-const AXES = ['x', 'y', 'z'] as const;
+const AXIS_NAMES = ['X', 'Y', 'Z'];
+const SIZE_NAMES = ['Breite', 'Höhe', 'Tiefe'];
+const SCALE_MIN = 0.12;
+const SCALE_MAX = 8;
 
 const _point = new THREE.Vector3();
 const _axis = new THREE.Vector3();
@@ -19,12 +28,19 @@ const _handPoint = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
 const _forward = new THREE.Vector3();
+const _matrix = new THREE.Matrix4();
+const _basisX = new THREE.Vector3();
+const _basisY = new THREE.Vector3();
+const _basisZ = new THREE.Vector3();
+const _centre = new THREE.Vector3();
+const _headPoint = new THREE.Vector3();
+const _rotation = new THREE.Quaternion();
 
 interface Handle {
   object: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
-  axis: number;
-  kind: 'move' | 'scale';
-  base: number;
+  /** Which of the gizmo's own three directions this handle sits on. */
+  slot: number;
+  kind: 'move' | 'scale' | 'uniform';
 }
 
 /** What one selected body looked like when a drag started. */
@@ -39,22 +55,30 @@ interface Drag {
   handle: Handle;
   /** Where along the axis the dragging hand started. */
   start: number;
+  /** Distance from the centre the hand started at — the scale reads a ratio. */
+  radius: number;
   hand: Handedness;
   snapshots: Snapshot[];
 }
 
 /**
- * Blender-style handles for moving and resizing things.
+ * Blender-style handles for moving and resizing things — but held at arm's
+ * length instead of out there on the object.
  *
- * Pick objects with the trigger, press `A` to go into edit mode, and the
- * handles appear — on the object when there is only one, otherwise floating in
- * front of you. Balls scale along an axis, arrows move along it. Drag them
- * with the free hand's grab button, or with the trigger of the hand that holds
- * the tool: that hand's grab button is busy holding it.
+ * Pick objects with the trigger, press `A`, and the handles appear **in front
+ * of you**, close enough to touch. Whatever they do happens to the object
+ * wherever it stands: a crate on the far side of the room is resized from
+ * where you are, and a thin line shows which one is listening.
  *
- * With several objects picked the axes are the world's and the balls resize
- * the whole selection evenly — a single object gets its own axes, which is
- * what makes "wider, but not taller" possible.
+ * The axes are the object's own, sorted into the player's view: the object
+ * axis pointing most to the right becomes the right-hand arrow, and so on
+ * (`axisMatch.ts`, with tests). So "wider, but not taller" stays possible for
+ * a crate standing askew, and the arrow that means it still points the way it
+ * looks. Several objects at once get the world's axes and grow as a group.
+ *
+ * Arrows move, balls resize one axis, the white ball in the middle resizes
+ * everything at once. Any hand may drag them: the free hand with trigger or
+ * grab, the hand holding the tool with its trigger.
  */
 export class TransformTool extends Tool {
   override readonly toolId = 'gizmo';
@@ -64,17 +88,31 @@ export class TransformTool extends Tool {
   private readonly handles: Handle[] = [];
   private readonly selection: PhysicsBody[] = [];
   private readonly beam: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  private readonly leash: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  private readonly readout: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly texture: THREE.CanvasTexture;
   private readonly tip = new THREE.Object3D();
+  /** Which object axis each of the gizmo's directions drives, and which way. */
+  private axes: AxisMatch[] = [
+    { axis: 0, sign: 1 },
+    { axis: 1, sign: 1 },
+    { axis: 2, sign: 1 },
+  ];
+  /** Head position the handles were placed for — they follow when it wanders. */
+  private readonly anchor = new THREE.Vector3();
   private editing = false;
   private drag: Drag | null = null;
   private aimed: PhysicsBody | null = null;
+  /** Text currently on the little display, so it is only redrawn on change. */
+  private readoutText = '';
 
   constructor() {
     super();
     this.name = 'tool-gizmo';
     this.icon = 'gizmo';
     this.accent = 0x5ee0a0;
-    this.hint = 'Trigger wählt aus · A startet den Edit-Modus';
+    this.hint = 'Trigger wählt aus · A holt die Griffe vor dich';
     this.holdPosition.set(0, -0.01, 0.02);
 
     const body = new THREE.MeshStandardMaterial({
@@ -110,18 +148,53 @@ export class TransformTool extends Tool {
     this.beam.visible = false;
     this.tip.add(this.beam);
 
+    // The line from the handles to whatever they are steering — without it,
+    // handles floating in the air say nothing about what is about to move.
+    this.leash = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({
+        color: 0x5ee0a0,
+        transparent: true,
+        opacity: 0.35,
+        depthTest: false,
+      }),
+    );
+    this.leash.frustumCulled = false;
+    this.leash.renderOrder = 13;
+
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = 512;
+    this.canvas.height = 128;
+    this.texture = new THREE.CanvasTexture(this.canvas);
+    this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.readout = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.24, 0.06),
+      new THREE.MeshBasicMaterial({
+        map: this.texture,
+        transparent: true,
+        toneMapped: false,
+        depthTest: false,
+      }),
+    );
+    this.readout.renderOrder = 15;
+    this.readout.position.set(0, ARM * 1.9, 0);
+
     this.buildGizmo();
+    this.gizmo.add(this.readout);
     this.gizmo.visible = false;
   }
 
   override onTake(_controller: ControllerState, host: ToolHost): void {
     if (this.gizmo.parent !== host.root) host.root.add(this.gizmo);
+    if (this.leash.parent !== host.root) host.root.add(this.leash);
+    this.leash.visible = false;
   }
 
   override onStow(host: ToolHost): void {
     this.leaveEdit(host);
     this.clearSelection(host);
     this.beam.visible = false;
+    this.leash.visible = false;
   }
 
   override onTrigger(controller: ControllerState, host: ToolHost): void {
@@ -140,7 +213,7 @@ export class TransformTool extends Tool {
   }
 
   override onTriggerUp(controller: ControllerState, _host: ToolHost): void {
-    if (this.drag?.hand === controller.handedness) this.drag = null;
+    if (this.drag?.hand === controller.handedness) this.endDrag();
   }
 
   /** `A` switches between picking objects and editing them. */
@@ -157,8 +230,8 @@ export class TransformTool extends Tool {
     this.enterEdit(host);
     host.notify(
       this.selection.length === 1
-        ? 'Edit-Modus · Achsen des Objekts'
-        : `Edit-Modus · ${this.selection.length} Objekte`,
+        ? 'Griffe vor dir · Achsen des Objekts'
+        : `Griffe vor dir · ${this.selection.length} Objekte`,
     );
   }
 
@@ -166,6 +239,7 @@ export class TransformTool extends Tool {
     void dt;
     if (!controller || !this.heldBy) {
       this.beam.visible = false;
+      this.leash.visible = false;
       this.gizmo.visible = this.editing;
       return;
     }
@@ -176,25 +250,33 @@ export class TransformTool extends Tool {
       if (!alive.includes(this.selection[i]!)) this.selection.splice(i, 1);
     }
     host.setSelection(this.selection);
+    if (this.editing && !this.selection.length) this.leaveEdit(host);
 
     if (!this.editing) {
       this.updateAim(host);
       this.gizmo.visible = false;
+      this.leash.visible = false;
       return;
     }
 
     this.beam.visible = false;
     this.gizmo.visible = true;
-    this.placeGizmo();
+    if (!this.drag) this.followHead(host);
     this.updateHandles(host, controller);
+    this.updateLeash();
+    this.faceReadout(host);
   }
 
   override disposeTool(): void {
     disposeToolTree(this);
     disposeToolTree(this.gizmo);
     this.gizmo.removeFromParent();
+    this.leash.geometry.dispose();
+    this.leash.material.dispose();
+    this.leash.removeFromParent();
     this.beam.geometry.dispose();
     this.beam.material.dispose();
+    this.texture.dispose();
   }
 
   /** Bodies the tool currently owns — the world leaves their glow to us. */
@@ -237,7 +319,9 @@ export class TransformTool extends Tool {
       entry.body.setBodyType(rapier.RigidBodyType.KinematicPositionBased, true);
       host.physics.setCarried(entry, true);
     }
-    this.placeGizmo(true);
+    this.placeGizmo(host);
+    this.leash.visible = true;
+    this.describeSelection();
   }
 
   private leaveEdit(host: ToolHost): void {
@@ -252,29 +336,68 @@ export class TransformTool extends Tool {
       host.physics.setCarried(entry, false);
     }
     this.gizmo.visible = false;
+    this.leash.visible = false;
   }
 
   /**
-   * One object: the handles sit on it and follow its own axes. Several: they
-   * hang in the air over the middle of the selection, aligned to the world.
+   * Puts the handles an arm's length in front of the eyes and turns them into
+   * the object's axes, sorted the way the player is looking at them.
+   *
+   * Nothing here depends on where the object stands: that is the whole point —
+   * a crate on the ledge is edited from the floor.
    */
-  private placeGizmo(reset = false): void {
+  private placeGizmo(host: ToolHost): void {
     if (!this.selection.length) return;
-    const single = this.selection.length === 1 ? this.selection[0]! : null;
+    const rig = host.ctx.rig;
+    rig.getHeadMatrix(_matrix);
+    _headPoint.setFromMatrixPosition(_matrix);
+    // Columns of the head matrix: right, up and back (towards the player).
+    _basisX.setFromMatrixColumn(_matrix, 0).normalize();
+    _basisY.setFromMatrixColumn(_matrix, 1).normalize();
+    _basisZ.setFromMatrixColumn(_matrix, 2).normalize();
 
+    this.anchor.copy(_headPoint);
+    _forward.copy(_basisZ).multiplyScalar(-1);
+    this.gizmo.position
+      .copy(_headPoint)
+      .addScaledVector(_forward, REACH_AHEAD)
+      .addScaledVector(_basisY, -REACH_BELOW);
+
+    const view: Basis = [_basisX, _basisY, _basisZ];
+    const single = this.selection.length === 1 ? this.selection[0]! : null;
     if (single) {
-      bodyPosition(single, _point);
       const r = single.body.rotation();
-      this.gizmo.quaternion.set(r.x, r.y, r.z, r.w);
-      this.gizmo.position.copy(_point);
+      _rotation.set(r.x, r.y, r.z, r.w);
+      basisOf(_rotation, OBJECT_BASIS);
+      this.axes = matchAxes(OBJECT_BASIS, view);
+      setColumns(
+        _matrix,
+        matchedAxis(OBJECT_BASIS, this.axes[0]!, _point),
+        matchedAxis(OBJECT_BASIS, this.axes[1]!, _offset),
+        matchedAxis(OBJECT_BASIS, this.axes[2]!, _direction),
+      );
+      this.gizmo.quaternion.setFromRotationMatrix(_matrix);
       return;
     }
 
-    _point.set(0, 0, 0);
-    for (const entry of this.selection) _point.add(bodyPosition(entry, _offset));
-    _point.divideScalar(this.selection.length);
-    this.gizmo.position.copy(_point);
-    if (reset) this.gizmo.quaternion.identity();
+    // Several objects share no axes of their own, so the world's are used —
+    // again sorted into the view, so right is right.
+    basisOf(IDENTITY, OBJECT_BASIS);
+    this.axes = matchAxes(OBJECT_BASIS, view);
+    setColumns(
+      _matrix,
+      matchedAxis(OBJECT_BASIS, this.axes[0]!, _point),
+      matchedAxis(OBJECT_BASIS, this.axes[1]!, _offset),
+      matchedAxis(OBJECT_BASIS, this.axes[2]!, _direction),
+    );
+    this.gizmo.quaternion.setFromRotationMatrix(_matrix);
+  }
+
+  /** The handles stay within reach: walk away and they come along. */
+  private followHead(host: ToolHost): void {
+    host.ctx.rig.getHeadPosition(_headPoint);
+    if (_headPoint.distanceTo(this.anchor) < FOLLOW_DISTANCE) return;
+    this.placeGizmo(host);
   }
 
   private updateHandles(host: ToolHost, toolHand: ControllerState): void {
@@ -287,18 +410,15 @@ export class TransformTool extends Tool {
         controller?.tracked &&
         (this.drag.hand === toolHand.handedness
           ? controller.trigger.pressed
-          : controller.isHand
-            ? controller.trigger.pressed
-            : controller.squeeze.pressed);
-      if (!controller || !holding) {
-        this.drag = null;
-      } else {
-        this.applyDrag(host, controller);
-      }
+          : // The free hand answers to either button, whichever is nearer to
+            // the finger that is already on it.
+            controller.trigger.pressed || controller.squeeze.pressed);
+      if (!controller || !holding) this.endDrag();
+      else this.applyDrag(host, controller);
     }
 
     if (!this.drag && other?.tracked) {
-      const pressed = other.isHand ? other.trigger.justPressed : other.squeeze.justPressed;
+      const pressed = other.trigger.justPressed || (!other.isHand && other.squeeze.justPressed);
       if (pressed) this.tryGrabHandle(other, host, other.handedness!);
     }
 
@@ -309,7 +429,7 @@ export class TransformTool extends Tool {
         this.drag?.handle === handle ||
         nearHand(toolHand, _point) ||
         (other ? nearHand(other, _point) : false);
-      const color = AXIS_COLORS[handle.axis]!;
+      const color = handle.kind === 'uniform' ? 0xf3f6fb : AXIS_COLORS[this.slotAxis(handle.slot)]!;
       handle.object.material.color.setHex(color);
       handle.object.material.opacity = near ? 1 : 0.72;
       handle.object.scale.setScalar(near ? 1.35 : 1);
@@ -334,10 +454,11 @@ export class TransformTool extends Tool {
     this.drag = {
       handle: best,
       hand,
-      start: this.along(best.axis, _handPoint),
+      start: this.along(best.slot, _handPoint),
+      radius: Math.max(0.04, _handPoint.distanceTo(this.gizmo.position)),
       snapshots: this.selection.map((entry) => ({
         entry,
-        position: bodyPosition(entry, new THREE.Vector3()).clone(),
+        position: bodyPosition(entry, new THREE.Vector3()),
         scale: entry.object.scale.clone(),
         half: entry.halfExtents.clone(),
       })),
@@ -346,35 +467,65 @@ export class TransformTool extends Tool {
     void host;
   }
 
+  private endDrag(): void {
+    if (!this.drag) return;
+    this.drag = null;
+    this.describeSelection();
+  }
+
   private applyDrag(host: ToolHost, controller: ControllerState): void {
     const drag = this.drag!;
     handPosition(controller, _handPoint);
-    const delta = this.along(drag.handle.axis, _handPoint) - drag.start;
 
-    this.axisVector(drag.handle.axis, _axis);
     if (drag.handle.kind === 'move') {
+      // One to one: the object goes exactly as far as the hand does, however
+      // far away it stands. Anything else guesses, and guessing is what made
+      // the old handles unusable.
+      const delta = this.along(drag.handle.slot, _handPoint) - drag.start;
+      this.axisVector(drag.handle.slot, _axis);
       for (const snapshot of drag.snapshots) {
         _point.copy(snapshot.position).addScaledVector(_axis, delta);
         snapshot.entry.body.setNextKinematicTranslation(_point);
         snapshot.entry.body.setTranslation(_point, true);
       }
-      this.placeGizmo();
+      this.showMove(drag, delta);
       return;
     }
 
-    // Scaling: the pull along the axis is read as a factor around the centre.
-    const factor = THREE.MathUtils.clamp(1 + delta / ARM, 0.15, 6);
+    // Resizing reads the *ratio* of two distances, not a difference: pull the
+    // hand twice as far from the middle and the thing is twice as big. Where
+    // the hand grabbed the ball does not matter any more — a grip 3 cm off the
+    // ball used to jump the size by a third.
+    const factor =
+      drag.handle.kind === 'uniform'
+        ? THREE.MathUtils.clamp(
+            _handPoint.distanceTo(this.gizmo.position) / drag.radius,
+            SCALE_MIN,
+            SCALE_MAX,
+          )
+        : THREE.MathUtils.clamp(
+            Math.abs(this.along(drag.handle.slot, _handPoint)) / Math.max(0.04, Math.abs(drag.start)),
+            SCALE_MIN,
+            SCALE_MAX,
+          );
+
     const single = drag.snapshots.length === 1;
-    const axisName = AXES[drag.handle.axis]!;
+    const uniform = drag.handle.kind === 'uniform';
+    const axisName = AXES[this.slotAxis(drag.handle.slot)]!;
 
     for (const snapshot of drag.snapshots) {
       const { entry } = snapshot;
       if (single) {
-        // The gizmo wears the object's own rotation, so one axis is enough.
+        // The gizmo wears the object's own axes, so one of them is enough.
         entry.object.scale.copy(snapshot.scale);
-        entry.object.scale[axisName] = snapshot.scale[axisName] * factor;
         _offset.copy(snapshot.half);
-        _offset[axisName] = snapshot.half[axisName] * factor;
+        if (uniform) {
+          entry.object.scale.multiplyScalar(factor);
+          _offset.multiplyScalar(factor);
+        } else {
+          entry.object.scale[axisName] = snapshot.scale[axisName] * factor;
+          _offset[axisName] = snapshot.half[axisName] * factor;
+        }
         host.physics.resize(entry, _offset);
         continue;
       }
@@ -390,27 +541,111 @@ export class TransformTool extends Tool {
       entry.body.setNextKinematicTranslation(_point);
       entry.body.setTranslation(_point, true);
     }
+    this.showScale(drag, factor);
   }
 
-  /** How far along a gizmo axis a world point sits. */
-  private along(axis: number, point: THREE.Vector3): number {
-    this.axisVector(axis, _axis);
+  /** How far along one of the gizmo's directions a world point sits. */
+  private along(slot: number, point: THREE.Vector3): number {
+    this.axisVector(slot, _axis);
     return _offset.copy(point).sub(this.gizmo.position).dot(_axis);
   }
 
-  private axisVector(axis: number, target: THREE.Vector3): THREE.Vector3 {
-    target.set(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
+  private axisVector(slot: number, target: THREE.Vector3): THREE.Vector3 {
+    target.set(slot === 0 ? 1 : 0, slot === 1 ? 1 : 0, slot === 2 ? 1 : 0);
     this.gizmo.updateMatrixWorld();
     return target.applyQuaternion(this.gizmo.getWorldQuaternion(_quaternion)).normalize();
+  }
+
+  /** Which of the object's axes a handle direction drives. */
+  private slotAxis(slot: number): number {
+    return this.axes[slot]?.axis ?? slot;
+  }
+
+  // --- the line to the objects, and the little display ---------------------
+
+  private updateLeash(): void {
+    if (!this.selection.length) {
+      this.leash.visible = false;
+      return;
+    }
+    _centre.set(0, 0, 0);
+    for (const entry of this.selection) _centre.add(bodyPosition(entry, _offset));
+    _centre.divideScalar(this.selection.length);
+
+    const positions = this.leash.geometry.getAttribute('position') as THREE.BufferAttribute;
+    positions.setXYZ(0, this.gizmo.position.x, this.gizmo.position.y, this.gizmo.position.z);
+    positions.setXYZ(1, _centre.x, _centre.y, _centre.z);
+    positions.needsUpdate = true;
+    this.leash.geometry.computeBoundingSphere();
+    this.leash.visible = true;
+  }
+
+  /** The display always turns to the player, wherever the handles ended up. */
+  private faceReadout(host: ToolHost): void {
+    host.ctx.rig.getHeadPosition(_headPoint);
+    this.readout.getWorldPosition(_point);
+    _matrix.lookAt(_headPoint, _point, UP_AXIS);
+    _rotation.setFromRotationMatrix(_matrix);
+    this.gizmo.getWorldQuaternion(_quaternion);
+    this.readout.quaternion.copy(_quaternion.invert().multiply(_rotation));
+  }
+
+  private describeSelection(): void {
+    const single = this.selection.length === 1 ? this.selection[0]! : null;
+    if (!single) {
+      this.draw(`${this.selection.length} Objekte`, '#9fe3ff');
+      return;
+    }
+    const half = single.halfExtents;
+    this.draw(
+      `${metres(half.x * 2)} × ${metres(half.y * 2)} × ${metres(half.z * 2)}`,
+      '#9fe3ff',
+    );
+  }
+
+  private showMove(drag: Drag, delta: number): void {
+    const axis = this.slotAxis(drag.handle.slot);
+    this.draw(`${AXIS_NAMES[axis]}  ${delta >= 0 ? '+' : '−'}${metres(Math.abs(delta))}`, '#5ee0a0');
+  }
+
+  private showScale(drag: Drag, factor: number): void {
+    if (drag.handle.kind === 'uniform' || drag.snapshots.length !== 1) {
+      this.draw(`${factor.toFixed(2)}×  alle Achsen`, '#ffb35c');
+      return;
+    }
+    const axis = this.slotAxis(drag.handle.slot);
+    const size = drag.snapshots[0]!.half[AXES[axis]!] * 2 * factor;
+    this.draw(`${SIZE_NAMES[axis]}  ${metres(size)}  (${factor.toFixed(2)}×)`, '#ffb35c');
+  }
+
+  private draw(text: string, color: string): void {
+    if (text === this.readoutText) return;
+    this.readoutText = text;
+    const ctx = this.canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, 512, 128);
+    ctx.beginPath();
+    ctx.roundRect(6, 6, 500, 116, 26);
+    ctx.fillStyle = 'rgba(8, 12, 22, 0.86)';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 56px system-ui, sans-serif';
+    ctx.fillText(text, 256, 68);
+    this.texture.needsUpdate = true;
   }
 
   private buildGizmo(): void {
     this.gizmo.name = 'transform-gizmo';
     this.gizmo.renderOrder = 14;
 
-    for (let axis = 0; axis < 3; axis++) {
-      const color = AXIS_COLORS[axis]!;
-      _forward.set(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
+    for (let slot = 0; slot < 3; slot++) {
+      const color = AXIS_COLORS[slot]!;
+      _forward.set(slot === 0 ? 1 : 0, slot === 1 ? 1 : 0, slot === 2 ? 1 : 0);
 
       const shaft = new THREE.Mesh(
         new THREE.CylinderGeometry(0.005, 0.005, ARM, 8),
@@ -424,17 +659,58 @@ export class TransformTool extends Tool {
       arrow.position.copy(_forward).multiplyScalar(ARM);
       orient(arrow, _forward);
       this.gizmo.add(arrow);
-      this.handles.push({ object: arrow, axis, kind: 'move', base: ARM });
+      this.handles.push({ object: arrow, slot, kind: 'move' });
 
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 12), gizmoMaterial(color));
+      // Bigger than the arrows and further out: the balls were the hardest
+      // thing to hit on the old gizmo, and they carry the harder job.
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.032, 16, 12), gizmoMaterial(color));
       ball.position.copy(_forward).multiplyScalar(BALL_ARM);
       this.gizmo.add(ball);
-      this.handles.push({ object: ball, axis, kind: 'scale', base: BALL_ARM });
+      this.handles.push({ object: ball, slot, kind: 'scale' });
     }
 
-    const centre = new THREE.Mesh(new THREE.SphereGeometry(0.016, 14, 10), gizmoMaterial(0xf3f6fb));
+    const centre = new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 12), gizmoMaterial(0xf3f6fb));
     this.gizmo.add(centre);
+    this.handles.push({ object: centre, slot: 0, kind: 'uniform' });
   }
+}
+
+const AXES = ['x', 'y', 'z'] as const;
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+const IDENTITY = new THREE.Quaternion();
+const OBJECT_BASIS: [THREE.Vector3, THREE.Vector3, THREE.Vector3] = [
+  new THREE.Vector3(),
+  new THREE.Vector3(),
+  new THREE.Vector3(),
+];
+
+/** The three axes of a rotation, written into `target`. */
+function basisOf(
+  rotation: THREE.Quaternion,
+  target: [THREE.Vector3, THREE.Vector3, THREE.Vector3],
+): void {
+  target[0].set(1, 0, 0).applyQuaternion(rotation);
+  target[1].set(0, 1, 0).applyQuaternion(rotation);
+  target[2].set(0, 0, 1).applyQuaternion(rotation);
+}
+
+/** One matched direction: the object axis it picked, pointed the right way. */
+function matchedAxis(
+  basis: readonly THREE.Vector3[],
+  match: AxisMatch,
+  target: THREE.Vector3,
+): THREE.Vector3 {
+  return target.copy(basis[match.axis]!).multiplyScalar(match.sign);
+}
+
+/** Builds a rotation matrix from three world directions. */
+function setColumns(
+  matrix: THREE.Matrix4,
+  x: THREE.Vector3,
+  y: THREE.Vector3,
+  z: THREE.Vector3,
+): THREE.Matrix4 {
+  return matrix.set(x.x, y.x, z.x, 0, x.y, y.y, z.y, 0, x.z, y.z, z.z, 0, 0, 0, 0, 1);
 }
 
 function gizmoMaterial(color: number): THREE.MeshBasicMaterial {
@@ -450,6 +726,10 @@ function gizmoMaterial(color: number): THREE.MeshBasicMaterial {
 /** Points a cylinder or cone (built along +Y) down the given axis. */
 function orient(mesh: THREE.Mesh, axis: THREE.Vector3): void {
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+}
+
+function metres(value: number): string {
+  return value < 1 ? `${Math.round(value * 100)} cm` : `${value.toFixed(2)} m`;
 }
 
 function bodyPosition(entry: PhysicsBody, target: THREE.Vector3): THREE.Vector3 {

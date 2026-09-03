@@ -17,10 +17,11 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Seiten **Werkzeuge** und **Magischer Beutel** nimmt dagegen nur **Greifen
   oder `A`**, damit der Zieltrigger nicht versehentlich die Hand füllt. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
-  Aufbau: **Welten** (Hub, Portal Labor, Dust), **Werkzeuge** (das ganze Regal
-  direkt in die Hand), **Magischer Beutel** (Raster mit Companion Cube,
-  Kugel, Domino, Pyramide, Quader, Planke und Zylinder), **Einstellungen**
-  und die Aktionen der Welt. In beiden wird auf einen Eintrag gezielt und
+  Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust), **Werkzeuge**
+  (das ganze Regal direkt in die Hand), **Magischer Beutel** (Raster mit
+  Companion Cube, Kugel, Domino, Pyramide, Quader, Planke und Zylinder),
+  **Bewegung** (Sprint und Ducken), **Einstellungen** und die Aktionen der
+  Welt. In beiden wird auf einen Eintrag gezielt und
   **Greifen** oder `A` gedrückt — das Werkzeug bzw. Objekt liegt dann in
   genau dieser Hand. Das Raster kommt zurück, sobald du loslässt.
   Passt eine Seite nicht aufs Panel — das Werkzeugregal tut das längst nicht
@@ -34,9 +35,13 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
 - **Werkzeuge** (alle in jeder Welt mit Gürtel):
   - **Portal-Waffen**: zwei einzelne und eine kombinierte (Trigger rot,
     Greifen blau, muss nicht dauerhaft gehalten werden).
-  - **Größe & Position**: Blender-artiger Griff mit Achsen.
+  - **Größe & Position**: Blender-artige Griffe — sie erscheinen **vor dir**,
+    nicht am Objekt, und wirken trotzdem auf das Objekt am anderen Ende des
+    Raums. Achsen sind die des Objekts, nur nach deiner Blickrichtung sortiert.
   - **Pinsel** samt Farbpalette auf der anderen Hand.
-  - **Pistole** mit Magazin (`x/∞` an der Seite).
+  - **Pistole** mit Magazin (`x/∞` an der Seite). Stärke, Kugeltempo,
+    Feuerrate und Modus (Einzel, Dreifach, Automatik) stehen im Menü unter
+    *Einstellungen → Pistole*.
   - **Stoppuhr**: Trigger schaltet Zeitlupe an und aus, Loslassen der Uhr
     stellt die normale Geschwindigkeit wieder her.
   - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
@@ -44,6 +49,11 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   - **Gravitationshandschuh**: Trigger zieht das anvisierte Objekt geradewegs
     in die Hand, Greifen stößt es weg. Bleibt in der Hand, bis er am Gürtel
     abgelegt wird.
+  - **Translationshandschuh**: greift bis 30 m weit — das Objekt kommt dabei
+    *nicht* zu dir. Zwei Modi, `A` schaltet um: **Halten** lässt es genau dort
+    stehen, wo es ist (Handdrehung dreht es), **Steuern** macht die Hand zum
+    Joystick — Hand nach links, Objekt nach links; Hand nach vorne, Objekt nach
+    vorne; je weiter aus der Mitte, desto schneller.
   - **Lötkolben**: zwei Punkte antippen und die Objekte hängen zusammen —
     starr oder als Scharnier (Achse = Querachse des Kolbens). Der Modus wird
     mit der anderen Hand umgeschaltet (kleines Panel über ihr), *Trennen*
@@ -61,6 +71,12 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
+  - **Werkzeug-Justierer**: setzt ein anderes Werkzeug richtig in die Hand.
+    Justierer in die eine Hand, das schiefe Werkzeug in die andere, Trigger —
+    das Werkzeug bleibt in der Luft stehen. Hand dorthin bewegen, wo es sitzen
+    soll, Trigger nochmal: es springt genau dahin und zeigt die sechs Werte
+    (x, y, z in cm, roll/pitch/yaw in Grad) an. Die Pose bleibt im Browser
+    gespeichert und lässt sich damit auch in den Code übernehmen.
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
 - **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
@@ -73,6 +89,11 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
   selbst, wenn man durch ein Portal schaut. Die anderen Spieler bekommen
   denselben Körper, samt Namensschild und der Waffe in ihrer Hand.
+- **Schießstand** (experimentell): überdachte Schießlinie mit fünf Bahnen und
+  Zielscheiben auf 10, 25 und 50 m, zwei großen auf 75 und 100 m sowie einer
+  Reihe Stahlplatten auf 18 m. Die Scheiben hängen an Scharnieren und schwingen
+  beim Treffer zurück. Am Gürtel hängt hier die Pistole. Gedacht zum
+  Ausprobieren der Waffeneinstellungen.
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
@@ -108,7 +129,9 @@ ausnahmsweise einen Branch will, sagt das im Auftrag dazu.
 ### Tests
 
 Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
-Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`) und die
+Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`), die
+Achsenzuordnung der Griffe (`src/worlds/portal/tools/axisMatch.ts`), die
+gemessene Werkzeug-Pose (`src/worlds/portal/tools/toolPose.ts`) und die
 Zielrichtung der Werkzeuge (`src/worlds/portal/tools/aim.ts` — der Test hält
 fest, dass ein Werkzeug in der Hand exakt entlang des Pointing-Rays zeigt und
 nicht 30° darüber). Beide Module kommen bewusst ohne three.js und ohne Rapier
@@ -134,6 +157,8 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | | VR | Desktop | Handy |
 | --- | --- | --- | --- |
 | Bewegen | linker Stick | `WASD` (`Shift` = schneller) | linker Touch-Stick |
+| Sprinten | linken Stick reindrücken | `Shift` | – |
+| Ducken | rechten Stick reindrücken | – | – |
 | Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
 | Springen | `A` rechts | `Leertaste` | – |
 | Menü | Button an der linken Hand | Button `Menü` im HUD | Button `Menü` im HUD |
@@ -148,6 +173,10 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Menüseite blättern | Stick der zeigenden Hand hoch/runter | – | – |
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
+| Translationshandschuh | Trigger hält aus der Ferne, `A` wechselt Modus | – | – |
+| Größe & Position | Trigger wählt, `A` holt die Griffe vor dich | – | – |
+| Griff ziehen | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand | – | – |
+| Werkzeug-Justierer | Trigger hält an, Trigger übernimmt, `A` bricht ab | – | – |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
 | Drohne | Trigger fliegt/parkt, Sticks steuern | – | – |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
@@ -201,6 +230,44 @@ schöner aus, bis sie unterwegs an einer Kiste hängen bleibt — und ein
 Ferngriff, der nicht ankommt, ist schlimmer als gar keiner. Die Bahn wird
 jeden Frame gegen die *aktuelle* Handposition gerechnet, eine Hand, die sich
 bewegt, zieht das Objekt also mit. Genau das prüfen die Jest-Tests.
+
+**Ducken und Sprinten** hängen an den Sticks: rechten Stick reindrücken duckt,
+linken Stick reindrücken sprintet. Unter **Menü → Bewegung** lässt sich für
+beide einstellen, ob gedrückt gehalten oder umgeschaltet wird (Ducken schaltet
+standardmäßig um, Sprint wird gehalten), dazu Sprint-Tempo und Duck-Tiefe.
+
+Geduckt wird, indem das ganze Rig sinkt — im Headset gehört die Kamera der
+Brille, nicht uns, also ist das der einzige Weg. Die Füße bleiben trotzdem
+stehen: `PlayerRig.getFloorY()` rechnet die Absenkung wieder drauf, und die
+Charakter-Kapsel wird um genau denselben Betrag kürzer, weil sie ihre Höhe aus
+`getHeadHeight()` nimmt. Eine Kapsel wird um ihre Mitte kleiner, deshalb wandert
+die Mitte um die halbe verlorene Höhe mit nach unten — sonst hebt der Spieler
+beim Ducken ab.
+
+**Die Griffe von *Größe & Position*** erscheinen dort, wo die Hände sind, und
+nicht am Objekt: Trigger wählt aus (mehrfach für mehrere), `A` holt die Griffe
+vor dich. Pfeile verschieben, Kugeln skalieren eine Achse, die weiße Kugel in
+der Mitte alles zusammen; eine dünne Linie zeigt, an welchem Objekt sie gerade
+hängen, und ein kleines Display die Maße. Gezogen wird mit dem Trigger der Hand,
+die das Werkzeug hält, oder mit Trigger *oder* Greifen der freien Hand.
+
+Die Achsen sind die **des Objekts**, aber in der Reihenfolge deiner Sicht: die
+Objektachse, die am ehesten nach rechts zeigt, wird der rechte Pfeil, und so
+weiter (`src/worlds/portal/tools/axisMatch.ts`, mit Jest-Test — inklusive der
+Spiegelung, die sonst aus der Drehung eine ungültige Matrix machen würde).
+Damit bleibt „breiter, aber nicht höher" auch für eine schief stehende Kiste
+möglich, ohne dass der Pfeil dafür in eine andere Richtung zeigt als er aussieht.
+Skaliert wird über das *Verhältnis* zweier Abstände zur Mitte statt über eine
+Differenz — wo genau die Hand die Kugel erwischt hat, ist damit egal.
+
+Die **Werkzeug-Pose** (`holdPosition`, `holdRotation`) wird nicht mehr geraten:
+der **Werkzeug-Justierer** hält das Werkzeug der anderen Hand in der Luft an,
+du legst die Hand hin, wie sie es halten soll, und beim zweiten Trigger rechnet
+`src/worlds/portal/tools/toolPose.ts` (mit Test) die Pose aus, die genau das
+ergibt — abzüglich der Aim-Korrektur, die jedes Werkzeug ohnehin bekommt. Die
+Zahlen erscheinen auf dem Display und in der Meldung, so wie sie in den
+Konstruktor gehören; bis dahin merkt sich der Browser sie
+(*Einstellungen → Werkzeug-Posen zurücksetzen* wirft sie wieder weg).
 
 Die **Linie** zwischen Hand und Objekt ist standardmäßig aus (sie steht meist
 im Weg) und lässt sich unter *Einstellungen → Ferngreifen → Linie anzeigen*

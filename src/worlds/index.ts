@@ -26,6 +26,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./portal/PortalWorld')).PortalWorld(),
   },
   {
+    id: 'range',
+    title: 'Schießstand',
+    tagline: 'Ziele auf 10 bis 100 Meter',
+    description:
+      'Überdachte Schießlinie, Scheiben in der Ferne und Stahlplatten. Pistole im Menü einstellen.',
+    accent: 0xffc857,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./range/RangeWorld')).RangeWorld(),
+  },
+  {
     id: 'dust',
     title: 'Dust',
     tagline: 'Große Karte, vier Stockwerke',
