@@ -223,6 +223,14 @@ export class HandVisuals extends THREE.Group {
     this.unsubscribe = onHandPoseChange(() => this.poses.clear());
   }
 
+  /**
+   * Drawn at all. Switched off while the view has left the body behind — the
+   * drone takes the eyes out into the room, and the hands stay with the body.
+   * A pair of hands floating in front of a camera they are nowhere near is
+   * exactly what makes people sick.
+   */
+  hidden = false;
+
   /** Forces a gesture, e.g. while a portal gun is held. */
   setGestureOverride(handedness: Handedness, gesture: HandGesture | null): void {
     this.overrides.set(handedness, gesture);
@@ -321,6 +329,7 @@ export class HandVisuals extends THREE.Group {
         this.jointMeshes.set(joint, mesh);
       }
       mesh.scale.setScalar(Math.max((joint as THREE.XRJointSpace).jointRadius ?? 0.008, 0.004));
+      mesh.visible = !this.hidden;
     }
     const tip = controller.hand.joints['index-finger-tip'];
     controller.fingertip = tip && tip.visible ? tip : null;
@@ -342,7 +351,7 @@ export class HandVisuals extends THREE.Group {
     }
     const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
     if (hand.parent !== anchor) anchor.add(hand);
-    hand.visible = controller.tracked;
+    hand.visible = controller.tracked && !this.hidden;
     controller.fingertip = hand.visible ? hand.indexTip : null;
 
     // The dialled-in pose is the base; the short-lived gestures (pointing at

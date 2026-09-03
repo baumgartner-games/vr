@@ -1,60 +1,86 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { DRONE_PROFILES, droneProfileLabel, type DroneProfile } from './droneSettings';
+import {
+  DRONE_TUNING,
+  flyJet,
+  flyKopter,
+  headingOf,
+  levelOf,
+  quatFromYaw,
+  quatIdentity,
+  type Quat,
+} from './droneFlight';
 import { droneSettings, saveDroneSettings } from './gearStore';
 import { playTone } from '../../../core/Audio';
 import { UIPanel } from '../../../ui/UIPanel';
-import type { MenuEntry } from '../../../ui/menu';
-import type { ControllerState } from '../../../core/XRInput';
+import { drawMenuIcon, type MenuEntry } from '../../../ui/menu';
+import type { ControllerState, Handedness, XRInput } from '../../../core/XRInput';
 import type { Pointer } from '../../../core/Pointer';
 
 /** Resolution of the picture on the hand-held display. */
-const FEED_W = 320;
-const FEED_H = 200;
-/** How fast the drone flies, in m/s. */
-const SPEED = 5.5;
-const CLIMB_SPEED = 3.2;
+const FEED_W = 384;
+const FEED_H = 240;
 /** Seconds the drone needs to reach the stick's speed — it has some mass. */
 const RESPONSE = 0.28;
 /** The drone never sinks below this, so it cannot be lost in the floor. */
 const FLOOR = 0.35;
-/** Where the eye sits relative to the drone while it is flown. */
-const EYE_OFFSET = new THREE.Vector3(0, 0.06, 0);
-/** Radians per second the sticks turn the nose. */
-const YAW_RATE = 1.6;
-/** How far a racing drone leans at full stick. */
-const TILT = 0.5;
+/**
+ * Where the eye sits relative to the drone, in the drone's *own* frame: a bit
+ * above it and a bit behind. That is what puts the machine into the lower edge
+ * of the picture — a piece of the world that never moves relative to the head
+ * is the cheapest cure there is for motion sickness, and in the jet it rolls
+ * along with the horizon, which is exactly the point.
+ */
+const EYE_OFFSET = new THREE.Vector3(0, 0.24, 0.15);
+/** Half the distance between the two grips. */
+const GRIP_X = 0.105;
+/** How far from the free grip the second hand still counts as holding on. */
+const GRIP_REACH = 0.32;
 
 const _forward = new THREE.Vector3();
-const _right = new THREE.Vector3();
-const _nose = new THREE.Vector3();
-const _side = new THREE.Vector3();
-const _wish = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _eye = new THREE.Vector3();
-const _up = new THREE.Vector3(0, 1, 0);
+const _offset = new THREE.Vector3();
+const _wish = new THREE.Vector3();
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _axisX = new THREE.Vector3();
+const _axisY = new THREE.Vector3();
+const _axisZ = new THREE.Vector3();
+const _aim = new THREE.Vector3();
+const _other = new THREE.Vector3();
+const _quat = new THREE.Quaternion();
+const _tilt = new THREE.Quaternion();
+const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+const _point = new THREE.Vector3();
+const _basis = new THREE.Matrix4();
+const _inverse = new THREE.Matrix4();
+const _zero = { x: 0, y: 0 };
 
 /**
  * Ferngesteuerte Drohne.
  *
- * The tool is a little display; the drone itself hovers out in the room. Pull
- * the trigger and the view moves out to the drone: the sticks fly it, the head
- * still looks around freely (the headset owns the view direction, and taking
- * that away is what makes people sick). Trigger again parks the drone where it
- * is, and letting go of the tool does the same.
+ * Das Werkzeug ist ein flaches Gerät wie eine Handheld-Konsole: **zwei Griffe**
+ * links und rechts, dazwischen das Display, über dem Display ein Knopf. Die
+ * Drohne selbst schwebt draußen im Raum und zeigt ihr Bild auf dem Display —
+ * auch vom Boden aus, als Periskop.
  *
- * While you are flying it, the drone itself is **not drawn for you**: the view
- * sits inside it, and a machine wrapped around your own head is only ever in
- * the way. Your body stays standing where you left it, and you can look back
- * at yourself — the avatar becomes visible to its own eye for as long as the
- * view is away (`PlayerAvatar.leaveBehind`).
+ * **Beide Griffe** müssen in den Händen liegen; dann schaltet **einer der
+ * beiden Trigger** (welcher, ist egal) die Sicht hinaus auf die Drohne. Die
+ * Sticks fliegen sie, der Kopf schaut weiter frei umher. Nochmal Trigger — oder
+ * eine Hand loslassen — parkt sie da, wo sie ist.
  *
- * The little panel over the display picks **which stick does what** — camera
- * copter or racing drone (`droneSettings.ts`) — and whether taking the tool out
- * again scraps a drone that is still hovering somewhere.
+ * Während geflogen wird, ist der eigene Körper **weg**: Hände, Werkzeuge an der
+ * Hüfte und das Handgelenk-Menü fliegen nicht mit, also werden sie auch nicht
+ * gezeichnet (`PortalWorld.setViewOverride`). Was stattdessen im Bild bleibt,
+ * ist die Drohne selbst, knapp unter der Blickachse.
  *
- * The display always shows the drone's own camera, so it is useful as a
- * periscope even while you are standing on the floor yourself.
+ * Der **Knopf** über dem Display öffnet die Einstellungen: Flugmodus (Kopter
+ * oder Jet, `droneSettings.ts`), Drohne neu setzen, und ob das Herausnehmen des
+ * Werkzeugs eine alte Drohne verschrottet. Das Panel ist nur so lange ein
+ * Zielobjekt, wie es offen ist — sonst würde der Zeigestrahl der eigenen Hand
+ * darauf liegenbleiben und jedem Werkzeug den Trigger wegnehmen.
  */
 export class DroneTool extends Tool {
   override readonly toolId = 'drone';
@@ -63,31 +89,57 @@ export class DroneTool extends Tool {
   /** The drone lives in the world, not in the hand. */
   readonly drone = new THREE.Group();
 
-  private readonly camera = new THREE.PerspectiveCamera(72, FEED_W / FEED_H, 0.05, 300);
+  private readonly camera = new THREE.PerspectiveCamera(78, FEED_W / FEED_H, 0.05, 300);
   private readonly target: THREE.WebGLRenderTarget;
   private readonly screen: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly rotors: THREE.Mesh[] = [];
   private readonly velocity = new THREE.Vector3();
   private readonly lamp: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
-  /** The settings panel that rides over the display. */
+  /**
+   * Everything the device is made of. It slides sideways inside the tool: held
+   * with one hand the *grip* has to sit in that hand, so the deck moves over
+   * and the tool's own origin — the one the adjustment tool measures — stays
+   * exactly where a hold pose says it is.
+   */
+  private readonly deck = new THREE.Group();
+  /** The two places the hands belong, as points on the device. */
+  private readonly grips: Record<Handedness, THREE.Object3D> = {
+    left: new THREE.Object3D(),
+    right: new THREE.Object3D(),
+  };
+  /** The settings button over the display, and the panel it opens. */
+  private readonly button: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
+  private readonly buttonCanvas: HTMLCanvasElement;
+  private readonly buttonTexture: THREE.CanvasTexture;
   private readonly panel: UIPanel;
-  private yaw = 0;
+  private buttonHot = false;
+  private settingsOpen = false;
+
+  /** The machine's attitude. In the copter it stays level, in the jet it does not. */
+  private orientation: Quat = quatIdentity();
+  /** Cosmetic tilt of the copter's model — the view never takes it on. */
+  private bank = 0;
+  private nose = 0;
   private spin = 0;
-  private pitch = 0;
-  private roll = 0;
   private flying = false;
   private placed = false;
+  /** Both hands on the grips right now. Nothing flies without it. */
+  private twoHanded = false;
+  /** Kept from `onTake`, so the hold pose can ask about the other hand. */
+  private input: XRInput | null = null;
+  /** Where the pointer is registered, so it can be taken off again. */
+  private pointer: Pointer | null = null;
 
   constructor() {
     super();
     this.name = 'tool-drone';
     this.icon = 'drone';
     this.accent = 0x4aa8ff;
-    this.hint = 'Trigger fliegt mit · nochmal parkt sie';
-    this.holdPosition.set(0, -0.01, 0.01);
+    this.hint = 'Beide Griffe halten · Trigger fliegt · A öffnet das Menü';
+    this.holdPosition.set(0, -0.02, 0.02);
     // The display is read, not aimed: it faces the player, tilted like a
-    // controller screen rather than pointing off along the ray.
-    this.holdRotation.setFromEuler(new THREE.Euler(-0.6, 0, 0));
+    // console screen rather than pointing off along the ray.
+    this.holdRotation.setFromEuler(new THREE.Euler(-0.55, 0, 0));
 
     const shell = new THREE.MeshStandardMaterial({ color: 0x2b3346, roughness: 0.6 });
     const trim = new THREE.MeshStandardMaterial({
@@ -95,82 +147,130 @@ export class DroneTool extends Tool {
       roughness: 0.35,
       metalness: 0.6,
     });
+    const bezel = new THREE.MeshStandardMaterial({ color: 0x11151f, roughness: 0.8 });
 
-    const case3d = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.014), shell);
-    this.add(case3d);
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.03), shell);
-    grip.position.set(0, -0.07, 0.005);
-    this.add(grip);
+    // --- the device: a flat slab with a grip at each end ---------------------
+    this.add(this.deck);
+    const case3d = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.14, 0.018), shell);
+    this.deck.add(case3d);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1), bezel);
+    face.position.set(0, -0.012, 0.0095);
+    this.deck.add(face);
+
+    for (const side of [-1, 1] as const) {
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.135, 0.04), shell);
+      grip.position.set(side * GRIP_X, -0.004, 0.006);
+      grip.rotation.z = -side * 0.12;
+      this.deck.add(grip);
+      // A rubber band around each grip, so it is obvious where the hands go.
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.045), trim);
+      band.position.copy(grip.position);
+      band.rotation.copy(grip.rotation);
+      this.deck.add(band);
+
+      const node = this.grips[side < 0 ? 'left' : 'right'];
+      node.position.copy(grip.position);
+      this.deck.add(node);
+    }
 
     this.target = new THREE.WebGLRenderTarget(FEED_W, FEED_H, {
       depthBuffer: true,
       colorSpace: THREE.SRGBColorSpace,
     });
     this.screen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.13, 0.082),
+      new THREE.PlaneGeometry(0.148, 0.0925),
       new THREE.MeshBasicMaterial({ map: this.target.texture, toneMapped: false }),
     );
-    this.screen.position.set(0, 0, 0.009);
-    this.add(this.screen);
+    this.screen.position.set(0, -0.012, 0.0105);
+    this.deck.add(this.screen);
 
-    // --- the drone ---------------------------------------------------------
+    // --- the button over the display ----------------------------------------
+    this.buttonCanvas = document.createElement('canvas');
+    this.buttonCanvas.width = 128;
+    this.buttonCanvas.height = 128;
+    this.buttonTexture = new THREE.CanvasTexture(this.buttonCanvas);
+    this.buttonTexture.colorSpace = THREE.SRGBColorSpace;
+    this.button = new THREE.Mesh(
+      new THREE.CircleGeometry(0.016, 28),
+      new THREE.MeshBasicMaterial({
+        map: this.buttonTexture,
+        transparent: true,
+        toneMapped: false,
+        depthWrite: false,
+      }),
+    );
+    this.button.name = 'drone-settings-button';
+    this.button.position.set(0, 0.052, 0.0105);
+    this.button.renderOrder = 12;
+    this.button.geometry.computeBoundingBox();
+    this.deck.add(this.button);
+    this.drawButton();
+
+    // The settings stand above the device, where a panel can be read without
+    // covering the picture. Closed by default — see the class comment.
+    this.panel = new UIPanel({
+      width: 0.19,
+      title: 'Drohne',
+      onSelect: (index) => this.choose(index),
+    });
+    this.panel.position.set(0, 0.12, 0.02);
+    this.panel.visible = false;
+    this.deck.add(this.panel);
+
+    // --- the drone -----------------------------------------------------------
     this.drone.name = 'drone';
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.045, 0.16), shell);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.2), shell);
     this.drone.add(body);
     for (const [x, z] of [
-      [-0.09, -0.09],
-      [0.09, -0.09],
-      [-0.09, 0.09],
-      [0.09, 0.09],
+      [-0.11, -0.11],
+      [0.11, -0.11],
+      [-0.11, 0.11],
+      [0.11, 0.11],
     ] as const) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.01, 0.015), trim);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.011, 0.016), trim);
       arm.position.set(x * 0.6, 0, z * 0.6);
       this.drone.add(arm);
-      const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.004, 16), trim);
-      rotor.position.set(x, 0.03, z);
+      const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.004, 16), trim);
+      rotor.position.set(x, 0.035, z);
       this.drone.add(rotor);
       this.rotors.push(rotor);
     }
     this.lamp = new THREE.Mesh(
-      new THREE.SphereGeometry(0.014, 10, 8),
+      new THREE.SphereGeometry(0.016, 10, 8),
       new THREE.MeshBasicMaterial({ color: 0x4aa8ff, toneMapped: false }),
     );
-    this.lamp.position.set(0, -0.01, -0.085);
+    this.lamp.position.set(0, -0.012, -0.105);
     this.drone.add(this.lamp);
-    this.camera.position.set(0, -0.005, -0.09);
-    this.camera.rotation.set(-0.12, 0, 0);
+    this.camera.position.set(0, 0.005, -0.11);
     this.drone.add(this.camera);
-
-    // The settings ride over the display, in the same plane: two rows, and the
-    // panel draws itself only as tall as it needs.
-    this.panel = new UIPanel({
-      width: 0.14,
-      onSelect: (index) => this.choose(index),
-    });
-    this.panel.position.set(0, 0.055, 0.006);
-    // Only while it is being carried: a menu floating over the hip is noise.
-    this.panel.visible = false;
-    this.add(this.panel);
-    this.showSettings();
   }
 
-  /** The two rows on the panel, rebuilt whenever one of them changes. */
+  // --- the settings menu ----------------------------------------------------
+
+  /** The three rows on the panel, rebuilt whenever one of them changes. */
   private showSettings(): void {
     const settings = droneSettings();
     const profile = DRONE_PROFILES.find((entry) => entry.id === settings.profile);
     const entries: MenuEntry[] = [
       {
         id: 'drone:profile',
-        label: droneProfileLabel(settings.profile),
+        label: `Modus: ${droneProfileLabel(settings.profile)}`,
         sub: `Links: ${profile?.left ?? ''} · Rechts: ${profile?.right ?? ''}`,
         icon: 'drone',
         accent: 0x4aa8ff,
       },
       {
-        id: 'drone:replace',
-        label: 'Neu setzen',
-        sub: 'Herausnehmen verschrottet die alte Drohne',
+        id: 'drone:place',
+        label: 'Drohne neu setzen',
+        sub: 'Stellt sie wieder vor dich hin',
         icon: 'reset',
+        accent: 0x5ee0a0,
+      },
+      {
+        id: 'drone:replace',
+        label: 'Beim Herausnehmen neu',
+        sub: 'Verschrottet eine alte Drohne',
+        icon: 'tools',
         accent: 0xffc857,
         checked: settings.replace,
       },
@@ -178,90 +278,399 @@ export class DroneTool extends Tool {
     this.panel.setPage('Drohne', entries, false, 'Zielen und Trigger stellt um');
   }
 
-  /** A row was picked: step the profile, or flip the switch. */
+  /** A row was picked: step the mode, re-place the drone, or flip the switch. */
   private choose(index: number): void {
     if (index === 0) {
       const ids = DRONE_PROFILES.map((entry) => entry.id);
       const at = ids.indexOf(droneSettings().profile);
       saveDroneSettings({ profile: ids[(at + 1) % ids.length] as DroneProfile });
+      // A jet that is handed a copter's attitude mid-flight would flip; level
+      // it out instead, whichever way round the change goes.
+      this.orientation = levelOf(this.orientation);
+      this.bank = 0;
+      this.nose = 0;
     } else if (index === 1) {
+      const host = this.hostRef;
+      if (host) {
+        this.place(host);
+        host.notify('Drohne neu gesetzt');
+      }
+    } else if (index === 2) {
       saveDroneSettings({ replace: !droneSettings().replace });
     }
     this.showSettings();
   }
 
+  /** Opens or closes the settings, and hangs the panel on the pointer with it. */
+  private setSettingsOpen(open: boolean): void {
+    if (this.settingsOpen === open) return;
+    this.settingsOpen = open;
+    this.panel.visible = open;
+    const pointer = this.pointer;
+    if (pointer) {
+      pointer.remove(this.panel);
+      if (open) {
+        pointer.add({
+          ...this.panel.asPointerTarget(),
+          pokeable: false,
+          ignore: (hand) => this.ignoresHand(hand),
+        });
+      }
+    }
+    if (open) this.showSettings();
+    this.drawButton();
+    playTone({ type: 'sine', from: open ? 420 : 620, to: open ? 700 : 380, duration: 0.09, gain: 0.04 });
+  }
+
+  /**
+   * Hands whose ray this device does not listen to: the ones on its own grips —
+   * their laser lies on their own screen all day — and any hand that is
+   * carrying another tool. A hand holding the adjustment tool is *working* on
+   * this device, and a pointer resting on the little button would take that
+   * hand's trigger away from it.
+   */
+  private ignoresHand(hand: Handedness | null): boolean {
+    if (!hand) return false;
+    if (hand === this.heldBy || this.twoHanded) return true;
+    const other = this.hostRef?.heldTool(hand);
+    return other !== null && other !== undefined;
+  }
+
+  // --- taking and putting away ----------------------------------------------
+
   override onTake(_controller: ControllerState, host: ToolHost): void {
+    this.hostRef = host;
+    this.input = host.ctx.input;
+    this.pointer = host.ctx.pointer;
     if (this.drone.parent !== host.root) host.root.add(this.drone);
     this.drone.visible = true;
-    // The panel is pointed at like any other, so it has to be a target for as
-    // long as the tool is in a hand.
-    host.ctx.pointer.remove(this.panel);
-    host.ctx.pointer.add(this.panel.asPointerTarget());
-    this.panel.visible = true;
-    this.showSettings();
+
+    host.ctx.pointer.remove(this.button);
+    host.ctx.pointer.add({
+      object: this.button,
+      // A brush past must not open it; and the hands on the grips are holding,
+      // not pointing — their own rays lie on their own device all day.
+      pokeable: true,
+      ignore: (hand) => this.ignoresHand(hand),
+      onHover: () => this.setButtonHot(true),
+      onBlur: () => this.setButtonHot(false),
+      onSelect: () => this.setSettingsOpen(!this.settingsOpen),
+    });
 
     const settings = droneSettings();
     if (this.placed && !settings.replace) return;
     if (this.placed) host.notify('Alte Drohne verschrottet');
-    // A fresh drone waits an arm's length in front of the player.
+    this.place(host);
+  }
+
+  /** Puts a fresh drone an arm's length in front of the player. */
+  private place(host: ToolHost): void {
     host.ctx.rig.getHeadPosition(_head);
     host.ctx.rig.getHeadForward(_forward);
-    this.drone.position.copy(_head).addScaledVector(_forward, 1.1);
+    this.drone.position.copy(_head).addScaledVector(_forward, 1.3);
+    this.drone.position.y = Math.max(FLOOR, this.drone.position.y);
     this.velocity.set(0, 0, 0);
-    this.yaw = Math.atan2(-_forward.x, -_forward.z);
-    this.pitch = 0;
-    this.roll = 0;
-    this.drone.rotation.set(0, this.yaw, 0);
+    this.orientation = quatFromYaw(Math.atan2(-_forward.x, -_forward.z));
+    this.bank = 0;
+    this.nose = 0;
+    this.applyDronePose();
     this.placed = true;
   }
 
   override onStow(host: ToolHost): void {
     // Letting go of the display always hands the view back.
     this.park(host);
+    this.twoHanded = false;
+    this.setSettingsOpen(false);
+    host.ctx.pointer.busy.delete('left');
+    host.ctx.pointer.busy.delete('right');
+    host.ctx.pointer.remove(this.button);
     host.ctx.pointer.remove(this.panel);
-    this.panel.visible = false;
   }
 
-  override onTrigger(controller: ControllerState, host: ToolHost): void {
-    if (this.flying) {
-      this.park(host);
-      host.notify('Drohne geparkt');
-    } else {
-      this.flying = true;
-      this.velocity.set(0, 0, 0);
-      host.notify('Drohnenansicht · Sticks fliegen');
-      playTone({ type: 'triangle', from: 300, to: 780, duration: 0.14, gain: 0.05 });
-    }
-    controller.pulse(0.5, 35);
+  /**
+   * `A`/`X` of the holding hand opens the settings too. The button over the
+   * display is the obvious way in, but a device that is held with both fists
+   * has no free finger to press it with — so the thumb that is already there
+   * does it as well.
+   */
+  override onPrimary(controller: ControllerState, _host: ToolHost): void {
+    this.setSettingsOpen(!this.settingsOpen);
+    controller.pulse(0.35, 25);
   }
+
+  /**
+   * The other hand is claimed as soon as it is *at* the free grip — not only
+   * once it squeezes. Otherwise the very grip that takes hold of this device
+   * would, in the same instant, pull a tool off the nearest hip.
+   */
+  override claimsHand(hand: Handedness): boolean {
+    if (!this.heldBy || this.parked || hand === this.heldBy) return false;
+    return this.nearFreeGrip(hand);
+  }
+
+  // --- how it sits in the hands ---------------------------------------------
+
+  /**
+   * One hand carries the device by the grip on its own side, so the other grip
+   * points across the body and is easy to find. With both hands on it the
+   * device stops belonging to either: it spans them, centred between the two
+   * fists and turned along the line they make — the way you hold a console.
+   */
+  override applyHold(controller: ControllerState | null): void {
+    if (!this.heldBy || this.parked) return;
+    const spanned = this.twoHanded && this.spanHands();
+    // One hand: the device hangs off to the side so its own grip is the one in
+    // that fist. Two hands: it is centred, because the origin is then already
+    // in the middle between them.
+    this.deck.position.x = spanned ? 0 : this.heldBy === 'left' ? GRIP_X : -GRIP_X;
+    if (!spanned) super.applyHold(controller);
+  }
+
+  /** The two-handed pose. False when the hands cannot be measured right now. */
+  private spanHands(): boolean {
+    const parent = this.parent;
+    const left = this.input?.get('left');
+    const right = this.input?.get('right');
+    if (!parent || !left?.tracked || !right?.tracked) return false;
+
+    anchorOf(left).getWorldPosition(_a);
+    anchorOf(right).getWorldPosition(_b);
+    _axisX.copy(_b).sub(_a);
+    if (_axisX.lengthSq() < 1e-4) return false;
+    _axisX.normalize();
+
+    // Which way the device faces: both hands point somewhere, and the average
+    // of the two is where the player is aiming the thing.
+    _aim.set(0, 0, -1).applyQuaternion(left.targetRay.getWorldQuaternion(_quat));
+    _other.set(0, 0, -1).applyQuaternion(right.targetRay.getWorldQuaternion(_quat));
+    _aim.add(_other);
+    if (_aim.lengthSq() < 1e-6) return false;
+    _axisZ.copy(_aim).normalize().negate();
+
+    _axisY.copy(_axisZ).cross(_axisX);
+    if (_axisY.lengthSq() < 1e-6) return false;
+    _axisY.normalize();
+    _axisZ.copy(_axisX).cross(_axisY);
+    _basis.makeBasis(_axisX, _axisY, _axisZ);
+    _quat.setFromRotationMatrix(_basis);
+
+    // Just past the fists: the screen belongs in front of the knuckles, not
+    // inside them.
+    _point
+      .copy(_a)
+      .add(_b)
+      .multiplyScalar(0.5)
+      .addScaledVector(_axisY, 0.03)
+      .addScaledVector(_axisZ, 0.02);
+
+    parent.updateWorldMatrix(true, false);
+    _inverse.copy(parent.matrixWorld).invert();
+    this.position.copy(_point).applyMatrix4(_inverse);
+    // The rig and the hands are never scaled, so the inverse is a plain rotation.
+    this.quaternion.setFromRotationMatrix(_inverse).multiply(_quat);
+    return true;
+  }
+
+  /**
+   * Which hands are holding instead of pointing. Both of them while the device
+   * is carried two-handed — and the holding one while the settings are open,
+   * so the laser moves over to the free hand and the panel can be worked at
+   * all. Everything else would leave the pointer resting on the very thing it
+   * is supposed to aim at.
+   */
+  private markBusyHands(host: ToolHost): void {
+    const pointer = host.ctx.pointer;
+    const busy = this.twoHanded || this.settingsOpen;
+    for (const side of ['left', 'right'] as const) {
+      const held = side === this.heldBy ? busy : this.twoHanded;
+      if (held) pointer.busy.add(side);
+      else pointer.busy.delete(side);
+    }
+  }
+
+  /** Is that hand close enough to the free grip to be holding this thing? */
+  private nearFreeGrip(hand: Handedness): boolean {
+    const controller = this.input?.get(hand);
+    if (!controller?.tracked) return false;
+    anchorOf(controller).getWorldPosition(_a);
+    this.grips[hand].getWorldPosition(_b);
+    return _a.distanceToSquared(_b) < GRIP_REACH * GRIP_REACH;
+  }
+
+  /** Is the free grip in the other hand? Controllers have to squeeze for it. */
+  private checkSecondHand(): boolean {
+    const side = this.heldBy;
+    if (!side) return false;
+    const otherSide: Handedness = side === 'left' ? 'right' : 'left';
+    const other = this.input?.get(otherSide);
+    if (!other?.tracked) return false;
+    // A hand with a tool of its own has both hands full already.
+    if (this.hostRef?.heldTool(otherSide)) return false;
+    // A tracked hand has no grip button; being in the right place is its word.
+    if (!other.isHand && !other.squeeze.pressed) return false;
+    return this.nearFreeGrip(otherSide);
+  }
+
+  // --- flying ----------------------------------------------------------------
 
   override update(dt: number, host: ToolHost, controller: ControllerState | null): void {
+    this.hostRef = host;
     if (!this.heldBy || !controller) {
       if (this.flying) this.park(host);
+      this.twoHanded = false;
+      return;
+    }
+    this.input = host.ctx.input;
+    // Hanging in the air for the adjustment tool: it belongs to nobody's grips
+    // right now, and the hand next to it is measuring, not holding.
+    if (this.parked) {
+      this.twoHanded = false;
+      this.markBusyHands(host);
       return;
     }
 
+    const both = this.checkSecondHand();
+    if (both !== this.twoHanded) {
+      this.twoHanded = both;
+      if (!both && this.flying) {
+        this.park(host);
+        host.notify('Hand vom Griff · Drohne geparkt');
+      }
+    }
+    this.markBusyHands(host);
+
+    this.handleTriggers(host);
     if (this.flying) this.fly(dt, host);
     this.panel.update(dt);
-    // Flying it means sitting inside it: nobody wants their own rotors in
-    // their face. It is a local object anyway, so this hides it for you only.
-    this.drone.visible = !this.flying;
 
     // The rotors always turn; faster while it is actually being flown.
-    this.spin += dt * (this.flying ? 42 : 12);
+    this.spin += dt * (this.flying ? 46 : 12);
     for (let i = 0; i < this.rotors.length; i++) {
       this.rotors[i]!.rotation.y = this.spin * (i % 2 === 0 ? 1 : -1);
     }
-    this.lamp.material.color.setHex(this.flying ? 0x5ee0a0 : 0x4aa8ff);
+    this.lamp.material.color.setHex(this.flying ? 0x5ee0a0 : this.twoHanded ? 0x4aa8ff : 0xff8f5e);
   }
+
+  /**
+   * Either trigger flies it — the tool asks the hands itself instead of waiting
+   * to be told. The world only ever hands the *holding* hand's buttons to a
+   * tool, and this one is held by both.
+   */
+  private handleTriggers(host: ToolHost): void {
+    const input = host.ctx.input;
+    // Only the hands that are actually on this thing. The other hand may well
+    // be carrying a pistol, and its trigger is none of our business.
+    const sides: Handedness[] = this.twoHanded ? ['left', 'right'] : [this.heldBy!];
+    let pressed = false;
+    for (const side of sides) {
+      const hand = input.get(side);
+      if (hand?.tracked && hand.trigger.justPressed) pressed = true;
+    }
+    if (!pressed) return;
+    // While a panel is under the pointer the trigger belongs to it. In the air
+    // the pointer is switched off entirely, so this cannot lock anybody out.
+    if (!this.flying && host.ctx.pointer.hovering) return;
+
+    if (this.flying) {
+      this.park(host);
+      host.notify('Drohne geparkt');
+      return;
+    }
+    if (!this.twoHanded) {
+      host.notify('Beide Griffe halten, dann Trigger');
+      return;
+    }
+    this.flying = true;
+    this.setSettingsOpen(false);
+    this.velocity.set(0, 0, 0);
+    host.notify('Drohnenansicht · Sticks fliegen');
+    playTone({ type: 'triangle', from: 300, to: 780, duration: 0.14, gain: 0.05 });
+    for (const side of ['left', 'right'] as const) input.get(side)?.pulse(0.5, 35);
+  }
+
+  /** Sticks in, movement out — the maths itself lives in `droneFlight.ts`. */
+  private fly(dt: number, host: ToolHost): void {
+    const input = host.ctx.input;
+    const left = input.get('left')?.thumbstick ?? _zero;
+    const right = input.get('right')?.thumbstick ?? _zero;
+
+    if (droneSettings().profile === 'racing') {
+      const step = flyJet(this.orientation, left, right, dt, DRONE_TUNING);
+      this.orientation = step.orientation;
+      this.bank = 0;
+      this.nose = 0;
+      _wish.set(step.wish.x, step.wish.y, step.wish.z);
+    } else {
+      // The copter is flown where the pilot looks: they sit in its seat, and
+      // their head is the only thing that says "forwards".
+      host.ctx.rig.getHeadForward(_forward);
+      const step = flyKopter(
+        headingOf(this.orientation),
+        left,
+        right,
+        _forward,
+        dt,
+        DRONE_TUNING,
+      );
+      this.orientation = quatFromYaw(step.heading);
+      this.bank = step.bank;
+      this.nose = step.nose;
+      _wish.set(step.wish.x, step.wish.y, step.wish.z);
+    }
+
+    const blend = Math.min(1, dt / RESPONSE);
+    this.velocity.lerp(_wish, blend);
+    this.drone.position.addScaledVector(this.velocity, dt);
+    if (this.drone.position.y < FLOOR) {
+      this.drone.position.y = FLOOR;
+      this.velocity.y = Math.max(0, this.velocity.y);
+    }
+    this.applyDronePose();
+
+    // The view rides in the machine's own frame: the copter's is level whatever
+    // the model does, the jet's is the whole attitude, horizon and all.
+    _quat.set(this.orientation.x, this.orientation.y, this.orientation.z, this.orientation.w);
+    _eye.copy(this.drone.position).add(_offset.copy(EYE_OFFSET).applyQuaternion(_quat));
+    host.setViewOverride(_eye, _quat);
+  }
+
+  /** Puts the model where the numbers say, cosmetic tilt included. */
+  private applyDronePose(): void {
+    _quat.set(this.orientation.x, this.orientation.y, this.orientation.z, this.orientation.w);
+    this.drone.quaternion.copy(_quat);
+    if (this.bank !== 0 || this.nose !== 0) {
+      _euler.set(this.nose, 0, this.bank, 'YXZ');
+      this.drone.quaternion.multiply(_tilt.setFromEuler(_euler));
+    }
+  }
+
+  private park(host: ToolHost): void {
+    if (!this.flying) return;
+    this.flying = false;
+    this.velocity.set(0, 0, 0);
+    // Back on an even keel: a jet left standing on its wingtip is a jet nobody
+    // can pick up again.
+    this.orientation = levelOf(this.orientation);
+    this.bank = 0;
+    this.nose = 0;
+    this.applyDronePose();
+    host.setViewOverride(null);
+    playTone({ type: 'triangle', from: 780, to: 300, duration: 0.14, gain: 0.05 });
+  }
+
+  // --- the picture -----------------------------------------------------------
 
   /**
    * Draws what the drone sees into the display. The world calls this before
    * its own render pass — the same trick the portals use, with the XR path
    * switched off so the off-screen camera is really the one that is used.
+   *
+   * Nothing to draw while it is being flown: the device is then not in the
+   * picture at all, and a second render pass for a hidden screen is waste.
    */
   renderFeed(renderer: THREE.WebGLRenderer, scene: THREE.Scene): void {
-    if (!this.heldBy || !this.placed) return;
+    if (!this.heldBy || !this.placed || this.flying || !this.visible) return;
 
     const previousTarget = renderer.getRenderTarget();
     const xrEnabled = renderer.xr.enabled;
@@ -276,12 +685,15 @@ export class DroneTool extends Tool {
   }
 
   /**
-   * Takes the settings panel off the pointer. The world calls this when it
-   * tears its tools down — a stowed tool has done it itself, but one that is
-   * still in a hand when the world ends has not.
+   * Takes the button and the settings panel off the pointer. The world calls
+   * this when it tears its tools down — a stowed tool has done it itself, but
+   * one that is still in a hand when the world ends has not.
    */
   forgetPointer(pointer: Pointer): void {
+    pointer.remove(this.button);
     pointer.remove(this.panel);
+    pointer.busy.delete('left');
+    pointer.busy.delete('right');
   }
 
   override disposeTool(): void {
@@ -290,92 +702,44 @@ export class DroneTool extends Tool {
     disposeToolTree(this.drone);
     this.drone.removeFromParent();
     this.target.dispose();
+    this.buttonTexture.dispose();
   }
 
-  /** Sticks in, movement out. Left stick flies, right stick climbs and turns. */
-  private fly(dt: number, host: ToolHost): void {
-    const input = host.ctx.input;
-    const left = input.get('left')?.thumbstick ?? { x: 0, y: 0 };
-    const right = input.get('right')?.thumbstick ?? { x: 0, y: 0 };
+  // --- the button's face ------------------------------------------------------
 
-    if (droneSettings().profile === 'racing') this.flyRacing(dt, left, right);
-    else this.flyKopter(dt, host, left, right);
-
-    const blend = Math.min(1, dt / RESPONSE);
-    this.velocity.lerp(_wish, blend);
-    this.drone.position.addScaledVector(this.velocity, dt);
-    if (this.drone.position.y < FLOOR) {
-      this.drone.position.y = FLOOR;
-      this.velocity.y = Math.max(0, this.velocity.y);
-    }
-    this.drone.rotation.set(this.pitch, this.yaw, this.roll);
-
-    _eye.copy(this.drone.position).add(EYE_OFFSET);
-    host.setViewOverride(_eye);
+  private setButtonHot(hot: boolean): void {
+    if (this.buttonHot === hot) return;
+    this.buttonHot = hot;
+    this.drawButton();
   }
 
-  /**
-   * Kopter-Profi: the left stick *moves* the machine, the right one turns it
-   * and takes it up and down. Flown relative to where the player looks — they
-   * are sitting in the drone's seat, and their head is the only thing that
-   * says "forwards".
-   */
-  private flyKopter(
-    dt: number,
-    host: ToolHost,
-    left: { x: number; y: number },
-    right: { x: number; y: number },
-  ): void {
-    host.ctx.rig.getHeadForward(_forward);
-    _right.copy(_forward).cross(_up).normalize();
+  private drawButton(): void {
+    const ctx = this.buttonCanvas.getContext('2d');
+    if (!ctx) return;
+    const size = this.buttonCanvas.width;
+    const middle = size / 2;
+    ctx.clearRect(0, 0, size, size);
 
-    _wish.set(0, 0, 0).addScaledVector(_forward, -left.y).addScaledVector(_right, left.x);
-    if (_wish.lengthSq() > 1) _wish.normalize();
-    _wish.multiplyScalar(SPEED);
-    _wish.y = right.y * -CLIMB_SPEED;
+    const glow = ctx.createRadialGradient(middle, middle, 12, middle, middle, middle - 2);
+    glow.addColorStop(0, this.settingsOpen ? 'rgba(255,157,61,0.95)' : 'rgba(74,168,255,0.95)');
+    glow.addColorStop(1, 'rgba(8, 14, 26, 0.92)');
+    ctx.beginPath();
+    ctx.arc(middle, middle, middle - 3, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+    ctx.lineWidth = this.buttonHot ? 6 : 3.5;
+    ctx.strokeStyle = this.buttonHot ? '#ffffff' : 'rgba(255,255,255,0.75)';
+    ctx.stroke();
 
-    // The nose follows the flight, and the right stick turns it on the spot.
-    this.yaw -= right.x * dt * YAW_RATE;
-    if (this.velocity.lengthSq() > 0.4) {
-      this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
-    }
-    // A little bank in the direction of travel.
-    this.roll = THREE.MathUtils.clamp(-this.velocity.x * 0.04, -0.3, 0.3);
-    this.pitch = THREE.MathUtils.clamp(this.velocity.z * 0.04, -0.3, 0.3);
+    drawMenuIcon(ctx, this.settingsOpen ? 'back' : 'drone', middle, middle, size * 0.5, '#ffffff');
+    this.buttonTexture.needsUpdate = true;
   }
 
-  /**
-   * Racing: the left stick is throttle and rudder, the right one is the
-   * attitude. The machine goes where its own nose points, not where the head
-   * looks — leaning it forward is what makes it fly forward, which is the
-   * whole difference between the two schools.
-   */
-  private flyRacing(dt: number, left: { x: number; y: number }, right: { x: number; y: number }): void {
-    this.yaw -= left.x * dt * YAW_RATE;
-    // Its own frame: the nose is -Z turned by the yaw, right is 90° off it.
-    _nose.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-    _side.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+  /** The room, kept from the last frame — the panel's rows need it too. */
+  private hostRef: ToolHost | null = null;
+}
 
-    const ahead = -right.y;
-    const sideways = right.x;
-    _wish.set(0, 0, 0).addScaledVector(_nose, ahead).addScaledVector(_side, sideways);
-    if (_wish.lengthSq() > 1) _wish.normalize();
-    _wish.multiplyScalar(SPEED);
-    _wish.y = -left.y * CLIMB_SPEED;
-
-    // The attitude is the stick, not the speed: a racing drone leans where it
-    // is told and stays leaning, which is what it looks like from outside.
-    this.pitch = -ahead * TILT;
-    this.roll = -sideways * TILT;
-  }
-
-  private park(host: ToolHost): void {
-    if (!this.flying) return;
-    this.flying = false;
-    // Back outside it: from here on it is a thing in the room again.
-    this.drone.visible = true;
-    this.velocity.set(0, 0, 0);
-    host.setViewOverride(null);
-    playTone({ type: 'triangle', from: 780, to: 300, duration: 0.14, gain: 0.05 });
-  }
+/** Where a hand actually is: the grip when there is one, else the ray. */
+function anchorOf(controller: ControllerState): THREE.Object3D {
+  return controller.grip.visible ? controller.grip : controller.targetRay;
 }

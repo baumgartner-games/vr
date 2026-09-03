@@ -1,14 +1,17 @@
 /**
- * How the drone is flown, and what happens to one that is already out there.
+ * Wie die Drohne geflogen wird, und was mit einer passiert, die schon draußen
+ * steht.
  *
- * Two schools fly a quadcopter, and they do not agree. Somebody who flies
- * camera copters expects the left stick to *move* the machine and the right
- * one to turn and climb; somebody who races expects the left stick to be
- * throttle and rudder and the right one to be the actual attitude. Neither is
- * wrong, so both are here and the little menu on the tool picks one.
+ * Zwei Schulen fliegen eine Drohne, und sie sind sich nicht einig. Wer
+ * Kameradrohnen fliegt, erwartet einen **Hubschrauber**: linker Stick schiebt
+ * die Maschine, rechter dreht sie und nimmt sie hoch und runter, die Lage
+ * bleibt waagerecht. Wer rast, erwartet einen **Jet**: der rechte Stick ist
+ * der Steuerknüppel, die Maschine legt sich in die Kurve und fliegt dorthin,
+ * wo ihre eigene Nase hinzeigt. Beides ist richtig, deshalb ist beides da und
+ * das kleine Menü am Werkzeug sucht aus.
  *
- * Pure data and labels — no three.js, so `DroneTool` is the only place that
- * has to know what a stick axis does to a rotor.
+ * Reine Daten und Beschriftungen — kein three.js. Was ein Stick mit einem
+ * Rotor macht, steht in `droneFlight.ts`; wie sich das anfühlt, in `DroneTool`.
  */
 
 /** Which stick does what. */
@@ -36,15 +39,15 @@ export const DRONE_PROFILES: ReadonlyArray<{
 }> = [
   {
     id: 'kopter',
-    label: 'Kopter-Profi',
-    left: 'links/rechts, vor/zurück',
+    label: 'Kopter',
+    left: 'schieben',
     right: 'drehen, auf/ab',
   },
   {
     id: 'racing',
-    label: 'Racing-Drohne',
-    left: 'Gas, Gieren',
-    right: 'Roll, Nick',
+    label: 'Jet',
+    left: 'vor/zurück, quer',
+    right: 'rollen, nicken',
   },
 ];
 

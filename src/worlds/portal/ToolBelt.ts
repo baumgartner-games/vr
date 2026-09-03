@@ -70,6 +70,14 @@ export class ToolBelt {
     for (const slot of this.slots) rig.add(slot);
   }
 
+  /**
+   * Hides both hips at once. The drone takes the view out of the body; a belt
+   * hanging around a camera that flew away is only in the way.
+   */
+  setVisible(visible: boolean): void {
+    for (const slot of this.slots) slot.visible = visible;
+  }
+
   slot(side: Handedness): BeltSlot {
     return this.slots[side === 'left' ? 0 : 1]!;
   }

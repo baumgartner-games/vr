@@ -67,8 +67,13 @@ export interface ToolHost {
   /**
    * Takes the view away from the body and puts it at a point in the world —
    * the drone flies with it. `null` gives the player their body back.
+   *
+   * `rotation` is the *frame* the head then hangs in, not the head itself: the
+   * headset keeps looking wherever it looks, inside a room that is turned by
+   * this much. That is what lets the drone's nose take the view around with it
+   * without ever taking the head away from its owner.
    */
-  setViewOverride(position: THREE.Vector3 | null): void;
+  setViewOverride(position: THREE.Vector3 | null, rotation?: THREE.Quaternion | null): void;
   /** What that hand is carrying — the adjustment tool works on the other one. */
   heldTool(hand: Handedness): Tool | null;
   /**
@@ -196,6 +201,15 @@ export abstract class Tool extends THREE.Group {
 
   /** The A/X button of the holding hand. */
   onPrimary(_controller: ControllerState, _host: ToolHost): void {}
+
+  /**
+   * A two-handed tool takes the *other* hand as well. While it says yes to a
+   * hand, that hand neither reaches into the belt nor picks up props — it is
+   * busy holding this thing. The drone's display is the one that does it.
+   */
+  claimsHand(_hand: Handedness): boolean {
+    return false;
+  }
 
   /**
    * Puts the tool into the hand: the offset from `holdPosition`, and a

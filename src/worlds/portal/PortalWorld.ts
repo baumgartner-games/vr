@@ -311,7 +311,10 @@ export class PortalWorld implements World {
   private readonly joints: WeldJoint[] = [];
   /** Where the view sits while a drone is flown, and the pose to come back to. */
   private viewOverride: THREE.Vector3 | null = null;
+  /** The frame the head hangs in while it is away — the drone's nose turns it. */
+  private viewRotation: THREE.Quaternion | null = null;
   private readonly bodyHome = new THREE.Vector3();
+  private readonly bodyHomeRotation = new THREE.Quaternion();
   private reopenBag = false;
   private readonly previousHead = new THREE.Vector3();
   /**
@@ -1531,7 +1534,11 @@ export class PortalWorld implements World {
       const slot = belt.nearest(_hand, ctx.rig);
 
       if (!tool) {
-        if (grabPressed && slot?.tool) this.takeTool(ctx, controller, slot.tool);
+        // A hand that is holding the other end of a two-handed tool is busy —
+        // squeezing it must not also pull something off the hip.
+        if (grabPressed && slot?.tool && !this.claimedHand(hand)) {
+          this.takeTool(ctx, controller, slot.tool);
+        }
         continue;
       }
 
@@ -1565,6 +1572,14 @@ export class PortalWorld implements World {
       tool.applyHold(controller);
       tool.update(dt, host, controller);
     }
+  }
+
+  /** True while a tool in the *other* hand has taken hold of this one too. */
+  private claimedHand(hand: Handedness): boolean {
+    for (const tool of this.held.values()) {
+      if (tool.heldBy !== hand && tool.claimsHand(hand)) return true;
+    }
+    return false;
   }
 
   private takeTool(ctx: WorldContext, controller: ControllerState, tool: Tool): void {
@@ -1720,7 +1735,7 @@ export class PortalWorld implements World {
         if (velocity.lengthSq() > 0) locomotion.grounded = false;
       },
       setFlight: (velocity) => this.locomotion?.setFlight?.(velocity),
-      setViewOverride: (position) => this.setViewOverride(position),
+      setViewOverride: (position, rotation) => this.setViewOverride(position, rotation),
       heldTool: (hand) => this.held.get(hand) ?? null,
       parkTool: (tool) => this.parkTool(tool),
       unparkTool: (tool) => this.unparkTool(tool),
@@ -1891,36 +1906,78 @@ export class PortalWorld implements World {
    * The body stays where it stands and is frozen while it is away, and gets
    * its place back when the view comes home.
    */
-  private setViewOverride(position: THREE.Vector3 | null): void {
+  private setViewOverride(
+    position: THREE.Vector3 | null,
+    rotation: THREE.Quaternion | null = null,
+  ): void {
     const ctx = this.context;
     if (!ctx) return;
 
     if (position) {
       if (!this.viewOverride) {
         this.bodyHome.copy(ctx.rig.position);
+        this.bodyHomeRotation.copy(ctx.rig.quaternion);
         this.viewOverride = new THREE.Vector3();
         // The body stays standing where it was — and, for as long as the view
         // is away, it is drawn for its owner, so you can look back at yourself.
         ctx.avatar.leaveBehind(ctx.rig.getHeadMatrix(_matrix));
+        // Hands, belt and menu belong to the body that stayed behind. They do
+        // not fly along, so for as long as the view is away they are simply
+        // not there — and nothing on them can be pointed at either.
+        this.setBodyVisible(ctx, false);
       }
       this.viewOverride.copy(position);
+      if (rotation) {
+        if (!this.viewRotation) this.viewRotation = new THREE.Quaternion();
+        this.viewRotation.copy(rotation);
+      } else {
+        this.viewRotation = null;
+      }
       ctx.rig.frozen = true;
       return;
     }
 
     if (!this.viewOverride) return;
     this.viewOverride = null;
+    this.viewRotation = null;
     ctx.avatar.comeBack();
+    this.setBodyVisible(ctx, true);
     ctx.rig.frozen = false;
     ctx.rig.position.copy(this.bodyHome);
+    ctx.rig.quaternion.copy(this.bodyHomeRotation);
     ctx.rig.updateMatrixWorld(true);
     this.locomotion?.resync(ctx.rig);
     this.hasPreviousHead = false;
   }
 
-  /** Carries the view out to the drone, once everything else has had its say. */
+  /**
+   * Everything that hangs on the player's own body: the hands, whatever they
+   * carry, both hips and the wrist menu. Hidden together while the view is out
+   * in a drone — a pair of hands floating in front of a camera that is nowhere
+   * near them is exactly the thing that makes people sick.
+   */
+  private setBodyVisible(ctx: WorldContext, visible: boolean): void {
+    // The procedural hands hang on the controllers, not on the group — so this
+    // is a switch of their own, not a `visible` on the parent.
+    ctx.hands.hidden = !visible;
+    ctx.menu.visible = visible;
+    ctx.pointer.enabled = visible;
+    this.belt?.setVisible(visible);
+    for (const tool of this.held.values()) tool.visible = visible;
+  }
+
+  /**
+   * Carries the view out to the drone, once everything else has had its say.
+   * The rotation goes on first: `setHeadWorldPosition` moves the rig so the
+   * head lands on the mark, and where the head is depends on how the rig is
+   * turned.
+   */
   private applyViewOverride(ctx: WorldContext): void {
     if (!this.viewOverride) return;
+    if (this.viewRotation) {
+      ctx.rig.quaternion.copy(this.viewRotation);
+      ctx.rig.updateMatrixWorld(true);
+    }
     ctx.rig.setHeadWorldPosition(this.viewOverride);
     this.hasPreviousHead = false;
   }
@@ -2125,7 +2182,7 @@ export class PortalWorld implements World {
         continue;
       }
 
-      if (this.held.has(hand)) continue;
+      if (this.held.has(hand) || this.claimedHand(hand)) continue;
 
       anchor.getWorldPosition(_hand);
       const entry = this.findProp(_hand);

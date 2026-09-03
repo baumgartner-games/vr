@@ -176,6 +176,14 @@ export {
   type DroneProfile,
   type DroneSettings,
 } from './droneSettings';
+export {
+  DRONE_TUNING,
+  flyJet,
+  flyKopter,
+  headingOf,
+  levelOf,
+  type DroneTuning,
+} from './droneFlight';
 export { readGear, writeGear, type GearData } from './gearCodec';
 export {
   applyGearConfig,

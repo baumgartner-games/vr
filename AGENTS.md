@@ -19,7 +19,9 @@ Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
 Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`), die
 Achsenzuordnung der Griffe (`src/worlds/portal/tools/axisMatch.ts`), die
 gemessene Werkzeug-Pose samt Spiegelung
-(`src/worlds/portal/tools/toolPose.ts`), die Handhaltung
+(`src/worlds/portal/tools/toolPose.ts`), die **Flugmathematik der Drohne**
+(`src/worlds/portal/tools/droneFlight.ts` — Kopter und Jet, inklusive der
+Vorzeichen, die im Headset sonst die halbe Welt verdrehen), die Handhaltung
 (`src/core/handPose.ts`), die Waffenwerte
 (`src/worlds/portal/tools/weaponSettings.ts`), der **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
@@ -87,6 +89,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     stehen, wo es ist (Handdrehung dreht es), **Steuern** macht die Hand zum
     Joystick — Hand nach links, Objekt nach links; Hand nach vorne, Objekt nach
     vorne; je weiter aus der Mitte, desto schneller.
+  - **Supermanhandschuh**: **Greifen** hebt dich vom Boden und lässt dich
+    schweben, **Greifen** nochmal landet dich. Mit gezogenem **Trigger** wird
+    die Hand zum Flugzeug-Steuerknüppel: In der Ausgangslage (dort, wo die Hand
+    beim Drücken war) fliegst du nicht; nach vorne fliegst du in Blickrichtung,
+    nach oben steigst du. Zur **Seite** ist kein Seitwärtsschritt, sondern eine
+    **Kurve** — die ganze Sicht dreht sich mit, damit man sitzen bleiben kann.
+    Dasselbe macht der **Kopf**: schaust du im Flug nach links, ziehst du eine
+    Linkskurve, und je schneller du fliegst, desto stärker. Schaust du wieder
+    geradeaus, hört die Kurve auf — und „geradeaus“ ist dann die neue Richtung.
   - **Lötkolben**: zwei Punkte antippen und die Objekte hängen zusammen —
     starr oder als Scharnier (Achse = Querachse des Kolbens). Der Modus wird
     mit der anderen Hand umgeschaltet (kleines Panel über ihr), *Trennen*
@@ -97,10 +108,27 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     darin liegt, wird durch Wände hindurch gezeichnet — begrenzt durch die
     vier Clipping-Ebenen vom Auge durch die Rahmenecken, deshalb bleibt der
     Effekt im Rahmen.
-  - **Drohne**: ein Display in der Hand, die Drohne schwebt davor. Trigger
-    schaltet die Sicht auf die Drohne und die Sticks fliegen sie; nochmal
-    Trigger (oder das Werkzeug loslassen) parkt sie. Das Display zeigt immer
-    das Drohnenbild, auch vom Boden aus.
+  - **Drohne**: ein flaches Gerät wie eine Handheld-Konsole — **zwei Griffe**,
+    dazwischen das Display, darüber ein Knopf. Die Drohne selbst schwebt
+    draußen im Raum, das Display zeigt ihr Bild, auch vom Boden aus.
+    **Beide Griffe** müssen gehalten werden, dann schaltet **einer der beiden
+    Trigger** (egal welcher) die Sicht hinaus auf die Drohne; nochmal Trigger,
+    eine Hand loslassen oder das Werkzeug ablegen parkt sie. Während des Flugs
+    sind Hände, Gürtelwerkzeuge und Handgelenk-Menü **nicht** zu sehen — sie
+    fliegen ja nicht mit —, die Drohne selbst dagegen schon: sie hängt knapp
+    unter der Blickachse und ist damit der ruhende Punkt gegen Motion
+    Sickness. Der Knopf über dem Display (oder `A`/`X`) öffnet die
+    **Drohnen-Einstellungen**: Flugmodus, *Drohne neu setzen*, und ob das
+    Herausnehmen eine alte Drohne verschrottet.
+    Zwei Flugmodi (`droneFlight.ts`, mit Jest-Test):
+    **Kopter** ist ein Hubschrauber — linker Stick schiebt sie waagerecht in
+    Blickrichtung, rechter Stick dreht links/rechts **die Nase und die Sicht
+    mit** und nimmt sie hoch und runter; die Lage bleibt waagerecht.
+    **Jet** ist ein kleines Flugzeug — linker Stick vor/zurück entlang der
+    eigenen Nase und quer dazu, rechter Stick ist der Steuerknüppel: rollen und
+    nicken um die *eigenen* Achsen, Sicht samt Horizont kippt mit. Wer im
+    Rollen zieht, fliegt eine echte Kurve. Beim Parken richtet sie sich wieder
+    waagerecht aus. Der Kopf bleibt in beiden Modi frei.
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
@@ -176,13 +204,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Menüseite blättern | Stick der zeigenden Hand hoch/runter | – | – |
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
+| Supermanhandschuh | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve | – | – |
 | Translationshandschuh | Trigger hält aus der Ferne, `A` wechselt Modus | – | – |
 | Größe & Position | Trigger wählt, `A` holt die Griffe vor dich | – | – |
 | Griff ziehen | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand | – | – |
 | Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil, Trigger übernimmt, Greifen kopiert den Code, `A` bricht ab | – | – |
 | Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
-| Drohne | Trigger fliegt/parkt, Sticks steuern | – | – |
+| Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü | – | – |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
 | Radiergummi | Trigger löscht | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
@@ -210,7 +239,10 @@ Die Korrektur steckt jetzt einmal in `Tool.applyAim()` (Mathe in
 einzeln: Ein neues Werkzeug bekommt sie geschenkt und kann sie nicht
 vergessen. Wer ein Werkzeug bewusst starr an der Hand haben will, setzt
 `alignToAim = false`; eine feste Zusatzneigung (das Drohnen-Display) kommt in
-`holdRotation`.
+`holdRotation`. Ein **zweihändiges** Werkzeug überschreibt `applyHold` und
+spannt sich selbst zwischen die beiden Griffe (die Drohne tut das); mit
+`Tool.claimsHand()` sagt es außerdem, dass die zweite Hand belegt ist — sonst
+zieht derselbe Griff nebenbei ein Werkzeug von der Hüfte.
 
 Jede Waffe in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden
 und Decke richtet sich das Portal nach der Waffe, mit der du zielst.

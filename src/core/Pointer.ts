@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Handedness, XRInput } from './XRInput';
+import type { ControllerState, Handedness, XRInput } from './XRInput';
 import type { PlayerRig } from './PlayerRig';
 
 export interface PointerHit {
@@ -19,6 +19,13 @@ export interface PointerTarget {
   onSelect?(hit: PointerHit): void;
   /** Allow direct touch with the index fingertip. Defaults to true. */
   pokeable?: boolean;
+  /**
+   * Hands this target does not listen to. A panel that rides on a tool has to
+   * say so: the ray comes out of the same hand that carries it, would rest on
+   * its own panel all the time — and a resting pointer swallows the trigger of
+   * whatever is holding it.
+   */
+  ignore?(hand: Handedness | null): boolean;
 }
 
 const _ray = new THREE.Ray();
@@ -35,6 +42,21 @@ export class Pointer {
   /** Laser + cursor visuals, parented to the pointing controller. */
   readonly rayLine: THREE.Line;
   readonly cursor: THREE.Mesh;
+
+  /**
+   * Off while the view is somewhere else entirely — the drone carries it out
+   * of the body, and menus that hang on hands left behind are then neither
+   * reachable nor wanted. Off means: no hover, no poke, no laser.
+   */
+  enabled = true;
+
+  /**
+   * Hands that are holding something with both fists instead of pointing — the
+   * drone's display is carried that way. The laser moves to the other hand, and
+   * with both of them busy there is no laser at all: a ray that rests on a
+   * menu swallows the trigger of whatever is holding it.
+   */
+  readonly busy = new Set<Handedness>();
 
   private targets: PointerTarget[] = [];
   private hovered: PointerTarget | null = null;
@@ -94,6 +116,13 @@ export class Pointer {
   }
 
   update(input: XRInput, presenting: boolean): void {
+    if (!this.enabled) {
+      this.setHover(null, null);
+      this.poking.clear();
+      this.rayLine.visible = false;
+      this.cursor.visible = false;
+      return;
+    }
     this.updatePoke(input);
 
     if (presenting) this.updateXrRay(input);
@@ -103,7 +132,7 @@ export class Pointer {
   // --- ray from the right controller -------------------------------------
 
   private updateXrRay(input: XRInput): void {
-    const hand = input.get('right') ?? input.get('left');
+    const hand = this.pointingHand(input);
     if (!hand || !hand.tracked) {
       this.setHover(null, null);
       this.rayLine.visible = false;
@@ -128,6 +157,15 @@ export class Pointer {
     }
   }
 
+  /** The right hand points; a right hand with its fists full hands it over. */
+  private pointingHand(input: XRInput): ControllerState | null {
+    const right = input.get('right');
+    const left = input.get('left');
+    if (right?.tracked && !this.busy.has('right')) return right;
+    if (left?.tracked && !this.busy.has('left')) return left;
+    return null;
+  }
+
   // --- ray from the 2D screen --------------------------------------------
 
   private updateScreenRay(): void {
@@ -150,6 +188,7 @@ export class Pointer {
     let best: { target: PointerTarget; hit: PointerHit } | null = null;
     for (const target of this.targets) {
       if (!target.object.visible) continue;
+      if (target.ignore?.(hand)) continue;
       const intersections = this.raycaster.intersectObject(target.object, true);
       const first = intersections[0];
       if (!first) continue;
@@ -191,6 +230,7 @@ export class Pointer {
 
       for (const target of this.targets) {
         if (target.pokeable === false || !target.object.visible) continue;
+        if (target.ignore?.(controller.handedness)) continue;
         const hit = pokeTest(target.object, _tip, controller.handedness);
         if (!hit) continue;
         active.add(target.object);

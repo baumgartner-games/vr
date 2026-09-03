@@ -420,7 +420,7 @@ export class AdjustTool extends Tool {
       this.marker.visible = false;
       return;
     }
-    _box.setFromObject(object);
+    visibleBox(object, _box);
     if (_box.isEmpty()) {
       this.marker.visible = false;
       return;
@@ -763,8 +763,23 @@ function handLabel(hand: Handedness): string {
 }
 
 /** How far along `_ray` an object's box is, or null when it is not on it. */
+/**
+ * The box around everything that is actually *drawn*. `Box3.setFromObject`
+ * counts hidden children too, and a tool with a closed menu panel hanging
+ * inside it would then be picked at arm's length above itself — the drone's
+ * display is exactly that shape.
+ */
+function visibleBox(object: THREE.Object3D, box: THREE.Box3): THREE.Box3 {
+  box.makeEmpty();
+  object.updateWorldMatrix(true, false);
+  object.traverseVisible((child) => {
+    if ((child as THREE.Mesh).isMesh) box.expandByObject(child);
+  });
+  return box;
+}
+
 function rayBoxDistance(object: THREE.Object3D): number | null {
-  _box.setFromObject(object);
+  visibleBox(object, _box);
   if (_box.isEmpty()) return null;
   // Inside the box counts as a hit at zero — the tip is often already there.
   if (_box.containsPoint(_ray.origin)) return 0;
