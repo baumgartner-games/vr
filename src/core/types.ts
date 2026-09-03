@@ -7,6 +7,7 @@ import type { HandVisuals } from './HandVisuals';
 import type { WristMenu } from '../ui/WristMenu';
 import type { MenuEntry } from '../ui/menu';
 import type { NetSession } from '../net/NetSession';
+import type { RemoteAvatars } from '../net/RemoteAvatars';
 
 /**
  * How a player takes part. The engine detects a sensible default, but worlds
@@ -27,6 +28,8 @@ export interface WorldContext {
   readonly hands: HandVisuals;
   readonly menu: WristMenu;
   readonly net: NetSession;
+  /** The other players' bodies — a world may hang tools into their hands. */
+  readonly avatars: RemoteAvatars;
   readonly role: PlayerRole;
   /** Seconds since the app started. */
   readonly elapsed: number;

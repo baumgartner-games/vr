@@ -11,7 +11,7 @@ import { NetSession } from '../net/NetSession';
 import { RemoteAvatars } from '../net/RemoteAvatars';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTransport';
-import { SpectatorCamera } from '../net/SpectatorCamera';
+import { SpectatorCamera, type SpectatorMode } from '../net/SpectatorCamera';
 import { normalizeRoomCode } from '../net/room';
 import { detectFlatRole } from './device';
 import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
@@ -53,7 +53,7 @@ export class App {
 
   private readonly handVisuals: HandVisuals;
   private readonly avatar: PlayerAvatar;
-  private readonly avatars: RemoteAvatars;
+  readonly avatars: RemoteAvatars;
   private readonly flat: FlatControls;
   private readonly hooks: AppHooks;
 
@@ -141,6 +141,7 @@ export class App {
       hands: this.handVisuals,
       menu: this.wristMenu,
       net: this.net,
+      avatars: this.avatars,
       role: this.role,
       elapsed: this.elapsed,
       goTo: (id: string) => void this.goTo(id),
@@ -217,15 +218,32 @@ export class App {
   disconnect(): void {
     this.net.disconnect();
     this.spectator.setMode('free');
+    this.spectator.setTarget(null);
     this.menuDirty = true;
+  }
+
+  /**
+   * Watch a player — the same call behind the wrist menu and the flat panel.
+   * Somebody standing in another world is followed there first; you cannot
+   * watch a room you are not in.
+   */
+  spectate(peerId: string | null, mode?: SpectatorMode): void {
+    const peer = peerId ? this.net.peers.get(peerId) : null;
+    if (peer && peer.world !== this.net.world) void this.goTo(peer.world);
+
+    this.spectator.setTarget(peerId);
+    if (mode) this.spectator.setMode(mode);
+    else if (peerId && this.spectator.settings.mode === 'free') this.spectator.setMode('third');
+    this.menuDirty = true;
+    this.hooks.onNetChanged?.();
   }
 
   /** The peer the spectator camera follows — an explicit pick, else the first VR player. */
   get spectatorTarget(): Peer | null {
+    const here = [...this.net.peers.values()].filter((peer) => peer.world === this.net.world);
     const wanted = this.spectator.settings.targetId;
-    if (wanted) return this.net.peers.get(wanted) ?? null;
-    for (const peer of this.net.peers.values()) if (peer.role === 'vr') return peer;
-    return this.net.peers.values().next().value ?? null;
+    if (wanted) return here.find((peer) => peer.id === wanted) ?? null;
+    return here.find((peer) => peer.role === 'vr') ?? here[0] ?? null;
   }
 
   toggleMenu(force?: boolean): void {
@@ -291,7 +309,7 @@ export class App {
       run: () => this.selectWorld(world.id),
     }));
 
-    this.wristMenu.setRoot([
+    const root: MenuEntry[] = [
       {
         id: 'worlds',
         label: 'Welten',
@@ -310,21 +328,20 @@ export class App {
         accent: 0x6f7d99,
         run: () => this.wristMenu.toggle(false),
       },
-    ]);
+    ];
+
+    // Rebuilding while the menu is open is normal here: the peer list and the
+    // spectator switches change under the player's nose.
+    if (this.wristMenu.isOpen) this.wristMenu.refreshRoot(root);
+    else this.wristMenu.setRoot(root);
   }
 
   /**
    * The connection as seen from inside the headset: the room code to read out
-   * loud and who is currently in it. Typing happens on the flat page.
+   * loud, who is in it and the same spectator controls the flat panel has.
+   * Typing the code itself still happens on the flat page.
    */
   private networkMenu(): MenuEntry {
-    const peers = [...this.net.peers.values()].map<MenuEntry>((peer) => ({
-      id: `net:peer:${peer.id}`,
-      label: peer.name,
-      sub: `${ROLE_LABELS[peer.role]} · ${findWorld(peer.world)?.title ?? peer.world}`,
-      accent: 0x4aa8ff,
-    }));
-
     const children: MenuEntry[] = this.net.connected
       ? [
           {
@@ -333,9 +350,7 @@ export class App {
             sub: `Raum-Code · ${this.net.statusDetail || this.net.status}`,
             accent: 0x4aa8ff,
           },
-          ...(peers.length
-            ? peers
-            : [{ id: 'net:empty', label: 'Noch alleine', sub: 'Warte auf Mitspieler', accent: 0x6f7d99 }]),
+          this.spectateMenu(),
           {
             id: 'net:leave',
             label: 'Verbindung trennen',
@@ -366,11 +381,102 @@ export class App {
   }
 
   /**
-   * Hands the camera back to the desktop controls. The spectator only moved the
-   * camera inside the rig, so putting it back on the eye point is enough — the
-   * view snaps to wherever the local player is standing.
+   * Pick a player, pick a view. Identical on both sides of the session — in a
+   * headset the view only borrows the other player's position, never their
+   * head rotation, which is what keeps it watchable.
+   */
+  private spectateMenu(): MenuEntry {
+    const settings = this.spectator.settings;
+    const target = this.spectatorTarget;
+    const presenting = this.renderer.xr.isPresenting;
+
+    const players: MenuEntry[] = [...this.net.peers.values()].map((peer) => ({
+      id: `net:peer:${peer.id}`,
+      label: peer.name,
+      sub: `${ROLE_LABELS[peer.role]} · ${findWorld(peer.world)?.title ?? peer.world}`,
+      accent: peer.id === target?.id ? 0x5ee0a0 : 0x4aa8ff,
+      checked: peer.id === target?.id,
+      run: () => this.spectate(settings.targetId === peer.id ? null : peer.id),
+    }));
+
+    if (!players.length) {
+      players.push({
+        id: 'net:empty',
+        label: 'Noch alleine',
+        sub: 'Warte auf Mitspieler',
+        accent: 0x6f7d99,
+      });
+    }
+
+    const mode = (id: SpectatorMode, label: string, sub: string): MenuEntry => ({
+      id: `net:mode:${id}`,
+      label,
+      sub,
+      accent: settings.mode === id ? 0x5ee0a0 : 0x4aa8ff,
+      checked: settings.mode === id,
+      run: () => {
+        this.spectator.setMode(id);
+        this.menuDirty = true;
+        this.hooks.onNetChanged?.();
+      },
+    });
+
+    return {
+      id: 'net:spectate',
+      label: 'Zuschauen',
+      sub: target ? `${target.name} · ${MODE_LABELS[settings.mode]}` : MODE_LABELS[settings.mode],
+      icon: 'worlds',
+      accent: settings.mode === 'free' ? 0x6f7d99 : 0x5ee0a0,
+      children: [
+        {
+          id: 'net:players',
+          label: 'Spieler wählen',
+          sub: target ? target.name : 'Automatisch (erster VR-Spieler)',
+          icon: 'worlds',
+          accent: 0x4aa8ff,
+          children: players,
+        },
+        mode('free', 'Frei', 'Selber laufen'),
+        mode('first', 'First Person', presenting ? 'Auf seiner Position' : 'Durch seine Augen'),
+        mode('third', 'Third Person', 'Von hinten über die Schulter'),
+        {
+          id: 'net:distance',
+          label: `Abstand ${settings.distance.toFixed(1)} m`,
+          sub: 'Weiter weg — nochmal für näher dran',
+          icon: 'settings',
+          accent: 0x4aa8ff,
+          run: () => {
+            const next = settings.distance >= 6 ? 1.2 : settings.distance + 1.2;
+            settings.distance = next;
+            this.menuDirty = true;
+            this.hooks.onNetChanged?.();
+          },
+        },
+        {
+          id: 'net:center',
+          label: 'Ansicht zentrieren',
+          sub: 'Gedrehte Kamera zurücksetzen',
+          icon: 'reset',
+          accent: 0x6f7d99,
+          run: () => this.spectator.recenter(),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Hands the view back to the player. On a flat screen the spectator only
+   * moved the camera inside the rig, so putting it back on the eye point is
+   * enough; in VR the rig itself travelled and the body has to catch up to it.
    */
   private releaseCamera(): void {
+    if (this.renderer.xr.isPresenting) {
+      // The rig was dragged along behind the watched player; put the body back
+      // together where it now stands instead of snapping it home.
+      this.rig.paused = false;
+      this.rig.locomotion.resync?.(this.rig);
+      return;
+    }
     this.camera.position.set(0, this.rig.flatEyeHeight, 0);
     this.camera.rotation.set(0, 0, 0);
     this.flat.syncFromRig();
@@ -393,8 +499,11 @@ export class App {
     this.role = 'vr';
     this.flat.enabled = false;
     this.rig.camera.rotation.set(0, 0, 0);
-    // Watching someone else while wearing a headset is a recipe for nausea.
-    this.spectator.setMode('free');
+    // The camera moved inside the rig while spectating flat; the headset owns
+    // that pose from now on, so hand it back before the session takes over.
+    this.camera.position.set(0, this.rig.flatEyeHeight, 0);
+    this.camera.rotation.set(0, 0, 0);
+    this.spectator.recenter();
     this.net.role = 'vr';
     this.net.announce();
     this.hooks.onSessionChanged?.(true);
@@ -402,6 +511,11 @@ export class App {
 
   private onSessionEnd = (): void => {
     this.role = detectFlatRole();
+    if (this.rig.paused) {
+      // Spectating in VR carried the rig around; the body has to catch up.
+      this.rig.paused = false;
+      this.rig.locomotion.resync?.(this.rig);
+    }
     this.flat.enabled = true;
     this.flat.syncFromRig();
     this.net.role = this.role;
@@ -428,10 +542,18 @@ export class App {
     const context = this.context;
     this.world?.update(dt, context);
 
-    // The spectator borrows the camera after the world had its say, so it can
+    // The spectator borrows the view after the world had its say, so it can
     // follow a player that a portal just moved.
-    const target = presenting ? null : this.spectatorTarget;
-    const following = this.spectator.update(dt, target?.pose ?? null);
+    const target = this.spectatorTarget;
+    // Nobody left to watch — hand the view back instead of freezing it. A
+    // target that is only briefly missing (loading their world) is kept.
+    const wanted = this.spectator.settings.targetId;
+    const reachable = wanted ? this.net.peers.has(wanted) : this.net.peers.size > 0;
+    if (this.spectator.following && !reachable) {
+      this.spectator.setMode('free');
+      this.menuDirty = true;
+    }
+    const following = this.spectator.update(dt, target?.pose ?? null, presenting);
     this.avatars.hiddenPeer =
       following && this.spectator.settings.mode === 'first' ? (target?.id ?? null) : null;
 
@@ -439,15 +561,18 @@ export class App {
 
     if (this.spectating && !this.spectator.following) this.releaseCamera();
     this.spectating = this.spectator.following;
+    // In VR the rig itself is carried around, so freeze walking and gravity
+    // while it is — otherwise the character controller fights the camera.
+    this.rig.paused = this.spectating && presenting;
 
     this.rig.getHeadMatrix(_head);
     _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);
-    this.avatar.update(dt, this.rig, this.input, _headLocal);
+    this.avatar.updateFromRig(dt, this.rig, this.input, _headLocal);
     this.wristMenu.update(dt, this.input, _head);
     this.pointer.update(this.input, presenting);
     this.net.update(dt, this.rig, this.input, this.elapsed);
     this.avatars.update(dt);
-    if (this.menuDirty && !this.wristMenu.isOpen) this.refreshMenu();
+    if (this.menuDirty) this.refreshMenu();
 
     const rendered = this.world?.render?.(context) ?? false;
     if (!rendered) this.renderer.render(this.scene, this.camera);
@@ -458,6 +583,12 @@ const ROLE_LABELS: Record<PlayerRole, string> = {
   vr: 'VR',
   desktop: 'Desktop',
   handheld: 'Handy',
+};
+
+const MODE_LABELS: Record<SpectatorMode, string> = {
+  free: 'Frei',
+  first: 'First Person',
+  third: 'Third Person',
 };
 
 /**

@@ -103,6 +103,30 @@ export class WristMenu extends THREE.Group {
     this.applyPage();
   }
 
+  /**
+   * Swaps in a rebuilt tree without losing the page the player is looking at —
+   * the peer list and the spectator switches change while the menu is open.
+   */
+  refreshRoot(entries: MenuEntry[]): void {
+    this.root = entries;
+    const path = this.stack.slice(1).map((page) => page.id);
+    this.stack = [{ ...this.stack[0]!, entries }];
+
+    let level = entries;
+    for (const id of path) {
+      const entry = level.find((candidate) => candidate.id === id);
+      if (!entry?.children) break;
+      this.stack.push({
+        title: entry.label,
+        entries: entry.children,
+        grid: entry.grid ?? false,
+        id: entry.id,
+      });
+      level = entry.children;
+    }
+    this.applyPage();
+  }
+
   /** Opens the submenu of a root entry, e.g. after using an item from it. */
   openSubmenu(id: string): void {
     const entry = this.root.find((candidate) => candidate.id === id);

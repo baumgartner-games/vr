@@ -156,6 +156,13 @@ export class PhysicsLocomotion implements Locomotion {
     this.grounded = false;
   }
 
+  /** The rig was moved from the outside — put the capsule back under the head. */
+  resync(rig: PlayerRig): void {
+    this.velocity.set(0, 0, 0);
+    this.syncCapsuleToRig(rig, true);
+    this.grounded = false;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;

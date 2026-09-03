@@ -10,6 +10,7 @@ const _mat = new THREE.Matrix4();
 const _scale = new THREE.Vector3();
 const _forward = new THREE.Vector3();
 const _strafe = new THREE.Vector3();
+const _delta = new THREE.Vector3();
 
 /**
  * The player's "room": the camera and all controllers live inside this group,
@@ -24,6 +25,11 @@ export class PlayerRig extends THREE.Group {
   flatEyeHeight = 1.65;
 
   locomotion: Locomotion = new FreeLocomotion();
+  /**
+   * Freezes locomotion and stick input. Set while a spectator view drives the
+   * rig — the player is a camera then, not a body in the world.
+   */
+  paused = false;
 
   private readonly intent = new THREE.Vector3();
   private intentJump = false;
@@ -72,6 +78,17 @@ export class PlayerRig extends THREE.Group {
     // The rig is never scaled, so the inverse's 3x3 part is a plain rotation.
     this.camera.quaternion.setFromRotationMatrix(_mat).multiply(quaternion);
     this.camera.updateMatrixWorld(true);
+  }
+
+  /**
+   * Moves the whole rig so the head ends up at a world position, leaving its
+   * orientation alone. In VR the headset owns the camera pose, so this is the
+   * only way to put a spectating player somewhere else.
+   */
+  setHeadWorldPosition(position: THREE.Vector3): void {
+    this.getHeadPosition(_head);
+    this.position.add(_delta.copy(position).sub(_head));
+    this.updateMatrixWorld(true);
   }
 
   getHeadPosition(target: THREE.Vector3): THREE.Vector3 {
@@ -128,6 +145,12 @@ export class PlayerRig extends THREE.Group {
    * resets the intent for the next frame.
    */
   update(dt: number, input: XRInput, presenting: boolean): void {
+    if (this.paused) {
+      this.intent.set(0, 0, 0);
+      this.intentJump = false;
+      return;
+    }
+
     if (presenting) {
       const left = input.get('left');
       const stick = left?.thumbstick;

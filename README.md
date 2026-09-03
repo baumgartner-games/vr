@@ -24,13 +24,17 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   gehen auch auf Boden und Decke — samt Sturz und Schwung beim Herausfliegen.
 - **Eigener Körper**: Torso, Arme und Beine gibt es, sie werden aber nur in
   Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
-  selbst, wenn man durch ein Portal schaut.
+  selbst, wenn man durch ein Portal schaut. Die anderen Spieler bekommen
+  denselben Körper, samt Namensschild und der Waffe in ihrer Hand.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Peer-to-Peer-Sitzungen** (experimentell): beide Geräte tragen denselben
   Raum-Code ein und sind danach direkt verbunden — ohne eigenen Server.
-- **Zuschauer-Kamera**: der PC/Tablet kann dem VR-Spieler zusehen, wahlweise
-  aus dessen Augen (First Person) oder mit weicher Verfolgung von hinten
-  (Third Person), inklusive Maus-Drag zum Drehen.
+- **Geteilte Welt**: Portale, Würfel und Dominos sind bei allen dieselben —
+  wer schießt, wirft oder etwas aus dem Beutel holt, tut das für alle.
+- **Zuschauer-Kamera**: Spieler auswählen und zusehen, aus dessen Augen
+  (First Person) oder mit weicher Verfolgung von hinten (Third Person). Am PC
+  im Panel unter *Zuschauen*, in VR unter **Menü → Verbindung → Zuschauen** —
+  beide Seiten haben dieselben Möglichkeiten.
 
 ## Entwicklung
 
@@ -70,8 +74,9 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Weitergeben | mit der freien Hand danach greifen | – | – |
 | Fernangeln (optional) | zielen, Grip halten, Hand zurückreißen | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
-| Zuschauer-Kamera drehen | – | ziehen mit der Maus | wischen |
-| Zuschauer-Abstand | – | Mausrad oder Regler | Regler |
+| Zuschauen | Menü → Verbindung → Zuschauen | Panel *Verbindung* → *Zuschauen* | dito |
+| Zuschauer-Kamera drehen | – (Kopf bleibt deiner) | ziehen mit der Maus | wischen |
+| Zuschauer-Abstand | Menüeintrag *Abstand* | Mausrad oder Regler | Regler |
 
 **Handgesten** (mit Controllern): Grip = Pistolenhand — damit lassen sich
 Dominosteine antippen. Grip + Trigger = Daumen hoch. Kommt etwas Greifbares in
@@ -100,7 +105,8 @@ src/
   ui/        Canvas-basierte 3D-UI (Panel, Textflächen, Handgelenk-Menü)
   net/       Transport-Interface, WebRTC/BroadcastChannel, Presence, Avatare,
              Zuschauer-Kamera
-  worlds/    Weltenregistry + je eine Welt pro Ordner
+  worlds/    Weltenregistry + je eine Welt pro Ordner (inkl. `PortalSync`,
+             dem geteilten Zustand des Portal Labors)
 ```
 
 Wie sich der Spieler bewegt, entscheidet ein austauschbares `Locomotion`:
@@ -187,17 +193,47 @@ VITE_TURN_URL=turn:example.org:3478 VITE_TURN_USER=user VITE_TURN_CREDENTIAL=sec
 Zum Entwickeln ohne Netz reicht `?net=local`: dann übernimmt
 `BroadcastChannelTransport` und zwei Tabs im selben Browser bilden eine Session.
 
+### Die Welt teilen: Objekte und Portale
+
+Ein Raum, ein Zustand. `PortalSync` (`worlds/portal/PortalSync.ts`) hält Props
+und Portale auf allen Geräten gleich und hängt am freien Nachrichten-Kanal von
+`NetSession` — die Engine selbst weiß davon nichts.
+
+- **Wer rechnet?** Der Spieler mit der kleinsten Peer-ID. Das kann jeder für
+  sich ausrechnen, es braucht keine Wahl und keinen Server. Er simuliert die
+  Physik und streamt die Transformationen mit 20 Hz; bei allen anderen sind
+  dieselben Körper kinematisch und laufen der empfangenen Pose weich hinterher.
+  Geht er, übernimmt der Nächste in der Reihe — mitten im Spiel.
+- **Wer anfasst, besitzt.** Greift eine Hand einen Würfel, beansprucht sie ihn
+  (`own`) und streamt ihn selbst. Sonst würde ein getragener Würfel dauernd
+  zwischen Hand und Simulation hin- und herspringen. Beim Loslassen geht er
+  zurück, samt Wurfgeschwindigkeit, damit der Bogen nicht am Handgelenk endet.
+- **Portale** gehören niemandem: Wer trifft, schickt die Pose, alle setzen sie.
+- **Beutel und Reset** laufen als eigene Nachrichten; wer neu dazukommt, fragt
+  einmal nach dem kompletten Stand (`hello` → `state`), und der rechnende
+  Spieler wiederholt ihn zur Sicherheit alle zwei Sekunden.
+- **Körper mit Wirkung**: jeder Mitspieler bekommt im Portal Labor eine
+  kinematische Kiste unter dem Kopf und zwei an den Händen. Dadurch stößt er
+  beim Vorbeilaufen wirklich Dominos um, statt durch sie hindurchzugehen.
+
+Was du davon siehst: den vollen Körper des anderen, sein Namensschild, die
+Portal-Waffe in seiner Hand und ein Leuchten an dem Objekt, das er gerade hält.
+
 ### Zuschauen: First und Third Person
 
-Ist ein VR-Spieler im Raum, kann der PC im Panel unter *Kamera* umschalten:
+Unter *Zuschauen* — am PC im Panel, in VR unter **Menü → Verbindung** — wählst
+du erst einen Spieler und dann die Ansicht:
 
-- **Frei** — die normale Desktop-Steuerung, eigene Kamera.
-- **First Person** — die Kamera sitzt exakt im Kopf des VR-Spielers. Der eigene
+- **Frei** — die normale Steuerung, eigene Kamera.
+- **First Person** — die Kamera sitzt im Kopf des Spielers. Der eigene
   Avatar wird für die anderen ausgeblendet (man steckt ja in deren Kopf), und
-  der Kopf des Beobachteten wird lokal nicht gezeichnet.
+  vom Beobachteten bleiben lokal nur die Hände sichtbar.
 - **Third Person** — die Kamera schwebt hinter dem Spieler. Sie bleibt immer
   waagerecht; nur die Drehung zieht weich nach, damit das Bild nicht bei jedem
   Kopfruck mitzuckt.
+
+Steht der gewählte Spieler in einer anderen Welt, wechselst du automatisch
+dorthin. Verlässt er die Sitzung, fällt die Kamera auf *Frei* zurück.
 
 Der Regler **Kamera-Glättung** bestimmt, wie träge das passiert: ganz links
 folgt die Kamera 1:1, ganz rechts schwenkt sie deutlich verzögert nach. In First
@@ -208,17 +244,27 @@ Ziehen mit Maus oder Finger dreht die Kamera zusätzlich — in Third Person orb
 sie um den Spieler, in First Person schaut man sich aus dessen Kopf um. Das
 Mausrad ändert den Abstand, *Ansicht zentrieren* setzt den Drag zurück.
 
+**Im Headset** gibt es dieselben Optionen, aber mit einem Unterschied: übernommen
+wird nur die *Position* des anderen Spielers, nie seine Blickrichtung. Genau das
+Umdrehen des Kopfes ohne eigenes Zutun macht in VR übel. Man wird also
+mitgetragen und schaut sich dabei frei um. Solange das läuft, ist die eigene
+Fortbewegung eingefroren (`PlayerRig.paused`); beim Zurückschalten auf *Frei*
+holt die Physik-Kapsel den Körper wieder ein.
+
 Technisch: `NetSession` verschickt Posen mit 20 Hz, `SmoothPose` zieht dazwischen
-exponentiell nach (dieselbe Glättung nutzen auch die `RemoteAvatars`), und
-`SpectatorCamera` setzt daraus die Kamera per `PlayerRig.setHeadWorldPose()` —
-der eigene Rig bleibt dabei stehen, es wandert nur die Kamera darin.
+exponentiell nach (dieselbe Glättung nutzen auch die `RemoteAvatars`). Flach
+setzt `SpectatorCamera` daraus die Kamera per `PlayerRig.setHeadWorldPose()` —
+der eigene Rig bleibt stehen, es wandert nur die Kamera darin. In VR gehört die
+Kamera dem Headset, deshalb wandert dort per `setHeadWorldPosition()` der Rig.
 
 ### Asymmetrisches Spielen
 
 `PlayerRole` unterscheidet `vr`, `desktop` und `handheld`; jede Welt gibt in der
 Registry an, welche Rollen sie unterstützt. `NetSession` kümmert sich um
 Presence, Pose-Sync und freie Nachrichten-Kanäle für Welten-Events,
-`RemoteAvatars` zeichnet die anderen Spieler. Welten sehen nie, welcher
+`RemoteAvatars` zeichnet die anderen Spieler mit demselben `AvatarBody`, den
+auch der eigene Körper benutzt — Kopf plus zwei Hände reichen als Eingabe, mehr
+weiß ein Headset über seinen Träger nicht. Welten sehen nie, welcher
 Transport darunter liegt — ein WebSocket-Transport ließe sich ohne Änderung an
 den Welten ergänzen, er muss nur `NetTransport` implementieren.
 

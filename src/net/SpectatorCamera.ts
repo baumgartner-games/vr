@@ -85,6 +85,15 @@ export class SpectatorCamera {
     return this.settings.mode !== 'free';
   }
 
+  /** Peer the camera follows, or null for "the first VR player that shows up". */
+  setTarget(id: string | null): void {
+    if (this.settings.targetId === id) return;
+    this.settings.targetId = id;
+    this.head.reset();
+    this.followYawPrimed = false;
+    this.onChange?.();
+  }
+
   setMode(mode: SpectatorMode): void {
     if (mode === this.settings.mode) return;
     this.settings.mode = mode;
@@ -104,10 +113,11 @@ export class SpectatorCamera {
   }
 
   /**
-   * @param pose the watched player's latest pose, or null if there is none
+   * @param pose       the watched player's latest pose, or null if there is none
+   * @param presenting the local player wears a headset
    * @returns true when the camera was taken over this frame
    */
-  update(dt: number, pose: PeerPose | null): boolean {
+  update(dt: number, pose: PeerPose | null, presenting = false): boolean {
     if (!this.following) return false;
     if (pose) this.head.setTarget(pose.head);
     if (!this.head.primed) return false;
@@ -120,10 +130,11 @@ export class SpectatorCamera {
 
     if (this.settings.mode === 'first') {
       this.head.update(dt, positionTau * 0.35, rotationTau * 0.5);
-      this.applyFirstPerson();
+      if (presenting) this.applyPosition(this.head.position);
+      else this.applyFirstPerson();
     } else {
       this.head.update(dt, positionTau, rotationTau);
-      this.applyThirdPerson(dt, rotationTau);
+      this.applyThirdPerson(dt, rotationTau, presenting);
     }
     return true;
   }
@@ -145,7 +156,16 @@ export class SpectatorCamera {
     this.rig.setHeadWorldPose(this.head.position, _quaternion);
   }
 
-  private applyThirdPerson(dt: number, rotationTau: number): void {
+  /**
+   * In VR only the position may be borrowed: the headset owns the view
+   * direction, and taking that away is what makes spectating sickening. The
+   * player is simply carried along and keeps looking around freely.
+   */
+  private applyPosition(position: THREE.Vector3): void {
+    this.rig.setHeadWorldPosition(position);
+  }
+
+  private applyThirdPerson(dt: number, rotationTau: number, presenting = false): void {
     _forward.set(0, 0, -1).applyQuaternion(this.head.quaternion);
     const targetYaw = Math.atan2(-_forward.x, -_forward.z);
     if (!this.followYawPrimed) {
@@ -164,7 +184,8 @@ export class SpectatorCamera {
     _position.copy(this.head.position).addScaledVector(UP, 0.15);
     _forward.set(0, 0, -1).applyQuaternion(_quaternion);
     _position.addScaledVector(_forward, -this.settings.distance);
-    this.rig.setHeadWorldPose(_position, _quaternion);
+    if (presenting) this.applyPosition(_position);
+    else this.rig.setHeadWorldPose(_position, _quaternion);
   }
 
   // --- input ----------------------------------------------------------------

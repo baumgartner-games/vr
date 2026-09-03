@@ -3,6 +3,7 @@ import type { World, WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 import { Portal, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH } from './Portal';
+import { PortalSync, type HandBusy, type Pose7, type PortalKey, type PropKind } from './PortalSync';
 import { PortalRenderer } from './PortalRenderer';
 import { PortalGun } from './PortalGun';
 import { createCompanionCube, createDominoes, DOMINO_SIZE } from './props';
@@ -11,6 +12,7 @@ import { createLighting, disposeTree } from '../shared/environment';
 import {
   ALL_GROUPS,
   GROUP_HAND,
+  GROUP_PLAYER,
   GROUP_PORTAL_SURFACE,
   GROUP_PROP,
   GROUP_WORLD,
@@ -83,6 +85,14 @@ interface Flight {
   time: number;
 }
 
+/** Physics stand-in for another player, so their body can shove props around. */
+interface RemotePlayer {
+  torso: THREE.Object3D;
+  capsule: PhysicsBody;
+  hands: [PhysicsBody, PhysicsBody];
+  handObjects: [THREE.Object3D, THREE.Object3D];
+}
+
 interface HandGrab {
   entry: PhysicsBody;
   /** Pose of the prop relative to the hand at pick-up time. */
@@ -112,6 +122,16 @@ export class PortalWorld implements World {
   private readonly spawned = new Set<PhysicsBody>();
   private readonly motions = new Map<Handedness, HandMotion>();
   private readonly flights = new Map<PhysicsBody, Flight>();
+  /** Shared id of every prop, in both directions. */
+  private readonly bodies = new Map<string, PhysicsBody>();
+  private readonly ids = new Map<PhysicsBody, string>();
+  /** Only props out of the bag; the fixture props exist on every machine. */
+  private readonly kinds = new Map<string, PropKind>();
+  private readonly remotePlayers = new Map<string, RemotePlayer>();
+  private readonly remoteGuns = new Map<string, PortalGun>();
+  private readonly remoteHands = new Map<string, { left: HandBusy; right: HandBusy }>();
+  /** Props another player is holding — they glow, so you can see the handover. */
+  private remoteBusy = new Set<PhysicsBody>();
   /** Setting: pull distant objects towards you with a flick of the wrist. */
   private remoteGrab = false;
   private highlighted = new Set<PhysicsBody>();
@@ -119,6 +139,7 @@ export class PortalWorld implements World {
   private readonly previousHead = new THREE.Vector3();
 
   private physics: PhysicsWorld | null = null;
+  private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   private context: WorldContext | null = null;
   private portalRenderer: PortalRenderer | null = null;
@@ -140,6 +161,7 @@ export class PortalWorld implements World {
     this.physics = await PhysicsWorld.create();
     this.buildChamber();
     this.buildProps();
+    this.sync = this.createSync(ctx);
 
     this.portalBlue.link = this.portalRed;
     this.portalRed.link = this.portalBlue;
@@ -172,6 +194,10 @@ export class PortalWorld implements World {
     this.handleFiring(ctx);
 
     this.locomotion.phasing = this.playerInFunnel();
+
+    this.updateRemotePlayers(ctx);
+    this.reportHands();
+    this.sync?.update(dt);
 
     this.updatePropPhasing();
     this.physics.step(dt);
@@ -285,6 +311,10 @@ export class PortalWorld implements World {
     this.flatKeys = null;
     this.blockContextMenu = null;
 
+    this.sync?.dispose();
+    this.sync = null;
+    this.clearRemotePlayers(ctx);
+
     for (const slot of this.slots) slot.gun.dispose();
     this.slots.length = 0;
     this.grabs.clear();
@@ -310,6 +340,9 @@ export class PortalWorld implements World {
 
     this.flights.clear();
     this.motions.clear();
+    this.bodies.clear();
+    this.ids.clear();
+    this.kinds.clear();
     disposeTree(this.root);
     ctx.scene.background = null;
     this.physics?.dispose();
@@ -433,12 +466,15 @@ export class PortalWorld implements World {
     const cube = createCompanionCube(0.5);
     cube.position.set(-5.4, 1.9, -5.4);
     this.root.add(cube);
-    this.registerProp(physics.addDynamic(cube, { mass: 8, friction: 0.8, restitution: 0.1 }));
+    this.registerProp(physics.addDynamic(cube, { mass: 8, friction: 0.8, restitution: 0.1 }), 'cube-0');
 
     const second = createCompanionCube(0.4);
     second.position.set(1.8, 0.3, 2.2);
     this.root.add(second);
-    this.registerProp(physics.addDynamic(second, { mass: 5, friction: 0.8, restitution: 0.1 }));
+    this.registerProp(
+      physics.addDynamic(second, { mass: 5, friction: 0.8, restitution: 0.1 }),
+      'cube-1',
+    );
 
     const dominoes = createDominoes(16, COLOR_BLUE);
     dominoes.forEach((domino, index) => {
@@ -452,14 +488,31 @@ export class PortalWorld implements World {
           angularDamping: 0.25,
           ccd: true,
         }),
+        `domino-${index}`,
       );
     });
   }
 
-  private registerProp(entry: PhysicsBody): void {
+  /**
+   * The fixture props are built the same way on every machine, so a fixed id
+   * is enough to talk about them. Conjured ones carry the id of their creator.
+   */
+  private registerProp(entry: PhysicsBody, id: string): void {
     entry.object.updateWorldMatrix(true, false);
     this.spawns.set(entry, entry.object.matrixWorld.clone());
     this.props.push(entry);
+    this.bodies.set(id, entry);
+    this.ids.set(entry, id);
+  }
+
+  private idOf(entry: PhysicsBody): string | null {
+    return this.ids.get(entry) ?? null;
+  }
+
+  /** False while another player's copy of the simulation owns this prop. */
+  private drives(entry: PhysicsBody): boolean {
+    const id = this.idOf(entry);
+    return !id || !this.sync || this.sync.drives(id);
   }
 
   // --- guns on the belt ---------------------------------------------------
@@ -759,6 +812,8 @@ export class PortalWorld implements World {
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
     entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.flights.set(entry, { hand, time: 0 });
+    const id = this.idOf(entry);
+    if (id) this.sync?.claim(id);
   }
 
   private updateFlights(dt: number, ctx: WorldContext): void {
@@ -774,6 +829,11 @@ export class PortalWorld implements World {
       if (!holding || flight.time > 2.5 || this.grabs.has(flight.hand)) {
         this.flights.delete(entry);
         physics.setCarried(entry, false);
+        const id = this.idOf(entry);
+        if (id) {
+          const linear = entry.body.linvel();
+          this.sync?.release(id, _velocity.set(linear.x, linear.y, linear.z));
+        }
         continue;
       }
 
@@ -816,6 +876,9 @@ export class PortalWorld implements World {
       lastPosition: _point.clone(),
       velocity: new THREE.Vector3(),
     });
+
+    const id = this.idOf(entry);
+    if (id) this.sync?.claim(id);
   }
 
   private release(ctx: WorldContext, hand: Handedness, grab: HandGrab, drop: boolean): void {
@@ -827,6 +890,10 @@ export class PortalWorld implements World {
     grab.entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
     const thrown = grab.velocity.clampLength(0, 9);
     grab.entry.body.setLinvel({ x: thrown.x, y: thrown.y, z: thrown.z }, true);
+
+    // Whoever simulates picks the throw up from here.
+    const id = this.idOf(grab.entry);
+    if (id) this.sync?.release(id, thrown);
 
     if (this.reopenBag && this.spawned.has(grab.entry)) {
       this.reopenBag = false;
@@ -858,8 +925,9 @@ export class PortalWorld implements World {
     return best;
   }
 
-  /** Glow on everything a hand could grab right now. */
+  /** Glow on everything a hand could grab right now — yours or somebody else's. */
   private updateHighlights(reachable: Set<PhysicsBody>): void {
+    for (const entry of this.remoteBusy) reachable.add(entry);
     for (const entry of this.highlighted) {
       if (!reachable.has(entry)) setEmissive(entry, false);
     }
@@ -888,11 +956,9 @@ export class PortalWorld implements World {
   }
 
   /** Conjures a new prop straight into the hand that picked it from the bag. */
-  private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: 'cube' | 'domino'): void {
-    const physics = this.physics;
-    if (!physics) return;
+  private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: PropKind): void {
+    if (!this.physics) return;
 
-    const mesh = kind === 'cube' ? createCompanionCube(0.32) : createDominoes(1, COLOR_RED)[0]!;
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked
       ? controller.grip.visible
@@ -907,19 +973,10 @@ export class PortalWorld implements World {
       ctx.rig.getHeadForward(_direction);
       _point.addScaledVector(_direction, 0.7);
     }
-    mesh.position.copy(_point);
-    this.root.add(mesh);
-    mesh.updateWorldMatrix(true, false);
 
-    const entry = physics.addDynamic(mesh, {
-      mass: kind === 'cube' ? 4 : 0.35,
-      friction: 0.7,
-      restitution: 0.05,
-      ccd: kind === 'domino',
-    });
-    entry.previousPosition.copy(_point);
-    this.props.push(entry);
-    this.spawned.add(entry);
+    const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
+    const entry = this.createProp(id, kind, _point, null);
+    this.sync?.spawned(id, kind, poseOf(entry));
 
     ctx.menu.toggle(false);
     if (hand && anchor) {
@@ -931,11 +988,46 @@ export class PortalWorld implements World {
     ctx.notify(kind === 'cube' ? 'Companion Cube' : 'Domino');
   }
 
+  /** Builds a bag prop — locally conjured or mirrored from another player. */
+  private createProp(
+    id: string,
+    kind: PropKind,
+    position: THREE.Vector3,
+    quaternion: THREE.Quaternion | null,
+  ): PhysicsBody {
+    const physics = this.physics!;
+    const mesh = kind === 'cube' ? createCompanionCube(0.32) : createDominoes(1, COLOR_RED)[0]!;
+    mesh.position.copy(position);
+    if (quaternion) mesh.quaternion.copy(quaternion);
+    this.root.add(mesh);
+    mesh.updateWorldMatrix(true, false);
+
+    const entry = physics.addDynamic(mesh, {
+      mass: kind === 'cube' ? 4 : 0.35,
+      friction: 0.7,
+      restitution: 0.05,
+      ccd: kind === 'domino',
+    });
+    entry.previousPosition.copy(position);
+    this.props.push(entry);
+    this.spawned.add(entry);
+    this.bodies.set(id, entry);
+    this.ids.set(entry, id);
+    this.kinds.set(id, kind);
+    return entry;
+  }
+
   /** Removes everything that came out of the bag again. */
   private clearSpawned(): void {
     const physics = this.physics;
     if (!physics) return;
     for (const entry of [...this.spawned]) {
+      const id = this.idOf(entry);
+      if (id) {
+        this.bodies.delete(id);
+        this.kinds.delete(id);
+        this.ids.delete(entry);
+      }
       for (const [hand, grab] of [...this.grabs]) {
         if (grab.entry === entry) this.grabs.delete(hand);
       }
@@ -1039,6 +1131,7 @@ export class PortalWorld implements World {
     }
 
     slot.portal.place(hit.point, hit.normal, _placeUp);
+    this.sync?.portalChanged(slot.portal.key, this.portalPose(slot.portal.key));
     ctx.notify(slot.portal === this.portalBlue ? 'Blaues Portal' : 'Rotes Portal');
   }
 
@@ -1113,6 +1206,8 @@ export class PortalWorld implements World {
     const grabbed = new Set([...this.grabs.values()].map((grab) => grab.entry));
     for (const entry of this.props) {
       if (grabbed.has(entry)) continue;
+      // Props another player simulates arrive already on the other side.
+      if (!this.drives(entry)) continue;
       const t = entry.body.translation();
       _point.set(t.x, t.y, t.z);
 
@@ -1157,6 +1252,11 @@ export class PortalWorld implements World {
   }
 
   private traversePlayer(ctx: WorldContext): void {
+    // A spectating player is a camera, not a body — portals must not grab them.
+    if (ctx.rig.paused) {
+      this.hasPreviousHead = false;
+      return;
+    }
     ctx.rig.getHeadPosition(_head);
 
     if (this.hasPreviousHead) {
@@ -1194,13 +1294,238 @@ export class PortalWorld implements World {
   }
 
   private resetWorld(ctx: WorldContext): void {
+    this.resetShared();
+    this.sync?.resetShared();
+    ctx.notify('Labor zurückgesetzt');
+  }
+
+  /** The reset itself, without telling anybody — used by both ends. */
+  private resetShared(): void {
     this.portalBlue.reset();
     this.portalRed.reset();
     for (const entry of this.flights.keys()) this.physics?.setCarried(entry, false);
     this.flights.clear();
     this.clearSpawned();
     for (const entry of this.props) this.respawn(entry);
-    ctx.notify('Labor zurückgesetzt');
+  }
+
+  // --- shared session -----------------------------------------------------
+
+  /**
+   * Everything in this room belongs to everybody: the two portals, the props
+   * on the floor and whatever comes out of the bag. `PortalSync` moves the
+   * state around, this wires it to the actual objects.
+   */
+  private createSync(ctx: WorldContext): PortalSync {
+    return new PortalSync({
+      net: ctx.net,
+      physics: this.physics!,
+      bodies: this.bodies,
+      heldLocally: (id) => {
+        const entry = this.bodies.get(id);
+        return !!entry && (this.handHolding(entry) !== null || this.flights.has(entry));
+      },
+      dropLocal: (id) => {
+        const entry = this.bodies.get(id);
+        if (!entry) return;
+        for (const [hand, grab] of [...this.grabs]) {
+          if (grab.entry === entry) this.grabs.delete(hand);
+        }
+        this.flights.delete(entry);
+        this.physics?.setCarried(entry, false);
+      },
+      spawnRemote: (id, kind, pose) => {
+        _point.set(pose[0], pose[1], pose[2]);
+        _quaternion.set(pose[3], pose[4], pose[5], pose[6]);
+        this.createProp(id, kind, _point, _quaternion);
+      },
+      applyPortal: (key, pose) => this.applyPortal(key, pose),
+      portalPose: (key) => this.portalPose(key),
+      spawnedProps: () =>
+        [...this.spawned].flatMap((entry) => {
+          const id = this.idOf(entry);
+          const kind = id ? this.kinds.get(id) : undefined;
+          return id && kind ? [{ id, kind }] : [];
+        }),
+      resetRemote: () => this.resetShared(),
+      onHands: (peerId, left, right) => this.remoteHands.set(peerId, { left, right }),
+    });
+  }
+
+  private portalOf(key: PortalKey): Portal {
+    return key === 'a' ? this.portalBlue : this.portalRed;
+  }
+
+  private portalPose(key: PortalKey): Pose7 | null {
+    const portal = this.portalOf(key);
+    if (!portal.placed) return null;
+    const p = portal.position;
+    const q = portal.quaternion;
+    return [p.x, p.y, p.z, q.x, q.y, q.z, q.w];
+  }
+
+  private applyPortal(key: PortalKey, pose: Pose7 | null): void {
+    const portal = this.portalOf(key);
+    if (!pose) {
+      portal.reset();
+      return;
+    }
+    portal.setPose(
+      _point.set(pose[0], pose[1], pose[2]),
+      _quaternion.set(pose[3], pose[4], pose[5], pose[6]),
+    );
+  }
+
+  // --- the other players in the room --------------------------------------
+
+  /**
+   * Gives every other player a body the simulation can feel and a portal gun
+   * you can watch them aim with. Their pose comes from the shared avatars, so
+   * hands and props line up with what the network already draws.
+   */
+  private updateRemotePlayers(ctx: WorldContext): void {
+    const physics = this.physics;
+    if (!physics) return;
+
+    for (const [id, player] of [...this.remotePlayers]) {
+      const peer = ctx.net.peers.get(id);
+      if (!peer || peer.world !== ctx.net.world) this.dropRemotePlayer(ctx, id, player);
+    }
+    for (const id of [...this.remoteHands.keys()]) {
+      if (!ctx.net.peers.has(id)) this.remoteHands.delete(id);
+    }
+
+    const busy = new Set<PhysicsBody>();
+
+    for (const peer of ctx.net.peers.values()) {
+      if (peer.world !== ctx.net.world) continue;
+      if (!ctx.avatars.getHeadPose(peer.id, _head)) continue;
+
+      const player = this.remotePlayers.get(peer.id) ?? this.createRemotePlayer(peer.id);
+      const height = Math.max(_head.y, 0.9);
+      // The capsule stand-in is a box under the head — close enough to shove a
+      // domino over, and nothing here is precise about shoulders anyway.
+      player.capsule.body.setNextKinematicTranslation({
+        x: _head.x,
+        y: Math.max(height / 2, 0.2),
+        z: _head.z,
+      });
+
+      const hands = this.remoteHands.get(peer.id);
+      for (const [index, side] of (['left', 'right'] as const).entries()) {
+        const tracked = ctx.avatars.getHandPose(peer.id, side, _hand);
+        player.hands[index]!.body.setNextKinematicTranslation(
+          tracked ? { x: _hand.x, y: _hand.y, z: _hand.z } : { x: 0, y: -60, z: 0 },
+        );
+        this.updateRemoteGun(ctx, peer.id, side, tracked ? (hands?.[side] ?? null) : null);
+      }
+
+      for (const state of [hands?.left, hands?.right]) {
+        if (!state || !('grab' in state)) continue;
+        const entry = this.bodies.get(state.grab);
+        if (entry) busy.add(entry);
+      }
+    }
+
+    // Highlighting is done in one place; this only records what to add.
+    this.remoteBusy = busy;
+  }
+
+  private createRemotePlayer(id: string): RemotePlayer {
+    const physics = this.physics!;
+    const torso = new THREE.Object3D();
+    torso.position.set(0, -60, 0);
+    this.root.add(torso);
+    const capsule = physics.addKinematic(torso, {
+      halfExtents: new THREE.Vector3(0.22, 0.8, 0.22),
+      membership: GROUP_PLAYER,
+      filter: ALL_GROUPS,
+    });
+
+    const handObjects: THREE.Object3D[] = [];
+    const hands: PhysicsBody[] = [];
+    for (let i = 0; i < 2; i++) {
+      const object = new THREE.Object3D();
+      object.position.set(0, -60, 0);
+      this.root.add(object);
+      handObjects.push(object);
+      hands.push(
+        physics.addKinematic(object, {
+          halfExtents: new THREE.Vector3(0.05, 0.05, 0.05),
+          membership: GROUP_HAND,
+          filter: GROUP_PROP,
+        }),
+      );
+    }
+
+    const player: RemotePlayer = {
+      torso,
+      capsule,
+      hands: [hands[0]!, hands[1]!],
+      handObjects: [handObjects[0]!, handObjects[1]!],
+    };
+    this.remotePlayers.set(id, player);
+    return player;
+  }
+
+  private dropRemotePlayer(ctx: WorldContext, id: string, player: RemotePlayer): void {
+    this.physics?.remove(player.capsule);
+    for (const hand of player.hands) this.physics?.remove(hand);
+    player.torso.removeFromParent();
+    for (const object of player.handObjects) object.removeFromParent();
+    this.remotePlayers.delete(id);
+    for (const side of ['left', 'right'] as const) this.updateRemoteGun(ctx, id, side, null);
+  }
+
+  private clearRemotePlayers(ctx: WorldContext): void {
+    for (const [id, player] of [...this.remotePlayers]) this.dropRemotePlayer(ctx, id, player);
+    this.remoteHands.clear();
+    for (const gun of this.remoteGuns.values()) gun.dispose();
+    this.remoteGuns.clear();
+    this.remoteBusy = new Set();
+  }
+
+  /** Shows (or hides) the portal gun another player is carrying. */
+  private updateRemoteGun(
+    ctx: WorldContext,
+    peerId: string,
+    side: Handedness,
+    state: HandBusy,
+  ): void {
+    const key = `${peerId}:${side}`;
+    const wanted = state && 'gun' in state ? state.gun : null;
+    const existing = this.remoteGuns.get(key);
+
+    if (!wanted) {
+      if (!existing) return;
+      ctx.avatars.setAttachment(peerId, side, null);
+      existing.dispose();
+      this.remoteGuns.delete(key);
+      return;
+    }
+    if (existing?.key === wanted) return;
+
+    if (existing) {
+      ctx.avatars.setAttachment(peerId, side, null);
+      existing.dispose();
+    }
+    const gun = new PortalGun(wanted, wanted === 'a' ? COLOR_BLUE : COLOR_RED);
+    gun.position.set(0, -0.012, 0.03);
+    this.remoteGuns.set(key, gun);
+    ctx.avatars.setAttachment(peerId, side, gun);
+  }
+
+  /** Tells the others what the local hands are up to. */
+  private reportHands(): void {
+    this.sync?.setHands(this.handBusy('left'), this.handBusy('right'));
+  }
+
+  private handBusy(hand: Handedness): HandBusy {
+    const slot = this.gunHeldBy(hand);
+    if (slot) return { gun: slot.gun.key };
+    const grab = this.grabs.get(hand);
+    const id = grab ? this.idOf(grab.entry) : null;
+    return id ? { grab: id } : null;
   }
 
   // --- surface helpers ----------------------------------------------------
@@ -1270,6 +1595,13 @@ function orientToSurface(object: THREE.Object3D, normal: THREE.Vector3, up: THRE
   _up.crossVectors(normal, _right).normalize();
   _matrix.makeBasis(_right, _up, normal);
   object.quaternion.setFromRotationMatrix(_matrix);
+}
+
+/** A body's transform, flattened the way the network wants it. */
+function poseOf(entry: PhysicsBody): Pose7 {
+  const t = entry.body.translation();
+  const r = entry.body.rotation();
+  return [t.x, t.y, t.z, r.x, r.y, r.z, r.w];
 }
 
 /** Highlight for props that are within grabbing distance. */
