@@ -1,5 +1,11 @@
 import type { Tool } from './Tool';
-import type { HoldPose } from './toolPose';
+import {
+  poseFromReadout,
+  readPose,
+  readoutFromArray,
+  readoutToArray,
+  type HoldPose,
+} from './toolPose';
 
 /**
  * Hold poses the player measured with the adjustment tool, kept in the
@@ -61,4 +67,31 @@ export function clearPoses(): void {
 /** How many tools currently carry a measured pose. */
 export function storedPoseCount(): number {
   return Object.keys(read()).length;
+}
+
+/**
+ * Every measured pose as the six readable numbers, for the config code.
+ *
+ * The quaternion above is what the tool needs; `[x, y, z, pitch, yaw, roll]`
+ * is what a person can read out over a call and type in again — and it is a
+ * third of the characters, which matters for a code that gets spoken.
+ */
+export function holdPoseSnapshot(): Record<string, number[]> {
+  const out: Record<string, number[]> = {};
+  for (const [id, pose] of Object.entries(read())) out[id] = readoutToArray(readPose(pose));
+  return out;
+}
+
+/** Puts a set of poses from a config code back into the store. */
+export function saveHoldPoses(poses: Record<string, number[]>): void {
+  const all: Stored = {};
+  for (const [id, values] of Object.entries(poses)) {
+    all[id] = poseFromReadout(readoutFromArray(values));
+  }
+  write(all);
+}
+
+/** The pose stored for one tool, in readable numbers. */
+export function storedPose(toolId: string): HoldPose | null {
+  return read()[toolId] ?? null;
 }

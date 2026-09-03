@@ -377,6 +377,15 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       drawMenuIcon(ctx, entry.icon, x + CELL_W / 2, y + CELL_W / 2, CELL_W * 0.52, accent);
     }
 
+    // A grid can be a choice as well as a shelf — then one cell is the one
+    // that is on, and a dot in the corner says which.
+    if (entry.selected) {
+      ctx.beginPath();
+      ctx.arc(x + CELL_W - 18, y + 18, 7, 0, Math.PI * 2);
+      ctx.fillStyle = accent;
+      ctx.fill();
+    }
+
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 24px system-ui, sans-serif';

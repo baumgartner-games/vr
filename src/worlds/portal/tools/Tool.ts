@@ -5,6 +5,7 @@ import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
 import type { PhysicsBody, PhysicsWorld } from '../../../physics/PhysicsWorld';
 import type { PortalKey } from '../PortalSync';
+import type { Attachment } from './attachments';
 
 /** Where a ray met a wall, floor or ceiling. */
 export interface SurfaceHit {
@@ -77,6 +78,8 @@ export interface ToolHost {
 export interface BulletOptions {
   /** Kilograms. Heavier rounds shove more and drop faster. */
   mass?: number;
+  /** Tracer: glows and draws the line it flew, so a shot can be watched. */
+  tracer?: boolean;
 }
 
 /** Two props, the points the joint sits between them, and what kind it is. */
@@ -154,6 +157,15 @@ export abstract class Tool extends THREE.Group {
    */
   readonly factoryPosition = new THREE.Vector3();
   readonly factoryRotation = new THREE.Quaternion();
+
+  /**
+   * Things clipped onto this tool that carry a pose of their own — the sights
+   * on the pistol. The adjustment tool can pick one out and move it, so it
+   * asks every tool rather than knowing which ones have any.
+   */
+  attachments(): readonly Attachment[] {
+    return [];
+  }
 
   /** Forgets a measured hold pose and goes back to the built-in one. */
   resetHold(): void {

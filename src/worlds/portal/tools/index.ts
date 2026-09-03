@@ -100,24 +100,72 @@ export {
   WelderTool,
   XrayTool,
 };
-export { applyStoredPose, clearPoses, savePose, storedPoseCount } from './poseStore';
+export {
+  applyStoredPose,
+  clearPoses,
+  holdPoseSnapshot,
+  savePose,
+  saveHoldPoses,
+  storedPose,
+  storedPoseCount,
+} from './poseStore';
 export {
   eulerXYZ,
   formatPose,
   holdPoseFrom,
+  mirrorReadout,
+  poseFromReadout,
+  quatFromEulerXYZ,
   readPose,
+  readoutFromArray,
+  readoutToArray,
   type HoldPose,
   type PoseReadout,
 } from './toolPose';
 export { matchAxes, type AxisMatch, type Basis } from './axisMatch';
 export {
+  AMMO_KINDS,
+  AMMO_LABELS,
+  BURST_STEPS,
+  DEFAULT_WEAPON,
   FIRE_MODES,
   FIRE_MODE_LABELS,
+  MAGAZINE_STEPS,
   POWER_STEPS,
   RATE_STEPS,
+  RELOAD_STEPS,
+  SIGHTS,
   SPEED_STEPS,
+  WEAPON_FIELDS,
+  clampField,
+  clampWeapon,
+  nextIn,
+  nextStep,
+  powerLabel,
+  type AmmoKind,
   type FireMode,
-} from './PistolTool';
+  type SightKind,
+  type WeaponField,
+  type WeaponSettings,
+} from './weaponSettings';
+export { createSight, Attachment, type AttachmentContext } from './attachments';
+export {
+  attachmentPose,
+  attachmentPoseCount,
+  clearAttachmentPoses,
+  onGearChange,
+  saveAttachmentPose,
+  weaponSettings,
+} from './gearStore';
+export {
+  applyGearConfig,
+  clearGearConfig,
+  gearCode,
+  gearCodeLines,
+  gearConfig,
+  parseGearCode,
+  type GearConfig,
+} from './gearConfig';
 export { PortalGunTool, createPortalGunTool, COLOR_BLUE, COLOR_RED } from './PortalGunTool';
 export {
   Tool,

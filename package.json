@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "config": "node --experimental-strip-types tools/config.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

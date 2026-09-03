@@ -1,0 +1,177 @@
+/**
+ * Every number the pistol runs on, in one place.
+ *
+ * The menu used to step through a handful of fixed notches and that was the
+ * whole story — you could pick "stark" but never find out what "stark" was,
+ * and never ask for anything in between. So the notches stay (they are quick,
+ * and they are good starting points) but the raw value is shown next to them
+ * and can be typed in directly. Anything the field descriptors below allow is
+ * a legal setting, notch or not.
+ *
+ * Pure numbers and labels: no three.js, so the clamping and the stepping are
+ * tested rather than hoped for.
+ */
+
+/** How the trigger behaves. */
+export type FireMode = 'single' | 'burst' | 'auto';
+
+/** What leaves the barrel. */
+export type AmmoKind = 'normal' | 'tracer';
+
+/** What sits on top of the gun. */
+export type SightKind = 'none' | 'reddot' | 'irons' | 'trace' | 'xray';
+
+export interface WeaponSettings {
+  /** Kilograms per round — the punch is mass times speed. */
+  mass: number;
+  /** Muzzle velocity in m/s. */
+  speed: number;
+  /** Rounds per second. */
+  rate: number;
+  /** Rounds in a full magazine. */
+  magazine: number;
+  /** Seconds a reload takes. */
+  reload: number;
+  /** Rounds a burst fires. */
+  burst: number;
+  mode: FireMode;
+  ammo: AmmoKind;
+  sight: SightKind;
+}
+
+export const DEFAULT_WEAPON: WeaponSettings = {
+  mass: 0.06,
+  speed: 26,
+  rate: 5,
+  magazine: 12,
+  reload: 1.15,
+  burst: 3,
+  mode: 'single',
+  ammo: 'normal',
+  sight: 'none',
+};
+
+/** The notches the menu steps through, each with the name it goes by. */
+export const POWER_STEPS = [
+  { label: 'leicht', mass: 0.03 },
+  { label: 'normal', mass: 0.06 },
+  { label: 'stark', mass: 0.14 },
+  { label: 'brutal', mass: 0.3 },
+] as const;
+
+export const SPEED_STEPS = [14, 26, 45, 70, 120] as const;
+/** Rounds per second. */
+export const RATE_STEPS = [2, 5, 9, 14, 20] as const;
+/** Magazine sizes, from a revolver's worth to a belt. */
+export const MAGAZINE_STEPS = [6, 12, 17, 30, 60, 100] as const;
+export const RELOAD_STEPS = [0.4, 0.8, 1.15, 2] as const;
+export const BURST_STEPS = [2, 3, 5] as const;
+
+export const FIRE_MODES: readonly FireMode[] = ['single', 'burst', 'auto'];
+
+export const FIRE_MODE_LABELS: Record<FireMode, string> = {
+  single: 'Einzelfeuer',
+  burst: 'Dreifachschuss',
+  auto: 'Automatik',
+};
+
+export const AMMO_LABELS: Record<AmmoKind, string> = {
+  normal: 'Normal',
+  tracer: 'Leuchtspur',
+};
+
+export const AMMO_KINDS: readonly AmmoKind[] = ['normal', 'tracer'];
+
+/** What the aiming-aid grid offers, in the order it shows them. */
+export const SIGHTS: ReadonlyArray<{
+  id: SightKind;
+  label: string;
+  /** The line that appears over the menu while the cell is looked at. */
+  caption: string;
+}> = [
+  { id: 'none', label: 'Alles ab', caption: 'Nichts auf der Waffe — freies Visier' },
+  { id: 'reddot', label: 'Rotpunkt', caption: 'Roter Punkt, schwebt über der Waffe' },
+  { id: 'irons', label: 'Kimme & Korn', caption: 'Kimme hinten, Korn vorn — klassisch' },
+  { id: 'trace', label: 'Flugbahn', caption: 'Zeigt die Bahn der Kugel voraus' },
+  { id: 'xray', label: 'Röntgen', caption: 'Röntgengerät auf der Waffe: sieht durch Wände' },
+];
+
+/** One value the player may type in, with the range that still makes sense. */
+export interface WeaponField {
+  key: keyof WeaponSettings;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  /** Decimals the display and the keypad keep. */
+  decimals: number;
+  /** What the number does, one line. */
+  sub: string;
+}
+
+export const WEAPON_FIELDS: readonly WeaponField[] = [
+  {
+    key: 'mass',
+    label: 'Stärke',
+    unit: 'kg',
+    min: 0.001,
+    max: 5,
+    decimals: 3,
+    sub: 'Masse der Kugel — wie hart sie zuschlägt',
+  },
+  { key: 'speed', label: 'Tempo', unit: 'm/s', min: 1, max: 400, decimals: 1, sub: 'Mündungsgeschwindigkeit' },
+  { key: 'rate', label: 'Feuerrate', unit: '/s', min: 0.2, max: 40, decimals: 1, sub: 'Schuss pro Sekunde' },
+  { key: 'magazine', label: 'Magazin', unit: 'Schuss', min: 1, max: 300, decimals: 0, sub: 'Rundenanzahl bis zum Nachladen' },
+  { key: 'reload', label: 'Nachladezeit', unit: 's', min: 0.05, max: 10, decimals: 2, sub: 'Wie lange das Magazin braucht' },
+  { key: 'burst', label: 'Salve', unit: 'Schuss', min: 1, max: 20, decimals: 0, sub: 'Wie viele der Dreifachschuss abgibt' },
+];
+
+/** Every value inside its range, and the three names spelled correctly. */
+export function clampWeapon(settings: Partial<WeaponSettings>): WeaponSettings {
+  const next: WeaponSettings = { ...DEFAULT_WEAPON, ...settings };
+  for (const field of WEAPON_FIELDS) {
+    next[field.key] = clampField(field, next[field.key] as number) as never;
+  }
+  if (!FIRE_MODES.includes(next.mode)) next.mode = DEFAULT_WEAPON.mode;
+  if (!AMMO_KINDS.includes(next.ammo)) next.ammo = DEFAULT_WEAPON.ammo;
+  if (!SIGHTS.some((sight) => sight.id === next.sight)) next.sight = DEFAULT_WEAPON.sight;
+  return next;
+}
+
+/** One value inside its range and rounded to the decimals it is shown with. */
+export function clampField(field: WeaponField, value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_WEAPON[field.key] as number;
+  const factor = 10 ** field.decimals;
+  return Math.round(Math.min(field.max, Math.max(field.min, value)) * factor) / factor;
+}
+
+/**
+ * The next notch above the value the gun is set to, wrapping around at the top.
+ *
+ * A value typed in by hand rarely sits on a notch, and "the next one up" is
+ * what a player pressing the row expects — not "the notch after the one that
+ * happens to be nearest".
+ */
+export function nextStep(steps: readonly number[], value: number): number {
+  return steps.find((step) => step > value + 1e-9) ?? steps[0]!;
+}
+
+/** The name of the notch a mass is at, or the raw figure when it is between. */
+export function powerLabel(mass: number): string {
+  const step = POWER_STEPS.find((entry) => Math.abs(entry.mass - mass) < 1e-9);
+  return step ? step.label : `${mass} kg`;
+}
+
+/** The mass of the notch after the current one. */
+export function nextPower(mass: number): number {
+  return nextStep(
+    POWER_STEPS.map((step) => step.mass),
+    mass,
+  );
+}
+
+/** Steps a list of names round by one. */
+export function nextIn<T>(values: readonly T[], value: T): T {
+  const index = values.indexOf(value);
+  return values[(index + 1) % values.length]!;
+}

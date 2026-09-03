@@ -90,6 +90,70 @@ export function formatPose(readout: PoseReadout): string {
 }
 
 /**
+ * The pose those six numbers describe — the exact inverse of `readPose`.
+ *
+ * Everything the player may type into a field, paste in as a config code or
+ * have mirrored from the other hand arrives as these readable numbers, so the
+ * way back into a quaternion has to be as sound as the way out. The test takes
+ * a pose apart and puts it back together again.
+ */
+export function poseFromReadout(readout: PoseReadout): HoldPose {
+  return {
+    position: { x: readout.x / 100, y: readout.y / 100, z: readout.z / 100 },
+    rotation: quatFromEulerXYZ({
+      x: (readout.pitch * Math.PI) / 180,
+      y: (readout.yaw * Math.PI) / 180,
+      z: (readout.roll * Math.PI) / 180,
+    }),
+  };
+}
+
+/**
+ * The same pose for the other hand: mirrored across the body's middle.
+ *
+ * Sideways offset, yaw and roll flip sign; the rest stays. Same rule as the
+ * hands themselves (`core/handPose.ts`), because it is the same mirror — a
+ * rotation `(x, y, z, w)` becomes `(x, -y, -z, w)`, and in `XYZ` angles that
+ * is exactly these two signs.
+ */
+export function mirrorReadout(readout: PoseReadout): PoseReadout {
+  return {
+    ...readout,
+    x: -readout.x,
+    yaw: -readout.yaw,
+    roll: -readout.roll,
+  };
+}
+
+/** Six numbers for the config code — shorter than the field names would be. */
+export function readoutToArray(readout: PoseReadout): number[] {
+  return [readout.x, readout.y, readout.z, readout.pitch, readout.yaw, readout.roll];
+}
+
+/** The inverse, tolerant of a short array out of an older code. */
+export function readoutFromArray(values: readonly number[]): PoseReadout {
+  const at = (index: number): number =>
+    Number.isFinite(values[index]) ? (values[index] as number) : 0;
+  return { x: at(0), y: at(1), z: at(2), pitch: at(3), yaw: at(4), roll: at(5) };
+}
+
+/** A rotation built from `XYZ` angles, the order `eulerXYZ` reads back. */
+export function quatFromEulerXYZ(euler: Vec3): Quat {
+  const c1 = Math.cos(euler.x / 2);
+  const c2 = Math.cos(euler.y / 2);
+  const c3 = Math.cos(euler.z / 2);
+  const s1 = Math.sin(euler.x / 2);
+  const s2 = Math.sin(euler.y / 2);
+  const s3 = Math.sin(euler.z / 2);
+  return {
+    x: s1 * c2 * c3 + c1 * s2 * s3,
+    y: c1 * s2 * c3 - s1 * c2 * s3,
+    z: c1 * c2 * s3 + s1 * s2 * c3,
+    w: c1 * c2 * c3 - s1 * s2 * s3,
+  };
+}
+
+/**
  * Euler angles of a rotation, in the order three.js uses by default (`XYZ`).
  * Handing the numbers straight back to `new THREE.Euler(pitch, yaw, roll)`
  * has to rebuild the very same rotation — that is what makes them worth

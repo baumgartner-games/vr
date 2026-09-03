@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
+import { isTyping } from './textEntry';
 
 const _forward = new THREE.Vector3();
 const _strafe = new THREE.Vector3();
@@ -100,7 +101,7 @@ export class FlatControls {
 
   private bind(): void {
     this.on(window, 'keydown', (e: KeyboardEvent) => {
-      if (!this.enabled) return;
+      if (!this.enabled || isTyping()) return;
       if (e.code === 'Space') {
         e.preventDefault();
         this.jumpQueued = true;

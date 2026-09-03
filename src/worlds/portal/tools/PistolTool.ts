@@ -1,36 +1,29 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { createSight, type Attachment, type AttachmentContext } from './attachments';
+import { saveWeaponSettings, weaponSettings } from './gearStore';
+import {
+  AMMO_KINDS,
+  AMMO_LABELS,
+  BURST_STEPS,
+  FIRE_MODES,
+  FIRE_MODE_LABELS,
+  MAGAZINE_STEPS,
+  RATE_STEPS,
+  RELOAD_STEPS,
+  SPEED_STEPS,
+  clampWeapon,
+  nextIn,
+  nextPower,
+  nextStep,
+  powerLabel,
+  type AmmoKind,
+  type FireMode,
+  type SightKind,
+  type WeaponSettings,
+} from './weaponSettings';
 import { playEmpty, playReload, playShot } from '../../../core/Audio';
 import type { ControllerState } from '../../../core/XRInput';
-
-/** Rounds in a full magazine. */
-const MAGAZINE = 12;
-/** Seconds a reload takes. */
-const RELOAD_TIME = 1.15;
-/** Rounds a burst fires. */
-const BURST = 3;
-
-/** How the trigger behaves. */
-export type FireMode = 'single' | 'burst' | 'auto';
-
-/** The settings menu steps through these, in this order. */
-export const POWER_STEPS = [
-  { label: 'leicht', mass: 0.03 },
-  { label: 'normal', mass: 0.06 },
-  { label: 'stark', mass: 0.14 },
-  { label: 'brutal', mass: 0.3 },
-] as const;
-
-export const SPEED_STEPS = [14, 26, 45, 70] as const;
-/** Rounds per second. */
-export const RATE_STEPS = [2, 5, 9, 14] as const;
-export const FIRE_MODES: readonly FireMode[] = ['single', 'burst', 'auto'];
-
-export const FIRE_MODE_LABELS: Record<FireMode, string> = {
-  single: 'Einzelfeuer',
-  burst: 'Dreifachschuss',
-  auto: 'Automatik',
-};
 
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
@@ -39,20 +32,32 @@ const _kick = new THREE.Quaternion();
 const _axisX = new THREE.Vector3(1, 0, 0);
 
 /**
- * A plain pistol. The trigger fires, and once the magazine runs dry it reloads
- * itself — there is no ammo to pick up anywhere, so the counter on the side of
- * the magazine reads "rounds left / ∞".
+ * A pistol you can take apart in the menu.
+ *
+ * Every number it runs on — the weight of a round, how fast it leaves the
+ * barrel, how many are in the magazine, how long a reload takes — is a setting
+ * (`weaponSettings.ts`), and every one of them can be stepped through a few
+ * sensible notches *or* typed in directly. On top of that goes one aiming aid
+ * at a time (`attachments.ts`) and a choice of round: plain, or tracer, which
+ * draws its own line through the room.
+ *
+ * There is no ammunition to pick up anywhere, so the counter on the side of the
+ * magazine reads "rounds left / ∞".
  */
 export class PistolTool extends Tool {
   override readonly toolId = 'pistol';
   override readonly label = 'Pistole';
 
   private readonly muzzle = new THREE.Object3D();
+  private readonly rail = new THREE.Object3D();
   private readonly slide: THREE.Mesh;
   private readonly counter: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly canvas: HTMLCanvasElement;
   private readonly texture: THREE.CanvasTexture;
-  private rounds = MAGAZINE;
+  /** The aiming aid currently clipped on, if any. */
+  private sight: Attachment | null = null;
+  private settings: WeaponSettings;
+  private rounds: number;
   private reloading = 0;
   private recoil = 0;
   /** Seconds until the next round may leave the barrel. */
@@ -65,10 +70,6 @@ export class PistolTool extends Tool {
    * not empty a magazine into it.
    */
   private firing = false;
-  private powerStep = 1;
-  private speedStep = 1;
-  private rateStep = 1;
-  private modeStep = 0;
 
   constructor() {
     super();
@@ -76,6 +77,8 @@ export class PistolTool extends Tool {
     this.icon = 'pistol';
     this.accent = 0xd7dce8;
     this.hint = 'Trigger schießt · Einstellungen im Menü';
+    this.settings = weaponSettings();
+    this.rounds = this.settings.magazine;
 
     const steel = new THREE.MeshStandardMaterial({
       color: 0x9aa6bd,
@@ -126,13 +129,19 @@ export class PistolTool extends Tool {
     this.muzzle.position.set(0, 0.012, -0.19);
     this.add(this.muzzle);
 
+    // Everything that clips on hangs off the rail, so an attachment's pose is
+    // measured from one place on the gun rather than from the gun's origin.
+    this.rail.name = 'pistol-rail';
+    this.add(this.rail);
+
+    this.mountSight(this.settings.sight);
     this.draw();
   }
 
   override onTrigger(controller: ControllerState, host: ToolHost): void {
     // A burst is ordered once and then walks itself down the magazine at the
     // set rate; automatic fire keeps going for as long as the finger is down.
-    if (this.mode === 'burst') this.burst = BURST;
+    if (this.settings.mode === 'burst') this.burst = this.settings.burst;
     this.firing = true;
     this.fire(controller, host);
   }
@@ -146,13 +155,15 @@ export class PistolTool extends Tool {
     this.cooldown = Math.max(0, this.cooldown - dt);
     if (controller && this.heldBy) {
       if (!controller.trigger.pressed) this.firing = false;
-      if (this.burst > 0 || (this.mode === 'auto' && this.firing)) this.fire(controller, host);
+      if (this.burst > 0 || (this.settings.mode === 'auto' && this.firing)) {
+        this.fire(controller, host);
+      }
     }
 
     if (this.reloading > 0) {
       this.reloading = Math.max(0, this.reloading - dt);
       if (this.reloading === 0) {
-        this.rounds = MAGAZINE;
+        this.rounds = this.settings.magazine;
         this.draw();
       }
     }
@@ -164,61 +175,118 @@ export class PistolTool extends Tool {
     if (this.heldBy && this.recoil > 0) {
       this.quaternion.multiply(_kick.setFromAxisAngle(_axisX, this.recoil * 0.18));
     }
+
+    if (this.sight) this.sight.update(dt, this.attachmentContext(host));
   }
 
   override disposeTool(): void {
+    this.sight?.disposeAttachment();
     disposeToolTree(this);
     this.texture.dispose();
   }
 
   // --- what the settings menu turns ----------------------------------------
 
-  get mode(): FireMode {
-    return FIRE_MODES[this.modeStep]!;
+  /** Everything the gun is set to, as one object. */
+  get weapon(): WeaponSettings {
+    return this.settings;
+  }
+
+  override attachments(): readonly Attachment[] {
+    return this.sight ? [this.sight] : [];
   }
 
   /** Muzzle velocity in m/s. */
   get muzzleSpeed(): number {
-    return SPEED_STEPS[this.speedStep]!;
+    return this.settings.speed;
   }
 
-  /** Rounds per second. */
-  get fireRate(): number {
-    return RATE_STEPS[this.rateStep]!;
-  }
-
-  get powerLabel(): string {
-    return POWER_STEPS[this.powerStep]!.label;
+  get mode(): FireMode {
+    return this.settings.mode;
   }
 
   get modeLabel(): string {
-    return FIRE_MODE_LABELS[this.mode];
+    return FIRE_MODE_LABELS[this.settings.mode];
+  }
+
+  get ammoLabel(): string {
+    return AMMO_LABELS[this.settings.ammo];
+  }
+
+  get powerLabel(): string {
+    return powerLabel(this.settings.mass);
+  }
+
+  /** Rounds left, and what a full magazine holds. */
+  get magazine(): { left: number; size: number } {
+    return { left: this.rounds, size: this.settings.magazine };
+  }
+
+  /**
+   * Writes a value — from a notch, from a typed-in number or out of a config
+   * code. Everything goes through here, so nothing can end up outside its
+   * range and nothing can be changed without being written down.
+   */
+  set(values: Partial<WeaponSettings>): WeaponSettings {
+    const before = this.settings;
+    this.settings = clampWeapon({ ...before, ...values });
+    saveWeaponSettings(this.settings);
+
+    // A magazine that grew does not refill by itself, but it must not read
+    // "30/∞" with 12 rounds' worth of ammunition in it either.
+    this.rounds = Math.min(this.rounds, this.settings.magazine);
+    if (this.settings.mode !== 'burst') this.burst = 0;
+    if (this.settings.sight !== before.sight) this.mountSight(this.settings.sight);
+    this.draw();
+    return this.settings;
+  }
+
+  /** Reads the stored settings again — after a config code came in. */
+  reloadSettings(): void {
+    this.settings = weaponSettings();
+    this.rounds = Math.min(this.rounds, this.settings.magazine);
+    this.mountSight(this.settings.sight);
+    this.draw();
   }
 
   /** Each of these steps one notch and wraps around — one menu entry each. */
   cyclePower(): string {
-    this.powerStep = (this.powerStep + 1) % POWER_STEPS.length;
-    this.draw();
+    this.set({ mass: nextPower(this.settings.mass) });
     return this.powerLabel;
   }
 
   cycleSpeed(): number {
-    this.speedStep = (this.speedStep + 1) % SPEED_STEPS.length;
-    this.draw();
-    return this.muzzleSpeed;
+    return this.set({ speed: nextStep(SPEED_STEPS, this.settings.speed) }).speed;
   }
 
   cycleRate(): number {
-    this.rateStep = (this.rateStep + 1) % RATE_STEPS.length;
-    this.draw();
-    return this.fireRate;
+    return this.set({ rate: nextStep(RATE_STEPS, this.settings.rate) }).rate;
+  }
+
+  cycleMagazine(): number {
+    return this.set({ magazine: nextStep(MAGAZINE_STEPS, this.settings.magazine) }).magazine;
+  }
+
+  cycleReload(): number {
+    return this.set({ reload: nextStep(RELOAD_STEPS, this.settings.reload) }).reload;
+  }
+
+  cycleBurst(): number {
+    return this.set({ burst: nextStep(BURST_STEPS, this.settings.burst) }).burst;
   }
 
   cycleMode(): FireMode {
-    this.modeStep = (this.modeStep + 1) % FIRE_MODES.length;
-    this.burst = 0;
-    this.draw();
-    return this.mode;
+    return this.set({ mode: nextIn(FIRE_MODES, this.settings.mode) }).mode;
+  }
+
+  cycleAmmo(): AmmoKind {
+    return this.set({ ammo: nextIn(AMMO_KINDS, this.settings.ammo) }).ammo;
+  }
+
+  /** Puts a magazine in by hand, whatever is left in the old one. */
+  reloadNow(): void {
+    if (this.rounds === this.settings.magazine || this.reloading > 0) return;
+    this.startReload();
   }
 
   // --- shooting -------------------------------------------------------------
@@ -236,12 +304,13 @@ export class PistolTool extends Tool {
 
     this.rounds--;
     if (this.burst > 0) this.burst--;
-    this.cooldown = 1 / this.fireRate;
+    this.cooldown = 1 / this.settings.rate;
     this.recoil = 1;
     this.muzzle.getWorldPosition(_origin);
     _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
-    host.spawnBullet(_origin, _direction, this.muzzleSpeed, {
-      mass: POWER_STEPS[this.powerStep]!.mass,
+    host.spawnBullet(_origin, _direction, this.settings.speed, {
+      mass: this.settings.mass,
+      tracer: this.settings.ammo === 'tracer',
     });
     playShot();
     controller.pulse(0.6, 40);
@@ -251,9 +320,32 @@ export class PistolTool extends Tool {
   }
 
   private startReload(): void {
-    this.reloading = RELOAD_TIME;
+    this.reloading = this.settings.reload;
     playReload();
     this.draw();
+  }
+
+  /** Clips an aiming aid on, or takes the last one off. */
+  private mountSight(kind: SightKind): void {
+    if (this.sight) {
+      this.sight.disposeAttachment();
+      this.sight.removeFromParent();
+      this.sight = null;
+    }
+    const sight = createSight(kind);
+    if (!sight) return;
+    sight.applyStoredPose(this.toolId);
+    this.rail.add(sight);
+    this.sight = sight;
+  }
+
+  private attachmentContext(host: ToolHost): AttachmentContext {
+    return {
+      host,
+      muzzle: this.muzzle,
+      speed: this.settings.speed,
+      held: Boolean(this.heldBy) && !this.parked,
+    };
   }
 
   private draw(): void {
@@ -274,13 +366,14 @@ export class PistolTool extends Tool {
       ctx.font = '700 46px system-ui, sans-serif';
       ctx.fillText('LADEN', 128, 66);
     } else {
-      ctx.font = '700 54px system-ui, sans-serif';
+      ctx.font = '700 50px system-ui, sans-serif';
       // Rounds left over an endless supply of magazines.
-      ctx.fillText(`${this.rounds}/∞`, 128, 54);
-      // Below it what the trigger is going to do — three letters is enough.
-      ctx.font = '600 26px system-ui, sans-serif';
+      ctx.fillText(`${this.rounds}/∞`, 128, 50);
+      // Below it what the trigger is going to do, and what comes out.
+      ctx.font = '600 24px system-ui, sans-serif';
       ctx.fillStyle = '#9fe3ff';
-      ctx.fillText(MODE_TAGS[this.mode], 128, 98);
+      const ammo = this.settings.ammo === 'tracer' ? ' · SPUR' : '';
+      ctx.fillText(`${MODE_TAGS[this.settings.mode]}${ammo}`, 128, 96);
     }
     this.texture.needsUpdate = true;
   }
@@ -289,6 +382,6 @@ export class PistolTool extends Tool {
 /** Short label under the round counter. */
 const MODE_TAGS: Record<FireMode, string> = {
   single: 'EINZEL',
-  burst: '3-SCHUSS',
+  burst: `${'3'}-SCHUSS`,
   auto: 'AUTO',
 };

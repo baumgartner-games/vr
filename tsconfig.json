@@ -14,7 +14,10 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    // The command-line tool (`npm run config`) is run by Node straight from
+    // TypeScript, and Node's ESM resolver wants the real file extension.
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "tools", "vite.config.ts"]
 }

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { ControllerState, Handedness, XRInput } from './XRInput';
+import { clonePose, type HandPose } from './handPose';
+import { holdHandPose, idleHandPose, onHandPoseChange } from './handPoseStore';
 
 export type HandGesture = 'open' | 'ready' | 'point' | 'thumbsUp' | 'grip';
 
@@ -22,6 +24,8 @@ const FINGERS = [
 ];
 
 const _vector = new THREE.Vector3();
+const _euler = new THREE.Euler();
+const DEG = Math.PI / 180;
 
 /** One procedural hand: a palm plus five curling fingers. */
 class ProceduralHand extends THREE.Group {
@@ -30,6 +34,11 @@ class ProceduralHand extends THREE.Group {
   private readonly chains: THREE.Object3D[][] = [];
   private readonly curls = [0, 0, 0, 0, 0];
   private readonly targets = [0, 0, 0, 0, 0];
+  /** Finger roots, in the order of `FINGERS`, for the spread. */
+  private readonly fingerRoots: THREE.Object3D[] = [];
+  /** How far each finger root sits from the middle, -1 … 1. */
+  private readonly fans: number[] = [];
+  private spread = 0;
 
   constructor(
     readonly side: Handedness,
@@ -58,6 +67,8 @@ class ProceduralHand extends THREE.Group {
       const root = new THREE.Object3D();
       root.position.set(mirror * finger.x, 0, finger.z);
       this.add(root);
+      this.fingerRoots.push(root);
+      this.fans.push((mirror * finger.x) / 0.028);
       const chain = buildChain(root, finger.lengths, 0.013, material);
       this.chains.push(chain);
       if (finger.name === 'index') {
@@ -70,6 +81,25 @@ class ProceduralHand extends THREE.Group {
   setGesture(gesture: HandGesture): void {
     const values = GESTURES[gesture];
     for (let i = 0; i < this.targets.length; i++) this.targets[i] = values[i]!;
+  }
+
+  /**
+   * A pose the player dialled in: where the hand sits on the controller, how
+   * far each finger is curled, how far they fan out. The curls are targets —
+   * the fingers still move there over a few frames instead of snapping.
+   */
+  setPose(pose: HandPose): void {
+    this.position.set(pose.x / 100, pose.y / 100, pose.z / 100);
+    this.quaternion.setFromEuler(
+      _euler.set(pose.pitch * DEG, pose.yaw * DEG, pose.roll * DEG, 'XYZ'),
+    );
+    for (let i = 0; i < this.targets.length; i++) this.targets[i] = pose.curls[i] ?? 0;
+    if (this.spread === pose.spread) return;
+    this.spread = pose.spread;
+    // Fanning out is a turn of the whole finger away from the middle one.
+    for (let i = 0; i < this.fingerRoots.length; i++) {
+      this.fingerRoots[i]!.rotation.y = -this.fans[i]! * pose.spread * DEG;
+    }
   }
 
   update(dt: number): void {
@@ -125,6 +155,11 @@ export class HandVisuals extends THREE.Group {
   private readonly jointMeshes = new Map<THREE.Object3D, THREE.Mesh>();
   private readonly hands = new Map<ControllerState, ProceduralHand>();
   private readonly overrides = new Map<Handedness, HandGesture | null>();
+  /** What each hand is carrying, so it can hold that tool its own way. */
+  private readonly holding = new Map<Handedness, string | null>();
+  /** Resolved poses, rebuilt whenever the settings change. */
+  private readonly poses = new Map<string, HandPose>();
+  private readonly unsubscribe: () => void;
   private readonly jointGeometry = new THREE.SphereGeometry(1, 10, 8);
   private readonly material: THREE.MeshStandardMaterial;
 
@@ -140,11 +175,45 @@ export class HandVisuals extends THREE.Group {
       metalness: 0.05,
       emissive: new THREE.Color(color).multiplyScalar(0.06),
     });
+    // A number typed into the menu has to show on the hand right away.
+    this.unsubscribe = onHandPoseChange(() => this.poses.clear());
   }
 
   /** Forces a gesture, e.g. while a portal gun is held. */
   setGestureOverride(handedness: Handedness, gesture: HandGesture | null): void {
     this.overrides.set(handedness, gesture);
+  }
+
+  /**
+   * Which tool this hand is carrying, or null for an empty hand. A held tool
+   * brings its own hand pose — that is what the settings are for — and an
+   * empty hand goes back to the idle one.
+   */
+  setHeldTool(handedness: Handedness, toolId: string | null): void {
+    if (this.holding.get(handedness) === toolId) return;
+    this.holding.set(handedness, toolId);
+  }
+
+  /** The pose a hand is currently in, settings and held tool taken together. */
+  poseOf(handedness: Handedness): HandPose {
+    const toolId = this.holding.get(handedness) ?? null;
+    const key = `${handedness}:${toolId ?? ''}`;
+    let pose = this.poses.get(key);
+    if (!pose) {
+      pose = toolId ? holdHandPose(handedness, toolId) : idleHandPose(handedness);
+      this.poses.set(key, pose);
+    }
+    return pose;
+  }
+
+  /** Drops the cached poses; the next frame reads the settings again. */
+  refreshPoses(): void {
+    this.poses.clear();
+  }
+
+  /** The pose a hand *would* have with this tool — what the editor works on. */
+  editablePose(handedness: Handedness, toolId: string | null): HandPose {
+    return clonePose(toolId ? holdHandPose(handedness, toolId) : idleHandPose(handedness));
   }
 
   /**
@@ -180,6 +249,7 @@ export class HandVisuals extends THREE.Group {
   }
 
   dispose(): void {
+    this.unsubscribe();
     for (const [joint, mesh] of this.jointMeshes) joint.remove(mesh);
     this.jointMeshes.clear();
     for (const hand of this.hands.values()) this.disposeHand(hand);
@@ -231,8 +301,15 @@ export class HandVisuals extends THREE.Group {
     hand.visible = controller.tracked;
     controller.fingertip = hand.visible ? hand.indexTip : null;
 
+    // The dialled-in pose is the base; the short-lived gestures (pointing at
+    // something, a thumbs-up) still win while they last.
+    hand.setPose(this.poseOf(controller.handedness));
     const gesture = this.gestureOf(controller);
-    if (gesture) hand.setGesture(gesture);
+    // `open` is the idle pose and a held tool brings its own grip, so those two
+    // are already covered; a bare hand closing around a cube is not.
+    const covered =
+      gesture === 'open' || (gesture === 'grip' && this.holding.get(controller.handedness));
+    if (gesture && !covered) hand.setGesture(gesture);
     hand.update(dt);
   }
 }

@@ -29,6 +29,9 @@ export type MenuIcon =
   | 'drone'
   | 'tape'
   | 'eraser'
+  | 'reddot'
+  | 'irons'
+  | 'trace'
   | 'palette';
 
 /** One row (or grid cell) of the wrist menu. */
@@ -51,6 +54,12 @@ export interface MenuEntry {
    * Grid pages behave this way automatically.
    */
   take?: boolean;
+  /**
+   * One line about the entry, shown *above* the panel while the pointer rests
+   * on it. A grid of little pictures needs it — the cell has room for two
+   * words, and two words rarely say what a red dot actually does.
+   */
+  caption?: string;
   /**
    * Shows a switch instead of a chevron. `run` should flip it — the panel
    * redraws itself afterwards.
@@ -475,6 +484,51 @@ export function drawMenuIcon(
       ctx.lineTo(s * 0.1, s * 0.3);
       ctx.stroke();
       ctx.restore();
+      break;
+    }
+    case 'reddot': {
+      // A ring with the dot in the middle of it.
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.17, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'irons': {
+      // Rear notch on the left, front post on the right.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.8, s * 0.5);
+      ctx.lineTo(-s * 0.8, -s * 0.1);
+      ctx.lineTo(-s * 0.5, -s * 0.1);
+      ctx.lineTo(-s * 0.5, s * 0.15);
+      ctx.lineTo(-s * 0.2, s * 0.15);
+      ctx.lineTo(-s * 0.2, -s * 0.1);
+      ctx.lineTo(s * 0.1, -s * 0.1);
+      ctx.lineTo(s * 0.1, s * 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.6, s * 0.5);
+      ctx.lineTo(s * 0.6, -s * 0.55);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(s * 0.6, -s * 0.66, s * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'trace': {
+      // A shot arcing away and coming down again.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.8, s * 0.6);
+      ctx.quadraticCurveTo(0, -s * 1.1, s * 0.8, s * 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-s * 0.8, s * 0.6, s * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(s * 0.8, s * 0.5, s * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
       break;
     }
     case 'palette': {

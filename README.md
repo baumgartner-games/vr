@@ -39,9 +39,14 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
     nicht am Objekt, und wirken trotzdem auf das Objekt am anderen Ende des
     Raums. Achsen sind die des Objekts, nur nach deiner Blickrichtung sortiert.
   - **Pinsel** samt Farbpalette auf der anderen Hand.
-  - **Pistole** mit Magazin (`x/∞` an der Seite). Stärke, Kugeltempo,
-    Feuerrate und Modus (Einzel, Dreifach, Automatik) stehen im Menü unter
-    *Einstellungen → Pistole*.
+  - **Pistole** mit Magazin (`x/∞` an der Seite). Unter
+    *Einstellungen → Pistole* steht jeder Wert einzeln: Stärke, Kugeltempo,
+    Feuerrate, **Magazingröße**, Nachladezeit, Salvenlänge und Modus (Einzel,
+    Salve, Automatik). Jede Zeile schaltet auf die nächste Raste weiter **und
+    zeigt die rohe Zahl daneben** — und unter *Werte eingeben* lässt sich jede
+    davon über eine Tastatur direkt tippen. Dazu **Zielhilfen** (Rotpunkt,
+    Kimme & Korn, Flugbahn, Röntgen — oder alles ab) und die **Munition**
+    (normal oder Leuchtspur).
   - **Stoppuhr**: Trigger schaltet Zeitlupe an und aus, Loslassen der Uhr
     stellt die normale Geschwindigkeit wieder her.
   - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
@@ -71,13 +76,25 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
-  - **Werkzeug-Justierer**: setzt ein anderes Werkzeug richtig in die Hand.
-    Justierer in die eine Hand, das schiefe Werkzeug in die andere, Trigger —
-    das Werkzeug bleibt in der Luft stehen. Hand dorthin bewegen, wo es sitzen
-    soll, Trigger nochmal: es springt genau dahin und zeigt die sechs Werte
-    (x, y, z in cm, roll/pitch/yaw in Grad) an. Die Pose bleibt im Browser
-    gespeichert und lässt sich damit auch in den Code übernehmen.
+  - **Werkzeug-Justierer**: setzt ein anderes Werkzeug richtig in die Hand —
+    und einzelne Anbauteile richtig aufs Werkzeug. Worauf er zeigt, bekommt
+    einen Rahmen und steht auf seinem Display; ein **Werkzeug** hält er beim
+    Trigger in der Luft an (Hand hinlegen, wo sie es halten soll, Trigger
+    nochmal), ein **Anbauteil** — der Rotpunkt etwa — hängt sich beim
+    gehaltenen Trigger an die Spitze und bleibt beim Loslassen dort auf der
+    Waffe. Beides zeigt danach die sechs Werte (x, y, z in cm,
+    roll/pitch/yaw in Grad). **Greifen** legt den ganzen Konfig-Code in die
+    Zwischenablage.
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
+- **Alles einstellbar, alles kopierbar**: Werkzeug-Posen, Handhaltungen,
+  Anbauteile und die Waffenwerte liegen zusammen in einem **Konfig-Code** —
+  einer Zeile, die kopiert, vorgelesen und wieder eingegeben werden kann
+  (*Einstellungen → Konfig-Code*). Eine **Tastatur im Raum** nimmt rohe Zahlen
+  und ganze Codes entgegen.
+- **Handhaltung**: wie die leere Hand aussieht und wie sie jedes einzelne
+  Werkzeug greift, steht unter *Einstellungen → Hände* — zwölf Zahlen pro
+  Haltung (Versatz, Neigung, fünf Finger, Spreizung), und ein Knopf spiegelt
+  alles auf die andere Hand.
 - **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
   Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
@@ -131,11 +148,16 @@ ausnahmsweise einen Branch will, sagt das im Auftrag dazu.
 Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
 Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`), die
 Achsenzuordnung der Griffe (`src/worlds/portal/tools/axisMatch.ts`), die
-gemessene Werkzeug-Pose (`src/worlds/portal/tools/toolPose.ts`) und die
-Zielrichtung der Werkzeuge (`src/worlds/portal/tools/aim.ts` — der Test hält
-fest, dass ein Werkzeug in der Hand exakt entlang des Pointing-Rays zeigt und
-nicht 30° darüber). Beide Module kommen bewusst ohne three.js und ohne Rapier
-aus, deshalb braucht Jest weder WebGL noch WebXR noch wasm. Alles, was schwer zu testen ist, gehört
+gemessene Werkzeug-Pose samt Spiegelung
+(`src/worlds/portal/tools/toolPose.ts`), die Handhaltung
+(`src/core/handPose.ts`), die Waffenwerte
+(`src/worlds/portal/tools/weaponSettings.ts`), der **Konfig-Code**
+(`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
+und abgeschnittener Zeile) und die Zielrichtung der Werkzeuge
+(`src/worlds/portal/tools/aim.ts` — der Test hält fest, dass ein Werkzeug in
+der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber). Diese
+Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
+weder WebGL noch WebXR noch wasm. Alles, was schwer zu testen ist, gehört
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
@@ -176,7 +198,8 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Translationshandschuh | Trigger hält aus der Ferne, `A` wechselt Modus | – | – |
 | Größe & Position | Trigger wählt, `A` holt die Griffe vor dich | – | – |
 | Griff ziehen | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand | – | – |
-| Werkzeug-Justierer | Trigger hält an, Trigger übernimmt, `A` bricht ab | – | – |
+| Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil, Trigger übernimmt, Greifen kopiert den Code, `A` bricht ab | – | – |
+| Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
 | Drohne | Trigger fliegt/parkt, Sticks steuern | – | – |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
@@ -231,6 +254,28 @@ Ferngriff, der nicht ankommt, ist schlimmer als gar keiner. Die Bahn wird
 jeden Frame gegen die *aktuelle* Handposition gerechnet, eine Hand, die sich
 bewegt, zieht das Objekt also mit. Genau das prüfen die Jest-Tests.
 
+### Die Waffe
+
+Jeder Wert der Pistole steht in `src/worlds/portal/tools/weaponSettings.ts` mit
+Bereich und Einheit. Eine Menüzeile schaltet auf die nächste Raste weiter und
+zeigt dabei, wo sie steht (`Stärke: stark · 0.14 kg`); *Werte eingeben* öffnet
+für dieselbe Größe die Tastatur, und alles dazwischen ist erlaubt, solange es
+im Bereich liegt. Eine Zahl, die auf keiner Raste liegt, bricht das
+Weiterschalten nicht: die nächste Raste ist die erste *oberhalb* des aktuellen
+Werts (mit Test).
+
+**Zielhilfen** liegen als Raster im Menü — und weil in eine Rasterzelle zwei
+Wörter passen, steht über dem Panel eine Zeile darüber, worauf gerade gezeigt
+wird. Zur Wahl stehen *alles ab*, **Rotpunkt** (der Punkt sitzt 25 m weit
+draußen und wird auf Größe skaliert, wandert beim Kopfbewegen also nicht),
+**Kimme & Korn**, **Flugbahn** (rechnet die Parabel der nächsten Kugel voraus
+und markiert, wo sie aufschlägt) und das **Röntgengerät** (derselbe Scanner wie
+das Handgerät, nur klein — beide benutzen `XrayScope`).
+
+**Munition**: normal oder **Leuchtspur**. Eine Leuchtspurkugel glüht und zieht
+eine kurze Linie hinter sich her, so dass man einem Schuss zusehen kann,
+statt ihn nur zu hören.
+
 **Ducken und Sprinten** hängen an den Sticks: rechten Stick reindrücken duckt,
 linken Stick reindrücken sprintet. Unter **Menü → Bewegung** lässt sich für
 beide einstellen, ob gedrückt gehalten oder umgeschaltet wird (Ducken schaltet
@@ -269,6 +314,61 @@ Zahlen erscheinen auf dem Display und in der Meldung, so wie sie in den
 Konstruktor gehören; bis dahin merkt sich der Browser sie
 (*Einstellungen → Werkzeug-Posen zurücksetzen* wirft sie wieder weg).
 
+Derselbe Justierer nimmt sich auch **einzelne Anbauteile** vor. Er zieht dabei
+einen Strahl aus seiner Spitze: Was er trifft — ein Anbauteil oder das ganze
+Werkzeug — bekommt einen Drahtrahmen und steht auf seinem Display. Ein
+Anbauteil wird nicht geparkt, sondern *gezogen*: Trigger halten, es hängt an
+der Spitze, loslassen setzt es fest. Seine Pose liegt im Raum **des Werkzeugs**
+(nicht der Hand), deshalb bleibt ein einmal ausgerichteter Rotpunkt
+ausgerichtet, egal wie die Waffe später gehalten wird.
+
+### Handhaltung
+
+Wie eine Hand aussieht, ist eine Einstellung wie jede andere: zwölf Zahlen —
+Versatz in cm, Neigung in Grad, ein Krümmungswert je Finger (0 gestreckt,
+1 geschlossen) und eine Spreizung. Davon gibt es die **Grundhaltung** (leere
+Hand) und je eine **Griffhaltung pro Werkzeug**, jeweils für links und rechts:
+*Einstellungen → Hände → Linke/Rechte Hand*. Getippt wird über die Tastatur im
+Raum, und die Hand bewegt sich schon *während* getippt wird — eine Krümmung
+von 0.6 sagt auf dem Papier nichts.
+
+Weil beide Hände Spiegelbilder sind, ist die andere Seite eine Kopie mit drei
+umgedrehten Vorzeichen: seitlicher Versatz, Yaw und Roll. Mehr nicht — genau
+das prüft der Test zu `mirrorHandPose` in `src/core/handPose.ts`, und dieselbe
+Regel gilt für Werkzeug-Posen (`mirrorReadout`). *Auf die andere Hand
+spiegeln* macht es für eine Haltung, *Links auf rechts spiegeln* für alle.
+
+### Konfig-Code
+
+Alle diese Zahlen zusammen — Werkzeug-Posen, Handhaltungen, Anbauteile,
+Waffenwerte — passen in eine Zeile:
+
+```
+BGVR1mAL_eyJ2IjoxLCL_dCI6eyJwaXP_dG9sIjpbMCy_LTEuMiwzAGAy_ywwLDBd…
+```
+
+Das ist **kein Hash**, sondern gepacktes JSON: `src/core/configCode.ts`
+schreibt die Einstellungen kompakt, komprimiert sie mit einem winzigen
+LZSS-Verfahren (Wörterbuch im Datenstrom, deshalb ohne Bibliothek und ohne
+`CompressionStream`) und packt das Ergebnis in base64url mit einer Prüfsumme
+hinten dran. `decode(encode(x))` gibt exakt `x` zurück — der Jest-Test besteht
+darauf, mitsamt Umlauten, leeren Objekten und einem verdrehten Zeichen, das
+abgelehnt werden muss.
+
+In VR liegt der Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
+legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
+laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Am
+Rechner geht dasselbe auf der Kommandozeile:
+
+```bash
+npm run config -- decode BGVR1…        # zeigt die Einstellungen als JSON
+npm run config -- encode config.json   # macht wieder einen Code daraus
+npm run config -- mirror BGVR1… left   # linke Handhaltungen nach rechts
+```
+
+Damit ist „hier sind meine Einstellungen, mach das für die andere Hand auch"
+eine Zeile statt vierzig Zahlen.
+
 Die **Linie** zwischen Hand und Objekt ist standardmäßig aus (sie steht meist
 im Weg) und lässt sich unter *Einstellungen → Ferngreifen → Linie anzeigen*
 einschalten. Ferngreifen schaltet sich außerdem selbst ab, solange beide Hände
@@ -286,6 +386,7 @@ src/
              Zuschauer-Kamera
   worlds/    Weltenregistry + je eine Welt pro Ordner (inkl. `PortalSync`,
              dem geteilten Zustand des Portal Labors)
+tools/     Kommandozeile: `npm run config` liest und schreibt Konfig-Codes
 ```
 
 Wie sich der Spieler bewegt, entscheidet ein austauschbares `Locomotion`:

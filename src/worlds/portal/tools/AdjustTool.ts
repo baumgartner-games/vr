@@ -2,11 +2,15 @@ import * as THREE from 'three';
 import { Tool, aimQuaternion, disposeToolTree, type ToolHost } from './Tool';
 import { formatPose, holdPoseFrom, readPose, type PoseReadout } from './toolPose';
 import { savePose } from './poseStore';
+import { gearCode } from './gearConfig';
+import type { Attachment } from './attachments';
 import { playTone } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
 /** How long the measured numbers stay on the display. */
 const SHOW_TIME = 20;
+/** How far the picking ray reaches — this is done at arm's length. */
+const PICK_RANGE = 1.2;
 
 const _scale = new THREE.Vector3();
 const _aim = new THREE.Quaternion();
@@ -15,6 +19,13 @@ const _gripRotation = new THREE.Quaternion();
 const _toolPosition = new THREE.Vector3();
 const _toolRotation = new THREE.Quaternion();
 const _origin = new THREE.Vector3();
+const _direction = new THREE.Vector3();
+const _ray = new THREE.Ray();
+const _box = new THREE.Box3();
+const _hit = new THREE.Vector3();
+const _matrix = new THREE.Matrix4();
+const _inverse = new THREE.Matrix4();
+const _quaternion = new THREE.Quaternion();
 
 /** The tool being measured, and the pose it had before we started. */
 interface Session {
@@ -24,27 +35,44 @@ interface Session {
   rotation: THREE.Quaternion;
 }
 
+/** An attachment being dragged around on its tool. */
+interface Drag {
+  attachment: Attachment;
+  tool: Tool;
+  /** Where it sat relative to the adjuster's tip when it was picked up. */
+  offset: THREE.Matrix4;
+  /** What to put back if the drag is cancelled. */
+  position: THREE.Vector3;
+  rotation: THREE.Quaternion;
+}
+
+/** Whatever the adjuster is pointing at right now. */
+type Target =
+  | { kind: 'tool'; tool: Tool; hand: Handedness }
+  | { kind: 'attachment'; attachment: Attachment; tool: Tool; hand: Handedness };
+
 /**
- * Werkzeug-Justierer: puts another tool right in your hand.
+ * Werkzeug-Justierer: puts other things exactly where you want them.
  *
- * Some tools sit badly — the x-ray scanner wants to be held up in front of the
- * face and hangs off the wrist instead. Rather than guessing offsets in the
- * code, this measures them where the problem is, in the headset:
+ * **A whole tool.** Hold this in one hand and the crooked tool in the other:
  *
- * 1. Hold this in one hand and the crooked tool in the other.
- * 2. **Trigger** — the other tool stops in mid-air and stays there.
- * 3. Move that hand to where it *should* be holding the tool.
- * 4. **Trigger** again — the tool jumps back into the hand in exactly that
- *    pose, and the six numbers appear on the display: x, y, z in centimetres,
- *    roll, pitch and yaw in degrees.
+ * 1. **Trigger** — the other tool stops in mid-air and stays there.
+ * 2. Move that hand to where it *should* be holding the tool.
+ * 3. **Trigger** again — the tool jumps back into the hand in exactly that
+ *    pose, and the six numbers appear: x, y, z in centimetres, roll, pitch and
+ *    yaw in degrees.
  *
- * The numbers are the ones a tool's constructor writes into `holdPosition` and
- * `holdRotation` (`toolPose.ts`, with tests), so a pose that works can be read
- * off and made permanent. Until then it is remembered in the browser, so it
- * survives a reload.
+ * **A single attachment.** Point at one — the red dot on the pistol, say — and
+ * it lights up. Hold the **trigger** and it comes along with the tip of the
+ * adjuster; let go and it stays there, on the gun, in its new place. No
+ * parking, because the gun itself never moved.
  *
- * `A` cancels a measurement, or puts the last adjusted tool back the way it
- * was built.
+ * Everything measured is written down right away (`gearConfig.ts`) and turns
+ * up in the config code, so it survives a reload and can be handed on.
+ * **Greifen** puts that code on the clipboard.
+ *
+ * `A` cancels what is running, resets a highlighted attachment, or puts the
+ * last adjusted tool back the way it was built.
  */
 export class AdjustTool extends Tool {
   override readonly toolId = 'adjust';
@@ -55,10 +83,17 @@ export class AdjustTool extends Tool {
   private readonly display: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly lamp: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly beam: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  /** The wire box around whatever is being pointed at. */
+  private readonly marker: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  /** The tip the picking ray starts from and a dragged attachment hangs on. */
+  private readonly tip = new THREE.Object3D();
   private session: Session | null = null;
+  private drag: Drag | null = null;
+  private target: Target | null = null;
   /** The last tool that was adjusted, and how it was built. */
   private previous: Session | null = null;
   private readout: PoseReadout | null = null;
+  private caption = '';
   private showFor = 0;
   private dirty = true;
 
@@ -68,7 +103,7 @@ export class AdjustTool extends Tool {
     this.icon = 'wrench';
     this.accent = 0xffc857;
     this.sticky = true;
-    this.hint = 'Trigger hält das andere Werkzeug an · nochmal übernimmt';
+    this.hint = 'Zielen · Trigger justiert · Greifen kopiert den Code';
     this.holdPosition.set(0, -0.01, 0.02);
 
     const body = new THREE.MeshStandardMaterial({
@@ -92,6 +127,9 @@ export class AdjustTool extends Tool {
       jaw.position.set(side * 0.022, 0, -0.125);
       this.add(jaw);
     }
+
+    this.tip.position.set(0, 0, -0.15);
+    this.add(this.tip);
 
     this.lamp = new THREE.Mesh(
       new THREE.SphereGeometry(0.011, 12, 8),
@@ -120,10 +158,17 @@ export class AdjustTool extends Tool {
     );
     this.beam.frustumCulled = false;
     this.beam.visible = false;
+
+    this.marker = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+      new THREE.LineBasicMaterial({ color: 0x5ee0a0, transparent: true, opacity: 0.9 }),
+    );
+    this.marker.frustumCulled = false;
+    this.marker.visible = false;
   }
 
   override onTake(_controller: ControllerState, host: ToolHost): void {
-    if (this.beam.parent !== host.root) host.root.add(this.beam);
+    if (this.beam.parent !== host.root) host.root.add(this.beam, this.marker);
     this.dirty = true;
   }
 
@@ -131,18 +176,52 @@ export class AdjustTool extends Tool {
     // Never leave another tool hanging in the air because this one was put away.
     this.cancel(host);
     this.beam.visible = false;
+    this.marker.visible = false;
   }
 
   override onTrigger(_controller: ControllerState, host: ToolHost): void {
-    if (this.session) this.finish(host);
-    else this.begin(host);
+    if (this.session) {
+      this.finish(host);
+      return;
+    }
+    if (this.target?.kind === 'attachment') {
+      this.beginDrag(this.target, host);
+      return;
+    }
+    this.begin(host);
   }
 
-  /** `A`: back out of a measurement, or undo the last one. */
+  override onTriggerUp(_controller: ControllerState, host: ToolHost): void {
+    if (this.drag) this.endDrag(host);
+  }
+
+  /** Greifen: the whole configuration onto the clipboard. */
+  override onGrab(_controller: ControllerState, host: ToolHost): void {
+    const code = gearCode();
+    navigator.clipboard?.writeText(code).then(
+      () => host.notify(`Konfig-Code kopiert (${code.length} Zeichen)`),
+      () => host.notify(`Konfig-Code: ${code.slice(0, 24)}… (Menü zeigt ihn ganz)`),
+    );
+    // The console is where it gets picked up from when the clipboard says no.
+    console.info('[bgvr] Konfig-Code:', code);
+  }
+
+  /** `A`: back out, reset what is highlighted, or undo the last measurement. */
   override onPrimary(_controller: ControllerState, host: ToolHost): void {
+    if (this.drag) {
+      this.cancelDrag();
+      host.notify('Abgebrochen');
+      return;
+    }
     if (this.session) {
       this.cancel(host);
       host.notify('Abgebrochen');
+      return;
+    }
+    if (this.target?.kind === 'attachment') {
+      const { attachment, tool } = this.target;
+      attachment.resetPose(tool.toolId);
+      host.notify(`${attachment.label} zurückgesetzt`);
       return;
     }
     const previous = this.previous;
@@ -172,10 +251,20 @@ export class AdjustTool extends Tool {
       this.showFor = Math.max(0, this.showFor - dt);
       if (this.showFor === 0) this.dirty = true;
     }
+
+    if (this.drag) {
+      // Pointing at a panel swallows the trigger-up event, so a drag also ends
+      // when the finger is simply found to be off the trigger.
+      if (controller && !controller.trigger.pressed) this.endDrag(host);
+      else this.moveDrag();
+    } else {
+      this.pick(host, controller);
+    }
+
     if (this.dirty) this.draw();
 
     const session = this.session;
-    this.lamp.material.color.setHex(session ? 0x5ee0a0 : 0xffc857);
+    this.lamp.material.color.setHex(session || this.drag ? 0x5ee0a0 : 0xffc857);
     if (!session || !controller) {
       this.beam.visible = false;
       return;
@@ -203,10 +292,138 @@ export class AdjustTool extends Tool {
     this.beam.geometry.dispose();
     this.beam.material.dispose();
     this.beam.removeFromParent();
+    this.marker.geometry.dispose();
+    this.marker.material.dispose();
+    this.marker.removeFromParent();
     this.texture.dispose();
   }
 
-  // --- the two halves of a measurement -------------------------------------
+  // --- picking --------------------------------------------------------------
+
+  /**
+   * What the adjuster is pointing at: an attachment on the other hand's tool,
+   * or that tool as a whole. Attachments win — they sit inside the tool's own
+   * box, so the smaller thing has to be the one you can single out.
+   */
+  private pick(host: ToolHost, controller: ControllerState | null): void {
+    const previous = describe(this.target);
+    this.target = null;
+
+    if (controller && this.heldBy && !this.session) {
+      const hand: Handedness = this.heldBy === 'left' ? 'right' : 'left';
+      const tool = host.heldTool(hand);
+      if (tool && !tool.parked) {
+        this.tip.getWorldPosition(_origin);
+        _direction
+          .set(0, 0, -1)
+          .applyQuaternion(this.getWorldQuaternion(_quaternion))
+          .normalize();
+        _ray.set(_origin, _direction);
+
+        let best = Number.POSITIVE_INFINITY;
+        for (const attachment of tool.attachments()) {
+          const distance = rayBoxDistance(attachment);
+          if (distance === null || distance > PICK_RANGE || distance >= best) continue;
+          best = distance;
+          this.target = { kind: 'attachment', attachment, tool, hand };
+        }
+        if (!this.target) {
+          const distance = rayBoxDistance(tool);
+          if (distance !== null && distance <= PICK_RANGE) {
+            this.target = { kind: 'tool', tool, hand };
+          }
+        }
+      }
+    }
+
+    this.showMarker(this.target);
+    const caption = describe(this.target);
+    if (caption !== previous) {
+      this.caption = caption;
+      this.dirty = true;
+    }
+  }
+
+  /** The wire box around the current target. */
+  private showMarker(target: Target | null): void {
+    const object = target
+      ? target.kind === 'attachment'
+        ? target.attachment
+        : target.tool
+      : null;
+    if (!object) {
+      this.marker.visible = false;
+      return;
+    }
+    _box.setFromObject(object);
+    if (_box.isEmpty()) {
+      this.marker.visible = false;
+      return;
+    }
+    _box.getCenter(this.marker.position);
+    _box.getSize(_scale);
+    // A hair bigger than the thing itself, so the lines are not inside it.
+    this.marker.scale.set(_scale.x + 0.008, _scale.y + 0.008, _scale.z + 0.008);
+    this.marker.material.color.setHex(target?.kind === 'attachment' ? 0x5ee0a0 : 0xffc857);
+    this.marker.visible = true;
+  }
+
+  // --- dragging an attachment ----------------------------------------------
+
+  private beginDrag(target: Extract<Target, { kind: 'attachment' }>, host: ToolHost): void {
+    const { attachment, tool } = target;
+    attachment.updateWorldMatrix(true, false);
+    this.tip.updateWorldMatrix(true, false);
+    // Keep the grip: the attachment must not jump to the tip when picked up.
+    const offset = _inverse.copy(this.tip.matrixWorld).invert().multiply(attachment.matrixWorld);
+    this.drag = {
+      attachment,
+      tool,
+      offset: offset.clone(),
+      position: attachment.position.clone(),
+      rotation: attachment.quaternion.clone(),
+    };
+    playTone({ type: 'square', from: 620, to: 880, duration: 0.09, gain: 0.05 });
+    host.notify(`${attachment.label} · loslassen setzt sie fest`);
+  }
+
+  /** Every frame of a drag: the attachment rides the tip, inside its tool. */
+  private moveDrag(): void {
+    const drag = this.drag!;
+    this.tip.updateWorldMatrix(true, false);
+    const parent = drag.attachment.parent;
+    if (!parent) return;
+    parent.updateWorldMatrix(true, false);
+    _matrix.copy(this.tip.matrixWorld).multiply(drag.offset);
+    // Back into the tool's own space — that is where the pose is stored, and
+    // it is why the attachment stays put when the gun is moved afterwards.
+    _matrix.premultiply(_inverse.copy(parent.matrixWorld).invert());
+    _matrix.decompose(drag.attachment.position, drag.attachment.quaternion, _scale);
+  }
+
+  private endDrag(host: ToolHost): void {
+    const drag = this.drag;
+    if (!drag) return;
+    this.drag = null;
+    const pose = drag.attachment.savePose(drag.tool.toolId);
+    this.readout = pose;
+    this.caption = drag.attachment.label;
+    this.showFor = SHOW_TIME;
+    this.dirty = true;
+    playTone({ type: 'square', from: 880, to: 520, duration: 0.1, gain: 0.05 });
+    host.notify(`${drag.attachment.label}: ${formatPose(pose)}`);
+  }
+
+  private cancelDrag(): void {
+    const drag = this.drag;
+    if (!drag) return;
+    drag.attachment.position.copy(drag.position);
+    drag.attachment.quaternion.copy(drag.rotation);
+    this.drag = null;
+    this.dirty = true;
+  }
+
+  // --- the two halves of a tool measurement ---------------------------------
 
   /** Stops the tool in the other hand where it is. */
   private begin(host: ToolHost): void {
@@ -265,6 +482,7 @@ export class AdjustTool extends Tool {
     savePose(session.tool.toolId, pose);
 
     this.readout = readPose(pose);
+    this.caption = session.tool.label;
     this.showFor = SHOW_TIME;
     this.dirty = true;
     this.previous = session;
@@ -277,6 +495,7 @@ export class AdjustTool extends Tool {
 
   /** Puts a parked tool back exactly as it was. */
   private cancel(host: ToolHost): void {
+    this.cancelDrag();
     const session = this.session;
     if (!session) return;
     session.tool.holdPosition.copy(session.position);
@@ -297,7 +516,7 @@ export class AdjustTool extends Tool {
     ctx.roundRect(6, 6, 500, 244, 26);
     ctx.fillStyle = 'rgba(8, 12, 22, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = this.session ? '#5ee0a0' : '#ffc857';
+    ctx.strokeStyle = this.session || this.drag ? '#5ee0a0' : '#ffc857';
     ctx.lineWidth = 5;
     ctx.stroke();
 
@@ -315,24 +534,45 @@ export class AdjustTool extends Tool {
       return;
     }
 
-    const readout = this.readout;
-    if (!readout || this.showFor <= 0) {
-      ctx.font = '600 36px system-ui, sans-serif';
-      ctx.fillText('Werkzeug in die', 256, 92);
-      ctx.fillText('andere Hand', 256, 148);
+    if (this.drag) {
+      ctx.font = '700 36px system-ui, sans-serif';
+      ctx.fillText(this.drag.attachment.label, 256, 96);
+      ctx.font = '500 30px system-ui, sans-serif';
+      ctx.fillStyle = '#9fe3ff';
+      ctx.fillText('Loslassen setzt fest', 256, 156);
       this.texture.needsUpdate = true;
       return;
     }
 
-    ctx.font = '600 38px system-ui, sans-serif';
-    ctx.fillText(`x ${readout.x}  y ${readout.y}  z ${readout.z}`, 256, 78);
-    ctx.font = '500 30px system-ui, sans-serif';
+    const readout = this.readout;
+    if (!readout || this.showFor <= 0) {
+      ctx.font = '600 34px system-ui, sans-serif';
+      if (this.caption) {
+        ctx.fillText(this.caption, 256, 92);
+        ctx.fillStyle = '#9fe3ff';
+        ctx.font = '500 28px system-ui, sans-serif';
+        ctx.fillText('Trigger justiert', 256, 152);
+      } else {
+        ctx.fillText('Auf Werkzeug oder', 256, 92);
+        ctx.fillText('Anbauteil zielen', 256, 148);
+      }
+      this.texture.needsUpdate = true;
+      return;
+    }
+
+    ctx.font = '600 28px system-ui, sans-serif';
     ctx.fillStyle = '#9fe3ff';
-    ctx.fillText('Zentimeter', 256, 118);
+    ctx.fillText(this.caption, 256, 36);
     ctx.fillStyle = '#ffffff';
-    ctx.font = '600 34px system-ui, sans-serif';
-    ctx.fillText(`roll ${readout.roll}°  pitch ${readout.pitch}°`, 256, 168);
-    ctx.fillText(`yaw ${readout.yaw}°`, 256, 210);
+    ctx.font = '600 36px system-ui, sans-serif';
+    ctx.fillText(`x ${readout.x}  y ${readout.y}  z ${readout.z}`, 256, 88);
+    ctx.font = '500 26px system-ui, sans-serif';
+    ctx.fillStyle = '#9fe3ff';
+    ctx.fillText('Zentimeter', 256, 124);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 32px system-ui, sans-serif';
+    ctx.fillText(`roll ${readout.roll}°  pitch ${readout.pitch}°`, 256, 172);
+    ctx.fillText(`yaw ${readout.yaw}°`, 256, 214);
     this.texture.needsUpdate = true;
   }
 }
@@ -340,4 +580,19 @@ export class AdjustTool extends Tool {
 /** The node a tool hangs on: the grip, or the ray when there is no grip. */
 function handAnchor(controller: ControllerState): THREE.Object3D {
   return controller.grip.visible ? controller.grip : controller.targetRay;
+}
+
+/** What the display calls the current target. */
+function describe(target: Target | null): string {
+  if (!target) return '';
+  return target.kind === 'attachment' ? target.attachment.label : target.tool.label;
+}
+
+/** How far along `_ray` an object's box is, or null when it is not on it. */
+function rayBoxDistance(object: THREE.Object3D): number | null {
+  _box.setFromObject(object);
+  if (_box.isEmpty()) return null;
+  // Inside the box counts as a hit at zero — the tip is often already there.
+  if (_box.containsPoint(_ray.origin)) return 0;
+  return _ray.intersectBox(_box, _hit) ? _ray.origin.distanceTo(_hit) : null;
 }

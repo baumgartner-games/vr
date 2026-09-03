@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { UIPanel } from './UIPanel';
+import { TextPlane } from './TextPlane';
 import type { MenuEntry } from './menu';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
@@ -43,6 +44,9 @@ const SCROLL_REPEAT = 0.16;
 export class WristMenu extends THREE.Group {
   readonly panel: UIPanel;
   readonly button: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
+  /** One line about the entry under the pointer, floating over the panel. */
+  private readonly caption: TextPlane;
+  private captionText = '';
 
   /** Which hand carries the menu. */
   hand: Handedness = 'left';
@@ -98,6 +102,19 @@ export class WristMenu extends THREE.Group {
     });
     this.panel.visible = false;
     this.add(this.panel);
+
+    // A grid cell has room for two words. What the thing actually does goes
+    // here instead, above the panel, while the pointer rests on it.
+    this.caption = new TextPlane({
+      width: 0.3,
+      height: 0.06,
+      title: '',
+      accent: 0x9fd0ff,
+      align: 'center',
+    });
+    this.caption.visible = false;
+    this.caption.renderOrder = 11;
+    this.add(this.caption);
 
     this.attachPointer();
     this.drawButton();
@@ -222,6 +239,14 @@ export class WristMenu extends THREE.Group {
 
       this.panel.position.copy(_wrist).addScaledVector(_dir, 0.08).addScaledVector(_panelUp, 0.2);
       faceTowards(this.panel, _head, _panelUp);
+
+      this.updateCaption();
+      if (this.caption.visible) {
+        this.caption.position
+          .copy(this.panel.position)
+          .addScaledVector(_panelUp, this.panelHeight / 2 + 0.05);
+        faceTowards(this.caption, _head, _panelUp);
+      }
       return;
     }
 
@@ -233,6 +258,34 @@ export class WristMenu extends THREE.Group {
     this.button.quaternion.copy(_quat);
     this.panel.position.copy(_head).add(_offset.set(0, -0.02, -0.62).applyQuaternion(_quat));
     this.panel.quaternion.copy(_quat);
+
+    this.updateCaption();
+    if (this.caption.visible) {
+      this.caption.position
+        .copy(this.panel.position)
+        .add(_offset.set(0, this.panelHeight / 2 + 0.05, 0).applyQuaternion(_quat));
+      this.caption.quaternion.copy(_quat);
+    }
+  }
+
+  /** How tall the panel is in metres, for putting the caption above it. */
+  private get panelHeight(): number {
+    return this.panel.geometry.parameters.height;
+  }
+
+  /**
+   * The line over the panel: whatever the pointer rests on says what it is.
+   * Only entries that carry a `caption` get one — a list already spells itself
+   * out in its rows, and a second copy of the same words is just noise.
+   */
+  private updateCaption(): void {
+    const entry = this.open ? this.displayed()[this.panel.hovered.index] : undefined;
+    const text = entry?.caption ?? '';
+    if (text !== this.captionText) {
+      this.captionText = text;
+      if (text) this.caption.setText(text);
+    }
+    this.caption.visible = text.length > 0;
   }
 
   dispose(): void {
@@ -242,6 +295,7 @@ export class WristMenu extends THREE.Group {
     this.button.material.dispose();
     this.buttonTexture.dispose();
     this.panel.dispose();
+    this.caption.dispose();
     this.removeFromParent();
   }
 

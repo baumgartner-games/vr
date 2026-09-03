@@ -14,21 +14,53 @@ import { PortalRenderer } from './PortalRenderer';
 import { PortalGhosts } from './PortalGhosts';
 import { ToolBelt } from './ToolBelt';
 import {
+  AMMO_KINDS,
+  AMMO_LABELS,
   COLOR_BLUE,
   COLOR_RED,
   DroneTool,
   PistolTool,
   PortalGunTool,
+  SIGHTS,
   TOOL_IDS,
   Tool,
+  WEAPON_FIELDS,
+  applyGearConfig,
+  applyStoredPose,
+  clearGearConfig,
   clearPoses,
   createTool,
+  gearCode,
+  parseGearCode,
   storedPoseCount,
   type BulletOptions,
+  type SightKind,
   type ToolHost,
   type SurfaceHit,
+  type WeaponSettings,
   type WeldRequest,
 } from './tools';
+import { KeyPanel, type KeyPanelRequest } from '../../ui/KeyPanel';
+import { isTyping } from '../../core/textEntry';
+import {
+  HAND_FIELDS,
+  HOLD_HAND_POSE,
+  IDLE_HAND_POSE,
+  clonePose,
+  formatHandPose,
+  handPoseField,
+  handPoseFromArray,
+  mirrorHandPose,
+  setHandPoseField,
+  type HandPose,
+} from '../../core/handPose';
+import {
+  clearHandPoses,
+  handPoseCount,
+  handPoseSnapshot,
+  saveHoldHandPose,
+  saveIdleHandPose,
+} from '../../core/handPoseStore';
 import {
   createCompanionCube,
   createDominoes,
@@ -79,6 +111,31 @@ const HIGHLIGHT_PICKED = 0x5ee0a0;
 const _ropeTaut = new THREE.Color(0xffb35c);
 /** Bullets are cleaned up again after this long. */
 const BULLET_LIFETIME = 4;
+/** How many points a tracer's streak is made of. */
+const TRACER_POINTS = 12;
+
+/** Which little picture the aiming-aid grid draws for each entry. */
+const SIGHT_ICONS: Record<SightKind, MenuIcon> = {
+  none: 'close',
+  reddot: 'reddot',
+  irons: 'irons',
+  trace: 'trace',
+  xray: 'xray',
+};
+
+/** What the row above the grid says the gun is wearing. */
+function sightLabel(kind: SightKind): string {
+  return SIGHTS.find((sight) => sight.id === kind)?.label ?? kind;
+}
+
+/** Two decimals is as fine as any of these settings needs to read. */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 const _direction = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -163,6 +220,15 @@ interface Flight {
 interface Bullet {
   entry: PhysicsBody;
   life: number;
+  /** Tracer rounds drag a streak behind them; plain ones do not. */
+  trail: Trail | null;
+}
+
+/** The streak behind a tracer: the last few places it has been. */
+interface Trail {
+  line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  positions: Float32Array;
+  count: number;
 }
 
 /** Physics stand-in for another player, so their body can shove props around. */
@@ -249,6 +315,14 @@ export class PortalWorld implements World {
   private readonly bodyHome = new THREE.Vector3();
   private reopenBag = false;
   private readonly previousHead = new THREE.Vector3();
+  /**
+   * Labels that show a value. Anything that can be changed somewhere other
+   * than by tapping the row itself — the keypad, a config code, the mirror —
+   * runs these afterwards, so the menu never shows yesterday's number.
+   */
+  private readonly menuLabels: Array<() => void> = [];
+  /** The keyboard for raw values and config codes; built with the world. */
+  private keys: KeyPanel | null = null;
 
   /** Which hip a tool goes back to when it is simply let go of. */
   private readonly homes = new Map<Tool, Handedness>();
@@ -296,6 +370,9 @@ export class PortalWorld implements World {
     this.hasPreviousHead = false;
 
     this.host = this.buildHost(ctx);
+    this.keys = new KeyPanel();
+    this.root.add(this.keys);
+    ctx.pointer.add(this.keys.asPointerTarget());
     this.setupTools(ctx);
     this.bindFlatInput(ctx);
 
@@ -337,6 +414,8 @@ export class PortalWorld implements World {
 
   menu(): MenuEntry[] {
     const ctx = () => this.context!;
+    // The tree is built once per world; the label refreshers belong to it.
+    this.menuLabels.length = 0;
     const toggle = (entry: MenuEntry, value: boolean, message: string): void => {
       entry.checked = value;
       this.context?.notify(message);
@@ -411,7 +490,9 @@ export class PortalWorld implements World {
             accent: 0x4aa8ff,
             children: [remoteOn, remoteLine],
           },
-          this.pistolMenu(),
+          this.weaponMenu(),
+          this.handsMenu(),
+          this.configMenu(),
           {
             id: 'setting:poses',
             label: 'Werkzeug-Posen zurücksetzen',
@@ -441,67 +522,572 @@ export class PortalWorld implements World {
   }
 
   /**
-   * The pistol's four dials. Each entry steps one notch and writes the new
-   * value into its own label — the panel redraws itself right after `run`.
+   * Everything about the pistol, on one page.
+   *
+   * Each row steps its value to the next notch and shows the raw figure it is
+   * at — "Stärke: stark · 0.14 kg". The notches are quick, but they are not
+   * the whole range: *Werte eingeben* opens a keypad for any number the field
+   * allows, and the aiming aids and the ammunition have pages of their own.
    */
-  private pistolMenu(): MenuEntry {
+  private weaponMenu(): MenuEntry {
     const pistol = this.tool('pistol') as PistolTool | null;
     if (!pistol) return { id: 'setting:pistol', label: 'Pistole', accent: 0xd7dce8 };
+    const accent = 0xd7dce8;
 
-    const power: MenuEntry = {
-      id: 'setting:pistol-power',
-      label: `Stärke: ${pistol.powerLabel}`,
-      sub: 'Wie hart die Kugel zuschlägt',
-      icon: 'pistol',
-      accent: 0xd7dce8,
-      run: () => {
-        power.label = `Stärke: ${pistol.cyclePower()}`;
-        this.context?.notify(power.label);
-      },
+    /** One stepping row: cycles on a tap, and can rewrite its own label. */
+    const dial = (
+      id: string,
+      label: string,
+      sub: string,
+      value: () => string,
+      step: () => void,
+    ): MenuEntry => {
+      const entry: MenuEntry = {
+        id: `setting:pistol-${id}`,
+        label: `${label}: ${value()}`,
+        sub,
+        icon: 'pistol',
+        accent,
+        run: () => {
+          step();
+          this.refreshMenuLabels();
+          this.context?.notify(`${label}: ${value()}`);
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = `${label}: ${value()}`;
+      });
+      return entry;
     };
-    const speed: MenuEntry = {
-      id: 'setting:pistol-speed',
-      label: `Tempo: ${pistol.muzzleSpeed} m/s`,
-      sub: 'Wie schnell sie fliegt',
-      icon: 'pistol',
-      accent: 0xd7dce8,
-      run: () => {
-        speed.label = `Tempo: ${pistol.cycleSpeed()} m/s`;
-        this.context?.notify(speed.label);
-      },
-    };
-    const rate: MenuEntry = {
-      id: 'setting:pistol-rate',
-      label: `Feuerrate: ${pistol.fireRate}/s`,
-      sub: 'Schuss pro Sekunde',
-      icon: 'pistol',
-      accent: 0xd7dce8,
-      run: () => {
-        rate.label = `Feuerrate: ${pistol.cycleRate()}/s`;
-        this.context?.notify(rate.label);
-      },
-    };
-    const mode: MenuEntry = {
-      id: 'setting:pistol-mode',
-      label: `Modus: ${pistol.modeLabel}`,
-      sub: 'Einzeln, dreifach oder automatisch',
-      icon: 'pistol',
-      accent: 0xd7dce8,
-      run: () => {
-        pistol.cycleMode();
-        mode.label = `Modus: ${pistol.modeLabel}`;
-        this.context?.notify(mode.label);
-      },
-    };
+
+    const weapon = (): WeaponSettings => pistol.weapon;
 
     return {
       id: 'setting:pistol',
       label: 'Pistole',
-      sub: 'Stärke, Tempo, Feuerrate, Modus',
+      sub: 'Werte, Zielhilfen, Munition',
+      icon: 'pistol',
+      accent,
+      children: [
+        dial(
+          'power',
+          'Stärke',
+          'Masse der Kugel — wie hart sie zuschlägt',
+          () => `${pistol.powerLabel} · ${weapon().mass} kg`,
+          () => pistol.cyclePower(),
+        ),
+        dial(
+          'speed',
+          'Tempo',
+          'Mündungsgeschwindigkeit',
+          () => `${weapon().speed} m/s`,
+          () => pistol.cycleSpeed(),
+        ),
+        dial(
+          'rate',
+          'Feuerrate',
+          'Schuss pro Sekunde',
+          () => `${weapon().rate}/s`,
+          () => pistol.cycleRate(),
+        ),
+        dial(
+          'magazine',
+          'Magazin',
+          'Wie viele Schuss hineingehen',
+          () => `${weapon().magazine} Schuss`,
+          () => pistol.cycleMagazine(),
+        ),
+        dial(
+          'reload',
+          'Nachladezeit',
+          'Wie lange ein Magazinwechsel dauert',
+          () => `${weapon().reload} s`,
+          () => pistol.cycleReload(),
+        ),
+        dial(
+          'burst',
+          'Salve',
+          'Wie viele Schuss der Dreifachschuss abgibt',
+          () => `${weapon().burst} Schuss`,
+          () => pistol.cycleBurst(),
+        ),
+        dial(
+          'mode',
+          'Modus',
+          'Einzeln, Salve oder automatisch',
+          () => pistol.modeLabel,
+          () => pistol.cycleMode(),
+        ),
+        this.weaponValuesMenu(pistol),
+        this.sightMenu(pistol),
+        this.ammoMenu(pistol),
+        {
+          id: 'setting:pistol-reload-now',
+          label: 'Magazin wechseln',
+          sub: 'Volles Magazin, sofort',
+          icon: 'reset',
+          accent,
+          run: () => {
+            pistol.reloadNow();
+            this.context?.notify('Nachgeladen');
+          },
+        },
+      ],
+    };
+  }
+
+  /** Every raw number of the gun, each one behind a keypad. */
+  private weaponValuesMenu(pistol: PistolTool): MenuEntry {
+    const children = WEAPON_FIELDS.map((field) => {
+      const entry: MenuEntry = {
+        id: `setting:pistol-value-${field.key}`,
+        label: `${field.label}: ${pistol.weapon[field.key]} ${field.unit}`.trim(),
+        sub: `${field.sub} · ${field.min} bis ${field.max}`,
+        icon: 'settings',
+        accent: 0xd7dce8,
+        run: () => {
+          this.askNumber({
+            title: field.label,
+            sub: `Pistole · ${field.min} bis ${field.max} ${field.unit}`.trim(),
+            value: String(pistol.weapon[field.key]),
+            hint: field.sub,
+            commit: (value) => {
+              const applied = pistol.set({ [field.key]: value } as Partial<WeaponSettings>);
+              this.context?.notify(
+                `${field.label}: ${applied[field.key]} ${field.unit}`.trim(),
+              );
+            },
+          });
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = `${field.label}: ${pistol.weapon[field.key]} ${field.unit}`.trim();
+      });
+      return entry;
+    });
+
+    return {
+      id: 'setting:pistol-values',
+      label: 'Werte eingeben',
+      sub: 'Jede Zahl direkt tippen',
+      icon: 'settings',
+      accent: 0xd7dce8,
+      children,
+    };
+  }
+
+  /**
+   * The aiming aids, as a grid of icons. Pointing at a cell writes what it is
+   * over the panel — five little pictures need a line of prose each.
+   */
+  private sightMenu(pistol: PistolTool): MenuEntry {
+    const entry: MenuEntry = {
+      id: 'setting:pistol-sight',
+      label: `Zielhilfe: ${sightLabel(pistol.weapon.sight)}`,
+      sub: 'Rotpunkt, Kimme & Korn, Flugbahn, Röntgen',
+      icon: 'reddot',
+      accent: 0xd7dce8,
+      grid: true,
+      // A grid is normally something you *take* into a hand; this one is a
+      // choice, so the trigger picks it like any other row.
+      take: false,
+      children: SIGHTS.map((sight) => ({
+        id: `sight:${sight.id}`,
+        label: sight.label,
+        caption: sight.caption,
+        icon: SIGHT_ICONS[sight.id],
+        accent: pistol.weapon.sight === sight.id ? 0x5ee0a0 : 0xd7dce8,
+        selected: pistol.weapon.sight === sight.id,
+        run: () => {
+          pistol.set({ sight: sight.id });
+          for (const child of entry.children ?? []) {
+            const id = child.id.slice('sight:'.length);
+            child.selected = id === sight.id;
+            child.accent = child.selected ? 0x5ee0a0 : 0xd7dce8;
+          }
+          this.refreshMenuLabels();
+          this.context?.notify(sight.caption);
+        },
+      })),
+    };
+    this.menuLabels.push(() => {
+      entry.label = `Zielhilfe: ${sightLabel(pistol.weapon.sight)}`;
+    });
+    return entry;
+  }
+
+  /** Normal rounds or tracer. */
+  private ammoMenu(pistol: PistolTool): MenuEntry {
+    const entry: MenuEntry = {
+      id: 'setting:pistol-ammo',
+      label: `Munition: ${pistol.ammoLabel}`,
+      sub: 'Normal oder Leuchtspur',
       icon: 'pistol',
       accent: 0xd7dce8,
-      children: [power, speed, rate, mode],
+      children: AMMO_KINDS.map((kind) => ({
+        id: `ammo:${kind}`,
+        label: AMMO_LABELS[kind],
+        sub:
+          kind === 'tracer'
+            ? 'Glüht und zieht eine Spur durch den Raum'
+            : 'Schlichtes Blei, keine Spur',
+        icon: 'pistol',
+        accent: 0xd7dce8,
+        selected: pistol.weapon.ammo === kind,
+        run: () => {
+          pistol.set({ ammo: kind });
+          for (const child of entry.children ?? []) {
+            child.selected = child.id === `ammo:${kind}`;
+          }
+          this.refreshMenuLabels();
+          this.context?.notify(`Munition: ${AMMO_LABELS[kind]}`);
+        },
+      })),
     };
+    this.menuLabels.push(() => {
+      entry.label = `Munition: ${pistol.ammoLabel}`;
+    });
+    return entry;
+  }
+
+  // --- the hands -----------------------------------------------------------
+
+  /** How the hands look: empty, and around each tool. */
+  private handsMenu(): MenuEntry {
+    return {
+      id: 'setting:hands',
+      label: 'Hände',
+      sub: 'Haltung leer und am Werkzeug',
+      icon: 'glove',
+      accent: 0x9fe3ff,
+      children: [
+        this.handSideMenu('left'),
+        this.handSideMenu('right'),
+        {
+          id: 'setting:hands-mirror-lr',
+          label: 'Links auf rechts spiegeln',
+          sub: 'Alle Haltungen der linken Hand',
+          icon: 'glove',
+          accent: 0x9fe3ff,
+          run: () => this.mirrorHand('left'),
+        },
+        {
+          id: 'setting:hands-mirror-rl',
+          label: 'Rechts auf links spiegeln',
+          sub: 'Alle Haltungen der rechten Hand',
+          icon: 'glove',
+          accent: 0x9fe3ff,
+          run: () => this.mirrorHand('right'),
+        },
+        {
+          id: 'setting:hands-reset',
+          label: 'Hände zurücksetzen',
+          sub: 'Zurück zur gebauten Haltung',
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            const count = handPoseCount();
+            clearHandPoses();
+            this.context?.hands.refreshPoses();
+            this.refreshMenuLabels();
+            this.context?.notify(count ? `${count} Hand-Pose(n) zurückgesetzt` : 'Nichts gespeichert');
+          },
+        },
+      ],
+    };
+  }
+
+  private handSideMenu(hand: Handedness): MenuEntry {
+    return {
+      id: `setting:hand-${hand}`,
+      label: hand === 'left' ? 'Linke Hand' : 'Rechte Hand',
+      sub: 'Grundhaltung und Griffe',
+      icon: 'glove',
+      accent: 0x9fe3ff,
+      children: [
+        this.handPoseMenu(hand, null),
+        {
+          id: `setting:hand-${hand}-tools`,
+          label: 'Griff am Werkzeug',
+          sub: 'Für jedes Werkzeug eigen',
+          icon: 'tools',
+          accent: 0x9fe3ff,
+          children: TOOL_IDS.map((id) => this.handPoseMenu(hand, id)),
+        },
+      ],
+    };
+  }
+
+  /**
+   * The twelve numbers of one hand pose, each behind the keypad. Typing into
+   * one shows on the hand while the keypad is still open — a curl of 0.6 means
+   * nothing on paper and everything in the headset.
+   */
+  private handPoseMenu(hand: Handedness, toolId: string | null): MenuEntry {
+    const title = toolId ? (this.tool(toolId)?.label ?? toolId) : 'Ohne Werkzeug';
+    const read = (): HandPose => this.context!.hands.editablePose(hand, toolId);
+    const save = (pose: HandPose): void => {
+      if (toolId) saveHoldHandPose(hand, toolId, pose);
+      else saveIdleHandPose(hand, pose);
+    };
+
+    const children: MenuEntry[] = HAND_FIELDS.map((field) => {
+      const entry: MenuEntry = {
+        id: `hand:${hand}:${toolId ?? 'idle'}:${field.key}`,
+        label: `${field.label}: ${round2(handPoseField(read(), field.key))} ${field.unit}`.trim(),
+        sub: `${field.min} bis ${field.max}`,
+        icon: 'settings',
+        accent: 0x9fe3ff,
+        run: () => {
+          const before = read();
+          this.askNumber({
+            title: field.label,
+            sub: `${hand === 'left' ? 'Linke' : 'Rechte'} Hand · ${title}`,
+            value: String(round2(handPoseField(before, field.key))),
+            hint: `${field.min} bis ${field.max} ${field.unit}`.trim(),
+            // Live: the hand moves while the number is being typed.
+            preview: (value) => {
+              save(setHandPoseField(before, field.key, clamp(value, field.min, field.max)));
+            },
+            cancel: () => save(before),
+            commit: (value) => {
+              const pose = setHandPoseField(before, field.key, clamp(value, field.min, field.max));
+              save(pose);
+              this.context?.notify(`${title}: ${formatHandPose(pose)}`);
+            },
+          });
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label =
+          `${field.label}: ${round2(handPoseField(read(), field.key))} ${field.unit}`.trim();
+      });
+      return entry;
+    });
+
+    children.push(
+      {
+        id: `hand:${hand}:${toolId ?? 'idle'}:mirror`,
+        label: 'Auf die andere Hand spiegeln',
+        sub: 'X, Yaw und Roll umgedreht',
+        icon: 'glove',
+        accent: 0x9fe3ff,
+        run: () => {
+          const other: Handedness = hand === 'left' ? 'right' : 'left';
+          const mirrored = mirrorHandPose(read());
+          if (toolId) saveHoldHandPose(other, toolId, mirrored);
+          else saveIdleHandPose(other, mirrored);
+          this.refreshMenuLabels();
+          this.context?.notify(`Gespiegelt auf ${other === 'left' ? 'links' : 'rechts'}`);
+        },
+      },
+      {
+        id: `hand:${hand}:${toolId ?? 'idle'}:reset`,
+        label: 'Zurücksetzen',
+        sub: 'Zurück zur gebauten Haltung',
+        icon: 'reset',
+        accent: 0xffc857,
+        run: () => {
+          save(clonePose(toolId ? HOLD_HAND_POSE : IDLE_HAND_POSE));
+          this.refreshMenuLabels();
+          this.context?.notify(`${title}: zurückgesetzt`);
+        },
+      },
+    );
+
+    return {
+      id: `setting:hand-${hand}-${toolId ?? 'idle'}`,
+      label: toolId ? title : 'Grundhaltung',
+      sub: toolId ? 'Wie die Hand es hält' : 'Die leere Hand',
+      icon: 'glove',
+      accent: 0x9fe3ff,
+      children,
+    };
+  }
+
+  /** Copies every pose of one hand over to the other, mirrored. */
+  private mirrorHand(from: Handedness): void {
+    const to: Handedness = from === 'left' ? 'right' : 'left';
+    const snapshot = handPoseSnapshot();
+    const idle = snapshot.idle?.[from];
+    if (idle) saveIdleHandPose(to, mirrorHandPose(handPoseFromArray(idle)));
+    let count = idle ? 1 : 0;
+    for (const [toolId, values] of Object.entries(snapshot.hold?.[from] ?? {})) {
+      saveHoldHandPose(to, toolId, mirrorHandPose(handPoseFromArray(values, HOLD_HAND_POSE)));
+      count++;
+    }
+    this.context?.hands.refreshPoses();
+    this.refreshMenuLabels();
+    this.context?.notify(
+      count ? `${count} Haltung(en) auf ${to === 'left' ? 'links' : 'rechts'} gespiegelt` : 'Nichts zu spiegeln',
+    );
+  }
+
+  // --- the config code ------------------------------------------------------
+
+  /** Reading the whole configuration out, and putting one back in. */
+  private configMenu(): MenuEntry {
+    return {
+      id: 'setting:config',
+      label: 'Konfig-Code',
+      sub: 'Alle Einstellungen als eine Zeile',
+      icon: 'settings',
+      accent: 0x5ee0a0,
+      children: [
+        {
+          id: 'setting:config-show',
+          label: 'Code anzeigen',
+          sub: 'Zum Ablesen, Kopieren und Weitergeben',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            const code = gearCode();
+            console.info('[bgvr] Konfig-Code:', code);
+            void navigator.clipboard?.writeText(code).catch(() => undefined);
+            this.askText({
+              title: 'Konfig-Code',
+              sub: 'Schon in der Zwischenablage · Kopieren geht nochmal',
+              value: code,
+              hint: `${code.length} Zeichen · steht auch in der Browser-Konsole`,
+              commit: (text) => this.loadConfigCode(text),
+            });
+          },
+        },
+        {
+          id: 'setting:config-load',
+          label: 'Code laden',
+          sub: 'Eingeben oder einfügen',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            this.askText({
+              title: 'Konfig-Code laden',
+              sub: 'Einfügen oder Buchstabe für Buchstabe',
+              value: '',
+              hint: 'Beginnt mit BGVR1',
+              commit: (text) => this.loadConfigCode(text),
+            });
+          },
+        },
+        {
+          id: 'setting:config-reset',
+          label: 'Alles zurücksetzen',
+          sub: 'Werkzeuge, Hände und Anbauteile',
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            clearGearConfig();
+            this.applyStoredConfig();
+            this.context?.notify('Alle Einstellungen zurückgesetzt');
+          },
+        },
+      ],
+    };
+  }
+
+  /** Takes a code apart and puts everything it carries into place. */
+  private loadConfigCode(text: string): void {
+    const config = parseGearCode(text);
+    if (!config) {
+      this.context?.notify('Kein gültiger Konfig-Code');
+      return;
+    }
+    const summary = applyGearConfig(config);
+    this.applyStoredConfig();
+    this.context?.notify(`Geladen: ${summary}`);
+  }
+
+  /** Puts whatever is stored onto the tools that are already built. */
+  private applyStoredConfig(): void {
+    for (const tool of this.tools.values()) {
+      tool.resetHold();
+      applyStoredPose(tool);
+      if (tool instanceof PistolTool) tool.reloadSettings();
+    }
+    this.context?.hands.refreshPoses();
+    this.refreshMenuLabels();
+  }
+
+  // --- typing numbers and codes --------------------------------------------
+
+  /** Rewrites every label that shows a value, then redraws the panel. */
+  private refreshMenuLabels(): void {
+    for (const refresh of this.menuLabels) refresh();
+    this.context?.menu.panel.refresh();
+  }
+
+  private askNumber(options: {
+    title: string;
+    sub?: string;
+    value: string;
+    hint?: string;
+    preview?(value: number): void;
+    cancel?(): void;
+    commit(value: number): void;
+  }): void {
+    this.openKeys({
+      title: options.title,
+      sub: options.sub,
+      value: options.value,
+      hint: options.hint,
+      layout: 'number',
+      onPreview: options.preview
+        ? (text) => {
+            const value = Number(text);
+            if (Number.isFinite(value)) options.preview!(value);
+          }
+        : undefined,
+      onCancel: () => {
+        options.cancel?.();
+        this.refreshMenuLabels();
+      },
+      onCommit: (text) => {
+        const value = Number(text);
+        if (!Number.isFinite(value)) {
+          options.cancel?.();
+          this.context?.notify('Das war keine Zahl');
+        } else {
+          options.commit(value);
+        }
+        this.refreshMenuLabels();
+      },
+    });
+  }
+
+  private askText(options: {
+    title: string;
+    sub?: string;
+    value: string;
+    hint?: string;
+    commit(text: string): void;
+  }): void {
+    this.openKeys({
+      title: options.title,
+      sub: options.sub,
+      value: options.value,
+      hint: options.hint,
+      layout: 'text',
+      onCommit: (text) => {
+        options.commit(text);
+        this.refreshMenuLabels();
+      },
+    });
+  }
+
+  /** Puts the keypad an arm's length in front of the player and opens it. */
+  private openKeys(request: KeyPanelRequest): void {
+    const keys = this.keys;
+    const ctx = this.context;
+    if (!keys || !ctx) return;
+    if (keys.parent !== this.root) this.root.add(keys);
+    ctx.rig.getHeadMatrix(_matrix);
+    _head.setFromMatrixPosition(_matrix);
+    _rotation.setFromRotationMatrix(_matrix);
+    // Slightly below eye level, tilted back: a keyboard, not a billboard.
+    keys.position.copy(_head).add(_probe.set(0, -0.18, -0.55).applyQuaternion(_rotation));
+    keys.quaternion.copy(_rotation);
+    keys.rotateX(-0.35);
+    keys.open(request);
   }
 
   /** One row of the tool shelf. Building the row builds the tool. */
@@ -544,6 +1130,15 @@ export class PortalWorld implements World {
     this.sync?.dispose();
     this.sync = null;
     this.clearRemotePlayers(ctx);
+
+    if (this.keys) {
+      ctx.pointer.remove(this.keys);
+      this.keys.dispose();
+      this.keys = null;
+    }
+    this.menuLabels.length = 0;
+    ctx.hands.setHeldTool('left', null);
+    ctx.hands.setHeldTool('right', null);
 
     for (const tool of this.tools.values()) {
       tool.removeFromParent();
@@ -1332,10 +1927,11 @@ export class PortalWorld implements World {
     const mass = options.mass ?? 0.06;
     // A heavier round is a bigger one — otherwise "brutal" looks like "leicht".
     const radius = 0.014 * Math.cbrt(mass / 0.06);
+    const tracer = options.tracer === true;
 
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(radius, 10, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffd98a, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: tracer ? 0xff7a2f : 0xffd98a, toneMapped: false }),
     );
     mesh.name = 'bullet';
     mesh.position.copy(origin).addScaledVector(direction, 0.05);
@@ -1355,7 +1951,56 @@ export class PortalWorld implements World {
     });
     _velocity.copy(direction).multiplyScalar(speed);
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
-    this.bullets.push({ entry, life: BULLET_LIFETIME });
+    this.bullets.push({ entry, life: BULLET_LIFETIME, trail: tracer ? this.newTrail() : null });
+  }
+
+  /**
+   * The streak a tracer drags behind it: a short line through the last dozen
+   * places the round has been. It is what makes a shot watchable — where a
+   * plain round is a dot that is gone before you found it.
+   */
+  private newTrail(): Trail {
+    const positions = new Float32Array(TRACER_POINTS * 3);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setDrawRange(0, 0);
+    const line = new THREE.Line(
+      geometry,
+      new THREE.LineBasicMaterial({
+        color: 0xffb35c,
+        transparent: true,
+        opacity: 0.85,
+        toneMapped: false,
+      }),
+    );
+    line.name = 'tracer';
+    line.frustumCulled = false;
+    this.root.add(line);
+    return { line, positions, count: 0 };
+  }
+
+  /** Pushes the round's current place onto the end of its streak. */
+  private extendTrail(trail: Trail, at: { x: number; y: number; z: number }): void {
+    if (trail.count === TRACER_POINTS) {
+      // Full: everything shuffles down one and the oldest point falls off.
+      trail.positions.copyWithin(0, 3);
+      trail.count--;
+    }
+    const index = trail.count * 3;
+    trail.positions[index] = at.x;
+    trail.positions[index + 1] = at.y;
+    trail.positions[index + 2] = at.z;
+    trail.count++;
+    trail.line.geometry.setDrawRange(0, trail.count);
+    (trail.line.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+    trail.line.geometry.computeBoundingSphere();
+  }
+
+  private dropTrail(trail: Trail | null): void {
+    if (!trail) return;
+    trail.line.geometry.dispose();
+    trail.line.material.dispose();
+    trail.line.removeFromParent();
   }
 
   private updateBullets(dt: number): void {
@@ -1365,9 +2010,11 @@ export class PortalWorld implements World {
       const bullet = this.bullets[i]!;
       bullet.life -= dt;
       const t = bullet.entry.body.translation();
+      if (bullet.trail) this.extendTrail(bullet.trail, t);
       if (bullet.life > 0 && t.y > -30) continue;
       this.bullets.splice(i, 1);
       physics.remove(bullet.entry);
+      this.dropTrail(bullet.trail);
       disposeTree(bullet.entry.object);
     }
   }
@@ -1375,6 +2022,7 @@ export class PortalWorld implements World {
   private clearBullets(): void {
     for (const bullet of this.bullets) {
       this.physics?.remove(bullet.entry);
+      this.dropTrail(bullet.trail);
       disposeTree(bullet.entry.object);
     }
     this.bullets.length = 0;
@@ -1822,6 +2470,9 @@ export class PortalWorld implements World {
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
       if (!hand) continue;
+      // A tool in the hand brings its own grip, dialled in under
+      // *Einstellungen → Hände*; an empty hand goes back to the idle pose.
+      ctx.hands.setHeldTool(hand, this.held.get(hand)?.toolId ?? null);
       if (this.held.has(hand) || this.grabs.has(hand) || this.links.has(hand)) {
         ctx.hands.setGestureOverride(hand, 'grip');
         continue;
@@ -2025,7 +2676,8 @@ export class PortalWorld implements World {
       else if (event.button === 2) this.flatShoot(ctx, 'b');
     };
     this.flatKeys = (event: KeyboardEvent) => {
-      if (event.code === 'KeyR') this.resetWorld(ctx);
+      // "r" is a reset — unless it is going into the keypad.
+      if (event.code === 'KeyR' && !isTyping()) this.resetWorld(ctx);
     };
     this.blockContextMenu = (event: Event) => event.preventDefault();
     this.canvas.addEventListener('mousedown', this.flatFire);
