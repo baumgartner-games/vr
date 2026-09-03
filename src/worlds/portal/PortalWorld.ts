@@ -217,6 +217,10 @@ interface Bullet {
   life: number;
   /** Tracer rounds drag a streak behind them; plain ones do not. */
   trail: Trail | null;
+  /** Where it was last frame — the segment a hit is looked for along. */
+  from: THREE.Vector3;
+  /** Already counted somewhere. A round only ever hits once. */
+  spent: boolean;
 }
 
 /** The streak behind a tracer: the last few places it has been. */
@@ -326,7 +330,7 @@ export class PortalWorld implements World {
   protected physics: PhysicsWorld | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
-  private context: WorldContext | null = null;
+  protected context: WorldContext | null = null;
   private portalRenderer: PortalRenderer | null = null;
   private ghosts: PortalGhosts | null = null;
   private clippingWasEnabled = false;
@@ -1962,7 +1966,13 @@ export class PortalWorld implements World {
     });
     _velocity.copy(direction).multiplyScalar(speed);
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
-    this.bullets.push({ entry, life: BULLET_LIFETIME, trail: tracer ? this.newTrail() : null });
+    this.bullets.push({
+      entry,
+      life: BULLET_LIFETIME,
+      trail: tracer ? this.newTrail() : null,
+      from: mesh.position.clone(),
+      spent: false,
+    });
   }
 
   /**
@@ -2022,12 +2032,29 @@ export class PortalWorld implements World {
       bullet.life -= dt;
       const t = bullet.entry.body.translation();
       if (bullet.trail) this.extendTrail(bullet.trail, t);
+      // A round travels metres between two frames, so what it passed through
+      // is a line, not a point. Worlds that count hits get that line.
+      if (!bullet.spent) {
+        _point.set(t.x, t.y, t.z);
+        if (this.bulletTravelled(bullet.from, _point)) bullet.spent = true;
+      }
+      bullet.from.set(t.x, t.y, t.z);
       if (bullet.life > 0 && t.y > -30) continue;
       this.bullets.splice(i, 1);
       physics.remove(bullet.entry);
       this.dropTrail(bullet.trail);
       disposeTree(bullet.entry.object);
     }
+  }
+
+  /**
+   * One round's path since the last frame. The lab does not care where its
+   * bullets go; the shooting range counts them, so it overrides this.
+   *
+   * @returns true when the round was used up by whatever it ran into
+   */
+  protected bulletTravelled(_from: THREE.Vector3, _to: THREE.Vector3): boolean {
+    return false;
   }
 
   private clearBullets(): void {
