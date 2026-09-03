@@ -102,7 +102,7 @@ export class App {
 
     this.wristMenu = new WristMenu(this.pointer, {
       title: 'Menü',
-      footer: 'Andere Hand: zielen + Trigger',
+      footer: 'Andere Hand: zielen + Trigger/A',
     });
     this.rig.add(this.wristMenu);
     this.refreshMenu();
@@ -537,7 +537,7 @@ export class App {
     // the world, the spectator after it.
     this.flat.enabled = !presenting && !this.spectating;
     if (!presenting) this.flat.update();
-    this.rig.update(dt, this.input, presenting);
+    this.rig.update(dt, this.input, presenting, this.pointer.hovering);
 
     const context = this.context;
     this.world?.update(dt, context);

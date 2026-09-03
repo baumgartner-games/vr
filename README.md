@@ -11,17 +11,22 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
 - **Hub-Welt**: helle Halle, Hände bzw. Controller, Tore zu den anderen Welten.
 - **Handgelenk-Menü**: an der linken Hand schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
-  Ausgewählt wird mit der anderen Hand (Zielstrahl + Trigger) oder per
-  Fingertipp; ohne getrackte Hand hängt dasselbe Menü an der Blickrichtung.
+  Das Panel steht senkrecht auf dem Handrücken und schaut den Kopf an.
+  Ausgewählt wird mit der anderen Hand: zielen und **Trigger oder `A`** drücken
+  — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
+  getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor), **Werkzeuge** (die beiden Portal
   Waffen direkt in die Hand), **Magischer Beutel** (Raster mit Companion Cube
   und Domino), **Einstellungen** und die Aktionen der Welt. Im Raster wird
-  nicht getippt: Du zielst auf ein Feld, drückst Greifen — und das Objekt liegt
-  in genau dieser Hand. Das Raster kommt zurück, sobald du loslässt.
+  auf ein Feld gezielt und Trigger/`A` gedrückt — das Objekt liegt dann in
+  genau dieser Hand. Das Raster kommt zurück, sobald du loslässt.
 - **Portal Labor** (experimentell): Physik-Sandkasten mit zwei Portal-Guns am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
   Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
   gehen auch auf Boden und Decke — samt Sturz und Schwung beim Herausfliegen.
+  Hände, Waffen und Objekte werden an der Portalebene geschnitten und kommen
+  auf der anderen Seite wieder heraus: Du kannst die Hand durch ein Portal
+  stecken und sie drüben sehen — und damit auch dort etwas anstoßen.
 - **Eigener Körper**: Torso, Arme und Beine gibt es, sie werden aber nur in
   Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
   selbst, wenn man durch ein Portal schaut. Die anderen Spieler bekommen
@@ -67,12 +72,12 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
 | Springen | `A` rechts | `Leertaste` | – |
 | Menü | Button an der linken Hand | Button `Menü` im HUD | Button `Menü` im HUD |
-| Auswählen | rechte Hand zielen + Trigger, oder antippen | Linksklick | tippen |
+| Auswählen | rechte Hand zielen + Trigger oder `A` | Linksklick | tippen |
 | Waffe ziehen | Grip an der Hüfte halten (jede Hand, jede Waffe) | – (immer bereit) | – |
 | Portal schießen | Trigger der Hand mit der Waffe | Links-/Rechtsklick | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Weitergeben | mit der freien Hand danach greifen | – | – |
-| Fernangeln (optional) | zielen, Grip halten, Hand zurückreißen | – | – |
+| Ferngreifen | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 | Zuschauen | Menü → Verbindung → Zuschauen | Panel *Verbindung* → *Zuschauen* | dito |
 | Zuschauer-Kamera drehen | – (Kopf bleibt deiner) | ziehen mit der Maus | wischen |
@@ -91,10 +96,18 @@ richtet sich das Portal nach der Waffe, mit der du zielst.
 
 Die Greifbox ist der Collider plus 9 cm — ein fester Zuschlag, kein
 prozentualer, damit ein Dominostein genauso gut in die Hand springt wie ein
-Companion Cube. **Fernangeln** (Einstellungen) erweitert das: auf ein Objekt
-zielen, Greifen halten und die Hand ruckartig zurückziehen — das Objekt fliegt
-in einem Bogen heran und landet in der Hand, solange du gedrückt hältst. Lässt
-du los, fliegt es einfach weiter.
+Companion Cube.
+
+**Ferngreifen** (Einstellungen, standardmäßig an) erweitert das auf 9 m und
+läuft in zwei Schritten. Der Zielstrahl trifft die tatsächliche Box eines
+Objekts — plus etwas Rand und einen Kegel, der mit der Entfernung aufgeht, so
+dass ein weit entfernter Dominostein erreichbar bleibt, ohne einem näheren
+Objekt das Ziel wegzunehmen. Was getroffen ist, leuchtet auf und bekommt ein
+dünnes Seil zur Hand. Mit **Grip** rastet es ein: Es bleibt markiert und
+angeseilt, auch wenn die Hand woanders hinzeigt. Kippst du die Hand danach
+mehr als **30°** nach oben/hinten, spannt sich das Seil (es wird orange) und
+das Objekt fliegt in einem Bogen heran — hältst du weiter gedrückt, landet es
+in der Hand. Grip loslassen löst die Verbindung wieder.
 
 ## Architektur
 
@@ -145,13 +158,26 @@ mit der auch die virtuelle Kamera berechnet wird.
 Portale auf Boden und Decke richten sich nach der Blickrichtung aus, damit man
 immer sauber hineinfällt. Beim Durchgehen wandert nicht nur der Spieler, sondern auch jedes Objekt und
 dessen Geschwindigkeit durch dieselbe Matrix — ein Sturz in ein Bodenportal
-wird so zum Schwung aus einem Wandportal. Damit man überhaupt durch eine Wand
-fallen kann, ignorieren Körper innerhalb des Portaltrichters die
-Kollisionsgruppe der portalfähigen Flächen.
+wird so zum Schwung aus einem Wandportal.
 
-Bekannte Grenzen des Prototyps: Objekte springen beim Durchtritt (kein
-Clipping an der Portalebene), Portale nur auf ebenen Flächen, und es gibt eine
-Rekursionsstufe — im Portal zeigt das gegenüberliegende seinen Ruhewirbel.
+Damit man überhaupt durch eine Wand fallen kann, ignorieren Körper innerhalb
+des Portaltrichters die Kollisionsgruppe der Fläche, auf der das Portal sitzt.
+Jede portalfähige Fläche hat dafür ein eigenes Bit — mit einem gemeinsamen Bit
+für alle löste ein Portal an der Wand auch den Boden davor auf, und man sackte
+kurz vor dem Portal ein.
+
+Nichts springt mehr durch die Portalebene: `PortalGhosts` schneidet alles, was
+gerade in einer Öffnung steckt, mit einer Clipping-Ebene ab und zeichnet eine
+Kopie davon vor dem Partnerportal — mit dem umgekehrten Schnitt. Beide Hälften
+zusammen ergeben ein durchgehendes Objekt. Für die Hände sitzt zusätzlich ein
+zweiter Kollisionsfühler in der herausragenden Hälfte, damit sie drüben auch
+etwas anstoßen kann. Kurz vor dem Durchschreiten rutscht die Portalfläche ein
+Stück auf das Auge zu, sonst würde die Near-Plane sie wegschneiden und für ein
+paar Zentimeter die nackte Wand zeigen — genau das ließ den Durchgang wie eine
+Teleportation wirken.
+
+Bekannte Grenzen des Prototyps: Portale nur auf ebenen Flächen, und es gibt
+eine Rekursionsstufe — im Portal zeigt das gegenüberliegende seinen Ruhewirbel.
 
 ### Zusammen spielen (Peer-to-Peer)
 

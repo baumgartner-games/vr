@@ -2,13 +2,7 @@ import * as THREE from 'three';
 import type { Collider, KinematicCharacterController, RigidBody } from '@dimforge/rapier3d-compat';
 import type { Locomotion } from '../core/Locomotion';
 import type { PlayerRig } from '../core/PlayerRig';
-import {
-  ALL_GROUPS,
-  GROUP_PLAYER,
-  GROUP_PORTAL_SURFACE,
-  interactionGroups,
-  type PhysicsWorld,
-} from './PhysicsWorld';
+import { ALL_GROUPS, GROUP_PLAYER, interactionGroups, type PhysicsWorld } from './PhysicsWorld';
 
 const RADIUS = 0.24;
 const TERMINAL_VELOCITY = 32;
@@ -34,8 +28,11 @@ export class PhysicsLocomotion implements Locomotion {
   /** How quickly the player can steer while airborne. */
   airControl = 2.2;
 
-  /** While true the capsule ignores portal surfaces and drops through them. */
-  phasing = false;
+  /**
+   * Surface bits the capsule currently ignores. Only the wall a portal is
+   * mounted on is opened up — the floor you stand on stays solid.
+   */
+  phaseMask = 0;
 
   private readonly controller: KinematicCharacterController;
   private readonly body: RigidBody;
@@ -110,10 +107,7 @@ export class PhysicsLocomotion implements Locomotion {
       this.collider,
       _desired,
       undefined,
-      interactionGroups(
-        GROUP_PLAYER,
-        this.phasing ? ALL_GROUPS & ~GROUP_PORTAL_SURFACE : ALL_GROUPS,
-      ),
+      interactionGroups(GROUP_PLAYER, ALL_GROUPS & ~this.phaseMask),
     );
     const movement = this.controller.computedMovement();
     _applied.set(movement.x, movement.y, movement.z);

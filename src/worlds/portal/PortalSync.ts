@@ -7,6 +7,15 @@ import type { PhysicsBody, PhysicsWorld } from '../../physics/PhysicsWorld';
 export type Pose7 = [number, number, number, number, number, number, number];
 export type PropKind = 'cube' | 'domino';
 export type PortalKey = 'a' | 'b';
+/**
+ * A placed portal. The surface bit travels along: the chamber is built the
+ * same way everywhere, so the number means the same wall on every machine, and
+ * without it the receiving side would dissolve the wrong surface.
+ */
+export interface PortalState {
+  pose: Pose7;
+  group: number;
+}
 /** What a hand is busy with, so the others can draw it. */
 export type HandBusy = { gun: PortalKey } | { grab: string } | null;
 
@@ -29,7 +38,7 @@ interface Snapshot {
   /** Props that only exist because somebody conjured them. */
   spawned: Array<{ id: string; kind: PropKind; pose: Pose7 }>;
   bodies: Array<[string, ...Pose7]>;
-  portals: Array<[PortalKey, Pose7 | null]>;
+  portals: Array<[PortalKey, PortalState | null]>;
   owners: Array<[string, string]>;
 }
 
@@ -38,7 +47,7 @@ type Message =
   | { t: 'hello' }
   | { t: 'state'; state: Snapshot }
   | { t: 'move'; items: Array<[string, ...Pose7]> }
-  | { t: 'portal'; key: PortalKey; pose: Pose7 | null }
+  | { t: 'portal'; key: PortalKey; state: PortalState | null }
   | { t: 'spawn'; id: string; kind: PropKind; pose: Pose7 }
   /** Claim or hand back a prop. `vel` carries the throw when it is handed back. */
   | { t: 'own'; id: string; owner: string | null; vel?: [number, number, number] }
@@ -57,8 +66,8 @@ export interface PortalSyncOptions {
   /** Conjure a prop that another player pulled out of their bag. */
   spawnRemote(id: string, kind: PropKind, pose: Pose7): void;
   /** Move (or clear, with `null`) a portal because somebody else shot it. */
-  applyPortal(key: PortalKey, pose: Pose7 | null): void;
-  portalPose(key: PortalKey): Pose7 | null;
+  applyPortal(key: PortalKey, state: PortalState | null): void;
+  portalState(key: PortalKey): PortalState | null;
   /** Props that came out of a bag, so a joining player can rebuild them. */
   spawnedProps(): Array<{ id: string; kind: PropKind }>;
   resetRemote(): void;
@@ -180,9 +189,9 @@ export class PortalSync {
     });
   }
 
-  portalChanged(key: PortalKey, pose: Pose7 | null): void {
+  portalChanged(key: PortalKey, state: PortalState | null): void {
     if (this.alone) return;
-    this.send({ t: 'portal', key, pose });
+    this.send({ t: 'portal', key, state });
   }
 
   spawned(id: string, kind: PropKind, pose: Pose7): void {
@@ -315,8 +324,8 @@ export class PortalSync {
       spawned,
       bodies,
       portals: [
-        ['a', this.options.portalPose('a')],
-        ['b', this.options.portalPose('b')],
+        ['a', this.options.portalState('a')],
+        ['b', this.options.portalState('b')],
       ],
       owners: [...this.owners],
     };
@@ -349,7 +358,7 @@ export class PortalSync {
         break;
       }
       case 'portal': {
-        this.options.applyPortal(message.key, message.pose);
+        this.options.applyPortal(message.key, message.state);
         break;
       }
       case 'spawn': {
@@ -391,7 +400,7 @@ export class PortalSync {
     }
     this.owners.clear();
     for (const [id, owner] of state.owners) this.owners.set(id, owner);
-    for (const [key, pose] of state.portals) this.options.applyPortal(key, pose);
+    for (const [key, portal] of state.portals) this.options.applyPortal(key, portal);
     for (const item of state.bodies) {
       const [id, ...pose] = item;
       if (this.drives(id)) continue;

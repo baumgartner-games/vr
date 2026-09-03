@@ -73,7 +73,7 @@ export class WristMenu extends THREE.Group {
     this.panel = new UIPanel({
       width: 0.26,
       title: options.title ?? 'Menü',
-      footer: options.footer ?? 'Andere Hand: zielen + Trigger',
+      footer: options.footer ?? 'Andere Hand: zielen + Trigger/A',
       onSelect: (index, hand) => this.handleSelect(index, hand),
     });
     this.panel.visible = false;
@@ -89,11 +89,13 @@ export class WristMenu extends THREE.Group {
     this.pointer.remove(this.panel);
     this.pointer.add({
       object: this.button,
+      // Only the trigger (or A) opens it — brushing past must not toggle it.
+      pokeable: false,
       onHover: () => this.setButtonHot(true),
       onBlur: () => this.setButtonHot(false),
       onSelect: () => this.toggle(),
     });
-    this.pointer.add(this.panel.asPointerTarget());
+    this.pointer.add({ ...this.panel.asPointerTarget(), pokeable: false });
   }
 
   /** Replaces the whole menu tree and returns to the top level. */
@@ -187,9 +189,10 @@ export class WristMenu extends THREE.Group {
       const distance = _dir.length() || 1;
       _dir.divideScalar(distance);
 
-      // The panel floats above the hand, but reads the right way up when you
-      // turn your wrist towards you like a watch.
-      _roll.copy(_handUp).negate();
+      // The panel stands up from the back of the hand and faces the head. Its
+      // top edge follows the back of the hand, so the text reads the right way
+      // up — negating this is what used to put the whole menu on its head.
+      _roll.copy(_handUp);
 
       this.button.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
       faceTowards(this.button, _head, _roll);
@@ -244,8 +247,9 @@ export class WristMenu extends THREE.Group {
   }
 
   /**
-   * On a grid page the entries are not tapped: point at a cell and press grab,
-   * then the item lands in that hand. Otherwise one press spawns a whole pile.
+   * On a grid page the entries are not tapped: point at a cell and press the
+   * trigger (or A), then the item lands in that hand. Otherwise one press
+   * spawns a whole pile.
    */
   private updateGrabTake(input: XRInput): void {
     if (!this.open || !this.page.grid) return;
@@ -255,11 +259,8 @@ export class WristMenu extends THREE.Group {
     if (!entry || entry === BACK || !entry.run) return;
 
     const controller = input.get(hand);
-    if (!controller) return;
-    const pressed = controller.isHand
-      ? controller.trigger.justPressed
-      : controller.squeeze.justPressed;
-    if (!pressed) return;
+    if (!controller?.tracked) return;
+    if (!controller.trigger.justPressed && !controller.primary.justPressed) return;
 
     entry.run(hand);
     this.applyPage();

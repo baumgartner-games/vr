@@ -20,6 +20,8 @@ export class Portal extends THREE.Object3D {
 
   link: Portal | null = null;
   placed = false;
+  /** Collision bit of the surface this portal sits on (0 while unplaced). */
+  surfaceGroup = 0;
 
   constructor(
     readonly key: 'a' | 'b',
@@ -94,13 +96,19 @@ export class Portal extends THREE.Object3D {
   }
 
   /** Puts the portal onto a surface. `normal` points away from the wall. */
-  place(point: THREE.Vector3, normal: THREE.Vector3, up: THREE.Vector3): void {
+  place(
+    point: THREE.Vector3,
+    normal: THREE.Vector3,
+    up: THREE.Vector3,
+    surfaceGroup = 0,
+  ): void {
     const right = new THREE.Vector3().crossVectors(up, normal).normalize();
     const trueUp = new THREE.Vector3().crossVectors(normal, right).normalize();
     const basis = new THREE.Matrix4().makeBasis(right, trueUp, normal);
 
     this.quaternion.setFromRotationMatrix(basis);
     this.position.copy(point).addScaledVector(normal, PORTAL_OFFSET);
+    this.surfaceGroup = surfaceGroup;
     this.placed = true;
     this.visible = true;
     this.updateMatrixWorld(true);
@@ -110,9 +118,10 @@ export class Portal extends THREE.Object3D {
    * Places the portal at a pose that was worked out somewhere else — another
    * player shot it, and their result is the one everybody has to see.
    */
-  setPose(position: THREE.Vector3, quaternion: THREE.Quaternion): void {
+  setPose(position: THREE.Vector3, quaternion: THREE.Quaternion, surfaceGroup = 0): void {
     this.position.copy(position);
     this.quaternion.copy(quaternion);
+    this.surfaceGroup = surfaceGroup;
     this.placed = true;
     this.visible = true;
     this.updateMatrixWorld(true);
@@ -121,6 +130,7 @@ export class Portal extends THREE.Object3D {
   /** Removes the portal from the wall (keeps it in the scene, just hidden). */
   reset(): void {
     this.placed = false;
+    this.surfaceGroup = 0;
     this.visible = false;
   }
 
@@ -139,6 +149,16 @@ export class Portal extends THREE.Object3D {
 
   setTime(time: number): void {
     this.mesh.material.uniforms.uTime.value = time;
+  }
+
+  /**
+   * Slides the surface towards the viewer. Right before stepping through, the
+   * camera's near plane would cut the quad away and the wall behind it would
+   * flash into view — this keeps the hole closed all the way through. The
+   * shader samples in screen space, so the image itself does not shift.
+   */
+  setNearPad(pad: number): void {
+    this.mesh.position.z = pad;
   }
 
   /** World-space normal (the +Z axis of the portal). */
@@ -163,6 +183,19 @@ export class Portal extends THREE.Object3D {
     _local.copy(point).applyMatrix4(_inverse.copy(this.matrixWorld).invert());
     const x = _local.x / (PORTAL_HALF_WIDTH * margin);
     const y = _local.y / (PORTAL_HALF_HEIGHT * margin);
+    return x * x + y * y <= 1;
+  }
+
+  /**
+   * Is this point close enough to the opening to be sticking through it?
+   * `radius` is how far the object reaches towards the portal, `depth` how far
+   * it may already have gone past it.
+   */
+  straddles(point: THREE.Vector3, radius: number, depth = radius): boolean {
+    this.toLocal(point, _local);
+    if (_local.z > radius || _local.z < -depth) return false;
+    const x = _local.x / (PORTAL_HALF_WIDTH + radius);
+    const y = _local.y / (PORTAL_HALF_HEIGHT + radius);
     return x * x + y * y <= 1;
   }
 
