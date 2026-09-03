@@ -12,13 +12,16 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
 - **Handgelenk-Menü**: an der linken Hand schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt. Ausgewählt wird mit der rechten Hand (Zielstrahl +
   Trigger) oder direkt per Fingertipp. Ohne getrackte Hand (Desktop/Handy) hängt
-  dasselbe Menü an der Blickrichtung.
+  dasselbe Menü an der Blickrichtung. Neben der Weltenauswahl liegen dort der
+  Weg zurück zum Hub und die Aktionen der aktuellen Welt (im Labor: alles
+  zurücksetzen).
 - **Portal Labor** (experimentell): Physik-Sandkasten mit zwei Portal-Guns am
   Gürtel (links blau, rechts rot), Schwerkraft, Sprung, Companion Cubes und
   einer Reihe Dominosteine. Portale gehen auch auf Boden und Decke — samt
   Sturz und Schwung beim Herausfliegen.
-- **Eigener Körper**: der Spieler hat Torso, Arme und Beine. Der Kopf wird nur
-  gerendert, wenn man sich selbst durch ein Portal ansieht.
+- **Eigener Körper**: Torso, Arme und Beine gibt es, sie werden aber nur in
+  Portalsichten gezeichnet. Direkt sieht man nur die eigenen Hände — und sich
+  selbst, wenn man durch ein Portal schaut.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Rollen & Netzwerk-Grundgerüst** für spätere asymmetrische Spiele
   (VR-Spieler + Handy-Spieler).
@@ -58,7 +61,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Portal blau | Trigger links (Waffe in der Hand) | Linksklick | – |
 | Portal rot | Trigger rechts (Waffe in der Hand) | Rechtsklick | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
-| Zurücksetzen | `B` / `Y` | `R` | – |
+| Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 
 **Handgesten** (mit Controllern): Grip = Pistolenhand — damit lassen sich
 Dominosteine antippen. Grip + Trigger = Daumen hoch. Mit Hand-Tracking werden
@@ -109,7 +112,8 @@ Die Near-Plane der virtuellen Kamera wird schräg auf die Portalebene gelegt
 läuft. Beim Durchschreiten wird der Player-Rig mit derselben Matrix versetzt,
 mit der auch die virtuelle Kamera berechnet wird.
 
-Beim Durchgehen wandert nicht nur der Spieler, sondern auch jedes Objekt und
+Portale auf Boden und Decke richten sich nach der Blickrichtung aus, damit man
+immer sauber hineinfällt. Beim Durchgehen wandert nicht nur der Spieler, sondern auch jedes Objekt und
 dessen Geschwindigkeit durch dieselbe Matrix — ein Sturz in ein Bodenportal
 wird so zum Schwung aus einem Wandportal. Damit man überhaupt durch eine Wand
 fallen kann, ignorieren Körper innerhalb des Portaltrichters die

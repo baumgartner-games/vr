@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { World, WorldContext } from '../../core/types';
+import type { World, WorldAction, WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 import { Portal, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH } from './Portal';
 import { PortalRenderer } from './PortalRenderer';
@@ -25,11 +25,11 @@ const COLOR_RED = 0xff3b2f;
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
 
-const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
 const _probe = new THREE.Vector3();
+const _placeUp = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _cross = new THREE.Vector3();
 const _point = new THREE.Vector3();
@@ -161,6 +161,18 @@ export class PortalWorld implements World {
     this.traverseProps();
     this.traversePlayer(ctx);
     this.updateAim(ctx);
+  }
+
+  actions(): WorldAction[] {
+    return [
+      {
+        id: 'reset',
+        label: 'Labor zurücksetzen',
+        sub: 'Portale, Würfel und Dominos',
+        accent: COLOR_RED,
+        run: (ctx) => this.resetWorld(ctx),
+      },
+    ];
   }
 
   render(ctx: WorldContext): boolean {
@@ -583,7 +595,8 @@ export class PortalWorld implements World {
       ctx.notify('Keine Fläche getroffen');
       return;
     }
-    if (!this.fits(hit.point, hit.normal, hit.object)) {
+    this.surfaceUp(ctx, hit.normal, _placeUp);
+    if (!this.fits(hit.point, hit.normal, _placeUp, hit.object)) {
       ctx.notify('Hier passt kein Portal hin');
       return;
     }
@@ -597,8 +610,7 @@ export class PortalWorld implements World {
       }
     }
 
-    _up.copy(Math.abs(hit.normal.y) > 0.9 ? _direction.set(0, 0, 1) : UP);
-    slot.portal.place(hit.point, hit.normal, _up);
+    slot.portal.place(hit.point, hit.normal, _placeUp);
     ctx.notify(slot.portal === this.portalBlue ? 'Blaues Portal' : 'Rotes Portal');
   }
 
@@ -634,8 +646,9 @@ export class PortalWorld implements World {
     }
     this.aimRing.visible = true;
     this.aimRing.position.copy(hit.point).addScaledVector(hit.normal, 0.012);
-    orientToSurface(this.aimRing, hit.normal);
-    const valid = this.fits(hit.point, hit.normal, hit.object);
+    this.surfaceUp(ctx, hit.normal, _placeUp);
+    orientToSurface(this.aimRing, hit.normal, _placeUp);
+    const valid = this.fits(hit.point, hit.normal, _placeUp, hit.object);
     this.aimRing.material.color.setHex(valid ? 0xffffff : 0xff5a5a);
     this.aimRing.material.opacity = valid ? 0.5 : 0.3;
   }
@@ -773,9 +786,31 @@ export class PortalWorld implements World {
     return _hit;
   }
 
+  /**
+   * Reference "up" for a portal on this surface. On walls that is the world up,
+   * on floors and ceilings the direction the player is looking — so a portal at
+   * your feet is always aligned with your view.
+   */
+  private surfaceUp(
+    ctx: WorldContext,
+    normal: THREE.Vector3,
+    target: THREE.Vector3,
+  ): THREE.Vector3 {
+    if (Math.abs(normal.y) <= 0.9) return target.copy(UP);
+    ctx.rig.getHeadForward(target);
+    target.y = 0;
+    if (target.lengthSq() < 1e-6) target.set(0, 0, -1);
+    return target.normalize();
+  }
+
   /** Does the whole ellipse sit on the same flat surface? */
-  private fits(point: THREE.Vector3, normal: THREE.Vector3, object: THREE.Object3D): boolean {
-    _right.crossVectors(Math.abs(normal.y) > 0.9 ? _direction.set(0, 0, 1) : UP, normal).normalize();
+  private fits(
+    point: THREE.Vector3,
+    normal: THREE.Vector3,
+    up: THREE.Vector3,
+    object: THREE.Object3D,
+  ): boolean {
+    _right.crossVectors(up, normal).normalize();
     _up.crossVectors(normal, _right).normalize();
 
     for (let i = 0; i < 8; i++) {
@@ -796,9 +831,8 @@ export class PortalWorld implements World {
   }
 }
 
-/** Aligns an object's +Z with a surface normal, keeping the horizon level. */
-function orientToSurface(object: THREE.Object3D, normal: THREE.Vector3): void {
-  const up = Math.abs(normal.y) > 0.9 ? _origin.set(0, 0, 1) : UP;
+/** Aligns an object's +Z with a surface normal, using `up` as the roll reference. */
+function orientToSurface(object: THREE.Object3D, normal: THREE.Vector3, up: THREE.Vector3): void {
   _right.crossVectors(up, normal).normalize();
   _up.crossVectors(normal, _right).normalize();
   _matrix.makeBasis(_right, _up, normal);

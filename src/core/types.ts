@@ -33,6 +33,15 @@ export interface WorldContext {
   notify(message: string): void;
 }
 
+/** An extra entry a world contributes to the wrist menu. */
+export interface WorldAction {
+  id: string;
+  label: string;
+  sub?: string;
+  accent?: number;
+  run(ctx: WorldContext): void;
+}
+
 export interface World {
   /**
    * Build the world. Everything added to `ctx.scene` must be removed again in
@@ -45,6 +54,8 @@ export interface World {
    * when the world has drawn the frame itself, otherwise the engine renders.
    */
   render?(ctx: WorldContext): boolean;
+  /** Menu entries for this world, e.g. "reset". Read once after `init`. */
+  actions?(): WorldAction[];
   dispose(ctx: WorldContext): void;
 }
 

@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
 import type { XRInput } from './XRInput';
 
-/** Objects on this layer are only drawn by portal views, never by the eye itself. */
+/**
+ * Objects on this layer are only drawn by portal views, never by the eye
+ * itself — that is where the whole avatar lives: you see your hands directly,
+ * but your body only when you look at yourself through a portal.
+ */
 export const LAYER_SELF_ONLY = 3;
 
 const _headPos = new THREE.Vector3();
@@ -95,8 +99,9 @@ export class PlayerAvatar extends THREE.Group {
     );
     visor.position.set(0, 0.01, -0.115);
     this.head.add(skull, visor);
-    this.head.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
     this.add(this.head);
+
+    this.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
   }
 
   /**

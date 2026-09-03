@@ -7,12 +7,13 @@ import { HandVisuals } from './HandVisuals';
 import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenu } from '../ui/WristMenu';
+import type { PanelItem } from '../ui/UIPanel';
 import { NetSession } from '../net/NetSession';
 import { RemoteAvatars } from '../net/RemoteAvatars';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { detectFlatRole } from './device';
 import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
-import type { PlayerRole, World, WorldContext } from './types';
+import type { PlayerRole, World, WorldAction, WorldContext } from './types';
 
 export interface AppHooks {
   onWorldChanged?(id: string, title: string): void;
@@ -40,6 +41,7 @@ export class App {
   private readonly hooks: AppHooks;
 
   private world: World | null = null;
+  private worldActions: WorldAction[] = [];
   private worldId = '';
   private baseChildren = new Set<THREE.Object3D>();
   private loading: string | null = null;
@@ -134,6 +136,7 @@ export class App {
       this.worldId = definition.id;
       this.world = next;
       await next.init(this.context);
+      this.worldActions = next.actions?.() ?? [];
 
       this.net.setWorld(definition.id);
       this.refreshMenu();
@@ -208,6 +211,7 @@ export class App {
     }
     this.world = null;
     this.worldId = '';
+    this.worldActions = [];
 
     // Safety net: drop anything the world forgot to remove.
     for (const child of [...this.scene.children]) {
@@ -222,28 +226,58 @@ export class App {
   }
 
   private refreshMenu(): void {
-    const items = WORLDS.map((world) => ({
-      id: `world:${world.id}`,
-      label: world.title,
-      sub: world.tagline,
-      accent: world.accent,
-      badge: world.experimental ? 'WIP' : undefined,
-      selected: world.id === this.worldId,
-    }));
+    const items: PanelItem[] = [];
+
+    if (this.worldId !== DEFAULT_WORLD) {
+      items.push({
+        id: `world:${DEFAULT_WORLD}`,
+        label: 'Zurück zum Hub',
+        sub: 'Weltenauswahl',
+        accent: 0x4aa8ff,
+      });
+    }
+
+    for (const action of this.worldActions) {
+      items.push({
+        id: `action:${action.id}`,
+        label: action.label,
+        sub: action.sub,
+        accent: action.accent ?? 0x9d7bff,
+      });
+    }
+
+    for (const world of WORLDS) {
+      if (world.id === DEFAULT_WORLD && this.worldId !== DEFAULT_WORLD) continue;
+      items.push({
+        id: `world:${world.id}`,
+        label: world.title,
+        sub: world.tagline,
+        accent: world.accent,
+        badge: world.experimental ? 'WIP' : undefined,
+        selected: world.id === this.worldId,
+      });
+    }
+
     items.push({
       id: 'menu:close',
       label: 'Weiterspielen',
       sub: 'Menü schließen',
       accent: 0x6f7d99,
-      badge: undefined,
-      selected: false,
     });
+
     this.wristMenu.setItems(items);
   }
 
   private onMenuSelect(id: string): void {
     if (id === 'menu:close') {
       this.wristMenu.toggle(false);
+      return;
+    }
+    if (id.startsWith('action:')) {
+      const action = this.worldActions.find((entry) => entry.id === id.slice('action:'.length));
+      if (!action) return;
+      this.wristMenu.toggle(false);
+      action.run(this.context);
       return;
     }
     if (id.startsWith('world:')) {

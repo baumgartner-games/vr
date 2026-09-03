@@ -20,7 +20,7 @@ export interface PanelOptions {
 }
 
 const CANVAS_W = 768;
-const CANVAS_H = 1024;
+const CANVAS_H = 1280;
 const PAD = 34;
 const HEADER_H = 150;
 const ROW_H = 122;
