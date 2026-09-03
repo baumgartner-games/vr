@@ -16,6 +16,7 @@ export class FlatControls {
   lookSpeed = 0.0024;
 
   private readonly keys = new Set<string>();
+  private jumpQueued = false;
   private yaw = 0;
   private pitch = 0;
   private pointerLocked = false;
@@ -41,7 +42,8 @@ export class FlatControls {
     this.apply();
   }
 
-  update(dt: number): void {
+  /** Turns keys and the touch stick into a movement wish for the rig. */
+  update(): void {
     if (!this.enabled) return;
 
     let x = this.stick.x;
@@ -50,14 +52,21 @@ export class FlatControls {
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) z += 1;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
-    if (x === 0 && z === 0) return;
+
+    const jump = this.jumpQueued;
+    this.jumpQueued = false;
+
+    if (x === 0 && z === 0) {
+      if (jump) this.rig.requestJump();
+      return;
+    }
 
     this.rig.getHeadForward(_forward);
     _strafe.copy(_forward).cross(UP).normalize();
     _move.set(0, 0, 0).addScaledVector(_forward, -z).addScaledVector(_strafe, x);
     if (_move.lengthSq() > 1) _move.normalize();
-    const boost = this.keys.has('ShiftLeft') ? 2 : 1;
-    this.rig.moveBy(_move.multiplyScalar(this.speed * boost * dt));
+    const boost = this.keys.has('ShiftLeft') ? 1.8 : 1;
+    this.rig.setIntent(_move.multiplyScalar(this.speed * boost), jump);
   }
 
   dispose(): void {
@@ -92,6 +101,10 @@ export class FlatControls {
   private bind(): void {
     this.on(window, 'keydown', (e: KeyboardEvent) => {
       if (!this.enabled) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        this.jumpQueued = true;
+      }
       this.keys.add(e.code);
     });
     this.on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.code));

@@ -1,20 +1,29 @@
 import * as THREE from 'three';
 import type { World, WorldContext } from '../../core/types';
+import type { ControllerState, Handedness } from '../../core/XRInput';
 import { Portal, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH } from './Portal';
 import { PortalRenderer } from './PortalRenderer';
 import { PortalGun } from './PortalGun';
+import { createCompanionCube, createDominoes, DOMINO_SIZE } from './props';
 import { TextPlane } from '../../ui/TextPlane';
 import { createLighting, disposeTree } from '../shared/environment';
+import {
+  ALL_GROUPS,
+  GROUP_HAND,
+  GROUP_PORTAL_SURFACE,
+  GROUP_PROP,
+  GROUP_WORLD,
+  PhysicsWorld,
+  type PhysicsBody,
+} from '../../physics/PhysicsWorld';
+import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
 
-const ROOM = { half: 7, height: 4.4 };
-const BOUNDS = new THREE.Box3(
-  new THREE.Vector3(-ROOM.half + 0.45, 0, -ROOM.half + 0.45),
-  new THREE.Vector3(ROOM.half - 0.45, 0, ROOM.half - 0.45),
-);
-const SPAWN = new THREE.Vector3(0, 0, 4.4);
-const COLOR_A = 0x2f8fff;
-const COLOR_B = 0xff8a1f;
+const ROOM = { half: 8, height: 4.6, thickness: 0.4 };
+const SPAWN = new THREE.Vector3(0, 0, 5.5);
+const COLOR_BLUE = 0x2f8fff;
+const COLOR_RED = 0xff3b2f;
 const UP = new THREE.Vector3(0, 1, 0);
+const FUNNEL_DEPTH = 1.1;
 
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
@@ -23,7 +32,11 @@ const _up = new THREE.Vector3();
 const _probe = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _cross = new THREE.Vector3();
+const _point = new THREE.Vector3();
+const _hand = new THREE.Vector3();
 const _matrix = new THREE.Matrix4();
+const _rotationMatrix = new THREE.Matrix4();
+const _rotation = new THREE.Quaternion();
 const _normalMatrix = new THREE.Matrix3();
 const _ray = new THREE.Ray();
 const _quaternion = new THREE.Quaternion();
@@ -31,60 +44,83 @@ const _hitPoint = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
 const _hit = { point: _hitPoint, normal: _hitNormal, object: null as unknown as THREE.Object3D };
 
+interface GunSlot {
+  gun: PortalGun;
+  portal: Portal;
+  hand: Handedness;
+  holster: THREE.Object3D;
+  held: boolean;
+  /** Blocks a shot on the very frame the gun was picked up. */
+  justGrabbed: boolean;
+}
+
+interface HandProbe {
+  object: THREE.Object3D;
+  entry: PhysicsBody;
+}
+
+interface HandGrab {
+  entry: PhysicsBody;
+  /** Pose of the prop relative to the hand at pick-up time. */
+  offset: THREE.Matrix4;
+  lastPosition: THREE.Vector3;
+  velocity: THREE.Vector3;
+}
+
 /**
- * Experimental Portal clone: shoot two linked portals onto the white panels and
- * walk through them. Right hand — trigger = blue, grip = orange.
+ * Portal sandbox with real physics: walk, jump and fall through portals, knock
+ * over dominoes and carry the companion cube around.
+ *
+ * Both hands wear a portal gun on the belt — grab it to hold it, the left one
+ * shoots blue, the right one red.
  */
 export class PortalWorld implements World {
   private readonly root = new THREE.Group();
-  private readonly portalA = new Portal('a', COLOR_A);
-  private readonly portalB = new Portal('b', COLOR_B);
-  private readonly gun = new PortalGun();
+  private readonly portalBlue = new Portal('a', COLOR_BLUE);
+  private readonly portalRed = new Portal('b', COLOR_RED);
   private readonly raycaster = new THREE.Raycaster();
   private readonly surfaces: THREE.Object3D[] = [];
+  private readonly props: PhysicsBody[] = [];
+  private readonly spawns = new Map<PhysicsBody, THREE.Matrix4>();
+  private readonly slots: GunSlot[] = [];
+  private readonly probes = new Map<Handedness, HandProbe>();
+  private readonly grabs = new Map<Handedness, HandGrab>();
   private readonly previousHead = new THREE.Vector3();
 
+  private physics: PhysicsWorld | null = null;
+  private locomotion: PhysicsLocomotion | null = null;
   private portalRenderer: PortalRenderer | null = null;
   private aimRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> | null = null;
   private hasPreviousHead = false;
   private time = 0;
-  private flatFire: ((event: MouseEvent) => void) | null = null;
-  private flatReset: ((event: KeyboardEvent) => void) | null = null;
-  private blockContextMenu: ((event: Event) => void) | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  private flatFire: ((event: MouseEvent) => void) | null = null;
+  private flatKeys: ((event: KeyboardEvent) => void) | null = null;
+  private blockContextMenu: ((event: Event) => void) | null = null;
 
-  init(ctx: WorldContext): void {
+  async init(ctx: WorldContext): Promise<void> {
     this.root.name = 'portal-world';
     ctx.scene.add(this.root);
-    ctx.scene.background = new THREE.Color(0x090c14);
+    ctx.scene.background = new THREE.Color(0x0a0f18);
     ctx.scene.fog = null;
+    this.root.add(createLighting(0.6));
 
-    this.root.add(createLighting(0.9));
-    for (const [x, z] of [
-      [-3.5, -3.5],
-      [3.5, -3.5],
-      [-3.5, 3.5],
-      [3.5, 3.5],
-    ] as const) {
-      const lamp = new THREE.PointLight(0xdce8ff, 16, 24, 2);
-      lamp.position.set(x, ROOM.height - 0.6, z);
-      this.root.add(lamp);
-    }
+    this.physics = await PhysicsWorld.create();
     this.buildChamber();
+    this.buildProps();
 
-    this.portalA.link = this.portalB;
-    this.portalB.link = this.portalA;
-    this.root.add(this.portalA, this.portalB);
+    this.portalBlue.link = this.portalRed;
+    this.portalRed.link = this.portalBlue;
+    this.root.add(this.portalBlue, this.portalRed);
 
     this.aimRing = new THREE.Mesh(
-      new THREE.RingGeometry(0.97, 1, 48),
+      new THREE.RingGeometry(0.96, 1, 48),
       new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.5,
         toneMapped: false,
         side: THREE.DoubleSide,
-        depthTest: false,
       }),
     );
     this.aimRing.scale.set(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, 1);
@@ -95,221 +131,453 @@ export class PortalWorld implements World {
     this.portalRenderer = new PortalRenderer(ctx.renderer);
 
     ctx.rig.placeAt(SPAWN, 0);
-    ctx.rig.setMoveFilter((from, to) => this.filterMove(from, to));
+    this.locomotion = new PhysicsLocomotion(this.physics, ctx.rig);
+    ctx.rig.setLocomotion(this.locomotion);
     this.hasPreviousHead = false;
 
-    this.canvas = ctx.renderer.domElement;
-    this.flatFire = (event: MouseEvent) => {
-      if (ctx.renderer.xr.isPresenting || ctx.pointer.hovering) return;
-      if (event.button === 0) this.shoot(ctx, this.portalA);
-      else if (event.button === 2) this.shoot(ctx, this.portalB);
-    };
-    this.blockContextMenu = (event: Event) => event.preventDefault();
-    this.flatReset = (event: KeyboardEvent) => {
-      if (event.code === 'KeyR') this.resetPortals(ctx);
-    };
-    this.canvas.addEventListener('mousedown', this.flatFire);
-    this.canvas.addEventListener('contextmenu', this.blockContextMenu);
-    window.addEventListener('keydown', this.flatReset);
+    this.setupGuns(ctx);
+    this.bindFlatInput(ctx);
 
-    ctx.notify('Trigger = blaues Portal, Grip = oranges Portal, A/R = zurücksetzen');
+    ctx.notify('Waffen am Gürtel greifen · Trigger schießt · A springt');
   }
 
   update(dt: number, ctx: WorldContext): void {
-    this.time += dt;
-    this.portalA.setTime(this.time);
-    this.portalB.setTime(this.time);
-    this.gun.update(dt);
+    if (!this.physics || !this.locomotion) return;
 
-    this.updateGunAttachment(ctx);
-    this.updateAim(ctx);
+    this.time += dt;
+    this.portalBlue.setTime(this.time);
+    this.portalRed.setTime(this.time);
+
+    this.updateGuns(dt, ctx);
+    this.updateGrabs(dt, ctx);
+    this.updateHandProbes(ctx);
     this.handleFiring(ctx);
-    this.handleTraversal(ctx);
+
+    this.locomotion.phasing = this.playerInFunnel();
+
+    this.updatePropPhasing();
+    this.physics.step(dt);
+    this.physics.sync();
+    this.traverseProps();
+    this.traversePlayer(ctx);
+    this.updateAim(ctx);
   }
 
   render(ctx: WorldContext): boolean {
-    this.portalRenderer?.render(ctx.scene, ctx.camera, [this.portalA, this.portalB]);
+    this.portalRenderer?.render(ctx.scene, ctx.camera, [this.portalBlue, this.portalRed]);
     ctx.renderer.render(ctx.scene, ctx.camera);
     return true;
   }
 
   dispose(ctx: WorldContext): void {
-    if (this.canvas && this.flatFire) this.canvas.removeEventListener('mousedown', this.flatFire);
-    if (this.canvas && this.blockContextMenu) {
-      this.canvas.removeEventListener('contextmenu', this.blockContextMenu);
+    if (this.canvas) {
+      if (this.flatFire) this.canvas.removeEventListener('mousedown', this.flatFire);
+      if (this.blockContextMenu) {
+        this.canvas.removeEventListener('contextmenu', this.blockContextMenu);
+      }
     }
-    if (this.flatReset) window.removeEventListener('keydown', this.flatReset);
-    this.flatReset = null;
+    if (this.flatKeys) window.removeEventListener('keydown', this.flatKeys);
     this.canvas = null;
     this.flatFire = null;
+    this.flatKeys = null;
     this.blockContextMenu = null;
+
+    for (const slot of this.slots) slot.gun.dispose();
+    this.slots.length = 0;
+    this.grabs.clear();
+    ctx.hands.setGestureOverride('left', null);
+    ctx.hands.setGestureOverride('right', null);
 
     this.portalRenderer?.dispose();
     this.portalRenderer = null;
-    this.portalA.dispose();
-    this.portalB.dispose();
-    this.gun.dispose();
+    this.portalBlue.dispose();
+    this.portalRed.dispose();
+    this.probes.clear();
+    this.props.length = 0;
+    this.spawns.clear();
     this.surfaces.length = 0;
+
     disposeTree(this.root);
     ctx.scene.background = null;
+    this.physics?.dispose();
+    this.physics = null;
+    this.locomotion = null;
   }
 
-  // --- setup --------------------------------------------------------------
+  // --- chamber ------------------------------------------------------------
 
   private buildChamber(): void {
     const chamber = new THREE.Group();
     chamber.name = 'chamber';
     this.root.add(chamber);
 
-    const panel = new THREE.MeshStandardMaterial({ color: 0xe7ecf5, roughness: 0.72, metalness: 0.04 });
-    const shielded = new THREE.MeshStandardMaterial({ color: 0x55648a, roughness: 0.45, metalness: 0.5 });
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x39415a, roughness: 0.9 });
+    const panel = new THREE.MeshStandardMaterial({
+      color: 0xe7ecf5,
+      roughness: 0.7,
+      metalness: 0.05,
+    });
+    const shielded = new THREE.MeshStandardMaterial({
+      color: 0x55648a,
+      roughness: 0.45,
+      metalness: 0.5,
+    });
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8e9db8,
+      roughness: 0.85,
+      metalness: 0.05,
+    });
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.half * 2, ROOM.half * 2), floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    chamber.add(floor);
+    const half = ROOM.half;
+    const t = ROOM.thickness;
 
-    const grid = new THREE.GridHelper(ROOM.half * 2, 14, 0x6f9ad6, 0x4a5876);
-    grid.position.y = 0.005;
+    // Floor and ceiling take portals too — that is what makes falling fun.
+    this.slab(chamber, floorMaterial, [half * 2, t, half * 2], [0, -t / 2, 0], true);
+    this.slab(chamber, panel, [half * 2, t, half * 2], [0, ROOM.height + t / 2, 0], true);
+
+    this.slab(chamber, panel, [half * 2, ROOM.height, t], [0, ROOM.height / 2, -half - t / 2], true);
+    this.slab(chamber, panel, [t, ROOM.height, half * 2], [half + t / 2, ROOM.height / 2, 0], true);
+    this.slab(chamber, panel, [t, ROOM.height, half * 2], [-half - t / 2, ROOM.height / 2, 0], true);
+    // The wall behind the spawn is shielded: no portals stick to it.
+    this.slab(chamber, shielded, [half * 2, ROOM.height, t], [0, ROOM.height / 2, half + t / 2], false);
+
+    const grid = new THREE.GridHelper(half * 2, 16, 0x5d7398, 0x7d8ea9);
+    grid.position.y = 0.01;
     chamber.add(grid);
 
-    const ceiling = new THREE.Mesh(
-      new THREE.PlaneGeometry(ROOM.half * 2, ROOM.half * 2),
-      new THREE.MeshStandardMaterial({ color: 0x2a3247, roughness: 0.95 }),
-    );
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = ROOM.height;
-    chamber.add(ceiling);
-
-    const walls: Array<[THREE.Vector3, number, boolean]> = [
-      [new THREE.Vector3(0, ROOM.height / 2, -ROOM.half), 0, true],
-      [new THREE.Vector3(ROOM.half, ROOM.height / 2, 0), -Math.PI / 2, true],
-      [new THREE.Vector3(-ROOM.half, ROOM.height / 2, 0), Math.PI / 2, true],
-      [new THREE.Vector3(0, ROOM.height / 2, ROOM.half), Math.PI, false],
-    ];
-
-    for (const [position, rotation, portalable] of walls) {
-      const wall = new THREE.Mesh(
-        new THREE.PlaneGeometry(ROOM.half * 2, ROOM.height),
-        portalable ? panel : shielded,
-      );
-      wall.position.copy(position);
-      wall.rotation.y = rotation;
-      wall.name = portalable ? 'surface:panel' : 'surface:shielded';
-      chamber.add(wall);
-      if (portalable) this.surfaces.push(wall);
-    }
-
-    // Two free-standing panels give the player something to aim across.
+    // Two panels facing each other: shoot both and you can look at yourself.
     for (const [x, z, angle] of [
-      [-2.6, -1.4, Math.PI / 5],
-      [2.6, -1.4, -Math.PI / 5],
+      [-4.6, -1.2, Math.PI / 2],
+      [4.6, -1.2, -Math.PI / 2],
     ] as const) {
-      const boardMaterial = panel.clone();
-      boardMaterial.side = THREE.DoubleSide;
-      const board = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3), boardMaterial);
-      board.position.set(x, 1.5, z);
+      const board = this.slab(chamber, panel, [3.6, 3.2, 0.2], [x, 1.7, z], true, false);
       board.rotation.y = angle;
-      board.name = 'surface:panel';
-      chamber.add(board);
-      this.surfaces.push(board);
-
-      const frame = new THREE.Mesh(
-        new THREE.BoxGeometry(3.6, 0.12, 0.16),
-        new THREE.MeshStandardMaterial({ color: 0x2b3550, roughness: 0.5 }),
-      );
-      frame.position.set(x, 0.06, z);
-      frame.rotation.y = angle;
-      chamber.add(frame);
+      board.updateMatrixWorld(true);
+      this.physics!.addStatic(board, { membership: GROUP_PORTAL_SURFACE, filter: ALL_GROUPS });
     }
 
-    // Light strips near the ceiling.
+    // A ledge that is out of reach without jumping or a portal.
+    const ledge = this.slab(chamber, shielded, [3, 1.5, 2.4], [-5.4, 0.75, -5.4], false);
+    void ledge;
+
     for (const side of [-1, 1]) {
       const strip = new THREE.Mesh(
-        new THREE.BoxGeometry(ROOM.half * 2 - 0.6, 0.06, 0.06),
-        new THREE.MeshBasicMaterial({ color: 0x6fa8ff, toneMapped: false }),
+        new THREE.BoxGeometry(half * 2 - 0.6, 0.06, 0.06),
+        new THREE.MeshBasicMaterial({ color: 0x9ec4ff, toneMapped: false }),
       );
-      strip.position.set(0, ROOM.height - 0.35, side * (ROOM.half - 0.12));
+      strip.position.set(0, ROOM.height - 0.3, side * (half - 0.15));
       chamber.add(strip);
+    }
+    for (const [x, z] of [
+      [-4, -4],
+      [4, -4],
+      [-4, 4],
+      [4, 4],
+    ] as const) {
+      const lamp = new THREE.PointLight(0xdce8ff, 9, 22, 2);
+      lamp.position.set(x, ROOM.height - 0.5, z);
+      this.root.add(lamp);
     }
 
     const sign = new TextPlane({
-      width: 2.6,
-      height: 0.8,
+      width: 3,
+      height: 0.9,
       title: 'Portal Labor',
-      body: 'Weiße Flächen nehmen Portale an, die dunkle Rückwand nicht. Trigger = blau, Grip = orange.',
-      accent: COLOR_B,
+      body: 'Weiße Flächen halten Portale, die blaue Rückwand nicht. Links blau, rechts rot.',
+      accent: COLOR_RED,
     });
-    sign.position.set(0, 2.6, ROOM.half - 0.05);
+    sign.position.set(0, 2.8, half - 0.02);
     sign.rotation.y = Math.PI;
     chamber.add(sign);
   }
 
-  // --- interaction --------------------------------------------------------
+  /** Adds a box that is both visible and solid. */
+  private slab(
+    parent: THREE.Object3D,
+    material: THREE.Material,
+    size: readonly [number, number, number],
+    position: readonly [number, number, number],
+    portalable: boolean,
+    physics = true,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
+    mesh.position.set(position[0], position[1], position[2]);
+    mesh.name = portalable ? 'surface:panel' : 'surface:shielded';
+    parent.add(mesh);
+    mesh.updateWorldMatrix(true, false);
 
-  private updateGunAttachment(ctx: WorldContext): void {
-    const right = ctx.input.get('right');
-    if (right?.tracked) {
-      const anchor = right.isHand || !right.grip.visible ? right.targetRay : right.grip;
-      if (this.gun.parent !== anchor) anchor.add(this.gun);
-      this.gun.position.set(0, right.isHand ? -0.04 : 0, right.isHand ? -0.02 : 0.02);
-      this.gun.rotation.set(0, 0, 0);
-      return;
+    if (portalable) this.surfaces.push(mesh);
+    if (physics) {
+      this.physics!.addStatic(mesh, {
+        membership: portalable ? GROUP_PORTAL_SURFACE : GROUP_WORLD,
+        filter: ALL_GROUPS,
+      });
     }
-    if (this.gun.parent !== ctx.camera) ctx.camera.add(this.gun);
-    this.gun.position.set(0.24, -0.22, -0.55);
-    this.gun.rotation.set(0, -0.1, 0);
-    this.gun.scale.setScalar(0.85);
+    return mesh;
   }
 
-  /** Ray the gun is currently pointing along, in world space. */
-  private getAimRay(ctx: WorldContext): THREE.Ray {
-    const right = ctx.input.get('right');
-    if (ctx.renderer.xr.isPresenting && right?.tracked) return right.getRay(_ray);
-    ctx.camera.updateWorldMatrix(true, false);
-    _ray.origin.setFromMatrixPosition(ctx.camera.matrixWorld);
-    _ray.direction.set(0, 0, -1).applyQuaternion(ctx.camera.getWorldQuaternion(_quaternion));
-    return _ray;
+  private buildProps(): void {
+    const physics = this.physics!;
+
+    const cube = createCompanionCube(0.5);
+    cube.position.set(-5.4, 1.9, -5.4);
+    this.root.add(cube);
+    this.registerProp(physics.addDynamic(cube, { mass: 8, friction: 0.8, restitution: 0.1 }));
+
+    const second = createCompanionCube(0.4);
+    second.position.set(1.8, 0.3, 2.2);
+    this.root.add(second);
+    this.registerProp(physics.addDynamic(second, { mass: 5, friction: 0.8, restitution: 0.1 }));
+
+    const dominoes = createDominoes(16, COLOR_BLUE);
+    dominoes.forEach((domino, index) => {
+      domino.position.set(-2.4 + index * 0.32, DOMINO_SIZE.y / 2 + 0.001, 1.6);
+      this.root.add(domino);
+      this.registerProp(
+        physics.addDynamic(domino, {
+          mass: 0.35,
+          friction: 0.6,
+          restitution: 0.02,
+          angularDamping: 0.25,
+          ccd: true,
+        }),
+      );
+    });
   }
 
-  private updateAim(ctx: WorldContext): void {
-    if (!this.aimRing) return;
-    const ray = this.getAimRay(ctx);
-    const hit = this.castSurface(ray);
-    if (!hit) {
-      this.aimRing.visible = false;
-      return;
+  private registerProp(entry: PhysicsBody): void {
+    entry.object.updateWorldMatrix(true, false);
+    this.spawns.set(entry, entry.object.matrixWorld.clone());
+    this.props.push(entry);
+  }
+
+  // --- guns on the belt ---------------------------------------------------
+
+  private setupGuns(ctx: WorldContext): void {
+    const definitions: Array<[Handedness, Portal, number]> = [
+      ['left', this.portalBlue, COLOR_BLUE],
+      ['right', this.portalRed, COLOR_RED],
+    ];
+    for (const [hand, portal, color] of definitions) {
+      const gun = new PortalGun(portal.key, color);
+      const holster = new THREE.Object3D();
+      ctx.rig.add(holster);
+      holster.add(gun);
+      this.slots.push({ gun, portal, hand, holster, held: false, justGrabbed: false });
     }
-    this.aimRing.visible = true;
-    this.aimRing.position.copy(hit.point).addScaledVector(hit.normal, 0.01);
-    orientToSurface(this.aimRing, hit.normal);
-    const valid = this.fits(hit.point, hit.normal, hit.object);
-    this.aimRing.material.color.setHex(valid ? 0xffffff : 0xff5a5a);
-    this.aimRing.material.opacity = valid ? 0.55 : 0.35;
+  }
+
+  private updateGuns(dt: number, ctx: WorldContext): void {
+    const height = ctx.rig.getHeadHeight();
+    const yaw = ctx.avatar.bodyYaw;
+    const sin = Math.sin(yaw);
+    const cos = Math.cos(yaw);
+    ctx.rig.getHeadPosition(_head);
+    ctx.rig.worldToLocal(_head);
+
+    for (const slot of this.slots) {
+      const side = slot.hand === 'left' ? -1 : 1;
+      slot.holster.position.set(
+        _head.x + cos * side * 0.26 + sin * 0.04,
+        height * 0.5,
+        _head.z - sin * side * 0.26 + cos * 0.04,
+      );
+      slot.holster.rotation.set(0, yaw, 0);
+
+      const controller = ctx.input.get(slot.hand);
+      const canReach = controller?.tracked ? this.handNearHolster(ctx, controller, slot) : false;
+      slot.justGrabbed = false;
+
+      // Controllers hold the gun while the grip is pressed. Tracked hands have
+      // no grip button, so there a pinch at the belt toggles it.
+      const grab = controller
+        ? controller.isHand
+          ? controller.trigger.justPressed && canReach
+          : controller.squeeze.justPressed && canReach
+        : false;
+      const letGo = controller
+        ? controller.isHand
+          ? controller.trigger.justPressed && canReach
+          : !controller.squeeze.pressed || !controller.tracked
+        : true;
+
+      if (!slot.held && grab && controller) {
+        slot.held = true;
+        slot.justGrabbed = true;
+        const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+        anchor.add(slot.gun);
+        slot.gun.position.set(0, -0.012, 0.03);
+        slot.gun.rotation.set(0, 0, 0);
+        slot.gun.holstered = false;
+        controller.pulse(0.4, 25);
+        ctx.hands.setGestureOverride(slot.hand, 'grip');
+      } else if (slot.held && letGo) {
+        slot.held = false;
+        slot.holster.add(slot.gun);
+        slot.gun.position.set(0, 0, 0);
+        slot.gun.rotation.set(0, 0, 0);
+        slot.gun.holstered = true;
+        ctx.hands.setGestureOverride(slot.hand, null);
+      }
+
+      slot.gun.update(dt);
+    }
+  }
+
+  private handNearHolster(ctx: WorldContext, controller: ControllerState, slot: GunSlot): boolean {
+    const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+    anchor.getWorldPosition(_hand);
+    ctx.rig.worldToLocal(_hand);
+    return _hand.distanceTo(slot.holster.position) < 0.32;
+  }
+
+  /** Empty hands can pick up the cubes and dominoes. */
+  private updateGrabs(dt: number, ctx: WorldContext): void {
+    const rapier = this.physics!.rapier;
+
+    for (const slot of this.slots) {
+      const controller = ctx.input.get(slot.hand);
+      const grab = this.grabs.get(slot.hand);
+
+      if (!controller?.tracked) {
+        if (grab) this.release(slot.hand, grab);
+        continue;
+      }
+
+      const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+      anchor.updateWorldMatrix(true, false);
+
+      if (grab) {
+        if (!controller.squeeze.pressed) {
+          this.release(slot.hand, grab);
+          continue;
+        }
+        _matrix.multiplyMatrices(anchor.matrixWorld, grab.offset);
+        _matrix.decompose(_point, _quaternion, _probe);
+        grab.velocity.copy(_point).sub(grab.lastPosition).divideScalar(Math.max(dt, 1 / 120));
+        grab.lastPosition.copy(_point);
+        grab.entry.body.setNextKinematicTranslation({ x: _point.x, y: _point.y, z: _point.z });
+        grab.entry.body.setNextKinematicRotation({
+          x: _quaternion.x,
+          y: _quaternion.y,
+          z: _quaternion.z,
+          w: _quaternion.w,
+        });
+        continue;
+      }
+
+      if (slot.held || !controller.squeeze.justPressed) continue;
+      anchor.getWorldPosition(_hand);
+      const entry = this.findProp(_hand, 0.42);
+      if (!entry) continue;
+
+      entry.body.setBodyType(rapier.RigidBodyType.KinematicPositionBased, true);
+      const offset = new THREE.Matrix4()
+        .copy(anchor.matrixWorld)
+        .invert()
+        .multiply(entry.object.matrixWorld);
+      entry.object.getWorldPosition(_point);
+      this.grabs.set(slot.hand, {
+        entry,
+        offset,
+        lastPosition: _point.clone(),
+        velocity: new THREE.Vector3(),
+      });
+      controller.pulse(0.5, 30);
+    }
+  }
+
+  private release(hand: Handedness, grab: HandGrab): void {
+    const rapier = this.physics!.rapier;
+    grab.entry.body.setBodyType(rapier.RigidBodyType.Dynamic, true);
+    const throwVelocity = grab.velocity.clampLength(0, 9);
+    grab.entry.body.setLinvel(
+      { x: throwVelocity.x, y: throwVelocity.y, z: throwVelocity.z },
+      true,
+    );
+    this.grabs.delete(hand);
+  }
+
+  private findProp(position: THREE.Vector3, radius: number): PhysicsBody | null {
+    let best: PhysicsBody | null = null;
+    let bestDistance = radius;
+    for (const entry of this.props) {
+      if ([...this.grabs.values()].some((grab) => grab.entry === entry)) continue;
+      const t = entry.body.translation();
+      const distance = position.distanceTo(_probe.set(t.x, t.y, t.z));
+      if (distance < bestDistance) {
+        best = entry;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
+  // --- hands that can touch things ----------------------------------------
+
+  private updateHandProbes(ctx: WorldContext): void {
+    const physics = this.physics!;
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand) continue;
+
+      let probe = this.probes.get(hand);
+      if (!probe) {
+        const object = new THREE.Object3D();
+        object.position.set(0, -60, 0);
+        this.root.add(object);
+        const entry = physics.addKinematic(object, {
+          halfExtents: new THREE.Vector3(0.016, 0.016, 0.016),
+          membership: GROUP_HAND,
+          filter: GROUP_PROP,
+        });
+        probe = { object, entry };
+        this.probes.set(hand, probe);
+      }
+
+      const gesture = ctx.hands.gestureOf(controller);
+      const active =
+        controller.tracked && (controller.isHand || gesture === 'point' || gesture === 'open');
+      const tip = active ? controller.getFingertip(_point) : null;
+      const target = tip ?? _point.set(0, -60, 0);
+      probe.entry.body.setNextKinematicTranslation({ x: target.x, y: target.y, z: target.z });
+    }
+  }
+
+  // --- shooting -----------------------------------------------------------
+
+  private bindFlatInput(ctx: WorldContext): void {
+    this.canvas = ctx.renderer.domElement;
+    this.flatFire = (event: MouseEvent) => {
+      if (ctx.renderer.xr.isPresenting || ctx.pointer.hovering) return;
+      if (event.button === 0) this.shoot(ctx, this.slots[0]!);
+      else if (event.button === 2) this.shoot(ctx, this.slots[1]!);
+    };
+    this.flatKeys = (event: KeyboardEvent) => {
+      if (event.code === 'KeyR') this.resetWorld(ctx);
+    };
+    this.blockContextMenu = (event: Event) => event.preventDefault();
+    this.canvas.addEventListener('mousedown', this.flatFire);
+    this.canvas.addEventListener('contextmenu', this.blockContextMenu);
+    window.addEventListener('keydown', this.flatKeys);
   }
 
   private handleFiring(ctx: WorldContext): void {
-    const right = ctx.input.get('right');
-    if (!right || !ctx.renderer.xr.isPresenting) return;
-    // The same trigger drives the menu, so UI interaction wins.
+    if (!ctx.renderer.xr.isPresenting) return;
+    // The trigger also drives the wrist menu, so pointing at UI wins.
     if (ctx.pointer.hovering) return;
-    if (right.trigger.justPressed) this.shoot(ctx, this.portalA);
-    if (right.squeeze.justPressed) this.shoot(ctx, this.portalB);
-    if (right.primary.justPressed) this.resetPortals(ctx);
+    for (const slot of this.slots) {
+      const controller = ctx.input.get(slot.hand);
+      if (!controller) continue;
+      if (slot.held && !slot.justGrabbed && controller.trigger.justPressed) this.shoot(ctx, slot);
+      if (controller.secondary.justPressed) this.resetWorld(ctx);
+    }
   }
 
-  private resetPortals(ctx: WorldContext): void {
-    this.portalA.reset();
-    this.portalB.reset();
-    ctx.notify('Portale zurückgesetzt');
-  }
-
-  private shoot(ctx: WorldContext, portal: Portal): void {
-    const ray = this.getAimRay(ctx);
+  private shoot(ctx: WorldContext, slot: GunSlot): void {
+    const ray = this.getAimRay(ctx, slot);
     const hit = this.castSurface(ray);
-    const color = portal === this.portalA ? COLOR_A : COLOR_B;
-    this.gun.fire(new THREE.Color(color));
-    ctx.input.get('right')?.pulse(0.35, 25);
+    slot.gun.fire();
+    ctx.input.get(slot.hand)?.pulse(0.35, 25);
 
     if (!hit) {
       ctx.notify('Keine Fläche getroffen');
@@ -320,7 +588,7 @@ export class PortalWorld implements World {
       return;
     }
 
-    const other = portal === this.portalA ? this.portalB : this.portalA;
+    const other = slot.portal === this.portalBlue ? this.portalRed : this.portalBlue;
     if (other.placed && other.getWorldNormal(_probe).dot(hit.normal) > 0.98) {
       other.getWorldPosition(_probe);
       if (_probe.distanceTo(hit.point) < PORTAL_HALF_WIDTH * 2.05) {
@@ -330,15 +598,126 @@ export class PortalWorld implements World {
     }
 
     _up.copy(Math.abs(hit.normal.y) > 0.9 ? _direction.set(0, 0, 1) : UP);
-    portal.place(hit.point, hit.normal, _up);
-    ctx.notify(portal === this.portalA ? 'Blaues Portal gesetzt' : 'Oranges Portal gesetzt');
+    slot.portal.place(hit.point, hit.normal, _up);
+    ctx.notify(slot.portal === this.portalBlue ? 'Blaues Portal' : 'Rotes Portal');
   }
 
-  private handleTraversal(ctx: WorldContext): void {
+  /** Ray the gun points along; the head ray while not in VR. */
+  private getAimRay(ctx: WorldContext, slot: GunSlot): THREE.Ray {
+    const controller = ctx.input.get(slot.hand);
+    if (ctx.renderer.xr.isPresenting && slot.held && controller?.tracked) {
+      slot.gun.muzzle.getWorldPosition(_ray.origin);
+      _ray.direction
+        .set(0, 0, -1)
+        .applyQuaternion(slot.gun.getWorldQuaternion(_quaternion))
+        .normalize();
+      return _ray;
+    }
+    ctx.camera.updateWorldMatrix(true, false);
+    _ray.origin.setFromMatrixPosition(ctx.camera.matrixWorld);
+    _ray.direction.set(0, 0, -1).applyQuaternion(ctx.camera.getWorldQuaternion(_quaternion));
+    return _ray;
+  }
+
+  private updateAim(ctx: WorldContext): void {
+    if (!this.aimRing) return;
+    const held = this.slots.find((entry) => entry.held);
+    if (ctx.renderer.xr.isPresenting && !held) {
+      this.aimRing.visible = false;
+      return;
+    }
+    const ray = this.getAimRay(ctx, held ?? this.slots[1]!);
+    const hit = this.castSurface(ray);
+    if (!hit) {
+      this.aimRing.visible = false;
+      return;
+    }
+    this.aimRing.visible = true;
+    this.aimRing.position.copy(hit.point).addScaledVector(hit.normal, 0.012);
+    orientToSurface(this.aimRing, hit.normal);
+    const valid = this.fits(hit.point, hit.normal, hit.object);
+    this.aimRing.material.color.setHex(valid ? 0xffffff : 0xff5a5a);
+    this.aimRing.material.opacity = valid ? 0.5 : 0.3;
+  }
+
+  // --- portals ------------------------------------------------------------
+
+  private isInFunnel(point: THREE.Vector3): boolean {
+    for (const portal of [this.portalBlue, this.portalRed]) {
+      if (!portal.placed || !portal.link?.placed) continue;
+      if (Math.abs(portal.signedDistance(point)) > FUNNEL_DEPTH) continue;
+      if (portal.isInOpening(point, 1.1)) return true;
+    }
+    return false;
+  }
+
+  /** Lets the player fall through a wall while standing in a portal opening. */
+  private playerInFunnel(): boolean {
+    this.locomotion!.getPosition(_probe);
+    return this.isInFunnel(_probe);
+  }
+
+  private updatePropPhasing(): void {
+    const physics = this.physics!;
+    for (const entry of this.props) {
+      const t = entry.body.translation();
+      _probe.set(t.x, t.y, t.z);
+      physics.setPhasing(entry, this.isInFunnel(_probe));
+    }
+  }
+
+  private traverseProps(): void {
+    const grabbed = new Set([...this.grabs.values()].map((grab) => grab.entry));
+    for (const entry of this.props) {
+      if (grabbed.has(entry)) continue;
+      const t = entry.body.translation();
+      _point.set(t.x, t.y, t.z);
+
+      if (_point.y < -25) {
+        this.respawn(entry);
+        continue;
+      }
+
+      for (const portal of [this.portalBlue, this.portalRed]) {
+        const transform = portal.getTraversalMatrix(_matrix);
+        if (!transform) continue;
+        const before = portal.signedDistance(entry.previousPosition);
+        const after = portal.signedDistance(_point);
+        if (before <= 0 || after > 0) continue;
+        const t0 = before / (before - after);
+        _cross.lerpVectors(entry.previousPosition, _point, t0);
+        if (!portal.isInOpening(_cross, 1.05)) continue;
+
+        _rotation.setFromRotationMatrix(_rotationMatrix.extractRotation(transform));
+        _point.applyMatrix4(transform);
+        entry.body.setTranslation({ x: _point.x, y: _point.y, z: _point.z }, true);
+
+        const r = entry.body.rotation();
+        _quaternion.set(r.x, r.y, r.z, r.w).premultiply(_rotation);
+        entry.body.setRotation(
+          { x: _quaternion.x, y: _quaternion.y, z: _quaternion.z, w: _quaternion.w },
+          true,
+        );
+
+        const linear = entry.body.linvel();
+        _direction.set(linear.x, linear.y, linear.z).applyQuaternion(_rotation);
+        entry.body.setLinvel({ x: _direction.x, y: _direction.y, z: _direction.z }, true);
+
+        const angular = entry.body.angvel();
+        _direction.set(angular.x, angular.y, angular.z).applyQuaternion(_rotation);
+        entry.body.setAngvel({ x: _direction.x, y: _direction.y, z: _direction.z }, true);
+        break;
+      }
+
+      entry.previousPosition.copy(_point);
+    }
+  }
+
+  private traversePlayer(ctx: WorldContext): void {
     ctx.rig.getHeadPosition(_head);
 
     if (this.hasPreviousHead) {
-      for (const portal of [this.portalA, this.portalB]) {
+      for (const portal of [this.portalBlue, this.portalRed]) {
         const transform = portal.getTraversalMatrix(_matrix);
         if (!transform) continue;
         const before = portal.signedDistance(this.previousHead);
@@ -357,20 +736,30 @@ export class PortalWorld implements World {
     this.hasPreviousHead = true;
   }
 
-  private filterMove(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3 {
-    void from;
-    for (const portal of [this.portalA, this.portalB]) {
-      if (!portal.placed || !portal.link?.placed) continue;
-      if (Math.abs(portal.signedDistance(to)) < 1 && portal.isInOpening(to, 1.05)) return to;
-    }
-    to.x = THREE.MathUtils.clamp(to.x, BOUNDS.min.x, BOUNDS.max.x);
-    to.z = THREE.MathUtils.clamp(to.z, BOUNDS.min.z, BOUNDS.max.z);
-    return to;
+  private respawn(entry: PhysicsBody): void {
+    const spawn = this.spawns.get(entry);
+    if (!spawn) return;
+    spawn.decompose(_point, _quaternion, _probe);
+    entry.body.setTranslation({ x: _point.x, y: _point.y, z: _point.z }, true);
+    entry.body.setRotation(
+      { x: _quaternion.x, y: _quaternion.y, z: _quaternion.z, w: _quaternion.w },
+      true,
+    );
+    entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    entry.previousPosition.copy(_point);
+  }
+
+  private resetWorld(ctx: WorldContext): void {
+    this.portalBlue.reset();
+    this.portalRed.reset();
+    for (const entry of this.props) this.respawn(entry);
+    ctx.notify('Labor zurückgesetzt');
   }
 
   // --- surface helpers ----------------------------------------------------
 
-  private castSurface(ray: THREE.Ray, maxDistance = 40): typeof _hit | null {
+  private castSurface(ray: THREE.Ray, maxDistance = 60): typeof _hit | null {
     this.raycaster.set(ray.origin, ray.direction);
     this.raycaster.far = maxDistance;
     const hit = this.raycaster.intersectObjects(this.surfaces, false)[0];

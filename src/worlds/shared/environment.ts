@@ -62,12 +62,3 @@ export function disposeTree(root: THREE.Object3D): void {
   });
   root.removeFromParent();
 }
-
-/** Keeps the player inside an axis-aligned box (head position based). */
-export function clampToBox(box: THREE.Box3): (from: THREE.Vector3, to: THREE.Vector3) => THREE.Vector3 {
-  return (_from, to) => {
-    to.x = THREE.MathUtils.clamp(to.x, box.min.x, box.max.x);
-    to.z = THREE.MathUtils.clamp(to.z, box.min.z, box.max.z);
-    return to;
-  };
-}

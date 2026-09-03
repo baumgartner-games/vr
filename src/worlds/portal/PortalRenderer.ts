@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Portal } from './Portal';
+import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 
 const _traversal = new THREE.Matrix4();
 const _plane = new THREE.Plane();
@@ -132,6 +133,8 @@ export class PortalRenderer {
       this.mono.matrixWorld.multiplyMatrices(_traversal, camera.matrixWorld);
       this.mono.matrixWorldInverse.copy(this.mono.matrixWorld).invert();
       this.mono.projectionMatrix.copy(camera.projectionMatrix);
+      // Portal views also show the player's own head.
+      this.mono.layers.mask = camera.layers.mask | (1 << LAYER_SELF_ONLY);
       applyObliqueNearPlane(this.mono, link);
       this.mono.projectionMatrixInverse.copy(this.mono.projectionMatrix).invert();
       return this.mono;
@@ -162,7 +165,7 @@ export class PortalRenderer {
           Math.floor(viewport.w * scale),
         );
       }
-      eye.layers.mask = source.layers.mask;
+      eye.layers.mask = source.layers.mask | (1 << LAYER_SELF_ONLY);
     }
 
     return this.array;
@@ -178,7 +181,7 @@ export class PortalRenderer {
       eye.viewport = new THREE.Vector4();
       this.array.cameras.push(eye);
     }
-    this.array.layers.mask = xrCamera.layers.mask;
+    this.array.layers.mask = xrCamera.layers.mask | (1 << LAYER_SELF_ONLY);
   }
 }
 

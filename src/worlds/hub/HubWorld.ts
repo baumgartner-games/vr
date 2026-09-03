@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { World, WorldContext } from '../../core/types';
 import { WORLDS } from '../index';
 import { TextPlane } from '../../ui/TextPlane';
-import { clampToBox, createLighting, createSky, disposeTree } from '../shared/environment';
+import { createLighting, createSky, disposeTree } from '../shared/environment';
+import { FreeLocomotion } from '../../core/Locomotion';
 
 interface Gate {
   group: THREE.Group;
@@ -72,10 +73,11 @@ export class HubWorld implements World {
     });
 
     ctx.rig.placeAt(SPAWN, 0);
-    ctx.rig.setMoveFilter(clampToBox(new THREE.Box3(
-      new THREE.Vector3(-11, 0, -11),
-      new THREE.Vector3(11, 0, 11),
-    )));
+    ctx.rig.setLocomotion(
+      new FreeLocomotion(
+        new THREE.Box3(new THREE.Vector3(-11, 0, -11), new THREE.Vector3(11, 0, 11)),
+      ),
+    );
   }
 
   update(dt: number, ctx: WorldContext): void {

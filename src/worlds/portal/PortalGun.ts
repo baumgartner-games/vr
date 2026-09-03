@@ -1,82 +1,101 @@
 import * as THREE from 'three';
 
-/** Procedural portal gun: no assets, reads clearly at arm's length. */
+/**
+ * One-handed portal gun. Each hand carries its own colour: the left one only
+ * places the blue portal, the right one only the red.
+ */
 export class PortalGun extends THREE.Group {
   readonly muzzle = new THREE.Object3D();
+  /** True while the gun sits on the belt instead of in a hand. */
+  holstered = true;
 
   private readonly core: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
-  private readonly prongs: Array<THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>> = [];
-  private readonly idleColor = new THREE.Color(0x2a3550);
-  private flashColor = new THREE.Color(0x2a3550);
+  private readonly emitters: Array<THREE.MeshStandardMaterial> = [];
+  private readonly tint: THREE.Color;
+  private readonly geometries: THREE.BufferGeometry[] = [];
+  private readonly materials: THREE.Material[] = [];
   private flash = 0;
 
-  constructor() {
+  constructor(
+    readonly key: 'a' | 'b',
+    colorHex: number,
+  ) {
     super();
-    this.name = 'portal-gun';
+    this.name = `portal-gun-${key}`;
+    this.tint = new THREE.Color(colorHex);
 
-    const shell = new THREE.MeshStandardMaterial({ color: 0xd7dce8, roughness: 0.45, metalness: 0.35 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x1d2434, roughness: 0.6, metalness: 0.3 });
+    const shell = new THREE.MeshStandardMaterial({
+      color: 0xd7dce8,
+      roughness: 0.4,
+      metalness: 0.4,
+    });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x1b2231, roughness: 0.6 });
+    this.materials.push(shell, dark);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.085, 0.2), shell);
-    body.position.set(0, 0, -0.07);
-    this.add(body);
+    const body = this.mesh(new THREE.BoxGeometry(0.06, 0.07, 0.17), shell);
+    body.position.set(0, 0.005, -0.06);
 
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.06), dark);
-    back.position.set(0, 0, 0.03);
-    this.add(back);
+    const back = this.mesh(new THREE.BoxGeometry(0.05, 0.06, 0.05), dark);
+    back.position.set(0, 0, 0.035);
 
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.1, 0.06), dark);
-    handle.position.set(0, -0.075, -0.015);
-    handle.rotation.x = -0.22;
-    this.add(handle);
+    const grip = this.mesh(new THREE.BoxGeometry(0.036, 0.095, 0.05), dark);
+    grip.position.set(0, -0.07, 0.005);
+    grip.rotation.x = -0.2;
 
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.032, 0.12, 16), shell);
+    const barrel = this.mesh(new THREE.CylinderGeometry(0.021, 0.026, 0.1, 14), shell);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.005, -0.19);
-    this.add(barrel);
+    barrel.position.set(0, 0.01, -0.16);
 
     for (const side of [-1, 1]) {
-      const prong = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.018, 0.14), dark.clone());
-      prong.position.set(side * 0.045, 0.01, -0.21);
-      prong.rotation.y = side * -0.16;
-      this.add(prong);
-      this.prongs.push(prong);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x222b3d,
+        roughness: 0.5,
+        emissive: this.tint.clone().multiplyScalar(0.35),
+      });
+      this.materials.push(material);
+      this.emitters.push(material);
+      const prong = this.mesh(new THREE.BoxGeometry(0.015, 0.015, 0.12), material);
+      prong.position.set(side * 0.038, 0.012, -0.18);
+      prong.rotation.y = side * -0.14;
     }
 
+    const coreGeometry = new THREE.SphereGeometry(0.019, 14, 10);
+    this.geometries.push(coreGeometry);
     this.core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.022, 16, 12),
-      new THREE.MeshBasicMaterial({ color: this.idleColor.clone(), toneMapped: false }),
+      coreGeometry,
+      new THREE.MeshBasicMaterial({ color: this.tint.clone(), toneMapped: false }),
     );
-    this.core.position.set(0, 0.005, -0.16);
+    this.materials.push(this.core.material);
+    this.core.position.set(0, 0.01, -0.13);
     this.add(this.core);
 
-    this.muzzle.position.set(0, 0.005, -0.26);
+    this.muzzle.position.set(0, 0.01, -0.22);
     this.add(this.muzzle);
   }
 
-  /** Lights up the core in the colour of the portal that was just fired. */
-  fire(color: THREE.Color): void {
-    this.flashColor.copy(color);
+  fire(): void {
     this.flash = 1;
   }
 
   update(dt: number): void {
-    this.flash = Math.max(0, this.flash - dt * 3.2);
-    this.core.material.color.copy(this.idleColor).lerp(this.flashColor, 0.25 + this.flash * 0.75);
-    for (const prong of this.prongs) {
-      prong.material.emissive.copy(this.flashColor).multiplyScalar(this.flash * 0.8);
+    this.flash = Math.max(0, this.flash - dt * 3.4);
+    const glow = 0.45 + this.flash * 1.6;
+    this.core.material.color.copy(this.tint).multiplyScalar(glow);
+    for (const material of this.emitters) {
+      material.emissive.copy(this.tint).multiplyScalar(0.25 + this.flash * 0.9);
     }
   }
 
   dispose(): void {
-    this.traverse((object) => {
-      const mesh = object as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.geometry.dispose();
-      const material = mesh.material;
-      if (Array.isArray(material)) material.forEach((m) => m.dispose());
-      else material.dispose();
-    });
+    for (const geometry of this.geometries) geometry.dispose();
+    for (const material of this.materials) material.dispose();
     this.removeFromParent();
+  }
+
+  private mesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
+    this.geometries.push(geometry);
+    const mesh = new THREE.Mesh(geometry, material);
+    this.add(mesh);
+    return mesh;
   }
 }

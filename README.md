@@ -13,8 +13,12 @@ Drei.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural gebau
   Panel, das der Hand folgt. Ausgewählt wird mit der rechten Hand (Zielstrahl +
   Trigger) oder direkt per Fingertipp. Ohne getrackte Hand (Desktop/Handy) hängt
   dasselbe Menü an der Blickrichtung.
-- **Portal Labor** (experimentell): Portal-Gun in der rechten Hand.
-  Trigger = blaues Portal, Grip = oranges Portal, durchgehen inklusive.
+- **Portal Labor** (experimentell): Physik-Sandkasten mit zwei Portal-Guns am
+  Gürtel (links blau, rechts rot), Schwerkraft, Sprung, Companion Cubes und
+  einer Reihe Dominosteine. Portale gehen auch auf Boden und Decke — samt
+  Sturz und Schwung beim Herausfliegen.
+- **Eigener Körper**: der Spieler hat Torso, Arme und Beine. Der Kopf wird nur
+  gerendert, wenn man sich selbst durch ein Portal ansieht.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Rollen & Netzwerk-Grundgerüst** für spätere asymmetrische Spiele
   (VR-Spieler + Handy-Spieler).
@@ -47,20 +51,36 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | --- | --- | --- | --- |
 | Bewegen | linker Stick | `WASD` (`Shift` = schneller) | linker Touch-Stick |
 | Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
+| Springen | `A` rechts | `Leertaste` | – |
 | Menü | Button an der linken Hand | Button `Menü` im HUD | Button `Menü` im HUD |
 | Auswählen | rechte Hand zielen + Trigger, oder antippen | Linksklick | tippen |
-| Portal blau | Trigger rechts | Linksklick | – |
-| Portal orange | Grip rechts | Rechtsklick | – |
+| Waffe ziehen | Grip an der Hüfte halten | – (immer bereit) | – |
+| Portal blau | Trigger links (Waffe in der Hand) | Linksklick | – |
+| Portal rot | Trigger rechts (Waffe in der Hand) | Rechtsklick | – |
+| Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
+| Zurücksetzen | `B` / `Y` | `R` | – |
+
+**Handgesten** (mit Controllern): Grip = Pistolenhand — damit lassen sich
+Dominosteine antippen. Grip + Trigger = Daumen hoch. Mit Hand-Tracking werden
+die echten Finger gerendert; dort schaltet ein Pinch am Gürtel die Waffe
+zwischen Halfter und Hand um.
 
 ## Architektur
 
 ```
 src/
-  core/      Engine, Player-Rig, XR-Input, Pointer, Flat-Controls, Hand-Visuals
+  core/      Engine, Player-Rig, Locomotion, XR-Input, Pointer, Hände, Avatar
+  physics/   Rapier-Wrapper und der Charakter-Controller (dynamisch geladen)
   ui/        Canvas-basierte 3D-UI (Panel, Textflächen, Handgelenk-Menü)
   net/       Transport-Interface, BroadcastChannel-Transport, Presence, Avatare
   worlds/    Weltenregistry + je eine Welt pro Ordner
 ```
+
+Wie sich der Spieler bewegt, entscheidet ein austauschbares `Locomotion`:
+der Hub gleitet frei über die Plattform, das Portal Labor hängt eine
+Rapier-Kapsel mit Schwerkraft, Kollision und Sprung ein. Die Physik-Engine
+(rund 1 MB gzip) liegt in einem eigenen Chunk und wird erst geladen, wenn eine
+Welt sie braucht.
 
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
@@ -89,9 +109,15 @@ Die Near-Plane der virtuellen Kamera wird schräg auf die Portalebene gelegt
 läuft. Beim Durchschreiten wird der Player-Rig mit derselben Matrix versetzt,
 mit der auch die virtuelle Kamera berechnet wird.
 
-Bekannte Grenzen des Prototyps: keine Schwerkraft und keine Objektphysik,
-Portale nur auf ebenen Flächen, eine Rekursionsstufe (im Portal zeigt das
-gegenüberliegende Portal seinen Ruhewirbel).
+Beim Durchgehen wandert nicht nur der Spieler, sondern auch jedes Objekt und
+dessen Geschwindigkeit durch dieselbe Matrix — ein Sturz in ein Bodenportal
+wird so zum Schwung aus einem Wandportal. Damit man überhaupt durch eine Wand
+fallen kann, ignorieren Körper innerhalb des Portaltrichters die
+Kollisionsgruppe der portalfähigen Flächen.
+
+Bekannte Grenzen des Prototyps: Objekte springen beim Durchtritt (kein
+Clipping an der Portalebene), Portale nur auf ebenen Flächen, und es gibt eine
+Rekursionsstufe — im Portal zeigt das gegenüberliegende seinen Ruhewirbel.
 
 ### Asymmetrisches Spielen (Vorbereitung)
 

@@ -2,6 +2,8 @@ import type * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
 import type { XRInput } from './XRInput';
 import type { Pointer } from './Pointer';
+import type { PlayerAvatar } from './PlayerAvatar';
+import type { HandVisuals } from './HandVisuals';
 import type { NetSession } from '../net/NetSession';
 
 /**
@@ -19,6 +21,8 @@ export interface WorldContext {
   readonly rig: PlayerRig;
   readonly input: XRInput;
   readonly pointer: Pointer;
+  readonly avatar: PlayerAvatar;
+  readonly hands: HandVisuals;
   readonly net: NetSession;
   readonly role: PlayerRole;
   /** Seconds since the app started. */

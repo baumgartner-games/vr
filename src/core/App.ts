@@ -4,6 +4,8 @@ import { XRInput } from './XRInput';
 import { Pointer } from './Pointer';
 import { FlatControls } from './FlatControls';
 import { HandVisuals } from './HandVisuals';
+import { PlayerAvatar } from './PlayerAvatar';
+import { FreeLocomotion } from './Locomotion';
 import { WristMenu } from '../ui/WristMenu';
 import { NetSession } from '../net/NetSession';
 import { RemoteAvatars } from '../net/RemoteAvatars';
@@ -19,6 +21,7 @@ export interface AppHooks {
 }
 
 const _head = new THREE.Matrix4();
+const _headLocal = new THREE.Matrix4();
 
 export class App {
   readonly renderer: THREE.WebGLRenderer;
@@ -31,6 +34,7 @@ export class App {
   readonly net = new NetSession();
 
   private readonly handVisuals: HandVisuals;
+  private readonly avatar: PlayerAvatar;
   private readonly avatars: RemoteAvatars;
   private readonly flat: FlatControls;
   private readonly hooks: AppHooks;
@@ -71,6 +75,9 @@ export class App {
     this.handVisuals = new HandVisuals(this.input);
     this.rig.add(this.handVisuals);
 
+    this.avatar = new PlayerAvatar();
+    this.rig.add(this.avatar);
+
     this.wristMenu = new WristMenu(this.pointer, {
       title: 'Welten',
       footer: 'Rechte Hand: zielen + Trigger',
@@ -99,6 +106,8 @@ export class App {
       rig: this.rig,
       input: this.input,
       pointer: this.pointer,
+      avatar: this.avatar,
+      hands: this.handVisuals,
       net: this.net,
       role: this.role,
       elapsed: this.elapsed,
@@ -179,6 +188,7 @@ export class App {
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
     this.flat.dispose();
+    this.avatar.dispose();
     this.wristMenu.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
@@ -206,7 +216,7 @@ export class App {
     this.scene.background = null;
     this.scene.fog = null;
     this.scene.environment = null;
-    this.rig.setMoveFilter(null);
+    this.rig.setLocomotion(new FreeLocomotion());
     this.pointer.clear();
     this.wristMenu.attachPointer();
   }
@@ -275,15 +285,17 @@ export class App {
     const presenting = this.renderer.xr.isPresenting;
 
     this.input.update();
+    this.handVisuals.update(dt);
 
-    if (presenting) this.rig.update(dt, this.input);
-    else this.flat.update(dt);
+    if (!presenting) this.flat.update();
+    this.rig.update(dt, this.input, presenting);
 
     const context = this.context;
     this.world?.update(dt, context);
 
-    this.handVisuals.update();
     this.rig.getHeadMatrix(_head);
+    _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);
+    this.avatar.update(dt, this.rig, this.input, _headLocal);
     this.wristMenu.update(dt, this.input, _head);
     this.pointer.update(this.input, presenting);
     this.net.update(dt, this.rig, this.input, this.elapsed);

@@ -17,10 +17,10 @@ export const WORLDS: WorldDefinition[] = [
   {
     id: 'portal',
     title: 'Portal Labor',
-    tagline: 'Portal-Gun Prototyp',
+    tagline: 'Portale, Physik, Companion Cube',
     description:
-      'Rechte Hand: Trigger schießt das blaue Portal, Grip das orange. Durchgehen erlaubt.',
-    accent: 0xff9d3d,
+      'Waffen am Gürtel greifen: links schießt blau, rechts rot. Springen, fallen, werfen.',
+    accent: 0xff3b2f,
     roles: ['vr', 'desktop'],
     experimental: true,
     load: async () => new (await import('./portal/PortalWorld')).PortalWorld(),

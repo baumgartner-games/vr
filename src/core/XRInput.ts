@@ -52,6 +52,8 @@ export class ControllerState {
   readonly primary = new ButtonState(); // A / X
   readonly secondary = new ButtonState(); // B / Y
   readonly thumbstick = new THREE.Vector2();
+  /** Index fingertip object, provided by the hand visuals. */
+  fingertip: THREE.Object3D | null = null;
 
   constructor(
     readonly index: number,
@@ -72,15 +74,11 @@ export class ControllerState {
     return target;
   }
 
-  /** World position of the index fingertip (hands) or of the grip (controllers). */
+  /** World position of the index fingertip, when the hand is tracked. */
   getFingertip(target: THREE.Vector3): THREE.Vector3 | null {
-    if (this.isHand) {
-      const tip = this.hand.joints['index-finger-tip'];
-      if (!tip || !tip.visible) return null;
-      return tip.getWorldPosition(target);
-    }
+    if (this.fingertip) return this.fingertip.getWorldPosition(target);
     if (!this.targetRay.visible) return null;
-    // Controllers "poke" with a point a bit in front of the target ray origin.
+    // Fallback before the hand visuals had a chance to run.
     this.targetRay.getWorldPosition(target);
     return target.add(
       _vec.set(0, 0, -0.06).applyQuaternion(this.targetRay.getWorldQuaternion(_quat)),
@@ -104,6 +102,7 @@ export class ControllerState {
     this.primary.reset();
     this.secondary.reset();
     this.thumbstick.set(0, 0);
+    this.fingertip = null;
   }
 }
 
