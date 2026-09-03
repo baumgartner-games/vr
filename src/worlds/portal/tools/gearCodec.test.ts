@@ -81,6 +81,19 @@ describe('gear codec', () => {
     expect(roundTrip(data).tools['ray-gun']).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
+  it('keeps a hand pose to the two decimals the menu shows', () => {
+    const data: GearData = {
+      tools: {},
+      hands: { idle: { left: [1.25, -0.4, 0, 12.75, 0, 0, 0.55, 0, 0, 0, 0, 2.5] } },
+      attachments: {},
+      weapon: DEFAULT_WEAPON,
+      drone: DEFAULT_DRONE,
+    };
+    expect(roundTrip(data).hands.idle?.left).toEqual([
+      1.25, -0.4, 0, 12.75, 0, 0, 0.55, 0, 0, 0, 0, 2.5,
+    ]);
+  });
+
   it('rounds a value to the precision it is shown with', () => {
     const data: GearData = {
       tools: { pistol: [1.234, 0, 0, 12.7, 0, 0] },

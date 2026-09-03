@@ -148,6 +148,8 @@ export class DroneTool extends Tool {
       onSelect: (index) => this.choose(index),
     });
     this.panel.position.set(0, 0.055, 0.006);
+    // Only while it is being carried: a menu floating over the hip is noise.
+    this.panel.visible = false;
     this.add(this.panel);
     this.showSettings();
   }
@@ -195,6 +197,7 @@ export class DroneTool extends Tool {
     // long as the tool is in a hand.
     host.ctx.pointer.remove(this.panel);
     host.ctx.pointer.add(this.panel.asPointerTarget());
+    this.panel.visible = true;
     this.showSettings();
 
     const settings = droneSettings();
@@ -216,6 +219,7 @@ export class DroneTool extends Tool {
     // Letting go of the display always hands the view back.
     this.park(host);
     host.ctx.pointer.remove(this.panel);
+    this.panel.visible = false;
   }
 
   override onTrigger(controller: ControllerState, host: ToolHost): void {

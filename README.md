@@ -391,8 +391,8 @@ Aufbau, also reist nur der Inhalt. Früher war es gepacktes JSON — und JSON
 besteht zum größten Teil aus sich selbst: `{"pistol":[0,-1.2,3,…]}` sind
 neunzehn Zeichen Klammern, Anführungszeichen und Feldname um sechs Zahlen
 herum. `src/worlds/portal/tools/gearCodec.ts` schreibt nur noch die Zahlen, in
-genau der Auflösung, in der sie auch angezeigt werden (Zehntelzentimeter, Grad,
-Hundertstel-Krümmung), als **Varints** — eine Null kostet ein Byte, −12° auch —
+genau der Auflösung, in der sie auch angezeigt werden (Zehntelmillimeter, Grad,
+Hundertstel), als **Varints** — eine Null kostet ein Byte, −12° auch —
 und Werkzeug- wie Anbauteilnamen als Nummer gegen eine feste Tabelle. Über das
 Ergebnis läuft ein winziges **LZSS** (`src/core/configCode.ts`, Wörterbuch im
 Datenstrom, deshalb ohne Bibliothek und ohne `CompressionStream`) — aber nur,
@@ -404,7 +404,7 @@ Das macht den Unterschied:
 | | vorher | jetzt |
 | --- | --- | --- |
 | Eine übliche Konfiguration | 459 Zeichen | **131** |
-| Alle Werkzeuge, beide Hände, jede Zielhilfe | 747 Zeichen | **323** |
+| Alle Werkzeuge, beide Hände, jede Zielhilfe | 747 Zeichen | **378** |
 
 Die Tabellen in `gearCodec.ts` sind ein **Datenformat**: Einträge dürfen
 angehängt, aber nie umsortiert oder entfernt werden, sonst bedeutet ein alter

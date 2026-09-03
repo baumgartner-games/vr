@@ -59,10 +59,11 @@ const DRONE_PROFILES = ['kopter', 'racing'] as const;
 /** Position in tenths of a centimetre, angles in whole degrees. */
 const POSE_SCALES = [10, 10, 10, 1, 1, 1] as const;
 /**
- * A hand pose: the same six, but angles to a tenth of a degree (they are typed
- * in, not measured), then five curls to a hundredth and the spread.
+ * A hand pose: twelve values, all to a hundredth. These are typed in rather
+ * than measured, and the menu shows two decimals — so two decimals is what has
+ * to survive the trip, or a value would change by being written down.
  */
-const HAND_SCALES = [10, 10, 10, 10, 10, 10, 100, 100, 100, 100, 100, 10] as const;
+const HAND_SCALES = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100] as const;
 
 const HANDS = ['left', 'right'] as const;
 
