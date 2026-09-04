@@ -2402,7 +2402,7 @@ export class PortalWorld implements World {
   }
 
   /** A tool, built on first use. */
-  private tool(id: string): Tool | null {
+  protected tool(id: string): Tool | null {
     const existing = this.tools.get(id);
     if (existing) return existing;
     const built = createTool(id);

@@ -5,7 +5,7 @@ import {
   saveHandPoses,
   type StoredHandPoses,
 } from '../../../core/handPoseStore';
-import { readGear, writeGear } from './gearCodec';
+import { GEAR_VERSION, readGear, writeGear } from './gearCodec';
 import {
   attachmentSnapshot,
   clearAttachmentPoses,
@@ -24,6 +24,7 @@ import { clearPoses, holdPoseSnapshot, saveHoldPoses } from './poseStore';
 import type { DroneSettings } from './droneSettings';
 import type { SupermanSettings } from './supermanSettings';
 import type { WeaponSettings } from './weaponSettings';
+import type { Handedness } from '../../../core/XRInput';
 
 /**
  * All of it, in one line.
@@ -41,12 +42,19 @@ import type { WeaponSettings } from './weaponSettings';
  * a two-minute job instead of forty numbers read out one at a time.
  *
  * **Und es geht auch stückweise.** `toolGearConfig` schneidet aus dem Ganzen
- * heraus, was zu genau einem Werkzeug gehört: seine Haltung in der Hand, die
- * Griffe beider Hände dafür, seine Anbauteile und — wenn es eins von den
- * dreien ist, das eigene Werte hat — seine Einstellungen. Der Code dazu ist
- * kurz genug, um auf dem Display des Justierers zu stehen, und wer ihn lädt,
- * ändert nur dieses eine Werkzeug. Möglich macht das die Abschnittsmaske in
- * `gearCodec.ts`: was nicht drinsteht, wird auch nicht angefasst.
+ * heraus, was zu genau einem Werkzeug gehört: seine Haltung in der Hand, der
+ * Griff dafür und seine Anbauteile und — wenn es eins von den dreien ist, das
+ * eigene Werte hat — seine Einstellungen. Der Code dazu ist kurz genug, um auf
+ * dem Display des Justierers zu stehen, und wer ihn lädt, ändert nur dieses
+ * eine Werkzeug. Möglich macht das die Abschnittsmaske in `gearCodec.ts`: was
+ * nicht drinsteht, wird auch nicht angefasst.
+ *
+ * **Und noch eine Stufe kleiner: eine Hand.** Wer im Eingaberaum die rechte
+ * Hand justiert, will den Code für die rechte Hand — nicht für beide. Beide
+ * Hände in einen Code zu packen, von dem nur die Hälfte gemessen wurde, macht
+ * ihn doppelt so lang und trägt die andere Hälfte als Behauptung mit sich
+ * herum. Deshalb nimmt `toolGearConfig` eine Hand entgegen, und der Justierer
+ * gibt die durch, an der er gerade gemessen hat.
  */
 export interface GearConfig {
   /** Tool id → `[x, y, z, pitch, yaw, roll]`, centimetres and degrees. */
@@ -86,15 +94,24 @@ export function gearConfig(): GearConfig {
  * Nur das, was zu einem Werkzeug gehört.
  *
  * @param toolId die Werkzeug-Id, `grab` für „Objekt in der Hand“, oder `null`
- *               für die leere Hand — dann sind es die beiden Grundhaltungen.
+ *               für die leere Hand — dann ist es die Grundhaltung.
+ * @param hand   welche Hand gemeint ist, oder `null` für beide. Wer eine Hand
+ *               gemessen hat, gibt sie an: der Code wird dadurch halb so lang
+ *               und behauptet nichts über die andere.
  */
-export function toolGearConfig(toolId: string | null): GearConfig {
+export function toolGearConfig(toolId: string | null, hand: Handedness | null = null): GearConfig {
   const all = gearConfig();
   const config: GearConfig = {};
+  const sides: readonly Handedness[] = hand ? [hand] : ['left', 'right'];
 
   if (!toolId) {
     // Die leere Hand hat keine Werkzeugpose und keine Anbauteile.
-    config.hands = { idle: all.hands?.idle ?? {}, hold: {} };
+    const idle: NonNullable<StoredHandPoses['idle']> = {};
+    for (const side of sides) {
+      const values = all.hands?.idle?.[side];
+      if (values) idle[side] = values;
+    }
+    config.hands = { idle, hold: {} };
     return config;
   }
 
@@ -102,9 +119,9 @@ export function toolGearConfig(toolId: string | null): GearConfig {
   if (pose) config.tools = { [toolId]: pose };
 
   const hold: NonNullable<StoredHandPoses['hold']> = {};
-  for (const hand of ['left', 'right'] as const) {
-    const values = all.hands?.hold?.[hand]?.[toolId];
-    if (values) hold[hand] = { [toolId]: values };
+  for (const side of sides) {
+    const values = all.hands?.hold?.[side]?.[toolId];
+    if (values) hold[side] = { [toolId]: values };
   }
   if (Object.keys(hold).length > 0) config.hands = { idle: {}, hold };
 
@@ -123,12 +140,12 @@ export function toolGearConfig(toolId: string | null): GearConfig {
 
 /** The one line that carries it. */
 export function gearCode(): string {
-  return packCode(writeGear(gearConfig()));
+  return packCode(writeGear(gearConfig()), GEAR_VERSION);
 }
 
-/** Die eine Zeile für genau ein Werkzeug. */
-export function toolGearCode(toolId: string | null): string {
-  return packCode(writeGear(toolGearConfig(toolId)));
+/** Die eine Zeile für genau ein Werkzeug — und wahlweise für eine Hand. */
+export function toolGearCode(toolId: string | null, hand: Handedness | null = null): string {
+  return packCode(writeGear(toolGearConfig(toolId, hand)), GEAR_VERSION);
 }
 
 /** The same line in groups of eight, for reading off a display. */
@@ -146,8 +163,8 @@ export function gearCodeLines(code = gearCode(), perLine = 4): string[] {
  * typed in a headset, so a typo has to end in a shrug, not in a broken hand.
  */
 export function parseGearCode(code: string): GearConfig | null {
-  const payload = unpackCode(code);
-  return payload ? readGear(payload) : null;
+  const unpacked = unpackCode(code);
+  return unpacked ? readGear(unpacked.payload, unpacked.version) : null;
 }
 
 /**

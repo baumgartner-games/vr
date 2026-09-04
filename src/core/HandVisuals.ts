@@ -27,6 +27,24 @@ const _vector = new THREE.Vector3();
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
 
+/**
+ * Wie eine Hand gezeichnet wird — drei Antworten, und alle drei gab es schon.
+ *
+ * Mit **Controllern** baut das Spiel eine Hand aus Kästen und Kapseln: eine
+ * Handfläche als Quader, an jedem Finger zwei Knochen. Mit **Handtracking**
+ * gibt es die gar nicht, sondern eine Kugel pro Gelenk, weil die Brille genau
+ * das liefert. Und im Eingaberaum liegt wahlweise ein **Controller** auf dem
+ * Tisch, weil man den in der Hand hält und nicht die Hand.
+ *
+ * Drei Darstellungen desselben Dings, und sie sehen unterschiedlich weit von
+ * der eigenen Hand entfernt aus — deshalb kann man auf dem Tisch zwischen
+ * allen dreien wechseln statt zwischen zweien. `limbs` ist dabei kein neues
+ * Modell, sondern dieselbe prozedurale Hand mit Kugeln an den Gelenken statt
+ * Knochen dazwischen: dieselbe Haltung, dieselben Zahlen, nur eben so, wie das
+ * Headset eine getrackte Hand zeichnet.
+ */
+export type GhostKind = 'limbs' | 'hand' | 'controller';
+
 /** One procedural hand: a palm plus five curling fingers. */
 class ProceduralHand extends THREE.Group {
   readonly indexTip = new THREE.Object3D();
@@ -43,6 +61,13 @@ class ProceduralHand extends THREE.Group {
   constructor(
     readonly side: Handedness,
     material: THREE.Material,
+    /**
+     * `limbs` zeichnet Kugeln an den Gelenken statt Knochen dazwischen — die
+     * Form, in der ein Headset eine getrackte Hand zeigt. Alles andere,
+     * Haltung und Krümmung eingeschlossen, ist identisch: es ist dieselbe
+     * Hand, nur anders angezogen.
+     */
+    private readonly look: 'bones' | 'limbs' = 'bones',
   ) {
     super();
     this.name = `hand-${side}`;
@@ -54,9 +79,21 @@ class ProceduralHand extends THREE.Group {
     const mirror = side === 'left' ? -1 : 1;
 
     // The grip space points -Z forward with the back of the hand towards +Y.
-    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
+    const palm =
+      this.look === 'limbs'
+        ? new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), material)
+        : new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
     palm.position.set(0, 0, -0.01);
     this.add(palm);
+    if (this.look === 'limbs') {
+      // Der Handrücken ist bei getrackten Händen eine Reihe Knöchel und keine
+      // einzelne Kugel — vier davon, dort, wo die Finger ansetzen.
+      for (const finger of FINGERS) {
+        const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), material);
+        knuckle.position.set(mirror * finger.x, 0, finger.z);
+        this.add(knuckle);
+      }
+    }
 
     // Thumb: sits at the wrist end of the thumb edge and juts out sideways —
     // the yaw carries it away from the palm, the small pitch drops it a little
@@ -66,7 +103,7 @@ class ProceduralHand extends THREE.Group {
     thumbRoot.position.set(mirror * -0.034, -0.006, 0.014);
     thumbRoot.rotation.set(-0.22, mirror * 0.75, mirror * 0.6);
     this.add(thumbRoot);
-    this.chains.push(buildChain(thumbRoot, [0.034, 0.028], 0.017, material));
+    this.chains.push(buildChain(thumbRoot, [0.034, 0.028], 0.017, material, this.look));
 
     for (const finger of FINGERS) {
       const root = new THREE.Object3D();
@@ -74,7 +111,7 @@ class ProceduralHand extends THREE.Group {
       this.add(root);
       this.fingerRoots.push(root);
       this.fans.push((mirror * finger.x) / 0.028);
-      const chain = buildChain(root, finger.lengths, 0.013, material);
+      const chain = buildChain(root, finger.lengths, 0.013, material, this.look);
       this.chains.push(chain);
       if (finger.name === 'index') {
         this.indexTip.position.set(0, 0, -finger.lengths[1]!);
@@ -130,19 +167,31 @@ function buildChain(
   lengths: number[],
   radius: number,
   material: THREE.Material,
+  look: 'bones' | 'limbs' = 'bones',
 ): THREE.Object3D[] {
   const joints: THREE.Object3D[] = [];
   let parent: THREE.Object3D = root;
   for (const length of lengths) {
     const joint = new THREE.Object3D();
     parent.add(joint);
-    const bone = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radius, Math.max(length - radius * 2, 0.005), 3, 8),
-      material,
-    );
-    bone.rotation.x = Math.PI / 2;
-    bone.position.set(0, 0, -length / 2);
-    joint.add(bone);
+    if (look === 'limbs') {
+      // Zwei Kugeln je Knochen: eine am Gelenk, eine an der Spitze. Damit
+      // sieht die Kette aus wie die Gelenkkugeln einer getrackten Hand und
+      // bewegt sich trotzdem an genau denselben Achsen.
+      const knuckle = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.85, 10, 8), material);
+      joint.add(knuckle);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.7, 10, 8), material);
+      tip.position.set(0, 0, -length);
+      joint.add(tip);
+    } else {
+      const bone = new THREE.Mesh(
+        new THREE.CapsuleGeometry(radius, Math.max(length - radius * 2, 0.005), 3, 8),
+        material,
+      );
+      bone.rotation.x = Math.PI / 2;
+      bone.position.set(0, 0, -length / 2);
+      joint.add(bone);
+    }
     joints.push(joint);
     const next = new THREE.Object3D();
     next.position.set(0, 0, -length);
@@ -159,11 +208,16 @@ function buildChain(
  * real hand is being moved into its new place there is something to compare it
  * with. It is a normal procedural hand in a glass material — the same
  * geometry, so what you compare against is genuinely the same shape.
+ *
+ * Auf dem Tisch im Eingaberaum liegt dieselbe Klasse, dort aber wahlweise als
+ * **Kugelhand** (`limbs`): dieselbe Haltung, gezeichnet wie eine getrackte
+ * Hand. Der Sinn ist immer derselbe — man vergleicht nur ehrlich, wenn das
+ * Vergleichsstück so aussieht wie das, was man gerade in der Brille sieht.
  */
 export class GhostHand extends THREE.Group {
   private readonly material: THREE.MeshStandardMaterial;
 
-  constructor(side: Handedness, pose: HandPose, color = 0x5ee0a0) {
+  constructor(side: Handedness, pose: HandPose, color = 0x5ee0a0, look: 'bones' | 'limbs' = 'bones') {
     super();
     this.name = `ghost-hand-${side}`;
     this.material = new THREE.MeshStandardMaterial({
@@ -174,7 +228,7 @@ export class GhostHand extends THREE.Group {
       roughness: 0.5,
       emissive: new THREE.Color(color).multiplyScalar(0.35),
     });
-    const hand = new ProceduralHand(side, this.material);
+    const hand = new ProceduralHand(side, this.material, look);
     hand.setPose(pose);
     // A full second of blending: the fingers are where they belong at once,
     // because nobody watches a ghost grow into its pose.

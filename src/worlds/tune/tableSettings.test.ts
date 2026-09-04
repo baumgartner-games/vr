@@ -1,6 +1,8 @@
 import {
   clampTable,
   DEFAULT_TABLE,
+  GHOST_KINDS,
+  nextGhostKind,
   tableFieldLabel,
   TABLE_FIELDS,
   type TableSettings,
@@ -32,6 +34,23 @@ describe('clampTable', () => {
 
   it('lies flat by default, so a hand put down looks put down', () => {
     expect(DEFAULT_TABLE.pitch).toBe(-90);
+  });
+
+  /**
+   * Drei Darstellungen derselben Hand, und der Knopf an der Wand schaltet in
+   * einem Kreis durch sie hindurch — nach der letzten kommt wieder die erste,
+   * sonst sucht man die Reihe rückwärts ab.
+   */
+  it('walks through all three ghosts and starts over', () => {
+    expect(GHOST_KINDS).toEqual(['limbs', 'hand', 'controller']);
+    const seen = [GHOST_KINDS[0]!];
+    for (let i = 0; i < GHOST_KINDS.length; i++) seen.push(nextGhostKind(seen[i]!));
+    expect(seen).toEqual(['limbs', 'hand', 'controller', 'limbs']);
+  });
+
+  it('keeps an older store that only knew two of them', () => {
+    expect(clampTable({ kind: 'controller' }).kind).toBe('controller');
+    expect(clampTable({ kind: 'hand' }).kind).toBe('hand');
   });
 
   it('turns every field into a line that fits on a sign', () => {

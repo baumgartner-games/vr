@@ -15,7 +15,7 @@
  * tiny LZSS pass (dictionary in the stream, so no library and no
  * `CompressionStream`) turns every repeat into two bytes.
  *
- * The line is `BG2` plus base64url of
+ * The line is `BG` plus one digit of **format version** plus base64url of
  *
  * ```
  *   [1 byte: 0 raw, 1 packed] [payload] [2 byte checksum]
@@ -23,16 +23,32 @@
  *
  * Packing is only used when it actually wins, so a short code never grows.
  *
+ * **Die Version steht im Prefix und nicht mehr im Payload.** Das ist ein Byte,
+ * und ein Byte sind anderthalb Zeichen — bei einem Code für die ganze
+ * Ausrüstung ist das Rauschen, bei dem Code für *eine* Hand, den der Justierer
+ * anzeigt und den jemand abtippen soll, ist es messbar. Nebenbei sieht man der
+ * ersten Silbe an, womit man es zu tun hat: `BG2` ist ein alter Code, `BG3`
+ * ein neuer, und beide werden gelesen.
+ *
  * Free of three.js on purpose, like the rest of the tested maths.
  */
 
 /** Marks our own codes, so a mistyped one fails early instead of oddly. */
-const PREFIX = 'BG2';
+const PREFIX = 'BG';
+
+/** What `packCode` writes today. Readers still take everything older. */
+export const CODE_VERSION = 3;
+
+/** A code and the format its payload is written in. */
+export interface UnpackedCode {
+  version: number;
+  payload: Uint8Array;
+}
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
-/** One line from a payload: prefix, base64url, checksum. */
-export function packCode(payload: Uint8Array): string {
+/** One line from a payload: prefix, format version, base64url, checksum. */
+export function packCode(payload: Uint8Array, version = CODE_VERSION): string {
   const squeezed = compress(payload);
   const packed = squeezed.length < payload.length;
   const body = packed ? squeezed : payload;
@@ -43,18 +59,20 @@ export function packCode(payload: Uint8Array): string {
   const sum = checksum(bytes.subarray(0, body.length + 1));
   bytes[body.length + 1] = (sum >> 8) & 0xff;
   bytes[body.length + 2] = sum & 0xff;
-  return PREFIX + toBase64Url(bytes);
+  return PREFIX + version + toBase64Url(bytes);
 }
 
 /**
- * The payload behind a code, or `null` when the line is not one of ours, was
- * mistyped, or does not survive its own checksum. Never throws: a typo in a
- * headset is normal, a crash is not.
+ * The payload behind a code and the format it is written in, or `null` when
+ * the line is not one of ours, was mistyped, or does not survive its own
+ * checksum. Never throws: a typo in a headset is normal, a crash is not.
  */
-export function unpackCode(code: string): Uint8Array | null {
+export function unpackCode(code: string): UnpackedCode | null {
   const trimmed = code.replace(/\s+/g, '');
   if (!trimmed.startsWith(PREFIX)) return null;
-  const bytes = fromBase64Url(trimmed.slice(PREFIX.length));
+  const version = Number(trimmed.slice(PREFIX.length, PREFIX.length + 1));
+  if (!Number.isInteger(version) || version < 1 || version > 9) return null;
+  const bytes = fromBase64Url(trimmed.slice(PREFIX.length + 1));
   if (!bytes || bytes.length < 3) return null;
 
   const end = bytes.length - 2;
@@ -62,7 +80,7 @@ export function unpackCode(code: string): Uint8Array | null {
   if (bytes[end] !== ((sum >> 8) & 0xff) || bytes[end + 1] !== (sum & 0xff)) return null;
 
   const body = bytes.subarray(1, end);
-  return bytes[0] === 1 ? decompress(body) : body;
+  return { version, payload: bytes[0] === 1 ? decompress(body) : body };
 }
 
 /** A code split into groups of eight, for reading it off a display. */

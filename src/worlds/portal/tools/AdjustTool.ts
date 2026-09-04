@@ -65,6 +65,8 @@ interface HandSession {
 interface Drag {
   attachment: Attachment;
   tool: Tool;
+  /** Welche Hand das Werkzeug hält — der Code gilt für genau die. */
+  hand: Handedness;
   /** Where it sat relative to the adjuster's tip when it was picked up. */
   offset: THREE.Matrix4;
   /** What to put back if the drag is cancelled. */
@@ -119,12 +121,14 @@ type Focus = 'tool' | 'hand';
  * up in the config code, so it survives a reload and can be handed on.
  *
  * Unter den gemessenen Zahlen steht deshalb der **Konfig-Code für genau
- * dieses eine Werkzeug** — schmal, klein und in gleich breiter Schrift, weil
- * er abgetippt wird. Nur dieses Werkzeug: seine Haltung, die Griffe beider
- * Hände dafür, seine Anbauteile und, wenn es eigene Werte hat, auch die. Wer
- * ihn lädt, ändert nichts anderes. **Greifen** legt ihn auf die Zwischenablage
- * — und solange nichts gemessen ist, stattdessen den Code der ganzen
- * Ausrüstung.
+ * dieses eine Werkzeug an genau dieser Hand** — schmal, klein und in gleich
+ * breiter Schrift, weil er abgetippt wird. Nur dieses Werkzeug: seine Haltung,
+ * der Griff der Hand, an der gerade gemessen wurde, seine Anbauteile und, wenn
+ * es eigene Werte hat, auch die. Die andere Hand steht bewusst nicht drin: sie
+ * wurde nicht gemessen, sie würde den Code doppelt so lang machen, und ein
+ * Code, den man abtippt, ist nur so viel wert wie er kurz ist. Wer ihn lädt,
+ * ändert nichts anderes. **Greifen** legt ihn auf die Zwischenablage — und
+ * solange nichts gemessen ist, stattdessen den Code der ganzen Ausrüstung.
  *
  * `A` also cancels what is running and resets a highlighted attachment or an
  * empty hand; with nothing in sight it puts the last adjusted tool back the
@@ -509,7 +513,7 @@ export class AdjustTool extends Tool {
   // --- dragging an attachment ----------------------------------------------
 
   private beginDrag(target: Extract<Target, { kind: 'attachment' }>, host: ToolHost): void {
-    const { attachment, tool } = target;
+    const { attachment, tool, hand } = target;
     attachment.updateWorldMatrix(true, false);
     this.tip.updateWorldMatrix(true, false);
     // Keep the grip: the attachment must not jump to the tip when picked up.
@@ -517,6 +521,7 @@ export class AdjustTool extends Tool {
     this.drag = {
       attachment,
       tool,
+      hand,
       offset: offset.clone(),
       position: attachment.position.clone(),
       rotation: attachment.quaternion.clone(),
@@ -546,7 +551,7 @@ export class AdjustTool extends Tool {
     const pose = drag.attachment.savePose(drag.tool.toolId);
     this.readout = pose;
     this.caption = drag.attachment.label;
-    this.code = toolGearCode(drag.tool.toolId);
+    this.code = toolGearCode(drag.tool.toolId, drag.hand);
     this.showFor = SHOW_TIME;
     this.dirty = true;
     playTone({ type: 'square', from: 880, to: 520, duration: 0.1, gain: 0.05 });
@@ -622,7 +627,7 @@ export class AdjustTool extends Tool {
 
     this.readout = readPose(pose);
     this.caption = session.tool.label;
-    this.code = toolGearCode(session.tool.toolId);
+    this.code = toolGearCode(session.tool.toolId, session.hand);
     this.showFor = SHOW_TIME;
     this.dirty = true;
     this.previous = session;
@@ -736,7 +741,7 @@ export class AdjustTool extends Tool {
 
     this.readout = readout;
     this.caption = handTitle(session.hand, session.toolId, host);
-    this.code = toolGearCode(session.toolId);
+    this.code = toolGearCode(session.toolId, session.hand);
     this.showFor = SHOW_TIME;
     this.dirty = true;
     this.cancelHand();

@@ -1,3 +1,4 @@
+import type { GhostKind } from '../../core/HandVisuals';
 import type { Handedness } from '../../core/XRInput';
 
 /**
@@ -13,15 +14,25 @@ import type { Handedness } from '../../core/XRInput';
  *
  * Deshalb ist die **Höhe in Zentimetern** die wichtigste Einstellung hier:
  * sie muss auf den Tisch passen, an dem man tatsächlich sitzt, und einen
- * Tisch schätzt man nicht, den misst man. Der Rest sagt, *was* daraufliegt —
- * eine Hand oder ein Controller, links oder rechts — und wie es liegt.
+ * Tisch schätzt man nicht, den misst man. (Damit die beiden Zahlen sich auch
+ * treffen, muss die eigene Augenhöhe stimmen — die steht in `core/posture.ts`
+ * und lässt sich hier gleich mit messen.) Der Rest sagt, *was* daraufliegt —
+ * Kugelhand, Boxhand oder Controller, links oder rechts — und wie es liegt.
  *
  * Reine Zahlen und ein bisschen Speicher, kein three.js: was daraus für ein
  * Möbelstück wird, steht in `GhostTable.ts`.
  */
 
-/** Was auf dem Tisch liegt. */
-export type GhostKind = 'hand' | 'controller';
+export type { GhostKind };
+
+/** Was auf dem Tisch liegt, in der Reihenfolge, in der der Knopf durchschaltet. */
+export const GHOST_KINDS: readonly GhostKind[] = ['limbs', 'hand', 'controller'];
+
+export const GHOST_LABELS: Record<GhostKind, string> = {
+  limbs: 'Gliedmaßen',
+  hand: 'Boxhand',
+  controller: 'Quest-Controller',
+};
 
 export interface TableSettings {
   /** Höhe der Tischplatte über dem Boden, in Zentimetern. */
@@ -36,6 +47,8 @@ export interface TableSettings {
   /** Wo auf der Platte es liegt, in Zentimetern von der Mitte. */
   x: number;
   z: number;
+  /** Wie weit es über der Platte schwebt, in Zentimetern. */
+  y: number;
 }
 
 export const DEFAULT_TABLE: TableSettings = {
@@ -48,11 +61,12 @@ export const DEFAULT_TABLE: TableSettings = {
   roll: 0,
   x: 0,
   z: 0,
+  y: 0,
 };
 
 /** Eine Zahl, die im Raum verstellt wird, samt dem Bereich, der Sinn ergibt. */
 export interface TableField {
-  key: 'height' | 'pitch' | 'yaw' | 'roll' | 'x' | 'z';
+  key: 'height' | 'pitch' | 'yaw' | 'roll' | 'x' | 'y' | 'z';
   label: string;
   unit: string;
   min: number;
@@ -73,6 +87,7 @@ export const TABLE_FIELDS: readonly TableField[] = [
   { key: 'yaw', label: 'Drehung', unit: '°', min: -180, max: 180, sub: 'Um die Senkrechte' },
   { key: 'roll', label: 'Rollen', unit: '°', min: -180, max: 180, sub: 'Um die eigene Achse' },
   { key: 'x', label: 'Quer', unit: 'cm', min: -40, max: 40, sub: 'Nach links und rechts' },
+  { key: 'y', label: 'Hoch', unit: 'cm', min: -10, max: 40, sub: 'Über der Platte' },
   { key: 'z', label: 'Längs', unit: 'cm', min: -30, max: 30, sub: 'Nach vorn und hinten' },
 ];
 
@@ -85,9 +100,17 @@ export function clampTable(settings: Partial<TableSettings> | undefined): TableS
       ? Math.round(Math.min(field.max, Math.max(field.min, value)) * 10) / 10
       : DEFAULT_TABLE[field.key];
   }
-  if (next.kind !== 'hand' && next.kind !== 'controller') next.kind = DEFAULT_TABLE.kind;
+  // `controller` und `hand` hießen vor der dritten Darstellung schon so, also
+  // bleiben alte Speicher gültig; alles andere wird zur Boxhand.
+  if (!GHOST_KINDS.includes(next.kind)) next.kind = DEFAULT_TABLE.kind;
   if (next.side !== 'left' && next.side !== 'right') next.side = DEFAULT_TABLE.side;
   return next;
+}
+
+/** Der nächste Geist in der Reihe — der Knopf an der Wand schaltet damit durch. */
+export function nextGhostKind(kind: GhostKind): GhostKind {
+  const at = GHOST_KINDS.indexOf(kind);
+  return GHOST_KINDS[(at + 1) % GHOST_KINDS.length]!;
 }
 
 // --- der Speicher ----------------------------------------------------------

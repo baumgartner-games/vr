@@ -14,7 +14,14 @@ import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTranspor
 import { SpectatorCamera, type SpectatorMode } from '../net/SpectatorCamera';
 import { normalizeRoomCode } from '../net/room';
 import { detectFlatRole } from './device';
-import { savePlayerPosture } from './posture';
+import {
+  DEFAULT_EYES,
+  EYE_RANGE,
+  eyeHeights,
+  saveEyeHeights,
+  savePlayerPosture,
+  seatedLift,
+} from './posture';
 import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
 import type { PlayerRole, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
@@ -378,6 +385,7 @@ export class App {
             cycle();
           },
         },
+        this.eyeMenu(),
         {
           id: 'move:sprint-mode',
           label: rig.sprintToggle ? 'Sprint: Umschalten' : 'Sprint: Halten',
@@ -422,6 +430,90 @@ export class App {
           run: () => {
             rig.crouchDepth = rig.crouchDepth >= 0.75 ? 0.3 : rig.crouchDepth + 0.15;
             cycle();
+          },
+        },
+      ],
+    };
+  }
+
+  /**
+   * Wie hoch der Spieler steht und wie hoch er sitzt.
+   *
+   * Der Ausgleich für den Sessel hing lange an einer einzigen getippten Zahl —
+   * 1,65 m für alle. Man merkt das nicht am Horizont, sondern am Tisch: ein
+   * echter Schreibtisch mit 78 cm passt dann nicht auf einen virtuellen, der
+   * auf 78 cm steht, weil der Boden unter dem Spieler um die Differenz falsch
+   * liegt. Also zwei eigene Zahlen — und weil eine Augenhöhe etwas ist, das
+   * die Brille besser weiß als der Mensch darin, gibt es zu jeder ein
+   * **Jetzt messen**: hinstellen, drücken, fertig.
+   */
+  private eyeMenu(): MenuEntry {
+    const rig = this.rig;
+    const accent = 0x5ee0a0;
+    /** Die rohe Kopfhöhe der Brille über dem Zimmerboden, in Zentimetern. */
+    const measured = (): number => Math.round(rig.camera.position.y * 100);
+    const apply = (): void => {
+      rig.seatHeight = seatedLift();
+      rig.flatEyeHeight = eyeHeights().stand / 100;
+      this.menuDirty = true;
+    };
+
+    const step = (key: 'stand' | 'sit', title: string, sub: string): MenuEntry[] => [
+      {
+        id: `move:eye-${key}`,
+        label: `${title}: ${eyeHeights()[key]} cm`,
+        sub: `${sub} · ${EYE_RANGE.min} bis ${EYE_RANGE.max} cm · +5 pro Druck`,
+        icon: 'settings',
+        accent,
+        run: () => {
+          const now = eyeHeights()[key];
+          // Oben angekommen wieder unten anfangen: eine Raste, die am Ende
+          // stehen bleibt, lässt einen die ganze Reihe rückwärts suchen.
+          const next = now + 5 > EYE_RANGE.max ? EYE_RANGE.min : now + 5;
+          const values = saveEyeHeights({ [key]: next });
+          apply();
+          this.notify(`${title}: ${values[key]} cm`);
+        },
+      },
+      {
+        id: `move:eye-${key}-measure`,
+        label: `${title} jetzt messen`,
+        sub: this.renderer.xr.isPresenting
+          ? `Die Brille sagt gerade ${measured()} cm`
+          : 'Geht nur mit aufgesetzter Brille',
+        icon: 'reset',
+        accent: 0x9fe3ff,
+        run: () => {
+          if (!this.renderer.xr.isPresenting) {
+            this.notify('Dafür muss die Brille auf sein');
+            return;
+          }
+          const values = saveEyeHeights({ [key]: measured() });
+          apply();
+          this.notify(`${title}: ${values[key]} cm gemessen`);
+        },
+      },
+    ];
+
+    return {
+      id: 'move:eyes',
+      label: 'Augenhöhe',
+      sub: `Stehend ${eyeHeights().stand} cm · sitzend ${eyeHeights().sit} cm`,
+      icon: 'settings',
+      accent,
+      children: [
+        ...step('stand', 'Stehend', 'Augen über dem Zimmerboden, aufrecht'),
+        ...step('sit', 'Sitzend', 'Dasselbe im Sessel'),
+        {
+          id: 'move:eye-reset',
+          label: 'Augenhöhen zurücksetzen',
+          sub: `Zurück auf ${DEFAULT_EYES.stand} und ${DEFAULT_EYES.sit} cm`,
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            saveEyeHeights({ ...DEFAULT_EYES });
+            apply();
+            this.notify('Augenhöhen zurückgesetzt');
           },
         },
       ],

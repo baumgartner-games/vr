@@ -6,9 +6,9 @@
  * settings over and wants the same thing for the other hand.
  *
  * ```bash
- * npm run config -- decode BG2…        # the settings behind a code
+ * npm run config -- decode BG3…        # the settings behind a code
  * npm run config -- encode config.json # a code from a file
- * npm run config -- mirror BG2… left   # left hand's poses onto the right
+ * npm run config -- mirror BG3… left   # left hand's poses onto the right
  * ```
  *
  * Node runs the TypeScript directly (22.6+ strips the types), so there is no
@@ -28,10 +28,10 @@ function usage(): never {
 }
 
 function read(code: string): GearData {
-  const payload = unpackCode(code);
-  const data = payload ? readGear(payload) : null;
+  const unpacked = unpackCode(code);
+  const data = unpacked ? readGear(unpacked.payload, unpacked.version) : null;
   if (!data) {
-    console.error('Kein gültiger Konfig-Code (beginnt er mit BG2?)');
+    console.error('Kein gültiger Konfig-Code (beginnt er mit BG3 oder BG2?)');
     process.exit(2);
   }
   return data;

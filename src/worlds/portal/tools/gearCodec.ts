@@ -1,4 +1,5 @@
 import { ByteReader, ByteWriter } from '../../../core/configCode';
+import { HOLD_HAND_POSE, IDLE_HAND_POSE, handPoseToArray } from '../../../core/handPose';
 import type { StoredHandPoses } from '../../../core/handPoseStore';
 import { clampDrone, type DroneSettings } from './droneSettings';
 import { clampSuperman, SUPERMAN_SOURCES, type SupermanSettings } from './supermanSettings';
@@ -28,7 +29,8 @@ import type { StoredAttachments } from './gearStore';
  */
 
 /**
- * The format byte at the front, so a later change stays readable.
+ * Wie ein Code aufgebaut ist. Die Zahl steht im Prefix (`BG3…`), nicht mehr
+ * im Payload — `core/configCode.ts` reicht sie hier herein.
  *
  * **1** war die ganze Konfiguration und nichts anderes: jeder Abschnitt stand
  * immer drin, in fester Reihenfolge, und Neues wurde hinten angehängt.
@@ -36,12 +38,18 @@ import type { StoredAttachments } from './gearStore';
  * mitkommen — und erst damit gibt es einen Code für *ein* Werkzeug. Ohne die
  * Maske trüge der Code des Pinsels zwangsläufig auch die Pistolenwerte mit
  * sich herum und würde sie beim Laden überschreiben.
+ * **3** stellt dieselbe Maske noch einmal eine Ebene tiefer: vor jeder Pose
+ * steht, *welche ihrer Zahlen überhaupt verstellt sind*. Eine Handhaltung hat
+ * zwölf Werte, von denen nach einer Messung sechs anders sind als die
+ * gebauten; die anderen sechs kosten jetzt nichts mehr. Dazu ist das
+ * Versions-Byte aus dem Payload in den Prefix gewandert.
  *
- * Alte Codes werden weiter gelesen; geschrieben wird nur noch 2.
+ * Alte Codes werden weiter gelesen; geschrieben wird nur noch 3.
  */
-const VERSION = 2;
-/** Was Version 1 kannte — gelesen, nie mehr geschrieben. */
+export const GEAR_VERSION = 3;
+/** Die Fassungen mit Versions-Byte im Payload — gelesen, nie mehr geschrieben. */
 const VERSION_FULL_ONLY = 1;
+const VERSION_SECTIONS = 2;
 
 /** Welche Abschnitte ein Code trägt. Bits werden angehängt, nie umsortiert. */
 export const SECTION = {
@@ -83,12 +91,22 @@ const DRONE_PROFILES = ['kopter', 'racing'] as const;
 
 /** Position in tenths of a centimetre, angles in whole degrees. */
 const POSE_SCALES = [10, 10, 10, 1, 1, 1] as const;
+/** Was eine Werkzeugpose ist, solange niemand sie angefasst hat. */
+const POSE_DEFAULTS = [0, 0, 0, 0, 0, 0] as const;
 /**
  * A hand pose: twelve values, all to a hundredth. These are typed in rather
  * than measured, and the menu shows two decimals — so two decimals is what has
  * to survive the trip, or a value would change by being written down.
  */
 const HAND_SCALES = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100] as const;
+/**
+ * Wovon eine Haltung abweicht: die leere Hand von der Grundhaltung, eine Hand
+ * am Werkzeug von der gebauten Faust. Genau diese beiden Zahlenreihen stehen
+ * auch in `handPoseStore.ts` als Rückfall, wenn nichts gespeichert ist — was
+ * die Maske erst erlaubt: ein weggelassener Wert *ist* der gebaute.
+ */
+const IDLE_DEFAULTS = handPoseToArray(IDLE_HAND_POSE);
+const HOLD_DEFAULTS = handPoseToArray(HOLD_HAND_POSE);
 
 const HANDS = ['left', 'right'] as const;
 
@@ -128,7 +146,6 @@ function sectionsOf(data: GearData): number {
 export function writeGear(data: GearData): Uint8Array {
   const out = new ByteWriter();
   const sections = sectionsOf(data);
-  out.byte(VERSION);
   out.uint(sections);
 
   if (sections & SECTION.tools) {
@@ -136,7 +153,7 @@ export function writeGear(data: GearData): Uint8Array {
     out.uint(tools.length);
     for (const [id, values] of tools) {
       writeRef(out, TOOLS, id);
-      writeValues(out, values, POSE_SCALES);
+      writeValues(out, values, POSE_SCALES, POSE_DEFAULTS);
     }
   }
 
@@ -149,7 +166,7 @@ export function writeGear(data: GearData): Uint8Array {
       const cut = key.indexOf(':');
       writeRef(out, TOOLS, cut < 0 ? key : key.slice(0, cut));
       writeRef(out, ATTACHMENTS, cut < 0 ? '' : key.slice(cut + 1));
-      writeValues(out, values, POSE_SCALES);
+      writeValues(out, values, POSE_SCALES, POSE_DEFAULTS);
     }
   }
 
@@ -159,12 +176,23 @@ export function writeGear(data: GearData): Uint8Array {
   return out.bytes();
 }
 
-/** The other direction. Anything missing falls back to how it was built. */
-export function readGear(payload: Uint8Array): GearData | null {
+/**
+ * The other direction. Anything missing falls back to how it was built.
+ *
+ * @param version was der Prefix des Codes sagt (`BG3` → 3). Die beiden alten
+ *                Fassungen tragen ihre Nummer stattdessen als erstes Byte des
+ *                Payloads; für die steht hier eine 2, und das Byte wird dann
+ *                gelesen.
+ */
+export function readGear(payload: Uint8Array, version = GEAR_VERSION): GearData | null {
   const input = new ByteReader(payload);
-  const version = input.byte();
-  if (version === VERSION_FULL_ONLY) return readGearV1(input);
-  if (version !== VERSION) return null;
+  if (version === VERSION_SECTIONS) {
+    const inner = input.byte();
+    if (inner === VERSION_FULL_ONLY) return readGearV1(input);
+    if (inner !== VERSION_SECTIONS) return null;
+  } else if (version !== GEAR_VERSION) {
+    return null;
+  }
 
   const sections = input.uint();
   const data: GearData = {};
@@ -172,19 +200,19 @@ export function readGear(payload: Uint8Array): GearData | null {
   if (sections & SECTION.tools) {
     const tools: Record<string, number[]> = {};
     for (let count = input.uint(); count > 0; count--) {
-      tools[readRef(input, TOOLS)] = readValues(input, POSE_SCALES);
+      tools[readRef(input, TOOLS)] = readValues(input, POSE_SCALES, POSE_DEFAULTS, version);
     }
     data.tools = tools;
   }
 
-  if (sections & SECTION.hands) data.hands = readHands(input);
+  if (sections & SECTION.hands) data.hands = readHands(input, version);
 
   if (sections & SECTION.attachments) {
     const attachments: StoredAttachments = {};
     for (let count = input.uint(); count > 0; count--) {
       const tool = readRef(input, TOOLS);
       const attachment = readRef(input, ATTACHMENTS);
-      attachments[`${tool}:${attachment}`] = readValues(input, POSE_SCALES);
+      attachments[`${tool}:${attachment}`] = readValues(input, POSE_SCALES, POSE_DEFAULTS, version);
     }
     data.attachments = attachments;
   }
@@ -204,16 +232,21 @@ export function readGear(payload: Uint8Array): GearData | null {
 function readGearV1(input: ByteReader): GearData {
   const tools: Record<string, number[]> = {};
   for (let count = input.uint(); count > 0; count--) {
-    tools[readRef(input, TOOLS)] = readValues(input, POSE_SCALES);
+    tools[readRef(input, TOOLS)] = readValues(input, POSE_SCALES, POSE_DEFAULTS, VERSION_FULL_ONLY);
   }
 
-  const hands = readHands(input);
+  const hands = readHands(input, VERSION_FULL_ONLY);
 
   const attachments: StoredAttachments = {};
   for (let count = input.uint(); count > 0; count--) {
     const tool = readRef(input, TOOLS);
     const attachment = readRef(input, ATTACHMENTS);
-    attachments[`${tool}:${attachment}`] = readValues(input, POSE_SCALES);
+    attachments[`${tool}:${attachment}`] = readValues(
+      input,
+      POSE_SCALES,
+      POSE_DEFAULTS,
+      VERSION_FULL_ONLY,
+    );
   }
 
   const weapon = readWeaponBody(input);
@@ -243,7 +276,7 @@ function writeHands(out: ByteWriter, hands: StoredHandPoses): void {
   for (let i = 0; i < HANDS.length; i++) if (hands.idle?.[HANDS[i]!]) mask |= 1 << i;
   out.byte(mask);
   for (let i = 0; i < HANDS.length; i++) {
-    if (mask & (1 << i)) writeValues(out, hands.idle![HANDS[i]!]!, HAND_SCALES);
+    if (mask & (1 << i)) writeValues(out, hands.idle![HANDS[i]!]!, HAND_SCALES, IDLE_DEFAULTS);
   }
 
   const holds: Array<[number, string, number[]]> = [];
@@ -256,22 +289,22 @@ function writeHands(out: ByteWriter, hands: StoredHandPoses): void {
   for (const [hand, id, values] of holds) {
     out.byte(hand);
     writeRef(out, TOOLS, id);
-    writeValues(out, values, HAND_SCALES);
+    writeValues(out, values, HAND_SCALES, HOLD_DEFAULTS);
   }
 }
 
-function readHands(input: ByteReader): StoredHandPoses {
+function readHands(input: ByteReader, version: number): StoredHandPoses {
   const idle: StoredHandPoses['idle'] = {};
   const mask = input.byte();
   for (let i = 0; i < HANDS.length; i++) {
-    if (mask & (1 << i)) idle[HANDS[i]!] = readValues(input, HAND_SCALES);
+    if (mask & (1 << i)) idle[HANDS[i]!] = readValues(input, HAND_SCALES, IDLE_DEFAULTS, version);
   }
 
   const hold: Record<string, Record<string, number[]>> = {};
   for (let count = input.uint(); count > 0; count--) {
     const hand = HANDS[input.byte()] ?? 'left';
     const id = readRef(input, TOOLS);
-    (hold[hand] ??= {})[id] = readValues(input, HAND_SCALES);
+    (hold[hand] ??= {})[id] = readValues(input, HAND_SCALES, HOLD_DEFAULTS, version);
   }
   return { idle, hold: hold as StoredHandPoses['hold'] };
 }
@@ -393,10 +426,52 @@ function readRef(input: ByteReader, table: readonly string[]): string {
   return index === 0 ? input.text() : (table[index - 1] ?? `unbekannt-${index}`);
 }
 
-function writeValues(out: ByteWriter, values: readonly number[], scales: readonly number[]): void {
-  for (let i = 0; i < scales.length; i++) out.fixed(values[i] ?? 0, scales[i]!);
+/**
+ * Eine Zahlenreihe, und davor eine Maske, welche davon überhaupt drinsteht.
+ *
+ * Das ist der ganze Trick an Fassung 3. Eine Handhaltung hat zwölf Werte, von
+ * denen eine Messung im Eingaberaum genau sechs verstellt — die Finger und die
+ * Spreizung bleiben, wie sie gebaut wurden. Vorher kostete jeder dieser
+ * unveränderten Werte trotzdem sein Byte, weil die Reihe fest war; jetzt kostet
+ * er ein Bit. Verglichen wird auf dem Raster, auf dem geschrieben wird: was
+ * gerundet dasselbe ergibt wie der gebaute Wert, *ist* der gebaute Wert, sonst
+ * stünde eine 0.0000001 aus einer Quaternion-Rechnung für immer im Code.
+ */
+function writeValues(
+  out: ByteWriter,
+  values: readonly number[],
+  scales: readonly number[],
+  defaults: readonly number[],
+): void {
+  let mask = 0;
+  for (let i = 0; i < scales.length; i++) {
+    const value = values[i] ?? defaults[i] ?? 0;
+    if (!onSameStep(value, defaults[i] ?? 0, scales[i]!)) mask |= 1 << i;
+  }
+  out.uint(mask);
+  for (let i = 0; i < scales.length; i++) {
+    if (mask & (1 << i)) out.fixed(values[i] ?? 0, scales[i]!);
+  }
 }
 
-function readValues(input: ByteReader, scales: readonly number[]): number[] {
-  return scales.map((scale) => input.fixed(scale));
+/**
+ * Die Gegenrichtung. Codes aus den Fassungen 1 und 2 haben keine Maske — dort
+ * steht jeder Wert da, und genau so wird er gelesen.
+ */
+function readValues(
+  input: ByteReader,
+  scales: readonly number[],
+  defaults: readonly number[],
+  version: number,
+): number[] {
+  if (version < GEAR_VERSION) return scales.map((scale) => input.fixed(scale));
+  const mask = input.uint();
+  return scales.map((scale, i) => (mask & (1 << i) ? input.fixed(scale) : (defaults[i] ?? 0)));
+}
+
+/** Ob zwei Zahlen auf demselben Rasterpunkt landen, den der Code speichert. */
+function onSameStep(a: number, b: number, scale: number): boolean {
+  const at = Number.isFinite(a) ? Math.round(a * scale) : 0;
+  const to = Number.isFinite(b) ? Math.round(b * scale) : 0;
+  return at === to;
 }

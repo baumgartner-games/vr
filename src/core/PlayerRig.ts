@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
-import { STANDING_EYE, playerPosture, type Posture } from './posture';
+import { STANDING_EYE, eyeHeights, playerPosture, seatedLift, type Posture } from './posture';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _head = new THREE.Vector3();
@@ -36,19 +36,30 @@ export class PlayerRig extends THREE.Group {
   crouchSpeed = 1.8;
   /** Radians per snap turn. */
   snapAngle = THREE.MathUtils.degToRad(30);
-  /** Eye height used while not in VR. */
-  flatEyeHeight = STANDING_EYE;
+  /** Eye height used while not in VR — the player's own, if they measured it. */
+  flatEyeHeight = eyeHeights().stand / 100 || STANDING_EYE;
   /**
    * Whether the player is sitting on a chair or standing on their feet.
    *
    * The headset only knows how far the head is above the floor of the room, so
    * a seated player is simply a short one as far as every world is concerned —
    * counters get taller, karts get deeper and the horizon drops. Saying "I am
-   * sitting" lifts the view back to `STANDING_EYE` without moving the feet, so
-   * the world stays the size it was built at. Set from the start page and from
-   * *Menü → Bewegung → Haltung*.
+   * sitting" lifts the view back to standing height without moving the feet,
+   * so the world stays the size it was built at. Set from the start page and
+   * from *Menü → Bewegung → Haltung*.
    */
   posture: Posture = playerPosture();
+  /**
+   * Wie weit ein sitzender Spieler angehoben wird, in Metern — die Differenz
+   * zwischen seiner eigenen Steh- und Sitz-Augenhöhe (`posture.ts`).
+   *
+   * Das war früher `STANDING_EYE` minus der *gerade gemessenen* Kopfhöhe, und
+   * das hatte zwei Fehler auf einmal: es unterstellte allen dieselbe Größe,
+   * und es rechnete jede Bewegung im Sessel mit. Wer sich vorbeugte, hob damit
+   * die ganze Welt an. Jetzt sind es zwei Zahlen, die der Spieler einmal misst,
+   * und dazwischen bewegt sich nichts mehr.
+   */
+  seatHeight = seatedLift();
 
   locomotion: Locomotion = new FreeLocomotion();
   /**
@@ -340,21 +351,16 @@ export class PlayerRig extends THREE.Group {
   }
 
   /**
-   * The lift a seated player gets: whatever is missing between their real eye
-   * height and a standing one, added to the rig with the feet left behind.
+   * The lift a seated player gets: the gap between their own sitting and
+   * standing eye height, added to the rig with the feet left behind.
    *
-   * Measured live rather than once, because leaning forward in a chair is a
-   * perfectly normal thing to do and the world must not bob with it — the
-   * ramp is the same slow one crouching uses, so it reads as the body settling
-   * rather than as the floor moving.
+   * A fixed number rather than a live measurement, because leaning forward in
+   * a chair is a perfectly normal thing to do and the world must not bob with
+   * it — the ramp is the same slow one crouching uses, so a change to the
+   * setting reads as the body settling rather than as the floor jumping.
    */
   private updateSeatLift(dt: number): void {
-    // `camera.position` is the headset's own pose inside the rig, so it is the
-    // player's real eye height above their room floor and the lift never
-    // feeds back into it.
-    const raw = this.camera.position.y;
-    const target =
-      this.posture === 'sit' ? THREE.MathUtils.clamp(STANDING_EYE - raw, 0, 1.2) : 0;
+    const target = this.posture === 'sit' ? THREE.MathUtils.clamp(this.seatHeight, 0, 1.2) : 0;
     if (Math.abs(target - this.seatLift) < 1e-4) return;
     const step = THREE.MathUtils.clamp(
       target - this.seatLift,

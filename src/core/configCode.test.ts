@@ -1,27 +1,39 @@
-import { ByteReader, ByteWriter, formatCode, packCode, unpackCode } from './configCode';
+import { ByteReader, ByteWriter, CODE_VERSION, formatCode, packCode, unpackCode } from './configCode';
 
 describe('packCode/unpackCode', () => {
   const payload = Uint8Array.from([0, 1, 2, 250, 255, 7, 7, 7]);
 
   it('gives the very same bytes back', () => {
-    expect(Array.from(unpackCode(packCode(payload))!)).toEqual(Array.from(payload));
+    expect(Array.from(unpackCode(packCode(payload))!.payload)).toEqual(Array.from(payload));
   });
 
   it('says whose code it is, so a wrong paste is caught at a glance', () => {
-    expect(packCode(payload).startsWith('BG2')).toBe(true);
+    expect(packCode(payload).startsWith(`BG${CODE_VERSION}`)).toBe(true);
+  });
+
+  /**
+   * Die Version steht im Prefix, nicht im Payload — das spart das Byte, und
+   * ein Leser weiß vor dem ersten Byte, wie er zu lesen hat.
+   */
+  it('carries its format version in the prefix, and gives it back', () => {
+    expect(unpackCode(packCode(payload))!.version).toBe(CODE_VERSION);
+    expect(unpackCode(packCode(payload, 2))!.version).toBe(2);
+    expect(packCode(payload, 2).startsWith('BG2')).toBe(true);
   });
 
   it('survives being read out loud in groups', () => {
     const code = packCode(payload);
-    expect(Array.from(unpackCode(formatCode(code))!)).toEqual(Array.from(payload));
+    expect(Array.from(unpackCode(formatCode(code))!.payload)).toEqual(Array.from(payload));
     expect(formatCode(code).replace(/ /g, '')).toBe(code);
   });
 
   it('refuses what is not one of ours', () => {
     expect(unpackCode('')).toBeNull();
     expect(unpackCode('hallo')).toBeNull();
-    expect(unpackCode('BG2')).toBeNull();
-    expect(unpackCode('BG2!!!!')).toBeNull();
+    expect(unpackCode('BG3')).toBeNull();
+    expect(unpackCode('BG3!!!!')).toBeNull();
+    // Ohne Versionsziffer ist es keiner unserer Codes.
+    expect(unpackCode('BGAAAA')).toBeNull();
   });
 
   it('refuses a code with a typo in it', () => {

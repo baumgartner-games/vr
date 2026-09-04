@@ -4,6 +4,7 @@ import { GRAB_GLOW, GRAB_TINT } from '../../core/colors';
 import { idleHandPose } from '../../core/handPoseStore';
 import { InputModel } from './InputModel';
 import { tableSettings, type TableSettings } from './tableSettings';
+import type { HandPose } from '../../core/handPose';
 
 /** Wie groß die Platte ist — ein Schreibtischeck, kein Esstisch. */
 const TOP = { width: 0.9, depth: 0.55, thickness: 0.035 };
@@ -24,9 +25,13 @@ const DEG = Math.PI / 180;
  * eingestellt werden soll. Ohne diesen festen Punkt stellt man eine Haltung
  * gegen ein Gefühl ein, und das Gefühl ändert sich mit dem Arm.
  *
- * Auf der Platte liegt wahlweise die **Hand** oder der **Controller**: das
- * sind die zwei Dinge, die im Eingaberaum nicht gleich aussehen, und
- * nebeneinander auf demselben Tisch sieht man endlich, um wie viel.
+ * Auf der Platte liegt wahlweise die **Kugelhand**, die **Boxhand** oder der
+ * **Controller**: das sind die drei Dinge, die im Eingaberaum nicht gleich
+ * aussehen, und nacheinander auf demselben Tisch sieht man endlich, um wie
+ * viel. Zwei davon zeigt das Spiel je nach Eingabegerät ohnehin — Kugeln bei
+ * Handtracking, Kästen mit Controllern —, und die dritte ist das Gerät selbst.
+ * Welche daliegt, entscheidet ein Knopf an der Wand und nicht das, was gerade
+ * angeschlossen ist: man justiert die Darstellung, die man gleich benutzt.
  *
  * Die Höhe lässt sich auf zwei Arten setzen, und beide sind nötig: an der
  * **türkisen Leiste** anfassen und schieben, wenn man gerade in der Brille
@@ -45,6 +50,12 @@ export class GhostTable extends THREE.Group {
   private ghost: THREE.Object3D | null = null;
   /** Woran der aktuelle Geist gebaut wurde, damit er nur bei Bedarf neu kommt. */
   private ghostKey = '';
+  /**
+   * Die Haltung, in der der Geist gebaut wurde. Ändert der Justierer sie,
+   * muss er neu gebaut werden — eine `GhostHand` friert ihre Finger beim Bauen
+   * ein, weil niemand einem Geist beim Hineinwachsen zusehen will.
+   */
+  private poseKey = '';
   private settings: TableSettings = tableSettings();
   private held = false;
 
@@ -104,8 +115,27 @@ export class GhostTable extends THREE.Group {
     return this.settings.height / 100;
   }
 
-  /** Übernimmt die Einstellungen: Höhe, was daraufliegt und wie. */
-  apply(settings: TableSettings): void {
+  /**
+   * Der Geist selbst — wogegen eine Hand justiert wird.
+   *
+   * Der Eingaberaum misst die Haltung als Differenz zwischen dem Griff der
+   * Hand und genau diesem Objekt, also muss er es anfassen können. `null`,
+   * solange noch keins gebaut ist.
+   */
+  get ghostObject(): THREE.Object3D | null {
+    return this.ghost;
+  }
+
+  /**
+   * Übernimmt die Einstellungen: Höhe, was daraufliegt und wie.
+   *
+   * @param pose die Haltung, in der die Geisterhand liegen soll. Der Tisch
+   *             holt sie sonst selbst aus dem Speicher; der Justierraum reicht
+   *             die Haltung *der Hand* herein, die gerade eingestellt wird —
+   *             sonst läge auf dem Tisch die Grundhaltung, während man den
+   *             Griff am Werkzeug justiert.
+   */
+  apply(settings: TableSettings, pose?: HandPose): void {
     this.settings = settings;
     const height = settings.height / 100;
     this.stand.position.y = height;
@@ -114,17 +144,23 @@ export class GhostTable extends THREE.Group {
     for (const leg of this.legs.children) leg.scale.y = Math.max(height - TOP.thickness / 2, 0.02);
 
     const key = `${settings.kind}:${settings.side}`;
-    if (key !== this.ghostKey) {
+    const poseKey = pose ? JSON.stringify(pose) : '';
+    if (key !== this.ghostKey || poseKey !== this.poseKey) {
       this.ghostKey = key;
+      this.poseKey = poseKey;
       this.ghost?.removeFromParent();
       disposeGhost(this.ghost);
-      this.ghost = this.buildGhost(settings);
+      this.ghost = this.buildGhost(settings, pose);
       this.stand.add(this.ghost);
     }
 
     const ghost = this.ghost;
     if (!ghost) return;
-    ghost.position.set(settings.x / 100, TOP.thickness / 2, settings.z / 100);
+    ghost.position.set(
+      settings.x / 100,
+      TOP.thickness / 2 + settings.y / 100,
+      settings.z / 100,
+    );
     ghost.quaternion.setFromEuler(
       _euler.set(settings.pitch * DEG, settings.yaw * DEG, settings.roll * DEG, 'XYZ'),
     );
@@ -137,9 +173,14 @@ export class GhostTable extends THREE.Group {
    * Einstellung aus einer Hand macht. Eine Hand, die etwas hält, trägt dabei
    * ihren Griff, eine leere ihre Grundhaltung.
    */
-  private buildGhost(settings: TableSettings): THREE.Object3D {
+  private buildGhost(settings: TableSettings, pose?: HandPose): THREE.Object3D {
     if (settings.kind === 'controller') return new InputModel(settings.side).asGhost();
-    return new GhostHand(settings.side, idleHandPose(settings.side));
+    return new GhostHand(
+      settings.side,
+      pose ?? idleHandPose(settings.side),
+      GRAB_GLOW,
+      settings.kind === 'limbs' ? 'limbs' : 'bones',
+    );
   }
 
   /** Der Griff leuchtet, solange eine Hand ihn hat oder erreichen könnte. */

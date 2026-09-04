@@ -2,7 +2,8 @@ import { ByteWriter, packCode, unpackCode } from '../../../core/configCode';
 import { DEFAULT_WEAPON } from './weaponSettings';
 import { DEFAULT_DRONE } from './droneSettings';
 import { DEFAULT_SUPERMAN } from './supermanSettings';
-import { readGear, SECTION, writeGear, type GearData } from './gearCodec';
+import { GEAR_VERSION, readGear, SECTION, writeGear, type GearData } from './gearCodec';
+import { HOLD_HAND_POSE, IDLE_HAND_POSE, handPoseToArray } from '../../../core/handPose';
 
 /** A configuration of the size the game actually produces. */
 const CONFIG: GearData = {
@@ -51,7 +52,13 @@ const CONFIG: GearData = {
   },
 };
 
-const roundTrip = (data: GearData): GearData => readGear(unpackCode(packCode(writeGear(data)))!)!;
+const roundTrip = (data: GearData): GearData => {
+  const unpacked = unpackCode(packCode(writeGear(data)))!;
+  return readGear(unpacked.payload, unpacked.version)!;
+};
+
+/** Ein alter Code, so wie ihn Fassung 1 oder 2 im Payload geschrieben hat. */
+const readLegacy = (bytes: Uint8Array): GearData | null => readGear(bytes, 2);
 
 describe('gear codec', () => {
   it('gives every value back, field for field', () => {
@@ -131,7 +138,16 @@ describe('gear codec', () => {
 
     it('stays short enough to read off a small display', () => {
       const only: GearData = { tools: { brush: [0, -1.2, 2.4, -12, 3, 0] } };
-      expect(packCode(writeGear(only)).length).toBeLessThan(32);
+      expect(packCode(writeGear(only)).length).toBeLessThan(26);
+    });
+
+    it('carries one hand rather than two when only one was measured', () => {
+      const values = handPoseToArray({ ...IDLE_HAND_POSE, x: 1.2, pitch: -12 });
+      const one: GearData = { hands: { idle: { right: values } } };
+      const both: GearData = { hands: { idle: { left: values, right: values } } };
+      expect(packCode(writeGear(one)).length).toBeLessThan(
+        packCode(writeGear(both)).length,
+      );
     });
 
     it('carries the pistol together with its own settings', () => {
@@ -181,7 +197,7 @@ describe('gear codec', () => {
     };
 
     it('reads an old code and its trailing fields', () => {
-      const back = readGear(writeV1(12, 5.5, 60));
+      const back = readLegacy(writeV1(12, 5.5, 60));
       expect(back?.tools?.['pistol']).toEqual([0, 0, 0, 0, 0, 0]);
       expect(back?.weapon?.zoom).toBe(12);
       expect(back?.drone?.speed).toBe(5.5);
@@ -191,7 +207,7 @@ describe('gear codec', () => {
     it('gibt einem älteren Code die Auslieferungswerte für das, was ihm fehlt', () => {
       const bytes = writeV1(1, 5.5, 60);
       // Ohne Tempo und Drehrate: der Rest des Codes bleibt heil.
-      const beforeDrone = readGear(bytes.subarray(0, bytes.length - 2));
+      const beforeDrone = readLegacy(bytes.subarray(0, bytes.length - 2));
       expect(beforeDrone?.drone).toEqual({
         profile: 'kopter',
         replace: false,
@@ -201,20 +217,64 @@ describe('gear codec', () => {
       expect(beforeDrone?.weapon?.zoom).toBe(1);
 
       // Und noch ein Feld früher, von vor dem Fernrohr.
-      const beforeScope = readGear(bytes.subarray(0, bytes.length - 3));
+      const beforeScope = readLegacy(bytes.subarray(0, bytes.length - 3));
       expect(beforeScope?.weapon?.zoom).toBe(DEFAULT_WEAPON.zoom);
       expect(beforeScope?.drone?.speed).toBe(DEFAULT_DRONE.speed);
     });
 
     it('kennt den Handschuh noch nicht und lässt ihn weg', () => {
-      expect(readGear(writeV1(1, 5.5, 60))?.superman).toBeUndefined();
+      expect(readLegacy(writeV1(1, 5.5, 60))?.superman).toBeUndefined();
     });
   });
 
   it('refuses a payload from a format it does not know', () => {
-    const bytes = writeGear(CONFIG);
-    bytes[0] = 99;
-    expect(readGear(bytes)).toBeNull();
+    // Die Nummer steht jetzt im Prefix des Codes, nicht im Payload — eine
+    // fremde Fassung ist also gar nicht erst zu lesen.
+    expect(readGear(writeGear(CONFIG), 9)).toBeNull();
+    const legacy = new ByteWriter().byte(7).uint(0).bytes();
+    expect(readGear(legacy, 2)).toBeNull();
+  });
+
+  /**
+   * Fassung 3, und der eigentliche Grund für sie: was auf dem gebauten Wert
+   * steht, kostet ein Bit statt eines Bytes. Der Justierer misst sechs von
+   * zwölf Zahlen einer Handhaltung; die anderen sechs sollen den Code nicht
+   * mehr aufblähen.
+   */
+  describe('nur die verstellten Werte', () => {
+    it('costs nothing for a pose that is still the built-in one', () => {
+      const idle = handPoseToArray(IDLE_HAND_POSE);
+      const untouched: GearData = { hands: { idle: { right: idle } } };
+      const moved: GearData = {
+        hands: { idle: { right: [...idle.slice(0, 6).map(() => 0), ...idle.slice(6)] } },
+      };
+      expect(roundTrip(untouched).hands?.idle?.right).toEqual(idle);
+      // Und was wirklich anders ist, kommt heil zurück.
+      expect(roundTrip(moved).hands?.idle?.right).toEqual(moved.hands!.idle!.right);
+    });
+
+    it('makes the code for one measured hand short enough to type', () => {
+      const measured = handPoseToArray({
+        ...IDLE_HAND_POSE,
+        x: 1.2,
+        y: -0.5,
+        z: 2.4,
+        pitch: -12,
+        yaw: 8,
+        roll: 30,
+      });
+      const one: GearData = { hands: { idle: { right: measured } } };
+      const code = packCode(writeGear(one), GEAR_VERSION);
+      expect(code.length).toBeLessThan(28);
+      expect(roundTrip(one).hands?.idle?.right).toEqual(measured);
+    });
+
+    it('measures a hold pose against the built-in grip, not against zero', () => {
+      const hold = handPoseToArray(HOLD_HAND_POSE);
+      const only: GearData = { hands: { hold: { left: { pistol: hold } } } };
+      // Nichts verstellt: die Maske ist leer, und trotzdem steht die Haltung da.
+      expect(roundTrip(only).hands?.hold?.left?.['pistol']).toEqual(hold);
+    });
   });
 
   it('names its sections so a reader can say what a code carries', () => {
