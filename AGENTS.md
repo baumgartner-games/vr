@@ -105,6 +105,20 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   mehr —, wird **mit dem Stick der zeigenden Hand hoch/runter geblättert**;
   rechts zeigt ein Balken, wo man gerade ist. Links/rechts bleibt der
   Snap-Turn.
+  **Das Menü bleibt stehen, wo man war** — auf der Seite und in der Liste.
+  Beides wurde ständig zurückgesetzt, und beides aus demselben Grund: der Baum
+  wird bei jeder Änderung neu gebaut, und eine Zeile zu drücken ist ja gerade
+  das, was ihre Beschriftung ändert. Ein Werkzeug aus dem Regal nehmen oder
+  eine Einstellung eine Raste weiterschalten warf einen an den Anfang der
+  Liste — beim Regal also vor jedem einzelnen Werkzeug erneut —, und Zumachen
+  warf einen zusätzlich auf die oberste Ebene. Jetzt behält dieselbe Seite ihre
+  Position, eine Seite, auf der man schon war, kommt dorthin zurück, wo man sie
+  verlassen hat, und beim Schließen bleibt die Seite stehen. Wo man ist, sagt
+  die Überschrift auf dem Panel und die *Zurück*-Zeile. Verschwindet eine Seite
+  aus dem Baum, endet der Weg dorthin bei ihrer Elternseite. Die Blätterregel
+  steht in `src/ui/pageScroll.ts` (mit Test), inklusive der Klemmung nach
+  unten: eine Seite kann zwischen zwei Besuchen Zeilen verlieren, und ein übrig
+  gebliebener Versatz zeigt sonst ein leeres Panel.
 - **Zeigestrahl an beiden Händen**: jeder Controller hat seinen eigenen Strahl
   mit eigenem Cursor — was die eine Hand gerade hält, hindert die andere nicht
   am Zeigen. Das Panel eines Werkzeugs in der rechten Hand wird also mit der
@@ -586,7 +600,8 @@ Das **Klemmbrett** ist ein `UIPanel` am Kart: Lenkart, Beschleunigung,
 Höchstgeschwindigkeit, Bremskraft, Traktion, Gewicht, Lenkeinschlag, Radstand
 und Rückwärtstempo, jede Zeile schaltet auf die nächste Raste und zeigt die
 rohe Zahl daneben. Weil mehr Zeilen als Platz da sind, blättert der Stick der
-zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü. Liegt der Strahl einer
+zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü, und wie dort bleibt das
+Brett beim Weiterschalten stehen, wo es stand. Liegt der Strahl einer
 Hand auf dem Brett, gehört *ihr* Trigger dem Brett und nicht dem Gas — pro
 Hand, damit Lesen mit der einen der anderen nicht das Gas wegnimmt. Das
 Lenkrad selbst hört, sobald jemand sitzt, gar nicht mehr auf den Strahl

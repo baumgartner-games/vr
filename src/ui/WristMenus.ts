@@ -72,10 +72,6 @@ export class WristMenus extends THREE.Group {
     for (const menu of this.menus) menu.setRoot(entries, title);
   }
 
-  refreshRoot(entries: MenuEntry[]): void {
-    for (const menu of this.menus) menu.refreshRoot(entries);
-  }
-
   setStatus(status: string): void {
     for (const menu of this.menus) menu.setStatus(status);
   }

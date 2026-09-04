@@ -2,6 +2,31 @@ import * as THREE from 'three';
 import type { PointerHit, PointerTarget } from '../core/Pointer';
 import type { Handedness } from '../core/XRInput';
 import { drawMenuIcon, type MenuEntry } from './menu';
+import { pageScroll } from './pageScroll';
+
+/** Everything about a page except its title and its rows. */
+export interface PageOptions {
+  /** Icons in a grid instead of one row per entry. */
+  grid?: boolean;
+  /** Replaces the standing footer while this page is shown. */
+  hint?: string;
+  /**
+   * What makes this page *this* page.
+   *
+   * Re-applying a page with the same key keeps the scroll position and what
+   * the pointer was resting on — and that matters far more than it sounds: a
+   * page is re-applied every time a row is used, because using a row is what
+   * changes its label. Without this, taking a tool off the shelf or stepping
+   * a setting one notch threw you back to the top of the list, which for the
+   * tool shelf means scrolling down again for every single tool.
+   *
+   * Defaults to the title, which is enough for a panel that only ever shows
+   * one page (the kart's clipboard, the drone's settings).
+   */
+  key?: string;
+  /** Where a page that really *is* new starts. */
+  scroll?: number;
+}
 
 export interface PanelOptions {
   width?: number;
@@ -43,6 +68,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private status = '';
   /** Index of the first entry drawn — a long page is scrolled, not cut off. */
   private scroll = 0;
+  /** Which page is on show; a change is what resets the scroll. */
+  private pageKey = '';
   private flash = 0;
   private onSelect?: (index: number, hand: Handedness | null) => void;
 
@@ -72,20 +99,41 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
-  /** @param hint replaces the standing footer while this page is shown. */
-  setPage(title: string, entries: MenuEntry[], grid = false, hint?: string): void {
+  /**
+   * Puts a page on the panel. The same page twice keeps its place — see
+   * `PageOptions.key`.
+   */
+  setPage(title: string, entries: MenuEntry[], options: PageOptions = {}): void {
+    const key = options.key ?? title;
     this.title = title;
     this.entries = entries;
-    this.grid = grid;
-    this.hint = hint ?? '';
-    this.hover = -1;
-    this.scroll = 0;
+    this.grid = options.grid ?? false;
+    this.hint = options.hint ?? '';
+    this.scroll = pageScroll({
+      previousKey: this.pageKey,
+      key,
+      current: this.scroll,
+      ...(options.scroll === undefined ? {} : { remembered: options.scroll }),
+      entries: entries.length,
+      pageSize: this.pageSize,
+    });
+    // What the pointer rested on only survives on the page it belonged to.
+    if (key !== this.pageKey) {
+      this.hover = -1;
+      this.hovered.index = -1;
+    }
+    this.pageKey = key;
     this.draw();
   }
 
   /** True while the page holds more than fits — then the stick has a job. */
   get scrollable(): boolean {
     return this.entries.length > this.pageSize;
+  }
+
+  /** How far down the page currently sits — what a caller remembers for later. */
+  get scrollOffset(): number {
+    return this.scroll;
   }
 
   /**
@@ -97,8 +145,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   scrollBy(rows: number): boolean {
     if (!this.scrollable) return false;
     const step = this.grid ? GRID_COLS : 1;
-    const max = Math.max(0, this.entries.length - this.pageSize);
-    const next = THREE.MathUtils.clamp(this.scroll + rows * step, 0, max);
+    const next = THREE.MathUtils.clamp(this.scroll + rows * step, 0, this.maxScroll);
     if (next === this.scroll) return false;
     this.scroll = next;
     this.hover = -1;
@@ -167,6 +214,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   /** How many entries fit on one page. */
   private get pageSize(): number {
     return this.grid ? MAX_GRID_ROWS * GRID_COLS : MAX_ROWS;
+  }
+
+  /** The furthest down this page can go without scrolling past its last row. */
+  private get maxScroll(): number {
+    return Math.max(0, this.entries.length - this.pageSize);
   }
 
   private get visibleCount(): number {

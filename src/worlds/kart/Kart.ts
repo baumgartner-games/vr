@@ -170,7 +170,7 @@ export class Kart extends THREE.Group {
   /** Writes a page onto the clipboard and keeps it, so a tap finds its row. */
   setBoard(entries: MenuEntry[], hint: string): void {
     this.entries = entries;
-    this.board.setPage(this.preset.name, entries, false, hint);
+    this.board.setPage(this.preset.name, entries, { hint });
   }
 
   /** Puts the kart down in its box and remembers the spot. */

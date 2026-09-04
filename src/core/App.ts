@@ -66,7 +66,7 @@ export class App {
   private elapsed = 0;
   private lastTime = 0;
   private role: PlayerRole;
-  /** The wrist menus reset their navigation on rebuild, so only do it when closed. */
+  /** Something changed a menu label or row; the tree is rebuilt next frame. */
   private menuDirty = false;
   private spectating = false;
 
@@ -336,9 +336,9 @@ export class App {
     ];
 
     // Rebuilding while the menu is open is normal here: the peer list and the
-    // spectator switches change under the player's nose.
-    if (this.wristMenu.isOpen) this.wristMenu.refreshRoot(root);
-    else this.wristMenu.setRoot(root);
+    // spectator switches change under the player's nose. The menu keeps the
+    // page and the scroll position through it, open or closed.
+    this.wristMenu.setRoot(root);
   }
 
   /**

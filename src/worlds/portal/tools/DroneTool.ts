@@ -354,7 +354,7 @@ export class DroneTool extends Tool {
         checked: settings.replace,
       },
     ];
-    this.panel.setPage('Drohne', entries, false, 'Zielen und Trigger stellt um');
+    this.panel.setPage('Drohne', entries, { hint: 'Zielen und Trigger stellt um' });
   }
 
   /**

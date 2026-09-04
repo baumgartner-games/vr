@@ -80,6 +80,15 @@ export class WristMenu extends THREE.Group {
   /** Seconds until the held stick scrolls another row; 0 while it is idle. */
   private scrollTimer = 0;
   private scrollArmed = true;
+  /**
+   * How far each page was scrolled when it was last left, by page id.
+   *
+   * Keyed by id rather than kept in the stack, because the stack is thrown
+   * away and rebuilt whenever the tree is refreshed — and it outlives closing
+   * the menu, so coming back to the tool shelf or the magic bag lands where
+   * you were rather than at the top of the list.
+   */
+  private readonly scrolls = new Map<string, number>();
 
   constructor(
     private readonly pointer: Pointer,
@@ -157,21 +166,21 @@ export class WristMenu extends THREE.Group {
     this.pointer.add({ ...this.panel.asPointerTarget(), pokeable: false, ignore: own });
   }
 
-  /** Replaces the whole menu tree and returns to the top level. */
+  /**
+   * Puts a menu tree on the panel **without moving the player**.
+   *
+   * The tree is rebuilt constantly — the peer list changes, a setting steps to
+   * its next notch, a world is entered — and every rebuild used to drop the
+   * player back at the top level. So the page they were looking at is walked
+   * out again by id afterwards; a page that has since gone away simply stops
+   * the walk at its parent.
+   */
   setRoot(entries: MenuEntry[], title = 'Menü'): void {
     this.root = entries;
-    this.stack = [{ title, entries, grid: false, take: false, id: 'root' }];
-    this.applyPage();
-  }
-
-  /**
-   * Swaps in a rebuilt tree without losing the page the player is looking at —
-   * the peer list and the spectator switches change while the menu is open.
-   */
-  refreshRoot(entries: MenuEntry[]): void {
-    this.root = entries;
+    this.keepScroll();
+    const base = this.stack[0] ?? { title, entries, grid: false, take: false, id: 'root' };
     const path = this.stack.slice(1).map((page) => page.id);
-    this.stack = [{ ...this.stack[0]!, entries }];
+    this.stack = [{ ...base, entries }];
 
     let level = entries;
     for (const id of path) {
@@ -187,6 +196,7 @@ export class WristMenu extends THREE.Group {
   openSubmenu(id: string): void {
     const entry = this.root.find((candidate) => candidate.id === id);
     if (!entry?.children) return;
+    this.keepScroll();
     this.stack.length = 1;
     this.pushPage(entry);
     this.toggle(true);
@@ -206,10 +216,11 @@ export class WristMenu extends THREE.Group {
     this.panel.visible = this.open;
     // Every fresh opening re-centres the tilt on however the hand is held now.
     if (this.open !== wasOpen) this.tiltRef = null;
-    if (!this.open && this.stack.length > 1) {
-      this.stack.length = 1;
-      this.applyPage();
-    }
+    // Closing keeps the page. Going away to try something out and coming back
+    // to the top of the tree is the same annoyance as being thrown to the top
+    // of a list, one level up — and the title on the panel plus the *Zurück*
+    // row say plainly where you are.
+    if (!this.open) this.keepScroll();
     this.drawButton();
     if (this.open !== wasOpen) this.onToggle?.(this, this.open);
   }
@@ -340,15 +351,26 @@ export class WristMenu extends THREE.Group {
 
   private applyPage(): void {
     const page = this.page;
-    this.panel.setPage(
-      page.title,
-      this.displayed(),
-      page.grid,
-      page.take ? 'Zeigen + Greifen/A nimmt es in die Hand' : undefined,
-    );
+    this.panel.setPage(page.title, this.displayed(), {
+      grid: page.grid,
+      hint: page.take ? 'Zeigen + Greifen/A nimmt es in die Hand' : undefined,
+      // The same page again keeps its place; a different one starts where it
+      // was left. Using a row is what changes its label, so a page is
+      // re-applied constantly — resetting it there was what threw you back to
+      // the top every time you took a tool or stepped a setting.
+      key: page.id,
+      scroll: this.scrolls.get(page.id) ?? 0,
+    });
+  }
+
+  /** Writes down where the page on show currently sits, before leaving it. */
+  private keepScroll(): void {
+    const page = this.stack[this.stack.length - 1];
+    if (page) this.scrolls.set(page.id, this.panel.scrollOffset);
   }
 
   private pushPage(entry: MenuEntry): void {
+    this.keepScroll();
     this.stack.push(pageOf(entry));
     this.applyPage();
   }
@@ -419,6 +441,7 @@ export class WristMenu extends THREE.Group {
     if (!entry) return;
 
     if (entry === BACK) {
+      this.keepScroll();
       this.stack.pop();
       this.applyPage();
       return;
