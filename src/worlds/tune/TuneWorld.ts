@@ -24,7 +24,16 @@ import {
   saveHapticPattern,
   type HapticPattern,
 } from './haptics';
-import { ToolRange, LANE, MOUNT_REACH } from './ToolRange';
+import { ToolRange, HANDLE_REACH, LANE, MOUNT_REACH, type RangeGrip } from './ToolRange';
+import {
+  clampRange,
+  clearRangeSettings,
+  formatRange,
+  onRangeChange,
+  rangeSettings,
+  saveRangeSettings,
+  type RangeSettings,
+} from './rangeSettings';
 import { SeeThrough } from './seeThrough';
 import { nudgeGrip, FINE_FACTOR, type Grip } from './fineTune';
 import { GRAB_GLOW } from '../../core/colors';
@@ -84,11 +93,30 @@ interface Drive {
   before: TableSettings;
 }
 
-/** Eine Hand wird gerade gegen den Geist gelegt. */
+/**
+ * Eine Hand wird gerade gegen einen Geist gelegt.
+ *
+ * Gegen *welchen*, steht mit drin: es gibt zwei — den auf dem Tisch im Raum
+ * und den auf dem Handstand im Schießgang. Beide messen dasselbe und schreiben
+ * dasselbe; der Unterschied ist nur, wo man dabei steht.
+ */
 interface Fitting {
   hand: Handedness;
   toolId: string | null;
   before: HandPose;
+  /** Der Geist, gegen den gemessen wird. */
+  ghost: THREE.Object3D;
+  /** Wie er auf der Tafel heißt. */
+  where: string;
+}
+
+/** Eine Hand zieht gerade an einem Griff des Justierstandes. */
+interface RangeDrag {
+  hand: Handedness;
+  grip: 'height' | 'place';
+  /** Wo die Hand beim Zupacken war — gerechnet wird immer dagegen. */
+  start: THREE.Vector3;
+  before: RangeSettings;
 }
 
 /**
@@ -277,6 +305,10 @@ export class TuneWorld extends PortalWorld {
    * zurück, in der es in die Hand gesprungen ist.
    */
   private mountBlocked: Tool | null = null;
+  /** Wo der Justierstand steht — im Speicher, und beim Ziehen live. */
+  private rangeState: RangeSettings = rangeSettings();
+  private rangeDrag: RangeDrag | null = null;
+  private unsubscribeRange: (() => void) | null = null;
   /**
    * Der Stand der Dinge, im Speicher.
    *
@@ -325,7 +357,9 @@ export class TuneWorld extends PortalWorld {
     // Geisterzug — und muss immer beides nachziehen: den Tisch und die
     // Beschriftungen.
     this.unsubscribe = onTableChange(() => this.showTable(tableSettings()));
+    this.unsubscribeRange = onRangeChange(() => this.showRange(rangeSettings()));
     this.showTable(tableSettings());
+    this.showRange(rangeSettings());
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -345,6 +379,7 @@ export class TuneWorld extends PortalWorld {
     this.updateDrive(ctx);
     this.updateFitting(ctx);
     this.updateRange(ctx);
+    this.updateRangeGrips(ctx);
     this.updateFine(ctx);
     this.updateBuzz(dt, ctx);
   }
@@ -358,6 +393,8 @@ export class TuneWorld extends PortalWorld {
     this.seeThrough.reset(ctx.scene, this.shellGroup, ctx.renderer);
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.unsubscribeRange?.();
+    this.unsubscribeRange = null;
     for (const model of this.models.values()) model.dispose();
     this.models.clear();
     for (const board of this.boards.values()) board.dispose();
@@ -374,6 +411,7 @@ export class TuneWorld extends PortalWorld {
     this.range?.dispose();
     this.range = null;
     this.mountBlocked = null;
+    this.rangeDrag = null;
     this.table?.dispose();
     this.table = null;
     this.bench?.dispose();
@@ -729,9 +767,20 @@ export class TuneWorld extends PortalWorld {
   /** Tisch und Schilder auf denselben Stand — der einzige Weg dorthin. */
   private showTable(settings: TableSettings): void {
     this.state = settings;
-    this.table?.apply(settings, this.ghostPose());
+    const pose = this.ghostPose();
+    this.table?.apply(settings, pose);
+    // Die Boxhand auf dem Handstand im Gang zeigt dasselbe wie der Tisch: eine
+    // zweite Seite oder eine zweite Haltung an zwei Orten wäre nur eine Falle.
+    if (pose) this.range?.setHand(settings.side, pose);
     this.refreshButtons();
     this.showValues();
+  }
+
+  /** Der Justierstand auf denselben Stand — derselbe einzige Weg dorthin. */
+  private showRange(settings: RangeSettings): void {
+    this.rangeState = settings;
+    this.range?.apply(settings);
+    this.refreshButtons();
   }
 
   /**
@@ -952,7 +1001,14 @@ export class TuneWorld extends PortalWorld {
    * notwendig": man liegt mit der Hand auf dem Tisch und kommt gar nicht mehr
    * an die Wand.
    */
-  private beginFitting(): void {
+  /**
+   * @param source welcher Geist gemeint ist: der auf dem **Tisch** im Raum
+   *               oder die Boxhand auf dem **Handstand** im Schießgang. Beide
+   *               messen dasselbe — der Handstand steht nur dort, wo man
+   *               ohnehin schon ist, wenn man gerade ein Werkzeug einmisst,
+   *               und auf Arbeitshöhe statt auf Tischhöhe.
+   */
+  private beginFitting(source: 'table' | 'range' = 'table'): void {
     const ctx = this.context;
     if (!ctx) return;
     if (this.fitting) {
@@ -962,6 +1018,11 @@ export class TuneWorld extends PortalWorld {
       return;
     }
     this.cancelDrive();
+    const ghost = source === 'range' ? this.range?.handObject : this.table?.ghostObject;
+    if (!ghost) {
+      ctx.notify('Kein Geist zum Justieren da');
+      return;
+    }
     const hand = this.state.side;
     const controller = ctx.input.get(hand);
     if (!controller?.tracked) {
@@ -969,7 +1030,13 @@ export class TuneWorld extends PortalWorld {
       return;
     }
     const toolId = this.poseId();
-    this.fitting = { hand, toolId, before: ctx.hands.editablePose(hand, toolId) };
+    this.fitting = {
+      hand,
+      toolId,
+      before: ctx.hands.editablePose(hand, toolId),
+      ghost,
+      where: source === 'range' ? 'Handstand' : GHOST_LABELS[this.state.kind],
+    };
     controller.pulse(0.4, 25);
     this.refreshButtons();
     ctx.notify(`${this.poseTitle(hand, toolId)} · Hand auf den Geist, dann Trigger`);
@@ -986,9 +1053,8 @@ export class TuneWorld extends PortalWorld {
    */
   private updateFitting(ctx: WorldContext): void {
     const fitting = this.fitting;
-    const table = this.table;
-    const ghost = table?.ghostObject ?? null;
-    if (!fitting || !ghost) return;
+    if (!fitting) return;
+    const ghost = fitting.ghost;
 
     const controller = ctx.input.get(fitting.hand);
     if (!controller?.tracked) return;
@@ -1033,7 +1099,7 @@ export class TuneWorld extends PortalWorld {
     ctx.hands.refreshPoses();
 
     this.readout = readout;
-    this.readoutFor = `${this.poseTitle(fitting.hand, fitting.toolId)} · ${GHOST_LABELS[this.state.kind]}`;
+    this.readoutFor = `${this.poseTitle(fitting.hand, fitting.toolId)} · ${fitting.where}`;
     this.code = toolGearCode(fitting.toolId, fitting.hand);
     this.fitting = null;
     controller.pulse(0.6, 40);
@@ -1174,7 +1240,7 @@ export class TuneWorld extends PortalWorld {
       width: 1.9,
       height: 0.26,
       title: 'Schießgang',
-      body: 'Werkzeug in den Halter · Hand daran · Greifen oder Trigger',
+      body: 'Werkzeug in den Halter · Hand daran · Greifen oder Trigger · Griffe rechts stellen ihn',
       accent: 0xffc857,
       align: 'center',
     });
@@ -1184,7 +1250,7 @@ export class TuneWorld extends PortalWorld {
 
     for (const [index, row] of this.rangeRows().entries()) {
       const button = this.wallButton(room, 0.92, 0.28, row.run);
-      button.plane.position.set(LANE.half - 0.02, 1.92 - index * 0.34, z0 + 1.2);
+      button.plane.position.set(LANE.half - 0.02, 2.0 - index * 0.32, z0 + 1.2);
       button.plane.rotation.y = -Math.PI / 2;
       button.refresh = () => row.refresh(button);
     }
@@ -1244,6 +1310,30 @@ export class TuneWorld extends PortalWorld {
         },
         run: () => this.releaseMount(false),
       },
+      {
+        refresh: (button) => {
+          const busy = this.fitting !== null;
+          this.label(
+            button,
+            busy ? 'Hand auf den Handstand legen' : 'Hand justieren',
+            busy
+              ? 'Deckungsgleich, dann Trigger'
+              : `Boxhand auf dem Teller · ${this.state.side === 'left' ? 'links' : 'rechts'}`,
+            busy ? GRAB_GLOW : 0x5ee0a0,
+          );
+        },
+        run: () => this.beginFitting('range'),
+      },
+      {
+        refresh: (button) => {
+          this.label(button, 'Stand zurücksetzen', formatRange(this.rangeState), 0xffc857);
+        },
+        run: () => {
+          this.rangeDrag = null;
+          this.showRange(clearRangeSettings());
+          this.context?.notify('Justierstand zurückgesetzt');
+        },
+      },
     ];
   }
 
@@ -1280,7 +1370,6 @@ export class TuneWorld extends PortalWorld {
 
     const mounted = this.mounted;
     if (mounted) {
-      range.setGlow(true);
       // Während der Feinjustage gehören die Knöpfe dem Geist.
       if (this.fine) return;
       const controller = ctx.input.get(mounted.hand);
@@ -1298,7 +1387,6 @@ export class TuneWorld extends PortalWorld {
       return;
     }
 
-    let near = false;
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
       if (!hand || !controller.tracked) continue;
@@ -1310,14 +1398,98 @@ export class TuneWorld extends PortalWorld {
         if (this.mountBlocked === tool) this.mountBlocked = null;
         continue;
       }
-      near = true;
       // Das eben herausgekommene Werkzeug rastet erst wieder ein, wenn es
       // einmal draußen war.
       if (this.mountBlocked === tool) continue;
       this.mountTool(tool, hand);
-      break;
+      return;
     }
-    range.setGlow(near);
+  }
+
+  /**
+   * Die Griffe am Ausleger, das Waffenregal — und was gerade leuchtet.
+   *
+   * Ein Stand, den man verschieben kann, muss sich auch **ungewollt**
+   * verschieben lassen können, sonst greift ihn niemand an. Deshalb hängen die
+   * beiden Griffe einen knappen Meter zur Seite: nichts, was die Hand am
+   * Werkzeug streift, und trotzdem ohne einen Schritt erreichbar. Gerechnet
+   * wird gegen den Stand beim Zupacken und nicht gegen das letzte Bild —
+   * dieselbe Regel wie an der Griffleiste des Tisches, und aus demselben Grund.
+   */
+  private updateRangeGrips(ctx: WorldContext): void {
+    const range = this.range;
+    if (!range) return;
+    // Während der Feinjustage zieht eine Hand am Geist, und die drückt dabei
+    // Greifen — die Griffe des Standes haben in dieser Minute Pause, sonst
+    // verschiebt sich unter der Messung der Bezugspunkt.
+    if (this.fine) {
+      range.setGlow(null);
+      return;
+    }
+
+    const drag = this.rangeDrag;
+    if (drag) {
+      const controller = ctx.input.get(drag.hand);
+      if (!controller?.tracked || !controller.squeeze.pressed) {
+        this.rangeDrag = null;
+        // Erst beim Loslassen in den Speicher — und dann einmal richtig.
+        this.showRange(saveRangeSettings(this.rangeState));
+        ctx.notify(formatRange(this.rangeState));
+        return;
+      }
+      handPosition(controller, _hand);
+      this.showRange(
+        clampRange(
+          drag.grip === 'height'
+            ? { ...drag.before, height: drag.before.height + (_hand.y - drag.start.y) * 100 }
+            : {
+                ...drag.before,
+                x: drag.before.x + (_hand.x - drag.start.x) * 100,
+                z: drag.before.z + (_hand.z - drag.start.z) * 100,
+              },
+        ),
+      );
+      range.setGlow(drag.grip);
+      return;
+    }
+
+    let glow: RangeGrip | 'mount' | null = null;
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand || !controller.tracked) continue;
+      handPosition(controller, _hand);
+
+      // Ein Werkzeug in der Hand sucht die Aufnahme, eine leere Hand die
+      // Griffe und das Regal — dieselbe Hand kann nicht beides wollen.
+      if (this.host?.heldTool(hand)) {
+        if (!this.mounted && range.mountDistance(_hand) <= MOUNT_REACH) glow ??= 'mount';
+        continue;
+      }
+
+      for (const grip of ['height', 'place', 'rack'] as const) {
+        if (range.gripDistance(grip, _hand) > HANDLE_REACH) continue;
+        glow ??= grip;
+        if (!controller.squeeze.justPressed) break;
+        if (grip === 'rack') {
+          this.equipTool(ctx, hand, 'pistol');
+        } else {
+          this.rangeDrag = {
+            hand,
+            grip,
+            start: _hand.clone(),
+            before: { ...this.rangeState },
+          };
+          controller.pulse(0.4, 25);
+          ctx.notify(
+            grip === 'height'
+              ? 'Höhe: Hand heben und senken, dann loslassen'
+              : 'Ort: Hand bewegen, dann loslassen',
+          );
+        }
+        break;
+      }
+    }
+    range.setGlow(glow);
   }
 
   /**
@@ -1331,13 +1503,18 @@ export class TuneWorld extends PortalWorld {
       this.context?.notify('Werkzeug lässt sich nicht ablegen');
       return null;
     }
-    // `parkTool` hängt es an die Welt und lässt es stehen; hier bekommt es die
-    // Lage des Halters, in dessen Raum umgerechnet.
-    range.mount.updateWorldMatrix(true, false);
-    this.root.updateWorldMatrix(true, false);
-    _matrix.copy(this.root.matrixWorld).invert().multiply(range.mount.matrixWorld);
-    _matrix.decompose(tool.position, tool.quaternion, _scale);
+    // Es hängt ab jetzt **in** der Aufnahme und nicht bloß an derselben Stelle
+    // wie sie: `parkTool` lässt es an der Welt stehen, hier wird es ein Kind
+    // des Halters. Damit kann es gar nicht mehr von ihm wegdriften — auch
+    // nicht, wenn der Stand gleich am Griff verschoben wird.
+    range.mount.add(tool);
+    tool.position.set(0, 0, 0);
+    tool.quaternion.identity();
+    tool.scale.set(1, 1, 1);
     tool.updateWorldMatrix(true, false);
+    // Und der Stand selbst geht aus dem Weg: was man jetzt ansieht, ist die
+    // Hand am Werkzeug.
+    range.setOccupied(true);
 
     const mounted: Mounted = {
       tool,
@@ -1349,6 +1526,7 @@ export class TuneWorld extends PortalWorld {
     };
     this.mounted = mounted;
     this.mountBlocked = null;
+    this.rangeDrag = null;
     ctx.input.get(hand)?.pulse(0.4, 25);
     this.refreshButtons();
     ctx.notify(`${tool.label} zeigt auf die Scheibe · Hand daran, dann Greifen oder Trigger`);
@@ -1382,6 +1560,7 @@ export class TuneWorld extends PortalWorld {
 
     this.mounted = null;
     this.mountBlocked = tool;
+    this.range?.setOccupied(false);
     this.host?.unparkTool(tool);
     controller.pulse(0.6, 40);
     this.refreshButtons();
@@ -1422,6 +1601,7 @@ export class TuneWorld extends PortalWorld {
     }
     this.mounted = null;
     this.mountBlocked = mounted.tool;
+    this.range?.setOccupied(false);
     this.host?.unparkTool(mounted.tool);
     this.refreshButtons();
     if (!quiet) this.context?.notify(`${mounted.tool.label} zurück in der Hand`);

@@ -50,37 +50,50 @@ export const IDLE_HAND_POSE: HandPose = {
 };
 
 /**
- * Die **eingemessene** Grundhaltung der rechten Hand am Controller.
+ * Die **eingemessene** Grundhaltung der linken Hand am Controller.
  *
  * Die gebaute Haltung darüber sitzt genau auf dem Griffpunkt und schaut
- * geradeaus — das ist die Haltung, aus der die Hand *gebaut* ist, und keine,
- * in der je eine echte Hand einen Controller gehalten hat. Ein Quest-Controller
- * liegt schräg in der Faust: der Handrücken kippt nach vorn weg (deshalb die
- * -90° Neigung), die Hand steht um 45° zur Griffachse gedreht, und ihr
- * Mittelpunkt sitzt einen halben Zentimeter neben, vier Millimeter unter und
- * gut einen Zentimeter vor dem Griffpunkt.
+ * geradeaus — das ist die Haltung, aus der die Hand *gebaut* ist, und keine, in
+ * der je eine echte Hand einen Controller gehalten hat. Ein Quest-Controller
+ * liegt schräg in der Faust, und wie schräg, sagt nur eine Messung im
+ * Eingaberaum.
  *
- * Diese sechs Zahlen sind im Headset an der Boxhand abgelesen worden und
- * gelten hier als Auslieferungszustand — wer sie ändern will, misst sie im
- * Eingaberaum neu. Die **linke** Hand steht nicht daneben, sondern fällt aus
- * `mirrorHandPose` heraus: es ist dieselbe Hand, gespiegelt, und zwei getrennt
- * gepflegte Zahlenreihen wären genau die Sorte Abweichung, die niemand merkt.
+ * Gemessen wurde **zweimal**, einmal je Hand, und die beiden Messungen sind
+ * nicht dasselbe. Rechts kam heraus: x 0,5 · y -0,4 · z 1,2 cm, Pitch -90°,
+ * Yaw 45°, Roll 0°. Links, später und in Ruhe nachgemessen, die Zahlen unten —
+ * gespiegelt also x 0,3 · y 2,7 · z 3,8 cm, Pitch 75°, Yaw 45°, Roll -5°.
+ * Quer, Yaw und Roll passen zusammen; **Höhe, Tiefe und vor allem die Neigung
+ * nicht**: 75° gegen -90° sind 165° auseinander, und das ist keine
+ * Messtoleranz, sondern zwei verschiedene Haltungen. Eine von beiden ist
+ * danebengegangen.
+ *
+ * Es gilt deshalb die **spätere** Messung, und sie gilt für **beide** Hände:
+ * links wie gemessen, rechts als deren Spiegelung. Zwei getrennt gepflegte
+ * Zahlenreihen wären genau die Sorte Abweichung, die niemand merkt — eine
+ * Hand, die anders sitzt als die andere, sieht man nicht, man wundert sich nur.
+ * Wer die andere Messung für die richtige hält, dreht hier eine Konstante um
+ * und misst nicht zwei.
  */
-export const IDLE_HAND_POSE_RIGHT: HandPose = {
+export const IDLE_HAND_POSE_LEFT: HandPose = {
   ...IDLE_HAND_POSE,
-  x: 0.5,
-  y: -0.4,
-  z: 1.2,
-  pitch: -90,
-  yaw: 45,
-  roll: 0,
+  x: -0.3,
+  y: 2.7,
+  z: 3.8,
+  pitch: 75,
+  yaw: -45,
+  roll: 5,
 };
+
+/**
+ * Und dieselbe Haltung für rechts — **abgeleitet**, nicht daneben getippt.
+ * Steht hier trotzdem als eigener Name, weil man beide Zahlenreihen sehen
+ * können muss, ohne sie im Kopf zu spiegeln.
+ */
+export const IDLE_HAND_POSE_RIGHT: HandPose = mirrorHandPose(IDLE_HAND_POSE_LEFT);
 
 /** Die Grundhaltung, mit der eine Hand ausgeliefert wird. */
 export function defaultIdlePose(hand: Handedness): HandPose {
-  return hand === 'left'
-    ? mirrorHandPose(IDLE_HAND_POSE_RIGHT)
-    : clonePose(IDLE_HAND_POSE_RIGHT);
+  return clonePose(hand === 'left' ? IDLE_HAND_POSE_LEFT : IDLE_HAND_POSE_RIGHT);
 }
 
 /**

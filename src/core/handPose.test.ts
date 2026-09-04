@@ -2,7 +2,7 @@ import {
   HAND_FIELDS,
   HOLD_HAND_POSE,
   IDLE_HAND_POSE,
-  IDLE_HAND_POSE_RIGHT,
+  IDLE_HAND_POSE_LEFT,
   defaultIdlePose,
   formatHandPose,
   handPoseField,
@@ -48,42 +48,41 @@ describe('mirrorHandPose', () => {
 });
 
 describe('defaultIdlePose', () => {
-  it('gibt der rechten Hand die eingemessenen sechs Zahlen', () => {
-    const right = defaultIdlePose('right');
-    expect(right.x).toBe(0.5);
-    expect(right.y).toBe(-0.4);
-    expect(right.z).toBe(1.2);
-    expect(right.pitch).toBe(-90);
-    expect(right.yaw).toBe(45);
-    expect(right.roll).toBe(0);
+  it('gibt der linken Hand die nachgemessenen sechs Zahlen', () => {
+    const left = defaultIdlePose('left');
+    expect(left.x).toBe(-0.3);
+    expect(left.y).toBe(2.7);
+    expect(left.z).toBe(3.8);
+    expect(left.pitch).toBe(75);
+    expect(left.yaw).toBe(-45);
+    expect(left.roll).toBe(5);
     // Die Finger kommen weiter aus der gebauten Haltung — gemessen wurde, wie
     // die Hand *liegt*, nicht wie weit sie zu ist.
-    expect(right.curls).toEqual(IDLE_HAND_POSE.curls);
+    expect(left.curls).toEqual(IDLE_HAND_POSE.curls);
   });
 
-  it('ist links genau die Spiegelung von rechts', () => {
-    const left = defaultIdlePose('left');
-    expect(left).toEqual(mirrorHandPose(IDLE_HAND_POSE_RIGHT));
-    expect(left.x).toBe(-0.5);
-    expect(left.yaw).toBe(-45);
-    // Quer gespiegelt, in der Höhe und der Tiefe nicht.
-    expect(left.y).toBe(-0.4);
-    expect(left.z).toBe(1.2);
-    expect(left.pitch).toBe(-90);
+  it('ist rechts genau die Spiegelung von links — dieselben Zahlen, nicht ähnliche', () => {
+    const right = defaultIdlePose('right');
+    expect(right).toEqual(mirrorHandPose(IDLE_HAND_POSE_LEFT));
+    expect(right.x).toBe(0.3);
+    expect(right.yaw).toBe(45);
+    expect(right.roll).toBe(-5);
+    // Quer gespiegelt, in der Höhe, der Tiefe und der Neigung nicht.
+    expect(right.y).toBe(2.7);
+    expect(right.z).toBe(3.8);
+    expect(right.pitch).toBe(75);
   });
 
-  it('spiegelt eine Null zu einer Null und nicht zu einer -0', () => {
-    // `-0` steht sonst auf jeder Tafel und in jedem Konfig-Code der linken
-    // Hand, und es liest sich wie ein Fehler.
-    expect(Object.is(defaultIdlePose('left').roll, 0)).toBe(true);
+  it('hält beide Hände deckungsgleich: zweimal gespiegelt ist die andere', () => {
+    expect(mirrorHandPose(defaultIdlePose('right'))).toEqual(defaultIdlePose('left'));
   });
 
   it('gibt jedes Mal eine eigene Haltung heraus', () => {
-    const first = defaultIdlePose('right');
+    const first = defaultIdlePose('left');
     first.x = 99;
     first.curls[0] = 1;
-    expect(defaultIdlePose('right').x).toBe(0.5);
-    expect(IDLE_HAND_POSE_RIGHT.curls[0]).not.toBe(1);
+    expect(defaultIdlePose('left').x).toBe(-0.3);
+    expect(IDLE_HAND_POSE_LEFT.curls[0]).not.toBe(1);
   });
 });
 

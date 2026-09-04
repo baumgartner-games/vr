@@ -2936,8 +2936,12 @@ export class PortalWorld implements World {
     }
   }
 
-  /** Puts a specific tool into a hand, used by the tool shelf. */
-  private equipTool(ctx: WorldContext, hand: Handedness | null, id: string): void {
+  /**
+   * Puts a specific tool into a hand, used by the tool shelf — und vom
+   * Waffenregal im Schießgang, das genau dasselbe tut, nur an einer Stelle im
+   * Raum statt in einem Menü.
+   */
+  protected equipTool(ctx: WorldContext, hand: Handedness | null, id: string): void {
     const tool = this.tool(id);
     if (!tool) return;
     // Without a known hand, take whichever one is still free.

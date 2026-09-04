@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+/** Der Hintergrund einer durchsichtigen Welt ohne Kamerabild dahinter. */
+const VOID = new THREE.Color(0x05070c);
+
 /**
  * Die VR-Welt durchsichtig schalten — der **AR-Knopf** im Schießgang.
  *
@@ -62,11 +65,24 @@ export class SeeThrough {
     this.on = on;
     if (on) {
       this.background = scene.background;
-      scene.background = null;
-      // Ohne durchsichtigen Hintergrund liegt im Passthrough-Bild ein
-      // schwarzes Tuch über dem Zimmer.
-      renderer.setClearAlpha(0);
       root.traverse((object) => this.dim(object, opacity));
+      // **Nur** mit echtem Kamerabild dahinter wird der Puffer durchsichtig.
+      //
+      // Ohne eines gibt es nichts durchzulassen, und ein Bild, das der
+      // Compositor mit Alpha 0 bekommt, hat er nicht anzuzeigen, sondern
+      // wegzublenden: was dann zu sehen ist, ist die vorige Ebene — auf einer
+      // Brille also das reprojizierte letzte Bild, das bei jeder Kopfdrehung
+      // hinterherzieht. Kleine helle Dinge sehen dabei aus, als bewegten sie
+      // sich mit dem Kopf mit, und genau so sah es aus. In einer VR-Sitzung
+      // bleibt der Hintergrund deshalb undurchsichtig — nur eben dunkel statt
+      // Himmel, damit man die Welt trotzdem als Umriss sieht.
+      if (SeeThrough.passthrough(renderer)) {
+        scene.background = null;
+        renderer.setClearAlpha(0);
+      } else {
+        scene.background = VOID;
+        renderer.setClearAlpha(1);
+      }
       return;
     }
 
