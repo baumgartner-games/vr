@@ -68,6 +68,8 @@ export class Kart extends THREE.Group {
   private readonly rollers: THREE.Object3D[] = [];
   private readonly sign: TextPlane;
   private readonly hover: TextPlane;
+  /** Der Name des Mitspielers, der darin sitzt — `null`, solange es frei ist. */
+  private takenBy: string | null = null;
   private readonly progress: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly brakeLight: THREE.MeshStandardMaterial;
   private readonly owned: THREE.Material[] = [];
@@ -257,6 +259,39 @@ export class Kart extends THREE.Group {
     this.sign.visible = seated;
     this.progress.visible = false;
     if (seated) this.refreshSign();
+    else this.drawHover();
+  }
+
+  /**
+   * Wer sonst darin sitzt — ein Name, oder `null` für frei.
+   *
+   * Das Schild über einem fremden Kart sagt sonst weiter „Lenkrad greifen zum
+   * Einsteigen", und man greift danach, während jemand anderes damit um die
+   * Kurve fährt.
+   */
+  setTaken(name: string | null): void {
+    // Zwanzigmal in der Sekunde kommt eine Pose herein, und jede fragt hier
+    // nach. Ein Schild neu zu zeichnen heißt eine Textur neu zu malen — also
+    // nur, wenn sich wirklich etwas geändert hat.
+    if (this.takenBy === name) return;
+    this.takenBy = name;
+    this.drawHover();
+  }
+
+  /** Das Schild über einem Kart, das niemand fährt. */
+  private drawHover(): void {
+    if (this.sign.visible) return;
+    this.hover.setText(
+      this.preset.name,
+      this.takenBy
+        ? `Besetzt · ${this.takenBy}`
+        : `${this.preset.tagline} · Lenkrad greifen zum Einsteigen`,
+    );
+  }
+
+  /** True, solange ein Mitspieler darin sitzt. */
+  get taken(): boolean {
+    return this.takenBy !== null;
   }
 
   /** The exit hint, with whatever the steering is set to right now. */

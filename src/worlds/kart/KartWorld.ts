@@ -26,12 +26,20 @@ import {
 } from './kartSettings';
 import {
   confineToTrack,
-  lapDelta,
   nearestOnPath,
   pathLength,
   sampleClosedSpline,
   type Vec2,
 } from './kartTrack';
+import {
+  formatLap,
+  raceLines,
+  standings,
+  startLap,
+  stepLap,
+  type LapState,
+  type Racer,
+} from './kartRace';
 
 /**
  * The circuit, as a dozen points the tarmac is drawn through. A short lap on
@@ -52,6 +60,18 @@ const TRACK: Vec2[] = [
   { x: -18, z: -8 },
   { x: -10, z: -15 },
 ];
+
+/** Der Kanal, auf dem die Karts der anderen fahren. */
+const CHANNEL = 'kart';
+/** Zwanzig Posen in der Sekunde: genug für ein Kart, wenig für einen Datenkanal. */
+const SEND_INTERVAL = 1 / 20;
+/**
+ * Ein fremdes Kart läuft der empfangenen Pose weich hinterher statt auf sie zu
+ * springen — zwischen zwei Nachrichten liegt bei Tempo 60 fast ein Meter.
+ */
+const FOLLOW_TAU = 0.06;
+/** Ab diesem Abstand wird doch gesprungen: ein verlorenes Paket, ein Reset. */
+const SNAP_DISTANCE = 3;
 
 /** Half the width of the tarmac. */
 const HALF_WIDTH = 3.2;
@@ -111,6 +131,44 @@ const _quaternion = new THREE.Quaternion();
  * same shared session. The belt starts out empty here: both triggers have a
  * job in this world.
  */
+/** Was auf dem Kanal hin und her geht. */
+type KartMessage =
+  /** „Ich bin neu hier — wer sitzt wo?" */
+  | { t: 'hello' }
+  /** Ein Platz wird beansprucht oder geräumt. */
+  | { t: 'seat'; kart: number | null; name: string }
+  /** Eine Pose samt Rundenstand, zwanzigmal in der Sekunde. */
+  | {
+      t: 'drive';
+      kart: number;
+      x: number;
+      z: number;
+      yaw: number;
+      steer: number;
+      laps: number;
+      progress: number;
+      last: number | null;
+      best: number | null;
+    }
+  /** Jemand hat alle Karts in die Box gestellt. */
+  | { t: 'home' };
+
+/** Ein Mitspieler in einem Kart, so wie er hier ankommt. */
+interface Rival {
+  name: string;
+  /** Der Index des Karts, in dem er sitzt. */
+  kart: number;
+  laps: number;
+  progress: number;
+  lastLap: number | null;
+  bestLap: number | null;
+  /** Wohin sein Kart unterwegs ist — dorthin wird nachgezogen. */
+  target: { x: number; z: number; yaw: number };
+  steer: number;
+  /** Die erste Nachricht setzt, jede weitere zieht nach. */
+  primed: boolean;
+}
+
 export class KartWorld extends PortalWorld {
   /** The centre line, smoothed out of `TRACK`. */
   private readonly path = sampleClosedSpline(TRACK, 10);
@@ -139,11 +197,11 @@ export class KartWorld extends PortalWorld {
   private wheelGrab: { hand: Handedness; angle: number } | null = null;
   /** Stick steering, eased so a flick of the thumb is not a flick of the kart. */
   private steer = 0;
-  private lapTime = 0;
-  private lapProgress = 0;
-  private lastAlong = 0;
-  private lastLap: number | null = null;
-  private bestLap: number | null = null;
+  /** Der eigene Rundenstand (`kartRace.ts`, mit Test). */
+  private lap: LapState = startLap(0);
+  /** Die Mitfahrer, nach Peer-Id — jeder in genau einem Kart. */
+  private readonly rivals = new Map<string, Rival>();
+  private sendTimer = 0;
   private lapBoard: TextPlane | null = null;
   private boardTick = 0;
 
@@ -167,13 +225,17 @@ export class KartWorld extends PortalWorld {
         // Once somebody is sitting in a kart, no steering wheel listens to a
         // laser any more: there is nothing left to select, and a ray resting
         // on the wheel in front of you would swallow the throttle trigger.
-        ignore: () => this.driving !== null,
+        ignore: () => this.driving !== null || this.takenByOther(kart),
         onSelect: () => this.enter(ctx, kart),
       });
       ctx.pointer.add(kart.board.asPointerTarget());
       this.boardTargets.push(kart.wheelTarget, kart.board);
       this.showBoard(kart);
     }
+
+    // Ein Rennen ist erst eines, wenn das Kart des anderen mitfährt.
+    ctx.net.on(CHANNEL, (data, from) => this.receive(ctx, data as KartMessage, from));
+    ctx.net.emit(CHANNEL, { t: 'hello' } satisfies KartMessage);
 
     this.onKeyDown = (event) => {
       if (FLAT_KEYS[event.code]) this.pressed.add(event.code);
@@ -188,6 +250,8 @@ export class KartWorld extends PortalWorld {
 
     if (this.driving) this.updateDriving(dt, ctx, this.driving);
     else this.checkBoarding(ctx);
+    this.updateRivals(dt, ctx);
+    this.updateSend(dt);
 
     ctx.rig.getHeadPosition(_head);
     for (const kart of this.karts) kart.faceHover(_head);
@@ -201,6 +265,12 @@ export class KartWorld extends PortalWorld {
   }
 
   override dispose(ctx: WorldContext): void {
+    // Erst aussteigen, dann abmelden: der Platz soll nicht besetzt bleiben,
+    // nur weil jemand die Welt gewechselt hat.
+    if (this.driving) this.leave(ctx);
+    ctx.net.emit(CHANNEL, { t: 'seat', kart: null, name: ctx.net.name } satisfies KartMessage);
+    ctx.net.off(CHANNEL);
+    this.rivals.clear();
     if (this.onKeyDown) window.removeEventListener('keydown', this.onKeyDown);
     if (this.onKeyUp) window.removeEventListener('keyup', this.onKeyUp);
     this.onKeyDown = null;
@@ -235,6 +305,7 @@ export class KartWorld extends PortalWorld {
             kart.returnHome();
             this.syncBody(kart);
           }
+          this.context?.net.emit(CHANNEL, { t: 'home' } satisfies KartMessage);
           this.context?.notify('Karts stehen wieder auf dem Start');
         },
       },
@@ -245,8 +316,8 @@ export class KartWorld extends PortalWorld {
         icon: 'stopwatch',
         accent: 0x5ee0a0,
         run: () => {
-          this.bestLap = null;
-          this.lastLap = null;
+          this.lap = { ...this.lap, laps: 0, lastLap: null, bestLap: null };
+          this.announceSeat();
           this.drawLapBoard();
           this.context?.notify('Rundenzeiten gelöscht');
         },
@@ -351,16 +422,19 @@ export class KartWorld extends PortalWorld {
 
   private enter(ctx: WorldContext, kart: Kart): void {
     if (this.driving) return;
+    if (this.takenByOther(kart)) {
+      ctx.notify(`${kart.preset.name} ist besetzt`);
+      return;
+    }
     this.driving = kart;
     this.exitHeld = 0;
     this.steer = 0;
     this.wheelGrab = null;
-    this.lapTime = 0;
-    this.lapProgress = 0;
-    this.lastAlong = nearestOnPath(this.path, kart.motion.x, kart.motion.z).along;
+    this.lap = startLap(nearestOnPath(this.path, kart.motion.x, kart.motion.z).along);
     kart.setSeated(true);
     ctx.rig.frozen = true;
     this.seatDriver(ctx, kart);
+    this.announceSeat();
     playPick(true);
     ctx.notify(`${kart.preset.name} · Aussteigen: A/X halten`);
   }
@@ -385,6 +459,7 @@ export class KartWorld extends PortalWorld {
     ctx.rig.frozen = false;
     ctx.rig.placeAt(_spot, kart.motion.yaw);
     ctx.rig.locomotion.resync?.(ctx.rig);
+    this.announceSeat();
     playPick(false);
     ctx.notify('Ausgestiegen');
   }
@@ -542,25 +617,22 @@ export class KartWorld extends PortalWorld {
 
   /** How far round the lap the kart has come, and what that was worth. */
   private updateLap(dt: number, ctx: WorldContext, kart: Kart): void {
-    this.lapTime += dt;
     const hit = nearestOnPath(this.path, kart.motion.x, kart.motion.z);
-    this.lapProgress += lapDelta(this.lastAlong, hit.along, this.lapLength);
-    this.lastAlong = hit.along;
-    if (this.lapProgress < this.lapLength) return;
+    const step = stepLap(this.lap, hit.along, this.lapLength, dt);
+    this.lap = step.state;
+    if (!step.completed || this.lap.lastLap === null) return;
 
-    this.lapProgress -= this.lapLength;
-    this.lastLap = this.lapTime;
-    this.lapTime = 0;
-    const record = this.bestLap === null || this.lastLap < this.bestLap;
-    if (record) this.bestLap = this.lastLap;
     playTone({
       type: 'sine',
-      from: record ? 620 : 480,
-      to: record ? 980 : 620,
+      from: step.record ? 620 : 480,
+      to: step.record ? 980 : 620,
       duration: 0.22,
       gain: 0.07,
     });
-    ctx.notify(`Runde ${formatLap(this.lastLap)}${record ? ' · Bestzeit!' : ''}`);
+    // Allein sagt eine Runde die Zeit; im Feld sagt sie außerdem, wo man
+    // damit steht — das ist beim Rennen die eigentliche Auskunft.
+    const place = this.rivals.size > 0 ? ` · P${this.position()}` : '';
+    ctx.notify(`Runde ${formatLap(this.lap.lastLap)}${step.record ? ' · Bestzeit!' : ''}${place}`);
     this.drawLapBoard();
   }
 
@@ -916,13 +988,247 @@ export class KartWorld extends PortalWorld {
     return { x: 0, z: 0, tx: 0, tz: -1, nx: -1, nz: 0 };
   }
 
+  /**
+   * Die Tafel: allein die eigenen Zeiten, zu mehreren das Feld.
+   *
+   * Wer allein fährt, will wissen, ob die letzte Runde besser war als die
+   * beste. Wer zu zweit fährt, will wissen, ob er vorn liegt — und dafür ist
+   * eine Bestzeit die falsche Antwort.
+   */
   private drawLapBoard(): void {
     if (!this.lapBoard) return;
-    const running = this.driving ? `Läuft: ${formatLap(this.lapTime)}` : 'Kein Kart besetzt';
+    const running = this.driving ? `Läuft: ${formatLap(this.lap.time)}` : 'Kein Kart besetzt';
+    if (this.rivals.size === 0) {
+      this.lapBoard.setText(
+        this.lap.lastLap === null ? 'Noch keine Runde' : `Letzte ${formatLap(this.lap.lastLap)}`,
+        `${this.lap.bestLap === null ? 'Beste: —' : `Beste: ${formatLap(this.lap.bestLap)}`} · ${running}`,
+      );
+      return;
+    }
+    const net = this.context?.net;
+    const lines = net ? raceLines(this.racers(), net.localId) : [];
     this.lapBoard.setText(
-      this.lastLap === null ? 'Noch keine Runde' : `Letzte ${formatLap(this.lastLap)}`,
-      `${this.bestLap === null ? 'Beste: —' : `Beste: ${formatLap(this.bestLap)}`} · ${running}`,
+      `P${this.position()} von ${lines.length} · ${running}`,
+      lines.join('   '),
     );
+  }
+
+  // --- zu zweit fahren ------------------------------------------------------
+
+  /**
+   * Das ganze Feld, eigenes Kart eingeschlossen — die Grundlage für
+   * Reihenfolge und Tafel (`kartRace.ts`, mit Test).
+   */
+  private racers(): Racer[] {
+    const net = this.context?.net;
+    const field: Racer[] = [];
+    if (net) {
+      field.push({
+        id: net.localId,
+        name: net.name,
+        kart: this.driving ? this.karts.indexOf(this.driving) : null,
+        laps: this.lap.laps,
+        progress: this.lap.progress,
+        lastLap: this.lap.lastLap,
+        bestLap: this.lap.bestLap,
+      });
+    }
+    for (const [id, rival] of this.rivals) {
+      field.push({
+        id,
+        name: rival.name,
+        kart: rival.kart,
+        laps: rival.laps,
+        progress: rival.progress,
+        lastLap: rival.lastLap,
+        bestLap: rival.bestLap,
+      });
+    }
+    return field;
+  }
+
+  /** Der eigene Platz im Feld, von eins an gezählt. */
+  private position(): number {
+    const net = this.context?.net;
+    if (!net) return 1;
+    return standings(this.racers()).findIndex((racer) => racer.id === net.localId) + 1;
+  }
+
+  /** Ob in diesem Kart schon ein Mitspieler sitzt. */
+  private takenByOther(kart: Kart): boolean {
+    const index = this.karts.indexOf(kart);
+    for (const rival of this.rivals.values()) {
+      if (rival.kart === index) return true;
+    }
+    return false;
+  }
+
+  /** Schreibt auf jedes Kart, wer darin sitzt — oder dass es frei ist. */
+  private markTaken(): void {
+    for (const kart of this.karts) {
+      let name: string | null = null;
+      const index = this.karts.indexOf(kart);
+      for (const rival of this.rivals.values()) {
+        if (rival.kart === index) name = rival.name;
+      }
+      kart.setTaken(name);
+    }
+  }
+
+  /** Sagt dem Raum, wo man sitzt — beim Ein- und beim Aussteigen. */
+  private announceSeat(): void {
+    const net = this.context?.net;
+    if (!net) return;
+    const message: KartMessage = {
+      t: 'seat',
+      kart: this.driving ? this.karts.indexOf(this.driving) : null,
+      name: net.name,
+    };
+    net.emit(CHANNEL, message);
+    if (this.driving) this.sendDrive(this.driving);
+  }
+
+  /** Eine Pose samt Rundenstand. */
+  private sendDrive(kart: Kart): void {
+    const net = this.context?.net;
+    if (!net) return;
+    const message: KartMessage = {
+      t: 'drive',
+      kart: this.karts.indexOf(kart),
+      x: round(kart.motion.x),
+      z: round(kart.motion.z),
+      yaw: round(kart.motion.yaw),
+      steer: round(kart.steerInput),
+      laps: this.lap.laps,
+      progress: round(this.lap.progress),
+      last: this.lap.lastLap,
+      best: this.lap.bestLap,
+    };
+    net.emit(CHANNEL, message);
+  }
+
+  private receive(ctx: WorldContext, message: KartMessage, from: string): void {
+    switch (message.t) {
+      case 'hello':
+        // Wer dazukommt, weiß von niemandem etwas; also sagt jeder einmal,
+        // wo er sitzt.
+        this.announceSeat();
+        return;
+      case 'seat': {
+        if (message.kart === null || !this.karts[message.kart]) {
+          this.releaseRival(from);
+          return;
+        }
+        const kart = this.karts[message.kart]!;
+        // Zwei Hände an einem Lenkrad: es gewinnt die kleinere Id. Das ist auf
+        // beiden Rechnern dieselbe Antwort und braucht keine Wahl.
+        if (this.driving === kart && from < ctx.net.localId) {
+          this.leave(ctx);
+          ctx.notify(`${kart.preset.name} war schon besetzt`);
+        }
+        const rival = this.rival(from, message.name);
+        rival.kart = message.kart;
+        rival.name = message.name || rival.name;
+        rival.primed = false;
+        this.markTaken();
+        this.drawLapBoard();
+        return;
+      }
+      case 'drive': {
+        if (!this.karts[message.kart]) return;
+        const rival = this.rival(from);
+        rival.kart = message.kart;
+        rival.laps = message.laps;
+        rival.progress = message.progress;
+        rival.lastLap = message.last;
+        rival.bestLap = message.best;
+        rival.steer = message.steer;
+        rival.target.x = message.x;
+        rival.target.z = message.z;
+        rival.target.yaw = message.yaw;
+        this.markTaken();
+        return;
+      }
+      case 'home': {
+        for (const kart of this.karts) {
+          // Das eigene Kart nicht: wer gerade fährt, würde sonst mitten in
+          // einer Kurve in der Box stehen.
+          if (kart === this.driving) continue;
+          kart.returnHome();
+          this.syncBody(kart);
+        }
+        for (const rival of this.rivals.values()) rival.primed = false;
+        return;
+      }
+    }
+  }
+
+  /** Der Eintrag zu einer Peer-Id, notfalls ein frischer. */
+  private rival(id: string, name?: string): Rival {
+    const existing = this.rivals.get(id);
+    if (existing) return existing;
+    const fresh: Rival = {
+      name: name || this.context?.net.peers.get(id)?.name || 'Mitspieler',
+      kart: 0,
+      laps: 0,
+      progress: 0,
+      lastLap: null,
+      bestLap: null,
+      target: { x: 0, z: 0, yaw: 0 },
+      steer: 0,
+      primed: false,
+    };
+    this.rivals.set(id, fresh);
+    return fresh;
+  }
+
+  /** Er ist ausgestiegen oder gegangen: sein Kart ist wieder frei. */
+  private releaseRival(id: string): void {
+    if (!this.rivals.delete(id)) return;
+    this.markTaken();
+    this.drawLapBoard();
+  }
+
+  /**
+   * Die Karts der anderen: sie fahren hier nicht, sie werden nachgezogen.
+   *
+   * Gerechnet wird ein Kart immer nur dort, wo jemand darin sitzt — das ist
+   * die einzige Stelle, an der Gas, Bremse und Lenkung wirklich bekannt sind.
+   * Alle anderen bekommen zwanzigmal in der Sekunde die Pose und laufen ihr
+   * weich hinterher; ein verlorenes Paket ist damit ein Ruckler und kein
+   * Kart, das durch die Leitplanke kriecht.
+   */
+  private updateRivals(dt: number, ctx: WorldContext): void {
+    for (const id of [...this.rivals.keys()]) {
+      if (!ctx.net.peers.has(id)) this.releaseRival(id);
+    }
+    const follow = 1 - Math.exp(-dt / FOLLOW_TAU);
+    for (const rival of this.rivals.values()) {
+      const kart = this.karts[rival.kart];
+      if (!kart || kart === this.driving) continue;
+      const before = { x: kart.motion.x, z: kart.motion.z };
+      const gap = Math.hypot(rival.target.x - kart.motion.x, rival.target.z - kart.motion.z);
+      const t = !rival.primed || gap > SNAP_DISTANCE ? 1 : follow;
+      kart.motion.x += (rival.target.x - kart.motion.x) * t;
+      kart.motion.z += (rival.target.z - kart.motion.z) * t;
+      kart.motion.yaw += shortestAngle(rival.target.yaw - kart.motion.yaw) * t;
+      rival.primed = true;
+      kart.applyMotion();
+      kart.showSteer(rival.steer);
+      kart.applySteering();
+      kart.roll(Math.hypot(kart.motion.x - before.x, kart.motion.z - before.z));
+      this.syncBody(kart);
+    }
+  }
+
+  /** Die eigene Pose hinaus, zwanzigmal in der Sekunde. */
+  private updateSend(dt: number): void {
+    const kart = this.driving;
+    if (!kart) return;
+    this.sendTimer += dt;
+    if (this.sendTimer < SEND_INTERVAL) return;
+    this.sendTimer = 0;
+    this.sendDrive(kart);
   }
 }
 
@@ -938,10 +1244,9 @@ function shortestAngle(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
-function formatLap(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds - minutes * 60;
-  return `${minutes}:${rest.toFixed(2).padStart(5, '0')}`;
+/** Millimeter und Milliradiant reichen über das Netz; der Rest ist Bandbreite. */
+function round(value: number): number {
+  return Math.round(value * 1000) / 1000;
 }
 
 /** The black and white squares of a start line, drawn once. */

@@ -1093,11 +1093,37 @@ Waffe später gehalten wird.
 
 ### Das Gokart
 
-Ein Kart ist drei reine Module und ein bisschen Verdrahtung:
+Ein Kart ist vier reine Module und ein bisschen Verdrahtung:
 `kartSettings.ts` (die Werte samt Bereich, Raste und Einheit — dieselbe Idee
-wie `weaponSettings.ts`), `kartDynamics.ts` (ein Schritt Fahren) und
-`kartTrack.ts` (die Strecke als Mittellinie plus halbe Breite). Alles drei ohne
+wie `weaponSettings.ts`), `kartDynamics.ts` (ein Schritt Fahren),
+`kartTrack.ts` (die Strecke als Mittellinie plus halbe Breite) und
+`kartRace.ts` (Runden, Reihenfolge, Tafel). Alle vier ohne
 three.js und mit Jest-Test; `Kart.ts` und `KartWorld.ts` sind nur noch Blech.
+
+**Zu zweit fahren.** Vier Karts standen auf dem Start, aber jeder bewegte nur
+seine eigenen: zwei Leute konnten nebeneinander herfahren, ohne voneinander
+etwas zu sehen — bei einer Rennstrecke ungefähr das Gegenteil dessen, wofür sie
+gebaut ist. Jetzt läuft die Welt über einen eigenen Kanal (`kart`):
+
+- **Wer einsteigt, beansprucht den Platz** (`seat`), und über einem fremden
+  Kart steht *Besetzt · Name* statt „Lenkrad greifen zum Einsteigen". Greifen
+  zwei im selben Moment zu, gewinnt die kleinere Peer-Id — dieselbe Antwort auf
+  beiden Rechnern, ohne Wahl und ohne Server.
+- **Gerechnet wird ein Kart nur dort, wo jemand darin sitzt.** Das ist die
+  einzige Stelle, an der Gas, Bremse und Lenkung wirklich bekannt sind; alle
+  anderen bekommen zwanzigmal in der Sekunde die Pose und laufen ihr weich
+  hinterher. Ein verlorenes Paket ist damit ein Ruckler und kein Kart, das
+  durch die Leitplanke kriecht. Das ist bewusst **nicht** das Wirt-Modell der
+  Props (`PortalSync`): dort rechnet einer für alle, hier rechnet jeder sein
+  eigenes Kart, weil die Eingaben nun einmal an der Hand hängen.
+- **Die Tafel wird zur Zeitnahme**: allein zeigt sie die eigene letzte und
+  beste Runde, im Feld die Reihenfolge — mehr Runden zuerst, bei gleicher
+  Runde der weiter Gekommene, die eigene Zeile mit einem Pfeil markiert
+  (`kartRace.ts`, mit Test). Eine gefahrene Runde meldet danach nicht nur die
+  Zeit, sondern auch den Platz: im Rennen ist das die eigentliche Auskunft.
+- **Was noch fehlt:** zwei Karts fahren durcheinander hindurch. Beide sind für
+  die Physik kinematisch, und zwei kinematische Körper stoßen sich in Rapier
+  nicht — Kegel und Kisten schieben sie weiterhin beide.
 
 **Das Fahrmodell** ist bewusst klein und arkadig: Gelenkt wird wie beim
 Fahrrad — Gierrate = Tempo · tan(Einschlag) / Radstand, also dreht ein

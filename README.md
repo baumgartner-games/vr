@@ -41,8 +41,8 @@ Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
 Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
 des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
-der Rechnung hinter der Boxhand am Werkzeug, die Fahrphysik und
-Streckenführung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
+der Rechnung hinter der Boxhand am Werkzeug, die Fahrphysik,
+Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte, den
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
 hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf
@@ -85,6 +85,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Kart: einsteigen | Lenkrad greifen (oder anzielen + Trigger) | Lenkrad anklicken | – |
 | Kart: fahren | rechter Trigger Gas, linker bremst, linker Stick lenkt | `W`/`S`, `A`/`D` | – |
 | Kart: aussteigen | `A`/`X` halten | `E` halten | – |
+| Kart: zu zweit | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge | dito | – |
 | Pizza: kneten | Faust auf den Teig auf dem Tisch schlagen | – | – |
 | Pizza: belegen | Kelle/Streuer greifen, Trigger halten | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
