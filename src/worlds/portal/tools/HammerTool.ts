@@ -149,7 +149,11 @@ export class HammerTool extends Tool {
 
     // Der **Griffbelag** über dem greifbaren Teil, in Türkis wie jeder Griff in
     // dieser Welt (`grabMaterial`). Er ist die einzige Auskunft darüber, dass
-    // hier nicht *eine* Stelle gemeint ist, sondern jede.
+    // hier nicht *eine* Stelle gemeint ist, sondern jede — und deshalb ist er
+    // auch **kein** Standardgriff (`grip.ts`): der ist eine Faust lang und sagt
+    // „hier", dieser ist siebenmal so lang und sagt „irgendwo hier". Ein
+    // Zylinder ohne Ellipse und ohne Rillen, denn beide zeigen eine Richtung an,
+    // und hier gibt es keine.
     const band = new THREE.Mesh(
       new THREE.CylinderGeometry(
         SHAFT_R * 1.35,

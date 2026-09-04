@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { rodHoldRotation } from './grip';
 import { playPick, playTone } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
@@ -84,21 +85,21 @@ export class WelderTool extends Tool {
     this.icon = 'weld';
     this.accent = 0x5ee0a0;
     this.hint = 'Zwei Punkte antippen · andere Hand wählt die Art';
-    this.holdPosition.set(0, -0.01, 0.02);
     // Reaching into a pile to pick a joint point must not scatter the pile.
     this.phaseHands = true;
+    // Ein Lötkolben ist ein Stab, und er wird gehalten wie einer: dieselbe Lage
+    // in der Hand wie die Taschenlampe, derselbe Griff, dieselbe eingemessene
+    // Faust (`gripFit.ts`). Vorher lag er wie eine Pistole in der Hand — sein
+    // Griff stand damit **103°** gegen den der Pistole, und die Faust dazu war
+    // trotzdem die der Pistole. Genau das sah man ihm an.
+    rodHoldRotation(this.holdRotation);
+    this.mountGrip('rod', { length: 0.085 });
 
-    const grip = grabMaterial({ roughness: 0.8 });
     const steel = new THREE.MeshStandardMaterial({
       color: 0xb9c2d4,
       roughness: 0.3,
       metalness: 0.7,
     });
-
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.02, 0.1, 14), grip);
-    handle.rotation.x = Math.PI / 2;
-    handle.position.set(0, 0, -0.01);
-    this.add(handle);
 
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.08, 12), steel);
     shaft.rotation.x = Math.PI / 2;

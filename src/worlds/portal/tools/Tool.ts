@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { aimRotation } from './aim';
+import { createGrip, type GripOptions } from './grip';
+import { GRIP_HOLD_POSITIONS } from './gripFit';
 import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../../core/colors';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
+import type { GripKind } from '../../../core/handPose';
 import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
 import type { PhysicsBody, PhysicsWorld } from '../../../physics/PhysicsWorld';
@@ -236,6 +239,44 @@ export abstract class Tool extends THREE.Group {
    */
   readonly factoryPosition = new THREE.Vector3();
   readonly factoryRotation = new THREE.Quaternion();
+
+  /**
+   * Der **Standardgriff**, den dieses Werkzeug trägt — `null`, wenn es einen
+   * eigenen hat oder gar keinen.
+   *
+   * Gesetzt wird er nicht von Hand, sondern von `mountGrip()`: wer den Griff
+   * anbaut, sagt damit auch, welcher es ist, und die beiden Auskünfte können
+   * nicht auseinanderlaufen. Wer ihn trägt, bekommt die dazu eingemessene Faust
+   * geschenkt (`TOOL_GRIPS` in `core/handPose.ts`).
+   */
+  gripKind: GripKind | null = null;
+
+  /** Wo der Griff im Werkzeug sitzt — `null`, solange keiner angebaut ist. */
+  gripPart: THREE.Object3D | null = null;
+
+  /**
+   * Baut den Standardgriff dorthin, wo er in der Faust landet.
+   *
+   * **Nach** `holdPosition`/`holdRotation` aufzurufen und nicht davor: wohin der
+   * Griff kommt, hängt daran, wie das Werkzeug in der Hand liegt (`gripFit.ts`).
+   * Die `holdPosition` setzt der Griff gleich selbst — sie ist bei allen
+   * Werkzeugen derselben Griffart dieselbe, und das ist die Bedingung, unter der
+   * die Rechnung ohne die Brille aufgeht.
+   *
+   * Was hier entsteht, ist die **gebaute** Lage. Wer das Werkzeug später am
+   * ersten Justierstand nachmisst, verschiebt es samt Griff gegen die Hand, und
+   * die Faust dazu gehört ihm dann selbst: der Griff ist Geometrie und wandert
+   * nicht hinterher. Genau dafür gibt es den zweiten Stand.
+   */
+  protected mountGrip(kind: GripKind, options?: GripOptions): THREE.Object3D {
+    const hold = GRIP_HOLD_POSITIONS[kind];
+    this.holdPosition.set(hold.x, hold.y, hold.z);
+    const grip = createGrip(kind, this.holdRotation, options);
+    this.add(grip);
+    this.gripPart = grip;
+    this.gripKind = kind;
+    return grip;
+  }
 
   /**
    * Things clipped onto this tool that carry a pose of their own — the sights

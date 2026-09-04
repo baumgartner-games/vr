@@ -73,10 +73,14 @@ export class FlashlightTool extends Tool {
     // Die Lampe liegt damit sichtbar schräg in der Faust — genau darum geht es:
     // ihr Kegel geht dort hinaus, wo bei einer Pistole der Lauf sitzt, also darf
     // sie nicht wie eine Pistole in der Hand liegen.
-    this.holdPosition.set(0.008, -0.014, 0.038);
     this.holdRotation.setFromEuler(
       new THREE.Euler((30 * Math.PI) / 180, (5 * Math.PI) / 180, (9 * Math.PI) / 180),
     );
+    // Und damit ist die Lampe die **Messlatte des Stabgriffs**: `mountGrip` legt
+    // ihn dorthin, wo diese Neigung ihn in der Faust landen lässt, und das ist
+    // genau die Mitte ihres Rohrs. Die `holdPosition` kommt von dort mit — es
+    // ist dieselbe Zahl, die vorher hier stand (`gripFit.ts`).
+    this.mountGrip('rod', { length: 0.1, waves: false });
 
     const body = new THREE.MeshStandardMaterial({
       color: 0x2b3242,
@@ -89,8 +93,11 @@ export class FlashlightTool extends Tool {
       metalness: 0.8,
     });
 
-    // The barrel lies along -Z, the direction every tool aims in.
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.024, 0.16, 20), body);
+    // Das Rohr liegt auf -Z. **Dünner** als der Griff darum: der Standardgriff
+    // ist der Griff, und ein Rohr, das dicker ist als er, verschluckt ihn. Das
+    // Werkzeug richtet sich nach dem Griff und nicht umgekehrt — darum geht es
+    // bei dieser ganzen Sache.
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.017, 0.16, 20), body);
     barrel.rotation.x = -Math.PI / 2;
     barrel.position.z = -0.03;
     this.add(barrel);

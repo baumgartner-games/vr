@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import type { ControllerState } from '../../../core/XRInput';
 import type { PropReport } from '../PortalWorld';
 
@@ -59,10 +59,10 @@ export class InspectTool extends Tool {
     body.position.set(0, 0, -0.04);
     this.add(body);
 
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.075, 0.04), grabMaterial());
-    grip.position.set(0, -0.05, 0.015);
-    grip.rotation.x = 0.2;
-    this.add(grip);
+    // Derselbe Griff wie an der Pistole (`grip.ts`). Seine Neigung stimmte hier
+    // schon fast — der Ort lag 2,8 cm daneben, weil die Zusatzneigung des
+    // Displays nicht mit eingerechnet war. `mountGrip` rechnet sie ein.
+    this.mountGrip('pistol', { length: 0.085 });
 
     const lens = new THREE.Mesh(
       new THREE.CylinderGeometry(0.012, 0.014, 0.02, 12),

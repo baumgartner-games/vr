@@ -19,6 +19,7 @@ import {
   quatIdentity,
   type Quat,
 } from './droneFlight';
+import { createGripShape } from './grip';
 import { JET_BELLY, JET_EYE, JetBody } from './droneJet';
 import { droneSettings, saveDroneSettings } from './gearStore';
 import { playTone } from '../../../core/Audio';
@@ -194,15 +195,22 @@ export class DroneTool extends Tool {
     this.deck.add(face);
 
     for (const side of [-1, 1] as const) {
-      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.135, 0.04), shell);
+      // Zwei **Standardgriffe** (`grip.ts`), einer je Hand: derselbe Zylinder
+      // wie an der Pistole, nur ein Stück länger, weil an einer Konsole die
+      // ganze Faust daran liegt. Vorher waren es zwei Kästen mit einem
+      // Gummiband darum — und die sagten über die Richtung, in der man
+      // zupacken soll, nichts.
+      //
+      // Die **Lage** ist hier nicht die des Standardgriffs: sie steckt im
+      // Gerät, denn die beiden Griffe sitzen an den Enden des Decks und nicht
+      // dort, wo ein Pistolengriff läge (5,5 cm tiefer, 20° anders gedreht —
+      // `gripFit.ts` misst es nach). Ein Gerät, das man mit zwei Fäusten wie
+      // eine Konsole hält, ist eben keine Pistole; deshalb steht es auch nicht
+      // in `TOOL_GRIPS` und behält seine eigene Faust.
+      const grip = createGripShape({ length: 0.13, thickness: 1.15, waves: false });
       grip.position.set(side * GRIP_X, -0.004, 0.006);
       grip.rotation.z = -side * 0.12;
       this.deck.add(grip);
-      // A rubber band around each grip, so it is obvious where the hands go.
-      const band = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.045), trim);
-      band.position.copy(grip.position);
-      band.rotation.copy(grip.rotation);
-      this.deck.add(band);
 
       const node = this.grips[side < 0 ? 'left' : 'right'];
       node.position.copy(grip.position);

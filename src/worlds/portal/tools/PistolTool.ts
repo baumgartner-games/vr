@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { createSight, type Attachment, type AttachmentContext } from './attachments';
 import { saveWeaponSettings, weaponSettings } from './gearStore';
 import {
@@ -91,9 +91,6 @@ export class PistolTool extends Tool {
       roughness: 0.35,
       metalness: 0.65,
     });
-    // Der Griff trägt die Greiffarbe: woran die Waffe genommen wird, soll man
-    // sehen, nicht raten.
-    const grip = grabMaterial({ roughness: 0.75 });
 
     this.slide = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.038, 0.17), steel);
     this.slide.position.set(0, 0.012, -0.06);
@@ -104,10 +101,11 @@ export class PistolTool extends Tool {
     barrel.position.set(0, 0.012, -0.155);
     this.add(barrel);
 
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.045), grip);
-    handle.position.set(0, -0.055, 0.01);
-    handle.rotation.x = -0.22;
-    this.add(handle);
+    // Der Griff: **der** Griff, derselbe wie an sechs anderen Werkzeugen, und
+    // er sitzt hier, wo er in der Faust landet (`grip.ts`). Die Pistole ist die
+    // Messlatte dafür — was hier gebaut wird, ist genau die Lage, die ihr
+    // Kasten in Greiffarbe vorher hatte, nur nicht mehr von Hand hingesetzt.
+    this.mountGrip('pistol', { length: 0.1 });
 
     const magazine = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.075, 0.032), steel);
     magazine.position.set(0, -0.052, 0.008);

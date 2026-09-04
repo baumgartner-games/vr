@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playPick, playTone } from '../../../core/Audio';
 import { MAX_SLOPE_DEG } from '../../../physics/PhysicsLocomotion';
 import type { ControllerState } from '../../../core/XRInput';
@@ -97,10 +97,9 @@ export class TeleportTool extends Tool {
     gate.position.set(0, 0.01, -0.12);
     this.add(gate);
 
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.04), grabMaterial());
-    handle.position.set(0, -0.05, 0.01);
-    handle.rotation.x = -0.2;
-    this.add(handle);
+    // Derselbe Griff wie an der Pistole (`grip.ts`) — hier saß er ohnehin fast
+    // richtig, jetzt sitzt er es.
+    this.mountGrip('pistol');
 
     this.muzzle.position.set(0, 0.01, -0.13);
     this.add(this.muzzle);

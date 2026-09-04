@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playPick, playTone } from '../../../core/Audio';
 import type { ControllerState } from '../../../core/XRInput';
 
@@ -54,7 +54,6 @@ export class GrappleTool extends Tool {
     const dark = new THREE.MeshStandardMaterial({ color: 0x243044, roughness: 0.7 });
     // Nur der Handgriff, nicht die Trommel: die Greiffarbe zeigt auf genau eine
     // Stelle, sonst zeigt sie auf nichts.
-    const grip = grabMaterial({ roughness: 0.7 });
 
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.13), steel);
     body.position.set(0, 0.01, -0.05);
@@ -70,10 +69,8 @@ export class GrappleTool extends Tool {
     barrel.position.set(0, 0.01, -0.14);
     this.add(barrel);
 
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.04), grip);
-    handle.position.set(0, -0.05, 0.005);
-    handle.rotation.x = -0.2;
-    this.add(handle);
+    // Derselbe Griff wie an der Pistole (`grip.ts`).
+    this.mountGrip('pistol');
 
     this.muzzle.position.set(0, 0.01, -0.19);
     this.add(this.muzzle);

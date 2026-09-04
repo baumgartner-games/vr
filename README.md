@@ -42,7 +42,8 @@ Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
 Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
 des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
-der Rechnung hinter der Boxhand am Werkzeug, den Griff am Stiel des großen
+der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
+Haltung an derselben Stelle in der Faust landet, den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
 Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte, den

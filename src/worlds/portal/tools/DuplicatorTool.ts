@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playPick } from '../../../core/Audio';
 import type { ControllerState } from '../../../core/XRInput';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
@@ -66,10 +66,10 @@ export class DuplicatorTool extends Tool {
     body.position.set(0, 0.01, -0.05);
     this.add(body);
 
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.085, 0.045), grabMaterial());
-    grip.position.set(0, -0.05, 0.02);
-    grip.rotation.x = 0.18;
-    this.add(grip);
+    // Derselbe Griff wie an der Pistole, an derselben Stelle in der Faust
+    // (`grip.ts`). Vorher lehnte er hier um 0,18 rad nach *vorn* und damit 23°
+    // gegen den der Pistole — bei derselben Faust für beide.
+    this.mountGrip('pistol');
 
     // Zwei Ringe, zwischen denen es blitzt: die Kopie „entsteht" sichtbar.
     this.coil = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 8, 20), trim);

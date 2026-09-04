@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { GRAB_GLOW, GRAB_IDLE, GRAB_TINT } from '../../../core/colors';
 import { playPick } from '../../../core/Audio';
 import { DEFAULT_BELT, beltLabel, dragBelt, type BeltOffset } from '../beltSettings';
@@ -87,10 +87,9 @@ export class HolsterTool extends Tool {
     body.position.set(0, 0, -0.035);
     this.add(body);
 
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.07, 0.04), grabMaterial());
-    grip.position.set(0, -0.048, 0.015);
-    grip.rotation.x = 0.2;
-    this.add(grip);
+    // Derselbe Griff wie an der Pistole (`grip.ts`). Vorher lehnte er nach vorn
+    // und damit 24° gegen den der Pistole — die größte der alten Abweichungen.
+    this.mountGrip('pistol', { length: 0.08 });
 
     // Vorne ein Ring in derselben Form wie die Hüften selbst: das Werkzeug
     // sagt damit, worauf es sich versteht.

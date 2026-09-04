@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { matchAxes, type AxisMatch, type Basis } from './axisMatch';
 import { playPick } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
@@ -120,14 +120,13 @@ export class TransformTool extends Tool {
       roughness: 0.35,
       metalness: 0.6,
     });
-    const grip = grabMaterial({ roughness: 0.7 });
 
     const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.13), body);
     shaft.position.set(0, 0, -0.05);
     this.add(shaft);
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.08, 0.04), grip);
-    handle.position.set(0, -0.05, 0.015);
-    this.add(handle);
+    // Derselbe Griff wie an der Pistole (`grip.ts`). Vorher stand er hier
+    // senkrecht, also 13° gegen den der Pistole gekippt.
+    this.mountGrip('pistol', { length: 0.09 });
     for (const side of [-1, 1]) {
       const prong = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.06), body);
       prong.position.set(side * 0.016, 0, -0.14);

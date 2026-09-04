@@ -220,6 +220,26 @@ export {
   type Shaft,
   type Span,
 } from './poleGrip';
+export {
+  GRIP_DEPTH,
+  GRIP_LENGTH,
+  GRIP_NAME,
+  GRIP_WIDTH,
+  ROD_GRIP_ROTATION,
+  createGrip,
+  createGripShape,
+  rodHoldRotation,
+  type GripOptions,
+} from './grip';
+export {
+  GRIP_HOLD_POSITIONS,
+  STANDARD_GRIPS,
+  gripDeviation,
+  gripInTool,
+  holdForGrip,
+  type GripDeviation,
+  type GripPose,
+} from './gripFit';
 export { createSight, Attachment, type AttachmentContext } from './attachments';
 export {
   DEFAULT_MATERIAL,

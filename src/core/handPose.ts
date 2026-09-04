@@ -120,27 +120,49 @@ export const HOLD_HAND_POSE: HandPose = {
 };
 
 /**
- * **Eingemessene** Griffe, je Werkzeug — gemessen an der *rechten* Hand.
+ * Welchen **Standardgriff** ein Werkzeug trägt.
  *
- * Die Faust oben ist die Haltung, aus der eine Hand *gebaut* ist: sie sitzt
- * genau auf dem Griffpunkt und schaut geradeaus. Für ein Werkzeug ist sie
- * bestenfalls ein Anfang, denn wie eine Hand ein Ding umfasst, hängt am Ding:
- * an einer Pistole zeigt der Zeigefinger dorthin, wohin der Lauf zeigt, an
- * einer Taschenlampe zeigt dieselbe Haltung schräg in die Luft, weil deren
- * Kegel dort hinausgeht, wo bei der Pistole der Lauf sitzt.
+ * Zwei, und beide sind derselbe Zylinder in derselben Faust — sie hängen nur
+ * verschieden daran:
  *
- * Was hier steht, ist am zweiten Justierstand im Eingaberaum gemessen
- * (`worlds/tune/GripStand.ts`) und gilt für **beide** Hände: rechts wie
- * gemessen, links als deren Spiegelung. Zwei getrennt gepflegte Zahlenreihen
- * wären genau die Sorte Abweichung, die niemand bemerkt — eine Hand, die
- * anders greift als die andere, sieht man nicht, man wundert sich nur.
+ * - `pistol` — quer zur Griffachse angebaut. Der Zeigefinger zeigt dorthin,
+ *   wohin das Werkzeug zeigt, und deshalb liegt die Faust an einer Pistole so
+ *   selbstverständlich, dass dort nie etwas einzustellen war.
+ * - `rod` — längs der Griffachse angebaut, das Werkzeug liegt in der Faust wie
+ *   ein Stab. Eine Taschenlampe ist das: ihr Kegel geht dort hinaus, wo bei der
+ *   Pistole der Lauf sitzt, also *kann* sie nicht wie eine Pistole liegen.
+ *
+ * Wo die beiden Griffe im Werkzeug sitzen müssen, rechnet
+ * `worlds/portal/tools/gripFit.ts` — hier steht nur, welche **Faust** dazu
+ * gehört.
  */
-export const MEASURED_HOLDS: Record<string, HandPose> = {
-  // Zuletzt eingemessen und als Konfig-Code `BPNDLdWgZ9NvBevCHScPckXK`
-  // übergeben — rechte Hand. Die Werte davor (x 4 · y -2,8 · z 1,7 cm,
-  // -44/26/-105°) waren die erste Runde am Stand und liegen rund 15° daneben;
-  // es gilt die spätere Messung, siehe oben.
-  flashlight: {
+export type GripKind = 'pistol' | 'rod';
+
+/**
+ * Die Faust **je Standardgriff** — gemessen an der *rechten* Hand.
+ *
+ * Und das ist der ganze Punkt: nicht je Werkzeug. Wer denselben Zylinder auf
+ * dieselbe Weise anbaut, hält ihn auch gleich, und dann ist eine zweite Messung
+ * keine zweite Auskunft, sondern eine zweite Gelegenheit, daneben zu liegen. Es
+ * gibt so viele Fäuste, wie es Arten gibt, ein Ding anzufassen — zwei —, und
+ * nicht so viele, wie es Werkzeuge gibt.
+ *
+ * Beide gelten für **beide** Hände: rechts wie gemessen, links als deren
+ * Spiegelung. Zwei getrennt gepflegte Zahlenreihen wären genau die Sorte
+ * Abweichung, die niemand bemerkt — eine Hand, die anders greift als die
+ * andere, sieht man nicht, man wundert sich nur.
+ */
+export const GRIP_HAND_POSES: Record<GripKind, HandPose> = {
+  // Die gebaute Faust: sie sitzt auf dem Griffpunkt und schaut geradeaus, und an
+  // einer Pistole sieht das richtig aus — deshalb stand hier für sie nie etwas
+  // anderes.
+  pistol: HOLD_HAND_POSE,
+  // Am zweiten Justierstand an der **Taschenlampe** eingemessen und als
+  // Konfig-Code `BPNDLdWgZ9NvBevCHScPckXK` übergeben — rechte Hand. Die Werte
+  // davor (x 4 · y -2,8 · z 1,7 cm, -44/26/-105°) waren die erste Runde am
+  // Stand und liegen rund 15° daneben; es gilt die spätere Messung. Sie gilt ab
+  // jetzt für **jeden** Stabgriff und nicht mehr nur für die Lampe.
+  rod: {
     ...HOLD_HAND_POSE,
     x: 3.6,
     y: -1.8,
@@ -152,15 +174,39 @@ export const MEASURED_HOLDS: Record<string, HandPose> = {
 };
 
 /**
+ * Welches Werkzeug welchen Standardgriff trägt.
+ *
+ * Eine Tabelle und keine Frage an das Werkzeug, weil eine Hand gezeichnet wird,
+ * lange bevor irgendwo ein Werkzeug gebaut ist — und weil eine Liste, die man
+ * lesen kann, hier mehr wert ist als eine, die man sich zusammensuchen muss.
+ * Dass sie zu dem passt, was die Werkzeuge wirklich anbauen, hält
+ * `worlds/portal/tools/gripFit.test.ts` fest.
+ */
+export const TOOL_GRIPS: Record<string, GripKind> = {
+  pistol: 'pistol',
+  duplicator: 'pistol',
+  inspect: 'pistol',
+  teleport: 'pistol',
+  gizmo: 'pistol',
+  holster: 'pistol',
+  grapple: 'pistol',
+  flashlight: 'rod',
+  welder: 'rod',
+};
+
+/**
  * Die gebaute Haltung, in der eine Hand ein bestimmtes Werkzeug hält.
  *
- * Ohne Messung die allgemeine Faust; mit einer die gemessene, für die linke
- * Hand gespiegelt. Der Speicher legt sich darüber, wenn jemand selbst justiert
+ * Trägt es einen Standardgriff, ist es die Faust zu diesem Griff — für die linke
+ * Hand gespiegelt. Trägt es keinen, bleibt die allgemeine Faust: sie ist kein
+ * Ergebnis, sondern ein Anfang, und dann führt der Weg über den zweiten
+ * Justierstand. Der Speicher legt sich über beides, wenn jemand selbst justiert
  * hat (`handPoseStore.ts`).
  */
 export function defaultHoldPose(hand: Handedness, toolId: string): HandPose {
-  const measured = MEASURED_HOLDS[toolId];
-  if (!measured) return clonePose(HOLD_HAND_POSE);
+  const kind = TOOL_GRIPS[toolId];
+  if (!kind) return clonePose(HOLD_HAND_POSE);
+  const measured = GRIP_HAND_POSES[kind];
   return hand === 'right' ? clonePose(measured) : mirrorHandPose(measured);
 }
 
