@@ -51,6 +51,20 @@ describe('Hub-Auslegung', () => {
     }
   });
 
+  it('dreht jedes Tor schräg zum Eingang', () => {
+    // Genau quer sieht man beim Hineingehen nur die Kante des Rings.
+    const layout = layoutHub(9);
+    for (const gate of layout.gates) {
+      const direction = corridorDirection(layout.corridors[gate.corridor]!.angle);
+      const facing = { x: Math.sin(gate.yaw), z: Math.cos(gate.yaw) };
+      // Zeigt zurück zur Halle …
+      expect(facing.x * -direction.x + facing.z * -direction.z).toBeGreaterThan(0.1);
+      // … aber überwiegend quer über den Gang, nicht den Gang hinunter.
+      const side = { x: -direction.z, z: direction.x };
+      expect(Math.abs(facing.x * side.x + facing.z * side.z)).toBeGreaterThan(0.5);
+    }
+  });
+
   it('stellt keine zwei Tore aufeinander', () => {
     // Genau der Fehler, den der alte Bogen mit neun Welten hatte.
     const layout = layoutHub(12);
@@ -59,6 +73,15 @@ describe('Hub-Auslegung', () => {
         if (a === b) continue;
         expect(distance(a, b)).toBeGreaterThan(3);
       }
+    }
+  });
+
+  it('lässt jeden Gang erst am Rand der Halle anfangen', () => {
+    // Sonst stünden seine Wände quer durch die Halle, und der Spieler
+    // spawnt zwischen ihnen — genau das sah man beim ersten Versuch.
+    for (const corridor of layoutHub(9).corridors) {
+      expect(corridor.start).toBeGreaterThan(HALL_RADIUS - 1);
+      expect(corridor.start).toBeLessThan(corridor.length);
     }
   });
 

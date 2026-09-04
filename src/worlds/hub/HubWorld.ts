@@ -58,7 +58,9 @@ export class HubWorld implements World {
       align: 'center',
       accent: 0x4aa8ff,
     });
-    title.position.set(0, 5.2, 0);
+    // Über dem Eingang des ersten Gangs: hoch genug, um über den Toren zu
+    // stehen, tief genug, um beim Blick geradeaus im Bild zu sein.
+    title.position.set(0, 4.3, -1.5);
     this.root.add(title);
 
     const hint = new TextPlane({
@@ -68,7 +70,7 @@ export class HubWorld implements World {
       body: 'Beide Hände: Menü-Button. Zielen + Trigger wählt. Stick: gehen, rechts: drehen.',
       accent: 0x9d7bff,
     });
-    hint.position.set(-3.4, 1.6, 3.4);
+    hint.position.set(-3.8, 1.6, 3.2);
     hint.rotation.y = Math.PI / 4.5;
     this.root.add(hint);
 
@@ -169,41 +171,49 @@ function buildCorridor(corridor: HubLayout['corridors'][number]): THREE.Group {
   group.rotation.y = corridor.angle;
 
   const half = corridor.width / 2;
-  const length = corridor.length;
+  // Der Gang fängt am Rand der Halle an und geht von dort nach außen; die
+  // Mitte des Bauteils liegt also zwischen Anfang und Ende, nicht im Zentrum.
+  const run = corridor.length - corridor.start;
+  const middle = -(corridor.start + run / 2);
   const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x33405f,
+    color: 0x3b4a70,
     roughness: 0.9,
     metalness: 0.05,
   });
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x222d47, roughness: 0.85 });
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x2f3b5e, roughness: 0.85 });
 
   // Der Gang liegt entlang −Z; die Gruppe dreht ihn an seinen Platz.
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(corridor.width, length), floorMaterial);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(corridor.width, run), floorMaterial);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, 0.012, -length / 2);
+  floor.position.set(0, 0.012, middle);
   group.add(floor);
 
   for (const side of [-1, 1] as const) {
-    const wall = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, WALL_HEIGHT, length),
-      wallMaterial,
-    );
-    wall.position.set(side * (half + 0.15), WALL_HEIGHT / 2, -length / 2);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.3, WALL_HEIGHT, run), wallMaterial);
+    wall.position.set(side * (half + 0.15), WALL_HEIGHT / 2, middle);
     group.add(wall);
 
     const strip = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.06, length - 0.6),
+      new THREE.BoxGeometry(0.06, 0.06, run - 0.6),
       new THREE.MeshBasicMaterial({ color: 0x9ec4ff, toneMapped: false }),
     );
-    strip.position.set(side * half, WALL_HEIGHT - 0.25, -length / 2);
+    strip.position.set(side * half, WALL_HEIGHT - 0.25, middle);
     group.add(strip);
+  }
+
+  // Zwei Lampen je Gang: ein Gang ohne eigenes Licht ist ein schwarzes Loch,
+  // in das niemand hineingeht.
+  for (const at of [0.35, 0.8]) {
+    const lamp = new THREE.PointLight(0xbcd8ff, 26, corridor.width * 4, 2);
+    lamp.position.set(0, WALL_HEIGHT - 0.5, -(corridor.start + run * at));
+    group.add(lamp);
   }
 
   const end = new THREE.Mesh(
     new THREE.BoxGeometry(corridor.width + 0.6, WALL_HEIGHT, 0.3),
     wallMaterial,
   );
-  end.position.set(0, WALL_HEIGHT / 2, -length);
+  end.position.set(0, WALL_HEIGHT / 2, -corridor.length);
   group.add(end);
 
   return group;

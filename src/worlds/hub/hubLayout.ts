@@ -19,7 +19,7 @@
 /** Radius der Halle in der Mitte. */
 export const HALL_RADIUS = 7;
 /** Lichte Breite eines Gangs. */
-export const CORRIDOR_WIDTH = 5.4;
+export const CORRIDOR_WIDTH = 7;
 /** Wie viele Tore in einen Gang passen — zwei je Seite. */
 export const GATES_PER_CORRIDOR = 4;
 /** Abstand zweier Tore *derselben* Seite entlang des Gangs. */
@@ -28,6 +28,15 @@ export const GATE_SPACING = 7.5;
 export const FIRST_GATE = 4;
 /** Was hinter dem letzten Tor noch Gang ist, damit er nicht abrupt endet. */
 export const CORRIDOR_TAIL = 4.5;
+/**
+ * Wie weit ein Tor aus der Wand heraus zur Halle hin eingedreht ist.
+ *
+ * Genau quer wäre richtig, wenn man davorsteht — beim Hineingehen sieht man
+ * dann aber nur die Kante des Rings und liest kein einziges Schild. Also
+ * schauen die Tore schräg zurück zum Eingang: von dort erkennbar, davor
+ * immer noch bequem.
+ */
+export const GATE_TURN_IN = Math.PI / 5;
 
 export interface GatePlacement {
   /** Index in der Welten-Liste — die Reihenfolge bleibt die der Registry. */
@@ -42,6 +51,11 @@ export interface GatePlacement {
 export interface CorridorPlacement {
   /** 0 zeigt geradeaus vom Start weg (−Z), dann im Uhrzeigersinn. */
   angle: number;
+  /**
+   * Wo der Gang anfängt: am Rand der Halle, nicht in ihrer Mitte. Ohne das
+   * stünden seine Wände quer durch die Halle — und der Spieler zwischen ihnen.
+   */
+  start: number;
   length: number;
   width: number;
   /** Wie viele Tore in diesem Gang stehen. */
@@ -90,13 +104,21 @@ export function layoutHub(count: number): HubLayout {
       // Die rechte Reihe steht eine halbe Teilung weiter: gegenüber, nicht
       // nebeneinander.
       const along = HALL_RADIUS + FIRST_GATE + rank * GATE_SPACING + (right ? 0 : GATE_SPACING / 2);
-      const offset = (CORRIDOR_WIDTH / 2 - 0.35) * (right ? 1 : -1);
+      // Das Tor steht an der Wand, aber nicht *in* ihr: sein Sockel ist gut
+      // anderthalb Meter breit, und zwischen den beiden Reihen muss ein Gang
+      // bleiben, durch den man geht.
+      const offset = (CORRIDOR_WIDTH / 2 - 1.2) * (right ? 1 : -1);
+      // Quer über den Gang, plus die Drehung zurück zum Eingang.
+      const s = right ? 1 : -1;
+      const facing = {
+        x: -side.x * s * Math.cos(GATE_TURN_IN) - direction.x * Math.sin(GATE_TURN_IN),
+        z: -side.z * s * Math.cos(GATE_TURN_IN) - direction.z * Math.sin(GATE_TURN_IN),
+      };
       gates.push({
         index: first + i,
         x: direction.x * along + side.x * offset,
         z: direction.z * along + side.z * offset,
-        // Quer über den Gang: das Tor an der rechten Wand schaut nach links.
-        yaw: Math.atan2(-side.x * (right ? 1 : -1), -side.z * (right ? 1 : -1)),
+        yaw: Math.atan2(facing.x, facing.z),
         corridor: c,
       });
     }
@@ -105,6 +127,7 @@ export function layoutHub(count: number): HubLayout {
     const last = HALL_RADIUS + FIRST_GATE + (rows - 1) * GATE_SPACING + (inThis > 1 ? GATE_SPACING / 2 : 0);
     corridors.push({
       angle,
+      start: HALL_RADIUS - 0.5,
       length: last + CORRIDOR_TAIL,
       width: CORRIDOR_WIDTH,
       gates: inThis,
