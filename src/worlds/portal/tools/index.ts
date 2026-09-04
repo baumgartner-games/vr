@@ -1,9 +1,11 @@
 import { AdjustTool } from './AdjustTool';
 import { BrushTool } from './BrushTool';
 import { DroneTool } from './DroneTool';
+import { DuplicatorTool } from './DuplicatorTool';
 import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
+import { InspectTool } from './InspectTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
 import { ShurikenTool } from './ShurikenTool';
@@ -25,6 +27,8 @@ export const TOOL_IDS = [
   'gun-dual',
   'gizmo',
   'brush',
+  'duplicator',
+  'inspect',
   'pistol',
   'shuriken',
   'stopwatch',
@@ -64,6 +68,10 @@ function buildTool(id: string): Tool | null {
       return new TransformTool();
     case 'brush':
       return new BrushTool();
+    case 'duplicator':
+      return new DuplicatorTool();
+    case 'inspect':
+      return new InspectTool();
     case 'pistol':
       return new PistolTool();
     case 'shuriken':
@@ -101,6 +109,8 @@ export {
   AdjustTool,
   BrushTool,
   DroneTool,
+  DuplicatorTool,
+  InspectTool,
   EraserTool,
   FlashlightTool,
   GrappleTool,
@@ -168,6 +178,28 @@ export {
   type WeaponSettings,
 } from './weaponSettings';
 export { createSight, Attachment, type AttachmentContext } from './attachments';
+export {
+  DEFAULT_MATERIAL,
+  MATERIALS,
+  findMaterial,
+  isTransparent,
+  type SurfaceMaterial,
+} from './materials';
+export {
+  DEFAULT_STOPWATCH,
+  FACTOR_STEPS,
+  FRAME_STEPS,
+  STOPWATCH_ACTIONS,
+  STOPWATCH_ACTION_LABELS,
+  clampStopwatch,
+  factorLabel,
+  framesLabel,
+  nextFactor,
+  nextFrames,
+  nextStopwatchAction,
+  type StopwatchAction,
+  type StopwatchSettings,
+} from './stopwatchSettings';
 export {
   attachmentPose,
   attachmentPoseCount,
