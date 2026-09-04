@@ -2,13 +2,24 @@ import * as THREE from 'three';
 import type { Portal } from './Portal';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import { LAYER_HUD } from '../../ui/ScoreHud';
+import { DEFAULT_PORTAL_DEPTH, clampPortalDepth } from './portalDepth';
 
-const _traversal = new THREE.Matrix4();
 const _plane = new THREE.Plane();
 const _normal = new THREE.Vector3();
 const _point = new THREE.Vector3();
 const _clip = new THREE.Vector4();
 const _q = new THREE.Vector4();
+const _size = new THREE.Vector2();
+const _targetSize = new THREE.Vector2();
+
+/**
+ * How much smaller each level inside the first one is drawn. A portal in a
+ * portal is a small thing on the screen, and a full-size target for it is
+ * megabytes of headset memory nobody ever looks at closely.
+ */
+const LEVEL_SCALE = 0.6;
+/** However deep it goes, a view never drops below this much of the frame. */
+const MIN_LEVEL_SCALE = 0.3;
 
 /**
  * Renders the view through each portal into an off-screen target.
@@ -16,12 +27,28 @@ const _q = new THREE.Vector4();
  * The target has the same layout as the frame buffer that is currently being
  * drawn (both eyes side by side in VR), so the portal surface can simply look
  * up its own screen position. That keeps the illusion stable in stereo.
+ *
+ * The views nest: with `depth` at two, the portal inside a portal shows a room
+ * again instead of its idle swirl. Each level is one more pass over the whole
+ * scene per portal, so the number is a setting the player owns
+ * (`portalDepth.ts`) rather than something baked in here.
  */
 export class PortalRenderer {
   /** Render scale of the portal views while in VR. */
   vrResolutionScale = 0.75;
 
-  private readonly targets = new Map<Portal, THREE.WebGLRenderTarget>();
+  /** How many views are drawn into one another. See `portalDepth.ts`. */
+  depth = DEFAULT_PORTAL_DEPTH;
+
+  /** One render target per portal *and* per level of nesting. */
+  private readonly targets = new Map<Portal, THREE.WebGLRenderTarget[]>();
+  /**
+   * The traversal matrix of each level, per portal: level 0 steps through this
+   * portal once, level 1 through it and back through its partner, and so on.
+   * They are world-space transforms of the camera, so they are worked out once
+   * per frame and then used for both eyes.
+   */
+  private readonly chains = new Map<Portal, THREE.Matrix4[]>();
   private readonly mono = new THREE.PerspectiveCamera();
   private readonly array = new THREE.ArrayCamera();
   private readonly size = new THREE.Vector2();
@@ -55,52 +82,117 @@ export class PortalRenderer {
       renderer.getDrawingBufferSize(this.size);
     }
 
-    for (const portal of portals) portal.setResolution(this.size);
-
     const active = portals.filter((portal) => portal.placed && portal.link?.placed);
     if (active.length === 0) {
+      for (const portal of portals) portal.setResolution(this.size);
       for (const portal of portals) portal.setView(null);
+      this.trim(0, active);
       return;
     }
 
+    const depth = clampPortalDepth(this.depth);
+    this.trim(depth, active);
+    this.buildChains(active, depth);
+
     const scale = presenting ? this.vrResolutionScale : 1;
-    const width = Math.max(2, Math.floor(this.size.x * scale));
-    const height = Math.max(2, Math.floor(this.size.y * scale));
 
     const previousTarget = renderer.getRenderTarget();
     const previousXrEnabled = renderer.xr.enabled;
     renderer.xr.enabled = false;
 
-    for (const portal of active) {
-      const target = this.getTarget(portal, width, height, !presenting);
-      portal.setView(target.texture);
-      // Sampling the target we are drawing into would be a feedback loop, so
-      // the portal shows its idle swirl inside its own view.
-      portal.setSelf(true);
+    // Deepest level first: a level is drawn with the level below it already in
+    // the portals, and the last one drawn is the one the player looks at.
+    for (let level = depth - 1; level >= 0; level--) {
+      const inner = level + 1;
+      for (const portal of active) {
+        portal.setView(inner < depth ? this.target(portal, inner, scale, !presenting).texture : null);
+      }
+      // A portal surface looks its own image up by screen position, so every
+      // portal has to be told how big the picture being drawn *right now* is —
+      // the nested levels are smaller than the frame buffer.
+      const levelScale = scale * shrinkOf(level);
+      this.sizeAt(levelScale, _size);
+      for (const portal of portals) portal.setResolution(_size);
 
-      const viewCamera = this.prepareCamera(portal, camera, xrCamera, scale);
-      renderer.setRenderTarget(target);
-      renderer.render(scene, viewCamera);
-
-      portal.setSelf(false);
+      for (const portal of active) {
+        const target = this.target(portal, level, scale, !presenting);
+        const viewCamera = this.prepareCamera(portal, level, camera, xrCamera, levelScale);
+        renderer.setRenderTarget(target);
+        renderer.render(scene, viewCamera);
+      }
     }
+
+    for (const portal of active) portal.setView(this.target(portal, 0, scale, !presenting).texture);
+    // Back to the frame buffer the player actually looks at.
+    for (const portal of portals) portal.setResolution(this.size);
 
     renderer.setRenderTarget(previousTarget);
     renderer.xr.enabled = previousXrEnabled;
   }
 
   dispose(): void {
-    for (const target of this.targets.values()) target.dispose();
+    for (const levels of this.targets.values()) {
+      for (const target of levels) target.dispose();
+    }
     this.targets.clear();
+    this.chains.clear();
   }
 
-  private getTarget(
+  /**
+   * `traversal[level]` for every portal: stepping through the same portal once
+   * more for every level. That repetition *is* the recursion — two portals
+   * facing each other show a corridor, and every further level is one more
+   * room down it.
+   */
+  private buildChains(active: Portal[], depth: number): void {
+    for (const portal of active) {
+      let chain = this.chains.get(portal);
+      if (!chain) {
+        chain = [];
+        this.chains.set(portal, chain);
+      }
+      while (chain.length < depth) chain.push(new THREE.Matrix4());
+      portal.getTraversalMatrix(chain[0]!);
+      for (let level = 1; level < depth; level++) {
+        chain[level]!.multiplyMatrices(chain[0]!, chain[level - 1]!);
+      }
+    }
+  }
+
+  /** Frees the targets of levels (and portals) that are not drawn any more. */
+  private trim(depth: number, active: readonly Portal[]): void {
+    for (const [portal, levels] of [...this.targets]) {
+      const keep = active.includes(portal) ? depth : 0;
+      if (levels.length <= keep) continue;
+      for (const target of levels.splice(keep)) target.dispose();
+      if (levels.length === 0) this.targets.delete(portal);
+    }
+  }
+
+  /** The frame buffer at a given render scale, in whole pixels. */
+  private sizeAt(scale: number, target: THREE.Vector2): THREE.Vector2 {
+    return target.set(
+      Math.max(2, Math.floor(this.size.x * scale)),
+      Math.max(2, Math.floor(this.size.y * scale)),
+    );
+  }
+
+  private target(
     portal: Portal,
-    width: number,
-    height: number,
+    level: number,
+    scale: number,
     multisample: boolean,
   ): THREE.WebGLRenderTarget {
-    const existing = this.targets.get(portal);
+    let levels = this.targets.get(portal);
+    if (!levels) {
+      levels = [];
+      this.targets.set(portal, levels);
+    }
+
+    this.sizeAt(scale * shrinkOf(level), _targetSize);
+    const width = _targetSize.x;
+    const height = _targetSize.y;
+    const existing = levels[level];
     const samples = multisample ? 4 : 0;
     if (existing && existing.width === width && existing.height === height && existing.samples === samples) {
       return existing;
@@ -116,22 +208,25 @@ export class PortalRenderer {
     target.texture.minFilter = THREE.LinearFilter;
     target.texture.magFilter = THREE.LinearFilter;
     target.texture.generateMipmaps = false;
-    this.targets.set(portal, target);
+    levels[level] = target;
     return target;
   }
 
   private prepareCamera(
     portal: Portal,
+    level: number,
     camera: THREE.PerspectiveCamera,
     xrCamera: THREE.ArrayCamera | null,
     scale: number,
   ): THREE.Camera {
+    // However deep the view sits, the virtual camera always ends up in front
+    // of the partner portal — that is the plane the near plane is laid onto.
     const link = portal.link!;
-    portal.getTraversalMatrix(_traversal);
+    const traversal = this.chains.get(portal)![level]!;
 
     if (!xrCamera) {
       camera.updateWorldMatrix(true, false);
-      this.mono.matrixWorld.multiplyMatrices(_traversal, camera.matrixWorld);
+      this.mono.matrixWorld.multiplyMatrices(traversal, camera.matrixWorld);
       this.mono.matrixWorldInverse.copy(this.mono.matrixWorld).invert();
       this.mono.projectionMatrix.copy(camera.projectionMatrix);
       // Portal views also show the player's own head — but never the HUD,
@@ -144,7 +239,7 @@ export class PortalRenderer {
 
     this.syncEyes(xrCamera);
 
-    this.array.matrixWorld.multiplyMatrices(_traversal, xrCamera.matrixWorld);
+    this.array.matrixWorld.multiplyMatrices(traversal, xrCamera.matrixWorld);
     this.array.matrixWorldInverse.copy(this.array.matrixWorld).invert();
     // Only used for frustum culling — the union frustum of both eyes.
     this.array.projectionMatrix.copy(xrCamera.projectionMatrix);
@@ -153,7 +248,7 @@ export class PortalRenderer {
     for (let i = 0; i < xrCamera.cameras.length; i++) {
       const source = xrCamera.cameras[i]!;
       const eye = this.array.cameras[i]!;
-      eye.matrixWorld.multiplyMatrices(_traversal, source.matrixWorld);
+      eye.matrixWorld.multiplyMatrices(traversal, source.matrixWorld);
       eye.matrixWorldInverse.copy(eye.matrixWorld).invert();
       eye.projectionMatrix.copy(source.projectionMatrix);
       applyObliqueNearPlane(eye, link);
@@ -185,6 +280,11 @@ export class PortalRenderer {
     }
     this.array.layers.mask = viewLayers(xrCamera.layers.mask);
   }
+}
+
+/** How much of the frame buffer one level of nesting is drawn at. */
+function shrinkOf(level: number): number {
+  return Math.max(MIN_LEVEL_SCALE, LEVEL_SCALE ** level);
 }
 
 /** What a portal view draws: the player's own body in, the HUD out. */

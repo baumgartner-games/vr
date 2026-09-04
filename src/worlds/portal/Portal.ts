@@ -40,7 +40,6 @@ export class Portal extends THREE.Object3D {
           uTexture: { value: null },
           uResolution: { value: new THREE.Vector2(1, 1) },
           uColor: { value: color },
-          uSelf: { value: 0 },
           uActive: { value: 0 },
           uTime: { value: 0 },
         },
@@ -55,7 +54,6 @@ export class Portal extends THREE.Object3D {
           uniform sampler2D uTexture;
           uniform vec2 uResolution;
           uniform vec3 uColor;
-          uniform float uSelf;
           uniform float uActive;
           uniform float uTime;
           varying vec2 vUv;
@@ -66,7 +64,7 @@ export class Portal extends THREE.Object3D {
             if (r > 1.0) discard;
 
             vec3 color;
-            if (uActive > 0.5 && uSelf < 0.5) {
+            if (uActive > 0.5) {
               color = texture2D(uTexture, gl_FragCoord.xy / uResolution).rgb;
             } else {
               float swirl = sin(atan(p.y, p.x) * 4.0 + uTime * 2.0 - r * 7.0) * 0.5 + 0.5;
@@ -134,13 +132,14 @@ export class Portal extends THREE.Object3D {
     this.visible = false;
   }
 
+  /**
+   * The picture the surface shows, or `null` for the idle swirl — which is
+   * what the innermost level of a nested view gets, since there is no image
+   * behind it any more.
+   */
   setView(texture: THREE.Texture | null): void {
     this.mesh.material.uniforms.uTexture.value = texture;
     this.mesh.material.uniforms.uActive.value = texture ? 1 : 0;
-  }
-
-  setSelf(self: boolean): void {
-    this.mesh.material.uniforms.uSelf.value = self ? 1 : 0;
   }
 
   setResolution(size: THREE.Vector2): void {

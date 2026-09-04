@@ -80,6 +80,17 @@ export const WORLDS: WorldDefinition[] = [
     experimental: true,
     load: async () => new (await import('./dust/DustWorld')).DustWorld(),
   },
+  {
+    id: 'dark',
+    title: 'Dunkelhaus',
+    tagline: 'Licht aus, Taschenlampe an',
+    description:
+      'Kleines Haus ohne Fenster: Lichtschalter im Startraum, schwebende Taschenlampe, Leuchtkugel, Laterne und Knicklichter.',
+    accent: 0xffd88a,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./dark/DarkWorld')).DarkWorld(),
+  },
 ];
 
 export const DEFAULT_WORLD = 'hub';

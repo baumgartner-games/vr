@@ -5,9 +5,10 @@
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
-Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria und ein
-Eingaberaum zum Einstellen von Händen und Werkzeugen, ein Werkzeuggürtel voller
-Spielzeug und Peer-to-Peer-Sitzungen ohne eigenen Server.
+Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, ein
+Dunkelhaus zum Ausprobieren von Licht und ein Eingaberaum zum Einstellen von
+Händen und Werkzeugen, ein Werkzeuggürtel voller Spielzeug und
+Peer-to-Peer-Sitzungen ohne eigenen Server.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -33,8 +34,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
-Konfig-Code, die Blätterposition der Menüs, die Fahrphysik und Streckenführung
-der Karts und das Pizza-Rezept. Diese
+Konfig-Code, den Lichtkegel der Taschenlampe, die Portaltiefe, die
+Blätterposition der Menüs, die Fahrphysik und Streckenführung der Karts und das
+Pizza-Rezept. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
@@ -63,6 +65,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Ohne Controller | 3 Finger an die Handfläche = Greifen, Zeigefinger = Trigger | – | – |
 | Sitzen oder stehen | Startseite oder Menü → Bewegung → Haltung | dito | dito |
 | Werkzeug benutzen | Trigger (Greifen = zweite Funktion) | Links-/Rechtsklick | – |
+| Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Ferngreifen | zielen, Grip, Hand >30° nach oben kippen | – | – |
 | Kart: einsteigen | Lenkrad greifen (oder anzielen + Trigger) | Lenkrad anklicken | – |

@@ -107,3 +107,8 @@ export function playStopwatch(slowing: boolean): void {
 export function playPick(up: boolean): void {
   playTone({ type: 'triangle', from: up ? 520 : 420, to: up ? 760 : 300, duration: 0.07, gain: 0.05 });
 }
+
+/** A light switch, a torch: the plastic click, up and down. */
+export function playSwitch(on: boolean): void {
+  playTone({ type: 'square', from: on ? 900 : 700, to: on ? 1500 : 420, duration: 0.035, gain: 0.05 });
+}

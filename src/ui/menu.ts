@@ -30,6 +30,8 @@ export type MenuIcon =
   | 'drone'
   | 'tape'
   | 'eraser'
+  | 'flashlight'
+  | 'lamp'
   | 'reddot'
   | 'irons'
   | 'trace'
@@ -503,6 +505,49 @@ export function drawMenuIcon(
       ctx.lineTo(s * 0.1, s * 0.3);
       ctx.stroke();
       ctx.restore();
+      break;
+    }
+    case 'flashlight': {
+      // A torch from the side, with the light coming out of the head.
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.85, -s * 0.16, s * 0.95, s * 0.32, s * 0.07);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.1, -s * 0.34);
+      ctx.lineTo(s * 0.4, -s * 0.34);
+      ctx.lineTo(s * 0.4, s * 0.34);
+      ctx.lineTo(s * 0.1, s * 0.34);
+      ctx.closePath();
+      ctx.stroke();
+      for (const y of [-s * 0.5, 0, s * 0.5]) {
+        ctx.beginPath();
+        ctx.moveTo(s * 0.52, y * 0.55);
+        ctx.lineTo(s * 0.86, y);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'lamp': {
+      // A bulb: what a light switch turns on.
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.18, s * 0.44, Math.PI * 0.85, Math.PI * 0.15);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.22, s * 0.16);
+      ctx.lineTo(-s * 0.22, s * 0.42);
+      ctx.lineTo(s * 0.22, s * 0.42);
+      ctx.lineTo(s * 0.22, s * 0.16);
+      ctx.stroke();
+      for (const [x, y] of [
+        [0, -s * 0.86],
+        [-s * 0.62, -s * 0.56],
+        [s * 0.62, -s * 0.56],
+      ] as const) {
+        ctx.beginPath();
+        ctx.moveTo(x * 0.62, y * 0.62);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
       break;
     }
     case 'reddot': {

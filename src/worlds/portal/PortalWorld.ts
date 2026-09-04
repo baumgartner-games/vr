@@ -11,6 +11,7 @@ import {
   type PortalState,
 } from './PortalSync';
 import { PortalRenderer } from './PortalRenderer';
+import { nextPortalDepth, portalDepth, savePortalDepth } from './portalDepth';
 import { PortalGhosts } from './PortalGhosts';
 import { ToolBelt } from './ToolBelt';
 import {
@@ -413,6 +414,7 @@ export class PortalWorld implements World {
     this.root.add(this.portalBlue, this.portalRed);
 
     this.portalRenderer = new PortalRenderer(ctx.renderer);
+    this.portalRenderer.depth = portalDepth();
     this.ghosts = new PortalGhosts(this.root);
     // The cut halves of hands and props are done with material clipping planes.
     this.clippingWasEnabled = ctx.renderer.localClippingEnabled;
@@ -544,6 +546,7 @@ export class PortalWorld implements World {
             accent: 0x4aa8ff,
             children: [remoteOn, remoteLine],
           },
+          this.depthEntry(),
           this.weaponMenu(),
           this.handsMenu(),
           this.configMenu(),
@@ -573,6 +576,38 @@ export class PortalWorld implements World {
         run: () => this.resetWorld(ctx()),
       },
     ];
+  }
+
+  /**
+   * How many portal views are drawn into one another — one tap per notch.
+   *
+   * It sits in the settings rather than in a constant because it is the one
+   * knob that trades looks against frame rate: every level is another pass
+   * over the whole room, per portal and per eye. Two is what ships; a headset
+   * that starts to stutter goes back to one, a PC can afford four.
+   */
+  private depthEntry(): MenuEntry {
+    const label = (): string => {
+      const depth = portalDepth();
+      return `Portale in Portalen: ${depth}`;
+    };
+    const entry: MenuEntry = {
+      id: 'setting:portal-depth',
+      label: label(),
+      sub: 'Wie tief sich die Sicht schachtelt · mehr kostet Bildrate',
+      icon: 'portal',
+      accent: COLOR_BLUE,
+      run: () => {
+        const depth = savePortalDepth(nextPortalDepth(portalDepth()));
+        if (this.portalRenderer) this.portalRenderer.depth = depth;
+        this.refreshMenuLabels();
+        this.context?.notify(label());
+      },
+    };
+    this.menuLabels.push(() => {
+      entry.label = label();
+    });
+    return entry;
   }
 
   /**
@@ -1512,6 +1547,51 @@ export class PortalWorld implements World {
     this.props.push(entry);
     this.bodies.set(id, entry);
     this.ids.set(entry, id);
+  }
+
+  /**
+   * Puts a tool into the *room* instead of onto the belt: it lies (or, with
+   * `floating`, hangs) where the world put it until a hand takes it, exactly
+   * like a tool somebody dropped.
+   *
+   * A room-placed tool is deliberately not the belt's spare — it never goes
+   * into `tools`, so the shelf and the hip build their own copy and this one
+   * stays the thing lying over there. A dark house needs that: the torch has
+   * to be *somewhere to be found*, not one menu away.
+   */
+  protected placeTool(
+    id: string,
+    position: THREE.Vector3,
+    quaternion?: THREE.Quaternion,
+    floating = false,
+  ): Tool | null {
+    const physics = this.physics;
+    const tool = createTool(id);
+    if (!physics || !tool) return null;
+
+    this.liveTools.add(tool);
+    this.root.add(tool);
+    tool.position.copy(position);
+    if (quaternion) tool.quaternion.copy(quaternion);
+    tool.visible = true;
+    tool.updateWorldMatrix(true, true);
+
+    const entry = physics.addDynamic(tool, {
+      shape: { kind: 'box' },
+      halfExtents: toolHalfExtents(tool, _probe),
+      mass: 1.2,
+      friction: 0.8,
+      restitution: 0.05,
+      // A floating tool that gets knocked about should come to rest again
+      // rather than drift off down the corridor for the rest of the session.
+      linearDamping: floating ? 1.6 : 0,
+      angularDamping: floating ? 1.6 : 0,
+    });
+    entry.previousPosition.copy(tool.position);
+    this.props.push(entry);
+    this.loose.set(entry, { tool, entry, gliding: false });
+    if (floating) entry.body.setGravityScale(0, true);
+    return tool;
   }
 
   private idOf(entry: PhysicsBody): string | null {

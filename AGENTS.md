@@ -49,7 +49,12 @@ dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die Handhaltung
 (`src/core/handGestures.ts` — welche Finger an der Handfläche liegen und was
 daraus Greifen und Trigger macht, samt der Hysterese, ohne die ein halb
 gekrümmter Finger den Trigger dreißigmal pro Sekunde umschaltet), die Waffenwerte
-(`src/worlds/portal/tools/weaponSettings.ts`), der **Konfig-Code**
+(`src/worlds/portal/tools/weaponSettings.ts`), der **Lichtkegel der
+Taschenlampe** (`src/worlds/portal/tools/flashlightBeam.ts` — Grenzen, das
+Ziehen an der Linse und dass der schmale Kegel heller und weiter reicht, ohne
+zum Scheinwerfer zu werden), die **Portaltiefe**
+(`src/worlds/portal/portalDepth.ts` — Rasten, Grenzen und der Fall, dass im
+Speicher eine Zeichenkette statt einer Zahl steht), der **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 (`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
@@ -93,7 +98,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   oder `A`**, damit der Zieltrigger nicht versehentlich die Hand füllt. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
-  Eingaberaum),
+  Dunkelhaus, Eingaberaum),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand), **Magischer Beutel** (Raster mit
   Companion Cube, Kugel, Domino, Pyramide, Quader, Planke und Zylinder),
@@ -168,6 +173,20 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Abpraller zu warten — nur so bleibt er *stecken*, statt abzuprallen.
   - **Stoppuhr**: Trigger schaltet Zeitlupe an und aus, Loslassen der Uhr
     stellt die normale Geschwindigkeit wieder her.
+  - **Taschenlampe**: **Trigger** schaltet sie an und aus. Der **Lichtkegel**
+    wird mit der *anderen* Hand eingestellt: vorne an die Linse greifen (der
+    Ring leuchtet, sobald die Hand nah genug ist) und mit gedrücktem Griff nach
+    **rechts** ziehen macht ihn breit, nach **links** schmal. Genau das, was
+    man an einer echten Lampe am Kopf dreht — und in einem dunklen Gang ist
+    eine Geste zu finden, ein Menüeintrag nicht. Schmal ist dabei heller und
+    reicht weiter, breit wäscht den Raum vor dir und stirbt nach ein paar
+    Metern (`flashlightBeam.ts`, mit Jest-Test). Sie leuchtet, sobald sie in
+    die Hand kommt, geht auf der Hüfte aus und **bleibt an, wenn man sie
+    fallen lässt** — eine liegende Lampe ist die einzige Lichtquelle, die man
+    im Dunkeln wiederfindet. Das Licht selbst bleibt immer in der Szene und
+    wird nur auf null gedreht: three.js baut jeden Shader im Raum neu, wenn
+    sich die *Anzahl* der Lichter ändert, und ein Schalter ist kein Ruckler
+    wert.
   - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
     er ein Objekt, kommt stattdessen das Objekt.
   - **Gravitationshandschuh**: Trigger zieht das anvisierte Objekt geradewegs
@@ -344,6 +363,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
   dieselbe geteilte Sitzung wie im Portal Labor; Portale haften dort an den
   hellen Tafeln und am Boden.
+- **Dunkelhaus** (experimentell): ein kleines Haus ohne Fenster — Startraum,
+  ein Flur quer durch, vier Zimmer und ein Gang, der nirgendwohin führt. Es
+  gibt kein Tageslicht: das Umgebungslicht steht fast auf null, gesehen wird
+  nur, was man anmacht oder trägt. Im Startraum hängt ein **Lichtschalter** an
+  der Wand (anzielen + Trigger, oder mit dem Finger antippen), der die
+  Deckenlampen des ganzen Hauses schaltet — außer im Nordwest-Zimmer, das
+  bewusst gar keine hat. Davor schwebt eine **eingeschaltete Taschenlampe**
+  (man muss sie im Dunkeln ja finden können), auf den Kisten liegen eine
+  **Leuchtkugel** zum Werfen, eine **Laterne** und zwei **Knicklichter** zum
+  Liegenlassen als Wegmarke. Sonst ist alles wie im Portal Labor: derselbe
+  Gürtel, dasselbe Regal, dieselbe Physik. Portale haften nur an den hellen
+  Tafeln im Flur und am Boden — eine Putzwand mit Loch würde das Haus zum
+  Nichts draußen aufmachen.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Peer-to-Peer-Sitzungen** (experimentell): beide Geräte tragen denselben
   Raum-Code ein und sind danach direkt verbunden — ohne eigenen Server.
@@ -389,6 +421,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
 | Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate) | – | – |
+| Taschenlampe | Trigger schaltet an/aus | – | – |
+| Lichtkegel stellen | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen | – | – |
+| Lichtschalter (Dunkelhaus) | anzielen + Trigger, oder antippen | anklicken | tippen |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
 | Radiergummi | Trigger löscht | – | – |
 | Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |
@@ -735,9 +770,12 @@ Portal Labor, erbt sie stattdessen von `PortalWorld` und ersetzt nur den Raum:
 `skyColor()`, `lightIntensity()`, `welcome()`, `beltLoadout()` (leer heißt:
 beide Trigger gehören der Welt) und `worldReset()` (was `B`/`Y` in dieser Welt
 zusätzlich zurücksetzt — die Karts in die Box, die Küche leer). `removeProp()`
-löscht ein Prop wieder, wahlweise nur lokal. Genau das machen `DustWorld`,
-`RangeWorld`, `KartWorld` und `ShopWorld` — die ganze Maschinerie (Gürtel,
-Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu werden.
+löscht ein Prop wieder, wahlweise nur lokal. `placeTool()` legt ein Werkzeug in
+den *Raum* statt auf den Gürtel — liegend oder schwebend, bis eine Hand es
+nimmt (die Taschenlampe im Dunkelhaus). Genau das machen `DustWorld`,
+`RangeWorld`, `KartWorld`, `ShopWorld` und `DarkWorld` — die ganze Maschinerie
+(Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu
+werden.
 
 Mehr braucht es nicht: Menü, Hub-Tor, Deep-Link (`#<id>`) und das Aufräumen
 beim Wechsel erledigt die Engine. Alles, was eine Welt der Szene hinzufügt,
@@ -775,8 +813,30 @@ Stück auf das Auge zu, sonst würde die Near-Plane sie wegschneiden und für ei
 paar Zentimeter die nackte Wand zeigen — genau das ließ den Durchgang wie eine
 Teleportation wirken.
 
-Bekannte Grenzen des Prototyps: Portale nur auf ebenen Flächen, und es gibt
-eine Rekursionsstufe — im Portal zeigt das gegenüberliegende seinen Ruhewirbel.
+**Portale in Portalen** sind eine Einstellung, keine Konstante:
+*Einstellungen → Portale in Portalen* schaltet zwischen 1 und 4 Ebenen durch,
+**ausgeliefert wird 2**. Jede Ebene ist ein weiterer kompletter Durchgang durch
+den Raum — pro Portal und pro Auge —, deshalb gehört die Zahl dem Spieler:
+Eine Brille, die ins Stocken gerät, geht auf 1 zurück, ein PC verträgt 4. Der
+Wert liegt im Browser (`portalDepth.ts`, mit Jest-Test) und überlebt den
+Reload.
+
+Gerendert wird von innen nach außen: Zuerst die tiefste Ebene (dort zeigen alle
+Portale ihren Ruhewirbel), dann jede weitere mit der Ebene darunter in den
+Portalflächen, zuletzt die, die der Spieler ansieht. Die Kamera einer Ebene ist
+die Traversal-Matrix des Portals, `k+1`-mal angewandt — genau das ist der
+Korridor, den zwei sich gegenüberstehende Portale bilden. Die inneren Ebenen
+werden **kleiner** gerendert (0,6 pro Stufe): ein Portal im Portal ist ein
+kleines Ding auf dem Bildschirm, und ein volles Target dafür sind Megabytes
+Brillenspeicher, die niemand aus der Nähe ansieht. Weil die Portalfläche ihr
+Bild über die *Bildschirmposition* nachschlägt, bekommt sie vor jedem Durchgang
+gesagt, wie groß das Bild ist, das gerade gezeichnet wird — sonst säße das
+innere Bild verschoben.
+
+Bekannte Grenzen des Prototyps: Portale nur auf ebenen Flächen, und die
+inneren Ebenen zeigen ein Nachbarportal mit der Kamera der eigenen Kette —
+für zwei sich gegenüberstehende Portale (der Fall, den man ansieht) stimmt es,
+für zwei über Eck ist es eine Näherung.
 
 **Zwei Render-Ebenen** halten auseinander, wer was sieht: `LAYER_SELF_ONLY` (3)
 trägt den eigenen Körper — den zeichnen *nur* die Portalkameras, direkt sieht

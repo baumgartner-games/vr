@@ -2,6 +2,7 @@ import { AdjustTool } from './AdjustTool';
 import { BrushTool } from './BrushTool';
 import { DroneTool } from './DroneTool';
 import { EraserTool } from './EraserTool';
+import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
@@ -27,6 +28,7 @@ export const TOOL_IDS = [
   'pistol',
   'shuriken',
   'stopwatch',
+  'flashlight',
   'grapple',
   'gravity-glove',
   'translate-glove',
@@ -68,6 +70,8 @@ function buildTool(id: string): Tool | null {
       return new ShurikenTool();
     case 'stopwatch':
       return new StopwatchTool();
+    case 'flashlight':
+      return new FlashlightTool();
     case 'grapple':
       return new GrappleTool();
     case 'gravity-glove':
@@ -98,6 +102,7 @@ export {
   BrushTool,
   DroneTool,
   EraserTool,
+  FlashlightTool,
   GrappleTool,
   GravityGloveTool,
   PistolTool,
@@ -217,3 +222,13 @@ export {
 } from './Tool';
 export { aimRotation, aimError, type Quat as AimQuat } from './aim';
 export { SPIN_RATE, THROW_SPEED } from './ShurikenTool';
+export {
+  DEFAULT_BEAM_ANGLE,
+  MAX_BEAM_ANGLE,
+  MIN_BEAM_ANGLE,
+  beamAngleFromDrag,
+  beamIntensity,
+  beamLabel,
+  beamRange,
+  clampBeamAngle,
+} from './flashlightBeam';

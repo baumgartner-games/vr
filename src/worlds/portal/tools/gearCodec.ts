@@ -48,6 +48,7 @@ const TOOLS = [
   'adjust',
   'eraser',
   'superman-glove',
+  'flashlight',
 ] as const;
 
 /** Attachment ids. Append only, same rule. */
