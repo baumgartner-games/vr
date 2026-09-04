@@ -837,7 +837,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haltung feinjustieren (Schießgang) | *Feinjustieren* an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
 | Werkzeug wählen (Schießgang) | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter und **bleibt dort**, bis die Hand wieder aufgeht | – | – |
 | Verbinden (in der Brille) | Menü → *Verbindung* → *Raum betreten* (Code tippen) oder *Neuen Raum aufmachen*; *Name* ändert den eigenen Namen — beides geht mitten im Spiel | Raum-Code auf der Startseite | – |
-| Einstellungen verschicken | *Werkzeug senden* / *Alles senden* an der Wand des Gangs — geht an alle, die im Raum verbunden sind | – | – |
+| Chat | Menü → *Verbindung* → *Chat*: letzte Zeilen lesen, *Schreiben* macht die Tastatur auf | Panel *Verbindung* → **Chat**: tippen, *Kopieren* je Zeile, *Verlauf kopieren* | dito |
+| Einstellungen verschicken | *Werkzeug senden* / *Alles senden* an der Wand des Gangs — der Code geht als Chat-Zeile an alle im Raum und steht am PC mit *Kopieren* daneben | – | – |
 | AR an/aus (Schießgang) | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf *AR* an der rechten Wand | – | – |
 | Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug** | – | – |
 | Grundhaltung einmessen | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger** | – | – |
@@ -1608,6 +1609,39 @@ VITE_TURN_URL=turn:example.org:3478 VITE_TURN_USER=user VITE_TURN_CREDENTIAL=sec
 
 Zum Entwickeln ohne Netz reicht `?net=local`: dann übernimmt
 `BroadcastChannelTransport` und zwei Tabs im selben Browser bilden eine Session.
+
+### Chat: Text, und vor allem Codes
+
+Ein Chat, der nicht zum Plaudern gebaut ist. Wer in der Brille steht, misst
+dort ein Werkzeug ein und hat am Ende einen **Konfig-Code**, den er am PC
+bräuchte — zum Aufschreiben, zum Eintragen ins Werkzeug, zum Weiterschicken.
+Vorlesen und abtippen ist genau die Sorte Arbeit, für die es Rechner gibt. Also
+schickt die Brille die Zeile herüber, und am PC steht sie im Panel unter
+**Chat**: mit Uhrzeit, mit der Angabe, wofür sie gilt, und mit einem Knopf
+*Kopieren* daneben. *Verlauf kopieren* nimmt alles auf einmal mit.
+
+Deshalb hat eine Zeile eine **Sorte**. `text` ist, was jemand getippt hat;
+`code` ist eine Zeile, die eine Maschine geschrieben hat und die eine andere
+wieder lesen kann. Der Eingaberaum trägt seine Codes als `code` ein und wendet
+beim Empfang **nur solche** an — was jemand von Hand schreibt, wird nie
+ausgeführt, auch wenn es zufällig wie ein Code aussieht. Die Knöpfe *Werkzeug
+senden* und *Alles senden* im Schießgang gehen seither über diesen Weg; sie
+lohnen auch allein im Raum, weil der Code dann im eigenen Verlauf landet statt
+in einer Meldung, die nach vier Sekunden weg ist.
+
+`chat` ist eine eigene Nachrichtensorte in `net/types.ts` und kein
+Welt-Ereignis: der Verlauf gehört der App, überlebt jeden Weltwechsel und wird
+nicht abbestellt, wenn eine Welt aufräumt. Der Verlauf selbst (`net/chat.ts`,
+mit Test) ist eine Liste, die vorn ausfranst — 200 Zeilen —, und alles, was
+hereinkommt, wird vorher **geputzt**: Steuerzeichen raus, Umbrüche zu
+Leerzeichen, bei 2000 Zeichen abgeschnitten. Was über das Netz kommt, hat sich
+niemand ausgesucht.
+
+In der Brille steht derselbe Verlauf unter *Menü → Verbindung → Chat*, die
+letzten acht Zeilen, neueste oben, und *Schreiben* macht die Tastatur auf. Was
+dort **nicht** steht, ist ein Kopieren-Knopf: 24 Zeichen aus einem Alphabet
+ohne Bedeutung sind in einer Brille nicht zu lesen und nirgends hinzulegen.
+Abgeholt wird am PC — dafür ist der Code ja geschickt worden.
 
 ### Die Welt teilen: Objekte und Portale
 

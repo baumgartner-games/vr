@@ -471,6 +471,78 @@ input[type="range"] {
   border-color: var(--accent);
 }
 
+/* --- Chat -----------------------------------------------------------------
+   Der Verlauf ist zum **Lesen und Kopieren** da, nicht zum Anklicken: der Text
+   bleibt markierbar (`user-select`), und der Knopf daneben legt eine Zeile in
+   die Zwischenablage. Ein Konfig-Code steht in einer Schreibmaschinenschrift,
+   weil man darin `l` und `1` unterscheiden können muss. */
+.chat {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  margin-bottom: 8px;
+  padding: 6px;
+  overflow-y: auto;
+  background: rgba(5, 8, 16, 0.45);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.chat__empty {
+  margin: 4px 2px;
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.chat__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: start;
+  padding: 6px 8px;
+  background: rgba(140, 170, 230, 0.08);
+  border-radius: 8px;
+}
+
+.chat__item.is-mine { background: rgba(94, 224, 160, 0.1); }
+
+.chat__who {
+  grid-column: 1;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.chat__text {
+  grid-column: 1;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.chat__item.is-code .chat__text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #ffd88a;
+}
+
+.chat__copy {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.chat__copy:hover { color: var(--fg); background: rgba(140, 170, 230, 0.18); }
+
 .seg {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

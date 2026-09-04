@@ -9,6 +9,7 @@ import {
 import type { App } from '../core/App';
 import type { SpectatorMode } from '../net/SpectatorCamera';
 import type { SignalingStrategy } from '../net/TrysteroTransport';
+import { chatTranscript, formatChatTime, type ChatEntry } from '../net/chat';
 import type { NetStatus } from '../net/types';
 
 const STORAGE_STRATEGY = 'bgvr:strategy';
@@ -94,6 +95,11 @@ export class NetPanel {
   private readonly level = el<HTMLInputElement>('net-level');
   private readonly linkButton = el<HTMLButtonElement>('net-link');
   private readonly strategy = el<HTMLSelectElement>('net-strategy');
+  private readonly chatLog = el('net-chat');
+  private readonly chatInput = el<HTMLInputElement>('net-chat-text');
+  private readonly chatSend = el<HTMLButtonElement>('net-chat-send');
+  private readonly chatCopy = el<HTMLButtonElement>('net-chat-copy');
+  private readonly chatClear = el<HTMLButtonElement>('net-chat-clear');
 
   private busy = false;
   private message = '';
@@ -156,6 +162,20 @@ export class NetPanel {
       settings.levelHorizon = this.level.checked;
     });
 
+    this.chatSend.addEventListener('click', () => this.sendChat());
+    this.chatInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') this.sendChat();
+    });
+    this.chatCopy.addEventListener('click', () => void this.copyChat());
+    this.chatClear.addEventListener('click', () => {
+      this.app.chat.clear();
+      this.setMessage('Verlauf geleert.');
+    });
+    // Eine Zeile kann jederzeit hereinkommen — auch während das Panel zu ist.
+    // Dann wird die Liste eben umsonst neu gezeichnet; sie hat zweihundert
+    // Einträge, nicht zweihunderttausend.
+    this.app.chat.onChange(() => this.renderChat());
+
     this.refresh();
   }
 
@@ -214,6 +234,7 @@ export class NetPanel {
     this.distanceField.classList.toggle('is-off', settings.mode !== 'third');
 
     this.renderPeers();
+    this.renderChat();
   }
 
   private renderPeers(): void {
@@ -259,6 +280,98 @@ export class NetPanel {
         this.refresh();
       });
       this.peerList.append(item);
+    }
+  }
+
+  /**
+   * Der Verlauf, Zeile für Zeile — **zum Lesen und zum Mitnehmen**.
+   *
+   * Deshalb ist ein Eintrag kein Knopf: der Text muss sich mit der Maus
+   * markieren lassen. Der Knopf steht daneben und legt genau diese eine Zeile
+   * in die Zwischenablage, mitsamt Uhrzeit, Absender und — bei einem
+   * Konfig-Code — der Angabe, wofür er gilt. Ein nackter Code aus 24 Zeichen
+   * ist eine Stunde später niemandem mehr zuzuordnen.
+   */
+  private renderChat(): void {
+    const entries = this.app.chat.entries;
+    const atBottom =
+      this.chatLog.scrollTop + this.chatLog.clientHeight >= this.chatLog.scrollHeight - 24;
+    this.chatLog.replaceChildren();
+    this.chatCopy.disabled = entries.length === 0;
+    this.chatClear.disabled = entries.length === 0;
+
+    if (!entries.length) {
+      const empty = document.createElement('p');
+      empty.className = 'chat__empty';
+      empty.textContent = this.app.net.connected
+        ? 'Noch nichts geschrieben. Die Brille schickt Konfig-Codes hierher.'
+        : 'Erst verbinden — Geschriebenes bleibt bis dahin nur bei dir stehen.';
+      this.chatLog.append(empty);
+      return;
+    }
+
+    for (const entry of entries) this.chatLog.append(this.chatItem(entry));
+    // Beim Nachlesen weiter oben nicht dazwischenfunken; wer unten steht, will
+    // die neue Zeile sehen.
+    if (atBottom) this.chatLog.scrollTop = this.chatLog.scrollHeight;
+  }
+
+  private chatItem(entry: ChatEntry): HTMLElement {
+    const item = document.createElement('div');
+    item.className = 'chat__item';
+    item.classList.toggle('is-mine', entry.mine);
+    item.classList.toggle('is-code', entry.kind === 'code');
+
+    const who = document.createElement('span');
+    who.className = 'chat__who';
+    who.textContent = `${formatChatTime(entry.at)} · ${entry.name}${entry.note ? ` · ${entry.note}` : ''}`;
+
+    const text = document.createElement('span');
+    text.className = 'chat__text';
+    // `textContent`, nie `innerHTML`: das hier ist fremder Text.
+    text.textContent = entry.text;
+
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'chat__copy';
+    copy.textContent = 'Kopieren';
+    copy.addEventListener('click', () => {
+      // Der blanke Text, nicht die Zeile mit Uhrzeit davor: was hier kopiert
+      // wird, wandert meistens in ein Eingabefeld und nicht in eine E-Mail.
+      void this.toClipboard(entry.text, entry.kind === 'code' ? 'Code kopiert.' : 'Zeile kopiert.');
+    });
+
+    item.append(who, text, copy);
+    return item;
+  }
+
+  private sendChat(): void {
+    const text = this.chatInput.value;
+    if (!text.trim()) return;
+    this.app.say(text);
+    this.chatInput.value = '';
+    this.refresh();
+  }
+
+  private async copyChat(): Promise<void> {
+    const text = chatTranscript(this.app.chat.entries);
+    if (!text) return;
+    await this.toClipboard(text, `Verlauf kopiert (${this.app.chat.size} Zeilen).`);
+  }
+
+  /**
+   * In die Zwischenablage — und wenn der Browser das verbietet, wenigstens
+   * markiert. Ohne Fokus oder ohne `https` gibt es `navigator.clipboard`
+   * nämlich schlicht nicht, und dann ist „ging nicht" die schlechteste aller
+   * Antworten auf einen Knopf namens *Kopieren*.
+   */
+  private async toClipboard(text: string, done: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.setMessage(done);
+    } catch {
+      this.setMessage('Kopieren ging nicht — Text ist markiert, Strg+C.', true);
+      selectText(text);
     }
   }
 
@@ -328,6 +441,24 @@ export class NetPanel {
 
 /** Same order as `connectButtons`: in-game panel, then the two landing ones. */
 const CONNECT_LABELS = ['Verbinden', 'Verbinden & Enter VR', 'Verbinden & ohne VR starten'];
+
+/**
+ * Der letzte Ausweg: den Text in ein unsichtbares Feld legen und markieren.
+ *
+ * Damit funktioniert `Strg+C` auch dort, wo die Zwischenablage-API nicht zur
+ * Verfügung steht — und das ist keine Ausnahme, sondern jede Seite, die nicht
+ * über `https` läuft.
+ */
+function selectText(text: string): void {
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.setAttribute('readonly', '');
+  field.style.position = 'fixed';
+  field.style.opacity = '0';
+  document.body.append(field);
+  field.select();
+  window.setTimeout(() => field.remove(), 30_000);
+}
 
 function describeSmoothing(value: number): string {
   if (value < 0.08) return 'exakt';

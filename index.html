@@ -135,6 +135,22 @@
       <h3 class="panel__title">Zuschauen</h3>
       <div id="net-peers" class="peers"></div>
 
+      <h3 class="panel__title">Chat</h3>
+      <div id="net-chat" class="chat" aria-live="polite"></div>
+      <div class="field__row">
+        <input id="net-chat-text" type="text" autocomplete="off" autocapitalize="sentences"
+               placeholder="Nachricht an den Raum" maxlength="2000" />
+        <button type="button" id="net-chat-send" class="btn--mini">Senden</button>
+      </div>
+      <div class="panel__row">
+        <button type="button" id="net-chat-copy" class="btn--mini btn--grow">Verlauf kopieren</button>
+        <button type="button" id="net-chat-clear" class="btn--mini">Leeren</button>
+      </div>
+      <p class="panel__hint">
+        Die Brille schickt Konfig-Codes hierher (<strong>Werkzeug senden</strong> im Schießgang):
+        Text markieren oder <strong>Kopieren</strong> am Eintrag drücken.
+      </p>
+
       <h3 class="panel__title">Kamera</h3>
       <div id="net-modes" class="seg">
         <button type="button" data-mode="free">Frei</button>

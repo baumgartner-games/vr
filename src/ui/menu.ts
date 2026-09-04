@@ -38,6 +38,7 @@ export type MenuIcon =
   | 'irons'
   | 'trace'
   | 'scope'
+  | 'chat'
   | 'palette';
 
 /** One row (or grid cell) of the wrist menu. */
@@ -665,6 +666,24 @@ export function drawMenuIcon(
         ctx.moveTo(x, s * 0.26);
         ctx.lineTo(x, s * 0.58);
         ctx.stroke();
+      }
+      break;
+    }
+    case 'chat': {
+      // Eine Sprechblase mit drei Punkten — die einzige Ikone hier, hinter der
+      // Text von einem *Menschen* steckt und nicht von der Maschine.
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.8, -s * 0.68, s * 1.6, s * 1.12, s * 0.26);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.34, s * 0.42);
+      ctx.lineTo(-s * 0.5, s * 0.86);
+      ctx.lineTo(-s * 0.02, s * 0.44);
+      ctx.stroke();
+      for (const x of [-s * 0.42, 0, s * 0.42]) {
+        ctx.beginPath();
+        ctx.arc(x, -s * 0.12, s * 0.1, 0, Math.PI * 2);
+        ctx.fill();
       }
       break;
     }

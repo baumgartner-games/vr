@@ -21,6 +21,16 @@ export interface Peer {
 }
 
 type PeerListener = (peer: Peer) => void;
+/** Eine hereingekommene Chat-Zeile, roh — geputzt wird sie im `ChatLog`. */
+type ChatListener = (message: ChatIn, from: string) => void;
+
+/** Was von einer Chat-Nachricht ankommt. Alle Felder sind fremder Text. */
+export interface ChatIn {
+  name: string;
+  text: string;
+  kind: 'text' | 'code';
+  note?: string;
+}
 type StatusListener = (status: NetStatus, detail: string) => void;
 type ChangeListener = () => void;
 
@@ -63,6 +73,7 @@ export class NetSession {
   private changeListeners: ChangeListener[] = [];
   private statusListeners: StatusListener[] = [];
   private channelListeners = new Map<string, Array<(data: unknown, from: string) => void>>();
+  private chatListeners: ChatListener[] = [];
 
   get transportKind(): string {
     return this.transport?.kind ?? 'none';
@@ -132,6 +143,35 @@ export class NetSession {
 
   onStatus(listener: StatusListener): void {
     this.statusListeners.push(listener);
+  }
+
+  /**
+   * Schickt eine Zeile an alle im Raum.
+   *
+   * Allein im Raum geht nichts hinaus, und das ist keine Fehlbedienung: der
+   * Verlauf ist trotzdem einer, man schreibt sich dann eben selbst etwas auf.
+   * Deshalb sagt der Rückgabewert, ob wirklich jemand mithört.
+   */
+  sendChat(text: string, options: { kind?: 'text' | 'code'; note?: string } = {}): boolean {
+    if (!this.connected) return false;
+    const message: NetMessage = {
+      type: 'chat',
+      from: this.localId,
+      name: this.name,
+      text,
+      kind: options.kind ?? 'text',
+    };
+    if (options.note) message.note = options.note;
+    this.send(message);
+    return this.peers.size > 0;
+  }
+
+  /** @returns das Abmelden — Welten kommen und gehen, die Sitzung bleibt. */
+  onChat(listener: ChatListener): () => void {
+    this.chatListeners.push(listener);
+    return () => {
+      this.chatListeners = this.chatListeners.filter((other) => other !== listener);
+    };
   }
 
   /** Subscribe to a world-specific message channel. */
@@ -214,6 +254,20 @@ export class NetSession {
       }
       case 'pose': {
         this.touchPeer(message.from, now).pose = message.pose;
+        break;
+      }
+      case 'chat': {
+        const peer = this.touchPeer(message.from, now);
+        // Der Name aus der Nachricht ist der aktuelle des Absenders; die
+        // Peer-Liste kann eine `hello`-Runde hinterherhinken.
+        if (typeof message.name === 'string' && message.name) peer.name = message.name;
+        const incoming: ChatIn = {
+          name: message.name,
+          text: message.text,
+          kind: message.kind === 'code' ? 'code' : 'text',
+        };
+        if (message.note) incoming.note = message.note;
+        for (const listener of [...this.chatListeners]) listener(incoming, message.from);
         break;
       }
       case 'event': {

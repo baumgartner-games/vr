@@ -174,15 +174,6 @@ interface Buzz {
  * Welt-Nachrichten (`NetSession.emit`), und was hier hin und her geht, ist
  * nichts weiter als eine Zeile Text.
  */
-const GEAR_CHANNEL = 'gear';
-
-/** Was über den Kanal geht. */
-interface GearMessage {
-  code: string;
-  /** Wofür der Code gilt — nur für die Meldung beim Empfänger. */
-  what: string;
-}
-
 const _hand = new THREE.Vector3();
 const _position = new THREE.Vector3();
 const _rotation = new THREE.Quaternion();
@@ -344,6 +335,7 @@ export class TuneWorld extends PortalWorld {
    */
   private rangeState: RangeSettings = rangeSettings();
   private rangeDrag: StandDrag<RangeSettings> | null = null;
+  private unsubscribeChat: (() => void) | null = null;
   private unsubscribeRange: (() => void) | null = null;
   private gripState: GripSettings = gripSettings();
   private gripDrag: StandDrag<GripSettings> | null = null;
@@ -392,7 +384,11 @@ export class TuneWorld extends PortalWorld {
     // Was ein anderer schickt, landet direkt in den Speichern — und sagt, was
     // es war. Ein Code, der still einträgt, ist genau der, den man hinterher
     // nicht mehr los wird.
-    ctx.net.on(GEAR_CHANNEL, (data, from) => this.receiveGear(data, from));
+    // Nur Zeilen, die eine Maschine geschrieben hat: was jemand von Hand tippt,
+    // wird nie angewandt, auch wenn es zufällig wie ein Code aussieht.
+    this.unsubscribeChat = ctx.net.onChat((message, from) => {
+      if (message.kind === 'code') this.receiveGear(message.text, from);
+    });
     this.unsubscribeRange = onRangeChange(() => this.showRange(rangeSettings()));
     this.unsubscribeGrip = onGripChange(() => this.showGrip(gripSettings()));
     this.showRange(rangeSettings());
@@ -439,7 +435,8 @@ export class TuneWorld extends PortalWorld {
     this.cancelFine(true);
     this.releaseMount(false, true);
     this.seeThrough.reset(ctx.scene, this.shellGroup, ctx.renderer);
-    ctx.net.off(GEAR_CHANNEL);
+    this.unsubscribeChat?.();
+    this.unsubscribeChat = null;
     this.unsubscribeRange?.();
     this.unsubscribeRange = null;
     this.unsubscribeGrip?.();
@@ -1264,8 +1261,8 @@ export class TuneWorld extends PortalWorld {
             'Werkzeug senden',
             peers > 0
               ? `${this.toolLabel(this.gripState.tool)} an ${peers}`
-              : 'Niemand verbunden',
-            peers > 0 ? 0x5ee0a0 : 0x6f7d99,
+              : 'In den eigenen Chat',
+            peers > 0 ? 0x5ee0a0 : 0x9fe3ff,
           );
         },
         run: () => this.sendGear('tool'),
@@ -1276,8 +1273,8 @@ export class TuneWorld extends PortalWorld {
           this.label(
             button,
             'Alles senden',
-            peers > 0 ? `Ganze Ausrüstung an ${peers}` : 'Niemand verbunden',
-            peers > 0 ? 0x5ee0a0 : 0x6f7d99,
+            peers > 0 ? `Ganze Ausrüstung an ${peers}` : 'In den eigenen Chat',
+            peers > 0 ? 0x5ee0a0 : 0x9fe3ff,
           );
         },
         run: () => this.sendGear('all'),
@@ -1300,6 +1297,12 @@ export class TuneWorld extends PortalWorld {
    * damit entweder gültig oder wird verworfen, und es gibt nur einen Weg
    * hinein statt zweier, die auseinanderlaufen können.
    *
+   * Er geht als **Chat-Zeile**, und das ist der halbe Zweck: drüben steht er
+   * damit im Panel — mit Uhrzeit, mit der Angabe, wofür er gilt, und mit einem
+   * Knopf *Kopieren* daneben. Auch allein im Raum lohnt der Knopf deshalb: dann
+   * legt er den Code in den eigenen Verlauf, wo man ihn abholen kann, statt in
+   * eine Meldung, die nach vier Sekunden weg ist.
+   *
    * @param what `'tool'` schickt genau das, was gerade eingemessen wird —
    *             kurz genug, dass es auch über eine dünne Leitung sofort da
    *             ist. `'all'` schickt die ganze Ausrüstung.
@@ -1307,16 +1310,23 @@ export class TuneWorld extends PortalWorld {
   private sendGear(what: 'tool' | 'all'): void {
     const ctx = this.context;
     if (!ctx) return;
-    if (ctx.net.peers.size === 0) {
-      ctx.notify('Niemand verbunden — Menü → Verbindung');
-      return;
-    }
 
     const { side, tool } = this.gripState;
     const code = what === 'all' ? gearCode() : toolGearCode(tool, side);
     const label = what === 'all' ? 'Ganze Ausrüstung' : `${this.toolLabel(tool)} · ${handLabel(side)}`;
-    ctx.net.emit(GEAR_CHANNEL, { code, what: label } satisfies GearMessage);
-    ctx.notify(`Gesendet an ${ctx.net.peers.size}: ${label} (${code.length} Zeichen)`);
+    // Der Code geht als **Chat-Zeile** hinaus und nicht über einen eigenen
+    // Kanal: dann steht er drüben im Panel, mit einem Knopf *Kopieren* daneben
+    // und einer Uhrzeit davor. Genau dafür wird er verschickt — jemand will ihn
+    // aufschreiben, weiterschicken oder ins Werkzeug eintragen, und keine
+    // Brille der Welt tippt ihn ab. Angewandt wird er beim Empfänger trotzdem,
+    // siehe `receiveGear`.
+    ctx.say(code, { kind: 'code', note: label });
+    const peers = ctx.net.peers.size;
+    ctx.notify(
+      peers > 0
+        ? `Gesendet an ${peers}: ${label} (${code.length} Zeichen)`
+        : `${label}: ${code.length} Zeichen im Chat — noch niemand verbunden`,
+    );
   }
 
   /**
@@ -1325,11 +1335,10 @@ export class TuneWorld extends PortalWorld {
    * Geprüft wird er wie jeder andere auch — was über das Netz kommt, ist nicht
    * vertrauenswürdiger als etwas Abgetipptes, nur schneller.
    */
-  private receiveGear(data: unknown, from: string): void {
+  private receiveGear(code: string, from: string): void {
     const ctx = this.context;
     if (!ctx) return;
-    const message = data as Partial<GearMessage> | null;
-    const config = typeof message?.code === 'string' ? parseGearCode(message.code) : null;
+    const config = parseGearCode(code);
     if (!config) {
       ctx.notify('Konfig-Code von einem Mitspieler war unlesbar');
       return;

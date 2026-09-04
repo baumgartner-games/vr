@@ -38,6 +38,16 @@ export interface WorldContext {
   goTo(worldId: string): void;
   /** Short message shown on the wrist menu / HUD. */
   notify(message: string): void;
+  /**
+   * Eine Zeile in den Chat — an alle im Raum und in den eigenen Verlauf.
+   *
+   * Für eine Welt ist das der Weg, etwas **Aufschreibbares** loszuwerden: der
+   * Eingaberaum schickt so seine Konfig-Codes, weil sie am PC in einem Panel
+   * mit einem Knopf *Kopieren* landen sollen und nicht in einer Meldung, die
+   * nach vier Sekunden weg ist. `kind: 'code'` markiert eine Zeile, die eine
+   * Maschine wieder lesen kann.
+   */
+  say(text: string, options?: { kind?: 'text' | 'code'; note?: string }): void;
 }
 
 export interface World {

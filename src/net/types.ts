@@ -20,6 +20,16 @@ export type NetMessage =
   | { type: 'bye'; from: string }
   | { type: 'world'; from: string; world: string }
   | { type: 'pose'; from: string; pose: PeerPose }
+  /**
+   * Eine Zeile Text an alle im Raum.
+   *
+   * Eigene Sorte und kein `event`, weil sie **keiner Welt gehört**: der Chat
+   * läuft weiter, während jemand von der Halle in den Eingaberaum geht, und ein
+   * Kanal, den eine Welt beim Aufräumen abbestellt (`NetSession.off`), täte das
+   * nicht. `kind: 'code'` markiert eine Zeile, die eine Maschine geschrieben hat
+   * — der Eingaberaum wendet nur solche an —, `note` sagt, wofür sie gilt.
+   */
+  | { type: 'chat'; from: string; name: string; text: string; kind: 'text' | 'code'; note?: string }
   /** Free-form world traffic, e.g. portal placements. */
   | { type: 'event'; from: string; channel: string; data: unknown };
 

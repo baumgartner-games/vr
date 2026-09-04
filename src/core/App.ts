@@ -8,6 +8,7 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { NetSession } from '../net/NetSession';
+import { ChatLog, type ChatEntry } from '../net/chat';
 import { RemoteAvatars } from '../net/RemoteAvatars';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTransport';
@@ -104,6 +105,15 @@ export class App {
    * Weltwechsel.
    */
   private readonly keys: KeyPanel;
+
+  /**
+   * Der Chat-Verlauf — bei der App und nicht bei einer Welt.
+   *
+   * Er überlebt jeden Weltwechsel und jedes Verbinden: wer aus der Brille einen
+   * Konfig-Code herüberschickt, will ihn am PC auch dann noch lesen, wenn der
+   * inzwischen in einer anderen Welt steht.
+   */
+  readonly chat = new ChatLog();
   private loading: string | null = null;
   private elapsed = 0;
   private lastTime = 0;
@@ -157,6 +167,10 @@ export class App {
     this.rig.add(this.wristMenu);
     this.refreshMenu();
 
+    // Der Name gilt ab sofort und nicht erst ab dem Verbinden: er steht im
+    // Chat vor jeder Zeile, und die schreibt man auch allein.
+    this.net.name = rememberedName() || defaultName(this.role);
+
     this.avatars = new RemoteAvatars(this.net);
     this.scene.add(this.avatars);
     this.spectator = new SpectatorCamera(this.rig, canvas, this.pointer);
@@ -169,6 +183,19 @@ export class App {
       this.hooks.onNetChanged?.();
     });
     this.net.onStatus(() => this.hooks.onNetChanged?.());
+    this.net.onChat((message, from) => {
+      const entry = this.chat.add({
+        from,
+        name: message.name || this.net.peers.get(from)?.name,
+        text: message.text,
+        kind: message.kind,
+        note: message.note,
+      });
+      // Auf dem Schild am Handgelenk steht nur, *dass* etwas kam: eine Zeile
+      // Konfig-Code dort zu lesen hilft niemandem, sie gehört auf den PC.
+      if (entry) this.notify(chatNotice(entry));
+      this.menuDirty = true;
+    });
 
     this.keys = new KeyPanel();
     this.scene.add(this.keys);
@@ -200,6 +227,7 @@ export class App {
       elapsed: this.elapsed,
       goTo: (id: string) => void this.goTo(id),
       notify: (message: string) => this.notify(message),
+      say: (text, options) => void this.say(text, options),
     };
   }
 
@@ -278,6 +306,38 @@ export class App {
       : new TrysteroTransport({ ...transportOptions, ...(turnConfig ? { turnConfig } : {}) });
     await this.net.connect(transport, room);
     this.menuDirty = true;
+  }
+
+  /**
+   * Eine Zeile in den Chat — an alle im Raum, und in den eigenen Verlauf.
+   *
+   * Beides zusammen, weil beides gemeint ist: was man abschickt, will man auch
+   * selbst noch dastehen sehen. Allein im Raum geht nichts hinaus und die Zeile
+   * bleibt trotzdem stehen — dieselbe Regel wie überall sonst hier, es läuft
+   * immer, als wäre man in einem Raum.
+   *
+   * @param note wofür ein `code` gilt; bei getipptem Text ohne Bedeutung.
+   * @returns der Eintrag, oder `null`, wenn nach dem Putzen nichts übrig war.
+   */
+  say(text: string, options: { kind?: 'text' | 'code'; note?: string } = {}): ChatEntry | null {
+    const entry = this.chat.add({
+      name: this.net.name,
+      text,
+      kind: options.kind,
+      note: options.note,
+      mine: true,
+    });
+    if (!entry) return null;
+    // Geschickt wird der **geputzte** Text: was hier steht, steht drüben.
+    const heard = this.net.sendChat(entry.text, { kind: entry.kind, note: entry.note });
+    // Bei einem Code sagt der Absender selbst, was er verschickt hat — zwei
+    // Meldungen übereinander liest niemand.
+    if (!heard && entry.kind === 'text') {
+      this.notify('Niemand verbunden — die Zeile steht nur bei dir');
+    }
+    this.menuDirty = true;
+    this.hooks.onNetChanged?.();
+    return entry;
   }
 
   disconnect(): void {
@@ -604,6 +664,7 @@ export class App {
             accent: 0x4aa8ff,
           },
           this.nameEntry(),
+          this.chatMenu(),
           this.spectateMenu(),
           {
             id: 'net:leave',
@@ -623,6 +684,7 @@ export class App {
             run: () => this.askRoom(),
           },
           this.nameEntry(),
+          this.chatMenu(),
           {
             id: 'net:dice',
             label: 'Neuen Raum aufmachen',
@@ -642,6 +704,50 @@ export class App {
       icon: 'worlds',
       accent: this.net.connected ? 0x5ee0a0 : 0x6f7d99,
       children,
+    };
+  }
+
+  /**
+   * Der Chat, wie ihn eine Brille braucht: **lesen und schreiben, nicht
+   * verwalten**.
+   *
+   * Kopiert wird am PC. Eine Zeile Konfig-Code in der Brille abzulesen ist
+   * dasselbe Elend, das sie ersetzen soll — deshalb stehen hier die letzten
+   * Zeilen zum Nachsehen, und der Knopf darüber schreibt eine neue. Wer den
+   * Code braucht, hat ihn drüben im Panel mit *Kopieren* daneben.
+   */
+  private chatMenu(): MenuEntry {
+    const latest = this.chat.latest(CHAT_ROWS);
+    const lines: MenuEntry[] = latest.map((entry) => ({
+      id: `net:chat:${entry.id}`,
+      label: entry.note ? `${entry.name} · ${entry.note}` : entry.name,
+      sub: entry.text,
+      accent: entry.mine ? 0x5ee0a0 : entry.kind === 'code' ? 0xffc857 : 0x4aa8ff,
+    }));
+
+    return {
+      id: 'net:chat',
+      label: 'Chat',
+      sub: this.chat.size ? chatNotice(this.chat.entries[this.chat.size - 1]!) : 'Noch nichts gesagt',
+      icon: 'chat',
+      accent: 0x9fe3ff,
+      children: [
+        {
+          id: 'net:chat:write',
+          label: 'Schreiben',
+          sub: 'Tastatur vor dir',
+          icon: 'chat',
+          accent: 0x5ee0a0,
+          run: () =>
+            this.openKeys({
+              title: 'Chat',
+              sub: this.net.connected ? `Raum ${this.net.room}` : 'Noch niemand verbunden',
+              layout: 'name',
+              onCommit: (text) => void this.say(text),
+            }),
+        },
+        ...lines.reverse(),
+      ],
     };
   }
 
@@ -965,4 +1071,21 @@ function envTurnConfig(): TurnServerConfig[] | null {
 
 function defaultName(role: PlayerRole): string {
   return role === 'vr' ? 'VR-Spieler' : role === 'handheld' ? 'Handy' : 'Desktop';
+}
+
+/** Wie viele Chat-Zeilen im Menü der Brille stehen. */
+const CHAT_ROWS = 8;
+
+/**
+ * Was auf dem Schild am Handgelenk landet, wenn eine Zeile ankommt.
+ *
+ * Ein Konfig-Code steht dort **nicht**: 24 Zeichen aus einem Alphabet ohne
+ * Bedeutung sind in einer Brille nicht zu lesen und erst recht nicht zu
+ * merken. Die Meldung sagt, *dass* einer da ist und wofür — abgeholt wird er am
+ * PC, dafür ist er ja geschickt worden.
+ */
+function chatNotice(entry: ChatEntry): string {
+  if (entry.kind !== 'code') return `${entry.name}: ${entry.text}`;
+  const what = entry.note ? ` (${entry.note})` : '';
+  return `${entry.name}: Konfig-Code${what} · ${entry.text.length} Zeichen`;
 }
