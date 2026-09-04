@@ -523,8 +523,21 @@ export class DroneTool extends Tool {
     // One hand: the device hangs off to the side so its own grip is the one in
     // that fist. Two hands: it is centred, because the origin is then already
     // in the middle between them.
-    this.deck.position.x = spanned ? 0 : this.heldBy === 'left' ? GRIP_X : -GRIP_X;
+    this.showHeldBy(spanned ? null : this.heldBy);
     if (!spanned) super.applyHold(controller);
+  }
+
+  /**
+   * Und dasselbe für ein Gerät, das gerade **niemand** hält.
+   *
+   * Die Kopie am Griffstand hängt in der Luft, `applyHold` läuft für sie nie —
+   * und ohne diese Zeile stand sie dort mittig, während sie in der Hand um
+   * einen halben Griffabstand daneben liegt. Wer die Boxhand an den sichtbaren
+   * Griff legte, mass genau diese Verschiebung mit ein und hielt hinterher ein
+   * Gerät, das zehn Zentimeter neben der Hand schwebte.
+   */
+  override showHeldBy(hand: Handedness | null): void {
+    this.deck.position.x = hand === 'left' ? GRIP_X : hand === 'right' ? -GRIP_X : 0;
   }
 
   /** The two-handed pose. False when the hands cannot be measured right now. */

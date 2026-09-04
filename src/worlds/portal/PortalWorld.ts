@@ -2760,6 +2760,13 @@ export class PortalWorld implements World {
     if (home) this.homes.set(tool, home.side);
     belt.release(tool);
 
+    // Solange es noch daliegt: ein Werkzeug, dem die *Stelle* etwas bedeutet,
+    // kann sie nur jetzt ablesen — nach dem Umhängen steckt es im Griff, und wo
+    // die Hand es angefasst hat, ist verloren. Der große Hammer holt sich
+    // daraus seinen Punkt am Stiel. Vom Gürtel aus gilt das nicht: dort greift
+    // man in einen Ring und nicht an eine Stelle des Werkzeugs.
+    if (!home) tool.onReach(controller);
+
     gripOf(controller).add(tool);
     tool.position.copy(tool.holdPosition);
     tool.quaternion.identity();

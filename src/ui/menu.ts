@@ -26,6 +26,7 @@ export type MenuIcon =
   | 'superman'
   | 'weld'
   | 'wrench'
+  | 'hammer'
   | 'xray'
   | 'drone'
   | 'tape'
@@ -488,6 +489,25 @@ export function drawMenuIcon(
         ctx.lineTo(s * 0.52 + Math.cos(angle) * s * 0.28, -s * 0.6 + Math.sin(angle) * s * 0.28);
         ctx.stroke();
       }
+      break;
+    }
+    case 'hammer': {
+      // Großer Hammer: ein langer Stiel quer durchs Bild, am oberen Ende der
+      // Kopf. Schräg, weil ein Stiel gerade im Bild ein Strich ist.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.62, s * 0.78);
+      ctx.lineTo(s * 0.34, -s * 0.42);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.roundRect(s * 0.06, -s * 0.86, s * 0.82, s * 0.42, s * 0.08);
+      ctx.stroke();
+      ctx.save();
+      ctx.translate(s * 0.47, -s * 0.65);
+      ctx.rotate(Math.PI / 4);
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.41, -s * 0.21, s * 0.82, s * 0.42, s * 0.08);
+      ctx.stroke();
+      ctx.restore();
       break;
     }
     case 'xray': {

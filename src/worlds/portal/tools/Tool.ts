@@ -252,6 +252,20 @@ export abstract class Tool extends THREE.Group {
     this.holdRotation.copy(this.factoryRotation);
   }
 
+  /**
+   * Eine Hand greift danach, **während es noch liegt, wo es lag**.
+   *
+   * Und das ist der ganze Unterschied zu `onTake`: dort hängt es schon im
+   * Griff, und wo die Hand es angefasst hat, ist nicht mehr zu erfahren. Hier
+   * steht beides noch getrennt im Raum, und ein Werkzeug, für das die *Stelle*
+   * eine Rolle spielt, kann sie ablesen — der große Hammer liest daraus, an
+   * welchem Punkt des Stiels die Faust liegt.
+   *
+   * Gerufen nur für ein Werkzeug, das im Raum lag. Vom Gürtel greift man in
+   * einen Ring und nicht an eine Stelle des Werkzeugs.
+   */
+  onReach(_controller: ControllerState): void {}
+
   /** Taken into a hand. */
   onTake(_controller: ControllerState, _host: ToolHost): void {}
 
@@ -287,6 +301,35 @@ export abstract class Tool extends THREE.Group {
   claimsHand(_hand: Handedness): boolean {
     return false;
   }
+
+  /**
+   * Stellt das **Modell** so, wie es in dieser Hand liegt — ohne dass es dazu
+   * gehalten werden muss.
+   *
+   * Die meisten Werkzeuge tun hier nichts, und sie haben recht damit: ihr
+   * Ursprung *ist* der Griff, `holdPosition` legt genau diesen Punkt in die
+   * Hand, und ein Modell, das sich darin nirgends verschiebt, sieht in jeder
+   * Hand gleich aus. Zwei Werkzeuge verschieben sich doch — das Drohnen-Deck
+   * rutscht zur Seite, damit der Griff *dieser* Hand auf dem Ursprung sitzt,
+   * der Stiel des Hammers rutscht entlang seiner Achse —, und für die ist das
+   * hier die zweite Hälfte von `applyHold`.
+   *
+   * Gebraucht wird sie am **Griffstand** (`worlds/tune/GripStand.ts`). Dort
+   * hängt eine Kopie, die niemand hält; `applyHold` steigt bei so einer Kopie
+   * gleich in der ersten Zeile aus, also stand die Drohne dort **mittig** statt
+   * am Griff. Wer die Boxhand an ihren sichtbaren Griff legte, mass sie damit
+   * um genau diese Verschiebung daneben, und im Spiel schwebte die Hand dann
+   * zehn Zentimeter neben dem Gerät. Die Kopie am Stand muss dasselbe Bild
+   * zeigen wie die Hand im Spiel — sonst misst man an einem anderen Gegenstand
+   * als dem, den man später hält.
+   *
+   * Am Nullpunkt ändert das nichts: der Ursprung des Werkzeugs bleibt, wo er
+   * ist, und die Messung rechnet gegen ihn (`tune/handGrip.ts`). Verschoben
+   * wird nur das, was man ansieht.
+   *
+   * @param hand die Hand, in der es liegt; `null` für „so, wie es herumliegt".
+   */
+  showHeldBy(_hand: Handedness | null): void {}
 
   /**
    * Puts the tool into the hand: the offset from `holdPosition`, and a

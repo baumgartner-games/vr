@@ -167,6 +167,7 @@ export const SHORT_SLOTS = [
   'hand-box',
   'controller-left',
   'controller-right',
+  'hammer',
 ] as const;
 
 const FLAG_POSE = 1;

@@ -806,6 +806,13 @@ export class TuneWorld extends PortalWorld {
     const tool = stand.tool;
     if (!tool) return;
     const side = this.gripState.side;
+    // Die Kopie in die Gestalt bringen, die sie **in dieser Hand** hat. Die
+    // meisten Werkzeuge sehen in jeder Hand gleich aus; die Drohne schiebt ihr
+    // Deck zur Seite, damit der Griff dieser Hand auf dem Ursprung sitzt, und
+    // der Hammer seinen Stiel entlang der Achse. Ohne diese Zeile stünde am
+    // Stand ein anderer Gegenstand als der, den man später hält — und die
+    // Boxhand landete um genau diese Verschiebung daneben (`Tool.showHeldBy`).
+    tool.showHeldBy(side);
     const pose = ctx.hands.editablePose(side, this.gripState.tool);
     const ghost = stand.setHand(side, pose);
     if (!ghost) return;
@@ -1849,6 +1856,11 @@ export class TuneWorld extends PortalWorld {
     tool.position.set(0, 0, 0);
     tool.quaternion.identity();
     tool.scale.set(1, 1, 1);
+    // Und in der Gestalt, die es **in dieser Hand** hat: ein Werkzeug, das sein
+    // Modell im Griff verschiebt (Drohne, Hammer), stünde sonst im Halter
+    // anders da als in der Faust — und gemessen würde dann die Verschiebung
+    // mit. Wer es zweihändig hereintrug, hätte es sogar mittig liegen sehen.
+    tool.showHeldBy(hand);
     tool.updateWorldMatrix(true, false);
     // Und der Stand selbst geht aus dem Weg: was man jetzt ansieht, ist die
     // Hand am Werkzeug.

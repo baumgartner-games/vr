@@ -5,6 +5,7 @@ import { DuplicatorTool } from './DuplicatorTool';
 import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
+import { HammerTool } from './HammerTool';
 import { HandTool } from './HandTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
@@ -35,6 +36,7 @@ export const TOOL_IDS = [
   'inspect',
   'pistol',
   'shuriken',
+  'hammer',
   'stopwatch',
   'flashlight',
   'grapple',
@@ -87,6 +89,8 @@ function buildTool(id: string): Tool | null {
       return new PistolTool();
     case 'shuriken':
       return new ShurikenTool();
+    case 'hammer':
+      return new HammerTool();
     case 'stopwatch':
       return new StopwatchTool();
     case 'flashlight':
@@ -132,6 +136,7 @@ export {
   FlashlightTool,
   GrappleTool,
   GravityGloveTool,
+  HammerTool,
   HandTool,
   HolsterTool,
   PistolTool,
@@ -201,6 +206,20 @@ export {
   type WeaponField,
   type WeaponSettings,
 } from './weaponSettings';
+export {
+  HAMMER_HOME,
+  HAMMER_SHAFT,
+  MIN_SPAN,
+  SWING_MAX,
+  SWING_MIN,
+  SWING_TRANSFER,
+  clampShaftGrip,
+  spanPole,
+  swingPush,
+  type Hold,
+  type Shaft,
+  type Span,
+} from './poleGrip';
 export { createSight, Attachment, type AttachmentContext } from './attachments';
 export {
   DEFAULT_MATERIAL,

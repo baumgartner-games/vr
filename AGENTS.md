@@ -116,7 +116,13 @@ Achse bedient), der **zweite Justierstand**
 eine Werkzeug-Id, die es nicht mehr gibt) samt seiner **Rechnung**
 (`src/worlds/tune/handGrip.ts` — dass die Kette Griff → Werkzeug → Hand sich
 wirklich schließt und der Griff sich dabei herauskürzt, denn am Stand hält
-niemand etwas), die
+niemand etwas), der **Griff am Stiel**
+(`src/worlds/portal/tools/poleGrip.ts` — wo eine Faust am großen Hammer liegen
+darf, und vor allem die zweihändige Lage: dass beide Griffpunkte in ihren
+Fäusten landen, dass eine falsche Handspanne sich gleichmäßig auf beide
+verteilt statt in einer Hand einzurasten, und dass der **Kopf nach vorn** zeigt,
+egal in welcher Reihenfolge die Welt die beiden Hände hereingibt — dieses
+Vorzeichen bemerkt man in der Brille nur noch, man vollzieht es nicht nach), die
 **Vibrationsmuster** (`src/worlds/tune/haptics.ts` — die einzige Rückmeldung,
 die man *nicht sehen* kann: dass jeder Stoß genau einmal kommt, dass der bei
 null auf den ersten Frame fällt, dass ein Ruckler nicht acht Durchläufe auf
@@ -350,6 +356,33 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     unterwegs oder eingeschlagen sein; der sechste Wurf holt den ersten
     zurück. Die Bahn wird pro Frame selbst abgetastet statt auf einen
     Abpraller zu warten — nur so bleibt er *stecken*, statt abzuprallen.
+  - **Großer Hammer**: ein Meter Stange, vorn ein Kopf aus Eisen — und das
+    erste Werkzeug, das man **irgendwo** anfassen kann. Der türkise Belag am
+    Stiel ist der Griff, und er ist absichtlich lang: weit hinten am Knauf hat
+    man die ganze Reichweite, weit vorn die Kontrolle, und beides will man nicht
+    als Einstellung, sondern mitten in der Bewegung. **Eine Hand** hält ihn wie
+    jedes andere Werkzeug, entlang des Zeigestrahls, Kopf nach vorn — neu ist
+    nur, *welcher Punkt* des Stiels dabei in der Faust liegt. Die **zweite
+    Hand** kommt dazu, sobald sie am Stiel zudrückt (sie zieht dann nichts mehr
+    von der Hüfte, `claimsHand`); ab da liegt der Stab auf der Linie zwischen
+    den beiden Fäusten, jede an ihrem Punkt, und der Kopf zeigt von der
+    hinteren Hand weg. Vom **Boden** aufgehoben wird er dort, wo die Hand ihn
+    anfasst (`Tool.onReach` — der eine Augenblick, in dem Werkzeug und Hand noch
+    getrennt im Raum stehen); von der **Hüfte** kommt er im Standardgriff, denn
+    dort greift man in einen Ring und nicht an eine Stelle des Werkzeugs.
+    **Trigger halten** ist das Umgreifen: der Stiel bleibt
+    stehen, wo er ist, und die Hände rutschen daran entlang — Loslassen, und er
+    sitzt an den neuen Punkten. Kein Menü und keine Raste, sondern die Bewegung,
+    die man auch mit einem echten Stiel macht. **Geschlagen** wird mit dem Kopf
+    und nicht mit dem Trigger: was der Kopf schnell genug (ab 1,6 m/s) berührt,
+    bekommt einen Stoß in die Richtung, in die der Kopf gerade fliegt, gedeckelt
+    bei 9 m/s, damit ein Zucken nicht die halbe Halle wegschießt. Der Kopf wird
+    als *Punkt* gemessen und nicht als Strecke — in der Greifbox (Collider plus
+    9 cm) verschwindet der Weg eines Bildes, ein wirklich schneller Schlag kann
+    aber durch einen dünnen Dominostein hindurchgehen. Lässt die **führende**
+    Hand los, fällt er, auch wenn die zweite noch am Stiel liegt: `heldBy`
+    gehört der Welt, nicht dem Werkzeug (genau wie bei der Drohne). Die Rechnung
+    steht in `tools/poleGrip.ts` mit Test, das Werkzeug in `tools/HammerTool.ts`.
   - **Stoppuhr**: das Werkzeug, mit dem man Physik *ansieht*. Ein **Knopf** an
     der Krone (oder `A`/`X`) öffnet ein Panel an der Uhr — dieselbe Mechanik
     wie beim Drohnen-Display —, und dort steht, was der **Trigger** tut
@@ -758,6 +791,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   wird, und ein Stand, den man hinterher noch verschiebt, nimmt beide
   gemeinsam mit, ohne dass sich an der Messung etwas ändert.
 
+  Und die Kopie liegt in der **Gestalt, die sie in der eingestellten Hand hat**
+  (`Tool.showHeldBy`). Für fast jedes Werkzeug ist das dasselbe Bild; für die
+  beiden, deren Modell sich im Griff verschiebt — Drohne und großer Hammer —
+  ist es der Unterschied zwischen einer Messung und einer um den Versatz
+  daneben. Beim **Hammer** heißt es außerdem, dass dort sein Auslieferungsgriff
+  am Stiel liegt: eine Handhaltung ist der Versatz gegen den *Ursprung* des
+  Werkzeugs, und der ist bei ihm immer der Punkt, an dem die Faust liegt —
+  einmal eingemessen gilt sie damit an jedem Punkt des Stiels, und der Stand
+  braucht die anderen Punkte gar nicht zu zeigen. Warum das überhaupt eine
+  Zeile Code ist, steht unter *Eingemessene Griffe*.
+
   Für die letzten zwei Millimeter gibt es an der linken Wand des Gangs
   **Feinjustieren**: die geltende Haltung wird geladen (`gripForHold` in
   `toolPose.ts`, die Umkehrung der Messung) und als **Geisterhand** ans
@@ -884,6 +928,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug fallen lassen | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht) | – | – |
 | Hüften verschieben | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück) | – | – |
 | Wurfstern werfen | im Schwung loslassen; er fliegt weiter und bleibt stecken | – | – |
+| Großer Hammer | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf | – | – |
 | Haltung (sitzen/stehen) | Startseite oder Menü → Bewegung → Haltung | dito | dito |
 | Greifen ohne Controller | Mittel-, Ring- und kleiner Finger an die Handfläche | – | – |
 | Trigger ohne Controller | Zeigefinger an die Handfläche | – | – |
@@ -977,9 +1022,21 @@ einzeln: Ein neues Werkzeug bekommt sie geschenkt und kann sie nicht
 vergessen. Wer ein Werkzeug bewusst starr an der Hand haben will, setzt
 `alignToAim = false`; eine feste Zusatzneigung (das Drohnen-Display) kommt in
 `holdRotation`. Ein **zweihändiges** Werkzeug überschreibt `applyHold` und
-spannt sich selbst zwischen die beiden Griffe (die Drohne tut das); mit
-`Tool.claimsHand()` sagt es außerdem, dass die zweite Hand belegt ist — sonst
-zieht derselbe Griff nebenbei ein Werkzeug von der Hüfte.
+spannt sich selbst zwischen die beiden Griffe (die Drohne und der große Hammer
+tun das); mit `Tool.claimsHand()` sagt es außerdem, dass die zweite Hand belegt
+ist — sonst zieht derselbe Griff nebenbei ein Werkzeug von der Hüfte.
+
+**Ein Werkzeug, dessen Modell sich im Griff verschiebt, sagt das mit
+`Tool.showHeldBy()`** und nicht in `applyHold`. Zwei tun das: die Drohne
+schiebt ihr Deck zur Seite, damit der Griff *dieser* Hand auf dem Ursprung
+sitzt, der Hammer schiebt seinen Stiel entlang der Achse. Der Ursprung des
+Werkzeugs bleibt dabei, wo er ist — verschoben wird nur, was man ansieht. Nötig
+ist die eigene Methode, weil es **drei** Orte gibt, an denen so ein Modell
+gestellt werden muss und nur einer davon eine Hand ist: die Hand
+(`applyHold`), der **Halter** am ersten Justierstand (`TuneWorld.mountTool`)
+und die **Kopie** am Griffstand (`TuneWorld.placeGripHand`). Die beiden
+Letzteren hält niemand, also läuft `applyHold` dort nie — und genau daran ist es
+einmal schiefgegangen: siehe *Eingemessene Griffe*.
 
 Jede Waffe in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden
 und Decke richtet sich das Portal nach der Waffe, mit der du zielst.
@@ -1321,6 +1378,20 @@ außerdem, **an welcher Hand** eine Werkzeugpose gemessen wurde
 Herkunft ist die einzige Auskunft darüber, warum sie so aussieht, wie sie
 aussieht. Der Kurzcode trägt die Seite ohnehin, und das Menü zeigt sie unter
 *Lage in der Hand zurücksetzen*.
+
+**Am Griffstand liegt das Werkzeug so, wie es in der Hand liegt.** Die Kopie
+dort hält niemand, also läuft `applyHold` für sie nie — und ein Werkzeug, das
+sein Modell im Griff verschiebt, stand damit am Stand anders da als in der
+Faust. Die **Drohne** ist der Fall, an dem es auffiel: einhändig rutscht ihr
+Deck um einen halben Griffabstand zur Seite, damit der Griff dieser Hand auf dem
+Ursprung sitzt (10,5 cm), am Stand stand sie mittig. Wer die Boxhand dort an den
+sichtbaren Griff legte, mass diese 10,5 cm mit ein und hielt hinterher ein
+Gerät, das neben der Hand schwebte; wer die Hand statt dessen in die *Mitte* der
+Kopie legte, hatte es richtig — was genau der falsche Weg ist, sich das zu
+merken. Der Stand ruft jetzt `Tool.showHeldBy(seite)`, ebenso der Halter am
+ersten Stand (`mountTool`, auch für den Fall, dass jemand das Ding zweihändig
+hereintrug). An der Messung selbst ändert das nichts: die rechnet gegen den
+**Ursprung** des Werkzeugs, und der bleibt liegen.
 
 **Der Nullpunkt am zweiten Stand sitzt am Werkzeug.** Eine Handhaltung ist ein
 Versatz im *Griffraum*, und die Null darin ist der Griffpunkt des Controllers,
