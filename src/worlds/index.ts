@@ -81,6 +81,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./dust/DustWorld')).DustWorld(),
   },
   {
+    id: 'moon',
+    title: 'Mond',
+    tagline: 'Ein Sechstel Schwerkraft',
+    description:
+      'Graue Ebene bis zum Horizont, Krater, Felsen und ein Lander. Springen dauert dreimal so lange.',
+    accent: 0xd7dce8,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./moon/MoonWorld')).MoonWorld(),
+  },
+  {
     id: 'dark',
     title: 'Dunkelhaus',
     tagline: 'Licht aus, Taschenlampe an',

@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import type { World, WorldContext } from '../../core/types';
 import { WORLDS } from '../index';
 import { TextPlane } from '../../ui/TextPlane';
-import { createLighting, createSky, disposeTree } from '../shared/environment';
+import { createGround, createLighting, createSky, disposeTree } from '../shared/environment';
 import { FreeLocomotion } from '../../core/Locomotion';
+import { layoutHub, type HubLayout } from './hubLayout';
 
 interface Gate {
   group: THREE.Group;
@@ -14,10 +15,19 @@ interface Gate {
 }
 
 const SPAWN = new THREE.Vector3(0, 0, 4.5);
+/** Höhe der Gangwände. */
+const WALL_HEIGHT = 3.4;
 
 /**
- * Landing area: quiet, bright, and every other world is one gate away. The
- * wrist menu works here too — the gates are just the physical variant.
+ * Der Hub: hell, ruhig, und jede andere Welt ist ein Tor weit weg.
+ *
+ * Die Tore stehen nicht mehr auf einem Bogen, sondern in **Gängen**, die von
+ * der Halle abgehen — vier Tore je Gang, und ist einer voll, kommt der
+ * nächste dazu. Wo genau, rechnet `hubLayout.ts` (mit Test) aus der Länge der
+ * Weltenliste aus: eine neue Welt bleibt damit das, was sie sein soll — ein
+ * Eintrag in der Registry, und niemand rückt hier Koordinaten zurecht.
+ *
+ * Das Handgelenk-Menü kann dasselbe; die Tore sind die begehbare Variante.
  */
 export class HubWorld implements World {
   private readonly root = new THREE.Group();
@@ -27,42 +37,46 @@ export class HubWorld implements World {
   init(ctx: WorldContext): void {
     this.root.name = 'hub-world';
     ctx.scene.add(this.root);
-    ctx.scene.fog = new THREE.Fog(0x0a1020, 18, 70);
+    ctx.scene.fog = new THREE.Fog(0x0a1020, 40, 260);
 
     this.root.add(createSky(0x1b3358, 0x05070d));
     this.root.add(createLighting(1.15));
-    this.root.add(buildFloor());
+    // Auch der Hub steht auf der Fläche, die es überall gibt: man kann aus
+    // den Gängen heraustreten und die Anlage von außen ansehen.
+    this.root.add(createGround(0x1d2740, { line: 0x4aa8ff, tile: 6 }));
+
+    const targets = WORLDS.filter((world) => world.id !== 'hub');
+    const layout = layoutHub(targets.length);
+    this.root.add(buildHall(layout));
+    for (const corridor of layout.corridors) this.root.add(buildCorridor(corridor));
 
     const title = new TextPlane({
       width: 4.4,
       height: 1.3,
       title: 'Baumgartner VR',
-      body: 'Wähle eine Welt – am Tor oder über den Button an deiner linken Hand.',
+      body: 'Wähle eine Welt – am Tor im Gang oder über den Button an deiner Hand.',
       align: 'center',
       accent: 0x4aa8ff,
     });
-    title.position.set(0, 6.4, -13.5);
+    title.position.set(0, 5.2, 0);
     this.root.add(title);
 
     const hint = new TextPlane({
       width: 2.4,
       height: 0.78,
       title: 'Steuerung',
-      body: 'Linke Hand: Menü-Button. Rechte Hand: zielen + Trigger. Stick: gehen, rechts: drehen.',
+      body: 'Beide Hände: Menü-Button. Zielen + Trigger wählt. Stick: gehen, rechts: drehen.',
       accent: 0x9d7bff,
     });
-    hint.position.set(-4.6, 1.6, 2.6);
+    hint.position.set(-3.4, 1.6, 3.4);
     hint.rotation.y = Math.PI / 4.5;
     this.root.add(hint);
 
-    const targets = WORLDS.filter((world) => world.id !== 'hub');
-    const spread = Math.PI / 2.4;
-    targets.forEach((definition, index) => {
-      const t = targets.length === 1 ? 0.5 : index / (targets.length - 1);
-      const angle = -spread / 2 + spread * t;
+    layout.gates.forEach((placement) => {
+      const definition = targets[placement.index]!;
       const gate = buildGate(definition.title, definition.description, definition.accent);
-      gate.group.position.set(Math.sin(angle) * 6, 0, -Math.cos(angle) * 6);
-      gate.group.lookAt(0, 0, SPAWN.z);
+      gate.group.position.set(placement.x, 0, placement.z);
+      gate.group.rotation.y = placement.yaw;
       gate.worldId = definition.id;
       this.root.add(gate.group);
       this.gates.push(gate);
@@ -73,9 +87,12 @@ export class HubWorld implements World {
     });
 
     ctx.rig.placeAt(SPAWN, 0);
+    // Weit genug, um die Anlage zu umrunden — und eng genug, um nicht in der
+    // leeren Fläche verloren zu gehen.
+    const reach = layout.extent + 12;
     ctx.rig.setLocomotion(
       new FreeLocomotion(
-        new THREE.Box3(new THREE.Vector3(-11, 0, -11), new THREE.Vector3(11, 0, 11)),
+        new THREE.Box3(new THREE.Vector3(-reach, 0, -reach), new THREE.Vector3(reach, 0, reach)),
       ),
     );
   }
@@ -101,32 +118,101 @@ export class HubWorld implements World {
   }
 }
 
-function buildFloor(): THREE.Group {
+/** Die runde Halle in der Mitte, aus der die Gänge abgehen. */
+function buildHall(layout: HubLayout): THREE.Group {
   const group = new THREE.Group();
-  group.name = 'floor';
+  group.name = 'hall';
 
+  const radius = layout.hallRadius + 1;
   const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(12, 64),
+    new THREE.CircleGeometry(radius, 64),
     new THREE.MeshStandardMaterial({ color: 0x3a4666, roughness: 0.85, metalness: 0.05 }),
   );
   disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.01;
   group.add(disc);
 
-  const grid = new THREE.GridHelper(24, 24, 0x4aa8ff, 0x243b5a);
+  const grid = new THREE.GridHelper(radius * 2, 16, 0x4aa8ff, 0x243b5a);
   (grid.material as THREE.Material).opacity = 0.28;
   (grid.material as THREE.Material).transparent = true;
-  grid.position.y = 0.01;
+  grid.position.y = 0.02;
   group.add(grid);
 
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(12, 0.06, 8, 96),
+    new THREE.TorusGeometry(radius, 0.06, 8, 96),
     new THREE.MeshBasicMaterial({ color: 0x4aa8ff }),
   );
   rim.rotation.x = -Math.PI / 2;
-  rim.position.y = 0.02;
+  rim.position.y = 0.03;
   group.add(rim);
 
+  // Ein Ring aus Pfeilern: er macht aus der Scheibe einen Raum, ohne die
+  // Sicht in die Gänge zu verstellen.
+  const pillar = new THREE.MeshStandardMaterial({ color: 0x2a3550, roughness: 0.7 });
+  const openings = layout.corridors.map((corridor) => corridor.angle);
+  for (let i = 0; i < 16; i++) {
+    const angle = (i / 16) * Math.PI * 2;
+    // Kein Pfeiler dort, wo ein Gang abgeht.
+    if (openings.some((opening) => angularGap(angle, opening) < 0.5)) continue;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 4.2, 10), pillar);
+    post.position.set(Math.sin(angle) * radius, 2.1, -Math.cos(angle) * radius);
+    group.add(post);
+  }
+
   return group;
+}
+
+/** Ein Gang: Boden, zwei Wände, ein Lichtband und eine Rückwand. */
+function buildCorridor(corridor: HubLayout['corridors'][number]): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'corridor';
+  group.rotation.y = corridor.angle;
+
+  const half = corridor.width / 2;
+  const length = corridor.length;
+  const floorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x33405f,
+    roughness: 0.9,
+    metalness: 0.05,
+  });
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x222d47, roughness: 0.85 });
+
+  // Der Gang liegt entlang −Z; die Gruppe dreht ihn an seinen Platz.
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(corridor.width, length), floorMaterial);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0.012, -length / 2);
+  group.add(floor);
+
+  for (const side of [-1, 1] as const) {
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, WALL_HEIGHT, length),
+      wallMaterial,
+    );
+    wall.position.set(side * (half + 0.15), WALL_HEIGHT / 2, -length / 2);
+    group.add(wall);
+
+    const strip = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.06, length - 0.6),
+      new THREE.MeshBasicMaterial({ color: 0x9ec4ff, toneMapped: false }),
+    );
+    strip.position.set(side * half, WALL_HEIGHT - 0.25, -length / 2);
+    group.add(strip);
+  }
+
+  const end = new THREE.Mesh(
+    new THREE.BoxGeometry(corridor.width + 0.6, WALL_HEIGHT, 0.3),
+    wallMaterial,
+  );
+  end.position.set(0, WALL_HEIGHT / 2, -length);
+  group.add(end);
+
+  return group;
+}
+
+/** Kleinster Winkel zwischen zwei Richtungen. */
+function angularGap(a: number, b: number): number {
+  const difference = Math.abs(a - b) % (Math.PI * 2);
+  return Math.min(difference, Math.PI * 2 - difference);
 }
 
 function buildGate(title: string, description: string, accent: number): Gate {
