@@ -55,6 +55,23 @@ export function applyStoredPose(tool: Tool): void {
   tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
 }
 
+/**
+ * Vergisst die Pose *eines* Werkzeugs — der Rest bleibt stehen.
+ *
+ * Das Regal hat inzwischen zwanzig Fächer, und eine schiefe Pistole ist kein
+ * Grund, die Drohne mit zurückzusetzen. Das Alles-zurück steht daneben und
+ * heißt auch so.
+ *
+ * @returns true, wenn wirklich etwas gespeichert war
+ */
+export function clearPose(toolId: string): boolean {
+  const all = read();
+  if (!(toolId in all)) return false;
+  delete all[toolId];
+  write(all);
+  return true;
+}
+
 /** Forgets every measured pose. The tools go back to how they were built. */
 export function clearPoses(): void {
   try {

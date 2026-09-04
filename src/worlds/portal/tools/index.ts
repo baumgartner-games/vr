@@ -127,6 +127,7 @@ export {
 };
 export {
   applyStoredPose,
+  clearPose,
   clearPoses,
   holdPoseSnapshot,
   savePose,

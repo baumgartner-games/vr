@@ -69,6 +69,17 @@ export interface MenuEntry {
    * redraws itself afterwards.
    */
   checked?: boolean;
+  /**
+   * Statt der gezeichneten Ikone ein **kleines Modell der Sache selbst**,
+   * das vor der Zeile im Raum steht und sich langsam dreht.
+   *
+   * Der Wert ist eine Id, die derjenige versteht, der die Modelle baut — beim
+   * Werkzeugregal die Werkzeug-Id. Eine Strichzeichnung sagt „irgendein
+   * Handschuh"; das Ding selbst sagt, welcher. Und es ist ohnehin das, wonach
+   * man greift: die Zeile dahinter bleibt genau so anfassbar wie vorher, das
+   * Modell steht nur davor und fängt keinen Strahl ab.
+   */
+  preview?: string;
   /** @param hand the hand that selected the entry, when known. */
   run?(hand: Handedness | null): void;
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WristMenu, type WristMenuOptions } from './WristMenu';
+import { WristMenu, type MenuModelFactory, type WristMenuOptions } from './WristMenu';
 import { MenuNav } from './menuNav';
 import type { MenuEntry } from './menu';
 import type { Pointer } from '../core/Pointer';
@@ -100,6 +100,14 @@ export class WristMenus extends THREE.Group {
 
   attachPointer(): void {
     for (const menu of this.menus) menu.attachPointer();
+  }
+
+  /**
+   * Woher die kleinen Modelle in den Zeilen kommen — das Werkzeugregal setzt
+   * das, wenn seine Welt startet, und nimmt es beim Gehen wieder weg.
+   */
+  setModelFactory(factory: MenuModelFactory | null): void {
+    for (const menu of this.menus) menu.setModelFactory(factory);
   }
 
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {

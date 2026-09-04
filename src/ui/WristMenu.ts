@@ -18,6 +18,10 @@ const _mat = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
 const _delta = new THREE.Quaternion();
+const _box = new THREE.Box3();
+const _size = new THREE.Vector3();
+const _centre = new THREE.Vector3();
+const _world = new THREE.Matrix4();
 
 interface Page {
   title: string;
@@ -45,6 +49,15 @@ const SCROLL_REPEAT = 0.16;
  * Hand beim Drücken zittern darf, ohne dass die Zeile darunter wegrutscht.
  */
 const SWIPE_SLOP = 0.02;
+
+/**
+ * Baut ein kleines Modell zu einer Vorschau-Id, oder `null`, wenn es dazu
+ * keins gibt. Die Welt liefert das — das Menü weiß nicht, was ein Werkzeug ist.
+ */
+export type MenuModelFactory = (id: string) => THREE.Object3D | null;
+
+/** Wie schnell sich ein Vorschaumodell dreht, in Radiant pro Sekunde. */
+const PREVIEW_SPIN = 0.7;
 
 export interface WristMenuOptions {
   title?: string;
@@ -118,7 +131,27 @@ export class WristMenu extends THREE.Group {
    * später durch, was niemand merkt; `A` ebenso, weil dabei der Trigger von
    * vornherein nicht gedrückt ist.
    */
-  private pending: { index: number; hand: Handedness } | null = null;
+  private pending: { index: number; hand: Handedness; viaTrigger: boolean } | null = null;
+  /**
+   * Das zuletzt gesehene Eingabegerät.
+   *
+   * Der Pointer sagt beim Auswählen nur, *welche* Hand gedrückt hat, nicht
+   * *womit*. Auf einer Nimm-Seite ist das aber der ganze Unterschied: Greifen
+   * und `A` füllen die Hand, der Trigger geht in die Einstellungen. Also wird
+   * im Moment der Auswahl nachgesehen, ob der Trigger unten ist.
+   */
+  private lastInput: XRInput | null = null;
+  /**
+   * Die kleinen Modelle vor den Zeilen, nach Vorschau-Id.
+   *
+   * Sie hängen am Panel, nicht am Handgelenk: dann folgen sie ihm durch jede
+   * Neigung, ohne dass hier eine einzige Matrix gerechnet wird. Gebaut werden
+   * sie erst, wenn ihre Zeile das erste Mal zu sehen ist — ein Regal mit
+   * zwanzig Werkzeugen zeigt nie mehr als sieben davon auf einmal.
+   */
+  private readonly previews = new Map<string, THREE.Object3D>();
+  private models: MenuModelFactory | null = null;
+  private spin = 0;
 
   constructor(
     private readonly pointer: Pointer,
@@ -176,6 +209,16 @@ export class WristMenu extends THREE.Group {
 
     this.attachPointer();
     this.drawButton();
+  }
+
+  /**
+   * Woher die kleinen Modelle kommen. `null` schaltet sie ab und räumt die
+   * gebauten weg — beim Weltwechsel, wo die Werkzeuge dahinter sterben.
+   */
+  setModelFactory(factory: MenuModelFactory | null): void {
+    if (this.models === factory) return;
+    this.models = factory;
+    this.clearPreviews();
   }
 
   /** (Re-)registers the menu with the pointer, e.g. after a world switch. */
@@ -286,6 +329,7 @@ export class WristMenu extends THREE.Group {
    * @param headWorld head pose in world space
    */
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {
+    this.lastInput = input;
     this.panel.update(dt);
 
     // Everything is computed in this group's space (the player rig), where the
@@ -298,6 +342,7 @@ export class WristMenu extends THREE.Group {
     this.updateScroll(dt, input);
     this.updateSwipe(input);
     this.updatePending(input);
+    this.updatePreviews(dt);
 
     const controller = input.get(this.hand);
     const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
@@ -382,6 +427,7 @@ export class WristMenu extends THREE.Group {
 
   dispose(): void {
     this.unwatchNav();
+    this.clearPreviews();
     this.pointer.remove(this.button);
     this.pointer.remove(this.panel);
     this.button.geometry.dispose();
@@ -407,7 +453,7 @@ export class WristMenu extends THREE.Group {
     const page = this.page;
     this.panel.setPage(page.title, this.displayed(), {
       grid: page.grid,
-      hint: page.take ? 'Zeigen + Greifen/A nimmt es in die Hand' : undefined,
+      hint: page.take ? 'Greifen/A nimmt es · Trigger öffnet die Einstellungen' : undefined,
       // The same page again keeps its place; a different one starts where it
       // was left. Using a row is what changes its label, so a page is
       // re-applied constantly — resetting it there was what threw you back to
@@ -556,7 +602,7 @@ export class WristMenu extends THREE.Group {
     if (!pending) return;
     if (input.get(pending.hand)?.trigger.pressed) return;
     this.pending = null;
-    this.runSelect(pending.index, pending.hand);
+    this.runSelect(pending.index, pending.hand, pending.viaTrigger);
   }
 
   /** Blättern und dabei mitschreiben, wo die Seite steht. */
@@ -578,13 +624,25 @@ export class WristMenu extends THREE.Group {
    */
   private handleSelect(index: number, hand: Handedness | null): void {
     if (hand === null) {
-      this.runSelect(index, null);
+      this.runSelect(index, null, true);
       return;
     }
-    this.pending = { index, hand };
+    this.pending = {
+      index,
+      hand,
+      viaTrigger: this.lastInput?.get(hand)?.trigger.pressed ?? false,
+    };
   }
 
-  private runSelect(index: number, hand: Handedness | null): void {
+  /**
+   * @param viaTrigger ob der Trigger das ausgelöst hat und nicht `A`. Auf
+   *                   einer Nimm-Seite hängt daran, was passiert: `A` und
+   *                   Greifen legen das Werkzeug in die Hand, der Trigger
+   *                   geht in seine Einstellungen. Beides zugleich wäre das
+   *                   Schlimmste von beidem — man hätte das Ding in der Hand
+   *                   *und* stünde eine Seite tiefer.
+   */
+  private runSelect(index: number, hand: Handedness | null, viaTrigger: boolean): void {
     const entry = this.displayed()[index];
     if (!entry) return;
 
@@ -594,6 +652,7 @@ export class WristMenu extends THREE.Group {
       return;
     }
     if (entry.children) {
+      if (this.page.take && !viaTrigger) return;
       this.pushPage(entry);
       return;
     }
@@ -601,6 +660,65 @@ export class WristMenu extends THREE.Group {
     if (this.page.take && hand !== null) return;
     entry.run?.(hand);
     this.panel.refresh();
+  }
+
+  // --- die kleinen Modelle --------------------------------------------------
+
+  /**
+   * Vor jeder sichtbaren Zeile, die eins hat, steht das Ding selbst.
+   *
+   * Eine Strichzeichnung sagt „irgendein Handschuh"; das Modell sagt, welcher
+   * — und es dreht sich langsam, weil man einem Werkzeug von einer Seite oft
+   * nicht ansieht, was es ist. Es fängt **keinen Strahl** ab: es ist kein
+   * Ziel des Pointers, also greift man weiter die Zeile dahinter, und die
+   * ganze Zeile bleibt anfassbar wie vorher.
+   */
+  private updatePreviews(dt: number): void {
+    if (!this.models || !this.open) {
+      for (const preview of this.previews.values()) preview.visible = false;
+      return;
+    }
+    this.spin = (this.spin + dt * PREVIEW_SPIN) % (Math.PI * 2);
+
+    const shown = new Set<string>();
+    const entries = this.displayed();
+    for (let index = 0; index < entries.length; index++) {
+      const id = entries[index]!.preview;
+      if (!id) continue;
+      const anchor = this.panel.rowAnchor(index);
+      if (!anchor) continue;
+      const preview = this.preview(id, anchor.size);
+      if (!preview) continue;
+      shown.add(id);
+      preview.visible = true;
+      preview.position.set(anchor.x, anchor.y, 0.004);
+      preview.rotation.y = this.spin;
+    }
+    for (const [id, preview] of this.previews) {
+      if (!shown.has(id)) preview.visible = false;
+    }
+  }
+
+  /** Das Modell zu einer Id, gebaut beim ersten Hinsehen und dann behalten. */
+  private preview(id: string, size: number): THREE.Object3D | null {
+    const existing = this.previews.get(id);
+    if (existing) return existing;
+    const source = this.models?.(id);
+    if (!source) return null;
+    const model = miniature(source, size);
+    model.visible = false;
+    this.panel.add(model);
+    this.previews.set(id, model);
+    return model;
+  }
+
+  private clearPreviews(): void {
+    for (const preview of this.previews.values()) {
+      preview.removeFromParent();
+      // Geometrie und Material gehören dem Werkzeug, von dem abgeschrieben
+      // wurde — hier wird nur der Rahmen weggeräumt.
+    }
+    this.previews.clear();
   }
 
   // --- button -------------------------------------------------------------
@@ -651,6 +769,61 @@ export class WristMenu extends THREE.Group {
 
     this.buttonTexture.needsUpdate = true;
   }
+}
+
+/**
+ * Ein Ding aus der Welt, klein genug für eine Menüzeile.
+ *
+ * Abgeschrieben statt geklont: `Object3D.clone()` ruft den Konstruktor der
+ * Unterklasse noch einmal auf und baut damit ein ganzes zweites Werkzeug samt
+ * seiner Leinwände. Hier werden nur die sichtbaren Netze abgegriffen, mit
+ * derselben Geometrie und demselben Material — ein paar Dutzend Zeiger statt
+ * ein paar Dutzend Kilobyte, und ein Werkzeug, das im Regal seine Farbe
+ * ändert, ändert sie hier gleich mit.
+ *
+ * Danach wird das Ganze in seinen Mittelpunkt geschoben und auf `size`
+ * heruntergerechnet, damit eine Drohne und ein Wurfstern in derselben Zeile
+ * gleich groß aussehen.
+ */
+function miniature(source: THREE.Object3D, size: number): THREE.Object3D {
+  const inner = new THREE.Group();
+  source.updateMatrixWorld(true);
+  _world.copy(source.matrixWorld).invert();
+  source.traverseVisible((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    const copy = new THREE.Mesh(mesh.geometry, mesh.material);
+    copy.matrixAutoUpdate = false;
+    copy.matrix.multiplyMatrices(_world, mesh.matrixWorld);
+    copy.matrixWorldNeedsUpdate = true;
+    inner.add(copy);
+  });
+
+  _box.setFromObject(inner);
+  if (!_box.isEmpty()) {
+    _box.getCenter(_centre);
+    _box.getSize(_size);
+    const largest = Math.max(_size.x, _size.y, _size.z, 1e-4);
+    inner.position.copy(_centre).multiplyScalar(-1);
+    inner.scale.setScalar(size / largest);
+    // Der Mittelpunkt sitzt jetzt im Ursprung des inneren Knotens; die
+    // Skalierung wirkt danach, also muss die Verschiebung mitskaliert werden.
+    inner.position.multiplyScalar(size / largest);
+  }
+
+  // Drei Ebenen, und jede hat genau eine Aufgabe: `inner` rückt das Ding in
+  // seinen Mittelpunkt und auf Größe, `tilt` kippt es leicht nach vorn (eine
+  // reine Seitenansicht macht aus jedem Werkzeug einen Strich), und `holder`
+  // dreht sich. Würde `inner` selbst kippen, liefe die Verschiebung durch die
+  // Drehung und das Modell eierte um seine eigene Achse.
+  const tilt = new THREE.Group();
+  tilt.rotation.x = 0.32;
+  tilt.add(inner);
+
+  const holder = new THREE.Group();
+  holder.name = 'menu-preview';
+  holder.add(tilt);
+  return holder;
 }
 
 /** A menu page, derived from the entry that opens it. */

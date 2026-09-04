@@ -154,6 +154,33 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   /**
+   * Wo die Ikone eines Eintrags gerade sitzt — in Metern, im Raum des Panels.
+   *
+   * Damit stellt `WristMenu` die kleinen Modelle vor die richtige Zeile, ohne
+   * etwas über Kacheln, Kopfbalken und Blätterstand wissen zu müssen. `null`
+   * für alles, was gerade nicht als Zeile zu sehen ist — eine weggescrollte,
+   * und jede Kachel einer Rasterseite, wo für ein Modell kein Platz ist.
+   */
+  rowAnchor(index: number): { x: number; y: number; size: number } | null {
+    let top: number;
+    if (index < this.pinned) {
+      top = HEADER_H + index * (ROW_H + ROW_GAP);
+    } else {
+      if (this.grid) return null;
+      const row = index - this.pinned - this.scroll;
+      if (row < 0 || row >= this.visibleCount) return null;
+      top = this.bodyTop + row * (ROW_H + ROW_GAP);
+    }
+    const width = this.geometry.parameters.width;
+    const height = this.geometry.parameters.height;
+    return {
+      x: ((PAD + 58) / CANVAS_W - 0.5) * width,
+      y: (0.5 - (top + ROW_H / 2) / CANVAS_H) * height,
+      size: ((ROW_H * 0.6) / CANVAS_H) * height,
+    };
+  }
+
+  /**
    * Springt an eine Stelle, statt sich um Zeilen weiterzuschieben.
    *
    * Das Wischen rechnet gegen den Stand beim Zupacken und nicht gegen den
@@ -410,7 +437,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.stroke();
 
     let textX = PAD + 30;
-    if (entry.icon) {
+    if (entry.preview) {
+      // Der Platz bleibt frei: davor steht ein kleines Modell im Raum
+      // (`WristMenu.updatePreviews`), und eine Strichzeichnung darunter wäre
+      // nur Unruhe.
+      textX = PAD + 100;
+    } else if (entry.icon) {
       drawMenuIcon(ctx, entry.icon, PAD + 58, y + ROW_H / 2, 52, accent);
       textX = PAD + 100;
     } else {

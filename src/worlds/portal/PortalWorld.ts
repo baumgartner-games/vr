@@ -32,6 +32,7 @@ import {
   applyGearConfig,
   applyStoredPose,
   clearGearConfig,
+  clearPose,
   clearPoses,
   createTool,
   gearCode,
@@ -543,6 +544,9 @@ export class PortalWorld implements World {
     ctx.pointer.add(this.keys.asPointerTarget());
     this.setupTools(ctx);
     this.bindFlatInput(ctx);
+    // Die kleinen Modelle in den Menüzeilen kommen aus demselben Regal wie
+    // die Werkzeuge selbst — abgeschrieben, nicht gebaut (`WristMenu.ts`).
+    ctx.menu.setModelFactory((id) => this.tool(id));
 
     ctx.notify(this.welcome());
   }
@@ -629,11 +633,12 @@ export class PortalWorld implements World {
       {
         id: 'tools',
         label: 'Werkzeuge',
-        sub: 'Ausrüstung in die Hand',
+        sub: 'Ausrüstung in die Hand, Einstellungen dahinter',
         icon: 'tools',
         accent: 0x9d7bff,
-        // Taken with the grab button, never with the trigger: the trigger is
-        // what aims at the panel in the first place.
+        // Genommen wird mit Greifen, nie mit dem Trigger: der zielt ja gerade
+        // aufs Panel. Der Trigger hat hier eine andere Aufgabe bekommen — er
+        // geht ins Einstellungsmenü des Werkzeugs, hinter den Pfeil.
         take: true,
         children: TOOL_IDS.map((id) => this.toolEntry(id)),
       },
@@ -669,8 +674,6 @@ export class PortalWorld implements World {
           },
           this.depthEntry(),
           this.physicsMenu(),
-          this.weaponMenu(),
-          this.supermanMenu(),
           this.handsMenu(),
           this.configMenu(),
           {
@@ -1316,19 +1319,10 @@ export class PortalWorld implements World {
       accent: 0x9fe3ff,
       children: [
         this.handPoseMenu(hand, null),
-        {
-          id: `setting:hand-${hand}-tools`,
-          label: 'Griff am Werkzeug',
-          sub: 'Für jedes Werkzeug eigen',
-          icon: 'tools',
-          accent: 0x9fe3ff,
-          children: [
-            // A prop is held with a hand pose of its own, so it belongs in
-            // the same list — it is only not a tool.
-            this.handPoseMenu(hand, GRAB_POSE_ID),
-            ...TOOL_IDS.map((id) => this.handPoseMenu(hand, id)),
-          ],
-        },
+        // Ein Prop wird mit einer eigenen Haltung gehalten, hat aber kein
+        // Regalfach, an das sie hängen könnte — also steht sie hier.
+        // Die Griffe der Werkzeuge stehen bei den Werkzeugen.
+        this.handPoseMenu(hand, GRAB_POSE_ID),
       ],
     };
   }
@@ -1613,17 +1607,76 @@ export class PortalWorld implements World {
     keys.open(request);
   }
 
-  /** One row of the tool shelf. Building the row builds the tool. */
+  /**
+   * One row of the tool shelf. Building the row builds the tool.
+   *
+   * Und die Zeile ist zweierlei zugleich: **Greifen** nimmt das Werkzeug in
+   * die Hand, **Trigger** geht in seine Einstellungen. Vorher lagen die
+   * woanders — unter *Einstellungen* stand eine Seite „Pistole" und eine Seite
+   * „Supermanhandschuh", während das Regal daneben eine eigene Liste derselben
+   * Werkzeuge war. Wer die Feuerrate ändern wollte, ging also woandershin als
+   * dorthin, wo die Pistole liegt. Jetzt hängt an jedem Werkzeug, was zu ihm
+   * gehört, und der Pfeil am Zeilenende sagt es.
+   */
   private toolEntry(id: string): MenuEntry {
     const preview = this.tool(id);
+    const settings = this.toolSettings(id);
     return {
       id: `tool:${id}`,
       label: preview?.label ?? id,
       sub: preview?.hint,
       icon: preview?.icon ?? 'tools',
       accent: preview?.accent ?? 0x9d7bff,
+      // Statt der Strichzeichnung das Werkzeug selbst, klein und langsam
+      // drehend (`WristMenu.updatePreviews`). Bei sechs Handschuhen und drei
+      // Pistolen ist eine Ikone bald keine Auskunft mehr.
+      preview: id,
       run: (hand) => this.equipTool(this.context!, hand, id),
+      ...(settings.length > 0 ? { children: settings } : {}),
     };
+  }
+
+  /**
+   * Was zu genau einem Werkzeug einzustellen ist.
+   *
+   * Jedes hat einen **Griff** — wie die Hand es hält, links und rechts —, und
+   * ein paar haben darüber hinaus eigene Werte. Die standen bisher als
+   * gleichrangige Seiten unter *Einstellungen* und damit einen Baum weit weg
+   * von dem Ding, um das es geht.
+   */
+  private toolSettings(id: string): MenuEntry[] {
+    const own =
+      id === 'pistol'
+        ? (this.weaponMenu().children ?? [])
+        : id === 'superman-glove'
+          ? (this.supermanMenu().children ?? [])
+          : [];
+
+    return [
+      ...own,
+      {
+        id: `tool:${id}:grip`,
+        label: 'Griff',
+        sub: 'Wie die Hand es hält',
+        icon: 'glove',
+        accent: 0x9fe3ff,
+        children: [this.handPoseMenu('left', id), this.handPoseMenu('right', id)],
+      },
+      {
+        id: `tool:${id}:pose`,
+        label: 'Lage in der Hand zurücksetzen',
+        sub: 'Zurück auf die gebaute Pose',
+        icon: 'reset',
+        accent: 0xffc857,
+        run: () => {
+          const tool = this.tool(id);
+          clearPose(id);
+          tool?.resetHold();
+          this.refreshMenuLabels();
+          this.context?.notify(`${tool?.label ?? id}: Lage zurückgesetzt`);
+        },
+      },
+    ];
   }
 
   render(ctx: WorldContext): boolean {
@@ -1671,6 +1724,9 @@ export class PortalWorld implements World {
       this.keys = null;
     }
     this.menuLabels.length = 0;
+    // Die Werkzeuge sterben gleich; ein Menü, das noch von ihnen abschreibt,
+    // zeigt danach Netze, deren Geometrie freigegeben ist.
+    ctx.menu.setModelFactory(null);
     ctx.hands.setHeldTool('left', null);
     ctx.hands.setHeldTool('right', null);
 
