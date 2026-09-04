@@ -38,7 +38,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Portaltiefe, die Lichtstufen
-des Dunkelhauses, die Blätterposition der Menüs, die Fahrphysik und
+des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
+Augenhöhen, die Vibrationsmuster, die Fahrphysik und
 Streckenführung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien und die Auslegung der
 Hub-Gänge. Diese
@@ -85,11 +86,13 @@ Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#st
 ## Konfig-Code
 
 Werkzeug-Posen, Handhaltungen, Anbauteile und Waffenwerte passen zusammen in
-eine kopierbare Zeile (`BG2…`) — in VR unter *Einstellungen → Konfig-Code*,
+eine kopierbare Zeile (`BG3…`) — und ein einzelnes Werkzeug an einer einzelnen
+Hand in eine so kurze, dass man sie abtippt. In VR unter
+*Einstellungen → Konfig-Code*,
 am Rechner über die Kommandozeile:
 
 ```bash
-npm run config -- decode BG2…          # zeigt die Einstellungen als JSON
+npm run config -- decode BG3…          # zeigt die Einstellungen als JSON
 npm run config -- encode config.json   # macht wieder einen Code daraus
-npm run config -- mirror BG2… left     # linke Handhaltungen nach rechts
+npm run config -- mirror BG3… left     # linke Handhaltungen nach rechts
 ```

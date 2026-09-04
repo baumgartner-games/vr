@@ -1481,7 +1481,7 @@ export class PortalWorld implements World {
               title: 'Konfig-Code laden',
               sub: 'Einfügen oder Buchstabe für Buchstabe',
               value: '',
-              hint: 'Beginnt mit BG2',
+              hint: 'Beginnt mit BG3 (ältere BG2 gehen auch)',
               commit: (text) => this.loadConfigCode(text),
             });
           },

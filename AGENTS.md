@@ -78,9 +78,18 @@ Hand zwar mitzählt, aber niemandem aus der Hand genommen wird), die
 (`src/worlds/portal/tools/supermanFlight.ts` und `supermanSettings.ts` — dass
 volle Lehne die eingestellte Geschwindigkeit ergibt und nicht irgendetwas weit
 jenseits eines ausgestreckten Arms, die Vorzeichen der Kurve, und wer welche
-Achse bedient) und der **Tisch im Eingaberaum**
-(`src/worlds/tune/tableSettings.ts` — Grenzen einer Tischhöhe und ein
-kaputter Speicher), die **Welt-Physik**
+Achse bedient), der **Tisch im Eingaberaum**
+(`src/worlds/tune/tableSettings.ts` — Grenzen einer Tischhöhe, ein kaputter
+Speicher und dass der Knopf im Kreis durch alle drei Geister schaltet), die
+**Vibrationsmuster** (`src/worlds/tune/haptics.ts` — die einzige Rückmeldung,
+die man *nicht sehen* kann: dass jeder Stoß genau einmal kommt, dass der bei
+null auf den ersten Frame fällt, dass ein Ruckler nicht acht Durchläufe auf
+einmal in die Hand schlägt), die **Augenhöhen**
+(`src/core/posture.ts` — dass die Anhebung die Differenz der beiden ist und
+niemanden in den Boden drückt, der sitzend höher ist als stehend), der
+**Menüweg** (`src/ui/menuNav.ts` — dass beide Handgelenke denselben Weg lesen
+und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
+die **Welt-Physik**
 (`src/core/worldPhysics.ts` — Rasten, Grenzen, und dass „Welt-Standard" die
 Schwerkraft der Welt gewinnen lässt statt einer einmal getippten Zahl), die
 **Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
@@ -125,32 +134,62 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   weglegte.
   Das Panel steht senkrecht auf dem Handrücken und schaut den Kopf an.
   Ausgewählt wird mit der anderen Hand: zielen und **Trigger oder `A`** drücken
-  — Hovern allein löst nichts aus, und angetippt wird auch nichts. Auf den
-  Seiten **Werkzeuge** und **Magischer Beutel** nimmt dagegen nur **Greifen
-  oder `A`**, damit der Zieltrigger nicht versehentlich die Hand füllt. Ohne
+  — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
   Mond, Dunkelhaus, Eingaberaum),
   **Werkzeuge**
-  (das ganze Regal direkt in die Hand), **Magischer Beutel** (Raster mit
+  (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
+  dahinter), **Magischer Beutel** (Raster mit
   Companion Cube, Kugel, Domino, Pyramide, Quader, Planke und Zylinder),
-  **Bewegung** (Sprint und Ducken), **Einstellungen** und die Aktionen der
-  Welt. In beiden wird auf einen Eintrag gezielt und
-  **Greifen** oder `A` gedrückt — das Werkzeug bzw. Objekt liegt dann in
-  genau dieser Hand. Das Raster kommt zurück, sobald du loslässt.
+  **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Einstellungen** und
+  die Aktionen der Welt.
+  Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
+  `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht
+  versehentlich die Hand füllt. Das Raster kommt zurück, sobald du loslässt.
+  Der **Trigger** hat dort eine andere Aufgabe: er geht in die
+  **Einstellungen des Werkzeugs**, hinter den Pfeil am Zeilenende. Beides
+  zugleich wäre das Schlimmste von beidem — man hätte das Ding in der Hand
+  *und* stünde eine Seite tiefer —, also merkt sich das Menü im Moment der
+  Auswahl, womit gedrückt wurde.
+  In der Zeile eines Werkzeugs steht statt der Strichzeichnung ein **kleines
+  Modell des Werkzeugs selbst**, das sich langsam dreht: bei sechs Handschuhen
+  und drei Pistolen ist eine Ikone bald keine Auskunft mehr. Es ist vom
+  Regalexemplar abgeschrieben — nur die sichtbaren Netze, mit derselben
+  Geometrie und demselben Material —, hängt am Panel und fängt **keinen
+  Strahl** ab, die Zeile dahinter bleibt also genauso anfassbar wie vorher
+  (`ui/WristMenu.ts`, `MenuEntry.preview`).
   Passt eine Seite nicht aufs Panel — das Werkzeugregal tut das längst nicht
-  mehr —, wird **mit dem Stick der zeigenden Hand hoch/runter geblättert**;
-  rechts zeigt ein Balken, wo man gerade ist. Links/rechts bleibt der
-  Snap-Turn.
-  **Das Menü bleibt stehen, wo man war** — auf der Seite und in der Liste.
-  Beides wurde ständig zurückgesetzt, und beides aus demselben Grund: der Baum
+  mehr —, wird geblättert, auf zwei Arten: **mit dem Stick der zeigenden Hand**
+  hoch/runter, oder indem man den **Trigger hält und wischt**, wie auf einem
+  Telefon; eine volle Panelhöhe schiebt eine volle Seite. Rechts zeigt ein
+  Balken, wo man gerade ist. Links/rechts bleibt der Snap-Turn.
+  Damit das Wischen nicht jedes Mal zuerst die Zeile drückt, auf der es
+  anfängt, **wartet eine Auswahl im Handgelenkmenü aufs Loslassen** und fällt
+  weg, sobald aus dem Druck ein Zug wird; `A` und die Maus wählen sofort aus,
+  und alles außerhalb des Handgelenkmenüs bleibt, wie es war.
+  Und **wer blättert, läuft nicht los**: zeigt eine Hand aufs offene Menü und
+  benutzt ihren Stick, gehört der Stick diese Frame dem Menü und nicht den
+  Beinen (`PlayerRig.menuStick`).
+  Die **Zurück-Zeile bleibt als Kopf stehen**, egal wie weit man geblättert
+  ist — wie der Kopf einer Webseite, und auf einer Rasterseite als Balken über
+  den Kacheln. Vorher war sie schlicht der erste Eintrag der Liste und nach
+  drei Zeilen weg; aus einer langen Seite kam man nur wieder heraus, indem man
+  erst blind nach oben blätterte (`UIPanel`, `PageOptions.pinned`).
+  **Das Menü bleibt stehen, wo man war** — auf der Seite und in der Liste, und
+  zwar **für beide Hände gemeinsam**. Beides wurde ständig zurückgesetzt, und
+  beides aus demselben Grund: der Baum
   wird bei jeder Änderung neu gebaut, und eine Zeile zu drücken ist ja gerade
   das, was ihre Beschriftung ändert. Ein Werkzeug aus dem Regal nehmen oder
   eine Einstellung eine Raste weiterschalten warf einen an den Anfang der
   Liste — beim Regal also vor jedem einzelnen Werkzeug erneut —, und Zumachen
-  warf einen zusätzlich auf die oberste Ebene. Jetzt behält dieselbe Seite ihre
-  Position, eine Seite, auf der man schon war, kommt dorthin zurück, wo man sie
-  verlassen hat, und beim Schließen bleibt die Seite stehen. Wo man ist, sagt
+  warf einen zusätzlich auf die oberste Ebene. Dasselbe eine Ebene höher: jedes
+  Handgelenk hatte seinen eigenen Merkzettel, also fing das Menü an der rechten
+  Hand wieder ganz oben an, wenn man es links drei Ebenen tief verlassen hatte
+  — und genau dann macht man es rechts auf, wenn links etwas drinliegt.
+  Jetzt liegt der Weg einmal da und wird von beiden Panels gelesen
+  (`src/ui/menuNav.ts`, mit Test), samt der Zeile, in der man war. Wo man ist,
+  sagt
   die Überschrift auf dem Panel und die *Zurück*-Zeile. Verschwindet eine Seite
   aus dem Baum, endet der Weg dorthin bei ihrer Elternseite. Die Blätterregel
   steht in `src/ui/pageScroll.ts` (mit Test), inklusive der Klemmung nach
@@ -371,9 +410,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gehaltenen Trigger an die Spitze und bleibt beim Loslassen dort auf der
     Waffe. Beides zeigt danach die sechs Werte (x, y, z in cm,
     roll/pitch/yaw in Grad) — und **darunter den Konfig-Code für genau dieses
-    eine Werkzeug**, schmal und in gleich breiter Schrift, weil er abgetippt
-    wird. Nur dieses Werkzeug: seine Haltung, die Griffe beider Hände dafür,
-    seine Anbauteile und, wenn es eigene Werte hat, auch die. **Greifen** legt
+    eine Werkzeug an genau dieser Hand**, schmal und in gleich breiter Schrift,
+    weil er abgetippt
+    wird. Nur dieses Werkzeug: seine Haltung, der Griff der Hand, an der eben
+    gemessen wurde,
+    seine Anbauteile und, wenn es eigene Werte hat, auch die. Die andere Hand
+    steht bewusst nicht drin — sie wurde nicht gemessen, und ein Code, den man
+    abtippt, ist nur so viel wert wie er kurz ist. **Greifen** legt
     diesen Code in die Zwischenablage — und solange nichts gemessen ist,
     stattdessen den der ganzen Ausrüstung. Zeigt er auf eine Hand, die etwas hält, schaltet **`A`**
     um, was der Trigger meint: `Werkzeug` rückt das Ding zurecht, `Hand` rückt
@@ -404,14 +447,24 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   einer Zeile, die kopiert, vorgelesen und wieder eingegeben werden kann
   (*Einstellungen → Konfig-Code*). Eine **Tastatur im Raum** nimmt rohe Zahlen
   und ganze Codes entgegen.
-- **Handhaltung**: wie die leere Hand aussieht, wie sie jedes einzelne
-  Werkzeug greift und wie sie ein **Objekt** hält, steht unter
-  *Einstellungen → Hände* — zwölf Zahlen pro Haltung (Versatz, Neigung, fünf
+- **Handhaltung**: wie die leere Hand aussieht und wie sie ein **Objekt**
+  hält, steht unter
+  *Einstellungen → Hände*; wie sie ein **Werkzeug** greift, steht beim
+  Werkzeug selbst (*Werkzeuge → … → Griff*, mit dem Trigger hinein). Zwölf
+  Zahlen pro Haltung (Versatz, Neigung, fünf
   Finger, Spreizung), und ein Knopf spiegelt alles auf die andere Hand. Die
   Objekthaltung liegt unter derselben Mechanik wie ein Werkzeug (Pseudo-Id
   `grab`), wird also genauso getippt, gespiegelt und im Konfig-Code
   mitgeschleppt — und sie wird tatsächlich angewandt, sobald eine Hand etwas
   trägt.
+- **Werkzeug-Einstellungen hängen am Werkzeug.** Vorher stand unter
+  *Einstellungen* eine Seite „Pistole" und eine Seite „Supermanhandschuh",
+  während daneben das Werkzeugregal eine zweite Liste derselben Werkzeuge war:
+  wer die Feuerrate ändern wollte, ging woandershin als dorthin, wo die
+  Pistole liegt. Jetzt trägt jede Regalzeile ihre eigenen Werte hinter dem
+  Pfeil — die eigenen Werte, wo es welche gibt, der Griff für beide Hände und
+  ein Zurücksetzen der Lage in der Hand, das nur dieses eine Werkzeug betrifft
+  (`clearPose`).
 - **Sitzen oder stehen**: das Einzige, was eine Brille nicht selbst weiß. Sie
   meldet den Kopf über dem Zimmerboden und hat keine Ahnung, ob darunter ein
   Stuhl steht — ein sitzender Spieler ist für jede Welt schlicht ein sehr
@@ -419,6 +472,20 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Größerem. Gefragt wird einmal auf der Startseite, umgestellt wird unter
   *Menü → Bewegung → Haltung*: „Sitzend" hebt die Sicht auf Stehhöhe an und
   lässt die Füße stehen — dieselbe Mechanik wie das Ducken, nur andersherum.
+
+  **Wie hoch die beiden sind, weiß auch niemand von allein.** Der Ausgleich
+  hing lange an einer einzigen getippten Zahl — 1,65 m Augenhöhe im Stehen,
+  für alle. Wer kleiner ist, sitzt danach zu hoch; wer größer ist, zu tief,
+  und man merkt es nicht am Horizont, sondern am Tisch: ein echter
+  Schreibtisch mit 78 cm passt dann nicht auf einen virtuellen, der auf 78 cm
+  steht, weil der Boden unter dem Spieler um die Differenz falsch liegt. Also
+  sind es **zwei eigene Zahlen**, stehend und sitzend, in Zentimetern und
+  beide **messbar**: unter *Menü → Bewegung → Augenhöhe* (und an der Wand im
+  Eingaberaum) hinstellen bzw. hinsetzen, *Jetzt messen* drücken, und die
+  Brille schreibt ihre eigene Zahl hinein. Die Anhebung ist danach die
+  Differenz der beiden und nicht mehr der Abstand zu einer *gerade gemessenen*
+  Kopfhöhe — Vorbeugen im Sessel hob vorher die halbe Welt mit an
+  (`core/posture.ts`, mit Test).
 - **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
   Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
@@ -465,18 +532,51 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   auf, Stick und Trigger bewegen sich wirklich. Mit **bloßen Händen** treten
   sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
-  steht dasselbe in Worten. An der **rechten Wand steht ein Tisch mit einer
-  Geisterhand darauf**: eine Handhaltung im Leeren einzustellen ist Raten,
+  steht dasselbe in Worten. An der **rechten Wand steht ein Tisch mit einem
+  Geist darauf**: eine Handhaltung im Leeren einzustellen ist Raten,
   weil sich der Arm mitbewegt — auf einem Tisch nicht. Die **Höhe** wird auf
   die des echten Tisches gestellt (türkise Leiste greifen und schieben, oder
   in Zentimetern eintippen), dann legt man die echte Hand darauf, und was
-  nicht deckungsgleich ist, ist genau die Zahl, die verstellt gehört. Knöpfe
-  an der Wand daneben schalten um, **was daraufliegt** — Hand oder Controller,
-  links oder rechts — und stellen Lage und Ausrichtung ein
-  (`tune/GhostTable.ts`, `tune/tableSettings.ts` mit Test). **Gelaufen und
+  nicht deckungsgleich ist, ist genau die Zahl, die verstellt gehört.
+  Daraufliegen kann **eine von drei Darstellungen**, und der Knopf an der Wand
+  schaltet durch: **Gliedmaßen** (die Kugeln, die ein Headset bei
+  Handtracking zeigt), **Boxhand** (die prozedurale Hand mit Controllern) und
+  der **Quest-Controller** selbst. Man justiert die Darstellung, die man
+  gleich benutzt, und nicht die, die zufällig angeschlossen ist.
+
+  Die einzelnen Zahlenfelder sind von der Wand verschwunden; an ihrer Stelle
+  stehen drei Handgriffe. **Geist drehen** und **Geist bewegen** hängen den
+  Geist an die *andere* Hand — die dreht oder schiebt ihn, ihr Trigger legt
+  fest, `A` bricht ab. **Justieren** dreht die Richtung um: jetzt legt man die
+  eigene Hand deckungsgleich auf den Geist, und deren Trigger schreibt die
+  Haltung — dieselbe Rechnung wie im Werkzeug-Justierer (`toolPose.ts`), nur
+  gegen einen Tisch, der stillsteht statt in der Luft mitzuzittern. Bei einer
+  blanken Hand kommen die Finger mit. Daneben hängt die **Werte-Tafel**: die
+  letzte Messung in Zahlen zum Vorlesen und darunter der **Konfig-Code für
+  genau diese Hand in genau dieser Darstellung** — kurz genug zum Abtippen,
+  weil sonst nichts drinsteht (`tune/GhostTable.ts`,
+  `tune/tableSettings.ts` mit Test).
+
+  Zwei Knöpfe messen die **Augenhöhe** (siehe *Sitzen oder stehen*), stehend
+  und sitzend. Sie stehen hier, weil man den Fehler an genau diesem Tisch
+  merkt: ein echter Schreibtisch mit 78 cm passt nicht auf einen virtuellen
+  mit 78 cm, wenn der Boden unter dem Spieler falsch liegt.
+
+  An der **linken Wand steht eine Bank mit einem Griff darauf**, der sich
+  nicht bewegen lässt — nur anfassen. Solange man ihn hält, spielt der
+  Controller das Muster, das der Knopf daneben ausgewählt hat: kein Vibrieren,
+  leicht, mittel, stark, Doppelklopfen, Salve, Herzschlag, Anschwellen,
+  Dauerbrummen (`tune/haptics.ts` mit Test, `tune/VibeBench.ts`). Vibration
+  ist die einzige Rückmeldung des Spiels, die man **nicht sehen** kann, und
+  ob eine Salve als Salve ankommt, merkt man sonst nirgends. Ein Ding, das man
+  greift und das dann mitkommt, prüft die Physik; hier soll die Hand ruhig an
+  etwas Festem liegen, also bewegt sich der Griff nicht.
+
+  **Gelaufen und
   gedreht wird hier nicht** (`PlayerRig.locked`), der Kopf natürlich schon:
   man kommt her, um eine Haltung zu halten und sie anzusehen. Weil der Tisch
-  aber rechts steht und man im Sessel nicht hinkommt, gibt es neben dem Schild
+  aber rechts steht, die Bank links, und man im Sessel an keins von beidem
+  hinkommt, gibt es neben dem Schild
   einen **Knopf, der den Stick freigibt** — ausdrücklich und sichtbar, statt
   dass es einfach so geht. Gürtel, Regal und der Werkzeug-Justierer sind da,
   denn die Hand, die man ansieht, ist die, die man einstellt.
@@ -557,7 +657,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
 | Springen | `A` rechts | `Leertaste` | – |
 | Menü | Button an **beiden** Händen (immer nur eins offen) | Button `Menü` im HUD | Button `Menü` im HUD |
-| Auswählen | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl | Linksklick | tippen |
+| Auswählen | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt | Linksklick | tippen |
 | Werkzeug nehmen | Grip an der Hüfte halten (jede Hand, jedes Werkzeug) | – (immer bereit) | – |
 | Werkzeug ablegen | Grip über der Hüfte loslassen | – | – |
 | Werkzeug fallen lassen | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht) | – | – |
@@ -570,7 +670,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Weitergeben | mit der freien Hand danach greifen | – | – |
 | Ferngreifen | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen | – | – |
-| Menüseite blättern | Stick der zeigenden Hand hoch/runter | – | – |
+| Menüseite blättern | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler | – | – |
+| Werkzeug-Einstellungen | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand) | Linksklick auf den Pfeil | tippen |
+| Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe am Tisch im Eingaberaum | – | – |
+| Geist justieren (Eingaberaum) | Tafel *drehen*/*bewegen* drücken, dann mit der **anderen** Hand ziehen und deren Trigger; *Justieren* drücken, die eigene Hand auf den Geist legen und deren Trigger | – | – |
+| Vibration ausprobieren | Griff auf der Bank links greifen und halten | – | – |
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
 | Supermanhandschuh | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve. Tempo je Richtung und wer welche Achse lenkt: *Einstellungen → Supermanhandschuh* | – | – |
@@ -845,8 +949,9 @@ Wie eine Hand aussieht, ist eine Einstellung wie jede andere: zwölf Zahlen —
 Versatz in cm, Neigung in Grad, ein Krümmungswert je Finger (0 gestreckt,
 1 geschlossen) und eine Spreizung. Davon gibt es die **Grundhaltung** (leere
 Hand), je eine **Griffhaltung pro Werkzeug** und eine für das **Objekt in der
-Hand**, jeweils für links und rechts:
-*Einstellungen → Hände → Linke/Rechte Hand*. Die Objekthaltung läuft unter der
+Hand**, jeweils für links und rechts. Grundhaltung und Objekthaltung stehen
+unter *Einstellungen → Hände → Linke/Rechte Hand*, die Griffe beim jeweiligen
+Werkzeug (*Werkzeuge → … → Griff*). Die Objekthaltung läuft unter der
 Pseudo-Id `grab` durch dieselbe Mechanik wie ein Werkzeug — eine Hand um einen
 Companion Cube ist weder die leere Hand noch die Hand an der Pistole, und ohne
 eigene Haltung sah sie aus wie beides gleichzeitig. Getippt wird über die Tastatur im
@@ -865,7 +970,7 @@ Alle diese Zahlen zusammen — Werkzeug-Posen, Handhaltungen, Anbauteile,
 Waffenwerte, Drohne und Supermanhandschuh — passen in eine Zeile:
 
 ```
-BG2AAI_AQYAFzwXAAABAAAAAAAAFBAQFBgAAAEGAQBETwAAAHiIBGQM5gEDAADAAgBujAG0AWR4eGSMAXggxOU
+BG3AD8CBg4XPBcMBignAgnwAd8SAQEGFKsCwAwBBgEGRE-YAoQHZAzmAQMAAcACAG6MAbQBZHh4ZIwBeCCPYA
 ```
 
 Das ist **kein Hash**: `tools/gearCodec.ts` schreibt die Zahlen nach einem
@@ -874,10 +979,12 @@ und keine Anführungszeichen mit), `src/core/configCode.ts` komprimiert das
 Ergebnis mit einem winzigen LZSS-Verfahren (Wörterbuch im Datenstrom, deshalb
 ohne Bibliothek und ohne `CompressionStream`) und packt es in base64url mit
 einer Prüfsumme hinten dran. Der Code eines einzelnen Werkzeugs ist deshalb
-kurz genug fürs Display des Justierers:
+kurz genug fürs Display des Justierers, und der einer einzelnen Handhaltung
+kurz genug zum Abtippen:
 
 ```
-BG2AAIBAQUAFzAXBgDT6Q
+BG3AAEBBR4XMBcGMU0            # eine Werkzeugpose
+BG3AAICP_ABY-AD3xLADPAuALiA   # eine gemessene Handhaltung
 ```
 
 `decode(encode(x))` gibt exakt `x` zurück — der Jest-Test besteht darauf,
@@ -889,8 +996,26 @@ welche der sechs Sorten überhaupt darin stehen. Erst damit gibt es einen Code
 für *ein* Werkzeug — ohne sie trüge der des Pinsels zwangsläufig die
 Pistolenwerte mit sich herum und würde sie beim Laden überschreiben. Was nicht
 drinsteht, wird beim Laden auch nicht angefasst; innerhalb eines Abschnitts
-wird eingemischt statt ersetzt. Codes der ersten Fassung werden weiter gelesen
-(`tools/gearCodec.ts`, mit Test).
+wird eingemischt statt ersetzt.
+
+**Version 3** ist die Fassung fürs Abtippen. Eine gemessene Handhaltung kostete
+vorher 66 Zeichen und kostet jetzt 27, aus drei Gründen:
+
+- Die **Versionsnummer steht im Prefix** (`BG3…`) statt im Payload. Ein Byte,
+  also anderthalb Zeichen — bei der ganzen Ausrüstung Rauschen, bei einer Hand
+  messbar. Nebenbei weiß ein Leser vor dem ersten Byte, wie er zu lesen hat.
+- Vor jeder Pose steht **noch eine Maske**, eine Ebene tiefer: welche ihrer
+  Zahlen überhaupt verstellt sind. Eine Handhaltung hat zwölf Werte, von denen
+  eine Messung im Eingaberaum genau sechs anfasst — die anderen sechs kosten
+  jetzt ein Bit statt eines Bytes. Verglichen wird auf dem Raster, auf dem
+  geschrieben wird, sonst stünde eine 0.0000001 aus einer Quaternion-Rechnung
+  für immer im Code.
+- `toolGearCode` nimmt eine **Hand** entgegen. Der Justierer und der
+  Eingaberaum geben die durch, an der sie gemessen haben; die andere steht
+  nicht mehr als Behauptung im Code und macht ihn nicht mehr doppelt so lang.
+
+Codes der Fassungen 1 und 2 werden weiter gelesen (`tools/gearCodec.ts`, mit
+Test).
 
 In VR liegt der Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
 legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
@@ -900,9 +1025,9 @@ das gemessene Werkzeug, und **Greifen** legt dann diesen in die
 Zwischenablage. Am Rechner geht dasselbe auf der Kommandozeile:
 
 ```bash
-npm run config -- decode BG2…        # zeigt die Einstellungen als JSON
+npm run config -- decode BG3…        # zeigt die Einstellungen als JSON
 npm run config -- encode config.json   # macht wieder einen Code daraus
-npm run config -- mirror BG2… left   # linke Handhaltungen nach rechts
+npm run config -- mirror BG3… left   # linke Handhaltungen nach rechts
 ```
 
 Damit ist „hier sind meine Einstellungen, mach das für die andere Hand auch"
@@ -922,6 +1047,8 @@ src/
              — darin `colors.ts`, die einzige Stelle mit den Greiffarben
   physics/   Rapier-Wrapper und der Charakter-Controller (dynamisch geladen)
   ui/        Canvas-basierte 3D-UI (Panel, Textflächen, Handgelenk-Menüs)
+             — darin `menuNav.ts`, der Weg durchs Menü, den sich beide
+             Handgelenke teilen
   net/       Transport-Interface, WebRTC/BroadcastChannel, Presence, Avatare,
              Zuschauer-Kamera
   worlds/    Weltenregistry + je eine Welt pro Ordner (inkl. `PortalSync`,
