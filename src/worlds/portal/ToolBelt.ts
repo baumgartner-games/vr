@@ -3,6 +3,7 @@ import type { Handedness } from '../../core/XRInput';
 import type { PlayerRig } from '../../core/PlayerRig';
 import type { Tool } from './tools/Tool';
 import { GRAB_GLOW, GRAB_IDLE, GRAB_TINT } from '../../core/colors';
+import { beltOffset, beltSlotPoint, saveBelt, type BeltOffset } from './beltSettings';
 
 /** How close a held tool has to come before a slot offers to take it. */
 export const SLOT_REACH = 0.34;
@@ -13,6 +14,16 @@ const _local = new THREE.Vector3();
 /** One hip of the belt. */
 export class BeltSlot extends THREE.Group {
   tool: Tool | null = null;
+  /**
+   * Was auf diese Hüfte gehört — die Werkzeug-Id, nicht das Exemplar.
+   *
+   * Der Unterschied ist der ganze Punkt: Wer die Pistole von der linken Hüfte
+   * nimmt, sie in die andere Hand gibt und rechts einsteckt, hat sie *bewegt*
+   * — links blieb ein leerer Ring zurück, obwohl dort eine Pistole hingehört.
+   * Die Hüfte merkt sich deshalb ihre Bestückung und lässt eine neue
+   * nachwachsen, sobald ihr Exemplar woandershin gewandert ist.
+   */
+  stored: string | null = null;
   /** True while a held tool hovers over this slot. */
   offered = false;
 
@@ -68,9 +79,30 @@ export class BeltSlot extends THREE.Group {
 export class ToolBelt {
   readonly slots: [BeltSlot, BeltSlot];
 
+  /**
+   * Wo die Hüften hängen — gemeinsam für beide, rechts gespiegelt
+   * (`beltSettings.ts`). Der Gürtel-Justierer schiebt daran.
+   */
+  private offset: BeltOffset;
+
   constructor(rig: PlayerRig) {
     this.slots = [new BeltSlot('left'), new BeltSlot('right')];
     for (const slot of this.slots) rig.add(slot);
+    this.offset = beltOffset();
+  }
+
+  /** Wie der Gürtel gerade sitzt. */
+  pose(): BeltOffset {
+    return { ...this.offset };
+  }
+
+  /**
+   * Setzt den Gürtel um. `persist` schreibt ihn in den Speicher — beim Ziehen
+   * fällt das weg und kommt einmal am Ende, sonst schriebe jedes Bild.
+   */
+  setPose(offset: BeltOffset, persist = false): BeltOffset {
+    this.offset = persist ? saveBelt(offset) : { ...offset };
+    return this.pose();
   }
 
   /**
@@ -109,6 +141,7 @@ export class ToolBelt {
     if (displaced) displaced.removeFromParent();
 
     target.tool = tool;
+    target.stored = tool.toolId;
     target.add(tool);
     tool.position.set(0, 0, 0);
     tool.quaternion.identity();
@@ -154,18 +187,15 @@ export class ToolBelt {
    */
   update(dt: number, rig: PlayerRig, bodyYaw: number, carried: readonly THREE.Vector3[]): void {
     const height = rig.getHeadHeight();
-    const sin = Math.sin(bodyYaw);
-    const cos = Math.cos(bodyYaw);
     rig.getHeadPosition(_hand);
     rig.worldToLocal(_hand);
 
     for (const slot of this.slots) {
-      const side = slot.side === 'left' ? -1 : 1;
-      slot.position.set(
-        _hand.x + cos * side * 0.26 + sin * 0.04,
-        height * 0.5,
-        _hand.z - sin * side * 0.26 + cos * 0.04,
-      );
+      // Die drei Zahlen dahinter stehen im Speicher und nicht mehr hier
+      // (`beltSettings.ts`, mit Test) — samt der Spiegelung auf die andere
+      // Seite, die man in der Brille erst am falschen Vorzeichen bemerkt.
+      const point = beltSlotPoint(this.offset, slot.side, height, bodyYaw);
+      slot.position.set(_hand.x + point.x, point.y, _hand.z + point.z);
       slot.rotation.set(0, bodyYaw, 0);
       slot.offered = false;
     }

@@ -6,6 +6,7 @@ import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
 import { HandTool } from './HandTool';
+import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
@@ -28,6 +29,7 @@ export const TOOL_IDS = [
   'gun-red',
   'gun-dual',
   'gizmo',
+  'holster',
   'brush',
   'duplicator',
   'inspect',
@@ -73,6 +75,8 @@ function buildTool(id: string): Tool | null {
   switch (id) {
     case 'gizmo':
       return new TransformTool();
+    case 'holster':
+      return new HolsterTool();
     case 'brush':
       return new BrushTool();
     case 'duplicator':
@@ -129,6 +133,7 @@ export {
   GrappleTool,
   GravityGloveTool,
   HandTool,
+  HolsterTool,
   PistolTool,
   ShurikenTool,
   StopwatchTool,

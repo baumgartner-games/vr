@@ -6,6 +6,7 @@ import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
 import type { PhysicsBody, PhysicsWorld } from '../../../physics/PhysicsWorld';
 import type { PortalKey } from '../PortalSync';
+import type { BeltOffset } from '../beltSettings';
 import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
 
@@ -102,6 +103,18 @@ export interface ToolHost {
   setViewOverride(position: THREE.Vector3 | null, rotation?: THREE.Quaternion | null): void;
   /** What that hand is carrying — the adjustment tool works on the other one. */
   heldTool(hand: Handedness): Tool | null;
+  /**
+   * Eine der beiden Hüften des Gürtels, so wie sie in der Welt steht — der
+   * Gürtel-Justierer legt seine Kiste darum.
+   */
+  beltSlot(side: Handedness): THREE.Object3D | null;
+  /** Wie der Gürtel gerade sitzt (`beltSettings.ts`). */
+  beltPose(): BeltOffset;
+  /**
+   * Setzt ihn um. `persist` schreibt ihn in den Speicher — beim Ziehen bleibt
+   * das aus, sonst schriebe jedes Bild, und käme einmal am Ende.
+   */
+  setBeltPose(offset: BeltOffset, persist?: boolean): BeltOffset;
   /**
    * Leaves a held tool hanging in mid-air, out of the hand but still that
    * hand's. The hand can then be moved without it; `unparkTool` puts it back

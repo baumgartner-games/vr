@@ -82,7 +82,10 @@ gekrümmter Finger den Trigger dreißigmal pro Sekunde umschaltet), die Waffenwe
 (`src/worlds/portal/tools/weaponSettings.ts`), der **Lichtkegel der
 Taschenlampe** (`src/worlds/portal/tools/flashlightBeam.ts` — Grenzen, das
 Ziehen an der Linse und dass der schmale Kegel heller und weiter reicht, ohne
-zum Scheinwerfer zu werden), die **Portaltiefe**
+zum Scheinwerfer zu werden), die **Gürtel-Position**
+(`src/worlds/portal/beltSettings.ts` — Grenzen, die Spiegelung der beiden
+Hüften, dass die Höhe ein Anteil der Augenhöhe bleibt und dass ein gezogener
+Zentimeter dort ankommt, wo gezogen wurde), die **Portaltiefe**
 (`src/worlds/portal/portalDepth.ts` — Rasten, Grenzen und der Fall, dass im
 Speicher eine Zeichenkette statt einer Zahl steht), die **Lichtstufen des
 Dunkelhauses** (`src/worlds/dark/lightLevels.ts` — dass die erste Stufe
@@ -263,6 +266,30 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   in der Hand ist und in die Nähe eines Platzes kommt, lässt den Ring
   aufleuchten — dort loslassen legt es ab, Greifen nimmt es wieder. Jedes
   Werkzeug passt auf jeden Platz, sie lassen sich also frei tauschen.
+- **Eine Hüfte merkt sich ihre Bestückung**, nicht ihr Exemplar
+  (`BeltSlot.stored`). Wer die Pistole links herausnimmt, sie in die andere
+  Hand gibt und rechts einsteckt, hat danach **an beiden Hüften** eine — links
+  wächst nach, was dort hingehört. Vorher blieb dort ein leerer Ring zurück:
+  das Umhängen war ein Weg, eine Waffe zu verlieren, und man holte sie sich im
+  Regal wieder. Nachgefüllt wird nur eine Hüfte, an der wirklich etwas hing;
+  ein Werkzeug aus dem Regal hat keine, und auf einer fremden Hüfte wächst
+  ihm nichts nach.
+- **Ein Werkzeug ist nicht ein Exemplar.** Es gibt je Id ein *gepooltes* —
+  daran hängen Beschriftung, Werte und das kleine Modell im Regal —, und
+  daneben so viele Kopien, wie gebraucht werden (`PortalWorld.freshTool`).
+  Vorher gab es genau eines, und damit war „zwei Pistolen" nicht vorgesehen:
+  Wer sich aus dem Regal eine zweite in die andere Hand holte, bekam
+  dieselbe, und sie verschwand aus der ersten Hand. Jetzt sind zwei Waffen
+  zwei Waffen — einzeln zu nehmen, einzeln zu werfen, und danach liegen
+  beide auf dem Boden.
+- **Wo der Gürtel hängt, ist einstellbar** (`beltSettings.ts`, mit Test): drei
+  Zahlen — Abstand zur Seite, Höhe als *Anteil der Augenhöhe*, Tiefe vor oder
+  hinter der Körpermitte. Sie gelten für **beide** Hüften, gespiegelt; ein
+  Gürtel, bei dem eine Seite tiefer hängt als die andere, ist kein Gürtel,
+  sondern ein Versehen. Die Höhe steht als Anteil, damit sie mit dem
+  mitwächst, der sie trägt, und im Sitzen nicht auf Brusthöhe rutscht.
+  Verschoben wird mit dem **Gürtel-Justierer** (siehe unten), gespeichert wird
+  im Browser (`bgvr.belt`).
 - **Loslassen heißt fallen lassen**: wer ein Werkzeug irgendwo *anders* als
   über einer Hüfte loslässt, lässt es fallen — es liegt dann als Objekt im
   Raum, kann angestoßen und von jeder Hand wieder aufgehoben oder in der Luft
@@ -286,6 +313,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Größe & Position**: Blender-artige Griffe — sie erscheinen **vor dir**,
     nicht am Objekt, und wirken trotzdem auf das Objekt am anderen Ende des
     Raums. Achsen sind die des Objekts, nur nach deiner Blickrichtung sortiert.
+  - **Gürtel-Justierer**: zielt auf eine Hüfte, Trigger wählt sie aus, die
+    **andere Hand** greift zu und schiebt. Solange er in der Hand liegt,
+    stehen um beide Hüften Kisten — die angezielte trägt die Greiffarbe, die
+    gewählte leuchtet. Geschoben wird **relativ**: die Hüfte springt der Hand
+    nicht entgegen, sondern nimmt mit, was die Hand seit dem Zugreifen
+    zurückgelegt hat; anders ließe sich nichts um zwei Zentimeter versetzen.
+    Beide Hüften bewegen sich dabei, gespiegelt. Loslassen speichert, ein
+    zweiter Trigger gibt die Hüfte frei, `A`/`X` setzt zurück (dasselbe steht
+    im Menü unter *Werkzeuge → Gürtel-Justierer → Gürtel*). Während eine Hüfte
+    gewählt ist, gehört die andere Hand dem Gürtel (`claimsHand`): sie zieht
+    dabei kein Werkzeug aus dem Halfter — sie greift ja genau dort zu.
   - **Pinsel** samt Palette auf der anderen Hand, mit zwei Reitern: **Farben**
     und **Material** (Lack, Metall, Gummi, Eis, Stein, Glas, Leuchtend,
     Schaum — `materials.ts`, mit Test). Ein Material ist beides zugleich, wie
@@ -844,6 +882,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug nehmen | Grip an der Hüfte halten (jede Hand, jedes Werkzeug) | – (immer bereit) | – |
 | Werkzeug ablegen | Grip über der Hüfte loslassen | – | – |
 | Werkzeug fallen lassen | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht) | – | – |
+| Hüften verschieben | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück) | – | – |
 | Wurfstern werfen | im Schwung loslassen; er fliegt weiter und bleibt stecken | – | – |
 | Haltung (sitzen/stehen) | Startseite oder Menü → Bewegung → Haltung | dito | dito |
 | Greifen ohne Controller | Mittel-, Ring- und kleiner Finger an die Handfläche | – | – |

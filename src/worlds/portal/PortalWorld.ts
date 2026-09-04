@@ -13,7 +13,15 @@ import {
 import { PortalRenderer } from './PortalRenderer';
 import { nextPortalDepth, portalDepth, savePortalDepth } from './portalDepth';
 import { PortalGhosts } from './PortalGhosts';
-import { ToolBelt } from './ToolBelt';
+import { ToolBelt, type BeltSlot } from './ToolBelt';
+import {
+  DEFAULT_BELT,
+  beltLabel,
+  beltOffset,
+  clampBelt,
+  saveBelt,
+  type BeltOffset,
+} from './beltSettings';
 import {
   AMMO_KINDS,
   AMMO_LABELS,
@@ -345,10 +353,17 @@ interface LooseTool {
    */
   gliding: boolean;
   /**
-   * Die Hüfte, von der dieses Exemplar kam — das Budget wird pro Platz
-   * geführt (`looseBudget.ts`). `null` für eins, das nie an einem Gürtel hing.
+   * Der Topf, aus dem sich das Budget bedient — das wird pro Platz geführt
+   * (`looseBudget.ts`). Das ist die Hüfte, von der es kam, oder die Seite, in
+   * deren Hand es lag; `null` für eins, das von Anfang an im Raum liegt.
    */
   home: Handedness | null;
+  /**
+   * Die **Hüfte**, von der es kam, und nur die. Ein Werkzeug aus dem Regal hat
+   * keine, und auf einer Hüfte, an der es nie hing, darf auch nichts
+   * nachwachsen.
+   */
+  hip: Handedness | null;
 }
 
 /** Where a hand was last frame and how fast it is going, in m/s. */
@@ -697,7 +712,7 @@ export class PortalWorld implements World {
             run: () => {
               const count = storedPoseCount();
               clearPoses();
-              for (const tool of this.tools.values()) tool.resetHold();
+              for (const tool of this.liveTools) tool.resetHold();
               this.context?.notify(
                 count ? `${count} Pose(n) zurückgesetzt` : 'Keine gespeicherten Posen',
               );
@@ -1551,7 +1566,9 @@ export class PortalWorld implements World {
    * herüberschickt.
    */
   protected applyStoredConfig(): void {
-    for (const tool of this.tools.values()) {
+    // Über alle Exemplare, nicht nur über das gepoolte: seit es zwei Pistolen
+    // geben darf, wäre „die Pistole" die falsche Hälfte der Antwort.
+    for (const tool of this.liveTools) {
       tool.resetHold();
       applyStoredPose(tool);
       if (tool instanceof PistolTool) tool.reloadSettings();
@@ -1685,7 +1702,9 @@ export class PortalWorld implements World {
         ? (this.weaponMenu().children ?? [])
         : id === 'superman-glove'
           ? (this.supermanMenu().children ?? [])
-          : [];
+          : id === 'holster'
+            ? this.beltMenu()
+            : [];
 
     return [
       ...own,
@@ -1715,6 +1734,37 @@ export class PortalWorld implements World {
         },
       },
     ];
+  }
+
+  /**
+   * Der Gürtel, in Zahlen — hinter dem Werkzeug, das ihn verschiebt.
+   *
+   * Geschoben wird in der Brille mit der Hand; hier steht, was dabei
+   * herausgekommen ist, und der einzige Knopf, den es dazu braucht: zurück auf
+   * Anfang. Wer sich verschoben hat, findet seinen Gürtel sonst nur wieder,
+   * indem er ihn Zentimeter für Zentimeter zurückzieht.
+   */
+  private beltMenu(): MenuEntry[] {
+    const pose = (): BeltOffset => this.belt?.pose() ?? beltOffset();
+    const label = (): string => `Gürtel: ${beltLabel(pose())}`;
+    const entry: MenuEntry = {
+      id: 'tool:holster:reset',
+      label: label(),
+      sub: 'Seite · Höhe · Tiefe — antippen setzt zurück',
+      icon: 'reset',
+      accent: 0x9fe3ff,
+      run: () => {
+        const belt = { ...DEFAULT_BELT };
+        if (this.belt) this.belt.setPose(belt, true);
+        else saveBelt(belt);
+        this.refreshMenuLabels();
+        this.context?.notify(`Gürtel zurückgesetzt · ${beltLabel(belt)}`);
+      },
+    };
+    this.menuLabels.push(() => {
+      entry.label = label();
+    });
+    return [entry];
   }
 
   render(ctx: WorldContext): boolean {
@@ -2484,7 +2534,7 @@ export class PortalWorld implements World {
     this.props.push(entry);
     // Kam von keiner Hüfte: eigener Topf im Budget, damit ein Werkzeug, das
     // von Anfang an im Raum liegt, keinem Gürtelplatz seinen Vorrat wegnimmt.
-    this.loose.set(entry, { tool, entry, gliding: false, home: null });
+    this.loose.set(entry, { tool, entry, gliding: false, home: null, hip: null });
     if (floating) entry.body.setGravityScale(0, true);
     return tool;
   }
@@ -2511,7 +2561,9 @@ export class PortalWorld implements World {
     this.belt = belt;
 
     for (const [id, side] of this.beltLoadout()) {
-      const tool = this.tool(id);
+      // Ein eigenes Exemplar je Hüfte: zweimal dieselbe Id im Regal wäre sonst
+      // zweimal dasselbe Ding, und die zweite Hüfte bliebe leer.
+      const tool = this.freshTool(id);
       if (tool) belt.stow(tool, side);
     }
 
@@ -2537,7 +2589,14 @@ export class PortalWorld implements World {
     }
   }
 
-  /** A tool, built on first use. */
+  /**
+   * A tool, built on first use.
+   *
+   * Das ist das **eine** Exemplar je Id: das Regal zeichnet sein Modell davon
+   * ab, die Menüs lesen Beschriftung und Werte daran. Wer eines in die Hand
+   * bekommen will, fragt `freshTool` — dieses hier steckt vielleicht längst an
+   * einer Hüfte.
+   */
   protected tool(id: string): Tool | null {
     const existing = this.tools.get(id);
     if (existing) return existing;
@@ -2546,6 +2605,39 @@ export class PortalWorld implements World {
     this.tools.set(id, built);
     this.liveTools.add(built);
     return built;
+  }
+
+  /**
+   * Ein Exemplar dieser Id, das **noch nirgends steckt** — für eine Hand, eine
+   * Hüfte oder ein Regal.
+   *
+   * Vorher gab es je Id genau eines, und damit war „zwei Pistolen" nicht
+   * vorgesehen: Wer sich aus dem Regal eine zweite in die andere Hand holte,
+   * bekam dieselbe, und sie verschwand aus der ersten. Genauso, wer sie links
+   * und rechts an den Gürtel hängen wollte. Zwei Waffen sind aber zwei Waffen
+   * — man kann sie einzeln nehmen, einzeln werfen, und danach liegen zwei auf
+   * dem Boden.
+   *
+   * Das gepoolte Exemplar wird weiter zuerst gefragt: solange nur eine Pistole
+   * im Spiel ist, ist es dieselbe wie eh und je, und das Regal zeichnet sein
+   * Modell weiter davon ab. Erst wenn es beschäftigt ist, wächst eine zweite
+   * nach — und wie viele davon gleichzeitig draußen sein dürfen, entscheidet
+   * nach wie vor `looseBudget.ts`.
+   */
+  protected freshTool(id: string): Tool | null {
+    const pooled = this.tool(id);
+    if (pooled && this.toolFree(pooled)) return pooled;
+    const built = createTool(id);
+    if (!built) return null;
+    this.liveTools.add(built);
+    return built;
+  }
+
+  /** Weder in einer Hand, noch an einer Hüfte, noch irgendwo im Raum. */
+  private toolFree(tool: Tool): boolean {
+    if (tool.heldBy || tool.parked) return false;
+    if (this.belt?.slotOf(tool)) return false;
+    return !this.isLoose(tool);
   }
 
   /**
@@ -2701,7 +2793,12 @@ export class PortalWorld implements World {
     tool.removeFromParent();
     if (!belt) return;
 
-    const target = side ?? this.homes.get(tool) ?? belt.freeSlot()?.side;
+    // Die Hüfte, von der es kam — auch dann, wenn es längst in einer Hand
+    // liegt und der Ring dort leer aussieht. `homes` weiß das noch, und ohne
+    // diese Zeile bliebe genau der Weg unbemerkt, um den es geht: von der
+    // Hüfte in die Hand, in die andere Hand, in die andere Hüfte.
+    const from = belt.slotOf(tool)?.side ?? this.homes.get(tool) ?? null;
+    const target = side ?? from ?? belt.freeSlot()?.side;
     if (!target) {
       // Both hips taken and nowhere to go: back on the shelf it came from.
       tool.visible = false;
@@ -2724,6 +2821,11 @@ export class PortalWorld implements World {
         }
       }
     }
+    // Von einer Hüfte auf die andere gesteckt: die erste bleibt nicht leer
+    // zurück. Sie weiß, was auf sie gehört (`BeltSlot.stored`), und lässt es
+    // nachwachsen — sonst wäre „die Waffe von links nach rechts umhängen" ein
+    // Weg, sie zu *verlieren*, und man müsste sie im Regal wieder suchen.
+    if (from && from !== target) this.refillSlot(belt.slot(from));
     playPick(false);
   }
 
@@ -2751,7 +2853,11 @@ export class PortalWorld implements World {
     }
 
     const hand = tool.heldBy;
-    const home = this.homes.get(tool) ?? hand ?? null;
+    // Die Hüfte, von der es kam — und davon getrennt der Topf, aus dem sich
+    // das Budget bedient. Ein Werkzeug aus dem Regal hat keine Hüfte, zählt
+    // aber zu der Seite, in deren Hand es lag.
+    const hip = this.homes.get(tool) ?? null;
+    const home = hip ?? hand ?? null;
     const motion = hand ? this.handMotion.get(hand) : null;
     _velocity.copy(motion?.velocity ?? _zeroVelocity).clampLength(0, 12);
     const speed = _velocity.length();
@@ -2789,7 +2895,7 @@ export class PortalWorld implements World {
     });
     entry.previousPosition.copy(tool.position);
     this.props.push(entry);
-    this.loose.set(entry, { tool, entry, gliding, home });
+    this.loose.set(entry, { tool, entry, gliding, home, hip });
 
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
     if (gliding) {
@@ -2800,20 +2906,27 @@ export class PortalWorld implements World {
     }
     tool.onThrow(host, speed);
 
-    this.refillBelt(tool.toolId, home);
+    if (hip && this.belt) this.refillSlot(this.belt.slot(hip));
     this.trimLoose(tool.toolId);
     playPick(false);
     void ctx;
   }
 
-  /** A fresh copy on the hip the old one came off, if that hip is free. */
-  private refillBelt(id: string, side: Handedness | null): void {
+  /**
+   * Lässt auf einer leeren Hüfte das nachwachsen, was auf sie gehört.
+   *
+   * Die Hüfte selbst weiß das: `BeltSlot.stored` ist ihre Bestückung und
+   * überlebt, dass ihr Exemplar gerade woanders ist. Deshalb hat es hier auch
+   * keine Werkzeug-Id mehr zu geben — wer eine mitbrächte, könnte eine Hüfte
+   * mit etwas füllen, das nie auf ihr lag.
+   */
+  private refillSlot(slot: BeltSlot): void {
     const belt = this.belt;
-    if (!belt || !side || belt.toolAt(side)) return;
-    const replacement = this.tool(id);
-    if (!replacement || replacement.heldBy || this.isLoose(replacement)) return;
-    belt.stow(replacement, side);
-    this.homes.set(replacement, side);
+    if (!belt || slot.tool || !slot.stored) return;
+    const replacement = this.freshTool(slot.stored);
+    if (!replacement) return;
+    belt.stow(replacement, slot.side);
+    this.homes.set(replacement, slot.side);
   }
 
   /** True while this exact tool is lying around rather than stowed or held. */
@@ -3020,7 +3133,9 @@ export class PortalWorld implements World {
    * Raum statt in einem Menü.
    */
   protected equipTool(ctx: WorldContext, hand: Handedness | null, id: string): void {
-    const tool = this.tool(id);
+    // Ein freies Exemplar, kein umgehängtes: das Regal soll eine zweite
+    // Pistole geben können, ohne die erste aus der anderen Hand zu ziehen.
+    const tool = this.freshTool(id);
     if (!tool) return;
     // Without a known hand, take whichever one is still free.
     const target: Handedness =
@@ -3123,6 +3238,10 @@ export class PortalWorld implements World {
       teleportPlayer: (point) => this.teleportPlayerTo(point),
       setViewOverride: (position, rotation) => this.setViewOverride(position, rotation),
       heldTool: (hand) => this.held.get(hand) ?? null,
+      beltSlot: (side) => this.belt?.slot(side) ?? null,
+      beltPose: () => this.belt?.pose() ?? beltOffset(),
+      setBeltPose: (offset, persist) =>
+        this.belt?.setPose(offset, persist) ?? saveBelt(clampBelt(offset)),
       parkTool: (tool) => this.parkTool(tool),
       unparkTool: (tool) => this.unparkTool(tool),
     };
@@ -4432,9 +4551,9 @@ export class PortalWorld implements World {
     for (const loose of [...this.loose.values()]) {
       // Die Hüfte steht am liegenden Werkzeug selbst: `homes` ist beim
       // Fallenlassen gelöscht worden, dort stand hier vorher nichts mehr.
-      const home = loose.home;
+      const hip = loose.hip;
       this.retireLoose(loose);
-      this.refillBelt(loose.tool.toolId, home);
+      if (hip && this.belt) this.refillSlot(this.belt.slot(hip));
     }
     for (const entry of this.props) this.respawn(entry);
     this.worldReset();

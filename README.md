@@ -37,7 +37,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
-Konfig-Code, den Lichtkegel der Taschenlampe, die Portaltiefe, die Lichtstufen
+Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
+Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
 des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, die Fahrphysik und
@@ -72,6 +73,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Menü | Button an beiden Händen (immer nur eins offen) | `Menü` im HUD | `Menü` im HUD |
 | Auswählen | zielen + Trigger oder `A` | Linksklick | tippen |
 | Werkzeug nehmen/ablegen | Grip an der Hüfte; woanders loslassen lässt es fallen | – | – |
+| Hüften verschieben | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben | – | – |
 | Ohne Controller | 3 Finger an die Handfläche = Greifen, Zeigefinger = Trigger | – | – |
 | Sitzen oder stehen | Startseite oder Menü → Bewegung → Haltung | dito | dito |
 | Verbinden | Menü → Verbindung → *Raum betreten*; geht mitten im Spiel, ohne die Sitzung zu verlassen | Raum-Code auf der Startseite | dito |
