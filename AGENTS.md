@@ -536,7 +536,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 - **Eingaberaum** (experimentell): eine Kammer, deren einziger Zweck es ist zu
   zeigen, was die Hände tun. Zwei **Controller-Modelle** schweben auf
   Augenhöhe, drehen sich mit den echten mit, jeder Knopf leuchtet beim Drücken
-  auf, Stick und Trigger bewegen sich wirklich. Mit **bloßen Händen** treten
+  auf, Stick und Trigger bewegen sich wirklich. Gezeigt wird dabei das **echte
+  Modell** des Geräts, das gerade in der Hand liegt (siehe
+  *Controller-Modelle*); der selbst gebaute aus Kästen und Zylindern bleibt der
+  Rückfall. Mit **bloßen Händen** treten
   sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten. An der **rechten Wand steht ein Tisch mit einem
@@ -1026,6 +1029,52 @@ Wieder ohne three.js, wieder mit Test; `ShopWorld.ts` ist der Raum drumherum.
   Küchen in derselben Sitzung meinen mit `pizza-3` nicht dasselbe. Gelöscht
   wird deshalb nur lokal. Der Raum, die Werkzeuge und alles Geworfene sind
   geteilt wie überall.
+
+### Controller-Modelle
+
+Der Controller, den man im Eingaberaum ansieht, ist das **echte Modell** des
+Geräts: dieselben Dateien, die jede WebXR-Seite benutzt
+(`@webxr-input-profiles/assets` der Immersive Web Community Group, MIT), mit
+beweglichem Trigger, Griff und Stick, gebunden über das Profil, das der Browser
+für das Gerät meldet.
+
+**Sie liegen bei uns**, in `public/controllers`, und werden nicht zur Laufzeit
+nachgeladen. three würde das von sich aus tun — `XRControllerModelFactory` hat
+`cdn.jsdelivr.net` als Vorgabe eingebaut —, und das ist genau die Sorte
+Abhängigkeit, die man erst bemerkt, wenn sie fehlt: ohne Netz, hinter einem
+Filter oder wenn jsdelivr hakt, ist der Controller weg und niemand weiß warum.
+`core/ControllerModels.ts` setzt den Pfad deshalb auf
+`${import.meta.env.BASE_URL}controllers` — dieselbe Basis wie alles andere,
+damit es auf GitHub Pages unter `/vr/` genauso stimmt wie lokal.
+
+Mitgekommen sind **nur die Quest-Profile** (`meta-quest-touch-plus`, `-v2`,
+`meta-quest-touch-pro`, `oculus-touch-v3` für die Quest 2, `oculus-touch-v2`
+für die Quest 1) — zusammen 5 MB. Das ganze Paket ist knapp 100 MB groß, und
+ein Repository, das 12 MB Vive-Controller mitschleppt, die hier nie jemand
+anschließt, ist kein gut gepflegtes. `profilesList.json` ist entsprechend
+gestutzt: es darf nichts darin stehen, was nicht danebenliegt, sonst sucht
+`fetchProfile` es und bekommt einen 404. Auch die generischen Profile fehlen
+mit Absicht — sie wären fast 30 MB und nur ein schlechterer Ersatz für den
+Ersatz, den es schon gibt: der **selbst gebaute Controller** aus
+`worlds/tune/InputModel.ts` steht immer da, wenn kein Modell kommt.
+
+Geholt werden sie von Hand, nicht beim Bauen:
+
+```
+node --experimental-strip-types tools/controllers.ts
+```
+
+Zwei Feinheiten, die im Code stehen und hier nicht verlorengehen sollen:
+
+- Die Fabrik von three wartet auf das `connected`-Ereignis eines Controllers.
+  Wer einen Raum betritt, während die Brille längst läuft, kommt dafür zu spät.
+  Sie liest daraus aber nur die `XRInputSource` heraus, und die hat `XRInput`
+  ohnehin — also bekommt sie sie direkt gereicht.
+- Geometrien und Materialien der geladenen Modelle liegen in einem
+  Zwischenspeicher, den sich **alle** Controller teilen. Wer eine Kopie
+  wegwirft, hängt sie aus und gibt nichts frei; wer sie umfärben will (der
+  Geist auf dem Tisch ist durchsichtig), muss sich vorher eigene Materialien
+  ziehen (`ownMaterials`).
 
 ### Handhaltung
 

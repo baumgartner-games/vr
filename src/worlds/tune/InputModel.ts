@@ -1,6 +1,44 @@
 import * as THREE from 'three';
 import { formatFold } from '../../core/handGestures';
+import {
+  componentNode,
+  controllerShape,
+  liveControllerModel,
+  ownMaterials,
+} from '../../core/ControllerModels';
+import type { XRControllerModel } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
 import type { ControllerState, Handedness } from '../../core/XRInput';
+
+/**
+ * Welche Taste an welcher Komponente des echten Modells sitzt.
+ *
+ * Die Namen kommen aus den WebXR-Input-Profilen und sind für alle Geräte
+ * dieselben — deshalb steht hier eine Tabelle und keine Fallunterscheidung
+ * nach Gerät. `x`/`y` links und `a`/`b` rechts ist die einzige Stelle, an der
+ * die beiden Hände sich unterscheiden, und zwar genauso, wie sie beschriftet
+ * sind.
+ */
+function componentOf(key: string, side: Handedness): string | null {
+  switch (key) {
+    case 'trigger':
+      return 'xr-standard-trigger';
+    case 'grip':
+      return 'xr-standard-squeeze';
+    case 'stick':
+      return 'xr-standard-thumbstick';
+    // Der ausgelenkte Stick bekommt bewusst keinen Punkt: das echte Modell
+    // *kippt* ihn, und ein Leuchtfleck auf demselben Knoten läge nur über dem
+    // Punkt für den Stickdruck.
+    case 'stickTop':
+      return null;
+    case 'primary':
+      return side === 'left' ? 'x-button' : 'a-button';
+    case 'secondary':
+      return side === 'left' ? 'y-button' : 'b-button';
+    default:
+      return null;
+  }
+}
 
 /**
  * A controller, floating in the air, doing exactly what yours is doing.
@@ -12,6 +50,20 @@ import type { ControllerState, Handedness } from '../../core/XRInput';
  * is not registering. So here is one, held up in front of you at eye level,
  * turning as yours turns, with every button lighting up as it goes down.
  *
+ * Gezeigt wird dabei das **echte Modell** des Geräts, das gerade in der Hand
+ * liegt — dieselben Dateien, die jede WebXR-Seite benutzt, nur aus unserem
+ * eigenen Repository statt von einem CDN (`core/ControllerModels.ts`). Trigger,
+ * Griff und Stick bewegen sich darin von selbst, weil das Profil weiß, welcher
+ * Knoten zu welcher Achse gehört. Was es *nicht* tut, ist leuchten: einen
+ * Millimeter Tastenweg sieht man auf einem Tisch nicht, und genau dafür ist
+ * dieser Raum da. Also sitzt auf jeder gedrückten Taste zusätzlich ein
+ * **Leuchtpunkt**, an dem Knoten, den das Profil selbst dafür nennt.
+ *
+ * Kommt kein Modell — kein Netz gab es hier noch nie, aber ein Gerät, dessen
+ * Profil wir nicht mitliefern, schon —, bleibt der **selbst gebaute**
+ * Controller aus Kästen und Zylindern stehen. Er ist gröber, er ist immer da,
+ * und er leuchtet genauso.
+ *
  * With **hand tracking** there is no controller and no button, so the model
  * steps aside for a rack of five bars — one per finger, filled by how far that
  * finger is folded onto the palm — plus the two lamps that say what
@@ -21,6 +73,20 @@ import type { ControllerState, Handedness } from '../../core/XRInput';
 export class InputModel extends THREE.Group {
   /** The controller half, hidden while a bare hand is being tracked. */
   private readonly controller = new THREE.Group();
+  /** Die selbst gebaute Geometrie — der Rückfall, wenn kein Modell kommt. */
+  private readonly built = new THREE.Group();
+  /** Das echte Modell des Geräts, sobald es da ist. */
+  private real: XRControllerModel | null = null;
+  /** Dasselbe ohne Gerät dahinter — das Ausstellungsstück auf dem Tisch. */
+  private shape: THREE.Object3D | null = null;
+  /** Die Leuchtpunkte auf den Tasten des echten Modells. */
+  private readonly markers = new Map<string, THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>>();
+  private markerGeometry: THREE.SphereGeometry | null = null;
+  /** Materialien, die nur dieser Kopie gehören — der Geist färbt sie um. */
+  private borrowed: THREE.Material[] = [];
+  /** An welchem Gerät das Modell hängt — wechselt es, wechselt das Modell. */
+  private source: XRInputSource | null = null;
+  private ghostly = false;
   /** The hand half: five fold bars and the two gesture lamps. */
   private readonly hand = new THREE.Group();
 
@@ -37,6 +103,7 @@ export class InputModel extends THREE.Group {
     super();
     this.name = `input-model-${side}`;
     this.add(this.controller, this.hand);
+    this.controller.add(this.built);
     this.buildController();
     this.buildHand();
     this.hand.visible = false;
@@ -81,26 +148,62 @@ export class InputModel extends THREE.Group {
   asGhost(): this {
     this.controller.visible = true;
     this.hand.visible = false;
+    this.ghostly = true;
     for (const material of this.owned) {
       material.transparent = true;
       material.opacity = 0.45;
       material.depthWrite = false;
     }
+    // Und daneben das echte Modell, sobald es da ist. Es hängt an keinem
+    // Gerät — auf dem Tisch soll ein Controller liegen, auch wenn man den
+    // zweiten gerade weggelegt hat, und gerade dann.
+    void controllerShape(this.side).then((shape) => {
+      if (!shape || this.shape) return;
+      // Die Kopie teilt sich Materialien mit allen anderen; durchsichtig wird
+      // sie nur, wenn sie eigene bekommt — sonst wäre auch der Controller in
+      // der Hand plötzlich aus Glas.
+      this.borrowed = ownMaterials(shape);
+      for (const material of this.borrowed) {
+        material.transparent = true;
+        material.opacity = 0.45;
+        material.depthWrite = false;
+      }
+      this.shape = shape;
+      this.controller.add(shape);
+      this.built.visible = false;
+    });
     return this;
   }
 
   dispose(): void {
+    // Das echte Modell zuerst aushängen: seine Geometrien und Materialien
+    // liegen in einem Zwischenspeicher, den sich alle Controller teilen — wer
+    // sie hier freigibt, nimmt sie dem nächsten weg. Die Kopie selbst ist
+    // nichts als ein Baum aus Verweisen.
+    for (const marker of this.markers.values()) marker.removeFromParent();
+    this.markers.clear();
+    this.real?.removeFromParent();
+    this.real = null;
+    this.shape?.removeFromParent();
+    this.shape = null;
+
     this.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (mesh.isMesh) mesh.geometry.dispose();
     });
+    this.markerGeometry?.dispose();
+    this.markerGeometry = null;
     for (const material of this.owned) material.dispose();
+    // Die geliehenen gehören dieser Kopie allein, also gehen sie mit ihr.
+    for (const material of this.borrowed) material.dispose();
+    this.borrowed = [];
     this.removeFromParent();
   }
 
   // --- the two halves --------------------------------------------------------
 
   private showController(state: ControllerState): string {
+    this.adopt(state);
     const down: string[] = [];
     const lit = (key: string, on: boolean, label: string): void => {
       this.light(key, on);
@@ -114,10 +217,14 @@ export class InputModel extends THREE.Group {
     lit('stick', state.stick.pressed, 'Stick gedrückt');
 
     // The two analogue things move rather than light up: a trigger that is
-    // half pulled says something a lamp cannot.
-    this.trigger.rotation.x = state.trigger.value * 0.5;
+    // half pulled says something a lamp cannot. Am echten Modell macht das
+    // Profil dasselbe von selbst und genauer — dort wäre eine zweite Hand an
+    // denselben Knoten nur ein Ruckeln.
     const { x, y } = state.thumbstick;
-    this.stick.rotation.set(y * 0.5, 0, -x * 0.5);
+    if (this.built.visible) {
+      this.trigger.rotation.x = state.trigger.value * 0.5;
+      this.stick.rotation.set(y * 0.5, 0, -x * 0.5);
+    }
     this.light('stickTop', x !== 0 || y !== 0);
 
     if (x !== 0 || y !== 0) down.push(`Stick ${x.toFixed(2)} / ${y.toFixed(2)}`);
@@ -153,11 +260,71 @@ export class InputModel extends THREE.Group {
     return `${gestures.length ? gestures.join(' + ') : 'offen'} · ${formatFold(fold)}`;
   }
 
+  /**
+   * Eine Taste leuchtet — am gebauten Controller sein eigenes Material, am
+   * echten ein Punkt darauf. Beides heißt dasselbe und sieht gleich aus, und
+   * das ist der Sinn: wer den Raum kennt, muss nicht wissen, welches Modell
+   * gerade dasteht.
+   */
   private light(key: string, on: boolean): void {
+    const marker = this.marker(key);
+    if (marker) marker.visible = on;
     const material = this.parts.get(key);
     if (!material) return;
     material.emissive.setHex(on ? 0x5ee0a0 : 0x000000);
     material.emissiveIntensity = on ? 1.6 : 0;
+  }
+
+  /**
+   * Der Leuchtpunkt auf einer Taste des echten Modells, beim ersten Mal
+   * gebaut.
+   *
+   * Wo er hingehört, sagt das Profil: jede Komponente nennt den Knoten, den
+   * sie bewegt, und genau darauf sitzt der Punkt. Damit stimmt er auf jedem
+   * Gerät, ohne dass hier eine einzige Koordinate steht.
+   */
+  private marker(key: string): THREE.Object3D | null {
+    const existing = this.markers.get(key);
+    if (existing) return existing;
+    const model = this.real;
+    if (!model || this.ghostly) return null;
+    const id = componentOf(key, this.side);
+    const node = id ? componentNode(model, id) : null;
+    if (!node) return null;
+
+    this.markerGeometry ??= new THREE.SphereGeometry(0.007, 10, 8);
+    const marker = new THREE.Mesh(
+      this.markerGeometry,
+      this.own(new THREE.MeshBasicMaterial({ color: 0x5ee0a0, toneMapped: false })),
+    );
+    marker.visible = false;
+    node.add(marker);
+    this.markers.set(key, marker);
+    return marker;
+  }
+
+  /**
+   * Das echte Modell holen, sobald klar ist, an welchem Gerät wir hängen — und
+   * danach nie wieder fragen. Es kommt leer zurück und füllt sich; bis dahin
+   * steht der gebaute Controller da, und wenn es gar nicht kommt, bleibt er
+   * stehen.
+   */
+  private adopt(state: ControllerState): void {
+    const source = state.inputSource;
+    // Ein Controller, der weggelegt und wieder aufgenommen wird, kommt als
+    // *neue* Eingabequelle zurück. Am alten Gamepad hängen zu bleiben hieße,
+    // ein Modell zu zeigen, das nie wieder einen Knopf sieht.
+    if (source && source !== this.source) {
+      this.source = source;
+      for (const marker of this.markers.values()) marker.removeFromParent();
+      this.markers.clear();
+      this.real?.removeFromParent();
+      this.real = liveControllerModel(source);
+      if (this.real) this.controller.add(this.real);
+    }
+    // Erst wenn wirklich Geometrie angekommen ist, tritt der gebaute zurück:
+    // ein leeres Modell wäre ein Raum ohne Controller.
+    this.built.visible = !this.real || this.real.children.length === 0;
   }
 
   private lamp(key: 'grab' | 'trigger', on: boolean): void {
@@ -190,16 +357,16 @@ export class InputModel extends THREE.Group {
 
     // Body and handle. -Z is forward, exactly like the grip space it copies.
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.105), shell);
-    this.controller.add(body);
+    this.built.add(body);
 
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.016, 0.1, 12), shell);
     handle.position.set(0, -0.06, 0.032);
     handle.rotation.x = 0.32;
-    this.controller.add(handle);
+    this.built.add(handle);
 
     // The thumbstick sits on its own pivot so it can lean where yours leans.
     this.stick.position.set(0, 0.017, -0.016);
-    this.controller.add(this.stick);
+    this.built.add(this.stick);
     const stickTop = new THREE.Mesh(
       new THREE.CylinderGeometry(0.011, 0.009, 0.016, 12),
       this.part('stickTop', 0x4a5573),
@@ -210,7 +377,7 @@ export class InputModel extends THREE.Group {
       new THREE.CylinderGeometry(0.013, 0.013, 0.004, 12),
       this.part('stick', 0x2b3243),
     );
-    this.controller.add(stickBase);
+    this.built.add(stickBase);
     stickBase.position.set(0, 0.017, -0.016);
 
     // A/X sits nearer the thumb, B/Y behind it — the way they are on a Quest.
@@ -223,13 +390,13 @@ export class InputModel extends THREE.Group {
         this.part(key, 0xd6dbe6),
       );
       button.position.set(mirror * 0.012, 0.018, z);
-      this.controller.add(button);
+      this.built.add(button);
     }
 
     // The trigger swings on a pivot under the nose, so half a pull looks like
     // half a pull.
     this.trigger.position.set(0, -0.008, -0.04);
-    this.controller.add(this.trigger);
+    this.built.add(this.trigger);
     const paddle = new THREE.Mesh(
       new THREE.BoxGeometry(0.016, 0.026, 0.008),
       this.part('trigger', 0x9aa6bd),
@@ -243,7 +410,7 @@ export class InputModel extends THREE.Group {
       this.part('grip', 0x9aa6bd),
     );
     grip.position.set(mirror * -0.026, -0.04, 0.024);
-    this.controller.add(grip);
+    this.built.add(grip);
   }
 
   private buildHand(): void {
