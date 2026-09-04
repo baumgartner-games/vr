@@ -64,6 +64,15 @@ export interface World {
   render?(ctx: WorldContext): boolean;
   /** Entries this world adds to the wrist menu. Read once after `init`. */
   menu?(): MenuEntry[];
+  /**
+   * Ein Konfig-Code ist in die Speicher eingetragen worden — was schon gebaut
+   * ist, muss ihn nachlesen.
+   *
+   * Der Speicher allein reicht nicht: Eine Pistole, die gerade in einer Hand
+   * liegt, hat ihre Zahlen beim Bauen bekommen und schaut nie wieder nach.
+   * Welten ohne Werkzeuge lassen das weg — dort gibt es nichts nachzulesen.
+   */
+  reloadGear?(): void;
   dispose(ctx: WorldContext): void;
 }
 

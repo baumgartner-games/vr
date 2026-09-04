@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { pickHost, type HostCandidate } from '../../net/host';
 import { weight } from '../../net/PoseSmoothing';
 import type { NetSession } from '../../net/NetSession';
 import type { PhysicsBody, PhysicsWorld } from '../../physics/PhysicsWorld';
@@ -69,7 +70,12 @@ export interface PortalSyncOptions {
   /** Every synced prop, by its shared id. */
   bodies: Map<string, PhysicsBody>;
   /** True while a local hand or a remote pull owns the prop's transform. */
-  heldLocally(id: string): boolean;
+  /**
+   * Als Eigenschaft und nicht als Methode geschrieben: Sie wird hier aus dem
+   * Optionsobjekt herausgelöst und einzeln aufgerufen, und eine Methode, die
+   * man von ihrem Objekt trennt, verliert ihr `this`.
+   */
+  heldLocally: (id: string) => boolean;
   /** Somebody else claimed a prop we are holding — let go of it. */
   dropLocal(id: string): void;
   /** Conjure a prop that another player pulled out of their bag. */
@@ -252,11 +258,24 @@ export class PortalSync {
     return [...net.peers.values()].filter((peer) => peer.world === net.world).map((p) => p.id);
   }
 
-  /** Lowest id wins — no negotiation needed, everybody computes the same one. */
+  /**
+   * Wer am längsten in dieser Welt steht, rechnet sie (`net/host.ts`).
+   *
+   * Vorher gewann die kleinste Id — gewürfelt, und damit übernahm ein
+   * Dazugekommener mit fünfzig Prozent Wahrscheinlichkeit die Welt eines
+   * anderen und schob ihm seinen eigenen Stand hinüber. Ausgerechnet wird es
+   * weiter von jedem für sich, ohne Absprache: Standzeiten wachsen überall
+   * gleich schnell, also kommen alle auf dieselbe Antwort.
+   */
   private electHost(): string {
-    let host = this.options.net.localId;
-    for (const id of this.peerIds()) if (id < host) host = id;
-    return host;
+    const net = this.options.net;
+    const candidates: HostCandidate[] = [{ id: net.localId, seniority: net.localSeniority }];
+    for (const peer of net.peers.values()) {
+      if (peer.world === net.world) {
+        candidates.push({ id: peer.id, seniority: net.seniorityOf(peer) });
+      }
+    }
+    return pickHost(candidates) || net.localId;
   }
 
   private driverOf(id: string): string {
@@ -299,7 +318,8 @@ export class PortalSync {
       const r = entry.body.rotation();
       _position.set(t.x, t.y, t.z);
       _quaternion.set(r.x, r.y, r.z, r.w);
-      const blend = _position.distanceTo(follow.position) > SNAP_DISTANCE ? 1 : weight(dt, FOLLOW_TAU);
+      const blend =
+        _position.distanceTo(follow.position) > SNAP_DISTANCE ? 1 : weight(dt, FOLLOW_TAU);
       _position.lerp(follow.position, blend);
       _quaternion.slerp(follow.quaternion, blend);
       entry.body.setNextKinematicTranslation(_position);

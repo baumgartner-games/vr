@@ -31,7 +31,30 @@ Lösch-Push kommt dann als `HTTP 403` zurück. Dann wird das nicht stillschweige
 liegengelassen, sondern im Ergebnis gesagt: welcher Branch übrig ist und mit
 welchem Befehl er wegkommt.
 
-Vor dem Push laufen `npm run typecheck` und `npm test`.
+Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
+und `npm test` — dieselben vier Schritte, die auch die CI macht
+(`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
+keine; deshalb prüft sie jetzt jeder Push nach.
+
+### Linter und Formatierer
+
+`npm run lint` ist ESLint mit einem **kleinen** Regelsatz (`eslint.config.js`).
+Klein mit Absicht: Ein Linter, der über Stil schimpft, wird nach zwei Wochen
+übergangen; einer, der Fehler findet, wird gelesen. Es steht also nur darin, was
+hier schon einmal wehgetan hat — nicht abgewartete Promises (die Welten laden
+asynchron), Methoden, die von ihrem Objekt getrennt herumgereicht werden, tote
+Variablen. Über die *Form* entscheidet Prettier, nicht ESLint.
+
+`npm run format` formatiert die TypeScript-Dateien, `npm run format:check` prüft
+nur. Absichtlich **nicht** dabei: `src/style.css` und `index.html`. Die
+einzeiligen CSS-Regeln dort sind handgesetzt und gewollt, und ein Formatierer,
+der sie auseinanderzieht, gewinnt nichts.
+
+Zwei Regeln sind ausgeschaltet, und beide aus demselben Grund: Sie hielten
+Absicht für Versehen. `no-unnecessary-type-assertion` hätte 268 Ausrufezeichen
+hinter Array-Zugriffen wegoptimiert, die der nächsten Leserin sagen, dass dort
+wirklich etwas steht; `require-await` beanstandet Methoden, die eine
+Schnittstelle als `async` vorschreibt.
 
 ### Tests
 
@@ -837,7 +860,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haltung feinjustieren (Schießgang) | *Feinjustieren* an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
 | Werkzeug wählen (Schießgang) | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter und **bleibt dort**, bis die Hand wieder aufgeht | – | – |
 | Verbinden (in der Brille) | Menü → *Verbindung* → *Raum betreten* (Code tippen) oder *Neuen Raum aufmachen*; *Name* ändert den eigenen Namen — beides geht mitten im Spiel | Raum-Code auf der Startseite | – |
-| Chat | Menü → *Verbindung* → *Chat*: letzte Zeilen lesen, *Schreiben* macht die Tastatur auf | Panel *Verbindung* → **Chat**: tippen, *Kopieren* je Zeile, *Verlauf kopieren* | dito |
+| Chat | Menü → *Verbindung* → *Chat*: letzte Zeilen lesen, *Schreiben* macht die Tastatur auf; eine Zeile mit Konfig-Code auswählen übernimmt ihn | Panel *Verbindung* → **Chat**: tippen, *Kopieren* und *Übernehmen* je Zeile, *Verlauf kopieren* | dito |
 | Einstellungen verschicken | *Werkzeug senden* / *Alles senden* an der Wand des Gangs — der Code geht als Chat-Zeile an alle im Raum und steht am PC mit *Kopieren* daneben | – | – |
 | AR an/aus (Schießgang) | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf *AR* an der rechten Wand | – | – |
 | Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug** | – | – |
@@ -1643,17 +1666,42 @@ dort **nicht** steht, ist ein Kopieren-Knopf: 24 Zeichen aus einem Alphabet
 ohne Bedeutung sind in einer Brille nicht zu lesen und nirgends hinzulegen.
 Abgeholt wird am PC — dafür ist der Code ja geschickt worden.
 
+**Der Verlauf übersteht einen Neuladen**: die letzten 50 Zeilen liegen im
+Browser (`CHAT_KEPT`), sonst wäre der Code, den die Brille gerade
+herübergeschickt hat, nach einem F5 weg. Gelesen wird der eigene Speicher
+genauso misstrauisch wie das Netz — es ist derselbe fremde Text von gestern,
+und dazwischen lag vielleicht eine Fassung mit anderen Feldern.
+
+**Angewandt wird ein Code auf Knopfdruck.** Der Eingaberaum nimmt ankommende
+Codes von sich aus an — dort ist das der Sinn der Sache, zwei Leute justieren
+gemeinsam. Überall sonst kam ein Code bisher an, stand im Verlauf und tat
+nichts, ohne dass irgendwo stand, warum. Jetzt liegt neben der Zeile ein Knopf
+*Übernehmen* (im Panel wie im Menü der Brille), und `World.reloadGear` sagt der
+laufenden Welt Bescheid — was schon in einer Hand liegt, liest seine Zahlen
+sonst nie wieder nach. Automatisch überall wäre die schlechtere Antwort: Was
+ein anderer schickt, soll einem nicht ungefragt die Ausrüstung umstellen,
+während man gerade fliegt.
+
 ### Die Welt teilen: Objekte und Portale
 
 Ein Raum, ein Zustand. `PortalSync` (`worlds/portal/PortalSync.ts`) hält Props
 und Portale auf allen Geräten gleich und hängt am freien Nachrichten-Kanal von
 `NetSession` — die Engine selbst weiß davon nichts.
 
-- **Wer rechnet?** Der Spieler mit der kleinsten Peer-ID. Das kann jeder für
-  sich ausrechnen, es braucht keine Wahl und keinen Server. Er simuliert die
-  Physik und streamt die Transformationen mit 20 Hz; bei allen anderen sind
-  dieselben Körper kinematisch und laufen der empfangenen Pose weich hinterher.
-  Geht er, übernimmt der Nächste in der Reihe — mitten im Spiel.
+- **Wer rechnet?** Wer **am längsten in dieser Welt steht** (`net/host.ts`, mit
+  Test). Das kann jeder für sich ausrechnen, es braucht keine Wahl und keinen
+  Server. Er simuliert die Physik und streamt die Transformationen mit 20 Hz;
+  bei allen anderen sind dieselben Körper kinematisch und laufen der empfangenen
+  Pose weich hinterher. Geht er, übernimmt der Nächstälteste — mitten im Spiel.
+
+  Vorher gewann die **kleinste Peer-Id**, und die ist gewürfelt: Wer dazukam,
+  übernahm damit in der Hälfte aller Fälle die Welt eines anderen und schob ihm
+  im selben Moment seinen eigenen, leeren Stand hinüber. Man kommt aber in einen
+  Raum *hinein* und nicht in einen anderen *hinüber*. Angesagt wird dafür eine
+  **Dauer** und kein Zeitpunkt (`since` in `hello` und beim Weltwechsel): Zwei
+  Rechner sind sich über die Uhrzeit nie einig, über die Länge einer Minute
+  schon. Bei exakt gleicher Standzeit entscheidet weiterhin die kleinste Id —
+  irgendetwas muss entscheiden, und es muss auf beiden Seiten dasselbe sein.
 - **Wer anfasst, besitzt.** Greift eine Hand einen Würfel, beansprucht sie ihn
   (`own`) und streamt ihn selbst. Sonst würde ein getragener Würfel dauernd
   zwischen Hand und Simulation hin- und herspringen. Beim Loslassen geht er

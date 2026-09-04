@@ -145,7 +145,10 @@ export class NetPanel {
 
     for (const button of this.modeButtons) {
       button.addEventListener('click', () => {
-        this.app.spectate(this.app.spectator.settings.targetId, button.dataset['mode'] as SpectatorMode);
+        this.app.spectate(
+          this.app.spectator.settings.targetId,
+          button.dataset['mode'] as SpectatorMode,
+        );
         this.refresh();
       });
     }
@@ -331,6 +334,9 @@ export class NetPanel {
     // `textContent`, nie `innerHTML`: das hier ist fremder Text.
     text.textContent = entry.text;
 
+    const buttons = document.createElement('div');
+    buttons.className = 'chat__actions';
+
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.className = 'chat__copy';
@@ -340,8 +346,23 @@ export class NetPanel {
       // wird, wandert meistens in ein Eingabefeld und nicht in eine E-Mail.
       void this.toClipboard(entry.text, entry.kind === 'code' ? 'Code kopiert.' : 'Zeile kopiert.');
     });
+    buttons.append(copy);
 
-    item.append(who, text, copy);
+    if (entry.kind === 'code') {
+      // Ein Code, der ankommt, während man nicht im Eingaberaum steht, wurde
+      // nirgends angewandt — hier ist der Knopf dafür.
+      const apply = document.createElement('button');
+      apply.type = 'button';
+      apply.className = 'chat__copy';
+      apply.textContent = 'Übernehmen';
+      apply.addEventListener('click', () => {
+        if (this.app.applyChatCode(entry)) this.setMessage('Konfig-Code übernommen.');
+        else this.setMessage('Der Code ließ sich nicht lesen.', true);
+      });
+      buttons.append(apply);
+    }
+
+    item.append(who, text, buttons);
     return item;
   }
 

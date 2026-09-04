@@ -16,9 +16,15 @@ export interface PeerPose {
 }
 
 export type NetMessage =
-  | { type: 'hello'; from: string; role: PlayerRole; name: string; world: string }
+  /**
+   * `since` ist die **Standzeit** in dieser Welt, in Sekunden — keine Uhrzeit.
+   * Daraus wählt jeder für sich denselben Gastgeber (`net/host.ts`): Wer am
+   * längsten da ist, rechnet. Eine Dauer, weil zwei Rechner sich über die
+   * Uhrzeit nie einig sind, über die Länge einer Minute aber schon.
+   */
+  | { type: 'hello'; from: string; role: PlayerRole; name: string; world: string; since: number }
   | { type: 'bye'; from: string }
-  | { type: 'world'; from: string; world: string }
+  | { type: 'world'; from: string; world: string; since: number }
   | { type: 'pose'; from: string; pose: PeerPose }
   /**
    * Eine Zeile Text an alle im Raum.

@@ -41,6 +41,18 @@ export interface ChatEntry {
 export const CHAT_LIMIT = 200;
 
 /**
+ * Wie viele davon einen Neuladen überleben.
+ *
+ * Weniger als der Verlauf selbst, denn gespeichert wird bei jeder Zeile, und
+ * ein Speicher, in dem zweihundert Zeilen liegen, wird bei jeder einzelnen
+ * komplett neu geschrieben. Fünfzig sind mehr, als je jemand zurückgescrollt
+ * hat, und tragen den Konfig-Code von vor der Pause zuverlässig.
+ */
+export const CHAT_KEPT = 50;
+
+const KEY = 'bgvr.chat';
+
+/**
  * Wie lang eine Zeile höchstens ist.
  *
  * Großzügig, weil der ganze Ausrüstungs-Code hier durchpasst — der ist knapp
@@ -61,11 +73,15 @@ export const CHAT_MAX_CHARS = 2000;
  */
 export function cleanChatText(raw: unknown): string {
   if (typeof raw !== 'string') return '';
-  return raw
-    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, CHAT_MAX_CHARS);
+  return (
+    raw
+      // Genau darum geht es hier — der Linter darf ruhig fragen.
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, CHAT_MAX_CHARS)
+  );
 }
 
 /** Dasselbe für den Namen daneben — kürzer, weil er in eine Zeile muss. */
@@ -86,7 +102,20 @@ export class ChatLog {
   private counter = 0;
   private listeners: Array<(entry: ChatEntry | null) => void> = [];
 
-  constructor(private readonly limit = CHAT_LIMIT) {}
+  /**
+   * @param persist ob der Verlauf einen Neuladen übersteht. Genau dafür ist er
+   *                da: Der Konfig-Code, den die Brille herübergeschickt hat,
+   *                soll nach einem F5 noch dastehen — alles andere hier merkt
+   *                sich der Browser ja auch (`localStorage`).
+   */
+  constructor(
+    private readonly limit = CHAT_LIMIT,
+    private readonly persist = false,
+  ) {
+    if (persist) this.items.push(...readStored());
+    this.counter = this.items.length;
+    for (const [index, entry] of this.items.entries()) entry.id = index + 1;
+  }
 
   get entries(): readonly ChatEntry[] {
     return this.items;
@@ -132,6 +161,7 @@ export class ChatLog {
     if (note) entry.note = note;
     this.items.push(entry);
     while (this.items.length > this.limit) this.items.shift();
+    this.save();
     this.emit(entry);
     return entry;
   }
@@ -139,6 +169,7 @@ export class ChatLog {
   clear(): void {
     if (!this.items.length) return;
     this.items.length = 0;
+    this.save();
     this.emit(null);
   }
 
@@ -152,6 +183,60 @@ export class ChatLog {
 
   private emit(entry: ChatEntry | null): void {
     for (const listener of [...this.listeners]) listener(entry);
+  }
+
+  private save(): void {
+    if (!this.persist) return;
+    writeStored(this.items.slice(Math.max(0, this.items.length - CHAT_KEPT)));
+  }
+}
+
+/**
+ * Was im Browser liegt — und zwar misstrauisch gelesen.
+ *
+ * Der eigene Speicher ist nicht vertrauenswürdiger als das Netz: Es ist
+ * derselbe fremde Text von gestern, dazwischen lag eine Fassung mit anderen
+ * Feldern, und jede Erweiterung darf ihn anfassen. Also durch dasselbe Putzen
+ * wie eine frische Zeile, und was dabei durchfällt, fällt eben durch.
+ */
+function readStored(): ChatEntry[] {
+  try {
+    const raw = globalThis.localStorage?.getItem(KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const out: ChatEntry[] = [];
+    for (const item of parsed.slice(-CHAT_KEPT)) {
+      const row = item as Partial<ChatEntry> | null;
+      const text = cleanChatText(row?.text);
+      if (!text) continue;
+      const note = cleanChatText(row?.note).slice(0, 80);
+      const entry: ChatEntry = {
+        id: out.length + 1,
+        from: typeof row?.from === 'string' ? row.from : '',
+        name: cleanChatName(row?.name, 'Mitspieler'),
+        text,
+        kind: row?.kind === 'code' ? 'code' : 'text',
+        at: typeof row?.at === 'number' && Number.isFinite(row.at) ? row.at : Date.now(),
+        mine: row?.mine === true,
+      };
+      if (note) entry.note = note;
+      out.push(entry);
+    }
+    return out;
+  } catch {
+    // Kein Speicher, privater Modus, kaputtes JSON — nichts davon ist einen
+    // Absturz wert.
+    return [];
+  }
+}
+
+function writeStored(entries: readonly ChatEntry[]): void {
+  try {
+    if (!entries.length) globalThis.localStorage?.removeItem(KEY);
+    else globalThis.localStorage?.setItem(KEY, JSON.stringify(entries));
+  } catch {
+    /* siehe oben */
   }
 }
 

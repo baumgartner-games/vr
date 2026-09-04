@@ -409,7 +409,10 @@ export class PortalWorld implements World {
   /** What each hand is carrying. */
   private readonly held = new Map<Handedness, Tool>();
   /** Preview of where each portal would land, by key. */
-  private readonly rings = new Map<PortalKey, THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>>();
+  private readonly rings = new Map<
+    PortalKey,
+    THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>
+  >();
   private readonly bullets: Bullet[] = [];
   /** Keyed by hand, plus a `:far` probe for the half that is through a portal. */
   private readonly probes = new Map<string, HandProbe>();
@@ -417,7 +420,10 @@ export class PortalWorld implements World {
   private readonly spawned = new Set<PhysicsBody>();
   private readonly flights = new Map<PhysicsBody, Flight>();
   private readonly links = new Map<Handedness, RemoteLink>();
-  private readonly ropes = new Map<Handedness, THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>>();
+  private readonly ropes = new Map<
+    Handedness,
+    THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
+  >();
   protected readonly surfaceGroups = new Map<THREE.Object3D, number>();
   /** Shared id of every prop, in both directions. */
   private readonly bodies = new Map<string, PhysicsBody>();
@@ -881,9 +887,7 @@ export class PortalWorld implements World {
             hint: field.sub,
             commit: (value) => {
               const applied = pistol.set({ [field.key]: value } as Partial<WeaponSettings>);
-              this.context?.notify(
-                `${field.label}: ${applied[field.key]} ${field.unit}`.trim(),
-              );
+              this.context?.notify(`${field.label}: ${applied[field.key]} ${field.unit}`.trim());
             },
           });
         },
@@ -1033,7 +1037,9 @@ export class PortalWorld implements World {
         icon: 'glove',
         accent,
         run: () => {
-          saveSupermanSettings({ [key]: nextSupermanSource(read()[key]) } as Partial<SupermanSettings>);
+          saveSupermanSettings({
+            [key]: nextSupermanSource(read()[key]),
+          } as Partial<SupermanSettings>);
           this.refreshMenuLabels();
           this.context?.notify(label());
         },
@@ -1111,7 +1117,9 @@ export class PortalWorld implements World {
                 [field.key]: value,
               } as Partial<SupermanSettings>);
               this.refreshMenuLabels();
-              this.context?.notify(`${field.label}: ${supermanFieldLabel(field, applied[field.key])}`);
+              this.context?.notify(
+                `${field.label}: ${supermanFieldLabel(field, applied[field.key])}`,
+              );
             },
           });
         },
@@ -1174,9 +1182,7 @@ export class PortalWorld implements World {
         const next = saveWorldPhysics({ autoGravity: !read().autoGravity });
         autoRow.checked = next.autoGravity;
         this.refreshMenuLabels();
-        this.context?.notify(
-          next.autoGravity ? 'Schwerkraft der Welt' : 'Eigene Schwerkraft',
-        );
+        this.context?.notify(next.autoGravity ? 'Schwerkraft der Welt' : 'Eigene Schwerkraft');
       },
     };
     this.menuLabels.push(() => {
@@ -1204,7 +1210,8 @@ export class PortalWorld implements World {
     };
 
     const values = PHYSICS_FIELDS.map((field) => {
-      const label = (): string => `${field.label}: ${physicsFieldLabel(field, worldPhysics()[field.key])}`;
+      const label = (): string =>
+        `${field.label}: ${physicsFieldLabel(field, worldPhysics()[field.key])}`;
       const entry: MenuEntry = {
         id: `setting:physics-value-${field.key}`,
         label: label(),
@@ -1224,7 +1231,9 @@ export class PortalWorld implements World {
                   : ({ [field.key]: value } as Partial<WorldPhysics>),
               );
               this.refreshMenuLabels();
-              this.context?.notify(`${field.label}: ${physicsFieldLabel(field, applied[field.key])}`);
+              this.context?.notify(
+                `${field.label}: ${physicsFieldLabel(field, applied[field.key])}`,
+              );
             },
           });
         },
@@ -1309,7 +1318,9 @@ export class PortalWorld implements World {
             clearHandPoses();
             this.context?.hands.refreshPoses();
             this.refreshMenuLabels();
-            this.context?.notify(count ? `${count} Hand-Pose(n) zurückgesetzt` : 'Nichts gespeichert');
+            this.context?.notify(
+              count ? `${count} Hand-Pose(n) zurückgesetzt` : 'Nichts gespeichert',
+            );
           },
         },
       ],
@@ -1417,11 +1428,12 @@ export class PortalWorld implements World {
     return {
       id: `setting:hand-${hand}-${toolId ?? 'idle'}`,
       label: toolId ? title : 'Grundhaltung',
-      sub: toolId === GRAB_POSE_ID
-        ? 'Wie die Hand ein Objekt hält'
-        : toolId
-          ? 'Wie die Hand es hält'
-          : 'Die leere Hand',
+      sub:
+        toolId === GRAB_POSE_ID
+          ? 'Wie die Hand ein Objekt hält'
+          : toolId
+            ? 'Wie die Hand es hält'
+            : 'Die leere Hand',
       icon: 'glove',
       accent: 0x9fe3ff,
       children,
@@ -1442,7 +1454,9 @@ export class PortalWorld implements World {
     this.context?.hands.refreshPoses();
     this.refreshMenuLabels();
     this.context?.notify(
-      count ? `${count} Haltung(en) auf ${to === 'left' ? 'links' : 'rechts'} gespiegelt` : 'Nichts zu spiegeln',
+      count
+        ? `${count} Haltung(en) auf ${to === 'left' ? 'links' : 'rechts'} gespiegelt`
+        : 'Nichts zu spiegeln',
     );
   }
 
@@ -1518,6 +1532,14 @@ export class PortalWorld implements World {
     const summary = applyGearConfig(config);
     this.applyStoredConfig();
     this.context?.notify(`Geladen: ${summary}`);
+  }
+
+  /**
+   * Ein Code aus dem Chat wurde übernommen — dieselbe Nachlese wie nach einem
+   * abgetippten (`WorldContext`/`World.reloadGear`).
+   */
+  reloadGear(): void {
+    this.applyStoredConfig();
   }
 
   /**
@@ -1895,11 +1917,29 @@ export class PortalWorld implements World {
     this.slab(chamber, floorMaterial, [shell, t, shell], [0, -t / 2, 0], true);
     this.slab(chamber, panel, [shell, t, shell], [0, ROOM.height + t / 2, 0], true);
 
-    this.slab(chamber, panel, [half * 2, ROOM.height, t], [0, ROOM.height / 2, -half - t / 2], true);
+    this.slab(
+      chamber,
+      panel,
+      [half * 2, ROOM.height, t],
+      [0, ROOM.height / 2, -half - t / 2],
+      true,
+    );
     this.slab(chamber, panel, [t, ROOM.height, half * 2], [half + t / 2, ROOM.height / 2, 0], true);
-    this.slab(chamber, panel, [t, ROOM.height, half * 2], [-half - t / 2, ROOM.height / 2, 0], true);
+    this.slab(
+      chamber,
+      panel,
+      [t, ROOM.height, half * 2],
+      [-half - t / 2, ROOM.height / 2, 0],
+      true,
+    );
     // The wall behind the spawn is shielded: no portals stick to it.
-    this.slab(chamber, shielded, [half * 2, ROOM.height, t], [0, ROOM.height / 2, half + t / 2], false);
+    this.slab(
+      chamber,
+      shielded,
+      [half * 2, ROOM.height, t],
+      [0, ROOM.height / 2, half + t / 2],
+      false,
+    );
 
     const grid = new THREE.GridHelper(half * 2, 16, 0x5d7398, 0x7d8ea9);
     grid.position.y = 0.01;
@@ -2121,9 +2161,7 @@ export class PortalWorld implements World {
 
     this.raycaster.set(_probe.set(x, RESCUE_PROBE, z), _direction.set(0, -1, 0));
     this.raycaster.far = RESCUE_PROBE * 2;
-    const hits = this.raycaster
-      .intersectObjects(this.solids, false)
-      .map((hit) => hit.point.y);
+    const hits = this.raycaster.intersectObjects(this.solids, false).map((hit) => hit.point.y);
     const y = rescueHeight(hits, spawn.y);
 
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
@@ -2359,7 +2397,10 @@ export class PortalWorld implements World {
     cube.userData.propKind = 'cube';
     cube.position.set(-5.4, 1.9, -5.4);
     this.root.add(cube);
-    this.registerProp(physics.addDynamic(cube, { mass: 8, friction: 0.8, restitution: 0.1 }), 'cube-0');
+    this.registerProp(
+      physics.addDynamic(cube, { mass: 8, friction: 0.8, restitution: 0.1 }),
+      'cube-0',
+    );
 
     const second = createCompanionCube(0.4);
     second.userData.propKind = 'cube';
@@ -2810,7 +2851,11 @@ export class PortalWorld implements World {
       if (tool.toolId !== id) continue;
       // Eine Hand ist kein Platz, von dem etwas nachwächst — aber das Werkzeug
       // darin gehört dem Vorrat der Hüfte, von der es kam.
-      entries.push({ home: this.homes.get(tool) ?? tool.heldBy ?? null, spare: false, value: null });
+      entries.push({
+        home: this.homes.get(tool) ?? tool.heldBy ?? null,
+        spare: false,
+        value: null,
+      });
       limit = tool.looseLimit;
     }
     for (const loose of overBudget(entries, limit)) {
@@ -3000,6 +3045,11 @@ export class PortalWorld implements World {
 
   /** Everything a tool may ask of this room. */
   private buildHost(ctx: WorldContext): ToolHost {
+    // Der Umweg über eine Variable ist hier nicht zu vermeiden: `ctx` unten ist
+    // ein **Getter** in einem Objektliteral, und ein Getter bringt sein eigenes
+    // `this` mit — eine Pfeilfunktion, die das verhindern würde, gibt es für
+    // Getter nicht.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const world = this;
     void ctx;
     return {
@@ -3506,7 +3556,10 @@ export class PortalWorld implements World {
         }
         _matrix.multiplyMatrices(anchor.matrixWorld, grab.offset);
         _matrix.decompose(_point, _quaternion, _probe);
-        grab.velocity.copy(_point).sub(grab.lastPosition).divideScalar(Math.max(dt, 1 / 120));
+        grab.velocity
+          .copy(_point)
+          .sub(grab.lastPosition)
+          .divideScalar(Math.max(dt, 1 / 120));
         grab.lastPosition.copy(_point);
         grab.entry.body.setNextKinematicTranslation({ x: _point.x, y: _point.y, z: _point.z });
         grab.entry.body.setNextKinematicRotation({
@@ -3777,7 +3830,6 @@ export class PortalWorld implements World {
         controller.pulse(0.4, 25);
         continue;
       }
-
 
       this.flights.delete(entry);
       physics.setGhost(entry, false);
@@ -4756,7 +4808,11 @@ function labelOfProp(object: THREE.Object3D): string {
 }
 
 /** A world point written down in a body's own frame — where a joint sits. */
-function localPoint(entry: PhysicsBody, world: THREE.Vector3, target: THREE.Vector3): THREE.Vector3 {
+function localPoint(
+  entry: PhysicsBody,
+  world: THREE.Vector3,
+  target: THREE.Vector3,
+): THREE.Vector3 {
   const t = entry.body.translation();
   const r = entry.body.rotation();
   return target
@@ -4794,12 +4850,13 @@ function toolHalfExtents(tool: Tool, target: THREE.Vector3): THREE.Vector3 {
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
     const bounds = mesh.geometry.boundingBox;
     if (!bounds) return;
-    _toolLocal.copy(bounds).applyMatrix4(_toolMatrix.multiplyMatrices(_toolInverse, mesh.matrixWorld));
+    _toolLocal
+      .copy(bounds)
+      .applyMatrix4(_toolMatrix.multiplyMatrices(_toolInverse, mesh.matrixWorld));
     _toolBox.union(_toolLocal);
   });
   if (_toolBox.isEmpty()) return target.set(0.05, 0.05, 0.05);
-  const reach = (min: number, max: number): number =>
-    Math.max(Math.abs(min), Math.abs(max), 0.02);
+  const reach = (min: number, max: number): number => Math.max(Math.abs(min), Math.abs(max), 0.02);
   return target.set(
     reach(_toolBox.min.x, _toolBox.max.x),
     reach(_toolBox.min.y, _toolBox.max.y),

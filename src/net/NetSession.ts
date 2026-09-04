@@ -18,6 +18,14 @@ export interface Peer {
   world: string;
   pose: PeerPose | null;
   lastSeen: number;
+  /**
+   * Die Standzeit, die dieser Spieler zuletzt angesagt hat, und wann sie hier
+   * ankam — beides nach der **eigenen** Uhr. `seniorityOf` rechnet daraus die
+   * aktuelle: Sie wächst überall gleich schnell weiter, also genügt eine
+   * Ansage. Angesagt wird sie in `hello` und beim Weltwechsel.
+   */
+  since: number;
+  sinceAt: number;
 }
 
 type PeerListener = (peer: Peer) => void;
@@ -61,6 +69,11 @@ export class NetSession {
   world = 'hub';
   connected = false;
   room = '';
+  /**
+   * Seit wann man in der aktuellen Welt steht — als Zeitpunkt der eigenen Uhr,
+   * aus dem `localSeniority` eine **Dauer** macht. Nur die geht über das Netz.
+   */
+  private worldSince = now();
   /** Cleared while the local camera is glued to someone else's head. */
   visible = true;
   status: NetStatus = 'offline';
@@ -77,6 +90,20 @@ export class NetSession {
 
   get transportKind(): string {
     return this.transport?.kind ?? 'none';
+  }
+
+  /** Wie lange man selbst schon in dieser Welt steht, in Sekunden. */
+  get localSeniority(): number {
+    return now() - this.worldSince;
+  }
+
+  /**
+   * Dasselbe für einen Mitspieler: seine letzte Ansage plus die Zeit, die
+   * seither hier vergangen ist. Standzeiten wachsen überall gleich schnell, und
+   * genau deshalb reicht eine Ansage statt eines Tickens über die Leitung.
+   */
+  seniorityOf(peer: Peer): number {
+    return peer.since + (now() - peer.sinceAt);
   }
 
   async connect(transport: NetTransport, room = 'lobby'): Promise<void> {
@@ -125,6 +152,7 @@ export class NetSession {
       role: this.role,
       name: this.name,
       world: this.world,
+      since: this.localSeniority,
     });
   }
 
@@ -191,8 +219,11 @@ export class NetSession {
   }
 
   setWorld(world: string): void {
+    if (this.world !== world) this.worldSince = now();
     this.world = world;
-    if (this.connected) this.send({ type: 'world', from: this.localId, world });
+    if (this.connected) {
+      this.send({ type: 'world', from: this.localId, world, since: this.localSeniority });
+    }
   }
 
   /** Sends the local pose at a fixed rate and expires stale peers. */
@@ -232,15 +263,16 @@ export class NetSession {
 
   private receive(message: NetMessage): void {
     if (message.from === this.localId) return;
-    const now = performance.now() / 1000;
+    const stamp = now();
 
     switch (message.type) {
       case 'hello': {
         const known = this.peers.has(message.from);
-        const peer = this.touchPeer(message.from, now);
+        const peer = this.touchPeer(message.from, stamp);
         peer.role = message.role;
         peer.name = message.name;
         peer.world = message.world;
+        setSeniority(peer, message.since);
         // Answer so the newcomer learns about us too — but only once, otherwise
         // two peers keep greeting each other forever.
         if (!known) this.announce();
@@ -248,16 +280,18 @@ export class NetSession {
         break;
       }
       case 'world': {
-        this.touchPeer(message.from, now).world = message.world;
+        const peer = this.touchPeer(message.from, stamp);
+        peer.world = message.world;
+        setSeniority(peer, message.since);
         this.notifyChanged();
         break;
       }
       case 'pose': {
-        this.touchPeer(message.from, now).pose = message.pose;
+        this.touchPeer(message.from, stamp).pose = message.pose;
         break;
       }
       case 'chat': {
-        const peer = this.touchPeer(message.from, now);
+        const peer = this.touchPeer(message.from, stamp);
         // Der Name aus der Nachricht ist der aktuelle des Absenders; die
         // Peer-Liste kann eine `hello`-Runde hinterherhinken.
         if (typeof message.name === 'string' && message.name) peer.name = message.name;
@@ -271,7 +305,7 @@ export class NetSession {
         break;
       }
       case 'event': {
-        this.touchPeer(message.from, now);
+        this.touchPeer(message.from, stamp);
         for (const listener of this.channelListeners.get(message.channel) ?? []) {
           listener(message.data, message.from);
         }
@@ -287,7 +321,18 @@ export class NetSession {
   private touchPeer(id: string, now: number): Peer {
     let peer = this.peers.get(id);
     if (!peer) {
-      peer = { id, role: 'desktop', name: id, world: 'hub', pose: null, lastSeen: now };
+      peer = {
+        id,
+        role: 'desktop',
+        name: id,
+        world: 'hub',
+        pose: null,
+        lastSeen: now,
+        // Bis zur ersten Ansage gilt: gerade erst gekommen. Wer wirklich länger
+        // da ist, sagt es im nächsten `hello`, und das kommt sofort.
+        since: 0,
+        sinceAt: performance.now() / 1000,
+      };
       this.peers.set(id, peer);
       for (const listener of this.joinListeners) listener(peer);
       this.notifyChanged();
@@ -307,6 +352,17 @@ export class NetSession {
     for (const listener of this.leaveListeners) listener(peer);
     this.notifyChanged();
   }
+}
+
+/** Die eine Uhr dieser Datei: Sekunden, monoton, ohne Bezug zur Tageszeit. */
+function now(): number {
+  return performance.now() / 1000;
+}
+
+/** Trägt eine angesagte Standzeit ein — unbrauchbare Angaben zählen als „neu". */
+function setSeniority(peer: Peer, since: unknown): void {
+  peer.since = typeof since === 'number' && Number.isFinite(since) && since > 0 ? since : 0;
+  peer.sinceAt = now();
 }
 
 function poseFromMatrix(matrix: THREE.Matrix4): PoseArray {

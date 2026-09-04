@@ -527,10 +527,16 @@ input[type="range"] {
   color: #ffd88a;
 }
 
-.chat__copy {
+/* Kopieren und, bei einem Konfig-Code, Übernehmen — untereinander rechts. */
+.chat__actions {
+  display: grid;
+  gap: 4px;
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
+}
+
+.chat__copy {
   padding: 5px 9px;
   font: inherit;
   font-size: 11px;

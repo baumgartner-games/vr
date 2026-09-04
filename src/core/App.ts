@@ -8,7 +8,7 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { NetSession } from '../net/NetSession';
-import { ChatLog, type ChatEntry } from '../net/chat';
+import { CHAT_LIMIT, ChatLog, type ChatEntry } from '../net/chat';
 import { RemoteAvatars } from '../net/RemoteAvatars';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTransport';
@@ -32,6 +32,7 @@ import {
   seatedLift,
 } from './posture';
 import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
+import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
 import type { PlayerRole, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
 import type { Peer } from '../net/NetSession';
@@ -113,7 +114,7 @@ export class App {
    * Konfig-Code herüberschickt, will ihn am PC auch dann noch lesen, wenn der
    * inzwischen in einer anderen Welt steht.
    */
-  readonly chat = new ChatLog();
+  readonly chat = new ChatLog(CHAT_LIMIT, true);
   private loading: string | null = null;
   private elapsed = 0;
   private lastTime = 0;
@@ -146,7 +147,12 @@ export class App {
     this.renderer.xr.enabled = true;
     this.renderer.xr.setReferenceSpaceType('local-floor');
 
-    this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 700);
+    this.camera = new THREE.PerspectiveCamera(
+      70,
+      window.innerWidth / window.innerHeight,
+      0.05,
+      700,
+    );
     this.rig = new PlayerRig(this.renderer, this.camera);
     this.scene.add(this.rig);
 
@@ -264,7 +270,6 @@ export class App {
     }
   }
 
-
   /**
    * Starts an immersive session; resolves once the headset takes over.
    *
@@ -338,6 +343,34 @@ export class App {
     this.menuDirty = true;
     this.hooks.onNetChanged?.();
     return entry;
+  }
+
+  /**
+   * Einen Konfig-Code aus dem Chat **übernehmen** — auf Knopfdruck, nicht
+   * automatisch.
+   *
+   * Der Eingaberaum wendet ankommende Codes von sich aus an; das ist dort der
+   * Sinn der Sache, zwei Leute justieren gemeinsam. Überall sonst kam ein Code
+   * bisher an, stand im Verlauf und tat nichts — ohne dass irgendwo stand,
+   * warum. Jetzt liegt neben der Zeile ein Knopf. Automatisch überall wäre die
+   * schlechtere Antwort: Was ein anderer schickt, soll einem nicht ungefragt
+   * die Ausrüstung umstellen, während man gerade fliegt.
+   *
+   * @returns ob der Code lesbar war.
+   */
+  applyChatCode(entry: ChatEntry): boolean {
+    const config = entry.kind === 'code' ? parseGearCode(entry.text) : null;
+    if (!config) {
+      this.notify('Kein gültiger Konfig-Code');
+      return false;
+    }
+    const summary = applyGearConfig(config);
+    // Was schon in einer Hand liegt, liest seine Zahlen nie wieder nach — die
+    // Welt muss es ihm sagen.
+    this.world?.reloadGear?.();
+    this.menuDirty = true;
+    this.notify(`Übernommen: ${summary}`);
+    return true;
   }
 
   disconnect(): void {
@@ -698,9 +731,7 @@ export class App {
     return {
       id: 'net',
       label: 'Verbindung',
-      sub: this.net.connected
-        ? `${this.net.room} · ${this.net.peers.size + 1} Spieler`
-        : 'Offline',
+      sub: this.net.connected ? `${this.net.room} · ${this.net.peers.size + 1} Spieler` : 'Offline',
       icon: 'worlds',
       accent: this.net.connected ? 0x5ee0a0 : 0x6f7d99,
       children,
@@ -721,14 +752,18 @@ export class App {
     const lines: MenuEntry[] = latest.map((entry) => ({
       id: `net:chat:${entry.id}`,
       label: entry.note ? `${entry.name} · ${entry.note}` : entry.name,
-      sub: entry.text,
+      sub: entry.kind === 'code' ? `${entry.text} · Übernehmen` : entry.text,
       accent: entry.mine ? 0x5ee0a0 : entry.kind === 'code' ? 0xffc857 : 0x4aa8ff,
+      // Nur ein Code tut etwas. Eine Zeile Text ist eine Zeile Text.
+      run: entry.kind === 'code' ? () => void this.applyChatCode(entry) : undefined,
     }));
 
     return {
       id: 'net:chat',
       label: 'Chat',
-      sub: this.chat.size ? chatNotice(this.chat.entries[this.chat.size - 1]!) : 'Noch nichts gesagt',
+      sub: this.chat.size
+        ? chatNotice(this.chat.entries[this.chat.size - 1]!)
+        : 'Noch nichts gesagt',
       icon: 'chat',
       accent: 0x9fe3ff,
       children: [
@@ -980,7 +1015,8 @@ export class App {
 
   private frame = (time: number): void => {
     const seconds = time / 1000;
-    const dt = this.lastTime === 0 ? 1 / 60 : THREE.MathUtils.clamp(seconds - this.lastTime, 0, 0.05);
+    const dt =
+      this.lastTime === 0 ? 1 / 60 : THREE.MathUtils.clamp(seconds - this.lastTime, 0, 0.05);
     this.lastTime = seconds;
     this.elapsed += dt;
     const presenting = this.renderer.xr.isPresenting;
