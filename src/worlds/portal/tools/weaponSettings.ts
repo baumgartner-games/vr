@@ -58,7 +58,7 @@ export const DEFAULT_WEAPON: WeaponSettings = {
   burst: 3,
   mode: 'single',
   ammo: 'normal',
-  zoom: 4,
+  zoom: 16,
   sights: [],
 };
 
@@ -77,8 +77,17 @@ export const RATE_STEPS = [2, 5, 9, 14, 20] as const;
 export const MAGAZINE_STEPS = [6, 12, 17, 30, 60, 100] as const;
 export const RELOAD_STEPS = [0.4, 0.8, 1.15, 2] as const;
 export const BURST_STEPS = [2, 3, 5] as const;
-/** The notches on the scope's ring — the ones a real one is engraved with. */
-export const ZOOM_STEPS = [1, 2, 4, 8, 12, 16, 20, 40] as const;
+/**
+ * The notches on the scope's ring.
+ *
+ * They start where a rifle scope is actually useful and not where a pair of
+ * opera glasses is: in the headset a 4× scope looks like a magnifying glass
+ * held at arm's length, because the picture in the tube is already a metre
+ * away and the eye has the whole room for comparison. 16× is the setting that
+ * reads as "scope" in VR, so it is the one the gun comes with, and the ring
+ * goes up from there in the four-times steps a real turret is engraved with.
+ */
+export const ZOOM_STEPS = [16, 20, 24, 28, 32, 36] as const;
 
 export const FIRE_MODES: readonly FireMode[] = ['single', 'burst', 'auto'];
 

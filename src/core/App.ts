@@ -6,7 +6,7 @@ import { FlatControls } from './FlatControls';
 import { HandVisuals } from './HandVisuals';
 import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
-import { WristMenu } from '../ui/WristMenu';
+import { WristMenus } from '../ui/WristMenus';
 import { NetSession } from '../net/NetSession';
 import { RemoteAvatars } from '../net/RemoteAvatars';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
@@ -14,6 +14,7 @@ import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTranspor
 import { SpectatorCamera, type SpectatorMode } from '../net/SpectatorCamera';
 import { normalizeRoomCode } from '../net/room';
 import { detectFlatRole } from './device';
+import { savePlayerPosture } from './posture';
 import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
 import type { PlayerRole, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
@@ -47,7 +48,7 @@ export class App {
   readonly rig: PlayerRig;
   readonly input: XRInput;
   readonly pointer: Pointer;
-  readonly wristMenu: WristMenu;
+  readonly wristMenu: WristMenus;
   readonly net = new NetSession();
   readonly spectator: SpectatorCamera;
 
@@ -65,7 +66,7 @@ export class App {
   private elapsed = 0;
   private lastTime = 0;
   private role: PlayerRole;
-  /** The wrist menu resets its navigation on rebuild, so only do it when closed. */
+  /** The wrist menus reset their navigation on rebuild, so only do it when closed. */
   private menuDirty = false;
   private spectating = false;
 
@@ -100,7 +101,7 @@ export class App {
     this.avatar = new PlayerAvatar();
     this.rig.add(this.avatar);
 
-    this.wristMenu = new WristMenu(this.pointer, {
+    this.wristMenu = new WristMenus(this.pointer, {
       title: 'Menü',
       footer: 'Andere Hand: zielen + Trigger/A',
     });
@@ -354,12 +355,29 @@ export class App {
     return {
       id: 'move',
       label: 'Bewegung',
-      sub: `Sprint ${rig.sprintToggle ? 'umschalten' : 'halten'} · Ducken ${
-        rig.crouchToggle ? 'umschalten' : 'halten'
-      }`,
+      sub: `${rig.posture === 'sit' ? 'Sitzend' : 'Stehend'} · Sprint ${
+        rig.sprintToggle ? 'umschalten' : 'halten'
+      } · Ducken ${rig.crouchToggle ? 'umschalten' : 'halten'}`,
       icon: 'settings',
       accent: 0x5ee0a0,
       children: [
+        {
+          id: 'move:posture',
+          label: rig.posture === 'sit' ? 'Haltung: Sitzen' : 'Haltung: Stehen',
+          // The one thing WebXR cannot measure: a headset reports the head
+          // above the room floor and has no idea whether there is a chair
+          // under it. Sitting lifts the view back to standing height, so
+          // counters, karts and horizons stay the size they were built at.
+          sub: 'Sitzend wird die Sicht auf Stehhöhe angehoben',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            rig.posture = rig.posture === 'sit' ? 'stand' : 'sit';
+            savePlayerPosture(rig.posture);
+            this.notify(rig.posture === 'sit' ? 'Sitzende Haltung' : 'Stehende Haltung');
+            cycle();
+          },
+        },
         {
           id: 'move:sprint-mode',
           label: rig.sprintToggle ? 'Sprint: Umschalten' : 'Sprint: Halten',

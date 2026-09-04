@@ -16,7 +16,16 @@ const LIFE = 1.8;
 const RISE = 0.05;
 /** Distance from the eye, height above it, and the spacing in the stack. */
 const DISTANCE = 1;
-const TOP = 0.28;
+/**
+ * How high above the line of sight the newest row hangs, one metre out.
+ *
+ * Low on purpose: five rows stack *upwards* from here, so whatever this is,
+ * the top of the stack sits four rows higher. At the old 0.28 the oldest row
+ * had climbed to 30° above the eye — out of the comfortable field of view and
+ * only findable by tipping the head back. Two finger widths over the sights
+ * puts the whole stack where it can be read without looking away.
+ */
+const TOP = 0.04;
 const ROW = 0.058;
 /** This many rows stand on top of each other; the oldest then falls off. */
 const MAX_ROWS = 5;

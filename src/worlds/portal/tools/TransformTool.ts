@@ -418,7 +418,7 @@ export class TransformTool extends Tool {
     }
 
     if (!this.drag && other?.tracked) {
-      const pressed = other.trigger.justPressed || (!other.isHand && other.squeeze.justPressed);
+      const pressed = other.trigger.justPressed || other.squeeze.justPressed;
       if (pressed) this.tryGrabHandle(other, host, other.handedness!);
     }
 

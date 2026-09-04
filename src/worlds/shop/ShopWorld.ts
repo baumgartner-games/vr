@@ -24,7 +24,11 @@ import {
 /** Inside of the shop: half width, half depth, and how high the ceiling is. */
 const ROOM = { halfX: 9, halfZ: 7, height: 3.2, wall: 0.3 };
 /** The work table in the kitchen, and how high its top is. */
-const TABLE = { x: 0, z: -5.6, w: 3.8, d: 1, top: 0.95 };
+// Arbeitshöhe wie in einer echten Küche (DIN: 90 cm). Sie stand auf 95, und
+// das ist für sich genommen nicht falsch — wer sich hier zu klein vorkommt,
+// sitzt meistens auf einem Stuhl, und dagegen hilft nicht der Tisch, sondern
+// *Menü → Bewegung → Haltung*, das die Sicht wieder auf Stehhöhe hebt.
+const TABLE = { x: 0, z: -5.6, w: 3.8, d: 1, top: 0.9 };
 /** Where the three stations stand along the back of the table. */
 const STATION_Z = TABLE.z - 0.3;
 const CRATE_X = -1.35;

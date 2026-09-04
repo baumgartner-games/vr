@@ -601,8 +601,9 @@ export class DroneTool extends Tool {
     if (!other?.tracked) return false;
     // A hand with a tool of its own has both hands full already.
     if (this.hostRef?.heldTool(otherSide)) return false;
-    // A tracked hand has no grip button; being in the right place is its word.
-    if (!other.isHand && !other.squeeze.pressed) return false;
+    // Both grips have to be closed — a bare hand's grip is its three fingers
+    // folding onto the palm, which is exactly the shape of holding a handle.
+    if (!other.squeeze.pressed) return false;
     return this.nearFreeGrip(otherSide);
   }
 
@@ -712,6 +713,9 @@ export class DroneTool extends Tool {
       _wish.set(step.wish.x, step.wish.y, step.wish.z);
       // Stick forward is thrust, and thrust is what the afterburner shows.
       this.jet.setThrottle(Math.max(0, -left.y));
+      // The stick in the cockpit goes where the stick in the hand goes. It
+      // changes nothing about the flying and everything about sitting in it.
+      this.jet.setStick(right.x, right.y);
     } else {
       // The copter is flown where the pilot looks: they sit in its seat, and
       // their head is the only thing that says "forwards".
@@ -761,6 +765,7 @@ export class DroneTool extends Tool {
     this.bank = 0;
     this.nose = 0;
     this.jet.setThrottle(0);
+    this.jet.setStick(0, 0);
     this.applyDronePose();
     host.setViewOverride(null);
     playTone({ type: 'triangle', from: 780, to: 300, duration: 0.14, gain: 0.05 });

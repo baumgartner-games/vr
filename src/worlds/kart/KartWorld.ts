@@ -388,16 +388,24 @@ export class KartWorld extends PortalWorld {
     ctx.notify('Ausgestiegen');
   }
 
-  /** Puts the rig on the seat, with the head over it rather than beside it. */
+  /**
+   * Puts the driver in the seat — by the **head**, in all three axes.
+   *
+   * `placeAt` moves the rig, not the head: in VR the headset sits wherever the
+   * player happens to be in their room, and how far above the rig it sits is
+   * their own height and their own posture. Both have to be taken out of the
+   * sum, otherwise a player who is sitting on a chair ends up with their eyes
+   * at seat level while somebody standing looks over the roll bar. So the rig
+   * is slid until the head lands on the kart's eye point, sideways *and*
+   * vertically — the seat is a place for a head, not for a pair of feet.
+   */
   private seatDriver(ctx: WorldContext, kart: Kart): void {
     kart.updateWorldMatrix(true, false);
     kart.seat.getWorldPosition(_seat);
     ctx.rig.placeAt(_seat, kart.motion.yaw);
-    // `placeAt` moves the rig, not the head — in VR the headset sits wherever
-    // the player is standing in their room. Slide the rig so the head ends up
-    // over the seat instead of a metre beside it.
     ctx.rig.getHeadPosition(_head);
     ctx.rig.position.x += _seat.x - _head.x;
+    ctx.rig.position.y += _seat.y - _head.y;
     ctx.rig.position.z += _seat.z - _head.z;
     ctx.rig.updateMatrixWorld(true);
   }

@@ -1,4 +1,12 @@
 import * as THREE from 'three';
+import {
+  NO_GESTURE,
+  foldRatios,
+  readGesture,
+  type HandFold,
+  type HandGesture,
+  type HandJoints,
+} from './handGestures';
 
 export type Handedness = 'left' | 'right';
 
@@ -56,6 +64,14 @@ export class ControllerState {
   readonly thumbstick = new THREE.Vector2();
   /** Index fingertip object, provided by the hand visuals. */
   fingertip: THREE.Object3D | null = null;
+  /**
+   * How far each finger of a tracked hand is folded onto the palm, in palm
+   * lengths. Null for a controller — and the raw material behind `gesture`,
+   * kept because the hand-and-controller world puts the numbers on the wall.
+   */
+  fold: HandFold | null = null;
+  /** What a tracked hand is doing: closing around something, pulling, both. */
+  gesture: HandGesture = { ...NO_GESTURE };
 
   constructor(
     readonly index: number,
@@ -106,6 +122,8 @@ export class ControllerState {
     this.stick.reset();
     this.thumbstick.set(0, 0);
     this.fingertip = null;
+    this.fold = null;
+    this.gesture = { ...NO_GESTURE };
   }
 }
 
@@ -151,9 +169,9 @@ export class XRInput {
       targetRay.addEventListener('squeezestart', () => state.squeeze.press());
       targetRay.addEventListener('squeezeend', () => state.squeeze.release());
 
-      // Hand tracking: pinch is the trigger, and three.js derives it for us.
-      hand.addEventListener('pinchstart', () => state.trigger.press());
-      hand.addEventListener('pinchend', () => state.trigger.release());
+      // Hand tracking has no buttons at all; `readHand` below makes the two
+      // gestures out of the joints every frame. Pinch stays as the generic
+      // `select` (that is what the runtime raises it for) and nothing else.
     }
   }
 
@@ -164,6 +182,11 @@ export class XRInput {
   /** Call once per frame, before world updates. */
   update(): void {
     for (const state of this.controllers) {
+      // A bare hand has no buttons to poll, so its two are made here — before
+      // the edges are taken, so a fold that closed this frame counts as a
+      // press exactly like a button would.
+      if (state.isHand) readHand(state);
+
       state.trigger.beginFrame();
       state.squeeze.beginFrame();
       state.select.beginFrame();
@@ -190,6 +213,55 @@ export class XRInput {
       state.thumbstick.set(deadzone(x ?? 0), deadzone(y ?? 0));
     }
   }
+}
+
+/**
+ * Turns a tracked hand's joints into its trigger and its grip.
+ *
+ * Middle, ring and little finger on the palm is **Greifen**; the index finger
+ * on the palm is the **Trigger**. Both at once is a fist, which is precisely
+ * what holding a pistol and firing it looks like. See `handGestures.ts` for
+ * the measurement and the thresholds — everything here is the wiring.
+ */
+function readHand(state: ControllerState): void {
+  if (!state.hand.visible) {
+    state.fold = null;
+    if (state.gesture.grab) state.squeeze.release();
+    if (state.gesture.trigger) state.trigger.release();
+    state.gesture = { ...NO_GESTURE };
+    return;
+  }
+
+  state.fold = foldRatios(handJoints(state.hand));
+  const next = readGesture(state.fold, state.gesture);
+  if (next.grab !== state.gesture.grab) {
+    if (next.grab) state.squeeze.press();
+    else state.squeeze.release();
+  }
+  if (next.trigger !== state.gesture.trigger) {
+    if (next.trigger) state.trigger.press();
+    else state.trigger.release();
+  }
+  state.gesture = next;
+}
+
+/** The handful of joints the fold measurement needs, by their WebXR names. */
+function handJoints(hand: THREE.XRHandSpace): HandJoints {
+  const joints = hand.joints as Partial<Record<string, THREE.XRJointSpace>>;
+  const at = (name: string): THREE.Vector3 | null => {
+    const joint = joints[name];
+    return joint && joint.visible ? joint.position : null;
+  };
+  return {
+    wrist: at('wrist'),
+    palmBase: at('middle-finger-metacarpal'),
+    palmKnuckle: at('middle-finger-phalanx-proximal'),
+    thumbTip: at('thumb-tip'),
+    indexTip: at('index-finger-tip'),
+    middleTip: at('middle-finger-tip'),
+    ringTip: at('ring-finger-tip'),
+    pinkyTip: at('pinky-finger-tip'),
+  };
 }
 
 /** Polled buttons have no events, so the edges are derived here. */

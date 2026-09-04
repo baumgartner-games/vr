@@ -3,6 +3,7 @@ import { App } from './core/App';
 import { NetPanel } from './ui/NetPanel';
 import { detectFlatRole, detectXRSupport } from './core/device';
 import { normalizeRoomCode } from './net/room';
+import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
 import { DEFAULT_WORLD, findWorld } from './worlds';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
@@ -16,6 +17,7 @@ const hudMenu = document.querySelector<HTMLButtonElement>('#hud-menu')!;
 const hudVr = document.querySelector<HTMLButtonElement>('#hud-vr')!;
 const touch = document.querySelector<HTMLElement>('#touch')!;
 const stick = document.querySelector<HTMLElement>('#touch-stick')!;
+const postureSeg = document.querySelector<HTMLElement>('#posture')!;
 
 const params = new URLSearchParams(window.location.search);
 const requested = window.location.hash.slice(1) || params.get('world') || DEFAULT_WORLD;
@@ -72,6 +74,32 @@ void detectXRSupport().then((support) => {
   statusLine.textContent = support.immersiveVR
     ? 'VR-Gerät erkannt.'
     : (support.reason ?? 'Kein VR-Gerät gefunden.');
+});
+
+/**
+ * Sitting or standing, asked before the headset goes on.
+ *
+ * WebXR reports the head above the floor of the room and nothing else, so a
+ * player on a chair is indistinguishable from a very short one — and every
+ * counter, kart and horizon then belongs to somebody taller. The answer only
+ * has to be given once; `PlayerRig` turns "sitting" into a lift back to
+ * standing eye height, and the same switch sits in the wrist menu under
+ * *Bewegung → Haltung*.
+ */
+function showPosture(posture: Posture): void {
+  for (const button of postureSeg.querySelectorAll<HTMLButtonElement>('button')) {
+    button.classList.toggle('is-active', button.dataset['posture'] === posture);
+  }
+}
+
+showPosture(playerPosture());
+postureSeg.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const picked = button?.dataset['posture'];
+  if (picked !== 'sit' && picked !== 'stand') return;
+  savePlayerPosture(picked);
+  app.rig.posture = picked;
+  showPosture(picked);
 });
 
 enterVrButton.addEventListener('click', () => void startVR());

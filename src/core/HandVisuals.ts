@@ -251,6 +251,16 @@ export class HandVisuals extends THREE.Group {
     this.holding.set(handedness, toolId);
   }
 
+  /**
+   * What this hand is currently carrying, as the id its pose is filed under:
+   * a tool's id, `grab` for a plain object, or null for an empty hand. The
+   * adjustment tool asks, so that what it measures lands on the pose the hand
+   * is actually wearing.
+   */
+  heldToolOf(handedness: Handedness): string | null {
+    return this.holding.get(handedness) ?? null;
+  }
+
   /** The pose a hand is currently in, settings and held tool taken together. */
   poseOf(handedness: Handedness): HandPose {
     const toolId = this.holding.get(handedness) ?? null;

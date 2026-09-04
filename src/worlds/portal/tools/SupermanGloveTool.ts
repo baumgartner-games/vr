@@ -26,6 +26,7 @@ const BOB_SPEED = 0.3;
 
 const _hand = new THREE.Vector3();
 const _offset = new THREE.Vector3();
+const _rigQuat = new THREE.Quaternion();
 const _look = new THREE.Vector3();
 const _flat = new THREE.Vector3();
 const _body = new THREE.Vector3();
@@ -82,7 +83,18 @@ export class SupermanGloveTool extends Tool {
    * clears is a fist for the rest of the session.
    */
   private side: Handedness | null = null;
-  /** Where the hand was when the trigger went down — the middle of the stick. */
+  /**
+   * Where the hand was when the trigger went down — the middle of the stick,
+   * kept in **rig space**.
+   *
+   * It used to be a world position, and that quietly broke the whole glove: the
+   * rig is what flies, so after a few seconds of flight the hand had travelled
+   * tens of metres away from a mark that stayed nailed to the room, and every
+   * turn of the view swung it further. The stick then read "full forward, hard
+   * over" no matter where the hand actually was — which is exactly what "after
+   * a moment I cannot steer any more" looks like from the inside. In rig space
+   * the mark rides along with the player, so flying and turning leave it alone.
+   */
   private origin: THREE.Vector3 | null = null;
   /** Seconds since take-off, for the bob. */
   private time = 0;
@@ -184,6 +196,7 @@ export class SupermanGloveTool extends Tool {
     }
     // The middle of the joystick is wherever the hand happens to be now.
     this.origin = handPosition(controller, new THREE.Vector3());
+    host.ctx.rig.worldToLocal(this.origin);
     controller.pulse(0.4, 25);
     playTone({ type: 'square', from: 520, to: 900, duration: 0.1, gain: 0.04 });
     this.draw();
@@ -216,7 +229,13 @@ export class SupermanGloveTool extends Tool {
 
     if (this.origin) {
       handPosition(controller, _hand);
-      _offset.copy(_hand).sub(this.origin);
+      host.ctx.rig.worldToLocal(_hand);
+      // Both ends in rig space; the difference goes back into the world, where
+      // the look and the horizon it is measured against live.
+      _offset
+        .copy(_hand)
+        .sub(this.origin)
+        .applyQuaternion(host.ctx.rig.getWorldQuaternion(_rigQuat));
       // Forward is where the head looks *now*, so turning the head steers.
       host.ctx.rig.getHeadLook(_look);
       host.ctx.rig.getHeadForward(_flat);

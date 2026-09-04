@@ -6,8 +6,13 @@ import { gearCode } from './gearConfig';
 import type { Attachment } from './attachments';
 import { playTone } from '../../../core/Audio';
 import { GhostHand } from '../../../core/HandVisuals';
-import { clonePose, IDLE_HAND_POSE, type HandPose } from '../../../core/handPose';
-import { idleHandPose, saveIdleHandPose } from '../../../core/handPoseStore';
+import {
+  clonePose,
+  GRAB_POSE_ID,
+  IDLE_HAND_POSE,
+  type HandPose,
+} from '../../../core/handPose';
+import { saveHoldHandPose, saveIdleHandPose } from '../../../core/handPoseStore';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
 /** How long the measured numbers stay on the display. */
@@ -38,10 +43,16 @@ interface Session {
   rotation: THREE.Quaternion;
 }
 
-/** The empty hand being measured, and the ghost standing where it was. */
+/** The hand being measured, and the ghost standing where it was. */
 interface HandSession {
   hand: Handedness;
   ghost: GhostHand;
+  /**
+   * Which pose is being written: `null` is the empty hand's idle pose, a tool
+   * id is how that hand holds *that* thing — `grab` included, which is how it
+   * holds a plain object.
+   */
+  toolId: string | null;
   /** The pose it had — curls and spread survive, only the six numbers move. */
   before: HandPose;
 }
@@ -61,7 +72,10 @@ interface Drag {
 type Target =
   | { kind: 'tool'; tool: Tool; hand: Handedness }
   | { kind: 'attachment'; attachment: Attachment; tool: Tool; hand: Handedness }
-  | { kind: 'hand'; object: THREE.Object3D; hand: Handedness };
+  | { kind: 'hand'; object: THREE.Object3D; hand: Handedness; toolId: string | null };
+
+/** What the adjuster is currently after: the thing, or the hand holding it. */
+type Focus = 'tool' | 'hand';
 
 /**
  * Werkzeug-Justierer: puts other things exactly where you want them.
@@ -79,19 +93,29 @@ type Target =
  * adjuster; let go and it stays there, on the gun, in its new place. No
  * parking, because the gun itself never moved.
  *
- * **The empty hand itself.** Point at the other hand while it is carrying
- * nothing and the same two triggers set *its* pose. Instead of parking a tool
- * there is a **ghost hand**: it stays where the hand was, so while you move
- * the real one you can see exactly what you are changing it from. The second
- * trigger writes the six numbers into the idle pose of that hand — the curls
- * and the spread stay as they were, those belong in the menu.
+ * **The hand itself.** Point at the other hand and the same two triggers set
+ * *its* pose instead. Instead of parking a tool there is a **ghost hand**: it
+ * stays where the hand was, so while you move the real one you can see exactly
+ * what you are changing it from. The second trigger writes the six numbers
+ * into that hand's pose — the curls and the spread stay as they were, those
+ * belong in the menu.
+ *
+ * Which pose is written depends on what the hand is doing, and that is the
+ * point of it: an empty hand writes the idle pose, a hand holding the pistol
+ * writes *how this hand holds the pistol*, and a hand around a crate writes
+ * how it holds objects. A rifle is not held the way a glove is worn, and
+ * nothing about the tool itself moves — only the hand around it does.
+ *
+ * While the other hand is carrying something, **`A` switches** between the two:
+ * `Werkzeug` puts the tool where you want it, `Hand` puts the hand around it.
  *
  * Everything measured is written down right away (`gearConfig.ts`) and turns
  * up in the config code, so it survives a reload and can be handed on.
  * **Greifen** puts that code on the clipboard.
  *
- * `A` cancels what is running, resets a highlighted attachment or hand, or
- * puts the last adjusted tool back the way it was built.
+ * `A` also cancels what is running and resets a highlighted attachment or an
+ * empty hand; with nothing in sight it puts the last adjusted tool back the
+ * way it was built.
  */
 export class AdjustTool extends Tool {
   override readonly toolId = 'adjust';
@@ -110,6 +134,12 @@ export class AdjustTool extends Tool {
   private handSession: HandSession | null = null;
   private drag: Drag | null = null;
   private target: Target | null = null;
+  /**
+   * Whether a hand that is carrying something offers the *thing* or the *hand*
+   * to the trigger. `A` flips it; with an empty hand there is nothing to flip
+   * and the hand is the only answer anyway.
+   */
+  private focus: Focus = 'tool';
   /** The last tool that was adjusted, and how it was built. */
   private previous: Session | null = null;
   private readout: PoseReadout | null = null;
@@ -123,7 +153,7 @@ export class AdjustTool extends Tool {
     this.icon = 'wrench';
     this.accent = 0xffc857;
     this.sticky = true;
-    this.hint = 'Zielen · Trigger justiert · Greifen kopiert den Code';
+    this.hint = 'Zielen · Trigger justiert · A wechselt Werkzeug/Hand';
     this.holdPosition.set(0, -0.01, 0.02);
 
     const body = new THREE.MeshStandardMaterial({
@@ -215,7 +245,7 @@ export class AdjustTool extends Tool {
       return;
     }
     if (this.target?.kind === 'hand') {
-      this.beginHand(this.target.hand, host);
+      this.beginHand(this.target.hand, this.target.toolId, host);
       return;
     }
     this.begin(host);
@@ -253,17 +283,26 @@ export class AdjustTool extends Tool {
       host.notify('Abgebrochen');
       return;
     }
-    if (this.target?.kind === 'hand') {
-      const hand = this.target.hand;
-      saveIdleHandPose(hand, clonePose(IDLE_HAND_POSE));
-      host.ctx.hands.refreshPoses();
-      host.notify(`${hand === 'left' ? 'Linke' : 'Rechte'} Hand zurückgesetzt`);
-      return;
-    }
     if (this.target?.kind === 'attachment') {
       const { attachment, tool } = this.target;
       attachment.resetPose(tool.toolId);
       host.notify(`${attachment.label} zurückgesetzt`);
+      return;
+    }
+    if (this.target?.kind === 'hand' && this.target.toolId === null) {
+      const hand = this.target.hand;
+      saveIdleHandPose(hand, clonePose(IDLE_HAND_POSE));
+      host.ctx.hands.refreshPoses();
+      host.notify(`${handLabel(hand)} zurückgesetzt`);
+      return;
+    }
+    // Something in the other hand: `A` is the switch between putting the thing
+    // right and putting the hand around it right.
+    const other: Handedness = this.heldBy === 'left' ? 'right' : 'left';
+    if (this.handPoseId(host, other) !== null) {
+      this.focus = this.focus === 'tool' ? 'hand' : 'tool';
+      this.dirty = true;
+      host.notify(this.focus === 'tool' ? 'Justiert das Werkzeug' : 'Justiert die Hand');
       return;
     }
     const previous = this.previous;
@@ -360,29 +399,16 @@ export class AdjustTool extends Tool {
     if (controller && this.heldBy && !this.session && !this.handSession) {
       const hand: Handedness = this.heldBy === 'left' ? 'right' : 'left';
       const tool = host.heldTool(hand);
-      if (!tool) {
-        const object = this.handObject(host, hand);
-        if (object) {
-          this.tip.getWorldPosition(_origin);
-          _direction
-            .set(0, 0, -1)
-            .applyQuaternion(this.getWorldQuaternion(_quaternion))
-            .normalize();
-          _ray.set(_origin, _direction);
-          const distance = rayBoxDistance(object);
-          if (distance !== null && distance <= PICK_RANGE) {
-            this.target = { kind: 'hand', object, hand };
-          }
-        }
-      }
-      if (tool && !tool.parked) {
-        this.tip.getWorldPosition(_origin);
-        _direction
-          .set(0, 0, -1)
-          .applyQuaternion(this.getWorldQuaternion(_quaternion))
-          .normalize();
-        _ray.set(_origin, _direction);
+      this.tip.getWorldPosition(_origin);
+      _direction
+        .set(0, 0, -1)
+        .applyQuaternion(this.getWorldQuaternion(_quaternion))
+        .normalize();
+      _ray.set(_origin, _direction);
 
+      // With something in that hand there are two things in the same place —
+      // the thing and the hand around it — so `A` says which one is meant.
+      if (tool && !tool.parked && this.focus === 'tool') {
         let best = Number.POSITIVE_INFINITY;
         for (const attachment of tool.attachments()) {
           const distance = rayBoxDistance(attachment);
@@ -395,6 +421,16 @@ export class AdjustTool extends Tool {
           if (distance !== null && distance <= PICK_RANGE) {
             this.target = { kind: 'tool', tool, hand };
           }
+        }
+      }
+
+      // The hand is the fallback for a pointed-at tool that was missed, and
+      // the only answer for an empty one.
+      if (!this.target) {
+        const object = this.handObject(host, hand);
+        const distance = object ? rayBoxDistance(object) : null;
+        if (object && distance !== null && distance <= PICK_RANGE) {
+          this.target = { kind: 'hand', object, hand, toolId: this.handPoseId(host, hand) };
         }
       }
     }
@@ -570,17 +606,29 @@ export class AdjustTool extends Tool {
   }
 
   /**
+   * Which of that hand's poses is the one on show: `null` for the empty hand,
+   * otherwise the id of whatever it is holding (`grab` for a plain object).
+   * That is exactly the key `HandVisuals` looks the pose up under, so what the
+   * adjuster writes is what the hand is wearing.
+   */
+  private handPoseId(host: ToolHost, hand: Handedness): string | null {
+    const tool = host.heldTool(hand);
+    if (tool) return tool.toolId;
+    return host.ctx.hands.heldToolOf(hand);
+  }
+
+  /**
    * Leaves a ghost where the hand is now. The hand itself keeps following the
    * controller, so from here on there are two of them: the one you are moving
    * and the one that shows where it used to sit.
    */
-  private beginHand(hand: Handedness, host: ToolHost): void {
+  private beginHand(hand: Handedness, toolId: string | null, host: ToolHost): void {
     const object = this.handObject(host, hand);
     if (!object) {
       host.notify('Hand nicht getrackt');
       return;
     }
-    const before = idleHandPose(hand);
+    const before = host.ctx.hands.editablePose(hand, toolId);
     const ghost = new GhostHand(hand, before);
     object.updateWorldMatrix(true, false);
     _matrix.copy(object.matrixWorld);
@@ -590,11 +638,11 @@ export class AdjustTool extends Tool {
     _matrix.premultiply(_inverse.copy(host.root.matrixWorld).invert());
     _matrix.decompose(ghost.position, ghost.quaternion, _scale);
 
-    this.handSession = { hand, ghost, before };
+    this.handSession = { hand, ghost, toolId, before };
     this.showFor = 0;
     this.dirty = true;
     playTone({ type: 'square', from: 620, to: 880, duration: 0.1, gain: 0.05 });
-    host.notify(`${handLabel(hand)} · Geisterhand steht, Hand ausrichten, dann Trigger`);
+    host.notify(`${handTitle(hand, toolId, host)} · Geisterhand steht, dann Trigger`);
   }
 
   /**
@@ -617,15 +665,15 @@ export class AdjustTool extends Tool {
     session.ghost.updateWorldMatrix(true, false);
     session.ghost.matrixWorld.decompose(_toolPosition, _toolRotation, _scale);
 
-    const pose = holdPoseFrom(
+    const measured = holdPoseFrom(
       { position: _gripPosition, rotation: _gripRotation },
       _aim.identity(),
       { position: _toolPosition, rotation: _toolRotation },
     );
-    const readout = readPose(pose);
+    const readout = readPose(measured);
     // Only the six numbers move: the curls and the spread are the hand's own
     // business and are set in the menu, not measured in the air.
-    saveIdleHandPose(session.hand, {
+    const pose: HandPose = {
       ...session.before,
       x: readout.x,
       y: readout.y,
@@ -633,11 +681,16 @@ export class AdjustTool extends Tool {
       pitch: readout.pitch,
       yaw: readout.yaw,
       roll: readout.roll,
-    });
+    };
+    // The empty hand has an idle pose; a hand that is holding something has a
+    // pose *for that thing*, which is the whole reason this can be aimed at a
+    // full hand at all.
+    if (session.toolId) saveHoldHandPose(session.hand, session.toolId, pose);
+    else saveIdleHandPose(session.hand, pose);
     host.ctx.hands.refreshPoses();
 
     this.readout = readout;
-    this.caption = handLabel(session.hand);
+    this.caption = handTitle(session.hand, session.toolId, host);
     this.showFor = SHOW_TIME;
     this.dirty = true;
     this.cancelHand();
@@ -719,10 +772,16 @@ export class AdjustTool extends Tool {
         ctx.fillText(this.caption, 256, 92);
         ctx.fillStyle = '#9fe3ff';
         ctx.font = '500 28px system-ui, sans-serif';
-        ctx.fillText('Trigger justiert', 256, 152);
+        // Which of the two the trigger is about to take: the thing, or the
+        // hand around it. `A` is the switch, and it says so.
+        ctx.fillText(
+          this.focus === 'hand' ? 'Trigger justiert die Hand · A: Werkzeug' : 'Trigger justiert · A: Hand',
+          256,
+          152,
+        );
       } else {
         ctx.fillText('Auf Werkzeug, Anbauteil', 256, 92);
-        ctx.fillText('oder leere Hand zielen', 256, 148);
+        ctx.fillText('oder Hand zielen', 256, 148);
       }
       this.texture.needsUpdate = true;
       return;
@@ -754,12 +813,22 @@ function handAnchor(controller: ControllerState): THREE.Object3D {
 function describe(target: Target | null): string {
   if (!target) return '';
   if (target.kind === 'attachment') return target.attachment.label;
-  if (target.kind === 'hand') return handLabel(target.hand);
+  if (target.kind === 'hand') {
+    return target.toolId ? `${handLabel(target.hand)} · Griff` : handLabel(target.hand);
+  }
   return target.tool.label;
 }
 
 function handLabel(hand: Handedness): string {
   return hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
+}
+
+/** "Rechte Hand · Pistole" — which hand, holding what. */
+function handTitle(hand: Handedness, toolId: string | null, host: ToolHost): string {
+  if (!toolId) return handLabel(hand);
+  if (toolId === GRAB_POSE_ID) return `${handLabel(hand)} · Objekt`;
+  const label = host.heldTool(hand)?.label ?? toolId;
+  return `${handLabel(hand)} · ${label}`;
 }
 
 /** How far along `_ray` an object's box is, or null when it is not on it. */

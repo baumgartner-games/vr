@@ -125,6 +125,29 @@ export abstract class Tool extends THREE.Group {
   sticky = false;
 
   /**
+   * How many copies of this tool may be away from the belt at once — the ones
+   * lying around the room *and* the ones in a hand.
+   *
+   * Letting go of a tool no longer files it away on a hip: it falls, like
+   * anything else you let go of, and a fresh one grows on the hip it came from
+   * — so a pistol can be taken, passed to the other hand and a second one
+   * drawn. Without a ceiling that would carpet the floor in pistols, so the
+   * oldest copy still lying about is taken back as soon as one too many is
+   * out. At one — the sensible answer for a tool — that reads exactly the way
+   * it should: pulling a fresh pistol off the hip is what fetches the dropped
+   * one home. A throwing star says five, because five stars in the air is the
+   * point of a throwing star, and the sixth throw takes the first one back.
+   */
+  looseLimit = 1;
+
+  /**
+   * Let go of in mid-air, this one carries on instead of falling: it keeps the
+   * speed it had, ignores gravity and stays wherever it first hits something.
+   * The shuriken is what this is for.
+   */
+  glides = false;
+
+  /**
    * Turn the tool out of the grip and onto the pointing ray while it is held.
    * On by default: everything that aims at something wants this, and a tool
    * that forgets it shoots about 30° over the target. Switch it off only for
@@ -201,6 +224,15 @@ export abstract class Tool extends THREE.Group {
 
   /** The A/X button of the holding hand. */
   onPrimary(_controller: ControllerState, _host: ToolHost): void {}
+
+  /**
+   * Let go of into the room rather than onto a hip. `speed` is how fast the
+   * hand was moving when it opened, in m/s.
+   */
+  onThrow(_host: ToolHost, _speed: number): void {}
+
+  /** A gliding tool came to rest against something and stayed there. */
+  onStick(_host: ToolHost): void {}
 
   /**
    * A two-handed tool takes the *other* hand as well. While it says yes to a

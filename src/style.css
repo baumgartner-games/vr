@@ -502,6 +502,22 @@ input[type="range"] {
 
 .field.is-off { display: none; }
 
+/* Sitting or standing: asked once on the way in, two buttons wide. */
+.posture {
+  margin: 0 0 14px;
+  padding: 0;
+  border: none;
+}
+
+.posture legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.seg--two { grid-template-columns: repeat(2, 1fr); margin-bottom: 8px; }
+
 /* The two ways out of the room-code form: headset on, or straight to flat. */
 .net__actions {
   display: grid;

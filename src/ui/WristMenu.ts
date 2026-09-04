@@ -37,9 +37,22 @@ const SCROLL_OFF = 0.3;
 const SCROLL_FIRST_DELAY = 0.42;
 const SCROLL_REPEAT = 0.16;
 
+export interface WristMenuOptions {
+  title?: string;
+  footer?: string;
+  /** Which wrist it rides on. Both hands carry one; see `WristMenus`. */
+  hand?: Handedness;
+  /** Opened or closed — the pair uses it to keep only one panel up. */
+  onToggle?(menu: WristMenu, open: boolean): void;
+}
+
 /**
- * The menu button rides on the left hand; pressing it opens a panel that keeps
+ * The menu button rides on a hand; pressing it opens a panel that keeps
  * following that hand, tilting along with it. The other hand points and selects.
+ *
+ * There is one of these per wrist (`WristMenus`), because which hand is free
+ * depends entirely on what the other one is doing — and a menu you can only
+ * reach with the hand that is currently holding a pistol is no menu at all.
  */
 export class WristMenu extends THREE.Group {
   readonly panel: UIPanel;
@@ -49,7 +62,8 @@ export class WristMenu extends THREE.Group {
   private captionText = '';
 
   /** Which hand carries the menu. */
-  hand: Handedness = 'left';
+  readonly hand: Handedness;
+  private readonly onToggle: ((menu: WristMenu, open: boolean) => void) | null;
 
   private open = false;
   private buttonTexture: THREE.CanvasTexture;
@@ -69,10 +83,12 @@ export class WristMenu extends THREE.Group {
 
   constructor(
     private readonly pointer: Pointer,
-    options: { title?: string; footer?: string } = {},
+    options: WristMenuOptions = {},
   ) {
     super();
-    this.name = 'wrist-menu';
+    this.hand = options.hand ?? 'left';
+    this.onToggle = options.onToggle ?? null;
+    this.name = `wrist-menu-${this.hand}`;
 
     this.buttonCanvas = document.createElement('canvas');
     this.buttonCanvas.width = 256;
@@ -89,7 +105,7 @@ export class WristMenu extends THREE.Group {
         depthWrite: false,
       }),
     );
-    this.button.name = 'wrist-menu-button';
+    this.button.name = `wrist-menu-button-${this.hand}`;
     this.button.renderOrder = 12;
     this.button.geometry.computeBoundingBox();
     this.add(this.button);
@@ -195,6 +211,12 @@ export class WristMenu extends THREE.Group {
       this.applyPage();
     }
     this.drawButton();
+    if (this.open !== wasOpen) this.onToggle?.(this, this.open);
+  }
+
+  /** Repaints the open page — a row whose label changed under the pointer. */
+  refresh(): void {
+    this.panel.refresh();
   }
 
   /**
@@ -345,12 +367,10 @@ export class WristMenu extends THREE.Group {
 
     const controller = input.get(hand);
     if (!controller?.tracked) return;
-    // Grab or `A` — never the trigger, which is busy aiming at the panel.
-    // Tracked hands have no grip button, so a pinch stands in for it.
-    const take = controller.isHand
-      ? controller.trigger.justPressed
-      : controller.squeeze.justPressed || controller.primary.justPressed;
-    if (!take) return;
+    // Grab or `A` — never the trigger, which is busy aiming at the panel. A
+    // bare hand's grip is its three fingers closing onto the palm, so the same
+    // rule reads on both kinds of hand.
+    if (!controller.squeeze.justPressed && !controller.primary.justPressed) return;
 
     entry.run(hand);
     this.applyPage();

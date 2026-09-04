@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
+import { STANDING_EYE, playerPosture, type Posture } from './posture';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _head = new THREE.Vector3();
@@ -36,7 +37,18 @@ export class PlayerRig extends THREE.Group {
   /** Radians per snap turn. */
   snapAngle = THREE.MathUtils.degToRad(30);
   /** Eye height used while not in VR. */
-  flatEyeHeight = 1.65;
+  flatEyeHeight = STANDING_EYE;
+  /**
+   * Whether the player is sitting on a chair or standing on their feet.
+   *
+   * The headset only knows how far the head is above the floor of the room, so
+   * a seated player is simply a short one as far as every world is concerned —
+   * counters get taller, karts get deeper and the horizon drops. Saying "I am
+   * sitting" lifts the view back to `STANDING_EYE` without moving the feet, so
+   * the world stays the size it was built at. Set from the start page and from
+   * *Menü → Bewegung → Haltung*.
+   */
+  posture: Posture = playerPosture();
 
   locomotion: Locomotion = new FreeLocomotion();
   /**
@@ -51,6 +63,14 @@ export class PlayerRig extends THREE.Group {
    * The engine folds this into `paused` every frame.
    */
   frozen = false;
+  /**
+   * Stick movement, jumping and the snap turn are switched off, but the body
+   * is otherwise alive — crouching, the seated lift and the head all keep
+   * working. The input world uses it: there the point is to look at what your
+   * hands are doing, and a stick that walks you out of the room while you do
+   * it is nothing but a distraction.
+   */
+  locked = false;
 
   private readonly intent = new THREE.Vector3();
   private intentJump = false;
@@ -63,6 +83,11 @@ export class PlayerRig extends THREE.Group {
   private crouchOffset = 0;
   private crouchWanted = false;
   private sprintWanted = false;
+  /**
+   * How far the view is currently lifted because the player is sitting. The
+   * exact mirror image of `crouchOffset`: the rig goes up, the feet stay put.
+   */
+  private seatLift = 0;
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -127,7 +152,7 @@ export class PlayerRig extends THREE.Group {
 
   /** Eye height above the floor — crouching makes the body shorter, not lower. */
   getHeadHeight(): number {
-    return Math.max(0.6, this.camera.position.y - this.crouchOffset);
+    return Math.max(0.6, this.camera.position.y - this.crouchOffset + this.seatLift);
   }
 
   /**
@@ -136,7 +161,7 @@ export class PlayerRig extends THREE.Group {
    * `position.y`.
    */
   getFloorY(): number {
-    return this.position.y + this.crouchOffset;
+    return this.position.y + this.crouchOffset - this.seatLift;
   }
 
   /** How far the view is currently dropped below the standing pose. */
@@ -151,11 +176,18 @@ export class PlayerRig extends THREE.Group {
 
   /** Stands back up, e.g. when a world is left. */
   standUp(): void {
-    this.position.y -= this.crouchOffset;
+    this.locked = false;
+    this.position.y -= this.crouchOffset - this.seatLift;
     this.crouchOffset = 0;
+    this.seatLift = 0;
     this.crouchWanted = false;
     this.sprintWanted = false;
     this.updateMatrixWorld(true);
+  }
+
+  /** How far the seated lift currently raises the view, in metres. */
+  get seated(): number {
+    return this.seatLift;
   }
 
   /** Horizontal viewing direction of the head, normalised. */
@@ -226,7 +258,7 @@ export class PlayerRig extends THREE.Group {
     if (presenting) {
       const left = input.get('left');
       this.updateStance(dt, input);
-      const stick = left?.thumbstick;
+      const stick = this.locked ? null : left?.thumbstick;
       if (stick && (stick.x !== 0 || stick.y !== 0)) {
         this.getHeadForward(_forward);
         _strafe.copy(_forward).cross(UP).normalize();
@@ -235,14 +267,16 @@ export class PlayerRig extends THREE.Group {
         this.intent.copy(_head.multiplyScalar(this.speedNow()));
       }
       // A also confirms menu entries, so it must not jump while pointing at one.
-      if (!uiActive && input.get('right')?.primary.justPressed) this.intentJump = true;
+      if (!uiActive && !this.locked && input.get('right')?.primary.justPressed) {
+        this.intentJump = true;
+      }
     }
 
     this.locomotion.apply(this, this.intent, this.intentJump, dt);
     this.intent.set(0, 0, 0);
     this.intentJump = false;
 
-    if (presenting) {
+    if (presenting && !this.locked) {
       const turn = input.get('right')?.thumbstick.x ?? 0;
       if (this.snapArmed && Math.abs(turn) > 0.7) {
         this.rotateAroundHead(-Math.sign(turn) * this.snapAngle);
@@ -291,6 +325,8 @@ export class PlayerRig extends THREE.Group {
     const moving = stick ? stick.x !== 0 || stick.y !== 0 : false;
     if (this.crouchWanted && this.sprintWanted && moving) this.crouchWanted = false;
 
+    this.updateSeatLift(dt);
+
     const target = this.crouchWanted ? this.crouchDepth : 0;
     if (target === this.crouchOffset) return;
     const step = THREE.MathUtils.clamp(
@@ -300,6 +336,33 @@ export class PlayerRig extends THREE.Group {
     );
     this.crouchOffset += step;
     this.position.y -= step;
+    this.updateMatrixWorld(true);
+  }
+
+  /**
+   * The lift a seated player gets: whatever is missing between their real eye
+   * height and a standing one, added to the rig with the feet left behind.
+   *
+   * Measured live rather than once, because leaning forward in a chair is a
+   * perfectly normal thing to do and the world must not bob with it — the
+   * ramp is the same slow one crouching uses, so it reads as the body settling
+   * rather than as the floor moving.
+   */
+  private updateSeatLift(dt: number): void {
+    // `camera.position` is the headset's own pose inside the rig, so it is the
+    // player's real eye height above their room floor and the lift never
+    // feeds back into it.
+    const raw = this.camera.position.y;
+    const target =
+      this.posture === 'sit' ? THREE.MathUtils.clamp(STANDING_EYE - raw, 0, 1.2) : 0;
+    if (Math.abs(target - this.seatLift) < 1e-4) return;
+    const step = THREE.MathUtils.clamp(
+      target - this.seatLift,
+      -this.crouchSpeed * dt,
+      this.crouchSpeed * dt,
+    );
+    this.seatLift += step;
+    this.position.y += step;
     this.updateMatrixWorld(true);
   }
 }

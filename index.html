@@ -20,6 +20,26 @@
           Handgelenk und ein experimenteller Portal-Prototyp.
         </p>
 
+        <!--
+          The one thing a headset cannot measure for itself: it reports the head
+          above the floor of the room and has no idea whether there is a chair
+          under it. A seated player is otherwise simply a short one, and every
+          counter, kart seat and horizon in the game is suddenly built for
+          somebody taller. So it gets asked once, here — and can be changed at
+          any time under Menü → Bewegung → Haltung.
+        -->
+        <fieldset class="posture">
+          <legend>Spielst du im Sitzen oder im Stehen?</legend>
+          <div id="posture" class="seg seg--two">
+            <button type="button" data-posture="stand">Stehend</button>
+            <button type="button" data-posture="sit">Sitzend</button>
+          </div>
+          <p class="field__hint">
+            Sitzend wird die Sicht auf Stehhöhe angehoben, damit Tische, Karts und
+            der Horizont da sind, wo sie hingehören.
+          </p>
+        </fieldset>
+
         <button id="enter-vr" class="btn btn--primary" disabled>VR wird geprüft …</button>
         <button id="enter-flat" class="btn btn--ghost">Ohne VR starten (Desktop / Handy)</button>
 
@@ -57,9 +77,12 @@
         </details>
 
         <ul class="hints">
-          <li><strong>Linke Hand:</strong> Button am Handgelenk öffnet das Menü.</li>
-          <li><strong>Rechte Hand:</strong> Zeigen &amp; Trigger zum Auswählen.</li>
-          <li><strong>Portal-Welt:</strong> Werkzeuge hängen am Gürtel — Greifen nimmt sie.</li>
+          <li><strong>Beide Handgelenke:</strong> ein Button öffnet das Menü — offen ist immer nur eins.</li>
+          <li><strong>Andere Hand:</strong> Zeigen &amp; Trigger zum Auswählen.</li>
+          <li><strong>Portal-Welt:</strong> Werkzeuge hängen am Gürtel — Greifen nimmt sie,
+            woanders loslassen lässt sie fallen.</li>
+          <li><strong>Ohne Controller:</strong> drei Finger an die Handfläche = Greifen,
+            Zeigefinger = Trigger. Ausprobieren im <em>Eingaberaum</em>.</li>
         </ul>
       </div>
     </div>

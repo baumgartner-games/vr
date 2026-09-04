@@ -20,6 +20,8 @@ import {
   COLOR_RED,
   DroneTool,
   PistolTool,
+  SPIN_RATE,
+  THROW_SPEED,
   PortalGunTool,
   SIGHTS,
   TOOL_IDS,
@@ -43,6 +45,7 @@ import {
 import { KeyPanel, type KeyPanelRequest } from '../../ui/KeyPanel';
 import { isTyping } from '../../core/textEntry';
 import {
+  GRAB_POSE_ID,
   HAND_FIELDS,
   HOLD_HAND_POSE,
   IDLE_HAND_POSE,
@@ -109,6 +112,15 @@ const HIGHLIGHT_REACH = 0x6fb6ff;
 const HIGHLIGHT_LOCKED = 0xffb35c;
 const HIGHLIGHT_PICKED = 0x5ee0a0;
 const _ropeTaut = new THREE.Color(0xffb35c);
+const _zeroVelocity = new THREE.Vector3();
+const _spin = new THREE.Vector3();
+const _handSpeed = new THREE.Vector3();
+const _toolBox = new THREE.Box3();
+const _toolLocal = new THREE.Box3();
+const _toolMatrix = new THREE.Matrix4();
+const _toolInverse = new THREE.Matrix4();
+/** How far ahead of a gliding tool the sweep looks, on top of its step. */
+const STICK_MARGIN = 0.06;
 /** Bullets are cleaned up again after this long. */
 const BULLET_LIFETIME = 4;
 /** How many points a tracer's streak is made of. */
@@ -246,6 +258,24 @@ interface WeldJoint {
   b: PhysicsBody;
 }
 
+/** A tool that has been let go of into the room. */
+interface LooseTool {
+  tool: Tool;
+  entry: PhysicsBody;
+  /**
+   * Still on its way: a gliding tool (the shuriken) keeps its speed and
+   * ignores gravity until it meets something, and then it stays there.
+   */
+  gliding: boolean;
+}
+
+/** Where a hand was last frame and how fast it is going, in m/s. */
+interface HandMotion {
+  last: THREE.Vector3;
+  velocity: THREE.Vector3;
+  known: boolean;
+}
+
 interface HandGrab {
   entry: PhysicsBody;
   /** Pose of the prop relative to the hand at pick-up time. */
@@ -272,8 +302,17 @@ export class PortalWorld implements World {
   protected readonly solids: THREE.Object3D[] = [];
   protected readonly props: PhysicsBody[] = [];
   private readonly spawns = new Map<PhysicsBody, THREE.Matrix4>();
-  /** Everything that has been built so far, by tool id. */
+  /**
+   * The copy of each tool the belt and the shelf hand out next.
+   *
+   * Not "every tool that exists" any more: letting a tool go leaves it lying
+   * in the room and grows a fresh one on the hip, so there can be several
+   * pistols about at once. `liveTools` is the complete list; this one only
+   * answers "give me a pistol".
+   */
   private readonly tools = new Map<string, Tool>();
+  /** Every tool that exists right now — spares, held ones and loose ones. */
+  private readonly liveTools = new Set<Tool>();
   /** What each hand is carrying. */
   private readonly held = new Map<Handedness, Tool>();
   /** Preview of where each portal would land, by key. */
@@ -327,8 +366,20 @@ export class PortalWorld implements World {
   /** The keyboard for raw values and config codes; built with the world. */
   private keys: KeyPanel | null = null;
 
-  /** Which hip a tool goes back to when it is simply let go of. */
+  /** Which hip a tool came off, so a fresh one grows back there. */
   private readonly homes = new Map<Tool, Handedness>();
+  /**
+   * Tools lying around the room as objects, in the order they were let go of.
+   *
+   * A dropped tool is a prop like any other — it falls, it can be knocked
+   * over, and either hand can pick it up again — so it lives in `props` too;
+   * this is what tells the two apart when a hand closes around one. Insertion
+   * order is the queue `trimLoose` works from: one copy too many and the
+   * oldest goes.
+   */
+  private readonly loose = new Map<PhysicsBody, LooseTool>();
+  /** How fast each hand is moving, for throwing whatever it lets go of. */
+  private readonly handMotion = new Map<Handedness, HandMotion>();
   private belt: ToolBelt | null = null;
   private host: ToolHost | null = null;
   protected physics: PhysicsWorld | null = null;
@@ -832,7 +883,12 @@ export class PortalWorld implements World {
           sub: 'Für jedes Werkzeug eigen',
           icon: 'tools',
           accent: 0x9fe3ff,
-          children: TOOL_IDS.map((id) => this.handPoseMenu(hand, id)),
+          children: [
+            // A prop is held with a hand pose of its own, so it belongs in
+            // the same list — it is only not a tool.
+            this.handPoseMenu(hand, GRAB_POSE_ID),
+            ...TOOL_IDS.map((id) => this.handPoseMenu(hand, id)),
+          ],
         },
       ],
     };
@@ -844,7 +900,11 @@ export class PortalWorld implements World {
    * nothing on paper and everything in the headset.
    */
   private handPoseMenu(hand: Handedness, toolId: string | null): MenuEntry {
-    const title = toolId ? (this.tool(toolId)?.label ?? toolId) : 'Ohne Werkzeug';
+    const title = !toolId
+      ? 'Ohne Werkzeug'
+      : toolId === GRAB_POSE_ID
+        ? 'Objekt in der Hand'
+        : (this.tool(toolId)?.label ?? toolId);
     const read = (): HandPose => this.context!.hands.editablePose(hand, toolId);
     const save = (pose: HandPose): void => {
       if (toolId) saveHoldHandPose(hand, toolId, pose);
@@ -918,7 +978,11 @@ export class PortalWorld implements World {
     return {
       id: `setting:hand-${hand}-${toolId ?? 'idle'}`,
       label: toolId ? title : 'Grundhaltung',
-      sub: toolId ? 'Wie die Hand es hält' : 'Die leere Hand',
+      sub: toolId === GRAB_POSE_ID
+        ? 'Wie die Hand ein Objekt hält'
+        : toolId
+          ? 'Wie die Hand es hält'
+          : 'Die leere Hand',
       icon: 'glove',
       accent: 0x9fe3ff,
       children,
@@ -1033,7 +1097,7 @@ export class PortalWorld implements World {
   /** Rewrites every label that shows a value, then redraws the panel. */
   private refreshMenuLabels(): void {
     for (const refresh of this.menuLabels) refresh();
-    this.context?.menu.panel.refresh();
+    this.context?.menu.refresh();
   }
 
   private askNumber(options: {
@@ -1165,14 +1229,18 @@ export class PortalWorld implements World {
     ctx.hands.setHeldTool('left', null);
     ctx.hands.setHeldTool('right', null);
 
-    for (const tool of this.tools.values()) {
+    for (const loose of [...this.loose.values()]) this.retireLoose(loose);
+    this.loose.clear();
+    for (const tool of this.liveTools) {
       if (tool instanceof DroneTool) tool.forgetPointer(ctx.pointer);
       tool.removeFromParent();
       tool.disposeTool();
     }
+    this.liveTools.clear();
     this.tools.clear();
     this.held.clear();
     this.homes.clear();
+    this.handMotion.clear();
     this.belt?.dispose();
     this.belt = null;
     this.host = null;
@@ -1501,6 +1569,7 @@ export class PortalWorld implements World {
     const built = createTool(id);
     if (!built) return null;
     this.tools.set(id, built);
+    this.liveTools.add(built);
     return built;
   }
 
@@ -1512,6 +1581,8 @@ export class PortalWorld implements World {
     const belt = this.belt;
     const host = this.host;
     if (!belt || !host) return;
+
+    this.trackHands(dt, ctx);
 
     // The hips light up for whichever hand is carrying something.
     _carried.length = 0;
@@ -1538,11 +1609,10 @@ export class PortalWorld implements World {
         continue;
       }
 
-      // Controllers hold a tool while the grip is down. Tracked hands have no
-      // grip button, so there a pinch toggles it.
-      const grabPressed = controller.isHand
-        ? controller.trigger.justPressed
-        : controller.squeeze.justPressed;
+      // One rule for both kinds of hand: a bare hand's grip is the three
+      // fingers closing onto the palm (`handGestures.ts`), a controller's is
+      // the button under them.
+      const grabPressed = controller.squeeze.justPressed;
       gripOf(controller).getWorldPosition(_hand);
       const slot = belt.nearest(_hand, ctx.rig);
 
@@ -1555,18 +1625,22 @@ export class PortalWorld implements World {
         continue;
       }
 
-      // A controller holds a tool while the grip is down. A sticky tool, and
-      // every tool on a tracked hand, is instead put away by holding it
-      // against a hip — a pinch is the trigger there and has work to do.
-      // A tool that just came back from the adjustment tool waits for the hand
-      // to close around it again before the usual "grip up = drop" applies.
+      // A tool is held while the grip is down. A sticky one is taken once and
+      // put away by holding it against a hip instead — its grip button belongs
+      // to the tool itself. A tool that just came back from the adjustment
+      // tool waits for the hand to close around it again before the usual
+      // "grip up = let go" applies.
       if (tool.regrip && controller.squeeze.pressed) tool.regrip = false;
-      const stow =
-        tool.sticky || controller.isHand
-          ? grabPressed && slot !== null
-          : !controller.squeeze.pressed && !tool.regrip;
-      if (stow) {
-        this.stowTool(tool, slot?.side);
+      if (tool.sticky) {
+        if (grabPressed && slot) {
+          this.stowTool(tool, slot.side);
+          continue;
+        }
+      } else if (!controller.squeeze.pressed && !tool.regrip) {
+        // Over a hip it goes back on the belt; anywhere else it falls, and a
+        // fresh one grows on the hip it came from.
+        if (slot) this.stowTool(tool, slot.side);
+        else this.dropTool(ctx, tool);
         continue;
       }
       if (tool.sticky && grabPressed) tool.onGrab(controller, host);
@@ -1579,13 +1653,17 @@ export class PortalWorld implements World {
       if (controller.primary.justPressed) tool.onPrimary(controller, host);
     }
 
-    for (const tool of this.tools.values()) {
+    // Every tool there is: on a hip, in a hand, or lying on the floor. A
+    // stowed or loose one gets its frame too — `applyHold` steps aside for
+    // both, because the belt and the physics own where those are.
+    for (const tool of [...this.liveTools]) {
       const controller = tool.heldBy ? ctx.input.get(tool.heldBy) : null;
       // Every held tool is turned out of the grip and onto the pointing ray
       // before it runs — one place, so no tool can aim 30° high again.
       tool.applyHold(controller);
       tool.update(dt, host, controller);
     }
+    this.updateLooseTools(dt);
   }
 
   /** True while a tool in the *other* hand has taken hold of this one too. */
@@ -1624,6 +1702,10 @@ export class PortalWorld implements World {
     tool.applyHold(controller);
     tool.visible = true;
     this.held.set(hand, tool);
+    // One copy too many away from the belt: the oldest one lying around goes
+    // home. Drawing a fresh pistol is exactly how you take the dropped one
+    // back — and the sixth throwing star fetches the first.
+    this.trimLoose(tool.toolId);
     tool.onTake(controller, host);
     controller.pulse(0.45, 28);
     playPick(true);
@@ -1653,16 +1735,296 @@ export class PortalWorld implements World {
     const displaced = belt.stow(tool, target);
     this.homes.set(tool, target);
     if (displaced) {
-      const free = belt.freeSlot();
-      if (free) {
-        belt.stow(displaced, free.side);
-        this.homes.set(displaced, free.side);
-      } else {
-        displaced.visible = false;
-        this.homes.delete(displaced);
+      // A hip that had grown a fresh copy while this one was out does not need
+      // two of the same tool — the returning one takes the place back.
+      if (displaced.toolId === tool.toolId) this.retireTool(displaced);
+      else {
+        const free = belt.freeSlot();
+        if (free) {
+          belt.stow(displaced, free.side);
+          this.homes.set(displaced, free.side);
+        } else {
+          displaced.visible = false;
+          this.homes.delete(displaced);
+        }
       }
     }
     playPick(false);
+  }
+
+  /**
+   * Lets a tool go into the room instead of onto a hip.
+   *
+   * This is what opening the hand now does anywhere but over a belt slot: the
+   * tool falls, keeps whatever speed the hand had, and lies there as an object
+   * — the other hand can catch it out of the air, exactly like a cube. At the
+   * same moment a fresh one grows back on the hip it came off, so taking a
+   * pistol, passing it across and drawing a second one is one continuous
+   * movement instead of a trip to the shelf.
+   *
+   * A **gliding** tool (the shuriken) skips the falling: it carries on along
+   * the line it was travelling and stays where it first hits something.
+   */
+  private dropTool(ctx: WorldContext, tool: Tool): void {
+    const physics = this.physics;
+    const host = this.host;
+    // Without physics there is no floor to fall to — the belt is then the only
+    // honest answer.
+    if (!physics || !host) {
+      this.stowTool(tool);
+      return;
+    }
+
+    const hand = tool.heldBy;
+    const home = this.homes.get(tool) ?? hand ?? null;
+    const motion = hand ? this.handMotion.get(hand) : null;
+    _velocity.copy(motion?.velocity ?? _zeroVelocity).clampLength(0, 12);
+    const speed = _velocity.length();
+
+    if (hand) this.held.delete(hand);
+    tool.heldBy = null;
+    tool.regrip = false;
+    tool.parked = false;
+    tool.onStow(host);
+    this.homes.delete(tool);
+    // The spare has to be somebody else from here on: this one is in the room.
+    if (this.tools.get(tool.toolId) === tool) this.tools.delete(tool.toolId);
+
+    // Out of the hand and into the room, without moving a millimetre.
+    tool.updateWorldMatrix(true, false);
+    _matrix.copy(tool.matrixWorld);
+    this.root.add(tool);
+    this.root.updateWorldMatrix(true, false);
+    _matrix.premultiply(_rotationMatrix.copy(this.root.matrixWorld).invert());
+    _matrix.decompose(tool.position, tool.quaternion, _probe);
+    tool.scale.set(1, 1, 1);
+    tool.visible = true;
+    tool.updateWorldMatrix(true, false);
+
+    const gliding = tool.glides && speed >= THROW_SPEED;
+    const entry = physics.addDynamic(tool, {
+      shape: { kind: 'box' },
+      halfExtents: toolHalfExtents(tool, _probe),
+      mass: 1.2,
+      friction: 0.8,
+      restitution: 0.05,
+      // A thrown star crosses a room in a few frames; without continuous
+      // collision it would be on the other side of the wall by the next one.
+      ccd: true,
+    });
+    entry.previousPosition.copy(tool.position);
+    this.props.push(entry);
+    this.loose.set(entry, { tool, entry, gliding });
+
+    entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
+    if (gliding) {
+      // Straight on: no gravity, and a spin around the axis the star turns on.
+      entry.body.setGravityScale(0, true);
+      _spin.set(1, 0, 0).applyQuaternion(tool.quaternion).multiplyScalar(SPIN_RATE);
+      entry.body.setAngvel({ x: _spin.x, y: _spin.y, z: _spin.z }, true);
+    }
+    tool.onThrow(host, speed);
+
+    this.refillBelt(tool.toolId, home);
+    this.trimLoose(tool.toolId);
+    playPick(false);
+    void ctx;
+  }
+
+  /** A fresh copy on the hip the old one came off, if that hip is free. */
+  private refillBelt(id: string, side: Handedness | null): void {
+    const belt = this.belt;
+    if (!belt || !side || belt.toolAt(side)) return;
+    const replacement = this.tool(id);
+    if (!replacement || replacement.heldBy || this.isLoose(replacement)) return;
+    belt.stow(replacement, side);
+    this.homes.set(replacement, side);
+  }
+
+  /** True while this exact tool is lying around rather than stowed or held. */
+  private isLoose(tool: Tool): boolean {
+    for (const entry of this.loose.values()) {
+      if (entry.tool === tool) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Takes back the oldest copies of a tool once one too many is away from the
+   * belt — held ones counted, because a pistol in the hand is one of them.
+   *
+   * That is what makes the default read the way it should: one copy allowed,
+   * so pulling a fresh pistol off the hip fetches the one on the floor back.
+   * A throwing star says five, so five may be lying about and flying while a
+   * sixth is drawn — and the sixth throw is what takes the first one home.
+   * Oldest first, in the order they were let go of.
+   */
+  private trimLoose(id: string): void {
+    const spare: LooseTool[] = [];
+    let limit = 1;
+    for (const loose of this.loose.values()) {
+      if (loose.tool.toolId !== id) continue;
+      spare.push(loose);
+      limit = loose.tool.looseLimit;
+    }
+    let count = spare.length;
+    for (const tool of this.held.values()) {
+      if (tool.toolId !== id) continue;
+      count++;
+      limit = tool.looseLimit;
+    }
+    for (let i = 0; i < count - limit && i < spare.length; i++) this.retireLoose(spare[i]!);
+  }
+
+  /** A loose tool goes away for good: out of the room, out of the physics. */
+  private retireLoose(loose: LooseTool): void {
+    const physics = this.physics;
+    this.loose.delete(loose.entry);
+    const index = this.props.indexOf(loose.entry);
+    if (index >= 0) this.props.splice(index, 1);
+    this.highlighted.delete(loose.entry);
+    this.locked.delete(loose.entry);
+    this.flights.delete(loose.entry);
+    for (const [hand, grab] of [...this.grabs]) {
+      if (grab.entry === loose.entry) this.grabs.delete(hand);
+    }
+    for (const [hand, link] of [...this.links]) {
+      if (link.entry === loose.entry) this.dropLink(hand);
+    }
+    // The portal ghosts hold a clone of every prop; one of a freed tool would
+    // outlive it.
+    this.ghosts?.untrack(propKey(loose.entry));
+    physics?.remove(loose.entry);
+    this.retireTool(loose.tool);
+  }
+
+  /** A tool copy that is not needed any more: off the stage and freed. */
+  private retireTool(tool: Tool): void {
+    this.liveTools.delete(tool);
+    this.homes.delete(tool);
+    // The spare has to be somebody else from here on: this one is in the room.
+    if (this.tools.get(tool.toolId) === tool) this.tools.delete(tool.toolId);
+    if (tool instanceof DroneTool) {
+      const pointer = this.context?.pointer;
+      if (pointer) tool.forgetPointer(pointer);
+    }
+    tool.removeFromParent();
+    tool.disposeTool();
+  }
+
+  /** Out of the room and back into a hand — a caught tool is a held tool. */
+  private catchLooseTool(hand: Handedness, loose: LooseTool): void {
+    const ctx = this.context;
+    const controller = ctx?.input.get(hand);
+    this.loose.delete(loose.entry);
+    const index = this.props.indexOf(loose.entry);
+    if (index >= 0) this.props.splice(index, 1);
+    this.highlighted.delete(loose.entry);
+    this.locked.delete(loose.entry);
+    this.ghosts?.untrack(propKey(loose.entry));
+    this.physics?.remove(loose.entry);
+    if (!ctx || !controller?.tracked) {
+      // Nothing to catch it after all; the belt takes it rather than the room
+      // keeping a tool with no body left.
+      this.stowTool(loose.tool);
+      return;
+    }
+    this.takeTool(ctx, controller, loose.tool);
+  }
+
+  /**
+   * The tools that are lying around, and the one thing they can still be
+   * doing: gliding. A shuriken keeps its speed until the line it is on meets
+   * something, and then it stops dead and stays there — sweeping the step
+   * ourselves rather than waiting for a bounce is what makes it *stick* in the
+   * wall instead of rattling off it.
+   */
+  private updateLooseTools(dt: number): void {
+    const physics = this.physics;
+    if (!physics) return;
+    for (const loose of [...this.loose.values()]) {
+      if (!loose.gliding) continue;
+      const velocity = loose.entry.body.linvel();
+      _velocity.set(velocity.x, velocity.y, velocity.z);
+      const speed = _velocity.length();
+      const translation = loose.entry.body.translation();
+      _point.set(translation.x, translation.y, translation.z);
+      if (speed < THROW_SPEED) {
+        this.stickTool(loose, _point);
+        continue;
+      }
+      _ray.origin.copy(_point);
+      _ray.direction.copy(_velocity).divideScalar(speed);
+      const hit = this.castSurface(_ray, speed * dt + STICK_MARGIN, this.solids);
+      if (hit) {
+        // A hair *into* the wall, so it reads as stuck rather than as resting
+        // against it.
+        this.stickTool(loose, _point.copy(hit.point).addScaledVector(_ray.direction, 0.02));
+        continue;
+      }
+      const reach = this.glideProp(loose, speed * dt + STICK_MARGIN);
+      if (reach !== null) this.stickTool(loose, _point.addScaledVector(_ray.direction, reach));
+    }
+  }
+
+  /**
+   * How far along `_ray` the next prop is, or null when there is none inside
+   * `reach`. Everything the star could not stick into is skipped — itself
+   * first of all, since the ray starts inside its own box.
+   */
+  private glideProp(loose: LooseTool, reach: number): number | null {
+    let best: number | null = null;
+    for (const entry of this.props) {
+      if (entry === loose.entry || this.loose.has(entry)) continue;
+      if (this.handHolding(entry) || this.flights.has(entry)) continue;
+      _toolBox.setFromObject(entry.object);
+      if (!_ray.intersectBox(_toolBox, _probe)) continue;
+      const distance = _ray.origin.distanceTo(_probe);
+      if (distance > reach || (best !== null && distance >= best)) continue;
+      best = distance;
+    }
+    return best;
+  }
+
+  /** Stops a gliding tool where it is and leaves it there. */
+  private stickTool(loose: LooseTool, at: THREE.Vector3): void {
+    const physics = this.physics;
+    loose.gliding = false;
+    if (!physics) return;
+    loose.entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    loose.entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    loose.entry.body.setTranslation({ x: at.x, y: at.y, z: at.z }, true);
+    // Fixed, not dynamic: a star that stuck in a wall has no business sliding
+    // down it, and gravity is exactly what would make it do that.
+    loose.entry.body.setBodyType(physics.rapier.RigidBodyType.Fixed, true);
+    loose.entry.previousPosition.copy(at);
+    if (this.host) loose.tool.onStick(this.host);
+  }
+
+  /** How fast each hand is moving — what a let-go tool is thrown with. */
+  private trackHands(dt: number, ctx: WorldContext): void {
+    for (const side of ['left', 'right'] as const) {
+      let motion = this.handMotion.get(side);
+      if (!motion) {
+        motion = { last: new THREE.Vector3(), velocity: new THREE.Vector3(), known: false };
+        this.handMotion.set(side, motion);
+      }
+      const controller = ctx.input.get(side);
+      if (!controller?.tracked || dt <= 0) {
+        motion.known = false;
+        motion.velocity.set(0, 0, 0);
+        continue;
+      }
+      gripOf(controller).getWorldPosition(_handSpeed);
+      if (motion.known) {
+        // Smoothed a little: a single frame of tracking noise is not a throw,
+        // and a throw is never a single frame either.
+        _probe.copy(_handSpeed).sub(motion.last).divideScalar(dt);
+        motion.velocity.lerp(_probe, Math.min(1, dt * 26));
+      }
+      motion.last.copy(_handSpeed);
+      motion.known = true;
+    }
   }
 
   /** Puts a specific tool into a hand, used by the tool shelf. */
@@ -1815,6 +2177,14 @@ export class PortalWorld implements World {
   protected removeProp(entry: PhysicsBody, share: boolean): void {
     const physics = this.physics;
     if (!physics) return;
+    // A dropped tool is a prop as far as the eraser is concerned, but it has
+    // its own bookkeeping — freeing the mesh under it and leaving the tool in
+    // the update loop is how a world ends up drawing a disposed geometry.
+    const loose = this.loose.get(entry);
+    if (loose) {
+      this.retireLoose(loose);
+      return;
+    }
     const index = this.props.indexOf(entry);
     if (index < 0) return;
 
@@ -2172,12 +2542,10 @@ export class PortalWorld implements World {
 
       const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
       anchor.updateWorldMatrix(true, false);
-      const pressed = controller.isHand
-        ? controller.trigger.justPressed
-        : controller.squeeze.justPressed;
+      const pressed = controller.squeeze.justPressed;
 
       if (grab) {
-        const holding = controller.isHand ? !pressed : controller.squeeze.pressed;
+        const holding = controller.squeeze.pressed;
         if (!holding) {
           this.release(ctx, hand, grab, true);
           continue;
@@ -2236,8 +2604,7 @@ export class PortalWorld implements World {
         !this.grabs.has(hand) &&
         !this.held.has(hand) &&
         !this.reachingAcross(ctx, hand);
-      const holding =
-        usable && (controller.isHand ? controller.trigger.pressed : controller.squeeze.pressed);
+      const holding = usable && controller.squeeze.pressed;
 
       const link = this.links.get(hand);
       if (link && !holding) this.dropLink(hand);
@@ -2270,10 +2637,7 @@ export class PortalWorld implements World {
       reachable.add(entry);
       this.drawRope(controller, entry, -1);
 
-      const pressed = controller.isHand
-        ? controller.trigger.justPressed
-        : controller.squeeze.justPressed;
-      if (!pressed) continue;
+      if (!controller.squeeze.justPressed) continue;
       this.links.set(hand, { entry, pitch: this.handPitch(controller) });
       controller.pulse(0.4, 25);
     }
@@ -2431,7 +2795,7 @@ export class PortalWorld implements World {
       const holding = flight.viaTool
         ? controller?.tracked && this.held.has(flight.hand)
         : controller?.tracked &&
-          (controller.isHand ? controller.trigger.pressed : controller.squeeze.pressed) &&
+          controller.squeeze.pressed &&
           !this.grabs.has(flight.hand) &&
           !this.held.has(flight.hand);
 
@@ -2483,6 +2847,14 @@ export class PortalWorld implements World {
   }
 
   private attach(hand: Handedness, anchor: THREE.Object3D, entry: PhysicsBody): void {
+    // A tool lying on the floor is picked up as a *tool*, not carried around
+    // like a crate: one place for it, so a hand, a remote grab and a gravity
+    // glove all end the same way.
+    const loose = this.loose.get(entry);
+    if (loose) {
+      this.catchLooseTool(hand, loose);
+      return;
+    }
     const physics = this.physics!;
     entry.body.setBodyType(physics.rapier.RigidBodyType.KinematicPositionBased, true);
     physics.setCarried(entry, true);
@@ -2580,8 +2952,12 @@ export class PortalWorld implements World {
       const hand = controller.handedness;
       if (!hand) continue;
       // A tool in the hand brings its own grip, dialled in under
-      // *Einstellungen → Hände*; an empty hand goes back to the idle pose.
-      ctx.hands.setHeldTool(hand, this.held.get(hand)?.toolId ?? null);
+      // *Einstellungen → Hände*. A hand around a prop gets one too — that is
+      // what `grab` is — and an empty hand goes back to the idle pose.
+      ctx.hands.setHeldTool(
+        hand,
+        this.held.get(hand)?.toolId ?? (this.grabs.has(hand) ? GRAB_POSE_ID : null),
+      );
       if (this.held.has(hand) || this.grabs.has(hand) || this.links.has(hand)) {
         ctx.hands.setGestureOverride(hand, 'grip');
         continue;
@@ -3042,6 +3418,13 @@ export class PortalWorld implements World {
     this.portalRed.reset();
     for (const entry of [...this.flights.keys()]) this.endFlight(entry, false);
     this.clearSpawned();
+    // Dropped tools go back to being belt tools: a floor full of thrown stars
+    // is exactly the sort of thing "zurücksetzen" is for.
+    for (const loose of [...this.loose.values()]) {
+      const home = this.homes.get(loose.tool) ?? null;
+      this.retireLoose(loose);
+      this.refillBelt(loose.tool.toolId, home);
+    }
     for (const entry of this.props) this.respawn(entry);
     this.worldReset();
   }
@@ -3400,6 +3783,42 @@ function peerHandKey(peerId: string, side: Handedness): string {
 }
 
 /** Stable ghost key for a prop — props come and go through the magic bag. */
+/**
+ * Half the size of a tool, for the collider it gets while it lies around.
+ *
+ * Measured in the tool's **own** frame and around its **own origin**. Both
+ * matter: a world-space box of a tool lying at an angle is far bigger than the
+ * tool, and a collider is centred on the body's origin, which for a pistol is
+ * the grip and not the middle — so the half extents have to reach from the
+ * origin to the furthest corner rather than being half of the size.
+ *
+ * Only what is actually drawn counts: a tool with a closed settings panel
+ * folded inside it would otherwise get a collider the size of the panel and
+ * hover half a metre above the floor.
+ */
+function toolHalfExtents(tool: Tool, target: THREE.Vector3): THREE.Vector3 {
+  _toolBox.makeEmpty();
+  tool.updateWorldMatrix(true, true);
+  _toolInverse.copy(tool.matrixWorld).invert();
+  tool.traverseVisible((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const bounds = mesh.geometry.boundingBox;
+    if (!bounds) return;
+    _toolLocal.copy(bounds).applyMatrix4(_toolMatrix.multiplyMatrices(_toolInverse, mesh.matrixWorld));
+    _toolBox.union(_toolLocal);
+  });
+  if (_toolBox.isEmpty()) return target.set(0.05, 0.05, 0.05);
+  const reach = (min: number, max: number): number =>
+    Math.max(Math.abs(min), Math.abs(max), 0.02);
+  return target.set(
+    reach(_toolBox.min.x, _toolBox.max.x),
+    reach(_toolBox.min.y, _toolBox.max.y),
+    reach(_toolBox.min.z, _toolBox.max.z),
+  );
+}
+
 function propKey(entry: PhysicsBody): string {
   return `prop:${entry.object.uuid}`;
 }

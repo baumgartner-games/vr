@@ -5,6 +5,7 @@ import { EraserTool } from './EraserTool';
 import { GrappleTool } from './GrappleTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
+import { ShurikenTool } from './ShurikenTool';
 import { SupermanGloveTool } from './SupermanGloveTool';
 import { StopwatchTool } from './StopwatchTool';
 import { TapeTool } from './TapeTool';
@@ -24,6 +25,7 @@ export const TOOL_IDS = [
   'gizmo',
   'brush',
   'pistol',
+  'shuriken',
   'stopwatch',
   'grapple',
   'gravity-glove',
@@ -62,6 +64,8 @@ function buildTool(id: string): Tool | null {
       return new BrushTool();
     case 'pistol':
       return new PistolTool();
+    case 'shuriken':
+      return new ShurikenTool();
     case 'stopwatch':
       return new StopwatchTool();
     case 'grapple':
@@ -97,6 +101,7 @@ export {
   GrappleTool,
   GravityGloveTool,
   PistolTool,
+  ShurikenTool,
   StopwatchTool,
   SupermanGloveTool,
   TapeTool,
@@ -211,3 +216,4 @@ export {
   type WeldRequest,
 } from './Tool';
 export { aimRotation, aimError, type Quat as AimQuat } from './aim';
+export { SPIN_RATE, THROW_SPEED } from './ShurikenTool';

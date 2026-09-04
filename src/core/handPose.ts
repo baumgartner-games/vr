@@ -47,6 +47,17 @@ export const IDLE_HAND_POSE: HandPose = {
   spread: 0,
 };
 
+/**
+ * The pseudo tool id the hand uses while it is carrying a **prop**.
+ *
+ * A hand around a companion cube is not the hand that holds a pistol, and it
+ * is not the empty hand either — so it gets a hold pose of its own, dialled in
+ * and mirrored exactly like a tool's. Using a tool id for it means the whole
+ * machinery (the menu, the config code, the adjustment tool) works on it
+ * without knowing that this one is not a tool.
+ */
+export const GRAB_POSE_ID = 'grab';
+
 /** A fist around a grip — the starting point for holding a tool. */
 export const HOLD_HAND_POSE: HandPose = {
   x: 0,

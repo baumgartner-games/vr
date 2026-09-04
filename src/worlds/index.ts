@@ -59,6 +59,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./shop/ShopWorld')).ShopWorld(),
   },
   {
+    id: 'tune',
+    title: 'Eingaberaum',
+    tagline: 'Was drückst du gerade?',
+    description:
+      'Zwei Controller in der Luft, jede Taste leuchtet. Mit bloßen Händen: fünf Finger-Balken und die Gesten. Hier wird nicht gelaufen.',
+    accent: 0x9fe3ff,
+    roles: ['vr'],
+    experimental: true,
+    load: async () => new (await import('./tune/TuneWorld')).TuneWorld(),
+  },
+  {
     id: 'dust',
     title: 'Dust',
     tagline: 'Große Karte, vier Stockwerke',

@@ -32,7 +32,7 @@ import * as THREE from 'three';
  * Meter vor der Nase, Kanzel eine Handbreit über dem Scheitel. Die Maschine
  * drumherum richtet sich danach, nicht umgekehrt.
  */
-export const JET_EYE = new THREE.Vector3(0, 0.6, -0.85);
+export const JET_EYE = new THREE.Vector3(0, 0.62, -0.8);
 
 /** Wie tief die Maschine unter ihren Mittelpunkt reicht — das Parken hält Abstand. */
 export const JET_BELLY = 0.7;
@@ -43,6 +43,8 @@ export class JetBody extends THREE.Group {
   private readonly lights: Array<THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>> = [];
   private readonly flame: THREE.Mesh<THREE.ConeGeometry, THREE.MeshBasicMaterial>;
   private readonly glow: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
+  /** Der Steuerknüppel, der mit dem rechten Stick mitgeht. */
+  private readonly stick = new THREE.Group();
 
   constructor() {
     super();
@@ -140,70 +142,104 @@ export class JetBody extends THREE.Group {
     this.add(fin);
 
     // --- Das Cockpit ----------------------------------------------------------
-    // Die Wanne: Boden unter den Füßen, Bordwand gut zwei Handbreit unter dem
-    // Auge. Genau die Kante ist es, über die man im Flug hinwegschaut.
-    const tub = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.5, 1.7), shell);
-    tub.position.set(0, 0.11, -0.75);
+    // Alles hier ist um `JET_EYE` herum gebaut, nicht um den Rumpf: was ein
+    // Cockpit ausmacht, ist nicht, dass es *da* ist, sondern dass man es
+    // **sieht**. Das alte saß gute dreißig Zentimeter zu tief und zu weit
+    // vorn — technisch vorhanden, im Headset aber komplett unter dem
+    // Blickfeld, weshalb die Rückmeldung „im Jet ist kein Cockpit" völlig
+    // richtig war. Jetzt liegt die Bordwand eine Handbreit unter dem Auge,
+    // das Brett schließt oben fast an den Horizont an, und der Knüppel steht
+    // da, wo eine Hand ihn hält.
+    const eye = JET_EYE;
+
+    // Die Wanne: Boden unter den Füßen, Bordwand knapp unter dem Auge. Genau
+    // diese Kante ist es, über die man im Flug hinwegschaut.
+    const tub = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.62, 1.8), shell);
+    tub.position.set(0, eye.y - 0.42, eye.z + 0.08);
     this.add(tub);
 
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 1.4), dark);
-    floor.position.set(0, -0.08, -0.85);
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.04, 1.5), dark);
+    floor.position.set(0, eye.y - 0.7, eye.z);
     this.add(floor);
 
     for (const side of [-1, 1] as const) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 1.7), trim);
-      rail.position.set(side * 0.36, 0.37, -0.75);
+      // Bordwand auf Ellenbogenhöhe: das Stück Welt, an dem der Horizont
+      // kippt, wenn die Maschine rollt.
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 1.8), trim);
+      rail.position.set(side * 0.38, eye.y - 0.15, eye.z + 0.08);
       this.add(rail);
-      // Seitenkonsole: das, was im Augenwinkel steht und den Sitz erst macht.
-      const console3d = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.6), dark);
-      console3d.position.set(side * 0.28, 0.3, -1.15);
+      // Seitenkonsole, im Augenwinkel — sie macht den Sitz erst zum Sitz.
+      const console3d = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.16, 0.7), dark);
+      console3d.position.set(side * 0.3, eye.y - 0.22, eye.z - 0.35);
+      console3d.rotation.z = -side * 0.18;
       this.add(console3d);
     }
 
-    const pan = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.07, 0.5), dark);
-    pan.position.set(0, 0.11, -0.62);
-    this.add(pan);
-
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.56, 0.09), dark);
-    seat.position.set(0, 0.42, -0.34);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.6, 0.1), dark);
+    seat.position.set(0, eye.y - 0.18, eye.z + 0.5);
     seat.rotation.x = 0.12;
     this.add(seat);
 
-    const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.15, 0.12), trim);
-    headrest.position.set(0, 0.72, -0.37);
+    const pan = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.5), dark);
+    pan.position.set(0, eye.y - 0.5, eye.z + 0.24);
+    this.add(pan);
+
+    const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.14), trim);
+    headrest.position.set(0, eye.y + 0.12, eye.z + 0.48);
     this.add(headrest);
 
-    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.022, 0.3, 8), dark);
-    stick.position.set(0, 0.17, -1.0);
-    stick.rotation.x = -0.2;
-    this.add(stick);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), trim);
-    knob.position.set(0, 0.32, -1.03);
-    this.add(knob);
+    // --- Der Steuerknüppel ----------------------------------------------------
+    // Er hängt an einem eigenen Gelenk, damit `setStick` ihn kippen kann: was
+    // der rechte Stick sagt, macht der Knüppel vor. Ein Cockpit, in dem sich
+    // nichts bewegt, ist eine Kulisse; einer, der mitgeht, ist die Bestätigung,
+    // dass die Maschine gehört hat.
+    this.stick.position.set(0, eye.y - 0.48, eye.z - 0.26);
+    this.add(this.stick);
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 0.26, 10), dark);
+    column.position.set(0, 0.13, 0);
+    this.stick.add(column);
+    const grip = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.07, 4, 10), dark);
+    grip.position.set(0, 0.3, 0.01);
+    grip.rotation.x = 0.18;
+    this.stick.add(grip);
+    const trigger = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.035, 0.018), trim);
+    trigger.position.set(0, 0.3, -0.035);
+    this.stick.add(trigger);
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.03, 12), trim);
+    collar.position.set(0, 0.015, 0);
+    this.stick.add(collar);
 
-    // Das Instrumentenbrett, schräg unter der Sicht — eine Leinwand ist hier
+    // --- Das Instrumentenbrett ------------------------------------------------
+    // Schräg unter der Sicht, oben fast am Horizont: eine Leinwand ist hier
     // zehn Zeilen billiger als zwanzig kleine Kästchen und sieht besser aus.
-    // Nach hinten oben gekippt: die Fläche zeigt genau auf das Auge, sonst
-    // liest man sie nicht, sondern sieht sie von der Kante.
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.3, 0.05), dark);
-    panel.position.set(0, 0.3, -1.4);
-    panel.rotation.x = -0.5;
+    // Nach hinten oben gekippt, damit die Fläche aufs Auge zeigt und man sie
+    // liest, statt sie von der Kante zu sehen.
+    const panelTilt = -0.55;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.34, 0.05), dark);
+    panel.position.set(0, eye.y - 0.19, eye.z - 0.42);
+    panel.rotation.x = panelTilt;
     this.add(panel);
 
     const face = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.6, 0.26),
-      new THREE.MeshBasicMaterial({ map: makeTexture(512, 222, drawPanel), toneMapped: false }),
+      new THREE.PlaneGeometry(0.66, 0.3),
+      new THREE.MeshBasicMaterial({ map: makeTexture(512, 232, drawPanel), toneMapped: false }),
     );
-    face.position.set(0, 0.315, -1.373);
-    face.rotation.x = -0.5;
+    face.position.set(0, eye.y - 0.175, eye.z - 0.395);
+    face.rotation.x = panelTilt;
     this.add(face);
+
+    // Die Blende über dem Brett: der Rand, den man beim Blick nach vorn sieht.
+    const glare = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.05, 0.16), dark);
+    glare.position.set(0, eye.y - 0.06, eye.z - 0.52);
+    glare.rotation.x = 0.25;
+    this.add(glare);
 
     // Das HUD: eine Scheibe auf Augenhöhe, additiv, damit sie die Welt nicht
     // zudeckt, sondern sich darüberlegt.
     const hud = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.42, 0.3),
+      new THREE.PlaneGeometry(0.44, 0.32),
       new THREE.MeshBasicMaterial({
-        map: makeTexture(420, 300, drawHud),
+        map: makeTexture(440, 320, drawHud),
         transparent: true,
         opacity: 0.5,
         blending: THREE.AdditiveBlending,
@@ -212,40 +248,75 @@ export class JetBody extends THREE.Group {
         side: THREE.DoubleSide,
       }),
     );
-    hud.position.set(0, 0.62, -1.34);
-    hud.rotation.x = 0.14;
+    hud.position.set(0, eye.y + 0.04, eye.z - 0.55);
+    hud.rotation.x = 0.12;
     this.add(hud);
 
     // --- Die Kanzel -----------------------------------------------------------
-    // Eine halbe Ellipse über der Wanne, eine Handbreit über dem Scheitel. Sie
-    // schreibt nicht in den Tiefenpuffer: sonst verschluckt das Glas alles, was
-    // dahinter durchscheinen soll.
-    const glass = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 24, 16, 0, TAU, 0, Math.PI / 2),
-      new THREE.MeshBasicMaterial({
-        color: 0x9fd8ff,
-        transparent: true,
-        opacity: 0.1,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        toneMapped: false,
-      }),
-    );
-    glass.scale.set(0.45, 0.58, 0.85);
-    glass.position.set(0, 0.34, -0.75);
-    glass.renderOrder = 4;
-    this.add(glass);
+    // Richtige Scheiben statt einer Blase: eine Frontscheibe schräg nach vorn
+    // und zwei Seitenscheiben, jede mit einem sichtbaren Rahmen. Der Rahmen ist
+    // der eigentliche Trick — Glas allein sieht man nicht, und was man nicht
+    // sieht, kann den Horizont auch nicht halten. Kein Steg quer durchs
+    // Blickfeld: ein Rohr vor der Nase ist im Headset kein Rahmen, sondern ein
+    // Balken.
+    const glass = new THREE.MeshBasicMaterial({
+      color: 0x9fd8ff,
+      transparent: true,
+      opacity: 0.13,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const pane = (
+      width: number,
+      height: number,
+      at: readonly [number, number, number],
+      rotation: readonly [number, number, number],
+    ): void => {
+      const sheet = new THREE.Mesh(new THREE.PlaneGeometry(width, height), glass);
+      sheet.position.set(at[0], at[1], at[2]);
+      sheet.rotation.set(rotation[0], rotation[1], rotation[2]);
+      sheet.renderOrder = 4;
+      this.add(sheet);
+      // Vier dünne Leisten am Rand. Das Glas allein sieht man nicht — der
+      // Rahmen ist es, an dem der Horizont beim Rollen kippt.
+      const bar = 0.022;
+      for (const [w, h, x, y] of [
+        [width, bar, 0, height / 2],
+        [width, bar, 0, -height / 2],
+        [bar, height, width / 2, 0],
+        [bar, height, -width / 2, 0],
+      ] as const) {
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(w, h, bar), trim);
+        strip.position.set(x, y, 0);
+        sheet.add(strip);
+      }
+    };
 
-    // Ein Bügel, und der steht *hinter* dem Kopf. Vorne bleibt die Kanzel frei:
-    // ein Rohr quer durchs Blickfeld ist im Headset kein Rahmen, sondern ein
-    // Balken. Wozu ein Bügel da wäre — ein Stück Welt, an dem der Horizont
-    // kippt —, tun hier Bordwand, Brett und HUD.
-    const bowAt = -0.25;
-    const factor = Math.sqrt(1 - ((bowAt + 0.75) / 0.85) ** 2);
-    const bow = new THREE.Mesh(new THREE.TorusGeometry(1, 0.028, 6, 24, Math.PI), trim);
-    bow.scale.set(0.45 * factor, 0.58 * factor, 0.045);
-    bow.position.set(0, 0.34, bowAt);
+    // Frontscheibe: nach vorn geneigt, vom Brett bis über den Scheitel.
+    pane(0.78, 0.62, [0, eye.y + 0.11, eye.z - 0.62], [0.42, 0, 0]);
+    for (const side of [-1, 1] as const) {
+      // Seitenscheiben, leicht eingezogen — sie sind das, was beim Rollen
+      // mitkippt und dem Auge sagt, wo oben ist.
+      pane(1.5, 0.5, [side * 0.4, eye.y + 0.06, eye.z + 0.05], [0, side * (Math.PI / 2 - 0.16), 0]);
+    }
+    // Dach hinter dem Kopf, damit die Kanzel geschlossen wirkt.
+    pane(0.76, 0.9, [0, eye.y + 0.34, eye.z + 0.34], [Math.PI / 2 - 0.2, 0, 0]);
+
+    // Ein Bügel, und der steht *hinter* dem Kopf.
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.026, 6, 20, Math.PI), trim);
+    bow.position.set(0, eye.y + 0.05, eye.z + 0.62);
     this.add(bow);
+  }
+
+  /**
+   * Wohin der Steuerknüppel zeigt: `x` rollt, `y` nickt, beide −1 … 1 wie der
+   * Stick, der sie liefert. Rein optisch — geflogen wird in `droneFlight.ts`.
+   */
+  setStick(x: number, y: number): void {
+    const roll = THREE.MathUtils.clamp(x, -1, 1) * 0.42;
+    const pitch = THREE.MathUtils.clamp(y, -1, 1) * 0.42;
+    this.stick.rotation.set(pitch, 0, -roll);
   }
 
   /** Dieselbe Farbe, die am Kopter die Lampe zeigt. */

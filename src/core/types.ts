@@ -4,7 +4,7 @@ import type { XRInput } from './XRInput';
 import type { Pointer } from './Pointer';
 import type { PlayerAvatar } from './PlayerAvatar';
 import type { HandVisuals } from './HandVisuals';
-import type { WristMenu } from '../ui/WristMenu';
+import type { WristMenus } from '../ui/WristMenus';
 import type { MenuEntry } from '../ui/menu';
 import type { NetSession } from '../net/NetSession';
 import type { RemoteAvatars } from '../net/RemoteAvatars';
@@ -26,7 +26,8 @@ export interface WorldContext {
   readonly pointer: Pointer;
   readonly avatar: PlayerAvatar;
   readonly hands: HandVisuals;
-  readonly menu: WristMenu;
+  /** The pair of wrist menus — same tree on both hands, one panel at a time. */
+  readonly menu: WristMenus;
   readonly net: NetSession;
   /** The other players' bodies — a world may hang tools into their hands. */
   readonly avatars: RemoteAvatars;

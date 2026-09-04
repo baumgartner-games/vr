@@ -18,11 +18,21 @@ export const EXIT_HOLD = 0.6;
 const FRONT_RADIUS = 0.15;
 const REAR_RADIUS = 0.18;
 /**
- * Where the driver's feet end up. Deep, because a kart is: the eye lands a
- * little over a metre up, which is what puts the steering wheel below the
- * horizon and the sign above it in view instead of under the chin.
+ * Where the driver's **eye** ends up, above the kart's own floor.
+ *
+ * It used to be the other way round — the *feet* were put at a fixed depth and
+ * the eye landed wherever the player's own height carried it. That works for
+ * somebody standing in their room and fails for everybody else: a player
+ * sitting on a chair is thirty to forty centimetres shorter measured from the
+ * floor, and their eye came out level with the seat pan, which is exactly the
+ * "I am sitting *on* the kart, not *in* it" everybody reported. A seat is a
+ * place for a head, so the head is what gets placed; the rest of the rig
+ * follows it.
+ *
+ * The number is a real kart: the pan sits at 0.33 m, a seated torso and neck
+ * add about two thirds of a metre.
  */
-const SEAT_HEIGHT = -0.62;
+const EYE_HEIGHT = 1.02;
 
 const _local = new THREE.Vector3();
 
@@ -40,7 +50,7 @@ export class Kart extends THREE.Group {
   /** The pit box it goes back to. */
   readonly home: KartMotion;
 
-  /** Feet of the seated driver — the rig is placed here. */
+  /** Eye point of the seated driver — the head is put here. */
   readonly seat = new THREE.Object3D();
   /** Middle of the steering wheel; grabbing near it gets you in. */
   readonly wheelHub = new THREE.Object3D();
@@ -95,7 +105,7 @@ export class Kart extends THREE.Group {
     this.buildSteering(frame, rim);
     this.wheelTarget = this.wheelRim;
 
-    this.seat.position.set(0, SEAT_HEIGHT, 0.16);
+    this.seat.position.set(0, EYE_HEIGHT, 0.16);
     this.add(this.seat);
 
     // The board sits where a clipboard would: to the right of the wheel,

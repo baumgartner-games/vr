@@ -90,13 +90,19 @@ describe('powerLabel', () => {
 });
 
 describe('zoom', () => {
+  it('starts where a scope is worth looking through in VR', () => {
+    // 16× is the setting the gun comes with: below that the tube reads as a
+    // magnifying glass in the headset, whatever the number says.
+    expect(ZOOM_STEPS[0]).toBe(16);
+    expect(DEFAULT_WEAPON.zoom).toBe(16);
+  });
+
   it('steps through the notches on the ring and wraps', () => {
-    expect(ZOOM_STEPS[0]).toBe(1);
-    expect(nextStep(ZOOM_STEPS, 1)).toBe(2);
-    expect(nextStep(ZOOM_STEPS, 20)).toBe(40);
-    expect(nextStep(ZOOM_STEPS, 40)).toBe(1);
+    expect(nextStep(ZOOM_STEPS, 16)).toBe(20);
+    expect(nextStep(ZOOM_STEPS, 32)).toBe(36);
+    expect(nextStep(ZOOM_STEPS, 36)).toBe(16);
     // A typed-in number lands on the next notch above it.
-    expect(nextStep(ZOOM_STEPS, 6.5)).toBe(8);
+    expect(nextStep(ZOOM_STEPS, 21.5)).toBe(24);
   });
 
   it('stays inside what a scope can do', () => {
