@@ -167,6 +167,103 @@ export function ownMaterials(root: THREE.Object3D): THREE.Material[] {
   return owned;
 }
 
+/** Die Teile des selbst gebauten Controllers, die sich noch bewegen sollen. */
+export interface BuiltController {
+  /** Alles zusammen — hängt sich irgendwo ein und ist fertig. */
+  root: THREE.Group;
+  /** Der Stick auf eigenem Pivot: er lehnt, wohin der echte lehnt. */
+  stick: THREE.Group;
+  /** Der Trigger auf eigenem Pivot: halb gezogen sieht halb gezogen aus. */
+  trigger: THREE.Group;
+}
+
+/**
+ * Der **selbst gebaute** Quest-Controller aus Kästen und Zylindern.
+ *
+ * Der Rückfall, wenn das echte Modell nicht kommt — und der Vordergrund
+ * überall, wo eines nie kommt: ein Controller, der als **Werkzeug** in der
+ * Hand liegt, wird gebaut, bevor irgendeine Datei geladen ist, und ein leerer
+ * Griff wäre dort keine Antwort.
+ *
+ * Er steht hier und nicht im Eingaberaum, weil ihn inzwischen zwei brauchen —
+ * das Modell an der Wand und das Werkzeug in der Hand —, und zwei Controller
+ * zu pflegen, von denen einer anders aussieht als der andere, ist genau die
+ * Sorte Abweichung, die man erst bemerkt, wenn man sie nebeneinander hält.
+ *
+ * -Z ist vorn, wie im Griffraum, den er nachbaut.
+ *
+ * @param shell das Material des Gehäuses
+ * @param part  liefert das Material eines Teils, das leuchten können soll —
+ *              der Eingaberaum färbt es um, ein Werkzeug gibt einfach immer
+ *              dasselbe zurück.
+ */
+export function buildControllerShape(
+  side: Handedness,
+  shell: THREE.Material,
+  part: (key: string, color: number) => THREE.Material,
+): BuiltController {
+  const root = new THREE.Group();
+  root.name = `controller-shape-${side}`;
+  const mirror = side === 'left' ? -1 : 1;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.105), shell);
+  root.add(body);
+
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.016, 0.1, 12), shell);
+  handle.position.set(0, -0.06, 0.032);
+  handle.rotation.x = 0.32;
+  root.add(handle);
+
+  // The thumbstick sits on its own pivot so it can lean where yours leans.
+  const stick = new THREE.Group();
+  stick.position.set(0, 0.017, -0.016);
+  root.add(stick);
+  const stickTop = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.011, 0.009, 0.016, 12),
+    part('stickTop', 0x4a5573),
+  );
+  stickTop.position.y = 0.008;
+  stick.add(stickTop);
+  const stickBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.013, 0.013, 0.004, 12),
+    part('stick', 0x2b3243),
+  );
+  stickBase.position.set(0, 0.017, -0.016);
+  root.add(stickBase);
+
+  // A/X sits nearer the thumb, B/Y behind it — the way they are on a Quest.
+  for (const [key, z] of [
+    ['primary', 0.014],
+    ['secondary', 0.036],
+  ] as const) {
+    const button = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0075, 0.0075, 0.005, 12),
+      part(key, 0xd6dbe6),
+    );
+    button.position.set(mirror * 0.012, 0.018, z);
+    root.add(button);
+  }
+
+  // The trigger swings on a pivot under the nose, so half a pull looks like
+  // half a pull.
+  const trigger = new THREE.Group();
+  trigger.position.set(0, -0.008, -0.04);
+  root.add(trigger);
+  const paddle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.016, 0.026, 0.008),
+    part('trigger', 0x9aa6bd),
+  );
+  paddle.position.set(0, -0.012, 0.002);
+  trigger.add(paddle);
+
+  // The grip pad on the inside of the handle, where the middle finger is.
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.036, 0.05), part('grip', 0x9aa6bd));
+  grip.position.set(mirror * -0.026, -0.04, 0.024);
+  root.add(grip);
+
+  return { root, stick, trigger };
+}
+
 /** Welches Profil zu dieser Eingabe passt und auch wirklich danebenliegt. */
 async function profileFor(source: XRInputSource | null): Promise<string | null> {
   const list = await profiles();

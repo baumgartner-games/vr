@@ -39,7 +39,8 @@ Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Portaltiefe, die Lichtstufen
 des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
-Augenhöhen, die Vibrationsmuster, die Fahrphysik und
+Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
+der Rechnung hinter der Boxhand am Werkzeug, die Fahrphysik und
 Streckenführung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien und die Auslegung der
 Hub-Gänge. Diese

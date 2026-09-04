@@ -2,21 +2,7 @@ import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
 import { TextPlane } from '../../ui/TextPlane';
 import { InputModel } from './InputModel';
-import { GhostTable, RAIL_REACH } from './GhostTable';
 import { VibeBench, KNOB_REACH } from './VibeBench';
-import {
-  clampTable,
-  clearTableSettings,
-  GHOST_LABELS,
-  nextGhostKind,
-  onTableChange,
-  saveTableSettings,
-  tableFieldLabel,
-  tableSettings,
-  TABLE_FIELDS,
-  type TableField,
-  type TableSettings,
-} from './tableSettings';
 import {
   hapticPattern,
   nextPatternId,
@@ -24,7 +10,20 @@ import {
   saveHapticPattern,
   type HapticPattern,
 } from './haptics';
-import { ToolRange, HANDLE_REACH, LANE, MOUNT_REACH, type RangeGrip } from './ToolRange';
+import { ToolRange, LANE, MOUNT_REACH, RACK_SLOTS, type RangeGrip } from './ToolRange';
+import { HANDLE_REACH } from './StandFrame';
+import { GripStand, HAND_REACH } from './GripStand';
+import {
+  clampGrip,
+  clearGripSettings,
+  DEFAULT_GRIP,
+  formatGrip,
+  gripSettings,
+  onGripChange,
+  saveGripSettings,
+  type GripSettings,
+} from './gripSettings';
+import { ghostOnTool, handFromGhost, toolInGrip, type Pose } from './handGrip';
 import {
   clampRange,
   clearRangeSettings,
@@ -41,21 +40,24 @@ import {
   clonePose,
   formatHandPose,
   GRAB_POSE_ID,
+  HOLD_HAND_POSE,
   type HandPose,
 } from '../../core/handPose';
-import { saveHoldHandPose, saveIdleHandPose } from '../../core/handPoseStore';
+import { saveHoldHandPose } from '../../core/handPoseStore';
 import { GhostHand } from '../../core/HandVisuals';
-import { foldCurls } from '../../core/handGestures';
 import { eyeHeights, saveEyeHeights, seatedLift } from '../../core/posture';
 import {
   formatPose,
   gripForHold,
   holdPoseFrom,
+  quatFromEulerXYZ,
   readPose,
   type HoldPose,
   type PoseReadout,
 } from '../portal/tools/toolPose';
 import { savePose } from '../portal/tools/poseStore';
+import { controllerToolId } from '../portal/tools/ControllerTool';
+import { HandTool } from '../portal/tools/HandTool';
 import { aimQuaternion, type Tool } from '../portal/tools/Tool';
 import { toolGearCode } from '../portal/tools/gearConfig';
 import type { WorldContext } from '../../core/types';
@@ -79,44 +81,30 @@ interface WallButton {
 }
 
 /**
- * Der Geist hängt gerade an einer Hand: sie dreht ihn oder sie schiebt ihn.
+ * Die Boxhand am zweiten Stand hängt gerade an einer Hand.
  *
- * Gerechnet wird immer gegen den Stand beim Zupacken und nie gegen den letzten
- * Frame — sonst summieren sich Rundungsfehler zu einem Geist, der langsam
- * davonwandert, und das über eine Minute Feinjustage.
+ * Sie wird dabei wirklich **umgehängt** (`Object3D.attach`) statt Bild für
+ * Bild nachgerechnet: eine Hand, die ein Ding hält, hält es 1:1, und ein
+ * Umhängen kann keine Rundungsfehler aufsummieren. Zurück ans Werkzeug geht
+ * sie beim Loslassen, und dann ist ihre Lage darin die neue Haltung.
  */
-interface Drive {
-  kind: 'rotate' | 'move';
+interface GripDrag {
   hand: Handedness;
-  startPosition: THREE.Vector3;
-  startRotation: THREE.Quaternion;
-  before: TableSettings;
-}
-
-/**
- * Eine Hand wird gerade gegen einen Geist gelegt.
- *
- * Gegen *welchen*, steht mit drin: es gibt zwei — den auf dem Tisch im Raum
- * und den auf dem Handstand im Schießgang. Beide messen dasselbe und schreiben
- * dasselbe; der Unterschied ist nur, wo man dabei steht.
- */
-interface Fitting {
-  hand: Handedness;
-  toolId: string | null;
+  /** Wessen Haltung geschrieben wird — die Seite, die der Stand zeigt. */
+  side: Handedness;
+  /** Das Werkzeug, um das es geht. */
+  toolId: string;
+  /** Die Haltung vor dem Zupacken, für den Abbruch. */
   before: HandPose;
-  /** Der Geist, gegen den gemessen wird. */
-  ghost: THREE.Object3D;
-  /** Wie er auf der Tafel heißt. */
-  where: string;
 }
 
-/** Eine Hand zieht gerade an einem Griff des Justierstandes. */
-interface RangeDrag {
+/** Eine Hand zieht gerade an einem Griff eines der beiden Stände. */
+interface StandDrag<T> {
   hand: Handedness;
   grip: 'height' | 'place';
   /** Wo die Hand beim Zupacken war — gerechnet wird immer dagegen. */
   start: THREE.Vector3;
-  before: RangeSettings;
+  before: T;
 }
 
 /**
@@ -168,14 +156,7 @@ const _hand = new THREE.Vector3();
 const _position = new THREE.Vector3();
 const _rotation = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
-const _delta = new THREE.Quaternion();
-const _start = new THREE.Quaternion();
-const _tableRotation = new THREE.Quaternion();
-const _inverse = new THREE.Quaternion();
 const _euler = new THREE.Euler();
-const _ghostPosition = new THREE.Vector3();
-const _ghostRotation = new THREE.Quaternion();
-const _identity = new THREE.Quaternion();
 const _toolPosition = new THREE.Vector3();
 const _toolRotation = new THREE.Quaternion();
 const _aim = new THREE.Quaternion();
@@ -205,32 +186,19 @@ const DEG = 180 / Math.PI;
  * (`handGestures.ts`). On the wall behind them the same thing in words, so it
  * can be read at a glance and out loud.
  *
- * **An der rechten Wand steht ein Tisch**, und darauf liegt ein Geist: eine
- * Kugelhand, eine Boxhand oder ein Quest-Controller, je nachdem, welche der
- * drei Darstellungen man gerade justieren will. Das ist der zweite Teil der
- * Antwort und der wichtigere für die Haltung: eine Handhaltung im Leeren
- * einzustellen ist Raten, weil der Arm sich mitbewegt. Auf einem Tisch nicht.
+ * **An der rechten Wand hängen die Zahlen**, die man ablesen und nicht
+ * anfassen will: die eigene **Augenhöhe**, im Stehen und im Sitzen, und die
+ * **Werte-Tafel** mit der letzten Messung samt Konfig-Code. Die Augenhöhe
+ * steht hier und nicht nur im Menü, weil ohne sie keine Zahl aus dem Gang
+ * stimmt — ein Headset kennt sie nicht (`core/posture.ts`).
  *
- * Und dort wird auch **nicht mehr getippt**. An der Wand stehen keine
- * Zahlenfelder mehr, sondern drei Handgriffe:
- *
- * - **Geist drehen** — die *andere* Hand dreht sich, der Geist dreht sich mit;
- *   ihr Trigger schreibt die Lage fest.
- * - **Geist bewegen** — dasselbe für x, y und z.
- * - **Justieren** — jetzt legst *du* deine Hand so hin, dass sie mit dem Geist
- *   deckungsgleich ist, und dein Trigger schreibt daraus die Haltung. Genau
- *   das, was der Werkzeug-Justierer in der Luft tut, nur gegen einen Tisch,
- *   der stillsteht.
- *
- * Daneben hängt die **Werte-Tafel**: was zuletzt gemessen wurde, in Zahlen zum
- * Vorlesen, und darunter der Konfig-Code für genau diese Hand in genau dieser
- * Darstellung — kurz genug zum Abtippen, weil er nichts anderes enthält.
- *
- * Dass der virtuelle Tisch mit dem echten zusammenfällt, hängt an einer Zahl,
- * die kein Headset kennt: der eigenen Augenhöhe. Deshalb stehen die beiden
- * Knöpfe **Stehhöhe messen** und **Sitzhöhe messen** hier und nicht nur im
- * Menü — man merkt den Fehler an diesem Tisch, also gehört er hierhin
- * korrigiert (`core/posture.ts`).
+ * Ein **Tisch mit einer Geisterhand** stand dort einmal, und die Idee war
+ * gut: eine Handhaltung im Leeren einzustellen ist Raten, weil der Arm sich
+ * mitbewegt, und auf einer Tischplatte nicht. Nur war er ein **zweiter** Weg
+ * zu derselben Antwort, mit eigener Bedienung und eigener Gelegenheit,
+ * versehentlich etwas anderes einzustellen als nebenan. Seit die Hand selbst
+ * ein **Werkzeug** ist (`tools/HandTool.ts`), fällt er weg: man legt sie in
+ * den Halter im Gang wie eine Pistole.
  *
  * **An der linken Wand steht eine Bank mit einem Griff darauf.** Der lässt
  * sich nicht bewegen, nur anfassen — und solange man ihn hält, spielt der
@@ -242,16 +210,17 @@ const DEG = 180 / Math.PI;
  * **Hier läuft niemand** — normalerweise. Der Stick bewegt nicht und dreht
  * nicht (`PlayerRig.locked`), weil der ganze Sinn ist, eine Haltung zu halten
  * und sie anzusehen, und ein Stick, der einen dabei aus dem Raum trägt, ist
- * nur Lärm. Nur: der Tisch steht rechts, die Bank links, und wer im Sessel
+ * nur Lärm. Nur: die Tafeln stehen rechts, die Bank links, und wer im Sessel
  * sitzt, kommt an keins von beidem. Also gibt es an der Wand einen **Knopf,
  * der den Stick freigibt** — ausdrücklich und sichtbar, statt dass es einfach
  * so geht.
  *
  * **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der Schießgang.**
- * Ein Gang, eine Zielscheibe am Ende, ein Halter daneben — und damit die
- * Antwort auf die Frage, die der Tisch nicht beantworten kann. Der Tisch sagt,
- * *wo* eine Hand liegt; ein Werkzeug aber liegt nicht richtig, es **zeigt**
- * richtig. Also:
+ * Dort stehen **zwei Justierstände** nebeneinander, und sie beantworten die
+ * beiden Hälften derselben Frage.
+ *
+ * Der **erste** hält ein Werkzeug auf eine Zielscheibe am Ende des Gangs
+ * gerichtet: *wie halte ich das Ding?*
  *
  * - Ein Werkzeug in den Halter halten — es rastet ein und liegt **exakt auf
  *   die Scheibe gerichtet**. Damit ist die Zielrichtung keine Unbekannte mehr.
@@ -264,34 +233,52 @@ const DEG = 180 / Math.PI;
  *   Hand zieht sie zurecht — ein Zentimeter an der eigenen Hand ist ein
  *   Millimeter am Geist (`fineTune.ts`). Eine ausgestreckte Hand zittert um
  *   mehr als das, was hier eingestellt wird; untersetzt tut sie es nicht mehr.
- * - **AR an** macht die Wände durchsichtig. Läuft die Sitzung als
- *   `immersive-ar`, steht dahinter das echte Zimmer — und man sieht endlich
- *   die virtuelle Hand *neben* der eigenen statt nur anstelle von ihr
- *   (`seeThrough.ts`).
+ * - Daneben steht ein **Regal**: ein Griff, und man hat eine Pistole, eine
+ *   Boxhand oder seinen Controller in der Hand — die drei Dinge, die man hier
+ *   einmisst.
  *
- * An der linken Wand des Gangs stehen die Knöpfe und hängt die Tafel mit den
- * Werten: dieselben sechs Zahlen wie am Tisch, und darunter der Konfig-Code.
+ * Der **zweite** hält eine unbewegliche **Kopie** desselben Werkzeugs und
+ * daran eine **Boxhand**: *wie umfasst die Hand es?* Die Kopie kann man nicht
+ * nehmen und nicht schieben — sie ist der feste Punkt —, die Boxhand dagegen
+ * greifen, drehen, verschieben und loslassen. Wo sie beim Loslassen liegt,
+ * *ist* die Handhaltung an diesem Werkzeug (`handGrip.ts`).
+ *
+ * Zwei Stände, weil es zwei Größen sind: an einer Pistole zeigt der
+ * Zeigefinger dorthin, wohin der Lauf zeigt, und das sieht richtig aus.
+ * Dieselbe Haltung an einer Taschenlampe zeigt schräg in die Luft, weil deren
+ * Kegel dort hinausgeht, wo bei der Pistole der Lauf sitzt — die Zielrichtung
+ * stimmt, die Faust darum herum nicht.
+ *
+ * **AR an** macht dabei die Wände durchsichtig. Läuft die Sitzung als
+ * `immersive-ar`, steht dahinter das echte Zimmer — und man sieht endlich die
+ * virtuelle Hand *neben* der eigenen statt nur anstelle von ihr
+ * (`seeThrough.ts`).
+ *
+ * An der Wand des Gangs stehen die Knöpfe beider Stände und hängt die Tafel
+ * mit den Werten: dieselben sechs Zahlen wie im Raum, und darunter der
+ * Konfig-Code.
  *
  * Everything else is the portal lab's, which is exactly why this is a world
- * and not a menu page: the belt, the tool shelf, the **Werkzeug-Justierer**
- * and the whole *Einstellungen → Hände* tree come with it, so the hand you are
- * watching is the hand you are setting up.
+ * and not a menu page: the belt, the tool shelf and the whole *Einstellungen →
+ * Hände* tree come with it, so the hand you are watching is the hand you are
+ * setting up.
  */
 export class TuneWorld extends PortalWorld {
   private readonly models = new Map<Handedness, InputModel>();
   private readonly boards = new Map<Handedness, TextPlane>();
   private readonly buttons: WallButton[] = [];
-  private table: GhostTable | null = null;
   private bench: VibeBench | null = null;
   private range: ToolRange | null = null;
-  /** Die große Tafel neben dem Tisch: letzte Messung und ihr Code. */
+  /** Der zweite Stand: die Kopie mit der Boxhand daran. */
+  private grip: GripStand | null = null;
+  /** Die große Tafel im Raum: letzte Messung und ihr Code. */
   private valueBoard: TextPlane | null = null;
   /** Dieselben Werte noch einmal, an der linken Wand des Schießgangs. */
   private rangeBoard: TextPlane | null = null;
   private lastValueText = '';
   /**
    * Wände, Boden und Decke — und nur die. Der AR-Knopf blendet genau diese
-   * Gruppe weg; Tisch, Bank, Halter, Scheibe und alle Schilder bleiben stehen,
+   * Gruppe weg; Bank, Stände, Scheibe und alle Schilder bleiben stehen,
    * weil man sie ja gerade ansehen will.
    */
   private readonly shellGroup = new THREE.Group();
@@ -305,25 +292,22 @@ export class TuneWorld extends PortalWorld {
    * zurück, in der es in die Hand gesprungen ist.
    */
   private mountBlocked: Tool | null = null;
-  /** Wo der Justierstand steht — im Speicher, und beim Ziehen live. */
-  private rangeState: RangeSettings = rangeSettings();
-  private rangeDrag: RangeDrag | null = null;
-  private unsubscribeRange: (() => void) | null = null;
   /**
-   * Der Stand der Dinge, im Speicher.
+   * Wo die beiden Stände stehen — im Speicher, und beim Ziehen live.
    *
-   * Beim Schieben an der Griffleiste ändert sich die Höhe jede Frame, und
-   * `localStorage` jede Frame zu beschreiben (und danach neun Schilder neu zu
-   * zeichnen) ist genau die Sorte Kleinigkeit, die ein Headset stocken lässt.
-   * Also läuft der Zug hier durch, und geschrieben wird beim Loslassen.
+   * Beim Schieben an einem Griff ändert sich die Zahl jede Frame, und
+   * `localStorage` jede Frame zu beschreiben (und danach ein Dutzend Schilder
+   * neu zu zeichnen) ist genau die Sorte Kleinigkeit, die ein Headset stocken
+   * lässt. Also läuft der Zug hier durch, und geschrieben wird beim Loslassen.
    */
-  private state: TableSettings = tableSettings();
-  /** Meldet sich ab, wenn die Welt geht — sonst hört ein toter Tisch weiter zu. */
-  private unsubscribe: (() => void) | null = null;
-  /** Wer gerade die Leiste hält, wo seine Hand war und wie hoch der Tisch stand. */
-  private lift: { hand: Handedness; startY: number; startHeight: number } | null = null;
-  private drive: Drive | null = null;
-  private fitting: Fitting | null = null;
+  private rangeState: RangeSettings = rangeSettings();
+  private rangeDrag: StandDrag<RangeSettings> | null = null;
+  private unsubscribeRange: (() => void) | null = null;
+  private gripState: GripSettings = gripSettings();
+  private gripDrag: StandDrag<GripSettings> | null = null;
+  private unsubscribeGrip: (() => void) | null = null;
+  /** Wer gerade die Boxhand am zweiten Stand in der Hand hat. */
+  private handDrag: GripDrag | null = null;
   private buzz: Buzz | null = null;
   private pattern: HapticPattern = hapticPattern();
   /** Was zuletzt gemessen wurde — die Werte-Tafel lebt davon. */
@@ -353,13 +337,13 @@ export class TuneWorld extends PortalWorld {
         onBlur: () => button.plane.setHighlight(false),
       });
     }
-    // Eine Änderung kommt aus vier Richtungen — Knopf, Tastatur, Griffleiste,
-    // Geisterzug — und muss immer beides nachziehen: den Tisch und die
+    // Eine Änderung kommt aus mehreren Richtungen — Knopf, Griff am Ausleger,
+    // Messung — und muss immer beides nachziehen: den Stand und die
     // Beschriftungen.
-    this.unsubscribe = onTableChange(() => this.showTable(tableSettings()));
     this.unsubscribeRange = onRangeChange(() => this.showRange(rangeSettings()));
-    this.showTable(tableSettings());
+    this.unsubscribeGrip = onGripChange(() => this.showGrip(gripSettings()));
     this.showRange(rangeSettings());
+    this.showGrip(gripSettings());
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -375,26 +359,28 @@ export class TuneWorld extends PortalWorld {
       model.lastLine = line;
       board.setText(side === 'left' ? 'Linke Hand' : 'Rechte Hand', line, 0x9fe3ff);
     }
-    this.updateLift(ctx);
-    this.updateDrive(ctx);
-    this.updateFitting(ctx);
     this.updateRange(ctx);
     this.updateRangeGrips(ctx);
+    this.updateGripStand(ctx);
     this.updateFine(ctx);
     this.updateBuzz(dt, ctx);
   }
 
   override dispose(ctx: WorldContext): void {
     ctx.rig.locked = false;
+    // Eine Boxhand, die noch an einer Hand hängt, gehört zurück ans Werkzeug —
+    // sonst geht sie mit dem Stand weg und die Hand behält ein Kind, das es
+    // nicht mehr gibt.
+    this.grip?.reclaim();
     // Eine durchsichtig gelassene Welt bliebe durchsichtig — die Materialien
     // gehören zwar dieser Welt, der Himmel und der Hintergrund aber nicht.
     this.cancelFine(true);
     this.releaseMount(false, true);
     this.seeThrough.reset(ctx.scene, this.shellGroup, ctx.renderer);
-    this.unsubscribe?.();
-    this.unsubscribe = null;
     this.unsubscribeRange?.();
     this.unsubscribeRange = null;
+    this.unsubscribeGrip?.();
+    this.unsubscribeGrip = null;
     for (const model of this.models.values()) model.dispose();
     this.models.clear();
     for (const board of this.boards.values()) board.dispose();
@@ -410,15 +396,14 @@ export class TuneWorld extends PortalWorld {
     this.rangeBoard = null;
     this.range?.dispose();
     this.range = null;
+    this.grip?.dispose();
+    this.grip = null;
     this.mountBlocked = null;
     this.rangeDrag = null;
-    this.table?.dispose();
-    this.table = null;
+    this.gripDrag = null;
+    this.handDrag = null;
     this.bench?.dispose();
     this.bench = null;
-    this.lift = null;
-    this.drive = null;
-    this.fitting = null;
     this.buzz = null;
     this.shell.dispose();
     this.floorMaterial.dispose();
@@ -438,16 +423,16 @@ export class TuneWorld extends PortalWorld {
   }
 
   protected override welcome(): string {
-    return 'Prüfen: Wand und Tisch · Werkzeug einmessen: Schießgang hinter dir';
+    return 'Prüfen: die Wand · Einmessen: der Schießgang hinter dir';
   }
 
   /**
-   * The adjuster on one hip and the pistol on the other: the two things you
-   * come here to set up, one measured against the other.
+   * Die Boxhand auf der einen Hüfte, die Pistole auf der anderen: die beiden
+   * Dinge, für die man herkommt — die Hand selbst und etwas, das sie hält.
    */
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
     return [
-      ['adjust', 'left'],
+      ['hand-box', 'left'],
       ['pistol', 'right'],
     ];
   }
@@ -541,7 +526,7 @@ export class TuneWorld extends PortalWorld {
     room.add(hint);
 
     this.buildTurnButton(room);
-    this.buildTable(room);
+    this.buildValues(room);
     this.buildBench(room);
     this.buildRange(room);
   }
@@ -580,29 +565,40 @@ export class TuneWorld extends PortalWorld {
       this.label(
         button,
         locked ? 'Stick freigeben' : 'Stick sperren',
-        locked ? 'Antippen erlaubt Drehen und Gehen' : 'Stick dreht und geht · zum Tisch rechts',
+        locked ? 'Antippen erlaubt Drehen und Gehen' : 'Stick dreht und geht · Gang hinter dir',
         locked ? 0x6f7d99 : GRAB_GLOW,
       );
     };
   }
 
-  // --- der Tisch mit der Geisterhand ----------------------------------------
+  // --- die Werte-Ecke an der rechten Wand -----------------------------------
 
-  private buildTable(room: THREE.Group): void {
+  /**
+   * Wo einmal der Tisch stand, steht jetzt nur noch, was er nicht war.
+   *
+   * Der Tisch mit der Geisterhand hatte eine gute Idee — eine Wahrheit zum
+   * Anfassen, damit man eine Haltung nicht gegen ein Gefühl einstellt — und
+   * einen Fehler: er war ein **zweiter** Weg. Dieselbe Handhaltung ließ sich
+   * dort gegen einen Geist legen und im Gang gegen ein Werkzeug messen, mit
+   * zwei Bedienungen, zwei Erklärungen und zwei Gelegenheiten, verschiedene
+   * Dinge einzustellen und sich hinterher zu wundern. Seit die Hand selbst ein
+   * **Werkzeug** ist (`tools/HandTool.ts`), braucht es ihn nicht mehr: man
+   * legt sie in den Halter wie eine Pistole.
+   *
+   * Geblieben sind die beiden Zahlen, die nichts mit dem Tisch zu tun hatten
+   * und trotzdem an ihm hingen — die eigene **Augenhöhe**, im Stehen und im
+   * Sitzen (`core/posture.ts`) —, und die **Werte-Tafel**, auf der die letzte
+   * Messung samt ihrem Konfig-Code steht. Beides liest man ab, statt es
+   * anzufassen, also hängt es an der Wand und nicht auf einem Möbelstück.
+   */
+  private buildValues(room: THREE.Group): void {
     const { half, thickness } = ROOM;
-    const table = new GhostTable();
-    // Rechts an der Wand, quer dazu: die Platte zeigt in den Raum, damit man
-    // seitlich davorsitzen und die eigene Hand danebenlegen kann.
-    table.position.set(half - 0.75, 0, -0.3);
-    table.rotation.y = -Math.PI / 2;
-    room.add(table);
-    this.table = table;
 
     const sign = new TextPlane({
       width: 1.6,
       height: 0.42,
-      title: 'Tisch mit Geist',
-      body: 'Höhe wie dein echter Tisch, dann die Hand darauflegen · türkise Leiste hebt ihn',
+      title: 'Augenhöhe und Werte',
+      body: 'Erst die eigene Höhe messen — ohne sie stimmt keine Zahl aus dem Gang',
       accent: 0x9fe3ff,
       align: 'center',
     });
@@ -610,224 +606,33 @@ export class TuneWorld extends PortalWorld {
     sign.rotation.y = -Math.PI / 2;
     room.add(sign);
 
-    // Die Werte-Tafel: breit, weil ein Konfig-Code breit ist, und ganz außen,
-    // weil man sie abliest statt sie zu drücken.
+    for (const [index, key] of (['stand', 'sit'] as const).entries()) {
+      const button = this.wallButton(room, 0.86, 0.28, () => this.measureEye(key));
+      button.plane.position.set(half - thickness / 2 - 0.02, 1.95, -0.3 + (index === 0 ? 0.46 : -0.46));
+      button.plane.rotation.y = -Math.PI / 2;
+      button.refresh = () => {
+        this.label(
+          button,
+          key === 'stand' ? `Stehhöhe: ${eyeHeights().stand} cm` : `Sitzhöhe: ${eyeHeights().sit} cm`,
+          key === 'stand' ? 'Aufstehen, drücken — die Brille misst' : 'Hinsetzen, drücken — die Brille misst',
+          0x4aa8ff,
+        );
+      };
+    }
+
+    // Breit, weil ein Konfig-Code breit ist, und tiefer, weil man sie abliest
+    // statt sie zu drücken.
     const values = new TextPlane({
-      width: 1.1,
+      width: 1.4,
       height: 0.5,
       title: 'Noch nichts justiert',
-      body: 'Justieren drücken, Hand auf den Geist legen, Trigger',
+      body: 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger',
       accent: 0x5ee0a0,
     });
-    values.position.set(half - thickness / 2 - 0.02, 1.62, 0.95);
+    values.position.set(half - thickness / 2 - 0.02, 1.42, -0.3);
     values.rotation.y = -Math.PI / 2;
     room.add(values);
     this.valueBoard = values;
-
-    for (const [index, row] of this.tableRows().entries()) {
-      const button = this.wallButton(room, 0.86, 0.26, row.run);
-      const column = index % 2;
-      const line = Math.floor(index / 2);
-      button.plane.position.set(
-        half - thickness / 2 - 0.02,
-        1.95 - line * 0.3,
-        -0.3 + (column === 0 ? 0.46 : -0.46),
-      );
-      button.plane.rotation.y = -Math.PI / 2;
-      button.refresh = () => row.refresh(button);
-    }
-  }
-
-  /**
-   * Die Knopfleiste an der Wand hinter dem Tisch.
-   *
-   * Die einzelnen Zahlen stehen bewusst **nicht** mehr darauf. Eine Neigung
-   * von -87° einzutippen, um zu sehen, ob die Hand jetzt richtig liegt, ist
-   * genau die Arbeit, die man in einer Brille nicht machen will — man sieht
-   * die Lage ja, also soll man sie auch anfassen dürfen. Geblieben ist die
-   * Tischhöhe, weil die als einzige gegen einen Zollstock gemessen wird und
-   * nicht gegen das Auge.
-   */
-  private tableRows(): Array<{ refresh(button: WallButton): void; run(hand: Handedness | null): void }> {
-    const height = TABLE_FIELDS.find((field) => field.key === 'height')!;
-    return [
-      {
-        refresh: (button) => {
-          this.label(
-            button,
-            `Geist: ${GHOST_LABELS[this.state.kind]}`,
-            'Gliedmaßen · Boxhand · Quest-Controller',
-            0x9fe3ff,
-          );
-        },
-        run: () => {
-          const next = saveTableSettings({ kind: nextGhostKind(this.state.kind) });
-          this.context?.notify(`Auf dem Tisch: ${GHOST_LABELS[next.kind]}`);
-        },
-      },
-      {
-        refresh: (button) => {
-          this.label(
-            button,
-            this.state.side === 'left' ? 'Seite: links' : 'Seite: rechts',
-            'Welche der beiden daliegt',
-            0x9fe3ff,
-          );
-        },
-        run: () => {
-          const next = saveTableSettings({
-            side: this.state.side === 'left' ? 'right' : 'left',
-          });
-          this.context?.notify(next.side === 'left' ? 'Linke Hand liegt' : 'Rechte Hand liegt');
-        },
-      },
-      {
-        refresh: (button) => {
-          const busy = this.drive?.kind === 'rotate';
-          this.label(
-            button,
-            busy ? 'Dreht … Trigger legt fest' : 'Geist drehen',
-            busy ? 'Andere Hand drehen · A bricht ab' : 'Mit der anderen Hand drehen',
-            busy ? GRAB_GLOW : 0xffc857,
-          );
-        },
-        run: (hand) => this.beginDrive('rotate', hand),
-      },
-      {
-        refresh: (button) => {
-          const busy = this.drive?.kind === 'move';
-          this.label(
-            button,
-            busy ? 'Schiebt … Trigger legt fest' : 'Geist bewegen',
-            busy ? 'Andere Hand bewegen · A bricht ab' : 'Mit der anderen Hand schieben',
-            busy ? GRAB_GLOW : 0xffc857,
-          );
-        },
-        run: (hand) => this.beginDrive('move', hand),
-      },
-      {
-        refresh: (button) => {
-          const busy = this.fitting !== null;
-          this.label(
-            button,
-            busy ? 'Hand auf den Geist legen' : 'Justieren',
-            busy ? 'Deckungsgleich, dann Trigger' : 'Hand deckungsgleich legen, Trigger speichert',
-            busy ? GRAB_GLOW : 0x5ee0a0,
-          );
-        },
-        run: () => this.beginFitting(),
-      },
-      {
-        refresh: (button) => {
-          this.label(
-            button,
-            `${height.label}: ${tableFieldLabel(height, this.state.height)}`,
-            height.sub,
-            0x9fe3ff,
-          );
-        },
-        run: () => this.askTableField(height),
-      },
-      {
-        refresh: (button) => {
-          this.label(
-            button,
-            `Stehhöhe: ${eyeHeights().stand} cm`,
-            'Aufstehen, drücken — die Brille misst',
-            0x4aa8ff,
-          );
-        },
-        run: () => this.measureEye('stand'),
-      },
-      {
-        refresh: (button) => {
-          this.label(
-            button,
-            `Sitzhöhe: ${eyeHeights().sit} cm`,
-            'Hinsetzen, drücken — die Brille misst',
-            0x4aa8ff,
-          );
-        },
-        run: () => this.measureEye('sit'),
-      },
-      {
-        refresh: (button: WallButton) => {
-          this.label(button, 'Geist zurücksetzen', 'Höhe, Lage und Ausrichtung', 0xffc857);
-        },
-        run: () => {
-          this.cancelDrive();
-          this.fitting = null;
-          clearTableSettings();
-          this.context?.notify('Tisch zurückgesetzt');
-        },
-      },
-    ];
-  }
-
-  /** Tisch und Schilder auf denselben Stand — der einzige Weg dorthin. */
-  private showTable(settings: TableSettings): void {
-    this.state = settings;
-    const pose = this.ghostPose();
-    this.table?.apply(settings, pose);
-    // Die Boxhand auf dem Handstand im Gang zeigt dasselbe wie der Tisch: eine
-    // zweite Seite oder eine zweite Haltung an zwei Orten wäre nur eine Falle.
-    if (pose) this.range?.setHand(settings.side, pose);
-    this.refreshButtons();
-    this.showValues();
-  }
-
-  /** Der Justierstand auf denselben Stand — derselbe einzige Weg dorthin. */
-  private showRange(settings: RangeSettings): void {
-    this.rangeState = settings;
-    this.range?.apply(settings);
-    this.refreshButtons();
-  }
-
-  /**
-   * Die Haltung, in der der Geist auf dem Tisch liegt: die, die die Hand
-   * gerade *wirklich* trägt.
-   *
-   * Sonst läge dort die Grundhaltung, während man den Griff am Werkzeug
-   * justiert — und man verglichen die falschen Finger miteinander. Nur die
-   * Krümmung kommt daraus; wo der Geist liegt, sagt der Tisch.
-   */
-  private ghostPose(): HandPose | undefined {
-    const ctx = this.context;
-    if (!ctx) return undefined;
-    return ctx.hands.editablePose(this.state.side, this.poseId());
-  }
-
-  /**
-   * Unter welchem Namen die Haltung dieser Hand gespeichert ist: `null` für
-   * die leere Hand, sonst die Id dessen, was sie hält (`grab` für ein Objekt).
-   */
-  private poseId(): string | null {
-    return this.context?.hands.heldToolOf(this.state.side) ?? null;
-  }
-
-  /** Eine Zahl des Tisches über die Tastatur — Zentimeter und Grad. */
-  private askTableField(field: TableField): void {
-    const before = this.state[field.key];
-    this.askNumber({
-      title: field.label,
-      sub: `Tisch · ${field.min} bis ${field.max} ${field.unit}`.trim(),
-      value: String(before),
-      hint: field.sub,
-      // Live: der Tisch bewegt sich, während die Zahl noch getippt wird. 74
-      // sagt auf dem Papier nichts, ein Tisch auf Ellbogenhöhe alles.
-      preview: (value) => {
-        saveTableSettings({ [field.key]: value } as Partial<TableSettings>);
-      },
-      // Abgebrochen heißt abgebrochen — sonst bliebe die letzte getippte
-      // Ziffer als Einstellung stehen.
-      cancel: () => {
-        saveTableSettings({ [field.key]: before } as Partial<TableSettings>);
-      },
-      commit: (value) => {
-        const applied = saveTableSettings({ [field.key]: value } as Partial<TableSettings>);
-        this.context?.notify(`${field.label}: ${tableFieldLabel(field, applied[field.key])}`);
-      },
-    });
   }
 
   /**
@@ -852,260 +657,69 @@ export class TuneWorld extends PortalWorld {
     ctx.notify(`${key === 'stand' ? 'Stehhöhe' : 'Sitzhöhe'}: ${values[key]} cm`);
   }
 
-  // --- den Geist anfassen ---------------------------------------------------
-
-  /**
-   * Der Geist hängt ab jetzt an der *anderen* Hand als der, die den Knopf
-   * gedrückt hat. Das ist keine Willkür: man zeigt mit der einen an die Wand
-   * und dreht mit der anderen, und wer den Knopf mit der Hand drückt, die
-   * gleich ziehen soll, müsste den Strahl erst wieder wegnehmen.
-   */
-  private beginDrive(kind: 'rotate' | 'move', pointing: Handedness | null): void {
-    const ctx = this.context;
-    if (!ctx) return;
-    // Ein Zug, der schon läuft, wird vom selben Knopf wieder abgestellt — nur
-    // nicht von der Hand, die gerade zieht: deren Trigger gehört dem Zug, und
-    // ihr Strahl streicht beim Drehen ohnehin über die halbe Wand.
-    if (this.drive) {
-      if (this.drive.hand === pointing) return;
-      const running = this.drive.kind;
-      this.cancelDrive();
-      if (running === kind) {
-        ctx.notify('Abgebrochen');
-        return;
-      }
-    }
-    this.fitting = null;
-    const hand: Handedness = pointing === 'left' ? 'right' : 'left';
-    const controller = ctx.input.get(hand);
-    if (!controller?.tracked) {
-      ctx.notify(`${handLabel(hand)} nicht getrackt`);
-      return;
-    }
-    handAnchor(controller).updateWorldMatrix(true, false);
-    handAnchor(controller).matrixWorld.decompose(_position, _rotation, _scale);
-    this.drive = {
-      kind,
-      hand,
-      startPosition: _position.clone(),
-      startRotation: _rotation.clone(),
-      before: { ...this.state },
-    };
-    controller.pulse(0.4, 25);
-    this.refreshButtons();
-    ctx.notify(
-      kind === 'rotate'
-        ? `${handLabel(hand)} dreht den Geist · Trigger legt fest`
-        : `${handLabel(hand)} schiebt den Geist · Trigger legt fest`,
-    );
-  }
-
-  /**
-   * Jede Frame eines Zuges: der Geist übernimmt, was die Hand seit dem
-   * Zupacken getan hat.
-   *
-   * Gerechnet wird im Raum des Tisches, nicht im Weltraum — der Tisch steht
-   * quer an der Wand, und eine Drehung, die im Weltraum um die Senkrechte
-   * geht, ist im Tischraum eine um dessen Querachse. Ohne diesen Wechsel dreht
-   * sich der Geist um die falsche Achse, und zwar auf eine Art, die man in der
-   * Brille nur als „das ist doch verkehrt" beschreiben kann.
-   */
-  private updateDrive(ctx: WorldContext): void {
-    const drive = this.drive;
-    const table = this.table;
-    if (!drive || !table) return;
-
-    const controller = ctx.input.get(drive.hand);
-    if (!controller?.tracked) {
-      this.cancelDrive();
-      ctx.notify('Hand weg — abgebrochen');
-      return;
-    }
-    // `A` bricht ab und lässt den Geist da, wo er war.
-    if (controller.primary.justPressed) {
-      const before = drive.before;
-      this.cancelDrive();
-      this.showTable(saveTableSettings(before));
-      ctx.notify('Abgebrochen');
-      return;
-    }
-
-    const anchor = handAnchor(controller);
-    anchor.updateWorldMatrix(true, false);
-    anchor.matrixWorld.decompose(_position, _rotation, _scale);
-    table.updateWorldMatrix(true, false);
-    table.getWorldQuaternion(_tableRotation);
-    _inverse.copy(_tableRotation).invert();
-
-    if (drive.kind === 'rotate') {
-      // Was die Hand seit dem Zupacken gedreht hat, in den Tischraum gebracht
-      // und auf die Lage von damals gelegt.
-      // dq = jetzt · damals⁻¹, und dann in den Raum des Tisches gedreht:
-      // Tisch⁻¹ · dq · Tisch. Ohne diese Umrechnung dreht der Geist um die
-      // Achsen der Welt statt um seine eigenen.
-      _delta.copy(_rotation).multiply(_start.copy(drive.startRotation).invert());
-      _delta.premultiply(_inverse).multiply(_tableRotation);
-      _euler.set(
-        drive.before.pitch / DEG,
-        drive.before.yaw / DEG,
-        drive.before.roll / DEG,
-        'XYZ',
-      );
-      _ghostRotation.setFromEuler(_euler).premultiply(_delta);
-      _euler.setFromQuaternion(_ghostRotation, 'XYZ');
-      this.showTable(
-        clampTable({
-          ...drive.before,
-          pitch: Math.round(_euler.x * DEG),
-          yaw: Math.round(_euler.y * DEG),
-          roll: Math.round(_euler.z * DEG),
-        }),
-      );
-    } else {
-      _ghostPosition.copy(_position).sub(drive.startPosition).applyQuaternion(_inverse);
-      this.showTable(
-        clampTable({
-          ...drive.before,
-          x: drive.before.x + _ghostPosition.x * 100,
-          y: drive.before.y + _ghostPosition.y * 100,
-          z: drive.before.z + _ghostPosition.z * 100,
-        }),
-      );
-    }
-
-    if (!controller.trigger.justPressed) return;
-    // Erst der Trigger schreibt in den Speicher — bis dahin zieht der Geist
-    // nur mit, und ein Abbruch kostet nichts.
-    const saved = saveTableSettings(this.state);
-    this.cancelDrive();
-    controller.pulse(0.6, 40);
-    this.showTable(saved);
-    ctx.notify(
-      drive.kind === 'rotate'
-        ? `Lage gespeichert: ${Math.round(saved.pitch)}/${Math.round(saved.yaw)}/${Math.round(saved.roll)}°`
-        : `Ort gespeichert: ${round1(saved.x)}/${round1(saved.y)}/${round1(saved.z)} cm`,
-    );
-  }
-
-  private cancelDrive(): void {
-    if (!this.drive) return;
-    this.drive = null;
+  /** Der Justierstand auf denselben Stand — derselbe einzige Weg dorthin. */
+  private showRange(settings: RangeSettings): void {
+    this.rangeState = settings;
+    this.range?.apply(settings);
     this.refreshButtons();
   }
 
-  // --- die Hand gegen den Geist legen ---------------------------------------
-
-  /**
-   * Ab jetzt zählt der Trigger der Hand, die auf dem Tisch liegt — nicht der
-   * des Knopfes. Genau darum steht im Auftrag „nicht auf den Button
-   * notwendig": man liegt mit der Hand auf dem Tisch und kommt gar nicht mehr
-   * an die Wand.
-   */
-  /**
-   * @param source welcher Geist gemeint ist: der auf dem **Tisch** im Raum
-   *               oder die Boxhand auf dem **Handstand** im Schießgang. Beide
-   *               messen dasselbe — der Handstand steht nur dort, wo man
-   *               ohnehin schon ist, wenn man gerade ein Werkzeug einmisst,
-   *               und auf Arbeitshöhe statt auf Tischhöhe.
-   */
-  private beginFitting(source: 'table' | 'range' = 'table'): void {
-    const ctx = this.context;
-    if (!ctx) return;
-    if (this.fitting) {
-      this.fitting = null;
+  /** Der zweite Stand auf denselben Stand — derselbe einzige Weg dorthin. */
+  private showGrip(settings: GripSettings): void {
+    this.gripState = settings;
+    const stand = this.grip;
+    if (!stand) {
       this.refreshButtons();
-      ctx.notify('Abgebrochen');
       return;
     }
-    this.cancelDrive();
-    const ghost = source === 'range' ? this.range?.handObject : this.table?.ghostObject;
-    if (!ghost) {
-      ctx.notify('Kein Geist zum Justieren da');
+    stand.apply(settings);
+    if (!stand.setTool(settings.tool) && settings.tool !== DEFAULT_GRIP.tool) {
+      // Eine Id aus einer Fassung, die dieses Werkzeug noch kannte: dann liegt
+      // eben wieder die Pistole da. Ein leerer Stand wäre die schlechteste der
+      // möglichen Antworten darauf.
+      saveGripSettings({ tool: DEFAULT_GRIP.tool });
       return;
     }
-    const hand = this.state.side;
-    const controller = ctx.input.get(hand);
-    if (!controller?.tracked) {
-      ctx.notify(`${handLabel(hand)} nicht getrackt`);
-      return;
-    }
-    const toolId = this.poseId();
-    this.fitting = {
-      hand,
-      toolId,
-      before: ctx.hands.editablePose(hand, toolId),
-      ghost,
-      where: source === 'range' ? 'Handstand' : GHOST_LABELS[this.state.kind],
-    };
-    controller.pulse(0.4, 25);
+    this.placeGripHand();
     this.refreshButtons();
-    ctx.notify(`${this.poseTitle(hand, toolId)} · Hand auf den Geist, dann Trigger`);
   }
 
   /**
-   * Der Trigger schließt die Justage ab: was zwischen Griff und Geist liegt,
-   * *ist* die Haltung.
+   * Die Boxhand an ihren Platz: dorthin, wo die eingestellte Haltung sie hin
+   * legt.
    *
-   * Dieselbe Rechnung wie im Werkzeug-Justierer (`toolPose.ts`), nur steht
-   * hier statt eines geparkten Werkzeugs ein Tisch, der sich nicht bewegt —
-   * und das ist der ganze Vorteil: der Vergleichspunkt zittert nicht mit dem
-   * Arm mit. Keine Zielkorrektur, weil eine Hand nirgendwohin zielt.
+   * Gerechnet wird im Raum der Kopie (`handGrip.ts`), und die Hand hängt auch
+   * dort — deshalb steht hier eine Ortslage und keine Weltlage. Während sie an
+   * einer echten Hand hängt, wird nichts gestellt: sie gehört dann der Hand.
    */
-  private updateFitting(ctx: WorldContext): void {
-    const fitting = this.fitting;
-    if (!fitting) return;
-    const ghost = fitting.ghost;
+  private placeGripHand(): void {
+    const stand = this.grip;
+    const ctx = this.context;
+    if (!stand || !ctx || this.handDrag) return;
+    const tool = stand.tool;
+    if (!tool) return;
+    const side = this.gripState.side;
+    const pose = ctx.hands.editablePose(side, this.gripState.tool);
+    const ghost = stand.setHand(side, pose);
+    if (!ghost) return;
+    const local = this.gripLocal(tool, side);
+    const at = ghostOnTool(local, poseOfHand(pose));
+    ghost.position.set(at.position.x, at.position.y, at.position.z);
+    ghost.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
+  }
 
-    const controller = ctx.input.get(fitting.hand);
-    if (!controller?.tracked) return;
-    if (controller.primary.justPressed) {
-      this.fitting = null;
-      this.refreshButtons();
-      ctx.notify('Abgebrochen');
-      return;
-    }
-    if (!controller.trigger.justPressed) return;
-
-    const anchor = handAnchor(controller);
-    anchor.updateWorldMatrix(true, false);
-    anchor.matrixWorld.decompose(_position, _rotation, _scale);
-    ghost.updateWorldMatrix(true, false);
-    ghost.matrixWorld.decompose(_ghostPosition, _ghostRotation, _scale);
-
-    const measured = holdPoseFrom(
-      { position: _position, rotation: _rotation },
-      _identity.identity(),
-      { position: _ghostPosition, rotation: _ghostRotation },
-    );
-    const readout = readPose(measured);
-    // Die sechs Zahlen kommen aus der Messung; Spreizung und — mit Controller —
-    // die Finger bleiben, wie sie waren.
-    const pose: HandPose = {
-      ...clonePose(fitting.before),
-      x: readout.x,
-      y: readout.y,
-      z: readout.z,
-      pitch: readout.pitch,
-      yaw: readout.yaw,
-      roll: readout.roll,
-    };
-    // Bei einer blanken Hand misst das Headset die Finger ohnehin jede Frame —
-    // ohne sie sähe die Hand mit Controller nie so aus wie die echte daneben.
-    const curls = foldCurls(controller.fold);
-    if (curls) pose.curls = curls;
-
-    if (fitting.toolId) saveHoldHandPose(fitting.hand, fitting.toolId, pose);
-    else saveIdleHandPose(fitting.hand, pose);
-    ctx.hands.refreshPoses();
-
-    this.readout = readout;
-    this.readoutFor = `${this.poseTitle(fitting.hand, fitting.toolId)} · ${fitting.where}`;
-    this.code = toolGearCode(fitting.toolId, fitting.hand);
-    this.fitting = null;
-    controller.pulse(0.6, 40);
-    this.refreshButtons();
-    this.showTable(tableSettings());
-    ctx.notify(`${this.readoutFor}: ${formatHandPose(pose)}`);
+  /**
+   * Die Lage des Werkzeugs im Griff, so wie eine Hand sie ihm gäbe.
+   *
+   * Gelesen wird sie am **echten** Werkzeug und nicht an der Kopie: die Kopie
+   * ist Geometrie, die Zahl gehört dem Ding, das am ersten Stand eingemessen
+   * wurde. Und die Zielkorrektur kommt von der Hand, um die es geht — ein
+   * Werkzeug, das zielt, hängt im Zeigestrahl und nicht in der Faust.
+   */
+  private gripLocal(copy: Tool, side: Handedness): Pose {
+    const tool = this.tool(copy.toolId) ?? copy;
+    aimQuaternion(tool.alignToAim ? (this.context?.input.get(side) ?? null) : null, _aim);
+    return toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, _aim);
   }
 
   /** "Rechte Hand · Pistole" — welche Hand, und was sie hält. */
@@ -1130,73 +744,33 @@ export class TuneWorld extends PortalWorld {
       : 'Noch nichts justiert';
     const body = readout
       ? `${this.readoutFor} · pitch ${readout.pitch}° yaw ${readout.yaw}° roll ${readout.roll}° · ${this.code}`
-      : 'Justieren drücken, Hand auf den Geist legen, Trigger';
+      : 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger';
     const line = `${title}|${body}`;
     if (line === this.lastValueText) return;
     this.lastValueText = line;
-    // Beide Tafeln zeigen dasselbe: am Tisch justiert man die Hand, im Gang
-    // das Werkzeug, und wer im Gang steht, läuft für seine eigenen Zahlen
-    // nicht zurück in den Raum.
+    // Beide Tafeln zeigen dasselbe: gemessen wird im Gang, abgelesen wird da,
+    // wo man gerade steht — wer im Gang steht, läuft für seine eigenen Zahlen
+    // nicht zurück in den Raum, und umgekehrt.
     const accent = readout ? 0x5ee0a0 : 0x6f7d99;
     this.valueBoard?.setText(title, body, accent);
     this.rangeBoard?.setText(title, body, accent);
   }
 
-  /**
-   * Die Griffleiste am Tisch: anfassen und schieben.
-   *
-   * Das ist die Hälfte, die man in der Brille braucht — die andere ist die
-   * Tastatur, wenn der Zollstock danebenliegt. Gerechnet wird gegen die Höhe,
-   * die beim Zupacken galt, nicht gegen die letzte Frame: sonst summieren sich
-   * Rundungsfehler zu einem Tisch, der langsam davonwandert.
-   */
-  private updateLift(ctx: WorldContext): void {
-    const table = this.table;
-    if (!table) return;
-
-    const lift = this.lift;
-    if (lift) {
-      const controller = ctx.input.get(lift.hand);
-      if (!controller?.tracked || !controller.squeeze.pressed) {
-        this.lift = null;
-        table.setRailGlow(false);
-        // Erst beim Loslassen in den Speicher — und dann einmal richtig.
-        this.showTable(saveTableSettings({ height: this.state.height }));
-        ctx.notify(`Tischhöhe: ${Math.round(this.state.height)} cm`);
-        return;
-      }
-      handPosition(controller, _hand);
-      this.showTable(
-        clampTable({ ...this.state, height: lift.startHeight + (_hand.y - lift.startY) * 100 }),
-      );
-      table.setRailGlow(true);
-      return;
-    }
-
-    let near = false;
-    for (const controller of ctx.input.controllers) {
-      const hand = controller.handedness;
-      if (!hand || !controller.tracked) continue;
-      // Eine Hand, die gerade den Geist zieht, greift nicht nebenbei den Tisch.
-      if (this.drive?.hand === hand) continue;
-      handPosition(controller, _hand);
-      if (table.railDistance(_hand) > RAIL_REACH) continue;
-      near = true;
-      if (!controller.squeeze.justPressed) continue;
-      this.lift = { hand, startY: _hand.y, startHeight: this.state.height };
-      controller.pulse(0.4, 25);
-      break;
-    }
-    table.setRailGlow(near);
-  }
-
   // --- der Schießgang -------------------------------------------------------
 
   /**
-   * Der Gang hinter der Rückwand: Wände, Scheibe, Halter, Knöpfe, Tafel.
+   * Der Gang hinter der Rückwand: Wände, Scheibe, **zwei** Stände, Knöpfe,
+   * Tafel.
    *
    * Er ist bewusst schmal und **portalfrei**: hier wird gezielt und nicht
    * gespielt, und ein Portal mitten im Gang wäre das Ende jeder Messung.
+   *
+   * Die beiden Stände stehen nebeneinander, weil sie zusammengehören und
+   * nacheinander drankommen: links der **Halter** mit der Zielscheibe dahinter
+   * (wie halte ich es?), rechts der **Griffstand** mit der Kopie und der
+   * Boxhand (wie umfasst die Hand es?). Dazwischen liegt genug Luft, dass die
+   * Hand am einen nicht die Griffe des anderen streift — das ist die einzige
+   * harte Anforderung an die Aufstellung.
    */
   private buildRange(room: THREE.Group): void {
     const { half, thickness } = ROOM;
@@ -1240,7 +814,7 @@ export class TuneWorld extends PortalWorld {
       width: 1.9,
       height: 0.26,
       title: 'Schießgang',
-      body: 'Werkzeug in den Halter · Hand daran · Greifen oder Trigger · Griffe rechts stellen ihn',
+      body: 'Links: Werkzeug in den Halter, Hand daran, Greifen · Rechts: Boxhand am Werkzeug zurechtrücken',
       accent: 0xffc857,
       align: 'center',
     });
@@ -1248,9 +822,21 @@ export class TuneWorld extends PortalWorld {
     sign.rotation.y = Math.PI;
     room.add(sign);
 
+    const grip = new GripStand();
+    grip.position.set(0, 0, z0);
+    room.add(grip);
+    this.grip = grip;
+
+    // Zwei Spalten statt einer langen Reihe: acht Knöpfe untereinander reichen
+    // sonst bis auf den Boden, und der unterste ist der, den man am seltensten
+    // findet und am häufigsten braucht.
     for (const [index, row] of this.rangeRows().entries()) {
-      const button = this.wallButton(room, 0.92, 0.28, row.run);
-      button.plane.position.set(LANE.half - 0.02, 2.0 - index * 0.32, z0 + 1.2);
+      const button = this.wallButton(room, 0.9, 0.28, row.run);
+      button.plane.position.set(
+        LANE.half - 0.02,
+        1.95 - Math.floor(index / 2) * 0.32,
+        z0 + (index % 2 === 0 ? 0.78 : 1.74),
+      );
       button.plane.rotation.y = -Math.PI / 2;
       button.refresh = () => row.refresh(button);
     }
@@ -1264,7 +850,7 @@ export class TuneWorld extends PortalWorld {
       body: 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger',
       accent: 0x5ee0a0,
     });
-    values.position.set(LANE.half - 0.02, 1.62, z0 + 2.9);
+    values.position.set(LANE.half - 0.02, 1.5, z0 + 3.1);
     values.rotation.y = -Math.PI / 2;
     room.add(values);
     this.rangeBoard = values;
@@ -1312,21 +898,43 @@ export class TuneWorld extends PortalWorld {
       },
       {
         refresh: (button) => {
-          const busy = this.fitting !== null;
+          const busy = this.handDrag !== null;
           this.label(
             button,
-            busy ? 'Hand auf den Handstand legen' : 'Hand justieren',
+            busy ? 'Boxhand hängt an der Hand' : `Griffhand: ${handLabel(this.gripState.side)}`,
             busy
-              ? 'Deckungsgleich, dann Trigger'
-              : `Boxhand auf dem Teller · ${this.state.side === 'left' ? 'links' : 'rechts'}`,
-            busy ? GRAB_GLOW : 0x5ee0a0,
+              ? 'Loslassen speichert · A bricht ab'
+              : 'Welche der beiden am zweiten Stand umfasst',
+            busy ? GRAB_GLOW : 0x9fe3ff,
           );
         },
-        run: () => this.beginFitting('range'),
+        run: () => this.flipGripSide(),
       },
       {
         refresh: (button) => {
-          this.label(button, 'Stand zurücksetzen', formatRange(this.rangeState), 0xffc857);
+          this.label(
+            button,
+            `Kopie: ${this.toolLabel(this.gripState.tool)}`,
+            'Werkzeug in die Hand nehmen und drücken',
+            0x9fe3ff,
+          );
+        },
+        run: (hand) => this.copyToGrip(hand),
+      },
+      {
+        refresh: (button) => {
+          this.label(
+            button,
+            'Griff zurücksetzen',
+            `Faust um ${this.toolLabel(this.gripState.tool)} · ${handLabel(this.gripState.side)}`,
+            0xffc857,
+          );
+        },
+        run: () => this.resetGripPose(),
+      },
+      {
+        refresh: (button) => {
+          this.label(button, 'Halter zurücksetzen', formatRange(this.rangeState), 0xffc857);
         },
         run: () => {
           this.rangeDrag = null;
@@ -1334,7 +942,66 @@ export class TuneWorld extends PortalWorld {
           this.context?.notify('Justierstand zurückgesetzt');
         },
       },
+      {
+        refresh: (button) => {
+          this.label(button, 'Griffstand zurücksetzen', formatGrip(this.gripState), 0xffc857);
+        },
+        run: () => {
+          this.gripDrag = null;
+          this.showGrip(clearGripSettings());
+          this.context?.notify('Griffstand zurückgesetzt');
+        },
+      },
     ];
+  }
+
+  /** Wie ein Werkzeug heißt — die Id nur, wenn es keines mehr gibt. */
+  private toolLabel(id: string): string {
+    return this.tool(id)?.label ?? id;
+  }
+
+  /** Die andere Hand am zweiten Stand. Die Boxhand kommt neu und gespiegelt. */
+  private flipGripSide(): void {
+    if (this.handDrag) {
+      this.cancelHandDrag(true);
+      return;
+    }
+    const next = saveGripSettings({ side: this.gripState.side === 'left' ? 'right' : 'left' });
+    this.context?.notify(`Griffstand: ${handLabel(next.side)}`);
+  }
+
+  /**
+   * Das Werkzeug aus der zeigenden Hand als Kopie auf den zweiten Stand.
+   *
+   * Es liegt normalerweise schon dort — der Halter legt es hin, sobald man
+   * etwas einmisst —, aber nicht jeder kommt über den Halter: wer nur den
+   * Griff nachziehen will, hat sein Werkzeug in der Hand und sonst nichts.
+   */
+  private copyToGrip(pointing: Handedness | null): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const hand: Handedness = pointing ?? this.gripState.side;
+    const tool = this.host?.heldTool(hand) ?? null;
+    if (!tool) {
+      ctx.notify('Erst ein Werkzeug in die Hand nehmen');
+      return;
+    }
+    this.cancelHandDrag(true);
+    const next = saveGripSettings({ tool: tool.toolId, side: hand });
+    ctx.notify(`Griffstand: ${tool.label} · ${handLabel(next.side)}`);
+  }
+
+  /** Die Handhaltung an diesem Werkzeug zurück auf die gebaute Faust. */
+  private resetGripPose(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    this.cancelHandDrag(true);
+    const { side, tool } = this.gripState;
+    saveHoldHandPose(side, tool, clonePose(HOLD_HAND_POSE));
+    ctx.hands.refreshPoses();
+    this.placeGripHand();
+    this.refreshButtons();
+    ctx.notify(`Griff zurückgesetzt: ${this.toolLabel(tool)} · ${handLabel(side)}`);
   }
 
   /** Der AR-Knopf: die Welt durchsichtig, und den Himmel weg. */
@@ -1414,7 +1081,7 @@ export class TuneWorld extends PortalWorld {
    * beiden Griffe einen knappen Meter zur Seite: nichts, was die Hand am
    * Werkzeug streift, und trotzdem ohne einen Schritt erreichbar. Gerechnet
    * wird gegen den Stand beim Zupacken und nicht gegen das letzte Bild —
-   * dieselbe Regel wie an der Griffleiste des Tisches, und aus demselben Grund.
+   * dieselbe Regel wie am zweiten Stand, und aus demselben Grund.
    */
   private updateRangeGrips(ctx: WorldContext): void {
     const range = this.range;
@@ -1466,30 +1133,254 @@ export class TuneWorld extends PortalWorld {
         continue;
       }
 
-      for (const grip of ['height', 'place', 'rack'] as const) {
+      let taken = false;
+      for (const grip of ['height', 'place'] as const) {
         if (range.gripDistance(grip, _hand) > HANDLE_REACH) continue;
         glow ??= grip;
+        taken = true;
         if (!controller.squeeze.justPressed) break;
-        if (grip === 'rack') {
-          this.equipTool(ctx, hand, 'pistol');
-        } else {
-          this.rangeDrag = {
-            hand,
-            grip,
-            start: _hand.clone(),
-            before: { ...this.rangeState },
-          };
-          controller.pulse(0.4, 25);
-          ctx.notify(
-            grip === 'height'
-              ? 'Höhe: Hand heben und senken, dann loslassen'
-              : 'Ort: Hand bewegen, dann loslassen',
-          );
-        }
+        this.rangeDrag = {
+          hand,
+          grip,
+          start: _hand.clone(),
+          before: { ...this.rangeState },
+        };
+        controller.pulse(0.4, 25);
+        ctx.notify(
+          grip === 'height'
+            ? 'Höhe: Hand heben und senken, dann loslassen'
+            : 'Ort: Hand bewegen, dann loslassen',
+        );
+        break;
+      }
+      if (taken) continue;
+
+      // Und das Regal daneben: ein Griff je Fach. Der Controller ist dabei
+      // kein Werkzeug, sondern eine Seite — es kommt der heraus, der zu der
+      // Hand gehört, die zugreift.
+      for (const slot of RACK_SLOTS) {
+        if (range.gripDistance(slot.key, _hand) > HANDLE_REACH) continue;
+        glow ??= slot.key;
+        if (!controller.squeeze.justPressed) break;
+        this.equipTool(ctx, hand, slot.tool === 'controller' ? controllerToolId(hand) : slot.tool);
         break;
       }
     }
     range.setGlow(glow);
+  }
+
+  // --- der zweite Stand: die Boxhand am Werkzeug -----------------------------
+
+  /**
+   * Jede Frame am Griffstand: die beiden Griffe am Ausleger — und die Boxhand.
+   *
+   * Sie ist das Einzige hier, was mitkommt. Die Kopie des Werkzeugs bleibt, wo
+   * sie ist: sie *ist* der feste Punkt, und ein fester Punkt, den man
+   * versehentlich mitnimmt, ist keiner. Angefasst wird mit **Greifen**,
+   * losgelassen mit dem Loslassen — dieselbe Bedienung wie an jedem Griff in
+   * diesem Raum —, und erst das Loslassen schreibt in den Speicher.
+   */
+  private updateGripStand(ctx: WorldContext): void {
+    const stand = this.grip;
+    if (!stand) return;
+    // Während der Feinjustage am ersten Stand zieht eine Hand an einem Geist
+    // und hält dabei Greifen — dieser Stand hat in dieser Minute Pause, sonst
+    // nimmt dieselbe Geste zwei Dinge auf einmal.
+    if (this.fine && !this.handDrag) {
+      stand.setGlow(null);
+      return;
+    }
+
+    const held = this.handDrag;
+    if (held) {
+      const controller = ctx.input.get(held.hand);
+      if (!controller?.tracked) {
+        this.cancelHandDrag(true);
+        ctx.notify('Hand weg — abgebrochen');
+        return;
+      }
+      // `A` bricht ab und legt die Boxhand zurück, wo sie war.
+      if (controller.primary.justPressed) {
+        this.cancelHandDrag(true);
+        ctx.notify('Abgebrochen');
+        return;
+      }
+      // Live auf die Tafel, aber noch nicht in den Speicher: bis zum
+      // Loslassen kostet ein Abbruch nichts.
+      const measured = this.measureGripHand();
+      if (measured) {
+        this.readout = readoutOfHand(measured);
+        this.readoutFor = `${this.poseTitle(held.side, held.toolId)} · Griff`;
+        this.showValues();
+      }
+      if (!controller.squeeze.pressed) this.finishHandDrag(ctx, controller);
+      stand.setGlow('hand');
+      return;
+    }
+
+    const drag = this.gripDrag;
+    if (drag) {
+      const controller = ctx.input.get(drag.hand);
+      if (!controller?.tracked || !controller.squeeze.pressed) {
+        this.gripDrag = null;
+        // Erst beim Loslassen in den Speicher — und dann einmal richtig.
+        this.showGrip(saveGripSettings(this.gripState));
+        ctx.notify(formatGrip(this.gripState));
+        return;
+      }
+      handPosition(controller, _hand);
+      this.showGrip(
+        clampGrip(
+          drag.grip === 'height'
+            ? { ...drag.before, height: drag.before.height + (_hand.y - drag.start.y) * 100 }
+            : {
+                ...drag.before,
+                x: drag.before.x + (_hand.x - drag.start.x) * 100,
+                z: drag.before.z + (_hand.z - drag.start.z) * 100,
+              },
+        ),
+      );
+      stand.setGlow(drag.grip);
+      return;
+    }
+
+    let glow: string | null = null;
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand || !controller.tracked) continue;
+      // Eine Hand mit Werkzeug hat hier nichts zu greifen: sie ist auf dem Weg
+      // in den Halter nebenan.
+      if (this.host?.heldTool(hand)) continue;
+      handPosition(controller, _hand);
+
+      if (stand.handDistance(_hand) <= HAND_REACH) {
+        glow ??= 'hand';
+        if (!controller.squeeze.justPressed) continue;
+        this.beginHandDrag(ctx, controller, hand);
+        // Und Schluss für diese Frame: liegen beide Hände daran, nähme sonst
+        // die zweite sie der ersten in derselben Frame wieder weg.
+        stand.setGlow('hand');
+        return;
+      }
+
+      for (const key of ['height', 'place'] as const) {
+        if (stand.gripDistance(key, _hand) > HANDLE_REACH) continue;
+        glow ??= key;
+        if (!controller.squeeze.justPressed) break;
+        this.gripDrag = {
+          hand,
+          grip: key,
+          start: _hand.clone(),
+          before: { ...this.gripState },
+        };
+        controller.pulse(0.4, 25);
+        ctx.notify(
+          key === 'height'
+            ? 'Höhe: Hand heben und senken, dann loslassen'
+            : 'Ort: Hand bewegen, dann loslassen',
+        );
+        break;
+      }
+    }
+    stand.setGlow(glow);
+  }
+
+  /** Die Boxhand wandert an die Hand — 1:1, per Umhängen statt per Rechnung. */
+  private beginHandDrag(ctx: WorldContext, controller: ControllerState, hand: Handedness): void {
+    const stand = this.grip;
+    const ghost = stand?.handObject;
+    if (!stand || !ghost) return;
+    const { side, tool } = this.gripState;
+    handAnchor(controller).attach(ghost);
+    this.handDrag = {
+      hand,
+      side,
+      toolId: tool,
+      before: ctx.hands.editablePose(side, tool),
+    };
+    controller.pulse(0.4, 25);
+    this.refreshButtons();
+    ctx.notify(`${this.poseTitle(side, tool)} · hinlegen, wie sie greifen soll`);
+  }
+
+  /**
+   * Loslassen schreibt: wo die Boxhand am Werkzeug hängt, *ist* die Haltung.
+   *
+   * Nur die sechs Zahlen — Krümmung und Spreizung sind keine Frage von „wo
+   * liegt die Hand" und bleiben, wie sie eingestellt sind.
+   */
+  private finishHandDrag(ctx: WorldContext, controller: ControllerState): void {
+    const held = this.handDrag;
+    if (!held) return;
+    this.handDrag = null;
+    this.grip?.reclaim();
+    const pose = this.measureGripHand();
+    if (!pose) {
+      this.placeGripHand();
+      return;
+    }
+    saveHoldHandPose(held.side, held.toolId, pose);
+    ctx.hands.refreshPoses();
+    this.readout = readoutOfHand(pose);
+    this.readoutFor = `${this.poseTitle(held.side, held.toolId)} · Griff`;
+    this.code = toolGearCode(held.toolId, held.side);
+    controller.pulse(0.6, 40);
+    this.refreshButtons();
+    ctx.notify(`${this.readoutFor}: ${formatHandPose(pose)}`);
+  }
+
+  /** Nimmt die Boxhand zurück ans Werkzeug; `restore` verwirft die Bewegung. */
+  private cancelHandDrag(restore: boolean): void {
+    const held = this.handDrag;
+    if (!held) return;
+    this.handDrag = null;
+    this.grip?.reclaim();
+    if (restore) {
+      // Die Tafel hat die ganze Zeit den Vorschauwert gezeigt, und der gilt
+      // jetzt nicht mehr.
+      this.readout = readoutOfHand(held.before);
+      this.readoutFor = this.poseTitle(held.side, held.toolId);
+    }
+    this.placeGripHand();
+    this.refreshButtons();
+  }
+
+  /**
+   * Was gerade zwischen Kopie und Boxhand liegt, als Handhaltung.
+   *
+   * Gerechnet wird im Raum der Kopie: deren Weltmatrix rückwärts auf die der
+   * Boxhand gelegt, und das Ergebnis durch die Lage des Werkzeugs im Griff
+   * zurück in den Griffraum (`handGrip.ts`). Der Stand kommt darin nicht vor —
+   * er darf also mitten in einer Messung verschoben werden.
+   */
+  private measureGripHand(): HandPose | null {
+    const ctx = this.context;
+    const stand = this.grip;
+    const tool = stand?.tool;
+    const ghost = stand?.handObject;
+    if (!ctx || !stand || !tool || !ghost) return null;
+    const side = this.handDrag?.side ?? this.gripState.side;
+    const toolId = this.handDrag?.toolId ?? this.gripState.tool;
+
+    tool.updateWorldMatrix(true, false);
+    ghost.updateWorldMatrix(true, false);
+    _matrix.copy(_inverseMatrix.copy(tool.matrixWorld).invert()).multiply(ghost.matrixWorld);
+    _matrix.decompose(_position, _rotation, _scale);
+
+    const measured = handFromGhost(this.gripLocal(tool, side), {
+      position: _position,
+      rotation: _rotation,
+    });
+    const readout = readPose(measured as HoldPose);
+    return {
+      ...clonePose(ctx.hands.editablePose(side, toolId)),
+      x: readout.x,
+      y: readout.y,
+      z: readout.z,
+      pitch: readout.pitch,
+      yaw: readout.yaw,
+      roll: readout.roll,
+    };
   }
 
   /**
@@ -1527,6 +1418,12 @@ export class TuneWorld extends PortalWorld {
     this.mounted = mounted;
     this.mountBlocked = null;
     this.rangeDrag = null;
+    // Der zweite Stand arbeitet immer an dem, was man gerade einmisst — sonst
+    // müsste man dasselbe Werkzeug zweimal auswählen, einmal je Stand.
+    if (this.gripState.tool !== tool.toolId || this.gripState.side !== hand) {
+      this.cancelHandDrag(true);
+      saveGripSettings({ tool: tool.toolId, side: hand });
+    }
     ctx.input.get(hand)?.pulse(0.4, 25);
     this.refreshButtons();
     ctx.notify(`${tool.label} zeigt auf die Scheibe · Hand daran, dann Greifen oder Trigger`);
@@ -1535,8 +1432,8 @@ export class TuneWorld extends PortalWorld {
 
   /**
    * Der Trigger schließt ab: was zwischen Griff und Werkzeug liegt, *ist* die
-   * Haltung — dieselbe Rechnung wie im Werkzeug-Justierer, nur hängt das
-   * Werkzeug hier nicht irgendwo, sondern auf der Ziellinie.
+   * Haltung — dieselbe Rechnung wie überall, nur hängt das Werkzeug hier
+   * nicht irgendwo, sondern auf der Ziellinie.
    */
   private measureMount(ctx: WorldContext, controller: ControllerState, mounted: Mounted): void {
     const { tool, hand } = mounted;
@@ -1575,7 +1472,18 @@ export class TuneWorld extends PortalWorld {
   private applyHold(tool: Tool, pose: HoldPose, caption: string, hand: Handedness): void {
     tool.holdPosition.set(pose.position.x, pose.position.y, pose.position.z);
     tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
-    savePose(tool.toolId, pose);
+    if (tool instanceof HandTool) {
+      // Die Boxhand *ist* die Hand: was an ihr gemessen wird, gehört in die
+      // Grundhaltung dieser Hand und nicht in den Werkzeug-Speicher. Eine
+      // zweite Kopie derselben Zahlen wäre nur eine, die irgendwann abweicht.
+      tool.storeMeasured(hand);
+      this.context?.hands.refreshPoses();
+    } else {
+      savePose(tool.toolId, pose);
+    }
+    // Der zweite Stand hängt an dieser Zahl: die Boxhand steht relativ zur
+    // Lage des Werkzeugs im Griff, und die hat sich gerade geändert.
+    this.placeGripHand();
     this.readout = readPose(pose);
     this.readoutFor = caption;
     this.code = toolGearCode(tool.toolId, hand);
@@ -1661,7 +1569,7 @@ export class TuneWorld extends PortalWorld {
     );
 
     const pose = ctx.hands.editablePose(mounted.hand, tool.toolId);
-    const ghost = new GhostHand(mounted.hand, pose, 0xffc857);
+    const ghost = new GhostHand(mounted.hand, pose, { color: 0xffc857 });
     this.root.add(ghost);
 
     handAnchor(driver).updateWorldMatrix(true, false);
@@ -1930,10 +1838,38 @@ function handAnchor(controller: ControllerState): THREE.Object3D {
   return controller.grip.visible ? controller.grip : controller.targetRay;
 }
 
+/**
+ * Die sechs Zahlen einer Handhaltung, wie sie auf der Tafel stehen.
+ *
+ * Eine `HandPose` trägt sie schon in genau dieser Einheit — Zentimeter und
+ * Grad —, also ist das ein Umpacken und keine Umrechnung. Der Umweg über
+ * Meter und Quaternion und wieder zurück wäre einer, der jedes Mal ein
+ * bisschen rundet.
+ */
+function readoutOfHand(pose: HandPose): PoseReadout {
+  return {
+    x: pose.x,
+    y: pose.y,
+    z: pose.z,
+    pitch: pose.pitch,
+    yaw: pose.yaw,
+    roll: pose.roll,
+  };
+}
+
+/** Eine Handhaltung als Pose: Zentimeter werden Meter, Grad werden Bogenmaß. */
+function poseOfHand(pose: HandPose): Pose {
+  return {
+    position: { x: pose.x / 100, y: pose.y / 100, z: pose.z / 100 },
+    rotation: quatFromEulerXYZ({
+      x: (pose.pitch * Math.PI) / 180,
+      y: (pose.yaw * Math.PI) / 180,
+      z: (pose.roll * Math.PI) / 180,
+    }),
+  };
+}
+
 function handLabel(hand: Handedness): string {
   return hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
 }
 
-function round1(value: number): number {
-  return Math.round(value * 10) / 10;
-}

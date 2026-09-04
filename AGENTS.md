@@ -85,9 +85,12 @@ Hand zwar mitzählt, aber niemandem aus der Hand genommen wird), die
 (`src/worlds/portal/tools/supermanFlight.ts` und `supermanSettings.ts` — dass
 volle Lehne die eingestellte Geschwindigkeit ergibt und nicht irgendetwas weit
 jenseits eines ausgestreckten Arms, die Vorzeichen der Kurve, und wer welche
-Achse bedient), der **Tisch im Eingaberaum**
-(`src/worlds/tune/tableSettings.ts` — Grenzen einer Tischhöhe, ein kaputter
-Speicher und dass der Knopf im Kreis durch alle drei Geister schaltet), die
+Achse bedient), der **zweite Justierstand**
+(`src/worlds/tune/gripSettings.ts` — Grenzen, eine Seite, die keine ist, und
+eine Werkzeug-Id, die es nicht mehr gibt) samt seiner **Rechnung**
+(`src/worlds/tune/handGrip.ts` — dass die Kette Griff → Werkzeug → Hand sich
+wirklich schließt und der Griff sich dabei herauskürzt, denn am Stand hält
+niemand etwas), die
 **Vibrationsmuster** (`src/worlds/tune/haptics.ts` — die einzige Rückmeldung,
 die man *nicht sehen* kann: dass jeder Stoß genau einmal kommt, dass der bei
 null auf den ersten Frame fällt, dass ein Ruckler nicht acht Durchläufe auf
@@ -213,7 +216,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Handgelenks über den eigenen Knopf streichen.
 - **Türkis heißt anfassen**: alles, was eine Hand nehmen darf, hat dieselbe
   Farbe — die Griffe der Werkzeuge, der Ring um die Linse der Taschenlampe,
-  die Plätze am Gürtel, die Leiste am Tisch im Eingaberaum. Eine Spülmaschine
+  die Plätze am Gürtel, die Griffe an den Justierständen im Eingaberaum. Eine Spülmaschine
   sagt einem auch nie, wo der Griff ist; sie färbt ihn, und danach greift
   jeder beim ersten Mal richtig. In VR wiegt das schwerer als daheim, weil ein
   Werkzeug ein Klotz aus Dreiecken ist und man ihm nicht ansieht, ob man es am
@@ -408,33 +411,24 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
-  - **Werkzeug-Justierer**: setzt ein anderes Werkzeug richtig in die Hand,
-    die **Hand** richtig ans Werkzeug — und einzelne Anbauteile richtig aufs
-    Werkzeug. Worauf er zeigt, bekommt
-    einen Rahmen und steht auf seinem Display; ein **Werkzeug** hält er beim
-    Trigger in der Luft an (Hand hinlegen, wo sie es halten soll, Trigger
-    nochmal), ein **Anbauteil** — der Rotpunkt etwa — hängt sich beim
-    gehaltenen Trigger an die Spitze und bleibt beim Loslassen dort auf der
-    Waffe. Beides zeigt danach die sechs Werte (x, y, z in cm,
-    roll/pitch/yaw in Grad) — und **darunter den Konfig-Code für genau dieses
-    eine Werkzeug an genau dieser Hand**, schmal und in gleich breiter Schrift,
-    weil er abgetippt
-    wird. Nur dieses Werkzeug: seine Haltung, der Griff der Hand, an der eben
-    gemessen wurde,
-    seine Anbauteile und, wenn es eigene Werte hat, auch die. Die andere Hand
-    steht bewusst nicht drin — sie wurde nicht gemessen, und ein Code, den man
-    abtippt, ist nur so viel wert wie er kurz ist. **Greifen** legt
-    diesen Code in die Zwischenablage — und solange nichts gemessen ist,
-    stattdessen den der ganzen Ausrüstung. Zeigt er auf eine Hand, die etwas hält, schaltet **`A`**
-    um, was der Trigger meint: `Werkzeug` rückt das Ding zurecht, `Hand` rückt
-    die *Hand darum* zurecht — rein optisch, das Werkzeug bewegt sich dabei
-    nicht. Genau das braucht man, weil eine Waffe anders in der Hand liegt als
-    ein Handschuh. Geschrieben wird dann die Griffhaltung für genau dieses
-    Werkzeug; eine leere Hand schreibt die Grundhaltung, eine Hand um ein
-    Objekt die Objekthaltung. Bei einer **blanken Hand** kommen die **Finger**
-    mit: das Headset misst sie ohnehin jede Frame, und ohne sie sähe die Hand
-    mit Controller nie so aus wie die echte daneben (`handGestures.ts`
-    rechnet das Faltmaß in eine Krümmung um, mit Test).
+  - **Boxhand**: die Hand selbst, als Werkzeug. Sie sieht aus wie die
+    gezeichnete Hand mit Controllern, liegt genau dort, wo diese liegt, und
+    **zielt nicht** — eine Hand sitzt in der Faust und schießt nirgendwohin.
+    Damit ist ihre Lage im Griff dieselbe Zahlenreihe, mit der `HandVisuals`
+    die Hand zeichnet: legt man sie im Schießgang in den Halter und misst sie
+    ein wie eine Pistole, landet das Ergebnis in der **Grundhaltung** dieser
+    Hand und nicht im Werkzeug-Speicher (`tools/HandTool.ts`). Sie ersetzt den
+    das alte Justier-Werkzeug und den Tisch mit der Geisterhand: ein Weg statt
+    dreier, und der, den man ohnehin kennt.
+  - **Controller links / Controller rechts**: das echte Gerät als Werkzeug,
+    eines je Hand (`tools/ControllerTool.ts`). Gezeigt wird das Modell aus dem
+    Repository (siehe *Controller-Modelle*), bis es geladen ist der selbst
+    gebaute. Auch sie zielen nicht. Der Sinn ist die Frage, die alles andere
+    erklärt: **wo sitzt das Gerät eigentlich in meiner Faust?** Der Griffraum,
+    den die Brille meldet, ist weder der Controller noch die Hand, sondern ein
+    Punkt dazwischen — und gegen ihn wird jeder Versatz gemessen. Ab Werk
+    liegen sie genau darin, denn die Profile sind so gezeichnet; was man
+    einmisst, ist die Abweichung.
   - **Duplizier-Waffe**: anzielen, Trigger — und daneben steht dasselbe noch
     einmal: Form, Farbe, Material, Größe und Masse. Der Rahmen um das Ziel
     gehört dazu, in einem Stapel verdoppelt man sonst regelmäßig die falsche
@@ -483,9 +477,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   **Wie hoch die beiden sind, weiß auch niemand von allein.** Der Ausgleich
   hing lange an einer einzigen getippten Zahl — 1,65 m Augenhöhe im Stehen,
   für alle. Wer kleiner ist, sitzt danach zu hoch; wer größer ist, zu tief,
-  und man merkt es nicht am Horizont, sondern am Tisch: ein echter
-  Schreibtisch mit 78 cm passt dann nicht auf einen virtuellen, der auf 78 cm
-  steht, weil der Boden unter dem Spieler um die Differenz falsch liegt. Also
+  und man merkt es nicht am Horizont, sondern an der eigenen Hand: ein
+  Justierstand auf Ellbogenhöhe steht dann irgendwo anders, weil der Boden
+  unter dem Spieler um die Differenz falsch liegt. Also
   sind es **zwei eigene Zahlen**, stehend und sitzend, in Zentimetern und
   beide **messbar**: unter *Menü → Bewegung → Augenhöhe* (und an der Wand im
   Eingaberaum) hinstellen bzw. hinsetzen, *Jetzt messen* drücken, und die
@@ -542,35 +536,23 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Rückfall. Mit **bloßen Händen** treten
   sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
-  steht dasselbe in Worten. An der **rechten Wand steht ein Tisch mit einem
-  Geist darauf**: eine Handhaltung im Leeren einzustellen ist Raten,
-  weil sich der Arm mitbewegt — auf einem Tisch nicht. Die **Höhe** wird auf
-  die des echten Tisches gestellt (türkise Leiste greifen und schieben, oder
-  in Zentimetern eintippen), dann legt man die echte Hand darauf, und was
-  nicht deckungsgleich ist, ist genau die Zahl, die verstellt gehört.
-  Daraufliegen kann **eine von drei Darstellungen**, und der Knopf an der Wand
-  schaltet durch: **Gliedmaßen** (die Kugeln, die ein Headset bei
-  Handtracking zeigt), **Boxhand** (die prozedurale Hand mit Controllern) und
-  der **Quest-Controller** selbst. Man justiert die Darstellung, die man
-  gleich benutzt, und nicht die, die zufällig angeschlossen ist.
+  steht dasselbe in Worten.
 
-  Die einzelnen Zahlenfelder sind von der Wand verschwunden; an ihrer Stelle
-  stehen drei Handgriffe. **Geist drehen** und **Geist bewegen** hängen den
-  Geist an die *andere* Hand — die dreht oder schiebt ihn, ihr Trigger legt
-  fest, `A` bricht ab. **Justieren** dreht die Richtung um: jetzt legt man die
-  eigene Hand deckungsgleich auf den Geist, und deren Trigger schreibt die
-  Haltung — dieselbe Rechnung wie im Werkzeug-Justierer (`toolPose.ts`), nur
-  gegen einen Tisch, der stillsteht statt in der Luft mitzuzittern. Bei einer
-  blanken Hand kommen die Finger mit. Daneben hängt die **Werte-Tafel**: die
-  letzte Messung in Zahlen zum Vorlesen und darunter der **Konfig-Code für
-  genau diese Hand in genau dieser Darstellung** — kurz genug zum Abtippen,
-  weil sonst nichts drinsteht (`tune/GhostTable.ts`,
-  `tune/tableSettings.ts` mit Test).
+  An der **rechten Wand hängen die Zahlen**, die man abliest statt sie
+  anzufassen: zwei Knöpfe messen die **Augenhöhe** (siehe *Sitzen oder
+  stehen*), stehend und sitzend, und daneben hängt die **Werte-Tafel** mit der
+  letzten Messung und dem **Konfig-Code für genau diese Hand an genau diesem
+  Werkzeug** — kurz genug zum Abtippen, weil sonst nichts drinsteht. Die
+  Augenhöhe steht hier und nicht nur im Menü, weil ohne sie keine Zahl aus dem
+  Gang stimmt: ein Headset kennt sie nicht.
 
-  Zwei Knöpfe messen die **Augenhöhe** (siehe *Sitzen oder stehen*), stehend
-  und sitzend. Sie stehen hier, weil man den Fehler an genau diesem Tisch
-  merkt: ein echter Schreibtisch mit 78 cm passt nicht auf einen virtuellen
-  mit 78 cm, wenn der Boden unter dem Spieler falsch liegt.
+  Dort stand einmal ein **Tisch mit einer Geisterhand**, und die Idee war gut
+  — eine Handhaltung im Leeren einzustellen ist Raten, weil sich der Arm
+  mitbewegt, und auf einer Tischplatte nicht. Nur war er ein **zweiter Weg** zu
+  derselben Antwort, mit eigener Bedienung, eigenen Knöpfen und einer eigenen
+  Gelegenheit, versehentlich etwas anderes einzustellen als nebenan. Seit die
+  Hand selbst ein **Werkzeug** ist (*Boxhand*, oben), fällt er weg: man legt
+  sie im Gang in den Halter wie eine Pistole.
 
   An der **linken Wand steht eine Bank mit einem Griff darauf**, der sich
   nicht bewegen lässt — nur anfassen. Solange man ihn hält, spielt der
@@ -583,11 +565,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   etwas Festem liegen, also bewegt sich der Griff nicht.
 
   **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der
-  Schießgang**: ein Gang, eine Zielscheibe am Ende, ein Halter daneben
-  (`tune/ToolRange.ts`). Der Tisch beantwortet, *wo* eine Hand liegt; ein
-  Werkzeug aber liegt nicht richtig oder falsch, es **zeigt** richtig oder
-  falsch — und wohin es zeigt, sieht man an nichts so gut wie an einer Scheibe
-  am Ende eines Gangs. Ein Werkzeug, das man in den **Halter** hält, rastet
+  Schießgang**, und dort stehen **zwei Justierstände** nebeneinander. Sie
+  beantworten die beiden Hälften derselben Frage: der erste *wie halte ich das
+  Ding?*, der zweite *wie umfasst die Hand es?*
+
+  Der **erste Stand** hat eine Zielscheibe am Ende des Gangs vor sich
+  (`tune/ToolRange.ts`). Ein Werkzeug liegt nicht richtig oder falsch, es
+  **zeigt** richtig oder falsch — und wohin es zeigt, sieht man an nichts so
+  gut wie an einer Scheibe am Ende eines Gangs. Ein Werkzeug, das man in den
+  **Halter** hält, rastet
   ein und liegt dort exakt auf die Scheibe gerichtet; damit ist die
   Zielrichtung keine Unbekannte mehr. Dann führt man die Hand ans Werkzeug,
   dorthin, wo man es halten will, und bestätigt mit **Greifen oder Trigger**:
@@ -604,24 +590,51 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   es kann von ihr nicht wegdriften, auch nicht, während der Stand verschoben
   wird.
 
-  **Höhe und Ort hängen an zwei Griffen** an einem Ausleger, einen knappen
-  Meter zur Seite (`tune/rangeSettings.ts` mit Test): oben ein Schieber für die
-  Höhe, unten eine Kugel für den Ort, greifen und ziehen, beim Loslassen
-  gespeichert. So weit weg, weil ein Griff neben der Aufnahme von der Hand
-  mitgenommen wird, die nach dem Werkzeug greift — und dann steht der Stand
-  mitten in einer Messung woanders. Zwei Griffe statt eines, weil „zu hoch" und
-  „zu weit links" zwei Fragen sind und ein Griff, der beides kann, immer auch
-  das verstellt, was schon stimmte.
+  **Höhe und Ort hängen bei beiden Ständen an zwei Griffen** an einem
+  Ausleger, einen halben Meter zur Seite (`tune/StandFrame.ts`,
+  `tune/rangeSettings.ts` und `tune/gripSettings.ts`, beide mit Test): oben ein
+  Schieber für die Höhe, unten eine Kugel für den Ort, greifen und ziehen, beim
+  Loslassen gespeichert. So weit weg, weil ein Griff neben der Aufnahme von der
+  Hand mitgenommen wird, die nach dem Werkzeug greift — und dann steht der
+  Stand mitten in einer Messung woanders. Zwei Griffe statt eines, weil „zu
+  hoch" und „zu weit links" zwei Fragen sind und ein Griff, der beides kann,
+  immer auch das verstellt, was schon stimmte. Gestell, Säule und Ausleger sind
+  bei beiden dieselben, damit man nicht zweimal lernt, wie ein Stand
+  verschoben wird.
 
-  Daneben stehen zwei Ablagen, die mit dem Stand mitwandern: ein
-  **Waffenregal** mit einer Pistole darauf — greifen, und man hat eine in der
-  Hand, ohne durch den halben Raum zum Regal zu laufen (ausgestellt ist eine
-  eigene, die nie jemand bekommt, sonst wäre das Regal nach dem ersten Griff
-  leer) — und ein **Handstand** mit der Boxhand darauf. Die zeigt dieselbe Seite
-  und dieselbe Haltung wie der Geist auf dem Tisch, und der Knopf *Hand
-  justieren* misst gegen sie genauso wie der am Tisch gegen jenen. Der
-  Unterschied ist nur, wo man dabei steht: auf Arbeitshöhe, neben dem Werkzeug,
-  um das es gerade geht, statt quer durch den Raum am Tisch.
+  Neben dem ersten Stand steht ein **Regal** mit drei Fächern, das mit ihm
+  mitwandert: ein Griff, und man hat eine **Pistole**, die **Boxhand** oder
+  seinen **Controller** in der Hand, ohne durch den halben Raum zum Regal zu
+  laufen — die drei Dinge, die man hier einmisst. Welcher der beiden Controller
+  herauskommt, hängt an der Hand, die zugreift. Ausgestellt ist jeweils ein
+  eigenes Exemplar, das nie jemand bekommt, sonst wäre das Fach nach dem ersten
+  Griff leer.
+
+  Der **zweite Stand** hält eine unbewegliche **Kopie** desselben Werkzeugs und
+  daran eine **Boxhand** (`tune/GripStand.ts`, Rechnung in `tune/handGrip.ts`
+  mit Test). Die Kopie kann man nicht nehmen, nicht schieben und nicht
+  einrasten lassen — sie *ist* der feste Punkt, und ein fester Punkt, den man
+  versehentlich mitnimmt, ist keiner. Die Boxhand dagegen greift man, dreht
+  sie, verschiebt sie und lässt sie los; wo sie dann liegt, *ist* die
+  Handhaltung an diesem Werkzeug. `A` bricht ab. Sie hängt dabei wirklich an
+  der Hand (`Object3D.attach`) statt Bild für Bild nachgerechnet zu werden: was
+  man hält, hält man 1:1, und ein Umhängen kann keine Rundungsfehler
+  aufsummieren.
+
+  **Warum zwei Stände und nicht einer**: an einer Pistole zeigt der
+  Zeigefinger dorthin, wohin der Lauf zeigt, und das sieht richtig aus.
+  Dieselbe Haltung an einer **Taschenlampe** zeigt schräg in die Luft, weil
+  deren Lichtkegel dort hinausgeht, wo bei der Pistole der Lauf sitzt — die
+  Zielrichtung stimmt, die Faust darum herum nicht. Das sind zwei Größen, also
+  werden sie zweimal eingestellt.
+
+  Die Kopie ist immer das, was man gerade einmisst: der Halter legt sie hin,
+  sobald dort etwas einrastet. Wer über den Halter gar nicht geht, drückt
+  *Kopie* und bekommt das Werkzeug aus der zeigenden Hand. Die Boxhand hängt
+  als **Kind der Kopie** — das ist keine Kleinigkeit, sondern die ganze
+  Rechnung: ihre Lage in diesem Elternteil *ist* die Größe, die gespeichert
+  wird, und ein Stand, den man hinterher noch verschiebt, nimmt beide
+  gemeinsam mit, ohne dass sich an der Messung etwas ändert.
 
   Für die letzten zwei Millimeter gibt es an der linken Wand des Gangs
   **Feinjustieren**: die geltende Haltung wird geladen (`gripForHold` in
@@ -631,7 +644,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Hand ist ein Millimeter am Geist, ein Grad ein Zehntelgrad
   (`tune/fineTune.ts` mit Test). Eine ausgestreckte Hand zittert um mehr, als
   hier eingestellt wird; untersetzt tut sie es nicht mehr. Der Trigger legt
-  fest, `A` bricht ab. Daneben hängt dieselbe **Werte-Tafel** wie am Tisch, mit
+  fest, `A` bricht ab. Daneben hängt dieselbe **Werte-Tafel** wie im Raum, mit
   denselben sechs Zahlen und dem Konfig-Code — wer im Gang steht, läuft für
   seine eigenen Zahlen nicht zurück in den Raum.
 
@@ -655,12 +668,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
   **Gelaufen und
   gedreht wird hier nicht** (`PlayerRig.locked`), der Kopf natürlich schon:
-  man kommt her, um eine Haltung zu halten und sie anzusehen. Weil der Tisch
-  aber rechts steht, die Bank links, der Schießgang hinten, und man im Sessel
-  an nichts davon hinkommt, gibt es neben dem Schild
+  man kommt her, um eine Haltung zu halten und sie anzusehen. Weil die Tafeln
+  aber rechts hängen, die Bank links steht, der Schießgang hinten liegt, und
+  man im Sessel an nichts davon hinkommt, gibt es neben dem Schild
   einen **Knopf, der den Stick freigibt** — ausdrücklich und sichtbar, statt
-  dass es einfach so geht. Gürtel, Regal und der Werkzeug-Justierer sind da,
-  denn die Hand, die man ansieht, ist die, die man einstellt.
+  dass es einfach so geht. Gürtel und Regal sind da, denn die Hand, die man
+  ansieht, ist die, die man einstellt; am Gürtel hängen die **Boxhand** links
+  und die **Pistole** rechts, die beiden Dinge, für die man herkommt.
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
@@ -753,14 +767,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Ferngreifen | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen | – | – |
 | Menüseite blättern | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler | – | – |
 | Werkzeug-Einstellungen | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand) | Linksklick auf den Pfeil | tippen |
-| Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe am Tisch im Eingaberaum | – | – |
-| Geist justieren (Eingaberaum) | Tafel *drehen*/*bewegen* drücken, dann mit der **anderen** Hand ziehen und deren Trigger; *Justieren* drücken, die eigene Hand auf den Geist legen und deren Trigger | – | – |
+| Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe an der rechten Wand im Eingaberaum | – | – |
 | Werkzeug einmessen (Schießgang) | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück | – | – |
 | Haltung feinjustieren (Schießgang) | *Feinjustieren* an der linken Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
 | AR an/aus (Schießgang) | Knopf *AR* an der linken Wand — Wände werden durchsichtig | – | – |
-| Justierstand stellen (Schießgang) | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert | – | – |
-| Pistole aus dem Regal | Greifen am Brett neben dem Justierstand | – | – |
-| Hand justieren (Schießgang) | *Hand justieren* drücken, die eigene Hand deckungsgleich auf die Boxhand am Handstand legen, deren Trigger | – | – |
+| Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab | – | – |
+| Grundhaltung einmessen | Boxhand aus dem Regal nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger** | – | – |
+| Stand stellen (beide) | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert | – | – |
+| Aus dem Regal nehmen | Greifen an einem der drei Fächer: Pistole, Boxhand, Controller der greifenden Hand | – | – |
 | Vibration ausprobieren | Griff auf der Bank links greifen und halten | – | – |
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
@@ -768,7 +782,6 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Translationshandschuh | Trigger hält aus der Ferne, `A` wechselt Modus | – | – |
 | Größe & Position | Trigger wählt, `A` holt die Griffe vor dich | – | – |
 | Griff ziehen | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand | – | – |
-| Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil, Trigger übernimmt, Greifen kopiert den Code des gemessenen Werkzeugs, `A` wechselt Werkzeug/Hand bzw. bricht ab | – | – |
 | Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
 | Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate) | – | – |
@@ -927,22 +940,25 @@ möglich, ohne dass der Pfeil dafür in eine andere Richtung zeigt als er aussie
 Skaliert wird über das *Verhältnis* zweier Abstände zur Mitte statt über eine
 Differenz — wo genau die Hand die Kugel erwischt hat, ist damit egal.
 
-Die **Werkzeug-Pose** (`holdPosition`, `holdRotation`) wird nicht mehr geraten:
-der **Werkzeug-Justierer** hält das Werkzeug der anderen Hand in der Luft an,
-du legst die Hand hin, wie sie es halten soll, und beim zweiten Trigger rechnet
-`src/worlds/portal/tools/toolPose.ts` (mit Test) die Pose aus, die genau das
-ergibt — abzüglich der Aim-Korrektur, die jedes Werkzeug ohnehin bekommt. Die
-Zahlen erscheinen auf dem Display und in der Meldung, so wie sie in den
-Konstruktor gehören; bis dahin merkt sich der Browser sie
-(*Einstellungen → Werkzeug-Posen zurücksetzen* wirft sie wieder weg).
+Die **Werkzeug-Pose** (`holdPosition`, `holdRotation`) wird nicht mehr geraten,
+sondern im **Schießgang des Eingaberaums** gemessen: das Werkzeug rastet im
+Halter auf die Scheibe gerichtet ein, du führst die Hand daran, wie sie es
+halten soll, und beim Trigger rechnet `src/worlds/portal/tools/toolPose.ts`
+(mit Test) die Pose aus, die genau das ergibt — abzüglich der Aim-Korrektur,
+die jedes Werkzeug ohnehin bekommt. Die Zahlen erscheinen auf der Werte-Tafel
+und in der Meldung, so wie sie in den Konstruktor gehören; bis dahin merkt sich
+der Browser sie (*Einstellungen → Werkzeug-Posen zurücksetzen* wirft sie wieder
+weg).
 
-Derselbe Justierer nimmt sich auch **einzelne Anbauteile** vor. Er zieht dabei
-einen Strahl aus seiner Spitze: Was er trifft — ein Anbauteil oder das ganze
-Werkzeug — bekommt einen Drahtrahmen und steht auf seinem Display. Ein
-Anbauteil wird nicht geparkt, sondern *gezogen*: Trigger halten, es hängt an
-der Spitze, loslassen setzt es fest. Seine Pose liegt im Raum **des Werkzeugs**
-(nicht der Hand), deshalb bleibt ein einmal ausgerichteter Rotpunkt
-ausgerichtet, egal wie die Waffe später gehalten wird.
+Ein **Justier-Werkzeug**, das dasselbe in der Luft tat, gab es einmal und gibt
+es nicht mehr. Es konnte alles — Werkzeuge, Hände, Anbauteile —, aber gegen
+nichts: das Vergleichsstück hing an einem ausgestreckten Arm und zitterte mit.
+Der Stand steht still, und das ist der ganze Unterschied zwischen „ungefähr"
+und „gemessen".
+
+Die Pose eines **Anbauteils** liegt im Raum **des Werkzeugs** (nicht der Hand),
+deshalb bleibt ein einmal ausgerichteter Rotpunkt ausgerichtet, egal wie die
+Waffe später gehalten wird.
 
 ### Das Gokart
 
@@ -1023,8 +1039,8 @@ Wieder ohne three.js, wieder mit Test; `ShopWorld.ts` ist der Raum drumherum.
   `TextPlane` bemisst seine Schrift an seiner *Höhe*, ein höheres Schild fasst
   also weniger Text, nicht mehr — die Schilder sind deshalb breit und flach.
 - **Arbeitshöhe** ist 90 cm, wie in einer echten Küche. Wer sich hier zu klein
-  vorkommt, sitzt in aller Regel auf einem Stuhl; dagegen hilft nicht der
-  Tisch, sondern *Menü → Bewegung → Haltung*.
+  vorkommt, sitzt in aller Regel auf einem Stuhl; dagegen hilft nicht die
+  Arbeitsplatte, sondern *Menü → Bewegung → Haltung*.
 - **Grenze:** Pizzen entstehen zur Laufzeit und bekommen laufende IDs; zwei
   Küchen in derselben Sitzung meinen mit `pizza-3` nicht dasselbe. Gelöscht
   wird deshalb nur lokal. Der Raum, die Werkzeuge und alles Geworfene sind
@@ -1073,8 +1089,8 @@ Zwei Feinheiten, die im Code stehen und hier nicht verlorengehen sollen:
 - Geometrien und Materialien der geladenen Modelle liegen in einem
   Zwischenspeicher, den sich **alle** Controller teilen. Wer eine Kopie
   wegwirft, hängt sie aus und gibt nichts frei; wer sie umfärben will (der
-  Geist auf dem Tisch ist durchsichtig), muss sich vorher eigene Materialien
-  ziehen (`ownMaterials`).
+  Controller als Werkzeug in der Hand darf umgefärbt werden, der an der Wand
+  nicht), muss sich vorher eigene Materialien ziehen (`ownMaterials`).
 
 ### Handhaltung
 
@@ -1132,8 +1148,8 @@ und keine Anführungszeichen mit), `src/core/configCode.ts` komprimiert das
 Ergebnis mit einem winzigen LZSS-Verfahren (Wörterbuch im Datenstrom, deshalb
 ohne Bibliothek und ohne `CompressionStream`) und packt es in base64url mit
 einer Prüfsumme hinten dran. Der Code eines einzelnen Werkzeugs ist deshalb
-kurz genug fürs Display des Justierers, und der einer einzelnen Handhaltung
-kurz genug zum Abtippen:
+kurz genug für die Werte-Tafel im Eingaberaum, und der einer einzelnen
+Handhaltung kurz genug zum Abtippen:
 
 ```
 BG3AAEBBR4XMBcGMU0            # eine Werkzeugpose
@@ -1163,19 +1179,19 @@ vorher 66 Zeichen und kostet jetzt 27, aus drei Gründen:
   jetzt ein Bit statt eines Bytes. Verglichen wird auf dem Raster, auf dem
   geschrieben wird, sonst stünde eine 0.0000001 aus einer Quaternion-Rechnung
   für immer im Code.
-- `toolGearCode` nimmt eine **Hand** entgegen. Der Justierer und der
-  Eingaberaum geben die durch, an der sie gemessen haben; die andere steht
-  nicht mehr als Behauptung im Code und macht ihn nicht mehr doppelt so lang.
+- `toolGearCode` nimmt eine **Hand** entgegen. Die Stände im Eingaberaum geben
+  die durch, an der sie gemessen haben; die andere steht nicht mehr als
+  Behauptung im Code und macht ihn nicht mehr doppelt so lang.
 
 Codes der Fassungen 1 und 2 werden weiter gelesen (`tools/gearCodec.ts`, mit
 Test).
 
 In VR liegt der Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
 legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
-laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Der
-**Werkzeug-Justierer** zeigt außerdem unter jeder Messung den Code für genau
-das gemessene Werkzeug, und **Greifen** legt dann diesen in die
-Zwischenablage. Am Rechner geht dasselbe auf der Kommandozeile:
+laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Die
+**Werte-Tafeln im Eingaberaum** zeigen außerdem unter jeder Messung den Code
+für genau das gemessene Werkzeug an genau dieser Hand. Am Rechner geht
+dasselbe auf der Kommandozeile:
 
 ```bash
 npm run config -- decode BG3…        # zeigt die Einstellungen als JSON

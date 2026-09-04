@@ -32,6 +32,7 @@ export type MenuIcon =
   | 'eraser'
   | 'flashlight'
   | 'lamp'
+  | 'controller'
   | 'reddot'
   | 'irons'
   | 'trace'
@@ -400,6 +401,23 @@ export function drawMenuIcon(
       ctx.lineTo(-s * 0.72, -s * 0.66);
       ctx.lineTo(-s * 0.72, -s * 0.34);
       ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'controller': {
+      // Ein Quest-Controller von der Seite: Ring oben, Griff nach unten, und
+      // ein Punkt für den Stick — daran erkennt man ihn auch bei 32 Pixeln.
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.34, s * 0.46, Math.PI * 0.1, Math.PI * 0.9, true);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.3, -s * 0.14);
+      ctx.quadraticCurveTo(-s * 0.24, s * 0.62, s * 0.06, s * 0.8);
+      ctx.quadraticCurveTo(s * 0.34, s * 0.5, s * 0.3, -s * 0.14);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, s * 0.16, s * 0.13, 0, Math.PI * 2);
       ctx.fill();
       break;
     }

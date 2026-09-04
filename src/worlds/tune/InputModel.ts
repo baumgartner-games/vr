@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { formatFold } from '../../core/handGestures';
 import {
+  buildControllerShape,
   componentNode,
   controllerShape,
   liveControllerModel,
@@ -91,8 +92,9 @@ export class InputModel extends THREE.Group {
   private readonly hand = new THREE.Group();
 
   private readonly parts = new Map<string, THREE.MeshStandardMaterial>();
-  private readonly stick = new THREE.Group();
-  private readonly trigger = new THREE.Group();
+  /** Stick und Trigger des gebauten Controllers — sie bewegen sich mit. */
+  private stick = new THREE.Group();
+  private trigger = new THREE.Group();
   private readonly bars: Array<THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>> = [];
   private readonly lamps = new Map<'grab' | 'trigger', THREE.MeshStandardMaterial>();
   private readonly owned: THREE.Material[] = [];
@@ -353,64 +355,14 @@ export class InputModel extends THREE.Group {
     const shell = this.own(
       new THREE.MeshStandardMaterial({ color: 0x1d2331, roughness: 0.6, metalness: 0.15 }),
     );
-    const mirror = this.side === 'left' ? -1 : 1;
-
-    // Body and handle. -Z is forward, exactly like the grip space it copies.
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.105), shell);
-    this.built.add(body);
-
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.016, 0.1, 12), shell);
-    handle.position.set(0, -0.06, 0.032);
-    handle.rotation.x = 0.32;
-    this.built.add(handle);
-
-    // The thumbstick sits on its own pivot so it can lean where yours leans.
-    this.stick.position.set(0, 0.017, -0.016);
-    this.built.add(this.stick);
-    const stickTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.011, 0.009, 0.016, 12),
-      this.part('stickTop', 0x4a5573),
-    );
-    stickTop.position.y = 0.008;
-    this.stick.add(stickTop);
-    const stickBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.013, 0.013, 0.004, 12),
-      this.part('stick', 0x2b3243),
-    );
-    this.built.add(stickBase);
-    stickBase.position.set(0, 0.017, -0.016);
-
-    // A/X sits nearer the thumb, B/Y behind it — the way they are on a Quest.
-    for (const [key, z] of [
-      ['primary', 0.014],
-      ['secondary', 0.036],
-    ] as const) {
-      const button = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.0075, 0.0075, 0.005, 12),
-        this.part(key, 0xd6dbe6),
-      );
-      button.position.set(mirror * 0.012, 0.018, z);
-      this.built.add(button);
-    }
-
-    // The trigger swings on a pivot under the nose, so half a pull looks like
-    // half a pull.
-    this.trigger.position.set(0, -0.008, -0.04);
-    this.built.add(this.trigger);
-    const paddle = new THREE.Mesh(
-      new THREE.BoxGeometry(0.016, 0.026, 0.008),
-      this.part('trigger', 0x9aa6bd),
-    );
-    paddle.position.set(0, -0.012, 0.002);
-    this.trigger.add(paddle);
-
-    // The grip pad on the inside of the handle, where the middle finger is.
-    const grip = new THREE.Mesh(
-      new THREE.BoxGeometry(0.009, 0.036, 0.05),
-      this.part('grip', 0x9aa6bd),
-    );
-    grip.position.set(mirror * -0.026, -0.04, 0.024);
-    this.built.add(grip);
+    // Die Geometrie steht in `core/ControllerModels.ts`, weil sie inzwischen
+    // zweimal gebraucht wird: hier an der Wand und als Werkzeug in der Hand.
+    // Was hier bleibt, ist das Umfärben — nur dieser Raum lässt Tasten
+    // leuchten.
+    const built = buildControllerShape(this.side, shell, (key, color) => this.part(key, color));
+    this.stick = built.stick;
+    this.trigger = built.trigger;
+    this.built.add(built.root);
   }
 
   private buildHand(): void {

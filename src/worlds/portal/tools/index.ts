@@ -1,10 +1,11 @@
-import { AdjustTool } from './AdjustTool';
 import { BrushTool } from './BrushTool';
+import { ControllerTool } from './ControllerTool';
 import { DroneTool } from './DroneTool';
 import { DuplicatorTool } from './DuplicatorTool';
 import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
+import { HandTool } from './HandTool';
 import { InspectTool } from './InspectTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
@@ -41,8 +42,12 @@ export const TOOL_IDS = [
   'xray',
   'drone',
   'tape',
-  'adjust',
   'eraser',
+  // Die drei, die im Eingaberaum eingemessen werden: die Hand selbst und die
+  // beiden Geräte, in denen sie steckt.
+  'hand-box',
+  'controller-left',
+  'controller-right',
 ] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -54,8 +59,8 @@ export type ToolId = (typeof TOOL_IDS)[number];
 export function createTool(id: string): Tool | null {
   const tool = buildTool(id);
   if (!tool) return null;
-  // Remember how it was built, then put a pose the player measured with the
-  // adjustment tool back on top — that one outlives the reload.
+  // Remember how it was built, then put a pose the player measured at the
+  // adjustment bench back on top — that one outlives the reload.
   tool.factoryPosition.copy(tool.holdPosition);
   tool.factoryRotation.copy(tool.holdRotation);
   applyStoredPose(tool);
@@ -96,18 +101,22 @@ function buildTool(id: string): Tool | null {
       return new DroneTool();
     case 'tape':
       return new TapeTool();
-    case 'adjust':
-      return new AdjustTool();
     case 'eraser':
       return new EraserTool();
+    case 'hand-box':
+      return new HandTool();
+    case 'controller-left':
+      return new ControllerTool('left');
+    case 'controller-right':
+      return new ControllerTool('right');
     default:
       return createPortalGunTool(id);
   }
 }
 
 export {
-  AdjustTool,
   BrushTool,
+  ControllerTool,
   DroneTool,
   DuplicatorTool,
   InspectTool,
@@ -115,6 +124,7 @@ export {
   FlashlightTool,
   GrappleTool,
   GravityGloveTool,
+  HandTool,
   PistolTool,
   ShurikenTool,
   StopwatchTool,
@@ -125,6 +135,7 @@ export {
   WelderTool,
   XrayTool,
 };
+export { controllerToolId, CONTROLLER_TOOL_IDS } from './ControllerTool';
 export {
   applyStoredPose,
   clearPose,

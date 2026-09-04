@@ -28,22 +28,19 @@ const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
 
 /**
- * Wie eine Hand gezeichnet wird — drei Antworten, und alle drei gab es schon.
+ * Wie eine Hand gezeichnet wird — zwei Antworten, und beide gibt es.
  *
  * Mit **Controllern** baut das Spiel eine Hand aus Kästen und Kapseln: eine
  * Handfläche als Quader, an jedem Finger zwei Knochen. Mit **Handtracking**
  * gibt es die gar nicht, sondern eine Kugel pro Gelenk, weil die Brille genau
- * das liefert. Und im Eingaberaum liegt wahlweise ein **Controller** auf dem
- * Tisch, weil man den in der Hand hält und nicht die Hand.
+ * das liefert.
  *
- * Drei Darstellungen desselben Dings, und sie sehen unterschiedlich weit von
- * der eigenen Hand entfernt aus — deshalb kann man auf dem Tisch zwischen
- * allen dreien wechseln statt zwischen zweien. `limbs` ist dabei kein neues
- * Modell, sondern dieselbe prozedurale Hand mit Kugeln an den Gelenken statt
- * Knochen dazwischen: dieselbe Haltung, dieselben Zahlen, nur eben so, wie das
- * Headset eine getrackte Hand zeichnet.
+ * `limbs` ist dabei kein neues Modell, sondern dieselbe prozedurale Hand mit
+ * Kugeln an den Gelenken statt Knochen dazwischen: dieselbe Haltung, dieselben
+ * Zahlen, nur eben so, wie das Headset eine getrackte Hand zeichnet. Wer die
+ * beiden nebeneinander sehen will, legt sich im Eingaberaum die **Boxhand als
+ * Werkzeug** in die Hand (`worlds/portal/tools/HandTool.ts`).
  */
-export type GhostKind = 'limbs' | 'hand' | 'controller';
 
 /** One procedural hand: a palm plus five curling fingers. */
 class ProceduralHand extends THREE.Group {
@@ -201,30 +198,48 @@ function buildChain(
   return joints;
 }
 
+/** Wie eine einzelne Hand im Raum aussehen soll. */
+export interface HandShapeOptions {
+  color?: number;
+  /** Knochen wie mit Controllern, Kugeln wie beim Handtracking. */
+  look?: 'bones' | 'limbs';
+  /**
+   * 1 macht sie **fest** statt gläsern.
+   *
+   * Ein Geist ist durchsichtig, weil man durch ihn hindurch die eigene Hand
+   * sehen will. Die Boxhand, die als **Werkzeug** in der Hand liegt
+   * (`tools/HandTool.ts`), ist aber kein Geist, sondern das Ding selbst — und
+   * ein Werkzeug, das man kaum sieht, justiert niemand.
+   */
+  opacity?: number;
+}
+
 /**
- * A see-through copy of a hand, standing still in the room.
+ * A copy of a hand, standing still in the room.
  *
- * The adjustment tool leaves one behind where the hand was, so that while the
- * real hand is being moved into its new place there is something to compare it
- * with. It is a normal procedural hand in a glass material — the same
- * geometry, so what you compare against is genuinely the same shape.
+ * Der Justierstand stellt eine dorthin, wo die Hand läge, damit man beim
+ * Zurechtrücken etwas zum Vergleichen hat. It is a normal procedural hand in a
+ * glass material — the same geometry, so what you compare against is genuinely
+ * the same shape.
  *
- * Auf dem Tisch im Eingaberaum liegt dieselbe Klasse, dort aber wahlweise als
- * **Kugelhand** (`limbs`): dieselbe Haltung, gezeichnet wie eine getrackte
- * Hand. Der Sinn ist immer derselbe — man vergleicht nur ehrlich, wenn das
- * Vergleichsstück so aussieht wie das, was man gerade in der Brille sieht.
+ * Wahlweise als **Kugelhand** (`limbs`): dieselbe Haltung, gezeichnet wie eine
+ * getrackte Hand. Der Sinn ist immer derselbe — man vergleicht nur ehrlich,
+ * wenn das Vergleichsstück so aussieht wie das, was man gerade in der Brille
+ * sieht. Und wahlweise **fest** statt gläsern, denn dieselbe Geometrie ist
+ * inzwischen auch ein Werkzeug.
  */
 export class GhostHand extends THREE.Group {
   private readonly material: THREE.MeshStandardMaterial;
 
-  constructor(side: Handedness, pose: HandPose, color = 0x5ee0a0, look: 'bones' | 'limbs' = 'bones') {
+  constructor(side: Handedness, pose: HandPose, options: HandShapeOptions = {}) {
     super();
+    const { color = 0x5ee0a0, look = 'bones', opacity = 0.32 } = options;
     this.name = `ghost-hand-${side}`;
     this.material = new THREE.MeshStandardMaterial({
       color,
-      transparent: true,
-      opacity: 0.32,
-      depthWrite: false,
+      transparent: opacity < 1,
+      opacity,
+      depthWrite: opacity >= 1,
       roughness: 0.5,
       emissive: new THREE.Color(color).multiplyScalar(0.35),
     });

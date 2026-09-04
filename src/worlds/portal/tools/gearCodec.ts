@@ -81,6 +81,9 @@ const TOOLS = [
   'eraser',
   'superman-glove',
   'flashlight',
+  'hand-box',
+  'controller-left',
+  'controller-right',
 ] as const;
 
 /** Attachment ids. Append only, same rule. */
