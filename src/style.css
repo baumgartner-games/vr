@@ -33,6 +33,12 @@ html, body {
 
 /* ---------- Landing ---------- */
 
+/* Der Weg zur Werkzeugseite: ein Satz, kein dritter Knopf — hier wird gestartet,
+   nicht geblättert. */
+.landing__more { margin: 14px 0 0; font-size: 13px; }
+.landing__more a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--border); }
+.landing__more a:hover { color: var(--fg); }
+
 .landing {
   position: fixed;
   inset: 0;

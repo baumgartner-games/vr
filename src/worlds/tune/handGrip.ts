@@ -36,12 +36,32 @@
  */
 
 import { conjugate, multiplyQuat, rotateVec, type Quat, type Vec3 } from '../portal/tools/aim';
-import type { HoldPose } from '../portal/tools/toolPose';
+import { quatFromEulerXYZ, type HoldPose } from '../portal/tools/toolPose';
+import type { HandPose } from '../../core/handPose';
 
 /** Ein Ort mit einer Drehung — dieselbe Form wie eine `HoldPose`. */
 export interface Pose {
   position: Vec3;
   rotation: Quat;
+}
+
+/**
+ * Eine Handhaltung als Pose: Zentimeter werden Meter, Grad werden ein Quaternion.
+ *
+ * Die Haltung selbst ist in den Zahlen geschrieben, die ein Mensch eintippt
+ * (`core/handPose.ts`); gerechnet wird mit Metern und Quaternionen. Diese eine
+ * Umrechnung liegt dazwischen, und sie liegt hier, weil beide Seiten sie
+ * brauchen: der Justierstand im Eingaberaum und die Werkzeugseite im Netz.
+ */
+export function poseOfHand(pose: HandPose): Pose {
+  return {
+    position: { x: pose.x / 100, y: pose.y / 100, z: pose.z / 100 },
+    rotation: quatFromEulerXYZ({
+      x: (pose.pitch * Math.PI) / 180,
+      y: (pose.yaw * Math.PI) / 180,
+      z: (pose.roll * Math.PI) / 180,
+    }),
+  };
 }
 
 /** `a` und danach `b`, von `a` aus gesehen: erst drehen, dann versetzen. */

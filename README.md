@@ -43,7 +43,8 @@ Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
 des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
-Haltung an derselben Stelle in der Faust landet, den Griff am Stiel des großen
+Haltung an derselben Stelle in der Faust landet, die Räumung nach dem
+Loslassen (ob ein Ding noch im Spieler steckt), den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
 Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte, den
@@ -54,6 +55,14 @@ Auslegung der Hub-Gänge. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
+
+## Werkzeugseite
+
+Neben dem Spiel steht **[`/tools.html`](https://baumgartner-games.github.io/vr/tools.html)**:
+alle Werkzeuge als Liste, jedes einzeln in 3D zum Drehen, und die Boxhand dazu
+ein- und ausschaltbar — wahlweise *in der Hand* (so liegt das Werkzeug darin)
+oder *am Werkzeug* (so umfasst die Hand es). Keine Brille nötig, das Telefon
+reicht. Details in [AGENTS.md](AGENTS.md#die-werkzeugseite).
 
 ## Query-/Hash-Parameter
 

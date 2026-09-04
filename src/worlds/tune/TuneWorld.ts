@@ -26,7 +26,7 @@ import {
   saveGripSettings,
   type GripSettings,
 } from './gripSettings';
-import { ghostOnTool, handFromGhost, toolInGrip, type Pose } from './handGrip';
+import { ghostOnTool, handFromGhost, poseOfHand, toolInGrip, type Pose } from './handGrip';
 import {
   clampRange,
   clearRangeSettings,
@@ -53,7 +53,6 @@ import {
   formatPose,
   gripForHold,
   holdPoseFrom,
-  quatFromEulerXYZ,
   readPose,
   type HoldPose,
   type PoseReadout,
@@ -2314,17 +2313,6 @@ function readoutOfHand(pose: HandPose): PoseReadout {
 }
 
 /** Eine Handhaltung als Pose: Zentimeter werden Meter, Grad werden Bogenmaß. */
-function poseOfHand(pose: HandPose): Pose {
-  return {
-    position: { x: pose.x / 100, y: pose.y / 100, z: pose.z / 100 },
-    rotation: quatFromEulerXYZ({
-      x: (pose.pitch * Math.PI) / 180,
-      y: (pose.yaw * Math.PI) / 180,
-      z: (pose.roll * Math.PI) / 180,
-    }),
-  };
-}
-
 function handLabel(hand: Handedness): string {
   return hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
 }

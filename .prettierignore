@@ -6,3 +6,5 @@ package-lock.json
 # und die Einrückung im HTML sind dort Absicht, nicht Nachlässigkeit.
 src/style.css
 index.html
+src/tools/tools.css
+tools.html

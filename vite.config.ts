@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 // On GitHub Pages the app is served from https://<user>.github.io/<repo>/,
@@ -11,6 +12,15 @@ export default defineConfig({
     target: 'es2022',
     outDir: 'dist',
     sourcemap: true,
+    // Zwei Seiten: die Spielwiese selbst und die Werkzeugseite. Ohne diese
+    // Liste baut Vite nur `index.html`, und `tools.html` läge im Netz als
+    // Datei, die auf ein `src/`-Modul zeigt, das es dort nicht gibt.
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        tools: resolve(__dirname, 'tools.html'),
+      },
+    },
   },
   server: {
     host: true,

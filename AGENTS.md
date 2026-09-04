@@ -134,6 +134,10 @@ null auf den ersten Frame fällt, dass ein Ruckler nicht acht Durchläufe auf
 einmal in die Hand schlägt), die **Augenhöhen**
 (`src/core/posture.ts` — dass die Anhebung die Differenz der beiden ist und
 niemanden in den Boden drückt, der sitzend höher ist als stehend), der
+**Räumung nach dem Loslassen**
+(`src/physics/playerClearance.ts` — ob ein Ding noch in der Spielerkapsel
+steckt, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
+Luft, ohne den der Zustand an der Grenze flackert), der
 **Menüweg** (`src/ui/menuNav.ts` — dass beide Handgelenke denselben Weg lesen
 und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
 die **Welt-Physik**
@@ -1057,6 +1061,29 @@ Die Greifbox ist der Collider plus 9 cm — ein fester Zuschlag, kein
 prozentualer, damit ein Dominostein genauso gut in die Hand springt wie ein
 Companion Cube.
 
+**Was im Spieler steckt, ist für den Spieler nicht da.** Aus dem magischen
+Beutel kommt ein Objekt genau dort, wo die Hand ist, und die ist beim
+Herbeirufen selten weit vom Körper weg. Ließ man los, lag eine Kugel mitten in
+der Spielerkapsel — und Rapier tat, was ein Physikmotor tun muss: es löste die
+Durchdringung auf. Bei einem halben Meter Überlappung heißt das in *einem*
+Schritt, und dann war die Kugel quer durch die Halle geflogen, bevor man sie
+fallen sehen konnte.
+
+Getragene Objekte ignorierten die Kapsel längst (`PhysicsWorld.setCarried`);
+neu ist, dass das beim **Loslassen nicht sofort aufhört**. Ein losgelassenes
+Ding bleibt für den Spieler weich, bis es wirklich draußen ist
+(`physics/playerClearance.ts`, mit Test) — dann fällt es durch den eigenen
+Körper auf den Boden, statt weggeschossen zu werden. Dasselbe gilt für **jeden
+frisch gebauten dynamischen Körper** (`addDynamic`): ein fallengelassenes
+Werkzeug entsteht buchstäblich in der Hand, und die ist am Körper.
+
+Dass es dabei einen Augenblick lang durch die eigenen Füße fällt, ist kein
+Preis, sondern dasselbe Prinzip von der anderen Seite. Deshalb steht dort auch
+**keine Zeitschranke**: eine, die abläuft, während das Ding noch drinsteckt,
+holt genau den Stoß zurück, um den es geht. Die Kapsel selbst schreibt
+`PhysicsLocomotion` jedes Bild in die Physik — sie ändert sich mit jedem
+Schritt und jeder Kniebeuge.
+
 **Ferngreifen** (Einstellungen → Ferngreifen, standardmäßig an) erweitert das auf 9 m und
 läuft in zwei Schritten. Der Zielstrahl trifft die tatsächliche Box eines
 Objekts — plus etwas Rand und einen Kegel, der mit der Entfernung aufgeht, so
@@ -1719,6 +1746,58 @@ wo vorher die Ebene lag.
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
 das Portal Labor nutzt das für seine Zusatzdurchgänge.
+
+### Die Werkzeugseite
+
+Neben dem Spiel steht eine zweite Seite: **`tools.html`**, und sie ist kein
+Spiel. Kein WebXR, keine Physik, keine Welt — eine Liste aller Werkzeuge, und
+wer eines antippt, dreht es mit dem Finger und schaltet die Boxhand daran ein
+und aus. Wozu, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
+Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
+eine Frage, die man im Vorbeigehen stellt.
+
+Zwei Zustände, ein Kopf: die Übersicht trägt links das **Burger-Symbol** (die
+Schublade führt zurück in die Welten und zum Quellcode und hat Platz für mehr),
+ein einzelnes Werkzeug den **Pfeil zurück**. Welcher gilt, steht im **Hash** und
+nicht in einer Variablen — damit tut der Zurück-Knopf des Browsers dasselbe wie
+der im Kopf, und `tools.html#hammer` ist ein Link, den man verschicken kann. Ein
+Hash, den es nicht gibt, endet in der Übersicht und nicht in einer leeren Seite.
+
+Im Kopf steht außerdem der Umschalter für die **Boxhand**, und seine drei
+Zustände sind nicht drei Ansichten desselben Bildes, sondern zwei verschiedene
+Bezugspunkte:
+
+- **Hand aus** — nur das Werkzeug, für die Form.
+- **In der Hand** — der *Griffraum*: die Hand steht still, das Werkzeug liegt
+  darin, dort, wohin `holdPosition` und `holdRotation` es legen. Das Bild aus
+  der Brille: „so halte ich das Ding."
+- **Am Werkzeug** — der *Werkzeugraum*: das Werkzeug steht still, die Hand liegt
+  daran. Das Bild vom zweiten Justierstand: „so umfasst die Hand es."
+
+Zwischen beiden liegt dieselbe Messung; unterschiedlich ist nur, welches von
+beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust sitzt,
+in der Hand, wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
+im Eingaberaum (`tune/handGrip.ts`), nur ohne Zielkorrektur — die kommt aus
+einem Controller, und im Browser gibt es keinen.
+
+Gebaut werden die Modelle mit **demselben `createTool`** wie im Spiel, und die
+Symbole der Kacheln zeichnet **dasselbe `drawMenuIcon`** wie im
+Handgelenk-Menü. Eine Seite mit eigenen, hübscheren Kopien zeigt irgendwann
+etwas anderes als das Spiel, und dann ist sie schlimmer als keine. Aus
+demselben Grund liest die Liste `TOOL_IDS`: ein neues Werkzeug steht dort,
+sobald es im Spiel steht.
+
+Zwei Kleinigkeiten, an denen es zuerst scheiterte und die man wiederfindet, wenn
+man eine dritte Seite baut: Die Kamera passt sich an das an, was man **sieht** —
+`Box3.setFromObject` nimmt auch die ausgeschalteten Geometrien, und bei der
+Taschenlampe ist das ein sechs Meter langer Lichtkegel, vor dem die Kamera
+zurückwich, bis die Lampe ein Punkt war. Und die **Leinwand liegt nicht im
+Fluss**, sondern absolut in einer Bühne: ein `<canvas>` bringt seine
+Attributgröße als eigene Größe mit, und die ist die Bildpunktdichte mal der
+Fläche — im Fluss schiebt jedes Retina-Display die Seite ein Stück auf.
+
+Gebaut wird sie im selben Vite-Lauf (`rollupOptions.input` in `vite.config.ts`);
+ohne diesen Eintrag landete nur `index.html` im `dist`.
 
 ### Eine neue Welt hinzufügen
 
