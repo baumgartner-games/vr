@@ -25,6 +25,10 @@ const _normal = new THREE.Vector3();
 const _eye = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
 const _forward = new THREE.Vector3(0, 0, 1);
+const _scopeAt = new THREE.Vector3();
+const _scopeTurn = new THREE.Quaternion();
+const _scopeScale = new THREE.Vector3();
+const _ahead = new THREE.Vector3();
 
 /** What an attachment is told every frame. */
 export interface AttachmentContext {
@@ -35,6 +39,8 @@ export interface AttachmentContext {
   speed: number;
   /** True while the tool is actually in a hand. */
   held: boolean;
+  /** How far the scope magnifies: 1 = as the naked eye sees it. */
+  zoom: number;
 }
 
 export abstract class Attachment extends THREE.Group {
@@ -83,6 +89,13 @@ export abstract class Attachment extends THREE.Group {
   }
 
   update(_dt: number, _ctx: AttachmentContext): void {}
+
+  /**
+   * A second pass over the scene, drawn *before* the frame this attachment
+   * appears in — the trick the portals and the drone display use. Only
+   * something with a picture of its own needs it.
+   */
+  renderFeed(_renderer: THREE.WebGLRenderer, _scene: THREE.Scene): void {}
 
   /** Anything that hangs outside the tool goes away here. */
   disposeAttachment(): void {}
@@ -387,6 +400,154 @@ class XraySight extends Attachment {
   }
 }
 
+/**
+ * A telescopic sight with a real zoom.
+ *
+ * The picture in the eyepiece is neither a texture nor a trick: a second camera
+ * sits at the front of the tube, looks along the tube's axis and draws the
+ * scene into a render target that lies on the rear lens — the same mechanism
+ * the drone's display uses. The magnification is therefore simply that camera's
+ * field of view: `REFERENCE / zoom`, where `REFERENCE` is what the naked eye
+ * sees. 40× really is 40×.
+ *
+ * The eyepiece has to be brought to the eye, like a real scope. That is why the
+ * camera sits at the front and not at the back: from the back the tube would
+ * photograph itself and half the barrel.
+ *
+ * The magnification is one of the weapon's values (*Einstellungen → Pistole →
+ * Zoom*): step through the notches (1×, 2×, 4×, 8×, 12×, 16×, 20×, 40×) or type
+ * the number in.
+ */
+class TelescopicSight extends Attachment {
+  override readonly attachmentId = 'scope';
+  override readonly label = 'Fernrohr';
+  override readonly factoryPose = { x: 0, y: 4.6, z: -1, pitch: 0, yaw: 0, roll: 0 };
+
+  /** What the naked eye sees — 1× is exactly this angle. */
+  private static readonly REFERENCE = 58;
+  /** Edge of the picture. The lens is round, the target is square. */
+  private static readonly FEED = 512;
+  /** How far ahead of the tube the camera sits, so it never sees the barrel. */
+  private static readonly AHEAD = 0.115;
+
+  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.15, 400);
+  private readonly target: THREE.WebGLRenderTarget;
+  private readonly lens: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
+  private readonly reticle = new THREE.Group();
+  private zoom = 1;
+  private live = false;
+
+  constructor() {
+    super();
+    this.name = 'attach-scope';
+    const shell = new THREE.MeshStandardMaterial({
+      color: 0x1b2130,
+      roughness: 0.45,
+      metalness: 0.5,
+    });
+
+    // Tube, objective bell at the front, eyepiece at the back, and two rings
+    // to sit on the rail with.
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.15, 18), shell);
+    tube.rotation.x = Math.PI / 2;
+    tube.position.set(0, 0, -0.01);
+    this.add(tube);
+    const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.017, 0.035, 18), shell);
+    bell.rotation.x = Math.PI / 2;
+    bell.position.set(0, 0, -0.1);
+    this.add(bell);
+    const eyepiece = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.016, 0.03, 18), shell);
+    eyepiece.rotation.x = Math.PI / 2;
+    eyepiece.position.set(0, 0, 0.075);
+    this.add(eyepiece);
+    for (const z of [-0.05, 0.03]) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.008, 16), shell);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(0, 0, z);
+      this.add(ring);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.016, 0.01), shell);
+      foot.position.set(0, -0.024, z);
+      this.add(foot);
+    }
+
+    this.target = new THREE.WebGLRenderTarget(TelescopicSight.FEED, TelescopicSight.FEED, {
+      depthBuffer: true,
+      colorSpace: THREE.SRGBColorSpace,
+    });
+    this.lens = new THREE.Mesh(
+      new THREE.CircleGeometry(0.0155, 28),
+      new THREE.MeshBasicMaterial({ map: this.target.texture, toneMapped: false }),
+    );
+    // At the rear end, facing the eye: a circle looks along +Z.
+    this.lens.position.set(0, 0, 0.0905);
+    this.add(this.lens);
+
+    // Crosshair on the glass — four strokes that leave the middle clear.
+    const mark = new THREE.MeshBasicMaterial({
+      color: 0x101418,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      depthWrite: false,
+    });
+    for (const [w, h, x, y] of [
+      [0.0009, 0.0095, 0, 0.0058],
+      [0.0009, 0.0095, 0, -0.0058],
+      [0.0095, 0.0009, 0.0058, 0],
+      [0.0095, 0.0009, -0.0058, 0],
+    ] as const) {
+      const bar = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mark);
+      bar.position.set(x, y, 0);
+      this.reticle.add(bar);
+    }
+    this.reticle.position.set(0, 0, 0.0906);
+    this.reticle.renderOrder = 42;
+    this.add(this.reticle);
+  }
+
+  override update(_dt: number, ctx: AttachmentContext): void {
+    this.zoom = ctx.zoom;
+    this.live = ctx.held;
+    this.lens.visible = ctx.held;
+    this.reticle.visible = ctx.held;
+  }
+
+  override renderFeed(renderer: THREE.WebGLRenderer, scene: THREE.Scene): void {
+    if (!this.live || !this.visible) return;
+
+    this.updateWorldMatrix(true, false);
+    this.matrixWorld.decompose(_scopeAt, _scopeTurn, _scopeScale);
+    this.camera.quaternion.copy(_scopeTurn);
+    _ahead.set(0, 0, -1).applyQuaternion(_scopeTurn);
+    this.camera.position.copy(_scopeAt).addScaledVector(_ahead, TelescopicSight.AHEAD);
+    // The magnification *is* the field of view: half the angle over the factor.
+    const half = THREE.MathUtils.degToRad(TelescopicSight.REFERENCE) / 2;
+    this.camera.fov = THREE.MathUtils.radToDeg(
+      2 * Math.atan(Math.tan(half) / Math.max(1, this.zoom)),
+    );
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld(true);
+
+    const previousTarget = renderer.getRenderTarget();
+    const xrEnabled = renderer.xr.enabled;
+    renderer.xr.enabled = false;
+    // The lens must not photograph itself.
+    this.lens.visible = false;
+    this.reticle.visible = false;
+    renderer.setRenderTarget(this.target);
+    renderer.render(scene, this.camera);
+    renderer.setRenderTarget(previousTarget);
+    renderer.xr.enabled = xrEnabled;
+    this.lens.visible = true;
+    this.reticle.visible = true;
+  }
+
+  override disposeAttachment(): void {
+    this.target.dispose();
+  }
+}
+
 /** Builds one of the aiming aids; `none` has nothing to build. */
 export function createSight(kind: SightKind): Attachment | null {
   switch (kind) {
@@ -398,6 +559,8 @@ export function createSight(kind: SightKind): Attachment | null {
       return new TrajectorySight();
     case 'xray':
       return new XraySight();
+    case 'scope':
+      return new TelescopicSight();
     default:
       return null;
   }

@@ -19,10 +19,10 @@ export type FireMode = 'single' | 'burst' | 'auto';
 export type AmmoKind = 'normal' | 'tracer';
 
 /** What can sit on top of the gun. `none` is the "take everything off" cell. */
-export type SightKind = 'none' | 'reddot' | 'irons' | 'trace' | 'xray';
+export type SightKind = 'none' | 'reddot' | 'irons' | 'trace' | 'xray' | 'scope';
 
 /** The aiming aids that are real attachments, in the order they are stored. */
-export const SIGHT_KINDS: readonly SightKind[] = ['reddot', 'irons', 'trace', 'xray'];
+export const SIGHT_KINDS: readonly SightKind[] = ['reddot', 'irons', 'trace', 'xray', 'scope'];
 
 export interface WeaponSettings {
   /** Kilograms per round — the punch is mass times speed. */
@@ -39,6 +39,8 @@ export interface WeaponSettings {
   burst: number;
   mode: FireMode;
   ammo: AmmoKind;
+  /** What the telescopic sight magnifies by; 1 is the naked eye. */
+  zoom: number;
   /**
    * Everything clipped onto the rail at once — a red dot *and* the trajectory
    * line is a perfectly sensible thing to want, and each one carries its own
@@ -56,6 +58,7 @@ export const DEFAULT_WEAPON: WeaponSettings = {
   burst: 3,
   mode: 'single',
   ammo: 'normal',
+  zoom: 4,
   sights: [],
 };
 
@@ -74,6 +77,8 @@ export const RATE_STEPS = [2, 5, 9, 14, 20] as const;
 export const MAGAZINE_STEPS = [6, 12, 17, 30, 60, 100] as const;
 export const RELOAD_STEPS = [0.4, 0.8, 1.15, 2] as const;
 export const BURST_STEPS = [2, 3, 5] as const;
+/** The notches on the scope's ring — the ones a real one is engraved with. */
+export const ZOOM_STEPS = [1, 2, 4, 8, 12, 16, 20, 40] as const;
 
 export const FIRE_MODES: readonly FireMode[] = ['single', 'burst', 'auto'];
 
@@ -102,6 +107,7 @@ export const SIGHTS: ReadonlyArray<{
   { id: 'irons', label: 'Kimme & Korn', caption: 'Kimme hinten, Korn vorn — klassisch' },
   { id: 'trace', label: 'Flugbahn', caption: 'Zeigt die Bahn der Kugel voraus' },
   { id: 'xray', label: 'Röntgen', caption: 'Röntgengerät auf der Waffe: sieht durch Wände' },
+  { id: 'scope', label: 'Fernrohr', caption: 'Zielfernrohr mit echtem Zoom — Stufe unter „Zoom“' },
 ];
 
 /** One value the player may type in, with the range that still makes sense. */
@@ -132,6 +138,15 @@ export const WEAPON_FIELDS: readonly WeaponField[] = [
   { key: 'magazine', label: 'Magazin', unit: 'Schuss', min: 1, max: 300, decimals: 0, sub: 'Rundenanzahl bis zum Nachladen' },
   { key: 'reload', label: 'Nachladezeit', unit: 's', min: 0.05, max: 10, decimals: 2, sub: 'Wie lange das Magazin braucht' },
   { key: 'burst', label: 'Salve', unit: 'Schuss', min: 1, max: 20, decimals: 0, sub: 'Wie viele der Dreifachschuss abgibt' },
+  {
+    key: 'zoom',
+    label: 'Zoom',
+    unit: '×',
+    min: 1,
+    max: 60,
+    decimals: 1,
+    sub: 'Vergrößerung des Fernrohrs',
+  },
 ];
 
 /** Every value inside its range, and the names spelled correctly. */
@@ -188,6 +203,11 @@ export function clampField(field: WeaponField, value: number): number {
  */
 export function nextStep(steps: readonly number[], value: number): number {
   return steps.find((step) => step > value + 1e-9) ?? steps[0]!;
+}
+
+/** How the magnification reads: "4×", and 2.5 stays 2.5×. */
+export function zoomLabel(zoom: number): string {
+  return `${Number.isInteger(zoom) ? zoom : zoom.toFixed(1)}×`;
 }
 
 /** The name of the notch a mass is at, or the raw figure when it is between. */

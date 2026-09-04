@@ -3,12 +3,14 @@ import {
   MAGAZINE_STEPS,
   SPEED_STEPS,
   WEAPON_FIELDS,
+  ZOOM_STEPS,
   clampField,
   clampWeapon,
   nextIn,
   nextPower,
   nextStep,
   powerLabel,
+  zoomLabel,
 } from './weaponSettings';
 
 describe('nextStep', () => {
@@ -84,6 +86,28 @@ describe('powerLabel', () => {
   it('steps from notch to notch', () => {
     expect(nextPower(0.03)).toBe(0.06);
     expect(nextPower(0.3)).toBe(0.03);
+  });
+});
+
+describe('zoom', () => {
+  it('steps through the notches on the ring and wraps', () => {
+    expect(ZOOM_STEPS[0]).toBe(1);
+    expect(nextStep(ZOOM_STEPS, 1)).toBe(2);
+    expect(nextStep(ZOOM_STEPS, 20)).toBe(40);
+    expect(nextStep(ZOOM_STEPS, 40)).toBe(1);
+    // A typed-in number lands on the next notch above it.
+    expect(nextStep(ZOOM_STEPS, 6.5)).toBe(8);
+  });
+
+  it('stays inside what a scope can do', () => {
+    expect(clampWeapon({ zoom: 0.2 }).zoom).toBe(1);
+    expect(clampWeapon({ zoom: 900 }).zoom).toBe(60);
+    expect(clampWeapon({ zoom: 2.55 }).zoom).toBe(2.6);
+  });
+
+  it('writes itself the way a scope is engraved', () => {
+    expect(zoomLabel(4)).toBe('4×');
+    expect(zoomLabel(2.5)).toBe('2.5×');
   });
 });
 

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
 import { createSky } from '../shared/environment';
 import { TextPlane } from '../../ui/TextPlane';
+import { ScoreHud } from '../../ui/ScoreHud';
+import { faceHit } from './scoring';
 import { playTone } from '../../core/Audio';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
@@ -20,35 +22,12 @@ const POST_HEIGHT = 1.9;
 /** How far in front of its post a target hangs. */
 const STANDOFF = 0.14;
 
-/**
- * The rings of a bullseye, from the middle out: how far out each one reaches
- * as a share of the radius, and what it is worth. The same five rings the face
- * is painted with, so what is counted is what is seen.
- */
-const RINGS: ReadonlyArray<{ upTo: number; points: number }> = [
-  { upTo: 0.21, points: 10 },
-  { upTo: 0.4, points: 8 },
-  { upTo: 0.58, points: 6 },
-  { upTo: 0.77, points: 4 },
-  { upTo: 1, points: 2 },
-];
-
-/** A steel plate is a hit or a miss, nothing in between. */
-const PLATE_POINTS = 5;
-/** Seconds a score stays in the air, and how far it drifts up in that time. */
-const POP_TIME = 1.6;
-const POP_RISE = 0.5;
-/** More than this many at once and the oldest goes — it is a range, not a wall. */
-const MAX_POPS = 14;
-
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
-const _hit = new THREE.Vector3();
-const _eye = new THREE.Vector3();
+const _inverse = new THREE.Matrix4();
 const _box = new THREE.Box3();
 const _ray = new THREE.Ray();
 const _corner = new THREE.Vector3();
-const _towards = new THREE.Vector3();
 
 /** A disc that can be scored, and how far out it stands. */
 interface ScoreTarget {
@@ -72,12 +51,6 @@ interface RangeSwitch {
   toggle: () => void;
 }
 
-/** A score hanging in the air, on its way up and out. */
-interface ScorePop {
-  plane: TextPlane;
-  life: number;
-}
-
 /**
  * A shooting range: a covered firing line and targets out in the distance.
  *
@@ -89,9 +62,16 @@ interface ScorePop {
  *
  * Every hit is **counted**: a bullseye by the ring it lands in (10 down to 2,
  * the same five rings the face is painted with), a steel plate flat. The score
- * appears in the air where the round went through and a short tone rises with
- * it — the two things that turn shooting at a disc a hundred metres away into
- * something you can tell apart from missing it.
+ * goes into the **upper field of view** (`ScoreHud`) and a short tone rises
+ * with it — the two things that turn shooting at a disc a hundred metres away
+ * into something you can tell apart from missing it. Over the target would be
+ * the honest place for the number and it is where nobody could read it; the
+ * tone comes out of nowhere right at the ear, because a hit a hundred metres
+ * out would otherwise arrive a third of a second late and barely be audible.
+ *
+ * What was missing all along is the lead in `scoring.ts`: the physics stops the
+ * round *in front of* the face, so a frame's path never reaches the face plane
+ * — and nothing was counted and nothing was heard.
  *
  * Both can be switched off, and the switches are where they belong: two boards
  * on the firing line that can be **shot** or picked with the **trigger**. The
@@ -124,7 +104,8 @@ export class RangeWorld extends PortalWorld {
   /** Everything a shot can score on. */
   private readonly targets: ScoreTarget[] = [];
   private readonly switches: RangeSwitch[] = [];
-  private readonly pops: ScorePop[] = [];
+  /** The scores, in the upper field of view. */
+  private readonly hud = new ScoreHud();
   /** Both on to start with: that is what a range is for. */
   private sound = true;
   private showPoints = true;
@@ -136,11 +117,12 @@ export class RangeWorld extends PortalWorld {
     for (const entry of this.switches) {
       ctx.pointer.add({ object: entry.body, onSelect: () => entry.toggle() });
     }
+    this.hud.mount(ctx.camera);
   }
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
-    this.updatePops(dt, ctx);
+    this.hud.update(dt);
   }
 
   override dispose(ctx: WorldContext): void {
@@ -150,11 +132,7 @@ export class RangeWorld extends PortalWorld {
     }
     this.switches.length = 0;
     this.targets.length = 0;
-    for (const pop of this.pops) {
-      pop.plane.dispose();
-      pop.plane.removeFromParent();
-    }
-    this.pops.length = 0;
+    this.hud.unmount(ctx.camera);
     super.dispose(ctx);
   }
 
@@ -244,79 +222,56 @@ export class RangeWorld extends PortalWorld {
         this.targets.splice(i, 1);
         continue;
       }
-      const radial = discHit(target, from, to, _hit);
-      if (radial === null) continue;
-      // Back along the shot and a little up: a number inside the disc it
-      // belongs to is a number nobody can read.
-      _towards.copy(from).sub(to).normalize().multiplyScalar(0.3);
-      _hit.add(_towards).y += 0.3;
-      this.score(target, radial, _hit);
+      const points = this.hitPoints(target, from, to);
+      if (points === null) continue;
+      this.score(points, target.distance);
       return true;
     }
     return false;
   }
 
-  /** A hit, in points, in the air and in the ear. */
-  private score(target: ScoreTarget, radial: number, at: THREE.Vector3): void {
-    const points = target.plate
-      ? PLATE_POINTS
-      : (RINGS.find((ring) => radial <= ring.upTo)?.points ?? 2);
+  /**
+   * The path in the target's own coordinates, and what comes out of it there.
+   *
+   * The targets are never scaled or skewed, so `worldToLocal` is a rotation and
+   * a shift and nothing else — a metre stays a metre, and the lead inside
+   * `faceHit` means over there exactly what it means here.
+   */
+  private hitPoints(
+    target: ScoreTarget,
+    from: THREE.Vector3,
+    to: THREE.Vector3,
+  ): number | null {
+    const object = target.entry.object;
+    object.updateWorldMatrix(true, false);
+    // One inversion for both ends: `worldToLocal` would invert the matrix twice
+    // per target, and every round in the air asks every target every frame.
+    _inverse.copy(object.matrixWorld).invert();
+    _from.copy(from).applyMatrix4(_inverse);
+    _to.copy(to).applyMatrix4(_inverse);
+    return faceHit(_from, _to, target)?.points ?? null;
+  }
 
+  /**
+   * A hit: the number into the field of view, the tone into the ear.
+   *
+   * Both happen **here**, at the shooter — no sound from out there, no number
+   * on the target. That is the nonsense every game commits, and for a reason:
+   * at a hundred metres the clang would arrive a third of a second late and
+   * barely be heard, and nobody has ever enjoyed hearing it correctly.
+   */
+  private score(points: number, distance: number): void {
     if (this.sound) {
       // The better the hit, the higher it rings.
       const base = 420 + points * 46;
       playTone({ type: 'sine', from: base, to: base * 1.5, duration: 0.14, gain: 0.06 });
     }
-    if (this.showPoints) this.popScore(points, target.distance, at);
-  }
-
-  /** The number, hanging in the air where the round went through. */
-  private popScore(points: number, distance: number, at: THREE.Vector3): void {
-    const plane = new TextPlane({
-      width: 0.5,
-      height: 0.22,
-      // One line, as large as the plane allows: at fifty metres a second line
-      // is not something anybody reads, it is something that makes the first
-      // one smaller.
-      title: `+${points} · ${Math.round(distance)} m`,
-      accent: points >= 8 ? 0x5ee0a0 : points >= 4 ? 0xffc857 : 0x9fb0d0,
-      background: 'rgba(9, 14, 26, 0.72)',
-      align: 'center',
-    });
-    plane.position.copy(at);
-    // Big enough to read from the firing line: a hundred metres is a long way,
-    // and the number has to stay the same size on the eye whatever it is.
-    plane.scale.setScalar(1 + distance * 0.085);
-    this.root.add(plane);
-    this.pops.push({ plane, life: POP_TIME });
-    // Everything has its limit, and a wall of numbers is not a scoreboard.
-    while (this.pops.length > MAX_POPS) {
-      const oldest = this.pops.shift()!;
-      oldest.plane.dispose();
-      oldest.plane.removeFromParent();
-    }
-  }
-
-  /** Every score drifts up, turns to face the eye, and fades out. */
-  private updatePops(dt: number, ctx: WorldContext): void {
-    if (this.pops.length === 0) return;
-    ctx.camera.getWorldPosition(_eye);
-    for (let i = this.pops.length - 1; i >= 0; i--) {
-      const pop = this.pops[i]!;
-      pop.life -= dt;
-      if (pop.life <= 0) {
-        pop.plane.dispose();
-        pop.plane.removeFromParent();
-        this.pops.splice(i, 1);
-        continue;
-      }
-      const left = pop.life / POP_TIME;
-      pop.plane.position.y += (POP_RISE / POP_TIME) * dt;
-      pop.plane.lookAt(_eye);
-      // It only starts fading in the last third — a number that goes pale at
-      // once cannot be read at all.
-      pop.plane.material.opacity = Math.min(1, left * 3);
-    }
+    if (!this.showPoints) return;
+    this.hud.push(
+      `+${points}`,
+      `${Math.round(distance)} m`,
+      points >= 8 ? 0x5ee0a0 : points >= 4 ? 0xffc857 : 0x9fb0d0,
+    );
   }
 
   private notifySwitch(entry: RangeSwitch): void {
@@ -382,7 +337,9 @@ export class RangeWorld extends PortalWorld {
       width: 3.4,
       height: 1,
       title: 'Schießstand',
-      body: 'Ziele auf 10, 25, 50, 75 und 100 m. Stärke, Tempo, Feuerrate und Modus im Menü.',
+      body:
+        'Ziele auf 10, 25, 50, 75 und 100 m. Punkte oben im Blick, Ton im Ohr. ' +
+        'Werte, Zielhilfen und Zoom im Menü.',
       accent: 0xffc857,
     });
     sign.position.set(0, 2.6, 4.82);
@@ -613,54 +570,6 @@ export class RangeWorld extends PortalWorld {
     this.targetFace = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.8 });
     return this.targetFace;
   }
-}
-
-/**
- * Where a segment goes through a target's face, in the target's own space.
- *
- * A bullseye is a cylinder standing on its local Y, so its face is the plane
- * `y = 0` and a hit is a radius. A steel plate is a box whose face looks along
- * its local Z, and there a hit is simply inside the square.
- *
- * @returns how far out the hit is, 0 in the middle and 1 at the rim — or null
- *          when the segment misses. The world point lands in `out`.
- */
-function discHit(
-  target: ScoreTarget,
-  from: THREE.Vector3,
-  to: THREE.Vector3,
-  out: THREE.Vector3,
-): number | null {
-  const object = target.entry.object;
-  object.updateWorldMatrix(true, false);
-  object.worldToLocal(_from.copy(from));
-  object.worldToLocal(_to.copy(to));
-
-  const along = target.plate ? 'z' : 'y';
-  const start = _from[along];
-  const end = _to[along];
-  const span = end - start;
-  // Parallel to the face: it may pass beside it, it cannot go through it.
-  if (Math.abs(span) < 1e-6) return null;
-  const t = -start / span;
-  if (t < 0 || t > 1) return null;
-
-  const x = _from.x + (_to.x - _from.x) * t;
-  const y = _from.y + (_to.y - _from.y) * t;
-  const z = _from.z + (_to.z - _from.z) * t;
-
-  let radial: number;
-  if (target.plate) {
-    if (Math.abs(x) > target.radius || Math.abs(y) > target.radius) return null;
-    radial = 0;
-  } else {
-    radial = Math.hypot(x, z) / target.radius;
-    if (radial > 1) return null;
-  }
-
-  out.set(x, y, z);
-  object.localToWorld(out);
-  return radial;
 }
 
 /** True when the segment runs into an object's box — used for the switches. */

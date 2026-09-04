@@ -40,8 +40,9 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
     this.draw();
   }
 
-  setText(title: string, body?: string): void {
-    this.options = { ...this.options, title, body };
+  /** New words, and — for anything that changes with them — a new accent. */
+  setText(title: string, body?: string, accent?: number): void {
+    this.options = { ...this.options, title, body, accent: accent ?? this.options.accent };
     this.draw();
   }
 

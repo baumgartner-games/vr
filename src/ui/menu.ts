@@ -33,6 +33,7 @@ export type MenuIcon =
   | 'reddot'
   | 'irons'
   | 'trace'
+  | 'scope'
   | 'palette';
 
 /** One row (or grid cell) of the wrist menu. */
@@ -547,6 +548,31 @@ export function drawMenuIcon(
       ctx.beginPath();
       ctx.arc(s * 0.8, s * 0.5, s * 0.2, 0, Math.PI * 2);
       ctx.stroke();
+      break;
+    }
+    case 'scope': {
+      // A tube from the side, the bell in front, the eyepiece behind.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.62, -s * 0.26);
+      ctx.lineTo(s * 0.42, -s * 0.26);
+      ctx.lineTo(s * 0.42, s * 0.26);
+      ctx.lineTo(-s * 0.62, s * 0.26);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.42, -s * 0.42);
+      ctx.lineTo(s * 0.78, -s * 0.42);
+      ctx.lineTo(s * 0.78, s * 0.42);
+      ctx.lineTo(s * 0.42, s * 0.42);
+      ctx.closePath();
+      ctx.stroke();
+      // The two rings it sits on the rail with.
+      for (const x of [-s * 0.34, s * 0.06]) {
+        ctx.beginPath();
+        ctx.moveTo(x, s * 0.26);
+        ctx.lineTo(x, s * 0.58);
+        ctx.stroke();
+      }
       break;
     }
     case 'palette': {

@@ -121,6 +121,7 @@ const SIGHT_ICONS: Record<SightKind, MenuIcon> = {
   irons: 'irons',
   trace: 'trace',
   xray: 'xray',
+  scope: 'scope',
 };
 
 /** Two decimals is as fine as any of these settings needs to read. */
@@ -619,6 +620,13 @@ export class PortalWorld implements World {
           'Einzeln, Salve oder automatisch',
           () => pistol.modeLabel,
           () => pistol.cycleMode(),
+        ),
+        dial(
+          'zoom',
+          'Zoom',
+          'Vergrößerung des Fernrohrs · 1× bis 40×',
+          () => pistol.zoomLabel,
+          () => pistol.cycleZoom(),
         ),
         this.weaponValuesMenu(pistol),
         this.sightMenu(pistol),
@@ -1120,6 +1128,11 @@ export class PortalWorld implements World {
     // frame it appears in — same order as the portal views.
     for (const tool of this.held.values()) {
       if (tool instanceof DroneTool) tool.renderFeed(ctx.renderer, ctx.scene);
+      // The same for anything on a tool that has a picture of its own — the
+      // scope on the pistol looks through a camera of its own.
+      for (const attachment of tool.attachments()) {
+        attachment.renderFeed(ctx.renderer, ctx.scene);
+      }
     }
     this.portalRenderer?.render(ctx.scene, ctx.camera, [this.portalBlue, this.portalRed]);
     ctx.renderer.render(ctx.scene, ctx.camera);

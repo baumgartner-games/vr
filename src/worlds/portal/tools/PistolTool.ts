@@ -12,6 +12,7 @@ import {
   RATE_STEPS,
   RELOAD_STEPS,
   SPEED_STEPS,
+  ZOOM_STEPS,
   clampWeapon,
   nextIn,
   nextPower,
@@ -19,6 +20,7 @@ import {
   powerLabel,
   sightsLabel,
   toggleSight,
+  zoomLabel,
   type AmmoKind,
   type FireMode,
   type SightKind,
@@ -221,6 +223,11 @@ export class PistolTool extends Tool {
     return AMMO_LABELS[this.settings.ammo];
   }
 
+  /** What the scope magnifies by, as it is written on the menu row. */
+  get zoomLabel(): string {
+    return zoomLabel(this.settings.zoom);
+  }
+
   get powerLabel(): string {
     return powerLabel(this.settings.mass);
   }
@@ -289,6 +296,11 @@ export class PistolTool extends Tool {
 
   cycleAmmo(): AmmoKind {
     return this.set({ ammo: nextIn(AMMO_KINDS, this.settings.ammo) }).ammo;
+  }
+
+  /** 1×, 2×, 4× … 40× and round again. */
+  cycleZoom(): number {
+    return this.set({ zoom: nextStep(ZOOM_STEPS, this.settings.zoom) }).zoom;
   }
 
   /** Clips one aiming aid on or takes it off; `none` clears the rail. */
@@ -372,6 +384,7 @@ export class PistolTool extends Tool {
       muzzle: this.muzzle,
       speed: this.settings.speed,
       held: Boolean(this.heldBy) && !this.parked,
+      zoom: this.settings.zoom,
     };
   }
 

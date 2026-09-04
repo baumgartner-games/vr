@@ -45,7 +45,9 @@ Vorzeichen, die im Headset sonst die halbe Welt verdrehen), die Handhaltung
 (`src/core/handPose.ts`), die Waffenwerte
 (`src/worlds/portal/tools/weaponSettings.ts`), der **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
-und abgeschnittener Zeile) und die Zielrichtung der Werkzeuge
+und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
+(`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
+Physik jeden Treffer verschluckt) und die Zielrichtung der Werkzeuge
 (`src/worlds/portal/tools/aim.ts` — der Test hält fest, dass ein Werkzeug in
 der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
@@ -110,8 +112,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Salve, Automatik). Jede Zeile schaltet auf die nächste Raste weiter **und
     zeigt die rohe Zahl daneben** — und unter *Werte eingeben* lässt sich jede
     davon über eine Tastatur direkt tippen. Dazu **Zielhilfen** (Rotpunkt,
-    Kimme & Korn, Flugbahn, Röntgen — oder alles ab) und die **Munition**
-    (normal oder Leuchtspur).
+    Kimme & Korn, Flugbahn, Röntgen, **Fernrohr** — oder alles ab), der
+    **Zoom** des Fernrohrs (1×, 2×, 4×, 8×, 12×, 16×, 20×, 40× durchklicken
+    oder tippen) und die **Munition** (normal oder Leuchtspur).
   - **Stoppuhr**: Trigger schaltet Zeitlupe an und aus, Loslassen der Uhr
     stellt die normale Geschwindigkeit wieder her.
   - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
@@ -201,7 +204,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Zielscheiben auf 10, 25 und 50 m, zwei großen auf 75 und 100 m sowie einer
   Reihe Stahlplatten auf 18 m. Die Scheiben hängen an Scharnieren und schwingen
   beim Treffer zurück. Am Gürtel hängt hier die Pistole. Gedacht zum
-  Ausprobieren der Waffeneinstellungen.
+  Ausprobieren der Waffeneinstellungen. **Jeder Treffer zählt**: die Scheibe
+  nach dem Ring (10 bis 2), die Stahlplatte pauschal. Die Zahl erscheint
+  **oben im Blickfeld** — nicht an der Scheibe, dort wäre sie auf hundert
+  Meter unlesbar — und ein kurzer Ton steigt mit ihr auf, je besser der
+  Treffer, desto höher. Beides direkt beim Schützen, ohne Laufzeit und ohne
+  Entfernung, und beides an zwei Tafeln auf der Schießlinie abschaltbar
+  (anschießen oder Trigger).
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
@@ -317,8 +326,18 @@ Wörter passen, steht über dem Panel eine Zeile darüber, worauf gerade gezeigt
 wird. Zur Wahl stehen *alles ab*, **Rotpunkt** (der Punkt sitzt 25 m weit
 draußen und wird auf Größe skaliert, wandert beim Kopfbewegen also nicht),
 **Kimme & Korn**, **Flugbahn** (rechnet die Parabel der nächsten Kugel voraus
-und markiert, wo sie aufschlägt) und das **Röntgengerät** (derselbe Scanner wie
-das Handgerät, nur klein — beide benutzen `XrayScope`).
+und markiert, wo sie aufschlägt), das **Röntgengerät** (derselbe Scanner wie
+das Handgerät, nur klein — beide benutzen `XrayScope`) und das **Fernrohr**.
+
+Das **Fernrohr** vergrößert wirklich: eine zweite Kamera sitzt vorne im Rohr,
+schaut die Rohrachse entlang und zeichnet die Szene in ein Render-Target, das
+auf der hinteren Linse liegt — dieselbe Mechanik wie das Drohnendisplay
+(`Attachment.renderFeed`, aufgerufen von `PortalWorld.render`). Die
+Vergrößerung *ist* damit der Öffnungswinkel dieser Kamera: 58° geteilt durch
+den Faktor. Man nimmt das Okular ans Auge wie bei einem echten Zielfernrohr;
+die Kamera sitzt deshalb vorn und nicht hinten, sonst fotografierte das Rohr
+sich selbst und den halben Lauf. Der Zoom steht als eigene Menüzeile
+(*Zoom*, Rasten 1× bis 40×) und als Zahl unter *Werte eingeben* (1 bis 60).
 
 **Munition**: normal oder **Leuchtspur**. Eine Leuchtspurkugel glüht und zieht
 eine kurze Linie hinter sich her, so dass man einem Schuss zusehen kann,
@@ -500,6 +519,15 @@ Teleportation wirken.
 
 Bekannte Grenzen des Prototyps: Portale nur auf ebenen Flächen, und es gibt
 eine Rekursionsstufe — im Portal zeigt das gegenüberliegende seinen Ruhewirbel.
+
+**Zwei Render-Ebenen** halten auseinander, wer was sieht: `LAYER_SELF_ONLY` (3)
+trägt den eigenen Körper — den zeichnen *nur* die Portalkameras, direkt sieht
+man von sich die Hände. `LAYER_HUD` (4, in `src/ui/ScoreHud.ts`) ist das
+Gegenstück: das HUD hängt an der Kamera und darf in keiner zweiten Kamera
+auftauchen, sonst schwebt es in der Portalsicht, im Drohnendisplay oder im
+Fernrohr mitten im Raum. `PortalRenderer.viewLayers` setzt für jede Portalsicht
+das eine Bit und löscht das andere; Drohne und Fernrohr bringen eigene Kameras
+mit, die von Haus aus nur Ebene 0 zeichnen.
 
 ### Zusammen spielen (Peer-to-Peer)
 

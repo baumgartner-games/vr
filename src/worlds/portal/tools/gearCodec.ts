@@ -51,7 +51,7 @@ const TOOLS = [
 ] as const;
 
 /** Attachment ids. Append only, same rule. */
-const ATTACHMENTS = ['reddot', 'irons', 'trace', 'xray'] as const;
+const ATTACHMENTS = ['reddot', 'irons', 'trace', 'xray', 'scope'] as const;
 
 /** Drone control profiles. Append only, same rule. */
 const DRONE_PROFILES = ['kopter', 'racing'] as const;
@@ -134,6 +134,11 @@ export function writeGear(data: GearData): Uint8Array {
   out.uint(sights);
 
   out.byte(Math.max(0, DRONE_PROFILES.indexOf(data.drone.profile)) | (data.drone.replace ? 4 : 0));
+
+  // Appended, not inserted: an older code simply ends here, and the reader
+  // gives zeros past the end — which turns back into the built-in value below.
+  // New fields therefore always belong at the end.
+  out.fixed(data.weapon.zoom, 10);
   return out.bytes();
 }
 
@@ -192,6 +197,11 @@ export function readGear(payload: Uint8Array): GearData | null {
     profile: DRONE_PROFILES[droneByte & 3],
     replace: (droneByte & 4) !== 0,
   });
+
+  // A code from before the scope carries no magnification — 0 means "was not
+  // in there", and then the built-in value stands.
+  const zoom = input.fixed(10);
+  if (zoom > 0) weapon.zoom = clampWeapon({ ...weapon, zoom }).zoom;
 
   return { tools, hands: { idle, hold: hold as StoredHandPoses['hold'] }, attachments, weapon, drone };
 }

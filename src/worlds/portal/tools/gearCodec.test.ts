@@ -30,7 +30,8 @@ const CONFIG: GearData = {
     rate: 9,
     mode: 'burst',
     ammo: 'tracer',
-    sights: ['reddot', 'trace'],
+    zoom: 12,
+    sights: ['reddot', 'trace', 'scope'],
   },
   drone: { profile: 'racing', replace: true },
 };
@@ -104,6 +105,25 @@ describe('gear codec', () => {
     };
     // A tenth of a centimetre and a whole degree — what the display shows.
     expect(roundTrip(data).tools['pistol']).toEqual([1.2, 0, 0, 13, 0, 0]);
+  });
+
+  it('carries the scope and its magnification', () => {
+    const back = roundTrip(CONFIG);
+    expect(back.weapon.zoom).toBe(12);
+    expect(back.weapon.sights).toContain('scope');
+  });
+
+  /**
+   * The magnification is appended at the end. A code from before it stops
+   * short — the reader then gives zeros, and out of those has to come the
+   * built-in value, not 0×.
+   */
+  it('gives an older code without a magnification the built-in one', () => {
+    // 1× is exactly one byte at the end — without it the stream is byte for
+    // byte the one the version before the scope wrote.
+    const bytes = writeGear({ ...CONFIG, weapon: { ...CONFIG.weapon, zoom: 1 } });
+    const older = bytes.subarray(0, bytes.length - 1);
+    expect(readGear(older)?.weapon.zoom).toBe(DEFAULT_WEAPON.zoom);
   });
 
   it('refuses a payload from a format it does not know', () => {
