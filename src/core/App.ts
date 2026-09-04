@@ -10,6 +10,7 @@ import { WristMenus } from '../ui/WristMenus';
 import { NetSession } from '../net/NetSession';
 import { CHAT_LIMIT, ChatLog, type ChatEntry } from '../net/chat';
 import { RemoteAvatars } from '../net/RemoteAvatars';
+import { Voice } from '../net/Voice';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTransport';
 import { SpectatorCamera, type SpectatorMode } from '../net/SpectatorCamera';
@@ -93,6 +94,8 @@ export class App {
   private readonly handVisuals: HandVisuals;
   private readonly avatar: PlayerAvatar;
   readonly avatars: RemoteAvatars;
+  /** Die Stimmen der anderen, räumlich am Kopf ihres Sprechers (`net/Voice.ts`). */
+  readonly voice: Voice;
   private readonly flat: FlatControls;
   private readonly hooks: AppHooks;
 
@@ -181,6 +184,14 @@ export class App {
     this.scene.add(this.avatars);
     this.spectator = new SpectatorCamera(this.rig, canvas, this.pointer);
     this.spectator.onChange = () => this.hooks.onNetChanged?.();
+    this.voice = new Voice(this.net);
+    // Wer redet, trägt einen Punkt auf dem Namensschild — in einem Raum mit
+    // vier Leuten ist das sonst geraten.
+    this.avatars.isSpeaking = (id) => this.voice.speaking(id);
+    this.voice.onChange = () => {
+      this.menuDirty = true;
+      this.hooks.onNetChanged?.();
+    };
 
     this.net.onPeerJoin((peer) => this.notify(`${peer.name} ist dabei`));
     this.net.onPeerLeave((peer) => this.notify(`${peer.name} ist weg`));
@@ -425,6 +436,7 @@ export class App {
     this.wristMenu.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
+    this.voice.dispose();
     this.spectator.dispose();
     this.net.disconnect();
     this.renderer.dispose();
@@ -697,6 +709,7 @@ export class App {
             accent: 0x4aa8ff,
           },
           this.nameEntry(),
+          this.voiceEntry(),
           this.chatMenu(),
           this.spectateMenu(),
           {
@@ -735,6 +748,41 @@ export class App {
       icon: 'worlds',
       accent: this.net.connected ? 0x5ee0a0 : 0x6f7d99,
       children,
+    };
+  }
+
+  /**
+   * Das Mikrofon: ein Schalter, und daneben steht, was Sache ist.
+   *
+   * Aus, bis jemand ihn drückt — ein Mikrofon, das mitläuft, weil man einem
+   * Raum beigetreten ist, ist ein Fehler und keine Bequemlichkeit. Der Browser
+   * fragt danach um Erlaubnis, und diese Frage soll auf einen Knopfdruck
+   * folgen und nicht auf einen Raumbeitritt. Ein „nein" steht danach hier als
+   * Antwort, statt dass der Knopf stumm nichts täte.
+   */
+  private voiceEntry(): MenuEntry {
+    const voice = this.voice;
+    const heard = voice.listening;
+    const sub =
+      voice.detail ||
+      (voice.state === 'on'
+        ? heard > 0
+          ? `Offen · ${heard} Stimme${heard === 1 ? '' : 'n'} zu hören`
+          : 'Offen · noch spricht niemand'
+        : 'Aus · antippen fragt nach dem Mikrofon');
+    return {
+      id: 'net:voice',
+      label: voice.state === 'on' ? 'Mikrofon: an' : 'Mikrofon: aus',
+      sub,
+      icon: 'worlds',
+      accent: voice.state === 'on' ? 0x5ee0a0 : voice.state === 'blocked' ? 0xff6b5e : 0x6f7d99,
+      run: () => {
+        void this.voice.toggle().then(() => {
+          this.menuDirty = true;
+          if (this.voice.detail) this.notify(this.voice.detail);
+          else this.notify(this.voice.state === 'on' ? 'Mikrofon offen' : 'Mikrofon aus');
+        });
+      },
     };
   }
 
@@ -1069,6 +1117,8 @@ export class App {
     this.pointer.update(this.input, presenting);
     this.net.update(dt, this.rig, this.input, this.elapsed);
     this.avatars.update(dt);
+    // Nach den Avataren: die Stimme sitzt am Kopf, und der steht erst jetzt.
+    this.voice.update(dt, this.camera, this.avatars);
     if (this.menuDirty) this.refreshMenu();
 
     const rendered = this.world?.render?.(context) ?? false;

@@ -26,6 +26,8 @@ interface Avatar {
   /** Peers usually announce as `desktop` first and upgrade to `vr` later. */
   role: string;
   name: string;
+  /** Ob sein Schild gerade den Sprechpunkt trägt. */
+  speaking: boolean;
 }
 
 /**
@@ -39,6 +41,15 @@ export class RemoteAvatars extends THREE.Group {
    * the inside of a torso while spectating them in first person.
    */
   hiddenPeer: string | null = null;
+
+  /**
+   * Ob dieser Mitspieler gerade spricht (`net/Voice.ts`).
+   *
+   * Als Frage und nicht als gesetzter Zustand: die Stimmen gehören der
+   * Sitzung, die Körper der Welt, und keiner von beiden soll den anderen
+   * kennen müssen. Ohne Antwort ist niemand am Reden.
+   */
+  isSpeaking: ((peerId: string) => boolean) | null = null;
 
   private readonly avatars = new Map<string, Avatar>();
   /** Tools hung into a peer's hand, keyed `peerId:side`. */
@@ -68,9 +79,13 @@ export class RemoteAvatars extends THREE.Group {
         avatar.role = peer.role;
         avatar.body.setColor(ROLE_COLORS[peer.role] ?? 0xffffff);
       }
-      if (avatar.name !== peer.name) {
+      const speaking = this.isSpeaking?.(peer.id) ?? false;
+      if (avatar.name !== peer.name || avatar.speaking !== speaking) {
         avatar.name = peer.name;
-        avatar.tag.setText(peer.name);
+        avatar.speaking = speaking;
+        // Das Schild ist eine gemalte Textur; neu gemalt wird sie nur, wenn
+        // sich wirklich etwas geändert hat.
+        avatar.tag.setText(peer.name, speaking);
       }
       const pose = peer.pose!;
 
@@ -157,6 +172,7 @@ export class RemoteAvatars extends THREE.Group {
       poses: { head: new SmoothPose(), left: new SmoothPose(), right: new SmoothPose() },
       role: peer.role,
       name: peer.name,
+      speaking: false,
     };
     this.avatars.set(peer.id, avatar);
 
@@ -208,18 +224,29 @@ class NameTag extends THREE.Sprite {
     this.setText(text);
   }
 
-  setText(text: string): void {
+  /**
+   * @param speaking Ein Punkt vor dem Namen, solange von ihm etwas zu hören
+   *                 ist. In einem Raum mit vier Leuten ist „wer redet gerade"
+   *                 sonst eine Frage, die man nur durch Raten beantwortet.
+   */
+  setText(text: string, speaking = false): void {
     const ctx = this.canvas.getContext('2d')!;
     ctx.clearRect(0, 0, 512, 128);
     ctx.beginPath();
     ctx.roundRect(6, 24, 500, 80, 40);
-    ctx.fillStyle = 'rgba(9, 14, 26, 0.72)';
+    ctx.fillStyle = speaking ? 'rgba(24, 74, 48, 0.82)' : 'rgba(9, 14, 26, 0.72)';
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 52px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text.slice(0, 18), 256, 66);
+    if (speaking) {
+      ctx.beginPath();
+      ctx.arc(44, 64, 13, 0, Math.PI * 2);
+      ctx.fillStyle = '#5ee0a0';
+      ctx.fill();
+    }
     this.texture.needsUpdate = true;
   }
 

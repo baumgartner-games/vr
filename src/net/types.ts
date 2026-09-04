@@ -70,4 +70,17 @@ export interface NetTransport {
   connect(room: string, events: NetTransportEvents): Promise<void>;
   send(message: NetMessage): void;
   close(): void;
+
+  /**
+   * Ein Medienstrom für alle im Raum — das Mikrofon (`net/Voice.ts`).
+   *
+   * Optional, weil es nicht jeder Transport kann: über einen
+   * `BroadcastChannel` zwischen zwei Tabs gibt es keine Spur, auf der Ton
+   * fließt. Wer die drei Methoden nicht hat, kann eben keine Stimme — und die
+   * Oberfläche sagt das, statt einen Knopf anzubieten, der nichts tut.
+   */
+  addStream?(stream: MediaStream): void;
+  removeStream?(stream: MediaStream): void;
+  /** Der Strom eines Mitspielers ist angekommen. */
+  onPeerStream?(listener: (stream: MediaStream, peerId: string) => void): void;
 }

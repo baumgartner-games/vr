@@ -61,6 +61,13 @@ export class TrysteroTransport implements NetTransport {
   private relaySockets: (() => Record<string, WebSocket>) | null = null;
   private health: ReturnType<typeof setInterval> | null = null;
   private connectedAt = 0;
+  /**
+   * Die eigenen Ströme. Trystero hängt einen Strom an die Verbindungen, die es
+   * *jetzt* gibt; wer später dazukommt, bekommt ihn nur, wenn man ihn noch
+   * einmal anhängt. Deshalb liegt hier, was gerade gesendet wird.
+   */
+  private readonly streams = new Set<MediaStream>();
+  private streamListeners: Array<(stream: MediaStream, peerId: string) => void> = [];
 
   constructor(private readonly options: TrysteroOptions = {}) {}
 
@@ -108,6 +115,13 @@ export class TrysteroTransport implements NetTransport {
     };
 
     joined.onPeerJoin = (peerId) => {
+      // Wer dazukommt, hört sonst nichts: sein Gegenüber hat sein Mikrofon
+      // angehängt, als es ihn noch nicht gab.
+      for (const stream of this.streams) {
+        for (const pending of joined.addStream(stream, { target: peerId })) {
+          void pending.catch(() => undefined);
+        }
+      }
       events.peerUp?.(peerId);
       this.report();
     };
@@ -116,8 +130,32 @@ export class TrysteroTransport implements NetTransport {
       this.report();
     };
 
+    joined.onPeerStream = (stream, peerId) => {
+      for (const listener of this.streamListeners) listener(stream, peerId);
+    };
+
     this.health = setInterval(() => this.report(), HEALTH_INTERVAL);
     this.report();
+  }
+
+  addStream(stream: MediaStream): void {
+    this.streams.add(stream);
+    if (!this.room) return;
+    for (const pending of this.room.addStream(stream)) void pending.catch(() => undefined);
+  }
+
+  removeStream(stream: MediaStream): void {
+    this.streams.delete(stream);
+    // Eine Verbindung, die schon weg ist, nimmt nichts mehr zurück.
+    try {
+      this.room?.removeStream(stream);
+    } catch {
+      /* nichts zu tun */
+    }
+  }
+
+  onPeerStream(listener: (stream: MediaStream, peerId: string) => void): void {
+    this.streamListeners.push(listener);
   }
 
   send(message: NetMessage): void {
@@ -130,6 +168,8 @@ export class TrysteroTransport implements NetTransport {
     if (this.health !== null) clearInterval(this.health);
     this.health = null;
     this.relaySockets = null;
+    this.streams.clear();
+    this.streamListeners = [];
     const room = this.room;
     this.room = null;
     this.sendMessage = null;

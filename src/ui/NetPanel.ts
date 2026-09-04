@@ -97,6 +97,8 @@ export class NetPanel {
   private readonly strategy = el<HTMLSelectElement>('net-strategy');
   private readonly chatLog = el('net-chat');
   private readonly chatInput = el<HTMLInputElement>('net-chat-text');
+  private readonly voiceButton = el<HTMLButtonElement>('net-voice');
+  private readonly voiceHint = el('net-voice-hint');
   private readonly chatSend = el<HTMLButtonElement>('net-chat-send');
   private readonly chatCopy = el<HTMLButtonElement>('net-chat-copy');
   private readonly chatClear = el<HTMLButtonElement>('net-chat-clear');
@@ -164,6 +166,11 @@ export class NetPanel {
     this.level.addEventListener('change', () => {
       settings.levelHorizon = this.level.checked;
     });
+
+    // Die abgelehnte Erlaubnis kommt asynchron zurück; gezeichnet wird
+    // danach über `onNetChanged`, an dem dieses Panel ohnehin hängt — ein
+    // eigener Rückruf auf `voice.onChange` überschriebe den der App.
+    this.voiceButton.addEventListener('click', () => void this.app.voice.toggle());
 
     this.chatSend.addEventListener('click', () => this.sendChat());
     this.chatInput.addEventListener('keydown', (event) => {
@@ -236,8 +243,27 @@ export class NetPanel {
     this.smoothField.classList.toggle('is-off', settings.mode === 'free');
     this.distanceField.classList.toggle('is-off', settings.mode !== 'third');
 
+    this.renderVoice();
     this.renderPeers();
     this.renderChat();
+  }
+
+  /** Der Mikrofon-Schalter und der Satz darunter. */
+  private renderVoice(): void {
+    const voice = this.app.voice;
+    const on = voice.state === 'on';
+    this.voiceButton.textContent = on ? 'Mikrofon aus' : 'Mikrofon an';
+    this.voiceButton.disabled = !this.app.net.connected || voice.state === 'starting';
+    this.voiceButton.classList.toggle('is-active', on);
+    const heard = voice.listening;
+    this.voiceHint.textContent = !this.app.net.connected
+      ? 'Erst verbinden — gesprochen wird mit denen im Raum.'
+      : voice.detail ||
+        (on
+          ? heard > 0
+            ? `Offen · ${heard} Stimme${heard === 1 ? '' : 'n'} zu hören, aus der Richtung, in der sie stehen.`
+            : 'Offen · noch spricht niemand.'
+          : 'Aus. Antippen fragt nach dem Mikrofon.');
   }
 
   private renderPeers(): void {

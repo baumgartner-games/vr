@@ -87,6 +87,8 @@ export class NetSession {
   private statusListeners: StatusListener[] = [];
   private channelListeners = new Map<string, Array<(data: unknown, from: string) => void>>();
   private chatListeners: ChatListener[] = [];
+  /** Wer auf die Ströme der Mitspieler wartet — überlebt einen Transportwechsel. */
+  private streamListeners: Array<(stream: MediaStream, peerId: string) => void> = [];
 
   get transportKind(): string {
     return this.transport?.kind ?? 'none';
@@ -126,6 +128,8 @@ export class NetSession {
       this.setStatus('error', (error as Error).message);
       throw error;
     }
+
+    for (const listener of this.streamListeners) transport.onPeerStream?.(listener);
 
     if (transport.id) this.localId = transport.id;
     this.connected = true;
@@ -216,6 +220,37 @@ export class NetSession {
   /** Broadcast a world-specific message. */
   emit(channel: string, data: unknown): void {
     this.send({ type: 'event', from: this.localId, channel, data });
+  }
+
+  // --- Ton --------------------------------------------------------------
+
+  /** Ob dieser Transport überhaupt Ton tragen kann (`net/Voice.ts`). */
+  get canStream(): boolean {
+    // Nach dem Namen gefragt und nicht nach der Methode: eine Methode aus
+    // ihrem Objekt zu lösen ist genau das, wovor der Linter hier warnt.
+    return this.transport !== null && 'addStream' in this.transport;
+  }
+
+  /** Das eigene Mikrofon an alle im Raum. */
+  addStream(stream: MediaStream): void {
+    this.transport?.addStream?.(stream);
+  }
+
+  removeStream(stream: MediaStream): void {
+    this.transport?.removeStream?.(stream);
+  }
+
+  /**
+   * Der Strom eines Mitspielers.
+   *
+   * Angemeldet wird beim Transport, und der wechselt beim Verbinden — deshalb
+   * merkt sich die Sitzung die Zuhörer und meldet sie bei jedem neuen
+   * Transport erneut an. Sonst wäre die Stimme genau ab dem zweiten Raum
+   * still, und man suchte den Fehler beim Mikrofon.
+   */
+  onPeerStream(listener: (stream: MediaStream, peerId: string) => void): void {
+    this.streamListeners.push(listener);
+    this.transport?.onPeerStream?.(listener);
   }
 
   setWorld(world: string): void {

@@ -1681,8 +1681,9 @@ Umschalten geht im Panel unter *Vermittlung* — hilfreich in Netzen, die eine
 der Varianten wegfiltern. Findet keins der Relays einen Weg, sagt das Panel das
 auch so (`Kein nostr-Relay erreichbar`), statt still zu warten.
 
-Was **nicht** über die Relays läuft: alles Inhaltliche. Posen, Welt-Events und
-Chat gehen ausschließlich über den direkten, verschlüsselten Datenkanal. Der
+Was **nicht** über die Relays läuft: alles Inhaltliche. Posen, Welt-Events,
+Chat und Sprache gehen ausschließlich über die direkte, verschlüsselte
+Verbindung. Der
 Raum-Code dient zugleich als Passwort, mit dem Trystero die Handshake-Daten auf
 dem Relay verschlüsselt.
 
@@ -1746,6 +1747,42 @@ laufenden Welt Bescheid — was schon in einer Hand liegt, liest seine Zahlen
 sonst nie wieder nach. Automatisch überall wäre die schlechtere Antwort: Was
 ein anderer schickt, soll einem nicht ungefragt die Ausrüstung umstellen,
 während man gerade fliegt.
+
+### Sprechen: Stimmen im Raum
+
+Der Chat ist für Codes gebaut und nicht zum Plaudern — in der Brille zu tippen
+ist teuer, und „schau mal nach links" über eine Bildschirmtastatur zu
+buchstabieren ist die Art Aufwand, für die es Stimmen gibt. Die Leitung dafür
+steht längst: WebRTC trägt neben dem Datenkanal auch Ton, und Trystero hängt
+einen Medienstrom an dieselben Peers, die schon die Posen bekommen.
+
+- **Räumlich, nicht als Telefonkonferenz.** Jede ankommende Stimme läuft durch
+  einen `PannerNode`, der jedes Bild an den Kopf ihres Sprechers gesetzt wird
+  (`net/Voice.ts`); die Ohren des Kontextes sitzen an der Kamera. Wer hinter
+  dir redet, klingt von hinten, und wer am anderen Ende der Halle steht, ist
+  leise. In VR ist das kein Schmuck, sondern der Unterschied zwischen „jemand
+  sagt etwas" und „der da drüben sagt etwas".
+- **Aus, bis jemand es einschaltet** — *Menü → Verbindung → Mikrofon*, am PC im
+  Panel unter *Sprache*. Ein Mikrofon, das mitläuft, weil man einem Raum
+  beigetreten ist, ist ein Fehler und keine Bequemlichkeit; der Browser fragt
+  ohnehin um Erlaubnis, und diese Frage soll auf einen Knopfdruck folgen.
+  Ausschalten hängt den Strom nicht nur ab, sondern **hält ihn an**: nur so
+  geht die Aufnahmeleuchte des Geräts aus, und das ist die eine Rückmeldung,
+  der ein Mensch glauben können muss.
+- **Wer spricht, trägt einen Punkt** auf dem Namensschild
+  (`RemoteAvatars.isSpeaking`, gemessen an einem `AnalyserNode`). In einem Raum
+  mit vier Leuten ist „wer redet gerade" sonst geraten.
+- **Zwei Fallstricke, beide eingebaut:** Ein WebRTC-Strom fließt in Chrome erst
+  dann in die Web-Audio-Welt, wenn er außerdem an einem Medienelement hängt —
+  deshalb liegt an jeder Stimme ein stummes `<audio>`, ohne das der
+  `MediaStreamSource` still bleibt. Und Trystero hängt einen Strom an die
+  Verbindungen, die es *jetzt* gibt; wer später dazukommt, bekommt ihn nur,
+  weil `TrysteroTransport` ihn bei `onPeerJoin` noch einmal anhängt.
+- **Nicht überall.** `NetTransport.addStream` ist optional: über einen
+  `BroadcastChannel` zwischen zwei Tabs (`?net=local`) gibt es keine Spur, auf
+  der Ton fließt. Dann sagt das Menü das, statt einen Knopf anzubieten, der
+  nichts tut. Und `getUserMedia` braucht einen sicheren Kontext — über `http://`
+  jenseits von `localhost` ist die Frage gar nicht erst da.
 
 ### Die Welt teilen: Objekte und Portale
 

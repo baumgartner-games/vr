@@ -39,6 +39,18 @@ interface ToneOptions {
   delay?: number;
 }
 
+/**
+ * Derselbe Kontext für alles, was klingt — auch für die Stimmen der anderen
+ * (`net/Voice.ts`).
+ *
+ * Ein zweiter Kontext wäre nicht falsch, aber teuer: jeder kostet eine eigene
+ * Audio-Hardware-Verbindung, und der Browser gibt sie nur nach einer Geste des
+ * Spielers frei. Wer schon einmal einen bekommen hat, teilt ihn.
+ */
+export function sharedAudio(): AudioContext | null {
+  return audio();
+}
+
 /** One short tone, optionally sweeping from one pitch to another. */
 export function playTone(options: ToneOptions): void {
   const ctx = audio();

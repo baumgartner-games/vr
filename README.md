@@ -8,7 +8,8 @@ WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
 Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, ein Dunkelhaus zum Ausprobieren von Licht und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen, ein Werkzeuggürtel
-voller Spielzeug und Peer-to-Peer-Sitzungen ohne eigenen Server. Jede Welt
+voller Spielzeug und Peer-to-Peer-Sitzungen ohne eigenen Server — mit
+räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
@@ -78,6 +79,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Sitzen oder stehen | Startseite oder Menü → Bewegung → Haltung | dito | dito |
 | Verbinden | Menü → Verbindung → *Raum betreten*; geht mitten im Spiel, ohne die Sitzung zu verlassen | Raum-Code auf der Startseite | dito |
 | Chat | Menü → Verbindung → Chat (lesen, *Schreiben* öffnet die Tastatur) | Panel *Verbindung*: tippen, je Zeile *Kopieren* und *Übernehmen* | dito |
+| Sprechen | Menü → Verbindung → *Mikrofon* — die Stimmen kommen aus der Richtung, in der die anderen stehen | Panel *Verbindung* → *Sprache* | dito |
 | Werkzeug benutzen | Trigger (Greifen = zweite Funktion) | Links-/Rechtsklick | – |
 | Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
