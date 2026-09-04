@@ -1252,7 +1252,7 @@ export class PortalWorld implements World {
               title: 'Konfig-Code laden',
               sub: 'Einfügen oder Buchstabe für Buchstabe',
               value: '',
-              hint: 'Beginnt mit BGVR1',
+              hint: 'Beginnt mit BG2',
               commit: (text) => this.loadConfigCode(text),
             });
           },
@@ -1304,7 +1304,7 @@ export class PortalWorld implements World {
     this.context?.menu.refresh();
   }
 
-  private askNumber(options: {
+  protected askNumber(options: {
     title: string;
     sub?: string;
     value: string;
@@ -3680,7 +3680,9 @@ export class PortalWorld implements World {
     // Dropped tools go back to being belt tools: a floor full of thrown stars
     // is exactly the sort of thing "zurücksetzen" is for.
     for (const loose of [...this.loose.values()]) {
-      const home = this.homes.get(loose.tool) ?? null;
+      // Die Hüfte steht am liegenden Werkzeug selbst: `homes` ist beim
+      // Fallenlassen gelöscht worden, dort stand hier vorher nichts mehr.
+      const home = loose.home;
       this.retireLoose(loose);
       this.refillBelt(loose.tool.toolId, home);
     }

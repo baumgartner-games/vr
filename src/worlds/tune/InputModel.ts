@@ -70,6 +70,25 @@ export class InputModel extends THREE.Group {
     return this.showController(state);
   }
 
+  /**
+   * Aus dem lebenden Modell ein Ausstellungsstück machen: durchsichtig, ohne
+   * Fingerbalken, und es folgt nichts mehr.
+   *
+   * Der Tisch im Raum braucht einen Controller, der einfach daliegt — und
+   * einen zweiten Satz Geometrie dafür zu bauen hieße, zwei Controller zu
+   * pflegen, von denen einer nie so aussieht wie der andere. Also derselbe.
+   */
+  asGhost(): this {
+    this.controller.visible = true;
+    this.hand.visible = false;
+    for (const material of this.owned) {
+      material.transparent = true;
+      material.opacity = 0.45;
+      material.depthWrite = false;
+    }
+    return this;
+  }
+
   dispose(): void {
     this.traverse((object) => {
       const mesh = object as THREE.Mesh;

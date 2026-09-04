@@ -80,7 +80,7 @@ Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#st
 ## Konfig-Code
 
 Werkzeug-Posen, Handhaltungen, Anbauteile und Waffenwerte passen zusammen in
-eine kopierbare Zeile (`BGVR1…`) — in VR unter *Einstellungen → Konfig-Code*,
+eine kopierbare Zeile (`BG2…`) — in VR unter *Einstellungen → Konfig-Code*,
 am Rechner über die Kommandozeile:
 
 ```bash

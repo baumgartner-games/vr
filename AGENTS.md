@@ -68,8 +68,19 @@ der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber), die
 (`src/worlds/kart/kartDynamics.ts` — Höchstgeschwindigkeit, Ausrollen,
 Rückwärtsgang, Lenken erst ab Tempo, Driften bei wenig Traktion), die
 **Streckenführung** (`src/worlds/kart/kartTrack.ts` — Spline, nächster Punkt,
-Leitplanke, Rundenzähler über die Ziellinie hinweg) und das **Pizza-Rezept**
-(`src/worlds/shop/pizza.ts` — Kneten, Belegen, Backen, Punkte). Diese
+Leitplanke, Rundenzähler über die Ziellinie hinweg), das **Pizza-Rezept**
+(`src/worlds/shop/pizza.ts` — Kneten, Belegen, Backen, Punkte), das
+**Werkzeug-Budget pro Gürtelplatz**
+(`src/worlds/portal/tools/looseBudget.ts` — dass eine Waffe links und eine
+rechts sich nicht gegenseitig verschlucken, und dass ein Exemplar in einer
+Hand zwar mitzählt, aber niemandem aus der Hand genommen wird), die
+**Flugmathematik des Supermanhandschuhs**
+(`src/worlds/portal/tools/supermanFlight.ts` und `supermanSettings.ts` — dass
+volle Lehne die eingestellte Geschwindigkeit ergibt und nicht irgendetwas weit
+jenseits eines ausgestreckten Arms, die Vorzeichen der Kurve, und wer welche
+Achse bedient) und der **Tisch im Eingaberaum**
+(`src/worlds/tune/tableSettings.ts` — Grenzen einer Tischhöhe und ein
+kaputter Speicher). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
 weder WebGL noch WebXR noch wasm.
 
@@ -136,6 +147,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   hält (die Drohne), hat gar keinen Strahl, und das Handgelenk-Menü hört den
   Strahl der Hand, an der es hängt, nicht — sonst würde es beim Drehen des
   Handgelenks über den eigenen Knopf streichen.
+- **Türkis heißt anfassen**: alles, was eine Hand nehmen darf, hat dieselbe
+  Farbe — die Griffe der Werkzeuge, der Ring um die Linse der Taschenlampe,
+  die Plätze am Gürtel, die Leiste am Tisch im Eingaberaum. Eine Spülmaschine
+  sagt einem auch nie, wo der Griff ist; sie färbt ihn, und danach greift
+  jeder beim ersten Mal richtig. In VR wiegt das schwerer als daheim, weil ein
+  Werkzeug ein Klotz aus Dreiecken ist und man ihm nicht ansieht, ob man es am
+  Lauf oder am Schaft nehmen soll. Daneben ein zweiter, hellerer Ton fürs
+  **Leuchten in dem Moment**, in dem die Hand nah genug ist — verwandt und
+  bewusst nicht gleich, denn „das kann man nehmen" und „das kann man *jetzt*
+  nehmen" sind zwei Nachrichten. Beide Zahlen stehen an genau einer Stelle
+  (`src/core/colors.ts`), das Material dazu baut `grabMaterial()` in
+  `tools/Tool.ts`; eine zweite türkise Zahl irgendwo im Code ist das, was die
+  Regel nach drei Monaten kaputt macht.
 - **Werkzeuggürtel**: an beiden Hüften hängt ein Platz für ein Werkzeug. Was
   in der Hand ist und in die Nähe eines Platzes kommt, lässt den Ring
   aufleuchten — dort loslassen legt es ab, Greifen nimmt es wieder. Jedes
@@ -147,10 +171,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   ein **neues** nach. Damit ist „Waffe ziehen, in die andere Hand geben, noch
   eine ziehen" eine durchgehende Bewegung. Wie viele Exemplare gleichzeitig
   *außerhalb des Gürtels* sein dürfen — herumliegend und in Händen zusammen —,
-  sagt das Werkzeug selbst (`Tool.looseLimit`, normal eins): kommt eins zu
-  viel dazu, holt sich der Raum das älteste **liegende** zurück. Bei eins
-  heißt das genau, was es soll: die frische Pistole von der Hüfte holt die
-  liegengelassene ein. Beim Wurfstern sind es fünf.
+  sagt das Werkzeug selbst (`Tool.looseLimit`, normal eins), und zwar **pro
+  Gürtelplatz**: kommt eins zu viel dazu, holt sich der Raum das älteste
+  **liegende** von *diesem* Platz zurück. Bei eins heißt das genau, was es
+  soll: die frische Pistole von der linken Hüfte holt die von der linken
+  Hüfte liegengelassene ein — und lässt die rechte in Ruhe. Genau daran ist
+  die alte Zählung gescheitert: pro Werkzeug-Id gezählt waren eine Waffe
+  links und eine rechts schon eins zu viel, und die zweite fallen zu lassen
+  ließ die erste verschwinden. Zwei Hüften sind zwei Vorräte
+  (`tools/looseBudget.ts`, mit Test). Beim Wurfstern sind es fünf, also fünf
+  pro Hüfte.
 - **Werkzeuge** (alle in jeder Welt mit Gürtel):
   - **Portal-Waffen**: zwei einzelne und eine kombinierte (Trigger rot,
     Greifen blau, muss nicht dauerhaft gehalten werden).
@@ -213,6 +243,20 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Dasselbe macht der **Kopf**: schaust du im Flug nach links, ziehst du eine
     Linkskurve, und je schneller du fliegst, desto stärker. Schaust du wieder
     geradeaus, hört die Kurve auf — und „geradeaus“ ist dann die neue Richtung.
+    **Volle Lehne ist volle Fahrt**, und was volle Fahrt heißt, steht unter
+    *Einstellungen → Supermanhandschuh*: je eine Zahl für vorwärts, rückwärts,
+    hoch, runter und quer, dazu Drehrate und Totzone, jede über eine Raste
+    weiterschaltbar oder direkt tippbar. Vorher stand da ein fester Faktor pro
+    Meter Handlehne, bei dem eine bequeme Bewegung keine drei Meter pro Sekunde
+    gab und die Höchstgeschwindigkeit jenseits eines ausgestreckten Arms lag —
+    von innen fühlte sich das nach Waten an. Dazu die Frage, die sich in der
+    Brille sofort stellt: **wer lenkt welche Achse?** Vor/zurück, hoch/runter
+    und links/rechts hängen wahlweise an der **Hand**, am **Kopf**, an beidem
+    oder an nichts — Blick nach unten schiebt, Blick nach oben steigt, der vom
+    Flugweg weggedrehte Kopf zieht die Kurve. Und wer lieber quer schiebt als
+    zu drehen, schaltet die Hand auf *quer schieben*; der Kopf lenkt dann
+    weiter (`tools/supermanSettings.ts`, gerechnet in `tools/supermanFlight.ts`,
+    beide mit Test).
   - **Lötkolben**: zwei Punkte antippen und die Objekte hängen zusammen —
     starr oder als Scharnier (Achse = Querachse des Kolbens). Der Modus wird
     mit der anderen Hand umgeschaltet (kleines Panel über ihr), *Trennen*
@@ -281,14 +325,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     nochmal), ein **Anbauteil** — der Rotpunkt etwa — hängt sich beim
     gehaltenen Trigger an die Spitze und bleibt beim Loslassen dort auf der
     Waffe. Beides zeigt danach die sechs Werte (x, y, z in cm,
-    roll/pitch/yaw in Grad). **Greifen** legt den ganzen Konfig-Code in die
-    Zwischenablage. Zeigt er auf eine Hand, die etwas hält, schaltet **`A`**
+    roll/pitch/yaw in Grad) — und **darunter den Konfig-Code für genau dieses
+    eine Werkzeug**, schmal und in gleich breiter Schrift, weil er abgetippt
+    wird. Nur dieses Werkzeug: seine Haltung, die Griffe beider Hände dafür,
+    seine Anbauteile und, wenn es eigene Werte hat, auch die. **Greifen** legt
+    diesen Code in die Zwischenablage — und solange nichts gemessen ist,
+    stattdessen den der ganzen Ausrüstung. Zeigt er auf eine Hand, die etwas hält, schaltet **`A`**
     um, was der Trigger meint: `Werkzeug` rückt das Ding zurecht, `Hand` rückt
     die *Hand darum* zurecht — rein optisch, das Werkzeug bewegt sich dabei
     nicht. Genau das braucht man, weil eine Waffe anders in der Hand liegt als
     ein Handschuh. Geschrieben wird dann die Griffhaltung für genau dieses
     Werkzeug; eine leere Hand schreibt die Grundhaltung, eine Hand um ein
-    Objekt die Objekthaltung.
+    Objekt die Objekthaltung. Bei einer **blanken Hand** kommen die **Finger**
+    mit: das Headset misst sie ohnehin jede Frame, und ohne sie sähe die Hand
+    mit Controller nie so aus wie die echte daneben (`handGestures.ts`
+    rechnet das Faltmaß in eine Krümmung um, mit Test).
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
 - **Alles einstellbar, alles kopierbar**: Werkzeug-Posen, Handhaltungen,
   Anbauteile und die Waffenwerte liegen zusammen in einem **Konfig-Code** —
@@ -356,11 +407,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   auf, Stick und Trigger bewegen sich wirklich. Mit **bloßen Händen** treten
   sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
-  steht dasselbe in Worten. **Gelaufen und gedreht wird hier nicht**
-  (`PlayerRig.locked`), der Kopf natürlich schon: man kommt her, um eine
-  Haltung zu halten und sie anzusehen. Gürtel, Regal und der
-  Werkzeug-Justierer sind da, denn die Hand, die man ansieht, ist die, die man
-  einstellt.
+  steht dasselbe in Worten. An der **rechten Wand steht ein Tisch mit einer
+  Geisterhand darauf**: eine Handhaltung im Leeren einzustellen ist Raten,
+  weil sich der Arm mitbewegt — auf einem Tisch nicht. Die **Höhe** wird auf
+  die des echten Tisches gestellt (türkise Leiste greifen und schieben, oder
+  in Zentimetern eintippen), dann legt man die echte Hand darauf, und was
+  nicht deckungsgleich ist, ist genau die Zahl, die verstellt gehört. Knöpfe
+  an der Wand daneben schalten um, **was daraufliegt** — Hand oder Controller,
+  links oder rechts — und stellen Lage und Ausrichtung ein
+  (`tune/GhostTable.ts`, `tune/tableSettings.ts` mit Test). **Gelaufen und
+  gedreht wird hier nicht** (`PlayerRig.locked`), der Kopf natürlich schon:
+  man kommt her, um eine Haltung zu halten und sie anzusehen. Weil der Tisch
+  aber rechts steht und man im Sessel nicht hinkommt, gibt es neben dem Schild
+  einen **Knopf, der den Stick freigibt** — ausdrücklich und sichtbar, statt
+  dass es einfach so geht. Gürtel, Regal und der Werkzeug-Justierer sind da,
+  denn die Hand, die man ansieht, ist die, die man einstellt.
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
@@ -414,7 +475,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Auswählen | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl | Linksklick | tippen |
 | Werkzeug nehmen | Grip an der Hüfte halten (jede Hand, jedes Werkzeug) | – (immer bereit) | – |
 | Werkzeug ablegen | Grip über der Hüfte loslassen | – | – |
-| Werkzeug fallen lassen | Grip woanders loslassen — es fällt, der Gürtel füllt nach | – | – |
+| Werkzeug fallen lassen | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht) | – | – |
 | Wurfstern werfen | im Schwung loslassen; er fliegt weiter und bleibt stecken | – | – |
 | Haltung (sitzen/stehen) | Startseite oder Menü → Bewegung → Haltung | dito | dito |
 | Greifen ohne Controller | Mittel-, Ring- und kleiner Finger an die Handfläche | – | – |
@@ -427,11 +488,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Menüseite blättern | Stick der zeigenden Hand hoch/runter | – | – |
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
-| Supermanhandschuh | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve | – | – |
+| Supermanhandschuh | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve. Tempo je Richtung und wer welche Achse lenkt: *Einstellungen → Supermanhandschuh* | – | – |
 | Translationshandschuh | Trigger hält aus der Ferne, `A` wechselt Modus | – | – |
 | Größe & Position | Trigger wählt, `A` holt die Griffe vor dich | – | – |
 | Griff ziehen | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand | – | – |
-| Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil, Trigger übernimmt, Greifen kopiert den Code, `A` wechselt Werkzeug/Hand bzw. bricht ab | – | – |
+| Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil, Trigger übernimmt, Greifen kopiert den Code des gemessenen Werkzeugs, `A` wechselt Werkzeug/Hand bzw. bricht ab | – | – |
 | Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
 | Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate) | – | – |
@@ -712,29 +773,47 @@ spiegeln* macht es für eine Haltung, *Links auf rechts spiegeln* für alle.
 ### Konfig-Code
 
 Alle diese Zahlen zusammen — Werkzeug-Posen, Handhaltungen, Anbauteile,
-Waffenwerte — passen in eine Zeile:
+Waffenwerte, Drohne und Supermanhandschuh — passen in eine Zeile:
 
 ```
-BGVR1mAL_eyJ2IjoxLCL_dCI6eyJwaXP_dG9sIjpbMCy_LTEuMiwzAGAy_ywwLDBd…
+BG2AAI_AQYAFzwXAAABAAAAAAAAFBAQFBgAAAEGAQBETwAAAHiIBGQM5gEDAADAAgBujAG0AWR4eGSMAXggxOU
 ```
 
-Das ist **kein Hash**, sondern gepacktes JSON: `src/core/configCode.ts`
-schreibt die Einstellungen kompakt, komprimiert sie mit einem winzigen
-LZSS-Verfahren (Wörterbuch im Datenstrom, deshalb ohne Bibliothek und ohne
-`CompressionStream`) und packt das Ergebnis in base64url mit einer Prüfsumme
-hinten dran. `decode(encode(x))` gibt exakt `x` zurück — der Jest-Test besteht
-darauf, mitsamt Umlauten, leeren Objekten und einem verdrehten Zeichen, das
-abgelehnt werden muss.
+Das ist **kein Hash**: `tools/gearCodec.ts` schreibt die Zahlen nach einem
+Schema, das beide Enden kennen (deshalb reisen keine Feldnamen, keine Klammern
+und keine Anführungszeichen mit), `src/core/configCode.ts` komprimiert das
+Ergebnis mit einem winzigen LZSS-Verfahren (Wörterbuch im Datenstrom, deshalb
+ohne Bibliothek und ohne `CompressionStream`) und packt es in base64url mit
+einer Prüfsumme hinten dran. Der Code eines einzelnen Werkzeugs ist deshalb
+kurz genug fürs Display des Justierers:
+
+```
+BG2AAIBAQUAFzAXBgDT6Q
+```
+
+`decode(encode(x))` gibt exakt `x` zurück — der Jest-Test besteht darauf,
+mitsamt Umlauten, leeren Objekten und einem verdrehten Zeichen, das abgelehnt
+werden muss.
+
+Ein Code trägt seit **Version 2** eine **Abschnittsmaske** vorneweg: sie sagt,
+welche der sechs Sorten überhaupt darin stehen. Erst damit gibt es einen Code
+für *ein* Werkzeug — ohne sie trüge der des Pinsels zwangsläufig die
+Pistolenwerte mit sich herum und würde sie beim Laden überschreiben. Was nicht
+drinsteht, wird beim Laden auch nicht angefasst; innerhalb eines Abschnitts
+wird eingemischt statt ersetzt. Codes der ersten Fassung werden weiter gelesen
+(`tools/gearCodec.ts`, mit Test).
 
 In VR liegt der Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
 legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
-laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Am
-Rechner geht dasselbe auf der Kommandozeile:
+laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Der
+**Werkzeug-Justierer** zeigt außerdem unter jeder Messung den Code für genau
+das gemessene Werkzeug, und **Greifen** legt dann diesen in die
+Zwischenablage. Am Rechner geht dasselbe auf der Kommandozeile:
 
 ```bash
-npm run config -- decode BGVR1…        # zeigt die Einstellungen als JSON
+npm run config -- decode BG2…        # zeigt die Einstellungen als JSON
 npm run config -- encode config.json   # macht wieder einen Code daraus
-npm run config -- mirror BGVR1… left   # linke Handhaltungen nach rechts
+npm run config -- mirror BG2… left   # linke Handhaltungen nach rechts
 ```
 
 Damit ist „hier sind meine Einstellungen, mach das für die andere Hand auch"
@@ -751,6 +830,7 @@ Objekt übergeben und nicht quer durch den Raum zielen.
 ```
 src/
   core/      Engine, Player-Rig, Locomotion, XR-Input, Pointer, Hände, Avatar
+             — darin `colors.ts`, die einzige Stelle mit den Greiffarben
   physics/   Rapier-Wrapper und der Charakter-Controller (dynamisch geladen)
   ui/        Canvas-basierte 3D-UI (Panel, Textflächen, Handgelenk-Menüs)
   net/       Transport-Interface, WebRTC/BroadcastChannel, Presence, Avatare,

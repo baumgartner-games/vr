@@ -1,7 +1,11 @@
 import {
   FOLD_CLOSED,
+  FOLD_FIST,
   FOLD_OPEN,
+  FOLD_STRAIGHT,
+  foldCurls,
   foldRatios,
+  foldToCurl,
   formatFold,
   readGesture,
   type HandFold,
@@ -123,3 +127,38 @@ function scale(joints: HandJoints, factor: number): HandJoints {
     pinkyTip: grow(joints.pinkyTip),
   };
 }
+
+describe('foldCurls', () => {
+  const fold = (values: number[]): HandFold => ({
+    thumb: values[0]!,
+    index: values[1]!,
+    middle: values[2]!,
+    ring: values[3]!,
+    pinky: values[4]!,
+  });
+
+  it('gives a straight finger no curl and a folded one all of it', () => {
+    expect(foldToCurl(FOLD_STRAIGHT)).toBe(0);
+    expect(foldToCurl(FOLD_FIST)).toBe(1);
+  });
+
+  it('stays inside 0 … 1 however far a finger goes', () => {
+    expect(foldToCurl(FOLD_STRAIGHT + 1)).toBe(0);
+    expect(foldToCurl(0)).toBe(1);
+    expect(foldToCurl(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('rises as the finger comes down', () => {
+    expect(foldToCurl(1.1)).toBeLessThan(foldToCurl(0.8));
+  });
+
+  it('keeps two decimals — the same as the menu shows', () => {
+    const curls = foldCurls(fold([0.9, 1.0, 0.7, 0.6, 0.55]))!;
+    expect(curls).toHaveLength(5);
+    for (const curl of curls) expect(curl).toBe(Math.round(curl * 100) / 100);
+  });
+
+  it('has nothing to say about a hand that is not tracked', () => {
+    expect(foldCurls(null)).toBeNull();
+  });
+});

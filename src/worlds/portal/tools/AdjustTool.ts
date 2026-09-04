@@ -5,6 +5,7 @@ import { savePose } from './poseStore';
 import { gearCode, toolGearCode } from './gearConfig';
 import type { Attachment } from './attachments';
 import { playTone } from '../../../core/Audio';
+import { foldCurls } from '../../../core/handGestures';
 import { GhostHand } from '../../../core/HandVisuals';
 import {
   clonePose,
@@ -100,8 +101,10 @@ type Focus = 'tool' | 'hand';
  * *its* pose instead. Instead of parking a tool there is a **ghost hand**: it
  * stays where the hand was, so while you move the real one you can see exactly
  * what you are changing it from. The second trigger writes the six numbers
- * into that hand's pose — the curls and the spread stay as they were, those
- * belong in the menu.
+ * into that hand's pose — die Spreizung bleibt, wie sie war, die gehört ins
+ * Menü. Bei einer **blanken Hand** kommen die **Finger** mit: das Headset
+ * misst sie ohnehin, und ohne sie sieht die Hand mit Controller nie so aus wie
+ * die echte daneben (`handGestures.ts`).
  *
  * Which pose is written depends on what the hand is doing, and that is the
  * point of it: an empty hand writes the idle pose, a hand holding the pistol
@@ -705,8 +708,8 @@ export class AdjustTool extends Tool {
       { position: _toolPosition, rotation: _toolRotation },
     );
     const readout = readPose(measured);
-    // Only the six numbers move: the curls and the spread are the hand's own
-    // business and are set in the menu, not measured in the air.
+    // Die sechs Zahlen kommen aus der Messung; die Spreizung bleibt, wie sie
+    // war — die gehört ins Menü und nicht in die Luft.
     const pose: HandPose = {
       ...session.before,
       x: readout.x,
@@ -716,6 +719,14 @@ export class AdjustTool extends Tool {
       yaw: readout.yaw,
       roll: readout.roll,
     };
+
+    // Und bei einer **blanken Hand** auch die Finger: das Headset misst sie
+    // ohnehin jede Frame, und ohne sie sähe die Hand mit Controller nie so
+    // aus wie die echte daneben. Genau das war der Unterschied, den man in
+    // der Brille sieht und nicht wegbekommt — mit Controllern gibt es nichts
+    // zu messen, also bleibt dort alles, wie es war.
+    const curls = foldCurls(controller.fold);
+    if (curls) pose.curls = curls;
     // The empty hand has an idle pose; a hand that is holding something has a
     // pose *for that thing*, which is the whole reason this can be aimed at a
     // full hand at all.
@@ -732,7 +743,9 @@ export class AdjustTool extends Tool {
     this.beam.visible = false;
     controller.pulse(0.6, 40);
     playTone({ type: 'square', from: 880, to: 520, duration: 0.12, gain: 0.05 });
-    host.notify(`${this.caption}: ${formatPose(readout)}`);
+    host.notify(
+      curls ? `${this.caption}: ${formatPose(readout)} · Finger übernommen` : `${this.caption}: ${formatPose(readout)}`,
+    );
   }
 
   /** Takes the ghost away again, measured or not. */

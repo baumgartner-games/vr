@@ -129,6 +129,44 @@ export function readGesture(fold: HandFold | null, previous: HandGesture = NO_GE
   return { grab, trigger: folded(fold.index, previous.trigger) };
 }
 
+/**
+ * Ein Finger ganz gestreckt und ein Finger ganz auf der Handfläche, in
+ * Handflächenlängen — die zwei Enden des Lineals, mit dem aus einem Faltmaß
+ * eine Krümmung wird.
+ *
+ * Die zwei Zahlen sind nicht dieselben wie `FOLD_CLOSED`/`FOLD_OPEN`: die dort
+ * sind die Schwellen, an denen ein Finger als *gedrückt* gilt, und die liegen
+ * mit Absicht eng beieinander und mit Absicht in der Mitte. Hier geht es um
+ * die ganze Spanne, also um den gestreckten und den vollständig eingerollten
+ * Finger.
+ */
+export const FOLD_STRAIGHT = 1.32;
+export const FOLD_FIST = 0.52;
+
+/**
+ * Ein Faltmaß als Krümmung, 0 = gerade, 1 = zu — dieselbe Skala, in der die
+ * Handhaltungen stehen (`handPose.ts`).
+ *
+ * Damit kann der Justierer die Finger einer **echten** Hand abnehmen und in
+ * die Haltung schreiben, die die Controller-Hand trägt. Das ist der einzige
+ * Weg, die beiden zur Deckung zu bringen: mit Controllern hat niemand Finger
+ * zu messen, mit blanker Hand misst sie das Headset ohnehin schon — nur
+ * landete das bisher nirgends.
+ */
+export function foldToCurl(fold: number): number {
+  if (!Number.isFinite(fold)) return 0;
+  const span = FOLD_STRAIGHT - FOLD_FIST;
+  return Math.min(1, Math.max(0, (FOLD_STRAIGHT - fold) / span));
+}
+
+/** Alle fünf, in der Reihenfolge, die überall gilt: Daumen … kleiner Finger. */
+export function foldCurls(fold: HandFold | null): number[] | null {
+  if (!fold) return null;
+  return [fold.thumb, fold.index, fold.middle, fold.ring, fold.pinky].map((value) =>
+    Math.round(foldToCurl(value) * 100) / 100,
+  );
+}
+
 /** One line for a display: every finger with its ratio, folded ones marked. */
 export function formatFold(fold: HandFold | null): string {
   if (!fold) return 'keine Hand';
