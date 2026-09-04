@@ -474,10 +474,10 @@ export class DroneTool extends Tool {
 
   /**
    * Which hands are holding instead of pointing. Both of them while the device
-   * is carried two-handed — and the holding one while the settings are open,
-   * so the laser moves over to the free hand and the panel can be worked at
-   * all. Everything else would leave the pointer resting on the very thing it
-   * is supposed to aim at.
+   * is carried two-handed — and the holding one while the settings are open, so
+   * its laser goes out and only the free hand's ray is left to work the panel.
+   * Everything else would leave a pointer resting on the very thing it is
+   * supposed to aim at.
    */
   private markBusyHands(host: ToolHost): void {
     const pointer = host.ctx.pointer;
@@ -565,12 +565,13 @@ export class DroneTool extends Tool {
     let pressed = false;
     for (const side of sides) {
       const hand = input.get(side);
-      if (hand?.tracked && hand.trigger.justPressed) pressed = true;
+      if (!hand?.tracked || !hand.trigger.justPressed) continue;
+      // While that hand's own ray lies on a panel the trigger belongs to it. In
+      // the air the pointer is off entirely, so this cannot lock anybody out.
+      if (!this.flying && host.ctx.pointer.hoveringWith(side)) continue;
+      pressed = true;
     }
     if (!pressed) return;
-    // While a panel is under the pointer the trigger belongs to it. In the air
-    // the pointer is switched off entirely, so this cannot lock anybody out.
-    if (!this.flying && host.ctx.pointer.hovering) return;
 
     if (this.flying) {
       this.park(host);

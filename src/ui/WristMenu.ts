@@ -124,15 +124,21 @@ export class WristMenu extends THREE.Group {
   attachPointer(): void {
     this.pointer.remove(this.button);
     this.pointer.remove(this.panel);
+    // Both hands have a laser now, and this menu rides on one of them: its own
+    // ray would sweep across its own button and panel every time the wrist
+    // turns, and would then swallow that hand's trigger. The other hand aims —
+    // that is what the footer has been saying all along.
+    const own = (hand: Handedness | null) => hand === this.hand;
     this.pointer.add({
       object: this.button,
       // Only the trigger (or A) opens it — brushing past must not toggle it.
       pokeable: false,
+      ignore: own,
       onHover: () => this.setButtonHot(true),
       onBlur: () => this.setButtonHot(false),
       onSelect: () => this.toggle(),
     });
-    this.pointer.add({ ...this.panel.asPointerTarget(), pokeable: false });
+    this.pointer.add({ ...this.panel.asPointerTarget(), pokeable: false, ignore: own });
   }
 
   /** Replaces the whole menu tree and returns to the top level. */

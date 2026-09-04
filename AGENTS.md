@@ -29,7 +29,13 @@ und abgeschnittener Zeile) und die Zielrichtung der Werkzeuge
 (`src/worlds/portal/tools/aim.ts` — der Test hält fest, dass ein Werkzeug in
 der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
-weder WebGL noch WebXR noch wasm. Alles, was schwer zu testen ist, gehört
+weder WebGL noch WebXR noch wasm.
+
+Zwei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
+**Pointer** (`src/core/Pointer.ts`) muss jeder Hand ihren eigenen Strahl und
+ihren eigenen Trigger lassen, und die **Handform** (`src/core/HandVisuals.ts`)
+muss links links und rechts rechts sein. Beides sind Vorzeichen, die man in der
+Brille erst nach Minuten bemerkt und dann nicht mehr los wird. Alles, was schwer zu testen ist, gehört
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
@@ -58,6 +64,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   mehr —, wird **mit dem Stick der zeigenden Hand hoch/runter geblättert**;
   rechts zeigt ein Balken, wo man gerade ist. Links/rechts bleibt der
   Snap-Turn.
+- **Zeigestrahl an beiden Händen**: jeder Controller hat seinen eigenen Strahl
+  mit eigenem Cursor — was die eine Hand gerade hält, hindert die andere nicht
+  am Zeigen. Das Panel eines Werkzeugs in der rechten Hand wird also mit der
+  linken bedient und umgekehrt. Ruht ein Strahl auf einem Panel, gehört der
+  Trigger **nur dieser einen Hand** dem Menü; die andere Hand feuert oder greift
+  ungestört weiter. Zwei Ausnahmen: eine Hand, die ein Gerät mit beiden Fäusten
+  hält (die Drohne), hat gar keinen Strahl, und das Handgelenk-Menü hört den
+  Strahl der Hand, an der es hängt, nicht — sonst würde es beim Drehen des
+  Handgelenks über den eigenen Knopf streichen.
 - **Werkzeuggürtel**: an beiden Hüften hängt ein Platz für ein Werkzeug. Was
   in der Hand ist und in die Nähe eines Platzes kommt, lässt den Ring
   aufleuchten — dort loslassen legt es ab, Greifen nimmt es wieder. Jedes
@@ -193,7 +208,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
 | Springen | `A` rechts | `Leertaste` | – |
 | Menü | Button an der linken Hand | Button `Menü` im HUD | Button `Menü` im HUD |
-| Auswählen | rechte Hand zielen + Trigger oder `A` | Linksklick | tippen |
+| Auswählen | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl | Linksklick | tippen |
 | Werkzeug nehmen | Grip an der Hüfte halten (jede Hand, jedes Werkzeug) | – (immer bereit) | – |
 | Werkzeug ablegen | Grip loslassen; am Gürtel landet es dort | – | – |
 | Portal schießen | Trigger der Hand mit der Waffe | Links-/Rechtsklick | – |

@@ -250,7 +250,10 @@ export class WelderTool extends Tool {
     this.panel.visible = true;
 
     // The free hand switches the mode: its trigger, or A/X.
-    if (!host.ctx.pointer.hovering && (free.trigger.justPressed || free.primary.justPressed)) {
+    if (
+      !host.ctx.pointer.hoveringWith(free.handedness) &&
+      (free.trigger.justPressed || free.primary.justPressed)
+    ) {
       this.cycleMode(free, host);
     }
   }

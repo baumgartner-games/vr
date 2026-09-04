@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ControllerState, Handedness, XRInput } from './XRInput';
+import type { Handedness, XRInput } from './XRInput';
 import type { PlayerRig } from './PlayerRig';
 
 export interface PointerHit {
@@ -20,7 +20,7 @@ export interface PointerTarget {
   /** Allow direct touch with the index fingertip. Defaults to true. */
   pokeable?: boolean;
   /**
-   * Hands this target does not listen to. A panel that rides on a tool has to
+   * Hands this target does not listen to. A panel that rides on a hand has to
    * say so: the ray comes out of the same hand that carries it, would rest on
    * its own panel all the time — and a resting pointer swallows the trigger of
    * whatever is holding it.
@@ -34,15 +34,58 @@ const _local = new THREE.Vector3();
 const _box = new THREE.Box3();
 const _hitPoint = new THREE.Vector3();
 
+const HANDS: readonly Handedness[] = ['left', 'right'];
+
 /**
- * Single interaction pointer: a laser from the right hand in VR, the mouse or a
+ * One laser: its line, its cursor, and whatever it currently rests on.
+ *
+ * Both hands have one, and the mouse in flat mode has one without a line —
+ * three of these, each with its own hover, so the hands never take the ray
+ * away from one another.
+ */
+class Beam {
+  readonly line: THREE.Line;
+  readonly cursor: THREE.Mesh;
+  hovered: PointerTarget | null = null;
+
+  constructor(readonly hand: Handedness | null) {
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -1),
+    ]);
+    this.line = new THREE.Line(
+      geometry,
+      new THREE.LineBasicMaterial({ color: 0x8fc8ff, transparent: true, opacity: 0.55 }),
+    );
+    this.line.name = `pointer-ray-${hand ?? 'screen'}`;
+    this.line.visible = false;
+    this.line.frustumCulled = false;
+
+    this.cursor = new THREE.Mesh(
+      new THREE.SphereGeometry(0.008, 12, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }),
+    );
+    this.cursor.name = `pointer-cursor-${hand ?? 'screen'}`;
+    this.cursor.visible = false;
+    this.cursor.renderOrder = 999;
+    this.cursor.frustumCulled = false;
+  }
+
+  hide(): void {
+    this.line.visible = false;
+    this.cursor.visible = false;
+  }
+}
+
+/**
+ * Interaction pointers: a laser out of *each* hand in VR, the mouse or a
  * finger in flat mode, plus direct poking with the index fingertip.
+ *
+ * Both hands point, always. Whatever one hand is carrying, the other one can
+ * still work a panel — and a tool's own display is reachable while the tool
+ * stays in the hand it belongs to.
  */
 export class Pointer {
-  /** Laser + cursor visuals, parented to the pointing controller. */
-  readonly rayLine: THREE.Line;
-  readonly cursor: THREE.Mesh;
-
   /**
    * Off while the view is somewhere else entirely — the drone carries it out
    * of the body, and menus that hang on hands left behind are then neither
@@ -52,14 +95,18 @@ export class Pointer {
 
   /**
    * Hands that are holding something with both fists instead of pointing — the
-   * drone's display is carried that way. The laser moves to the other hand, and
-   * with both of them busy there is no laser at all: a ray that rests on a
-   * menu swallows the trigger of whatever is holding it.
+   * drone's display is carried that way. Such a hand has no laser at all: a ray
+   * that rests on a menu swallows the trigger of whatever is holding it.
    */
   readonly busy = new Set<Handedness>();
 
+  private readonly beams = new Map<Handedness | 'screen', Beam>([
+    ['left', new Beam('left')],
+    ['right', new Beam('right')],
+    ['screen', new Beam(null)],
+  ]);
+
   private targets: PointerTarget[] = [];
-  private hovered: PointerTarget | null = null;
   private poking = new Set<THREE.Object3D>();
   private raycaster = new THREE.Raycaster();
   private screen = new THREE.Vector2(0, 0);
@@ -70,33 +117,22 @@ export class Pointer {
     private readonly rig: PlayerRig,
     private readonly canvas: HTMLCanvasElement,
   ) {
-    const geometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, -1),
-    ]);
-    this.rayLine = new THREE.Line(
-      geometry,
-      new THREE.LineBasicMaterial({ color: 0x8fc8ff, transparent: true, opacity: 0.55 }),
-    );
-    this.rayLine.name = 'pointer-ray';
-    this.rayLine.visible = false;
-    this.rayLine.frustumCulled = false;
-
-    this.cursor = new THREE.Mesh(
-      new THREE.SphereGeometry(0.008, 12, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }),
-    );
-    this.cursor.name = 'pointer-cursor';
-    this.cursor.visible = false;
-    this.cursor.renderOrder = 999;
-    this.cursor.frustumCulled = false;
-
     this.bindScreenPointer();
   }
 
-  /** True while the pointer rests on an interactive object. */
+  /** True while any pointer rests on an interactive object. */
   get hovering(): boolean {
-    return this.hovered !== null;
+    for (const beam of this.beams.values()) if (beam.hovered) return true;
+    return false;
+  }
+
+  /**
+   * True while *this* hand's laser rests on something interactive — `null` asks
+   * for the mouse. The trigger belongs to the menu only for the hand that is
+   * actually aiming at it; the other hand keeps working.
+   */
+  hoveringWith(hand: Handedness | null): boolean {
+    return this.beam(hand).hovered !== null;
   }
 
   add(target: PointerTarget): void {
@@ -105,83 +141,86 @@ export class Pointer {
 
   remove(object: THREE.Object3D): void {
     this.targets = this.targets.filter((t) => t.object !== object);
-    if (this.hovered?.object === object) this.hovered = null;
+    for (const beam of this.beams.values()) {
+      if (beam.hovered?.object === object) beam.hovered = null;
+    }
     this.poking.delete(object);
   }
 
   clear(): void {
     this.targets = [];
-    this.hovered = null;
+    for (const beam of this.beams.values()) beam.hovered = null;
     this.poking.clear();
   }
 
   update(input: XRInput, presenting: boolean): void {
     if (!this.enabled) {
-      this.setHover(null, null);
+      for (const beam of this.beams.values()) this.blank(beam);
       this.poking.clear();
-      this.rayLine.visible = false;
-      this.cursor.visible = false;
       return;
     }
     this.updatePoke(input);
 
-    if (presenting) this.updateXrRay(input);
-    else this.updateScreenRay();
+    if (presenting) {
+      this.blank(this.beam(null));
+      for (const hand of HANDS) this.updateXrRay(input, hand);
+    } else {
+      for (const hand of HANDS) this.blank(this.beam(hand));
+      this.updateScreenRay();
+    }
   }
 
-  // --- ray from the right controller -------------------------------------
+  // --- one ray per controller ---------------------------------------------
 
-  private updateXrRay(input: XRInput): void {
-    const hand = this.pointingHand(input);
-    if (!hand || !hand.tracked) {
-      this.setHover(null, null);
-      this.rayLine.visible = false;
-      this.cursor.visible = false;
+  private updateXrRay(input: XRInput, handedness: Handedness): void {
+    const beam = this.beam(handedness);
+    const controller = input.get(handedness);
+    if (!controller?.tracked || this.busy.has(handedness)) {
+      this.blank(beam);
       return;
     }
 
-    if (this.rayLine.parent !== hand.targetRay) hand.targetRay.add(this.rayLine);
+    if (beam.line.parent !== controller.targetRay) controller.targetRay.add(beam.line);
 
-    hand.getRay(_ray);
+    controller.getRay(_ray);
     this.raycaster.set(_ray.origin, _ray.direction);
     this.raycaster.far = 12;
-    const hit = this.castAll(hand.handedness);
+    const hit = this.castAll(handedness);
 
-    this.rayLine.visible = true;
-    this.rayLine.scale.z = hit ? hit.hit.distance : 1.6;
-    this.setHover(hit?.target ?? null, hit?.hit ?? null);
+    beam.line.visible = true;
+    beam.line.scale.z = hit ? hit.hit.distance : 1.6;
+    this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
 
     // Deliberately a button press: hovering alone never triggers anything.
-    if (hit && (hand.trigger.justPressed || hand.primary.justPressed)) {
+    if (hit && (controller.trigger.justPressed || controller.primary.justPressed)) {
       hit.target.onSelect?.(hit.hit);
     }
-  }
-
-  /** The right hand points; a right hand with its fists full hands it over. */
-  private pointingHand(input: XRInput): ControllerState | null {
-    const right = input.get('right');
-    const left = input.get('left');
-    if (right?.tracked && !this.busy.has('right')) return right;
-    if (left?.tracked && !this.busy.has('left')) return left;
-    return null;
   }
 
   // --- ray from the 2D screen --------------------------------------------
 
   private updateScreenRay(): void {
-    if (this.rayLine.parent) this.rayLine.parent.remove(this.rayLine);
-    this.rayLine.visible = false;
+    const beam = this.beam(null);
     if (!this.screenActive) {
-      this.setHover(null, null);
+      this.blank(beam);
       this.screenClick = false;
       return;
     }
     this.raycaster.setFromCamera(this.screen, this.rig.camera);
     this.raycaster.far = 12;
     const hit = this.castAll(null);
-    this.setHover(hit?.target ?? null, hit?.hit ?? null);
+    this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
     if (hit && this.screenClick) hit.target.onSelect?.(hit.hit);
     this.screenClick = false;
+  }
+
+  private beam(hand: Handedness | null): Beam {
+    return this.beams.get(hand ?? 'screen')!;
+  }
+
+  private blank(beam: Beam): void {
+    this.setHover(beam, null, null);
+    beam.hide();
   }
 
   private castAll(hand: Handedness | null): { target: PointerTarget; hit: PointerHit } | null {
@@ -207,17 +246,25 @@ export class Pointer {
     return best;
   }
 
-  private setHover(target: PointerTarget | null, hit: PointerHit | null): void {
-    if (this.hovered && this.hovered !== target) this.hovered.onBlur?.();
-    this.hovered = target;
+  private setHover(beam: Beam, target: PointerTarget | null, hit: PointerHit | null): void {
+    const previous = beam.hovered;
+    beam.hovered = target;
+    // Only a blur once no other laser is resting on it any more — otherwise the
+    // hand that leaves would switch off the highlight the other one is holding.
+    if (previous && previous !== target && !this.hoveredElsewhere(previous)) previous.onBlur?.();
     if (target && hit) {
       target.onHover?.(hit);
-      this.cursor.visible = true;
-      if (!this.cursor.parent) this.rig.parent?.add(this.cursor);
-      this.cursor.position.copy(hit.point);
+      beam.cursor.visible = true;
+      if (!beam.cursor.parent) this.rig.parent?.add(beam.cursor);
+      beam.cursor.position.copy(hit.point);
     } else {
-      this.cursor.visible = false;
+      beam.cursor.visible = false;
     }
+  }
+
+  private hoveredElsewhere(target: PointerTarget): boolean {
+    for (const beam of this.beams.values()) if (beam.hovered === target) return true;
+    return false;
   }
 
   // --- direct touch -------------------------------------------------------

@@ -1558,8 +1558,9 @@ export class PortalWorld implements World {
       }
       if (tool.sticky && grabPressed) tool.onGrab(controller, host);
 
-      // The trigger belongs to the menu whenever the pointer rests on it.
-      if (!presenting || ctx.pointer.hovering) continue;
+      // The trigger belongs to the menu whenever *this* hand's ray rests on
+      // it — the other hand keeps its trigger, both of them point now.
+      if (!presenting || ctx.pointer.hoveringWith(controller.handedness)) continue;
       if (controller.trigger.justPressed) tool.onTrigger(controller, host);
       if (controller.trigger.justReleased) tool.onTriggerUp(controller, host);
       if (controller.primary.justPressed) tool.onPrimary(controller, host);

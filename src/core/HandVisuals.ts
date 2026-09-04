@@ -46,20 +46,25 @@ class ProceduralHand extends THREE.Group {
   ) {
     super();
     this.name = `hand-${side}`;
-    // Which way round the thumb sits. In the headset the two hands read as
-    // each other's mirror image with the opposite sign here — one constant, and
-    // it is the only thing that tells a left hand from a right one.
-    const mirror = side === 'left' ? 1 : -1;
+    // Which way round the thumb sits — the one constant that tells a left hand
+    // from a right one. The grip space is *not* mirrored between the hands, so
+    // this has to be: hold a right hand palm down with the fingers pointing
+    // forward (-Z) and the thumb points to the left, towards -X. Getting this
+    // sign wrong puts a left hand on the right controller and vice versa.
+    const mirror = side === 'left' ? -1 : 1;
 
     // The grip space points -Z forward with the back of the hand towards +Y.
     const palm = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
     palm.position.set(0, 0, -0.01);
     this.add(palm);
 
-    // Thumb: sits on the inner edge and folds across the palm.
+    // Thumb: sits at the wrist end of the thumb edge and juts out sideways —
+    // the yaw carries it away from the palm, the small pitch drops it a little
+    // towards the palm side, and the roll turns its bending axis so that
+    // curling it folds it *across* the palm instead of straight down.
     const thumbRoot = new THREE.Object3D();
-    thumbRoot.position.set(mirror * -0.036, -0.004, 0.012);
-    thumbRoot.rotation.set(0, mirror * -0.55, mirror * 0.5);
+    thumbRoot.position.set(mirror * -0.034, -0.006, 0.014);
+    thumbRoot.rotation.set(-0.22, mirror * 0.75, mirror * 0.6);
     this.add(thumbRoot);
     this.chains.push(buildChain(thumbRoot, [0.034, 0.028], 0.017, material));
 
@@ -108,14 +113,14 @@ class ProceduralHand extends THREE.Group {
       this.curls[i]! += (this.targets[i]! - this.curls[i]!) * blend;
       const curl = this.curls[i]!;
       const chain = this.chains[i]!;
-      // The thumb folds sideways, the fingers towards the palm.
-      if (i === 0) {
-        chain[0]!.rotation.z = -curl * 1.0;
-        chain[1]!.rotation.z = -curl * 0.7;
-      } else {
-        chain[0]!.rotation.x = -curl * 1.5;
-        chain[1]!.rotation.x = -curl * 1.4;
-      }
+      // Every joint bends around its own X, which is the only axis that moves
+      // the next bone at all — the chain runs along -Z, so a turn around Z just
+      // rolls it and the thumb used to stay stubbornly straight. The thumb's
+      // root is rolled instead, which sends the same bend across the palm.
+      const first = i === 0 ? 1.1 : 1.5;
+      const second = i === 0 ? 0.9 : 1.4;
+      chain[0]!.rotation.x = -curl * first;
+      chain[1]!.rotation.x = -curl * second;
     }
   }
 }
