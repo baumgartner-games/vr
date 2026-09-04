@@ -44,7 +44,8 @@ der Rechnung hinter der Boxhand am Werkzeug, die Fahrphysik und
 Streckenführung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte, den
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
-hängt) und die Auslegung der Hub-Gänge. Diese
+hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang und die Auslegung
+der Hub-Gänge. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
@@ -72,6 +73,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Werkzeug nehmen/ablegen | Grip an der Hüfte; woanders loslassen lässt es fallen | – | – |
 | Ohne Controller | 3 Finger an die Handfläche = Greifen, Zeigefinger = Trigger | – | – |
 | Sitzen oder stehen | Startseite oder Menü → Bewegung → Haltung | dito | dito |
+| Verbinden | Menü → Verbindung → *Raum betreten*; geht mitten im Spiel, ohne die Sitzung zu verlassen | Raum-Code auf der Startseite | dito |
 | Werkzeug benutzen | Trigger (Greifen = zweite Funktion) | Links-/Rechtsklick | – |
 | Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |

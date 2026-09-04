@@ -18,3 +18,37 @@ export const LANE = { half: 2.2, length: 9.5, height: 2.7 };
 
 /** Wo die Zielscheiben hängen: Höhe über dem Boden und Abstand zur Tür. */
 export const TARGET = { y: 1.45, z: LANE.length - 0.35, radius: 0.32 };
+
+/**
+ * Ob die beiden Stände ihre Scheiben **tauschen** sollen.
+ *
+ * Jeder Stand bringt seine eigene Scheibe mit, und solange beide dort stehen,
+ * wo sie gebaut wurden, zielt jeder geradeaus den Gang hinunter. Nur sind die
+ * Stände verschiebbar — und seit die beiden einmal die Seiten getauscht haben,
+ * standen sie links, während ihre Scheiben rechts hingen: zwei Strahlen, die
+ * sich in der Mitte des Gangs kreuzen, und ein Werkzeug, das auf die Scheibe
+ * des Nachbarn zeigt.
+ *
+ * Die Scheiben deshalb mitwandern zu lassen, wäre die schlechtere Antwort: sie
+ * halten Kugeln auf, und ein Kollisionskörper, der jedem Schieben folgt, ist
+ * eine Fehlerquelle für einen Schönheitsfehler. Stattdessen behalten sie ihren
+ * Platz, und die **Zuordnung** dreht sich: der linke Stand nimmt die linke
+ * Scheibe, der rechte die rechte. Damit kreuzen sich zwei Strahlen nie, wie
+ * auch immer jemand die Stände schiebt.
+ *
+ * Die Reihenfolge und nicht der kürzeste Weg entscheidet, weil der kürzeste
+ * Weg genau dann nichts entscheidet, wenn man ihn braucht: stehen beide Stände
+ * links von beiden Scheiben, sind beide Zuordnungen exakt gleich lang, und die
+ * Rechnung würfelt. Die Reihenfolge ist immer eindeutig.
+ *
+ * Alle vier Werte sind Querlagen im Gang, in Metern; Höhe und Tiefe spielen
+ * keine Rolle, weil alle Scheiben gleich weit hinten und gleich hoch hängen.
+ */
+export function swapTargets(
+  standA: number,
+  standB: number,
+  targetA: number,
+  targetB: number,
+): boolean {
+  return (standA - standB) * (targetA - targetB) < 0;
+}

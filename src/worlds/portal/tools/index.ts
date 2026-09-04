@@ -145,11 +145,13 @@ export {
   applyStoredPose,
   clearPose,
   clearPoses,
+  holdPoseHands,
   holdPoseSnapshot,
   savePose,
   saveHoldPoses,
   storedPose,
   storedPoseCount,
+  storedPoseHand,
 } from './poseStore';
 export {
   eulerXYZ,

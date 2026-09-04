@@ -6,6 +6,18 @@ import { TARGET } from './lane';
 /** Wie nah eine Hand an einen Griff muss, damit er reagiert. */
 export const HANDLE_REACH = 0.2;
 
+/**
+ * Wie durchsichtig das Möbelstück ist — Säule und Ablagen des Standes.
+ *
+ * Es ist Beiwerk: was man ansieht, ist das Werkzeug im Halter und die Hand
+ * daran, und ein Stand, der davorsteht, ist ein Stand zu viel im Bild. Er darf
+ * gerade so zu sehen sein, dass man weiß, wo man hingreift — mehr braucht ein
+ * Ding nicht, dessen Griffe ohnehin leuchten. Der zweite Wert gilt, während
+ * eine Hand nah dran ist: dann soll er sich melden.
+ */
+export const STAND_OPACITY = 0.16;
+export const STAND_OPACITY_LIT = 0.34;
+
 const _world = new THREE.Vector3();
 const _matrix = new THREE.Matrix4();
 const _up = new THREE.Vector3(0, 1, 0);
@@ -81,6 +93,19 @@ export abstract class StandFrame extends THREE.Group {
   /** Die eigene Zielscheibe — die Welt macht sie fest, damit Kugeln enden. */
   readonly disc: THREE.Mesh;
 
+  /**
+   * Die Scheibe, auf die dieser Stand **zielt** — im Normalfall die eigene.
+   *
+   * Sie kann eine fremde sein: wer die Stände über Kreuz schiebt, soll nicht
+   * quer durch den Gang zielen (`lane.ts`, `swapTargets`). Getrennt von `disc`,
+   * weil die eigene Scheibe weiter die eigene bleibt — sie hängt an diesem
+   * Stand und trägt seinen Kollisionskörper.
+   */
+  private target: THREE.Object3D;
+
+  /** Wo der Stand zuletzt hingestellt wurde — für ein Ziel, das sich ändert. */
+  private placement: { height: number; x: number; z: number } | null = null;
+
   /** Die Zielachse, sichtbar: von der Aufnahme bis in die Scheibe. */
   protected readonly beam: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
 
@@ -106,7 +131,7 @@ export abstract class StandFrame extends THREE.Group {
         roughness: 0.6,
         emissive: new THREE.Color(GRAB_TINT).multiplyScalar(0.3),
         transparent: true,
-        opacity: 0.34,
+        opacity: STAND_OPACITY,
         depthWrite: false,
       }),
     );
@@ -137,6 +162,7 @@ export abstract class StandFrame extends THREE.Group {
     this.disc.rotation.x = -Math.PI / 2;
     this.disc.position.set(targetX, TARGET.y, TARGET.z);
     this.add(this.disc);
+    this.target = this.disc;
 
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, TARGET.y, 0.08), this.steel);
     post.position.set(targetX, TARGET.y / 2, TARGET.z + 0.05);
@@ -158,8 +184,17 @@ export abstract class StandFrame extends THREE.Group {
     this.mount.add(this.beam);
   }
 
+  /** Auf welche Scheibe dieser Stand zielt. Wirkt sofort, ohne neues `place`. */
+  aimAt(disc: THREE.Object3D): void {
+    if (this.target === disc) return;
+    this.target = disc;
+    const at = this.placement;
+    if (at) this.place(at.height, at.x, at.z);
+  }
+
   /** Wo der Stand steht und wie hoch — Meter, im Raum des Gangs. */
   place(height: number, x: number, z: number): void {
+    this.placement = { height, x, z };
     this.station.position.set(x, height, z);
     // Säule und Ablagenbeine reichen von ihrem Brett bis auf den Boden.
     this.column.scale.y = Math.max(height - 0.045, 0.02);
@@ -172,7 +207,11 @@ export abstract class StandFrame extends THREE.Group {
     // Werkzeug zielt. Damit *kann* eines im Halter nicht danebenzeigen — auch
     // nicht, nachdem der Stand verschoben wurde.
     _here.set(x, height, z);
-    _there.copy(this.disc.position);
+    // Über die Welt und zurück, weil das Ziel auch am *anderen* Stand hängen
+    // kann: dessen Ortskoordinaten gelten dort und nicht hier.
+    this.updateWorldMatrix(true, false);
+    this.target.updateWorldMatrix(true, false);
+    this.worldToLocal(this.target.getWorldPosition(_there));
     this.mount.quaternion.setFromRotationMatrix(_matrix.lookAt(_here, _there, _up));
     // Und die Linie reicht genau bis in die Scheibe, nicht weiter.
     this.beam.scale.z = Math.max(_here.distanceTo(_there) - 0.06, 0.2);
@@ -203,7 +242,7 @@ export abstract class StandFrame extends THREE.Group {
     this.standMaterial.emissive
       .setHex(on ? GRAB_GLOW : GRAB_TINT)
       .multiplyScalar(on ? 0.6 : 0.3);
-    this.standMaterial.opacity = on ? 0.5 : 0.34;
+    this.standMaterial.opacity = on ? STAND_OPACITY_LIT : STAND_OPACITY;
   }
 
   /** Ob die Säule zu sehen ist — voll ist ein Stand am besten ganz weg. */

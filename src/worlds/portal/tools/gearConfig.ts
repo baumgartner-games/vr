@@ -28,7 +28,7 @@ import {
   weaponSettings,
   type StoredAttachments,
 } from './gearStore';
-import { clearPoses, holdPoseSnapshot, saveHoldPoses } from './poseStore';
+import { clearPoses, holdPoseHands, holdPoseSnapshot, saveHoldPoses } from './poseStore';
 import type { DroneSettings } from './droneSettings';
 import type { SupermanSettings } from './supermanSettings';
 import type { WeaponSettings } from './weaponSettings';
@@ -67,6 +67,16 @@ import type { Handedness } from '../../../core/XRInput';
 export interface GearConfig {
   /** Tool id → `[x, y, z, pitch, yaw, roll]`, centimetres and degrees. */
   tools?: Record<string, number[]>;
+  /**
+   * Tool id → die Hand, an der diese Haltung gemessen wurde.
+   *
+   * Keine Einstellung, sondern eine Herkunftsangabe: die Haltung selbst gilt
+   * für beide Hände, aber gemessen hat jemand an einer, und wer sich später
+   * über eine schiefe Lampe wundert, will genau das wissen. Der Kurzcode trägt
+   * die Seite ohnehin (`shortCode.ts`); der große lässt sie weg und ändert
+   * damit auch nichts an ihr.
+   */
+  toolHands?: Record<string, Handedness>;
   /** Hand poses: idle per hand, plus one per tool that is held. */
   hands?: StoredHandPoses;
   /** `toolId:attachmentId` → the same six numbers, in the tool's own space. */
@@ -90,6 +100,7 @@ const TOOL_SETTINGS: Record<string, 'weapon' | 'drone' | 'superman'> = {
 export function gearConfig(): GearConfig {
   return {
     tools: holdPoseSnapshot(),
+    toolHands: holdPoseHands(),
     hands: handPoseSnapshot(),
     attachments: attachmentSnapshot(),
     weapon: weaponSettings(),
@@ -124,7 +135,11 @@ export function toolGearConfig(toolId: string | null, hand: Handedness | null = 
   }
 
   const pose = all.tools?.[toolId];
-  if (pose) config.tools = { [toolId]: pose };
+  if (pose) {
+    config.tools = { [toolId]: pose };
+    const measured = all.toolHands?.[toolId];
+    if (measured) config.toolHands = { [toolId]: measured };
+  }
 
   const hold: NonNullable<StoredHandPoses['hold']> = {};
   for (const side of sides) {
@@ -213,6 +228,7 @@ function configFromShort(short: ShortGear): GearConfig {
 
   if (short.pose && id && id !== GRAB_ID) {
     config.tools = { [id]: [...short.pose] };
+    config.toolHands = { [id]: short.hand };
   }
 
   if (short.grip) {
@@ -279,7 +295,10 @@ export function applyGearConfig(config: GearConfig): string {
   const parts: string[] = [];
 
   if (config.tools) {
-    saveHoldPoses({ ...holdPoseSnapshot(), ...config.tools });
+    saveHoldPoses(
+      { ...holdPoseSnapshot(), ...config.tools },
+      { ...holdPoseHands(), ...config.toolHands },
+    );
     parts.push(`${Object.keys(config.tools).length} Werkzeug-Posen`);
   }
   if (config.hands) {

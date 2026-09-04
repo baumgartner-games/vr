@@ -431,12 +431,26 @@ export class PortalSync {
     }
   }
 
+  /**
+   * Der Stand der Welt, wie der Gastgeber ihn sieht — **außer dem, was hier in
+   * der Hand liegt**.
+   *
+   * Ein Schnappschuss kommt genau dann, wenn jemand dazukommt, und wer gerade
+   * dazugekommen ist, weiß nicht, was hier schon getragen wird. Übernähme man
+   * seine Besitzerliste ungefiltert, verlöre man in dem Moment den Anspruch auf
+   * das Ding in der eigenen Hand: es begänne, fremden Posen zu folgen, und
+   * würde einem sichtbar aus der Hand gezogen. Der eigene Besitz bleibt
+   * deshalb stehen — er wird per `own` ohnehin gleich noch einmal angesagt.
+   */
   private applySnapshot(state: Snapshot): void {
+    const me = this.options.net.localId;
+    const mine = [...this.owners].filter(([, owner]) => owner === me).map(([id]) => id);
     for (const { id, kind, pose } of state.spawned) {
       if (!this.options.bodies.has(id)) this.options.spawnRemote(id, kind, pose);
     }
     this.owners.clear();
     for (const [id, owner] of state.owners) this.owners.set(id, owner);
+    for (const id of mine) this.owners.set(id, me);
     for (const [key, portal] of state.portals) this.options.applyPortal(key, portal);
     for (const item of state.bodies) {
       const [id, ...pose] = item;

@@ -32,8 +32,11 @@ export interface KeyPanelRequest {
   sub?: string;
   /** Starting text. */
   value?: string;
-  /** Digits and a sign, or the letters a config code is made of. */
-  layout: 'number' | 'text';
+  /**
+   * Zifferblock, die Zeichen eines Konfig-Codes — oder dieselben Buchstaben mit
+   * einer Leertaste, für alles, was ein Mensch sich ausdenkt (`name`).
+   */
+  layout: 'number' | 'text' | 'name';
   /** Shown under the field — the range, the format, whatever helps. */
   hint?: string;
   /** Called with every keystroke, so a value can be tried out live. */
@@ -83,6 +86,24 @@ const TEXT_ROWS: Key[][] = [
     { label: 'Kopieren', action: { kind: 'copy' }, span: 2, accent: '#9fd0ff' },
     { label: 'Abbrechen', action: { kind: 'cancel' }, span: 2, accent: '#ff7a7a' },
     { label: 'OK', action: { kind: 'ok' }, span: 2, accent: '#5ee0a0' },
+  ],
+];
+
+/**
+ * Dieselben Buchstaben, aber mit **Leertaste** — und ohne Kopieren/Einfügen.
+ *
+ * Ein Name ist nichts, was man aus der Zwischenablage holt, und „Nils B" ohne
+ * Leerzeichen einzutippen ist eine Zumutung. Der Konfig-Code umgekehrt darf
+ * kein Leerzeichen enthalten, also bekommt er auch keine Taste dafür.
+ */
+const NAME_ROWS: Key[][] = [
+  ...TEXT_ROWS.slice(0, TEXT_ROWS.length - 1),
+  [
+    { label: '←', action: { kind: 'back' }, span: 2, accent: '#ffb35c' },
+    { label: 'Leeren', action: { kind: 'clear' }, span: 2, accent: '#ffb35c' },
+    { label: 'Leertaste', action: { kind: 'char', char: ' ' }, span: 3 },
+    { label: 'Abbrechen', action: { kind: 'cancel' }, span: 3, accent: '#ff7a7a' },
+    { label: 'OK', action: { kind: 'ok' }, span: 3, accent: '#5ee0a0' },
   ],
 ];
 
@@ -156,7 +177,8 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
     beginTextEntry();
     this.request = request;
     this.text = request.value ?? '';
-    this.rows = request.layout === 'text' ? TEXT_ROWS : NUMBER_ROWS;
+    this.rows =
+      request.layout === 'text' ? TEXT_ROWS : request.layout === 'name' ? NAME_ROWS : NUMBER_ROWS;
     this.status = '';
     this.hover = -1;
     this.visible = true;

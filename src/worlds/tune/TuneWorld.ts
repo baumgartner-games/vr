@@ -13,7 +13,7 @@ import {
   type HapticPattern,
 } from './haptics';
 import { ToolRange, MOUNT_REACH, ZONE_RADIUS, type RangeGrip } from './ToolRange';
-import { LANE } from './lane';
+import { LANE, swapTargets } from './lane';
 import { HANDLE_REACH } from './StandFrame';
 import { GripStand, HAND_REACH } from './GripStand';
 import {
@@ -126,6 +126,16 @@ interface Mounted {
   hand: Handedness;
   /** Die Haltung, die es beim Ablegen hatte. `A` legt genau die zurück. */
   before: { position: THREE.Vector3; rotation: THREE.Quaternion };
+  /**
+   * Ob Trigger und Greifen schon zählen dürfen.
+   *
+   * Wer ein Werkzeug im Menü auswählt, drückt dabei genau die Taste, die im
+   * Halter „gemessen, gib es mir zurück" heißt — und hatte das Ding damit im
+   * selben Bild wieder in der Hand, ohne es je im Halter gesehen zu haben. Ein
+   * frisch aus dem Menü gelegtes Werkzeug wartet deshalb, bis beide Tasten
+   * einmal oben waren; wer es selbst hineinlegt, hält die Taste ohnehin nicht.
+   */
+  armed: boolean;
 }
 
 /**
@@ -716,6 +726,7 @@ export class TuneWorld extends PortalWorld {
   private showRange(settings: RangeSettings): void {
     this.rangeState = settings;
     this.range?.apply(settings);
+    this.alignTargets();
     this.refreshButtons();
   }
 
@@ -728,6 +739,7 @@ export class TuneWorld extends PortalWorld {
       return;
     }
     stand.apply(settings);
+    this.alignTargets();
     if (!stand.setTool(settings.tool) && settings.tool !== DEFAULT_GRIP.tool) {
       // Eine Id aus einer Fassung, die dieses Werkzeug noch kannte: dann liegt
       // eben wieder die Pistole da. Ein leerer Stand wäre die schlechteste der
@@ -737,6 +749,29 @@ export class TuneWorld extends PortalWorld {
     }
     this.placeGripHand();
     this.refreshButtons();
+  }
+
+  /**
+   * Wer auf welche Scheibe zielt.
+   *
+   * Beide Stände bringen je eine mit, und beide lassen sich quer durch den Gang
+   * schieben — spätestens seit die beiden einmal die Seiten getauscht haben,
+   * zeigte jeder auf die Scheibe des anderen. Die Scheiben bleiben deshalb
+   * hängen, wo sie hängen, und die **Zuordnung** dreht sich: der linke Stand
+   * nimmt die linke Scheibe (`lane.ts`, `swapTargets`).
+   */
+  private alignTargets(): void {
+    const range = this.range;
+    const grip = this.grip;
+    if (!range || !grip) return;
+    const swap = swapTargets(
+      this.rangeState.x / 100,
+      this.gripState.x / 100,
+      range.disc.position.x,
+      grip.disc.position.x,
+    );
+    range.aimAt(swap ? grip.disc : range.disc);
+    grip.aimAt(swap ? range.disc : grip.disc);
   }
 
   /**
@@ -775,6 +810,23 @@ export class TuneWorld extends PortalWorld {
     const tool = this.tool(copy.toolId) ?? copy;
     aimQuaternion(tool.alignToAim ? (this.context?.input.get(side) ?? null) : null, _aim);
     return toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, _aim);
+  }
+
+  /**
+   * Die Handhaltung, bei der die Boxhand **genau im Werkzeug** steht.
+   *
+   * Das ist der Nullpunkt, den ein Mensch an diesem Stand meint: `ghostOnTool`
+   * setzt die Hand an `Lage-im-Griff⁻¹ · Haltung`, und für `Haltung =
+   * Lage-im-Griff` bleibt davon die Ruhe übrig. Krümmung und Spreizung kommen
+   * aus der gebauten Faust — beim Zurücksetzen soll auch die Hand wieder zu
+   * sein.
+   */
+  private gripHomePose(side: Handedness): HandPose {
+    const fist = clonePose(HOLD_HAND_POSE);
+    const tool = this.grip?.tool;
+    if (!tool) return fist;
+    const readout = readPose(this.gripLocal(tool, side) as HoldPose);
+    return { ...fist, ...readout };
   }
 
   /** "Rechte Hand · Pistole" — welche Hand, und was sie hält. */
@@ -976,7 +1028,9 @@ export class TuneWorld extends PortalWorld {
     this.equipTool(ctx, hand, id);
     const tool = this.host?.heldTool(hand) ?? null;
     if (tool) {
-      this.mountTool(tool, hand);
+      // Ungespannt: der Trigger, der die Zeile ausgewählt hat, ist in diesem
+      // Bild noch unten und darf nicht auch schon die Messung abschließen.
+      this.mountTool(tool, hand, false);
     } else {
       // Ohne getrackte Hand kommt nichts in den Halter — das sagt `equipTool`
       // schon. Der Griffstand bekommt das Werkzeug trotzdem: dort wird es auch
@@ -1323,13 +1377,28 @@ export class TuneWorld extends PortalWorld {
     ctx.notify(`Griffstand: ${tool.label} · ${handLabel(next.side)}`);
   }
 
-  /** Die Handhaltung an diesem Werkzeug zurück auf die gebaute Faust. */
+  /**
+   * Die Handhaltung an diesem Werkzeug zurück auf **die Hand am Werkzeug**.
+   *
+   * Die naheliegende Antwort wäre die gebaute Faust — sechs Nullen. Nur ist
+   * eine Handhaltung ein Versatz im **Griffraum**, und die Null darin ist der
+   * Griffpunkt des Controllers, nicht das Werkzeug: setzt man auf Null zurück,
+   * springt die Boxhand um den Versatz *und* um die 30° zwischen Faust und
+   * Zeigestrahl vom Werkzeug weg und liegt sichtbar daneben. Genau das war die
+   * Beschwerde, und es ist derselbe schiefe Nullpunkt, der die eingemessenen
+   * Zahlen weit weg von 0,0,0 aussehen lässt.
+   *
+   * Der Nullpunkt, den man hier haben will, sitzt **am Werkzeug**: die Haltung,
+   * bei der die Boxhand genau in der Kopie steht, also `Lage-im-Griff` selbst
+   * (`ghostOnTool(local, local)` ist die Ruhe). Von dort aus justiert man nach
+   * außen, statt sich erst wieder heranzutasten.
+   */
   private resetGripPose(): void {
     const ctx = this.context;
     if (!ctx) return;
     this.cancelHandDrag(true);
     const { side, tool } = this.gripState;
-    saveHoldHandPose(side, tool, clonePose(HOLD_HAND_POSE));
+    saveHoldHandPose(side, tool, this.gripHomePose(side));
     ctx.hands.refreshPoses();
     this.placeGripHand();
     this.refreshButtons();
@@ -1385,6 +1454,11 @@ export class TuneWorld extends PortalWorld {
       if (!controller?.tracked) return;
       if (controller.primary.justPressed) {
         this.releaseMount(true);
+        return;
+      }
+      // Erst die Hand aufmachen, dann bestätigen — siehe `Mounted.armed`.
+      if (!mounted.armed) {
+        if (!controller.trigger.pressed && !controller.squeeze.pressed) mounted.armed = true;
         return;
       }
       // Greifen *oder* Trigger: mit Controller liegt der Daumen am einen, der
@@ -1715,7 +1789,7 @@ export class TuneWorld extends PortalWorld {
    * Legt ein Werkzeug in den Halter: aus der Hand heraus, in die Aufnahme
    * hinein — und die zeigt auf die Scheibe.
    */
-  private mountTool(tool: Tool, hand: Handedness): Mounted | null {
+  private mountTool(tool: Tool, hand: Handedness, armed = true): Mounted | null {
     const ctx = this.context;
     const range = this.range;
     if (!ctx || !range || !this.host?.parkTool(tool)) {
@@ -1742,6 +1816,7 @@ export class TuneWorld extends PortalWorld {
         position: tool.holdPosition.clone(),
         rotation: tool.holdRotation.clone(),
       },
+      armed,
     };
     this.mounted = mounted;
     this.mountBlocked = null;
@@ -1807,7 +1882,7 @@ export class TuneWorld extends PortalWorld {
       tool.storeMeasured(hand);
       this.context?.hands.refreshPoses();
     } else {
-      savePose(tool.toolId, pose);
+      savePose(tool.toolId, pose, hand);
     }
     // Der zweite Stand hängt an dieser Zahl: die Boxhand steht relativ zur
     // Lage des Werkzeugs im Griff, und die hat sich gerade geändert.

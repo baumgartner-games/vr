@@ -35,3 +35,48 @@ export function normalizeRoomCode(input: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
 }
+
+/**
+ * Der zuletzt benutzte Raum-Code und der eigene Name, im Browser.
+ *
+ * Beides steht hier und nicht im Panel der Startseite, weil es inzwischen zwei
+ * Stellen gibt, an denen man sich verbindet: das Feld auf der Seite und das
+ * Menü in der Brille. Zwei Speicher mit demselben Zweck wären zwei Namen, die
+ * auseinanderlaufen — und man merkt es erst, wenn der andere im Raum einen
+ * fremden Namen liest.
+ */
+const STORAGE_ROOM = 'bgvr:room';
+const STORAGE_NAME = 'bgvr:name';
+
+export function rememberedRoom(): string {
+  return readStored(STORAGE_ROOM);
+}
+
+export function rememberedName(): string {
+  return readStored(STORAGE_NAME);
+}
+
+export function rememberRoom(room: string): void {
+  writeStored(STORAGE_ROOM, room);
+}
+
+export function rememberName(name: string): void {
+  writeStored(STORAGE_NAME, name);
+}
+
+function readStored(key: string): string {
+  try {
+    return globalThis.localStorage?.getItem(key) ?? '';
+  } catch {
+    // Privater Modus, kein Speicher — kein Grund für einen Absturz.
+    return '';
+  }
+}
+
+function writeStored(key: string, value: string): void {
+  try {
+    globalThis.localStorage?.setItem(key, value);
+  } catch {
+    /* siehe oben */
+  }
+}

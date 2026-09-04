@@ -11,7 +11,8 @@
  */
 import { HOLD_HAND_POSE, defaultHoldPose, handPoseToArray, mirrorHandPose } from '../../../core/handPose';
 import { saveHoldHandPose, saveIdleHandPose } from '../../../core/handPoseStore';
-import { savePose } from './poseStore';
+import { savePose, storedPoseHand, storedPose } from './poseStore';
+import { readPose } from './toolPose';
 import { applyGearConfig, gearCode, parseGearCode, toolGearCode } from './gearConfig';
 
 function fakeStorage(): Storage {
@@ -96,20 +97,69 @@ describe('der Code für ein Werkzeug an einer Hand', () => {
   });
 });
 
+describe('der abgetippte Code der Taschenlampe', () => {
+  // Genau die Zeile, die von der Tafel im Eingaberaum kam. Sie steht hier,
+  // weil die Zahlen daraus in `handPose.ts` und `FlashlightTool.ts` gelandet
+  // sind: wer sie dort ändert, soll sehen, woher sie kamen.
+  const CODE = 'BPNDLdWgZ9NvBevCHScPckXK';
+
+  it('trägt die Lage im Griff, den Griff und die rechte Hand', () => {
+    const config = parseGearCode(CODE);
+    expect(config).not.toBeNull();
+    expect(config!.tools?.flashlight).toEqual([0.8, -1.4, 3.8, 30, 5, 9]);
+    expect(config!.toolHands?.flashlight).toBe('right');
+    expect(config!.hands?.hold?.right?.flashlight?.slice(0, 6)).toEqual([
+      3.6, -1.8, 2.5, -59, 23, -99,
+    ]);
+  });
+
+  it('merkt sich beim Laden, an welcher Hand gemessen wurde', () => {
+    applyGearConfig(parseGearCode(CODE)!);
+    expect(storedPoseHand('flashlight')).toBe('right');
+    expect(readPose(storedPose('flashlight')!)).toMatchObject({
+      x: 0.8,
+      y: -1.4,
+      z: 3.8,
+      pitch: 30,
+      yaw: 5,
+      roll: 9,
+    });
+  });
+
+  it('gibt dieselbe Zeile wieder her', () => {
+    applyGearConfig(parseGearCode(CODE)!);
+    expect(toolGearCode('flashlight', 'right')).toBe(CODE);
+  });
+});
+
+describe('die Hand am Werkzeug', () => {
+  it('bleibt gespeichert, auch wenn nur die Pose neu geschrieben wird', () => {
+    savePose('flashlight', { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } }, 'left');
+    expect(storedPoseHand('flashlight')).toBe('left');
+    savePose('flashlight', { position: { x: 0.01, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } });
+    expect(storedPoseHand('flashlight')).toBe('left');
+  });
+
+  it('ist leer, solange niemand sie aufgeschrieben hat', () => {
+    savePose('pistol', { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } });
+    expect(storedPoseHand('pistol')).toBeNull();
+  });
+});
+
 describe('die eingemessene Taschenlampe', () => {
   it('liegt rechts, wie gemessen, und links gespiegelt', () => {
     expect(defaultHoldPose('right', 'flashlight')).toMatchObject({
-      x: 4,
-      y: -2.8,
-      z: 1.7,
-      pitch: -44,
-      yaw: 26,
-      roll: -105,
+      x: 3.6,
+      y: -1.8,
+      z: 2.5,
+      pitch: -59,
+      yaw: 23,
+      roll: -99,
     });
     expect(defaultHoldPose('left', 'flashlight')).toEqual(
       mirrorHandPose(defaultHoldPose('right', 'flashlight')),
     );
-    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: -4, yaw: -26, roll: 105 });
+    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: -3.6, yaw: -23, roll: 99 });
   });
 
   it('lässt alles andere bei der gebauten Faust', () => {

@@ -610,6 +610,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   beiden Hälften derselben Frage: der erste *wie halte ich das Ding?*, der
   zweite *wie umfasst die Hand es?*
 
+  Die Scheiben hängen fest — sie halten Kugeln auf, und ein Kollisionskörper,
+  der jedem Schieben folgt, ist eine Fehlerquelle für einen Schönheitsfehler.
+  Verschiebbar sind die **Stände**, und damit keiner quer durch den Gang auf
+  die Scheibe des Nachbarn zeigt, dreht sich die **Zuordnung**: der linke Stand
+  nimmt die linke Scheibe, der rechte die rechte (`tune/lane.ts`,
+  `swapTargets`, mit Test). Entschieden wird nach der Reihenfolge und nicht
+  nach dem kürzesten Weg — der ist genau dann unentschieden, wenn beide Stände
+  auf derselben Seite stehen.
+
   Der **erste Stand** (`tune/ToolRange.ts`): ein Werkzeug liegt nicht richtig
   oder falsch, es **zeigt** richtig oder falsch — und wohin es zeigt, sieht man
   an nichts so gut wie an einer Scheibe am Ende eines Gangs. Ein Werkzeug, das
@@ -621,9 +630,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   und das Werkzeug springt damit in die Hand zurück — wo man sofort sieht, ob
   es die Scheibe trifft. `A` legt es unverändert zurück.
 
-  Der Stand selbst ist dabei immer im Weg, also ist er **leer durchsichtig und
-  voll unsichtbar**: man will die Hand am Werkzeug beurteilen und nicht das
-  Möbelstück darunter, und leer muss man trotzdem sehen, wohin das Werkzeug
+  Der Stand selbst ist dabei immer im Weg, also ist er **leer fast durchsichtig
+  und voll unsichtbar** (`STAND_OPACITY` in `tune/StandFrame.ts`): man will die
+  Hand am Werkzeug beurteilen und nicht das Möbelstück darunter, und leer muss man trotzdem sehen, wohin das Werkzeug
   soll. Sobald eines drinsitzt, läuft stattdessen eine **Linie aus dem Werkzeug
   bis in die Scheibe** — die Zielachse selbst, zu sehen statt zu glauben. Das
   Werkzeug ist dann ein *Kind* der Aufnahme und nicht bloß an derselben Stelle:
@@ -668,7 +677,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   werden: was man hält, hält man 1:1, und ein Umhängen kann keine
   Rundungsfehler aufsummieren. **Darunter** hängt ein Knopf, der die Haltung
   zurücksetzt — dort, wo man steht, wenn man ihn braucht; an der Wand steht
-  derselbe noch einmal.
+  derselbe noch einmal. Zurückgesetzt wird **auf die Hand am Werkzeug** und
+  nicht auf sechs Nullen: die Null einer Handhaltung ist der Griffpunkt des
+  Controllers, und die liegt sichtbar neben der Lampe (siehe *Eingemessene
+  Griffe*).
 
   **Warum zwei Stände und nicht einer**: an einer Pistole zeigt der
   Zeigefinger dorthin, wohin der Lauf zeigt, und das sieht richtig aus.
@@ -823,10 +835,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe an der rechten Wand im Eingaberaum | – | – |
 | Werkzeug einmessen (Schießgang) | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück | – | – |
 | Haltung feinjustieren (Schießgang) | *Feinjustieren* an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
-| Werkzeug wählen (Schießgang) | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter | – | – |
+| Werkzeug wählen (Schießgang) | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter und **bleibt dort**, bis die Hand wieder aufgeht | – | – |
+| Verbinden (in der Brille) | Menü → *Verbindung* → *Raum betreten* (Code tippen) oder *Neuen Raum aufmachen*; *Name* ändert den eigenen Namen — beides geht mitten im Spiel | Raum-Code auf der Startseite | – |
 | Einstellungen verschicken | *Werkzeug senden* / *Alles senden* an der Wand des Gangs — geht an alle, die im Raum verbunden sind | – | – |
 | AR an/aus (Schießgang) | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf *AR* an der rechten Wand | – | – |
-| Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt zurück | – | – |
+| Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug** | – | – |
 | Grundhaltung einmessen | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger** | – | – |
 | Stand stellen (beide) | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert | – | – |
 | Vibration ausprobieren | Griff auf der Bank links greifen und halten | – | – |
@@ -1204,10 +1217,29 @@ Hand, die anders greift als die andere, sieht man nicht, man wundert sich nur.
 
 | Werkzeug | x | y | z | Pitch | Yaw | Roll |
 | --- | --- | --- | --- | --- | --- | --- |
-| Taschenlampe (rechts) | 4 | −2,8 | 1,7 | −44° | 26° | −105° |
+| Taschenlampe (rechts) | 3,6 | −1,8 | 2,5 | −59° | 23° | −99° |
+
+Dazu gehört die **Lage der Lampe im Griff** selbst, die am ersten Stand
+gemessen wird und im Werkzeug steht (`FlashlightTool.ts`): 0,8 · −1,4 · 3,8 cm
+und 30/5/9°. Beide Zahlenreihen kamen als **ein** Kurzcode herein —
+`BPNDLdWgZ9NvBevCHScPckXK` —, und der Test in `gearShort.test.ts` liest ihn
+wieder, damit man sieht, woher sie stammen.
 
 Der Speicher legt sich darüber, sobald jemand selbst justiert
-(`handPoseStore.ts`); wer zurücksetzt, landet wieder hier.
+(`handPoseStore.ts`); wer zurücksetzt, landet wieder hier. Im Speicher steht
+außerdem, **an welcher Hand** eine Werkzeugpose gemessen wurde
+(`poseStore.ts`, `storedPoseHand`): die Pose selbst gilt für beide, aber die
+Herkunft ist die einzige Auskunft darüber, warum sie so aussieht, wie sie
+aussieht. Der Kurzcode trägt die Seite ohnehin, und das Menü zeigt sie unter
+*Lage in der Hand zurücksetzen*.
+
+**Der Nullpunkt am zweiten Stand sitzt am Werkzeug.** Eine Handhaltung ist ein
+Versatz im *Griffraum*, und die Null darin ist der Griffpunkt des Controllers,
+nicht das Werkzeug — auf Null zurückgesetzt sprang die Boxhand deshalb um den
+Versatz *und* um die 30° zwischen Faust und Zeigestrahl weg und lag sichtbar
+neben der Lampe. *Zurücksetzen* schreibt jetzt die Lage des Werkzeugs im Griff
+selbst (`TuneWorld.gripHomePose`), und die Hand steht danach exakt in der
+Kopie; von dort justiert man nach außen, statt sich erst wieder heranzutasten.
 
 ### Konfig-Code
 
@@ -1524,6 +1556,25 @@ Zwei Geräte, ein Raum-Code, keine eigene Infrastruktur. Auf der Startseite (ode
 im HUD unter **Verbindung**) tragen beide denselben Code ein — `Würfeln` erzeugt
 einen sprechbaren wie `mond-riff-47`, `Link kopieren` legt ihn als `?room=` in
 die URL, damit das zweite Gerät nur noch tippen muss.
+
+**Auch aus der Brille heraus.** Getippt wurde der Code lange nur auf der flachen
+Seite, und das hieß für jemanden, der schon spielte: Brille ab, Code eintippen,
+Brille auf, Sitzung neu starten. Unter *Verbindung* stehen deshalb jetzt **Raum
+betreten**, **Neuen Raum aufmachen** (würfelt und verbindet gleich) und
+**Name** — getippt auf derselben Tastatur wie ein Konfig-Code
+(`ui/KeyPanel.ts`, Buchstabenbelegung mit Leertaste für Namen). Raum-Code und
+Name liegen in **einem** Speicher (`net/room.ts`), den sich Startseite und
+Brille teilen; zwei wären zwei Namen, die auseinanderlaufen.
+
+**Verbinden fasst nichts an außer der Verbindung.** Keine Welt wird neu
+geladen, kein Startpunkt angesprungen, keine Sitzung beendet: wer sich mitten
+im Spiel dazuschaltet, steht danach genau dort, wo er vorher stand. Das ist
+auch das Modell dahinter — es läuft **immer**, als wäre man in einem Raum, nur
+dass ohne Gegenüber nichts hinausgeht (`PortalSync.alone`). Und wenn jemand
+dazukommt, bleibt, was hier in der Hand liegt, hier in der Hand: der
+Schnappschuss des Gastgebers überschreibt jede Besitzerliste außer der eigenen
+— sonst zöge ein frisch Dazugekommener einem das Werkzeug sichtbar aus der
+Hand, weil er von ihm gar nichts wissen kann.
 
 **Warum kein eigener Signaling-Server?** WebRTC braucht nur für den Handshake
 einen Umweg (Austausch der SDP-Beschreibungen). Danach läuft alles direkt

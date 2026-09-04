@@ -1,3 +1,4 @@
+import type { Handedness } from '../../../core/XRInput';
 import type { Tool } from './Tool';
 import {
   poseFromReadout,
@@ -20,7 +21,24 @@ import {
 
 const KEY = 'bgvr.holdPoses';
 
-type Stored = Record<string, HoldPose>;
+/**
+ * Eine gespeicherte Haltung — plus **der Hand, an der sie gemessen wurde**.
+ *
+ * Die Haltung selbst ist seitenlos: sie sagt, wie das Werkzeug im Griff hängt,
+ * und dieser Griff ist der der Hand, die es gerade hält. Die Seite gehört
+ * trotzdem dazu, denn sie ist die einzige Auskunft darüber, *woher* die Zahlen
+ * kommen — wer links gemessen hat und sich rechts wundert, sieht es sonst
+ * nirgends. Der Konfig-Code trägt sie ohnehin (`shortCode.ts`, `FLAG_LEFT`);
+ * hier landet sie, damit die Tafel im Eingaberaum sie wieder hergeben kann.
+ *
+ * Optional, weil Fassungen davor sie nicht hatten: ein Speicher aus letzter
+ * Woche bleibt lesbar und meldet eben „unbekannt".
+ */
+export interface StoredPose extends HoldPose {
+  hand?: Handedness;
+}
+
+type Stored = Record<string, StoredPose>;
 
 function read(): Stored {
   try {
@@ -40,11 +58,23 @@ function write(all: Stored): void {
   }
 }
 
-/** Remembers a pose for a tool id. */
-export function savePose(toolId: string, pose: HoldPose): void {
+/**
+ * Remembers a pose for a tool id — und an welcher Hand sie gemessen wurde.
+ *
+ * `hand` ist optional, weil nicht jeder Weg hierher eine Seite kennt: ein
+ * Konfig-Code, der nur Zahlen trägt, weiß sie nicht. Fehlt sie, bleibt eine
+ * schon gespeicherte Seite stehen, statt gelöscht zu werden — die alte Auskunft
+ * ist besser als keine.
+ */
+export function savePose(toolId: string, pose: HoldPose, hand?: Handedness): void {
   const all = read();
-  all[toolId] = pose;
+  all[toolId] = { ...pose, hand: hand ?? all[toolId]?.hand };
   write(all);
+}
+
+/** An welcher Hand die Haltung dieses Werkzeugs gemessen wurde. */
+export function storedPoseHand(toolId: string): Handedness | null {
+  return read()[toolId]?.hand ?? null;
 }
 
 /** Puts a remembered pose back on a freshly built tool. Silent when there is none. */
@@ -100,15 +130,22 @@ export function holdPoseSnapshot(): Record<string, number[]> {
 }
 
 /** Puts a set of poses from a config code back into the store. */
-export function saveHoldPoses(poses: Record<string, number[]>): void {
+export function saveHoldPoses(poses: Record<string, number[]>, hands: Record<string, Handedness> = {}): void {
   const all: Stored = {};
   for (const [id, values] of Object.entries(poses)) {
-    all[id] = poseFromReadout(readoutFromArray(values));
+    all[id] = { ...poseFromReadout(readoutFromArray(values)), hand: hands[id] };
   }
   write(all);
 }
 
+/** Welche Hand je Werkzeug gespeichert ist — für den Weg in einen Konfig-Code. */
+export function holdPoseHands(): Record<string, Handedness> {
+  const out: Record<string, Handedness> = {};
+  for (const [id, pose] of Object.entries(read())) if (pose.hand) out[id] = pose.hand;
+  return out;
+}
+
 /** The pose stored for one tool, in readable numbers. */
-export function storedPose(toolId: string): HoldPose | null {
+export function storedPose(toolId: string): StoredPose | null {
   return read()[toolId] ?? null;
 }

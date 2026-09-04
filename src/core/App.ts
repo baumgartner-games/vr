@@ -12,7 +12,15 @@ import { RemoteAvatars } from '../net/RemoteAvatars';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTransport';
 import { SpectatorCamera, type SpectatorMode } from '../net/SpectatorCamera';
-import { normalizeRoomCode } from '../net/room';
+import {
+  normalizeRoomCode,
+  randomRoomCode,
+  rememberName,
+  rememberRoom,
+  rememberedName,
+  rememberedRoom,
+} from '../net/room';
+import { KeyPanel, type KeyPanelRequest } from '../ui/KeyPanel';
 import { detectFlatRole } from './device';
 import {
   DEFAULT_EYES,
@@ -47,6 +55,9 @@ export interface ConnectOptions extends TrysteroOptions {
 
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
+const _keyPosition = new THREE.Vector3();
+const _keyRotation = new THREE.Quaternion();
+const _keyOffset = new THREE.Vector3();
 
 /**
  * Eine Sitzung, `immersive-ar` zuerst.
@@ -87,6 +98,12 @@ export class App {
   private worldMenu: MenuEntry[] = [];
   private worldId = '';
   private baseChildren = new Set<THREE.Object3D>();
+  /**
+   * Die Tastatur für alles, was in der Brille getippt wird — hier und nicht in
+   * einer Welt, weil der Raum-Code zur Verbindung gehört und die überlebt jeden
+   * Weltwechsel.
+   */
+  private readonly keys: KeyPanel;
   private loading: string | null = null;
   private elapsed = 0;
   private lastTime = 0;
@@ -152,6 +169,10 @@ export class App {
       this.hooks.onNetChanged?.();
     });
     this.net.onStatus(() => this.hooks.onNetChanged?.());
+
+    this.keys = new KeyPanel();
+    this.scene.add(this.keys);
+    this.pointer.add(this.keys.asPointerTarget());
 
     this.baseChildren = new Set(this.scene.children);
 
@@ -305,6 +326,7 @@ export class App {
     this.renderer.xr.removeEventListener('sessionstart', this.onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
+    this.keys.dispose();
     this.flat.dispose();
     this.avatar.dispose();
     this.wristMenu.dispose();
@@ -342,6 +364,10 @@ export class App {
     this.rig.setLocomotion(new FreeLocomotion());
     this.pointer.clear();
     this.wristMenu.attachPointer();
+    // Die Tastatur gehört nicht der Welt: sie überlebt den Wechsel, ihr
+    // Zeigerziel aber nicht — das räumt `clear` mit weg.
+    this.keys.close();
+    this.pointer.add(this.keys.asPointerTarget());
   }
 
   private refreshMenu(): void {
@@ -557,9 +583,16 @@ export class App {
   }
 
   /**
-   * The connection as seen from inside the headset: the room code to read out
-   * loud, who is in it and the same spectator controls the flat panel has.
-   * Typing the code itself still happens on the flat page.
+   * Die Verbindung, wie sie in der Brille aussieht: der Raum-Code zum Vorlesen,
+   * wer drin ist, dieselben Zuschauer-Schalter wie auf der Startseite — **und
+   * der Weg hinein**.
+   *
+   * Getippt wurde der Code lange nur auf der flachen Seite, und das hieß: Brille
+   * ab, Code eintippen, Brille auf, Sitzung neu starten. Wer schon drin war,
+   * kam nicht mehr dazu. Jetzt hängt hier die Tastatur (`ui/KeyPanel.ts`), und
+   * das Verbinden fasst nichts an außer der Verbindung selbst — keine Welt,
+   * kein Standort, keine Sitzung. Man steht hinterher genau dort, wo man vorher
+   * stand, nur eben nicht mehr allein.
    */
   private networkMenu(): MenuEntry {
     const children: MenuEntry[] = this.net.connected
@@ -570,6 +603,7 @@ export class App {
             sub: `Raum-Code · ${this.net.statusDetail || this.net.status}`,
             accent: 0x4aa8ff,
           },
+          this.nameEntry(),
           this.spectateMenu(),
           {
             id: 'net:leave',
@@ -581,10 +615,21 @@ export class App {
         ]
       : [
           {
-            id: 'net:offline',
-            label: 'Nicht verbunden',
-            sub: 'Raum-Code auf der Startseite eingeben',
-            accent: 0x6f7d99,
+            id: 'net:join',
+            label: 'Raum betreten',
+            sub: rememberedRoom() ? `Zuletzt: ${rememberedRoom()}` : 'Raum-Code eintippen',
+            icon: 'worlds',
+            accent: 0x5ee0a0,
+            run: () => this.askRoom(),
+          },
+          this.nameEntry(),
+          {
+            id: 'net:dice',
+            label: 'Neuen Raum aufmachen',
+            sub: 'Würfelt einen Code und verbindet gleich',
+            icon: 'reset',
+            accent: 0x4aa8ff,
+            run: () => void this.joinRoom(randomRoomCode()),
           },
         ];
 
@@ -598,6 +643,90 @@ export class App {
       accent: this.net.connected ? 0x5ee0a0 : 0x6f7d99,
       children,
     };
+  }
+
+  /** Der eigene Name — vor dem Verbinden wie danach zu ändern. */
+  private nameEntry(): MenuEntry {
+    const name = this.net.connected ? this.net.name : rememberedName();
+    return {
+      id: 'net:name',
+      label: 'Name',
+      sub: name || defaultName(this.role),
+      icon: 'glove',
+      accent: 0x9fe3ff,
+      run: () =>
+        this.openKeys({
+          title: 'Name',
+          sub: 'Wie die anderen dich sehen',
+          value: name,
+          layout: 'name',
+          onCommit: (text) => this.setPlayerName(text),
+        }),
+    };
+  }
+
+  /** Die Tastatur für den Raum-Code, mit dem letzten schon darin. */
+  private askRoom(): void {
+    this.openKeys({
+      title: 'Raum-Code',
+      sub: 'Wer denselben Code tippt, landet im selben Raum',
+      value: rememberedRoom(),
+      layout: 'text',
+      hint: 'Buchstaben, Ziffern und Bindestriche — z. B. mond-riff-47',
+      onCommit: (text) => void this.joinRoom(text),
+    });
+  }
+
+  /**
+   * Verbinden von innen — und **nur** verbinden.
+   *
+   * Kein Weltwechsel, kein Sprung an einen Startpunkt, kein Ende der Sitzung:
+   * wer sich mitten im Spiel dazuschaltet, steht danach an derselben Stelle.
+   * Das ist der ganze Punkt an der Sache — es läuft ohnehin immer so, als wäre
+   * man in einem Raum, nur dass ohne Gegenüber nichts hinausgeht.
+   */
+  private async joinRoom(code: string): Promise<void> {
+    const room = normalizeRoomCode(code);
+    if (!room) {
+      this.notify('Kein gültiger Raum-Code');
+      return;
+    }
+    this.notify(`Verbinde mit ${room} …`);
+    try {
+      await this.connect({ room, name: rememberedName() });
+      rememberRoom(room);
+      this.notify(`Im Raum ${room}`);
+    } catch (error) {
+      this.notify(`Verbindung fehlgeschlagen: ${(error as Error).message}`);
+    }
+    this.menuDirty = true;
+    this.hooks.onNetChanged?.();
+  }
+
+  /** Der Name, überall zugleich: im Speicher, in der Sitzung, bei den anderen. */
+  private setPlayerName(text: string): void {
+    const name = text.trim();
+    rememberName(name);
+    this.net.name = name || defaultName(this.role);
+    // Die anderen tragen den alten noch — ein `hello` schiebt den neuen nach.
+    this.net.announce();
+    this.menuDirty = true;
+    this.hooks.onNetChanged?.();
+    this.notify(`Name: ${this.net.name}`);
+  }
+
+  /** Legt die Tastatur eine Armlänge vor den Kopf und macht sie auf. */
+  private openKeys(request: KeyPanelRequest): void {
+    this.rig.getHeadMatrix(_head);
+    _keyPosition.setFromMatrixPosition(_head);
+    _keyRotation.setFromRotationMatrix(_head);
+    // Etwas unter Augenhöhe und nach hinten gekippt: eine Tastatur, kein Schild.
+    this.keys.position
+      .copy(_keyPosition)
+      .add(_keyOffset.set(0, -0.18, -0.55).applyQuaternion(_keyRotation));
+    this.keys.quaternion.copy(_keyRotation);
+    this.keys.rotateX(-0.35);
+    this.keys.open(request);
   }
 
   /**

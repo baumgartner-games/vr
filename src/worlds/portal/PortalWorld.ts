@@ -38,6 +38,7 @@ import {
   gearCode,
   parseGearCode,
   storedPoseCount,
+  storedPoseHand,
   type BulletOptions,
   type SightKind,
   type ToolHost,
@@ -1677,7 +1678,10 @@ export class PortalWorld implements World {
       {
         id: `tool:${id}:pose`,
         label: 'Lage in der Hand zurücksetzen',
-        sub: 'Zurück auf die gebaute Pose',
+        // Die Zeile sagt auch, an welcher Hand die gespeicherte Lage gemessen
+        // wurde. Sie gilt für beide, aber gemessen wurde an einer, und das ist
+        // die einzige Stelle, an der man das je wieder erfährt.
+        sub: measuredNote(storedPoseHand(id)),
         icon: 'reset',
         accent: 0xffc857,
         run: () => {
@@ -4857,4 +4861,11 @@ function aimTargetOf(entry: PhysicsBody): PropAim {
   target.halfExtents.y = entry.halfExtents.y;
   target.halfExtents.z = entry.halfExtents.z;
   return target;
+}
+
+/** „gemessen: rechts" — oder nichts, wenn niemand es aufgeschrieben hat. */
+function measuredNote(hand: Handedness | null): string {
+  const built = 'Zurück auf die gebaute Pose';
+  if (!hand) return built;
+  return `${built} · gemessen: ${hand === 'left' ? 'links' : 'rechts'}`;
 }

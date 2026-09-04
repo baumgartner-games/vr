@@ -1,11 +1,16 @@
-import { normalizeRoomCode, randomRoomCode } from '../net/room';
+import {
+  normalizeRoomCode,
+  randomRoomCode,
+  rememberName,
+  rememberRoom,
+  rememberedName,
+  rememberedRoom,
+} from '../net/room';
 import type { App } from '../core/App';
 import type { SpectatorMode } from '../net/SpectatorCamera';
 import type { SignalingStrategy } from '../net/TrysteroTransport';
 import type { NetStatus } from '../net/types';
 
-const STORAGE_NAME = 'bgvr:name';
-const STORAGE_ROOM = 'bgvr:room';
 const STORAGE_STRATEGY = 'bgvr:strategy';
 
 const STATUS_TEXT: Record<NetStatus, string> = {
@@ -109,7 +114,7 @@ export class NetPanel {
     );
 
     for (const input of this.nameInputs) {
-      input.value = localStorage.getItem(STORAGE_NAME) ?? '';
+      input.value = rememberedName();
       input.addEventListener('input', () => this.mirror(this.nameInputs, input));
     }
     for (const input of this.roomInputs) {
@@ -164,7 +169,7 @@ export class NetPanel {
   }
 
   restoreLastRoom(): void {
-    this.setRoom(localStorage.getItem(STORAGE_ROOM) ?? '');
+    this.setRoom(rememberedRoom());
   }
 
   toggle(force?: boolean): void {
@@ -284,8 +289,8 @@ export class NetPanel {
         strategy: this.strategy.value as SignalingStrategy,
         local: this.options.local ?? false,
       });
-      localStorage.setItem(STORAGE_ROOM, room);
-      localStorage.setItem(STORAGE_NAME, this.nameInputs[0]!.value);
+      rememberRoom(room);
+      rememberName(this.nameInputs[0]!.value);
       this.setRoom(room);
       if (start) this.options.onStart?.(start);
     } catch (error) {

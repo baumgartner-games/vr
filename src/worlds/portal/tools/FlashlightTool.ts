@@ -68,7 +68,15 @@ export class FlashlightTool extends Tool {
     this.icon = 'flashlight';
     this.accent = 0xffd88a;
     this.hint = 'Trigger schaltet · andere Hand an der Linse stellt den Kegel';
-    this.holdPosition.set(0, -0.012, 0.035);
+    // Eingemessen am Justierstand und als Konfig-Code `BPNDLdWgZ9NvBevCHScPckXK`
+    // hereingekommen: 0,8 · -1,4 · 3,8 cm, dazu 30/5/9° gegen die Zielrichtung.
+    // Die Lampe liegt damit sichtbar schräg in der Faust — genau darum geht es:
+    // ihr Kegel geht dort hinaus, wo bei einer Pistole der Lauf sitzt, also darf
+    // sie nicht wie eine Pistole in der Hand liegen.
+    this.holdPosition.set(0.008, -0.014, 0.038);
+    this.holdRotation.setFromEuler(
+      new THREE.Euler((30 * Math.PI) / 180, (5 * Math.PI) / 180, (9 * Math.PI) / 180),
+    );
 
     const body = new THREE.MeshStandardMaterial({
       color: 0x2b3242,

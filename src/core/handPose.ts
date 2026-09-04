@@ -136,14 +136,18 @@ export const HOLD_HAND_POSE: HandPose = {
  * anders greift als die andere, sieht man nicht, man wundert sich nur.
  */
 export const MEASURED_HOLDS: Record<string, HandPose> = {
+  // Zuletzt eingemessen und als Konfig-Code `BPNDLdWgZ9NvBevCHScPckXK`
+  // übergeben — rechte Hand. Die Werte davor (x 4 · y -2,8 · z 1,7 cm,
+  // -44/26/-105°) waren die erste Runde am Stand und liegen rund 15° daneben;
+  // es gilt die spätere Messung, siehe oben.
   flashlight: {
     ...HOLD_HAND_POSE,
-    x: 4,
-    y: -2.8,
-    z: 1.7,
-    pitch: -44,
-    yaw: 26,
-    roll: -105,
+    x: 3.6,
+    y: -1.8,
+    z: 2.5,
+    pitch: -59,
+    yaw: 23,
+    roll: -99,
   },
 };
 
