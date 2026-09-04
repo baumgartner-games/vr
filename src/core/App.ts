@@ -48,6 +48,24 @@ export interface ConnectOptions extends TrysteroOptions {
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
 
+/**
+ * Eine Sitzung, `immersive-ar` zuerst.
+ *
+ * Der Rückfall ist kein Notnagel, sondern der Normalfall auf allem, was keine
+ * Kamera nach außen hat: `requestSession` wirft dort, und die VR-Sitzung
+ * danach ist genau die, die es vorher schon gab.
+ */
+async function requestSession(xr: XRSystem, options: XRSessionInit): Promise<XRSession> {
+  try {
+    if (await xr.isSessionSupported('immersive-ar')) {
+      return await xr.requestSession('immersive-ar', options);
+    }
+  } catch {
+    // Unterstützt gemeldet, trotzdem abgelehnt — dann eben nicht.
+  }
+  return xr.requestSession('immersive-vr', options);
+}
+
 export class App {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -85,7 +103,14 @@ export class App {
       canvas,
       antialias: true,
       powerPreference: 'high-performance',
+      // Durchsichtig **können** muss der Puffer, sonst liegt im
+      // Passthrough-Bild ein schwarzes Tuch über dem Zimmer (`seeThrough.ts`).
+      // Sein soll er es nicht: `alpha: true` stellt die Löschfarbe sonst auf
+      // durchsichtig, und dann scheint zwischen zwei Welten die Webseite
+      // durch.
+      alpha: true,
     });
+    this.renderer.setClearAlpha(1);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -191,12 +216,23 @@ export class App {
   }
 
 
-  /** Starts an immersive session; resolves once the headset takes over. */
+  /**
+   * Starts an immersive session; resolves once the headset takes over.
+   *
+   * Gefragt wird **zuerst nach `immersive-ar`**, und zwar für jede Welt: eine
+   * AR-Sitzung sieht, solange eine Welt ihren Himmel malt, exakt aus wie eine
+   * VR-Sitzung — sie kann nur zusätzlich etwas, das eine VR-Sitzung nicht
+   * nachträglich lernt. Der AR-Knopf im Eingaberaum blendet die Welt weg, und
+   * dahinter steht dann das echte Zimmer statt eines schwarzen Nichts. Wo es
+   * `immersive-ar` nicht gibt — Brillen ohne Kamerabild, ältere Browser —,
+   * läuft alles wie bisher weiter.
+   */
   async enterVR(): Promise<void> {
     if (!navigator.xr) throw new Error('WebXR steht in diesem Browser nicht zur Verfügung.');
-    const session = await navigator.xr.requestSession('immersive-vr', {
+    const options: XRSessionInit = {
       optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'],
-    });
+    };
+    const session = await requestSession(navigator.xr, options);
     await this.renderer.xr.setSession(session);
   }
 

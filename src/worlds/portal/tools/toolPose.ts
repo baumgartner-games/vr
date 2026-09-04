@@ -68,6 +68,47 @@ export function holdPoseFrom(
   return { position, rotation: normalize(rotation) };
 }
 
+/**
+ * Der Griff, an dem ein Werkzeug mit dieser Haltung genau dort hinge — die
+ * **Umkehrung** von `holdPoseFrom`.
+ *
+ * Gebraucht wird sie überall dort, wo eine gespeicherte Haltung wieder
+ * *angefasst* werden soll: der Schießgang im Eingaberaum stellt eine
+ * Geisterhand genau dorthin, wo die eigene Hand läge, wenn das Werkzeug so im
+ * Halter hinge, wie es hängt. Ohne diesen Rückweg müsste man zum Feinjustieren
+ * jedes Mal neu von vorn messen, statt an dem weiterzuarbeiten, was schon da
+ * ist.
+ *
+ * @param parked wo das Werkzeug steht
+ * @param aim    die Zielkorrektur der Hand, die es halten würde
+ * @param hold   die Haltung, die es dort hinbringen soll
+ */
+export function gripForHold(
+  parked: { position: Vec3; rotation: Quat },
+  aim: Quat,
+  hold: HoldPose,
+): { position: Vec3; rotation: Quat } {
+  // parked = griff · aim · haltung, also griff = parked · (aim · haltung)⁻¹.
+  const local = multiplyQuat(aim, hold.rotation, { x: 0, y: 0, z: 0, w: 1 });
+  const rotation = normalize(
+    multiplyQuat(
+      parked.rotation,
+      conjugate(local, { x: 0, y: 0, z: 0, w: 1 }),
+      { x: 0, y: 0, z: 0, w: 1 },
+    ),
+  );
+  // Und der Ort: das Werkzeug sitzt um den gedrehten Versatz neben dem Griff.
+  const offset = rotateVec(hold.position, rotation, { x: 0, y: 0, z: 0 });
+  return {
+    position: {
+      x: parked.position.x - offset.x,
+      y: parked.position.y - offset.y,
+      z: parked.position.z - offset.z,
+    },
+    rotation,
+  };
+}
+
 /** Turns a pose into the six numbers the tool shows the player. */
 export function readPose(pose: HoldPose): PoseReadout {
   const { x, y, z } = eulerXYZ(pose.rotation);

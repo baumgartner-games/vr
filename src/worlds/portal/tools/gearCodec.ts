@@ -1,5 +1,5 @@
 import { ByteReader, ByteWriter } from '../../../core/configCode';
-import { HOLD_HAND_POSE, IDLE_HAND_POSE, handPoseToArray } from '../../../core/handPose';
+import { HOLD_HAND_POSE, defaultIdlePose, handPoseToArray } from '../../../core/handPose';
 import type { StoredHandPoses } from '../../../core/handPoseStore';
 import { clampDrone, type DroneSettings } from './droneSettings';
 import { clampSuperman, SUPERMAN_SOURCES, type SupermanSettings } from './supermanSettings';
@@ -105,10 +105,17 @@ const HAND_SCALES = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
  * auch in `handPoseStore.ts` als Rückfall, wenn nichts gespeichert ist — was
  * die Maske erst erlaubt: ein weggelassener Wert *ist* der gebaute.
  */
-const IDLE_DEFAULTS = handPoseToArray(IDLE_HAND_POSE);
 const HOLD_DEFAULTS = handPoseToArray(HOLD_HAND_POSE);
 
 const HANDS = ['left', 'right'] as const;
+
+/**
+ * Die Grundhaltung ist je Hand eine andere, also ist auch die Maske je Hand
+ * eine andere: links wird gegen die gespiegelte Haltung verglichen. Sonst
+ * stünden in jedem Code einer linken Hand sechs Zahlen, die nichts anderes
+ * sagen, als dass sie eine linke ist.
+ */
+const IDLE_DEFAULTS = HANDS.map((hand) => handPoseToArray(defaultIdlePose(hand)));
 
 /**
  * Everything one config code carries — und jeder Abschnitt darf fehlen.
@@ -276,7 +283,7 @@ function writeHands(out: ByteWriter, hands: StoredHandPoses): void {
   for (let i = 0; i < HANDS.length; i++) if (hands.idle?.[HANDS[i]!]) mask |= 1 << i;
   out.byte(mask);
   for (let i = 0; i < HANDS.length; i++) {
-    if (mask & (1 << i)) writeValues(out, hands.idle![HANDS[i]!]!, HAND_SCALES, IDLE_DEFAULTS);
+    if (mask & (1 << i)) writeValues(out, hands.idle![HANDS[i]!]!, HAND_SCALES, IDLE_DEFAULTS[i]!);
   }
 
   const holds: Array<[number, string, number[]]> = [];
@@ -297,7 +304,9 @@ function readHands(input: ByteReader, version: number): StoredHandPoses {
   const idle: StoredHandPoses['idle'] = {};
   const mask = input.byte();
   for (let i = 0; i < HANDS.length; i++) {
-    if (mask & (1 << i)) idle[HANDS[i]!] = readValues(input, HAND_SCALES, IDLE_DEFAULTS, version);
+    if (mask & (1 << i)) {
+      idle[HANDS[i]!] = readValues(input, HAND_SCALES, IDLE_DEFAULTS[i]!, version);
+    }
   }
 
   const hold: Record<string, Record<string, number[]>> = {};

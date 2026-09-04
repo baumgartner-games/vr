@@ -2,6 +2,7 @@ import { multiplyQuat, rotateVec, type Quat, type Vec3 } from './aim';
 import {
   eulerXYZ,
   formatPose,
+  gripForHold,
   holdPoseFrom,
   mirrorReadout,
   poseFromReadout,
@@ -97,6 +98,40 @@ describe('holdPoseFrom', () => {
     const parked = worldOf(grip, aim, { position: { x: 0, y: 0, z: 0 }, rotation: IDENTITY });
     const pose = holdPoseFrom(grip, aim, parked);
     expectSameRotation(pose.rotation, IDENTITY);
+  });
+});
+
+describe('gripForHold', () => {
+  const aim = axisAngle({ x: 1, y: 0.2, z: 0 }, -31);
+  const hold = {
+    position: { x: 0.02, y: -0.05, z: 0.03 },
+    rotation: axisAngle({ x: 0.2, y: 1, z: 0.4 }, -35),
+  };
+
+  it('finds the grip a parked tool would hang from', () => {
+    const grip = {
+      position: { x: 0.3, y: 1.2, z: -0.4 },
+      rotation: axisAngle({ x: 0.3, y: 1, z: 0.2 }, 47),
+    };
+    const parked = worldOf(grip, aim, hold);
+
+    const found = gripForHold(parked, aim, hold);
+    expectClose(found.position, grip.position);
+    expectSameRotation(found.rotation, grip.rotation);
+  });
+
+  it('is the exact inverse of the measurement', () => {
+    // Das ist der Grund, warum es sie gibt: die Feinjustage lädt eine Haltung,
+    // schiebt den Griff ein Stück und misst wieder. Wäre der Rückweg nicht
+    // genau der Hinweg rückwärts, spränge die Haltung schon beim Laden.
+    const parked = {
+      position: { x: 1, y: 1.1, z: 2.4 },
+      rotation: axisAngle({ x: 0.1, y: 1, z: -0.3 }, 118),
+    };
+    const grip = gripForHold(parked, aim, hold);
+    const again = holdPoseFrom(grip, aim, parked);
+    expectClose(again.position, hold.position);
+    expectSameRotation(again.rotation, hold.rotation);
   });
 });
 

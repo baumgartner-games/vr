@@ -17,6 +17,8 @@
  * this file stays testable.
  */
 
+import type { Handedness } from './XRInput';
+
 /** Thumb, index, middle, ring, pinky — the order everything uses. */
 export const FINGER_NAMES = ['Daumen', 'Zeige', 'Mittel', 'Ring', 'Kleiner'] as const;
 
@@ -35,7 +37,7 @@ export interface HandPose {
   spread: number;
 }
 
-/** The hand as it was built: on the grip, barely curled. */
+/** The hand as it was built: on the grip, barely curled, not turned at all. */
 export const IDLE_HAND_POSE: HandPose = {
   x: 0,
   y: 0,
@@ -46,6 +48,40 @@ export const IDLE_HAND_POSE: HandPose = {
   curls: [0.1, 0.08, 0.08, 0.1, 0.12],
   spread: 0,
 };
+
+/**
+ * Die **eingemessene** Grundhaltung der rechten Hand am Controller.
+ *
+ * Die gebaute Haltung darüber sitzt genau auf dem Griffpunkt und schaut
+ * geradeaus — das ist die Haltung, aus der die Hand *gebaut* ist, und keine,
+ * in der je eine echte Hand einen Controller gehalten hat. Ein Quest-Controller
+ * liegt schräg in der Faust: der Handrücken kippt nach vorn weg (deshalb die
+ * -90° Neigung), die Hand steht um 45° zur Griffachse gedreht, und ihr
+ * Mittelpunkt sitzt einen halben Zentimeter neben, vier Millimeter unter und
+ * gut einen Zentimeter vor dem Griffpunkt.
+ *
+ * Diese sechs Zahlen sind im Headset an der Boxhand abgelesen worden und
+ * gelten hier als Auslieferungszustand — wer sie ändern will, misst sie im
+ * Eingaberaum neu. Die **linke** Hand steht nicht daneben, sondern fällt aus
+ * `mirrorHandPose` heraus: es ist dieselbe Hand, gespiegelt, und zwei getrennt
+ * gepflegte Zahlenreihen wären genau die Sorte Abweichung, die niemand merkt.
+ */
+export const IDLE_HAND_POSE_RIGHT: HandPose = {
+  ...IDLE_HAND_POSE,
+  x: 0.5,
+  y: -0.4,
+  z: 1.2,
+  pitch: -90,
+  yaw: 45,
+  roll: 0,
+};
+
+/** Die Grundhaltung, mit der eine Hand ausgeliefert wird. */
+export function defaultIdlePose(hand: Handedness): HandPose {
+  return hand === 'left'
+    ? mirrorHandPose(IDLE_HAND_POSE_RIGHT)
+    : clonePose(IDLE_HAND_POSE_RIGHT);
+}
 
 /**
  * The pseudo tool id the hand uses while it is carrying a **prop**.
@@ -119,9 +155,12 @@ export function setHandPoseField(pose: HandPose, key: string, value: number): Ha
  */
 export function mirrorHandPose(pose: HandPose): HandPose {
   const mirrored = clonePose(pose);
-  mirrored.x = -pose.x;
-  mirrored.yaw = -pose.yaw;
-  mirrored.roll = -pose.roll;
+  // `+ 0` macht aus dem `-0`, das eine gespiegelte Null sonst wird, wieder
+  // eine Null — auf einem Schild voller kleiner Zahlen liest sich „-0" wie ein
+  // Fehler, und im Konfig-Code wäre es einer.
+  mirrored.x = -pose.x + 0;
+  mirrored.yaw = -pose.yaw + 0;
+  mirrored.roll = -pose.roll + 0;
   return mirrored;
 }
 

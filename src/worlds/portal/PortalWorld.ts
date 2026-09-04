@@ -51,7 +51,7 @@ import {
   GRAB_POSE_ID,
   HAND_FIELDS,
   HOLD_HAND_POSE,
-  IDLE_HAND_POSE,
+  defaultIdlePose,
   clonePose,
   formatHandPose,
   handPoseField,
@@ -490,7 +490,13 @@ export class PortalWorld implements World {
   /** How fast each hand is moving, for throwing whatever it lets go of. */
   private readonly handMotion = new Map<Handedness, HandMotion>();
   private belt: ToolBelt | null = null;
-  private host: ToolHost | null = null;
+  /**
+   * Was die Werkzeuge am Raum dürfen. `protected`, weil eine abgeleitete Welt
+   * dieselben Wege braucht wie ein Werkzeug — der Eingaberaum legt ein
+   * Werkzeug in einen Halter und holt es wieder heraus, und das ist genau
+   * `parkTool`/`unparkTool`.
+   */
+  protected host: ToolHost | null = null;
   protected physics: PhysicsWorld | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
@@ -1401,7 +1407,7 @@ export class PortalWorld implements World {
         icon: 'reset',
         accent: 0xffc857,
         run: () => {
-          save(clonePose(toolId ? HOLD_HAND_POSE : IDLE_HAND_POSE));
+          save(toolId ? clonePose(HOLD_HAND_POSE) : defaultIdlePose(hand));
           this.refreshMenuLabels();
           this.context?.notify(`${title}: zurückgesetzt`);
         },

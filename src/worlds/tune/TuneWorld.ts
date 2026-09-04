@@ -24,6 +24,9 @@ import {
   saveHapticPattern,
   type HapticPattern,
 } from './haptics';
+import { ToolRange, LANE, MOUNT_REACH } from './ToolRange';
+import { SeeThrough } from './seeThrough';
+import { nudgeGrip, FINE_FACTOR, type Grip } from './fineTune';
 import { GRAB_GLOW } from '../../core/colors';
 import {
   clonePose,
@@ -32,9 +35,19 @@ import {
   type HandPose,
 } from '../../core/handPose';
 import { saveHoldHandPose, saveIdleHandPose } from '../../core/handPoseStore';
+import { GhostHand } from '../../core/HandVisuals';
 import { foldCurls } from '../../core/handGestures';
 import { eyeHeights, saveEyeHeights, seatedLift } from '../../core/posture';
-import { holdPoseFrom, readPose, type PoseReadout } from '../portal/tools/toolPose';
+import {
+  formatPose,
+  gripForHold,
+  holdPoseFrom,
+  readPose,
+  type HoldPose,
+  type PoseReadout,
+} from '../portal/tools/toolPose';
+import { savePose } from '../portal/tools/poseStore';
+import { aimQuaternion, type Tool } from '../portal/tools/Tool';
 import { toolGearCode } from '../portal/tools/gearConfig';
 import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
@@ -78,6 +91,44 @@ interface Fitting {
   before: HandPose;
 }
 
+/**
+ * Ein Werkzeug liegt im Halter und wartet darauf, dass eine Hand sich dazu
+ * legt.
+ *
+ * Es liegt dort **auf die Scheibe gerichtet** — das ist die halbe Antwort, die
+ * der Halter schon gibt. Gemessen wird nur noch die andere Hälfte: wo die Hand
+ * ist, wenn sie es so hält, wie sie es halten will.
+ */
+interface Mounted {
+  tool: Tool;
+  /** Die Hand, aus der es kam — ihre Knöpfe bestätigen. */
+  hand: Handedness;
+  /** Die Haltung, die es beim Ablegen hatte. `A` legt genau die zurück. */
+  before: { position: THREE.Vector3; rotation: THREE.Quaternion };
+}
+
+/**
+ * Feinjustage: der Geist am Werkzeug hängt an der Hand, die den Knopf *nicht*
+ * gedrückt hat — und zwar um ein Zehntel untersetzt (`fineTune.ts`).
+ */
+interface Fine {
+  /** Die ziehende Hand. */
+  hand: Handedness;
+  /** Wessen Haltung dargestellt wird — die Hand, der das Werkzeug gehört. */
+  owner: Handedness;
+  ghost: GhostHand;
+  /** Der Griff, an dem der Geist beim Zupacken hing. */
+  grip: Grip;
+  /** Wo die ziehende Hand beim Zupacken war. */
+  from: Grip;
+  /** Die Zielkorrektur der haltenden Hand; die Haltung rechnet dagegen. */
+  aim: THREE.Quaternion;
+  /** Wie die Hand am Werkzeug gezeichnet wird — der Geist trägt sie. */
+  pose: HandPose;
+  /** Die Haltung vor dem Zupacken, für den Abbruch. */
+  before: { position: THREE.Vector3; rotation: THREE.Quaternion };
+}
+
 /** Was der Griff auf der Vibrationsbank gerade macht. */
 interface Buzz {
   hand: Handedness;
@@ -97,6 +148,15 @@ const _euler = new THREE.Euler();
 const _ghostPosition = new THREE.Vector3();
 const _ghostRotation = new THREE.Quaternion();
 const _identity = new THREE.Quaternion();
+const _toolPosition = new THREE.Vector3();
+const _toolRotation = new THREE.Quaternion();
+const _aim = new THREE.Quaternion();
+const _matrix = new THREE.Matrix4();
+const _gripPosition = new THREE.Vector3();
+const _gripRotation = new THREE.Quaternion();
+const _posePosition = new THREE.Vector3();
+const _poseRotation = new THREE.Quaternion();
+const _inverseMatrix = new THREE.Matrix4();
 const DEG = 180 / Math.PI;
 
 /**
@@ -159,6 +219,31 @@ const DEG = 180 / Math.PI;
  * der den Stick freigibt** — ausdrücklich und sichtbar, statt dass es einfach
  * so geht.
  *
+ * **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der Schießgang.**
+ * Ein Gang, eine Zielscheibe am Ende, ein Halter daneben — und damit die
+ * Antwort auf die Frage, die der Tisch nicht beantworten kann. Der Tisch sagt,
+ * *wo* eine Hand liegt; ein Werkzeug aber liegt nicht richtig, es **zeigt**
+ * richtig. Also:
+ *
+ * - Ein Werkzeug in den Halter halten — es rastet ein und liegt **exakt auf
+ *   die Scheibe gerichtet**. Damit ist die Zielrichtung keine Unbekannte mehr.
+ * - Die Hand ans Werkzeug führen, dorthin, wo man es halten will, und mit
+ *   **Greifen oder Trigger** bestätigen. Was dazwischen liegt, *ist* die
+ *   Haltung (`toolPose.ts`) — und das Werkzeug springt damit in die Hand
+ *   zurück, wo man sofort sieht, ob es die Scheibe trifft.
+ * - **Feinjustieren** für die letzten zwei Millimeter: die aktuelle Haltung
+ *   wird geladen und als Geisterhand ans Werkzeug gestellt, und die *andere*
+ *   Hand zieht sie zurecht — ein Zentimeter an der eigenen Hand ist ein
+ *   Millimeter am Geist (`fineTune.ts`). Eine ausgestreckte Hand zittert um
+ *   mehr als das, was hier eingestellt wird; untersetzt tut sie es nicht mehr.
+ * - **AR an** macht die Wände durchsichtig. Läuft die Sitzung als
+ *   `immersive-ar`, steht dahinter das echte Zimmer — und man sieht endlich
+ *   die virtuelle Hand *neben* der eigenen statt nur anstelle von ihr
+ *   (`seeThrough.ts`).
+ *
+ * An der linken Wand des Gangs stehen die Knöpfe und hängt die Tafel mit den
+ * Werten: dieselben sechs Zahlen wie am Tisch, und darunter der Konfig-Code.
+ *
  * Everything else is the portal lab's, which is exactly why this is a world
  * and not a menu page: the belt, the tool shelf, the **Werkzeug-Justierer**
  * and the whole *Einstellungen → Hände* tree come with it, so the hand you are
@@ -170,9 +255,28 @@ export class TuneWorld extends PortalWorld {
   private readonly buttons: WallButton[] = [];
   private table: GhostTable | null = null;
   private bench: VibeBench | null = null;
+  private range: ToolRange | null = null;
   /** Die große Tafel neben dem Tisch: letzte Messung und ihr Code. */
   private valueBoard: TextPlane | null = null;
+  /** Dieselben Werte noch einmal, an der linken Wand des Schießgangs. */
+  private rangeBoard: TextPlane | null = null;
   private lastValueText = '';
+  /**
+   * Wände, Boden und Decke — und nur die. Der AR-Knopf blendet genau diese
+   * Gruppe weg; Tisch, Bank, Halter, Scheibe und alle Schilder bleiben stehen,
+   * weil man sie ja gerade ansehen will.
+   */
+  private readonly shellGroup = new THREE.Group();
+  private readonly seeThrough = new SeeThrough();
+  /** Was im Halter liegt, und was gerade daran feinjustiert wird. */
+  private mounted: Mounted | null = null;
+  private fine: Fine | null = null;
+  /**
+   * Ein Werkzeug, das eben aus dem Halter kam und erst wieder heraus muss,
+   * bevor es erneut einrasten darf — sonst schnappt es in derselben Frame
+   * zurück, in der es in die Hand gesprungen ist.
+   */
+  private mountBlocked: Tool | null = null;
   /**
    * Der Stand der Dinge, im Speicher.
    *
@@ -240,11 +344,18 @@ export class TuneWorld extends PortalWorld {
     this.updateLift(ctx);
     this.updateDrive(ctx);
     this.updateFitting(ctx);
+    this.updateRange(ctx);
+    this.updateFine(ctx);
     this.updateBuzz(dt, ctx);
   }
 
   override dispose(ctx: WorldContext): void {
     ctx.rig.locked = false;
+    // Eine durchsichtig gelassene Welt bliebe durchsichtig — die Materialien
+    // gehören zwar dieser Welt, der Himmel und der Hintergrund aber nicht.
+    this.cancelFine(true);
+    this.releaseMount(false, true);
+    this.seeThrough.reset(ctx.scene, this.shellGroup, ctx.renderer);
     this.unsubscribe?.();
     this.unsubscribe = null;
     for (const model of this.models.values()) model.dispose();
@@ -258,6 +369,11 @@ export class TuneWorld extends PortalWorld {
     this.buttons.length = 0;
     this.valueBoard?.dispose();
     this.valueBoard = null;
+    this.rangeBoard?.dispose();
+    this.rangeBoard = null;
+    this.range?.dispose();
+    this.range = null;
+    this.mountBlocked = null;
     this.table?.dispose();
     this.table = null;
     this.bench?.dispose();
@@ -284,7 +400,7 @@ export class TuneWorld extends PortalWorld {
   }
 
   protected override welcome(): string {
-    return 'Drück, was du prüfen willst — Wand und Tisch sagen, was ankommt';
+    return 'Prüfen: Wand und Tisch · Werkzeug einmessen: Schießgang hinter dir';
   }
 
   /**
@@ -308,13 +424,39 @@ export class TuneWorld extends PortalWorld {
     const room = new THREE.Group();
     room.name = 'tune-room';
     this.root.add(room);
+    // Alles Tragende in eine eigene Gruppe: der AR-Knopf blendet genau die
+    // weg, und nichts, was daraufsteht.
+    this.shellGroup.name = 'tune-shell';
+    room.add(this.shellGroup);
+    const shellGroup = this.shellGroup;
 
-    this.slab(room, this.floorMaterial, [half * 2, thickness, half * 2], [0, -thickness / 2, 0], true);
-    this.slab(room, this.shell, [half * 2, thickness, half * 2], [0, height + thickness / 2, 0], false);
-    this.slab(room, this.shell, [half * 2, height, thickness], [0, height / 2, -half], true);
-    this.slab(room, this.shell, [half * 2, height, thickness], [0, height / 2, half], false);
-    this.slab(room, this.shell, [thickness, height, half * 2], [-half, height / 2, 0], false);
-    this.slab(room, this.shell, [thickness, height, half * 2], [half, height / 2, 0], false);
+    this.slab(shellGroup, this.floorMaterial, [half * 2, thickness, half * 2], [0, -thickness / 2, 0], true);
+    this.slab(shellGroup, this.shell, [half * 2, thickness, half * 2], [0, height + thickness / 2, 0], false);
+    this.slab(shellGroup, this.shell, [half * 2, height, thickness], [0, height / 2, -half], true);
+    this.slab(shellGroup, this.shell, [thickness, height, half * 2], [-half, height / 2, 0], false);
+    this.slab(shellGroup, this.shell, [thickness, height, half * 2], [half, height / 2, 0], false);
+
+    // Die Rückwand hat eine Tür: dahinter liegt der Schießgang. Zwei Stücke
+    // links und rechts, ein Sturz darüber — eine Wand mit Loch gibt es in
+    // einem Kasten nicht.
+    const door = LANE.half + 0.15;
+    const side = (half - door) / 2;
+    for (const sign of [-1, 1]) {
+      this.slab(
+        shellGroup,
+        this.shell,
+        [half - door, height, thickness],
+        [sign * (door + side), height / 2, half],
+        false,
+      );
+    }
+    this.slab(
+      shellGroup,
+      this.shell,
+      [door * 2, height - LANE.height, thickness],
+      [0, (height + LANE.height) / 2, half],
+      false,
+    );
 
     const title = new TextPlane({
       width: 2.4,
@@ -363,6 +505,20 @@ export class TuneWorld extends PortalWorld {
     this.buildTurnButton(room);
     this.buildTable(room);
     this.buildBench(room);
+    this.buildRange(room);
+  }
+
+  /**
+   * Kein Horizont in diesem Raum.
+   *
+   * Jede Welt bekommt von der Basis eine Fläche bis zum Rand des Sichtbaren.
+   * Hier steht sie in einem geschlossenen Kasten und ist deshalb nie zu
+   * sehen — bis auf den einen Fall, auf den es hier ankommt: **AR an**, und
+   * dann liegt sie als graue Platte über dem echten Fußboden. Ein Raum, der
+   * durchsichtig werden können muss, hat keinen Boden, der es nicht kann.
+   */
+  protected override horizonColor(): number | null {
+    return null;
   }
 
   // --- der Knopf, der das Drehen freigibt -----------------------------------
@@ -902,8 +1058,6 @@ export class TuneWorld extends PortalWorld {
    * Tafel, auf der sonst keine vierzig Zeichen Platz hätten.
    */
   private showValues(): void {
-    const board = this.valueBoard;
-    if (!board) return;
     const readout = this.readout;
     const title = readout
       ? `x ${readout.x} y ${readout.y} z ${readout.z} cm`
@@ -914,7 +1068,12 @@ export class TuneWorld extends PortalWorld {
     const line = `${title}|${body}`;
     if (line === this.lastValueText) return;
     this.lastValueText = line;
-    board.setText(title, body, readout ? 0x5ee0a0 : 0x6f7d99);
+    // Beide Tafeln zeigen dasselbe: am Tisch justiert man die Hand, im Gang
+    // das Werkzeug, und wer im Gang steht, läuft für seine eigenen Zahlen
+    // nicht zurück in den Raum.
+    const accent = readout ? 0x5ee0a0 : 0x6f7d99;
+    this.valueBoard?.setText(title, body, accent);
+    this.rangeBoard?.setText(title, body, accent);
   }
 
   /**
@@ -963,6 +1122,493 @@ export class TuneWorld extends PortalWorld {
       break;
     }
     table.setRailGlow(near);
+  }
+
+  // --- der Schießgang -------------------------------------------------------
+
+  /**
+   * Der Gang hinter der Rückwand: Wände, Scheibe, Halter, Knöpfe, Tafel.
+   *
+   * Er ist bewusst schmal und **portalfrei**: hier wird gezielt und nicht
+   * gespielt, und ein Portal mitten im Gang wäre das Ende jeder Messung.
+   */
+  private buildRange(room: THREE.Group): void {
+    const { half, thickness } = ROOM;
+    const z0 = half;
+    const middle = z0 + LANE.length / 2;
+    const width = LANE.half * 2 + thickness * 2;
+    const shellGroup = this.shellGroup;
+
+    this.slab(shellGroup, this.floorMaterial, [width, thickness, LANE.length], [0, -thickness / 2, middle], false);
+    this.slab(shellGroup, this.shell, [width, thickness, LANE.length], [0, LANE.height + thickness / 2, middle], false);
+    for (const sign of [-1, 1]) {
+      this.slab(
+        shellGroup,
+        this.shell,
+        [thickness, LANE.height, LANE.length],
+        [sign * (LANE.half + thickness / 2), LANE.height / 2, middle],
+        false,
+      );
+    }
+    this.slab(
+      shellGroup,
+      this.shell,
+      [width, LANE.height, thickness],
+      [0, LANE.height / 2, z0 + LANE.length + thickness / 2],
+      false,
+    );
+
+    const range = new ToolRange();
+    range.position.set(0, 0, z0);
+    room.add(range);
+    this.range = range;
+    // Die Scheibe hält, was auf sie geschossen wird — sonst fliegt jede Kugel
+    // durch sie hindurch in die Wand, und man sieht nicht, ob man getroffen
+    // hat.
+    range.disc.updateWorldMatrix(true, false);
+    this.physics?.addStatic(range.disc);
+
+    // Über der Tür und zum Raum hin: man liest es, wenn man sich umdreht, und
+    // nicht erst, wenn man schon drinsteht.
+    const sign = new TextPlane({
+      width: 1.9,
+      height: 0.26,
+      title: 'Schießgang',
+      body: 'Werkzeug in den Halter · Hand daran · Greifen oder Trigger',
+      accent: 0xffc857,
+      align: 'center',
+    });
+    sign.position.set(0, (ROOM.height + LANE.height) / 2, z0 - thickness / 2 - 0.02);
+    sign.rotation.y = Math.PI;
+    room.add(sign);
+
+    for (const [index, row] of this.rangeRows().entries()) {
+      const button = this.wallButton(room, 0.92, 0.28, row.run);
+      button.plane.position.set(LANE.half - 0.02, 1.92 - index * 0.34, z0 + 1.2);
+      button.plane.rotation.y = -Math.PI / 2;
+      button.refresh = () => row.refresh(button);
+    }
+
+    // Die Tafel hängt weiter hinten an derselben Wand: man liest sie im
+    // Vorbeigehen zur Scheibe, und sie ist nichts zum Drücken.
+    const values = new TextPlane({
+      width: 1.2,
+      height: 0.52,
+      title: 'Noch nichts justiert',
+      body: 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger',
+      accent: 0x5ee0a0,
+    });
+    values.position.set(LANE.half - 0.02, 1.62, z0 + 2.9);
+    values.rotation.y = -Math.PI / 2;
+    room.add(values);
+    this.rangeBoard = values;
+  }
+
+  /** Die Knöpfe an der linken Wand des Gangs. */
+  private rangeRows(): Array<{ refresh(button: WallButton): void; run(hand: Handedness | null): void }> {
+    return [
+      {
+        refresh: (button) => {
+          const on = this.seeThrough.active;
+          this.label(
+            button,
+            on ? 'AR: an' : 'AR: aus',
+            on ? 'Wände sind durchsichtig' : 'Wände wegblenden',
+            on ? GRAB_GLOW : 0x4aa8ff,
+          );
+        },
+        run: () => this.toggleSeeThrough(),
+      },
+      {
+        refresh: (button) => {
+          const busy = this.fine !== null;
+          this.label(
+            button,
+            busy ? 'Feinjustiert … Trigger legt fest' : 'Feinjustieren',
+            busy
+              ? `Andere Hand bewegt · ${Math.round(1 / FINE_FACTOR)}:1 · A bricht ab`
+              : 'Aktuelle Haltung laden und nachziehen',
+            busy ? GRAB_GLOW : 0xffc857,
+          );
+        },
+        run: (hand) => this.beginFine(hand),
+      },
+      {
+        refresh: (button) => {
+          this.label(
+            button,
+            this.mounted ? `Zurück: ${this.mounted.tool.label}` : 'Halter ist leer',
+            this.mounted ? 'Unverändert zurück in die Hand' : 'Ein Werkzeug hineinhalten',
+            this.mounted ? 0xffc857 : 0x6f7d99,
+          );
+        },
+        run: () => this.releaseMount(false),
+      },
+    ];
+  }
+
+  /** Der AR-Knopf: die Welt durchsichtig, und den Himmel weg. */
+  private toggleSeeThrough(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const on = !this.seeThrough.active;
+    this.seeThrough.apply(on, ctx.scene, this.shellGroup, ctx.renderer);
+    this.refreshButtons();
+    if (!on) {
+      ctx.notify('AR aus');
+      return;
+    }
+    ctx.notify(
+      SeeThrough.passthrough(ctx.renderer)
+        ? 'AR an — das Zimmer steht hinter der Welt'
+        : 'AR an — diese Sitzung zeigt keine Kamera, die Welt ist nur durchsichtig',
+    );
+  }
+
+  // --- ein Werkzeug im Halter -----------------------------------------------
+
+  /**
+   * Jede Frame: liegt etwas im Halter, und was macht die Hand damit?
+   *
+   * Eingerastet wird, sobald ein gehaltenes Werkzeug den Halter berührt — kein
+   * Knopf, kein Loslassen. Man legt etwas ab, indem man es hinlegt; alles
+   * andere wäre eine Regel, die man sich merken muss.
+   */
+  private updateRange(ctx: WorldContext): void {
+    const range = this.range;
+    if (!range) return;
+
+    const mounted = this.mounted;
+    if (mounted) {
+      range.setGlow(true);
+      // Während der Feinjustage gehören die Knöpfe dem Geist.
+      if (this.fine) return;
+      const controller = ctx.input.get(mounted.hand);
+      if (!controller?.tracked) return;
+      if (controller.primary.justPressed) {
+        this.releaseMount(true);
+        return;
+      }
+      // Greifen *oder* Trigger: mit Controller liegt der Daumen am einen, der
+      // Zeigefinger am anderen, und welcher davon gerade frei ist, hängt
+      // daran, wie man das Ding hält — also zählen beide.
+      if (controller.trigger.justPressed || controller.squeeze.justPressed) {
+        this.measureMount(ctx, controller, mounted);
+      }
+      return;
+    }
+
+    let near = false;
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand || !controller.tracked) continue;
+      const tool = this.host?.heldTool(hand) ?? null;
+      if (!tool || tool.parked) continue;
+      tool.updateWorldMatrix(true, false);
+      tool.getWorldPosition(_hand);
+      if (range.mountDistance(_hand) > MOUNT_REACH) {
+        if (this.mountBlocked === tool) this.mountBlocked = null;
+        continue;
+      }
+      near = true;
+      // Das eben herausgekommene Werkzeug rastet erst wieder ein, wenn es
+      // einmal draußen war.
+      if (this.mountBlocked === tool) continue;
+      this.mountTool(tool, hand);
+      break;
+    }
+    range.setGlow(near);
+  }
+
+  /**
+   * Legt ein Werkzeug in den Halter: aus der Hand heraus, in die Aufnahme
+   * hinein — und die zeigt auf die Scheibe.
+   */
+  private mountTool(tool: Tool, hand: Handedness): Mounted | null {
+    const ctx = this.context;
+    const range = this.range;
+    if (!ctx || !range || !this.host?.parkTool(tool)) {
+      this.context?.notify('Werkzeug lässt sich nicht ablegen');
+      return null;
+    }
+    // `parkTool` hängt es an die Welt und lässt es stehen; hier bekommt es die
+    // Lage des Halters, in dessen Raum umgerechnet.
+    range.mount.updateWorldMatrix(true, false);
+    this.root.updateWorldMatrix(true, false);
+    _matrix.copy(this.root.matrixWorld).invert().multiply(range.mount.matrixWorld);
+    _matrix.decompose(tool.position, tool.quaternion, _scale);
+    tool.updateWorldMatrix(true, false);
+
+    const mounted: Mounted = {
+      tool,
+      hand,
+      before: {
+        position: tool.holdPosition.clone(),
+        rotation: tool.holdRotation.clone(),
+      },
+    };
+    this.mounted = mounted;
+    this.mountBlocked = null;
+    ctx.input.get(hand)?.pulse(0.4, 25);
+    this.refreshButtons();
+    ctx.notify(`${tool.label} zeigt auf die Scheibe · Hand daran, dann Greifen oder Trigger`);
+    return mounted;
+  }
+
+  /**
+   * Der Trigger schließt ab: was zwischen Griff und Werkzeug liegt, *ist* die
+   * Haltung — dieselbe Rechnung wie im Werkzeug-Justierer, nur hängt das
+   * Werkzeug hier nicht irgendwo, sondern auf der Ziellinie.
+   */
+  private measureMount(ctx: WorldContext, controller: ControllerState, mounted: Mounted): void {
+    const { tool, hand } = mounted;
+    const anchor = handAnchor(controller);
+    anchor.updateWorldMatrix(true, false);
+    anchor.matrixWorld.decompose(_position, _rotation, _scale);
+    tool.updateWorldMatrix(true, false);
+    tool.matrixWorld.decompose(_toolPosition, _toolRotation, _scale);
+    aimQuaternion(tool.alignToAim ? controller : null, _aim);
+
+    this.applyHold(
+      tool,
+      holdPoseFrom(
+        { position: _position, rotation: _rotation },
+        _aim,
+        { position: _toolPosition, rotation: _toolRotation },
+      ),
+      `${tool.label} · ${handLabel(hand)}`,
+      hand,
+    );
+
+    this.mounted = null;
+    this.mountBlocked = tool;
+    this.host?.unparkTool(tool);
+    controller.pulse(0.6, 40);
+    this.refreshButtons();
+    this.showValues();
+    ctx.notify(`${tool.label}: ${formatPose(this.readout!)}`);
+  }
+
+  /**
+   * Eine gemessene Haltung ans Werkzeug, in den Speicher und auf die Tafel —
+   * der eine Weg dorthin, damit Messung und Feinjustage nicht auseinanderlaufen.
+   */
+  private applyHold(tool: Tool, pose: HoldPose, caption: string, hand: Handedness): void {
+    tool.holdPosition.set(pose.position.x, pose.position.y, pose.position.z);
+    tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
+    savePose(tool.toolId, pose);
+    this.readout = readPose(pose);
+    this.readoutFor = caption;
+    this.code = toolGearCode(tool.toolId, hand);
+  }
+
+  /**
+   * Das Werkzeug aus dem Halter zurück in seine Hand.
+   *
+   * @param restore legt die Haltung von vor dem Ablegen zurück — das ist der
+   *                Abbruch mit `A`. Der Knopf an der Wand nimmt das Werkzeug
+   *                nur heraus und lässt alles Bestätigte stehen.
+   */
+  private releaseMount(restore: boolean, quiet = false): void {
+    const mounted = this.mounted;
+    if (!mounted) {
+      if (!quiet) this.context?.notify('Im Halter liegt nichts');
+      return;
+    }
+    this.cancelFine(false);
+    if (restore) {
+      mounted.tool.holdPosition.copy(mounted.before.position);
+      mounted.tool.holdRotation.copy(mounted.before.rotation);
+    }
+    this.mounted = null;
+    this.mountBlocked = mounted.tool;
+    this.host?.unparkTool(mounted.tool);
+    this.refreshButtons();
+    if (!quiet) this.context?.notify(`${mounted.tool.label} zurück in der Hand`);
+  }
+
+  // --- die Feinjustage ------------------------------------------------------
+
+  /**
+   * Lädt die Haltung, die gerade gilt, und stellt sie als Geisterhand ans
+   * Werkzeug.
+   *
+   * Gezogen wird mit der Hand, die den Knopf **nicht** gedrückt hat — sonst
+   * müsste man den Strahl erst wieder von der Wand nehmen. Liegt noch nichts
+   * im Halter, wandert das Werkzeug der drückenden Hand hinein: der Knopf
+   * soll tun, was er verspricht, und nicht erklären, was vorher zu tun wäre.
+   */
+  private beginFine(pointing: Handedness | null): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.fine) {
+      this.cancelFine(true);
+      ctx.notify('Abgebrochen');
+      return;
+    }
+
+    let mounted = this.mounted;
+    if (!mounted) {
+      const owner: Handedness = pointing ?? 'right';
+      const tool = this.host?.heldTool(owner) ?? null;
+      if (!tool) {
+        ctx.notify('Erst ein Werkzeug in den Halter legen');
+        return;
+      }
+      mounted = this.mountTool(tool, owner);
+      if (!mounted) return;
+    }
+
+    const hand: Handedness = pointing === 'left' ? 'right' : 'left';
+    const driver = ctx.input.get(hand);
+    if (!driver?.tracked) {
+      ctx.notify(`${handLabel(hand)} nicht getrackt`);
+      return;
+    }
+
+    const { tool } = mounted;
+    const owner = ctx.input.get(mounted.hand);
+    aimQuaternion(tool.alignToAim ? owner : null, _aim);
+    tool.updateWorldMatrix(true, false);
+    tool.matrixWorld.decompose(_toolPosition, _toolRotation, _scale);
+    const hold: HoldPose = { position: tool.holdPosition, rotation: tool.holdRotation };
+    // Der Rückweg: wo läge die Hand, wenn sie das Werkzeug so hielte, wie es
+    // gerade hängt? Genau dort steht der Geist.
+    const grip = gripForHold(
+      { position: _toolPosition, rotation: _toolRotation },
+      _aim,
+      hold,
+    );
+
+    const pose = ctx.hands.editablePose(mounted.hand, tool.toolId);
+    const ghost = new GhostHand(mounted.hand, pose, 0xffc857);
+    this.root.add(ghost);
+
+    handAnchor(driver).updateWorldMatrix(true, false);
+    handAnchor(driver).matrixWorld.decompose(_position, _rotation, _scale);
+
+    this.fine = {
+      hand,
+      owner: mounted.hand,
+      ghost,
+      grip: {
+        position: { x: grip.position.x, y: grip.position.y, z: grip.position.z },
+        rotation: { ...grip.rotation },
+      },
+      from: {
+        position: _position.clone(),
+        rotation: _rotation.clone(),
+      },
+      aim: _aim.clone(),
+      pose,
+      before: {
+        position: tool.holdPosition.clone(),
+        rotation: tool.holdRotation.clone(),
+      },
+    };
+    this.placeGhost(this.fine, grip);
+    driver.pulse(0.4, 25);
+    this.refreshButtons();
+    ctx.notify(
+      `${tool.label} · ${handLabel(hand)} zieht, ${Math.round(1 / FINE_FACTOR)}:1 · Trigger legt fest`,
+    );
+  }
+
+  /**
+   * Jede Frame der Feinjustage: der Geist übernimmt ein Zehntel dessen, was
+   * die Hand seit dem Zupacken getan hat, und was zwischen ihm und dem
+   * Werkzeug liegt, steht sofort auf der Tafel.
+   */
+  private updateFine(ctx: WorldContext): void {
+    const fine = this.fine;
+    const mounted = this.mounted;
+    if (!fine || !mounted) return;
+
+    const controller = ctx.input.get(fine.hand);
+    if (!controller?.tracked) {
+      this.cancelFine(true);
+      ctx.notify('Hand weg — abgebrochen');
+      return;
+    }
+    if (controller.primary.justPressed) {
+      this.cancelFine(true);
+      ctx.notify('Abgebrochen');
+      return;
+    }
+
+    const anchor = handAnchor(controller);
+    anchor.updateWorldMatrix(true, false);
+    anchor.matrixWorld.decompose(_position, _rotation, _scale);
+    const grip = nudgeGrip(fine.grip, fine.from, { position: _position, rotation: _rotation });
+    this.placeGhost(fine, grip);
+
+    const { tool } = mounted;
+    tool.updateWorldMatrix(true, false);
+    tool.matrixWorld.decompose(_toolPosition, _toolRotation, _scale);
+    const pose = holdPoseFrom(grip, fine.aim, {
+      position: _toolPosition,
+      rotation: _toolRotation,
+    });
+    // Live auf die Tafel, aber noch nicht in den Speicher: bis zum Trigger
+    // kostet ein Abbruch nichts.
+    this.readout = readPose(pose);
+    this.readoutFor = `${tool.label} · ${handLabel(fine.owner)} · fein`;
+    this.showValues();
+
+    if (!controller.trigger.justPressed) return;
+    this.applyHold(tool, pose, `${tool.label} · ${handLabel(fine.owner)}`, fine.owner);
+    // Was bestätigt ist, ist bestätigt: ab hier legt auch ein Abbruch nicht
+    // mehr die Haltung von vor der Feinjustage zurück, sondern diese.
+    mounted.before = {
+      position: tool.holdPosition.clone(),
+      rotation: tool.holdRotation.clone(),
+    };
+    this.cancelFine(false);
+    controller.pulse(0.6, 40);
+    this.refreshButtons();
+    this.showValues();
+    ctx.notify(`${tool.label}: ${formatPose(this.readout!)}`);
+  }
+
+  /**
+   * Der Geist an seinen Platz: er hängt am Griff, plus dem Versatz, mit dem
+   * die Hand an diesem Werkzeug gezeichnet wird. Ohne den stünde er einen
+   * Zentimeter neben der Hand, die man gleich damit vergleicht.
+   */
+  private placeGhost(fine: Fine, grip: Grip): void {
+    _gripPosition.set(grip.position.x, grip.position.y, grip.position.z);
+    _gripRotation.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
+    _posePosition.set(fine.pose.x / 100, fine.pose.y / 100, fine.pose.z / 100);
+    _poseRotation.setFromEuler(
+      _euler.set(fine.pose.pitch / DEG, fine.pose.yaw / DEG, fine.pose.roll / DEG, 'XYZ'),
+    );
+    fine.ghost.position.copy(_posePosition).applyQuaternion(_gripRotation).add(_gripPosition);
+    fine.ghost.quaternion.copy(_gripRotation).multiply(_poseRotation);
+    // Der Geist hängt an der Welt, nicht am Raum — steht der Raum irgendwo
+    // anders, muss die Weltlage zurückgerechnet werden.
+    this.root.updateWorldMatrix(true, false);
+    _matrix
+      .compose(fine.ghost.position, fine.ghost.quaternion, _scale.set(1, 1, 1))
+      .premultiply(_inverseMatrix.copy(this.root.matrixWorld).invert());
+    _matrix.decompose(fine.ghost.position, fine.ghost.quaternion, _scale);
+  }
+
+  /** Nimmt den Geist weg; `restore` legt die Haltung von vorher zurück. */
+  private cancelFine(restore: boolean): void {
+    const fine = this.fine;
+    if (!fine) return;
+    this.fine = null;
+    fine.ghost.dispose();
+    const tool = this.mounted?.tool;
+    if (restore && tool) {
+      tool.holdPosition.copy(fine.before.position);
+      tool.holdRotation.copy(fine.before.rotation);
+      // Auch die Tafel zurück: sie hat die ganze Feinjustage über den
+      // Vorschauwert gezeigt, und der gilt jetzt nicht mehr.
+      this.readout = readPose(fine.before);
+      this.readoutFor = `${tool.label} · ${handLabel(fine.owner)}`;
+    }
+    this.refreshButtons();
   }
 
   // --- die Vibrationsbank ---------------------------------------------------

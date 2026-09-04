@@ -2,6 +2,8 @@ import {
   HAND_FIELDS,
   HOLD_HAND_POSE,
   IDLE_HAND_POSE,
+  IDLE_HAND_POSE_RIGHT,
+  defaultIdlePose,
   formatHandPose,
   handPoseField,
   handPoseFromArray,
@@ -42,6 +44,46 @@ describe('mirrorHandPose', () => {
     const source = { ...POSE, curls: [...POSE.curls] };
     mirrorHandPose(source).curls[0] = 0;
     expect(source.curls[0]).toBe(0.6);
+  });
+});
+
+describe('defaultIdlePose', () => {
+  it('gibt der rechten Hand die eingemessenen sechs Zahlen', () => {
+    const right = defaultIdlePose('right');
+    expect(right.x).toBe(0.5);
+    expect(right.y).toBe(-0.4);
+    expect(right.z).toBe(1.2);
+    expect(right.pitch).toBe(-90);
+    expect(right.yaw).toBe(45);
+    expect(right.roll).toBe(0);
+    // Die Finger kommen weiter aus der gebauten Haltung — gemessen wurde, wie
+    // die Hand *liegt*, nicht wie weit sie zu ist.
+    expect(right.curls).toEqual(IDLE_HAND_POSE.curls);
+  });
+
+  it('ist links genau die Spiegelung von rechts', () => {
+    const left = defaultIdlePose('left');
+    expect(left).toEqual(mirrorHandPose(IDLE_HAND_POSE_RIGHT));
+    expect(left.x).toBe(-0.5);
+    expect(left.yaw).toBe(-45);
+    // Quer gespiegelt, in der Höhe und der Tiefe nicht.
+    expect(left.y).toBe(-0.4);
+    expect(left.z).toBe(1.2);
+    expect(left.pitch).toBe(-90);
+  });
+
+  it('spiegelt eine Null zu einer Null und nicht zu einer -0', () => {
+    // `-0` steht sonst auf jeder Tafel und in jedem Konfig-Code der linken
+    // Hand, und es liest sich wie ein Fehler.
+    expect(Object.is(defaultIdlePose('left').roll, 0)).toBe(true);
+  });
+
+  it('gibt jedes Mal eine eigene Haltung heraus', () => {
+    const first = defaultIdlePose('right');
+    first.x = 99;
+    first.curls[0] = 1;
+    expect(defaultIdlePose('right').x).toBe(0.5);
+    expect(IDLE_HAND_POSE_RIGHT.curls[0]).not.toBe(1);
   });
 });
 

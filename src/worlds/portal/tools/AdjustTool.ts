@@ -8,9 +8,8 @@ import { playTone } from '../../../core/Audio';
 import { foldCurls } from '../../../core/handGestures';
 import { GhostHand } from '../../../core/HandVisuals';
 import {
-  clonePose,
   GRAB_POSE_ID,
-  IDLE_HAND_POSE,
+  defaultIdlePose,
   type HandPose,
 } from '../../../core/handPose';
 import { saveHoldHandPose, saveIdleHandPose } from '../../../core/handPoseStore';
@@ -329,7 +328,7 @@ export class AdjustTool extends Tool {
     }
     if (this.target?.kind === 'hand' && this.target.toolId === null) {
       const hand = this.target.hand;
-      saveIdleHandPose(hand, clonePose(IDLE_HAND_POSE));
+      saveIdleHandPose(hand, defaultIdlePose(hand));
       host.ctx.hands.refreshPoses();
       host.notify(`${handLabel(hand)} zurückgesetzt`);
       return;

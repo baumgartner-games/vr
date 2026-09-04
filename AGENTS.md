@@ -45,7 +45,11 @@ Vorzeichen, die im Headset sonst die halbe Welt verdrehen, und das Tuning aus
 Tempo und Drehrate), die **Drohnen-Einstellungen**
 (`src/worlds/portal/tools/droneSettings.ts` — Rasten, Grenzen und der Fall,
 dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die Handhaltung
-(`src/core/handPose.ts`), die **Handgesten**
+(`src/core/handPose.ts` — samt der ausgelieferten Grundhaltung und ihrer
+Spiegelung auf die linke Hand), die **Untersetzung der Feinjustage**
+(`src/worlds/tune/fineTune.ts` — dass ein Zentimeter ein Millimeter wird, dass
+die Drehung den kürzeren Bogen nimmt, und dass zehn Bilder auf demselben Weg
+dort enden, wo eines endet), die **Handgesten**
 (`src/core/handGestures.ts` — welche Finger an der Handfläche liegen und was
 daraus Greifen und Trigger macht, samt der Hysterese, ohne die ein halb
 gekrümmter Finger den Trigger dreißigmal pro Sekunde umschaltet), die Waffenwerte
@@ -572,11 +576,46 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   greift und das dann mitkommt, prüft die Physik; hier soll die Hand ruhig an
   etwas Festem liegen, also bewegt sich der Griff nicht.
 
+  **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der
+  Schießgang**: ein Gang, eine Zielscheibe am Ende, ein Halter daneben
+  (`tune/ToolRange.ts`). Der Tisch beantwortet, *wo* eine Hand liegt; ein
+  Werkzeug aber liegt nicht richtig oder falsch, es **zeigt** richtig oder
+  falsch — und wohin es zeigt, sieht man an nichts so gut wie an einer Scheibe
+  am Ende eines Gangs. Ein Werkzeug, das man in den **Halter** hält, rastet
+  ein und liegt dort exakt auf die Scheibe gerichtet; damit ist die
+  Zielrichtung keine Unbekannte mehr. Dann führt man die Hand ans Werkzeug,
+  dorthin, wo man es halten will, und bestätigt mit **Greifen oder Trigger**:
+  was dazwischen liegt, *ist* die Haltung (`toolPose.ts`), sie wird gespeichert
+  und das Werkzeug springt damit in die Hand zurück — wo man sofort sieht, ob
+  es die Scheibe trifft. `A` legt es unverändert zurück.
+
+  Für die letzten zwei Millimeter gibt es an der linken Wand des Gangs
+  **Feinjustieren**: die geltende Haltung wird geladen (`gripForHold` in
+  `toolPose.ts`, die Umkehrung der Messung) und als **Geisterhand** ans
+  Werkzeug gestellt, und die Hand, die den Knopf *nicht* gedrückt hat, zieht
+  sie zurecht — **um ein Zehntel untersetzt**: ein Zentimeter an der eigenen
+  Hand ist ein Millimeter am Geist, ein Grad ein Zehntelgrad
+  (`tune/fineTune.ts` mit Test). Eine ausgestreckte Hand zittert um mehr, als
+  hier eingestellt wird; untersetzt tut sie es nicht mehr. Der Trigger legt
+  fest, `A` bricht ab. Daneben hängt dieselbe **Werte-Tafel** wie am Tisch, mit
+  denselben sechs Zahlen und dem Konfig-Code — wer im Gang steht, läuft für
+  seine eigenen Zahlen nicht zurück in den Raum.
+
+  Der dritte Knopf dort ist **AR an/aus**: er blendet Wände, Boden und Decke
+  durchsichtig (`tune/seeThrough.ts`), damit die virtuelle Hand nicht mehr
+  hinter der Welt verschwindet. Ob dahinter das **echte Zimmer** auftaucht,
+  entscheidet die laufende Sitzung: `App.enterVR` fragt zuerst nach
+  `immersive-ar` und fällt auf `immersive-vr` zurück, und nur eine AR-Sitzung
+  mischt ihr Kamerabild dazu. Wo es das nicht gibt, ist die Welt eben nur
+  durchsichtig — die Hand verdeckt sie trotzdem nicht mehr. Der Raum hat
+  deshalb als einziger **keine Horizontfläche**: die läge sonst als graue
+  Platte über dem echten Fußboden.
+
   **Gelaufen und
   gedreht wird hier nicht** (`PlayerRig.locked`), der Kopf natürlich schon:
   man kommt her, um eine Haltung zu halten und sie anzusehen. Weil der Tisch
-  aber rechts steht, die Bank links, und man im Sessel an keins von beidem
-  hinkommt, gibt es neben dem Schild
+  aber rechts steht, die Bank links, der Schießgang hinten, und man im Sessel
+  an nichts davon hinkommt, gibt es neben dem Schild
   einen **Knopf, der den Stick freigibt** — ausdrücklich und sichtbar, statt
   dass es einfach so geht. Gürtel, Regal und der Werkzeug-Justierer sind da,
   denn die Hand, die man ansieht, ist die, die man einstellt.
@@ -674,6 +713,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug-Einstellungen | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand) | Linksklick auf den Pfeil | tippen |
 | Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe am Tisch im Eingaberaum | – | – |
 | Geist justieren (Eingaberaum) | Tafel *drehen*/*bewegen* drücken, dann mit der **anderen** Hand ziehen und deren Trigger; *Justieren* drücken, die eigene Hand auf den Geist legen und deren Trigger | – | – |
+| Werkzeug einmessen (Schießgang) | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück | – | – |
+| Haltung feinjustieren (Schießgang) | *Feinjustieren* an der linken Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
+| AR an/aus (Schießgang) | Knopf *AR* an der linken Wand — Wände werden durchsichtig | – | – |
 | Vibration ausprobieren | Griff auf der Bank links greifen und halten | – | – |
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
@@ -957,6 +999,18 @@ Companion Cube ist weder die leere Hand noch die Hand an der Pistole, und ohne
 eigene Haltung sah sie aus wie beides gleichzeitig. Getippt wird über die Tastatur im
 Raum, und die Hand bewegt sich schon *während* getippt wird — eine Krümmung
 von 0.6 sagt auf dem Papier nichts.
+
+Die **ausgelieferte Grundhaltung** ist nicht die gebaute. Gebaut ist die Hand
+auf dem Griffpunkt und geradeaus schauend (`IDLE_HAND_POSE`) — so hat aber noch
+nie eine Hand einen Controller gehalten. Der liegt schräg in der Faust, und die
+im Headset an der Boxhand abgelesenen Zahlen stehen deshalb als
+`IDLE_HAND_POSE_RIGHT` im Code: **x 0,5 cm, y -0,4 cm, z 1,2 cm, Pitch -90°,
+Yaw 45°, Roll 0°**. Die linke Hand steht *nicht* daneben, sondern fällt aus
+`mirrorHandPose` heraus (`defaultIdlePose`) — zwei getrennt gepflegte
+Zahlenreihen wären genau die Sorte Abweichung, die niemand merkt. Dieselbe
+Haltung ist auch die Maske des Konfig-Codes und der Rückfall für einen zu
+kurzen: was nicht im Code steht, *ist* die gebaute Haltung dieser Hand, und
+zwar dieser und nicht der anderen.
 
 Weil beide Hände Spiegelbilder sind, ist die andere Seite eine Kopie mit drei
 umgedrehten Vorzeichen: seitlicher Versatz, Yaw und Roll. Mehr nicht — genau

@@ -1,7 +1,7 @@
 import {
   HOLD_HAND_POSE,
-  IDLE_HAND_POSE,
   clonePose,
+  defaultIdlePose,
   handPoseFromArray,
   handPoseToArray,
   type HandPose,
@@ -61,10 +61,19 @@ export function onHandPoseChange(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
-/** The idle pose of a hand — the built-in one until somebody changes it. */
+/**
+ * The idle pose of a hand — the built-in one until somebody changes it.
+ *
+ * Die eingebaute ist **je Hand eine andere**: eine Hand am Controller liegt
+ * schräg darin, und links ist das die Spiegelung von rechts
+ * (`defaultIdlePose`). Deshalb ist sie auch der Rückfall für einen zu kurzen
+ * Konfig-Code — sonst zöge ein alter Code die rechte Haltung auf die linke
+ * Hand.
+ */
 export function idleHandPose(hand: Handedness): HandPose {
+  const fallback = defaultIdlePose(hand);
   const stored = read().idle?.[hand];
-  return stored ? handPoseFromArray(stored) : clonePose(IDLE_HAND_POSE);
+  return stored ? handPoseFromArray(stored, fallback) : fallback;
 }
 
 /**
