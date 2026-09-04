@@ -1277,55 +1277,79 @@ nur einen Fall kann — *ein* Werkzeug an *einer* Hand — und dafür nichts
 mitschleppt:
 
 ```
-BGK <Platz:1> <Flags:1> [Pose:9] [Griff:9] [Finger:7] <Summe:2>
+BP <Platz:1> <Flags:1> <Nutzlast> <Summe:2>
 
-BGKMDgF8upohGzigZ5hfz6PDu   # Taschenlampe: Lage im Griff *und* Handhaltung
+BPKGSwKKT7nssF8            # ein Griff              15 Zeichen
+BPNDLmS5tAj9BFkRQK7MQ3Qg   # Werkzeugpose + Griff   24 Zeichen
 ```
 
-Die Zahlen werden nicht einzeln geschrieben, sondern als **eine** Zahl zur
-gemischten Basis: Ort ±36,0 cm in Zehntelschritten (721 Stufen je Achse),
-Winkel 0…359 in ganzen Grad (360 Stufen je Achse).
+**Die Wertebereiche.** Ort −30,0…+30,0 cm in Zehntelschritten (601 Stufen je
+Achse), Pitch und Roll 0…359° in ganzen Grad (360), **Yaw nur −90…+90°** (181).
+0° und 360° sind derselbe Winkel, also wird nur 0…359 geführt. Und Yaw braucht
+wirklich nur die halbe Runde: `eulerXYZ` bestimmt den mittleren Winkel mit
+`Math.asin`, der *kann* nicht darüber hinaus — mit 20 000 gleichverteilten
+Drehungen nachgemessen, größter Wert 89,12°. Eine von Hand getippte Haltung mit
+Yaw 120° geht trotzdem nicht verloren: sie wird vor dem Packen einmal durch das
+Quaternion geschickt und kommt als dieselbe Drehung mit |yaw| ≤ 90 zurück.
 
-Wie viele Zeichen das braucht, entscheidet das **Produkt** der Stufen und
-nicht ihre Summe — die naheliegende Rechnung „360+360+360 = 1080, passt bequem
-in zwei Zeichen" ist um sieben Größenordnungen daneben. Richtig gerechnet:
+**Das Packen.** Alles, was in einem Code steht, wird zu **einer** Ganzzahl zur
+gemischten Basis — auch zwei Posen, die dann nicht einzeln aufgerundet werden.
+
+**Wie lang das wird**, entscheidet das *Produkt* der Stufen und nicht ihre
+Summe. Das ist die Stelle, an der die naheliegende Rechnung dreimal
+danebenlag — „360+360+360 = 1080, passt in zwei Zeichen" ist um sieben
+Größenordnungen zu klein, und auch `601³ · 360 · 181 · 360` sind nicht 42,6
+Billionen, sondern gut 5 Billiarden:
 
 ```
-721³ · 360³ = 17 486 806 953 216 000 Möglichkeiten
-64⁸         =    281 474 976 710 656 zu wenig
-64⁹         = 18 014 398 509 481 984 reicht, mit 3 % Luft
+601³ · 360 · 181 · 360 = 5 092 218 055 137 600   ( = 52,18 bit )
+59^8  =     146 830 437 604 321   zu wenig
+59^9  =   8 662 995 818 654 939   reicht
 ```
 
-Also **neun** Zeichen für eine ganze Pose. Gerechnet wird mit `BigInt`, und
-das ist keine Vorsicht: 1,75·10¹⁶ liegt über 2⁵³, und ab dort zählt eine
-JavaScript-Zahl nicht mehr in Einsen. Die Prüfsumme hat **zwei** Zeichen, weil
-eines nicht reichte: von 166 vertauschten Zeichen kamen vier durch, und ein
-Code, der in vier von hundert Fällen still eine fremde Handhaltung einträgt,
-ist schlimmer als einer, der zu lang ist. Der Test probiert alle einzelnen
-Tippfehler und alle Vertauschungen durch.
+Also **neun** Zeichen für eine Pose und **achtzehn** für zwei — nicht acht und
+sechzehn. Gerechnet wird mit `BigInt`, weil zwei Posen zusammen über 2⁵³
+liegen; ab dort zählt eine JavaScript-Zahl nicht mehr in Einsen. Die drei
+Zahlen stehen als Test da, damit die Rechnung nicht ein viertes Mal verrutscht.
+
+**Das Alphabet** hat 59 Zeichen statt 64: kein `0`/`O`, kein `1`/`I`/`l`. Ein
+Code wird in einer Brille von einer Tafel abgelesen und mit einer Zeigehand
+eingetippt — dort ist eine Null, die wie ein O aussieht, kein Schönheitsfehler,
+sondern ein Fehlversuch. Alle 59 sind URL-sicher (`-` und `_` gehören zu den
+*unreserved characters* aus RFC 3986). Und es kostet nichts: 59⁹ liegt immer
+noch über den 5,09·10¹⁵ Möglichkeiten, es bleibt bei neun Zeichen. Lesbarkeit
+gratis.
+
+Die **Prüfsumme** hat zwei Zeichen, weil eines nicht reichte: von 166
+vertauschten Zeichen kamen vier durch, und ein Code, der in vier von hundert
+Fällen still eine fremde Handhaltung einträgt, ist schlimmer als einer, der ein
+Zeichen länger ist. Der Test probiert alle einzelnen Tippfehler und alle
+Vertauschungen durch.
 
 Was das bringt:
 
-| | vorher | jetzt |
+| | großer Code | Kurzcode |
 | --- | --- | --- |
-| eine Werkzeugpose | 22 | 16 |
-| Werkzeug **und** Griff | 66 | 25 |
-| eine Grundhaltung | 33 | 23 |
+| eine Werkzeugpose | 22 | **15** |
+| Werkzeug **und** Griff | 66 | **24** |
+| eine Grundhaltung samt Fingern | 33 | **22** |
 
-Die Finger stehen nur drin, wenn sie **verstellt** sind: eine Messung fasst
-sie nicht an, und was sich nicht geändert hat, gehört nicht in einen Code, den
+Die Finger stehen nur drin, wenn sie **verstellt** sind: eine Messung fasst sie
+nicht an, und was sich nicht geändert hat, gehört nicht in einen Code, den
 jemand abtippt. Fehlen sie, kommen sie beim Lesen aus der gebauten Haltung
 dieses Werkzeugs — nicht aus einer Null, sonst streckte ein Code, der nur den
 Griff verschiebt, nebenbei alle fünf Finger.
 
-Für die **ganze** Ausrüstung bleibt der große Code zuständig, und der ist
-nicht zu lang, sondern voll: eine wirklich benutzte Konfiguration (vier
-eingemessene Werkzeuge samt Griffen beider Hände) sind rund 170 Zeichen. Wer
-alle 24 Werkzeuge und alle 48 Griffe verstellt, hat siebzig Posen, und siebzig
-Posen sind nun einmal siebzig Posen — da hilft keine Verpackung mehr.
+Für die **ganze** Ausrüstung bleibt der große Code zuständig, und der ist nicht
+zu lang, sondern voll: eine wirklich benutzte Konfiguration (vier eingemessene
+Werkzeuge samt Griffen beider Hände) sind rund 170 Zeichen. Wer alle 24
+Werkzeuge und alle 48 Griffe verstellt, hat siebzig Posen, und siebzig Posen
+sind nun einmal siebzig Posen — da hilft keine Verpackung mehr.
 
 `parseGearCode` nimmt beide Sorten entgegen; welche es ist, sagt das Präfix
-(`BG3` oder `BGK`).
+(`BG3` oder `BP`). Der ganz kurzlebige Vorgänger `BGK…` wird **nicht** mehr
+gelesen — er stand einen Nachmittag lang im Code, mit anderem Alphabet und
+anderen Bereichen, und ein zweiter Leser dafür wäre mehr Ballast als Nutzen.
 
 #### Über die Leitung
 

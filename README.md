@@ -43,7 +43,8 @@ Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, die Fahrphysik und
 Streckenführung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte, den
-Kurzcode für ein einzelnes Werkzeug und die Auslegung der Hub-Gänge. Diese
+Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
+hängt) und die Auslegung der Hub-Gänge. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.

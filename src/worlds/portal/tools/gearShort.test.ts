@@ -47,7 +47,9 @@ describe('der Code für ein Werkzeug an einer Hand', () => {
     saveHoldHandPose('right', 'flashlight', grip);
 
     const code = toolGearCode('flashlight', 'right');
-    expect(code.startsWith('BGK')).toBe(true);
+    expect(code.startsWith('BP')).toBe(true);
+    // Zwei Posen — und trotzdem kürzer als *eine* im Klartext plus Rahmen.
+    expect(code).toHaveLength(24);
     expect(code.length).toBeLessThan('4,-2.8,1.7,-44,26,-105'.length + 4);
   });
 

@@ -13,6 +13,7 @@
  */
 import {
   FINGER_CHARS,
+  POSE_ALPHABET,
   POSE_CHARS,
   POSE_LIMIT,
   packPose,
@@ -21,6 +22,21 @@ import {
   SHORT_SLOTS,
   unpackPose,
 } from './shortCode';
+import { quatFromEulerXYZ } from './toolPose';
+
+/** Zwei Winkeltripel beschreiben dieselbe Drehung. */
+function expectSameTurn(a: readonly number[], b: readonly number[]): void {
+  const rad = (v: readonly number[]) => ({
+    x: ((v[0] ?? 0) * Math.PI) / 180,
+    y: ((v[1] ?? 0) * Math.PI) / 180,
+    z: ((v[2] ?? 0) * Math.PI) / 180,
+  });
+  const qa = quatFromEulerXYZ(rad(a));
+  const qb = quatFromEulerXYZ(rad(b));
+  // Ein Quaternion und sein Negatives sind dieselbe Drehung.
+  const dot = Math.abs(qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w);
+  expect(dot).toBeCloseTo(1, 5);
+}
 
 /** Eine Pose, wie sie von einer Messung kommt: Zehntel und ganze Grad. */
 function pose(x: number, y: number, z: number, p: number, yw: number, r: number): number[] {
@@ -33,24 +49,42 @@ describe('eine Pose in neun Zeichen', () => {
     expect(packPose(pose(4, -2.8, 1.7, -44, 26, -105))).toHaveLength(9);
   });
 
+  it('schreibt nur Zeichen, die man nicht verwechselt', () => {
+    expect(POSE_ALPHABET).toHaveLength(59);
+    expect(new Set(POSE_ALPHABET).size).toBe(59);
+    for (const forbidden of '0O1Il') expect(POSE_ALPHABET).not.toContain(forbidden);
+    // URL-sicher: nur die unreserved characters aus RFC 3986.
+    expect(POSE_ALPHABET).toMatch(/^[A-Za-z0-9\-_.~]+$/);
+  });
+
+  it('bringt einen zu großen Yaw in die Normalform statt ihn zu beschneiden', () => {
+    // Yaw 120° ist dieselbe Drehung wie eine mit |yaw| ≤ 90 — nur anders
+    // aufgeschrieben. Was zurückkommt, muss dieselbe Drehung sein.
+    const back = unpackPose(packPose(pose(0, 0, 0, 10, 120, 30)))!;
+    expect(Math.abs(back[4]!)).toBeLessThanOrEqual(90);
+    // Und zweimal durch dieselbe Mühle ändert nichts mehr.
+    expect(unpackPose(packPose(back))).toEqual(back);
+  });
+
   it('gibt dieselben Zahlen wieder her', () => {
     const values = pose(4, -2.8, 1.7, -44, 26, -105);
     expect(unpackPose(packPose(values))).toEqual(values);
   });
 
-  it('trifft jede Ecke des Bereichs', () => {
+  it('trifft jede Ecke des Bereichs — als Drehung, nicht als Zahlentripel', () => {
     for (const corner of [
-      pose(-POSE_LIMIT, -POSE_LIMIT, -POSE_LIMIT, -180, -180, -180),
-      pose(POSE_LIMIT, POSE_LIMIT, POSE_LIMIT, 179, 179, 179),
+      pose(-POSE_LIMIT, -POSE_LIMIT, -POSE_LIMIT, -180, -90, -180),
+      pose(POSE_LIMIT, POSE_LIMIT, POSE_LIMIT, 179, 90, 179),
       pose(0, 0, 0, 0, 0, 0),
       pose(0.1, -0.1, 0.1, 1, -1, 1),
     ]) {
       const back = unpackPose(packPose(corner))!;
-      // −180 und +180 sind derselbe Winkel; geführt wird er als −180.
       expect(back.slice(0, 3)).toEqual(corner.slice(0, 3));
-      for (let i = 3; i < 6; i++) {
-        expect(Math.abs(((back[i]! - corner[i]! + 540) % 360) - 180)).toBeLessThan(0.5);
-      }
+      // Bei |yaw| = 90 steht die Achse senkrecht, und Pitch und Roll sind
+      // dieselbe Drehung — `eulerXYZ` schreibt den Rest dann in den Pitch und
+      // setzt Roll auf null. Das Zahlentripel ändert sich dabei, die **Drehung**
+      // nicht, und nur die ist die Zusicherung.
+      expectSameTurn(back.slice(3), corner.slice(3));
     }
   });
 
@@ -70,7 +104,9 @@ describe('eine Pose in neun Zeichen', () => {
         // −179…179: +180 und −180 sind derselbe Winkel, und geführt wird er
         // als −180 (die Ecken-Prüfung oben deckt genau das ab).
         Math.round(next() * 358) - 179,
-        Math.round(next() * 358) - 179,
+        // Yaw nur ±90: mehr liefert `eulerXYZ` nicht, und genau darauf ist die
+        // mittlere Stelle gebaut.
+        Math.round(next() * 178) - 89,
         Math.round(next() * 358) - 179,
       );
       expect(unpackPose(packPose(values))).toEqual(values);
@@ -84,6 +120,34 @@ describe('eine Pose in neun Zeichen', () => {
   });
 });
 
+describe('die Zahlen, an denen das Format hängt', () => {
+  it('zählt die Zustände einer Pose richtig', () => {
+    // Kombinationen **multiplizieren** sich, sie addieren sich nicht — der
+    // Fehler, der diesem Format dreimal eine falsche Länge verpasst hat.
+    const states = 601 ** 3 * 360 * 181 * 360;
+    expect(states).toBe(5_092_218_055_137_600);
+    expect(Math.log2(states)).toBeCloseTo(52.18, 2);
+  });
+
+  it('braucht neun Zeichen, weil acht nicht reichen', () => {
+    const states = 601 ** 3 * 360 * 181 * 360;
+    expect(59 ** 8).toBeLessThan(states);
+    expect(59 ** 9).toBeGreaterThan(states);
+    expect(POSE_CHARS).toBe(9);
+  });
+
+  it('packt zwei Posen in achtzehn', () => {
+    const code = packShortGear({
+      toolId: 'pistol',
+      hand: 'right',
+      pose: pose(1, 2, 3, 4, 5, 6),
+      grip: pose(-1, -2, -3, -4, -5, -6),
+    });
+    // Rahmen (BP + Platz + Flags + zwei Summenzeichen) plus 18 Nutzlast.
+    expect(code).toHaveLength(6 + 18);
+  });
+});
+
 describe('der ganze Kurzcode', () => {
   const grip = { curls: [0.55, 0.35, 0.85, 0.9, 0.9], spread: 0 };
 
@@ -94,7 +158,8 @@ describe('der ganze Kurzcode', () => {
       pose: pose(1.2, -3.4, 5.6, -44, 26, -105),
       grip: pose(4, -2.8, 1.7, -44, 26, -105),
     });
-    expect(code).toHaveLength(3 + 2 + POSE_CHARS * 2 + 2);
+    // Zwei Posen wandern in *eine* Zahl; hier sind das dieselben 18 Zeichen.
+    expect(code).toHaveLength(2 + 2 + POSE_CHARS * 2 + 2);
     // Die blanken Zahlen *einer* Pose sind schon 22 Zeichen; hier stehen zwei.
     expect(code.length).toBeLessThan('4,-2.8,1.7,-44,26,-105'.length * 2);
     expect(parseShortGear(code)).toEqual({
@@ -105,13 +170,13 @@ describe('der ganze Kurzcode', () => {
     });
   });
 
-  it('kostet für eine Pose allein sechzehn Zeichen', () => {
+  it('kostet für eine Pose allein fünfzehn Zeichen', () => {
     const code = packShortGear({
       toolId: 'pistol',
       hand: 'left',
       pose: pose(0, -1.2, 3, 0, 0, 0),
     });
-    expect(code).toHaveLength(16);
+    expect(code).toHaveLength(15);
     expect(parseShortGear(code)?.hand).toBe('left');
     expect(parseShortGear(code)?.grip).toBeUndefined();
   });
@@ -123,19 +188,21 @@ describe('der ganze Kurzcode', () => {
       grip: pose(0, 0, 0, 0, 0, 0),
       fingers: grip,
     });
-    expect(code).toHaveLength(3 + 2 + POSE_CHARS + FINGER_CHARS + 2);
+    expect(code).toHaveLength(2 + 2 + POSE_CHARS + FINGER_CHARS + 2);
     expect(parseShortGear(code)?.fingers).toEqual(grip);
   });
 
   it('kennt die leere Hand', () => {
-    const code = packShortGear({ toolId: '', hand: 'right', grip: pose(0, 2.7, 3.8, 75, -45, 5) });
+    const code = packShortGear({ toolId: '', hand: 'right', grip: pose(-0.3, 2.7, 3.8, 75, -45, 5) });
     expect(parseShortGear(code)?.toolId).toBe('');
   });
 
   it('lehnt ab, was keiner von uns ist', () => {
     expect(parseShortGear('BG3AAEBEj8YQ3BXNNEBS8o')).toBeNull();
     expect(parseShortGear('')).toBeNull();
-    expect(parseShortGear('BGK')).toBeNull();
+    expect(parseShortGear('BP')).toBeNull();
+    // Ein alter Kurzcode aus der Zeit vor diesem Format.
+    expect(parseShortGear('BGKMDgF8upohGzigZ5hfz6PDu')).toBeNull();
   });
 
   it('lehnt jeden einzelnen Tippfehler ab', () => {
@@ -147,8 +214,8 @@ describe('der ganze Kurzcode', () => {
     });
     let caught = 0;
     let tried = 0;
-    for (let i = 3; i < code.length; i++) {
-      for (const replacement of 'AZaz09-_') {
+    for (let i = 2; i < code.length; i++) {
+      for (const replacement of 'AZaz29-_') {
         if (code[i] === replacement) continue;
         tried++;
         const typo = code.slice(0, i) + replacement + code.slice(i + 1);
@@ -167,7 +234,7 @@ describe('der ganze Kurzcode', () => {
     });
     let caught = 0;
     let tried = 0;
-    for (let i = 3; i < code.length - 2; i++) {
+    for (let i = 2; i < code.length - 2; i++) {
       if (code[i] === code[i + 1]) continue;
       tried++;
       const swapped =
