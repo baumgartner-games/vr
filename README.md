@@ -5,10 +5,13 @@
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
-Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, ein
-Dunkelhaus zum Ausprobieren von Licht und ein Eingaberaum zum Einstellen von
-Händen und Werkzeugen, ein Werkzeuggürtel voller Spielzeug und
-Peer-to-Peer-Sitzungen ohne eigenen Server.
+Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
+mit einem Sechstel Schwerkraft, ein Dunkelhaus zum Ausprobieren von Licht und
+ein Eingaberaum zum Einstellen von Händen und Werkzeugen, ein Werkzeuggürtel
+voller Spielzeug und Peer-to-Peer-Sitzungen ohne eigenen Server. Jede Welt
+steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
+die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
+gespeicherte Aufstellung zurück.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -36,7 +39,9 @@ Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Portaltiefe, die Lichtstufen
 des Dunkelhauses, die Blätterposition der Menüs, die Fahrphysik und
-Streckenführung der Karts und das Pizza-Rezept. Diese
+Streckenführung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
+der Tiefe, die Stoppuhr-Einstellungen, die Materialien und die Auslegung der
+Hub-Gänge. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.

@@ -80,7 +80,19 @@ volle Lehne die eingestellte Geschwindigkeit ergibt und nicht irgendetwas weit
 jenseits eines ausgestreckten Arms, die Vorzeichen der Kurve, und wer welche
 Achse bedient) und der **Tisch im Eingaberaum**
 (`src/worlds/tune/tableSettings.ts` — Grenzen einer Tischhöhe und ein
-kaputter Speicher). Diese
+kaputter Speicher), die **Welt-Physik**
+(`src/core/worldPhysics.ts` — Rasten, Grenzen, und dass „Welt-Standard" die
+Schwerkraft der Welt gewinnen lässt statt einer einmal getippten Zahl), die
+**Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
+Sturz einer ist, und dass der *höchste* Treffer gewinnt: von unten gesucht
+landet man im Keller eines Hauses, von oben auf seinem Dach), die
+**Stoppuhr-Einstellungen** (`src/worlds/portal/tools/stopwatchSettings.ts` —
+die drei Betriebsarten, das Anhalten als erlaubte Raste und kein
+Rückwärtslauf), die **Materialien** (`src/worlds/portal/tools/materials.ts` —
+dass eine unbekannte Id aus dem Netz zu Lack wird statt zu `undefined`) und
+die **Hub-Auslegung** (`src/worlds/hub/hubLayout.ts` — dass ein voller Gang
+einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
+aufeinander stehen). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
 weder WebGL noch WebXR noch wasm.
 
@@ -97,7 +109,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 ## Was drin ist
 
 - **Startseite** mit großem `Enter VR`-Button (plus Flat-Modus für Desktop/Handy).
-- **Hub-Welt**: helle Halle, Hände bzw. Controller, Tore zu den anderen Welten.
+- **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
+  die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
+  Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über
+  den Kreis. Ausgelegt wird das aus nichts als der Länge der Weltenliste
+  (`src/worlds/hub/hubLayout.ts`, mit Test): eine neue Welt bleibt damit das,
+  was sie sein soll — ein Eintrag in der Registry. Der alte 90°-Bogen war für
+  vier Welten hübsch und für zehn ein Gedränge.
 - **Handgelenk-Menü**: an **beiden** Händen schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
   Es ist zweimal dasselbe Menü, und immer nur **eins offen**: das zweite geht
@@ -112,7 +130,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   oder `A`**, damit der Zieltrigger nicht versehentlich die Hand füllt. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
-  Dunkelhaus, Eingaberaum),
+  Mond, Dunkelhaus, Eingaberaum),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand), **Magischer Beutel** (Raster mit
   Companion Cube, Kugel, Domino, Pyramide, Quader, Planke und Zylinder),
@@ -187,7 +205,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Größe & Position**: Blender-artige Griffe — sie erscheinen **vor dir**,
     nicht am Objekt, und wirken trotzdem auf das Objekt am anderen Ende des
     Raums. Achsen sind die des Objekts, nur nach deiner Blickrichtung sortiert.
-  - **Pinsel** samt Farbpalette auf der anderen Hand.
+  - **Pinsel** samt Palette auf der anderen Hand, mit zwei Reitern: **Farben**
+    und **Material** (Lack, Metall, Gummi, Eis, Stein, Glas, Leuchtend,
+    Schaum — `materials.ts`, mit Test). Ein Material ist beides zugleich, wie
+    das Objekt *aussieht* und wie es sich *verhält*: Gummi springt, Eis
+    rutscht, Glas ist durchsichtig, Leuchtend leuchtet. **Lack** ist der Weg
+    zurück, ohne ihn wäre jeder Strich endgültig. Ein Strich setzt immer
+    beides — was die Palette zeigt, ist das, was das Objekt bekommt; eine
+    Farbe, die je nach Vorgeschichte mal das Material mitnimmt und mal nicht,
+    kann man in der Brille nicht lesen. Farbe und Material gehen über das Netz
+    (ältere Mitspieler schicken nur die Farbe).
   - **Pistole** mit Magazin (`x/∞` an der Seite). Unter
     *Einstellungen → Pistole* steht jeder Wert einzeln: Stärke, Kugeltempo,
     Feuerrate, **Magazingröße**, Nachladezeit, Salvenlänge und Modus (Einzel,
@@ -204,8 +231,26 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     unterwegs oder eingeschlagen sein; der sechste Wurf holt den ersten
     zurück. Die Bahn wird pro Frame selbst abgetastet statt auf einen
     Abpraller zu warten — nur so bleibt er *stecken*, statt abzuprallen.
-  - **Stoppuhr**: Trigger schaltet Zeitlupe an und aus, Loslassen der Uhr
+  - **Stoppuhr**: das Werkzeug, mit dem man Physik *ansieht*. Ein **Knopf** an
+    der Krone (oder `A`/`X`) öffnet ein Panel an der Uhr — dieselbe Mechanik
+    wie beim Drohnen-Display —, und dort steht, was der **Trigger** tut
+    (`stopwatchSettings.ts`, mit Test):
+    **Zeit** legt den eingestellten Faktor an (angehalten, 0,05× Zeitlupe bis
+    4× Zeitraffer) und nochmal drücken nimmt ihn weg;
+    **Einzelbild** hält die Welt an, solange die Uhr in der Hand ist, und
+    rechnet pro Druck die eingestellte Anzahl fester Schritte — die einzige
+    Art, einen Durchschlag oder einen Portalübergang wirklich zu sehen;
+    **Schnellladen** stellt die gespeicherte Aufstellung wieder her.
+    **Welt speichern** und **Welt laden** stehen im Panel, und Speichern
+    bewusst *nur* dort: ein Trigger, der beides kann, überschreibt irgendwann
+    genau den Stand, den man behalten wollte. Gemerkt werden Pose, Größe und
+    Schwung jedes Props, im Speicher dieser Sitzung — ein Rücksetzpunkt für
+    den Versuch, an dem man gerade ist, kein Spielstand. Loslassen der Uhr
     stellt die normale Geschwindigkeit wieder her.
+    Mehr als 4× geht nicht: die Simulation rechnet höchstens vier feste
+    Schritte pro Frame, alles darüber wäre eine Lüge im Menü. Und beim
+    Schnellladen im Mehrspieler zieht der rechnende Spieler die Objekte
+    wieder auf seinen Stand — es wirkt bei dem, der rechnet.
   - **Taschenlampe**: **Trigger** schaltet sie an und aus. Der **Lichtkegel**
     wird mit der *anderen* Hand eingestellt: vorne an die Linse greifen (der
     Ring leuchtet, sobald die Hand nah genug ist) und mit gedrücktem Griff nach
@@ -340,6 +385,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     mit: das Headset misst sie ohnehin jede Frame, und ohne sie sähe die Hand
     mit Controller nie so aus wie die echte daneben (`handGestures.ts`
     rechnet das Faltmaß in eine Krümmung um, mit Test).
+  - **Duplizier-Waffe**: anzielen, Trigger — und daneben steht dasselbe noch
+    einmal: Form, Farbe, Material, Größe und Masse. Der Rahmen um das Ziel
+    gehört dazu, in einem Stapel verdoppelt man sonst regelmäßig die falsche
+    Kiste. Was aus dem Beutel kam, kennt seine Sorte und wird auch bei den
+    Mitspielern gebaut; was eine Welt selbst gebaut hat (Zielscheibe,
+    Hütchen), kann die Gegenseite nicht nachbauen — solche Kopien bleiben
+    bewusst lokal, statt drüben als Loch zu erscheinen.
+  - **Inspektor**: anzielen, und das Display sagt Masse, Maße, Tempo,
+    Drehung, Höhe, Reibung, Rückprall, Material, Collider-Form, geteilte Id
+    und ob das Ding schläft, getragen wird oder fliegt. Er verändert
+    **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
+    halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
+    ist die Frage nie „wie sieht sie aus", sondern „was steht in ihr drin".
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
 - **Alles einstellbar, alles kopierbar**: Werkzeug-Posen, Handhaltungen,
   Anbauteile und die Waffenwerte liegen zusammen in einem **Konfig-Code** —
@@ -451,6 +509,33 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Gürtel, dasselbe Regal, dieselbe Physik. Portale haften nur an den hellen
   Tafeln im Flur und am Boden — eine Putzwand mit Loch würde das Haus zum
   Nichts draußen aufmachen.
+- **Mond** (experimentell): die Welt, die es wegen der Schwerkraft gibt —
+  1,62 m/s². Ein Sprung dauert dreimal so lange, ein geworfener Stein fliegt
+  bis zum nächsten Krater, ein Stapel fällt in Zeitlupe zusammen, ohne dass
+  jemand die Stoppuhr angefasst hätte. Graue Ebene bis zum Horizont, Krater,
+  Felsbrocken, ein Lander mit Portaltafeln als Landmarke, eine Fahne;
+  schwarzer Himmel mit Sternen und der Erde darüber, die nie untergeht. Die
+  Schwerkraft kann man überall einstellen — ein Ort, der von sich aus so ist,
+  lädt zum Ausprobieren ein, statt es zu erlauben.
+- **Boden bis zum Horizont**: unter *jeder* Welt liegt eine Fläche mit Raster,
+  einen Kilometer im Quadrat, begehbar und portalfähig (`createGround` in
+  `worlds/shared/environment.ts`). Vorher stand jede Welt auf ihrer eigenen
+  Platte, und an deren Rand war Schluss — genau die Grenze, die eine Sandkiste
+  nicht haben darf. Jetzt läuft man um das Labor herum, sieht sich die
+  Kartbahn von außen an und kommt wieder zurück.
+- **Rettung aus der Tiefe**: wer trotzdem unter die Welt fällt — durch ein
+  Bodenportal, durch eine Ritze, durch einen Handschuh — kommt an derselben
+  Stelle wieder heraus, auf dem **höchsten** Punkt, der dort steht. Von unten
+  gesucht landete man im Keller eines Hauses, von oben landet man auf seinem
+  Dach (`worlds/shared/fallRescue.ts`, mit Test).
+- **Welt-Physik** (*Einstellungen → Welt-Physik*): **Schwerkraft**
+  (schwerelos, Mond, Mars, Erde, schwer — oder getippt), **Sprungkraft**,
+  **Reibung** und **Rückprall**, alles sofort wirksam und im Browser gemerkt
+  (`src/core/worldPhysics.ts`, mit Test). *Welt-Standard* ist eine eigene
+  Zeile: der Mond bringt seine 1,62 mit, und eine einmal getippte Zahl darf
+  nicht für immer über jeder Welt stehen. Reibung und Rückprall fassen die
+  Objekte erst an, wenn jemand sie wirklich verstellt — sonst überschriebe der
+  Start jede im Code eingestellte Kleinigkeit (Dominos 0,6, Cubes 0,8).
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Peer-to-Peer-Sitzungen** (experimentell): beide Geräte tragen denselben
   Raum-Code ein und sind danach direkt verbunden — ohne eigenen Server.
@@ -500,6 +585,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Lichtkegel stellen | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen | – | – |
 | Dimmer (Dunkelhaus) | anzielen + Trigger, oder antippen — eine Stufe pro Druck | anklicken | tippen |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
+| Stoppuhr | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel | – | – |
+| Pinsel | Reiter *Farben*/*Material* antippen, Trigger streicht an | – | – |
+| Duplizier-Waffe | zielen + Trigger legt eine Kopie daneben | – | – |
+| Inspektor | zielen — das Display liest mit, Trigger sagt es an | – | – |
 | Radiergummi | Trigger löscht | – | – |
 | Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |
 | Kart: Gas / Bremse | rechter / linker Trigger | `W` / `S` | – |
@@ -863,11 +952,15 @@ Portal Labor, erbt sie stattdessen von `PortalWorld` und ersetzt nur den Raum:
 `buildEnvironment()`, dazu die kleinen Haken `spawnPoint()`, `spawnYaw()`,
 `skyColor()`, `lightIntensity()`, `welcome()`, `beltLoadout()` (leer heißt:
 beide Trigger gehören der Welt) und `worldReset()` (was `B`/`Y` in dieser Welt
-zusätzlich zurücksetzt — die Karts in die Box, die Küche leer). `removeProp()`
+zusätzlich zurücksetzt — die Karts in die Box, die Küche leer). Dazu die drei
+für den Boden und die Schwerkraft: `worldGravity()` (der Mond sagt hier 1,62,
+und solange niemand im Menü eine eigene Zahl setzt, gilt genau die),
+`horizonColor()` (`null` lässt die Fläche bis zum Horizont weg) und
+`horizonLine()` für ihr Raster. `removeProp()`
 löscht ein Prop wieder, wahlweise nur lokal. `placeTool()` legt ein Werkzeug in
 den *Raum* statt auf den Gürtel — liegend oder schwebend, bis eine Hand es
 nimmt (die Taschenlampe im Dunkelhaus). Genau das machen `DustWorld`,
-`RangeWorld`, `KartWorld`, `ShopWorld` und `DarkWorld` — die ganze Maschinerie
+`RangeWorld`, `KartWorld`, `ShopWorld`, `DarkWorld` und `MoonWorld` — die ganze Maschinerie
 (Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu
 werden.
 
