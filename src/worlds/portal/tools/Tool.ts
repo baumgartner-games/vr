@@ -6,6 +6,7 @@ import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
 import type { PhysicsBody, PhysicsWorld } from '../../../physics/PhysicsWorld';
 import type { PortalKey } from '../PortalSync';
+import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
 
 /** Where a ray met a wall, floor or ceiling. */
@@ -34,8 +35,24 @@ export interface ToolHost {
   /** Prop whose grab box contains this point. */
   propAt(point: THREE.Vector3): PhysicsBody | null;
   castSurface(origin: THREE.Vector3, direction: THREE.Vector3): SurfaceHit | null;
-  /** 1 = normal speed, less = slow motion. */
+  /** 1 = normal speed, less = slow motion, more = time-lapse (max 4). */
   setTimeScale(scale: number): void;
+  /**
+   * Rechnet genau so viele feste Simulationsschritte, egal wie die Zeit sonst
+   * steht. Bei angehaltener Zeit ist das das Einzelbild der Stoppuhr.
+   */
+  stepFrames(count: number): void;
+  /** Merkt sich, wie alles gerade steht. Gibt zurück, wie viele Props das sind. */
+  saveWorldSnapshot(): number;
+  /** Stellt die gemerkte Aufstellung wieder her; die Zahl sagt, wie viele. */
+  loadWorldSnapshot(): number;
+  hasWorldSnapshot(): boolean;
+  /** Legt eine Kopie eines Props daneben — Form, Farbe, Material und Masse. */
+  duplicateProp(entry: PhysicsBody): PhysicsBody | null;
+  /** Farbe und/oder Material eines Props, für alle in der Sitzung. */
+  styleProp(entry: PhysicsBody, style: PropStyle): void;
+  /** Alles, was über ein Prop zu erfahren ist — der Inspektor liest es ab. */
+  inspectProp(entry: PhysicsBody): PropReport;
   /** Fires a bullet the world keeps track of and cleans up again. */
   spawnBullet(
     origin: THREE.Vector3,

@@ -22,6 +22,7 @@ import {
   DroneTool,
   PistolTool,
   SPIN_RATE,
+  StopwatchTool,
   THROW_SPEED,
   PortalGunTool,
   SIGHTS,
@@ -84,7 +85,23 @@ import {
 } from './remoteGrab';
 import { TextPlane } from '../../ui/TextPlane';
 import { playPick } from '../../core/Audio';
-import { createLighting, disposeTree } from '../shared/environment';
+import { createGround, createLighting, disposeTree } from '../shared/environment';
+import { needsRescue, rescueHeight } from '../shared/fallRescue';
+import {
+  EARTH_GRAVITY,
+  PHYSICS_FIELDS,
+  clearWorldPhysics,
+  effectiveGravity,
+  onWorldPhysicsChange,
+  gravityLabel,
+  nextPhysicsStep,
+  physicsFieldLabel,
+  saveWorldPhysics,
+  worldPhysics,
+  DEFAULT_WORLD_PHYSICS,
+  type PhysicsField,
+  type WorldPhysics,
+} from '../../core/worldPhysics';
 import {
   ALL_GROUPS,
   GROUP_HAND,
@@ -110,8 +127,20 @@ import {
   type SupermanSettings,
 } from './tools/supermanSettings';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
+import { findMaterial, isTransparent } from './tools/materials';
 
 const ROOM = { half: 8, height: 4.6, thickness: 0.4 };
+/** Oberkante der Fläche bis zum Horizont — knapp unter den gebauten Böden. */
+const GROUND_TOP = -0.05;
+/** Von so weit oben sucht die Rettung nach dem höchsten Punkt. */
+const RESCUE_PROBE = 400;
+/** Wie der Inspektor eine Collider-Form nennt. */
+const SHAPE_LABELS: Record<string, string> = {
+  box: 'Kasten',
+  ball: 'Kugel',
+  cylinder: 'Zylinder',
+  cone: 'Kegel',
+};
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
@@ -197,6 +226,8 @@ const _thisHand = new THREE.Vector3();
 const _localOrigin = new THREE.Vector3();
 const _rotationB = new THREE.Quaternion();
 const _localRotation = new THREE.Quaternion();
+const _size = new THREE.Vector3();
+const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 /** What the magic bag offers, in the order the grid shows it. */
 const BAG_ITEMS: Array<[PropKind, string, MenuIcon]> = [
@@ -217,6 +248,31 @@ function gripOf(controller: ControllerState): THREE.Object3D {
 interface HandProbe {
   object: THREE.Object3D;
   entry: PhysicsBody;
+}
+
+/** Was der Pinsel an einem Objekt ändern darf. */
+export interface PropStyle {
+  color?: number;
+  /** Id aus `materials.ts`. */
+  material?: string | null;
+}
+
+/** Was der Inspektor über ein Objekt herausfindet. */
+export interface PropReport {
+  label: string;
+  /** Geteilte Id, oder der Hinweis, dass es dieses Ding nur hier gibt. */
+  id: string;
+  mass: number;
+  size: THREE.Vector3;
+  speed: number;
+  spin: number;
+  height: number;
+  material: string;
+  shape: string;
+  friction: number;
+  bounce: number;
+  sleeping: boolean;
+  held: boolean;
 }
 
 /** A prop a hand has locked onto from a distance. */
@@ -301,6 +357,17 @@ interface HandMotion {
   known: boolean;
 }
 
+/** Ein Prop, wie es beim Speichern stand — Pose, Größe und Schwung. */
+interface SavedProp {
+  entry: PhysicsBody;
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  scale: THREE.Vector3;
+  half: THREE.Vector3;
+  velocity: THREE.Vector3;
+  spin: THREE.Vector3;
+}
+
 interface HandGrab {
   entry: PhysicsBody;
   /** Pose of the prop relative to the hand at pick-up time. */
@@ -368,8 +435,24 @@ export class PortalWorld implements World {
   private remoteRope = false;
   /** Props the transform tool has picked out. */
   private selected: readonly PhysicsBody[] = [];
-  /** 1 = normal, less while the stopwatch is wound down. */
+  /** 1 = normal, less while the stopwatch is wound down, more while it winds up. */
   private timeScale = 1;
+  /**
+   * Einzelbilder, die noch zu rechnen sind. Die Stoppuhr legt sie hin: bei
+   * angehaltener Zeit ist ein Druck genau ein Schritt der Simulation — das
+   * Werkzeug, mit dem man einen Durchschlag oder einen Portalübergang
+   * tatsächlich *sieht*, statt ihn zu vermuten.
+   */
+  private pendingSteps = 0;
+  /** Die zuletzt gespeicherte Aufstellung, für das Schnellladen. */
+  private saved: SavedProp[] | null = null;
+  /** Wo der Spieler zuletzt festen Boden unter den Füßen hatte. */
+  private readonly lastGround = new THREE.Vector3();
+  private hasLastGround = false;
+  /** Die Fläche bis zum Horizont, unter allem, was die Welt sonst baut. */
+  private horizonFloor: THREE.Mesh | null = null;
+  /** Läuft, wenn jemand die Welt-Physik umstellt. */
+  private unsubscribePhysics: (() => void) | null = null;
   private highlighted = new Set<PhysicsBody>();
   private locked = new Set<PhysicsBody>();
   /** Joints the welder tied, so they can be cut again. */
@@ -429,7 +512,10 @@ export class PortalWorld implements World {
     ctx.scene.fog = null;
     this.root.add(createLighting(this.lightIntensity()));
 
-    this.physics = await PhysicsWorld.create();
+    this.physics = await PhysicsWorld.create(-this.gravityNow());
+    // Der Boden liegt *unter* allem, was die Welt selbst baut: er ist die
+    // Fläche, die es überall gibt, nicht der Fußboden dieses Raums.
+    this.buildHorizonFloor();
     this.buildEnvironment();
     this.sync = this.createSync(ctx);
 
@@ -447,6 +533,8 @@ export class PortalWorld implements World {
     ctx.rig.placeAt(this.spawnPoint(), this.spawnYaw());
     this.locomotion = new PhysicsLocomotion(this.physics, ctx.rig);
     ctx.rig.setLocomotion(this.locomotion);
+    this.applyWorldPhysics();
+    this.unsubscribePhysics = onWorldPhysicsChange(() => this.applyWorldPhysics());
     this.hasPreviousHead = false;
 
     this.host = this.buildHost(ctx);
@@ -482,14 +570,23 @@ export class PortalWorld implements World {
     this.updatePropPhasing();
     this.updateBullets(dt);
     // The stopwatch slows the simulation, not the frame rate: everything the
-    // player does with their hands stays as responsive as ever.
-    this.physics.step(dt * this.timeScale);
+    // player does with their hands stays as responsive as ever. Bei
+    // angehaltener Zeit rechnet stattdessen die Stoppuhr die Schritte ab, die
+    // sie bestellt hat — feste Bilder, unabhängig davon, wie lang der letzte
+    // Frame gedauert hat.
+    if (this.pendingSteps > 0) {
+      this.physics.stepFixed(this.pendingSteps);
+      this.pendingSteps = 0;
+    } else {
+      this.physics.step(dt * this.timeScale);
+    }
     this.physics.sync();
     this.traverseProps();
     this.traversePlayer(ctx);
     this.updatePortalDepth(ctx);
     this.updateAim(ctx);
     this.applyViewOverride(ctx);
+    this.updateFallRescue(ctx);
   }
 
   menu(): MenuEntry[] {
@@ -571,6 +668,7 @@ export class PortalWorld implements World {
             children: [remoteOn, remoteLine],
           },
           this.depthEntry(),
+          this.physicsMenu(),
           this.weaponMenu(),
           this.supermanMenu(),
           this.handsMenu(),
@@ -1025,6 +1123,143 @@ export class PortalWorld implements World {
     };
   }
 
+  /**
+   * Welt-Physik: woran die Welt zieht, wie hoch man springt und woraus alles
+   * zu sein scheint.
+   *
+   * Die Schwerkraft-Zeile hat eine Besonderheit: sie schaltet durch die
+   * Rasten *und* schaltet dabei den Welt-Standard ab. Wer die Mondschwere des
+   * Mondes will, drückt eine Zeile tiefer — sonst bliebe eine einmal getippte
+   * Zahl für immer über jeder Welt stehen.
+   */
+  private physicsMenu(): MenuEntry {
+    const accent = 0x9ad9ff;
+    const read = (): WorldPhysics => worldPhysics();
+    const gravityField = PHYSICS_FIELDS[0]!;
+
+    const gravityRow: MenuEntry = {
+      id: 'setting:physics-gravity',
+      label: `Schwerkraft: ${gravityLabel(read(), this.worldGravity())}`,
+      sub: gravityField.sub,
+      icon: 'gizmo',
+      accent,
+      run: () => {
+        const now = effectiveGravity(read(), this.worldGravity());
+        saveWorldPhysics({ gravity: nextPhysicsStep(gravityField, now), autoGravity: false });
+        this.refreshMenuLabels();
+        this.context?.notify(`Schwerkraft: ${gravityLabel(read(), this.worldGravity())}`);
+      },
+    };
+    this.menuLabels.push(() => {
+      gravityRow.label = `Schwerkraft: ${gravityLabel(read(), this.worldGravity())}`;
+    });
+
+    const autoRow: MenuEntry = {
+      id: 'setting:physics-auto',
+      label: 'Welt-Standard',
+      sub: `Was diese Welt mitbringt · ${this.worldGravity().toFixed(2)} m/s²`,
+      icon: 'worlds',
+      accent,
+      checked: read().autoGravity,
+      run: () => {
+        const next = saveWorldPhysics({ autoGravity: !read().autoGravity });
+        autoRow.checked = next.autoGravity;
+        this.refreshMenuLabels();
+        this.context?.notify(
+          next.autoGravity ? 'Schwerkraft der Welt' : 'Eigene Schwerkraft',
+        );
+      },
+    };
+    this.menuLabels.push(() => {
+      autoRow.checked = read().autoGravity;
+    });
+
+    const dial = (field: PhysicsField): MenuEntry => {
+      const label = (): string => `${field.label}: ${physicsFieldLabel(field, read()[field.key])}`;
+      const entry: MenuEntry = {
+        id: `setting:physics-${field.key}`,
+        label: label(),
+        sub: field.sub,
+        icon: 'settings',
+        accent,
+        run: () => {
+          saveWorldPhysics({ [field.key]: nextPhysicsStep(field, read()[field.key]) });
+          this.refreshMenuLabels();
+          this.context?.notify(label());
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = label();
+      });
+      return entry;
+    };
+
+    const values = PHYSICS_FIELDS.map((field) => {
+      const label = (): string => `${field.label}: ${physicsFieldLabel(field, worldPhysics()[field.key])}`;
+      const entry: MenuEntry = {
+        id: `setting:physics-value-${field.key}`,
+        label: label(),
+        sub: `${field.sub} · ${field.min} bis ${field.max}`,
+        icon: 'settings',
+        accent,
+        run: () => {
+          this.askNumber({
+            title: field.label,
+            sub: `Welt-Physik · ${field.min} bis ${field.max} ${field.unit}`.trim(),
+            value: String(worldPhysics()[field.key]),
+            hint: field.sub,
+            commit: (value) => {
+              const applied = saveWorldPhysics(
+                field.key === 'gravity'
+                  ? { gravity: value, autoGravity: false }
+                  : ({ [field.key]: value } as Partial<WorldPhysics>),
+              );
+              this.refreshMenuLabels();
+              this.context?.notify(`${field.label}: ${physicsFieldLabel(field, applied[field.key])}`);
+            },
+          });
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = label();
+      });
+      return entry;
+    });
+
+    return {
+      id: 'setting:physics',
+      label: 'Welt-Physik',
+      sub: 'Schwerkraft, Sprung, Reibung, Rückprall',
+      icon: 'gizmo',
+      accent,
+      children: [
+        gravityRow,
+        autoRow,
+        ...PHYSICS_FIELDS.filter((field) => field.key !== 'gravity').map(dial),
+        {
+          id: 'setting:physics-values',
+          label: 'Werte eingeben',
+          sub: 'Jede Zahl direkt tippen',
+          icon: 'settings',
+          accent,
+          children: values,
+        },
+        {
+          id: 'setting:physics-reset',
+          label: 'Zurücksetzen',
+          sub: 'Erde, und die Werte der Welt',
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            clearWorldPhysics();
+            this.refreshMenuLabels();
+            this.context?.notify('Welt-Physik zurückgesetzt');
+          },
+        },
+      ],
+    };
+  }
+
   // --- the hands -----------------------------------------------------------
 
   /** How the hands look: empty, and around each tool. */
@@ -1420,6 +1655,12 @@ export class PortalWorld implements World {
     this.flatKeys = null;
     this.blockContextMenu = null;
 
+    this.unsubscribePhysics?.();
+    this.unsubscribePhysics = null;
+    this.saved = null;
+    this.pendingSteps = 0;
+    this.horizonFloor = null;
+    this.hasLastGround = false;
     this.sync?.dispose();
     this.sync = null;
     this.clearRemotePlayers(ctx);
@@ -1436,7 +1677,9 @@ export class PortalWorld implements World {
     for (const loose of [...this.loose.values()]) this.retireLoose(loose);
     this.loose.clear();
     for (const tool of this.liveTools) {
-      if (tool instanceof DroneTool) tool.forgetPointer(ctx.pointer);
+      if (tool instanceof DroneTool || tool instanceof StopwatchTool) {
+        tool.forgetPointer(ctx.pointer);
+      }
       tool.removeFromParent();
       tool.disposeTool();
     }
@@ -1672,15 +1915,359 @@ export class PortalWorld implements World {
     return mesh;
   }
 
+  // --- der Boden, die Schwerkraft und der Weg zurück ------------------------
+
+  /**
+   * Was diese Welt an Schwerkraft mitbringt. Der Mond sagt hier 1,62 — und
+   * solange niemand im Menü eine eigene Zahl setzt, gilt genau die.
+   */
+  protected worldGravity(): number {
+    return EARTH_GRAVITY;
+  }
+
+  /** Farbe der Fläche bis zum Horizont; `null` lässt sie weg. */
+  protected horizonColor(): number | null {
+    return 0x4a5670;
+  }
+
+  /** Die Rasterlinien darauf. */
+  protected horizonLine(): number {
+    return 0x0b1220;
+  }
+
+  /**
+   * Höhe der Oberfläche der Fläche. Von hier aus wird gemessen, ob jemand aus
+   * der Welt gefallen ist — eine Karte, die tief unter der Null anfängt, ist
+   * keine, aus der man gefallen ist.
+   */
+  protected horizonLevel(): number {
+    return this.horizonFloor ? GROUND_TOP : 0;
+  }
+
+  /**
+   * Die Fläche, die es in jeder Welt gibt.
+   *
+   * Jede Welt stand vorher auf ihrer eigenen Platte, und an deren Rand war
+   * Schluss. Das ist genau die Grenze, die eine Sandkiste nicht haben darf:
+   * man will um das Labor herumlaufen, die Kartbahn von außen ansehen, einen
+   * Wurfstern über die freie Fläche werfen. Die Fläche ist deshalb Sache der
+   * Basis und nicht jeder einzelnen Welt — und sie ist portalfähig, weil ein
+   * Bodenportal im Freien genau das ist, was man als Erstes ausprobiert.
+   */
+  private buildHorizonFloor(): void {
+    const color = this.horizonColor();
+    if (color === null) return;
+    const mesh = createGround(color, { line: this.horizonLine() });
+    // Ein Kasten statt einer Ebene: der Collider kommt aus der Geometrie, und
+    // eine Ebene ohne Dicke gibt keinen, auf dem man stehen kann.
+    this.root.add(mesh);
+    mesh.updateWorldMatrix(true, false);
+    this.horizonFloor = mesh;
+    this.solids.push(mesh);
+    const group = portalSurfaceGroup(this.surfaceGroups.size);
+    this.surfaceGroups.set(mesh, group);
+    this.surfaces.push(mesh);
+    this.physics!.addStatic(mesh, { membership: group, filter: ALL_GROUPS });
+  }
+
+  /** Die Schwerkraft, die jetzt gilt: die der Welt, oder die eingestellte. */
+  private gravityNow(): number {
+    return effectiveGravity(worldPhysics(), this.worldGravity());
+  }
+
+  /**
+   * Überträgt die Welt-Physik auf die laufende Simulation.
+   *
+   * Reibung und Rückprall werden nur angefasst, *wenn* jemand sie verstellt
+   * hat: die Dominos stehen mit 0,6 im Code, die Companion Cubes mit 0,8, und
+   * das beim Start pauschal auf einen Wert zu ziehen, hieße jede sorgfältig
+   * eingestellte Kleinigkeit mit dem Auslieferungswert zu überschreiben. Wer
+   * die Zeile im Menü anfasst, will genau das — vorher niemand.
+   */
+  private applyWorldPhysics(): void {
+    const settings = worldPhysics();
+    this.physics?.setGravity(-effectiveGravity(settings, this.worldGravity()));
+    if (this.locomotion) this.locomotion.jumpSpeed = settings.jump;
+    if (
+      settings.friction !== DEFAULT_WORLD_PHYSICS.friction ||
+      settings.bounce !== DEFAULT_WORLD_PHYSICS.bounce
+    ) {
+      this.physics?.setMaterial(settings.friction, settings.bounce);
+    }
+  }
+
+  /**
+   * Wer unter die Welt fällt, kommt oben wieder heraus.
+   *
+   * Gemerkt wird die letzte Stelle mit Boden unter den Füßen; von dort geht
+   * beim Sturz ein Strahl von weit oben nach unten, und der **höchste**
+   * Treffer ist der Platz. Das ist der ganze Unterschied zwischen „wieder da"
+   * und „im Keller eines Hauses": von unten gesucht landet man unter dem Dach,
+   * von oben darauf.
+   */
+  private updateFallRescue(ctx: WorldContext): void {
+    const locomotion = this.locomotion;
+    if (!locomotion || ctx.rig.frozen || this.viewOverride) return;
+    if (locomotion.grounded) {
+      ctx.rig.getHeadPosition(_head);
+      this.lastGround.set(_head.x, 0, _head.z);
+      this.hasLastGround = true;
+      return;
+    }
+    if (!needsRescue(ctx.rig.getFloorY(), this.horizonLevel())) return;
+    this.rescuePlayer(ctx);
+  }
+
+  /** Setzt den Spieler auf die Oberfläche über der Stelle, an der er fiel. */
+  private rescuePlayer(ctx: WorldContext): void {
+    const spawn = this.spawnPoint();
+    const x = this.hasLastGround ? this.lastGround.x : spawn.x;
+    const z = this.hasLastGround ? this.lastGround.z : spawn.z;
+
+    this.raycaster.set(_probe.set(x, RESCUE_PROBE, z), _direction.set(0, -1, 0));
+    this.raycaster.far = RESCUE_PROBE * 2;
+    const hits = this.raycaster
+      .intersectObjects(this.solids, false)
+      .map((hit) => hit.point.y);
+    const y = rescueHeight(hits, spawn.y);
+
+    _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
+    ctx.rig.placeAt(_point.set(x, y, z), _euler.y);
+    this.locomotion?.resync(ctx.rig);
+    this.hasLastGround = false;
+    ctx.notify('Aus der Tiefe zurückgeholt');
+  }
+
+  // --- Aufstellung speichern und laden --------------------------------------
+
+  /**
+   * Merkt sich, wie alles gerade steht — Pose, Größe und Schwung jedes Props.
+   *
+   * Das ist die Antwort auf das, was einen Sandkasten sonst mürbe macht: eine
+   * Stunde stapeln, ein Fehlgriff, alles liegt. Gespeichert wird im Speicher
+   * dieser Sitzung, nicht im Browser: es ist ein Rücksetzpunkt für den
+   * Versuch, an dem man gerade ist, kein Spielstand.
+   */
+  private saveSnapshot(): number {
+    const saved: SavedProp[] = [];
+    for (const entry of this.props) {
+      const linvel = entry.body.linvel();
+      const angvel = entry.body.angvel();
+      saved.push({
+        entry,
+        position: entry.object.position.clone(),
+        quaternion: entry.object.quaternion.clone(),
+        scale: entry.object.scale.clone(),
+        half: entry.halfExtents.clone(),
+        velocity: new THREE.Vector3(linvel.x, linvel.y, linvel.z),
+        spin: new THREE.Vector3(angvel.x, angvel.y, angvel.z),
+      });
+    }
+    this.saved = saved;
+    return saved.length;
+  }
+
+  /** Stellt die gespeicherte Aufstellung wieder her. */
+  private loadSnapshot(): number {
+    const saved = this.saved;
+    const physics = this.physics;
+    if (!saved || !physics) return 0;
+
+    let restored = 0;
+    for (const item of saved) {
+      // Was inzwischen wegradiert wurde, kommt nicht zurück: sein Körper ist
+      // aus der Simulation heraus, und ihn anzufassen hieße in freigegebenen
+      // Speicher zu greifen.
+      if (!this.props.includes(item.entry)) continue;
+      const { entry } = item;
+      const hand = this.handHolding(entry);
+      if (hand) this.release(this.context!, hand, this.grabs.get(hand)!, false);
+      this.endFlight(entry, false);
+
+      entry.object.scale.copy(item.scale);
+      if (!entry.halfExtents.equals(item.half)) physics.resize(entry, item.half);
+      entry.body.setTranslation(
+        { x: item.position.x, y: item.position.y, z: item.position.z },
+        true,
+      );
+      entry.body.setRotation(
+        {
+          x: item.quaternion.x,
+          y: item.quaternion.y,
+          z: item.quaternion.z,
+          w: item.quaternion.w,
+        },
+        true,
+      );
+      entry.body.setLinvel({ x: item.velocity.x, y: item.velocity.y, z: item.velocity.z }, true);
+      entry.body.setAngvel({ x: item.spin.x, y: item.spin.y, z: item.spin.z }, true);
+      entry.object.position.copy(item.position);
+      entry.object.quaternion.copy(item.quaternion);
+      restored++;
+    }
+    return restored;
+  }
+
+  /** Gibt es überhaupt etwas zu laden? */
+  private hasSnapshot(): boolean {
+    return this.saved !== null;
+  }
+
+  // --- verdoppeln, anstreichen, nachsehen -----------------------------------
+
+  /**
+   * Legt eine Kopie eines Props daneben.
+   *
+   * Kopiert wird, was man sieht *und* was man anfasst: Form, Farbe, Material,
+   * Größe und Masse. Bag-Props kennen ihre Sorte und gehen deshalb über das
+   * Netz — alles andere (eine Zielscheibe, ein Kart-Hütchen) ist ein Bau
+   * dieser einen Welt, den die Gegenseite nicht nachbauen kann; die Kopie
+   * bleibt dann bewusst lokal, statt bei den anderen als Loch aufzutauchen.
+   */
+  private duplicateProp(entry: PhysicsBody): PhysicsBody | null {
+    const physics = this.physics;
+    if (!physics || !this.props.includes(entry)) return null;
+    if (this.loose.has(entry)) return null;
+
+    const source = entry.object;
+    const clone = cloneVisual(source);
+    // Einen Schritt zur Seite, entlang der eigenen Breite — sonst stecken die
+    // beiden ineinander und die Simulation schleudert sie auseinander.
+    clone.position.copy(source.position);
+    clone.position.x += entry.halfExtents.x * 2 + 0.06;
+    clone.position.y += entry.halfExtents.y * 0.5;
+    clone.quaternion.copy(source.quaternion);
+    clone.scale.copy(source.scale);
+    this.root.add(clone);
+    clone.updateWorldMatrix(true, false);
+
+    const mass = Math.max(0.1, entry.collider.mass());
+    const copy = physics.addDynamic(clone, {
+      shape: entry.shape,
+      halfExtents: entry.halfExtents.clone(),
+      mass,
+      friction: entry.collider.friction(),
+      restitution: entry.collider.restitution(),
+      membership: GROUP_PROP,
+      filter: ALL_GROUPS,
+    });
+
+    const kind = (source.userData as { propKind?: PropKind }).propKind ?? null;
+    const id = kind ? (this.sync?.nextId() ?? `local-${this.bodies.size}`) : null;
+    if (id && kind) {
+      (clone.userData as { propKind?: PropKind }).propKind = kind;
+      this.registerProp(copy, id);
+      this.kinds.set(id, kind);
+      this.spawned.add(copy);
+      this.sync?.spawned(id, kind, poseOf(copy));
+      const paint = (source.userData as { paint?: number }).paint;
+      const style = (source.userData as { material?: string }).material;
+      if (paint !== undefined || style) {
+        this.styleProp(copy, { color: paint, material: style }, true);
+      }
+    } else {
+      // Kein Bausatz, kein Netz: der Nachbau lebt in dieser Sitzung, hier.
+      this.props.push(copy);
+      this.spawns.set(copy, clone.matrixWorld.clone());
+      this.spawned.add(copy);
+    }
+    return copy;
+  }
+
+  /**
+   * Farbe, Material oder beides. `share` sagt es auch den anderen — ein
+   * angestrichener Würfel ist Teil der geteilten Welt, kein Effekt auf einem
+   * Bildschirm.
+   */
+  private styleProp(entry: PhysicsBody, style: PropStyle, share: boolean): void {
+    const materials: THREE.MeshStandardMaterial[] = [];
+    entry.object.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const material = mesh.material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[];
+      if (Array.isArray(material)) materials.push(...material);
+      else if (material?.isMaterial) materials.push(material);
+    });
+    if (materials.length === 0) return;
+
+    const store = entry.object.userData as {
+      paint?: number;
+      material?: string;
+      baseEmissive?: THREE.Color;
+    };
+    const surface = style.material ? findMaterial(style.material) : null;
+    const color = style.color;
+
+    for (const material of materials) {
+      if (color !== undefined && material.color) {
+        material.color.setHex(color);
+        // Eine Textur würde die neue Farbe wieder verdecken.
+        material.map = null;
+      }
+      if (surface) {
+        material.roughness = surface.roughness;
+        material.metalness = surface.metalness;
+        material.transparent = isTransparent(surface);
+        material.opacity = surface.opacity;
+        material.depthWrite = !material.transparent;
+        if (material.emissive) {
+          material.emissive.copy(material.color).multiplyScalar(surface.glow);
+          // Das Leuchten ist jetzt Teil des Objekts; der Greif-Schimmer legt
+          // sich darüber und muss beim Loslassen hierhin zurückfallen.
+          store.baseEmissive = material.emissive.clone();
+        }
+      }
+      material.needsUpdate = true;
+    }
+
+    if (color !== undefined) store.paint = color;
+    if (surface) {
+      store.material = surface.id;
+      entry.collider.setFriction(surface.friction);
+      entry.collider.setRestitution(surface.bounce);
+      entry.body.wakeUp();
+    }
+    if (!share) return;
+    const id = this.idOf(entry);
+    if (id) this.sync?.painted(id, store.paint ?? 0xffffff, store.material);
+  }
+
+  /** Was der Inspektor über ein Objekt zu sagen hat. */
+  private describeProp(entry: PhysicsBody): PropReport {
+    const linvel = entry.body.linvel();
+    const angvel = entry.body.angvel();
+    const speed = Math.hypot(linvel.x, linvel.y, linvel.z);
+    const store = entry.object.userData as { material?: string; paint?: number };
+    const id = this.idOf(entry);
+    const loose = this.loose.get(entry);
+    return {
+      label: loose?.tool.label ?? labelOfProp(entry.object),
+      id: id ?? 'nur hier',
+      mass: Math.max(0, entry.collider.mass()),
+      size: _size.copy(entry.halfExtents).multiplyScalar(2).clone(),
+      speed,
+      spin: Math.hypot(angvel.x, angvel.y, angvel.z),
+      height: entry.object.position.y,
+      material: findMaterial(store.material).label,
+      shape: SHAPE_LABELS[entry.shape.kind],
+      friction: entry.collider.friction(),
+      bounce: entry.collider.restitution(),
+      sleeping: entry.body.isSleeping(),
+      held: this.handHolding(entry) !== null,
+    };
+  }
+
   protected buildProps(): void {
     const physics = this.physics!;
 
     const cube = createCompanionCube(0.5);
+    cube.userData.propKind = 'cube';
     cube.position.set(-5.4, 1.9, -5.4);
     this.root.add(cube);
     this.registerProp(physics.addDynamic(cube, { mass: 8, friction: 0.8, restitution: 0.1 }), 'cube-0');
 
     const second = createCompanionCube(0.4);
+    second.userData.propKind = 'cube';
     second.position.set(1.8, 0.3, 2.2);
     this.root.add(second);
     this.registerProp(
@@ -1691,6 +2278,7 @@ export class PortalWorld implements World {
     // Twice the size means twice the spacing, or they stand on each other.
     const dominoes = createDominoes(14, COLOR_BLUE);
     dominoes.forEach((domino, index) => {
+      domino.userData.propKind = 'domino';
       domino.position.set(-4.2 + index * 0.62, DOMINO_SIZE.y / 2 + 0.001, 1.6);
       this.root.add(domino);
       this.registerProp(
@@ -2341,8 +2929,21 @@ export class PortalWorld implements World {
         return hit ? ({ point: hit.point, normal: hit.normal } as SurfaceHit) : null;
       },
       setTimeScale: (scale) => {
-        this.timeScale = THREE.MathUtils.clamp(scale, 0.05, 1);
+        // Nach unten bis zum Stillstand — angehaltene Zeit ist die
+        // Voraussetzung für das Einzelbild —, nach oben bis zum Vierfachen.
+        // Weiter geht ohnehin nichts: die Simulation rechnet höchstens vier
+        // feste Schritte pro Frame, alles darüber wäre eine Lüge im Menü.
+        this.timeScale = THREE.MathUtils.clamp(scale, 0, 4);
       },
+      stepFrames: (count) => {
+        this.pendingSteps += Math.max(1, Math.round(count));
+      },
+      saveWorldSnapshot: () => this.saveSnapshot(),
+      loadWorldSnapshot: () => this.loadSnapshot(),
+      hasWorldSnapshot: () => this.hasSnapshot(),
+      duplicateProp: (entry) => this.duplicateProp(entry),
+      styleProp: (entry, style) => this.styleProp(entry, style, true),
+      inspectProp: (entry) => this.describeProp(entry),
       spawnBullet: (origin, direction, speed, options) =>
         this.spawnBullet(origin, direction, speed, options),
       paintProp: (entry, color) => this.paintProp(entry, color, true),
@@ -2768,21 +3369,15 @@ export class PortalWorld implements World {
 
   // --- painting -----------------------------------------------------------
 
-  /** Repaints a prop. `share` also tells the others about it. */
+  /**
+   * Repaints a prop. `share` also tells the others about it.
+   *
+   * Farbe ist der halbe Pinsel; die andere Hälfte ist das Material, und beide
+   * laufen durch dieselbe Stelle (`styleProp`), damit ein Objekt nie halb
+   * angestrichen und halb umgebaut ist.
+   */
   private paintProp(entry: PhysicsBody, color: number, share: boolean): void {
-    const mesh = entry.object as THREE.Mesh;
-    const material = mesh.material as THREE.MeshStandardMaterial | undefined;
-    if (!material?.color) return;
-    // The highlight remembers the original glow, so the new colour has to go
-    // into that store too — otherwise letting go puts the old one back.
-    material.color.setHex(color);
-    material.map = null;
-    material.needsUpdate = true;
-    const store = entry.object.userData as { paint?: number };
-    store.paint = color;
-    if (!share) return;
-    const id = this.idOf(entry);
-    if (id) this.sync?.painted(id, color);
+    this.styleProp(entry, { color }, share);
   }
 
   /** Empty hands can pick up props, pass them over and throw them. */
@@ -3276,6 +3871,9 @@ export class PortalWorld implements World {
     const physics = this.physics!;
     const blueprint = createPropShape(kind);
     const mesh = blueprint.mesh;
+    // Woraus es gebaut wurde, bleibt am Objekt: der Duplizierer baut daraus
+    // dasselbe noch einmal, und der Inspektor liest den Namen davon ab.
+    mesh.userData.propKind = kind;
     mesh.position.copy(position);
     if (quaternion) mesh.quaternion.copy(quaternion);
     this.root.add(mesh);
@@ -3740,9 +4338,9 @@ export class PortalWorld implements World {
           return id && kind ? [{ id, kind }] : [];
         }),
       resetRemote: () => this.resetShared(),
-      paintRemote: (id, color) => {
+      paintRemote: (id, color, material) => {
         const entry = this.bodies.get(id);
-        if (entry) this.paintProp(entry, color, false);
+        if (entry) this.styleProp(entry, { color, material }, false);
       },
       onHands: (peerId, left, right) => this.remoteHands.set(peerId, { left, right }),
     });
@@ -4026,6 +4624,35 @@ function poseOf(entry: PhysicsBody): Pose7 {
   const t = entry.body.translation();
   const r = entry.body.rotation();
   return [t.x, t.y, t.z, r.x, r.y, r.z, r.w];
+}
+
+/**
+ * Eine Kopie eines Props, die niemandem gehört: eigene Geometrien und eigene
+ * Materialien. `Object3D.clone()` teilt beides mit dem Original — und dann
+ * färbt der Pinsel zwei Würfel auf einmal, und das Wegradieren des einen gibt
+ * die Geometrie des anderen frei.
+ */
+function cloneVisual(source: THREE.Object3D): THREE.Object3D {
+  const clone = source.clone(true);
+  clone.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry = mesh.geometry.clone();
+    const material = mesh.material as THREE.Material | THREE.Material[];
+    mesh.material = Array.isArray(material)
+      ? material.map((entry) => entry.clone())
+      : material.clone();
+  });
+  clone.userData = { ...source.userData };
+  return clone;
+}
+
+/** Ein lesbarer Name für ein Objekt, aus dem, was es über sich weiß. */
+function labelOfProp(object: THREE.Object3D): string {
+  const kind = (object.userData as { propKind?: PropKind }).propKind;
+  if (kind) return createPropShape(kind).label;
+  const name = object.name.replace(/^prop-/, '').replace(/-\d+$/, '');
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Objekt';
 }
 
 /** A world point written down in a body's own frame — where a joint sits. */

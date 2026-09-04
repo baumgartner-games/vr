@@ -87,7 +87,7 @@ export class DustWorld extends PortalWorld {
     const town = new THREE.Group();
     town.name = 'dust';
     this.root.add(town);
-    this.root.add(createSky(0x6ea8e8, 0xf3e2bb, 160));
+    this.root.add(createSky(0x6ea8e8, 0xf3e2bb));
 
     this.buildGround(town);
     this.buildPerimeter(town);

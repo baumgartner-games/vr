@@ -128,7 +128,10 @@ export class PhysicsLocomotion implements Locomotion {
       }
     }
     if (!this.flight) {
-      this.velocity.y -= 9.81 * dt;
+      // Die Schwerkraft kommt aus der Welt, nicht aus einer Konstante hier:
+      // sonst fiele der Spieler auf dem Mond wie auf der Erde, während die
+      // Kisten neben ihm schweben.
+      this.velocity.y += this.physics.gravityY * dt;
       if (this.velocity.y < -TERMINAL_VELOCITY) this.velocity.y = -TERMINAL_VELOCITY;
     }
 

@@ -4,6 +4,7 @@ import {
   DEFAULT_SUPERMAN,
   type SupermanSettings,
 } from './supermanSettings';
+import { clampStopwatch, DEFAULT_STOPWATCH, type StopwatchSettings } from './stopwatchSettings';
 import { clampWeapon, DEFAULT_WEAPON, type WeaponSettings } from './weaponSettings';
 import { readoutFromArray, readoutToArray, type PoseReadout } from './toolPose';
 
@@ -24,6 +25,7 @@ const POSE_KEY = 'bgvr.attachPoses';
 const WEAPON_KEY = 'bgvr.weapon';
 const DRONE_KEY = 'bgvr.drone';
 const SUPERMAN_KEY = 'bgvr.superman';
+const STOPWATCH_KEY = 'bgvr.stopwatch';
 
 type Listener = () => void;
 
@@ -138,4 +140,21 @@ export function saveSupermanSettings(settings: Partial<SupermanSettings>): Super
 
 export function clearSupermanSettings(): void {
   writeJson(SUPERMAN_KEY, { ...DEFAULT_SUPERMAN });
+}
+
+// --- die Stoppuhr ----------------------------------------------------------
+
+export function stopwatchSettings(): StopwatchSettings {
+  return clampStopwatch(readJson<Partial<StopwatchSettings>>(STOPWATCH_KEY, {}));
+}
+
+export function saveStopwatchSettings(settings: Partial<StopwatchSettings>): StopwatchSettings {
+  const next = clampStopwatch({ ...stopwatchSettings(), ...settings });
+  writeJson(STOPWATCH_KEY, next);
+  return next;
+}
+
+export function clearStopwatchSettings(): StopwatchSettings {
+  writeJson(STOPWATCH_KEY, { ...DEFAULT_STOPWATCH });
+  return { ...DEFAULT_STOPWATCH };
 }

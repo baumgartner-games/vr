@@ -165,7 +165,7 @@ export class RangeWorld extends PortalWorld {
     const range = new THREE.Group();
     range.name = 'range';
     this.root.add(range);
-    this.root.add(createSky(0x6fa3dd, 0xdfe7d6, 180));
+    this.root.add(createSky(0x6fa3dd, 0xdfe7d6));
 
     this.buildGround(range);
     this.buildStand(range);

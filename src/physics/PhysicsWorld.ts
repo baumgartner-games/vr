@@ -115,6 +115,41 @@ export class PhysicsWorld {
     return new PhysicsWorld(rapier, world);
   }
 
+  /** Was die Welt nach unten zieht, in m/s² (negativ). */
+  get gravityY(): number {
+    return this.world.gravity.y;
+  }
+
+  /**
+   * Stellt die Schwerkraft um — mitten im Betrieb, denn genau darum geht es:
+   * ein Stapel Kisten, der eben noch stand, fällt bei Mondschwere anders
+   * zusammen als bei Erdschwere, und das will man *sehen*, nicht neu laden.
+   * Alles, was gerade schläft, wird geweckt: ein Rapier-Körper in Ruhe merkt
+   * sonst nichts von der neuen Zahl.
+   */
+  setGravity(y: number): void {
+    if (this.world.gravity.y === y) return;
+    this.world.gravity = { x: 0, y, z: 0 };
+    for (const entry of this.dynamicBodies) entry.body.wakeUp();
+  }
+
+  /** Reibung und Rückprall aller Objekte auf einen Schlag. */
+  setMaterial(friction: number, restitution: number): void {
+    for (const entry of this.dynamicBodies) {
+      entry.collider.setFriction(friction);
+      entry.collider.setRestitution(restitution);
+    }
+  }
+
+  /**
+   * Genau `count` feste Schritte, ohne Rücksicht auf die verstrichene Zeit —
+   * das Einzelbild der Stoppuhr. Der Rest-Akku bleibt dabei, wo er ist: sonst
+   * springt die Welt beim Weiterlaufen um den angesparten Bruchteil.
+   */
+  stepFixed(count = 1): void {
+    for (let i = 0; i < count; i++) this.world.step();
+  }
+
   /** Immovable collider matching the object's world transform. */
   addStatic(object: THREE.Object3D, options: BodyOptions = {}): PhysicsBody {
     return this.addBody(object, 'fixed', options);

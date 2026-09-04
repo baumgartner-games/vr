@@ -290,7 +290,7 @@ export class KartWorld extends PortalWorld {
     const circuit = new THREE.Group();
     circuit.name = 'kart-circuit';
     this.root.add(circuit);
-    this.root.add(createSky(0x6ea8e8, 0xdbe7f2, 150));
+    this.root.add(createSky(0x6ea8e8, 0xdbe7f2));
 
     // One slab for the whole field, so a portal in the ground opens the ground.
     this.slab(circuit, this.grass, [70, 0.4, 62], [0, -0.2, -1], true);

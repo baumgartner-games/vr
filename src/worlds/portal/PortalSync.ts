@@ -55,8 +55,12 @@ type Message =
   /** Claim or hand back a prop. `vel` carries the throw when it is handed back. */
   | { t: 'own'; id: string; owner: string | null; vel?: [number, number, number] }
   | { t: 'reset' }
-  /** Somebody painted a prop; the colour is part of the shared world. */
-  | { t: 'paint'; id: string; color: number }
+  /**
+   * Somebody painted a prop; colour *and* material are part of the shared
+   * world. `material` fehlt in Nachrichten älterer Mitspieler — dann bleibt
+   * das Material, wie es war, und nur die Farbe wechselt.
+   */
+  | { t: 'paint'; id: string; color: number; material?: string | null }
   | { t: 'hands'; left: HandBusy; right: HandBusy };
 
 export interface PortalSyncOptions {
@@ -79,7 +83,7 @@ export interface PortalSyncOptions {
   spawnedProps(): Array<{ id: string; kind: PropKind }>;
   resetRemote(): void;
   /** Somebody else repainted a prop. */
-  paintRemote(id: string, color: number): void;
+  paintRemote(id: string, color: number, material?: string | null): void;
   /** What the peers are holding, for the hand attachments. */
   onHands(peerId: string, left: HandBusy, right: HandBusy): void;
 }
@@ -222,9 +226,9 @@ export class PortalSync {
   }
 
   /** A prop was repainted — the colour belongs to everybody. */
-  painted(id: string, color: number): void {
+  painted(id: string, color: number, material?: string | null): void {
     if (this.alone) return;
-    this.send({ t: 'paint', id, color });
+    this.send({ t: 'paint', id, color, material });
   }
 
   /** Tools and props in the local hands, sent only when they change. */
@@ -417,7 +421,7 @@ export class PortalSync {
         break;
       }
       case 'paint': {
-        this.options.paintRemote(message.id, message.color);
+        this.options.paintRemote(message.id, message.color, message.material);
         break;
       }
       case 'hands': {
