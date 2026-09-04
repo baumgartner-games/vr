@@ -37,14 +37,12 @@ export interface GripSettings {
 export const DEFAULT_GRIP: GripSettings = {
   height: 106,
   /*
-   * **Rechts** neben dem ersten Stand — und zwar rechts aus Sicht dessen, der
-   * den Gang hinuntersieht: dort ist die Blickrichtung +Z, und rechts davon
-   * liegt -X. Mit genug Luft dazwischen, dass die Hand am einen nicht die
-   * Griffe des anderen streift, und weit genug aus dem Kreis am ersten Stand
-   * heraus, dass man hier eine Boxhand ansieht statt durch eine durchsichtige
-   * Welt zu schauen.
+   * Auf der anderen Seite des Gangs als der Halter. Mit genug Luft dazwischen,
+   * dass die Hand am einen nicht die Griffe des anderen streift, und weit
+   * genug aus dem Kreis am Halter heraus, dass man hier eine Boxhand ansieht
+   * statt durch eine durchsichtige Welt zu schauen.
    */
-  x: -85,
+  x: 85,
   z: 155,
   side: 'right',
   tool: 'pistol',

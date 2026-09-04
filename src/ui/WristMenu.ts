@@ -71,6 +71,17 @@ export interface WristMenuOptions {
   nav?: MenuNav;
   /** Opened or closed — the pair uses it to keep only one panel up. */
   onToggle?(menu: WristMenu, open: boolean): void;
+  /**
+   * Woran das Panel hängt.
+   *
+   * `wrist` ist der Normalfall: es reitet auf einem Handgelenk und kippt mit
+   * ihm. `view` hängt es **frei in die Luft vor den Kopf** und blendet den
+   * runden Knopf aus — für ein Menü, das etwas anderes aufmacht und das man
+   * nicht am Arm haben will, weil beide Hände gerade etwas anderes tun. Es ist
+   * derselbe Aufbau wie im Flat-Modus, in dem es ohnehin schon kein
+   * Handgelenk gibt, an das es sich hängen könnte.
+   */
+  anchor?: 'wrist' | 'view';
 }
 
 /**
@@ -90,6 +101,8 @@ export class WristMenu extends THREE.Group {
 
   /** Which hand carries the menu. */
   readonly hand: Handedness;
+  /** Am Handgelenk oder frei vor dem Kopf. */
+  readonly anchor: 'wrist' | 'view';
   private readonly onToggle: ((menu: WristMenu, open: boolean) => void) | null;
 
   private open = false;
@@ -98,6 +111,8 @@ export class WristMenu extends THREE.Group {
   private buttonHot = false;
   private root: MenuEntry[] = [];
   private rootTitle = 'Menü';
+  /** Ob **Greifen** auf der obersten Seite auch auswählt — ein Regal tut das. */
+  private rootTake = false;
   private stack: Page[] = [];
   /** Der geteilte Weg durch den Baum — beide Handgelenke lesen denselben. */
   private readonly nav: MenuNav;
@@ -159,6 +174,7 @@ export class WristMenu extends THREE.Group {
   ) {
     super();
     this.hand = options.hand ?? 'left';
+    this.anchor = options.anchor ?? 'wrist';
     this.nav = options.nav ?? new MenuNav();
     this.onToggle = options.onToggle ?? null;
     this.name = `wrist-menu-${this.hand}`;
@@ -251,9 +267,10 @@ export class WristMenu extends THREE.Group {
    * out again by id afterwards; a page that has since gone away simply stops
    * the walk at its parent (`menuNav.ts`).
    */
-  setRoot(entries: MenuEntry[], title = 'Menü'): void {
+  setRoot(entries: MenuEntry[], title = 'Menü', take = false): void {
     this.root = entries;
     this.rootTitle = title;
+    this.rootTake = take;
     this.keepScroll();
     this.nav.prune(entries);
     this.applyNav();
@@ -277,7 +294,7 @@ export class WristMenu extends THREE.Group {
   private applyNav(): void {
     const path = this.nav.path;
     this.stack = [
-      { title: this.rootTitle, entries: this.root, grid: false, take: false, id: 'root' },
+      { title: this.rootTitle, entries: this.root, grid: false, take: this.rootTake, id: 'root' },
     ];
     let level: MenuEntry[] = this.root;
     for (const id of path) {
@@ -344,10 +361,12 @@ export class WristMenu extends THREE.Group {
     this.updatePending(input);
     this.updatePreviews(dt);
 
-    const controller = input.get(this.hand);
+    const controller = this.anchor === 'view' ? null : input.get(this.hand);
     const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
 
-    this.button.visible = true;
+    // Ein freies Menü hat keinen Knopf: es wird von woanders aufgemacht, und
+    // ein Knopf, der im Nichts schwebt, wäre nur ein Ding im Weg.
+    this.button.visible = this.anchor !== 'view';
     this.panel.visible = this.open;
 
     if (anchor) {
@@ -389,11 +408,15 @@ export class WristMenu extends THREE.Group {
 
     this.tiltRef = null;
 
-    // No tracked hand (desktop/phone): dock the menu to the view instead.
+    // No tracked hand (desktop/phone), or a menu that never had one: dock it
+    // to the view instead. Ein freies Menü hängt eine Handbreit weiter weg —
+    // es ist nichts, was man nebenbei am Arm hat, sondern etwas, vor dem man
+    // steht.
+    const reach = this.anchor === 'view' ? -0.72 : -0.62;
     _quat.setFromRotationMatrix(_local);
     this.button.position.copy(_head).add(_offset.set(0.2, -0.16, -0.55).applyQuaternion(_quat));
     this.button.quaternion.copy(_quat);
-    this.panel.position.copy(_head).add(_offset.set(0, -0.02, -0.62).applyQuaternion(_quat));
+    this.panel.position.copy(_head).add(_offset.set(0, -0.02, reach).applyQuaternion(_quat));
     this.panel.quaternion.copy(_quat);
 
     this.updateCaption();

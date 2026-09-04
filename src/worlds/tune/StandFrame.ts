@@ -68,6 +68,16 @@ export abstract class StandFrame extends THREE.Group {
   /** Die Aufnahme: ein leerer Knoten, der die eigene Scheibe ansieht. */
   readonly mount = new THREE.Object3D();
 
+  /**
+   * Wohin ein Schild gehört, das zu diesem Stand gehört: **darunter**, zum
+   * Eingang gedreht und vor der Säule.
+   *
+   * Es wandert mit dem Stand, weil man es dort drückt, wo man ohnehin steht —
+   * und es steht vor der Säule und nicht in ihr, weil ein Schild mit einem
+   * Pfosten mitten hindurch schwer zu treffen und noch schwerer zu lesen ist.
+   */
+  readonly panel = new THREE.Object3D();
+
   /** Die eigene Zielscheibe — die Welt macht sie fest, damit Kugeln enden. */
   readonly disc: THREE.Mesh;
 
@@ -133,6 +143,9 @@ export abstract class StandFrame extends THREE.Group {
     this.add(post);
 
     this.station.add(this.mount);
+    this.panel.position.set(0, -0.42, -0.14);
+    this.panel.rotation.y = Math.PI;
+    this.station.add(this.panel);
     // Die Linie hängt an der Aufnahme und erbt deren Ausrichtung — sie kann gar
     // nicht woandershin zeigen als das Werkzeug, das dort einrastet.
     this.beam = new THREE.Line(

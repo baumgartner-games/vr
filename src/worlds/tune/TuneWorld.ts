@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
 import { TextPlane } from '../../ui/TextPlane';
+import { WristMenu } from '../../ui/WristMenu';
+import type { MenuEntry } from '../../ui/menu';
 import { InputModel } from './InputModel';
 import { VibeBench, KNOB_REACH } from './VibeBench';
 import {
@@ -59,7 +61,7 @@ import {
 import { savePose } from '../portal/tools/poseStore';
 import { HandTool } from '../portal/tools/HandTool';
 import { aimQuaternion, type Tool } from '../portal/tools/Tool';
-import { toolGearCode } from '../portal/tools/gearConfig';
+import { applyGearConfig, gearCode, parseGearCode, toolGearCode } from '../portal/tools/gearConfig';
 import { TOOL_IDS } from '../portal/tools';
 import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
@@ -153,6 +155,22 @@ interface Buzz {
   hand: Handedness;
   /** Sekunden seit dem Zupacken — der Zeiger im Muster. */
   elapsed: number;
+}
+
+/**
+ * Auf diesem Kanal reisen Konfig-Codes zwischen den Mitspielern.
+ *
+ * Ein Kanal und keine eigene Nachrichtenart: die Sitzung trägt beliebige
+ * Welt-Nachrichten (`NetSession.emit`), und was hier hin und her geht, ist
+ * nichts weiter als eine Zeile Text.
+ */
+const GEAR_CHANNEL = 'gear';
+
+/** Was über den Kanal geht. */
+interface GearMessage {
+  code: string;
+  /** Wofür der Code gilt — nur für die Meldung beim Empfänger. */
+  what: string;
 }
 
 const _hand = new THREE.Vector3();
@@ -322,9 +340,8 @@ export class TuneWorld extends PortalWorld {
   private unsubscribeGrip: (() => void) | null = null;
   /** Wer gerade die Boxhand am zweiten Stand in der Hand hat. */
   private handDrag: GripDrag | null = null;
-  /** Die Zeilen des Werkzeug-Menüs an der linken Wand, und ob es offen ist. */
-  private readonly menuRows: WallButton[] = [];
-  private menuOpen = false;
+  /** Das Werkzeug-Menü, das frei vor dem Spieler hängt. */
+  private toolMenu: WristMenu | null = null;
   /** Ob der Kopf im Kreis am ersten Stand steht — und ob *er* das AR anhat. */
   private inZone = false;
   private zoneAr = false;
@@ -361,6 +378,11 @@ export class TuneWorld extends PortalWorld {
     // Eine Änderung kommt aus mehreren Richtungen — Knopf, Griff am Ausleger,
     // Messung — und muss immer beides nachziehen: den Stand und die
     // Beschriftungen.
+    this.buildToolMenu(ctx);
+    // Was ein anderer schickt, landet direkt in den Speichern — und sagt, was
+    // es war. Ein Code, der still einträgt, ist genau der, den man hinterher
+    // nicht mehr los wird.
+    ctx.net.on(GEAR_CHANNEL, (data, from) => this.receiveGear(data, from));
     this.unsubscribeRange = onRangeChange(() => this.showRange(rangeSettings()));
     this.unsubscribeGrip = onGripChange(() => this.showGrip(gripSettings()));
     this.showRange(rangeSettings());
@@ -379,6 +401,10 @@ export class TuneWorld extends PortalWorld {
       if (line === model.lastLine) continue;
       model.lastLine = line;
       board.setText(side === 'left' ? 'Linke Hand' : 'Rechte Hand', line, 0x9fe3ff);
+    }
+    if (this.toolMenu) {
+      ctx.rig.getHeadMatrix(_matrix);
+      this.toolMenu.update(dt, ctx.input, _matrix);
     }
     this.updateZone(ctx);
     this.updateRange(ctx);
@@ -403,6 +429,7 @@ export class TuneWorld extends PortalWorld {
     this.cancelFine(true);
     this.releaseMount(false, true);
     this.seeThrough.reset(ctx.scene, this.shellGroup, ctx.renderer);
+    ctx.net.off(GEAR_CHANNEL);
     this.unsubscribeRange?.();
     this.unsubscribeRange = null;
     this.unsubscribeGrip?.();
@@ -416,6 +443,8 @@ export class TuneWorld extends PortalWorld {
       button.plane.dispose();
     }
     this.buttons.length = 0;
+    this.toolMenu?.dispose();
+    this.toolMenu = null;
     this.valueBoard?.dispose();
     this.valueBoard = null;
     this.rangeBoard?.dispose();
@@ -859,91 +888,123 @@ export class TuneWorld extends PortalWorld {
     sign.rotation.y = Math.PI;
     room.add(sign);
 
-    this.buildToolMenu(room, z0);
+    this.buildRangeButton(range);
     this.buildGripPanel(grip);
     this.buildRangePanels(room, z0);
   }
 
   /**
-   * Das Werkzeug-Menü an der linken Wand des Gangs.
+   * Das Werkzeug-Menü: **vor dem Spieler**, nicht an der Wand.
    *
-   * Vorher stand neben dem Halter ein Regal mit drei Fächern — Pistole,
-   * Boxhand, Controller —, und das waren genau die drei, an die jemand beim
-   * Bauen gedacht hatte. Justiert wird aber alles: der Pinsel liegt anders in
-   * der Hand als die Drohne, und wer die Taschenlampe einmessen will, lief
-   * dafür zurück ins Handgelenkmenü. Also hängt hier jetzt das **ganze Regal**
-   * an der Wand, eine Kachel je Werkzeug.
+   * Zuerst hing es als Kachelraster an der Wand des Gangs, und das hatte zwei
+   * Fehler auf einmal. Es war ein **zweites** Menü — dieselbe Liste wie im
+   * Handgelenkmenü, nur mit eigener Bedienung, eigenem Aussehen und einer
+   * eigenen Stelle, an der es künftig auseinanderläuft. Und es hing dort, wo
+   * es gebaut wurde, statt dort, wo man steht: wer am Griffstand arbeitet,
+   * dreht sich zum Aussuchen einmal um die eigene Achse.
    *
-   * Es ist zu, bis man es aufmacht: zwei Dutzend Kacheln neben dem Halter
-   * stehen sonst genau da im Weg, wo man gleich eine Hand hinhält. Und
-   * ausgewählt wird mit **Trigger oder Greifen**, weil beides dasselbe meint —
-   * gib mir das Ding in die Hand (`Pointer.grab`).
+   * Jetzt ist es dasselbe Panel wie am Handgelenk (`ui/WristMenu.ts`), nur mit
+   * `anchor: 'view'` — es hängt frei in der Luft vor dem Kopf, hat keinen
+   * runden Knopf und wird von einem Schild am Halter aufgemacht. Trigger *oder*
+   * Greifen wählt aus, weil das Regal eine **Nimm-Seite** ist.
+   *
+   * Und die Auswahl legt das Werkzeug gleich **in den Halter**: man wählt es,
+   * um es einzumessen, und der Weg dorthin führt ohnehin nur über den Halter.
    */
-  private buildToolMenu(room: THREE.Group, z0: number): void {
-    const x = LANE.half - 0.02;
-    const header = this.wallButton(room, 1.7, 0.3, () => this.setToolMenu(!this.menuOpen));
-    header.plane.position.set(x, 2.42, z0 + 1.48);
-    header.plane.rotation.y = -Math.PI / 2;
-    header.refresh = () => {
-      this.label(
-        header,
-        this.menuOpen ? 'Menü zu' : 'Werkzeug wählen',
-        this.menuOpen
-          ? 'Trigger oder Greifen nimmt es in die zeigende Hand'
-          : `${TOOL_IDS.length} Werkzeuge · zum Einmessen in die Hand`,
-        this.menuOpen ? GRAB_GLOW : 0x4aa8ff,
-      );
-    };
-
-    const columns = 4;
-    for (const [index, id] of TOOL_IDS.entries()) {
-      const button = this.wallButton(room, 0.58, 0.2, (hand) => this.pickTool(id, hand), true);
-      button.plane.position.set(
-        x,
-        2.14 - Math.floor(index / columns) * 0.235,
-        z0 + 0.56 + (index % columns) * 0.62,
-      );
-      button.plane.rotation.y = -Math.PI / 2;
-      button.plane.visible = false;
-      button.refresh = () => {
-        // Zu heißt zu: eine geschlossene Kachel wird nicht beschriftet, und
-        // damit wird auch nicht bei jedem Betreten des Raums jedes Werkzeug
-        // gebaut, nur um seinen Namen zu erfahren.
-        if (!this.menuOpen) return;
-        const tool = this.tool(id);
-        this.label(
-          button,
-          tool?.label ?? id,
-          '',
-          this.gripState.tool === id ? GRAB_GLOW : (tool?.accent ?? 0x9d7bff),
-        );
-      };
-      this.menuRows.push(button);
-    }
+  private buildToolMenu(ctx: WorldContext): void {
+    const menu = new WristMenu(ctx.pointer, {
+      anchor: 'view',
+      title: 'Werkzeug wählen',
+      footer: 'Trigger oder Greifen legt es in den Halter',
+    });
+    menu.name = 'tune-tool-menu';
+    // In den Raum des Rigs: das Panel rechnet seine Lage gegen den Kopf, und
+    // der lebt dort. An der Welt hinge es schief, sobald der Spieler sich dreht.
+    ctx.rig.add(menu);
+    menu.setModelFactory((id) => this.tool(id));
+    menu.setRoot(this.toolMenuRows(), 'Werkzeug wählen', true);
+    menu.toggle(false);
+    this.toolMenu = menu;
   }
 
-  /** Kacheln zeigen oder nicht — und die Überschrift sagt, was gerade gilt. */
+  /** Eine Zeile je Werkzeug — dieselbe Liste, die auch das Regal zeigt. */
+  private toolMenuRows(): MenuEntry[] {
+    return TOOL_IDS.map((id) => {
+      const tool = this.tool(id);
+      return {
+        id: `tune-tool:${id}`,
+        label: tool?.label ?? id,
+        sub: this.gripState.tool === id ? 'liegt im Halter' : tool?.hint,
+        icon: tool?.icon ?? 'tools',
+        accent: this.gripState.tool === id ? GRAB_GLOW : (tool?.accent ?? 0x9d7bff),
+        preview: id,
+        run: (hand) => this.pickTool(id, hand),
+      };
+    });
+  }
+
+  /** Auf oder zu — und beim Aufmachen weicht das Handgelenkmenü. */
   private setToolMenu(open: boolean): void {
-    this.menuOpen = open;
-    for (const row of this.menuRows) row.plane.visible = open;
+    const menu = this.toolMenu;
+    if (!menu) return;
+    if (open) {
+      this.context?.menu.toggle(false);
+      menu.setRoot(this.toolMenuRows(), 'Werkzeug wählen', true);
+    }
+    menu.toggle(open);
     this.refreshButtons();
   }
 
   /**
-   * Ein Werkzeug aus dem Menü: in die zeigende Hand, und auf den zweiten Stand.
+   * Ein Werkzeug aus dem Menü: in die zeigende Hand und sofort **in den
+   * Halter**.
    *
-   * Beides, weil beides gemeint ist. Man wählt ein Werkzeug, um es einzumessen
-   * — dann gehört es in die Hand, mit der man es zum Halter trägt, *und* als
-   * Kopie an den Griffstand, damit man nicht dieselbe Auswahl zweimal trifft.
+   * Beides, weil beides gemeint ist. Man wählt ein Werkzeug, um es einzumessen,
+   * und dazu muss es erst in eine Hand (nur eine gehaltene lässt sich ablegen)
+   * und dann in die Aufnahme. Diesen Weg von Hand zu gehen ist kein Erkenntnis-
+   * gewinn, sondern Arbeit. Der Griffstand bekommt dieselbe Id gleich mit —
+   * `mountTool` sorgt dafür.
    */
   private pickTool(id: string, pointing: Handedness | null): void {
     const ctx = this.context;
     if (!ctx) return;
     this.cancelHandDrag(true);
     const hand: Handedness = pointing ?? this.gripState.side;
+    // Was im Halter liegt, muss erst heraus: zwei Werkzeuge in einer Aufnahme
+    // gibt es nicht.
+    this.releaseMount(false, true);
     this.equipTool(ctx, hand, id);
-    saveGripSettings({ tool: id, side: hand });
+    const tool = this.host?.heldTool(hand) ?? null;
+    if (tool) {
+      this.mountTool(tool, hand);
+    } else {
+      // Ohne getrackte Hand kommt nichts in den Halter — das sagt `equipTool`
+      // schon. Der Griffstand bekommt das Werkzeug trotzdem: dort wird es auch
+      // ohne Hand gebraucht.
+      saveGripSettings({ tool: id, side: hand });
+    }
     this.setToolMenu(false);
+  }
+
+  /**
+   * Der Knopf **unter** dem Halter: das Werkzeug-Menü auf und zu.
+   *
+   * Dort, weil das Werkzeug dort landet. Ein Schild an der Wand hätte man
+   * suchen müssen; dieses steht neben dem Loch, in das es gleich fällt.
+   */
+  private buildRangeButton(range: ToolRange): void {
+    const button = this.wallButton(range.panel, 0.66, 0.22, () =>
+      this.setToolMenu(!(this.toolMenu?.isOpen ?? false)),
+    );
+    button.refresh = () => {
+      const open = this.toolMenu?.isOpen ?? false;
+      this.label(
+        button,
+        open ? 'Menü zu' : 'Werkzeug wählen',
+        open ? 'Trigger oder Greifen legt es hier hinein' : `${TOOL_IDS.length} Werkzeuge`,
+        open ? GRAB_GLOW : 0x4aa8ff,
+      );
+    };
   }
 
   /**
@@ -1141,7 +1202,89 @@ export class TuneWorld extends PortalWorld {
           this.context?.notify('Griffstand zurückgesetzt');
         },
       },
+      {
+        refresh: (button) => {
+          const peers = this.context?.net.peers.size ?? 0;
+          this.label(
+            button,
+            'Werkzeug senden',
+            peers > 0
+              ? `${this.toolLabel(this.gripState.tool)} an ${peers}`
+              : 'Niemand verbunden',
+            peers > 0 ? 0x5ee0a0 : 0x6f7d99,
+          );
+        },
+        run: () => this.sendGear('tool'),
+      },
+      {
+        refresh: (button) => {
+          const peers = this.context?.net.peers.size ?? 0;
+          this.label(
+            button,
+            'Alles senden',
+            peers > 0 ? `Ganze Ausrüstung an ${peers}` : 'Niemand verbunden',
+            peers > 0 ? 0x5ee0a0 : 0x6f7d99,
+          );
+        },
+        run: () => this.sendGear('all'),
+      },
     ];
+  }
+
+  // --- Einstellungen an die Mitspieler --------------------------------------
+
+  /**
+   * Den eigenen Konfig-Code an alle im Raum schicken.
+   *
+   * Der Sinn ist der Raum selbst: hier wird eingemessen, und was einer
+   * eingemessen hat, wollen die anderen haben — bisher ging das nur über eine
+   * Zeile, die jemand vorliest und ein anderer abtippt. Vierzig Zeichen in
+   * einer Brille abzutippen ist kein Übertragungsweg, sondern eine Mutprobe.
+   *
+   * Verschickt wird der **Code** und nicht der Datensatz: dieselbe Zeile, die
+   * auch auf der Tafel steht, mit derselben Prüfsumme davor. Was ankommt, ist
+   * damit entweder gültig oder wird verworfen, und es gibt nur einen Weg
+   * hinein statt zweier, die auseinanderlaufen können.
+   *
+   * @param what `'tool'` schickt genau das, was gerade eingemessen wird —
+   *             kurz genug, dass es auch über eine dünne Leitung sofort da
+   *             ist. `'all'` schickt die ganze Ausrüstung.
+   */
+  private sendGear(what: 'tool' | 'all'): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (ctx.net.peers.size === 0) {
+      ctx.notify('Niemand verbunden — Menü → Verbindung');
+      return;
+    }
+
+    const { side, tool } = this.gripState;
+    const code = what === 'all' ? gearCode() : toolGearCode(tool, side);
+    const label = what === 'all' ? 'Ganze Ausrüstung' : `${this.toolLabel(tool)} · ${handLabel(side)}`;
+    ctx.net.emit(GEAR_CHANNEL, { code, what: label } satisfies GearMessage);
+    ctx.notify(`Gesendet an ${ctx.net.peers.size}: ${label} (${code.length} Zeichen)`);
+  }
+
+  /**
+   * Und die Gegenrichtung: ein Code kommt herein, wird gelesen und eingetragen.
+   *
+   * Geprüft wird er wie jeder andere auch — was über das Netz kommt, ist nicht
+   * vertrauenswürdiger als etwas Abgetipptes, nur schneller.
+   */
+  private receiveGear(data: unknown, from: string): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const message = data as Partial<GearMessage> | null;
+    const config = typeof message?.code === 'string' ? parseGearCode(message.code) : null;
+    if (!config) {
+      ctx.notify('Konfig-Code von einem Mitspieler war unlesbar');
+      return;
+    }
+    const applied = applyGearConfig(config);
+    this.applyStoredConfig();
+    this.showGrip(gripSettings());
+    const who = ctx.net.peers.get(from)?.name ?? 'Mitspieler';
+    ctx.notify(`Von ${who}: ${applied}`);
   }
 
   /** Wie ein Werkzeug heißt — die Id nur, wenn es keines mehr gibt. */

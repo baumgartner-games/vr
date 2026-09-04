@@ -1,10 +1,18 @@
 import { formatCode, packCode, unpackCode } from '../../../core/configCode';
 import {
+  defaultHoldPose,
+  defaultIdlePose,
+  handPoseFromArray,
+  handPoseToArray,
+  type HandPose,
+} from '../../../core/handPose';
+import {
   clearHandPoses,
   handPoseSnapshot,
   saveHandPoses,
   type StoredHandPoses,
 } from '../../../core/handPoseStore';
+import { packShortGear, parseShortGear, type ShortGear } from './shortCode';
 import { GEAR_VERSION, readGear, writeGear } from './gearCodec';
 import {
   attachmentSnapshot,
@@ -143,9 +151,92 @@ export function gearCode(): string {
   return packCode(writeGear(gearConfig()), GEAR_VERSION);
 }
 
-/** Die eine Zeile für genau ein Werkzeug — und wahlweise für eine Hand. */
+/**
+ * Die eine Zeile für genau ein Werkzeug an genau einer Hand — als **Kurzcode**.
+ *
+ * Das ist der Code, den jemand von einer Tafel abliest, und der große war
+ * dafür schlicht zu breit: 22 Zeichen für sechs Zahlen, die im Klartext auch
+ * 22 brauchen. `shortCode.ts` packt dieselben Zahlen in 16, und ein Werkzeug
+ * samt Griff in 25 statt 66.
+ *
+ * Ohne Hand geht es nicht kurz — dann stünden zwei Griffe drin, und dafür ist
+ * dieses Format nicht gebaut. Der große Code springt in dem Fall ein.
+ */
 export function toolGearCode(toolId: string | null, hand: Handedness | null = null): string {
-  return packCode(writeGear(toolGearConfig(toolId, hand)), GEAR_VERSION);
+  if (!hand) return packCode(writeGear(toolGearConfig(toolId, null)), GEAR_VERSION);
+
+  const all = gearConfig();
+  const id = toolId ?? '';
+  const stored = id
+    ? all.hands?.hold?.[hand]?.[id]
+    : all.hands?.idle?.[hand];
+  const grip = stored ? handPoseFromArray(stored, fallbackPose(hand, id)) : null;
+  const built = fallbackPose(hand, id);
+
+  return packShortGear({
+    toolId: id,
+    hand,
+    pose: id && id !== GRAB_ID ? (all.tools?.[id] ?? null) : null,
+    grip: grip ? [grip.x, grip.y, grip.z, grip.pitch, grip.yaw, grip.roll] : null,
+    // Finger nur, wenn sie von der gebauten Haltung abweichen: eine Messung
+    // fasst sie nicht an, und was sich nicht geändert hat, gehört nicht in
+    // einen Code, den jemand abtippt.
+    fingers: grip && !sameFingers(grip, built) ? { curls: grip.curls, spread: grip.spread } : null,
+  });
+}
+
+/** Die Id, unter der eine Hand um ein blankes Objekt gespeichert ist. */
+const GRAB_ID = 'grab';
+
+/** Die gebaute Haltung: für die leere Hand die Grundhaltung, sonst der Griff. */
+function fallbackPose(hand: Handedness, toolId: string): HandPose {
+  return toolId ? defaultHoldPose(hand, toolId) : defaultIdlePose(hand);
+}
+
+function sameFingers(a: HandPose, b: HandPose): boolean {
+  if (Math.round(a.spread) !== Math.round(b.spread)) return false;
+  return [0, 1, 2, 3, 4].every(
+    (i) => Math.round((a.curls[i] ?? 0) * 100) === Math.round((b.curls[i] ?? 0) * 100),
+  );
+}
+
+/**
+ * Was ein Kurzcode meint, in der Form, die `applyGearConfig` versteht.
+ *
+ * Fehlende Finger heißen „unverändert": sie kommen aus der gebauten Haltung
+ * dieses Werkzeugs, nicht aus einer Null — sonst streckte ein Code, der nur
+ * einen Griff verschiebt, nebenbei alle fünf Finger.
+ */
+function configFromShort(short: ShortGear): GearConfig {
+  const config: GearConfig = {};
+  const id = short.toolId;
+
+  if (short.pose && id && id !== GRAB_ID) {
+    config.tools = { [id]: [...short.pose] };
+  }
+
+  if (short.grip) {
+    const built = fallbackPose(short.hand, id);
+    const pose: HandPose = {
+      ...built,
+      x: short.grip[0] ?? 0,
+      y: short.grip[1] ?? 0,
+      z: short.grip[2] ?? 0,
+      pitch: short.grip[3] ?? 0,
+      yaw: short.grip[4] ?? 0,
+      roll: short.grip[5] ?? 0,
+    };
+    if (short.fingers) {
+      pose.curls = [...short.fingers.curls];
+      pose.spread = short.fingers.spread;
+    }
+    const values = handPoseToArray(pose);
+    config.hands = id
+      ? { idle: {}, hold: { [short.hand]: { [id]: values } } }
+      : { idle: { [short.hand]: values }, hold: {} };
+  }
+
+  return config;
 }
 
 /** The same line in groups of eight, for reading off a display. */
@@ -163,6 +254,10 @@ export function gearCodeLines(code = gearCode(), perLine = 4): string[] {
  * typed in a headset, so a typo has to end in a shrug, not in a broken hand.
  */
 export function parseGearCode(code: string): GearConfig | null {
+  // Zuerst der Kurzcode: er hat sein eigenes Präfix (`BGK`), und der große
+  // würde daran ohnehin scheitern.
+  const short = parseShortGear(code);
+  if (short) return configFromShort(short);
   const unpacked = unpackCode(code);
   return unpacked ? readGear(unpacked.payload, unpacked.version) : null;
 }

@@ -29,11 +29,10 @@ export interface RangeSettings {
 
 export const DEFAULT_RANGE: RangeSettings = {
   height: 106,
-  // Etwas links der Mitte des Gangs, mit Platz für den Kreis auf dem Boden und
-  // für den zweiten Stand rechts daneben — der soll außerhalb des Kreises
-  // stehen, sonst wird die Welt durchsichtig, während man dort eine Boxhand
-  // ansieht.
-  x: 65,
+  // Auf der einen Seite des Gangs, mit Platz für den Kreis auf dem Boden und
+  // für den Griffstand gegenüber — der soll außerhalb des Kreises stehen,
+  // sonst wird die Welt durchsichtig, während man dort eine Boxhand ansieht.
+  x: -65,
   z: 155,
 };
 

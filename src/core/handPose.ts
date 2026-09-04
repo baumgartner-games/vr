@@ -119,6 +119,47 @@ export const HOLD_HAND_POSE: HandPose = {
   spread: 0,
 };
 
+/**
+ * **Eingemessene** Griffe, je Werkzeug — gemessen an der *rechten* Hand.
+ *
+ * Die Faust oben ist die Haltung, aus der eine Hand *gebaut* ist: sie sitzt
+ * genau auf dem Griffpunkt und schaut geradeaus. Für ein Werkzeug ist sie
+ * bestenfalls ein Anfang, denn wie eine Hand ein Ding umfasst, hängt am Ding:
+ * an einer Pistole zeigt der Zeigefinger dorthin, wohin der Lauf zeigt, an
+ * einer Taschenlampe zeigt dieselbe Haltung schräg in die Luft, weil deren
+ * Kegel dort hinausgeht, wo bei der Pistole der Lauf sitzt.
+ *
+ * Was hier steht, ist am zweiten Justierstand im Eingaberaum gemessen
+ * (`worlds/tune/GripStand.ts`) und gilt für **beide** Hände: rechts wie
+ * gemessen, links als deren Spiegelung. Zwei getrennt gepflegte Zahlenreihen
+ * wären genau die Sorte Abweichung, die niemand bemerkt — eine Hand, die
+ * anders greift als die andere, sieht man nicht, man wundert sich nur.
+ */
+export const MEASURED_HOLDS: Record<string, HandPose> = {
+  flashlight: {
+    ...HOLD_HAND_POSE,
+    x: 4,
+    y: -2.8,
+    z: 1.7,
+    pitch: -44,
+    yaw: 26,
+    roll: -105,
+  },
+};
+
+/**
+ * Die gebaute Haltung, in der eine Hand ein bestimmtes Werkzeug hält.
+ *
+ * Ohne Messung die allgemeine Faust; mit einer die gemessene, für die linke
+ * Hand gespiegelt. Der Speicher legt sich darüber, wenn jemand selbst justiert
+ * hat (`handPoseStore.ts`).
+ */
+export function defaultHoldPose(hand: Handedness, toolId: string): HandPose {
+  const measured = MEASURED_HOLDS[toolId];
+  if (!measured) return clonePose(HOLD_HAND_POSE);
+  return hand === 'right' ? clonePose(measured) : mirrorHandPose(measured);
+}
+
 /** What the value editor offers, in the order it lists them. */
 export const HAND_FIELDS: ReadonlyArray<{
   key: keyof HandPose | `curl${0 | 1 | 2 | 3 | 4}`;

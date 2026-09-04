@@ -6,8 +6,8 @@ import { DEFAULT_RANGE, clampRange, type RangeSettings } from './rangeSettings';
 /** Wie nah ein Werkzeug an den Halter muss, damit es einrastet. */
 export const MOUNT_REACH = 0.3;
 
-/** Wie weit der Ausleger mit den Griffen zur Seite steht. */
-const BOOM = 0.55;
+/** Wie weit der Ausleger mit den Griffen zur Seite steht — von der Mitte weg. */
+const BOOM = -0.55;
 
 /** Wie weit der Kreis auf dem Boden reicht, in Metern. */
 export const ZONE_RADIUS = 0.95;

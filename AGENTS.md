@@ -107,7 +107,12 @@ Sturz einer ist, und dass der *höchste* Treffer gewinnt: von unten gesucht
 landet man im Keller eines Hauses, von oben auf seinem Dach), die **Dicke der
 Bodenplatte** (`src/worlds/shared/ground.test.ts` — dass sie dicker ist als die
 Haut der Spielerkapsel; sie war es einmal nicht, und man merkte es nur daran,
-dass der Spieler beim Gehen stockte), die
+dass der Spieler beim Gehen stockte), der **Kurzcode**
+(`src/worlds/portal/tools/shortCode.ts` — tausend Posen hin und zurück ohne
+einen Millimeter Drift, jeder einzelne Tippfehler und jede Vertauschung
+abgelehnt, und die Länge als Zusicherung statt als Hoffnung) samt seiner
+**Übersetzung in die Speicher** (`gearShort.test.ts` — dass nicht mitgereiste
+Finger stehen bleiben statt sich zu strecken), die
 **Stoppuhr-Einstellungen** (`src/worlds/portal/tools/stopwatchSettings.ts` —
 die drei Betriebsarten, das Anhalten als erlaubte Raste und kein
 Rückwärtslauf), die **Materialien** (`src/worlds/portal/tools/materials.ts` —
@@ -589,15 +594,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   während rechts -X ist. Genau deshalb ist der Gang breit: vier Dinge
   nebeneinander, zwei davon mit einem Ausleger voller Griffe.
 
-  An der **linken Wand** hängt das **Werkzeug-Menü**: eine Kachel je Werkzeug,
-  zu, bis man den Knopf darüber drückt. **Trigger oder Greifen** legt das
-  gewählte in die zeigende Hand *und* als Kopie auf den zweiten Stand — man
-  wählt einmal, nicht zweimal. Vorher stand neben dem Halter ein Regal mit drei
-  Fächern, und das waren genau die drei, an die beim Bauen jemand gedacht hatte;
-  justiert wird aber alles. Dass Greifen dort auch auswählt, ist eine Zeile im
-  Pointer (`PointerTarget.grab`): wer nach einem Ding greift, drückt Greifen,
-  und dass dafür der Trigger zuständig wäre, ist eine Regel, die man sich
-  merken müsste.
+  Ein Schild am Halter macht das **Werkzeug-Menü** auf, und das erscheint
+  **vor dem Spieler** statt an einer Wand: es ist dasselbe Panel wie am
+  Handgelenk (`ui/WristMenu.ts` mit `anchor: 'view'`), nur ohne runden Knopf
+  und frei in der Luft. Vorher war es ein Kachelraster an der Wand, und das
+  hatte zwei Fehler auf einmal — es war ein **zweites** Menü mit eigener
+  Bedienung und eigenem Aussehen, und es hing dort, wo es gebaut wurde, statt
+  dort, wo man steht. **Trigger oder Greifen** wählt aus (das Regal ist eine
+  Nimm-Seite), und die Auswahl legt das Werkzeug **direkt in den Halter**: man
+  wählt es ja, um es einzumessen, und der Weg dorthin führt ohnehin nur über
+  ihn. Der Griffstand bekommt dieselbe Id gleich mit.
 
   Dann kommen **zwei Justierstände** nebeneinander, und **jeder hat seine
   eigene Zielscheibe** am Ende des Gangs, genau vor sich. Sie beantworten die
@@ -647,7 +653,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   bei beiden dieselben, damit man nicht zweimal lernt, wie ein Stand
   verschoben wird.
 
-  Der **zweite Stand** steht **rechts daneben und außerhalb des Kreises** —
+  Der **zweite Stand** steht **auf der anderen Seite des Gangs, außerhalb des
+  Kreises** —
   dort soll die Welt ja gerade nicht durchsichtig sein, denn hier sieht man eine
   Boxhand an. Er hält eine unbewegliche **Kopie** desselben Werkzeugs und daran
   eine **feste Boxhand** (`tune/GripStand.ts`, Rechnung in `tune/handGrip.ts`
@@ -816,7 +823,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe an der rechten Wand im Eingaberaum | – | – |
 | Werkzeug einmessen (Schießgang) | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück | – | – |
 | Haltung feinjustieren (Schießgang) | *Feinjustieren* an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
-| Werkzeug wählen (Schießgang) | *Werkzeug wählen* an der linken Wand, dann eine Kachel mit **Trigger oder Greifen** — es kommt in die zeigende Hand und als Kopie auf den zweiten Stand | – | – |
+| Werkzeug wählen (Schießgang) | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter | – | – |
+| Einstellungen verschicken | *Werkzeug senden* / *Alles senden* an der Wand des Gangs — geht an alle, die im Raum verbunden sind | – | – |
 | AR an/aus (Schießgang) | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf *AR* an der rechten Wand | – | – |
 | Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt zurück | – | – |
 | Grundhaltung einmessen | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger** | – | – |
@@ -1180,6 +1188,27 @@ das prüft der Test zu `mirrorHandPose` in `src/core/handPose.ts`, und dieselbe
 Regel gilt für Werkzeug-Posen (`mirrorReadout`). *Auf die andere Hand
 spiegeln* macht es für eine Haltung, *Links auf rechts spiegeln* für alle.
 
+### Eingemessene Griffe
+
+Wie eine Hand ein Werkzeug umfasst, hängt am Werkzeug: an einer Pistole zeigt
+der Zeigefinger dorthin, wohin der Lauf zeigt, an einer **Taschenlampe** zeigt
+dieselbe Haltung schräg in die Luft, weil deren Kegel dort hinausgeht, wo bei
+der Pistole der Lauf sitzt. Die gebaute Faust (`HOLD_HAND_POSE`) ist deshalb
+bestenfalls ein Anfang.
+
+Was am zweiten Justierstand eingemessen wurde, steht als Rückfall im Code
+(`MEASURED_HOLDS` in `core/handPose.ts`) — gemessen an der **rechten** Hand
+und für die linke gespiegelt, genau wie die Grundhaltung. Zwei getrennt
+gepflegte Zahlenreihen wären die Sorte Abweichung, die niemand bemerkt: eine
+Hand, die anders greift als die andere, sieht man nicht, man wundert sich nur.
+
+| Werkzeug | x | y | z | Pitch | Yaw | Roll |
+| --- | --- | --- | --- | --- | --- | --- |
+| Taschenlampe (rechts) | 4 | −2,8 | 1,7 | −44° | 26° | −105° |
+
+Der Speicher legt sich darüber, sobald jemand selbst justiert
+(`handPoseStore.ts`); wer zurücksetzt, landet wieder hier.
+
 ### Konfig-Code
 
 Alle diese Zahlen zusammen — Werkzeug-Posen, Handhaltungen, Anbauteile,
@@ -1233,7 +1262,84 @@ vorher 66 Zeichen und kostet jetzt 27, aus drei Gründen:
 Codes der Fassungen 1 und 2 werden weiter gelesen (`tools/gearCodec.ts`, mit
 Test).
 
-In VR liegt der Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
+#### Der Kurzcode
+
+Für den häufigsten Fall war auch Fassung 3 noch zu breit: eine Werkzeugpose
+kostete **22 Zeichen** — genau so viele wie die sechs Zahlen im Klartext
+(`4,-2.8,1.7,-44,26,-105`). Ein Code, der nicht kürzer ist als das, was er
+ersetzt, ist keiner. Schuld war nie die Menge, sondern die **Verpackung**:
+Abschnittsmaske, Feldmaske, Varints, ein Kompressions-Flag und zwei Byte
+Prüfsumme sind zusammen mehr als die Nutzlast, wenn die Nutzlast sechs Zahlen
+ist.
+
+Deshalb gibt es daneben den **Kurzcode** (`tools/shortCode.ts`, mit Test), der
+nur einen Fall kann — *ein* Werkzeug an *einer* Hand — und dafür nichts
+mitschleppt:
+
+```
+BGK <Platz:1> <Flags:1> [Pose:9] [Griff:9] [Finger:7] <Summe:2>
+
+BGKMDgF8upohGzigZ5hfz6PDu   # Taschenlampe: Lage im Griff *und* Handhaltung
+```
+
+Die Zahlen werden nicht einzeln geschrieben, sondern als **eine** Zahl zur
+gemischten Basis: Ort ±36,0 cm in Zehntelschritten (721 Stufen je Achse),
+Winkel 0…359 in ganzen Grad (360 Stufen je Achse).
+
+Wie viele Zeichen das braucht, entscheidet das **Produkt** der Stufen und
+nicht ihre Summe — die naheliegende Rechnung „360+360+360 = 1080, passt bequem
+in zwei Zeichen" ist um sieben Größenordnungen daneben. Richtig gerechnet:
+
+```
+721³ · 360³ = 17 486 806 953 216 000 Möglichkeiten
+64⁸         =    281 474 976 710 656 zu wenig
+64⁹         = 18 014 398 509 481 984 reicht, mit 3 % Luft
+```
+
+Also **neun** Zeichen für eine ganze Pose. Gerechnet wird mit `BigInt`, und
+das ist keine Vorsicht: 1,75·10¹⁶ liegt über 2⁵³, und ab dort zählt eine
+JavaScript-Zahl nicht mehr in Einsen. Die Prüfsumme hat **zwei** Zeichen, weil
+eines nicht reichte: von 166 vertauschten Zeichen kamen vier durch, und ein
+Code, der in vier von hundert Fällen still eine fremde Handhaltung einträgt,
+ist schlimmer als einer, der zu lang ist. Der Test probiert alle einzelnen
+Tippfehler und alle Vertauschungen durch.
+
+Was das bringt:
+
+| | vorher | jetzt |
+| --- | --- | --- |
+| eine Werkzeugpose | 22 | 16 |
+| Werkzeug **und** Griff | 66 | 25 |
+| eine Grundhaltung | 33 | 23 |
+
+Die Finger stehen nur drin, wenn sie **verstellt** sind: eine Messung fasst
+sie nicht an, und was sich nicht geändert hat, gehört nicht in einen Code, den
+jemand abtippt. Fehlen sie, kommen sie beim Lesen aus der gebauten Haltung
+dieses Werkzeugs — nicht aus einer Null, sonst streckte ein Code, der nur den
+Griff verschiebt, nebenbei alle fünf Finger.
+
+Für die **ganze** Ausrüstung bleibt der große Code zuständig, und der ist
+nicht zu lang, sondern voll: eine wirklich benutzte Konfiguration (vier
+eingemessene Werkzeuge samt Griffen beider Hände) sind rund 170 Zeichen. Wer
+alle 24 Werkzeuge und alle 48 Griffe verstellt, hat siebzig Posen, und siebzig
+Posen sind nun einmal siebzig Posen — da hilft keine Verpackung mehr.
+
+`parseGearCode` nimmt beide Sorten entgegen; welche es ist, sagt das Präfix
+(`BG3` oder `BGK`).
+
+#### Über die Leitung
+
+Im Eingaberaum stehen zwei Knöpfe an der Wand: **Werkzeug senden** und **Alles
+senden**. Sie schicken den Code an alle, die gerade im Raum verbunden sind
+(`NetSession.emit` auf dem Kanal `gear`), und drüben wird er wie jeder andere
+gelesen, geprüft und eingetragen — inklusive der Werkzeuge, die schon in einer
+Hand liegen (`applyStoredConfig`). Verschickt wird die **Zeile** und nicht der
+Datensatz: dieselbe, die auch auf der Tafel steht, mit derselben Prüfsumme
+davor. Damit gibt es einen Weg hinein statt zweier, die auseinanderlaufen
+können. Und das ist der Punkt, an dem der Kurzcode sich auszahlt: ein Werkzeug
+sind 25 Zeichen, also ein Paket.
+
+In VR liegt der große Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
 legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
 laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Die
 **Werte-Tafeln im Eingaberaum** zeigen außerdem unter jeder Messung den Code

@@ -1519,8 +1519,15 @@ export class PortalWorld implements World {
     this.context?.notify(`Geladen: ${summary}`);
   }
 
-  /** Puts whatever is stored onto the tools that are already built. */
-  private applyStoredConfig(): void {
+  /**
+   * Puts whatever is stored onto the tools that are already built.
+   *
+   * Der Speicher allein reicht nicht: eine Pistole, die gerade in einer Hand
+   * liegt, hat ihre Zahlen beim Bauen bekommen und liest sie nie wieder nach.
+   * Der Eingaberaum ruft das ebenfalls, wenn ein Mitspieler seine Ausrüstung
+   * herüberschickt.
+   */
+  protected applyStoredConfig(): void {
     for (const tool of this.tools.values()) {
       tool.resetHold();
       applyStoredPose(tool);

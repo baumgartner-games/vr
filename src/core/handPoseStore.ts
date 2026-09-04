@@ -1,6 +1,5 @@
 import {
-  HOLD_HAND_POSE,
-  clonePose,
+  defaultHoldPose,
   defaultIdlePose,
   handPoseFromArray,
   handPoseToArray,
@@ -77,12 +76,17 @@ export function idleHandPose(hand: Handedness): HandPose {
 }
 
 /**
- * How a hand holds one tool. Falls back to the generic grip, so a tool nobody
- * has adjusted yet still looks held rather than open.
+ * How a hand holds one tool.
+ *
+ * Der Rückfall ist die **gebaute** Haltung für genau dieses Werkzeug
+ * (`defaultHoldPose`): für die meisten die allgemeine Faust, für die
+ * eingemessenen ihr eigener Griff, links gespiegelt. Damit sieht ein Werkzeug,
+ * das noch nie jemand justiert hat, trotzdem gehalten aus statt offen.
  */
 export function holdHandPose(hand: Handedness, toolId: string): HandPose {
+  const fallback = defaultHoldPose(hand, toolId);
   const stored = read().hold?.[hand]?.[toolId];
-  return stored ? handPoseFromArray(stored, HOLD_HAND_POSE) : clonePose(HOLD_HAND_POSE);
+  return stored ? handPoseFromArray(stored, fallback) : fallback;
 }
 
 /** True while this exact pose was set by the player rather than built in. */

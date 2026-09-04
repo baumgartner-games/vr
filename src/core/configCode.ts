@@ -45,7 +45,16 @@ export interface UnpackedCode {
   payload: Uint8Array;
 }
 
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+/**
+ * Die 64 Zeichen, mit denen dieses Projekt zählt.
+ *
+ * Exportiert, weil der **Kurzcode** (`tools/shortCode.ts`) dieselben benutzt:
+ * zwei Alphabete hieße zwei Sorten Code, die gleich aussehen und es nicht sind.
+ */
+export const BASE64_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+const ALPHABET = BASE64_ALPHABET;
 
 /** One line from a payload: prefix, format version, base64url, checksum. */
 export function packCode(payload: Uint8Array, version = CODE_VERSION): string {
