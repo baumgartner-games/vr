@@ -3,6 +3,14 @@ import { PortalWorld } from '../portal/PortalWorld';
 import { FlashlightTool } from '../portal/tools';
 import { TextPlane } from '../../ui/TextPlane';
 import { playSwitch } from '../../core/Audio';
+import {
+  DEFAULT_LIGHT_STEP,
+  LIGHT_LEVELS,
+  lampIntensity,
+  lightBrightness,
+  lightLabel,
+  nextLightStep,
+} from './lightLevels';
 import type { MenuEntry } from '../../ui/menu';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
@@ -15,6 +23,18 @@ const HEIGHT = 2.7;
 const WALL = 0.24;
 const DOOR_W = 1.5;
 const DOOR_H = 2.2;
+
+/** How far the dimmer knob travels from "off" to the top notch. */
+const KNOB_TRAVEL = 0.16;
+/** The switch glows even when everything is off — dimly, but it glows. */
+const SWITCH_DARK = 0x6b5327;
+const SWITCH_BRIGHT = 0xfff0cf;
+const PIP_DARK = 0x39414f;
+
+const _lampOff = new THREE.Color(0x2b3040);
+const _lampOn = new THREE.Color(0xfff0cf);
+const _dark = new THREE.Color();
+const _bright = new THREE.Color();
 
 /** Which way a wall runs: along X, or along Z. */
 type Axis = 'x' | 'z';
@@ -30,9 +50,11 @@ interface Lamp {
  *
  * There is no sky and no sun in here: the ambient light is turned down to
  * almost nothing, so what you see is what you carry or switch on. The start
- * room has a **light switch** on the wall (point at it and pull, or poke it)
- * that works the ceiling lamps of the whole house, a **torch** floating in
- * mid-air, and a few other portable lights on the crates: a glowing ball that
+ * room has a **dimmer** on the wall (point at it and pull, or poke it) that
+ * steps the ceiling lamps of the whole house from off through four settings
+ * up to bright — and glows by itself at every one of them, because a light
+ * switch you need a torch to find is no use. There is also a **torch**
+ * floating in mid-air, and a few other portable lights on the crates: a glowing ball that
  * can be thrown down a corridor, a lantern and two glow sticks. One room —
  * the north-west one — has no lamp at all and stays dark whatever the switch
  * says. That is the point of the place: to see what a light source does when
@@ -70,23 +92,31 @@ export class DarkWorld extends PortalWorld {
   private lightEntry: MenuEntry | null = null;
   /** The plate on the wall — a pointer target as well as a thing to poke. */
   private plate: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial> | null = null;
-  private rocker: THREE.Mesh | null = null;
-  /** Dark to start with. The whole world is the experiment. */
-  private lightsOn = false;
+  /** The parts of the dimmer that show what it is set to. */
+  private knob: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial> | null = null;
+  private face: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
+  private readonly pips: Array<THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>> = [];
+  /** The little light that keeps the switch itself findable. */
+  private switchLight: THREE.PointLight | null = null;
+  /** Which notch the dimmer is on — dark to start with, that is the point. */
+  private lightStep = DEFAULT_LIGHT_STEP;
 
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
     // Distance eats the little light there is — a corridor should not be a
     // clearly lit tube just because the far end happens to face a lamp.
     ctx.scene.fog = new THREE.FogExp2(0x04060a, 0.06);
-    if (this.plate) ctx.pointer.add({ object: this.plate, onSelect: () => this.toggleLights() });
+    if (this.plate) ctx.pointer.add({ object: this.plate, onSelect: () => this.stepLights() });
     this.applyLights();
   }
 
   override dispose(ctx: WorldContext): void {
     if (this.plate) ctx.pointer.remove(this.plate);
     this.plate = null;
-    this.rocker = null;
+    this.knob = null;
+    this.face = null;
+    this.switchLight = null;
+    this.pips.length = 0;
     this.lightEntry = null;
     this.lamps.length = 0;
     ctx.scene.fog = null;
@@ -96,12 +126,11 @@ export class DarkWorld extends PortalWorld {
   override menu(): MenuEntry[] {
     const entry: MenuEntry = {
       id: 'dark:lights',
-      label: 'Deckenlicht',
-      sub: 'Derselbe Schalter wie an der Wand im Startraum',
+      label: `Deckenlicht: ${lightLabel(this.lightStep)}`,
+      sub: 'Dieselben Stufen wie der Dimmer an der Wand im Startraum',
       icon: 'lamp',
       accent: 0xffd88a,
-      checked: this.lightsOn,
-      run: () => this.toggleLights(),
+      run: () => this.stepLights(),
     };
     this.lightEntry = entry;
     return [...super.menu(), entry];
@@ -126,7 +155,7 @@ export class DarkWorld extends PortalWorld {
   }
 
   protected override welcome(): string {
-    return 'Dunkelhaus · Lichtschalter an der Wand · Taschenlampe schwebt vor dir';
+    return 'Dunkelhaus · Dimmer an der Wand (fünf Stufen) · Taschenlampe schwebt vor dir';
   }
 
   /** No portal guns on the hips: in here you want a hand free for a light. */
@@ -268,7 +297,7 @@ export class DarkWorld extends PortalWorld {
       // The lights stay in the scene when they are off and are turned down to
       // zero instead: three.js rebuilds every shader in the room when the
       // number of lights changes, and a switch is not worth a hitch.
-      const light = new THREE.PointLight(0xffe7c0, 0, 13, 2);
+      const light = new THREE.PointLight(0xffe7c0, 0, 16, 2);
       light.position.set(x, HEIGHT - 0.2, z);
       house.add(light);
 
@@ -276,28 +305,65 @@ export class DarkWorld extends PortalWorld {
     }
   }
 
-  /** The switch on the wall of the start room, next to the door. */
+  /**
+   * The dimmer on the wall of the start room, next to the door.
+   *
+   * It is the one thing in the house that is **always lit**: everything else
+   * here can end up invisible, and a light switch you have to find with a
+   * torch is a joke that only works once. So the plate glows by itself (basic
+   * materials, no lighting involved), carries a little light of its own to
+   * put a halo on the wall around it, and shows what it is set to even when
+   * it is set to nothing — the knob sits at the bottom and the pips above it
+   * are dark.
+   */
   private buildSwitch(house: THREE.Group): void {
     const group = new THREE.Group();
-    group.name = 'light-switch';
+    group.name = 'light-dimmer';
     // On the start room's side of the corridor wall, at the height a switch
     // is at — straight ahead and a little to the right as you spawn.
     group.position.set(-2.4, 1.15, 1 + WALL / 2 + 0.02);
     house.add(group);
 
+    // The frame is what the pointer and the finger hit; everything else only
+    // has to be looked at.
     this.plate = new THREE.Mesh(
-      new THREE.BoxGeometry(0.16, 0.16, 0.03),
-      new THREE.MeshStandardMaterial({ color: 0xe8ecf4, roughness: 0.6, emissive: 0x1a1e26 }),
+      new THREE.BoxGeometry(0.17, 0.25, 0.03),
+      new THREE.MeshStandardMaterial({ color: 0x232a38, roughness: 0.6 }),
     );
     this.plate.position.z = 0.015;
     group.add(this.plate);
 
-    this.rocker = new THREE.Mesh(
-      new THREE.BoxGeometry(0.07, 0.09, 0.02),
-      new THREE.MeshStandardMaterial({ color: 0xb9c2d4, roughness: 0.5 }),
+    this.face = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.13, 0.21),
+      new THREE.MeshBasicMaterial({ color: SWITCH_DARK, toneMapped: false }),
     );
-    this.rocker.position.set(0, 0, 0.035);
-    group.add(this.rocker);
+    this.face.position.z = 0.031;
+    group.add(this.face);
+
+    // One pip per notch above "off", bottom to top.
+    for (let i = 1; i < LIGHT_LEVELS.length; i++) {
+      const pip = new THREE.Mesh(
+        new THREE.BoxGeometry(0.016, 0.012, 0.006),
+        new THREE.MeshBasicMaterial({ color: PIP_DARK, toneMapped: false }),
+      );
+      pip.position.set(0.045, KNOB_TRAVEL * (i / (LIGHT_LEVELS.length - 1) - 0.5), 0.034);
+      group.add(pip);
+      this.pips.push(pip);
+    }
+
+    // The knob slides up a notch per press.
+    this.knob = new THREE.Mesh(
+      new THREE.BoxGeometry(0.075, 0.03, 0.02),
+      new THREE.MeshBasicMaterial({ color: SWITCH_DARK, toneMapped: false }),
+    );
+    this.knob.position.set(-0.015, -KNOB_TRAVEL / 2, 0.038);
+    group.add(this.knob);
+
+    // Faint on its own, brighter with the setting: from across a dark room
+    // the switch should read as a small glow on the wall, not as a rumour.
+    this.switchLight = new THREE.PointLight(0xffd9a0, 0.25, 1.6, 2);
+    this.switchLight.position.z = 0.12;
+    group.add(this.switchLight);
   }
 
   private buildSigns(house: THREE.Group): void {
@@ -305,7 +371,7 @@ export class DarkWorld extends PortalWorld {
       width: 2.2,
       height: 0.7,
       title: 'Dunkelhaus',
-      body: 'Schalter an der Wand. Taschenlampe: Trigger schaltet, die andere Hand an der Linse stellt den Kegel.',
+      body: 'Dimmer an der Wand: aus, dämmrig, gedimmt, normal, hell. Taschenlampe: Trigger schaltet, die andere Hand an der Linse stellt den Kegel.',
       accent: 0xffd88a,
     });
     sign.position.set(-5.6, 2, 1 + WALL / 2 + 0.03);
@@ -423,23 +489,40 @@ export class DarkWorld extends PortalWorld {
     );
   }
 
-  /** The switch, wherever it was thrown from. */
-  private toggleLights(): void {
-    this.lightsOn = !this.lightsOn;
+  /** One notch on, from the wall plate or from the menu row. */
+  private stepLights(): void {
+    this.lightStep = nextLightStep(this.lightStep);
     this.applyLights();
-    playSwitch(this.lightsOn);
-    this.context?.notify(this.lightsOn ? 'Deckenlicht an' : 'Deckenlicht aus');
+    playSwitch(this.lightStep > 0);
+    this.context?.notify(`Deckenlicht: ${lightLabel(this.lightStep)}`);
   }
 
-  /** Puts the current switch position onto the lamps and onto the rocker. */
+  /** Puts the current notch onto the lamps and onto the dimmer itself. */
   private applyLights(): void {
+    const brightness = lightBrightness(this.lightStep);
     for (const lamp of this.lamps) {
-      lamp.light.intensity = this.lightsOn ? 7 : 0;
-      lamp.glass.material.color.setHex(this.lightsOn ? 0xfff0cf : 0x2b3040);
+      lamp.light.intensity = lampIntensity(this.lightStep);
+      // The glass goes from cold and dead to warm along with the lamp, so a
+      // room says what it is set to even when nothing else in it does.
+      lamp.glass.material.color.lerpColors(_lampOff, _lampOn, brightness);
     }
-    if (this.rocker) this.rocker.position.y = this.lightsOn ? 0.02 : -0.02;
+
+    // The switch never goes fully dark — it only gets brighter.
+    _dark.setHex(SWITCH_DARK);
+    _bright.setHex(SWITCH_BRIGHT);
+    this.face?.material.color.lerpColors(_dark, _bright, brightness * 0.55);
+    this.knob?.material.color.lerpColors(_dark, _bright, 0.35 + brightness * 0.65);
+    if (this.knob) {
+      const top = LIGHT_LEVELS.length - 1;
+      this.knob.position.y = KNOB_TRAVEL * (this.lightStep / top - 0.5);
+    }
+    this.pips.forEach((pip, index) => {
+      pip.material.color.setHex(index < this.lightStep ? SWITCH_BRIGHT : PIP_DARK);
+    });
+    if (this.switchLight) this.switchLight.intensity = 0.25 + brightness * 0.5;
+
     if (this.lightEntry) {
-      this.lightEntry.checked = this.lightsOn;
+      this.lightEntry.label = `Deckenlicht: ${lightLabel(this.lightStep)}`;
       this.context?.menu.refresh();
     }
   }

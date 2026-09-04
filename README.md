@@ -34,9 +34,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
-Konfig-Code, den Lichtkegel der Taschenlampe, die Portaltiefe, die
-Blätterposition der Menüs, die Fahrphysik und Streckenführung der Karts und das
-Pizza-Rezept. Diese
+Konfig-Code, den Lichtkegel der Taschenlampe, die Portaltiefe, die Lichtstufen
+des Dunkelhauses, die Blätterposition der Menüs, die Fahrphysik und
+Streckenführung der Karts und das Pizza-Rezept. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.

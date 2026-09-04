@@ -54,7 +54,10 @@ Taschenlampe** (`src/worlds/portal/tools/flashlightBeam.ts` — Grenzen, das
 Ziehen an der Linse und dass der schmale Kegel heller und weiter reicht, ohne
 zum Scheinwerfer zu werden), die **Portaltiefe**
 (`src/worlds/portal/portalDepth.ts` — Rasten, Grenzen und der Fall, dass im
-Speicher eine Zeichenkette statt einer Zahl steht), der **Konfig-Code**
+Speicher eine Zeichenkette statt einer Zahl steht), die **Lichtstufen des
+Dunkelhauses** (`src/worlds/dark/lightLevels.ts` — dass die erste Stufe
+wirklich null ist, dass jede folgende heller wird und dass es nach der
+hellsten wieder aus ist), der **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 (`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
@@ -366,11 +369,22 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 - **Dunkelhaus** (experimentell): ein kleines Haus ohne Fenster — Startraum,
   ein Flur quer durch, vier Zimmer und ein Gang, der nirgendwohin führt. Es
   gibt kein Tageslicht: das Umgebungslicht steht fast auf null, gesehen wird
-  nur, was man anmacht oder trägt. Im Startraum hängt ein **Lichtschalter** an
-  der Wand (anzielen + Trigger, oder mit dem Finger antippen), der die
-  Deckenlampen des ganzen Hauses schaltet — außer im Nordwest-Zimmer, das
-  bewusst gar keine hat. Davor schwebt eine **eingeschaltete Taschenlampe**
-  (man muss sie im Dunkeln ja finden können), auf den Kisten liegen eine
+  nur, was man anmacht oder trägt. Im Startraum hängt ein **Dimmer** an der
+  Wand (anzielen + Trigger, oder mit dem Finger antippen), der die Deckenlampen
+  des ganzen Hauses in **fünf Stufen** schaltet — *aus, dämmrig, gedimmt,
+  normal, hell*, eine Stufe pro Druck, nach der hellsten wieder aus. Zwei
+  Stellungen beantworten nur die Frage „ist Licht an?“; die interessanten
+  liegen dazwischen: wie wenig Licht reicht für einen Flur, ab wann lohnt die
+  Taschenlampe nicht mehr. Das Nordwest-Zimmer hat bewusst gar keine Lampe und
+  bleibt auf jeder Stufe dunkel. Der Dimmer selbst **leuchtet immer**, auch auf
+  *aus*: die Platte ist selbstleuchtend (Basic-Material, dafür braucht es kein
+  Licht), sie trägt ein kleines eigenes für den Hof an der Wand, und der Knopf
+  wandert mit jeder Stufe höher, während die Pips daneben mitzählen. Ein
+  Lichtschalter, den man mit der Taschenlampe suchen muss, ist genau einmal
+  lustig. Die Lampen leuchten hier viel stärker als in den anderen Welten
+  (26 statt 9): dort ist eine Lampe ein Akzent neben Sonne und Umgebungslicht,
+  hier ist sie das ganze Licht. Davor schwebt eine **eingeschaltete
+  Taschenlampe** (man muss sie im Dunkeln ja finden können), auf den Kisten liegen eine
   **Leuchtkugel** zum Werfen, eine **Laterne** und zwei **Knicklichter** zum
   Liegenlassen als Wegmarke. Sonst ist alles wie im Portal Labor: derselbe
   Gürtel, dasselbe Regal, dieselbe Physik. Portale haften nur an den hellen
@@ -423,7 +437,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate) | – | – |
 | Taschenlampe | Trigger schaltet an/aus | – | – |
 | Lichtkegel stellen | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen | – | – |
-| Lichtschalter (Dunkelhaus) | anzielen + Trigger, oder antippen | anklicken | tippen |
+| Dimmer (Dunkelhaus) | anzielen + Trigger, oder antippen — eine Stufe pro Druck | anklicken | tippen |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
 | Radiergummi | Trigger löscht | – | – |
 | Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |
