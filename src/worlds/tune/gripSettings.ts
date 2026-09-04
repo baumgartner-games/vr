@@ -36,9 +36,15 @@ export interface GripSettings {
 
 export const DEFAULT_GRIP: GripSettings = {
   height: 106,
-  // Rechts neben dem ersten Stand, mit genug Luft dazwischen, dass die Hand
-  // am einen nicht die Griffe des anderen streift.
-  x: 80,
+  /*
+   * **Rechts** neben dem ersten Stand — und zwar rechts aus Sicht dessen, der
+   * den Gang hinuntersieht: dort ist die Blickrichtung +Z, und rechts davon
+   * liegt -X. Mit genug Luft dazwischen, dass die Hand am einen nicht die
+   * Griffe des anderen streift, und weit genug aus dem Kreis am ersten Stand
+   * heraus, dass man hier eine Boxhand ansieht statt durch eine durchsichtige
+   * Welt zu schauen.
+   */
+  x: -85,
   z: 155,
   side: 'right',
   tool: 'pistol',
@@ -54,9 +60,8 @@ export interface GripField {
 
 export const GRIP_FIELDS: readonly GripField[] = [
   { key: 'height', label: 'Höhe', min: 40, max: 170 },
-  // Etwas enger als beim ersten Stand: sein Ausleger steht nach rechts, und
-  // ein Griff in der Wand ist keiner.
-  { key: 'x', label: 'Quer', min: -90, max: 90 },
+  // Innerhalb des Gangs bleiben, Ausleger eingerechnet.
+  { key: 'x', label: 'Quer', min: -160, max: 160 },
   { key: 'z', label: 'Längs', min: 60, max: 600 },
 ];
 

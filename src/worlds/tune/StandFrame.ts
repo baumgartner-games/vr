@@ -1,10 +1,16 @@
 import * as THREE from 'three';
 import { GRAB_GLOW, GRAB_TINT } from '../../core/colors';
+import { bullseyeFace } from '../shared/target';
+import { TARGET } from './lane';
 
 /** Wie nah eine Hand an einen Griff muss, damit er reagiert. */
 export const HANDLE_REACH = 0.2;
 
 const _world = new THREE.Vector3();
+const _matrix = new THREE.Matrix4();
+const _up = new THREE.Vector3(0, 1, 0);
+const _here = new THREE.Vector3();
+const _there = new THREE.Vector3();
 
 /**
  * Das Gestell, auf dem im Schießgang ein Justierstand steht.
@@ -24,6 +30,11 @@ const _world = new THREE.Vector3();
  *   hoch" beantwortet man, ohne den Stand quer zu verschieben. Und sie sehen
  *   verschieden aus, ein Schieber und eine Kugel, damit man ihnen ansieht,
  *   welche Bewegung sie erwarten.
+ * - Eine **Aufnahme**, die die **eigene Zielscheibe** ansieht — jeder Stand hat
+ *   seine, am Ende des Gangs, genau vor ihm. Ein Werkzeug darin rastet mit
+ *   seiner Zielachse (-Z) ein und *kann* nicht danebenzeigen (`aim.ts`). Und
+ *   eine **Linie** aus der Aufnahme bis in die Scheibe zeigt genau das, statt
+ *   es zu behaupten.
  * - Und die eine Regel, an der der ganze Stand hängt: **weit genug weg**. Ein
  *   Griff neben der Aufnahme wird von der Hand mitgenommen, die nach dem
  *   Werkzeug greift, und dann steht der Stand plötzlich woanders — mitten in
@@ -54,12 +65,25 @@ export abstract class StandFrame extends THREE.Group {
   private readonly legs: THREE.Mesh[] = [];
   private readonly owned: THREE.Material[] = [];
 
+  /** Die Aufnahme: ein leerer Knoten, der die eigene Scheibe ansieht. */
+  readonly mount = new THREE.Object3D();
+
+  /** Die eigene Zielscheibe — die Welt macht sie fest, damit Kugeln enden. */
+  readonly disc: THREE.Mesh;
+
+  /** Die Zielachse, sichtbar: von der Aufnahme bis in die Scheibe. */
+  protected readonly beam: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+
   /**
-   * @param boom wie weit der Ausleger zur Seite steht, in Metern. Negativ
-   *             schickt ihn nach links — zwei Stände nebeneinander schieben
-   *             ihre Griffe sonst ineinander.
+   * @param boom    wie weit der Ausleger zur Seite steht, in Metern. Negativ
+   *                schickt ihn nach links — zwei Stände nebeneinander schieben
+   *                ihre Griffe sonst ineinander.
+   * @param targetX wo die eigene Scheibe quer im Gang hängt. Sie bleibt dort,
+   *                auch wenn der Stand verschoben wird: eine Scheibe, die
+   *                mitwandert, müsste ihren Kollisionskörper mitnehmen, und
+   *                dann hielte sie irgendwann keine Kugel mehr auf.
    */
-  constructor(name: string, boom: number) {
+  constructor(name: string, boom: number, targetX: number) {
     super();
     this.name = name;
 
@@ -91,6 +115,34 @@ export abstract class StandFrame extends THREE.Group {
     this.station.add(arm);
     this.grip('height', new THREE.BoxGeometry(0.05, 0.16, 0.05)).position.set(boom, 0.15, 0);
     this.grip('place', new THREE.SphereGeometry(0.055, 14, 10)).position.set(boom, -0.15, 0);
+
+    // --- die eigene Scheibe am Ende des Gangs --------------------------------
+    const face = this.own(bullseyeFace());
+    this.disc = new THREE.Mesh(
+      new THREE.CylinderGeometry(TARGET.radius, TARGET.radius, 0.05, 28),
+      [this.steel, face, this.steel],
+    );
+    // Ein Zylinder steht auf +Y; nach vorn gekippt schaut seine Deckfläche den
+    // Gang herunter — also zu dem hin, der davorsteht.
+    this.disc.rotation.x = -Math.PI / 2;
+    this.disc.position.set(targetX, TARGET.y, TARGET.z);
+    this.add(this.disc);
+
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, TARGET.y, 0.08), this.steel);
+    post.position.set(targetX, TARGET.y / 2, TARGET.z + 0.05);
+    this.add(post);
+
+    this.station.add(this.mount);
+    // Die Linie hängt an der Aufnahme und erbt deren Ausrichtung — sie kann gar
+    // nicht woandershin zeigen als das Werkzeug, das dort einrastet.
+    this.beam = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, -1),
+      ]),
+      this.own(new THREE.LineBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.8 })),
+    );
+    this.mount.add(this.beam);
   }
 
   /** Wo der Stand steht und wie hoch — Meter, im Raum des Gangs. */
@@ -101,6 +153,16 @@ export abstract class StandFrame extends THREE.Group {
     for (const leg of this.legs) {
       leg.scale.y = Math.max(height + leg.position.y + leg.parent!.position.y, 0.02);
     }
+
+    // Die Aufnahme sieht die eigene Scheibe an, wo der Stand auch steht:
+    // `lookAt` legt -Z auf das Ziel, und -Z ist genau die Achse, an der ein
+    // Werkzeug zielt. Damit *kann* eines im Halter nicht danebenzeigen — auch
+    // nicht, nachdem der Stand verschoben wurde.
+    _here.set(x, height, z);
+    _there.copy(this.disc.position);
+    this.mount.quaternion.setFromRotationMatrix(_matrix.lookAt(_here, _there, _up));
+    // Und die Linie reicht genau bis in die Scheibe, nicht weiter.
+    this.beam.scale.z = Math.max(_here.distanceTo(_there) - 0.06, 0.2);
   }
 
   /** Wie weit ein Punkt von einem Griff weg ist, in Metern. */
@@ -172,8 +234,15 @@ export abstract class StandFrame extends THREE.Group {
     return material;
   }
 
+  /** Wie weit ein Punkt von der Aufnahme weg ist, in Metern. */
+  mountDistance(worldPoint: THREE.Vector3): number {
+    this.mount.updateWorldMatrix(true, false);
+    return this.mount.getWorldPosition(_world).distanceTo(worldPoint);
+  }
+
   /** Geometrien und Materialien des Gestells. Unterklassen räumen ihr Eigenes. */
   protected disposeFrame(): void {
+    this.beam.geometry.dispose();
     this.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (mesh.isMesh && mesh.geometry) mesh.geometry.dispose();

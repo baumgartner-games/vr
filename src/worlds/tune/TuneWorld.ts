@@ -10,7 +10,8 @@ import {
   saveHapticPattern,
   type HapticPattern,
 } from './haptics';
-import { ToolRange, LANE, MOUNT_REACH, RACK_SLOTS, type RangeGrip } from './ToolRange';
+import { ToolRange, MOUNT_REACH, ZONE_RADIUS, type RangeGrip } from './ToolRange';
+import { LANE } from './lane';
 import { HANDLE_REACH } from './StandFrame';
 import { GripStand, HAND_REACH } from './GripStand';
 import {
@@ -56,10 +57,10 @@ import {
   type PoseReadout,
 } from '../portal/tools/toolPose';
 import { savePose } from '../portal/tools/poseStore';
-import { controllerToolId } from '../portal/tools/ControllerTool';
 import { HandTool } from '../portal/tools/HandTool';
 import { aimQuaternion, type Tool } from '../portal/tools/Tool';
 import { toolGearCode } from '../portal/tools/gearConfig';
+import { TOOL_IDS } from '../portal/tools';
 import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 
@@ -72,6 +73,8 @@ const MODEL_X = 0.34;
 /** Ein Knopf an der Wand: die Tafel, was sie tut und was gerade daraufsteht. */
 interface WallButton {
   plane: TextPlane;
+  /** Ob **Greifen** ihn auch drückt — für alles, was etwas in die Hand gibt. */
+  grab?: boolean;
   /** @param hand welche Hand darauf gezeigt hat, wenn bekannt. */
   run(hand: Handedness | null): void;
   /** Schreibt die aktuelle Beschriftung — über `label`, nie direkt. */
@@ -216,11 +219,19 @@ const DEG = 180 / Math.PI;
  * so geht.
  *
  * **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der Schießgang.**
- * Dort stehen **zwei Justierstände** nebeneinander, und sie beantworten die
- * beiden Hälften derselben Frage.
+ * Er ist von links nach rechts gelesen ein Arbeitsablauf: das Werkzeug-Menü,
+ * der Halter, der Griffstand, die Werte. Wer im Gang steht und nach vorn
+ * schaut, hat links das **Werkzeug-Menü** an der Wand — eine Kachel je
+ * Werkzeug, zu, bis man sie aufmacht. **Trigger oder Greifen** legt das
+ * gewählte in die zeigende Hand und gleichzeitig als Kopie auf den zweiten
+ * Stand: man wählt einmal, nicht zweimal.
  *
- * Der **erste** hält ein Werkzeug auf eine Zielscheibe am Ende des Gangs
- * gerichtet: *wie halte ich das Ding?*
+ * Dann kommen **zwei Justierstände** nebeneinander, jeder mit **seiner eigenen
+ * Zielscheibe** am Ende des Gangs, genau vor sich. Sie beantworten die beiden
+ * Hälften derselben Frage.
+ *
+ * Der **erste** hält ein Werkzeug auf seine Scheibe gerichtet: *wie halte ich
+ * das Ding?*
  *
  * - Ein Werkzeug in den Halter halten — es rastet ein und liegt **exakt auf
  *   die Scheibe gerichtet**. Damit ist die Zielrichtung keine Unbekannte mehr.
@@ -228,20 +239,26 @@ const DEG = 180 / Math.PI;
  *   **Greifen oder Trigger** bestätigen. Was dazwischen liegt, *ist* die
  *   Haltung (`toolPose.ts`) — und das Werkzeug springt damit in die Hand
  *   zurück, wo man sofort sieht, ob es die Scheibe trifft.
+ * - Auf dem Boden liegt dabei ein **Kreis**. Wer hineintritt, macht die Welt
+ *   durchsichtig und seine **virtuelle Hand unsichtbar**: in einer AR-Sitzung
+ *   sieht man dann die *echte* Hand am virtuellen Werkzeug und legt sie daran,
+ *   statt zu raten, wo eine Boxhand aufhört. Es ist die einzige Stelle im
+ *   Spiel, an der ein Schritt etwas schaltet, und sie hat einen Grund: genau
+ *   hier sind beide Hände voll, und beide Hände voll heißt, dass niemand einen
+ *   Knopf drückt. Ein von Hand geschaltetes AR bleibt davon unberührt.
  * - **Feinjustieren** für die letzten zwei Millimeter: die aktuelle Haltung
  *   wird geladen und als Geisterhand ans Werkzeug gestellt, und die *andere*
  *   Hand zieht sie zurecht — ein Zentimeter an der eigenen Hand ist ein
  *   Millimeter am Geist (`fineTune.ts`). Eine ausgestreckte Hand zittert um
  *   mehr als das, was hier eingestellt wird; untersetzt tut sie es nicht mehr.
- * - Daneben steht ein **Regal**: ein Griff, und man hat eine Pistole, eine
- *   Boxhand oder seinen Controller in der Hand — die drei Dinge, die man hier
- *   einmisst.
  *
- * Der **zweite** hält eine unbewegliche **Kopie** desselben Werkzeugs und
- * daran eine **Boxhand**: *wie umfasst die Hand es?* Die Kopie kann man nicht
- * nehmen und nicht schieben — sie ist der feste Punkt —, die Boxhand dagegen
- * greifen, drehen, verschieben und loslassen. Wo sie beim Loslassen liegt,
- * *ist* die Handhaltung an diesem Werkzeug (`handGrip.ts`).
+ * Der **zweite** steht rechts daneben, außerhalb des Kreises, und hält eine
+ * unbewegliche **Kopie** desselben Werkzeugs mit einer **festen Boxhand**
+ * daran: *wie umfasst die Hand es?* Die Kopie kann man nicht nehmen und nicht
+ * schieben — sie ist der feste Punkt —, die Boxhand dagegen greifen, drehen,
+ * verschieben und loslassen. Wo sie beim Loslassen liegt, *ist* die
+ * Handhaltung an diesem Werkzeug (`handGrip.ts`). Darunter hängt ein Knopf, der
+ * sie zurücksetzt, dort, wo man steht, wenn man ihn braucht.
  *
  * Zwei Stände, weil es zwei Größen sind: an einer Pistole zeigt der
  * Zeigefinger dorthin, wohin der Lauf zeigt, und das sieht richtig aus.
@@ -249,14 +266,11 @@ const DEG = 180 / Math.PI;
  * Kegel dort hinausgeht, wo bei der Pistole der Lauf sitzt — die Zielrichtung
  * stimmt, die Faust darum herum nicht.
  *
- * **AR an** macht dabei die Wände durchsichtig. Läuft die Sitzung als
- * `immersive-ar`, steht dahinter das echte Zimmer — und man sieht endlich die
- * virtuelle Hand *neben* der eigenen statt nur anstelle von ihr
- * (`seeThrough.ts`).
- *
- * An der Wand des Gangs stehen die Knöpfe beider Stände und hängt die Tafel
- * mit den Werten: dieselben sechs Zahlen wie im Raum, und darunter der
- * Konfig-Code.
+ * Und rechts an der Wand stehen die **Knöpfe** beider Stände — Höhe und Ort
+ * gehen an den Griffen am Ausleger, alles andere hier — und hängt die
+ * **Werte-Tafel**: dieselben Zahlen wie im Raum, in drei Zeilen, mit dem
+ * Konfig-Code darunter. **AR an** ist einer dieser Knöpfe, für alle, die die
+ * Welt durchsichtig haben wollen, ohne im Kreis zu stehen (`seeThrough.ts`).
  *
  * Everything else is the portal lab's, which is exactly why this is a world
  * and not a menu page: the belt, the tool shelf and the whole *Einstellungen →
@@ -308,6 +322,12 @@ export class TuneWorld extends PortalWorld {
   private unsubscribeGrip: (() => void) | null = null;
   /** Wer gerade die Boxhand am zweiten Stand in der Hand hat. */
   private handDrag: GripDrag | null = null;
+  /** Die Zeilen des Werkzeug-Menüs an der linken Wand, und ob es offen ist. */
+  private readonly menuRows: WallButton[] = [];
+  private menuOpen = false;
+  /** Ob der Kopf im Kreis am ersten Stand steht — und ob *er* das AR anhat. */
+  private inZone = false;
+  private zoneAr = false;
   private buzz: Buzz | null = null;
   private pattern: HapticPattern = hapticPattern();
   /** Was zuletzt gemessen wurde — die Werte-Tafel lebt davon. */
@@ -332,6 +352,7 @@ export class TuneWorld extends PortalWorld {
     for (const button of this.buttons) {
       ctx.pointer.add({
         object: button.plane,
+        grab: button.grab,
         onSelect: (hit) => button.run(hit.hand),
         onHover: () => button.plane.setHighlight(true),
         onBlur: () => button.plane.setHighlight(false),
@@ -359,6 +380,7 @@ export class TuneWorld extends PortalWorld {
       model.lastLine = line;
       board.setText(side === 'left' ? 'Linke Hand' : 'Rechte Hand', line, 0x9fe3ff);
     }
+    this.updateZone(ctx);
     this.updateRange(ctx);
     this.updateRangeGrips(ctx);
     this.updateGripStand(ctx);
@@ -368,6 +390,10 @@ export class TuneWorld extends PortalWorld {
 
   override dispose(ctx: WorldContext): void {
     ctx.rig.locked = false;
+    // Wer den Raum aus dem Kreis heraus verlässt, nimmt sonst unsichtbare
+    // Hände mit in die nächste Welt.
+    ctx.hands.hidden = false;
+    this.inZone = false;
     // Eine Boxhand, die noch an einer Hand hängt, gehört zurück ans Werkzeug —
     // sonst geht sie mit dem Stand weg und die Hand behält ein Kind, das es
     // nicht mehr gibt.
@@ -423,7 +449,7 @@ export class TuneWorld extends PortalWorld {
   }
 
   protected override welcome(): string {
-    return 'Prüfen: die Wand · Einmessen: der Schießgang hinter dir';
+    return 'Prüfen: die Wand · Einmessen: der Schießgang hinter dir (Menü, Halter, Griffstand)';
   }
 
   /**
@@ -623,13 +649,13 @@ export class TuneWorld extends PortalWorld {
     // Breit, weil ein Konfig-Code breit ist, und tiefer, weil man sie abliest
     // statt sie zu drücken.
     const values = new TextPlane({
-      width: 1.4,
-      height: 0.5,
+      width: 1.5,
+      height: 0.66,
       title: 'Noch nichts justiert',
       body: 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger',
       accent: 0x5ee0a0,
     });
-    values.position.set(half - thickness / 2 - 0.02, 1.42, -0.3);
+    values.position.set(half - thickness / 2 - 0.02, 1.4, -0.3);
     values.rotation.y = -Math.PI / 2;
     room.add(values);
     this.valueBoard = values;
@@ -742,8 +768,11 @@ export class TuneWorld extends PortalWorld {
     const title = readout
       ? `x ${readout.x} y ${readout.y} z ${readout.z} cm`
       : 'Noch nichts justiert';
+    // Drei Zeilen statt einer: wer, wie schräg, und der Code. Aneinandergeklebt
+    // war das ein Absatz, in dem die Tafel den Rest wegkürzte — und weggekürzt
+    // wurde immer der Code, weil er hinten steht.
     const body = readout
-      ? `${this.readoutFor} · pitch ${readout.pitch}° yaw ${readout.yaw}° roll ${readout.roll}° · ${this.code}`
+      ? `${this.readoutFor}\npitch ${readout.pitch}°  yaw ${readout.yaw}°  roll ${readout.roll}°\n${this.code}`
       : 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger';
     const line = `${title}|${body}`;
     if (line === this.lastValueText) return;
@@ -802,19 +831,27 @@ export class TuneWorld extends PortalWorld {
     range.position.set(0, 0, z0);
     room.add(range);
     this.range = range;
-    // Die Scheibe hält, was auf sie geschossen wird — sonst fliegt jede Kugel
+
+    const grip = new GripStand();
+    grip.position.set(0, 0, z0);
+    room.add(grip);
+    this.grip = grip;
+
+    // Jede Scheibe hält, was auf sie geschossen wird — sonst fliegt jede Kugel
     // durch sie hindurch in die Wand, und man sieht nicht, ob man getroffen
     // hat.
-    range.disc.updateWorldMatrix(true, false);
-    this.physics?.addStatic(range.disc);
+    for (const disc of [range.disc, grip.disc]) {
+      disc.updateWorldMatrix(true, false);
+      this.physics?.addStatic(disc);
+    }
 
     // Über der Tür und zum Raum hin: man liest es, wenn man sich umdreht, und
     // nicht erst, wenn man schon drinsteht.
     const sign = new TextPlane({
-      width: 1.9,
+      width: 2.4,
       height: 0.26,
       title: 'Schießgang',
-      body: 'Links: Werkzeug in den Halter, Hand daran, Greifen · Rechts: Boxhand am Werkzeug zurechtrücken',
+      body: 'Links das Werkzeug-Menü · dann der Halter im Kreis · dann die Boxhand am Werkzeug · rechts die Werte',
       accent: 0xffc857,
       align: 'center',
     });
@@ -822,10 +859,118 @@ export class TuneWorld extends PortalWorld {
     sign.rotation.y = Math.PI;
     room.add(sign);
 
-    const grip = new GripStand();
-    grip.position.set(0, 0, z0);
-    room.add(grip);
-    this.grip = grip;
+    this.buildToolMenu(room, z0);
+    this.buildGripPanel(grip);
+    this.buildRangePanels(room, z0);
+  }
+
+  /**
+   * Das Werkzeug-Menü an der linken Wand des Gangs.
+   *
+   * Vorher stand neben dem Halter ein Regal mit drei Fächern — Pistole,
+   * Boxhand, Controller —, und das waren genau die drei, an die jemand beim
+   * Bauen gedacht hatte. Justiert wird aber alles: der Pinsel liegt anders in
+   * der Hand als die Drohne, und wer die Taschenlampe einmessen will, lief
+   * dafür zurück ins Handgelenkmenü. Also hängt hier jetzt das **ganze Regal**
+   * an der Wand, eine Kachel je Werkzeug.
+   *
+   * Es ist zu, bis man es aufmacht: zwei Dutzend Kacheln neben dem Halter
+   * stehen sonst genau da im Weg, wo man gleich eine Hand hinhält. Und
+   * ausgewählt wird mit **Trigger oder Greifen**, weil beides dasselbe meint —
+   * gib mir das Ding in die Hand (`Pointer.grab`).
+   */
+  private buildToolMenu(room: THREE.Group, z0: number): void {
+    const x = LANE.half - 0.02;
+    const header = this.wallButton(room, 1.7, 0.3, () => this.setToolMenu(!this.menuOpen));
+    header.plane.position.set(x, 2.42, z0 + 1.48);
+    header.plane.rotation.y = -Math.PI / 2;
+    header.refresh = () => {
+      this.label(
+        header,
+        this.menuOpen ? 'Menü zu' : 'Werkzeug wählen',
+        this.menuOpen
+          ? 'Trigger oder Greifen nimmt es in die zeigende Hand'
+          : `${TOOL_IDS.length} Werkzeuge · zum Einmessen in die Hand`,
+        this.menuOpen ? GRAB_GLOW : 0x4aa8ff,
+      );
+    };
+
+    const columns = 4;
+    for (const [index, id] of TOOL_IDS.entries()) {
+      const button = this.wallButton(room, 0.58, 0.2, (hand) => this.pickTool(id, hand), true);
+      button.plane.position.set(
+        x,
+        2.14 - Math.floor(index / columns) * 0.235,
+        z0 + 0.56 + (index % columns) * 0.62,
+      );
+      button.plane.rotation.y = -Math.PI / 2;
+      button.plane.visible = false;
+      button.refresh = () => {
+        // Zu heißt zu: eine geschlossene Kachel wird nicht beschriftet, und
+        // damit wird auch nicht bei jedem Betreten des Raums jedes Werkzeug
+        // gebaut, nur um seinen Namen zu erfahren.
+        if (!this.menuOpen) return;
+        const tool = this.tool(id);
+        this.label(
+          button,
+          tool?.label ?? id,
+          '',
+          this.gripState.tool === id ? GRAB_GLOW : (tool?.accent ?? 0x9d7bff),
+        );
+      };
+      this.menuRows.push(button);
+    }
+  }
+
+  /** Kacheln zeigen oder nicht — und die Überschrift sagt, was gerade gilt. */
+  private setToolMenu(open: boolean): void {
+    this.menuOpen = open;
+    for (const row of this.menuRows) row.plane.visible = open;
+    this.refreshButtons();
+  }
+
+  /**
+   * Ein Werkzeug aus dem Menü: in die zeigende Hand, und auf den zweiten Stand.
+   *
+   * Beides, weil beides gemeint ist. Man wählt ein Werkzeug, um es einzumessen
+   * — dann gehört es in die Hand, mit der man es zum Halter trägt, *und* als
+   * Kopie an den Griffstand, damit man nicht dieselbe Auswahl zweimal trifft.
+   */
+  private pickTool(id: string, pointing: Handedness | null): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    this.cancelHandDrag(true);
+    const hand: Handedness = pointing ?? this.gripState.side;
+    this.equipTool(ctx, hand, id);
+    saveGripSettings({ tool: id, side: hand });
+    this.setToolMenu(false);
+  }
+
+  /**
+   * Der Knopf **unter** dem Griffstand: die Handhaltung zurück auf die Faust.
+   *
+   * Er hängt am Stand und nicht an der Wand, weil man ihn genau dann braucht,
+   * wenn man dort steht und die Boxhand so verschoben hat, dass sie nirgends
+   * mehr hingehört. Zur Wand zu laufen, um das zurückzunehmen, ist der Umweg,
+   * der einen davon abhält, es überhaupt zu probieren. An der Wand steht
+   * derselbe Knopf trotzdem noch — wer ihn dort sucht, findet ihn dort.
+   */
+  private buildGripPanel(grip: GripStand): void {
+    const button = this.wallButton(grip.panel, 0.62, 0.2, () => this.resetGripPose());
+    button.refresh = () => {
+      this.label(button, 'Griff zurücksetzen', handLabel(this.gripState.side), 0xffc857);
+    };
+  }
+
+  /**
+   * Die Knöpfe und die Werte-Tafel an der **rechten** Wand des Gangs.
+   *
+   * Rechts, weil links das Werkzeug-Menü hängt und die Reihenfolge im Gang die
+   * Reihenfolge der Arbeit sein soll: Werkzeug wählen, in den Halter, Griff
+   * nachziehen, Zahlen ablesen.
+   */
+  private buildRangePanels(room: THREE.Group, z0: number): void {
+    const x = -(LANE.half - 0.02);
 
     // Zwei Spalten statt einer langen Reihe: acht Knöpfe untereinander reichen
     // sonst bis auf den Boden, und der unterste ist der, den man am seltensten
@@ -833,30 +978,74 @@ export class TuneWorld extends PortalWorld {
     for (const [index, row] of this.rangeRows().entries()) {
       const button = this.wallButton(room, 0.9, 0.28, row.run);
       button.plane.position.set(
-        LANE.half - 0.02,
+        x,
         1.95 - Math.floor(index / 2) * 0.32,
-        z0 + (index % 2 === 0 ? 0.78 : 1.74),
+        z0 + (index % 2 === 0 ? 1.74 : 0.78),
       );
-      button.plane.rotation.y = -Math.PI / 2;
+      button.plane.rotation.y = Math.PI / 2;
       button.refresh = () => row.refresh(button);
     }
 
     // Die Tafel hängt weiter hinten an derselben Wand: man liest sie im
-    // Vorbeigehen zur Scheibe, und sie ist nichts zum Drücken.
+    // Vorbeigehen zur Scheibe, und sie ist nichts zum Drücken. Groß, weil auf
+    // ihr **alles** stehen soll — eine Werte-Tafel, die kürzt, lässt genau die
+    // Zahl weg, für die man hergekommen ist.
     const values = new TextPlane({
-      width: 1.2,
-      height: 0.52,
+      width: 1.7,
+      height: 0.9,
       title: 'Noch nichts justiert',
       body: 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger',
       accent: 0x5ee0a0,
     });
-    values.position.set(LANE.half - 0.02, 1.5, z0 + 3.1);
-    values.rotation.y = -Math.PI / 2;
+    values.position.set(x, 1.5, z0 + 3.3);
+    values.rotation.y = Math.PI / 2;
     room.add(values);
     this.rangeBoard = values;
   }
 
-  /** Die Knöpfe an der linken Wand des Gangs. */
+  /**
+   * Der Kreis auf dem Boden am ersten Stand.
+   *
+   * Ein Schritt hinein macht die Welt durchsichtig und die **virtuelle Hand
+   * unsichtbar**; ein Schritt heraus nimmt beides zurück. Das ist die einzige
+   * Stelle im Spiel, an der ein Schritt etwas schaltet, und sie hat einen
+   * Grund: genau hier hat man beide Hände voll — eine hält das Werkzeug, die
+   * andere soll daneben liegen —, und beide Hände voll heißt, dass niemand
+   * einen Knopf drückt.
+   *
+   * Unsichtbar wird die Hand, weil die echte daneben liegen soll. In einer
+   * AR-Sitzung sieht man sie dann wirklich, und der Vergleich, um den es hier
+   * geht, ist kein Vergleich mehr, sondern ein Blick.
+   *
+   * Ein von Hand eingeschaltetes AR bleibt an, wenn man den Kreis verlässt: der
+   * Kreis nimmt nur zurück, was er selbst angeschaltet hat.
+   */
+  private updateZone(ctx: WorldContext): void {
+    const range = this.range;
+    if (!range) return;
+    ctx.rig.getHeadMatrix(_matrix);
+    _position.setFromMatrixPosition(_matrix);
+    const inside = range.zoneDistance(_position) <= ZONE_RADIUS;
+    if (inside === this.inZone) return;
+    this.inZone = inside;
+    range.setZoneActive(inside);
+    ctx.hands.hidden = inside;
+    if (inside && !this.seeThrough.active) {
+      this.zoneAr = true;
+      this.setSeeThrough(true);
+    } else if (!inside && this.zoneAr) {
+      this.zoneAr = false;
+      this.setSeeThrough(false);
+    }
+    this.refreshButtons();
+    ctx.notify(
+      inside
+        ? 'Im Kreis: Welt durchsichtig, virtuelle Hand aus — die echte ans Werkzeug legen'
+        : 'Aus dem Kreis heraus — Hand wieder da',
+    );
+  }
+
+  /** Die Knöpfe an der rechten Wand des Gangs. */
   private rangeRows(): Array<{ refresh(button: WallButton): void; run(hand: Handedness | null): void }> {
     return [
       {
@@ -1004,13 +1193,23 @@ export class TuneWorld extends PortalWorld {
     ctx.notify(`Griff zurückgesetzt: ${this.toolLabel(tool)} · ${handLabel(side)}`);
   }
 
+  /** Die Welt durchsichtig oder wieder fest — der eine Weg dorthin. */
+  private setSeeThrough(on: boolean): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    this.seeThrough.apply(on, ctx.scene, this.shellGroup, ctx.renderer);
+    this.refreshButtons();
+  }
+
   /** Der AR-Knopf: die Welt durchsichtig, und den Himmel weg. */
   private toggleSeeThrough(): void {
     const ctx = this.context;
     if (!ctx) return;
     const on = !this.seeThrough.active;
-    this.seeThrough.apply(on, ctx.scene, this.shellGroup, ctx.renderer);
-    this.refreshButtons();
+    // Von Hand geschaltet gilt von Hand: der Kreis am Halter nimmt danach
+    // nichts mehr zurück, was er nicht selbst angeschaltet hat.
+    this.zoneAr = false;
+    this.setSeeThrough(on);
     if (!on) {
       ctx.notify('AR aus');
       return;
@@ -1133,11 +1332,9 @@ export class TuneWorld extends PortalWorld {
         continue;
       }
 
-      let taken = false;
       for (const grip of ['height', 'place'] as const) {
         if (range.gripDistance(grip, _hand) > HANDLE_REACH) continue;
         glow ??= grip;
-        taken = true;
         if (!controller.squeeze.justPressed) break;
         this.rangeDrag = {
           hand,
@@ -1151,18 +1348,6 @@ export class TuneWorld extends PortalWorld {
             ? 'Höhe: Hand heben und senken, dann loslassen'
             : 'Ort: Hand bewegen, dann loslassen',
         );
-        break;
-      }
-      if (taken) continue;
-
-      // Und das Regal daneben: ein Griff je Fach. Der Controller ist dabei
-      // kein Werkzeug, sondern eine Seite — es kommt der heraus, der zu der
-      // Hand gehört, die zugreift.
-      for (const slot of RACK_SLOTS) {
-        if (range.gripDistance(slot.key, _hand) > HANDLE_REACH) continue;
-        glow ??= slot.key;
-        if (!controller.squeeze.justPressed) break;
-        this.equipTool(ctx, hand, slot.tool === 'controller' ? controllerToolId(hand) : slot.tool);
         break;
       }
     }
@@ -1795,14 +1980,15 @@ export class TuneWorld extends PortalWorld {
    * noch keinen Kontext hat.
    */
   private wallButton(
-    room: THREE.Group,
+    parent: THREE.Object3D,
     width: number,
     height: number,
     run: (hand: Handedness | null) => void,
+    grab = false,
   ): WallButton {
     const plane = new TextPlane({ width, height, title: '', accent: 0x9fe3ff, align: 'center' });
-    room.add(plane);
-    const button: WallButton = { plane, run, refresh: () => undefined, last: '' };
+    parent.add(plane);
+    const button: WallButton = { plane, grab, run, refresh: () => undefined, last: '' };
     this.buttons.push(button);
     return button;
   }

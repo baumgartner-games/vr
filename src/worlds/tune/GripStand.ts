@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { GhostHand } from '../../core/HandVisuals';
 import { createTool } from '../portal/tools';
 import { StandFrame } from './StandFrame';
-import { clampGrip, type GripSettings } from './gripSettings';
+import { DEFAULT_GRIP, clampGrip, type GripSettings } from './gripSettings';
 import type { HandPose } from '../../core/handPose';
 import type { Handedness } from '../../core/XRInput';
 import type { Tool } from '../portal/tools/Tool';
 
-/** Wie weit der Ausleger mit den Griffen zur Seite steht. */
-const BOOM = 0.4;
+/** Wie weit der Ausleger mit den Griffen zur Seite steht — nach rechts. */
+const BOOM = -0.45;
 
 /** Wie nah eine Hand an die Boxhand muss, um sie zu nehmen. */
 export const HAND_REACH = 0.16;
@@ -47,8 +47,12 @@ const _world = new THREE.Vector3();
  * verschoben wird.
  */
 export class GripStand extends StandFrame {
-  /** Woran die Kopie hängt — und mit ihr die Boxhand. */
-  readonly mount = new THREE.Object3D();
+  /**
+   * Wohin ein Knopf gehört, der zu diesem Stand gehört: **darunter**, und zum
+   * Spieler gedreht. Er wandert mit dem Stand, weil man ihn dort drückt, wo man
+   * ohnehin steht.
+   */
+  readonly panel = new THREE.Object3D();
 
   private piece: Tool | null = null;
   private copyId = '';
@@ -57,7 +61,7 @@ export class GripStand extends StandFrame {
   private settings: GripSettings = clampGrip({});
 
   constructor() {
-    super('grip-stand', BOOM);
+    super('grip-stand', BOOM, DEFAULT_GRIP.x / 100);
     // Ein kleiner Teller unter der Kopie: irgendetwas muss sagen, dass hier
     // ein Stand ist und nicht ein Werkzeug in der Luft hängt.
     const plate = new THREE.Mesh(
@@ -66,7 +70,13 @@ export class GripStand extends StandFrame {
     );
     plate.position.y = -0.06;
     this.station.add(plate);
-    this.station.add(this.mount);
+    // Eine halbe Armlänge unter der Kopie und zum Eingang gedreht: dort schaut
+    // hin, wer vor dem Stand steht und die Boxhand ansieht.
+    // Vor die Säule, nicht in sie hinein: ein Knopf mit einem Pfosten mitten
+    // durchs Schild ist schwer zu treffen und noch schwerer zu lesen.
+    this.panel.position.set(0, -0.42, -0.14);
+    this.panel.rotation.y = Math.PI;
+    this.station.add(this.panel);
     this.apply(this.settings);
   }
 
@@ -130,7 +140,9 @@ export class GripStand extends StandFrame {
     if (key === this.ghostKey && this.ghost) return this.ghost;
     this.ghostKey = key;
     this.ghost?.dispose();
-    const ghost = new GhostHand(side, pose, { color: 0xffc857 });
+    // **Fest**, nicht gläsern: hier steht kein Geist neben der eigenen Hand,
+    // hier umfasst eine Boxhand ein Werkzeug, und man will sehen, wie.
+    const ghost = new GhostHand(side, pose, { color: 0x9fe3ff, opacity: 0.92 });
     // Kind der Kopie: ihre Lage darin ist die Haltung, und ein verschobener
     // Stand ändert daran nichts.
     this.piece.add(ghost);

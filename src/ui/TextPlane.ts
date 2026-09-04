@@ -82,13 +82,29 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
     ctx.fillText(title, x, h * (body ? 0.36 : 0.58), w - 80);
 
     if (body) {
-      const fontSize = Math.round(h * 0.13);
-      const lineHeight = fontSize * 1.3;
+      // Lieber kleiner als abgeschnitten.
+      //
+      // Vorher hing die Schriftgröße allein an der Höhe der Tafel, und wer
+      // nicht hineinpasste, bekam drei Punkte — auf einer Werte-Tafel heißt das
+      // dann, dass genau die Zahl fehlt, für die man hergekommen ist. Jetzt
+      // wird so weit verkleinert, bis alles hineinpasst; erst wenn selbst das
+      // nicht reicht, wird gekürzt. Eine Zeile, die man kaum noch liest, ist
+      // immer noch besser als eine, die nicht da ist.
       const top = h * 0.5;
-      const maxLines = Math.max(1, Math.floor((h * 0.92 - top) / lineHeight));
+      const room = h * 0.92 - top;
+      const start = Math.round(h * 0.13);
+      const floor = Math.max(11, Math.round(h * 0.055));
       ctx.fillStyle = '#9fb0d0';
-      ctx.font = `400 ${fontSize}px system-ui, sans-serif`;
-      const lines = wrap(ctx, body, w - 80);
+      let fontSize = start;
+      let lines: string[] = [];
+      for (;;) {
+        ctx.font = `400 ${fontSize}px system-ui, sans-serif`;
+        lines = wrap(ctx, body, w - 80);
+        if (lines.length * fontSize * 1.3 <= room || fontSize <= floor) break;
+        fontSize -= 1;
+      }
+      const lineHeight = fontSize * 1.3;
+      const maxLines = Math.max(1, Math.floor(room / lineHeight));
       lines.slice(0, maxLines).forEach((line, index) => {
         const isLast = index === maxLines - 1 && lines.length > maxLines;
         ctx.fillText(isLast ? `${line} …` : line, x, top + fontSize + index * lineHeight, w - 80);
@@ -99,19 +115,27 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
   }
 }
 
+/**
+ * Umbruch — und ein `\n` bricht, wo es steht.
+ *
+ * Ein Zeilenumbruch von Hand ist die einzige Möglichkeit, drei Zahlenreihen
+ * untereinander zu stellen statt sie zu einem Absatz zu verkleben, in dem man
+ * sie sucht.
+ */
 function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(' ');
   const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (ctx.measureText(candidate).width > maxWidth && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = candidate;
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    for (const word of paragraph.split(' ')) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
     }
+    lines.push(line);
   }
-  if (line) lines.push(line);
   return lines;
 }

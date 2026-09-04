@@ -20,6 +20,15 @@ export interface PointerTarget {
   /** Allow direct touch with the index fingertip. Defaults to true. */
   pokeable?: boolean;
   /**
+   * **Greifen** wählt hier auch aus, nicht nur Trigger und `A`.
+   *
+   * Für Tafeln, die etwas *in die Hand geben* — ein Werkzeug aus einem Regal
+   * etwa. Wer nach einem Ding greift, drückt Greifen; dass dafür ausgerechnet
+   * der Trigger zuständig wäre, ist eine Regel, die man sich merken müsste.
+   * Aus für alles andere, denn Greifen hat überall sonst eine eigene Aufgabe.
+   */
+  grab?: boolean;
+  /**
    * Hands this target does not listen to. A panel that rides on a hand has to
    * say so: the ray comes out of the same hand that carries it, would rest on
    * its own panel all the time — and a resting pointer swallows the trigger of
@@ -192,9 +201,12 @@ export class Pointer {
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
 
     // Deliberately a button press: hovering alone never triggers anything.
-    if (hit && (controller.trigger.justPressed || controller.primary.justPressed)) {
-      hit.target.onSelect?.(hit.hit);
-    }
+    if (!hit) return;
+    const pressed =
+      controller.trigger.justPressed ||
+      controller.primary.justPressed ||
+      (hit.target.grab === true && controller.squeeze.justPressed);
+    if (pressed) hit.target.onSelect?.(hit.hit);
   }
 
   // --- ray from the 2D screen --------------------------------------------

@@ -216,7 +216,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Handgelenks über den eigenen Knopf streichen.
 - **Türkis heißt anfassen**: alles, was eine Hand nehmen darf, hat dieselbe
   Farbe — die Griffe der Werkzeuge, der Ring um die Linse der Taschenlampe,
-  die Plätze am Gürtel, die Griffe an den Justierständen im Eingaberaum. Eine Spülmaschine
+  die Plätze am Gürtel, die Griffe an den Justierständen im Eingaberaum, der
+  Kreis auf dem Boden davor. Eine Spülmaschine
   sagt einem auch nie, wo der Griff ist; sie färbt ihn, und danach greift
   jeder beim ersten Mal richtig. In VR wiegt das schwerer als daheim, weil ein
   Werkzeug ein Klotz aus Dreiecken ist und man ihm nicht ansieht, ob man es am
@@ -417,7 +418,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Damit ist ihre Lage im Griff dieselbe Zahlenreihe, mit der `HandVisuals`
     die Hand zeichnet: legt man sie im Schießgang in den Halter und misst sie
     ein wie eine Pistole, landet das Ergebnis in der **Grundhaltung** dieser
-    Hand und nicht im Werkzeug-Speicher (`tools/HandTool.ts`). Sie ersetzt den
+    Hand und nicht im Werkzeug-Speicher (`tools/HandTool.ts`). Zu holen ist sie
+    dort, wo man sie braucht: aus dem Werkzeug-Menü an der Wand des Gangs. Sie ersetzt den
     das alte Justier-Werkzeug und den Tisch mit der Geisterhand: ein Weg statt
     dreier, und der, den man ohnehin kennt.
   - **Controller links / Controller rechts**: das echte Gerät als Werkzeug,
@@ -564,16 +566,32 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   greift und das dann mitkommt, prüft die Physik; hier soll die Hand ruhig an
   etwas Festem liegen, also bewegt sich der Griff nicht.
 
-  **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der
-  Schießgang**, und dort stehen **zwei Justierstände** nebeneinander. Sie
-  beantworten die beiden Hälften derselben Frage: der erste *wie halte ich das
-  Ding?*, der zweite *wie umfasst die Hand es?*
+  **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der Schießgang**
+  (`tune/lane.ts` hat seine Maße). Von links nach rechts gelesen ist er ein
+  Arbeitsablauf: **Werkzeug-Menü**, **Halter**, **Griffstand**, **Werte** — und
+  „links" heißt hier aus Sicht dessen, der im Gang nach vorn schaut, also +X,
+  während rechts -X ist. Genau deshalb ist der Gang breit: vier Dinge
+  nebeneinander, zwei davon mit einem Ausleger voller Griffe.
 
-  Der **erste Stand** hat eine Zielscheibe am Ende des Gangs vor sich
-  (`tune/ToolRange.ts`). Ein Werkzeug liegt nicht richtig oder falsch, es
-  **zeigt** richtig oder falsch — und wohin es zeigt, sieht man an nichts so
-  gut wie an einer Scheibe am Ende eines Gangs. Ein Werkzeug, das man in den
-  **Halter** hält, rastet
+  An der **linken Wand** hängt das **Werkzeug-Menü**: eine Kachel je Werkzeug,
+  zu, bis man den Knopf darüber drückt. **Trigger oder Greifen** legt das
+  gewählte in die zeigende Hand *und* als Kopie auf den zweiten Stand — man
+  wählt einmal, nicht zweimal. Vorher stand neben dem Halter ein Regal mit drei
+  Fächern, und das waren genau die drei, an die beim Bauen jemand gedacht hatte;
+  justiert wird aber alles. Dass Greifen dort auch auswählt, ist eine Zeile im
+  Pointer (`PointerTarget.grab`): wer nach einem Ding greift, drückt Greifen,
+  und dass dafür der Trigger zuständig wäre, ist eine Regel, die man sich
+  merken müsste.
+
+  Dann kommen **zwei Justierstände** nebeneinander, und **jeder hat seine
+  eigene Zielscheibe** am Ende des Gangs, genau vor sich. Sie beantworten die
+  beiden Hälften derselben Frage: der erste *wie halte ich das Ding?*, der
+  zweite *wie umfasst die Hand es?*
+
+  Der **erste Stand** (`tune/ToolRange.ts`): ein Werkzeug liegt nicht richtig
+  oder falsch, es **zeigt** richtig oder falsch — und wohin es zeigt, sieht man
+  an nichts so gut wie an einer Scheibe am Ende eines Gangs. Ein Werkzeug, das
+  man in den **Halter** hält, rastet
   ein und liegt dort exakt auf die Scheibe gerichtet; damit ist die
   Zielrichtung keine Unbekannte mehr. Dann führt man die Hand ans Werkzeug,
   dorthin, wo man es halten will, und bestätigt mit **Greifen oder Trigger**:
@@ -590,6 +608,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   es kann von ihr nicht wegdriften, auch nicht, während der Stand verschoben
   wird.
 
+  Auf dem Boden liegt dabei ein **Kreis**. Wer hineintritt, macht die Welt
+  durchsichtig und seine **virtuelle Hand unsichtbar**; wer heraustritt, nimmt
+  beides zurück. In einer AR-Sitzung sieht man drinnen also die **echte** Hand
+  am virtuellen Werkzeug und legt sie daran, statt zu raten, wo eine Boxhand
+  aufhört und die eigene anfängt. Es ist die einzige Stelle im Spiel, an der
+  ein **Schritt** etwas schaltet, und sie hat einen Grund: genau hier sind
+  beide Hände voll — eine hält das Werkzeug, die andere soll daneben liegen —,
+  und beide Hände voll heißt, dass niemand einen Knopf drückt. Ein von Hand
+  geschaltetes AR bleibt davon unberührt: der Kreis nimmt nur zurück, was er
+  selbst angeschaltet hat.
+
   **Höhe und Ort hängen bei beiden Ständen an zwei Griffen** an einem
   Ausleger, einen halben Meter zur Seite (`tune/StandFrame.ts`,
   `tune/rangeSettings.ts` und `tune/gripSettings.ts`, beide mit Test): oben ein
@@ -602,24 +631,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   bei beiden dieselben, damit man nicht zweimal lernt, wie ein Stand
   verschoben wird.
 
-  Neben dem ersten Stand steht ein **Regal** mit drei Fächern, das mit ihm
-  mitwandert: ein Griff, und man hat eine **Pistole**, die **Boxhand** oder
-  seinen **Controller** in der Hand, ohne durch den halben Raum zum Regal zu
-  laufen — die drei Dinge, die man hier einmisst. Welcher der beiden Controller
-  herauskommt, hängt an der Hand, die zugreift. Ausgestellt ist jeweils ein
-  eigenes Exemplar, das nie jemand bekommt, sonst wäre das Fach nach dem ersten
-  Griff leer.
-
-  Der **zweite Stand** hält eine unbewegliche **Kopie** desselben Werkzeugs und
-  daran eine **Boxhand** (`tune/GripStand.ts`, Rechnung in `tune/handGrip.ts`
-  mit Test). Die Kopie kann man nicht nehmen, nicht schieben und nicht
-  einrasten lassen — sie *ist* der feste Punkt, und ein fester Punkt, den man
-  versehentlich mitnimmt, ist keiner. Die Boxhand dagegen greift man, dreht
-  sie, verschiebt sie und lässt sie los; wo sie dann liegt, *ist* die
-  Handhaltung an diesem Werkzeug. `A` bricht ab. Sie hängt dabei wirklich an
-  der Hand (`Object3D.attach`) statt Bild für Bild nachgerechnet zu werden: was
-  man hält, hält man 1:1, und ein Umhängen kann keine Rundungsfehler
-  aufsummieren.
+  Der **zweite Stand** steht **rechts daneben und außerhalb des Kreises** —
+  dort soll die Welt ja gerade nicht durchsichtig sein, denn hier sieht man eine
+  Boxhand an. Er hält eine unbewegliche **Kopie** desselben Werkzeugs und daran
+  eine **feste Boxhand** (`tune/GripStand.ts`, Rechnung in `tune/handGrip.ts`
+  mit Test) — fest und nicht gläsern, weil sie hier das Ding ist, um das es
+  geht, und kein Vergleichsstück. Die Kopie kann man nicht nehmen, nicht
+  schieben und nicht einrasten lassen: sie *ist* der feste Punkt, und ein
+  fester Punkt, den man versehentlich mitnimmt, ist keiner. Die Boxhand dagegen
+  greift man, dreht sie, verschiebt sie und lässt sie los; wo sie dann liegt,
+  *ist* die Handhaltung an diesem Werkzeug. `A` bricht ab. Sie hängt dabei
+  wirklich an der Hand (`Object3D.attach`) statt Bild für Bild nachgerechnet zu
+  werden: was man hält, hält man 1:1, und ein Umhängen kann keine
+  Rundungsfehler aufsummieren. **Darunter** hängt ein Knopf, der die Haltung
+  zurücksetzt — dort, wo man steht, wenn man ihn braucht; an der Wand steht
+  derselbe noch einmal.
 
   **Warum zwei Stände und nicht einer**: an einer Pistole zeigt der
   Zeigefinger dorthin, wohin der Lauf zeigt, und das sieht richtig aus.
@@ -644,9 +670,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Hand ist ein Millimeter am Geist, ein Grad ein Zehntelgrad
   (`tune/fineTune.ts` mit Test). Eine ausgestreckte Hand zittert um mehr, als
   hier eingestellt wird; untersetzt tut sie es nicht mehr. Der Trigger legt
-  fest, `A` bricht ab. Daneben hängt dieselbe **Werte-Tafel** wie im Raum, mit
-  denselben sechs Zahlen und dem Konfig-Code — wer im Gang steht, läuft für
-  seine eigenen Zahlen nicht zurück in den Raum.
+  fest, `A` bricht ab. An derselben Wand hängt dieselbe **Werte-Tafel** wie im
+  Raum, mit denselben sechs Zahlen und dem Konfig-Code — wer im Gang steht,
+  läuft für seine eigenen Zahlen nicht zurück in den Raum. Sie ist groß und
+  dreizeilig, weil auf ihr **alles** stehen soll: eine Tafel, die kürzt, lässt
+  den Code weg, weil der hinten steht, und der Code ist der Grund, warum man
+  hinsieht. `TextPlane` verkleinert deshalb die Schrift, bis alles hineinpasst,
+  statt zu kürzen, und ein `\n` bricht die Zeile, wo es steht.
 
   Ein Knopf dort ist **AR an/aus**: er blendet Wände, Boden und Decke
   durchsichtig (`tune/seeThrough.ts`), damit die virtuelle Hand nicht mehr
@@ -672,7 +702,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   aber rechts hängen, die Bank links steht, der Schießgang hinten liegt, und
   man im Sessel an nichts davon hinkommt, gibt es neben dem Schild
   einen **Knopf, der den Stick freigibt** — ausdrücklich und sichtbar, statt
-  dass es einfach so geht. Gürtel und Regal sind da, denn die Hand, die man
+  dass es einfach so geht. Gürtel und Werkzeugregal sind da, denn die Hand, die man
   ansieht, ist die, die man einstellt; am Gürtel hängen die **Boxhand** links
   und die **Pistole** rechts, die beiden Dinge, für die man herkommt.
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
@@ -769,12 +799,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug-Einstellungen | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand) | Linksklick auf den Pfeil | tippen |
 | Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe an der rechten Wand im Eingaberaum | – | – |
 | Werkzeug einmessen (Schießgang) | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück | – | – |
-| Haltung feinjustieren (Schießgang) | *Feinjustieren* an der linken Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
-| AR an/aus (Schießgang) | Knopf *AR* an der linken Wand — Wände werden durchsichtig | – | – |
-| Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab | – | – |
-| Grundhaltung einmessen | Boxhand aus dem Regal nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger** | – | – |
+| Haltung feinjustieren (Schießgang) | *Feinjustieren* an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
+| Werkzeug wählen (Schießgang) | *Werkzeug wählen* an der linken Wand, dann eine Kachel mit **Trigger oder Greifen** — es kommt in die zeigende Hand und als Kopie auf den zweiten Stand | – | – |
+| AR an/aus (Schießgang) | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf *AR* an der rechten Wand | – | – |
+| Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt zurück | – | – |
+| Grundhaltung einmessen | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger** | – | – |
 | Stand stellen (beide) | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert | – | – |
-| Aus dem Regal nehmen | Greifen an einem der drei Fächer: Pistole, Boxhand, Controller der greifenden Hand | – | – |
 | Vibration ausprobieren | Griff auf der Bank links greifen und halten | – | – |
 | Greifhaken | Trigger (halten zieht) | – | – |
 | Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |

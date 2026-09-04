@@ -29,7 +29,11 @@ export interface RangeSettings {
 
 export const DEFAULT_RANGE: RangeSettings = {
   height: 106,
-  x: -30,
+  // Etwas links der Mitte des Gangs, mit Platz für den Kreis auf dem Boden und
+  // für den zweiten Stand rechts daneben — der soll außerhalb des Kreises
+  // stehen, sonst wird die Welt durchsichtig, während man dort eine Boxhand
+  // ansieht.
+  x: 65,
   z: 155,
 };
 
@@ -45,8 +49,9 @@ export const RANGE_FIELDS: readonly RangeField[] = [
   // Vom Sessel bis über Schulterhöhe — darunter greift niemand, darüber sieht
   // niemand mehr an der eigenen Hand vorbei.
   { key: 'height', label: 'Höhe', min: 40, max: 170 },
-  // Innerhalb des Gangs bleiben: ein Stand in der Wand ist keiner.
-  { key: 'x', label: 'Quer', min: -95, max: 95 },
+  // Innerhalb des Gangs bleiben, und zwar mit dem Ausleger: ein Stand in der
+  // Wand ist keiner, und ein Griff darin auch nicht.
+  { key: 'x', label: 'Quer', min: -160, max: 160 },
   // Hinter der Tür anfangen, vor der Scheibe aufhören.
   { key: 'z', label: 'Längs', min: 60, max: 600 },
 ];
