@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { XRInput } from './XRInput';
+import type { Handedness, XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
 import { STANDING_EYE, eyeHeights, playerPosture, seatedLift, type Posture } from './posture';
 
@@ -82,6 +82,15 @@ export class PlayerRig extends THREE.Group {
    * it is nothing but a distraction.
    */
   locked = false;
+  /**
+   * Ein Stick, der diese Frame dem Menü gehört.
+   *
+   * Wer aufs Panel zeigt und mit dem Stick blättert, will blättern — und nicht
+   * nebenbei durch den Raum laufen oder sich wegdrehen. Das Menü sagt jede
+   * Frame, welche Hand es gerade braucht (`WristMenus.scrollHand`); alles
+   * andere an dieser Hand bleibt normal, es ist nur der Stick.
+   */
+  menuStick: Handedness | null = null;
 
   private readonly intent = new THREE.Vector3();
   private intentJump = false;
@@ -269,7 +278,7 @@ export class PlayerRig extends THREE.Group {
     if (presenting) {
       const left = input.get('left');
       this.updateStance(dt, input);
-      const stick = this.locked ? null : left?.thumbstick;
+      const stick = this.locked || this.menuStick === 'left' ? null : left?.thumbstick;
       if (stick && (stick.x !== 0 || stick.y !== 0)) {
         this.getHeadForward(_forward);
         _strafe.copy(_forward).cross(UP).normalize();
@@ -287,7 +296,7 @@ export class PlayerRig extends THREE.Group {
     this.intent.set(0, 0, 0);
     this.intentJump = false;
 
-    if (presenting && !this.locked) {
+    if (presenting && !this.locked && this.menuStick !== 'right') {
       const turn = input.get('right')?.thumbstick.x ?? 0;
       if (this.snapArmed && Math.abs(turn) > 0.7) {
         this.rotateAroundHead(-Math.sign(turn) * this.snapAngle);

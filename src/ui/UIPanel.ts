@@ -26,6 +26,18 @@ export interface PageOptions {
   key?: string;
   /** Where a page that really *is* new starts. */
   scroll?: number;
+  /**
+   * Wie viele Einträge am Anfang **stehen bleiben**, statt mitzuscrollen.
+   *
+   * Eins davon, immer: die *Zurück*-Zeile. Sie war bisher der erste Eintrag
+   * einer normalen Liste und damit weg, sobald man drei Zeilen weit geblättert
+   * hatte — und dann kommt man aus einer langen Seite nur wieder heraus, indem
+   * man erst blind nach oben blättert. Eine Webseite lässt ihren Kopf auch
+   * stehen. Angeheftete Einträge werden als Zeilen gezeichnet, auch auf einer
+   * Rasterseite: dort ist es dann ein Kopfbalken über dem Raster, was genau
+   * das ist, wonach es aussieht.
+   */
+  pinned?: number;
 }
 
 export interface PanelOptions {
@@ -43,13 +55,11 @@ const FOOTER_H = 76;
 
 const ROW_H = 122;
 const ROW_GAP = 14;
-const MAX_ROWS = Math.floor((CANVAS_H - HEADER_H - FOOTER_H) / (ROW_H + ROW_GAP));
 
 const GRID_COLS = 3;
 const GRID_GAP = 16;
 const CELL_W = Math.floor((CANVAS_W - PAD * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
 const CELL_H = CELL_W + 44;
-const MAX_GRID_ROWS = Math.floor((CANVAS_H - HEADER_H - FOOTER_H) / (CELL_H + GRID_GAP));
 
 /**
  * A canvas-textured panel that shows a page of menu entries — as a list, or as
@@ -61,6 +71,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private readonly texture: THREE.CanvasTexture;
   private entries: MenuEntry[] = [];
   private grid = false;
+  private pinned = 0;
   private hover = -1;
   private title: string;
   private footer: string;
@@ -108,13 +119,14 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.title = title;
     this.entries = entries;
     this.grid = options.grid ?? false;
+    this.pinned = Math.min(Math.max(0, Math.floor(options.pinned ?? 0)), entries.length);
     this.hint = options.hint ?? '';
     this.scroll = pageScroll({
       previousKey: this.pageKey,
       key,
       current: this.scroll,
       ...(options.scroll === undefined ? {} : { remembered: options.scroll }),
-      entries: entries.length,
+      entries: entries.length - this.pinned,
       pageSize: this.pageSize,
     });
     // What the pointer rested on only survives on the page it belonged to.
@@ -128,12 +140,36 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   /** True while the page holds more than fits — then the stick has a job. */
   get scrollable(): boolean {
-    return this.entries.length > this.pageSize;
+    return this.entries.length - this.pinned > this.pageSize;
   }
 
   /** How far down the page currently sits — what a caller remembers for later. */
   get scrollOffset(): number {
     return this.scroll;
+  }
+
+  /** Wie viele Einträge auf einmal daraufpassen — das Maß fürs Wischen. */
+  get rowsPerPage(): number {
+    return this.pageSize;
+  }
+
+  /**
+   * Springt an eine Stelle, statt sich um Zeilen weiterzuschieben.
+   *
+   * Das Wischen rechnet gegen den Stand beim Zupacken und nicht gegen den
+   * letzten Frame — sonst driftet die Liste unter dem Finger weg, sobald ein
+   * einziger Frame ausfällt.
+   *
+   * @returns true, wenn sich wirklich etwas bewegt hat
+   */
+  scrollTo(offset: number): boolean {
+    const next = THREE.MathUtils.clamp(Math.round(offset), 0, this.maxScroll);
+    if (next === this.scroll) return false;
+    this.scroll = next;
+    this.hover = -1;
+    this.hovered.index = -1;
+    this.draw();
+    return true;
   }
 
   /**
@@ -144,14 +180,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
    */
   scrollBy(rows: number): boolean {
     if (!this.scrollable) return false;
-    const step = this.grid ? GRID_COLS : 1;
-    const next = THREE.MathUtils.clamp(this.scroll + rows * step, 0, this.maxScroll);
-    if (next === this.scroll) return false;
-    this.scroll = next;
-    this.hover = -1;
-    this.hovered.index = -1;
-    this.draw();
-    return true;
+    return this.scrollTo(this.scroll + rows * (this.grid ? GRID_COLS : 1));
   }
 
   setStatus(status: string): void {
@@ -160,14 +189,25 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
-  /** Entry the pointer currently rests on, with the hand that points at it. */
-  hovered: { index: number; hand: Handedness | null } = { index: -1, hand: null };
+  /**
+   * Entry the pointer currently rests on, with the hand that points at it —
+   * und **wo** auf dem Panel der Strahl aufsetzt (`v`, 0 unten bis 1 oben).
+   *
+   * Das `v` ist das, woraus das Wischen entsteht: Trigger halten und die Hand
+   * bewegen ist genau eine Änderung dieser einen Zahl.
+   */
+  hovered: { index: number; hand: Handedness | null; v: number } = {
+    index: -1,
+    hand: null,
+    v: 0,
+  };
 
   asPointerTarget(): PointerTarget {
     return {
       object: this,
       onHover: (hit) => {
         this.hovered.hand = hit.hand;
+        if (hit.uv) this.hovered.v = hit.uv.y;
         this.setHover(hit.uv ? this.indexAt(hit.uv) : -1);
       },
       onBlur: () => {
@@ -211,24 +251,38 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
-  /** How many entries fit on one page. */
+  /** Wo der scrollende Teil anfängt: unter dem Titel und dem Kopfbalken. */
+  private get bodyTop(): number {
+    return HEADER_H + this.pinned * (ROW_H + ROW_GAP);
+  }
+
+  /** How many entries fit on one page — der Kopfbalken nimmt Platz weg. */
   private get pageSize(): number {
-    return this.grid ? MAX_GRID_ROWS * GRID_COLS : MAX_ROWS;
+    const body = CANVAS_H - this.bodyTop - FOOTER_H;
+    return this.grid
+      ? Math.max(GRID_COLS, Math.floor(body / (CELL_H + GRID_GAP)) * GRID_COLS)
+      : Math.max(1, Math.floor(body / (ROW_H + ROW_GAP)));
   }
 
   /** The furthest down this page can go without scrolling past its last row. */
   private get maxScroll(): number {
-    return Math.max(0, this.entries.length - this.pageSize);
+    return Math.max(0, this.entries.length - this.pinned - this.pageSize);
   }
 
   private get visibleCount(): number {
-    return Math.min(this.entries.length - this.scroll, this.pageSize);
+    return Math.min(this.entries.length - this.pinned - this.scroll, this.pageSize);
   }
 
   private indexAt(uv: THREE.Vector2): number {
     const x = uv.x * CANVAS_W;
-    const y = (1 - uv.y) * CANVAS_H - HEADER_H;
+    let y = (1 - uv.y) * CANVAS_H - HEADER_H;
     if (y < 0 || x < PAD || x > CANVAS_W - PAD) return -1;
+
+    if (this.pinned > 0) {
+      const row = Math.floor(y / (ROW_H + ROW_GAP));
+      if (row < this.pinned) return y % (ROW_H + ROW_GAP) > ROW_H ? -1 : row;
+      y -= this.pinned * (ROW_H + ROW_GAP);
+    }
 
     if (this.grid) {
       const column = Math.floor((x - PAD) / (CELL_W + GRID_GAP));
@@ -237,13 +291,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       if ((x - PAD) % (CELL_W + GRID_GAP) > CELL_W) return -1;
       if (y % (CELL_H + GRID_GAP) > CELL_H) return -1;
       const index = row * GRID_COLS + column;
-      return index < this.visibleCount ? this.scroll + index : -1;
+      return index < this.visibleCount ? this.pinned + this.scroll + index : -1;
     }
 
     const index = Math.floor(y / (ROW_H + ROW_GAP));
     if (index < 0 || index >= this.visibleCount) return -1;
     if (y % (ROW_H + ROW_GAP) > ROW_H) return -1;
-    return this.scroll + index;
+    return this.pinned + this.scroll + index;
   }
 
   private cardHeight(): number {
@@ -251,7 +305,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     const body = this.grid
       ? Math.ceil(count / GRID_COLS) * (CELL_H + GRID_GAP)
       : count * (ROW_H + ROW_GAP);
-    return Math.min(CANVAS_H, HEADER_H + body + FOOTER_H);
+    return Math.min(CANVAS_H, this.bodyTop + body + FOOTER_H);
   }
 
   private draw(): void {
@@ -277,8 +331,15 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.font = '700 46px system-ui, sans-serif';
     ctx.fillText(this.title, PAD, 118);
 
+    // Der Kopfbalken zuerst: er steht, egal wie weit die Liste darunter
+    // gescrollt ist — auf einer Rasterseite genauso, dort als Zeile über den
+    // Kacheln.
+    for (let i = 0; i < this.pinned; i++) {
+      this.drawRow(this.entries[i]!, HEADER_H + i * (ROW_H + ROW_GAP), i === this.hover);
+    }
+
     for (let i = 0; i < this.visibleCount; i++) {
-      const index = this.scroll + i;
+      const index = this.pinned + this.scroll + i;
       const entry = this.entries[index]!;
       if (this.grid) {
         const column = i % GRID_COLS;
@@ -286,17 +347,20 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
         this.drawCell(
           entry,
           PAD + column * (CELL_W + GRID_GAP),
-          HEADER_H + row * (CELL_H + GRID_GAP),
+          this.bodyTop + row * (CELL_H + GRID_GAP),
           index === this.hover,
         );
       } else {
-        this.drawRow(entry, HEADER_H + i * (ROW_H + ROW_GAP), index === this.hover);
+        this.drawRow(entry, this.bodyTop + i * (ROW_H + ROW_GAP), index === this.hover);
       }
     }
     this.drawScrollbar(cardH);
 
     const footer =
-      this.status || (this.scrollable ? 'Stick hoch/runter blättert' : '') || this.hint || this.footer;
+      this.status ||
+      (this.scrollable ? 'Stick oder Trigger halten und wischen blättert' : '') ||
+      this.hint ||
+      this.footer;
     if (footer) {
       ctx.fillStyle = this.status ? '#9fd0ff' : '#71809e';
       ctx.font = '400 24px system-ui, sans-serif';
@@ -310,12 +374,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private drawScrollbar(cardH: number): void {
     if (!this.scrollable) return;
     const ctx = this.ctx;
-    const top = HEADER_H - 6;
+    const top = this.bodyTop - 6;
     const height = cardH - FOOTER_H - top;
     const x = CANVAS_W - 24;
-    const portion = this.pageSize / this.entries.length;
+    const rows = this.entries.length - this.pinned;
+    const portion = this.pageSize / rows;
     const thumb = Math.max(40, height * portion);
-    const travel = (height - thumb) * (this.scroll / Math.max(1, this.entries.length - this.pageSize));
+    const travel = (height - thumb) * (this.scroll / Math.max(1, rows - this.pageSize));
 
     ctx.beginPath();
     ctx.roundRect(x, top, 9, height, 5);

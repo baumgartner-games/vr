@@ -721,6 +721,9 @@ export class App {
     // the world, the spectator after it.
     this.flat.enabled = !presenting && !this.spectating;
     if (!presenting) this.flat.update();
+    // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
+    // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
+    this.rig.menuStick = this.wristMenu.scrollHand;
     this.rig.update(dt, this.input, presenting, this.pointer.hovering);
 
     const context = this.context;

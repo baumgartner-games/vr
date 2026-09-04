@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { UIPanel } from './UIPanel';
 import { TextPlane } from './TextPlane';
 import type { MenuEntry } from './menu';
+import { MenuNav } from './menuNav';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
 
@@ -36,12 +37,25 @@ const SCROLL_OFF = 0.3;
 /** Holding the stick keeps scrolling: the first repeat waits, the rest run. */
 const SCROLL_FIRST_DELAY = 0.42;
 const SCROLL_REPEAT = 0.16;
+/**
+ * Wie weit der Strahl über das Panel wandern muss, damit aus einem Druck ein
+ * Wischen wird — in Bruchteilen der Panelhöhe.
+ *
+ * Klein genug, dass eine Wischbewegung sofort greift, und groß genug, dass die
+ * Hand beim Drücken zittern darf, ohne dass die Zeile darunter wegrutscht.
+ */
+const SWIPE_SLOP = 0.02;
 
 export interface WristMenuOptions {
   title?: string;
   footer?: string;
   /** Which wrist it rides on. Both hands carry one; see `WristMenus`. */
   hand?: Handedness;
+  /**
+   * Wo im Baum man ist — von beiden Händen geteilt. Ohne einen gemeinsamen
+   * Weg fängt die zweite Hand jedes Mal ganz oben an.
+   */
+  nav?: MenuNav;
   /** Opened or closed — the pair uses it to keep only one panel up. */
   onToggle?(menu: WristMenu, open: boolean): void;
 }
@@ -70,7 +84,11 @@ export class WristMenu extends THREE.Group {
   private buttonCanvas: HTMLCanvasElement;
   private buttonHot = false;
   private root: MenuEntry[] = [];
+  private rootTitle = 'Menü';
   private stack: Page[] = [];
+  /** Der geteilte Weg durch den Baum — beide Handgelenke lesen denselben. */
+  private readonly nav: MenuNav;
+  private readonly unwatchNav: () => void;
   /**
    * Hand pose at the moment the menu opened. The panel starts upright from
    * there and only tilts by however much the wrist has turned since — trying
@@ -81,14 +99,26 @@ export class WristMenu extends THREE.Group {
   private scrollTimer = 0;
   private scrollArmed = true;
   /**
-   * How far each page was scrolled when it was last left, by page id.
+   * Wer gerade mit gehaltenem Trigger über das Panel wischt.
    *
-   * Keyed by id rather than kept in the stack, because the stack is thrown
-   * away and rebuilt whenever the tree is refreshed — and it outlives closing
-   * the menu, so coming back to the tool shelf or the magic bag lands where
-   * you were rather than at the top of the list.
+   * Gerechnet wird gegen den Stand beim Zupacken: `v0` ist, wo der Strahl
+   * aufsetzte, `scroll0`, wie weit die Liste da stand. Gegen den letzten Frame
+   * zu rechnen driftet, sobald ein Frame ausfällt — und in einer Brille fällt
+   * regelmäßig einer aus.
    */
-  private readonly scrolls = new Map<string, number>();
+  private swipe: { hand: Handedness; v0: number; scroll0: number; moved: boolean } | null = null;
+  /**
+   * Eine Auswahl, die noch nicht ausgeführt ist.
+   *
+   * Der Trigger wählt beim *Drücken* aus — überall sonst genau richtig, hier
+   * aber im Weg: derselbe Trigger hält beim Wischen die Liste fest, und dann
+   * hätte jedes Wischen zuerst die Zeile gedrückt, auf der es anfing. Also
+   * wartet eine Auswahl, bis der Trigger wieder los ist, und fällt weg, wenn
+   * daraus eine Wischbewegung wurde. Ein Druck ohne Bewegung kommt eine Frame
+   * später durch, was niemand merkt; `A` ebenso, weil dabei der Trigger von
+   * vornherein nicht gedrückt ist.
+   */
+  private pending: { index: number; hand: Handedness } | null = null;
 
   constructor(
     private readonly pointer: Pointer,
@@ -96,8 +126,11 @@ export class WristMenu extends THREE.Group {
   ) {
     super();
     this.hand = options.hand ?? 'left';
+    this.nav = options.nav ?? new MenuNav();
     this.onToggle = options.onToggle ?? null;
     this.name = `wrist-menu-${this.hand}`;
+    // Die andere Hand ist eine Ebene tiefer gegangen: dieselbe Seite hier.
+    this.unwatchNav = this.nav.onChange(() => this.applyNav());
 
     this.buttonCanvas = document.createElement('canvas');
     this.buttonCanvas.width = 256;
@@ -173,23 +206,14 @@ export class WristMenu extends THREE.Group {
    * its next notch, a world is entered — and every rebuild used to drop the
    * player back at the top level. So the page they were looking at is walked
    * out again by id afterwards; a page that has since gone away simply stops
-   * the walk at its parent.
+   * the walk at its parent (`menuNav.ts`).
    */
   setRoot(entries: MenuEntry[], title = 'Menü'): void {
     this.root = entries;
+    this.rootTitle = title;
     this.keepScroll();
-    const base = this.stack[0] ?? { title, entries, grid: false, take: false, id: 'root' };
-    const path = this.stack.slice(1).map((page) => page.id);
-    this.stack = [{ ...base, entries }];
-
-    let level = entries;
-    for (const id of path) {
-      const entry = level.find((candidate) => candidate.id === id);
-      if (!entry?.children) break;
-      this.stack.push(pageOf(entry));
-      level = entry.children;
-    }
-    this.applyPage();
+    this.nav.prune(entries);
+    this.applyNav();
   }
 
   /** Opens the submenu of a root entry, e.g. after using an item from it. */
@@ -197,9 +221,29 @@ export class WristMenu extends THREE.Group {
     const entry = this.root.find((candidate) => candidate.id === id);
     if (!entry?.children) return;
     this.keepScroll();
-    this.stack.length = 1;
-    this.pushPage(entry);
+    this.nav.goTo([id]);
     this.toggle(true);
+  }
+
+  /**
+   * Der Weg aus dem geteilten Merkzettel, auf diesem Panel.
+   *
+   * Läuft auch auf dem geschlossenen Panel: es soll beim Aufmachen dieselbe
+   * Seite zeigen und nicht erst eine Frame lang die alte.
+   */
+  private applyNav(): void {
+    const path = this.nav.path;
+    this.stack = [
+      { title: this.rootTitle, entries: this.root, grid: false, take: false, id: 'root' },
+    ];
+    let level: MenuEntry[] = this.root;
+    for (const id of path) {
+      const entry = level.find((candidate) => candidate.id === id);
+      if (!entry?.children) break;
+      this.stack.push(pageOf(entry));
+      level = entry.children;
+    }
+    this.applyPage();
   }
 
   setStatus(status: string): void {
@@ -216,6 +260,13 @@ export class WristMenu extends THREE.Group {
     this.panel.visible = this.open;
     // Every fresh opening re-centres the tilt on however the hand is held now.
     if (this.open !== wasOpen) this.tiltRef = null;
+    // Aufmachen heißt: dahin, wo die andere Hand aufgehört hat — Seite *und*
+    // Zeile. Das Panel behält sonst seine eigene Blätterstellung von vorhin.
+    if (this.open && !wasOpen) {
+      this.swipe = null;
+      this.pending = null;
+      this.panel.scrollTo(this.nav.scrollOf(this.page.id));
+    }
     // Closing keeps the page. Going away to try something out and coming back
     // to the top of the tree is the same annoyance as being thrown to the top
     // of a list, one level up — and the title on the panel plus the *Zurück*
@@ -245,6 +296,8 @@ export class WristMenu extends THREE.Group {
 
     this.updateGrabTake(input);
     this.updateScroll(dt, input);
+    this.updateSwipe(input);
+    this.updatePending(input);
 
     const controller = input.get(this.hand);
     const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
@@ -328,6 +381,7 @@ export class WristMenu extends THREE.Group {
   }
 
   dispose(): void {
+    this.unwatchNav();
     this.pointer.remove(this.button);
     this.pointer.remove(this.panel);
     this.button.geometry.dispose();
@@ -359,20 +413,23 @@ export class WristMenu extends THREE.Group {
       // re-applied constantly — resetting it there was what threw you back to
       // the top every time you took a tool or stepped a setting.
       key: page.id,
-      scroll: this.scrolls.get(page.id) ?? 0,
+      scroll: this.nav.scrollOf(page.id),
+      // Die *Zurück*-Zeile bleibt als Kopf stehen, egal wie weit man unten
+      // ist. Eine lange Seite, aus der man nur wieder herauskommt, indem man
+      // erst blind nach oben blättert, ist eine Falle.
+      pinned: this.stack.length > 1 ? 1 : 0,
     });
   }
 
   /** Writes down where the page on show currently sits, before leaving it. */
   private keepScroll(): void {
     const page = this.stack[this.stack.length - 1];
-    if (page) this.scrolls.set(page.id, this.panel.scrollOffset);
+    if (page) this.nav.setScroll(page.id, this.panel.scrollOffset);
   }
 
   private pushPage(entry: MenuEntry): void {
     this.keepScroll();
-    this.stack.push(pageOf(entry));
-    this.applyPage();
+    this.nav.push(entry.id);
   }
 
   /**
@@ -399,19 +456,32 @@ export class WristMenu extends THREE.Group {
   }
 
   /**
+   * Welche Hand gerade das Menü blättert — deren Stick gehört dann dem Menü
+   * und nicht den Beinen.
+   *
+   * Der Spieler zeigt aufs Panel und drückt den Stick nach unten, um weiter
+   * zu kommen; dass er dabei losläuft, will niemand. `PlayerRig` fragt hier,
+   * welchem Stick es diese Frame nichts zu sagen hat. `null`, solange das
+   * Panel zu ist oder ganz auf eine Seite passt — dann hat der Stick nichts
+   * zu tun und darf wieder laufen.
+   */
+  get scrollHand(): Handedness | null {
+    if (!this.open || !this.panel.scrollable) return null;
+    return this.panel.hovered.hand ?? (this.hand === 'left' ? 'right' : 'left');
+  }
+
+  /**
    * The pointing hand's stick pages through a long list. Only the up/down axis:
    * left/right is the snap turn, and a menu is no reason to give that up.
    */
   private updateScroll(dt: number, input: XRInput): void {
-    if (!this.open || !this.panel.scrollable) {
+    const side = this.scrollHand;
+    if (!side) {
       this.scrollArmed = true;
       this.scrollTimer = 0;
       return;
     }
 
-    // Whichever hand points at the panel; otherwise the free hand, so the
-    // stick works even while the pointer has wandered off the list.
-    const side: Handedness = this.panel.hovered.hand ?? (this.hand === 'left' ? 'right' : 'left');
     const stick = input.get(side)?.thumbstick;
     const y = stick?.y ?? 0;
 
@@ -427,23 +497,100 @@ export class WristMenu extends THREE.Group {
     if (this.scrollArmed) {
       this.scrollArmed = false;
       this.scrollTimer = SCROLL_FIRST_DELAY;
-      this.panel.scrollBy(rows);
+      this.scrollBy(rows);
       return;
     }
     this.scrollTimer -= dt;
     if (this.scrollTimer > 0) return;
     this.scrollTimer = SCROLL_REPEAT;
-    this.panel.scrollBy(rows);
+    this.scrollBy(rows);
   }
 
+  /**
+   * Trigger halten und wischen — dieselbe Bewegung, mit der man überall sonst
+   * eine Liste schiebt.
+   *
+   * Der Stick blättert zeilenweise und ist damit gut für zwei Zeilen und
+   * mühsam für zwanzig; das Werkzeugregal hat inzwischen zwanzig. Gewischt
+   * wird gegen den Aufsetzpunkt: eine volle Panelhöhe Handbewegung schiebt die
+   * Liste um eine volle Seite, was sich anfühlt, als läge das Blatt unter der
+   * Hand fest.
+   */
+  private updateSwipe(input: XRInput): void {
+    const swipe = this.swipe;
+    const { hand, v } = this.panel.hovered;
+
+    if (swipe) {
+      const controller = input.get(swipe.hand);
+      // Weg vom Panel oder Trigger los: der Zug ist vorbei. Ob daraus eine
+      // Auswahl wird, entscheidet `updatePending`.
+      if (!controller?.trigger.pressed || hand !== swipe.hand) {
+        this.swipe = null;
+        return;
+      }
+      const travel = v - swipe.v0;
+      if (Math.abs(travel) > SWIPE_SLOP && !swipe.moved) {
+        swipe.moved = true;
+        // Sobald aus dem Druck ein Zug wird, ist die Zeile darunter vom Tisch.
+        // Hier und nicht erst beim Loslassen: da ist der Zug schon vorbei und
+        // die Auswahl würde durchrutschen.
+        this.pending = null;
+      }
+      // Nach oben wischen heißt: das Blatt kommt mit und gibt unten frei —
+      // dieselbe Richtung wie auf jedem Telefon.
+      if (swipe.moved) this.scrollTo(swipe.scroll0 + travel * this.panel.rowsPerPage);
+      return;
+    }
+
+    if (!this.open || !this.panel.scrollable || !hand) return;
+    if (!input.get(hand)?.trigger.pressed) return;
+    this.swipe = { hand, v0: v, scroll0: this.panel.scrollOffset, moved: false };
+  }
+
+  /**
+   * Die zurückgehaltene Auswahl: ausführen, sobald der Trigger los ist. Wurde
+   * daraus ein Wischen, hat `updateSwipe` sie längst weggeworfen.
+   */
+  private updatePending(input: XRInput): void {
+    const pending = this.pending;
+    if (!pending) return;
+    if (input.get(pending.hand)?.trigger.pressed) return;
+    this.pending = null;
+    this.runSelect(pending.index, pending.hand);
+  }
+
+  /** Blättern und dabei mitschreiben, wo die Seite steht. */
+  private scrollBy(rows: number): void {
+    if (this.panel.scrollBy(rows)) this.keepScroll();
+  }
+
+  private scrollTo(offset: number): void {
+    if (this.panel.scrollTo(offset)) this.keepScroll();
+  }
+
+  /**
+   * Der Trigger drückt — aber die Zeile wird noch nicht ausgeführt.
+   *
+   * Wischen und Auswählen liegen auf derselben Taste, und wer wischt, drückt
+   * dabei zwangsläufig auf irgendeine Zeile. Also wartet die Auswahl auf das
+   * Loslassen (`updatePending`); wurde daraus eine Wischbewegung, fällt sie
+   * weg. Die Maus kennt das Problem nicht und wählt sofort.
+   */
   private handleSelect(index: number, hand: Handedness | null): void {
+    if (hand === null) {
+      this.runSelect(index, null);
+      return;
+    }
+    this.pending = { index, hand };
+  }
+
+  private runSelect(index: number, hand: Handedness | null): void {
     const entry = this.displayed()[index];
     if (!entry) return;
 
     if (entry === BACK) {
       this.keepScroll();
-      this.stack.pop();
-      this.applyPage();
+      this.nav.pop();
       return;
     }
     if (entry.children) {

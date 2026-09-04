@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WristMenu, type WristMenuOptions } from './WristMenu';
+import { MenuNav } from './menuNav';
 import type { MenuEntry } from './menu';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
@@ -15,6 +16,13 @@ import type { Handedness, XRInput } from '../core/XRInput';
  * two panels floating in front of a player is not twice as useful, it is twice
  * as much in the way.
  *
+ * Und sie zeigen **dieselbe Seite**. Bis hierher hatte jede Hälfte ihren
+ * eigenen Merkzettel, was genau dann auffällt, wenn es weh tut: man steht drei
+ * Ebenen tief in den Werkzeug-Einstellungen, füllt sich die linke Hand — und
+ * muss das Menü nun rechts aufmachen, wo es wieder ganz oben anfing. Der Weg
+ * liegt deshalb einmal da (`menuNav.ts`) und wird von beiden gelesen, samt der
+ * Zeile, in der man war.
+ *
  * Everything a world used to do to *the* menu it does to this instead — same
  * calls, passed on to both halves.
  */
@@ -28,8 +36,9 @@ export class WristMenus extends THREE.Group {
     super();
     this.name = 'wrist-menus';
     const onToggle = (menu: WristMenu, open: boolean): void => this.onToggle(menu, open);
-    this.left = new WristMenu(pointer, { ...options, hand: 'left', onToggle });
-    this.right = new WristMenu(pointer, { ...options, hand: 'right', onToggle });
+    const nav = new MenuNav();
+    this.left = new WristMenu(pointer, { ...options, hand: 'left', nav, onToggle });
+    this.right = new WristMenu(pointer, { ...options, hand: 'right', nav, onToggle });
     this.add(this.left, this.right);
   }
 
@@ -48,6 +57,14 @@ export class WristMenus extends THREE.Group {
 
   menu(hand: Handedness): WristMenu {
     return hand === 'left' ? this.left : this.right;
+  }
+
+  /**
+   * Welchem Stick das Menü diese Frame etwas zu sagen hat — `PlayerRig` lässt
+   * ihn dann in Ruhe, damit Blättern nicht heißt, dass man losläuft.
+   */
+  get scrollHand(): Handedness | null {
+    return this.open?.scrollHand ?? null;
   }
 
   /**
