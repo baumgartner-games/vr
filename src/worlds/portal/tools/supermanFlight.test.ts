@@ -1,4 +1,10 @@
-import { flightCommand, FULL_HEAD_PITCH, FULL_HEAD_YAW, FULL_LEAN, type FlightInput } from './supermanFlight';
+import {
+  flightCommand,
+  FULL_HEAD_PITCH,
+  FULL_HEAD_YAW,
+  FULL_LEAN,
+  type FlightInput,
+} from './supermanFlight';
 import {
   clampSuperman,
   clampSupermanField,

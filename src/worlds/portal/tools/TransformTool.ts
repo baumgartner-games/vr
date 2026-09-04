@@ -504,7 +504,8 @@ export class TransformTool extends Tool {
             SCALE_MAX,
           )
         : THREE.MathUtils.clamp(
-            Math.abs(this.along(drag.handle.slot, _handPoint)) / Math.max(0.04, Math.abs(drag.start)),
+            Math.abs(this.along(drag.handle.slot, _handPoint)) /
+              Math.max(0.04, Math.abs(drag.start)),
             SCALE_MIN,
             SCALE_MAX,
           );
@@ -597,15 +598,15 @@ export class TransformTool extends Tool {
       return;
     }
     const half = single.halfExtents;
-    this.draw(
-      `${metres(half.x * 2)} × ${metres(half.y * 2)} × ${metres(half.z * 2)}`,
-      '#9fe3ff',
-    );
+    this.draw(`${metres(half.x * 2)} × ${metres(half.y * 2)} × ${metres(half.z * 2)}`, '#9fe3ff');
   }
 
   private showMove(drag: Drag, delta: number): void {
     const axis = this.slotAxis(drag.handle.slot);
-    this.draw(`${AXIS_NAMES[axis]}  ${delta >= 0 ? '+' : '−'}${metres(Math.abs(delta))}`, '#5ee0a0');
+    this.draw(
+      `${AXIS_NAMES[axis]}  ${delta >= 0 ? '+' : '−'}${metres(Math.abs(delta))}`,
+      '#5ee0a0',
+    );
   }
 
   private showScale(drag: Drag, factor: number): void {

@@ -217,14 +217,18 @@ export class StopwatchTool extends Tool {
     if (this.blend !== target) {
       const step = dt / RAMP;
       this.blend =
-        target > this.blend ? Math.min(target, this.blend + step) : Math.max(target, this.blend - step);
+        target > this.blend
+          ? Math.min(target, this.blend + step)
+          : Math.max(target, this.blend - step);
       host.setTimeScale(1 + (factor - 1) * this.blend);
     }
 
     // Der Zeiger läuft so schnell wie die Welt.
     this.sweep += dt * (1 + (factor - 1) * this.blend) * 2.2;
     this.sweepPivot.rotation.z = -this.sweep;
-    this.face.material.color.setHex(this.blend > 0.5 ? (factor > 1 ? 0xd6f5ff : 0xffe2ad) : 0xf3f6fb);
+    this.face.material.color.setHex(
+      this.blend > 0.5 ? (factor > 1 ? 0xd6f5ff : 0xffe2ad) : 0xf3f6fb,
+    );
     this.crown.position.y = 0.05 - this.blend * 0.004;
     this.panel.update(dt);
   }
@@ -282,7 +286,9 @@ export class StopwatchTool extends Tool {
       {
         id: 'watch:load',
         label: 'Welt laden',
-        sub: host?.hasWorldSnapshot() ? 'Zurück zum gespeicherten Stand' : 'Noch nichts gespeichert',
+        sub: host?.hasWorldSnapshot()
+          ? 'Zurück zum gespeicherten Stand'
+          : 'Noch nichts gespeichert',
         icon: 'reset',
         accent: 0x5ee0a0,
       },
@@ -346,7 +352,13 @@ export class StopwatchTool extends Tool {
     }
     if (open) this.showSettings();
     this.drawButton();
-    playTone({ type: 'sine', from: open ? 420 : 620, to: open ? 700 : 380, duration: 0.09, gain: 0.04 });
+    playTone({
+      type: 'sine',
+      from: open ? 420 : 620,
+      to: open ? 700 : 380,
+      duration: 0.09,
+      gain: 0.04,
+    });
   }
 
   private setButtonHot(hot: boolean): void {
@@ -382,7 +394,14 @@ export class StopwatchTool extends Tool {
     ctx.strokeStyle = this.buttonHot ? '#ffffff' : 'rgba(255,255,255,0.75)';
     ctx.stroke();
 
-    drawMenuIcon(ctx, this.settingsOpen ? 'back' : 'stopwatch', middle, middle, size * 0.5, '#ffffff');
+    drawMenuIcon(
+      ctx,
+      this.settingsOpen ? 'back' : 'stopwatch',
+      middle,
+      middle,
+      size * 0.5,
+      '#ffffff',
+    );
     this.buttonTexture.needsUpdate = true;
   }
 }

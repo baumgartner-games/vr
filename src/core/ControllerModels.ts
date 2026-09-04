@@ -311,6 +311,7 @@ async function load(profile: string, hand: Handedness): Promise<THREE.Object3D |
  * ohne darauf zu warten, dass jemand anderes ihn geht.
  */
 function emitConnected(holder: THREE.Group, source: XRInputSource): void {
-  (holder as unknown as { dispatchEvent(event: { type: string; data: XRInputSource }): void })
-    .dispatchEvent({ type: 'connected', data: source });
+  (
+    holder as unknown as { dispatchEvent(event: { type: string; data: XRInputSource }): void }
+  ).dispatchEvent({ type: 'connected', data: source });
 }

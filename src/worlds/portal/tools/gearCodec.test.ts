@@ -145,9 +145,7 @@ describe('gear codec', () => {
       const values = handPoseToArray({ ...IDLE_HAND_POSE, x: 1.2, pitch: -12 });
       const one: GearData = { hands: { idle: { right: values } } };
       const both: GearData = { hands: { idle: { left: values, right: values } } };
-      expect(packCode(writeGear(one)).length).toBeLessThan(
-        packCode(writeGear(both)).length,
-      );
+      expect(packCode(writeGear(one)).length).toBeLessThan(packCode(writeGear(both)).length);
     });
 
     it('carries the pistol together with its own settings', () => {

@@ -50,7 +50,11 @@ export class InspectTool extends Tool {
     // Ein Messgerät wird gelesen, nicht gezielt: das Display kippt zum Gesicht.
     this.holdRotation.setFromEuler(new THREE.Euler(-0.4, 0, 0));
 
-    const shell = new THREE.MeshStandardMaterial({ color: 0x22304a, roughness: 0.55, metalness: 0.25 });
+    const shell = new THREE.MeshStandardMaterial({
+      color: 0x22304a,
+      roughness: 0.55,
+      metalness: 0.25,
+    });
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.03, 0.14), shell);
     body.position.set(0, 0, -0.04);
     this.add(body);

@@ -125,16 +125,21 @@ function startFlat(): void {
 
 hudMenu.addEventListener('click', () => app.toggleMenu());
 
-hudVr.addEventListener('click', async () => {
-  if (app.renderer.xr.isPresenting) {
-    await app.endVR();
-    return;
-  }
-  try {
-    await app.enterVR();
-  } catch (error) {
-    console.warn('[xr] Sitzung konnte nicht gestartet werden', error);
-  }
+// `void (async () => …)()` statt eines `async`-Handlers: Ein Klick-Handler, der
+// eine Promise zurückgibt, wird von niemandem abgewartet — was darin schiefgeht,
+// fällt sonst still auf den Boden.
+hudVr.addEventListener('click', () => {
+  void (async () => {
+    if (app.renderer.xr.isPresenting) {
+      await app.endVR();
+      return;
+    }
+    try {
+      await app.enterVR();
+    } catch (error) {
+      console.warn('[xr] Sitzung konnte nicht gestartet werden', error);
+    }
+  })();
 });
 
 window.addEventListener('hashchange', () => {

@@ -124,7 +124,8 @@ export function layoutHub(count: number): HubLayout {
     }
 
     const rows = Math.ceil(inThis / 2);
-    const last = HALL_RADIUS + FIRST_GATE + (rows - 1) * GATE_SPACING + (inThis > 1 ? GATE_SPACING / 2 : 0);
+    const last =
+      HALL_RADIUS + FIRST_GATE + (rows - 1) * GATE_SPACING + (inThis > 1 ? GATE_SPACING / 2 : 0);
     corridors.push({
       angle,
       start: HALL_RADIUS - 0.5,

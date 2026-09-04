@@ -106,9 +106,9 @@ describe('the editable fields', () => {
       const changed = setHandPoseField(POSE, field.key, 0.5);
       expect(handPoseField(changed, field.key)).toBe(0.5);
       // Only that one field moved.
-      expect(handPoseToArray(changed).filter((v, i) => v !== handPoseToArray(POSE)[i])).toHaveLength(
-        handPoseField(POSE, field.key) === 0.5 ? 0 : 1,
-      );
+      expect(
+        handPoseToArray(changed).filter((v, i) => v !== handPoseToArray(POSE)[i]),
+      ).toHaveLength(handPoseField(POSE, field.key) === 0.5 ? 0 : 1);
     }
   });
 

@@ -94,12 +94,7 @@ export class Portal extends THREE.Object3D {
   }
 
   /** Puts the portal onto a surface. `normal` points away from the wall. */
-  place(
-    point: THREE.Vector3,
-    normal: THREE.Vector3,
-    up: THREE.Vector3,
-    surfaceGroup = 0,
-  ): void {
+  place(point: THREE.Vector3, normal: THREE.Vector3, up: THREE.Vector3, surfaceGroup = 0): void {
     const right = new THREE.Vector3().crossVectors(up, normal).normalize();
     const trueUp = new THREE.Vector3().crossVectors(normal, right).normalize();
     const basis = new THREE.Matrix4().makeBasis(right, trueUp, normal);
@@ -163,7 +158,13 @@ export class Portal extends THREE.Object3D {
   /** World-space normal (the +Z axis of the portal). */
   getWorldNormal(target: THREE.Vector3): THREE.Vector3 {
     this.updateMatrixWorld();
-    return target.set(this.matrixWorld.elements[8]!, this.matrixWorld.elements[9]!, this.matrixWorld.elements[10]!).normalize();
+    return target
+      .set(
+        this.matrixWorld.elements[8]!,
+        this.matrixWorld.elements[9]!,
+        this.matrixWorld.elements[10]!,
+      )
+      .normalize();
   }
 
   /** Signed distance of a world point to the portal plane (positive = front). */

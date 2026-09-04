@@ -184,13 +184,7 @@ export class DarkWorld extends PortalWorld {
     // The floor takes portals, so a portal in the floor is still possible in
     // the dark — falling through one is half the fun of the lab.
     this.slab(house, this.floorMaterial, [width, WALL, depth], [0, -WALL / 2, 0], true);
-    this.slab(
-      house,
-      this.ceilingMaterial,
-      [width, WALL, depth],
-      [0, HEIGHT + WALL / 2, 0],
-      false,
-    );
+    this.slab(house, this.ceilingMaterial, [width, WALL, depth], [0, HEIGHT + WALL / 2, 0], false);
 
     this.wall(house, 'x', -HALF_Z - WALL / 2, -HALF_X, HALF_X, []);
     this.wall(house, 'x', HALF_Z + WALL / 2, -HALF_X, HALF_X, []);
@@ -444,7 +438,10 @@ export class DarkWorld extends PortalWorld {
     const lantern = new THREE.Group();
     lantern.position.copy(position);
 
-    const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.2, 12, 1, true), this.metal);
+    const cage = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.075, 0.09, 0.2, 12, 1, true),
+      this.metal,
+    );
     lantern.add(cage);
     const glass = new THREE.Mesh(
       new THREE.SphereGeometry(0.055, 14, 10),

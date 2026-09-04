@@ -124,7 +124,13 @@ export class DustWorld extends PortalWorld {
 
     // Site B, on the other side of the map.
     for (let i = 0; i < 5; i++) {
-      crate(19 + (i % 2) * 1.5, 0.3 + Math.floor(i / 2) * 0.62, -20 + Math.floor(i / 2) * 0.4, 0.6, i * 0.3);
+      crate(
+        19 + (i % 2) * 1.5,
+        0.3 + Math.floor(i / 2) * 0.62,
+        -20 + Math.floor(i / 2) * 0.4,
+        0.6,
+        i * 0.3,
+      );
     }
 
     // Barrels along the middle lane.
@@ -221,7 +227,15 @@ export class DustWorld extends PortalWorld {
 
     // Two smaller houses at site A. The flat one has no parapet: the ramp
     // outside leads straight onto its roof.
-    this.building(parent, { x: -30, z: -24, w: 8, d: 8, floors: 2, material: this.stone, door: 'east' });
+    this.building(parent, {
+      x: -30,
+      z: -24,
+      w: 8,
+      d: 8,
+      floors: 2,
+      material: this.stone,
+      door: 'east',
+    });
     this.building(parent, {
       x: -8,
       z: -28,
@@ -235,7 +249,15 @@ export class DustWorld extends PortalWorld {
     });
 
     // Site B: a three-storey and a shed, again with a way onto the roof.
-    this.building(parent, { x: 22, z: -10, w: 11, d: 10, floors: 3, material: this.plaster, door: 'west' });
+    this.building(parent, {
+      x: 22,
+      z: -10,
+      w: 11,
+      d: 10,
+      floors: 3,
+      material: this.plaster,
+      door: 'west',
+    });
     this.building(parent, {
       x: 30,
       z: -26,
@@ -260,10 +282,26 @@ export class DustWorld extends PortalWorld {
       stairs: false,
       parapet: false,
     });
-    this.building(parent, { x: 30, z: 8, w: 8, d: 7, floors: 2, material: this.stone, door: 'west' });
+    this.building(parent, {
+      x: 30,
+      z: 8,
+      w: 8,
+      d: 7,
+      floors: 2,
+      material: this.stone,
+      door: 'west',
+    });
 
     // The house at the spawn end, two storeys with a balcony over the lane.
-    this.building(parent, { x: 6, z: 24, w: 10, d: 9, floors: 2, material: this.stone, door: 'north' });
+    this.building(parent, {
+      x: 6,
+      z: 24,
+      w: 10,
+      d: 9,
+      floors: 2,
+      material: this.stone,
+      door: 'north',
+    });
     this.slab(parent, this.stone, [6, 0.3, 2.4], [6, STOREY, 18.6], false);
     this.slab(parent, this.stone, [6, 0.9, 0.3], [6, STOREY + 0.6, 17.5], false);
 

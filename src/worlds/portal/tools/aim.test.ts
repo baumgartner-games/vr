@@ -21,7 +21,7 @@ function vec(): Vec3 {
 /** Rotation of `degrees` around an axis. */
 function axisAngle(axis: Vec3, degrees: number): Quat {
   const length = Math.hypot(axis.x, axis.y, axis.z);
-  const half = ((degrees * Math.PI) / 180) / 2;
+  const half = (degrees * Math.PI) / 180 / 2;
   const s = Math.sin(half) / length;
   return { x: axis.x * s, y: axis.y * s, z: axis.z * s, w: Math.cos(half) };
 }

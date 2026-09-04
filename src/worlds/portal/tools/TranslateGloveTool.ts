@@ -267,10 +267,7 @@ export class TranslateGloveTool extends Tool {
 
     hold.entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
     physics.setCarried(hold.entry, false);
-    hold.entry.body.setLinvel(
-      { x: hold.velocity.x, y: hold.velocity.y, z: hold.velocity.z },
-      true,
-    );
+    hold.entry.body.setLinvel({ x: hold.velocity.x, y: hold.velocity.y, z: hold.velocity.z }, true);
     hold.entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     playTone({ type: 'sine', from: 520, to: 260, duration: 0.12, gain: 0.04 });
   }
@@ -372,8 +369,6 @@ export class TranslateGloveTool extends Tool {
     this.texture.needsUpdate = true;
   }
 }
-
-
 
 /** Speed one axis of the lean asks for, with the deadzone taken out. */
 function lean(value: number): number {

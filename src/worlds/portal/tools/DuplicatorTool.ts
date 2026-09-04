@@ -50,7 +50,11 @@ export class DuplicatorTool extends Tool {
     this.hint = 'Zielen · Trigger legt eine Kopie daneben';
     this.holdPosition.set(0, -0.015, 0.03);
 
-    const shell = new THREE.MeshStandardMaterial({ color: 0x2c3450, roughness: 0.5, metalness: 0.3 });
+    const shell = new THREE.MeshStandardMaterial({
+      color: 0x2c3450,
+      roughness: 0.5,
+      metalness: 0.3,
+    });
     const trim = new THREE.MeshStandardMaterial({
       color: 0x9d7bff,
       emissive: new THREE.Color(0x9d7bff).multiplyScalar(0.5),

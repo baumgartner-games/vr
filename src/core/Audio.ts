@@ -105,10 +105,22 @@ export function playStopwatch(slowing: boolean): void {
 
 /** Soft blip for picking something up or putting it away. */
 export function playPick(up: boolean): void {
-  playTone({ type: 'triangle', from: up ? 520 : 420, to: up ? 760 : 300, duration: 0.07, gain: 0.05 });
+  playTone({
+    type: 'triangle',
+    from: up ? 520 : 420,
+    to: up ? 760 : 300,
+    duration: 0.07,
+    gain: 0.05,
+  });
 }
 
 /** A light switch, a torch: the plastic click, up and down. */
 export function playSwitch(on: boolean): void {
-  playTone({ type: 'square', from: on ? 900 : 700, to: on ? 1500 : 420, duration: 0.035, gain: 0.05 });
+  playTone({
+    type: 'square',
+    from: on ? 900 : 700,
+    to: on ? 1500 : 420,
+    duration: 0.035,
+    gain: 0.05,
+  });
 }

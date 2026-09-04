@@ -114,7 +114,10 @@ export function foldRatios(joints: HandJoints): HandFold | null {
  * reference: a finger that was folded stays folded until it opens well past
  * the closing threshold.
  */
-export function readGesture(fold: HandFold | null, previous: HandGesture = NO_GESTURE): HandGesture {
+export function readGesture(
+  fold: HandFold | null,
+  previous: HandGesture = NO_GESTURE,
+): HandGesture {
   if (!fold) return { ...NO_GESTURE };
   const folded = (value: number, was: boolean): boolean =>
     was ? value < FOLD_OPEN : value < FOLD_CLOSED;
@@ -162,8 +165,8 @@ export function foldToCurl(fold: number): number {
 /** Alle fünf, in der Reihenfolge, die überall gilt: Daumen … kleiner Finger. */
 export function foldCurls(fold: HandFold | null): number[] | null {
   if (!fold) return null;
-  return [fold.thumb, fold.index, fold.middle, fold.ring, fold.pinky].map((value) =>
-    Math.round(foldToCurl(value) * 100) / 100,
+  return [fold.thumb, fold.index, fold.middle, fold.ring, fold.pinky].map(
+    (value) => Math.round(foldToCurl(value) * 100) / 100,
   );
 }
 

@@ -1,0 +1,8 @@
+dist
+coverage
+package-lock.json
+
+# Handgesetzt und absichtlich kompakt: die einzeiligen Regeln in `style.css`
+# und die Einrückung im HTML sind dort Absicht, nicht Nachlässigkeit.
+src/style.css
+index.html

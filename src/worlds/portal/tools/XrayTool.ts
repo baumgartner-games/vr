@@ -71,7 +71,13 @@ export class XrayTool extends Tool {
   override onTrigger(controller: ControllerState, host: ToolHost): void {
     this.scanning = !this.scanning;
     controller.pulse(0.35, 25);
-    playTone({ type: 'sine', from: this.scanning ? 420 : 900, to: this.scanning ? 900 : 420, duration: 0.12, gain: 0.05 });
+    playTone({
+      type: 'sine',
+      from: this.scanning ? 420 : 900,
+      to: this.scanning ? 900 : 420,
+      duration: 0.12,
+      gain: 0.05,
+    });
     host.notify(this.scanning ? 'Scanner an' : 'Scanner aus');
   }
 

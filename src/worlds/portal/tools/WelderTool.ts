@@ -207,7 +207,9 @@ export class WelderTool extends Tool {
     });
     this.markerB.position.copy(hit.point);
     this.markerB.visible = welded;
-    host.notify(welded ? (this.mode === 'hinge' ? 'Scharnier gesetzt' : 'Verschweißt') : 'Geht nicht');
+    host.notify(
+      welded ? (this.mode === 'hinge' ? 'Scharnier gesetzt' : 'Verschweißt') : 'Geht nicht',
+    );
     if (welded) {
       this.heat = 1;
       playTone({ type: 'sawtooth', from: 180, to: 640, duration: 0.22, gain: 0.06 });

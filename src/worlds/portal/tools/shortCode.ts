@@ -103,8 +103,7 @@ const PREFIX = 'BP';
  * verwechselt. Die Reihenfolge ist Teil des Formats: wer sie ändert, macht aus
  * jedem alten Code einen, der etwas anderes meint.
  */
-export const POSE_ALPHABET =
-  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_';
+export const POSE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_';
 
 /** Wie weit ein Versatz reicht, in Zentimetern — darüber wird beschnitten. */
 export const POSE_LIMIT = 30;
@@ -313,7 +312,9 @@ function poseValues(digits: readonly number[]): number[] {
 }
 
 function fingerDigits(curls: readonly number[], spread: number): number[] {
-  const digits = [0, 1, 2, 3, 4].map((i) => clampInt(Math.round((curls[i] ?? 0) * 100), CURL_RADIX));
+  const digits = [0, 1, 2, 3, 4].map((i) =>
+    clampInt(Math.round((curls[i] ?? 0) * 100), CURL_RADIX),
+  );
   digits.push(clampInt(Math.round(spread) + SPREAD_LIMIT, SPREAD_RADIX));
   return digits;
 }

@@ -32,6 +32,18 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      # Die Tests laufen hier und nicht nur auf dem Rechner dessen, der gerade
+      # committet: AGENTS.md verlangt sie vor jedem Push, und eine Regel, an die
+      # sich nur erinnert wird, ist keine.
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
         env:

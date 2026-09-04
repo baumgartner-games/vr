@@ -16,7 +16,7 @@ const IDENTITY: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
 function axisAngle(axis: Vec3, degrees: number): Quat {
   const length = Math.hypot(axis.x, axis.y, axis.z);
-  const half = ((degrees * Math.PI) / 180) / 2;
+  const half = (degrees * Math.PI) / 180 / 2;
   const s = Math.sin(half) / length;
   return { x: axis.x * s, y: axis.y * s, z: axis.z * s, w: Math.cos(half) };
 }
@@ -101,11 +101,12 @@ describe('nudgeGrip', () => {
       rotation: multiplyQuat(turn, from.rotation, { x: 0, y: 0, z: 0, w: 1 }),
     };
     const moved = nudgeGrip(grip, from, to);
-    const wanted = multiplyQuat(
-      axisAngle({ x: 0, y: 1, z: 0 }, 3),
-      grip.rotation,
-      { x: 0, y: 0, z: 0, w: 1 },
-    );
+    const wanted = multiplyQuat(axisAngle({ x: 0, y: 1, z: 0 }, 3), grip.rotation, {
+      x: 0,
+      y: 0,
+      z: 0,
+      w: 1,
+    });
     expectSameRotation(moved.rotation, wanted);
   });
 
@@ -121,11 +122,12 @@ describe('nudgeGrip', () => {
     // wandert der Geist über eine Minute Feinarbeit von selbst davon.
     const end: Grip = {
       position: { x: 0.06, y: 1.02, z: -0.04 },
-      rotation: multiplyQuat(
-        axisAngle({ x: 0.3, y: 1, z: 0 }, 24),
-        from.rotation,
-        { x: 0, y: 0, z: 0, w: 1 },
-      ),
+      rotation: multiplyQuat(axisAngle({ x: 0.3, y: 1, z: 0 }, 24), from.rotation, {
+        x: 0,
+        y: 0,
+        z: 0,
+        w: 1,
+      }),
     };
     let last = nudgeGrip(grip, from, from);
     for (let step = 1; step <= 10; step++) {
@@ -136,11 +138,12 @@ describe('nudgeGrip', () => {
           y: from.position.y + (end.position.y - from.position.y) * t,
           z: from.position.z + (end.position.z - from.position.z) * t,
         },
-        rotation: multiplyQuat(
-          axisAngle({ x: 0.3, y: 1, z: 0 }, 24 * t),
-          from.rotation,
-          { x: 0, y: 0, z: 0, w: 1 },
-        ),
+        rotation: multiplyQuat(axisAngle({ x: 0.3, y: 1, z: 0 }, 24 * t), from.rotation, {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        }),
       });
     }
     const once = nudgeGrip(grip, from, end);
@@ -151,7 +154,11 @@ describe('nudgeGrip', () => {
   it('ist mit Faktor 1 das ungebremste Mitziehen', () => {
     const to: Grip = { position: { x: 0.5, y: 1, z: 0 }, rotation: from.rotation };
     const moved = nudgeGrip(grip, from, to, 1);
-    expectClose(moved.position, { x: grip.position.x + 0.5, y: grip.position.y, z: grip.position.z });
+    expectClose(moved.position, {
+      x: grip.position.x + 0.5,
+      y: grip.position.y,
+      z: grip.position.z,
+    });
   });
 
   it('untersetzt zehnfach', () => {

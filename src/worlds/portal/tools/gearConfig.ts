@@ -182,9 +182,7 @@ export function toolGearCode(toolId: string | null, hand: Handedness | null = nu
 
   const all = gearConfig();
   const id = toolId ?? '';
-  const stored = id
-    ? all.hands?.hold?.[hand]?.[id]
-    : all.hands?.idle?.[hand];
+  const stored = id ? all.hands?.hold?.[hand]?.[id] : all.hands?.idle?.[hand];
   const grip = stored ? handPoseFromArray(stored, fallbackPose(hand, id)) : null;
   const built = fallbackPose(hand, id);
 

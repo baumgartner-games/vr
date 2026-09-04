@@ -51,8 +51,7 @@ export interface UnpackedCode {
  * Exportiert, weil der **Kurzcode** (`tools/shortCode.ts`) dieselben benutzt:
  * zwei Alphabete hieße zwei Sorten Code, die gleich aussehen und es nicht sind.
  */
-export const BASE64_ALPHABET =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+export const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
 const ALPHABET = BASE64_ALPHABET;
 
@@ -120,7 +119,7 @@ function compress(input: Uint8Array): Uint8Array {
   let flagAt = 0;
   let flagBit = 0;
 
-  for (let i = 0; i < input.length; ) {
+  for (let i = 0; i < input.length;) {
     if (flagBit === 0) {
       flagAt = out.length;
       out.push(0);

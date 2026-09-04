@@ -288,12 +288,48 @@ export class ShopWorld extends PortalWorld {
 
   private buildShell(parent: THREE.Object3D): void {
     const { halfX, halfZ, height, wall } = ROOM;
-    this.slab(parent, this.tileMaterial, [halfX * 2 + wall * 2, wall, halfZ * 2 + wall * 2], [0, -wall / 2, 0], true);
-    this.slab(parent, this.wallMaterial, [halfX * 2 + wall * 2, wall, halfZ * 2 + wall * 2], [0, height + wall / 2, 0], true);
-    this.slab(parent, this.wallMaterial, [halfX * 2, height, wall], [0, height / 2, -halfZ - wall / 2], false);
-    this.slab(parent, this.wallMaterial, [halfX * 2, height, wall], [0, height / 2, halfZ + wall / 2], false);
-    this.slab(parent, this.wallMaterial, [wall, height, halfZ * 2], [-halfX - wall / 2, height / 2, 0], false);
-    this.slab(parent, this.wallMaterial, [wall, height, halfZ * 2], [halfX + wall / 2, height / 2, 0], false);
+    this.slab(
+      parent,
+      this.tileMaterial,
+      [halfX * 2 + wall * 2, wall, halfZ * 2 + wall * 2],
+      [0, -wall / 2, 0],
+      true,
+    );
+    this.slab(
+      parent,
+      this.wallMaterial,
+      [halfX * 2 + wall * 2, wall, halfZ * 2 + wall * 2],
+      [0, height + wall / 2, 0],
+      true,
+    );
+    this.slab(
+      parent,
+      this.wallMaterial,
+      [halfX * 2, height, wall],
+      [0, height / 2, -halfZ - wall / 2],
+      false,
+    );
+    this.slab(
+      parent,
+      this.wallMaterial,
+      [halfX * 2, height, wall],
+      [0, height / 2, halfZ + wall / 2],
+      false,
+    );
+    this.slab(
+      parent,
+      this.wallMaterial,
+      [wall, height, halfZ * 2],
+      [-halfX - wall / 2, height / 2, 0],
+      false,
+    );
+    this.slab(
+      parent,
+      this.wallMaterial,
+      [wall, height, halfZ * 2],
+      [halfX + wall / 2, height / 2, 0],
+      false,
+    );
 
     // Two bright panels, so the portal guns have somewhere to stick.
     this.slab(parent, this.panelMaterial, [0.12, 2.2, 3], [-halfX + 0.08, 1.4, 3], true);
@@ -341,7 +377,13 @@ export class ShopWorld extends PortalWorld {
     for (const direction of [-1, 1]) {
       const centre = direction * (COUNTER_GAP / 2 + side / 2);
       this.slab(parent, this.woodMaterial, [side, 1.05, 0.5], [centre, 0.525, COUNTER_Z], false);
-      this.slab(parent, this.steelMaterial, [side + 0.1, 0.07, 0.68], [centre, 1.08, COUNTER_Z], false);
+      this.slab(
+        parent,
+        this.steelMaterial,
+        [side + 0.1, 0.07, 0.68],
+        [centre, 1.08, COUNTER_Z],
+        false,
+      );
     }
 
     this.scoreBoard = new TextPlane({
@@ -370,7 +412,13 @@ export class ShopWorld extends PortalWorld {
       });
       this.solids.push(top);
 
-      this.slab(parent, this.steelMaterial, [0.12, TABLE_HEIGHT, 0.12], [x, TABLE_HEIGHT / 2, z], false);
+      this.slab(
+        parent,
+        this.steelMaterial,
+        [0.12, TABLE_HEIGHT, 0.12],
+        [x, TABLE_HEIGHT / 2, z],
+        false,
+      );
       this.slab(parent, this.steelMaterial, [0.5, 0.04, 0.5], [x, 0.02, z], false);
 
       // Four chairs, one on each side.
@@ -383,7 +431,13 @@ export class ShopWorld extends PortalWorld {
         const cx = x + dx * 1.05;
         const cz = z + dz * 1.05;
         this.slab(parent, this.woodMaterial, [0.42, 0.06, 0.42], [cx, 0.45, cz], false);
-        this.slab(parent, this.steelMaterial, [0.36, 0.45, 0.05], [cx + dx * 0.19, 0.68, cz + dz * 0.19], false);
+        this.slab(
+          parent,
+          this.steelMaterial,
+          [0.36, 0.45, 0.05],
+          [cx + dx * 0.19, 0.68, cz + dz * 0.19],
+          false,
+        );
         // One pedestal instead of four legs: a chair leg is four rigid bodies
         // nobody ever looks at, and there are twelve chairs in here.
         this.slab(parent, this.steelMaterial, [0.12, 0.42, 0.12], [cx, 0.21, cz], false);
@@ -394,7 +448,13 @@ export class ShopWorld extends PortalWorld {
 
   private buildKitchen(parent: THREE.Object3D): void {
     // The work table: everything happens on this.
-    this.slab(parent, this.steelMaterial, [TABLE.w, 0.08, TABLE.d], [TABLE.x, TABLE.top, TABLE.z], false);
+    this.slab(
+      parent,
+      this.steelMaterial,
+      [TABLE.w, 0.08, TABLE.d],
+      [TABLE.x, TABLE.top, TABLE.z],
+      false,
+    );
     for (const dx of [-1, 1]) {
       for (const dz of [-1, 1]) {
         this.slab(
@@ -417,11 +477,36 @@ export class ShopWorld extends PortalWorld {
     // the whole tutorial: it stands exactly where you are already looking.
     const wallZ = -ROOM.halfZ + 0.2;
     // Two lines each: a sign nobody finishes reading is a sign nobody reads.
-    this.sign(parent, CRATE_X, wallZ, 'Teig', 'Kugel auf den Tisch legen und mit der Faust flach schlagen.');
-    this.sign(parent, LADLE_X, wallZ, 'Tomatensoße', 'Kelle greifen, über den Boden halten, Trigger drücken.');
-    this.sign(parent, CHEESE_X, wallZ, 'Käse', 'Streuer greifen, Trigger streut. Erst Soße, dann Käse.');
+    this.sign(
+      parent,
+      CRATE_X,
+      wallZ,
+      'Teig',
+      'Kugel auf den Tisch legen und mit der Faust flach schlagen.',
+    );
+    this.sign(
+      parent,
+      LADLE_X,
+      wallZ,
+      'Tomatensoße',
+      'Kelle greifen, über den Boden halten, Trigger drücken.',
+    );
+    this.sign(
+      parent,
+      CHEESE_X,
+      wallZ,
+      'Käse',
+      'Streuer greifen, Trigger streut. Erst Soße, dann Käse.',
+    );
     // Over the oven rather than behind it: the oven is taller than a sign.
-    this.sign(parent, OVEN.x, wallZ, 'Ofen', 'Hineinlegen oder hineinwerfen. Golden ist fertig, schwarz zu spät.', 2.6);
+    this.sign(
+      parent,
+      OVEN.x,
+      wallZ,
+      'Ofen',
+      'Hineinlegen oder hineinwerfen. Golden ist fertig, schwarz zu spät.',
+      2.6,
+    );
     this.sign(parent, BIN.x, wallZ, 'Mülleimer', 'Alles, was hineinfällt, ist gelöscht.');
   }
 
@@ -444,7 +529,13 @@ export class ShopWorld extends PortalWorld {
   /** The crate the dough comes out of. */
   private buildCrate(parent: THREE.Object3D): void {
     const half = 0.26;
-    this.slab(parent, this.woodMaterial, [half * 2, 0.04, half * 2], [CRATE_X, TABLE.top + 0.06, STATION_Z], false);
+    this.slab(
+      parent,
+      this.woodMaterial,
+      [half * 2, 0.04, half * 2],
+      [CRATE_X, TABLE.top + 0.06, STATION_Z],
+      false,
+    );
     for (const [dx, dz] of [
       [1, 0],
       [-1, 0],
@@ -489,7 +580,13 @@ export class ShopWorld extends PortalWorld {
 
   private buildBin(parent: THREE.Object3D): void {
     const { x, z, half, rim } = BIN;
-    this.slab(parent, this.steelMaterial, [half * 2 + 0.08, 0.05, half * 2 + 0.08], [x, 0.025, z], false);
+    this.slab(
+      parent,
+      this.steelMaterial,
+      [half * 2 + 0.08, 0.05, half * 2 + 0.08],
+      [x, 0.025, z],
+      false,
+    );
     for (const [dx, dz] of [
       [1, 0],
       [-1, 0],
@@ -511,7 +608,11 @@ export class ShopWorld extends PortalWorld {
   private buildLadle(parent: THREE.Object3D): Station {
     const group = new THREE.Group();
     group.name = 'tool-ladle';
-    const red = new THREE.MeshStandardMaterial({ color: 0xd4342a, roughness: 0.45, metalness: 0.2 });
+    const red = new THREE.MeshStandardMaterial({
+      color: 0xd4342a,
+      roughness: 0.45,
+      metalness: 0.2,
+    });
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.3, 10), red);
     handle.position.y = 0.15;
     group.add(handle);
@@ -745,7 +846,13 @@ export class ShopWorld extends PortalWorld {
     });
     this.registerProp(entry, `pizza-${this.made++}`);
 
-    const label = new TextPlane({ width: 0.5, height: 0.2, title: '', accent: 0xffc857, align: 'center' });
+    const label = new TextPlane({
+      width: 0.5,
+      height: 0.2,
+      title: '',
+      accent: 0xffc857,
+      align: 'center',
+    });
     label.visible = false;
     this.root.add(label);
 
@@ -793,7 +900,7 @@ export class ShopWorld extends PortalWorld {
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
       if (!hand) continue;
-      let previous = this.handWas.get(hand);
+      const previous = this.handWas.get(hand);
       if (!controller.tracked) {
         this.handWas.delete(hand);
         continue;
@@ -803,7 +910,10 @@ export class ShopWorld extends PortalWorld {
         this.handWas.set(hand, _hand.clone());
         continue;
       }
-      _velocity.copy(_hand).sub(previous).divideScalar(Math.max(dt, 1 / 120));
+      _velocity
+        .copy(_hand)
+        .sub(previous)
+        .divideScalar(Math.max(dt, 1 / 120));
       previous.copy(_hand);
       if (_velocity.length() < PUNCH_SPEED) continue;
 
@@ -959,7 +1069,11 @@ export class ShopWorld extends PortalWorld {
 
   /** Sauce and cheese as far as they have been spread, and the right label. */
   private drawPizza(pizza: PizzaProp): void {
-    pizza.sauce.scale.set(Math.max(pizza.state.sauce, 0.001), 1, Math.max(pizza.state.sauce, 0.001));
+    pizza.sauce.scale.set(
+      Math.max(pizza.state.sauce, 0.001),
+      1,
+      Math.max(pizza.state.sauce, 0.001),
+    );
     pizza.cheese.scale.set(
       Math.max(pizza.state.cheese, 0.001),
       1,
@@ -1028,9 +1142,7 @@ function onWorkTable(position: THREE.Vector3): boolean {
 /** Standing on one of the tables in the front room. */
 function onGuestTable(position: THREE.Vector3): boolean {
   if (position.y < TABLE_HEIGHT || position.y > TABLE_HEIGHT + 0.3) return false;
-  return TABLES.some(
-    ([x, z]) => Math.hypot(position.x - x, position.z - z) < TABLE_RADIUS - 0.05,
-  );
+  return TABLES.some(([x, z]) => Math.hypot(position.x - x, position.z - z) < TABLE_RADIUS - 0.05);
 }
 
 /** Inside the oven's mouth. */

@@ -24,7 +24,7 @@ const IDENTITY: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
 function axisAngle(axis: Vec3, degrees: number): Quat {
   const length = Math.hypot(axis.x, axis.y, axis.z);
-  const half = ((degrees * Math.PI) / 180) / 2;
+  const half = (degrees * Math.PI) / 180 / 2;
   const s = Math.sin(half) / length;
   return { x: axis.x * s, y: axis.y * s, z: axis.z * s, w: Math.cos(half) };
 }
@@ -73,7 +73,10 @@ describe('composePose', () => {
   });
 
   it('setzt Versatz und Drehung in dieser Reihenfolge zusammen', () => {
-    const turn: Pose = { position: { x: 0, y: 0, z: 0 }, rotation: axisAngle({ x: 0, y: 1, z: 0 }, 90) };
+    const turn: Pose = {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: axisAngle({ x: 0, y: 1, z: 0 }, 90),
+    };
     const step: Pose = { position: { x: 0, y: 0, z: -1 }, rotation: IDENTITY };
     // Erst um 90° nach links gedreht, dann einen Meter nach vorn: das ist ein
     // Meter nach links (-X), nicht einer nach vorn.
@@ -84,14 +87,20 @@ describe('composePose', () => {
 describe('toolInGrip', () => {
   it('legt die Zielkorrektur vor die eigene Drehung', () => {
     const aim = axisAngle({ x: 1, y: 0, z: 0 }, -30);
-    const hold = { position: { x: 0, y: -0.012, z: 0.03 }, rotation: axisAngle({ x: 0, y: 1, z: 0 }, 15) };
+    const hold = {
+      position: { x: 0, y: -0.012, z: 0.03 },
+      rotation: axisAngle({ x: 0, y: 1, z: 0 }, 15),
+    };
     const local = toolInGrip(hold, aim);
     expectClose(local.position, hold.position);
     expectSameRotation(local.rotation, multiplyQuat(aim, hold.rotation, { ...IDENTITY }));
   });
 
   it('lässt ein Werkzeug ohne Zielkorrektur in Ruhe', () => {
-    const hold = { position: { x: 0.02, y: 0, z: 0 }, rotation: axisAngle({ x: 0, y: 0, z: 1 }, 40) };
+    const hold = {
+      position: { x: 0.02, y: 0, z: 0 },
+      rotation: axisAngle({ x: 0, y: 0, z: 1 }, 40),
+    };
     expectSamePose(toolInGrip(hold, IDENTITY), hold);
   });
 });

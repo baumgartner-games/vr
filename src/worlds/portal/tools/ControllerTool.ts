@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { Tool } from './Tool';
-import { buildControllerShape, controllerShape, ownMaterials } from '../../../core/ControllerModels';
+import {
+  buildControllerShape,
+  controllerShape,
+  ownMaterials,
+} from '../../../core/ControllerModels';
 import type { Handedness } from '../../../core/XRInput';
 
 /** Beide Controller, unter den Ids, mit denen sie im Regal stehen. */

@@ -70,7 +70,8 @@ export interface WristMenuOptions {
    */
   nav?: MenuNav;
   /** Opened or closed — the pair uses it to keep only one panel up. */
-  onToggle?(menu: WristMenu, open: boolean): void;
+  /** Eigenschaft statt Methode: Sie wird gespeichert und später einzeln gerufen. */
+  onToggle?: (menu: WristMenu, open: boolean) => void;
   /**
    * Woran das Panel hängt.
    *

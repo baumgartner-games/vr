@@ -49,7 +49,13 @@ export interface HapticPattern {
  * und drückt sich nach unten durch.
  */
 export const HAPTIC_PATTERNS: readonly HapticPattern[] = [
-  { id: 'off', label: 'Kein Vibrieren', sub: 'Nur anfassen, sonst nichts', pulses: [], length: 0.5 },
+  {
+    id: 'off',
+    label: 'Kein Vibrieren',
+    sub: 'Nur anfassen, sonst nichts',
+    pulses: [],
+    length: 0.5,
+  },
   {
     id: 'soft',
     label: 'Leicht',
@@ -151,11 +157,7 @@ export function nextPatternId(id: string): string {
  * @param from Sekunden seit dem Zupacken, Stand des letzten Frames
  * @param to   dasselbe, Stand jetzt
  */
-export function pulsesBetween(
-  pattern: HapticPattern,
-  from: number,
-  to: number,
-): HapticPulse[] {
+export function pulsesBetween(pattern: HapticPattern, from: number, to: number): HapticPulse[] {
   if (pattern.pulses.length === 0 || to <= from) return [];
   const length = Math.max(pattern.length, 0.05);
   const out: HapticPulse[] = [];

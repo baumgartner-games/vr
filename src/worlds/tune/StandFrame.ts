@@ -153,10 +153,11 @@ export abstract class StandFrame extends THREE.Group {
 
     // --- die eigene Scheibe am Ende des Gangs --------------------------------
     const face = this.own(bullseyeFace());
-    this.disc = new THREE.Mesh(
-      new THREE.CylinderGeometry(TARGET.radius, TARGET.radius, 0.05, 28),
-      [this.steel, face, this.steel],
-    );
+    this.disc = new THREE.Mesh(new THREE.CylinderGeometry(TARGET.radius, TARGET.radius, 0.05, 28), [
+      this.steel,
+      face,
+      this.steel,
+    ]);
     // Ein Zylinder steht auf +Y; nach vorn gekippt schaut seine Deckfläche den
     // Gang herunter — also zu dem hin, der davorsteht.
     this.disc.rotation.x = -Math.PI / 2;
@@ -239,9 +240,7 @@ export abstract class StandFrame extends THREE.Group {
   /** Das durchsichtige Möbelstück deutlicher, weil eine Hand nah dran ist. */
   protected setStandGlow(on: boolean): void {
     this.standMaterial.color.setHex(on ? GRAB_GLOW : GRAB_TINT);
-    this.standMaterial.emissive
-      .setHex(on ? GRAB_GLOW : GRAB_TINT)
-      .multiplyScalar(on ? 0.6 : 0.3);
+    this.standMaterial.emissive.setHex(on ? GRAB_GLOW : GRAB_TINT).multiplyScalar(on ? 0.6 : 0.3);
     this.standMaterial.opacity = on ? STAND_OPACITY_LIT : STAND_OPACITY;
   }
 

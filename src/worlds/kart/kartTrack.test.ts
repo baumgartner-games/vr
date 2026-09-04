@@ -23,7 +23,15 @@ describe('sampleClosedSpline', () => {
   });
 
   it('hands back the control points when there is nothing to smooth', () => {
-    expect(sampleClosedSpline([{ x: 0, z: 0 }, { x: 1, z: 1 }], 8)).toHaveLength(2);
+    expect(
+      sampleClosedSpline(
+        [
+          { x: 0, z: 0 },
+          { x: 1, z: 1 },
+        ],
+        8,
+      ),
+    ).toHaveLength(2);
   });
 
   it('rounds off the corners', () => {

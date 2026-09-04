@@ -140,7 +140,12 @@ export class TeleportTool extends Tool {
     // eigentlich hinzeigt.
     this.pin = new THREE.Mesh(
       new THREE.ConeGeometry(0.07, 0.18, 12),
-      new THREE.MeshBasicMaterial({ color: GOOD, transparent: true, opacity: 0.75, toneMapped: false }),
+      new THREE.MeshBasicMaterial({
+        color: GOOD,
+        transparent: true,
+        opacity: 0.75,
+        toneMapped: false,
+      }),
     );
     this.pin.rotation.x = Math.PI / 2;
     this.pin.position.set(0, 0, 0.2);

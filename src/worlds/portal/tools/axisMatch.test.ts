@@ -77,7 +77,9 @@ describe('matchAxes', () => {
     const object = turned(37);
     for (const direction of frame(object)) {
       const best = Math.max(
-        ...object.map((axis) => Math.abs(axis.x * direction.x + axis.y * direction.y + axis.z * direction.z)),
+        ...object.map((axis) =>
+          Math.abs(axis.x * direction.x + axis.y * direction.y + axis.z * direction.z),
+        ),
       );
       expect(best).toBeCloseTo(1, 6);
     }

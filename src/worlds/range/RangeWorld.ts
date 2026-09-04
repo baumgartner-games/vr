@@ -238,11 +238,7 @@ export class RangeWorld extends PortalWorld {
    * a shift and nothing else — a metre stays a metre, and the lead inside
    * `faceHit` means over there exactly what it means here.
    */
-  private hitPoints(
-    target: ScoreTarget,
-    from: THREE.Vector3,
-    to: THREE.Vector3,
-  ): number | null {
+  private hitPoints(target: ScoreTarget, from: THREE.Vector3, to: THREE.Vector3): number | null {
     const object = target.entry.object;
     object.updateWorldMatrix(true, false);
     // One inversion for both ends: `worldToLocal` would invert the matrix twice
@@ -405,7 +401,13 @@ export class RangeWorld extends PortalWorld {
     entry.toggle = () => {
       flip();
       this.drawSwitch(entry);
-      playTone({ type: 'square', from: on() ? 520 : 780, to: on() ? 880 : 420, duration: 0.1, gain: 0.05 });
+      playTone({
+        type: 'square',
+        from: on() ? 520 : 780,
+        to: on() ? 880 : 420,
+        duration: 0.1,
+        gain: 0.05,
+      });
       this.notifySwitch(entry);
     };
     this.switches.push(entry);
@@ -454,7 +456,13 @@ export class RangeWorld extends PortalWorld {
    * which reads at a hundred metres and cannot end with every target lying in
    * the grass.
    */
-  private hangTarget(x: number, distance: number, height: number, radius: number, id: string): void {
+  private hangTarget(
+    x: number,
+    distance: number,
+    height: number,
+    radius: number,
+    id: string,
+  ): void {
     const post = this.buildPost(x, distance, height);
     // The disc hangs in front of the post, not through it — two solids in the
     // same place fight the hinge every step.
@@ -489,18 +497,13 @@ export class RangeWorld extends PortalWorld {
    * shot over, picked up, carried somewhere else and put back — and everybody
    * in the session sees the same one go down.
    */
-  private spawnTarget(
-    x: number,
-    y: number,
-    z: number,
-    radius: number,
-    id: string,
-  ): PhysicsBody {
+  private spawnTarget(x: number, y: number, z: number, radius: number, id: string): PhysicsBody {
     const thickness = 0.06;
-    const disc = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius, thickness, 24),
-      [this.steel, this.face(), this.steel],
-    );
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, thickness, 24), [
+      this.steel,
+      this.face(),
+      this.steel,
+    ]);
     // A cylinder stands along +Y; tipped forward its face looks at the line.
     disc.rotation.x = Math.PI / 2;
     disc.position.set(x, y, z);

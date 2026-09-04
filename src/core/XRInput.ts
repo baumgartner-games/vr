@@ -88,7 +88,10 @@ export class ControllerState {
   /** Origin + direction of the pointing ray, in world space. */
   getRay(target: THREE.Ray): THREE.Ray {
     this.targetRay.getWorldPosition(target.origin);
-    target.direction.set(0, 0, -1).applyQuaternion(this.targetRay.getWorldQuaternion(_quat)).normalize();
+    target.direction
+      .set(0, 0, -1)
+      .applyQuaternion(this.targetRay.getWorldQuaternion(_quat))
+      .normalize();
     return target;
   }
 
@@ -105,8 +108,10 @@ export class ControllerState {
 
   /** Short haptic pulse, ignored when the runtime has no actuator. */
   pulse(intensity = 0.4, durationMs = 30): void {
-    const actuators = (this.inputSource?.gamepad as { hapticActuators?: Array<{ pulse?: (i: number, d: number) => void }> } | undefined)
-      ?.hapticActuators;
+    const actuators = (
+      this.inputSource?.gamepad as
+        { hapticActuators?: Array<{ pulse?: (i: number, d: number) => void }> } | undefined
+    )?.hapticActuators;
     actuators?.[0]?.pulse?.(intensity, durationMs);
   }
 

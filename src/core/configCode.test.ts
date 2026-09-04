@@ -1,4 +1,11 @@
-import { ByteReader, ByteWriter, CODE_VERSION, formatCode, packCode, unpackCode } from './configCode';
+import {
+  ByteReader,
+  ByteWriter,
+  CODE_VERSION,
+  formatCode,
+  packCode,
+  unpackCode,
+} from './configCode';
 
 describe('packCode/unpackCode', () => {
   const payload = Uint8Array.from([0, 1, 2, 250, 255, 7, 7, 7]);

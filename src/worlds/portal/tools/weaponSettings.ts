@@ -142,11 +142,51 @@ export const WEAPON_FIELDS: readonly WeaponField[] = [
     decimals: 3,
     sub: 'Masse der Kugel — wie hart sie zuschlägt',
   },
-  { key: 'speed', label: 'Tempo', unit: 'm/s', min: 1, max: 400, decimals: 1, sub: 'Mündungsgeschwindigkeit' },
-  { key: 'rate', label: 'Feuerrate', unit: '/s', min: 0.2, max: 40, decimals: 1, sub: 'Schuss pro Sekunde' },
-  { key: 'magazine', label: 'Magazin', unit: 'Schuss', min: 1, max: 300, decimals: 0, sub: 'Rundenanzahl bis zum Nachladen' },
-  { key: 'reload', label: 'Nachladezeit', unit: 's', min: 0.05, max: 10, decimals: 2, sub: 'Wie lange das Magazin braucht' },
-  { key: 'burst', label: 'Salve', unit: 'Schuss', min: 1, max: 20, decimals: 0, sub: 'Wie viele der Dreifachschuss abgibt' },
+  {
+    key: 'speed',
+    label: 'Tempo',
+    unit: 'm/s',
+    min: 1,
+    max: 400,
+    decimals: 1,
+    sub: 'Mündungsgeschwindigkeit',
+  },
+  {
+    key: 'rate',
+    label: 'Feuerrate',
+    unit: '/s',
+    min: 0.2,
+    max: 40,
+    decimals: 1,
+    sub: 'Schuss pro Sekunde',
+  },
+  {
+    key: 'magazine',
+    label: 'Magazin',
+    unit: 'Schuss',
+    min: 1,
+    max: 300,
+    decimals: 0,
+    sub: 'Rundenanzahl bis zum Nachladen',
+  },
+  {
+    key: 'reload',
+    label: 'Nachladezeit',
+    unit: 's',
+    min: 0.05,
+    max: 10,
+    decimals: 2,
+    sub: 'Wie lange das Magazin braucht',
+  },
+  {
+    key: 'burst',
+    label: 'Salve',
+    unit: 'Schuss',
+    min: 1,
+    max: 20,
+    decimals: 0,
+    sub: 'Wie viele der Dreifachschuss abgibt',
+  },
   {
     key: 'zoom',
     label: 'Zoom',
@@ -170,7 +210,9 @@ export function clampWeapon(
   if (!AMMO_KINDS.includes(next.ammo)) next.ammo = DEFAULT_WEAPON.ammo;
   // A single `sight` is how one aiming aid used to be stored; a browser that
   // still holds one of those must not lose it.
-  next.sights = normalizeSights(settings.sights ?? (settings.sight ? [settings.sight] : next.sights));
+  next.sights = normalizeSights(
+    settings.sights ?? (settings.sight ? [settings.sight] : next.sights),
+  );
   return next;
 }
 
@@ -191,9 +233,7 @@ export function toggleSight(sights: readonly SightKind[], kind: SightKind): Sigh
 /** What the menu writes next to "Zielhilfen". */
 export function sightsLabel(sights: readonly SightKind[]): string {
   if (sights.length === 0) return 'keine';
-  return sights
-    .map((kind) => SIGHTS.find((sight) => sight.id === kind)?.label ?? kind)
-    .join(' + ');
+  return sights.map((kind) => SIGHTS.find((sight) => sight.id === kind)?.label ?? kind).join(' + ');
 }
 
 /** One value inside its range and rounded to the decimals it is shown with. */

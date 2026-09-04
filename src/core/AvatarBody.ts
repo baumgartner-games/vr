@@ -189,7 +189,11 @@ export class AvatarBody extends THREE.Group {
     const sin = Math.sin(this.bodyYaw);
     const cos = Math.cos(this.bodyYaw);
     const side = (offset: number, forward: number, target: THREE.Vector3, y: number) =>
-      target.set(headPos.x + cos * offset + sin * forward, y, headPos.z - sin * offset + cos * forward);
+      target.set(
+        headPos.x + cos * offset + sin * forward,
+        y,
+        headPos.z - sin * offset + cos * forward,
+      );
 
     // The spine sits behind the eyes, otherwise the chest fills the whole view.
     side(0, 0.1, _joint, neckY);

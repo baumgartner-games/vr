@@ -407,7 +407,13 @@ export class DroneTool extends Tool {
     }
     if (open) this.showSettings();
     this.drawButton();
-    playTone({ type: 'sine', from: open ? 420 : 620, to: open ? 700 : 380, duration: 0.09, gain: 0.04 });
+    playTone({
+      type: 'sine',
+      from: open ? 420 : 620,
+      to: open ? 700 : 380,
+      duration: 0.09,
+      gain: 0.04,
+    });
   }
 
   /**

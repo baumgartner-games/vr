@@ -7,9 +7,7 @@ describe('pageScroll', () => {
     // The tool shelf, scrolled down, after one tool has been taken out of it:
     // the page is re-applied because the row's label changed, and that must not
     // put the player back at the top of the list.
-    expect(
-      pageScroll({ ...PAGE, previousKey: 'tools', key: 'tools', current: 7 }),
-    ).toBe(7);
+    expect(pageScroll({ ...PAGE, previousKey: 'tools', key: 'tools', current: 7 })).toBe(7);
   });
 
   it('starts a page that was seen before where it was left', () => {

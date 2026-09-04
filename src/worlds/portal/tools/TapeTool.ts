@@ -67,7 +67,12 @@ export class TapeTool extends Tool {
 
     this.line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
-      new THREE.LineBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.95, depthTest: false }),
+      new THREE.LineBasicMaterial({
+        color: 0xffc857,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+      }),
     );
     this.line.frustumCulled = false;
     this.line.renderOrder = 18;
@@ -75,7 +80,10 @@ export class TapeTool extends Tool {
 
     const pinGeometry = new THREE.SphereGeometry(0.02, 12, 8);
     const pinMaterial = new THREE.MeshBasicMaterial({ color: 0xffc857, toneMapped: false });
-    this.pins = [new THREE.Mesh(pinGeometry, pinMaterial), new THREE.Mesh(pinGeometry, pinMaterial)];
+    this.pins = [
+      new THREE.Mesh(pinGeometry, pinMaterial),
+      new THREE.Mesh(pinGeometry, pinMaterial),
+    ];
     for (const pin of this.pins) {
       pin.renderOrder = 18;
       this.marks.add(pin);

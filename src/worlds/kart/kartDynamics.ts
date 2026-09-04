@@ -98,7 +98,7 @@ export function stepKart(
 
   // Turning first, with the speed the kart had when the wheel was turned.
   const forwardBefore = kartForwardSpeed(motion);
-  const angle = clamp(input.steer, -1, 1) * (settings.steerAngle * Math.PI) / 180;
+  const angle = (clamp(input.steer, -1, 1) * (settings.steerAngle * Math.PI)) / 180;
   const yaw = motion.yaw + ((forwardBefore * Math.tan(angle)) / settings.wheelbase) * dt;
 
   // Everything else happens in the frame the kart points in *now*. The velocity

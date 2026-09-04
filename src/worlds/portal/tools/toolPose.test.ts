@@ -16,7 +16,7 @@ const IDENTITY: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
 function axisAngle(axis: Vec3, degrees: number): Quat {
   const length = Math.hypot(axis.x, axis.y, axis.z);
-  const half = ((degrees * Math.PI) / 180) / 2;
+  const half = (degrees * Math.PI) / 180 / 2;
   const s = Math.sin(half) / length;
   return { x: axis.x * s, y: axis.y * s, z: axis.z * s, w: Math.cos(half) };
 }
@@ -160,11 +160,12 @@ describe('eulerXYZ', () => {
   it('matches the rotation it came from, rebuilt in the same order', () => {
     const q = multiplyQuat(
       axisAngle({ x: 1, y: 0, z: 0 }, 20),
-      multiplyQuat(
-        axisAngle({ x: 0, y: 1, z: 0 }, -40),
-        axisAngle({ x: 0, y: 0, z: 1 }, 15),
-        { x: 0, y: 0, z: 0, w: 1 },
-      ),
+      multiplyQuat(axisAngle({ x: 0, y: 1, z: 0 }, -40), axisAngle({ x: 0, y: 0, z: 1 }, 15), {
+        x: 0,
+        y: 0,
+        z: 0,
+        w: 1,
+      }),
       { x: 0, y: 0, z: 0, w: 1 },
     );
     const euler = eulerXYZ(q);
@@ -214,7 +215,14 @@ describe('mirrorReadout', () => {
   const readout = { x: 2.5, y: -1.2, z: 3, pitch: 20, yaw: -35, roll: 8 };
 
   it('flips the sideways offset and the two turns that follow it', () => {
-    expect(mirrorReadout(readout)).toEqual({ x: -2.5, y: -1.2, z: 3, pitch: 20, yaw: 35, roll: -8 });
+    expect(mirrorReadout(readout)).toEqual({
+      x: -2.5,
+      y: -1.2,
+      z: 3,
+      pitch: 20,
+      yaw: 35,
+      roll: -8,
+    });
   });
 
   it('mirrored twice is where it started', () => {

@@ -253,7 +253,8 @@ export class PistolTool extends Tool {
     // "30/∞" with 12 rounds' worth of ammunition in it either.
     this.rounds = Math.min(this.rounds, this.settings.magazine);
     if (this.settings.mode !== 'burst') this.burst = 0;
-    if (this.settings.sights.join() !== before.sights.join()) this.mountSights(this.settings.sights);
+    if (this.settings.sights.join() !== before.sights.join())
+      this.mountSights(this.settings.sights);
     this.draw();
     return this.settings;
   }

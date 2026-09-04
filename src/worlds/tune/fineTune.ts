@@ -66,12 +66,7 @@ export function scaleRotation(q: Quat, factor: number): Quat {
  * @param to     wo sie jetzt ist
  * @param factor die Untersetzung; 1 wäre das ungebremste Mitziehen
  */
-export function nudgeGrip(
-  grip: Grip,
-  from: Grip,
-  to: Grip,
-  factor = FINE_FACTOR,
-): Grip {
+export function nudgeGrip(grip: Grip, from: Grip, to: Grip, factor = FINE_FACTOR): Grip {
   const position: Vec3 = {
     x: grip.position.x + (to.position.x - from.position.x) * factor,
     y: grip.position.y + (to.position.y - from.position.y) * factor,
@@ -81,11 +76,12 @@ export function nudgeGrip(
   // Was die Hand seit dem Zupacken gedreht hat — im Raum, nicht in ihrem
   // eigenen Frame: der Geist soll sich um dieselben Achsen drehen, um die die
   // Hand sich dreht, und nicht um seine eigenen.
-  const delta = multiplyQuat(
-    to.rotation,
-    conjugate(from.rotation, { x: 0, y: 0, z: 0, w: 1 }),
-    { x: 0, y: 0, z: 0, w: 1 },
-  );
+  const delta = multiplyQuat(to.rotation, conjugate(from.rotation, { x: 0, y: 0, z: 0, w: 1 }), {
+    x: 0,
+    y: 0,
+    z: 0,
+    w: 1,
+  });
   const rotation = multiplyQuat(scaleRotation(delta, factor), grip.rotation, {
     x: 0,
     y: 0,

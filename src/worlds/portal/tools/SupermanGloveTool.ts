@@ -334,7 +334,11 @@ export class SupermanGloveTool extends Tool {
   private draw(): void {
     // Whole metres per second: the canvas is redrawn when the line changes,
     // and a tenth that flickers every frame would redraw it every frame.
-    const text = !this.hovering ? 'AUS' : this.origin ? `${Math.round(this.speed)} m/s` : 'SCHWEBEN';
+    const text = !this.hovering
+      ? 'AUS'
+      : this.origin
+        ? `${Math.round(this.speed)} m/s`
+        : 'SCHWEBEN';
     if (text === this.drawn) return;
     this.drawn = text;
 

@@ -329,7 +329,9 @@ export function aimQuaternion(
  * eine neue Handhabe baut, ruft das hier auf statt eine eigene Zahl zu
  * erfinden.
  */
-export function grabMaterial(options: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
+export function grabMaterial(
+  options: THREE.MeshStandardMaterialParameters = {},
+): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     color: GRAB_TINT,
     roughness: 0.72,

@@ -44,10 +44,7 @@ export function loadRapier(): Promise<RapierModule> {
 
 /** Collider silhouette. `halfExtents` gives the size for all of them. */
 export type ColliderShape =
-  | { kind: 'box' }
-  | { kind: 'ball' }
-  | { kind: 'cylinder' }
-  | { kind: 'cone' };
+  { kind: 'box' } | { kind: 'ball' } | { kind: 'cylinder' } | { kind: 'cone' };
 
 export interface BodyOptions {
   /** Half extents; taken from the mesh geometry when omitted. */

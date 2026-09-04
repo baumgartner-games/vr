@@ -59,11 +59,12 @@ export function holdPoseFrom(
 
   // The tilt, minus the aim the tool is going to be given anyway.
   const local = multiplyQuat(inverse, parked.rotation, { x: 0, y: 0, z: 0, w: 1 });
-  const rotation = multiplyQuat(
-    conjugate(aim, { x: 0, y: 0, z: 0, w: 1 }),
-    local,
-    { x: 0, y: 0, z: 0, w: 1 },
-  );
+  const rotation = multiplyQuat(conjugate(aim, { x: 0, y: 0, z: 0, w: 1 }), local, {
+    x: 0,
+    y: 0,
+    z: 0,
+    w: 1,
+  });
 
   return { position, rotation: normalize(rotation) };
 }
@@ -91,11 +92,12 @@ export function gripForHold(
   // parked = griff · aim · haltung, also griff = parked · (aim · haltung)⁻¹.
   const local = multiplyQuat(aim, hold.rotation, { x: 0, y: 0, z: 0, w: 1 });
   const rotation = normalize(
-    multiplyQuat(
-      parked.rotation,
-      conjugate(local, { x: 0, y: 0, z: 0, w: 1 }),
-      { x: 0, y: 0, z: 0, w: 1 },
-    ),
+    multiplyQuat(parked.rotation, conjugate(local, { x: 0, y: 0, z: 0, w: 1 }), {
+      x: 0,
+      y: 0,
+      z: 0,
+      w: 1,
+    }),
   );
   // Und der Ort: das Werkzeug sitzt um den gedrehten Versatz neben dem Griff.
   const offset = rotateVec(hold.position, rotation, { x: 0, y: 0, z: 0 });

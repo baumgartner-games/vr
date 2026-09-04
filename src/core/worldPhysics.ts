@@ -147,7 +147,9 @@ export function gravityName(value: number): string | null {
  * eigene gesetzt hat.
  */
 export function effectiveGravity(settings: WorldPhysics, worldGravity: number): number {
-  return settings.autoGravity ? clampPhysicsField(PHYSICS_FIELDS[0]!, worldGravity) : settings.gravity;
+  return settings.autoGravity
+    ? clampPhysicsField(PHYSICS_FIELDS[0]!, worldGravity)
+    : settings.gravity;
 }
 
 /** Wie die Schwerkraft-Zeile im Menü aussieht. */

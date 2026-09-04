@@ -130,7 +130,10 @@ export function holdPoseSnapshot(): Record<string, number[]> {
 }
 
 /** Puts a set of poses from a config code back into the store. */
-export function saveHoldPoses(poses: Record<string, number[]>, hands: Record<string, Handedness> = {}): void {
+export function saveHoldPoses(
+  poses: Record<string, number[]>,
+  hands: Record<string, Handedness> = {},
+): void {
   const all: Stored = {};
   for (const [id, values] of Object.entries(poses)) {
     all[id] = { ...poseFromReadout(readoutFromArray(values)), hand: hands[id] };

@@ -44,7 +44,8 @@ export interface PanelOptions {
   width?: number;
   title?: string;
   footer?: string;
-  onSelect?(index: number, hand: Handedness | null): void;
+  /** Eigenschaft statt Methode: Sie wird gespeichert und später einzeln gerufen. */
+  onSelect?: (index: number, hand: Handedness | null) => void;
 }
 
 const CANVAS_W = 768;
@@ -453,7 +454,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       textX = PAD + 46;
     }
 
-    const rightEdge = CANVAS_W - PAD - (entry.children ? 60 : entry.checked !== undefined ? 110 : 30);
+    const rightEdge =
+      CANVAS_W - PAD - (entry.children ? 60 : entry.checked !== undefined ? 110 : 30);
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 36px system-ui, sans-serif';
     ctx.fillText(clip(ctx, entry.label, rightEdge - textX), textX, y + (entry.sub ? 52 : 74));
@@ -474,7 +476,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       ctx.fillStyle = entry.checked ? accent : 'rgba(255,255,255,0.14)';
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(left + (entry.checked ? width - height / 2 : height / 2), top + height / 2, height / 2 - 5, 0, Math.PI * 2);
+      ctx.arc(
+        left + (entry.checked ? width - height / 2 : height / 2),
+        top + height / 2,
+        height / 2 - 5,
+        0,
+        Math.PI * 2,
+      );
       ctx.fillStyle = '#ffffff';
       ctx.fill();
     } else if (entry.children) {

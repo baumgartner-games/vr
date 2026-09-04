@@ -26,7 +26,7 @@ function vec(x: number, y: number, z: number): Vec3 {
 
 /** Quaternion for a yaw of `degrees` around the world up axis. */
 function yaw(degrees: number): Quat {
-  const half = ((degrees * Math.PI) / 180) / 2;
+  const half = (degrees * Math.PI) / 180 / 2;
   return { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
 }
 

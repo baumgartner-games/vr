@@ -50,7 +50,11 @@ export class JetBody extends THREE.Group {
     super();
     this.name = 'drone-jet';
 
-    const shell = new THREE.MeshStandardMaterial({ color: 0x3a4358, roughness: 0.55, metalness: 0.3 });
+    const shell = new THREE.MeshStandardMaterial({
+      color: 0x3a4358,
+      roughness: 0.55,
+      metalness: 0.3,
+    });
     const trim = new THREE.MeshStandardMaterial({
       color: 0x9aa6bd,
       roughness: 0.35,

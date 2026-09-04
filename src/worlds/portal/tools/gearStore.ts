@@ -1,9 +1,5 @@
 import { clampDrone, DEFAULT_DRONE, type DroneSettings } from './droneSettings';
-import {
-  clampSuperman,
-  DEFAULT_SUPERMAN,
-  type SupermanSettings,
-} from './supermanSettings';
+import { clampSuperman, DEFAULT_SUPERMAN, type SupermanSettings } from './supermanSettings';
 import { clampStopwatch, DEFAULT_STOPWATCH, type StopwatchSettings } from './stopwatchSettings';
 import { clampWeapon, DEFAULT_WEAPON, type WeaponSettings } from './weaponSettings';
 import { readoutFromArray, readoutToArray, type PoseReadout } from './toolPose';
@@ -70,11 +66,7 @@ export function attachmentPose(toolId: string, attachmentId: string): PoseReadou
   return stored ? readoutFromArray(stored) : null;
 }
 
-export function saveAttachmentPose(
-  toolId: string,
-  attachmentId: string,
-  pose: PoseReadout,
-): void {
+export function saveAttachmentPose(toolId: string, attachmentId: string, pose: PoseReadout): void {
   const all = readJson<StoredAttachments>(POSE_KEY, {});
   all[attachmentKey(toolId, attachmentId)] = readoutToArray(pose);
   writeJson(POSE_KEY, all);

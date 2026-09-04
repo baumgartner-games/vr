@@ -9,7 +9,12 @@
  * verschoben hat. Zweitens die **Länge**: dass ein Code kürzer ist als die
  * Zahlen darin, ist der ganze Grund, warum es ihn gibt.
  */
-import { HOLD_HAND_POSE, defaultHoldPose, handPoseToArray, mirrorHandPose } from '../../../core/handPose';
+import {
+  HOLD_HAND_POSE,
+  defaultHoldPose,
+  handPoseToArray,
+  mirrorHandPose,
+} from '../../../core/handPose';
 import { saveHoldHandPose, saveIdleHandPose } from '../../../core/handPoseStore';
 import { savePose, storedPoseHand, storedPose } from './poseStore';
 import { readPose } from './toolPose';
@@ -64,7 +69,9 @@ describe('der Code für ein Werkzeug an einer Hand', () => {
     expect(config).not.toBeNull();
     applyGearConfig(config!);
 
-    expect(config!.hands?.hold?.right?.flashlight?.slice(0, 6)).toEqual([4, -2.8, 1.7, -44, 26, -105]);
+    expect(config!.hands?.hold?.right?.flashlight?.slice(0, 6)).toEqual([
+      4, -2.8, 1.7, -44, 26, -105,
+    ]);
   });
 
   it('lässt die Finger stehen, wenn sie nicht verstellt sind', () => {
@@ -134,9 +141,16 @@ describe('der abgetippte Code der Taschenlampe', () => {
 
 describe('die Hand am Werkzeug', () => {
   it('bleibt gespeichert, auch wenn nur die Pose neu geschrieben wird', () => {
-    savePose('flashlight', { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } }, 'left');
+    savePose(
+      'flashlight',
+      { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } },
+      'left',
+    );
     expect(storedPoseHand('flashlight')).toBe('left');
-    savePose('flashlight', { position: { x: 0.01, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } });
+    savePose('flashlight', {
+      position: { x: 0.01, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    });
     expect(storedPoseHand('flashlight')).toBe('left');
   });
 

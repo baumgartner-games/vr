@@ -105,7 +105,9 @@ export class PortalRenderer {
     for (let level = depth - 1; level >= 0; level--) {
       const inner = level + 1;
       for (const portal of active) {
-        portal.setView(inner < depth ? this.target(portal, inner, scale, !presenting).texture : null);
+        portal.setView(
+          inner < depth ? this.target(portal, inner, scale, !presenting).texture : null,
+        );
       }
       // A portal surface looks its own image up by screen position, so every
       // portal has to be told how big the picture being drawn *right now* is —
@@ -194,7 +196,12 @@ export class PortalRenderer {
     const height = _targetSize.y;
     const existing = levels[level];
     const samples = multisample ? 4 : 0;
-    if (existing && existing.width === width && existing.height === height && existing.samples === samples) {
+    if (
+      existing &&
+      existing.width === width &&
+      existing.height === height &&
+      existing.samples === samples
+    ) {
       return existing;
     }
     existing?.dispose();

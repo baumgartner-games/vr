@@ -37,7 +37,9 @@ describe('Lichtkegel der Taschenlampe', () => {
 
   it('bleibt auch am schmalsten Ende eine Taschenlampe', () => {
     // Ohne Deckel wäre der 6°-Kegel dreizehnmal so hell wie der normale.
-    expect(beamIntensity(MIN_BEAM_ANGLE) / beamIntensity(DEFAULT_BEAM_ANGLE)).toBeLessThanOrEqual(3);
+    expect(beamIntensity(MIN_BEAM_ANGLE) / beamIntensity(DEFAULT_BEAM_ANGLE)).toBeLessThanOrEqual(
+      3,
+    );
     expect(beamRange(MIN_BEAM_ANGLE)).toBeLessThan(40);
   });
 

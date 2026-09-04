@@ -13,7 +13,12 @@ const STEP = 1 / 60;
 const IDLE: KartInput = { throttle: 0, brake: 0, steer: 0 };
 
 /** Drives a kart for `seconds` with one fixed input. */
-function drive(motion: KartMotion, input: Partial<KartInput>, seconds: number, settings = clampKart({})): KartMotion {
+function drive(
+  motion: KartMotion,
+  input: Partial<KartInput>,
+  seconds: number,
+  settings = clampKart({}),
+): KartMotion {
   let state = motion;
   for (let i = 0; i < Math.round(seconds / STEP); i++) {
     state = stepKart(state, { ...IDLE, ...input }, settings, STEP);
@@ -81,7 +86,8 @@ describe('stepKart', () => {
     const long = clampKart({ wheelbase: 2.2 });
     const rollingShort = drive(kartAt(0, 0, 0), { throttle: 1 }, 3, short);
     const rollingLong = drive(kartAt(0, 0, 0), { throttle: 1 }, 3, long);
-    const turnedShort = drive(rollingShort, { throttle: 1, steer: 1 }, 1, short).yaw - rollingShort.yaw;
+    const turnedShort =
+      drive(rollingShort, { throttle: 1, steer: 1 }, 1, short).yaw - rollingShort.yaw;
     const turnedLong = drive(rollingLong, { throttle: 1, steer: 1 }, 1, long).yaw - rollingLong.yaw;
     expect(turnedShort).toBeGreaterThan(turnedLong);
   });

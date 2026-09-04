@@ -2,14 +2,7 @@ import * as THREE from 'three';
 import type { ColliderShape } from '../../physics/PhysicsWorld';
 
 /** Everything the magic bag can conjure. The name travels over the network. */
-export type PropKind =
-  | 'cube'
-  | 'domino'
-  | 'sphere'
-  | 'pyramid'
-  | 'plank'
-  | 'block'
-  | 'cylinder';
+export type PropKind = 'cube' | 'domino' | 'sphere' | 'pyramid' | 'plank' | 'block' | 'cylinder';
 
 /** Weighted Companion Cube — canvas texture, no asset download. */
 export function createCompanionCube(size = 0.5): THREE.Mesh {

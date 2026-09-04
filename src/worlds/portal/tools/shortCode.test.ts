@@ -193,7 +193,11 @@ describe('der ganze Kurzcode', () => {
   });
 
   it('kennt die leere Hand', () => {
-    const code = packShortGear({ toolId: '', hand: 'right', grip: pose(-0.3, 2.7, 3.8, 75, -45, 5) });
+    const code = packShortGear({
+      toolId: '',
+      hand: 'right',
+      grip: pose(-0.3, 2.7, 3.8, 75, -45, 5),
+    });
     expect(parseShortGear(code)?.toolId).toBe('');
   });
 
@@ -237,8 +241,7 @@ describe('der ganze Kurzcode', () => {
     for (let i = 2; i < code.length - 2; i++) {
       if (code[i] === code[i + 1]) continue;
       tried++;
-      const swapped =
-        code.slice(0, i) + code[i + 1] + code[i] + code.slice(i + 2);
+      const swapped = code.slice(0, i) + code[i + 1] + code[i] + code.slice(i + 2);
       if (parseShortGear(swapped) === null) caught++;
     }
     expect(tried).toBeGreaterThan(4);

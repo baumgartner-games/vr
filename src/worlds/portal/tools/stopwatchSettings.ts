@@ -70,7 +70,9 @@ export function clampFrames(value: unknown): number {
   return Math.round(Math.min(MAX_FRAMES, Math.max(MIN_FRAMES, number)));
 }
 
-export function clampStopwatch(settings: Partial<StopwatchSettings> | undefined): StopwatchSettings {
+export function clampStopwatch(
+  settings: Partial<StopwatchSettings> | undefined,
+): StopwatchSettings {
   const next = { ...DEFAULT_STOPWATCH, ...settings };
   return {
     action: STOPWATCH_ACTIONS.includes(next.action) ? next.action : DEFAULT_STOPWATCH.action,

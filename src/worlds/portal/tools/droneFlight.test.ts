@@ -99,7 +99,8 @@ describe('Jet', () => {
   it('fliegt im Rollen eine Kurve statt geradeaus', () => {
     // 90° nach rechts rollen, dann ziehen: die Nase muss sich zur Seite drehen.
     let state = quatIdentity();
-    for (let i = 0; i < 200; i++) state = flyJet(state, NEUTRAL, { x: 1, y: 0 }, 1 / 200).orientation;
+    for (let i = 0; i < 200; i++)
+      state = flyJet(state, NEUTRAL, { x: 1, y: 0 }, 1 / 200).orientation;
     const before = headingOf(state);
     for (let i = 0; i < 60; i++) state = flyJet(state, NEUTRAL, { x: 0, y: 1 }, 1 / 60).orientation;
     expect(Math.abs(headingOf(state) - before)).toBeGreaterThan(0.2);
@@ -109,7 +110,8 @@ describe('Jet', () => {
 describe('Ausrichten', () => {
   it('behält beim Parken die Richtung und verliert die Schräglage', () => {
     let state = quatFromYaw(1.2);
-    for (let i = 0; i < 30; i++) state = flyJet(state, NEUTRAL, { x: 1, y: 0.5 }, 1 / 60).orientation;
+    for (let i = 0; i < 30; i++)
+      state = flyJet(state, NEUTRAL, { x: 1, y: 0.5 }, 1 / 60).orientation;
     const level = levelOf(state);
     expect(headingOf(level)).toBeCloseTo(headingOf(state));
     expect(rotate(level, { x: 0, y: 1, z: 0 }).y).toBeCloseTo(1);

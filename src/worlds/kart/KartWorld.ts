@@ -6,7 +6,12 @@ import { playPick, playTone } from '../../core/Audio';
 import type { MenuEntry } from '../../ui/menu';
 import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
-import { ALL_GROUPS, GROUP_PLAYER, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
+import {
+  ALL_GROUPS,
+  GROUP_PLAYER,
+  GROUP_WORLD,
+  type PhysicsBody,
+} from '../../physics/PhysicsWorld';
 import { Kart, EXIT_HOLD, WHEEL_GRAB_RANGE, WHEEL_HOLD_RANGE } from './Kart';
 import { kartSpeed, kmh, stepKart } from './kartDynamics';
 import {
@@ -312,11 +317,7 @@ export class KartWorld extends PortalWorld {
       const hit = nearestOnPath(this.path, point.x, point.z);
       const side = i % 2 === 0 ? 1 : -1;
       const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 12), material);
-      cone.position.set(
-        hit.x + hit.tz * side * 1.9,
-        0.25,
-        hit.z - hit.tx * side * 1.9,
-      );
+      cone.position.set(hit.x + hit.tz * side * 1.9, 0.25, hit.z - hit.tx * side * 1.9);
       this.root.add(cone);
       this.registerProp(
         physics.addDynamic(cone, {
@@ -708,12 +709,7 @@ export class KartWorld extends PortalWorld {
    * A strip along the track: `offset` metres off the middle, `half` metres to
    * each side of that, laid at `y`.
    */
-  private ribbon(
-    offset: number,
-    half: number,
-    y: number,
-    material: THREE.Material,
-  ): THREE.Mesh {
+  private ribbon(offset: number, half: number, y: number, material: THREE.Material): THREE.Mesh {
     const count = this.path.length;
     const positions = new Float32Array(count * 2 * 3);
     const indices: number[] = [];
@@ -852,7 +848,13 @@ export class KartWorld extends PortalWorld {
     }
     // One bright panel behind each board — the only thing a portal sticks to
     // out here besides the ground.
-    this.slab(parent, this.panel, [0.2, 2, 3.4], [x + point.nx * side * 0.4, 1, z + point.nz * side * 0.4], true);
+    this.slab(
+      parent,
+      this.panel,
+      [0.2, 2, 3.4],
+      [x + point.nx * side * 0.4, 1, z + point.nz * side * 0.4],
+      true,
+    );
   }
 
   /** The karts, lined up on the grid the way a grid is lined up. */

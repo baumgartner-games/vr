@@ -81,7 +81,10 @@ export class InputModel extends THREE.Group {
   /** Dasselbe ohne Gerät dahinter — das Ausstellungsstück auf dem Tisch. */
   private shape: THREE.Object3D | null = null;
   /** Die Leuchtpunkte auf den Tasten des echten Modells. */
-  private readonly markers = new Map<string, THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>>();
+  private readonly markers = new Map<
+    string,
+    THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>
+  >();
   private markerGeometry: THREE.SphereGeometry | null = null;
   /** Materialien, die nur dieser Kopie gehören — der Geist färbt sie um. */
   private borrowed: THREE.Material[] = [];

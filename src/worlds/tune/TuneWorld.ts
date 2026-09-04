@@ -515,8 +515,20 @@ export class TuneWorld extends PortalWorld {
     room.add(this.shellGroup);
     const shellGroup = this.shellGroup;
 
-    this.slab(shellGroup, this.floorMaterial, [half * 2, thickness, half * 2], [0, -thickness / 2, 0], true);
-    this.slab(shellGroup, this.shell, [half * 2, thickness, half * 2], [0, height + thickness / 2, 0], false);
+    this.slab(
+      shellGroup,
+      this.floorMaterial,
+      [half * 2, thickness, half * 2],
+      [0, -thickness / 2, 0],
+      true,
+    );
+    this.slab(
+      shellGroup,
+      this.shell,
+      [half * 2, thickness, half * 2],
+      [0, height + thickness / 2, 0],
+      false,
+    );
     this.slab(shellGroup, this.shell, [half * 2, height, thickness], [0, height / 2, -half], true);
     this.slab(shellGroup, this.shell, [thickness, height, half * 2], [-half, height / 2, 0], false);
     this.slab(shellGroup, this.shell, [thickness, height, half * 2], [half, height / 2, 0], false);
@@ -670,13 +682,21 @@ export class TuneWorld extends PortalWorld {
 
     for (const [index, key] of (['stand', 'sit'] as const).entries()) {
       const button = this.wallButton(room, 0.86, 0.28, () => this.measureEye(key));
-      button.plane.position.set(half - thickness / 2 - 0.02, 1.95, -0.3 + (index === 0 ? 0.46 : -0.46));
+      button.plane.position.set(
+        half - thickness / 2 - 0.02,
+        1.95,
+        -0.3 + (index === 0 ? 0.46 : -0.46),
+      );
       button.plane.rotation.y = -Math.PI / 2;
       button.refresh = () => {
         this.label(
           button,
-          key === 'stand' ? `Stehhöhe: ${eyeHeights().stand} cm` : `Sitzhöhe: ${eyeHeights().sit} cm`,
-          key === 'stand' ? 'Aufstehen, drücken — die Brille misst' : 'Hinsetzen, drücken — die Brille misst',
+          key === 'stand'
+            ? `Stehhöhe: ${eyeHeights().stand} cm`
+            : `Sitzhöhe: ${eyeHeights().sit} cm`,
+          key === 'stand'
+            ? 'Aufstehen, drücken — die Brille misst'
+            : 'Hinsetzen, drücken — die Brille misst',
           0x4aa8ff,
         );
       };
@@ -886,8 +906,20 @@ export class TuneWorld extends PortalWorld {
     const width = LANE.half * 2 + thickness * 2;
     const shellGroup = this.shellGroup;
 
-    this.slab(shellGroup, this.floorMaterial, [width, thickness, LANE.length], [0, -thickness / 2, middle], false);
-    this.slab(shellGroup, this.shell, [width, thickness, LANE.length], [0, LANE.height + thickness / 2, middle], false);
+    this.slab(
+      shellGroup,
+      this.floorMaterial,
+      [width, thickness, LANE.length],
+      [0, -thickness / 2, middle],
+      false,
+    );
+    this.slab(
+      shellGroup,
+      this.shell,
+      [width, thickness, LANE.length],
+      [0, LANE.height + thickness / 2, middle],
+      false,
+    );
     for (const sign of [-1, 1]) {
       this.slab(
         shellGroup,
@@ -1158,7 +1190,10 @@ export class TuneWorld extends PortalWorld {
   }
 
   /** Die Knöpfe an der rechten Wand des Gangs. */
-  private rangeRows(): Array<{ refresh(button: WallButton): void; run(hand: Handedness | null): void }> {
+  private rangeRows(): Array<{
+    refresh: (button: WallButton) => void;
+    run: (hand: Handedness | null) => void;
+  }> {
     return [
       {
         refresh: (button) => {
@@ -1313,7 +1348,8 @@ export class TuneWorld extends PortalWorld {
 
     const { side, tool } = this.gripState;
     const code = what === 'all' ? gearCode() : toolGearCode(tool, side);
-    const label = what === 'all' ? 'Ganze Ausrüstung' : `${this.toolLabel(tool)} · ${handLabel(side)}`;
+    const label =
+      what === 'all' ? 'Ganze Ausrüstung' : `${this.toolLabel(tool)} · ${handLabel(side)}`;
     // Der Code geht als **Chat-Zeile** hinaus und nicht über einen eigenen
     // Kanal: dann steht er drüben im Panel, mit einem Knopf *Kopieren* daneben
     // und einer Uhrzeit davor. Genau dafür wird er verschickt — jemand will ihn
@@ -1858,11 +1894,10 @@ export class TuneWorld extends PortalWorld {
 
     this.applyHold(
       tool,
-      holdPoseFrom(
-        { position: _position, rotation: _rotation },
-        _aim,
-        { position: _toolPosition, rotation: _toolRotation },
-      ),
+      holdPoseFrom({ position: _position, rotation: _rotation }, _aim, {
+        position: _toolPosition,
+        rotation: _toolRotation,
+      }),
       `${tool.label} · ${handLabel(hand)}`,
       hand,
     );
@@ -1974,11 +2009,7 @@ export class TuneWorld extends PortalWorld {
     const hold: HoldPose = { position: tool.holdPosition, rotation: tool.holdRotation };
     // Der Rückweg: wo läge die Hand, wenn sie das Werkzeug so hielte, wie es
     // gerade hängt? Genau dort steht der Geist.
-    const grip = gripForHold(
-      { position: _toolPosition, rotation: _toolRotation },
-      _aim,
-      hold,
-    );
+    const grip = gripForHold({ position: _toolPosition, rotation: _toolRotation }, _aim, hold);
 
     const pose = ctx.hands.editablePose(mounted.hand, tool.toolId);
     const ghost = new GhostHand(mounted.hand, pose, { color: 0xffc857 });
@@ -2285,4 +2316,3 @@ function poseOfHand(pose: HandPose): Pose {
 function handLabel(hand: Handedness): string {
   return hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
 }
-
