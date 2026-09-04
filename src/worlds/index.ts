@@ -37,6 +37,28 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./range/RangeWorld')).RangeWorld(),
   },
   {
+    id: 'kart',
+    title: 'Gokart',
+    tagline: 'Kleine Strecke, vier Karts',
+    description:
+      'Lenkrad greifen und einsteigen. Rechter Trigger Gas, linker bremst, Klemmbrett stellt alles ein.',
+    accent: 0x5ee0a0,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./kart/KartWorld')).KartWorld(),
+  },
+  {
+    id: 'shop',
+    title: 'Pizzeria',
+    tagline: 'Kneten, belegen, backen',
+    description:
+      'Küche, Thresen und Gastraum. Teig mit der Faust flach kneten, Soße, Käse, Ofen — Mülleimer löscht.',
+    accent: 0xff8a2f,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./shop/ShopWorld')).ShopWorld(),
+  },
+  {
     id: 'dust',
     title: 'Dust',
     tagline: 'Große Karte, vier Stockwerke',

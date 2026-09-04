@@ -5,9 +5,10 @@
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
-Portal Labor, Schießstand und Dust, ein Werkzeuggürtel voller Spielzeug und
-Peer-to-Peer-Sitzungen ohne eigenen Server. three.js + TypeScript + Vite, ohne
-externe Assets — alles wird prozedural gebaut.
+Portal Labor, Schießstand, Dust, eine Gokart-Strecke und eine Pizzeria, ein
+Werkzeuggürtel voller Spielzeug und Peer-to-Peer-Sitzungen ohne eigenen Server.
+three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
+gebaut.
 
 > **Hinweis für Agenten:** Entwickelt und gepusht wird **direkt auf `main`** —
 > kein Feature-Branch, kein Pull Request, solange nichts anderes im Auftrag
@@ -30,7 +31,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 ## Tests
 
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
-Werkzeug-Pose, Handhaltung, Waffenwerte, Zielrichtung und Konfig-Code. Diese
+Werkzeug-Pose, Handhaltung, Waffenwerte, Zielrichtung, Konfig-Code, die
+Fahrphysik und Streckenführung der Karts und das Pizza-Rezept. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
@@ -59,6 +61,11 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Werkzeug benutzen | Trigger (Greifen = zweite Funktion) | Links-/Rechtsklick | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Ferngreifen | zielen, Grip, Hand >30° nach oben kippen | – | – |
+| Kart: einsteigen | Lenkrad greifen (oder anzielen + Trigger) | Lenkrad anklicken | – |
+| Kart: fahren | rechter Trigger Gas, linker bremst, linker Stick lenkt | `W`/`S`, `A`/`D` | – |
+| Kart: aussteigen | `A`/`X` halten | `E` halten | – |
+| Pizza: kneten | Faust auf den Teig auf dem Tisch schlagen | – | – |
+| Pizza: belegen | Kelle/Streuer greifen, Trigger halten | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 
 Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#steuerung).

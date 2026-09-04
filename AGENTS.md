@@ -47,9 +47,15 @@ Vorzeichen, die im Headset sonst die halbe Welt verdrehen), die Handhaltung
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 (`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
-Physik jeden Treffer verschluckt) und die Zielrichtung der Werkzeuge
+Physik jeden Treffer verschluckt), die Zielrichtung der Werkzeuge
 (`src/worlds/portal/tools/aim.ts` — der Test hält fest, dass ein Werkzeug in
-der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber). Diese
+der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber), die
+**Kart-Werte** (`src/worlds/kart/kartSettings.ts`), die **Fahrphysik**
+(`src/worlds/kart/kartDynamics.ts` — Höchstgeschwindigkeit, Ausrollen,
+Rückwärtsgang, Lenken erst ab Tempo, Driften bei wenig Traktion), die
+**Streckenführung** (`src/worlds/kart/kartTrack.ts` — Spline, nächster Punkt,
+Leitplanke, Rundenzähler über die Ziellinie hinweg) und das **Pizza-Rezept**
+(`src/worlds/shop/pizza.ts` — Kneten, Belegen, Backen, Punkte). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
 weder WebGL noch WebXR noch wasm.
 
@@ -75,7 +81,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Seiten **Werkzeuge** und **Magischer Beutel** nimmt dagegen nur **Greifen
   oder `A`**, damit der Zieltrigger nicht versehentlich die Hand füllt. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
-  Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust), **Werkzeuge**
+  Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria),
+  **Werkzeuge**
   (das ganze Regal direkt in die Hand), **Magischer Beutel** (Raster mit
   Companion Cube, Kugel, Domino, Pyramide, Quader, Planke und Zylinder),
   **Bewegung** (Sprint und Ducken), **Einstellungen** und die Aktionen der
@@ -211,6 +218,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Treffer, desto höher. Beides direkt beim Schützen, ohne Laufzeit und ohne
   Entfernung, und beides an zwei Tafeln auf der Schießlinie abschaltbar
   (anschießen oder Trigger).
+- **Gokart** (experimentell): kleine Strecke mit vier Karts, jedes mit eigenem
+  Charakter und eigenem **Klemmbrett**. Lenkrad greifen setzt dich hinein,
+  rechter Trigger ist Gas, linker die Bremse, der linke Stick lenkt — oder das
+  Lenkrad selbst, wenn die erste Zeile des Klemmbretts das sagt. Aussteigen
+  steht die ganze Zeit auf einem Schild über dem Lenkrad. Rundenzeiten stehen
+  an der Strecke.
+- **Pizzeria** (experimentell): Küche, Thresen, Gastraum. Teig aus der Kiste auf
+  den Arbeitstisch legen und mit der **Faust** flach kneten, mit der roten
+  **Kelle** Soße verteilen, **Käse** darüber streuen, ab in den **Ofen** und
+  fertig auf einen Gästetisch. Der **Mülleimer** löscht, was schiefging. An der
+  Wand hinter jeder Station steht, was sie will.
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
@@ -258,6 +276,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü | – | – |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
 | Radiergummi | Trigger löscht | – | – |
+| Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |
+| Kart: Gas / Bremse | rechter / linker Trigger | `W` / `S` | – |
+| Kart: lenken | linker Stick — oder das Lenkrad greifen und drehen | `A` / `D` | – |
+| Kart: aussteigen | `A`/`X` halten (Balken läuft voll) | `E` halten | – |
+| Kart: Klemmbrett | anzielen + Trigger, Stick blättert | anklicken | – |
+| Pizza: Teig kneten | Faust auf den liegenden Teig schlagen | – | – |
+| Pizza: Soße / Käse | Kelle bzw. Streuer greifen, Trigger halten | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 | Zuschauen | Menü → Verbindung → Zuschauen | Panel *Verbindung* → *Zuschauen* | dito |
 | Zuschauer-Kamera drehen | – (Kopf bleibt deiner) | ziehen mit der Maus | wischen |
@@ -389,6 +414,81 @@ der Spitze, loslassen setzt es fest. Seine Pose liegt im Raum **des Werkzeugs**
 (nicht der Hand), deshalb bleibt ein einmal ausgerichteter Rotpunkt
 ausgerichtet, egal wie die Waffe später gehalten wird.
 
+### Das Gokart
+
+Ein Kart ist drei reine Module und ein bisschen Verdrahtung:
+`kartSettings.ts` (die Werte samt Bereich, Raste und Einheit — dieselbe Idee
+wie `weaponSettings.ts`), `kartDynamics.ts` (ein Schritt Fahren) und
+`kartTrack.ts` (die Strecke als Mittellinie plus halbe Breite). Alles drei ohne
+three.js und mit Jest-Test; `Kart.ts` und `KartWorld.ts` sind nur noch Blech.
+
+**Das Fahrmodell** ist bewusst klein und arkadig: Gelenkt wird wie beim
+Fahrrad — Gierrate = Tempo · tan(Einschlag) / Radstand, also dreht ein
+stehendes Kart nicht. Die Drehung dreht das *Kart*, nie seine Geschwindigkeit;
+was dabei seitlich übrig bleibt, ist der Drift, und die **Traktion** sagt, wie
+schnell die Reifen ihn wieder auffressen. Gas, Bremse und Widerstand fassen nur
+den Vorwärtsanteil an. Zum Rollwiderstand gehört ein konstanter Anteil, sonst
+*nähert* sich ein losgelassenes Kart dem Stillstand nur an und kriecht
+minutenlang weiter.
+
+**Die Leitplanke** ist keine Physik, sondern Geometrie: `confineToTrack` setzt
+ein Kart, das über den Rand ist, exakt auf die Kante zurück, nimmt den Teil der
+Geschwindigkeit weg, der in die Planke zeigte, und schrubbt den Rest ein wenig.
+So rutscht man an der Bande entlang statt daran zu kleben. Steht man einmal
+stumpf davor, hilft die Bremse: sie ist zugleich der Rückwärtsgang, und rückwärts
+lenkt es wieder.
+
+**Einsteigen** ist ein Griff ans Lenkrad — der Rig wird eingefroren
+(`rig.frozen`) und jeden Frame auf den Sitz gesetzt, wobei der *Kopf* über den
+Sitz geschoben wird und nicht der Rig-Ursprung: in VR steht der Spieler in
+seinem Zimmer irgendwo, nur nicht dort, wo die Brille es gern hätte.
+
+**Aussteigen** ist das Einzige, was ein neuer Fahrer nicht erraten kann, also
+steht es die ganze Zeit auf einem Schild direkt über dem Lenkrad — `A`/`X`
+halten, mit einem Balken, der währenddessen vollläuft. Kein Tastendruck: bei
+Tempo 60 ist ein Druck zu leicht danebengegriffen. Dieselbe Zeile steht oben
+auf dem Klemmbrett, für alle, die lieber zielen. Am Rechner tut `E` dasselbe.
+
+Das **Klemmbrett** ist ein `UIPanel` am Kart: Lenkart, Beschleunigung,
+Höchstgeschwindigkeit, Bremskraft, Traktion, Gewicht, Lenkeinschlag, Radstand
+und Rückwärtstempo, jede Zeile schaltet auf die nächste Raste und zeigt die
+rohe Zahl daneben. Weil mehr Zeilen als Platz da sind, blättert der Stick der
+zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü. Liegt der Strahl einer
+Hand auf dem Brett, gehört *ihr* Trigger dem Brett und nicht dem Gas — pro
+Hand, damit Lesen mit der einen der anderen nicht das Gas wegnimmt. Das
+Lenkrad selbst hört, sobald jemand sitzt, gar nicht mehr auf den Strahl
+(`PointerTarget.ignore`): es gibt dann nichts mehr auszuwählen, und ein Strahl,
+der darauf ruht, würde nur den Gastrigger schlucken.
+
+Der Gürtel ist hier **leer**: beide Trigger haben in dieser Welt einen Job.
+
+### Die Pizzeria
+
+Das Rezept steht in `src/worlds/shop/pizza.ts` — vier Zahlen (Schläge, Soße,
+Käse, Ofenzeit) und daraus abgeleitet Stufe, Beschriftung, Farbe und Punkte.
+Wieder ohne three.js, wieder mit Test; `ShopWorld.ts` ist der Raum drumherum.
+
+- **Kneten ohne Knopf.** Ein Teig, der auf dem Arbeitstisch zur Ruhe kommt,
+  wird kinematisch und bleibt liegen; danach knetet ihn jede Hand, die schnell
+  genug und in seine Richtung hineinfährt. Bewusst *ohne* Taste: Greifen ist
+  schon vergeben — mit gedrücktem Griff hebt man ihn auf. Genau das ist der
+  Unterschied zwischen den beiden Gesten, und er muss nirgends erklärt werden.
+- **Werkzeuge mit festem Platz.** Kelle und Streuer sind normale Props, aber
+  sobald sie niemand hält, stehen sie wieder auf ihrem Fleck. Sie können also
+  nicht verloren gehen, und der Platz ist nie leer, wenn man zurückkommt.
+  Wer eins in der Hand hat, drückt den Trigger und schüttet über den Boden, der
+  darunter liegt. Käse hält nur auf Soße.
+- **Der Ofen** hat keine Klappe, nur ein Loch: was in dem Kasten liegt, backt.
+  Golden ist fertig, schwarz ist zu spät, beides sagt ein Ton an.
+- **Der Mülleimer** ist ein Kasten mit Boden — was hineinfällt, wird gelöscht.
+- **An der Wand** hinter jeder Station steht in zwei Zeilen, was sie will. Ein
+  `TextPlane` bemisst seine Schrift an seiner *Höhe*, ein höheres Schild fasst
+  also weniger Text, nicht mehr — die Schilder sind deshalb breit und flach.
+- **Grenze:** Pizzen entstehen zur Laufzeit und bekommen laufende IDs; zwei
+  Küchen in derselben Sitzung meinen mit `pizza-3` nicht dasselbe. Gelöscht
+  wird deshalb nur lokal. Der Raum, die Werkzeuge und alles Geworfene sind
+  geteilt wie überall.
+
 ### Handhaltung
 
 Wie eine Hand aussieht, ist eine Einstellung wie jede andere: zwölf Zahlen —
@@ -477,9 +577,12 @@ das Portal Labor nutzt das für seine Zusatzdurchgänge.
 Soll die neue Welt dieselben Werkzeuge, Portale und Physik haben wie das
 Portal Labor, erbt sie stattdessen von `PortalWorld` und ersetzt nur den Raum:
 `buildEnvironment()`, dazu die kleinen Haken `spawnPoint()`, `spawnYaw()`,
-`skyColor()`, `lightIntensity()` und `welcome()`. Genau das macht `DustWorld` —
-die ganze Maschinerie (Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt
-mit, ohne kopiert zu werden.
+`skyColor()`, `lightIntensity()`, `welcome()`, `beltLoadout()` (leer heißt:
+beide Trigger gehören der Welt) und `worldReset()` (was `B`/`Y` in dieser Welt
+zusätzlich zurücksetzt — die Karts in die Box, die Küche leer). `removeProp()`
+löscht ein Prop wieder, wahlweise nur lokal. Genau das machen `DustWorld`,
+`RangeWorld`, `KartWorld` und `ShopWorld` — die ganze Maschinerie (Gürtel,
+Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu werden.
 
 Mehr braucht es nicht: Menü, Hub-Tor, Deep-Link (`#<id>`) und das Aufräumen
 beim Wechsel erledigt die Engine. Alles, was eine Welt der Szene hinzufügt,

@@ -1812,7 +1812,7 @@ export class PortalWorld implements World {
    * Deletes a prop and every trace of it. `share` also tells the others, so
    * the eraser works on the whole session and not just on your own copy.
    */
-  private removeProp(entry: PhysicsBody, share: boolean): void {
+  protected removeProp(entry: PhysicsBody, share: boolean): void {
     const physics = this.physics;
     if (!physics) return;
     const index = this.props.indexOf(entry);
@@ -3043,7 +3043,15 @@ export class PortalWorld implements World {
     for (const entry of [...this.flights.keys()]) this.endFlight(entry, false);
     this.clearSpawned();
     for (const entry of this.props) this.respawn(entry);
+    this.worldReset();
   }
+
+  /**
+   * A world's own idea of "back to the start". The lab has none — putting the
+   * props back where they were is the whole of it — but a kitchen full of
+   * half-finished pizzas or a kart out on the circuit needs a word in here.
+   */
+  protected worldReset(): void {}
 
   // --- shared session -----------------------------------------------------
 
