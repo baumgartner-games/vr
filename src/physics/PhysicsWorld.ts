@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { clearOfPlayer, type PlayerCapsule } from './playerClearance';
 import type { Collider, RigidBody, World } from '@dimforge/rapier3d-compat';
 
 export type RapierModule = typeof import('@dimforge/rapier3d-compat');
@@ -74,6 +75,12 @@ export interface PhysicsBody {
   /** Set while a hand holds the body — it then ignores the player capsule. */
   carried: boolean;
   /**
+   * Losgelassen, aber noch **im Spieler** — es ignoriert die Kapsel weiter, bis
+   * es draußen ist (`playerClearance.ts`). Ohne das schießt ein Ding, das man
+   * dicht am Körper losgelassen hat, quer durch die Halle.
+   */
+  clearing: boolean;
+  /**
    * Set while the body is flying to a hand after a remote grab. It touches
    * nothing at all then, so the pull always arrives.
    */
@@ -98,6 +105,13 @@ const _scale = new THREE.Vector3();
  */
 export class PhysicsWorld {
   readonly dynamicBodies: PhysicsBody[] = [];
+
+  /**
+   * Wo der Spieler steht, als Kapsel — `PhysicsLocomotion` schreibt sie jedes
+   * Bild hierher, denn sie ändert sich mit jedem Schritt und mit jeder
+   * Kniebeuge. `null` heißt: in dieser Welt läuft niemand herum.
+   */
+  playerCapsule: PlayerCapsule | null = null;
 
   private accumulator = 0;
 
@@ -152,9 +166,19 @@ export class PhysicsWorld {
     return this.addBody(object, 'fixed', options);
   }
 
-  /** Free-falling body; the object's transform is driven by the simulation. */
+  /**
+   * Free-falling body; the object's transform is driven by the simulation.
+   *
+   * Es entsteht **geräumt**: wo ein neuer Körper auftaucht, weiß niemand vorher,
+   * und ein Ding, das im Spieler entsteht, wird sonst im ersten Schritt aus ihm
+   * herausgeschossen. Das trifft nicht nur den magischen Beutel — ein
+   * fallengelassenes Werkzeug entsteht buchstäblich in der Hand, und die ist am
+   * Körper. Liegt es frei, ist der Zustand nach einem Schritt wieder weg.
+   */
   addDynamic(object: THREE.Object3D, options: BodyOptions = {}): PhysicsBody {
     const entry = this.addBody(object, 'dynamic', options);
+    entry.clearing = true;
+    this.applyFilter(entry);
     this.dynamicBodies.push(entry);
     return entry;
   }
@@ -170,6 +194,24 @@ export class PhysicsWorld {
       this.world.step();
       this.accumulator -= FIXED_STEP;
     }
+    for (const entry of this.dynamicBodies) {
+      if (entry.clearing) this.checkClearing(entry);
+    }
+  }
+
+  /**
+   * Ein losgelassenes Ding wieder fest machen, sobald es den Spieler verlassen
+   * hat.
+   *
+   * Ohne Kapsel gibt es niemanden, in dem es stecken könnte — eine Welt ohne
+   * Fortbewegung (der Zuschauer, ein Test) schaltet deshalb sofort zurück.
+   */
+  private checkClearing(entry: PhysicsBody): void {
+    const capsule = this.playerCapsule;
+    const t = entry.body.translation();
+    if (capsule && !clearOfPlayer(capsule, t, entry.halfExtents.length())) return;
+    entry.clearing = false;
+    this.applyFilter(entry);
   }
 
   /** Copies simulated transforms back onto the meshes. */
@@ -195,11 +237,22 @@ export class PhysicsWorld {
   /**
    * A carried body stops interacting with the player, otherwise pulling a cube
    * towards yourself launches you across the room.
+   *
+   * Und beim **Loslassen** hört das nicht sofort auf: was noch in der Kapsel
+   * steckt, bleibt für den Spieler weich, bis es draußen ist. Ein Ding, das
+   * mitten im Körper wieder fest wird, wird im selben Bild aus ihm
+   * herausgeschossen — genau das passierte mit allem, was man aus dem
+   * magischen Beutel zog und gleich wieder losließ (`playerClearance.ts`).
    */
   setCarried(entry: PhysicsBody, carried: boolean): void {
     if (entry.carried === carried) return;
     entry.carried = carried;
+    // Wer loslässt, übergibt an die Räumung: erst wenn niemand mehr im Weg
+    // steht, zählt der Spieler wieder mit. `checkClearing` nimmt es sofort
+    // zurück, wenn das Ding ohnehin schon frei liegt.
+    if (!carried) entry.clearing = true;
     this.applyFilter(entry);
+    if (!carried) this.checkClearing(entry);
   }
 
   /**
@@ -220,7 +273,7 @@ export class PhysicsWorld {
     }
     let filter = entry.filter;
     filter &= ~entry.phaseMask;
-    if (entry.carried) filter &= ~GROUP_PLAYER;
+    if (entry.carried || entry.clearing) filter &= ~GROUP_PLAYER;
     entry.collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }
 
@@ -309,6 +362,7 @@ export class PhysicsWorld {
       shape: options.shape ?? { kind: 'box' },
       phaseMask: 0,
       carried: false,
+      clearing: false,
       ghost: false,
       membership,
       filter,

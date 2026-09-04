@@ -99,6 +99,7 @@ export class PhysicsLocomotion implements Locomotion {
     );
 
     this.syncCapsuleToRig(rig, true);
+    this.publishCapsule();
   }
 
   /** Capsule centre in world space. */
@@ -121,6 +122,7 @@ export class PhysicsLocomotion implements Locomotion {
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
     if (dt <= 0 || this.disposed) return;
     this.updateShape(rig);
+    this.publishCapsule();
 
     rig.getHeadPosition(_head);
     if (!this.hasLastHead) {
@@ -215,8 +217,37 @@ export class PhysicsLocomotion implements Locomotion {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.physics.playerCapsule = null;
     this.physics.world.removeCharacterController(this.controller);
     this.physics.world.removeRigidBody(this.body);
+  }
+
+  /**
+   * Sagt der Physik, wo der Spieler steht.
+   *
+   * Sie braucht die Kapsel für eine einzige Frage, die sie sich selbst nicht
+   * beantworten kann: ob ein losgelassenes Ding noch im Spieler steckt
+   * (`playerClearance.ts`). Geschrieben wird sie jedes Bild, weil sie sich mit
+   * jedem Schritt und mit jeder Kniebeuge ändert.
+   */
+  private publishCapsule(): void {
+    const t = this.body.translation();
+    const capsule = this.physics.playerCapsule;
+    if (!capsule) {
+      this.physics.playerCapsule = {
+        x: t.x,
+        y: t.y,
+        z: t.z,
+        halfHeight: this.halfHeight,
+        radius: RADIUS,
+      };
+      return;
+    }
+    capsule.x = t.x;
+    capsule.y = t.y;
+    capsule.z = t.z;
+    capsule.halfHeight = this.halfHeight;
+    capsule.radius = RADIUS;
   }
 
   /** Places the capsule under the current head position. */
