@@ -2,6 +2,9 @@
 
 **Live: https://baumgartner-games.github.io/vr/**
 
+**Werkzeug-Übersicht: https://baumgartner-games.github.io/vr/tools.html** —
+alle Werkzeuge zum Ansehen und Drehen, ohne Brille, auf dem Handy.
+
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
