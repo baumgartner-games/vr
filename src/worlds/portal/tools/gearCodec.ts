@@ -84,6 +84,7 @@ const TOOLS = [
   'hand-box',
   'controller-left',
   'controller-right',
+  'teleport',
 ] as const;
 
 /** Attachment ids. Append only, same rule. */

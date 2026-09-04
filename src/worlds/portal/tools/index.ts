@@ -13,6 +13,7 @@ import { ShurikenTool } from './ShurikenTool';
 import { SupermanGloveTool } from './SupermanGloveTool';
 import { StopwatchTool } from './StopwatchTool';
 import { TapeTool } from './TapeTool';
+import { TeleportTool } from './TeleportTool';
 import { TransformTool } from './TransformTool';
 import { TranslateGloveTool } from './TranslateGloveTool';
 import { WelderTool } from './WelderTool';
@@ -42,6 +43,7 @@ export const TOOL_IDS = [
   'xray',
   'drone',
   'tape',
+  'teleport',
   'eraser',
   // Die drei, die im Eingaberaum eingemessen werden: die Hand selbst und die
   // beiden Geräte, in denen sie steckt.
@@ -101,6 +103,8 @@ function buildTool(id: string): Tool | null {
       return new DroneTool();
     case 'tape':
       return new TapeTool();
+    case 'teleport':
+      return new TeleportTool();
     case 'eraser':
       return new EraserTool();
     case 'hand-box':
@@ -130,6 +134,7 @@ export {
   StopwatchTool,
   SupermanGloveTool,
   TapeTool,
+  TeleportTool,
   TransformTool,
   TranslateGloveTool,
   WelderTool,

@@ -42,8 +42,8 @@ des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, die Fahrphysik und
 Streckenführung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
-der Tiefe, die Stoppuhr-Einstellungen, die Materialien und die Auslegung der
-Hub-Gänge. Diese
+der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte und die
+Auslegung der Hub-Gänge. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.

@@ -104,7 +104,10 @@ die **Welt-Physik**
 Schwerkraft der Welt gewinnen lässt statt einer einmal getippten Zahl), die
 **Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
 Sturz einer ist, und dass der *höchste* Treffer gewinnt: von unten gesucht
-landet man im Keller eines Hauses, von oben auf seinem Dach), die
+landet man im Keller eines Hauses, von oben auf seinem Dach), die **Dicke der
+Bodenplatte** (`src/worlds/shared/ground.test.ts` — dass sie dicker ist als die
+Haut der Spielerkapsel; sie war es einmal nicht, und man merkte es nur daran,
+dass der Spieler beim Gehen stockte), die
 **Stoppuhr-Einstellungen** (`src/worlds/portal/tools/stopwatchSettings.ts` —
 die drei Betriebsarten, das Anhalten als erlaubte Raste und kein
 Rückwärtslauf), die **Materialien** (`src/worlds/portal/tools/materials.ts` —
@@ -444,6 +447,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
     halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
     ist die Frage nie „wie sieht sie aus", sondern „was steht in ihr drin".
+  - **Teleporter**: hinzeigen, Kreis ansehen, Trigger — und dort stehen. Der
+    Stick trägt einen über eine Fläche, die bis zum Horizont geht, und das ist
+    eine Wanderung; die Portalwaffe kann es besser, verlangt dafür aber zwei
+    Schüsse und eine Wand, die Portale hält. Gezielt wird wie mit ihr, entlang
+    der Zielachse, dreißig Meter weit. **Ein Kreis auf der Fläche** sagt, wo man
+    landet: grün heißt, es geht; **rot** heißt, zu steil — dieselbe Grenze, die
+    auch beim Gehen gilt (`MAX_SLOPE_DEG`), denn worauf man nicht hinaufkommt,
+    bleibt man auch nicht stehen; **kein Kreis** heißt, dort ist nichts. Die
+    **Blickrichtung bleibt**, wie sie war — wer sich beim Teleportieren auch
+    noch gedreht vorfindet, muss sich hinterher erst wieder zurechtfinden, und
+    genau das macht die Übelkeit, die ein Teleporter vermeiden soll. Im Kart
+    oder hinter einer Drohne geht er nicht: da gehört der Körper gerade jemand
+    anderem (`tools/TeleportTool.ts`).
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
 - **Alles einstellbar, alles kopierbar**: Werkzeug-Posen, Handhaltungen,
   Anbauteile und die Waffenwerte liegen zusammen in einem **Konfig-Code** —
@@ -823,6 +839,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Pinsel | Reiter *Farben*/*Material* antippen, Trigger streicht an | – | – |
 | Duplizier-Waffe | zielen + Trigger legt eine Kopie daneben | – | – |
 | Inspektor | zielen — das Display liest mit, Trigger sagt es an | – | – |
+| Teleporter | zielen, grüner Kreis, Trigger setzt dich dorthin | – | – |
 | Radiergummi | Trigger löscht | – | – |
 | Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |
 | Kart: Gas / Bremse | rechter / linker Trigger | `W` / `S` | – |
@@ -1260,6 +1277,17 @@ der Hub gleitet frei über die Plattform, das Portal Labor hängt eine
 Rapier-Kapsel mit Schwerkraft, Kollision und Sprung ein. Die Physik-Engine
 (rund 1 MB gzip) liegt in einem eigenen Chunk und wird erst geladen, wenn eine
 Welt sie braucht.
+
+**Alles, worauf jemand steht, braucht Dicke.** Ein Collider kommt aus der
+Bounding-Box der Geometrie, und eine `PlaneGeometry` hat keine — aus null wird
+ein Zentimeter, das Minimum. Ein Zentimeter ist aber dünner als die **Haut** des
+Character-Controllers (`CHARACTER_SKIN`, 2 cm): die Kapsel steckt dann dauernd
+halb im Boden, und wer eine Durchdringung auflösen muss, gibt in dieser Frame
+keine Bewegung heraus. In der Brille sieht das aus wie ein Spieler, der beim
+Gehen alle paar Schritte stehenbleibt und dabei langsam einsinkt — und niemand
+sucht das im Boden. Die Fläche bis zum Horizont ist deshalb ein **Kasten** von
+einem halben Meter (`GROUND_THICKNESS`, mit Test), dessen Oberseite dort liegt,
+wo vorher die Ebene lag.
 
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;

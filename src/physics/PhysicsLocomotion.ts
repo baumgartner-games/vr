@@ -14,6 +14,26 @@ const PLAYER_FILTER = ALL_GROUPS & ~GROUP_PLAYER;
 const RADIUS = 0.24;
 const TERMINAL_VELOCITY = 32;
 
+/**
+ * Die **Haut** der Spielerkapsel: so weit bleibt sie von allem weg.
+ *
+ * Rapier löst mit diesem Abstand auf, und das macht die Zahl zur Untergrenze
+ * für alles, worauf jemand stehen soll: ein Boden, der dünner ist als die
+ * Haut, lässt die Kapsel dauernd halb darin stecken — und ein Controller, der
+ * eine Durchdringung auflösen muss, gibt in dieser Frame keine Bewegung
+ * heraus. Deshalb steht sie hier als Name und nicht als 0.02 im Konstruktor:
+ * `worlds/shared/environment.ts` rechnet dagegen (mit Test).
+ */
+export const CHARACTER_SKIN = 0.02;
+
+/**
+ * Wie steil eine Fläche höchstens sein darf, damit man sie hinaufkommt.
+ *
+ * Der Teleporter liest dieselbe Zahl: ein Ziel, das steiler steht, ist keines,
+ * auf dem man stehen bleibt — man landete darauf und rutschte sofort ab.
+ */
+export const MAX_SLOPE_DEG = 52;
+
 const _head = new THREE.Vector3();
 const _drift = new THREE.Vector3();
 const _desired = new THREE.Vector3();
@@ -62,12 +82,12 @@ export class PhysicsLocomotion implements Locomotion {
   ) {
     const { rapier, world } = physics;
 
-    this.controller = world.createCharacterController(0.02);
+    this.controller = world.createCharacterController(CHARACTER_SKIN);
     this.controller.enableAutostep(0.32, 0.18, true);
     this.controller.enableSnapToGround(0.28);
     this.controller.setApplyImpulsesToDynamicBodies(true);
     this.controller.setCharacterMass(72);
-    this.controller.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(52));
+    this.controller.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(MAX_SLOPE_DEG));
     this.controller.setMinSlopeSlideAngle(THREE.MathUtils.degToRad(40));
 
     this.body = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased());

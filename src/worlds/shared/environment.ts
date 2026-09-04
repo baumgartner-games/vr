@@ -18,6 +18,32 @@ export const WORLD_RADIUS = 500;
 /** Der Himmel steht außen herum — und damit immer hinter dem Boden. */
 export const SKY_RADIUS = 560;
 
+/**
+ * Wo die **Oberseite** des Bodens liegt: eine Handbreit unter der Null.
+ *
+ * Die gebauten Böden der Welten liegen auf `y = 0`, und zwei Flächen auf
+ * derselben Höhe flimmern gegeneinander.
+ */
+export const GROUND_TOP = -0.05;
+
+/**
+ * Wie **dick** die Bodenplatte ist.
+ *
+ * Zu sehen ist davon nichts — man steht darauf, nicht daneben —, und trotzdem
+ * ist es die wichtigste Zahl in dieser Datei. Der Boden war vorher eine
+ * `PlaneGeometry`, also ein Ding *ohne* Dicke, und der Collider dazu kommt aus
+ * der Bounding-Box: aus null wurde ein Zentimeter, das Minimum. Ein Zentimeter
+ * ist aber **dünner als die Haut des Character-Controllers** (`0.02`, siehe
+ * `PhysicsLocomotion`) — die Kapsel steckte damit dauernd halb im Boden, und
+ * ein Controller, der eine Durchdringung auflösen muss, gibt in dieser Frame
+ * keine Bewegung heraus. Genau so sah es aus: ein paar Schritte, ein Stocken,
+ * ein paar Schritte, und dabei sank man langsam ein.
+ *
+ * Ein halber Meter ist bequem mehr als jede Toleranz und immer noch dünn genug,
+ * dass ein Bodenportal einen hindurchfallen lässt.
+ */
+export const GROUND_THICKNESS = 0.6;
+
 /** Cheap gradient sky as an inverted sphere — no HDRI download needed. */
 export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THREE.Mesh {
   const material = new THREE.ShaderMaterial({
@@ -104,15 +130,18 @@ export function createGround(
   texture.repeat.set((radius * 2) / tile, (radius * 2) / tile);
   texture.anisotropy = 8;
 
+  // Ein **Kasten** und keine Ebene: der Collider kommt aus der Geometrie, und
+  // eine Ebene hat keine Dicke (siehe `GROUND_THICKNESS`). Sechs Flächen statt
+  // zweier Dreiecken kosten nichts; was sie einbringen, ist ein Boden, auf dem
+  // man wirklich gehen kann.
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(radius * 2, radius * 2),
+    new THREE.BoxGeometry(radius * 2, GROUND_THICKNESS, radius * 2),
     new THREE.MeshStandardMaterial({ map: texture, roughness: 0.95, metalness: 0.02 }),
   );
   ground.name = 'ground';
-  ground.rotation.x = -Math.PI / 2;
-  // Eine Handbreit unter der Null: die gebauten Böden der Welten liegen auf
-  // y = 0, und zwei Flächen auf derselben Höhe flimmern gegeneinander.
-  ground.position.y = -0.05;
+  // Gemessen wird an der Oberseite: die soll dort liegen, wo vorher die Ebene
+  // lag, sonst wandert mit der Dicke auch der Boden unter den Füßen.
+  ground.position.y = GROUND_TOP - GROUND_THICKNESS / 2;
   ground.receiveShadow = true;
   return ground;
 }

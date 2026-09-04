@@ -83,6 +83,14 @@ export interface ToolHost {
    */
   setFlight(velocity: THREE.Vector3 | null): void;
   /**
+   * Setzt den Spieler auf einen Punkt — Füße dorthin, Blickrichtung bleibt.
+   *
+   * `false` heißt: geht gerade nicht. Wer in einem Kart sitzt oder mit einer
+   * Drohne durch die Halle sieht, hat seinen Körper verliehen, und ein
+   * Teleport risse ihn mitten aus dem, was er gerade tut.
+   */
+  teleportPlayer(point: THREE.Vector3): boolean;
+  /**
    * Takes the view away from the body and puts it at a point in the world —
    * the drone flies with it. `null` gives the player their body back.
    *

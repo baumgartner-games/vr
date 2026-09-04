@@ -86,8 +86,8 @@ import {
 } from './remoteGrab';
 import { TextPlane } from '../../ui/TextPlane';
 import { playPick } from '../../core/Audio';
-import { createGround, createLighting, disposeTree } from '../shared/environment';
-import { needsRescue, rescueHeight } from '../shared/fallRescue';
+import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
+import { LANDING_CLEARANCE, needsRescue, rescueHeight } from '../shared/fallRescue';
 import {
   EARTH_GRAVITY,
   PHYSICS_FIELDS,
@@ -132,7 +132,6 @@ import { findMaterial, isTransparent } from './tools/materials';
 
 const ROOM = { half: 8, height: 4.6, thickness: 0.4 };
 /** Oberkante der Fläche bis zum Horizont — knapp unter den gebauten Böden. */
-const GROUND_TOP = -0.05;
 /** Von so weit oben sucht die Rettung nach dem höchsten Punkt. */
 const RESCUE_PROBE = 400;
 /** Wie der Inspektor eine Collider-Form nennt. */
@@ -2020,8 +2019,6 @@ export class PortalWorld implements World {
     const color = this.horizonColor();
     if (color === null) return;
     const mesh = createGround(color, { line: this.horizonLine() });
-    // Ein Kasten statt einer Ebene: der Collider kommt aus der Geometrie, und
-    // eine Ebene ohne Dicke gibt keinen, auf dem man stehen kann.
     this.root.add(mesh);
     mesh.updateWorldMatrix(true, false);
     this.horizonFloor = mesh;
@@ -2078,6 +2075,31 @@ export class PortalWorld implements World {
     }
     if (!needsRescue(ctx.rig.getFloorY(), this.horizonLevel())) return;
     this.rescuePlayer(ctx);
+  }
+
+  /**
+   * Setzt den Spieler auf einen Punkt — der Teleporter läuft hier durch.
+   *
+   * Die Blickrichtung bleibt, wie sie war: wer sich beim Teleportieren auch
+   * noch gedreht vorfindet, weiß im nächsten Moment nicht mehr, wo er ist. Und
+   * die Kapsel wird nachgezogen (`resync`), sonst versucht der Character
+   * Controller den ganzen Weg als *Bewegung* aufzulösen und schiebt einen
+   * durch alles, was dazwischenstand.
+   *
+   * @returns `false`, wenn der Körper gerade jemand anderem gehört — dem Kart,
+   *          das man fährt, oder der Drohne, durch die man sieht.
+   */
+  private teleportPlayerTo(point: THREE.Vector3): boolean {
+    const ctx = this.context;
+    if (!ctx || ctx.rig.frozen || this.viewOverride) return false;
+    _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
+    // Einen Fingerbreit über der Fläche absetzen: genau auf ihr klebt man in
+    // ihr fest, und der Controller schiebt einen erst im nächsten Bild heraus.
+    _point.copy(point);
+    _point.y += LANDING_CLEARANCE;
+    ctx.rig.placeAt(_point, _euler.y);
+    this.locomotion?.resync(ctx.rig);
+    return true;
   }
 
   /** Setzt den Spieler auf die Oberfläche über der Stelle, an der er fiel. */
@@ -3037,6 +3059,7 @@ export class PortalWorld implements World {
         if (velocity.lengthSq() > 0) locomotion.grounded = false;
       },
       setFlight: (velocity) => this.locomotion?.setFlight?.(velocity),
+      teleportPlayer: (point) => this.teleportPlayerTo(point),
       setViewOverride: (position, rotation) => this.setViewOverride(position, rotation),
       heldTool: (hand) => this.held.get(hand) ?? null,
       parkTool: (tool) => this.parkTool(tool),

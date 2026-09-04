@@ -33,6 +33,7 @@ export type MenuIcon =
   | 'flashlight'
   | 'lamp'
   | 'controller'
+  | 'teleport'
   | 'reddot'
   | 'irons'
   | 'trace'
@@ -418,6 +419,24 @@ export function drawMenuIcon(
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(0, s * 0.16, s * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'teleport': {
+      // Ein Kreis auf dem Boden und ein Pfeil, der hineinfällt — genau das,
+      // was man in der Welt sieht, wenn man damit zielt.
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.5, s * 0.68, s * 0.26, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.86);
+      ctx.lineTo(0, s * 0.06);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.3, -s * 0.2);
+      ctx.lineTo(0, s * 0.24);
+      ctx.lineTo(s * 0.3, -s * 0.2);
+      ctx.closePath();
       ctx.fill();
       break;
     }
