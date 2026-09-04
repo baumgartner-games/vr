@@ -11,6 +11,26 @@ solange nicht ausdrücklich etwas anderes gewünscht ist. Das gilt für Menschen
 wie für Agenten: entwickeln, committen, `git push -u origin main`. Wer
 ausnahmsweise einen Branch will, sagt das im Auftrag dazu.
 
+**Branches werden hinterher weggeräumt.** Wer aus irgendeinem Grund auf einem
+eigenen Branch entwickelt hat und die Arbeit dann auf `main` landet — sei es
+direkt gepusht oder über einen Pull Request —, löscht denselben Branch danach
+sofort wieder, lokal *und* auf `origin`:
+
+```
+git push origin --delete <branch>
+git branch -d <branch>
+```
+
+Ein Branch, dessen Commits schon in `main` stecken, hat im Repository nichts
+mehr verloren. „Direkter Push auf `main`" heißt also: am Ende steht dort ein
+Commit und **kein** zusätzlicher Branch. Was ein Agent in seiner eigenen
+Arbeitsumgebung tut, ist seine Sache — das Repository bleibt aufgeräumt.
+
+Manche Agenten-Sessions dürfen zwar pushen, aber keine Refs löschen; der
+Lösch-Push kommt dann als `HTTP 403` zurück. Dann wird das nicht stillschweigend
+liegengelassen, sondern im Ergebnis gesagt: welcher Branch übrig ist und mit
+welchem Befehl er wegkommt.
+
 Vor dem Push laufen `npm run typecheck` und `npm test`.
 
 ### Tests
