@@ -54,14 +54,48 @@ export interface DroneTuning {
   lean: number;
 }
 
-export const DRONE_TUNING: DroneTuning = {
-  speed: 5.5,
-  climb: 3.2,
-  yawRate: 1.2,
-  pitchRate: 1.5,
-  rollRate: 2.4,
-  lean: 0.3,
-};
+/**
+ * Die beiden Zahlen, die der Spieler wirklich verstellt: wie schnell die
+ * Maschine fliegt und wie schnell sie sich dreht. Alles andere im Tuning hängt
+ * fest daran — sonst stellt man drei Regler und keiner passt zum anderen.
+ */
+export const DEFAULT_SPEED = 5.5;
+/** Grad pro Sekunde, weil ein Menü in Grad lesbarer ist als in Radiant. */
+export const DEFAULT_TURN = 70;
+
+const DEG = Math.PI / 180;
+/** Steigen ist etwas gemächlicher als Fliegen in der Waagerechten. */
+const CLIMB_PER_SPEED = 0.58;
+/** Der Jet nickt schneller, als der Kopter giert … */
+const PITCH_PER_TURN = 1.25;
+/** … und rollt noch einmal doppelt so schnell wie er giert. */
+const ROLL_PER_TURN = 2;
+/** Wie weit sich das Kopter-Modell in die Fahrt legt — reine Optik. */
+const LEAN = 0.3;
+
+/**
+ * Aus den zwei eingestellten Zahlen wird das ganze Tuning: Steigrate, Nick-
+ * und Rollrate hängen in festen Verhältnissen an ihnen. Wer im Menü das Tempo
+ * hochdreht, steigt damit auch schneller, und wer die Drehrate hochdreht,
+ * bekommt im Jet ein entsprechend schärferes Rollen.
+ *
+ * @param speed Reisegeschwindigkeit in m/s
+ * @param turn Drehrate in Grad pro Sekunde
+ */
+export function droneTuning(speed: number, turn: number): DroneTuning {
+  const yawRate = turn * DEG;
+  return {
+    speed,
+    climb: speed * CLIMB_PER_SPEED,
+    yawRate,
+    pitchRate: yawRate * PITCH_PER_TURN,
+    rollRate: yawRate * ROLL_PER_TURN,
+    lean: LEAN,
+  };
+}
+
+/** Wie sie ohne Zutun fliegt — und der Rückfall, wenn niemand etwas übergibt. */
+export const DRONE_TUNING: DroneTuning = droneTuning(DEFAULT_SPEED, DEFAULT_TURN);
 
 // --- Quaternionen ----------------------------------------------------------
 

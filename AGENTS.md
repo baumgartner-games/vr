@@ -41,7 +41,10 @@ Achsenzuordnung der Griffe (`src/worlds/portal/tools/axisMatch.ts`), die
 gemessene Werkzeug-Pose samt Spiegelung
 (`src/worlds/portal/tools/toolPose.ts`), die **Flugmathematik der Drohne**
 (`src/worlds/portal/tools/droneFlight.ts` — Kopter und Jet, inklusive der
-Vorzeichen, die im Headset sonst die halbe Welt verdrehen), die Handhaltung
+Vorzeichen, die im Headset sonst die halbe Welt verdrehen, und das Tuning aus
+Tempo und Drehrate), die **Drohnen-Einstellungen**
+(`src/worlds/portal/tools/droneSettings.ts` — Rasten, Grenzen und der Fall,
+dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die Handhaltung
 (`src/core/handPose.ts`), die Waffenwerte
 (`src/worlds/portal/tools/weaponSettings.ts`), der **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
@@ -160,20 +163,35 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Trigger** (egal welcher) die Sicht hinaus auf die Drohne; nochmal Trigger,
     eine Hand loslassen oder das Werkzeug ablegen parkt sie. Während des Flugs
     sind Hände, Gürtelwerkzeuge und Handgelenk-Menü **nicht** zu sehen — sie
-    fliegen ja nicht mit —, die Drohne selbst dagegen schon: sie hängt knapp
-    unter der Blickachse und ist damit der ruhende Punkt gegen Motion
-    Sickness. Der Knopf über dem Display (oder `A`/`X`) öffnet die
-    **Drohnen-Einstellungen**: Flugmodus, *Drohne neu setzen*, und ob das
-    Herausnehmen eine alte Drohne verschrottet.
-    Zwei Flugmodi (`droneFlight.ts`, mit Jest-Test):
+    fliegen ja nicht mit —, die Maschine selbst dagegen schon, und sie ist
+    damit der ruhende Punkt gegen Motion Sickness. Der Knopf über dem Display
+    (oder `A`/`X`) öffnet die **Drohnen-Einstellungen**: Flugmodus, **Tempo**
+    (m/s) und **Drehrate** (°/s) — beide schalten pro Druck eine Raste weiter
+    und zeigen die rohe Zahl daneben —, *Drohne neu setzen*, und ob das
+    Herausnehmen eine alte Drohne verschrottet. Aus den zwei Zahlen baut
+    `droneTuning()` das ganze Tuning: Steigrate hängt am Tempo, Nick- und
+    Rollrate des Jets an der Drehrate (×1,25 bzw. ×2), damit nicht drei Regler
+    gegeneinander stehen. Beide Werte liegen im Konfig-Code (hinten angehängt,
+    ein alter Code liest sie als Auslieferungswerte).
+    Zwei Flugmodi (`droneFlight.ts`, mit Jest-Test), und sie sehen verschieden
+    aus:
     **Kopter** ist ein Hubschrauber — linker Stick schiebt sie waagerecht in
     Blickrichtung, rechter Stick dreht links/rechts **die Nase und die Sicht
-    mit** und nimmt sie hoch und runter; die Lage bleibt waagerecht.
+    mit** und nimmt sie hoch und runter; die Lage bleibt waagerecht. Das Modell
+    ist der kleine Quadrokopter, er hängt knapp unter der Blickachse.
     **Jet** ist ein kleines Flugzeug — linker Stick vor/zurück entlang der
     eigenen Nase und quer dazu, rechter Stick ist der Steuerknüppel: rollen und
     nicken um die *eigenen* Achsen, Sicht samt Horizont kippt mit. Wer im
-    Rollen zieht, fliegt eine echte Kurve. Beim Parken richtet sie sich wieder
-    waagerecht aus. Der Kopf bleibt in beiden Modi frei.
+    Rollen zieht, fliegt eine echte Kurve. Dort **sitzt man im Cockpit**
+    (`droneJet.ts`): fünf Meter Maschine mit Nase, Flächen und Leitwerk, und
+    das Auge steckt in ihrer Kanzel — Instrumentenbrett und HUD vor der Nase,
+    Bordwand am Ellenbogen, Bügel hinter dem Kopf, vorne bewusst frei (ein Rohr
+    quer durchs Blickfeld ist im Headset kein Rahmen, sondern ein Balken). Der
+    Nachbrenner geht mit dem Schub an. Das Cockpit ist um einen *Menschen*
+    gebaut, die Maschine richtet sich danach; sie wird deshalb weiter weg
+    gesetzt als der Kopter und hält mehr Abstand zum Boden.
+    Beim Parken richtet sie sich wieder waagerecht aus. Der Kopf bleibt in
+    beiden Modi frei.
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
@@ -273,7 +291,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug-Justierer | Trigger hält an / zieht ein Anbauteil, Trigger übernimmt, Greifen kopiert den Code, `A` bricht ab | – | – |
 | Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
-| Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü | – | – |
+| Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate) | – | – |
 | Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
 | Radiergummi | Trigger löscht | – | – |
 | Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |

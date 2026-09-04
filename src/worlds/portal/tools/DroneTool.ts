@@ -1,8 +1,16 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
-import { DRONE_PROFILES, droneProfileLabel, type DroneProfile } from './droneSettings';
 import {
-  DRONE_TUNING,
+  DRONE_FIELDS,
+  DRONE_PROFILES,
+  droneFieldLabel,
+  droneProfileLabel,
+  nextDroneStep,
+  type DroneField,
+  type DroneProfile,
+} from './droneSettings';
+import {
+  droneTuning,
   flyJet,
   flyKopter,
   headingOf,
@@ -11,6 +19,7 @@ import {
   quatIdentity,
   type Quat,
 } from './droneFlight';
+import { JET_BELLY, JET_EYE, JetBody } from './droneJet';
 import { droneSettings, saveDroneSettings } from './gearStore';
 import { playTone } from '../../../core/Audio';
 import { UIPanel } from '../../../ui/UIPanel';
@@ -23,16 +32,29 @@ const FEED_W = 384;
 const FEED_H = 240;
 /** Seconds the drone needs to reach the stick's speed — it has some mass. */
 const RESPONSE = 0.28;
-/** The drone never sinks below this, so it cannot be lost in the floor. */
+/** The copter never sinks below this, so it cannot be lost in the floor. */
 const FLOOR = 0.35;
+/** The jet is a whole machine with a belly under it, so it keeps its distance. */
+const JET_FLOOR = JET_BELLY + 0.55;
+/** How far in front of the player a fresh machine is put — the jet needs room. */
+const REACH = 1.3;
+const JET_REACH = 7;
 /**
- * Where the eye sits relative to the drone, in the drone's *own* frame: a bit
- * above it and a bit behind. That is what puts the machine into the lower edge
- * of the picture — a piece of the world that never moves relative to the head
- * is the cheapest cure there is for motion sickness, and in the jet it rolls
- * along with the horizon, which is exactly the point.
+ * Where the eye sits relative to the copter, in its *own* frame: a bit above it
+ * and a bit behind. That is what puts the machine into the lower edge of the
+ * picture — a piece of the world that never moves relative to the head is the
+ * cheapest cure there is for motion sickness. The jet has a real seat for that
+ * (`JET_EYE`), and it rolls with the horizon, which is exactly the point.
  */
 const EYE_OFFSET = new THREE.Vector3(0, 0.24, 0.15);
+/** Where the hand-held display looks from: the copter's chin, the jet's nose. */
+const FEED_EYE = new THREE.Vector3(0, 0.005, -0.11);
+const JET_FEED_EYE = new THREE.Vector3(0, -0.15, -3.1);
+/** Which icon each of the two adjustable numbers gets on the little panel. */
+const FIELD_ICONS: Record<DroneField['key'], 'stopwatch' | 'gizmo'> = {
+  speed: 'stopwatch',
+  turn: 'gizmo',
+};
 /** Half the distance between the two grips. */
 const GRIP_X = 0.105;
 /** How far from the free grip the second hand still counts as holding on. */
@@ -74,13 +96,20 @@ const _zero = { x: 0, y: 0 };
  * Während geflogen wird, ist der eigene Körper **weg**: Hände, Werkzeuge an der
  * Hüfte und das Handgelenk-Menü fliegen nicht mit, also werden sie auch nicht
  * gezeichnet (`PortalWorld.setViewOverride`). Was stattdessen im Bild bleibt,
- * ist die Drohne selbst, knapp unter der Blickachse.
+ * ist die Maschine selbst — und die sieht in den beiden Modi verschieden aus:
+ * im **Kopter** hängt der kleine Quadrokopter knapp unter der Blickachse, im
+ * **Jet** sitzt man in einem richtigen kleinen Flugzeug (`droneJet.ts`):
+ * Instrumentenbrett vor den Knien, Kanzelbügel über dem Kopf, Nase und Flächen
+ * im Blickfeld. Das ist der ruhende Punkt gegen Motion Sickness, und in einer
+ * Maschine, die sich auf den Rücken legen darf, ist er Pflicht.
  *
  * Der **Knopf** über dem Display öffnet die Einstellungen: Flugmodus (Kopter
- * oder Jet, `droneSettings.ts`), Drohne neu setzen, und ob das Herausnehmen des
- * Werkzeugs eine alte Drohne verschrottet. Das Panel ist nur so lange ein
- * Zielobjekt, wie es offen ist — sonst würde der Zeigestrahl der eigenen Hand
- * darauf liegenbleiben und jedem Werkzeug den Trigger wegnehmen.
+ * oder Jet, `droneSettings.ts`), **Tempo** und **Drehrate** — beide schalten
+ * pro Druck eine Raste weiter und zeigen die rohe Zahl daneben —, Drohne neu
+ * setzen, und ob das Herausnehmen des Werkzeugs eine alte Drohne verschrottet.
+ * Das Panel ist nur so lange ein Zielobjekt, wie es offen ist — sonst würde der
+ * Zeigestrahl der eigenen Hand darauf liegenbleiben und jedem Werkzeug den
+ * Trigger wegnehmen.
  */
 export class DroneTool extends Tool {
   override readonly toolId = 'drone';
@@ -95,6 +124,13 @@ export class DroneTool extends Tool {
   private readonly rotors: THREE.Mesh[] = [];
   private readonly velocity = new THREE.Vector3();
   private readonly lamp: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
+  /** The quadcopter, and the jet that takes its place. Only ever one of them. */
+  private readonly copter = new THREE.Group();
+  private readonly jet = new JetBody();
+  /** Where the pilot's eye sits, in the machine's own frame — mode by mode. */
+  private readonly eye = new THREE.Vector3().copy(EYE_OFFSET);
+  /** The mode the model is currently built for, so a change is noticed once. */
+  private shownProfile: DroneProfile | null = null;
   /**
    * Everything the device is made of. It slides sideways inside the tool: held
    * with one hand the *grip* has to sit in that hand, so the deck moves over
@@ -217,10 +253,15 @@ export class DroneTool extends Tool {
     this.panel.visible = false;
     this.deck.add(this.panel);
 
-    // --- the drone -----------------------------------------------------------
+    // --- the machine ----------------------------------------------------------
+    // Two of them, in the same place: the little quadcopter and, for the jet
+    // mode, a whole aircraft with a seat in it. `applyProfile` shows one.
     this.drone.name = 'drone';
+    this.drone.add(this.copter);
+    this.drone.add(this.jet);
+
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.2), shell);
-    this.drone.add(body);
+    this.copter.add(body);
     for (const [x, z] of [
       [-0.11, -0.11],
       [0.11, -0.11],
@@ -229,10 +270,10 @@ export class DroneTool extends Tool {
     ] as const) {
       const arm = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.011, 0.016), trim);
       arm.position.set(x * 0.6, 0, z * 0.6);
-      this.drone.add(arm);
+      this.copter.add(arm);
       const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.004, 16), trim);
       rotor.position.set(x, 0.035, z);
-      this.drone.add(rotor);
+      this.copter.add(rotor);
       this.rotors.push(rotor);
     }
     this.lamp = new THREE.Mesh(
@@ -240,14 +281,42 @@ export class DroneTool extends Tool {
       new THREE.MeshBasicMaterial({ color: 0x4aa8ff, toneMapped: false }),
     );
     this.lamp.position.set(0, -0.012, -0.105);
-    this.drone.add(this.lamp);
-    this.camera.position.set(0, 0.005, -0.11);
+    this.copter.add(this.lamp);
     this.drone.add(this.camera);
+    this.applyProfile();
+  }
+
+  // --- copter or jet ----------------------------------------------------------
+
+  /**
+   * Puts the model, the seat and the display's camera on the mode that is set.
+   *
+   * The copter is a hand-sized toy hanging under the view; the jet is a machine
+   * the pilot sits *in*, so the eye moves into its cockpit and the picture on
+   * the hand-held display comes from its nose instead of from a chin camera
+   * that would be buried inside the fuselage.
+   */
+  private applyProfile(): void {
+    const profile = droneSettings().profile;
+    this.shownProfile = profile;
+    const jet = profile === 'racing';
+    this.jet.visible = jet;
+    this.copter.visible = !jet;
+    this.eye.copy(jet ? JET_EYE : EYE_OFFSET);
+    this.camera.position.copy(jet ? JET_FEED_EYE : FEED_EYE);
+    this.jet.setThrottle(0);
+    // A jet that has just grown out of a copter must not stand in the floor.
+    this.drone.position.y = Math.max(this.floor(), this.drone.position.y);
+  }
+
+  /** How low this machine may go — the jet has a belly and a set of wheels. */
+  private floor(): number {
+    return this.shownProfile === 'racing' ? JET_FLOOR : FLOOR;
   }
 
   // --- the settings menu ----------------------------------------------------
 
-  /** The three rows on the panel, rebuilt whenever one of them changes. */
+  /** The rows on the panel, rebuilt whenever one of them changes. */
   private showSettings(): void {
     const settings = droneSettings();
     const profile = DRONE_PROFILES.find((entry) => entry.id === settings.profile);
@@ -259,6 +328,16 @@ export class DroneTool extends Tool {
         icon: 'drone',
         accent: 0x4aa8ff,
       },
+      // The two numbers everybody wants different: one press steps to the next
+      // notch, and the raw figure stands next to the name — the same deal the
+      // pistol's rows offer.
+      ...DRONE_FIELDS.map((field) => ({
+        id: `drone:${field.key}`,
+        label: `${field.label}: ${droneFieldLabel(field, settings[field.key])}`,
+        sub: field.sub,
+        icon: FIELD_ICONS[field.key],
+        accent: 0x9ad9ff,
+      })),
       {
         id: 'drone:place',
         label: 'Drohne neu setzen',
@@ -278,8 +357,12 @@ export class DroneTool extends Tool {
     this.panel.setPage('Drohne', entries, false, 'Zielen und Trigger stellt um');
   }
 
-  /** A row was picked: step the mode, re-place the drone, or flip the switch. */
+  /**
+   * A row was picked: step the mode, step one of the two numbers, re-place the
+   * drone, or flip the switch. The order is the one `showSettings` builds.
+   */
   private choose(index: number): void {
+    const fields = DRONE_FIELDS.length;
     if (index === 0) {
       const ids = DRONE_PROFILES.map((entry) => entry.id);
       const at = ids.indexOf(droneSettings().profile);
@@ -289,13 +372,18 @@ export class DroneTool extends Tool {
       this.orientation = levelOf(this.orientation);
       this.bank = 0;
       this.nose = 0;
-    } else if (index === 1) {
+      this.applyProfile();
+      this.applyDronePose();
+    } else if (index >= 1 && index <= fields) {
+      const field = DRONE_FIELDS[index - 1]!;
+      saveDroneSettings({ [field.key]: nextDroneStep(field, droneSettings()[field.key]) });
+    } else if (index === fields + 1) {
       const host = this.hostRef;
       if (host) {
         this.place(host);
         host.notify('Drohne neu gesetzt');
       }
-    } else if (index === 2) {
+    } else if (index === fields + 2) {
       saveDroneSettings({ replace: !droneSettings().replace });
     }
     this.showSettings();
@@ -363,12 +451,18 @@ export class DroneTool extends Tool {
     this.place(host);
   }
 
-  /** Puts a fresh drone an arm's length in front of the player. */
+  /**
+   * Puts a fresh machine in front of the player: the copter an arm's length
+   * away, the jet a good deal further — three and a half metres of aircraft
+   * planted on somebody's nose is not a friendly greeting.
+   */
   private place(host: ToolHost): void {
+    this.applyProfile();
     host.ctx.rig.getHeadPosition(_head);
     host.ctx.rig.getHeadForward(_forward);
-    this.drone.position.copy(_head).addScaledVector(_forward, 1.3);
-    this.drone.position.y = Math.max(FLOOR, this.drone.position.y);
+    const reach = this.shownProfile === 'racing' ? JET_REACH : REACH;
+    this.drone.position.copy(_head).addScaledVector(_forward, reach);
+    this.drone.position.y = Math.max(this.floor(), this.drone.position.y);
     this.velocity.set(0, 0, 0);
     this.orientation = quatFromYaw(Math.atan2(-_forward.x, -_forward.z));
     this.bank = 0;
@@ -540,8 +634,16 @@ export class DroneTool extends Tool {
     }
     this.markBusyHands(host);
 
+    // The mode can also change from outside — a config code brings a whole
+    // settings object with it — so the model follows the setting, not the menu.
+    if (droneSettings().profile !== this.shownProfile) {
+      this.applyProfile();
+      this.applyDronePose();
+    }
+
     this.handleTriggers(host);
     if (this.flying) this.fly(dt, host);
+    else this.jet.setThrottle(0);
     this.panel.update(dt);
 
     // The rotors always turn; faster while it is actually being flown.
@@ -549,7 +651,9 @@ export class DroneTool extends Tool {
     for (let i = 0; i < this.rotors.length; i++) {
       this.rotors[i]!.rotation.y = this.spin * (i % 2 === 0 ? 1 : -1);
     }
-    this.lamp.material.color.setHex(this.flying ? 0x5ee0a0 : this.twoHanded ? 0x4aa8ff : 0xff8f5e);
+    const color = this.flying ? 0x5ee0a0 : this.twoHanded ? 0x4aa8ff : 0xff8f5e;
+    this.lamp.material.color.setHex(color);
+    this.jet.setLights(color);
   }
 
   /**
@@ -595,25 +699,24 @@ export class DroneTool extends Tool {
     const input = host.ctx.input;
     const left = input.get('left')?.thumbstick ?? _zero;
     const right = input.get('right')?.thumbstick ?? _zero;
+    // Speed and turn rate are the player's, so the whole tuning is built from
+    // what the menu says rather than taken off the shelf.
+    const settings = droneSettings();
+    const tune = droneTuning(settings.speed, settings.turn);
 
-    if (droneSettings().profile === 'racing') {
-      const step = flyJet(this.orientation, left, right, dt, DRONE_TUNING);
+    if (settings.profile === 'racing') {
+      const step = flyJet(this.orientation, left, right, dt, tune);
       this.orientation = step.orientation;
       this.bank = 0;
       this.nose = 0;
       _wish.set(step.wish.x, step.wish.y, step.wish.z);
+      // Stick forward is thrust, and thrust is what the afterburner shows.
+      this.jet.setThrottle(Math.max(0, -left.y));
     } else {
       // The copter is flown where the pilot looks: they sit in its seat, and
       // their head is the only thing that says "forwards".
       host.ctx.rig.getHeadForward(_forward);
-      const step = flyKopter(
-        headingOf(this.orientation),
-        left,
-        right,
-        _forward,
-        dt,
-        DRONE_TUNING,
-      );
+      const step = flyKopter(headingOf(this.orientation), left, right, _forward, dt, tune);
       this.orientation = quatFromYaw(step.heading);
       this.bank = step.bank;
       this.nose = step.nose;
@@ -623,16 +726,18 @@ export class DroneTool extends Tool {
     const blend = Math.min(1, dt / RESPONSE);
     this.velocity.lerp(_wish, blend);
     this.drone.position.addScaledVector(this.velocity, dt);
-    if (this.drone.position.y < FLOOR) {
-      this.drone.position.y = FLOOR;
+    const floor = this.floor();
+    if (this.drone.position.y < floor) {
+      this.drone.position.y = floor;
       this.velocity.y = Math.max(0, this.velocity.y);
     }
     this.applyDronePose();
 
     // The view rides in the machine's own frame: the copter's is level whatever
-    // the model does, the jet's is the whole attitude, horizon and all.
+    // the model does, the jet's is the whole attitude, horizon and all — and in
+    // the jet the eye sits in the cockpit, so the canopy frames that horizon.
     _quat.set(this.orientation.x, this.orientation.y, this.orientation.z, this.orientation.w);
-    _eye.copy(this.drone.position).add(_offset.copy(EYE_OFFSET).applyQuaternion(_quat));
+    _eye.copy(this.drone.position).add(_offset.copy(this.eye).applyQuaternion(_quat));
     host.setViewOverride(_eye, _quat);
   }
 
@@ -655,6 +760,7 @@ export class DroneTool extends Tool {
     this.orientation = levelOf(this.orientation);
     this.bank = 0;
     this.nose = 0;
+    this.jet.setThrottle(0);
     this.applyDronePose();
     host.setViewOverride(null);
     playTone({ type: 'triangle', from: 780, to: 300, duration: 0.14, gain: 0.05 });

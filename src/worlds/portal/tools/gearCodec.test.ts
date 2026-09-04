@@ -33,7 +33,7 @@ const CONFIG: GearData = {
     zoom: 12,
     sights: ['reddot', 'trace', 'scope'],
   },
-  drone: { profile: 'racing', replace: true },
+  drone: { profile: 'racing', replace: true, speed: 14, turn: 160 },
 };
 
 const roundTrip = (data: GearData): GearData => readGear(unpackCode(packCode(writeGear(data)))!)!;
@@ -114,16 +114,36 @@ describe('gear codec', () => {
   });
 
   /**
-   * The magnification is appended at the end. A code from before it stops
-   * short — the reader then gives zeros, and out of those has to come the
-   * built-in value, not 0×.
+   * Die zuletzt hinzugekommenen Felder hängen alle am Ende: erst die
+   * Vergrößerung des Fernrohrs, dann Tempo und Drehrate der Drohne. Ein Code
+   * von vorher hört jeweils davor auf — der Leser bekommt Nullen, und aus
+   * denen muss der Auslieferungswert werden, nicht 0× und nicht 0 m/s.
    */
-  it('gives an older code without a magnification the built-in one', () => {
-    // 1× is exactly one byte at the end — without it the stream is byte for
-    // byte the one the version before the scope wrote.
-    const bytes = writeGear({ ...CONFIG, weapon: { ...CONFIG.weapon, zoom: 1 } });
-    const older = bytes.subarray(0, bytes.length - 1);
-    expect(readGear(older)?.weapon.zoom).toBe(DEFAULT_WEAPON.zoom);
+  it('gibt einem älteren Code die Auslieferungswerte für das, was ihm fehlt', () => {
+    // Jeder der drei Werte ist hier genau ein Byte lang: so ist das Ende des
+    // Streams byteweise das, was die Version davor geschrieben hat.
+    const data: GearData = {
+      ...CONFIG,
+      weapon: { ...CONFIG.weapon, zoom: 1 },
+      drone: { ...CONFIG.drone, speed: 5.5, turn: 60 },
+    };
+    const bytes = writeGear(data);
+    expect(readGear(bytes)?.weapon.zoom).toBe(1);
+
+    // Ohne Tempo und Drehrate: der Rest des Codes bleibt heil.
+    const beforeDrone = readGear(bytes.subarray(0, bytes.length - 2));
+    expect(beforeDrone?.drone).toEqual({
+      profile: CONFIG.drone.profile,
+      replace: CONFIG.drone.replace,
+      speed: DEFAULT_DRONE.speed,
+      turn: DEFAULT_DRONE.turn,
+    });
+    expect(beforeDrone?.weapon.zoom).toBe(1);
+
+    // Und noch ein Feld früher, von vor dem Fernrohr.
+    const beforeScope = readGear(bytes.subarray(0, bytes.length - 3));
+    expect(beforeScope?.weapon.zoom).toBe(DEFAULT_WEAPON.zoom);
+    expect(beforeScope?.drone.speed).toBe(DEFAULT_DRONE.speed);
   });
 
   it('refuses a payload from a format it does not know', () => {

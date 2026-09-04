@@ -1,5 +1,8 @@
 import {
+  DEFAULT_SPEED,
+  DEFAULT_TURN,
   DRONE_TUNING,
+  droneTuning,
   flyJet,
   flyKopter,
   headingOf,
@@ -111,5 +114,43 @@ describe('Ausrichten', () => {
     expect(headingOf(level)).toBeCloseTo(headingOf(state));
     expect(rotate(level, { x: 0, y: 1, z: 0 }).y).toBeCloseTo(1);
     expect(noseOf(level).y).toBeCloseTo(0);
+  });
+});
+
+describe('Tuning', () => {
+  it('ist ohne Zutun genau das eingestellte Standard-Tuning', () => {
+    expect(droneTuning(DEFAULT_SPEED, DEFAULT_TURN)).toEqual(DRONE_TUNING);
+  });
+
+  it('rechnet die Drehrate von Grad in Radiant um', () => {
+    expect(droneTuning(DEFAULT_SPEED, 180).yawRate).toBeCloseTo(Math.PI);
+  });
+
+  it('zieht Steigen, Nicken und Rollen mit', () => {
+    const slow = droneTuning(4, 40);
+    const fast = droneTuning(8, 80);
+    expect(fast.climb).toBeCloseTo(slow.climb * 2);
+    expect(fast.pitchRate).toBeCloseTo(slow.pitchRate * 2);
+    expect(fast.rollRate).toBeCloseTo(slow.rollRate * 2);
+    // Der Jet rollt schneller, als er nickt — sonst fliegt sich keine Kurve.
+    expect(fast.rollRate).toBeGreaterThan(fast.pitchRate);
+  });
+
+  it('fliegt den Kopter mit dem eingestellten Tempo, nicht mit dem Standard', () => {
+    const step = flyKopter(0, { x: 0, y: -1 }, NEUTRAL, FORWARD, 0.1, droneTuning(12, 90));
+    expect(step.wish.z).toBeCloseTo(-12);
+  });
+
+  it('dreht den Jet mit der eingestellten Drehrate', () => {
+    const tune = droneTuning(6, 90);
+    // Genickt wird ein Viertel schneller als gedreht: 112,5°/s, also 18,75° in
+    // einer Sechstelsekunde.
+    const step = flyJet(quatIdentity(), NEUTRAL, { x: 0, y: 1 }, 1 / 6, tune);
+    expect(Math.asin(noseOf(step.orientation).y)).toBeCloseTo(tune.pitchRate / 6);
+    // Und doppelt so hoch eingestellt dreht sie auch doppelt so weit.
+    const twice = flyJet(quatIdentity(), NEUTRAL, { x: 0, y: 1 }, 1 / 6, droneTuning(6, 180));
+    expect(Math.asin(noseOf(twice.orientation).y)).toBeCloseTo(
+      2 * Math.asin(noseOf(step.orientation).y),
+    );
   });
 });

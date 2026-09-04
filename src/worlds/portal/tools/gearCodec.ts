@@ -137,8 +137,11 @@ export function writeGear(data: GearData): Uint8Array {
 
   // Appended, not inserted: an older code simply ends here, and the reader
   // gives zeros past the end — which turns back into the built-in value below.
-  // New fields therefore always belong at the end.
+  // New fields therefore always belong at the end, in the order they were
+  // added: first the scope's magnification, then the drone's two numbers.
   out.fixed(data.weapon.zoom, 10);
+  out.fixed(data.drone.speed, 10);
+  out.fixed(data.drone.turn, 1);
   return out.bytes();
 }
 
@@ -193,15 +196,20 @@ export function readGear(payload: Uint8Array): GearData | null {
   });
 
   const droneByte = input.byte();
-  const drone = clampDrone({
-    profile: DRONE_PROFILES[droneByte & 3],
-    replace: (droneByte & 4) !== 0,
-  });
 
   // A code from before the scope carries no magnification — 0 means "was not
   // in there", and then the built-in value stands.
   const zoom = input.fixed(10);
   if (zoom > 0) weapon.zoom = clampWeapon({ ...weapon, zoom }).zoom;
+
+  // Same story one field further on: a code from before Tempo und Drehrate
+  // ends here, and `clampDrone` turns the zeros into the built-in values.
+  const drone = clampDrone({
+    profile: DRONE_PROFILES[droneByte & 3],
+    replace: (droneByte & 4) !== 0,
+    speed: input.fixed(10),
+    turn: input.fixed(1),
+  });
 
   return { tools, hands: { idle, hold: hold as StoredHandPoses['hold'] }, attachments, weapon, drone };
 }

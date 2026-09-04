@@ -170,20 +170,26 @@ export {
 } from './gearStore';
 export {
   DEFAULT_DRONE,
+  DRONE_FIELDS,
   DRONE_PROFILES,
   clampDrone,
+  droneFieldLabel,
   droneProfileLabel,
+  nextDroneStep,
+  type DroneField,
   type DroneProfile,
   type DroneSettings,
 } from './droneSettings';
 export {
   DRONE_TUNING,
+  droneTuning,
   flyJet,
   flyKopter,
   headingOf,
   levelOf,
   type DroneTuning,
 } from './droneFlight';
+export { JET_EYE, JetBody } from './droneJet';
 export { readGear, writeGear, type GearData } from './gearCodec';
 export {
   applyGearConfig,
