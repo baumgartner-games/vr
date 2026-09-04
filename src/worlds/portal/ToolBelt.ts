@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Handedness } from '../../core/XRInput';
 import type { PlayerRig } from '../../core/PlayerRig';
 import type { Tool } from './tools/Tool';
+import { GRAB_GLOW, GRAB_IDLE, GRAB_TINT } from '../../core/colors';
 
 /** How close a held tool has to come before a slot offers to take it. */
 export const SLOT_REACH = 0.34;
@@ -24,7 +25,7 @@ export class BeltSlot extends THREE.Group {
     this.ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.075, 0.007, 8, 28),
       new THREE.MeshBasicMaterial({
-        color: 0x6f7d99,
+        color: GRAB_TINT,
         transparent: true,
         opacity: 0.35,
         toneMapped: false,
@@ -43,7 +44,9 @@ export class BeltSlot extends THREE.Group {
     this.glow += (wanted - this.glow) * Math.min(1, dt * 12);
     const material = this.ring.material;
     material.opacity = 0.12 + this.glow * 0.75;
-    material.color.setHex(this.offered ? 0x5ee0a0 : 0x6f7d99);
+    // Greiffarbe, sobald hier etwas zu holen ist, und das helle Leuchten in dem
+    // Moment, in dem eine Hand ablegen könnte — dieselben zwei Töne wie überall.
+    material.color.setHex(this.offered ? GRAB_GLOW : this.tool ? GRAB_TINT : GRAB_IDLE);
     this.ring.scale.setScalar(1 + this.glow * 0.18);
   }
 

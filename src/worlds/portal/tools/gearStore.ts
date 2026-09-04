@@ -1,4 +1,9 @@
 import { clampDrone, DEFAULT_DRONE, type DroneSettings } from './droneSettings';
+import {
+  clampSuperman,
+  DEFAULT_SUPERMAN,
+  type SupermanSettings,
+} from './supermanSettings';
 import { clampWeapon, DEFAULT_WEAPON, type WeaponSettings } from './weaponSettings';
 import { readoutFromArray, readoutToArray, type PoseReadout } from './toolPose';
 
@@ -18,6 +23,7 @@ import { readoutFromArray, readoutToArray, type PoseReadout } from './toolPose';
 const POSE_KEY = 'bgvr.attachPoses';
 const WEAPON_KEY = 'bgvr.weapon';
 const DRONE_KEY = 'bgvr.drone';
+const SUPERMAN_KEY = 'bgvr.superman';
 
 type Listener = () => void;
 
@@ -116,4 +122,20 @@ export function saveDroneSettings(settings: Partial<DroneSettings>): DroneSettin
 
 export function clearDroneSettings(): void {
   writeJson(DRONE_KEY, { ...DEFAULT_DRONE });
+}
+
+// --- the Superman glove ----------------------------------------------------
+
+export function supermanSettings(): SupermanSettings {
+  return clampSuperman(readJson<Partial<SupermanSettings>>(SUPERMAN_KEY, {}));
+}
+
+export function saveSupermanSettings(settings: Partial<SupermanSettings>): SupermanSettings {
+  const next = clampSuperman({ ...supermanSettings(), ...settings });
+  writeJson(SUPERMAN_KEY, next);
+  return next;
+}
+
+export function clearSupermanSettings(): void {
+  writeJson(SUPERMAN_KEY, { ...DEFAULT_SUPERMAN });
 }

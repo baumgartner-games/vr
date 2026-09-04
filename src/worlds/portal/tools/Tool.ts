@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { aimRotation } from './aim';
+import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../../core/colors';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
@@ -126,17 +127,23 @@ export abstract class Tool extends THREE.Group {
 
   /**
    * How many copies of this tool may be away from the belt at once — the ones
-   * lying around the room *and* the ones in a hand.
+   * lying around the room *and* the ones in a hand — **per belt slot**.
    *
    * Letting go of a tool no longer files it away on a hip: it falls, like
    * anything else you let go of, and a fresh one grows on the hip it came from
    * — so a pistol can be taken, passed to the other hand and a second one
    * drawn. Without a ceiling that would carpet the floor in pistols, so the
    * oldest copy still lying about is taken back as soon as one too many is
-   * out. At one — the sensible answer for a tool — that reads exactly the way
-   * it should: pulling a fresh pistol off the hip is what fetches the dropped
-   * one home. A throwing star says five, because five stars in the air is the
-   * point of a throwing star, and the sixth throw takes the first one back.
+   * out.
+   *
+   * Pro Platz, nicht pro Werkzeug: links und rechts sind zwei Vorräte. Eine
+   * Waffe in jeder Hand und beide auf den Boden geworfen ist damit genau das,
+   * wonach es aussieht — zwei Waffen auf dem Boden — statt eine, die die
+   * andere verschluckt. Innerhalb einer Hüfte liest sich die Eins weiter wie
+   * gewollt: die frische Pistole von dieser Hüfte holt die von dieser Hüfte
+   * liegengelassene ein. A throwing star says five, because five stars in the
+   * air is the point of a throwing star, and the sixth throw from the same hip
+   * takes the first one back. Die Buchführung dazu steht in `looseBudget.ts`.
    */
   looseLimit = 1;
 
@@ -286,6 +293,26 @@ export function aimQuaternion(
   // `aimRotation` writes into whatever it is given; a Quaternion is one.
   aimRotation(controller.grip.quaternion, controller.targetRay.quaternion, target);
   return target;
+}
+
+/**
+ * Das Material für alles, was eine Hand nehmen soll.
+ *
+ * Ein Werkzeug in VR ist ein Klotz aus Dreiecken, und woran man es nimmt,
+ * sieht man ihm nicht an. Also ist der Griff türkis — überall dieselbe Farbe,
+ * aus `core/colors.ts`, und damit dieselbe Antwort auf dieselbe Frage. Wer
+ * eine neue Handhabe baut, ruft das hier auf statt eine eigene Zahl zu
+ * erfinden.
+ */
+export function grabMaterial(options: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: GRAB_TINT,
+    roughness: 0.72,
+    metalness: 0.08,
+    // Ein Griff, den man im Dunkeln nicht findet, ist kein Griff.
+    emissive: new THREE.Color(GRAB_TINT).multiplyScalar(GRAB_TINT_EMISSIVE),
+    ...options,
+  });
 }
 
 /** Disposes every geometry and material below an object. */

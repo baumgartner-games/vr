@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { matchAxes, type AxisMatch, type Basis } from './axisMatch';
 import { playPick } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
@@ -120,7 +120,7 @@ export class TransformTool extends Tool {
       roughness: 0.35,
       metalness: 0.6,
     });
-    const grip = new THREE.MeshStandardMaterial({ color: 0x22293a, roughness: 0.7 });
+    const grip = grabMaterial({ roughness: 0.7 });
 
     const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.13), body);
     shaft.position.set(0, 0, -0.05);

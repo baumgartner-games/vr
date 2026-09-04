@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { Tool, aimQuaternion, disposeToolTree, type ToolHost } from './Tool';
+import { Tool, aimQuaternion, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { formatPose, holdPoseFrom, readPose, type PoseReadout } from './toolPose';
 import { savePose } from './poseStore';
-import { gearCode } from './gearConfig';
+import { gearCode, toolGearCode } from './gearConfig';
 import type { Attachment } from './attachments';
 import { playTone } from '../../../core/Audio';
 import { GhostHand } from '../../../core/HandVisuals';
@@ -19,6 +19,9 @@ import type { ControllerState, Handedness } from '../../../core/XRInput';
 const SHOW_TIME = 20;
 /** How far the picking ray reaches — this is done at arm's length. */
 const PICK_RANGE = 1.2;
+/** Wie breit und wie hoch der Konfig-Code auf dem Display Platz hat. */
+const CODE_COLUMNS = 34;
+const CODE_LINES = 3;
 
 const _scale = new THREE.Vector3();
 const _aim = new THREE.Quaternion();
@@ -111,7 +114,14 @@ type Focus = 'tool' | 'hand';
  *
  * Everything measured is written down right away (`gearConfig.ts`) and turns
  * up in the config code, so it survives a reload and can be handed on.
- * **Greifen** puts that code on the clipboard.
+ *
+ * Unter den gemessenen Zahlen steht deshalb der **Konfig-Code für genau
+ * dieses eine Werkzeug** — schmal, klein und in gleich breiter Schrift, weil
+ * er abgetippt wird. Nur dieses Werkzeug: seine Haltung, die Griffe beider
+ * Hände dafür, seine Anbauteile und, wenn es eigene Werte hat, auch die. Wer
+ * ihn lädt, ändert nichts anderes. **Greifen** legt ihn auf die Zwischenablage
+ * — und solange nichts gemessen ist, stattdessen den Code der ganzen
+ * Ausrüstung.
  *
  * `A` also cancels what is running and resets a highlighted attachment or an
  * empty hand; with nothing in sight it puts the last adjusted tool back the
@@ -144,6 +154,18 @@ export class AdjustTool extends Tool {
   private previous: Session | null = null;
   private readout: PoseReadout | null = null;
   private caption = '';
+  /**
+   * Der Konfig-Code für genau das, was gerade gemessen wurde — und für nichts
+   * sonst.
+   *
+   * Die sechs Zahlen abzulesen und woanders einzutippen ist genau die Arbeit,
+   * die der Code abnimmt; ihn erst im Menü unter *Konfig-Code* zu suchen und
+   * dort die ganze Ausrüstung zu bekommen, ist aber auch nicht das, was man
+   * will, wenn man gerade *ein* Werkzeug gerade gerückt hat. Also steht er
+   * hier, unter den Werten, schmal und klein: Buchstaben und Zahlen, mehr
+   * enthält ein Code nicht (`gearConfig.ts`).
+   */
+  private code = '';
   private showFor = 0;
   private dirty = true;
 
@@ -161,7 +183,7 @@ export class AdjustTool extends Tool {
       roughness: 0.4,
       metalness: 0.55,
     });
-    const grip = new THREE.MeshStandardMaterial({ color: 0x2b2f3d, roughness: 0.75 });
+    const grip = grabMaterial({ roughness: 0.75 });
 
     const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.085, 0.04), grip);
     handle.position.set(0, -0.05, 0.012);
@@ -255,12 +277,21 @@ export class AdjustTool extends Tool {
     if (this.drag) this.endDrag(host);
   }
 
-  /** Greifen: the whole configuration onto the clipboard. */
+  /**
+   * Greifen: der Code auf die Zwischenablage.
+   *
+   * Steht gerade eine Messung auf dem Display, ist es **deren** Code — genau
+   * das eine Werkzeug, so wie es dort steht. Sonst die ganze Ausrüstung. Wer
+   * eben ein Werkzeug gerade gerückt hat, will das eine weitergeben und nicht
+   * seine sämtlichen Einstellungen.
+   */
   override onGrab(_controller: ControllerState, host: ToolHost): void {
-    const code = gearCode();
+    const single = this.readout !== null && this.showFor > 0 && this.code !== '';
+    const code = single ? this.code : gearCode();
+    const what = single ? `Code für ${this.caption}` : 'Konfig-Code';
     navigator.clipboard?.writeText(code).then(
-      () => host.notify(`Konfig-Code kopiert (${code.length} Zeichen)`),
-      () => host.notify(`Konfig-Code: ${code.slice(0, 24)}… (Menü zeigt ihn ganz)`),
+      () => host.notify(`${what} kopiert (${code.length} Zeichen)`),
+      () => host.notify(`${what}: ${code.slice(0, 24)}… (Menü zeigt ihn ganz)`),
     );
     // The console is where it gets picked up from when the clipboard says no.
     console.info('[bgvr] Konfig-Code:', code);
@@ -324,6 +355,7 @@ export class AdjustTool extends Tool {
     host.notify(`${previous.tool.label} zurückgesetzt`);
     this.previous = null;
     this.readout = null;
+    this.code = '';
     this.dirty = true;
   }
 
@@ -511,6 +543,7 @@ export class AdjustTool extends Tool {
     const pose = drag.attachment.savePose(drag.tool.toolId);
     this.readout = pose;
     this.caption = drag.attachment.label;
+    this.code = toolGearCode(drag.tool.toolId);
     this.showFor = SHOW_TIME;
     this.dirty = true;
     playTone({ type: 'square', from: 880, to: 520, duration: 0.1, gain: 0.05 });
@@ -586,6 +619,7 @@ export class AdjustTool extends Tool {
 
     this.readout = readPose(pose);
     this.caption = session.tool.label;
+    this.code = toolGearCode(session.tool.toolId);
     this.showFor = SHOW_TIME;
     this.dirty = true;
     this.previous = session;
@@ -691,6 +725,7 @@ export class AdjustTool extends Tool {
 
     this.readout = readout;
     this.caption = handTitle(session.hand, session.toolId, host);
+    this.code = toolGearCode(session.toolId);
     this.showFor = SHOW_TIME;
     this.dirty = true;
     this.cancelHand();
@@ -787,20 +822,45 @@ export class AdjustTool extends Tool {
       return;
     }
 
+    ctx.font = '600 26px system-ui, sans-serif';
+    ctx.fillStyle = '#9fe3ff';
+    ctx.fillText(this.caption, 256, 30);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 34px system-ui, sans-serif';
+    ctx.fillText(`x ${readout.x}  y ${readout.y}  z ${readout.z} cm`, 256, 72);
     ctx.font = '600 28px system-ui, sans-serif';
-    ctx.fillStyle = '#9fe3ff';
-    ctx.fillText(this.caption, 256, 36);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '600 36px system-ui, sans-serif';
-    ctx.fillText(`x ${readout.x}  y ${readout.y}  z ${readout.z}`, 256, 88);
-    ctx.font = '500 26px system-ui, sans-serif';
-    ctx.fillStyle = '#9fe3ff';
-    ctx.fillText('Zentimeter', 256, 124);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '600 32px system-ui, sans-serif';
-    ctx.fillText(`roll ${readout.roll}°  pitch ${readout.pitch}°`, 256, 172);
-    ctx.fillText(`yaw ${readout.yaw}°`, 256, 214);
+    ctx.fillText(`roll ${readout.roll}°  pitch ${readout.pitch}°  yaw ${readout.yaw}°`, 256, 110);
+    this.drawCode(ctx);
     this.texture.needsUpdate = true;
+  }
+
+  /**
+   * Der Code für dieses eine Werkzeug, klein und in gleich breiter Schrift.
+   *
+   * Gleich breit, weil er abgetippt wird: in einer Proportionalschrift sieht
+   * ein `l` neben einem `1` gleich aus, und ein Code, den man einmal falsch
+   * abliest, ist keinen Buchstaben wert. Umbrochen wird stur nach Zeichen —
+   * die Gruppen von acht, die das Menü zeigt, wären hier zu breit.
+   */
+  private drawCode(ctx: CanvasRenderingContext2D): void {
+    if (!this.code) return;
+    ctx.strokeStyle = 'rgba(159, 227, 255, 0.28)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(40, 130);
+    ctx.lineTo(472, 130);
+    ctx.stroke();
+
+    ctx.fillStyle = '#7fd6b4';
+    ctx.font = '500 20px ui-monospace, SFMono-Regular, Menlo, monospace';
+    const lines = wrap(this.code, CODE_COLUMNS);
+    for (let i = 0; i < lines.length && i < CODE_LINES; i++) {
+      // Die letzte Zeile, die noch passt, sagt mit einem Auslassungszeichen,
+      // dass da noch mehr ist — ein halber Code, der so tut, als wäre er
+      // ganz, ist schlimmer als gar keiner.
+      const last = i === CODE_LINES - 1 && lines.length > CODE_LINES;
+      ctx.fillText(last ? `${lines[i]!.slice(0, CODE_COLUMNS - 1)}…` : lines[i]!, 256, 156 + i * 26);
+    }
   }
 }
 
@@ -817,6 +877,13 @@ function describe(target: Target | null): string {
     return target.toolId ? `${handLabel(target.hand)} · Griff` : handLabel(target.hand);
   }
   return target.tool.label;
+}
+
+/** Eine Zeichenkette in Zeilen fester Breite. */
+function wrap(text: string, columns: number): string[] {
+  const lines: string[] = [];
+  for (let at = 0; at < text.length; at += columns) lines.push(text.slice(at, at + columns));
+  return lines;
 }
 
 function handLabel(hand: Handedness): string {

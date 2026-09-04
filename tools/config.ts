@@ -61,7 +61,8 @@ switch (command) {
     if (!code || (from !== 'left' && from !== 'right')) usage();
     const to = from === 'left' ? 'right' : 'left';
     const config = read(code);
-    const hands = config.hands;
+    // Ein Code, der gar keine Handhaltungen trägt, hat auch nichts zu spiegeln.
+    const hands = (config.hands ??= {});
 
     const idle = hands.idle?.[from];
     if (idle) {

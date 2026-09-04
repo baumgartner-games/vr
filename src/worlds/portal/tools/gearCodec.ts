@@ -1,6 +1,7 @@
 import { ByteReader, ByteWriter } from '../../../core/configCode';
 import type { StoredHandPoses } from '../../../core/handPoseStore';
 import { clampDrone, type DroneSettings } from './droneSettings';
+import { clampSuperman, SUPERMAN_SOURCES, type SupermanSettings } from './supermanSettings';
 import {
   clampWeapon,
   FIRE_MODES,
@@ -26,8 +27,31 @@ import type { StoredAttachments } from './gearStore';
  * but never fails.
  */
 
-/** The format byte at the front, so a later change stays readable. */
-const VERSION = 1;
+/**
+ * The format byte at the front, so a later change stays readable.
+ *
+ * **1** war die ganze Konfiguration und nichts anderes: jeder Abschnitt stand
+ * immer drin, in fester Reihenfolge, und Neues wurde hinten angehängt.
+ * **2** stellt eine Maske davor, die sagt, welche Abschnitte überhaupt
+ * mitkommen — und erst damit gibt es einen Code für *ein* Werkzeug. Ohne die
+ * Maske trüge der Code des Pinsels zwangsläufig auch die Pistolenwerte mit
+ * sich herum und würde sie beim Laden überschreiben.
+ *
+ * Alte Codes werden weiter gelesen; geschrieben wird nur noch 2.
+ */
+const VERSION = 2;
+/** Was Version 1 kannte — gelesen, nie mehr geschrieben. */
+const VERSION_FULL_ONLY = 1;
+
+/** Welche Abschnitte ein Code trägt. Bits werden angehängt, nie umsortiert. */
+export const SECTION = {
+  tools: 1,
+  hands: 2,
+  attachments: 4,
+  weapon: 8,
+  drone: 16,
+  superman: 32,
+} as const;
 
 /** Tool ids, in the order they were first written down. Append only. */
 const TOOLS = [
@@ -68,106 +92,122 @@ const HAND_SCALES = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
 
 const HANDS = ['left', 'right'] as const;
 
-/** Everything one config code carries. */
+/**
+ * Everything one config code carries — und jeder Abschnitt darf fehlen.
+ *
+ * Ein fehlender Abschnitt heißt „steht nicht in diesem Code“ und nicht „ist
+ * leer“: der Code eines einzelnen Werkzeugs lässt alles andere weg, und wer
+ * ihn lädt, behält seine Pistoleneinstellungen.
+ */
 export interface GearData {
   /** Tool id → `[x, y, z, pitch, yaw, roll]`, centimetres and degrees. */
-  tools: Record<string, number[]>;
-  hands: StoredHandPoses;
+  tools?: Record<string, number[]>;
+  hands?: StoredHandPoses;
   /** `toolId:attachmentId` → the same six numbers, in the tool's own space. */
-  attachments: StoredAttachments;
-  weapon: WeaponSettings;
-  drone: DroneSettings;
+  attachments?: StoredAttachments;
+  weapon?: WeaponSettings;
+  drone?: DroneSettings;
+  superman?: SupermanSettings;
 }
 
-/** The whole configuration, packed. */
+/**
+ * Was ein Datensatz an Abschnitten hat — genau die kommen in den Code.
+ */
+function sectionsOf(data: GearData): number {
+  let mask = 0;
+  if (data.tools) mask |= SECTION.tools;
+  if (data.hands) mask |= SECTION.hands;
+  if (data.attachments) mask |= SECTION.attachments;
+  if (data.weapon) mask |= SECTION.weapon;
+  if (data.drone) mask |= SECTION.drone;
+  if (data.superman) mask |= SECTION.superman;
+  return mask;
+}
+
+/** The configuration, packed — nur die Abschnitte, die es gibt. */
 export function writeGear(data: GearData): Uint8Array {
   const out = new ByteWriter();
+  const sections = sectionsOf(data);
   out.byte(VERSION);
+  out.uint(sections);
 
-  const tools = Object.entries(data.tools);
-  out.uint(tools.length);
-  for (const [id, values] of tools) {
-    writeRef(out, TOOLS, id);
-    writeValues(out, values, POSE_SCALES);
-  }
-
-  let mask = 0;
-  for (let i = 0; i < HANDS.length; i++) if (data.hands.idle?.[HANDS[i]!]) mask |= 1 << i;
-  out.byte(mask);
-  for (let i = 0; i < HANDS.length; i++) {
-    if (mask & (1 << i)) writeValues(out, data.hands.idle![HANDS[i]!]!, HAND_SCALES);
-  }
-
-  const holds: Array<[number, string, number[]]> = [];
-  for (let i = 0; i < HANDS.length; i++) {
-    for (const [id, values] of Object.entries(data.hands.hold?.[HANDS[i]!] ?? {})) {
-      holds.push([i, id, values]);
+  if (sections & SECTION.tools) {
+    const tools = Object.entries(data.tools!);
+    out.uint(tools.length);
+    for (const [id, values] of tools) {
+      writeRef(out, TOOLS, id);
+      writeValues(out, values, POSE_SCALES);
     }
   }
-  out.uint(holds.length);
-  for (const [hand, id, values] of holds) {
-    out.byte(hand);
-    writeRef(out, TOOLS, id);
-    writeValues(out, values, HAND_SCALES);
+
+  if (sections & SECTION.hands) writeHands(out, data.hands!);
+
+  if (sections & SECTION.attachments) {
+    const attachments = Object.entries(data.attachments!);
+    out.uint(attachments.length);
+    for (const [key, values] of attachments) {
+      const cut = key.indexOf(':');
+      writeRef(out, TOOLS, cut < 0 ? key : key.slice(0, cut));
+      writeRef(out, ATTACHMENTS, cut < 0 ? '' : key.slice(cut + 1));
+      writeValues(out, values, POSE_SCALES);
+    }
   }
 
-  const attachments = Object.entries(data.attachments);
-  out.uint(attachments.length);
-  for (const [key, values] of attachments) {
-    const cut = key.indexOf(':');
-    writeRef(out, TOOLS, cut < 0 ? key : key.slice(0, cut));
-    writeRef(out, ATTACHMENTS, cut < 0 ? '' : key.slice(cut + 1));
-    writeValues(out, values, POSE_SCALES);
-  }
-
-  const weapon = data.weapon;
-  out.fixed(weapon.mass, 1000);
-  out.fixed(weapon.speed, 10);
-  out.fixed(weapon.rate, 10);
-  out.uint(weapon.magazine);
-  out.fixed(weapon.reload, 100);
-  out.uint(weapon.burst);
-  out.byte(Math.max(0, FIRE_MODES.indexOf(weapon.mode)) | (AMMO_KINDS.indexOf(weapon.ammo) << 2));
-  let sights = 0;
-  for (let i = 0; i < SIGHT_KINDS.length; i++) {
-    if (weapon.sights.includes(SIGHT_KINDS[i]!)) sights |= 1 << i;
-  }
-  out.uint(sights);
-
-  out.byte(Math.max(0, DRONE_PROFILES.indexOf(data.drone.profile)) | (data.drone.replace ? 4 : 0));
-
-  // Appended, not inserted: an older code simply ends here, and the reader
-  // gives zeros past the end — which turns back into the built-in value below.
-  // New fields therefore always belong at the end, in the order they were
-  // added: first the scope's magnification, then the drone's two numbers.
-  out.fixed(data.weapon.zoom, 10);
-  out.fixed(data.drone.speed, 10);
-  out.fixed(data.drone.turn, 1);
+  if (sections & SECTION.weapon) writeWeapon(out, data.weapon!);
+  if (sections & SECTION.drone) writeDrone(out, data.drone!);
+  if (sections & SECTION.superman) writeSuperman(out, data.superman!);
   return out.bytes();
 }
 
 /** The other direction. Anything missing falls back to how it was built. */
 export function readGear(payload: Uint8Array): GearData | null {
   const input = new ByteReader(payload);
-  if (input.byte() !== VERSION) return null;
+  const version = input.byte();
+  if (version === VERSION_FULL_ONLY) return readGearV1(input);
+  if (version !== VERSION) return null;
 
+  const sections = input.uint();
+  const data: GearData = {};
+
+  if (sections & SECTION.tools) {
+    const tools: Record<string, number[]> = {};
+    for (let count = input.uint(); count > 0; count--) {
+      tools[readRef(input, TOOLS)] = readValues(input, POSE_SCALES);
+    }
+    data.tools = tools;
+  }
+
+  if (sections & SECTION.hands) data.hands = readHands(input);
+
+  if (sections & SECTION.attachments) {
+    const attachments: StoredAttachments = {};
+    for (let count = input.uint(); count > 0; count--) {
+      const tool = readRef(input, TOOLS);
+      const attachment = readRef(input, ATTACHMENTS);
+      attachments[`${tool}:${attachment}`] = readValues(input, POSE_SCALES);
+    }
+    data.attachments = attachments;
+  }
+
+  if (sections & SECTION.weapon) data.weapon = readWeapon(input);
+  if (sections & SECTION.drone) data.drone = readDrone(input);
+  if (sections & SECTION.superman) data.superman = readSuperman(input);
+  return data;
+}
+
+/**
+ * Ein Code aus der Zeit vor der Abschnittsmaske: alles drin, in fester
+ * Reihenfolge, und die zuletzt angehängten Felder fehlen womöglich ganz —
+ * dann liest der `ByteReader` Nullen, und die Clamps machen daraus wieder die
+ * Auslieferungswerte. Genau deshalb steht die alte Reihenfolge hier unberührt.
+ */
+function readGearV1(input: ByteReader): GearData {
   const tools: Record<string, number[]> = {};
   for (let count = input.uint(); count > 0; count--) {
     tools[readRef(input, TOOLS)] = readValues(input, POSE_SCALES);
   }
 
-  const idle: StoredHandPoses['idle'] = {};
-  const mask = input.byte();
-  for (let i = 0; i < HANDS.length; i++) {
-    if (mask & (1 << i)) idle[HANDS[i]!] = readValues(input, HAND_SCALES);
-  }
-
-  const hold: Record<string, Record<string, number[]>> = {};
-  for (let count = input.uint(); count > 0; count--) {
-    const hand = HANDS[input.byte()] ?? 'left';
-    const id = readRef(input, TOOLS);
-    (hold[hand] ??= {})[id] = readValues(input, HAND_SCALES);
-  }
+  const hands = readHands(input);
 
   const attachments: StoredAttachments = {};
   for (let count = input.uint(); count > 0; count--) {
@@ -176,26 +216,7 @@ export function readGear(payload: Uint8Array): GearData | null {
     attachments[`${tool}:${attachment}`] = readValues(input, POSE_SCALES);
   }
 
-  const mass = input.fixed(1000);
-  const speed = input.fixed(10);
-  const rate = input.fixed(10);
-  const magazine = input.uint();
-  const reload = input.fixed(100);
-  const burst = input.uint();
-  const flags = input.byte();
-  const sights = input.uint();
-  const weapon = clampWeapon({
-    mass,
-    speed,
-    rate,
-    magazine,
-    reload,
-    burst,
-    mode: FIRE_MODES[flags & 3],
-    ammo: AMMO_KINDS[(flags >> 2) & 1],
-    sights: SIGHT_KINDS.filter((_, i) => sights & (1 << i)),
-  });
-
+  const weapon = readWeaponBody(input);
   const droneByte = input.byte();
 
   // A code from before the scope carries no magnification — 0 means "was not
@@ -212,7 +233,152 @@ export function readGear(payload: Uint8Array): GearData | null {
     turn: input.fixed(1),
   });
 
-  return { tools, hands: { idle, hold: hold as StoredHandPoses['hold'] }, attachments, weapon, drone };
+  return { tools, hands, attachments, weapon, drone };
+}
+
+// --- the sections, one function each ---------------------------------------
+
+function writeHands(out: ByteWriter, hands: StoredHandPoses): void {
+  let mask = 0;
+  for (let i = 0; i < HANDS.length; i++) if (hands.idle?.[HANDS[i]!]) mask |= 1 << i;
+  out.byte(mask);
+  for (let i = 0; i < HANDS.length; i++) {
+    if (mask & (1 << i)) writeValues(out, hands.idle![HANDS[i]!]!, HAND_SCALES);
+  }
+
+  const holds: Array<[number, string, number[]]> = [];
+  for (let i = 0; i < HANDS.length; i++) {
+    for (const [id, values] of Object.entries(hands.hold?.[HANDS[i]!] ?? {})) {
+      holds.push([i, id, values]);
+    }
+  }
+  out.uint(holds.length);
+  for (const [hand, id, values] of holds) {
+    out.byte(hand);
+    writeRef(out, TOOLS, id);
+    writeValues(out, values, HAND_SCALES);
+  }
+}
+
+function readHands(input: ByteReader): StoredHandPoses {
+  const idle: StoredHandPoses['idle'] = {};
+  const mask = input.byte();
+  for (let i = 0; i < HANDS.length; i++) {
+    if (mask & (1 << i)) idle[HANDS[i]!] = readValues(input, HAND_SCALES);
+  }
+
+  const hold: Record<string, Record<string, number[]>> = {};
+  for (let count = input.uint(); count > 0; count--) {
+    const hand = HANDS[input.byte()] ?? 'left';
+    const id = readRef(input, TOOLS);
+    (hold[hand] ??= {})[id] = readValues(input, HAND_SCALES);
+  }
+  return { idle, hold: hold as StoredHandPoses['hold'] };
+}
+
+function writeWeapon(out: ByteWriter, weapon: WeaponSettings): void {
+  out.fixed(weapon.mass, 1000);
+  out.fixed(weapon.speed, 10);
+  out.fixed(weapon.rate, 10);
+  out.uint(weapon.magazine);
+  out.fixed(weapon.reload, 100);
+  out.uint(weapon.burst);
+  out.byte(Math.max(0, FIRE_MODES.indexOf(weapon.mode)) | (AMMO_KINDS.indexOf(weapon.ammo) << 2));
+  let sights = 0;
+  for (let i = 0; i < SIGHT_KINDS.length; i++) {
+    if (weapon.sights.includes(SIGHT_KINDS[i]!)) sights |= 1 << i;
+  }
+  out.uint(sights);
+  out.fixed(weapon.zoom, 10);
+}
+
+/** Alles außer dem Zoom — Version 1 hatte den woanders stehen. */
+function readWeaponBody(input: ByteReader): WeaponSettings {
+  const mass = input.fixed(1000);
+  const speed = input.fixed(10);
+  const rate = input.fixed(10);
+  const magazine = input.uint();
+  const reload = input.fixed(100);
+  const burst = input.uint();
+  const flags = input.byte();
+  const sights = input.uint();
+  return clampWeapon({
+    mass,
+    speed,
+    rate,
+    magazine,
+    reload,
+    burst,
+    mode: FIRE_MODES[flags & 3],
+    ammo: AMMO_KINDS[(flags >> 2) & 1],
+    sights: SIGHT_KINDS.filter((_, i) => sights & (1 << i)),
+  });
+}
+
+function readWeapon(input: ByteReader): WeaponSettings {
+  const weapon = readWeaponBody(input);
+  const zoom = input.fixed(10);
+  return zoom > 0 ? clampWeapon({ ...weapon, zoom }) : weapon;
+}
+
+function writeDrone(out: ByteWriter, drone: DroneSettings): void {
+  out.byte(Math.max(0, DRONE_PROFILES.indexOf(drone.profile)) | (drone.replace ? 4 : 0));
+  out.fixed(drone.speed, 10);
+  out.fixed(drone.turn, 1);
+}
+
+function readDrone(input: ByteReader): DroneSettings {
+  const flags = input.byte();
+  return clampDrone({
+    profile: DRONE_PROFILES[flags & 3],
+    replace: (flags & 4) !== 0,
+    speed: input.fixed(10),
+    turn: input.fixed(1),
+  });
+}
+
+/**
+ * Der Handschuh: fünf Geschwindigkeiten, die Drehrate, die Totzone — und in
+ * einem Byte, wer welche Achse bedient (je zwei Bit) plus das Querschieben.
+ */
+function writeSuperman(out: ByteWriter, glove: SupermanSettings): void {
+  out.fixed(glove.forward, 10);
+  out.fixed(glove.back, 10);
+  out.fixed(glove.up, 10);
+  out.fixed(glove.down, 10);
+  out.fixed(glove.side, 10);
+  out.fixed(glove.turn, 1);
+  out.fixed(glove.deadzone, 10);
+  out.byte(
+    Math.max(0, SUPERMAN_SOURCES.indexOf(glove.drive)) |
+      (Math.max(0, SUPERMAN_SOURCES.indexOf(glove.lift)) << 2) |
+      (Math.max(0, SUPERMAN_SOURCES.indexOf(glove.yaw)) << 4) |
+      (glove.strafe ? 64 : 0),
+  );
+}
+
+function readSuperman(input: ByteReader): SupermanSettings {
+  const forward = input.fixed(10);
+  const back = input.fixed(10);
+  const up = input.fixed(10);
+  const down = input.fixed(10);
+  const side = input.fixed(10);
+  const turn = input.fixed(1);
+  const deadzone = input.fixed(10);
+  const flags = input.byte();
+  return clampSuperman({
+    forward,
+    back,
+    up,
+    down,
+    side,
+    turn,
+    deadzone,
+    drive: SUPERMAN_SOURCES[flags & 3],
+    lift: SUPERMAN_SOURCES[(flags >> 2) & 3],
+    yaw: SUPERMAN_SOURCES[(flags >> 4) & 3],
+    strafe: (flags & 64) !== 0,
+  });
 }
 
 /** A known id as its number, anything else as `0` plus its name. */

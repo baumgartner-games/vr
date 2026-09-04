@@ -1,28 +1,16 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playTone } from '../../../core/Audio';
+import { flightCommand } from './supermanFlight';
+import { supermanSettings } from './gearStore';
+import type { SupermanSettings } from './supermanSettings';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
-/** Hand movement inside this radius does nothing — a held hand is never still. */
-const DEADZONE = 0.06;
-/** Metres per second per metre the hand leans out of the deadzone. */
-const GAIN = 14;
-const MAX_SPEED = 11;
-/** Sideways lean inside this radius is not a turn either. */
-const TURN_DEADZONE = 0.05;
-/** Radians per second per metre the hand leans out to the side. */
-const TURN_GAIN = 4.5;
-/** How far the head may look off the flight path before it counts as steering. */
-const HEAD_DEADZONE = 0.21;
-/** Radians per second per radian the head is turned away, at full throttle. */
-const HEAD_TURN_GAIN = 1.15;
-/** Nothing turns faster than this, however hard both are pushed. */
-const MAX_TURN = 1.2;
-/** Forward speed at which the head steers with its full say. */
-const FULL_THROTTLE = 4;
 /** How fast the hover drifts up and down, and how far. */
 const BOB_RATE = 1.7;
 const BOB_SPEED = 0.3;
+/** Nur zum Anzeigen: bei diesem Tempo glüht die Manschette voll. */
+const GLOW_SPEED = 12;
 
 const _hand = new THREE.Vector3();
 const _offset = new THREE.Vector3();
@@ -35,6 +23,7 @@ const _right = new THREE.Vector3();
 const _velocity = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const WHITE = new THREE.Color(0xffffff);
+const DEG = 180 / Math.PI;
 
 /**
  * Supermanhandschuh: the room, from above.
@@ -62,6 +51,14 @@ const WHITE = new THREE.Color(0xffffff);
  *
  * **Greifen** again drops you: gravity gets the body back, with the speed it
  * had, so letting go at the top of a climb is a real fall.
+ *
+ * Wie schnell das alles geht und wer welche Achse bedient, steht unter
+ * *Einstellungen → Supermanhandschuh*: eine eigene Zahl für vorwärts,
+ * rückwärts, hoch, runter und quer, eine Drehrate — und für jede der drei
+ * Achsen die Wahl zwischen **Hand**, **Kopf**, beidem und aus. Volle Lehne ist
+ * volle Fahrt, und volle Fahrt ist die eingestellte Zahl; vorher war es ein
+ * fester Faktor, bei dem eine bequeme Handbewegung kaum drei Meter pro Sekunde
+ * gab (`supermanSettings.ts`, gerechnet in `supermanFlight.ts`).
  *
  * The steering is the translation glove's, turned around: there the hand moves
  * a prop through the room, here it moves you.
@@ -100,6 +97,12 @@ export class SupermanGloveTool extends Tool {
   private time = 0;
   private speed = 0;
   private drawn = '';
+  /**
+   * Die eingestellten Werte. Beim Bauen gelesen und bei jedem Abheben neu —
+   * wer im Menü an der Geschwindigkeit dreht, will sie beim nächsten Start
+   * spüren und nicht erst nach einem Neuladen.
+   */
+  private settings: SupermanSettings = supermanSettings();
 
   constructor() {
     super();
@@ -107,7 +110,7 @@ export class SupermanGloveTool extends Tool {
     this.icon = 'superman';
     this.accent = 0xff4d5e;
     this.sticky = true;
-    this.hint = 'Greifen schwebt · Trigger fliegt, Blick lenkt';
+    this.hint = 'Greifen schwebt · Trigger fliegt · Tempo im Menü';
     this.holdPosition.set(0, -0.01, 0.02);
 
     const shell = new THREE.MeshStandardMaterial({
@@ -177,6 +180,8 @@ export class SupermanGloveTool extends Tool {
       this.hovering = true;
       this.time = 0;
       this.origin = null;
+      // Frisch aus dem Menü, bei jedem Abheben.
+      this.settings = supermanSettings();
       host.notify('Schweben · Trigger fliegt, Blick lenkt');
       playTone({ type: 'triangle', from: 280, to: 820, duration: 0.18, gain: 0.05 });
     }
@@ -243,15 +248,31 @@ export class SupermanGloveTool extends Tool {
       if (_right.lengthSq() < 1e-6) _right.set(1, 0, 0);
       _right.normalize();
 
-      // How hard the stick is pushed forward, along the floor: that is the
-      // throttle, and looking up or down only tilts where it takes you.
-      const ahead = lean(_offset.dot(_flat));
+      // Die Ausschläge, alle in derselben Einheit wie die Einstellungen: die
+      // Lehne der Hand in Metern entlang der drei Achsen des Flugwegs, und die
+      // zwei Winkel des Kopfes in Grad. Was daraus an Fahrt wird, rechnet
+      // `supermanFlight.ts` — hier steht nur, was gemessen wurde.
+      const command = flightCommand(
+        {
+          ahead: _offset.dot(_flat),
+          lift: _offset.y,
+          side: _offset.dot(_right),
+          headPitch: Math.asin(THREE.MathUtils.clamp(_look.y, -1, 1)) * DEG,
+          headYaw: this.headYaw(host),
+        },
+        this.settings,
+      );
+
+      // Vorwärts geht entlang des Blicks, Neigung inklusive: ein Blick nach
+      // unten ist ein Sturzflug. Hoch und quer stehen senkrecht dazu.
       _velocity
         .set(0, 0, 0)
-        .addScaledVector(_look, ahead)
-        .addScaledVector(UP, lean(_offset.y));
-      if (_velocity.lengthSq() > MAX_SPEED * MAX_SPEED) _velocity.setLength(MAX_SPEED);
-      this.steer(dt, host, _offset.dot(_right), ahead);
+        .addScaledVector(_look, command.ahead)
+        .addScaledVector(UP, command.lift)
+        .addScaledVector(_right, command.side);
+      if (command.turn !== 0) {
+        host.ctx.rig.rotateAroundHead(command.turn * THREE.MathUtils.DEG2RAD * dt);
+      }
     } else {
       // Hovering: standing still, breathing.
       _velocity.set(0, Math.sin(this.time * BOB_RATE) * BOB_SPEED, 0);
@@ -261,7 +282,7 @@ export class SupermanGloveTool extends Tool {
     this.speed = _velocity.length();
     this.setFist(host, this.origin !== null);
 
-    const glow = 0.35 + Math.min(1, this.speed / MAX_SPEED) * 0.65;
+    const glow = 0.35 + Math.min(1, this.speed / GLOW_SPEED) * 0.65;
     this.cuff.material.emissive.setHex(0xff4d5e).multiplyScalar(glow);
     this.crest.material.color.setHex(0xffd23f).lerp(WHITE, glow - 0.35);
     this.draw();
@@ -273,35 +294,22 @@ export class SupermanGloveTool extends Tool {
   }
 
   /**
-   * The two things that fly a curve: the hand pushed out to the side, and the
-   * head looking off the flight path. Both turn the *player*, not the velocity
-   * — the world comes round, so the next push forward goes the new way and the
-   * pilot never has to leave their chair.
+   * Wie weit der Kopf vom Flugweg weg zeigt, in Grad, links herum positiv.
    *
-   * Turning the rig does not move the head, so the head keeps whatever angle it
-   * physically has: a head that stays turned keeps the curve going, and looking
-   * straight ahead again ends it. That is exactly how a plane behaves, and it
-   * is why the head's say grows with the speed instead of spinning somebody who
-   * is only looking around while hovering.
+   * Was hier steuert, ist der Winkel zwischen dem, wohin der *Körper* zeigt,
+   * und dem, wohin der *Kopf* schaut. Eine Drehung des Rigs nimmt den Kopf
+   * nicht mit, also behält er den Winkel, den er physisch hat: ein Kopf, der
+   * gedreht bleibt, hält die Kurve, und wer wieder geradeaus schaut, beendet
+   * sie. Genau so fliegt ein Flugzeug — und deshalb wächst der Anteil des
+   * Kopfes mit dem Tempo, statt jemanden im Schweben um die eigene Achse zu
+   * drehen, der sich nur umsieht (`supermanFlight.ts`).
    */
-  private steer(dt: number, host: ToolHost, sideways: number, ahead: number): void {
-    // Hand to the right turns right, which is the negative direction.
-    let turn = -deadband(sideways, TURN_DEADZONE) * TURN_GAIN;
-
-    const throttle = THREE.MathUtils.clamp(ahead / FULL_THROTTLE, 0, 1);
-    if (throttle > 0) {
-      _body.set(0, 0, -1).applyQuaternion(host.ctx.rig.quaternion);
-      _body.y = 0;
-      if (_body.lengthSq() > 1e-6) {
-        _body.normalize();
-        // Signed angle from where the body faces to where the head looks.
-        const yaw = Math.atan2(_cross.copy(_body).cross(_flat).dot(UP), _body.dot(_flat));
-        turn += deadband(yaw, HEAD_DEADZONE) * HEAD_TURN_GAIN * throttle;
-      }
-    }
-
-    if (turn === 0) return;
-    host.ctx.rig.rotateAroundHead(THREE.MathUtils.clamp(turn, -MAX_TURN, MAX_TURN) * dt);
+  private headYaw(host: ToolHost): number {
+    _body.set(0, 0, -1).applyQuaternion(host.ctx.rig.quaternion);
+    _body.y = 0;
+    if (_body.lengthSq() < 1e-6) return 0;
+    _body.normalize();
+    return Math.atan2(_cross.copy(_body).cross(_flat).dot(UP), _body.dot(_flat)) * DEG;
   }
 
   /** Back on the floor, with whatever speed was left. */
@@ -347,18 +355,6 @@ export class SupermanGloveTool extends Tool {
     ctx.fillText(text, 128, 50);
     this.texture.needsUpdate = true;
   }
-}
-
-/** Speed one axis of the lean asks for, with the deadzone taken out. */
-function lean(value: number): number {
-  return deadband(value, DEADZONE) * GAIN;
-}
-
-/** Whatever is left of a value once its deadzone has been subtracted. */
-function deadband(value: number, threshold: number): number {
-  const amount = Math.abs(value) - threshold;
-  if (amount <= 0) return 0;
-  return Math.sign(value) * amount;
 }
 
 function handPosition(controller: ControllerState, target: THREE.Vector3): THREE.Vector3 {

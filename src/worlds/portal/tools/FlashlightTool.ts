@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
 import { playSwitch } from '../../../core/Audio';
 import {
   DEFAULT_BEAM_ANGLE,
@@ -100,10 +101,13 @@ export class FlashlightTool extends Tool {
     this.add(this.lens);
 
     // The ring around the lens: what the other hand takes hold of, and what
-    // lights up when it is close enough for the grab to count.
+    // lights up when it is close enough for the grab to count. Es trägt die
+    // Greiffarbe aus `core/colors.ts` — vorn an der Linse ist der einzige
+    // Punkt der Lampe, an dem die zweite Hand etwas zu suchen hat, und das
+    // muss man sehen, bevor man danach greift.
     this.ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.038, 0.005, 8, 28),
-      new THREE.MeshBasicMaterial({ color: 0x6f7d99, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: GRAB_TINT, toneMapped: false }),
     );
     this.ring.position.z = LENS_Z + 0.004;
     this.add(this.ring);
@@ -282,6 +286,6 @@ export class FlashlightTool extends Tool {
   /** The ring glows while the free hand is on the lens. */
   private updateRing(): void {
     const held = this.grip !== null;
-    this.ring.material.color.setHex(held ? 0x5ee0a0 : this.lensHand ? 0x9fe3ff : 0x6f7d99);
+    this.ring.material.color.setHex(held || this.lensHand ? GRAB_GLOW : GRAB_TINT);
   }
 }

@@ -97,6 +97,19 @@ import {
 } from '../../physics/PhysicsWorld';
 import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
 import { FreeLocomotion } from '../../core/Locomotion';
+import { GRAB_GLOW, GRAB_GLOW_LOCKED, GRAB_GLOW_PICKED } from '../../core/colors';
+import { clearSupermanSettings, saveSupermanSettings, supermanSettings } from './tools/gearStore';
+import {
+  nextSupermanSource,
+  nextSupermanStep,
+  supermanFieldLabel,
+  SUPERMAN_AXES,
+  SUPERMAN_FIELDS,
+  SUPERMAN_SOURCE_LABELS,
+  type SupermanField,
+  type SupermanSettings,
+} from './tools/supermanSettings';
+import { overBudget, type LooseEntry } from './tools/looseBudget';
 
 const ROOM = { half: 8, height: 4.6, thickness: 0.4 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
@@ -109,9 +122,15 @@ const REMOTE_PULL_ANGLE = THREE.MathUtils.degToRad(30);
 /** Segments of the rope between hand and locked prop. */
 const ROPE_POINTS = 18;
 const ROPE_IDLE = 0x9fe3ff;
-const HIGHLIGHT_REACH = 0x6fb6ff;
-const HIGHLIGHT_LOCKED = 0xffb35c;
-const HIGHLIGHT_PICKED = 0x5ee0a0;
+/**
+ * Was leuchtet, wenn eine Hand zugreifen könnte — dieselbe Familie wie die
+ * Greiffarbe der Griffe, damit „das kann man nehmen" und „das kann man
+ * *jetzt* nehmen" wie zwei Stufen desselben Hinweises aussehen und nicht wie
+ * zwei verschiedene Nachrichten. Die Zahlen stehen in `core/colors.ts`.
+ */
+const HIGHLIGHT_REACH = GRAB_GLOW;
+const HIGHLIGHT_LOCKED = GRAB_GLOW_LOCKED;
+const HIGHLIGHT_PICKED = GRAB_GLOW_PICKED;
 const _ropeTaut = new THREE.Color(0xffb35c);
 const _zeroVelocity = new THREE.Vector3();
 const _spin = new THREE.Vector3();
@@ -268,6 +287,11 @@ interface LooseTool {
    * ignores gravity until it meets something, and then it stays there.
    */
   gliding: boolean;
+  /**
+   * Die Hüfte, von der dieses Exemplar kam — das Budget wird pro Platz
+   * geführt (`looseBudget.ts`). `null` für eins, das nie an einem Gürtel hing.
+   */
+  home: Handedness | null;
 }
 
 /** Where a hand was last frame and how fast it is going, in m/s. */
@@ -548,6 +572,7 @@ export class PortalWorld implements World {
           },
           this.depthEntry(),
           this.weaponMenu(),
+          this.supermanMenu(),
           this.handsMenu(),
           this.configMenu(),
           {
@@ -854,6 +879,150 @@ export class PortalWorld implements World {
       entry.label = `Munition: ${pistol.ammoLabel}`;
     });
     return entry;
+  }
+
+  // --- the Superman glove ---------------------------------------------------
+
+  /**
+   * Wie schnell der Handschuh fliegt und wer welche Achse bedient.
+   *
+   * Jede Zeile schaltet auf die nächste Raste weiter und zeigt die rohe Zahl
+   * daneben — genau wie bei der Pistole —, und unter *Werte eingeben* lässt
+   * sich jede davon tippen. Die drei Achsen darunter gehen die Runde Hand →
+   * Kopf → beide → aus; was das jeweils heißt, steht in `supermanFlight.ts`.
+   */
+  private supermanMenu(): MenuEntry {
+    const accent = 0xff4d5e;
+    const read = (): SupermanSettings => supermanSettings();
+
+    const dial = (field: SupermanField): MenuEntry => {
+      const label = (): string => `${field.label}: ${supermanFieldLabel(field, read()[field.key])}`;
+      const entry: MenuEntry = {
+        id: `setting:superman-${field.key}`,
+        label: label(),
+        sub: `${field.sub} · ${field.min} bis ${field.max} ${field.unit}`.trim(),
+        icon: 'superman',
+        accent,
+        run: () => {
+          saveSupermanSettings({
+            [field.key]: nextSupermanStep(field, read()[field.key]),
+          } as Partial<SupermanSettings>);
+          this.refreshMenuLabels();
+          this.context?.notify(label());
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = label();
+      });
+      return entry;
+    };
+
+    const axis = (key: 'drive' | 'lift' | 'yaw', title: string, sub: string): MenuEntry => {
+      const label = (): string => `${title}: ${SUPERMAN_SOURCE_LABELS[read()[key]]}`;
+      const entry: MenuEntry = {
+        id: `setting:superman-${key}`,
+        label: label(),
+        sub,
+        icon: 'glove',
+        accent,
+        run: () => {
+          saveSupermanSettings({ [key]: nextSupermanSource(read()[key]) } as Partial<SupermanSettings>);
+          this.refreshMenuLabels();
+          this.context?.notify(label());
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = label();
+      });
+      return entry;
+    };
+
+    const strafe: MenuEntry = {
+      id: 'setting:superman-strafe',
+      label: 'Hand schiebt quer',
+      sub: 'Statt zu drehen · der Kopf lenkt weiter',
+      icon: 'glove',
+      accent,
+      checked: read().strafe,
+      run: () => {
+        const next = saveSupermanSettings({ strafe: !read().strafe });
+        strafe.checked = next.strafe;
+        this.refreshMenuLabels();
+        this.context?.notify(next.strafe ? 'Hand schiebt quer' : 'Hand legt die Kurve an');
+      },
+    };
+    this.menuLabels.push(() => {
+      strafe.checked = read().strafe;
+    });
+
+    return {
+      id: 'setting:superman',
+      label: 'Supermanhandschuh',
+      sub: 'Tempo pro Richtung, und wer lenkt',
+      icon: 'superman',
+      accent,
+      children: [
+        ...SUPERMAN_FIELDS.map(dial),
+        ...SUPERMAN_AXES.map((entry) => axis(entry.key, entry.label, entry.sub)),
+        strafe,
+        this.supermanValuesMenu(),
+        {
+          id: 'setting:superman-reset',
+          label: 'Zurücksetzen',
+          sub: 'Zurück zu den gebauten Werten',
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            clearSupermanSettings();
+            this.refreshMenuLabels();
+            this.context?.notify('Supermanhandschuh zurückgesetzt');
+          },
+        },
+      ],
+    };
+  }
+
+  /** Jede Zahl des Handschuhs hinter einer Tastatur. */
+  private supermanValuesMenu(): MenuEntry {
+    const children = SUPERMAN_FIELDS.map((field) => {
+      const label = (): string =>
+        `${field.label}: ${supermanFieldLabel(field, supermanSettings()[field.key])}`;
+      const entry: MenuEntry = {
+        id: `setting:superman-value-${field.key}`,
+        label: label(),
+        sub: `${field.sub} · ${field.min} bis ${field.max}`,
+        icon: 'settings',
+        accent: 0xff4d5e,
+        run: () => {
+          this.askNumber({
+            title: field.label,
+            sub: `Supermanhandschuh · ${field.min} bis ${field.max} ${field.unit}`.trim(),
+            value: String(supermanSettings()[field.key]),
+            hint: field.sub,
+            commit: (value) => {
+              const applied = saveSupermanSettings({
+                [field.key]: value,
+              } as Partial<SupermanSettings>);
+              this.refreshMenuLabels();
+              this.context?.notify(`${field.label}: ${supermanFieldLabel(field, applied[field.key])}`);
+            },
+          });
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = label();
+      });
+      return entry;
+    });
+
+    return {
+      id: 'setting:superman-values',
+      label: 'Werte eingeben',
+      sub: 'Jede Zahl direkt tippen',
+      icon: 'settings',
+      accent: 0xff4d5e,
+      children,
+    };
   }
 
   // --- the hands -----------------------------------------------------------
@@ -1589,7 +1758,9 @@ export class PortalWorld implements World {
     });
     entry.previousPosition.copy(tool.position);
     this.props.push(entry);
-    this.loose.set(entry, { tool, entry, gliding: false });
+    // Kam von keiner Hüfte: eigener Topf im Budget, damit ein Werkzeug, das
+    // von Anfang an im Raum liegt, keinem Gürtelplatz seinen Vorrat wegnimmt.
+    this.loose.set(entry, { tool, entry, gliding: false, home: null });
     if (floating) entry.body.setGravityScale(0, true);
     return tool;
   }
@@ -1894,7 +2065,7 @@ export class PortalWorld implements World {
     });
     entry.previousPosition.copy(tool.position);
     this.props.push(entry);
-    this.loose.set(entry, { tool, entry, gliding });
+    this.loose.set(entry, { tool, entry, gliding, home });
 
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
     if (gliding) {
@@ -1933,27 +2104,35 @@ export class PortalWorld implements World {
    * Takes back the oldest copies of a tool once one too many is away from the
    * belt — held ones counted, because a pistol in the hand is one of them.
    *
-   * That is what makes the default read the way it should: one copy allowed,
-   * so pulling a fresh pistol off the hip fetches the one on the floor back.
-   * A throwing star says five, so five may be lying about and flying while a
-   * sixth is drawn — and the sixth throw is what takes the first one home.
-   * Oldest first, in the order they were let go of.
+   * Gezählt wird **pro Gürtelplatz** (`looseBudget.ts`): links und rechts sind
+   * zwei Vorräte, keiner. Eine Waffe in jeder Hand fallen zu lassen darf die
+   * jeweils andere nicht verschwinden lassen — genau das ist vorher passiert.
+   *
+   * Innerhalb eines Platzes liest sich die Voreinstellung weiter so, wie sie
+   * soll: ein Exemplar erlaubt, also holt die frische Pistole von dieser Hüfte
+   * die von dieser Hüfte liegengelassene ein. Der Wurfstern sagt fünf, also
+   * dürfen fünf pro Hüfte fliegen und liegen, und der sechste Wurf von
+   * derselben Hüfte holt den ersten zurück. Ältestes zuerst, in der
+   * Reihenfolge, in der losgelassen wurde.
    */
   private trimLoose(id: string): void {
-    const spare: LooseTool[] = [];
+    const entries: LooseEntry<LooseTool | null>[] = [];
     let limit = 1;
     for (const loose of this.loose.values()) {
       if (loose.tool.toolId !== id) continue;
-      spare.push(loose);
+      entries.push({ home: loose.home, spare: true, value: loose });
       limit = loose.tool.looseLimit;
     }
-    let count = spare.length;
     for (const tool of this.held.values()) {
       if (tool.toolId !== id) continue;
-      count++;
+      // Eine Hand ist kein Platz, von dem etwas nachwächst — aber das Werkzeug
+      // darin gehört dem Vorrat der Hüfte, von der es kam.
+      entries.push({ home: this.homes.get(tool) ?? tool.heldBy ?? null, spare: false, value: null });
       limit = tool.looseLimit;
     }
-    for (let i = 0; i < count - limit && i < spare.length; i++) this.retireLoose(spare[i]!);
+    for (const loose of overBudget(entries, limit)) {
+      if (loose) this.retireLoose(loose);
+    }
   }
 
   /** A loose tool goes away for good: out of the room, out of the physics. */

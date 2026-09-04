@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { createSight, type Attachment, type AttachmentContext } from './attachments';
 import { saveWeaponSettings, weaponSettings } from './gearStore';
 import {
@@ -91,7 +91,9 @@ export class PistolTool extends Tool {
       roughness: 0.35,
       metalness: 0.65,
     });
-    const grip = new THREE.MeshStandardMaterial({ color: 0x22293a, roughness: 0.75 });
+    // Der Griff trägt die Greiffarbe: woran die Waffe genommen wird, soll man
+    // sehen, nicht raten.
+    const grip = grabMaterial({ roughness: 0.75 });
 
     this.slide = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.038, 0.17), steel);
     this.slide.position.set(0, 0.012, -0.06);

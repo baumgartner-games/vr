@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { playPick, playTone } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
@@ -88,7 +88,7 @@ export class WelderTool extends Tool {
     // Reaching into a pile to pick a joint point must not scatter the pile.
     this.phaseHands = true;
 
-    const grip = new THREE.MeshStandardMaterial({ color: 0x2b3346, roughness: 0.8 });
+    const grip = grabMaterial({ roughness: 0.8 });
     const steel = new THREE.MeshStandardMaterial({
       color: 0xb9c2d4,
       roughness: 0.3,
