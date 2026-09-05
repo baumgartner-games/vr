@@ -39,6 +39,16 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
         <span id="edit-label">Bearbeiten</span>
       </button>
+      <!--
+        Und derselbe Knopf für die Welten: eine Welt von außen sagt, wie sie
+        angelegt ist — wie sie sich anfühlt, sagt nur ein Flug hindurch. Er
+        trägt eine Drohne als Zeichen und sein Wort daneben, aus demselben
+        Grund wie der Stift: ein Umriss allein findet auf dem Telefon niemand.
+      -->
+      <button id="fly" class="top__edit" type="button" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6v6H9z" /><path d="M9 9L5 5M15 9l4-4M9 15l-4 4M15 15l4 4" /><path d="M3 5h4M17 5h4M3 19h4M17 19h4" /></svg>
+        <span id="fly-label">Freie Kamera</span>
+      </button>
     </header>
 
     <nav id="drawer" class="drawer" hidden>
@@ -69,12 +79,33 @@
           da; wer nur schaut, soll eine Seite ohne Regler sehen.
         -->
         <div id="axes" class="axes" role="group" aria-label="Achse" hidden></div>
-        <div class="stage"><canvas id="stage" class="stage__canvas"></canvas></div>
+        <div class="stage">
+          <canvas id="stage" class="stage__canvas"></canvas>
+          <!--
+            Die Knöpfe der freien Kamera, über dem Bild und nicht darunter: man
+            fliegt mit den Daumen und sieht dabei zu. Links das Kreuz für vor,
+            zurück und seitwärts, rechts hoch und runter — und beschriftet mit
+            W A S D, damit am Schreibtisch niemand raten muss, welche Tasten
+            dasselbe tun. Gedreht wird durch Wischen auf dem Bild dazwischen.
+          -->
+          <div id="pad" class="pad" hidden>
+            <div class="pad__move">
+              <button class="pad__key pad__key--w" type="button" data-fly="forward" aria-label="vorwärts">W</button>
+              <button class="pad__key pad__key--a" type="button" data-fly="left" aria-label="nach links">A</button>
+              <button class="pad__key pad__key--s" type="button" data-fly="back" aria-label="rückwärts">S</button>
+              <button class="pad__key pad__key--d" type="button" data-fly="right" aria-label="nach rechts">D</button>
+            </div>
+            <div class="pad__lift">
+              <button class="pad__key" type="button" data-fly="up" aria-label="höher">▲</button>
+              <button class="pad__key" type="button" data-fly="down" aria-label="tiefer">▼</button>
+            </div>
+          </div>
+        </div>
         <div id="foot" class="detail__foot">
           <p id="hint" class="detail__hint"></p>
           <p id="note" class="detail__note" hidden></p>
           <a id="enter" class="detail__enter" href="./" hidden>Welt betreten →</a>
-          <p class="detail__help">Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück</p>
+          <p id="help" class="detail__help">Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück</p>
         </div>
 
         <section id="editor" class="editor" hidden>

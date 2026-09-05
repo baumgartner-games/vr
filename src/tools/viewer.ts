@@ -6,6 +6,15 @@ import { IDENTITY } from '../worlds/portal/tools/aim';
 import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
+import {
+  NO_INPUT,
+  flyDolly,
+  flyLook,
+  flyStep,
+  isMoving,
+  type FlyInput,
+  type FlyView,
+} from './flyCamera';
 import type { Ray } from './alignHand';
 import type { Pose } from '../worlds/tune/handGrip';
 import type { HoldPose, PoseReadout } from '../worlds/portal/tools/toolPose';
@@ -52,8 +61,17 @@ export interface ShowOptions {
 
 /** Wie weit die Kamera über das Gezeigte hinaus Luft lässt. */
 const PADDING = 1.12;
-/** Grenzen für das Zoomen, als Faktor auf den eingepassten Abstand. */
+/**
+ * Grenzen für das Zoomen, als Faktor auf den eingepassten Abstand.
+ *
+ * Für eine **Welt** eine andere Untergrenze als für ein Werkzeug, und das ist
+ * der Unterschied zwischen „nah heran" und „hinein": ein halber Meter vor einer
+ * Zange ist nah, ein halber Kilometer vor einem Tal ist die Übersicht. Eine
+ * Welt darf deshalb bis auf ein Zwanzigstel des eingepassten Abstands heran —
+ * wer noch näher will, nimmt die freie Kamera und fliegt.
+ */
 const ZOOM_MIN = 0.45;
+const ZOOM_MIN_WORLD = 0.05;
 const ZOOM_MAX = 2.6;
 /** Wie schnell sich das Ding von selbst dreht, bis jemand es anfasst (rad/s). */
 const IDLE_SPIN = 0.35;
@@ -73,6 +91,43 @@ const WORLD_SPIN = 0.14;
  * und wie hoch es ist.
  */
 const WORLD_PITCH = 0.55;
+/**
+ * **Die freie Kamera**: wie schnell sie fliegt, und wie schnell sie am Rad
+ * vorrückt.
+ *
+ * Nicht in festen Metern je Sekunde, sondern nach dem **Abstand zu dem, was man
+ * ansieht** — so, wie jede Karte fliegt: von weit draußen legt ein Druck
+ * Kilometer zurück, mitten in der Welt Meter. Eine feste Zahl kann das nicht:
+ * dieselbe ist im Dunkelhaus ein Katapult und in den Alpen ein Stillstand
+ * (deren Kulisse misst vier Kilometer im Halbmesser), und beide stehen in
+ * derselben Liste von Welten.
+ *
+ * Gemessen wird bis an die **Kugel um das Gezeigte** und nicht bis zu deren
+ * Mitte: wer drinnen ist, ist da, und dort gilt der langsame Gang — ein
+ * Hundertstel des Halbmessers je Sekunde. Draußen ist es ein Anteil des
+ * Abstands, und weil der beim Anfliegen schrumpft, bremst der Flug von selbst
+ * ab, statt an der Welt vorbeizuschießen.
+ *
+ * Nach oben begrenzt die halbe Größe des Gezeigten je Sekunde: schneller
+ * gesehen ist die Welt weg, bevor man den Finger hebt. Die beiden festen Zahlen
+ * darum herum sind nur der Notnagel für eine Bühne, auf der etwas sehr Kleines
+ * oder sehr Großes steht.
+ */
+const FLY_SPEED_SHARE = 0.5;
+const FLY_SPEED_SLOW = 0.01;
+const FLY_SPEED_FAST = 0.5;
+const FLY_SPEED_MIN = 0.8;
+const FLY_SPEED_MAX = 2000;
+/** Was ein Rasten am Rad schiebt, gemessen an einer Sekunde Flug. */
+const FLY_DOLLY_STEP = 0.35;
+/**
+ * Vorn und hinten im Flug: nah genug für eine Wand vor der Nase, weit genug
+ * für den Himmel dahinter — der ist eine Kugel von 560 Metern, der Boden eine
+ * Platte von tausend, und beide zählen beim Einpassen nicht mit.
+ */
+const FLY_NEAR = 0.05;
+const FLY_FAR = 2400;
+
 /**
  * Wie hoch der Schnitt durch eine Welt mit Dach höchstens liegt.
  *
@@ -126,6 +181,8 @@ const _size = new THREE.Vector3();
 const _zero = new THREE.Vector3();
 const _handspan = new THREE.Vector3(0.2, 0.2, 0.2);
 const _down = new THREE.Vector3(0, -1, 0);
+/** Der Blick der freien Kamera, in derselben Reihenfolge wie sie ihn führt. */
+const _look = new THREE.Euler(0, 0, 0, 'YXZ');
 /** Für den Weg aus der Bühne in den Raum des Werkzeugs (`gripAim`). */
 const _inverse = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
@@ -133,6 +190,8 @@ const _at = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
+/** Nichts abschneiden — dieselbe leere Liste, statt jedes Bild eine neue. */
+const _noPlanes: THREE.Plane[] = [];
 
 /**
  * Ein Werkzeug zum Ansehen: eine Bühne, ein Modell, und Finger, die es drehen.
@@ -191,6 +250,8 @@ export class ToolViewer {
    */
   private cut: number | null = null;
   private readonly plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+  /** Dieselbe Ebene als Liste, wie der Renderer sie will. */
+  private readonly planes = [this.plane];
 
   /** Halbmesser des Gezeigten, und der Faktor, den die Finger daraus machen. */
   private radius = 0.12;
@@ -204,9 +265,22 @@ export class ToolViewer {
   private pitch = 0.35;
   private spinning = true;
 
+  /**
+   * Die **freie Kamera**, oder `null` für die Ansicht von außen.
+   *
+   * Zwei Ansichten, ein Bild: von außen dreht sich die Bühne vor einer Kamera,
+   * die auf ihrem Abstand sitzt; im Flug steht die Bühne still und die Kamera
+   * geht darin herum. Beides zugleich gibt es nicht — deshalb ein Feld, das
+   * entweder etwas ist oder nichts, und keine zweite Sorte Winkel daneben.
+   */
+  private fly: FlyView | null = null;
+  private flyInput: FlyInput = NO_INPUT;
+
   private readonly pointers = new Map<number, THREE.Vector2>();
   private pinch = 0;
   private lastTap = 0;
+  /** Ob der letzte Zeiger allein herunterging — ein Zangengriff ist kein Tipp. */
+  private lastAlone = false;
   private frame = 0;
   private clock = new THREE.Clock();
 
@@ -316,6 +390,65 @@ export class ToolViewer {
           ? null
           : Math.min(preview.roof - 0.3, CUT_HEIGHT),
     });
+  }
+
+  /** Ob die freie Kamera gerade fliegt. */
+  get flying(): boolean {
+    return this.fly !== null;
+  }
+
+  /**
+   * **Freie Kamera an oder aus** — und zwar ohne Schnitt im Bild.
+   *
+   * Beim Einschalten übernimmt die Kamera genau die Stelle, an der die Ansicht
+   * von außen gerade steht: die Bühne dreht sich zurück in ihre eigene Lage,
+   * und die Kamera nimmt die Drehung auf sich. Gerechnet wird das nicht mit
+   * Winkeln, sondern über die Matrizen — die Lage der Kamera *im Raum der
+   * Bühne* ist die gesuchte Antwort, und die kann man ablesen statt sie
+   * herzuleiten.
+   *
+   * Der Grund dafür ist mehr als Bequemlichkeit: von außen liegt die Welt
+   * schräg, weil man von schräg oben auf sie sieht. Flöge man in dieser Lage
+   * los, ginge „hoch" nicht nach oben, sondern um genau diese Schräge daneben.
+   * Also steht die Welt im Flug aufrecht, und die Kamera ist die, die schief
+   * hängt.
+   */
+  setFlying(on: boolean): void {
+    if (on === (this.fly !== null)) return;
+    this.flyInput = NO_INPUT;
+    if (!on) {
+      this.fly = null;
+      this.spinning = false;
+      return;
+    }
+    this.spinning = false;
+    // Ein Bild rechnen, damit Kamera und Bühne dort stehen, wo man sie sieht.
+    this.place();
+    this.pivot.updateMatrixWorld(true);
+    this.camera.updateMatrixWorld(true);
+    _local.copy(this.pivot.matrixWorld).invert().multiply(this.camera.matrixWorld);
+    _local.decompose(_at, _quat, _scale);
+    _look.setFromQuaternion(_quat);
+    this.fly = {
+      position: { x: _at.x, y: _at.y, z: _at.z },
+      yaw: _look.y,
+      pitch: _look.x,
+    };
+  }
+
+  /** Was die Knöpfe (oder die Tasten) gerade sagen. */
+  setFlyInput(input: FlyInput): void {
+    this.flyInput = input;
+  }
+
+  /** Wie schnell sie fliegt — nach dem Abstand zu dem, was auf der Bühne steht. */
+  private get flySpeed(): number {
+    const view = this.fly;
+    const away = view ? Math.hypot(view.position.x, view.position.y, view.position.z) : 0;
+    const outside = Math.max(0, away - this.radius);
+    const slow = Math.max(FLY_SPEED_MIN, this.radius * FLY_SPEED_SLOW);
+    const fast = Math.min(FLY_SPEED_MAX, Math.max(slow, this.radius * FLY_SPEED_FAST));
+    return Math.min(fast, Math.max(slow, outside * FLY_SPEED_SHARE));
   }
 
   setHandMode(mode: HandMode): void {
@@ -467,6 +600,11 @@ export class ToolViewer {
       this.frame = requestAnimationFrame(tick);
       const dt = Math.min(this.clock.getDelta(), 0.1);
       if (this.spinning) this.yaw += dt * this.spin;
+      // Gedrückte Knöpfe bewegen die Kamera Bild für Bild und nicht ruckweise
+      // beim Drücken: fliegen ist eine Bewegung und kein Sprung.
+      if (this.fly && isMoving(this.flyInput)) {
+        this.fly = flyStep(this.fly, this.flyInput, dt, this.flySpeed);
+      }
       this.shownFor += dt;
       this.options.animate?.(this.shownFor);
       this.render();
@@ -704,16 +842,19 @@ export class ToolViewer {
   /**
    * Den waagerechten Schnitt setzen oder aufheben.
    *
-   * Die Ebene wird beim Renderer angemeldet und dort in jedem Bild gelesen;
-   * ihre Zahlen füllt `render` nach, sobald die Drehung des Bildes feststeht.
+   * Angemeldet wird die Ebene erst im Bild (`render`): dort steht fest, ob sie
+   * gerade gilt — im Flug nämlich nicht, siehe dort — und dort stehen auch
+   * ihre Zahlen, die von der Drehung dieses Bildes abhängen.
    */
   private setCut(height: number | null): void {
     this.cut = height;
-    this.renderer.clippingPlanes = height === null ? [] : [this.plane];
   }
 
   private clear(): void {
     this.dropHand();
+    // Eine neue Welt fängt von außen an: der Flug gehört der, die man verlässt.
+    this.fly = null;
+    this.flyInput = NO_INPUT;
     // Die Linien an den Griffen einzeln: `disposeTool` räumt ab, was das
     // Werkzeug selbst gebaut hat, und eine Linie, die diese Seite drangehängt
     // hat, gehört nicht dazu.
@@ -762,23 +903,59 @@ export class ToolViewer {
     if (this.canvas.width !== Math.round(width * ratio)) this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
-
-    const fitted = this.distance(this.camera.aspect);
-    this.camera.position.set(0, 0, fitted * this.zoom);
-    this.camera.near = Math.max(0.005, fitted * 0.02);
-    this.camera.far = fitted * 12;
-    this.camera.updateProjectionMatrix();
-    this.pivot.rotation.set(this.pitch, this.yaw, 0);
+    this.place();
 
     // Der Schnitt gehört dem Modell und nicht dem Raum: er liegt waagerecht in
     // der Welt, die sich dreht. Also wird die Ebene aus der Lage der Bühne
     // gerechnet, nachdem die Drehung dieses Bildes steht.
-    if (this.cut !== null) {
+    //
+    // **Im Flug gilt er nicht.** Er ist die Antwort auf die Vogelperspektive —
+    // von oben sieht man sonst nur den Deckel —, und wer *drin* ist, will das
+    // Zimmer so, wie es ist, mit Decke. Ein aufgeschnittenes Haus von innen
+    // wäre ein Haus ohne Dach, und das ist keine Welt, sondern ein Modell.
+    const cutting = this.cut !== null && !this.fly;
+    if (cutting) {
       this.pivot.updateMatrixWorld(true);
-      this.plane.set(_down, this.cut);
+      this.plane.set(_down, this.cut ?? 0);
       this.plane.applyMatrix4(this.stage.matrixWorld);
     }
+    this.renderer.clippingPlanes = cutting ? this.planes : _noPlanes;
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Kamera und Bühne an ihre Plätze — das, was ein Bild ausmacht, noch bevor
+   * eines gezeichnet wird. `setFlying` braucht genau dasselbe, um die Ansicht
+   * zu übernehmen, die gerade zu sehen ist.
+   *
+   * Die beiden Fälle sind zwei Ansichten und nicht zwei Einstellungen: **von
+   * außen** sitzt die Kamera auf ihrem Abstand und die Bühne dreht sich vor
+   * ihr; **im Flug** steht die Bühne aufrecht still und die Kamera geht darin
+   * herum.
+   *
+   * Die **vordere Ebene** hängt am wirklichen Abstand und nicht am
+   * eingepassten — das ist der Unterschied zwischen „ich kann heranzoomen" und
+   * „ab hier wird alles durchsichtig". Die hintere bleibt beim eingepassten:
+   * sie soll den Hintergrund halten, auch wenn man dicht heranfährt.
+   */
+  private place(): void {
+    const view = this.fly;
+    if (view) {
+      this.pivot.rotation.set(0, 0, 0);
+      this.camera.position.set(view.position.x, view.position.y, view.position.z);
+      this.camera.quaternion.setFromEuler(_look.set(view.pitch, view.yaw, 0));
+      this.camera.near = Math.max(FLY_NEAR, this.radius * 0.001);
+      this.camera.far = Math.max(FLY_FAR, this.radius * 20);
+    } else {
+      const fitted = this.distance(this.camera.aspect);
+      const away = fitted * this.zoom;
+      this.camera.position.set(0, 0, away);
+      this.camera.quaternion.identity();
+      this.camera.near = Math.max(0.005, away * 0.02);
+      this.camera.far = fitted * 12 + away;
+      this.pivot.rotation.set(this.pitch, this.yaw, 0);
+    }
+    this.camera.updateProjectionMatrix();
   }
 
   // --- Finger ----------------------------------------------------------------
@@ -790,8 +967,14 @@ export class ToolViewer {
     // sie in der Hand hat.
     this.spinning = false;
     if (this.pointers.size === 2) this.pinch = this.spread();
+    // Ein **Doppeltipp** sind zwei Tipps mit *einem* Finger. Der zweite Finger
+    // eines Zangengriffs kommt genauso schnell hinterher wie ein zweiter Tipp —
+    // und stellte damit jedes Mal die Ansicht zurück, kaum dass man zu zoomen
+    // anfing. Genau das war „er springt wieder heraus, sobald ich neu zoome".
+    const alone = this.pointers.size === 1;
     const now = event.timeStamp;
-    if (now - this.lastTap < 320) this.reset();
+    if (alone && this.lastAlone && now - this.lastTap < 320) this.reset();
+    this.lastAlone = alone;
     this.lastTap = now;
   };
 
@@ -804,14 +987,25 @@ export class ToolViewer {
 
     if (this.pointers.size >= 2) {
       // Zwei Finger zoomen, und zwar nur das: gleichzeitig zu drehen macht aus
-      // jedem Zoom eine kleine Drehung, die niemand wollte.
+      // jedem Zoom eine kleine Drehung, die niemand wollte. Im Flug gibt es
+      // nichts zu zoomen — dort schieben sie nach vorn und zurück.
       const spread = this.spread();
-      if (this.pinch > 0 && spread > 0) this.setZoom(this.zoom * (this.pinch / spread));
+      if (this.pinch > 0 && spread > 0) {
+        if (this.fly)
+          this.fly = flyDolly(this.fly, (spread / this.pinch - 1) * this.flySpeed * 0.6);
+        else this.setZoom(this.zoom * (this.pinch / spread));
+      }
       this.pinch = spread;
       return;
     }
 
     const scale = 4 / Math.max(240, Math.min(this.canvas.clientWidth, this.canvas.clientHeight));
+    // Im Flug dreht dasselbe Wischen den **Blick** statt der Bühne — dieselbe
+    // Bewegung, dieselben Vorzeichen: die Welt geht mit dem Finger mit.
+    if (this.fly) {
+      this.fly = flyLook(this.fly, dx * scale, dy * scale);
+      return;
+    }
     this.yaw += dx * scale;
     // Nicht überkopf: eine Ansicht, die auf dem Kopf steht, dreht sich beim
     // nächsten Wischen andersherum, und dann weiß man nicht mehr, wo oben war.
@@ -826,11 +1020,20 @@ export class ToolViewer {
   private readonly onWheel = (event: WheelEvent): void => {
     event.preventDefault();
     this.spinning = false;
+    if (this.fly) {
+      this.fly = flyDolly(this.fly, (event.deltaY > 0 ? -1 : 1) * this.flySpeed * FLY_DOLLY_STEP);
+      return;
+    }
     this.setZoom(this.zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12));
   };
 
+  /**
+   * Näher heran, aber nicht durch das Gezeigte hindurch — und für eine Welt
+   * viel näher als für ein Werkzeug (`ZOOM_MIN_WORLD`).
+   */
   private setZoom(value: number): void {
-    this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
+    const near = this.flat ? ZOOM_MIN_WORLD : ZOOM_MIN;
+    this.zoom = Math.max(near, Math.min(ZOOM_MAX, value));
   }
 
   private spread(): number {
@@ -846,12 +1049,17 @@ export class ToolViewer {
    * zurück, ohne die Einstellung anzufassen.
    */
   private reset(): void {
+    const flying = this.fly !== null;
+    this.fly = null;
     this.yaw = this.home.yaw;
     this.pitch = this.home.pitch;
     this.zoom = 1;
-    this.spinning = true;
+    this.spinning = !flying;
     this.fit();
     this.sizeLines();
+    // Im Flug bleibt die freie Kamera an — sie stellt sich nur wieder dorthin,
+    // wo sie losgeflogen ist. Wer sie loswerden will, hat den Knopf dafür.
+    if (flying) this.setFlying(true);
   }
 }
 

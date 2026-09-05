@@ -105,6 +105,10 @@ const note = document.querySelector<HTMLElement>('#note')!;
 const enter = document.querySelector<HTMLAnchorElement>('#enter')!;
 const edit = document.querySelector<HTMLButtonElement>('#edit')!;
 const editLabel = document.querySelector<HTMLElement>('#edit-label')!;
+const fly = document.querySelector<HTMLButtonElement>('#fly')!;
+const flyLabel = document.querySelector<HTMLElement>('#fly-label')!;
+const pad = document.querySelector<HTMLElement>('#pad')!;
+const help = document.querySelector<HTMLElement>('#help')!;
 const axesBar = document.querySelector<HTMLElement>('#axes')!;
 const editor = document.querySelector<HTMLElement>('#editor')!;
 const targets = document.querySelector<HTMLElement>('#targets')!;
@@ -435,6 +439,120 @@ function showMode(): void {
   for (const button of hands.querySelectorAll<HTMLButtonElement>('button')) {
     button.classList.toggle('is-active', button.dataset['hand'] === mode);
   }
+}
+
+// --- die freie Kamera --------------------------------------------------------
+
+/**
+ * **Fliegen statt drehen** — der zweite Modus für eine Welt.
+ *
+ * Von außen sieht man, wie eine Welt *angelegt* ist: den Grundriss, die Runde,
+ * das Tal. Wie sie sich *anfühlt*, sieht man erst von innen — und dafür gibt es
+ * hier eine Drohne: die Welt steht still, die Kamera geht darin herum. Kein
+ * Spieler, sondern eine Drohne, und das mit Absicht: keine Schwerkraft, keine
+ * Wände, kein Boden, denn wer sich eine Kulisse ansieht, will auch über sie
+ * hinweg und in sie hinein.
+ *
+ * Bedient wird sie mit **Knöpfen über dem Bild** (links W A S D, rechts hoch
+ * und runter) und mit **denselben Tasten**, wenn eine Tastatur da ist —
+ * dazwischen dreht Wischen den Blick. Gehalten wird gedrückt: was hier
+ * zusammenkommt, ist eine Menge von Richtungen, und der Betrachter macht daraus
+ * Bild für Bild eine Bewegung (`viewer.setFlyInput`, `flyCamera.ts`). Ein Tipp
+ * je Schritt wäre ein Ruckeln und kein Flug.
+ */
+const FLY_KEYS: Record<string, string> = {
+  w: 'forward',
+  arrowup: 'forward',
+  s: 'back',
+  arrowdown: 'back',
+  a: 'left',
+  arrowleft: 'left',
+  d: 'right',
+  arrowright: 'right',
+  ' ': 'up',
+  e: 'up',
+  pageup: 'up',
+  shift: 'down',
+  q: 'down',
+  pagedown: 'down',
+};
+
+/** Die Zeile unter der Bühne — sie sagt, was die Finger dort gerade tun. */
+const HELP_VIEW = 'Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück';
+const HELP_FLY = 'Wischen schaut sich um · Knöpfe oder W A S D fliegen · Doppeltipp stellt zurück';
+
+/** Ob die freie Kamera gerade fliegt. */
+let flying = false;
+
+/** Was gerade gedrückt ist — ein Knopf und eine Taste sind dieselbe Richtung. */
+const held = new Set<string>();
+
+function pressFly(direction: string, down: boolean): void {
+  if (down) held.add(direction);
+  else held.delete(direction);
+  for (const key of pad.querySelectorAll<HTMLButtonElement>('[data-fly]')) {
+    key.classList.toggle('is-down', held.has(key.dataset['fly'] ?? ''));
+  }
+  viewer.setFlyInput({
+    forward: (held.has('forward') ? 1 : 0) - (held.has('back') ? 1 : 0),
+    right: (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0),
+    up: (held.has('up') ? 1 : 0) - (held.has('down') ? 1 : 0),
+  });
+}
+
+function releaseFly(): void {
+  for (const direction of [...held]) pressFly(direction, false);
+}
+
+for (const key of pad.querySelectorAll<HTMLButtonElement>('[data-fly]')) {
+  const direction = key.dataset['fly'] ?? '';
+  // Zeiger und nicht Klicks: ein Klick kommt erst beim Loslassen, und eine
+  // Kamera, die sich erst dann bewegt, fliegt nicht, sondern hüpft. Der
+  // Fangring hält den Zeiger auch dann bei diesem Knopf, wenn der Daumen beim
+  // Halten verrutscht — sonst bliebe die Richtung hängen.
+  key.addEventListener('pointerdown', (event) => {
+    key.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    pressFly(direction, true);
+  });
+  const stop = (): void => pressFly(direction, false);
+  key.addEventListener('pointerup', stop);
+  key.addEventListener('pointercancel', stop);
+  // Der Fangring endet, wenn das Fenster den Zeiger verliert (ein Anruf, ein
+  // Wechsel der Anwendung) — auch dann hört das Fliegen auf.
+  key.addEventListener('lostpointercapture', stop);
+}
+
+window.addEventListener('keydown', (event) => {
+  if (!flying || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+  const direction = FLY_KEYS[event.key.toLowerCase()];
+  if (!direction) return;
+  // Die Leertaste rollt sonst die Seite, die Pfeiltasten auch.
+  event.preventDefault();
+  pressFly(direction, true);
+});
+
+window.addEventListener('keyup', (event) => {
+  const direction = FLY_KEYS[event.key.toLowerCase()];
+  if (direction) pressFly(direction, false);
+});
+
+// Wer die Seite wegklickt, während er fliegt, käme sonst zu einer Kamera
+// zurück, die immer noch in eine Richtung zieht.
+window.addEventListener('blur', releaseFly);
+
+fly.addEventListener('click', () => setFlying(!flying));
+
+function setFlying(on: boolean): void {
+  flying = on && !fly.hidden;
+  releaseFly();
+  viewer.setFlying(flying);
+  fly.setAttribute('aria-pressed', String(flying));
+  // Derselbe Knopf sagt, was ein Tippen jetzt täte — wie *Bearbeiten* und
+  // *Fertig* beim Werkzeug.
+  flyLabel.textContent = flying ? 'Von außen' : 'Freie Kamera';
+  pad.hidden = !flying;
+  help.textContent = flying ? HELP_FLY : HELP_VIEW;
 }
 
 // --- der Justierer -----------------------------------------------------------
@@ -887,6 +1005,11 @@ function route(): void {
   // liegen in keiner Hand, es gibt dort schlicht nichts zu justieren.
   edit.hidden = entry.section !== 'tools';
   setEditing(editing && entry.section === 'tools');
+  // Und die freie Kamera nur für Welten: durch eine Zange fliegt niemand. Jede
+  // Welt fängt dabei von außen an — der Überblick ist die Antwort auf „was ist
+  // das für eine Welt", und der Flug die auf die zweite Frage.
+  fly.hidden = entry.section !== 'worlds';
+  setFlying(false);
 }
 
 function showOverview(section: Section): void {
@@ -902,6 +1025,8 @@ function showOverview(section: Section): void {
   nav.hidden = false;
   edit.hidden = true;
   setEditing(false);
+  fly.hidden = true;
+  setFlying(false);
   title.textContent = SECTION_TITLES[section];
   document.title = `${SECTION_TITLES[section]} — Baumgartner VR`;
 }

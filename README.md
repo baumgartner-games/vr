@@ -84,8 +84,11 @@ statt um ihr Handgelenk, damit die aufgelegte Linie beim Drehen und Rollen
 liegen bleibt. Alles landet in denselben Speichern wie
 in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
 Über die Schublade daneben die
-**Welten** (jede ganz zum Drehen, schräg von oben für den Überblick — Räume mit
-Decke aufgeschnitten wie ein Puppenhaus —, dazu ein Knopf hinein) und der
+**Welten** (jede ganz zum Drehen, schräg von oben für den Überblick, Räume mit
+Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen; mit
+**Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
+hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
+hinein) und der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen). Keine Brille nötig, das
 Telefon reicht. Details in [AGENTS.md](AGENTS.md#die-werkzeugseite).
 

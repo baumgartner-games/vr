@@ -172,7 +172,12 @@ Grifflinie liegt und nicht ungefähr, dass die Hand dabei nur so weit kippt, wie
 die beiden Richtungen auseinanderliegen, dass beim Schwenken in die Zielrichtung
 die Fingerspitze genau liegen bleibt, dass eine Drehung um sie herum sie auf
 ihrem Punkt hält, und dass die Gegenrichtung keine Hand aus lauter Nullen
-ergibt) und die **Hub-Auslegung**
+ergibt) und die **freie Kamera** derselben Seite
+(`src/tools/flyCamera.ts` — die Vorzeichen, die man erst merkt, nachdem man in
+die falsche Richtung geflogen ist: dass vorwärts dorthin geht, wohin man sieht,
+dass seitwärts waagerecht bleibt, auch wenn der Blick zum Himmel geht, dass
+hoch die Welt-Y ist und nicht die eigene, dass schräg nicht schneller ist als
+geradeaus, und die Grenze beim Nicken, ohne die die Ansicht überkopf umkippt) und die **Hub-Auslegung**
 (`src/worlds/hub/hubLayout.ts` — dass ein voller Gang
 einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
 aufeinander stehen), die **Flächen der Würfel**
@@ -2108,6 +2113,56 @@ Drei Dinge machen daraus einen Überblick statt eines Kastens:
   Grundriss und Höhe getrennt gerechnet (`ShowOptions.flat`) steht sie doppelt
   so groß im Bild — vorher war das Dunkelhaus eine Briefmarke in einer leeren
   Fläche.
+
+**Und man kommt hinein.** Der Überblick beantwortet die erste Frage; die
+zweite — wie sieht es *darin* aus — beantworten zwei Dinge:
+
+- **Näher heran.** Eine Welt darf bis auf ein Zwanzigstel des eingepassten
+  Abstands herangezoomt werden (`ZOOM_MIN_WORLD`), ein Werkzeug weiterhin nur
+  bis auf knapp die Hälfte: vor einer Zange ist ein halber Meter nah, vor einem
+  Tal ist ein halber Kilometer die Übersicht. Dazu hängt die **vordere
+  Schnittebene** am wirklichen Abstand und nicht mehr am eingepassten — sonst
+  wird beim Herankommen alles durchsichtig, was man ansehen wollte. Und ein
+  **Zangengriff ist kein Doppeltipp**: der zweite Finger kam bisher genauso
+  schnell hinterher wie ein zweiter Tipp und stellte die Ansicht damit jedes
+  Mal zurück, kaum dass man zu zoomen anfing. Gezählt wird jetzt nur, was
+  *allein* aufgesetzt hat.
+- **Die freie Kamera** (Knopf oben in der Ecke, nur bei Welten). Sie fliegt wie
+  eine **Drohne**: die Welt steht still, die Kamera geht darin herum, und zwar
+  ohne Schwerkraft, ohne Wände und ohne Boden — wer sich eine Kulisse ansieht,
+  will auch über sie hinweg und in sie hinein. Bedient wird sie mit den Knöpfen
+  über dem Bild (links **W A S D**, rechts **hoch und runter**) und mit
+  denselben Tasten, wenn eine Tastatur da ist; **Wischen** dreht dabei den
+  Blick, Rad und zwei Finger schieben vor und zurück. Der Doppeltipp stellt
+  auch sie zurück — an den Platz, an dem sie losgeflogen ist.
+
+Vier Dinge daran sind Entscheidungen und keine Nebensache:
+
+- **Kein Schnitt im Bild.** Beim Einschalten übernimmt die Kamera genau die
+  Ansicht, die gerade zu sehen ist: die Bühne dreht sich in ihre eigene Lage
+  zurück, die Kamera nimmt die Drehung auf sich (gelesen aus den Matrizen, nicht
+  aus Winkeln hergeleitet). Das ist mehr als Höflichkeit — von außen liegt die
+  Welt schräg, weil man von schräg oben auf sie sieht, und flöge man in dieser
+  Lage los, ginge „hoch" um genau diese Schräge daneben. Wer nah heran will,
+  zoomt vorher: die freie Kamera fängt dort an, wo die Ansicht steht.
+- **Kein Rollen.** Der Blick sind zwei Winkel — Gieren um die Welt-Y, Nicken um
+  die eigene X —, und der Horizont bleibt damit waagerecht, was auch immer man
+  tut. Eine Kamera, die beim Umsehen langsam kippt, verliert man nach zehn
+  Sekunden.
+- **Geschwindigkeit nach Abstand.** Nicht in festen Metern je Sekunde, sondern
+  gemessen bis an die Kugel um das Gezeigte: von weit draußen legt ein Druck
+  Kilometer zurück, mitten in der Welt Meter, und weil der Abstand beim
+  Anfliegen schrumpft, bremst der Flug von selbst ab. Eine feste Zahl kann das
+  nicht — dieselbe ist im Dunkelhaus ein Katapult und in den Alpen ein
+  Stillstand, deren Kulisse misst vier Kilometer im Halbmesser.
+- **Das Dach bleibt drauf.** Der Schnitt durch eine Welt mit Decke ist die
+  Antwort auf die Vogelperspektive; wer drin ist, will das Zimmer, wie es ist.
+  Im Flug gilt er deshalb nicht.
+
+Die Rechnung dazu steht in `src/tools/flyCamera.ts` (mit Test, ohne three.js),
+die Knöpfe hält `tools/main.ts` als Menge gedrückter Richtungen — Knopf und
+Taste sind dieselbe — und der Betrachter macht daraus Bild für Bild eine
+Bewegung. Ein Tipp je Schritt wäre ein Ruckeln und kein Flug.
 
 Damit das ohne Spiel geht, bekommt `PortalWorld.preview()` zwei Dinge
 untergeschoben. Erstens eine **Physik, die nichts tut**
