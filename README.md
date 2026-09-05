@@ -13,7 +13,9 @@ Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
 Dunkelhaus zum Ausprobieren von Licht und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen, ein Werkzeuggürtel
-voller Spielzeug und Peer-to-Peer-Sitzungen ohne eigenen Server — mit
+voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
+Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen — und
+Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
@@ -56,8 +58,9 @@ Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik
 der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte, den
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
 hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf
-samt Putzen fremden Textes, die Wahl des Gastgebers einer geteilten Welt und die
-Auslegung der Hub-Gänge. Diese
+samt Putzen fremden Textes, die Wahl des Gastgebers einer geteilten Welt, die
+Auslegung der Hub-Gänge und die Flächen der Würfel (dass gegenüberliegende
+Seiten zusammen `n + 1` ergeben, wie auf einem echten Würfel). Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.

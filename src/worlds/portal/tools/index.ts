@@ -11,6 +11,7 @@ import { HangGliderTool } from './HangGliderTool';
 import { HandTool } from './HandTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
+import { MagicBagTool } from './MagicBagTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
 import { ShurikenTool } from './ShurikenTool';
@@ -37,6 +38,7 @@ export const TOOL_IDS = [
   // Der blanke Griff: kein Werkzeug mit einem Griff, sondern der Griff selbst,
   // zum Einstellen der Faust, die alle anderen daran erben.
   'grip',
+  'bag',
   'brush',
   'duplicator',
   'inspect',
@@ -90,6 +92,8 @@ function buildTool(id: string): Tool | null {
       return new HolsterTool();
     case 'grip':
       return new GripTool();
+    case 'bag':
+      return new MagicBagTool();
     case 'brush':
       return new BrushTool();
     case 'duplicator':
@@ -157,6 +161,7 @@ export {
   HangGliderTool,
   WingsTool,
   HolsterTool,
+  MagicBagTool,
   PistolTool,
   ShurikenTool,
   StopwatchTool,

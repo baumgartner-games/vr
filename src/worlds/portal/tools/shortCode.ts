@@ -181,6 +181,7 @@ export const SHORT_SLOTS = [
   // beide einen Platz, sonst fiele ihr Kurzcode auf „leere Hand" zurück.
   'grip',
   'grip-rod',
+  'bag',
 ] as const;
 
 const FLAG_POSE = 1;

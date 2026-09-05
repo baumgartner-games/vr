@@ -169,7 +169,12 @@ auf demselben Raster landet, auf dem auch gespeichert wird: ein Regler liefert
 dritte Zahl) und die **Hub-Auslegung**
 (`src/worlds/hub/hubLayout.ts` — dass ein voller Gang
 einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
-aufeinander stehen). Diese
+aufeinander stehen), die **Flächen der Würfel**
+(`src/worlds/portal/diceFaces.ts` — dass aus zwölf Dreiecken sechs Seiten
+werden, dass jede Augenzahl genau einmal vorkommt und dass gegenüberliegende
+Flächen `n + 1` ergeben, wie auf einem echten Würfel) und die **beiden Listen
+des Beutels** (`src/worlds/portal/props.test.ts` — dass jede angebotene Sorte
+einen Namen hat und keine doppelt im Raster steht). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
 weder WebGL noch WebXR noch wasm.
 
@@ -208,8 +213,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Mond, Alpen, Dunkelhaus, Eingaberaum),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
-  dahinter), **Magischer Beutel** (Raster mit
-  Companion Cube, Kugel, Domino, Pyramide, Quader, Planke und Zylinder),
+  dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
+  Pyramide, Quader, Planke, Zylinder, Kegel, Rampe, Stab, Murmel und dem
+  **Würfelsatz** W4, W6, W8, W12, W20 — siehe *Was aus dem Beutel kommt*),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Einstellungen** und
   die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
@@ -619,6 +625,25 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     oder hinter einer Drohne geht er nicht: da gehört der Körper gerade jemand
     anderem (`tools/TeleportTool.ts`).
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
+  - **Magischer Beutel**: die Rasterseite des Handgelenk-Menüs als Gegenstand
+    (`tools/MagicBagTool.ts`). Am Gürtel hängt ein zugezogener Lederbeutel; in
+    der Hand geht er auf, und in der Öffnung liegt ein **Raster** aus
+    Miniaturen — jede das Ding selbst, mit `createPropShape` gebaut und auf
+    Fachgröße gerechnet, keine Strichzeichnung. Die freie Hand fährt hinein:
+    das Fach unter der Fingerspitze leuchtet, ein Stups meldet es, über dem
+    Beutel steht der Name, und **Greifen** holt das Ding in Originalgröße
+    genau dorthin, wo die Hand ist — bei allen in der Sitzung
+    (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü).
+    Zwei Dinge daran sind Absicht. Er **hängt**: die Öffnung bleibt oben, egal
+    wie das Handgelenk steht, sonst kippte das Raster bei jeder Drehung weg
+    (`alignToAim = false` plus `hangUpright`). Und die greifende Hand gehört
+    ihm, solange sie über einem Fach steht (`claimsHand`) — sonst risse
+    derselbe Griff die Kiste hinter dem Beutel an sich, und in einem vollen
+    Labor steht immer eine Kiste dahinter.
+    Warum beides, Seite *und* Werkzeug: Ein Menü ist ein Ort, an den man geht;
+    ein Beutel ist etwas, das man dabeihat. Wer eine Reihe Dominosteine
+    aufstellt, greift zwanzigmal hinein, ohne dazwischen zwanzigmal ein Panel
+    zu öffnen.
 - **Alles einstellbar, alles kopierbar**: Werkzeug-Posen, Handhaltungen,
   Anbauteile und die Waffenwerte liegen zusammen in einem **Konfig-Code** —
   einer Zeile, die kopiert, vorgelesen und wieder eingegeben werden kann
@@ -1057,6 +1082,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Inspektor | zielen — das Display liest mit, Trigger sagt es an | – | – |
 | Teleporter | zielen, grüner Kreis, Trigger setzt dich dorthin | – | – |
 | Radiergummi | Trigger löscht | – | – |
+| Magischer Beutel | in der einen Hand halten, mit der anderen ins Raster fassen: Greifen holt das Ding heraus | – | – |
 | Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |
 | Kart: Gas / Bremse | rechter / linker Trigger | `W` / `S` | – |
 | Kart: lenken | linker Stick — oder das Lenkrad greifen und drehen | `A` / `D` | – |
@@ -1675,8 +1701,10 @@ Deck, das man mit zwei Fäusten wie eine Konsole hält. Beide tragen die
 Griff-*Form*, aber keine der beiden Standard-*Lagen*, und stehen deshalb nicht
 in `TOOL_GRIPS` — sie behalten ihre eigene Faust. Dazu die, die man gar nicht
 an einem Griff hält: der **Wurfstern** fliegt aus den Fingern, die drei
-**Handschuhe** und die **Flügel** werden angezogen, und **Boxhand** und
-**Controller** *sind* die Hand. Dass die Tabelle zu dem passt, was die
+**Handschuhe** und die **Flügel** werden angezogen, **Boxhand** und
+**Controller** *sind* die Hand, und der **magische Beutel** hängt an der Faust,
+ohne zu zielen (`alignToAim = false`) — die Standardgriffe sind im Strahlraum
+eingemessen, und was nicht zielt, hat keinen. Dass die Tabelle zu dem passt, was die
 Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie und
 legt das Maßband an — inzwischen einundzwanzig Stück.
 
@@ -1969,6 +1997,53 @@ wo vorher die Ebene lag.
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
 das Portal Labor nutzt das für seine Zusatzdurchgänge.
+
+### Was aus dem Beutel kommt
+
+Der Beutel ist die Kiste mit dem Spielzeug, und alles darin steht in
+`worlds/portal/props.ts` — Sorte, Netz, Masse und Collider an *einer* Stelle,
+denn beide Seiten einer Sitzung bauen aus derselben `kind` dasselbe Ding, und
+die Werkzeugseite liest dieselbe Liste (`BAG_ITEMS`). Der **Name** steht
+daneben in `PROP_LABELS`: Wer nur wissen will, wie etwas heißt — die Meldung
+beim Herbeirufen, der Inspektor, das Schild im Beutel —, soll dafür keine
+Geometrie, kein Material und keine Textur bauen müssen.
+
+Zu den sieben Bauklötzen der ersten Stunde sind neun dazugekommen, und sie
+teilen sich in zwei Gruppen:
+
+- **Was sich bewegt**: **Kegel** (rund, während die Pyramide derselbe Körper
+  mit vier Segmenten ist — welchen von beiden man braucht, merkt man beim
+  Umwerfen), **Rampe** (der Keil, mit dem eine Kugel irgendwo hinunterrollt),
+  **Stab** (neunzig Zentimeter Metall, der Hebel und die Achse für alles
+  Gebaute) und **Murmel** (klein, schwer und sprungfreudig — sie hat als
+  einzige einen eigenen Rückprall im Bauplan).
+- **Der Würfelsatz**: die **fünf platonischen Körper** als W4, W6, W8, W12 und
+  W20, gebaut in `worlds/portal/dice.ts`.
+
+Am Würfelsatz hängen zwei Dinge, die es vorher nicht gab.
+
+**Die Zahlen werden gerechnet, nicht gezeichnet.** Ein Ikosaeder von Hand mit
+einem UV-Netz zu versehen wäre eine Stunde Fleißarbeit und danach unantastbar.
+Stattdessen wird das Netz gelesen: Dreiecke mit gleicher Normale sind eine
+Fläche (beim Dodekaeder je drei), jede Fläche bekommt ihre Zelle in einer
+Zahlen-Textur, und ihre Ecken werden in diese Zelle projiziert. Wer die Zahl
+trägt, entscheidet `worlds/portal/diceFaces.ts` (mit Test) nach der Regel
+echter Würfel: **gegenüberliegende Flächen ergeben zusammen `n + 1`**. Der
+Tetraeder hat kein Gegenüber und zählt darum einfach durch. 6 und 9 bekommen
+den Strich darunter, ohne den sie dasselbe Zeichen sind. Der W6 behält als
+einziger sein eigenes UV-Netz — three.js reiht die vier Ecken einer
+Kastenseite zeilenweise auf, und die gerechnete Fassung legte die Zahl damit
+ausgerechnet auf dem Würfel quer, den jeder kennt.
+
+**Und sie brauchen einen Collider, der kippt.** Bis dahin kannte die Physik
+Kasten, Kugel, Zylinder und Kegel; ein W20 wäre als Kugel bis zur Wand
+gerollt und nie liegen geblieben, eine Rampe als Kasten keine Rampe. Also gibt
+es eine fünfte Form: **`{ kind: 'hull', points }`**, die konvexe Hülle der
+Ecken (`physics/PhysicsWorld.ts`). Der Punktpuffer ist dabei die Vorlage *und*
+der Maßstab: `resize` zieht ihn an Ort und Stelle mit, statt sich die
+Ausgangsgröße daneben zu merken — damit landet zweimal Verdoppeln dort, wo
+einmal Vervierfachen landet, und das Transformationswerkzeug funktioniert an
+einem Würfel wie an einer Kiste.
 
 ### Die Werkzeugseite
 

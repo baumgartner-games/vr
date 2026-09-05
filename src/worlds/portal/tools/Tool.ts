@@ -9,6 +9,7 @@ import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
 import type { PhysicsBody, PhysicsWorld } from '../../../physics/PhysicsWorld';
 import type { PortalKey } from '../PortalSync';
+import type { PropKind } from '../props';
 import type { BeltOffset } from '../beltSettings';
 import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
@@ -53,6 +54,11 @@ export interface ToolHost {
   hasWorldSnapshot(): boolean;
   /** Legt eine Kopie eines Props daneben — Form, Farbe, Material und Masse. */
   duplicateProp(entry: PhysicsBody): PhysicsBody | null;
+  /**
+   * Ruft ein Objekt aus dem magischen Beutel herbei — genau dorthin, wo die
+   * Hand ist, und bei allen in der Sitzung. Ohne Hand entsteht es vor dem Kopf.
+   */
+  conjureProp(kind: PropKind, hand: Handedness | null): void;
   /** Farbe und/oder Material eines Props, für alle in der Sitzung. */
   styleProp(entry: PhysicsBody, style: PropStyle): void;
   /** Alles, was über ein Prop zu erfahren ist — der Inspektor liest es ab. */
