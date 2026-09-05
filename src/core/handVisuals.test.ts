@@ -149,14 +149,39 @@ describe('a ghost hand that follows the real one', () => {
     // Und der Stoff ist **ein** Stück: ein einziges gehäutetes Netz, dessen
     // Punkte an den Knochen hängen — nicht elf Kapseln und Kästen.
     const meshes: THREE.Mesh[] = [];
-    new GhostHand('right', HOLD_HAND_POSE, { look: 'glove' }).traverse((object) => {
+    const hand = new GhostHand('right', HOLD_HAND_POSE, { look: 'glove' });
+    hand.traverse((object) => {
       if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh);
     });
-    expect(meshes).toHaveLength(1);
-    const glove = meshes[0] as THREE.SkinnedMesh;
-    expect(glove.isSkinnedMesh).toBe(true);
+    const cloth = meshes.filter((mesh) => (mesh as THREE.SkinnedMesh).isSkinnedMesh);
+    expect(cloth).toHaveLength(1);
+    const glove = cloth[0] as THREE.SkinnedMesh;
     // Elf Knochen: die Hand und je zwei für Daumen und vier Finger.
     expect(glove.skeleton.bones).toHaveLength(11);
     expect(glove.geometry.getAttribute('skinWeight').count).toBeGreaterThan(500);
+
+    // Dazu die drei schwarzen Striche des gezeichneten Handschuhs — und zwar
+    // **oben**: sie liegen auf dem Handrücken (+Y) und laufen von den Knöcheln
+    // zum Handgelenk (-Z nach +Z). Ein Abnäher in der Handfläche wäre keiner.
+    const seams = meshes.filter((mesh) => mesh.name === 'glove-seam');
+    expect(seams).toHaveLength(3);
+    hand.updateMatrixWorld(true);
+    for (const seam of seams) {
+      seam.geometry.computeBoundingBox();
+      const box = seam.geometry.boundingBox!;
+      expect(box.min.y).toBeGreaterThan(0);
+      expect(box.min.z).toBeLessThan(-0.04);
+      expect(box.max.z).toBeGreaterThan(0.02);
+    }
+    // Und sie liegen nebeneinander: einer links, einer in der Mitte, einer rechts.
+    const lanes = seams
+      .map((seam) => {
+        seam.geometry.computeBoundingBox();
+        return seam.geometry.boundingBox!.getCenter(new THREE.Vector3()).x;
+      })
+      .sort((a, b) => a - b);
+    expect(lanes[0]!).toBeLessThan(-0.005);
+    expect(Math.abs(lanes[1]!)).toBeLessThan(0.002);
+    expect(lanes[2]!).toBeGreaterThan(0.005);
   });
 });

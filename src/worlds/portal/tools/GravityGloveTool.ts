@@ -8,6 +8,16 @@ const RANGE = 14;
 /** Shove strength — metres per second the pushed prop leaves with. */
 const PUSH_SPEED = 9;
 
+/**
+ * Dicke der Rückenplatte, und die Höhe ihrer Oberseite über der Handachse.
+ *
+ * Alles, was auf dem Handschuh sitzt, sitzt auf **dieser** Zahl. Vorher stand
+ * an jedem Teil `GLOVE_BACK + irgendwas`, und weil `GLOVE_BACK` die Mitte der
+ * Platte war, steckte die halbe Platte in der Hand und der Rest schwebte.
+ */
+const PLATE = 0.016;
+const TOP = GLOVE_BACK + PLATE;
+
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
@@ -48,14 +58,21 @@ export class GravityGloveTool extends Tool {
       metalness: 0.4,
     });
 
-    // Auf dem Handrücken (`Tool.worn`): die Platte liegt über der Handfläche
-    // und nicht in ihr.
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.018, 0.1), shell);
-    back.position.set(0, GLOVE_BACK, -0.01);
+    // Auf dem Handrücken (`Tool.worn`): die Platte liegt **auf** der Haut und
+    // nicht in ihr — `GLOVE_BACK` ist die Oberfläche, also eine halbe
+    // Plattendicke tiefer als ihre Mitte.
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.07, PLATE, 0.1), shell);
+    back.position.set(0, GLOVE_BACK + PLATE / 2, -0.01);
     this.add(back);
 
+    // **Der Emitter liegt auf dem Handrücken**, wie der Strahler eines
+    // Panzerhandschuhs — flach in die Platte eingelassen, über den Knöcheln.
+    // Er stand eine Weile aufrecht vor den Fingern, mit 4,5 cm Halbmesser:
+    // ein Reifen, der 7 cm über und 2 cm unter der Hand hinausragte und den
+    // die ausgestreckten Finger von innen durchstießen. Das sah nach allem
+    // aus, nur nicht nach etwas, das auf einer Hand sitzt.
     this.ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.045, 0.008, 10, 26),
+      new THREE.TorusGeometry(0.024, 0.006, 10, 26),
       new THREE.MeshStandardMaterial({
         color: 0x9d7bff,
         emissive: new THREE.Color(0x9d7bff).multiplyScalar(0.4),
@@ -63,11 +80,12 @@ export class GravityGloveTool extends Tool {
         metalness: 0.5,
       }),
     );
-    this.ring.position.set(0, GLOVE_BACK, -0.075);
+    this.ring.rotation.x = -Math.PI / 2;
+    this.ring.position.set(0, TOP, -0.038);
     this.add(this.ring);
 
     this.core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.018, 14, 10),
+      new THREE.SphereGeometry(0.012, 14, 10),
       new THREE.MeshBasicMaterial({ color: 0xd9ccff, toneMapped: false }),
     );
     this.core.position.copy(this.ring.position);

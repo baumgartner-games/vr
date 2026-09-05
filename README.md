@@ -68,17 +68,18 @@ Rest bleibt Verdrahtung.
 ## Werkzeugseite
 
 Neben dem Spiel steht **[`/tools.html`](https://baumgartner-games.github.io/vr/tools.html)**:
-alle Werkzeuge als Liste, jedes einzeln in 3D zum Drehen, und die Boxhand dazu
-ein- und ausschaltbar — wahlweise *in der Hand* (so liegt das Werkzeug darin)
-oder *am Werkzeug* (so umfasst die Hand es), mit einer Linie daran, wohin der
-Zeigefinger zeigt. Der Knopf **Bearbeiten** oben in der Ecke (an einem
+alle Werkzeuge als Liste, jedes einzeln in 3D zum Drehen, und die Hand dazu
+ein- und ausschaltbar — wahlweise *in der Hand* (so liegt das Werkzeug darin,
+nur die Hand) oder *am Werkzeug* (so umfasst die Hand den Halterzylinder, und
+der steht dann auch da). Aus der Hand läuft die **weiße Linie** des
+Zeigestrahls sauber nach vorn auf eine Zielscheibe, genau wie in der Brille. Der Knopf **Bearbeiten** oben in der Ecke (an einem
 einzelnen Werkzeug) macht daraus einen Justierstand fürs Telefon: oben die Achse (X, Y, Z, Yaw, Pitch, Roll — immer
 nur eine), unten der Regler. Bewegt wird dabei die **Hand** — das Werkzeug steht
 still —, und ein Umschalter sagt, wohin die Haltung übernommen wird: als *Lage
 in der Hand* oder als *Griffhaltung am Griff*. Wohin ein Werkzeug **zielt**,
-sagt ein weißer Pfeil an allem, was zielt. Zwei Knöpfe legen die Hand mit einem
-Tipp an eine dieser Richtungen: **Auf den Griff** (Richtung und Ursprung — die
-Fingerspitze landet im Griff) und **In Zielrichtung** (nur die Richtung, die
+sagt ein violetter Pfeil an allem, was zielt. Zwei Knöpfe legen die Hand mit
+einem Tipp an eine dieser Richtungen: **Auf den Zylinder** (Richtung und
+Ursprung — die Fingerspitze landet im Halter) und **In Zielrichtung** (nur die Richtung, die
 Spitze bleibt liegen). Und der Regler dreht die Hand um die **Fingerspitze**
 statt um ihr Handgelenk, damit die aufgelegte Linie beim Drehen und Rollen
 liegen bleibt. Alles landet in denselben Speichern wie

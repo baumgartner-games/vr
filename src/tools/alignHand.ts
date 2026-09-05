@@ -5,24 +5,29 @@
  * Beim Justieren stehen drei Linien im Bild, und sie sind die eigentliche
  * Auskunft:
  *
- * - die bernsteinfarbene am **Zeigefinger** (`viewer.ts`, sie hängt an der
- *   Fingerspitze und -Z ist ihre Richtung) — wohin die *Hand* zeigt,
- * - der rosa Pfeil am **Griff** (`tools/grip.ts`, `createGripFront`, aus der
- *   Mitte des Griffs nach -Z) — wohin der *Griff* zeigt,
- * - der weiße Pfeil am **Werkzeug** (`viewer.ts`, aus dem Nullpunkt des
+ * - die Richtung des **Zeigefingers** (`viewer.ts`, `handAim` — das -Z der
+ *   Fingerspitze) — wohin die *Hand* zeigt,
+ * - der rosa Pfeil am **Halterzylinder** (`tools/grip.ts`, `createGripFront`,
+ *   aus dessen Mitte nach -Z) — wohin der *Zylinder* zeigt,
+ * - der violette Pfeil am **Werkzeug** (`viewer.ts`, aus dem Nullpunkt des
  *   Werkzeugs nach -Z) — wohin das Werkzeug *zielt*, denn das eigene -Z eines
  *   gehaltenen Werkzeugs *ist* der Zeigestrahl (`tools/aim.ts`).
+ *
+ * Dazu steht im Bild die **weiße Linie** des Zeigestrahls, die aus dem
+ * Controller kommt. Sie ist keine dieser drei: sie gehört dem Gerät und lässt
+ * sich nicht ausrichten — sie ist das, worauf man ausrichtet.
  *
  * Zwei davon zur Deckung zu bringen ist das, worum es geht, und es über sechs
  * Achsen einzeln zu erwürgen ist Arbeit für eine Rechnung. Drei Griffe hat sie:
  *
- * - `alignHandToLine` — **Auf den Griff**: Richtung *und* Ursprung. Die
- *   Fingerspitze landet im Mittelpunkt des Griffs und der Finger auf dem Pfeil.
+ * - `alignHandToLine` — **Auf den Zylinder**: Richtung *und* Ursprung. Die
+ *   Fingerspitze landet im Mittelpunkt des Zylinders und der Finger auf dem
+ *   Pfeil.
  * - `turnHandTo` — **In Zielrichtung**: nur die Richtung. Die Fingerspitze
  *   bleibt, wo sie ist, und die Hand schwenkt um sie herum auf den Zielpfeil.
  *   Denn ein Ziel ist eine *Richtung* und kein Ort — der Nullpunkt eines
  *   Werkzeugs ist sein Griffpunkt, und dort gehört keine Fingerspitze hin.
- *   Beides zusammen ist damit ein Weg: erst auf den Griff, dann aufs Ziel.
+ *   Beides zusammen ist damit ein Weg: erst auf den Zylinder, dann aufs Ziel.
  * - `handAboutPivot` — der **Drehpunkt**: eine neue Drehung, aber die
  *   Fingerspitze bleibt liegen. Das ist der Regler für Yaw, Pitch und Roll:
  *   eine Hand, die um ihr Handgelenk kippt, zieht die Spitze von der Linie
@@ -63,7 +68,7 @@ export interface Ray {
  *
  * @param hand   die Lage der Hand, wie sie gerade gilt
  * @param finger die Linie am Zeigefinger, im selben Raum
- * @param line   die Linie, auf die sie soll (der Pfeil am Griff)
+ * @param line   die Linie, auf die sie soll (der Pfeil am Halterzylinder)
  */
 export function alignHandToLine(hand: Pose, finger: Ray, line: Ray): Pose {
   return swing(hand, finger, line.direction, line.origin);

@@ -12,6 +12,10 @@ const BOB_SPEED = 0.3;
 /** Nur zum Anzeigen: bei diesem Tempo glüht die Manschette voll. */
 const GLOW_SPEED = 12;
 
+/** Dicke der Rückenplatte und die Höhe ihrer Oberseite — wie an den anderen Handschuhen. */
+const PLATE = 0.016;
+const TOP = GLOVE_BACK + PLATE;
+
 const _hand = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _rigQuat = new THREE.Quaternion();
@@ -120,20 +124,26 @@ export class SupermanGloveTool extends Tool {
     });
 
     // A gauntlet: a plate over the back of the hand, a cuff around the wrist —
-    // im Raum der **Hand** gebaut (`Tool.worn`): die Handfläche ist ein Kasten
-    // von 2,8 cm Dicke um die Null, der Handrücken liegt also bei +1,4 cm, und
-    // darauf liegt die Platte.
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.016, 0.1), shell);
-    plate.position.set(0, GLOVE_BACK, -0.01);
+    // im Raum der **Hand** gebaut (`Tool.worn`): `GLOVE_BACK` ist die
+    // Oberfläche des Handrückens, die Platte liegt also mit ihrer Unterseite
+    // darauf und nicht mit ihrer Mitte.
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.07, PLATE, 0.1), shell);
+    plate.position.set(0, GLOVE_BACK + PLATE / 2, -0.01);
     this.add(plate);
     for (const side of [-1, 1]) {
       const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.02, 0.02), shell);
-      knuckle.position.set(side * 0.022, GLOVE_BACK + 0.004, -0.058);
+      knuckle.position.set(side * 0.022, TOP - 0.005, -0.058);
       this.add(knuckle);
     }
 
+    // **Die Manschette steht quer zum Unterarm**, wie eine Manschette es tut:
+    // ein Ring in der XY-Ebene, den der Arm durchsteckt, und quer gedrückt,
+    // damit er der Hand folgt statt als Reifen um sie herumzustehen. Sie lag
+    // eine Weile **flach** (eine Vierteldrehung um X): ein waagerechter Teller
+    // von 9 cm Durchmesser um das Handgelenk herum, der 4,6 cm hinter der Hand
+    // in der Luft endete.
     this.cuff = new THREE.Mesh(
-      new THREE.TorusGeometry(0.038, 0.008, 10, 24),
+      new THREE.TorusGeometry(0.034, 0.007, 10, 24),
       new THREE.MeshStandardMaterial({
         color: 0xff4d5e,
         emissive: new THREE.Color(0xff4d5e).multiplyScalar(0.35),
@@ -141,7 +151,8 @@ export class SupermanGloveTool extends Tool {
         metalness: 0.4,
       }),
     );
-    this.cuff.rotation.x = Math.PI / 2;
+    this.cuff.name = 'superman-cuff';
+    this.cuff.scale.set(1, 0.62, 1);
     this.cuff.position.set(0, 0, GLOVE_WRIST);
     this.add(this.cuff);
 
@@ -150,7 +161,7 @@ export class SupermanGloveTool extends Tool {
       new THREE.CircleGeometry(0.019, 5),
       new THREE.MeshBasicMaterial({ color: 0xffd23f, toneMapped: false }),
     );
-    this.crest.position.set(0, GLOVE_BACK + 0.009, -0.02);
+    this.crest.position.set(0, TOP + 0.001, -0.02);
     this.crest.rotation.set(-Math.PI / 2, 0, 0);
     this.add(this.crest);
 
@@ -163,7 +174,7 @@ export class SupermanGloveTool extends Tool {
       new THREE.PlaneGeometry(0.07, 0.026),
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false }),
     );
-    this.display.position.set(0, GLOVE_BACK + 0.009, 0.014);
+    this.display.position.set(0, TOP + 0.001, 0.014);
     this.display.rotation.x = -Math.PI / 2;
     this.add(this.display);
     this.draw();

@@ -130,7 +130,9 @@ den **Stab** (Hammer, Taschenlampe — eine Faust für zwei), denselben Stab
 die **Querstange des Hängegleiters** und den **Handgriff des Controllers** (aus dem
 Modell des Herstellers abgelesen: entlang der Z-Achse des Griffraums), an beiden
 Händen; dass Messer und Sektflaschenhals in derselben Faust liegen wie die
-Pistole, und dass Handschuhe die Grundhaltung tragen; und
+Pistole, und dass Handschuhe die Grundhaltung tragen; dass die drei
+**Handschuhe auf dem Handrücken liegen** statt als Reifen um die Hand herum
+und die Manschette quer zum Unterarm steht; und
 die beiden Zahlen, wegen derer es diesen Test gibt: die alte gebaute Faust
 stand **90°** quer zum Zylinder, die am Stabgriff eingemessene 30°), der
 **Standardgriff**
@@ -206,7 +208,9 @@ weder WebGL noch WebXR noch wasm.
 Zwei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
 **Pointer** (`src/core/Pointer.ts`) muss jeder Hand ihren eigenen Strahl und
 ihren eigenen Trigger lassen, und die **Handform** (`src/core/HandVisuals.ts`)
-muss links links und rechts rechts sein. Beides sind Vorzeichen, die man in der
+muss links links und rechts rechts sein — und der weiße Handschuh muss
+dasselbe Skelett tragen wie die Boxhand, mit seinen **drei schwarzen Strichen**
+oben auf dem Handrücken. Beides sind Vorzeichen, die man in der
 Brille erst nach Minuten bemerkt und dann nicht mehr los wird. Alles, was schwer zu testen ist, gehört
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
@@ -505,11 +509,23 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     in die Hand, Greifen stößt es weg. Bleibt in der Hand, bis er am Gürtel
     abgelegt wird.
     Alle drei Handschuhe werden **angezogen** (`Tool.worn`): sie zielen nicht,
-    ihre Platte liegt auf dem Handrücken der Boxhand, die Manschette am
+    ihre Platte liegt auf dem Handrücken, die Manschette am
     Handgelenk, und ihre Lage im Griff _ist_ die Haltung der Hand, die sie
     trägt — ab Werk die Grundhaltung mit offenen Fingern (`WORN_HAND_POSE`),
     und sie folgen ihr Bild für Bild (`followHand`). Vorher hingen sie im
     Zeigestrahl, also 30° gegen die Hand verdreht und halb in der Handfläche.
+    **Sie liegen jetzt wirklich auf der Hand.** `GLOVE_BACK` war die _Mitte_
+    einer Platte und ist jetzt die **Haut** des Handrückens (1,7 cm — der
+    dickere der beiden Handmodelle, der weiße Handschuh); jede Platte sitzt mit
+    ihrer Unterseite darauf statt zur Hälfte darin. Und der **Emitter** liegt
+    flach auf dem Handrücken über den Knöcheln, wie der Strahler eines
+    Panzerhandschuhs: er stand aufrecht vor den Fingern, mit 4,5 cm Halbmesser
+    — ein Reifen, der 7,5 cm über die Hand hinausragte und 3 cm darunter, und
+    die ausgestreckten Finger gingen mitten hindurch. Die **Manschette** des
+    Supermanhandschuhs lag eine Vierteldrehung falsch: ein waagerechter Teller
+    von 9 cm Durchmesser um das Handgelenk, der hinter der Hand in der Luft
+    endete; jetzt steht sie quer zum Unterarm und ist quer gedrückt, damit sie
+    der Hand folgt (`core/gripFist.test.ts` misst beides nach).
   - **Translationshandschuh**: greift bis 30 m weit — das Objekt kommt dabei
     _nicht_ zu dir. Zwei Modi, `A` schaltet um: **Halten** lässt es genau dort
     stehen, wo es ist (Handdrehung dreht es), **Steuern** macht die Hand zum
@@ -693,7 +709,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     bewusst lokal, statt drüben als Loch zu erscheinen.
   - **Inspektor**: anzielen, und das Display sagt Masse, Maße, Tempo,
     Drehung, Höhe, Reibung, Rückprall, Material, Collider-Form, geteilte Id
-    und ob das Ding schläft, getragen wird oder fliegt. Er verändert
+    und ob das Ding schläft, getragen wird oder fliegt. Er liegt in der Hand
+    **wie eine Waffe**, ohne Zusatzneigung: er lag eine Weile 23° nach vorn
+    gekippt darin, damit das Display zum Gesicht zeigt, und rollte damit so
+    weit über die Faust, dass er nicht mehr aussah wie etwas, das man hält,
+    sondern wie etwas, das aus der Hand fällt. Geneigt ist jetzt das Display
+    am Gehäuse und nicht das ganze Gerät in der Hand. Er verändert
     **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
     halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
     ist die Frage nie „wie sieht sie aus", sondern „was steht in ihr drin".
@@ -724,9 +745,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Beutel steht der Name, und **Greifen** holt das Ding in Originalgröße
     genau dorthin, wo die Hand ist — bei allen in der Sitzung
     (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü).
-    Zwei Dinge daran sind Absicht. Er **hängt**: die Öffnung bleibt oben, egal
-    wie das Handgelenk steht, sonst kippte das Raster bei jeder Drehung weg
-    (`alignToAim = false` plus `hangUpright`). Zwei Vorzeichen dazu, beide
+    Zwei Dinge daran sind Absicht. Er **hängt**, folgt der Hand dabei aber in
+    **Gieren und Nicken**: wohin man zeigt, dorthin zeigt er, und wie schräg
+    man die Hand hält, so schräg steht er. Nicht mit geht allein das
+    **Rollen** — nur das könnte ihn auf den Kopf stellen und sein Raster
+    ausschütten, und genau davor schützte die erste Fassung, die überhaupt nur
+    die Gierachse nahm; ein Beutel, den man nicht hinhalten kann, ist dafür
+    aber ein steifes Ding (`alignToAim = false` plus `hangUpright`). Zwei Vorzeichen dazu, beide
     gefunden, als „die Hand greift ihn anders herum" gemeldet wurde:
     `hangUpright` nahm die Gierachse mit `atan2(x, z)` statt `atan2(-x, -z)`
     und hängte den Beutel damit um 180° gedreht **hinter** die Hand, den Bauch
@@ -1745,6 +1770,19 @@ ihr, damit die Tests, die Daumen und Finger an den Kindern abzählen, sie
 weiter an ihren Plätzen finden. Gebunden wird in Ruhelage, im angehängten
 Modus — three.js rechnet die Bewegung der Hand selbst heraus.
 
+**Und er hat die drei schwarzen Striche.** Micky, Rayman, Master Hand — jeder
+gezeichnete Handschuh trägt sie: drei dunkle Abnäher auf dem Handrücken, die
+von den Knöcheln zum Handgelenk laufen und dabei ein wenig zusammenlaufen. Sie
+sind das, woran man einen gezeichneten Handschuh überhaupt als Handschuh
+erkennt; ohne sie ist eine weiße Hand eine weiße Hand. Gebaut werden sie als
+drei dünne Schnüre **auf** der Fläche des Lofts: für jeden Punkt wird der
+Halbmesser der Ellipse an dieser Stelle ausgerechnet und ein knapper Millimeter
+daraufgelegt, also liegen sie auf der Wölbung statt als drei gerade Stäbe
+darüber. Ihr Material ist geteilt, je Durchsichtigkeit eines — ein Abnäher
+leuchtet nie, aber ein Handschuh kann ein halb durchsichtiger Geist sein, und
+drei pechschwarze Striche in einer gläsernen Hand sähen aus, als schwebten sie
+darin.
+
 Umgeschaltet wird sofort: `HandVisuals` baut eine Hand neu, sobald ihr Kleid
 nicht mehr zur Einstellung passt, die Werkzeugseite stellt das Werkzeug neu
 auf, das Boxhand-Werkzeug hört selbst zu. Der Handschuh ist weiß, wo immer er
@@ -1861,12 +1899,15 @@ dort landet — `this.mountGrip()`, eine Zeile, und die Lage ist keine
 Frage des Geschmacks mehr. Wer das tut, bekommt die Faust dazu geschenkt und
 muss nie an den zweiten Stand.
 
-Der Griff selbst ist ein **Zylinder mit ellipsenförmigem Querschnitt** —
-vorn/hinten tiefer als quer, wie jeder Griff, den eine Hand umfasst — mit
-**drei Rillen für die Finger** auf der Vorderseite (`tools/grip.ts`, als
-`LatheGeometry` aus einem Profil, in dem die Rillen eine Welle im Radius sind).
-Die Rillen sind keine Zierde: sie sagen, in welcher Richtung das Ding in die
-Hand gehört.
+Der Griff selbst heißt **Halterzylinder** und ist genau das: ein
+**Zylinder**, rund, gerade, gleich dick von oben bis unten (`tools/grip.ts`).
+Er war eine Weile eine Ellipse mit Bauch und drei Rillen für die Finger, und
+das war Formgebung an der falschen Stelle — was er darstellt, ist der
+**Handgriff des Controllers**, den die echte Hand ohnehin umschließt, und der
+ist ein Zylinder. Alles, was daran modelliert wurde, behauptete eine
+Vorzugsrichtung, die die Rechnung gar nicht kennt, und sah sie ohnehin niemand,
+sobald die Faust darum lag. Wo bei einem runden Zylinder vorne ist, sagt
+deshalb nicht seine Form, sondern seine Linie (siehe unten).
 
 Sein Rahmen ist der des Pistolengriffs — Achse auf **+Y**, oben aus der Faust
 heraus, **-Z** ist „vorne", dorthin, wohin der Zeigefinger zeigt. Damit gilt
@@ -1941,7 +1982,7 @@ an gar nichts. Jetzt tragen sie alle den Standardgriff:
 
 | Griff             | Werkzeuge                                                                                                                                                                         |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| der Standardgriff | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Lötkolben, Messer       |
+| der Standardgriff | Halterzylinder, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Lötkolben, Messer       |
 
 Sechzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
 dazu ist `STANDARD_GRIP_TOOLS` in `core/handPose.ts`, und `gripMount.test.ts`
@@ -1955,8 +1996,7 @@ nur eine Weltmatrix, und das ist seine.
 
 Was **keinen** Standardgriff trägt, sagt das auch: der große **Hammer** hat
 einen Stiel, an dem jede Stelle ein Griff ist (siebenmal so lang wie eine
-Faust, deshalb ein glatter Zylinder ohne Ellipse und ohne Rillen — beide zeigen
-eine Richtung an, und hier gibt es keine), die **Drohne** zwei Griffe an einem
+Faust), die **Drohne** zwei Griffe an einem
 Deck, das man mit zwei Fäusten wie eine Konsole hält. Beide tragen die
 Griff-_Form_, aber nicht die Standard-_Lage_, und stehen deshalb nicht in
 `STANDARD_GRIP_TOOLS` — sie haben ihre **eigene Faust**, und auch die ist
@@ -2022,7 +2062,7 @@ eingemessen. Dass die Liste zu dem passt, was
 die Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie und
 legt das Maßband an — inzwischen zweiundzwanzig Stück. Es prüft dort gleich das
 Zweite mit: dass **jedes** Werkzeug mit Griff entlang des Zeigestrahls zielt.
-Eine Neigung darf sein (der Inspektor kippt sein Display um 23° zum Kopf), ein
+Eine Neigung darf sein (das Drohnendeck kippt zum Kopf), ein
 halbes Rechteck ist keine Neigung mehr, sondern eine andere Richtung — genau
 das war die Taschenlampe.
 
@@ -2050,28 +2090,28 @@ _ist_ dort das Format, und wer eine Zeile herausnimmt, macht aus jedem alten
 Code einen, der etwas anderes meint. Die Kette hält `core/gripHandPose.test.ts` fest,
 mit einem `localStorage` aus einer Map.
 
-Und `grip` ist zugleich ein **echtes Werkzeug**: der blanke Griff
+Und `grip` ist zugleich ein **echtes Werkzeug**: der blanke **Halterzylinder**
 (`GripTool.ts`), ohne Lauf, Deck oder Rohr darum herum. Wer ihn in die Hand
 nimmt und daran einmisst, misst die Faust ein, die alle anderen daran erben.
-Er hat keinen Trigger und keine zweite Funktion — ein Griff tut nichts, das ist
+Er hat keinen Trigger und keine zweite Funktion — ein Halter tut nichts, das ist
 sein ganzer Sinn.
 
 **Wo vorne ist, sagt eine Linie.** Einem Zylinder sieht man nicht an, wie herum
-er in der Faust liegt; die drei Rillen sagen es, aber erst aus der Nähe. Also
-ein rosa Pfeil aus der Mitte des Griffs nach **-Z** (`createGripFront`), dorthin,
-wohin der Zeigefinger zeigt. Rosa, weil der Griff grün ist, die Hand hellblau
-und die Linie am Zeigefinger bernsteinfarben — die erste Fassung war grün auf
-grün und damit unsichtbar. Der Griff trägt sie über `GripOptions.front`; die
-Werkzeugseite hängt sie jedem Griff an, den sie findet (`addGripFronts`, auch
-den beiden am Drohnendeck). Die beiden Linien nebeneinander sind die ganze
-Auskunft beim Justieren: sind sie parallel, sitzt die Faust. Auf der
-Werkzeugseite stellt ein Knopf genau das her (_Auf den Griff_, siehe
-_Bearbeiten auf der Werkzeugseite_), und dort kommt eine dritte dazu: der
-**weiße Zielpfeil** aus dem Nullpunkt des Werkzeugs nach -Z. Auch der zeichnet
-nichts Neues — das eigene -Z eines gehaltenen Werkzeugs _ist_ der Zeigestrahl
-(`tools/aim.ts`) —, er macht nur sichtbar, wonach geschossen und geleuchtet
-wird, und er hängt an dem, was wirklich zielt (`alignToAim`): Boxhand,
-Controller, Flügel und Beutel zeigen nirgendwohin und bekommen keinen.
+er in der Faust liegt. Also ein rosa Pfeil aus seiner Mitte nach **-Z**
+(`createGripFront`), dorthin, wohin der Zeigefinger zeigt. Rosa, weil der
+Halter grün ist, die Hand hellblau, ihr Zeigestrahl weiß und der Zielpfeil des
+Werkzeugs violett — die erste Fassung war grün auf grün und damit unsichtbar.
+Der Halter trägt sie über `GripOptions.front`; die Werkzeugseite hängt sie
+jedem an, den sie findet (`addGripFronts`, auch den beiden am Drohnendeck).
+Rosa und weiß nebeneinander sind die ganze Auskunft beim Justieren: sind sie
+parallel, sitzt die Faust. Auf der Werkzeugseite stellt ein Knopf genau das her
+(_Auf den Zylinder_, siehe _Bearbeiten auf der Werkzeugseite_), und dort kommt
+eine dritte dazu: der **violette Zielpfeil** aus dem Nullpunkt des Werkzeugs
+nach -Z. Auch der zeichnet nichts Neues — das eigene -Z eines gehaltenen
+Werkzeugs _ist_ der Zeigestrahl (`tools/aim.ts`) —, er macht nur sichtbar,
+wonach geschossen und geleuchtet wird, und er hängt an dem, was wirklich zielt
+(`alignToAim`): Boxhand, Controller, Flügel und Beutel zeigen nirgendwohin und
+bekommen keinen.
 
 Eine Grenze bleibt: was hier entsteht, ist die **gebaute** Lage. Wer ein
 Werkzeug am ersten Justierstand nachmisst, verschiebt es samt Griff gegen die
@@ -2414,15 +2454,23 @@ einem Würfel wie an einer Kiste.
 
 Neben dem Spiel steht eine zweite Seite: **`tools.html`**, und sie ist kein
 Spiel. Kein WebXR, keine Physik, keine Welt — eine Liste aller Werkzeuge, und
-wer eines antippt, dreht es mit dem Finger und schaltet die Boxhand daran ein
+wer eines antippt, dreht es mit dem Finger und schaltet die Hand daran ein
 und aus. Von selbst dreht es sich **nicht** mehr: es drehte sich eine Weile,
 und das nahm ihm das Einzige, was man an ihm wissen will — wo vorne ist. Dafür
 steht eine **Zielscheibe** davor, auf dem **Zeigestrahl der Hand** (nicht des
 Werkzeugs): das Bild aus der Brille, wenn man den Controller auf etwas richtet
-— die Hand zeigt auf die Scheibe, und das Werkzeug liegt dabei so in ihr, wie
-es eben liegt. Bei allem, was zielt, läuft die Fingerlinie auf die Scheibe zu;
-beim Hammer, dem Beutel oder dem Controller sieht man, dass sie es nicht tut,
-und genau das ist die Auskunft, wie die Hand das Ding hält. Abstand und Größe
+— aus der Hand läuft die **weiße Linie** sauber nach vorn auf die Scheibe, und
+das Werkzeug liegt dabei so in ihr, wie es eben liegt. Ob das Werkzeug
+**selbst** dorthin zielt, sagt sein violetter Pfeil daneben; beim Hammer, beim
+Beutel oder am Controller gibt es keinen, und genau das ist die Auskunft, wie
+die Hand das Ding hält.
+
+Die weiße Linie gehört dem **Gerät** und nicht den Fingern: sie steht im
+Griffraum und ändert sich deshalb weder mit dem Trigger noch mit dem
+Griffknopf. Vorher hing dort eine bernsteinfarbene Linie an der
+**Fingerspitze**, die jede Krümmung mitmachte — beim Ziehen des Triggers ging
+sie an der Scheibe vorbei, und aus dem Bild „so zeigt die Hand" wurde „so steht
+gerade dieser eine Finger". Abstand und Größe
 der Scheibe hängen an der Größe des Werkzeugs, und sie zählt beim Einpassen
 mit — das Werkzeug wird dadurch kleiner, dafür gibt es das Zoomen
 (`placeTarget` in `tools/viewer.ts`; der Strahl liegt im Griffraum 30° unter
@@ -2581,14 +2629,26 @@ Bezugspunkte:
 - **Am Werkzeug** — der _Werkzeugraum_: das Werkzeug steht still, die Hand liegt
   daran. Das Bild vom zweiten Justierstand: „so umfasst die Hand es."
 
+Die beiden zeigen dabei **verschieden viel**: der **Halterzylinder** steht nur
+_Am Werkzeug_. Er ist das Gerüst, an dem eingemessen wird — der Handgriff des
+Controllers, um den die Faust liegt —, und _In der Hand_ geht es um das fertige
+Bild: dass der Pinsel wie ein Stift in der Hand liegt und nicht wie ein Hammer.
+Ein türkiser Zylinder quer dadurch beantwortet dort eine Frage, die niemand
+gestellt hat. Beim Halterzylinder selbst bleibt er stehen — sonst wäre die
+Bühne leer. Und die Hand ist auf dieser Seite **nicht durchsichtig**: gläsern
+ist ein Geist, den man neben die eigene Hand hält, und hier gibt es keine
+eigene Hand dahinter.
+
 Daneben stehen **Grab** und **Trigger** — die beiden Knöpfe am Controller, als
 Schalter, unabhängig voneinander. Gehalten wird mit gedrücktem Griffknopf, so
 fängt die Seite an; Trigger dazu, und der Zeigefinger zieht ihn, an der
 Stoppuhr der Daumen die Krone; Grab weg, und die Hand öffnet sich vom Griff —
 dieselbe Rechnung wie in der Brille (`buttonCurls`, siehe _Handhaltung_). Nur
-die Finger bewegen sich, die Hand bleibt liegen. Beim Justieren gilt immer die
-haltende Hand: der Regler richtet die Linie des Zeigefingers aus, und ein
-Finger am Abzug zeigt woandershin als einer am Rahmen.
+die Finger bewegen sich, die Hand bleibt liegen — und die **weiße Linie** auch:
+sie kommt aus dem Controller und nicht aus dem Zeigefinger, also ändert der
+Trigger nichts an ihr. Beim Justieren gilt trotzdem immer die haltende Hand:
+der Regler richtet die Richtung des Zeigefingers aus, und ein Finger am Abzug
+zeigt woandershin als einer am Rahmen.
 
 Zwischen beiden liegt dieselbe Messung; unterschiedlich ist nur, welches von
 beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust sitzt,
@@ -2662,20 +2722,24 @@ Auf dem Schirm sehen beide gleich aus — dieselbe Hand wandert an dasselbe
 stehende Werkzeug. Der Unterschied liegt in der Brille, und deshalb steht er
 als Satz unter dem Regler und nicht nur als Knopfbeschriftung.
 
-**Drei Linien, zwei Knöpfe, ein Drehpunkt.** Im Bild stehen drei Richtungen,
-und sie sind die eigentliche Auskunft beim Justieren: die **bernsteinfarbene**
-Linie am Zeigefinger (wohin die Hand zeigt), der **rosa** Pfeil am Griff (wohin
-der Griff zeigt) und der **weiße** Pfeil am Werkzeug (wohin es zielt — dazu
-gleich). Zwei davon zur Deckung zu bringen ist das, worum es geht, und es über
-sechs Achsen einzeln zu erwürgen ist Arbeit für eine Rechnung:
+**Drei Richtungen, zwei Knöpfe, ein Drehpunkt.** Im Bild stehen drei
+Richtungen, und sie sind die eigentliche Auskunft beim Justieren: die des
+**Zeigefingers** (wohin die Hand zeigt — gezeichnet wird sie nicht mehr, beim
+Justieren liegt der Finger ohnehin am Rahmen), der **rosa** Pfeil am
+Halterzylinder (wohin der Zylinder zeigt) und der **violette** Pfeil am
+Werkzeug (wohin es zielt — dazu gleich). Dazu die **weiße** Linie des
+Zeigestrahls, die keine dieser drei ist: sie gehört dem Gerät, lässt sich nicht
+ausrichten und ist das, worauf man ausrichtet. Zwei Richtungen zur Deckung zu
+bringen ist das, worum es geht, und es über sechs Achsen einzeln zu erwürgen
+ist Arbeit für eine Rechnung:
 
-- **Auf den Griff** nimmt Richtung _und_ Ursprung: die Fingerspitze landet im
-  Mittelpunkt des Griffs und der Finger auf dem rosa Pfeil.
+- **Auf den Zylinder** nimmt Richtung _und_ Ursprung: die Fingerspitze landet im
+  Mittelpunkt des Halterzylinders und der Finger auf dem rosa Pfeil.
 - **In Zielrichtung** nimmt nur die _Richtung_: die Fingerspitze bleibt liegen,
-  wo sie ist, und die Faust schwenkt um sie herum auf den weißen Pfeil. Denn ein
+  wo sie ist, und die Faust schwenkt um sie herum auf den violetten Pfeil. Denn ein
   Ziel ist eine Richtung und kein Ort — der Nullpunkt eines Werkzeugs ist sein
   Griffpunkt, und dort gehört keine Fingerspitze hin. Die beiden sind deshalb
-  keine Alternative, sondern ein **Weg**: erst auf den Griff, dann aufs Ziel.
+  keine Alternative, sondern ein **Weg**: erst auf den Zylinder, dann aufs Ziel.
 
 Gedreht wird beide Male auf dem **kürzesten Bogen** — um die Linie herum bleibt
 ein Freiheitsgrad offen, den niemand vorgibt, also behält die Hand ihre Rolllage

@@ -5,7 +5,7 @@ import { HELD_BUTTONS, buttonCurls, fingerMovesOf, type FingerButtons } from '..
 import { createTool } from '../worlds/portal/tools';
 import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
 import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
-import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
+import { GRIP_NAME, addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, invertPose, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import {
@@ -38,8 +38,15 @@ import type { WorldPreview } from '../core/types';
  *   daran. Das ist das Bild vom zweiten Justierstand: „so umfasst die Hand es".
  *
  * Zwischen beiden liegt dieselbe Messung — was sich unterscheidet, ist, welches
- * von beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust
- * sitzt; in der Hand sieht man, wohin das Ding dabei zeigt.
+ * von beiden aufrecht steht. Am Werkzeug sieht man, ob der Halterzylinder in
+ * der Faust sitzt; in der Hand sieht man, wohin das Ding dabei zeigt.
+ *
+ * Und deshalb zeigen die beiden **verschieden viel**: der Halterzylinder steht
+ * nur *am Werkzeug*. Er ist das Gerüst, an dem eingemessen wird — der
+ * Handgriff des Controllers, um den die Faust liegt —, und in der Ansicht *In
+ * der Hand* geht es um das fertige Bild: dass der Pinsel wie ein Stift in der
+ * Hand liegt und nicht wie ein Hammer. Ein türkiser Zylinder quer dadurch
+ * beantwortet dort eine Frage, die niemand gestellt hat.
  */
 export type HandMode = 'off' | 'grip' | 'tool';
 
@@ -71,11 +78,11 @@ const PADDING = 1.12;
  * und eine Hand und dreht sie, bis man glaubt zu wissen, wo der Lauf hinzeigt.
  * Also steht dort etwas, worauf man zeigt: eine Zielscheibe auf dem
  * **Zeigestrahl der Hand** — nicht des Werkzeugs. Das Bild ist damit das aus
- * der Brille, wenn man den Controller auf etwas richtet: die Hand zeigt auf die
- * Scheibe, und das Werkzeug liegt dabei so in ihr, wie es eben liegt. Bei
- * allem, was zielt, läuft die Fingerlinie auf die Scheibe zu; beim Hammer, dem
- * Beutel oder dem Controller sieht man, dass sie es nicht tut — und genau das
- * ist die Auskunft, wie die Hand das Ding hält.
+ * der Brille, wenn man den Controller auf etwas richtet: die weiße Linie läuft
+ * sauber nach vorn auf die Scheibe, und das Werkzeug liegt dabei so in der
+ * Hand, wie es eben liegt. Wer wissen will, ob das Werkzeug **selbst** dorthin
+ * zielt, sieht auf seinen violetten Pfeil daneben: beim Hammer, beim Beutel
+ * oder am Controller gibt es keinen, und genau das ist die Auskunft.
  *
  * Abstand und Größe hängen an dem, was auf der Bühne steht: vor einer Pistole
  * eine Handbreit Scheibe eine Armlänge weit weg, vor dem Hängegleiter eine
@@ -165,14 +172,24 @@ const FLY_FAR = 2400;
 const CUT_HEIGHT = 2.4;
 
 /**
- * Die Linie am Zeigefinger: warm, damit sie nicht als Teil der Hand gelesen
- * wird, und lang genug, um sie mit dem Werkzeug zu vergleichen — sie reicht
- * bis **hinter die Zielscheibe**, damit man sieht, wo auf der Scheibe sie
- * ankommt, oder ob sie daran vorbeigeht. Unter einer Handbreit sieht man sie
- * nicht.
+ * **Der Zeigestrahl der Hand**, als weiße Linie — dieselbe, die in der Brille
+ * aus dem Quest-Controller nach vorn läuft.
+ *
+ * Sie gehört dem **Gerät** und nicht den Fingern: sie steht im Griffraum, 30°
+ * unter dessen -Z (`GRIP_TO_RAY`), und liegt damit genau dort, wo der
+ * Zeigefinger einer Hand ohne gezogenen Trigger entlangzeigt. Deshalb ändert
+ * sich an ihr auch nichts, wenn der Trigger kommt — der krümmt einen Finger,
+ * nicht den Controller.
+ *
+ * Vorher hing hier eine bernsteinfarbene Linie an der **Fingerspitze**, und
+ * die machte jede Krümmung mit: sie wanderte beim Drücken des Triggers weg,
+ * ging an der Zielscheibe vorbei, und aus dem Bild „so zeigt die Hand" wurde
+ * „so steht gerade dieser eine Finger". Die Scheibe steht ohnehin auf diesem
+ * Strahl (`placeTarget`) — mit ihm zeigt die Hand auf jeder Werkzeugseite
+ * genau dorthin, wie in der Brille.
  */
-const FINGER_LINE_COLOR = 0xffc857;
-const FINGER_LINE_MIN = 0.12;
+const HAND_LINE_COLOR = 0xf2f6ff;
+const HAND_LINE_MIN = 0.12;
 /** So weit über den Abstand zur Scheibe hinaus laufen die beiden Linien. */
 const LINE_BEYOND = 1.15;
 
@@ -180,22 +197,24 @@ const LINE_BEYOND = 1.15;
  * **Wohin das Werkzeug zielt**, als Pfeil: aus seinem Nullpunkt nach -Z.
  *
  * Dass es -Z ist, ist keine Setzung dieser Seite, sondern die Regel des Spiels:
- * ein gehaltenes Werkzeug wird aus dem Griff auf den Zeigestrahl gedreht, und
+ * ein gehaltenes Werkzeug wird aus dem Halter auf den Zeigestrahl gedreht, und
  * von da an *ist* sein eigenes -Z die Zielrichtung (`tools/aim.ts`). Der Pfeil
  * zeichnet also nichts Neues — er macht das sichtbar, wonach ohnehin
  * geschossen, geleuchtet und gegriffen wird. Er hängt an denen, die wirklich
  * zielen (`alignToAim`); Boxhand, Controller, Flügel und Beutel zeigen
  * nirgendwohin und bekommen deshalb keinen.
  *
- * **Weiß**, denn die anderen Farben sind vergeben: der Griff grün, sein Pfeil
- * rosa, die Hand hellblau und ihre Linie bernsteinfarben. Weiß liest sich
- * daneben wie ein Laserstrahl, und genau das ist gemeint.
+ * **Violett**, denn die anderen Farben sind vergeben: der Halter grün, sein
+ * Pfeil rosa, die Hand hellblau und ihr Zeigestrahl weiß. Er liegt bei einem
+ * richtig eingemessenen Werkzeug *auf* dem weißen Strahl — zwei weiße Linien
+ * übereinander wären zusammen eine, und dann sähe man nicht mehr, ob es zwei
+ * sind.
  *
- * Genauso lang wie die Fingerlinie, bis hinter die Scheibe: liegen die beiden
+ * Genauso lang wie der Zeigestrahl, bis hinter die Scheibe: liegen die beiden
  * übereinander, treffen sie dieselbe Stelle — das ist ja der Zustand, den man
  * herstellen will.
  */
-const AIM_LINE_COLOR = 0xf2f6ff;
+const AIM_LINE_COLOR = 0xb388ff;
 const AIM_LINE_MIN = 0.16;
 
 const _box = new THREE.Box3();
@@ -215,9 +234,8 @@ const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
 /** Der Zeigestrahl der Hand im Griffraum: 30° unter dem -Z des Griffs (`GRIP_TO_RAY`). */
-const _rayInGrip = new THREE.Vector3(0, 0, -1).applyQuaternion(
-  new THREE.Quaternion(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w),
-);
+const _aimQuat = new THREE.Quaternion(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w);
+const _rayInGrip = new THREE.Vector3(0, 0, -1).applyQuaternion(_aimQuat);
 const _forward = new THREE.Vector3(0, 0, 1);
 /** Nichts abschneiden — dieselbe leere Liste, statt jedes Bild eine neue. */
 const _noPlanes: THREE.Plane[] = [];
@@ -258,10 +276,19 @@ export class ToolViewer {
   private options: ShowOptions = {};
   private shownFor = 0;
   private hand: GhostHand | null = null;
-  /** Die Linie am Zeigefinger — sie hängt an der Hand und geht mit ihr. */
-  private fingerLine: THREE.Line | null = null;
-  /** Und je eine je Griff: wohin dieser Griff zeigt. */
+  /** Der weiße Zeigestrahl — er steht im Griffraum, nicht an der Hand. */
+  private handLine: THREE.Line | null = null;
+  /** Und je eine je Halterzylinder: wohin dieser zeigt. */
   private gripFronts: THREE.LineSegments[] = [];
+  /**
+   * Die Halterzylinder des Werkzeugs, zum Ein- und Ausblenden.
+   *
+   * Sie sind Geometrie des Werkzeugs und bleiben es; sichtbar sind sie nur in
+   * der Ansicht, in der sie etwas sagen — siehe `HandMode`.
+   */
+  private gripParts: THREE.Object3D[] = [];
+  /** Ob am Werkzeug außer dem Halter überhaupt etwas anderes zu sehen ist. */
+  private onlyGrip = false;
   /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
   private aimLine: THREE.LineSegments | null = null;
   /** Die Zielscheibe auf dem Zeigestrahl der Hand, und wie weit weg sie steht. */
@@ -363,6 +390,7 @@ export class ToolViewer {
     // in `apply`: das läuft bei jedem Zug am Regler, und dann hinge nach zehn
     // Sekunden ein Bündel Linien daran.
     this.gripFronts = addGripFronts(tool);
+    this.readGrips(tool);
     // Und der Zielpfeil, sofern dieses Werkzeug zielt: am Werkzeug selbst und in
     // seinem Nullpunkt, denn dort steht der Strahl, auf den es gedreht wird.
     if (tool.alignToAim) {
@@ -596,32 +624,33 @@ export class ToolViewer {
     this.apply(refit);
   }
 
-  /** Ob an diesem Werkzeug überhaupt ein Griff sitzt — sonst gibt es nichts auszurichten. */
+  /** Ob am Werkzeug überhaupt ein Halterzylinder sitzt — sonst gibt es nichts auszurichten. */
   get hasGrip(): boolean {
     return this.gripFronts.length > 0;
   }
 
-  /** Und ob es zielt — dann gibt es den weißen Pfeil und den Knopf dazu. */
+  /** Und ob es zielt — dann gibt es den violetten Pfeil und den Knopf dazu. */
   get hasAim(): boolean {
     return this.aimLine !== null;
   }
 
   /**
-   * **Die Hand und ihre Linie**, im Raum des Werkzeugs — die Größe, an der der
-   * Regler zieht (`ghostOnTool`).
+   * **Die Hand und ihre Fingerlinie**, im Raum des Werkzeugs — die Größe, an
+   * der der Regler zieht (`ghostOnTool`).
    *
-   * Genommen aus den Weltmatrizen und nicht nachgerechnet: die Linie hängt an
-   * der Fingerspitze, geht also jede Krümmung mit, und was hier herauskommt,
-   * ist genau das, was auf dem Schirm steht. Wer die Hand daran ausrichtet,
-   * richtet sie an dem aus, was er sieht.
+   * Genommen aus den Weltmatrizen und nicht nachgerechnet: die Richtung ist das
+   * -Z der **Fingerspitze**, geht also jede Krümmung mit, und was hier
+   * herauskommt, ist genau die Hand, die auf dem Schirm steht. Gezeichnet wird
+   * sie nicht mehr — beim Justieren steht der Finger ohnehin am Rahmen
+   * (`main.ts`, `applyButtons`), und eine zweite Linie neben dem Zeigestrahl
+   * sagte nur noch, wie weit dieser eine Finger gerade gekrümmt ist.
    */
   handAim(): { hand: Pose; finger: Ray } | null {
     const tool = this.tool;
     const hand = this.hand;
-    const finger = this.fingerLine;
-    if (!tool || !hand || !finger) return null;
+    if (!tool || !hand) return null;
     this.intoTool(tool);
-    const line = rayIn(finger);
+    const line = rayIn(hand.indexTip);
     _local.multiplyMatrices(_inverse, hand.matrixWorld).decompose(_at, _quat, _scale);
     return {
       hand: {
@@ -633,18 +662,18 @@ export class ToolViewer {
   }
 
   /**
-   * Der Pfeil am **Griff**, ebenfalls im Raum des Werkzeugs.
+   * Der Pfeil am **Halterzylinder**, ebenfalls im Raum des Werkzeugs.
    *
-   * Trägt ein Werkzeug **mehrere** Griffe (das Drohnendeck hat zwei), gewinnt
-   * der, der der Fingerspitze am nächsten liegt — man richtet an dem Griff aus,
-   * an dem die Hand schon ungefähr liegt, und nicht am erstbesten im Baum.
+   * Trägt ein Werkzeug **mehrere** (das Drohnendeck hat zwei), gewinnt der, der
+   * der Fingerspitze am nächsten liegt — man richtet an dem Zylinder aus, an
+   * dem die Hand schon ungefähr liegt, und nicht am erstbesten im Baum.
    */
   gripAim(): Ray | null {
     const tool = this.tool;
-    const finger = this.fingerLine;
+    const hand = this.hand;
     if (!tool || this.gripFronts.length === 0) return null;
     this.intoTool(tool);
-    const from = finger ? rayIn(finger).origin : { x: 0, y: 0, z: 0 };
+    const from = hand ? rayIn(hand.indexTip).origin : { x: 0, y: 0, z: 0 };
     let nearest: Ray | null = null;
     let closest = Infinity;
     for (const front of this.gripFronts) {
@@ -756,15 +785,26 @@ export class ToolViewer {
       tool.quaternion.multiply(tool.holdRotation);
     }
 
+    // Der Halterzylinder gehört in **eine** der beiden Ansichten: *Am
+    // Werkzeug* geht es darum, wie die Faust ihn umfasst, also steht er da.
+    // *In der Hand* geht es um das fertige Bild — wie der Pinsel wie ein Stift
+    // in der Hand liegt —, und dort ist er das Gerüst, das man dabei gerade
+    // nicht sehen will. Beim Halterzylinder selbst bleibt er stehen: sonst
+    // wäre die Bühne leer.
+    for (const part of this.gripParts) part.visible = this.onlyGrip || this.mode !== 'grip';
+
     if (this.mode !== 'off') {
-      const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 0.9 });
+      // **Nicht durchsichtig**: ein Geist ist gläsern, damit man die eigene
+      // Hand dahinter sieht — hier gibt es keine, und was man ansieht, soll
+      // aussehen wie das, was in der Brille an der Hand steckt.
+      const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 1 });
       hand.setCurls(this.curlsFor(tool));
       const at = this.mode === 'tool' ? ghostOnTool(local, poseOfHand(pose)) : poseOfHand(pose);
       hand.position.set(at.position.x, at.position.y, at.position.z);
       hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
       this.stage.add(hand);
       this.hand = hand;
-      this.addFingerLine(hand);
+      this.addHandLine(local);
     }
 
     this.placeTarget(local);
@@ -797,15 +837,8 @@ export class ToolViewer {
     this.targetDistance = Math.max(TARGET_MIN_DISTANCE, radius * TARGET_DISTANCE);
     target.scale.setScalar(Math.max(TARGET_MIN_RADIUS, radius * TARGET_RADIUS));
 
-    if (this.mode === 'grip') {
-      _at.set(0, 0, 0);
-      _dir.copy(_rayInGrip);
-    } else {
-      const grip = invertPose(local);
-      _at.set(grip.position.x, grip.position.y, grip.position.z);
-      _quat.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
-      _dir.copy(_rayInGrip).applyQuaternion(_quat);
-    }
+    this.gripInStage(local);
+    _dir.copy(_rayInGrip).applyQuaternion(_quat);
     target.position.copy(_at).addScaledVector(_dir, this.targetDistance);
     // Die Scheibe schaut die Hand an: ihr +Z ist die Fläche, und die zeigt
     // den Strahl zurück.
@@ -814,30 +847,84 @@ export class ToolViewer {
   }
 
   /**
-   * Die Linie, in die der **Zeigefinger** zeigt.
+   * Der **Zeigestrahl**: die weiße Linie, die in der Brille aus dem Controller
+   * kommt.
    *
-   * Sie hängt an der Fingerspitze und nicht in der Bühne: die Spitze weiß
-   * selbst, wohin sie zeigt — ihr -Z ist die Richtung —, und damit geht die
-   * Linie jede Krümmung und jede Verschiebung der Hand mit, ohne dass hier
-   * irgendetwas nachgerechnet werden müsste.
+   * Sie hängt in der Bühne und nicht an der Hand — sie gehört dem Gerät, das
+   * die Hand hält. Ihr Nullpunkt ist der **Griffpunkt** (dort sitzt der
+   * Controller in der Faust), ihre Richtung dessen -Z, um die Zielkorrektur
+   * gekippt (`GRIP_TO_RAY`). Damit steht sie in jeder Ansicht dort, wo die
+   * Zielscheibe steht, und ändert sich weder mit dem Trigger noch mit dem
+   * Griffknopf.
    *
    * Eine `Line` und kein Mesh, und das ist mehr als eine Sparsamkeit: die
    * Kamera misst nur sichtbare **Meshes** (`measure`), also passt sie sich an
    * das Werkzeug an und nicht an eine Linie, die absichtlich über den Rand
    * hinausgeht.
    */
-  private addFingerLine(hand: GhostHand): void {
+  private addHandLine(local: Pose): void {
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, -1),
     ]);
     const line = new THREE.Line(
       geometry,
-      new THREE.LineBasicMaterial({ color: FINGER_LINE_COLOR, transparent: true, opacity: 0.85 }),
+      new THREE.LineBasicMaterial({ color: HAND_LINE_COLOR, transparent: true, opacity: 0.9 }),
     );
-    line.name = 'finger-line';
-    hand.indexTip.add(line);
-    this.fingerLine = line;
+    line.name = 'hand-ray';
+    this.gripInStage(local);
+    line.position.copy(_at);
+    line.quaternion.copy(_quat).multiply(_aimQuat);
+    this.stage.add(line);
+    this.handLine = line;
+  }
+
+  /**
+   * Wo der **Griffraum** auf der Bühne steht — der Ort und die Drehung, in der
+   * ein Controller läge.
+   *
+   * In der Ansicht *In der Hand* ist der Griffraum die Bühne selbst; in den
+   * beiden anderen steht das Werkzeug aufrecht, und der Griffraum liegt darin
+   * bei `Lage-im-Griff⁻¹` — derselbe Weg, den die Hand nimmt (`ghostOnTool`).
+   * Das Ergebnis steht in `_at` und `_quat`, denn beide Aufrufer rechnen damit
+   * gleich weiter.
+   */
+  private gripInStage(local: Pose): void {
+    if (this.mode === 'grip') {
+      _at.set(0, 0, 0);
+      _quat.identity();
+      return;
+    }
+    const grip = invertPose(local);
+    _at.set(grip.position.x, grip.position.y, grip.position.z);
+    _quat.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
+  }
+
+  /**
+   * Die Halterzylinder dieses Werkzeugs einsammeln — und ob es außer ihnen
+   * überhaupt etwas Sichtbares hat.
+   *
+   * Der Halterzylinder als Werkzeug (`GripTool`) ist der Grenzfall: dort ist
+   * der Zylinder alles, was da ist, und ihn auszublenden hieße, die Bühne zu
+   * leeren.
+   */
+  private readGrips(tool: Tool): void {
+    const parts: THREE.Object3D[] = [];
+    let other = false;
+    tool.traverse((object) => {
+      // Das Werkzeug selbst ist nie sein eigener Halter — sonst verschwände
+      // beim Halterzylinder die ganze Bühne.
+      if (object === tool) return;
+      if (object.name === GRIP_NAME || object.name === `${GRIP_NAME}-shape`) {
+        // Die Gruppe genügt; ihre Form hängt darin und käme sonst doppelt.
+        if (!parts.some((part) => isBelow(object, part))) parts.push(object);
+        return;
+      }
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh && !parts.some((part) => isBelow(object, part))) other = true;
+    });
+    this.gripParts = parts;
+    this.onlyGrip = !other;
   }
 
   /**
@@ -845,15 +932,15 @@ export class ToolViewer {
    * Zielscheibe steht: beide bis ein Stück hinter sie.
    *
    * Eine feste Länge wäre am Hängegleiter ein Strich und an der Pistole ein
-   * Faden. Die Fingerlinie wird dabei **skaliert** — sie ist ein Strich, dem
+   * Faden. Der Zeigestrahl wird dabei **skaliert** — er ist ein Strich, dem
    * das nichts tut —, der Zielpfeil bekommt seine Punkte **neu**: eine
    * Skalierung zöge seine Widerhaken mit in die Länge, und dann wäre er kein
    * Pfeil mehr.
    */
   private sizeLines(): void {
     const reach = this.targetDistance * LINE_BEYOND;
-    if (this.fingerLine) {
-      this.fingerLine.scale.z = Math.max(FINGER_LINE_MIN, reach);
+    if (this.handLine) {
+      this.handLine.scale.z = Math.max(HAND_LINE_MIN, reach);
     }
     if (this.aimLine) {
       this.aimLine.geometry.setFromPoints(arrowPoints(Math.max(AIM_LINE_MIN, reach)));
@@ -861,14 +948,14 @@ export class ToolViewer {
   }
 
   /**
-   * Hand samt Linie weg.
+   * Hand samt Zeigestrahl weg.
    *
    * Die Linie einzeln: `GhostHand.dispose` räumt Meshes ab, und eine `Line`
    * ist keines — ihre Geometrie bliebe bei jedem Werkzeugwechsel liegen.
    */
   private dropHand(): void {
-    const line = this.fingerLine;
-    this.fingerLine = null;
+    const line = this.handLine;
+    this.handLine = null;
     if (line) {
       line.removeFromParent();
       line.geometry.dispose();
@@ -991,6 +1078,8 @@ export class ToolViewer {
       (line.material as THREE.Material).dispose();
     }
     this.gripFronts = [];
+    this.gripParts = [];
+    this.onlyGrip = false;
     const aim = this.aimLine;
     this.aimLine = null;
     if (aim) {
@@ -1264,4 +1353,12 @@ function rayIn(line: THREE.Object3D): Ray {
     origin: { x: _at.x, y: _at.y, z: _at.z },
     direction: { x: _dir.x, y: _dir.y, z: _dir.z },
   };
+}
+
+/** Ob dieser Knoten irgendwo unterhalb jenes hängt — oder er selbst ist. */
+function isBelow(object: THREE.Object3D, ancestor: THREE.Object3D): boolean {
+  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
+    if (node === ancestor) return true;
+  }
+  return false;
 }

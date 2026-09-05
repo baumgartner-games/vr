@@ -72,6 +72,9 @@ import {
 } from '../worlds/portal/tools/StopwatchTool';
 import { BAG_GRIP, MagicBagTool } from '../worlds/portal/tools/MagicBagTool';
 import { SupermanGloveTool } from '../worlds/portal/tools/SupermanGloveTool';
+import { GravityGloveTool } from '../worlds/portal/tools/GravityGloveTool';
+import { TranslateGloveTool } from '../worlds/portal/tools/TranslateGloveTool';
+import { GLOVE_BACK } from '../worlds/portal/tools/Tool';
 import { snapToGrip } from '../worlds/portal/propGrip';
 import { CHAMPAGNE_GRIP } from '../worlds/portal/champagne';
 import type { Tool } from '../worlds/portal/tools/Tool';
@@ -813,6 +816,51 @@ describe('was auf der Hand sitzt statt in ihr', () => {
     // Gerät (`ControllerTool.ts`, `holdPosition` null). Gebaut wird er hier
     // nicht — sein Modul zieht den GLTF-Lader aus three mit, den Jest ohne
     // ESM nicht laden kann; die Hand daran ist oben geprüft.
+  });
+
+  it.each([
+    ['gravity-glove', () => new GravityGloveTool()],
+    ['translate-glove', () => new TranslateGloveTool()],
+    ['superman-glove', () => new SupermanGloveTool()],
+  ] as const)('legt sich auf den Handrücken statt um die Hand herum: %s', (_id, build) => {
+    // Die Zahlen, wegen derer es diesen Test gibt: an zwei Handschuhen stand
+    // vorn ein **Reifen** von 4,5 cm Halbmesser aufrecht vor den Fingern — er
+    // ragte 7,5 cm über die Hand hinaus und 3 cm darunter, und die
+    // ausgestreckten Finger gingen mitten hindurch. Was auf dem Handrücken
+    // sitzt, sitzt jetzt darauf: über der Haut (`GLOVE_BACK`) und nicht mehr
+    // als eine Handbreit darüber.
+    const glove = build();
+    const box = new THREE.Box3();
+    const centre = new THREE.Vector3();
+    glove.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      mesh.updateMatrixWorld(true);
+      mesh.geometry.computeBoundingBox();
+      box.copy(mesh.geometry.boundingBox!).applyMatrix4(mesh.matrixWorld);
+      box.getCenter(centre);
+      // Was unter oder um die Handachse liegt, ist die Manschette — die geht
+      // um den Arm herum und darf nach unten.
+      if (centre.y <= 0) return;
+      expect(box.min.y).toBeGreaterThanOrEqual(GLOVE_BACK - 0.001);
+      expect(box.max.y).toBeLessThan(GLOVE_BACK + 0.03);
+    });
+  });
+
+  it('trägt die Manschette quer zum Unterarm und nicht flach um die Hand', () => {
+    // Sie lag eine Vierteldrehung falsch: ein waagerechter Teller von 9 cm
+    // Durchmesser um das Handgelenk, der hinter der Hand in der Luft endete.
+    // Eine Manschette ist ein Ring, durch den der Arm steckt — also breiter
+    // und höher, als sie tief ist.
+    const glove = new SupermanGloveTool();
+    const cuff = glove.getObjectByName('superman-cuff') as THREE.Mesh | undefined;
+    expect(cuff).toBeDefined();
+    cuff!.updateMatrixWorld(true);
+    cuff!.geometry.computeBoundingBox();
+    const box = new THREE.Box3().copy(cuff!.geometry.boundingBox!).applyMatrix4(cuff!.matrixWorld);
+    const size = box.getSize(new THREE.Vector3());
+    expect(size.y).toBeGreaterThan(size.z * 2);
+    expect(size.x).toBeGreaterThan(size.z * 2);
   });
 });
 

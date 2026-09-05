@@ -71,6 +71,62 @@ const PALM: readonly PalmRing[] = [
   { z: -0.054, w: 0.038, h: 0.0085 },
   { z: -0.0585, w: 0.03, h: 0.004 },
 ];
+/**
+ * **Die drei Striche auf dem Handrücken.**
+ *
+ * Der Handschuh, den jeder kennt — Micky, Rayman, Master Hand —, hat sie: drei
+ * dunkle Abnäher, die von den Knöcheln zum Handgelenk laufen und dabei ein
+ * wenig zusammenlaufen. Sie sind das, woran man einen gezeichneten Handschuh
+ * überhaupt als Handschuh erkennt; ohne sie ist eine weiße Hand eine weiße
+ * Hand.
+ *
+ * Gebaut werden sie als drei dünne Schnüre **auf** der Fläche des Lofts: für
+ * jeden Punkt wird der Halbmesser der Ellipse an dieser Stelle ausgerechnet
+ * und ein knapper Millimeter daraufgelegt. Damit liegen sie auf der Wölbung
+ * und nicht als drei gerade Stäbe darüber.
+ */
+const SEAM_COLOR = 0x1b2130;
+const SEAM_RADIUS = 0.0018;
+/** Wie weit die äußeren beiden an den Knöcheln auseinanderliegen. */
+const SEAM_SPREAD = 0.017;
+/** Und wie weit sie zum Handgelenk hin zusammenlaufen. */
+const SEAM_TAPER = 0.45;
+/** Von den Knöcheln bis kurz vor die Manschette. */
+const SEAM_FROM = -0.048;
+const SEAM_TO = 0.026;
+const SEAM_STEPS = 8;
+
+/**
+ * Das Material der Striche — **geteilt**, und zwar je Durchsichtigkeit eines.
+ *
+ * Jede Hand bekommt sonst ihr eigenes Material, damit die eine leuchten kann,
+ * während die andere dunkel bleibt (`HandVisuals`). Ein Abnäher leuchtet nie:
+ * er ist auf jedem Handschuh dieselbe Naht in derselben Farbe. Was er
+ * mitmachen muss, ist das eine, was ein Handschuh sonst noch sein kann — ein
+ * **Geist** (`GhostHand`, halb durchsichtig am Justierstand): drei
+ * pechschwarze Striche in einer gläsernen Hand sähen aus, als schwebten sie
+ * darin. Also je gefundener Deckkraft ein Material, und das sind zwei oder
+ * drei im ganzen Programm; freigegeben wird keines, weil auch keines je allein
+ * einer Hand gehört.
+ */
+const seamMaterials = new Map<number, THREE.MeshStandardMaterial>();
+
+function seams(cloth: THREE.Material): THREE.MeshStandardMaterial {
+  const opacity = cloth.transparent ? cloth.opacity : 1;
+  let material = seamMaterials.get(opacity);
+  if (!material) {
+    material = new THREE.MeshStandardMaterial({
+      color: SEAM_COLOR,
+      roughness: 0.85,
+      transparent: opacity < 1,
+      opacity,
+      depthWrite: opacity >= 1,
+    });
+    seamMaterials.set(opacity, material);
+  }
+  return material;
+}
+
 /** Wie viele Punkte ein Ring der Handfläche hat, und einer am Finger. */
 const PALM_SEGMENTS = 28;
 const FINGER_SEGMENTS = 14;
@@ -227,10 +283,62 @@ export function buildGlove(
 
   const mesh = new THREE.SkinnedMesh(cloth.geometry(), material);
   mesh.name = 'glove';
+  // Die drei Striche hängen **am** Netz und nicht darin: sie haben ihre eigene
+  // Farbe, und der Stoff hat nur eine. Am Netz und nicht an der Hand, damit
+  // sie mitgehen und mitverschwinden, wo immer der Handschuh landet.
+  for (const stripe of buildSeams(material)) mesh.add(stripe);
   // Gebunden in Ruhelage, im Raum der Hand: die Knochen stehen dort, wo sie
   // gebaut sind, und die Bindematrix ist die Ruhe — das Netz selbst hängt an
   // derselben Hand wie die Knochen, und im angehängten Modus rechnet three.js
   // die Bewegung der Hand von selbst heraus.
   mesh.bind(new THREE.Skeleton(bones), new THREE.Matrix4());
   return mesh;
+}
+
+/**
+ * Wo die Fläche der Handfläche an dieser Stelle liegt: die beiden Halbachsen
+ * der Ellipse, zwischen den Ringen des Profils interpoliert.
+ */
+function palmAt(z: number): PalmRing {
+  const first = PALM[0]!;
+  if (z >= first.z) return first;
+  for (let i = 1; i < PALM.length; i++) {
+    const ring = PALM[i]!;
+    if (z < ring.z) continue;
+    const before = PALM[i - 1]!;
+    const t = (before.z - z) / (before.z - ring.z);
+    return {
+      z,
+      w: before.w + (ring.w - before.w) * t,
+      h: before.h + (ring.h - before.h) * t,
+      y: (before.y ?? 0) + ((ring.y ?? 0) - (before.y ?? 0)) * t,
+    };
+  }
+  return PALM[PALM.length - 1]!;
+}
+
+/** Die drei Abnäher als dünne Schnüre auf dem Handrücken. */
+function buildSeams(cloth: THREE.Material): THREE.Mesh[] {
+  const stripes: THREE.Mesh[] = [];
+  for (const lane of [-1, 0, 1]) {
+    const points: THREE.Vector3[] = [];
+    for (let i = 0; i <= SEAM_STEPS; i++) {
+      const t = i / SEAM_STEPS;
+      const z = SEAM_FROM + (SEAM_TO - SEAM_FROM) * t;
+      const x = lane * SEAM_SPREAD * (1 - SEAM_TAPER * t);
+      const ring = palmAt(z);
+      // Der Punkt auf der Ellipse über dieser Stelle, plus die Dicke der Schnur.
+      const share = Math.min(1, Math.abs(x) / ring.w);
+      const y = (ring.y ?? 0) + ring.h * Math.sqrt(Math.max(0, 1 - share * share));
+      points.push(new THREE.Vector3(x, y + SEAM_RADIUS * 0.6, z));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const stripe = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, SEAM_STEPS * 3, SEAM_RADIUS, 6, false),
+      seams(cloth),
+    );
+    stripe.name = 'glove-seam';
+    stripes.push(stripe);
+  }
+  return stripes;
 }

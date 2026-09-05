@@ -244,10 +244,9 @@ export {
   type Span,
 } from './poleGrip';
 export {
-  GRIP_DEPTH,
   GRIP_LENGTH,
   GRIP_NAME,
-  GRIP_WIDTH,
+  GRIP_RADIUS,
   createGrip,
   createGripShape,
   type GripOptions,

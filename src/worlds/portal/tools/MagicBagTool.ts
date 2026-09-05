@@ -92,9 +92,11 @@ interface Slot {
  *
  * Erstens **hängt** er. Was man sonst in die Hand nimmt, folgt der Zielachse —
  * eine Waffe zeigt dorthin, wohin die Hand zeigt. Ein Beutel, der das täte,
- * kippte bei jeder Drehung des Handgelenks aus, und mit ihm sein Raster. Also
- * bleibt die Öffnung oben, egal wie die Faust steht (`hangUpright`); mit der
- * Hand dreht sich nur, wohin er schaut.
+ * kippte bei jeder Drehung des Handgelenks aus, und mit ihm sein Raster. Er
+ * folgt der Hand deshalb in **Gieren und Nicken** und nicht im Rollen
+ * (`hangUpright`): wohin man zeigt, dorthin zeigt er, und wie schräg man die
+ * Hand hält, so schräg steht er — aber um die eigene Zeigeachse dreht er sich
+ * nicht mit, und nur die könnte ihn auf den Kopf stellen.
  *
  * Zweitens gehört die **greifende Hand** dem Beutel, solange sie über einem Fach
  * steht (`claimsHand`). Sonst risse derselbe Griff, mit dem man in den Beutel
@@ -336,13 +338,20 @@ export class MagicBagTool extends Tool {
   }
 
   /**
-   * Hält die Öffnung oben.
+   * Hält den Beutel **aufrecht** — aber er folgt der Hand, wohin sie zeigt.
    *
    * Der Beutel steckt im Griff der Hand, und `applyHold` hat ihn dorthin
    * gestellt; hier bekommt er seine **Weltdrehung** aufgezwungen und rechnet
-   * sie in den Raum seines Elternteils zurück. Mitgenommen wird von der Hand
-   * nur die Gierachse — der Beutel dreht sich also mit, wenn man den Arm dreht,
-   * aber er kippt nicht mit dem Handgelenk aus.
+   * sie in den Raum seines Elternteils zurück. Mitgenommen werden von der Hand
+   * **Gieren und Nicken**: der Beutel dreht sich mit, wenn man den Arm dreht,
+   * und er kippt mit, wenn man die Hand kippt — man hält ihn schräg, wenn man
+   * ihn schräg hält, so wie eine offene Kappe, die man jemandem hinhält.
+   *
+   * Was **nicht** mitgeht, ist das **Rollen**. Genau das war der Grund, warum
+   * er anfangs nur die Gierachse nahm: eine Hand, die sich um ihre eigene
+   * Zeigeachse dreht, würde den Beutel sonst auf den Kopf stellen und sein
+   * Raster mit ausschütten. Nicken tut das nicht — es neigt die Öffnung, und
+   * über sie sieht man weiterhin hinein.
    *
    * Die Gierachse mit dem **richtigen Vorzeichen**: `rotation.y = 0` heißt in
    * three.js „schaut nach -Z", also ist der Winkel `atan2(-x, -z)` der
@@ -357,9 +366,14 @@ export class MagicBagTool extends Tool {
     const parent = this.parent;
     if (!parent) return;
     const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
-    _forward.set(0, 0, -1).applyQuaternion(anchor.getWorldQuaternion(_quaternion));
+    _forward.set(0, 0, -1).applyQuaternion(anchor.getWorldQuaternion(_quaternion)).normalize();
     const yaw = Math.atan2(-_forward.x, -_forward.z);
-    _upright.setFromEuler(_euler.set(0, yaw, 0, 'YXZ'));
+    // Der Nickwinkel derselben Richtung. In der Reihenfolge `YXZ` ist die
+    // X-Drehung die zweite, wirkt also auf die schon gegierte Achse — das ist
+    // dieselbe Kette, die eine Kamera führt, und deshalb ist `asin(y)` der
+    // gesuchte Winkel.
+    const pitch = Math.asin(Math.max(-1, Math.min(1, _forward.y)));
+    _upright.setFromEuler(_euler.set(pitch, yaw, 0, 'YXZ'));
     parent.getWorldQuaternion(_quaternion).invert();
     this.quaternion.copy(_quaternion).multiply(_upright);
   }

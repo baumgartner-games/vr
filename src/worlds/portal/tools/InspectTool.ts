@@ -47,8 +47,12 @@ export class InspectTool extends Tool {
     this.accent = 0x9fe3ff;
     this.hint = 'Zielen · das Display sagt, was es ist';
     this.holdPosition.set(0, -0.015, 0.03);
-    // Ein Messgerät wird gelesen, nicht gezielt: das Display kippt zum Gesicht.
-    this.holdRotation.setFromEuler(new THREE.Euler(-0.4, 0, 0));
+    // **Wie eine Waffe** und ohne Zusatzneigung. Der Inspektor lag eine Weile
+    // 23° nach vorn gekippt in der Hand, damit das Display zum Gesicht zeigt —
+    // und rollte damit so weit über die Faust, dass er nicht mehr aussah wie
+    // etwas, das man hält, sondern wie etwas, das aus der Hand fällt. Er zeigt
+    // jetzt dorthin, wohin man zeigt; das Display ist am Gehäuse geneigt und
+    // nicht das ganze Gerät in der Hand.
 
     const shell = new THREE.MeshStandardMaterial({
       color: 0x22304a,
@@ -59,9 +63,8 @@ export class InspectTool extends Tool {
     body.position.set(0, 0, -0.04);
     this.add(body);
 
-    // Derselbe Griff wie an der Pistole (`grip.ts`). Seine Neigung stimmte hier
-    // schon fast — der Ort lag 2,8 cm daneben, weil die Zusatzneigung des
-    // Displays nicht mit eingerechnet war. `mountGrip` rechnet sie ein.
+    // Derselbe Halterzylinder wie an der Pistole (`grip.ts`) — und ohne
+    // Zusatzneigung darüber liegt er auch genau wie dort in der Faust.
     this.mountGrip({ length: 0.085 });
 
     const lens = new THREE.Mesh(

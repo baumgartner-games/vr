@@ -201,7 +201,7 @@ function readTools(): Entry[] {
 
 /** Ein Satz für ein Werkzeug, das selbst keinen Hinweis mitbringt. */
 function gripLine(id: string): string {
-  if (STANDARD_GRIP_TOOLS.has(id)) return 'Standardgriff, wie eine Pistole gehalten';
+  if (STANDARD_GRIP_TOOLS.has(id)) return 'Halterzylinder, wie eine Pistole gehalten';
   return 'In die Hand nehmen und ausprobieren';
 }
 
@@ -684,15 +684,16 @@ for (const button of editor.querySelectorAll<HTMLButtonElement>('[data-nudge]'))
 }
 
 /**
- * **Auf den Griff** — die Hand mit einem Tipp dorthin, wo der Griff sie haben
- * will.
+ * **Auf den Zylinder** — die Hand mit einem Tipp dorthin, wo der
+ * Halterzylinder sie haben will.
  *
- * Im Bild stehen drei Linien: die am Zeigefinger, der rosa Pfeil am Griff und
- * der weiße am Ziel des Werkzeugs. Zwei davon zur Deckung zu bringen ist das,
- * worum es beim Justieren geht — und es über sechs Achsen einzeln zu erwürgen
- * ist Arbeit, die eine Zeile Mathematik erledigt (`alignHand.ts`). Dieser Knopf
- * nimmt Richtung **und** Ursprung: die Fingerspitze landet im Mittelpunkt des
- * Griffs und der Finger auf dem Pfeil.
+ * Im Bild stehen drei Linien: der weiße Zeigestrahl der Hand, der rosa Pfeil am
+ * Halterzylinder und der violette am Ziel des Werkzeugs. Zwei davon zur
+ * Deckung zu bringen ist das, worum es beim Justieren geht — und es über sechs
+ * Achsen einzeln zu erwürgen ist Arbeit, die eine Zeile Mathematik erledigt
+ * (`alignHand.ts`). Dieser Knopf nimmt Richtung **und** Ursprung: die
+ * Fingerspitze landet im Mittelpunkt des Zylinders und der Finger auf dem
+ * Pfeil.
  *
  * Geschrieben wird das Ergebnis wie jeder andere Wert: in das gewählte Ziel und
  * sofort. Der Knopf ist also nichts Eigenes neben dem Regler, sondern derselbe
@@ -707,7 +708,7 @@ align.addEventListener('click', () => {
 });
 
 /**
- * **In Zielrichtung** — dieselbe Hand, auf den weißen Pfeil geschwenkt.
+ * **In Zielrichtung** — dieselbe Hand, auf den violetten Pfeil geschwenkt.
  *
  * Nur die **Richtung**, und das ist der Unterschied zum Knopf daneben: ein Ziel
  * ist eine Richtung und kein Ort. Der Nullpunkt eines Werkzeugs ist sein
@@ -716,7 +717,7 @@ align.addEventListener('click', () => {
  * dorthin zeigt, wohin das Werkzeug zielt.
  *
  * Damit sind die beiden Knöpfe ein Weg und keine Alternative: erst *Auf den
- * Griff* (das setzt den Ort), dann *In Zielrichtung* (das setzt die Richtung),
+ * Zylinder* (das setzt den Ort), dann *In Zielrichtung* (das setzt die Richtung),
  * und danach dreht man mit Roll die Faust um genau diese Linie.
  */
 aimAt.addEventListener('click', () => {
@@ -1021,7 +1022,7 @@ function aboutFingertip(next: PoseReadout): PoseReadout {
 
 /**
  * Dieselbe Übernahme mit allen sechs Zahlen auf einmal — der Weg des Knopfes
- * *Auf den Griff*.
+ * *Auf den Zylinder*.
  *
  * Geklemmt wird auch hier, und zwar aus demselben Grund wie am Regler: was
  * gespeichert wird, muss ein Kurzcode tragen können. Ein Griff, der weiter als
@@ -1089,7 +1090,7 @@ function showEditor(syncSlider = true): void {
   }
 
   // Die beiden Knöpfe gibt es nur, wo es auch etwas auszurichten gibt: an einem
-  // Hammer wäre *Auf den Griff* ein Knopf, der nichts tun kann, und die Boxhand
+  // Hammer wäre *Auf den Zylinder* ein Knopf, der nichts tun kann, und die Boxhand
   // zielt nirgendwohin.
   align.hidden = !viewer.hasGrip;
   aimAt.hidden = !viewer.hasAim;

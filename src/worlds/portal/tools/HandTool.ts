@@ -119,7 +119,7 @@ export class HandTool extends Tool {
     this.shape?.dispose();
     // Fest, nicht gläsern: das ist kein Geist, den man neben die eigene Hand
     // hält, sondern das Ding, das man justiert.
-    this.shape = new GhostHand(side, idleHandPose(side), { color: handColor(), opacity: 0.9 });
+    this.shape = new GhostHand(side, idleHandPose(side), { color: handColor(), opacity: 1 });
     this.add(this.shape);
   }
 

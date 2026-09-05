@@ -18,16 +18,22 @@ const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
 
 /**
- * Wo an der gezeichneten Hand der **Handrücken** liegt und wo das
- * **Handgelenk** — für alles, was angezogen wird (`Tool.worn`).
+ * Wo an der gezeichneten Hand die **Oberfläche des Handrückens** liegt und wo
+ * das **Handgelenk** — für alles, was angezogen wird (`Tool.worn`).
  *
- * Die Handfläche der Boxhand (`core/HandVisuals.ts`) ist ein Kasten von
- * 2,8 cm Dicke um die Null, 9 cm lang und um einen Zentimeter nach vorn
- * gerückt; ihr Rücken liegt also bei +1,4 cm, ihr hinteres Ende bei +3,5 cm.
- * Eine Platte, die auf dem Handrücken liegen soll, liegt eine halbe Plattendicke
- * darüber; eine Manschette ums Handgelenk sitzt dahinter.
+ * `GLOVE_BACK` ist die **Haut** und nicht die Mitte einer Platte: eine Platte,
+ * die darauf liegen soll, sitzt eine halbe Plattendicke darüber. Vorher war es
+ * die Mitte, und mit ihr steckte jede Platte zur Hälfte in der Hand.
+ *
+ * Es sind die Zahlen der beiden Handmodelle zusammen, und die sind nicht
+ * dieselben: die Handfläche der **Boxhand** (`core/HandVisuals.ts`) ist ein
+ * Kasten von 2,8 cm Dicke um die Null, ihr Rücken liegt also bei +1,4 cm; der
+ * **weiße Handschuh** (`core/gloveMesh.ts`) ist Stoff und trägt gut
+ * einen Millimeter mehr auf, bis +1,7 cm. Genommen wird der dickere — ein
+ * Millimeter Luft sieht man nicht, eine Platte, die in der Hand versinkt,
+ * schon. Das Handgelenk sitzt hinter der Handfläche.
  */
-export const GLOVE_BACK = 0.022;
+export const GLOVE_BACK = 0.017;
 export const GLOVE_WRIST = 0.045;
 
 /** Where a ray met a wall, floor or ceiling. */

@@ -226,7 +226,7 @@ export class DroneTool extends Tool {
       // eine Konsole hält, ist eben keine Pistole; deshalb steht es auch nicht
       // in `STANDARD_GRIP_TOOLS` und hat seine eigene Faust — gerechnet um
       // genau diesen Zylinder (`DRONE_GRIP`, `DRONE_HAND_POSE`).
-      const grip = createGripShape({ length: 0.13, thickness: 1.15, waves: false });
+      const grip = createGripShape({ length: 0.13, thickness: 1.15 });
       grip.position.set(side * GRIP_X, DRONE_GRIP.position.y, DRONE_GRIP.position.z);
       grip.rotation.z = -side * GRIP_TILT;
       this.deck.add(grip);

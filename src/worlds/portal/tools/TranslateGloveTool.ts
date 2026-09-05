@@ -12,6 +12,10 @@ const DEADZONE = 0.05;
 const STEER_GAIN = 5;
 const STEER_MAX = 6;
 
+/** Dicke der Rückenplatte und die Höhe ihrer Oberseite — wie am Gravitationshandschuh. */
+const PLATE = 0.016;
+const TOP = GLOVE_BACK + PLATE;
+
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
@@ -97,19 +101,25 @@ export class TranslateGloveTool extends Tool {
       metalness: 0.4,
     });
 
-    // Auf dem Handrücken (`Tool.worn`): die Platte liegt über der Handfläche
-    // und nicht in ihr.
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.018, 0.11), shell);
-    back.position.set(0, GLOVE_BACK, -0.01);
+    // Auf dem Handrücken (`Tool.worn`): die Platte liegt **auf** der Haut und
+    // nicht in ihr — `GLOVE_BACK` ist die Oberfläche.
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.075, PLATE, 0.1), shell);
+    back.position.set(0, GLOVE_BACK + PLATE / 2, -0.01);
     this.add(back);
+    // Die beiden Schienen bleiben **auf** der Platte und enden an den
+    // Knöcheln; vorher liefen sie 2 cm darüber hinaus und schwebten neben den
+    // Fingern.
     for (const side of [-1, 1]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.016, 0.08), shell);
-      rail.position.set(side * 0.036, GLOVE_BACK + 0.004, -0.04);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.014, 0.07), shell);
+      rail.position.set(side * 0.036, TOP - 0.004, -0.025);
       this.add(rail);
     }
 
+    // Flach auf dem Handrücken, über den Knöcheln — siehe
+    // `GravityGloveTool`: aufrecht vor den Fingern war er ein Reifen, durch
+    // den die Hand hindurchgriff.
     this.ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.042, 0.007, 10, 26),
+      new THREE.TorusGeometry(0.022, 0.005, 10, 26),
       new THREE.MeshStandardMaterial({
         color: 0x64e0c8,
         emissive: new THREE.Color(0x64e0c8).multiplyScalar(0.4),
@@ -117,11 +127,12 @@ export class TranslateGloveTool extends Tool {
         metalness: 0.5,
       }),
     );
-    this.ring.position.set(0, GLOVE_BACK, -0.078);
+    this.ring.rotation.x = -Math.PI / 2;
+    this.ring.position.set(0, TOP, -0.04);
     this.add(this.ring);
 
     this.core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.016, 14, 10),
+      new THREE.SphereGeometry(0.011, 14, 10),
       new THREE.MeshBasicMaterial({ color: 0xd6fff5, toneMapped: false }),
     );
     this.core.position.copy(this.ring.position);

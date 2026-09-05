@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#05070d" />
     <title>Werkzeuge — Baumgartner VR</title>
-    <meta name="description" content="Alles aus der VR-Spielwiese zum Ansehen: Werkzeuge, Welten und der magische Beutel — Übersicht, 3D-Ansicht zum Drehen und die Boxhand am Griff." />
+    <meta name="description" content="Alles aus der VR-Spielwiese zum Ansehen: Werkzeuge, Welten und der magische Beutel — Übersicht, 3D-Ansicht zum Drehen und die Hand am Halterzylinder." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A7%3C/text%3E%3C/svg%3E" />
   </head>
   <body class="page">
@@ -25,7 +25,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" /></svg>
       </button>
       <h1 id="title" class="top__title">Werkzeuge</h1>
-      <div id="hands" class="seg top__seg" role="group" aria-label="Boxhand" hidden>
+      <div id="hands" class="seg top__seg" role="group" aria-label="Hand" hidden>
         <button type="button" data-hand="off">Hand aus</button>
         <button type="button" data-hand="grip">In der Hand</button>
         <button type="button" data-hand="tool">Am Werkzeug</button>
@@ -93,7 +93,7 @@
         Justierer führt durch ein einzelnes Werkzeug, und wer das nicht weiß,
         sucht den Knopf auf der Liste, wo es ihn nicht geben kann.
       -->
-      <p id="lede" class="lede">Ein Werkzeug antippen: dort dreht man es, legt die Boxhand daran — und stellt mit <b>Bearbeiten</b> oben die Haltung ein.</p>
+      <p id="lede" class="lede">Ein Werkzeug antippen: dort dreht man es, legt die Hand daran — und stellt mit <b>Bearbeiten</b> oben die Haltung ein.</p>
       <ul id="grid-tools" class="grid" aria-label="Alle Werkzeuge"></ul>
       <ul id="grid-worlds" class="grid" aria-label="Alle Welten" hidden></ul>
       <ul id="grid-bag" class="grid" aria-label="Der magische Beutel" hidden></ul>
@@ -148,15 +148,16 @@
             -->
             <div class="editor__ghosts">
               <!--
-                Ein Griff und ein Zeigefinger, und beide tragen eine Linie: wenn
-                die beiden zur Deckung kommen, liegt die Hand am Griff. Das
-                sechsmal einzeln zu ziehen ist Arbeit für einen Knopf.
+                Der Halterzylinder trägt einen rosa Pfeil, der Zeigefinger eine
+                Richtung: wenn die beiden zur Deckung kommen, liegt die Hand am
+                Zylinder. Das sechsmal einzeln zu ziehen ist Arbeit für einen
+                Knopf.
               -->
-              <button id="align" class="editor__ghost" type="button" hidden>Auf den Griff</button>
+              <button id="align" class="editor__ghost" type="button" hidden>Auf den Zylinder</button>
               <!--
-                Und derselbe Handgriff für den weißen Pfeil: nur die Richtung,
-                die Fingerspitze bleibt liegen. Erst auf den Griff, dann aufs
-                Ziel — die beiden sind ein Weg und keine Alternative.
+                Und derselbe Handgriff für den violetten Zielpfeil: nur die
+                Richtung, die Fingerspitze bleibt liegen. Erst auf den Zylinder,
+                dann aufs Ziel — die beiden sind ein Weg und keine Alternative.
               -->
               <button id="aim" class="editor__ghost" type="button" hidden>In Zielrichtung</button>
               <button id="revert" class="editor__ghost" type="button">Zurücksetzen</button>
