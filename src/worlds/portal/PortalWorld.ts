@@ -2389,7 +2389,7 @@ export class PortalWorld implements World {
    * Jede Welt stand vorher auf ihrer eigenen Platte, und an deren Rand war
    * Schluss. Das ist genau die Grenze, die eine Sandkiste nicht haben darf:
    * man will um das Labor herumlaufen, die Kartbahn von außen ansehen, einen
-   * Wurfstern über die freie Fläche werfen. Die Fläche ist deshalb Sache der
+   * Messer über die freie Fläche werfen. Die Fläche ist deshalb Sache der
    * Basis und nicht jeder einzelnen Welt — und sie ist portalfähig, weil ein
    * Bodenportal im Freien genau das ist, was man als Erstes ausprobiert.
    */
@@ -3231,7 +3231,7 @@ export class PortalWorld implements World {
    *
    * Innerhalb eines Platzes liest sich die Voreinstellung weiter so, wie sie
    * soll: ein Exemplar erlaubt, also holt die frische Pistole von dieser Hüfte
-   * die von dieser Hüfte liegengelassene ein. Der Wurfstern sagt fünf, also
+   * die von dieser Hüfte liegengelassene ein. Das Messer sagt fünf, also
    * dürfen fünf pro Hüfte fliegen und liegen, und der sechste Wurf von
    * derselben Hüfte holt den ersten zurück. Ältestes zuerst, in der
    * Reihenfolge, in der losgelassen wurde.
