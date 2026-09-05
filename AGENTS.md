@@ -1919,16 +1919,46 @@ eine Frage, die man im Vorbeigehen stellt.
 **Drei Regale, eine Schublade.** Hinter dem Burger-Symbol liegen **Werkzeuge**,
 **Welten** und der **Magische Beutel**, dazu der Weg zurück in die Spielwiese
 und zum Quellcode; das Regal, in dem man steht, trägt ein Lesezeichen. Eine
-Welt zeigt ihr **Tor aus dem Hub** — dasselbe `buildGate`, dasselbe Podest,
-derselbe wirbelnde Ring in der Akzentfarbe, dasselbe Schild — und darunter die
-Beschreibung aus der Registry, für wen sie ist, ob sie experimentell ist, und
-einen Knopf *Welt betreten*, der auf `./#<id>` führt. Ein Beutel-Objekt zeigt
-sich selbst, gebaut mit demselben `createPropShape` wie im Spiel, mit Masse,
-Maßen und Collider-Form als Zeile. Beide Listen kommen aus dem Spiel (`WORLDS`,
+Welt zeigt **sich selbst** (siehe unten), darunter die Beschreibung aus der
+Registry, für wen sie ist, ob sie experimentell ist, und einen Knopf *Welt
+betreten*, der auf `./#<id>` führt. Ein Beutel-Objekt zeigt sich selbst,
+gebaut mit demselben `createPropShape` wie im Spiel, mit Masse, Maßen und
+Collider-Form als Zeile. Beide Listen kommen aus dem Spiel (`WORLDS`,
 `BAG_ITEMS` — die Beutel-Liste ist dafür aus `PortalWorld` nach `props.ts`
 gewandert): ein Regal, das man von Hand pflegt, ist nach dem dritten Werkzeug
 veraltet. Was kein Werkzeug ist, stellt der Viewer über `showObject` auf die
-Bühne — ohne Boxhand, mit einem `animate`-Haken für das Tor.
+Bühne — ohne Boxhand, mit einem `animate`-Haken für alles, was sich von selbst
+bewegt.
+
+**Eine Welt sieht man von innen an.** Vorher stand hier ihr Tor aus dem Hub:
+hübsch, aber es zeigt von einer Welt genau das, was an jeder Welt gleich
+aussieht. Jetzt baut die Welt sich selbst auf — `World.preview()`, mit
+demselben Code wie im Spiel — und die Kamera steht darin, wo auch ein Spieler
+anfängt (`spawnPoint()`, `spawnYaw()`, plus Augenhöhe). Ziehen dreht dann den
+**Blick** und nicht das Ding, gezoomt wird am Öffnungswinkel (ein Schritt
+zurück ginge durch die Wand), und der Leerlauf schwenkt langsam einmal herum.
+Von außen wäre das nichts: das Dunkelhaus ein grauer Kasten, die Alpen eine
+Platte mit einer Beule.
+
+Damit das ohne Spiel geht, bekommt `PortalWorld.preview()` zwei Dinge
+untergeschoben. Erstens eine **Physik, die nichts tut**
+(`physics/silentPhysics.ts`): die Bauzeilen legen jede Wand, jede Kiste und
+jedes Gelände in die Simulation, und statt fünfzig `if (physics)` quer durch
+neun Welten nimmt eine Attrappe derselben Form alles entgegen und macht nichts
+damit — was daran Rapier ist, beantwortet jeden Zugriff mit sich selbst, damit
+auch `physics.world.createImpulseJoint(rapier.JointData…)` mitten im Bauen ins
+Leere läuft. Rapier selbst wird dabei nie geladen. Zweitens **Licht**: die Welt
+bringt ihr eigenes mit, aber nie weniger als 0,45 — das Dunkelhaus ist mit
+Absicht fast schwarz (0,035), und eine schwarze Vorschau ist keine. Der Hub
+baut seine Vorschau selbst (`HubWorld.preview()`, dieselbe Halle, dieselben
+Gänge, dieselben wirbelnden Tore, nur ohne Zeiger).
+
+Geladen wird eine Welt erst beim Antippen — eine Liste mit zehn Welten wäre
+sonst das ganze Spiel auf einmal —, und weil das ein `import()` ist, entscheidet
+eine laufende Nummer, wessen Antwort noch jemand sehen will: wer weiterblättert,
+bekommt nicht die vorherige Welt nachgeschoben. Lässt eine Welt sich nicht ohne
+Spiel bauen, steht wieder ihr Tor da (`buildGate`) und der Grund in der Konsole:
+eine leere Bühne wäre die schlechtere Antwort.
 
 Zwei Zustände je Regal, ein Kopf: die Übersicht trägt links das
 **Burger-Symbol**, ein einzelnes Ding den **Pfeil zurück**, und der führt in
@@ -2053,7 +2083,7 @@ ohne diesen Eintrag landete nur `index.html` im `dist`.
 ### Eine neue Welt hinzufügen
 
 1. `src/worlds/<name>/<Name>World.ts` anlegen und `World` implementieren
-   (`init`, `update`, optional `render`, `dispose`).
+   (`init`, `update`, optional `render`, `preview`, `dispose`).
 2. In `src/worlds/index.ts` einen Eintrag in `WORLDS` ergänzen — Titel,
    Beschreibung, Akzentfarbe, unterstützte Rollen und ein `load()` mit
    dynamischem Import.
@@ -2075,8 +2105,9 @@ nimmt (die Taschenlampe im Dunkelhaus). Genau das machen `DustWorld`,
 (Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu
 werden.
 
-Mehr braucht es nicht: Menü, Hub-Tor, Deep-Link (`#<id>`) und das Aufräumen
-beim Wechsel erledigt die Engine. Alles, was eine Welt der Szene hinzufügt,
+Mehr braucht es nicht: Menü, Hub-Tor, Deep-Link (`#<id>`), der Eintrag auf der
+Werkzeugseite samt Vorschau von innen (`preview()` erbt eine `PortalWorld`
+mit) und das Aufräumen beim Wechsel erledigt die Engine. Alles, was eine Welt der Szene hinzufügt,
 wird beim Verlassen wieder entfernt (die Engine räumt zur Sicherheit nach).
 
 ### Wie die Portale funktionieren

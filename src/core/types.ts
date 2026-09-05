@@ -50,12 +50,44 @@ export interface WorldContext {
   say(text: string, options?: { kind?: 'text' | 'code'; note?: string }): void;
 }
 
+/**
+ * Eine Welt zum **Ansehen** statt zum Betreten: ihre Kulisse, gebaut ohne
+ * Spieler, ohne Physik und ohne Netzwerk.
+ *
+ * Dafür gibt es genau einen Abnehmer, die Werkzeugseite — und genau einen
+ * Grund, es überhaupt zu bauen: Wer wissen will, wie eine Welt aussieht, will
+ * die Welt sehen und nicht ihr Tor. Der Blick steht dabei dort, wo auch ein
+ * Spieler anfängt (`eye`, `yaw`); alles andere ist dasselbe, mit demselben
+ * Code gebaute Zeug wie im Spiel.
+ */
+export interface WorldPreview {
+  /** Alles Gebaute, in einer Gruppe — sie hängt sich in eine fremde Szene. */
+  object: THREE.Object3D;
+  /** Wo der Blick steht: der Startpunkt der Welt, auf Augenhöhe. */
+  eye: THREE.Vector3;
+  /** Wohin er anfangs schaut. */
+  yaw: number;
+  /** Läuft jedes Bild, mit den Sekunden seit dem Aufbau — für Tore, die wirbeln. */
+  animate?(time: number): void;
+  /** Gibt frei, was gebaut wurde. */
+  dispose(): void;
+}
+
 export interface World {
   /**
    * Build the world. Everything added to `ctx.scene` must be removed again in
    * `dispose()`; the engine only clears what the world reports.
    */
   init(ctx: WorldContext): void | Promise<void>;
+  /**
+   * Die Kulisse dieser Welt ohne Spiel — für die Werkzeugseite.
+   *
+   * Optional, weil es nichts mit dem Spielen zu tun hat: eine Welt ohne diese
+   * Methode ist eine Welt, die man nur betreten kann. Wer sie anbietet, baut
+   * darin **dasselbe** wie in `init` — eine hübschere Kopie zeigt irgendwann
+   * etwas anderes als das Spiel.
+   */
+  preview?(): WorldPreview;
   update(dt: number, ctx: WorldContext): void;
   /**
    * Optional custom render pass (the portal world needs several). Return true

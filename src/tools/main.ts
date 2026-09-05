@@ -32,6 +32,7 @@ import {
 } from './poseEdit';
 import { ToolViewer, type HandMode } from './viewer';
 import type { PoseReadout } from '../worlds/portal/tools/toolPose';
+import type { WorldDefinition } from '../core/types';
 
 /**
  * **Die Werkzeugseite** — alles, was es in der Spielwiese gibt, im Browser.
@@ -44,9 +45,10 @@ import type { PoseReadout } from '../worlds/portal/tools/toolPose';
  * weiter Weg.
  *
  * Drei Regale, eine Schublade: **Werkzeuge**, **Welten** und der **magische
- * Beutel**. Eine Welt zeigt ihr Tor aus dem Hub — dasselbe Podest, derselbe
- * Ring, dasselbe Schild — und einen Knopf hinein; ein Beutel-Objekt zeigt sich
- * selbst, mit Masse und Maßen. Alle drei Listen kommen aus dem Spiel
+ * Beutel**. Eine Welt zeigt sich selbst — ihre Kulisse, gebaut mit ihrem
+ * eigenen Code, und der Blick steht darin, wo auch ein Spieler anfängt —, dazu
+ * einen Knopf hinein; ein Beutel-Objekt zeigt sich selbst, mit Masse und
+ * Maßen. Alle drei Listen kommen aus dem Spiel
  * (`TOOL_IDS`, `WORLDS`, `BAG_ITEMS`): eine Seite mit eigenen, hübscheren
  * Kopien zeigt irgendwann etwas anderes als das Spiel, und dann ist sie
  * schlimmer als keine.
@@ -95,6 +97,11 @@ const reading = document.querySelector<HTMLElement>('#reading')!;
 const values = document.querySelector<HTMLElement>('#values')!;
 const codeTool = document.querySelector<HTMLButtonElement>('#code-tool')!;
 const codeAll = document.querySelector<HTMLButtonElement>('#code-all')!;
+const help = document.querySelector<HTMLElement>('#help')!;
+
+/** Die Zeile unter der Bühne — sie sagt, was die Finger dort tun. */
+const HELP_THING = 'Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück';
+const HELP_WORLD = 'Ziehen sieht sich um · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück';
 
 const HAND_STORE = 'bgvr.toolPageHand';
 const viewer = new ToolViewer(stage);
@@ -167,8 +174,8 @@ function gripLine(id: string): string {
 }
 
 /**
- * Die Welten: ihr Tor aus dem Hub als Bild, und die Beschreibung aus der
- * Registry als Text. Der Hub selbst steht mit dabei — er ist eine Welt.
+ * Die Welten: die Welt selbst als Bild, und die Beschreibung aus der Registry
+ * als Text. Der Hub selbst steht mit dabei — er ist eine Welt.
  */
 function readWorlds(): Entry[] {
   return WORLDS.map((world) => ({
@@ -187,17 +194,59 @@ function readWorlds(): Entry[] {
     icon: 'worlds',
     accent: world.accent,
     enter: `./#${world.id}`,
-    show: () => {
-      const gate = buildGate(world.title, world.description, world.accent);
-      viewer.showObject(gate.group, {
-        animate: (time) => {
-          gate.disc.material.uniforms.uTime!.value = time;
-          gate.ring.rotation.z = time * 0.25;
-        },
-        dispose: () => gate.sign.dispose(),
-      });
-    },
+    show: () => void showWorld(world),
   }));
+}
+
+/**
+ * Eine laufende Nummer für jeden Wechsel der Ansicht.
+ *
+ * Eine Welt kommt aus einem `import()` und braucht dafür einen Moment. Wer in
+ * dieser Zeit weiterblättert, bekäme sonst die alte Welt auf die Bühne
+ * geschoben — die Nummer entscheidet, wessen Antwort noch jemand sehen will.
+ */
+let request = 0;
+
+/**
+ * **Die Welt und nicht ihr Tor.**
+ *
+ * Vorher stand hier das Tor aus dem Hub: hübsch, aber es zeigt von einer Welt
+ * genau das, was in jeder Welt gleich aussieht. Jetzt baut die Welt sich
+ * selbst auf (`World.preview()`, mit demselben Code wie im Spiel), und der
+ * Blick steht darin, wo auch ein Spieler anfängt.
+ *
+ * Geladen wird sie erst beim Antippen — eine Übersicht mit zehn Welten wäre
+ * sonst das ganze Spiel auf einmal. Und wenn eine Welt sich nicht ohne Spiel
+ * bauen lässt, steht wieder ihr Tor da: eine leere Bühne wäre die schlechtere
+ * Antwort.
+ */
+async function showWorld(definition: WorldDefinition): Promise<void> {
+  const ticket = ++request;
+  try {
+    const world = await definition.load();
+    if (ticket !== request) return;
+    const preview = world.preview?.();
+    if (preview) {
+      viewer.showWorld(preview);
+      return;
+    }
+  } catch (error) {
+    if (ticket !== request) return;
+    console.warn(`Die Welt „${definition.title}" lässt sich nicht ansehen`, error);
+  }
+  showGate(definition);
+}
+
+/** Der Rückfall: das Tor aus dem Hub, wie es die Seite vorher immer zeigte. */
+function showGate(definition: WorldDefinition): void {
+  const gate = buildGate(definition.title, definition.description, definition.accent);
+  viewer.showObject(gate.group, {
+    animate: (time) => {
+      gate.disc.material.uniforms.uTime!.value = time;
+      gate.ring.rotation.z = time * 0.25;
+    },
+    dispose: () => gate.sign.dispose(),
+  });
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -606,6 +655,9 @@ function sectionOf(hash: string): Section | null {
 
 function route(): void {
   setDrawer(false);
+  // Jeder Wechsel macht eine laufende Welt-Anfrage ungültig — auch der auf ein
+  // Werkzeug und der zurück in die Übersicht.
+  request++;
   const hash = decodeURIComponent(window.location.hash.slice(1));
   const entry = byHash.get(hash);
 
@@ -633,6 +685,9 @@ function route(): void {
   note.textContent = entry.note ?? '';
   enter.hidden = !entry.enter;
   if (entry.enter) enter.href = entry.enter;
+  // In einer Welt dreht sich der Blick und nicht das Ding — die Zeile darunter
+  // sagt es, sonst zieht jemand am Berg und wundert sich.
+  help.textContent = entry.section === 'worlds' ? HELP_WORLD : HELP_THING;
   showMode();
   viewer.setHandMode(mode);
   entry.show();

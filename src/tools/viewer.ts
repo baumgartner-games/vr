@@ -8,6 +8,7 @@ import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import type { HoldPose, PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { Tool } from '../worlds/portal/tools/Tool';
 import type { Handedness } from '../core/XRInput';
+import type { WorldPreview } from '../core/types';
 
 /**
  * Was die Boxhand gerade zeigen soll.
@@ -43,6 +44,21 @@ const ZOOM_MIN = 0.45;
 const ZOOM_MAX = 2.6;
 /** Wie schnell sich das Ding von selbst dreht, bis jemand es anfasst (rad/s). */
 const IDLE_SPIN = 0.35;
+/**
+ * Und wie schnell sich der Blick in einer Welt dreht.
+ *
+ * Deutlich langsamer: ein Werkzeug dreht sich vor der Nase, eine Welt steht
+ * still und man schaut sich in ihr um. Eine volle Runde dauert damit knapp
+ * eine Minute — lang genug, um irgendwo hinzusehen, ohne dass es weiterzieht.
+ */
+const WORLD_SPIN = 0.11;
+/** Der Öffnungswinkel, mit dem alles anfängt; in einer Welt zoomt er. */
+const FOV = 38;
+const FOV_MIN = 22;
+const FOV_MAX = 78;
+/** Vorn und hinten in einer Welt: nah genug für eine Wand, weit genug für Berge. */
+const WORLD_NEAR = 0.1;
+const WORLD_FAR = 2000;
 
 /**
  * Die Linie am Zeigefinger: warm, damit sie nicht als Teil der Hand gelesen
@@ -64,29 +80,37 @@ const _centre = new THREE.Vector3();
 const _size = new THREE.Vector3();
 const _zero = new THREE.Vector3();
 const _handspan = new THREE.Vector3(0.2, 0.2, 0.2);
+const _look = new THREE.Euler(0, 0, 0, 'YXZ');
 
 /**
  * Ein Werkzeug zum Ansehen: eine Bühne, ein Modell, und Finger, die es drehen.
  *
- * Bewusst **kein** Stück Spiel: hier hält niemand etwas, es gibt keine Physik,
- * keinen Gürtel und keine Welt darum. Gebaut wird das Werkzeug aber mit
- * demselben `createTool`, mit dem es auch in der Hand landet — eine Seite, die
- * eine eigene, hübschere Kopie zeigt, zeigt irgendwann etwas anderes als das
- * Spiel, und dann ist sie falscher als keine Seite.
+ * Bewusst **kein** Stück Spiel: hier hält niemand etwas, es gibt keine Physik
+ * und keinen Gürtel. Gebaut wird das Werkzeug aber mit demselben `createTool`,
+ * mit dem es auch in der Hand landet — eine Seite, die eine eigene, hübschere
+ * Kopie zeigt, zeigt irgendwann etwas anderes als das Spiel, und dann ist sie
+ * falscher als keine Seite.
  *
  * Gedreht wird das **Werkzeug** und nicht die Kamera: ein Ding, das man in der
  * Hand dreht, dreht sich um sich selbst, und der Boden bleibt unten. Deshalb
  * hängt alles an einem Schwenk-Knoten, und der Zeiger schiebt dessen zwei
  * Winkel — mehr Freiheitsgrade braucht ein Blick auf ein Werkzeug nicht, und
  * eine Kamera, die auch noch schweben kann, verliert man sofort.
+ *
+ * Für eine **Welt** kehrt sich genau das um (`showWorld`): dort steht der
+ * Blick mitten darin und dreht sich, denn eine Welt sieht man von innen an.
+ * Es sind dieselben zwei Winkel und dieselben Finger — nur bewegen sie diesmal
+ * die Kamera.
  */
 export class ToolViewer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.01, 60);
+  private readonly camera = new THREE.PerspectiveCamera(FOV, 1, 0.01, 60);
   /** Dreht sich; darin hängt das Gezeigte, um seine eigene Mitte versetzt. */
   private readonly pivot = new THREE.Group();
   private readonly stage = new THREE.Group();
+  /** Das Licht der Bühne — in einer Welt aus, die bringt ihr eigenes mit. */
+  private readonly studio = new THREE.Group();
 
   private tool: Tool | null = null;
   /** Ein Ding, das kein Werkzeug ist — ein Tor, ein Beutel-Objekt. Ohne Hand. */
@@ -98,6 +122,11 @@ export class ToolViewer {
   private fingerLine: THREE.Line | null = null;
   private mode: HandMode = 'grip';
   private side: Handedness = 'right';
+  /**
+   * Steht eine Welt auf der Bühne, dann steht der Blick **in** ihr: hier
+   * seine Stelle und die Richtung, auf die der Doppeltipp zurückgeht.
+   */
+  private world: { eye: THREE.Vector3; home: number } | null = null;
 
   /** Halbmesser des Gezeigten, und der Faktor, den die Finger daraus machen. */
   private radius = 0.12;
@@ -120,13 +149,14 @@ export class ToolViewer {
 
     // Licht wie in den Welten: ein Himmel, damit nichts schwarz bleibt, und eine
     // Sonne von vorn oben, damit Kanten Kanten sind.
-    this.scene.add(new THREE.HemisphereLight(0x9fc4ff, 0x0a0f1c, 1.5));
+    this.scene.add(this.studio);
+    this.studio.add(new THREE.HemisphereLight(0x9fc4ff, 0x0a0f1c, 1.5));
     const sun = new THREE.DirectionalLight(0xffffff, 1.8);
     sun.position.set(0.6, 1.2, 0.9);
-    this.scene.add(sun);
+    this.studio.add(sun);
     const fill = new THREE.DirectionalLight(0x8ab4ff, 0.6);
     fill.position.set(-0.8, -0.3, -0.6);
-    this.scene.add(fill);
+    this.studio.add(fill);
 
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointermove', this.onMove);
@@ -166,6 +196,35 @@ export class ToolViewer {
     this.zoom = 1;
     this.spinning = true;
     this.fit();
+  }
+
+  /**
+   * Eine **Welt** auf die Bühne — und dabei kehrt sich alles um.
+   *
+   * Ein Werkzeug dreht man vor sich; in einer Welt steht man. Deshalb bewegt
+   * sich hier nicht das Gezeigte, sondern der Blick: die Kamera steht am
+   * Startpunkt der Welt, und Ziehen dreht sie, wie man den Kopf dreht. Ein
+   * Haus von außen ist ein grauer Kasten, und ein Berg von 1000 Metern eine
+   * Platte mit einer Beule — von innen ist beides der Ort, um den es geht.
+   *
+   * Ihr Licht bringt die Welt selbst mit; das Bühnenlicht geht dafür aus.
+   */
+  showWorld(preview: WorldPreview): void {
+    this.clear();
+    this.object = preview.object;
+    this.options = {
+      animate: (time) => preview.animate?.(time),
+      dispose: () => preview.dispose(),
+    };
+    this.shownFor = 0;
+    this.stage.position.set(0, 0, 0);
+    this.stage.add(preview.object);
+    this.world = { eye: preview.eye.clone(), home: preview.yaw };
+    this.studio.visible = false;
+    this.yaw = preview.yaw;
+    this.pitch = 0;
+    this.zoom = 1;
+    this.spinning = true;
   }
 
   setHandMode(mode: HandMode): void {
@@ -239,7 +298,7 @@ export class ToolViewer {
     const tick = (): void => {
       this.frame = requestAnimationFrame(tick);
       const dt = Math.min(this.clock.getDelta(), 0.1);
-      if (this.spinning) this.yaw += dt * IDLE_SPIN;
+      if (this.spinning) this.yaw += dt * (this.world ? WORLD_SPIN : IDLE_SPIN);
       this.shownFor += dt;
       this.options.animate?.(this.shownFor);
       this.render();
@@ -437,6 +496,8 @@ export class ToolViewer {
 
   private clear(): void {
     this.dropHand();
+    this.world = null;
+    this.studio.visible = true;
     const tool = this.tool;
     this.tool = null;
     tool?.removeFromParent();
@@ -450,8 +511,8 @@ export class ToolViewer {
         if (!mesh.isMesh) return;
         mesh.geometry?.dispose();
         const material = mesh.material as THREE.Material | THREE.Material[];
-        if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
-        else material?.dispose();
+        if (Array.isArray(material)) material.forEach(disposeMaterial);
+        else if (material) disposeMaterial(material);
       });
     }
     this.options.dispose?.();
@@ -466,12 +527,29 @@ export class ToolViewer {
     if (this.canvas.width !== Math.round(width * ratio)) this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
-    const fitted = this.distance(this.camera.aspect);
-    this.camera.position.set(0, 0, fitted * this.zoom);
-    this.camera.near = Math.max(0.005, fitted * 0.02);
-    this.camera.far = fitted * 12;
+
+    const world = this.world;
+    if (world) {
+      // In der Welt: die Kamera steht, wo der Spieler stünde, und dreht sich.
+      // Gezoomt wird am Öffnungswinkel — ein Schritt zurück ginge hier durch
+      // die Wand.
+      this.pivot.rotation.set(0, 0, 0);
+      this.camera.position.copy(world.eye);
+      _look.set(this.pitch, this.yaw, 0);
+      this.camera.quaternion.setFromEuler(_look);
+      this.camera.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, FOV * this.zoom));
+      this.camera.near = WORLD_NEAR;
+      this.camera.far = WORLD_FAR;
+    } else {
+      const fitted = this.distance(this.camera.aspect);
+      this.camera.position.set(0, 0, fitted * this.zoom);
+      this.camera.quaternion.identity();
+      this.camera.fov = FOV;
+      this.camera.near = Math.max(0.005, fitted * 0.02);
+      this.camera.far = fitted * 12;
+      this.pivot.rotation.set(this.pitch, this.yaw, 0);
+    }
     this.camera.updateProjectionMatrix();
-    this.pivot.rotation.set(this.pitch, this.yaw, 0);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -540,11 +618,32 @@ export class ToolViewer {
    * zurück, ohne die Einstellung anzufassen.
    */
   private reset(): void {
-    this.yaw = 0.6;
-    this.pitch = 0.35;
     this.zoom = 1;
     this.spinning = true;
+    if (this.world) {
+      // In einer Welt gibt es nichts einzupassen: die steht, wo sie steht, und
+      // `fit` würde sie um ihre eigene Mitte verschieben.
+      this.yaw = this.world.home;
+      this.pitch = 0;
+      return;
+    }
+    this.yaw = 0.6;
+    this.pitch = 0.35;
     this.fit();
     this.sizeFingerLine();
   }
+}
+
+/**
+ * Ein Material samt seiner Bilder freigeben.
+ *
+ * `Material.dispose()` lässt Texturen liegen — was bei einem Werkzeug nichts
+ * ausmacht und bei einer Welt eine Menge ist: jedes Schild ist eine
+ * Leinwand-Textur, dazu das Raster des Bodens und die Erde am Mondhimmel.
+ * Wer sich zehn Welten ansieht, hätte sie sonst alle noch im Speicher.
+ */
+function disposeMaterial(material: THREE.Material): void {
+  const textured = material as THREE.Material & { map?: THREE.Texture | null };
+  textured.map?.dispose();
+  material.dispose();
 }
