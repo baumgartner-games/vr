@@ -36,6 +36,16 @@ export interface ShowOptions {
   animate?(time: number): void;
   /** Räumt weg, was `createTool` nicht gebaut hat — Texturen, Schilder. */
   dispose?(): void;
+  /** Es bringt sein eigenes Licht mit — das Bühnenlicht geht dann aus. */
+  ownLight?: boolean;
+  /** Wie schräg von oben man daraufsieht; ohne Angabe fast von vorn. */
+  pitch?: number;
+  /** Wie schnell es sich von selbst dreht (rad/s). */
+  spin?: number;
+  /** Alles oberhalb dieser Höhe wird weggeschnitten — ein Dach nimmt die Sicht. */
+  cut?: number | null;
+  /** Es liegt flach — breit und niedrig — und wird enger eingepasst. */
+  flat?: boolean;
 }
 
 /** Wie weit die Kamera über das Gezeigte hinaus Luft lässt. */
@@ -46,20 +56,28 @@ const ZOOM_MAX = 2.6;
 /** Wie schnell sich das Ding von selbst dreht, bis jemand es anfasst (rad/s). */
 const IDLE_SPIN = 0.35;
 /**
- * Und wie schnell sich der Blick in einer Welt dreht.
+ * Und wie schnell sich eine **Welt** dreht: deutlich langsamer.
  *
- * Deutlich langsamer: ein Werkzeug dreht sich vor der Nase, eine Welt steht
- * still und man schaut sich in ihr um. Eine volle Runde dauert damit knapp
- * eine Minute — lang genug, um irgendwo hinzusehen, ohne dass es weiterzieht.
+ * Ein Werkzeug dreht man vor der Nase, eine Welt sieht man an. Eine volle
+ * Runde dauert damit knapp eine Minute — lang genug, um irgendwo hinzusehen,
+ * ohne dass es schon weitergezogen ist.
  */
-const WORLD_SPIN = 0.11;
-/** Der Öffnungswinkel, mit dem alles anfängt; in einer Welt zoomt er. */
-const FOV = 38;
-const FOV_MIN = 22;
-const FOV_MAX = 78;
-/** Vorn und hinten in einer Welt: nah genug für eine Wand, weit genug für Berge. */
-const WORLD_NEAR = 0.1;
-const WORLD_FAR = 2000;
+const WORLD_SPIN = 0.14;
+/**
+ * Und wie schräg von oben: gut 30°.
+ *
+ * Von vorn ist eine Welt eine Silhouette, von genau oben ein Grundriss ohne
+ * Höhe. Dazwischen liegt das Bild, an dem man beides erkennt — wo was steht
+ * und wie hoch es ist.
+ */
+const WORLD_PITCH = 0.55;
+/**
+ * Wie hoch der Schnitt durch eine Welt mit Dach höchstens liegt.
+ *
+ * Etwas über Kopfhöhe: Wände bleiben Wände, Tische, Türen und Schilder bleiben
+ * drin, und der Deckel ist weg.
+ */
+const CUT_HEIGHT = 2.4;
 
 /**
  * Die Linie am Zeigefinger: warm, damit sie nicht als Teil der Hand gelesen
@@ -81,7 +99,7 @@ const _centre = new THREE.Vector3();
 const _size = new THREE.Vector3();
 const _zero = new THREE.Vector3();
 const _handspan = new THREE.Vector3(0.2, 0.2, 0.2);
-const _look = new THREE.Euler(0, 0, 0, 'YXZ');
+const _down = new THREE.Vector3(0, -1, 0);
 
 /**
  * Ein Werkzeug zum Ansehen: eine Bühne, ein Modell, und Finger, die es drehen.
@@ -98,15 +116,15 @@ const _look = new THREE.Euler(0, 0, 0, 'YXZ');
  * Winkel — mehr Freiheitsgrade braucht ein Blick auf ein Werkzeug nicht, und
  * eine Kamera, die auch noch schweben kann, verliert man sofort.
  *
- * Für eine **Welt** kehrt sich genau das um (`showWorld`): dort steht der
- * Blick mitten darin und dreht sich, denn eine Welt sieht man von innen an.
- * Es sind dieselben zwei Winkel und dieselben Finger — nur bewegen sie diesmal
- * die Kamera.
+ * Eine **Welt** (`showWorld`) ist davon kein Sonderfall, sondern ein großes
+ * Ding: dieselbe Bühne, dieselben zwei Winkel, dieselben Finger — nur schräger
+ * von oben, langsamer gedreht, mit ihrem eigenen Licht und, wenn sie ein Dach
+ * hat, unter dem Dach aufgeschnitten.
  */
 export class ToolViewer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(FOV, 1, 0.01, 60);
+  private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.01, 60);
   /** Dreht sich; darin hängt das Gezeigte, um seine eigene Mitte versetzt. */
   private readonly pivot = new THREE.Group();
   private readonly stage = new THREE.Group();
@@ -125,14 +143,27 @@ export class ToolViewer {
   private gripFronts: THREE.LineSegments[] = [];
   private mode: HandMode = 'grip';
   private side: Handedness = 'right';
+  /** Wie schnell sich das Gezeigte von selbst dreht — eine Welt langsamer. */
+  private spin = IDLE_SPIN;
+  /** Die Ansicht, auf die der Doppeltipp zurückgeht. */
+  private home = { yaw: 0.6, pitch: 0.35 };
   /**
-   * Steht eine Welt auf der Bühne, dann steht der Blick **in** ihr: hier
-   * seine Stelle und die Richtung, auf die der Doppeltipp zurückgeht.
+   * Höhe eines waagerechten Schnitts durch das Gezeigte, oder `null`.
+   *
+   * Die Ebene dazu liegt im Raum und nicht am Modell, das Modell dreht sich
+   * aber — deshalb wird sie in jedem Bild neu aus der Lage der Bühne gerechnet
+   * (`render`). Sonst wanderte der Schnitt beim Drehen durch die Welt.
    */
-  private world: { eye: THREE.Vector3; home: number } | null = null;
+  private cut: number | null = null;
+  private readonly plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
 
   /** Halbmesser des Gezeigten, und der Faktor, den die Finger daraus machen. */
   private radius = 0.12;
+  /** Halbmesser seines Grundrisses und seine halbe Höhe — für Flaches. */
+  private footprint = 0.12;
+  private height = 0.12;
+  /** Liegt es flach wie eine Welt? Dann wird enger eingepasst (`distance`). */
+  private flat = false;
   private zoom = 1;
   private yaw = 0.6;
   private pitch = 0.35;
@@ -181,8 +212,10 @@ export class ToolViewer {
     // in `apply`: das läuft bei jedem Zug am Regler, und dann hinge nach zehn
     // Sekunden ein Bündel Linien daran.
     this.gripFronts = addGripFronts(tool);
-    this.yaw = 0.6;
-    this.pitch = 0.35;
+    this.flat = false;
+    this.home = { yaw: 0.6, pitch: 0.35 };
+    this.yaw = this.home.yaw;
+    this.pitch = this.home.pitch;
     this.zoom = 1;
     this.spinning = true;
     this.apply();
@@ -199,40 +232,47 @@ export class ToolViewer {
     this.options = options;
     this.shownFor = 0;
     this.stage.add(object);
-    this.yaw = 0.6;
-    this.pitch = 0.25;
+    this.home = { yaw: 0.6, pitch: options.pitch ?? 0.25 };
+    this.yaw = this.home.yaw;
+    this.pitch = this.home.pitch;
     this.zoom = 1;
     this.spinning = true;
+    this.spin = options.spin ?? IDLE_SPIN;
+    this.studio.visible = !options.ownLight;
+    this.flat = options.flat ?? false;
+    this.setCut(options.cut ?? null);
     this.fit();
   }
 
   /**
-   * Eine **Welt** auf die Bühne — und dabei kehrt sich alles um.
+   * Eine **Welt** auf die Bühne: wie ein Ding, nur größer.
    *
-   * Ein Werkzeug dreht man vor sich; in einer Welt steht man. Deshalb bewegt
-   * sich hier nicht das Gezeigte, sondern der Blick: die Kamera steht am
-   * Startpunkt der Welt, und Ziehen dreht sie, wie man den Kopf dreht. Ein
-   * Haus von außen ist ein grauer Kasten, und ein Berg von 1000 Metern eine
-   * Platte mit einer Beule — von innen ist beides der Ort, um den es geht.
+   * Sie wird eingepasst wie ein Werkzeug — ganz drauf, von weit weg —, und
+   * angesehen wird sie **schräg von oben**. Darum geht es hier: um den
+   * Überblick. Wer wissen will, ob ihm eine Welt gefällt, will zuerst ihren
+   * Grundriss sehen — die Runde, das Tal, die vier Zimmer.
    *
-   * Ihr Licht bringt die Welt selbst mit; das Bühnenlicht geht dafür aus.
+   * Drei Dinge sind anders als bei einem Werkzeug. Sie dreht sich **langsamer**
+   * (eine Welt ist keine Zange vor der Nase). Ihr **Licht** bringt sie selbst
+   * mit, das Bühnenlicht geht dafür aus. Und hat sie ein **Dach**, wird sie
+   * darunter aufgeschnitten wie ein Puppenhaus — sonst zeigte die
+   * Vogelperspektive von einem Haus genau das, was ein Haus verbirgt.
    */
   showWorld(preview: WorldPreview): void {
-    this.clear();
-    this.object = preview.object;
-    this.options = {
+    this.showObject(preview.object, {
       animate: (time) => preview.animate?.(time),
       dispose: () => preview.dispose(),
-    };
-    this.shownFor = 0;
-    this.stage.position.set(0, 0, 0);
-    this.stage.add(preview.object);
-    this.world = { eye: preview.eye.clone(), home: preview.yaw };
-    this.studio.visible = false;
-    this.yaw = preview.yaw;
-    this.pitch = 0;
-    this.zoom = 1;
-    this.spinning = true;
+      ownLight: true,
+      flat: true,
+      spin: WORLD_SPIN,
+      pitch: WORLD_PITCH,
+      // Ein Stück unter der Decke, und nie höher als Kopfhöhe: Wände, die man
+      // noch als Wände erkennt, aber kein Deckel mehr darüber.
+      cut:
+        preview.roof === null || preview.roof === undefined
+          ? null
+          : Math.min(preview.roof - 0.3, CUT_HEIGHT),
+    });
   }
 
   setHandMode(mode: HandMode): void {
@@ -306,7 +346,7 @@ export class ToolViewer {
     const tick = (): void => {
       this.frame = requestAnimationFrame(tick);
       const dt = Math.min(this.clock.getDelta(), 0.1);
-      if (this.spinning) this.yaw += dt * (this.world ? WORLD_SPIN : IDLE_SPIN);
+      if (this.spinning) this.yaw += dt * this.spin;
       this.shownFor += dt;
       this.options.animate?.(this.shownFor);
       this.render();
@@ -460,6 +500,10 @@ export class ToolViewer {
     // ein Kasten hat je nach Blickwinkel eine andere Breite. Eine Kugel hat
     // immer dieselbe, und damit springt das Bild beim Drehen nicht.
     this.radius = Math.max(_size.length() / 2, 0.02);
+    // Für etwas Flaches wird zusätzlich der Grundriss gemerkt — warum, steht
+    // an `distance`.
+    this.footprint = Math.max(Math.hypot(_size.x, _size.z) / 2, 0.02);
+    this.height = Math.max(_size.y / 2, 0.01);
   }
 
   /**
@@ -469,11 +513,24 @@ export class ToolViewer {
    * Auf einem Telefon ist das der waagerechte, auf einem breiten Fenster der
    * senkrechte. Nur mit dem senkrechten gerechnet stünde ein Werkzeug auf dem
    * Telefon links und rechts über den Rand hinaus.
+   *
+   * Für etwas **Flaches** wird anders gerechnet, und der Unterschied ist keine
+   * Feinheit: die Kugel um eine Welt ist so hoch wie breit, eine Welt aber ist
+   * ein Grundriss mit ein bisschen Höhe darauf. Auf die Kugel eingepasst stand
+   * das Dunkelhaus als Briefmarke in einer leeren Fläche — halb so weit weg
+   * ist es das, was jemand sehen wollte. Gerechnet wird deshalb mit dem
+   * Grundriss (der sich beim Drehen nicht ändert) und der Höhe, die unter dem
+   * Blickwinkel dazukommt. Und zwar mit dem Winkel der **Ausgangsansicht**:
+   * eine Kamera, die beim Kippen mitfährt, fühlt sich an wie ein Bild, das
+   * nicht stillhält.
    */
   private distance(aspect: number): number {
     const vertical = (this.camera.fov * Math.PI) / 360;
     const horizontal = Math.atan(Math.tan(vertical) * aspect);
-    return (this.radius * PADDING) / Math.sin(Math.min(vertical, horizontal));
+    if (!this.flat) return (this.radius * PADDING) / Math.sin(Math.min(vertical, horizontal));
+    const tilt = this.home.pitch;
+    const high = this.footprint * Math.sin(tilt) + this.height * Math.cos(tilt);
+    return PADDING * Math.max(this.footprint / Math.tan(horizontal), high / Math.tan(vertical));
   }
 
   /**
@@ -488,18 +545,38 @@ export class ToolViewer {
    */
   private measure(): void {
     _box.makeEmpty();
-    this.stage.traverseVisible((child) => {
-      const mesh = child as THREE.Mesh;
-      if (!mesh.isMesh || !mesh.geometry) return;
-      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-      const bounds = mesh.geometry.boundingBox;
-      if (!bounds) return;
-      _bounds.copy(bounds).applyMatrix4(mesh.matrixWorld);
-      _box.union(_bounds);
-    });
+    const visit = (object: THREE.Object3D): void => {
+      // Kulisse zählt nicht mit: der Himmel einer Welt ist eine Kugel von 560
+      // Metern und ihr Boden eine Platte von tausend — eingepasst auf die
+      // beiden wäre jede Welt ein Punkt in der Mitte. Gezeichnet werden sie
+      // trotzdem, sie stehen ja dahinter.
+      if (!object.visible || object.userData.backdrop) return;
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh && mesh.geometry) {
+        if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+        const bounds = mesh.geometry.boundingBox;
+        if (bounds) {
+          _bounds.copy(bounds).applyMatrix4(mesh.matrixWorld);
+          _box.union(_bounds);
+        }
+      }
+      for (const child of object.children) visit(child);
+    };
+    visit(this.stage);
     // Ein Werkzeug ganz ohne sichtbares Mesh gibt es nicht, aber eine leere
     // Kiste ergäbe eine Kamera im Nichts. Dann eben eine Handbreit.
     if (_box.isEmpty()) _box.setFromCenterAndSize(_zero, _handspan);
+  }
+
+  /**
+   * Den waagerechten Schnitt setzen oder aufheben.
+   *
+   * Die Ebene wird beim Renderer angemeldet und dort in jedem Bild gelesen;
+   * ihre Zahlen füllt `render` nach, sobald die Drehung des Bildes feststeht.
+   */
+  private setCut(height: number | null): void {
+    this.cut = height;
+    this.renderer.clippingPlanes = height === null ? [] : [this.plane];
   }
 
   private clear(): void {
@@ -513,8 +590,9 @@ export class ToolViewer {
       (line.material as THREE.Material).dispose();
     }
     this.gripFronts = [];
-    this.world = null;
     this.studio.visible = true;
+    this.spin = IDLE_SPIN;
+    this.setCut(null);
     const tool = this.tool;
     this.tool = null;
     tool?.removeFromParent();
@@ -545,28 +623,21 @@ export class ToolViewer {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
 
-    const world = this.world;
-    if (world) {
-      // In der Welt: die Kamera steht, wo der Spieler stünde, und dreht sich.
-      // Gezoomt wird am Öffnungswinkel — ein Schritt zurück ginge hier durch
-      // die Wand.
-      this.pivot.rotation.set(0, 0, 0);
-      this.camera.position.copy(world.eye);
-      _look.set(this.pitch, this.yaw, 0);
-      this.camera.quaternion.setFromEuler(_look);
-      this.camera.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, FOV * this.zoom));
-      this.camera.near = WORLD_NEAR;
-      this.camera.far = WORLD_FAR;
-    } else {
-      const fitted = this.distance(this.camera.aspect);
-      this.camera.position.set(0, 0, fitted * this.zoom);
-      this.camera.quaternion.identity();
-      this.camera.fov = FOV;
-      this.camera.near = Math.max(0.005, fitted * 0.02);
-      this.camera.far = fitted * 12;
-      this.pivot.rotation.set(this.pitch, this.yaw, 0);
-    }
+    const fitted = this.distance(this.camera.aspect);
+    this.camera.position.set(0, 0, fitted * this.zoom);
+    this.camera.near = Math.max(0.005, fitted * 0.02);
+    this.camera.far = fitted * 12;
     this.camera.updateProjectionMatrix();
+    this.pivot.rotation.set(this.pitch, this.yaw, 0);
+
+    // Der Schnitt gehört dem Modell und nicht dem Raum: er liegt waagerecht in
+    // der Welt, die sich dreht. Also wird die Ebene aus der Lage der Bühne
+    // gerechnet, nachdem die Drehung dieses Bildes steht.
+    if (this.cut !== null) {
+      this.pivot.updateMatrixWorld(true);
+      this.plane.set(_down, this.cut);
+      this.plane.applyMatrix4(this.stage.matrixWorld);
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -635,17 +706,10 @@ export class ToolViewer {
    * zurück, ohne die Einstellung anzufassen.
    */
   private reset(): void {
+    this.yaw = this.home.yaw;
+    this.pitch = this.home.pitch;
     this.zoom = 1;
     this.spinning = true;
-    if (this.world) {
-      // In einer Welt gibt es nichts einzupassen: die steht, wo sie steht, und
-      // `fit` würde sie um ihre eigene Mitte verschieben.
-      this.yaw = this.world.home;
-      this.pitch = 0;
-      return;
-    }
-    this.yaw = 0.6;
-    this.pitch = 0.35;
     this.fit();
     this.sizeFingerLine();
   }

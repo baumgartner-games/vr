@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
 import { createPropShape } from '../portal/props';
 import { TextPlane } from '../../ui/TextPlane';
+import { markBackdrop } from '../shared/environment';
 
 /** Was der Mond zieht — ein Sechstel der Erde. */
 const MOON_GRAVITY = 1.62;
@@ -253,7 +254,8 @@ function earthInTheSky(): THREE.Mesh {
   );
   earth.position.set(120, 95, -190);
   earth.name = 'earth';
-  return earth;
+  // Sie steht so weit weg wie der Himmel und gehört wie er zur Kulisse.
+  return markBackdrop(earth);
 }
 
 /** Sterne, die auch bei Sonne stehen: es gibt keine Luft, die sie schluckt. */
@@ -279,7 +281,7 @@ function starField(): THREE.Points {
   );
   stars.name = 'stars';
   stars.frustumCulled = false;
-  return stars;
+  return markBackdrop(stars);
 }
 
 /**

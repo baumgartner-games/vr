@@ -185,6 +185,9 @@ export class DarkWorld extends PortalWorld {
     // the dark — falling through one is half the fun of the lab.
     this.slab(house, this.floorMaterial, [width, WALL, depth], [0, -WALL / 2, 0], true);
     this.slab(house, this.ceilingMaterial, [width, WALL, depth], [0, HEIGHT + WALL / 2, 0], false);
+    // Die Decke ist hier der ganze Witz — und für die Vorschau von oben genau
+    // der Deckel, der weg muss.
+    this.roof = HEIGHT;
 
     this.wall(house, 'x', -HALF_Z - WALL / 2, -HALF_X, HALF_X, []);
     this.wall(house, 'x', HALF_Z + WALL / 2, -HALF_X, HALF_X, []);

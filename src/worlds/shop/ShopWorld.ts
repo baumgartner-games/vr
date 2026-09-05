@@ -302,6 +302,8 @@ export class ShopWorld extends PortalWorld {
       [0, height + wall / 2, 0],
       true,
     );
+    // Decke drüber: die Vorschau schneidet den Laden darunter auf.
+    this.roof = height;
     this.slab(
       parent,
       this.wallMaterial,
