@@ -114,6 +114,7 @@ import {
   type GrabField,
   type GrabSettings,
 } from '../../core/grabSettings';
+import { handLook, handLookLabel, nextHandLook, saveHandLook } from '../../core/handLook';
 import { GhostHand } from '../../core/HandVisuals';
 import { TextPlane } from '../../ui/TextPlane';
 import { playPick } from '../../core/Audio';
@@ -1533,6 +1534,7 @@ export class PortalWorld implements World {
       icon: 'glove',
       accent: 0x9fe3ff,
       children: [
+        this.handLookMenu(),
         this.handSideMenu('left'),
         this.handSideMenu('right'),
         {
@@ -1569,6 +1571,31 @@ export class PortalWorld implements World {
         },
       ],
     };
+  }
+
+  /**
+   * **Boxhand oder weißer Handschuh** — dieselbe Hand, anders angezogen
+   * (`core/handLook.ts`). Ein Druck wechselt; die Hände ziehen sich im
+   * nächsten Bild um, denn `HandVisuals` baut sie neu, sobald das Kleid nicht
+   * mehr zur Einstellung passt.
+   */
+  private handLookMenu(): MenuEntry {
+    const entry: MenuEntry = {
+      id: 'setting:hands-look',
+      label: `Handmodell: ${handLookLabel(handLook())}`,
+      sub: 'Boxhand aus Kästen, oder ein Handschuh wie bei Master Hand',
+      icon: 'glove',
+      accent: 0x9fe3ff,
+      run: () => {
+        const next = saveHandLook(nextHandLook(handLook()));
+        this.refreshMenuLabels();
+        this.context?.notify(handLookLabel(next));
+      },
+    };
+    this.menuLabels.push(() => {
+      entry.label = `Handmodell: ${handLookLabel(handLook())}`;
+    });
+    return entry;
   }
 
   private handSideMenu(hand: Handedness): MenuEntry {

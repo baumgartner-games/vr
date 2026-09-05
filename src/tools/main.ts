@@ -5,6 +5,7 @@ import { WORLDS } from '../worlds';
 import { buildGate } from '../worlds/hub/HubWorld';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
 import { STANDARD_GRIP_TOOLS, type HandPose } from '../core/handPose';
+import { handLook, handLookLabel, nextHandLook, saveHandLook } from '../core/handLook';
 import {
   clearHandPoses,
   clearHoldHandPose,
@@ -127,6 +128,7 @@ const codeTool = document.querySelector<HTMLButtonElement>('#code-tool')!;
 const codeAll = document.querySelector<HTMLButtonElement>('#code-all')!;
 const lede = document.querySelector<HTMLElement>('#lede')!;
 const wipe = document.querySelector<HTMLButtonElement>('#wipe')!;
+const look = document.querySelector<HTMLButtonElement>('#look')!;
 const wipeNote = document.querySelector<HTMLElement>('#wipe-note')!;
 
 const HAND_STORE = 'bgvr.toolPageHand';
@@ -733,6 +735,24 @@ wipe.addEventListener('click', () => {
   showEditor();
   wipeNote.textContent = 'Gelöscht — alles steht wieder auf den Werkswerten.';
 });
+
+/**
+ * **Handmodell** — Boxhand oder weißer Handschuh, dieselbe Einstellung wie im
+ * Handgelenk-Menü (`core/handLook.ts`). Nach dem Wechsel wird das Werkzeug
+ * neu aufgestellt: die Hand auf der Bühne ist gebaut und zieht sich nicht um,
+ * und das Boxhand-Werkzeug trägt sein Kleid selbst.
+ */
+look.addEventListener('click', () => {
+  saveHandLook(nextHandLook(handLook()));
+  showLook();
+  route();
+});
+
+function showLook(): void {
+  look.textContent = `Handmodell: ${handLookLabel(handLook())}`;
+}
+
+showLook();
 
 /** Alle Schlüssel dieses Spiels im Speicher — `bgvr.` ist die Handschrift. */
 function gameKeys(): string[] {

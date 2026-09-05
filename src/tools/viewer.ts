@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GhostHand } from '../core/HandVisuals';
+import { GhostHand, handColor } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
 import { createTool } from '../worlds/portal/tools';
 import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
@@ -689,7 +689,7 @@ export class ToolViewer {
     }
 
     if (this.mode !== 'off') {
-      const hand = new GhostHand(this.side, pose, { color: 0x9fe3ff, opacity: 0.9 });
+      const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 0.9 });
       const at = this.mode === 'tool' ? ghostOnTool(local, poseOfHand(pose)) : poseOfHand(pose);
       hand.position.set(at.position.x, at.position.y, at.position.z);
       hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);

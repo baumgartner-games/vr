@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Tool, type ToolHost } from './Tool';
 import { readPose } from './toolPose';
-import { GhostHand } from '../../../core/HandVisuals';
+import { GhostHand, handColor } from '../../../core/HandVisuals';
+import { onHandLookChange } from '../../../core/handLook';
 import { clonePose, defaultIdlePose, type HandPose } from '../../../core/handPose';
 import { idleHandPose, onHandPoseChange, saveIdleHandPose } from '../../../core/handPoseStore';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
@@ -53,9 +54,16 @@ export class HandTool extends Tool {
     // Lage im Griff mit der Handhaltung identisch.
     this.alignToAim = false;
     // Wer die Zahlen im Menü ändert, will die Finger sofort anders sehen.
-    this.unsubscribe = onHandPoseChange(() => {
+    const stale = (): void => {
       this.stale = true;
-    });
+    };
+    const stopPose = onHandPoseChange(stale);
+    // Und ebenso, wer das Handmodell wechselt: die Boxhand wird zum Handschuh.
+    const stopLook = onHandLookChange(stale);
+    this.unsubscribe = () => {
+      stopPose();
+      stopLook();
+    };
     this.build('right');
     // Ab Werk die **gebaute** Grundhaltung und nicht die gemessene: sonst wäre
     // „Lage in der Hand zurücksetzen" für dieses eine Werkzeug ein Knopf, der
@@ -111,7 +119,7 @@ export class HandTool extends Tool {
     this.shape?.dispose();
     // Fest, nicht gläsern: das ist kein Geist, den man neben die eigene Hand
     // hält, sondern das Ding, das man justiert.
-    this.shape = new GhostHand(side, idleHandPose(side), { color: 0x9fe3ff, opacity: 0.9 });
+    this.shape = new GhostHand(side, idleHandPose(side), { color: handColor(), opacity: 0.9 });
     this.add(this.shape);
   }
 

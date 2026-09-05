@@ -195,6 +195,17 @@ html, body {
 
 .drawer__link--wipe:hover { background: rgba(230, 120, 120, 0.16); }
 
+/* Ein Umschalter in der Schublade: ein Knopf, der wie ein Link aussieht. */
+.drawer__link--toggle {
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fg);
+}
+
 .drawer__rule {
   margin: 6px 8px;
   border: none;

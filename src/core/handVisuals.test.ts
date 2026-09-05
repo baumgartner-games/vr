@@ -11,7 +11,7 @@
  * three.js, but no WebGL: this reads positions out of a scene graph.
  */
 import * as THREE from 'three';
-import { GhostHand } from './HandVisuals';
+import { GhostHand, styleOfSetting } from './HandVisuals';
 import { HOLD_HAND_POSE, IDLE_HAND_POSE, type HandPose } from './handPose';
 
 /** World positions of the five fingertips: thumb, index, middle, ring, pinky. */
@@ -114,6 +114,31 @@ describe('a ghost hand that follows the real one', () => {
 
   it('remembers which way round it was built', () => {
     expect(new GhostHand('left', IDLE_HAND_POSE, { look: 'limbs' }).look).toBe('limbs');
-    expect(new GhostHand('left', IDLE_HAND_POSE).look).toBe('bones');
+    expect(new GhostHand('left', IDLE_HAND_POSE, { look: 'bones' }).look).toBe('bones');
+    // Ohne Angabe das, was die Einstellung sagt — und ohne Speicher ist das
+    // der Handschuh (`core/handLook.ts`).
+    expect(new GhostHand('left', IDLE_HAND_POSE).look).toBe(styleOfSetting());
+    expect(styleOfSetting()).toBe('glove');
+  });
+
+  it('trägt als Handschuh dieselben Gelenke — nur mehr Stoff darum', () => {
+    // Der Handschuh ist dasselbe Skelett in einem anderen Kleid: die
+    // Fingerspitze sitzt am selben Ort, die Faust ist dieselbe. Was dazukommt,
+    // ist Geometrie — Manschette, runde Gelenke —, keine Haltung.
+    const tipOf = (look: 'bones' | 'glove'): THREE.Vector3 => {
+      const ghost = new GhostHand('right', HOLD_HAND_POSE, { look });
+      ghost.update(1);
+      ghost.updateMatrixWorld(true);
+      return ghost.indexTip.getWorldPosition(new THREE.Vector3());
+    };
+    expect(tipOf('glove').distanceTo(tipOf('bones'))).toBeLessThan(1e-9);
+    const count = (look: 'bones' | 'glove'): number => {
+      let meshes = 0;
+      new GhostHand('right', HOLD_HAND_POSE, { look }).traverse((object) => {
+        if ((object as THREE.Mesh).isMesh) meshes++;
+      });
+      return meshes;
+    };
+    expect(count('glove')).toBeGreaterThan(count('bones'));
   });
 });

@@ -3,6 +3,7 @@ import type { ControllerState, Handedness, XRInput } from './XRInput';
 import { GRAB_GLOW } from './colors';
 import { clonePose, type HandPose } from './handPose';
 import { holdHandPose, idleHandPose, onHandPoseChange } from './handPoseStore';
+import { handLook } from './handLook';
 
 export type HandGesture = 'open' | 'ready' | 'point' | 'thumbsUp' | 'grip';
 
@@ -27,6 +28,76 @@ const FINGERS = [
 const _vector = new THREE.Vector3();
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
+
+/**
+ * Wie eine Hand **angezogen** ist — drei Kleider für dasselbe Skelett.
+ *
+ * - `bones`: die **Boxhand** — ein Kasten als Handfläche, Kapseln als
+ *   Knochen. So hat alles angefangen, und so misst man am ehrlichsten.
+ * - `limbs`: **Kugeln an den Gelenken**, wie die Brille eine getrackte Hand
+ *   zeigt.
+ * - `glove`: der **weiße Handschuh** — eine runde, gepolsterte Handfläche,
+ *   dicke Finger mit runden Gelenken, eine Manschette am Handgelenk. Ein
+ *   Handschuh wie bei Rayman oder Master Hand: kein Körper dran, aber eine
+ *   Hand, die nach etwas aussieht.
+ *
+ * Alle drei haben dieselben Gelenke an denselben Stellen und dieselbe
+ * Fingerspitze — jede Haltung und jede gerechnete Faust gilt für alle.
+ */
+export type HandStyle = 'bones' | 'limbs' | 'glove';
+
+/** Welches Kleid die Einstellung meint (`handLook.ts`) — für Hände am Controller. */
+export function styleOfSetting(): HandStyle {
+  return handLook() === 'glove' ? 'glove' : 'bones';
+}
+
+/** Ein Handschuh ist weiß; alles andere hat die Farbe, die der Aufrufer gibt. */
+export const GLOVE_COLOR = 0xf4f6fa;
+/** Das Hellblau der Boxhand auf der Werkzeugseite und am Boxhand-Werkzeug. */
+export const BOX_HAND_COLOR = 0x9fe3ff;
+
+/** Die Farbe einer festen Hand nach der Einstellung: weiß als Handschuh, sonst hellblau. */
+export function handColor(): number {
+  return handLook() === 'glove' ? GLOVE_COLOR : BOX_HAND_COLOR;
+}
+
+/**
+ * Die Handfläche des Handschuhs: ein Kasten mit runden Kanten und rundem
+ * Umriss — eine Polsterung, kein Brett. Gebaut als extrudiertes abgerundetes
+ * Rechteck mit Fase, denn das ist der eine Weg zu einem runden Kasten, den
+ * three.js ohne Zusatzmodul kennt; im Ergebnis liegt die Dicke auf Y und die
+ * Länge auf Z, wie beim Kasten der Boxhand.
+ */
+function paddedSlab(width: number, thickness: number, length: number): THREE.BufferGeometry {
+  const corner = Math.min(width, length) * 0.26;
+  const bevel = thickness * 0.3;
+  const w = width / 2 - bevel;
+  const l = length / 2 - bevel;
+  const shape = new THREE.Shape();
+  shape.moveTo(-w + corner, -l);
+  shape.lineTo(w - corner, -l);
+  shape.absarc(w - corner, -l + corner, corner, -Math.PI / 2, 0, false);
+  shape.lineTo(w, l - corner);
+  shape.absarc(w - corner, l - corner, corner, 0, Math.PI / 2, false);
+  shape.lineTo(-w + corner, l);
+  shape.absarc(-w + corner, l - corner, corner, Math.PI / 2, Math.PI, false);
+  shape.lineTo(-w, -l + corner);
+  shape.absarc(-w + corner, -l + corner, corner, Math.PI, Math.PI * 1.5, false);
+  const depth = thickness - 2 * bevel;
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: bevel,
+    bevelSize: bevel,
+    bevelSegments: 4,
+    curveSegments: 10,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  // Die Extrusion läuft entlang Z; eine Vierteldrehung legt die Dicke auf Y.
+  geometry.rotateX(-Math.PI / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /**
  * Wie eine Hand gezeichnet wird — zwei Antworten, und beide gibt es.
@@ -65,7 +136,7 @@ class ProceduralHand extends THREE.Group {
      * Haltung und Krümmung eingeschlossen, ist identisch: es ist dieselbe
      * Hand, nur anders angezogen.
      */
-    private readonly look: 'bones' | 'limbs' = 'bones',
+    readonly look: HandStyle = 'bones',
   ) {
     super();
     this.name = `hand-${side}`;
@@ -80,9 +151,33 @@ class ProceduralHand extends THREE.Group {
     const palm =
       this.look === 'limbs'
         ? new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), material)
-        : new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
+        : this.look === 'glove'
+          ? new THREE.Mesh(paddedSlab(0.078, 0.03, 0.092), material)
+          : new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
     palm.position.set(0, 0, -0.01);
     this.add(palm);
+    if (this.look === 'glove') {
+      // Die Manschette: ein flacher Ring ums Handgelenk und ein kurzer, nach
+      // hinten weiter werdender Ärmel dahinter — das, woran man einen
+      // Handschuh von einer Hand unterscheidet.
+      // Beide liegen mit ihrer Achse auf Z (die Vierteldrehung um X) und sind
+      // danach in **ihrem** Z flach gedrückt — das ist nach der Drehung die
+      // Dicke der Hand. Y wäre die Achse selbst, und ein Ring, den man entlang
+      // seiner Achse staucht, wird nur dünner, nicht flacher.
+      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.0085, 10, 28), material);
+      cuff.rotation.x = Math.PI / 2;
+      cuff.scale.z = 0.55;
+      cuff.position.set(0, 0, 0.038);
+      this.add(cuff);
+      const sleeve = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.043, 0.036, 0.022, 28, 1, true),
+        material,
+      );
+      sleeve.rotation.x = -Math.PI / 2;
+      sleeve.scale.z = 0.55;
+      sleeve.position.set(0, 0, 0.053);
+      this.add(sleeve);
+    }
     if (this.look === 'limbs') {
       // Der Handrücken ist bei getrackten Händen eine Reihe Knöchel und keine
       // einzelne Kugel — vier davon, dort, wo die Finger ansetzen.
@@ -101,7 +196,15 @@ class ProceduralHand extends THREE.Group {
     thumbRoot.position.set(mirror * -0.034, -0.006, 0.014);
     thumbRoot.rotation.set(-0.22, mirror * 0.75, mirror * 0.6);
     this.add(thumbRoot);
-    this.chains.push(buildChain(thumbRoot, [0.034, 0.028], 0.017, material, this.look));
+    this.chains.push(
+      buildChain(
+        thumbRoot,
+        [0.034, 0.028],
+        this.look === 'glove' ? 0.0185 : 0.017,
+        material,
+        this.look,
+      ),
+    );
 
     for (const finger of FINGERS) {
       const root = new THREE.Object3D();
@@ -109,7 +212,13 @@ class ProceduralHand extends THREE.Group {
       this.add(root);
       this.fingerRoots.push(root);
       this.fans.push((mirror * finger.x) / 0.028);
-      const chain = buildChain(root, finger.lengths, 0.013, material, this.look);
+      const chain = buildChain(
+        root,
+        finger.lengths,
+        this.look === 'glove' ? 0.0145 : 0.013,
+        material,
+        this.look,
+      );
       this.chains.push(chain);
       if (finger.name === 'index') {
         this.indexTip.position.set(0, 0, -finger.lengths[1]!);
@@ -165,7 +274,7 @@ function buildChain(
   lengths: number[],
   radius: number,
   material: THREE.Material,
-  look: 'bones' | 'limbs' = 'bones',
+  look: HandStyle = 'bones',
 ): THREE.Object3D[] {
   const joints: THREE.Object3D[] = [];
   let parent: THREE.Object3D = root;
@@ -183,12 +292,21 @@ function buildChain(
       joint.add(tip);
     } else {
       const bone = new THREE.Mesh(
-        new THREE.CapsuleGeometry(radius, Math.max(length - radius * 2, 0.005), 3, 8),
+        new THREE.CapsuleGeometry(
+          radius,
+          Math.max(length - radius * 2, 0.005),
+          look === 'glove' ? 6 : 3,
+          look === 'glove' ? 14 : 8,
+        ),
         material,
       );
       bone.rotation.x = Math.PI / 2;
       bone.position.set(0, 0, -length / 2);
       joint.add(bone);
+      // Am Handschuh liegt am Gelenk eine Kugel: ein gekrümmter Finger bleibt
+      // damit rund, statt an der Beuge eine Kante zu zeigen.
+      if (look === 'glove')
+        joint.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 14, 10), material));
     }
     joints.push(joint);
     const next = new THREE.Object3D();
@@ -202,8 +320,11 @@ function buildChain(
 /** Wie eine einzelne Hand im Raum aussehen soll. */
 export interface HandShapeOptions {
   color?: number;
-  /** Knochen wie mit Controllern, Kugeln wie beim Handtracking. */
-  look?: 'bones' | 'limbs';
+  /**
+   * Knochen wie mit Controllern, Kugeln wie beim Handtracking, oder der
+   * Handschuh. Ohne Angabe das, was die Einstellung sagt (`handLook.ts`).
+   */
+  look?: HandStyle;
   /**
    * 1 macht sie **fest** statt gläsern.
    *
@@ -239,7 +360,7 @@ export class GhostHand extends THREE.Group {
     options: HandShapeOptions = {},
   ) {
     super();
-    const { color = 0x5ee0a0, look = 'bones', opacity = 0.32 } = options;
+    const { color = 0x5ee0a0, look = styleOfSetting(), opacity = 0.32 } = options;
     this.look = look;
     this.name = `ghost-hand-${side}`;
     this.material = new THREE.MeshStandardMaterial({
@@ -258,8 +379,8 @@ export class GhostHand extends THREE.Group {
     this.add(this.hand);
   }
 
-  /** Knochen oder Kugeln — was hier steht, wurde gebaut und wechselt nicht. */
-  readonly look: 'bones' | 'limbs';
+  /** Knochen, Kugeln oder Handschuh — was hier steht, wurde gebaut und wechselt nicht. */
+  readonly look: HandStyle;
 
   /**
    * Die Spitze des Zeigefingers, als Knoten: ihr **-Z ist die Richtung**, in
@@ -333,12 +454,16 @@ export class HandVisuals extends THREE.Group {
   private readonly handMaterials = new Map<Handedness, THREE.MeshStandardMaterial>();
   private readonly glowing = new Set<Handedness>();
 
+  /** Die Farbe der Hände ohne Handschuh — der Handschuh ist weiß. */
+  private readonly baseColor: number;
+
   constructor(
     private readonly input: XRInput,
     color = 0xd6e2f7,
   ) {
     super();
     this.name = 'hand-visuals';
+    this.baseColor = color;
     this.material = new THREE.MeshStandardMaterial({
       color,
       roughness: 0.4,
@@ -376,7 +501,7 @@ export class HandVisuals extends THREE.Group {
     if (on) this.glowing.add(handedness);
     else this.glowing.delete(handedness);
     const material = this.handMaterial(handedness);
-    material.emissive.setHex(on ? GRAB_GLOW : this.material.color.getHex());
+    material.emissive.setHex(on ? GRAB_GLOW : material.color.getHex());
     material.emissive.multiplyScalar(on ? 0.42 : 0.06);
   }
 
@@ -395,11 +520,12 @@ export class HandVisuals extends THREE.Group {
    * Handtracking. Eine Geisterhand, die daneben steht, soll ja so aussehen wie
    * die, die man in der Brille sieht.
    */
-  lookOf(handedness: Handedness): 'bones' | 'limbs' {
+  lookOf(handedness: Handedness): HandStyle {
     for (const controller of this.input.controllers) {
-      if (controller.handedness === handedness) return controller.isHand ? 'limbs' : 'bones';
+      if (controller.handedness === handedness)
+        return controller.isHand ? 'limbs' : styleOfSetting();
     }
-    return 'bones';
+    return styleOfSetting();
   }
 
   /**
@@ -520,14 +646,22 @@ export class HandVisuals extends THREE.Group {
     if (!controller.handedness) return;
     let hand = this.hands.get(controller);
     // The runtime may hand the same slot to the other hand later on — a left
-    // hand mesh on the right controller is what made both look mirrored.
-    if (hand && hand.side !== controller.handedness) {
+    // hand mesh on the right controller is what made both look mirrored. Und
+    // wer im Menü das Handmodell wechselt, bekommt die Hand neu angezogen.
+    const style = styleOfSetting();
+    if (hand && (hand.side !== controller.handedness || hand.look !== style)) {
       this.disposeHand(hand);
       this.hands.delete(controller);
       hand = undefined;
     }
     if (!hand) {
-      hand = new ProceduralHand(controller.handedness, this.handMaterial(controller.handedness));
+      const material = this.handMaterial(controller.handedness);
+      // Ein Handschuh ist weiß; die Boxhand hat die Farbe der Hände.
+      material.color.setHex(style === 'glove' ? GLOVE_COLOR : this.baseColor);
+      if (!this.glowing.has(controller.handedness)) {
+        material.emissive.setHex(material.color.getHex()).multiplyScalar(0.06);
+      }
+      hand = new ProceduralHand(controller.handedness, material, style);
       this.hands.set(controller, hand);
     }
     const anchor = controller.grip.visible ? controller.grip : controller.targetRay;

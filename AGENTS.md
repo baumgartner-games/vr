@@ -1637,6 +1637,32 @@ das prüft der Test zu `mirrorHandPose` in `src/core/handPose.ts`, und dieselbe
 Regel gilt für Werkzeug-Posen (`mirrorReadout`). *Auf die andere Hand
 spiegeln* macht es für eine Haltung, *Links auf rechts spiegeln* für alle.
 
+### Handmodell: Boxhand oder weißer Handschuh
+
+Wie die Hand **aussieht**, ist seit dieser Runde eine Einstellung
+(`core/handLook.ts`, *Einstellungen → Hände → Handmodell*, und in der
+Schublade der Werkzeugseite): die **Boxhand** aus Kästen und Kapseln, mit der
+alles angefangen hat, oder der **weiße Handschuh** — ein Handschuh wie bei
+Rayman oder Master Hand, mit gepolsterter runder Handfläche, dicken runden
+Fingern mit Kugeln an den Gelenken und einer flachen Manschette am
+Handgelenk. Ab Werk der Handschuh; er ist der Grund für die Wahl.
+
+Es ist **dasselbe Skelett in einem anderen Kleid** (`HandVisuals.ts`,
+`HandStyle`: `bones`, `limbs`, `glove`): dieselben Gelenke an denselben
+Stellen, dieselbe Krümmung, dieselbe Fingerspitze. Deshalb gilt jede Haltung
+und jede gerechnete Faust für beide Modelle, und der Test dazu misst genau das
+nach — die Zeigefingerspitze des Handschuhs liegt dort, wo die der Boxhand
+liegt. Die gepolsterte Handfläche ist ein extrudiertes abgerundetes Rechteck
+mit Fase, denn das ist der eine runde Kasten, den three.js ohne Zusatzmodul
+kennt. Getrackte Hände bleiben Kugeln an den Gelenken: die liefert die Brille.
+
+Umgeschaltet wird sofort: `HandVisuals` baut eine Hand neu, sobald ihr Kleid
+nicht mehr zur Einstellung passt, die Werkzeugseite stellt das Werkzeug neu
+auf, das Boxhand-Werkzeug hört selbst zu. Der Handschuh ist weiß, wo immer er
+steht (`GLOVE_COLOR`, auch auf der Werkzeugseite); die Boxhand behält ihr
+Hellblau. Im Konfig-Code steht das Modell nicht — es ist Geschmack, keine
+Messung —, und *Eigene Einstellungen löschen* räumt es mit weg.
+
 ### Eingemessene Griffe
 
 Wie eine Hand ein Werkzeug umfasst, hängt nicht am Werkzeug, sondern an dem,
