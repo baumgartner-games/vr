@@ -34,6 +34,19 @@ export const CHARACTER_SKIN = 0.02;
  */
 export const MAX_SLOPE_DEG = 52;
 
+/**
+ * Ab wie steil man **abrutscht** — und zwar erst jenseits dessen, was man
+ * hinaufkommt.
+ *
+ * Rapier kennt beide Grenzen getrennt, und die Rutschgrenze lag lange bei 40°:
+ * zwischen 40° und 52° durfte man also hinauf und rutschte gleichzeitig
+ * hinunter. Auf einer Rampe im Labor merkt das niemand, an der Flanke eines
+ * Berges schon — dort ist fast alles zwischen 35° und 50°, und wer dort ging,
+ * kam kaum vom Fleck (die Alpen). Jetzt rutscht nur, wo man ohnehin nicht
+ * hinaufkäme.
+ */
+export const SLIDE_SLOPE_DEG = MAX_SLOPE_DEG + 3;
+
 const _head = new THREE.Vector3();
 const _drift = new THREE.Vector3();
 const _desired = new THREE.Vector3();
@@ -88,7 +101,7 @@ export class PhysicsLocomotion implements Locomotion {
     this.controller.setApplyImpulsesToDynamicBodies(true);
     this.controller.setCharacterMass(72);
     this.controller.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(MAX_SLOPE_DEG));
-    this.controller.setMinSlopeSlideAngle(THREE.MathUtils.degToRad(40));
+    this.controller.setMinSlopeSlideAngle(THREE.MathUtils.degToRad(SLIDE_SLOPE_DEG));
 
     this.body = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased());
     this.collider = world.createCollider(

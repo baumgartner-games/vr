@@ -4,6 +4,7 @@ import {
   XRControllerModelFactory,
   type XRControllerModel,
 } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
+import { CONTROLLER_HANDLE } from './controllerGrip';
 import type { Handedness } from './XRInput';
 
 /**
@@ -190,7 +191,15 @@ export interface BuiltController {
  * zu pflegen, von denen einer anders aussieht als der andere, ist genau die
  * Sorte Abweichung, die man erst bemerkt, wenn man sie nebeneinander hält.
  *
- * -Z ist vorn, wie im Griffraum, den er nachbaut.
+ * Gebaut im **Griffraum, wie das echte Modell darin liegt** (aus dem Profil
+ * des Quest Touch Plus abgelesen, siehe `core/controllerGrip.ts`): der
+ * Handgriff läuft **entlang +Z**, vom Kopf des Geräts bei -Z nach hinten
+ * heraus; auf der +Y-Seite des Kopfs sitzen Stick und Tasten, darunter (-Y)
+ * hängt der Trigger, und der Griffknopf liegt an der Innenseite des
+ * Handgriffs. Die erste Fassung stellte den Handgriff **nach unten** (-Y) und
+ * den Kopf nach vorn — ein Controller, wie man ihn sich denkt, aber nicht,
+ * wie der Griffraum ihn hält: darin lag er um gut 70° gegen das echte Gerät
+ * verdreht, und das fiel erst auf, als beide in derselben Hand standen.
  *
  * @param shell das Material des Gehäuses
  * @param part  liefert das Material eines Teils, das leuchten können soll —
@@ -205,60 +214,79 @@ export function buildControllerShape(
   const root = new THREE.Group();
   root.name = `controller-shape-${side}`;
   const mirror = side === 'left' ? -1 : 1;
+  const handleAt = CONTROLLER_HANDLE.centre;
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.105), shell);
-  root.add(body);
-
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.016, 0.1, 12), shell);
-  handle.position.set(0, -0.06, 0.032);
-  handle.rotation.x = 0.32;
+  // Der Handgriff: ein flacher Zylinder entlang z, zur Handfläche hin versetzt.
+  const length = CONTROLLER_HANDLE.to - CONTROLLER_HANDLE.from;
+  const handle = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      CONTROLLER_HANDLE.radius.y,
+      CONTROLLER_HANDLE.radius.y * 0.85,
+      length,
+      14,
+    ),
+    shell,
+  );
+  handle.scale.x = CONTROLLER_HANDLE.radius.x / CONTROLLER_HANDLE.radius.y;
+  handle.rotation.x = -Math.PI / 2;
+  handle.position.set(
+    mirror * handleAt.x,
+    handleAt.y,
+    (CONTROLLER_HANDLE.from + CONTROLLER_HANDLE.to) / 2,
+  );
   root.add(handle);
+
+  // Der Kopf am -Z-Ende: breiter als der Griff, nach innen ausladend, dort
+  // liegen Stick und Tasten obenauf.
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.036, 0.055), shell);
+  head.position.set(mirror * -0.004, -0.006, -0.025);
+  root.add(head);
 
   // The thumbstick sits on its own pivot so it can lean where yours leans.
   const stick = new THREE.Group();
-  stick.position.set(0, 0.017, -0.016);
+  stick.position.set(mirror * 0.009, 0.012, -0.032);
   root.add(stick);
   const stickTop = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.011, 0.009, 0.016, 12),
+    new THREE.CylinderGeometry(0.009, 0.007, 0.012, 12),
     part('stickTop', 0x4a5573),
   );
-  stickTop.position.y = 0.008;
+  stickTop.position.y = 0.006;
   stick.add(stickTop);
   const stickBase = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.013, 0.013, 0.004, 12),
+    new THREE.CylinderGeometry(0.011, 0.011, 0.004, 12),
     part('stick', 0x2b3243),
   );
-  stickBase.position.set(0, 0.017, -0.016);
+  stickBase.position.set(mirror * 0.009, 0.012, -0.032);
   root.add(stickBase);
 
   // A/X sits nearer the thumb, B/Y behind it — the way they are on a Quest.
-  for (const [key, z] of [
-    ['primary', 0.014],
-    ['secondary', 0.036],
+  for (const [key, x, z] of [
+    ['primary', -0.002, -0.018],
+    ['secondary', -0.013, -0.028],
   ] as const) {
     const button = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.0075, 0.0075, 0.005, 12),
+      new THREE.CylinderGeometry(0.005, 0.005, 0.004, 12),
       part(key, 0xd6dbe6),
     );
-    button.position.set(mirror * 0.012, 0.018, z);
+    button.position.set(mirror * x, 0.014, z);
     root.add(button);
   }
 
-  // The trigger swings on a pivot under the nose, so half a pull looks like
+  // The trigger swings on a pivot under the head, so half a pull looks like
   // half a pull.
   const trigger = new THREE.Group();
-  trigger.position.set(0, -0.008, -0.04);
+  trigger.position.set(mirror * -0.01, -0.02, -0.04);
   root.add(trigger);
   const paddle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.016, 0.026, 0.008),
+    new THREE.BoxGeometry(0.02, 0.006, 0.024),
     part('trigger', 0x9aa6bd),
   );
-  paddle.position.set(0, -0.012, 0.002);
+  paddle.position.set(0, -0.012, 0.012);
   trigger.add(paddle);
 
   // The grip pad on the inside of the handle, where the middle finger is.
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.036, 0.05), part('grip', 0x9aa6bd));
-  grip.position.set(mirror * -0.026, -0.04, 0.024);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.024, 0.022), part('grip', 0x9aa6bd));
+  grip.position.set(mirror * (handleAt.x - CONTROLLER_HANDLE.radius.x - 0.002), handleAt.y, 0.014);
   root.add(grip);
 
   return { root, stick, trigger };

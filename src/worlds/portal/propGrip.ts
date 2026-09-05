@@ -1,7 +1,5 @@
 import * as THREE from 'three';
-import { POLE_GRIP, POLE_HOLD_POSITION } from './tools/poleGrip';
-import { gripInHand, type GripInHand } from './tools/gripFit';
-import { IDENTITY } from './tools/aim';
+import { STANDARD_GRIP_IN_HAND, type GripInHand } from './tools/gripFit';
 
 /**
  * **Ein Griff an einem Beutel-Objekt.**
@@ -15,8 +13,12 @@ import { IDENTITY } from './tools/aim';
  *
  * Also bekommt ein Beutel-Objekt einen Griff: einen **Zylinder** in seinem
  * eigenen Raum (Mitte und Achse), und beim Zugreifen rastet der Zylinder in
- * die Faust — dieselbe Faust, die den Stiel des Hammers hält (`POLE_GRIP`,
- * `POLE_HAND_POSE`), denn ein Flaschenhals ist ein Stab.
+ * die Faust — dieselbe Faust, die den **Standardgriff** hält
+ * (`STANDARD_GRIP_IN_HAND`, `GRIP_HAND_POSE`): der Hals steht in der Faust wie
+ * ein Pistolengriff, senkrecht aus ihr heraus, und nicht wie der Stiel des
+ * Hammers quer durch sie hindurch. Eine Weile war es der Stab, und die Flasche
+ * lag damit wie die Taschenlampe in der Hand — auf den Zeigestrahl gerichtet,
+ * was bei einer Flasche nichts heißt.
  *
  * **Und ein Zylinder hat kein Oben.** Das ist der Unterschied zu einem
  * Werkzeug: die Flasche lässt sich aufrecht halten und **über Kopf**, wie
@@ -39,14 +41,11 @@ export interface GripSnap {
 }
 
 /**
- * **Die Faust um den Stab**, im Griffraum: die Stelle und die Achse, um die
- * sich die Hand am Hammerstiel schließt — Zielkorrektur inklusive, denn so
- * liegt der Hammer in der Hand, und so soll auch der Hals liegen.
+ * **Die Faust um den Griff**, im Griffraum: die Stelle und die Achse, um die
+ * sich die Hand am Standardgriff schließt — Zielkorrektur inklusive, denn so
+ * liegt eine Pistole in der Hand, und so soll auch der Hals liegen.
  */
-export const POLE_FIST: GripInHand = gripInHand(
-  { position: POLE_HOLD_POSITION, rotation: IDENTITY },
-  POLE_GRIP,
-);
+export const GRIP_FIST: GripInHand = STANDARD_GRIP_IN_HAND;
 
 const _axis = new THREE.Vector3();
 const _now = new THREE.Vector3();
@@ -59,13 +58,13 @@ const _turn = new THREE.Quaternion();
  *                bleibt so viel wie möglich: die Achse kippt auf die Faust,
  *                in die nähere der beiden Richtungen, mehr nicht.
  * @param grip    der Zylinder am Objekt
- * @param fist    die Faust, in die er soll; die um den Stab, wenn nichts
- *                anderes gesagt wird
+ * @param fist    die Faust, in die er soll; die um den Standardgriff, wenn
+ *                nichts anderes gesagt wird
  */
 export function snapToGrip(
   current: THREE.Quaternion,
   grip: PropGrip,
-  fist: GripInHand = POLE_FIST,
+  fist: GripInHand = GRIP_FIST,
 ): GripSnap {
   _axis
     .set(0, 1, 0)

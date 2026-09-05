@@ -125,9 +125,12 @@ darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
 Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
 entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
-den **Stab** (Hammer, Taschenlampe, Messer — eine Faust für drei), denselben Stab
-**von oben am Pinsel**, den **Griff der Drohne**, die **Kante der Stoppuhr** und den **Saum des Beutels**,
-an beiden Händen, und dass Handschuhe und Controller die Grundhaltung tragen; und
+den **Stab** (Hammer, Taschenlampe — eine Faust für zwei), denselben Stab
+**von oben am Pinsel**, den **Griff der Drohne**, die **Kante der Stoppuhr**, den **Saum des Beutels**,
+die **Querstange des Hängegleiters** und den **Handgriff des Controllers** (aus dem
+Modell des Herstellers abgelesen: entlang der Z-Achse des Griffraums), an beiden
+Händen; dass Messer und Sektflaschenhals in derselben Faust liegen wie die
+Pistole, und dass Handschuhe die Grundhaltung tragen; und
 die beiden Zahlen, wegen derer es diesen Test gibt: die alte gebaute Faust
 stand **90°** quer zum Zylinder, die am Stabgriff eingemessene 30°), der
 **Standardgriff**
@@ -411,8 +414,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Abpraller zu warten — nur so bleibt es _stecken_, statt abzuprallen.
     Es war einmal ein **Wurfstern**, und der hatte keinen Griff — er lag „in
     den Fingerspitzen", also nirgends, und die Boxhand sah an ihm nach nichts
-    aus. Das Messer hat einen: einen **Stab** in Greiffarbe durch die Faust,
-    die Klinge nach vorn, gehalten wie der Hammer (`tools/KnifeTool.ts`). Die
+    aus. Das Messer hat einen: den **Standardgriff**, senkrecht in der Faust
+    wie ein Pistolengriff, mit derselben Faust darum; die Klinge ragt oben aus
+    der Faust heraus, entlang der Griffachse, die Schneide nach vorn
+    (`tools/KnifeTool.ts`). Eine Weile lag es als **Stab** quer durch die Faust
+    wie die Taschenlampe, die Klinge auf dem Zeigestrahl — so hält man eine
+    Lampe, kein Messer; um 90° gekippt also. Die
     Id heißt `knife`; im Kurzcode steht es auf dem Platz des Sterns.
   - **Großer Hammer**: ein Meter Stange, vorn ein Kopf aus Eisen — und das
     erste Werkzeug, das man **irgendwo** anfassen kann. Der türkise Belag am
@@ -600,23 +607,31 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Hängegleiter**: ein Drachen, unter dem man hängt — das erste Werkzeug,
     das ein Fahrzeug ist. Vom Gürtel genommen trägt man ihn auf den Schultern;
     **Trigger** (oder `A`) ist der Anlauf, oder man läuft einfach über eine
-    Kante, und ab da trägt der Flügel. Gehalten wird der **Steuerbügel**, mit
-    einer Hand oder mit beiden (die zweite drückt neben der ersten zu und ist
-    dann beansprucht, `claimsHand`). Der Bügel ist die ganze Steuerung:
-    **ziehen** heißt Nase runter und schneller, **drücken** Nase hoch und
-    langsamer — und unter der Abrissfahrt trägt nichts mehr —, **zur Seite
-    schieben** legt den Flügel in die Kurve, und zwar auf die Seite, zu der man
-    schiebt. Ein echter Pilot schiebt den Bügel von der Kurve _weg_, weil er
-    seinen Körper verlagert und nicht den Bügel; in der Brille bewegt sich der
-    Körper nicht, und „Bügel nach links, Kurve nach links" ist das, was jeder
-    als Erstes versucht. Der Körper dreht sich mit der Bahn: wer eine Kurve
+    Kante, und ab da trägt der Flügel. Gehalten wird die **Querstange** des
+    Steuerbügels, mit einer Hand oder mit beiden (die zweite greift ans andere
+    Ende und ist dann beansprucht, `claimsHand`). Die Stange hat **zwei Griffe
+    mit fester Lage**, einen an jedem Ende, und in der Faust liegt sie quer wie
+    ein Lenker (`BAR_GRIP`, `GLIDER_HAND_POSE` — von oben gehalten, Daumen zur
+    Mitte). Sie ist die ganze Steuerung: **ziehen** heißt Nase runter und
+    schneller, **drücken** Nase hoch und langsamer — und unter der Abrissfahrt
+    trägt nichts mehr —, **kippen** legt den Flügel in die Kurve, und zwar auf
+    die Seite, die dabei nach unten geht: rechte Hand tiefer, Kurve nach
+    rechts; mit einer Hand kippt das Handgelenk (`barTilt`, `wristTilt`). Eine
+    Weile hing am Bügel der Standardgriff senkrecht unter einem Rohr, und
+    gelenkt wurde, indem man das Rohr seitlich vor dem Kopf verschob — das
+    fühlte sich an wie ein Pistolengriff, der zufällig an einem Drachen hängt.
+    Der Körper dreht sich mit der Bahn: wer eine Kurve
     fliegt, schaut hinterher dorthin, wohin er fliegt. Berührt die Kapsel
     wieder Boden, ist gelandet — mit dem Schwung, der noch da war.
     Das Segel hängt beim Fliegen **im Raum** und nicht an der Hand
-    (`GlideTool`): jedes Bild wird es an die Fäuste gestellt, der Bügel darin,
+    (`GlideTool`): jedes Bild wird es an die Fäuste gestellt, die Stange darin,
     das Segel darüber, gekippt und geneigt, wie der Flug es sagt. Ein zehn
     Meter breites Segel, das jedem Zucken des Handgelenks folgt, wäre kein
-    Gleiter, sondern ein Fächer; in der Faust bleibt nur ein Stück Bügel. Am
+    Gleiter, sondern ein Fächer; in der Faust bleibt nur ein Stück Stange mit
+    Griff. Solange man fliegt, steht dazu eine **Geisterstange** im Raum: die
+    Ruhelage des Bügels, waagerecht, `BAR_NEUTRAL` vor dem Kopf, auf der Höhe
+    der Hände — man sieht an ihr, wie weit man gezogen, gedrückt und gekippt
+    hat. Am
     Gürtel ist er ein gepacktes Bündel, wie ein echter Drachen auch. Die
     Rechnung — ein Punkt mit einem Flügel dran, Auftrieb quer zur Bahn,
     Widerstand entlang, beides mit dem Quadrat der Fahrt — steht in
@@ -651,15 +666,24 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Controller links / Controller rechts**: das echte Gerät als Werkzeug,
     eines je Hand (`tools/ControllerTool.ts`). Gezeigt wird das Modell aus dem
     Repository (siehe _Controller-Modelle_), bis es geladen ist der selbst
-    gebaute. Auch sie zielen nicht. Die Hand daran trägt die **Grundhaltung**
-    als Faust mit dem Finger am Abzug (`CONTROLLER_HAND_POSE`): so hält sie das
-    Gerät wirklich, und der Controller liegt genau im Griffraum. Der Sinn ist
+    gebaute. Auch sie zielen nicht. Die Hand daran ist die **Faust um den
+    Handgriff** des Geräts (`CONTROLLER_HAND_POSE`, gerechnet wie jede andere
+    Faust): der Handgriff liegt im Griffraum **entlang der Z-Achse** — aus dem
+    Modell des Herstellers abgelesen, `core/controllerGrip.ts` —, der Kopf mit
+    Stick und Tasten am -Z-Ende, der Trigger darunter; der Daumen liegt am
+    Kopf, der Handrücken zeigt nach außen, der Zeigefinger zum Trigger. Vorher
+    trug die Hand hier die gemessene Grundhaltung als Faust, und die stand 74°
+    quer zum Handgriff — der Controller lag „absolut falsch in der Hand". Der
+    selbst gebaute Controller ist dabei gleich mit umgebaut worden: sein
+    Handgriff zeigte nach unten statt nach hinten. Der Sinn ist
     die Frage, die alles andere
     erklärt: **wo sitzt das Gerät eigentlich in meiner Faust?** Der Griffraum,
     den die Brille meldet, ist weder der Controller noch die Hand, sondern ein
     Punkt dazwischen — und gegen ihn wird jeder Versatz gemessen. Ab Werk
     liegen sie genau darin, denn die Profile sind so gezeichnet; was man
-    einmisst, ist die Abweichung.
+    einmisst, ist die Abweichung. Auf der Werkzeugseite steht der linke
+    Controller in der linken Hand und der rechte in der rechten — das eine
+    Werkzeug, das es je Hand gibt.
   - **Duplizier-Waffe**: anzielen, Trigger — und daneben steht dasselbe noch
     einmal: Form, Farbe, Material, Größe und Masse. Der Rahmen um das Ziel
     gehört dazu, in einem Stapel verdoppelt man sonst regelmäßig die falsche
@@ -702,7 +726,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü).
     Zwei Dinge daran sind Absicht. Er **hängt**: die Öffnung bleibt oben, egal
     wie das Handgelenk steht, sonst kippte das Raster bei jeder Drehung weg
-    (`alignToAim = false` plus `hangUpright`). Und die greifende Hand gehört
+    (`alignToAim = false` plus `hangUpright`). Zwei Vorzeichen dazu, beide
+    gefunden, als „die Hand greift ihn anders herum" gemeldet wurde:
+    `hangUpright` nahm die Gierachse mit `atan2(x, z)` statt `atan2(-x, -z)`
+    und hängte den Beutel damit um 180° gedreht **hinter** die Hand, den Bauch
+    im Unterarm — auf der Werkzeugseite unsichtbar, denn dort läuft
+    `hangUpright` nie. Und aufrecht heißt nicht „im Griffraum": bei zielend
+    gehaltenem Controller steht das Aufrechte um die Zielkorrektur gegen den
+    Griff gedreht, also wird die Faust am Saum jetzt **mit** ihr gerechnet wie
+    bei allem, das zielt (`Tool.hangsUpright`, dieselbe Frage stellen
+    Werkzeugseite und Justierstände). Und die greifende Hand gehört
     ihm, solange sie über einem Fach steht (`claimsHand`) — sonst risse
     derselbe Griff die Kiste hinter dem Beutel an sich, und in einem vollen
     Labor steht immer eine Kiste dahinter.
@@ -1054,7 +1087,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   weil man sie nur durch Ausprobieren erfährt), deshalb steht man nie neben
   dem, was man sieht. Ein Strahl gegen fünfzigtausend Dreiecke wäre pro
   Versuch eine Millisekunde, also läuft der Teleporter am Strahl entlang, bis
-  er unter die Höhe fällt (`raycastTerrain`). Der Himmel wandert mit dem Kopf:
+  er unter die Höhe fällt (`raycastTerrain`). **Gehen** ging dort lange kaum,
+  aus drei Gründen, jeder für sich gemessen: Der Rand des Startplatzes war
+  bergwärts eine Wand (gut zwanzig Meter Anstieg auf zehn Meter, über 60°) —
+  er ist jetzt zum Gipfel hin breit und zum Tal hin schmal (`LAUNCH_EDGE`),
+  und der Gipfel hat ein kleines ebenes Stück (`SUMMIT_CAP`); der Test läuft
+  den Weg vom Plateau zum Kreuz ab und verlangt überall unter 51°. Die
+  **Rutschgrenze** des Charakter-Controllers lag bei 40°, die Klettergrenze bei
+  52° — dazwischen durfte man hinauf und rutschte gleichzeitig hinunter, und
+  die Flanke hat fast überall 35° bis 50°; gerutscht wird jetzt erst jenseits
+  dessen, was man hinaufkommt (`SLIDE_SLOPE_DEG` in `PhysicsLocomotion.ts`).
+  Und das hintere Ende des Stegs stand 95 cm über dem Plateau, drei Schritte
+  zu hoch für einen Schritt — davor steht jetzt ein Aufgang aus Holz, knapp
+  15° steil. Der Himmel wandert mit dem Kopf:
   wer vom Gipfel dreihundert Meter weit sieht, sähe die Kugel sonst von innen
   an ihrer Naht. Portale gibt es hier keine Flächen für — ein Berg hat keine
   Wände.
@@ -1139,7 +1184,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Wert eintippen                     | auf eine Taste zielen + Trigger, oder mit dem Finger antippen                                                                                                         | echte Tastatur oder Klick                                                                       | tippen               |
 | Lötkolben                          | Trigger setzt Punkte, andere Hand wechselt Modus                                                                                                                      | –                                                                                               | –                    |
 | Drohne                             | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate)                                                                   | –                                                                                               | –                    |
-| Hängegleiter                       | Trigger oder `A` = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; zweite Hand greift neben der ersten zu                                   | –                                                                                               | –                    |
+| Hängegleiter                       | Trigger oder `A` = Anlauf; Stange ziehen = schneller, drücken = langsamer, kippen = Kurve (eine Hand tiefer, oder das Handgelenk); zweite Hand greift ans andere Ende | –                                                                                               | –                    |
 | Flügel                             | beide Arme schlagen = Start und Schub; ausbreiten = gleiten, anlegen = Sturzflug; eine Hand tiefer = Kurve, Hände vor = Nase runter                                   | –                                                                                               | –                    |
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
@@ -1151,7 +1196,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Inspektor                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                    | –                                                                                               | –                    |
 | Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
 | Radiergummi                        | Trigger löscht                                                                                                                                                        | –                                                                                               | –                    |
-| Sektflasche (aus dem Beutel)       | greifen: sie rastet am Hals in die Faust, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                                                    | –                                                                                               | –                    |
+| Sektflasche (aus dem Beutel)       | greifen: sie rastet am Hals in die Faust wie ein Pistolengriff, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                              | –                                                                                               | –                    |
 | Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen: Greifen holt das Ding heraus                                                                             | –                                                                                               | –                    |
 | Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
 | Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
@@ -1841,9 +1886,11 @@ zeigt es dorthin, wohin die Faust zeigt, und das steht quer zum Zeigestrahl:
 die Taschenlampe leuchtete **30° über das hinweg, worauf man zeigte**. Das war
 die einzige Ausnahme von der Regel, dass jedes Werkzeug entlang des Strahls
 zielt, und niemand hatte sie beschlossen — sie fiel bei einer Messung an und
-blieb liegen. Lampe, Lötkolben und Hängegleiter tragen jetzt denselben Griff
-quer unter sich, wie eine Lampe mit Griff oder eine Lötpistole, und zielen
-wieder dorthin, wohin man zeigt.
+blieb liegen. Lampe, Lötkolben und Hängegleiter trugen danach denselben Griff
+quer unter sich, wie eine Lampe mit Griff oder eine Lötpistole, und zielten
+wieder dorthin, wohin man zeigt — die Lampe liegt inzwischen wieder als Stab in
+der Faust (dazu unten), der Hängegleiter an seiner Querstange, und der
+Lötkolben ist geblieben.
 
 **Warum sich die Zielkorrektur dabei herauskürzt** — und warum das die ganze
 Sache erst möglich macht: Ein gehaltenes Werkzeug liegt bei `(holdPosition,
@@ -1894,9 +1941,9 @@ an gar nichts. Jetzt tragen sie alle den Standardgriff:
 
 | Griff             | Werkzeuge                                                                                                                                                                         |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| der Standardgriff | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Lötkolben, Hängegleiter |
+| der Standardgriff | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Lötkolben, Messer       |
 
-Fünfzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
+Sechzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
 dazu ist `STANDARD_GRIP_TOOLS` in `core/handPose.ts`, und `gripMount.test.ts`
 baut sie alle und legt das Maßband an.
 
@@ -1920,9 +1967,11 @@ eine eigene dazu. `fistOnGrip` nimmt dafür den Zylinder als zweites Argument
 Griffs im Werkzeug), und die beiden Zylinder stehen dort, wo sie hingehören:
 der **Stab** als `POLE_GRIP` in `poleGrip.ts` (die z-Achse durch den
 Griffpunkt, die Daumenseite zur Spitze, die Handfläche innen — so hält man
-einen Hammer), und ihn tragen **drei**: der Stiel des Hammers, das
-Batterierohr der Taschenlampe und der Griff des Messers, alle mit derselben
-`holdPosition` (`POLE_HOLD_POSITION`) und derselben Faust (`POLE_HAND_POSE`).
+einen Hammer), und ihn tragen **zwei**: der Stiel des Hammers und das
+Batterierohr der Taschenlampe, beide mit derselben
+`holdPosition` (`POLE_HOLD_POSITION`) und derselben Faust (`POLE_HAND_POSE`);
+das Messer lag eine Weile auch darauf und steht jetzt mit dem Standardgriff in
+der Faust.
 Der **Stiel des Pinsels** liegt auf demselben Stab mit derselben
 `holdPosition`, aber als `BRUSH_GRIP` in `BrushTool.ts` **von oben** gehalten,
 wie ein Maler: Handrücken oben, Finger über dem Stiel, Daumen zur Spitze
@@ -1940,8 +1989,17 @@ an einen Türgriff — so hält niemand eine Uhr, und ein Foto eines Zeitnehmers
 hat beides entschieden. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
 gehalten wie eine **offene Kappe**: die Hand waagerecht unter dem Saum,
 Handfläche nach oben, Finger vorn hinein, Daumen außen am Saum (senkrecht wie
-an einem Eimer sah es nach einem Eimer aus) — als einziger ohne Zielkorrektur gerechnet
-(`gripInHand` nimmt dafür die Ruhe), denn der Beutel zielt nicht. Die Rahmen
+an einem Eimer sah es nach einem Eimer aus) — **mit** Zielkorrektur gerechnet,
+obwohl der Beutel nicht zielt: er hängt aufrecht, und bei zielend gehaltenem
+Controller ist das Aufrechte der Strahlraum (`Tool.hangsUpright`; ohne sie
+gerechnet stand die Hand in der Brille 30° gekippt am Saum). Die **Querstange
+des Hängegleiters** als `BAR_GRIP` in `HangGliderTool.ts`: quer (x) durch den
+Griffpunkt, von oben gehalten wie ein Lenker, Handrücken oben, Daumen zur Mitte
+der Stange (`GLIDER_HAND_POSE`). Und der **Handgriff des Controllers** als
+`CONTROLLER_GRIP` in `core/controllerGrip.ts`, ohne Zielkorrektur, denn das
+Gerät liegt im Griffraum selbst: entlang z, Daumen zum Kopf, Handrücken außen,
+der Zeigefinger gestreckt zum Trigger — mit dem Trigger krümmt er sich darauf
+(`CONTROLLER_HAND_POSE`). Die Rahmen
 dieser Zylinder schreibt man nicht als Winkel hin, sondern als zwei
 Richtungen — wohin die Achse zeigt, wohin der Handrücken —, `gripFrame`
 macht die Drehung daraus. Alle diese Fäuste sind ganz geschlossen, denn dort
@@ -1952,16 +2010,17 @@ wie ein Brett auf dem Stiel.
 
 In `TOOL_FISTS` steht auch, was **auf der Hand sitzt statt in ihr**: die drei
 **Handschuhe** tragen die Grundhaltung mit offenen Fingern (`WORN_HAND_POSE`)
-und folgen ihr (`Tool.worn`), die beiden **Controller** dieselbe Grundhaltung
-als Faust (`CONTROLLER_HAND_POSE`) — die Hand hält das Gerät, und das Gerät
-liegt im Griffraum. Die **Boxhand** trägt die Grundhaltung selbst:
+und folgen ihr (`Tool.worn`). Die beiden **Controller** trugen lange dieselbe
+Grundhaltung als Faust; die stand aber 74° quer zum Handgriff, und seit sie um
+ihn gerechnet ist (oben), sieht man das Gerät auch in der Faust liegen. Die
+**Boxhand** trägt die Grundhaltung selbst:
 `holdHandPose` gibt für ihre Id die Grundhaltung heraus, gespeichert oder
 gebaut, damit auf der Werkzeugseite nicht zwei Hände übereinanderstehen. Ohne
 jede Faust bleiben die **Flügel** — sie sitzen an den Armen. Was nicht zielt
 (`alignToAim = false`), hat keinen Standardgriff: der ist im Strahlraum
 eingemessen. Dass die Liste zu dem passt, was
 die Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie und
-legt das Maßband an — inzwischen einundzwanzig Stück. Es prüft dort gleich das
+legt das Maßband an — inzwischen zweiundzwanzig Stück. Es prüft dort gleich das
 Zweite mit: dass **jedes** Werkzeug mit Griff entlang des Zeigestrahls zielt.
 Eine Neigung darf sein (der Inspektor kippt sein Display um 23° zum Kopf), ein
 halbes Rechteck ist keine Neigung mehr, sondern eine andere Richtung — genau
@@ -2298,10 +2357,12 @@ es lag. Für einen Würfel ist das richtig, für eine Flasche nicht — die fass
 man am **Hals**. Also kann ein Beutel-Objekt einen **Griff** tragen
 (`worlds/portal/propGrip.ts`, `PROP_GRIPS` in `props.ts`): einen Zylinder in
 seinem eigenen Raum, und beim Zugreifen rastet der in die Faust — in dieselbe,
-die den Hammerstiel hält (`POLE_FIST`, `POLE_HAND_POSE`; die Hand trägt die
-Haltung unter der Sorte als Id, und `gripFist.test.ts` prüft, dass der Hals
-darin liegt). **Und ein Zylinder hat kein Oben**: die Flasche lässt sich
-aufrecht halten und **über Kopf**, am Hals gepackt wie eine Waffe. Welche Lage
+die den **Standardgriff** hält (`GRIP_FIST`, `GRIP_HAND_POSE`; die Hand trägt
+die Haltung unter der Sorte als Id, und `gripFist.test.ts` prüft, dass der
+Hals darin liegt). Der Hals steht damit senkrecht in der Faust wie ein
+Pistolengriff; eine Weile war es die Faust am Hammerstiel, und die Flasche lag
+quer in der Hand wie eine Taschenlampe. **Und ein Zylinder hat kein Oben**: die
+Flasche lässt sich aufrecht halten und **über Kopf**, am Hals gepackt. Welche Lage
 gilt, entscheidet die Hand beim Zugreifen — `snapToGrip` kippt die Achse in die
 nähere der beiden Richtungen und dreht sonst nichts, auch nicht um die Achse
 (mit Test). Das ist der Unterschied zu einem Werkzeug: das kommt beim ersten
@@ -2354,7 +2415,19 @@ einem Würfel wie an einer Kiste.
 Neben dem Spiel steht eine zweite Seite: **`tools.html`**, und sie ist kein
 Spiel. Kein WebXR, keine Physik, keine Welt — eine Liste aller Werkzeuge, und
 wer eines antippt, dreht es mit dem Finger und schaltet die Boxhand daran ein
-und aus. Wozu, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
+und aus. Von selbst dreht es sich **nicht** mehr: es drehte sich eine Weile,
+und das nahm ihm das Einzige, was man an ihm wissen will — wo vorne ist. Dafür
+steht eine **Zielscheibe** davor, auf dem **Zeigestrahl der Hand** (nicht des
+Werkzeugs): das Bild aus der Brille, wenn man den Controller auf etwas richtet
+— die Hand zeigt auf die Scheibe, und das Werkzeug liegt dabei so in ihr, wie
+es eben liegt. Bei allem, was zielt, läuft die Fingerlinie auf die Scheibe zu;
+beim Hammer, dem Beutel oder dem Controller sieht man, dass sie es nicht tut,
+und genau das ist die Auskunft, wie die Hand das Ding hält. Abstand und Größe
+der Scheibe hängen an der Größe des Werkzeugs, und sie zählt beim Einpassen
+mit — das Werkzeug wird dadurch kleiner, dafür gibt es das Zoomen
+(`placeTarget` in `tools/viewer.ts`; der Strahl liegt im Griffraum 30° unter
+dessen -Z, `GRIP_TO_RAY`, und in der Ansicht _Am Werkzeug_ bei
+`Lage-im-Griff⁻¹`). Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
 Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
 eine Frage, die man im Vorbeigehen stellt.
 
@@ -2522,11 +2595,15 @@ beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust sitzt,
 in der Hand, wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
 im Eingaberaum (`tune/handGrip.ts`) und mit derselben Zielkorrektur: die kommt
 sonst aus einem Controller, im Browser gibt es keinen, also steht sie als Zahl
-da (`GRIP_TO_RAY`) — und zwar **nur für Werkzeuge, die zielen**. Was in der
-Faust sitzt (`alignToAim = false`: Controller, Boxhand, Beutel, Flügel,
+da (`GRIP_TO_RAY`) — und zwar **nur für Werkzeuge, die zielen**, und für den
+Beutel, der aufrecht im Raum hängt (`Tool.hangsUpright`). Was in der
+Faust sitzt (`alignToAim = false`: Controller, Boxhand, Flügel,
 Handschuhe), bekommt die Ruhe (`viewer.aimOf`), wie im Spiel. Eine Weile bekam
 es auf der Seite die 30° trotzdem, und die Controller saßen dort sichtbar
-schief in der Hand, während sie in der Brille richtig lagen.
+schief in der Hand, während sie in der Brille richtig lagen; und noch eine
+Weile rechnete der Regler der Seite (`toolInGripNow` in `tools/main.ts`) mit
+`GRIP_TO_RAY` für alle, während der Betrachter die Ruhe zeichnete — er fragt
+jetzt denselben `viewer.aimOf`.
 
 An der Hand hängt außerdem eine **Linie am Zeigefinger**, in der Farbe des
 Beutels und nicht in der der Hand. Man sieht einer Faust nicht an, wohin sie

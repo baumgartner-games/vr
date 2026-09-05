@@ -834,7 +834,7 @@ export class TuneWorld extends PortalWorld {
    */
   private gripLocal(copy: Tool, side: Handedness): Pose {
     const tool = this.tool(copy.toolId) ?? copy;
-    aimQuaternion(tool.alignToAim ? (this.context?.input.get(side) ?? null) : null, _aim);
+    aimQuaternion(aimsOrHangs(tool) ? (this.context?.input.get(side) ?? null) : null, _aim);
     return toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, _aim);
   }
 
@@ -1907,7 +1907,7 @@ export class TuneWorld extends PortalWorld {
     anchor.matrixWorld.decompose(_position, _rotation, _scale);
     tool.updateWorldMatrix(true, false);
     tool.matrixWorld.decompose(_toolPosition, _toolRotation, _scale);
-    aimQuaternion(tool.alignToAim ? controller : null, _aim);
+    aimQuaternion(aimsOrHangs(tool) ? controller : null, _aim);
 
     this.applyHold(
       tool,
@@ -2020,7 +2020,7 @@ export class TuneWorld extends PortalWorld {
 
     const { tool } = mounted;
     const owner = ctx.input.get(mounted.hand);
-    aimQuaternion(tool.alignToAim ? owner : null, _aim);
+    aimQuaternion(aimsOrHangs(tool) ? owner : null, _aim);
     tool.updateWorldMatrix(true, false);
     tool.matrixWorld.decompose(_toolPosition, _toolRotation, _scale);
     const hold: HoldPose = { position: tool.holdPosition, rotation: tool.holdRotation };
@@ -2319,6 +2319,17 @@ function readoutOfHand(pose: HandPose): PoseReadout {
 }
 
 /** Eine Handhaltung als Pose: Zentimeter werden Meter, Grad werden Bogenmaß. */
+/**
+ * Ob für dieses Werkzeug die **Zielkorrektur** gilt: für alles, was zielt —
+ * und für den Beutel, der aufrecht im Raum hängt und damit bei zielend
+ * gehaltenem Controller genauso gegen den Griff gedreht steht wie eine Waffe
+ * (`Tool.hangsUpright`). Nur was wirklich in der Faust sitzt, bekommt die
+ * Ruhe. Dieselbe Frage stellt die Werkzeugseite (`viewer.aimOf`).
+ */
+function aimsOrHangs(tool: Tool): boolean {
+  return tool.alignToAim || tool.hangsUpright;
+}
+
 function handLabel(hand: Handedness): string {
   return hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
 }

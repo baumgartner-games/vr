@@ -25,6 +25,7 @@ import { HammerTool } from './HammerTool';
 import { HangGliderTool } from './HangGliderTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
+import { KnifeTool } from './KnifeTool';
 import { PistolTool } from './PistolTool';
 import { createPortalGunTool } from './PortalGunTool';
 import { StopwatchTool } from './StopwatchTool';
@@ -78,6 +79,7 @@ const BUILDERS: Record<string, () => Tool> = {
   tape: () => new TapeTool(),
   eraser: () => new EraserTool(),
   xray: () => new XrayTool(),
+  knife: () => new KnifeTool(),
   stopwatch: () => new StopwatchTool(),
   flashlight: () => new FlashlightTool(),
   welder: () => new WelderTool(),
@@ -114,15 +116,18 @@ describe('Der Griff sitzt, wo die Liste ihn hinschreibt', () => {
     }
   });
 
-  it('lässt Hammer und Drohne bei ihrer eigenen Faust', () => {
-    // Beide werden nicht wie eine Pistole gehalten: der Hammer hat einen Stiel,
-    // an dem jede Stelle ein Griff ist, die Drohne zwei Griffe an einem Deck.
+  it('lässt Hammer, Drohne und Hängegleiter bei ihrer eigenen Faust', () => {
+    // Keiner von ihnen wird wie eine Pistole gehalten: der Hammer hat einen
+    // Stiel, an dem jede Stelle ein Griff ist, die Drohne zwei Griffe an einem
+    // Deck, der Hängegleiter eine Querstange, die man wie einen Lenker hält.
     // Sie tragen die Griff-*Form*, aber nicht den Standardgriff — und deshalb
     // steht keiner von ihnen in der Liste.
     expect(new HammerTool().gripPart).toBeNull();
     expect(new DroneTool().gripPart).toBeNull();
+    expect(new HangGliderTool().gripPart).toBeNull();
     expect(STANDARD_GRIP_TOOLS.has('hammer')).toBe(false);
     expect(STANDARD_GRIP_TOOLS.has('drone')).toBe(false);
+    expect(STANDARD_GRIP_TOOLS.has('hang-glider')).toBe(false);
   });
 
   it('lässt jedes Werkzeug mit Griff entlang des Zeigestrahls zielen', () => {

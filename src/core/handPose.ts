@@ -177,10 +177,11 @@ export const GRIP_HAND_POSE: HandPose = {
  * `POLE_GRIP`). Ein Stab hat kein Vorne, also zeigt hier kein Finger etwas an:
  * **alle** Finger sind in der Faust, und die Faust steht ungeschwenkt — die
  * Daumenseite zur Spitze, die Handfläche innen am Stab, wie man einen Hammer
- * hält. Drei Werkzeuge werden so gehalten, und deshalb ist es **eine** Faust:
- * der Stiel des **Hammers**, das Batterierohr der **Taschenlampe** und der
- * Griff des **Messers** (der Pinsel liegt auf demselben Stab, aber von oben
- * gehalten — `BRUSH_HAND_POSE`). Vorher stand am Hammer die
+ * hält. Zwei Werkzeuge werden so gehalten, und deshalb ist es **eine** Faust:
+ * der Stiel des **Hammers** und das Batterierohr der **Taschenlampe** (der
+ * Pinsel liegt auf demselben Stab, aber von oben gehalten —
+ * `BRUSH_HAND_POSE`; das Messer lag eine Weile auch hier und steht jetzt mit
+ * dem Standardgriff in der Faust). Vorher stand am Hammer die
  * allgemeine Faust, und die lag **quer** zum Stiel: die Handfläche stand wie ein
  * Brett auf der Stange, die Finger schlossen sich neben ihr um Luft.
  */
@@ -251,18 +252,44 @@ export const STOPWATCH_HAND_POSE: HandPose = {
  * Griffpunkt, und die Hand liegt waagerecht darunter — Handfläche nach oben,
  * die Finger greifen vorn über den Saum hinein, der Daumen liegt außen am Saum
  * entlang (`MagicBagTool.ts`, `BAG_GRIP`). Die erste Fassung hatte die Hand
- * senkrecht wie an einem Eimer; um 90° gekippt ist es eine Kappe. Ohne
- * Zielkorrektur gerechnet, denn der Beutel zielt nicht: er hängt in der Faust,
- * die Öffnung nach oben, komme, was wolle.
+ * senkrecht wie an einem Eimer; um 90° gekippt ist es eine Kappe. **Mit**
+ * Zielkorrektur gerechnet, obwohl der Beutel nicht zielt: er hängt aufrecht
+ * im Raum, und bei zielend gehaltenem Controller ist das Aufrechte der
+ * Strahlraum (`Tool.hangsUpright`). Ohne sie gerechnet stand die Hand in der
+ * Brille um 30° nach oben gekippt am Saum, die Finger aus der Öffnung heraus.
  */
 export const BAG_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
   x: 0,
-  y: -4.6,
-  z: 5,
-  pitch: 0,
+  y: -2.8,
+  z: 5.9,
+  pitch: -30,
   yaw: 0,
   roll: -180,
+  curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+};
+
+/**
+ * **Die Faust an der Querstange des Hängegleiters** — rechte Hand, links
+ * gespiegelt.
+ *
+ * Der Steuerbügel ist eine waagerechte Stange, und man hält sie wie einen
+ * Lenker: von oben, Handrücken oben, der Daumen zur Mitte hin, die Finger
+ * vorn herum (`HangGliderTool.ts`, `BAR_GRIP` — die Achse quer, x). Beide
+ * Hände an der Stange sind zwei solche Fäuste an den beiden Enden, und die
+ * Stange liegt zwischen ihnen fest — sie kippt nur mit, wenn die Hände es tun,
+ * und genau das ist die Steuerung. Vorher hing am Bügel der Standardgriff
+ * quer unter dem Rohr, wie an einer Lötpistole; eine Stange, an der ein
+ * Pistolengriff hängt, ist keine Stange, die man hält.
+ */
+export const GLIDER_HAND_POSE: HandPose = {
+  ...HOLD_HAND_POSE,
+  x: 0,
+  y: 3.8,
+  z: 1.2,
+  pitch: -30,
+  yaw: 0,
+  roll: 0,
   curls: [0.55, 0.85, 0.85, 0.9, 0.9],
 };
 
@@ -279,13 +306,31 @@ export const WORN_HAND_POSE: HandPose = {
 };
 
 /**
- * Und die Hand am **Controller**: dieselbe Grundhaltung, aber als Faust mit dem
- * Zeigefinger am Abzug — das ist die Hand, die das Gerät wirklich hält, und der
- * Controller (`ControllerTool.ts`) liegt dazu genau im Griffraum.
+ * **Die Faust am Controller** — rechte Hand, links gespiegelt.
+ *
+ * Der Controller (`ControllerTool.ts`) liegt genau im Griffraum, und sein
+ * Handgriff ist darin ein Zylinder entlang der Z-Achse (`core/controllerGrip.ts`,
+ * aus dem Modell des Herstellers abgelesen): der Kopf mit Stick und Tasten am
+ * -Z-Ende, der Trigger darunter. Die Faust darum ist gerechnet wie die am
+ * Standardgriff — der Daumen zum Kopf, der Handrücken nach außen, der
+ * Zeigefinger gestreckt zum Trigger hinunter, und mit dem Trigger krümmt er
+ * sich darauf (`GRIP_FINGER_MOVES`).
+ *
+ * Vorher trug die Hand hier die **gemessene Grundhaltung** mit den Fingern der
+ * Faust. Die Grundhaltung ist eine Messung der leeren Hand, und ob ihre Faust
+ * den Handgriff trifft, hatte nie jemand nachgesehen: sie stand 74° quer dazu,
+ * und mit dem Controller als Werkzeug in der Hand sah man das Gerät schräg
+ * neben der Faust liegen — „absolut falsch in der Hand".
  */
 export const CONTROLLER_HAND_POSE: HandPose = {
-  ...IDLE_HAND_POSE_RIGHT,
-  curls: [...HOLD_HAND_POSE.curls],
+  ...HOLD_HAND_POSE,
+  x: 2.7,
+  y: 3.7,
+  z: 1.5,
+  pitch: -90,
+  yaw: -17,
+  roll: -90,
+  curls: [...GRIP_HAND_POSE.curls],
 };
 
 /**
@@ -327,19 +372,21 @@ export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
   hammer: POLE_HAND_POSE,
   flashlight: POLE_HAND_POSE,
   brush: BRUSH_HAND_POSE,
-  knife: POLE_HAND_POSE,
   drone: DRONE_HAND_POSE,
   stopwatch: STOPWATCH_HAND_POSE,
   bag: BAG_HAND_POSE,
+  'hang-glider': GLIDER_HAND_POSE,
   'gravity-glove': WORN_HAND_POSE,
   'translate-glove': WORN_HAND_POSE,
   'superman-glove': WORN_HAND_POSE,
   'controller-left': CONTROLLER_HAND_POSE,
   'controller-right': CONTROLLER_HAND_POSE,
   // Kein Werkzeug, ein Ding aus dem Beutel — aber eines mit Griff: der Hals
-  // der Sektflasche rastet in die Faust um den Stab (`propGrip.ts`), und
-  // die Hand trägt sie unter der Sorte als Id.
-  champagne: POLE_HAND_POSE,
+  // der Sektflasche rastet in die Faust um den Standardgriff (`propGrip.ts`),
+  // und die Hand trägt sie unter der Sorte als Id. Dieselbe Faust wie an der
+  // Pistole; nur steht sie hier nicht in `STANDARD_GRIP_TOOLS`, weil eine
+  // Flasche kein Werkzeug ist, das jemand baut.
+  champagne: GRIP_HAND_POSE,
 };
 
 /**
@@ -369,13 +416,15 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   'tape',
   'eraser',
   'xray',
-  // Lötkolben und Hängegleiter tragen den Griff quer unter sich, wie eine
-  // Lötpistole. Die Taschenlampe tat das eine Weile auch — „eine Lampe mit
-  // Griff wie ein Megaphon" — und liegt jetzt wieder als **Stab** in der Faust,
-  // am Batterierohr (`TOOL_FISTS`), genauso der Pinsel an seinem Stiel und die
-  // Stoppuhr an ihrem Rand.
+  // Der Lötkolben trägt den Griff quer unter sich, wie eine Lötpistole. Die
+  // Taschenlampe tat das eine Weile auch — „eine Lampe mit Griff wie ein
+  // Megaphon" — und liegt jetzt wieder als **Stab** in der Faust, am
+  // Batterierohr (`TOOL_FISTS`), genauso der Pinsel an seinem Stiel und die
+  // Stoppuhr an ihrem Rand. Der Hängegleiter hing auch hier und wird jetzt an
+  // seiner **Querstange** gehalten (`GLIDER_HAND_POSE`).
   'welder',
-  'hang-glider',
+  // Das Messer: der Griff steht in der Faust, die Klinge ragt oben heraus.
+  'knife',
 ]);
 
 /**
@@ -467,7 +516,12 @@ export const GRIP_FINGER_MOVES: FingerMoves = {
   trigger: [null, 0.6, null, null, null],
 };
 
-/** Am **Stab** liegt der Zeigefinger schon in der Faust; der Trigger schließt ihn ganz. */
+/**
+ * Am **Stab** liegt der Zeigefinger schon in der Faust; der Trigger schließt
+ * ihn ganz. Dasselbe an der **Querstange** des Hängegleiters — dort bleibt die
+ * Hand allerdings am Bügel, ob der Griffknopf gedrückt ist oder nicht
+ * (`STICKY_FINGER_MOVES`).
+ */
 export const POLE_FINGER_MOVES: FingerMoves = {
   grab: KEEP,
   release: RELEASED_CURLS,
@@ -522,8 +576,6 @@ export const STICKY_FINGER_MOVES: FingerMoves = {
 export const TOOL_FINGER_MOVES: Readonly<Record<string, FingerMoves>> = {
   hammer: POLE_FINGER_MOVES,
   flashlight: POLE_FINGER_MOVES,
-  knife: POLE_FINGER_MOVES,
-  champagne: POLE_FINGER_MOVES,
   brush: BRUSH_FINGER_MOVES,
   stopwatch: STOPWATCH_FINGER_MOVES,
   'gravity-glove': WORN_FINGER_MOVES,

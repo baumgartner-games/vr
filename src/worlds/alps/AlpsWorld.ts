@@ -31,6 +31,16 @@ const HUT = { x: 62, z: 262, yaw: -0.6 };
 /** Wie viele Bäume in den Wald kommen. */
 const TREE_COUNT = 900;
 
+/**
+ * Der Steg der Startrampe: Mitte bei z = 9 (im Raum des Startplatzes), 12 m
+ * lang, 18 cm dick, um 0,14 rad zum Tal hin geneigt. Sein hinteres Ende liegt
+ * damit bei z = 3, und dessen Oberkante steht gut 95 cm über dem Plateau —
+ * genau die Zahl, die der Aufgang überbrücken muss.
+ */
+const DECK_TILT = 0.14;
+const DECK_REAR = 9 - 6 * Math.cos(DECK_TILT);
+const DECK_REAR_TOP = 0.02 + 6 * Math.sin(DECK_TILT) + 0.09 * Math.cos(DECK_TILT);
+
 const _color = new THREE.Color();
 const _matrix = new THREE.Matrix4();
 const _point = new THREE.Vector3();
@@ -390,12 +400,28 @@ export class AlpsWorld extends PortalWorld {
 
     const deck = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.18, 12), this.wood);
     deck.position.set(0, 0.02, 9);
-    deck.rotation.x = 0.14;
+    deck.rotation.x = DECK_TILT;
     deck.name = 'launch-deck';
     site.add(deck);
     deck.updateWorldMatrix(true, false);
     this.solids.push(deck);
     this.physics!.addStatic(deck, { friction: 0.9 });
+
+    // Der Aufgang: Der Steg fällt zum Tal hin ab, und sein hinteres Ende
+    // steht deshalb fast einen Meter über dem Plateau — höher, als ein Schritt
+    // reicht (`enableAutostep`, 32 cm). Wer vom Startplatz auf den Steg wollte,
+    // musste springen. Also eine Rampe davor: vom Boden bis auf das Ende des
+    // Stegs, knapp 15° steil, aus demselben Holz.
+    const rise = DECK_REAR_TOP;
+    const run = 3.6;
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.16, Math.hypot(run, rise)), this.wood);
+    ramp.position.set(0, rise / 2 - 0.02, DECK_REAR - run / 2);
+    ramp.rotation.x = -Math.atan2(rise, run);
+    ramp.name = 'launch-ramp';
+    site.add(ramp);
+    ramp.updateWorldMatrix(true, false);
+    this.solids.push(ramp);
+    this.physics!.addStatic(ramp, { friction: 0.9 });
 
     // Geländer an beiden Seiten — nicht zum Festhalten, zum Sehen, wo der
     // Steg ist. Vorne offen: da geht es los.
@@ -432,7 +458,7 @@ export class AlpsWorld extends PortalWorld {
       width: 2.6,
       height: 0.95,
       title: 'Startrampe',
-      body: 'Hängegleiter von der linken Hüfte, dann Trigger: Anlauf über die Kante. Bügel ziehen = schneller, drücken = langsamer, schieben = Kurve. Flügel: beide Arme schlagen.',
+      body: 'Hängegleiter von der linken Hüfte, dann Trigger: Anlauf über die Kante. Stange ziehen = schneller, drücken = langsamer, kippen = Kurve. Flügel: beide Arme schlagen.',
       accent: 0xff8a2f,
     });
     sign.position.set(-3.2, 1.7, 1.5);

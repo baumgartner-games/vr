@@ -84,6 +84,23 @@ describe('alpsHeight', () => {
     expect(alpsHeight(LAUNCH_SITE.x, LAUNCH_SITE.z + 80)).toBeLessThan(LAUNCH_HEIGHT - 30);
   });
 
+  it('kommt vom Startplatz aus zu Fuß auf den Berg — bergwärts ist der Rand keine Wand', () => {
+    // Vom Plateau zum Gipfel, Schritt für Schritt: nirgends steiler, als man
+    // hinaufkommt (`MAX_SLOPE_DEG`, 52°) — die Flanke selbst hat gut 48°, und
+    // die bleibt, wie sie ist. Mit dem alten schmalen Rand stand am Plateau
+    // eine Stufe von über 60°, und der letzte Anstieg zum Kreuz lag bei 52°.
+    const steps = 60;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = LAUNCH_SITE.x + (SUMMIT.x - LAUNCH_SITE.x) * t;
+      const z = LAUNCH_SITE.z + (SUMMIT.z - LAUNCH_SITE.z) * t;
+      const degrees = (Math.atan(alpsSlope(x, z, 1)) * 180) / Math.PI;
+      expect(degrees).toBeLessThan(51);
+    }
+    // Zum Tal hin bleibt die Kante eine Kante: kurz hinter dem Rand fällt es ab.
+    expect(alpsHeight(LAUNCH_SITE.x, LAUNCH_SITE.z + 18)).toBeLessThan(LAUNCH_HEIGHT - 4);
+  });
+
   it('ist bei jedem Aufruf dasselbe Gelände', () => {
     expect(alpsHeight(123.4, -56.7)).toBe(alpsHeight(123.4, -56.7));
     expect(alpsHeight(-320, 210)).toBe(alpsHeight(-320, 210));

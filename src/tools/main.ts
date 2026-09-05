@@ -48,11 +48,10 @@ import {
   type EditAxis,
   type EditTarget,
 } from './poseEdit';
-import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
 import { conjugate } from '../worlds/portal/tools/aim';
 import { alignHandToLine, handAboutPivot, turnHandTo } from './alignHand';
 import { ToolViewer, type HandMode } from './viewer';
-import type { Vec3 } from '../worlds/portal/tools/aim';
+import type { Quat, Vec3 } from '../worlds/portal/tools/aim';
 import type { PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { WorldDefinition } from '../core/types';
 
@@ -894,7 +893,9 @@ function sixOf(pose: HandPose): PoseReadout {
 const ZERO: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
 
 /** Die Zielkorrektur zurück: aus dem Strahl- in den Griffraum. */
-const RAY_TO_GRIP = conjugate(GRIP_TO_RAY, { x: 0, y: 0, z: 0, w: 1 });
+function rayToGrip(): Quat {
+  return conjugate(viewer.aimOf(), { x: 0, y: 0, z: 0, w: 1 });
+}
 
 /**
  * Die Lage des **Werkzeugs im Griff**, als Pose — die eine Hälfte der Kette.
@@ -903,9 +904,14 @@ const RAY_TO_GRIP = conjugate(GRIP_TO_RAY, { x: 0, y: 0, z: 0, w: 1 });
  * aus einem Controller, und im Browser gibt es keinen, also steht sie als Zahl
  * da (`GRIP_TO_RAY`). Ohne sie zöge der Regler an einer Hand, die 30° neben der
  * gezeichneten steht — und speicherte diese 30° als Handhaltung ab.
+ *
+ * Und zwar **dieselbe** Zielkorrektur, mit der der Betrachter zeichnet
+ * (`viewer.aimOf`): für Controller, Boxhand und Handschuhe ist das die Ruhe.
+ * Eine Weile stand hier `GRIP_TO_RAY` für alle, und der Regler rechnete an
+ * den Controllern mit einer Hand, die 30° neben der gezeichneten stand.
  */
 function toolInGripNow(): Pose {
-  return toolInGrip(poseFromReadout(viewer.holdReadout() ?? ZERO), GRIP_TO_RAY);
+  return toolInGrip(poseFromReadout(viewer.holdReadout() ?? ZERO), viewer.aimOf());
 }
 
 /** Und die andere: die Haltung der Hand im Griff, als Pose. */
@@ -1045,7 +1051,7 @@ function writePose(next: PoseReadout, syncSlider = true): void {
     // wandert trotzdem die Hand: das Werkzeug steht in seinem eigenen Raum.
     // Und die Zielkorrektur wieder heraus: `holdRotation` ist die Neigung
     // **gegen den Zeigestrahl**, nicht die Lage im Griffraum.
-    const local = toolInGrip(composePose(handInGripNow(), invertPose(ghost)), RAY_TO_GRIP);
+    const local = toolInGrip(composePose(handInGripNow(), invertPose(ghost)), rayToGrip());
     if (id === HAND_TOOL) {
       // Die Boxhand ist die Hand selbst; ihre Lage im Griff *ist* die
       // Grundhaltung dieser Hand (siehe oben).

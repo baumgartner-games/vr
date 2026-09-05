@@ -191,25 +191,41 @@ export function yawDelta(from: number, to: number): number {
 export const BAR_NEUTRAL = 0.42;
 /** So viel Weg am Bügel ist voller Ausschlag, nach vorn wie nach hinten. */
 export const BAR_TRAVEL = 0.16;
-/** So weit zur Seite geschoben ist volle Schräglage. */
-export const BAR_SIDE = 0.2;
+/** So schief gehalten, in Grad, ist der Bügel in voller Schräglage. */
+export const BAR_TILT = 30;
 
 /**
  * Der Steuerbügel des Hängegleiters: **ziehen** heißt Nase runter und
- * schneller, **drücken** heißt Nase hoch und langsamer, **zur Seite schieben**
- * legt den Flügel — und zwar auf die Seite, zu der man schiebt. Ein echter
- * Pilot schiebt den Bügel von der Kurve *weg* (er verlagert ja seinen Körper,
- * nicht den Bügel); in der Brille bewegt sich der Körper nicht, und „Bügel
- * nach links, Kurve nach links" ist das, was jeder als Erstes versucht.
+ * schneller, **drücken** heißt Nase hoch und langsamer, **kippen** legt den
+ * Flügel — und zwar auf die Seite, die dabei nach unten geht. Die Querstange
+ * hat eine feste Lage in den Fäusten; wer die rechte Hand tiefer hält als die
+ * linke, kippt sie nach rechts, und der Flügel legt sich mit. Mit einer Hand
+ * ist es das Handgelenk, das kippt.
+ *
+ * Eine Weile war es das seitliche **Schieben** des Bügels vor dem Kopf. Das
+ * fühlte sich nach nichts an: eine Stange, die man vor sich hin und her
+ * schiebt, ist keine Stange, die man hält. Das Kippen ist dieselbe Bewegung,
+ * mit der man auch ein Lenkrad oder einen Lenker dreht.
  *
  * @param ahead wie weit der Bügel vor dem Kopf liegt, in Metern
- * @param side wie weit rechts vom Kopf, in Metern
+ * @param tilt wie schief er liegt, in Grad — positiv, wenn die rechte Seite
+ *             tiefer ist
  */
-export function barCommand(ahead: number, side: number): { pitchUp: number; roll: number } {
+export function barCommand(ahead: number, tilt: number): { pitchUp: number; roll: number } {
   return {
     pitchUp: clamp((ahead - BAR_NEUTRAL) / BAR_TRAVEL, -1, 1),
-    roll: clamp(side / BAR_SIDE, -1, 1),
+    roll: clamp(tilt / BAR_TILT, -1, 1),
   };
+}
+
+/**
+ * Wie schief eine Querstange liegt, in Grad, aus den Höhen ihrer beiden Enden
+ * und ihrer Spannweite — positiv, wenn das rechte Ende tiefer liegt. Eine
+ * Spannweite von null ist keine Stange; dann liegt sie eben.
+ */
+export function barTilt(leftUp: number, rightUp: number, span: number): number {
+  if (!(span > 1e-6)) return 0;
+  return (Math.atan2(leftUp - rightUp, span) * 180) / Math.PI;
 }
 
 /** So weit vor dem Kopf hängen die Hände in Ruhe, wenn die Arme ausgebreitet sind. */
