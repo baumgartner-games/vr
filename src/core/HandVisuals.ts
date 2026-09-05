@@ -4,6 +4,7 @@ import { GRAB_GLOW } from './colors';
 import { clonePose, type HandPose } from './handPose';
 import { holdHandPose, idleHandPose, onHandPoseChange } from './handPoseStore';
 import { handLook } from './handLook';
+import { buildGlove, type GloveFinger } from './gloveMesh';
 
 export type HandGesture = 'open' | 'ready' | 'point' | 'thumbsUp' | 'grip';
 
@@ -36,10 +37,12 @@ const DEG = Math.PI / 180;
  *   Knochen. So hat alles angefangen, und so misst man am ehrlichsten.
  * - `limbs`: **Kugeln an den Gelenken**, wie die Brille eine getrackte Hand
  *   zeigt.
- * - `glove`: der **weiße Handschuh** — eine runde, gepolsterte Handfläche,
- *   dicke Finger mit runden Gelenken, eine Manschette am Handgelenk. Ein
+ * - `glove`: der **weiße Handschuh** — *ein* Stück Stoff um das Skelett
+ *   (`gloveMesh.ts`): die Handfläche läuft in die Manschette aus, die Finger
+ *   wachsen als durchgehende Röhren aus ihr heraus und biegen sich am Gelenk
+ *   weich, weil ihre Punkte zwischen den Knochen gewichtet sind. Ein
  *   Handschuh wie bei Rayman oder Master Hand: kein Körper dran, aber eine
- *   Hand, die nach etwas aussieht.
+ *   Hand, die nach etwas aussieht — und nicht nach Teilen.
  *
  * Alle drei haben dieselben Gelenke an denselben Stellen und dieselbe
  * Fingerspitze — jede Haltung und jede gerechnete Faust gilt für alle.
@@ -60,59 +63,6 @@ export const BOX_HAND_COLOR = 0x9fe3ff;
 export function handColor(): number {
   return handLook() === 'glove' ? GLOVE_COLOR : BOX_HAND_COLOR;
 }
-
-/**
- * Die Handfläche des Handschuhs: ein Kasten mit runden Kanten und rundem
- * Umriss — eine Polsterung, kein Brett. Gebaut als extrudiertes abgerundetes
- * Rechteck mit Fase, denn das ist der eine Weg zu einem runden Kasten, den
- * three.js ohne Zusatzmodul kennt; im Ergebnis liegt die Dicke auf Y und die
- * Länge auf Z, wie beim Kasten der Boxhand.
- */
-function paddedSlab(width: number, thickness: number, length: number): THREE.BufferGeometry {
-  const corner = Math.min(width, length) * 0.26;
-  const bevel = thickness * 0.3;
-  const w = width / 2 - bevel;
-  const l = length / 2 - bevel;
-  const shape = new THREE.Shape();
-  shape.moveTo(-w + corner, -l);
-  shape.lineTo(w - corner, -l);
-  shape.absarc(w - corner, -l + corner, corner, -Math.PI / 2, 0, false);
-  shape.lineTo(w, l - corner);
-  shape.absarc(w - corner, l - corner, corner, 0, Math.PI / 2, false);
-  shape.lineTo(-w + corner, l);
-  shape.absarc(-w + corner, l - corner, corner, Math.PI / 2, Math.PI, false);
-  shape.lineTo(-w, -l + corner);
-  shape.absarc(-w + corner, -l + corner, corner, Math.PI, Math.PI * 1.5, false);
-  const depth = thickness - 2 * bevel;
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth,
-    bevelEnabled: true,
-    bevelThickness: bevel,
-    bevelSize: bevel,
-    bevelSegments: 4,
-    curveSegments: 10,
-  });
-  geometry.translate(0, 0, -depth / 2);
-  // Die Extrusion läuft entlang Z; eine Vierteldrehung legt die Dicke auf Y.
-  geometry.rotateX(-Math.PI / 2);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-/**
- * Wie eine Hand gezeichnet wird — zwei Antworten, und beide gibt es.
- *
- * Mit **Controllern** baut das Spiel eine Hand aus Kästen und Kapseln: eine
- * Handfläche als Quader, an jedem Finger zwei Knochen. Mit **Handtracking**
- * gibt es die gar nicht, sondern eine Kugel pro Gelenk, weil die Brille genau
- * das liefert.
- *
- * `limbs` ist dabei kein neues Modell, sondern dieselbe prozedurale Hand mit
- * Kugeln an den Gelenken statt Knochen dazwischen: dieselbe Haltung, dieselben
- * Zahlen, nur eben so, wie das Headset eine getrackte Hand zeichnet. Wer die
- * beiden nebeneinander sehen will, legt sich im Eingaberaum die **Boxhand als
- * Werkzeug** in die Hand (`worlds/portal/tools/HandTool.ts`).
- */
 
 /** One procedural hand: a palm plus five curling fingers. */
 class ProceduralHand extends THREE.Group {
@@ -148,35 +98,15 @@ class ProceduralHand extends THREE.Group {
     const mirror = side === 'left' ? -1 : 1;
 
     // The grip space points -Z forward with the back of the hand towards +Y.
-    const palm =
-      this.look === 'limbs'
-        ? new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), material)
-        : this.look === 'glove'
-          ? new THREE.Mesh(paddedSlab(0.078, 0.03, 0.092), material)
+    // Der Handschuh hat keine eigene Handfläche als Teil: sie ist Teil des
+    // einen Netzes, das unten um das fertige Skelett gelegt wird.
+    if (this.look !== 'glove') {
+      const palm =
+        this.look === 'limbs'
+          ? new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), material)
           : new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
-    palm.position.set(0, 0, -0.01);
-    this.add(palm);
-    if (this.look === 'glove') {
-      // Die Manschette: ein flacher Ring ums Handgelenk und ein kurzer, nach
-      // hinten weiter werdender Ärmel dahinter — das, woran man einen
-      // Handschuh von einer Hand unterscheidet.
-      // Beide liegen mit ihrer Achse auf Z (die Vierteldrehung um X) und sind
-      // danach in **ihrem** Z flach gedrückt — das ist nach der Drehung die
-      // Dicke der Hand. Y wäre die Achse selbst, und ein Ring, den man entlang
-      // seiner Achse staucht, wird nur dünner, nicht flacher.
-      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.0085, 10, 28), material);
-      cuff.rotation.x = Math.PI / 2;
-      cuff.scale.z = 0.55;
-      cuff.position.set(0, 0, 0.038);
-      this.add(cuff);
-      const sleeve = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.043, 0.036, 0.022, 28, 1, true),
-        material,
-      );
-      sleeve.rotation.x = -Math.PI / 2;
-      sleeve.scale.z = 0.55;
-      sleeve.position.set(0, 0, 0.053);
-      this.add(sleeve);
+      palm.position.set(0, 0, -0.01);
+      this.add(palm);
     }
     if (this.look === 'limbs') {
       // Der Handrücken ist bei getrackten Händen eine Reihe Knöchel und keine
@@ -196,34 +126,43 @@ class ProceduralHand extends THREE.Group {
     thumbRoot.position.set(mirror * -0.034, -0.006, 0.014);
     thumbRoot.rotation.set(-0.22, mirror * 0.75, mirror * 0.6);
     this.add(thumbRoot);
-    this.chains.push(
-      buildChain(
-        thumbRoot,
-        [0.034, 0.028],
-        this.look === 'glove' ? 0.0185 : 0.017,
-        material,
-        this.look,
-      ),
-    );
+    const thumbLengths: [number, number] = [0.034, 0.028];
+    this.chains.push(buildChain(thumbRoot, thumbLengths, 0.017, material, this.look));
 
+    const gloveFingers: GloveFinger[] = [
+      { bones: boneChain(this.chains[0]!), lengths: thumbLengths, radius: 0.0175 },
+    ];
     for (const finger of FINGERS) {
       const root = new THREE.Object3D();
       root.position.set(mirror * finger.x, 0, finger.z);
       this.add(root);
       this.fingerRoots.push(root);
       this.fans.push((mirror * finger.x) / 0.028);
-      const chain = buildChain(
-        root,
-        finger.lengths,
-        this.look === 'glove' ? 0.0145 : 0.013,
-        material,
-        this.look,
-      );
+      const chain = buildChain(root, finger.lengths, 0.013, material, this.look);
       this.chains.push(chain);
+      gloveFingers.push({
+        bones: boneChain(chain),
+        lengths: [finger.lengths[0]!, finger.lengths[1]!],
+        radius: 0.0135,
+      });
       if (finger.name === 'index') {
         this.indexTip.position.set(0, 0, -finger.lengths[1]!);
         chain[1]!.add(this.indexTip);
       }
+    }
+
+    if (this.look === 'glove') {
+      // Der Stoff, zum Schluss und um alles: die Knochen stehen in Ruhelage,
+      // ihre Weltmatrizen sind frisch, und `buildGlove` merkt sich daraus, wie
+      // jeder Punkt zu seinem Knochen liegt. Der Wurzelknochen kommt als
+      // **letztes** Kind dazu — wer die Kette der Finger an den Kindern dieser
+      // Hand abzählt (die Tests tun das), findet Daumen und Finger weiter an
+      // ihren Plätzen.
+      const root = new THREE.Bone();
+      root.name = 'hand-root';
+      this.add(root);
+      this.updateMatrixWorld(true);
+      this.add(buildGlove(root, gloveFingers, material));
     }
   }
 
@@ -269,9 +208,14 @@ class ProceduralHand extends THREE.Group {
   }
 }
 
+/** Die beiden Gelenke einer Kette als Knochen — am Handschuh sind sie welche. */
+function boneChain(chain: THREE.Object3D[]): [THREE.Bone, THREE.Bone] {
+  return [chain[0] as THREE.Bone, chain[1] as THREE.Bone];
+}
+
 function buildChain(
   root: THREE.Object3D,
-  lengths: number[],
+  lengths: readonly number[],
   radius: number,
   material: THREE.Material,
   look: HandStyle = 'bones',
@@ -279,9 +223,13 @@ function buildChain(
   const joints: THREE.Object3D[] = [];
   let parent: THREE.Object3D = root;
   for (const length of lengths) {
-    const joint = new THREE.Object3D();
+    // Am Handschuh sind die Gelenke **Knochen**: das Netz hängt daran. Ein
+    // Knochen ist ein Object3D wie jedes andere, die Kette merkt nichts davon.
+    const joint = look === 'glove' ? new THREE.Bone() : new THREE.Object3D();
     parent.add(joint);
-    if (look === 'limbs') {
+    if (look === 'glove') {
+      // Kein Teil je Knochen: der Stoff kommt als Ganzes, siehe `buildGlove`.
+    } else if (look === 'limbs') {
       // Zwei Kugeln je Knochen: eine am Gelenk, eine an der Spitze. Damit
       // sieht die Kette aus wie die Gelenkkugeln einer getrackten Hand und
       // bewegt sich trotzdem an genau denselben Achsen.
@@ -292,21 +240,12 @@ function buildChain(
       joint.add(tip);
     } else {
       const bone = new THREE.Mesh(
-        new THREE.CapsuleGeometry(
-          radius,
-          Math.max(length - radius * 2, 0.005),
-          look === 'glove' ? 6 : 3,
-          look === 'glove' ? 14 : 8,
-        ),
+        new THREE.CapsuleGeometry(radius, Math.max(length - radius * 2, 0.005), 3, 8),
         material,
       );
       bone.rotation.x = Math.PI / 2;
       bone.position.set(0, 0, -length / 2);
       joint.add(bone);
-      // Am Handschuh liegt am Gelenk eine Kugel: ein gekrümmter Finger bleibt
-      // damit rund, statt an der Beuge eine Kante zu zeigen.
-      if (look === 'glove')
-        joint.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 14, 10), material));
     }
     joints.push(joint);
     const next = new THREE.Object3D();

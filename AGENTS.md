@@ -1652,9 +1652,22 @@ Es ist **dasselbe Skelett in einem anderen Kleid** (`HandVisuals.ts`,
 Stellen, dieselbe Krümmung, dieselbe Fingerspitze. Deshalb gilt jede Haltung
 und jede gerechnete Faust für beide Modelle, und der Test dazu misst genau das
 nach — die Zeigefingerspitze des Handschuhs liegt dort, wo die der Boxhand
-liegt. Die gepolsterte Handfläche ist ein extrudiertes abgerundetes Rechteck
-mit Fase, denn das ist der eine runde Kasten, den three.js ohne Zusatzmodul
-kennt. Getrackte Hände bleiben Kugeln an den Gelenken: die liefert die Brille.
+liegt. Getrackte Hände bleiben Kugeln an den Gelenken: die liefert die Brille.
+
+**Und er ist ein Stück Stoff, keine Teile** (`core/gloveMesh.ts`). Die erste
+Fassung war die Boxhand in dicker — Kapseln, Kugeln an den Gelenken, ein Ring
+am Handgelenk — und sah genau so aus: zusammengesetzt. Jetzt ist der Handschuh
+ein einziges **gehäutetes Netz** (`SkinnedMesh`) am Skelett der Hand: die
+Handfläche ein Loft aus Ellipsen entlang der Handachse, hinten als Manschette
+aufgeweitet, vorn an den Knöcheln abgerundet; jeder Finger eine durchgehende
+Röhre vom Ansatz *in* der Handfläche bis zur runden Kuppe, deren Ringe zwischen
+den beiden Knochen des Fingers gewichtet sind — vor dem Mittelgelenk der eine,
+dahinter der andere, um das Gelenk herum beide. So biegt sich der Stoff weich,
+wo die Boxhand knickt. Die Gelenke sind dafür `Bone`s statt `Object3D`s, was
+der Kette egal ist; der Wurzelknochen der Hand hängt als **letztes** Kind an
+ihr, damit die Tests, die Daumen und Finger an den Kindern abzählen, sie
+weiter an ihren Plätzen finden. Gebunden wird in Ruhelage, im angehängten
+Modus — three.js rechnet die Bewegung der Hand selbst heraus.
 
 Umgeschaltet wird sofort: `HandVisuals` baut eine Hand neu, sobald ihr Kleid
 nicht mehr zur Einstellung passt, die Werkzeugseite stellt das Werkzeug neu

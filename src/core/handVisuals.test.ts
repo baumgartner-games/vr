@@ -132,13 +132,17 @@ describe('a ghost hand that follows the real one', () => {
       return ghost.indexTip.getWorldPosition(new THREE.Vector3());
     };
     expect(tipOf('glove').distanceTo(tipOf('bones'))).toBeLessThan(1e-9);
-    const count = (look: 'bones' | 'glove'): number => {
-      let meshes = 0;
-      new GhostHand('right', HOLD_HAND_POSE, { look }).traverse((object) => {
-        if ((object as THREE.Mesh).isMesh) meshes++;
-      });
-      return meshes;
-    };
-    expect(count('glove')).toBeGreaterThan(count('bones'));
+    // Und der Stoff ist **ein** Stück: ein einziges gehäutetes Netz, dessen
+    // Punkte an den Knochen hängen — nicht elf Kapseln und Kästen.
+    const meshes: THREE.Mesh[] = [];
+    new GhostHand('right', HOLD_HAND_POSE, { look: 'glove' }).traverse((object) => {
+      if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh);
+    });
+    expect(meshes).toHaveLength(1);
+    const glove = meshes[0] as THREE.SkinnedMesh;
+    expect(glove.isSkinnedMesh).toBe(true);
+    // Elf Knochen: die Hand und je zwei für Daumen und vier Finger.
+    expect(glove.skeleton.bones).toHaveLength(11);
+    expect(glove.geometry.getAttribute('skinWeight').count).toBeGreaterThan(500);
   });
 });
