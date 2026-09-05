@@ -201,10 +201,11 @@ export type GripInHand = GripPose;
  * Dieselbe Kette wie `Tool.applyHold`, nur ohne Brille: das Werkzeug hängt bei
  * `holdPosition` im Griffraum und ist um `aim · holdRotation` gedreht, der Griff
  * darin um seine eigene Lage weiter. Für `aim` steht die Zahl des Geräts,
- * `GRIP_TO_RAY`.
+ * `GRIP_TO_RAY` — oder die Ruhe für ein Werkzeug, das nicht zielt
+ * (`alignToAim === false`): der Beutel hängt in der Faust und nicht im Strahl.
  */
-export function gripInHand(hold: HoldPose, grip: GripPose): GripInHand {
-  const held = multiplyQuat(GRIP_TO_RAY, hold.rotation, { x: 0, y: 0, z: 0, w: 1 });
+export function gripInHand(hold: HoldPose, grip: GripPose, aim: Quat = GRIP_TO_RAY): GripInHand {
+  const held = multiplyQuat(aim, hold.rotation, { x: 0, y: 0, z: 0, w: 1 });
   const offset = rotateVec(grip.position, held, { x: 0, y: 0, z: 0 });
   return {
     position: {
@@ -214,6 +215,44 @@ export function gripInHand(hold: HoldPose, grip: GripPose): GripInHand {
     },
     rotation: normalize(multiplyQuat(held, grip.rotation, { x: 0, y: 0, z: 0, w: 1 })),
   };
+}
+
+/**
+ * Der Rahmen eines Griffs aus zwei Richtungen: wohin seine **Achse** zeigt
+ * (+Y, die Daumenseite der Faust) und wohin der **Handrücken** (+X). Das
+ * Vorne (-Z) folgt daraus.
+ *
+ * Für alles, was keinen Standardgriff trägt, ist das die Auskunft, die ein
+ * Werkzeug über seinen Zylinder gibt — der Stiel des Hammers hat kein Vorne
+ * und keine Rillen, aber eine Richtung, in die der Daumen zeigt, und eine, in
+ * die der Handrücken zeigt. Beide müssen senkrecht aufeinander stehen.
+ */
+export function gripFrame(axis: Vec3, back: Vec3): Quat {
+  // Spalten der Drehmatrix: X = Handrücken, Y = Achse, Z = X × Y.
+  const x = unit(back);
+  const y = unit(axis);
+  const z = { x: x.y * y.z - x.z * y.y, y: x.z * y.x - x.x * y.z, z: x.x * y.y - x.y * y.x };
+  // Matrix → Quaternion, der übliche Weg über die Spur.
+  const trace = x.x + y.y + z.z;
+  if (trace > 0) {
+    const s = Math.sqrt(trace + 1) * 2;
+    return normalize({ x: (y.z - z.y) / s, y: (z.x - x.z) / s, z: (x.y - y.x) / s, w: s / 4 });
+  }
+  if (x.x > y.y && x.x > z.z) {
+    const s = Math.sqrt(1 + x.x - y.y - z.z) * 2;
+    return normalize({ x: s / 4, y: (x.y + y.x) / s, z: (z.x + x.z) / s, w: (y.z - z.y) / s });
+  }
+  if (y.y > z.z) {
+    const s = Math.sqrt(1 + y.y - x.x - z.z) * 2;
+    return normalize({ x: (x.y + y.x) / s, y: s / 4, z: (y.z + z.y) / s, w: (z.x - x.z) / s });
+  }
+  const s = Math.sqrt(1 + z.z - x.x - y.y) * 2;
+  return normalize({ x: (z.x + x.z) / s, y: (y.z + z.y) / s, z: s / 4, w: (x.y - y.x) / s });
+}
+
+function unit(v: Vec3): Vec3 {
+  const length = Math.hypot(v.x, v.y, v.z) || 1;
+  return { x: v.x / length, y: v.y / length, z: v.z / length };
 }
 
 /**

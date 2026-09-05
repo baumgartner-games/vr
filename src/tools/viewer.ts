@@ -3,6 +3,7 @@ import { GhostHand } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
 import { createTool } from '../worlds/portal/tools';
 import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
+import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
 import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
@@ -462,6 +463,23 @@ export class ToolViewer {
     return this.tool?.toolId ?? null;
   }
 
+  /** Ob es angezogen wird (`Tool.worn`) — dann ist seine Lage die Handhaltung. */
+  get worn(): boolean {
+    return this.tool?.worn ?? false;
+  }
+
+  /**
+   * Die **Zielkorrektur** dieses Werkzeugs: `GRIP_TO_RAY` für alles, was auf
+   * den Zeigestrahl gedreht wird, die Ruhe für alles, was in der Faust sitzt
+   * (`alignToAim`). Im Spiel entscheidet `Tool.applyHold` genauso — und die
+   * Seite muss es genauso tun, sonst zeigt sie Controller, Boxhand, Beutel und
+   * Flügel um 30° gegen die Hand verdreht und speichert die 30° beim ersten
+   * Zug am Regler als Haltung ab.
+   */
+  aimOf(): Quat {
+    return this.tool?.alignToAim === false ? IDENTITY : GRIP_TO_RAY;
+  }
+
   /** Die Hand, für die die Bühne rechnet. Eine, und immer dieselbe. */
   get handSide(): Handedness {
     return this.side;
@@ -654,10 +672,8 @@ export class ToolViewer {
     // eine Gestalt, die es in keiner Hand hat (`Tool.showHeldBy`).
     tool.showHeldBy(this.side);
     const pose = holdHandPose(this.side, tool.toolId);
-    const local = toolInGrip(
-      { position: tool.holdPosition, rotation: tool.holdRotation },
-      GRIP_TO_RAY,
-    );
+    const aim = this.aimOf();
+    const local = toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, aim);
 
     if (this.mode === 'tool' || this.mode === 'off') {
       // Das Werkzeug steht aufrecht in seinem eigenen Raum.
@@ -668,7 +684,7 @@ export class ToolViewer {
       // liegt darin. Genau das tut `applyHold` mit einem Controller — die
       // Zielkorrektur eingeschlossen, sonst stimmte die Hand daneben nicht.
       tool.position.copy(tool.holdPosition);
-      tool.quaternion.set(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w);
+      tool.quaternion.set(aim.x, aim.y, aim.z, aim.w);
       tool.quaternion.multiply(tool.holdRotation);
     }
 

@@ -806,7 +806,7 @@ export class WristMenu extends THREE.Group {
  * ändert, ändert sie hier gleich mit.
  *
  * Danach wird das Ganze in seinen Mittelpunkt geschoben und auf `size`
- * heruntergerechnet, damit eine Drohne und ein Wurfstern in derselben Zeile
+ * heruntergerechnet, damit eine Drohne und ein Messer in derselben Zeile
  * gleich groß aussehen.
  */
 function miniature(source: THREE.Object3D, size: number): THREE.Object3D {

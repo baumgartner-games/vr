@@ -171,7 +171,7 @@ describe('die Hand am Werkzeug', () => {
 
 describe('die eine Faust am Griff', () => {
   it('gilt rechts wie gerechnet und links gespiegelt', () => {
-    expect(defaultHoldPose('right', 'flashlight')).toMatchObject({
+    expect(defaultHoldPose('right', 'welder')).toMatchObject({
       x: 1.7,
       y: 2.4,
       z: 2.7,
@@ -179,19 +179,21 @@ describe('die eine Faust am Griff', () => {
       yaw: -17,
       roll: -90,
     });
-    expect(defaultHoldPose('left', 'flashlight')).toEqual(
-      mirrorHandPose(defaultHoldPose('right', 'flashlight')),
+    expect(defaultHoldPose('left', 'welder')).toEqual(
+      mirrorHandPose(defaultHoldPose('right', 'welder')),
     );
-    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: -1.7, yaw: 17, roll: 90 });
+    expect(defaultHoldPose('left', 'welder')).toMatchObject({ x: -1.7, yaw: 17, roll: 90 });
   });
 
-  it('gilt für jedes Werkzeug am Griff — die Lampe hält ihn wie die Pistole', () => {
-    expect(defaultHoldPose('right', 'pistol')).toEqual(defaultHoldPose('right', 'flashlight'));
+  it('gilt für jedes Werkzeug am Griff — der Lötkolben hält ihn wie die Pistole', () => {
+    expect(defaultHoldPose('right', 'pistol')).toEqual(defaultHoldPose('right', 'welder'));
+    // Die Lampe nicht mehr: sie liegt als Stab in der Faust, wie der Hammer.
+    expect(defaultHoldPose('right', 'flashlight')).toEqual(defaultHoldPose('right', 'hammer'));
   });
 
   it('lässt alles ohne Griff bei der gebauten Faust', () => {
-    // Der Wurfstern liegt in den Fingern, nicht an einem Zylinder.
-    expect(defaultHoldPose('right', 'shuriken')).toEqual(HOLD_HAND_POSE);
+    // Die Flügel sitzen an den Armen, an keinem Zylinder.
+    expect(defaultHoldPose('right', 'wings')).toEqual(HOLD_HAND_POSE);
     // Hammer und Drohne tragen einen eigenen Zylinder — und eine eigene,
     // dazu gerechnete Faust, die weder die gebaute noch die am Griff ist.
     expect(defaultHoldPose('right', 'hammer')).not.toEqual(HOLD_HAND_POSE);

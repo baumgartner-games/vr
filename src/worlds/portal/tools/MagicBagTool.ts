@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { gripFrame } from './gripFit';
+import type { HoldPose } from './toolPose';
+import type { Vec3 } from './aim';
 import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
 import { playPick } from '../../../core/Audio';
 import { TextPlane } from '../../../ui/TextPlane';
@@ -27,6 +30,22 @@ const REACH_SIDE = CELL * 0.6;
 
 /** Wie schnell sich die Miniaturen drehen, in Radiant je Sekunde. */
 const SPIN = 0.7;
+
+/**
+ * Der **Saum als Griff**, im Rahmen jedes Griffs (`gripFit.ts`: Achse auf +Y,
+ * Vorne auf -Z), im Raum des Werkzeugs: das Stück Saum im Griffpunkt, als
+ * Zylinder quer (x). Die Daumenseite zeigt nach links (-x), der Handrücken nach
+ * hinten (+z), zum Spieler — die Handfläche liegt also außen am Beutel, und die
+ * Finger greifen oben über den Saum hinein. Daraus rechnet
+ * `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`), ohne Zielkorrektur,
+ * denn der Beutel zielt nicht.
+ */
+export const BAG_GRIP: HoldPose = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: gripFrame({ x: -1, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }),
+};
+/** Wo der Saum in der Hand liegt: eine Spur unter und vor dem Griffpunkt. */
+export const BAG_HOLD_POSITION: Vec3 = { x: 0, y: -0.02, z: 0.02 };
 
 const _tip = new THREE.Vector3();
 const _local = new THREE.Vector3();
@@ -80,6 +99,8 @@ export class MagicBagTool extends Tool {
   override readonly toolId = 'bag';
   override readonly label = 'Magischer Beutel';
 
+  /** Der Beutel selbst — gegen das Werkzeug versetzt, damit sein Saum im Griffpunkt liegt. */
+  private readonly body = new THREE.Group();
   private readonly closed = new THREE.Group();
   private readonly open = new THREE.Group();
   private readonly slots: Slot[] = [];
@@ -99,9 +120,17 @@ export class MagicBagTool extends Tool {
     // Er hängt an der Faust und zielt nicht: die Öffnung bleibt oben, komme,
     // was wolle (`hangUpright`).
     this.alignToAim = false;
-    this.holdPosition.set(0, -0.02, 0.02);
+    this.holdPosition.set(BAG_HOLD_POSITION.x, BAG_HOLD_POSITION.y, BAG_HOLD_POSITION.z);
 
-    this.add(this.closed, this.open);
+    // **Von außen** gehalten, am Saum: der Beutel hängt vor der Hand, und sein
+    // Saum läuft durch den Griffpunkt — dort liegt die Faust darum, Handfläche
+    // außen, Finger über den Saum hinein (`BAG_GRIP`, `BAG_HAND_POSE`). Alles,
+    // woraus er besteht, hängt deshalb um einen Saumhalbmesser nach vorn und
+    // um die Höhe der Öffnung nach unten versetzt (`body`); gerechnet wird mit
+    // dem Beutel selbst (`slotUnder`), nicht mit dem Werkzeug.
+    this.body.position.set(0, -MOUTH, -RIM);
+    this.add(this.body);
+    this.body.add(this.closed, this.open);
     this.buildClosed();
     this.buildOpen();
     this.buildGrid();
@@ -115,7 +144,7 @@ export class MagicBagTool extends Tool {
     });
     this.label3d.position.set(0, MOUTH + 0.17, 0);
     this.label3d.visible = false;
-    this.add(this.label3d);
+    this.body.add(this.label3d);
 
     this.setOpen(false);
   }
@@ -327,7 +356,7 @@ export class MagicBagTool extends Tool {
   /** Über welchem Fach die Fingerspitze steht — `null`, wenn über keinem. */
   private slotUnder(controller: ControllerState): Slot | null {
     if (!controller.getFingertip(_tip)) return null;
-    this.worldToLocal(_local.copy(_tip));
+    this.body.worldToLocal(_local.copy(_tip));
     if (_local.y > MOUTH + REACH_UP || _local.y < MOUTH - REACH_DOWN) return null;
 
     let nearest: Slot | null = null;

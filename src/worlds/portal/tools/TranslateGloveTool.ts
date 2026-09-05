@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { GLOVE_BACK, Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playTone } from '../../../core/Audio';
 import type { ControllerState } from '../../../core/XRInput';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
@@ -89,7 +89,7 @@ export class TranslateGloveTool extends Tool {
     this.accent = 0x64e0c8;
     this.sticky = true;
     this.hint = 'Trigger hält aus der Ferne · A wechselt Halten/Steuern';
-    this.holdPosition.set(0, -0.01, 0.02);
+    this.wear();
 
     const shell = new THREE.MeshStandardMaterial({
       color: 0x2f4a48,
@@ -97,12 +97,14 @@ export class TranslateGloveTool extends Tool {
       metalness: 0.4,
     });
 
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.03, 0.11), shell);
-    back.position.set(0, 0.005, -0.02);
+    // Auf dem Handrücken (`Tool.worn`): die Platte liegt über der Handfläche
+    // und nicht in ihr.
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.018, 0.11), shell);
+    back.position.set(0, GLOVE_BACK, -0.01);
     this.add(back);
     for (const side of [-1, 1]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.018, 0.08), shell);
-      rail.position.set(side * 0.036, 0.005, -0.05);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.016, 0.08), shell);
+      rail.position.set(side * 0.036, GLOVE_BACK + 0.004, -0.04);
       this.add(rail);
     }
 
@@ -115,7 +117,7 @@ export class TranslateGloveTool extends Tool {
         metalness: 0.5,
       }),
     );
-    this.ring.position.set(0, 0.005, -0.088);
+    this.ring.position.set(0, GLOVE_BACK, -0.078);
     this.add(this.ring);
 
     this.core = new THREE.Mesh(

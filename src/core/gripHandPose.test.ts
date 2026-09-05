@@ -40,7 +40,7 @@ beforeEach(() => {
 
 /** Zwei Werkzeuge mit Standardgriff, von denen keins der Griff selbst ist. */
 const GRIP_TOOL = 'pistol';
-const OTHER_TOOL = 'flashlight';
+const OTHER_TOOL = 'welder';
 
 describe('ohne alles', () => {
   it('gibt jedem Werkzeug die gebaute Faust am Standardgriff', () => {

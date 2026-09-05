@@ -200,12 +200,12 @@ describe('Die Faust gehört zum Griff, nicht zum Werkzeug', () => {
     }
     // Auch quer über das, was einmal zwei Griffarten waren: die Lampe hält
     // ihren Griff genauso wie die Pistole, weil es derselbe Griff ist.
-    expect(defaultHoldPose('right', 'flashlight')).toEqual(defaultHoldPose('right', 'pistol'));
+    expect(defaultHoldPose('right', 'welder')).toEqual(defaultHoldPose('right', 'pistol'));
   });
 
   it('spiegelt sie auf die linke Hand, statt sie zweimal zu pflegen', () => {
-    const right = defaultHoldPose('right', 'flashlight');
-    const left = defaultHoldPose('left', 'flashlight');
+    const right = defaultHoldPose('right', 'welder');
+    const left = defaultHoldPose('left', 'welder');
     expect(left.x).toBeCloseTo(-right.x, 6);
     expect(left.yaw).toBeCloseTo(-right.yaw, 6);
     expect(left.roll).toBeCloseTo(-right.roll, 6);
@@ -220,7 +220,7 @@ describe('Die Faust gehört zum Griff, nicht zum Werkzeug', () => {
     expect(defaultHoldPose('right', 'drone')).toEqual(DRONE_HAND_POSE);
     expect(defaultHoldPose('right', 'drone')).not.toEqual(defaultHoldPose('right', 'brush'));
     // … und was gar keinen Zylinder hat, bleibt bei der allgemeinen Faust.
-    expect(STANDARD_GRIP_TOOLS.has('shuriken')).toBe(false);
-    expect(defaultHoldPose('right', 'shuriken')).toEqual(HOLD_HAND_POSE);
+    expect(STANDARD_GRIP_TOOLS.has('wings')).toBe(false);
+    expect(defaultHoldPose('right', 'wings')).toEqual(HOLD_HAND_POSE);
   });
 });

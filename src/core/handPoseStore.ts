@@ -1,5 +1,6 @@
 import {
   GRIP_POSE_ID,
+  HAND_TOOL_ID,
   STANDARD_GRIP_TOOLS,
   defaultHoldPose,
   defaultIdlePose,
@@ -86,6 +87,11 @@ export function idleHandPose(hand: Handedness): HandPose {
  * das noch nie jemand justiert hat, trotzdem gehalten aus statt offen.
  */
 export function holdHandPose(hand: Handedness, toolId: string): HandPose {
+  // Die Boxhand **ist** die Hand: was sie in der Hand hält, ist die
+  // Grundhaltung dieser Hand, und genau die trägt das Werkzeug auch
+  // (`tools/HandTool.ts`). Eine zweite Zahlenreihe daneben wäre eine, die
+  // abweicht — und auf der Werkzeugseite zwei Hände übereinander.
+  if (toolId === HAND_TOOL_ID) return idleHandPose(hand);
   const fallback = defaultHoldPose(hand, toolId);
   const stored = read().hold?.[hand]?.[toolId];
   if (stored) return handPoseFromArray(stored, fallback);

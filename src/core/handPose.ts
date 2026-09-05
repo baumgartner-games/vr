@@ -170,18 +170,20 @@ export const GRIP_HAND_POSE: HandPose = {
 };
 
 /**
- * **Die Faust am Stiel des Hammers** — rechte Hand, links gespiegelt.
+ * **Die Faust am Stab** — rechte Hand, links gespiegelt.
  *
- * Derselbe Weg wie beim Standardgriff, ein anderer Zylinder: der Stiel liegt
+ * Derselbe Weg wie beim Standardgriff, ein anderer Zylinder: ein Stab liegt
  * auf der z-Achse des Werkzeugs und läuft durch den Griffpunkt (`poleGrip.ts`,
- * `HAMMER_GRIP`). Ein Stiel hat kein Vorne, also zeigt hier kein Finger etwas
- * an: **alle** Finger sind in der Faust, und die Faust steht ungeschwenkt — die
- * Daumenseite zum Kopf, die Handfläche innen am Stiel, wie man einen Hammer
- * hält. Vorher stand hier die allgemeine Faust, und die lag **quer** zum Stiel:
- * die Handfläche stand wie ein Brett auf der Stange, die Finger schlossen sich
- * neben ihr um Luft.
+ * `POLE_GRIP`). Ein Stab hat kein Vorne, also zeigt hier kein Finger etwas an:
+ * **alle** Finger sind in der Faust, und die Faust steht ungeschwenkt — die
+ * Daumenseite zur Spitze, die Handfläche innen am Stab, wie man einen Hammer
+ * hält. Vier Werkzeuge werden so gehalten, und deshalb ist es **eine** Faust:
+ * der Stiel des **Hammers**, das Batterierohr der **Taschenlampe**, der Stiel
+ * des **Pinsels** und der Griff des **Messers**. Vorher stand am Hammer die
+ * allgemeine Faust, und die lag **quer** zum Stiel: die Handfläche stand wie ein
+ * Brett auf der Stange, die Finger schlossen sich neben ihr um Luft.
  */
-export const HAMMER_HAND_POSE: HandPose = {
+export const POLE_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
   x: 2.6,
   y: 1.4,
@@ -191,6 +193,77 @@ export const HAMMER_HAND_POSE: HandPose = {
   roll: -90,
   curls: [0.55, 0.85, 0.85, 0.9, 0.9],
 };
+
+/**
+ * **Die Faust am Rand der Stoppuhr** — rechte Hand, links gespiegelt.
+ *
+ * Eine Taschenuhr hält man nicht an einem Griff, sondern am **Rand**: die
+ * Handfläche hinter dem Gehäuse, die Finger unter dem unteren Rand hindurch
+ * nach vorn gekrümmt, das Zifferblatt zum Gesicht. Der Rand ist als Zylinder
+ * quer (x-Achse) durch den Griffpunkt gedacht (`StopwatchTool.ts`,
+ * `STOPWATCH_GRIP`), und die Faust liegt darum wie um jeden anderen — dass
+ * das Gehäuse dabei zwischen Handfläche und Fingerspitzen steht, ist genau die
+ * Absicht.
+ */
+export const STOPWATCH_HAND_POSE: HandPose = {
+  ...HOLD_HAND_POSE,
+  x: 0,
+  y: 0,
+  z: -1.8,
+  pitch: -120,
+  yaw: 0,
+  roll: 0,
+  curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+};
+
+/**
+ * **Die Faust am Saum des Beutels** — rechte Hand, links gespiegelt.
+ *
+ * Der Beutel wird **von außen** gehalten, wie ein Eimer am Rand: er hängt vor
+ * der Hand, sein Saum läuft durch den Griffpunkt, die Handfläche liegt außen
+ * daran und die Finger greifen über den Saum hinein (`MagicBagTool.ts`,
+ * `BAG_GRIP`). Ohne Zielkorrektur gerechnet, denn der Beutel zielt nicht: er
+ * hängt in der Faust, die Öffnung nach oben, komme, was wolle.
+ */
+export const BAG_HAND_POSE: HandPose = {
+  ...HOLD_HAND_POSE,
+  x: 0,
+  y: -5,
+  z: 4.6,
+  pitch: 90,
+  yaw: 0,
+  roll: 0,
+  curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+};
+
+/**
+ * Die Hand, die etwas **trägt** statt hält: die Handschuhe.
+ *
+ * Ein Handschuh sitzt auf der Hand, und die Hand sitzt so auf dem Controller,
+ * wie sie es ohne ihn täte — also ist das die **Grundhaltung** (rechts, links
+ * gespiegelt), mit offenen Fingern. Der Handschuh selbst folgt dieser Haltung
+ * (`Tool.worn`); wer sie verschiebt, verschiebt beide.
+ */
+export const WORN_HAND_POSE: HandPose = {
+  ...IDLE_HAND_POSE_RIGHT,
+};
+
+/**
+ * Und die Hand am **Controller**: dieselbe Grundhaltung, aber als Faust mit dem
+ * Zeigefinger am Abzug — das ist die Hand, die das Gerät wirklich hält, und der
+ * Controller (`ControllerTool.ts`) liegt dazu genau im Griffraum.
+ */
+export const CONTROLLER_HAND_POSE: HandPose = {
+  ...IDLE_HAND_POSE_RIGHT,
+  curls: [...HOLD_HAND_POSE.curls],
+};
+
+/**
+ * Die Boxhand als Werkzeug (`tools/HandTool.ts`): sie **ist** die Hand, und
+ * ihre Haltung ist die Grundhaltung — `handPoseStore.holdHandPose` gibt für
+ * diese Id die Grundhaltung heraus, gespeichert oder gebaut.
+ */
+export const HAND_TOOL_ID = 'hand-box';
 
 /**
  * **Die Faust am Griff der Drohne** — die rechte Hand am rechten Griff, links
@@ -216,13 +289,23 @@ export const DRONE_HAND_POSE: HandPose = {
 };
 
 /**
- * Die Werkzeuge mit **eigenem** Zylinder — und deshalb mit eigener, ebenfalls
- * gerechneter Faust. Was hier steht, trägt die Griff-*Form*, aber nicht die
- * Standard-*Lage*, und steht deshalb nicht in `STANDARD_GRIP_TOOLS`.
+ * Die Werkzeuge mit **eigener Faust**: die mit eigenem Zylinder — gerechnet wie
+ * die am Standardgriff, nur um einen anderen —, und die, die auf der Hand
+ * sitzen statt in ihr. Was hier steht, steht nicht in `STANDARD_GRIP_TOOLS`.
  */
 export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
-  hammer: HAMMER_HAND_POSE,
+  hammer: POLE_HAND_POSE,
+  flashlight: POLE_HAND_POSE,
+  brush: POLE_HAND_POSE,
+  knife: POLE_HAND_POSE,
   drone: DRONE_HAND_POSE,
+  stopwatch: STOPWATCH_HAND_POSE,
+  bag: BAG_HAND_POSE,
+  'gravity-glove': WORN_HAND_POSE,
+  'translate-glove': WORN_HAND_POSE,
+  'superman-glove': WORN_HAND_POSE,
+  'controller-left': CONTROLLER_HAND_POSE,
+  'controller-right': CONTROLLER_HAND_POSE,
 };
 
 /**
@@ -232,7 +315,7 @@ export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
  * lange bevor irgendwo ein Werkzeug gebaut ist. Dass sie zu dem passt, was die
  * Werkzeuge wirklich anbauen, hält `worlds/portal/tools/gripMount.test.ts` fest.
  *
- * Was hier fehlt, fehlt mit Grund — der Wurfstern fliegt aus den Fingern, die
+ * Was hier fehlt, fehlt mit Grund — die
  * drei Handschuhe und die Flügel werden angezogen, Hammer und Drohne bringen
  * ihre eigenen Griffe mit, und Boxhand und Controller *sind* die Hand.
  */
@@ -249,17 +332,14 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   'gun-blue',
   'gun-red',
   'gun-dual',
-  'brush',
   'tape',
   'eraser',
   'xray',
-  'stopwatch',
-  // Die drei, die bis eben am **Stabgriff** hingen. Ein Stabgriff war der
-  // Versuch, ein Rohr *entlang* der Faustachse zu halten — und das geht nur,
-  // solange man dafür eine zweite Faust in Kauf nimmt und hinnimmt, dass so ein
-  // Werkzeug 30° neben dem Zeigestrahl leuchtet. Jetzt tragen sie denselben
-  // Griff quer darunter, wie eine Lampe mit Griff, und zielen wie alles andere.
-  'flashlight',
+  // Lötkolben und Hängegleiter tragen den Griff quer unter sich, wie eine
+  // Lötpistole. Die Taschenlampe tat das eine Weile auch — „eine Lampe mit
+  // Griff wie ein Megaphon" — und liegt jetzt wieder als **Stab** in der Faust,
+  // am Batterierohr (`TOOL_FISTS`), genauso der Pinsel an seinem Stiel und die
+  // Stoppuhr an ihrem Rand.
   'welder',
   'hang-glider',
 ]);

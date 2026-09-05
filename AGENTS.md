@@ -125,7 +125,9 @@ darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
 Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
 entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
-den **Stiel des Hammers** und den **Griff der Drohne**, an beiden Händen; und
+den **Stab** (Hammer, Taschenlampe, Pinsel, Messer — eine Faust für vier), den
+**Griff der Drohne**, den **Rand der Stoppuhr** und den **Saum des Beutels**,
+an beiden Händen, und dass Handschuhe und Controller die Grundhaltung tragen; und
 die beiden Zahlen, wegen derer es diesen Test gibt: die alte gebaute Faust
 stand **90°** quer zum Zylinder, die am Stabgriff eingemessene 30°), der
 **Standardgriff**
@@ -355,7 +357,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   die alte Zählung gescheitert: pro Werkzeug-Id gezählt waren eine Waffe
   links und eine rechts schon eins zu viel, und die zweite fallen zu lassen
   ließ die erste verschwinden. Zwei Hüften sind zwei Vorräte
-  (`tools/looseBudget.ts`, mit Test). Beim Wurfstern sind es fünf, also fünf
+  (`tools/looseBudget.ts`, mit Test). Beim Messer sind es fünf, also fünf
   pro Hüfte.
 - **Werkzeuge** (alle in jeder Welt mit Gürtel):
   - **Portal-Waffen**: zwei einzelne und eine kombinierte (Trigger rot,
@@ -384,6 +386,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Farbe, die je nach Vorgeschichte mal das Material mitnimmt und mal nicht,
     kann man in der Brille nicht lesen. Farbe und Material gehen über das Netz
     (ältere Mitspieler schicken nur die Farbe).
+    Gehalten wird er am **Stiel**: der ist in Greiffarbe und liegt als Stab in
+    der Faust wie der Stiel des Hammers (`POLE_HAND_POSE`) — kein sichtbarer
+    Standardgriff mehr darunter, und er zeigt trotzdem dorthin, wohin man
+    zeigt, denn der Stab liegt auf dem Zeigestrahl.
   - **Pistole** mit Magazin (`x/∞` an der Seite). Unter
     *Einstellungen → Pistole* steht jeder Wert einzeln: Stärke, Kugeltempo,
     Feuerrate, **Magazingröße**, Nachladezeit, Salvenlänge und Modus (Einzel,
@@ -393,13 +399,18 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Kimme & Korn, Flugbahn, Röntgen, **Fernrohr** — oder alles ab), der
     **Zoom** des Fernrohrs (16×, 20×, 24×, 28×, 32×, 36× durchklicken oder
     zwischen 1 und 60 tippen) und die **Munition** (normal oder Leuchtspur).
-  - **Wurfstern**: das eine Werkzeug, das zum Loslassen gedacht ist. Aus der
-    Bewegung heraus losgelassen fällt er nicht, sondern **fliegt weiter** —
+  - **Messer**: das eine Werkzeug, das zum Loslassen gedacht ist. Aus der
+    Bewegung heraus losgelassen fällt es nicht, sondern **fliegt weiter** —
     geradeaus, ohne Bogen, mit der Drehung um die eigene Achse — und bleibt
-    stecken, wo er auftrifft (Wand, Kiste, egal). Fünf dürfen gleichzeitig
-    unterwegs oder eingeschlagen sein; der sechste Wurf holt den ersten
+    stecken, wo es auftrifft (Wand, Kiste, egal). Fünf dürfen gleichzeitig
+    unterwegs oder eingeschlagen sein; der sechste Wurf holt das erste
     zurück. Die Bahn wird pro Frame selbst abgetastet statt auf einen
-    Abpraller zu warten — nur so bleibt er *stecken*, statt abzuprallen.
+    Abpraller zu warten — nur so bleibt es *stecken*, statt abzuprallen.
+    Es war einmal ein **Wurfstern**, und der hatte keinen Griff — er lag „in
+    den Fingerspitzen", also nirgends, und die Boxhand sah an ihm nach nichts
+    aus. Das Messer hat einen: einen **Stab** in Greiffarbe durch die Faust,
+    die Klinge nach vorn, gehalten wie der Hammer (`tools/KnifeTool.ts`). Die
+    Id heißt `knife`; im Kurzcode steht es auf dem Platz des Sterns.
   - **Großer Hammer**: ein Meter Stange, vorn ein Kopf aus Eisen — und das
     erste Werkzeug, das man **irgendwo** anfassen kann. Der türkise Belag am
     Stiel ist der Griff, und er ist absichtlich lang: weit hinten am Knauf hat
@@ -447,11 +458,20 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Schritte pro Frame, alles darüber wäre eine Lüge im Menü. Und beim
     Schnellladen im Mehrspieler zieht der rechnende Spieler die Objekte
     wieder auf seinen Stand — es wirkt bei dem, der rechnet.
-  - **Taschenlampe**: eine **Lampe mit Griff** und keine Stabtaschenlampe —
-    das Rohr liegt über der Faust, der Standardgriff quer darunter. Eine Weile
-    lag ihr Rohr *in* der Faust, und dafür bezahlte sie zweimal: mit einer
-    eigenen Handhaltung und damit, dass ihr Kegel 30° über das hinwegging,
-    worauf man zeigte (siehe *Ein Griff für alle Werkzeuge*).
+    Gehalten wird sie am **Rand** wie eine Taschenuhr: kein Standardgriff, der
+    Mantel des Gehäuses in Greiffarbe, das Gehäuse steht hochkant über dem
+    Griffpunkt, die Handfläche dahinter, die Finger unten herum
+    (`STOPWATCH_HAND_POSE`). Und das **Zifferblatt schaut zum Kopf** (+z) —
+    lange schaute es nach vorn wie ein Lauf, und man sah den Zeiger nie.
+  - **Taschenlampe**: eine **Stabtaschenlampe** — das Batterierohr liegt in
+    der Faust, und es *ist* der Griff, in Greiffarbe, ein Stab wie der Stiel
+    des Hammers (`POLE_HAND_POSE`). Eine Weile war sie eine „Lampe mit Griff",
+    das Rohr über der Faust und der Standardgriff quer darunter; das sah aus
+    wie ein Megaphon. Davor lag ihr Rohr schon einmal in der Faust, aber auf
+    der *Faustachse*, und dafür bezahlte sie mit einem Kegel, der 30° über das
+    hinwegging, worauf man zeigte (siehe *Ein Griff für alle Werkzeuge*). Jetzt
+    liegt der Stab **quer durch die Faust auf dem Zeigestrahl**, wie ein
+    Hammerstiel, und leuchtet dorthin, wohin man zeigt.
     **Trigger** schaltet sie an und aus. Der **Lichtkegel**
     wird mit der *anderen* Hand eingestellt: vorne an die Linse greifen (der
     Ring leuchtet, sobald die Hand nah genug ist) und mit gedrücktem Griff nach
@@ -471,6 +491,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Gravitationshandschuh**: Trigger zieht das anvisierte Objekt geradewegs
     in die Hand, Greifen stößt es weg. Bleibt in der Hand, bis er am Gürtel
     abgelegt wird.
+    Alle drei Handschuhe werden **angezogen** (`Tool.worn`): sie zielen nicht,
+    ihre Platte liegt auf dem Handrücken der Boxhand, die Manschette am
+    Handgelenk, und ihre Lage im Griff *ist* die Haltung der Hand, die sie
+    trägt — ab Werk die Grundhaltung mit offenen Fingern (`WORN_HAND_POSE`),
+    und sie folgen ihr Bild für Bild (`followHand`). Vorher hingen sie im
+    Zeigestrahl, also 30° gegen die Hand verdreht und halb in der Handfläche.
   - **Translationshandschuh**: greift bis 30 m weit — das Objekt kommt dabei
     *nicht* zu dir. Zwei Modi, `A` schaltet um: **Halten** lässt es genau dort
     stehen, wo es ist (Handdrehung dreht es), **Steuern** macht die Hand zum
@@ -619,7 +645,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Controller links / Controller rechts**: das echte Gerät als Werkzeug,
     eines je Hand (`tools/ControllerTool.ts`). Gezeigt wird das Modell aus dem
     Repository (siehe *Controller-Modelle*), bis es geladen ist der selbst
-    gebaute. Auch sie zielen nicht. Der Sinn ist die Frage, die alles andere
+    gebaute. Auch sie zielen nicht. Die Hand daran trägt die **Grundhaltung**
+    als Faust mit dem Finger am Abzug (`CONTROLLER_HAND_POSE`): so hält sie das
+    Gerät wirklich, und der Controller liegt genau im Griffraum. Der Sinn ist
+    die Frage, die alles andere
     erklärt: **wo sitzt das Gerät eigentlich in meiner Faust?** Der Griffraum,
     den die Brille meldet, ist weder der Controller noch die Hand, sondern ein
     Punkt dazwischen — und gegen ihn wird jeder Versatz gemessen. Ab Werk
@@ -653,7 +682,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     anderem (`tools/TeleportTool.ts`).
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
   - **Magischer Beutel**: die Rasterseite des Handgelenk-Menüs als Gegenstand
-    (`tools/MagicBagTool.ts`). Am Gürtel hängt ein zugezogener Lederbeutel; in
+    (`tools/MagicBagTool.ts`). Gehalten wird er **von außen am Saum**, wie ein
+    Eimer am Rand: er hängt vor der Hand, sein Saum läuft durch den
+    Griffpunkt, die Handfläche liegt außen daran und die Finger greifen über
+    den Saum hinein (`BAG_GRIP`, `BAG_HAND_POSE` — ohne Zielkorrektur
+    gerechnet, denn er zielt nicht). Am Gürtel hängt ein zugezogener Lederbeutel; in
     der Hand geht er auf, und in der Öffnung liegt ein **Raster** aus
     Miniaturen — jede das Ding selbst, mit `createPropShape` gebaut und auf
     Fachgröße gerechnet, keine Strichzeichnung. Die freie Hand fährt hinein:
@@ -1062,7 +1095,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug ablegen | Grip über der Hüfte loslassen | – | – |
 | Werkzeug fallen lassen | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht) | – | – |
 | Hüften verschieben | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück) | – | – |
-| Wurfstern werfen | im Schwung loslassen; er fliegt weiter und bleibt stecken | – | – |
+| Messer werfen | im Schwung loslassen; es fliegt weiter und bleibt stecken | – | – |
 | Großer Hammer | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf | – | – |
 | Haltung (sitzen/stehen) | Startseite oder Menü → Bewegung → Haltung | dito | dito |
 | Greifen ohne Controller | Mittel-, Ring- und kleiner Finger an die Handfläche | – | – |
@@ -1791,9 +1824,9 @@ an gar nichts. Jetzt tragen sie alle den Standardgriff:
 
 | Griff | Werkzeuge |
 | --- | --- |
-| der Standardgriff | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Pinsel, Messband, Radiergummi, Röntgen-Scanner, Stoppuhr, Taschenlampe, Lötkolben, Hängegleiter |
+| der Standardgriff | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Lötkolben, Hängegleiter |
 
-Achtzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
+Fünfzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
 dazu ist `STANDARD_GRIP_TOOLS` in `core/handPose.ts`, und `gripMount.test.ts`
 baut sie alle und legt das Maßband an.
 
@@ -1815,20 +1848,36 @@ Stelle**, und wo ein anderer Zylinder an einer anderen Stelle liegt, gehört
 eine eigene dazu. `fistOnGrip` nimmt dafür den Zylinder als zweites Argument
 (`gripInHand` rechnet ihn aus der Lage des Werkzeugs in der Hand und der des
 Griffs im Werkzeug), und die beiden Zylinder stehen dort, wo sie hingehören:
-der Stiel als `HAMMER_GRIP` in `poleGrip.ts` (Achse durch den Griffpunkt, die
-Daumenseite zum Kopf, die Handfläche innen — so hält man einen Hammer), der
-rechte Griff der Drohne als `DRONE_GRIP` in `DroneTool.ts` (mit einer Hand
-rutscht das Deck so weit, dass er im Griffpunkt sitzt). Beide Fäuste sind
-ganz geschlossen, denn dort zeigt kein Finger etwas an, und sie stehen als
-`HAMMER_HAND_POSE` und `DRONE_HAND_POSE` in `core/handPose.ts` (`TOOL_FISTS`),
-links gespiegelt. Vorher hatten beide die gebaute Faust, also dieselbe, die
-den Standardgriff quer hielt: die Handfläche stand wie ein Brett auf dem
-Stiel. Dazu die, die man gar nicht
-an einem Griff hält: der **Wurfstern** fliegt aus den Fingern, die drei
-**Handschuhe** und die **Flügel** werden angezogen, **Boxhand** und
-**Controller** *sind* die Hand, und der **magische Beutel** hängt an der Faust,
-ohne zu zielen (`alignToAim = false`) — der Standardgriff ist im Strahlraum
-eingemessen, und was nicht zielt, hat keinen. Dass die Liste zu dem passt, was
+der **Stab** als `POLE_GRIP` in `poleGrip.ts` (die z-Achse durch den
+Griffpunkt, die Daumenseite zur Spitze, die Handfläche innen — so hält man
+einen Hammer), und ihn tragen **vier**: der Stiel des Hammers, das
+Batterierohr der Taschenlampe, der Stiel des Pinsels und der Griff des
+Messers, alle mit derselben `holdPosition` (`POLE_HOLD_POSITION`) und
+derselben Faust (`POLE_HAND_POSE`). Der rechte Griff der Drohne als
+`DRONE_GRIP` in `DroneTool.ts` (mit einer Hand rutscht das Deck so weit, dass
+er im Griffpunkt sitzt). Der **Rand der Stoppuhr** als `STOPWATCH_GRIP`: ein
+Zylinder quer durch den Griffpunkt, Handfläche hinter dem Gehäuse, Finger
+unten herum. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
+Handfläche außen, Finger hinein — als einziger ohne Zielkorrektur gerechnet
+(`gripInHand` nimmt dafür die Ruhe), denn der Beutel zielt nicht. Die Rahmen
+dieser Zylinder schreibt man nicht als Winkel hin, sondern als zwei
+Richtungen — wohin die Achse zeigt, wohin der Handrücken —, `gripFrame`
+macht die Drehung daraus. Alle diese Fäuste sind ganz geschlossen, denn dort
+zeigt kein Finger etwas an, und sie stehen in `core/handPose.ts`
+(`TOOL_FISTS`), links gespiegelt. Vorher hatten Hammer und Drohne die gebaute
+Faust, also dieselbe, die den Standardgriff quer hielt: die Handfläche stand
+wie ein Brett auf dem Stiel.
+
+In `TOOL_FISTS` steht auch, was **auf der Hand sitzt statt in ihr**: die drei
+**Handschuhe** tragen die Grundhaltung mit offenen Fingern (`WORN_HAND_POSE`)
+und folgen ihr (`Tool.worn`), die beiden **Controller** dieselbe Grundhaltung
+als Faust (`CONTROLLER_HAND_POSE`) — die Hand hält das Gerät, und das Gerät
+liegt im Griffraum. Die **Boxhand** trägt die Grundhaltung selbst:
+`holdHandPose` gibt für ihre Id die Grundhaltung heraus, gespeichert oder
+gebaut, damit auf der Werkzeugseite nicht zwei Hände übereinanderstehen. Ohne
+jede Faust bleiben die **Flügel** — sie sitzen an den Armen. Was nicht zielt
+(`alignToAim = false`), hat keinen Standardgriff: der ist im Strahlraum
+eingemessen. Dass die Liste zu dem passt, was
 die Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie und
 legt das Maßband an — inzwischen einundzwanzig Stück. Es prüft dort gleich das
 Zweite mit: dass **jedes** Werkzeug mit Griff entlang des Zeigestrahls zielt.
@@ -2344,8 +2393,13 @@ Bezugspunkte:
 Zwischen beiden liegt dieselbe Messung; unterschiedlich ist nur, welches von
 beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust sitzt,
 in der Hand, wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
-im Eingaberaum (`tune/handGrip.ts`), nur ohne Zielkorrektur — die kommt aus
-einem Controller, und im Browser gibt es keinen.
+im Eingaberaum (`tune/handGrip.ts`) und mit derselben Zielkorrektur: die kommt
+sonst aus einem Controller, im Browser gibt es keinen, also steht sie als Zahl
+da (`GRIP_TO_RAY`) — und zwar **nur für Werkzeuge, die zielen**. Was in der
+Faust sitzt (`alignToAim = false`: Controller, Boxhand, Beutel, Flügel,
+Handschuhe), bekommt die Ruhe (`viewer.aimOf`), wie im Spiel. Eine Weile bekam
+es auf der Seite die 30° trotzdem, und die Controller saßen dort sichtbar
+schief in der Hand, während sie in der Brille richtig lagen.
 
 An der Hand hängt außerdem eine **Linie am Zeigefinger**, in der Farbe des
 Beutels und nicht in der der Hand. Man sieht einer Faust nicht an, wohin sie

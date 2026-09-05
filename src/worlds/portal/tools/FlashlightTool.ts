@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { POLE_HOLD_POSITION } from './poleGrip';
 import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
 import { playSwitch } from '../../../core/Audio';
 import {
@@ -13,7 +14,12 @@ import {
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
 /** Where the lens sits on the torch, in the tool's own space. */
-const LENS_Z = -0.13;
+const LENS_Z = -0.15;
+/** Das Batterierohr — der Griff —, von hinten nach vorn auf der z-Achse. */
+const TUBE_BACK = 0.06;
+const TUBE_FRONT = -0.05;
+/** Und sein Halbmesser: so dick wie ein Griff, denn es ist einer. */
+const TUBE_R = 0.02;
 /** How close the free hand has to come to the lens to take hold of it. */
 const LENS_REACH = 0.11;
 /** Length of the drawn cone, in metres. It is a hint, not the light itself. */
@@ -68,14 +74,17 @@ export class FlashlightTool extends Tool {
     this.icon = 'flashlight';
     this.accent = 0xffd88a;
     this.hint = 'Trigger schaltet · andere Hand an der Linse stellt den Kegel';
-    // **Eine Lampe mit Griff**, und keine Stabtaschenlampe mehr. Lange lag ihr
-    // Rohr in der Faust selbst (`holdRotation` 30/5/9°, am Justierstand
-    // eingemessen) — dafür brauchte sie einen eigenen Griff, eine eigene Faust,
-    // und ihr Kegel ging **30° über das hinweg, worauf man zeigte**. Ein Rohr
-    // auf der Faustachse *kann* nicht entlang des Zeigestrahls leuchten; das ist
-    // Geometrie und keine Einstellung. Also derselbe Griff wie an allem anderen,
-    // quer unter dem Rohr, und der Kegel geht dorthin, wohin man zeigt.
-    this.mountGrip({ length: 0.1 });
+    // **Eine Stabtaschenlampe**: das Batterierohr liegt in der Faust, und es
+    // *ist* der Griff — dort, wo die Batterien sind, in Greiffarbe, ein Stab
+    // wie der Stiel des Hammers (`POLE_GRIP`, `POLE_HAND_POSE`). Eine Weile war
+    // sie eine „Lampe mit Griff": das Rohr über der Faust und der Standardgriff
+    // quer darunter wie an einem Megaphon. Das sah nach einem Megaphon aus.
+    //
+    // Und sie leuchtet trotzdem dorthin, wohin man zeigt: der Stab liegt auf der
+    // z-Achse, und die *ist* der Zeigestrahl (`aim.ts`). Was am alten Stabgriff
+    // 30° danebenging, war nicht das Rohr in der Faust, sondern ein Rohr auf der
+    // *Faustachse*; hier liegt es quer durch die Faust, wie ein Hammerstiel.
+    this.holdPosition.set(POLE_HOLD_POSITION.x, POLE_HOLD_POSITION.y, POLE_HOLD_POSITION.z);
 
     const body = new THREE.MeshStandardMaterial({
       color: 0x2b3242,
@@ -88,14 +97,29 @@ export class FlashlightTool extends Tool {
       metalness: 0.8,
     });
 
-    // Das Rohr liegt auf -Z. **Dünner** als der Griff darum: der Standardgriff
-    // ist der Griff, und ein Rohr, das dicker ist als er, verschluckt ihn. Das
-    // Werkzeug richtet sich nach dem Griff und nicht umgekehrt — darum geht es
-    // bei dieser ganzen Sache.
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.017, 0.16, 20), body);
-    barrel.rotation.x = -Math.PI / 2;
-    barrel.position.z = -0.03;
-    this.add(barrel);
+    // Das Rohr: ein glatter Zylinder in Greiffarbe durch den Griffpunkt, so dick
+    // wie ein Griff. Zylinder wachsen entlang +y; die Vierteldrehung legt ihn
+    // auf z.
+    const tube = new THREE.Mesh(
+      new THREE.CylinderGeometry(TUBE_R, TUBE_R, TUBE_BACK - TUBE_FRONT, 20),
+      grabMaterial({ roughness: 0.6 }),
+    );
+    tube.rotation.x = Math.PI / 2;
+    tube.position.z = (TUBE_BACK + TUBE_FRONT) / 2;
+    this.add(tube);
+
+    // Ein Deckel hinten, ein Hals vorn zum Kopf.
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(TUBE_R * 0.9, TUBE_R, 0.014, 20), body);
+    cap.rotation.x = Math.PI / 2;
+    cap.position.z = TUBE_BACK + 0.007;
+    this.add(cap);
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(TUBE_R * 0.85, TUBE_R * 0.9, LENS_Z + 0.05 - TUBE_FRONT, 20),
+      body,
+    );
+    neck.rotation.x = -Math.PI / 2;
+    neck.position.z = (TUBE_FRONT + LENS_Z + 0.05) / 2;
+    this.add(neck);
 
     const head = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.026, 0.05, 20), metal);
     head.rotation.x = -Math.PI / 2;
@@ -121,10 +145,6 @@ export class FlashlightTool extends Tool {
     );
     this.ring.position.z = LENS_Z + 0.004;
     this.add(this.ring);
-
-    const clip = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.03, 0.05), metal);
-    clip.position.set(0.02, 0.014, 0.01);
-    this.add(clip);
 
     this.beam = new THREE.SpotLight(0xfff1cf, 0, beamRange(this.angle), 0, 0.45, 1.6);
     this.beam.position.set(0, 0, LENS_Z);

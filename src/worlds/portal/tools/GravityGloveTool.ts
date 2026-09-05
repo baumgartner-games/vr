@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { GLOVE_BACK, Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playTone } from '../../../core/Audio';
 import type { ControllerState } from '../../../core/XRInput';
 
@@ -40,7 +40,7 @@ export class GravityGloveTool extends Tool {
     this.accent = 0x9d7bff;
     this.sticky = true;
     this.hint = 'Trigger zieht her · Greifen stößt ab · am Gürtel ablegen';
-    this.holdPosition.set(0, -0.01, 0.02);
+    this.wear();
 
     const shell = new THREE.MeshStandardMaterial({
       color: 0x3b4358,
@@ -48,8 +48,10 @@ export class GravityGloveTool extends Tool {
       metalness: 0.4,
     });
 
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 0.1), shell);
-    back.position.set(0, 0.005, -0.02);
+    // Auf dem Handrücken (`Tool.worn`): die Platte liegt über der Handfläche
+    // und nicht in ihr.
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.018, 0.1), shell);
+    back.position.set(0, GLOVE_BACK, -0.01);
     this.add(back);
 
     this.ring = new THREE.Mesh(
@@ -61,7 +63,7 @@ export class GravityGloveTool extends Tool {
         metalness: 0.5,
       }),
     );
-    this.ring.position.set(0, 0.005, -0.085);
+    this.ring.position.set(0, GLOVE_BACK, -0.075);
     this.add(this.ring);
 
     this.core = new THREE.Mesh(

@@ -151,7 +151,8 @@ export const SHORT_SLOTS = [
   'duplicator',
   'inspect',
   'pistol',
-  'shuriken',
+  // Einmal der Wurfstern; der Platz bleibt, das Werkzeug heißt jetzt Messer.
+  'knife',
   'stopwatch',
   'flashlight',
   'grapple',

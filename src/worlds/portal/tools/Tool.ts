@@ -3,6 +3,7 @@ import { aimRotation } from './aim';
 import { createGrip, type GripOptions } from './grip';
 import { GRIP_HOLD_POSITION } from './gripFit';
 import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../../core/colors';
+import { holdHandPose } from '../../../core/handPoseStore';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
@@ -12,6 +13,22 @@ import type { PropKind } from '../props';
 import type { BeltOffset } from '../beltSettings';
 import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
+
+const _euler = new THREE.Euler();
+const DEG = Math.PI / 180;
+
+/**
+ * Wo an der gezeichneten Hand der **Handrücken** liegt und wo das
+ * **Handgelenk** — für alles, was angezogen wird (`Tool.worn`).
+ *
+ * Die Handfläche der Boxhand (`core/HandVisuals.ts`) ist ein Kasten von
+ * 2,8 cm Dicke um die Null, 9 cm lang und um einen Zentimeter nach vorn
+ * gerückt; ihr Rücken liegt also bei +1,4 cm, ihr hinteres Ende bei +3,5 cm.
+ * Eine Platte, die auf dem Handrücken liegen soll, liegt eine halbe Plattendicke
+ * darüber; eine Manschette ums Handgelenk sitzt dahinter.
+ */
+export const GLOVE_BACK = 0.022;
+export const GLOVE_WRIST = 0.045;
 
 /** Where a ray met a wall, floor or ceiling. */
 export interface SurfaceHit {
@@ -204,7 +221,7 @@ export abstract class Tool extends THREE.Group {
   /**
    * Let go of in mid-air, this one carries on instead of falling: it keeps the
    * speed it had, ignores gravity and stays wherever it first hits something.
-   * The shuriken is what this is for.
+   * The knife is what this is for.
    */
   glides = false;
 
@@ -220,6 +237,43 @@ export abstract class Tool extends THREE.Group {
    * needs it: reaching into a stack to pick a joint point must not scatter it.
    */
   phaseHands = false;
+
+  /**
+   * **Angezogen** statt gehalten: das Ding sitzt auf der Hand — ein Handschuh.
+   *
+   * Seine Lage im Griff ist dann keine eigene Größe, sondern die **Haltung der
+   * Hand**, die es trägt: wo die Hand ist, ist der Handschuh, und er folgt ihr
+   * (`holdHandPose`), statt dass jemand ihn eigens einmisst. Die Werkzeugseite
+   * schreibt für so ein Werkzeug deshalb beide Ziele in die Handhaltung. Was
+   * angezogen ist, zielt auch nicht (`alignToAim = false`) — es sitzt in der
+   * Faust und nirgends sonst.
+   */
+  worn = false;
+
+  /**
+   * Anziehen: ab jetzt sitzt das Werkzeug auf der Hand (`worn`), zielt nicht
+   * und liegt dort, wo die Haltung der rechten Hand es hinlegt — bis eine Hand
+   * es nimmt, dann dort, wo *die* ist.
+   */
+  protected wear(): void {
+    this.worn = true;
+    this.alignToAim = false;
+    this.followHand('right');
+  }
+
+  /**
+   * Die Lage im Griff eines angezogenen Werkzeugs: die sechs Zahlen der
+   * Handhaltung, die diese Hand mit ihm trägt (`holdHandPose`). Ein Handschuh
+   * ist damit immer genau dort, wo die gezeichnete Hand ist — auch dann, wenn
+   * jemand die Haltung im Menü gerade verschiebt.
+   */
+  followHand(side: Handedness): void {
+    const pose = holdHandPose(side, this.toolId);
+    this.holdPosition.set(pose.x / 100, pose.y / 100, pose.z / 100);
+    this.holdRotation.setFromEuler(
+      _euler.set(pose.pitch * DEG, pose.yaw * DEG, pose.roll * DEG, 'XYZ'),
+    );
+  }
 
   /** The hand currently holding this, or null while it is stowed. */
   heldBy: Handedness | null = null;
@@ -379,7 +433,9 @@ export abstract class Tool extends THREE.Group {
    *
    * @param hand die Hand, in der es liegt; `null` für „so, wie es herumliegt".
    */
-  showHeldBy(_hand: Handedness | null): void {}
+  showHeldBy(hand: Handedness | null): void {
+    if (this.worn && hand) this.followHand(hand);
+  }
 
   /**
    * Puts the tool into the hand: the offset from `holdPosition`, and a
@@ -394,6 +450,8 @@ export abstract class Tool extends THREE.Group {
     // Stowed tools belong to the belt and parked ones to the room; both set
     // their own pose.
     if (!this.heldBy || this.parked) return;
+    // Ein Handschuh folgt der Hand, Bild für Bild: seine Lage *ist* ihre Haltung.
+    if (this.worn) this.followHand(this.heldBy);
     this.position.copy(this.holdPosition);
     if (!this.alignToAim || !controller || !controller.grip.visible) {
       // Hanging in the target ray already: that *is* the aim.

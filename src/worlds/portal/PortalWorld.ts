@@ -363,7 +363,7 @@ interface LooseTool {
   tool: Tool;
   entry: PhysicsBody;
   /**
-   * Still on its way: a gliding tool (the shuriken) keeps its speed and
+   * Still on its way: a gliding tool (the knife) keeps its speed and
    * ignores gravity until it meets something, and then it stays there.
    */
   gliding: boolean;
@@ -3123,7 +3123,7 @@ export class PortalWorld implements World {
    * pistol, passing it across and drawing a second one is one continuous
    * movement instead of a trip to the shelf.
    *
-   * A **gliding** tool (the shuriken) skips the falling: it carries on along
+   * A **gliding** tool (the knife) skips the falling: it carries on along
    * the line it was travelling and stays where it first hits something.
    */
   private dropTool(ctx: WorldContext, tool: Tool): void {
@@ -3320,7 +3320,7 @@ export class PortalWorld implements World {
 
   /**
    * The tools that are lying around, and the one thing they can still be
-   * doing: gliding. A shuriken keeps its speed until the line it is on meets
+   * doing: gliding. A knife keeps its speed until the line it is on meets
    * something, and then it stops dead and stays there — sweeping the step
    * ourselves rather than waiting for a bounce is what makes it *stick* in the
    * wall instead of rattling off it.

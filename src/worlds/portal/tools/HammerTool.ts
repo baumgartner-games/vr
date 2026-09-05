@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
-import { HAMMER_HOME, HAMMER_SHAFT, clampShaftGrip, spanPole, swingPush } from './poleGrip';
+import {
+  HAMMER_HOME,
+  HAMMER_SHAFT,
+  POLE_HOLD_POSITION,
+  clampShaftGrip,
+  spanPole,
+  swingPush,
+} from './poleGrip';
 import { playTone } from '../../../core/Audio';
 import type { ControllerState, Handedness, XRInput } from '../../../core/XRInput';
 
@@ -123,8 +130,10 @@ export class HammerTool extends Tool {
     this.accent = 0xc98b52;
     this.hint = 'Überall am Stiel greifen · zweite Hand dazu · Trigger schiebt die Hand';
     // Der Ursprung ist der Griffpunkt, und ein Stiel liegt in der Faust wie
-    // jeder andere Griff: eine Spur unter und vor dem Griffpunkt des Controllers.
-    this.holdPosition.set(0, -0.012, 0.02);
+    // jeder Stab (`POLE_GRIP`): eine Spur unter und vor dem Griffpunkt des
+    // Controllers — dieselbe Zahl wie bei Lampe, Pinsel und Messer, denn die
+    // Faust am Stab (`POLE_HAND_POSE`) ist für alle vier dieselbe.
+    this.holdPosition.set(POLE_HOLD_POSITION.x, POLE_HOLD_POSITION.y, POLE_HOLD_POSITION.z);
 
     const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.78 });
     const iron = new THREE.MeshStandardMaterial({

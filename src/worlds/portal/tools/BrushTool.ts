@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
+import { POLE_HOLD_POSITION } from './poleGrip';
 import { playPick } from '../../../core/Audio';
 import { DEFAULT_MATERIAL, MATERIALS, type SurfaceMaterial } from './materials';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
@@ -26,6 +27,11 @@ const PANEL_H = (PANEL_W / CANVAS_W) * CANVAS_H;
 
 /** How far the brush may reach to paint something it is not touching. */
 const PAINT_RANGE = 4;
+
+/** Der Stiel — der Griff — von hinten nach vorn auf der z-Achse, und sein Halbmesser. */
+const HANDLE_BACK = 0.06;
+const HANDLE_FRONT = -0.055;
+const HANDLE_R = 0.016;
 
 /** Welche Seite der Palette gerade oben liegt. */
 type Page = 'colors' | 'materials';
@@ -92,37 +98,46 @@ export class BrushTool extends Tool {
     this.accent = 0x5ee0a0;
     this.hint = 'Farbe und Material wählen · Trigger streicht an';
 
-    const wood = new THREE.MeshStandardMaterial({ color: 0xc59a63, roughness: 0.6 });
     const metal = new THREE.MeshStandardMaterial({
       color: 0xb9c2d4,
       roughness: 0.3,
       metalness: 0.7,
     });
 
-    // Der Stiel bleibt der Stiel, aber gehalten wird der **Standardgriff**
-    // darunter: ein Pinsel, den man wie eine Pistole hält, zeigt dorthin, wohin
-    // der Zeigefinger zeigt — und braucht keine eigene Faust.
-    this.mountGrip({ length: 0.09 });
+    // Der Stiel **ist** der Griff: ein Stab in der Faust, wie der Stiel des
+    // Hammers (`POLE_GRIP`, `POLE_HAND_POSE`), in Greiffarbe statt Holz — die
+    // Farbe sagt „hier anfassen", und an einem Pinsel fasst man den Stiel an.
+    // Eine Weile hing ein Standardgriff darunter, und der Pinsel lag wie eine
+    // Pistole obenauf. Kein sichtbarer Griff mehr, und trotzdem zeigt er
+    // dorthin, wohin man zeigt: der Stab liegt auf der z-Achse, und die ist der
+    // Zeigestrahl.
+    this.holdPosition.set(POLE_HOLD_POSITION.x, POLE_HOLD_POSITION.y, POLE_HOLD_POSITION.z);
 
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.012, 0.15, 12), wood);
+    const handle = new THREE.Mesh(
+      new THREE.CylinderGeometry(HANDLE_R * 0.85, HANDLE_R, HANDLE_BACK - HANDLE_FRONT, 14),
+      grabMaterial({ roughness: 0.6 }),
+    );
     handle.rotation.x = Math.PI / 2;
-    handle.position.set(0, 0, -0.03);
+    handle.position.set(0, 0, (HANDLE_BACK + HANDLE_FRONT) / 2);
     this.add(handle);
 
-    this.ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.03, 12), metal);
+    this.ferrule = new THREE.Mesh(
+      new THREE.CylinderGeometry(HANDLE_R * 0.8, HANDLE_R * 0.85, 0.03, 12),
+      metal,
+    );
     this.ferrule.rotation.x = Math.PI / 2;
-    this.ferrule.position.set(0, 0, -0.115);
+    this.ferrule.position.set(0, 0, HANDLE_FRONT - 0.015);
     this.add(this.ferrule);
 
     this.tip = new THREE.Mesh(
-      new THREE.ConeGeometry(0.013, 0.05, 12),
+      new THREE.ConeGeometry(HANDLE_R * 0.9, 0.05, 12),
       new THREE.MeshStandardMaterial({ color: this.color, roughness: 0.5 }),
     );
     this.tip.rotation.x = -Math.PI / 2;
-    this.tip.position.set(0, 0, -0.152);
+    this.tip.position.set(0, 0, HANDLE_FRONT - 0.03 - 0.025);
     this.add(this.tip);
 
-    this.tipAnchor.position.set(0, 0, -0.178);
+    this.tipAnchor.position.set(0, 0, HANDLE_FRONT - 0.03 - 0.05);
     this.add(this.tipAnchor);
 
     this.canvas = document.createElement('canvas');

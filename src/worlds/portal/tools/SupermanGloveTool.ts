@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { GLOVE_BACK, GLOVE_WRIST, Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playTone } from '../../../core/Audio';
 import { flightCommand } from './supermanFlight';
 import { supermanSettings } from './gearStore';
@@ -111,7 +111,7 @@ export class SupermanGloveTool extends Tool {
     this.accent = 0xff4d5e;
     this.sticky = true;
     this.hint = 'Greifen schwebt · Trigger fliegt · Tempo im Menü';
-    this.holdPosition.set(0, -0.01, 0.02);
+    this.wear();
 
     const shell = new THREE.MeshStandardMaterial({
       color: 0x1f3f8a,
@@ -119,13 +119,16 @@ export class SupermanGloveTool extends Tool {
       metalness: 0.35,
     });
 
-    // A gauntlet: a plate over the back of the hand, a cuff around the wrist.
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.024, 0.1), shell);
-    plate.position.set(0, 0.005, -0.02);
+    // A gauntlet: a plate over the back of the hand, a cuff around the wrist —
+    // im Raum der **Hand** gebaut (`Tool.worn`): die Handfläche ist ein Kasten
+    // von 2,8 cm Dicke um die Null, der Handrücken liegt also bei +1,4 cm, und
+    // darauf liegt die Platte.
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.016, 0.1), shell);
+    plate.position.set(0, GLOVE_BACK, -0.01);
     this.add(plate);
     for (const side of [-1, 1]) {
-      const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.022, 0.02), shell);
-      knuckle.position.set(side * 0.022, 0.012, -0.072);
+      const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.02, 0.02), shell);
+      knuckle.position.set(side * 0.022, GLOVE_BACK + 0.004, -0.058);
       this.add(knuckle);
     }
 
@@ -139,7 +142,7 @@ export class SupermanGloveTool extends Tool {
       }),
     );
     this.cuff.rotation.x = Math.PI / 2;
-    this.cuff.position.set(0, 0, 0.035);
+    this.cuff.position.set(0, 0, GLOVE_WRIST);
     this.add(this.cuff);
 
     // The crest on the back of the hand, in the red that says who this is.
@@ -147,7 +150,7 @@ export class SupermanGloveTool extends Tool {
       new THREE.CircleGeometry(0.019, 5),
       new THREE.MeshBasicMaterial({ color: 0xffd23f, toneMapped: false }),
     );
-    this.crest.position.set(0, 0.019, -0.02);
+    this.crest.position.set(0, GLOVE_BACK + 0.009, -0.02);
     this.crest.rotation.set(-Math.PI / 2, 0, 0);
     this.add(this.crest);
 
@@ -160,7 +163,7 @@ export class SupermanGloveTool extends Tool {
       new THREE.PlaneGeometry(0.07, 0.026),
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false }),
     );
-    this.display.position.set(0, 0.022, 0.008);
+    this.display.position.set(0, GLOVE_BACK + 0.009, 0.014);
     this.display.rotation.x = -Math.PI / 2;
     this.add(this.display);
     this.draw();

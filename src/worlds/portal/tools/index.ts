@@ -14,7 +14,7 @@ import { InspectTool } from './InspectTool';
 import { MagicBagTool } from './MagicBagTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
-import { ShurikenTool } from './ShurikenTool';
+import { KnifeTool } from './KnifeTool';
 import { SupermanGloveTool } from './SupermanGloveTool';
 import { StopwatchTool } from './StopwatchTool';
 import { TapeTool } from './TapeTool';
@@ -43,7 +43,7 @@ export const TOOL_IDS = [
   'duplicator',
   'inspect',
   'pistol',
-  'shuriken',
+  'knife',
   'hammer',
   'stopwatch',
   'flashlight',
@@ -102,8 +102,8 @@ function buildTool(id: string): Tool | null {
       return new InspectTool();
     case 'pistol':
       return new PistolTool();
-    case 'shuriken':
-      return new ShurikenTool();
+    case 'knife':
+      return new KnifeTool();
     case 'hammer':
       return new HammerTool();
     case 'stopwatch':
@@ -163,7 +163,7 @@ export {
   HolsterTool,
   MagicBagTool,
   PistolTool,
-  ShurikenTool,
+  KnifeTool,
   StopwatchTool,
   SupermanGloveTool,
   TapeTool,
@@ -342,7 +342,7 @@ export {
   type WeldRequest,
 } from './Tool';
 export { aimRotation, aimError, type Quat as AimQuat } from './aim';
-export { SPIN_RATE, THROW_SPEED } from './ShurikenTool';
+export { SPIN_RATE, THROW_SPEED } from './KnifeTool';
 export {
   HANG_GLIDER,
   WINGS,
