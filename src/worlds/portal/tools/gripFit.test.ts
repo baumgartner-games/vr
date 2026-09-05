@@ -9,7 +9,12 @@ import {
   type GripPose,
 } from './gripFit';
 import { quatFromEulerXYZ } from './toolPose';
-import { HOLD_HAND_POSE, STANDARD_GRIP_TOOLS, defaultHoldPose } from '../../../core/handPose';
+import {
+  DRONE_HAND_POSE,
+  HOLD_HAND_POSE,
+  STANDARD_GRIP_TOOLS,
+  defaultHoldPose,
+} from '../../../core/handPose';
 
 const euler = (x: number, y = 0, z = 0): Quat => quatFromEulerXYZ({ x, y, z });
 
@@ -207,11 +212,15 @@ describe('Die Faust gehört zum Griff, nicht zum Werkzeug', () => {
     expect(left.pitch).toBeCloseTo(right.pitch, 6);
   });
 
-  it('lässt ein Werkzeug ohne Standardgriff bei der allgemeinen Faust', () => {
+  it('lässt ein Werkzeug ohne Standardgriff nicht an dessen Faust', () => {
     expect(STANDARD_GRIP_TOOLS.has('drone')).toBe(false);
-    expect(defaultHoldPose('right', 'drone')).toEqual(HOLD_HAND_POSE);
-    // Und die ist gerade *nicht* die Faust am Griff: wer keinen Griff trägt,
-    // erbt auch keine Haltung daran.
+    // Wer keinen Standardgriff trägt, erbt auch keine Haltung daran: die
+    // Drohne hat ihre eigene Faust um ihren eigenen Zylinder (`DRONE_HAND_POSE`,
+    // nachgerechnet in `core/gripFist.test.ts`) …
+    expect(defaultHoldPose('right', 'drone')).toEqual(DRONE_HAND_POSE);
     expect(defaultHoldPose('right', 'drone')).not.toEqual(defaultHoldPose('right', 'brush'));
+    // … und was gar keinen Zylinder hat, bleibt bei der allgemeinen Faust.
+    expect(STANDARD_GRIP_TOOLS.has('shuriken')).toBe(false);
+    expect(defaultHoldPose('right', 'shuriken')).toEqual(HOLD_HAND_POSE);
   });
 });

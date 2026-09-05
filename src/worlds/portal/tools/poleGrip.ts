@@ -31,6 +31,8 @@
  * Vorzeichen einzeln geprüft werden können statt erst in der Brille.
  */
 
+import { quatFromEulerXYZ, type HoldPose } from './toolPose';
+
 export interface Vec3 {
   x: number;
   y: number;
@@ -73,6 +75,24 @@ export interface Span {
  */
 export const HAMMER_SHAFT: Shaft = { front: -0.26, back: 0.42 };
 export const HAMMER_HOME = 0.28;
+
+/**
+ * Der Stiel **als Griff**, im Rahmen jedes Griffs (`gripFit.ts`: Achse auf +Y,
+ * Vorne auf -Z) — dort, wo die Faust ihn hält, also im Ursprung des Werkzeugs.
+ *
+ * Ein Stiel hat weder Rillen noch ein Vorne; wie herum die Faust darum liegt,
+ * legt deshalb diese Zahl fest, und sie ist die Haltung eines Hammers: die
+ * Achse des Griffs — die **Daumenseite** der Faust — zeigt zum Kopf (-z), der
+ * Handrücken nach rechts (+x). Die Handfläche liegt also innen am Stiel, die
+ * Finger schließen sich von unten darum. Für die linke Hand gilt die
+ * Spiegelung, wie bei jeder Haltung.
+ *
+ * Als Drehung: eine Vierteldrehung um X legt das +Y des Griffs auf -Z.
+ */
+export const HAMMER_GRIP: HoldPose = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: quatFromEulerXYZ({ x: -Math.PI / 2, y: 0, z: 0 }),
+};
 
 /**
  * Die kleinste Spanne zwischen zwei Griffen, aus der sich noch eine Richtung

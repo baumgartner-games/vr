@@ -256,11 +256,14 @@ export {
   GRIP_HOLD_POSITION,
   GRIP_TO_RAY,
   STANDARD_GRIP,
+  STANDARD_GRIP_IN_HAND,
   fistOnGrip,
   gripDeviation,
+  gripInHand,
   gripInTool,
   holdForGrip,
   type GripDeviation,
+  type GripInHand,
   type GripPose,
 } from './gripFit';
 export { createSight, Attachment, type AttachmentContext } from './attachments';

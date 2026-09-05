@@ -138,13 +138,18 @@ export const HOLD_HAND_POSE: HandPose = {
  * nachgerechnet in `core/gripFist.test.ts`). Wer den Griff verschiebt, rechnet
  * sie neu, statt sie neu zu erraten.
  *
- * Dass die Hand dabei **schräg** am Griff steht, ist der Punkt und nicht ein
- * Rest: der Zeigefinger liegt am Trigger, ist also halb gekrümmt und zeigt rund
- * 58° unter der Handachse hindurch. Ein Griff ist gegen die Hand geneigt, wie
- * an jeder echten Waffe, und diese Neigung *ist* die Krümmung des Fingers, der
- * auf den Lauf zeigen soll. Legte man stattdessen die Handachse gerade auf die
- * Grifflinie, läge die Faust zwar um den Zylinder, der Finger zeigte aber 58°
- * am Lauf vorbei nach unten.
+ * **Der Zeigefinger liegt gestreckt am Rahmen, nicht am Abzug** — so, wie eine
+ * Hand an einer Waffe liegt, die gerade nicht schießt. Das ist mehr als eine
+ * Geste: wie schräg die Hand am Griff steht, sagt die Krümmung genau dieses
+ * Fingers, denn die Faust wird um die Griffachse geschwenkt, bis die
+ * Fingerlinie auf der Grifflinie liegt. Mit dem Finger am Abzug (Krümmung
+ * 0,35) waren das **58°**: die Handfläche stand als schräger Klotz hinter dem
+ * Griff, und die Faust sah auf der Werkzeugseite nach allem aus, nur nicht
+ * nach einer Hand an einer Pistole — von unten schien sie neben dem Griff zu
+ * hängen. Gestreckt (0,1) sind es **17°**: die Handfläche liegt längs an der
+ * rechten Seite des Griffs, die drei Finger schließen sich davor, der
+ * Zeigefinger zeigt über dem Griff den Lauf entlang. Die anderen Finger sind
+ * die der allgemeinen Faust.
  *
  * Vorher standen hier zwei von Hand eingestellte Zahlenreihen, und **keine von
  * beiden** hielt ihren Griff wirklich: die gebaute Faust lag 6,7 cm daneben und
@@ -155,12 +160,69 @@ export const HOLD_HAND_POSE: HandPose = {
  */
 export const GRIP_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
-  x: -1.1,
-  y: 2.6,
-  z: 2.8,
+  x: 1.7,
+  y: 2.4,
+  z: 2.7,
   pitch: -43,
-  yaw: -58,
+  yaw: -17,
   roll: -90,
+  curls: [0.55, 0.1, 0.85, 0.9, 0.9],
+};
+
+/**
+ * **Die Faust am Stiel des Hammers** — rechte Hand, links gespiegelt.
+ *
+ * Derselbe Weg wie beim Standardgriff, ein anderer Zylinder: der Stiel liegt
+ * auf der z-Achse des Werkzeugs und läuft durch den Griffpunkt (`poleGrip.ts`,
+ * `HAMMER_GRIP`). Ein Stiel hat kein Vorne, also zeigt hier kein Finger etwas
+ * an: **alle** Finger sind in der Faust, und die Faust steht ungeschwenkt — die
+ * Daumenseite zum Kopf, die Handfläche innen am Stiel, wie man einen Hammer
+ * hält. Vorher stand hier die allgemeine Faust, und die lag **quer** zum Stiel:
+ * die Handfläche stand wie ein Brett auf der Stange, die Finger schlossen sich
+ * neben ihr um Luft.
+ */
+export const HAMMER_HAND_POSE: HandPose = {
+  ...HOLD_HAND_POSE,
+  x: 2.6,
+  y: 1.4,
+  z: 0.5,
+  pitch: -120,
+  yaw: 0,
+  roll: -90,
+  curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+};
+
+/**
+ * **Die Faust am Griff der Drohne** — die rechte Hand am rechten Griff, links
+ * gespiegelt am linken.
+ *
+ * Auch gerechnet, um den Zylinder am Ende des Decks (`DroneTool.ts`,
+ * `DRONE_GRIP`): das Deck ist zum Kopf gekippt und rutscht mit einer Hand so
+ * weit zur Seite, dass dieser Griff im Griffpunkt sitzt — dort liegt die Faust,
+ * Handrücken nach außen, die Finger um die Rückseite geschlossen wie an einer
+ * Konsole. Auch hier ohne Fingerzeig: eine Konsole hält man mit der ganzen
+ * Faust. Der Standardgriff säße 5,5 cm tiefer und 20° anders gedreht; die
+ * Faust dazu passte hier nicht.
+ */
+export const DRONE_HAND_POSE: HandPose = {
+  ...HOLD_HAND_POSE,
+  x: 2.6,
+  y: 0.8,
+  z: 4.3,
+  pitch: -62,
+  yaw: 0,
+  roll: -97,
+  curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+};
+
+/**
+ * Die Werkzeuge mit **eigenem** Zylinder — und deshalb mit eigener, ebenfalls
+ * gerechneter Faust. Was hier steht, trägt die Griff-*Form*, aber nicht die
+ * Standard-*Lage*, und steht deshalb nicht in `STANDARD_GRIP_TOOLS`.
+ */
+export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
+  hammer: HAMMER_HAND_POSE,
+  drone: DRONE_HAND_POSE,
 };
 
 /**
@@ -220,15 +282,17 @@ export const GRIP_POSE_ID = 'grip';
 /**
  * Die gebaute Haltung, in der eine Hand ein bestimmtes Werkzeug hält.
  *
- * Trägt es den Standardgriff, ist es die Faust dazu — für die linke Hand
- * gespiegelt. Trägt es keinen, bleibt die allgemeine Faust: sie ist kein
+ * Trägt es den Standardgriff, ist es die Faust dazu; trägt es einen eigenen
+ * Zylinder (Hammer, Drohne), die dazu gerechnete — beides für die linke Hand
+ * gespiegelt. Trägt es gar keinen, bleibt die allgemeine Faust: sie ist kein
  * Ergebnis, sondern ein Anfang, und dann führt der Weg über den zweiten
- * Justierstand. Der Speicher legt sich über beides, wenn jemand selbst justiert
+ * Justierstand. Der Speicher legt sich über alles, wenn jemand selbst justiert
  * hat (`handPoseStore.ts`).
  */
 export function defaultHoldPose(hand: Handedness, toolId: string): HandPose {
-  if (!STANDARD_GRIP_TOOLS.has(toolId)) return clonePose(HOLD_HAND_POSE);
-  return hand === 'right' ? clonePose(GRIP_HAND_POSE) : mirrorHandPose(GRIP_HAND_POSE);
+  const fist = STANDARD_GRIP_TOOLS.has(toolId) ? GRIP_HAND_POSE : TOOL_FISTS[toolId];
+  if (!fist) return clonePose(HOLD_HAND_POSE);
+  return hand === 'right' ? clonePose(fist) : mirrorHandPose(fist);
 }
 
 /** What the value editor offers, in the order it lists them. */

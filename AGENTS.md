@@ -122,11 +122,13 @@ niemand etwas), die **Faust am Griff**
 jedes Werkzeug mit diesem Griff gilt, eine für ein einzelnes Werkzeug aber
 darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 (`src/core/gripFist.test.ts` — die gezeichnete Hand am gebauten Werkzeug, quer
-zur Griffachse einen halben Millimeter genau, und die **Fingerlinie auf der
-Grifflinie**: der Zeigefinger zeigt den Lauf entlang, die Hand steht dafür 58°
-schräg am Griff; dazu die beiden Zahlen, wegen derer es diesen Test gibt: die
-alte gebaute Faust stand **90°** quer zum Zylinder, die am Stabgriff
-eingemessene 30°), der **Standardgriff**
+zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
+Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
+entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
+den **Stiel des Hammers** und den **Griff der Drohne**, an beiden Händen; und
+die beiden Zahlen, wegen derer es diesen Test gibt: die alte gebaute Faust
+stand **90°** quer zum Zylinder, die am Stabgriff eingemessene 30°), der
+**Standardgriff**
 (`src/worlds/portal/tools/gripFit.ts` — dass ein Griff bei *jeder* Haltung an
 derselben Stelle in der Faust landet und die Zielkorrektur sich dabei
 heraushebt, dass der Weg rückwärts derselbe ist, dass die geteilte
@@ -1615,9 +1617,9 @@ Es gibt **eine** Haltung für alles, was den Standardgriff trägt
 (`GRIP_HAND_POSE` in `core/handPose.ts`), rechts geschrieben und links
 gespiegelt — und sie ist nicht eingestellt, sondern **ausgerechnet**:
 
-| | x | y | z | Pitch | Yaw | Roll |
-| --- | --- | --- | --- | --- | --- | --- |
-| Faust am Griff | −1,1 | 2,6 | 2,8 | −43° | −58° | −90° |
+| | x | y | z | Pitch | Yaw | Roll | Finger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Faust am Griff | 1,7 | 2,4 | 2,7 | −43° | −17° | −90° | 0,55 · **0,1** · 0,85 · 0,9 · 0,9 |
 
 Der Weg dorthin steht in `fistOnGrip` (`tools/gripFit.ts`) und wird in
 `core/gripFist.test.ts` nachgerechnet. Drei Bedingungen, und sie lassen genau
@@ -1630,16 +1632,41 @@ selbst: der Kreis durch die drei Gelenke des Mittelfingers hat den Mittelpunkt
 Ein gekrümmter Finger legt sich um *etwas* — der Kreis durch seine Gelenke ist
 dieses Etwas.
 
-**Die Hand steht dabei schräg am Griff, und das ist der Punkt.** Ein Griff ist
-gegen die Hand geneigt, wie an jeder echten Waffe, und die Neigung *ist* die
-Krümmung des Zeigefingers, der auf dem Lauf liegen soll: er hängt am Trigger,
-ist also halb gekrümmt und zeigt rund **58° unter der Handachse** hindurch. Die
-erste Fassung dieser Rechnung legte die Handachse gerade auf die Grifflinie —
-die Faust lag dann zwar um den Zylinder, aber der Finger zeigte 58° am Lauf
-vorbei nach unten. Gemessen wird deshalb an der Linie, die man auf der
-Werkzeugseite auch sieht: die bernsteinfarbene am Finger und der rosa Pfeil am
-Griff liegen übereinander, wenn die Faust sitzt — derselbe Maßstab, den der
-Knopf *Auf den Griff* dort anlegt.
+**Die Hand steht dabei schräg am Griff, und wie schräg, sagt der
+Zeigefinger.** Die Fingerlinie soll auf der Grifflinie liegen, und ein
+gekrümmter Finger zeigt unter der Handachse hindurch — also wird die Faust um
+genau diesen Winkel um die Griffachse geschwenkt. Damit ist die Krümmung des
+Zeigefingers keine Zierde, sondern die Haltung der ganzen Hand. Die erste
+Fassung dieser Rechnung legte die Handachse gerade auf die Grifflinie — die
+Faust lag dann zwar um den Zylinder, aber der Finger zeigte am Lauf vorbei nach
+unten. Die zweite ließ den Finger am Abzug (Krümmung 0,35) und schwenkte die
+Faust um **58°**: geometrisch richtig, und auf der Werkzeugseite trotzdem
+falsch — die Handfläche stand als schräger Klotz hinter dem Griff, von unten
+schien die Hand neben der Pistole zu hängen, und genau so wurde es gemeldet.
+Jetzt liegt der **Zeigefinger gestreckt am Rahmen** (Krümmung 0,1), wie an
+einer Waffe, die gerade nicht schießt: die Faust steht **17°** schräg, die
+Handfläche längs an der rechten Seite des Griffs, die drei Finger schließen
+sich davor, und der Finger zeigt über dem Griff den Lauf entlang. Die anderen
+Finger sind die der allgemeinen Faust (`HOLD_HAND_POSE`), und die bleibt, was
+sie war — auch als Maske des Konfig-Codes. Gemessen wird an der Linie, die man
+auf der Werkzeugseite auch sieht: die bernsteinfarbene am Finger und der rosa
+Pfeil am Griff liegen übereinander, wenn die Faust sitzt — derselbe Maßstab,
+den der Knopf *Auf den Griff* dort anlegt.
+
+Nachgesehen wurde das nicht in der Brille, sondern **auf der Werkzeugseite im
+Browser**: jedes Werkzeug mit der Faust, aus sechs Richtungen, als Bild — von
+rechts, links, vorn, hinten, oben und schräg. Erst die Pistole, bis die Hand
+dort sauber saß, dann alle anderen mit derselben Faust; wer daran weiterarbeitet,
+tut gut daran, dasselbe zu tun, denn eine Zahl sieht man nicht an, ob die
+Handfläche neben dem Griff hängt.
+
+**Und im Spiel gilt sie auch.** Bis hierher galt sie nur auf der Werkzeugseite:
+die Welt fordert für jede Hand, die etwas hält, die Geste `grip` an, und
+`HandVisuals` malte damit die gebaute Faust über die eingestellte — der
+Zeigefinger stand in der Brille immer am Abzug, egal was die Haltung sagte, und
+kein Fingerwert aus dem Menü kam je an. Eine Hand, die etwas hält, trägt jetzt
+die Finger dessen, was sie hält; nur eine *andere* Geste, um die ein Werkzeug
+ausdrücklich bittet, gewinnt noch darüber.
 
 **Warum gerechnet und nicht gemessen.** Vorher standen dort zwei von Hand
 eingestellte Zahlenreihen, eine je Griffart, und **keine von beiden hielt ihren
@@ -1782,11 +1809,21 @@ Faust, deshalb ein glatter Zylinder ohne Ellipse und ohne Rillen — beide zeige
 eine Richtung an, und hier gibt es keine), die **Drohne** zwei Griffe an einem
 Deck, das man mit zwei Fäusten wie eine Konsole hält. Beide tragen die
 Griff-*Form*, aber nicht die Standard-*Lage*, und stehen deshalb nicht in
-`STANDARD_GRIP_TOOLS` — sie behalten ihre eigene Faust. Und die ist noch die
-gebaute, also dieselbe, die den Standardgriff quer hielt: **eine Faust gehört
-zu einem Zylinder an einer Stelle**, und wo ein anderer Zylinder an einer
-anderen Stelle liegt, gehört eine eigene dazu — gerechnet wie diese hier und
-nicht eingestellt. Das ist der nächste Schritt und noch nicht getan. Dazu die, die man gar nicht
+`STANDARD_GRIP_TOOLS` — sie haben ihre **eigene Faust**, und auch die ist
+gerechnet und nicht eingestellt: **eine Faust gehört zu einem Zylinder an einer
+Stelle**, und wo ein anderer Zylinder an einer anderen Stelle liegt, gehört
+eine eigene dazu. `fistOnGrip` nimmt dafür den Zylinder als zweites Argument
+(`gripInHand` rechnet ihn aus der Lage des Werkzeugs in der Hand und der des
+Griffs im Werkzeug), und die beiden Zylinder stehen dort, wo sie hingehören:
+der Stiel als `HAMMER_GRIP` in `poleGrip.ts` (Achse durch den Griffpunkt, die
+Daumenseite zum Kopf, die Handfläche innen — so hält man einen Hammer), der
+rechte Griff der Drohne als `DRONE_GRIP` in `DroneTool.ts` (mit einer Hand
+rutscht das Deck so weit, dass er im Griffpunkt sitzt). Beide Fäuste sind
+ganz geschlossen, denn dort zeigt kein Finger etwas an, und sie stehen als
+`HAMMER_HAND_POSE` und `DRONE_HAND_POSE` in `core/handPose.ts` (`TOOL_FISTS`),
+links gespiegelt. Vorher hatten beide die gebaute Faust, also dieselbe, die
+den Standardgriff quer hielt: die Handfläche stand wie ein Brett auf dem
+Stiel. Dazu die, die man gar nicht
 an einem Griff hält: der **Wurfstern** fliegt aus den Fingern, die drei
 **Handschuhe** und die **Flügel** werden angezogen, **Boxhand** und
 **Controller** *sind* die Hand, und der **magische Beutel** hängt an der Faust,

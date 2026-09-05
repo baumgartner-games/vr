@@ -172,12 +172,58 @@ export interface Fist {
    */
   centre: Vec3;
   /**
-   * Wohin der **Zeigefinger** dabei zeigt, im selben Raum. Nicht dasselbe wie
-   * das -Z der Hand: ein Finger am Trigger ist halb gekrümmt und zeigt deshalb
-   * gut ein halbes Rechteck unter der Handachse hindurch.
+   * Wohin der **Zeigefinger** dabei zeigt, im selben Raum — wenn er etwas
+   * zeigen soll. Nicht dasselbe wie das -Z der Hand: ein gekrümmter Finger
+   * zeigt unter der Handachse hindurch, und um genau diesen Winkel wird die
+   * Faust am Griff geschwenkt, damit der Finger auf der Grifflinie liegt.
+   *
+   * Ohne Finger bleibt die Faust ungeschwenkt: ihre Handachse liegt dann
+   * selbst auf der Grifflinie. Das ist die Faust um einen Griff, an dem kein
+   * Finger etwas anzeigt — den Stiel des Hammers, die Griffe der Drohne.
    */
-  finger: Vec3;
+  finger?: Vec3;
 }
+
+/**
+ * Ein Zylinder **in der Hand**: seine Mitte im Griffraum und seine Drehung,
+ * mit demselben Rahmen wie jeder Griff — Achse auf +Y, Vorne auf -Z.
+ *
+ * Das ist die Größe, an der eine Faust hängt. Für den Standardgriff ist sie
+ * eine Konstante (`STANDARD_GRIP_IN_HAND`); für alles, was seinen Zylinder
+ * anderswo trägt, rechnet `gripInHand` sie aus der Lage des Werkzeugs in der
+ * Hand und der des Griffs im Werkzeug.
+ */
+export type GripInHand = GripPose;
+
+/**
+ * Wo ein Griff in der Hand liegt, wenn das Werkzeug so in ihr liegt.
+ *
+ * Dieselbe Kette wie `Tool.applyHold`, nur ohne Brille: das Werkzeug hängt bei
+ * `holdPosition` im Griffraum und ist um `aim · holdRotation` gedreht, der Griff
+ * darin um seine eigene Lage weiter. Für `aim` steht die Zahl des Geräts,
+ * `GRIP_TO_RAY`.
+ */
+export function gripInHand(hold: HoldPose, grip: GripPose): GripInHand {
+  const held = multiplyQuat(GRIP_TO_RAY, hold.rotation, { x: 0, y: 0, z: 0, w: 1 });
+  const offset = rotateVec(grip.position, held, { x: 0, y: 0, z: 0 });
+  return {
+    position: {
+      x: hold.position.x + offset.x,
+      y: hold.position.y + offset.y,
+      z: hold.position.z + offset.z,
+    },
+    rotation: normalize(multiplyQuat(held, grip.rotation, { x: 0, y: 0, z: 0, w: 1 })),
+  };
+}
+
+/**
+ * Der Standardgriff in der Hand: auf dem Griffpunkt, denn genau dorthin legt
+ * ihn `GRIP_HOLD_POSITION` — die Mitte ist deshalb (bis auf Rundung) die Null.
+ */
+export const STANDARD_GRIP_IN_HAND: GripInHand = gripInHand(
+  { position: GRIP_HOLD_POSITION, rotation: IDENTITY },
+  STANDARD_GRIP,
+);
 
 /**
  * **Die Faust um den Griff** — die Lage, in der eine rechte Hand ihn hält,
@@ -193,20 +239,21 @@ export interface Fist {
  *   die Zielrichtung des Werkzeugs;
  * - die Mitte der Faust liegt auf der Mitte des Griffs.
  *
- * **Die Hand steht dabei schräg am Griff, und das ist keine Ungenauigkeit,
- * sondern der Punkt.** Der Zeigefinger liegt am Trigger, also halb gekrümmt,
- * und zeigt damit rund 58° unter der Handachse hindurch. Legt man stattdessen
- * die *Handachse* auf die Grifflinie — der nächstliegende Fehler, und der, der
- * hier zuerst stand —, dann zeigt der Finger 58° nach unten am Lauf vorbei:
- * eine Faust, die um den Griff liegt, aber an einer Waffe falsch aussieht. Ein
- * Griff ist gegen die Hand geneigt, wie an jeder echten Waffe; die Neigung
- * *ist* die Krümmung des Fingers, der auf den Lauf zeigen soll.
+ * **Die Hand steht dabei schräg am Griff, und wie schräg, sagt der
+ * Zeigefinger.** Ein gekrümmter Finger zeigt unter der Handachse hindurch, und
+ * um genau diesen Winkel wird die Faust um die Griffachse geschwenkt, damit
+ * der Finger auf der Grifflinie liegt. Mit dem Finger am Abzug (Krümmung 0,35)
+ * waren das 58° — und die Handfläche stand damit als schräger Klotz neben dem
+ * Griff, die Faust sah nach allem aus, nur nicht nach einer Hand an einer
+ * Waffe. Der Zeigefinger der Standardfaust liegt deshalb **gestreckt am
+ * Rahmen** (Krümmung 0,1, `GRIP_HAND_POSE`), wie es eine Hand an einer Waffe
+ * tut, die gerade nicht schießt: die Faust steht dann 17° schräg, die
+ * Handfläche liegt längs am Griff, und die Finger schließen sich davor.
  *
  * Gerechnet ist das der Griffrahmen, zweimal gedreht: eine Vierteldrehung um Z
  * legt das X der Hand auf das -Y des Griffs, und eine Drehung um die
- * Griffachse legt die Fingerlinie auf die Grifflinie. Der Rest ist die
- * Umrechnung vom Strahl- in den Griffraum (`GRIP_TO_RAY`) und der Versatz der
- * Faustmitte in der gebauten Hand.
+ * Griffachse legt die Fingerlinie auf die Grifflinie. Der Rest ist der Versatz
+ * der Faustmitte in der gebauten Hand.
  *
  * Es ist derselbe Maßstab, den die Werkzeugseite am Knopf *Auf den Griff*
  * anlegt und den man dort auch sieht: die bernsteinfarbene Linie am Finger und
@@ -215,10 +262,14 @@ export interface Fist {
  * Warum hier und nicht bei der Hand: das Ergebnis hängt am Griff, und der steht
  * in dieser Datei. `core/handPose.ts` trägt nur noch die fertigen Zahlen, so wie
  * eine Messung sie trüge — nachgerechnet wird in `core/gripFist.test.ts`.
+ *
+ * @param grip der Zylinder, um den es geht, in der Hand. Ohne Angabe der
+ *             Standardgriff; der Stiel des Hammers und die Griffe der Drohne
+ *             kommen über `gripInHand` hier an — dieselbe Rechnung, ein anderer
+ *             Zylinder, eine eigene Faust.
  */
-export function fistOnGrip(fist: Fist): HoldPose {
-  const inHand = multiplyQuat(GRIP_TO_RAY, STANDARD_GRIP.rotation, { x: 0, y: 0, z: 0, w: 1 });
-  const upright = multiplyQuat(inHand, quatFromEulerXYZ({ x: 0, y: 0, z: -Math.PI / 2 }), {
+export function fistOnGrip(fist: Fist, grip: GripInHand = STANDARD_GRIP_IN_HAND): HoldPose {
+  const upright = multiplyQuat(grip.rotation, quatFromEulerXYZ({ x: 0, y: 0, z: -Math.PI / 2 }), {
     x: 0,
     y: 0,
     z: 0,
@@ -227,13 +278,21 @@ export function fistOnGrip(fist: Fist): HoldPose {
   // Wie weit der Finger unter der Handachse hindurchzeigt — er liegt in der
   // Ebene quer zur Faustachse, also ist es eine Drehung um genau diese Achse,
   // und die Faust bleibt dabei auf ihrem Zylinder.
-  const droop = Math.atan2(fist.finger.y, -fist.finger.z);
+  const droop = fist.finger ? Math.atan2(fist.finger.y, -fist.finger.z) : 0;
   const rotation = normalize(
     multiplyQuat(upright, quatFromEulerXYZ({ x: -droop, y: 0, z: 0 }), { x: 0, y: 0, z: 0, w: 1 }),
   );
-  // Die Faustmitte gehört auf den Griff, und der liegt im Griffpunkt: die Hand
-  // steht also um ihre eigene Faustmitte daneben.
-  return { position: negate(rotateVec(fist.centre, rotation, { x: 0, y: 0, z: 0 })), rotation };
+  // Die Faustmitte gehört auf die Mitte des Griffs: die Hand steht also um
+  // ihre eigene Faustmitte daneben.
+  const centre = rotateVec(fist.centre, rotation, { x: 0, y: 0, z: 0 });
+  return {
+    position: {
+      x: grip.position.x - centre.x + 0,
+      y: grip.position.y - centre.y + 0,
+      z: grip.position.z - centre.z + 0,
+    },
+    rotation,
+  };
 }
 
 /**

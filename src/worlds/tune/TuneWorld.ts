@@ -41,6 +41,7 @@ import { nudgeGrip, FINE_FACTOR, type Grip } from './fineTune';
 import { GRAB_GLOW } from '../../core/colors';
 import {
   clonePose,
+  defaultHoldPose,
   formatHandPose,
   GRAB_POSE_ID,
   HOLD_HAND_POSE,
@@ -847,9 +848,12 @@ export class TuneWorld extends PortalWorld {
    * sein.
    */
   private gripHomePose(side: Handedness): HandPose {
-    const fist = clonePose(HOLD_HAND_POSE);
     const tool = this.grip?.tool;
-    if (!tool) return fist;
+    if (!tool) return clonePose(HOLD_HAND_POSE);
+    // Die Finger der Faust, die zu **diesem** Werkzeug gebaut ist: am
+    // Standardgriff liegt der Zeigefinger am Rahmen, am Stiel des Hammers ist er
+    // mit in der Faust.
+    const fist = defaultHoldPose(side, tool.toolId);
     const readout = readPose(this.gripLocal(tool, side) as HoldPose);
     return { ...fist, ...readout };
   }

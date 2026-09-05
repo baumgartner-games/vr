@@ -540,13 +540,16 @@ export class HandVisuals extends THREE.Group {
     hand.setPose(this.poseOf(controller.handedness));
     const forced = this.overrides.get(controller.handedness) ?? null;
     const gesture = this.gestureOf(controller);
-    // `open` is the idle pose and a held tool brings its own grip, so those two
-    // are already covered; a bare hand closing around a cube is not. A gesture
-    // a tool explicitly asked for is never covered — the Superman glove wants
-    // a fist out of a hand that is holding something.
+    // `open` is the idle pose, and a hand that holds something wears the fist
+    // of what it holds: its pose says how far each finger curls — at the
+    // standard grip the index finger lies along the frame, at the hammer it is
+    // in the fist. A `grip` gesture on top of that would only paint the built,
+    // generic fist over the dialled-in one (and did, for every held tool: the
+    // world asks for `grip` whenever a hand holds anything), so the pose covers
+    // it. Any other gesture a tool explicitly asked for still wins.
     const covered =
-      !forced &&
-      (gesture === 'open' || (gesture === 'grip' && this.holding.get(controller.handedness)));
+      (gesture === 'open' && !forced) ||
+      (gesture === 'grip' && Boolean(this.holding.get(controller.handedness)));
     if (gesture && !covered) hand.setGesture(gesture);
     hand.update(dt);
   }

@@ -20,6 +20,7 @@ import {
   type Quat,
 } from './droneFlight';
 import { createGripShape } from './grip';
+import { quatFromEulerXYZ, type HoldPose } from './toolPose';
 import { JET_BELLY, JET_EYE, JetBody } from './droneJet';
 import { droneSettings, saveDroneSettings } from './gearStore';
 import { playTone } from '../../../core/Audio';
@@ -58,6 +59,23 @@ const FIELD_ICONS: Record<DroneField['key'], 'stopwatch' | 'gizmo'> = {
 };
 /** Half the distance between the two grips. */
 const GRIP_X = 0.105;
+/** Wie weit jeder Griff nach außen kippt, in Bogenmaß — oben auseinander. */
+const GRIP_TILT = 0.12;
+/**
+ * Der **rechte Griff, in der rechten Hand** — als Griff im Rahmen von
+ * `gripFit.ts` (Achse +Y, Vorne -Z), im Raum des Werkzeugs.
+ *
+ * Mit einer Hand am Gerät rutscht das Deck so weit zur Seite, dass dieser Griff
+ * auf dem Ursprung sitzt (`showHeldBy`); übrig bleiben seine Höhe, sein kleiner
+ * Versatz nach vorn und die Kippung nach außen. Daraus rechnet
+ * `core/gripFist.test.ts` die Faust der Drohne (`DRONE_HAND_POSE`) — dieselbe
+ * Rechnung wie für den Standardgriff, nur um diesen Zylinder. Der linke Griff
+ * in der linken Hand ist die Spiegelung, wie bei jeder Haltung.
+ */
+export const DRONE_GRIP: HoldPose = {
+  position: { x: 0, y: -0.004, z: 0.006 },
+  rotation: quatFromEulerXYZ({ x: 0, y: 0, z: -GRIP_TILT }),
+};
 /** How far from the free grip the second hand still counts as holding on. */
 const GRIP_REACH = 0.32;
 
@@ -206,10 +224,11 @@ export class DroneTool extends Tool {
       // dort, wo ein Pistolengriff läge (5,5 cm tiefer, 20° anders gedreht —
       // `gripFit.ts` misst es nach). Ein Gerät, das man mit zwei Fäusten wie
       // eine Konsole hält, ist eben keine Pistole; deshalb steht es auch nicht
-      // in `TOOL_GRIPS` und behält seine eigene Faust.
+      // in `STANDARD_GRIP_TOOLS` und hat seine eigene Faust — gerechnet um
+      // genau diesen Zylinder (`DRONE_GRIP`, `DRONE_HAND_POSE`).
       const grip = createGripShape({ length: 0.13, thickness: 1.15, waves: false });
-      grip.position.set(side * GRIP_X, -0.004, 0.006);
-      grip.rotation.z = -side * 0.12;
+      grip.position.set(side * GRIP_X, DRONE_GRIP.position.y, DRONE_GRIP.position.z);
+      grip.rotation.z = -side * GRIP_TILT;
       this.deck.add(grip);
 
       const node = this.grips[side < 0 ? 'left' : 'right'];

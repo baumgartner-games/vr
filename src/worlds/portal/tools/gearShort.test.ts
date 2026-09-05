@@ -42,7 +42,16 @@ beforeEach(() => {
   jest.resetModules();
 });
 
-const grip = { ...HOLD_HAND_POSE, x: 4, y: -2.8, z: 1.7, pitch: -44, yaw: 26, roll: -105 };
+// Eine verschobene Faust mit den Fingern der gebauten: nur der Ort ist gemessen.
+const grip = {
+  ...defaultHoldPose('right', 'flashlight'),
+  x: 4,
+  y: -2.8,
+  z: 1.7,
+  pitch: -44,
+  yaw: 26,
+  roll: -105,
+};
 
 describe('der Code für ein Werkzeug an einer Hand', () => {
   it('ist kürzer als die blanken Zahlen — und trägt zwei Posen', () => {
@@ -163,17 +172,17 @@ describe('die Hand am Werkzeug', () => {
 describe('die eine Faust am Griff', () => {
   it('gilt rechts wie gerechnet und links gespiegelt', () => {
     expect(defaultHoldPose('right', 'flashlight')).toMatchObject({
-      x: -1.1,
-      y: 2.6,
-      z: 2.8,
+      x: 1.7,
+      y: 2.4,
+      z: 2.7,
       pitch: -43,
-      yaw: -58,
+      yaw: -17,
       roll: -90,
     });
     expect(defaultHoldPose('left', 'flashlight')).toEqual(
       mirrorHandPose(defaultHoldPose('right', 'flashlight')),
     );
-    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: 1.1, yaw: 58, roll: 90 });
+    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: -1.7, yaw: 17, roll: 90 });
   });
 
   it('gilt für jedes Werkzeug am Griff — die Lampe hält ihn wie die Pistole', () => {
@@ -181,7 +190,12 @@ describe('die eine Faust am Griff', () => {
   });
 
   it('lässt alles ohne Griff bei der gebauten Faust', () => {
-    expect(defaultHoldPose('right', 'hammer')).toEqual(HOLD_HAND_POSE);
+    // Der Wurfstern liegt in den Fingern, nicht an einem Zylinder.
+    expect(defaultHoldPose('right', 'shuriken')).toEqual(HOLD_HAND_POSE);
+    // Hammer und Drohne tragen einen eigenen Zylinder — und eine eigene,
+    // dazu gerechnete Faust, die weder die gebaute noch die am Griff ist.
+    expect(defaultHoldPose('right', 'hammer')).not.toEqual(HOLD_HAND_POSE);
+    expect(defaultHoldPose('right', 'hammer')).not.toEqual(defaultHoldPose('right', 'grip'));
   });
 });
 
