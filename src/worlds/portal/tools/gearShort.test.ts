@@ -160,24 +160,28 @@ describe('die Hand am Werkzeug', () => {
   });
 });
 
-describe('die eingemessene Taschenlampe', () => {
-  it('liegt rechts, wie gemessen, und links gespiegelt', () => {
+describe('die eine Faust am Griff', () => {
+  it('gilt rechts wie gerechnet und links gespiegelt', () => {
     expect(defaultHoldPose('right', 'flashlight')).toMatchObject({
-      x: 3.6,
-      y: -1.8,
-      z: 2.5,
-      pitch: -59,
-      yaw: 23,
-      roll: -99,
+      x: 2.6,
+      y: 2,
+      z: 2.2,
+      pitch: -43,
+      yaw: 0,
+      roll: -90,
     });
     expect(defaultHoldPose('left', 'flashlight')).toEqual(
       mirrorHandPose(defaultHoldPose('right', 'flashlight')),
     );
-    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: -3.6, yaw: -23, roll: 99 });
+    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: -2.6, yaw: 0, roll: 90 });
   });
 
-  it('lässt alles andere bei der gebauten Faust', () => {
-    expect(defaultHoldPose('right', 'pistol')).toEqual(HOLD_HAND_POSE);
+  it('gilt für jedes Werkzeug am Griff — die Lampe hält ihn wie die Pistole', () => {
+    expect(defaultHoldPose('right', 'pistol')).toEqual(defaultHoldPose('right', 'flashlight'));
+  });
+
+  it('lässt alles ohne Griff bei der gebauten Faust', () => {
+    expect(defaultHoldPose('right', 'hammer')).toEqual(HOLD_HAND_POSE);
   });
 });
 

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
-import { rodHoldRotation } from './grip';
 import { playPick, playTone } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
@@ -87,13 +86,11 @@ export class WelderTool extends Tool {
     this.hint = 'Zwei Punkte antippen · andere Hand wählt die Art';
     // Reaching into a pile to pick a joint point must not scatter the pile.
     this.phaseHands = true;
-    // Ein Lötkolben ist ein Stab, und er wird gehalten wie einer: dieselbe Lage
-    // in der Hand wie die Taschenlampe, derselbe Griff, dieselbe eingemessene
-    // Faust (`gripFit.ts`). Vorher lag er wie eine Pistole in der Hand — sein
-    // Griff stand damit **103°** gegen den der Pistole, und die Faust dazu war
-    // trotzdem die der Pistole. Genau das sah man ihm an.
-    rodHoldRotation(this.holdRotation);
-    this.mountGrip('rod', { length: 0.085 });
+    // Eine **Lötpistole** und kein Kolben: derselbe Griff wie an allem anderen,
+    // quer unter dem Stab. Er hing eine Weile am Stabgriff — Stab in der Faust,
+    // Spitze auf der Faustachse —, und das kostete eine zweite Faust und eine
+    // Spitze, die nicht dorthin zeigte, wohin man zeigt (`gripFit.ts`).
+    this.mountGrip({ length: 0.085 });
 
     const steel = new THREE.MeshStandardMaterial({
       color: 0xb9c2d4,

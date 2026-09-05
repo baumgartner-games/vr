@@ -24,7 +24,7 @@ beforeAll(() => {
 
 // Erst nach dem Speicher laden: das Modul liest beim ersten Zugriff, und ein
 // Modul, das seinen Speicher nicht findet, merkt sich das leere Ergebnis.
-import { GRIP_POSE_IDS, TOOL_GRIPS, defaultHoldPose } from './handPose';
+import { GRIP_POSE_ID, STANDARD_GRIP_TOOLS, defaultHoldPose } from './handPose';
 import {
   clearHandPoses,
   clearHoldHandPose,
@@ -38,49 +38,48 @@ beforeEach(() => {
   clearHandPoses();
 });
 
-/** Ein Werkzeug mit Pistolengriff, das nicht der Griff selbst ist. */
-const PISTOL_TOOL = 'pistol';
-const ROD_TOOL = 'flashlight';
+/** Zwei Werkzeuge mit Standardgriff, von denen keins der Griff selbst ist. */
+const GRIP_TOOL = 'pistol';
+const OTHER_TOOL = 'flashlight';
 
 describe('ohne alles', () => {
-  it('gibt jedem Werkzeug die gebaute Faust seines Standardgriffs', () => {
-    expect(holdHandPose('right', PISTOL_TOOL)).toEqual(defaultHoldPose('right', PISTOL_TOOL));
-    expect(holdHandPose('right', ROD_TOOL)).toEqual(defaultHoldPose('right', ROD_TOOL));
+  it('gibt jedem Werkzeug die gebaute Faust am Standardgriff', () => {
+    expect(holdHandPose('right', GRIP_TOOL)).toEqual(defaultHoldPose('right', GRIP_TOOL));
+    expect(holdHandPose('right', OTHER_TOOL)).toEqual(defaultHoldPose('right', OTHER_TOOL));
+    // Und das ist dieselbe: ein Griff, eine Faust.
+    expect(holdHandPose('right', GRIP_TOOL)).toEqual(holdHandPose('right', OTHER_TOOL));
   });
 
-  it('führt für beide Griffarten eine eigene Id', () => {
-    expect(GRIP_POSE_IDS.pistol).toBe('grip');
-    expect(GRIP_POSE_IDS.rod).toBe('grip-rod');
-    expect(GRIP_POSE_IDS.pistol).not.toBe(GRIP_POSE_IDS.rod);
+  it('führt die Faust unter der Id des Griffs — einer Werkzeug-Id', () => {
+    expect(GRIP_POSE_ID).toBe('grip');
+    expect(STANDARD_GRIP_TOOLS.has(GRIP_POSE_ID)).toBe(true);
   });
 });
 
 describe('eine Faust am Griff eingestellt', () => {
   it('gilt für jedes Werkzeug mit diesem Griff', () => {
-    const pose = { ...defaultHoldPose('right', PISTOL_TOOL), x: 3.5, pitch: -20 };
-    saveHoldHandPose('right', GRIP_POSE_IDS.pistol, pose);
+    const pose = { ...defaultHoldPose('right', GRIP_TOOL), x: 3.5, pitch: -20 };
+    saveHoldHandPose('right', GRIP_POSE_ID, pose);
 
-    for (const [id, kind] of Object.entries(TOOL_GRIPS)) {
-      if (kind !== 'pistol') continue;
+    for (const id of STANDARD_GRIP_TOOLS) {
       expect(holdHandPose('right', id).x).toBe(3.5);
       expect(holdHandPose('right', id).pitch).toBe(-20);
     }
     // Und `gripHandPose` ist derselbe Weg unter einem Namen, der es sagt.
-    expect(gripHandPose('right', 'pistol').x).toBe(3.5);
+    expect(gripHandPose('right').x).toBe(3.5);
   });
 
-  it('lässt die andere Griffart und die andere Hand in Ruhe', () => {
-    saveHoldHandPose('right', GRIP_POSE_IDS.pistol, {
-      ...defaultHoldPose('right', PISTOL_TOOL),
+  it('lässt die andere Hand in Ruhe', () => {
+    saveHoldHandPose('right', GRIP_POSE_ID, {
+      ...defaultHoldPose('right', GRIP_TOOL),
       x: 3.5,
     });
-    expect(holdHandPose('right', ROD_TOOL)).toEqual(defaultHoldPose('right', ROD_TOOL));
-    expect(holdHandPose('left', PISTOL_TOOL)).toEqual(defaultHoldPose('left', PISTOL_TOOL));
+    expect(holdHandPose('left', GRIP_TOOL)).toEqual(defaultHoldPose('left', GRIP_TOOL));
   });
 
   it('rührt Werkzeuge ohne Standardgriff nicht an', () => {
-    saveHoldHandPose('right', GRIP_POSE_IDS.pistol, {
-      ...defaultHoldPose('right', PISTOL_TOOL),
+    saveHoldHandPose('right', GRIP_POSE_ID, {
+      ...defaultHoldPose('right', GRIP_TOOL),
       x: 3.5,
     });
     // Der Hammer greift an seinen Stiel, die Drohne an ihr Deck.
@@ -91,26 +90,26 @@ describe('eine Faust am Griff eingestellt', () => {
 
 describe('eine Faust für ein einzelnes Werkzeug', () => {
   it('gewinnt über die des Griffs — sie ist die genauere Auskunft', () => {
-    saveHoldHandPose('right', GRIP_POSE_IDS.pistol, {
-      ...defaultHoldPose('right', PISTOL_TOOL),
+    saveHoldHandPose('right', GRIP_POSE_ID, {
+      ...defaultHoldPose('right', GRIP_TOOL),
       x: 3.5,
     });
-    saveHoldHandPose('right', PISTOL_TOOL, {
-      ...defaultHoldPose('right', PISTOL_TOOL),
+    saveHoldHandPose('right', GRIP_TOOL, {
+      ...defaultHoldPose('right', GRIP_TOOL),
       x: -1,
     });
-    expect(holdHandPose('right', PISTOL_TOOL).x).toBe(-1);
+    expect(holdHandPose('right', GRIP_TOOL).x).toBe(-1);
     // Die anderen bleiben bei der Faust des Griffs.
     expect(holdHandPose('right', 'duplicator').x).toBe(3.5);
   });
 
   it('fällt nach dem Löschen wieder auf die des Griffs zurück', () => {
-    saveHoldHandPose('right', GRIP_POSE_IDS.pistol, {
-      ...defaultHoldPose('right', PISTOL_TOOL),
+    saveHoldHandPose('right', GRIP_POSE_ID, {
+      ...defaultHoldPose('right', GRIP_TOOL),
       x: 3.5,
     });
-    saveHoldHandPose('right', PISTOL_TOOL, { ...defaultHoldPose('right', PISTOL_TOOL), x: -1 });
-    expect(clearHoldHandPose('right', PISTOL_TOOL)).toBe(true);
-    expect(holdHandPose('right', PISTOL_TOOL).x).toBe(3.5);
+    saveHoldHandPose('right', GRIP_TOOL, { ...defaultHoldPose('right', GRIP_TOOL), x: -1 });
+    expect(clearHoldHandPose('right', GRIP_TOOL)).toBe(true);
+    expect(holdHandPose('right', GRIP_TOOL).x).toBe(3.5);
   });
 });

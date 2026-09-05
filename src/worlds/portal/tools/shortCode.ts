@@ -176,10 +176,14 @@ export const SHORT_SLOTS = [
   'holster',
   'hang-glider',
   'wings',
-  // Der Griff als Werkzeug — und die Id, unter der die Faust am Stabgriff
-  // liegt (`GRIP_POSE_IDS`). Beide tragen eine Handhaltung, also brauchen
-  // beide einen Platz, sonst fiele ihr Kurzcode auf „leere Hand" zurück.
+  // Der Griff als Werkzeug — er trägt die eine Faust, die alle Werkzeuge mit
+  // Standardgriff erben (`GRIP_POSE_ID`), und braucht deshalb einen Platz,
+  // sonst fiele sein Kurzcode auf „leere Hand" zurück.
   'grip',
+  // Die Faust am **Stabgriff**, den es nicht mehr gibt: ein Griff, eine Faust.
+  // Der Platz bleibt trotzdem stehen — der Platz *ist* das Format, und wer eine
+  // Zeile herausnimmt, macht aus jedem alten Code einen, der etwas anderes
+  // meint.
   'grip-rod',
   'bag',
 ] as const;

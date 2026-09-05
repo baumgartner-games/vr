@@ -44,6 +44,6 @@ export class GripTool extends Tool {
     // Kein `holdRotation` davor: ein blanker Griff zeigt dorthin, wohin man
     // zeigt, und das ist genau die Ruhe. `mountGrip` setzt die geteilte
     // `holdPosition` gleich mit.
-    this.mountGrip('pistol', { front: true });
+    this.mountGrip({ front: true });
   }
 }

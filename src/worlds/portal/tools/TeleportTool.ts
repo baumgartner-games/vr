@@ -99,7 +99,7 @@ export class TeleportTool extends Tool {
 
     // Derselbe Griff wie an der Pistole (`grip.ts`) — hier saß er ohnehin fast
     // richtig, jetzt sitzt er es.
-    this.mountGrip('pistol');
+    this.mountGrip();
 
     this.muzzle.position.set(0, 0.01, -0.13);
     this.add(this.muzzle);

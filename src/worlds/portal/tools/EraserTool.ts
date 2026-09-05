@@ -30,7 +30,7 @@ export class EraserTool extends Tool {
     this.icon = 'eraser';
     this.accent = 0xff6ea3;
     this.hint = 'Trigger löscht das Objekt';
-    this.mountGrip('pistol', { length: 0.085 });
+    this.mountGrip({ length: 0.085 });
 
     const sleeve = new THREE.MeshStandardMaterial({ color: 0x2b3346, roughness: 0.7 });
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.03, 0.1), sleeve);

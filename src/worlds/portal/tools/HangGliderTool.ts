@@ -66,7 +66,10 @@ export class HangGliderTool extends GlideTool {
     stub.rotation.x = Math.PI / 2;
     stub.position.z = 0.02;
     this.add(stub);
-    this.mountGrip('rod', { length: 0.11 });
+    // Der Bügel bekommt denselben Griff wie jedes andere Werkzeug — er hing
+    // vorher am Stabgriff und damit an einer zweiten Faust, die es nicht mehr
+    // gibt.
+    this.mountGrip({ length: 0.11 });
 
     const tube = new THREE.MeshStandardMaterial({ color: TUBE, roughness: 0.4, metalness: 0.6 });
     const wire = new THREE.LineBasicMaterial({ color: 0x9aa4b8 });

@@ -69,7 +69,7 @@ export class XrayTool extends Tool {
     // der Standardgriff, an der Stelle, an der er in der Faust landet — der
     // Rahmen steht damit dort, wo ein gehaltener Rahmen steht, und die Faust
     // ist dieselbe wie an allem anderen.
-    this.mountGrip('pistol', { length: 0.09 });
+    this.mountGrip({ length: 0.09 });
 
     this.frame.add(this.scope.glass);
   }

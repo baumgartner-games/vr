@@ -68,19 +68,14 @@ export class FlashlightTool extends Tool {
     this.icon = 'flashlight';
     this.accent = 0xffd88a;
     this.hint = 'Trigger schaltet · andere Hand an der Linse stellt den Kegel';
-    // Eingemessen am Justierstand und als Konfig-Code `BPNDLdWgZ9NvBevCHScPckXK`
-    // hereingekommen: 0,8 · -1,4 · 3,8 cm, dazu 30/5/9° gegen die Zielrichtung.
-    // Die Lampe liegt damit sichtbar schräg in der Faust — genau darum geht es:
-    // ihr Kegel geht dort hinaus, wo bei einer Pistole der Lauf sitzt, also darf
-    // sie nicht wie eine Pistole in der Hand liegen.
-    this.holdRotation.setFromEuler(
-      new THREE.Euler((30 * Math.PI) / 180, (5 * Math.PI) / 180, (9 * Math.PI) / 180),
-    );
-    // Und damit ist die Lampe die **Messlatte des Stabgriffs**: `mountGrip` legt
-    // ihn dorthin, wo diese Neigung ihn in der Faust landen lässt, und das ist
-    // genau die Mitte ihres Rohrs. Die `holdPosition` kommt von dort mit — es
-    // ist dieselbe Zahl, die vorher hier stand (`gripFit.ts`).
-    this.mountGrip('rod', { length: 0.1, waves: false });
+    // **Eine Lampe mit Griff**, und keine Stabtaschenlampe mehr. Lange lag ihr
+    // Rohr in der Faust selbst (`holdRotation` 30/5/9°, am Justierstand
+    // eingemessen) — dafür brauchte sie einen eigenen Griff, eine eigene Faust,
+    // und ihr Kegel ging **30° über das hinweg, worauf man zeigte**. Ein Rohr
+    // auf der Faustachse *kann* nicht entlang des Zeigestrahls leuchten; das ist
+    // Geometrie und keine Einstellung. Also derselbe Griff wie an allem anderen,
+    // quer unter dem Rohr, und der Kegel geht dorthin, wohin man zeigt.
+    this.mountGrip({ length: 0.1 });
 
     const body = new THREE.MeshStandardMaterial({
       color: 0x2b3242,

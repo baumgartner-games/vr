@@ -105,7 +105,7 @@ export class PistolTool extends Tool {
     // er sitzt hier, wo er in der Faust landet (`grip.ts`). Die Pistole ist die
     // Messlatte dafür — was hier gebaut wird, ist genau die Lage, die ihr
     // Kasten in Greiffarbe vorher hatte, nur nicht mehr von Hand hingesetzt.
-    this.mountGrip('pistol', { length: 0.1 });
+    this.mountGrip({ length: 0.1 });
 
     const magazine = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.075, 0.032), steel);
     magazine.position.set(0, -0.052, 0.008);

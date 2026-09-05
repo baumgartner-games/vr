@@ -89,7 +89,7 @@ export class HolsterTool extends Tool {
 
     // Derselbe Griff wie an der Pistole (`grip.ts`). Vorher lehnte er nach vorn
     // und damit 24° gegen den der Pistole — die größte der alten Abweichungen.
-    this.mountGrip('pistol', { length: 0.08 });
+    this.mountGrip({ length: 0.08 });
 
     // Vorne ein Ring in derselben Form wie die Hüften selbst: das Werkzeug
     // sagt damit, worauf es sich versteht.

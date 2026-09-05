@@ -71,7 +71,7 @@ export class StopwatchTool extends Tool {
     this.icon = 'stopwatch';
     this.accent = 0xffc857;
     this.hint = 'Trigger schaltet die Zeit · Knopf öffnet das Menü';
-    this.mountGrip('pistol', { length: 0.085 });
+    this.mountGrip({ length: 0.085 });
 
     const brass = new THREE.MeshStandardMaterial({
       color: 0xd9a441,

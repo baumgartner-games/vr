@@ -32,27 +32,26 @@
  * gilt für alles, was **wie eine Pistole** gehalten wird: `-Z` des Griffs *ist*
  * die Zielrichtung des Werkzeugs, und der Griff sitzt unverdreht darin.
  *
- * ## Zwei Griffe, nicht einer
+ * ## Ein Griff, eine Faust
  *
- * Eine **Taschenlampe** hält man nicht wie eine Pistole, und das ist keine
- * Nachlässigkeit, sondern Geometrie: ihr Rohr liegt *entlang* der Griffachse und
- * nicht quer dazu. Derselbe Zylinder, dieselbe Faust — aber das Werkzeug hängt
- * um eine Vierteldrehung anders daran, und damit zeigt sein Kegel nicht dorthin,
- * wo der Zeigefinger zeigt. Es gibt deshalb **zwei** Standardgriffe:
+ * Es war einmal zwei: `pistol` quer zur Achse und `rod` längs dazu, für alles,
+ * dessen Rohr *entlang* der Faust liegt — Taschenlampe, Lötkolben, Hängegleiter.
+ * Zwei Griffe klingen nach zwei Arten anzufassen; sie sind aber zwei **Orte** in
+ * derselben Faust, und eine Faust hat nur einen. Also zog jeder zweite Griff
+ * eine zweite Faust nach sich, und die beiden standen am Ende 111°
+ * gegeneinander — für denselben Zylinder.
  *
- * - `pistol` — quer zur Achse angebaut, `-Z` ist die Zielrichtung. Pistole,
- *   Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken.
- * - `rod` — längs der Achse angebaut, das Werkzeug liegt in der Faust wie ein
- *   Stab. Taschenlampe und Lötkolben.
+ * Dazu kam, was ein Stabgriff kostet: das Rohr liegt auf der Faustachse, und die
+ * steht quer zum Zeigestrahl. Eine Taschenlampe leuchtete deshalb **30° über
+ * das hinweg, worauf man zeigte** — die einzige Ausnahme von der Regel, dass
+ * jedes Werkzeug entlang des Strahls zielt, und niemand hatte sie beschlossen;
+ * sie fiel bei einer Messung an und blieb liegen.
  *
- * Beide Lagen sind **eingemessen und nicht erfunden**: die eine ist der
- * Pistolengriff, wie er heute im Spiel liegt, die andere die am Justierstand
- * eingemessene Taschenlampe (Konfig-Code `BPNDLdWgZ9NvBevCHScPckXK`). Dass die
- * beiden Messungen zusammenpassen, sagt eine Zahl: der Stabgriff steht mit
- * **-59,2°** Pitch in der Hand, und die eingemessene *Faust* der Taschenlampe
- * hat **-59°**. Zwei getrennt gemessene Größen, dieselbe Zahl — das ist der
- * Beleg dafür, dass hier wirklich ein Zylinder in einer Faust liegt und nicht
- * zwei Zufälle nebeneinander.
+ * Jetzt trägt alles denselben Griff quer unter sich, wie eine Lampe mit Griff
+ * oder eine Lötpistole, und zielt wieder dorthin, wohin man zeigt. Die Lage ist
+ * die des **Pistolengriffs**, wie er im Spiel schon lag; was daran neu ist, ist
+ * die `holdPosition` — sie legt ihn jetzt wirklich in die Faust statt 8,6 cm
+ * daneben.
  *
  * ## Warum sich `aim` dabei herauskürzt
  *
@@ -75,68 +74,77 @@
  * ```
  *
  * Das ist alles, was diese Datei rechnet — einmal vorwärts (`gripInTool`),
- * einmal rückwärts (`holdForGrip`), und einmal als Maßband für das, was schon
- * gebaut ist (`gripDeviation`).
+ * einmal rückwärts (`holdForGrip`), einmal als Maßband für das, was schon gebaut
+ * ist (`gripDeviation`), und einmal für die **Hand**, die ihn hält
+ * (`fistOnGrip`). Dort kürzt sich `aim` allerdings *nicht* weg: eine Hand steht
+ * im Griffraum und ein Werkzeug im Strahlraum, und zwischen beiden liegt genau
+ * eine Zahl, `GRIP_TO_RAY`.
  *
  * Ohne three.js, wie `aim.ts` und `toolPose.ts`.
  */
 
 import { IDENTITY, conjugate, multiplyQuat, rotateVec, type Quat, type Vec3 } from './aim';
 import { quatFromEulerXYZ, type HoldPose } from './toolPose';
-import type { GripKind } from '../../../core/handPose';
 
 /** Wo ein Griff liegt: derselbe Aufbau wie eine `HoldPose`. */
 export type GripPose = HoldPose;
 
 /**
- * Die `holdPosition`, die jedes Werkzeug **mit diesem Griff** trägt.
+ * Wo der Standardgriff in der Hand liegt — Ort im Griffraum, Drehung im
+ * Strahlraum. Es sind die Zahlen der **Pistole**, wie sie gebaut ist: 5,5 cm
+ * unter ihrem Nullpunkt, 12,6° nach hinten gelehnt.
  *
- * Geteilt sein muss sie, sonst kürzt sich `aim` oben nicht weg — aber nur
- * innerhalb einer Griffart, denn zwei Griffarten haben ohnehin zwei Fäuste. Und
- * geteilt *ist* sie beinahe schon: die Pistole nimmt sie aus `Tool`, fünfzehn
- * andere Werkzeuge schrieben `(0, -1, 2)` cm hin, einen Zentimeter daneben.
- *
- * Beide Zahlen sind die des Werkzeugs, das die Griffart definiert — die Pistole,
- * wie sie gebaut ist, und die am ersten Justierstand eingemessene Taschenlampe.
+ * Einer, nicht zwei. Ein Stabgriff — dasselbe Rohr, aber *längs* der Faustachse
+ * angebaut — war ein zweiter Ort in derselben Faust, und zwei Orte in einer
+ * Faust gibt es nicht: das eine ist der Griff, das andere die Stelle daneben.
+ * Zwei Griffe zogen deshalb zwangsläufig zwei Fäuste nach sich, und die beiden
+ * Fäuste standen 111° gegeneinander, obwohl sie dasselbe umschlossen.
  */
-export const GRIP_HOLD_POSITIONS: Record<GripKind, Vec3> = {
-  pistol: { x: 0, y: -0.012, z: 0.03 },
-  rod: { x: 0.008, y: -0.014, z: 0.038 },
+export const STANDARD_GRIP: GripPose = {
+  position: { x: 0, y: -0.055, z: 0.01 },
+  rotation: quatFromEulerXYZ({ x: -0.22, y: 0, z: 0 }),
 };
 
 /**
- * Wo die beiden Standardgriffe in der Hand liegen — Ort im Griffraum, Drehung
- * im Strahlraum, beide gemessen an dem Werkzeug, das sie definiert.
+ * Wie weit **Griffraum und Zeigestrahl** auf der Quest auseinanderliegen — die
+ * einzige Zahl, über die sich Hand und Werkzeug überhaupt treffen können.
  *
- * `pistol` ist der Griff der Pistole, wie er heute dort steht: 5,5 cm unter dem
- * Nullpunkt, 12,6° nach hinten gelehnt. `rod` ist die eingemessene
- * Taschenlampe: ihr Rohr liegt in der Faust, also ihre Griffachse auch.
+ * Eine Hand steht im Griffraum (dort sitzt sie auf dem Controller), ein
+ * gehaltenes Werkzeug im Strahlraum (dorthin zielt es). Wer wissen will, wo der
+ * Griff eines Werkzeugs in der Faust landet, braucht die Drehung zwischen
+ * beiden — und die gehört dem Gerät, nicht dem Code.
+ *
+ * Es ist dieselbe Drehung, die `aimRotation` aus einem Controller liest: sie
+ * legt etwas aus dem Griffraum auf den Zeigestrahl. Im Spiel kommt sie von dort
+ * und nicht von hier — diese Zahl ist für alles da, was **gebaut** wird, lange
+ * bevor eine Brille auf dem Kopf sitzt: die Lage eines Griffs im Werkzeug, die
+ * Faust darum, und das Bild auf der Werkzeugseite.
+ *
+ * Es sind die **30°**, die es hier ohnehin an drei Stellen gibt: so weit
+ * schossen früher alle Werkzeuge zu hoch (`aim.ts`), so weit steht der Griff
+ * einer Quest gegen ihren Zeigestrahl, und genau so weit war die am
+ * Justierstand eingemessene Taschenlampe gegen den Strahl gedreht (30/5/9°).
+ * Drei Wege, eine Zahl.
  */
-export const STANDARD_GRIPS: Record<GripKind, GripPose> = {
-  pistol: {
-    position: { x: 0, y: -0.055, z: 0.01 },
-    rotation: quatFromEulerXYZ({ x: -0.22, y: 0, z: 0 }),
-  },
-  rod: {
-    // = holdRotation der Lampe · (Achse auf das Rohr drehen)
-    position: rotateVec(
-      { x: 0, y: 0, z: -0.03 },
-      quatFromEulerXYZ({ x: (30 * Math.PI) / 180, y: (5 * Math.PI) / 180, z: (9 * Math.PI) / 180 }),
-      { x: 0, y: 0, z: 0 },
-    ),
-    rotation: normalize(
-      multiplyQuat(
-        quatFromEulerXYZ({
-          x: (30 * Math.PI) / 180,
-          y: (5 * Math.PI) / 180,
-          z: (9 * Math.PI) / 180,
-        }),
-        quatFromEulerXYZ({ x: -Math.PI / 2, y: 0, z: 0 }),
-        { x: 0, y: 0, z: 0, w: 1 },
-      ),
-    ),
-  },
-};
+export const GRIP_TO_RAY: Quat = quatFromEulerXYZ({ x: (-30 * Math.PI) / 180, y: 0, z: 0 });
+
+/**
+ * Die `holdPosition`, die jedes Werkzeug **mit dem Standardgriff** trägt.
+ *
+ * Geteilt sein muss sie, sonst kürzt sich `aim` unten nicht weg. Sie ist aber
+ * nicht bloß geteilt, sondern **gerechnet**: sie legt den Griff genau auf den
+ * Griffpunkt des Controllers, also in die Mitte der Faust — dorthin, wo die
+ * echte Hand das echte Gerät hält.
+ *
+ * Vorher stand hier die gebaute Zahl der Pistole, und mit ihr hing der grüne
+ * Zylinder **8,6 cm neben der Hand**: das Werkzeug lag im Griffpunkt, sein
+ * Griff fünfeinhalb Zentimeter darunter, und die Faust musste ihn irgendwo
+ * dazwischen suchen. Jetzt liegt der Griff in der Hand und das Werkzeug
+ * darüber, wie eine Pistole über der Faust, die sie hält.
+ */
+export const GRIP_HOLD_POSITION: Vec3 = negate(
+  rotateVec(STANDARD_GRIP.position, GRIP_TO_RAY, { x: 0, y: 0, z: 0 }),
+);
 
 /**
  * Wo der Griff **im Werkzeug** sitzen muss, damit er in der Faust dort landet,
@@ -148,13 +156,51 @@ export const STANDARD_GRIPS: Record<GripKind, GripPose> = {
  * @param hold die `holdRotation` des Werkzeugs, also seine Zusatzneigung gegen
  *             die Zielrichtung. Für alles, was schlicht nach vorn zeigt, die Ruhe.
  */
-export function gripInTool(kind: GripKind, hold: Quat = IDENTITY): GripPose {
-  const standard = STANDARD_GRIPS[kind];
+export function gripInTool(hold: Quat = IDENTITY): GripPose {
   const inverse = conjugate(hold, { x: 0, y: 0, z: 0, w: 1 });
   return {
-    position: rotateVec(standard.position, inverse, { x: 0, y: 0, z: 0 }),
-    rotation: normalize(multiplyQuat(inverse, standard.rotation, { x: 0, y: 0, z: 0, w: 1 })),
+    position: rotateVec(STANDARD_GRIP.position, inverse, { x: 0, y: 0, z: 0 }),
+    rotation: normalize(multiplyQuat(inverse, STANDARD_GRIP.rotation, { x: 0, y: 0, z: 0, w: 1 })),
   };
+}
+
+/**
+ * **Die Faust um den Griff** — die Lage, in der eine rechte Hand ihn hält,
+ * ausgerechnet statt eingestellt.
+ *
+ * Drei Bedingungen, und sie lassen genau eine Lage übrig:
+ *
+ * - die **Faustachse** (das X der gebauten Hand, quer über die Handfläche, um
+ *   das sich die Finger schließen) liegt auf der **Griffachse**, Daumenseite
+ *   nach oben aus der Faust heraus;
+ * - der **Zeigefinger** zeigt nach vorn, dorthin, wohin der Griff zeigt;
+ * - die Mitte der Faust liegt auf der Mitte des Griffs.
+ *
+ * Zusammen ist das der Griffrahmen, um seine eigene Achse in die Hand gedreht:
+ * eine Vierteldrehung um Z bringt das X der Hand auf das -Y des Griffs. Der Rest
+ * ist die Umrechnung vom Strahl- in den Griffraum (`GRIP_TO_RAY`) und der
+ * Versatz der Faustmitte in der gebauten Hand.
+ *
+ * Warum hier und nicht bei der Hand: das Ergebnis hängt am Griff, und der steht
+ * in dieser Datei. `core/handPose.ts` trägt nur noch die fertigen Zahlen, so wie
+ * eine Messung sie trüge — nachgerechnet wird in `core/gripFist.test.ts`.
+ *
+ * @param centre wo die geschlossene Faust ihren Zylinder hält, im Raum der
+ *               gebauten Hand (aus der Geometrie der Finger, `handPose.ts`)
+ */
+export function fistOnGrip(centre: Vec3): HoldPose {
+  const inHand = multiplyQuat(GRIP_TO_RAY, STANDARD_GRIP.rotation, { x: 0, y: 0, z: 0, w: 1 });
+  const rotation = normalize(
+    multiplyQuat(inHand, quatFromEulerXYZ({ x: 0, y: 0, z: -Math.PI / 2 }), {
+      x: 0,
+      y: 0,
+      z: 0,
+      w: 1,
+    }),
+  );
+  // Die Faustmitte gehört auf den Griff, und der liegt im Griffpunkt: die Hand
+  // steht also um ihre eigene Faustmitte daneben.
+  return { position: negate(rotateVec(centre, rotation, { x: 0, y: 0, z: 0 })), rotation };
 }
 
 /**
@@ -167,13 +213,14 @@ export function gripInTool(kind: GripKind, hold: Quat = IDENTITY): GripPose {
  * und das Werkzeug hat seinen Griff an `gripInTool(kind, hier)` zu setzen —
  * `gripDeviation` sagt, ob es das getan hat.
  */
-export function holdForGrip(kind: GripKind, gripRotation: Quat): Quat {
+export function holdForGrip(gripRotation: Quat): Quat {
   return normalize(
-    multiplyQuat(
-      STANDARD_GRIPS[kind].rotation,
-      conjugate(gripRotation, { x: 0, y: 0, z: 0, w: 1 }),
-      { x: 0, y: 0, z: 0, w: 1 },
-    ),
+    multiplyQuat(STANDARD_GRIP.rotation, conjugate(gripRotation, { x: 0, y: 0, z: 0, w: 1 }), {
+      x: 0,
+      y: 0,
+      z: 0,
+      w: 1,
+    }),
   );
 }
 
@@ -194,8 +241,8 @@ export interface GripDeviation {
  * darf sich die Faust dazu nehmen; alles darüber ist die Zahl, die man kennen
  * will, bevor man es behauptet.
  */
-export function gripDeviation(kind: GripKind, hold: Quat, grip: GripPose): GripDeviation {
-  const standard = STANDARD_GRIPS[kind];
+export function gripDeviation(hold: Quat, grip: GripPose): GripDeviation {
+  const standard = STANDARD_GRIP;
   const position = rotateVec(grip.position, hold, { x: 0, y: 0, z: 0 });
   const rotation = multiplyQuat(hold, grip.rotation, { x: 0, y: 0, z: 0, w: 1 });
   const delta = conjugate(rotation, { x: 0, y: 0, z: 0, w: 1 });
@@ -213,4 +260,9 @@ export function gripDeviation(kind: GripKind, hold: Quat, grip: GripPose): GripD
 function normalize(q: Quat): Quat {
   const length = Math.hypot(q.x, q.y, q.z, q.w) || 1;
   return { x: q.x / length, y: q.y / length, z: q.z / length, w: q.w / length };
+}
+
+/** `-0` liest sich auf einem Schild voller kleiner Zahlen wie ein Fehler. */
+function negate(v: Vec3): Vec3 {
+  return { x: -v.x + 0, y: -v.y + 0, z: -v.z + 0 };
 }

@@ -69,7 +69,7 @@ export class DuplicatorTool extends Tool {
     // Derselbe Griff wie an der Pistole, an derselben Stelle in der Faust
     // (`grip.ts`). Vorher lehnte er hier um 0,18 rad nach *vorn* und damit 23°
     // gegen den der Pistole — bei derselben Faust für beide.
-    this.mountGrip('pistol');
+    this.mountGrip();
 
     // Zwei Ringe, zwischen denen es blitzt: die Kopie „entsteht" sichtbar.
     this.coil = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 8, 20), trim);

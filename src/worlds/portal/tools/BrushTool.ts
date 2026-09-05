@@ -102,7 +102,7 @@ export class BrushTool extends Tool {
     // Der Stiel bleibt der Stiel, aber gehalten wird der **Standardgriff**
     // darunter: ein Pinsel, den man wie eine Pistole hält, zeigt dorthin, wohin
     // der Zeigefinger zeigt — und braucht keine eigene Faust.
-    this.mountGrip('pistol', { length: 0.09 });
+    this.mountGrip({ length: 0.09 });
 
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.012, 0.15, 12), wood);
     handle.rotation.x = Math.PI / 2;

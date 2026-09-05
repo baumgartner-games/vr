@@ -4,7 +4,7 @@ import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
 import { WORLDS } from '../worlds';
 import { buildGate } from '../worlds/hub/HubWorld';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
-import { TOOL_GRIPS, type HandPose } from '../core/handPose';
+import { STANDARD_GRIP_TOOLS, type HandPose } from '../core/handPose';
 import {
   clearHoldHandPose,
   clearIdleHandPose,
@@ -21,6 +21,7 @@ import {
   handFromGhost,
   invertPose,
   poseOfHand,
+  toolInGrip,
   type Pose,
 } from '../worlds/tune/handGrip';
 import { gearCode, toolGearCode } from '../worlds/portal/tools/gearConfig';
@@ -39,6 +40,8 @@ import {
   type EditAxis,
   type EditTarget,
 } from './poseEdit';
+import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
+import { conjugate } from '../worlds/portal/tools/aim';
 import { alignHandToLine, handAboutPivot, turnHandTo } from './alignHand';
 import { ToolViewer, type HandMode } from './viewer';
 import type { Vec3 } from '../worlds/portal/tools/aim';
@@ -186,9 +189,7 @@ function readTools(): Entry[] {
 
 /** Ein Satz für ein Werkzeug, das selbst keinen Hinweis mitbringt. */
 function gripLine(id: string): string {
-  const kind = TOOL_GRIPS[id];
-  if (kind === 'pistol') return 'Standardgriff, wie eine Pistole gehalten';
-  if (kind === 'rod') return 'Standardgriff, wie ein Stab gehalten';
+  if (STANDARD_GRIP_TOOLS.has(id)) return 'Standardgriff, wie eine Pistole gehalten';
   return 'In die Hand nehmen und ausprobieren';
 }
 
@@ -725,14 +726,19 @@ function sixOf(pose: HandPose): PoseReadout {
 
 const ZERO: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
 
+/** Die Zielkorrektur zurück: aus dem Strahl- in den Griffraum. */
+const RAY_TO_GRIP = conjugate(GRIP_TO_RAY, { x: 0, y: 0, z: 0, w: 1 });
+
 /**
  * Die Lage des **Werkzeugs im Griff**, als Pose — die eine Hälfte der Kette.
  *
- * Ohne Zielkorrektur, wie überall auf dieser Seite: die kommt aus einem
- * Controller, und im Browser gibt es keinen.
+ * **Mit** Zielkorrektur, genau wie der Betrachter sie zeichnet: sie kommt sonst
+ * aus einem Controller, und im Browser gibt es keinen, also steht sie als Zahl
+ * da (`GRIP_TO_RAY`). Ohne sie zöge der Regler an einer Hand, die 30° neben der
+ * gezeichneten steht — und speicherte diese 30° als Handhaltung ab.
  */
 function toolInGripNow(): Pose {
-  return poseFromReadout(viewer.holdReadout() ?? ZERO);
+  return toolInGrip(poseFromReadout(viewer.holdReadout() ?? ZERO), GRIP_TO_RAY);
 }
 
 /** Und die andere: die Haltung der Hand im Griff, als Pose. */
@@ -870,7 +876,9 @@ function writePose(next: PoseReadout, syncSlider = true): void {
     // also muss das Werkzeug im Griff dorthin, wo die Hand von selbst daran
     // liegt — Lage-im-Griff = Haltung · Hand-am-Werkzeug⁻¹. Auf dem Schirm
     // wandert trotzdem die Hand: das Werkzeug steht in seinem eigenen Raum.
-    const local = composePose(handInGripNow(), invertPose(ghost));
+    // Und die Zielkorrektur wieder heraus: `holdRotation` ist die Neigung
+    // **gegen den Zeigestrahl**, nicht die Lage im Griffraum.
+    const local = toolInGrip(composePose(handInGripNow(), invertPose(ghost)), RAY_TO_GRIP);
     if (id === HAND_TOOL) {
       // Die Boxhand ist die Hand selbst; ihre Lage im Griff *ist* die
       // Grundhaltung dieser Hand (siehe oben).

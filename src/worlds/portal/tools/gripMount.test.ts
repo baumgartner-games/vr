@@ -1,8 +1,9 @@
 /**
- * Dass die Werkzeuge wirklich den Griff tragen, von dem die Tabelle spricht.
+ * Dass die Werkzeuge wirklich den Griff tragen, von dem die Liste spricht.
  *
- * `TOOL_GRIPS` in `core/handPose.ts` sagt, welche **Faust** ein Werkzeug
- * bekommt, und `gripFit.ts` sagt, wo sein **Griff** dafür sitzen muss. Die
+ * `STANDARD_GRIP_TOOLS` in `core/handPose.ts` sagt, welche Werkzeuge die
+ * **Faust** am Griff bekommen, und `gripFit.ts` sagt, wo ihr **Griff** dafür
+ * sitzen muss. Die
  * beiden Auskünfte stehen an verschiedenen Stellen, weil eine Hand gezeichnet
  * wird, lange bevor irgendwo ein Werkzeug gebaut ist — und zwei Auskünfte, die
  * auseinanderlaufen können, laufen irgendwann auseinander. Also werden hier die
@@ -32,8 +33,8 @@ import { TeleportTool } from './TeleportTool';
 import { TransformTool } from './TransformTool';
 import { WelderTool } from './WelderTool';
 import { XrayTool } from './XrayTool';
-import { GRIP_HOLD_POSITIONS, gripDeviation } from './gripFit';
-import { TOOL_GRIPS } from '../../../core/handPose';
+import { GRIP_HOLD_POSITION, gripDeviation } from './gripFit';
+import { STANDARD_GRIP_TOOLS } from '../../../core/handPose';
 import type { Tool } from './Tool';
 
 /** Eine Leinwand, die alles annimmt und nichts tut. */
@@ -85,46 +86,55 @@ const BUILDERS: Record<string, () => Tool> = {
   drone: () => new DroneTool(),
 };
 
-describe('Der Griff sitzt, wo die Tabelle ihn hinschreibt', () => {
-  it.each(Object.keys(TOOL_GRIPS))('%s trägt seinen Standardgriff ohne Abweichung', (id) => {
+describe('Der Griff sitzt, wo die Liste ihn hinschreibt', () => {
+  it.each([...STANDARD_GRIP_TOOLS])('%s trägt den Standardgriff ohne Abweichung', (id) => {
     const build = BUILDERS[id];
-    // Jedes Werkzeug in der Tabelle muss hier auch gebaut werden können, sonst
-    // prüft die Tabelle sich selbst.
+    // Jedes Werkzeug in der Liste muss hier auch gebaut werden können, sonst
+    // prüft die Liste sich selbst.
     expect(build).toBeDefined();
     const tool = build!();
-    expect(tool.gripKind).toBe(TOOL_GRIPS[id]);
     const part = tool.gripPart!;
     expect(part).toBeDefined();
-    const deviation = gripDeviation(tool.gripKind!, tool.holdRotation, {
+    const deviation = gripDeviation(tool.holdRotation, {
       position: part.position,
       rotation: part.quaternion,
     });
     expect(deviation.distance).toBeCloseTo(0, 9);
     expect(deviation.angle).toBeCloseTo(0, 4);
-    // Und auf der geteilten `holdPosition` seiner Griffart — ohne die kürzt
-    // sich die Zielkorrektur nicht weg und die gemeinsame Faust wäre gelogen.
-    const hold = GRIP_HOLD_POSITIONS[tool.gripKind!];
-    expect(tool.holdPosition.x).toBeCloseTo(hold.x, 9);
-    expect(tool.holdPosition.y).toBeCloseTo(hold.y, 9);
-    expect(tool.holdPosition.z).toBeCloseTo(hold.z, 9);
+    // Und auf der geteilten `holdPosition` — ohne die kürzt sich die
+    // Zielkorrektur nicht weg und die gemeinsame Faust wäre gelogen.
+    expect(tool.holdPosition.x).toBeCloseTo(GRIP_HOLD_POSITION.x, 9);
+    expect(tool.holdPosition.y).toBeCloseTo(GRIP_HOLD_POSITION.y, 9);
+    expect(tool.holdPosition.z).toBeCloseTo(GRIP_HOLD_POSITION.z, 9);
   });
 
-  it('lässt die Tabelle keine Werkzeuge vergessen, die einen Griff anbauen', () => {
+  it('lässt die Liste keine Werkzeuge vergessen, die einen Griff anbauen', () => {
     for (const [id, build] of Object.entries(BUILDERS)) {
-      const kind = build().gripKind;
-      expect(kind ? id : null).toBe(kind ? id : null);
-      expect(TOOL_GRIPS[id] ?? null).toBe(kind);
+      expect(STANDARD_GRIP_TOOLS.has(id)).toBe(build().gripPart !== null);
     }
   });
 
   it('lässt Hammer und Drohne bei ihrer eigenen Faust', () => {
-    // Beide werden nicht wie eine Pistole gehalten und auch nicht wie ein Stab:
-    // der Hammer hat einen Stiel, an dem jede Stelle ein Griff ist, die Drohne
-    // zwei Griffe an einem Deck. Sie tragen die Griff-*Form*, aber keinen der
-    // beiden Standardgriffe — und deshalb steht keiner von ihnen in der Tabelle.
-    expect(new HammerTool().gripKind).toBeNull();
-    expect(new DroneTool().gripKind).toBeNull();
-    expect(TOOL_GRIPS['hammer']).toBeUndefined();
-    expect(TOOL_GRIPS['drone']).toBeUndefined();
+    // Beide werden nicht wie eine Pistole gehalten: der Hammer hat einen Stiel,
+    // an dem jede Stelle ein Griff ist, die Drohne zwei Griffe an einem Deck.
+    // Sie tragen die Griff-*Form*, aber nicht den Standardgriff — und deshalb
+    // steht keiner von ihnen in der Liste.
+    expect(new HammerTool().gripPart).toBeNull();
+    expect(new DroneTool().gripPart).toBeNull();
+    expect(STANDARD_GRIP_TOOLS.has('hammer')).toBe(false);
+    expect(STANDARD_GRIP_TOOLS.has('drone')).toBe(false);
+  });
+
+  it('lässt jedes Werkzeug mit Griff entlang des Zeigestrahls zielen', () => {
+    // Die Regel, die der Stabgriff gebrochen hat: eine Taschenlampe leuchtete
+    // 30° über das hinweg, worauf man zeigte, weil ihr Rohr auf der Faustachse
+    // lag. Ein Werkzeug darf schräg in der Hand liegen — der Inspektor kippt
+    // sein Display um 23° zum Kopf —, aber ein halbes Rechteck ist keine
+    // Neigung mehr, sondern eine andere Richtung.
+    for (const id of STANDARD_GRIP_TOOLS) {
+      const tool = BUILDERS[id]!();
+      const angle = 2 * Math.acos(Math.min(1, Math.abs(tool.holdRotation.w)));
+      expect((angle * 180) / Math.PI).toBeLessThan(25);
+    }
   });
 });

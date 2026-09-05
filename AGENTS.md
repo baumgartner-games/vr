@@ -120,12 +120,17 @@ wirklich schließt und der Griff sich dabei herauskürzt, denn am Stand hält
 niemand etwas), die **Faust am Griff**
 (`src/core/gripHandPose.test.ts` — dass eine am Griff eingestellte Haltung für
 jedes Werkzeug mit diesem Griff gilt, eine für ein einzelnes Werkzeug aber
-darüber gewinnt), der **Standardgriff**
+darüber gewinnt) und dass sie **wirklich um den Griff liegt**
+(`src/core/gripFist.test.ts` — die gezeichnete Hand am gebauten Werkzeug, quer
+zur Griffachse einen halben Millimeter genau; dazu die beiden Zahlen, wegen
+derer es diesen Test gibt: die alte gebaute Faust stand **90°** quer zum
+Zylinder, die am Stabgriff eingemessene 30°), der **Standardgriff**
 (`src/worlds/portal/tools/gripFit.ts` — dass ein Griff bei *jeder* Haltung an
 derselben Stelle in der Faust landet und die Zielkorrektur sich dabei
-heraushebt, dass der Weg rückwärts derselbe ist, und die Abweichungen, mit
-denen die ganze Sache begründet wurde: bis zu 24° zwischen Werkzeugen, die
-gleich gehalten werden), der **Griff am Stiel**
+heraushebt, dass der Weg rückwärts derselbe ist, dass die geteilte
+`holdPosition` ihn auf den Griffpunkt des Controllers legt statt 8,6 cm
+daneben, und die Abweichungen, mit denen die ganze Sache begründet wurde: bis
+zu 24° zwischen Werkzeugen, die gleich gehalten werden), der **Griff am Stiel**
 (`src/worlds/portal/tools/poleGrip.ts` — wo eine Faust am großen Hammer liegen
 darf, und vor allem die zweihändige Lage: dass beide Griffpunkte in ihren
 Fäusten landen, dass eine falsche Handspanne sich gleichmäßig auf beide
@@ -438,7 +443,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Schritte pro Frame, alles darüber wäre eine Lüge im Menü. Und beim
     Schnellladen im Mehrspieler zieht der rechnende Spieler die Objekte
     wieder auf seinen Stand — es wirkt bei dem, der rechnet.
-  - **Taschenlampe**: **Trigger** schaltet sie an und aus. Der **Lichtkegel**
+  - **Taschenlampe**: eine **Lampe mit Griff** und keine Stabtaschenlampe —
+    das Rohr liegt über der Faust, der Standardgriff quer darunter. Eine Weile
+    lag ihr Rohr *in* der Faust, und dafür bezahlte sie zweimal: mit einer
+    eigenen Handhaltung und damit, dass ihr Kegel 30° über das hinwegging,
+    worauf man zeigte (siehe *Ein Griff für alle Werkzeuge*).
+    **Trigger** schaltet sie an und aus. Der **Lichtkegel**
     wird mit der *anderen* Hand eingestellt: vorne an die Linse greifen (der
     Ring leuchtet, sobald die Hand nah genug ist) und mit gedrücktem Griff nach
     **rechts** ziehen macht ihn breit, nach **links** schmal. Genau das, was
@@ -489,7 +499,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     zu drehen, schaltet die Hand auf *quer schieben*; der Kopf lenkt dann
     weiter (`tools/supermanSettings.ts`, gerechnet in `tools/supermanFlight.ts`,
     beide mit Test).
-  - **Lötkolben**: zwei Punkte antippen und die Objekte hängen zusammen —
+  - **Lötkolben**: eine **Lötpistole**, seit es nur noch einen Griff gibt —
+    Stab über der Faust, Griff quer darunter, Spitze auf dem Zeigestrahl.
+    Zwei Punkte antippen und die Objekte hängen zusammen —
     starr oder als Scharnier (Achse = Querachse des Kolbens). Der Modus wird
     mit der anderen Hand umgeschaltet (kleines Panel über ihr), *Trennen*
     löst alle Verbindungen eines Objekts wieder. Solange der Kolben in der
@@ -868,15 +880,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   zurücksetzt — dort, wo man steht, wenn man ihn braucht; an der Wand steht
   derselbe noch einmal. Zurückgesetzt wird **auf die Hand am Werkzeug** und
   nicht auf sechs Nullen: die Null einer Handhaltung ist der Griffpunkt des
-  Controllers, und die liegt sichtbar neben der Lampe (siehe *Eingemessene
+  Controllers, und die liegt sichtbar neben dem Werkzeug (siehe *Eingemessene
   Griffe*).
 
-  **Warum zwei Stände und nicht einer**: an einer Pistole zeigt der
-  Zeigefinger dorthin, wohin der Lauf zeigt, und das sieht richtig aus.
-  Dieselbe Haltung an einer **Taschenlampe** zeigt schräg in die Luft, weil
-  deren Lichtkegel dort hinausgeht, wo bei der Pistole der Lauf sitzt — die
-  Zielrichtung stimmt, die Faust darum herum nicht. Das sind zwei Größen, also
-  werden sie zweimal eingestellt.
+  **Warum zwei Stände und nicht einer**: *wohin ein Werkzeug zeigt* und *wie die
+  Faust darum herum liegt* sind zwei Größen. Der erste Stand misst die eine, der
+  zweite die andere, und man merkt es daran, dass eine stimmen kann, während die
+  andere daneben ist — die Zielrichtung genau auf dem Strahl und die Hand
+  trotzdem quer am Griff. Für alles mit **Standardgriff** ist die zweite Größe
+  seit der einen gerechneten Faust keine Frage mehr (siehe *Eingemessene
+  Griffe*); der Stand bleibt für alles andere und für den, der es anders haben
+  will.
 
   Die Kopie ist immer das, was man gerade einmisst: der Halter legt sie hin,
   sobald dort etwas einrastet. Wer über den Halter gar nicht geht, drückt
@@ -1151,9 +1165,10 @@ tun das); mit `Tool.claimsHand()` sagt es außerdem, dass die zweite Hand belegt
 ist — sonst zieht derselbe Griff nebenbei ein Werkzeug von der Hüfte.
 
 **Woran ein Werkzeug angefasst wird, baut es nicht selbst**, sondern holt es
-sich mit `this.mountGrip('pistol')` oder `'rod'` — ein Zylinder mit
-Fingerrillen, an der Stelle, an der er in der Faust landet, und die dazu
-eingemessene Faust gleich mit. Warum das eine eigene Datei ist und wie schief
+sich mit `this.mountGrip()` — ein Zylinder mit Fingerrillen, an der Stelle, an
+der er in der Faust landet, und die dazu gerechnete Faust gleich mit. Einen
+zweiten Griff gibt es nicht mehr: ein Griff ist ein Ort in einer Faust, und
+eine Faust hat nur einen. Warum das eine eigene Datei ist und wie schief
 die handgesetzten Griffe vorher standen, steht unter *Eingemessene Griffe →
 Ein Griff für alle Werkzeuge*.
 
@@ -1547,8 +1562,10 @@ Zwei Feinheiten, die im Code stehen und hier nicht verlorengehen sollen:
 Wie eine Hand aussieht, ist eine Einstellung wie jede andere: zwölf Zahlen —
 Versatz in cm, Neigung in Grad, ein Krümmungswert je Finger (0 gestreckt,
 1 geschlossen) und eine Spreizung. Davon gibt es die **Grundhaltung** (leere
-Hand), je eine **Griffhaltung pro Werkzeug** und eine für das **Objekt in der
-Hand**, jeweils für links und rechts. Grundhaltung und Objekthaltung stehen
+Hand), die **Faust am Standardgriff** — eine einzige, für alle achtzehn
+Werkzeuge, die ihn tragen —, eine eigene Haltung für jedes Werkzeug, das
+trotzdem eine will, und eine für das **Objekt in der Hand**, jeweils für links
+und rechts. Grundhaltung und Objekthaltung stehen
 unter *Einstellungen → Hände → Linke/Rechte Hand*, die Griffe beim jeweiligen
 Werkzeug (*Werkzeuge → … → Griff*). Die Objekthaltung läuft unter der
 Pseudo-Id `grab` durch dieselbe Mechanik wie ein Werkzeug — eine Hand um einen
@@ -1585,30 +1602,45 @@ spiegeln* macht es für eine Haltung, *Links auf rechts spiegeln* für alle.
 
 ### Eingemessene Griffe
 
-Wie eine Hand ein Werkzeug umfasst, hängt am Werkzeug: an einer Pistole zeigt
-der Zeigefinger dorthin, wohin der Lauf zeigt, an einer **Taschenlampe** zeigt
-dieselbe Haltung schräg in die Luft, weil deren Kegel dort hinausgeht, wo bei
-der Pistole der Lauf sitzt. Die gebaute Faust (`HOLD_HAND_POSE`) ist deshalb
-bestenfalls ein Anfang.
+Wie eine Hand ein Werkzeug umfasst, hängt nicht am Werkzeug, sondern an dem,
+**was sie umfasst** — und das ist bei achtzehn Werkzeugen derselbe Zylinder an
+derselben Stelle. Die gebaute Faust (`HOLD_HAND_POSE`) ist deshalb nur der
+Anfang: sie sagt, wie weit die Finger gekrümmt sind, und nicht, worum.
 
-Was am zweiten Justierstand eingemessen wurde, steht als Rückfall im Code — und
-zwar **je Griff und nicht je Werkzeug** (`GRIP_HAND_POSES` in
-`core/handPose.ts`), gemessen an der **rechten** Hand und für die linke
-gespiegelt, genau wie die Grundhaltung. Zwei getrennt gepflegte Zahlenreihen
-wären die Sorte Abweichung, die niemand bemerkt: eine Hand, die anders greift
-als die andere, sieht man nicht, man wundert sich nur.
+### Eine Faust, und sie ist gerechnet
 
-| Griff | x | y | z | Pitch | Yaw | Roll | wer ihn trägt |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `pistol` | 0 | 0 | 0 | 0° | 0° | 0° | Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken |
-| `rod` | 3,6 | −1,8 | 2,5 | −59° | 23° | −99° | Taschenlampe, Lötkolben |
+Es gibt **eine** Haltung für alles, was den Standardgriff trägt
+(`GRIP_HAND_POSE` in `core/handPose.ts`), rechts geschrieben und links
+gespiegelt — und sie ist nicht eingestellt, sondern **ausgerechnet**:
 
-Dazu gehört die **Lage im Griff** selbst, die am ersten Stand gemessen wird:
-für den Stabgriff die der Lampe (0,8 · −1,4 · 3,8 cm und 30/5/9°, in
-`FlashlightTool.ts`), für den Pistolengriff die gebaute Lage aus `Tool`. Beide
-Zahlenreihen der Lampe kamen als **ein** Kurzcode herein —
-`BPNDLdWgZ9NvBevCHScPckXK` —, und der Test in `gearShort.test.ts` liest ihn
-wieder, damit man sieht, woher sie stammen.
+| | x | y | z | Pitch | Yaw | Roll |
+| --- | --- | --- | --- | --- | --- | --- |
+| Faust am Griff | 2,6 | 2 | 2,2 | −43° | 0° | −90° |
+
+Der Weg dorthin steht in `fistOnGrip` (`tools/gripFit.ts`) und wird in
+`core/gripFist.test.ts` nachgerechnet. Drei Bedingungen, und sie lassen genau
+eine Lage übrig: die **Faustachse** (das X der gebauten Hand, quer über die
+Handfläche, um das sich die Finger schließen) liegt auf der **Griffachse**, der
+**Zeigefinger** zeigt dorthin, wohin der Griff zeigt, und die **Mitte der Faust**
+liegt auf der Mitte des Griffs. Wo die Faust ihren Zylinder hält, sagt dabei
+die Hand selbst: der Kreis durch die drei Gelenke des Mittelfingers hat den
+Mittelpunkt 2,65 cm unter und 3,0 cm vor dem Handgelenk und den Halbmesser
+eines Griffs. Ein gekrümmter Finger legt sich um *etwas* — der Kreis durch
+seine Gelenke ist dieses Etwas.
+
+**Warum gerechnet und nicht gemessen.** Vorher standen dort zwei von Hand
+eingestellte Zahlenreihen, eine je Griffart, und **keine von beiden hielt ihren
+Griff**. Nachgemessen (derselbe Test hält die Zahlen fest):
+
+| Faust | quer zur Griffachse daneben | Winkel gegen die Griffachse |
+| --- | --- | --- |
+| die gebaute (`HOLD_HAND_POSE`, galt für 15 Werkzeuge) | 6,7 cm | **90°** |
+| die am Stabgriff eingemessene (galt für 3) | 3,2 cm | 30° |
+
+90° heißt: die Faust stand **quer** zum Zylinder und schloss sich um die Luft
+daneben. Man sieht so etwas in der Brille nicht als Fehler — man sieht eine
+Hand und ein Werkzeug und wundert sich nur, warum es nie ganz sitzt. Genau
+deshalb gehört diese Zahl in einen Test und nicht in ein Auge.
 
 ### Ein Griff für alle Werkzeuge
 
@@ -1637,7 +1669,7 @@ Pistolengriff, `gripFit.test.ts` hält sie fest):
 Die Umkehrung ist der Ausweg: **nicht der Griff folgt dem Werkzeug, sondern das
 Werkzeug dem Griff.** Ein Griff ist ein Ding mit einer festen Lage in der Faust
 (`tools/gripFit.ts`), und ein Werkzeug baut ihn an der Stelle ein, an der er
-dort landet — `this.mountGrip('pistol')`, eine Zeile, und die Lage ist keine
+dort landet — `this.mountGrip()`, eine Zeile, und die Lage ist keine
 Frage des Geschmacks mehr. Wer das tut, bekommt die Faust dazu geschenkt und
 muss nie an den zweiten Stand.
 
@@ -1653,14 +1685,22 @@ heraus, **-Z** ist „vorne", dorthin, wohin der Zeigefinger zeigt. Damit gilt
 für alles, was wie eine Pistole gehalten wird: das Vorne des Griffs **ist** die
 Zielrichtung des Werkzeugs.
 
-**Zwei Griffe, nicht einer.** Eine Taschenlampe hält man nicht wie eine
-Pistole, und das ist keine Nachlässigkeit, sondern Geometrie: ihr Rohr liegt
-*entlang* der Griffachse und nicht quer dazu, ihr Kegel geht dort hinaus, wo
-bei der Pistole der Lauf sitzt. Derselbe Zylinder, dieselbe Faust — aber das
-Werkzeug hängt um eine Vierteldrehung anders daran. Also `pistol` und `rod`,
-und der Lötkolben, der bisher wie eine Pistole in der Hand lag und dessen Griff
-damit 103° gegen den der Pistole stand, ist jetzt ein Stab wie die Lampe: eine
-Lage, eine Faust, für beide dieselbe.
+**Ein Griff, und nur einer.** Eine Weile waren es zwei: `pistol` quer zur
+Griffachse und `rod` längs dazu, für alles, dessen Rohr *in* der Faust liegt —
+Taschenlampe, Lötkolben, Hängegleiter. Das klingt nach zwei Arten anzufassen,
+ist aber zwei **Orte** in derselben Faust, und eine Faust hat nur einen: das
+eine ist der Griff, das andere die Stelle daneben. Jeder zweite Griff zieht
+deshalb zwangsläufig eine zweite Faust nach sich, und am Ende standen die
+beiden 111° gegeneinander — für denselben Zylinder.
+
+Dazu kam, was ein Stabgriff kostet. Liegt das Rohr auf der Faustachse, dann
+zeigt es dorthin, wohin die Faust zeigt, und das steht quer zum Zeigestrahl:
+die Taschenlampe leuchtete **30° über das hinweg, worauf man zeigte**. Das war
+die einzige Ausnahme von der Regel, dass jedes Werkzeug entlang des Strahls
+zielt, und niemand hatte sie beschlossen — sie fiel bei einer Messung an und
+blieb liegen. Lampe, Lötkolben und Hängegleiter tragen jetzt denselben Griff
+quer unter sich, wie eine Lampe mit Griff oder eine Lötpistole, und zielen
+wieder dorthin, wohin man zeigt.
 
 **Warum sich die Zielkorrektur dabei herauskürzt** — und warum das die ganze
 Sache erst möglich macht: Ein gehaltenes Werkzeug liegt bei `(holdPosition,
@@ -1676,14 +1716,32 @@ holdRotation · gripRotation = STANDARD.rotation
 holdRotation · gripPosition = STANDARD.position
 ```
 
-Deshalb — und nur deshalb — trägt jedes Werkzeug einer Griffart dieselbe
-`holdPosition` (`GRIP_HOLD_POSITIONS`); ohne die geteilte Zahl wäre die
-gemeinsame Faust gelogen. Beide Standardlagen sind **eingemessen und nicht
-erfunden**: die eine ist der Pistolengriff, wie er im Spiel schon lag, die
-andere die eingemessene Taschenlampe. Dass die beiden Messungen zusammenpassen,
-sagt eine Zahl: der Stabgriff steht mit **−59,2°** Pitch in der Hand, und die
-eingemessene *Faust* der Lampe hat **−59°**. Zwei getrennt gemessene Größen,
-dieselbe Zahl.
+Deshalb — und nur deshalb — trägt jedes Werkzeug mit Standardgriff dieselbe
+`holdPosition` (`GRIP_HOLD_POSITION`); ohne die geteilte Zahl wäre die
+gemeinsame Faust gelogen. Die Lage des Griffs selbst ist die des
+**Pistolengriffs**, wie er im Spiel schon lag: 5,5 cm unter dem Nullpunkt,
+12,6° nach hinten gelehnt.
+
+**Die `holdPosition` ist neuerdings gerechnet und nicht getippt.** Sie legt den
+Griff auf den **Griffpunkt des Controllers**, also in die Mitte der Faust —
+dorthin, wo die echte Hand das echte Gerät hält. Vorher stand dort die gebaute
+Zahl der Pistole, und mit ihr hing der grüne Zylinder **8,6 cm neben der
+Hand**: das Werkzeug lag im Griffpunkt, sein Griff fünfeinhalb Zentimeter
+darunter, und die Faust musste ihn irgendwo dazwischen suchen. Jetzt liegt der
+Griff in der Hand und das Werkzeug darüber, wie eine Pistole über der Faust,
+die sie hält. Von 0/−1,2/3,0 cm auf 0/4,3/−3,6 cm — das ist der ganze
+Unterschied, und er gilt für alle achtzehn auf einmal.
+
+**Eine Zahl gehört dabei dem Gerät**, und sie steht seit dieser Runde einmal da
+statt in jeder Messung mit drin: `GRIP_TO_RAY`, die 30° zwischen Griffraum und
+Zeigestrahl auf der Quest. Eine Hand steht im Griffraum, ein gehaltenes
+Werkzeug im Strahlraum — wer wissen will, wo ein Griff in der Faust landet,
+kommt an dieser Drehung nicht vorbei. Es sind dieselben 30°, um die früher
+jedes Werkzeug zu hoch schoss (`aim.ts`), und dieselben, die in der
+eingemessenen Taschenlampe steckten (30/5/9°). Drei Wege, eine Zahl — und
+**die Werkzeugseite rechnet jetzt mit ihr**: vorher nahm sie dort die Ruhe an,
+zeigte Hand und Werkzeug um genau diese 30° gegeneinander verdreht und
+speicherte sie als Handhaltung ab, sobald jemand sie „geradezog".
 
 **Und zwar an allem, was man in die Faust nimmt.** Lange trugen ihn nur die
 sieben Pistolenwerkzeuge und die beiden Stäbe, und der Rest hielt sich an
@@ -1693,11 +1751,12 @@ an gar nichts. Jetzt tragen sie alle den Standardgriff:
 
 | Griff | Werkzeuge |
 | --- | --- |
-| `pistol` | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Pinsel, Messband, Radiergummi, Röntgen-Scanner, Stoppuhr |
-| `rod` | Taschenlampe, Lötkolben, Hängegleiter |
+| der Standardgriff | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Pinsel, Messband, Radiergummi, Röntgen-Scanner, Stoppuhr, Taschenlampe, Lötkolben, Hängegleiter |
 
-Der **Hängegleiter** baute seinen Stabgriff schon immer an, stand aber nie in
-`TOOL_GRIPS` — und bekam damit die allgemeine Faust statt der eingemessenen.
+Achtzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
+dazu ist `STANDARD_GRIP_TOOLS` in `core/handPose.ts`, und `gripMount.test.ts`
+baut sie alle und legt das Maßband an.
+
 Der **Röntgen-Scanner** hat dabei seinen Rahmen eine Handbreit nach oben
 bekommen: seine Öffnung lag auf dem Nullpunkt, also mitten in der Hand, und mit
 einem sichtbaren Griff stünde ein Zylinder im Bild. Der Scanbereich rechnet
@@ -1709,36 +1768,46 @@ einen Stiel, an dem jede Stelle ein Griff ist (siebenmal so lang wie eine
 Faust, deshalb ein glatter Zylinder ohne Ellipse und ohne Rillen — beide zeigen
 eine Richtung an, und hier gibt es keine), die **Drohne** zwei Griffe an einem
 Deck, das man mit zwei Fäusten wie eine Konsole hält. Beide tragen die
-Griff-*Form*, aber keine der beiden Standard-*Lagen*, und stehen deshalb nicht
-in `TOOL_GRIPS` — sie behalten ihre eigene Faust. Dazu die, die man gar nicht
+Griff-*Form*, aber nicht die Standard-*Lage*, und stehen deshalb nicht in
+`STANDARD_GRIP_TOOLS` — sie behalten ihre eigene Faust. Und die ist noch die
+gebaute, also dieselbe, die den Standardgriff quer hielt: **eine Faust gehört
+zu einem Zylinder an einer Stelle**, und wo ein anderer Zylinder an einer
+anderen Stelle liegt, gehört eine eigene dazu — gerechnet wie diese hier und
+nicht eingestellt. Das ist der nächste Schritt und noch nicht getan. Dazu die, die man gar nicht
 an einem Griff hält: der **Wurfstern** fliegt aus den Fingern, die drei
 **Handschuhe** und die **Flügel** werden angezogen, **Boxhand** und
 **Controller** *sind* die Hand, und der **magische Beutel** hängt an der Faust,
-ohne zu zielen (`alignToAim = false`) — die Standardgriffe sind im Strahlraum
-eingemessen, und was nicht zielt, hat keinen. Dass die Tabelle zu dem passt, was die
-Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie und
-legt das Maßband an — inzwischen einundzwanzig Stück.
+ohne zu zielen (`alignToAim = false`) — der Standardgriff ist im Strahlraum
+eingemessen, und was nicht zielt, hat keinen. Dass die Liste zu dem passt, was
+die Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie und
+legt das Maßband an — inzwischen einundzwanzig Stück. Es prüft dort gleich das
+Zweite mit: dass **jedes** Werkzeug mit Griff entlang des Zeigestrahls zielt.
+Eine Neigung darf sein (der Inspektor kippt sein Display um 23° zum Kopf), ein
+halbes Rechteck ist keine Neigung mehr, sondern eine andere Richtung — genau
+das war die Taschenlampe.
 
 #### Die Faust gehört zum Griff
 
 Der eigentliche Gewinn steht nicht in der Geometrie, sondern im Speicher:
-**eine Faust gehört zu einem Griff und nicht zu einem Werkzeug.** Zwanzig
+**eine Faust gehört zu einem Griff und nicht zu einem Werkzeug.** Achtzehn
 Werkzeuge mit demselben Zylinder in derselben Hand haben *eine* Haltung und
-nicht zwanzig — wer sie zwanzigmal einstellt, stellt neunzehnmal dasselbe ein
+nicht achtzehn — wer sie zwanzigmal einstellt, stellt neunzehnmal dasselbe ein
 und einmal aus Versehen etwas anderes, und merkt es an dem einen.
 
 `holdHandPose` fragt deshalb in drei Stufen (`core/handPoseStore.ts`):
 
 1. die für **dieses Werkzeug** gespeicherte Haltung — sie ist die spätere und
    genauere Auskunft und gewinnt;
-2. sonst die Haltung des **Standardgriffs**, den es trägt;
+2. sonst die Haltung des **Standardgriffs**, wenn es ihn trägt;
 3. sonst die **gebaute** (`defaultHoldPose`).
 
-Die Faust eines Griffs liegt dabei unter einer gewöhnlichen Werkzeug-Id
-(`GRIP_POSE_IDS` in `core/handPose.ts`): `grip` für den Pistolengriff,
-`grip-rod` für den Stabgriff. Keine neue Art von Schlüssel, und das ist
-Absicht — damit tragen Speicher, Konfig-Code und Kurzcode sie, ohne dass
-irgendwo ein Format wächst. Die Kette hält `core/gripHandPose.test.ts` fest,
+Die Faust des Griffs liegt dabei unter einer gewöhnlichen Werkzeug-Id
+(`GRIP_POSE_ID` in `core/handPose.ts`): `grip`, der Griff selbst. Keine neue
+Art von Schlüssel, und das ist Absicht — damit tragen Speicher, Konfig-Code und
+Kurzcode sie, ohne dass irgendwo ein Format wächst. Im Kurzcode steht `grip-rod`
+weiterhin an seinem Platz, obwohl es den Stabgriff nicht mehr gibt: der Platz
+*ist* dort das Format, und wer eine Zeile herausnimmt, macht aus jedem alten
+Code einen, der etwas anderes meint. Die Kette hält `core/gripHandPose.test.ts` fest,
 mit einem `localStorage` aus einer Map.
 
 Und `grip` ist zugleich ein **echtes Werkzeug**: der blanke Griff

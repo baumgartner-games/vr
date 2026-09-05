@@ -126,7 +126,7 @@ export class TransformTool extends Tool {
     this.add(shaft);
     // Derselbe Griff wie an der Pistole (`grip.ts`). Vorher stand er hier
     // senkrecht, also 13° gegen den der Pistole gekippt.
-    this.mountGrip('pistol', { length: 0.09 });
+    this.mountGrip({ length: 0.09 });
     for (const side of [-1, 1]) {
       const prong = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.06), body);
       prong.position.set(side * 0.016, 0, -0.14);

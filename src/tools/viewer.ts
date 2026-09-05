@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GhostHand } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
 import { createTool } from '../worlds/portal/tools';
-import { IDENTITY } from '../worlds/portal/tools/aim';
+import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
 import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
@@ -635,10 +635,11 @@ export class ToolViewer {
    * Werkzeug und Hand an ihre Plätze, und die Kamera darauf einpassen.
    *
    * Die beiden Modi rechnen mit derselben Kette wie der Eingaberaum
-   * (`tune/handGrip.ts`), nur ohne Zielkorrektur: die kommt aus einem
-   * Controller, und hier gibt es keinen. Was die Seite zeigt, ist damit die
-   * Lage, in der ein Werkzeug **gebaut** ist — dieselbe, die auch ein Browser
-   * ohne Brille zeichnet (`Tool.applyHold` ohne Griff).
+   * (`tune/handGrip.ts`), und mit derselben **Zielkorrektur**: die kommt sonst
+   * aus einem Controller, und hier gibt es keinen, also steht sie als Zahl da
+   * (`GRIP_TO_RAY`). Ohne sie zeigte die Seite Hand und Werkzeug um genau diese
+   * 30° gegeneinander verdreht — die Hand griffe knapp am Griff vorbei, und man
+   * justierte einen Fehler weg, den es in der Brille gar nicht gibt.
    *
    * @param refit ob die Kamera sich neu einpassen darf. Beim Justieren nicht:
    *              siehe `setHoldPose`.
@@ -655,7 +656,7 @@ export class ToolViewer {
     const pose = holdHandPose(this.side, tool.toolId);
     const local = toolInGrip(
       { position: tool.holdPosition, rotation: tool.holdRotation },
-      IDENTITY,
+      GRIP_TO_RAY,
     );
 
     if (this.mode === 'tool' || this.mode === 'off') {
@@ -664,9 +665,11 @@ export class ToolViewer {
       tool.quaternion.identity();
     } else {
       // Der Griffraum: der Ursprung ist der Griffpunkt der Hand, das Werkzeug
-      // liegt darin. Genau das tut `applyHold` ohne Controller.
+      // liegt darin. Genau das tut `applyHold` mit einem Controller — die
+      // Zielkorrektur eingeschlossen, sonst stimmte die Hand daneben nicht.
       tool.position.copy(tool.holdPosition);
-      tool.quaternion.copy(tool.holdRotation);
+      tool.quaternion.set(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w);
+      tool.quaternion.multiply(tool.holdRotation);
     }
 
     if (this.mode !== 'off') {

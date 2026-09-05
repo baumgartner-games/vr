@@ -62,7 +62,7 @@ export class InspectTool extends Tool {
     // Derselbe Griff wie an der Pistole (`grip.ts`). Seine Neigung stimmte hier
     // schon fast — der Ort lag 2,8 cm daneben, weil die Zusatzneigung des
     // Displays nicht mit eingerechnet war. `mountGrip` rechnet sie ein.
-    this.mountGrip('pistol', { length: 0.085 });
+    this.mountGrip({ length: 0.085 });
 
     const lens = new THREE.Mesh(
       new THREE.CylinderGeometry(0.012, 0.014, 0.02, 12),

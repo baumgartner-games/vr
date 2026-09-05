@@ -120,131 +120,107 @@ export const HOLD_HAND_POSE: HandPose = {
 };
 
 /**
- * Welchen **Standardgriff** ein Werkzeug trägt.
+ * **Die eine Faust am Standardgriff** — rechte Hand, links als Spiegelung.
  *
- * Zwei, und beide sind derselbe Zylinder in derselben Faust — sie hängen nur
- * verschieden daran:
+ * Nicht eine je Werkzeug, und seit dieser Runde auch nicht mehr eine je
+ * Griffart: **eine**. Der Grund ist Geometrie und keine Ordnungsliebe. Ein
+ * Griff ist ein Zylinder, eine Faust schließt sich um genau eine Stelle in
+ * ihr, und wenn derselbe Zylinder in derselben Faust liegt, dann liegt er
+ * *dort* — es gibt keine zweite Stelle, an der er auch noch liegen könnte.
+ * Zwei Fäuste hießen deshalb immer schon zwei Zylinder an zwei Orten, und
+ * damit zwei Werkzeuge, die verschieden in der Hand liegen, obwohl sie
+ * denselben Griff tragen.
  *
- * - `pistol` — quer zur Griffachse angebaut. Der Zeigefinger zeigt dorthin,
- *   wohin das Werkzeug zeigt, und deshalb liegt die Faust an einer Pistole so
- *   selbstverständlich, dass dort nie etwas einzustellen war.
- * - `rod` — längs der Griffachse angebaut, das Werkzeug liegt in der Faust wie
- *   ein Stab. Eine Taschenlampe ist das: ihr Kegel geht dort hinaus, wo bei der
- *   Pistole der Lauf sitzt, also *kann* sie nicht wie eine Pistole liegen.
+ * Sie ist **gerechnet und nicht geschätzt**: die Lage, in der die gekrümmten
+ * Finger den Standardgriff umschließen — Faustachse auf der Griffachse,
+ * Handfläche daran, Zeigefinger nach vorn, wohin auch der rosa Pfeil des
+ * Griffs zeigt (`worlds/portal/tools/gripFit.ts`, nachgerechnet in
+ * `core/gripFist.test.ts`). Wer den Griff verschiebt, rechnet sie neu, statt
+ * sie neu zu erraten.
  *
- * Wo die beiden Griffe im Werkzeug sitzen müssen, rechnet
- * `worlds/portal/tools/gripFit.ts` — hier steht nur, welche **Faust** dazu
- * gehört.
+ * Vorher standen hier zwei von Hand eingestellte Zahlenreihen, und **keine von
+ * beiden** hielt ihren Griff wirklich: die gebaute Faust lag 6,7 cm daneben und
+ * um 90° verdreht — sie umschloss nichts, sie stand quer zum Zylinder —, die am
+ * Stabgriff eingemessene 3,2 cm daneben und 30° verdreht. Man sieht so etwas in
+ * der Brille nicht als Fehler; man sieht eine Hand, die ein Werkzeug irgendwie
+ * festhält, und wundert sich, warum es nie ganz sitzt.
  */
-export type GripKind = 'pistol' | 'rod';
-
-/**
- * Die Faust **je Standardgriff** — gemessen an der *rechten* Hand.
- *
- * Und das ist der ganze Punkt: nicht je Werkzeug. Wer denselben Zylinder auf
- * dieselbe Weise anbaut, hält ihn auch gleich, und dann ist eine zweite Messung
- * keine zweite Auskunft, sondern eine zweite Gelegenheit, daneben zu liegen. Es
- * gibt so viele Fäuste, wie es Arten gibt, ein Ding anzufassen — zwei —, und
- * nicht so viele, wie es Werkzeuge gibt.
- *
- * Beide gelten für **beide** Hände: rechts wie gemessen, links als deren
- * Spiegelung. Zwei getrennt gepflegte Zahlenreihen wären genau die Sorte
- * Abweichung, die niemand bemerkt — eine Hand, die anders greift als die
- * andere, sieht man nicht, man wundert sich nur.
- */
-export const GRIP_HAND_POSES: Record<GripKind, HandPose> = {
-  // Die gebaute Faust: sie sitzt auf dem Griffpunkt und schaut geradeaus, und an
-  // einer Pistole sieht das richtig aus — deshalb stand hier für sie nie etwas
-  // anderes.
-  pistol: HOLD_HAND_POSE,
-  // Am zweiten Justierstand an der **Taschenlampe** eingemessen und als
-  // Konfig-Code `BPNDLdWgZ9NvBevCHScPckXK` übergeben — rechte Hand. Die Werte
-  // davor (x 4 · y -2,8 · z 1,7 cm, -44/26/-105°) waren die erste Runde am
-  // Stand und liegen rund 15° daneben; es gilt die spätere Messung. Sie gilt ab
-  // jetzt für **jeden** Stabgriff und nicht mehr nur für die Lampe.
-  rod: {
-    ...HOLD_HAND_POSE,
-    x: 3.6,
-    y: -1.8,
-    z: 2.5,
-    pitch: -59,
-    yaw: 23,
-    roll: -99,
-  },
+export const GRIP_HAND_POSE: HandPose = {
+  ...HOLD_HAND_POSE,
+  x: 2.6,
+  y: 2,
+  z: 2.2,
+  pitch: -43,
+  yaw: 0,
+  roll: -90,
 };
 
 /**
- * Welches Werkzeug welchen Standardgriff trägt.
+ * Welche Werkzeuge den **Standardgriff** tragen — und damit die Faust dazu.
  *
- * Eine Tabelle und keine Frage an das Werkzeug, weil eine Hand gezeichnet wird,
- * lange bevor irgendwo ein Werkzeug gebaut ist — und weil eine Liste, die man
- * lesen kann, hier mehr wert ist als eine, die man sich zusammensuchen muss.
- * Dass sie zu dem passt, was die Werkzeuge wirklich anbauen, hält
- * `worlds/portal/tools/gripFit.test.ts` fest.
+ * Eine Liste und keine Frage an das Werkzeug, weil eine Hand gezeichnet wird,
+ * lange bevor irgendwo ein Werkzeug gebaut ist. Dass sie zu dem passt, was die
+ * Werkzeuge wirklich anbauen, hält `worlds/portal/tools/gripMount.test.ts` fest.
+ *
+ * Was hier fehlt, fehlt mit Grund — der Wurfstern fliegt aus den Fingern, die
+ * drei Handschuhe und die Flügel werden angezogen, Hammer und Drohne bringen
+ * ihre eigenen Griffe mit, und Boxhand und Controller *sind* die Hand.
  */
-export const TOOL_GRIPS: Record<string, GripKind> = {
+export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   // Der Griff selbst — das Werkzeug, an dem man die Faust einstellt.
-  grip: 'pistol',
-  pistol: 'pistol',
-  duplicator: 'pistol',
-  inspect: 'pistol',
-  teleport: 'pistol',
-  gizmo: 'pistol',
-  holster: 'pistol',
-  grapple: 'pistol',
-  // Alles, was vorher seinen eigenen Kasten trug oder gar keinen: ein Werkzeug,
-  // das nach vorn zeigt und in einer Faust liegt, trägt den Pistolengriff. Was
-  // hier fehlt, fehlt mit Grund — der Wurfstern fliegt aus den Fingern, die drei
-  // Handschuhe und die Flügel werden angezogen, Hammer und Drohne bringen ihre
-  // eigenen Griffe mit, und Boxhand und Controller *sind* die Hand.
-  'gun-blue': 'pistol',
-  'gun-red': 'pistol',
-  'gun-dual': 'pistol',
-  brush: 'pistol',
-  tape: 'pistol',
-  eraser: 'pistol',
-  xray: 'pistol',
-  stopwatch: 'pistol',
-  flashlight: 'rod',
-  welder: 'rod',
-  // Baut seinen Stabgriff seit jeher an; er stand nur nie in dieser Tabelle,
-  // und damit bekam er die allgemeine Faust statt der eingemessenen.
-  'hang-glider': 'rod',
-};
+  'grip',
+  'pistol',
+  'duplicator',
+  'inspect',
+  'teleport',
+  'gizmo',
+  'holster',
+  'grapple',
+  'gun-blue',
+  'gun-red',
+  'gun-dual',
+  'brush',
+  'tape',
+  'eraser',
+  'xray',
+  'stopwatch',
+  // Die drei, die bis eben am **Stabgriff** hingen. Ein Stabgriff war der
+  // Versuch, ein Rohr *entlang* der Faustachse zu halten — und das geht nur,
+  // solange man dafür eine zweite Faust in Kauf nimmt und hinnimmt, dass so ein
+  // Werkzeug 30° neben dem Zeigestrahl leuchtet. Jetzt tragen sie denselben
+  // Griff quer darunter, wie eine Lampe mit Griff, und zielen wie alles andere.
+  'flashlight',
+  'welder',
+  'hang-glider',
+]);
 
 /**
- * Unter welcher Id die **Faust eines Standardgriffs** gespeichert wird.
+ * Unter welcher Id die **Faust am Standardgriff** gespeichert wird.
  *
  * Der Kern der Sache: eine Faust gehört zu einem *Griff* und nicht zu einem
  * Werkzeug. Zwanzig Werkzeuge mit demselben Zylinder in derselben Hand haben
  * eine Haltung und nicht zwanzig — wer sie zwanzigmal einstellt, stellt
  * neunzehnmal dasselbe ein und einmal etwas anderes, ohne es zu merken.
  *
- * Es sind Werkzeug-Ids und keine neue Art von Schlüssel, und das ist Absicht:
- * damit tragen der Speicher (`handPoseStore.ts`), der Konfig-Code und der
- * Kurzcode sie, ohne dass irgendwo ein Format wächst. `grip` ist dabei ein
- * echtes Werkzeug — der **Griff** —, `grip-rod` ist die Id, unter der die Faust
- * am Stabgriff liegt, wenn jemand sie einstellt.
+ * Es ist eine Werkzeug-Id und keine neue Art von Schlüssel, und das ist
+ * Absicht: damit tragen der Speicher (`handPoseStore.ts`), der Konfig-Code und
+ * der Kurzcode sie, ohne dass irgendwo ein Format wächst. `grip` ist dabei ein
+ * echtes Werkzeug — der **Griff**.
  */
-export const GRIP_POSE_IDS: Record<GripKind, string> = {
-  pistol: 'grip',
-  rod: 'grip-rod',
-};
+export const GRIP_POSE_ID = 'grip';
 
 /**
  * Die gebaute Haltung, in der eine Hand ein bestimmtes Werkzeug hält.
  *
- * Trägt es einen Standardgriff, ist es die Faust zu diesem Griff — für die linke
- * Hand gespiegelt. Trägt es keinen, bleibt die allgemeine Faust: sie ist kein
+ * Trägt es den Standardgriff, ist es die Faust dazu — für die linke Hand
+ * gespiegelt. Trägt es keinen, bleibt die allgemeine Faust: sie ist kein
  * Ergebnis, sondern ein Anfang, und dann führt der Weg über den zweiten
  * Justierstand. Der Speicher legt sich über beides, wenn jemand selbst justiert
  * hat (`handPoseStore.ts`).
  */
 export function defaultHoldPose(hand: Handedness, toolId: string): HandPose {
-  const kind = TOOL_GRIPS[toolId];
-  if (!kind) return clonePose(HOLD_HAND_POSE);
-  const measured = GRIP_HAND_POSES[kind];
-  return hand === 'right' ? clonePose(measured) : mirrorHandPose(measured);
+  if (!STANDARD_GRIP_TOOLS.has(toolId)) return clonePose(HOLD_HAND_POSE);
+  return hand === 'right' ? clonePose(GRIP_HAND_POSE) : mirrorHandPose(GRIP_HAND_POSE);
 }
 
 /** What the value editor offers, in the order it lists them. */

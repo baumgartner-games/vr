@@ -43,7 +43,7 @@ export class TapeTool extends Tool {
     this.icon = 'tape';
     this.accent = 0xffc857;
     this.hint = 'Trigger setzt Punkt 1 · Trigger setzt Punkt 2';
-    this.mountGrip('pistol', { length: 0.09 });
+    this.mountGrip({ length: 0.09 });
 
     const shell = new THREE.MeshStandardMaterial({ color: 0xffc857, roughness: 0.5 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x2b3346, roughness: 0.7 });

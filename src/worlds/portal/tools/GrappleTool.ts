@@ -70,7 +70,7 @@ export class GrappleTool extends Tool {
     this.add(barrel);
 
     // Derselbe Griff wie an der Pistole (`grip.ts`).
-    this.mountGrip('pistol');
+    this.mountGrip();
 
     this.muzzle.position.set(0, 0.01, -0.19);
     this.add(this.muzzle);

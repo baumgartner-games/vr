@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import { grabMaterial } from './Tool';
-import { gripInTool, holdForGrip } from './gripFit';
-import { quatFromEulerXYZ } from './toolPose';
-import type { GripKind } from '../../../core/handPose';
+import { gripInTool } from './gripFit';
 import type { Quat } from './aim';
 
 /**
@@ -50,7 +48,7 @@ export interface GripOptions {
   length?: number;
   /** Dicker oder dünner: ein Faktor auf beide Halbmesser. */
   thickness?: number;
-  /** Ohne Rillen — für einen Stabgriff, der ringsum gleich aussieht. */
+  /** Ohne Rillen — für einen Griff, der ringsum gleich aussehen soll. */
   waves?: boolean;
   /** Mit der Linie, die zeigt, wo bei diesem Griff vorne ist. */
   front?: boolean;
@@ -196,45 +194,18 @@ export function createGripShape(options: GripOptions = {}): THREE.Mesh {
  * Ein Griff **an der Stelle, an der er in die Faust gehört** — der eine Weg,
  * auf dem ein Werkzeug zu einem Standardgriff kommt.
  *
- * Das Werkzeug sagt nur, *wie* es gehalten wird (`kind`) und wie es dabei in der
+ * Das Werkzeug sagt nur, wie es dabei in der
  * Hand liegt (`hold`, seine `holdRotation`); wohin der Griff dann kommt, ist
  * keine Frage des Geschmacks mehr, sondern `gripInTool`. Zurück kommt eine
  * Gruppe, die man ohne weiteres Zutun ins Werkzeug hängt — und deren Lage
  * *ist* die Lage des Griffs, die `Tool.gripPose` meldet.
  */
-export function createGrip(
-  kind: GripKind,
-  hold: Quat | undefined,
-  options: GripOptions = {},
-): THREE.Group {
-  const at = gripInTool(kind, hold);
+export function createGrip(hold: Quat | undefined, options: GripOptions = {}): THREE.Group {
+  const at = gripInTool(hold);
   const group = new THREE.Group();
   group.name = GRIP_NAME;
   group.position.set(at.position.x, at.position.y, at.position.z);
   group.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
   group.add(createGripShape(options));
   return group;
-}
-
-/**
- * Die Drehung, mit der ein Griff **entlang der eigenen -Z-Achse** eines
- * Werkzeugs liegt — ein Stab, dessen Spitze vorn sitzt.
- *
- * Das ist die eine Griffdrehung, die ein stabförmiges Werkzeug hat: seine Achse
- * *ist* die Griffachse, und vorn (`+Y` des Griffs, oben aus der Faust heraus)
- * ist die Seite, an der die Spitze sitzt.
- */
-export const ROD_GRIP_ROTATION = quatFromEulerXYZ({ x: -Math.PI / 2, y: 0, z: 0 });
-
-/**
- * Und die `holdRotation`, die daraus folgt: so muss ein Stab in der Hand
- * liegen, damit sein Griff dort landet, wo der Stabgriff hingehört.
- *
- * Die Taschenlampe hat diese Zahl eingemessen und schreibt sie deshalb selbst
- * hin; alles andere Stabförmige holt sie hier ab, statt sie abzuschreiben —
- * `gripFit.test.ts` hält fest, dass beides dasselbe ist.
- */
-export function rodHoldRotation(target: THREE.Quaternion): THREE.Quaternion {
-  const q = holdForGrip('rod', ROD_GRIP_ROTATION);
-  return target.set(q.x, q.y, q.z, q.w);
 }
