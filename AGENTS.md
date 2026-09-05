@@ -14,7 +14,7 @@ ausnahmsweise einen Branch will, sagt das im Auftrag dazu.
 **Branches werden hinterher weggeräumt.** Wer aus irgendeinem Grund auf einem
 eigenen Branch entwickelt hat und die Arbeit dann auf `main` landet — sei es
 direkt gepusht oder über einen Pull Request —, löscht denselben Branch danach
-sofort wieder, lokal *und* auf `origin`:
+sofort wieder, lokal _und_ auf `origin`:
 
 ```
 git push origin --delete <branch>
@@ -43,7 +43,7 @@ Klein mit Absicht: Ein Linter, der über Stil schimpft, wird nach zwei Wochen
 übergangen; einer, der Fehler findet, wird gelesen. Es steht also nur darin, was
 hier schon einmal wehgetan hat — nicht abgewartete Promises (die Welten laden
 asynchron), Methoden, die von ihrem Objekt getrennt herumgereicht werden, tote
-Variablen. Über die *Form* entscheidet Prettier, nicht ESLint.
+Variablen. Über die _Form_ entscheidet Prettier, nicht ESLint.
 
 `npm run format` formatiert die TypeScript-Dateien, `npm run format:check` prüft
 nur. Absichtlich **nicht** dabei: `src/style.css` und `index.html`. Die
@@ -125,13 +125,13 @@ darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
 Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
 entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
-den **Stab** (Hammer, Taschenlampe, Pinsel, Messer — eine Faust für vier), den
-**Griff der Drohne**, die **Kante der Stoppuhr** und den **Saum des Beutels**,
+den **Stab** (Hammer, Taschenlampe, Messer — eine Faust für drei), denselben Stab
+**von oben am Pinsel**, den **Griff der Drohne**, die **Kante der Stoppuhr** und den **Saum des Beutels**,
 an beiden Händen, und dass Handschuhe und Controller die Grundhaltung tragen; und
 die beiden Zahlen, wegen derer es diesen Test gibt: die alte gebaute Faust
 stand **90°** quer zum Zylinder, die am Stabgriff eingemessene 30°), der
 **Standardgriff**
-(`src/worlds/portal/tools/gripFit.ts` — dass ein Griff bei *jeder* Haltung an
+(`src/worlds/portal/tools/gripFit.ts` — dass ein Griff bei _jeder_ Haltung an
 derselben Stelle in der Faust landet und die Zielkorrektur sich dabei
 heraushebt, dass der Weg rückwärts derselbe ist, dass die geteilte
 `holdPosition` ihn auf den Griffpunkt des Controllers legt statt 8,6 cm
@@ -144,7 +144,7 @@ verteilt statt in einer Hand einzurasten, und dass der **Kopf nach vorn** zeigt,
 egal in welcher Reihenfolge die Welt die beiden Hände hereingibt — dieses
 Vorzeichen bemerkt man in der Brille nur noch, man vollzieht es nicht nach), die
 **Vibrationsmuster** (`src/worlds/tune/haptics.ts` — die einzige Rückmeldung,
-die man *nicht sehen* kann: dass jeder Stoß genau einmal kommt, dass der bei
+die man _nicht sehen_ kann: dass jeder Stoß genau einmal kommt, dass der bei
 null auf den ersten Frame fällt, dass ein Ruckler nicht acht Durchläufe auf
 einmal in die Hand schlägt), die **Augenhöhen**
 (`src/core/posture.ts` — dass die Anhebung die Differenz der beiden ist und
@@ -159,7 +159,7 @@ die **Welt-Physik**
 (`src/core/worldPhysics.ts` — Rasten, Grenzen, und dass „Welt-Standard" die
 Schwerkraft der Welt gewinnen lässt statt einer einmal getippten Zahl), die
 **Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
-Sturz einer ist, und dass der *höchste* Treffer gewinnt: von unten gesucht
+Sturz einer ist, und dass der _höchste_ Treffer gewinnt: von unten gesucht
 landet man im Keller eines Hauses, von oben auf seinem Dach), die **Dicke der
 Bodenplatte** (`src/worlds/shared/ground.test.ts` — dass sie dicker ist als die
 Haut der Spielerkapsel; sie war es einmal nicht, und man merkte es nur daran,
@@ -237,7 +237,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
   Pyramide, Quader, Planke, Zylinder, Kegel, Rampe, Stab, Murmel und dem
-  **Würfelsatz** W4, W6, W8, W12, W20 — siehe *Was aus dem Beutel kommt*),
+  **Würfelsatz** W4, W6, W8, W12, W20 — siehe _Was aus dem Beutel kommt_),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Einstellungen** und
   die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
@@ -246,7 +246,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Der **Trigger** hat dort eine andere Aufgabe: er geht in die
   **Einstellungen des Werkzeugs**, hinter den Pfeil am Zeilenende. Beides
   zugleich wäre das Schlimmste von beidem — man hätte das Ding in der Hand
-  *und* stünde eine Seite tiefer —, also merkt sich das Menü im Moment der
+  _und_ stünde eine Seite tiefer —, also merkt sich das Menü im Moment der
   Auswahl, womit gedrückt wurde.
   In der Zeile eines Werkzeugs steht statt der Strichzeichnung ein **kleines
   Modell des Werkzeugs selbst**, das sich langsam dreht: bei sechs Handschuhen
@@ -286,7 +286,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Jetzt liegt der Weg einmal da und wird von beiden Panels gelesen
   (`src/ui/menuNav.ts`, mit Test), samt der Zeile, in der man war. Wo man ist,
   sagt
-  die Überschrift auf dem Panel und die *Zurück*-Zeile. Verschwindet eine Seite
+  die Überschrift auf dem Panel und die _Zurück_-Zeile. Verschwindet eine Seite
   aus dem Baum, endet der Weg dorthin bei ihrer Elternseite. Die Blätterregel
   steht in `src/ui/pageScroll.ts` (mit Test), inklusive der Klemmung nach
   unten: eine Seite kann zwischen zwei Besuchen Zeilen verlieren, und ein übrig
@@ -309,7 +309,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Werkzeug ein Klotz aus Dreiecken ist und man ihm nicht ansieht, ob man es am
   Lauf oder am Schaft nehmen soll. Daneben ein zweiter, hellerer Ton fürs
   **Leuchten in dem Moment**, in dem die Hand nah genug ist — verwandt und
-  bewusst nicht gleich, denn „das kann man nehmen" und „das kann man *jetzt*
+  bewusst nicht gleich, denn „das kann man nehmen" und „das kann man _jetzt_
   nehmen" sind zwei Nachrichten. Beide Zahlen stehen an genau einer Stelle
   (`src/core/colors.ts`), das Material dazu baut `grabMaterial()` in
   `tools/Tool.ts`; eine zweite türkise Zahl irgendwo im Code ist das, was die
@@ -326,7 +326,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Regal wieder. Nachgefüllt wird nur eine Hüfte, an der wirklich etwas hing;
   ein Werkzeug aus dem Regal hat keine, und auf einer fremden Hüfte wächst
   ihm nichts nach.
-- **Ein Werkzeug ist nicht ein Exemplar.** Es gibt je Id ein *gepooltes* —
+- **Ein Werkzeug ist nicht ein Exemplar.** Es gibt je Id ein _gepooltes_ —
   daran hängen Beschriftung, Werte und das kleine Modell im Regal —, und
   daneben so viele Kopien, wie gebraucht werden (`PortalWorld.freshTool`).
   Vorher gab es genau eines, und damit war „zwei Pistolen" nicht vorgesehen:
@@ -335,23 +335,23 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   zwei Waffen — einzeln zu nehmen, einzeln zu werfen, und danach liegen
   beide auf dem Boden.
 - **Wo der Gürtel hängt, ist einstellbar** (`beltSettings.ts`, mit Test): drei
-  Zahlen — Abstand zur Seite, Höhe als *Anteil der Augenhöhe*, Tiefe vor oder
+  Zahlen — Abstand zur Seite, Höhe als _Anteil der Augenhöhe_, Tiefe vor oder
   hinter der Körpermitte. Sie gelten für **beide** Hüften, gespiegelt; ein
   Gürtel, bei dem eine Seite tiefer hängt als die andere, ist kein Gürtel,
   sondern ein Versehen. Die Höhe steht als Anteil, damit sie mit dem
   mitwächst, der sie trägt, und im Sitzen nicht auf Brusthöhe rutscht.
   Verschoben wird mit dem **Gürtel-Justierer** (siehe unten), gespeichert wird
   im Browser (`bgvr.belt`).
-- **Loslassen heißt fallen lassen**: wer ein Werkzeug irgendwo *anders* als
+- **Loslassen heißt fallen lassen**: wer ein Werkzeug irgendwo _anders_ als
   über einer Hüfte loslässt, lässt es fallen — es liegt dann als Objekt im
   Raum, kann angestoßen und von jeder Hand wieder aufgehoben oder in der Luft
   aufgefangen werden. Im selben Moment wächst auf der Hüfte, von der es kam,
   ein **neues** nach. Damit ist „Waffe ziehen, in die andere Hand geben, noch
   eine ziehen" eine durchgehende Bewegung. Wie viele Exemplare gleichzeitig
-  *außerhalb des Gürtels* sein dürfen — herumliegend und in Händen zusammen —,
+  _außerhalb des Gürtels_ sein dürfen — herumliegend und in Händen zusammen —,
   sagt das Werkzeug selbst (`Tool.looseLimit`, normal eins), und zwar **pro
   Gürtelplatz**: kommt eins zu viel dazu, holt sich der Raum das älteste
-  **liegende** von *diesem* Platz zurück. Bei eins heißt das genau, was es
+  **liegende** von _diesem_ Platz zurück. Bei eins heißt das genau, was es
   soll: die frische Pistole von der linken Hüfte holt die von der linken
   Hüfte liegengelassene ein — und lässt die rechte in Ruhe. Genau daran ist
   die alte Zählung gescheitert: pro Werkzeug-Id gezählt waren eine Waffe
@@ -373,28 +373,30 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     zurückgelegt hat; anders ließe sich nichts um zwei Zentimeter versetzen.
     Beide Hüften bewegen sich dabei, gespiegelt. Loslassen speichert, ein
     zweiter Trigger gibt die Hüfte frei, `A`/`X` setzt zurück (dasselbe steht
-    im Menü unter *Werkzeuge → Gürtel-Justierer → Gürtel*). Während eine Hüfte
+    im Menü unter _Werkzeuge → Gürtel-Justierer → Gürtel_). Während eine Hüfte
     gewählt ist, gehört die andere Hand dem Gürtel (`claimsHand`): sie zieht
     dabei kein Werkzeug aus dem Halfter — sie greift ja genau dort zu.
   - **Pinsel** samt Palette auf der anderen Hand, mit zwei Reitern: **Farben**
     und **Material** (Lack, Metall, Gummi, Eis, Stein, Glas, Leuchtend,
     Schaum — `materials.ts`, mit Test). Ein Material ist beides zugleich, wie
-    das Objekt *aussieht* und wie es sich *verhält*: Gummi springt, Eis
+    das Objekt _aussieht_ und wie es sich _verhält_: Gummi springt, Eis
     rutscht, Glas ist durchsichtig, Leuchtend leuchtet. **Lack** ist der Weg
     zurück, ohne ihn wäre jeder Strich endgültig. Ein Strich setzt immer
     beides — was die Palette zeigt, ist das, was das Objekt bekommt; eine
     Farbe, die je nach Vorgeschichte mal das Material mitnimmt und mal nicht,
     kann man in der Brille nicht lesen. Farbe und Material gehen über das Netz
     (ältere Mitspieler schicken nur die Farbe).
-    Gehalten wird er am **Stiel**: der ist in Greiffarbe und liegt als Stab in
-    der Faust wie der Stiel des Hammers (`POLE_HAND_POSE`) — kein sichtbarer
-    Standardgriff mehr darunter, und er zeigt trotzdem dorthin, wohin man
-    zeigt, denn der Stab liegt auf dem Zeigestrahl.
+    Gehalten wird er am **Stiel**: der ist in Greiffarbe und liegt als Stab
+    auf dem Zeigestrahl wie der Stiel des Hammers — aber **von oben** gegriffen,
+    wie ein Maler seinen Pinsel hält (`BRUSH_GRIP`, `BRUSH_HAND_POSE`):
+    Handrücken oben, die Finger über dem Stiel, der Daumen zur Spitze hin. Mit
+    der Hammerfaust sah er aus wie ein Hammer. Kein sichtbarer Standardgriff
+    mehr darunter, und er zeigt trotzdem dorthin, wohin man zeigt.
   - **Pistole** mit Magazin (`x/∞` an der Seite). Unter
-    *Einstellungen → Pistole* steht jeder Wert einzeln: Stärke, Kugeltempo,
+    _Einstellungen → Pistole_ steht jeder Wert einzeln: Stärke, Kugeltempo,
     Feuerrate, **Magazingröße**, Nachladezeit, Salvenlänge und Modus (Einzel,
     Salve, Automatik). Jede Zeile schaltet auf die nächste Raste weiter **und
-    zeigt die rohe Zahl daneben** — und unter *Werte eingeben* lässt sich jede
+    zeigt die rohe Zahl daneben** — und unter _Werte eingeben_ lässt sich jede
     davon über eine Tastatur direkt tippen. Dazu **Zielhilfen** (Rotpunkt,
     Kimme & Korn, Flugbahn, Röntgen, **Fernrohr** — oder alles ab), der
     **Zoom** des Fernrohrs (16×, 20×, 24×, 28×, 32×, 36× durchklicken oder
@@ -405,7 +407,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     stecken, wo es auftrifft (Wand, Kiste, egal). Fünf dürfen gleichzeitig
     unterwegs oder eingeschlagen sein; der sechste Wurf holt das erste
     zurück. Die Bahn wird pro Frame selbst abgetastet statt auf einen
-    Abpraller zu warten — nur so bleibt es *stecken*, statt abzuprallen.
+    Abpraller zu warten — nur so bleibt es _stecken_, statt abzuprallen.
     Es war einmal ein **Wurfstern**, und der hatte keinen Griff — er lag „in
     den Fingerspitzen", also nirgends, und die Boxhand sah an ihm nach nichts
     aus. Das Messer hat einen: einen **Stab** in Greiffarbe durch die Faust,
@@ -417,7 +419,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     man die ganze Reichweite, weit vorn die Kontrolle, und beides will man nicht
     als Einstellung, sondern mitten in der Bewegung. **Eine Hand** hält ihn wie
     jedes andere Werkzeug, entlang des Zeigestrahls, Kopf nach vorn — neu ist
-    nur, *welcher Punkt* des Stiels dabei in der Faust liegt. Die **zweite
+    nur, _welcher Punkt_ des Stiels dabei in der Faust liegt. Die **zweite
     Hand** kommt dazu, sobald sie am Stiel zudrückt (sie zieht dann nichts mehr
     von der Hüfte, `claimsHand`); ab da liegt der Stab auf der Linie zwischen
     den beiden Fäusten, jede an ihrem Punkt, und der Kopf zeigt von der
@@ -432,15 +434,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     und nicht mit dem Trigger: was der Kopf schnell genug (ab 1,6 m/s) berührt,
     bekommt einen Stoß in die Richtung, in die der Kopf gerade fliegt, gedeckelt
     bei 9 m/s, damit ein Zucken nicht die halbe Halle wegschießt. Der Kopf wird
-    als *Punkt* gemessen und nicht als Strecke — in der Greifbox (Collider plus
+    als _Punkt_ gemessen und nicht als Strecke — in der Greifbox (Collider plus
     9 cm) verschwindet der Weg eines Bildes, ein wirklich schneller Schlag kann
     aber durch einen dünnen Dominostein hindurchgehen. Lässt die **führende**
     Hand los, fällt er, auch wenn die zweite noch am Stiel liegt: `heldBy`
     gehört der Welt, nicht dem Werkzeug (genau wie bei der Drohne). Die Rechnung
     steht in `tools/poleGrip.ts` mit Test, das Werkzeug in `tools/HammerTool.ts`.
-  - **Stoppuhr**: das Werkzeug, mit dem man Physik *ansieht*. Sie liegt in der
+  - **Stoppuhr**: das Werkzeug, mit dem man Physik _ansieht_. Sie liegt in der
     Hand wie bei einem Zeitnehmer: Blatt zum Gesicht, Finger um die seitliche
-    Kante, Daumen auf der Krone (siehe *Ein Griff für alle Werkzeuge*), und der
+    Kante, Daumen auf der Krone (siehe _Ein Griff für alle Werkzeuge_), und der
     Gehäusemantel trägt die Greiffarbe. Ein **Knopf** an
     der Krone (oder `A`/`X`) öffnet ein Panel an der Uhr — dieselbe Mechanik
     wie beim Drohnen-Display —, und dort steht, was der **Trigger** tut
@@ -452,7 +454,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Art, einen Durchschlag oder einen Portalübergang wirklich zu sehen;
     **Schnellladen** stellt die gespeicherte Aufstellung wieder her.
     **Welt speichern** und **Welt laden** stehen im Panel, und Speichern
-    bewusst *nur* dort: ein Trigger, der beides kann, überschreibt irgendwann
+    bewusst _nur_ dort: ein Trigger, der beides kann, überschreibt irgendwann
     genau den Stand, den man behalten wollte. Gemerkt werden Pose, Größe und
     Schwung jedes Props, im Speicher dieser Sitzung — ein Rücksetzpunkt für
     den Versuch, an dem man gerade ist, kein Spielstand. Loslassen der Uhr
@@ -467,16 +469,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     (`STOPWATCH_HAND_POSE`). Und das **Zifferblatt schaut zum Kopf** (+z) —
     lange schaute es nach vorn wie ein Lauf, und man sah den Zeiger nie.
   - **Taschenlampe**: eine **Stabtaschenlampe** — das Batterierohr liegt in
-    der Faust, und es *ist* der Griff, in Greiffarbe, ein Stab wie der Stiel
+    der Faust, und es _ist_ der Griff, in Greiffarbe, ein Stab wie der Stiel
     des Hammers (`POLE_HAND_POSE`). Eine Weile war sie eine „Lampe mit Griff",
     das Rohr über der Faust und der Standardgriff quer darunter; das sah aus
     wie ein Megaphon. Davor lag ihr Rohr schon einmal in der Faust, aber auf
-    der *Faustachse*, und dafür bezahlte sie mit einem Kegel, der 30° über das
-    hinwegging, worauf man zeigte (siehe *Ein Griff für alle Werkzeuge*). Jetzt
+    der _Faustachse_, und dafür bezahlte sie mit einem Kegel, der 30° über das
+    hinwegging, worauf man zeigte (siehe _Ein Griff für alle Werkzeuge_). Jetzt
     liegt der Stab **quer durch die Faust auf dem Zeigestrahl**, wie ein
     Hammerstiel, und leuchtet dorthin, wohin man zeigt.
     **Trigger** schaltet sie an und aus. Der **Lichtkegel**
-    wird mit der *anderen* Hand eingestellt: vorne an die Linse greifen (der
+    wird mit der _anderen_ Hand eingestellt: vorne an die Linse greifen (der
     Ring leuchtet, sobald die Hand nah genug ist) und mit gedrücktem Griff nach
     **rechts** ziehen macht ihn breit, nach **links** schmal. Genau das, was
     man an einer echten Lampe am Kopf dreht — und in einem dunklen Gang ist
@@ -487,7 +489,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     fallen lässt** — eine liegende Lampe ist die einzige Lichtquelle, die man
     im Dunkeln wiederfindet. Das Licht selbst bleibt immer in der Szene und
     wird nur auf null gedreht: three.js baut jeden Shader im Raum neu, wenn
-    sich die *Anzahl* der Lichter ändert, und ein Schalter ist kein Ruckler
+    sich die _Anzahl_ der Lichter ändert, und ein Schalter ist kein Ruckler
     wert.
   - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
     er ein Objekt, kommt stattdessen das Objekt.
@@ -496,12 +498,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     abgelegt wird.
     Alle drei Handschuhe werden **angezogen** (`Tool.worn`): sie zielen nicht,
     ihre Platte liegt auf dem Handrücken der Boxhand, die Manschette am
-    Handgelenk, und ihre Lage im Griff *ist* die Haltung der Hand, die sie
+    Handgelenk, und ihre Lage im Griff _ist_ die Haltung der Hand, die sie
     trägt — ab Werk die Grundhaltung mit offenen Fingern (`WORN_HAND_POSE`),
     und sie folgen ihr Bild für Bild (`followHand`). Vorher hingen sie im
     Zeigestrahl, also 30° gegen die Hand verdreht und halb in der Handfläche.
   - **Translationshandschuh**: greift bis 30 m weit — das Objekt kommt dabei
-    *nicht* zu dir. Zwei Modi, `A` schaltet um: **Halten** lässt es genau dort
+    _nicht_ zu dir. Zwei Modi, `A` schaltet um: **Halten** lässt es genau dort
     stehen, wo es ist (Handdrehung dreht es), **Steuern** macht die Hand zum
     Joystick — Hand nach links, Objekt nach links; Hand nach vorne, Objekt nach
     vorne; je weiter aus der Mitte, desto schneller.
@@ -519,7 +521,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Linkskurve, und je schneller du fliegst, desto stärker. Schaust du wieder
     geradeaus, hört die Kurve auf — und „geradeaus“ ist dann die neue Richtung.
     **Volle Lehne ist volle Fahrt**, und was volle Fahrt heißt, steht unter
-    *Einstellungen → Supermanhandschuh*: je eine Zahl für vorwärts, rückwärts,
+    _Einstellungen → Supermanhandschuh_: je eine Zahl für vorwärts, rückwärts,
     hoch, runter und quer, dazu Drehrate und Totzone, jede über eine Raste
     weiterschaltbar oder direkt tippbar. Vorher stand da ein fester Faktor pro
     Meter Handlehne, bei dem eine bequeme Bewegung keine drei Meter pro Sekunde
@@ -529,14 +531,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     und links/rechts hängen wahlweise an der **Hand**, am **Kopf**, an beidem
     oder an nichts — Blick nach unten schiebt, Blick nach oben steigt, der vom
     Flugweg weggedrehte Kopf zieht die Kurve. Und wer lieber quer schiebt als
-    zu drehen, schaltet die Hand auf *quer schieben*; der Kopf lenkt dann
+    zu drehen, schaltet die Hand auf _quer schieben_; der Kopf lenkt dann
     weiter (`tools/supermanSettings.ts`, gerechnet in `tools/supermanFlight.ts`,
     beide mit Test).
   - **Lötkolben**: eine **Lötpistole**, seit es nur noch einen Griff gibt —
     Stab über der Faust, Griff quer darunter, Spitze auf dem Zeigestrahl.
     Zwei Punkte antippen und die Objekte hängen zusammen —
     starr oder als Scharnier (Achse = Querachse des Kolbens). Der Modus wird
-    mit der anderen Hand umgeschaltet (kleines Panel über ihr), *Trennen*
+    mit der anderen Hand umgeschaltet (kleines Panel über ihr), _Trennen_
     löst alle Verbindungen eines Objekts wieder. Solange der Kolben in der
     Hand ist, stößt diese Hand nichts mehr an — man greift durch den Stapel,
     ohne ihn umzuwerfen.
@@ -555,7 +557,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     damit der ruhende Punkt gegen Motion Sickness. Der Knopf über dem Display
     (oder `A`/`X`) öffnet die **Drohnen-Einstellungen**: Flugmodus, **Tempo**
     (m/s) und **Drehrate** (°/s) — beide schalten pro Druck eine Raste weiter
-    und zeigen die rohe Zahl daneben —, *Drohne neu setzen*, und ob das
+    und zeigen die rohe Zahl daneben —, _Drohne neu setzen_, und ob das
     Herausnehmen eine alte Drohne verschrottet. Aus den zwei Zahlen baut
     `droneTuning()` das ganze Tuning: Steigrate hängt am Tempo, Nick- und
     Rollrate des Jets an der Drehrate (×1,25 bzw. ×2), damit nicht drei Regler
@@ -569,7 +571,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     ist der kleine Quadrokopter, er hängt knapp unter der Blickachse.
     **Jet** ist ein kleines Flugzeug — linker Stick vor/zurück entlang der
     eigenen Nase und quer dazu, rechter Stick ist der Steuerknüppel: rollen und
-    nicken um die *eigenen* Achsen, Sicht samt Horizont kippt mit. Wer im
+    nicken um die _eigenen_ Achsen, Sicht samt Horizont kippt mit. Wer im
     Rollen zieht, fliegt eine echte Kurve. Dort **sitzt man im Cockpit**
     (`droneJet.ts`): fünf Meter Maschine mit Nase, Flächen und Leitwerk, und
     das Auge steckt in ihrer Kanzel. Alles darin ist um `JET_EYE` herum
@@ -586,7 +588,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Bügel steht hinter dem Kopf. Zwischen den Knien steht ein
     **Steuerknüppel**, der mit dem rechten Stick mitgeht — ein Cockpit, in dem
     sich nichts bewegt, ist eine Kulisse. Der Nachbrenner geht mit dem Schub
-    an. Das Cockpit ist um einen *Menschen*
+    an. Das Cockpit ist um einen _Menschen_
     gebaut, die Maschine richtet sich danach; sie wird deshalb weiter weg
     gesetzt als der Kopter und hält mehr Abstand zum Boden.
     Beim Parken richtet sie sich wieder waagerecht aus. Der Kopf bleibt in
@@ -603,7 +605,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     **ziehen** heißt Nase runter und schneller, **drücken** Nase hoch und
     langsamer — und unter der Abrissfahrt trägt nichts mehr —, **zur Seite
     schieben** legt den Flügel in die Kurve, und zwar auf die Seite, zu der man
-    schiebt. Ein echter Pilot schiebt den Bügel von der Kurve *weg*, weil er
+    schiebt. Ein echter Pilot schiebt den Bügel von der Kurve _weg_, weil er
     seinen Körper verlagert und nicht den Bügel; in der Brille bewegt sich der
     Körper nicht, und „Bügel nach links, Kurve nach links" ist das, was jeder
     als Erstes versucht. Der Körper dreht sich mit der Bahn: wer eine Kurve
@@ -647,7 +649,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     dreier, und der, den man ohnehin kennt.
   - **Controller links / Controller rechts**: das echte Gerät als Werkzeug,
     eines je Hand (`tools/ControllerTool.ts`). Gezeigt wird das Modell aus dem
-    Repository (siehe *Controller-Modelle*), bis es geladen ist der selbst
+    Repository (siehe _Controller-Modelle_), bis es geladen ist der selbst
     gebaute. Auch sie zielen nicht. Die Hand daran trägt die **Grundhaltung**
     als Faust mit dem Finger am Abzug (`CONTROLLER_HAND_POSE`): so hält sie das
     Gerät wirklich, und der Controller liegt genau im Griffraum. Der Sinn ist
@@ -703,19 +705,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     ihm, solange sie über einem Fach steht (`claimsHand`) — sonst risse
     derselbe Griff die Kiste hinter dem Beutel an sich, und in einem vollen
     Labor steht immer eine Kiste dahinter.
-    Warum beides, Seite *und* Werkzeug: Ein Menü ist ein Ort, an den man geht;
+    Warum beides, Seite _und_ Werkzeug: Ein Menü ist ein Ort, an den man geht;
     ein Beutel ist etwas, das man dabeihat. Wer eine Reihe Dominosteine
     aufstellt, greift zwanzigmal hinein, ohne dazwischen zwanzigmal ein Panel
     zu öffnen.
 - **Alles einstellbar, alles kopierbar**: Werkzeug-Posen, Handhaltungen,
   Anbauteile und die Waffenwerte liegen zusammen in einem **Konfig-Code** —
   einer Zeile, die kopiert, vorgelesen und wieder eingegeben werden kann
-  (*Einstellungen → Konfig-Code*). Eine **Tastatur im Raum** nimmt rohe Zahlen
+  (_Einstellungen → Konfig-Code_). Eine **Tastatur im Raum** nimmt rohe Zahlen
   und ganze Codes entgegen.
 - **Handhaltung**: wie die leere Hand aussieht und wie sie ein **Objekt**
   hält, steht unter
-  *Einstellungen → Hände*; wie sie ein **Werkzeug** greift, steht beim
-  Werkzeug selbst (*Werkzeuge → … → Griff*, mit dem Trigger hinein). Zwölf
+  _Einstellungen → Hände_; wie sie ein **Werkzeug** greift, steht beim
+  Werkzeug selbst (_Werkzeuge → … → Griff_, mit dem Trigger hinein). Zwölf
   Zahlen pro Haltung (Versatz, Neigung, fünf
   Finger, Spreizung), und ein Knopf spiegelt alles auf die andere Hand. Die
   Objekthaltung liegt unter derselben Mechanik wie ein Werkzeug (Pseudo-Id
@@ -723,7 +725,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   mitgeschleppt — und sie wird tatsächlich angewandt, sobald eine Hand etwas
   trägt.
 - **Werkzeug-Einstellungen hängen am Werkzeug.** Vorher stand unter
-  *Einstellungen* eine Seite „Pistole" und eine Seite „Supermanhandschuh",
+  _Einstellungen_ eine Seite „Pistole" und eine Seite „Supermanhandschuh",
   während daneben das Werkzeugregal eine zweite Liste derselben Werkzeuge war:
   wer die Feuerrate ändern wollte, ging woandershin als dorthin, wo die
   Pistole liegt. Jetzt trägt jede Regalzeile ihre eigenen Werte hinter dem
@@ -735,7 +737,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Stuhl steht — ein sitzender Spieler ist für jede Welt schlicht ein sehr
   kleiner, und Küchentresen, Kartsitz und Horizont gehören plötzlich jemand
   Größerem. Gefragt wird einmal auf der Startseite, umgestellt wird unter
-  *Menü → Bewegung → Haltung*: „Sitzend" hebt die Sicht auf Stehhöhe an und
+  _Menü → Bewegung → Haltung_: „Sitzend" hebt die Sicht auf Stehhöhe an und
   lässt die Füße stehen — dieselbe Mechanik wie das Ducken, nur andersherum.
 
   **Wie hoch die beiden sind, weiß auch niemand von allein.** Der Ausgleich
@@ -745,12 +747,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Justierstand auf Ellbogenhöhe steht dann irgendwo anders, weil der Boden
   unter dem Spieler um die Differenz falsch liegt. Also
   sind es **zwei eigene Zahlen**, stehend und sitzend, in Zentimetern und
-  beide **messbar**: unter *Menü → Bewegung → Augenhöhe* (und an der Wand im
-  Eingaberaum) hinstellen bzw. hinsetzen, *Jetzt messen* drücken, und die
+  beide **messbar**: unter _Menü → Bewegung → Augenhöhe_ (und an der Wand im
+  Eingaberaum) hinstellen bzw. hinsetzen, _Jetzt messen_ drücken, und die
   Brille schreibt ihre eigene Zahl hinein. Die Anhebung ist danach die
-  Differenz der beiden und nicht mehr der Abstand zu einer *gerade gemessenen*
+  Differenz der beiden und nicht mehr der Abstand zu einer _gerade gemessenen_
   Kopfhöhe — Vorbeugen im Sessel hob vorher die halbe Welt mit an
   (`core/posture.ts`, mit Test).
+
 - **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
   Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
@@ -775,7 +778,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   nach dem Ring (10 bis 2), die Stahlplatte pauschal. Die Zahl erscheint
   **knapp über der Visierlinie** — nicht an der Scheibe, dort wäre sie auf
   hundert Meter unlesbar, und auch nicht mehr weit oben: fünf Zeilen stapeln
-  sich nach *oben*, die oberste stand damit auf 30° über dem Auge und war nur
+  sich nach _oben_, die oberste stand damit auf 30° über dem Auge und war nur
   mit zurückgelegtem Kopf zu finden — und ein kurzer Ton steigt mit ihr auf, je besser der
   Treffer, desto höher. Beides direkt beim Schützen, ohne Laufzeit und ohne
   Entfernung, und beides an zwei Tafeln auf der Schießlinie abschaltbar
@@ -796,15 +799,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Augenhöhe, drehen sich mit den echten mit, jeder Knopf leuchtet beim Drücken
   auf, Stick und Trigger bewegen sich wirklich. Gezeigt wird dabei das **echte
   Modell** des Geräts, das gerade in der Hand liegt (siehe
-  *Controller-Modelle*); der selbst gebaute aus Kästen und Zylindern bleibt der
+  _Controller-Modelle_); der selbst gebaute aus Kästen und Zylindern bleibt der
   Rückfall. Mit **bloßen Händen** treten
   sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten.
 
   An der **rechten Wand hängen die Zahlen**, die man abliest statt sie
-  anzufassen: zwei Knöpfe messen die **Augenhöhe** (siehe *Sitzen oder
-  stehen*), stehend und sitzend, und daneben hängt die **Werte-Tafel** mit der
+  anzufassen: zwei Knöpfe messen die **Augenhöhe** (siehe _Sitzen oder
+  stehen_), stehend und sitzend, und daneben hängt die **Werte-Tafel** mit der
   letzten Messung und dem **Konfig-Code für genau diese Hand an genau diesem
   Werkzeug** — kurz genug zum Abtippen, weil sonst nichts drinsteht. Die
   Augenhöhe steht hier und nicht nur im Menü, weil ohne sie keine Zahl aus dem
@@ -815,7 +818,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   mitbewegt, und auf einer Tischplatte nicht. Nur war er ein **zweiter Weg** zu
   derselben Antwort, mit eigener Bedienung, eigenen Knöpfen und einer eigenen
   Gelegenheit, versehentlich etwas anderes einzustellen als nebenan. Seit die
-  Hand selbst ein **Werkzeug** ist (*Boxhand*, oben), fällt er weg: man legt
+  Hand selbst ein **Werkzeug** ist (_Boxhand_, oben), fällt er weg: man legt
   sie im Gang in den Halter wie eine Pistole.
 
   An der **linken Wand steht eine Bank mit einem Griff darauf**, der sich
@@ -848,8 +851,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
   Dann kommen **zwei Justierstände** nebeneinander, und **jeder hat seine
   eigene Zielscheibe** am Ende des Gangs, genau vor sich. Sie beantworten die
-  beiden Hälften derselben Frage: der erste *wie halte ich das Ding?*, der
-  zweite *wie umfasst die Hand es?*
+  beiden Hälften derselben Frage: der erste _wie halte ich das Ding?_, der
+  zweite _wie umfasst die Hand es?_
 
   Die Scheiben hängen fest — sie halten Kugeln auf, und ein Kollisionskörper,
   der jedem Schieben folgt, ist eine Fehlerquelle für einen Schönheitsfehler.
@@ -867,7 +870,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   ein und liegt dort exakt auf die Scheibe gerichtet; damit ist die
   Zielrichtung keine Unbekannte mehr. Dann führt man die Hand ans Werkzeug,
   dorthin, wo man es halten will, und bestätigt mit **Greifen oder Trigger**:
-  was dazwischen liegt, *ist* die Haltung (`toolPose.ts`), sie wird gespeichert
+  was dazwischen liegt, _ist_ die Haltung (`toolPose.ts`), sie wird gespeichert
   und das Werkzeug springt damit in die Hand zurück — wo man sofort sieht, ob
   es die Scheibe trifft. `A` legt es unverändert zurück.
 
@@ -876,7 +879,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Hand am Werkzeug beurteilen und nicht das Möbelstück darunter, und leer muss man trotzdem sehen, wohin das Werkzeug
   soll. Sobald eines drinsitzt, läuft stattdessen eine **Linie aus dem Werkzeug
   bis in die Scheibe** — die Zielachse selbst, zu sehen statt zu glauben. Das
-  Werkzeug ist dann ein *Kind* der Aufnahme und nicht bloß an derselben Stelle:
+  Werkzeug ist dann ein _Kind_ der Aufnahme und nicht bloß an derselben Stelle:
   es kann von ihr nicht wegdriften, auch nicht, während der Stand verschoben
   wird.
 
@@ -910,33 +913,33 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   eine **feste Boxhand** (`tune/GripStand.ts`, Rechnung in `tune/handGrip.ts`
   mit Test) — fest und nicht gläsern, weil sie hier das Ding ist, um das es
   geht, und kein Vergleichsstück. Die Kopie kann man nicht nehmen, nicht
-  schieben und nicht einrasten lassen: sie *ist* der feste Punkt, und ein
+  schieben und nicht einrasten lassen: sie _ist_ der feste Punkt, und ein
   fester Punkt, den man versehentlich mitnimmt, ist keiner. Die Boxhand dagegen
   greift man, dreht sie, verschiebt sie und lässt sie los; wo sie dann liegt,
-  *ist* die Handhaltung an diesem Werkzeug. `A` bricht ab. Sie hängt dabei
+  _ist_ die Handhaltung an diesem Werkzeug. `A` bricht ab. Sie hängt dabei
   wirklich an der Hand (`Object3D.attach`) statt Bild für Bild nachgerechnet zu
   werden: was man hält, hält man 1:1, und ein Umhängen kann keine
   Rundungsfehler aufsummieren. **Darunter** hängt ein Knopf, der die Haltung
   zurücksetzt — dort, wo man steht, wenn man ihn braucht; an der Wand steht
   derselbe noch einmal. Zurückgesetzt wird **auf die Hand am Werkzeug** und
   nicht auf sechs Nullen: die Null einer Handhaltung ist der Griffpunkt des
-  Controllers, und die liegt sichtbar neben dem Werkzeug (siehe *Eingemessene
-  Griffe*).
+  Controllers, und die liegt sichtbar neben dem Werkzeug (siehe _Eingemessene
+  Griffe_).
 
-  **Warum zwei Stände und nicht einer**: *wohin ein Werkzeug zeigt* und *wie die
-  Faust darum herum liegt* sind zwei Größen. Der erste Stand misst die eine, der
+  **Warum zwei Stände und nicht einer**: _wohin ein Werkzeug zeigt_ und _wie die
+  Faust darum herum liegt_ sind zwei Größen. Der erste Stand misst die eine, der
   zweite die andere, und man merkt es daran, dass eine stimmen kann, während die
   andere daneben ist — die Zielrichtung genau auf dem Strahl und die Hand
   trotzdem quer am Griff. Für alles mit **Standardgriff** ist die zweite Größe
-  seit der einen gerechneten Faust keine Frage mehr (siehe *Eingemessene
-  Griffe*); der Stand bleibt für alles andere und für den, der es anders haben
+  seit der einen gerechneten Faust keine Frage mehr (siehe _Eingemessene
+  Griffe_); der Stand bleibt für alles andere und für den, der es anders haben
   will.
 
   Die Kopie ist immer das, was man gerade einmisst: der Halter legt sie hin,
   sobald dort etwas einrastet. Wer über den Halter gar nicht geht, drückt
-  *Kopie* und bekommt das Werkzeug aus der zeigenden Hand. Die Boxhand hängt
+  _Kopie_ und bekommt das Werkzeug aus der zeigenden Hand. Die Boxhand hängt
   als **Kind der Kopie** — das ist keine Kleinigkeit, sondern die ganze
-  Rechnung: ihre Lage in diesem Elternteil *ist* die Größe, die gespeichert
+  Rechnung: ihre Lage in diesem Elternteil _ist_ die Größe, die gespeichert
   wird, und ein Stand, den man hinterher noch verschiebt, nimmt beide
   gemeinsam mit, ohne dass sich an der Messung etwas ändert.
 
@@ -945,16 +948,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   beiden, deren Modell sich im Griff verschiebt — Drohne und großer Hammer —
   ist es der Unterschied zwischen einer Messung und einer um den Versatz
   daneben. Beim **Hammer** heißt es außerdem, dass dort sein Auslieferungsgriff
-  am Stiel liegt: eine Handhaltung ist der Versatz gegen den *Ursprung* des
+  am Stiel liegt: eine Handhaltung ist der Versatz gegen den _Ursprung_ des
   Werkzeugs, und der ist bei ihm immer der Punkt, an dem die Faust liegt —
   einmal eingemessen gilt sie damit an jedem Punkt des Stiels, und der Stand
   braucht die anderen Punkte gar nicht zu zeigen. Warum das überhaupt eine
-  Zeile Code ist, steht unter *Eingemessene Griffe*.
+  Zeile Code ist, steht unter _Eingemessene Griffe_.
 
   Für die letzten zwei Millimeter gibt es an der linken Wand des Gangs
   **Feinjustieren**: die geltende Haltung wird geladen (`gripForHold` in
   `toolPose.ts`, die Umkehrung der Messung) und als **Geisterhand** ans
-  Werkzeug gestellt, und die Hand, die den Knopf *nicht* gedrückt hat, zieht
+  Werkzeug gestellt, und die Hand, die den Knopf _nicht_ gedrückt hat, zieht
   sie zurecht — **um ein Zehntel untersetzt**: ein Zentimeter an der eigenen
   Hand ist ein Millimeter am Geist, ein Grad ein Zehntelgrad
   (`tune/fineTune.ts` mit Test). Eine ausgestreckte Hand zittert um mehr, als
@@ -977,7 +980,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   deshalb als einziger **keine Horizontfläche**: die läge sonst als graue
   Platte über dem echten Fußboden.
 
-  Durchsichtig wird dabei die *Welt*, **nicht der Bildpuffer** — jedenfalls
+  Durchsichtig wird dabei die _Welt_, **nicht der Bildpuffer** — jedenfalls
   nicht ohne Kamerabild dahinter. Ein Bild mit Alpha 0 hat der Compositor nicht
   anzuzeigen, sondern wegzublenden, und was dann durchkommt, ist auf einer
   Brille das reprojizierte letzte Bild: es zieht bei jeder Kopfdrehung hinterher,
@@ -994,6 +997,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   dass es einfach so geht. Gürtel und Werkzeugregal sind da, denn die Hand, die man
   ansieht, ist die, die man einstellt; am Gürtel hängen die **Boxhand** links
   und die **Pistole** rechts, die beiden Dinge, für die man herkommt.
+
 - **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
@@ -1004,13 +1008,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   gibt kein Tageslicht: das Umgebungslicht steht fast auf null, gesehen wird
   nur, was man anmacht oder trägt. Im Startraum hängt ein **Dimmer** an der
   Wand (anzielen + Trigger, oder mit dem Finger antippen), der die Deckenlampen
-  des ganzen Hauses in **fünf Stufen** schaltet — *aus, dämmrig, gedimmt,
-  normal, hell*, eine Stufe pro Druck, nach der hellsten wieder aus. Zwei
+  des ganzen Hauses in **fünf Stufen** schaltet — _aus, dämmrig, gedimmt,
+  normal, hell_, eine Stufe pro Druck, nach der hellsten wieder aus. Zwei
   Stellungen beantworten nur die Frage „ist Licht an?“; die interessanten
   liegen dazwischen: wie wenig Licht reicht für einen Flur, ab wann lohnt die
   Taschenlampe nicht mehr. Das Nordwest-Zimmer hat bewusst gar keine Lampe und
   bleibt auf jeder Stufe dunkel. Der Dimmer selbst **leuchtet immer**, auch auf
-  *aus*: die Platte ist selbstleuchtend (Basic-Material, dafür braucht es kein
+  _aus_: die Platte ist selbstleuchtend (Basic-Material, dafür braucht es kein
   Licht), sie trägt ein kleines eigenes für den Hof an der Wand, und der Knopf
   wandert mit jeder Stufe höher, während die Pips daneben mitzählen. Ein
   Lichtschalter, den man mit der Taschenlampe suchen muss, ist genau einmal
@@ -1034,7 +1038,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 - **Alpen** (experimentell): die Welt, die es wegen zweier Werkzeuge gibt —
   Hängegleiter und Flügel brauchen beide dasselbe: Höhe, die man verlieren
   kann. Ein großer Berg (der Gipfel liegt bei gut 280 m, das Kreuz steht dort,
-  wo es *wirklich* am höchsten ist — gesucht, nicht gesetzt, weil die
+  wo es _wirklich_ am höchsten ist — gesucht, nicht gesetzt, weil die
   Nachbarberge die Flanke anheben), sechs kleinere drum herum, dazwischen ein
   Tal. Man fängt oben an, auf einer **Startrampe** unterhalb des Gipfels mit
   Blick ins Tal, den Gleiter an der linken und die Flügel an der rechten Hüfte;
@@ -1053,7 +1057,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   wer vom Gipfel dreihundert Meter weit sieht, sähe die Kugel sonst von innen
   an ihrer Naht. Portale gibt es hier keine Flächen für — ein Berg hat keine
   Wände.
-- **Boden bis zum Horizont**: unter *jeder* Welt liegt eine Fläche mit Raster,
+- **Boden bis zum Horizont**: unter _jeder_ Welt liegt eine Fläche mit Raster,
   einen Kilometer im Quadrat, begehbar und portalfähig (`createGround` in
   `worlds/shared/environment.ts`). Vorher stand jede Welt auf ihrer eigenen
   Platte, und an deren Rand war Schluss — genau die Grenze, die eine Sandkiste
@@ -1064,10 +1068,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Stelle wieder heraus, auf dem **höchsten** Punkt, der dort steht. Von unten
   gesucht landete man im Keller eines Hauses, von oben landet man auf seinem
   Dach (`worlds/shared/fallRescue.ts`, mit Test).
-- **Welt-Physik** (*Einstellungen → Welt-Physik*): **Schwerkraft**
+- **Welt-Physik** (_Einstellungen → Welt-Physik_): **Schwerkraft**
   (schwerelos, Mond, Mars, Erde, schwer — oder getippt), **Sprungkraft**,
   **Reibung** und **Rückprall**, alles sofort wirksam und im Browser gemerkt
-  (`src/core/worldPhysics.ts`, mit Test). *Welt-Standard* ist eine eigene
+  (`src/core/worldPhysics.ts`, mit Test). _Welt-Standard_ ist eine eigene
   Zeile: der Mond bringt seine 1,62 mit, und eine einmal getippte Zahl darf
   nicht für immer über jeder Welt stehen. Reibung und Rückprall fassen die
   Objekte erst an, wenn jemand sie wirklich verstellt — sonst überschriebe der
@@ -1079,86 +1083,85 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   wer schießt, wirft oder etwas aus dem Beutel holt, tut das für alle.
 - **Zuschauer-Kamera**: Spieler auswählen und zusehen, aus dessen Augen
   (First Person) oder mit weicher Verfolgung von hinten (Third Person). Am PC
-  im Panel unter *Zuschauen*, in VR unter **Menü → Verbindung → Zuschauen** —
+  im Panel unter _Zuschauen_, in VR unter **Menü → Verbindung → Zuschauen** —
   beide Seiten haben dieselben Möglichkeiten.
-
 
 ## Steuerung
 
-| | VR | Desktop | Handy |
-| --- | --- | --- | --- |
-| Bewegen | linker Stick | `WASD` (`Shift` = schneller) | linker Touch-Stick |
-| Sprinten | linken Stick reindrücken | `Shift` | – |
-| Ducken | rechten Stick reindrücken | – | – |
-| Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
-| Springen | `A` rechts | `Leertaste` | – |
-| Menü | Button an **beiden** Händen (immer nur eins offen) | Button `Menü` im HUD | Button `Menü` im HUD |
-| Auswählen | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt | Linksklick | tippen |
-| Werkzeug nehmen | Grip an der Hüfte halten (jede Hand, jedes Werkzeug) | – (immer bereit) | – |
-| Werkzeug ablegen | Grip über der Hüfte loslassen | – | – |
-| Werkzeug fallen lassen | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht) | – | – |
-| Hüften verschieben | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück) | – | – |
-| Messer werfen | im Schwung loslassen; es fliegt weiter und bleibt stecken | – | – |
-| Großer Hammer | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf | – | – |
-| Haltung (sitzen/stehen) | Startseite oder Menü → Bewegung → Haltung | dito | dito |
-| Greifen ohne Controller | Mittel-, Ring- und kleiner Finger an die Handfläche | – | – |
-| Trigger ohne Controller | Zeigefinger an die Handfläche | – | – |
-| Portal schießen | Trigger der Hand mit der Waffe | Links-/Rechtsklick | – |
-| Zweites Portal (Doppel-Waffe) | Greifen | Rechtsklick | – |
-| Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
-| Weitergeben | mit der freien Hand danach greifen | – | – |
-| Anfassen | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist | – | – |
-| Nahgreifen | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo) | – | – |
-| Ferngreifen | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen | – | – |
-| Nah Gefasstes doch holen | dieselbe Kippgeste, >30° nach oben | – | – |
-| Reichweiten einstellen | Menü → Einstellungen → Greifen | dito | dito |
-| Menüseite blättern | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler | – | – |
-| Werkzeug-Einstellungen | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand) | Linksklick auf den Pfeil | tippen |
-| Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe an der rechten Wand im Eingaberaum | – | – |
-| Werkzeug einmessen (Schießgang) | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück | – | – |
-| Haltung feinjustieren (Schießgang) | *Feinjustieren* an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab | – | – |
-| Werkzeug wählen (Schießgang) | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter und **bleibt dort**, bis die Hand wieder aufgeht | – | – |
-| Verbinden (in der Brille) | Menü → *Verbindung* → *Raum betreten* (Code tippen) oder *Neuen Raum aufmachen*; *Name* ändert den eigenen Namen — beides geht mitten im Spiel | Raum-Code auf der Startseite | – |
-| Chat | Menü → *Verbindung* → *Chat*: letzte Zeilen lesen, *Schreiben* macht die Tastatur auf; eine Zeile mit Konfig-Code auswählen übernimmt ihn | Panel *Verbindung* → **Chat**: tippen, *Kopieren* und *Übernehmen* je Zeile, *Verlauf kopieren* | dito |
-| Einstellungen verschicken | *Werkzeug senden* / *Alles senden* an der Wand des Gangs — der Code geht als Chat-Zeile an alle im Raum und steht am PC mit *Kopieren* daneben | – | – |
-| AR an/aus (Schießgang) | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf *AR* an der rechten Wand | – | – |
-| Griff einmessen (Schießgang) | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug** | – | – |
-| Grundhaltung einmessen | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger** | – | – |
-| Stand stellen (beide) | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert | – | – |
-| Vibration ausprobieren | Griff auf der Bank links greifen und halten | – | – |
-| Greifhaken | Trigger (halten zieht) | – | – |
-| Gravitationshandschuh | Trigger zieht, Greifen stößt ab | – | – |
-| Supermanhandschuh | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve. Tempo je Richtung und wer welche Achse lenkt: *Einstellungen → Supermanhandschuh* | – | – |
-| Translationshandschuh | Trigger hält aus der Ferne, `A` wechselt Modus | – | – |
-| Größe & Position | Trigger wählt, `A` holt die Griffe vor dich | – | – |
-| Griff ziehen | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand | – | – |
-| Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
-| Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
-| Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate) | – | – |
-| Hängegleiter | Trigger oder `A` = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; zweite Hand greift neben der ersten zu | – | – |
-| Flügel | beide Arme schlagen = Start und Schub; ausbreiten = gleiten, anlegen = Sturzflug; eine Hand tiefer = Kurve, Hände vor = Nase runter | – | – |
-| Taschenlampe | Trigger schaltet an/aus | – | – |
-| Lichtkegel stellen | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen | – | – |
-| Dimmer (Dunkelhaus) | anzielen + Trigger, oder antippen — eine Stufe pro Druck | anklicken | tippen |
-| Messband | Trigger Punkt 1, Trigger Punkt 2 | – | – |
-| Stoppuhr | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel | – | – |
-| Pinsel | Reiter *Farben*/*Material* antippen, Trigger streicht an | – | – |
-| Duplizier-Waffe | zielen + Trigger legt eine Kopie daneben | – | – |
-| Inspektor | zielen — das Display liest mit, Trigger sagt es an | – | – |
-| Teleporter | zielen, grüner Kreis, Trigger setzt dich dorthin | – | – |
-| Radiergummi | Trigger löscht | – | – |
-| Magischer Beutel | in der einen Hand halten, mit der anderen ins Raster fassen: Greifen holt das Ding heraus | – | – |
-| Kart: einsteigen | Lenkrad greifen, oder anzielen + Trigger | Lenkrad anklicken | – |
-| Kart: Gas / Bremse | rechter / linker Trigger | `W` / `S` | – |
-| Kart: lenken | linker Stick — oder das Lenkrad greifen und drehen | `A` / `D` | – |
-| Kart: aussteigen | `A`/`X` halten (Balken läuft voll) | `E` halten | – |
-| Kart: Klemmbrett | anzielen + Trigger, Stick blättert | anklicken | – |
-| Pizza: Teig kneten | Faust auf den liegenden Teig schlagen | – | – |
-| Pizza: Soße / Käse | Kelle bzw. Streuer greifen, Trigger halten | – | – |
-| Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
-| Zuschauen | Menü → Verbindung → Zuschauen | Panel *Verbindung* → *Zuschauen* | dito |
-| Zuschauer-Kamera drehen | – (Kopf bleibt deiner) | ziehen mit der Maus | wischen |
-| Zuschauer-Abstand | Menüeintrag *Abstand* | Mausrad oder Regler | Regler |
+|                                    | VR                                                                                                                                                                    | Desktop                                                                                         | Handy                |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------- |
+| Bewegen                            | linker Stick                                                                                                                                                          | `WASD` (`Shift` = schneller)                                                                    | linker Touch-Stick   |
+| Sprinten                           | linken Stick reindrücken                                                                                                                                              | `Shift`                                                                                         | –                    |
+| Ducken                             | rechten Stick reindrücken                                                                                                                                             | –                                                                                               | –                    |
+| Umsehen                            | Kopf, rechter Stick = Snap-Turn                                                                                                                                       | Maus (Klick = Pointer-Lock)                                                                     | wischen              |
+| Springen                           | `A` rechts                                                                                                                                                            | `Leertaste`                                                                                     | –                    |
+| Menü                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                    | Button `Menü` im HUD                                                                            | Button `Menü` im HUD |
+| Auswählen                          | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt                | Linksklick                                                                                      | tippen               |
+| Werkzeug nehmen                    | Grip an der Hüfte halten (jede Hand, jedes Werkzeug)                                                                                                                  | – (immer bereit)                                                                                | –                    |
+| Werkzeug ablegen                   | Grip über der Hüfte loslassen                                                                                                                                         | –                                                                                               | –                    |
+| Werkzeug fallen lassen             | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht)                                                      | –                                                                                               | –                    |
+| Hüften verschieben                 | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück)                                                    | –                                                                                               | –                    |
+| Messer werfen                      | im Schwung loslassen; es fliegt weiter und bleibt stecken                                                                                                             | –                                                                                               | –                    |
+| Großer Hammer                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                         | –                                                                                               | –                    |
+| Haltung (sitzen/stehen)            | Startseite oder Menü → Bewegung → Haltung                                                                                                                             | dito                                                                                            | dito                 |
+| Greifen ohne Controller            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                   | –                                                                                               | –                    |
+| Trigger ohne Controller            | Zeigefinger an die Handfläche                                                                                                                                         | –                                                                                               | –                    |
+| Portal schießen                    | Trigger der Hand mit der Waffe                                                                                                                                        | Links-/Rechtsklick                                                                              | –                    |
+| Zweites Portal (Doppel-Waffe)      | Greifen                                                                                                                                                               | Rechtsklick                                                                                     | –                    |
+| Aufheben / werfen                  | Grip mit leerer Hand am Objekt                                                                                                                                        | –                                                                                               | –                    |
+| Weitergeben                        | mit der freien Hand danach greifen                                                                                                                                    | –                                                                                               | –                    |
+| Anfassen                           | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist                                                                                                            | –                                                                                               | –                    |
+| Nahgreifen                         | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo)                                                                                 | –                                                                                               | –                    |
+| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen                                                                                                         | –                                                                                               | –                    |
+| Nah Gefasstes doch holen           | dieselbe Kippgeste, >30° nach oben                                                                                                                                    | –                                                                                               | –                    |
+| Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
+| Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
+| Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
+| Augenhöhe messen                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_, oder die Knöpfe an der rechten Wand im Eingaberaum                                                                      | –                                                                                               | –                    |
+| Werkzeug einmessen (Schießgang)    | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück         | –                                                                                               | –                    |
+| Haltung feinjustieren (Schießgang) | _Feinjustieren_ an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab                         | –                                                                                               | –                    |
+| Werkzeug wählen (Schießgang)       | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter und **bleibt dort**, bis die Hand wieder aufgeht | –                                                                                               | –                    |
+| Verbinden (in der Brille)          | Menü → _Verbindung_ → _Raum betreten_ (Code tippen) oder _Neuen Raum aufmachen_; _Name_ ändert den eigenen Namen — beides geht mitten im Spiel                        | Raum-Code auf der Startseite                                                                    | –                    |
+| Chat                               | Menü → _Verbindung_ → _Chat_: letzte Zeilen lesen, _Schreiben_ macht die Tastatur auf; eine Zeile mit Konfig-Code auswählen übernimmt ihn                             | Panel _Verbindung_ → **Chat**: tippen, _Kopieren_ und _Übernehmen_ je Zeile, _Verlauf kopieren_ | dito                 |
+| Einstellungen verschicken          | _Werkzeug senden_ / _Alles senden_ an der Wand des Gangs — der Code geht als Chat-Zeile an alle im Raum und steht am PC mit _Kopieren_ daneben                        | –                                                                                               | –                    |
+| AR an/aus (Schießgang)             | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf _AR_ an der rechten Wand                                                   | –                                                                                               | –                    |
+| Griff einmessen (Schießgang)       | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug**     | –                                                                                               | –                    |
+| Grundhaltung einmessen             | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger**                                                      | –                                                                                               | –                    |
+| Stand stellen (beide)              | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert                                                                      | –                                                                                               | –                    |
+| Vibration ausprobieren             | Griff auf der Bank links greifen und halten                                                                                                                           | –                                                                                               | –                    |
+| Greifhaken                         | Trigger (halten zieht)                                                                                                                                                | –                                                                                               | –                    |
+| Gravitationshandschuh              | Trigger zieht, Greifen stößt ab                                                                                                                                       | –                                                                                               | –                    |
+| Supermanhandschuh                  | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve. Tempo je Richtung und wer welche Achse lenkt: _Einstellungen → Supermanhandschuh_           | –                                                                                               | –                    |
+| Translationshandschuh              | Trigger hält aus der Ferne, `A` wechselt Modus                                                                                                                        | –                                                                                               | –                    |
+| Größe & Position                   | Trigger wählt, `A` holt die Griffe vor dich                                                                                                                           | –                                                                                               | –                    |
+| Griff ziehen                       | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand                                                                                                         | –                                                                                               | –                    |
+| Wert eintippen                     | auf eine Taste zielen + Trigger, oder mit dem Finger antippen                                                                                                         | echte Tastatur oder Klick                                                                       | tippen               |
+| Lötkolben                          | Trigger setzt Punkte, andere Hand wechselt Modus                                                                                                                      | –                                                                                               | –                    |
+| Drohne                             | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate)                                                                   | –                                                                                               | –                    |
+| Hängegleiter                       | Trigger oder `A` = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; zweite Hand greift neben der ersten zu                                   | –                                                                                               | –                    |
+| Flügel                             | beide Arme schlagen = Start und Schub; ausbreiten = gleiten, anlegen = Sturzflug; eine Hand tiefer = Kurve, Hände vor = Nase runter                                   | –                                                                                               | –                    |
+| Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
+| Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
+| Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
+| Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
+| Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
+| Pinsel                             | Reiter _Farben_/_Material_ antippen, Trigger streicht an                                                                                                              | –                                                                                               | –                    |
+| Duplizier-Waffe                    | zielen + Trigger legt eine Kopie daneben                                                                                                                              | –                                                                                               | –                    |
+| Inspektor                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                    | –                                                                                               | –                    |
+| Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
+| Radiergummi                        | Trigger löscht                                                                                                                                                        | –                                                                                               | –                    |
+| Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen: Greifen holt das Ding heraus                                                                             | –                                                                                               | –                    |
+| Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
+| Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
+| Kart: lenken                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                    | `A` / `D`                                                                                       | –                    |
+| Kart: aussteigen                   | `A`/`X` halten (Balken läuft voll)                                                                                                                                    | `E` halten                                                                                      | –                    |
+| Kart: Klemmbrett                   | anzielen + Trigger, Stick blättert                                                                                                                                    | anklicken                                                                                       | –                    |
+| Pizza: Teig kneten                 | Faust auf den liegenden Teig schlagen                                                                                                                                 | –                                                                                               | –                    |
+| Pizza: Soße / Käse                 | Kelle bzw. Streuer greifen, Trigger halten                                                                                                                            | –                                                                                               | –                    |
+| Zurücksetzen                       | `B` / `Y` oder Menü                                                                                                                                                   | `R` oder Menü                                                                                   | Menü                 |
+| Zuschauen                          | Menü → Verbindung → Zuschauen                                                                                                                                         | Panel _Verbindung_ → _Zuschauen_                                                                | dito                 |
+| Zuschauer-Kamera drehen            | – (Kopf bleibt deiner)                                                                                                                                                | ziehen mit der Maus                                                                             | wischen              |
+| Zuschauer-Abstand                  | Menüeintrag _Abstand_                                                                                                                                                 | Mausrad oder Regler                                                                             | Regler               |
 
 Die Seite einer prozeduralen Hand hängt an genau einer Konstante — `mirror` in
 `src/core/HandVisuals.ts`. Sieht die linke Hand im Headset nach einer rechten
@@ -1182,7 +1185,7 @@ Jest-Test):
 - **Trigger** — der Zeigefinger liegt an der Handfläche.
 
 Eine Faust ist beides zugleich, und das ist richtig: eine Faust um einen
-Pistolengriff *hält* ihn und zieht durch. Gemessen wird pro Finger der Abstand
+Pistolengriff _hält_ ihn und zieht durch. Gemessen wird pro Finger der Abstand
 der Spitze zur Handflächenmitte, geteilt durch die Länge der Handfläche —
 dieselbe Zahl für eine große und eine kleine Hand, was der ganze Grund dafür
 ist, dass es ein Verhältnis ist. Zwei Schwellen (0,78 zu / 1,0 auf) verhindern,
@@ -1209,12 +1212,12 @@ sich mit `this.mountGrip()` — ein Zylinder mit Fingerrillen, an der Stelle, an
 der er in der Faust landet, und die dazu gerechnete Faust gleich mit. Einen
 zweiten Griff gibt es nicht mehr: ein Griff ist ein Ort in einer Faust, und
 eine Faust hat nur einen. Warum das eine eigene Datei ist und wie schief
-die handgesetzten Griffe vorher standen, steht unter *Eingemessene Griffe →
-Ein Griff für alle Werkzeuge*.
+die handgesetzten Griffe vorher standen, steht unter _Eingemessene Griffe →
+Ein Griff für alle Werkzeuge_.
 
 **Ein Werkzeug, dessen Modell sich im Griff verschiebt, sagt das mit
 `Tool.showHeldBy()`** und nicht in `applyHold`. Zwei tun das: die Drohne
-schiebt ihr Deck zur Seite, damit der Griff *dieser* Hand auf dem Ursprung
+schiebt ihr Deck zur Seite, damit der Griff _dieser_ Hand auf dem Ursprung
 sitzt, der Hammer schiebt seinen Stiel entlang der Achse. Der Ursprung des
 Werkzeugs bleibt dabei, wo er ist — verschoben wird nur, was man ansieht. Nötig
 ist die eigene Methode, weil es **drei** Orte gibt, an denen so ein Modell
@@ -1222,7 +1225,7 @@ gestellt werden muss und nur einer davon eine Hand ist: die Hand
 (`applyHold`), der **Halter** am ersten Justierstand (`TuneWorld.mountTool`)
 und die **Kopie** am Griffstand (`TuneWorld.placeGripHand`). Die beiden
 Letzteren hält niemand, also läuft `applyHold` dort nie — und genau daran ist es
-einmal schiefgegangen: siehe *Eingemessene Griffe*.
+einmal schiefgegangen: siehe _Eingemessene Griffe_.
 
 Jede Waffe in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden
 und Decke richtet sich das Portal nach der Waffe, mit der du zielst.
@@ -1232,30 +1235,30 @@ und Decke richtet sich das Portal nach der Waffe, mit der du zielst.
 Damit im Code und in Aufträgen dasselbe Wort dasselbe meint, heißen die drei
 Arten von Dingen so:
 
-| Deutsch | Code | Was es ist | Was eine Hand damit darf |
-| --- | --- | --- | --- |
-| **Szenerie** | `scenery` | Boden, Wände, Rampen, alles Gebaute | nichts — man stößt dagegen |
-| **Gegenstand** | `prop` | Dominos, Kisten, Bälle: freie Körper ohne vorgesehene Anfassstelle | manipulieren: schieben, drehen, werfen |
-| **Griff** | `handle` | Werkzeuggriffe, Gürtelplätze, Standgriffe, Lenkrad — alles Türkise | in die Hand nehmen, an *der* Stelle, in *der* Haltung |
+| Deutsch        | Code      | Was es ist                                                         | Was eine Hand damit darf                              |
+| -------------- | --------- | ------------------------------------------------------------------ | ----------------------------------------------------- |
+| **Szenerie**   | `scenery` | Boden, Wände, Rampen, alles Gebaute                                | nichts — man stößt dagegen                            |
+| **Gegenstand** | `prop`    | Dominos, Kisten, Bälle: freie Körper ohne vorgesehene Anfassstelle | manipulieren: schieben, drehen, werfen                |
+| **Griff**      | `handle`  | Werkzeuggriffe, Gürtelplätze, Standgriffe, Lenkrad — alles Türkise | in die Hand nehmen, an _der_ Stelle, in _der_ Haltung |
 
 Der Unterschied zwischen Gegenstand und Griff ist nicht Größe oder Gewicht,
 sondern: **ein Griff weiß, wie man ihn hält, ein Gegenstand nicht.** Deshalb
 schnappt der eine in die Hand und der andere bleibt liegen — eine Regel, die
 man nicht erklären muss.
 
-Und damit sich das nicht beißt: **Griff** ist immer das *Ding*, **Greifen**
-immer der *Vorgang*. Es heißt also nie „der Ferngriff", sondern
+Und damit sich das nicht beißt: **Griff** ist immer das _Ding_, **Greifen**
+immer der _Vorgang_. Es heißt also nie „der Ferngriff", sondern
 **Ferngreifen** — so steht es auch im Menü.
 
 Gegriffen wird in **drei Reichweiten**. Sie unterscheiden sich nicht darin,
-*wie* man greift — gezielt wird immer, gedrückt wird immer derselbe Grip —,
+_wie_ man greift — gezielt wird immer, gedrückt wird immer derselbe Grip —,
 sondern darin, was danach passiert:
 
-| Deutsch | Code | Wann | Wirkung | Zeichen |
-| --- | --- | --- | --- | --- |
-| **Anfassen** | `touch` | Hand *in* der Greifbox | fassen | **die Hand** leuchtet |
-| **Nahgreifen** | `near` | im Zylinder um dich | fassen, bleibt wo es ist | Gegenstand leuchtet **+ Geisterhand** daran |
-| **Ferngreifen** | `remote` | Zielstrahl bis 9 m | holen, kommt geflogen | Gegenstand leuchtet **+ Strahl** beim Zugreifen |
+| Deutsch         | Code     | Wann                   | Wirkung                  | Zeichen                                         |
+| --------------- | -------- | ---------------------- | ------------------------ | ----------------------------------------------- |
+| **Anfassen**    | `touch`  | Hand _in_ der Greifbox | fassen                   | **die Hand** leuchtet                           |
+| **Nahgreifen**  | `near`   | im Zylinder um dich    | fassen, bleibt wo es ist | Gegenstand leuchtet **+ Geisterhand** daran     |
+| **Ferngreifen** | `remote` | Zielstrahl bis 9 m     | holen, kommt geflogen    | Gegenstand leuchtet **+ Strahl** beim Zugreifen |
 
 Die Achse dahinter ist es wert, benannt zu werden: **fassen** heißt, das Ding
 bleibt, wo es ist, und folgt der Hand von dort; **holen** heißt, es kommt zu
@@ -1272,7 +1275,7 @@ Companion Cube.
 Beutel kommt ein Objekt genau dort, wo die Hand ist, und die ist beim
 Herbeirufen selten weit vom Körper weg. Ließ man los, lag eine Kugel mitten in
 der Spielerkapsel — und Rapier tat, was ein Physikmotor tun muss: es löste die
-Durchdringung auf. Bei einem halben Meter Überlappung heißt das in *einem*
+Durchdringung auf. Bei einem halben Meter Überlappung heißt das in _einem_
 Schritt, und dann war die Kugel quer durch die Halle geflogen, bevor man sie
 fallen sehen konnte.
 
@@ -1306,7 +1309,7 @@ Kiste zielt — und käme an das Ferngreifen praktisch nie mehr heran. So gibt e
 pro Hand **genau einen** Kandidaten, es leuchtet **genau einer**, und die
 Stufe liest man an der Zugabe ab: leuchtende Hand, Geisterhand oder Strahl.
 Der Zylinder ist dann kein Fangnetz, sondern nur die Grenze, ab der aus
-*fassen* ein *holen* wird.
+_fassen_ ein _holen_ wird.
 
 **Nahgreifen** (Einstellungen → Greifen, standardmäßig an) fasst alles im
 Zylinder um den Spieler — 1 m im Rund, 2,10 m hoch, beides einstellbar. Ein
@@ -1318,7 +1321,7 @@ wer sich duckt, sinkt, der Fußboden nicht.
 
 Ein nah gefasster Gegenstand **fliegt nicht**. Er bleibt liegen, wo er liegt,
 und folgt der Hand von dort, als hätte man ihn dort angefasst. Wie er das tut,
-steht unter *Im Nahgriff*: **starr** wie in der Faust (Vorgabe — man hat eben
+steht unter _Im Nahgriff_: **starr** wie in der Faust (Vorgabe — man hat eben
 einen langen Arm) oder als **Drehung um die Objektmitte**, die eins zu eins
 verschiebt und den Gegenstand um sich selbst dreht statt um die Hand kreisen zu
 lassen. Auf einen Meter wird aus jedem Grad am Handgelenk sonst ein Ausschlag.
@@ -1336,7 +1339,7 @@ dort lassen und manipulieren, oder hochkippen und in die Hand nehmen.
 
 **Die Geisterhand** steht dort, wo die echte anfassen würde: am Trefferpunkt
 des Strahls, mit der Drehung der echten Hand, halbtransparent und türkis. Sie
-ist erkennbar *deine* Hand an einem anderen Ort, und das ist die ganze
+ist erkennbar _deine_ Hand an einem anderen Ort, und das ist die ganze
 Nachricht — deshalb ist sie auch in derselben Bauart wie die, die man gerade
 in der Brille sieht: Boxhand am Controller, Kugelglieder beim Handtracking
 (`HandVisuals.lookOf`). Solange nur gezielt wird, wandert sie mit dem Strahl;
@@ -1345,26 +1348,26 @@ Sie hängt dabei in der Welt und nicht am Gegenstand — ein Gegenstand kann
 verschwinden, und ein Geist, der mit ihm entsorgt wird, nimmt seine Geometrie
 mit ins Grab.
 
-Der Flug ist bewusst *keine* Physik: eine feste Bahn über eine feste Zeit, und
+Der Flug ist bewusst _keine_ Physik: eine feste Bahn über eine feste Zeit, und
 das Objekt geht dabei durch alles hindurch. Eine ballistische Kurve sieht
 schöner aus, bis sie unterwegs an einer Kiste hängen bleibt — und ein
 Ferngriff, der nicht ankommt, ist schlimmer als gar keiner. Die Bahn wird
-jeden Frame gegen die *aktuelle* Handposition gerechnet, eine Hand, die sich
+jeden Frame gegen die _aktuelle_ Handposition gerechnet, eine Hand, die sich
 bewegt, zieht das Objekt also mit. Genau das prüfen die Jest-Tests.
 
 ### Die Waffe
 
 Jeder Wert der Pistole steht in `src/worlds/portal/tools/weaponSettings.ts` mit
 Bereich und Einheit. Eine Menüzeile schaltet auf die nächste Raste weiter und
-zeigt dabei, wo sie steht (`Stärke: stark · 0.14 kg`); *Werte eingeben* öffnet
+zeigt dabei, wo sie steht (`Stärke: stark · 0.14 kg`); _Werte eingeben_ öffnet
 für dieselbe Größe die Tastatur, und alles dazwischen ist erlaubt, solange es
 im Bereich liegt. Eine Zahl, die auf keiner Raste liegt, bricht das
-Weiterschalten nicht: die nächste Raste ist die erste *oberhalb* des aktuellen
+Weiterschalten nicht: die nächste Raste ist die erste _oberhalb_ des aktuellen
 Werts (mit Test).
 
 **Zielhilfen** liegen als Raster im Menü — und weil in eine Rasterzelle zwei
 Wörter passen, steht über dem Panel eine Zeile darüber, worauf gerade gezeigt
-wird. Zur Wahl stehen *alles ab*, **Rotpunkt** (der Punkt sitzt 25 m weit
+wird. Zur Wahl stehen _alles ab_, **Rotpunkt** (der Punkt sitzt 25 m weit
 draußen und wird auf Größe skaliert, wandert beim Kopfbewegen also nicht),
 **Kimme & Korn**, **Flugbahn** (rechnet die Parabel der nächsten Kugel voraus
 und markiert, wo sie aufschlägt), das **Röntgengerät** (derselbe Scanner wie
@@ -1374,11 +1377,11 @@ Das **Fernrohr** vergrößert wirklich: eine zweite Kamera sitzt vorne im Rohr,
 schaut die Rohrachse entlang und zeichnet die Szene in ein Render-Target, das
 auf der hinteren Linse liegt — dieselbe Mechanik wie das Drohnendisplay
 (`Attachment.renderFeed`, aufgerufen von `PortalWorld.render`). Die
-Vergrößerung *ist* damit der Öffnungswinkel dieser Kamera: 58° geteilt durch
+Vergrößerung _ist_ damit der Öffnungswinkel dieser Kamera: 58° geteilt durch
 den Faktor. Man nimmt das Okular ans Auge wie bei einem echten Zielfernrohr;
 die Kamera sitzt deshalb vorn und nicht hinten, sonst fotografierte das Rohr
 sich selbst und den halben Lauf. Der Zoom steht als eigene Menüzeile
-(*Zoom*) und als Zahl unter *Werte eingeben* (1 bis 60).
+(_Zoom_) und als Zahl unter _Werte eingeben_ (1 bis 60).
 
 Die Rasten fangen bei **16×** an und gehen in Vierer-Schritten bis 36×, und
 16× ist auch der Auslieferungswert. Der Grund ist ein optischer: das Bild im
@@ -1403,12 +1406,12 @@ Charakter-Kapsel wird um genau denselben Betrag kürzer, weil sie ihre Höhe aus
 die Mitte um die halbe verlorene Höhe mit nach unten — sonst hebt der Spieler
 beim Ducken ab.
 
-**Die Griffe von *Größe & Position*** erscheinen dort, wo die Hände sind, und
+**Die Griffe von _Größe & Position_** erscheinen dort, wo die Hände sind, und
 nicht am Objekt: Trigger wählt aus (mehrfach für mehrere), `A` holt die Griffe
 vor dich. Pfeile verschieben, Kugeln skalieren eine Achse, die weiße Kugel in
 der Mitte alles zusammen; eine dünne Linie zeigt, an welchem Objekt sie gerade
 hängen, und ein kleines Display die Maße. Gezogen wird mit dem Trigger der Hand,
-die das Werkzeug hält, oder mit Trigger *oder* Greifen der freien Hand.
+die das Werkzeug hält, oder mit Trigger _oder_ Greifen der freien Hand.
 
 Die Achsen sind die **des Objekts**, aber in der Reihenfolge deiner Sicht: die
 Objektachse, die am ehesten nach rechts zeigt, wird der rechte Pfeil, und so
@@ -1416,7 +1419,7 @@ weiter (`src/worlds/portal/tools/axisMatch.ts`, mit Jest-Test — inklusive der
 Spiegelung, die sonst aus der Drehung eine ungültige Matrix machen würde).
 Damit bleibt „breiter, aber nicht höher" auch für eine schief stehende Kiste
 möglich, ohne dass der Pfeil dafür in eine andere Richtung zeigt als er aussieht.
-Skaliert wird über das *Verhältnis* zweier Abstände zur Mitte statt über eine
+Skaliert wird über das _Verhältnis_ zweier Abstände zur Mitte statt über eine
 Differenz — wo genau die Hand die Kugel erwischt hat, ist damit egal.
 
 Die **Werkzeug-Pose** (`holdPosition`, `holdRotation`) wird nicht mehr geraten,
@@ -1426,7 +1429,7 @@ halten soll, und beim Trigger rechnet `src/worlds/portal/tools/toolPose.ts`
 (mit Test) die Pose aus, die genau das ergibt — abzüglich der Aim-Korrektur,
 die jedes Werkzeug ohnehin bekommt. Die Zahlen erscheinen auf der Werte-Tafel
 und in der Meldung, so wie sie in den Konstruktor gehören; bis dahin merkt sich
-der Browser sie (*Einstellungen → Werkzeug-Posen zurücksetzen* wirft sie wieder
+der Browser sie (_Einstellungen → Werkzeug-Posen zurücksetzen_ wirft sie wieder
 weg).
 
 Ein **Justier-Werkzeug**, das dasselbe in der Luft tat, gab es einmal und gibt
@@ -1454,7 +1457,7 @@ etwas zu sehen — bei einer Rennstrecke ungefähr das Gegenteil dessen, wofür 
 gebaut ist. Jetzt läuft die Welt über einen eigenen Kanal (`kart`):
 
 - **Wer einsteigt, beansprucht den Platz** (`seat`), und über einem fremden
-  Kart steht *Besetzt · Name* statt „Lenkrad greifen zum Einsteigen". Greifen
+  Kart steht _Besetzt · Name_ statt „Lenkrad greifen zum Einsteigen". Greifen
   zwei im selben Moment zu, gewinnt die kleinere Peer-Id — dieselbe Antwort auf
   beiden Rechnern, ohne Wahl und ohne Server.
 - **Gerechnet wird ein Kart nur dort, wo jemand darin sitzt.** Das ist die
@@ -1475,11 +1478,11 @@ gebaut ist. Jetzt läuft die Welt über einen eigenen Kanal (`kart`):
 
 **Das Fahrmodell** ist bewusst klein und arkadig: Gelenkt wird wie beim
 Fahrrad — Gierrate = Tempo · tan(Einschlag) / Radstand, also dreht ein
-stehendes Kart nicht. Die Drehung dreht das *Kart*, nie seine Geschwindigkeit;
+stehendes Kart nicht. Die Drehung dreht das _Kart_, nie seine Geschwindigkeit;
 was dabei seitlich übrig bleibt, ist der Drift, und die **Traktion** sagt, wie
 schnell die Reifen ihn wieder auffressen. Gas, Bremse und Widerstand fassen nur
 den Vorwärtsanteil an. Zum Rollwiderstand gehört ein konstanter Anteil, sonst
-*nähert* sich ein losgelassenes Kart dem Stillstand nur an und kriecht
+_nähert_ sich ein losgelassenes Kart dem Stillstand nur an und kriecht
 minutenlang weiter.
 
 **Die Leitplanke** ist keine Physik, sondern Geometrie: `confineToTrack` setzt
@@ -1490,11 +1493,11 @@ stumpf davor, hilft die Bremse: sie ist zugleich der Rückwärtsgang, und rückw
 lenkt es wieder.
 
 **Einsteigen** ist ein Griff ans Lenkrad — der Rig wird eingefroren
-(`rig.frozen`) und jeden Frame auf den Sitz gesetzt, wobei der *Kopf* über den
+(`rig.frozen`) und jeden Frame auf den Sitz gesetzt, wobei der _Kopf_ über den
 Sitz geschoben wird und nicht der Rig-Ursprung: in VR steht der Spieler in
 seinem Zimmer irgendwo, nur nicht dort, wo die Brille es gern hätte.
 
-Und zwar in **allen drei Achsen**. Früher landeten die *Füße* auf einer festen
+Und zwar in **allen drei Achsen**. Früher landeten die _Füße_ auf einer festen
 Tiefe und das Auge dort, wohin die eigene Körpergröße es trug — für jemanden im
 Stehen genau richtig, für jemanden auf einem Stuhl vierzig Zentimeter zu tief,
 und genau das ist das „ich sitze auf dem Kart statt darin". `Kart.seat` ist
@@ -1513,7 +1516,7 @@ und Rückwärtstempo, jede Zeile schaltet auf die nächste Raste und zeigt die
 rohe Zahl daneben. Weil mehr Zeilen als Platz da sind, blättert der Stick der
 zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü, und wie dort bleibt das
 Brett beim Weiterschalten stehen, wo es stand. Liegt der Strahl einer
-Hand auf dem Brett, gehört *ihr* Trigger dem Brett und nicht dem Gas — pro
+Hand auf dem Brett, gehört _ihr_ Trigger dem Brett und nicht dem Gas — pro
 Hand, damit Lesen mit der einen der anderen nicht das Gas wegnimmt. Das
 Lenkrad selbst hört, sobald jemand sitzt, gar nicht mehr auf den Strahl
 (`PointerTarget.ignore`): es gibt dann nichts mehr auszuwählen, und ein Strahl,
@@ -1529,7 +1532,7 @@ Wieder ohne three.js, wieder mit Test; `ShopWorld.ts` ist der Raum drumherum.
 
 - **Kneten ohne Knopf.** Ein Teig, der auf dem Arbeitstisch zur Ruhe kommt,
   wird kinematisch und bleibt liegen; danach knetet ihn jede Hand, die schnell
-  genug und in seine Richtung hineinfährt. Bewusst *ohne* Taste: Greifen ist
+  genug und in seine Richtung hineinfährt. Bewusst _ohne_ Taste: Greifen ist
   schon vergeben — mit gedrücktem Griff hebt man ihn auf. Genau das ist der
   Unterschied zwischen den beiden Gesten, und er muss nirgends erklärt werden.
 - **Werkzeuge mit festem Platz.** Kelle und Streuer sind normale Props, aber
@@ -1541,11 +1544,11 @@ Wieder ohne three.js, wieder mit Test; `ShopWorld.ts` ist der Raum drumherum.
   Golden ist fertig, schwarz ist zu spät, beides sagt ein Ton an.
 - **Der Mülleimer** ist ein Kasten mit Boden — was hineinfällt, wird gelöscht.
 - **An der Wand** hinter jeder Station steht in zwei Zeilen, was sie will. Ein
-  `TextPlane` bemisst seine Schrift an seiner *Höhe*, ein höheres Schild fasst
+  `TextPlane` bemisst seine Schrift an seiner _Höhe_, ein höheres Schild fasst
   also weniger Text, nicht mehr — die Schilder sind deshalb breit und flach.
 - **Arbeitshöhe** ist 90 cm, wie in einer echten Küche. Wer sich hier zu klein
   vorkommt, sitzt in aller Regel auf einem Stuhl; dagegen hilft nicht die
-  Arbeitsplatte, sondern *Menü → Bewegung → Haltung*.
+  Arbeitsplatte, sondern _Menü → Bewegung → Haltung_.
 - **Grenze:** Pizzen entstehen zur Laufzeit und bekommen laufende IDs; zwei
   Küchen in derselben Sitzung meinen mit `pizza-3` nicht dasselbe. Gelöscht
   wird deshalb nur lokal. Der Raum, die Werkzeuge und alles Geworfene sind
@@ -1606,12 +1609,12 @@ Hand), die **Faust am Standardgriff** — eine einzige, für alle achtzehn
 Werkzeuge, die ihn tragen —, eine eigene Haltung für jedes Werkzeug, das
 trotzdem eine will, und eine für das **Objekt in der Hand**, jeweils für links
 und rechts. Grundhaltung und Objekthaltung stehen
-unter *Einstellungen → Hände → Linke/Rechte Hand*, die Griffe beim jeweiligen
-Werkzeug (*Werkzeuge → … → Griff*). Die Objekthaltung läuft unter der
+unter _Einstellungen → Hände → Linke/Rechte Hand_, die Griffe beim jeweiligen
+Werkzeug (_Werkzeuge → … → Griff_). Die Objekthaltung läuft unter der
 Pseudo-Id `grab` durch dieselbe Mechanik wie ein Werkzeug — eine Hand um einen
 Companion Cube ist weder die leere Hand noch die Hand an der Pistole, und ohne
 eigene Haltung sah sie aus wie beides gleichzeitig. Getippt wird über die Tastatur im
-Raum, und die Hand bewegt sich schon *während* getippt wird — eine Krümmung
+Raum, und die Hand bewegt sich schon _während_ getippt wird — eine Krümmung
 von 0.6 sagt auf dem Papier nichts.
 
 Die **ausgelieferte Grundhaltung** ist nicht die gebaute. Gebaut ist die Hand
@@ -1631,19 +1634,19 @@ gepflegte Zahlenreihen wären genau die Sorte Abweichung, die niemand merkt —
 eine Hand, die anders sitzt als die andere, sieht man nicht, man wundert sich
 nur. Wer die andere Messung für die richtige hält, dreht eine Konstante um und
 misst nicht zwei. Dieselbe Haltung ist auch die Maske des Konfig-Codes und der
-Rückfall für einen zu kurzen: was nicht im Code steht, *ist* die gebaute
+Rückfall für einen zu kurzen: was nicht im Code steht, _ist_ die gebaute
 Haltung dieser Hand, und zwar dieser und nicht der anderen.
 
 Weil beide Hände Spiegelbilder sind, ist die andere Seite eine Kopie mit drei
 umgedrehten Vorzeichen: seitlicher Versatz, Yaw und Roll. Mehr nicht — genau
 das prüft der Test zu `mirrorHandPose` in `src/core/handPose.ts`, und dieselbe
-Regel gilt für Werkzeug-Posen (`mirrorReadout`). *Auf die andere Hand
-spiegeln* macht es für eine Haltung, *Links auf rechts spiegeln* für alle.
+Regel gilt für Werkzeug-Posen (`mirrorReadout`). _Auf die andere Hand
+spiegeln_ macht es für eine Haltung, _Links auf rechts spiegeln_ für alle.
 
 ### Handmodell: Boxhand oder weißer Handschuh
 
 Wie die Hand **aussieht**, ist seit dieser Runde eine Einstellung
-(`core/handLook.ts`, *Einstellungen → Hände → Handmodell*, und in der
+(`core/handLook.ts`, _Einstellungen → Hände → Handmodell_, und in der
 Schublade der Werkzeugseite): die **Boxhand** aus Kästen und Kapseln, mit der
 alles angefangen hat, oder der **weiße Handschuh** — ein Handschuh wie bei
 Rayman oder Master Hand, mit gepolsterter runder Handfläche, dicken runden
@@ -1663,7 +1666,7 @@ am Handgelenk — und sah genau so aus: zusammengesetzt. Jetzt ist der Handschuh
 ein einziges **gehäutetes Netz** (`SkinnedMesh`) am Skelett der Hand: die
 Handfläche ein Loft aus Ellipsen entlang der Handachse, hinten als Manschette
 aufgeweitet, vorn an den Knöcheln abgerundet; jeder Finger eine durchgehende
-Röhre vom Ansatz *in* der Handfläche bis zur runden Kuppe, deren Ringe zwischen
+Röhre vom Ansatz _in_ der Handfläche bis zur runden Kuppe, deren Ringe zwischen
 den beiden Knochen des Fingers gewichtet sind — vor dem Mittelgelenk der eine,
 dahinter der andere, um das Gelenk herum beide. So biegt sich der Stoff weich,
 wo die Boxhand knickt. Die Gelenke sind dafür `Bone`s statt `Object3D`s, was
@@ -1677,7 +1680,7 @@ nicht mehr zur Einstellung passt, die Werkzeugseite stellt das Werkzeug neu
 auf, das Boxhand-Werkzeug hört selbst zu. Der Handschuh ist weiß, wo immer er
 steht (`GLOVE_COLOR`, auch auf der Werkzeugseite); die Boxhand behält ihr
 Hellblau. Im Konfig-Code steht das Modell nicht — es ist Geschmack, keine
-Messung —, und *Eigene Einstellungen löschen* räumt es mit weg.
+Messung —, und _Eigene Einstellungen löschen_ räumt es mit weg.
 
 ### Eingemessene Griffe
 
@@ -1692,9 +1695,9 @@ Es gibt **eine** Haltung für alles, was den Standardgriff trägt
 (`GRIP_HAND_POSE` in `core/handPose.ts`), rechts geschrieben und links
 gespiegelt — und sie ist nicht eingestellt, sondern **ausgerechnet**:
 
-| | x | y | z | Pitch | Yaw | Roll | Finger |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Faust am Griff | 1,7 | 2,4 | 2,7 | −43° | −17° | −90° | 0,55 · **0,1** · 0,85 · 0,9 · 0,9 |
+|                | x   | y   | z   | Pitch | Yaw  | Roll | Finger                            |
+| -------------- | --- | --- | --- | ----- | ---- | ---- | --------------------------------- |
+| Faust am Griff | 1,7 | 2,4 | 2,7 | −43°  | −17° | −90° | 0,55 · **0,1** · 0,85 · 0,9 · 0,9 |
 
 Der Weg dorthin steht in `fistOnGrip` (`tools/gripFit.ts`) und wird in
 `core/gripFist.test.ts` nachgerechnet. Drei Bedingungen, und sie lassen genau
@@ -1704,7 +1707,7 @@ Handfläche, um das sich die Finger schließen) liegt auf der **Griffachse**, di
 der Mitte des Griffs. Wo die Faust ihren Zylinder hält, sagt dabei die Hand
 selbst: der Kreis durch die drei Gelenke des Mittelfingers hat den Mittelpunkt
 2,65 cm unter und 3,0 cm vor dem Handgelenk und den Halbmesser eines Griffs.
-Ein gekrümmter Finger legt sich um *etwas* — der Kreis durch seine Gelenke ist
+Ein gekrümmter Finger legt sich um _etwas_ — der Kreis durch seine Gelenke ist
 dieses Etwas.
 
 **Die Hand steht dabei schräg am Griff, und wie schräg, sagt der
@@ -1726,7 +1729,7 @@ Finger sind die der allgemeinen Faust (`HOLD_HAND_POSE`), und die bleibt, was
 sie war — auch als Maske des Konfig-Codes. Gemessen wird an der Linie, die man
 auf der Werkzeugseite auch sieht: die bernsteinfarbene am Finger und der rosa
 Pfeil am Griff liegen übereinander, wenn die Faust sitzt — derselbe Maßstab,
-den der Knopf *Auf den Griff* dort anlegt.
+den der Knopf _Auf den Griff_ dort anlegt.
 
 Nachgesehen wurde das nicht in der Brille, sondern **auf der Werkzeugseite im
 Browser**: jedes Werkzeug mit der Faust, aus sechs Richtungen, als Bild — von
@@ -1740,17 +1743,17 @@ die Welt fordert für jede Hand, die etwas hält, die Geste `grip` an, und
 `HandVisuals` malte damit die gebaute Faust über die eingestellte — der
 Zeigefinger stand in der Brille immer am Abzug, egal was die Haltung sagte, und
 kein Fingerwert aus dem Menü kam je an. Eine Hand, die etwas hält, trägt jetzt
-die Finger dessen, was sie hält; nur eine *andere* Geste, um die ein Werkzeug
+die Finger dessen, was sie hält; nur eine _andere_ Geste, um die ein Werkzeug
 ausdrücklich bittet, gewinnt noch darüber.
 
 **Warum gerechnet und nicht gemessen.** Vorher standen dort zwei von Hand
 eingestellte Zahlenreihen, eine je Griffart, und **keine von beiden hielt ihren
 Griff**. Nachgemessen (derselbe Test hält die Zahlen fest):
 
-| Faust | quer zur Griffachse daneben | Winkel gegen die Griffachse |
-| --- | --- | --- |
-| die gebaute (`HOLD_HAND_POSE`, galt für 15 Werkzeuge) | 6,7 cm | **90°** |
-| die am Stabgriff eingemessene (galt für 3) | 3,2 cm | 30° |
+| Faust                                                 | quer zur Griffachse daneben | Winkel gegen die Griffachse |
+| ----------------------------------------------------- | --------------------------- | --------------------------- |
+| die gebaute (`HOLD_HAND_POSE`, galt für 15 Werkzeuge) | 6,7 cm                      | **90°**                     |
+| die am Stabgriff eingemessene (galt für 3)            | 3,2 cm                      | 30°                         |
 
 90° heißt: die Faust stand **quer** zum Zylinder und schloss sich um die Luft
 daneben. Man sieht so etwas in der Brille nicht als Fehler — man sieht eine
@@ -1770,16 +1773,16 @@ damit passte sie zu höchstens einem von ihnen.
 Die Zahlen, mit denen das aufgefallen ist (Abstand und Winkel gegen den
 Pistolengriff, `gripFit.test.ts` hält sie fest):
 
-| Werkzeug | Δ Ort | Δ Winkel |
-| --- | --- | --- |
-| Teleporter, Greifhaken | 0,5–0,7 cm | 1° |
-| Größe & Position | 0,7 cm | 13° |
-| Holster | 0,9 cm | 24° |
-| Duplizierer | 1,1 cm | 23° |
-| Inspektor | 2,8 cm | 1° |
-| Lötkolben | 5,9 cm | 103° |
-| Taschenlampe | 7,9 cm | 48° |
-| Drohne | 5,5 cm | 20° |
+| Werkzeug               | Δ Ort      | Δ Winkel |
+| ---------------------- | ---------- | -------- |
+| Teleporter, Greifhaken | 0,5–0,7 cm | 1°       |
+| Größe & Position       | 0,7 cm     | 13°      |
+| Holster                | 0,9 cm     | 24°      |
+| Duplizierer            | 1,1 cm     | 23°      |
+| Inspektor              | 2,8 cm     | 1°       |
+| Lötkolben              | 5,9 cm     | 103°     |
+| Taschenlampe           | 7,9 cm     | 48°      |
+| Drohne                 | 5,5 cm     | 20°      |
 
 Die Umkehrung ist der Ausweg: **nicht der Griff folgt dem Werkzeug, sondern das
 Werkzeug dem Griff.** Ein Griff ist ein Ding mit einer festen Lage in der Faust
@@ -1801,7 +1804,7 @@ für alles, was wie eine Pistole gehalten wird: das Vorne des Griffs **ist** die
 Zielrichtung des Werkzeugs.
 
 **Ein Griff, und nur einer.** Eine Weile waren es zwei: `pistol` quer zur
-Griffachse und `rod` längs dazu, für alles, dessen Rohr *in* der Faust liegt —
+Griffachse und `rod` längs dazu, für alles, dessen Rohr _in_ der Faust liegt —
 Taschenlampe, Lötkolben, Hängegleiter. Das klingt nach zwei Arten anzufassen,
 ist aber zwei **Orte** in derselben Faust, und eine Faust hat nur einen: das
 eine ist der Griff, das andere die Stelle daneben. Jeder zweite Griff zieht
@@ -1864,8 +1867,8 @@ irgendetwas fest — die Portalwaffen an einem selbstgebauten Kasten, der 0,2 ra
 nach hinten lehnte, Pinsel, Messband, Radiergummi, Stoppuhr und Röntgen-Scanner
 an gar nichts. Jetzt tragen sie alle den Standardgriff:
 
-| Griff | Werkzeuge |
-| --- | --- |
+| Griff             | Werkzeuge                                                                                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | der Standardgriff | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Lötkolben, Hängegleiter |
 
 Fünfzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
@@ -1883,7 +1886,7 @@ einen Stiel, an dem jede Stelle ein Griff ist (siebenmal so lang wie eine
 Faust, deshalb ein glatter Zylinder ohne Ellipse und ohne Rillen — beide zeigen
 eine Richtung an, und hier gibt es keine), die **Drohne** zwei Griffe an einem
 Deck, das man mit zwei Fäusten wie eine Konsole hält. Beide tragen die
-Griff-*Form*, aber nicht die Standard-*Lage*, und stehen deshalb nicht in
+Griff-_Form_, aber nicht die Standard-_Lage_, und stehen deshalb nicht in
 `STANDARD_GRIP_TOOLS` — sie haben ihre **eigene Faust**, und auch die ist
 gerechnet und nicht eingestellt: **eine Faust gehört zu einem Zylinder an einer
 Stelle**, und wo ein anderer Zylinder an einer anderen Stelle liegt, gehört
@@ -1892,17 +1895,21 @@ eine eigene dazu. `fistOnGrip` nimmt dafür den Zylinder als zweites Argument
 Griffs im Werkzeug), und die beiden Zylinder stehen dort, wo sie hingehören:
 der **Stab** als `POLE_GRIP` in `poleGrip.ts` (die z-Achse durch den
 Griffpunkt, die Daumenseite zur Spitze, die Handfläche innen — so hält man
-einen Hammer), und ihn tragen **vier**: der Stiel des Hammers, das
-Batterierohr der Taschenlampe, der Stiel des Pinsels und der Griff des
-Messers, alle mit derselben `holdPosition` (`POLE_HOLD_POSITION`) und
-derselben Faust (`POLE_HAND_POSE`). Der rechte Griff der Drohne als
+einen Hammer), und ihn tragen **drei**: der Stiel des Hammers, das
+Batterierohr der Taschenlampe und der Griff des Messers, alle mit derselben
+`holdPosition` (`POLE_HOLD_POSITION`) und derselben Faust (`POLE_HAND_POSE`).
+Der **Stiel des Pinsels** liegt auf demselben Stab mit derselben
+`holdPosition`, aber als `BRUSH_GRIP` in `BrushTool.ts` **von oben** gehalten,
+wie ein Maler: Handrücken oben, Finger über dem Stiel, Daumen zur Spitze
+(`BRUSH_HAND_POSE`) — mit der Hammerfaust sah der Pinsel aus wie ein Hammer.
+Der rechte Griff der Drohne als
 `DRONE_GRIP` in `DroneTool.ts` (mit einer Hand rutscht das Deck so weit, dass
 er im Griffpunkt sitzt). Die **Kante der Stoppuhr** als `STOPWATCH_GRIP`: ein
 um 35° gekippter Zylinder durch den Griffpunkt (`STOPWATCH_TILT`) — die Uhr
 liegt in der Hand wie bei einem Zeitnehmer, Handfläche hinter dem Gehäuse,
 Finger nach links oben um die seitliche Kante, der Arm von rechts unten, Daumen
 oben auf der Krone; das Gehäuse rückt dafür je Hand zur Seite (`showHeldBy`,
-wie das Deck der Drohne). Die erste Fassung stellte sie hochkant *auf* die
+wie das Deck der Drohne). Die erste Fassung stellte sie hochkant _auf_ die
 Faust, Finger unter dem unteren Rand; die zweite legte die Hand waagerecht wie
 an einen Türgriff — so hält niemand eine Uhr, und ein Foto eines Zeitnehmers
 hat beides entschieden. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
@@ -1939,7 +1946,7 @@ das war die Taschenlampe.
 
 Der eigentliche Gewinn steht nicht in der Geometrie, sondern im Speicher:
 **eine Faust gehört zu einem Griff und nicht zu einem Werkzeug.** Achtzehn
-Werkzeuge mit demselben Zylinder in derselben Hand haben *eine* Haltung und
+Werkzeuge mit demselben Zylinder in derselben Hand haben _eine_ Haltung und
 nicht achtzehn — wer sie zwanzigmal einstellt, stellt neunzehnmal dasselbe ein
 und einmal aus Versehen etwas anderes, und merkt es an dem einen.
 
@@ -1955,7 +1962,7 @@ Die Faust des Griffs liegt dabei unter einer gewöhnlichen Werkzeug-Id
 Art von Schlüssel, und das ist Absicht — damit tragen Speicher, Konfig-Code und
 Kurzcode sie, ohne dass irgendwo ein Format wächst. Im Kurzcode steht `grip-rod`
 weiterhin an seinem Platz, obwohl es den Stabgriff nicht mehr gibt: der Platz
-*ist* dort das Format, und wer eine Zeile herausnimmt, macht aus jedem alten
+_ist_ dort das Format, und wer eine Zeile herausnimmt, macht aus jedem alten
 Code einen, der etwas anderes meint. Die Kette hält `core/gripHandPose.test.ts` fest,
 mit einem `localStorage` aus einer Map.
 
@@ -1974,10 +1981,10 @@ grün und damit unsichtbar. Der Griff trägt sie über `GripOptions.front`; die
 Werkzeugseite hängt sie jedem Griff an, den sie findet (`addGripFronts`, auch
 den beiden am Drohnendeck). Die beiden Linien nebeneinander sind die ganze
 Auskunft beim Justieren: sind sie parallel, sitzt die Faust. Auf der
-Werkzeugseite stellt ein Knopf genau das her (*Auf den Griff*, siehe
-*Bearbeiten auf der Werkzeugseite*), und dort kommt eine dritte dazu: der
+Werkzeugseite stellt ein Knopf genau das her (_Auf den Griff_, siehe
+_Bearbeiten auf der Werkzeugseite_), und dort kommt eine dritte dazu: der
 **weiße Zielpfeil** aus dem Nullpunkt des Werkzeugs nach -Z. Auch der zeichnet
-nichts Neues — das eigene -Z eines gehaltenen Werkzeugs *ist* der Zeigestrahl
+nichts Neues — das eigene -Z eines gehaltenen Werkzeugs _ist_ der Zeigestrahl
 (`tools/aim.ts`) —, er macht nur sichtbar, wonach geschossen und geleuchtet
 wird, und er hängt an dem, was wirklich zielt (`alignToAim`): Boxhand,
 Controller, Flügel und Beutel zeigen nirgendwohin und bekommen keinen.
@@ -1993,7 +2000,7 @@ außerdem, **an welcher Hand** eine Werkzeugpose gemessen wurde
 (`poseStore.ts`, `storedPoseHand`): die Pose selbst gilt für beide, aber die
 Herkunft ist die einzige Auskunft darüber, warum sie so aussieht, wie sie
 aussieht. Der Kurzcode trägt die Seite ohnehin, und das Menü zeigt sie unter
-*Lage in der Hand zurücksetzen*.
+_Lage in der Hand zurücksetzen_.
 
 **Am Griffstand liegt das Werkzeug so, wie es in der Hand liegt.** Die Kopie
 dort hält niemand, also läuft `applyHold` für sie nie — und ein Werkzeug, das
@@ -2002,7 +2009,7 @@ Faust. Die **Drohne** ist der Fall, an dem es auffiel: einhändig rutscht ihr
 Deck um einen halben Griffabstand zur Seite, damit der Griff dieser Hand auf dem
 Ursprung sitzt (10,5 cm), am Stand stand sie mittig. Wer die Boxhand dort an den
 sichtbaren Griff legte, mass diese 10,5 cm mit ein und hielt hinterher ein
-Gerät, das neben der Hand schwebte; wer die Hand statt dessen in die *Mitte* der
+Gerät, das neben der Hand schwebte; wer die Hand statt dessen in die _Mitte_ der
 Kopie legte, hatte es richtig — was genau der falsche Weg ist, sich das zu
 merken. Der Stand ruft jetzt `Tool.showHeldBy(seite)`, ebenso der Halter am
 ersten Stand (`mountTool`, auch für den Fall, dass jemand das Ding zweihändig
@@ -2010,10 +2017,10 @@ hereintrug). An der Messung selbst ändert das nichts: die rechnet gegen den
 **Ursprung** des Werkzeugs, und der bleibt liegen.
 
 **Der Nullpunkt am zweiten Stand sitzt am Werkzeug.** Eine Handhaltung ist ein
-Versatz im *Griffraum*, und die Null darin ist der Griffpunkt des Controllers,
+Versatz im _Griffraum_, und die Null darin ist der Griffpunkt des Controllers,
 nicht das Werkzeug — auf Null zurückgesetzt sprang die Boxhand deshalb um den
-Versatz *und* um die 30° zwischen Faust und Zeigestrahl weg und lag sichtbar
-neben der Lampe. *Zurücksetzen* schreibt jetzt die Lage des Werkzeugs im Griff
+Versatz _und_ um die 30° zwischen Faust und Zeigestrahl weg und lag sichtbar
+neben der Lampe. _Zurücksetzen_ schreibt jetzt die Lage des Werkzeugs im Griff
 selbst (`TuneWorld.gripHomePose`), und die Hand steht danach exakt in der
 Kopie; von dort justiert man nach außen, statt sich erst wieder heranzutasten.
 
@@ -2046,7 +2053,7 @@ werden muss.
 
 Ein Code trägt seit **Version 2** eine **Abschnittsmaske** vorneweg: sie sagt,
 welche der sechs Sorten überhaupt darin stehen. Erst damit gibt es einen Code
-für *ein* Werkzeug — ohne sie trüge der des Pinsels zwangsläufig die
+für _ein_ Werkzeug — ohne sie trüge der des Pinsels zwangsläufig die
 Pistolenwerte mit sich herum und würde sie beim Laden überschreiben. Was nicht
 drinsteht, wird beim Laden auch nicht angefasst; innerhalb eines Abschnitts
 wird eingemischt statt ersetzt.
@@ -2081,7 +2088,7 @@ Prüfsumme sind zusammen mehr als die Nutzlast, wenn die Nutzlast sechs Zahlen
 ist.
 
 Deshalb gibt es daneben den **Kurzcode** (`tools/shortCode.ts`, mit Test), der
-nur einen Fall kann — *ein* Werkzeug an *einer* Hand — und dafür nichts
+nur einen Fall kann — _ein_ Werkzeug an _einer_ Hand — und dafür nichts
 mitschleppt:
 
 ```
@@ -2095,7 +2102,7 @@ BPNDLmS5tAj9BFkRQK7MQ3Qg   # Werkzeugpose + Griff   24 Zeichen
 Achse), Pitch und Roll 0…359° in ganzen Grad (360), **Yaw nur −90…+90°** (181).
 0° und 360° sind derselbe Winkel, also wird nur 0…359 geführt. Und Yaw braucht
 wirklich nur die halbe Runde: `eulerXYZ` bestimmt den mittleren Winkel mit
-`Math.asin`, der *kann* nicht darüber hinaus — mit 20 000 gleichverteilten
+`Math.asin`, der _kann_ nicht darüber hinaus — mit 20 000 gleichverteilten
 Drehungen nachgemessen, größter Wert 89,12°. Eine von Hand getippte Haltung mit
 Yaw 120° geht trotzdem nicht verloren: sie wird vor dem Packen einmal durch das
 Quaternion geschickt und kommt als dieselbe Drehung mit |yaw| ≤ 90 zurück.
@@ -2103,7 +2110,7 @@ Quaternion geschickt und kommt als dieselbe Drehung mit |yaw| ≤ 90 zurück.
 **Das Packen.** Alles, was in einem Code steht, wird zu **einer** Ganzzahl zur
 gemischten Basis — auch zwei Posen, die dann nicht einzeln aufgerundet werden.
 
-**Wie lang das wird**, entscheidet das *Produkt* der Stufen und nicht ihre
+**Wie lang das wird**, entscheidet das _Produkt_ der Stufen und nicht ihre
 Summe. Das ist die Stelle, an der die naheliegende Rechnung dreimal
 danebenlag — „360+360+360 = 1080, passt in zwei Zeichen" ist um sieben
 Größenordnungen zu klein, und auch `601³ · 360 · 181 · 360` sind nicht 42,6
@@ -2124,7 +2131,7 @@ Zahlen stehen als Test da, damit die Rechnung nicht ein viertes Mal verrutscht.
 Code wird in einer Brille von einer Tafel abgelesen und mit einer Zeigehand
 eingetippt — dort ist eine Null, die wie ein O aussieht, kein Schönheitsfehler,
 sondern ein Fehlversuch. Alle 59 sind URL-sicher (`-` und `_` gehören zu den
-*unreserved characters* aus RFC 3986). Und es kostet nichts: 59⁹ liegt immer
+_unreserved characters_ aus RFC 3986). Und es kostet nichts: 59⁹ liegt immer
 noch über den 5,09·10¹⁵ Möglichkeiten, es bleibt bei neun Zeichen. Lesbarkeit
 gratis.
 
@@ -2136,11 +2143,11 @@ Vertauschungen durch.
 
 Was das bringt:
 
-| | großer Code | Kurzcode |
-| --- | --- | --- |
-| eine Werkzeugpose | 22 | **15** |
-| Werkzeug **und** Griff | 66 | **24** |
-| eine Grundhaltung samt Fingern | 33 | **22** |
+|                                | großer Code | Kurzcode |
+| ------------------------------ | ----------- | -------- |
+| eine Werkzeugpose              | 22          | **15**   |
+| Werkzeug **und** Griff         | 66          | **24**   |
+| eine Grundhaltung samt Fingern | 33          | **22**   |
 
 Die Finger stehen nur drin, wenn sie **verstellt** sind: eine Messung fasst sie
 nicht an, und was sich nicht geändert hat, gehört nicht in einen Code, den
@@ -2171,7 +2178,7 @@ davor. Damit gibt es einen Weg hinein statt zweier, die auseinanderlaufen
 können. Und das ist der Punkt, an dem der Kurzcode sich auszahlt: ein Werkzeug
 sind 25 Zeichen, also ein Paket.
 
-In VR liegt der große Code unter *Einstellungen → Konfig-Code*: **Code anzeigen**
+In VR liegt der große Code unter _Einstellungen → Konfig-Code_: **Code anzeigen**
 legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
 laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Die
 **Werte-Tafeln im Eingaberaum** zeigen außerdem unter jeder Messung den Code
@@ -2188,10 +2195,10 @@ Damit ist „hier sind meine Einstellungen, mach das für die andere Hand auch"
 eine Zeile statt vierzig Zahlen.
 
 Der **Strahl** zum Gegenstand kommt erst, wenn das Ferngreifen wirklich
-eingerastet ist, und sagt dann genau eine Sache: *daran kannst du jetzt
-ziehen*. Beim bloßen Zielen läge er nur im Bild — dort leuchtet der Gegenstand,
-und das reicht. Abschalten geht unter *Einstellungen → Greifen → Strahl beim
-Ferngreifen*. Ferngreifen schaltet sich außerdem selbst ab, solange beide Hände
+eingerastet ist, und sagt dann genau eine Sache: _daran kannst du jetzt
+ziehen_. Beim bloßen Zielen läge er nur im Bild — dort leuchtet der Gegenstand,
+und das reicht. Abschalten geht unter _Einstellungen → Greifen → Strahl beim
+Ferngreifen_. Ferngreifen schaltet sich außerdem selbst ab, solange beide Hände
 dicht beieinander sind und eine davon schon etwas hält — dann will man den
 Gegenstand übergeben und nicht quer durch den Raum zielen.
 
@@ -2237,7 +2244,7 @@ das Portal Labor nutzt das für seine Zusatzdurchgänge.
 ### Was aus dem Beutel kommt
 
 Der Beutel ist die Kiste mit dem Spielzeug, und alles darin steht in
-`worlds/portal/props.ts` — Sorte, Netz, Masse und Collider an *einer* Stelle,
+`worlds/portal/props.ts` — Sorte, Netz, Masse und Collider an _einer_ Stelle,
 denn beide Seiten einer Sitzung bauen aus derselben `kind` dasselbe Ding, und
 die Werkzeugseite liest dieselbe Liste (`BAG_ITEMS`). Der **Name** steht
 daneben in `PROP_LABELS`: Wer nur wissen will, wie etwas heißt — die Meldung
@@ -2275,7 +2282,7 @@ ausgerechnet auf dem Würfel quer, den jeder kennt.
 Kasten, Kugel, Zylinder und Kegel; ein W20 wäre als Kugel bis zur Wand
 gerollt und nie liegen geblieben, eine Rampe als Kasten keine Rampe. Also gibt
 es eine fünfte Form: **`{ kind: 'hull', points }`**, die konvexe Hülle der
-Ecken (`physics/PhysicsWorld.ts`). Der Punktpuffer ist dabei die Vorlage *und*
+Ecken (`physics/PhysicsWorld.ts`). Der Punktpuffer ist dabei die Vorlage _und_
 der Maßstab: `resize` zieht ihn an Ort und Stelle mit, statt sich die
 Ausgangsgröße daneben zu merken — damit landet zweimal Verdoppeln dort, wo
 einmal Vervierfachen landet, und das Transformationswerkzeug funktioniert an
@@ -2298,20 +2305,20 @@ die ausgelieferten Zahlen für dieses Gerät. Er gehört hierher, weil hier
 eingestellt wird — wer eine Haltung verzogen hat und nicht mehr weiß, welche,
 käme sonst nur über die Entwicklerwerkzeuge des Browsers wieder heraus —, und
 er gehört in die Schublade und nicht neben den Regler: der Knopf dort heißt
-auch *Zurücksetzen* und meint **eine** Haltung. Gelöscht wird alles unter
+auch _Zurücksetzen_ und meint **eine** Haltung. Gelöscht wird alles unter
 `bgvr.` — Handhaltungen und Werkzeuglagen, aber ebenso Gürtel, Waffenwerte und
 Drohne, denn es ist derselbe Speicher derselben Herkunft. Die Rückfrage sagt
 das vorher; rückgängig macht es niemand.
 
 **Und der Speicher darf kaputt sein.** Ein Eintrag ohne `position` warf in
-`applyStoredPose` eine Ausnahme — mitten im Aufbau der Seite, also *bevor*
+`applyStoredPose` eine Ausnahme — mitten im Aufbau der Seite, also _bevor_
 irgendein Knopf hing, und damit war auch der Löschknopf weg. Eine Seite, die an
 ihrem eigenen Speicher stirbt, kann ihn nicht mehr zurücksetzen; also wird dort
 geprüft, was zurückkommt, und Unsinn wird still übergangen
 (`tools/poseStore.ts`). Eine
 Welt zeigt **sich selbst** (siehe unten), darunter die Beschreibung aus der
-Registry, für wen sie ist, ob sie experimentell ist, und einen Knopf *Welt
-betreten*, der auf `./#<id>` führt. Ein Beutel-Objekt zeigt sich selbst,
+Registry, für wen sie ist, ob sie experimentell ist, und einen Knopf _Welt
+betreten_, der auf `./#<id>` führt. Ein Beutel-Objekt zeigt sich selbst,
 gebaut mit demselben `createPropShape` wie im Spiel, mit Masse, Maßen und
 Collider-Form als Zeile. Beide Listen kommen aus dem Spiel (`WORLDS`,
 `BAG_ITEMS` — die Beutel-Liste ist dafür aus `PortalWorld` nach `props.ts`
@@ -2327,7 +2334,7 @@ demselben Code wie im Spiel — und wird angesehen wie ein Werkzeug: **ganz
 drauf, schräg von oben** (gut 30°), zum Drehen mit dem Finger. Darum geht es
 dabei: um den Überblick. Wer wissen will, ob ihm eine Welt gefällt, will
 zuerst ihren Grundriss sehen — die Runde, das Tal, die vier Zimmer — und erst
-danach, wie es darin aussieht; dafür gibt es den Knopf *Welt betreten*.
+danach, wie es darin aussieht; dafür gibt es den Knopf _Welt betreten_.
 
 Drei Dinge machen daraus einen Überblick statt eines Kastens:
 
@@ -2349,7 +2356,7 @@ Drei Dinge machen daraus einen Überblick statt eines Kastens:
   Fläche.
 
 **Und man kommt hinein.** Der Überblick beantwortet die erste Frage; die
-zweite — wie sieht es *darin* aus — beantworten zwei Dinge:
+zweite — wie sieht es _darin_ aus — beantworten zwei Dinge:
 
 - **Näher heran.** Eine Welt darf bis auf ein Zwanzigstel des eingepassten
   Abstands herangezoomt werden (`ZOOM_MIN_WORLD`), ein Werkzeug weiterhin nur
@@ -2360,7 +2367,7 @@ zweite — wie sieht es *darin* aus — beantworten zwei Dinge:
   **Zangengriff ist kein Doppeltipp**: der zweite Finger kam bisher genauso
   schnell hinterher wie ein zweiter Tipp und stellte die Ansicht damit jedes
   Mal zurück, kaum dass man zu zoomen anfing. Gezählt wird jetzt nur, was
-  *allein* aufgesetzt hat.
+  _allein_ aufgesetzt hat.
 - **Die freie Kamera** (Knopf oben in der Ecke, nur bei Welten). Sie fliegt wie
   eine **Drohne**: die Welt steht still, die Kamera geht darin herum, und zwar
   ohne Schwerkraft, ohne Wände und ohne Boden — wer sich eine Kulisse ansieht,
@@ -2421,7 +2428,7 @@ eine leere Bühne wäre die schlechtere Antwort.
 
 Zwei Zustände je Regal, ein Kopf: die Übersicht trägt links das
 **Burger-Symbol**, ein einzelnes Ding den **Pfeil zurück**, und der führt in
-die Übersicht *seines* Regals. Welcher Zustand gilt, steht im **Hash** und
+die Übersicht _seines_ Regals. Welcher Zustand gilt, steht im **Hash** und
 nicht in einer Variablen — damit tut der Zurück-Knopf des Browsers dasselbe wie
 der im Kopf, und ein Link ist ein Link: `tools.html#hammer` wie eh und je (die
 Werkzeuge behalten den nackten Hash, damit alte Links halten), `#welt/alps`
@@ -2434,10 +2441,10 @@ Zustände sind nicht drei Ansichten desselben Bildes, sondern zwei verschiedene
 Bezugspunkte:
 
 - **Hand aus** — nur das Werkzeug, für die Form.
-- **In der Hand** — der *Griffraum*: die Hand steht still, das Werkzeug liegt
+- **In der Hand** — der _Griffraum_: die Hand steht still, das Werkzeug liegt
   darin, dort, wohin `holdPosition` und `holdRotation` es legen. Das Bild aus
   der Brille: „so halte ich das Ding."
-- **Am Werkzeug** — der *Werkzeugraum*: das Werkzeug steht still, die Hand liegt
+- **Am Werkzeug** — der _Werkzeugraum_: das Werkzeug steht still, die Hand liegt
   daran. Das Bild vom zweiten Justierstand: „so umfasst die Hand es."
 
 Zwischen beiden liegt dieselbe Messung; unterschiedlich ist nur, welches von
@@ -2455,7 +2462,7 @@ An der Hand hängt außerdem eine **Linie am Zeigefinger**, in der Farbe des
 Beutels und nicht in der der Hand. Man sieht einer Faust nicht an, wohin sie
 zeigt, und ob ein Werkzeug entlang des Fingers liegt oder dreißig Grad daneben,
 ist die halbe Frage, um die es beim Justieren überhaupt geht. Sie hängt an
-`GhostHand.indexTip` — die Spitze weiß selbst, wohin sie zeigt, ihr -Z *ist*
+`GhostHand.indexTip` — die Spitze weiß selbst, wohin sie zeigt, ihr -Z _ist_
 die Richtung —, geht also jede Krümmung mit, ohne dass irgendwo etwas
 nachgerechnet würde. Und sie ist eine `Line` und kein Mesh: die Kamera misst
 nur sichtbare Meshes, also passt sie sich weiter an das Werkzeug an und nicht
@@ -2485,12 +2492,12 @@ legt. Die sechs Zahlen am Regler sind deshalb die Lage der **Hand im Raum des
 Werkzeugs** — genau die Größe, die der zweite Justierstand misst und die der
 Betrachter ohnehin zeichnet (`ghostOnTool` in `tune/handGrip.ts`). Deswegen
 weicht der Ansichts-Umschalter im Kopf, solange justiert wird: es gilt die
-Ansicht *Am Werkzeug*, und danach kommt die zurück, die vorher galt. Im
+Ansicht _Am Werkzeug_, und danach kommt die zurück, die vorher galt. Im
 Griffraum wanderte sonst für das eine Ziel das Werkzeug unter der stehenden
 Hand weg — genau der falsche Film, und genau der, der als „ich will das
 Werkzeug nicht bewegen" zurückkam.
 
-Der zweite Umschalter, unten links, sagt deshalb nicht mehr, *was* sich bewegt,
+Der zweite Umschalter, unten links, sagt deshalb nicht mehr, _was_ sich bewegt,
 sondern **wohin die eingestellte Handlage übernommen wird**. Dieselbe Lage kann
 auf zwei Arten wahr werden, und es sind die Antworten der beiden Justierstände:
 
@@ -2498,7 +2505,7 @@ auf zwei Arten wahr werden, und es sind die Antworten der beiden Justierstände:
   (`poseStore`, `bgvr.holdPoses`, also `holdPosition`/`holdRotation`). Die
   Handhaltung bleibt; was sich ändert, ist, wie das Ding in der Faust liegt und
   wohin es damit zeigt. Gerechnet als `Lage-im-Griff = Haltung ·
-  Hand-am-Werkzeug⁻¹`.
+Hand-am-Werkzeug⁻¹`.
 - **Am Griff** — übernommen als **Griffhaltung der Hand** (`handPoseStore`,
   `bgvr.handPoses`), und zwar nur in ihren sechs Zahlen: Finger und Spreizung
   sind keine Frage von „wo liegt die Hand" und bleiben stehen. Gerechnet als
@@ -2515,9 +2522,9 @@ der Griff zeigt) und der **weiße** Pfeil am Werkzeug (wohin es zielt — dazu
 gleich). Zwei davon zur Deckung zu bringen ist das, worum es geht, und es über
 sechs Achsen einzeln zu erwürgen ist Arbeit für eine Rechnung:
 
-- **Auf den Griff** nimmt Richtung *und* Ursprung: die Fingerspitze landet im
+- **Auf den Griff** nimmt Richtung _und_ Ursprung: die Fingerspitze landet im
   Mittelpunkt des Griffs und der Finger auf dem rosa Pfeil.
-- **In Zielrichtung** nimmt nur die *Richtung*: die Fingerspitze bleibt liegen,
+- **In Zielrichtung** nimmt nur die _Richtung_: die Fingerspitze bleibt liegen,
   wo sie ist, und die Faust schwenkt um sie herum auf den weißen Pfeil. Denn ein
   Ziel ist eine Richtung und kein Ort — der Nullpunkt eines Werkzeugs ist sein
   Griffpunkt, und dort gehört keine Fingerspitze hin. Die beiden sind deshalb
@@ -2531,7 +2538,7 @@ und kippt nur so weit, wie sie muss.
 der Rest desselben Gedankens: um das Handgelenk gedreht wandert die Spitze weg,
 und man hat die Linie, die man eben aufgelegt hat, mit dem ersten Grad Roll
 wieder heruntergedreht. Um die Spitze gedreht bleibt sie liegen, und man dreht
-die Faust *an ihr* — so wie man eine Hand um einen Griff dreht, den man schon
+die Faust _an ihr_ — so wie man eine Hand um einen Griff dreht, den man schon
 hält. Yaw, Pitch und Roll ziehen die drei Versätze also mit; X, Y und Z schieben
 weiter, wie sie es immer taten, und verlegen dabei den Punkt. Festgehalten wird
 er für die ganze Ziehbewegung und nicht Bild für Bild neu genommen: gespeichert
@@ -2577,7 +2584,7 @@ Zwei Dinge, die dabei auffielen und die man nicht sieht:
   nicht**. `packShortGear` fällt für eine unbekannte Id auf Platz 0 zurück, und
   Platz 0 ist „leere Hand": der Kurzcode für den Gürtel-Justierer hätte still
   die Grundhaltung verstellt. Die drei sind jetzt **angehängt** und nicht
-  einsortiert — der Platz *ist* das Format, und wer die Reihenfolge ändert,
+  einsortiert — der Platz _ist_ das Format, und wer die Reihenfolge ändert,
   macht aus jedem alten Code einen, der etwas anderes meint.
 
 Die Zahlen dazu — Achsen, Grenzen, Raster, die beiden Ziele — stehen in
@@ -2631,7 +2638,7 @@ und solange niemand im Menü eine eigene Zahl setzt, gilt genau die),
 `horizonColor()` (`null` lässt die Fläche bis zum Horizont weg) und
 `horizonLine()` für ihr Raster. `removeProp()`
 löscht ein Prop wieder, wahlweise nur lokal. `placeTool()` legt ein Werkzeug in
-den *Raum* statt auf den Gürtel — liegend oder schwebend, bis eine Hand es
+den _Raum_ statt auf den Gürtel — liegend oder schwebend, bis eine Hand es
 nimmt (die Taschenlampe im Dunkelhaus). Genau das machen `DustWorld`,
 `RangeWorld`, `KartWorld`, `ShopWorld`, `DarkWorld`, `MoonWorld` und `AlpsWorld` — die ganze Maschinerie
 (Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu
@@ -2675,7 +2682,7 @@ paar Zentimeter die nackte Wand zeigen — genau das ließ den Durchgang wie ein
 Teleportation wirken.
 
 **Portale in Portalen** sind eine Einstellung, keine Konstante:
-*Einstellungen → Portale in Portalen* schaltet zwischen 1 und 4 Ebenen durch,
+_Einstellungen → Portale in Portalen_ schaltet zwischen 1 und 4 Ebenen durch,
 **ausgeliefert wird 2**. Jede Ebene ist ein weiterer kompletter Durchgang durch
 den Raum — pro Portal und pro Auge —, deshalb gehört die Zahl dem Spieler:
 Eine Brille, die ins Stocken gerät, geht auf 1 zurück, ein PC verträgt 4. Der
@@ -2690,7 +2697,7 @@ Korridor, den zwei sich gegenüberstehende Portale bilden. Die inneren Ebenen
 werden **kleiner** gerendert (0,6 pro Stufe): ein Portal im Portal ist ein
 kleines Ding auf dem Bildschirm, und ein volles Target dafür sind Megabytes
 Brillenspeicher, die niemand aus der Nähe ansieht. Weil die Portalfläche ihr
-Bild über die *Bildschirmposition* nachschlägt, bekommt sie vor jedem Durchgang
+Bild über die _Bildschirmposition_ nachschlägt, bekommt sie vor jedem Durchgang
 gesagt, wie groß das Bild ist, das gerade gezeichnet wird — sonst säße das
 innere Bild verschoben.
 
@@ -2700,7 +2707,7 @@ für zwei sich gegenüberstehende Portale (der Fall, den man ansieht) stimmt es,
 für zwei über Eck ist es eine Näherung.
 
 **Zwei Render-Ebenen** halten auseinander, wer was sieht: `LAYER_SELF_ONLY` (3)
-trägt den eigenen Körper — den zeichnen *nur* die Portalkameras, direkt sieht
+trägt den eigenen Körper — den zeichnen _nur_ die Portalkameras, direkt sieht
 man von sich die Hände. `LAYER_HUD` (4, in `src/ui/ScoreHud.ts`) ist das
 Gegenstück: das HUD hängt an der Kamera und darf in keiner zweiten Kamera
 auftauchen, sonst schwebt es in der Portalsicht, im Drohnendisplay oder im
@@ -2717,7 +2724,7 @@ die URL, damit das zweite Gerät nur noch tippen muss.
 
 **Auch aus der Brille heraus.** Getippt wurde der Code lange nur auf der flachen
 Seite, und das hieß für jemanden, der schon spielte: Brille ab, Code eintippen,
-Brille auf, Sitzung neu starten. Unter *Verbindung* stehen deshalb jetzt **Raum
+Brille auf, Sitzung neu starten. Unter _Verbindung_ stehen deshalb jetzt **Raum
 betreten**, **Neuen Raum aufmachen** (würfelt und verbindet gleich) und
 **Name** — getippt auf derselben Tastatur wie ein Konfig-Code
 (`ui/KeyPanel.ts`, Buchstabenbelegung mit Leertaste für Namen). Raum-Code und
@@ -2740,13 +2747,13 @@ zwischen den Browsern. Diesen Handshake übernimmt
 [Trystero](https://github.com/dmotz/trystero): es legt die Angebote in ein
 öffentliches Relay-Netz statt auf einen Server, den wir betreiben müssten.
 
-| Vermittlung | Netz | Anmerkung |
-| --- | --- | --- |
-| **Nostr** (Standard) | hunderte öffentliche Relays | am robustesten, `wss://` |
-| **MQTT** | öffentliche Broker | gute Alternative, wenn Nostr blockiert ist |
-| **BitTorrent** | öffentliche Tracker | funktioniert, aber Tracker kommen und gehen |
+| Vermittlung          | Netz                        | Anmerkung                                   |
+| -------------------- | --------------------------- | ------------------------------------------- |
+| **Nostr** (Standard) | hunderte öffentliche Relays | am robustesten, `wss://`                    |
+| **MQTT**             | öffentliche Broker          | gute Alternative, wenn Nostr blockiert ist  |
+| **BitTorrent**       | öffentliche Tracker         | funktioniert, aber Tracker kommen und gehen |
 
-Umschalten geht im Panel unter *Vermittlung* — hilfreich in Netzen, die eine
+Umschalten geht im Panel unter _Vermittlung_ — hilfreich in Netzen, die eine
 der Varianten wegfiltern. Findet keins der Relays einen Weg, sagt das Panel das
 auch so (`Kein nostr-Relay erreichbar`), statt still zu warten.
 
@@ -2776,14 +2783,14 @@ bräuchte — zum Aufschreiben, zum Eintragen ins Werkzeug, zum Weiterschicken.
 Vorlesen und abtippen ist genau die Sorte Arbeit, für die es Rechner gibt. Also
 schickt die Brille die Zeile herüber, und am PC steht sie im Panel unter
 **Chat**: mit Uhrzeit, mit der Angabe, wofür sie gilt, und mit einem Knopf
-*Kopieren* daneben. *Verlauf kopieren* nimmt alles auf einmal mit.
+_Kopieren_ daneben. _Verlauf kopieren_ nimmt alles auf einmal mit.
 
 Deshalb hat eine Zeile eine **Sorte**. `text` ist, was jemand getippt hat;
 `code` ist eine Zeile, die eine Maschine geschrieben hat und die eine andere
 wieder lesen kann. Der Eingaberaum trägt seine Codes als `code` ein und wendet
 beim Empfang **nur solche** an — was jemand von Hand schreibt, wird nie
-ausgeführt, auch wenn es zufällig wie ein Code aussieht. Die Knöpfe *Werkzeug
-senden* und *Alles senden* im Schießgang gehen seither über diesen Weg; sie
+ausgeführt, auch wenn es zufällig wie ein Code aussieht. Die Knöpfe _Werkzeug
+senden_ und _Alles senden_ im Schießgang gehen seither über diesen Weg; sie
 lohnen auch allein im Raum, weil der Code dann im eigenen Verlauf landet statt
 in einer Meldung, die nach vier Sekunden weg ist.
 
@@ -2795,8 +2802,8 @@ hereinkommt, wird vorher **geputzt**: Steuerzeichen raus, Umbrüche zu
 Leerzeichen, bei 2000 Zeichen abgeschnitten. Was über das Netz kommt, hat sich
 niemand ausgesucht.
 
-In der Brille steht derselbe Verlauf unter *Menü → Verbindung → Chat*, die
-letzten acht Zeilen, neueste oben, und *Schreiben* macht die Tastatur auf. Was
+In der Brille steht derselbe Verlauf unter _Menü → Verbindung → Chat_, die
+letzten acht Zeilen, neueste oben, und _Schreiben_ macht die Tastatur auf. Was
 dort **nicht** steht, ist ein Kopieren-Knopf: 24 Zeichen aus einem Alphabet
 ohne Bedeutung sind in einer Brille nicht zu lesen und nirgends hinzulegen.
 Abgeholt wird am PC — dafür ist der Code ja geschickt worden.
@@ -2811,7 +2818,7 @@ und dazwischen lag vielleicht eine Fassung mit anderen Feldern.
 Codes von sich aus an — dort ist das der Sinn der Sache, zwei Leute justieren
 gemeinsam. Überall sonst kam ein Code bisher an, stand im Verlauf und tat
 nichts, ohne dass irgendwo stand, warum. Jetzt liegt neben der Zeile ein Knopf
-*Übernehmen* (im Panel wie im Menü der Brille), und `World.reloadGear` sagt der
+_Übernehmen_ (im Panel wie im Menü der Brille), und `World.reloadGear` sagt der
 laufenden Welt Bescheid — was schon in einer Hand liegt, liest seine Zahlen
 sonst nie wieder nach. Automatisch überall wäre die schlechtere Antwort: Was
 ein anderer schickt, soll einem nicht ungefragt die Ausrüstung umstellen,
@@ -2831,8 +2838,8 @@ einen Medienstrom an dieselben Peers, die schon die Posen bekommen.
   dir redet, klingt von hinten, und wer am anderen Ende der Halle steht, ist
   leise. In VR ist das kein Schmuck, sondern der Unterschied zwischen „jemand
   sagt etwas" und „der da drüben sagt etwas".
-- **Aus, bis jemand es einschaltet** — *Menü → Verbindung → Mikrofon*, am PC im
-  Panel unter *Sprache*. Ein Mikrofon, das mitläuft, weil man einem Raum
+- **Aus, bis jemand es einschaltet** — _Menü → Verbindung → Mikrofon_, am PC im
+  Panel unter _Sprache_. Ein Mikrofon, das mitläuft, weil man einem Raum
   beigetreten ist, ist ein Fehler und keine Bequemlichkeit; der Browser fragt
   ohnehin um Erlaubnis, und diese Frage soll auf einen Knopfdruck folgen.
   Ausschalten hängt den Strom nicht nur ab, sondern **hält ihn an**: nur so
@@ -2845,7 +2852,7 @@ einen Medienstrom an dieselben Peers, die schon die Posen bekommen.
   dann in die Web-Audio-Welt, wenn er außerdem an einem Medienelement hängt —
   deshalb liegt an jeder Stimme ein stummes `<audio>`, ohne das der
   `MediaStreamSource` still bleibt. Und Trystero hängt einen Strom an die
-  Verbindungen, die es *jetzt* gibt; wer später dazukommt, bekommt ihn nur,
+  Verbindungen, die es _jetzt_ gibt; wer später dazukommt, bekommt ihn nur,
   weil `TrysteroTransport` ihn bei `onPeerJoin` noch einmal anhängt.
 - **Nicht überall.** `NetTransport.addStream` ist optional: über einen
   `BroadcastChannel` zwischen zwei Tabs (`?net=local`) gibt es keine Spur, auf
@@ -2868,11 +2875,12 @@ und Portale auf allen Geräten gleich und hängt am freien Nachrichten-Kanal von
   Vorher gewann die **kleinste Peer-Id**, und die ist gewürfelt: Wer dazukam,
   übernahm damit in der Hälfte aller Fälle die Welt eines anderen und schob ihm
   im selben Moment seinen eigenen, leeren Stand hinüber. Man kommt aber in einen
-  Raum *hinein* und nicht in einen anderen *hinüber*. Angesagt wird dafür eine
+  Raum _hinein_ und nicht in einen anderen _hinüber_. Angesagt wird dafür eine
   **Dauer** und kein Zeitpunkt (`since` in `hello` und beim Weltwechsel): Zwei
   Rechner sind sich über die Uhrzeit nie einig, über die Länge einer Minute
   schon. Bei exakt gleicher Standzeit entscheidet weiterhin die kleinste Id —
   irgendetwas muss entscheiden, und es muss auf beiden Seiten dasselbe sein.
+
 - **Wer anfasst, besitzt.** Greift eine Hand einen Würfel, beansprucht sie ihn
   (`own`) und streamt ihn selbst. Sonst würde ein getragener Würfel dauernd
   zwischen Hand und Simulation hin- und herspringen. Beim Loslassen geht er
@@ -2892,7 +2900,7 @@ anderen Seite weitergezeichnet wie deine eigene.
 
 ### Zuschauen: First und Third Person
 
-Unter *Zuschauen* — am PC im Panel, in VR unter **Menü → Verbindung** — wählst
+Unter _Zuschauen_ — am PC im Panel, in VR unter **Menü → Verbindung** — wählst
 du erst einen Spieler und dann die Ansicht:
 
 - **Frei** — die normale Steuerung, eigene Kamera.
@@ -2904,7 +2912,7 @@ du erst einen Spieler und dann die Ansicht:
   Kopfruck mitzuckt.
 
 Steht der gewählte Spieler in einer anderen Welt, wechselst du automatisch
-dorthin. Verlässt er die Sitzung, fällt die Kamera auf *Frei* zurück.
+dorthin. Verlässt er die Sitzung, fällt die Kamera auf _Frei_ zurück.
 
 Der Regler **Kamera-Glättung** bestimmt, wie träge das passiert: ganz links
 folgt die Kamera 1:1, ganz rechts schwenkt sie deutlich verzögert nach. In First
@@ -2913,13 +2921,13 @@ zusätzlich die Kopfneigung weg, was gegen Übelkeit hilft.
 
 Ziehen mit Maus oder Finger dreht die Kamera zusätzlich — in Third Person orbitet
 sie um den Spieler, in First Person schaut man sich aus dessen Kopf um. Das
-Mausrad ändert den Abstand, *Ansicht zentrieren* setzt den Drag zurück.
+Mausrad ändert den Abstand, _Ansicht zentrieren_ setzt den Drag zurück.
 
 **Im Headset** gibt es dieselben Optionen, aber mit einem Unterschied: übernommen
-wird nur die *Position* des anderen Spielers, nie seine Blickrichtung. Genau das
+wird nur die _Position_ des anderen Spielers, nie seine Blickrichtung. Genau das
 Umdrehen des Kopfes ohne eigenes Zutun macht in VR übel. Man wird also
 mitgetragen und schaut sich dabei frei um. Solange das läuft, ist die eigene
-Fortbewegung eingefroren (`PlayerRig.paused`); beim Zurückschalten auf *Frei*
+Fortbewegung eingefroren (`PlayerRig.paused`); beim Zurückschalten auf _Frei_
 holt die Physik-Kapsel den Körper wieder ein.
 
 Technisch: `NetSession` verschickt Posen mit 20 Hz, `SmoothPose` zieht dazwischen

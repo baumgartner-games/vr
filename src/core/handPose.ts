@@ -177,9 +177,10 @@ export const GRIP_HAND_POSE: HandPose = {
  * `POLE_GRIP`). Ein Stab hat kein Vorne, also zeigt hier kein Finger etwas an:
  * **alle** Finger sind in der Faust, und die Faust steht ungeschwenkt — die
  * Daumenseite zur Spitze, die Handfläche innen am Stab, wie man einen Hammer
- * hält. Vier Werkzeuge werden so gehalten, und deshalb ist es **eine** Faust:
- * der Stiel des **Hammers**, das Batterierohr der **Taschenlampe**, der Stiel
- * des **Pinsels** und der Griff des **Messers**. Vorher stand am Hammer die
+ * hält. Drei Werkzeuge werden so gehalten, und deshalb ist es **eine** Faust:
+ * der Stiel des **Hammers**, das Batterierohr der **Taschenlampe** und der
+ * Griff des **Messers** (der Pinsel liegt auf demselben Stab, aber von oben
+ * gehalten — `BRUSH_HAND_POSE`). Vorher stand am Hammer die
  * allgemeine Faust, und die lag **quer** zum Stiel: die Handfläche stand wie ein
  * Brett auf der Stange, die Finger schlossen sich neben ihr um Luft.
  */
@@ -192,6 +193,28 @@ export const POLE_HAND_POSE: HandPose = {
   yaw: 0,
   roll: -90,
   curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+};
+
+/**
+ * **Die Faust am Pinsel** — rechte Hand, links gespiegelt.
+ *
+ * Derselbe Stab wie beim Hammer, aber **von oben** gehalten, wie ein Maler
+ * seinen Pinsel hält (`BrushTool.ts`, `BRUSH_GRIP`): der Handrücken zeigt
+ * nach oben, die Finger greifen von oben um den Stiel, der Daumen liegt zur
+ * Spitze hin. Der Zeigefinger ist etwas weniger gekrümmt als die anderen — er
+ * liegt am Stiel, statt sich ganz darum zu schließen. Mit der Hammerfaust sah
+ * der Pinsel aus wie ein Hammer: Handfläche nach innen, Stiel quer in der
+ * Faust.
+ */
+export const BRUSH_HAND_POSE: HandPose = {
+  ...HOLD_HAND_POSE,
+  x: -3,
+  y: 1.1,
+  z: 0.7,
+  pitch: -30,
+  yaw: -90,
+  roll: 0,
+  curls: [0.55, 0.6, 0.85, 0.9, 0.9],
 };
 
 /**
@@ -303,7 +326,7 @@ export const DRONE_HAND_POSE: HandPose = {
 export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
   hammer: POLE_HAND_POSE,
   flashlight: POLE_HAND_POSE,
-  brush: POLE_HAND_POSE,
+  brush: BRUSH_HAND_POSE,
   knife: POLE_HAND_POSE,
   drone: DRONE_HAND_POSE,
   stopwatch: STOPWATCH_HAND_POSE,

@@ -18,8 +18,9 @@
  * hält fest, dass die Zahlen in `handPose.ts` genau das sind — und dass die
  * gezeichnete Hand am wirklich gebauten Werkzeug landet. Für den Standardgriff,
  * und mit derselben Rechnung für alles mit eigenem Zylinder: den Stab (Hammer,
- * Taschenlampe, Pinsel, Messer), die Griffe der Drohne, den Rand der Stoppuhr
- * und den Saum des Beutels — und für das, was auf der Hand sitzt statt in ihr.
+ * Taschenlampe, Messer), denselben Stab von oben am Pinsel, die Griffe der
+ * Drohne, den Rand der Stoppuhr und den Saum des Beutels — und für das, was
+ * auf der Hand sitzt statt in ihr.
  *
  * three.js, aber kein WebGL: das hier liest Zahlen aus einem Szenengraphen.
  */
@@ -27,6 +28,7 @@ import * as THREE from 'three';
 import { GhostHand } from './HandVisuals';
 import {
   BAG_HAND_POSE,
+  BRUSH_HAND_POSE,
   CONTROLLER_HAND_POSE,
   DRONE_HAND_POSE,
   GRIP_HAND_POSE,
@@ -53,7 +55,7 @@ import { PistolTool } from '../worlds/portal/tools/PistolTool';
 import { WelderTool } from '../worlds/portal/tools/WelderTool';
 import { HammerTool } from '../worlds/portal/tools/HammerTool';
 import { FlashlightTool } from '../worlds/portal/tools/FlashlightTool';
-import { BrushTool } from '../worlds/portal/tools/BrushTool';
+import { BRUSH_GRIP, BrushTool } from '../worlds/portal/tools/BrushTool';
 import { KnifeTool } from '../worlds/portal/tools/KnifeTool';
 import { DRONE_GRIP, DroneTool } from '../worlds/portal/tools/DroneTool';
 import {
@@ -431,11 +433,10 @@ describe('die Faust am Stab', () => {
   it.each([
     ['Hammer', () => new HammerTool()],
     ['Taschenlampe', () => new FlashlightTool()],
-    ['Pinsel', () => new BrushTool()],
     ['Messer', () => new KnifeTool()],
-  ])('ist für alle vier dieselbe, und sie liegt um den Stab: %s', (_name, build) => {
-    // Vier Werkzeuge, ein Stab, eine Faust: sie tragen dieselbe `holdPosition`
-    // und dieselbe Haltung — sonst hielte eine Faust vier verschiedene Stäbe.
+  ])('ist für alle drei dieselbe, und sie liegt um den Stab: %s', (_name, build) => {
+    // Drei Werkzeuge, ein Stab, eine Faust: sie tragen dieselbe `holdPosition`
+    // und dieselbe Haltung — sonst hielte eine Faust drei verschiedene Stäbe.
     const tool = build();
     expect(defaultHoldPose('right', tool.toolId)).toEqual(POLE_HAND_POSE);
     expect(tool.alignToAim).toBe(true);
@@ -460,6 +461,44 @@ describe('die Faust am Stab', () => {
       expect(thumbSide.dot(pole.axis)).toBeLessThan(-0.99);
     }
   });
+});
+
+describe('die Faust am Pinsel', () => {
+  it('steht in `handPose.ts` als das, was `fistOnGrip` um den Stiel von oben ausrechnet', () => {
+    const want = fistOnGrip(
+      { centre: fistCentre(BRUSH_HAND_POSE) },
+      ownGrip(new BrushTool(), BRUSH_GRIP),
+    );
+    expectPoseIs(BRUSH_HAND_POSE, want);
+    // Der Zeigefinger liegt am Stiel, statt sich ganz darum zu schließen.
+    expect(BRUSH_HAND_POSE.curls[1]).toBeLessThan(BRUSH_HAND_POSE.curls[2]!);
+  });
+
+  it.each(['right', 'left'] as const)(
+    'liegt von oben um den Stiel, Handrücken oben, Daumen zur Spitze: %s',
+    (side) => {
+      // Derselbe Stab wie beim Hammer — dieselbe `holdPosition`, derselbe
+      // Zeigestrahl —, nur die Hand liegt anders darum.
+      const tool = hold(new BrushTool(), side);
+      expect(tool.alignToAim).toBe(true);
+      expect(tool.holdPosition).toEqual(new HammerTool().holdPosition);
+      const pose = defaultHoldPose(side, 'brush');
+      const fist = fistOf(pose, fistCentre(BRUSH_HAND_POSE));
+      const pole = poleOf(tool);
+      expectFistOn(fist, pole);
+      const rotation = rotationOf(pose);
+      const toolRotation = tool.getWorldQuaternion(new THREE.Quaternion());
+      // Der Handrücken zeigt nach oben (+y des Werkzeugs): die Hand greift
+      // von oben über den Stiel, wie ein Maler.
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(toolRotation);
+      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(rotation);
+      expect(back.dot(up)).toBeGreaterThan(0.99);
+      // Und die Daumenseite zeigt zur Spitze (-z).
+      const mirror = side === 'left' ? -1 : 1;
+      const thumbSide = new THREE.Vector3(-mirror, 0, 0).applyQuaternion(rotation);
+      expect(thumbSide.dot(pole.axis)).toBeLessThan(-0.99);
+    },
+  );
 });
 
 /** Die seitliche Kante der Uhr: die y-Achse des gehaltenen Werkzeugs durch seinen Ursprung. */

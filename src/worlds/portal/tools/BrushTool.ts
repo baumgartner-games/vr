@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { POLE_HOLD_POSITION } from './poleGrip';
+import { gripFrame } from './gripFit';
+import type { HoldPose } from './toolPose';
 import { playPick } from '../../../core/Audio';
 import { DEFAULT_MATERIAL, MATERIALS, type SurfaceMaterial } from './materials';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
@@ -27,6 +29,21 @@ const PANEL_H = (PANEL_W / CANVAS_W) * CANVAS_H;
 
 /** How far the brush may reach to paint something it is not touching. */
 const PAINT_RANGE = 4;
+
+/**
+ * Der Stiel **als Griff**, im Rahmen jedes Griffs (`gripFit.ts`: Achse auf +Y,
+ * Vorne auf -Z): ein Stab auf der z-Achse durch den Griffpunkt wie beim Hammer
+ * (`POLE_GRIP`) — aber **von oben** gehalten, wie ein Maler seinen Pinsel
+ * hält: der Handrücken zeigt nach oben (+y), die Finger greifen von oben um
+ * den Stiel, und die Daumenseite zeigt zur Spitze (-z). Der Hammer liegt
+ * dagegen mit der Handfläche nach innen in der Faust; ein Pinsel, den man so
+ * hält, sieht nach einem Hammer aus. Daraus rechnet `core/gripFist.test.ts`
+ * die Faust (`BRUSH_HAND_POSE`).
+ */
+export const BRUSH_GRIP: HoldPose = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: gripFrame({ x: 0, y: 0, z: -1 }, { x: 0, y: 1, z: 0 }),
+};
 
 /** Der Stiel — der Griff — von hinten nach vorn auf der z-Achse, und sein Halbmesser. */
 const HANDLE_BACK = 0.06;
@@ -104,8 +121,9 @@ export class BrushTool extends Tool {
       metalness: 0.7,
     });
 
-    // Der Stiel **ist** der Griff: ein Stab in der Faust, wie der Stiel des
-    // Hammers (`POLE_GRIP`, `POLE_HAND_POSE`), in Greiffarbe statt Holz — die
+    // Der Stiel **ist** der Griff: ein Stab in der Faust wie der Stiel des
+    // Hammers, nur von oben gehalten (`BRUSH_GRIP`, `BRUSH_HAND_POSE`), in
+    // Greiffarbe statt Holz — die
     // Farbe sagt „hier anfassen", und an einem Pinsel fasst man den Stiel an.
     // Eine Weile hing ein Standardgriff darunter, und der Pinsel lag wie eine
     // Pistole obenauf. Kein sichtbarer Griff mehr, und trotzdem zeigt er
