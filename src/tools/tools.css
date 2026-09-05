@@ -210,6 +210,19 @@ html, body {
 
 .grid[hidden] { display: none; }
 
+/* Der Wegweiser über dem Werkzeugregal. Klein und ruhig: er steht dauerhaft
+   da, also darf er nicht lauter sein als die Kacheln darunter. */
+.lede {
+  margin: 0;
+  padding: 14px 14px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.lede[hidden] { display: none; }
+.lede b { color: var(--fg); font-weight: 600; }
+
 .tile {
   display: flex;
   flex-direction: column;
@@ -320,11 +333,45 @@ html, body {
 
 /* ---------- Haltung bearbeiten ---------- */
 
-/* Der Knopf im Kopf leuchtet, solange der Modus läuft — sonst weiß man nach
-   zwei Minuten nicht mehr, warum die Seite anders aussieht. */
-.top__icon[aria-pressed="true"] {
+/* Der Knopf, der den Modus aufmacht — mit Wort, nicht nur mit Stift. Ein
+   nackter Umriss in der Ecke sieht aus wie Zierrat und wurde auch als solcher
+   übersehen; ein Knopf, auf dem „Bearbeiten" steht, findet man beim ersten
+   Hinsehen. Und er leuchtet, solange der Modus läuft — sonst weiß man nach zwei
+   Minuten nicht mehr, warum die Seite anders aussieht. */
+.top__edit {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  background: rgba(5, 8, 16, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.top__edit[hidden] { display: none; }
+.top__edit:hover { border-color: rgba(140, 170, 230, 0.45); }
+
+.top__edit svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.top__edit[aria-pressed="true"] {
   color: #04121f;
   background: linear-gradient(120deg, #7cc4ff, var(--accent));
+  border-color: transparent;
 }
 
 /* Die Achsen: sechs gleich breite Knöpfe, direkt unter dem Kopf. Sechs, weil

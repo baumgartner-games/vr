@@ -30,8 +30,14 @@
         <button type="button" data-hand="grip">In der Hand</button>
         <button type="button" data-hand="tool">Am Werkzeug</button>
       </div>
-      <button id="edit" class="top__icon top__edit" type="button" aria-label="Haltung bearbeiten" aria-pressed="false" hidden>
+      <!--
+        Mit Wort und nicht nur mit Stift: ein 38 Pixel großer Umriss in der Ecke
+        ist auf einem Telefon zwischen Titel und Umschalter schlicht nicht zu
+        finden — genau das war er auch nicht.
+      -->
+      <button id="edit" class="top__edit" type="button" aria-pressed="false" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
+        <span id="edit-label">Bearbeiten</span>
       </button>
     </header>
 
@@ -45,6 +51,12 @@
     </nav>
 
     <main class="main">
+      <!--
+        Ein Satz über dem Regal, und zwar nur über diesem: der Weg in den
+        Justierer führt durch ein einzelnes Werkzeug, und wer das nicht weiß,
+        sucht den Knopf auf der Liste, wo es ihn nicht geben kann.
+      -->
+      <p id="lede" class="lede">Ein Werkzeug antippen: dort dreht man es, legt die Boxhand daran — und stellt mit <b>Bearbeiten</b> oben die Haltung ein.</p>
       <ul id="grid-tools" class="grid" aria-label="Alle Werkzeuge"></ul>
       <ul id="grid-worlds" class="grid" aria-label="Alle Welten" hidden></ul>
       <ul id="grid-bag" class="grid" aria-label="Der magische Beutel" hidden></ul>

@@ -1999,9 +1999,15 @@ an eine Linie, die absichtlich über den Rand hinausgeht.
 
 #### Bearbeiten auf der Werkzeugseite
 
-Der **Stift oben in der Ecke** macht aus der Ansicht einen Justierstand — und
-zwar denselben, den der Eingaberaum aufstellt, nur mit einem Daumen statt mit
-zwei Händen. Oben unter dem Kopf stehen dann **sechs Achsen**, unten am Rand
+Der Knopf **Bearbeiten** oben in der Ecke macht aus der Ansicht einen
+Justierstand — und zwar denselben, den der Eingaberaum aufstellt, nur mit einem
+Daumen statt mit zwei Händen. Er trägt sein Wort und nicht nur einen Stift, und
+das ist kein Geschmack: als nackter 38-Pixel-Umriss zwischen Titel und
+Umschalter war er auf dem Telefon schlicht nicht zu finden, und genau so wurde
+er auch gemeldet. Läuft der Modus, heißt derselbe Knopf **Fertig** und leuchtet.
+Über dem Werkzeugregal steht dazu **eine Zeile**, die den Weg sagt — den Knopf
+gibt es nur an einem einzelnen Werkzeug, und wer das nicht weiß, sucht ihn auf
+der Liste, wo es ihn nicht geben kann. Oben unter dem Kopf stehen dann **sechs Achsen**, unten am Rand
 ein **Regler**, und dazwischen bleibt das Bild: man zieht und sieht im selben
 Moment, was daraus wird. Immer nur **eine** Achse zugleich — sechs Regler
 untereinander sind auf einem Telefon kein Werkzeug, sondern ein Formular.

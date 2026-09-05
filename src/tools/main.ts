@@ -88,6 +88,7 @@ const hint = document.querySelector<HTMLElement>('#hint')!;
 const note = document.querySelector<HTMLElement>('#note')!;
 const enter = document.querySelector<HTMLAnchorElement>('#enter')!;
 const edit = document.querySelector<HTMLButtonElement>('#edit')!;
+const editLabel = document.querySelector<HTMLElement>('#edit-label')!;
 const axesBar = document.querySelector<HTMLElement>('#axes')!;
 const editor = document.querySelector<HTMLElement>('#editor')!;
 const targets = document.querySelector<HTMLElement>('#targets')!;
@@ -97,6 +98,7 @@ const reading = document.querySelector<HTMLElement>('#reading')!;
 const values = document.querySelector<HTMLElement>('#values')!;
 const codeTool = document.querySelector<HTMLButtonElement>('#code-tool')!;
 const codeAll = document.querySelector<HTMLButtonElement>('#code-all')!;
+const lede = document.querySelector<HTMLElement>('#lede')!;
 const help = document.querySelector<HTMLElement>('#help')!;
 
 /** Die Zeile unter der Bühne — sie sagt, was die Finger dort tun. */
@@ -501,6 +503,9 @@ codeAll.addEventListener('click', () => copy(codeAll, gearCode(), 'Alles'));
 function setEditing(on: boolean): void {
   editing = on && viewer.toolId !== null;
   edit.setAttribute('aria-pressed', String(editing));
+  // „Fertig" statt „Bearbeiten", sobald der Modus läuft: derselbe Knopf, und
+  // man sieht ihm an, was ein Tippen jetzt täte.
+  editLabel.textContent = editing ? 'Fertig' : 'Bearbeiten';
   axesBar.hidden = !editing;
   editor.hidden = !editing;
   // Der Hinweistext weicht: auf einem Telefon ist der Platz unter der Bühne
@@ -674,6 +679,7 @@ function route(): void {
 
   markSection(entry.section);
   for (const grid of Object.values(grids)) grid.hidden = true;
+  lede.hidden = true;
   detail.hidden = false;
   hands.hidden = entry.section !== 'tools';
   back.hidden = false;
@@ -705,6 +711,8 @@ function showOverview(section: Section): void {
   viewer.show(null);
   detail.hidden = true;
   for (const [key, grid] of Object.entries(grids)) grid.hidden = key !== section;
+  // Der Wegweiser gehört zum Werkzeugregal und nur zu ihm.
+  lede.hidden = section !== 'tools';
   hands.hidden = true;
   back.hidden = true;
   nav.hidden = false;

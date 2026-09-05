@@ -67,8 +67,8 @@ Neben dem Spiel steht **[`/tools.html`](https://baumgartner-games.github.io/vr/t
 alle Werkzeuge als Liste, jedes einzeln in 3D zum Drehen, und die Boxhand dazu
 ein- und ausschaltbar — wahlweise *in der Hand* (so liegt das Werkzeug darin)
 oder *am Werkzeug* (so umfasst die Hand es), mit einer Linie daran, wohin der
-Zeigefinger zeigt. Der **Stift oben in der Ecke** macht daraus einen
-Justierstand fürs Telefon: oben die Achse (X, Y, Z, Yaw, Pitch, Roll — immer
+Zeigefinger zeigt. Der Knopf **Bearbeiten** oben in der Ecke (an einem
+einzelnen Werkzeug) macht daraus einen Justierstand fürs Telefon: oben die Achse (X, Y, Z, Yaw, Pitch, Roll — immer
 nur eine), unten der Regler, und ein Umschalter dafür, ob das *Werkzeug in der
 Hand* wandert oder die *Hand am Griff*. Alles landet in denselben Speichern wie
 in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
