@@ -2014,21 +2014,41 @@ untereinander sind auf einem Telefon kein Werkzeug, sondern ein Formular.
 Neben dem Regler stehen zwei Rasten-Knöpfe, denn ein Zehntel Zentimeter ist auf
 360 Bildpunkten Reglerweg nicht zu treffen.
 
-Der zweite Umschalter, unten links, ist der eigentliche Punkt: **wohin** die
-Änderung geht. „Die Hand liegt falsch am Werkzeug" hat dieselben zwei
-Antworten wie die beiden Justierstände in der Brille —
+Bewegt wird dabei **immer die Hand**, nie das Werkzeug. Das Werkzeug ist das,
+was man ansieht: es steht aufrecht in seinem eigenen Raum und bleibt dort
+stehen, und die Hand legt man daran, wie man eine echte Hand an ein echtes Ding
+legt. Die sechs Zahlen am Regler sind deshalb die Lage der **Hand im Raum des
+Werkzeugs** — genau die Größe, die der zweite Justierstand misst und die der
+Betrachter ohnehin zeichnet (`ghostOnTool` in `tune/handGrip.ts`). Deswegen
+weicht der Ansichts-Umschalter im Kopf, solange justiert wird: es gilt die
+Ansicht *Am Werkzeug*, und danach kommt die zurück, die vorher galt. Im
+Griffraum wanderte sonst für das eine Ziel das Werkzeug unter der stehenden
+Hand weg — genau der falsche Film, und genau der, der als „ich will das
+Werkzeug nicht bewegen" zurückkam.
 
-- **In der Hand** — das *Werkzeug* wandert im Griff, die Hand steht still. Das
-  landet in `poseStore` (`bgvr.holdPoses`), also in `holdPosition` und
-  `holdRotation`.
-- **Am Griff** — die *Hand* wandert am Werkzeug, das Werkzeug steht still. Das
-  landet in `handPoseStore` (`bgvr.handPoses`) als Griffhaltung dieses
-  Werkzeugs, und zwar nur in ihren sechs Zahlen: Finger und Spreizung sind
-  keine Frage von „wo liegt die Hand" und bleiben stehen.
+Der zweite Umschalter, unten links, sagt deshalb nicht mehr, *was* sich bewegt,
+sondern **wohin die eingestellte Handlage übernommen wird**. Dieselbe Lage kann
+auf zwei Arten wahr werden, und es sind die Antworten der beiden Justierstände:
 
-Die Ansicht geht mit dem Ziel mit, weil man das eine nur im anderen sieht: wer
-das Werkzeug im Griff verschiebt, braucht eine stehende Hand. Der Umschalter im
-Kopf bleibt trotzdem bedienbar, wer anders schauen will, schaut anders.
+- **In der Hand** — übernommen als **Lage des Werkzeugs im Griff**
+  (`poseStore`, `bgvr.holdPoses`, also `holdPosition`/`holdRotation`). Die
+  Handhaltung bleibt; was sich ändert, ist, wie das Ding in der Faust liegt und
+  wohin es damit zeigt. Gerechnet als `Lage-im-Griff = Haltung ·
+  Hand-am-Werkzeug⁻¹`.
+- **Am Griff** — übernommen als **Griffhaltung der Hand** (`handPoseStore`,
+  `bgvr.handPoses`), und zwar nur in ihren sechs Zahlen: Finger und Spreizung
+  sind keine Frage von „wo liegt die Hand" und bleiben stehen. Gerechnet als
+  `Haltung = Lage-im-Griff · Hand-am-Werkzeug` (`handFromGhost`).
+
+Auf dem Schirm sehen beide gleich aus — dieselbe Hand wandert an dasselbe
+stehende Werkzeug. Der Unterschied liegt in der Brille, und deshalb steht er
+als Satz unter dem Regler und nicht nur als Knopfbeschriftung.
+
+Die eingestellte Lage wird dabei **gehalten** und nicht bei jedem Regler-Tick
+neu aus dem Speicher gerechnet: der Weg dorthin geht über zwei Verkettungen und
+eine Rundung auf Zehntel und ganze Grad, und ein Regler feuert beim Ziehen
+hundert Mal. Ohne diesen Entwurf wanderten die fünf Achsen, an denen gerade
+niemand zieht, um je eine halbe Rundung mit.
 
 Gespeichert wird **sofort** und nicht auf einen Knopf: es ist derselbe
 Speicher, den die Brille liest, und ein „Übernehmen", das man vergisst, ist

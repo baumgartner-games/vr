@@ -9,13 +9,24 @@
  * (`core/handPose.ts`) sind dieselben sechs Zahlen. Ein Regler, der auf beide
  * passt, muss deshalb nichts umrechnen.
  *
- * Und **zwei Ziele**, denn „die Hand liegt falsch am Werkzeug" hat zwei
- * Antworten, dieselben zwei wie die beiden Justierstände im Eingaberaum:
+ * Bewegt wird dabei immer **die Hand**, nie das Werkzeug. Das Werkzeug ist das,
+ * was man ansieht: es steht aufrecht in seinem eigenen Raum und bleibt dort
+ * stehen, und die Hand legt man daran, wie man eine echte Hand an ein echtes
+ * Ding legt. Die sechs Zahlen sind deshalb die Lage der **Hand im Raum des
+ * Werkzeugs** — dieselbe Größe, die der zweite Justierstand im Eingaberaum
+ * misst (`tune/handGrip.ts`, `ghostOnTool`).
  *
- * - `hold` — *In der Hand*: das **Werkzeug** wandert im Griff, die Hand steht.
- *   Landet in `poseStore` und ist das, was `holdPosition`/`holdRotation` sagen.
- * - `grip` — *Am Griff*: die **Hand** wandert am Werkzeug, das Werkzeug steht.
- *   Landet in `handPoseStore` als Griffhaltung dieses Werkzeugs.
+ * Und **zwei Ziele**, denn dieselbe Handlage kann auf zwei Arten wahr werden —
+ * es sind die Antworten der beiden Justierstände, und beide sehen auf dem
+ * Schirm gleich aus:
+ *
+ * - `hold` — *In der Hand*: gespeichert wird die **Lage des Werkzeugs im
+ *   Griff** (`poseStore`, also `holdPosition`/`holdRotation`). Die Haltung der
+ *   Hand bleibt, wie sie ist — was sich ändert, ist, wie das Ding in der Faust
+ *   liegt und wohin es damit zeigt.
+ * - `grip` — *Am Griff*: gespeichert wird die **Griffhaltung der Hand**
+ *   (`handPoseStore`). Die Lage des Werkzeugs im Griff bleibt — was sich
+ *   ändert, ist, wie die Faust den Griff umfasst.
  *
  * Beide Wege enden in denselben Speichern wie die Brille, also auch im
  * Konfig-Code — die Seite ist eine zweite Bedienung derselben Einstellung und
@@ -71,25 +82,26 @@ export const EDIT_AXES: readonly AxisSpec[] = [
   { key: 'roll', label: 'Roll', hint: 'kippen', unit: '°', min: -180, max: 180, step: 1 },
 ];
 
-/** Die beiden Ziele, mit der Ansicht, in der man sie überhaupt sieht. */
+/**
+ * Die beiden Ziele — wohin die eingestellte Handlage übernommen wird.
+ *
+ * Auf dem Schirm tun beide dasselbe: die Hand wandert, das Werkzeug steht. Der
+ * Unterschied liegt in der Brille, und deshalb steht er hier als Satz.
+ */
 export const EDIT_TARGETS: readonly {
   key: EditTarget;
   label: string;
   hint: string;
-  /** Die Boxhand-Ansicht, in der diese Größe aufrecht steht. */
-  view: 'grip' | 'tool';
 }[] = [
   {
     key: 'hold',
     label: 'In der Hand',
-    hint: 'das Werkzeug wandert im Griff, die Hand steht still',
-    view: 'grip',
+    hint: 'übernommen als Lage des Werkzeugs im Griff — die Handhaltung bleibt',
   },
   {
     key: 'grip',
     label: 'Am Griff',
-    hint: 'die Hand wandert am Werkzeug, das Werkzeug steht still',
-    view: 'tool',
+    hint: 'übernommen als Griffhaltung der Hand — die Lage im Griff bleibt',
   },
 ];
 

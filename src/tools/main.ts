@@ -14,7 +14,15 @@ import {
   saveIdleHandPose,
 } from '../core/handPoseStore';
 import { clearPose, savePose } from '../worlds/portal/tools/poseStore';
-import { poseFromReadout } from '../worlds/portal/tools/toolPose';
+import { poseFromReadout, readPose } from '../worlds/portal/tools/toolPose';
+import {
+  composePose,
+  ghostOnTool,
+  handFromGhost,
+  invertPose,
+  poseOfHand,
+  type Pose,
+} from '../worlds/tune/handGrip';
 import { gearCode, toolGearCode } from '../worlds/portal/tools/gearConfig';
 import {
   EDIT_AXES,
@@ -60,13 +68,18 @@ import type { WorldDefinition } from '../core/types';
  * ist ein Link: `#hammer` wie eh und je, `#welt/alps` und `#objekt/cube` für
  * die beiden anderen Regale, `#welten` und `#beutel` für ihre Übersichten.
  *
- * **Und sie schaut nicht nur.** Der Stift oben rechts macht aus der Ansicht
- * einen Justierstand: eine Achse oben, ein Regler unten, dazwischen das Bild.
- * Was dabei entsteht, landet in denselben Speichern wie in der Brille
- * (`poseStore`, `handPoseStore`) und damit auch im **Konfig-Code**, der unter
- * dem Regler steht — die Seite ist eine zweite Bedienung derselben Einstellung
- * und kein eigener kleiner Zustand daneben. Die Rechnung dazu steht in
- * `poseEdit.ts` (mit Test).
+ * **Und sie schaut nicht nur.** Der Knopf *Bearbeiten* oben rechts macht aus
+ * der Ansicht einen Justierstand: eine Achse oben, ein Regler unten,
+ * dazwischen das Bild. Bewegt wird dabei immer **die Hand** — das Werkzeug
+ * steht aufrecht in seinem eigenen Raum und bleibt dort stehen, denn man legt
+ * eine Hand an ein Ding und nicht ein Ding an eine Hand. Die sechs Zahlen sind
+ * deshalb die Lage der Hand *im Raum des Werkzeugs* (`ghostOnTool`), und der
+ * Umschalter darunter sagt nur, wohin sie übernommen wird: in die Lage des
+ * Werkzeugs im Griff oder in die Griffhaltung der Hand. Beides landet in
+ * denselben Speichern wie in der Brille (`poseStore`, `handPoseStore`) und
+ * damit auch im **Konfig-Code**, der unter dem Regler steht — die Seite ist
+ * eine zweite Bedienung derselben Einstellung und kein eigener kleiner Zustand
+ * daneben. Die Achsen dazu stehen in `poseEdit.ts` (mit Test).
  */
 
 type Section = 'tools' | 'worlds' | 'bag';
@@ -433,6 +446,10 @@ function showMode(): void {
 let editing = false;
 let axis: EditAxis = 'x';
 let target: EditTarget = 'hold';
+/** Die Ansicht, die vor dem Justieren galt — danach gilt wieder sie. */
+let wasMode: HandMode | null = null;
+/** Die Lage der Hand am Werkzeug, wie sie gerade eingestellt wird. */
+let draft: PoseReadout | null = null;
 
 for (const spec of EDIT_AXES) {
   const button = document.createElement('button');
@@ -452,11 +469,6 @@ for (const button of targets.querySelectorAll<HTMLButtonElement>('button')) {
     const key = button.dataset['target'] ?? '';
     if (!isEditTarget(key)) return;
     target = key;
-    // Die Ansicht geht mit: „In der Hand" verschiebt das Werkzeug im Griff, und
-    // das sieht man nur, wenn die Hand stillsteht. Umgekehrt genauso. Wer doch
-    // anders schauen will, hat den Umschalter oben.
-    const view = EDIT_TARGETS.find((entry) => entry.key === key)?.view;
-    if (view && mode !== view) setMode(view);
     showEditor();
   });
 }
@@ -479,6 +491,7 @@ for (const button of editor.querySelectorAll<HTMLButtonElement>('[data-nudge]'))
 revert.addEventListener('click', () => {
   const id = viewer.toolId;
   if (!id) return;
+  forgetDraft();
   // Das ganze Ziel und nicht nur die eine Achse: wer zurücksetzt, will die
   // gebaute Haltung wiederhaben, und die besteht aus sechs Zahlen.
   if (target !== 'hold') {
@@ -491,6 +504,7 @@ revert.addEventListener('click', () => {
     clearPose(id);
     viewer.setHoldPose(null);
   }
+  forgetDraft();
   showEditor();
 });
 
@@ -514,8 +528,20 @@ function setEditing(on: boolean): void {
   // Eine Haltung, die sich beim Justieren von selbst weiterdreht, justiert
   // niemand.
   if (editing) viewer.setSpinning(false);
-  if (editing && mode === 'off') {
-    setMode(EDIT_TARGETS.find((entry) => entry.key === target)?.view ?? 'grip');
+  // Beim Justieren gilt **eine** Ansicht: das Werkzeug steht aufrecht in seinem
+  // eigenen Raum, und die Hand ist das, was sich bewegt. Man legt eine Hand an
+  // ein Ding und nicht ein Ding an eine Hand — und im Griffraum wanderte für
+  // das Ziel „In der Hand" das Werkzeug unter der stehenden Hand weg, was genau
+  // der falsche Film ist. Deshalb weicht der Umschalter oben so lange und
+  // kommt danach mit der Ansicht zurück, die vorher galt.
+  hands.hidden = editing || viewer.toolId === null;
+  if (editing && mode !== 'tool') {
+    wasMode ??= mode;
+    setMode('tool');
+  } else if (!editing && wasMode) {
+    const previous = wasMode;
+    wasMode = null;
+    setMode(previous);
   }
   showEditor();
 }
@@ -534,14 +560,52 @@ function sixOf(pose: HandPose): PoseReadout {
   return { x: pose.x, y: pose.y, z: pose.z, pitch: pose.pitch, yaw: pose.yaw, roll: pose.roll };
 }
 
-/** Die sechs Zahlen, an denen der Regler gerade zieht. */
-function currentPose(): PoseReadout {
+const ZERO: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
+
+/**
+ * Die Lage des **Werkzeugs im Griff**, als Pose — die eine Hälfte der Kette.
+ *
+ * Ohne Zielkorrektur, wie überall auf dieser Seite: die kommt aus einem
+ * Controller, und im Browser gibt es keinen.
+ */
+function toolInGripNow(): Pose {
+  return poseFromReadout(viewer.holdReadout() ?? ZERO);
+}
+
+/** Und die andere: die Haltung der Hand im Griff, als Pose. */
+function handInGripNow(): Pose {
   const id = viewer.toolId;
-  const zero: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
-  if (!id) return zero;
-  if (target === 'grip') return sixOf(holdHandPose(viewer.handSide, id));
-  if (id === HAND_TOOL) return sixOf(idleHandPose(viewer.handSide));
-  return viewer.holdReadout() ?? zero;
+  return poseOfHand(id ? holdHandPose(viewer.handSide, id) : idleHandPose(viewer.handSide));
+}
+
+/**
+ * Die sechs Zahlen, an denen der Regler gerade zieht: **wo die Hand am
+ * Werkzeug liegt**, im Raum des Werkzeugs.
+ *
+ * Und zwar für *beide* Ziele dieselben. Das ist der Punkt: bewegt wird die
+ * Hand, das Werkzeug steht. Wohin das Ergebnis geschrieben wird — in die Lage
+ * des Werkzeugs im Griff oder in die Haltung der Hand —, entscheidet erst
+ * `writeAxis`, und auf dem Schirm sieht man dabei zweimal dasselbe.
+ *
+ * Es ist genau die Größe, die der zweite Justierstand misst und die auch der
+ * Betrachter zeichnet (`ghostOnTool`) — deshalb ist der Regler das, was man
+ * sieht, und nicht eine Zahl daneben.
+ */
+function currentPose(): PoseReadout {
+  if (!viewer.toolId) return ZERO;
+  // Gehalten, nicht jedes Mal neu aus dem Speicher gerechnet. Der Weg dorthin
+  // geht über zwei Verkettungen und eine Rundung auf Zehntel und ganze Grad —
+  // einmal ist das nichts, aber ein Regler feuert beim Ziehen hundert Mal, und
+  // dann wanderten die fünf Achsen, an denen gerade *niemand* zieht, um je eine
+  // halbe Rundung mit. Ein Entwurf, der nur seine eigene Achse ändert, kann das
+  // nicht.
+  draft ??= readPose(ghostOnTool(toolInGripNow(), handInGripNow()));
+  return draft;
+}
+
+/** Der Entwurf gilt für ein Werkzeug; ein anderes fängt beim Speicher an. */
+function forgetDraft(): void {
+  draft = null;
 }
 
 /**
@@ -567,23 +631,36 @@ function showHandTool(refit = false): void {
 function writeAxis(value: number, syncSlider = true): void {
   const id = viewer.toolId;
   if (!id) return;
-  const next = withAxis(currentPose(), axis, clampAxis(axis, value));
+  // Die neue Lage der **Hand am Werkzeug** — das ist es, was der Regler sagt.
+  draft = withAxis(currentPose(), axis, clampAxis(axis, value));
+  const ghost = poseFromReadout(draft);
 
-  // Überall nur die sechs Zahlen: Finger und Spreizung gehören zur Haltung und
-  // werden von einem Regler für Ort und Winkel nicht angefasst.
   if (target === 'grip') {
-    saveHoldHandPose(viewer.handSide, id, { ...holdHandPose(viewer.handSide, id), ...next });
+    // Die Hand rückt, das Werkzeug bleibt im Griff, wo es ist:
+    //   Haltung = Lage-im-Griff · Hand-am-Werkzeug.
+    // Nur die sechs Zahlen — Finger und Spreizung gehören zur Haltung und
+    // werden von einem Regler für Ort und Winkel nicht angefasst.
+    const pose = handFromGhost(toolInGripNow(), ghost);
+    const base = holdHandPose(viewer.handSide, id);
+    saveHoldHandPose(viewer.handSide, id, { ...base, ...readPose(pose) });
     viewer.refresh();
-  } else if (id === HAND_TOOL) {
-    saveIdleHandPose(viewer.handSide, { ...idleHandPose(viewer.handSide), ...next });
-    viewer.setHoldPose(poseFromReadout(next));
   } else {
-    const pose = poseFromReadout(next);
-    // Die Seite misst immer an derselben Hand, also steht sie auch als
-    // Herkunft im Speicher — eine Zahl ohne Seite ist später nicht mehr zu
-    // deuten.
-    savePose(id, pose, viewer.handSide);
-    viewer.setHoldPose(pose);
+    // Dieselbe Handlage, andersherum aufgelöst: die Haltung der Hand bleibt,
+    // also muss das Werkzeug im Griff dorthin, wo die Hand von selbst daran
+    // liegt — Lage-im-Griff = Haltung · Hand-am-Werkzeug⁻¹. Auf dem Schirm
+    // wandert trotzdem die Hand: das Werkzeug steht in seinem eigenen Raum.
+    const local = composePose(handInGripNow(), invertPose(ghost));
+    if (id === HAND_TOOL) {
+      // Die Boxhand ist die Hand selbst; ihre Lage im Griff *ist* die
+      // Grundhaltung dieser Hand (siehe oben).
+      saveIdleHandPose(viewer.handSide, { ...idleHandPose(viewer.handSide), ...readPose(local) });
+    } else {
+      // Die Seite misst immer an derselben Hand, also steht sie auch als
+      // Herkunft im Speicher — eine Zahl ohne Seite ist später nicht mehr zu
+      // deuten.
+      savePose(id, local, viewer.handSide);
+    }
+    viewer.setHoldPose(local);
   }
   showEditor(syncSlider);
 }
@@ -611,7 +688,7 @@ function showEditor(syncSlider = true): void {
 
   const targetHint = EDIT_TARGETS.find((entry) => entry.key === target);
   reading.textContent = `${spec.label} ${formatAxis(axis, value)} · ${spec.hint}`;
-  values.textContent = `${formatAxes(pose)} — ${targetHint?.hint ?? ''}`;
+  values.textContent = `Hand am Werkzeug: ${formatAxes(pose)} — ${targetHint?.hint ?? ''}`;
 
   const id = viewer.toolId;
   showCode(codeTool, 'Werkzeug', id ? toolGearCode(id, viewer.handSide) : '');
@@ -697,6 +774,7 @@ function route(): void {
   showMode();
   viewer.setHandMode(mode);
   entry.show();
+  forgetDraft();
   showHandTool(true);
   viewer.start();
   // Bearbeiten gibt es nur für Werkzeuge: eine Welt und ein Beutel-Objekt

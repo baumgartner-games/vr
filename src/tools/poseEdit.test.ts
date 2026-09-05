@@ -36,8 +36,9 @@ describe('die sechs Achsen', () => {
     expect(isEditTarget('irgendwas')).toBe(false);
   });
 
-  it('gibt jedem Ziel die Ansicht, in der es aufrecht steht', () => {
-    expect(EDIT_TARGETS.map((entry) => entry.view)).toEqual(['grip', 'tool']);
+  it('führt beide Ziele, und keines heißt „das Werkzeug verschieben"', () => {
+    expect(EDIT_TARGETS.map((entry) => entry.key)).toEqual(['hold', 'grip']);
+    expect(EDIT_TARGETS.map((entry) => entry.label)).toEqual(['In der Hand', 'Am Griff']);
   });
 
   it('kennt für eine Achse, die es nicht gibt, trotzdem eine Antwort', () => {
