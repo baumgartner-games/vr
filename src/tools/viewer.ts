@@ -5,7 +5,8 @@ import { HELD_BUTTONS, buttonCurls, fingerMovesOf, type FingerButtons } from '..
 import { createTool } from '../worlds/portal/tools';
 import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
 import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
-import { GRIP_NAME, addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
+import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
+import { CONTROLLER_HANDLE } from '../core/controllerGrip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, invertPose, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import {
@@ -25,30 +26,35 @@ import type { Handedness } from '../core/XRInput';
 import type { WorldPreview } from '../core/types';
 
 /**
- * Was die Boxhand gerade zeigen soll.
+ * Was neben dem Werkzeug zu sehen ist — und das sind **zwei verschiedene
+ * Hände**, nicht zweimal dieselbe aus zwei Winkeln.
  *
- * Die drei Zustände sind nicht drei Ansichten desselben Bildes, sondern zwei
- * verschiedene **Bezugspunkte** — und genau darum geht es beim Ansehen:
+ * Lange waren die beiden Ansichten dasselbe Bild in zwei Rahmen: einmal stand
+ * die Hand still und das Werkzeug lag darin, einmal stand das Werkzeug still
+ * und die Hand lag daran. Wer sich den Pinsel ansah, sah zweimal genau
+ * dasselbe — „da ist kein Unterschied" war die richtige Beobachtung. Es gibt
+ * aber wirklich zwei Bilder, und sie zeigen zwei verschiedene Dinge:
  *
  * - `off` — nur das Werkzeug. Für die Form, ohne eine Hand davor.
- * - `grip` — der **Griffraum**: die Hand steht still, das Werkzeug liegt darin,
- *   dort, wohin `holdPosition` und `holdRotation` es legen. Das ist das Bild aus
- *   der Brille: „so halte ich das Ding".
- * - `tool` — der **Werkzeugraum**: das Werkzeug steht still, die Hand liegt
- *   daran. Das ist das Bild vom zweiten Justierstand: „so umfasst die Hand es".
+ * - `controller` — **wie die Hand in echt hält**: der rote Zylinder ist der
+ *   Handgriff des Quest-Controllers (`core/controllerGrip.ts`, aus dem Modell
+ *   des Herstellers abgelesen), und die Faust liegt darum. Kein Werkzeug —
+ *   ein Werkzeug hat man dabei ja gar nicht in der Hand, man hat einen
+ *   Controller. Dieses Bild ist deshalb für jedes Werkzeug dasselbe, und das
+ *   ist keine Schwäche, sondern die Auskunft: **echt hält man den Pinsel wie
+ *   die Waffe.**
+ * - `vr` — **wie es in der Brille aussieht**: das Werkzeug steht aufrecht in
+ *   seinem eigenen Raum, und die gezeichnete Hand liegt so daran, wie die
+ *   Haltung dieses Werkzeugs es sagt. Hier soll der Pinsel wie ein Stift
+ *   gehalten aussehen und die Pistole wie eine Pistole — hier ist der
+ *   Unterschied zu Hause, den es in echt nicht gibt.
  *
- * Zwischen beiden liegt dieselbe Messung — was sich unterscheidet, ist, welches
- * von beiden aufrecht steht. Am Werkzeug sieht man, ob der Halterzylinder in
- * der Faust sitzt; in der Hand sieht man, wohin das Ding dabei zeigt.
- *
- * Und deshalb zeigen die beiden **verschieden viel**: der Halterzylinder steht
- * nur *am Werkzeug*. Er ist das Gerüst, an dem eingemessen wird — der
- * Handgriff des Controllers, um den die Faust liegt —, und in der Ansicht *In
- * der Hand* geht es um das fertige Bild: dass der Pinsel wie ein Stift in der
- * Hand liegt und nicht wie ein Hammer. Ein türkiser Zylinder quer dadurch
- * beantwortet dort eine Frage, die niemand gestellt hat.
+ * Der grüne **Halterzylinder** gehört zum Werkzeug und bleibt, wo er ist: er
+ * ist das, was alle Waffen einander ähnlich macht. Der rote Zylinder daneben
+ * ist etwas anderes — nicht Teil eines Werkzeugs, sondern das Gerät in der
+ * echten Hand.
  */
-export type HandMode = 'off' | 'grip' | 'tool';
+export type HandMode = 'off' | 'controller' | 'vr';
 
 /** Was ein Ding auf der Bühne noch braucht, wenn es kein Werkzeug ist. */
 export interface ShowOptions {
@@ -217,6 +223,20 @@ const LINE_BEYOND = 1.15;
 const AIM_LINE_COLOR = 0xb388ff;
 const AIM_LINE_MIN = 0.16;
 
+/**
+ * **Der rote Zylinder**: der Handgriff des Controllers in der Ansicht
+ * *Am Controller*.
+ *
+ * Rot, weil grün schon vergeben ist — grün heißt „hier fasst die Hand das
+ * **Werkzeug** an", und genau das tut sie hier nicht: sie fasst das Gerät an,
+ * und das Werkzeug ist gar nicht da. Zwei türkise Zylinder nebeneinander wären
+ * zwei Griffe eines Dings; ein roter neben keinem grünen ist ein anderes Ding.
+ *
+ * Die Maße sind die gemessenen (`CONTROLLER_HANDLE`): eine flache Ellipse
+ * entlang der Z-Achse des Griffraums, vom Kopf des Geräts nach hinten.
+ */
+const HANDLE_COLOR = 0xe0554a;
+
 const _box = new THREE.Box3();
 const _bounds = new THREE.Box3();
 const _centre = new THREE.Vector3();
@@ -280,21 +300,14 @@ export class ToolViewer {
   private handLine: THREE.Line | null = null;
   /** Und je eine je Halterzylinder: wohin dieser zeigt. */
   private gripFronts: THREE.LineSegments[] = [];
-  /**
-   * Die Halterzylinder des Werkzeugs, zum Ein- und Ausblenden.
-   *
-   * Sie sind Geometrie des Werkzeugs und bleiben es; sichtbar sind sie nur in
-   * der Ansicht, in der sie etwas sagen — siehe `HandMode`.
-   */
-  private gripParts: THREE.Object3D[] = [];
-  /** Ob am Werkzeug außer dem Halter überhaupt etwas anderes zu sehen ist. */
-  private onlyGrip = false;
+  /** Der rote Handgriff des Controllers — nur in der Ansicht *Am Controller*. */
+  private handle: THREE.Mesh | null = null;
   /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
   private aimLine: THREE.LineSegments | null = null;
   /** Die Zielscheibe auf dem Zeigestrahl der Hand, und wie weit weg sie steht. */
   private target: THREE.Group | null = null;
   private targetDistance = 0;
-  private mode: HandMode = 'grip';
+  private mode: HandMode = 'vr';
   /** Was die Knöpfe gerade tun — Griffknopf gedrückt, Trigger nicht, wie beim Halten. */
   private buttons: FingerButtons = HELD_BUTTONS;
   private side: Handedness = 'right';
@@ -390,7 +403,6 @@ export class ToolViewer {
     // in `apply`: das läuft bei jedem Zug am Regler, und dann hinge nach zehn
     // Sekunden ein Bündel Linien daran.
     this.gripFronts = addGripFronts(tool);
-    this.readGrips(tool);
     // Und der Zielpfeil, sofern dieses Werkzeug zielt: am Werkzeug selbst und in
     // seinem Nullpunkt, denn dort steht der Strahl, auf den es gedreht wird.
     if (tool.alignToAim) {
@@ -545,6 +557,11 @@ export class ToolViewer {
   private curlsFor(tool: Tool): number[] {
     const pose = holdHandPose(this.side, tool.toolId);
     return buttonCurls(pose, fingerMovesOf(tool.toolId), this.buttons);
+  }
+
+  /** Unter welcher Id die **echte** Hand am Controller gespeichert ist. */
+  private get controllerId(): string {
+    return this.side === 'left' ? 'controller-left' : 'controller-right';
   }
 
   /** Welches Werkzeug auf der Bühne steht — der Editor fragt danach. */
@@ -749,12 +766,18 @@ export class ToolViewer {
   /**
    * Werkzeug und Hand an ihre Plätze, und die Kamera darauf einpassen.
    *
-   * Die beiden Modi rechnen mit derselben Kette wie der Eingaberaum
-   * (`tune/handGrip.ts`), und mit derselben **Zielkorrektur**: die kommt sonst
-   * aus einem Controller, und hier gibt es keinen, also steht sie als Zahl da
-   * (`GRIP_TO_RAY`). Ohne sie zeigte die Seite Hand und Werkzeug um genau diese
-   * 30° gegeneinander verdreht — die Hand griffe knapp am Griff vorbei, und man
-   * justierte einen Fehler weg, den es in der Brille gar nicht gibt.
+   * Zwei Bilder, zwei Rechnungen (siehe `HandMode`):
+   *
+   * **In VR** steht das Werkzeug aufrecht in seinem eigenen Raum, und die Hand
+   * liegt daran — dieselbe Kette wie im Eingaberaum (`tune/handGrip.ts`), mit
+   * derselben **Zielkorrektur**: die kommt sonst aus einem Controller, und hier
+   * gibt es keinen, also steht sie als Zahl da (`GRIP_TO_RAY`). Ohne sie zeigte
+   * die Seite Hand und Werkzeug um genau diese 30° gegeneinander verdreht.
+   *
+   * **Am Controller** steht das Werkzeug gar nicht da. Dort liegt der rote
+   * Handgriff des Geräts im Griffraum und die Faust darum, mit der Haltung, die
+   * für den Controller gespeichert ist — das ist, was die echte Hand tut,
+   * während die gezeichnete in der Brille etwas anderes tut.
    *
    * @param refit ob die Kamera sich neu einpassen darf. Beim Justieren nicht:
    *              siehe `setHoldPose`.
@@ -768,38 +791,37 @@ export class ToolViewer {
     // Griff verschiebt (das Drohnen-Deck, der Stiel des Hammers), zeigt sonst
     // eine Gestalt, die es in keiner Hand hat (`Tool.showHeldBy`).
     tool.showHeldBy(this.side);
-    const pose = holdHandPose(this.side, tool.toolId);
     const aim = this.aimOf();
     const local = toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, aim);
 
-    if (this.mode === 'tool' || this.mode === 'off') {
-      // Das Werkzeug steht aufrecht in seinem eigenen Raum.
-      tool.position.set(0, 0, 0);
-      tool.quaternion.identity();
-    } else {
-      // Der Griffraum: der Ursprung ist der Griffpunkt der Hand, das Werkzeug
-      // liegt darin. Genau das tut `applyHold` mit einem Controller — die
-      // Zielkorrektur eingeschlossen, sonst stimmte die Hand daneben nicht.
-      tool.position.copy(tool.holdPosition);
-      tool.quaternion.set(aim.x, aim.y, aim.z, aim.w);
-      tool.quaternion.multiply(tool.holdRotation);
-    }
+    // Das Werkzeug steht in beiden sichtbaren Ansichten aufrecht in seinem
+    // eigenen Raum — und am Controller steht es überhaupt nicht: in der echten
+    // Hand liegt keines.
+    tool.position.set(0, 0, 0);
+    tool.quaternion.identity();
+    tool.visible = this.mode !== 'controller';
 
-    // Der Halterzylinder gehört in **eine** der beiden Ansichten: *Am
-    // Werkzeug* geht es darum, wie die Faust ihn umfasst, also steht er da.
-    // *In der Hand* geht es um das fertige Bild — wie der Pinsel wie ein Stift
-    // in der Hand liegt —, und dort ist er das Gerüst, das man dabei gerade
-    // nicht sehen will. Beim Halterzylinder selbst bleibt er stehen: sonst
-    // wäre die Bühne leer.
-    for (const part of this.gripParts) part.visible = this.onlyGrip || this.mode !== 'grip';
-
-    if (this.mode !== 'off') {
+    if (this.mode === 'controller') {
+      const handle = createHandle(this.side);
+      this.stage.add(handle);
+      this.handle = handle;
+      const pose = holdHandPose(this.side, this.controllerId);
+      const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 1 });
+      hand.setCurls(buttonCurls(pose, fingerMovesOf(this.controllerId), this.buttons));
+      const at = poseOfHand(pose);
+      hand.position.set(at.position.x, at.position.y, at.position.z);
+      hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
+      this.stage.add(hand);
+      this.hand = hand;
+      this.addHandLine(local);
+    } else if (this.mode === 'vr') {
       // **Nicht durchsichtig**: ein Geist ist gläsern, damit man die eigene
       // Hand dahinter sieht — hier gibt es keine, und was man ansieht, soll
       // aussehen wie das, was in der Brille an der Hand steckt.
+      const pose = holdHandPose(this.side, tool.toolId);
       const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 1 });
       hand.setCurls(this.curlsFor(tool));
-      const at = this.mode === 'tool' ? ghostOnTool(local, poseOfHand(pose)) : poseOfHand(pose);
+      const at = ghostOnTool(local, poseOfHand(pose));
       hand.position.set(at.position.x, at.position.y, at.position.z);
       hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
       this.stage.add(hand);
@@ -883,14 +905,14 @@ export class ToolViewer {
    * Wo der **Griffraum** auf der Bühne steht — der Ort und die Drehung, in der
    * ein Controller läge.
    *
-   * In der Ansicht *In der Hand* ist der Griffraum die Bühne selbst; in den
-   * beiden anderen steht das Werkzeug aufrecht, und der Griffraum liegt darin
-   * bei `Lage-im-Griff⁻¹` — derselbe Weg, den die Hand nimmt (`ghostOnTool`).
-   * Das Ergebnis steht in `_at` und `_quat`, denn beide Aufrufer rechnen damit
-   * gleich weiter.
+   * In der Ansicht *Am Controller* ist der Griffraum die Bühne selbst — dort
+   * steht ja das Gerät. In den beiden anderen steht das Werkzeug aufrecht, und
+   * der Griffraum liegt darin bei `Lage-im-Griff⁻¹` — derselbe Weg, den die
+   * Hand nimmt (`ghostOnTool`). Das Ergebnis steht in `_at` und `_quat`, denn
+   * beide Aufrufer rechnen damit gleich weiter.
    */
   private gripInStage(local: Pose): void {
-    if (this.mode === 'grip') {
+    if (this.mode === 'controller') {
       _at.set(0, 0, 0);
       _quat.identity();
       return;
@@ -898,33 +920,6 @@ export class ToolViewer {
     const grip = invertPose(local);
     _at.set(grip.position.x, grip.position.y, grip.position.z);
     _quat.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
-  }
-
-  /**
-   * Die Halterzylinder dieses Werkzeugs einsammeln — und ob es außer ihnen
-   * überhaupt etwas Sichtbares hat.
-   *
-   * Der Halterzylinder als Werkzeug (`GripTool`) ist der Grenzfall: dort ist
-   * der Zylinder alles, was da ist, und ihn auszublenden hieße, die Bühne zu
-   * leeren.
-   */
-  private readGrips(tool: Tool): void {
-    const parts: THREE.Object3D[] = [];
-    let other = false;
-    tool.traverse((object) => {
-      // Das Werkzeug selbst ist nie sein eigener Halter — sonst verschwände
-      // beim Halterzylinder die ganze Bühne.
-      if (object === tool) return;
-      if (object.name === GRIP_NAME || object.name === `${GRIP_NAME}-shape`) {
-        // Die Gruppe genügt; ihre Form hängt darin und käme sonst doppelt.
-        if (!parts.some((part) => isBelow(object, part))) parts.push(object);
-        return;
-      }
-      const mesh = object as THREE.Mesh;
-      if (mesh.isMesh && !parts.some((part) => isBelow(object, part))) other = true;
-    });
-    this.gripParts = parts;
-    this.onlyGrip = !other;
   }
 
   /**
@@ -960,6 +955,13 @@ export class ToolViewer {
       line.removeFromParent();
       line.geometry.dispose();
       (line.material as THREE.Material).dispose();
+    }
+    const handle = this.handle;
+    this.handle = null;
+    if (handle) {
+      handle.removeFromParent();
+      handle.geometry.dispose();
+      (handle.material as THREE.Material).dispose();
     }
     this.hand?.dispose();
     this.hand = null;
@@ -1078,8 +1080,6 @@ export class ToolViewer {
       (line.material as THREE.Material).dispose();
     }
     this.gripFronts = [];
-    this.gripParts = [];
-    this.onlyGrip = false;
     const aim = this.aimLine;
     this.aimLine = null;
     if (aim) {
@@ -1355,10 +1355,32 @@ function rayIn(line: THREE.Object3D): Ray {
   };
 }
 
-/** Ob dieser Knoten irgendwo unterhalb jenes hängt — oder er selbst ist. */
-function isBelow(object: THREE.Object3D, ancestor: THREE.Object3D): boolean {
-  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
-    if (node === ancestor) return true;
-  }
-  return false;
+/**
+ * **Der Handgriff des Controllers**, im Griffraum: ein roter Zylinder mit
+ * flach-elliptischem Querschnitt, entlang der Z-Achse vom Kopf des Geräts nach
+ * hinten (`core/controllerGrip.ts`).
+ *
+ * Es ist nicht das ganze Gerät, sondern das Stück davon, das in der Faust
+ * liegt. Mehr braucht das Bild auch nicht: die Frage ist, wo die Hand
+ * zufasst, und nicht, wo der Stick sitzt. Die linke Schale ist das
+ * Spiegelbild — eine Zahl, `x` mit anderem Vorzeichen.
+ */
+function createHandle(side: Handedness): THREE.Mesh {
+  const mirror = side === 'left' ? -1 : 1;
+  const { centre, radius, from, to } = CONTROLLER_HANDLE;
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius.y, radius.y, to - from, 20),
+    new THREE.MeshStandardMaterial({
+      color: HANDLE_COLOR,
+      roughness: 0.7,
+      emissive: new THREE.Color(HANDLE_COLOR).multiplyScalar(0.18),
+    }),
+  );
+  mesh.name = 'controller-handle';
+  // Der Zylinder steht in three.js auf Y; der Handgriff liegt auf Z.
+  mesh.rotation.x = Math.PI / 2;
+  // Quer flacher als hoch: die Ellipse des echten Griffs.
+  mesh.scale.x = radius.x / radius.y;
+  mesh.position.set(mirror * centre.x, centre.y, (from + to) / 2);
+  return mesh;
 }

@@ -69,9 +69,10 @@ Rest bleibt Verdrahtung.
 
 Neben dem Spiel steht **[`/tools.html`](https://baumgartner-games.github.io/vr/tools.html)**:
 alle Werkzeuge als Liste, jedes einzeln in 3D zum Drehen, und die Hand dazu
-ein- und ausschaltbar — wahlweise *in der Hand* (so liegt das Werkzeug darin,
-nur die Hand) oder *am Werkzeug* (so umfasst die Hand den Halterzylinder, und
-der steht dann auch da). Aus der Hand läuft die **weiße Linie** des
+ein- und ausschaltbar — als zwei verschiedene Hände: *In VR* (so sieht es in
+der Brille aus, das Werkzeug mit der gezeichneten Hand daran) und *Am
+Controller* (so hält die echte Hand: der rote Handgriff des Geräts mit der
+Faust darum, ohne Werkzeug). Aus der Hand läuft die **weiße Linie** des
 Zeigestrahls sauber nach vorn auf eine Zielscheibe, genau wie in der Brille. Der Knopf **Bearbeiten** oben in der Ecke (an einem
 einzelnen Werkzeug) macht daraus einen Justierstand fürs Telefon: oben die Achse (X, Y, Z, Yaw, Pitch, Roll — immer
 nur eine), unten der Regler. Bewegt wird dabei die **Hand** — das Werkzeug steht

@@ -2474,7 +2474,7 @@ gerade dieser eine Finger". Abstand und Größe
 der Scheibe hängen an der Größe des Werkzeugs, und sie zählt beim Einpassen
 mit — das Werkzeug wird dadurch kleiner, dafür gibt es das Zoomen
 (`placeTarget` in `tools/viewer.ts`; der Strahl liegt im Griffraum 30° unter
-dessen -Z, `GRIP_TO_RAY`, und in der Ansicht _Am Werkzeug_ bei
+dessen -Z, `GRIP_TO_RAY`, und in der Ansicht _In VR_ bei
 `Lage-im-Griff⁻¹`). Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
 Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
 eine Frage, die man im Vorbeigehen stellt.
@@ -2618,24 +2618,31 @@ und `#objekt/cube` für die beiden anderen Regale, `#welten` und `#beutel` für
 ihre Übersichten. Ein Hash, den es nicht gibt, endet in der Werkzeug-Übersicht
 und nicht in einer leeren Seite.
 
-Im Kopf steht außerdem der Umschalter für die **Boxhand**, und seine drei
-Zustände sind nicht drei Ansichten desselben Bildes, sondern zwei verschiedene
-Bezugspunkte:
+Im Kopf steht außerdem der Umschalter für die Hand, und seine drei Zustände
+sind **zwei verschiedene Hände** und nicht zweimal dieselbe aus zwei Winkeln:
 
 - **Hand aus** — nur das Werkzeug, für die Form.
-- **In der Hand** — der _Griffraum_: die Hand steht still, das Werkzeug liegt
-  darin, dort, wohin `holdPosition` und `holdRotation` es legen. Das Bild aus
-  der Brille: „so halte ich das Ding."
-- **Am Werkzeug** — der _Werkzeugraum_: das Werkzeug steht still, die Hand liegt
-  daran. Das Bild vom zweiten Justierstand: „so umfasst die Hand es."
+- **In VR** — wie es in der **Brille** aussieht: das Werkzeug steht aufrecht in
+  seinem eigenen Raum, und die gezeichnete Hand liegt so daran, wie die Haltung
+  dieses Werkzeugs es sagt. Hier soll der Pinsel wie ein Stift gehalten
+  aussehen und die Pistole wie eine Pistole.
+- **Am Controller** — wie die Hand in **echt** hält: der **rote Zylinder** ist
+  der Handgriff des Quest-Controllers (`core/controllerGrip.ts`, aus dem Modell
+  des Herstellers abgelesen), und die Faust liegt darum. Kein Werkzeug — eines
+  hat man dabei ja gar nicht in der Hand, man hat einen Controller. Das Bild
+  ist deshalb für jedes Werkzeug dasselbe, und das ist keine Schwäche, sondern
+  die Auskunft: **echt hält man den Pinsel wie die Waffe.**
 
-Die beiden zeigen dabei **verschieden viel**: der **Halterzylinder** steht nur
-_Am Werkzeug_. Er ist das Gerüst, an dem eingemessen wird — der Handgriff des
-Controllers, um den die Faust liegt —, und _In der Hand_ geht es um das fertige
-Bild: dass der Pinsel wie ein Stift in der Hand liegt und nicht wie ein Hammer.
-Ein türkiser Zylinder quer dadurch beantwortet dort eine Frage, die niemand
-gestellt hat. Beim Halterzylinder selbst bleibt er stehen — sonst wäre die
-Bühne leer. Und die Hand ist auf dieser Seite **nicht durchsichtig**: gläsern
+Lange waren die beiden dasselbe Bild in zwei Rahmen — einmal stand die Hand
+still, einmal das Werkzeug —, und wer sich den Pinsel ansah, sah zweimal genau
+dasselbe. „Da ist kein Unterschied" war die richtige Beobachtung; den
+Unterschied gibt es, er liegt nur zwischen echter und gezeichneter Hand.
+
+Der grüne **Halterzylinder** gehört dabei zum Werkzeug und bleibt, wo er ist:
+er ist das, was alle Waffen einander ähnlich macht. Der rote daneben ist etwas
+anderes — nicht Teil eines Werkzeugs, sondern das Gerät in der echten Hand;
+deshalb rot und nicht türkis, denn türkis heißt „hier fasst die Hand das
+Werkzeug an". Und die Hand ist auf dieser Seite **nicht durchsichtig**: gläsern
 ist ein Geist, den man neben die eigene Hand hält, und hier gibt es keine
 eigene Hand dahinter.
 
@@ -2650,9 +2657,8 @@ Trigger nichts an ihr. Beim Justieren gilt trotzdem immer die haltende Hand:
 der Regler richtet die Richtung des Zeigefingers aus, und ein Finger am Abzug
 zeigt woandershin als einer am Rahmen.
 
-Zwischen beiden liegt dieselbe Messung; unterschiedlich ist nur, welches von
-beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust sitzt,
-in der Hand, wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
+In VR sieht man beides zugleich: ob der Halterzylinder in der Faust sitzt und
+wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
 im Eingaberaum (`tune/handGrip.ts`) und mit derselben Zielkorrektur: die kommt
 sonst aus einem Controller, im Browser gibt es keinen, also steht sie als Zahl
 da (`GRIP_TO_RAY`) — und zwar **nur für Werkzeuge, die zielen**, und für den
@@ -2699,7 +2705,7 @@ legt. Die sechs Zahlen am Regler sind deshalb die Lage der **Hand im Raum des
 Werkzeugs** — genau die Größe, die der zweite Justierstand misst und die der
 Betrachter ohnehin zeichnet (`ghostOnTool` in `tune/handGrip.ts`). Deswegen
 weicht der Ansichts-Umschalter im Kopf, solange justiert wird: es gilt die
-Ansicht _Am Werkzeug_, und danach kommt die zurück, die vorher galt. Im
+Ansicht _In VR_, und danach kommt die zurück, die vorher galt. Im
 Griffraum wanderte sonst für das eine Ziel das Werkzeug unter der stehenden
 Hand weg — genau der falsche Film, und genau der, der als „ich will das
 Werkzeug nicht bewegen" zurückkam.

@@ -430,14 +430,24 @@ for (const button of hands.querySelectorAll<HTMLButtonElement>('button')) {
   button.addEventListener('click', () => setMode(button.dataset['hand'] as HandMode));
 }
 
+/**
+ * Welche Ansicht gilt — und was ein alter Eintrag im Speicher bedeutet.
+ *
+ * Die beiden hießen einmal `grip` („In der Hand") und `tool` („Am Werkzeug")
+ * und waren zwei Rahmen um dasselbe Bild. Jetzt sind es zwei Bilder: `vr`
+ * zeigt das Werkzeug mit der Hand daran, `controller` das Gerät in der echten
+ * Hand. Wer gestern `grip` gewählt hatte, wollte die Hand am Ding sehen — das
+ * ist heute `vr`, und `tool` war ohnehin dasselbe.
+ */
 function readMode(): HandMode {
   try {
     const stored = globalThis.localStorage?.getItem(HAND_STORE);
-    if (stored === 'off' || stored === 'grip' || stored === 'tool') return stored;
+    if (stored === 'off' || stored === 'controller' || stored === 'vr') return stored;
+    if (stored === 'grip' || stored === 'tool') return 'vr';
   } catch {
     /* Privater Modus, kein Speicher — kein Grund für einen Absturz. */
   }
-  return 'grip';
+  return 'vr';
 }
 
 function setMode(next: HandMode): void {
@@ -866,9 +876,9 @@ function setEditing(on: boolean): void {
   hands.hidden = editing || viewer.toolId === null;
   fingers.hidden = hands.hidden;
   applyButtons();
-  if (editing && mode !== 'tool') {
+  if (editing && mode !== 'vr') {
     wasMode ??= mode;
-    setMode('tool');
+    setMode('vr');
   } else if (!editing && wasMode) {
     const previous = wasMode;
     wasMode = null;
