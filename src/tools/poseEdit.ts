@@ -144,6 +144,25 @@ export function clampAxis(axis: EditAxis, value: number): number {
   return Number((Math.round(held / spec.step) * spec.step).toFixed(digits)) + 0;
 }
 
+/**
+ * Alle sechs Achsen auf einmal geklemmt — eine Pose, wie sie gespeichert wird.
+ *
+ * Für alles, was eine Handlage nicht Zahl für Zahl zieht, sondern in einem
+ * Stück ausrechnet (der Knopf *Auf den Griff*, `alignGrip.ts`): dieselben
+ * Grenzen und dasselbe Raster wie am Regler, damit es keinen zweiten Weg in den
+ * Speicher gibt, auf dem andere Zahlen gelten.
+ */
+export function clampPose(pose: PoseReadout): PoseReadout {
+  return {
+    x: clampAxis('x', pose.x),
+    y: clampAxis('y', pose.y),
+    z: clampAxis('z', pose.z),
+    yaw: clampAxis('yaw', pose.yaw),
+    pitch: clampAxis('pitch', pose.pitch),
+    roll: clampAxis('roll', pose.roll),
+  };
+}
+
 /** Eine Raste weiter, so oft wie gesagt. Die Knöpfe neben dem Regler. */
 export function nudgeAxis(axis: EditAxis, value: number, steps: number): number {
   const spec = axisSpec(axis);

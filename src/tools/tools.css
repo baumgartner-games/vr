@@ -417,14 +417,23 @@ html, body {
 
 .editor[hidden] { display: none; }
 
+/* Umbrechen darf sie: auf einem schmalen Telefon stehen neben dem Umschalter
+   zwei Knöpfe, und der zweite gehört dann in die nächste Zeile und nicht aus
+   dem Bild. */
 .editor__row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.editor__ghost {
+.editor__ghosts {
+  display: flex;
+  gap: 8px;
   margin-left: auto;
+}
+
+.editor__ghost {
   padding: 8px 10px;
   font: inherit;
   font-size: 12px;

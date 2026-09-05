@@ -29,6 +29,7 @@ import {
   EDIT_TARGETS,
   axisSpec,
   clampAxis,
+  clampPose,
   formatAxes,
   formatAxis,
   isEditTarget,
@@ -38,6 +39,7 @@ import {
   type EditAxis,
   type EditTarget,
 } from './poseEdit';
+import { alignHandToGrip } from './alignGrip';
 import { ToolViewer, type HandMode } from './viewer';
 import type { PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { WorldDefinition } from '../core/types';
@@ -105,6 +107,7 @@ const editLabel = document.querySelector<HTMLElement>('#edit-label')!;
 const axesBar = document.querySelector<HTMLElement>('#axes')!;
 const editor = document.querySelector<HTMLElement>('#editor')!;
 const targets = document.querySelector<HTMLElement>('#targets')!;
+const align = document.querySelector<HTMLButtonElement>('#align')!;
 const revert = document.querySelector<HTMLButtonElement>('#revert')!;
 const slider = document.querySelector<HTMLInputElement>('#slider')!;
 const reading = document.querySelector<HTMLElement>('#reading')!;
@@ -484,6 +487,26 @@ for (const button of editor.querySelectorAll<HTMLButtonElement>('[data-nudge]'))
   });
 }
 
+/**
+ * **Auf den Griff** — die Hand mit einem Tipp dorthin, wo der Griff sie haben
+ * will.
+ *
+ * Im Bild stehen zwei Linien: die am Zeigefinger und die am Griff. Sie zur
+ * Deckung zu bringen ist das, worum es beim Justieren geht — und es über sechs
+ * Achsen einzeln zu erwürgen ist Arbeit, die eine Zeile Mathematik erledigt
+ * (`alignGrip.ts`). Danach steht die Hand am Griff, und wer von dort aus noch
+ * einen Zentimeter versetzen will, hat den Regler ja.
+ *
+ * Geschrieben wird das Ergebnis wie jeder andere Wert: in das gewählte Ziel und
+ * sofort. Der Knopf ist also nichts Eigenes neben dem Regler, sondern derselbe
+ * Weg mit sechs Zahlen auf einmal.
+ */
+align.addEventListener('click', () => {
+  const aim = viewer.gripAim();
+  if (!aim) return;
+  writePose(readPose(alignHandToGrip(aim.hand, aim.finger, aim.grip)));
+});
+
 revert.addEventListener('click', () => {
   const id = viewer.toolId;
   if (!id) return;
@@ -625,10 +648,24 @@ function showHandTool(refit = false): void {
  * ist eine Einstellung, die man zweimal macht.
  */
 function writeAxis(value: number, syncSlider = true): void {
+  // Die neue Lage der **Hand am Werkzeug** — das ist es, was der Regler sagt.
+  writePose(withAxis(currentPose(), axis, clampAxis(axis, value)), syncSlider);
+}
+
+/**
+ * Dieselbe Übernahme mit allen sechs Zahlen auf einmal — der Weg des Knopfes
+ * *Auf den Griff*.
+ *
+ * Geklemmt wird auch hier, und zwar aus demselben Grund wie am Regler: was
+ * gespeichert wird, muss ein Kurzcode tragen können. Ein Griff, der weiter als
+ * 30 cm vom Nullpunkt des Werkzeugs weg liegt, bekommt die Hand deshalb bis an
+ * die Grenze und nicht darüber hinaus — und die Zahl unter dem Regler sagt
+ * dann auch, dass dort die Grenze steht.
+ */
+function writePose(next: PoseReadout, syncSlider = true): void {
   const id = viewer.toolId;
   if (!id) return;
-  // Die neue Lage der **Hand am Werkzeug** — das ist es, was der Regler sagt.
-  draft = withAxis(currentPose(), axis, clampAxis(axis, value));
+  draft = clampPose(next);
   const ghost = poseFromReadout(draft);
 
   if (target === 'grip') {
@@ -681,6 +718,10 @@ function showEditor(syncSlider = true): void {
     slider.step = String(spec.step);
     slider.value = String(value);
   }
+
+  // Den Knopf gibt es nur, wo es auch einen Griff gibt: an einem Hammer wäre
+  // *Auf den Griff* ein Knopf, der nichts tun kann.
+  align.hidden = !viewer.hasGrip;
 
   const targetHint = EDIT_TARGETS.find((entry) => entry.key === target);
   reading.textContent = `${spec.label} ${formatAxis(axis, value)} · ${spec.hint}`;

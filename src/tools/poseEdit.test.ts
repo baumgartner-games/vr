@@ -3,6 +3,7 @@ import {
   EDIT_TARGETS,
   axisSpec,
   clampAxis,
+  clampPose,
   formatAxes,
   formatAxis,
   isEditTarget,
@@ -69,6 +70,12 @@ describe('klemmen und runden', () => {
   it('nimmt nur eine kaputte Zahl als Null, ein Unendlich als Grenze', () => {
     expect(clampAxis('x', Number.NaN)).toBe(0);
     expect(clampAxis('yaw', Number.POSITIVE_INFINITY)).toBe(180);
+  });
+
+  it('klemmt eine ganze Pose nach denselben Regeln — sechs Achsen, ein Weg', () => {
+    expect(
+      clampPose({ x: 1.234, y: -400, z: 0.30000000000000004, pitch: 44.6, yaw: 900, roll: -0.01 }),
+    ).toEqual({ x: 1.2, y: -30, z: 0.3, pitch: 45, yaw: 180, roll: 0 });
   });
 });
 

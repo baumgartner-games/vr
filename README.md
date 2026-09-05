@@ -75,7 +75,10 @@ Zeigefinger zeigt. Der Knopf **Bearbeiten** oben in der Ecke (an einem
 einzelnen Werkzeug) macht daraus einen Justierstand fürs Telefon: oben die Achse (X, Y, Z, Yaw, Pitch, Roll — immer
 nur eine), unten der Regler. Bewegt wird dabei die **Hand** — das Werkzeug steht
 still —, und ein Umschalter sagt, wohin die Haltung übernommen wird: als *Lage
-in der Hand* oder als *Griffhaltung am Griff*. Alles landet in denselben Speichern wie
+in der Hand* oder als *Griffhaltung am Griff*. Der Knopf **Auf den Griff** legt
+die Hand mit einem Tipp dorthin, wo die Linie am Zeigefinger auf dem rosa Pfeil
+des Griffs liegt — gleiche Richtung, gleicher Ursprung; von dort aus versetzt
+der Regler weiter. Alles landet in denselben Speichern wie
 in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
 Über die Schublade daneben die
 **Welten** (jede ganz zum Drehen, schräg von oben für den Überblick — Räume mit

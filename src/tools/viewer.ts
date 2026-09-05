@@ -6,6 +6,8 @@ import { IDENTITY } from '../worlds/portal/tools/aim';
 import { addGripFronts } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
+import type { Ray } from './alignGrip';
+import type { Pose } from '../worlds/tune/handGrip';
 import type { HoldPose, PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { Tool } from '../worlds/portal/tools/Tool';
 import type { Handedness } from '../core/XRInput';
@@ -100,6 +102,13 @@ const _size = new THREE.Vector3();
 const _zero = new THREE.Vector3();
 const _handspan = new THREE.Vector3(0.2, 0.2, 0.2);
 const _down = new THREE.Vector3(0, -1, 0);
+/** Für den Weg aus der Bühne in den Raum des Werkzeugs (`gripAim`). */
+const _inverse = new THREE.Matrix4();
+const _local = new THREE.Matrix4();
+const _at = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _quat = new THREE.Quaternion();
+const _scale = new THREE.Vector3();
 
 /**
  * Ein Werkzeug zum Ansehen: eine Bühne, ein Modell, und Finger, die es drehen.
@@ -332,6 +341,61 @@ export class ToolViewer {
       tool.resetHold();
     }
     this.apply(refit);
+  }
+
+  /** Ob an diesem Werkzeug überhaupt ein Griff sitzt — sonst gibt es nichts auszurichten. */
+  get hasGrip(): boolean {
+    return this.gripFronts.length > 0;
+  }
+
+  /**
+   * Die beiden Linien, die man beim Justieren vergleicht — und die Hand dazu.
+   *
+   * Alles drei im **Raum des Werkzeugs**, denn das ist die Größe, an der der
+   * Regler zieht (`ghostOnTool`). Genommen wird es aus den Weltmatrizen und
+   * nicht nachgerechnet: die Linien hängen an der Fingerspitze und am Griff,
+   * gehen also jede Krümmung und jeden Anbau mit, und was hier herauskommt, ist
+   * genau das, was auf dem Schirm steht.
+   *
+   * Trägt ein Werkzeug **mehrere** Griffe (das Drohnendeck hat zwei), gewinnt
+   * der, der der Fingerspitze am nächsten liegt — man richtet an dem Griff aus,
+   * an dem die Hand schon ungefähr liegt, und nicht am erstbesten im Baum.
+   */
+  gripAim(): { hand: Pose; finger: Ray; grip: Ray } | null {
+    const tool = this.tool;
+    const hand = this.hand;
+    const finger = this.fingerLine;
+    if (!tool || !hand || !finger || this.gripFronts.length === 0) return null;
+
+    this.stage.updateWorldMatrix(true, true);
+    _inverse.copy(tool.matrixWorld).invert();
+
+    const line = rayIn(finger);
+    let nearest: Ray | null = null;
+    let closest = Infinity;
+    for (const front of this.gripFronts) {
+      const ray = rayIn(front);
+      const gap = Math.hypot(
+        ray.origin.x - line.origin.x,
+        ray.origin.y - line.origin.y,
+        ray.origin.z - line.origin.z,
+      );
+      if (gap < closest) {
+        closest = gap;
+        nearest = ray;
+      }
+    }
+    if (!nearest) return null;
+
+    _local.multiplyMatrices(_inverse, hand.matrixWorld).decompose(_at, _quat, _scale);
+    return {
+      hand: {
+        position: { x: _at.x, y: _at.y, z: _at.z },
+        rotation: { x: _quat.x, y: _quat.y, z: _quat.z, w: _quat.w },
+      },
+      finger: line,
+      grip: nearest,
+    };
   }
 
   /** Im Speicher steht eine neue Handhaltung: Hand noch einmal hinstellen. */
@@ -727,4 +791,24 @@ function disposeMaterial(material: THREE.Material): void {
   const textured = material as THREE.Material & { map?: THREE.Texture | null };
   textured.map?.dispose();
   material.dispose();
+}
+
+/**
+ * Eine Linie, wie sie im Raum des Werkzeugs liegt: ihr eigener Nullpunkt und
+ * ihr -Z.
+ *
+ * Beide Linien sind entlang **-Z ihres eigenen Knotens** gezeichnet — die am
+ * Finger von (0,0,0) nach (0,0,-1), die am Griff von der Mitte zur Spitze des
+ * Pfeils —, und deshalb steht die ganze Auskunft in ihrer Matrix.
+ * `transformDirection` normiert dabei mit, was das Stauchen des Griffs
+ * herausrechnet.
+ */
+function rayIn(line: THREE.Object3D): Ray {
+  _local.multiplyMatrices(_inverse, line.matrixWorld);
+  _at.setFromMatrixPosition(_local);
+  _dir.set(0, 0, -1).transformDirection(_local);
+  return {
+    origin: { x: _at.x, y: _at.y, z: _at.z },
+    direction: { x: _dir.x, y: _dir.y, z: _dir.z },
+  };
 }

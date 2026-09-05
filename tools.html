@@ -83,7 +83,20 @@
               <button type="button" data-target="hold">In der Hand</button>
               <button type="button" data-target="grip">Am Griff</button>
             </div>
-            <button id="revert" class="editor__ghost" type="button">Zurücksetzen</button>
+            <!--
+              Die beiden rechts stehen zusammen in einer eigenen Gruppe: der
+              linke Knopf ist nicht an jedem Werkzeug da, und ohne Gruppe hinge
+              der Abstand nach links an genau dem Knopf, der gerade fehlt.
+            -->
+            <div class="editor__ghosts">
+              <!--
+                Ein Griff und ein Zeigefinger, und beide tragen eine Linie: wenn
+                die beiden zur Deckung kommen, liegt die Hand am Griff. Das
+                sechsmal einzeln zu ziehen ist Arbeit für einen Knopf.
+              -->
+              <button id="align" class="editor__ghost" type="button" hidden>Auf den Griff</button>
+              <button id="revert" class="editor__ghost" type="button">Zurücksetzen</button>
+            </div>
           </div>
           <div class="editor__slide">
             <button class="editor__step" type="button" data-nudge="-1" aria-label="eine Raste zurück">−</button>
