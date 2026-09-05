@@ -262,6 +262,20 @@ export class GhostHand extends THREE.Group {
   readonly look: 'bones' | 'limbs';
 
   /**
+   * Die Spitze des Zeigefingers, als Knoten: ihr **-Z ist die Richtung**, in
+   * die der Finger zeigt.
+   *
+   * Im Spiel hängt daran der Fingerzeig auf ein Panel; auf der Werkzeugseite
+   * hängt daran eine Linie, die genau diese Richtung sichtbar macht. Man sieht
+   * einer Faust nämlich nicht an, wohin sie zeigt — und ob ein Werkzeug entlang
+   * des Zeigefingers liegt oder 30° daneben, ist die halbe Frage, um die es
+   * beim Justieren geht.
+   */
+  get indexTip(): THREE.Object3D {
+    return this.hand.indexTip;
+  }
+
+  /**
    * Dieselbe Haltung wie die echte Hand, nur an einem anderen Ort.
    *
    * Der Versatz in einer Pose gehört einer Hand, die auf einem Controller

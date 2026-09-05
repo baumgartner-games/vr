@@ -168,6 +168,14 @@ export const SHORT_SLOTS = [
   'controller-left',
   'controller-right',
   'hammer',
+  // Angehängt und nicht einsortiert: der Platz *ist* das Format, und wer die
+  // Reihenfolge ändert, macht aus jedem alten Code einen, der etwas anderes
+  // meint. Diese drei fehlten schlicht — `packShortGear` fällt für eine
+  // unbekannte Id auf Platz 0 zurück, und das ist „leere Hand": ein Code für
+  // den Gürtel-Justierer hätte still die Grundhaltung verstellt.
+  'holster',
+  'hang-glider',
+  'wings',
 ] as const;
 
 const FLAG_POSE = 1;

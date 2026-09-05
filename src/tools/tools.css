@@ -92,10 +92,13 @@ html, body {
   text-overflow: ellipsis;
 }
 
-/* Der Umschalter für die Boxhand — im Kopf, weil er zum Ansehen gehört. */
+/* Der Umschalter für die Boxhand — im Kopf, weil er zum Ansehen gehört. Die
+   Spalten kommen aus der Anzahl der Knöpfe (`grid-auto-flow: column`), damit
+   derselbe Kasten auch die zwei Ziele des Justierers trägt. */
 .seg {
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
   gap: 4px;
   padding: 4px;
   background: rgba(5, 8, 16, 0.5);
@@ -129,6 +132,9 @@ html, body {
 @media (max-width: 560px) {
   .top { flex-wrap: wrap; height: auto; padding-bottom: 8px; }
   .top__title { order: 1; }
+  /* Der Stift bleibt neben dem Titel und rutscht nicht vor ihn: „oben in der
+     Ecke" ist die Stelle, an der man ihn sucht. */
+  .top__edit { order: 1; }
   .top__seg { order: 2; width: 100%; }
 }
 
@@ -309,3 +315,143 @@ html, body {
   font-size: 11px;
   color: var(--muted);
 }
+
+.detail__foot[hidden] { display: none; }
+
+/* ---------- Haltung bearbeiten ---------- */
+
+/* Der Knopf im Kopf leuchtet, solange der Modus läuft — sonst weiß man nach
+   zwei Minuten nicht mehr, warum die Seite anders aussieht. */
+.top__icon[aria-pressed="true"] {
+  color: #04121f;
+  background: linear-gradient(120deg, #7cc4ff, var(--accent));
+}
+
+/* Die Achsen: sechs gleich breite Knöpfe, direkt unter dem Kopf. Sechs, weil
+   eine Pose sechs Zahlen hat — und gleich breit, damit der Daumen sie trifft,
+   ohne hinzusehen. */
+.axes {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(9, 13, 23, 0.9);
+  border-bottom: 1px solid var(--border);
+}
+
+.axes[hidden] { display: none; }
+
+.axes button {
+  padding: 9px 2px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(5, 8, 16, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.axes button.is-active {
+  color: #04121f;
+  background: linear-gradient(120deg, #7cc4ff, var(--accent));
+  border-color: transparent;
+}
+
+/* Der Regler am unteren Rand. Er sitzt dort, wo der Daumen ohnehin liegt, und
+   das Bild darüber bleibt frei — man zieht und sieht zugleich. */
+.editor {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px max(12px, env(safe-area-inset-bottom));
+  background: rgba(9, 13, 23, 0.92);
+  border-top: 1px solid var(--border);
+}
+
+.editor[hidden] { display: none; }
+
+.editor__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor__ghost {
+  margin-left: auto;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.editor__ghost:hover { color: var(--fg); }
+
+.editor__slide {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Groß genug für einen Daumen: die Knöpfe sind die einzige Art, ein Zehntel
+   Zentimeter zu treffen — auf 360 Bildpunkten sind 60 cm Weg 0,17 cm je Punkt. */
+.editor__step {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--fg);
+  background: rgba(5, 8, 16, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.editor__range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  margin: 0;
+  accent-color: var(--accent);
+  touch-action: pan-y;
+}
+
+.editor__reading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.editor__values {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Die Konfig-Codes: eine Zeile je Code, angetippt kopiert. Sie werden nicht
+   umgebrochen, sondern abgeschnitten — kopiert wird ohnehin das Ganze, und
+   vier Zeilen Base64 verdrängen sonst den Regler vom Schirm. */
+.editor__code {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  text-align: left;
+  color: var(--muted);
+  background: rgba(5, 8, 16, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.editor__code:hover { color: var(--fg); }

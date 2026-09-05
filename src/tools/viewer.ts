@@ -3,7 +3,9 @@ import { GhostHand } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
 import { createTool } from '../worlds/portal/tools';
 import { IDENTITY } from '../worlds/portal/tools/aim';
+import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
+import type { HoldPose, PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { Tool } from '../worlds/portal/tools/Tool';
 import type { Handedness } from '../core/XRInput';
 
@@ -42,6 +44,20 @@ const ZOOM_MAX = 2.6;
 /** Wie schnell sich das Ding von selbst dreht, bis jemand es anfasst (rad/s). */
 const IDLE_SPIN = 0.35;
 
+/**
+ * Die Linie am Zeigefinger: warm, damit sie nicht als Teil der Hand gelesen
+ * wird, und lang genug, um sie mit dem Werkzeug vergleichen zu können.
+ *
+ * Ihre Länge ist ein Vielfaches des Halbmessers dessen, was auf der Bühne
+ * steht — eine feste Länge wäre bei der Pistole ein Faden und beim Hängegleiter
+ * ein Strich. Geklemmt wird sie trotzdem: unter einer Handbreit sieht man sie
+ * nicht, über einem Meter ist sie nur noch im Weg.
+ */
+const FINGER_LINE_COLOR = 0xffc857;
+const FINGER_LINE_SCALE = 4;
+const FINGER_LINE_MIN = 0.12;
+const FINGER_LINE_MAX = 0.9;
+
 const _box = new THREE.Box3();
 const _bounds = new THREE.Box3();
 const _centre = new THREE.Vector3();
@@ -78,6 +94,8 @@ export class ToolViewer {
   private options: ShowOptions = {};
   private shownFor = 0;
   private hand: GhostHand | null = null;
+  /** Die Linie am Zeigefinger — sie hängt an der Hand und geht mit ihr. */
+  private fingerLine: THREE.Line | null = null;
   private mode: HandMode = 'grip';
   private side: Handedness = 'right';
 
@@ -156,6 +174,64 @@ export class ToolViewer {
     this.apply();
   }
 
+  /** Welches Werkzeug auf der Bühne steht — der Editor fragt danach. */
+  get toolId(): string | null {
+    return this.tool?.toolId ?? null;
+  }
+
+  /** Die Hand, für die die Bühne rechnet. Eine, und immer dieselbe. */
+  get handSide(): Handedness {
+    return this.side;
+  }
+
+  /** Das langsame Kreisen an oder aus — beim Justieren steht das Ding still. */
+  setSpinning(on: boolean): void {
+    this.spinning = on;
+  }
+
+  /** Die Lage des Werkzeugs im Griff, wie sie gerade gilt. */
+  holdReadout(): PoseReadout | null {
+    const tool = this.tool;
+    return tool ? readPose({ position: tool.holdPosition, rotation: tool.holdRotation }) : null;
+  }
+
+  /** Und dieselbe Lage, wie das Werkzeug **gebaut** wurde — der Weg zurück. */
+  factoryReadout(): PoseReadout | null {
+    const tool = this.tool;
+    return tool
+      ? readPose({ position: tool.factoryPosition, rotation: tool.factoryRotation })
+      : null;
+  }
+
+  /**
+   * Eine neue Lage im Griff, oder `null` für die gebaute.
+   *
+   * Nicht neu eingepasst: wer am Regler zieht, will sehen, dass sich etwas
+   * bewegt. Die Kamera passt sich aber an *alles* an, was auf der Bühne steht —
+   * schiebt man das Werkzeug drei Zentimeter aus der Hand, rückte sie
+   * anderthalb hinterher, und die Hälfte der Bewegung wäre wieder weg.
+   *
+   * @param refit einmal doch, nämlich wenn die Lage nicht am Regler entsteht,
+   *              sondern beim Aufstellen — dann steht noch gar kein Bild, das
+   *              man festhalten müsste.
+   */
+  setHoldPose(pose: HoldPose | null, refit = false): void {
+    const tool = this.tool;
+    if (!tool) return;
+    if (pose) {
+      tool.holdPosition.set(pose.position.x, pose.position.y, pose.position.z);
+      tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
+    } else {
+      tool.resetHold();
+    }
+    this.apply(refit);
+  }
+
+  /** Im Speicher steht eine neue Handhaltung: Hand noch einmal hinstellen. */
+  refresh(): void {
+    this.apply(false);
+  }
+
   /** Läuft, solange die Seite ein Werkzeug zeigt. */
   start(): void {
     if (this.frame) return;
@@ -198,11 +274,13 @@ export class ToolViewer {
    * Controller, und hier gibt es keinen. Was die Seite zeigt, ist damit die
    * Lage, in der ein Werkzeug **gebaut** ist — dieselbe, die auch ein Browser
    * ohne Brille zeichnet (`Tool.applyHold` ohne Griff).
+   *
+   * @param refit ob die Kamera sich neu einpassen darf. Beim Justieren nicht:
+   *              siehe `setHoldPose`.
    */
-  private apply(): void {
+  private apply(refit = true): void {
     const tool = this.tool;
-    this.hand?.dispose();
-    this.hand = null;
+    this.dropHand();
     if (!tool) return;
 
     // Dieselbe Zeile wie am Griffstand: ein Werkzeug, dessen Modell sich im
@@ -233,9 +311,66 @@ export class ToolViewer {
       hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
       this.stage.add(hand);
       this.hand = hand;
+      this.addFingerLine(hand);
     }
 
-    this.fit();
+    if (refit) this.fit();
+    this.sizeFingerLine();
+  }
+
+  /**
+   * Die Linie, in die der **Zeigefinger** zeigt.
+   *
+   * Sie hängt an der Fingerspitze und nicht in der Bühne: die Spitze weiß
+   * selbst, wohin sie zeigt — ihr -Z ist die Richtung —, und damit geht die
+   * Linie jede Krümmung und jede Verschiebung der Hand mit, ohne dass hier
+   * irgendetwas nachgerechnet werden müsste.
+   *
+   * Eine `Line` und kein Mesh, und das ist mehr als eine Sparsamkeit: die
+   * Kamera misst nur sichtbare **Meshes** (`measure`), also passt sie sich an
+   * das Werkzeug an und nicht an eine Linie, die absichtlich über den Rand
+   * hinausgeht.
+   */
+  private addFingerLine(hand: GhostHand): void {
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -1),
+    ]);
+    const line = new THREE.Line(
+      geometry,
+      new THREE.LineBasicMaterial({ color: FINGER_LINE_COLOR, transparent: true, opacity: 0.85 }),
+    );
+    line.name = 'finger-line';
+    hand.indexTip.add(line);
+    this.fingerLine = line;
+  }
+
+  /** Ihre Länge, sobald feststeht, wie groß das Gezeigte ist. */
+  private sizeFingerLine(): void {
+    if (!this.fingerLine) return;
+    const length = Math.min(
+      FINGER_LINE_MAX,
+      Math.max(FINGER_LINE_MIN, this.radius * FINGER_LINE_SCALE),
+    );
+    this.fingerLine.scale.z = length;
+  }
+
+  /**
+   * Hand samt Linie weg.
+   *
+   * Die Linie einzeln: `GhostHand.dispose` räumt Meshes ab, und eine `Line`
+   * ist keines — ihre Geometrie bliebe bei jedem Werkzeugwechsel liegen.
+   */
+  private dropHand(): void {
+    const line = this.fingerLine;
+    this.fingerLine = null;
+    if (line) {
+      line.removeFromParent();
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    }
+    this.hand?.dispose();
+    this.hand = null;
   }
 
   /**
@@ -301,8 +436,7 @@ export class ToolViewer {
   }
 
   private clear(): void {
-    this.hand?.dispose();
-    this.hand = null;
+    this.dropHand();
     const tool = this.tool;
     this.tool = null;
     tool?.removeFromParent();
@@ -398,11 +532,19 @@ export class ToolViewer {
     return a && b ? a.distanceTo(b) : 0;
   }
 
-  /** Doppeltipp: zurück auf die Ansicht, mit der die Seite aufgemacht hat. */
+  /**
+   * Doppeltipp: zurück auf die Ansicht, mit der die Seite aufgemacht hat.
+   *
+   * Und **neu eingepasst**, denn beim Justieren wird das absichtlich nicht
+   * getan: eine Hand, die dabei aus dem Bild gewandert ist, holt man so
+   * zurück, ohne die Einstellung anzufassen.
+   */
   private reset(): void {
     this.yaw = 0.6;
     this.pitch = 0.35;
     this.zoom = 1;
     this.spinning = true;
+    this.fit();
+    this.sizeFingerLine();
   }
 }

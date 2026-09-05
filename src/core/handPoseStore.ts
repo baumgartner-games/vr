@@ -108,6 +108,35 @@ export function saveHoldHandPose(hand: Handedness, toolId: string, pose: HandPos
   });
 }
 
+/** Vergisst die Grundhaltung **einer** Hand — die andere bleibt stehen. */
+export function clearIdleHandPose(hand: Handedness): boolean {
+  const all = read();
+  if (!all.idle?.[hand]) return false;
+  const idle = { ...all.idle };
+  delete idle[hand];
+  write({ ...all, idle });
+  return true;
+}
+
+/**
+ * Vergisst die Griffhaltung **eines** Werkzeugs an **einer** Hand — der Rest
+ * bleibt stehen.
+ *
+ * Dasselbe Verhältnis wie `clearPose` zu `clearPoses` bei den Werkzeugposen:
+ * eine schief justierte Taschenlampe ist kein Grund, auch noch die Faust um
+ * die Pistole zurückzusetzen.
+ *
+ * @returns true, wenn wirklich etwas gespeichert war
+ */
+export function clearHoldHandPose(hand: Handedness, toolId: string): boolean {
+  const all = read();
+  if (!all.hold?.[hand]?.[toolId]) return false;
+  const held = { ...all.hold[hand] };
+  delete held[toolId];
+  write({ ...all, hold: { ...all.hold, [hand]: held } });
+  return true;
+}
+
 /** Everything at once — what the config code writes back. */
 export function saveHandPoses(next: Stored): void {
   write(next);

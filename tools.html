@@ -30,6 +30,9 @@
         <button type="button" data-hand="grip">In der Hand</button>
         <button type="button" data-hand="tool">Am Werkzeug</button>
       </div>
+      <button id="edit" class="top__icon top__edit" type="button" aria-label="Haltung bearbeiten" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
+      </button>
     </header>
 
     <nav id="drawer" class="drawer" hidden>
@@ -47,13 +50,39 @@
       <ul id="grid-bag" class="grid" aria-label="Der magische Beutel" hidden></ul>
 
       <section id="detail" class="detail" hidden>
+        <!--
+          Der Justierer. Oben die Achse — immer nur eine —, unten der Regler
+          dazu, und dazwischen bleibt die Bühne: man zieht am Regler und sieht
+          im selben Bild, was daraus wird. Beides steht nur im Bearbeiten-Modus
+          da; wer nur schaut, soll eine Seite ohne Regler sehen.
+        -->
+        <div id="axes" class="axes" role="group" aria-label="Achse" hidden></div>
         <div class="stage"><canvas id="stage" class="stage__canvas"></canvas></div>
-        <div class="detail__foot">
+        <div id="foot" class="detail__foot">
           <p id="hint" class="detail__hint"></p>
           <p id="note" class="detail__note" hidden></p>
           <a id="enter" class="detail__enter" href="./" hidden>Welt betreten →</a>
           <p class="detail__help">Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück</p>
         </div>
+
+        <section id="editor" class="editor" hidden>
+          <div class="editor__row">
+            <div id="targets" class="seg" role="group" aria-label="Was der Regler verschiebt">
+              <button type="button" data-target="hold">In der Hand</button>
+              <button type="button" data-target="grip">Am Griff</button>
+            </div>
+            <button id="revert" class="editor__ghost" type="button">Zurücksetzen</button>
+          </div>
+          <div class="editor__slide">
+            <button class="editor__step" type="button" data-nudge="-1" aria-label="eine Raste zurück">−</button>
+            <input id="slider" class="editor__range" type="range" aria-label="Wert der gewählten Achse" />
+            <button class="editor__step" type="button" data-nudge="1" aria-label="eine Raste weiter">+</button>
+          </div>
+          <p id="reading" class="editor__reading"></p>
+          <p id="values" class="editor__values"></p>
+          <button id="code-tool" class="editor__code" type="button"></button>
+          <button id="code-all" class="editor__code" type="button"></button>
+        </section>
       </section>
     </main>
 

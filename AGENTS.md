@@ -159,7 +159,12 @@ Finger stehen bleiben statt sich zu strecken), die
 die drei Betriebsarten, das Anhalten als erlaubte Raste und kein
 Rückwärtslauf), die **Materialien** (`src/worlds/portal/tools/materials.ts` —
 dass eine unbekannte Id aus dem Netz zu Lack wird statt zu `undefined`) und
-die **Hub-Auslegung** (`src/worlds/hub/hubLayout.ts` — dass ein voller Gang
+der **Regler der Werkzeugseite**
+(`src/tools/poseEdit.ts` — die sechs Achsen, ihre Grenzen und dass ein Wert
+auf demselben Raster landet, auf dem auch gespeichert wird: ein Regler liefert
+0,30000000000000004, der Konfig-Code trüge 0,3, und die Seite zeigte eine
+dritte Zahl) und die **Hub-Auslegung**
+(`src/worlds/hub/hubLayout.ts` — dass ein voller Gang
 einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
 aufeinander stehen). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
@@ -1951,6 +1956,80 @@ beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust sitzt,
 in der Hand, wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
 im Eingaberaum (`tune/handGrip.ts`), nur ohne Zielkorrektur — die kommt aus
 einem Controller, und im Browser gibt es keinen.
+
+An der Hand hängt außerdem eine **Linie am Zeigefinger**, in der Farbe des
+Beutels und nicht in der der Hand. Man sieht einer Faust nicht an, wohin sie
+zeigt, und ob ein Werkzeug entlang des Fingers liegt oder dreißig Grad daneben,
+ist die halbe Frage, um die es beim Justieren überhaupt geht. Sie hängt an
+`GhostHand.indexTip` — die Spitze weiß selbst, wohin sie zeigt, ihr -Z *ist*
+die Richtung —, geht also jede Krümmung mit, ohne dass irgendwo etwas
+nachgerechnet würde. Und sie ist eine `Line` und kein Mesh: die Kamera misst
+nur sichtbare Meshes, also passt sie sich weiter an das Werkzeug an und nicht
+an eine Linie, die absichtlich über den Rand hinausgeht.
+
+#### Bearbeiten auf der Werkzeugseite
+
+Der **Stift oben in der Ecke** macht aus der Ansicht einen Justierstand — und
+zwar denselben, den der Eingaberaum aufstellt, nur mit einem Daumen statt mit
+zwei Händen. Oben unter dem Kopf stehen dann **sechs Achsen**, unten am Rand
+ein **Regler**, und dazwischen bleibt das Bild: man zieht und sieht im selben
+Moment, was daraus wird. Immer nur **eine** Achse zugleich — sechs Regler
+untereinander sind auf einem Telefon kein Werkzeug, sondern ein Formular.
+Neben dem Regler stehen zwei Rasten-Knöpfe, denn ein Zehntel Zentimeter ist auf
+360 Bildpunkten Reglerweg nicht zu treffen.
+
+Der zweite Umschalter, unten links, ist der eigentliche Punkt: **wohin** die
+Änderung geht. „Die Hand liegt falsch am Werkzeug" hat dieselben zwei
+Antworten wie die beiden Justierstände in der Brille —
+
+- **In der Hand** — das *Werkzeug* wandert im Griff, die Hand steht still. Das
+  landet in `poseStore` (`bgvr.holdPoses`), also in `holdPosition` und
+  `holdRotation`.
+- **Am Griff** — die *Hand* wandert am Werkzeug, das Werkzeug steht still. Das
+  landet in `handPoseStore` (`bgvr.handPoses`) als Griffhaltung dieses
+  Werkzeugs, und zwar nur in ihren sechs Zahlen: Finger und Spreizung sind
+  keine Frage von „wo liegt die Hand" und bleiben stehen.
+
+Die Ansicht geht mit dem Ziel mit, weil man das eine nur im anderen sieht: wer
+das Werkzeug im Griff verschiebt, braucht eine stehende Hand. Der Umschalter im
+Kopf bleibt trotzdem bedienbar, wer anders schauen will, schaut anders.
+
+Gespeichert wird **sofort** und nicht auf einen Knopf: es ist derselbe
+Speicher, den die Brille liest, und ein „Übernehmen", das man vergisst, ist
+eine Einstellung, die man zweimal macht. Deshalb stehen unter dem Regler auch
+gleich die beiden **Konfig-Codes** — der kurze für dieses Werkzeug an dieser
+Hand (`toolGearCode`) und der lange für alles (`gearCode`) —, jeder eine Zeile,
+angetippt kopiert. Damit ist der Weg vom Telefon in die Brille das, was er sein
+soll: einstellen, Code kopieren, drüben eintippen.
+
+Zwei Dinge, die dabei auffielen und die man nicht sieht:
+
+- Die **Boxhand** ist die Hand selbst, und ihre Lage „in der Hand" ist die
+  **Grundhaltung dieser Hand** und nicht die Pose eines Werkzeugs
+  (`HandTool.storeMeasured`). Wer sie hier verschöbe wie eine Pistole, schriebe
+  in einen Speicher, den das Spiel für dieses eine Werkzeug gar nicht liest —
+  die Einstellung wäre gemacht und in der Brille nicht da. Also schreibt der
+  Regler für `hand-box` in `saveIdleHandPose`, und beim Aufstellen holt die
+  Seite sich von dort, was `HandTool.onTake` sich beim Zugreifen holt.
+- `SHORT_SLOTS` in `shortCode.ts` kannte **Holster, Hängegleiter und Flügel
+  nicht**. `packShortGear` fällt für eine unbekannte Id auf Platz 0 zurück, und
+  Platz 0 ist „leere Hand": der Kurzcode für den Gürtel-Justierer hätte still
+  die Grundhaltung verstellt. Die drei sind jetzt **angehängt** und nicht
+  einsortiert — der Platz *ist* das Format, und wer die Reihenfolge ändert,
+  macht aus jedem alten Code einen, der etwas anderes meint.
+
+Die Zahlen dazu — Achsen, Grenzen, Raster, die beiden Ziele — stehen in
+`src/tools/poseEdit.ts` mit Test, ohne three.js und ohne DOM; der Rest ist
+Verdrahtung. Die Grenzen sind nicht frei gewählt: ±30 cm ist genau das, was ein
+Kurzcode tragen kann, und ein Regler, der weiter geht als der Code, stellt
+etwas ein, das man nicht weitergeben kann.
+
+Beim Ziehen passt die Kamera sich **nicht** neu ein. Sie richtet sich nach
+allem, was auf der Bühne steht — schiebt man das Werkzeug drei Zentimeter aus
+der Hand, rückte sie anderthalb hinterher, und die halbe Bewegung wäre wieder
+weg. Wer dabei etwas aus dem Bild geschoben hat, holt es mit dem **Doppeltipp**
+zurück; der passt jetzt auch wieder ein und stellt nicht nur die Drehung
+zurück.
 
 Gebaut werden die Modelle mit **demselben `createTool`** wie im Spiel, und die
 Symbole der Kacheln zeichnet **dasselbe `drawMenuIcon`** wie im

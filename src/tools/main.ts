@@ -4,8 +4,34 @@ import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
 import { WORLDS } from '../worlds';
 import { buildGate } from '../worlds/hub/HubWorld';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
-import { TOOL_GRIPS } from '../core/handPose';
+import { TOOL_GRIPS, type HandPose } from '../core/handPose';
+import {
+  clearHoldHandPose,
+  clearIdleHandPose,
+  holdHandPose,
+  idleHandPose,
+  saveHoldHandPose,
+  saveIdleHandPose,
+} from '../core/handPoseStore';
+import { clearPose, savePose } from '../worlds/portal/tools/poseStore';
+import { poseFromReadout } from '../worlds/portal/tools/toolPose';
+import { gearCode, toolGearCode } from '../worlds/portal/tools/gearConfig';
+import {
+  EDIT_AXES,
+  EDIT_TARGETS,
+  axisSpec,
+  clampAxis,
+  formatAxes,
+  formatAxis,
+  isEditTarget,
+  nudgeAxis,
+  readAxis,
+  withAxis,
+  type EditAxis,
+  type EditTarget,
+} from './poseEdit';
 import { ToolViewer, type HandMode } from './viewer';
+import type { PoseReadout } from '../worlds/portal/tools/toolPose';
 
 /**
  * **Die Werkzeugseite** — alles, was es in der Spielwiese gibt, im Browser.
@@ -31,6 +57,14 @@ import { ToolViewer, type HandMode } from './viewer';
  * Browsers dasselbe wie der im Kopf, und ein Link auf ein einzelnes Werkzeug
  * ist ein Link: `#hammer` wie eh und je, `#welt/alps` und `#objekt/cube` für
  * die beiden anderen Regale, `#welten` und `#beutel` für ihre Übersichten.
+ *
+ * **Und sie schaut nicht nur.** Der Stift oben rechts macht aus der Ansicht
+ * einen Justierstand: eine Achse oben, ein Regler unten, dazwischen das Bild.
+ * Was dabei entsteht, landet in denselben Speichern wie in der Brille
+ * (`poseStore`, `handPoseStore`) und damit auch im **Konfig-Code**, der unter
+ * dem Regler steht — die Seite ist eine zweite Bedienung derselben Einstellung
+ * und kein eigener kleiner Zustand daneben. Die Rechnung dazu steht in
+ * `poseEdit.ts` (mit Test).
  */
 
 type Section = 'tools' | 'worlds' | 'bag';
@@ -47,9 +81,20 @@ const grids: Record<Section, HTMLElement> = {
 };
 const detail = document.querySelector<HTMLElement>('#detail')!;
 const stage = document.querySelector<HTMLCanvasElement>('#stage')!;
+const foot = document.querySelector<HTMLElement>('#foot')!;
 const hint = document.querySelector<HTMLElement>('#hint')!;
 const note = document.querySelector<HTMLElement>('#note')!;
 const enter = document.querySelector<HTMLAnchorElement>('#enter')!;
+const edit = document.querySelector<HTMLButtonElement>('#edit')!;
+const axesBar = document.querySelector<HTMLElement>('#axes')!;
+const editor = document.querySelector<HTMLElement>('#editor')!;
+const targets = document.querySelector<HTMLElement>('#targets')!;
+const revert = document.querySelector<HTMLButtonElement>('#revert')!;
+const slider = document.querySelector<HTMLInputElement>('#slider')!;
+const reading = document.querySelector<HTMLElement>('#reading')!;
+const values = document.querySelector<HTMLElement>('#values')!;
+const codeTool = document.querySelector<HTMLButtonElement>('#code-tool')!;
+const codeAll = document.querySelector<HTMLButtonElement>('#code-all')!;
 
 const HAND_STORE = 'bgvr.toolPageHand';
 const viewer = new ToolViewer(stage);
@@ -327,6 +372,225 @@ function showMode(): void {
   }
 }
 
+// --- der Justierer -----------------------------------------------------------
+
+/**
+ * Bearbeiten ist ein **Modus** und kein zweiter Bildschirm: dasselbe Bild,
+ * dieselbe Drehung, nur ein Regler dazu. Wer eine Haltung einstellt, will das
+ * Ergebnis ja genau in der Ansicht sehen, in der er es vorher betrachtet hat.
+ */
+let editing = false;
+let axis: EditAxis = 'x';
+let target: EditTarget = 'hold';
+
+for (const spec of EDIT_AXES) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = spec.label;
+  button.title = `${spec.label} — ${spec.hint}`;
+  button.dataset['axis'] = spec.key;
+  button.addEventListener('click', () => {
+    axis = spec.key;
+    showEditor();
+  });
+  axesBar.append(button);
+}
+
+for (const button of targets.querySelectorAll<HTMLButtonElement>('button')) {
+  button.addEventListener('click', () => {
+    const key = button.dataset['target'] ?? '';
+    if (!isEditTarget(key)) return;
+    target = key;
+    // Die Ansicht geht mit: „In der Hand" verschiebt das Werkzeug im Griff, und
+    // das sieht man nur, wenn die Hand stillsteht. Umgekehrt genauso. Wer doch
+    // anders schauen will, hat den Umschalter oben.
+    const view = EDIT_TARGETS.find((entry) => entry.key === key)?.view;
+    if (view && mode !== view) setMode(view);
+    showEditor();
+  });
+}
+
+edit.addEventListener('click', () => setEditing(!editing));
+
+// Der Regler schreibt sofort mit, nicht erst beim Loslassen — und bekommt
+// seinen eigenen Wert dabei **nicht** zurückgeschrieben: ein `value`, das
+// mitten in einer Ziehbewegung gesetzt wird, lässt den Knopf unter dem Daumen
+// springen.
+slider.addEventListener('input', () => writeAxis(Number(slider.value), false));
+
+for (const button of editor.querySelectorAll<HTMLButtonElement>('[data-nudge]')) {
+  button.addEventListener('click', () => {
+    const steps = Number(button.dataset['nudge']) || 0;
+    writeAxis(nudgeAxis(axis, readAxis(currentPose(), axis), steps));
+  });
+}
+
+revert.addEventListener('click', () => {
+  const id = viewer.toolId;
+  if (!id) return;
+  // Das ganze Ziel und nicht nur die eine Achse: wer zurücksetzt, will die
+  // gebaute Haltung wiederhaben, und die besteht aus sechs Zahlen.
+  if (target !== 'hold') {
+    clearHoldHandPose(viewer.handSide, id);
+    viewer.refresh();
+  } else if (id === HAND_TOOL) {
+    clearIdleHandPose(viewer.handSide);
+    showHandTool();
+  } else {
+    clearPose(id);
+    viewer.setHoldPose(null);
+  }
+  showEditor();
+});
+
+codeTool.addEventListener('click', () => {
+  const id = viewer.toolId;
+  if (id) copy(codeTool, toolGearCode(id, viewer.handSide), 'Werkzeug');
+});
+codeAll.addEventListener('click', () => copy(codeAll, gearCode(), 'Alles'));
+
+function setEditing(on: boolean): void {
+  editing = on && viewer.toolId !== null;
+  edit.setAttribute('aria-pressed', String(editing));
+  axesBar.hidden = !editing;
+  editor.hidden = !editing;
+  // Der Hinweistext weicht: auf einem Telefon ist der Platz unter der Bühne
+  // genau einmal da, und der Regler braucht ihn dringender.
+  foot.hidden = editing;
+  // Eine Haltung, die sich beim Justieren von selbst weiterdreht, justiert
+  // niemand.
+  if (editing) viewer.setSpinning(false);
+  if (editing && mode === 'off') {
+    setMode(EDIT_TARGETS.find((entry) => entry.key === target)?.view ?? 'grip');
+  }
+  showEditor();
+}
+
+/**
+ * Die **Boxhand** ist die Hand selbst, und deshalb ist ihre Lage „in der Hand"
+ * die **Grundhaltung** dieser Hand und nicht die Pose eines Werkzeugs
+ * (`tools/HandTool.ts`, `storeMeasured`). Wer sie hier verschöbe wie eine
+ * Pistole, schriebe in einen Speicher, den das Spiel für dieses eine Werkzeug
+ * gar nicht liest — die Einstellung wäre gemacht und in der Brille nicht da.
+ */
+const HAND_TOOL = 'hand-box';
+
+/** Die sechs Zahlen einer Handhaltung; Finger und Spreizung bleiben dort. */
+function sixOf(pose: HandPose): PoseReadout {
+  return { x: pose.x, y: pose.y, z: pose.z, pitch: pose.pitch, yaw: pose.yaw, roll: pose.roll };
+}
+
+/** Die sechs Zahlen, an denen der Regler gerade zieht. */
+function currentPose(): PoseReadout {
+  const id = viewer.toolId;
+  const zero: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
+  if (!id) return zero;
+  if (target === 'grip') return sixOf(holdHandPose(viewer.handSide, id));
+  if (id === HAND_TOOL) return sixOf(idleHandPose(viewer.handSide));
+  return viewer.holdReadout() ?? zero;
+}
+
+/**
+ * Die Boxhand auf die Bühne stellen, wie sie eingestellt ist.
+ *
+ * Im Spiel holt sie sich das beim Zugreifen (`HandTool.onTake`) — hier greift
+ * niemand zu, also stünde sonst die ausgelieferte Haltung da und der Regler
+ * daneben zeigte die gemessene.
+ */
+function showHandTool(refit = false): void {
+  if (viewer.toolId !== HAND_TOOL) return;
+  viewer.setHoldPose(poseFromReadout(sixOf(idleHandPose(viewer.handSide))), refit);
+}
+
+/**
+ * Ein neuer Wert auf der gewählten Achse — in den Speicher, auf die Bühne und
+ * zurück auf die Anzeige.
+ *
+ * Gespeichert wird **sofort** und nicht erst beim Loslassen: der Speicher ist
+ * derselbe, den die Brille liest, und ein „Übernehmen"-Knopf, den man vergisst,
+ * ist eine Einstellung, die man zweimal macht.
+ */
+function writeAxis(value: number, syncSlider = true): void {
+  const id = viewer.toolId;
+  if (!id) return;
+  const next = withAxis(currentPose(), axis, clampAxis(axis, value));
+
+  // Überall nur die sechs Zahlen: Finger und Spreizung gehören zur Haltung und
+  // werden von einem Regler für Ort und Winkel nicht angefasst.
+  if (target === 'grip') {
+    saveHoldHandPose(viewer.handSide, id, { ...holdHandPose(viewer.handSide, id), ...next });
+    viewer.refresh();
+  } else if (id === HAND_TOOL) {
+    saveIdleHandPose(viewer.handSide, { ...idleHandPose(viewer.handSide), ...next });
+    viewer.setHoldPose(poseFromReadout(next));
+  } else {
+    const pose = poseFromReadout(next);
+    // Die Seite misst immer an derselben Hand, also steht sie auch als
+    // Herkunft im Speicher — eine Zahl ohne Seite ist später nicht mehr zu
+    // deuten.
+    savePose(id, pose, viewer.handSide);
+    viewer.setHoldPose(pose);
+  }
+  showEditor(syncSlider);
+}
+
+/** Alles am Justierer auf den Stand bringen, den der Speicher gerade hat. */
+function showEditor(syncSlider = true): void {
+  if (!editing) return;
+  const pose = currentPose();
+  const spec = axisSpec(axis);
+  const value = clampAxis(axis, readAxis(pose, axis));
+
+  for (const button of axesBar.querySelectorAll<HTMLButtonElement>('button')) {
+    button.classList.toggle('is-active', button.dataset['axis'] === axis);
+  }
+  for (const button of targets.querySelectorAll<HTMLButtonElement>('button')) {
+    button.classList.toggle('is-active', button.dataset['target'] === target);
+  }
+
+  if (syncSlider) {
+    slider.min = String(spec.min);
+    slider.max = String(spec.max);
+    slider.step = String(spec.step);
+    slider.value = String(value);
+  }
+
+  const targetHint = EDIT_TARGETS.find((entry) => entry.key === target);
+  reading.textContent = `${spec.label} ${formatAxis(axis, value)} · ${spec.hint}`;
+  values.textContent = `${formatAxes(pose)} — ${targetHint?.hint ?? ''}`;
+
+  const id = viewer.toolId;
+  showCode(codeTool, 'Werkzeug', id ? toolGearCode(id, viewer.handSide) : '');
+  showCode(codeAll, 'Alles', gearCode());
+}
+
+function showCode(button: HTMLButtonElement, label: string, code: string): void {
+  button.textContent = `${label}: ${code}`;
+  button.title = code;
+  button.dataset['code'] = code;
+}
+
+/**
+ * Antippen kopiert. Ohne Zwischenablage (ein alter Browser, kein sicherer
+ * Kontext) sagt der Knopf das auch — er zeigt den Code ja im Klartext, und
+ * markieren geht immer noch.
+ */
+function copy(button: HTMLButtonElement, code: string, label: string): void {
+  const done = (text: string): void => {
+    button.textContent = text;
+    window.setTimeout(() => showCode(button, label, code), 1400);
+  };
+  const clipboard = globalThis.navigator?.clipboard;
+  if (!clipboard || !code) {
+    done(`${label}: zum Kopieren markieren`);
+    return;
+  }
+  clipboard.writeText(code).then(
+    () => done(`${label}: kopiert ✓`),
+    () => done(`${label}: zum Kopieren markieren`),
+  );
+}
+
 // --- welcher Zustand gilt ----------------------------------------------------
 
 window.addEventListener('hashchange', route);
@@ -372,7 +636,12 @@ function route(): void {
   showMode();
   viewer.setHandMode(mode);
   entry.show();
+  showHandTool(true);
   viewer.start();
+  // Bearbeiten gibt es nur für Werkzeuge: eine Welt und ein Beutel-Objekt
+  // liegen in keiner Hand, es gibt dort schlicht nichts zu justieren.
+  edit.hidden = entry.section !== 'tools';
+  setEditing(editing && entry.section === 'tools');
 }
 
 function showOverview(section: Section): void {
@@ -384,6 +653,8 @@ function showOverview(section: Section): void {
   hands.hidden = true;
   back.hidden = true;
   nav.hidden = false;
+  edit.hidden = true;
+  setEditing(false);
   title.textContent = SECTION_TITLES[section];
   document.title = `${SECTION_TITLES[section]} — Baumgartner VR`;
 }
