@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { World, WorldContext } from '../../core/types';
+import type { World, WorldContext, WorldPreview } from '../../core/types';
 import type { MenuEntry, MenuIcon } from '../../ui/menu';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 import { Portal, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH } from './Portal';
@@ -144,6 +144,7 @@ import {
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
 import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
+import { silentPhysics } from '../../physics/silentPhysics';
 import { FreeLocomotion } from '../../core/Locomotion';
 import { GRAB_GLOW, GRAB_GLOW_LOCKED, GRAB_GLOW_PICKED } from '../../core/colors';
 import { clearSupermanSettings, saveSupermanSettings, supermanSettings } from './tools/gearStore';
@@ -172,6 +173,10 @@ const SHAPE_LABELS: Record<string, string> = {
   cone: 'Kegel',
 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
+/** Augenhöhe des Blicks in der Vorschau — ein Mensch, der dort steht. */
+const PREVIEW_EYE = 1.65;
+/** So viel Licht hat auch die dunkelste Welt, wenn man sie nur ansieht. */
+const PREVIEW_LIGHT = 0.45;
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
 /** The portal surface stays at least this far in front of the eye. */
@@ -2108,6 +2113,49 @@ export class PortalWorld implements World {
     ctx.scene.background = null;
     this.physics?.dispose();
     this.physics = null;
+  }
+
+  // --- die Welt zum Ansehen ------------------------------------------------
+
+  /**
+   * Die Kulisse dieser Welt, ohne Spiel darin — für die Werkzeugseite.
+   *
+   * Gebaut wird mit **denselben Zeilen** wie in `init`: derselbe Boden,
+   * dasselbe `buildEnvironment` mit allem, was eine Welt daran umbaut. Was
+   * fehlt, ist alles, wofür es einen Spieler braucht — Portale, Gürtel,
+   * Werkzeuge in Händen, Netzwerk, Menü. Die Physik ist eine Attrappe
+   * (`silentPhysics`), damit die Bauzeilen unverändert durchlaufen: sie legen
+   * jede Wand in eine Simulation, in der nie jemand steht.
+   *
+   * Der Blick steht am Startpunkt der Welt und schaut in die Startrichtung —
+   * eine Welt sieht man von innen an, nicht als Modell von außen. Ein
+   * Dunkelhaus wäre von außen ein grauer Kasten, ein Berg von 1000 Metern eine
+   * Platte mit einer Beule.
+   */
+  preview(): WorldPreview {
+    this.root.name = 'preview';
+    this.physics = silentPhysics();
+    // Licht wie in der Welt — aber nie so wenig, dass nichts zu sehen ist. Das
+    // Dunkelhaus ist mit Absicht fast schwarz (0.035), und eine schwarze
+    // Vorschau ist keine.
+    this.root.add(createLighting(Math.max(this.lightIntensity(), PREVIEW_LIGHT)));
+    this.buildHorizonFloor();
+    this.buildEnvironment();
+
+    const spawn = this.spawnPoint();
+    return {
+      object: this.root,
+      eye: new THREE.Vector3(spawn.x, spawn.y + PREVIEW_EYE, spawn.z),
+      yaw: this.spawnYaw(),
+      dispose: () => {
+        // Ein Werkzeug, das im Raum liegt (die Taschenlampe im Dunkelhaus),
+        // hat mehr als Geometrie — es hat einen Lichtkegel und eine Kamera.
+        for (const tool of this.liveTools) tool.disposeTool();
+        this.liveTools.clear();
+        disposeTree(this.root);
+        this.physics = null;
+      },
+    };
   }
 
   // --- the room, and what a different room may change ----------------------

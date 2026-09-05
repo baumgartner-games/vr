@@ -73,8 +73,9 @@ nur eine), unten der Regler, und ein Umschalter dafür, ob das *Werkzeug in der
 Hand* wandert oder die *Hand am Griff*. Alles landet in denselben Speichern wie
 in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
 Über die Schublade daneben die
-**Welten** (jede mit ihrem Tor aus dem Hub und einem Knopf hinein) und der
-**Magische Beutel** (jedes Objekt mit Masse und Maßen). Keine Brille nötig, das
+**Welten** (jede von innen zum Umsehen — die Kamera steht dort, wo man auch im
+Spiel anfängt —, dazu ein Knopf hinein) und der **Magische Beutel** (jedes
+Objekt mit Masse und Maßen). Keine Brille nötig, das
 Telefon reicht. Details in [AGENTS.md](AGENTS.md#die-werkzeugseite).
 
 ## Query-/Hash-Parameter

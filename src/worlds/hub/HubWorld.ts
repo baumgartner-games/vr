@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { World, WorldContext } from '../../core/types';
+import type { World, WorldContext, WorldPreview } from '../../core/types';
 import { WORLDS } from '../index';
 import { TextPlane } from '../../ui/TextPlane';
 import { createGround, createLighting, createSky, disposeTree } from '../shared/environment';
@@ -21,6 +21,8 @@ export interface Gate {
 }
 
 const SPAWN = new THREE.Vector3(0, 0, 4.5);
+/** Augenhöhe des Blicks in der Vorschau — ein Mensch, der dort steht. */
+const PREVIEW_EYE = 1.65;
 /** Höhe der Gangwände. */
 const WALL_HEIGHT = 3.4;
 
@@ -113,6 +115,53 @@ export class HubWorld implements World {
       gate.sign.position.y = 2.55 + Math.sin(this.time * 1.2 + index) * 0.03;
     }
     void ctx;
+  }
+
+  /**
+   * Der Hub zum Ansehen: dieselbe Halle, dieselben Gänge, dieselben Tore —
+   * nur ohne Zeiger, ohne Weg hinein und ohne Spieler.
+   *
+   * Gebaut wird mit denselben Funktionen wie oben; was hier fehlt, sind die
+   * beiden Zeilen, die aus einem Tor einen Knopf machen. Die Tore wirbeln
+   * trotzdem: dafür ist `animate` da.
+   */
+  preview(): WorldPreview {
+    this.root.name = 'hub-preview';
+    this.root.add(createSky(0x1b3358, 0x05070d));
+    this.root.add(createLighting(1.15));
+    this.root.add(createGround(0x1d2740, { line: 0x4aa8ff, tile: 6 }));
+
+    const targets = WORLDS.filter((world) => world.id !== 'hub');
+    const layout = layoutHub(targets.length);
+    this.root.add(buildHall(layout));
+    for (const corridor of layout.corridors) this.root.add(buildCorridor(corridor));
+
+    layout.gates.forEach((placement) => {
+      const definition = targets[placement.index]!;
+      const gate = buildGate(definition.title, definition.description, definition.accent);
+      gate.group.position.set(placement.x, 0, placement.z);
+      gate.group.rotation.y = placement.yaw;
+      gate.worldId = definition.id;
+      this.root.add(gate.group);
+      this.gates.push(gate);
+    });
+
+    return {
+      object: this.root,
+      eye: new THREE.Vector3(SPAWN.x, SPAWN.y + PREVIEW_EYE, SPAWN.z),
+      yaw: 0,
+      animate: (time) => {
+        for (const [index, gate] of this.gates.entries()) {
+          gate.disc.material.uniforms.uTime!.value = time;
+          gate.ring.rotation.z = time * 0.25 * (index % 2 === 0 ? 1 : -1);
+        }
+      },
+      dispose: () => {
+        for (const gate of this.gates) gate.sign.dispose();
+        this.gates.length = 0;
+        disposeTree(this.root);
+      },
+    };
   }
 
   dispose(ctx: WorldContext): void {
