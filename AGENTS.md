@@ -59,7 +59,8 @@ Schnittstelle als `async` vorschreibt.
 ### Tests
 
 Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
-Mathematik hinter dem Ferngreifen (`src/worlds/portal/remoteGrab.ts`), die
+Mathematik hinter dem Greifen (`src/worlds/portal/grabReach.ts` — Zielen,
+Zylinder, Flug; `src/core/grabSettings.ts` — Rasten und Grenzen dazu), die
 Achsenzuordnung der Griffe (`src/worlds/portal/tools/axisMatch.ts`), die
 gemessene Werkzeug-Pose samt Spiegelung
 (`src/worlds/portal/tools/toolPose.ts`), die **Flugmathematik der Drohne**
@@ -945,7 +946,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Zweites Portal (Doppel-Waffe) | Greifen | Rechtsklick | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Weitergeben | mit der freien Hand danach greifen | – | – |
+| Anfassen | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist | – | – |
+| Nahgreifen | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo) | – | – |
 | Ferngreifen | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen | – | – |
+| Nah Gefasstes doch holen | dieselbe Kippgeste, >30° nach oben | – | – |
+| Reichweiten einstellen | Menü → Einstellungen → Greifen | dito | dito |
 | Menüseite blättern | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler | – | – |
 | Werkzeug-Einstellungen | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand) | Linksklick auf den Pfeil | tippen |
 | Augenhöhe messen | Menü → Bewegung → Augenhöhe → *Jetzt messen*, oder die Knöpfe an der rechten Wand im Eingaberaum | – | – |
@@ -1057,6 +1062,43 @@ einmal schiefgegangen: siehe *Eingemessene Griffe*.
 Jede Waffe in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden
 und Decke richtet sich das Portal nach der Waffe, mit der du zielst.
 
+### Drei Dinge, drei Reichweiten — und ihre Namen
+
+Damit im Code und in Aufträgen dasselbe Wort dasselbe meint, heißen die drei
+Arten von Dingen so:
+
+| Deutsch | Code | Was es ist | Was eine Hand damit darf |
+| --- | --- | --- | --- |
+| **Szenerie** | `scenery` | Boden, Wände, Rampen, alles Gebaute | nichts — man stößt dagegen |
+| **Gegenstand** | `prop` | Dominos, Kisten, Bälle: freie Körper ohne vorgesehene Anfassstelle | manipulieren: schieben, drehen, werfen |
+| **Griff** | `handle` | Werkzeuggriffe, Gürtelplätze, Standgriffe, Lenkrad — alles Türkise | in die Hand nehmen, an *der* Stelle, in *der* Haltung |
+
+Der Unterschied zwischen Gegenstand und Griff ist nicht Größe oder Gewicht,
+sondern: **ein Griff weiß, wie man ihn hält, ein Gegenstand nicht.** Deshalb
+schnappt der eine in die Hand und der andere bleibt liegen — eine Regel, die
+man nicht erklären muss.
+
+Und damit sich das nicht beißt: **Griff** ist immer das *Ding*, **Greifen**
+immer der *Vorgang*. Es heißt also nie „der Ferngriff", sondern
+**Ferngreifen** — so steht es auch im Menü.
+
+Gegriffen wird in **drei Reichweiten**. Sie unterscheiden sich nicht darin,
+*wie* man greift — gezielt wird immer, gedrückt wird immer derselbe Grip —,
+sondern darin, was danach passiert:
+
+| Deutsch | Code | Wann | Wirkung | Zeichen |
+| --- | --- | --- | --- | --- |
+| **Anfassen** | `touch` | Hand *in* der Greifbox | fassen | **die Hand** leuchtet |
+| **Nahgreifen** | `near` | im Zylinder um dich | fassen, bleibt wo es ist | Gegenstand leuchtet **+ Geisterhand** daran |
+| **Ferngreifen** | `remote` | Zielstrahl bis 9 m | holen, kommt geflogen | Gegenstand leuchtet **+ Strahl** beim Zugreifen |
+
+Die Achse dahinter ist es wert, benannt zu werden: **fassen** heißt, das Ding
+bleibt, wo es ist, und folgt der Hand von dort; **holen** heißt, es kommt zu
+dir. Ein Gegenstand wird nah gefasst und fern geholt; ein **Griff wird immer
+geholt**, auf jeder Entfernung — ein Werkzeug anderthalb Meter vor sich in der
+Luft zu dirigieren hilft niemandem, und es hat ja eine eingemessene Haltung,
+die es haben will.
+
 Die Greifbox ist der Collider plus 9 cm — ein fester Zuschlag, kein
 prozentualer, damit ein Dominostein genauso gut in die Hand springt wie ein
 Companion Cube.
@@ -1084,14 +1126,59 @@ holt genau den Stoß zurück, um den es geht. Die Kapsel selbst schreibt
 `PhysicsLocomotion` jedes Bild in die Physik — sie ändert sich mit jedem
 Schritt und jeder Kniebeuge.
 
-**Ferngreifen** (Einstellungen → Ferngreifen, standardmäßig an) erweitert das auf 9 m und
-läuft in zwei Schritten. Der Zielstrahl trifft die tatsächliche Box eines
-Objekts — plus etwas Rand und einen Kegel, der mit der Entfernung aufgeht, so
-dass ein weit entfernter Dominostein erreichbar bleibt, ohne einem näheren
-Objekt das Ziel wegzunehmen. Was getroffen ist, leuchtet auf. Mit **Grip**
-rastet es ein: Es bleibt markiert, auch wenn die Hand woanders hinzeigt.
-Kippst du die Hand danach mehr als **30°** nach oben/hinten, kommt das Objekt
+**Gezielt wird auf allen drei Reichweiten.** Der Zielstrahl trifft die
+tatsächliche Box eines Gegenstands — plus etwas Rand und einen Kegel, der mit
+der Entfernung aufgeht, so dass ein weit entfernter Dominostein erreichbar
+bleibt, ohne einem näheren Gegenstand das Ziel wegzunehmen. Nur die erste
+Stufe zielt nicht: steckt die Hand in einer Greifbox, ist das die Antwort,
+ohne dass irgendwohin gezeigt werden müsste.
+
+Dass auch das **Nahgreifen** zielt, ist keine Bequemlichkeit, sondern der
+Grund, warum die drei Stufen sich nicht in die Quere kommen. Nähme das
+Nahgreifen einfach den nächstgelegenen Gegenstand, hätte man den Dominostein
+vor dem eigenen Fuß in der Hand, während man quer durch die Halle auf eine
+Kiste zielt — und käme an das Ferngreifen praktisch nie mehr heran. So gibt es
+pro Hand **genau einen** Kandidaten, es leuchtet **genau einer**, und die
+Stufe liest man an der Zugabe ab: leuchtende Hand, Geisterhand oder Strahl.
+Der Zylinder ist dann kein Fangnetz, sondern nur die Grenze, ab der aus
+*fassen* ein *holen* wird.
+
+**Nahgreifen** (Einstellungen → Greifen, standardmäßig an) fasst alles im
+Zylinder um den Spieler — 1 m im Rund, 2,10 m hoch, beides einstellbar. Ein
+Zylinder und keine Kugel um die Hand, weil „muss ich mich bücken?" eine Frage
+an den **Körper** ist: der Dominostein vor den Füßen liegt außerhalb jeder
+Kugel um eine Hand, die auf Hüfthöhe hängt, und ist genau der Fall, um den es
+geht. Der Boden kommt dabei vom Rig (`getFloorY`) und nicht aus `position.y` —
+wer sich duckt, sinkt, der Fußboden nicht.
+
+Ein nah gefasster Gegenstand **fliegt nicht**. Er bleibt liegen, wo er liegt,
+und folgt der Hand von dort, als hätte man ihn dort angefasst. Wie er das tut,
+steht unter *Im Nahgriff*: **starr** wie in der Faust (Vorgabe — man hat eben
+einen langen Arm) oder als **Drehung um die Objektmitte**, die eins zu eins
+verschiebt und den Gegenstand um sich selbst dreht statt um die Hand kreisen zu
+lassen. Auf einen Meter wird aus jedem Grad am Handgelenk sonst ein Ausschlag.
+
+**Ferngreifen** (standardmäßig an) erweitert das auf 9 m und läuft in zwei
+Schritten. Was getroffen ist, leuchtet auf. Mit **Grip** rastet es ein: Es
+bleibt markiert, auch wenn die Hand woanders hinzeigt, und ein dünner Strahl
+zwischen Hand und Gegenstand sagt, dass jetzt gezogen werden kann. Kippst du
+die Hand danach mehr als **30°** nach oben/hinten, kommt der Gegenstand
 geflogen und landet in der Hand.
+
+Dieselbe Kippgeste holt auch einen **nah gefassten** Gegenstand doch noch
+her — eine Geste, drei Entfernungen. Im Nahbereich hat man damit die Wahl:
+dort lassen und manipulieren, oder hochkippen und in die Hand nehmen.
+
+**Die Geisterhand** steht dort, wo die echte anfassen würde: am Trefferpunkt
+des Strahls, mit der Drehung der echten Hand, halbtransparent und türkis. Sie
+ist erkennbar *deine* Hand an einem anderen Ort, und das ist die ganze
+Nachricht — deshalb ist sie auch in derselben Bauart wie die, die man gerade
+in der Brille sieht: Boxhand am Controller, Kugelglieder beim Handtracking
+(`HandVisuals.lookOf`). Solange nur gezielt wird, wandert sie mit dem Strahl;
+mit dem Zugriff friert sie am Gegenstand fest und fährt von da an mit ihm mit.
+Sie hängt dabei in der Welt und nicht am Gegenstand — ein Gegenstand kann
+verschwinden, und ein Geist, der mit ihm entsorgt wird, nimmt seine Geometrie
+mit ins Grab.
 
 Der Flug ist bewusst *keine* Physik: eine feste Bahn über eine feste Zeit, und
 das Objekt geht dabei durch alles hindurch. Eine ballistische Kurve sieht
@@ -1703,18 +1790,21 @@ npm run config -- mirror BG3… left   # linke Handhaltungen nach rechts
 Damit ist „hier sind meine Einstellungen, mach das für die andere Hand auch"
 eine Zeile statt vierzig Zahlen.
 
-Die **Linie** zwischen Hand und Objekt ist standardmäßig aus (sie steht meist
-im Weg) und lässt sich unter *Einstellungen → Ferngreifen → Linie anzeigen*
-einschalten. Ferngreifen schaltet sich außerdem selbst ab, solange beide Hände
-dicht beieinander sind und eine davon schon etwas hält — dann will man das
-Objekt übergeben und nicht quer durch den Raum zielen.
+Der **Strahl** zum Gegenstand kommt erst, wenn das Ferngreifen wirklich
+eingerastet ist, und sagt dann genau eine Sache: *daran kannst du jetzt
+ziehen*. Beim bloßen Zielen läge er nur im Bild — dort leuchtet der Gegenstand,
+und das reicht. Abschalten geht unter *Einstellungen → Greifen → Strahl beim
+Ferngreifen*. Ferngreifen schaltet sich außerdem selbst ab, solange beide Hände
+dicht beieinander sind und eine davon schon etwas hält — dann will man den
+Gegenstand übergeben und nicht quer durch den Raum zielen.
 
 ## Architektur
 
 ```
 src/
   core/      Engine, Player-Rig, Locomotion, XR-Input, Pointer, Hände, Avatar
-             — darin `colors.ts`, die einzige Stelle mit den Greiffarben
+             — darin `colors.ts`, die einzige Stelle mit den Greiffarben,
+             und `grabSettings.ts`, die drei Reichweiten des Greifens
   physics/   Rapier-Wrapper und der Charakter-Controller (dynamisch geladen)
   ui/        Canvas-basierte 3D-UI (Panel, Textflächen, Handgelenk-Menüs)
              — darin `menuNav.ts`, der Weg durchs Menü, den sich beide

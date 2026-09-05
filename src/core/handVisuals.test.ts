@@ -68,3 +68,52 @@ test('curling folds the thumb across the palm instead of leaving it straight', (
   // … and down onto the palm side, which is -Y.
   expect(closed!.y).toBeLessThan(open!.y - 0.01);
 });
+
+/**
+ * Ein Geist, der einer Hand nachgeführt wird.
+ *
+ * Am Gegenstand steht beim Nahgreifen eine Geisterhand, und sie soll dieselbe
+ * Haltung zeigen wie die echte — sonst zeigt sie den falschen Griff. Zwei
+ * Dinge dürfen dabei nicht passieren: dass die Finger auf der Startpose
+ * stehen bleiben, und dass sie beim Nachführen aus dem Raum springt, weil in
+ * der Pose ein Versatz steckt, der einer Hand am Controller gehört.
+ */
+describe('a ghost hand that follows the real one', () => {
+  it('stays where it was put when the pose is set again', () => {
+    const ghost = new GhostHand('right', IDLE_HAND_POSE);
+    ghost.position.set(1, 2, -3);
+    ghost.setPose(HOLD_HAND_POSE);
+    ghost.updateMatrixWorld(true);
+    expect(ghost.position.toArray()).toEqual([1, 2, -3]);
+    // Auch die Hand darin: der Versatz der Pose gehört einem Controller.
+    expect(ghost.children[0]!.position.length()).toBeCloseTo(0, 6);
+  });
+
+  it('closes its fingers when the gesture says grip', () => {
+    const ghost = new GhostHand('right', IDLE_HAND_POSE);
+    const open = new THREE.Vector3();
+    const closed = new THREE.Vector3();
+    const tip = (): THREE.Object3D => {
+      let node: THREE.Object3D = ghost.children[0]!.children.find(
+        (child) => !(child as THREE.Mesh).isMesh,
+      )!;
+      for (;;) {
+        const next = node.children.find((child) => !(child as THREE.Mesh).isMesh);
+        if (!next) return node;
+        node = next;
+      }
+    };
+    ghost.updateMatrixWorld(true);
+    tip().getWorldPosition(open);
+    ghost.setGesture('grip');
+    ghost.update(1);
+    ghost.updateMatrixWorld(true);
+    tip().getWorldPosition(closed);
+    expect(closed.distanceTo(open)).toBeGreaterThan(0.01);
+  });
+
+  it('remembers which way round it was built', () => {
+    expect(new GhostHand('left', IDLE_HAND_POSE, { look: 'limbs' }).look).toBe('limbs');
+    expect(new GhostHand('left', IDLE_HAND_POSE).look).toBe('bones');
+  });
+});

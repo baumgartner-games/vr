@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { ControllerState, Handedness, XRInput } from './XRInput';
+import { GRAB_GLOW } from './colors';
 import { clonePose, type HandPose } from './handPose';
 import { holdHandPose, idleHandPose, onHandPoseChange } from './handPoseStore';
 
@@ -230,10 +231,16 @@ export interface HandShapeOptions {
  */
 export class GhostHand extends THREE.Group {
   private readonly material: THREE.MeshStandardMaterial;
+  private readonly hand: ProceduralHand;
 
-  constructor(side: Handedness, pose: HandPose, options: HandShapeOptions = {}) {
+  constructor(
+    readonly side: Handedness,
+    pose: HandPose,
+    options: HandShapeOptions = {},
+  ) {
     super();
     const { color = 0x5ee0a0, look = 'bones', opacity = 0.32 } = options;
+    this.look = look;
     this.name = `ghost-hand-${side}`;
     this.material = new THREE.MeshStandardMaterial({
       color,
@@ -243,16 +250,38 @@ export class GhostHand extends THREE.Group {
       roughness: 0.5,
       emissive: new THREE.Color(color).multiplyScalar(0.35),
     });
-    const hand = new ProceduralHand(side, this.material, look);
-    hand.setPose(pose);
+    this.hand = new ProceduralHand(side, this.material, look);
+    this.setPose(pose);
     // A full second of blending: the fingers are where they belong at once,
     // because nobody watches a ghost grow into its pose.
-    hand.update(1);
-    // The offset in the pose belongs to a hand sitting on a controller. This
-    // one is placed in the room, so it starts from where it is put.
-    hand.position.set(0, 0, 0);
-    hand.quaternion.identity();
-    this.add(hand);
+    this.hand.update(1);
+    this.add(this.hand);
+  }
+
+  /** Knochen oder Kugeln — was hier steht, wurde gebaut und wechselt nicht. */
+  readonly look: 'bones' | 'limbs';
+
+  /**
+   * Dieselbe Haltung wie die echte Hand, nur an einem anderen Ort.
+   *
+   * Der Versatz in einer Pose gehört einer Hand, die auf einem Controller
+   * sitzt; dieser Geist wird in den Raum gestellt und fängt deshalb dort an,
+   * wo man ihn hinstellt. Alles andere — Krümmung, Fächerung — ist die Pose.
+   */
+  setPose(pose: HandPose): void {
+    this.hand.setPose(pose);
+    this.hand.position.set(0, 0, 0);
+    this.hand.quaternion.identity();
+  }
+
+  /** Was die Finger gerade tun sollen; die echte Hand macht es vor. */
+  setGesture(gesture: HandGesture): void {
+    this.hand.setGesture(gesture);
+  }
+
+  /** Lässt die Finger nachziehen — ohne das steht der Geist auf der Startpose. */
+  update(dt: number): void {
+    this.hand.update(dt);
   }
 
   dispose(): void {
@@ -279,7 +308,16 @@ export class HandVisuals extends THREE.Group {
   private readonly poses = new Map<string, HandPose>();
   private readonly unsubscribe: () => void;
   private readonly jointGeometry = new THREE.SphereGeometry(1, 10, 8);
+  /**
+   * Die Vorlage, aus der jede Hand ihr eigenes Material bekommt.
+   *
+   * Ein gemeinsames Material wäre sparsamer und genau deshalb falsch: leuchtet
+   * die rechte Hand, weil sie an einem Griff liegt, soll die linke dunkel
+   * bleiben. Zwei Materialien sind der Preis dafür, und der ist klein.
+   */
   private readonly material: THREE.MeshStandardMaterial;
+  private readonly handMaterials = new Map<Handedness, THREE.MeshStandardMaterial>();
+  private readonly glowing = new Set<Handedness>();
 
   constructor(
     private readonly input: XRInput,
@@ -308,6 +346,46 @@ export class HandVisuals extends THREE.Group {
   /** Forces a gesture, e.g. while a portal gun is held. */
   setGestureOverride(handedness: Handedness, gesture: HandGesture | null): void {
     this.overrides.set(handedness, gesture);
+  }
+
+  /**
+   * Die Hand selbst leuchtet — das Zeichen fürs **Anfassen**.
+   *
+   * Beim Nahgreifen und beim Ferngreifen leuchtet der Gegenstand: er ist
+   * weit weg, und die Frage ist, *welcher* es ist. Beim Anfassen ist die
+   * Frage eine andere — der Gegenstand leuchtet ohnehin schon, seit die Hand
+   * in seine Nähe kam, und was jetzt dazukommt, ist „du bist wirklich dran".
+   * Das steht der Hand besser als noch mehr Licht am Ding.
+   */
+  setGlow(handedness: Handedness, on: boolean): void {
+    if (on === this.glowing.has(handedness)) return;
+    if (on) this.glowing.add(handedness);
+    else this.glowing.delete(handedness);
+    const material = this.handMaterial(handedness);
+    material.emissive.setHex(on ? GRAB_GLOW : this.material.color.getHex());
+    material.emissive.multiplyScalar(on ? 0.42 : 0.06);
+  }
+
+  /** Ihr eigenes Material je Hand, gebaut, wenn die Hand zum ersten Mal da ist. */
+  private handMaterial(handedness: Handedness): THREE.MeshStandardMaterial {
+    let material = this.handMaterials.get(handedness);
+    if (!material) {
+      material = this.material.clone();
+      this.handMaterials.set(handedness, material);
+    }
+    return material;
+  }
+
+  /**
+   * Wie diese Hand gerade gezeichnet wird: Knochen am Controller, Kugeln beim
+   * Handtracking. Eine Geisterhand, die daneben steht, soll ja so aussehen wie
+   * die, die man in der Brille sieht.
+   */
+  lookOf(handedness: Handedness): 'bones' | 'limbs' {
+    for (const controller of this.input.controllers) {
+      if (controller.handedness === handedness) return controller.isHand ? 'limbs' : 'bones';
+    }
+    return 'bones';
   }
 
   /**
@@ -391,6 +469,8 @@ export class HandVisuals extends THREE.Group {
     for (const hand of this.hands.values()) this.disposeHand(hand);
     this.hands.clear();
     this.jointGeometry.dispose();
+    for (const material of this.handMaterials.values()) material.dispose();
+    this.handMaterials.clear();
     this.material.dispose();
     this.removeFromParent();
   }
@@ -408,7 +488,10 @@ export class HandVisuals extends THREE.Group {
       if (!joint) continue;
       let mesh = this.jointMeshes.get(joint);
       if (!mesh) {
-        mesh = new THREE.Mesh(this.jointGeometry, this.material);
+        const material = controller.handedness
+          ? this.handMaterial(controller.handedness)
+          : this.material;
+        mesh = new THREE.Mesh(this.jointGeometry, material);
         joint.add(mesh);
         this.jointMeshes.set(joint, mesh);
       }
@@ -430,7 +513,7 @@ export class HandVisuals extends THREE.Group {
       hand = undefined;
     }
     if (!hand) {
-      hand = new ProceduralHand(controller.handedness, this.material);
+      hand = new ProceduralHand(controller.handedness, this.handMaterial(controller.handedness));
       this.hands.set(controller, hand);
     }
     const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
