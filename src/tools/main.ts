@@ -308,6 +308,7 @@ const SHAPE_LABELS: Record<string, string> = {
   ball: 'Kugel',
   cylinder: 'Zylinder',
   cone: 'Kegel',
+  hull: 'Hülle',
 };
 
 const entries = [...readTools(), ...readWorlds(), ...readBag()];

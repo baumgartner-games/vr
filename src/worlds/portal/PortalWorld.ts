@@ -82,6 +82,7 @@ import {
   createDominoes,
   createPropShape,
   DOMINO_SIZE,
+  PROP_LABELS,
   type PropKind,
 } from './props';
 import {
@@ -171,6 +172,7 @@ const SHAPE_LABELS: Record<string, string> = {
   ball: 'Kugel',
   cylinder: 'Zylinder',
   cone: 'Kegel',
+  hull: 'Hülle',
 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
 /** Augenhöhe des Blicks in der Vorschau — ein Mensch, der dort steht. */
@@ -3481,6 +3483,9 @@ export class PortalWorld implements World {
       loadWorldSnapshot: () => this.loadSnapshot(),
       hasWorldSnapshot: () => this.hasSnapshot(),
       duplicateProp: (entry) => this.duplicateProp(entry),
+      conjureProp: (kind, hand) => {
+        this.conjureProp(this.context!, kind, hand);
+      },
       styleProp: (entry, style) => this.styleProp(entry, style, true),
       inspectProp: (entry) => this.describeProp(entry),
       spawnBullet: (origin, direction, speed, options) =>
@@ -4655,9 +4660,28 @@ export class PortalWorld implements World {
     }
   }
 
-  /** Conjures a new prop straight into the hand that picked it from the bag. */
+  /**
+   * Der Griff in den Beutel, von der Menüseite aus: das Panel geht zu, und
+   * sobald das Ding wieder losgelassen ist, geht es an derselben Stelle wieder
+   * auf. Wer aus dem Beutel etwas holt, holt meistens noch etwas.
+   */
   private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: PropKind): void {
-    if (!this.physics) return;
+    ctx.menu.toggle(false);
+    if (this.conjureProp(ctx, kind, hand)) this.reopenBag = true;
+  }
+
+  /**
+   * Conjures a new prop straight into the hand that picked it from the bag.
+   *
+   * Zwei Bedienungen enden hier: die Rasterseite im Handgelenk-Menü und der
+   * Beutel als Werkzeug in der Hand (`tools/MagicBagTool.ts`). Was der eine Weg
+   * kann, kann damit auch der andere — inklusive der Mitspieler, die das Ding
+   * entstehen sehen.
+   *
+   * @returns ob eine Hand es aufgefangen hat.
+   */
+  private conjureProp(ctx: WorldContext, kind: PropKind, hand: Handedness | null): boolean {
+    if (!this.physics) return false;
 
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked
@@ -4678,16 +4702,16 @@ export class PortalWorld implements World {
     const entry = this.createProp(id, kind, _point, null);
     this.sync?.spawned(id, kind, poseOf(entry));
 
-    ctx.menu.toggle(false);
+    const caught = Boolean(hand && anchor);
     if (hand && anchor) {
       const tool = this.held.get(hand);
       if (tool) this.stowTool(tool);
       const existing = this.grabs.get(hand);
       if (existing) this.release(ctx, hand, existing, true);
       this.attach(hand, anchor, entry);
-      this.reopenBag = true;
     }
-    ctx.notify(createPropShape(kind).label);
+    ctx.notify(PROP_LABELS[kind]);
+    return caught;
   }
 
   /** Builds a bag prop — locally conjured or mirrored from another player. */
@@ -4713,7 +4737,9 @@ export class PortalWorld implements World {
       halfExtents: blueprint.halfExtents,
       mass: blueprint.mass,
       friction: 0.7,
-      restitution: 0.05,
+      // Fast alles im Labor soll liegen bleiben, wo es hinfällt. Was springen
+      // soll, sagt es im Bauplan — eine Murmel, die nicht hüpft, ist ein Kies.
+      restitution: blueprint.restitution ?? 0.05,
       ccd: blueprint.ccd ?? false,
     });
     entry.previousPosition.copy(position);
@@ -5480,7 +5506,7 @@ function cloneVisual(source: THREE.Object3D): THREE.Object3D {
 /** Ein lesbarer Name für ein Objekt, aus dem, was es über sich weiß. */
 function labelOfProp(object: THREE.Object3D): string {
   const kind = (object.userData as { propKind?: PropKind }).propKind;
-  if (kind) return createPropShape(kind).label;
+  if (kind) return PROP_LABELS[kind];
   const name = object.name.replace(/^prop-/, '').replace(/-\d+$/, '');
   return name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Objekt';
 }

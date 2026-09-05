@@ -10,6 +10,7 @@ import { HangGliderTool } from './HangGliderTool';
 import { HandTool } from './HandTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
+import { MagicBagTool } from './MagicBagTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
 import { ShurikenTool } from './ShurikenTool';
@@ -33,6 +34,7 @@ export const TOOL_IDS = [
   'gun-dual',
   'gizmo',
   'holster',
+  'bag',
   'brush',
   'duplicator',
   'inspect',
@@ -84,6 +86,8 @@ function buildTool(id: string): Tool | null {
       return new TransformTool();
     case 'holster':
       return new HolsterTool();
+    case 'bag':
+      return new MagicBagTool();
     case 'brush':
       return new BrushTool();
     case 'duplicator':
@@ -150,6 +154,7 @@ export {
   HangGliderTool,
   WingsTool,
   HolsterTool,
+  MagicBagTool,
   PistolTool,
   ShurikenTool,
   StopwatchTool,

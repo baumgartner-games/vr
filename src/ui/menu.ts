@@ -42,7 +42,19 @@ export type MenuIcon =
   | 'chat'
   | 'palette'
   | 'glider'
-  | 'wings';
+  | 'wings'
+  | 'cone'
+  | 'ramp'
+  | 'rod'
+  | 'marble'
+  // Die fünf platonischen Körper: gezeichnet wird jeder als das Vieleck, als
+  // das man ihn von vorn sieht — ein W20 ist ein Sechseck mit einem Dreieck
+  // darin, und genau so erkennt man ihn auch im Raster wieder.
+  | 'd4'
+  | 'd6'
+  | 'd8'
+  | 'd12'
+  | 'd20';
 
 /** One row (or grid cell) of the wrist menu. */
 export interface MenuEntry {
@@ -766,7 +778,119 @@ export function drawMenuIcon(
       }
       break;
     }
+    case 'cone': {
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.8);
+      ctx.lineTo(s * 0.62, s * 0.5);
+      ctx.lineTo(-s * 0.62, s * 0.5);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.5, s * 0.62, s * 0.22, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case 'ramp': {
+      // Der Keil von der Seite, mit der schiefen Ebene nach oben.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.82, s * 0.5);
+      ctx.lineTo(s * 0.82, s * 0.5);
+      ctx.lineTo(s * 0.82, -s * 0.12);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.82, -s * 0.12);
+      ctx.lineTo(s * 0.5, -s * 0.4);
+      ctx.lineTo(-s * 0.5, s * 0.22);
+      ctx.lineTo(-s * 0.82, s * 0.5);
+      ctx.stroke();
+      break;
+    }
+    case 'rod': {
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.86, -s * 0.16, s * 1.72, s * 0.32, s * 0.16);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.4, -s * 0.16);
+      ctx.lineTo(-s * 0.4, s * 0.16);
+      ctx.moveTo(s * 0.4, -s * 0.16);
+      ctx.lineTo(s * 0.4, s * 0.16);
+      ctx.stroke();
+      break;
+    }
+    case 'marble': {
+      ctx.beginPath();
+      ctx.arc(0, s * 0.1, s * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-s * 0.16, -s * 0.06, s * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'd4':
+    case 'd6':
+    case 'd8':
+    case 'd12':
+    case 'd20': {
+      drawDie(ctx, icon, s);
+      break;
+    }
   }
 
   ctx.restore();
+}
+
+/**
+ * Ein Würfel als Umriss: das Vieleck, als das man ihn von vorn sieht, und
+ * darin die Kanten, die ihn von seinem Nachbarn unterscheiden.
+ *
+ * Fünf Ikonen aus einer Zeichnung, weil sie sich nur in zwei Zahlen
+ * unterscheiden — wie viele Ecken der Umriss hat und was darin steht.
+ */
+function drawDie(ctx: CanvasRenderingContext2D, kind: MenuIcon, s: number): void {
+  const corners =
+    kind === 'd4' ? 3 : kind === 'd6' ? 4 : kind === 'd8' ? 4 : kind === 'd12' ? 5 : 6;
+  const radius = s * 0.78;
+  // Ein Dreieck und ein Fünfeck stehen auf der Spitze nach oben, ein Quadrat
+  // auf seiner Kante, ein Sechseck auf zwei Ecken — dieselbe Ansicht wie die
+  // des Körpers, wenn er auf dem Tisch liegt.
+  const turn = corners === 4 ? Math.PI / 4 : -Math.PI / 2;
+  const point = (index: number): [number, number] => [
+    Math.cos(turn + (index / corners) * Math.PI * 2) * radius,
+    Math.sin(turn + (index / corners) * Math.PI * 2) * radius,
+  ];
+
+  ctx.beginPath();
+  for (let index = 0; index < corners; index++) {
+    const [x, y] = point(index);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.stroke();
+
+  if (kind === 'd4') return;
+  if (kind === 'd6') {
+    // Der Würfel bekommt seine Augen statt innerer Kanten.
+    for (const [x, y] of [
+      [-s * 0.28, -s * 0.28],
+      [0, 0],
+      [s * 0.28, s * 0.28],
+    ] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, s * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return;
+  }
+  // Die anderen drei: von jeder zweiten Ecke eine Kante zur Mitte — das ist
+  // genau das, was man an einem Oktaeder und einem Ikosaeder sieht.
+  const step = kind === 'd20' ? 1 : 2;
+  for (let index = 0; index < corners; index += step) {
+    const [x, y] = point(index);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(0, 0);
+    ctx.stroke();
+  }
 }

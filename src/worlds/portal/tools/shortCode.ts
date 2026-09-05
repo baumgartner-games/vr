@@ -176,6 +176,7 @@ export const SHORT_SLOTS = [
   'holster',
   'hang-glider',
   'wings',
+  'bag',
 ] as const;
 
 const FLAG_POSE = 1;

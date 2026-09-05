@@ -43,9 +43,22 @@ export function loadRapier(): Promise<RapierModule> {
   return modulePromise;
 }
 
-/** Collider silhouette. `halfExtents` gives the size for all of them. */
+/**
+ * Collider silhouette. `halfExtents` gives the size for all of them.
+ *
+ * Die **Hülle** ist die einzige, die etwas mitbringt: die Ecken des Netzes, aus
+ * denen Rapier den konvexen Körper rechnet. Gebraucht wird sie von allem, was
+ * weder Kasten noch Kugel ist und trotzdem liegen bleiben soll — ein W20 als
+ * Kugel rollt bis zur Wand, ein Keil als Kasten ist keine Rampe. Der Puffer ist
+ * die **Vorlage** und wird beim Skalieren an Ort und Stelle mitgezogen, damit
+ * `resize` nichts über die ursprüngliche Größe wissen muss.
+ */
 export type ColliderShape =
-  { kind: 'box' } | { kind: 'ball' } | { kind: 'cylinder' } | { kind: 'cone' };
+  | { kind: 'box' }
+  | { kind: 'ball' }
+  | { kind: 'cylinder' }
+  | { kind: 'cone' }
+  | { kind: 'hull'; points: Float32Array };
 
 export interface BodyOptions {
   /** Half extents; taken from the mesh geometry when omitted. */
@@ -366,6 +379,13 @@ export class PhysicsWorld {
       case 'box':
         entry.collider.setShape(new rapier.Cuboid(half.x, half.y, half.z));
         break;
+      case 'hull':
+        // Die Ecken selbst werden gezogen, nicht eine Zahl daneben: damit ist
+        // der Puffer immer das, was der Collider gerade ist, und ein zweites
+        // Skalieren rechnet nicht noch einmal von vorn.
+        scalePoints(entry.shape.points, half);
+        entry.collider.setShape(new rapier.ConvexPolyhedron(entry.shape.points));
+        break;
     }
   }
 
@@ -449,6 +469,34 @@ function colliderFor(
       return rapier.ColliderDesc.cone(half.y, Math.max(half.x, half.z));
     case 'box':
       return rapier.ColliderDesc.cuboid(half.x, half.y, half.z);
+    case 'hull':
+      // Entartete Ecken (alle auf einer Ebene) haben keine Hülle; dann lieber
+      // ein Kasten als ein Körper ohne Collider, der durch den Boden fällt.
+      return (
+        rapier.ColliderDesc.convexHull(shape.points) ??
+        rapier.ColliderDesc.cuboid(half.x, half.y, half.z)
+      );
+  }
+}
+
+/**
+ * Zieht eine Punktwolke auf eine neue halbe Größe — an Ort und Stelle.
+ *
+ * Gemessen wird an ihrer eigenen Ausdehnung und nicht an einer gemerkten
+ * Ausgangsgröße: die Wolke *ist* der Maßstab, und damit landet zweimal
+ * Verdoppeln genau dort, wo einmal Vervierfachen landet.
+ */
+function scalePoints(points: Float32Array, half: THREE.Vector3): void {
+  const reach = [0, 0, 0];
+  for (let index = 0; index < points.length; index++) {
+    const axis = index % 3;
+    reach[axis] = Math.max(reach[axis]!, Math.abs(points[index]!));
+  }
+  const factor = [half.x, half.y, half.z].map((value, axis) =>
+    reach[axis]! > 1e-6 ? value / reach[axis]! : 1,
+  );
+  for (let index = 0; index < points.length; index++) {
+    points[index] = points[index]! * factor[index % 3]!;
   }
 }
 
