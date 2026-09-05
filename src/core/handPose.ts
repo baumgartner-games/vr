@@ -220,20 +220,23 @@ export const STOPWATCH_HAND_POSE: HandPose = {
 /**
  * **Die Faust am Saum des Beutels** — rechte Hand, links gespiegelt.
  *
- * Der Beutel wird **von außen** gehalten, wie ein Eimer am Rand: er hängt vor
- * der Hand, sein Saum läuft durch den Griffpunkt, die Handfläche liegt außen
- * daran und die Finger greifen über den Saum hinein (`MagicBagTool.ts`,
- * `BAG_GRIP`). Ohne Zielkorrektur gerechnet, denn der Beutel zielt nicht: er
- * hängt in der Faust, die Öffnung nach oben, komme, was wolle.
+ * Der Beutel wird **von außen** gehalten wie eine **offene Kappe**, in die man
+ * etwas hineinlegt: er hängt vor der Hand, sein Saum läuft durch den
+ * Griffpunkt, und die Hand liegt waagerecht darunter — Handfläche nach oben,
+ * die Finger greifen vorn über den Saum hinein, der Daumen liegt außen am Saum
+ * entlang (`MagicBagTool.ts`, `BAG_GRIP`). Die erste Fassung hatte die Hand
+ * senkrecht wie an einem Eimer; um 90° gekippt ist es eine Kappe. Ohne
+ * Zielkorrektur gerechnet, denn der Beutel zielt nicht: er hängt in der Faust,
+ * die Öffnung nach oben, komme, was wolle.
  */
 export const BAG_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
   x: 0,
-  y: -5,
-  z: 4.6,
-  pitch: 90,
+  y: -4.6,
+  z: 5,
+  pitch: 0,
   yaw: 0,
-  roll: 0,
+  roll: -180,
   curls: [0.55, 0.85, 0.85, 0.9, 0.9],
 };
 

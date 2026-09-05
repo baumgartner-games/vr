@@ -526,7 +526,7 @@ describe('die Faust am Saum des Beutels', () => {
   });
 
   it.each(['right', 'left'] as const)(
-    'liegt um den Saum, Handfläche außen, Finger hinein: %s',
+    'liegt um den Saum wie unter einer offenen Kappe: %s',
     (side) => {
       // Ohne Zielkorrektur gehalten: das Werkzeug sitzt in `holdRotation` selbst.
       const tool = new MagicBagTool();
@@ -536,11 +536,15 @@ describe('die Faust am Saum des Beutels', () => {
       tool.updateMatrixWorld(true);
       const fist = fistOf(defaultHoldPose(side, 'bag'), fistCentre(BAG_HAND_POSE));
       expectFistOn(fist, rimOf(tool));
-      // Der Beutel hängt vor der Hand (-z), der Handrücken zeigt zum Spieler (+z).
-      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(
-        rotationOf(defaultHoldPose(side, 'bag')),
-      );
-      expect(back.z).toBeGreaterThan(0.99);
+      // Der Beutel hängt vor der Hand (-z), und die Hand liegt wie unter einer
+      // offenen Kappe: Handfläche nach oben, der Handrücken zeigt nach unten
+      // (-y), der Daumen liegt außen am Saum — rechts nach rechts.
+      const rotation = rotationOf(defaultHoldPose(side, 'bag'));
+      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(rotation);
+      expect(back.y).toBeLessThan(-0.99);
+      const mirror = side === 'left' ? -1 : 1;
+      const thumbSide = new THREE.Vector3(-mirror, 0, 0).applyQuaternion(rotation);
+      expect(thumbSide.x * mirror).toBeGreaterThan(0.99);
     },
   );
 });

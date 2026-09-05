@@ -34,15 +34,18 @@ const SPIN = 0.7;
 /**
  * Der **Saum als Griff**, im Rahmen jedes Griffs (`gripFit.ts`: Achse auf +Y,
  * Vorne auf -Z), im Raum des Werkzeugs: das Stück Saum im Griffpunkt, als
- * Zylinder quer (x). Die Daumenseite zeigt nach links (-x), der Handrücken nach
- * hinten (+z), zum Spieler — die Handfläche liegt also außen am Beutel, und die
- * Finger greifen oben über den Saum hinein. Daraus rechnet
- * `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`), ohne Zielkorrektur,
- * denn der Beutel zielt nicht.
+ * Zylinder quer (x) — gehalten wie eine **offene Kappe**, in die man etwas
+ * hineinlegt: die Hand liegt waagerecht unter dem Saum, die Handfläche nach
+ * oben (der Handrücken zeigt nach unten, -y), die Finger greifen vorn über den
+ * Saum hinein, und der Daumen liegt außen am Saum entlang — bei der rechten
+ * Hand nach rechts (+x), die Daumenseite. Die erste Fassung hatte die Hand
+ * senkrecht wie an einem Eimer, und das sah nach einem Eimer aus. Daraus
+ * rechnet `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`), ohne
+ * Zielkorrektur, denn der Beutel zielt nicht.
  */
 export const BAG_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },
-  rotation: gripFrame({ x: -1, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }),
+  rotation: gripFrame({ x: 1, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }),
 };
 /** Wo der Saum in der Hand liegt: eine Spur unter und vor dem Griffpunkt. */
 export const BAG_HOLD_POSITION: Vec3 = { x: 0, y: -0.02, z: 0.02 };
@@ -123,8 +126,9 @@ export class MagicBagTool extends Tool {
     this.holdPosition.set(BAG_HOLD_POSITION.x, BAG_HOLD_POSITION.y, BAG_HOLD_POSITION.z);
 
     // **Von außen** gehalten, am Saum: der Beutel hängt vor der Hand, und sein
-    // Saum läuft durch den Griffpunkt — dort liegt die Faust darum, Handfläche
-    // außen, Finger über den Saum hinein (`BAG_GRIP`, `BAG_HAND_POSE`). Alles,
+    // Saum läuft durch den Griffpunkt — dort liegt die Faust darum, waagerecht
+    // wie an einer offenen Kappe, Handfläche oben, Finger über den Saum hinein
+    // (`BAG_GRIP`, `BAG_HAND_POSE`). Alles,
     // woraus er besteht, hängt deshalb um einen Saumhalbmesser nach vorn und
     // um die Höhe der Öffnung nach unten versetzt (`body`); gerechnet wird mit
     // dem Beutel selbst (`slotUnder`), nicht mit dem Werkzeug.

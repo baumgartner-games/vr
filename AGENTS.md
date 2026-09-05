@@ -1904,7 +1904,9 @@ Kante, Daumen oben auf der Krone; das Gehäuse rückt dafür je Hand zur Seite
 (`showHeldBy`, wie das Deck der Drohne). Die erste Fassung stellte sie
 hochkant *auf* die Faust, Finger unter dem unteren Rand — so hält niemand eine
 Uhr, und ein Foto eines Zeitnehmers hat es entschieden. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
-Handfläche außen, Finger hinein — als einziger ohne Zielkorrektur gerechnet
+gehalten wie eine **offene Kappe**: die Hand waagerecht unter dem Saum,
+Handfläche nach oben, Finger vorn hinein, Daumen außen am Saum (senkrecht wie
+an einem Eimer sah es nach einem Eimer aus) — als einziger ohne Zielkorrektur gerechnet
 (`gripInHand` nimmt dafür die Ruhe), denn der Beutel zielt nicht. Die Rahmen
 dieser Zylinder schreibt man nicht als Winkel hin, sondern als zwei
 Richtungen — wohin die Achse zeigt, wohin der Handrücken —, `gripFrame`
