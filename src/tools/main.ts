@@ -54,9 +54,9 @@ import type { WorldDefinition } from '../core/types';
  *
  * Drei Regale, eine Schublade: **Werkzeuge**, **Welten** und der **magische
  * Beutel**. Eine Welt zeigt sich selbst — ihre Kulisse, gebaut mit ihrem
- * eigenen Code, und der Blick steht darin, wo auch ein Spieler anfängt —, dazu
- * einen Knopf hinein; ein Beutel-Objekt zeigt sich selbst, mit Masse und
- * Maßen. Alle drei Listen kommen aus dem Spiel
+ * eigenen Code, ganz drauf und schräg von oben —, dazu einen Knopf hinein; ein
+ * Beutel-Objekt zeigt sich selbst, mit Masse und Maßen. Alle drei Listen
+ * kommen aus dem Spiel
  * (`TOOL_IDS`, `WORLDS`, `BAG_ITEMS`): eine Seite mit eigenen, hübscheren
  * Kopien zeigt irgendwann etwas anderes als das Spiel, und dann ist sie
  * schlimmer als keine.
@@ -112,11 +112,6 @@ const values = document.querySelector<HTMLElement>('#values')!;
 const codeTool = document.querySelector<HTMLButtonElement>('#code-tool')!;
 const codeAll = document.querySelector<HTMLButtonElement>('#code-all')!;
 const lede = document.querySelector<HTMLElement>('#lede')!;
-const help = document.querySelector<HTMLElement>('#help')!;
-
-/** Die Zeile unter der Bühne — sie sagt, was die Finger dort tun. */
-const HELP_THING = 'Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück';
-const HELP_WORLD = 'Ziehen sieht sich um · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück';
 
 const HAND_STORE = 'bgvr.toolPageHand';
 const viewer = new ToolViewer(stage);
@@ -227,8 +222,8 @@ let request = 0;
  *
  * Vorher stand hier das Tor aus dem Hub: hübsch, aber es zeigt von einer Welt
  * genau das, was in jeder Welt gleich aussieht. Jetzt baut die Welt sich
- * selbst auf (`World.preview()`, mit demselben Code wie im Spiel), und der
- * Blick steht darin, wo auch ein Spieler anfängt.
+ * selbst auf (`World.preview()`, mit demselben Code wie im Spiel) und liegt
+ * da wie ein Ding im Regal: ganz drauf, schräg von oben, zum Drehen.
  *
  * Geladen wird sie erst beim Antippen — eine Übersicht mit zehn Welten wäre
  * sonst das ganze Spiel auf einmal. Und wenn eine Welt sich nicht ohne Spiel
@@ -769,9 +764,6 @@ function route(): void {
   note.textContent = entry.note ?? '';
   enter.hidden = !entry.enter;
   if (entry.enter) enter.href = entry.enter;
-  // In einer Welt dreht sich der Blick und nicht das Ding — die Zeile darunter
-  // sagt es, sonst zieht jemand am Berg und wundert sich.
-  help.textContent = entry.section === 'worlds' ? HELP_WORLD : HELP_THING;
   showMode();
   viewer.setHandMode(mode);
   entry.show();

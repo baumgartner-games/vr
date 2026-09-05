@@ -2068,15 +2068,33 @@ veraltet. Was kein Werkzeug ist, stellt der Viewer über `showObject` auf die
 Bühne — ohne Boxhand, mit einem `animate`-Haken für alles, was sich von selbst
 bewegt.
 
-**Eine Welt sieht man von innen an.** Vorher stand hier ihr Tor aus dem Hub:
-hübsch, aber es zeigt von einer Welt genau das, was an jeder Welt gleich
+**Eine Welt liegt da wie ein Ding im Regal.** Vorher stand hier ihr Tor aus dem
+Hub: hübsch, aber es zeigt von einer Welt genau das, was an jeder Welt gleich
 aussieht. Jetzt baut die Welt sich selbst auf — `World.preview()`, mit
-demselben Code wie im Spiel — und die Kamera steht darin, wo auch ein Spieler
-anfängt (`spawnPoint()`, `spawnYaw()`, plus Augenhöhe). Ziehen dreht dann den
-**Blick** und nicht das Ding, gezoomt wird am Öffnungswinkel (ein Schritt
-zurück ginge durch die Wand), und der Leerlauf schwenkt langsam einmal herum.
-Von außen wäre das nichts: das Dunkelhaus ein grauer Kasten, die Alpen eine
-Platte mit einer Beule.
+demselben Code wie im Spiel — und wird angesehen wie ein Werkzeug: **ganz
+drauf, schräg von oben** (gut 30°), zum Drehen mit dem Finger. Darum geht es
+dabei: um den Überblick. Wer wissen will, ob ihm eine Welt gefällt, will
+zuerst ihren Grundriss sehen — die Runde, das Tal, die vier Zimmer — und erst
+danach, wie es darin aussieht; dafür gibt es den Knopf *Welt betreten*.
+
+Drei Dinge machen daraus einen Überblick statt eines Kastens:
+
+- **Kulisse zählt nicht mit.** Der Himmel einer Welt ist eine Kugel von 560
+  Metern, ihr Boden eine Platte von tausend — auf beide eingepasst wäre jede
+  Welt ein Punkt in der Mitte. Was `markBackdrop` trägt (`createSky`,
+  `createGround`, Sterne und Erde am Mondhimmel), wird beim Einpassen
+  übersprungen und trotzdem gezeichnet: dahinter gehört es hin.
+- **Ein Dach wird aufgeschnitten.** Eine Welt mit Decke füllt beim Bauen
+  `this.roof` (Portal Labor, Dunkelhaus, Pizzeria, Eingaberaum), und die
+  Vorschau legt eine Schnittebene knapp darunter — Puppenhaus statt Deckel. Die
+  Ebene liegt im Raum, das Modell dreht sich, also wird sie in jedem Bild aus
+  der Lage der Bühne nachgerechnet; sonst wanderte der Schnitt beim Drehen
+  durch die Welt.
+- **Flach wird enger eingepasst.** Eine Kugel um eine Welt ist so hoch wie
+  breit, eine Welt aber ist ein Grundriss mit ein bisschen Höhe darauf. Mit
+  Grundriss und Höhe getrennt gerechnet (`ShowOptions.flat`) steht sie doppelt
+  so groß im Bild — vorher war das Dunkelhaus eine Briefmarke in einer leeren
+  Fläche.
 
 Damit das ohne Spiel geht, bekommt `PortalWorld.preview()` zwei Dinge
 untergeschoben. Erstens eine **Physik, die nichts tut**
@@ -2086,10 +2104,11 @@ neun Welten nimmt eine Attrappe derselben Form alles entgegen und macht nichts
 damit — was daran Rapier ist, beantwortet jeden Zugriff mit sich selbst, damit
 auch `physics.world.createImpulseJoint(rapier.JointData…)` mitten im Bauen ins
 Leere läuft. Rapier selbst wird dabei nie geladen. Zweitens **Licht**: die Welt
-bringt ihr eigenes mit, aber nie weniger als 0,45 — das Dunkelhaus ist mit
-Absicht fast schwarz (0,035), und eine schwarze Vorschau ist keine. Der Hub
-baut seine Vorschau selbst (`HubWorld.preview()`, dieselbe Halle, dieselben
-Gänge, dieselben wirbelnden Tore, nur ohne Zeiger).
+bringt ihr eigenes mit — das Bühnenlicht geht dafür aus —, aber nie weniger als
+0,45; das Dunkelhaus ist mit Absicht fast schwarz (0,035), und eine schwarze
+Vorschau ist keine. Der Hub baut seine Vorschau selbst (`HubWorld.preview()`,
+dieselbe Halle, dieselben Gänge, dieselben wirbelnden Tore, nur ohne Zeiger) —
+von oben sieht man ihm an, was er ist: ein Rad mit Speichen.
 
 Geladen wird eine Welt erst beim Antippen — eine Liste mit zehn Welten wäre
 sonst das ganze Spiel auf einmal —, und weil das ein `import()` ist, entscheidet

@@ -175,8 +175,6 @@ const SHAPE_LABELS: Record<string, string> = {
   hull: 'Hülle',
 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
-/** Augenhöhe des Blicks in der Vorschau — ein Mensch, der dort steht. */
-const PREVIEW_EYE = 1.65;
 /** So viel Licht hat auch die dunkelste Welt, wenn man sie nur ansieht. */
 const PREVIEW_LIGHT = 0.45;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -613,6 +611,16 @@ export class PortalWorld implements World {
    * `parkTool`/`unparkTool`.
    */
   protected host: ToolHost | null = null;
+  /**
+   * Hat diese Welt eine **Decke**, dann steht hier ihre Höhe.
+   *
+   * Im Spiel folgenlos — man steht darunter und sieht sie. Gesetzt wird sie
+   * dort, wo die Decke gebaut wird, und gelesen von der Vorschau der
+   * Werkzeugseite: die sieht eine Welt von schräg oben an, und ein
+   * geschlossener Raum wäre von dort ein grauer Kasten. Unterhalb dieser Höhe
+   * schneidet sie ihn auf, wie ein Puppenhaus.
+   */
+  protected roof: number | null = null;
   protected physics: PhysicsWorld | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
@@ -2129,10 +2137,10 @@ export class PortalWorld implements World {
    * (`silentPhysics`), damit die Bauzeilen unverändert durchlaufen: sie legen
    * jede Wand in eine Simulation, in der nie jemand steht.
    *
-   * Der Blick steht am Startpunkt der Welt und schaut in die Startrichtung —
-   * eine Welt sieht man von innen an, nicht als Modell von außen. Ein
-   * Dunkelhaus wäre von außen ein grauer Kasten, ein Berg von 1000 Metern eine
-   * Platte mit einer Beule.
+   * Angesehen wird das Ergebnis wie ein Werkzeug: von weit genug weg, damit
+   * die ganze Welt draufpasst, und schräg von oben. Wer wissen will, ob ihm
+   * eine Welt gefällt, will zuerst ihren Grundriss sehen — die Runde, das
+   * Tal, die vier Zimmer — und erst danach, wie es darin aussieht.
    */
   preview(): WorldPreview {
     this.root.name = 'preview';
@@ -2144,11 +2152,9 @@ export class PortalWorld implements World {
     this.buildHorizonFloor();
     this.buildEnvironment();
 
-    const spawn = this.spawnPoint();
     return {
       object: this.root,
-      eye: new THREE.Vector3(spawn.x, spawn.y + PREVIEW_EYE, spawn.z),
-      yaw: this.spawnYaw(),
+      roof: this.roof,
       dispose: () => {
         // Ein Werkzeug, das im Raum liegt (die Taschenlampe im Dunkelhaus),
         // hat mehr als Geometrie — es hat einen Lichtkegel und eine Kamera.
@@ -2234,6 +2240,9 @@ export class PortalWorld implements World {
     const shell = (half + t) * 2;
     this.slab(chamber, floorMaterial, [shell, t, shell], [0, -t / 2, 0], true);
     this.slab(chamber, panel, [shell, t, shell], [0, ROOM.height + t / 2, 0], true);
+    // Hier ist eine Decke drüber — für die Vorschau von oben der Deckel, der
+    // weg muss.
+    this.roof = ROOM.height;
 
     this.slab(
       chamber,

@@ -56,17 +56,19 @@ export interface WorldContext {
  *
  * Dafür gibt es genau einen Abnehmer, die Werkzeugseite — und genau einen
  * Grund, es überhaupt zu bauen: Wer wissen will, wie eine Welt aussieht, will
- * die Welt sehen und nicht ihr Tor. Der Blick steht dabei dort, wo auch ein
- * Spieler anfängt (`eye`, `yaw`); alles andere ist dasselbe, mit demselben
- * Code gebaute Zeug wie im Spiel.
+ * die Welt sehen und nicht ihr Tor. Angesehen wird sie wie ein Werkzeug, von
+ * weit genug weg, damit sie ganz draufpasst, und schräg von oben.
  */
 export interface WorldPreview {
   /** Alles Gebaute, in einer Gruppe — sie hängt sich in eine fremde Szene. */
   object: THREE.Object3D;
-  /** Wo der Blick steht: der Startpunkt der Welt, auf Augenhöhe. */
-  eye: THREE.Vector3;
-  /** Wohin er anfangs schaut. */
-  yaw: number;
+  /**
+   * Die Höhe einer Decke über dieser Welt, wenn sie eine hat.
+   *
+   * Von schräg oben sähe man sonst nur ihren Deckel; wer das hier ausfüllt,
+   * wird darunter aufgeschnitten wie ein Puppenhaus.
+   */
+  roof?: number | null;
   /** Läuft jedes Bild, mit den Sekunden seit dem Aufbau — für Tore, die wirbeln. */
   animate?(time: number): void;
   /** Gibt frei, was gebaut wurde. */

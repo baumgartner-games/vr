@@ -44,6 +44,20 @@ export const GROUND_TOP = -0.05;
  */
 export const GROUND_THICKNESS = 0.6;
 
+/**
+ * **Kulisse**: etwas, das hinter der Welt steht und nicht zu ihr gehört — der
+ * Himmel, die Fläche bis zum Horizont, die Sterne, die Erde über dem Mond.
+ *
+ * Im Spiel ist die Marke folgenlos; wer sie liest, ist die Werkzeugseite. Dort
+ * wird eine Welt eingepasst wie ein Werkzeug, und eine Himmelskugel von 560
+ * Metern um ein Haus von neun machte aus dem Haus einen Punkt in der Mitte.
+ * Gezeichnet wird die Kulisse trotzdem: hinter der Welt gehört sie hin.
+ */
+export function markBackdrop<T extends THREE.Object3D>(object: T): T {
+  object.userData.backdrop = true;
+  return object;
+}
+
 /** Cheap gradient sky as an inverted sphere — no HDRI download needed. */
 export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THREE.Mesh {
   const material = new THREE.ShaderMaterial({
@@ -74,7 +88,7 @@ export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THR
   const sky = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), material);
   sky.name = 'sky';
   sky.frustumCulled = false;
-  return sky;
+  return markBackdrop(sky);
 }
 
 export function createLighting(intensity = 1): THREE.Group {
@@ -143,7 +157,7 @@ export function createGround(
   // lag, sonst wandert mit der Dicke auch der Boden unter den Füßen.
   ground.position.y = GROUND_TOP - GROUND_THICKNESS / 2;
   ground.receiveShadow = true;
-  return ground;
+  return markBackdrop(ground);
 }
 
 /** Eine Kachel des Bodenrasters: Fläche plus zwei Linien am Rand. */

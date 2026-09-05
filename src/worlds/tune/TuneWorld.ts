@@ -528,6 +528,8 @@ export class TuneWorld extends PortalWorld {
       [0, height + thickness / 2, 0],
       false,
     );
+    // Decke drüber: die Vorschau schneidet den Raum darunter auf.
+    this.roof = height;
     this.slab(shellGroup, this.shell, [half * 2, height, thickness], [0, height / 2, -half], true);
     this.slab(shellGroup, this.shell, [thickness, height, half * 2], [-half, height / 2, 0], false);
     this.slab(shellGroup, this.shell, [thickness, height, half * 2], [half, height / 2, 0], false);

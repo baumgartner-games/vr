@@ -21,8 +21,6 @@ export interface Gate {
 }
 
 const SPAWN = new THREE.Vector3(0, 0, 4.5);
-/** Augenhöhe des Blicks in der Vorschau — ein Mensch, der dort steht. */
-const PREVIEW_EYE = 1.65;
 /** Höhe der Gangwände. */
 const WALL_HEIGHT = 3.4;
 
@@ -119,7 +117,8 @@ export class HubWorld implements World {
 
   /**
    * Der Hub zum Ansehen: dieselbe Halle, dieselben Gänge, dieselben Tore —
-   * nur ohne Zeiger, ohne Weg hinein und ohne Spieler.
+   * nur ohne Zeiger, ohne Weg hinein und ohne Spieler. Von schräg oben ist er
+   * das, was er ist: ein Rad mit Speichen, an deren Enden die Welten hängen.
    *
    * Gebaut wird mit denselben Funktionen wie oben; was hier fehlt, sind die
    * beiden Zeilen, die aus einem Tor einen Knopf machen. Die Tore wirbeln
@@ -148,8 +147,6 @@ export class HubWorld implements World {
 
     return {
       object: this.root,
-      eye: new THREE.Vector3(SPAWN.x, SPAWN.y + PREVIEW_EYE, SPAWN.z),
-      yaw: 0,
       animate: (time) => {
         for (const [index, gate] of this.gates.entries()) {
           gate.disc.material.uniforms.uTime!.value = time;
