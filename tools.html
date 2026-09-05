@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#05070d" />
+    <title>Werkzeuge — Baumgartner VR</title>
+    <meta name="description" content="Alles aus der VR-Spielwiese zum Ansehen: Werkzeuge, Welten und der magische Beutel — Übersicht, 3D-Ansicht zum Drehen und die Hand daran — in VR und am Controller." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A7%3C/text%3E%3C/svg%3E" />
+    <script type="module" crossorigin src="/vr/assets/tools-yGGLalg-.js"></script>
+    <link rel="modulepreload" crossorigin href="/vr/assets/gearConfig-DrFR1ck6.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/index-muhxkDoM.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/environment-DPgDxv6p.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/HubWorld-4m0-e6uw.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/handGrip-un4Pkxuw.js">
+    <link rel="stylesheet" crossorigin href="/vr/assets/tools-BgJDWoiW.css">
+  </head>
+  <body class="page">
+    <!--
+      Eine Seite, drei Regale, zwei Zustände. Die Regale sind Werkzeuge, Welten
+      und der magische Beutel — die Schublade wechselt dazwischen. Jedes Regal
+      hat eine Übersicht und eine Einzelansicht; der Kopf bleibt derselbe und
+      tauscht nur sein linkes Symbol: Burger in der Übersicht, Pfeil zurück im
+      Einzelnen. Welcher Zustand gilt, steht im Hash, damit der Zurück-Knopf des
+      Browsers dasselbe tut wie der im Kopf.
+    -->
+    <header class="top">
+      <button id="nav" class="top__icon" type="button" aria-label="Menü" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <button id="back" class="top__icon" type="button" aria-label="Zurück zur Übersicht" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" /></svg>
+      </button>
+      <h1 id="title" class="top__title">Werkzeuge</h1>
+      <!--
+        Zwei Hände, nicht zweimal dieselbe: **In VR** zeigt das Werkzeug mit
+        der gezeichneten Hand daran — so sieht es in der Brille aus. **Am
+        Controller** zeigt den roten Handgriff des Geräts mit der Faust darum —
+        so hält die echte Hand, während die gezeichnete etwas anderes tut. Beim
+        Pinsel sieht man erst dadurch beides: echt hält man ihn wie die Waffe,
+        gezeichnet wie einen Stift.
+      -->
+      <div id="hands" class="seg top__seg" role="group" aria-label="Ansicht" hidden>
+        <button type="button" data-hand="off">Hand aus</button>
+        <button type="button" data-hand="vr">In VR</button>
+        <button type="button" data-hand="controller">Am Controller</button>
+      </div>
+      <!--
+        Und die beiden Knöpfe am Controller, die Finger bewegen: der Griffknopf
+        hält (losgelassen öffnet sich die Hand), der Trigger zieht den Finger
+        am Abzug — an der Stoppuhr den Daumen auf die Krone. Beide sind
+        Schalter, kein Umschalter: sie gelten unabhängig voneinander.
+      -->
+      <div id="fingers" class="seg top__seg" role="group" aria-label="Knöpfe am Controller" hidden>
+        <button type="button" data-button="grab" aria-pressed="true">Grab</button>
+        <button type="button" data-button="trigger" aria-pressed="false">Trigger</button>
+      </div>
+      <!--
+        Mit Wort und nicht nur mit Stift: ein 38 Pixel großer Umriss in der Ecke
+        ist auf einem Telefon zwischen Titel und Umschalter schlicht nicht zu
+        finden — genau das war er auch nicht.
+      -->
+      <button id="edit" class="top__edit" type="button" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
+        <span id="edit-label">Bearbeiten</span>
+      </button>
+      <!--
+        Und derselbe Knopf für die Welten: eine Welt von außen sagt, wie sie
+        angelegt ist — wie sie sich anfühlt, sagt nur ein Flug hindurch. Er
+        trägt eine Drohne als Zeichen und sein Wort daneben, aus demselben
+        Grund wie der Stift: ein Umriss allein findet auf dem Telefon niemand.
+      -->
+      <button id="fly" class="top__edit" type="button" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6v6H9z" /><path d="M9 9L5 5M15 9l4-4M9 15l-4 4M15 15l4 4" /><path d="M3 5h4M17 5h4M3 19h4M17 19h4" /></svg>
+        <span id="fly-label">Freie Kamera</span>
+      </button>
+    </header>
+
+    <nav id="drawer" class="drawer" hidden>
+      <a class="drawer__link" href="#werkzeuge" data-section="tools">Werkzeuge</a>
+      <a class="drawer__link" href="#welten" data-section="worlds">Welten</a>
+      <a class="drawer__link" href="#beutel" data-section="bag">Magischer Beutel</a>
+      <hr class="drawer__rule" />
+      <a class="drawer__link" href="./">VR Spielwiese</a>
+      <a class="drawer__link drawer__link--out" href="https://github.com/baumgartner-games/vr">Quellcode</a>
+      <hr class="drawer__rule" />
+      <!--
+        Dieselbe Einstellung wie im Handgelenk-Menü unter Hände → Handmodell:
+        Boxhand oder weißer Handschuh. Sie steht hier, weil man hier hinsieht.
+      -->
+      <button id="look" class="drawer__link drawer__link--toggle" type="button"></button>
+      <hr class="drawer__rule" />
+      <!--
+        Der Weg zurück auf null. Er gehört hierher und nicht neben den Regler:
+        „Zurücksetzen" dort meint eine Haltung, dieser hier meint alles, was je
+        auf diesem Gerät eingestellt wurde — und die beiden dürfen sich nicht
+        verwechseln lassen.
+      -->
+      <button id="wipe" class="drawer__link drawer__link--wipe" type="button">
+        Eigene Einstellungen löschen
+      </button>
+      <p id="wipe-note" class="drawer__note"></p>
+    </nav>
+
+    <main class="main">
+      <!--
+        Ein Satz über dem Regal, und zwar nur über diesem: der Weg in den
+        Justierer führt durch ein einzelnes Werkzeug, und wer das nicht weiß,
+        sucht den Knopf auf der Liste, wo es ihn nicht geben kann.
+      -->
+      <p id="lede" class="lede">Ein Werkzeug antippen: dort dreht man es, legt die Hand daran — und stellt mit <b>Bearbeiten</b> oben die Haltung ein.</p>
+      <ul id="grid-tools" class="grid" aria-label="Alle Werkzeuge"></ul>
+      <ul id="grid-worlds" class="grid" aria-label="Alle Welten" hidden></ul>
+      <ul id="grid-bag" class="grid" aria-label="Der magische Beutel" hidden></ul>
+
+      <section id="detail" class="detail" hidden>
+        <!--
+          Der Justierer. Oben die Achse — immer nur eine —, unten der Regler
+          dazu, und dazwischen bleibt die Bühne: man zieht am Regler und sieht
+          im selben Bild, was daraus wird. Beides steht nur im Bearbeiten-Modus
+          da; wer nur schaut, soll eine Seite ohne Regler sehen.
+        -->
+        <div id="axes" class="axes" role="group" aria-label="Achse" hidden></div>
+        <div class="stage">
+          <canvas id="stage" class="stage__canvas"></canvas>
+          <!--
+            Die Knöpfe der freien Kamera, über dem Bild und nicht darunter: man
+            fliegt mit den Daumen und sieht dabei zu. Links das Kreuz für vor,
+            zurück und seitwärts, rechts hoch und runter — und beschriftet mit
+            W A S D, damit am Schreibtisch niemand raten muss, welche Tasten
+            dasselbe tun. Gedreht wird durch Wischen auf dem Bild dazwischen.
+          -->
+          <div id="pad" class="pad" hidden>
+            <div class="pad__move">
+              <button class="pad__key pad__key--w" type="button" data-fly="forward" aria-label="vorwärts">W</button>
+              <button class="pad__key pad__key--a" type="button" data-fly="left" aria-label="nach links">A</button>
+              <button class="pad__key pad__key--s" type="button" data-fly="back" aria-label="rückwärts">S</button>
+              <button class="pad__key pad__key--d" type="button" data-fly="right" aria-label="nach rechts">D</button>
+            </div>
+            <div class="pad__lift">
+              <button class="pad__key" type="button" data-fly="up" aria-label="höher">▲</button>
+              <button class="pad__key" type="button" data-fly="down" aria-label="tiefer">▼</button>
+            </div>
+          </div>
+        </div>
+        <div id="foot" class="detail__foot">
+          <p id="hint" class="detail__hint"></p>
+          <p id="note" class="detail__note" hidden></p>
+          <a id="enter" class="detail__enter" href="./" hidden>Welt betreten →</a>
+          <p id="help" class="detail__help">Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück</p>
+        </div>
+
+        <section id="editor" class="editor" hidden>
+          <div class="editor__row">
+            <div id="targets" class="seg" role="group" aria-label="Was der Regler verschiebt">
+              <button type="button" data-target="hold">In der Hand</button>
+              <button type="button" data-target="grip">Am Griff</button>
+            </div>
+            <!--
+              Die beiden rechts stehen zusammen in einer eigenen Gruppe: der
+              linke Knopf ist nicht an jedem Werkzeug da, und ohne Gruppe hinge
+              der Abstand nach links an genau dem Knopf, der gerade fehlt.
+            -->
+            <div class="editor__ghosts">
+              <!--
+                Der Halterzylinder trägt einen rosa Pfeil, der Zeigefinger eine
+                Richtung: wenn die beiden zur Deckung kommen, liegt die Hand am
+                Zylinder. Das sechsmal einzeln zu ziehen ist Arbeit für einen
+                Knopf.
+              -->
+              <button id="align" class="editor__ghost" type="button" hidden>Auf den Zylinder</button>
+              <!--
+                Und derselbe Handgriff für den violetten Zielpfeil: nur die
+                Richtung, die Fingerspitze bleibt liegen. Erst auf den Zylinder,
+                dann aufs Ziel — die beiden sind ein Weg und keine Alternative.
+              -->
+              <button id="aim" class="editor__ghost" type="button" hidden>In Zielrichtung</button>
+              <button id="revert" class="editor__ghost" type="button">Zurücksetzen</button>
+            </div>
+          </div>
+          <div class="editor__slide">
+            <button class="editor__step" type="button" data-nudge="-1" aria-label="eine Raste zurück">−</button>
+            <input id="slider" class="editor__range" type="range" aria-label="Wert der gewählten Achse" />
+            <button class="editor__step" type="button" data-nudge="1" aria-label="eine Raste weiter">+</button>
+          </div>
+          <p id="reading" class="editor__reading"></p>
+          <p id="values" class="editor__values"></p>
+          <button id="code-tool" class="editor__code" type="button"></button>
+          <button id="code-all" class="editor__code" type="button"></button>
+        </section>
+      </section>
+    </main>
+
+  </body>
+</html>
