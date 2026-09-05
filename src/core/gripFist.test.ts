@@ -458,8 +458,18 @@ describe('die Faust am Stab', () => {
   });
 });
 
-describe('die Faust am Rand der Stoppuhr', () => {
-  it('steht in `handPose.ts` als das, was `fistOnGrip` um den Rand ausrechnet', () => {
+/** Die seitliche Kante der Uhr: die y-Achse des gehaltenen Werkzeugs durch seinen Ursprung. */
+function edgeOf(tool: Tool) {
+  return {
+    centre: tool.getWorldPosition(new THREE.Vector3()),
+    axis: new THREE.Vector3(0, 1, 0).applyQuaternion(
+      tool.getWorldQuaternion(new THREE.Quaternion()),
+    ),
+  };
+}
+
+describe('die Faust um die Stoppuhr', () => {
+  it('steht in `handPose.ts` als das, was `fistOnGrip` um die Kante ausrechnet', () => {
     const want = fistOnGrip(
       { centre: fistCentre(STOPWATCH_HAND_POSE) },
       ownGrip(new StopwatchTool(), STOPWATCH_GRIP),
@@ -468,21 +478,32 @@ describe('die Faust am Rand der Stoppuhr', () => {
   });
 
   it.each(['right', 'left'] as const)(
-    'liegt um den unteren Rand, Handfläche hinter dem Blatt: %s',
+    'liegt um die seitliche Kante, Handfläche hinter dem Blatt, Daumen oben: %s',
     (side) => {
       const tool = hold(new StopwatchTool(), side);
-      const fist = fistOf(defaultHoldPose(side, 'stopwatch'), fistCentre(STOPWATCH_HAND_POSE));
-      expectFistOn(fist, rimOf(tool));
-      // Der Handrücken zeigt nach hinten (-z des Werkzeugs), das Blatt schaut
-      // nach vorn zum Kopf (+z): die Hand steht hinter der Uhr und verdeckt
-      // den Zeiger nicht.
-      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(
-        rotationOf(defaultHoldPose(side, 'stopwatch')),
-      );
+      const pose = defaultHoldPose(side, 'stopwatch');
+      const fist = fistOf(pose, fistCentre(STOPWATCH_HAND_POSE));
+      expectFistOn(fist, edgeOf(tool));
+      const rotation = rotationOf(pose);
       const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
         tool.getWorldQuaternion(new THREE.Quaternion()),
       );
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(
+        tool.getWorldQuaternion(new THREE.Quaternion()),
+      );
+      // Der Handrücken zeigt nach hinten (-z des Werkzeugs), das Blatt schaut
+      // nach vorn zum Kopf (+z): die Hand steht hinter der Uhr und verdeckt
+      // den Zeiger nicht.
+      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(rotation);
       expect(back.dot(forward)).toBeGreaterThan(0.99);
+      // Und die Daumenseite zeigt nach oben, zur Krone.
+      const mirror = side === 'left' ? -1 : 1;
+      const thumbSide = new THREE.Vector3(-mirror, 0, 0).applyQuaternion(rotation);
+      expect(thumbSide.dot(up)).toBeGreaterThan(0.99);
+      // Das Gehäuse liegt neben der Faust, auf der Seite der Handfläche: rechts
+      // von einer rechten Hand, links von einer linken.
+      const shell = tool.children.find((child) => child.children.length > 3)!;
+      expect(Math.sign(shell.position.x)).toBe(mirror);
     },
   );
 });

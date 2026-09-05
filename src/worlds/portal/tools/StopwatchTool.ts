@@ -23,23 +23,27 @@ import type { Pointer } from '../../../core/Pointer';
 /** Wie schnell der Zeitfaktor wechselt — die Rampe ist es, was man hört. */
 const RAMP = 0.55;
 
-/** Das Gehäuse: Halbmesser und Dicke. Es steht mit dem unteren Rand im Griffpunkt. */
+/** Das Gehäuse: Halbmesser und Dicke. Es liegt mit seiner seitlichen Kante im Griffpunkt. */
 const RADIUS = 0.045;
 const THICKNESS = 0.016;
 /** Die Krone sitzt oben auf dem Gehäuse. */
-const CROWN_Y = RADIUS * 2 + 0.005;
+const CROWN_Y = RADIUS + 0.005;
 
 /**
  * Der **Rand als Griff**, im Rahmen jedes Griffs (`gripFit.ts`: Achse auf +Y,
- * Vorne auf -Z), im Raum des Werkzeugs: ein Zylinder quer durch den
- * Griffpunkt, um den die Faust liegt. Die Daumenseite zeigt nach links (-x),
- * der Handrücken nach hinten (-z) — die Handfläche liegt also hinter dem
- * Gehäuse, und die Finger greifen unten herum nach vorn, wo das Blatt ist.
- * Daraus rechnet `core/gripFist.test.ts` die Faust (`STOPWATCH_HAND_POSE`).
+ * Vorne auf -Z), im Raum des Werkzeugs — so, wie ein Zeitnehmer seine Uhr
+ * hält: sie liegt **in der Hand**, das Blatt zum Gesicht, die Finger greifen
+ * um ihre **seitliche Kante** und der Daumen liegt oben auf der Krone. Der
+ * Zylinder ist also das Stück Rand an der Seite, senkrecht (Achse +y, die
+ * Daumenseite nach oben), und der Handrücken zeigt nach hinten (-z): die
+ * Handfläche liegt hinter dem Gehäuse. Das Gehäuse selbst rückt dafür zur
+ * Seite — bei der rechten Hand nach rechts, denn deren Finger greifen um die
+ * linke Kante (`showHeldBy`). Daraus rechnet `core/gripFist.test.ts` die Faust
+ * (`STOPWATCH_HAND_POSE`).
  */
 export const STOPWATCH_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },
-  rotation: gripFrame({ x: -1, y: 0, z: 0 }, { x: 0, y: 0, z: -1 }),
+  rotation: gripFrame({ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: -1 }),
 };
 /** Und wo der Rand in der Hand liegt: wie ein Stab, eine Spur unter und vor dem Griffpunkt. */
 export const RIM_HOLD_POSITION: Vec3 = { x: 0, y: -0.012, z: 0.02 };
@@ -69,6 +73,8 @@ export class StopwatchTool extends Tool {
   override readonly toolId = 'stopwatch';
   override readonly label = 'Stoppuhr';
 
+  /** Die Uhr selbst — gegen das Werkzeug versetzt, damit ihre Kante im Griffpunkt liegt. */
+  private readonly body = new THREE.Group();
   private readonly hand: THREE.Mesh;
   private readonly sweepPivot: THREE.Group;
   private readonly face: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
@@ -95,13 +101,19 @@ export class StopwatchTool extends Tool {
     this.icon = 'stopwatch';
     this.accent = 0xffc857;
     this.hint = 'Trigger schaltet die Zeit · Knopf öffnet das Menü';
-    // Kein Standardgriff: eine Taschenuhr hält man am **Rand**. Das Gehäuse
-    // steht hochkant über dem Griffpunkt, sein unterer Rand läuft als Zylinder
-    // quer (x) durch ihn, und die Faust liegt darum (`STOPWATCH_GRIP`,
-    // `STOPWATCH_HAND_POSE`): Handfläche hinten, Finger unten herum nach vorn,
-    // Zifferblatt zum Gesicht — also nach **+z**, zum Kopf, und nicht nach vorn
-    // wie eine Waffe. Lange schaute es nach vorn, und man sah den Zeiger nie.
+    // Kein Standardgriff: eine Taschenuhr liegt **in der Hand**. Ihre
+    // seitliche Kante läuft als senkrechter Zylinder durch den Griffpunkt, und
+    // die Faust liegt darum (`STOPWATCH_GRIP`, `STOPWATCH_HAND_POSE`):
+    // Handfläche hinter dem Gehäuse, Finger um die Kante, Daumen oben auf der
+    // Krone, Zifferblatt zum Gesicht — also nach **+z**, zum Kopf, und nicht
+    // nach vorn wie eine Waffe. Lange schaute es nach vorn, und man sah den
+    // Zeiger nie; dann stand es hochkant auf der Faust, und niemand hält eine
+    // Uhr so.
     this.holdPosition.set(RIM_HOLD_POSITION.x, RIM_HOLD_POSITION.y, RIM_HOLD_POSITION.z);
+    // Alles, woraus die Uhr besteht, hängt an `body` — und das rückt je Hand
+    // zur Seite, damit die gegriffene Kante im Griffpunkt liegt.
+    this.add(this.body);
+    this.showHeldBy('right');
 
     const brass = new THREE.MeshStandardMaterial({
       color: 0xd9a441,
@@ -117,35 +129,34 @@ export class StopwatchTool extends Tool {
       grabMaterial({ roughness: 0.5 }),
     );
     shell.rotation.x = Math.PI / 2;
-    shell.position.y = RADIUS;
-    this.add(shell);
+    this.body.add(shell);
     const back = new THREE.Mesh(new THREE.CircleGeometry(RADIUS, 28), brass);
-    back.position.set(0, RADIUS, -THICKNESS / 2);
+    back.position.set(0, 0, -THICKNESS / 2);
     back.rotation.y = Math.PI;
-    this.add(back);
+    this.body.add(back);
     const bezel = new THREE.Mesh(new THREE.RingGeometry(0.038, RADIUS, 28), brass);
-    bezel.position.set(0, RADIUS, THICKNESS / 2);
-    this.add(bezel);
+    bezel.position.set(0, 0, THICKNESS / 2);
+    this.body.add(bezel);
 
     this.face = new THREE.Mesh(
       new THREE.CircleGeometry(0.038, 28),
       new THREE.MeshBasicMaterial({ color: 0xf3f6fb, toneMapped: false }),
     );
-    this.face.position.set(0, RADIUS, THICKNESS / 2 + 0.001);
-    this.add(this.face);
+    this.face.position.set(0, 0, THICKNESS / 2 + 0.001);
+    this.body.add(this.face);
 
     // The second hand turns around a pivot sitting on the dial.
     this.sweepPivot = new THREE.Group();
     this.sweepPivot.name = 'stopwatch-pivot';
-    this.sweepPivot.position.set(0, RADIUS, THICKNESS / 2 + 0.003);
+    this.sweepPivot.position.set(0, 0, THICKNESS / 2 + 0.003);
     this.hand = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.032, 0.002), dark);
     this.hand.position.set(0, 0.016, 0);
     this.sweepPivot.add(this.hand);
-    this.add(this.sweepPivot);
+    this.body.add(this.sweepPivot);
 
     this.crown = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.014, 12), brass);
     this.crown.position.set(0, CROWN_Y, 0);
-    this.add(this.crown);
+    this.body.add(this.crown);
 
     // --- der Knopf auf der Krone ---------------------------------------------
     this.buttonCanvas = document.createElement('canvas');
@@ -166,7 +177,7 @@ export class StopwatchTool extends Tool {
     this.button.position.set(0, CROWN_Y, 0.012);
     this.button.renderOrder = 12;
     this.button.geometry.computeBoundingBox();
-    this.add(this.button);
+    this.body.add(this.button);
     this.drawButton();
 
     this.panel = new UIPanel({
@@ -176,7 +187,17 @@ export class StopwatchTool extends Tool {
     });
     this.panel.position.set(0, CROWN_Y + 0.1, 0.02);
     this.panel.visible = false;
-    this.add(this.panel);
+    this.body.add(this.panel);
+  }
+
+  /**
+   * Das Gehäuse rückt zur Seite, damit die gegriffene Kante im Griffpunkt
+   * liegt: die rechte Hand greift um die linke Kante, also liegt die Uhr rechts
+   * von ihr; links gespiegelt. Ohne Hand (am Gürtel, auf dem Boden) liegt sie
+   * mittig — dieselbe Regel wie beim Deck der Drohne.
+   */
+  override showHeldBy(hand: Handedness | null): void {
+    this.body.position.x = hand === 'right' ? RADIUS : hand === 'left' ? -RADIUS : 0;
   }
 
   override onTake(_controller: ControllerState, host: ToolHost): void {

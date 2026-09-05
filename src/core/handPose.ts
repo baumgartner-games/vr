@@ -195,23 +195,24 @@ export const POLE_HAND_POSE: HandPose = {
 };
 
 /**
- * **Die Faust am Rand der Stoppuhr** — rechte Hand, links gespiegelt.
+ * **Die Faust um die Stoppuhr** — rechte Hand, links gespiegelt.
  *
- * Eine Taschenuhr hält man nicht an einem Griff, sondern am **Rand**: die
- * Handfläche hinter dem Gehäuse, die Finger unter dem unteren Rand hindurch
- * nach vorn gekrümmt, das Zifferblatt zum Gesicht. Der Rand ist als Zylinder
- * quer (x-Achse) durch den Griffpunkt gedacht (`StopwatchTool.ts`,
- * `STOPWATCH_GRIP`), und die Faust liegt darum wie um jeden anderen — dass
- * das Gehäuse dabei zwischen Handfläche und Fingerspitzen steht, ist genau die
- * Absicht.
+ * So, wie ein Zeitnehmer sie hält: die Uhr liegt **in der Hand**, das
+ * Zifferblatt zum Gesicht, die Handfläche hinter dem Gehäuse, die Finger um
+ * die seitliche Kante gekrümmt (rechts um die linke), der Daumen oben auf der
+ * Krone. Die Kante ist als senkrechter Zylinder durch den Griffpunkt gedacht
+ * (`StopwatchTool.ts`, `STOPWATCH_GRIP`), und die Faust liegt darum wie um
+ * jeden anderen — dass das Gehäuse dabei neben der Faust in der Handfläche
+ * liegt, ist genau die Absicht. Vorher stand die Uhr hochkant *auf* der
+ * Faust, mit den Fingern unter dem unteren Rand; so hält niemand eine Uhr.
  */
 export const STOPWATCH_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
-  x: 0,
-  y: 0,
-  z: -1.8,
+  x: 3,
+  y: -2.5,
+  z: -0.3,
   pitch: -120,
-  yaw: 0,
+  yaw: 90,
   roll: 0,
   curls: [0.55, 0.85, 0.85, 0.9, 0.9],
 };

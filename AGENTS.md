@@ -126,7 +126,7 @@ zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
 Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
 entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
 den **Stab** (Hammer, Taschenlampe, Pinsel, Messer — eine Faust für vier), den
-**Griff der Drohne**, den **Rand der Stoppuhr** und den **Saum des Beutels**,
+**Griff der Drohne**, die **Kante der Stoppuhr** und den **Saum des Beutels**,
 an beiden Händen, und dass Handschuhe und Controller die Grundhaltung tragen; und
 die beiden Zahlen, wegen derer es diesen Test gibt: die alte gebaute Faust
 stand **90°** quer zum Zylinder, die am Stabgriff eingemessene 30°), der
@@ -438,7 +438,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Hand los, fällt er, auch wenn die zweite noch am Stiel liegt: `heldBy`
     gehört der Welt, nicht dem Werkzeug (genau wie bei der Drohne). Die Rechnung
     steht in `tools/poleGrip.ts` mit Test, das Werkzeug in `tools/HammerTool.ts`.
-  - **Stoppuhr**: das Werkzeug, mit dem man Physik *ansieht*. Ein **Knopf** an
+  - **Stoppuhr**: das Werkzeug, mit dem man Physik *ansieht*. Sie liegt in der
+    Hand wie bei einem Zeitnehmer: Blatt zum Gesicht, Finger um die seitliche
+    Kante, Daumen auf der Krone (siehe *Ein Griff für alle Werkzeuge*), und der
+    Gehäusemantel trägt die Greiffarbe. Ein **Knopf** an
     der Krone (oder `A`/`X`) öffnet ein Panel an der Uhr — dieselbe Mechanik
     wie beim Drohnen-Display —, und dort steht, was der **Trigger** tut
     (`stopwatchSettings.ts`, mit Test):
@@ -1894,9 +1897,13 @@ Batterierohr der Taschenlampe, der Stiel des Pinsels und der Griff des
 Messers, alle mit derselben `holdPosition` (`POLE_HOLD_POSITION`) und
 derselben Faust (`POLE_HAND_POSE`). Der rechte Griff der Drohne als
 `DRONE_GRIP` in `DroneTool.ts` (mit einer Hand rutscht das Deck so weit, dass
-er im Griffpunkt sitzt). Der **Rand der Stoppuhr** als `STOPWATCH_GRIP`: ein
-Zylinder quer durch den Griffpunkt, Handfläche hinter dem Gehäuse, Finger
-unten herum. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
+er im Griffpunkt sitzt). Die **Kante der Stoppuhr** als `STOPWATCH_GRIP`: ein
+senkrechter Zylinder durch den Griffpunkt — die Uhr liegt in der Hand wie bei
+einem Zeitnehmer, Handfläche hinter dem Gehäuse, Finger um die seitliche
+Kante, Daumen oben auf der Krone; das Gehäuse rückt dafür je Hand zur Seite
+(`showHeldBy`, wie das Deck der Drohne). Die erste Fassung stellte sie
+hochkant *auf* die Faust, Finger unter dem unteren Rand — so hält niemand eine
+Uhr, und ein Foto eines Zeitnehmers hat es entschieden. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
 Handfläche außen, Finger hinein — als einziger ohne Zielkorrektur gerechnet
 (`gripInHand` nimmt dafür die Ruhe), denn der Beutel zielt nicht. Die Rahmen
 dieser Zylinder schreibt man nicht als Winkel hin, sondern als zwei
