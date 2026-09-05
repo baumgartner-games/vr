@@ -92,6 +92,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./moon/MoonWorld')).MoonWorld(),
   },
   {
+    id: 'alps',
+    title: 'Alpen',
+    tagline: 'Ein Gipfel, ein Hängegleiter',
+    description:
+      'Großer Berg mit Startrampe, Tal mit Landewiese. Hängegleiter links, Flügel rechts — Trigger ist der Anlauf.',
+    accent: 0x9fd8ff,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./alps/AlpsWorld')).AlpsWorld(),
+  },
+  {
     id: 'dark',
     title: 'Dunkelhaus',
     tagline: 'Licht aus, Taschenlampe an',

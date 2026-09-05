@@ -5,15 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#05070d" />
     <title>Werkzeuge — Baumgartner VR</title>
-    <meta name="description" content="Alle Werkzeuge der VR-Spielwiese: Übersicht, 3D-Ansicht zum Drehen und die Boxhand am Griff." />
+    <meta name="description" content="Alles aus der VR-Spielwiese zum Ansehen: Werkzeuge, Welten und der magische Beutel — Übersicht, 3D-Ansicht zum Drehen und die Boxhand am Griff." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A7%3C/text%3E%3C/svg%3E" />
   </head>
   <body class="page">
     <!--
-      Eine Seite, zwei Zustände: die Übersicht und ein einzelnes Werkzeug. Der
-      Kopf bleibt derselbe und tauscht nur sein linkes Symbol — Burger auf der
-      Übersicht, Pfeil zurück im Werkzeug. Welcher Zustand gilt, steht im Hash,
-      damit der Zurück-Knopf des Browsers dasselbe tut wie der im Kopf.
+      Eine Seite, drei Regale, zwei Zustände. Die Regale sind Werkzeuge, Welten
+      und der magische Beutel — die Schublade wechselt dazwischen. Jedes Regal
+      hat eine Übersicht und eine Einzelansicht; der Kopf bleibt derselbe und
+      tauscht nur sein linkes Symbol: Burger in der Übersicht, Pfeil zurück im
+      Einzelnen. Welcher Zustand gilt, steht im Hash, damit der Zurück-Knopf des
+      Browsers dasselbe tut wie der im Kopf.
     -->
     <header class="top">
       <button id="nav" class="top__icon" type="button" aria-label="Menü" aria-expanded="false">
@@ -31,20 +33,25 @@
     </header>
 
     <nav id="drawer" class="drawer" hidden>
+      <a class="drawer__link" href="#werkzeuge" data-section="tools">Werkzeuge</a>
+      <a class="drawer__link" href="#welten" data-section="worlds">Welten</a>
+      <a class="drawer__link" href="#beutel" data-section="bag">Magischer Beutel</a>
+      <hr class="drawer__rule" />
       <a class="drawer__link" href="./">VR Spielwiese</a>
-      <a class="drawer__link" href="./#portal">Portal Labor</a>
-      <a class="drawer__link" href="./#tune">Eingaberaum</a>
       <a class="drawer__link drawer__link--out" href="https://github.com/baumgartner-games/vr">Quellcode</a>
-      <p class="drawer__note">Mehr kommt hierher, sobald es da ist.</p>
     </nav>
 
     <main class="main">
-      <ul id="grid" class="grid" aria-label="Alle Werkzeuge"></ul>
+      <ul id="grid-tools" class="grid" aria-label="Alle Werkzeuge"></ul>
+      <ul id="grid-worlds" class="grid" aria-label="Alle Welten" hidden></ul>
+      <ul id="grid-bag" class="grid" aria-label="Der magische Beutel" hidden></ul>
 
       <section id="detail" class="detail" hidden>
         <div class="stage"><canvas id="stage" class="stage__canvas"></canvas></div>
         <div class="detail__foot">
           <p id="hint" class="detail__hint"></p>
+          <p id="note" class="detail__note" hidden></p>
+          <a id="enter" class="detail__enter" href="./" hidden>Welt betreten →</a>
           <p class="detail__help">Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück</p>
         </div>
       </section>

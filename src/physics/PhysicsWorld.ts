@@ -167,6 +167,70 @@ export class PhysicsWorld {
   }
 
   /**
+   * Ein **Gelände** als unbeweglicher Körper: ein Raster aus Höhen, das genau
+   * so liegt wie das Mesh, das man davon sieht.
+   *
+   * Ein Berg aus Kisten ist keiner, und ein Dreiecksnetz mit fünfzigtausend
+   * Dreiecken hat in Rapier eine bekannte Schwäche — an den Innenkanten
+   * bleibt ein rollender Körper hängen. Ein Höhenfeld kennt seine Nachbarn und
+   * hat das Problem nicht; dazu ist es das, was ein Gelände *ist*: pro Punkt
+   * eine Höhe.
+   *
+   * Die Anordnung ist die von Rapier, und die ist es wert, hingeschrieben zu
+   * werden, weil man sie nur durch Ausprobieren erfährt: `heights` hat
+   * `(rows + 1) · (cols + 1)` Werte, der Wert für Zeile `i` (entlang **Z**,
+   * von `-depth/2` bei `i = 0` bis `+depth/2`) und Spalte `j` (entlang **X**,
+   * von `-width/2` bei `j = 0`) steht bei `heights[i + j · (rows + 1)]`. Das
+   * Feld ist um den Ursprung des Objekts zentriert; `width` und `depth` sind
+   * seine ganze Ausdehnung.
+   */
+  addHeightfield(
+    object: THREE.Object3D,
+    field: { rows: number; cols: number; heights: Float32Array; width: number; depth: number },
+    options: Pick<BodyOptions, 'friction' | 'restitution' | 'membership' | 'filter'> = {},
+  ): PhysicsBody {
+    const { rapier, world } = this;
+    object.updateWorldMatrix(true, false);
+    object.matrixWorld.decompose(_position, _quaternion, _scale);
+    const membership = options.membership ?? GROUP_WORLD;
+    const filter = options.filter ?? ALL_GROUPS;
+
+    const body = world.createRigidBody(
+      rapier.RigidBodyDesc.fixed()
+        .setTranslation(_position.x, _position.y, _position.z)
+        .setRotation({ x: _quaternion.x, y: _quaternion.y, z: _quaternion.z, w: _quaternion.w }),
+    );
+    const desc = rapier.ColliderDesc.heightfield(
+      field.rows,
+      field.cols,
+      field.heights,
+      { x: field.width, y: 1, z: field.depth },
+      rapier.HeightFieldFlags.FIX_INTERNAL_EDGES,
+    )
+      .setFriction(options.friction ?? 0.9)
+      .setRestitution(options.restitution ?? 0.02)
+      .setCollisionGroups(interactionGroups(membership, filter));
+    const collider = world.createCollider(desc, body);
+
+    let top = -Infinity;
+    for (const height of field.heights) top = Math.max(top, height);
+    return {
+      object,
+      body,
+      collider,
+      halfExtents: new THREE.Vector3(field.width / 2, Math.max(top, 0.01) / 2, field.depth / 2),
+      shape: { kind: 'box' },
+      phaseMask: 0,
+      carried: false,
+      clearing: false,
+      ghost: false,
+      membership,
+      filter,
+      previousPosition: _position.clone(),
+    };
+  }
+
+  /**
    * Free-falling body; the object's transform is driven by the simulation.
    *
    * Es entsteht **geräumt**: wo ein neuer Körper auftaucht, weiß niemand vorher,

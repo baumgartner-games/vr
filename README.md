@@ -3,13 +3,15 @@
 **Live: https://baumgartner-games.github.io/vr/**
 
 **Werkzeug-Übersicht: https://baumgartner-games.github.io/vr/tools.html** —
-alle Werkzeuge zum Ansehen und Drehen, ohne Brille, auf dem Handy.
+alle Werkzeuge, Welten und der magische Beutel zum Ansehen und Drehen, ohne
+Brille, auf dem Handy.
 
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
 Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
-mit einem Sechstel Schwerkraft, ein Dunkelhaus zum Ausprobieren von Licht und
+mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
+Dunkelhaus zum Ausprobieren von Licht und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen, ein Werkzeuggürtel
 voller Spielzeug und Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
@@ -64,8 +66,10 @@ Rest bleibt Verdrahtung.
 Neben dem Spiel steht **[`/tools.html`](https://baumgartner-games.github.io/vr/tools.html)**:
 alle Werkzeuge als Liste, jedes einzeln in 3D zum Drehen, und die Boxhand dazu
 ein- und ausschaltbar — wahlweise *in der Hand* (so liegt das Werkzeug darin)
-oder *am Werkzeug* (so umfasst die Hand es). Keine Brille nötig, das Telefon
-reicht. Details in [AGENTS.md](AGENTS.md#die-werkzeugseite).
+oder *am Werkzeug* (so umfasst die Hand es). Über die Schublade daneben die
+**Welten** (jede mit ihrem Tor aus dem Hub und einem Knopf hinein) und der
+**Magische Beutel** (jedes Objekt mit Masse und Maßen). Keine Brille nötig, das
+Telefon reicht. Details in [AGENTS.md](AGENTS.md#die-werkzeugseite).
 
 ## Query-/Hash-Parameter
 
@@ -96,6 +100,8 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Sprechen | Menü → Verbindung → *Mikrofon* — die Stimmen kommen aus der Richtung, in der die anderen stehen | Panel *Verbindung* → *Sprache* | dito |
 | Werkzeug benutzen | Trigger (Greifen = zweite Funktion) | Links-/Rechtsklick | – |
 | Großer Hammer | irgendwo am Stiel greifen, zweite Hand dazu; Trigger halten schiebt die Hand am Stiel | – | – |
+| Hängegleiter (Alpen) | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve | – | – |
+| Flügel (Alpen) | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve | – | – |
 | Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Ferngreifen | zielen, Grip, Hand >30° nach oben kippen | – | – |

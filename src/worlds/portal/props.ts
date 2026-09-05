@@ -1,8 +1,25 @@
 import * as THREE from 'three';
 import type { ColliderShape } from '../../physics/PhysicsWorld';
+import type { MenuIcon } from '../../ui/menu';
 
 /** Everything the magic bag can conjure. The name travels over the network. */
 export type PropKind = 'cube' | 'domino' | 'sphere' | 'pyramid' | 'plank' | 'block' | 'cylinder';
+
+/**
+ * Was der magische Beutel anbietet, in der Reihenfolge, in der das Raster es
+ * zeigt — Sorte, Beschriftung, Symbol. Hier und nicht in der Welt, weil die
+ * Werkzeugseite dieselbe Liste liest: ein Objekt, das es im Beutel gibt, gibt
+ * es damit auch auf dem Telefon, ohne dass jemand zwei Listen pflegt.
+ */
+export const BAG_ITEMS: ReadonlyArray<readonly [PropKind, string, MenuIcon]> = [
+  ['cube', 'Cube', 'cube'],
+  ['sphere', 'Kugel', 'sphere'],
+  ['domino', 'Domino', 'domino'],
+  ['pyramid', 'Pyramide', 'pyramid'],
+  ['block', 'Quader', 'gizmo'],
+  ['plank', 'Planke', 'plank'],
+  ['cylinder', 'Zylinder', 'cylinder'],
+];
 
 /** Weighted Companion Cube — canvas texture, no asset download. */
 export function createCompanionCube(size = 0.5): THREE.Mesh {

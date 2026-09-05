@@ -6,6 +6,7 @@ import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
 import { HammerTool } from './HammerTool';
+import { HangGliderTool } from './HangGliderTool';
 import { HandTool } from './HandTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
@@ -19,6 +20,7 @@ import { TeleportTool } from './TeleportTool';
 import { TransformTool } from './TransformTool';
 import { TranslateGloveTool } from './TranslateGloveTool';
 import { WelderTool } from './WelderTool';
+import { WingsTool } from './WingsTool';
 import { XrayTool } from './XrayTool';
 import { createPortalGunTool } from './PortalGunTool';
 import { applyStoredPose } from './poseStore';
@@ -46,6 +48,9 @@ export const TOOL_IDS = [
   'welder',
   'xray',
   'drone',
+  // Die beiden Fluggeräte: ein Drachen zum Hängen und Flügel für die Arme.
+  'hang-glider',
+  'wings',
   'tape',
   'teleport',
   'eraser',
@@ -109,6 +114,10 @@ function buildTool(id: string): Tool | null {
       return new XrayTool();
     case 'drone':
       return new DroneTool();
+    case 'hang-glider':
+      return new HangGliderTool();
+    case 'wings':
+      return new WingsTool();
     case 'tape':
       return new TapeTool();
     case 'teleport':
@@ -138,6 +147,8 @@ export {
   GravityGloveTool,
   HammerTool,
   HandTool,
+  HangGliderTool,
+  WingsTool,
   HolsterTool,
   PistolTool,
   ShurikenTool,
@@ -317,6 +328,19 @@ export {
 } from './Tool';
 export { aimRotation, aimError, type Quat as AimQuat } from './aim';
 export { SPIN_RATE, THROW_SPEED } from './ShurikenTool';
+export {
+  HANG_GLIDER,
+  WINGS,
+  attitude,
+  barCommand,
+  flapThrust,
+  stepGlide,
+  wingCommand,
+  yawDelta,
+  type GlideInput,
+  type GlideParams,
+  type GlideState,
+} from './glideFlight';
 export {
   DEFAULT_BEAM_ANGLE,
   MAX_BEAM_ANGLE,

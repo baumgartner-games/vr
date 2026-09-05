@@ -40,7 +40,9 @@ export type MenuIcon =
   | 'trace'
   | 'scope'
   | 'chat'
-  | 'palette';
+  | 'palette'
+  | 'glider'
+  | 'wings';
 
 /** One row (or grid cell) of the wrist menu. */
 export interface MenuEntry {
@@ -704,6 +706,47 @@ export function drawMenuIcon(
         ctx.beginPath();
         ctx.arc(x, -s * 0.12, s * 0.1, 0, Math.PI * 2);
         ctx.fill();
+      }
+      break;
+    }
+    case 'glider': {
+      // Ein Drachen von vorn: das Dreieck des Segels, der Kiel, und darunter
+      // der Bügel — das Ding, das man in die Hand bekommt.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.9, -s * 0.15);
+      ctx.lineTo(0, -s * 0.6);
+      ctx.lineTo(s * 0.9, -s * 0.15);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.6);
+      ctx.lineTo(0, -s * 0.1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.4, s * 0.6);
+      ctx.lineTo(0, -s * 0.1);
+      ctx.lineTo(s * 0.4, s * 0.6);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+    }
+    case 'wings': {
+      // Zwei Schwingen, wie ein Vogel von vorn: zwei Bögen, die außen in
+      // Federn auslaufen.
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(0, s * 0.2);
+        ctx.quadraticCurveTo(side * s * 0.45, -s * 0.7, side * s * 0.9, -s * 0.35);
+        ctx.stroke();
+        for (const [t, dy] of [
+          [0.9, 0.25],
+          [0.72, 0.42],
+          [0.52, 0.55],
+        ] as const) {
+          ctx.beginPath();
+          ctx.moveTo(side * s * t, -s * 0.35 + (0.9 - t) * s * 0.8);
+          ctx.lineTo(side * s * (t - 0.08), -s * 0.35 + dy * s);
+          ctx.stroke();
+        }
       }
       break;
     }

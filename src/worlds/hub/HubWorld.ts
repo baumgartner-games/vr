@@ -6,7 +6,13 @@ import { createGround, createLighting, createSky, disposeTree } from '../shared/
 import { FreeLocomotion } from '../../core/Locomotion';
 import { layoutHub, type HubLayout } from './hubLayout';
 
-interface Gate {
+/**
+ * Ein Tor, wie es im Hub steht — und wie es die Werkzeugseite als Bild einer
+ * Welt zeigt: dasselbe Podest, derselbe Ring in der Akzentfarbe, dasselbe
+ * Schild. Eine Seite mit eigenen, hübscheren Bildern zeigte irgendwann etwas
+ * anderes als das Spiel.
+ */
+export interface Gate {
   group: THREE.Group;
   ring: THREE.Mesh;
   disc: THREE.Mesh<THREE.CircleGeometry, THREE.ShaderMaterial>;
@@ -225,7 +231,7 @@ function angularGap(a: number, b: number): number {
   return Math.min(difference, Math.PI * 2 - difference);
 }
 
-function buildGate(title: string, description: string, accent: number): Gate {
+export function buildGate(title: string, description: string, accent: number): Gate {
   const group = new THREE.Group();
   group.name = `gate:${title}`;
 

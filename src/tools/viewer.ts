@@ -26,6 +26,14 @@ import type { Handedness } from '../core/XRInput';
  */
 export type HandMode = 'off' | 'grip' | 'tool';
 
+/** Was ein Ding auf der Bühne noch braucht, wenn es kein Werkzeug ist. */
+export interface ShowOptions {
+  /** Läuft jedes Bild, mit den Sekunden seit dem Aufstellen — für ein Tor, das wirbelt. */
+  animate?(time: number): void;
+  /** Räumt weg, was `createTool` nicht gebaut hat — Texturen, Schilder. */
+  dispose?(): void;
+}
+
 /** Wie weit die Kamera über das Gezeigte hinaus Luft lässt. */
 const PADDING = 1.12;
 /** Grenzen für das Zoomen, als Faktor auf den eingepassten Abstand. */
@@ -65,6 +73,10 @@ export class ToolViewer {
   private readonly stage = new THREE.Group();
 
   private tool: Tool | null = null;
+  /** Ein Ding, das kein Werkzeug ist — ein Tor, ein Beutel-Objekt. Ohne Hand. */
+  private object: THREE.Object3D | null = null;
+  private options: ShowOptions = {};
+  private shownFor = 0;
   private hand: GhostHand | null = null;
   private mode: HandMode = 'grip';
   private side: Handedness = 'right';
@@ -121,6 +133,23 @@ export class ToolViewer {
     return true;
   }
 
+  /**
+   * Irgendein Ding zum Ansehen, das kein Werkzeug ist. Es steht, wie es
+   * gebaut wurde, ohne Hand daneben; die Kamera passt sich ein wie sonst.
+   */
+  showObject(object: THREE.Object3D, options: ShowOptions = {}): void {
+    this.clear();
+    this.object = object;
+    this.options = options;
+    this.shownFor = 0;
+    this.stage.add(object);
+    this.yaw = 0.6;
+    this.pitch = 0.25;
+    this.zoom = 1;
+    this.spinning = true;
+    this.fit();
+  }
+
   setHandMode(mode: HandMode): void {
     if (this.mode === mode) return;
     this.mode = mode;
@@ -135,6 +164,8 @@ export class ToolViewer {
       this.frame = requestAnimationFrame(tick);
       const dt = Math.min(this.clock.getDelta(), 0.1);
       if (this.spinning) this.yaw += dt * IDLE_SPIN;
+      this.shownFor += dt;
+      this.options.animate?.(this.shownFor);
       this.render();
     };
     this.frame = requestAnimationFrame(tick);
@@ -276,6 +307,21 @@ export class ToolViewer {
     this.tool = null;
     tool?.removeFromParent();
     tool?.disposeTool();
+    const object = this.object;
+    this.object = null;
+    if (object) {
+      object.removeFromParent();
+      object.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry?.dispose();
+        const material = mesh.material as THREE.Material | THREE.Material[];
+        if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
+        else material?.dispose();
+      });
+    }
+    this.options.dispose?.();
+    this.options = {};
   }
 
   private render(): void {

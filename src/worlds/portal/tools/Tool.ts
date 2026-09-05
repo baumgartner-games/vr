@@ -87,6 +87,14 @@ export interface ToolHost {
    */
   setFlight(velocity: THREE.Vector3 | null): void;
   /**
+   * Ob die Füße gerade auf etwas stehen. Ein Gleiter fragt das jedes Bild:
+   * solange ja, wird gelaufen; sobald nein, trägt der Flügel — und sobald
+   * wieder ja, ist gelandet.
+   */
+  onGround(): boolean;
+  /** Wie sich der Körper gerade bewegt, in m/s — der Schwung, mit dem man abhebt. */
+  playerVelocity(target: THREE.Vector3): THREE.Vector3;
+  /**
    * Setzt den Spieler auf einen Punkt — Füße dorthin, Blickrichtung bleibt.
    *
    * `false` heißt: geht gerade nicht. Wer in einem Kart sitzt oder mit einer

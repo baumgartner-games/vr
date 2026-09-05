@@ -77,6 +77,7 @@ import {
   saveIdleHandPose,
 } from '../../core/handPoseStore';
 import {
+  BAG_ITEMS,
   createCompanionCube,
   createDominoes,
   createPropShape,
@@ -257,17 +258,6 @@ const _rotationB = new THREE.Quaternion();
 const _localRotation = new THREE.Quaternion();
 const _size = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
-
-/** What the magic bag offers, in the order the grid shows it. */
-const BAG_ITEMS: Array<[PropKind, string, MenuIcon]> = [
-  ['cube', 'Cube', 'cube'],
-  ['sphere', 'Kugel', 'sphere'],
-  ['domino', 'Domino', 'domino'],
-  ['pyramid', 'Pyramide', 'pyramid'],
-  ['block', 'Quader', 'gizmo'],
-  ['plank', 'Planke', 'plank'],
-  ['cylinder', 'Zylinder', 'cylinder'],
-];
 
 /** The node a hand's belongings hang on. */
 function gripOf(controller: ControllerState): THREE.Object3D {
@@ -3472,6 +3462,9 @@ export class PortalWorld implements World {
         if (velocity.lengthSq() > 0) locomotion.grounded = false;
       },
       setFlight: (velocity) => this.locomotion?.setFlight?.(velocity),
+      onGround: () => this.locomotion?.grounded ?? false,
+      playerVelocity: (target) =>
+        this.locomotion ? target.copy(this.locomotion.velocity) : target.set(0, 0, 0),
       teleportPlayer: (point) => this.teleportPlayerTo(point),
       setViewOverride: (position, rotation) => this.setViewOverride(position, rotation),
       heldTool: (hand) => this.held.get(hand) ?? null,

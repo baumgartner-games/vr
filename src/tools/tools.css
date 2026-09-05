@@ -165,6 +165,19 @@ html, body {
 .drawer__link:hover { background: rgba(140, 170, 230, 0.16); }
 .drawer__link--out::after { content: " ↗"; color: var(--muted); }
 
+/* Das Regal, in dem man steht: ein heller Balken links, wie ein Lesezeichen. */
+.drawer__link.is-active {
+  color: #fff;
+  background: rgba(74, 168, 255, 0.16);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.drawer__rule {
+  margin: 6px 8px;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
 .drawer__note {
   margin: 6px 12px 2px;
   font-size: 12px;
@@ -267,6 +280,29 @@ html, body {
   font-size: 13px;
   line-height: 1.4;
 }
+
+.detail__note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.detail__note[hidden] { display: none; }
+
+/* Der Knopf in eine Welt hinein — nur dort, wo es eine gibt. */
+.detail__enter {
+  display: inline-block;
+  margin: 10px 0 2px;
+  padding: 9px 14px;
+  color: #04121f;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  background: linear-gradient(120deg, #7cc4ff, var(--accent));
+  border-radius: 10px;
+}
+
+.detail__enter[hidden] { display: none; }
 
 .detail__help {
   margin: 6px 0 0;

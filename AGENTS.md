@@ -197,7 +197,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
-  Mond, Dunkelhaus, Eingaberaum),
+  Mond, Alpen, Dunkelhaus, Eingaberaum),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit
@@ -524,6 +524,47 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
+  - **Hängegleiter**: ein Drachen, unter dem man hängt — das erste Werkzeug,
+    das ein Fahrzeug ist. Vom Gürtel genommen trägt man ihn auf den Schultern;
+    **Trigger** (oder `A`) ist der Anlauf, oder man läuft einfach über eine
+    Kante, und ab da trägt der Flügel. Gehalten wird der **Steuerbügel**, mit
+    einer Hand oder mit beiden (die zweite drückt neben der ersten zu und ist
+    dann beansprucht, `claimsHand`). Der Bügel ist die ganze Steuerung:
+    **ziehen** heißt Nase runter und schneller, **drücken** Nase hoch und
+    langsamer — und unter der Abrissfahrt trägt nichts mehr —, **zur Seite
+    schieben** legt den Flügel in die Kurve, und zwar auf die Seite, zu der man
+    schiebt. Ein echter Pilot schiebt den Bügel von der Kurve *weg*, weil er
+    seinen Körper verlagert und nicht den Bügel; in der Brille bewegt sich der
+    Körper nicht, und „Bügel nach links, Kurve nach links" ist das, was jeder
+    als Erstes versucht. Der Körper dreht sich mit der Bahn: wer eine Kurve
+    fliegt, schaut hinterher dorthin, wohin er fliegt. Berührt die Kapsel
+    wieder Boden, ist gelandet — mit dem Schwung, der noch da war.
+    Das Segel hängt beim Fliegen **im Raum** und nicht an der Hand
+    (`GlideTool`): jedes Bild wird es an die Fäuste gestellt, der Bügel darin,
+    das Segel darüber, gekippt und geneigt, wie der Flug es sagt. Ein zehn
+    Meter breites Segel, das jedem Zucken des Handgelenks folgt, wäre kein
+    Gleiter, sondern ein Fächer; in der Faust bleibt nur ein Stück Bügel. Am
+    Gürtel ist er ein gepacktes Bündel, wie ein echter Drachen auch. Die
+    Rechnung — ein Punkt mit einem Flügel dran, Auftrieb quer zur Bahn,
+    Widerstand entlang, beides mit dem Quadrat der Fahrt — steht in
+    `tools/glideFlight.ts` mit Test; die Zahlen sind auf Gefühl abgestimmt
+    (Trimmfahrt 11 m/s, Gleitzahl 10), nicht auf ein Lehrbuch. Beide
+    Fluggeräte fragen die Welt zwei Dinge, die vorher niemand fragte:
+    `ToolHost.onGround()` und `playerVelocity()`.
+  - **Flügel**: zwei Schwingen an den Armen, und die Arme sind die Steuerung.
+    **Schlagen** — beide Hände zügig nach unten, gemessen im Raum des Rigs —
+    gibt Schub schräg nach vorn und oben, vom Boden aus auch den Start; der
+    Aufwärtsschlag ist das Ausholen und umsonst, und nur der gemeinsame Schlag
+    zählt (die langsamere Hand). **Ausgebreitet** tragen sie, **angelegt** ist
+    ein Sturzflug: wie weit die Hände auseinander sind, ist, wie viel Flügel
+    da ist. Eine Hand **tiefer** als die andere kippt in die Kurve zu dieser
+    Seite, beide Hände **nach vorn** heißt Nase runter, nach hinten Nase hoch.
+    Steiler als der Hängegleiter (Gleitzahl 6) und wendiger — und das eine
+    Gerät, mit dem man wieder **hoch**kommt, solange die Arme durchhalten. Der
+    andere Arm ist beansprucht, solange man sie trägt: er ist ja ein Flügel.
+    Gezeichnet werden sie im Raum, jedes Bild neu von der Schulter zur Hand
+    und ein gutes Stück darüber hinaus (`WingsTool`). Am Gürtel sind sie ein
+    zusammengelegtes Bündel Federn.
   - **Boxhand**: die Hand selbst, als Werkzeug. Sie sieht aus wie die
     gezeichnete Hand mit Controllern, liegt genau dort, wo diese liegt, und
     **zielt nicht** — eine Hand sitzt in der Faust und schießt nirgendwohin.
@@ -892,6 +933,28 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   schwarzer Himmel mit Sternen und der Erde darüber, die nie untergeht. Die
   Schwerkraft kann man überall einstellen — ein Ort, der von sich aus so ist,
   lädt zum Ausprobieren ein, statt es zu erlauben.
+- **Alpen** (experimentell): die Welt, die es wegen zweier Werkzeuge gibt —
+  Hängegleiter und Flügel brauchen beide dasselbe: Höhe, die man verlieren
+  kann. Ein großer Berg (der Gipfel liegt bei gut 280 m, das Kreuz steht dort,
+  wo es *wirklich* am höchsten ist — gesucht, nicht gesetzt, weil die
+  Nachbarberge die Flanke anheben), sechs kleinere drum herum, dazwischen ein
+  Tal. Man fängt oben an, auf einer **Startrampe** unterhalb des Gipfels mit
+  Blick ins Tal, den Gleiter an der linken und die Flügel an der rechten Hüfte;
+  unten liegt eine **Landewiese** mit Windsack und Ring, daneben eine Alm mit
+  ein paar Kisten. Wald bis zur Baumgrenze, Fels wo es steil ist, Schnee ab
+  175 m — alles Vertexfarben aus Höhe und Steigung.
+  Das Gelände ist ein **Höhenfeld** (`alps/alpsTerrain.ts`, mit Test): eine
+  Höhe je Punkt aus Glockenkurven, Rauschen mit Gedächtnis und zwei absichtlich
+  ebenen Stellen, zum Rand hin auf null auslaufend, und dahinter eine Wiese bis
+  zum Horizont. Das Mesh und der Physik-Collider lesen dieselben Zahlen
+  (`PhysicsWorld.addHeightfield`, Rapiers Anordnung steht dort hingeschrieben,
+  weil man sie nur durch Ausprobieren erfährt), deshalb steht man nie neben
+  dem, was man sieht. Ein Strahl gegen fünfzigtausend Dreiecke wäre pro
+  Versuch eine Millisekunde, also läuft der Teleporter am Strahl entlang, bis
+  er unter die Höhe fällt (`raycastTerrain`). Der Himmel wandert mit dem Kopf:
+  wer vom Gipfel dreihundert Meter weit sieht, sähe die Kugel sonst von innen
+  an ihrer Naht. Portale gibt es hier keine Flächen für — ein Berg hat keine
+  Wände.
 - **Boden bis zum Horizont**: unter *jeder* Welt liegt eine Fläche mit Raster,
   einen Kilometer im Quadrat, begehbar und portalfähig (`createGround` in
   `worlds/shared/environment.ts`). Vorher stand jede Welt auf ihrer eigenen
@@ -974,6 +1037,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Wert eintippen | auf eine Taste zielen + Trigger, oder mit dem Finger antippen | echte Tastatur oder Klick | tippen |
 | Lötkolben | Trigger setzt Punkte, andere Hand wechselt Modus | – | – |
 | Drohne | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate) | – | – |
+| Hängegleiter | Trigger oder `A` = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; zweite Hand greift neben der ersten zu | – | – |
+| Flügel | beide Arme schlagen = Start und Schub; ausbreiten = gleiten, anlegen = Sturzflug; eine Hand tiefer = Kurve, Hände vor = Nase runter | – | – |
 | Taschenlampe | Trigger schaltet an/aus | – | – |
 | Lichtkegel stellen | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen | – | – |
 | Dimmer (Dunkelhaus) | anzielen + Trigger, oder antippen — eine Stufe pro Druck | anklicken | tippen |
@@ -1846,12 +1911,29 @@ und aus. Wozu, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
 Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
 eine Frage, die man im Vorbeigehen stellt.
 
-Zwei Zustände, ein Kopf: die Übersicht trägt links das **Burger-Symbol** (die
-Schublade führt zurück in die Welten und zum Quellcode und hat Platz für mehr),
-ein einzelnes Werkzeug den **Pfeil zurück**. Welcher gilt, steht im **Hash** und
+**Drei Regale, eine Schublade.** Hinter dem Burger-Symbol liegen **Werkzeuge**,
+**Welten** und der **Magische Beutel**, dazu der Weg zurück in die Spielwiese
+und zum Quellcode; das Regal, in dem man steht, trägt ein Lesezeichen. Eine
+Welt zeigt ihr **Tor aus dem Hub** — dasselbe `buildGate`, dasselbe Podest,
+derselbe wirbelnde Ring in der Akzentfarbe, dasselbe Schild — und darunter die
+Beschreibung aus der Registry, für wen sie ist, ob sie experimentell ist, und
+einen Knopf *Welt betreten*, der auf `./#<id>` führt. Ein Beutel-Objekt zeigt
+sich selbst, gebaut mit demselben `createPropShape` wie im Spiel, mit Masse,
+Maßen und Collider-Form als Zeile. Beide Listen kommen aus dem Spiel (`WORLDS`,
+`BAG_ITEMS` — die Beutel-Liste ist dafür aus `PortalWorld` nach `props.ts`
+gewandert): ein Regal, das man von Hand pflegt, ist nach dem dritten Werkzeug
+veraltet. Was kein Werkzeug ist, stellt der Viewer über `showObject` auf die
+Bühne — ohne Boxhand, mit einem `animate`-Haken für das Tor.
+
+Zwei Zustände je Regal, ein Kopf: die Übersicht trägt links das
+**Burger-Symbol**, ein einzelnes Ding den **Pfeil zurück**, und der führt in
+die Übersicht *seines* Regals. Welcher Zustand gilt, steht im **Hash** und
 nicht in einer Variablen — damit tut der Zurück-Knopf des Browsers dasselbe wie
-der im Kopf, und `tools.html#hammer` ist ein Link, den man verschicken kann. Ein
-Hash, den es nicht gibt, endet in der Übersicht und nicht in einer leeren Seite.
+der im Kopf, und ein Link ist ein Link: `tools.html#hammer` wie eh und je (die
+Werkzeuge behalten den nackten Hash, damit alte Links halten), `#welt/alps`
+und `#objekt/cube` für die beiden anderen Regale, `#welten` und `#beutel` für
+ihre Übersichten. Ein Hash, den es nicht gibt, endet in der Werkzeug-Übersicht
+und nicht in einer leeren Seite.
 
 Im Kopf steht außerdem der Umschalter für die **Boxhand**, und seine drei
 Zustände sind nicht drei Ansichten desselben Bildes, sondern zwei verschiedene
@@ -1910,7 +1992,7 @@ und solange niemand im Menü eine eigene Zahl setzt, gilt genau die),
 löscht ein Prop wieder, wahlweise nur lokal. `placeTool()` legt ein Werkzeug in
 den *Raum* statt auf den Gürtel — liegend oder schwebend, bis eine Hand es
 nimmt (die Taschenlampe im Dunkelhaus). Genau das machen `DustWorld`,
-`RangeWorld`, `KartWorld`, `ShopWorld`, `DarkWorld` und `MoonWorld` — die ganze Maschinerie
+`RangeWorld`, `KartWorld`, `ShopWorld`, `DarkWorld`, `MoonWorld` und `AlpsWorld` — die ganze Maschinerie
 (Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu
 werden.
 
