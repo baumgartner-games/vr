@@ -1,5 +1,6 @@
 import type { Handedness } from '../../../core/XRInput';
 import type { Tool } from './Tool';
+import type { Quat, Vec3 } from './aim';
 import {
   poseFromReadout,
   readPose,
@@ -77,12 +78,40 @@ export function storedPoseHand(toolId: string): Handedness | null {
   return read()[toolId]?.hand ?? null;
 }
 
-/** Puts a remembered pose back on a freshly built tool. Silent when there is none. */
+/**
+ * Puts a remembered pose back on a freshly built tool. Silent when there is
+ * none — **und auch dann, wenn dort Unsinn steht.**
+ *
+ * Das Zweite ist nicht Vorsicht, sondern Erfahrung: dieser Speicher wird von
+ * Hand befüllbar (Konfig-Code, Tastatur, Entwicklerkonsole), er überlebt jede
+ * Fassung der Seite, und ein Eintrag ohne `position` warf hier eine Ausnahme —
+ * mitten im Aufbau, also **bevor** irgendein Knopf hing. Eine Seite, die an
+ * ihrem eigenen Speicher stirbt, kann ihn auch nicht mehr zurücksetzen, und
+ * genau dafür gibt es den Knopf in der Schublade.
+ */
 export function applyStoredPose(tool: Tool): void {
   const pose = read()[tool.toolId];
-  if (!pose) return;
+  if (!usable(pose)) return;
   tool.holdPosition.set(pose.position.x, pose.position.y, pose.position.z);
   tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
+}
+
+/** Ob das, was im Speicher steht, überhaupt eine Lage ist: zwei Vektoren aus Zahlen. */
+function usable(pose: StoredPose | undefined): pose is StoredPose {
+  const finite = (value: unknown): boolean => Number.isFinite(value);
+  const p = pose?.position as Vec3 | undefined;
+  const r = pose?.rotation as Quat | undefined;
+  return (
+    !!p &&
+    !!r &&
+    finite(p.x) &&
+    finite(p.y) &&
+    finite(p.z) &&
+    finite(r.x) &&
+    finite(r.y) &&
+    finite(r.z) &&
+    finite(r.w)
+  );
 }
 
 /**
@@ -148,7 +177,9 @@ export function holdPoseHands(): Record<string, Handedness> {
   return out;
 }
 
-/** The pose stored for one tool, in readable numbers. */
+/** The pose stored for one tool, in readable numbers — `null`, wenn dort nichts
+ * Brauchbares steht. */
 export function storedPose(toolId: string): StoredPose | null {
-  return read()[toolId] ?? null;
+  const pose = read()[toolId];
+  return usable(pose) ? pose : null;
 }

@@ -164,6 +164,21 @@ export function gripInTool(hold: Quat = IDENTITY): GripPose {
   };
 }
 
+/** Woran eine Faust hängt: was sie umschließt und wohin ihr Finger zeigt. */
+export interface Fist {
+  /**
+   * Wo die geschlossene Faust ihren Zylinder hält, im Raum der gebauten Hand —
+   * aus der Geometrie der Finger, nicht geschätzt.
+   */
+  centre: Vec3;
+  /**
+   * Wohin der **Zeigefinger** dabei zeigt, im selben Raum. Nicht dasselbe wie
+   * das -Z der Hand: ein Finger am Trigger ist halb gekrümmt und zeigt deshalb
+   * gut ein halbes Rechteck unter der Handachse hindurch.
+   */
+  finger: Vec3;
+}
+
 /**
  * **Die Faust um den Griff** — die Lage, in der eine rechte Hand ihn hält,
  * ausgerechnet statt eingestellt.
@@ -173,34 +188,52 @@ export function gripInTool(hold: Quat = IDENTITY): GripPose {
  * - die **Faustachse** (das X der gebauten Hand, quer über die Handfläche, um
  *   das sich die Finger schließen) liegt auf der **Griffachse**, Daumenseite
  *   nach oben aus der Faust heraus;
- * - der **Zeigefinger** zeigt nach vorn, dorthin, wohin der Griff zeigt;
+ * - die **Fingerlinie** liegt auf der **Grifflinie**: der Zeigefinger zeigt
+ *   dorthin, wohin der Griff zeigt — und das ist bei allem mit Standardgriff
+ *   die Zielrichtung des Werkzeugs;
  * - die Mitte der Faust liegt auf der Mitte des Griffs.
  *
- * Zusammen ist das der Griffrahmen, um seine eigene Achse in die Hand gedreht:
- * eine Vierteldrehung um Z bringt das X der Hand auf das -Y des Griffs. Der Rest
- * ist die Umrechnung vom Strahl- in den Griffraum (`GRIP_TO_RAY`) und der
- * Versatz der Faustmitte in der gebauten Hand.
+ * **Die Hand steht dabei schräg am Griff, und das ist keine Ungenauigkeit,
+ * sondern der Punkt.** Der Zeigefinger liegt am Trigger, also halb gekrümmt,
+ * und zeigt damit rund 58° unter der Handachse hindurch. Legt man stattdessen
+ * die *Handachse* auf die Grifflinie — der nächstliegende Fehler, und der, der
+ * hier zuerst stand —, dann zeigt der Finger 58° nach unten am Lauf vorbei:
+ * eine Faust, die um den Griff liegt, aber an einer Waffe falsch aussieht. Ein
+ * Griff ist gegen die Hand geneigt, wie an jeder echten Waffe; die Neigung
+ * *ist* die Krümmung des Fingers, der auf den Lauf zeigen soll.
+ *
+ * Gerechnet ist das der Griffrahmen, zweimal gedreht: eine Vierteldrehung um Z
+ * legt das X der Hand auf das -Y des Griffs, und eine Drehung um die
+ * Griffachse legt die Fingerlinie auf die Grifflinie. Der Rest ist die
+ * Umrechnung vom Strahl- in den Griffraum (`GRIP_TO_RAY`) und der Versatz der
+ * Faustmitte in der gebauten Hand.
+ *
+ * Es ist derselbe Maßstab, den die Werkzeugseite am Knopf *Auf den Griff*
+ * anlegt und den man dort auch sieht: die bernsteinfarbene Linie am Finger und
+ * der rosa Pfeil am Griff liegen übereinander, wenn die Faust sitzt.
  *
  * Warum hier und nicht bei der Hand: das Ergebnis hängt am Griff, und der steht
  * in dieser Datei. `core/handPose.ts` trägt nur noch die fertigen Zahlen, so wie
  * eine Messung sie trüge — nachgerechnet wird in `core/gripFist.test.ts`.
- *
- * @param centre wo die geschlossene Faust ihren Zylinder hält, im Raum der
- *               gebauten Hand (aus der Geometrie der Finger, `handPose.ts`)
  */
-export function fistOnGrip(centre: Vec3): HoldPose {
+export function fistOnGrip(fist: Fist): HoldPose {
   const inHand = multiplyQuat(GRIP_TO_RAY, STANDARD_GRIP.rotation, { x: 0, y: 0, z: 0, w: 1 });
+  const upright = multiplyQuat(inHand, quatFromEulerXYZ({ x: 0, y: 0, z: -Math.PI / 2 }), {
+    x: 0,
+    y: 0,
+    z: 0,
+    w: 1,
+  });
+  // Wie weit der Finger unter der Handachse hindurchzeigt — er liegt in der
+  // Ebene quer zur Faustachse, also ist es eine Drehung um genau diese Achse,
+  // und die Faust bleibt dabei auf ihrem Zylinder.
+  const droop = Math.atan2(fist.finger.y, -fist.finger.z);
   const rotation = normalize(
-    multiplyQuat(inHand, quatFromEulerXYZ({ x: 0, y: 0, z: -Math.PI / 2 }), {
-      x: 0,
-      y: 0,
-      z: 0,
-      w: 1,
-    }),
+    multiplyQuat(upright, quatFromEulerXYZ({ x: -droop, y: 0, z: 0 }), { x: 0, y: 0, z: 0, w: 1 }),
   );
   // Die Faustmitte gehört auf den Griff, und der liegt im Griffpunkt: die Hand
   // steht also um ihre eigene Faustmitte daneben.
-  return { position: negate(rotateVec(centre, rotation, { x: 0, y: 0, z: 0 })), rotation };
+  return { position: negate(rotateVec(fist.centre, rotation, { x: 0, y: 0, z: 0 })), rotation };
 }
 
 /**

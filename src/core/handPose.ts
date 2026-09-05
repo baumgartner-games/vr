@@ -132,11 +132,19 @@ export const HOLD_HAND_POSE: HandPose = {
  * denselben Griff tragen.
  *
  * Sie ist **gerechnet und nicht geschätzt**: die Lage, in der die gekrümmten
- * Finger den Standardgriff umschließen — Faustachse auf der Griffachse,
- * Handfläche daran, Zeigefinger nach vorn, wohin auch der rosa Pfeil des
- * Griffs zeigt (`worlds/portal/tools/gripFit.ts`, nachgerechnet in
- * `core/gripFist.test.ts`). Wer den Griff verschiebt, rechnet sie neu, statt
- * sie neu zu erraten.
+ * Finger den Standardgriff umschließen — Faustachse auf der Griffachse, und die
+ * **Fingerlinie auf der Grifflinie**, also der Zeigefinger dorthin, wohin auch
+ * der rosa Pfeil des Griffs zeigt (`worlds/portal/tools/gripFit.ts`,
+ * nachgerechnet in `core/gripFist.test.ts`). Wer den Griff verschiebt, rechnet
+ * sie neu, statt sie neu zu erraten.
+ *
+ * Dass die Hand dabei **schräg** am Griff steht, ist der Punkt und nicht ein
+ * Rest: der Zeigefinger liegt am Trigger, ist also halb gekrümmt und zeigt rund
+ * 58° unter der Handachse hindurch. Ein Griff ist gegen die Hand geneigt, wie
+ * an jeder echten Waffe, und diese Neigung *ist* die Krümmung des Fingers, der
+ * auf den Lauf zeigen soll. Legte man stattdessen die Handachse gerade auf die
+ * Grifflinie, läge die Faust zwar um den Zylinder, der Finger zeigte aber 58°
+ * am Lauf vorbei nach unten.
  *
  * Vorher standen hier zwei von Hand eingestellte Zahlenreihen, und **keine von
  * beiden** hielt ihren Griff wirklich: die gebaute Faust lag 6,7 cm daneben und
@@ -147,11 +155,11 @@ export const HOLD_HAND_POSE: HandPose = {
  */
 export const GRIP_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
-  x: 2.6,
-  y: 2,
-  z: 2.2,
+  x: -1.1,
+  y: 2.6,
+  z: 2.8,
   pitch: -43,
-  yaw: 0,
+  yaw: -58,
   roll: -90,
 };
 

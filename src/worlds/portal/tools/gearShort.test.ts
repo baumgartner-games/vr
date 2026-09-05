@@ -163,17 +163,17 @@ describe('die Hand am Werkzeug', () => {
 describe('die eine Faust am Griff', () => {
   it('gilt rechts wie gerechnet und links gespiegelt', () => {
     expect(defaultHoldPose('right', 'flashlight')).toMatchObject({
-      x: 2.6,
-      y: 2,
-      z: 2.2,
+      x: -1.1,
+      y: 2.6,
+      z: 2.8,
       pitch: -43,
-      yaw: 0,
+      yaw: -58,
       roll: -90,
     });
     expect(defaultHoldPose('left', 'flashlight')).toEqual(
       mirrorHandPose(defaultHoldPose('right', 'flashlight')),
     );
-    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: -2.6, yaw: 0, roll: 90 });
+    expect(defaultHoldPose('left', 'flashlight')).toMatchObject({ x: 1.1, yaw: 58, roll: 90 });
   });
 
   it('gilt für jedes Werkzeug am Griff — die Lampe hält ihn wie die Pistole', () => {

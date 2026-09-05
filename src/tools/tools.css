@@ -178,6 +178,23 @@ html, body {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+/*
+  Der Löschknopf sieht aus wie ein Link in der Schublade und ist doch keiner:
+  linksbündig wie die anderen, aber in Warnfarbe. Ein Knopf, der Daten wegwirft,
+  darf nicht aussehen wie einer, der eine Seite öffnet.
+*/
+.drawer__link--wipe {
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #ff9a9a;
+}
+
+.drawer__link--wipe:hover { background: rgba(230, 120, 120, 0.16); }
+
 .drawer__rule {
   margin: 6px 8px;
   border: none;

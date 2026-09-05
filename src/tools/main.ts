@@ -6,14 +6,16 @@ import { buildGate } from '../worlds/hub/HubWorld';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
 import { STANDARD_GRIP_TOOLS, type HandPose } from '../core/handPose';
 import {
+  clearHandPoses,
   clearHoldHandPose,
   clearIdleHandPose,
+  handPoseCount,
   holdHandPose,
   idleHandPose,
   saveHoldHandPose,
   saveIdleHandPose,
 } from '../core/handPoseStore';
-import { clearPose, savePose } from '../worlds/portal/tools/poseStore';
+import { clearPose, clearPoses, savePose, storedPoseCount } from '../worlds/portal/tools/poseStore';
 import { poseFromReadout, readPose } from '../worlds/portal/tools/toolPose';
 import {
   composePose,
@@ -124,6 +126,8 @@ const values = document.querySelector<HTMLElement>('#values')!;
 const codeTool = document.querySelector<HTMLButtonElement>('#code-tool')!;
 const codeAll = document.querySelector<HTMLButtonElement>('#code-all')!;
 const lede = document.querySelector<HTMLElement>('#lede')!;
+const wipe = document.querySelector<HTMLButtonElement>('#wipe')!;
+const wipeNote = document.querySelector<HTMLElement>('#wipe-note')!;
 
 const HAND_STORE = 'bgvr.toolPageHand';
 const viewer = new ToolViewer(stage);
@@ -392,6 +396,9 @@ document.addEventListener('keydown', (event) => {
 function setDrawer(open: boolean): void {
   drawer.hidden = !open;
   nav.setAttribute('aria-expanded', String(open));
+  // Die Meldung unter dem Löschknopf gehört zu *diesem* Öffnen: eine Woche
+  // später steht sie sonst noch da und behauptet etwas über den Speicher.
+  if (!open) wipeNote.textContent = '';
 }
 
 /** Das Regal, in dem man gerade steht — die Schublade markiert es. */
@@ -671,6 +678,77 @@ revert.addEventListener('click', () => {
   forgetDraft();
   showEditor();
 });
+
+/**
+ * **Eigene Einstellungen löschen** — der Weg zurück auf die ausgelieferten
+ * Zahlen, für dieses Gerät.
+ *
+ * Er gehört auf diese Seite, weil hier eingestellt wird: wer eine Haltung
+ * verzogen hat und nicht mehr weiß, welche, kommt sonst nur über die
+ * Entwicklerwerkzeuge des Browsers wieder heraus. Und er gehört in die
+ * Schublade und nicht neben den Regler — der Knopf dort heißt auch
+ * *Zurücksetzen* und meint **eine** Haltung; zwei Knöpfe mit demselben Wort und
+ * verschiedener Reichweite nebeneinander sind eine Falle.
+ *
+ * Gelöscht wird **alles, was das Spiel auf diesem Gerät abgelegt hat**, und
+ * nicht nur, was diese Seite schreibt: die Handhaltungen und die Werkzeuglagen,
+ * aber ebenso Gürtel, Waffenwerte, Drohne und der Rest unter `bgvr.` — sie
+ * stehen im selben Speicher derselben Herkunft, und „zurückgesetzt" heißt
+ * zurückgesetzt. Der Dialog sagt vorher, worum es geht, denn rückgängig macht
+ * das niemand.
+ *
+ * Die beiden Speicher mit eigenem Zwischenspeicher werden über ihre eigenen
+ * Wege geleert (`clearHandPoses`, `clearPoses`) — ein `removeItem` allein ließe
+ * die Zahlen im Arbeitsspeicher stehen, und die Seite zeigte weiter das Alte.
+ */
+wipe.addEventListener('click', () => {
+  const poses = handPoseCount() + storedPoseCount();
+  const what = poses
+    ? `${poses} eigene ${poses === 1 ? 'Haltung' : 'Haltungen'} und alles andere`
+    : 'alles';
+  // Ohne Rückfrage nur dort, wo es gar keine gibt: ein `confirm`, das fehlt,
+  // darf den Knopf nicht stumm ins Leere laufen lassen.
+  const sure =
+    globalThis.confirm?.(
+      `Wirklich ${what} löschen?\n\n` +
+        'Handhaltungen, Werkzeuglagen und die Einstellungen des Spiels auf ' +
+        'diesem Gerät (Gürtel, Waffenwerte, Drohne …) gehen dabei verloren und ' +
+        'stehen wieder auf den ausgelieferten Werten.',
+    ) ?? true;
+  if (!sure) return;
+
+  clearHandPoses();
+  clearPoses();
+  for (const key of gameKeys()) {
+    try {
+      globalThis.localStorage?.removeItem(key);
+    } catch {
+      /* Ein Speicher, den der Browser sperrt, hat auch nichts zu löschen. */
+    }
+  }
+
+  forgetDraft();
+  viewer.setHoldPose(null);
+  viewer.refresh();
+  showEditor();
+  wipeNote.textContent = 'Gelöscht — alles steht wieder auf den Werkswerten.';
+});
+
+/** Alle Schlüssel dieses Spiels im Speicher — `bgvr.` ist die Handschrift. */
+function gameKeys(): string[] {
+  const keys: string[] = [];
+  try {
+    const store = globalThis.localStorage;
+    if (!store) return keys;
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+      if (key?.startsWith('bgvr.')) keys.push(key);
+    }
+  } catch {
+    /* siehe oben */
+  }
+  return keys;
+}
 
 codeTool.addEventListener('click', () => {
   const id = viewer.toolId;

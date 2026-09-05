@@ -122,9 +122,11 @@ niemand etwas), die **Faust am Griff**
 jedes Werkzeug mit diesem Griff gilt, eine für ein einzelnes Werkzeug aber
 darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 (`src/core/gripFist.test.ts` — die gezeichnete Hand am gebauten Werkzeug, quer
-zur Griffachse einen halben Millimeter genau; dazu die beiden Zahlen, wegen
-derer es diesen Test gibt: die alte gebaute Faust stand **90°** quer zum
-Zylinder, die am Stabgriff eingemessene 30°), der **Standardgriff**
+zur Griffachse einen halben Millimeter genau, und die **Fingerlinie auf der
+Grifflinie**: der Zeigefinger zeigt den Lauf entlang, die Hand steht dafür 58°
+schräg am Griff; dazu die beiden Zahlen, wegen derer es diesen Test gibt: die
+alte gebaute Faust stand **90°** quer zum Zylinder, die am Stabgriff
+eingemessene 30°), der **Standardgriff**
 (`src/worlds/portal/tools/gripFit.ts` — dass ein Griff bei *jeder* Haltung an
 derselben Stelle in der Faust landet und die Zielkorrektur sich dabei
 heraushebt, dass der Weg rückwärts derselbe ist, dass die geteilte
@@ -1615,18 +1617,29 @@ gespiegelt — und sie ist nicht eingestellt, sondern **ausgerechnet**:
 
 | | x | y | z | Pitch | Yaw | Roll |
 | --- | --- | --- | --- | --- | --- | --- |
-| Faust am Griff | 2,6 | 2 | 2,2 | −43° | 0° | −90° |
+| Faust am Griff | −1,1 | 2,6 | 2,8 | −43° | −58° | −90° |
 
 Der Weg dorthin steht in `fistOnGrip` (`tools/gripFit.ts`) und wird in
 `core/gripFist.test.ts` nachgerechnet. Drei Bedingungen, und sie lassen genau
 eine Lage übrig: die **Faustachse** (das X der gebauten Hand, quer über die
-Handfläche, um das sich die Finger schließen) liegt auf der **Griffachse**, der
-**Zeigefinger** zeigt dorthin, wohin der Griff zeigt, und die **Mitte der Faust**
-liegt auf der Mitte des Griffs. Wo die Faust ihren Zylinder hält, sagt dabei
-die Hand selbst: der Kreis durch die drei Gelenke des Mittelfingers hat den
-Mittelpunkt 2,65 cm unter und 3,0 cm vor dem Handgelenk und den Halbmesser
-eines Griffs. Ein gekrümmter Finger legt sich um *etwas* — der Kreis durch
-seine Gelenke ist dieses Etwas.
+Handfläche, um das sich die Finger schließen) liegt auf der **Griffachse**, die
+**Fingerlinie liegt auf der Grifflinie**, und die **Mitte der Faust** liegt auf
+der Mitte des Griffs. Wo die Faust ihren Zylinder hält, sagt dabei die Hand
+selbst: der Kreis durch die drei Gelenke des Mittelfingers hat den Mittelpunkt
+2,65 cm unter und 3,0 cm vor dem Handgelenk und den Halbmesser eines Griffs.
+Ein gekrümmter Finger legt sich um *etwas* — der Kreis durch seine Gelenke ist
+dieses Etwas.
+
+**Die Hand steht dabei schräg am Griff, und das ist der Punkt.** Ein Griff ist
+gegen die Hand geneigt, wie an jeder echten Waffe, und die Neigung *ist* die
+Krümmung des Zeigefingers, der auf dem Lauf liegen soll: er hängt am Trigger,
+ist also halb gekrümmt und zeigt rund **58° unter der Handachse** hindurch. Die
+erste Fassung dieser Rechnung legte die Handachse gerade auf die Grifflinie —
+die Faust lag dann zwar um den Zylinder, aber der Finger zeigte 58° am Lauf
+vorbei nach unten. Gemessen wird deshalb an der Linie, die man auf der
+Werkzeugseite auch sieht: die bernsteinfarbene am Finger und der rosa Pfeil am
+Griff liegen übereinander, wenn die Faust sitzt — derselbe Maßstab, den der
+Knopf *Auf den Griff* dort anlegt.
 
 **Warum gerechnet und nicht gemessen.** Vorher standen dort zwei von Hand
 eingestellte Zahlenreihen, eine je Griffart, und **keine von beiden hielt ihren
@@ -2143,7 +2156,23 @@ eine Frage, die man im Vorbeigehen stellt.
 
 **Drei Regale, eine Schublade.** Hinter dem Burger-Symbol liegen **Werkzeuge**,
 **Welten** und der **Magische Beutel**, dazu der Weg zurück in die Spielwiese
-und zum Quellcode; das Regal, in dem man steht, trägt ein Lesezeichen. Eine
+und zum Quellcode; das Regal, in dem man steht, trägt ein Lesezeichen. Ganz
+unten, in Warnfarbe, steht **Eigene Einstellungen löschen**: der Weg zurück auf
+die ausgelieferten Zahlen für dieses Gerät. Er gehört hierher, weil hier
+eingestellt wird — wer eine Haltung verzogen hat und nicht mehr weiß, welche,
+käme sonst nur über die Entwicklerwerkzeuge des Browsers wieder heraus —, und
+er gehört in die Schublade und nicht neben den Regler: der Knopf dort heißt
+auch *Zurücksetzen* und meint **eine** Haltung. Gelöscht wird alles unter
+`bgvr.` — Handhaltungen und Werkzeuglagen, aber ebenso Gürtel, Waffenwerte und
+Drohne, denn es ist derselbe Speicher derselben Herkunft. Die Rückfrage sagt
+das vorher; rückgängig macht es niemand.
+
+**Und der Speicher darf kaputt sein.** Ein Eintrag ohne `position` warf in
+`applyStoredPose` eine Ausnahme — mitten im Aufbau der Seite, also *bevor*
+irgendein Knopf hing, und damit war auch der Löschknopf weg. Eine Seite, die an
+ihrem eigenen Speicher stirbt, kann ihn nicht mehr zurücksetzen; also wird dort
+geprüft, was zurückkommt, und Unsinn wird still übergangen
+(`tools/poseStore.ts`). Eine
 Welt zeigt **sich selbst** (siehe unten), darunter die Beschreibung aus der
 Registry, für wen sie ist, ob sie experimentell ist, und einen Knopf *Welt
 betreten*, der auf `./#<id>` führt. Ein Beutel-Objekt zeigt sich selbst,

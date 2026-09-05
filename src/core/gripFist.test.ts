@@ -94,6 +94,24 @@ function fistCentre(): THREE.Vector3 {
   return new THREE.Vector3(0, (C * E - B * F) / det, (A * F - C * D) / det);
 }
 
+/**
+ * **Wohin der Zeigefinger zeigt**, im Raum der gebauten Hand.
+ *
+ * Das -Z der Fingerspitze, an der auf der Werkzeugseite auch die
+ * bernsteinfarbene Linie hängt. Es ist *nicht* das -Z der Hand: der Finger liegt
+ * am Trigger, also halb gekrümmt, und zeigt gut ein halbes Rechteck darunter
+ * hindurch. Genau diese Krümmung ist die Schräge, mit der eine Hand an einem
+ * Waffengriff liegt.
+ */
+function fingerDirection(): THREE.Vector3 {
+  const ghost = new GhostHand('right', HOLD_HAND_POSE, { opacity: 1 });
+  ghost.update(1);
+  ghost.updateMatrixWorld(true);
+  return new THREE.Vector3(0, 0, -1).applyQuaternion(
+    ghost.indexTip.getWorldQuaternion(new THREE.Quaternion()),
+  );
+}
+
 /** Die Faust einer Hand, die diese Haltung hat: Mitte und Achse im Griffraum. */
 function fistOf(pose: HandPose, centre: THREE.Vector3) {
   const rotation = new THREE.Quaternion().setFromEuler(
@@ -141,7 +159,7 @@ describe('die Faust am Standardgriff', () => {
   });
 
   it('steht in `handPose.ts` als das, was `fistOnGrip` ausrechnet', () => {
-    const want = fistOnGrip(fistCentre());
+    const want = fistOnGrip({ centre: fistCentre(), finger: fingerDirection() });
     const euler = new THREE.Euler().setFromQuaternion(
       new THREE.Quaternion(want.rotation.x, want.rotation.y, want.rotation.z, want.rotation.w),
       'XYZ',
@@ -217,6 +235,43 @@ describe('die Faust am Standardgriff', () => {
     const across = offset.clone().sub(gripAxis.clone().multiplyScalar(offset.dot(gripAxis)));
     expect(across.length()).toBeLessThan(0.0005);
     expect(between(axis, gripAxis)).toBeLessThan(0.5);
+  });
+
+  it('legt die Fingerlinie auf die Grifflinie — die Hand steht schräg am Griff', () => {
+    // Der Maßstab der Werkzeugseite, als Zahl: die bernsteinfarbene Linie am
+    // Zeigefinger und der rosa Pfeil am Griff liegen übereinander. Damit zeigt
+    // der Finger dorthin, wohin das Werkzeug zielt — bei einer Waffe also den
+    // Lauf entlang.
+    const pose = defaultHoldPose('right', 'grip');
+    const ghost = new GhostHand('right', pose, { opacity: 1 });
+    ghost.position.set(pose.x / 100, pose.y / 100, pose.z / 100);
+    ghost.quaternion.setFromEuler(
+      new THREE.Euler(pose.pitch * DEG, pose.yaw * DEG, pose.roll * DEG, 'XYZ'),
+    );
+    ghost.update(1);
+    ghost.updateMatrixWorld(true);
+    const finger = new THREE.Vector3(0, 0, -1).applyQuaternion(
+      ghost.indexTip.getWorldQuaternion(new THREE.Quaternion()),
+    );
+
+    const tool = new GripTool();
+    tool.position.copy(tool.holdPosition);
+    tool.quaternion.copy(aim).multiply(tool.holdRotation);
+    tool.updateMatrixWorld(true);
+    const front = new THREE.Vector3(0, 0, -1).applyQuaternion(
+      tool.gripPart!.getWorldQuaternion(new THREE.Quaternion()),
+    );
+    // Dieselbe Richtung, nicht nur dieselbe Achse: ein Finger, der nach hinten
+    // zeigt, läge auf derselben Linie und wäre trotzdem falsch herum.
+    expect((Math.acos(Math.min(1, finger.dot(front))) * 180) / Math.PI).toBeLessThan(0.5);
+
+    // Und die Schräge, um die es geht: die Hand steht **nicht** gerade am
+    // Griff. Ihre eigene Achse zeigt gut ein halbes Rechteck neben dem Lauf
+    // vorbei — genau um die Krümmung des Fingers, der auf ihm liegt.
+    const straight = new THREE.Vector3(0, 0, -1).applyQuaternion(
+      ghost.getWorldQuaternion(new THREE.Quaternion()),
+    );
+    expect((Math.acos(Math.min(1, straight.dot(front))) * 180) / Math.PI).toBeCloseTo(58, 0);
   });
 
   it('hielt vorher gar nichts — die Zahlen, wegen derer das hier steht', () => {

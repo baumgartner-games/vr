@@ -58,6 +58,17 @@
       <hr class="drawer__rule" />
       <a class="drawer__link" href="./">VR Spielwiese</a>
       <a class="drawer__link drawer__link--out" href="https://github.com/baumgartner-games/vr">Quellcode</a>
+      <hr class="drawer__rule" />
+      <!--
+        Der Weg zurück auf null. Er gehört hierher und nicht neben den Regler:
+        „Zurücksetzen" dort meint eine Haltung, dieser hier meint alles, was je
+        auf diesem Gerät eingestellt wurde — und die beiden dürfen sich nicht
+        verwechseln lassen.
+      -->
+      <button id="wipe" class="drawer__link drawer__link--wipe" type="button">
+        Eigene Einstellungen löschen
+      </button>
+      <p id="wipe-note" class="drawer__note"></p>
     </nav>
 
     <main class="main">
