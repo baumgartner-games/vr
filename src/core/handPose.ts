@@ -200,20 +200,23 @@ export const POLE_HAND_POSE: HandPose = {
  * So, wie ein Zeitnehmer sie hält: die Uhr liegt **in der Hand**, das
  * Zifferblatt zum Gesicht, die Handfläche hinter dem Gehäuse, die Finger um
  * die seitliche Kante gekrümmt (rechts um die linke), der Daumen oben auf der
- * Krone. Die Kante ist als senkrechter Zylinder durch den Griffpunkt gedacht
- * (`StopwatchTool.ts`, `STOPWATCH_GRIP`), und die Faust liegt darum wie um
- * jeden anderen — dass das Gehäuse dabei neben der Faust in der Handfläche
- * liegt, ist genau die Absicht. Vorher stand die Uhr hochkant *auf* der
- * Faust, mit den Fingern unter dem unteren Rand; so hält niemand eine Uhr.
+ * Krone. Die Kante ist als Zylinder durch den Griffpunkt gedacht, um gut 35°
+ * gekippt (`StopwatchTool.ts`, `STOPWATCH_GRIP`, `STOPWATCH_TILT`): die Finger
+ * zeigen nach links **oben** um die Kante, der Arm kommt von rechts unten —
+ * so steht die Hand auf dem Foto eines Zeitnehmers. Die Faust liegt darum wie
+ * um jeden anderen Zylinder; dass das Gehäuse dabei neben der Faust in der
+ * Handfläche liegt, ist genau die Absicht. Vorher stand die Uhr hochkant *auf*
+ * der Faust, mit den Fingern unter dem unteren Rand, und danach lag die Hand
+ * waagerecht wie an einem Türgriff; beides hält niemand so.
  */
 export const STOPWATCH_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
-  x: 3,
-  y: -2.5,
-  z: -0.3,
-  pitch: -120,
-  yaw: 90,
-  roll: 0,
+  x: 2.4,
+  y: -4,
+  z: 0.6,
+  pitch: 60,
+  yaw: 55,
+  roll: -180,
   curls: [0.55, 0.85, 0.85, 0.9, 0.9],
 };
 

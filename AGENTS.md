@@ -1898,12 +1898,14 @@ Messers, alle mit derselben `holdPosition` (`POLE_HOLD_POSITION`) und
 derselben Faust (`POLE_HAND_POSE`). Der rechte Griff der Drohne als
 `DRONE_GRIP` in `DroneTool.ts` (mit einer Hand rutscht das Deck so weit, dass
 er im Griffpunkt sitzt). Die **Kante der Stoppuhr** als `STOPWATCH_GRIP`: ein
-senkrechter Zylinder durch den Griffpunkt — die Uhr liegt in der Hand wie bei
-einem Zeitnehmer, Handfläche hinter dem Gehäuse, Finger um die seitliche
-Kante, Daumen oben auf der Krone; das Gehäuse rückt dafür je Hand zur Seite
-(`showHeldBy`, wie das Deck der Drohne). Die erste Fassung stellte sie
-hochkant *auf* die Faust, Finger unter dem unteren Rand — so hält niemand eine
-Uhr, und ein Foto eines Zeitnehmers hat es entschieden. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
+um 35° gekippter Zylinder durch den Griffpunkt (`STOPWATCH_TILT`) — die Uhr
+liegt in der Hand wie bei einem Zeitnehmer, Handfläche hinter dem Gehäuse,
+Finger nach links oben um die seitliche Kante, der Arm von rechts unten, Daumen
+oben auf der Krone; das Gehäuse rückt dafür je Hand zur Seite (`showHeldBy`,
+wie das Deck der Drohne). Die erste Fassung stellte sie hochkant *auf* die
+Faust, Finger unter dem unteren Rand; die zweite legte die Hand waagerecht wie
+an einen Türgriff — so hält niemand eine Uhr, und ein Foto eines Zeitnehmers
+hat beides entschieden. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
 gehalten wie eine **offene Kappe**: die Hand waagerecht unter dem Saum,
 Handfläche nach oben, Finger vorn hinein, Daumen außen am Saum (senkrecht wie
 an einem Eimer sah es nach einem Eimer aus) — als einziger ohne Zielkorrektur gerechnet

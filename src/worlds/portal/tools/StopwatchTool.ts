@@ -41,9 +41,19 @@ const CROWN_Y = RADIUS + 0.005;
  * linke Kante (`showHeldBy`). Daraus rechnet `core/gripFist.test.ts` die Faust
  * (`STOPWATCH_HAND_POSE`).
  */
+/**
+ * Wie schräg die Hand dabei steht, in Bogenmaß: die Finger zeigen nicht
+ * waagerecht nach links um die Kante, sondern nach links **oben**, und der
+ * Arm kommt von rechts unten — auf dem Foto eines Zeitnehmers sind es gut
+ * 35°. Waagerecht sah die Hand aus wie an einem Türgriff.
+ */
+export const STOPWATCH_TILT = (35 * Math.PI) / 180;
 export const STOPWATCH_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },
-  rotation: gripFrame({ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: -1 }),
+  rotation: gripFrame(
+    { x: Math.sin(STOPWATCH_TILT), y: Math.cos(STOPWATCH_TILT), z: 0 },
+    { x: 0, y: 0, z: -1 },
+  ),
 };
 /** Und wo der Rand in der Hand liegt: wie ein Stab, eine Spur unter und vor dem Griffpunkt. */
 export const RIM_HOLD_POSITION: Vec3 = { x: 0, y: -0.012, z: 0.02 };
