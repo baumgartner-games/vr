@@ -84,15 +84,35 @@ import {
   type PropKind,
 } from './props';
 import {
+  DEFAULT_NEAR_HEIGHT,
+  DEFAULT_NEAR_RADIUS,
   REMOTE_RANGE,
   flightArrived,
   flightDuration,
   flightPosition,
   handsTooClose,
+  nearZoneDistance,
   pickAimTarget,
+  rayReach,
   reachDepth,
+  spinGrab,
   type AimTarget,
-} from './remoteGrab';
+  type GrabPose,
+  type GrabStage,
+  type NearZone,
+} from './grabReach';
+import {
+  GRAB_FIELDS,
+  formatGrabField,
+  grabSettings,
+  motionLabel,
+  nextGrabStep,
+  onGrabChange,
+  saveGrabSettings,
+  type GrabField,
+  type GrabSettings,
+} from '../../core/grabSettings';
+import { GhostHand } from '../../core/HandVisuals';
 import { TextPlane } from '../../ui/TextPlane';
 import { playPick } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
@@ -390,6 +410,71 @@ interface HandGrab {
   offset: THREE.Matrix4;
   lastPosition: THREE.Vector3;
   velocity: THREE.Vector3;
+  /**
+   * Gesetzt beim **Nahgreifen**: gefasst, aber nicht in der Hand. Der
+   * Gegenstand bleibt, wo er liegt, und folgt der Hand von dort. Darin steht,
+   * was der Moment des Zugreifens festgehalten hat — die Betriebsart *Drehung
+   * um Objektmitte* rechnet gegen diese Posen, und die Neigung ist der
+   * Nullpunkt für die Geste, die ihn doch noch herbeiholt.
+   */
+  near: NearGrab | null;
+}
+
+/**
+ * Die Geisterhand einer Hand: dieselbe Hand, nur dort, wo sie anfassen würde.
+ *
+ * Sie hängt in der Welt und nicht am Gegenstand — ein Gegenstand kann
+ * verschwinden (der Beutel räumt auf), und ein Geist, der mit ihm entsorgt
+ * wird, nimmt beim nächsten Mal seine Geometrie nicht mehr mit. Stattdessen
+ * merkt sie sich ihre Lage *im Raum des Gegenstands* und rechnet sich jedes
+ * Bild daraus zurück.
+ */
+interface GhostView {
+  hand: GhostHand;
+  /** Lage im Raum des Gegenstands, sobald zugegriffen wurde. */
+  pinned: THREE.Matrix4 | null;
+  entry: PhysicsBody | null;
+  visible: boolean;
+}
+
+/** Was eine zielende Hand gerade erreicht, und in welcher Reichweite. */
+class GrabAim {
+  stage: GrabStage = 'touch';
+  entry!: PhysicsBody;
+  /** Wo der Strahl auf die Trefferfläche kommt — dort steht die Geisterhand. */
+  readonly point = new THREE.Vector3();
+
+  set(stage: GrabStage, entry: PhysicsBody): this {
+    this.stage = stage;
+    this.entry = entry;
+    return this;
+  }
+}
+
+/** Einer pro Bild und Hand, nacheinander benutzt — kein Müll im Greifpfad. */
+const _aim0 = new GrabAim();
+const _handNow: GrabPose = { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } };
+const _spun: GrabPose = { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } };
+
+/** three.js in die reinen Zahlen von `grabReach.ts` übersetzt. */
+function copyPose(position: THREE.Vector3, rotation: THREE.Quaternion, out: GrabPose): GrabPose {
+  out.position.x = position.x;
+  out.position.y = position.y;
+  out.position.z = position.z;
+  out.rotation.x = rotation.x;
+  out.rotation.y = rotation.y;
+  out.rotation.z = rotation.z;
+  out.rotation.w = rotation.w;
+  return out;
+}
+
+interface NearGrab {
+  /** Handneigung im Moment des Zugreifens, als Nullpunkt der Zuggeste. */
+  pitch: number;
+  /** Wo der Gegenstand stand, als zugegriffen wurde. */
+  objectStart: GrabPose;
+  /** Wo die Hand dabei war. */
+  handStart: GrabPose;
 }
 
 /**
@@ -451,10 +536,23 @@ export class PortalWorld implements World {
   private readonly remoteHands = new Map<string, { left: HandBusy; right: HandBusy }>();
   /** Props another player is holding — they glow, so you can see the handover. */
   private remoteBusy = new Set<PhysicsBody>();
-  /** Setting: lock onto a distant object and reel it in. */
-  private remoteGrab = true;
-  /** Setting: draw the line to the object. Off by default — it is in the way. */
-  private remoteRope = false;
+  /** Wie weit die Hand reicht und was am Ende der Reichweite passiert. */
+  private grabConfig: GrabSettings = grabSettings();
+  /** Läuft, wenn jemand die Reichweiten umstellt. */
+  private unsubscribeGrab: (() => void) | null = null;
+  /**
+   * Der Zylinder um den Spieler, jedes Bild neu: darin wird **gefasst**,
+   * dahinter **geholt**.
+   */
+  private readonly nearZone: NearZone = {
+    x: 0,
+    z: 0,
+    floor: 0,
+    radius: DEFAULT_NEAR_RADIUS,
+    height: DEFAULT_NEAR_HEIGHT,
+  };
+  /** Die Geisterhand je Hand, dort, wo die echte anfassen würde. */
+  private readonly ghostHands = new Map<Handedness, GhostView>();
   /** Props the transform tool has picked out. */
   private selected: readonly PhysicsBody[] = [];
   /** 1 = normal, less while the stopwatch is wound down, more while it winds up. */
@@ -563,6 +661,8 @@ export class PortalWorld implements World {
     ctx.rig.setLocomotion(this.locomotion);
     this.applyWorldPhysics();
     this.unsubscribePhysics = onWorldPhysicsChange(() => this.applyWorldPhysics());
+    this.grabConfig = grabSettings();
+    this.unsubscribeGrab = onGrabChange(() => this.applyGrabSettings(grabSettings()));
     this.hasPreviousHead = false;
 
     this.host = this.buildHost(ctx);
@@ -629,33 +729,6 @@ export class PortalWorld implements World {
       this.context?.notify(message);
     };
 
-    const remoteOn: MenuEntry = {
-      id: 'setting:remote-on',
-      label: 'Ferngreifen',
-      sub: 'Zielen, greifen, Hand nach oben kippen',
-      icon: 'settings',
-      accent: 0x4aa8ff,
-      checked: this.remoteGrab,
-      run: () => {
-        this.remoteGrab = !this.remoteGrab;
-        if (!this.remoteGrab) this.clearLinks();
-        toggle(remoteOn, this.remoteGrab, this.remoteGrab ? 'Ferngreifen an' : 'Ferngreifen aus');
-      },
-    };
-    const remoteLine: MenuEntry = {
-      id: 'setting:remote-line',
-      label: 'Linie anzeigen',
-      sub: 'Seil zwischen Hand und Objekt',
-      icon: 'settings',
-      accent: 0x4aa8ff,
-      checked: this.remoteRope,
-      run: () => {
-        this.remoteRope = !this.remoteRope;
-        if (!this.remoteRope) for (const hand of this.ropes.keys()) this.hideRope(hand);
-        toggle(remoteLine, this.remoteRope, this.remoteRope ? 'Linie an' : 'Linie aus');
-      },
-    };
-
     return [
       {
         id: 'tools',
@@ -691,14 +764,7 @@ export class PortalWorld implements World {
         icon: 'settings',
         accent: 0x4aa8ff,
         children: [
-          {
-            id: 'setting:remote',
-            label: 'Ferngreifen',
-            sub: this.remoteGrab ? 'An' : 'Aus',
-            icon: 'settings',
-            accent: 0x4aa8ff,
-            children: [remoteOn, remoteLine],
-          },
+          this.grabMenu(toggle),
           this.depthEntry(),
           this.physicsMenu(),
           this.handsMenu(),
@@ -739,6 +805,164 @@ export class PortalWorld implements World {
    * over the whole room, per portal and per eye. Two is what ships; a headset
    * that starts to stutter goes back to one, a PC can afford four.
    */
+  /**
+   * *Einstellungen → Greifen*: wie weit die Hand reicht, und was am Ende der
+   * Reichweite passiert.
+   *
+   * Die Zahlen stehen in `core/grabSettings.ts` mit Bereich und Rasten. Eine
+   * Zeile klickt zur nächsten Raste weiter und zeigt dabei, wo sie steht;
+   * *Werte eingeben* öffnet für dieselbe Größe die Tastatur, und alles
+   * dazwischen ist erlaubt, solange es im Bereich liegt.
+   */
+  private grabMenu(toggle: (entry: MenuEntry, value: boolean, message: string) => void): MenuEntry {
+    const accent = 0x4aa8ff;
+    const nearOn: MenuEntry = {
+      id: 'setting:grab-near',
+      label: 'Nahgreifen',
+      sub: 'Fassen, ohne dass etwas fliegt — der Dominostein bleibt liegen',
+      icon: 'settings',
+      accent,
+      checked: this.grabConfig.near,
+      run: () => {
+        const on = !this.grabConfig.near;
+        this.applyGrabSettings(saveGrabSettings({ near: on }));
+        toggle(nearOn, on, on ? 'Nahgreifen an' : 'Nahgreifen aus');
+      },
+    };
+    const ghostOn: MenuEntry = {
+      id: 'setting:grab-ghost',
+      label: 'Geisterhand',
+      sub: 'Deine Hand als Geist dort, wo du anfasst',
+      icon: 'glove',
+      accent,
+      checked: this.grabConfig.ghost,
+      run: () => {
+        const on = !this.grabConfig.ghost;
+        this.applyGrabSettings(saveGrabSettings({ ghost: on }));
+        toggle(ghostOn, on, on ? 'Geisterhand an' : 'Geisterhand aus');
+      },
+    };
+    const remoteOn: MenuEntry = {
+      id: 'setting:grab-remote',
+      label: 'Ferngreifen',
+      sub: 'Zielen, greifen, Hand nach oben kippen — es kommt geflogen',
+      icon: 'settings',
+      accent,
+      checked: this.grabConfig.remote,
+      run: () => {
+        const on = !this.grabConfig.remote;
+        this.applyGrabSettings(saveGrabSettings({ remote: on }));
+        toggle(remoteOn, on, on ? 'Ferngreifen an' : 'Ferngreifen aus');
+      },
+    };
+    const ropeOn: MenuEntry = {
+      id: 'setting:grab-rope',
+      label: 'Strahl beim Ferngreifen',
+      sub: 'Der dünne Strich zwischen Hand und Gegenstand, sobald es eingerastet ist',
+      icon: 'settings',
+      accent,
+      checked: this.grabConfig.rope,
+      run: () => {
+        const on = !this.grabConfig.rope;
+        this.applyGrabSettings(saveGrabSettings({ rope: on }));
+        toggle(ropeOn, on, on ? 'Strahl an' : 'Strahl aus');
+      },
+    };
+
+    const motion: MenuEntry = {
+      id: 'setting:grab-motion',
+      label: `Im Nahgriff: ${motionLabel(this.grabConfig.motion)}`,
+      sub: 'Starr hat einen Hebel, die Drehung um die Mitte nicht',
+      icon: 'settings',
+      accent,
+      run: () => {
+        const next = this.grabConfig.motion === 'rigid' ? 'spin' : 'rigid';
+        this.applyGrabSettings(saveGrabSettings({ motion: next }));
+        this.refreshMenuLabels();
+        this.context?.notify(motionLabel(next));
+      },
+    };
+    this.menuLabels.push(() => {
+      motion.label = `Im Nahgriff: ${motionLabel(this.grabConfig.motion)}`;
+    });
+
+    const dial = (field: GrabField): MenuEntry => {
+      const entry: MenuEntry = {
+        id: `setting:grab-${field.key}`,
+        label: `${field.label}: ${formatGrabField(field, this.grabConfig)}`,
+        sub: field.sub,
+        icon: 'settings',
+        accent,
+        run: () => {
+          const next = nextGrabStep(field, this.grabConfig[field.key]);
+          this.applyGrabSettings(saveGrabSettings({ [field.key]: next }));
+          this.refreshMenuLabels();
+          this.context?.notify(`${field.label}: ${formatGrabField(field, this.grabConfig)}`);
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = `${field.label}: ${formatGrabField(field, this.grabConfig)}`;
+      });
+      return entry;
+    };
+
+    const typed = (field: GrabField): MenuEntry => ({
+      id: `setting:grab-type-${field.key}`,
+      label: field.label,
+      sub: `${field.min}–${field.max} cm`,
+      icon: 'settings',
+      accent,
+      run: () => {
+        this.askNumber({
+          title: field.label,
+          sub: field.sub,
+          hint: `${field.min}–${field.max} cm`,
+          value: String(Math.round(this.grabConfig[field.key])),
+          commit: (value) => {
+            this.applyGrabSettings(saveGrabSettings({ [field.key]: value }));
+            this.context?.notify(`${field.label}: ${formatGrabField(field, this.grabConfig)}`);
+          },
+        });
+      },
+    });
+
+    return {
+      id: 'setting:grab',
+      label: 'Greifen',
+      sub: `Nah ${Math.round(this.grabConfig.radius)} cm · fern ${this.grabConfig.remote ? 'an' : 'aus'}`,
+      icon: 'glove',
+      accent,
+      children: [
+        nearOn,
+        ...GRAB_FIELDS.map(dial),
+        motion,
+        ghostOn,
+        remoteOn,
+        ropeOn,
+        {
+          id: 'setting:grab-values',
+          label: 'Werte eingeben',
+          sub: 'Jede Zahl direkt tippen',
+          icon: 'settings',
+          accent,
+          children: GRAB_FIELDS.map(typed),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Neue Reichweiten übernehmen — und alles abräumen, was mit den alten noch
+   * in der Luft steht. Wer das Ferngreifen abschaltet, während ein Gegenstand
+   * eingerastet ist, hätte sonst ein Seil ohne Mechanik dahinter.
+   */
+  private applyGrabSettings(next: GrabSettings): void {
+    this.grabConfig = next;
+    if (!next.remote) this.clearLinks();
+    if (!next.rope) for (const hand of this.ropes.keys()) this.hideRope(hand);
+    if (!next.ghost) for (const hand of this.ghostHands.keys()) this.hideGhost(hand);
+  }
+
   private depthEntry(): MenuEntry {
     const label = (): string => {
       const depth = portalDepth();
@@ -1798,6 +2022,10 @@ export class PortalWorld implements World {
 
     this.unsubscribePhysics?.();
     this.unsubscribePhysics = null;
+    this.unsubscribeGrab?.();
+    this.unsubscribeGrab = null;
+    for (const view of this.ghostHands.values()) view.hand.dispose();
+    this.ghostHands.clear();
     this.saved = null;
     this.pendingSteps = 0;
     this.horizonFloor = null;
@@ -2991,6 +3219,7 @@ export class PortalWorld implements World {
     if (index >= 0) this.props.splice(index, 1);
     this.highlighted.delete(loose.entry);
     this.locked.delete(loose.entry);
+    this.forgetGhost(loose.entry);
     this.flights.delete(loose.entry);
     for (const [hand, grab] of [...this.grabs]) {
       if (grab.entry === loose.entry) this.grabs.delete(hand);
@@ -3028,6 +3257,7 @@ export class PortalWorld implements World {
     if (index >= 0) this.props.splice(index, 1);
     this.highlighted.delete(loose.entry);
     this.locked.delete(loose.entry);
+    this.forgetGhost(loose.entry);
     this.ghosts?.untrack(propKey(loose.entry));
     this.physics?.remove(loose.entry);
     if (!ctx || !controller?.tracked) {
@@ -3188,7 +3418,7 @@ export class PortalWorld implements World {
       aimAt: (origin, direction, range) => {
         _ray.origin.copy(origin);
         _ray.direction.copy(direction).normalize();
-        return this.findRemoteTarget(_ray, range ?? REMOTE_RANGE);
+        return this.findAimTarget(_ray, range ?? REMOTE_RANGE);
       },
       propAt: (point) => this.findProp(point),
       castSurface: (origin, direction) => {
@@ -3335,6 +3565,7 @@ export class PortalWorld implements World {
     }
     this.highlighted.delete(entry);
     this.locked.delete(entry);
+    this.forgetGhost(entry);
     this.remoteBusy.delete(entry);
     this.selected = this.selected.filter((candidate) => candidate !== entry);
     this.spawns.delete(entry);
@@ -3656,9 +3887,32 @@ export class PortalWorld implements World {
     this.styleProp(entry, { color }, share);
   }
 
-  /** Empty hands can pick up props, pass them over and throw them. */
+  /**
+   * Greifen, in drei Reichweiten und mit **einer** Bedienung: gezielt wird
+   * immer, gedrückt wird immer derselbe Grip. Was sich unterscheidet, ist,
+   * was danach passiert.
+   *
+   * - **Anfassen** — die Hand steckt in der Greifbox. Der Gegenstand sitzt in
+   *   der Faust, und die Hand selbst leuchtet: „du bist wirklich dran".
+   * - **Nahgreifen** — der Gegenstand steht im Zylinder um den Spieler, aber
+   *   außer Reichweite der Hand. Er kommt **nicht** geflogen, sondern bleibt
+   *   liegen und folgt der Hand von dort; am Gegenstand steht dabei eine
+   *   Geisterhand, damit man sieht, wo man ihn angefasst hat. So stellt man
+   *   einen Dominostein auf, ohne sich zu bücken.
+   * - **Ferngreifen** — alles bis 9 m. Der Grip rastet ein und zieht einen
+   *   dünnen Strahl zur Hand; kippt die Hand danach über 30° nach oben, kommt
+   *   der Gegenstand geflogen.
+   *
+   * Die Reihenfolge ist die Antwort auf die Frage, die sonst jede Runde neu
+   * gestellt würde: *welchen* Gegenstand meint die Hand? Es gibt pro Hand
+   * genau einen Kandidaten, und es leuchtet genau einer — sonst schnappte die
+   * Hand nach dem Dominostein am Fuß, während sie quer durch die Halle auf
+   * eine Kiste zielt.
+   */
   private updateGrabs(dt: number, ctx: WorldContext): void {
     const reachable = new Set<PhysicsBody>();
+    this.locked.clear();
+    this.readNearZone(ctx);
 
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
@@ -3667,85 +3921,85 @@ export class PortalWorld implements World {
 
       if (!controller.tracked) {
         if (grab) this.release(ctx, hand, grab, true);
+        this.dropReach(ctx, hand);
         continue;
       }
 
-      const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
+      const anchor = gripOf(controller);
       anchor.updateWorldMatrix(true, false);
-      const pressed = controller.squeeze.justPressed;
 
       if (grab) {
-        const holding = controller.squeeze.pressed;
-        if (!holding) {
+        if (!controller.squeeze.pressed) {
           this.release(ctx, hand, grab, true);
+          this.dropReach(ctx, hand);
           continue;
         }
-        _matrix.multiplyMatrices(anchor.matrixWorld, grab.offset);
-        _matrix.decompose(_point, _quaternion, _probe);
-        grab.velocity
-          .copy(_point)
-          .sub(grab.lastPosition)
-          .divideScalar(Math.max(dt, 1 / 120));
-        grab.lastPosition.copy(_point);
-        grab.entry.body.setNextKinematicTranslation({ x: _point.x, y: _point.y, z: _point.z });
-        grab.entry.body.setNextKinematicRotation({
-          x: _quaternion.x,
-          y: _quaternion.y,
-          z: _quaternion.z,
-          w: _quaternion.w,
-        });
+        this.carryGrab(dt, ctx, hand, grab, controller, anchor, reachable);
         continue;
       }
 
-      if (this.held.has(hand) || this.claimedHand(hand)) continue;
+      ctx.hands.setGlow(hand, false);
+      if (this.held.has(hand) || this.claimedHand(hand)) {
+        this.dropReach(ctx, hand);
+        continue;
+      }
 
-      anchor.getWorldPosition(_hand);
-      const entry = this.findProp(_hand);
-      if (entry) reachable.add(entry);
-      if (!entry || !pressed) continue;
-
-      // Already in the other hand? Then this is a hand-over, not a pick-up.
-      const other = this.handHolding(entry);
-      if (other) this.release(ctx, other, this.grabs.get(other)!, false);
-      this.attach(hand, anchor, entry);
-      controller.pulse(0.5, 30);
+      this.updateReach(ctx, controller, hand, anchor, reachable);
     }
 
-    this.updateRemote(ctx, reachable);
     this.updateFlights(dt, ctx);
+    this.updateGhostHands(dt);
     this.updateHighlights(reachable);
     this.updateHandGestures(ctx, reachable);
   }
 
+  /** Alles, was eine Hand an Reichweite angezeigt hatte, wieder abräumen. */
+  private dropReach(ctx: WorldContext, hand: Handedness): void {
+    this.dropLink(hand);
+    this.hideRope(hand);
+    this.hideGhost(hand);
+    ctx.hands.setGlow(hand, false);
+  }
+
   /**
-   * Remote grabbing, in two steps. Aim at a prop and press grab: it locks on
-   * and stays lit up even when the hand wanders off. Tilt the hand up/back
-   * past 30° and the prop comes flying; let go of grab at any point and the
-   * lock drops. The line between the two is off by default — it is mostly in
-   * the way — and can be switched on in the settings.
+   * Der Zylinder um den Spieler, jedes Bild neu.
+   *
+   * Er hängt am **Körper** und nicht an der Hand, weil „muss ich mich bücken?"
+   * eine Frage an den Körper ist: der Dominostein vor den Füßen liegt außerhalb
+   * jeder Kugel um eine Hand, die auf Hüfthöhe hängt, und ist genau der Fall,
+   * um den es geht. Der Boden kommt vom Rig und nicht aus `position.y` — wer
+   * sich duckt, sinkt, der Fußboden nicht.
    */
-  private updateRemote(ctx: WorldContext, reachable: Set<PhysicsBody>): void {
-    this.locked.clear();
+  private readNearZone(ctx: WorldContext): void {
+    ctx.rig.getHeadPosition(_point);
+    this.nearZone.x = _point.x;
+    this.nearZone.z = _point.z;
+    this.nearZone.floor = ctx.rig.getFloorY();
+    this.nearZone.radius = this.grabConfig.radius / 100;
+    this.nearZone.height = this.grabConfig.height / 100;
+  }
 
-    for (const controller of ctx.input.controllers) {
-      const hand = controller.handedness;
-      if (!hand) continue;
-
-      const usable =
-        this.remoteGrab &&
-        controller.tracked &&
-        !this.grabs.has(hand) &&
-        !this.held.has(hand) &&
-        !this.reachingAcross(ctx, hand);
-      const holding = usable && controller.squeeze.pressed;
-
-      const link = this.links.get(hand);
-      if (link && !holding) this.dropLink(hand);
-
-      if (link && holding) {
-        // Locked on: the prop stays lit wherever the hand points.
+  /**
+   * Eine leere Hand, die zielt: was ist in Reichweite, und in welcher.
+   *
+   * Ein eingerasteter Ferngriff geht vor — er *bleibt* eingerastet, auch wenn
+   * die Hand danach woanders hinzeigt, sonst müsste man beim Kippen still
+   * halten.
+   */
+  private updateReach(
+    ctx: WorldContext,
+    controller: ControllerState,
+    hand: Handedness,
+    anchor: THREE.Object3D,
+    reachable: Set<PhysicsBody>,
+  ): void {
+    const usable = !this.reachingAcross(ctx, hand);
+    const link = this.links.get(hand);
+    if (link) {
+      if (usable && controller.squeeze.pressed) {
         reachable.add(link.entry);
         this.locked.add(link.entry);
+        this.hideGhost(hand);
         const pull = this.handPitch(controller) - link.pitch;
         this.drawRope(controller, link.entry, pull / REMOTE_PULL_ANGLE);
         if (pull >= REMOTE_PULL_ANGLE) {
@@ -3755,25 +4009,242 @@ export class PortalWorld implements World {
           this.dropLink(hand);
           this.hideRope(hand);
         }
-        continue;
+        return;
       }
-
-      controller.getRay(_ray);
-      const entry = usable ? this.findRemoteTarget(_ray) : null;
-      if (!entry) {
-        this.hideRope(hand);
-        continue;
-      }
-
-      // Not locked yet: the prop lights up so the aim is readable without a
-      // line being drawn across the room.
-      reachable.add(entry);
-      this.drawRope(controller, entry, -1);
-
-      if (!controller.squeeze.justPressed) continue;
-      this.links.set(hand, { entry, pitch: this.handPitch(controller) });
-      controller.pulse(0.4, 25);
+      this.dropLink(hand);
+      this.hideRope(hand);
     }
+
+    const aim = this.aimGrab(controller, anchor, usable);
+    if (!aim) {
+      this.hideRope(hand);
+      this.hideGhost(hand);
+      return;
+    }
+    reachable.add(aim.entry);
+    this.hideRope(hand);
+
+    // Ein **Griff** wird geholt, ein **Gegenstand** gefasst: ein Werkzeug auf
+    // dem Boden weiß, wie man es hält, und es aus anderthalb Metern in der
+    // Luft zu dirigieren hilft niemandem. Also fliegt es, wie beim
+    // Ferngreifen — nur ohne den Umweg über die Zuggeste, die auf diese
+    // Entfernung nur im Weg wäre.
+    if (aim.stage === 'near' && this.loose.has(aim.entry)) {
+      this.hideGhost(hand);
+      if (!controller.squeeze.justPressed) return;
+      gripOf(controller).getWorldPosition(_hand);
+      this.startFlight(aim.entry, hand, _hand);
+      controller.pulse(0.5, 30);
+      return;
+    }
+
+    if (aim.stage === 'remote') {
+      this.hideGhost(hand);
+      if (!controller.squeeze.justPressed) return;
+      this.links.set(hand, { entry: aim.entry, pitch: this.handPitch(controller) });
+      controller.pulse(0.4, 25);
+      return;
+    }
+
+    // Angefasst wird mit der Hand, nah gefasst mit der Geisterhand daneben.
+    if (aim.stage === 'touch') {
+      ctx.hands.setGlow(hand, true);
+      this.hideGhost(hand);
+    } else {
+      this.showGhost(ctx, hand, anchor, aim);
+    }
+    if (!controller.squeeze.justPressed) return;
+
+    // Already in the other hand? Then this is a hand-over, not a pick-up.
+    const other = this.handHolding(aim.entry);
+    if (other) this.release(ctx, other, this.grabs.get(other)!, false);
+    this.attach(hand, anchor, aim.entry, aim.stage === 'near' ? controller : null);
+    this.pinGhost(hand, aim.entry);
+    controller.pulse(aim.stage === 'near' ? 0.35 : 0.5, 30);
+  }
+
+  /**
+   * Welcher Gegenstand, und in welcher Reichweite.
+   *
+   * Zuerst die Hand selbst: steckt sie in einer Greifbox, ist das die Antwort,
+   * ohne dass irgendwohin gezielt werden müsste. Sonst entscheidet der Strahl
+   * — derselbe wie beim Ferngreifen —, und der Zylinder sagt danach nur noch,
+   * ob das Getroffene **gefasst** oder **geholt** wird.
+   */
+  private aimGrab(
+    controller: ControllerState,
+    anchor: THREE.Object3D,
+    usable: boolean,
+  ): GrabAim | null {
+    anchor.getWorldPosition(_hand);
+    const touched = this.findProp(_hand);
+    if (touched) {
+      _aim0.set('touch', touched).point.copy(_hand);
+      return _aim0;
+    }
+    if (!usable) return null;
+
+    const near = this.grabConfig.near && this.nearZone.radius > 0;
+    if (!near && !this.grabConfig.remote) return null;
+
+    controller.getRay(_ray);
+    const entry = this.findAimTarget(_ray);
+    if (!entry) return null;
+    const target = aimTargetOf(entry);
+    const inZone = near && nearZoneDistance(target, this.nearZone) !== null;
+    if (!inZone && !this.grabConfig.remote) return null;
+    const reach = rayReach(target, _ray.origin, _ray.direction) ?? 0;
+    _aim0.set(inZone ? 'near' : 'remote', entry);
+    _aim0.point.copy(_ray.origin).addScaledVector(_ray.direction, reach);
+    return _aim0;
+  }
+
+  /**
+   * Die Geisterhand dort, wo die echte anfassen würde.
+   *
+   * Sie steht am Trefferpunkt des Strahls und trägt die Drehung der echten
+   * Hand — sie ist erkennbar *deine* Hand an einem anderen Ort, und das ist
+   * die ganze Nachricht. Solange nur gezielt wird, wandert sie mit dem Strahl;
+   * mit dem Zugriff friert sie am Gegenstand fest (`pinGhost`) und fährt von
+   * da an mit ihm mit.
+   */
+  private showGhost(
+    ctx: WorldContext,
+    hand: Handedness,
+    anchor: THREE.Object3D,
+    aim: GrabAim,
+  ): void {
+    if (!this.grabConfig.ghost) return this.hideGhost(hand);
+    const view = this.ghostView(ctx, hand);
+    view.pinned = null;
+    view.entry = aim.entry;
+    view.hand.position.copy(aim.point);
+    anchor.getWorldQuaternion(view.hand.quaternion);
+    // Jedes Bild neu: wer seine Handhaltung im Menü ändert, soll das am Geist
+    // sofort sehen und nicht erst nach dem nächsten Weltwechsel.
+    view.hand.setPose(ctx.hands.poseOf(hand));
+    view.hand.setGesture('ready');
+    view.hand.visible = true;
+  }
+
+  /** Ab hier gehört die Geisterhand dem Gegenstand: sie fährt mit ihm mit. */
+  private pinGhost(hand: Handedness, entry: PhysicsBody): void {
+    const view = this.ghostHands.get(hand);
+    if (!view?.visible || view.entry !== entry) return;
+    view.hand.updateWorldMatrix(true, false);
+    entry.object.updateWorldMatrix(true, false);
+    view.pinned ??= new THREE.Matrix4();
+    view.pinned.copy(entry.object.matrixWorld).invert().multiply(view.hand.matrixWorld);
+    view.hand.setGesture('grip');
+  }
+
+  /** Eine Geisterhand je Hand, in der Bauart, die diese Hand gerade hat. */
+  private ghostView(ctx: WorldContext, hand: Handedness): GhostView {
+    const look = ctx.hands.lookOf(hand);
+    let view = this.ghostHands.get(hand);
+    // Wer die Controller weglegt, sieht danach seine getrackten Hände — und
+    // der Geist daneben soll aussehen wie das, was in der Brille zu sehen ist.
+    if (view && view.hand.look !== look) {
+      view.hand.dispose();
+      view = undefined;
+    }
+    if (!view) {
+      const ghost = new GhostHand(hand, ctx.hands.poseOf(hand), { look });
+      ghost.renderOrder = 12;
+      this.root.add(ghost);
+      view = { hand: ghost, pinned: null, entry: null, visible: false };
+      this.ghostHands.set(hand, view);
+    }
+    view.visible = true;
+    return view;
+  }
+
+  /** Ein Gegenstand geht — eine Geisterhand, die an ihm hing, geht mit. */
+  private forgetGhost(entry: PhysicsBody): void {
+    for (const [hand, view] of this.ghostHands) {
+      if (view.entry === entry) this.hideGhost(hand);
+    }
+  }
+
+  private hideGhost(hand: Handedness): void {
+    const view = this.ghostHands.get(hand);
+    if (!view) return;
+    view.hand.visible = false;
+    view.visible = false;
+    view.pinned = null;
+    view.entry = null;
+  }
+
+  /** Die Finger nachziehen, und eine festgefrorene Geisterhand mitnehmen. */
+  private updateGhostHands(dt: number): void {
+    for (const view of this.ghostHands.values()) {
+      if (!view.visible) continue;
+      if (view.pinned && view.entry) {
+        view.entry.object.updateWorldMatrix(true, false);
+        _matrix.multiplyMatrices(view.entry.object.matrixWorld, view.pinned);
+        _matrix.decompose(view.hand.position, view.hand.quaternion, _probe);
+      }
+      view.hand.update(dt);
+    }
+  }
+
+  /**
+   * Ein Gegenstand in der Hand, oder einer, den die Hand aus der Nähe führt.
+   *
+   * Der Unterschied steckt allein darin, welche Pose gerechnet wird: in der
+   * Faust dieselbe Matrix wie eh und je, beim Nahgriff wahlweise dieselbe
+   * (dann hat man eben einen langen Arm) oder eine Drehung um die Mitte des
+   * Gegenstands. Und beim Nahgriff hört die Hand auf die Zuggeste — wer ihn
+   * doch in der Hand haben will, kippt sie hoch, statt loszulassen und neu zu
+   * zielen.
+   */
+  private carryGrab(
+    dt: number,
+    ctx: WorldContext,
+    hand: Handedness,
+    grab: HandGrab,
+    controller: ControllerState,
+    anchor: THREE.Object3D,
+    reachable: Set<PhysicsBody>,
+  ): void {
+    ctx.hands.setGlow(hand, false);
+    const near = grab.near;
+    if (near) {
+      reachable.add(grab.entry);
+      if (this.handPitch(controller) - near.pitch >= REMOTE_PULL_ANGLE) {
+        gripOf(controller).getWorldPosition(_hand);
+        this.release(ctx, hand, grab, false);
+        this.startFlight(grab.entry, hand, _hand);
+        controller.pulse(0.7, 45);
+        this.hideGhost(hand);
+        return;
+      }
+    }
+
+    if (near && this.grabConfig.motion === 'spin') {
+      anchor.getWorldPosition(_point);
+      anchor.getWorldQuaternion(_quaternion);
+      copyPose(_point, _quaternion, _handNow);
+      spinGrab(near.objectStart, near.handStart, _handNow, _spun);
+      _point.set(_spun.position.x, _spun.position.y, _spun.position.z);
+      _quaternion.set(_spun.rotation.x, _spun.rotation.y, _spun.rotation.z, _spun.rotation.w);
+    } else {
+      _matrix.multiplyMatrices(anchor.matrixWorld, grab.offset);
+      _matrix.decompose(_point, _quaternion, _probe);
+    }
+
+    grab.velocity
+      .copy(_point)
+      .sub(grab.lastPosition)
+      .divideScalar(Math.max(dt, 1 / 120));
+    grab.lastPosition.copy(_point);
+    grab.entry.body.setNextKinematicTranslation({ x: _point.x, y: _point.y, z: _point.z });
+    grab.entry.body.setNextKinematicRotation({
+      x: _quaternion.x,
+      y: _quaternion.y,
+      z: _quaternion.z,
+      w: _quaternion.w,
+    });
   }
 
   /**
@@ -3800,13 +4271,16 @@ export class PortalWorld implements World {
   }
 
   /**
-   * The rope from the hand to a prop, when the player asked for one. A
-   * negative tension means "only aiming at it" and draws it faintly; from 0 to
-   * 1 the rope pulls straight and turns orange as the wrist approaches the
-   * angle that fires the pull.
+   * Der dünne Strahl zwischen Hand und Gegenstand beim **Ferngreifen**.
+   *
+   * Er kommt erst, wenn wirklich eingerastet ist, und sagt dann genau eine
+   * Sache: *daran kannst du jetzt ziehen*. Beim bloßen Zielen liegt er nur im
+   * Bild — dort leuchtet der Gegenstand, und das reicht. Von 0 bis 1 zieht er
+   * sich straff und färbt sich orange, während sich das Handgelenk dem Winkel
+   * nähert, der den Zug auslöst.
    */
   private drawRope(controller: ControllerState, entry: PhysicsBody, tension: number): void {
-    if (!this.remoteRope) {
+    if (!this.grabConfig.rope) {
       this.hideRope(controller.handedness!);
       return;
     }
@@ -3826,7 +4300,7 @@ export class PortalWorld implements World {
     }
     positions.needsUpdate = true;
     rope.material.color.setHex(ROPE_IDLE).lerp(_ropeTaut, taut);
-    rope.material.opacity = tension < 0 ? 0.3 : 0.95;
+    rope.material.opacity = 0.95;
     rope.visible = true;
   }
 
@@ -3873,8 +4347,8 @@ export class PortalWorld implements World {
     for (const hand of this.ropes.keys()) this.hideRope(hand);
   }
 
-  /** Nearest prop the aiming ray actually enters. */
-  private findRemoteTarget(ray: THREE.Ray, range = REMOTE_RANGE): PhysicsBody | null {
+  /** Nearest prop the aiming ray actually enters — the aim for all three reaches. */
+  private findAimTarget(ray: THREE.Ray, range = REMOTE_RANGE): PhysicsBody | null {
     _aimTargets.length = 0;
     for (const entry of this.props) {
       if (this.flights.has(entry) || this.handHolding(entry)) continue;
@@ -3978,7 +4452,16 @@ export class PortalWorld implements World {
     if (id) this.sync?.release(id, _velocity.set(0, 0, 0));
   }
 
-  private attach(hand: Handedness, anchor: THREE.Object3D, entry: PhysicsBody): void {
+  /**
+   * Ein Gegenstand kommt an die Hand — in sie hinein, oder, mit `controller`,
+   * als **Nahgriff**: dann bleibt er, wo er ist, und folgt ihr von dort.
+   */
+  private attach(
+    hand: Handedness,
+    anchor: THREE.Object3D,
+    entry: PhysicsBody,
+    controller: ControllerState | null = null,
+  ): void {
     // A tool lying on the floor is picked up as a *tool*, not carried around
     // like a crate: one place for it, so a hand, a remote grab and a gravity
     // glove all end the same way.
@@ -4001,10 +4484,37 @@ export class PortalWorld implements World {
       offset,
       lastPosition: _point.clone(),
       velocity: new THREE.Vector3(),
+      near: controller ? this.nearGrabOf(controller, anchor, entry) : null,
     });
 
     const id = this.idOf(entry);
     if (id) this.sync?.claim(id);
+  }
+
+  /**
+   * Was der Moment des Zugreifens festhält: die Neigung der Hand als Nullpunkt
+   * der Zuggeste und beide Posen, gegen die *Drehung um Objektmitte* rechnet.
+   * Gegen den Moment und nicht gegen das letzte Bild — sonst summiert sich
+   * jeder Rundungsfehler zu einem Drift.
+   */
+  private nearGrabOf(
+    controller: ControllerState,
+    anchor: THREE.Object3D,
+    entry: PhysicsBody,
+  ): NearGrab {
+    anchor.getWorldPosition(_point);
+    anchor.getWorldQuaternion(_quaternion);
+    const handStart = copyPose(_point, _quaternion, {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    });
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    const objectStart = copyPose(_point, _quaternion, {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    });
+    return { pitch: this.handPitch(controller), handStart, objectStart };
   }
 
   private release(ctx: WorldContext, hand: Handedness, grab: HandGrab, drop: boolean): void {
@@ -4190,6 +4700,7 @@ export class PortalWorld implements World {
       }
       this.highlighted.delete(entry);
       this.locked.delete(entry);
+      this.forgetGhost(entry);
       this.flights.delete(entry);
       this.spawns.delete(entry);
       this.ghosts?.untrack(propKey(entry));

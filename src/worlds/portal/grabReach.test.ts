@@ -2,6 +2,8 @@ import {
   FLIGHT_CATCH,
   FLIGHT_MAX,
   FLIGHT_MIN,
+  DEFAULT_NEAR_HEIGHT,
+  DEFAULT_NEAR_RADIUS,
   GRAB_MARGIN,
   HANDS_TOGETHER,
   REMOTE_RANGE,
@@ -10,13 +12,17 @@ import {
   flightDuration,
   flightPosition,
   handsTooClose,
+  nearZoneDistance,
   pickAimTarget,
   rayReach,
   reachDepth,
+  spinGrab,
   type AimTarget,
+  type GrabPose,
+  type NearZone,
   type Quat,
   type Vec3,
-} from './remoteGrab';
+} from './grabReach';
 
 const NO_ROTATION: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
@@ -185,5 +191,110 @@ describe('hands that are up to something else', () => {
 
   it('copes with a hand that is not tracked at all', () => {
     expect(handsTooClose(null, vec(0, 1, 0), true)).toBe(false);
+  });
+});
+
+describe('the cylinder around the player', () => {
+  /** Standing at the origin on a flat floor, with the settings as they ship. */
+  const zone: NearZone = {
+    x: 0,
+    z: 0,
+    floor: 0,
+    radius: DEFAULT_NEAR_RADIUS,
+    height: DEFAULT_NEAR_HEIGHT,
+  };
+
+  it('takes in a domino on the floor in front of the feet', () => {
+    expect(nearZoneDistance(domino(vec(0, 0.02, -0.6)), zone)).not.toBeNull();
+  });
+
+  it('leaves out one across the room', () => {
+    expect(nearZoneDistance(domino(vec(0, 0.02, -4)), zone)).toBeNull();
+  });
+
+  it('measures from the box, not from its centre', () => {
+    // A cube whose centre sits past the radius but whose face reaches inside.
+    const gap = nearZoneDistance(cube(vec(0, 1, -(DEFAULT_NEAR_RADIUS + 0.2))), zone);
+    expect(gap).not.toBeNull();
+    expect(gap!).toBeCloseTo(DEFAULT_NEAR_RADIUS + 0.2 - 0.25, 6);
+  });
+
+  it('reaches further for a box turned on the diagonal', () => {
+    const straight = vec(0, 1, -1.35);
+    expect(nearZoneDistance(cube(straight), zone)).toBeNull();
+    expect(nearZoneDistance(cube(straight, yaw(45)), zone)).not.toBeNull();
+  });
+
+  it('stops at the ceiling of the cylinder', () => {
+    expect(nearZoneDistance(cube(vec(0, DEFAULT_NEAR_HEIGHT - 0.1, -0.5)), zone)).not.toBeNull();
+    expect(nearZoneDistance(cube(vec(0, DEFAULT_NEAR_HEIGHT + 0.6, -0.5)), zone)).toBeNull();
+  });
+
+  it('reaches below the floor it is given — a prop in a pit is still down there', () => {
+    expect(nearZoneDistance(cube(vec(0, -0.1, -0.5)), zone)).not.toBeNull();
+    expect(nearZoneDistance(cube(vec(0, -1.4, -0.5)), zone)).toBeNull();
+  });
+
+  it('follows the player rather than the world origin', () => {
+    const moved: NearZone = { ...zone, x: 6, z: -6 };
+    expect(nearZoneDistance(cube(vec(6, 0.3, -6.4)), moved)).not.toBeNull();
+    expect(nearZoneDistance(cube(vec(0, 0.3, 0)), moved)).toBeNull();
+  });
+
+  it('shrinks to nothing when the radius is turned off', () => {
+    const off: NearZone = { ...zone, radius: 0 };
+    expect(nearZoneDistance(domino(vec(0, 0.02, -0.6)), off)).toBeNull();
+  });
+});
+
+describe('the near grab that spins around the object', () => {
+  function pose(position: Vec3, rotation: Quat = NO_ROTATION): GrabPose {
+    return { position, rotation };
+  }
+
+  function out(): GrabPose {
+    return { position: vec(0, 0, 0), rotation: { x: 0, y: 0, z: 0, w: 1 } };
+  }
+
+  it('moves the object exactly as far as the hand moved', () => {
+    const result = spinGrab(
+      pose(vec(0, 0.1, -1.2)),
+      pose(vec(0.2, 1.1, -0.3)),
+      pose(vec(0.5, 1.4, -0.4)),
+      out(),
+    );
+    expect(result.position.x).toBeCloseTo(0.3, 6);
+    expect(result.position.y).toBeCloseTo(0.4, 6);
+    expect(result.position.z).toBeCloseTo(-1.3, 6);
+  });
+
+  it('leaves the object where it is when only the wrist turns', () => {
+    const start = vec(0, 0.1, -1.2);
+    const hand = vec(0.2, 1.1, -0.3);
+    const result = spinGrab(pose(start), pose(hand, NO_ROTATION), pose(hand, yaw(90)), out());
+    expect(distance(result.position, start)).toBeCloseTo(0, 6);
+    // …and turns it by exactly that angle, about its own centre.
+    expect(result.rotation.y).toBeCloseTo(Math.sin(Math.PI / 4), 6);
+  });
+
+  it('carries the turn the object already had', () => {
+    const result = spinGrab(
+      pose(vec(0, 0.1, -1.2), yaw(90)),
+      pose(vec(0, 1, 0), NO_ROTATION),
+      pose(vec(0, 1, 0), yaw(90)),
+      out(),
+    );
+    // 90° on top of 90° is a half turn: w drops to zero.
+    expect(result.rotation.w).toBeCloseTo(0, 6);
+    expect(Math.abs(result.rotation.y)).toBeCloseTo(1, 6);
+  });
+
+  it('holds still when the hand does', () => {
+    const start = pose(vec(0.4, 0.6, -1), yaw(30));
+    const hand = pose(vec(0, 1.2, -0.2), yaw(-15));
+    const result = spinGrab(start, hand, hand, out());
+    expect(distance(result.position, start.position)).toBeCloseTo(0, 6);
+    expect(result.rotation.w).toBeCloseTo(start.rotation.w, 6);
+    expect(result.rotation.y).toBeCloseTo(start.rotation.y, 6);
   });
 });
