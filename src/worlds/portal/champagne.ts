@@ -3,9 +3,9 @@ import type { PropGrip } from './propGrip';
 
 /**
  * **Die Sektflasche** — das erste Ding aus dem Beutel, das man nicht einfach
- * anfasst, sondern *hält*: am Hals, aufrecht oder über Kopf wie eine Waffe
- * (`propGrip.ts`). Und das erste, das etwas *tut*: geschüttelt knallt der
- * Korken heraus.
+ * anfasst, sondern *hält*: am Hals, in der Faust wie ein Pistolengriff,
+ * aufrecht oder über Kopf (`propGrip.ts`). Und das erste, das etwas *tut*:
+ * geschüttelt knallt der Korken heraus.
  *
  * Gebaut in echter Größe — 32 cm, unten 4,5 cm dick, der Hals 1,6 cm —, mit
  * dem Ursprung in der Mitte, damit sie in der Hand um sich selbst dreht und
@@ -33,8 +33,8 @@ export const CORK_SPEED = 9;
 
 /**
  * Der Griff: die Mitte des Halses, Achse nach oben. Die Faust schließt sich
- * dort mit dem Halbmesser des Hammerstiels — der Hals ist etwas dünner, und
- * das sieht man einer geschlossenen Hand nicht an.
+ * dort wie um den Standardgriff — der Hals ist etwas dünner, und das sieht
+ * man einer geschlossenen Hand nicht an.
  */
 export const CHAMPAGNE_GRIP: PropGrip = {
   centre: new THREE.Vector3(0, (SHOULDER_TOP + MOUTH_Y) / 2 + 0.01, 0),

@@ -1,28 +1,28 @@
 /**
  * **Ein Griff an einem Ding aus dem Beutel, in beide Richtungen.**
  *
- * Der Hals der Flasche soll in der Faust liegen, die den Hammerstiel hält —
+ * Der Hals der Flasche soll in der Faust liegen, die den Standardgriff hält —
  * und zwar aufrecht *oder* über Kopf, je nachdem, wie die Flasche beim
  * Zugreifen gerade lag. Was dabei nicht passieren darf: dass sie sich um
  * ihre eigene Achse dreht (ein Etikett, das beim Zugreifen wegdreht, sieht
  * nach einem Fehler aus), oder dass sie sich in die *fernere* Lage wirft.
  */
 import * as THREE from 'three';
-import { POLE_FIST, snapToGrip, type PropGrip } from './propGrip';
+import { GRIP_FIST, snapToGrip, type PropGrip } from './propGrip';
 import { CHAMPAGNE_GRIP } from './champagne';
 
 const fistAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(
   new THREE.Quaternion(
-    POLE_FIST.rotation.x,
-    POLE_FIST.rotation.y,
-    POLE_FIST.rotation.z,
-    POLE_FIST.rotation.w,
+    GRIP_FIST.rotation.x,
+    GRIP_FIST.rotation.y,
+    GRIP_FIST.rotation.z,
+    GRIP_FIST.rotation.w,
   ),
 );
 const fistCentre = new THREE.Vector3(
-  POLE_FIST.position.x,
-  POLE_FIST.position.y,
-  POLE_FIST.position.z,
+  GRIP_FIST.position.x,
+  GRIP_FIST.position.y,
+  GRIP_FIST.position.z,
 );
 
 /** Wo der Griff nach dem Einrasten liegt: Mitte und Achse im Griffraum. */

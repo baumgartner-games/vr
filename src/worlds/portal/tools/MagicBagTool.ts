@@ -40,8 +40,11 @@ const SPIN = 0.7;
  * Saum hinein, und der Daumen liegt außen am Saum entlang — bei der rechten
  * Hand nach rechts (+x), die Daumenseite. Die erste Fassung hatte die Hand
  * senkrecht wie an einem Eimer, und das sah nach einem Eimer aus. Daraus
- * rechnet `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`), ohne
- * Zielkorrektur, denn der Beutel zielt nicht.
+ * rechnet `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`) — **mit**
+ * Zielkorrektur, obwohl der Beutel nicht zielt: er hängt aufrecht im Raum, und
+ * bei zielend gehaltenem Controller ist das Aufrechte der Strahlraum, nicht
+ * der Griffraum (`Tool.hangsUpright`). Ohne sie stand die Hand in der Brille
+ * 30° nach oben gekippt am Saum.
  */
 export const BAG_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },
@@ -121,8 +124,12 @@ export class MagicBagTool extends Tool {
     this.accent = ACCENT;
     this.hint = 'Hineingreifen: Fach ansteuern, greifen — das Ding kommt in die Hand';
     // Er hängt an der Faust und zielt nicht: die Öffnung bleibt oben, komme,
-    // was wolle (`hangUpright`).
+    // was wolle (`hangUpright`). Aufrecht heißt aber nicht „im Griffraum":
+    // bei zielend gehaltenem Controller steht das Aufrechte um die
+    // Zielkorrektur gegen den Griff gedreht, und so rechnen Werkzeugseite und
+    // Stände die Hand daran (`Tool.hangsUpright`).
     this.alignToAim = false;
+    this.hangsUpright = true;
     this.holdPosition.set(BAG_HOLD_POSITION.x, BAG_HOLD_POSITION.y, BAG_HOLD_POSITION.z);
 
     // **Von außen** gehalten, am Saum: der Beutel hängt vor der Hand, und sein
@@ -336,13 +343,22 @@ export class MagicBagTool extends Tool {
    * sie in den Raum seines Elternteils zurück. Mitgenommen wird von der Hand
    * nur die Gierachse — der Beutel dreht sich also mit, wenn man den Arm dreht,
    * aber er kippt nicht mit dem Handgelenk aus.
+   *
+   * Die Gierachse mit dem **richtigen Vorzeichen**: `rotation.y = 0` heißt in
+   * three.js „schaut nach -Z", also ist der Winkel `atan2(-x, -z)` der
+   * Vorwärtsrichtung (wie `headYaw` in `GlideTool.ts`). Die erste Fassung nahm
+   * `atan2(x, z)`, und das ist derselbe Winkel plus 180°: der Beutel hing
+   * **hinter** der Hand statt vor ihr, mit dem Saum am Griffpunkt und dem
+   * Bauch im Unterarm — in der Brille sah es aus, als hätte die Hand ihn von
+   * der falschen Seite gegriffen. Auf der Werkzeugseite war davon nichts zu
+   * sehen, denn dort läuft `hangUpright` nie.
    */
   private hangUpright(controller: ControllerState): void {
     const parent = this.parent;
     if (!parent) return;
     const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
     _forward.set(0, 0, -1).applyQuaternion(anchor.getWorldQuaternion(_quaternion));
-    const yaw = Math.atan2(_forward.x, _forward.z);
+    const yaw = Math.atan2(-_forward.x, -_forward.z);
     _upright.setFromEuler(_euler.set(0, yaw, 0, 'YXZ'));
     parent.getWorldQuaternion(_quaternion).invert();
     this.quaternion.copy(_quaternion).multiply(_upright);

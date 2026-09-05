@@ -7,7 +7,7 @@ import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
 import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
 import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
-import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
+import { ghostOnTool, invertPose, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import {
   NO_INPUT,
   flyDolly,
@@ -63,6 +63,31 @@ export interface ShowOptions {
 
 /** Wie weit die Kamera über das Gezeigte hinaus Luft lässt. */
 const PADDING = 1.12;
+
+/**
+ * **Die Zielscheibe**: dort, wohin die Hand zeigt.
+ *
+ * Ein Werkzeug auf einer leeren Bühne hat kein Vorne — man sieht eine Pistole
+ * und eine Hand und dreht sie, bis man glaubt zu wissen, wo der Lauf hinzeigt.
+ * Also steht dort etwas, worauf man zeigt: eine Zielscheibe auf dem
+ * **Zeigestrahl der Hand** — nicht des Werkzeugs. Das Bild ist damit das aus
+ * der Brille, wenn man den Controller auf etwas richtet: die Hand zeigt auf die
+ * Scheibe, und das Werkzeug liegt dabei so in ihr, wie es eben liegt. Bei
+ * allem, was zielt, läuft die Fingerlinie auf die Scheibe zu; beim Hammer, dem
+ * Beutel oder dem Controller sieht man, dass sie es nicht tut — und genau das
+ * ist die Auskunft, wie die Hand das Ding hält.
+ *
+ * Abstand und Größe hängen an dem, was auf der Bühne steht: vor einer Pistole
+ * eine Handbreit Scheibe eine Armlänge weit weg, vor dem Hängegleiter eine
+ * meterweit. Sie zählt beim Einpassen **mit**, sonst stünde sie außerhalb des
+ * Bildes; das Werkzeug wird dadurch kleiner, und dafür gibt es das Zoomen.
+ */
+const TARGET_DISTANCE = 2.4;
+const TARGET_MIN_DISTANCE = 0.3;
+const TARGET_RADIUS = 0.45;
+const TARGET_MIN_RADIUS = 0.055;
+const TARGET_RED = 0xe0433a;
+const TARGET_WHITE = 0xf2f6ff;
 /**
  * Grenzen für das Zoomen, als Faktor auf den eingepassten Abstand.
  *
@@ -75,14 +100,15 @@ const PADDING = 1.12;
 const ZOOM_MIN = 0.45;
 const ZOOM_MIN_WORLD = 0.05;
 const ZOOM_MAX = 2.6;
-/** Wie schnell sich das Ding von selbst dreht, bis jemand es anfasst (rad/s). */
-const IDLE_SPIN = 0.35;
 /**
- * Und wie schnell sich eine **Welt** dreht: deutlich langsamer.
+ * Wie schnell sich eine **Welt** von selbst dreht, bis jemand sie anfasst
+ * (rad/s): langsam, eine volle Runde dauert knapp eine Minute — lang genug,
+ * um irgendwo hinzusehen, ohne dass es schon weitergezogen ist.
  *
- * Ein Werkzeug dreht man vor der Nase, eine Welt sieht man an. Eine volle
- * Runde dauert damit knapp eine Minute — lang genug, um irgendwo hinzusehen,
- * ohne dass es schon weitergezogen ist.
+ * Ein **Werkzeug** dreht sich nicht mehr von selbst. Es drehte sich eine
+ * Weile, und das nahm ihm das Einzige, was man an ihm wissen will: wo vorne
+ * ist. Jetzt steht es still, mit der Zielscheibe davor, und wer es von der
+ * anderen Seite sehen will, dreht es.
  */
 const WORLD_SPIN = 0.14;
 /**
@@ -140,17 +166,15 @@ const CUT_HEIGHT = 2.4;
 
 /**
  * Die Linie am Zeigefinger: warm, damit sie nicht als Teil der Hand gelesen
- * wird, und lang genug, um sie mit dem Werkzeug vergleichen zu können.
- *
- * Ihre Länge ist ein Vielfaches des Halbmessers dessen, was auf der Bühne
- * steht — eine feste Länge wäre bei der Pistole ein Faden und beim Hängegleiter
- * ein Strich. Geklemmt wird sie trotzdem: unter einer Handbreit sieht man sie
- * nicht, über einem Meter ist sie nur noch im Weg.
+ * wird, und lang genug, um sie mit dem Werkzeug zu vergleichen — sie reicht
+ * bis **hinter die Zielscheibe**, damit man sieht, wo auf der Scheibe sie
+ * ankommt, oder ob sie daran vorbeigeht. Unter einer Handbreit sieht man sie
+ * nicht.
  */
 const FINGER_LINE_COLOR = 0xffc857;
-const FINGER_LINE_SCALE = 4;
 const FINGER_LINE_MIN = 0.12;
-const FINGER_LINE_MAX = 0.9;
+/** So weit über den Abstand zur Scheibe hinaus laufen die beiden Linien. */
+const LINE_BEYOND = 1.15;
 
 /**
  * **Wohin das Werkzeug zielt**, als Pfeil: aus seinem Nullpunkt nach -Z.
@@ -167,14 +191,12 @@ const FINGER_LINE_MAX = 0.9;
  * rosa, die Hand hellblau und ihre Linie bernsteinfarben. Weiß liest sich
  * daneben wie ein Laserstrahl, und genau das ist gemeint.
  *
- * Etwas länger als die Fingerlinie, damit die beiden auch dann noch
- * auseinanderzuhalten sind, wenn sie übereinanderliegen — das ist ja der
- * Zustand, den man herstellen will.
+ * Genauso lang wie die Fingerlinie, bis hinter die Scheibe: liegen die beiden
+ * übereinander, treffen sie dieselbe Stelle — das ist ja der Zustand, den man
+ * herstellen will.
  */
 const AIM_LINE_COLOR = 0xf2f6ff;
-const AIM_LINE_SCALE = 5;
 const AIM_LINE_MIN = 0.16;
-const AIM_LINE_MAX = 1.1;
 
 const _box = new THREE.Box3();
 const _bounds = new THREE.Box3();
@@ -192,6 +214,11 @@ const _at = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
+/** Der Zeigestrahl der Hand im Griffraum: 30° unter dem -Z des Griffs (`GRIP_TO_RAY`). */
+const _rayInGrip = new THREE.Vector3(0, 0, -1).applyQuaternion(
+  new THREE.Quaternion(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w),
+);
+const _forward = new THREE.Vector3(0, 0, 1);
 /** Nichts abschneiden — dieselbe leere Liste, statt jedes Bild eine neue. */
 const _noPlanes: THREE.Plane[] = [];
 
@@ -237,12 +264,15 @@ export class ToolViewer {
   private gripFronts: THREE.LineSegments[] = [];
   /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
   private aimLine: THREE.LineSegments | null = null;
+  /** Die Zielscheibe auf dem Zeigestrahl der Hand, und wie weit weg sie steht. */
+  private target: THREE.Group | null = null;
+  private targetDistance = 0;
   private mode: HandMode = 'grip';
   /** Was die Knöpfe gerade tun — Griffknopf gedrückt, Trigger nicht, wie beim Halten. */
   private buttons: FingerButtons = HELD_BUTTONS;
   private side: Handedness = 'right';
-  /** Wie schnell sich das Gezeigte von selbst dreht — eine Welt langsamer. */
-  private spin = IDLE_SPIN;
+  /** Wie schnell sich das Gezeigte von selbst dreht — nur eine Welt tut das. */
+  private spin = 0;
   /** Die Ansicht, auf die der Doppeltipp zurückgeht. */
   private home = { yaw: 0.6, pitch: 0.35 };
   /**
@@ -320,6 +350,14 @@ export class ToolViewer {
     if (!tool) return false;
     this.tool = tool;
     this.stage.add(tool);
+    // Die Hand, für die gerechnet wird: die rechte — außer bei dem einen
+    // Werkzeug, das es je Hand gibt. Ein linker Controller in einer rechten
+    // Hand ist ein Bild, das es in der Brille nicht gibt.
+    this.side = id === 'controller-left' ? 'left' : 'right';
+    // Die Zielscheibe: gebaut mit Halbmesser eins, Größe und Ort kommen in
+    // `placeTarget`, sobald feststeht, wie groß das Werkzeug ist.
+    this.target = createTarget();
+    this.stage.add(this.target);
     // Wo an diesem Werkzeug vorne ist, sieht man am Griff — jedem Griff, den es
     // trägt, auch den beiden am Drohnendeck. Einmal beim Aufstellen und nicht
     // in `apply`: das läuft bei jedem Zug am Regler, und dann hinge nach zehn
@@ -338,7 +376,9 @@ export class ToolViewer {
     this.yaw = this.home.yaw;
     this.pitch = this.home.pitch;
     this.zoom = 1;
-    this.spinning = true;
+    // Ein Werkzeug steht still: wo vorne ist, sagt die Zielscheibe, und ein
+    // Ding, das sich wegdreht, während man hinsieht, sagt es nicht.
+    this.spinning = false;
     this.apply();
     return true;
   }
@@ -357,8 +397,9 @@ export class ToolViewer {
     this.yaw = this.home.yaw;
     this.pitch = this.home.pitch;
     this.zoom = 1;
-    this.spinning = true;
-    this.spin = options.spin ?? IDLE_SPIN;
+    // Von selbst dreht sich nur, was darum bittet — eine Welt.
+    this.spin = options.spin ?? 0;
+    this.spinning = this.spin > 0;
     this.studio.visible = !options.ownLight;
     this.flat = options.flat ?? false;
     this.setCut(options.cut ?? null);
@@ -492,12 +533,19 @@ export class ToolViewer {
    * Die **Zielkorrektur** dieses Werkzeugs: `GRIP_TO_RAY` für alles, was auf
    * den Zeigestrahl gedreht wird, die Ruhe für alles, was in der Faust sitzt
    * (`alignToAim`). Im Spiel entscheidet `Tool.applyHold` genauso — und die
-   * Seite muss es genauso tun, sonst zeigt sie Controller, Boxhand, Beutel und
+   * Seite muss es genauso tun, sonst zeigt sie Controller, Boxhand und
    * Flügel um 30° gegen die Hand verdreht und speichert die 30° beim ersten
    * Zug am Regler als Haltung ab.
+   *
+   * Der **Beutel** ist der eine Fall dazwischen: er zielt nicht, hängt aber
+   * aufrecht im Raum, und bei zielend gehaltenem Controller steht das
+   * Aufrechte genau um die Zielkorrektur gegen den Griff (`Tool.hangsUpright`).
+   * Er bekommt sie deshalb — das Bild ist dann das aus der Brille.
    */
   aimOf(): Quat {
-    return this.tool?.alignToAim === false ? IDENTITY : GRIP_TO_RAY;
+    const tool = this.tool;
+    if (!tool) return GRIP_TO_RAY;
+    return tool.alignToAim || tool.hangsUpright ? GRIP_TO_RAY : IDENTITY;
   }
 
   /** Die Hand, für die die Bühne rechnet. Eine, und immer dieselbe. */
@@ -719,8 +767,50 @@ export class ToolViewer {
       this.addFingerLine(hand);
     }
 
+    this.placeTarget(local);
     if (refit) this.fit();
     this.sizeLines();
+  }
+
+  /**
+   * Die Zielscheibe auf den **Zeigestrahl der Hand** stellen.
+   *
+   * Der Strahl liegt im Griffraum 30° unter dessen -Z (`GRIP_TO_RAY`) — bei
+   * jedem Werkzeug, auch bei einem, das nicht zielt: er gehört der Hand, nicht
+   * dem Ding in ihr. In der Ansicht *In der Hand* ist der Griffraum die Bühne;
+   * in den beiden anderen steht das Werkzeug aufrecht, und der Griffraum liegt
+   * darin bei `Lage-im-Griff⁻¹` — derselbe Weg, den die Hand nimmt
+   * (`ghostOnTool`).
+   *
+   * Größe und Abstand nach dem, was ohne die Scheibe auf der Bühne steht: erst
+   * messen, dann stellen. Sonst zählte die Scheibe sich selbst mit und rückte
+   * mit jedem Aufstellen ein Stück weiter weg.
+   */
+  private placeTarget(local: Pose): void {
+    const target = this.target;
+    if (!target) return;
+    target.visible = false;
+    this.stage.updateWorldMatrix(true, true);
+    this.measure();
+    _box.getSize(_size);
+    const radius = Math.max(_size.length() / 2, 0.02);
+    this.targetDistance = Math.max(TARGET_MIN_DISTANCE, radius * TARGET_DISTANCE);
+    target.scale.setScalar(Math.max(TARGET_MIN_RADIUS, radius * TARGET_RADIUS));
+
+    if (this.mode === 'grip') {
+      _at.set(0, 0, 0);
+      _dir.copy(_rayInGrip);
+    } else {
+      const grip = invertPose(local);
+      _at.set(grip.position.x, grip.position.y, grip.position.z);
+      _quat.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
+      _dir.copy(_rayInGrip).applyQuaternion(_quat);
+    }
+    target.position.copy(_at).addScaledVector(_dir, this.targetDistance);
+    // Die Scheibe schaut die Hand an: ihr +Z ist die Fläche, und die zeigt
+    // den Strahl zurück.
+    target.quaternion.setFromUnitVectors(_forward, _dir.negate());
+    target.visible = true;
   }
 
   /**
@@ -751,25 +841,22 @@ export class ToolViewer {
   }
 
   /**
-   * Die Längen der beiden gezeichneten Richtungen, sobald feststeht, wie groß
-   * das Gezeigte ist.
+   * Die Längen der beiden gezeichneten Richtungen, sobald feststeht, wo die
+   * Zielscheibe steht: beide bis ein Stück hinter sie.
    *
-   * Beide als Vielfaches des Halbmessers und beide geklemmt: eine feste Länge
-   * wäre am Hängegleiter ein Strich und an der Pistole ein Faden. Die
-   * Fingerlinie wird dabei **skaliert** — sie ist ein Strich, dem das nichts
-   * tut —, der Zielpfeil bekommt seine Punkte **neu**: eine Skalierung zöge
-   * seine Widerhaken mit in die Länge, und dann wäre er kein Pfeil mehr.
+   * Eine feste Länge wäre am Hängegleiter ein Strich und an der Pistole ein
+   * Faden. Die Fingerlinie wird dabei **skaliert** — sie ist ein Strich, dem
+   * das nichts tut —, der Zielpfeil bekommt seine Punkte **neu**: eine
+   * Skalierung zöge seine Widerhaken mit in die Länge, und dann wäre er kein
+   * Pfeil mehr.
    */
   private sizeLines(): void {
+    const reach = this.targetDistance * LINE_BEYOND;
     if (this.fingerLine) {
-      this.fingerLine.scale.z = Math.min(
-        FINGER_LINE_MAX,
-        Math.max(FINGER_LINE_MIN, this.radius * FINGER_LINE_SCALE),
-      );
+      this.fingerLine.scale.z = Math.max(FINGER_LINE_MIN, reach);
     }
     if (this.aimLine) {
-      const length = Math.min(AIM_LINE_MAX, Math.max(AIM_LINE_MIN, this.radius * AIM_LINE_SCALE));
-      this.aimLine.geometry.setFromPoints(arrowPoints(length));
+      this.aimLine.geometry.setFromPoints(arrowPoints(Math.max(AIM_LINE_MIN, reach)));
     }
   }
 
@@ -911,8 +998,20 @@ export class ToolViewer {
       aim.geometry.dispose();
       (aim.material as THREE.Material).dispose();
     }
+    const target = this.target;
+    this.target = null;
+    this.targetDistance = 0;
+    if (target) {
+      target.removeFromParent();
+      target.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      });
+    }
     this.studio.visible = true;
-    this.spin = IDLE_SPIN;
+    this.spin = 0;
     this.setCut(null);
     const tool = this.tool;
     this.tool = null;
@@ -1094,13 +1193,43 @@ export class ToolViewer {
     this.yaw = this.home.yaw;
     this.pitch = this.home.pitch;
     this.zoom = 1;
-    this.spinning = !flying;
+    this.spinning = !flying && this.spin > 0;
     this.fit();
     this.sizeLines();
     // Im Flug bleibt die freie Kamera an — sie stellt sich nur wieder dorthin,
     // wo sie losgeflogen ist. Wer sie loswerden will, hat den Knopf dafür.
     if (flying) this.setFlying(true);
   }
+}
+
+/**
+ * Die Zielscheibe, mit Halbmesser eins in der XY-Ebene: fünf Ringe, rot und
+ * weiß im Wechsel, rot in der Mitte. Beidseitig, denn beim Drehen sieht man
+ * sie auch von hinten, und eine Scheibe, die von hinten verschwindet, ist ein
+ * Loch im Bild.
+ */
+function createTarget(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'aim-target';
+  const rings = 5;
+  for (let i = 0; i < rings; i++) {
+    const inner = i / rings;
+    const outer = (i + 1) / rings;
+    const geometry =
+      i === 0 ? new THREE.CircleGeometry(outer, 40) : new THREE.RingGeometry(inner, outer, 40);
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? TARGET_RED : TARGET_WHITE,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    );
+    // Jeder Ring eine Spur vor dem nächsten, damit sie nicht ineinander flimmern.
+    mesh.position.z = (rings - i) * 0.0005;
+    group.add(mesh);
+  }
+  return group;
 }
 
 /**

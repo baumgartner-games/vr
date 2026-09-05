@@ -233,6 +233,18 @@ export abstract class Tool extends THREE.Group {
    */
   alignToAim = true;
   /**
+   * Hängt **aufrecht im Raum**, statt sich mit der Hand zu drehen — der Beutel:
+   * seine Öffnung bleibt oben, wie auch immer das Handgelenk steht. Er zielt
+   * damit nicht (`alignToAim = false`), liegt aber trotzdem nicht im Griffraum:
+   * hält man den Controller so, wie man ihn beim Zielen hält, steht das
+   * Aufrechte um genau die Zielkorrektur gegen den Griff gedreht. Die
+   * Werkzeugseite und die Justierstände rechnen für so ein Werkzeug deshalb
+   * **mit** der Zielkorrektur, wie bei allem, das zielt — nur das, was wirklich
+   * in der Faust sitzt (Controller, Boxhand, Handschuhe), bekommt die Ruhe.
+   */
+  hangsUpright = false;
+
+  /**
    * While this tool is held, that hand stops shoving props around. The welder
    * needs it: reaching into a stack to pick a joint point must not scatter it.
    */

@@ -2,8 +2,9 @@
  * Das Gelände der Alpen: eine Höhe für jeden Punkt, aus nichts als Zahlen.
  *
  * Ein großer Berg in der Mitte, ein paar kleinere drum herum, dazwischen ein
- * Tal mit sanften Wellen — und zwei Stellen, die absichtlich flach sind: die
- * **Startrampe** unterhalb des Gipfels und die **Landewiese** im Tal. Alles
+ * Tal mit sanften Wellen — und drei Stellen, die absichtlich flach sind: die
+ * **Startrampe** unterhalb des Gipfels, die **Landewiese** im Tal und ein
+ * kleines Stück um das **Gipfelkreuz**. Alles
  * andere ist eine Summe aus Glockenkurven und etwas Rauschen mit Gedächtnis:
  * derselbe Berg bei jedem Besuch, derselbe bei allen Mitspielern, denn jede
  * Welt wird auf jedem Gerät neu gebaut und nicht übertragen.
@@ -52,13 +53,27 @@ export const LANDING = { x: 0, z: 210, radius: 55, height: 5 };
 export const LAUNCH_SITE = { x: 0, z: -95, radius: 12 };
 
 /**
+ * Wie breit der Rand des Startplatzes ist, mit dem er ins Gelände übergeht —
+ * **zum Tal hin schmal, zum Gipfel hin breit.**
+ *
+ * Der Startplatz ist in die Flanke des Berges geschnitten: unten fällt sie
+ * ab, oben steigt sie an. Zum Tal hin soll die Kante eine Kante bleiben, denn
+ * über sie läuft man los. Zum Gipfel hin war sie mit demselben schmalen Rand
+ * eine **Wand**: gut zwanzig Meter Anstieg auf zehn Meter Weg, 60° und mehr,
+ * und wer vom Startplatz aus zum Kreuz wollte, kam nicht einmal vom Plateau
+ * herunter. Mit dem breiten Rand verteilt sich derselbe Anstieg auf vierzig
+ * Meter — steil, aber ein Berg.
+ */
+export const LAUNCH_EDGE = { valley: 10, summit: 42 };
+
+/**
  * Die Höhe über dem Tal an einem Punkt, in Metern. Nie negativ.
  */
 export function alpsHeight(x: number, z: number): number {
   return flatten(rawHeight(x, z), x, z);
 }
 
-/** Das Gelände ohne die beiden ebenen Stellen. */
+/** Das Gelände ohne die drei ebenen Stellen. */
 function rawHeight(x: number, z: number): number {
   // Das Tal: sanfte Wellen, damit eine Wiese keine Platte ist.
   let h = 3 + 12 * fbm(x / 170 + 11.3, z / 170 + 7.9);
@@ -94,6 +109,13 @@ export const SUMMIT = findSummit();
 /** Wie hoch der Gipfel ist. */
 export const SUMMIT_HEIGHT = rawHeight(SUMMIT.x, SUMMIT.z);
 
+/**
+ * Ein kleines ebenes Stück um das Gipfelkreuz, mit weichem Rand: der letzte
+ * Anstieg zum Kreuz stand sonst bei 52° — genau an der Grenze dessen, was man
+ * hinaufkommt —, und ein Gipfel, den man nur springend erreicht, ist keiner.
+ */
+export const SUMMIT_CAP = { radius: 5, edge: 22 };
+
 function findSummit(): { x: number; z: number } {
   const centre = PEAKS[0]!;
   let best = { x: centre.x, z: centre.z, h: -1 };
@@ -111,15 +133,27 @@ function findSummit(): { x: number; z: number } {
   return { x: best.x, z: best.z };
 }
 
-/** Legt Landewiese und Startplatz eben, mit weichem Rand. */
+/** Legt Landewiese, Startplatz und Gipfel eben, mit weichem Rand. */
 function flatten(h: number, x: number, z: number): number {
   const toLanding = Math.hypot(x - LANDING.x, z - LANDING.z);
   const meadow = 1 - smoothstep(LANDING.radius, LANDING.radius + 35, toLanding);
   h += (LANDING.height - h) * meadow;
 
   const toLaunch = Math.hypot(x - LAUNCH_SITE.x, z - LAUNCH_SITE.z);
-  const plateau = 1 - smoothstep(LAUNCH_SITE.radius, LAUNCH_SITE.radius + 10, toLaunch);
+  // Wie sehr dieser Punkt bergwärts liegt: 1 genau Richtung Gipfel (-z), -1
+  // Richtung Tal. Dazwischen läuft die Breite des Randes stetig über, damit
+  // der Rand nirgends eine Stufe hat.
+  const uphill = toLaunch > 1e-6 ? (LAUNCH_SITE.z - z) / toLaunch : 0;
+  const edge =
+    LAUNCH_EDGE.valley + (LAUNCH_EDGE.summit - LAUNCH_EDGE.valley) * smoothstep(-0.3, 0.7, uphill);
+  const plateau = 1 - smoothstep(LAUNCH_SITE.radius, LAUNCH_SITE.radius + edge, toLaunch);
   h += (LAUNCH_HEIGHT - h) * plateau;
+
+  // Der Gipfel: nur angehoben, nie abgetragen — das Kreuz steht weiter auf
+  // dem höchsten Punkt, und der bleibt der höchste.
+  const toSummit = Math.hypot(x - SUMMIT.x, z - SUMMIT.z);
+  const cap = 1 - smoothstep(SUMMIT_CAP.radius, SUMMIT_CAP.radius + SUMMIT_CAP.edge, toSummit);
+  h += Math.max(0, SUMMIT_HEIGHT - h) * cap;
   return h;
 }
 

@@ -16,11 +16,12 @@
  * Also nicht mehr einstellen, sondern ausrechnen: `fistOnGrip` in
  * `worlds/portal/tools/gripFit.ts` legt die Faust um den Griff, und dieser Test
  * hält fest, dass die Zahlen in `handPose.ts` genau das sind — und dass die
- * gezeichnete Hand am wirklich gebauten Werkzeug landet. Für den Standardgriff,
- * und mit derselben Rechnung für alles mit eigenem Zylinder: den Stab (Hammer,
- * Taschenlampe, Messer), denselben Stab von oben am Pinsel, die Griffe der
- * Drohne, den Rand der Stoppuhr und den Saum des Beutels — und für das, was
- * auf der Hand sitzt statt in ihr.
+ * gezeichnete Hand am wirklich gebauten Werkzeug landet. Für den Standardgriff
+ * (auch am Messer und am Hals der Sektflasche), und mit derselben Rechnung für
+ * alles mit eigenem Zylinder: den Stab (Hammer, Taschenlampe), denselben Stab
+ * von oben am Pinsel, die Griffe der Drohne, den Rand der Stoppuhr, den Saum
+ * des Beutels, die Querstange des Hängegleiters und den Handgriff des
+ * Controllers — und für das, was auf der Hand sitzt statt in ihr.
  *
  * three.js, aber kein WebGL: das hier liest Zahlen aus einem Szenengraphen.
  */
@@ -31,6 +32,7 @@ import {
   BRUSH_HAND_POSE,
   CONTROLLER_HAND_POSE,
   DRONE_HAND_POSE,
+  GLIDER_HAND_POSE,
   GRIP_HAND_POSE,
   HOLD_HAND_POSE,
   IDLE_HAND_POSE_RIGHT,
@@ -42,6 +44,7 @@ import {
   defaultHoldPose,
   type HandPose,
 } from './handPose';
+import { CONTROLLER_GRIP, CONTROLLER_HANDLE } from './controllerGrip';
 import {
   GRIP_TO_RAY,
   STANDARD_GRIP_IN_HAND,
@@ -59,6 +62,7 @@ import { HammerTool } from '../worlds/portal/tools/HammerTool';
 import { FlashlightTool } from '../worlds/portal/tools/FlashlightTool';
 import { BRUSH_GRIP, BrushTool } from '../worlds/portal/tools/BrushTool';
 import { KnifeTool } from '../worlds/portal/tools/KnifeTool';
+import { BAR_GRIP, HangGliderTool } from '../worlds/portal/tools/HangGliderTool';
 import { DRONE_GRIP, DroneTool } from '../worlds/portal/tools/DroneTool';
 import {
   CROWN_Y,
@@ -276,6 +280,9 @@ describe('die Faust am Standardgriff', () => {
     ['Griff', () => new GripTool()],
     ['Pistole', () => new PistolTool()],
     ['Lötkolben', () => new WelderTool()],
+    // Das Messer: der Griff steht in der Faust, die Klinge ragt oben heraus —
+    // nicht mehr der Stab quer durch die Faust wie an der Taschenlampe.
+    ['Messer', () => new KnifeTool()],
   ])('liegt am gebauten Werkzeug wirklich um den Griff: %s', (_name, build) => {
     const centre = fistCentre(GRIP_HAND_POSE);
     const fist = fistOf(defaultHoldPose('right', 'grip'), centre);
@@ -438,10 +445,9 @@ describe('die Faust am Stab', () => {
   it.each([
     ['Hammer', () => new HammerTool()],
     ['Taschenlampe', () => new FlashlightTool()],
-    ['Messer', () => new KnifeTool()],
-  ])('ist für alle drei dieselbe, und sie liegt um den Stab: %s', (_name, build) => {
-    // Drei Werkzeuge, ein Stab, eine Faust: sie tragen dieselbe `holdPosition`
-    // und dieselbe Haltung — sonst hielte eine Faust drei verschiedene Stäbe.
+  ])('ist für beide dieselbe, und sie liegt um den Stab: %s', (_name, build) => {
+    // Zwei Werkzeuge, ein Stab, eine Faust: sie tragen dieselbe `holdPosition`
+    // und dieselbe Haltung — sonst hielte eine Faust zwei verschiedene Stäbe.
     const tool = build();
     expect(defaultHoldPose('right', tool.toolId)).toEqual(POLE_HAND_POSE);
     expect(tool.alignToAim).toBe(true);
@@ -607,13 +613,14 @@ describe('der Daumen auf der Krone der Stoppuhr', () => {
 
 describe('die Faust am Hals der Sektflasche', () => {
   // Kein Werkzeug, ein Ding aus dem Beutel — aber mit Griff: beim Zugreifen
-  // rastet der Hals in die Faust um den Stab (`propGrip.ts`), und die Hand
-  // trägt dazu dieselbe Haltung wie am Hammer. Beides muss zusammenpassen,
-  // sonst hielte die Hand den Hals daneben.
+  // rastet der Hals in die Faust um den Standardgriff (`propGrip.ts`), und die
+  // Hand trägt dazu dieselbe Haltung wie an der Pistole. Beides muss
+  // zusammenpassen, sonst hielte die Hand den Hals daneben. Eine Weile war es
+  // der Stab, und die Flasche lag in der Hand wie eine Taschenlampe.
   it.each(['right', 'left'] as const)('liegt um den Hals, aufrecht wie über Kopf: %s', (side) => {
     const pose = defaultHoldPose(side, 'champagne');
-    expect(pose).toEqual(defaultHoldPose(side, 'hammer'));
-    const fist = fistOf(pose, fistCentre(POLE_HAND_POSE));
+    expect(pose).toEqual(defaultHoldPose(side, 'grip'));
+    const fist = fistOf(pose, fistCentre(GRIP_HAND_POSE));
     for (const flip of [0, Math.PI]) {
       const current = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), flip);
       const snap = snapToGrip(current, CHAMPAGNE_GRIP);
@@ -633,17 +640,20 @@ describe('die Faust am Hals der Sektflasche', () => {
 });
 
 describe('die Faust am Saum des Beutels', () => {
-  it('steht in `handPose.ts` als das, was `fistOnGrip` ohne Zielkorrektur ausrechnet', () => {
-    // Der Beutel zielt nicht (`alignToAim = false`): sein Saum liegt im
-    // Griffraum, nicht im Strahlraum, und die Rechnung nimmt die Ruhe als Ziel.
+  it('steht in `handPose.ts` als das, was `fistOnGrip` mit Zielkorrektur ausrechnet', () => {
+    // Der Beutel zielt nicht (`alignToAim = false`), hängt aber aufrecht im
+    // Raum (`hangsUpright`) — und bei zielend gehaltenem Controller ist das
+    // Aufrechte der Strahlraum. Also dieselbe Zielkorrektur wie bei allem,
+    // das zielt; ohne sie stand die Hand in der Brille 30° gekippt am Saum.
     const tool = new MagicBagTool();
     expect(tool.alignToAim).toBe(false);
+    expect(tool.hangsUpright).toBe(true);
     const want = fistOnGrip(
       { centre: fistCentre(BAG_HAND_POSE) },
       gripInHand(
         { position: tool.holdPosition, rotation: tool.holdRotation },
         { position: BAG_GRIP.position, rotation: BAG_GRIP.rotation },
-        IDENTITY,
+        GRIP_TO_RAY,
       ),
     );
     expectPoseIs(BAG_HAND_POSE, want);
@@ -652,25 +662,117 @@ describe('die Faust am Saum des Beutels', () => {
   it.each(['right', 'left'] as const)(
     'liegt um den Saum wie unter einer offenen Kappe: %s',
     (side) => {
-      // Ohne Zielkorrektur gehalten: das Werkzeug sitzt in `holdRotation` selbst.
-      const tool = new MagicBagTool();
-      tool.showHeldBy(side);
-      tool.position.copy(tool.holdPosition);
-      tool.quaternion.copy(tool.holdRotation);
-      tool.updateMatrixWorld(true);
+      // So gehalten, wie er im Spiel bei zielendem Controller hängt: mit der
+      // Zielkorrektur, wie jedes Werkzeug in `hold`.
+      const tool = hold(new MagicBagTool(), side);
       const fist = fistOf(defaultHoldPose(side, 'bag'), fistCentre(BAG_HAND_POSE));
       expectFistOn(fist, rimOf(tool));
-      // Der Beutel hängt vor der Hand (-z), und die Hand liegt wie unter einer
-      // offenen Kappe: Handfläche nach oben, der Handrücken zeigt nach unten
-      // (-y), der Daumen liegt außen am Saum — rechts nach rechts.
+      // Der Beutel hängt vor der Hand (-z des Werkzeugs), und die Hand liegt
+      // wie unter einer offenen Kappe: Handfläche nach oben, der Handrücken
+      // zeigt nach unten (-y des Werkzeugs), der Daumen liegt außen am Saum —
+      // rechts nach rechts.
       const rotation = rotationOf(defaultHoldPose(side, 'bag'));
+      const toolRotation = tool.getWorldQuaternion(new THREE.Quaternion());
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(toolRotation);
       const back = new THREE.Vector3(0, 1, 0).applyQuaternion(rotation);
-      expect(back.y).toBeLessThan(-0.99);
+      expect(back.dot(up)).toBeLessThan(-0.99);
       const mirror = side === 'left' ? -1 : 1;
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(toolRotation);
       const thumbSide = new THREE.Vector3(-mirror, 0, 0).applyQuaternion(rotation);
-      expect(thumbSide.x * mirror).toBeGreaterThan(0.99);
+      expect(thumbSide.dot(right) * mirror).toBeGreaterThan(0.99);
     },
   );
+});
+
+describe('die Faust an der Querstange des Hängegleiters', () => {
+  it('steht in `handPose.ts` als das, was `fistOnGrip` um die Stange ausrechnet', () => {
+    // Kein Finger, der etwas anzeigt: eine Stange hält man mit der ganzen
+    // Faust, wie einen Lenker.
+    const want = fistOnGrip(
+      { centre: fistCentre(GLIDER_HAND_POSE) },
+      ownGrip(new HangGliderTool(), BAR_GRIP),
+    );
+    expectPoseIs(GLIDER_HAND_POSE, want);
+  });
+
+  it.each(['right', 'left'] as const)(
+    'liegt quer um die Stange, Handrücken oben, Daumen zur Mitte: %s',
+    (side) => {
+      const tool = hold(new HangGliderTool(), side);
+      expect(tool.gripPart).toBeNull();
+      const pose = defaultHoldPose(side, 'hang-glider');
+      const fist = fistOf(pose, fistCentre(GLIDER_HAND_POSE));
+      // Die Stange: die x-Achse des gehaltenen Werkzeugs durch seinen Ursprung.
+      const bar = {
+        centre: tool.getWorldPosition(new THREE.Vector3()),
+        axis: new THREE.Vector3(1, 0, 0).applyQuaternion(
+          tool.getWorldQuaternion(new THREE.Quaternion()),
+        ),
+      };
+      expectFistOn(fist, bar);
+      const rotation = rotationOf(pose);
+      const toolRotation = tool.getWorldQuaternion(new THREE.Quaternion());
+      // Von oben gehalten: der Handrücken zeigt nach oben (+y des Werkzeugs).
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(toolRotation);
+      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(rotation);
+      expect(back.dot(up)).toBeGreaterThan(0.99);
+      // Und der Daumen zeigt zur Mitte der Stange: bei der rechten Hand am
+      // rechten Ende nach links (-x), bei der linken am linken Ende nach rechts.
+      const mirror = side === 'left' ? -1 : 1;
+      const thumbSide = new THREE.Vector3(-mirror, 0, 0).applyQuaternion(rotation);
+      expect(thumbSide.dot(bar.axis) * mirror).toBeLessThan(-0.99);
+    },
+  );
+});
+
+describe('die Faust am Handgriff des Controllers', () => {
+  it('steht in `handPose.ts` als das, was `fistOnGrip` um den Handgriff ausrechnet', () => {
+    // Der Controller liegt im Griffraum selbst (`holdPosition` null, keine
+    // Zielkorrektur), sein Handgriff darin entlang z. Der Zeigefinger liegt
+    // gestreckt am Rahmen wie an der Pistole — zum Trigger hinunter.
+    const want = fistOnGrip(
+      { centre: fistCentre(GRIP_HAND_POSE), finger: fingerDirection(GRIP_HAND_POSE) },
+      gripInHand({ position: { x: 0, y: 0, z: 0 }, rotation: IDENTITY }, CONTROLLER_GRIP, IDENTITY),
+    );
+    expectPoseIs(CONTROLLER_HAND_POSE, want);
+    expect(CONTROLLER_HAND_POSE.curls).toEqual(GRIP_HAND_POSE.curls);
+  });
+
+  it.each(['right', 'left'] as const)(
+    'liegt um den Handgriff, Daumen zum Kopf des Geräts, Handrücken außen: %s',
+    (side) => {
+      const mirror = side === 'left' ? -1 : 1;
+      const pose = defaultHoldPose(side, `controller-${side}`);
+      const fist = fistOf(pose, fistCentre(GRIP_HAND_POSE));
+      // Der Handgriff im Griffraum, für die linke Schale gespiegelt.
+      const handle = {
+        centre: new THREE.Vector3(
+          mirror * CONTROLLER_HANDLE.centre.x,
+          CONTROLLER_HANDLE.centre.y,
+          CONTROLLER_HANDLE.centre.z,
+        ),
+        axis: new THREE.Vector3(0, 0, 1),
+      };
+      expectFistOn(fist, handle);
+      const rotation = rotationOf(pose);
+      // Der Daumen liegt am Kopf des Geräts (-z), wo Stick und Tasten sind.
+      const thumbSide = new THREE.Vector3(-mirror, 0, 0).applyQuaternion(rotation);
+      expect(thumbSide.z).toBeLessThan(-0.99);
+      // Der Handrücken zeigt nach außen: rechts nach rechts, links nach links.
+      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(rotation);
+      expect(back.x * mirror).toBeGreaterThan(0.9);
+    },
+  );
+
+  it('hält den Handgriff dort, wo das Modell des Herstellers ihn hat', () => {
+    // Aus dem Profil des Quest Touch Plus abgelesen: der Griff läuft von kurz
+    // vor dem Ursprung nach hinten heraus, und der Trigger hängt am -Z-Ende
+    // unter dem Kopf. Wäre der Griff woanders — nach unten, wie in der ersten
+    // Fassung des gebauten Controllers —, hielte die Faust Luft.
+    expect(CONTROLLER_HANDLE.from).toBeLessThan(CONTROLLER_HANDLE.centre.z);
+    expect(CONTROLLER_HANDLE.to).toBeGreaterThan(CONTROLLER_HANDLE.centre.z);
+    expect(CONTROLLER_HANDLE.to - CONTROLLER_HANDLE.from).toBeGreaterThan(0.06);
+  });
 });
 
 describe('was auf der Hand sitzt statt in ihr', () => {
@@ -684,15 +786,13 @@ describe('was auf der Hand sitzt statt in ihr', () => {
       roll: IDLE_HAND_POSE_RIGHT.roll,
       curls: IDLE_HAND_POSE_RIGHT.curls,
     });
-    // Und der Controller in derselben Lage, aber in der Faust, mit dem Finger am Abzug.
-    expect(CONTROLLER_HAND_POSE).toMatchObject({
-      x: IDLE_HAND_POSE_RIGHT.x,
-      curls: HOLD_HAND_POSE.curls,
-    });
     for (const id of ['gravity-glove', 'translate-glove', 'superman-glove']) {
       expect(defaultHoldPose('right', id)).toEqual(WORN_HAND_POSE);
     }
+    // Der Controller nicht: der liegt *in* der Hand, und die Faust darum ist
+    // um seinen Handgriff gerechnet (siehe oben) — nicht die Grundhaltung.
     expect(defaultHoldPose('right', 'controller-right')).toEqual(CONTROLLER_HAND_POSE);
+    expect(CONTROLLER_HAND_POSE.pitch).not.toBe(IDLE_HAND_POSE_RIGHT.pitch);
   });
 
   it('folgt der Hand: der Handschuh liegt im Griff genau dort, wo die Haltung sagt', () => {

@@ -1,11 +1,13 @@
 import {
   BAR_NEUTRAL,
+  BAR_TILT,
   BAR_TRAVEL,
   HANG_GLIDER,
   WINGS,
   WING_MIN_AREA,
   attitude,
   barCommand,
+  barTilt,
   flapThrust,
   stepGlide,
   wingCommand,
@@ -154,15 +156,28 @@ describe('barCommand', () => {
     expect(barCommand(BAR_NEUTRAL, 0)).toEqual({ pitchUp: 0, roll: 0 });
   });
 
-  it('macht Ziehen zu Nase runter und Schieben zur Kurve auf dieselbe Seite', () => {
+  it('macht Ziehen zu Nase runter und Kippen zur Kurve auf die tiefere Seite', () => {
     expect(barCommand(BAR_NEUTRAL - BAR_TRAVEL / 2, 0).pitchUp).toBeCloseTo(-0.5);
     expect(barCommand(BAR_NEUTRAL + BAR_TRAVEL, 0).pitchUp).toBeCloseTo(1);
-    expect(barCommand(BAR_NEUTRAL, 0.1).roll).toBeCloseTo(0.5);
-    expect(barCommand(BAR_NEUTRAL, -0.1).roll).toBeCloseTo(-0.5);
+    expect(barCommand(BAR_NEUTRAL, BAR_TILT / 2).roll).toBeCloseTo(0.5);
+    expect(barCommand(BAR_NEUTRAL, -BAR_TILT / 2).roll).toBeCloseTo(-0.5);
   });
 
   it('läuft nicht über voll hinaus', () => {
-    expect(barCommand(-2, 3)).toEqual({ pitchUp: -1, roll: 1 });
+    expect(barCommand(-2, 90)).toEqual({ pitchUp: -1, roll: 1 });
+  });
+});
+
+describe('barTilt', () => {
+  it('liest die Schräglage aus den beiden Fäusten: rechte Hand tiefer heißt rechts', () => {
+    // Zwei Hände, 68 cm auseinander, die rechte 20 cm tiefer: gut 16° nach rechts.
+    expect(barTilt(0.1, -0.1, 0.68)).toBeCloseTo((Math.atan2(0.2, 0.68) * 180) / Math.PI);
+    expect(barTilt(-0.1, 0.1, 0.68)).toBeLessThan(0);
+    expect(barTilt(0.3, 0.3, 0.68)).toBe(0);
+  });
+
+  it('ist ohne Spannweite eben — zwei Hände am selben Punkt sind keine Stange', () => {
+    expect(barTilt(0.2, -0.2, 0)).toBe(0);
   });
 });
 
