@@ -183,6 +183,8 @@ export const GRIP_HAND_POSES: Record<GripKind, HandPose> = {
  * `worlds/portal/tools/gripFit.test.ts` fest.
  */
 export const TOOL_GRIPS: Record<string, GripKind> = {
+  // Der Griff selbst — das Werkzeug, an dem man die Faust einstellt.
+  grip: 'pistol',
   pistol: 'pistol',
   duplicator: 'pistol',
   inspect: 'pistol',
@@ -190,8 +192,43 @@ export const TOOL_GRIPS: Record<string, GripKind> = {
   gizmo: 'pistol',
   holster: 'pistol',
   grapple: 'pistol',
+  // Alles, was vorher seinen eigenen Kasten trug oder gar keinen: ein Werkzeug,
+  // das nach vorn zeigt und in einer Faust liegt, trägt den Pistolengriff. Was
+  // hier fehlt, fehlt mit Grund — der Wurfstern fliegt aus den Fingern, die drei
+  // Handschuhe und die Flügel werden angezogen, Hammer und Drohne bringen ihre
+  // eigenen Griffe mit, und Boxhand und Controller *sind* die Hand.
+  'gun-blue': 'pistol',
+  'gun-red': 'pistol',
+  'gun-dual': 'pistol',
+  brush: 'pistol',
+  tape: 'pistol',
+  eraser: 'pistol',
+  xray: 'pistol',
+  stopwatch: 'pistol',
   flashlight: 'rod',
   welder: 'rod',
+  // Baut seinen Stabgriff seit jeher an; er stand nur nie in dieser Tabelle,
+  // und damit bekam er die allgemeine Faust statt der eingemessenen.
+  'hang-glider': 'rod',
+};
+
+/**
+ * Unter welcher Id die **Faust eines Standardgriffs** gespeichert wird.
+ *
+ * Der Kern der Sache: eine Faust gehört zu einem *Griff* und nicht zu einem
+ * Werkzeug. Zwanzig Werkzeuge mit demselben Zylinder in derselben Hand haben
+ * eine Haltung und nicht zwanzig — wer sie zwanzigmal einstellt, stellt
+ * neunzehnmal dasselbe ein und einmal etwas anderes, ohne es zu merken.
+ *
+ * Es sind Werkzeug-Ids und keine neue Art von Schlüssel, und das ist Absicht:
+ * damit tragen der Speicher (`handPoseStore.ts`), der Konfig-Code und der
+ * Kurzcode sie, ohne dass irgendwo ein Format wächst. `grip` ist dabei ein
+ * echtes Werkzeug — der **Griff** —, `grip-rod` ist die Id, unter der die Faust
+ * am Stabgriff liegt, wenn jemand sie einstellt.
+ */
+export const GRIP_POSE_IDS: Record<GripKind, string> = {
+  pistol: 'grip',
+  rod: 'grip-rod',
 };
 
 /**

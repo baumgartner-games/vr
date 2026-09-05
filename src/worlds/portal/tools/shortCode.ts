@@ -176,6 +176,11 @@ export const SHORT_SLOTS = [
   'holster',
   'hang-glider',
   'wings',
+  // Der Griff als Werkzeug — und die Id, unter der die Faust am Stabgriff
+  // liegt (`GRIP_POSE_IDS`). Beide tragen eine Handhaltung, also brauchen
+  // beide einen Platz, sonst fiele ihr Kurzcode auf „leere Hand" zurück.
+  'grip',
+  'grip-rod',
 ] as const;
 
 const FLAG_POSE = 1;

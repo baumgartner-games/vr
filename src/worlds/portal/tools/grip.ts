@@ -52,6 +52,75 @@ export interface GripOptions {
   thickness?: number;
   /** Ohne Rillen — für einen Stabgriff, der ringsum gleich aussieht. */
   waves?: boolean;
+  /** Mit der Linie, die zeigt, wo bei diesem Griff vorne ist. */
+  front?: boolean;
+}
+
+/**
+ * **Wo vorne ist**, als Linie.
+ *
+ * Ein Griff ist ein Zylinder, und einem Zylinder sieht man nicht an, wie herum
+ * er in der Faust liegt — die drei Rillen sagen es, aber erst, wenn man genau
+ * hinsieht, und aus zwei Metern gar nicht. Die Linie sagt es sofort: sie läuft
+ * aus der Mitte des Griffs nach **-Z**, dorthin, wohin der Zeigefinger zeigt
+ * und wohin bei einem Pistolengriff auch das Werkzeug zeigt.
+ *
+ * **Rosa**, und das ist keine Laune: der Griff selbst ist grün (Greiffarbe),
+ * die Hand hellblau und die Linie am Zeigefinger bernsteinfarben. Grün auf
+ * grün war die erste Fassung, und darauf sah man den Pfeil erst, wenn man
+ * wusste, dass er da ist. Die beiden Linien nebeneinander — wohin die *Hand*
+ * zeigt, wohin der *Griff* zeigt — sind genau die Auskunft, um die es beim
+ * Justieren geht, und dafür müssen sie auseinanderzuhalten sein.
+ */
+const FRONT_COLOR = 0xff6ea3;
+const FRONT_LENGTH = GRIP_LENGTH * 1.5;
+/** Die beiden Widerhaken an der Spitze, damit es ein Pfeil und kein Strich ist. */
+const FRONT_BARB = 0.014;
+
+export function createGripFront(length = FRONT_LENGTH): THREE.LineSegments {
+  const tip = -length;
+  const barb = tip + FRONT_BARB;
+  const points = [
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, tip),
+    new THREE.Vector3(0, 0, tip),
+    new THREE.Vector3(-FRONT_BARB * 0.6, 0, barb),
+    new THREE.Vector3(0, 0, tip),
+    new THREE.Vector3(FRONT_BARB * 0.6, 0, barb),
+  ];
+  const line = new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints(points),
+    new THREE.LineBasicMaterial({ color: FRONT_COLOR, transparent: true, opacity: 0.9 }),
+  );
+  line.name = `${GRIP_NAME}-front`;
+  return line;
+}
+
+/**
+ * Hängt jedem Griff in einem Baum seine Vorne-Linie an — auch denen, die
+ * niemand über `createGrip` gebaut hat.
+ *
+ * Denn nicht jeder Griff kommt von dort: die Drohne setzt sich zwei an ihr
+ * Deck, und die zeigen genauso in eine Richtung. Gesucht wird deshalb die
+ * **Form** und nicht die Gruppe darum — sie ist das, was alle gemeinsam haben.
+ *
+ * Die Umkehrung der Querstauchung ist kein Zierrat: die Form ist in X
+ * gestaucht, damit der Zylinder eine Ellipse wird, und ohne sie stünden die
+ * Widerhaken des Pfeils schief.
+ *
+ * @returns die angehängten Linien, damit der Aufrufer sie wieder abräumen kann
+ */
+export function addGripFronts(root: THREE.Object3D, length?: number): THREE.LineSegments[] {
+  const shapes: THREE.Object3D[] = [];
+  root.traverse((object) => {
+    if (object.name === `${GRIP_NAME}-shape`) shapes.push(object);
+  });
+  return shapes.map((shape) => {
+    const line = createGripFront(length);
+    line.scale.x = 1 / (shape.scale.x || 1);
+    shape.add(line);
+    return line;
+  });
 }
 
 /**
@@ -97,6 +166,11 @@ export function createGripShape(options: GripOptions = {}): THREE.Mesh {
   );
   mesh.name = `${GRIP_NAME}-shape`;
   mesh.scale.x = (GRIP_WIDTH * factor) / depth;
+  if (options.front) {
+    const line = createGripFront();
+    line.scale.x = 1 / mesh.scale.x;
+    mesh.add(line);
+  }
   return mesh;
 }
 

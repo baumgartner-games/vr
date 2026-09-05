@@ -117,7 +117,10 @@ Achse bedient), der **zweite Justierstand**
 eine Werkzeug-Id, die es nicht mehr gibt) samt seiner **Rechnung**
 (`src/worlds/tune/handGrip.ts` — dass die Kette Griff → Werkzeug → Hand sich
 wirklich schließt und der Griff sich dabei herauskürzt, denn am Stand hält
-niemand etwas), der **Standardgriff**
+niemand etwas), die **Faust am Griff**
+(`src/core/gripHandPose.test.ts` — dass eine am Griff eingestellte Haltung für
+jedes Werkzeug mit diesem Griff gilt, eine für ein einzelnes Werkzeug aber
+darüber gewinnt), der **Standardgriff**
 (`src/worlds/portal/tools/gripFit.ts` — dass ein Griff bei *jeder* Haltung an
 derselben Stelle in der Faust landet und die Zielkorrektur sich dabei
 heraushebt, dass der Weg rückwärts derselbe ist, und die Abweichungen, mit
@@ -1645,15 +1648,75 @@ sagt eine Zahl: der Stabgriff steht mit **−59,2°** Pitch in der Hand, und die
 eingemessene *Faust* der Lampe hat **−59°**. Zwei getrennt gemessene Größen,
 dieselbe Zahl.
 
+**Und zwar an allem, was man in die Faust nimmt.** Lange trugen ihn nur die
+sieben Pistolenwerkzeuge und die beiden Stäbe, und der Rest hielt sich an
+irgendetwas fest — die Portalwaffen an einem selbstgebauten Kasten, der 0,2 rad
+nach hinten lehnte, Pinsel, Messband, Radiergummi, Stoppuhr und Röntgen-Scanner
+an gar nichts. Jetzt tragen sie alle den Standardgriff:
+
+| Griff | Werkzeuge |
+| --- | --- |
+| `pistol` | Griff, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Pinsel, Messband, Radiergummi, Röntgen-Scanner, Stoppuhr |
+| `rod` | Taschenlampe, Lötkolben, Hängegleiter |
+
+Der **Hängegleiter** baute seinen Stabgriff schon immer an, stand aber nie in
+`TOOL_GRIPS` — und bekam damit die allgemeine Faust statt der eingemessenen.
+Der **Röntgen-Scanner** hat dabei seinen Rahmen eine Handbreit nach oben
+bekommen: seine Öffnung lag auf dem Nullpunkt, also mitten in der Hand, und mit
+einem sichtbaren Griff stünde ein Zylinder im Bild. Der Scanbereich rechnet
+seitdem gegen den Rahmen-Knoten statt gegen das Werkzeug — `XrayScope` liest
+nur eine Weltmatrix, und das ist seine.
+
 Was **keinen** Standardgriff trägt, sagt das auch: der große **Hammer** hat
 einen Stiel, an dem jede Stelle ein Griff ist (siebenmal so lang wie eine
 Faust, deshalb ein glatter Zylinder ohne Ellipse und ohne Rillen — beide zeigen
 eine Richtung an, und hier gibt es keine), die **Drohne** zwei Griffe an einem
 Deck, das man mit zwei Fäusten wie eine Konsole hält. Beide tragen die
 Griff-*Form*, aber keine der beiden Standard-*Lagen*, und stehen deshalb nicht
-in `TOOL_GRIPS` — sie behalten ihre eigene Faust. Dass die Tabelle zu dem passt,
-was die Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie
-und legt das Maßband an.
+in `TOOL_GRIPS` — sie behalten ihre eigene Faust. Dazu die, die man gar nicht
+an einem Griff hält: der **Wurfstern** fliegt aus den Fingern, die drei
+**Handschuhe** und die **Flügel** werden angezogen, und **Boxhand** und
+**Controller** *sind* die Hand. Dass die Tabelle zu dem passt, was die
+Werkzeuge wirklich anbauen, misst `gripMount.test.ts` nach: es baut sie und
+legt das Maßband an — inzwischen einundzwanzig Stück.
+
+#### Die Faust gehört zum Griff
+
+Der eigentliche Gewinn steht nicht in der Geometrie, sondern im Speicher:
+**eine Faust gehört zu einem Griff und nicht zu einem Werkzeug.** Zwanzig
+Werkzeuge mit demselben Zylinder in derselben Hand haben *eine* Haltung und
+nicht zwanzig — wer sie zwanzigmal einstellt, stellt neunzehnmal dasselbe ein
+und einmal aus Versehen etwas anderes, und merkt es an dem einen.
+
+`holdHandPose` fragt deshalb in drei Stufen (`core/handPoseStore.ts`):
+
+1. die für **dieses Werkzeug** gespeicherte Haltung — sie ist die spätere und
+   genauere Auskunft und gewinnt;
+2. sonst die Haltung des **Standardgriffs**, den es trägt;
+3. sonst die **gebaute** (`defaultHoldPose`).
+
+Die Faust eines Griffs liegt dabei unter einer gewöhnlichen Werkzeug-Id
+(`GRIP_POSE_IDS` in `core/handPose.ts`): `grip` für den Pistolengriff,
+`grip-rod` für den Stabgriff. Keine neue Art von Schlüssel, und das ist
+Absicht — damit tragen Speicher, Konfig-Code und Kurzcode sie, ohne dass
+irgendwo ein Format wächst. Die Kette hält `core/gripHandPose.test.ts` fest,
+mit einem `localStorage` aus einer Map.
+
+Und `grip` ist zugleich ein **echtes Werkzeug**: der blanke Griff
+(`GripTool.ts`), ohne Lauf, Deck oder Rohr darum herum. Wer ihn in die Hand
+nimmt und daran einmisst, misst die Faust ein, die alle anderen daran erben.
+Er hat keinen Trigger und keine zweite Funktion — ein Griff tut nichts, das ist
+sein ganzer Sinn.
+
+**Wo vorne ist, sagt eine Linie.** Einem Zylinder sieht man nicht an, wie herum
+er in der Faust liegt; die drei Rillen sagen es, aber erst aus der Nähe. Also
+ein rosa Pfeil aus der Mitte des Griffs nach **-Z** (`createGripFront`), dorthin,
+wohin der Zeigefinger zeigt. Rosa, weil der Griff grün ist, die Hand hellblau
+und die Linie am Zeigefinger bernsteinfarben — die erste Fassung war grün auf
+grün und damit unsichtbar. Der Griff trägt sie über `GripOptions.front`; die
+Werkzeugseite hängt sie jedem Griff an, den sie findet (`addGripFronts`, auch
+den beiden am Drohnendeck). Die beiden Linien nebeneinander sind die ganze
+Auskunft beim Justieren: sind sie parallel, sitzt die Faust.
 
 Eine Grenze bleibt: was hier entsteht, ist die **gebaute** Lage. Wer ein
 Werkzeug am ersten Justierstand nachmisst, verschiebt es samt Griff gegen die

@@ -34,6 +34,9 @@ export class PortalGunTool extends Tool {
     const grab = grabKey ? (grabKey === 'a' ? COLOR_BLUE : COLOR_RED) : undefined;
     this.gun = new PortalGun(toolId, trigger, grab);
     this.add(this.gun);
+    // Der Standardgriff, wie an der Pistole: dieselbe Faust, dieselbe
+    // `holdPosition`, und damit nichts mehr, was je eigens einzumessen wäre.
+    this.mountGrip('pistol');
 
     this.icon = 'gun';
     this.accent = grabKey ? 0x9d7bff : trigger;

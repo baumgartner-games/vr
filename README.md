@@ -48,7 +48,8 @@ Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
 des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
-Haltung an derselben Stelle in der Faust landet, die Räumung nach dem
+Haltung an derselben Stelle in der Faust landet, die Faust am Griff (eine
+Einstellung für alle Werkzeuge mit demselben Griff), die Räumung nach dem
 Loslassen (ob ein Ding noch im Spieler steckt), den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
 Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus

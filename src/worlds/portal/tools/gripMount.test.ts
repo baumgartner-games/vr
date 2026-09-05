@@ -13,17 +13,25 @@
  * ihre Anzeige auf eine — die Attrappe unten schluckt das, ohne dass ein
  * Werkzeug etwas davon merkt.
  */
+import { BrushTool } from './BrushTool';
 import { DroneTool } from './DroneTool';
 import { DuplicatorTool } from './DuplicatorTool';
+import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
+import { GripTool } from './GripTool';
 import { HammerTool } from './HammerTool';
+import { HangGliderTool } from './HangGliderTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
 import { PistolTool } from './PistolTool';
+import { createPortalGunTool } from './PortalGunTool';
+import { StopwatchTool } from './StopwatchTool';
+import { TapeTool } from './TapeTool';
 import { TeleportTool } from './TeleportTool';
 import { TransformTool } from './TransformTool';
 import { WelderTool } from './WelderTool';
+import { XrayTool } from './XrayTool';
 import { GRIP_HOLD_POSITIONS, gripDeviation } from './gripFit';
 import { TOOL_GRIPS } from '../../../core/handPose';
 import type { Tool } from './Tool';
@@ -54,6 +62,7 @@ beforeAll(() => {
 });
 
 const BUILDERS: Record<string, () => Tool> = {
+  grip: () => new GripTool(),
   pistol: () => new PistolTool(),
   duplicator: () => new DuplicatorTool(),
   inspect: () => new InspectTool(),
@@ -61,8 +70,17 @@ const BUILDERS: Record<string, () => Tool> = {
   gizmo: () => new TransformTool(),
   holster: () => new HolsterTool(),
   grapple: () => new GrappleTool(),
+  'gun-blue': () => createPortalGunTool('gun-blue')!,
+  'gun-red': () => createPortalGunTool('gun-red')!,
+  'gun-dual': () => createPortalGunTool('gun-dual')!,
+  brush: () => new BrushTool(),
+  tape: () => new TapeTool(),
+  eraser: () => new EraserTool(),
+  xray: () => new XrayTool(),
+  stopwatch: () => new StopwatchTool(),
   flashlight: () => new FlashlightTool(),
   welder: () => new WelderTool(),
+  'hang-glider': () => new HangGliderTool(),
   hammer: () => new HammerTool(),
   drone: () => new DroneTool(),
 };

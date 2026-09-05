@@ -44,9 +44,11 @@ export class PortalGun extends THREE.Group {
     const back = this.mesh(new THREE.BoxGeometry(0.05, 0.06, 0.05), dark);
     back.position.set(0, 0, 0.035);
 
-    const grip = this.mesh(new THREE.BoxGeometry(0.036, 0.095, 0.05), dark);
-    grip.position.set(0, -0.07, 0.005);
-    grip.rotation.x = -0.2;
+    // Kein eigener Griff mehr: den baut `PortalGunTool` als **Standardgriff**
+    // an (`grip.ts`). Der Kasten hier lehnte 0,2 rad nach hinten und saß sieben
+    // Zentimeter tief — beides von Hand gesetzt, beides ein paar Grad neben dem,
+    // was die sechs anderen Pistolenwerkzeuge tragen, und genau daran passte
+    // dann keine gemeinsame Faust.
 
     const barrel = this.mesh(new THREE.CylinderGeometry(0.021, 0.026, 0.1, 14), shell);
     barrel.rotation.x = Math.PI / 2;

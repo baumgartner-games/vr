@@ -1,8 +1,11 @@
 import {
+  GRIP_POSE_IDS,
+  TOOL_GRIPS,
   defaultHoldPose,
   defaultIdlePose,
   handPoseFromArray,
   handPoseToArray,
+  type GripKind,
   type HandPose,
 } from './handPose';
 import type { Handedness } from './XRInput';
@@ -86,7 +89,29 @@ export function idleHandPose(hand: Handedness): HandPose {
 export function holdHandPose(hand: Handedness, toolId: string): HandPose {
   const fallback = defaultHoldPose(hand, toolId);
   const stored = read().hold?.[hand]?.[toolId];
-  return stored ? handPoseFromArray(stored, fallback) : fallback;
+  if (stored) return handPoseFromArray(stored, fallback);
+
+  // Kein eigener Wert — dann gilt die Faust des **Standardgriffs**, wenn dieses
+  // Werkzeug einen trägt. Das ist die ganze Idee hinter den Griffen: derselbe
+  // Zylinder in derselben Hand ist eine Haltung und nicht zwanzig, und wer sie
+  // am Griff einstellt, hat sie an jedem Werkzeug mit diesem Griff eingestellt.
+  // Eine Haltung, die trotzdem für genau ein Werkzeug gespeichert wurde, gewinnt
+  // darüber: sie ist die spätere und die genauere Auskunft.
+  const kind = TOOL_GRIPS[toolId];
+  const shared = kind ? read().hold?.[hand]?.[GRIP_POSE_IDS[kind]] : undefined;
+  return shared ? handPoseFromArray(shared, fallback) : fallback;
+}
+
+/**
+ * Die Faust an einem **Standardgriff** — die Haltung, die alle Werkzeuge mit
+ * diesem Griff erben.
+ *
+ * Sie liegt im selben Speicher wie jede andere Haltung, unter der Id aus
+ * `GRIP_POSE_IDS`; hier steht nur der Weg dorthin, damit ein Aufrufer nicht
+ * wissen muss, dass `grip` eine Werkzeug-Id ist.
+ */
+export function gripHandPose(hand: Handedness, kind: GripKind): HandPose {
+  return holdHandPose(hand, GRIP_POSE_IDS[kind]);
 }
 
 /** True while this exact pose was set by the player rather than built in. */

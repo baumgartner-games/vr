@@ -3,6 +3,7 @@ import { GhostHand } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
 import { createTool } from '../worlds/portal/tools';
 import { IDENTITY } from '../worlds/portal/tools/aim';
+import { addGripFronts } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import type { HoldPose, PoseReadout } from '../worlds/portal/tools/toolPose';
@@ -120,6 +121,8 @@ export class ToolViewer {
   private hand: GhostHand | null = null;
   /** Die Linie am Zeigefinger — sie hängt an der Hand und geht mit ihr. */
   private fingerLine: THREE.Line | null = null;
+  /** Und je eine je Griff: wohin dieser Griff zeigt. */
+  private gripFronts: THREE.LineSegments[] = [];
   private mode: HandMode = 'grip';
   private side: Handedness = 'right';
   /**
@@ -173,6 +176,11 @@ export class ToolViewer {
     if (!tool) return false;
     this.tool = tool;
     this.stage.add(tool);
+    // Wo an diesem Werkzeug vorne ist, sieht man am Griff — jedem Griff, den es
+    // trägt, auch den beiden am Drohnendeck. Einmal beim Aufstellen und nicht
+    // in `apply`: das läuft bei jedem Zug am Regler, und dann hinge nach zehn
+    // Sekunden ein Bündel Linien daran.
+    this.gripFronts = addGripFronts(tool);
     this.yaw = 0.6;
     this.pitch = 0.35;
     this.zoom = 1;
@@ -496,6 +504,15 @@ export class ToolViewer {
 
   private clear(): void {
     this.dropHand();
+    // Die Linien an den Griffen einzeln: `disposeTool` räumt ab, was das
+    // Werkzeug selbst gebaut hat, und eine Linie, die diese Seite drangehängt
+    // hat, gehört nicht dazu.
+    for (const line of this.gripFronts) {
+      line.removeFromParent();
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    }
+    this.gripFronts = [];
     this.world = null;
     this.studio.visible = true;
     const tool = this.tool;

@@ -23,6 +23,17 @@ export class XrayTool extends Tool {
   override readonly label = 'Röntgen-Scanner';
 
   private readonly scope = new XrayScope(FRAME_W, FRAME_H);
+  /**
+   * Der Rahmen als eigener Knoten, **über** der Faust.
+   *
+   * Vorher lag die Öffnung auf dem Nullpunkt des Werkzeugs, also mitten in der
+   * Hand — solange dort nur ein unsichtbarer Griffpunkt war, fiel das nicht
+   * auf. Mit dem Standardgriff stünde jetzt ein Zylinder im Bild, und durch
+   * einen Griff sieht man schlecht. Also hängt der Rahmen eine Handbreit
+   * darüber, und der Scanbereich rechnet gegen **diesen** Knoten statt gegen
+   * das Werkzeug: `XrayScope` liest nur eine Weltmatrix, und das ist seine.
+   */
+  private readonly frame = new THREE.Group();
   private scanning = true;
 
   constructor() {
@@ -31,7 +42,6 @@ export class XrayTool extends Tool {
     this.icon = 'xray';
     this.accent = 0x7ff0ff;
     this.hint = 'Vors Gesicht halten · Trigger schaltet den Scan';
-    this.holdPosition.set(0, 0.02, -0.02);
 
     const shell = new THREE.MeshStandardMaterial({
       color: 0x2b3346,
@@ -49,14 +59,19 @@ export class XrayTool extends Tool {
     ] as const) {
       const piece = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.014), shell);
       piece.position.set(x, y, 0);
-      this.add(piece);
+      this.frame.add(piece);
     }
+    this.frame.name = 'xray-frame';
+    this.frame.position.y = FRAME_H / 2 + 0.075;
+    this.add(this.frame);
 
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.02), shell);
-    handle.position.set(0, -FRAME_H / 2 - 0.05, 0);
-    this.add(handle);
+    // Der Griff war ein Kasten unter dem Rahmen, von Hand hingesetzt. Jetzt
+    // der Standardgriff, an der Stelle, an der er in der Faust landet — der
+    // Rahmen steht damit dort, wo ein gehaltener Rahmen steht, und die Faust
+    // ist dieselbe wie an allem anderen.
+    this.mountGrip('pistol', { length: 0.09 });
 
-    this.add(this.scope.glass);
+    this.frame.add(this.scope.glass);
   }
 
   override onTake(_controller: ControllerState, host: ToolHost): void {
@@ -87,7 +102,7 @@ export class XrayTool extends Tool {
       return;
     }
     host.ctx.rig.getHeadPosition(_eye);
-    this.scope.update(this, _eye, host.props());
+    this.scope.update(this.frame, _eye, host.props());
   }
 
   override disposeTool(): void {

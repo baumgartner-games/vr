@@ -5,6 +5,7 @@ import { DuplicatorTool } from './DuplicatorTool';
 import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
+import { GripTool } from './GripTool';
 import { HammerTool } from './HammerTool';
 import { HangGliderTool } from './HangGliderTool';
 import { HandTool } from './HandTool';
@@ -33,6 +34,9 @@ export const TOOL_IDS = [
   'gun-dual',
   'gizmo',
   'holster',
+  // Der blanke Griff: kein Werkzeug mit einem Griff, sondern der Griff selbst,
+  // zum Einstellen der Faust, die alle anderen daran erben.
+  'grip',
   'brush',
   'duplicator',
   'inspect',
@@ -84,6 +88,8 @@ function buildTool(id: string): Tool | null {
       return new TransformTool();
     case 'holster':
       return new HolsterTool();
+    case 'grip':
+      return new GripTool();
     case 'brush':
       return new BrushTool();
     case 'duplicator':
@@ -144,6 +150,7 @@ export {
   EraserTool,
   FlashlightTool,
   GrappleTool,
+  GripTool,
   GravityGloveTool,
   HammerTool,
   HandTool,
