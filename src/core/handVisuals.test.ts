@@ -112,6 +112,20 @@ describe('a ghost hand that follows the real one', () => {
     expect(closed.distanceTo(open)).toBeGreaterThan(0.01);
   });
 
+  it('nimmt die Finger allein an — sofort, ohne die Lage anzufassen', () => {
+    const ghost = new GhostHand('right', HOLD_HAND_POSE);
+    ghost.position.set(1, 2, -3);
+    ghost.updateMatrixWorld(true);
+    const before = ghost.indexTip.getWorldPosition(new THREE.Vector3());
+    // Der Zeigefinger gestreckt, alles andere wie in der Faust: das ist der
+    // Finger am Rahmen, den die Werkzeugseite bei losgelassenem Trigger zeigt.
+    ghost.setCurls([0.55, 0, 0.85, 0.9, 0.9]);
+    ghost.updateMatrixWorld(true);
+    const after = ghost.indexTip.getWorldPosition(new THREE.Vector3());
+    expect(after.distanceTo(before)).toBeGreaterThan(0.02);
+    expect(ghost.position.toArray()).toEqual([1, 2, -3]);
+  });
+
   it('remembers which way round it was built', () => {
     expect(new GhostHand('left', IDLE_HAND_POSE, { look: 'limbs' }).look).toBe('limbs');
     expect(new GhostHand('left', IDLE_HAND_POSE, { look: 'bones' }).look).toBe('bones');

@@ -331,7 +331,7 @@ export class SupermanGloveTool extends Tool {
   private setFist(host: ToolHost, closed: boolean): void {
     const side = this.heldBy ?? this.side;
     if (!side) return;
-    host.ctx.hands.setGestureOverride(side, closed ? 'grip' : null);
+    host.ctx.hands.setFist(side, closed);
   }
 
   private draw(): void {

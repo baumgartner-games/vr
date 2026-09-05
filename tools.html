@@ -31,6 +31,16 @@
         <button type="button" data-hand="tool">Am Werkzeug</button>
       </div>
       <!--
+        Und die beiden Knöpfe am Controller, die Finger bewegen: der Griffknopf
+        hält (losgelassen öffnet sich die Hand), der Trigger zieht den Finger
+        am Abzug — an der Stoppuhr den Daumen auf die Krone. Beide sind
+        Schalter, kein Umschalter: sie gelten unabhängig voneinander.
+      -->
+      <div id="fingers" class="seg top__seg" role="group" aria-label="Knöpfe am Controller" hidden>
+        <button type="button" data-button="grab" aria-pressed="true">Grab</button>
+        <button type="button" data-button="trigger" aria-pressed="false">Trigger</button>
+      </div>
+      <!--
         Mit Wort und nicht nur mit Stift: ein 38 Pixel großer Umriss in der Ecke
         ist auf einem Telefon zwischen Titel und Umschalter schlicht nicht zu
         finden — genau das war er auch nicht.

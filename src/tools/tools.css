@@ -135,7 +135,9 @@ html, body {
   /* Der Stift bleibt neben dem Titel und rutscht nicht vor ihn: „oben in der
      Ecke" ist die Stelle, an der man ihn sucht. */
   .top__edit { order: 1; }
-  .top__seg { order: 2; width: 100%; }
+  /* Beide Kästen teilen sich die zweite Zeile, und wenn sie nicht hineinpassen,
+     bekommt der zweite eine dritte. */
+  .top__seg { order: 2; flex: 1 1 auto; }
 }
 
 /* ---------- Schublade ---------- */

@@ -1643,6 +1643,29 @@ das prüft der Test zu `mirrorHandPose` in `src/core/handPose.ts`, und dieselbe
 Regel gilt für Werkzeug-Posen (`mirrorReadout`). _Auf die andere Hand
 spiegeln_ macht es für eine Haltung, _Links auf rechts spiegeln_ für alle.
 
+**Und die Knöpfe bewegen Finger.** Eine Haltung ist die Hand mit gedrücktem
+Griffknopf — so hält man ein Werkzeug. Darüber liegt, was die beiden Knöpfe am
+Controller tun (`FingerMoves`, `buttonCurls` in `handPose.ts`): der
+**Griffknopf** losgelassen öffnet die Hand vom Griff (`RELEASED_CURLS`, die
+Zahlen der Geste _ready_), der **Trigger** zieht einen Finger nach — am
+Standardgriff den Zeigefinger vom Rahmen auf den Abzug, am Stab und am Pinsel
+schließt er ihn in die Faust, und an der **Stoppuhr** ist es der **Daumen**:
+fast gestreckt liegt er von hinten oben auf der Krone (Krümmung 0,25, gemessen
+in `gripFist.test.ts`: die Kuppe liegt in Ruhe auf der Krone und geht beim
+Drücken hinunter), und der Trigger drückt ihn darauf. An den **Handschuhen**
+hält der Griffknopf nichts fest, er schließt die Faust (Superman fliegt mit
+ihr), losgelassen bleibt die Hand offen; am **Hängegleiter** und den Flügeln
+bleiben die Hände am Bügel, ob er gedrückt ist oder nicht. Eingestellt wird das
+**einmal je Griff** und nicht je Werkzeug (`TOOL_FINGER_MOVES` nur für die
+mit eigenem Griff, `fingerMovesOf` für alle) — derselbe Griff in derselben
+Hand hat denselben Abzug unter demselben Finger. Im Spiel rechnet
+`HandVisuals` das jedes Bild aus den Knöpfen des Controllers, auf der
+Werkzeugseite schalten die Knöpfe _Grab_ und _Trigger_ im Kopf dasselbe um.
+Die Faust, die ein Werkzeug selbst verlangt (Superman im Flug, der Hängegleiter
+in beiden Händen), läuft getrennt davon über `setFist`: die Geste _grip_, die
+die Welt jeder haltenden Hand gibt, wird von der Haltung des Werkzeugs
+abgedeckt, diese hier gewinnt darüber.
+
 ### Handmodell: Boxhand oder weißer Handschuh
 
 Wie die Hand **aussieht**, ist seit dieser Runde eine Einstellung
@@ -2446,6 +2469,15 @@ Bezugspunkte:
   der Brille: „so halte ich das Ding."
 - **Am Werkzeug** — der _Werkzeugraum_: das Werkzeug steht still, die Hand liegt
   daran. Das Bild vom zweiten Justierstand: „so umfasst die Hand es."
+
+Daneben stehen **Grab** und **Trigger** — die beiden Knöpfe am Controller, als
+Schalter, unabhängig voneinander. Gehalten wird mit gedrücktem Griffknopf, so
+fängt die Seite an; Trigger dazu, und der Zeigefinger zieht ihn, an der
+Stoppuhr der Daumen die Krone; Grab weg, und die Hand öffnet sich vom Griff —
+dieselbe Rechnung wie in der Brille (`buttonCurls`, siehe _Handhaltung_). Nur
+die Finger bewegen sich, die Hand bleibt liegen. Beim Justieren gilt immer die
+haltende Hand: der Regler richtet die Linie des Zeigefingers aus, und ein
+Finger am Abzug zeigt woandershin als einer am Rahmen.
 
 Zwischen beiden liegt dieselbe Messung; unterschiedlich ist nur, welches von
 beiden aufrecht steht. Am Werkzeug sieht man, ob der Griff in der Faust sitzt,

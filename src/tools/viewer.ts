@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GhostHand, handColor } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
+import { HELD_BUTTONS, buttonCurls, fingerMovesOf, type FingerButtons } from '../core/handPose';
 import { createTool } from '../worlds/portal/tools';
 import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
 import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
@@ -237,6 +238,8 @@ export class ToolViewer {
   /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
   private aimLine: THREE.LineSegments | null = null;
   private mode: HandMode = 'grip';
+  /** Was die Knöpfe gerade tun — Griffknopf gedrückt, Trigger nicht, wie beim Halten. */
+  private buttons: FingerButtons = HELD_BUTTONS;
   private side: Handedness = 'right';
   /** Wie schnell sich das Gezeigte von selbst dreht — eine Welt langsamer. */
   private spin = IDLE_SPIN;
@@ -456,6 +459,23 @@ export class ToolViewer {
     if (this.mode === mode) return;
     this.mode = mode;
     this.apply();
+  }
+
+  /**
+   * **Griffknopf und Trigger** an der Hand auf der Bühne: der Zeigefinger am
+   * Abzug, der Daumen auf der Krone der Stoppuhr, die Hand, die den Griff
+   * loslässt — dieselbe Rechnung wie in der Brille (`buttonCurls`). Nur die
+   * Finger bewegen sich; die Hand bleibt, wo sie liegt.
+   */
+  setButtons(buttons: FingerButtons): void {
+    this.buttons = buttons;
+    if (this.tool && this.hand) this.hand.setCurls(this.curlsFor(this.tool));
+  }
+
+  /** Die Finger dieser Hand an diesem Werkzeug bei den Knöpfen, die gerade gelten. */
+  private curlsFor(tool: Tool): number[] {
+    const pose = holdHandPose(this.side, tool.toolId);
+    return buttonCurls(pose, fingerMovesOf(tool.toolId), this.buttons);
   }
 
   /** Welches Werkzeug auf der Bühne steht — der Editor fragt danach. */
@@ -690,6 +710,7 @@ export class ToolViewer {
 
     if (this.mode !== 'off') {
       const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 0.9 });
+      hand.setCurls(this.curlsFor(tool));
       const at = this.mode === 'tool' ? ghostOnTool(local, poseOfHand(pose)) : poseOfHand(pose);
       hand.position.set(at.position.x, at.position.y, at.position.z);
       hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);

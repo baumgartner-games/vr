@@ -285,7 +285,7 @@ export abstract class GlideTool extends Tool {
   /** Die Faust schließen oder öffnen — beim Fliegen liegen beide Hände am Gerät. */
   protected setGesture(host: ToolHost, side: Handedness | null, fist: boolean): void {
     if (!side) return;
-    host.ctx.hands.setGestureOverride(side, fist ? 'grip' : null);
+    host.ctx.hands.setFist(side, fist);
   }
 
   protected get host(): ToolHost | null {

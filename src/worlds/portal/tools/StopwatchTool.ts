@@ -26,8 +26,8 @@ const RAMP = 0.55;
 /** Das Gehäuse: Halbmesser und Dicke. Es liegt mit seiner seitlichen Kante im Griffpunkt. */
 const RADIUS = 0.045;
 const THICKNESS = 0.016;
-/** Die Krone sitzt oben auf dem Gehäuse. */
-const CROWN_Y = RADIUS + 0.005;
+/** Die Krone sitzt oben auf dem Gehäuse — und der Daumen auf ihr (`gripFist.test.ts`). */
+export const CROWN_Y = RADIUS + 0.005;
 
 /**
  * Der **Rand als Griff**, im Rahmen jedes Griffs (`gripFit.ts`: Achse auf +Y,

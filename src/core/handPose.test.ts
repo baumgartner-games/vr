@@ -1,6 +1,16 @@
 import {
+  GRIP_FINGER_MOVES,
+  GRIP_HAND_POSE,
   HAND_FIELDS,
+  HELD_BUTTONS,
   HOLD_HAND_POSE,
+  RELEASED_CURLS,
+  STOPWATCH_FINGER_MOVES,
+  STOPWATCH_HAND_POSE,
+  WORN_FINGER_MOVES,
+  WORN_HAND_POSE,
+  buttonCurls,
+  fingerMovesOf,
   IDLE_HAND_POSE,
   IDLE_HAND_POSE_LEFT,
   defaultIdlePose,
@@ -123,5 +133,65 @@ describe('formatHandPose', () => {
     const text = formatHandPose(IDLE_HAND_POSE);
     expect(text).toContain('x 0');
     expect(text.split('/').length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('was die Knöpfe mit den Fingern tun', () => {
+  it('lässt die Haltung in Ruhe, solange nur der Griffknopf gedrückt ist', () => {
+    expect(buttonCurls(GRIP_HAND_POSE, GRIP_FINGER_MOVES, HELD_BUTTONS)).toEqual(
+      GRIP_HAND_POSE.curls,
+    );
+  });
+
+  it('zieht am Standardgriff den Zeigefinger auf den Abzug — und sonst keinen', () => {
+    const curls = buttonCurls(GRIP_HAND_POSE, GRIP_FINGER_MOVES, { grab: true, trigger: true });
+    expect(curls[1]).toBeGreaterThan(GRIP_HAND_POSE.curls[1]!);
+    expect([curls[0], ...curls.slice(2)]).toEqual([
+      GRIP_HAND_POSE.curls[0],
+      ...GRIP_HAND_POSE.curls.slice(2),
+    ]);
+  });
+
+  it('öffnet die Hand vom Griff, wenn der Griffknopf aufgeht', () => {
+    expect(buttonCurls(GRIP_HAND_POSE, GRIP_FINGER_MOVES, { grab: false, trigger: false })).toEqual(
+      RELEASED_CURLS,
+    );
+  });
+
+  it('legt den Trigger über die geöffnete Hand', () => {
+    const curls = buttonCurls(GRIP_HAND_POSE, GRIP_FINGER_MOVES, { grab: false, trigger: true });
+    expect(curls[1]).toBe(GRIP_FINGER_MOVES.trigger[1]);
+    expect(curls[2]).toBe(RELEASED_CURLS[2]);
+  });
+
+  it('drückt an der Stoppuhr mit dem Daumen, nicht mit dem Zeigefinger', () => {
+    const curls = buttonCurls(STOPWATCH_HAND_POSE, STOPWATCH_FINGER_MOVES, {
+      grab: true,
+      trigger: true,
+    });
+    expect(curls[0]).toBeGreaterThan(STOPWATCH_HAND_POSE.curls[0]!);
+    expect(curls[1]).toBe(STOPWATCH_HAND_POSE.curls[1]);
+  });
+
+  it('schließt an einem Handschuh die Faust mit dem Griffknopf und lässt sie offen ohne ihn', () => {
+    const fist = buttonCurls(WORN_HAND_POSE, WORN_FINGER_MOVES, HELD_BUTTONS);
+    expect(fist[2]).toBeGreaterThan(0.8);
+    expect(buttonCurls(WORN_HAND_POSE, WORN_FINGER_MOVES, { grab: false, trigger: false })).toEqual(
+      WORN_HAND_POSE.curls,
+    );
+  });
+
+  it('schreibt nie in die Haltung, die es bekommt', () => {
+    const before = [...GRIP_HAND_POSE.curls];
+    buttonCurls(GRIP_HAND_POSE, GRIP_FINGER_MOVES, { grab: false, trigger: true });
+    expect(GRIP_HAND_POSE.curls).toEqual(before);
+  });
+
+  it('kennt für jedes Werkzeug eine Bewegung — am Standardgriff die des Griffs', () => {
+    expect(fingerMovesOf('pistol')).toBe(GRIP_FINGER_MOVES);
+    expect(fingerMovesOf('grip')).toBe(GRIP_FINGER_MOVES);
+    expect(fingerMovesOf('stopwatch')).toBe(STOPWATCH_FINGER_MOVES);
+    expect(fingerMovesOf('superman-glove')).toBe(WORN_FINGER_MOVES);
+    expect(fingerMovesOf(null)).toBe(GRIP_FINGER_MOVES);
   });
 });

@@ -240,7 +240,7 @@ export const STOPWATCH_HAND_POSE: HandPose = {
   pitch: 60,
   yaw: 55,
   roll: -180,
-  curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+  curls: [0.25, 0.85, 0.85, 0.9, 0.9],
 };
 
 /**
@@ -403,6 +403,152 @@ export function defaultHoldPose(hand: Handedness, toolId: string): HandPose {
   const fist = STANDARD_GRIP_TOOLS.has(toolId) ? GRIP_HAND_POSE : TOOL_FISTS[toolId];
   if (!fist) return clonePose(HOLD_HAND_POSE);
   return hand === 'right' ? clonePose(fist) : mirrorHandPose(fist);
+}
+
+/**
+ * **Was die Knöpfe mit den Fingern tun.**
+ *
+ * Eine Haltung sagt, wie die Faust um den Griff liegt — mit gedrücktem
+ * Griffknopf, denn so hält man ein Werkzeug. Zwei Knöpfe bewegen Finger
+ * darüber hinaus: der **Griffknopf** losgelassen öffnet die Hand vom Griff,
+ * und der **Trigger** zieht einen Finger nach — am Standardgriff den
+ * Zeigefinger auf den Abzug, an der Stoppuhr den Daumen auf die Krone. Je
+ * Finger steht eine Krümmung oder `null` für „bleibt, wie die Haltung sagt";
+ * `buttonCurls` legt das über die Haltung.
+ *
+ * Eingestellt wird das **einmal je Griff** und nicht je Werkzeug, aus
+ * demselben Grund wie die Faust selbst: derselbe Griff in derselben Hand hat
+ * denselben Abzug unter demselben Finger. Wo ein Werkzeug seinen eigenen
+ * Griff mitbringt, steht seine Bewegung neben seiner Faust
+ * (`TOOL_FINGER_MOVES`); alles andere teilt sich die des Standardgriffs.
+ */
+export type FingerCurls = readonly (number | null)[];
+
+export interface FingerMoves {
+  /** Griffknopf gedrückt: meist die Haltung selbst — an Handschuhen die Faust. */
+  grab: FingerCurls;
+  /** Griffknopf losgelassen: die Hand öffnet sich vom Griff. */
+  release: FingerCurls;
+  /** Trigger gedrückt: der Finger am Abzug. */
+  trigger: FingerCurls;
+}
+
+/** Die beiden Knöpfe, die Finger bewegen. */
+export interface FingerButtons {
+  grab: boolean;
+  trigger: boolean;
+}
+
+/** Ein Werkzeug in der Hand, ohne dass ein Finger etwas drückt. */
+export const HELD_BUTTONS: FingerButtons = { grab: true, trigger: false };
+
+/** Kein Finger rührt sich. */
+const KEEP: FingerCurls = [null, null, null, null, null];
+
+/**
+ * Die **geöffnete Hand** — dieselben Zahlen wie die Geste `ready` der Hand
+ * (`HandVisuals.ts`): etwas ist nah genug zum Zugreifen, die Finger sind noch
+ * nicht darum. Genau so sieht eine Hand aus, die den Griff eben losgelassen
+ * hat.
+ */
+export const RELEASED_CURLS: FingerCurls = [0.35, 0.4, 0.45, 0.5, 0.55];
+
+/**
+ * Am **Standardgriff**: der Zeigefinger liegt am Rahmen (`GRIP_HAND_POSE`)
+ * und krümmt sich auf den Abzug, wenn der Trigger kommt.
+ */
+export const GRIP_FINGER_MOVES: FingerMoves = {
+  grab: KEEP,
+  release: RELEASED_CURLS,
+  trigger: [null, 0.6, null, null, null],
+};
+
+/** Am **Stab** liegt der Zeigefinger schon in der Faust; der Trigger schließt ihn ganz. */
+export const POLE_FINGER_MOVES: FingerMoves = {
+  grab: KEEP,
+  release: RELEASED_CURLS,
+  trigger: [null, 1, null, null, null],
+};
+
+/** Am **Pinsel** liegt er am Stiel und schließt sich darum. */
+export const BRUSH_FINGER_MOVES: FingerMoves = {
+  grab: KEEP,
+  release: RELEASED_CURLS,
+  trigger: [null, 0.9, null, null, null],
+};
+
+/**
+ * An der **Stoppuhr** drückt der Trigger nicht den Zeigefinger, sondern den
+ * **Daumen**: fast gestreckt liegt er von hinten oben auf der Krone
+ * (`STOPWATCH_HAND_POSE`, Krümmung 0,25), und gekrümmt kommt seine Kuppe über
+ * die Krone nach vorn und unten — so drückt ein Zeitnehmer seine Uhr. Die
+ * Zahlen sind gemessen (`gripFist.test.ts`: die Kuppe liegt in Ruhe auf der
+ * Krone und geht beim Drücken hinunter), nicht geschätzt: bei 0,55, der
+ * Daumenkrümmung der anderen Fäuste, lag die Kuppe schon vor dem Blatt.
+ */
+export const STOPWATCH_FINGER_MOVES: FingerMoves = {
+  grab: KEEP,
+  release: RELEASED_CURLS,
+  trigger: [0.45, null, null, null, null],
+};
+
+/**
+ * **Angezogen** (Handschuhe): der Griffknopf hält nichts fest, er schließt die
+ * Faust — Superman fliegt mit ihr —, und losgelassen bleibt die Hand offen,
+ * wie die Grundhaltung sie zeigt.
+ */
+export const WORN_FINGER_MOVES: FingerMoves = {
+  grab: [0.55, 0.85, 0.85, 0.9, 0.9],
+  release: KEEP,
+  trigger: [null, 0.6, null, null, null],
+};
+
+/**
+ * **Klebrig** (Hängegleiter, Flügel): der Griffknopf ist ein Knopf des
+ * Werkzeugs und nicht das Halten — die Hände bleiben am Bügel, ob er gedrückt
+ * ist oder nicht.
+ */
+export const STICKY_FINGER_MOVES: FingerMoves = {
+  grab: KEEP,
+  release: KEEP,
+  trigger: [null, 0.6, null, null, null],
+};
+
+/** Die Werkzeuge, deren Finger sich anders bewegen als am Standardgriff. */
+export const TOOL_FINGER_MOVES: Readonly<Record<string, FingerMoves>> = {
+  hammer: POLE_FINGER_MOVES,
+  flashlight: POLE_FINGER_MOVES,
+  knife: POLE_FINGER_MOVES,
+  brush: BRUSH_FINGER_MOVES,
+  stopwatch: STOPWATCH_FINGER_MOVES,
+  'gravity-glove': WORN_FINGER_MOVES,
+  'translate-glove': WORN_FINGER_MOVES,
+  'superman-glove': WORN_FINGER_MOVES,
+  'hang-glider': STICKY_FINGER_MOVES,
+  wings: STICKY_FINGER_MOVES,
+  // Die Boxhand ist die Hand selbst: kein Griff, den sie loslassen könnte.
+  'hand-box': STICKY_FINGER_MOVES,
+};
+
+/** Wie sich die Finger an diesem Werkzeug bewegen — am Griff, den es trägt. */
+export function fingerMovesOf(toolId: string | null): FingerMoves {
+  return (toolId && TOOL_FINGER_MOVES[toolId]) || GRIP_FINGER_MOVES;
+}
+
+/**
+ * Die Krümmung der Finger bei diesen Knöpfen: die Haltung, darüber die Lage
+ * des Griffknopfs, darüber der Trigger. Was `null` sagt, bleibt.
+ */
+export function buttonCurls(pose: HandPose, moves: FingerMoves, buttons: FingerButtons): number[] {
+  const curls = clonePose(pose).curls;
+  const layers = [buttons.grab ? moves.grab : moves.release];
+  if (buttons.trigger) layers.push(moves.trigger);
+  for (const layer of layers) {
+    layer.forEach((curl, i) => {
+      if (curl !== null) curls[i] = curl;
+    });
+  }
+  return curls;
 }
 
 /** What the value editor offers, in the order it lists them. */

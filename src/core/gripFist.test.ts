@@ -35,8 +35,10 @@ import {
   HOLD_HAND_POSE,
   IDLE_HAND_POSE_RIGHT,
   POLE_HAND_POSE,
+  STOPWATCH_FINGER_MOVES,
   STOPWATCH_HAND_POSE,
   WORN_HAND_POSE,
+  buttonCurls,
   defaultHoldPose,
   type HandPose,
 } from './handPose';
@@ -59,6 +61,7 @@ import { BRUSH_GRIP, BrushTool } from '../worlds/portal/tools/BrushTool';
 import { KnifeTool } from '../worlds/portal/tools/KnifeTool';
 import { DRONE_GRIP, DroneTool } from '../worlds/portal/tools/DroneTool';
 import {
+  CROWN_Y,
   STOPWATCH_GRIP,
   STOPWATCH_TILT,
   StopwatchTool,
@@ -545,6 +548,59 @@ describe('die Faust um die Stoppuhr', () => {
       expect(Math.sign(shell.position.x)).toBe(mirror);
     },
   );
+});
+
+/**
+ * Die Kuppe des **Daumens** einer Hand in dieser Haltung, im Griffraum: das Ende
+ * seines zweiten Knochens, wie die Hand ihn zeichnet (`buildChain`).
+ */
+function thumbTip(pose: HandPose): THREE.Vector3 {
+  const ghost = new GhostHand('right', pose, { opacity: 1 });
+  ghost.position.set(pose.x / 100, pose.y / 100, pose.z / 100);
+  ghost.quaternion.copy(rotationOf(pose));
+  ghost.updateMatrixWorld(true);
+  const hand = ghost.children[0]!;
+  const root = hand.children.filter((child) => !(child as THREE.Mesh).isMesh)[0]!;
+  const first = root.children.find((child) => !(child as THREE.Mesh).isMesh)!;
+  const second = first.children.find((child) => !(child as THREE.Mesh).isMesh)!;
+  return new THREE.Vector3(0, 0, -0.028).applyMatrix4(second.matrixWorld);
+}
+
+describe('der Daumen auf der Krone der Stoppuhr', () => {
+  /**
+   * Die Krone der gehaltenen Uhr: oben auf dem Gehäuse, das je Hand zur Seite
+   * rückt — im Raum des Werkzeugs bei (±RADIUS, CROWN_Y, 0), ihr Scheitel 7 mm
+   * höher. Und der Weg zurück in diesen Raum.
+   */
+  function crown() {
+    const tool = hold(new StopwatchTool(), 'right');
+    const body = tool.children.find((child) => child.children.length > 3)!;
+    return {
+      top: new THREE.Vector3(body.position.x, CROWN_Y + 0.007, 0).applyMatrix4(tool.matrixWorld),
+      inTool: tool.matrixWorld.clone().invert(),
+    };
+  }
+
+  it('liegt in Ruhe auf ihr', () => {
+    const tip = thumbTip(STOPWATCH_HAND_POSE);
+    expect(tip.distanceTo(crown().top)).toBeLessThan(0.015);
+  });
+
+  it('drückt sie mit dem Trigger hinunter — die Kuppe geht tiefer, nicht der Zeigefinger', () => {
+    const pressed = {
+      ...STOPWATCH_HAND_POSE,
+      curls: buttonCurls(STOPWATCH_HAND_POSE, STOPWATCH_FINGER_MOVES, {
+        grab: true,
+        trigger: true,
+      }),
+    };
+    const { inTool } = crown();
+    const rest = thumbTip(STOPWATCH_HAND_POSE).applyMatrix4(inTool);
+    const down = thumbTip(pressed).applyMatrix4(inTool);
+    // Hinunter heißt entlang der Krone: -y des Werkzeugs, um mindestens 5 mm.
+    expect(rest.y - down.y).toBeGreaterThan(0.005);
+    expect(pressed.curls[1]).toBe(STOPWATCH_HAND_POSE.curls[1]);
+  });
 });
 
 describe('die Faust am Saum des Beutels', () => {

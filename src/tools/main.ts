@@ -4,7 +4,12 @@ import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
 import { WORLDS } from '../worlds';
 import { buildGate } from '../worlds/hub/HubWorld';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
-import { STANDARD_GRIP_TOOLS, type HandPose } from '../core/handPose';
+import {
+  HELD_BUTTONS,
+  STANDARD_GRIP_TOOLS,
+  type FingerButtons,
+  type HandPose,
+} from '../core/handPose';
 import { handLook, handLookLabel, nextHandLook, saveHandLook } from '../core/handLook';
 import {
   clearHandPoses,
@@ -97,6 +102,7 @@ const nav = document.querySelector<HTMLButtonElement>('#nav')!;
 const back = document.querySelector<HTMLButtonElement>('#back')!;
 const title = document.querySelector<HTMLElement>('#title')!;
 const hands = document.querySelector<HTMLElement>('#hands')!;
+const fingers = document.querySelector<HTMLElement>('#fingers')!;
 const drawer = document.querySelector<HTMLElement>('#drawer')!;
 const grids: Record<Section, HTMLElement> = {
   tools: document.querySelector<HTMLElement>('#grid-tools')!,
@@ -132,6 +138,7 @@ const look = document.querySelector<HTMLButtonElement>('#look')!;
 const wipeNote = document.querySelector<HTMLElement>('#wipe-note')!;
 
 const HAND_STORE = 'bgvr.toolPageHand';
+const BUTTONS_STORE = 'bgvr.toolPageButtons';
 const viewer = new ToolViewer(stage);
 
 const SECTION_TITLES: Record<Section, string> = {
@@ -448,6 +455,66 @@ function setMode(next: HandMode): void {
 function showMode(): void {
   for (const button of hands.querySelectorAll<HTMLButtonElement>('button')) {
     button.classList.toggle('is-active', button.dataset['hand'] === mode);
+  }
+}
+
+// --- Griffknopf und Trigger --------------------------------------------------
+
+/**
+ * Was die beiden Knöpfe am Controller gerade tun. Zu sehen ist es an den
+ * Fingern (`viewer.setButtons`): gehalten wird mit gedrücktem Griffknopf,
+ * und so fängt die Seite auch an — Trigger dazu, und der Zeigefinger zieht
+ * ihn, an der Stoppuhr der Daumen die Krone; Griffknopf weg, und die Hand
+ * öffnet sich vom Griff.
+ */
+let buttons: FingerButtons = readButtons();
+
+for (const button of fingers.querySelectorAll<HTMLButtonElement>('button')) {
+  button.addEventListener('click', () => {
+    const key = button.dataset['button'] as keyof FingerButtons;
+    setButtons({ ...buttons, [key]: !buttons[key] });
+  });
+}
+
+function readButtons(): FingerButtons {
+  try {
+    const stored = globalThis.localStorage?.getItem(BUTTONS_STORE);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<FingerButtons>;
+      return { grab: Boolean(parsed.grab), trigger: Boolean(parsed.trigger) };
+    }
+  } catch {
+    /* Privater Modus, kaputter Eintrag — dann eben die Hand am Griff. */
+  }
+  return { ...HELD_BUTTONS };
+}
+
+function setButtons(next: FingerButtons): void {
+  buttons = next;
+  try {
+    globalThis.localStorage?.setItem(BUTTONS_STORE, JSON.stringify(next));
+  } catch {
+    /* siehe oben */
+  }
+  showButtons();
+  applyButtons();
+}
+
+/**
+ * Was die Bühne zeigt: beim Justieren immer die haltende Hand. Der Regler
+ * richtet die Linie des Zeigefingers aus, und ein Finger am Abzug zeigt
+ * woandershin als einer am Rahmen — man justierte sonst an einem Finger, der
+ * gerade etwas anderes tut.
+ */
+function applyButtons(): void {
+  viewer.setButtons(editing ? HELD_BUTTONS : buttons);
+}
+
+function showButtons(): void {
+  for (const button of fingers.querySelectorAll<HTMLButtonElement>('button')) {
+    const on = buttons[button.dataset['button'] as keyof FingerButtons];
+    button.classList.toggle('is-active', on);
+    button.setAttribute('aria-pressed', String(on));
   }
 }
 
@@ -797,6 +864,8 @@ function setEditing(on: boolean): void {
   // der falsche Film ist. Deshalb weicht der Umschalter oben so lange und
   // kommt danach mit der Ansicht zurück, die vorher galt.
   hands.hidden = editing || viewer.toolId === null;
+  fingers.hidden = hands.hidden;
+  applyButtons();
   if (editing && mode !== 'tool') {
     wasMode ??= mode;
     setMode('tool');
@@ -1092,6 +1161,7 @@ function route(): void {
   lede.hidden = true;
   detail.hidden = false;
   hands.hidden = entry.section !== 'tools';
+  fingers.hidden = hands.hidden;
   back.hidden = false;
   nav.hidden = true;
   title.textContent = entry.label;
@@ -1102,7 +1172,9 @@ function route(): void {
   enter.hidden = !entry.enter;
   if (entry.enter) enter.href = entry.enter;
   showMode();
+  showButtons();
   viewer.setHandMode(mode);
+  applyButtons();
   entry.show();
   forgetDraft();
   showHandTool(true);
@@ -1127,6 +1199,7 @@ function showOverview(section: Section): void {
   // Der Wegweiser gehört zum Werkzeugregal und nur zu ihm.
   lede.hidden = section !== 'tools';
   hands.hidden = true;
+  fingers.hidden = true;
   back.hidden = true;
   nav.hidden = false;
   edit.hidden = true;

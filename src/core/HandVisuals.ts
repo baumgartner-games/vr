@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { ControllerState, Handedness, XRInput } from './XRInput';
 import { GRAB_GLOW } from './colors';
-import { clonePose, type HandPose } from './handPose';
+import { buttonCurls, clonePose, fingerMovesOf, type HandPose } from './handPose';
 import { holdHandPose, idleHandPose, onHandPoseChange } from './handPoseStore';
 import { handLook } from './handLook';
 import { buildGlove, type GloveFinger } from './gloveMesh';
@@ -181,13 +181,22 @@ class ProceduralHand extends THREE.Group {
     this.quaternion.setFromEuler(
       _euler.set(pose.pitch * DEG, pose.yaw * DEG, pose.roll * DEG, 'XYZ'),
     );
-    for (let i = 0; i < this.targets.length; i++) this.targets[i] = pose.curls[i] ?? 0;
+    this.setCurls(pose.curls);
     if (this.spread === pose.spread) return;
     this.spread = pose.spread;
     // Fanning out is a turn of the whole finger away from the middle one.
     for (let i = 0; i < this.fingerRoots.length; i++) {
       this.fingerRoots[i]!.rotation.y = -this.fans[i]! * pose.spread * DEG;
     }
+  }
+
+  /**
+   * Nur die Finger, ohne die Lage: was die Knöpfe aus der Haltung machen
+   * (`buttonCurls`) — der Zeigefinger am Abzug, die Hand, die den Griff
+   * loslässt. Auch das sind Ziele, keine Sprünge.
+   */
+  setCurls(curls: readonly number[]): void {
+    for (let i = 0; i < this.targets.length; i++) this.targets[i] = curls[i] ?? 0;
   }
 
   update(dt: number): void {
@@ -353,6 +362,16 @@ export class GhostHand extends THREE.Group {
     this.hand.setGesture(gesture);
   }
 
+  /**
+   * Die Finger allein, sofort dort: was die Knöpfe aus der Haltung machen
+   * (`buttonCurls`). Die Werkzeugseite zeigt damit den Zeigefinger am Abzug
+   * und die Hand, die den Griff loslässt.
+   */
+  setCurls(curls: readonly number[]): void {
+    this.hand.setCurls(curls);
+    this.hand.update(1);
+  }
+
   /** Lässt die Finger nachziehen — ohne das steht der Geist auf der Startpose. */
   update(dt: number): void {
     this.hand.update(dt);
@@ -376,6 +395,8 @@ export class HandVisuals extends THREE.Group {
   private readonly jointMeshes = new Map<THREE.Object3D, THREE.Mesh>();
   private readonly hands = new Map<ControllerState, ProceduralHand>();
   private readonly overrides = new Map<Handedness, HandGesture | null>();
+  /** Welche Hand ein Werkzeug zur **Faust** schließt — der Flug, nicht die Welt. */
+  private readonly fists = new Set<Handedness>();
   /** What each hand is carrying, so it can hold that tool its own way. */
   private readonly holding = new Map<Handedness, string | null>();
   /** Resolved poses, rebuilt whenever the settings change. */
@@ -424,6 +445,17 @@ export class HandVisuals extends THREE.Group {
   /** Forces a gesture, e.g. while a portal gun is held. */
   setGestureOverride(handedness: Handedness, gesture: HandGesture | null): void {
     this.overrides.set(handedness, gesture);
+  }
+
+  /**
+   * Die **Faust eines Werkzeugs**: Superman fliegt mit geschlossener Hand, am
+   * Hängegleiter liegen beide am Bügel. Getrennt von der Geste, die die Welt
+   * jeder haltenden Hand gibt: die wird von der Haltung des Werkzeugs
+   * abgedeckt (siehe `updateControllerHand`), diese hier gewinnt darüber.
+   */
+  setFist(handedness: Handedness, closed: boolean): void {
+    if (closed) this.fists.add(handedness);
+    else this.fists.delete(handedness);
   }
 
   /**
@@ -610,7 +642,20 @@ export class HandVisuals extends THREE.Group {
 
     // The dialled-in pose is the base; the short-lived gestures (pointing at
     // something, a thumbs-up) still win while they last.
-    hand.setPose(this.poseOf(controller.handedness));
+    const pose = this.poseOf(controller.handedness);
+    hand.setPose(pose);
+    // Und darüber, was die Knöpfe mit den Fingern tun: der Zeigefinger zieht
+    // den Abzug, an der Stoppuhr der Daumen die Krone, und eine Hand, deren
+    // Griffknopf aufgeht, öffnet sich vom Griff (`buttonCurls`).
+    const toolId = this.holding.get(controller.handedness) ?? null;
+    if (toolId) {
+      hand.setCurls(
+        buttonCurls(pose, fingerMovesOf(toolId), {
+          grab: controller.squeeze.pressed,
+          trigger: controller.trigger.pressed,
+        }),
+      );
+    }
     const forced = this.overrides.get(controller.handedness) ?? null;
     const gesture = this.gestureOf(controller);
     // `open` is the idle pose, and a hand that holds something wears the fist
@@ -624,6 +669,8 @@ export class HandVisuals extends THREE.Group {
       (gesture === 'open' && !forced) ||
       (gesture === 'grip' && Boolean(this.holding.get(controller.handedness)));
     if (gesture && !covered) hand.setGesture(gesture);
+    // Die Faust, die ein Werkzeug selbst verlangt, über allem.
+    if (this.fists.has(controller.handedness)) hand.setGesture('grip');
     hand.update(dt);
   }
 }
