@@ -166,11 +166,13 @@ der **Regler der Werkzeugseite**
 (`src/tools/poseEdit.ts` — die sechs Achsen, ihre Grenzen und dass ein Wert
 auf demselben Raster landet, auf dem auch gespeichert wird: ein Regler liefert
 0,30000000000000004, der Konfig-Code trüge 0,3, und die Seite zeigte eine
-dritte Zahl) samt dem Knopf daneben
-(`src/tools/alignGrip.ts` — dass die Fingerlinie hinterher wirklich auf der
+dritte Zahl) samt den Knöpfen daneben
+(`src/tools/alignHand.ts` — dass die Fingerlinie hinterher wirklich auf der
 Grifflinie liegt und nicht ungefähr, dass die Hand dabei nur so weit kippt, wie
-die beiden Richtungen auseinanderliegen, und dass die Gegenrichtung keine Hand
-aus lauter Nullen ergibt) und die **Hub-Auslegung**
+die beiden Richtungen auseinanderliegen, dass beim Schwenken in die Zielrichtung
+die Fingerspitze genau liegen bleibt, dass eine Drehung um sie herum sie auf
+ihrem Punkt hält, und dass die Gegenrichtung keine Hand aus lauter Nullen
+ergibt) und die **Hub-Auslegung**
 (`src/worlds/hub/hubLayout.ts` — dass ein voller Gang
 einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
 aufeinander stehen), die **Flächen der Würfel**
@@ -1750,7 +1752,12 @@ Werkzeugseite hängt sie jedem Griff an, den sie findet (`addGripFronts`, auch
 den beiden am Drohnendeck). Die beiden Linien nebeneinander sind die ganze
 Auskunft beim Justieren: sind sie parallel, sitzt die Faust. Auf der
 Werkzeugseite stellt ein Knopf genau das her (*Auf den Griff*, siehe
-*Bearbeiten auf der Werkzeugseite*).
+*Bearbeiten auf der Werkzeugseite*), und dort kommt eine dritte dazu: der
+**weiße Zielpfeil** aus dem Nullpunkt des Werkzeugs nach -Z. Auch der zeichnet
+nichts Neues — das eigene -Z eines gehaltenen Werkzeugs *ist* der Zeigestrahl
+(`tools/aim.ts`) —, er macht nur sichtbar, wonach geschossen und geleuchtet
+wird, und er hängt an dem, was wirklich zielt (`alignToAim`): Boxhand,
+Controller, Flügel und Beutel zeigen nirgendwohin und bekommen keinen.
 
 Eine Grenze bleibt: was hier entsteht, ist die **gebaute** Lage. Wer ein
 Werkzeug am ersten Justierstand nachmisst, verschiebt es samt Griff gegen die
@@ -2207,25 +2214,45 @@ Auf dem Schirm sehen beide gleich aus — dieselbe Hand wandert an dasselbe
 stehende Werkzeug. Der Unterschied liegt in der Brille, und deshalb steht er
 als Satz unter dem Regler und nicht nur als Knopfbeschriftung.
 
-**Und ein Knopf für die sechs auf einmal: *Auf den Griff*.** Im Bild stehen zwei
-Linien — die bernsteinfarbene am Zeigefinger und der rosa Pfeil am Griff —, und
-sie zur Deckung zu bringen ist das, worum es beim Justieren überhaupt geht.
-Sechs Achsen einzeln dorthin zu ziehen ist Arbeit für eine Rechnung: der Knopf
-legt die Hand so, dass **beide Linien eine sind** — gleiche Richtung, gleicher
-Ursprung, die Fingerspitze also im Mittelpunkt des Griffs und der Finger auf dem
-Pfeil. Gedreht wird dabei auf dem **kürzesten Bogen**: um die Linie herum bleibt
-ein Freiheitsgrad offen, den niemand vorgibt, also behält die Hand ihre Rolllage
-und kippt nur so weit, wie sie muss. Von dort aus versetzt der Regler weiter —
-der Knopf ist ein Anfang und kein Ergebnis.
+**Drei Linien, zwei Knöpfe, ein Drehpunkt.** Im Bild stehen drei Richtungen,
+und sie sind die eigentliche Auskunft beim Justieren: die **bernsteinfarbene**
+Linie am Zeigefinger (wohin die Hand zeigt), der **rosa** Pfeil am Griff (wohin
+der Griff zeigt) und der **weiße** Pfeil am Werkzeug (wohin es zielt — dazu
+gleich). Zwei davon zur Deckung zu bringen ist das, worum es geht, und es über
+sechs Achsen einzeln zu erwürgen ist Arbeit für eine Rechnung:
 
-Die Rechnung steht in `src/tools/alignGrip.ts` (mit Test, ohne three.js), die
-beiden Linien holt die Seite aus den Weltmatrizen der Bühne (`viewer.gripAim`)
-statt sie nachzurechnen: sie hängen an der Fingerspitze und am Griff, gehen also
-jede Krümmung und jeden Anbau mit, und damit ist ausgerichtet, was man auch
-sieht. Trägt ein Werkzeug **mehrere** Griffe — das Drohnendeck hat zwei —,
-gewinnt der, der der Fingerspitze am nächsten liegt; an einem Werkzeug ohne
-Standardgriff (Hammer, Handschuhe) gibt es den Knopf gar nicht erst, denn er
-könnte nichts tun. Geschrieben wird das Ergebnis wie jeder Regler-Wert: in das
+- **Auf den Griff** nimmt Richtung *und* Ursprung: die Fingerspitze landet im
+  Mittelpunkt des Griffs und der Finger auf dem rosa Pfeil.
+- **In Zielrichtung** nimmt nur die *Richtung*: die Fingerspitze bleibt liegen,
+  wo sie ist, und die Faust schwenkt um sie herum auf den weißen Pfeil. Denn ein
+  Ziel ist eine Richtung und kein Ort — der Nullpunkt eines Werkzeugs ist sein
+  Griffpunkt, und dort gehört keine Fingerspitze hin. Die beiden sind deshalb
+  keine Alternative, sondern ein **Weg**: erst auf den Griff, dann aufs Ziel.
+
+Gedreht wird beide Male auf dem **kürzesten Bogen** — um die Linie herum bleibt
+ein Freiheitsgrad offen, den niemand vorgibt, also behält die Hand ihre Rolllage
+und kippt nur so weit, wie sie muss.
+
+**Und der Regler dreht um die Fingerspitze**, nicht um das Handgelenk. Das ist
+der Rest desselben Gedankens: um das Handgelenk gedreht wandert die Spitze weg,
+und man hat die Linie, die man eben aufgelegt hat, mit dem ersten Grad Roll
+wieder heruntergedreht. Um die Spitze gedreht bleibt sie liegen, und man dreht
+die Faust *an ihr* — so wie man eine Hand um einen Griff dreht, den man schon
+hält. Yaw, Pitch und Roll ziehen die drei Versätze also mit; X, Y und Z schieben
+weiter, wie sie es immer taten, und verlegen dabei den Punkt. Festgehalten wird
+er für die ganze Ziehbewegung und nicht Bild für Bild neu genommen: gespeichert
+wird auf Zehntelzentimeter, und ein Punkt, der sich jedes Mal aus der gerundeten
+Lage neu ergibt, wandert über zweihundert Regler-Ticks um Millimeter davon.
+
+Die Rechnung zu allen dreien steht in `src/tools/alignHand.ts` (mit Test, ohne
+three.js), die Linien holt die Seite aus den Weltmatrizen der Bühne
+(`viewer.handAim`, `viewer.gripAim`, `viewer.toolAim`) statt sie nachzurechnen:
+sie hängen an der Fingerspitze, am Griff und am Werkzeug, gehen also jede
+Krümmung und jeden Anbau mit, und damit ist ausgerichtet, was man auch sieht.
+Trägt ein Werkzeug **mehrere** Griffe — das Drohnendeck hat zwei —, gewinnt der,
+der der Fingerspitze am nächsten liegt; ohne Standardgriff (Hammer, Handschuhe)
+gibt es den einen Knopf gar nicht erst, ohne Ziel (Boxhand, Controller, Flügel,
+Beutel) den anderen. Geschrieben wird das Ergebnis wie jeder Regler-Wert: in das
 gewählte Ziel, sofort, und auf demselben Raster (`clampPose`) — es gibt keinen
 zweiten Weg in den Speicher, auf dem andere Zahlen gelten.
 

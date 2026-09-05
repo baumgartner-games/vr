@@ -77,10 +77,20 @@ const FRONT_LENGTH = GRIP_LENGTH * 1.5;
 /** Die beiden Widerhaken an der Spitze, damit es ein Pfeil und kein Strich ist. */
 const FRONT_BARB = 0.014;
 
-export function createGripFront(length = FRONT_LENGTH): THREE.LineSegments {
+/**
+ * Die sechs Punkte eines Pfeils entlang **-Z**: der Schaft und die beiden
+ * Widerhaken.
+ *
+ * Einzeln zu haben, weil ein Pfeil, dessen Länge sich ändert, seine Geometrie
+ * neu bekommt statt skaliert zu werden — eine Skalierung zöge die Widerhaken
+ * mit in die Länge, und dann ist es kein Pfeil mehr, sondern eine Gabel. Die
+ * Werkzeugseite passt den **Zielpfeil** an die Größe dessen an, was auf der
+ * Bühne steht (`tools/viewer.ts`).
+ */
+export function arrowPoints(length: number): THREE.Vector3[] {
   const tip = -length;
   const barb = tip + FRONT_BARB;
-  const points = [
+  return [
     new THREE.Vector3(0, 0, 0),
     new THREE.Vector3(0, 0, tip),
     new THREE.Vector3(0, 0, tip),
@@ -88,10 +98,18 @@ export function createGripFront(length = FRONT_LENGTH): THREE.LineSegments {
     new THREE.Vector3(0, 0, tip),
     new THREE.Vector3(FRONT_BARB * 0.6, 0, barb),
   ];
-  const line = new THREE.LineSegments(
-    new THREE.BufferGeometry().setFromPoints(points),
-    new THREE.LineBasicMaterial({ color: FRONT_COLOR, transparent: true, opacity: 0.9 }),
+}
+
+/** Ein solcher Pfeil als Linie, in der Farbe dessen, was er sagt. */
+export function createArrow(color: number, length: number): THREE.LineSegments {
+  return new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints(arrowPoints(length)),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }),
   );
+}
+
+export function createGripFront(length = FRONT_LENGTH): THREE.LineSegments {
+  const line = createArrow(FRONT_COLOR, length);
   line.name = `${GRIP_NAME}-front`;
   return line;
 }

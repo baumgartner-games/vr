@@ -39,8 +39,9 @@ import {
   type EditAxis,
   type EditTarget,
 } from './poseEdit';
-import { alignHandToGrip } from './alignGrip';
+import { alignHandToLine, handAboutPivot, turnHandTo } from './alignHand';
 import { ToolViewer, type HandMode } from './viewer';
+import type { Vec3 } from '../worlds/portal/tools/aim';
 import type { PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { WorldDefinition } from '../core/types';
 
@@ -108,6 +109,7 @@ const axesBar = document.querySelector<HTMLElement>('#axes')!;
 const editor = document.querySelector<HTMLElement>('#editor')!;
 const targets = document.querySelector<HTMLElement>('#targets')!;
 const align = document.querySelector<HTMLButtonElement>('#align')!;
+const aimAt = document.querySelector<HTMLButtonElement>('#aim')!;
 const revert = document.querySelector<HTMLButtonElement>('#revert')!;
 const slider = document.querySelector<HTMLInputElement>('#slider')!;
 const reading = document.querySelector<HTMLElement>('#reading')!;
@@ -491,20 +493,44 @@ for (const button of editor.querySelectorAll<HTMLButtonElement>('[data-nudge]'))
  * **Auf den Griff** — die Hand mit einem Tipp dorthin, wo der Griff sie haben
  * will.
  *
- * Im Bild stehen zwei Linien: die am Zeigefinger und die am Griff. Sie zur
- * Deckung zu bringen ist das, worum es beim Justieren geht — und es über sechs
- * Achsen einzeln zu erwürgen ist Arbeit, die eine Zeile Mathematik erledigt
- * (`alignGrip.ts`). Danach steht die Hand am Griff, und wer von dort aus noch
- * einen Zentimeter versetzen will, hat den Regler ja.
+ * Im Bild stehen drei Linien: die am Zeigefinger, der rosa Pfeil am Griff und
+ * der weiße am Ziel des Werkzeugs. Zwei davon zur Deckung zu bringen ist das,
+ * worum es beim Justieren geht — und es über sechs Achsen einzeln zu erwürgen
+ * ist Arbeit, die eine Zeile Mathematik erledigt (`alignHand.ts`). Dieser Knopf
+ * nimmt Richtung **und** Ursprung: die Fingerspitze landet im Mittelpunkt des
+ * Griffs und der Finger auf dem Pfeil.
  *
  * Geschrieben wird das Ergebnis wie jeder andere Wert: in das gewählte Ziel und
  * sofort. Der Knopf ist also nichts Eigenes neben dem Regler, sondern derselbe
  * Weg mit sechs Zahlen auf einmal.
  */
 align.addEventListener('click', () => {
-  const aim = viewer.gripAim();
-  if (!aim) return;
-  writePose(readPose(alignHandToGrip(aim.hand, aim.finger, aim.grip)));
+  const hand = viewer.handAim();
+  const grip = viewer.gripAim();
+  if (!hand || !grip) return;
+  forgetPivot();
+  writePose(readPose(alignHandToLine(hand.hand, hand.finger, grip)));
+});
+
+/**
+ * **In Zielrichtung** — dieselbe Hand, auf den weißen Pfeil geschwenkt.
+ *
+ * Nur die **Richtung**, und das ist der Unterschied zum Knopf daneben: ein Ziel
+ * ist eine Richtung und kein Ort. Der Nullpunkt eines Werkzeugs ist sein
+ * Griffpunkt — dorthin gehört keine Fingerspitze —, also bleibt die Spitze
+ * liegen, wo sie ist, und die Faust dreht sich um sie herum, bis der Finger
+ * dorthin zeigt, wohin das Werkzeug zielt.
+ *
+ * Damit sind die beiden Knöpfe ein Weg und keine Alternative: erst *Auf den
+ * Griff* (das setzt den Ort), dann *In Zielrichtung* (das setzt die Richtung),
+ * und danach dreht man mit Roll die Faust um genau diese Linie.
+ */
+aimAt.addEventListener('click', () => {
+  const hand = viewer.handAim();
+  const aim = viewer.toolAim();
+  if (!hand || !aim) return;
+  forgetPivot();
+  writePose(readPose(turnHandTo(hand.hand, hand.finger, aim.direction)));
 });
 
 revert.addEventListener('click', () => {
@@ -625,6 +651,30 @@ function currentPose(): PoseReadout {
 /** Der Entwurf gilt für ein Werkzeug; ein anderes fängt beim Speicher an. */
 function forgetDraft(): void {
   draft = null;
+  forgetPivot();
+}
+
+/**
+ * **Der Drehpunkt: die Fingerspitze.**
+ *
+ * Yaw, Pitch und Roll drehen die Hand um den Punkt, an dem ihre Linie anfängt,
+ * und nicht um ihr Handgelenk. Der Unterschied ist der ganze Justiervorgang:
+ * um das Handgelenk gedreht wandert die Spitze weg — man hat die Linie eben
+ * noch auf den Griff gelegt und dreht sie mit dem ersten Grad Roll wieder
+ * herunter. Um die Spitze gedreht bleibt die Linie liegen, und man dreht die
+ * Faust *an ihr*, so wie man eine Hand um einen Griff dreht, den man schon hält.
+ *
+ * Festgehalten wird der Punkt für die ganze Ziehbewegung und nicht Bild für
+ * Bild neu genommen: gespeichert wird auf Zehntelzentimeter, und ein Punkt, der
+ * sich jedes Mal aus der gerundeten Lage neu ergibt, wandert über zweihundert
+ * Regler-Ticks um einige Millimeter davon. Vergessen wird er, sobald etwas
+ * anderes die Hand bewegt — ein Versatz, ein Knopf, ein Werkzeugwechsel —, denn
+ * dann liegt die Spitze woanders.
+ */
+let pivot: Vec3 | null = null;
+
+function forgetPivot(): void {
+  pivot = null;
 }
 
 /**
@@ -649,7 +699,27 @@ function showHandTool(refit = false): void {
  */
 function writeAxis(value: number, syncSlider = true): void {
   // Die neue Lage der **Hand am Werkzeug** — das ist es, was der Regler sagt.
-  writePose(withAxis(currentPose(), axis, clampAxis(axis, value)), syncSlider);
+  const next = withAxis(currentPose(), axis, clampAxis(axis, value));
+  // Ein Winkel dreht um die Fingerspitze; ein Versatz schiebt die Hand und
+  // verlegt damit genau den Punkt, um den gedreht würde.
+  const turning = axisSpec(axis).unit === '°';
+  if (!turning) forgetPivot();
+  writePose(turning ? aboutFingertip(next) : next, syncSlider);
+}
+
+/**
+ * Dieselbe Drehung, aber um die Fingerspitze statt um das Handgelenk — und die
+ * drei Versätze so nachgezogen, dass die Spitze dabei liegen bleibt.
+ *
+ * Gerechnet wird an der Hand, die wirklich auf der Bühne steht (`handAim`), und
+ * nicht am gerundeten Entwurf: die Linie, die liegen bleiben soll, ist die
+ * gezeichnete.
+ */
+function aboutFingertip(next: PoseReadout): PoseReadout {
+  const aim = viewer.handAim();
+  if (!aim) return next;
+  pivot ??= aim.finger.origin;
+  return readPose(handAboutPivot(aim.hand, aim.finger, poseFromReadout(next).rotation, pivot));
 }
 
 /**
@@ -719,9 +789,11 @@ function showEditor(syncSlider = true): void {
     slider.value = String(value);
   }
 
-  // Den Knopf gibt es nur, wo es auch einen Griff gibt: an einem Hammer wäre
-  // *Auf den Griff* ein Knopf, der nichts tun kann.
+  // Die beiden Knöpfe gibt es nur, wo es auch etwas auszurichten gibt: an einem
+  // Hammer wäre *Auf den Griff* ein Knopf, der nichts tun kann, und die Boxhand
+  // zielt nirgendwohin.
   align.hidden = !viewer.hasGrip;
+  aimAt.hidden = !viewer.hasAim;
 
   const targetHint = EDIT_TARGETS.find((entry) => entry.key === target);
   reading.textContent = `${spec.label} ${formatAxis(axis, value)} · ${spec.hint}`;

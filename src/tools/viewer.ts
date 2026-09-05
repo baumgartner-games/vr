@@ -3,10 +3,10 @@ import { GhostHand } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
 import { createTool } from '../worlds/portal/tools';
 import { IDENTITY } from '../worlds/portal/tools/aim';
-import { addGripFronts } from '../worlds/portal/tools/grip';
+import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
-import type { Ray } from './alignGrip';
+import type { Ray } from './alignHand';
 import type { Pose } from '../worlds/tune/handGrip';
 import type { HoldPose, PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { Tool } from '../worlds/portal/tools/Tool';
@@ -95,6 +95,30 @@ const FINGER_LINE_SCALE = 4;
 const FINGER_LINE_MIN = 0.12;
 const FINGER_LINE_MAX = 0.9;
 
+/**
+ * **Wohin das Werkzeug zielt**, als Pfeil: aus seinem Nullpunkt nach -Z.
+ *
+ * Dass es -Z ist, ist keine Setzung dieser Seite, sondern die Regel des Spiels:
+ * ein gehaltenes Werkzeug wird aus dem Griff auf den Zeigestrahl gedreht, und
+ * von da an *ist* sein eigenes -Z die Zielrichtung (`tools/aim.ts`). Der Pfeil
+ * zeichnet also nichts Neues — er macht das sichtbar, wonach ohnehin
+ * geschossen, geleuchtet und gegriffen wird. Er hängt an denen, die wirklich
+ * zielen (`alignToAim`); Boxhand, Controller, Flügel und Beutel zeigen
+ * nirgendwohin und bekommen deshalb keinen.
+ *
+ * **Weiß**, denn die anderen Farben sind vergeben: der Griff grün, sein Pfeil
+ * rosa, die Hand hellblau und ihre Linie bernsteinfarben. Weiß liest sich
+ * daneben wie ein Laserstrahl, und genau das ist gemeint.
+ *
+ * Etwas länger als die Fingerlinie, damit die beiden auch dann noch
+ * auseinanderzuhalten sind, wenn sie übereinanderliegen — das ist ja der
+ * Zustand, den man herstellen will.
+ */
+const AIM_LINE_COLOR = 0xf2f6ff;
+const AIM_LINE_SCALE = 5;
+const AIM_LINE_MIN = 0.16;
+const AIM_LINE_MAX = 1.1;
+
 const _box = new THREE.Box3();
 const _bounds = new THREE.Box3();
 const _centre = new THREE.Vector3();
@@ -150,6 +174,8 @@ export class ToolViewer {
   private fingerLine: THREE.Line | null = null;
   /** Und je eine je Griff: wohin dieser Griff zeigt. */
   private gripFronts: THREE.LineSegments[] = [];
+  /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
+  private aimLine: THREE.LineSegments | null = null;
   private mode: HandMode = 'grip';
   private side: Handedness = 'right';
   /** Wie schnell sich das Gezeigte von selbst dreht — eine Welt langsamer. */
@@ -221,6 +247,14 @@ export class ToolViewer {
     // in `apply`: das läuft bei jedem Zug am Regler, und dann hinge nach zehn
     // Sekunden ein Bündel Linien daran.
     this.gripFronts = addGripFronts(tool);
+    // Und der Zielpfeil, sofern dieses Werkzeug zielt: am Werkzeug selbst und in
+    // seinem Nullpunkt, denn dort steht der Strahl, auf den es gedreht wird.
+    if (tool.alignToAim) {
+      const line = createArrow(AIM_LINE_COLOR, AIM_LINE_MIN);
+      line.name = 'tool-aim';
+      tool.add(line);
+      this.aimLine = line;
+    }
     this.flat = false;
     this.home = { yaw: 0.6, pitch: 0.35 };
     this.yaw = this.home.yaw;
@@ -348,45 +382,27 @@ export class ToolViewer {
     return this.gripFronts.length > 0;
   }
 
+  /** Und ob es zielt — dann gibt es den weißen Pfeil und den Knopf dazu. */
+  get hasAim(): boolean {
+    return this.aimLine !== null;
+  }
+
   /**
-   * Die beiden Linien, die man beim Justieren vergleicht — und die Hand dazu.
+   * **Die Hand und ihre Linie**, im Raum des Werkzeugs — die Größe, an der der
+   * Regler zieht (`ghostOnTool`).
    *
-   * Alles drei im **Raum des Werkzeugs**, denn das ist die Größe, an der der
-   * Regler zieht (`ghostOnTool`). Genommen wird es aus den Weltmatrizen und
-   * nicht nachgerechnet: die Linien hängen an der Fingerspitze und am Griff,
-   * gehen also jede Krümmung und jeden Anbau mit, und was hier herauskommt, ist
-   * genau das, was auf dem Schirm steht.
-   *
-   * Trägt ein Werkzeug **mehrere** Griffe (das Drohnendeck hat zwei), gewinnt
-   * der, der der Fingerspitze am nächsten liegt — man richtet an dem Griff aus,
-   * an dem die Hand schon ungefähr liegt, und nicht am erstbesten im Baum.
+   * Genommen aus den Weltmatrizen und nicht nachgerechnet: die Linie hängt an
+   * der Fingerspitze, geht also jede Krümmung mit, und was hier herauskommt,
+   * ist genau das, was auf dem Schirm steht. Wer die Hand daran ausrichtet,
+   * richtet sie an dem aus, was er sieht.
    */
-  gripAim(): { hand: Pose; finger: Ray; grip: Ray } | null {
+  handAim(): { hand: Pose; finger: Ray } | null {
     const tool = this.tool;
     const hand = this.hand;
     const finger = this.fingerLine;
-    if (!tool || !hand || !finger || this.gripFronts.length === 0) return null;
-
-    this.stage.updateWorldMatrix(true, true);
-    _inverse.copy(tool.matrixWorld).invert();
-
+    if (!tool || !hand || !finger) return null;
+    this.intoTool(tool);
     const line = rayIn(finger);
-    let nearest: Ray | null = null;
-    let closest = Infinity;
-    for (const front of this.gripFronts) {
-      const ray = rayIn(front);
-      const gap = Math.hypot(
-        ray.origin.x - line.origin.x,
-        ray.origin.y - line.origin.y,
-        ray.origin.z - line.origin.z,
-      );
-      if (gap < closest) {
-        closest = gap;
-        nearest = ray;
-      }
-    }
-    if (!nearest) return null;
-
     _local.multiplyMatrices(_inverse, hand.matrixWorld).decompose(_at, _quat, _scale);
     return {
       hand: {
@@ -394,8 +410,48 @@ export class ToolViewer {
         rotation: { x: _quat.x, y: _quat.y, z: _quat.z, w: _quat.w },
       },
       finger: line,
-      grip: nearest,
     };
+  }
+
+  /**
+   * Der Pfeil am **Griff**, ebenfalls im Raum des Werkzeugs.
+   *
+   * Trägt ein Werkzeug **mehrere** Griffe (das Drohnendeck hat zwei), gewinnt
+   * der, der der Fingerspitze am nächsten liegt — man richtet an dem Griff aus,
+   * an dem die Hand schon ungefähr liegt, und nicht am erstbesten im Baum.
+   */
+  gripAim(): Ray | null {
+    const tool = this.tool;
+    const finger = this.fingerLine;
+    if (!tool || this.gripFronts.length === 0) return null;
+    this.intoTool(tool);
+    const from = finger ? rayIn(finger).origin : { x: 0, y: 0, z: 0 };
+    let nearest: Ray | null = null;
+    let closest = Infinity;
+    for (const front of this.gripFronts) {
+      const ray = rayIn(front);
+      const gap = Math.hypot(ray.origin.x - from.x, ray.origin.y - from.y, ray.origin.z - from.z);
+      if (gap < closest) {
+        closest = gap;
+        nearest = ray;
+      }
+    }
+    return nearest;
+  }
+
+  /** Und der **Zielpfeil** des Werkzeugs: sein Nullpunkt, sein -Z. */
+  toolAim(): Ray | null {
+    const tool = this.tool;
+    const line = this.aimLine;
+    if (!tool || !line) return null;
+    this.intoTool(tool);
+    return rayIn(line);
+  }
+
+  /** Frische Matrizen, und der Weg aus der Bühne in den Raum des Werkzeugs. */
+  private intoTool(tool: Tool): void {
+    this.stage.updateWorldMatrix(true, true);
+    _inverse.copy(tool.matrixWorld).invert();
   }
 
   /** Im Speicher steht eine neue Handhaltung: Hand noch einmal hinstellen. */
@@ -486,7 +542,7 @@ export class ToolViewer {
     }
 
     if (refit) this.fit();
-    this.sizeFingerLine();
+    this.sizeLines();
   }
 
   /**
@@ -516,14 +572,27 @@ export class ToolViewer {
     this.fingerLine = line;
   }
 
-  /** Ihre Länge, sobald feststeht, wie groß das Gezeigte ist. */
-  private sizeFingerLine(): void {
-    if (!this.fingerLine) return;
-    const length = Math.min(
-      FINGER_LINE_MAX,
-      Math.max(FINGER_LINE_MIN, this.radius * FINGER_LINE_SCALE),
-    );
-    this.fingerLine.scale.z = length;
+  /**
+   * Die Längen der beiden gezeichneten Richtungen, sobald feststeht, wie groß
+   * das Gezeigte ist.
+   *
+   * Beide als Vielfaches des Halbmessers und beide geklemmt: eine feste Länge
+   * wäre am Hängegleiter ein Strich und an der Pistole ein Faden. Die
+   * Fingerlinie wird dabei **skaliert** — sie ist ein Strich, dem das nichts
+   * tut —, der Zielpfeil bekommt seine Punkte **neu**: eine Skalierung zöge
+   * seine Widerhaken mit in die Länge, und dann wäre er kein Pfeil mehr.
+   */
+  private sizeLines(): void {
+    if (this.fingerLine) {
+      this.fingerLine.scale.z = Math.min(
+        FINGER_LINE_MAX,
+        Math.max(FINGER_LINE_MIN, this.radius * FINGER_LINE_SCALE),
+      );
+    }
+    if (this.aimLine) {
+      const length = Math.min(AIM_LINE_MAX, Math.max(AIM_LINE_MIN, this.radius * AIM_LINE_SCALE));
+      this.aimLine.geometry.setFromPoints(arrowPoints(length));
+    }
   }
 
   /**
@@ -654,6 +723,13 @@ export class ToolViewer {
       (line.material as THREE.Material).dispose();
     }
     this.gripFronts = [];
+    const aim = this.aimLine;
+    this.aimLine = null;
+    if (aim) {
+      aim.removeFromParent();
+      aim.geometry.dispose();
+      (aim.material as THREE.Material).dispose();
+    }
     this.studio.visible = true;
     this.spin = IDLE_SPIN;
     this.setCut(null);
@@ -775,7 +851,7 @@ export class ToolViewer {
     this.zoom = 1;
     this.spinning = true;
     this.fit();
-    this.sizeFingerLine();
+    this.sizeLines();
   }
 }
 

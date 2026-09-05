@@ -148,7 +148,8 @@ export function clampAxis(axis: EditAxis, value: number): number {
  * Alle sechs Achsen auf einmal geklemmt — eine Pose, wie sie gespeichert wird.
  *
  * Für alles, was eine Handlage nicht Zahl für Zahl zieht, sondern in einem
- * Stück ausrechnet (der Knopf *Auf den Griff*, `alignGrip.ts`): dieselben
+ * Stück ausrechnet (die Knöpfe *Auf den Griff* und *In Zielrichtung*,
+ * `alignHand.ts`): dieselben
  * Grenzen und dasselbe Raster wie am Regler, damit es keinen zweiten Weg in den
  * Speicher gibt, auf dem andere Zahlen gelten.
  */
