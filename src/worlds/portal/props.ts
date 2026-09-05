@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { DICE, createDie, type DieKind } from './dice';
 import type { ColliderShape } from '../../physics/PhysicsWorld';
 import type { MenuIcon } from '../../ui/menu';
+import { BODY_RADIUS, BOTTLE_HEIGHT, CHAMPAGNE_GRIP, buildChampagne } from './champagne';
+import type { PropGrip } from './propGrip';
 
 /** Everything the magic bag can conjure. The name travels over the network. */
 export type PropKind =
@@ -16,6 +18,7 @@ export type PropKind =
   | 'ramp'
   | 'rod'
   | 'marble'
+  | 'champagne'
   | DieKind;
 
 /**
@@ -41,6 +44,7 @@ export const BAG_ITEMS: ReadonlyArray<readonly [PropKind, string, MenuIcon]> = [
   ['ramp', 'Rampe', 'ramp'],
   ['rod', 'Stab', 'rod'],
   ['marble', 'Murmel', 'marble'],
+  ['champagne', 'Sekt', 'bottle'],
   ['d4', 'W4', 'd4'],
   ['d6', 'W6', 'd6'],
   ['d8', 'W8', 'd8'],
@@ -68,6 +72,7 @@ export const PROP_LABELS: Record<PropKind, string> = {
   ramp: 'Rampe',
   rod: 'Stab',
   marble: 'Murmel',
+  champagne: 'Sektflasche',
   d4: DICE.d4.label,
   d6: DICE.d6.label,
   d8: DICE.d8.label,
@@ -149,6 +154,15 @@ export function createDominoes(count: number, accent: number): THREE.Mesh[] {
   return dominoes;
 }
 
+/**
+ * Welche Sorten einen **Griff** tragen (`propGrip.ts`) — als Tabelle und nicht
+ * nur im Bauplan, weil die Welt beim Zugreifen nur die Sorte eines Dings
+ * kennt und dafür keines bauen soll.
+ */
+export const PROP_GRIPS: Partial<Record<PropKind, PropGrip>> = {
+  champagne: CHAMPAGNE_GRIP,
+};
+
 /** Mesh plus the physics the bag should give it. */
 export interface PropBlueprint {
   mesh: THREE.Mesh;
@@ -162,6 +176,12 @@ export interface PropBlueprint {
    * gedämpften Wert — eine Murmel und ein Würfel wollen mehr davon.
    */
   restitution?: number;
+  /**
+   * Ein **Griff**, wenn das Ding einen hat (`propGrip.ts`): dann rastet es
+   * beim Zugreifen damit in die Faust, statt dort zu bleiben, wo die Hand es
+   * berührt hat — aufrecht oder über Kopf, je nachdem, wie es gerade lag.
+   */
+  grip?: PropGrip;
   label: string;
 }
 
@@ -349,6 +369,19 @@ function buildProp(kind: PropKind): Omit<PropBlueprint, 'label'> {
         halfExtents: new THREE.Vector3(radius, radius, radius),
         restitution: 0.45,
         ccd: true,
+      };
+    }
+    case 'champagne': {
+      // Der Collider ist der Bauch: ein Zylinder so hoch wie die Flasche. Der
+      // Hals ist dünner, aber ein Collider aus zwei Teilen ist für ein Ding,
+      // das umfällt und rollt, nicht die Mühe wert.
+      const { mesh } = buildChampagne();
+      return {
+        mesh,
+        mass: 1.4,
+        shape: { kind: 'cylinder' },
+        halfExtents: new THREE.Vector3(BODY_RADIUS, BOTTLE_HEIGHT / 2, BODY_RADIUS),
+        grip: CHAMPAGNE_GRIP,
       };
     }
     case 'd4':

@@ -82,9 +82,12 @@ import {
   createDominoes,
   createPropShape,
   DOMINO_SIZE,
+  PROP_GRIPS,
   PROP_LABELS,
   type PropKind,
 } from './props';
+import { snapToGrip } from './propGrip';
+import { CORK_LENGTH, CORK_NAME, CORK_RADIUS, CORK_SPEED, Foam, ShakeMeter } from './champagne';
 import {
   DEFAULT_NEAR_HEIGHT,
   DEFAULT_NEAR_RADIUS,
@@ -117,7 +120,7 @@ import {
 import { handLook, handLookLabel, nextHandLook, saveHandLook } from '../../core/handLook';
 import { GhostHand } from '../../core/HandVisuals';
 import { TextPlane } from '../../ui/TextPlane';
-import { playPick } from '../../core/Audio';
+import { playPick, playPop } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
 import { LANDING_CLEARANCE, needsRescue, rescueHeight } from '../shared/fallRescue';
 import {
@@ -414,6 +417,14 @@ interface HandGrab {
    * Nullpunkt für die Geste, die ihn doch noch herbeiholt.
    */
   near: NearGrab | null;
+  /**
+   * Unter welcher Id die Hand ihre Haltung dazu trägt: die Sorte, wenn das
+   * Ding einen Griff hat (`propGrip.ts`) — dann ist es die Faust um den Stab —,
+   * sonst `null` für die allgemeine Objekthaltung (`GRAB_POSE_ID`).
+   */
+  poseId: string | null;
+  /** Misst das Schütteln, solange die Flasche noch ihren Korken hat. */
+  shake: ShakeMeter | null;
 }
 
 /**
@@ -513,6 +524,8 @@ export class PortalWorld implements World {
   /** Keyed by hand, plus a `:far` probe for the half that is through a portal. */
   private readonly probes = new Map<string, HandProbe>();
   private readonly grabs = new Map<Handedness, HandGrab>();
+  /** Der Schaum geknallter Flaschen, solange er fällt. */
+  private readonly foams: Foam[] = [];
   private readonly spawned = new Set<PhysicsBody>();
   private readonly flights = new Map<PhysicsBody, Flight>();
   private readonly links = new Map<Handedness, RemoteLink>();
@@ -694,6 +707,7 @@ export class PortalWorld implements World {
 
     this.updateTools(dt, ctx);
     this.updateGrabs(dt, ctx);
+    this.updateFoam(dt);
     this.updateGhosts(ctx);
     this.updateHandProbes(ctx);
     this.handleReset(ctx);
@@ -2040,6 +2054,8 @@ export class PortalWorld implements World {
   }
 
   dispose(ctx: WorldContext): void {
+    for (const foam of this.foams) foam.dispose();
+    this.foams.length = 0;
     if (this.canvas) {
       if (this.flatFire) this.canvas.removeEventListener('mousedown', this.flatFire);
       if (this.blockContextMenu) {
@@ -4320,6 +4336,12 @@ export class PortalWorld implements World {
       .sub(grab.lastPosition)
       .divideScalar(Math.max(dt, 1 / 120));
     grab.lastPosition.copy(_point);
+    // Geschüttelt? Dann knallt der Korken — nur aus der Hand, nicht aus der Ferne.
+    if (!near && grab.shake?.feed(grab.velocity, dt)) {
+      grab.shake = null;
+      this.popCork(grab.entry, grab.velocity, true);
+      controller.pulse(0.9, 70);
+    }
     grab.entry.body.setNextKinematicTranslation({ x: _point.x, y: _point.y, z: _point.z });
     grab.entry.body.setNextKinematicRotation({
       x: _quaternion.x,
@@ -4560,13 +4582,32 @@ export class PortalWorld implements World {
       .copy(anchor.matrixWorld)
       .invert()
       .multiply(entry.object.matrixWorld);
-    entry.object.getWorldPosition(_point);
+    // Ein Ding mit **Griff** bleibt nicht, wo die Hand es berührt hat: sein
+    // Zylinder rastet in die Faust — der Flaschenhals in die Faust um den
+    // Stab —, aufrecht oder über Kopf, je nachdem, wie es gerade eher lag
+    // (`propGrip.ts`). Beim Nahgreifen nicht: da bleibt es liegen, und erst
+    // der Zug holt es her — und dann hierher, ohne `controller`.
+    const kind = (entry.object.userData as { propKind?: PropKind }).propKind ?? null;
+    const grip = kind ? PROP_GRIPS[kind] : undefined;
+    if (grip && !controller) {
+      const scale = new THREE.Vector3();
+      offset.decompose(_point, _quaternion, scale);
+      const snap = snapToGrip(_quaternion, grip);
+      offset.compose(snap.position, snap.rotation, scale);
+      anchor.updateWorldMatrix(true, false);
+      _point.setFromMatrixPosition(_matrix.multiplyMatrices(anchor.matrixWorld, offset));
+    } else {
+      entry.object.getWorldPosition(_point);
+    }
     this.grabs.set(hand, {
       entry,
       offset,
       lastPosition: _point.clone(),
       velocity: new THREE.Vector3(),
       near: controller ? this.nearGrabOf(controller, anchor, entry) : null,
+      poseId: grip ? kind : null,
+      shake:
+        kind === 'champagne' && entry.object.getObjectByName(CORK_NAME) ? new ShakeMeter() : null,
     });
 
     const id = this.idOf(entry);
@@ -4680,7 +4721,9 @@ export class PortalWorld implements World {
       // what `grab` is — and an empty hand goes back to the idle pose.
       ctx.hands.setHeldTool(
         hand,
-        this.held.get(hand)?.toolId ?? (this.grabs.has(hand) ? GRAB_POSE_ID : null),
+        this.held.get(hand)?.toolId ??
+          this.grabs.get(hand)?.poseId ??
+          (this.grabs.has(hand) ? GRAB_POSE_ID : null),
       );
       if (this.held.has(hand) || this.grabs.has(hand) || this.links.has(hand)) {
         ctx.hands.setGestureOverride(hand, 'grip');
@@ -4748,6 +4791,76 @@ export class PortalWorld implements World {
     }
     ctx.notify(PROP_LABELS[kind]);
     return caught;
+  }
+
+  /**
+   * **Der Korken knallt.**
+   *
+   * Der Korken löst sich vom Hals und wird ein eigener Körper: er fliegt die
+   * Halsachse hinaus, mit der Flasche mit, und landet irgendwo als das kleine
+   * Ding, das er ist — man kann ihn aufheben. Dazu ein Schwall Schaum aus
+   * der Mündung (`Foam`) und der Knall. Die Flasche bleibt offen; eine neue
+   * kommt aus dem Beutel.
+   *
+   * Über das Netz geht nur *dass* es geknallt hat (`pop`): der Korken ist ein
+   * Effekt und kein geteilter Gegenstand, jede Seite lässt ihren eigenen
+   * fliegen. Wer später dazukommt, sieht die Flasche mit Korken — das ist der
+   * Preis dafür, dass der Zustand nirgends gespeichert wird.
+   *
+   * @param carry die Geschwindigkeit der Hand, die sie schüttelt — der Korken
+   *              nimmt sie mit; `null` bei einem fremden Knall.
+   */
+  private popCork(entry: PhysicsBody, carry: THREE.Vector3 | null, broadcast: boolean): void {
+    const physics = this.physics;
+    const cork = entry.object.getObjectByName(CORK_NAME) as THREE.Mesh | undefined;
+    if (!physics || !cork) return;
+    entry.object.updateWorldMatrix(true, true);
+    const at = cork.getWorldPosition(new THREE.Vector3());
+    const turn = cork.getWorldQuaternion(new THREE.Quaternion());
+    const out = new THREE.Vector3(0, 1, 0).applyQuaternion(turn);
+    cork.removeFromParent();
+    cork.position.copy(at);
+    cork.quaternion.copy(turn);
+    this.root.add(cork);
+    cork.updateWorldMatrix(true, false);
+
+    const flying = physics.addDynamic(cork, {
+      shape: { kind: 'cylinder' },
+      halfExtents: new THREE.Vector3(CORK_RADIUS, CORK_LENGTH / 2, CORK_RADIUS),
+      mass: 0.04,
+      friction: 0.6,
+      restitution: 0.3,
+      ccd: true,
+    });
+    const velocity = out.clone().multiplyScalar(CORK_SPEED);
+    if (carry) velocity.add(carry);
+    flying.body.setLinvel({ x: velocity.x, y: velocity.y, z: velocity.z }, true);
+    flying.body.setAngvel({ x: 6, y: 1, z: 4 }, true);
+    flying.previousPosition.copy(at);
+    // Wie der Nachbau ohne Bausatz: hier in dieser Sitzung, ohne Netz — und
+    // beim Aufräumen des Beutels mit weg.
+    this.props.push(flying);
+    this.spawned.add(flying);
+
+    const foam = new Foam(at, out);
+    this.root.add(foam);
+    this.foams.push(foam);
+    playPop();
+    this.context?.notify('Plopp!');
+    if (broadcast) {
+      const id = this.idOf(entry);
+      if (id) this.sync?.popped(id);
+    }
+  }
+
+  /** Der Schaum fällt, und wenn er verflogen ist, ist er weg. */
+  private updateFoam(dt: number): void {
+    for (let i = this.foams.length - 1; i >= 0; i--) {
+      const foam = this.foams[i]!;
+      if (foam.update(dt)) continue;
+      foam.dispose();
+      this.foams.splice(i, 1);
+    }
   }
 
   /** Builds a bag prop — locally conjured or mirrored from another player. */
@@ -5233,6 +5346,10 @@ export class PortalWorld implements World {
       paintRemote: (id, color, material) => {
         const entry = this.bodies.get(id);
         if (entry) this.styleProp(entry, { color, material }, false);
+      },
+      popRemote: (id) => {
+        const entry = this.bodies.get(id);
+        if (entry) this.popCork(entry, null, false);
       },
       onHands: (peerId, left, right) => this.remoteHands.set(peerId, { left, right }),
     });

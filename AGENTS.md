@@ -236,8 +236,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
-  Pyramide, Quader, Planke, Zylinder, Kegel, Rampe, Stab, Murmel und dem
-  **Würfelsatz** W4, W6, W8, W12, W20 — siehe _Was aus dem Beutel kommt_),
+  Pyramide, Quader, Planke, Zylinder, Kegel, Rampe, Stab, Murmel, Sektflasche
+  und dem **Würfelsatz** W4, W6, W8, W12, W20 — siehe _Was aus dem Beutel
+  kommt_),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Einstellungen** und
   die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
@@ -1150,6 +1151,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Inspektor                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                    | –                                                                                               | –                    |
 | Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
 | Radiergummi                        | Trigger löscht                                                                                                                                                        | –                                                                                               | –                    |
+| Sektflasche (aus dem Beutel)       | greifen: sie rastet am Hals in die Faust, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                                                    | –                                                                                               | –                    |
 | Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen: Greifen holt das Ding heraus                                                                             | –                                                                                               | –                    |
 | Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
 | Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
@@ -2285,6 +2287,42 @@ teilen sich in zwei Gruppen:
   einzige einen eigenen Rückprall im Bauplan).
 - **Der Würfelsatz**: die **fünf platonischen Körper** als W4, W6, W8, W12 und
   W20, gebaut in `worlds/portal/dice.ts`.
+- **Die Sektflasche** (`worlds/portal/champagne.ts`): das erste Ding, das man
+  nicht anfasst, sondern **hält**, und das erste, das etwas **tut** — siehe
+  unten.
+
+**Ein Griff an einem Ding aus dem Beutel.** Ein Werkzeug kommt vom Gürtel in
+die Hand und liegt dort, wie seine Haltung es sagt; ein Ding aus dem Beutel
+wird _angefasst_: die Hand schließt sich, wo sie es berührt, und es bleibt, wie
+es lag. Für einen Würfel ist das richtig, für eine Flasche nicht — die fasst
+man am **Hals**. Also kann ein Beutel-Objekt einen **Griff** tragen
+(`worlds/portal/propGrip.ts`, `PROP_GRIPS` in `props.ts`): einen Zylinder in
+seinem eigenen Raum, und beim Zugreifen rastet der in die Faust — in dieselbe,
+die den Hammerstiel hält (`POLE_FIST`, `POLE_HAND_POSE`; die Hand trägt die
+Haltung unter der Sorte als Id, und `gripFist.test.ts` prüft, dass der Hals
+darin liegt). **Und ein Zylinder hat kein Oben**: die Flasche lässt sich
+aufrecht halten und **über Kopf**, am Hals gepackt wie eine Waffe. Welche Lage
+gilt, entscheidet die Hand beim Zugreifen — `snapToGrip` kippt die Achse in die
+nähere der beiden Richtungen und dreht sonst nichts, auch nicht um die Achse
+(mit Test). Das ist der Unterschied zu einem Werkzeug: das kommt beim ersten
+Griff immer in seiner einen Haltung; ein Ding mit Griff darf man drehen, wie man
+will, und der Griff nimmt es so. Beim **Nahgreifen** rastet nichts — da bleibt
+das Ding liegen und folgt der Hand von dort; erst der Zug holt es her, und dann
+rastet es. Ein Objekt ohne Eintrag in `PROP_GRIPS` verhält sich wie immer.
+
+**Und der Korken knallt.** Geschüttelt wird gemessen, nicht geraten
+(`ShakeMeter`, mit Test): nicht die Geschwindigkeit der Hand — ein Wurf ist
+schnell und kein Schütteln —, sondern wie oft und wie hart sie die **Richtung
+wechselt**, aufsummiert mit Verfall; ein Ruck allein reicht nicht, ein paar in
+einer Sekunde reichen, und eine vorsichtig getragene Flasche knallt nie. Dann
+löst sich der Korken vom Hals und wird ein eigener kleiner Körper, der die
+Halsachse hinausfliegt und irgendwo liegen bleibt (man kann ihn aufheben),
+dazu ein Schwall Schaum aus der Mündung (`Foam`, Punkte statt Kugeln) und der
+Knall (`playPop`). Die Flasche bleibt offen; eine neue kommt aus dem Beutel.
+Über das Netz geht nur _dass_ es geknallt hat (`pop` in `PortalSync.ts`): der
+Korken ist ein Effekt und kein geteilter Gegenstand, jede Seite lässt ihren
+eigenen fliegen. Wer später dazukommt, sieht die Flasche mit Korken — der Preis
+dafür, dass der Zustand nirgends gespeichert wird.
 
 Am Würfelsatz hängen zwei Dinge, die es vorher nicht gab.
 

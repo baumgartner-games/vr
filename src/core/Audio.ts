@@ -126,6 +126,13 @@ export function playPick(up: boolean): void {
   });
 }
 
+/** Der Korken einer Sektflasche: der Knall, der Schlag darunter, das Zischen danach. */
+export function playPop(): void {
+  playTone({ type: 'square', from: 1500, to: 320, duration: 0.05, gain: 0.09 });
+  playTone({ type: 'sine', from: 200, to: 60, duration: 0.14, gain: 0.08 });
+  playTone({ type: 'sawtooth', from: 2800, to: 1600, duration: 0.55, gain: 0.012, delay: 0.04 });
+}
+
 /** A light switch, a torch: the plastic click, up and down. */
 export function playSwitch(on: boolean): void {
   playTone({

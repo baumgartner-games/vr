@@ -62,6 +62,8 @@ type Message =
    * das Material, wie es war, und nur die Farbe wechselt.
    */
   | { t: 'paint'; id: string; color: number; material?: string | null }
+  /** Somebody shook a champagne bottle until the cork flew — it flies everywhere. */
+  | { t: 'pop'; id: string }
   | { t: 'hands'; left: HandBusy; right: HandBusy };
 
 export interface PortalSyncOptions {
@@ -90,6 +92,8 @@ export interface PortalSyncOptions {
   resetRemote(): void;
   /** Somebody else repainted a prop. */
   paintRemote(id: string, color: number, material?: string | null): void;
+  /** Somebody else popped the cork of a bottle. */
+  popRemote(id: string): void;
   /** What the peers are holding, for the hand attachments. */
   onHands(peerId: string, left: HandBusy, right: HandBusy): void;
 }
@@ -235,6 +239,12 @@ export class PortalSync {
   painted(id: string, color: number, material?: string | null): void {
     if (this.alone) return;
     this.send({ t: 'paint', id, color, material });
+  }
+
+  /** The cork of a bottle flew — everybody gets the bang. */
+  popped(id: string): void {
+    if (this.alone) return;
+    this.send({ t: 'pop', id });
   }
 
   /** Tools and props in the local hands, sent only when they change. */
@@ -442,6 +452,10 @@ export class PortalSync {
       }
       case 'paint': {
         this.options.paintRemote(message.id, message.color, message.material);
+        break;
+      }
+      case 'pop': {
+        this.options.popRemote(message.id);
         break;
       }
       case 'hands': {

@@ -47,6 +47,7 @@ export type MenuIcon =
   | 'ramp'
   | 'rod'
   | 'marble'
+  | 'bottle'
   // Die fünf platonischen Körper: gezeichnet wird jeder als das Vieleck, als
   // das man ihn von vorn sieht — ein W20 ist ein Sechseck mit einem Dreieck
   // darin, und genau so erkennt man ihn auch im Raster wieder.
@@ -824,6 +825,24 @@ export function drawMenuIcon(
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(-s * 0.16, -s * 0.06, s * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'bottle': {
+      // Die Flasche von der Seite: Bauch, Schulter, Hals — und der Korken obenauf.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.32, s * 0.8);
+      ctx.lineTo(s * 0.32, s * 0.8);
+      ctx.lineTo(s * 0.32, s * 0.05);
+      ctx.quadraticCurveTo(s * 0.32, -s * 0.2, s * 0.12, -s * 0.3);
+      ctx.lineTo(s * 0.12, -s * 0.72);
+      ctx.lineTo(-s * 0.12, -s * 0.72);
+      ctx.lineTo(-s * 0.12, -s * 0.3);
+      ctx.quadraticCurveTo(-s * 0.32, -s * 0.2, -s * 0.32, s * 0.05);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.16, -s * 0.9, s * 0.32, s * 0.2, s * 0.06);
       ctx.fill();
       break;
     }

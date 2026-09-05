@@ -68,6 +68,8 @@ import {
 } from '../worlds/portal/tools/StopwatchTool';
 import { BAG_GRIP, MagicBagTool } from '../worlds/portal/tools/MagicBagTool';
 import { SupermanGloveTool } from '../worlds/portal/tools/SupermanGloveTool';
+import { snapToGrip } from '../worlds/portal/propGrip';
+import { CHAMPAGNE_GRIP } from '../worlds/portal/champagne';
 import type { Tool } from '../worlds/portal/tools/Tool';
 
 /** Eine Leinwand, die alles annimmt und nichts tut — die Pistole malt sich ihr
@@ -600,6 +602,33 @@ describe('der Daumen auf der Krone der Stoppuhr', () => {
     // Hinunter heißt entlang der Krone: -y des Werkzeugs, um mindestens 5 mm.
     expect(rest.y - down.y).toBeGreaterThan(0.005);
     expect(pressed.curls[1]).toBe(STOPWATCH_HAND_POSE.curls[1]);
+  });
+});
+
+describe('die Faust am Hals der Sektflasche', () => {
+  // Kein Werkzeug, ein Ding aus dem Beutel — aber mit Griff: beim Zugreifen
+  // rastet der Hals in die Faust um den Stab (`propGrip.ts`), und die Hand
+  // trägt dazu dieselbe Haltung wie am Hammer. Beides muss zusammenpassen,
+  // sonst hielte die Hand den Hals daneben.
+  it.each(['right', 'left'] as const)('liegt um den Hals, aufrecht wie über Kopf: %s', (side) => {
+    const pose = defaultHoldPose(side, 'champagne');
+    expect(pose).toEqual(defaultHoldPose(side, 'hammer'));
+    const fist = fistOf(pose, fistCentre(POLE_HAND_POSE));
+    for (const flip of [0, Math.PI]) {
+      const current = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), flip);
+      const snap = snapToGrip(current, CHAMPAGNE_GRIP);
+      const neck = {
+        centre: CHAMPAGNE_GRIP.centre.clone().applyQuaternion(snap.rotation).add(snap.position),
+        axis: CHAMPAGNE_GRIP.axis.clone().applyQuaternion(snap.rotation),
+      };
+      // Die Faust ist für rechts gerechnet; links ist ihre Spiegelung, und
+      // der Griffraum ist nicht gespiegelt — also der Hals gespiegelt an ihn.
+      if (side === 'left') {
+        neck.centre.x = -neck.centre.x;
+        neck.axis.x = -neck.axis.x;
+      }
+      expectFistOn(fist, neck);
+    }
   });
 });
 

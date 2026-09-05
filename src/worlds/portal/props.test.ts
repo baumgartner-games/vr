@@ -1,4 +1,4 @@
-import { BAG_ITEMS, PROP_LABELS, type PropKind } from './props';
+import { BAG_ITEMS, PROP_GRIPS, PROP_LABELS, createPropShape, type PropKind } from './props';
 
 /**
  * Der Beutel hat zwei Listen — was er anbietet und wie es heißt —, und sie
@@ -28,5 +28,21 @@ describe('BAG_ITEMS', () => {
     for (const kind of ['d4', 'd6', 'd8', 'd12', 'd20'] as const) {
       expect(PROP_LABELS[kind]).toMatch(/^W\d+ · /);
     }
+  });
+});
+
+describe('die Griffe der Beutel-Objekte', () => {
+  it('stehen in der Tabelle und im Bauplan gleich', () => {
+    // Nicht jede Sorte lässt sich ohne Browser bauen (der Würfel malt sich
+    // seine Zahlen auf eine Leinwand); die mit Griff und ein Stab reichen.
+    for (const kind of ['champagne', 'rod', 'sphere'] as const) {
+      const blueprint = createPropShape(kind);
+      expect(blueprint.grip ?? null).toBe(PROP_GRIPS[kind] ?? null);
+    }
+  });
+
+  it('gibt der Sektflasche einen — und dem Würfel keinen', () => {
+    expect(PROP_GRIPS.champagne).toBeDefined();
+    expect(PROP_GRIPS.cube).toBeUndefined();
   });
 });

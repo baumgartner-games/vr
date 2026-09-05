@@ -336,6 +336,10 @@ export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
   'superman-glove': WORN_HAND_POSE,
   'controller-left': CONTROLLER_HAND_POSE,
   'controller-right': CONTROLLER_HAND_POSE,
+  // Kein Werkzeug, ein Ding aus dem Beutel — aber eines mit Griff: der Hals
+  // der Sektflasche rastet in die Faust um den Stab (`propGrip.ts`), und
+  // die Hand trägt sie unter der Sorte als Id.
+  champagne: POLE_HAND_POSE,
 };
 
 /**
@@ -519,6 +523,7 @@ export const TOOL_FINGER_MOVES: Readonly<Record<string, FingerMoves>> = {
   hammer: POLE_FINGER_MOVES,
   flashlight: POLE_FINGER_MOVES,
   knife: POLE_FINGER_MOVES,
+  champagne: POLE_FINGER_MOVES,
   brush: BRUSH_FINGER_MOVES,
   stopwatch: STOPWATCH_FINGER_MOVES,
   'gravity-glove': WORN_FINGER_MOVES,
