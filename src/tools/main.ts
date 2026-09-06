@@ -1,7 +1,10 @@
 import './tools.css';
+import type * as THREE from 'three';
 import { TOOL_IDS, createTool, disposeToolTree } from '../worlds/portal/tools';
 import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
 import { NPC_SKINS } from '../worlds/npc/npcKinds';
+import { NPC_BAR_MODES } from '../worlds/npc/NpcBody';
+import { NAV_LAYERS } from '../worlds/nav/navLayers';
 import { BRAINS } from '../worlds/npc/npcBrains';
 import { NpcBody } from '../worlds/npc/NpcBody';
 import { createBrainShape } from '../worlds/npc/brainShape';
@@ -48,7 +51,7 @@ import {
   type EditTarget,
 } from './poseEdit';
 import { alignHandToLine, handAboutPivot, turnHandTo } from './alignHand';
-import { ToolViewer, type HandMode } from './viewer';
+import { ToolViewer, type HandMode, type StagePick } from './viewer';
 import { TOOL_HOME } from './handStage';
 import { LiveHand, LiveLink } from './liveHand';
 import { rememberedName, rememberedRoom } from '../net/room';
@@ -57,6 +60,7 @@ import type { NetStatus } from '../net/types';
 import type { Vec3 } from '../worlds/portal/tools/aim';
 import type { PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { WorldDefinition } from '../core/types';
+import type { LivePreview, PreviewButton } from '../worlds/shared/livePreview';
 
 /**
  * **Die Werkzeugseite** — alles, was es in der Spielwiese gibt, im Browser.
@@ -154,6 +158,13 @@ const lede = document.querySelector<HTMLElement>('#lede')!;
 const wipe = document.querySelector<HTMLButtonElement>('#wipe')!;
 const look = document.querySelector<HTMLButtonElement>('#look')!;
 const wipeNote = document.querySelector<HTMLElement>('#wipe-note')!;
+const labPanel = document.querySelector<HTMLElement>('#lab')!;
+const labRun = document.querySelector<HTMLButtonElement>('#lab-run')!;
+const labTop = document.querySelector<HTMLButtonElement>('#lab-top')!;
+const labLede = document.querySelector<HTMLElement>('#lab-lede')!;
+const labSay = document.querySelector<HTMLElement>('#lab-say')!;
+const labKeys = document.querySelector<HTMLElement>('#lab-keys')!;
+const labShow = document.querySelector<HTMLElement>('#lab-show')!;
 const livePanel = document.querySelector<HTMLElement>('#live')!;
 const liveOut = document.querySelector<HTMLElement>('#live-out')!;
 const liveRoom = document.querySelector<HTMLInputElement>('#live-room')!;
@@ -294,6 +305,11 @@ async function showWorld(definition: WorldDefinition): Promise<void> {
     const preview = world.preview?.();
     if (preview) {
       viewer.showWorld(preview);
+      // Und wenn diese Welt sich auch **starten** lässt, steht der Knopf dafür
+      // unter dem Bild. Angeboten wird er hier und nicht in der Registry: Ob
+      // eine Welt laufen kann, weiß sie selbst (`World.previewLive`), und eine
+      // zweite Liste daneben wäre eine, die irgendwann nicht mehr stimmt.
+      offerLab(world.previewLive ? definition : null);
       return;
     }
   } catch (error) {
@@ -847,6 +863,275 @@ function setFlying(on: boolean): void {
   flyLabel.textContent = flying ? 'Von außen' : 'Freie Kamera';
   pad.hidden = !flying;
   help.textContent = flying ? HELP_FLY : HELP_VIEW;
+}
+
+// --- das Labor ---------------------------------------------------------------
+
+/**
+ * **Eine Welt, die läuft** — auf einem Telefon, ohne Brille und ohne die Welt
+ * zu betreten (`worlds/shared/livePreview.ts`).
+ *
+ * Der Grund dafür steht im Navigationslabor: Es besteht aus sechs Knöpfen und
+ * dem, was danach passiert, und ein stehendes Bild davon zeigt sechs Kuppeln.
+ * Was hier dazukommt, sind drei Sachen, und mehr braucht es nicht:
+ *
+ * - **Die Knöpfe der Welt als Zeilen.** Dieselben Objekte, dieselben
+ *   Handgriffe wie in der Brille — nur mit ihren Namen daneben. Antippen im
+ *   Bild geht auch, aber „Stachelgrube · Start" trifft man aus dreißig Metern
+ *   Höhe sicherer als eine Kuppel von vier Pixeln.
+ * - **Die Debug-Ebenen zum Schalten.** Kacheln, Wände, Verbindungen, Sperren,
+ *   Wege — dieselben fünf wie im Handgelenk-Menü und an der Wandkonsole.
+ * - **Ein Ziel.** In einer Vorschau steht kein Spieler, und ein Zombie ohne
+ *   jemanden bleibt stehen. Ein Tipp auf den Boden setzt die Attrappe, und
+ *   von da an läuft alles dorthin — das ist die Ansicht, wegen der es das
+ *   Ganze gibt: von oben zusehen, wie das Gitter benutzt wird.
+ */
+let lab: LivePreview | null = null;
+/** Welche Welt der Startknopf gerade anbietet — `null`, wenn keine kann. */
+let labWorld: WorldDefinition | null = null;
+/** Läuft gerade eine? */
+let labRunning = false;
+/**
+ * Was die Schalter unter dem Bild neu zeichnet.
+ *
+ * Es gibt die Ebenen an **zwei** Bedienungen — hier und an der Wandkonsole im
+ * Bild —, und beide zeigen denselben Zustand. Wer die eine drückt und die
+ * andere nicht nachzieht, traut danach keiner von beiden mehr; genau deshalb
+ * steht in der Welt derselbe Satz über ihre zwei Konsolen.
+ */
+const labDraws: (() => void)[] = [];
+
+function offerLab(definition: WorldDefinition | null): void {
+  labWorld = definition;
+  labPanel.hidden = definition === null;
+  labRun.disabled = false;
+  labRun.textContent = 'Laufen lassen';
+  labRun.setAttribute('aria-pressed', 'false');
+  labTop.hidden = true;
+  labSay.hidden = true;
+  labKeys.hidden = true;
+  labShow.hidden = true;
+  labLede.hidden = definition === null;
+}
+
+/** Beendet, was läuft — beim Blättern, beim Verlassen, beim zweiten Druck. */
+function stopLab(): void {
+  lab = null;
+  labRunning = false;
+  labDraws.length = 0;
+  detail.classList.remove('is-lab');
+  viewer.onTap = null;
+  labRun.textContent = 'Laufen lassen';
+  labRun.setAttribute('aria-pressed', 'false');
+  labTop.hidden = true;
+  labSay.hidden = true;
+  labSay.textContent = '';
+  labKeys.hidden = true;
+  labKeys.replaceChildren();
+  labShow.hidden = true;
+  labShow.replaceChildren();
+}
+
+labRun.addEventListener('click', () => {
+  const definition = labWorld;
+  if (!definition) return;
+  if (labRunning) {
+    // Zurück auf das stille Bild — und das ist wörtlich zu nehmen: Es wird
+    // eine **neue** Welt gebaut, denn die laufende hat ihre Physik beim
+    // Abräumen abgegeben.
+    stopLab();
+    void showWorld(definition);
+    return;
+  }
+  void startLab(definition);
+});
+
+labTop.addEventListener('click', () => {
+  setFlying(false);
+  viewer.lookDown();
+});
+
+/**
+ * Startet die Welt.
+ *
+ * Eine **frische** Instanz und nicht die, die als Bild dasteht: Die Vorschau
+ * hat eine Attrappe statt einer Physik bekommen (`silentPhysics`), und eine
+ * Welt tauscht ihr Fundament nicht im Betrieb aus. Der Betrachter räumt die
+ * alte beim Aufstellen der neuen weg.
+ */
+async function startLab(definition: WorldDefinition): Promise<void> {
+  const ticket = ++request;
+  labRun.disabled = true;
+  labRun.textContent = 'Startet …';
+  try {
+    const world = await definition.load();
+    if (ticket !== request) return;
+    const preview = await world.previewLive?.();
+    if (!preview) return;
+    if (ticket !== request) {
+      preview.dispose();
+      return;
+    }
+    viewer.showWorld(preview);
+    viewer.start();
+    lab = preview.live ?? null;
+    labRunning = true;
+    labRun.textContent = 'Anhalten';
+    labRun.setAttribute('aria-pressed', 'true');
+    // Mehr Bild: Unter der Bühne stehen jetzt eine Liste und ein Dutzend
+    // Schalter, und die drückten sie auf ihre Mindesthöhe zusammen.
+    detail.classList.add('is-lab');
+    labTop.hidden = false;
+    buildLabKeys();
+    buildLabShow();
+    lab?.onMessage((message) => {
+      labSay.hidden = false;
+      labSay.textContent = message;
+    });
+    viewer.onTap = onLabTap;
+    // Von oben, sofort: Das ist die Ansicht, für die man es startet.
+    viewer.lookDown();
+  } catch (error) {
+    console.warn(`Die Welt „${definition.title}" lässt sich nicht starten`, error);
+    stopLab();
+  } finally {
+    labRun.disabled = false;
+  }
+}
+
+/** Ein Tipp ins Bild: erst die Knöpfe, sonst das Ziel. */
+function onLabTap(pick: StagePick | null): void {
+  const live = lab;
+  if (!live || !pick) return;
+  for (const button of live.buttons) {
+    if (!belongsTo(pick.object, button.object)) continue;
+    button.press();
+    flashKey(button.label);
+    // Ein Druck im Bild kann eine Ebene umlegen (die Wandkonsole tut genau
+    // das) — die Schalter unter dem Bild sagen dann sonst das Gegenteil.
+    for (const draw of labDraws) draw();
+    return;
+  }
+  live.moveTarget(pick.point);
+}
+
+/** Ob `object` das Ding selbst ist oder darin hängt. */
+function belongsTo(object: THREE.Object3D, root: THREE.Object3D): boolean {
+  for (let at: THREE.Object3D | null = object; at; at = at.parent) {
+    if (at === root) return true;
+  }
+  return false;
+}
+
+/** Lässt die Zeile eines Knopfes kurz aufleuchten, der im Bild gedrückt wurde. */
+function flashKey(label: string): void {
+  for (const key of labKeys.querySelectorAll<HTMLButtonElement>('.lab__key')) {
+    if (key.dataset['label'] !== label) continue;
+    key.classList.add('is-hit');
+    window.setTimeout(() => key.classList.remove('is-hit'), 220);
+  }
+}
+
+/** Die Knöpfe der Welt als Liste — nach Buchten gruppiert, in ihrer Farbe. */
+function buildLabKeys(): void {
+  const live = lab;
+  labKeys.replaceChildren();
+  if (!live || live.buttons.length === 0) {
+    labKeys.hidden = true;
+    return;
+  }
+  const groups = new Map<string, PreviewButton[]>();
+  for (const button of live.buttons) {
+    if (button.quiet) continue;
+    const name = button.group ?? '';
+    const list = groups.get(name);
+    if (list) list.push(button);
+    else groups.set(name, [button]);
+  }
+  for (const [name, buttons] of groups) {
+    const group = document.createElement('div');
+    group.className = 'lab__group';
+    if (name) {
+      const heading = document.createElement('span');
+      heading.className = 'lab__name';
+      heading.textContent = name;
+      group.append(heading);
+    }
+    const row = document.createElement('div');
+    row.className = 'lab__row';
+    for (const button of buttons) {
+      const key = document.createElement('button');
+      key.type = 'button';
+      key.className = 'lab__key';
+      key.textContent = button.label;
+      key.dataset['label'] = button.label;
+      if (button.accent !== undefined) key.style.setProperty('--key', hexColor(button.accent));
+      key.addEventListener('click', () => {
+        button.press();
+        flashKey(button.label);
+      });
+      row.append(key);
+    }
+    group.append(row);
+    labKeys.append(group);
+  }
+  labKeys.hidden = groups.size === 0;
+}
+
+/** Die Debug-Ebenen und die Lebensbalken — was man sehen will, einzeln. */
+function buildLabShow(): void {
+  const live = lab;
+  labShow.replaceChildren();
+  if (!live) {
+    labShow.hidden = true;
+    return;
+  }
+  labShow.hidden = false;
+  labDraws.length = 0;
+  for (const layer of NAV_LAYERS) {
+    const key = document.createElement('button');
+    key.type = 'button';
+    key.className = 'lab__layer';
+    key.textContent = layer.label;
+    key.title = layer.sub;
+    key.style.setProperty('--key', hexColor(layer.color));
+    const draw = (): void => {
+      key.setAttribute('aria-pressed', String(live.layers()[layer.id]));
+    };
+    key.addEventListener('click', () => {
+      live.setLayer(layer.id, !live.layers()[layer.id]);
+      draw();
+    });
+    draw();
+    labDraws.push(draw);
+    labShow.append(key);
+  }
+
+  // Und die Lebensbalken, als eine Zeile mit drei Stellungen: Sie gehören zu
+  // dem, was man sehen will, aber nicht zum Gitter.
+  const bars = document.createElement('button');
+  bars.type = 'button';
+  bars.className = 'lab__layer';
+  bars.style.setProperty('--key', hexColor(0x5ee0a0));
+  const drawBars = (): void => {
+    const mode = NPC_BAR_MODES.find((entry) => entry.id === live.bars());
+    bars.textContent = `Lebensbalken: ${mode?.label ?? 'aus'}`;
+    bars.title = mode?.sub ?? '';
+    bars.setAttribute('aria-pressed', String(live.bars() !== 'off'));
+  };
+  bars.addEventListener('click', () => {
+    const at = NPC_BAR_MODES.findIndex((entry) => entry.id === live.bars());
+    live.setBars(NPC_BAR_MODES[(at + 1) % NPC_BAR_MODES.length]!.id);
+    drawBars();
+  });
+  drawBars();
+  labDraws.push(drawBars);
+  labShow.append(bars);
+}
+
+/** Eine Farbe aus dem Spiel als CSS-Farbe. */
+function hexColor(value: number): string {
+  return `#${value.toString(16).padStart(6, '0')}`;
 }
 
 // --- der Justierer -----------------------------------------------------------
@@ -1597,6 +1882,10 @@ function route(): void {
   if (entry.enter) enter.href = entry.enter;
   showMode();
   showButtons();
+  // Was hier eben lief, läuft nicht weiter: Eine neue Kachel ist eine neue
+  // Bühne, und `entry.show()` bietet gleich an, was diese kann.
+  stopLab();
+  offerLab(null);
   viewer.setHandMode(mode);
   // Vor `entry.show()`: die Seite steht fest, bevor das Werkzeug aufgestellt
   // wird — sonst baute der Betrachter erst die rechte Hand und drehte gleich
@@ -1621,6 +1910,8 @@ function route(): void {
 
 function showOverview(section: Section): void {
   markSection(section);
+  stopLab();
+  offerLab(null);
   viewer.stop();
   viewer.show(null);
   detail.hidden = true;

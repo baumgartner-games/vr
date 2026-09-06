@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NpcBody } from './NpcBody';
+import { NpcBody, type BarMode } from './NpcBody';
 import { newBrainState, stepBrain, type BrainState, type Point } from './npcBrain';
 import { brainOf, type BrainId, type BrainTuning } from './npcBrains';
 import { hitZone, type HitBody, type HitZone } from './npcHit';
@@ -251,11 +251,17 @@ export class Npc {
   damage(amount: number): boolean {
     if (!this.alive) return false;
     this.health -= amount;
+    this.model.setHealth(this.health / this.maxHealth);
     if (this.health > 0) return false;
     this.health = 0;
     this.dying = 0;
     this.model.setAlert(false);
     return true;
+  }
+
+  /** Wann sein Lebensbalken zu sehen ist (`NpcBody.ts`). */
+  setBars(mode: BarMode): void {
+    this.model.setBars(mode);
   }
 
   /** Wie lange er schon liegt — der Regisseur räumt danach auf. */

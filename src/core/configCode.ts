@@ -27,7 +27,7 @@
  * und ein Byte sind anderthalb Zeichen — bei einem Code für die ganze
  * Ausrüstung ist das Rauschen, bei dem Code für *eine* Hand, den der Justierer
  * anzeigt und den jemand abtippen soll, ist es messbar. Nebenbei sieht man der
- * ersten Silbe an, womit man es zu tun hat: `BG2` ist ein alter Code, `BG3`
+ * ersten Silbe an, womit man es zu tun hat: `BG2` ist ein alter Code, `BG4`
  * ein neuer, und beide werden gelesen.
  *
  * Free of three.js on purpose, like the rest of the tested maths.
@@ -36,8 +36,14 @@
 /** Marks our own codes, so a mistyped one fails early instead of oddly. */
 const PREFIX = 'BG';
 
-/** What `packCode` writes today. Readers still take everything older. */
-export const CODE_VERSION = 3;
+/**
+ * What `packCode` writes today. Readers still take everything older.
+ *
+ * Dieselbe Ziffer wie `GEAR_VERSION` (`tools/gearCodec.ts`): Sie steht einmal
+ * im Prefix und meint beides — wie die Zeile verpackt ist und wie der Inhalt
+ * darin aufgebaut ist. Zwei Ziffern für eine Stelle wären zwei Wahrheiten.
+ */
+export const CODE_VERSION = 4;
 
 /** A code and the format its payload is written in. */
 export interface UnpackedCode {

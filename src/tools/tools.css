@@ -317,6 +317,12 @@ html, body {
     var(--bg);
 }
 
+/* Läuft ein Labor, ist das Bild die Hauptsache und nicht die Liste darunter:
+   Es bekommt mehr als die Mindesthöhe, und der Rest wird gescrollt. */
+.detail.is-lab .stage {
+  min-height: min(56vh, 460px);
+}
+
 .stage__canvas {
   position: absolute;
   inset: 0;
@@ -735,3 +741,161 @@ html, body {
 }
 
 .live__copy:hover { border-color: rgba(140, 170, 230, 0.45); }
+
+/* ---------- Das Labor ---------- */
+
+/* Eine Welt, die läuft, statt sich zu drehen: die Knöpfe aus der Welt als
+   Zeilen, die Debug-Ebenen als Schalter. Auf dem Telefon ist eine Zeile mit
+   Namen sicherer zu treffen als eine Kuppel aus dreißig Metern Höhe — und man
+   liest dabei, was sie tut. */
+.lab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0 0;
+}
+
+.lab[hidden] { display: none; }
+
+.lab__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Der eine Knopf, mit dem alles anfängt — auffällig wie ein Startknopf. */
+.lab__run {
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #05070d;
+  background: linear-gradient(120deg, #7cc4ff, var(--accent));
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.lab__run[aria-pressed="true"] {
+  color: var(--fg);
+  background: none;
+  border: 1px solid var(--border);
+}
+
+.lab__view {
+  padding: 9px 13px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.lab__view[hidden] { display: none; }
+
+.lab__lede,
+.lab__say {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.lab__lede b { color: var(--fg); font-weight: 600; }
+
+/* Die letzte Meldung der Welt — dieselbe Zeile, die in der Brille am
+   Handgelenk stünde. */
+.lab__say {
+  padding: 8px 10px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 9px;
+}
+
+.lab__say[hidden] { display: none; }
+
+.lab__keys[hidden],
+.lab__show[hidden] { display: none; }
+
+.lab__keys {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Eine Bucht: ihr Name darüber, ihre Knöpfe darunter. */
+.lab__group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.lab__name {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lab__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Ein Knopf aus der Welt. Er trägt links den Farbstreifen seines Gegenstücks
+   im Bild: Man drückt Rot in der Liste und sieht Rot in der Welt eingehen. */
+.lab__key {
+  flex: 1 1 auto;
+  min-width: 116px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--key, var(--accent));
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.lab__key:hover { border-color: rgba(140, 170, 230, 0.45); }
+
+/* Kurz aufleuchten, wenn der Druck angekommen ist: ein Knopf ohne Antwort
+   wird zweimal gedrückt. */
+.lab__key.is-hit {
+  color: #05070d;
+  background: var(--key, var(--accent));
+}
+
+.lab__show {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+/* Die Debug-Ebenen: aus ist ein Umriss, an ist die Farbe der Linien, die
+   danach im Raum liegen (`nav/navLayers.ts`). */
+.lab__layer {
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.lab__layer[aria-pressed="true"] {
+  color: #05070d;
+  background: var(--key, var(--accent));
+  border-color: transparent;
+}

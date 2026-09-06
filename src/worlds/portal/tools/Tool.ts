@@ -218,6 +218,14 @@ export interface BulletOptions {
   mass?: number;
   /** Tracer: glows and draws the line it flew, so a shot can be watched. */
   tracer?: boolean;
+  /**
+   * **Was ein Rumpftreffer einem NPC abzieht** — der Kopf das Vierfache
+   * (`worlds/npc/npcHit.ts`). Ohne Angabe gilt der Rückfall dort.
+   *
+   * Nicht dasselbe wie die Masse: Die schiebt eine Kiste, das hier zählt
+   * Leben. Zwei Fragen, zwei Zahlen.
+   */
+  damage?: number;
 }
 
 /** Two props, the points the joint sits between them, and what kind it is. */
@@ -279,6 +287,33 @@ export abstract class Tool extends THREE.Group {
    * The knife is what this is for.
    */
   glides = false;
+
+  /**
+   * **Was ein Schlag mit diesem Ding einem NPC abzieht** — 0 heißt: keiner.
+   *
+   * Die Zahl steht am Werkzeug und nicht in einer Tabelle irgendwo, aus
+   * demselben Grund wie `looseLimit`: Sie gehört zu dem, was das Werkzeug
+   * *ist*. Gemessen wird sie an den hundert Leben eines Zombies
+   * (`npc/npcKinds.ts`) — ein Messer ist die halbe Strecke, der große Hammer
+   * die ganze.
+   *
+   * Ein Kopftreffer zählt vierfach, wie bei jeder anderen Waffe auch
+   * (`npc/npcHit.ts`).
+   */
+  meleeDamage = 0;
+
+  /**
+   * **Das scharfe Ende**, in Weltkoordinaten — die Klingenspitze, der
+   * Hammerkopf.
+   *
+   * `false` heißt: Dieses Werkzeug hat keines, und dann schlägt es auch nichts
+   * (`meleeSwing.ts` rechnet an genau diesem Punkt entlang). Gefragt wird
+   * jedes Bild, in dem das Werkzeug in einer Hand liegt oder durch die Luft
+   * fliegt — die Antwort muss deshalb billig sein.
+   */
+  meleeTip(_target: THREE.Vector3): boolean {
+    return false;
+  }
 
   /**
    * Turn the tool out of the grip and onto the pointing ray while it is held.

@@ -116,6 +116,24 @@ export interface ShowOptions {
   cut?: number | null;
   /** Es liegt flach — breit und niedrig — und wird enger eingepasst. */
   flat?: boolean;
+  /**
+   * Läuft jedes Bild mit den **Sekunden seit dem letzten** — für eine Welt,
+   * die nicht nur wirbelt, sondern rechnet (`shared/livePreview.ts`).
+   *
+   * Getrennt von `animate`, weil die beiden verschiedene Fragen beantworten:
+   * „wie spät ist es" dreht einen Ring, „wie lange ist es her" macht einen
+   * Simulationsschritt. Eine Physik, der man die Uhrzeit gibt, springt beim
+   * ersten Bild um eine halbe Minute.
+   */
+  step?(dt: number): void;
+}
+
+/** Ein Tipp auf die Bühne, umgerechnet in den Raum des Gezeigten. */
+export interface StagePick {
+  /** Das vorderste getroffene Ding. */
+  object: THREE.Object3D;
+  /** Wo es getroffen wurde — in den Koordinaten der gezeigten Welt. */
+  point: THREE.Vector3;
 }
 
 /** Wie weit die Kamera über das Gezeigte hinaus Luft lässt. */
@@ -221,6 +239,13 @@ const FLY_FAR = 2400;
  */
 const CUT_HEIGHT = 2.4;
 
+/** Wie weit ein Finger wandern darf, damit sein Aufsetzen ein Tipp bleibt. */
+const TAP_SLOP = 9;
+/** Und wie lange er dabei liegen darf, in Millisekunden. */
+const TAP_TIME = 600;
+/** Die Draufsicht: fast senkrecht, aber eben nur fast (`lookDown`). */
+const TOP_PITCH = 1.25;
+
 /**
  * **Der Zeigestrahl der Hand**, als weiße Linie — dieselbe, die in der Brille
  * aus dem Quest-Controller nach vorn läuft.
@@ -286,6 +311,13 @@ const _look = new THREE.Euler(0, 0, 0, 'YXZ');
 const _inverse = new THREE.Matrix4();
 const _frame = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
+/** Die Stelle im Bild, an der getippt wurde, in Bildkoordinaten von −1 bis 1. */
+const _ndc = new THREE.Vector2();
+/** Die Lage eines Meshes in dem Raum, in dem gerade gemessen wird. */
+const _measured = new THREE.Matrix4();
+const _identity = new THREE.Matrix4();
+/** Die Drehung der Bühne, zum Herausrechnen. */
+const _unturn = new THREE.Matrix4();
 const _at = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
@@ -430,6 +462,12 @@ export class ToolViewer {
   private spin = 0;
   /** Die Ansicht, auf die der Doppeltipp zurückgeht. */
   private home = { ...TOOL_HOME };
+  /** Wie groß das Gezeigte ist, Kante für Kante — für die Draufsicht. */
+  private readonly extent = new THREE.Vector3();
+  /** Ob gerade senkrecht von oben gesehen wird (`lookDown`). */
+  private topDown = false;
+  /** Und ob die Welt dabei quer liegt, weil das Bild hochkant ist. */
+  private topTurn = false;
   /**
    * Höhe eines waagerechten Schnitts durch das Gezeigte, oder `null`.
    *
@@ -472,6 +510,20 @@ export class ToolViewer {
   private lastAlone = false;
   private frame = 0;
   private clock = new THREE.Clock();
+  /**
+   * **Wer einen Tipp auf die Bühne bekommt** — `null`, solange niemand fragt.
+   *
+   * Ein Tipp ist hier kein `click`: Auf dieser Bühne wird gedreht, gezoomt und
+   * geflogen, und jede dieser Bewegungen fängt mit einem Finger auf dem Glas
+   * an. Als Tipp zählt deshalb nur, was **an einer Stelle** anfängt und
+   * aufhört (`TAP_SLOP`, `TAP_TIME`) — alles andere war eine Drehung.
+   */
+  onTap: ((pick: StagePick | null) => void) | null = null;
+  private readonly picker = new THREE.Raycaster();
+  /** Wo der Finger aufgesetzt hat, und wie weit er seitdem gewandert ist. */
+  private tapFrom: THREE.Vector2 | null = null;
+  private tapMoved = 0;
+  private tapTime = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -555,6 +607,10 @@ export class ToolViewer {
     // Von selbst dreht sich nur, was darum bittet — eine Welt.
     this.spin = options.spin ?? 0;
     this.spinning = this.spin > 0;
+    // Eine neue Bühne fängt von außen an; die Draufsicht ist ein Griff, den
+    // jemand tut, und keine Einstellung, die über den Wechsel hinweg gilt.
+    this.topDown = false;
+    this.topTurn = false;
     this.studio.visible = !options.ownLight;
     this.flat = options.flat ?? false;
     this.setCut(options.cut ?? null);
@@ -576,12 +632,19 @@ export class ToolViewer {
    * Vogelperspektive von einem Haus genau das, was ein Haus verbirgt.
    */
   showWorld(preview: WorldPreview): void {
+    const live = preview.live;
     this.showObject(preview.object, {
       animate: (time) => preview.animate?.(time),
+      // Eine laufende Welt rechnet, statt sich zu drehen: Wer einen Zombie
+      // beim Laufen zusieht, will nicht, dass ihm dabei die Karte unter den
+      // Füßen weggedreht wird. Der Schritt wird gedeckelt — ein Tab im
+      // Hintergrund liefert sonst Sprünge von Sekunden, und darin läuft
+      // niemand mehr durch eine Tür, sondern durch die Wand daneben.
+      step: live ? (dt) => live.step(Math.min(dt, 0.05)) : undefined,
       dispose: () => preview.dispose(),
       ownLight: true,
       flat: true,
-      spin: WORLD_SPIN,
+      spin: live ? 0 : WORLD_SPIN,
       pitch: WORLD_PITCH,
       // Ein Stück unter der Decke, und nie höher als Kopfhöhe: Wände, die man
       // noch als Wände erkennt, aber kein Deckel mehr darüber.
@@ -953,6 +1016,7 @@ export class ToolViewer {
       }
       this.shownFor += dt;
       this.options.animate?.(this.shownFor);
+      this.options.step?.(dt);
       this.render();
     };
     this.frame = requestAnimationFrame(tick);
@@ -1300,13 +1364,12 @@ export class ToolViewer {
   private fit(): void {
     this.stage.position.set(0, 0, 0);
     this.stage.updateWorldMatrix(true, true);
+    const roots = this.tool ? (this.target ? [this.tool, this.target] : [this.tool]) : [this.stage];
     // Bei einem Werkzeug zählen **Werkzeug und Zielscheibe** und sonst nichts.
     // Das ist die Welt, in der die Hand steht, und sie darf sich beim
     // Umschalten der Hand nicht bewegen — sonst vergleicht man zwei Bilder,
     // die verschieden weit weg sind.
-    const tool = this.tool;
-    const target = this.target;
-    this.measure(tool ? (target ? [tool, target] : [tool]) : [this.stage]);
+    this.measure(roots);
     _box.getCenter(_centre);
     _box.getSize(_size);
     // Gemessen wird in der **Welt**, verschoben wird im **Drehpunkt**: der
@@ -1323,6 +1386,16 @@ export class ToolViewer {
     // an `distance`.
     this.footprint = Math.max(Math.hypot(_size.x, _size.z) / 2, 0.02);
     this.height = Math.max(_size.y / 2, 0.01);
+
+    // Und dasselbe noch einmal **ungedreht**, für die Draufsicht (`distance`).
+    // Der Kasten oben ist der um die schräg im Raum liegende Welt: Er ist so
+    // hoch wie breit, sobald man sie kippt, und aus ihm ließen sich die Kanten
+    // nicht ablesen — bei diesem Labor stand 48 Meter Höhe darin, wo drei
+    // Meter Wand stehen.
+    this.pivot.updateWorldMatrix(true, false);
+    _unturn.copy(this.pivot.matrixWorld).invert();
+    this.measure(roots, _unturn);
+    _box.getSize(this.extent);
   }
 
   /**
@@ -1348,8 +1421,23 @@ export class ToolViewer {
     const horizontal = Math.atan(Math.tan(vertical) * aspect);
     if (!this.flat) return (this.radius * PADDING) / Math.sin(Math.min(vertical, horizontal));
     const tilt = this.home.pitch;
-    const high = this.footprint * Math.sin(tilt) + this.height * Math.cos(tilt);
-    return PADDING * Math.max(this.footprint / Math.tan(horizontal), high / Math.tan(vertical));
+    // **Von oben das Rechteck statt des Kreises darum.** Sonst wird der
+    // Grundriss als Kugel eingepasst, und das ist beim Drehen auch richtig: Was
+    // sich dreht, darf dabei nicht aus dem Bild wandern. In der Draufsicht
+    // dreht sich nichts mehr, und dann zahlt man den Unterschied zwischen
+    // Diagonale und Kante als Luft ringsum — beim Labor von 75 × 51 Metern in
+    // einem breiten Fenster mehr als ein Drittel. Gerechnet wird mit den
+    // Kanten des **ungedrehten** Kastens (`extent`): quer die Breite, längs die
+    // Tiefe unter dem Kippwinkel plus die Höhe, die dabei aufragt.
+    // Quergelegt tauschen die beiden Kanten die Rollen — die Tiefe liegt dann
+    // quer im Bild und die Breite längs.
+    const across = this.topTurn ? this.extent.z : this.extent.x;
+    const deep = this.topTurn ? this.extent.x : this.extent.z;
+    const wide = this.topDown ? across / 2 : this.footprint;
+    const along = this.topDown ? deep / 2 : this.footprint;
+    const tall = this.topDown ? this.extent.y / 2 : this.height;
+    const high = along * Math.sin(tilt) + tall * Math.cos(tilt);
+    return PADDING * Math.max(wide / Math.tan(horizontal), high / Math.tan(vertical));
   }
 
   /**
@@ -1362,7 +1450,7 @@ export class ToolViewer {
    * wie im Handgelenk-Menü: sichtbare Meshes, sonst nichts. Lichter, Kameras
    * und Zielpunkte fallen damit gleich mit heraus.
    */
-  private measure(roots: readonly THREE.Object3D[] = [this.stage]): void {
+  private measure(roots: readonly THREE.Object3D[] = [this.stage], frame?: THREE.Matrix4): void {
     _box.makeEmpty();
     const visit = (object: THREE.Object3D): void => {
       // Kulisse zählt nicht mit: der Himmel einer Welt ist eine Kugel von 560
@@ -1375,7 +1463,14 @@ export class ToolViewer {
         if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
         const bounds = mesh.geometry.boundingBox;
         if (bounds) {
-          _bounds.copy(bounds).applyMatrix4(mesh.matrixWorld);
+          // Mit `frame` in einem anderen Raum als der Welt: Der Kasten wird
+          // dafür **einmal** umgerechnet, aus der Geometrie heraus. Wer statt
+          // dessen den fertigen Weltkasten nachträglich drehte, bekäme den
+          // Kasten *um* den gedrehten Kasten — und der ist größer als das Ding
+          // darin.
+          _bounds
+            .copy(bounds)
+            .applyMatrix4(_measured.copy(mesh.matrixWorld).premultiply(frame ?? _identity));
           _box.union(_bounds);
         }
       }
@@ -1542,6 +1637,16 @@ export class ToolViewer {
     if (alone && this.lastAlone && now - this.lastTap < 320) this.reset();
     this.lastAlone = alone;
     this.lastTap = now;
+
+    // Der Anfang eines möglichen Tipps. Ein zweiter Finger macht daraus einen
+    // Zangengriff, und der ist keiner mehr.
+    if (alone) {
+      this.tapFrom = new THREE.Vector2(event.clientX, event.clientY);
+      this.tapMoved = 0;
+      this.tapTime = now;
+    } else {
+      this.tapFrom = null;
+    }
   };
 
   private readonly onMove = (event: PointerEvent): void => {
@@ -1550,6 +1655,7 @@ export class ToolViewer {
     const dx = event.clientX - last.x;
     const dy = event.clientY - last.y;
     last.set(event.clientX, event.clientY);
+    this.tapMoved += Math.hypot(dx, dy);
 
     if (this.pointers.size >= 2) {
       // Zwei Finger zoomen, und zwar nur das: gleichzeitig zu drehen macht aus
@@ -1587,9 +1693,75 @@ export class ToolViewer {
   };
 
   private readonly onUp = (event: PointerEvent): void => {
+    const alone = this.pointers.size === 1;
     this.pointers.delete(event.pointerId);
     if (this.pointers.size < 2) this.pinch = 0;
+
+    const from = this.tapFrom;
+    this.tapFrom = null;
+    if (!alone || !from || !this.onTap) return;
+    if (this.tapMoved > TAP_SLOP || event.timeStamp - this.tapTime > TAP_TIME) return;
+    this.onTap(this.pick(event.clientX, event.clientY));
   };
+
+  /**
+   * Was an dieser Stelle des Bildes steht — in den Koordinaten der gezeigten
+   * Welt und nicht in denen der Bühne.
+   *
+   * Der Unterschied ist keine Feinheit: Die Bühne ist um die Mitte des
+   * Gezeigten verschoben und im Drehpunkt gedreht (`fit`, `place`). Ein Punkt,
+   * den man aus der Szene abliest und ungedreht als „dort steht der Zombie
+   * gleich" einsetzt, landet um genau diese Verschiebung daneben.
+   *
+   * Vom **Schnitt** (`setCut`) weiß ein Strahl nichts: Eine weggeschnittene
+   * Decke ist nur nicht gezeichnet, dastehen tut sie. In einer Welt mit Dach
+   * trifft ein Tipp deshalb womöglich das, was man gerade nicht sieht.
+   */
+  private pick(clientX: number, clientY: number): StagePick | null {
+    const rect = this.canvas.getBoundingClientRect();
+    _ndc.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.picker.setFromCamera(_ndc, this.camera);
+    for (const hit of this.picker.intersectObject(this.stage, true)) {
+      if (!hit.object.visible) continue;
+      return { object: hit.object, point: this.stage.worldToLocal(hit.point.clone()) };
+    }
+    return null;
+  }
+
+  /**
+   * **Senkrecht von oben** — die Ansicht, in der ein Grundriss ein Grundriss
+   * ist.
+   *
+   * Nicht ganz senkrecht: Bei exakt 90° sieht man von einer Wand nur ihre
+   * Oberkante, und eine Welt aus Strichen ist schwerer zu lesen als eine, in
+   * der man den Wänden ihre Höhe ansieht. Ein Hauch schräg lässt sie stehen.
+   */
+  lookDown(): void {
+    this.fly = null;
+    this.spinning = false;
+    this.topDown = true;
+    // **Quer legen, wenn das Bild hochkant ist.** Ein Labor von 75 × 51 Metern
+    // in einem Telefon im Hochformat füllt die Breite und lässt oben und unten
+    // je ein Drittel leer; eine Vierteldrehung legt seine lange Kante auf die
+    // lange Kante des Bildes und macht es doppelt so groß. Gefragt wird die
+    // **Leinwand** und nicht die Kamera: Deren Seitenverhältnis wird erst im
+    // nächsten Bild nachgezogen, und dieses hier entscheidet jetzt.
+    const upright = this.canvas.clientHeight > this.canvas.clientWidth;
+    const wideWorld = this.extent.x > this.extent.z;
+    this.topTurn = upright === wideWorld;
+    this.yaw = this.topTurn ? Math.PI / 2 : 0;
+    this.pitch = TOP_PITCH;
+    // Die Ansicht, auf die der Doppeltipp zurückgeht, ist ab jetzt diese: Wer
+    // von oben zusieht und zwischendurch etwas heranholt, will beim
+    // Zurückstellen wieder von oben sehen und nicht wieder von schräg vorn.
+    this.home = { yaw: this.yaw, pitch: TOP_PITCH };
+    this.zoom = 1;
+    this.fit();
+    this.sizeLines();
+  }
 
   private readonly onWheel = (event: WheelEvent): void => {
     event.preventDefault();

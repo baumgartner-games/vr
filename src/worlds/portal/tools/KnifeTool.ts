@@ -45,6 +45,9 @@ export class KnifeTool extends Tool {
   override readonly toolId = 'knife';
   override readonly label = 'Messer';
 
+  /** Der Punkt, mit dem es sticht — die Klingenspitze. */
+  private readonly point = new THREE.Object3D();
+
   constructor() {
     super();
     this.name = 'tool-knife';
@@ -54,6 +57,11 @@ export class KnifeTool extends Tool {
     // Five in the air, and the sixth off the hip fetches the first one back.
     this.looseLimit = 5;
     this.glides = true;
+    // Zwei Stiche für einen Zombie (100 Leben), einer in den Hals
+    // (`npc/npcHit.ts` rechnet den Kopf vierfach). Ein Messer ist damit die
+    // Waffe für einen einzelnen Gegner, den man erreicht — und keine für die
+    // Horde, die auf einen zuläuft.
+    this.meleeDamage = 50;
 
     const steel = new THREE.MeshStandardMaterial({
       color: 0xc8d4e6,
@@ -102,6 +110,17 @@ export class KnifeTool extends Tool {
     tip.scale.x = BLADE_THICK / BLADE_WIDTH;
     tip.position.set(0, bladeBase + BLADE_LENGTH * 0.85, 0);
     grip.add(tip);
+
+    // Und die Spitze noch einmal als **Punkt**: an ihm entlang wird der Schlag
+    // gemessen (`meleeSwing.ts`). Sie sitzt am Ende des Kegels und nicht in
+    // seiner Mitte — ein Messer sticht mit der Spitze.
+    this.point.position.set(0, bladeBase + BLADE_LENGTH, 0);
+    grip.add(this.point);
+  }
+
+  override meleeTip(target: THREE.Vector3): boolean {
+    this.point.getWorldPosition(target);
+    return true;
   }
 
   /** A short whirr, so a throw is heard as well as seen. */

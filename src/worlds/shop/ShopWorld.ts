@@ -972,7 +972,7 @@ export class ShopWorld extends PortalWorld {
         this.paintBake(pizza);
         const now = pizzaStage(pizza.state);
         if (now !== before && (now === 'fertig' || now === 'verbrannt')) {
-          this.announce(ctx, now);
+          this.announceOven(ctx, now);
         }
         continue;
       }
@@ -1037,7 +1037,7 @@ export class ShopWorld extends PortalWorld {
     this.drawPizza(pizza);
   }
 
-  private announce(ctx: WorldContext, stage: 'fertig' | 'verbrannt'): void {
+  private announceOven(ctx: WorldContext, stage: 'fertig' | 'verbrannt'): void {
     if (stage === 'fertig') {
       playTone({ type: 'sine', from: 520, to: 880, duration: 0.2, gain: 0.07 });
       ctx.notify('Pizza ist fertig — raus damit!');

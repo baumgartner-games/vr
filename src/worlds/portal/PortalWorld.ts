@@ -144,15 +144,20 @@ import { applyNavLayers, boxesFrom, levelCensus, navDebugView, navPathView } fro
 import {
   NAV_LAYERS,
   anyLayer,
+  defaultLayers,
   layerSummary,
   nextAll,
   noLayers,
   type NavLayer,
   type NavLayerState,
 } from '../nav/navLayers';
+import type { LivePreview, PreviewButton } from '../shared/livePreview';
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
+import { BODY_DAMAGE } from '../npc/npcHit';
+import { NPC_BAR_MODES, type BarMode } from '../npc/NpcBody';
+import { newSwing, swingHit, swingStep, type SwingState } from './tools/meleeSwing';
 import { BRAINS, brainLabel } from '../npc/npcBrains';
 import { npcSettings, saveNpcSettings } from './tools/gearStore';
 import { withBrain, withKind } from '../npc/npcSettings';
@@ -304,6 +309,10 @@ const _probe = new THREE.Vector3();
 const _placeUp = new THREE.Vector3();
 const _target = new THREE.Vector3();
 const _velocity = new THREE.Vector3();
+/** Die Spitze eines Werkzeugs, das gerade zuschlägt, und ihre Strecke. */
+const _swingTip = new THREE.Vector3();
+const _swingFrom = new THREE.Vector3();
+const _swingTo = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _cross = new THREE.Vector3();
 const _point = new THREE.Vector3();
@@ -395,6 +404,8 @@ interface Flight {
 interface Bullet {
   entry: PhysicsBody;
   life: number;
+  /** Was ein Rumpftreffer damit abzieht (`npc/npcHit.ts`). */
+  damage: number;
   /** Tracer rounds drag a streak behind them; plain ones do not. */
   trail: Trail | null;
   /** Where it was last frame — the segment a hit is looked for along. */
@@ -691,6 +702,12 @@ export class PortalWorld implements World {
    */
   private readonly loose = new Map<PhysicsBody, LooseTool>();
   /**
+   * Was jede schlagende Spitze sich zwischen zwei Bildern merkt
+   * (`tools/meleeSwing.ts`) — je Werkzeug eine, und nur solange es in einer
+   * Hand liegt.
+   */
+  private readonly swings = new Map<Tool, SwingState>();
+  /**
    * Die Hände, die gerade am Griff der anderen stehen und deren Werkzeug
    * übernehmen könnten — jedes Bild neu gefüllt (`updateGrabs`).
    *
@@ -744,6 +761,20 @@ export class PortalWorld implements World {
   private navTrackTimer = 0;
   /** Welche Ebenen der Debug-Ansicht gerade an sind (`nav/navLayers.ts`). */
   private navLayers: NavLayerState = noLayers();
+  /** Wann die Lebensbalken über den NPCs zu sehen sind (`npc/NpcBody.ts`). */
+  private npcBars: BarMode = 'hurt';
+  /** Wohin Meldungen gehen, solange die Welt als Vorschau läuft. */
+  private previewSink: ((message: string) => void) | null = null;
+  /**
+   * **Die Attrappe des Spielers in der laufenden Vorschau** — oder `null`,
+   * solange richtig gespielt wird.
+   *
+   * Sie ist der Grund, warum eine Vorschau überhaupt etwas zeigt: Ein Zombie
+   * geht jemandem nach, und in einer Vorschau steht niemand. Was hier steht,
+   * bekommt `playerFeet()` zurück, wenn es keinen Spieler gibt — für die
+   * Hirne, die Wegsuche und die Spawnpunkte ist das der Spieler.
+   */
+  private ghost: THREE.Group | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -800,9 +831,10 @@ export class PortalWorld implements World {
       physics: this.physics,
       playerAt: (target) => this.playerFeet(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
-      notify: (message) => this.context?.notify(message),
+      notify: (message) => this.announce(message),
       nav: () => this.nav,
     });
+    this.director.setBars(this.npcBars);
     this.host = this.buildHost(ctx);
     this.keys = new KeyPanel();
     this.root.add(this.keys);
@@ -864,6 +896,9 @@ export class PortalWorld implements World {
     this.updateAim(ctx);
     this.applyViewOverride(ctx);
     this.updateFallRescue(ctx);
+    // Zuletzt: was die Welt für sich selbst tut. Dieselbe Zeile läuft in der
+    // laufenden Vorschau ohne alles darüber (`stepPreview`).
+    this.simulate(dt);
   }
 
   menu(): MenuEntry[] {
@@ -1095,6 +1130,33 @@ export class PortalWorld implements World {
     return parent;
   }
 
+  /**
+   * **Eine Meldung an den, der zusieht.**
+   *
+   * Im Spiel ist das das Handgelenk (`ctx.notify`), in der laufenden Vorschau
+   * die Zeile unter der Bühne der Werkzeugseite. Eine Welt, die etwas zu sagen
+   * hat, soll nicht wissen müssen, wer gerade zuhört — und `this.context` ist
+   * in der Vorschau `null`, also verschluckte ein `ctx?.notify` dort jede
+   * Antwort auf jeden Knopfdruck.
+   */
+  protected announce(message: string): void {
+    this.context?.notify(message);
+    this.previewSink?.(message);
+  }
+
+  /**
+   * Wann die Lebensbalken zu sehen sind — auch für die Vorschau der
+   * Werkzeugseite, die kein Handgelenk-Menü hat.
+   */
+  protected setNpcBars(mode: BarMode): void {
+    this.npcBars = mode;
+    this.director?.setBars(mode);
+  }
+
+  protected npcBarMode(): BarMode {
+    return this.npcBars;
+  }
+
   /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
   protected navLayerState(): Readonly<NavLayerState> {
     return this.navLayers;
@@ -1197,6 +1259,39 @@ export class PortalWorld implements World {
       brainRow.label = `Hirn: ${brainLabel(npcSettings().brain)}`;
     });
 
+    /**
+     * **Die Lebensbalken** — eine Zeile mit drei Stellungen.
+     *
+     * Sie steht hier und nicht bei den Debug-Ebenen der Navigation, obwohl
+     * beides „etwas sichtbar machen" ist: Ein Balken ist keine Hilfslinie,
+     * sondern gehört zu dem, der ihn trägt. Wer wissen will, ob seine Pistole
+     * wirklich fünfundzwanzig abzieht, stellt hier auf *immer*.
+     */
+    const barsLabel = (): string =>
+      NPC_BAR_MODES.find((mode) => mode.id === (this.director?.bars ?? 'hurt'))?.label ?? 'aus';
+    const barsRow: MenuEntry = {
+      id: 'npc:bars',
+      label: `Lebensbalken: ${barsLabel()}`,
+      sub: 'Wann der Balken über einem NPC zu sehen ist',
+      icon: 'npc',
+      accent: 0x5ee0a0,
+      children: NPC_BAR_MODES.map((mode) => ({
+        id: `npc:bars:${mode.id}`,
+        label: mode.label,
+        sub: mode.sub,
+        icon: 'npc',
+        accent: 0x5ee0a0,
+        run: () => {
+          this.setNpcBars(mode.id);
+          this.refreshMenuLabels();
+          ctx().notify(`Lebensbalken: ${mode.label}`);
+        },
+      })),
+    };
+    this.menuLabels.push(() => {
+      barsRow.label = `Lebensbalken: ${barsLabel()}`;
+    });
+
     return {
       id: 'npc',
       label: 'NPC',
@@ -1213,6 +1308,7 @@ export class PortalWorld implements World {
           run: () => this.placeNpc(ctx(), skin.id),
         })),
         brainRow,
+        barsRow,
         this.navMenu(),
         {
           id: 'npc:spawn',
@@ -1552,6 +1648,13 @@ export class PortalWorld implements World {
           'Masse der Kugel — wie hart sie zuschlägt',
           () => `${pistol.powerLabel} · ${weapon().mass} kg`,
           () => pistol.cyclePower(),
+        ),
+        dial(
+          'damage',
+          'Schaden',
+          'Was ein Rumpftreffer abzieht — der Kopf das Vierfache',
+          () => `${weapon().damage}`,
+          () => pistol.cycleDamage(),
         ),
         dial(
           'speed',
@@ -2761,6 +2864,130 @@ export class PortalWorld implements World {
   // --- die Welt zum Ansehen ------------------------------------------------
 
   /**
+   * **Dieselbe Welt, aber sie läuft** — für das Telefon, das ein Labor
+   * bedienen will (`shared/livePreview.ts`).
+   *
+   * Der Unterschied zur stillen Vorschau ist genau eine Zeile und alles, was
+   * daran hängt: Statt der Attrappe (`silentPhysics`) steht hier eine **echte
+   * Physik**. Damit stehen die Wände wirklich, das Gitter wird abgetastet wie
+   * im Spiel (`bakeNavigation`), und der Bestand an NPCs (`NpcDirector`) hat
+   * einen Raum, in dem er laufen kann. Gebaut wird mit denselben Zeilen wie in
+   * `init` — was fehlt, ist alles, wofür es einen **Spieler** braucht:
+   * Portale, Gürtel, Werkzeuge, Netz, Menü.
+   *
+   * An seiner Stelle steht die **Attrappe** (`ghost`): ein Ring auf dem Boden,
+   * dem die Hirne nachlaufen. Sie ist keine Vereinfachung, sondern das, was
+   * die Ansicht von oben erst zu einem Werkzeug macht — man setzt sie
+   * irgendwohin und sieht, welchen Weg das Gitter dorthin hergibt.
+   *
+   * Asynchron, weil die Physik geladen werden muss; wer nur ein Bild will,
+   * nimmt weiter `preview()` und wartet auf nichts.
+   */
+  async previewLive(): Promise<WorldPreview> {
+    this.root.name = 'preview-live';
+    this.physics = await PhysicsWorld.create(-this.gravityNow());
+    this.root.add(createLighting(Math.max(this.lightIntensity(), PREVIEW_LIGHT)));
+    this.buildHorizonFloor();
+    this.buildEnvironment();
+    this.bakeNavigation();
+
+    this.director = new NpcDirector({
+      root: this.root,
+      physics: this.physics,
+      playerAt: (target) => this.playerFeet(target),
+      strikePlayer: (direction, strength) => this.takeHit(direction, strength),
+      notify: (message) => this.announce(message),
+      nav: () => this.nav,
+    });
+    this.director.setBars(this.npcBars);
+
+    const ghost = createGhostTarget();
+    ghost.position.copy(this.spawnPoint());
+    this.root.add(ghost);
+    this.ghost = ghost;
+
+    // **Kacheln und Wege an.** Im Spiel ist das aus, weil man dort spielt; wer
+    // eine Welt von oben aufmacht, um das Gitter anzusehen, hat es genau
+    // deshalb aufgemacht.
+    this.setNavLayers(defaultLayers());
+
+    const live: LivePreview = {
+      buttons: this.previewButtons(),
+      step: (dt) => this.stepPreview(dt),
+      target: ghost,
+      moveTarget: (at) => ghost.position.copy(at),
+      layers: () => this.navLayerState(),
+      setLayer: (layer, on) => {
+        this.setNavLayer(layer, on);
+        this.previewLayersChanged();
+      },
+      bars: () => this.npcBarMode(),
+      setBars: (mode) => this.setNpcBars(mode),
+      onMessage: (sink) => {
+        this.previewSink = sink;
+      },
+    };
+
+    return {
+      object: this.root,
+      roof: this.roof,
+      live,
+      dispose: () => {
+        this.previewSink = null;
+        this.director?.dispose();
+        this.director = null;
+        this.ghost = null;
+        for (const tool of this.liveTools) tool.disposeTool();
+        this.liveTools.clear();
+        disposeTree(this.root);
+        this.physics?.dispose();
+        this.physics = null;
+      },
+    };
+  }
+
+  /**
+   * Ein Bild einer laufenden Vorschau — dieselbe Reihenfolge wie in `update`,
+   * nur ohne alles, was einen Spieler voraussetzt.
+   *
+   * Vor dem Schritt und nicht danach: Was ein Hirn in diesem Bild will, soll
+   * in *diesem* Bild gelaufen werden.
+   */
+  private stepPreview(dt: number): void {
+    this.simulate(dt);
+    this.director?.update(dt);
+    this.physics?.step(dt);
+    this.physics?.sync();
+    this.updateNavTracks(dt);
+  }
+
+  /**
+   * **Was eine Welt jedes Bild für sich selbst tut** — ihre Uhr, ihre
+   * Zeitschaltungen, ihre Szenarien.
+   *
+   * Getrennt von `update`, weil `update` einen Spieler und einen Kontext
+   * voraussetzt und die laufende Vorschau beides nicht hat. Wer hier etwas
+   * hineinschreibt, bekommt es in der Brille **und** auf dem Telefon; wer es
+   * in `update` schreibt, nur in der Brille.
+   */
+  protected simulate(_dt: number): void {}
+
+  /**
+   * **Was man in der laufenden Vorschau drücken darf.**
+   *
+   * Leer voreingestellt: Die meisten Welten haben keine Knöpfe, und eine Liste
+   * mit allem Anfassbaren wäre bei der Portalwelt der halbe Werkzeugkasten.
+   * Wer welche anbietet, gibt ihnen Namen — auf einem Telefon liest man die
+   * Zeile und trifft sie, statt eine Kuppel im Bild zu suchen.
+   */
+  protected previewButtons(): PreviewButton[] {
+    return [];
+  }
+
+  /** Eine Ebene wurde von außen umgelegt — die Welt zieht ihre Anzeigen nach. */
+  protected previewLayersChanged(): void {}
+
+  /**
    * Die Kulisse dieser Welt, ohne Spiel darin — für die Werkzeugseite.
    *
    * Gebaut wird mit **denselben Zeilen** wie in `init`: derselbe Boden,
@@ -3838,6 +4065,55 @@ export class PortalWorld implements World {
       tool.update(dt, host, controller);
     }
     this.updateLooseTools(dt);
+    this.updateMelee(dt);
+  }
+
+  /**
+   * **Was eine Klinge in der Hand anrichtet.**
+   *
+   * Eine Kugel fliegt los und trifft; ein Messer liegt in der Hand und ist
+   * immer irgendwo. Der Unterschied ist der Grund, warum hier nicht dieselbe
+   * Zeile steht wie bei den Kugeln, sondern eine eigene Rechnung davor
+   * (`tools/meleeSwing.ts`): Ein Schlag braucht **Tempo** und danach eine
+   * **Pause**, sonst tötet ein hingehaltenes Messer sechzigmal in der Sekunde.
+   *
+   * Getroffen wird entlang der Strecke, die die Spitze seit dem letzten Bild
+   * gefahren ist — dieselbe Frage wie bei einer Kugel, nur über zehn
+   * Zentimeter statt über zwei Meter (`npc/npcHit.ts`).
+   */
+  private updateMelee(dt: number): void {
+    const director = this.director;
+    if (!director) {
+      this.swings.clear();
+      return;
+    }
+    for (const tool of this.swings.keys()) {
+      // Weggelegt, umgehängt, geworfen: was nicht mehr in einer Hand liegt,
+      // fängt beim nächsten Mal von vorn an — sonst zieht die erste Bewegung
+      // danach eine Strecke quer durch den Raum.
+      if (this.held.get(tool.heldBy ?? 'left') !== tool) this.swings.delete(tool);
+    }
+
+    for (const tool of this.held.values()) {
+      if (tool.meleeDamage <= 0 || !tool.meleeTip(_swingTip)) continue;
+      let state = this.swings.get(tool);
+      if (!state) {
+        state = newSwing();
+        this.swings.set(tool, state);
+      }
+      const swing = swingStep(state, _swingTip, dt);
+      if (!swing) continue;
+      _swingFrom.set(swing.from.x, swing.from.y, swing.from.z);
+      _swingTo.set(swing.to.x, swing.to.y, swing.to.z);
+      const zone = director.hit(_swingFrom, _swingTo, tool.meleeDamage);
+      if (!zone) continue;
+      swingHit(state);
+      // Dieselbe Rückmeldung wie beim Hammer an einer Kiste: ein Stoß in die
+      // Hand und ein tiefer Ton. Ein Treffer, den man nicht spürt, ist in der
+      // Brille keiner.
+      if (tool.heldBy) this.context?.input.get(tool.heldBy)?.pulse(0.9, 45);
+      playTone({ type: 'square', from: 320, to: 90, duration: 0.1, gain: 0.06 });
+    }
   }
 
   /** True while a tool in the *other* hand has taken hold of this one too. */
@@ -4193,15 +4469,35 @@ export class PortalWorld implements World {
       }
       _ray.origin.copy(_point);
       _ray.direction.copy(_velocity).divideScalar(speed);
-      const hit = this.castSurface(_ray, speed * dt + STICK_MARGIN, this.solids);
+      const reach = speed * dt + STICK_MARGIN;
+
+      // **Erst die Leute, dann die Wand.** Ein geworfenes Messer, das in einem
+      // Zombie steckt, hat ihn getroffen und nicht die Wand dahinter. Gefragt
+      // wird dabei dieselbe **Strecke**, die gleich die Wände bekommen — bei
+      // einem schnellen Wurf oder einem ausgelassenen Bild ist sie länger als
+      // ein Zombie dick, und ein Punkt ginge dann mitten durch ihn hindurch.
+      if (loose.tool.meleeDamage > 0 && this.director) {
+        _swingTo.copy(_point).addScaledVector(_ray.direction, reach);
+        const zone = this.director.hit(_point, _swingTo, loose.tool.meleeDamage);
+        if (zone) {
+          // Es bleibt **nicht** stecken, sondern fällt: Wo es steckte, geht
+          // gleich jemand um, und ein Messer, das in der Luft hängt, wo eben
+          // noch ein Zombie stand, sieht nach einem Fehler aus.
+          loose.gliding = false;
+          playTone({ type: 'square', from: 380, to: 120, duration: 0.1, gain: 0.05 });
+          continue;
+        }
+      }
+
+      const hit = this.castSurface(_ray, reach, this.solids);
       if (hit) {
         // A hair *into* the wall, so it reads as stuck rather than as resting
         // against it.
         this.stickTool(loose, _point.copy(hit.point).addScaledVector(_ray.direction, 0.02));
         continue;
       }
-      const reach = this.glideProp(loose, speed * dt + STICK_MARGIN);
-      if (reach !== null) this.stickTool(loose, _point.addScaledVector(_ray.direction, reach));
+      const along = this.glideProp(loose, reach);
+      if (along !== null) this.stickTool(loose, _point.addScaledVector(_ray.direction, along));
     }
   }
 
@@ -4660,7 +4956,9 @@ export class PortalWorld implements World {
    */
   private playerFeet(target: THREE.Vector3): THREE.Vector3 | null {
     const ctx = this.context;
-    if (!ctx) return null;
+    // Kein Spieler, aber eine Attrappe: die laufende Vorschau der
+    // Werkzeugseite. Für alles, was den Spieler sucht, *ist* sie er.
+    if (!ctx) return this.ghost ? target.copy(this.ghost.position) : null;
     if (this.viewOverride) return target.copy(this.bodyHome);
     ctx.rig.getHeadPosition(target);
     target.y = ctx.rig.getFloorY();
@@ -4687,7 +4985,7 @@ export class PortalWorld implements World {
     }
     const ctx = this.context;
     for (const side of ['left', 'right'] as const) ctx?.input.get(side)?.pulse(0.9, 90);
-    ctx?.notify('Treffer!');
+    this.announce('Treffer!');
     playTone({ type: 'sawtooth', from: 260, to: 90, duration: 0.16, gain: 0.06 });
   }
 
@@ -4706,6 +5004,7 @@ export class PortalWorld implements World {
     const physics = this.physics;
     if (!physics) return;
     const mass = options.mass ?? 0.06;
+    const damage = options.damage ?? BODY_DAMAGE;
     // A heavier round is a bigger one — otherwise "brutal" looks like "leicht".
     const radius = 0.014 * Math.cbrt(mass / 0.06);
     const tracer = options.tracer === true;
@@ -4735,6 +5034,7 @@ export class PortalWorld implements World {
     this.bullets.push({
       entry,
       life: BULLET_LIFETIME,
+      damage,
       trail: tracer ? this.newTrail() : null,
       from: mesh.position.clone(),
       spent: false,
@@ -4802,7 +5102,7 @@ export class PortalWorld implements World {
       // is a line, not a point. Worlds that count hits get that line.
       if (!bullet.spent) {
         _point.set(t.x, t.y, t.z);
-        if (this.bulletTravelled(bullet.from, _point)) bullet.spent = true;
+        if (this.bulletTravelled(bullet.from, _point, bullet.damage)) bullet.spent = true;
       }
       bullet.from.set(t.x, t.y, t.z);
       if (bullet.life > 0 && t.y > -30) continue;
@@ -4823,8 +5123,8 @@ export class PortalWorld implements World {
    *
    * @returns true when the round was used up by whatever it ran into
    */
-  protected bulletTravelled(from: THREE.Vector3, to: THREE.Vector3): boolean {
-    return this.director?.shoot(from, to) ?? false;
+  protected bulletTravelled(from: THREE.Vector3, to: THREE.Vector3, damage?: number): boolean {
+    return this.director?.shoot(from, to, damage) ?? false;
   }
 
   private clearBullets(): void {
@@ -6789,4 +7089,34 @@ function measuredNote(hand: Handedness | null): string {
   const built = 'Zurück auf die gebaute Pose';
   if (!hand) return built;
   return `${built} · gemessen: ${hand === 'left' ? 'links' : 'rechts'}`;
+}
+
+/**
+ * **Die Attrappe des Spielers** in einer laufenden Vorschau: ein Ring auf dem
+ * Boden, ein kurzer Stab darin.
+ *
+ * Kein Körper und keine Puppe, mit Absicht. Sie ist kein Mitspieler, sondern
+ * eine **Stelle** — die, auf die die Hirne zulaufen. Ein Ring liest sich von
+ * oben als Markierung; eine Figur läse sich als jemand, der gleich etwas tut.
+ * Der Stab ist dafür da, dass man sie auch von der Seite sieht, wenn die
+ * Ansicht flach steht.
+ */
+function createGhostTarget(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'preview-target';
+  const color = 0x39d0ff;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.05, 10, 28),
+    new THREE.MeshBasicMaterial({ color, toneMapped: false }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.06;
+  group.add(ring);
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 1.7, 8),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, toneMapped: false }),
+  );
+  post.position.y = 0.85;
+  group.add(post);
+  return group;
 }

@@ -8,6 +8,7 @@ import type { WristMenus } from '../ui/WristMenus';
 import type { MenuEntry } from '../ui/menu';
 import type { NetSession } from '../net/NetSession';
 import type { RemoteAvatars } from '../net/RemoteAvatars';
+import type { LivePreview } from '../worlds/shared/livePreview';
 
 /**
  * How a player takes part. The engine detects a sensible default, but worlds
@@ -71,6 +72,16 @@ export interface WorldPreview {
   roof?: number | null;
   /** Läuft jedes Bild, mit den Sekunden seit dem Aufbau — für Tore, die wirbeln. */
   animate?(time: number): void;
+  /**
+   * **Wenn diese Vorschau nicht nur ein Bild ist, sondern läuft**
+   * (`worlds/shared/livePreview.ts`).
+   *
+   * Fehlt bei jeder stillen Vorschau, und das ist der Normalfall: Eine Kulisse
+   * mit einer Attrappe statt einer Physik kann nichts rechnen. Wer das hier
+   * ausfüllt, hat eine echte Physik, ein Gitter und einen Bestand an NPCs
+   * gebaut — und dann darf man sie vom Telefon aus bedienen.
+   */
+  live?: LivePreview;
   /** Gibt frei, was gebaut wurde. */
   dispose(): void;
 }
@@ -90,6 +101,17 @@ export interface World {
    * etwas anderes als das Spiel.
    */
   preview?(): WorldPreview;
+  /**
+   * Dieselbe Kulisse, aber **in Betrieb**: mit Physik, Gitter und NPCs, damit
+   * man sie auf der Werkzeugseite starten und bedienen kann
+   * (`worlds/shared/livePreview.ts`).
+   *
+   * Optional wie `preview` und aus demselben Grund: Eine Welt, die das nicht
+   * anbietet, ist eine, die man ansieht oder betritt. Asynchron, weil eine
+   * echte Physik geladen werden muss — das ist der ganze Unterschied zur
+   * stillen Vorschau.
+   */
+  previewLive?(): Promise<WorldPreview>;
   update(dt: number, ctx: WorldContext): void;
   /**
    * Optional custom render pass (the portal world needs several). Return true

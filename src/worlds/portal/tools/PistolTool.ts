@@ -8,6 +8,7 @@ import {
   BURST_STEPS,
   FIRE_MODES,
   FIRE_MODE_LABELS,
+  DAMAGE_STEPS,
   MAGAZINE_STEPS,
   RATE_STEPS,
   RELOAD_STEPS,
@@ -275,6 +276,11 @@ export class PistolTool extends Tool {
     return this.set({ speed: nextStep(SPEED_STEPS, this.settings.speed) }).speed;
   }
 
+  /** Was ein Rumpftreffer abzieht — der Kopf das Vierfache (`npcHit.ts`). */
+  cycleDamage(): number {
+    return this.set({ damage: nextStep(DAMAGE_STEPS, this.settings.damage) }).damage;
+  }
+
   cycleRate(): number {
     return this.set({ rate: nextStep(RATE_STEPS, this.settings.rate) }).rate;
   }
@@ -342,6 +348,7 @@ export class PistolTool extends Tool {
     host.spawnBullet(_origin, _direction, this.settings.speed, {
       mass: this.settings.mass,
       tracer: this.settings.ammo === 'tracer',
+      damage: this.settings.damage,
     });
     playShot();
     controller.pulse(0.6, 40);

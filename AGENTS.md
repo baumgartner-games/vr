@@ -82,7 +82,10 @@ nicht in die Wand schiebt, und ein Speicher, der auch kaputt sein darf), die
 (`src/core/handGestures.ts` — welche Finger an der Handfläche liegen und was
 daraus Greifen und Trigger macht, samt der Hysterese, ohne die ein halb
 gekrümmter Finger den Trigger dreißigmal pro Sekunde umschaltet), die Waffenwerte
-(`src/worlds/portal/tools/weaponSettings.ts`), der **Lichtkegel der
+(`src/worlds/portal/tools/weaponSettings.ts` — samt dem **Schaden**, mit dem
+ein Zombie vier Schuss braucht), **wann ein Schlag einer ist**
+(`src/worlds/portal/tools/meleeSwing.ts` — zu langsam ist Hinhalten, zu früh
+ist derselbe Schlag noch einmal, und ein Sprung der Klinge ist gar keiner), der **Lichtkegel der
 Taschenlampe** (`src/worlds/portal/tools/flashlightBeam.ts` — Grenzen, das
 Ziehen an der Linse und dass der schmale Kegel heller und weiter reicht, ohne
 zum Scheinwerfer zu werden), die **Gürtel-Position**
@@ -2097,6 +2100,18 @@ Lupe auf Armeslänge. Erst bei 16× liest es sich als das, was es ist.
 eine kurze Linie hinter sich her, so dass man einem Schuss zusehen kann,
 statt ihn nur zu hören.
 
+**Schaden** ist eine eigene Zeile und absichtlich **nicht** die Stärke. Die
+Stärke ist die Masse der Kugel: Sie schiebt eine Kiste, wirft einen Dominostein
+und lässt den Schuss auf 50 m fallen — das ist Physik. Der Schaden ist eine
+Spielregel: Was ein **Rumpftreffer** einem NPC abzieht, und ein Kopftreffer das
+Vierfache davon (`npc/npcHit.ts`, `HEAD_FACTOR`). Ausgeliefert wird **25**, und
+diese Zahl ist keine gewürfelte: Ein Zombie hat hundert Leben
+(`npc/npcKinds.ts`), also braucht er **vier Schuss in den Rumpf oder einen in
+den Kopf**. Genau diese Regel begreift man nach dem dritten Schuss von selbst,
+und genau sie hält `npcHit.test.ts` fest. Die Rasten (10 · 25 · 50 · 100 · 200)
+laufen an den Leben der NPCs entlang; jede Zahl von 1 bis 1000 geht unter
+_Werte eingeben_.
+
 **Ducken und Sprinten** hängen an den Sticks: rechten Stick reindrücken duckt,
 linken Stick reindrücken sprintet. Unter **Menü → Bewegung** lässt sich für
 beide einstellen, ob gedrückt gehalten oder umgeschaltet wird (Ducken schaltet
@@ -3097,8 +3112,16 @@ vorher 66 Zeichen und kostet jetzt 27, aus drei Gründen:
   die durch, an der sie gemessen haben; die andere steht nicht mehr als
   Behauptung im Code und macht ihn nicht mehr doppelt so lang.
 
-Codes der Fassungen 1 und 2 werden weiter gelesen (`tools/gearCodec.ts`, mit
-Test).
+**Version 4** ist eine einzige Zahl: der **Schaden** der Waffe. Angehängt
+allein hätte es nicht gereicht — hinter dem Waffenabschnitt stehen Drohne und
+Handschuh, und ein Leser, der ein Feld erwartet, das ein alter Code nicht hat,
+nimmt dafür das erste Byte des nächsten Abschnitts. Der Zoom durfte seinerzeit
+angehängt werden, weil er am **Ende** des Payloads stand und ein leerer Leser
+Nullen liefert; ein Feld in der Mitte kostet eine Nummer. Das ist der Preis
+dafür, dass die Reihenfolge zählt, und er ist einmalig zu zahlen.
+
+Codes der Fassungen 1 bis 3 werden weiter gelesen (`tools/gearCodec.ts`, mit
+Test) — geschrieben wird nur noch 4.
 
 #### Der Kurzcode
 
@@ -3611,13 +3634,42 @@ seine Scheiben abrechnet (`bulletTravelled`, die der Schießstand jetzt an die
 Halle weiterreicht). Der Körper ist dabei ein **Zylinder** für den Rumpf und
 eine **Kugel** für den Kopf, und beide sind drehsymmetrisch um die Hochachse:
 ein Kopftreffer ist einer, wo der Kopf ist, egal wohin der Kopf gerade schaut.
-Drei Rumpftreffer oder einer in den Kopf, und er fällt. Dass der Kopf, den man
+**Was ein Treffer kostet, bringt die Waffe mit**: die Pistole ihre eingestellte
+Zahl (25, also vier Rumpftreffer für einen Zombie), das Messer 50, der große
+Hammer 100 — und der Kopf zählt überall vierfach (`HEAD_FACTOR`). Hier stand
+einmal eine feste Zahl je Zone, und das hieß: Ein Messer tut genau so weh wie
+ein Gewehr. Dass der Kopf, den man
 *sieht*, auch der ist, auf den man *zielt*, hält `npcBody.test.ts` fest —
 Modell und Trefferzone rechnen dieselbe Zahl (`HEAD_SHARE`), und zwei
 Rechnungen, die dasselbe meinen, laufen sonst irgendwann auseinander. Wer
 fällt, geht sofort aus der Physik heraus, liegt ein paar Sekunden als Bild da
 und verschwindet dann; ohne das Aufräumen füllt sich eine Halle mit Leichen,
 und jede davon zeichnet weiter mit.
+
+**Was zuschlägt, braucht Tempo und danach eine Pause**
+(`portal/tools/meleeSwing.ts`, mit Test). Eine Kugel fliegt los und trifft; ein
+Messer liegt in der Hand und ist die ganze Zeit irgendwo. Wer jedes Bild fragt
+„stecke ich in einem Zombie", trifft sechzigmal in der Sekunde, und ein Messer,
+das man einem Zombie nur hinhält, tötet ihn dann im Zusehen. Ein Schlag zählt
+deshalb nur, wenn die **Spitze** sich schnell genug bewegt (`SWING_SPEED`),
+danach ist kurz Ruhe (`SWING_REST`), und ein **Sprung** der Spitze — Handwechsel,
+Portal, vom Gürtel gezogen — zählt gar nicht, sonst führe die Strecke quer durch
+den halben Raum. Wo die Spitze ist, sagt das Werkzeug selbst (`Tool.meleeTip`):
+beim Messer die Klingenspitze, beim Hammer der Kopf. Ein **geworfenes** Messer
+fragt dieselbe Strecke ab, die es ohnehin schon gegen Wände prüft — und fällt
+dort zu Boden, wo es getroffen hat, statt in der Luft zu hängen, wo eben noch
+ein Zombie stand.
+
+**Über jedem NPC steht ein Lebensbalken** (`worlds/npc/NpcBody.ts`) — zwei
+**Sprites** und keine Textur: Ein Sprite steht in three.js immer quer zur
+Kamera, ohne dass jemand es dorthin drehen müsste, und das ist genau, was ein
+Balken braucht, den man von vorn, von der Seite **und von oben** liest. Die
+Füllung schrumpft nach links (`center`) und geht dabei von Grün über Gelb nach
+Rot. Zu sehen ist er voreingestellt **bei Schaden** — ein Balken über einem
+unversehrten Zombie ist eine Zeile, die immer dasselbe sagt, und dreißig davon
+sind dreißig. Unter **Menü → NPC → Lebensbalken** steht *immer* (zum Nachprüfen
+der Zahlen) und *aus*; dasselbe schaltet die laufende Vorschau auf der
+Werkzeugseite.
 
 **Und andersherum:** ein Schlag, der sitzt, **schiebt den Spieler** und
 rüttelt in beiden Händen. Lebenspunkte hat der Spieler nicht — es gibt in
@@ -3832,9 +3884,18 @@ hoch. Herunterfallen kann er. Solange das so ist, ist jede Höhe im Gitter ein
 Weg nach unten und keiner nach oben, und der erste Schritt zu allem mit Treppen
 bleibt: **NPCs auf den Character-Controller umstellen**.
 
-**Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, der Editor mit
-Vogelperspektive, zerstörbare Hindernisse samt „schlag drauf, wenn kein Weg da
-ist" — und der Character-Controller oben.
+**Und man muss das Labor nicht betreten, um es zu benutzen.** Auf
+`tools.html#welt/navlab` steht unter dem Bild der Knopf **Laufen lassen**: Er
+baut dieselbe Welt mit echter Physik, kippt die Ansicht senkrecht nach unten
+und legt die sechs Buchten samt ihren Knöpfen als Zeilen daneben — dazu die
+fünf Debug-Ebenen als Schalter und ein **Ziel**, das ein Tipp auf den Boden
+versetzt. Das ist die Vogelperspektive aus „was noch fehlt", ohne Brille und
+ohne Editor; wie sie funktioniert, steht bei der Werkzeugseite unter *Eine Welt
+laufen lassen*.
+
+**Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, ein Editor, der
+das Gitter auch **ändern** kann, zerstörbare Hindernisse samt „schlag drauf,
+wenn kein Weg da ist" — und der Character-Controller oben.
 
 ### Die Werkzeugseite
 
@@ -4062,6 +4123,71 @@ bringt ihr eigenes mit — das Bühnenlicht geht dafür aus —, aber nie wenige
 Vorschau ist keine. Der Hub baut seine Vorschau selbst (`HubWorld.preview()`,
 dieselbe Halle, dieselben Gänge, dieselben wirbelnden Tore, nur ohne Zeiger) —
 von oben sieht man ihm an, was er ist: ein Rad mit Speichen.
+
+#### Eine Welt laufen lassen
+
+Eine Vorschau ist ein **Bild**, und für „wie ist diese Welt angelegt" ist das
+die richtige Antwort. Beim **Navigationslabor** ist es keine: Es besteht aus
+sechs Knöpfen und dem, was danach passiert, und ein Bild davon zeigt sechs
+Kuppeln. Unter der Bühne steht deshalb bei jeder Welt, die es kann, ein Knopf
+**Laufen lassen** — und danach steht dort dieselbe Welt **in Betrieb**.
+
+Der Unterschied ist genau eine Zeile und alles, was daran hängt:
+`World.previewLive()` (`PortalWorld.previewLive`) baut mit einer **echten
+Physik** statt der Attrappe. Damit stehen die Wände wirklich, das Gitter wird
+abgetastet wie im Spiel (`bakeNavigation`) und der Bestand an NPCs
+(`NpcDirector`) hat einen Raum, in dem er laufen kann. Gebaut wird mit
+**denselben Zeilen** wie in `init`; was fehlt, ist alles, wofür es einen
+**Spieler** braucht — Portale, Gürtel, Werkzeuge, Netz, Menü. Asynchron ist die
+Methode deshalb, weil Rapier dafür wirklich geladen wird; wer nur ein Bild
+will, nimmt weiter `preview()` und wartet auf nichts.
+
+**An die Stelle des Spielers tritt eine Attrappe** — ein Ring auf dem Boden mit
+einem Stab darin (`createGhostTarget`). Sie ist nicht Kosmetik, sondern der
+Grund, warum eine laufende Vorschau überhaupt etwas zeigt: Ein Zombie geht
+*jemandem* nach, und in einer Vorschau steht niemand. `playerFeet()` gibt sie
+zurück, wenn es keinen Kontext gibt; für Hirne, Wegsuche und Spawnpunkte *ist*
+sie der Spieler. Ein Tipp auf den Boden versetzt sie — und genau das macht die
+Draufsicht zum Werkzeug: Man setzt das Ziel und sieht, welchen Weg das Gitter
+hergibt. Wie im Spiel gilt dabei die **Sichtweite** des Hirns: Wer sein Ziel
+quer über die Karte setzt, sieht einen Zombie, der stehen bleibt, weil er
+nichts bemerkt hat.
+
+Was die Seite daraus macht, steht in einer kleinen Schnittstelle
+(`worlds/shared/livePreview.ts`) und ist absichtlich klein — fünf Sachen:
+
+- **Knöpfe mit Namen.** Dieselben Objekte und dieselben Handgriffe wie in der
+  Brille (`previewButtons()`), nur mit Beschriftung: Unter dem Bild stehen sie
+  als Zeilen, nach Buchten gruppiert und im Farbstreifen ihres Gegenstücks.
+  Antippen im Bild geht auch — aber „Stachelgrube · START" trifft man auf einem
+  Telefon sicherer als eine Kuppel von vier Pixeln. Knöpfe, für die es daneben
+  schon eine Bedienung gibt, sind `quiet`: die Wandkonsolen des Labors bleiben
+  antippbar, ohne die fünf Ebenen ein zweites Mal aufzulisten.
+- **Ein Schritt.** `step(dt)` rechnet ein Bild — dieselbe Reihenfolge wie in
+  `update`, nur ohne alles, was einen Spieler voraussetzt. Was eine Welt
+  jedes Bild für sich selbst tut (die Uhr des Labors, seine Zeitschaltungen),
+  steht dafür in `simulate(dt)` und nicht in `update`: von dort läuft es in der
+  Brille **und** auf dem Telefon.
+- **Die Debug-Ebenen** (`nav/navLayers.ts`) als Schalter, dazu die
+  Lebensbalken. Sie stehen im Labor an **drei** Stellen — Handgelenk,
+  Wandkonsole, Werkzeugseite —, und alle drei ziehen einander nach; eine
+  Anzeige, die das nicht tut, glaubt man danach keiner mehr.
+- **Meldungen.** `announce()` in `PortalWorld` ersetzt das `ctx?.notify`, das
+  in einer Vorschau jede Antwort auf jeden Knopfdruck verschluckte: Im Spiel
+  geht sie ans Handgelenk, hier in die Zeile unter der Bühne.
+- **Die Draufsicht.** `lookDown()` kippt fast senkrecht (nicht ganz: bei 90°
+  sieht man von einer Wand nur die Oberkante) und passt dabei das **Rechteck**
+  statt des Kreises darum ein. Gemessen wird das am **ungedrehten** Kasten
+  (`extent`) — der Kasten um eine gekippte Welt ist so hoch wie breit, und aus
+  ihm gelesen stünden im Labor 48 Meter Höhe, wo drei Meter Wand stehen. Ist
+  das Bild **hochkant** und die Welt breit, wird sie dabei um eine
+  Vierteldrehung quer gelegt: Auf einem Telefon ist das der Unterschied
+  zwischen einem Drittel Bild und dem ganzen.
+
+**Ein Tipp ist dabei keine Drehung.** Auf dieser Bühne wird gedreht, gezoomt
+und geflogen, und jede dieser Bewegungen fängt mit einem Finger auf dem Glas
+an. Als Tipp zählt deshalb nur, was an einer Stelle anfängt und aufhört
+(`TAP_SLOP`, `TAP_TIME`) — alles andere war eine Drehung.
 
 Geladen wird eine Welt erst beim Antippen — eine Liste mit zehn Welten wäre
 sonst das ganze Spiel auf einmal —, und weil das ein `import()` ist, entscheidet

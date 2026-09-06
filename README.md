@@ -19,7 +19,9 @@ damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk �
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
 Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen —, **NPCs**, die
 einem hinterherlaufen (Haut und Hirn getrennt gewählt, dazu Spawnpunkte und
-Brutkäfige) und
+Brutkäfige, mit Lebensbalken über dem Kopf — ein Zombie hat hundert Leben, die
+Pistole macht fünfundzwanzig, das Messer fünfzig und der große Hammer hundert,
+Kopftreffer vierfach) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
@@ -101,7 +103,12 @@ in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
 Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen; mit
 **Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
-hinein) und der
+hinein) — und **Laufen lassen**: dieselbe Welt mit echter Physik, Gitter und
+NPCs, senkrecht von oben, mit den Knöpfen der Welt als Zeilen daneben, den fünf
+Debug-Ebenen des Navigationsgitters als Schalter und einem **Ziel**, das ein
+Tipp auf den Boden versetzt und dem die NPCs nachlaufen. Im
+[Navigationslabor](https://baumgartner-games.github.io/vr/tools.html#welt/navlab)
+ist das die ganze Brille, die man zum Zusehen braucht. Dazu der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen) und die **NPCs** (jede
 Haut geht auf der Stelle, jedes Hirn mit seinen Zahlen daneben). Keine Brille
 nötig, das Telefon reicht.
