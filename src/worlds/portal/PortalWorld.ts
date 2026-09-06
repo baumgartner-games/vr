@@ -122,7 +122,14 @@ import {
   type GrabField,
   type GrabSettings,
 } from '../../core/grabSettings';
-import { handLook, handLookLabel, nextHandLook, saveHandLook } from '../../core/handLook';
+import {
+  handLook,
+  handLookLabel,
+  nextHandLook,
+  saveHandLook,
+  saveTrackedGlove,
+  trackedGlove,
+} from '../../core/handLook';
 import { GhostHand } from '../../core/HandVisuals';
 import { TextPlane } from '../../ui/TextPlane';
 import { playPick, playPop } from '../../core/Audio';
@@ -263,6 +270,8 @@ const _velocity = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _cross = new THREE.Vector3();
 const _point = new THREE.Vector3();
+/** Nur für die Schwerelosigkeitszone: wo ein Körper gerade steht. */
+const _floating = new THREE.Vector3();
 const _hand = new THREE.Vector3();
 const _matrix = new THREE.Matrix4();
 const _rotationMatrix = new THREE.Matrix4();
@@ -748,6 +757,9 @@ export class PortalWorld implements World {
     this.sync?.update(dt);
 
     this.updatePropPhasing();
+    // Vor dem Schritt und nicht danach: was gerade in die Zone geflogen ist,
+    // soll in demselben Schritt schweben und nicht erst im nächsten fallen.
+    this.updateFloatZone();
     this.updateBullets(dt);
     // The stopwatch slows the simulation, not the frame rate: everything the
     // player does with their hands stays as responsive as ever. Bei
@@ -1602,6 +1614,7 @@ export class PortalWorld implements World {
       accent: 0x9fe3ff,
       children: [
         this.handLookMenu(),
+        this.trackedGloveMenu(),
         this.handSideMenu('left'),
         this.handSideMenu('right'),
         {
@@ -1661,6 +1674,39 @@ export class PortalWorld implements World {
     };
     this.menuLabels.push(() => {
       entry.label = `Handmodell: ${handLookLabel(handLook())}`;
+    });
+    return entry;
+  }
+
+  /**
+   * **Handschuh an getrackten Händen** — dasselbe Skelett auf echten Knochen.
+   *
+   * Eine Hand ohne Controller ist ab Werk das, was die Brille misst: Kugeln an
+   * den Gelenken. Angeschaltet legt sich derselbe Handschuh darüber, den die
+   * Hand am Controller trägt, gestellt aus vier Gelenken und gekrümmt aus dem
+   * Faltmaß der echten Finger (`core/gloveFit.ts`). Derselbe Schalter hängt im
+   * Poseraum an der Wand, dort, wo man ihn braucht.
+   */
+  private trackedGloveMenu(): MenuEntry {
+    const label = (): string => `Blanke Hände: ${trackedGlove() ? 'Handschuh' : 'Gelenkkugeln'}`;
+    const entry: MenuEntry = {
+      id: 'setting:hands-tracked-glove',
+      label: label(),
+      sub: 'Hände ohne Controller: Handschuh darüber oder die Gelenke, wie gemessen',
+      icon: 'glove',
+      accent: 0x9fe3ff,
+      checked: trackedGlove(),
+      run: () => {
+        const on = saveTrackedGlove(!trackedGlove());
+        entry.checked = on;
+        this.context?.hands.refreshPoses();
+        this.refreshMenuLabels();
+        this.context?.notify(on ? 'Blanke Hände tragen den Handschuh' : 'Blanke Hände: Gelenke');
+      },
+    };
+    this.menuLabels.push(() => {
+      entry.label = label();
+      entry.checked = trackedGlove();
     });
     return entry;
   }
@@ -2872,6 +2918,103 @@ export class PortalWorld implements World {
     this.props.push(entry);
     this.bodies.set(id, entry);
     this.ids.set(entry, id);
+  }
+
+  // --- Schwerelosigkeit an einer Stelle -------------------------------------
+
+  /**
+   * Ein **Raumstück ohne Schwerkraft**: was darin losgelassen wird, bleibt
+   * hängen.
+   *
+   * Der Poseraum im Eingaberaum stellt eines auf (`tune/HoverBox.ts`), und der
+   * Grund dafür ist eine Messung: eine Handhaltung an einem Werkzeug stellt
+   * man ein, indem man die Hand daran legt — und dazu muss das Werkzeug
+   * stillstehen, und zwar dort, wo man es haben will, nicht auf dem Boden.
+   *
+   * Eine **Zone** und kein Sonderfall im Loslassen, weil es sonst zwei wären:
+   * ein Werkzeug fliegt über `releaseTool` aus der Hand, ein Gegenstand über
+   * `release`, und beide könnten auch von außen hineingeworfen werden. Eine
+   * Zone, die jedes Bild nachsieht, kennt keinen dieser Wege und trifft
+   * trotzdem alle.
+   */
+  protected floatZone: { contains(point: THREE.Vector3): boolean } | null = null;
+
+  /**
+   * Was gerade schwebt — und was es vorher war.
+   *
+   * Gemerkt wird der **Zustand vor dem Eintritt** und nicht „Schwerkraft 1":
+   * ein geworfenes Messer fliegt mit abgeschalteter Schwerkraft geradeaus
+   * (`releaseTool`), und wer es beim Verlassen der Zone auf 1 setzte, ließe es
+   * mitten im Flug fallen.
+   */
+  private readonly floating = new Map<PhysicsBody, [number, number, number]>();
+
+  /**
+   * Wie stark ein schwebender Gegenstand ausgebremst wird.
+   *
+   * Ohne Dämpfung behielte er den Schwung, mit dem er losgelassen wurde, und
+   * driftete langsam durch den Kasten davon — und was man justieren will, soll
+   * stehen, wo man es hingelegt hat. Mit ihr kommt er in einem knappen
+   * Wimpernschlag zur Ruhe und lässt sich trotzdem noch anstupsen.
+   */
+  private static readonly FLOAT_DAMPING = 4.5;
+
+  private updateFloatZone(): void {
+    const physics = this.physics;
+    if (!physics) return;
+    const zone = this.floatZone;
+    if (!zone && this.floating.size === 0) return;
+
+    const seen = new Set<PhysicsBody>();
+    for (const entry of physics.dynamicBodies) {
+      seen.add(entry);
+      let inside = false;
+      if (zone && !entry.carried) {
+        const at = entry.body.translation();
+        inside = zone.contains(_floating.set(at.x, at.y, at.z));
+      }
+      const before = this.floating.get(entry);
+      if (inside === Boolean(before)) continue;
+      if (inside) {
+        this.floating.set(entry, [
+          entry.body.gravityScale(),
+          entry.body.linearDamping(),
+          entry.body.angularDamping(),
+        ]);
+        entry.body.setGravityScale(0, true);
+        entry.body.setLinearDamping(PortalWorld.FLOAT_DAMPING);
+        entry.body.setAngularDamping(PortalWorld.FLOAT_DAMPING);
+        // Ein schlafender Körper merkt von einer geänderten Schwerkraft nichts.
+        entry.body.wakeUp();
+      } else if (before) {
+        this.floating.delete(entry);
+        entry.body.setGravityScale(before[0], true);
+        entry.body.setLinearDamping(before[1]);
+        entry.body.setAngularDamping(before[2]);
+        entry.body.wakeUp();
+      }
+    }
+    // Was die Physik nicht mehr kennt, wird hier nur vergessen und nicht mehr
+    // angefasst: ein freigegebener Körper beantwortet keine Frage mehr.
+    for (const entry of [...this.floating.keys()]) {
+      if (!seen.has(entry)) this.floating.delete(entry);
+    }
+  }
+
+  /**
+   * Das **Werkzeug**, das gerade in der Schwerelosigkeit hängt — oder `null`.
+   *
+   * Nur ein Werkzeug und nicht irgendein Gegenstand: der Poseraum misst eine
+   * Hand *an einem Werkzeug*, und dazu gehört dessen Lage im Griff. Liegen
+   * mehrere darin, gewinnt das zuerst hineingelegte — wer eine zweite Zange
+   * dazulegt, misst weiter an der ersten, statt dass die Anzeige springt.
+   */
+  protected floatingTool(): Tool | null {
+    for (const entry of this.floating.keys()) {
+      const loose = this.loose.get(entry);
+      if (loose) return loose.tool;
+    }
+    return null;
   }
 
   /**

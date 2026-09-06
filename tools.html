@@ -76,6 +76,13 @@
       <a class="drawer__link" href="#werkzeuge" data-section="tools">Werkzeuge</a>
       <a class="drawer__link" href="#welten" data-section="worlds">Welten</a>
       <a class="drawer__link" href="#beutel" data-section="bag">Magischer Beutel</a>
+      <!--
+        Und der Weg in die Brille von jemand anderem: derselbe Raum-Code wie
+        beim Zusammenspielen, aber ohne Spiel darin. Was ankommt, ist die eine
+        Hand, die drüben im Poseraum gerade gemessen wird — live, mit ihrem
+        Konfig-Code darunter.
+      -->
+      <a class="drawer__link" href="#verbinden" data-section="live">Verbinden</a>
       <hr class="drawer__rule" />
       <a class="drawer__link" href="./">VR Spielwiese</a>
       <a class="drawer__link drawer__link--out" href="https://github.com/baumgartner-games/vr">Quellcode</a>
@@ -108,6 +115,32 @@
       <ul id="grid-tools" class="grid" aria-label="Alle Werkzeuge"></ul>
       <ul id="grid-worlds" class="grid" aria-label="Alle Welten" hidden></ul>
       <ul id="grid-bag" class="grid" aria-label="Der magische Beutel" hidden></ul>
+
+      <!--
+        Der Zuschauerplatz. Oben die Leitung — Raum-Code, Name, ein Knopf und
+        eine Zeile, die sagt, was gerade ist —, dazwischen die Bühne mit der
+        geteilten Hand, unten der Konfig-Code zum Herauskopieren. Mehr steht
+        hier nicht: es gibt genau eine Sache zu sehen und genau eine
+        mitzunehmen.
+      -->
+      <section id="live" class="live" hidden>
+        <p class="live__lede">
+          Im <b>Poseraum</b> des Eingaberaums <b>Handpose teilen</b> drücken — dann steht die Hand
+          der anderen Seite hier, und ihr Konfig-Code darunter.
+        </p>
+        <div class="live__row">
+          <label class="live__field">
+            <span>Raum-Code</span>
+            <input id="live-room" type="text" autocomplete="off" spellcheck="false" placeholder="mond-riff-47" />
+          </label>
+          <label class="live__field">
+            <span>Name</span>
+            <input id="live-name" type="text" autocomplete="off" placeholder="Werkzeugseite" />
+          </label>
+          <button id="live-connect" class="live__go" type="button">Verbinden</button>
+        </div>
+        <p id="live-status" class="live__status">Nicht verbunden</p>
+      </section>
 
       <section id="detail" class="detail" hidden>
         <!--
@@ -200,6 +233,18 @@
           <button id="code-tool" class="editor__code" type="button"></button>
           <button id="code-all" class="editor__code" type="button"></button>
         </section>
+      </section>
+
+      <!--
+        Ein echtes Textfeld und kein Knopf mit Schrift darauf: dieser Code wird
+        nicht angesehen, sondern mitgenommen — markiert, kopiert, in einen Chat
+        gehängt. Ein Feld kann man auch dort noch markieren, wo es keine
+        Zwischenablage gibt.
+      -->
+      <section id="live-out" class="live live--out" hidden>
+        <p id="live-what" class="live__what">Noch nichts angekommen</p>
+        <textarea id="live-code" class="live__code" rows="2" readonly spellcheck="false" aria-label="Konfig-Code der geteilten Handhaltung"></textarea>
+        <button id="live-copy" class="live__copy" type="button">Code kopieren</button>
       </section>
     </main>
 

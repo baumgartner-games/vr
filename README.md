@@ -13,7 +13,9 @@ Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
 Dunkelhaus zum Ausprobieren von Licht, ein **Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
-ein Eingaberaum zum Einstellen von Händen und Werkzeugen, ein Werkzeuggürtel
+ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
+**Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
+damit man die blanke Hand daran einmessen kann —, ein Werkzeuggürtel
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
 Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen — und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
@@ -60,8 +62,10 @@ der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatt
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
 hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf
 samt Putzen fremden Textes, die Wahl des Gastgebers einer geteilten Welt, die
-Auslegung der Hub-Gänge und die Flächen der Würfel (dass gegenüberliegende
-Seiten zusammen `n + 1` ergeben, wie auf einem echten Würfel). Diese
+Auslegung der Hub-Gänge, die Flächen der Würfel (dass gegenüberliegende
+Seiten zusammen `n + 1` ergeben, wie auf einem echten Würfel), die Passung des
+Handschuhs auf die Knochen einer getrackten Hand, die geteilte Handhaltung auf
+dem Weg über die Leitung und die Maße des Poseraums. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
@@ -94,7 +98,13 @@ Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen; mit
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
 hinein) und der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen). Keine Brille nötig, das
-Telefon reicht. Details in [AGENTS.md](AGENTS.md#die-werkzeugseite).
+Telefon reicht.
+
+Und **Verbinden**: derselbe Raum-Code wie beim Zusammenspielen, aber ohne Spiel
+darin. Wer in der Brille im **Poseraum** _Handpose teilen_ drückt, dessen Hand
+steht hier live am Werkzeug — nur die eine Hand, nichts drumherum —, und ihr
+Konfig-Code steht darunter in einem Feld zum Herauskopieren. Details in
+[AGENTS.md](AGENTS.md#die-werkzeugseite).
 
 ## Query-/Hash-Parameter
 
@@ -138,6 +148,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Kart: zu zweit | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge | dito | – |
 | Pizza: kneten | Faust auf den Teig auf dem Tisch schlagen | – | – |
 | Pizza: belegen | Kelle/Streuer greifen, Trigger halten | – | – |
+| Handpose einmessen (Poseraum) | Werkzeug im Schwebekasten loslassen, blanke Hand daran, mit der Controller-Hand auf *Handpose teilen* zeigen; deren Trigger speichert | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 
 Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#steuerung).

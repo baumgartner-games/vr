@@ -3,8 +3,10 @@ import type { ControllerState, Handedness, XRInput } from './XRInput';
 import { GRAB_GLOW } from './colors';
 import { buttonCurls, clonePose, fingerMovesOf, type HandPose } from './handPose';
 import { holdHandPose, idleHandPose, onHandPoseChange } from './handPoseStore';
-import { handLook } from './handLook';
+import { handLook, trackedGlove } from './handLook';
 import { buildGlove, type GloveFinger } from './gloveMesh';
+import { fitGlove, type GloveJoints } from './gloveFit';
+import { foldCurls } from './handGestures';
 
 export type HandGesture = 'open' | 'ready' | 'point' | 'thumbsUp' | 'grip';
 
@@ -36,7 +38,8 @@ const DEG = Math.PI / 180;
  * - `bones`: die **Boxhand** — ein Kasten als Handfläche, Kapseln als
  *   Knochen. So hat alles angefangen, und so misst man am ehrlichsten.
  * - `limbs`: **Kugeln an den Gelenken**, wie die Brille eine getrackte Hand
- *   zeigt.
+ *   zeigt — und wie diese Datei sie zeichnet, solange der Schalter
+ *   *Handschuh an getrackten Händen* aus ist (`handLook.ts`).
  * - `glove`: der **weiße Handschuh** — *ein* Stück Stoff um das Skelett
  *   (`gloveMesh.ts`): die Handfläche läuft in die Manschette aus, die Finger
  *   wachsen als durchgehende Röhren aus ihr heraus und biegen sich am Gelenk
@@ -390,10 +393,25 @@ export class GhostHand extends THREE.Group {
 /**
  * Hands for both input kinds: joint spheres when the runtime tracks real hands,
  * a procedural hand with gestures when the player holds controllers.
+ *
+ * **Und wahlweise beides zugleich**: mit *Handschuh an getrackten Händen*
+ * (`handLook.ts`) legt sich dasselbe gebaute Skelett auf die echten Knochen —
+ * gestellt aus vier Gelenken (`gloveFit.ts`), gekrümmt aus dem Faltmaß, das die
+ * Gesten ohnehin messen. Die Kugeln gehen dafür aus; sie wären sonst die zweite
+ * Hand am selben Ort.
  */
 export class HandVisuals extends THREE.Group {
   private readonly jointMeshes = new Map<THREE.Object3D, THREE.Mesh>();
   private readonly hands = new Map<ControllerState, ProceduralHand>();
+  /**
+   * Der **Handschuh an einer getrackten Hand** — je Eingabequelle einer.
+   *
+   * Er hängt im Raum der Hand und wird Bild für Bild auf ihre Gelenke gelegt
+   * (`gloveFit.ts`); die Gelenkkugeln gehen dafür aus. Ein eigener Topf neben
+   * `hands`, weil es dieselbe Eingabequelle in beiden Formen geben kann: eine
+   * Brille kann mitten in der Sitzung von Controllern auf Hände umschalten.
+   */
+  private readonly gloves = new Map<ControllerState, ProceduralHand>();
   private readonly overrides = new Map<Handedness, HandGesture | null>();
   /** Welche Hand ein Werkzeug zur **Faust** schließt — der Flug, nicht die Welt. */
   private readonly fists = new Set<Handedness>();
@@ -493,8 +511,13 @@ export class HandVisuals extends THREE.Group {
    */
   lookOf(handedness: Handedness): HandStyle {
     for (const controller of this.input.controllers) {
-      if (controller.handedness === handedness)
-        return controller.isHand ? 'limbs' : styleOfSetting();
+      if (controller.handedness === handedness) {
+        if (!controller.isHand) return styleOfSetting();
+        // Und wenn die getrackte Hand einen Handschuh trägt, trägt ihn auch
+        // das Vergleichsstück: verglichen wird nur ehrlich, wenn beides gleich
+        // aussieht.
+        return trackedGlove() ? 'glove' : 'limbs';
+      }
     }
     return styleOfSetting();
   }
@@ -565,12 +588,63 @@ export class HandVisuals extends THREE.Group {
   update(dt: number): void {
     for (const controller of this.input.controllers) {
       if (controller.isHand) {
-        this.updateTrackedHand(controller);
+        this.updateTrackedHand(dt, controller);
         this.hands.get(controller)?.removeFromParent();
         continue;
       }
+      // Eine Hand, die wieder einen Controller hält, trägt keinen getrackten
+      // Handschuh mehr — sonst hinge er im Raum der Hand still herum.
+      this.dropGlove(controller);
       this.updateControllerHand(dt, controller);
     }
+  }
+
+  /**
+   * Der Handschuh, der gerade auf **echten Knochen** liegt — oder `null`.
+   *
+   * Er trägt die gemessene Haltung: seine Weltmatrix ist die Lage der Hand,
+   * seine Krümmungen sind die der echten Finger. Der Poseraum im Eingaberaum
+   * misst genau daran, und deshalb gibt es ihn hier heraus statt ihn
+   * einzumauern.
+   */
+  trackedGloveOf(handedness: Handedness): THREE.Object3D | null {
+    for (const [controller, glove] of this.gloves) {
+      if (controller.handedness === handedness && glove.visible) return glove;
+    }
+    return null;
+  }
+
+  /**
+   * Die **gezeichnete** Hand dieser Seite, wie sie gerade im Raum steht — der
+   * Handschuh auf echten Knochen, sonst die Hand am Controller.
+   *
+   * Sie ist das, wogegen der Poseraum misst: was man sieht, ist die Antwort,
+   * und nicht eine Zahl, aus der sie folgen würde.
+   */
+  drawnHandOf(handedness: Handedness): THREE.Object3D | null {
+    const glove = this.trackedGloveOf(handedness);
+    if (glove) return glove;
+    for (const [controller, hand] of this.hands) {
+      // `parent` und nicht nur `visible`: eine Hand, deren Eingabequelle auf
+      // Handtracking umgeschaltet hat, hängt an nichts mehr und bleibt
+      // trotzdem im Topf stehen. Ihre Weltmatrix wäre dann ihre Ortsmatrix,
+      // und gemessen würde gegen einen Ort, an dem nichts ist.
+      if (controller.handedness === handedness && hand.visible && hand.parent) return hand;
+    }
+    return null;
+  }
+
+  /**
+   * Wie weit die Finger einer getrackten Hand gerade gekrümmt sind — auf der
+   * Skala, in der auch jede Haltung steht (`handGestures.foldToCurl`).
+   */
+  trackedCurlsOf(handedness: Handedness): number[] | null {
+    for (const controller of this.input.controllers) {
+      if (controller.isHand && controller.handedness === handedness) {
+        return foldCurls(controller.fold);
+      }
+    }
+    return null;
   }
 
   dispose(): void {
@@ -579,6 +653,8 @@ export class HandVisuals extends THREE.Group {
     this.jointMeshes.clear();
     for (const hand of this.hands.values()) this.disposeHand(hand);
     this.hands.clear();
+    for (const glove of this.gloves.values()) this.disposeHand(glove);
+    this.gloves.clear();
     this.jointGeometry.dispose();
     for (const material of this.handMaterials.values()) material.dispose();
     this.handMaterials.clear();
@@ -594,7 +670,10 @@ export class HandVisuals extends THREE.Group {
     hand.removeFromParent();
   }
 
-  private updateTrackedHand(controller: ControllerState): void {
+  private updateTrackedHand(dt: number, controller: ControllerState): void {
+    // Der Handschuh zuerst: sitzt er, gehen die Kugeln aus. Zwei Hände
+    // übereinander wären das Schlechteste von beidem.
+    const glove = this.updateTrackedGlove(dt, controller);
     for (const joint of Object.values(controller.hand.joints)) {
       if (!joint) continue;
       let mesh = this.jointMeshes.get(joint);
@@ -607,10 +686,79 @@ export class HandVisuals extends THREE.Group {
         this.jointMeshes.set(joint, mesh);
       }
       mesh.scale.setScalar(Math.max((joint as THREE.XRJointSpace).jointRadius ?? 0.008, 0.004));
-      mesh.visible = !this.hidden;
+      mesh.visible = !this.hidden && !glove;
     }
     const tip = controller.hand.joints['index-finger-tip'];
     controller.fingertip = tip && tip.visible ? tip : null;
+  }
+
+  /**
+   * **Denselben Handschuh auf echte Knochen legen.**
+   *
+   * Gebaut wird das gebaute Skelett, gestellt wird es aus vier Gelenken
+   * (`gloveFit.ts`), und gekrümmt wird es aus dem Faltmaß, das die Gesten
+   * ohnehin messen (`handGestures.foldCurls`). Damit sind es wirklich dieselben
+   * Finger: was die echte Hand tut, tut der Handschuh, und was der Handschuh
+   * zeigt, ist keine Geste aus einer Liste.
+   *
+   * @returns den Handschuh, solange er steht — sonst `null`, und dann sind die
+   *          Gelenkkugeln wieder dran.
+   */
+  private updateTrackedGlove(dt: number, controller: ControllerState): ProceduralHand | null {
+    const side = controller.handedness;
+    if (!side || !trackedGlove() || !controller.hand.visible) {
+      this.dropGlove(controller);
+      return null;
+    }
+    const fit = fitGlove(side, trackedJoints(controller.hand));
+    if (!fit) {
+      this.dropGlove(controller);
+      return null;
+    }
+
+    let glove = this.gloves.get(controller);
+    if (glove && glove.side !== side) {
+      this.dropGlove(controller);
+      glove = undefined;
+    }
+    if (!glove) {
+      const material = this.handMaterial(side);
+      // Ein Handschuh ist weiß, wo immer er steht — auch auf echten Knochen.
+      material.color.setHex(GLOVE_COLOR);
+      if (!this.glowing.has(side)) material.emissive.setHex(GLOVE_COLOR).multiplyScalar(0.06);
+      glove = new ProceduralHand(side, material, 'glove');
+      controller.hand.add(glove);
+      this.gloves.set(controller, glove);
+    }
+
+    glove.position.set(fit.position.x, fit.position.y, fit.position.z);
+    glove.quaternion.set(fit.rotation.x, fit.rotation.y, fit.rotation.z, fit.rotation.w);
+    glove.scale.setScalar(fit.scale);
+    const curls = foldCurls(controller.fold);
+    if (curls) glove.setCurls(curls);
+    glove.update(dt);
+    glove.visible = !this.hidden;
+    return glove.visible ? glove : null;
+  }
+
+  /** Der Handschuh dieser Eingabequelle geht weg — Kugeln übernehmen wieder. */
+  private dropGlove(controller: ControllerState): void {
+    const glove = this.gloves.get(controller);
+    if (!glove) return;
+    this.gloves.delete(controller);
+    this.disposeHand(glove);
+    const side = controller.handedness;
+    if (!side) return;
+    // Die Farbe zurück auf die, die zu dieser Hand gehört: dieselbe Vorlage
+    // teilt sich Kugeln und Handschuh, und weiße Gelenkkugeln wären eine
+    // Einstellung, die niemand gemacht hat. Legt dieselbe Hand gleich wieder
+    // einen Controller in die Faust, gilt dort wieder das eingestellte
+    // Modell — deshalb nicht stur die Handfarbe.
+    const material = this.handMaterial(side);
+    material.color.setHex(styleOfSetting() === 'glove' ? GLOVE_COLOR : this.baseColor);
+    if (!this.glowing.has(side)) {
+      material.emissive.setHex(material.color.getHex()).multiplyScalar(0.06);
+    }
   }
 
   private updateControllerHand(dt: number, controller: ControllerState): void {
@@ -673,6 +821,28 @@ export class HandVisuals extends THREE.Group {
     if (this.fists.has(controller.handedness)) hand.setGesture('grip');
     hand.update(dt);
   }
+}
+
+/**
+ * Die vier Gelenke, aus denen die Lage des Handschuhs folgt — im Raum der Hand.
+ *
+ * Dieselbe Form wie `handJoints` in `XRInput.ts`, nur mit anderen Namen darin:
+ * dort geht es um Fingerspitzen und ein Faltmaß, hier um die Knöchel und einen
+ * Rahmen. Ein Gelenk, das die Brille gerade nicht sieht, ist `null` und nicht
+ * der Nullpunkt — sonst klappte der Handschuh dorthin zusammen.
+ */
+function trackedJoints(hand: THREE.XRHandSpace): GloveJoints {
+  const joints = hand.joints as Partial<Record<string, THREE.XRJointSpace>>;
+  const at = (name: string): THREE.Vector3 | null => {
+    const joint = joints[name];
+    return joint && joint.visible ? joint.position : null;
+  };
+  return {
+    wrist: at('wrist'),
+    middleKnuckle: at('middle-finger-phalanx-proximal'),
+    indexKnuckle: at('index-finger-phalanx-proximal'),
+    pinkyKnuckle: at('pinky-finger-phalanx-proximal'),
+  };
 }
 
 /** World position of a hand's index fingertip, if it is currently tracked. */

@@ -613,3 +613,125 @@ html, body {
 }
 
 .editor__code:hover { color: var(--fg); }
+
+/* ---------- Der Zuschauerplatz ---------- */
+
+/* Zwei Blöcke um die Bühne herum: oben die Leitung, unten der Code. Die
+   Reihenfolge ist die des Arbeitens — erst verbinden, dann hinsehen, dann
+   mitnehmen —, und deshalb steht die Bühne dazwischen und nicht daneben. */
+.live {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.live[hidden] { display: none; }
+
+.live--out { gap: 8px; }
+
+.live__lede {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.live__lede b { color: var(--fg); font-weight: 600; }
+
+/* Umbrechend, nicht scrollend: auf einem Telefon stehen Feld und Knopf
+   untereinander, auf einem Schirm nebeneinander. */
+.live__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.live__field {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.live__field input {
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  background: rgba(5, 8, 16, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.live__field input:focus {
+  outline: none;
+  border-color: rgba(140, 170, 230, 0.5);
+}
+
+.live__go {
+  padding: 10px 18px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.live__go:hover { border-color: rgba(140, 170, 230, 0.45); }
+.live__go[disabled] { opacity: 0.5; cursor: default; }
+
+/* Verbunden ist ein Zustand und keine Meldung: der Knopf trägt ihn, damit man
+   ihn sieht, ohne die Zeile darunter zu lesen. */
+.live__go.is-on {
+  color: #05070d;
+  background: linear-gradient(120deg, #7cc4ff, var(--accent));
+  border-color: transparent;
+}
+
+.live__status,
+.live__what {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.live__status.is-good,
+.live__what.is-good { color: #5ee0a0; }
+.live__status.is-bad { color: #ff8f8f; }
+
+/* Ein Feld und kein Knopf: dieser Code wird mitgenommen, nicht angesehen —
+   und markieren geht auch dort, wo es keine Zwischenablage gibt. */
+.live__code {
+  width: 100%;
+  padding: 9px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg);
+  background: rgba(5, 8, 16, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  resize: vertical;
+  word-break: break-all;
+}
+
+.live__copy {
+  align-self: flex-start;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.live__copy:hover { border-color: rgba(140, 170, 230, 0.45); }
