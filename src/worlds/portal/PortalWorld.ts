@@ -1465,6 +1465,26 @@ export class PortalWorld implements World {
       autoRow.checked = read().autoGravity;
     });
 
+    const pushRow: MenuEntry = {
+      id: 'setting:physics-body-push',
+      label: 'Körper stößt an',
+      sub: 'Aus: der eigene Rumpf wirft nichts um',
+      icon: 'gizmo',
+      accent,
+      checked: read().bodyPush,
+      run: () => {
+        const next = saveWorldPhysics({ bodyPush: !read().bodyPush });
+        pushRow.checked = next.bodyPush;
+        this.refreshMenuLabels();
+        this.context?.notify(
+          next.bodyPush ? 'Körper schiebt Gegenstände' : 'Körper lässt Gegenstände liegen',
+        );
+      },
+    };
+    this.menuLabels.push(() => {
+      pushRow.checked = read().bodyPush;
+    });
+
     const dial = (field: PhysicsField): MenuEntry => {
       const label = (): string => `${field.label}: ${physicsFieldLabel(field, read()[field.key])}`;
       const entry: MenuEntry = {
@@ -1523,13 +1543,14 @@ export class PortalWorld implements World {
     return {
       id: 'setting:physics',
       label: 'Welt-Physik',
-      sub: 'Schwerkraft, Sprung, Reibung, Rückprall',
+      sub: 'Schwerkraft, Sprung, Reibung, Rückprall, Körper',
       icon: 'gizmo',
       accent,
       children: [
         gravityRow,
         autoRow,
         ...PHYSICS_FIELDS.filter((field) => field.key !== 'gravity').map(dial),
+        pushRow,
         {
           id: 'setting:physics-values',
           label: 'Werte eingeben',
@@ -2484,7 +2505,10 @@ export class PortalWorld implements World {
   private applyWorldPhysics(): void {
     const settings = worldPhysics();
     this.physics?.setGravity(-effectiveGravity(settings, this.worldGravity()));
-    if (this.locomotion) this.locomotion.jumpSpeed = settings.jump;
+    if (this.locomotion) {
+      this.locomotion.jumpSpeed = settings.jump;
+      this.locomotion.pushesProps = settings.bodyPush;
+    }
     if (
       settings.friction !== DEFAULT_WORLD_PHYSICS.friction ||
       settings.bounce !== DEFAULT_WORLD_PHYSICS.bounce
@@ -5054,6 +5078,11 @@ export class PortalWorld implements World {
     }
     const target = position ?? _probe.set(0, -60, 0);
     probe.entry.body.setNextKinematicTranslation({ x: target.x, y: target.y, z: target.z });
+    // Die Physik muss wissen, wo diese Faust ist: was man aus ihr fallen lässt,
+    // steckt noch in ihr und darf von ihr nicht weggestoßen werden
+    // (`playerClearance.ts`). Eine Sonde, die gerade nicht mitspielt, ist auch
+    // keine Hand — sie liegt 60 m unter der Welt und stößt dort niemanden an.
+    physics.setPlayerHand(key, position, probe.entry.halfExtents.length());
   }
 
   // --- reaching through a portal -------------------------------------------

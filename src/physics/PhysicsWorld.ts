@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { clearOfPlayer, type PlayerCapsule } from './playerClearance';
+import {
+  clearOfPlayer,
+  type HandSphere,
+  type PlayerBody,
+  type PlayerCapsule,
+} from './playerClearance';
 import type { Collider, RigidBody, World } from '@dimforge/rapier3d-compat';
 
 export type RapierModule = typeof import('@dimforge/rapier3d-compat');
@@ -88,9 +93,10 @@ export interface PhysicsBody {
   /** Set while a hand holds the body — it then ignores the player capsule. */
   carried: boolean;
   /**
-   * Losgelassen, aber noch **im Spieler** — es ignoriert die Kapsel weiter, bis
-   * es draußen ist (`playerClearance.ts`). Ohne das schießt ein Ding, das man
-   * dicht am Körper losgelassen hat, quer durch die Halle.
+   * Losgelassen, aber noch **im Spieler** — es ignoriert Kapsel und Hände
+   * weiter, bis es draußen ist (`playerClearance.ts`). Ohne das schießt ein
+   * Ding, das man dicht am Körper losgelassen hat, quer durch die Halle, und
+   * eines, das man einfach fallen lässt, aus der eigenen Faust davon.
    */
   clearing: boolean;
   /**
@@ -125,6 +131,22 @@ export class PhysicsWorld {
    * Kniebeuge. `null` heißt: in dieser Welt läuft niemand herum.
    */
   playerCapsule: PlayerCapsule | null = null;
+
+  /**
+   * Und wo seine **Hände** sind, je eine Kugel, unter dem Namen ihrer Sonde.
+   *
+   * Die Hände gehören zum Körper: was aus ihnen fällt, steckt im selben
+   * Augenblick noch in ihnen, und die Sonde an der Fingerspitze ist ein fester
+   * Kasten (`PortalWorld.placeProbe`). Wer die Sonden setzt, meldet sie hier —
+   * eine Welt ohne Hände lässt die Karte leer.
+   */
+  private readonly playerHands = new Map<string, HandSphere>();
+
+  /** Der Spieler als ein Stück, für die Räumung. Wiederverwendet, nicht neu gebaut. */
+  private readonly wholePlayer: { capsule: PlayerCapsule | null; hands: HandSphere[] } = {
+    capsule: null,
+    hands: [],
+  };
 
   private accumulator = 0;
 
@@ -278,17 +300,52 @@ export class PhysicsWorld {
 
   /**
    * Ein losgelassenes Ding wieder fest machen, sobald es den Spieler verlassen
-   * hat.
+   * hat — die Kapsel *und* die Hände.
    *
-   * Ohne Kapsel gibt es niemanden, in dem es stecken könnte — eine Welt ohne
-   * Fortbewegung (der Zuschauer, ein Test) schaltet deshalb sofort zurück.
+   * Ohne beides gibt es niemanden, in dem es stecken könnte: eine Welt ohne
+   * Fortbewegung und ohne Sonden (der Zuschauer, ein Test) schaltet sofort
+   * zurück.
    */
   private checkClearing(entry: PhysicsBody): void {
-    const capsule = this.playerCapsule;
     const t = entry.body.translation();
-    if (capsule && !clearOfPlayer(capsule, t, entry.halfExtents.length())) return;
+    if (!clearOfPlayer(this.playerBody(), t, entry.halfExtents.length())) return;
     entry.clearing = false;
     this.applyFilter(entry);
+  }
+
+  /** Kapsel und Hände in einem Stück — dieselbe Liste, jedes Bild neu gefüllt. */
+  private playerBody(): PlayerBody {
+    this.wholePlayer.capsule = this.playerCapsule;
+    this.wholePlayer.hands.length = 0;
+    for (const hand of this.playerHands.values()) this.wholePlayer.hands.push(hand);
+    return this.wholePlayer;
+  }
+
+  /**
+   * Wo eine Hand des Spielers gerade ist — `null` nimmt sie wieder heraus.
+   *
+   * Gemeint sind nur die **eigenen** Hände: was ein anderer Spieler mit seiner
+   * anstößt, ist seine Sache, und in seiner Brille hält dieselbe Regel seine
+   * Gegenstände zusammen.
+   */
+  setPlayerHand(
+    key: string,
+    position: { x: number; y: number; z: number } | null,
+    radius = 0.03,
+  ): void {
+    if (!position) {
+      this.playerHands.delete(key);
+      return;
+    }
+    const hand = this.playerHands.get(key);
+    if (!hand) {
+      this.playerHands.set(key, { x: position.x, y: position.y, z: position.z, radius });
+      return;
+    }
+    hand.x = position.x;
+    hand.y = position.y;
+    hand.z = position.z;
+    hand.radius = radius;
   }
 
   /** Copies simulated transforms back onto the meshes. */
@@ -315,11 +372,13 @@ export class PhysicsWorld {
    * A carried body stops interacting with the player, otherwise pulling a cube
    * towards yourself launches you across the room.
    *
-   * Und beim **Loslassen** hört das nicht sofort auf: was noch in der Kapsel
-   * steckt, bleibt für den Spieler weich, bis es draußen ist. Ein Ding, das
-   * mitten im Körper wieder fest wird, wird im selben Bild aus ihm
-   * herausgeschossen — genau das passierte mit allem, was man aus dem
-   * magischen Beutel zog und gleich wieder losließ (`playerClearance.ts`).
+   * Und beim **Loslassen** hört das nicht sofort auf: was noch im Spieler
+   * steckt — in der Kapsel oder in der Hand —, bleibt weich, bis es draußen
+   * ist. Ein Ding, das mitten im Körper wieder fest wird, wird im selben Bild
+   * aus ihm herausgeschossen: genau das passierte mit allem, was man aus dem
+   * magischen Beutel zog und gleich wieder losließ, und mit jedem Gegenstand,
+   * den man einfach fallen ließ — die Sonde in der Fingerspitze ist auch ein
+   * fester Körper (`playerClearance.ts`).
    */
   setCarried(entry: PhysicsBody, carried: boolean): void {
     if (entry.carried === carried) return;
@@ -350,7 +409,9 @@ export class PhysicsWorld {
     }
     let filter = entry.filter;
     filter &= ~entry.phaseMask;
-    if (entry.carried || entry.clearing) filter &= ~GROUP_PLAYER;
+    // Rumpf **und** Hände: ein Ding in der Faust hat vom Fingerkasten so wenig
+    // zu befürchten wie von der Kapsel (`playerClearance.ts`).
+    if (entry.carried || entry.clearing) filter &= ~GROUP_PLAYER & ~GROUP_HAND;
     entry.collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }
 

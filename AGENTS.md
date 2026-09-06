@@ -164,9 +164,11 @@ einmal in die Hand schlägt), die **Augenhöhen**
 (`src/core/posture.ts` — dass die Anhebung die Differenz der beiden ist und
 niemanden in den Boden drückt, der sitzend höher ist als stehend), der
 **Räumung nach dem Loslassen**
-(`src/physics/playerClearance.ts` — ob ein Ding noch in der Spielerkapsel
-steckt, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
-Luft, ohne den der Zustand an der Grenze flackert), der
+(`src/physics/playerClearance.ts` — ob ein Ding noch im Spieler steckt: in der
+Kapsel, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
+Luft, ohne den der Zustand an der Grenze flackert — **oder in einer Hand**, denn
+der fallengelassene Gegenstand steckt in der Faust, aus der er fällt, und die
+Kapsel ist dort längst geräumt), der
 **Menüweg** (`src/ui/menuNav.ts` — dass beide Handgelenke denselben Weg lesen
 und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
 die **Welt-Physik**
@@ -1294,6 +1296,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   nicht für immer über jeder Welt stehen. Reibung und Rückprall fassen die
   Objekte erst an, wenn jemand sie wirklich verstellt — sonst überschriebe der
   Start jede im Code eingestellte Kleinigkeit (Dominos 0,6, Cubes 0,8).
+  Dazu **Körper stößt an**, und das ist ein Schalter: **aus**, wie
+  ausgeliefert, bleibt der eigene Rumpf zwar fest — man geht nicht durch Kisten
+  und steht weiter auf ihnen —, wirft aber nichts mehr um. Der eigene Körper
+  ist das Einzige in der Welt, das man nicht sieht, und er stand ständig in
+  etwas drin: der Stapel, an dem man vorbeiging, fiel, und das eben Abgelegte
+  war beim Umdrehen weg. Wer Kisten mit dem Knie vor sich herschieben will,
+  schaltet die Zeile an. Für die **Hände** gilt das ausdrücklich nicht: mit der
+  Hand hinlangen heißt anstoßen wollen.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Peer-to-Peer-Sitzungen** (experimentell): beide Geräte tragen denselben
   Raum-Code ein und sind danach direkt verbunden — ohne eigenen Server.
@@ -1506,6 +1516,22 @@ Ding bleibt für den Spieler weich, bis es wirklich draußen ist
 Körper auf den Boden, statt weggeschossen zu werden. Dasselbe gilt für **jeden
 frisch gebauten dynamischen Körper** (`addDynamic`): ein fallengelassenes
 Werkzeug entsteht buchstäblich in der Hand, und die ist am Körper.
+
+**Zum Spieler gehören seine Hände.** Die Sonde an der Fingerspitze ist ein
+fester kinematischer Kasten, der Gegenstände umstoßen soll
+(`PortalWorld.placeProbe`) — und was man gerade loslässt, steckt per Definition
+darin. Daran flog jeder fallengelassene Gegenstand davon, auch weit weg vom
+Rumpf: die Kapsel war längst geräumt, die Faust nicht. Die Räumung rechnet
+deshalb gegen Kapsel **und** Hände, und wer die Sonden setzt, meldet sie der
+Physik (`PhysicsWorld.setPlayerHand`). Die Hand soll stoßen, wenn man mit ihr
+hinlangt; sie soll nichts stoßen, was man eben erst aus ihr entlassen hat.
+
+**Der Rumpf stößt gar nichts mehr an.** Der Kinematik-Controller gab bis
+hierher Impulse an alles ab, wogegen er lief
+(`setApplyImpulsesToDynamicBodies`); jetzt tut er das nur noch, wenn _Körper
+stößt an_ eingeschaltet ist (`PhysicsLocomotion.pushesProps`,
+`worldPhysics.bodyPush`). Fest bleibt er in beiden Fällen: man geht nicht durch
+eine Kiste und steht weiter auf ihr — sie fliegt nur nicht mehr weg.
 
 Dass es dabei einen Augenblick lang durch die eigenen Füße fällt, ist kein
 Preis, sondern dasselbe Prinzip von der anderen Seite. Deshalb steht dort auch
