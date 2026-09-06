@@ -2194,9 +2194,11 @@ einer anderen Lage — im Griffpunkt, aber 45° nach vorn gekippt —, und dazu
 gehört dieselbe Faust, um genau diese Kippung aufgerichtet
 (`TORCH_HAND_POSE`). Das Messer lag eine Weile auch auf dem Stab und steht
 jetzt mit dem Standardgriff in der Faust.
-Der **Stiel des Pinsels** liegt auf demselben Stab mit derselben
-`holdPosition` — und ist als einziger **keine Faust**: er wird wie ein Stift
-gehalten (`BRUSH_HAND_POSE`, siehe unten).
+Der **Stiel des Pinsels** liegt auf demselben Stab, aber nicht mehr an
+derselben Stelle in der Hand (`BRUSH_HOLD` in `BrushTool.ts`: gut fünf
+Zentimeter höher und ein Stück weiter vorn als der Hammerstiel) — und ist als
+einziger **keine Faust**: er wird wie ein Stift gehalten (`BRUSH_HAND_POSE`,
+siehe unten).
 Der rechte Griff der Drohne als
 `DRONE_GRIP` in `DroneTool.ts` (mit einer Hand rutscht das Deck so weit, dass
 er im Griffpunkt sitzt). Die **Kante der Stoppuhr** als `STOPWATCH_GRIP`: ein
@@ -2235,15 +2237,22 @@ aber **längs** in der Hand: Daumen und Zeigefinger kneifen ihn, der
 Mittelfinger stützt ihn von unten, der Stiel läuft nach hinten über die
 Schwimmhaut zwischen Daumen und Zeigefinger aus der Hand, und der Zeigefinger
 zeigt den Stiel entlang zur Spitze. Die sechs Zahlen dazu sind trotzdem
-**gemessen und nicht geraten**: sie kommen aus einer Ausgleichsrechnung über
-vier Berührungen (Daumenkuppe, Zeigefingerkuppe, Mittelgelenk des
-Mittelfingers, Schwimmhaut), die alle auf der Oberfläche des Stiels liegen
-sollen, plus der Bedingung, dass sie ihn dabei _umschließen_ statt ihn von
-einer Seite zu berühren. Nachgemessen wird genau das (`core/gripFist.test.ts`,
-_die Hand am Pinsel_) — nicht die Rechnung nachgerechnet, sondern das
-Ergebnis: wo die Finger am gebauten Pinsel landen. Und der **Trigger** drückt
-den Zeigefinger dort auf den Stiel (0,45 → 0,65) statt eine Faust zu machen;
-wer beim Malen den Finger ganz krümmt, hält keinen Stift mehr.
+**gemessen und nicht geraten**: zuerst als Ausgleichsrechnung über vier
+Berührungen (Daumenkuppe, Zeigefingerkuppe, Mittelgelenk des Mittelfingers,
+Schwimmhaut), die alle auf der Oberfläche des Stiels liegen sollen, plus der
+Bedingung, dass sie ihn dabei _umschließen_ statt ihn von einer Seite zu
+berühren — inzwischen **in der Brille nachjustiert** und als Kurzcode
+hereingekommen (`BPGDLMh46J5ruqr3SNVh4H3V`, samt der Lage des Pinsels im Griff;
+er steht in `gearShort.test.ts`, damit man sieht, woher die Zahlen kommen).
+Nachgemessen wird weiter genau dasselbe (`core/gripFist.test.ts`, _die Hand am
+Pinsel_) — nicht die Rechnung nachgerechnet, sondern das Ergebnis: wo die
+Finger am gebauten Pinsel landen. Nur die Schranke ist die einer Hand und nicht
+mehr die einer Rechnung: anderthalb Zentimeter statt einem halben, denn eine
+Haltung, die man am Stiel entlangschiebt, bis sie richtig aussieht, trifft
+dessen Oberfläche nicht auf den Millimeter. Wer daneben greift, ist um
+Zentimeter daneben. Und der **Trigger** drückt den Zeigefinger dort auf den
+Stiel (0,45 → 0,65) statt eine Faust zu machen; wer beim Malen den Finger ganz
+krümmt, hält keinen Stift mehr.
 
 Die Rahmen
 der übrigen Zylinder schreibt man nicht als Winkel hin, sondern als zwei

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
-import { POLE_HOLD_POSITION } from './poleGrip';
 import { playPick } from '../../../core/Audio';
 import { DEFAULT_MATERIAL, MATERIALS, type SurfaceMaterial } from './materials';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
@@ -38,6 +37,16 @@ const PAINT_RANGE = 4;
  * (`BRUSH_HAND_POSE` in `core/handPose.ts`, nachgemessen in
  * `core/gripFist.test.ts`).
  */
+
+/**
+ * Wo der Stiel in der Hand liegt — gemessen, nicht gerechnet.
+ *
+ * Ein Stift wird nicht dort gehalten, wo eine Faust eine Stange hält: er liegt
+ * gut fünf Zentimeter höher und ein Stück weiter vorn als der Hammerstiel
+ * (`POLE_HOLD_POSITION`, `0 / −1,2 / 2,0` cm). Diese drei Zahlen kommen aus
+ * dem Justierstand in der Brille und sind als Kurzcode hereingekommen.
+ */
+export const BRUSH_HOLD = { x: 0, y: 0.047, z: -0.014 };
 
 /** Der Stiel — der Griff — von hinten nach vorn auf der z-Achse, und sein Halbmesser. */
 const HANDLE_BACK = 0.06;
@@ -122,7 +131,14 @@ export class BrushTool extends Tool {
     // Pistole obenauf. Kein sichtbarer Griff mehr, und trotzdem zeigt er
     // dorthin, wohin man zeigt: der Stab liegt auf der z-Achse, und die ist der
     // Zeigestrahl.
-    this.holdPosition.set(POLE_HOLD_POSITION.x, POLE_HOLD_POSITION.y, POLE_HOLD_POSITION.z);
+    //
+    // **Wo** der Stab in der Hand liegt, ist dagegen nicht mehr die Lage des
+    // Hammerstiels (`POLE_HOLD_POSITION`): ein Stift liegt höher und weiter
+    // vorn als eine Faust um eine Stange. Die Zahlen sind in der Brille
+    // gemessen und als Kurzcode hereingekommen
+    // (`BPGDLMh46J5ruqr3SNVh4H3V`, in `gearShort.test.ts` nachgelesen), ohne
+    // Drehung obendrauf — der Pinsel bleibt auf dem Zeigestrahl.
+    this.holdPosition.set(BRUSH_HOLD.x, BRUSH_HOLD.y, BRUSH_HOLD.z);
 
     const handle = new THREE.Mesh(
       new THREE.CylinderGeometry(HANDLE_R * 0.85, HANDLE_R, HANDLE_BACK - HANDLE_FRONT, 14),
