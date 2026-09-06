@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { ScreenSurface } from '../shared/screenSurface';
 
 const ROT_180 = new THREE.Matrix4().makeRotationY(Math.PI);
 const _inverse = new THREE.Matrix4();
@@ -14,7 +15,10 @@ export const PORTAL_OFFSET = 0.02;
  * The surface samples a render target in screen space, so the image lines up
  * pixel-perfect with the surrounding scene — per eye included.
  */
-export class Portal extends THREE.Object3D {
+export class Portal extends THREE.Object3D implements ScreenSurface {
+  /** Das Bild wird in Bildschirmkoordinaten abgelesen (`screenSurface.ts`). */
+  readonly isScreenSurface = true;
+
   readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   readonly rim: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
 

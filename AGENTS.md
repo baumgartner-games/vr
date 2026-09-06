@@ -90,7 +90,14 @@ zum Scheinwerfer zu werden), die **Gürtel-Position**
 Hüften, dass die Höhe ein Anteil der Augenhöhe bleibt und dass ein gezogener
 Zentimeter dort ankommt, wo gezogen wurde), die **Portaltiefe**
 (`src/worlds/portal/portalDepth.ts` — Rasten, Grenzen und der Fall, dass im
-Speicher eine Zeichenkette statt einer Zahl steht), die **Lichtstufen des
+Speicher eine Zeichenkette statt einer Zahl steht), die **Spiegelung an einer
+Ebene** (`src/worlds/shared/mirrorMath.ts` — dass die Ebene selbst liegen
+bleibt, dass die Rechnung ihre eigene Umkehrung ist, dass der Abstand
+vorzeichenrichtig kippt, und die Zahl, wegen der es diesen Test gibt: die
+**Determinante ist −1**. Einem Spiegelbild sieht man in der Brille nicht an,
+dass es falsch herum ist — man merkt es erst, wenn man die Hand hebt und die
+falsche zurückwinkt, und sucht den Fehler dann überall, nur nicht in vier
+Zeilen Matrix), die **Lichtstufen des
 Dunkelhauses** (`src/worlds/dark/lightLevels.ts` — dass die erste Stufe
 wirklich null ist, dass jede folgende heller wird und dass es nach der
 hellsten wieder aus ist), der **Konfig-Code**
@@ -814,6 +821,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     darin liegt, wird durch Wände hindurch gezeichnet — begrenzt durch die
     vier Clipping-Ebenen vom Auge durch die Rahmenecken, deshalb bleibt der
     Effekt im Rahmen.
+  - **Handspiegel**: derselbe Rahmen, dieselbe Faust, dasselbe Hochhalten —
+    und darin steht diesmal, was **vor** ihm ist statt was hinter den Dingen
+    liegt. Dazu eine Rückwand, denn ein Spiegel ist von hinten kein Fenster.
+    Man sieht darin sich selbst: den eigenen Kopf, die eigene Hand, das
+    Werkzeug in der anderen Faust. Vorher ging das nur, indem man sich zwei
+    Portale so hinstellte, dass man sich selbst gegenübersteht. Der Trigger
+    schaltet das Glas ab und wieder an, und am Gürtel ist es von selbst aus —
+    ein Spiegel ist ein zweiter Durchgang durch die ganze Szene, und den soll
+    nicht bezahlen, wer ihn nur mit sich herumträgt. Der große **Standspiegel**
+    ist kein Werkzeug, sondern ein Ding aus dem Beutel (siehe unten); wie
+    beides gerechnet wird, steht unter _Wie die Spiegel funktionieren_.
   - **Drohne**: ein flaches Gerät wie eine Handheld-Konsole — **zwei Griffe**,
     dazwischen das Display, darüber ein Knopf. Die Drohne selbst schwebt
     draußen im Raum, das Display zeigt ihr Bild, auch vom Boden aus.
@@ -2650,9 +2668,9 @@ an gar nichts. Jetzt tragen sie alle den Standardgriff:
 
 | Griff             | Werkzeuge                                                                                                                                                                         |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| der Standardgriff | Halterzylinder, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Lötkolben, Messer       |
+| der Standardgriff | Halterzylinder, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Handspiegel, Lötkolben, Messer       |
 
-Sechzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
+Siebzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
 dazu ist `STANDARD_GRIP_TOOLS` in `core/handPose.ts`, und `gripMount.test.ts`
 baut sie alle und legt das Maßband an.
 
@@ -2660,7 +2678,9 @@ Der **Röntgen-Scanner** hat dabei seinen Rahmen eine Handbreit nach oben
 bekommen: seine Öffnung lag auf dem Nullpunkt, also mitten in der Hand, und mit
 einem sichtbaren Griff stünde ein Zylinder im Bild. Der Scanbereich rechnet
 seitdem gegen den Rahmen-Knoten statt gegen das Werkzeug — `XrayScope` liest
-nur eine Weltmatrix, und das ist seine.
+nur eine Weltmatrix, und das ist seine. Der **Handspiegel** übernimmt beides
+unverändert — derselbe Rahmen, dieselbe Handbreit darüber; nur steht in der
+Öffnung Glas statt einer Durchsicht.
 
 Was **keinen** Standardgriff trägt, sagt das auch: der große **Hammer** hat
 einen Stiel, an dem jede Stelle ein Griff ist (siebenmal so lang wie eine
@@ -3351,6 +3371,23 @@ teilen sich in zwei Gruppen:
 - **Die Sektflasche** (`worlds/portal/champagne.ts`): das erste Ding, das man
   nicht anfasst, sondern **hält**, und das erste, das etwas **tut** — siehe
   unten.
+- **Der Standspiegel** (`worlds/portal/standingMirror.ts`): 1,65 m Glas im
+  Bügel auf einem Fuß, hoch genug, um sich ganz darin zu sehen.
+
+**Warum der Standspiegel ein Ding und kein Werkzeug ist.** Die nächstliegende
+Vorlage wäre die **Staffelei** gewesen: ein Werkzeug, das etwas hinstellt und
+danach die Hand wieder leer macht. Aber ein Werkzeug ist etwas, das man
+_benutzt_ — es hat einen Trigger, es tut etwas, es liegt in der Hand. Ein
+Standspiegel tut nichts: Er steht herum, man schiebt ihn dorthin, wo man ihn
+braucht, und stellt sich davor. Genau das ist ein Ding aus dem Beutel — es hat
+einen Körper, es fällt um, man kann es tragen und werfen, der Duplizierer legt
+ein zweites daneben, und die anderen in der Sitzung sehen es an derselben
+Stelle stehen. Die Staffelei ist nur deshalb ein Werkzeug, weil sie
+ausdrücklich **kein** Hindernis sein darf: Man muss mit der Pinselspitze durch
+sie hindurchgreifen können. Bei einem Spiegel will man das Gegenteil. Sein
+Collider ist deshalb der ganze Kasten aus Fuß, Pfosten und Rahmen — einer nur
+um den Rahmen fiele bei der leisesten Berührung um, und ein Standspiegel, der
+nicht steht, ist keiner.
 
 **Ein Griff an einem Ding aus dem Beutel.** Ein Werkzeug kommt vom Gürtel in
 die Hand und liegt dort, wie seine Haltung es sagt; ein Ding aus dem Beutel
@@ -4120,13 +4157,84 @@ für zwei sich gegenüberstehende Portale (der Fall, den man ansieht) stimmt es,
 für zwei über Eck ist es eine Näherung.
 
 **Zwei Render-Ebenen** halten auseinander, wer was sieht: `LAYER_SELF_ONLY` (3)
-trägt den eigenen Körper — den zeichnen _nur_ die Portalkameras, direkt sieht
-man von sich die Hände. `LAYER_HUD` (4, in `src/ui/ScoreHud.ts`) ist das
+trägt den eigenen Körper — den zeichnen _nur_ die Portalkameras und die
+Spiegel, direkt sieht man von sich die Hände. `LAYER_HUD` (4, in
+`src/ui/ScoreHud.ts`) ist das
 Gegenstück: das HUD hängt an der Kamera und darf in keiner zweiten Kamera
 auftauchen, sonst schwebt es in der Portalsicht, im Drohnendisplay oder im
-Fernrohr mitten im Raum. `PortalRenderer.viewLayers` setzt für jede Portalsicht
-das eine Bit und löscht das andere; Drohne und Fernrohr bringen eigene Kameras
-mit, die von Haus aus nur Ebene 0 zeichnen.
+Fernrohr mitten im Raum. `viewLayers` (in `core/viewLayers.ts`) setzt für jede
+solche Sicht das eine Bit und löscht das andere; es steht dort und nicht mehr
+im Portal-Renderer, weil der Spiegel dieselbe Regel braucht — und zwei
+Auskünfte mit derselben Regel laufen irgendwann auseinander. Drohne und Fernrohr
+bringen eigene Kameras mit, die von Haus aus nur Ebene 0 zeichnen.
+
+### Wie die Spiegel funktionieren
+
+Ein Spiegel ist der Portalsicht so ähnlich, dass er denselben Bau benutzt, und
+er unterscheidet sich in genau einem Vorzeichen. Ein Portal **versetzt** die
+Kamera — eine Drehung samt Verschiebung, Determinante `+1`. Ein Spiegel
+**klappt** sie um: die Householder-Spiegelung an der Glasebene
+(`worlds/shared/mirrorMath.ts`, mit Test), Determinante `−1`. Das ist der ganze
+Unterschied, und es ist auch der Grund, warum das Gegenüber im Spiegel die
+andere Hand hebt.
+
+Alles Übrige ist geerbt: Das Bild entsteht in einem Render-Target mit dem
+Layout des gerade gezeichneten Framebuffers (in VR beide Augen nebeneinander),
+die Fläche schlägt darin ihre eigene Bildschirmposition nach — damit stimmt es
+in Stereo —, und die Near-Plane liegt schräg auf der Glasebene, sonst stünde
+die Wand hinter dem Spiegel mitten im Bild. Die **Projektion bleibt dieselbe**
+wie die des echten Auges, und das ist kein Zufall: Ein Punkt landet unter
+`P·(M·C)⁻¹` genau dort, wo sein gespiegeltes Gegenstück unter `P·C⁻¹` landet.
+Genau deshalb darf die Fläche in Bildschirmkoordinaten ablesen.
+
+**Das umgeklappte Vorzeichen kostet eine Zeile Aufwand**, und ohne sie sieht
+man gar nichts: Weil das Bild seitenverkehrt ist, laufen alle Dreiecke darin
+andersherum, und die normale Aussortierung wirft genau die Flächen weg, die man
+sehen will. Für den Durchgang wird sie deshalb umgedreht
+(`renderer.state.setCullFace(CullFaceFront)`). Ein Spiegel ohne das ist kein
+falscher Spiegel, sondern ein leerer — genau so sah es beim ersten Versuch aus.
+
+**Es bleibt bei einer Rückspiegelung.** Was in einem Spiegelbild selbst ein
+Spiegel ist, zeigt blindes Glas; zwei Spiegel gegeneinander wären sonst ein
+unendlicher Gang, und jede Stufe davon kostet die ganze Szene noch einmal.
+Aus demselben Grund gibt es ein **Budget**: höchstens zwei Spiegel bekommen
+gleichzeitig ein Bild, und ausgewählt werden nicht die nächsten, sondern die,
+die im Blickfeld am meisten Platz einnehmen (Fläche durch Abstand im Quadrat).
+Ein Handspiegel vor der Nase gewinnt damit gegen den Standspiegel drei Meter
+weiter — und so hält man ihn ja auch hin. Wer zu klein ist (unter 10 cm),
+wer hinter einem steht und wer weiter als 14 Meter weg ist, bleibt Glas. Die
+Größengrenze ist dabei nicht Kosmetik: Der Standspiegel liegt im Beutel als
+dreieinhalb Zentimeter hohe **Miniatur** im Fach, und ohne sie zeichnete der
+Beutel die ganze Welt in jede dieser Briefmarken.
+
+Die Flächen werden **in der Szene gesucht** und tragen sich nicht in eine Liste
+ein: Spiegel stecken in Werkzeugen, in Beutel-Objekten und in Miniaturen davon,
+und die wandern zwischen Hand, Gürtel, Regal und Papierkorb. Eine Liste, die
+davon nichts mitbekommt, zeigt irgendwann auf etwas, das längst weg ist.
+Gezählt wird trotzdem mit — solange es gar keinen Spiegel gibt, entfällt auch
+das Durchsuchen. Der Zähler hängt an der **Material-Entsorgung** und nicht an
+einer eigenen `dispose`-Methode, denn weggeräumt wird mit `disposeTree` und
+`disposeToolTree`, und die wissen von einer Spiegelfläche nichts.
+
+Gezeichnet wird bei der **App** und nicht bei einer Welt (`core/App.ts`, vor
+dem Weltrender und damit vor den Portalsichten). Ein Spiegel ist ein Ding wie
+jedes andere: Er kommt als Handspiegel aus dem Regal oder als Standspiegel aus
+dem Beutel, und beide reisen mit ihrem Träger durch jede Welt. Eine Welt, die
+von Spiegeln wüsste, wäre eine Welt, in der man einen vergessen kann.
+
+Portalfläche und Spiegelfläche haben dabei dieselbe Eigenschaft, und sie steht
+inzwischen als solche da (`worlds/shared/screenSurface.ts`): Beide lesen ihr
+Bild in Bildschirmkoordinaten ab und müssen deshalb wissen, wie groß der
+Puffer ist, in den sie _gerade_ gezeichnet werden. Der Spiegel-Renderer stellt
+vor seinem Durchgang **alle** solchen Flächen auf seine Zielgröße und danach
+wieder zurück — sonst zeigte ein Portal im Spiegelbild einen um den
+Auflösungsfaktor verschobenen Ausschnitt.
+
+Bekannte Grenze in der anderen Richtung: Ein Spiegel **in** einer Portalsicht
+zeigt das Bild, das für das echte Auge gerechnet wurde. Der Ausschnitt sitzt
+richtig, die Blickrichtung nicht — für eine eigene Rechnung pro Portalebene
+müsste jede Spiegelung noch einmal durch die ganze Szene, und das ist ein
+Preis für einen Fall, den man im Vorbeigehen sieht.
 
 ### Zusammen spielen (Peer-to-Peer)
 

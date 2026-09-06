@@ -3,6 +3,7 @@ import { DICE, createDie, type DieKind } from './dice';
 import type { ColliderShape } from '../../physics/PhysicsWorld';
 import type { MenuIcon } from '../../ui/menu';
 import { BODY_RADIUS, BOTTLE_HEIGHT, CHAMPAGNE_GRIP, buildChampagne } from './champagne';
+import { MIRROR_DEPTH, MIRROR_HEIGHT, MIRROR_WIDTH, buildStandingMirror } from './standingMirror';
 import type { PropGrip } from './propGrip';
 
 /** Everything the magic bag can conjure. The name travels over the network. */
@@ -19,6 +20,7 @@ export type PropKind =
   | 'rod'
   | 'marble'
   | 'champagne'
+  | 'mirror'
   | DieKind;
 
 /**
@@ -45,6 +47,9 @@ export const BAG_ITEMS: ReadonlyArray<readonly [PropKind, string, MenuIcon]> = [
   ['rod', 'Stab', 'rod'],
   ['marble', 'Murmel', 'marble'],
   ['champagne', 'Sekt', 'bottle'],
+  // Der Standspiegel: das einzige Ding im Beutel, das man nicht umwirft,
+  // sondern hinstellt und sich davorstellt (`standingMirror.ts`).
+  ['mirror', 'Spiegel', 'mirror-stand'],
   ['d4', 'W4', 'd4'],
   ['d6', 'W6', 'd6'],
   ['d8', 'W8', 'd8'],
@@ -73,6 +78,7 @@ export const PROP_LABELS: Record<PropKind, string> = {
   rod: 'Stab',
   marble: 'Murmel',
   champagne: 'Sektflasche',
+  mirror: 'Standspiegel',
   d4: DICE.d4.label,
   d6: DICE.d6.label,
   d8: DICE.d8.label,
@@ -382,6 +388,20 @@ function buildProp(kind: PropKind): Omit<PropBlueprint, 'label'> {
         shape: { kind: 'cylinder' },
         halfExtents: new THREE.Vector3(BODY_RADIUS, BOTTLE_HEIGHT / 2, BODY_RADIUS),
         grip: CHAMPAGNE_GRIP,
+      };
+    }
+    case 'mirror': {
+      // Der Collider ist der ganze Kasten, in dem er steht — Fuß, Pfosten und
+      // Rahmen zusammen. Ein Collider nur um den Rahmen fiele bei der
+      // leisesten Berührung um, und ein Standspiegel, der nicht steht, ist
+      // keiner.
+      return {
+        mesh: buildStandingMirror(),
+        mass: 14,
+        shape: { kind: 'box' },
+        halfExtents: new THREE.Vector3(MIRROR_WIDTH, MIRROR_HEIGHT, MIRROR_DEPTH).multiplyScalar(
+          0.5,
+        ),
       };
     }
     case 'd4':
