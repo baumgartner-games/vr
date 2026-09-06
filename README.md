@@ -58,7 +58,8 @@ Einstellung für alle Werkzeuge mit demselben Griff), die Räumung nach dem
 Loslassen (ob ein Ding noch im Spieler steckt), den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
 Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
-der Tiefe, die Stoppuhr-Einstellungen, die Materialien, die Dicke der Bodenplatte, den
+der Tiefe, die Stoppuhr-Einstellungen, die Pinselwerte (Breite, Art und die eigene
+Farbreihe), die Materialien, die Dicke der Bodenplatte, den
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
 hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf
 samt Putzen fremden Textes, die Wahl des Gastgebers einer geteilten Welt, die
@@ -140,8 +141,8 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Hängegleiter (Alpen) | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen | – | – |
 | Flügel (Alpen) | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve | – | – |
 | Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
-| Pinsel | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; ✕ schließt sie, `A`/`X` öffnet sie | Linksklick | – |
-| Staffelei | Trigger stellt sie auf den Boden, `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | – | – |
+| Pinsel | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; Regler für RGB und Strichbreite gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie | Linksklick | – |
+| Staffelei | Trigger stellt sie auf den Boden und die Hand ist danach frei; Griff an der Ablage + Greifen nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | – | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Ferngreifen | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar) | – | – |
 | Kart: einsteigen | Lenkrad greifen (oder anzielen + Trigger) | Lenkrad anklicken | – |
@@ -151,6 +152,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Pizza: kneten | Faust auf den Teig auf dem Tisch schlagen | – | – |
 | Pizza: belegen | Kelle/Streuer greifen, Trigger halten | – | – |
 | Handpose einmessen (Poseraum) | Werkzeug im Schwebekasten loslassen, blanke Hand daran, mit der Controller-Hand auf *Handpose teilen* zeigen; deren Trigger speichert | – | – |
+| Schwebekasten feststellen | Knopf *Schwebe* an der Wand im Poseraum — was darin hängt, steht still und lässt sich nicht greifen | – | – |
 | Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
 
 Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#steuerung).

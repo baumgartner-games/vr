@@ -189,7 +189,13 @@ abgelehnt, und die Länge als Zusicherung statt als Hoffnung) samt seiner
 Finger stehen bleiben statt sich zu strecken), die
 **Stoppuhr-Einstellungen** (`src/worlds/portal/tools/stopwatchSettings.ts` —
 die drei Betriebsarten, das Anhalten als erlaubte Raste und kein
-Rückwärtslauf), die **Materialien** (`src/worlds/portal/tools/materials.ts` —
+Rückwärtslauf), die **Pinselwerte**
+(`src/worlds/portal/tools/brushSettings.ts` — dass eine Breite in ihren
+Grenzen bleibt, dass Regler und Anzeige dieselbe Zahl meinen, dass ein
+Farbkanal beim Hin- und Herrechnen ganz bleibt, dass die eigene Farbreihe
+weder überläuft noch Doppelte sammelt, und dass die Abdrücke eines
+Flachpinsels entlang einer Strecke weder Lücken lassen noch zu tausend
+werden), die **Materialien** (`src/worlds/portal/tools/materials.ts` —
 dass eine unbekannte Id aus dem Netz zu Lack wird statt zu `undefined`) und
 der **Regler der Werkzeugseite**
 (`src/tools/poseEdit.ts` — die sechs Achsen, ihre Grenzen und dass ein Wert
@@ -530,9 +536,34 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gewinnt), damit der Ring dort steht, wo der Trigger auch hinträfe. Liegt
     der Strahl gerade auf der **Palette**, gibt es keinen Ring: dann nimmt der
     Trigger eine Farbe und malt nicht.
-    Die Palette hat zwei Reiter: **Farben**
+    Die Palette hat drei Reiter: **Farben**, **Pinsel**
     und **Material** (Lack, Metall, Gummi, Eis, Stein, Glas, Leuchtend,
-    Schaum — `materials.ts`, mit Test). Ein Material ist beides zugleich, wie
+    Schaum — `materials.ts`, mit Test).
+    Unter **Farben** stehen die zwölf festen Töne, darunter die **eigene
+    Reihe** (sechs Plätze) und drei **Regler für Rot, Grün und Blau**. Zwölf
+    Töne reichen, um eine Kiste anzustreichen; sie reichen nicht, um zu _malen_
+    — jeder Ton, den sie nicht treffen, war vorher ein Ton, den es nicht gab.
+    Ein Regler wird nicht getippt, sondern **gezogen**: Trigger halten und
+    daran entlangfahren (oder mit der Pinselspitze daran entlangstreichen);
+    ein Wert, den man nur antippen kann, stellt man in der Brille nie ein.
+    _Speichern_ legt die gemischte Farbe vorn in die eigene Reihe (ohne
+    Doppelte, die älteste fällt hinten heraus), _Weg_ nimmt sie wieder heraus,
+    und ein leerer Platz nimmt sie auch direkt an. Sie überlebt den nächsten
+    Start (`bgvr.brush`).
+    Unter **Pinsel** stehen **Art** und **Breite** (`tools/brushSettings.ts`,
+    mit Test). Vier Arten, und sie unterscheiden sich in dem, was man sieht:
+    **Rund** (weiche Spitze, voller Ton), **Flach** (ein liegendes Rechteck,
+    ein Drittel so hoch wie breit — quer gezogen ein Band, längs ein Strich),
+    **Filzstift** (harte Kante) und **Sprühdose** (gestreute Punkte, jeder
+    fast durchsichtig, erst das Bleiben macht sie dicht). Die Breite steht in
+    **Millimetern auf der Leinwand** und nicht als Anteil des Blattes: eine
+    Zahl, die man liest wie am Pinselkasten, und eine, die auf einer kleineren
+    Leinwand nicht plötzlich etwas anderes bedeutet. Der Pinsel zeigt beides
+    an sich selbst — die Spitze trägt die Farbe und wächst mit der Breite.
+    Ein Abdruck, der keine runde Kappe ist, kann sich beim Ziehen nicht auf
+    `lineCap` verlassen: Flachpinsel und Sprühdose stempeln ihn deshalb dicht
+    an dicht die Strecke entlang (`stampCount`, ein Drittel der Breite
+    Abstand). Ein Material ist beides zugleich, wie
     das Objekt _aussieht_ und wie es sich _verhält_: Gummi springt, Eis
     rutscht, Glas ist durchsichtig, Leuchtend leuchtet. **Lack** ist der Weg
     zurück, ohne ihn wäre jeder Strich endgültig. Ein Strich setzt immer
@@ -555,9 +586,23 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     ging nicht, weil es nichts gab, worauf ein Strich ein Strich bleibt. In
     der Hand ist sie ein zusammengelegtes Bündel am Standardgriff; ein Kreis
     auf dem Boden zeigt, wohin sie kommt, **Trigger** stellt sie dort auf, mit
-    dem Blatt zum Spieler (nochmal Trigger stellt _dieselbe_ woandershin — eine
-    zweite holt man aus dem Regal). `A`/`X` **wischt das Blatt leer**, sonst
+    dem Blatt zum Spieler. `A`/`X` **wischt das Blatt leer**, sonst
     wäre der erste misslungene Strich das Ende des Bildes.
+    Danach ist die **Hand wieder leer**: das Bündel geht an den Gürtel
+    (`ToolHost.stowTool`). Wer eine Staffelei abgestellt hat, hat sie
+    abgestellt — sie danach noch als Bündel mitzutragen ist die Sorte Zustand,
+    die man erst bemerkt, wenn man damit irgendwo hängenbleibt, und ein zweites
+    Bündel auf dem Boden wäre eine zweite Staffelei, die keine ist.
+    Umgestellt wird sie an ihren **beiden Traggriffen** an den Enden der
+    Ablage: Hand daran, greifen, und sie liegt wieder im Arm
+    (`ToolHost.takeTool`) — der nächste Trigger stellt _dieselbe_ woandershin,
+    eine zweite holt man aus dem Regal. Die Griffe sind der Preis dafür, dass
+    sie **kein Prop** ist: ohne Körper fasst keine Hand sie an, und einen
+    Körper darf sie nicht haben (siehe unten). Sie sitzen weiter außen als die
+    Leinwand breit ist, damit man beim Zupacken nicht ins Bild greift, und
+    tiefer als deren Unterkante, damit man sie überhaupt sieht. Eine Hand, die
+    schon etwas hält, greift dort nicht zu — wer mit dem Pinsel an der Leinwand
+    steht, malt und räumt sie nicht ein.
     Gemalt wird mit dem Pinsel: Spitze ans Blatt oder von weiter weg
     daraufzielen, Trigger halten und ziehen; die Farbe kommt von der Palette.
     Sie ist mit Absicht **kein Hindernis** — man geht durch sie hindurch, und
@@ -1399,7 +1444,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   ein **Schwebekasten**: eine durchsichtige Kiste in der Luft, in der die
   Schwerkraft aufhört. Ein Werkzeug, das man darin loslässt, bleibt liegen —
   und daran legt man die **blanke** Hand, die dafür einen Handschuh trägt
-  (Schalter an derselben Wand). Was zwischen Hand und Werkzeug liegt, ist die
+  (Schalter an derselben Wand). Ein zweiter Schalter stellt den Kasten **fest**:
+  dann rührt sich darin nichts mehr, und die messende Faust nimmt das Werkzeug
+  auch nicht mehr an sich. Was zwischen Hand und Werkzeug liegt, ist die
   Haltung; sie steht mit ihrem Konfig-Code auf der Tafel dahinter. _Handpose
   teilen_ schickt sie live an alle im Raum — geteilt wird immer die Hand, die
   **nicht** gedrückt hat, und deren Trigger hält sie fest. Zusehen kann dabei
@@ -1614,6 +1661,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Handschuh an blanken Händen        | Knopf _Handschuh_ an der Wand im **Poseraum**, oder Menü → Hände → _Blanke Hände_                                                                                     | –                                                                                               | –                    |
 | Knochenfarben                      | Knopf _Knochenfarben_ an der Wand im **Poseraum**, oder Menü → Hände → _Knochenfarben_                                                                                | –                                                                                               | –                    |
 | Handpose teilen (Poseraum)         | Werkzeug im **Schwebekasten** loslassen, blanke Hand daran, mit der **Controller-Hand** auf _Handpose teilen_ zeigen; **deren Trigger** speichert                     | –                                                                                               | –                    |
+| Schwebekasten feststellen          | Knopf _Schwebe_ an der Wand im **Poseraum** — was darin hängt, steht still und lässt sich nicht greifen; nochmal drücken gibt es frei                                 | –                                                                                               | –                    |
 | Geteilte Handpose ansehen          | –                                                                                                                                                                     | `tools.html` → Menü → _Verbinden_, Raum-Code eintragen                                          | dito                 |
 | Grundhaltung einmessen             | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger**                                                      | –                                                                                               | –                    |
 | Stand stellen (beide)              | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert                                                                      | –                                                                                               | –                    |
@@ -1634,8 +1682,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
 | Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
 | Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
-| Pinsel                             | Palette antippen **oder** anzielen + Trigger; ✕ oben rechts schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                  | –                                                                                               | –                    |
-| Staffelei                          | Trigger stellt sie hin (Kreis am Boden zeigt wohin), `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel                                                          | –                                                                                               | –                    |
+| Pinsel                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                  | –                                                                                               | –                    |
+| Staffelei                          | Trigger stellt sie hin (Kreis am Boden zeigt wohin) und die Hand ist danach frei; **Griff an der Ablage + Greifen** nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel                                                          | –                                                                                               | –                    |
 | Effektlabor                        | roter Knopf löst aus; links Kachel wählen und den Schieber ziehen (Trigger halten)                                                                                    | anklicken / ziehen                                                                              | tippen               |
 | Duplizier-Waffe                    | zielen + Trigger legt eine Kopie daneben                                                                                                                              | –                                                                                               | –                    |
 | Inspektor                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                    | –                                                                                               | –                    |
@@ -2872,6 +2920,21 @@ ersten Stand (`mountTool`, auch für den Fall, dass jemand das Ding zweihändig
 hereintrug). An der Messung selbst ändert das nichts: die rechnet gegen den
 **Ursprung** des Werkzeugs, und der bleibt liegen.
 
+**Und in der eigenen Hand rief es lange niemand.** Derselbe Fehler, eine Ebene
+weiter: Werkzeugseite, Griffstand und der Avatar der Mitspieler stellen das
+Modell je Hand hin, für die eigenen Hände im Spiel tat es niemand — dort blieb
+es für immer so stehen, wie der Bausatz es hingelegt hatte. Bei der **Stoppuhr**
+war das die Seite der _rechten_ Handfläche (das Gehäuse sitzt einen Halbmesser
+neben dem Griffpunkt, damit seine Kante in der Faust liegt), und die linke Hand
+bekam die Uhr obendrein noch um die eigene Hochachse gedreht (`otherHand`) —
+eine Drehung nimmt einen Versatz mit. Beides zusammen schob das Gehäuse links um
+zwei Halbmesser aus der Faust: **3,4 cm** neben der Faustmitte rechts, **8,6 cm**
+links. In der Brille hing die Uhr rechts am Daumen und links unter dem kleinen
+Finger — und in der Vorschau auf der Werkzeugseite sah sie trotzdem richtig aus,
+weil die genau diese Zeile schon hatte. Die Zeile steht jetzt in
+`StopwatchTool.applyHold`, wo Hammer und Drohne sie aus demselben Grund auch
+haben, und `core/gripFist.test.ts` hält beide Zahlen fest.
+
 **Der Nullpunkt am zweiten Stand sitzt am Werkzeug.** Eine Handhaltung ist ein
 Versatz im _Griffraum_, und die Null darin ist der Griffpunkt des Controllers,
 nicht das Werkzeug — auf Null zurückgesetzt sprang die Boxhand deshalb um den
@@ -3079,7 +3142,7 @@ Die Tür sitzt hinter der zweiten Knopfspalte und vor der Werte-Tafel; die Tafel
 ist dafür ein Stück weiter nach hinten gewandert, denn eine Tür, die eine Tafel
 halbiert, ist eine Tafel weniger.
 
-Vier Dinge stehen darin:
+Fünf Dinge stehen darin:
 
 - **Der Schwebekasten** (`tune/HoverBox.ts`): eine durchsichtige Kiste in der
   Luft, in der die Schwerkraft aufhört. Man hält ein Werkzeug hinein, lässt es
@@ -3105,6 +3168,26 @@ Vier Dinge stehen darin:
   ließe es mitten im Flug fallen. Gedämpft wird kräftig (4,5), damit ein
   losgelassenes Ding steht, wo man es hingelegt hat, statt langsam durch den
   Kasten zu driften.
+
+- **Der Feststeller** (_Schwebe: frei_ / _festgestellt_) hält an, was im Kasten
+  hängt, bis er wieder ausgeht. Schwerelos ist nämlich nicht dasselbe wie
+  unbeweglich, und das ist beim Messen der Unterschied zwischen einer Zahl und
+  einer Nachbewegung: das Werkzeug hängt weich, die Hand, die man daran legt,
+  stupst es an, man rückt nach — und gemessen hat man am Ende, wie es
+  ausgewichen ist. Schlimmer noch: die blanke Hand, die man zum Messen um ein
+  Werkzeug schließt, _ist_ die Greifgeste (`handGestures.ts`), und sie nahm es
+  einem bei jedem zweiten Versuch wieder aus dem Kasten.
+
+  Festgestellt steht es wie angeschraubt **und lässt sich nicht mehr greifen**
+  (`PortalWorld.setFloatFixed`, gesperrt in `aimGrab`). Gesperrt werden dabei
+  Verschiebung und Drehung des Körpers (`lockTranslations`/`lockRotations`) und
+  nicht die Schwerkraft: die ist in der Zone ohnehin aus, und ein Körper ohne
+  Schwerkraft behält trotzdem jeden Stoß. Beim Freigeben steht er da, wo er
+  stand, statt mit dem alten Schwung weiterzuziehen. Der Kasten sagt es in
+  Bernstein statt in Grün — ein Kasten, in dem sich nichts mehr bewegt, sieht
+  sonst aus wie einer, in dem sich gerade nichts bewegt, und die gesperrte Hand
+  hielte man für einen Fehler. Wer den Raum verlässt, nimmt den Schalter nicht
+  mit: er geht mit der Zone aus.
 
 - **Der Schalter an der Wand** zieht getrackten Händen den Handschuh an. Er
   steht hier und nicht nur im Menü, weil man ihn genau hier braucht.

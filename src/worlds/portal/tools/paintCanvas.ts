@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import type { BrushKind } from './brushSettings';
 
 /**
  * Die Rechnung hinter einer **Leinwand**: wo eine Pinselspitze und wo ein
@@ -76,6 +77,22 @@ export function rayOnCanvas(
 }
 
 /**
+ * **Ein Strich**, wie der Pinsel ihn gerade zieht: Farbe, Breite und Art.
+ *
+ * Drei Angaben statt einer Farbe, und sie reisen zusammen: eine Leinwand, die
+ * die Breite aus der Farbe raten müsste, könnte nur eine malen. Die Breite
+ * steht in **Metern auf der Leinwand** und nicht in Millimetern wie in der
+ * Einstellung — die Leinwand rechnet in ihrem eigenen Maß, und die Umrechnung
+ * gehört an *eine* Stelle (`BrushTool.stroke`).
+ */
+export interface BrushStroke {
+  color: number;
+  /** Breite des Strichs auf der Leinwand, in Metern. */
+  width: number;
+  kind: BrushKind;
+}
+
+/**
  * Eine Fläche, auf die der Pinsel malen darf.
  *
  * Der Pinsel kennt keine Staffelei — er kennt nur das hier, und die Welt sagt
@@ -92,13 +109,13 @@ export interface PaintSurface {
    * @param join zieht die Linie vom letzten Punkt dieses Strichs — das ist der
    *             Unterschied zwischen Malen und Tupfen.
    */
-  paintAt(point: THREE.Vector3, color: number, join: boolean): boolean;
+  paintAt(point: THREE.Vector3, stroke: BrushStroke, join: boolean): boolean;
   /** Dasselbe dort, wo ein Strahl das Blatt trifft. */
   paintRay(
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     range: number,
-    color: number,
+    stroke: BrushStroke,
     join: boolean,
   ): boolean;
   /** Der Strich ist zu Ende; der nächste Punkt fängt einen neuen an. */
@@ -119,8 +136,13 @@ export interface PaintSurface {
    * (`aimRay`) —, damit die Vorschau *dasselbe* trifft wie der Trigger und
    * nicht etwas daneben.
    */
-  aimAt(point: THREE.Vector3, color: number): boolean;
-  aimRay(origin: THREE.Vector3, direction: THREE.Vector3, range: number, color: number): boolean;
+  aimAt(point: THREE.Vector3, stroke: BrushStroke): boolean;
+  aimRay(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    range: number,
+    stroke: BrushStroke,
+  ): boolean;
   /** Es wird gerade nicht darauf gezielt: der Kreis geht weg. */
   clearAim(): void;
 }

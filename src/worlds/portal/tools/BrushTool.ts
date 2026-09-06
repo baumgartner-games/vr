@@ -2,32 +2,73 @@ import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { playPick } from '../../../core/Audio';
 import { DEFAULT_MATERIAL, MATERIALS, type SurfaceMaterial } from './materials';
-import type { PaintSurface } from './paintCanvas';
+import { brushSettings, saveBrushSettings } from './gearStore';
+import {
+  BRUSH_KINDS,
+  BRUSH_KIND_LABELS,
+  BRUSH_KIND_SUBS,
+  CHANNELS,
+  CHANNEL_LABELS,
+  CHISEL_RATIO,
+  MAX_SWATCHES,
+  alphaOf,
+  channelsOf,
+  stampOf,
+  widthFraction,
+  widthFromFraction,
+  widthLabel,
+  withChannel,
+  withSwatch,
+  withoutSwatch,
+  type BrushSettings,
+} from './brushSettings';
+import type { BrushStroke, PaintSurface } from './paintCanvas';
 import type { PointerHit } from '../../../core/Pointer';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
-/** The palette. Four columns, so a row is easy to sweep along with the brush. */
+/** The palette. Six columns, so a row is easy to sweep along with the brush. */
 const COLORS = [
   0xff3b2f, 0xff9d3d, 0xffc857, 0xf3f6fb, 0x5ee0a0, 0x2fbf8f, 0x2f8fff, 0x4aa8ff, 0x9d7bff,
   0xff6ea3, 0x8e9db8, 0x22293a,
 ];
-const COLUMNS = 4;
+const COLUMNS = 6;
 const ROWS = Math.ceil(COLORS.length / COLUMNS);
 
 const CANVAS_W = 512;
-/** Die Reiterzeile über beiden Seiten. */
+/** Die Reiterzeile über allen Seiten. */
 const TAB_H = 74;
 /**
  * Der **Schließknopf** ganz rechts in der Reiterzeile, quadratisch — und
- * damit ist der Platz für die beiden Reiter um genau ihn kürzer.
+ * damit ist der Platz für die drei Reiter um genau ihn kürzer.
  */
 const CLOSE_W = TAB_H;
 const TABS_W = CANVAS_W - CLOSE_W;
 const CELL = CANVAS_W / COLUMNS;
-const GRID_H = CELL * ROWS;
-const CANVAS_H = TAB_H + GRID_H;
-/** Eine Materialzeile ist so hoch, dass acht davon dieselbe Fläche füllen. */
-const ROW_H = GRID_H / MATERIALS.length;
+
+// --- die Farbseite, von oben nach unten -------------------------------------
+const PRESET_Y = TAB_H;
+const PRESET_H = CELL * ROWS;
+/** Die Überschrift über der eigenen Reihe — sonst sind es nur zwei Gitter. */
+const HEAD_H = 30;
+const SWATCH_Y = PRESET_Y + PRESET_H + HEAD_H;
+const SWATCH_H = CELL;
+const SLIDER_Y = SWATCH_Y + SWATCH_H;
+const SLIDER_H = 56;
+const MIX_Y = SLIDER_Y + CHANNELS.length * SLIDER_H;
+const MIX_H = 84;
+const CANVAS_H = MIX_Y + MIX_H;
+
+// --- die Pinselseite ---------------------------------------------------------
+const KIND_H = 84;
+const WIDTH_Y = TAB_H + BRUSH_KINDS.length * KIND_H;
+const SAMPLE_Y = WIDTH_Y + SLIDER_H;
+const SAMPLE_H = 100;
+
+/** Eine Materialzeile ist so hoch, dass acht davon die Seite füllen. */
+const ROW_H = (CANVAS_H - TAB_H) / MATERIALS.length;
+
+/** Wie weit ein Regler links und rechts von der Kante wegbleibt. */
+const SLIDER_PAD = 26;
 
 const PANEL_W = 0.19;
 const PANEL_H = (PANEL_W / CANVAS_W) * CANVAS_H;
@@ -62,13 +103,42 @@ const HANDLE_FRONT = -0.055;
 const HANDLE_R = 0.016;
 
 /** Welche Seite der Palette gerade oben liegt. */
-type Page = 'colors' | 'materials';
+type Page = 'colors' | 'brush' | 'materials';
 
-/** Ein Feld auf der Palette: ein Reiter, das Kreuz oder eine Zelle der Seite. */
+const PAGES: readonly Page[] = ['colors', 'brush', 'materials'];
+const PAGE_LABELS: Record<Page, string> = {
+  colors: 'Farben',
+  brush: 'Pinsel',
+  materials: 'Material',
+};
+
+/** Was für ein Feld auf der Palette unter dem Strahl (oder der Spitze) liegt. */
+type SlotKind =
+  | 'tab'
+  | 'close'
+  /** Eine der zwölf festen Farben. */
+  | 'cell'
+  /** Ein Platz in der eigenen Reihe. */
+  | 'swatch'
+  /** Die drei Farbregler (0…2) und der Breitenregler (3). */
+  | 'slider'
+  /** Die gemischte Farbe in die eigene Reihe legen — oder wieder heraus. */
+  | 'save'
+  | 'drop'
+  /** Eine Pinselart. */
+  | 'brush'
+  /** Ein Material. */
+  | 'material';
+
 interface Slot {
-  kind: 'tab' | 'cell' | 'close';
+  kind: SlotKind;
   index: number;
+  /** Wo entlang eines Reglers getroffen wurde, von 0 bis 1. */
+  at?: number;
 }
+
+/** Der Breitenregler ist der vierte — hinter Rot, Grün und Blau. */
+const WIDTH_SLIDER = CHANNELS.length;
 
 const _tip = new THREE.Vector3();
 const _local = new THREE.Vector3();
@@ -81,7 +151,7 @@ const _matrix = new THREE.Matrix4();
 const _quaternion = new THREE.Quaternion();
 
 /**
- * Pinsel, Farbe und Material.
+ * Pinsel, Farbe, Strich und Material.
  *
  * Solange der Pinsel gehalten wird, schwebt die Palette über der anderen Hand.
  * Ausgewählt wird auf **zwei** Arten, und beide sind dieselbe Geste wie
@@ -94,7 +164,8 @@ const _quaternion = new THREE.Quaternion();
  *   nimmt es. Dafür hängt die Palette als Pointer-Ziel im Raum
  *   (`ctx.pointer`), und sie hört bewusst **nur auf die Pinselhand**: der
  *   Strahl der Hand, die sie trägt, striche sonst dauernd über sie hinweg und
- *   nähme dieser Hand ihren Trigger weg.
+ *   nähme dieser Hand ihren Trigger weg. Ein **Regler** wird dabei nicht
+ *   getippt, sondern gezogen: gedrückt halten und daran entlangfahren.
  *
  * Von da an gibt der Trigger jedem Objekt, das der Pinsel berührt oder
  * anzielt, **beides** — Farbe *und* Material —, und zwar für alle in der
@@ -106,9 +177,16 @@ const _quaternion = new THREE.Quaternion();
  * freien Hand hängt — wer mit dem Pinsel etwas *anderes* tun will, soll sie
  * wegräumen können, ohne den Pinsel wegzulegen.
  *
- * Oben stehen zwei Reiter:
+ * Oben stehen drei Reiter:
  *
- * - **Farben** — dieselbe Palette wie bisher.
+ * - **Farben** — die zwölf festen Töne, drei Regler für Rot, Grün und Blau,
+ *   und darunter die **eigene Reihe**: was man sich mischt, legt man dorthin
+ *   und findet es nach dem nächsten Start wieder (`brushSettings.ts`,
+ *   `gearStore.ts`). Ohne sie wäre jeder Ton, den die zwölf nicht treffen,
+ *   ein Ton für genau einen Strich.
+ * - **Pinsel** — Art und Breite (`brushSettings.ts`). Auf einer Kiste sieht
+ *   man den Unterschied nicht; auf der Leinwand der Staffelei ist er die
+ *   halbe Arbeit, und ein Bild aus lauter gleich dicken Würsten ist keins.
  * - **Material** — Lack, Metall, Gummi, Eis, Stein, Glas, Leuchtend, Schaum
  *   (`materials.ts`). Ein Material ist beides zugleich: wie das Objekt
  *   aussieht *und* wie es sich verhält. Eine Kiste aus Gummi springt, eine aus
@@ -131,7 +209,13 @@ export class BrushTool extends Tool {
   private readonly canvas: HTMLCanvasElement;
   private readonly texture: THREE.CanvasTexture;
   private readonly tipAnchor = new THREE.Object3D();
-  private color = COLORS[6]!;
+  /**
+   * Farbe, Breite, Art und die eigene Reihe — im Speicher, damit sie den
+   * nächsten Start überleben. Gehalten wird eine Kopie: ein Regler schreibt
+   * sonst bei jedem Bild in `localStorage` (`commit`).
+   */
+  private brush: BrushSettings = brushSettings();
+  private dirty = false;
   private material: SurfaceMaterial = DEFAULT_MATERIAL;
   private page: Page = 'colors';
   /** Was gerade leuchtet — die Spitze gewinnt, sonst zählt der Strahl. */
@@ -197,7 +281,7 @@ export class BrushTool extends Tool {
 
     this.tip = new THREE.Mesh(
       new THREE.ConeGeometry(HANDLE_R * 0.9, 0.05, 12),
-      new THREE.MeshStandardMaterial({ color: this.color, roughness: 0.5 }),
+      new THREE.MeshStandardMaterial({ color: this.brush.color, roughness: 0.5 }),
     );
     this.tip.rotation.x = -Math.PI / 2;
     this.tip.position.set(0, 0, HANDLE_FRONT - 0.03 - 0.025);
@@ -218,17 +302,28 @@ export class BrushTool extends Tool {
     this.palette.name = 'brush-palette';
     this.palette.renderOrder = 11;
     this.palette.visible = false;
+    this.showLoad();
     this.drawPalette();
   }
 
   /** The colour the brush is loaded with. */
   get currentColor(): number {
-    return this.color;
+    return this.brush.color;
   }
 
   /** Das Material, das der nächste Strich mitgibt. */
   get currentMaterial(): string {
     return this.material.id;
+  }
+
+  /**
+   * **Der Strich, wie er gerade eingestellt ist** — Farbe, Breite, Art.
+   *
+   * Die Breite steht in der Einstellung in Millimetern und auf der Leinwand in
+   * Metern; umgerechnet wird sie genau hier, an einer Stelle.
+   */
+  get currentStroke(): BrushStroke {
+    return { color: this.brush.color, width: this.brush.width / 1000, kind: this.brush.kind };
   }
 
   override onTake(_controller: ControllerState, host: ToolHost): void {
@@ -245,6 +340,7 @@ export class BrushTool extends Tool {
     this.touching = '';
     this.endStroke();
     this.clearAim();
+    this.commit();
     this.unlisten(host);
   }
 
@@ -295,6 +391,9 @@ export class BrushTool extends Tool {
 
   override onTriggerUp(_controller: ControllerState, _host: ToolHost): void {
     this.endStroke();
+    // Ein Regler ist beim Loslassen zu Ende gezogen — jetzt darf er in den
+    // Speicher, und nicht neunzigmal je Sekunde währenddessen.
+    this.commit();
   }
 
   override update(_dt: number, host: ToolHost, controller: ControllerState | null): void {
@@ -312,6 +411,10 @@ export class BrushTool extends Tool {
     // macht aus dem Tupfer einen Strich.
     if (this.stroke && controller.trigger.pressed) this.paintOn(host, true);
     else if (!controller.trigger.pressed) this.endStroke();
+
+    // Und ein gehaltener Trigger auf einem **Regler** zieht ihn: ein Wert, den
+    // man nur antippen kann, stellt man in der Brille nie ein.
+    if (controller.trigger.pressed && this.raySlot?.kind === 'slider') this.drag(this.raySlot);
 
     this.showAim(host);
 
@@ -351,6 +454,7 @@ export class BrushTool extends Tool {
   }
 
   override disposeTool(): void {
+    this.commit();
     if (this.hostRef) this.unlisten(this.hostRef);
     this.hostRef = null;
     disposeToolTree(this);
@@ -362,7 +466,7 @@ export class BrushTool extends Tool {
 
   /** Farbe und Material auf ein Objekt — beides zusammen, für alle. */
   private applyTo(entry: Parameters<ToolHost['styleProp']>[0], host: ToolHost): void {
-    host.styleProp(entry, { color: this.color, material: this.material.id });
+    host.styleProp(entry, { color: this.brush.color, material: this.material.id });
   }
 
   /**
@@ -377,11 +481,12 @@ export class BrushTool extends Tool {
     this.tipAnchor.getWorldPosition(_tip);
     _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
 
+    const stroke = this.currentStroke;
     const only = join ? this.stroke : null;
     for (const surface of only ? [only] : surfaces) {
       const painted =
-        surface.paintAt(_tip, this.color, join) ||
-        surface.paintRay(_tip, _direction, PAINT_RANGE, this.color, join);
+        surface.paintAt(_tip, stroke, join) ||
+        surface.paintRay(_tip, _direction, PAINT_RANGE, stroke, join);
       if (!painted) continue;
       this.stroke = surface;
       return true;
@@ -414,12 +519,10 @@ export class BrushTool extends Tool {
     this.tipAnchor.getWorldPosition(_tip);
     _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
 
+    const stroke = this.currentStroke;
     let found: PaintSurface | null = null;
     for (const surface of host.paintSurfaces()) {
-      if (
-        !surface.aimAt(_tip, this.color) &&
-        !surface.aimRay(_tip, _direction, PAINT_RANGE, this.color)
-      ) {
+      if (!surface.aimAt(_tip, stroke) && !surface.aimRay(_tip, _direction, PAINT_RANGE, stroke)) {
         continue;
       }
       found = surface;
@@ -484,7 +587,15 @@ export class BrushTool extends Tool {
     this.setHover(slot, this.raySlot);
 
     // Actually poking a swatch picks it without the trigger.
-    const touching = slot && Math.abs(_local.z) < 0.022 ? keyOf(slot) : '';
+    const touched = slot && Math.abs(_local.z) < 0.022;
+    if (touched && slot.kind === 'slider') {
+      // Ein Regler wird auch mit der Spitze *gezogen* und nicht einmal
+      // angetippt: die Hand fährt daran entlang, und der Wert folgt.
+      this.drag(slot);
+      this.touching = keyOf(slot);
+      return;
+    }
+    const touching = touched && slot ? keyOf(slot) : '';
     if (touching && touching !== this.touching && slot) this.pick(slot, controller, this.hostRef);
     this.touching = touching;
   }
@@ -517,17 +628,65 @@ export class BrushTool extends Tool {
     if (x < 0 || x >= CANVAS_W || y < 0 || y >= CANVAS_H) return null;
     if (y < TAB_H) {
       if (x >= TABS_W) return { kind: 'close', index: 0 };
-      return { kind: 'tab', index: x < TABS_W / 2 ? 0 : 1 };
+      return { kind: 'tab', index: Math.min(PAGES.length - 1, Math.floor(x / (TABS_W / 3))) };
     }
 
     if (this.page === 'materials') {
       const row = Math.floor((y - TAB_H) / ROW_H);
-      return row >= 0 && row < MATERIALS.length ? { kind: 'cell', index: row } : null;
+      return row >= 0 && row < MATERIALS.length ? { kind: 'material', index: row } : null;
     }
-    const column = Math.floor(x / CELL);
-    const row = Math.floor((y - TAB_H) / CELL);
-    const index = row * COLUMNS + column;
-    return index >= 0 && index < COLORS.length ? { kind: 'cell', index } : null;
+
+    if (this.page === 'brush') {
+      if (y < WIDTH_Y) {
+        const row = Math.floor((y - TAB_H) / KIND_H);
+        return row >= 0 && row < BRUSH_KINDS.length ? { kind: 'brush', index: row } : null;
+      }
+      if (y < WIDTH_Y + SLIDER_H) {
+        return { kind: 'slider', index: WIDTH_SLIDER, at: sliderFraction(x) };
+      }
+      return null;
+    }
+
+    if (y < PRESET_Y + PRESET_H) {
+      const column = Math.floor(x / CELL);
+      const row = Math.floor((y - PRESET_Y) / CELL);
+      const index = row * COLUMNS + column;
+      return index >= 0 && index < COLORS.length ? { kind: 'cell', index } : null;
+    }
+    if (y >= SWATCH_Y && y < SWATCH_Y + SWATCH_H) {
+      const index = Math.floor(x / CELL);
+      return index >= 0 && index < MAX_SWATCHES ? { kind: 'swatch', index } : null;
+    }
+    if (y >= SLIDER_Y && y < MIX_Y) {
+      const index = Math.floor((y - SLIDER_Y) / SLIDER_H);
+      return index >= 0 && index < CHANNELS.length
+        ? { kind: 'slider', index, at: sliderFraction(x) }
+        : null;
+    }
+    if (y >= MIX_Y) {
+      if (x < MIX_H) return null; // die Vorschau selbst ist kein Knopf
+      return x < CANVAS_W * 0.72 ? { kind: 'save', index: 0 } : { kind: 'drop', index: 0 };
+    }
+    return null;
+  }
+
+  /** Einen Regler auf den Wert unter dem Strahl (oder der Spitze) ziehen. */
+  private drag(slot: Slot): void {
+    const at = slot.at ?? 0;
+    if (slot.index === WIDTH_SLIDER) {
+      const width = widthFromFraction(at);
+      if (width === this.brush.width) return;
+      this.brush = { ...this.brush, width };
+    } else {
+      const channel = CHANNELS[slot.index];
+      if (!channel) return;
+      const color = withChannel(this.brush.color, channel, at);
+      if (color === this.brush.color) return;
+      this.setColor(color);
+    }
+    this.dirty = true;
+    this.showLoad();
+    this.drawPalette();
   }
 
   private pick(slot: Slot, controller: ControllerState | null, host: ToolHost | null): void {
@@ -543,7 +702,7 @@ export class BrushTool extends Tool {
     }
 
     if (slot.kind === 'tab') {
-      const page: Page = slot.index === 0 ? 'colors' : 'materials';
+      const page = PAGES[slot.index] ?? 'colors';
       if (page === this.page) return;
       this.page = page;
       this.hovered = null;
@@ -556,25 +715,108 @@ export class BrushTool extends Tool {
       return;
     }
 
-    if (this.page === 'materials') {
-      const next = MATERIALS[slot.index];
-      if (!next || next.id === this.material.id) return;
-      this.material = next;
-      // Der Griff zeigt, woraus der nächste Strich ist: matt, glänzend oder
-      // durchsichtig — dieselbe Vorschau, die das Objekt danach bekommt.
-      this.ferrule.material.roughness = next.roughness;
-      this.ferrule.material.metalness = next.metalness;
-      this.ferrule.material.needsUpdate = true;
-    } else {
-      const next = COLORS[slot.index];
-      if (next === undefined || next === this.color) return;
-      this.color = next;
-      this.tip.material.color.setHex(next);
+    if (slot.kind === 'slider') {
+      this.drag(slot);
+      this.commit();
+      controller?.pulse(0.2, 12);
+      return;
     }
+
+    switch (slot.kind) {
+      case 'material': {
+        const next = MATERIALS[slot.index];
+        if (!next || next.id === this.material.id) return;
+        this.material = next;
+        // Der Griff zeigt, woraus der nächste Strich ist: matt, glänzend oder
+        // durchsichtig — dieselbe Vorschau, die das Objekt danach bekommt.
+        this.ferrule.material.roughness = next.roughness;
+        this.ferrule.material.metalness = next.metalness;
+        this.ferrule.material.needsUpdate = true;
+        break;
+      }
+      case 'brush': {
+        const kind = BRUSH_KINDS[slot.index];
+        if (!kind || kind === this.brush.kind) return;
+        this.brush = { ...this.brush, kind };
+        this.dirty = true;
+        break;
+      }
+      case 'swatch': {
+        const next = this.brush.swatches[slot.index];
+        // Ein leerer Platz ist keine Farbe, sondern eine Einladung: er legt
+        // die gemischte hinein, statt nichts zu tun.
+        if (next === undefined) {
+          this.brush = {
+            ...this.brush,
+            swatches: withSwatch(this.brush.swatches, this.brush.color),
+          };
+          this.dirty = true;
+          host?.notify('Farbe in der eigenen Reihe');
+          break;
+        }
+        if (next === this.brush.color) return;
+        this.setColor(next);
+        this.dirty = true;
+        break;
+      }
+      case 'save': {
+        const swatches = withSwatch(this.brush.swatches, this.brush.color);
+        this.brush = { ...this.brush, swatches };
+        this.dirty = true;
+        host?.notify(`Farbe gespeichert · ${swatches.length}/${MAX_SWATCHES}`);
+        break;
+      }
+      case 'drop': {
+        const swatches = withoutSwatch(this.brush.swatches, this.brush.color);
+        if (swatches.length === this.brush.swatches.length) {
+          host?.notify('Diese Farbe liegt nicht in der eigenen Reihe');
+          return;
+        }
+        this.brush = { ...this.brush, swatches };
+        this.dirty = true;
+        host?.notify('Farbe aus der eigenen Reihe genommen');
+        break;
+      }
+      default: {
+        const next = COLORS[slot.index];
+        if (next === undefined || next === this.brush.color) return;
+        this.setColor(next);
+        this.dirty = true;
+        break;
+      }
+    }
+    this.commit();
     controller?.pulse(0.3, 20);
     playPick(true);
+    this.showLoad();
     this.drawPalette();
   }
+
+  /** Die geladene Farbe — und die Spitze, die sie zeigt. */
+  private setColor(color: number): void {
+    this.brush = { ...this.brush, color };
+    this.tip.material.color.setHex(color);
+  }
+
+  /**
+   * Was der Pinsel gerade trägt, am Werkzeug selbst: die Farbe an der Spitze
+   * und ihre **Größe**. Ein Pinsel, der bei zwei Millimetern genauso aussieht
+   * wie bei acht Zentimetern, sagt nicht, was er malen wird.
+   */
+  private showLoad(): void {
+    this.tip.material.color.setHex(this.brush.color);
+    const scale = THREE.MathUtils.clamp(this.brush.width / 20, 0.35, 2.4);
+    this.tip.scale.set(scale, 1, scale);
+  }
+
+  /** In den Speicher, aber nur einmal am Ende einer Bewegung. */
+  private commit(): void {
+    if (!this.dirty) return;
+    this.dirty = false;
+    this.brush = saveBrushSettings(this.brush);
+  }
+
+  // --- die Palette zeichnen --------------------------------------------------
 
   private drawPalette(): void {
     const ctx = this.canvas.getContext('2d')!;
@@ -586,21 +828,22 @@ export class BrushTool extends Tool {
 
     this.drawTabs(ctx);
     if (this.page === 'materials') this.drawMaterials(ctx);
+    else if (this.page === 'brush') this.drawBrush(ctx);
     else this.drawColors(ctx);
 
     this.texture.needsUpdate = true;
   }
 
   private drawTabs(ctx: CanvasRenderingContext2D): void {
-    const labels = ['Farben', 'Material'];
+    const width = TABS_W / PAGES.length;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    for (let index = 0; index < 2; index++) {
-      const x = index * (TABS_W / 2);
-      const active = (index === 0) === (this.page === 'colors');
+    for (const [index, page] of PAGES.entries()) {
+      const x = index * width;
+      const active = page === this.page;
       const hot = this.hovered?.kind === 'tab' && this.hovered.index === index;
       ctx.beginPath();
-      ctx.roundRect(x + 8, 8, TABS_W / 2 - 16, TAB_H - 16, 14);
+      ctx.roundRect(x + 6, 8, width - 12, TAB_H - 16, 14);
       ctx.fillStyle = active ? 'rgba(94, 224, 160, 0.22)' : 'rgba(255,255,255,0.05)';
       ctx.fill();
       if (active || hot) {
@@ -609,8 +852,8 @@ export class BrushTool extends Tool {
         ctx.stroke();
       }
       ctx.fillStyle = active ? '#ffffff' : 'rgba(255,255,255,0.65)';
-      ctx.font = '600 30px system-ui, sans-serif';
-      ctx.fillText(labels[index]!, x + TABS_W / 4, TAB_H / 2);
+      ctx.font = '600 27px system-ui, sans-serif';
+      ctx.fillText(PAGE_LABELS[page], x + width / 2, TAB_H / 2);
     }
     this.drawClose(ctx);
   }
@@ -643,20 +886,116 @@ export class BrushTool extends Tool {
     for (let index = 0; index < COLORS.length; index++) {
       const color = COLORS[index]!;
       const x = (index % COLUMNS) * CELL;
-      const y = TAB_H + Math.floor(index / COLUMNS) * CELL;
-      const pad = 8;
-      ctx.beginPath();
-      ctx.roundRect(x + pad, y + pad, CELL - pad * 2, CELL - pad * 2, 14);
-      ctx.fillStyle = hex(color);
-      ctx.fill();
-
-      const chosen = color === this.color;
-      const hot = this.hovered?.kind === 'cell' && this.hovered.index === index;
-      if (!chosen && !hot) continue;
-      ctx.lineWidth = chosen ? 8 : 5;
-      ctx.strokeStyle = chosen ? '#ffffff' : 'rgba(255,255,255,0.6)';
-      ctx.stroke();
+      const y = PRESET_Y + Math.floor(index / COLUMNS) * CELL;
+      this.swatch(ctx, x, y, color, color === this.brush.color, this.isHot('cell', index));
     }
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(159, 227, 255, 0.9)';
+    ctx.font = '500 21px system-ui, sans-serif';
+    ctx.fillText('Eigene Farben', 14, SWATCH_Y - HEAD_H / 2);
+
+    for (let index = 0; index < MAX_SWATCHES; index++) {
+      const color = this.brush.swatches[index];
+      const x = index * CELL;
+      if (color === undefined) this.emptySwatch(ctx, x, SWATCH_Y, this.isHot('swatch', index));
+      else
+        this.swatch(
+          ctx,
+          x,
+          SWATCH_Y,
+          color,
+          color === this.brush.color,
+          this.isHot('swatch', index),
+        );
+    }
+
+    const channels = channelsOf(this.brush.color);
+    for (const [index, channel] of CHANNELS.entries()) {
+      this.slider(
+        ctx,
+        SLIDER_Y + index * SLIDER_H,
+        `${CHANNEL_LABELS[channel]} ${channels[channel]}`,
+        channels[channel] / 255,
+        this.isHot('slider', index),
+        CHANNEL_TINTS[index]!,
+      );
+    }
+
+    // Die gemischte Farbe und die beiden Knöpfe daneben.
+    const pad = 12;
+    ctx.beginPath();
+    ctx.roundRect(pad, MIX_Y + pad, MIX_H - pad * 2, MIX_H - pad * 2, 14);
+    ctx.fillStyle = hex(this.brush.color);
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.stroke();
+
+    const saved = this.brush.swatches.includes(this.brush.color);
+    this.button(
+      ctx,
+      MIX_H,
+      CANVAS_W * 0.72 - MIX_H,
+      saved ? 'Gespeichert' : 'Speichern',
+      this.isHot('save', 0),
+      saved ? 'rgba(94,224,160,0.35)' : 'rgba(94,224,160,0.18)',
+    );
+    this.button(
+      ctx,
+      CANVAS_W * 0.72,
+      CANVAS_W - CANVAS_W * 0.72,
+      'Weg',
+      this.isHot('drop', 0),
+      'rgba(255,110,163,0.16)',
+    );
+  }
+
+  private drawBrush(ctx: CanvasRenderingContext2D): void {
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for (const [index, kind] of BRUSH_KINDS.entries()) {
+      const y = TAB_H + index * KIND_H;
+      const chosen = kind === this.brush.kind;
+      const hot = this.isHot('brush', index);
+
+      ctx.beginPath();
+      ctx.roundRect(10, y + 5, CANVAS_W - 20, KIND_H - 10, 12);
+      ctx.fillStyle = chosen ? 'rgba(94, 224, 160, 0.18)' : 'rgba(255,255,255,0.05)';
+      ctx.fill();
+      if (chosen || hot) {
+        ctx.lineWidth = chosen ? 5 : 3;
+        ctx.strokeStyle = chosen ? '#5ee0a0' : 'rgba(255,255,255,0.55)';
+        ctx.stroke();
+      }
+
+      // Ein Probestrich in genau dieser Art: was man wählt, sieht man vorher.
+      this.sample(ctx, 24, y + KIND_H / 2, 90, kind);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '600 27px system-ui, sans-serif';
+      ctx.fillText(BRUSH_KIND_LABELS[kind], 130, y + KIND_H / 2 - 11);
+      ctx.fillStyle = 'rgba(159, 227, 255, 0.9)';
+      ctx.font = '500 21px system-ui, sans-serif';
+      ctx.fillText(BRUSH_KIND_SUBS[kind], 130, y + KIND_H / 2 + 15);
+    }
+
+    this.slider(
+      ctx,
+      WIDTH_Y,
+      `Breite ${widthLabel(this.brush.width)}`,
+      widthFraction(this.brush.width),
+      this.isHot('slider', WIDTH_SLIDER),
+      '#9fe3ff',
+    );
+
+    // Und darunter der Strich, wie er wirklich wird — in Farbe, Breite und Art.
+    ctx.beginPath();
+    ctx.roundRect(10, SAMPLE_Y + 6, CANVAS_W - 20, SAMPLE_H - 12, 12);
+    ctx.fillStyle = 'rgba(244, 239, 227, 0.92)';
+    ctx.fill();
+    this.sample(ctx, 30, SAMPLE_Y + SAMPLE_H / 2, CANVAS_W - 60, this.brush.kind);
   }
 
   private drawMaterials(ctx: CanvasRenderingContext2D): void {
@@ -666,7 +1005,7 @@ export class BrushTool extends Tool {
       const material = MATERIALS[index]!;
       const y = TAB_H + index * ROW_H;
       const chosen = material.id === this.material.id;
-      const hot = this.hovered?.kind === 'cell' && this.hovered.index === index;
+      const hot = this.isHot('material', index);
 
       ctx.beginPath();
       ctx.roundRect(10, y + 4, CANVAS_W - 20, ROW_H - 8, 12);
@@ -683,7 +1022,7 @@ export class BrushTool extends Tool {
       ctx.globalAlpha = material.opacity;
       ctx.beginPath();
       ctx.roundRect(24, y + (ROW_H - sample) / 2, sample, sample, 8);
-      ctx.fillStyle = shade(this.color, material);
+      ctx.fillStyle = shade(this.brush.color, material);
       ctx.fill();
       ctx.globalAlpha = 1;
 
@@ -695,6 +1034,161 @@ export class BrushTool extends Tool {
       ctx.fillText(material.sub, 72, y + ROW_H / 2 + 15);
     }
   }
+
+  private isHot(kind: SlotKind, index: number): boolean {
+    return this.hovered?.kind === kind && this.hovered.index === index;
+  }
+
+  /** Ein Farbfeld im Gitter. */
+  private swatch(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: number,
+    chosen: boolean,
+    hot: boolean,
+  ): void {
+    const pad = 8;
+    ctx.beginPath();
+    ctx.roundRect(x + pad, y + pad, CELL - pad * 2, CELL - pad * 2, 14);
+    ctx.fillStyle = hex(color);
+    ctx.fill();
+    if (!chosen && !hot) return;
+    ctx.lineWidth = chosen ? 8 : 5;
+    ctx.strokeStyle = chosen ? '#ffffff' : 'rgba(255,255,255,0.6)';
+    ctx.stroke();
+  }
+
+  /** Ein freier Platz in der eigenen Reihe: gestrichelt, mit einem **+**. */
+  private emptySwatch(ctx: CanvasRenderingContext2D, x: number, y: number, hot: boolean): void {
+    const pad = 8;
+    ctx.save();
+    ctx.setLineDash([8, 8]);
+    ctx.beginPath();
+    ctx.roundRect(x + pad, y + pad, CELL - pad * 2, CELL - pad * 2, 14);
+    ctx.lineWidth = hot ? 4 : 2;
+    ctx.strokeStyle = hot ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)';
+    ctx.stroke();
+    ctx.restore();
+
+    const cx = x + CELL / 2;
+    const cy = y + CELL / 2;
+    const arm = 12;
+    ctx.beginPath();
+    ctx.moveTo(cx - arm, cy);
+    ctx.lineTo(cx + arm, cy);
+    ctx.moveTo(cx, cy - arm);
+    ctx.lineTo(cx, cy + arm);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = hot ? '#ffffff' : 'rgba(255,255,255,0.45)';
+    ctx.stroke();
+  }
+
+  /** Ein Regler: Schiene, gefüllter Teil, Knopf und die Beschriftung darüber. */
+  private slider(
+    ctx: CanvasRenderingContext2D,
+    y: number,
+    label: string,
+    fraction: number,
+    hot: boolean,
+    tint: string,
+  ): void {
+    const left = SLIDER_PAD;
+    const right = CANVAS_W - SLIDER_PAD;
+    const span = right - left;
+    const middle = y + SLIDER_H * 0.66;
+    const at = left + span * Math.min(1, Math.max(0, fraction));
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = hot ? '#ffffff' : 'rgba(255,255,255,0.75)';
+    ctx.font = '600 21px system-ui, sans-serif';
+    ctx.fillText(label, left, y + SLIDER_H * 0.26);
+
+    ctx.beginPath();
+    ctx.roundRect(left, middle - 7, span, 14, 7);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(left, middle - 7, Math.max(14, at - left), 14, 7);
+    ctx.fillStyle = tint;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(at, middle, hot ? 15 : 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  }
+
+  private button(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    width: number,
+    label: string,
+    hot: boolean,
+    fill: string,
+  ): void {
+    ctx.beginPath();
+    ctx.roundRect(x + 8, MIX_Y + 12, width - 16, MIX_H - 24, 14);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = hot ? 4 : 2;
+    ctx.strokeStyle = hot ? '#ffffff' : 'rgba(255,255,255,0.35)';
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 24px system-ui, sans-serif';
+    ctx.fillText(label, x + width / 2, MIX_Y + MIX_H / 2);
+    ctx.textAlign = 'left';
+  }
+
+  /**
+   * Ein Probestrich auf der Palette — dieselbe Form und dieselbe Deckung, die
+   * die Leinwand später zieht (`brushSettings.ts`).
+   */
+  private sample(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    length: number,
+    kind: (typeof BRUSH_KINDS)[number],
+  ): void {
+    const width = Math.min(34, Math.max(3, this.brush.width * 0.7));
+    ctx.save();
+    ctx.globalAlpha = alphaOf(kind);
+    ctx.fillStyle = hex(this.brush.color);
+    ctx.strokeStyle = hex(this.brush.color);
+    const stamp = stampOf(kind);
+    if (stamp === 'round') {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + length, y);
+      ctx.lineWidth = width;
+      ctx.lineCap = kind === 'marker' ? 'square' : 'round';
+      ctx.stroke();
+    } else if (stamp === 'chisel') {
+      ctx.fillRect(x, y - (width * CHISEL_RATIO) / 2, length, width * CHISEL_RATIO);
+    } else {
+      const dots = Math.round(length * 1.6);
+      for (let index = 0; index < dots; index++) {
+        const away = (Math.random() - 0.5) * width;
+        ctx.beginPath();
+        ctx.arc(x + Math.random() * length, y + away, Math.max(1, width / 12), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+/** Der Farbton, in dem der Regler seines Kanals gefüllt ist. */
+const CHANNEL_TINTS = ['#ff5a4d', '#5ee0a0', '#4aa8ff'] as const;
+
+/** Wo entlang eines Reglers dieser Bildpunkt liegt, von 0 bis 1. */
+function sliderFraction(x: number): number {
+  const span = CANVAS_W - SLIDER_PAD * 2;
+  return Math.min(1, Math.max(0, (x - SLIDER_PAD) / span));
 }
 
 function hex(color: number): string {

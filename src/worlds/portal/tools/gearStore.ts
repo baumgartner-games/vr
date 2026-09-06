@@ -1,3 +1,4 @@
+import { clampBrush, DEFAULT_BRUSH, type BrushSettings } from './brushSettings';
 import { clampDrone, DEFAULT_DRONE, type DroneSettings } from './droneSettings';
 import { clampSuperman, DEFAULT_SUPERMAN, type SupermanSettings } from './supermanSettings';
 import { clampStopwatch, DEFAULT_STOPWATCH, type StopwatchSettings } from './stopwatchSettings';
@@ -22,6 +23,7 @@ const WEAPON_KEY = 'bgvr.weapon';
 const DRONE_KEY = 'bgvr.drone';
 const SUPERMAN_KEY = 'bgvr.superman';
 const STOPWATCH_KEY = 'bgvr.stopwatch';
+const BRUSH_KEY = 'bgvr.brush';
 
 type Listener = () => void;
 
@@ -149,4 +151,21 @@ export function saveStopwatchSettings(settings: Partial<StopwatchSettings>): Sto
 export function clearStopwatchSettings(): StopwatchSettings {
   writeJson(STOPWATCH_KEY, { ...DEFAULT_STOPWATCH });
   return { ...DEFAULT_STOPWATCH };
+}
+
+// --- der Pinsel ------------------------------------------------------------
+
+export function brushSettings(): BrushSettings {
+  return clampBrush(readJson<Partial<BrushSettings>>(BRUSH_KEY, {}));
+}
+
+export function saveBrushSettings(settings: Partial<BrushSettings>): BrushSettings {
+  const next = clampBrush({ ...brushSettings(), ...settings });
+  writeJson(BRUSH_KEY, next);
+  return next;
+}
+
+export function clearBrushSettings(): BrushSettings {
+  writeJson(BRUSH_KEY, { ...DEFAULT_BRUSH });
+  return { ...DEFAULT_BRUSH };
 }
