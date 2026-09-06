@@ -158,6 +158,9 @@ export function canSee(graph: NavGraph, from: TileKey, to: TileKey): boolean {
  * über sieben Kacheln geht, man aber von der ersten die vierte direkt
  * erreicht, fallen zwei Ecken weg. Hier zählt die **Meinung** — wer eine Tür
  * für offen hält, glättet durch sie hindurch und rennt vor sie.
+ *
+ * `forbid` sagt, welche Kacheln dabei tabu sind: Was die Wegsuche wegen seiner
+ * Kosten gemieden hat, darf die Glättung nicht wieder hineinziehen.
  */
 export function canWalkLine(
   graph: NavGraph,
@@ -165,11 +168,17 @@ export function canWalkLine(
   to: TileKey,
   canOpen = true,
   belief: NavBelief | null = null,
+  forbid?: (tile: TileKey) => boolean,
 ): boolean {
   const scratch = newWallState();
   if (!believedWalkable(belief, graph, from)) return false;
   return traceLine(from, to, (tile, dir, next) => {
     if (!believedWalkable(belief, graph, next)) return false;
+    // `forbid` ist die Stachelgrube: Die Glättung darf keine Kachel betreten,
+    // um die die Wegsuche gerade herumgegangen ist. Ohne diese Zeile hebelt
+    // ein einziger Glättungsschritt das ganze Kostensystem aus — der Mensch
+    // plant sauber außen herum und läuft dann quer hindurch.
+    if (forbid?.(next)) return false;
     const state = believedWallState(belief, graph.wall(tile, dir), canOpen, scratch);
     // Beim Glätten zählt nur, ob es **ohne Halt** durchgeht: eine Tür, die
     // erst aufgemacht werden muss, ist keine gerade Linie.

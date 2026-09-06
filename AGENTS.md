@@ -3774,11 +3774,45 @@ Fehler man an einem NPC sucht, der komisch läuft; und dort findet man sie nie.
 `navScene.ts` ist dabei die **einzige** Datei der Schicht, die three.js kennt —
 alles andere rechnet mit Zahlen und läuft im Test.
 
+**Angeschlossen ist es über den Läufer** (`navAgent.ts`). Er ist die
+Buchhaltung zwischen einer Wegsuche, die einmal antwortet, und einem NPC, der
+sechzigmal je Sekunde fragt: Geplant wird alle halbe Sekunde, gelaufen jedes
+Bild. Kommt er eine Weile nicht voran, **sieht er nach**, was ihn aufhält
+(`observe`) — in die *Laufrichtung*, nicht auf den Wegpunkt, denn nach der
+Glättung liegt der oft zehn Kacheln weit weg —, trägt es in seine Meinung ein
+und plant von dort neu. Das Hirn bekommt davon nur den nächsten Wegpunkt
+(`npcBrain.ts`, `sense.waypoint`); **gesehen und geschlagen wird trotzdem der
+Spieler**, sonst schlüge ein Zombie gegen Hausecken.
+
+Welches Kostenprofil einer benutzt, sagt seine **Haut** und nicht sein Hirn
+(`npcKinds.ts`, `profile`): Was einem wehtut, hängt daran, was man ist, und
+nicht daran, was man vorhat. Ein **Portal** ist dabei die eine Verbindung, die
+ein Körper nicht laufen kann — der Läufer meldet sie als `jump`, und `Npc`
+setzt den Körper um.
+
+**Ansehen kann man auch die Wege**: Solange das Gitter an ist, zeichnet die
+Welt fünfmal je Sekunde die Wege mit, die gerade gelaufen werden. Nicht
+sechzigmal — ein Weg ändert sich, wenn neu geplant wird.
+
+**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: sechs Buchten,
+sechs rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
+langer Gang um zwei Ecken, Stachelgrube (Zombie hinein, Puppe herum), Kiste im
+Weg, Tür fällt hinter dem Verfolger zu, Portal, von dem nur einer weiß, und die
+Dachkante. Der Grundriss ist geprüft (`scenarios.test.ts`), bevor er gebaut
+ist: Zwei Buchten, die sich überlappen, sieht man in der Brille erst daran,
+dass ein Zombie durch eine Wand kommt.
+
+**Eine Zahl daraus ist keine Geschmacksfrage**: Das Dach in der Etagen-Bucht
+liegt auf 2,4 m, also unter dem, was das Abtasten noch als **Absprung**
+durchgehen lässt. Eine Treppe hinauf gäbe es im Gitter zwar, aber ein NPC ist
+heute ein dynamischer Zylinder ohne Schrittautomatik — er käme keine Stufe
+hoch. Herunterfallen kann er. Solange das so ist, ist jede Höhe im Gitter ein
+Weg nach unten und keiner nach oben, und der erste Schritt zu allem mit Treppen
+bleibt: **NPCs auf den Character-Controller umstellen**.
+
 **Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, der Editor mit
-Vogelperspektive, die Testwelt mit ihren Szenarien — und vor allem die
-Verdrahtung, die aus `chase` in `npcBrain.ts` einen NPC macht, der diese Wege
-wirklich läuft. Das Gitter ist da und sichtbar; die NPCs laufen weiterhin
-Luftlinie.
+Vogelperspektive, zerstörbare Hindernisse samt „schlag drauf, wenn kein Weg da
+ist" — und der Character-Controller oben.
 
 ### Die Werkzeugseite
 

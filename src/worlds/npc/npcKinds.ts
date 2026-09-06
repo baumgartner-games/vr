@@ -39,6 +39,15 @@ export interface NpcSkin {
   speed: number;
   /** Das Hirn, mit dem er aus dem Menü kommt, wenn niemand etwas anderes sagt. */
   brain: BrainId;
+  /**
+   * Wie er die Karte liest (`worlds/nav/navProfile.ts`).
+   *
+   * Die eine Zeile, an der hängt, dass ein Zombie in die Stachelgrube läuft
+   * und eine Übungspuppe darum herum — und dass der eine Türen aufmacht und
+   * der andere davorsteht. Sie gehört zur **Haut** und nicht zum Hirn: Was
+   * einem wehtut, hängt daran, was man ist, und nicht daran, was man vorhat.
+   */
+  profile: string;
   /** Die drei Farben des Modells: Haut, Kleidung, Augen. */
   palette: { skin: number; cloth: number; eye: number };
   /**
@@ -71,6 +80,7 @@ export const NPC_SKINS: readonly NpcSkin[] = [
     health: 100,
     speed: 1.5,
     brain: 'chase',
+    profile: 'zombie',
     palette: { skin: 0x7fa062, cloth: 0x3d4a3a, eye: 0xffe36e },
     arms: 'out',
   },
@@ -86,6 +96,7 @@ export const NPC_SKINS: readonly NpcSkin[] = [
     health: 160,
     speed: 1.1,
     brain: 'idle',
+    profile: 'human',
     palette: { skin: 0xd9b271, cloth: 0x8a6b3f, eye: 0x2a2a2a },
     arms: 'down',
   },

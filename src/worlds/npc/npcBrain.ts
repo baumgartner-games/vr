@@ -16,6 +16,11 @@ import { brainOf, type BrainId, type BrainTuning } from './npcBrains';
  * (`droneFlight.ts`); wer sie hier anders herum schriebe, hätte einen Zombie,
  * der rückwärts vor einem davonläuft.
  *
+ * **Wohin gelaufen wird, ist nicht immer, wo der Spieler steht.** Liegt ein
+ * Wegpunkt an (`sense.waypoint`), läuft er dorthin — gesehen und geschlagen
+ * wird trotzdem der Spieler. Ohne Wegpunkt ist beides dasselbe, und dann ist
+ * es das Verhalten von vor der Wegsuche.
+ *
  * **Gelaufen wird, wohin geschaut wird.** Ein NPC schiebt sich nicht seitwärts
  * auf den Spieler zu, sondern dreht sich zu ihm und geht dann los; wie weit er
  * schon herumgedreht ist, entscheidet dabei über sein Tempo (`aheadFactor`).
@@ -62,6 +67,19 @@ export interface BrainSense {
   yaw: number;
   /** Wo der Spieler steht — `null`, wenn gerade keiner da ist. */
   player: Point | null;
+  /**
+   * Wohin er **laufen** soll, wenn das nicht dasselbe ist.
+   *
+   * Der nächste Wegpunkt aus der Wegsuche (`worlds/nav/navAgent.ts`). Fehlt
+   * er, geht es geradewegs auf den Spieler zu — das ist das Verhalten von
+   * vorher, und in einem leeren Raum ist es auch das richtige.
+   *
+   * **Gesehen und geschlagen wird trotzdem der Spieler.** Ein Zombie, der
+   * seinen Wegpunkt anfällt, schlägt gegen eine Hausecke; einer, der seinen
+   * Wegpunkt „sieht", knurrt, sobald er losläuft. Deshalb sind es zwei
+   * Felder und nicht eines.
+   */
+  waypoint?: Point | null;
   dt: number;
   /** Eine Zahl aus [0,1). Als Funktion, damit ein Test sie stellen kann. */
   random: () => number;
@@ -147,7 +165,8 @@ export function stepBrain(
     return { vx: 0, vz: 0, yaw: sense.yaw, attack: false, gait: 'stand', sees: false };
   }
 
-  const wanted = yawTo(sense.at, sense.player);
+  const goal = sense.waypoint ?? sense.player;
+  const wanted = yawTo(sense.at, goal);
   const yaw = turnToward(sense.yaw, wanted, maxTurn);
   state.awake = true;
 

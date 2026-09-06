@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { Npc } from './Npc';
+import { Npc, type NavRun } from './Npc';
+import type { NavGraph } from '../nav/navGraph';
+import type { TileKey } from '../nav/navTile';
 import { npcSkin, type NpcKind } from './npcKinds';
 import { brainLabel, type BrainId } from './npcBrains';
 import { damageFor } from './npcHit';
@@ -63,6 +65,14 @@ export interface NpcWorld {
   /** Ein Schlag hat gesessen: schiebt den Spieler, rüttelt und meldet. */
   strikePlayer(direction: THREE.Vector3, strength: number): void;
   notify(message: string): void;
+  /**
+   * Das Navigationsgitter dieser Welt (`worlds/nav/`) — `null`, wenn es keines
+   * gibt.
+   *
+   * Optional, damit eine Welt ohne Gitter nichts davon wissen muss: Dann läuft
+   * jeder wieder Luftlinie, so wie vorher.
+   */
+  nav?: () => NavGraph | null;
 }
 
 /** Und was ein Werkzeug oder ein Menü damit tun darf. */
@@ -150,9 +160,20 @@ export class NpcDirector implements NpcControl {
   // --- setzen ---------------------------------------------------------------
 
   place(request: NpcRequest): boolean {
+    return this.spawn(request) !== null;
+  }
+
+  /**
+   * Dasselbe, aber mit dem NPC in der Hand.
+   *
+   * Für alles, was mit dem Gesetzten noch etwas vorhat — eine Testwelt, die
+   * einem von zweien beibringt, dass es ein Portal gibt (`navBelief.ts`). Das
+   * Menü braucht das nicht und bekommt darum weiterhin nur ein Ja oder Nein.
+   */
+  spawn(request: NpcRequest): Npc | null {
     if (this.npcs.length >= NPC_LIMIT) {
       this.world.notify('Genug NPCs — erst welche wegräumen');
-      return false;
+      return null;
     }
     const npc = new Npc({
       physics: this.world.physics,
@@ -165,7 +186,7 @@ export class NpcDirector implements NpcControl {
     });
     this.world.root.add(npc.holder);
     this.npcs.push(npc);
-    return true;
+    return npc;
   }
 
   placeAtSpawn(request: Omit<NpcRequest, 'at'>): boolean {
@@ -367,9 +388,20 @@ export class NpcDirector implements NpcControl {
     const player = this.world.playerAt(_feet);
     const target = player ? { x: player.x, z: player.z } : null;
 
+    // Einmal je Bild für alle: Das Gitter ist dasselbe, und die Spielerhöhe
+    // auch. Fünfzig NPCs sollen sie nicht fünfzigmal nachschlagen.
+    const graph = this.world.nav?.() ?? null;
+    const run: NavRun | null = graph
+      ? {
+          graph,
+          at: player ? { x: player.x, y: player.y, z: player.z } : null,
+          now: this.time,
+        }
+      : null;
+
     for (let i = this.npcs.length - 1; i >= 0; i--) {
       const npc = this.npcs[i]!;
-      const hit = npc.update(dt, target, Math.random);
+      const hit = npc.update(dt, target, Math.random, run);
       if (hit && player) this.strike(npc, player);
       // Ein Gefallener liegt eine Weile herum und verschwindet dann. Ohne das
       // Aufräumen füllt sich eine Halle nach zwanzig Minuten mit Leichen, und
@@ -404,6 +436,21 @@ export class NpcDirector implements NpcControl {
       this.world.root.add(npc.holder);
       this.npcs.push(npc);
     }
+  }
+
+  /**
+   * Die Wege, die gerade gelaufen werden — für die Debug-Ansicht.
+   *
+   * Nur die, die auch einen haben: Wer stehen bleibt, hat keinen, und ein
+   * leeres Feld zeichnet sich schlecht.
+   */
+  paths(): readonly TileKey[][] {
+    const found: TileKey[][] = [];
+    for (const npc of this.npcs) {
+      if (!npc.alive || npc.path.length < 2) continue;
+      found.push([...npc.path]);
+    }
+    return found;
   }
 
   /** Ein Schlag hat gesessen: er schiebt den Spieler von sich weg. */
