@@ -298,6 +298,32 @@ auf dem der Spieler gerade steht — es sei denn, es gibt keinen anderen) und
 darüber weg, daneben vorbei und unter den Füßen durch, aus jeder Richtung
 gleich, weil beide Zonen drehsymmetrisch sind, und eine Strecke, die vor ihm
 endet, trifft nicht).
+Dazu die ganze **Navigationsschicht** (`src/worlds/nav/`), und die ist mit
+Absicht vollständig geprüft, weil man ihr in der Brille nicht ansieht, was sie
+tut: der **Kachelschlüssel** (`navTile.ts` — drei Zahlen in einer, und die
+Normierung, wegen der jede Wand nur einmal existiert; wer sie falsch hätte,
+merkte es erst an einem NPC, der durch eine geschlossene Tür läuft, weil er sie
+von der falschen Seite anschaut), die **Kostenprofile** (`navProfile.ts` — die
+eine Zeile Tabelle, an der hängt, dass der Zombie in die Stachelgrube läuft und
+der Mensch darum herum), der **Graph** (`navGraph.ts` — was eine Wand für
+Bewegung, Sicht und Schall bedeutet, und dass eine geschlossene Tür für den
+einen ein Umweg von drei Metern und für den anderen eine Wand ist), die
+**Linie durch das Gitter** (`navSight.ts` — Sicht, gerader Gehweg und Schall
+aus **einer** Wanderung, samt der Mauerecke, durch die niemand diagonal sehen
+darf), die **Wegsuche** (`navPath.ts` — Umweg statt Durchbruch, Teilweg statt
+Stillstand, Portale und Treppen, die Glättung, die nicht über eine Treppe
+hinweg abkürzt, und das Strömungsfeld, das eine Horde keine Klippe hochlaufen
+lässt), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
+verschlossene Tür läuft und erst dort umplant: das ist das Ziel und nicht der
+Fehler, und der Test hält es fest, damit es niemand später „repariert"), die
+**Sinne** (`navPerception.ts` — Kegel, Reichweite, Wand, Reaktionszeit und vor
+allem die letzte bekannte Stelle), die **Fortbewegung** (`locomotion.ts` — dass
+ein Fußgänger sich erst dreht und dann losgeht, dass ein Fahrzeug im Stand
+**gar nicht** lenkt, weil ω = v/R ist, und dass eine Drohne sich auch seitwärts
+schiebt) und das **Format** (`navSerial.ts` — Hin und Zurück ohne Verlust, und
+jede Datei, die es ablehnt: fremdes Format, fehlende Version, eine Karte aus
+der Zukunft und eine mit einer anderen Kachelgröße).
+
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
 
@@ -3631,6 +3657,88 @@ ist — jeder sieht seinen eigenen. Zwei Spieler in einem Raum sehen also zwei
 verschiedene Zombies. Der Weg dahin, dass sie denselben sehen, führt über
 `PortalSync` und über eine Antwort auf die Frage, wer von beiden das Hirn
 rechnet; das ist der nächste Schritt und nicht dieser.
+
+### Wie sich NPCs orientieren
+
+Die Navigation ist eine **eigene Schicht** unter den NPCs (`worlds/nav/`), und
+sie kennt weder three.js noch Rapier. Hinein gehen Kachelschlüssel und Meter,
+heraus kommen Wege, Sichtlinien und Geschwindigkeiten — deshalb ist sie
+vollständig geprüft, und deshalb kann derselbe Graph eine Welt, eine
+Debug-Ansicht und einen Test bedienen.
+
+**Die Karte ist ein Kachelgitter mit Etagenindex.** Eine Kachel ist 2,5 m breit
+(`TILE`), und diese Zahl ist eine Konstante und keine Einstellung: Sie steht in
+jeder gespeicherten Karte im Kopf, und wer sie ändert, macht jede davon
+ungültig. Die Höhe ist ein **Index** und keine Zahl — Dach, Erdgeschoss und
+Tunnel darunter liegen übereinander, ohne dass irgendeine Rechnung entscheiden
+müsste, ob zwei Kacheln noch dieselbe Ebene sind. Was zwischen zwei
+Kachelmitten passiert, ist ausdrücklich nicht Sache des Gitters, sondern der
+Fortbewegung.
+
+**Wände stehen zwischen Kacheln und bedeuten drei Dinge auf einmal**: ob man
+hindurchkommt, ob man hindurchsieht, und wie viel man hindurchhört. Ein Fenster
+ist deshalb kein „solid" mit anderer Textur, sondern eine eigene Art — es hält
+auf und verrät trotzdem, was dahinter passiert. Hätte jede der drei Fragen ihr
+eigenes Modell, drifteten alle drei auseinander, sobald jemand eine Wand
+versetzt.
+
+**Alles, was nicht Nachbarschaft ist, ist eine Verbindung**: Treppe, Leiter,
+Absprung, Portal. Ein Portal ist dabei nichts Besonderes, sondern eine
+Verbindung mit Kosten nahe null, die zur Laufzeit dazukommt und wieder
+verschwindet — dieselbe Bauart, die Quake III 1999 „teleporter reachability"
+nannte. Welche Art wer benutzen darf, steht im Kostenprofil: Ein Zombie nimmt
+keine Leiter, ein Fahrzeug keine Treppe.
+
+**Dieselbe Karte liest jede Sorte anders.** Eine Kachel trägt nur, *was* dort
+ist (Stacheln, Wasser, freies Feld); was das *kostet*, entscheidet erst das
+Profil dessen, der darüberläuft (`navProfile.ts`). Der Zombie hat für Stacheln
+keinen Eintrag und fällt hinein, der Mensch hat dort `Infinity` und geht außen
+herum. `Infinity` heißt dabei „niemals" und nicht „sehr teuer" — wer „lieber
+nicht, aber im Notfall doch" will, schreibt eine große endliche Zahl hin.
+
+**Was sich ändert, ändert nichts am Graphen.** Eine Kiste setzt eine Kachel auf
+`blocked`, eine Tür kippt ein Flag, ein Portal fügt zwei Kanten ein. Neu
+gerechnet wird nie — die Wegsuche läuft ohnehin jedes Mal neu, und die ist
+billig; teuer wäre nur das Aufbauen des Gitters, und genau das passiert dabei
+nicht.
+
+**Was ein NPC weiß, ist nicht, was die Welt weiß** (`navBelief.ts`). Jeder trägt
+nur eine **Abweichungsliste** gegenüber der Wahrheit mit sich: „Tür 7 war
+offen, Stand t=120 s", „das Portal kenne ich nicht". Wo nichts eingetragen ist,
+gilt die Welt. Ein NPC darf deshalb gegen eine inzwischen verschlossene Tür
+laufen und erst dort umplanen — **das ist das gewollte Verhalten**. Wer diese
+Datei später „repariert", indem er Meinung und Wahrheit abgleicht, hat die
+Hellsicht wieder eingebaut, und man sieht sie einem Bot sofort an, ohne sagen
+zu können, woran. Zum Planen zählt die Meinung, zum Sehen und Hören nie: Man
+sieht nicht durch eine Tür, nur weil man sie für offen hält.
+
+**Route und Fortbewegung sind getrennt** (`locomotion.ts`). Die Wegsuche
+liefert Kacheln; was daraus wird, entscheidet die Fortbewegungsart hinter einer
+gemeinsamen Schnittstelle: der **Fußgänger** dreht sich und geht los, das
+**Fahrzeug** hat einen Wendekreis und lenkt im Stand gar nicht (ω = v/R), der
+**Flug** nimmt die Luftlinie und das Gitter überhaupt nicht. Wer beides
+zusammenlegte, hätte am Ende eine Wegsuche, die weiß, dass Autos nicht
+rückwärts durch Türen fahren — und eine zweite, sobald das erste Boot kommt.
+
+**Für viele auf einmal gibt es das Strömungsfeld** (`flowField`). Ein Dijkstra
+rückwärts vom Ziel, danach ist „wohin als nächstes" ein Nachschlagen, und ob
+dreißig oder dreihundert danach fragen, kostet gleich viel. Rückwärts, damit
+eine einseitige Verbindung einseitig bleibt: ein vorwärts gebautes Feld ließe
+die Horde Klippen hochlaufen.
+
+**Das Dateiformat hat vom ersten Tag an eine Versionsnummer**
+(`navSerial.ts`, `NAV_VERSION`). Kacheln stehen als Läufe darin (ein Zimmer ist
+vier Zeilen und nicht zwanzig), Wände und Verbindungen einzeln, und dieselbe
+Karte ergibt immer dieselbe Datei — sonst zeigt ein Diff Umsortierung statt
+Änderung. Gesperrte Kacheln sind Laufzeit und werden nicht gespeichert. Wer die
+Version erhöht, schreibt in `migrate()` einen Zweig dazu; ein stilles „geht
+schon" ist die einzige Möglichkeit, sich hier die Karten kaputtzumachen.
+
+**Was noch fehlt**: die Debug-Ansichten in der Welt, das lokale Ausweichen
+(RVO) für Engstellen, der Editor mit Vogelperspektive, die Testwelt mit ihren
+Szenarien — und die Verdrahtung, die aus `chase` in `npcBrain.ts` einen NPC
+macht, der diese Wege wirklich läuft. Bis dahin ist die Schicht gebaut und
+geprüft, aber noch an keiner Welt angeschlossen.
 
 ### Die Werkzeugseite
 
