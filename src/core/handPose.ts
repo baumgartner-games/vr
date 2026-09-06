@@ -272,18 +272,24 @@ export const STOPWATCH_HAND_POSE: HandPose = {
  * Griffpunkt, und die Hand liegt waagerecht darunter — Handfläche nach oben,
  * die Finger greifen vorn über den Saum hinein, der Daumen liegt außen am Saum
  * entlang (`MagicBagTool.ts`, `BAG_GRIP`). Die erste Fassung hatte die Hand
- * senkrecht wie an einem Eimer; um 90° gekippt ist es eine Kappe. **Mit**
- * Zielkorrektur gerechnet, obwohl der Beutel nicht zielt: er hängt aufrecht
- * im Raum, und bei zielend gehaltenem Controller ist das Aufrechte der
- * Strahlraum (`Tool.hangsUpright`). Ohne sie gerechnet stand die Hand in der
- * Brille um 30° nach oben gekippt am Saum, die Finger aus der Öffnung heraus.
+ * senkrecht wie an einem Eimer; um 90° gekippt ist es eine Kappe.
+ *
+ * **Ohne Zielkorrektur** gerechnet, wie alles, was in der Faust sitzt — und
+ * das ist seit einer Runde anders als vorher. Der Beutel folgt der Hand
+ * inzwischen in **Gieren und Nicken** und nur das Rollen bleibt draußen
+ * (`MagicBagTool.hangUpright`); damit steht er gegenüber einem Griff ohne
+ * Rollen **unverdreht**, und die Faust gehört genau dorthin. Vorher folgte er
+ * nur der Gierachse: dann hing er waagerecht, während der Griff um die
+ * Zielkorrektur gekippt war, und die Faust musste um dieselben 30° gedreht
+ * eingerechnet werden. Die alten Zahlen (y -2,8 · z 5,9 · Pitch -30°) sind
+ * genau diese Drehung — sie standen nach der Umstellung 30° neben dem Saum.
  */
 export const BAG_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
   x: 0,
-  y: -2.8,
-  z: 5.9,
-  pitch: -30,
+  y: -4.6,
+  z: 5,
+  pitch: 0,
   yaw: 0,
   roll: -180,
   curls: [0.55, 0.85, 0.85, 0.9, 0.9],

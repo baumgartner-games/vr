@@ -181,11 +181,16 @@ function fistOf(pose: HandPose, centre: THREE.Vector3) {
   };
 }
 
-/** Ein gehaltenes Werkzeug, so wie `applyHold` es in den Griffraum legt. */
+/**
+ * Ein gehaltenes Werkzeug, so wie `applyHold` es in den Griffraum legt — und
+ * genau wie dort **nur mit Zielkorrektur, wenn es zielt**. Was in der Faust
+ * sitzt (Boxhand, Handschuhe, der Beutel), bleibt im Griffraum.
+ */
 function hold(tool: Tool, side: 'left' | 'right' = 'right'): Tool {
   tool.showHeldBy(side);
   tool.position.copy(tool.holdPosition);
-  tool.quaternion.copy(aim).multiply(tool.holdRotation);
+  if (tool.alignToAim) tool.quaternion.copy(aim).multiply(tool.holdRotation);
+  else tool.quaternion.copy(tool.holdRotation);
   tool.updateMatrixWorld(true);
   return tool;
 }
@@ -734,11 +739,14 @@ describe('die Faust am Hals der Sektflasche', () => {
 });
 
 describe('die Faust am Saum des Beutels', () => {
-  it('steht in `handPose.ts` als das, was `fistOnGrip` mit Zielkorrektur ausrechnet', () => {
-    // Der Beutel zielt nicht (`alignToAim = false`), hängt aber aufrecht im
-    // Raum (`hangsUpright`) — und bei zielend gehaltenem Controller ist das
-    // Aufrechte der Strahlraum. Also dieselbe Zielkorrektur wie bei allem,
-    // das zielt; ohne sie stand die Hand in der Brille 30° gekippt am Saum.
+  it('steht in `handPose.ts` als das, was `fistOnGrip` im Griffraum ausrechnet', () => {
+    // Der Beutel zielt nicht (`alignToAim = false`) und hängt aufrecht im Raum
+    // (`hangsUpright`) — und weil er der Hand dabei in **Gieren und Nicken**
+    // folgt und nur das Rollen draußen bleibt, steht er gegenüber einem Griff
+    // ohne Rollen unverdreht: **ohne** Zielkorrektur, wie alles, was in der
+    // Faust sitzt. Solange er nur der Gierachse folgte, war das anders — dann
+    // hing er waagerecht gegen einen gekippten Griff, und die Faust trug
+    // dieselben 30° eingerechnet mit sich herum.
     const tool = new MagicBagTool();
     expect(tool.alignToAim).toBe(false);
     expect(tool.hangsUpright).toBe(true);
@@ -747,7 +755,7 @@ describe('die Faust am Saum des Beutels', () => {
       gripInHand(
         { position: tool.holdPosition, rotation: tool.holdRotation },
         { position: BAG_GRIP.position, rotation: BAG_GRIP.rotation },
-        GRIP_TO_RAY,
+        IDENTITY,
       ),
     );
     expectPoseIs(BAG_HAND_POSE, want);
@@ -756,8 +764,8 @@ describe('die Faust am Saum des Beutels', () => {
   it.each(['right', 'left'] as const)(
     'liegt um den Saum wie unter einer offenen Kappe: %s',
     (side) => {
-      // So gehalten, wie er im Spiel bei zielendem Controller hängt: mit der
-      // Zielkorrektur, wie jedes Werkzeug in `hold`.
+      // So gehalten, wie er im Spiel hängt: im Griffraum, ohne Zielkorrektur
+      // (`hold` fragt das Werkzeug).
       const tool = hold(new MagicBagTool(), side);
       const fist = fistOf(defaultHoldPose(side, 'bag'), fistCentre(BAG_HAND_POSE));
       expectFistOn(fist, rimOf(tool));

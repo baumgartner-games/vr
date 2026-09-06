@@ -2036,10 +2036,15 @@ an einen Türgriff — so hält niemand eine Uhr, und ein Foto eines Zeitnehmers
 hat beides entschieden. Und der **Saum des Beutels** als `BAG_GRIP`, ebenfalls quer,
 gehalten wie eine **offene Kappe**: die Hand waagerecht unter dem Saum,
 Handfläche nach oben, Finger vorn hinein, Daumen außen am Saum (senkrecht wie
-an einem Eimer sah es nach einem Eimer aus) — **mit** Zielkorrektur gerechnet,
-obwohl der Beutel nicht zielt: er hängt aufrecht, und bei zielend gehaltenem
-Controller ist das Aufrechte der Strahlraum (`Tool.hangsUpright`; ohne sie
-gerechnet stand die Hand in der Brille 30° gekippt am Saum). Die **Querstange
+an einem Eimer sah es nach einem Eimer aus) — **ohne** Zielkorrektur, wie
+alles, was in der Faust sitzt. Das war eine Weile andersherum: solange der
+Beutel nur der **Gierachse** folgte, hing er waagerecht, während der Griff um
+die Zielkorrektur gekippt war, und die Faust trug dieselben 30° eingerechnet
+mit sich herum. Seit er auch dem **Nicken** folgt, steht er gegenüber einem
+Griff ohne Rollen unverdreht und sitzt im Griffraum wie jedes andere Werkzeug,
+das nicht zielt (`Tool.hangsUpright`). Zu sehen war die alte Ausnahme auf der
+Werkzeugseite unter _Hand in echt_: der Controller stand dort 30° gegen den
+aufrecht hängenden Beutel gekippt — eine Hand, die so keinen Beutel hält. Die **Querstange
 des Hängegleiters** als `BAR_GRIP` in `HangGliderTool.ts`: quer (x) durch den
 Griffpunkt, von oben gehalten wie ein Lenker, Handrücken oben, Daumen zur Mitte
 der Stange (`GLIDER_HAND_POSE`). Und der **Handgriff des Controllers** als
@@ -2702,25 +2707,27 @@ In VR sieht man beides zugleich: ob der Halterzylinder in der Faust sitzt und
 wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
 im Eingaberaum (`tune/handGrip.ts`) und mit derselben Zielkorrektur: die kommt
 sonst aus einem Controller, im Browser gibt es keinen, also steht sie als Zahl
-da (`GRIP_TO_RAY`) — und zwar **nur für Werkzeuge, die zielen**, und für den
-Beutel, der aufrecht im Raum hängt (`Tool.hangsUpright`). Was in der
-Faust sitzt (`alignToAim = false`: Controller, Boxhand, Flügel,
-Handschuhe), bekommt die Ruhe (`viewer.aimOf`), wie im Spiel. Eine Weile bekam
+da (`GRIP_TO_RAY`) — und zwar **nur für Werkzeuge, die zielen**. Was in der
+Faust sitzt (`alignToAim = false`: Controller, Boxhand, Flügel, Handschuhe und
+der Beutel), bekommt die Ruhe (`viewer.aimOf`), wie im Spiel. Eine Weile bekam
 es auf der Seite die 30° trotzdem, und die Controller saßen dort sichtbar
 schief in der Hand, während sie in der Brille richtig lagen; und noch eine
 Weile rechnete der Regler der Seite (`toolInGripNow` in `tools/main.ts`) mit
 `GRIP_TO_RAY` für alle, während der Betrachter die Ruhe zeichnete — er fragt
 jetzt denselben `viewer.aimOf`.
 
-An der Hand hängt außerdem eine **Linie am Zeigefinger**, in der Farbe des
-Beutels und nicht in der der Hand. Man sieht einer Faust nicht an, wohin sie
-zeigt, und ob ein Werkzeug entlang des Fingers liegt oder dreißig Grad daneben,
-ist die halbe Frage, um die es beim Justieren überhaupt geht. Sie hängt an
-`GhostHand.indexTip` — die Spitze weiß selbst, wohin sie zeigt, ihr -Z _ist_
-die Richtung —, geht also jede Krümmung mit, ohne dass irgendwo etwas
-nachgerechnet würde. Und sie ist eine `Line` und kein Mesh: die Kamera misst
-nur sichtbare Meshes, also passt sie sich weiter an das Werkzeug an und nicht
-an eine Linie, die absichtlich über den Rand hinausgeht.
+Im Griffraum hängt außerdem die **weiße Linie des Zeigestrahls** — dieselbe,
+die in der Brille aus dem Controller kommt. Sie gehört dem **Gerät** und nicht
+den Fingern: sie steht im Griffraum, 30° unter dessen -Z (`GRIP_TO_RAY`), und
+ändert sich deshalb weder mit dem Trigger noch mit dem Griffknopf. Vorher hing
+dort eine bernsteinfarbene Linie an `GhostHand.indexTip`, die jede Krümmung
+mitmachte — beim Ziehen des Triggers ging sie an der Scheibe vorbei, und aus
+dem Bild „so zeigt die Hand" wurde „so steht gerade dieser eine Finger". Die
+Richtung der Fingerspitze gibt es weiter, sie wird nur nicht mehr gezeichnet:
+der Regler richtet sie aus (`viewer.handAim`). Und die Linie ist eine `Line`
+und kein Mesh: die Kamera misst nur sichtbare Meshes, also passt sie sich
+weiter an das Werkzeug an und nicht an eine Linie, die absichtlich über den
+Rand hinausgeht.
 
 #### Bearbeiten auf der Werkzeugseite
 

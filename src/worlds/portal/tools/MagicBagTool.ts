@@ -40,11 +40,12 @@ const SPIN = 0.7;
  * Saum hinein, und der Daumen liegt außen am Saum entlang — bei der rechten
  * Hand nach rechts (+x), die Daumenseite. Die erste Fassung hatte die Hand
  * senkrecht wie an einem Eimer, und das sah nach einem Eimer aus. Daraus
- * rechnet `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`) — **mit**
- * Zielkorrektur, obwohl der Beutel nicht zielt: er hängt aufrecht im Raum, und
- * bei zielend gehaltenem Controller ist das Aufrechte der Strahlraum, nicht
- * der Griffraum (`Tool.hangsUpright`). Ohne sie stand die Hand in der Brille
- * 30° nach oben gekippt am Saum.
+ * rechnet `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`) — **ohne**
+ * Zielkorrektur, wie alles, was in der Faust sitzt: der Beutel folgt der Hand
+ * in Gieren und Nicken und steht damit gegenüber einem Griff ohne Rollen
+ * unverdreht (`Tool.hangsUpright`, `hangUpright`). Solange er nur der
+ * Gierachse folgte, brauchte er sie — dann hing er waagerecht gegen einen
+ * gekippten Griff.
  */
 export const BAG_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },
@@ -126,10 +127,10 @@ export class MagicBagTool extends Tool {
     this.accent = ACCENT;
     this.hint = 'Hineingreifen: Fach ansteuern, greifen — das Ding kommt in die Hand';
     // Er hängt an der Faust und zielt nicht: die Öffnung bleibt oben, komme,
-    // was wolle (`hangUpright`). Aufrecht heißt aber nicht „im Griffraum":
-    // bei zielend gehaltenem Controller steht das Aufrechte um die
-    // Zielkorrektur gegen den Griff gedreht, und so rechnen Werkzeugseite und
-    // Stände die Hand daran (`Tool.hangsUpright`).
+    // was wolle (`hangUpright`) — er folgt der Hand dabei in Gieren und
+    // Nicken, nur das Rollen bleibt draußen. Damit steht er gegenüber einem
+    // Griff ohne Rollen unverdreht und sitzt im Griffraum wie jedes andere
+    // Werkzeug, das nicht zielt (`Tool.hangsUpright`).
     this.alignToAim = false;
     this.hangsUpright = true;
     this.holdPosition.set(BAG_HOLD_POSITION.x, BAG_HOLD_POSITION.y, BAG_HOLD_POSITION.z);

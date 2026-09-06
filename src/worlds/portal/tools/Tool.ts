@@ -239,14 +239,22 @@ export abstract class Tool extends THREE.Group {
    */
   alignToAim = true;
   /**
-   * Hängt **aufrecht im Raum**, statt sich mit der Hand zu drehen — der Beutel:
-   * seine Öffnung bleibt oben, wie auch immer das Handgelenk steht. Er zielt
-   * damit nicht (`alignToAim = false`), liegt aber trotzdem nicht im Griffraum:
-   * hält man den Controller so, wie man ihn beim Zielen hält, steht das
-   * Aufrechte um genau die Zielkorrektur gegen den Griff gedreht. Die
-   * Werkzeugseite und die Justierstände rechnen für so ein Werkzeug deshalb
-   * **mit** der Zielkorrektur, wie bei allem, das zielt — nur das, was wirklich
-   * in der Faust sitzt (Controller, Boxhand, Handschuhe), bekommt die Ruhe.
+   * Hängt **aufrecht im Raum**, statt sich mit der Hand mitzurollen — der
+   * Beutel: seine Öffnung bleibt oben, wie auch immer das Handgelenk steht.
+   *
+   * Was er **mitmacht**, sind Gieren und Nicken: wohin die Hand zeigt, dorthin
+   * zeigt er, und wie schräg sie steht, so schräg steht er
+   * (`MagicBagTool.hangUpright`). Draußen bleibt allein das **Rollen** — nur
+   * das könnte ihn auf den Kopf stellen. Gegenüber einem Griff ohne Rollen
+   * steht er damit **unverdreht**, und seine Lage im Griff ist genau das, was
+   * `holdPosition`/`holdRotation` sagen: er sitzt im Griffraum wie jedes
+   * andere Werkzeug, das nicht zielt. Werkzeugseite und Justierstände rechnen
+   * für ihn deshalb **ohne** Zielkorrektur.
+   *
+   * Das war eine Weile anders: solange er nur der Gierachse folgte, hing er
+   * waagerecht, während der Griff um die Zielkorrektur gekippt war — dann
+   * musste man ihn wie ein zielendes Werkzeug rechnen. Diese Ausnahme ist mit
+   * dem Nicken weggefallen.
    */
   hangsUpright = false;
 

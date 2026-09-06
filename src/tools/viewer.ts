@@ -599,15 +599,17 @@ export class ToolViewer {
    * Flügel um 30° gegen die Hand verdreht und speichert die 30° beim ersten
    * Zug am Regler als Haltung ab.
    *
-   * Der **Beutel** ist der eine Fall dazwischen: er zielt nicht, hängt aber
-   * aufrecht im Raum, und bei zielend gehaltenem Controller steht das
-   * Aufrechte genau um die Zielkorrektur gegen den Griff (`Tool.hangsUpright`).
-   * Er bekommt sie deshalb — das Bild ist dann das aus der Brille.
+   * Der **Beutel** war eine Weile der Fall dazwischen und bekam sie ebenfalls:
+   * er folgte der Hand nur in der Gierachse, hing also waagerecht, während der
+   * Griff um die Zielkorrektur gekippt war. Seit er auch dem **Nicken** folgt
+   * (`MagicBagTool.hangUpright`), steht er gegenüber einem Griff ohne Rollen
+   * unverdreht — er sitzt damit im Griffraum wie jedes andere Werkzeug, das
+   * nicht zielt, und `hangsUpright` ist hier kein Sonderfall mehr.
    */
   aimOf(): Quat {
     const tool = this.tool;
     if (!tool) return GRIP_TO_RAY;
-    return tool.alignToAim || tool.hangsUpright ? GRIP_TO_RAY : IDENTITY;
+    return tool.alignToAim ? GRIP_TO_RAY : IDENTITY;
   }
 
   /** Die Hand, für die die Bühne rechnet. Eine, und immer dieselbe. */
