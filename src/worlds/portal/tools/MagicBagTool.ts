@@ -32,6 +32,18 @@ const REACH_SIDE = CELL * 0.6;
 const SPIN = 0.7;
 
 /**
+ * **Wo das Schild steht**: auf dem Saum, auf der dem Kopf abgewandten Seite —
+ * also am *oberen* Rand der Öffnung, so wie man sie sieht, wenn man
+ * hineinschaut. Es hing eine Runde lang zwei Handbreit senkrecht über der
+ * Mitte und stand damit genau in dem Blick, mit dem man in den Beutel schaut:
+ * Wer las, was drin ist, sah nicht mehr, was drin ist. Am Saum steht es
+ * **hinter** dem Raster statt darüber, und beides ist auf einmal zu lesen.
+ */
+const LABEL_RIM = RIM + 0.015;
+/** Und so hoch darüber, damit die Tafel nicht im Leder steckt. */
+const LABEL_RISE = 0.045;
+
+/**
  * Der **Saum als Griff**, im Rahmen jedes Griffs (`gripFit.ts`: Achse auf +Y,
  * Vorne auf -Z), im Raum des Werkzeugs: das Stück Saum im Griffpunkt, als
  * Zylinder quer (x) — gehalten wie eine **offene Kappe**, in die man etwas
@@ -150,7 +162,9 @@ export class MagicBagTool extends Tool {
       accent: ACCENT,
       align: 'center',
     });
-    this.label3d.position.set(0, MOUTH + 0.17, 0);
+    // Wo genau, rechnet `placeLabel` jedes Bild aus — es hängt daran, wo der
+    // Kopf steht.
+    this.label3d.position.set(0, MOUTH + LABEL_RISE, -LABEL_RIM);
     this.label3d.visible = false;
     this.body.add(this.label3d);
 
@@ -381,9 +395,29 @@ export class MagicBagTool extends Tool {
       this.label3d.setText(PROP_LABELS[this.hovered.kind]);
     }
     this.label3d.visible = true;
-    // Das Schild schaut den Kopf an, in Weltkoordinaten: es hängt am Beutel,
-    // und der dreht sich unter ihm weg.
-    this.label3d.lookAt(host.ctx.rig.getHeadPosition(_head));
+    this.placeLabel(host.ctx.rig.getHeadPosition(_head));
+  }
+
+  /**
+   * Das Schild an den Saum stellen, gegenüber dem Kopf — und es anschauen
+   * lassen.
+   *
+   * Gegenüber, weil das aus der Sicht des Lesenden der **obere** Rand der
+   * Öffnung ist: Das Schild steht dann hinter dem Raster, nicht davor, und der
+   * Blick in den Beutel läuft daran vorbei. Gerechnet wird waagerecht im Raum
+   * des Beutels, damit es auch dann am Saum bleibt, wenn die Hand den Beutel
+   * dreht oder kippt. Angeschaut wird der Kopf in Weltkoordinaten: Das Schild
+   * hängt am Beutel, und der dreht sich unter ihm weg.
+   */
+  private placeLabel(head: THREE.Vector3): void {
+    this.body.worldToLocal(_local.copy(head));
+    const flat = Math.hypot(_local.x, _local.z);
+    // Steht der Kopf senkrecht über der Öffnung, gibt es kein Gegenüber — dann
+    // bleibt das Schild vorn, weg von der Hand, die den Saum hält.
+    const toHeadX = flat > 1e-4 ? _local.x / flat : 0;
+    const toHeadZ = flat > 1e-4 ? _local.z / flat : 1;
+    this.label3d.position.set(-toHeadX * LABEL_RIM, MOUTH + LABEL_RISE, -toHeadZ * LABEL_RIM);
+    this.label3d.lookAt(head);
   }
 
   /** Zugegriffen: das Ding kommt in Originalgröße in genau diese Hand. */

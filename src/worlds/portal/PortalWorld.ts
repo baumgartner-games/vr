@@ -109,6 +109,7 @@ import {
 } from './grabReach';
 import { HandSpeed, tumbleAxis } from './throwMotion';
 import {
+  DEFAULT_GRAB,
   GRAB_FIELDS,
   formatGrabField,
   grabSettings,
@@ -202,7 +203,7 @@ const NEAR_PAD = 0.12;
  * gehobene Hand dabei kippt. Ein Zucken zum Körper ist die Bewegung, mit der
  * ein Mensch etwas an sich zieht (`pullGesture.ts`).
  */
-const REMOTE_PULL_SPEED = 8;
+const REMOTE_PULL_SPEED = DEFAULT_GRAB.pull / 100;
 /** Segments of the rope between hand and locked prop. */
 const ROPE_POINTS = 18;
 const ROPE_IDLE = 0x9fe3ff;

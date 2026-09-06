@@ -42,6 +42,8 @@ export interface GrabSettings {
    * andere Zahl dieser Seite, angezeigt wird sie in Metern je Sekunde.
    *
    * `0` heißt „ohne Zucken": dann kommt er, sobald der Grip sitzt.
+   *
+   * Die Rasten heißen `PULL_STEPS`; ab Werk steht die Zahl auf _mittel_.
    */
   pull: number;
   /** Radius des Zylinders um den Spieler, in Zentimetern. */
@@ -60,15 +62,38 @@ export interface GrabSettings {
   ghost: boolean;
 }
 
+/**
+ * **Die fünf Zugtempi**, wie ein Mensch über sie spricht — je 25 cm/s
+ * auseinander, _mittel_ in der Mitte.
+ *
+ * Ab Werk standen hier einmal 8 m/s, und das war ein Schlag und kein Zucken:
+ * Wer den Arm zum Körper zieht, kommt selten über anderthalb Meter je Sekunde,
+ * und so blieb das Ferngreifen bei den meisten schlicht aus. Die Rasten liegen
+ * deshalb um die Bewegung herum, die man wirklich macht, und die Zeile
+ * schaltet sie der Reihe nach durch.
+ */
+export const PULL_STEPS: readonly { readonly value: number; readonly name: string }[] = [
+  { value: 75, name: 'sehr langsam' },
+  { value: 100, name: 'langsam' },
+  { value: 125, name: 'mittel' },
+  { value: 150, name: 'schnell' },
+  { value: 175, name: 'sehr schnell' },
+];
+
+/** Was in der Menüzeile hinter dem Tempo steht — `null`, wenn es keine Raste ist. */
+export function pullStepName(value: number): string | null {
+  return PULL_STEPS.find((step) => step.value === Math.round(value))?.name ?? null;
+}
+
 export const DEFAULT_GRAB: GrabSettings = {
   remote: true,
   // Der Strahl liegt beim Zielen meist nur im Bild; er kommt erst, wenn
   // wirklich zugegriffen wurde — dann sagt er etwas.
   rope: true,
   near: true,
-  // 8 m/s ist ein **Zucken** und keine Handbewegung: den Arm ruhig zum Körper
-  // zu führen bleibt darunter, ein Ruck nach hinten geht deutlich darüber.
-  pull: 800,
+  // 1,25 m/s ist ein **Zucken** und keine Handbewegung: den Arm ruhig zum
+  // Körper zu führen bleibt darunter, ein Ruck nach hinten geht darüber.
+  pull: 125,
   radius: 100,
   height: 210,
   motion: 'hand',
@@ -123,7 +148,10 @@ export const GRAB_FIELDS: readonly GrabField[] = [
     min: 0,
     max: 2000,
     unit: 'cm/s',
-    steps: [0, 400, 800, 1200],
+    // Die Zeile schaltet die fünf benannten Tempi durch. Die Null steht nicht
+    // mehr darunter — sie ist eine Betriebsart und keine Geschwindigkeit, und
+    // wer sie will, tippt sie unter _Werte eingeben_ ein.
+    steps: PULL_STEPS.map((step) => step.value),
   },
 ];
 
@@ -158,14 +186,22 @@ export function nextGrabStep(field: GrabField, value: number): number {
  * Was in der Menüzeile hinter dem Namen steht.
  *
  * Zentimeter bleiben Zentimeter; ein Tempo wird in Metern je Sekunde gelesen —
- * „8,0 m/s" ist eine Zahl, die jemand mit einer Bewegung verbindet, „800 cm/s"
- * ist eine, die man erst umrechnet. Ohne Schwelle steht dort, was gemeint ist.
+ * „1,25 m/s" ist eine Zahl, die jemand mit einer Bewegung verbindet,
+ * „125 cm/s" ist eine, die man erst umrechnet. Ohne Schwelle steht dort, was
+ * gemeint ist, und auf einer Raste steht ihr Name dahinter: die Rasten liegen
+ * 25 cm/s auseinander, und „schnell" sagt mehr als der Abstand zur vorigen
+ * Zahl.
+ *
+ * Zwei Nachkommastellen, weil eine sie verfälschte: 125 cm/s las sich gerundet
+ * als „1,3 m/s", und daneben stand als nächste Raste wieder „1,5".
  */
 export function formatGrabField(field: GrabField, settings: GrabSettings): string {
   const value = Math.round(settings[field.key]);
   if (field.unit !== 'cm/s') return `${value} cm`;
   if (value === 0) return 'ohne Zucken';
-  return `${(value / 100).toFixed(1).replace('.', ',')} m/s`;
+  const metres = (value / 100).toFixed(2).replace(/0$/, '').replace('.', ',');
+  const name = pullStepName(value);
+  return name ? `${metres} m/s · ${name}` : `${metres} m/s`;
 }
 
 /** Wie die Betriebsart heißt, wenn ein Mensch sie liest. */
@@ -193,10 +229,27 @@ export function onGrabChange(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
+/**
+ * Der **alte Werkswert** des Zugtempos: 8 m/s.
+ *
+ * Wer ihn nie angefasst hat, hat ihn trotzdem im Speicher stehen — das Menü
+ * schreibt die ganze Seite, sobald irgendetwas darauf verstellt wird. Eine
+ * neue Vorgabe käme bei ihm deshalb nie an: Der Beutel ginge auf, das
+ * Ferngreifen bliebe aus, und die Einstellung sähe aus wie kaputt. Genau
+ * dieser eine Wert wird beim **Lesen** deshalb auf die neue Vorgabe gezogen.
+ *
+ * Der Preis steht dazu: Wer 800 von Hand eintippt, bekommt beim nächsten Lesen
+ * ebenfalls 125. Für ein Tempo, das schneller ist als jeder Arm, ist das der
+ * bessere Tausch — und 790 oder 810 bleiben stehen.
+ */
+const LEGACY_PULL = 800;
+
 export function grabSettings(): GrabSettings {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
-    return clampGrab(raw ? (JSON.parse(raw) as Partial<GrabSettings>) : {});
+    const stored = raw ? (JSON.parse(raw) as Partial<GrabSettings>) : {};
+    if (stored.pull === LEGACY_PULL) stored.pull = DEFAULT_GRAB.pull;
+    return clampGrab(stored);
   } catch {
     // Privater Modus, kein Speicher, kaputtes JSON — nichts davon ist einen
     // Absturz wert.
