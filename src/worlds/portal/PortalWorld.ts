@@ -5707,7 +5707,11 @@ export class PortalWorld implements World {
     }
     const tool = createTool(wanted);
     if (!tool) return;
-    tool.position.copy(tool.holdPosition);
+    // In der Hand, die es drüben hält: Ort und Neigung dieser Seite
+    // (`Tool.holdIn`), und die Gestalt dazu (`showHeldBy`). Ohne beides läge
+    // das Werkzeug am fremden Avatar in der linken Hand so wie in der rechten.
+    tool.showHeldBy(side);
+    tool.holdIn(side, tool.position, tool.quaternion);
     this.remoteTools.set(key, tool);
     ctx.avatars.setAttachment(peerId, side, tool);
   }

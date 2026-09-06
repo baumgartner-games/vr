@@ -131,12 +131,23 @@ interface StandDrag<T> {
  * der Halter schon gibt. Gemessen wird nur noch die andere Hälfte: wo die Hand
  * ist, wenn sie es so hält, wie sie es halten will.
  */
+/** Eine Haltung, wie ein Werkzeug sie trägt: die Zahlen und die Hand dazu. */
+interface HeldPose {
+  position: THREE.Vector3;
+  rotation: THREE.Quaternion;
+  hand: Handedness;
+}
+
 interface Mounted {
   tool: Tool;
   /** Die Hand, aus der es kam — ihre Knöpfe bestätigen. */
   hand: Handedness;
-  /** Die Haltung, die es beim Ablegen hatte. `A` legt genau die zurück. */
-  before: { position: THREE.Vector3; rotation: THREE.Quaternion };
+  /**
+   * Die Haltung, die es beim Ablegen hatte — samt der Hand, für die sie gilt
+   * (`Tool.holdHand`). `A` legt genau die zurück, und ohne die Seite läge
+   * danach eine links gemessene Haltung als rechte im Werkzeug.
+   */
+  before: HeldPose;
   /**
    * Ob Trigger und Greifen schon zählen dürfen.
    *
@@ -167,8 +178,17 @@ interface Fine {
   aim: THREE.Quaternion;
   /** Wie die Hand am Werkzeug gezeichnet wird — der Geist trägt sie. */
   pose: HandPose;
-  /** Die Haltung vor dem Zupacken, für den Abbruch. */
-  before: { position: THREE.Vector3; rotation: THREE.Quaternion };
+  /** Die Haltung vor dem Zupacken, für den Abbruch — samt ihrer Hand. */
+  before: HeldPose;
+}
+
+/** Die Haltung, die ein Werkzeug gerade trägt — zum Zurücklegen. */
+function heldPose(tool: Tool): HeldPose {
+  return {
+    position: tool.holdPosition.clone(),
+    rotation: tool.holdRotation.clone(),
+    hand: tool.holdHand,
+  };
 }
 
 /** Was der Griff auf der Vibrationsbank gerade macht. */
@@ -193,6 +213,8 @@ const _euler = new THREE.Euler();
 const _toolPosition = new THREE.Vector3();
 const _toolRotation = new THREE.Quaternion();
 const _aim = new THREE.Quaternion();
+const _holdPosition = new THREE.Vector3();
+const _holdRotation = new THREE.Quaternion();
 const _matrix = new THREE.Matrix4();
 const _gripPosition = new THREE.Vector3();
 const _gripRotation = new THREE.Quaternion();
@@ -958,7 +980,11 @@ export class TuneWorld extends PortalWorld {
   private gripLocal(copy: Tool, side: Handedness): Pose {
     const tool = this.tool(copy.toolId) ?? copy;
     aimQuaternion(aims(tool) ? (this.context?.input.get(side) ?? null) : null, _aim);
-    return toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, _aim);
+    // Und zwar die Haltung **dieser** Hand: gemessen ist sie an einer, die
+    // andere rechnet das Werkzeug daraus (`Tool.holdIn`). Ohne das stünde die
+    // Boxhand am Stand an der Stelle der anderen Hand.
+    tool.holdIn(side, _holdPosition, _holdRotation);
+    return toolInGrip({ position: _holdPosition, rotation: _holdRotation }, _aim);
   }
 
   /**
@@ -2123,10 +2149,7 @@ export class TuneWorld extends PortalWorld {
     const mounted: Mounted = {
       tool,
       hand,
-      before: {
-        position: tool.holdPosition.clone(),
-        rotation: tool.holdRotation.clone(),
-      },
+      before: heldPose(tool),
       armed,
     };
     this.mounted = mounted;
@@ -2185,6 +2208,11 @@ export class TuneWorld extends PortalWorld {
   private applyHold(tool: Tool, pose: HoldPose, caption: string, hand: Handedness): void {
     tool.holdPosition.set(pose.position.x, pose.position.y, pose.position.z);
     tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
+    // **Und an welcher Hand gemessen wurde.** Die Zahlen gelten für *diese*
+    // Hand; die andere rechnet das Werkzeug daraus (`Tool.holdIn`). Ohne diese
+    // Zeile läse eine links gemessene Haltung gleich im nächsten Bild als
+    // rechte, und das Werkzeug spränge aus der Hand, in der es gerade lag.
+    tool.holdHand = hand;
     if (tool instanceof HandTool) {
       // Die Boxhand *ist* die Hand: was an ihr gemessen wird, gehört in die
       // Grundhaltung dieser Hand und nicht in den Werkzeug-Speicher. Eine
@@ -2219,6 +2247,7 @@ export class TuneWorld extends PortalWorld {
     if (restore) {
       mounted.tool.holdPosition.copy(mounted.before.position);
       mounted.tool.holdRotation.copy(mounted.before.rotation);
+      mounted.tool.holdHand = mounted.before.hand;
     }
     this.mounted = null;
     this.mountBlocked = mounted.tool;
@@ -2298,10 +2327,7 @@ export class TuneWorld extends PortalWorld {
       },
       aim: _aim.clone(),
       pose,
-      before: {
-        position: tool.holdPosition.clone(),
-        rotation: tool.holdRotation.clone(),
-      },
+      before: heldPose(tool),
     };
     this.placeGhost(this.fine, grip);
     driver.pulse(0.4, 25);
@@ -2356,10 +2382,7 @@ export class TuneWorld extends PortalWorld {
     this.applyHold(tool, pose, `${tool.label} · ${handLabel(fine.owner)}`, fine.owner);
     // Was bestätigt ist, ist bestätigt: ab hier legt auch ein Abbruch nicht
     // mehr die Haltung von vor der Feinjustage zurück, sondern diese.
-    mounted.before = {
-      position: tool.holdPosition.clone(),
-      rotation: tool.holdRotation.clone(),
-    };
+    mounted.before = heldPose(tool);
     this.cancelFine(false);
     controller.pulse(0.6, 40);
     this.refreshButtons();
@@ -2400,6 +2423,7 @@ export class TuneWorld extends PortalWorld {
     if (restore && tool) {
       tool.holdPosition.copy(fine.before.position);
       tool.holdRotation.copy(fine.before.rotation);
+      tool.holdHand = fine.before.hand;
       // Auch die Tafel zurück: sie hat die ganze Feinjustage über den
       // Vorschauwert gezeigt, und der gilt jetzt nicht mehr.
       this.readout = readPose(fine.before);

@@ -22,7 +22,7 @@ import {
 } from '../worlds/portal/tools/grip';
 import { HANDLE_COLOR } from '../core/controllerHandle';
 import { createAxes, disposeAxes } from '../core/axesCross';
-import { readPose } from '../worlds/portal/tools/toolPose';
+import { holdForOtherHand, readPose } from '../worlds/portal/tools/toolPose';
 import {
   composePose,
   ghostOnTool,
@@ -290,6 +290,8 @@ const _at = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
+const _holdPosition = new THREE.Vector3();
+const _holdRotation = new THREE.Quaternion();
 /** Der Zeigestrahl der Hand im Griffraum: 30° unter dem -Z des Griffs (`GRIP_TO_RAY`). */
 const _aimQuat = new THREE.Quaternion(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w);
 const _rayInGrip = new THREE.Vector3(0, 0, -1).applyQuaternion(_aimQuat);
@@ -413,6 +415,14 @@ export class ToolViewer {
   private target: THREE.Group | null = null;
   private targetDistance = 0;
   private mode: HandMode = 'vr';
+  /**
+   * **Welche Hand die Seite zeigt** — die Wahl aus dem Kopf der Seite.
+   *
+   * Getrennt von `side`, weil zwei Werkzeuge sie nicht haben: einen linken
+   * Controller hält man links und sonst nirgends. Bei allen anderen ist das
+   * hier die Antwort, und `side` folgt.
+   */
+  private wanted: Handedness = 'right';
   /** Was die Knöpfe gerade tun — Griffknopf gedrückt, Trigger nicht, wie beim Halten. */
   private buttons: FingerButtons = HELD_BUTTONS;
   private side: Handedness = 'right';
@@ -498,7 +508,7 @@ export class ToolViewer {
     // Die Hand, für die gerechnet wird: die rechte — außer bei dem einen
     // Werkzeug, das es je Hand gibt. Ein linker Controller in einer rechten
     // Hand ist ein Bild, das es in der Brille nicht gibt.
-    this.side = id === 'controller-left' ? 'left' : 'right';
+    this.side = sideOfTool(id) ?? this.wanted;
     // Die Zielscheibe: gebaut mit Halbmesser eins, Größe und Ort kommen in
     // `placeTarget`, sobald feststeht, wie groß das Werkzeug ist.
     this.target = createTarget();
@@ -747,9 +757,32 @@ export class ToolViewer {
     return tool.alignToAim ? GRIP_TO_RAY : IDENTITY;
   }
 
-  /** Die Hand, für die die Bühne rechnet. Eine, und immer dieselbe. */
+  /** Die Hand, für die die Bühne gerade rechnet. */
   get handSide(): Handedness {
     return this.side;
+  }
+
+  /**
+   * **Die Hand wechseln.**
+   *
+   * Eine gemessene Haltung gehört einer Hand; die andere rechnet das Werkzeug
+   * daraus — gespiegelt oder gedreht (`Tool.holdIn`). Genau das soll man hier
+   * ansehen können, denn genau dort fällt auf, wenn eine Uhr in der linken
+   * Hand ihr Blatt wegdreht.
+   *
+   * Zwei Werkzeuge hören nicht darauf: die beiden Controller *sind* eine
+   * Seite. Sie behalten ihre, und der Schalter oben steht bei ihnen still.
+   */
+  setHandSide(side: Handedness): void {
+    this.wanted = side;
+    const next = sideOfTool(this.toolId) ?? side;
+    if (next === this.side) return;
+    this.side = next;
+    // Die Bühne richtet sich nach der Hand, und die ist jetzt eine andere:
+    // neu einpassen statt die eingefrorene Drehung der alten behalten.
+    this.align = null;
+    this.gripBase = null;
+    this.apply(true);
   }
 
   /** Das langsame Kreisen an oder aus — beim Justieren steht das Ding still. */
@@ -757,18 +790,30 @@ export class ToolViewer {
     this.spinning = on;
   }
 
-  /** Die Lage des Werkzeugs im Griff, wie sie gerade gilt. */
+  /**
+   * Die Lage des Werkzeugs im Griff, wie sie gerade gilt — **in der gezeigten
+   * Hand**.
+   *
+   * Die Zahlen im Bearbeiten-Feld gehören zu dem, was man sieht. Wer die linke
+   * Hand ansieht und daran zieht, zieht an der linken Haltung; welche der
+   * beiden das Werkzeug als seine gemessene führt, ist eine Buchführung
+   * darunter (`Tool.holdHand`).
+   */
   holdReadout(): PoseReadout | null {
     const tool = this.tool;
-    return tool ? readPose({ position: tool.holdPosition, rotation: tool.holdRotation }) : null;
+    if (!tool) return null;
+    tool.holdIn(this.side, _holdPosition, _holdRotation);
+    return readPose({ position: _holdPosition, rotation: _holdRotation });
   }
 
   /** Und dieselbe Lage, wie das Werkzeug **gebaut** wurde — der Weg zurück. */
   factoryReadout(): PoseReadout | null {
     const tool = this.tool;
-    return tool
-      ? readPose({ position: tool.factoryPosition, rotation: tool.factoryRotation })
-      : null;
+    if (!tool) return null;
+    const factory: HoldPose = { position: tool.factoryPosition, rotation: tool.factoryRotation };
+    return readPose(
+      tool.factoryHand === this.side ? factory : holdForOtherHand(factory, tool.otherHand),
+    );
   }
 
   /**
@@ -789,6 +834,10 @@ export class ToolViewer {
     if (pose) {
       tool.holdPosition.set(pose.position.x, pose.position.y, pose.position.z);
       tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
+      // Die Zahlen kommen aus der Hand, die gerade gezeigt wird — also gelten
+      // sie für sie. Ohne diese Zeile läge eine links gezogene Haltung als
+      // rechte im Werkzeug und wäre im nächsten Bild wieder gespiegelt.
+      tool.holdHand = this.side;
     } else {
       tool.resetHold();
     }
@@ -984,7 +1033,10 @@ export class ToolViewer {
     // eine Gestalt, die es in keiner Hand hat (`Tool.showHeldBy`).
     tool.showHeldBy(this.side);
     const aim = this.aimOf();
-    const local = toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, aim);
+    // Die Haltung **dieser** Hand: gemessen ist sie an einer, die andere
+    // rechnet das Werkzeug daraus (`Tool.holdIn`).
+    tool.holdIn(this.side, _holdPosition, _holdRotation);
+    const local = toolInGrip({ position: _holdPosition, rotation: _holdRotation }, aim);
 
     // Der **Griffraum** als Knoten: dort, wo der Controller läge, der dieses
     // Werkzeug hält. Daran hängt alles, was dem Gerät gehört — der
@@ -1032,7 +1084,7 @@ export class ToolViewer {
     // sie eingefroren (`align`).
     if (!this.editing) this.align = null;
     if (!this.align) {
-      const turn = stageForGrip(rig.quaternion);
+      const turn = stageForGrip(rig.quaternion, this.side);
       this.align = new THREE.Quaternion(turn.x, turn.y, turn.z, turn.w);
     }
     this.stage.quaternion.copy(this.align);
@@ -1649,4 +1701,17 @@ function rayIn(line: THREE.Object3D): Ray {
     origin: { x: _at.x, y: _at.y, z: _at.z },
     direction: { x: _dir.x, y: _dir.y, z: _dir.z },
   };
+}
+
+/**
+ * Die Hand, die zu einem Werkzeug **gehört** — `null`, wenn es beide kann.
+ *
+ * Nur die beiden Controller haben eine: einen linken Controller hält man
+ * links, und ein linkes Gerät in einer rechten Hand ist ein Bild, das es in
+ * der Brille nicht gibt. Alles andere folgt dem Schalter im Kopf der Seite.
+ */
+function sideOfTool(id: string | null): Handedness | null {
+  if (id === 'controller-left') return 'left';
+  if (id === 'controller-right') return 'right';
+  return null;
 }

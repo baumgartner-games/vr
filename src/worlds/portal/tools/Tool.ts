@@ -4,6 +4,7 @@ import { createGrip, type GripOptions } from './grip';
 import { GRIP_HOLD_POSITION } from './gripFit';
 import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../../core/colors';
 import { holdHandPose } from '../../../core/handPoseStore';
+import { holdForOtherHand, type HoldPose, type OtherHandFit } from './toolPose';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
@@ -17,6 +18,12 @@ import type { PaintSurface } from './paintCanvas';
 
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
+/** Die Haltung, für die andere Hand umgerechnet — Zwischenlage, kein Zustand. */
+const _hold: HoldPose = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0, w: 1 },
+};
+const _tilt = new THREE.Quaternion();
 
 /**
  * Wo an der gezeichneten Hand die **Oberfläche des Handrückens** liegt und wo
@@ -317,12 +324,70 @@ export abstract class Tool extends THREE.Group {
   readonly holdRotation = new THREE.Quaternion();
 
   /**
+   * **An welcher Hand die Haltung oben gilt** — bei allem, was hier gebaut
+   * wird, die rechte.
+   *
+   * Sie ist keine Kleinigkeit: der WebXR-Griffraum ist für beide Hände
+   * *gleich* gebaut und nicht gespiegelt, die gezeichnete Hand darin dagegen
+   * schon (`core/handPose.ts`, `defaultHoldPose`). Ein Werkzeug, das in beide
+   * Hände dieselben sechs Zahlen mitbringt, liegt deshalb in der einen
+   * ordentlich in der Faust und in der anderen daneben — bei allem, was nicht
+   * ohnehin symmetrisch im Griff sitzt. Wo die Haltung herkommt, sagt also
+   * mit, wie sie in der *anderen* Hand zu lesen ist (`holdIn`).
+   *
+   * Wer eine Haltung einmisst, schreibt die Hand mit dazu: der Justierstand
+   * und die Werkzeugseite setzen dieses Feld zusammen mit den Zahlen, sonst
+   * spränge ein links gemessenes Werkzeug in dem Moment weg, in dem die
+   * Messung fertig ist.
+   */
+  holdHand: Handedness = 'right';
+
+  /**
+   * Wie es in der **anderen** Hand liegt: gespiegelt (`'mirror'`, der
+   * Normalfall) oder um die eigene Hochachse gedreht (`'turn'`).
+   *
+   * Gedreht braucht es alles, dessen Vorderseite eine Vorderseite bleiben
+   * muss — die **Stoppuhr** ist der Fall, für den es das gibt: gespiegelt
+   * liefe ihr Zeiger rückwärts und das Blatt läse sich verkehrt. Für alles
+   * andere ist die Spiegelung richtig, und sie ist es aus demselben Grund, aus
+   * dem die Hand selbst gespiegelt wird.
+   */
+  otherHand: OtherHandFit = 'mirror';
+
+  /**
+   * Die Lage im Griff **dieser** Hand — die gebaute, oder die umgerechnete.
+   *
+   * Ein **angezogenes** Werkzeug geht hier vorbei: seine Lage *ist* die
+   * Haltung der Hand (`followHand`), und die ist schon je Hand gespiegelt.
+   * Ein zweites Mal umzurechnen zöge den Handschuh von der Hand.
+   */
+  holdIn(hand: Handedness | null, position: THREE.Vector3, rotation: THREE.Quaternion): void {
+    if (!hand || hand === this.holdHand || this.worn) {
+      position.copy(this.holdPosition);
+      rotation.copy(this.holdRotation);
+      return;
+    }
+    _hold.position.x = this.holdPosition.x;
+    _hold.position.y = this.holdPosition.y;
+    _hold.position.z = this.holdPosition.z;
+    _hold.rotation.x = this.holdRotation.x;
+    _hold.rotation.y = this.holdRotation.y;
+    _hold.rotation.z = this.holdRotation.z;
+    _hold.rotation.w = this.holdRotation.w;
+    const other = holdForOtherHand(_hold, this.otherHand);
+    position.set(other.position.x, other.position.y, other.position.z);
+    rotation.set(other.rotation.x, other.rotation.y, other.rotation.z, other.rotation.w);
+  }
+
+  /**
    * The pose the tool was *built* with, before anything the player measured
    * was put on top of it. `createTool` fills these in, so "back to how it
    * came" stays possible without rebuilding the tool.
    */
   readonly factoryPosition = new THREE.Vector3();
   readonly factoryRotation = new THREE.Quaternion();
+  /** Und die Hand, für die sie gilt — sonst käme sie als rechte zurück. */
+  factoryHand: Handedness = 'right';
 
   /**
    * Wo der **Standardgriff** im Werkzeug sitzt — `null`, solange keiner
@@ -384,6 +449,7 @@ export abstract class Tool extends THREE.Group {
   resetHold(): void {
     this.holdPosition.copy(this.factoryPosition);
     this.holdRotation.copy(this.factoryRotation);
+    this.holdHand = this.factoryHand;
   }
 
   /**
@@ -482,14 +548,15 @@ export abstract class Tool extends THREE.Group {
     if (!this.heldBy || this.parked) return;
     // Ein Handschuh folgt der Hand, Bild für Bild: seine Lage *ist* ihre Haltung.
     if (this.worn) this.followHand(this.heldBy);
-    this.position.copy(this.holdPosition);
+    // Und in der anderen Hand liegt es gespiegelt oder gedreht (`holdIn`).
+    this.holdIn(this.heldBy, this.position, _tilt);
     if (!this.alignToAim || !controller || !controller.grip.visible) {
       // Hanging in the target ray already: that *is* the aim.
-      this.quaternion.copy(this.holdRotation);
+      this.quaternion.copy(_tilt);
       return;
     }
     aimQuaternion(controller, this.quaternion);
-    this.quaternion.multiply(this.holdRotation);
+    this.quaternion.multiply(_tilt);
   }
 
   /** @param controller the hand holding it, or null while it is stowed. */

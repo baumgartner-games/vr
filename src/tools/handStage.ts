@@ -34,6 +34,7 @@
 import { multiplyQuat, conjugate, type Quat } from '../worlds/portal/tools/aim';
 import { quatFromEulerXYZ } from '../worlds/portal/tools/toolPose';
 import { REAL_HAND } from './handFrame';
+import type { Handedness } from '../core/XRInput';
 
 /**
  * **Die Ausgangsansicht auf ein Werkzeug**: ein gutes Stück von der Seite, ein
@@ -59,11 +60,25 @@ export const TOOL_HOME = { yaw: 0.6, pitch: 0.35 };
  * sie es in Wirklichkeit hält, und alles, was sonst noch schräg aussieht, ist
  * dann wirklich das Werkzeug.
  */
-export const HAND_ON_STAGE: Quat = quatFromEulerXYZ({
-  x: 0,
-  y: Math.PI / 2 - TOOL_HOME.yaw,
-  z: 0,
-});
+export const HAND_ON_STAGE: Quat = handOnStage('right');
+
+/**
+ * Dieselbe Lage für eine **linke** Hand: der Viertelkreis geht in die andere
+ * Richtung, und damit steht die Kamera auf der anderen Seite der Faust.
+ *
+ * Das ist kein Schönheitsgriff, sondern derselbe Blick. In der Brille sitzt
+ * der Kopf zwischen den Händen: auf die rechte sieht man von links, auf die
+ * linke von rechts. Eine Bühne, die beide von derselben Seite zeigt, zeigt
+ * eine der beiden von hinten — bei der Stoppuhr sah man dann statt des
+ * Zifferblatts die Faust davor, und das sagt über die Haltung nichts.
+ *
+ * Der Zeigestrahl läuft dabei quer in die andere Richtung durchs Bild. Auch
+ * das gehört dazu: eine linke Hand zeigt nach links.
+ */
+export function handOnStage(side: Handedness): Quat {
+  const quarter = side === 'left' ? -Math.PI / 2 : Math.PI / 2;
+  return quatFromEulerXYZ({ x: 0, y: quarter - TOOL_HOME.yaw, z: 0 });
+}
 
 /**
  * Die Drehung der **Bühne**, die einen Griffraum so hinlegt, dass die echte
@@ -81,9 +96,11 @@ export const HAND_ON_STAGE: Quat = quatFromEulerXYZ({
  * ```
  *
  * @param grip die Drehung des Griffraums auf der Bühne (`Lage-im-Griff⁻¹`).
+ * @param side welche Hand dort steht — sie entscheidet, von welcher Seite die
+ *             Kamera darauf sieht (`handOnStage`).
  */
-export function stageForGrip(grip: Quat): Quat {
+export function stageForGrip(grip: Quat, side: Handedness = 'right'): Quat {
   const hand = multiplyQuat(grip, REAL_HAND.rotation, { x: 0, y: 0, z: 0, w: 1 });
   const back = conjugate(hand, { x: 0, y: 0, z: 0, w: 1 });
-  return multiplyQuat(HAND_ON_STAGE, back, { x: 0, y: 0, z: 0, w: 1 });
+  return multiplyQuat(handOnStage(side), back, { x: 0, y: 0, z: 0, w: 1 });
 }

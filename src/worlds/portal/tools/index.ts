@@ -84,6 +84,7 @@ export function createTool(id: string): Tool | null {
   // adjustment bench back on top — that one outlives the reload.
   tool.factoryPosition.copy(tool.holdPosition);
   tool.factoryRotation.copy(tool.holdRotation);
+  tool.factoryHand = tool.holdHand;
   applyStoredPose(tool);
   return tool;
 }
