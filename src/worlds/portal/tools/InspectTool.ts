@@ -5,13 +5,6 @@ import type { PropReport } from '../PortalWorld';
 
 /** So weit reicht der Blick des Geräts. */
 const RANGE = 30;
-/**
- * Wie weit der Schirm im Gehäuse nach hinten lehnt, in Bogenmaß.
- *
- * 45°: so viel, wie eine ablesende Hand nach vorn unten zeigt — im Raum steht
- * der Schirm damit senkrecht.
- */
-const DISPLAY_TILT = Math.PI / 4;
 /** Wie oft die Anzeige neu geschrieben wird — sie muss nicht mit 90 Hz zittern. */
 const REFRESH = 0.12;
 
@@ -58,8 +51,8 @@ export class InspectTool extends Tool {
     // 23° nach vorn gekippt in der Hand, damit das Display zum Gesicht zeigt —
     // und rollte damit so weit über die Faust, dass er nicht mehr aussah wie
     // etwas, das man hält, sondern wie etwas, das aus der Hand fällt. Er zeigt
-    // jetzt dorthin, wohin man zeigt; das Display ist am Gehäuse geneigt und
-    // nicht das ganze Gerät in der Hand.
+    // jetzt dorthin, wohin man zeigt, und das Display steht aufrecht auf dem
+    // Gehäuse — geneigt wird weder das eine noch das andere.
 
     const shell = new THREE.MeshStandardMaterial({
       color: 0x22304a,
@@ -92,13 +85,17 @@ export class InspectTool extends Tool {
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false }),
     );
     this.display.position.set(0, 0.075, -0.02);
-    // **Um 45° nach hinten gekippt** — und damit steht der Schirm in der Hand
-    // senkrecht. Das Gerät zeigt dorthin, wohin die Hand zeigt, und eine Hand,
-    // die etwas abliest, zeigt nach vorn **unten**; ein Schirm, der im Gehäuse
-    // aufrecht steht, lehnt dann im Raum genauso weit nach vorn weg. Die 45°
-    // nehmen genau das heraus. Vorher waren es 0,45 rad, also gut 25° — die
-    // Hälfte des Wegs, und in der Brille sah man den Schirm kippen.
-    this.display.rotation.x = -DISPLAY_TILT;
+    // **Der Schirm steht senkrecht** — aufrecht im Gehäuse wie ein Schild auf
+    // dem Gerät, und nicht nach vorn weggeklappt.
+    //
+    // Er lag zweimal geneigt hier, erst 0,45 rad und dann 45°, beide Male mit
+    // derselben Rechnung: die ablesende Hand zeige nach vorn unten, die
+    // Neigung nehme das wieder heraus. Sie nimmt es aber nur bei genau dieser
+    // einen Handhaltung heraus und legt es überall sonst dazu — in der Hand,
+    // die geradeaus zeigt, hing der Schirm um 45° nach vorn gebeugt, und man
+    // las ihn von der Kante. Wie schräg die Hand steht, ist Sache der Hand;
+    // das Gerät hält seinen Schirm aufrecht, und zum Ablesen dreht man das
+    // Handgelenk — so weit, wie es gerade nötig ist.
     this.add(this.display);
 
     this.muzzle.position.set(0, 0, -0.13);

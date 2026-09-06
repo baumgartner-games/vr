@@ -2563,13 +2563,19 @@ export class PortalWorld implements World {
    * Controller den ganzen Weg als *Bewegung* aufzulösen und schiebt einen
    * durch alles, was dazwischenstand.
    *
+   * `yaw` gibt es für den Sprung, der einen **nicht** ein paar Meter weiter
+   * absetzt, sondern woanders hin: wer aus dem Tal auf einen Berg gebracht
+   * wird, weiß ohnehin nicht mehr, wo vorn war, und dann ist die Richtung, in
+   * die es von dort aus weitergeht, die bessere Antwort als die alte.
+   *
    * @returns `false`, wenn der Körper gerade jemand anderem gehört — dem Kart,
    *          das man fährt, oder der Drohne, durch die man sieht.
    */
-  private teleportPlayerTo(point: THREE.Vector3): boolean {
+  protected teleportPlayerTo(point: THREE.Vector3, yaw?: number): boolean {
     const ctx = this.context;
     if (!ctx || ctx.rig.frozen || this.viewOverride) return false;
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
+    if (yaw !== undefined) _euler.y = yaw;
     // Einen Fingerbreit über der Fläche absetzen: genau auf ihr klebt man in
     // ihr fest, und der Controller schiebt einen erst im nächsten Bild heraus.
     _point.copy(point);

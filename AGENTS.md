@@ -263,7 +263,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   den Kreis. Ausgelegt wird das aus nichts als der Länge der Weltenliste
   (`src/worlds/hub/hubLayout.ts`, mit Test): eine neue Welt bleibt damit das,
   was sie sein soll — ein Eintrag in der Registry. Der alte 90°-Bogen war für
-  vier Welten hübsch und für zehn ein Gedränge.
+  vier Welten hübsch und für zehn ein Gedränge. Gebaut wird ein Gang entlang
+  −Z und dann gedreht — und zwar um den **negativen** Winkel
+  (`corridorYaw`, mit Test): eine Drehung um φ legt −Z auf (−sin φ, −cos φ),
+  die Tore stehen aber auf `corridorDirection`. Mit dem Winkel selbst lagen
+  Gang und Tore gespiegelt zueinander, und ab dem dritten Gang stand das
+  letzte Tor (die Alpen) hinter der Rückwand eines fremden Gangs im Freien —
+  aus dem Gang heraus war die Welt schlicht nicht da.
 - **Handgelenk-Menü**: an **beiden** Händen schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
   Es ist zweimal dasselbe Menü, und immer nur **eins offen**: das zweite geht
@@ -832,11 +838,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     **wie eine Waffe**, ohne Zusatzneigung: er lag eine Weile 23° nach vorn
     gekippt darin, damit das Display zum Gesicht zeigt, und rollte damit so
     weit über die Faust, dass er nicht mehr aussah wie etwas, das man hält,
-    sondern wie etwas, das aus der Hand fällt. Geneigt ist jetzt das Display
-    am Gehäuse und nicht das ganze Gerät in der Hand — und zwar um **45° nach
-    hinten** (`DISPLAY_TILT`): so weit, wie eine ablesende Hand nach vorn unten
-    zeigt, und damit steht der Schirm im Raum senkrecht. Vorher waren es 0,45
-    rad, also gut 25° — die Hälfte des Wegs, und man sah den Schirm kippen. Er
+    sondern wie etwas, das aus der Hand fällt. Das Display steht
+    **aufrecht** auf dem Gehäuse — geneigt wird weder das eine noch das
+    andere. Es lag zweimal geneigt darauf (0,45 rad, dann 45° nach hinten),
+    beide Male mit der Rechnung, die ablesende Hand zeige nach vorn unten und
+    die Neigung nehme das heraus; sie nimmt es aber nur bei genau dieser einen
+    Handhaltung heraus und legt es überall sonst dazu — in der Hand, die
+    geradeaus zeigt, hing der Schirm um 45° nach vorn gebeugt und man las ihn
+    von der Kante. Wie schräg die Hand steht, ist Sache der Hand. Er
     verändert
     **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
     halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
@@ -1345,6 +1354,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   unten liegt eine **Landewiese** mit Windsack und Ring, daneben eine Alm mit
   ein paar Kisten. Wald bis zur Baumgrenze, Fels wo es steil ist, Schnee ab
   175 m — alles Vertexfarben aus Höhe und Steigung.
+  Unten stehen zwei **rote Knöpfe** (`shared/redButton.ts`), einer auf der
+  Wiese und einer vor der Alm: drücken, und man steht wieder auf der Rampe.
+  Der Weg zurück nach oben wären sonst 236 Höhenmeter über eine Flanke, die
+  stellenweise zu steil zum Gehen ist — eine Wartezeit zwischen zwei Flügen,
+  und damit genau dort, wo an dieser Welt nichts stehen soll. Der Knopf setzt
+  auch den **Blick** neu (`teleportPlayerTo` mit `yaw`): wer aus dem Tal auf
+  einen Berg gebracht wird, weiß ohnehin nicht mehr, wo vorn war, und die
+  Rampe zeigt ins Tal.
   Das Gelände ist ein **Höhenfeld** (`alps/alpsTerrain.ts`, mit Test): eine
   Höhe je Punkt aus Glockenkurven, Rauschen mit Gedächtnis und zwei absichtlich
   ebenen Stellen, zum Rand hin auf null auslaufend, und dahinter eine Wiese bis
