@@ -17,8 +17,9 @@ import {
 } from '../../../core/handPose';
 import { saveHoldHandPose, saveIdleHandPose } from '../../../core/handPoseStore';
 import { savePose, storedPoseHand, storedPose } from './poseStore';
-import { readPose } from './toolPose';
+import { readPose, readoutToArray } from './toolPose';
 import { applyGearConfig, gearCode, parseGearCode, toolGearCode } from './gearConfig';
+import { BRUSH_HOLD } from './BrushTool';
 
 function fakeStorage(): Storage {
   const map = new Map<string, string>();
@@ -145,6 +146,40 @@ describe('der abgetippte Code der Taschenlampe', () => {
   it('gibt dieselbe Zeile wieder her', () => {
     applyGearConfig(parseGearCode(CODE)!);
     expect(toolGearCode('flashlight', 'right')).toBe(CODE);
+  });
+});
+
+describe('der abgetippte Code des Pinsels', () => {
+  // Wie oben bei der Taschenlampe: die Zeile von der Tafel im Eingaberaum,
+  // deren Zahlen in `handPose.ts` (`BRUSH_HAND_POSE`) und in `BrushTool.ts`
+  // (`BRUSH_HOLD`) stehen. Der Pinsel lag davor an derselben Stelle wie der
+  // Hammerstiel; ein Stift liegt höher und weiter vorn in der Hand.
+  const CODE = 'BPGDLMh46J5ruqr3SNVh4H3V';
+
+  it('trägt die Lage im Griff, den Griff und die rechte Hand', () => {
+    const config = parseGearCode(CODE);
+    expect(config).not.toBeNull();
+    expect(config!.tools?.brush).toEqual([0, 4.7, -1.4, 0, 0, 0]);
+    expect(config!.toolHands?.brush).toBe('right');
+    expect(config!.hands?.hold?.right?.brush?.slice(0, 6)).toEqual([0.7, 3.2, 4.5, 31, -35, -6]);
+  });
+
+  it('steht so im Quelltext, wie er hereinkam', () => {
+    // Nicht zwei Zahlenreihen nebeneinander, sondern die im Code gegen die im
+    // Quelltext: wer eine davon anfasst, sieht hier, dass die andere danebensteht.
+    const config = parseGearCode(CODE)!;
+    const built = { position: BRUSH_HOLD, rotation: { x: 0, y: 0, z: 0, w: 1 } };
+    expect(readoutToArray(readPose(built))).toEqual(config.tools!.brush);
+
+    const grip = defaultHoldPose('right', 'brush');
+    expect([grip.x, grip.y, grip.z, grip.pitch, grip.yaw, grip.roll]).toEqual(
+      config.hands!.hold!.right!.brush!.slice(0, 6),
+    );
+  });
+
+  it('gibt dieselbe Zeile wieder her', () => {
+    applyGearConfig(parseGearCode(CODE)!);
+    expect(toolGearCode('brush', 'right')).toBe(CODE);
   });
 });
 

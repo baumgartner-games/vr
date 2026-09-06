@@ -547,26 +547,42 @@ describe('die Hand am Pinsel', () => {
   it.each(['right', 'left'] as const)(
     'kneift den Stiel wie einen Stift, statt ihn in die Faust zu nehmen: %s',
     (side) => {
-      // Derselbe Stab wie beim Hammer — dieselbe `holdPosition`, derselbe
-      // Zeigestrahl —, nur hält die Hand ihn ganz anders.
+      // Derselbe Stab wie beim Hammer und derselbe Zeigestrahl — nur hält die
+      // Hand ihn ganz anders, und deshalb liegt er auch woanders in ihr: ein
+      // Stift steht höher und weiter vorn als eine Faust um eine Stange, also
+      // ist die `holdPosition` **nicht** mehr die des Hammerstiels. Ohne
+      // Drehung obendrauf bleibt sie trotzdem: der Pinsel zeigt dorthin, wohin
+      // die Hand zeigt.
       const tool = hold(new BrushTool(), side);
       expect(tool.alignToAim).toBe(true);
-      expect(tool.holdPosition).toEqual(new HammerTool().holdPosition);
+      expect(tool.holdPosition).not.toEqual(new HammerTool().holdPosition);
+      expect(tool.holdRotation.angleTo(new THREE.Quaternion())).toBeCloseTo(0);
       const pole = poleOf(tool);
       const pose = defaultHoldPose(side, 'brush');
       const hand = penContacts(side, pose);
 
-      // Alle vier Berührungen liegen auf der Oberfläche des Stiels — auf drei
-      // Millimeter, denn die sechs Zahlen stehen auf Zehntelzentimeter und
-      // ganze Grad gerundet im Code.
+      // Alle vier Berührungen liegen am Stiel — auf anderthalb Zentimeter.
+      //
+      // Es war einmal ein halber: solange die sechs Zahlen aus einer
+      // Ausgleichsrechnung über genau diese vier Punkte kamen, konnte der Test
+      // so eng sein wie die Rundung im Code. Die Haltung ist seither in der
+      // Brille nachgestellt worden (Kurzcode `BPGDLMh46J5ruqr3SNVh4H3V`, siehe
+      // `handPose.ts`), und eine Hand, die man an einem Stiel entlangschiebt,
+      // bis sie richtig aussieht, trifft dessen Oberfläche nicht auf den
+      // Millimeter. Geprüft bleibt, worauf es ankommt und was auch dann noch
+      // schiefgehen kann: dass die vier Stellen am Stiel liegen und ihn dabei
+      // **umschließen** — eine Hand, die daneben greift, ist um Zentimeter
+      // daneben und nicht um einen.
       const spread = new THREE.Vector3();
       for (const { name, point, radius } of hand.touch) {
         const offset = point.clone().sub(pole.centre);
         const along = offset.dot(pole.axis);
         const radial = offset.clone().addScaledVector(pole.axis, -along);
+        // 10^1,5 / 2 ≈ 16 mm — der Name steht mit im Vergleich, damit die
+        // Meldung sagt, welche der vier Stellen danebenliegt.
         expect({ name, gap: Math.round((radial.length() - radius) * 1000) }).toEqual({
           name,
-          gap: expect.closeTo(0, -1),
+          gap: expect.closeTo(0, -1.5),
         });
         // Und alle auf dem vorderen Stück des Stiels, nicht am Knauf.
         expect(along).toBeLessThan(0.03);
