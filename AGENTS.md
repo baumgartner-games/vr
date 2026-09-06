@@ -2646,24 +2646,38 @@ ihre Übersichten. Ein Hash, den es nicht gibt, endet in der Werkzeug-Übersicht
 und nicht in einer leeren Seite.
 
 Im Kopf steht außerdem der Umschalter für die Hand, und seine drei Zustände
-sind **zwei verschiedene Hände** und nicht zweimal dieselbe aus zwei Winkeln:
+sind **zwei verschiedene Hände** und nicht zweimal dieselbe aus zwei Winkeln.
+Die Namen sagen, welche:
 
 - **Hand aus** — nur das Werkzeug, für die Form.
-- **In VR** — wie es in der **Brille** aussieht: das Werkzeug steht aufrecht in
-  seinem eigenen Raum, und die gezeichnete Hand liegt so daran, wie die Haltung
-  dieses Werkzeugs es sagt. Hier soll der Pinsel wie ein Stift gehalten
-  aussehen und die Pistole wie eine Pistole.
-- **Am Controller** — wie die Hand in **echt** hält: der **rote Zylinder** ist
-  der Handgriff des Quest-Controllers (`core/controllerGrip.ts`, aus dem Modell
-  des Herstellers abgelesen), und die Faust liegt darum. Kein Werkzeug — eines
-  hat man dabei ja gar nicht in der Hand, man hat einen Controller. Das Bild
-  ist deshalb für jedes Werkzeug dasselbe, und das ist keine Schwäche, sondern
-  die Auskunft: **echt hält man den Pinsel wie die Waffe.**
+- **Hand in VR** — die **gezeichnete** Hand am Werkzeug, so wie sie in der
+  Brille aussieht: sie liegt so daran, wie die Haltung dieses Werkzeugs es
+  sagt. Hier soll der Pinsel wie ein Stift gehalten aussehen und die Pistole
+  wie eine Pistole.
+- **Hand in echt** — die **eigene** Hand am Gerät, also nur eine Handhaltung:
+  der **rote Zylinder** ist der Handgriff des Quest-Controllers
+  (`core/controllerGrip.ts`, aus dem Modell des Herstellers abgelesen), und die
+  Faust liegt darum. Das Werkzeug bleibt als **Geist** stehen — in der echten
+  Hand liegt keines, aber ohne es wüsste man nicht mehr, wovon das Bild
+  handelt. Es ist deshalb für jedes Werkzeug fast dasselbe Bild, und das ist
+  keine Schwäche, sondern die Auskunft: **echt hält man den Pinsel wie die
+  Waffe.**
 
 Lange waren die beiden dasselbe Bild in zwei Rahmen — einmal stand die Hand
 still, einmal das Werkzeug —, und wer sich den Pinsel ansah, sah zweimal genau
 dasselbe. „Da ist kein Unterschied" war die richtige Beobachtung; den
 Unterschied gibt es, er liegt nur zwischen echter und gezeichneter Hand.
+
+**Und die Welt bleibt dabei stehen.** Werkzeug und Zielscheibe stehen in jeder
+Ansicht an derselben Stelle — das Werkzeug aufrecht in seinem eigenen Raum, die
+Scheibe davor auf dem Zeigestrahl —, und die Kamera passt sich nur an die
+beiden an (`fit`, `placeTarget` messen das Werkzeug, nicht die Hand). Was sich
+beim Umschalten bewegt, ist die Hand und sonst nichts. Vorher lag in der
+Ansicht *in echt* der Griffraum in der Bühne selbst, das Werkzeug war ganz weg
+und die Zielscheibe stand plötzlich schräg unten links: zwei Bilder, die man
+nicht vergleichen konnte. Jetzt steht der Griffraum dort, wo der Controller
+beim Halten *dieses* Werkzeugs wirklich stünde (`Lage-im-Griff⁻¹`), und der
+rote Zylinder liegt genau im grünen Halterzylinder des Geists.
 
 Der grüne **Halterzylinder** gehört dabei zum Werkzeug und bleibt, wo er ist:
 er ist das, was alle Waffen einander ähnlich macht. Der rote daneben ist etwas

@@ -35,19 +35,26 @@ import type { WorldPreview } from '../core/types';
  * dasselbe — „da ist kein Unterschied" war die richtige Beobachtung. Es gibt
  * aber wirklich zwei Bilder, und sie zeigen zwei verschiedene Dinge:
  *
- * - `off` — nur das Werkzeug. Für die Form, ohne eine Hand davor.
- * - `controller` — **wie die Hand in echt hält**: der rote Zylinder ist der
- *   Handgriff des Quest-Controllers (`core/controllerGrip.ts`, aus dem Modell
- *   des Herstellers abgelesen), und die Faust liegt darum. Kein Werkzeug —
- *   ein Werkzeug hat man dabei ja gar nicht in der Hand, man hat einen
- *   Controller. Dieses Bild ist deshalb für jedes Werkzeug dasselbe, und das
- *   ist keine Schwäche, sondern die Auskunft: **echt hält man den Pinsel wie
- *   die Waffe.**
- * - `vr` — **wie es in der Brille aussieht**: das Werkzeug steht aufrecht in
- *   seinem eigenen Raum, und die gezeichnete Hand liegt so daran, wie die
- *   Haltung dieses Werkzeugs es sagt. Hier soll der Pinsel wie ein Stift
- *   gehalten aussehen und die Pistole wie eine Pistole — hier ist der
- *   Unterschied zu Hause, den es in echt nicht gibt.
+ * - `off` — **Hand aus**: nur das Werkzeug. Für die Form, ohne eine Hand davor.
+ * - `vr` — **Hand in VR**, wie es in der Brille aussieht: die gezeichnete Hand
+ *   liegt so am Werkzeug, wie die Haltung dieses Werkzeugs es sagt. Hier soll
+ *   der Pinsel wie ein Stift gehalten aussehen und die Pistole wie eine
+ *   Pistole — hier ist der Unterschied zu Hause, den es in echt nicht gibt.
+ * - `controller` — **Hand in echt**, wie die Hand wirklich hält: der rote
+ *   Zylinder ist der Handgriff des Quest-Controllers
+ *   (`core/controllerGrip.ts`, aus dem Modell des Herstellers abgelesen), und
+ *   die Faust liegt darum. Das Werkzeug bleibt als **Geist** stehen — in der
+ *   echten Hand liegt keines, aber ohne es wüsste man nicht mehr, wovon das
+ *   Bild handelt. Es ist deshalb für jedes Werkzeug fast dasselbe Bild, und
+ *   das ist keine Schwäche, sondern die Auskunft: **echt hält man den Pinsel
+ *   wie die Waffe.**
+ *
+ * **Die Welt bleibt dabei stehen.** Werkzeug und Zielscheibe stehen in jeder
+ * Ansicht an derselben Stelle, und die Kamera passt sich nur an die beiden an;
+ * was sich beim Umschalten bewegt, ist die Hand und sonst nichts. Vorher lag
+ * am Controller der Griffraum in der Bühne, das Werkzeug war weg und die
+ * Scheibe stand plötzlich schräg unten links — zwei Bilder, die man nicht
+ * vergleichen konnte.
  *
  * Der grüne **Halterzylinder** gehört zum Werkzeug und bleibt, wo er ist: er
  * ist das, was alle Waffen einander ähnlich macht. Der rote Zylinder daneben
@@ -225,7 +232,7 @@ const AIM_LINE_MIN = 0.16;
 
 /**
  * **Der rote Zylinder**: der Handgriff des Controllers in der Ansicht
- * *Am Controller*.
+ * *Hand in echt*.
  *
  * Rot, weil grün schon vergeben ist — grün heißt „hier fasst die Hand das
  * **Werkzeug** an", und genau das tut sie hier nicht: sie fasst das Gerät an,
@@ -236,6 +243,9 @@ const AIM_LINE_MIN = 0.16;
  * entlang der Z-Achse des Griffraums, vom Kopf des Geräts nach hinten.
  */
 const HANDLE_COLOR = 0xe0554a;
+
+/** Wie durchsichtig das Werkzeug wird, wo es nur zeigt, wo es wäre. */
+const GHOST_OPACITY = 0.22;
 
 const _box = new THREE.Box3();
 const _bounds = new THREE.Box3();
@@ -300,8 +310,15 @@ export class ToolViewer {
   private handLine: THREE.Line | null = null;
   /** Und je eine je Halterzylinder: wohin dieser zeigt. */
   private gripFronts: THREE.LineSegments[] = [];
-  /** Der rote Handgriff des Controllers — nur in der Ansicht *Am Controller*. */
+  /** Der rote Handgriff des Controllers — nur in der Ansicht *Hand in echt*. */
   private handle: THREE.Mesh | null = null;
+  /** Der Griffraum als Knoten: dort läge der Controller, der dieses Werkzeug hält. */
+  private rig: THREE.Group | null = null;
+  /** Was ein Material war, bevor das Werkzeug zum Geist wurde (`setToolGhost`). */
+  private readonly opaque = new Map<
+    THREE.Material,
+    { transparent: boolean; opacity: number; depthWrite: boolean }
+  >();
   /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
   private aimLine: THREE.LineSegments | null = null;
   /** Die Zielscheibe auf dem Zeigestrahl der Hand, und wie weit weg sie steht. */
@@ -764,20 +781,29 @@ export class ToolViewer {
   // --- die Bühne stellen -----------------------------------------------------
 
   /**
-   * Werkzeug und Hand an ihre Plätze, und die Kamera darauf einpassen.
+   * **Eine Bühne, zwei Hände.**
    *
-   * Zwei Bilder, zwei Rechnungen (siehe `HandMode`):
+   * Werkzeug und Zielscheibe stehen in *jeder* Ansicht an derselben Stelle: das
+   * Werkzeug aufrecht in seinem eigenen Raum, die Scheibe davor auf dem
+   * Zeigestrahl. Auch die Kamera passt sich nur an die beiden an
+   * (`fit`, `placeTarget`) und nicht an die Hand. Wer umschaltet, sieht deshalb
+   * **dieselbe Welt** und darin eine andere Hand — und nur so kann man die
+   * beiden überhaupt vergleichen. Vorher sprang beim Umschalten die halbe
+   * Szene: am Controller lag der Griffraum in der Bühne, das Werkzeug war weg,
+   * und die Zielscheibe stand plötzlich schräg unten links.
    *
-   * **In VR** steht das Werkzeug aufrecht in seinem eigenen Raum, und die Hand
-   * liegt daran — dieselbe Kette wie im Eingaberaum (`tune/handGrip.ts`), mit
-   * derselben **Zielkorrektur**: die kommt sonst aus einem Controller, und hier
-   * gibt es keinen, also steht sie als Zahl da (`GRIP_TO_RAY`). Ohne sie zeigte
-   * die Seite Hand und Werkzeug um genau diese 30° gegeneinander verdreht.
+   * Was sich ändert, ist die Hand:
    *
-   * **Am Controller** steht das Werkzeug gar nicht da. Dort liegt der rote
-   * Handgriff des Geräts im Griffraum und die Faust darum, mit der Haltung, die
-   * für den Controller gespeichert ist — das ist, was die echte Hand tut,
-   * während die gezeichnete in der Brille etwas anderes tut.
+   * - **in VR** liegt die gezeichnete Hand am Werkzeug — dieselbe Kette wie im
+   *   Eingaberaum (`tune/handGrip.ts`), mit derselben **Zielkorrektur**: die
+   *   kommt sonst aus einem Controller, und hier gibt es keinen, also steht sie
+   *   als Zahl da (`GRIP_TO_RAY`). Ohne sie zeigte die Seite Hand und Werkzeug
+   *   um genau diese 30° gegeneinander verdreht.
+   * - **in echt** liegt im Griffraum der rote Handgriff des Geräts und die
+   *   Faust darum. Der Griffraum ist dabei genau der, in dem das Werkzeug
+   *   hängt (`Lage-im-Griff⁻¹`) — der Controller steht also dort, wo er beim
+   *   Halten dieses Werkzeugs wirklich stünde, und das Werkzeug bleibt als
+   *   **Geist** stehen, damit man sieht, wo es dabei wäre.
    *
    * @param refit ob die Kamera sich neu einpassen darf. Beim Justieren nicht:
    *              siehe `setHoldPose`.
@@ -794,16 +820,27 @@ export class ToolViewer {
     const aim = this.aimOf();
     const local = toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, aim);
 
-    // Das Werkzeug steht in beiden sichtbaren Ansichten aufrecht in seinem
-    // eigenen Raum — und am Controller steht es überhaupt nicht: in der echten
-    // Hand liegt keines.
+    // Das Werkzeug steht aufrecht in seinem eigenen Raum — immer, in jeder
+    // Ansicht. In echt ist es nur nicht da, also steht es dort als Geist.
     tool.position.set(0, 0, 0);
     tool.quaternion.identity();
-    tool.visible = this.mode !== 'controller';
+    this.setToolGhost(this.mode === 'controller');
+
+    // Der **Griffraum** als Knoten: dort, wo der Controller läge, der dieses
+    // Werkzeug hält. Daran hängt alles, was dem Gerät gehört — der
+    // Zeigestrahl, und in echt der Handgriff samt Faust.
+    const grip = invertPose(local);
+    const rig = new THREE.Group();
+    rig.name = 'grip-space';
+    rig.position.set(grip.position.x, grip.position.y, grip.position.z);
+    rig.quaternion.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
+    this.stage.add(rig);
+    this.rig = rig;
+    this.addHandLine(rig);
 
     if (this.mode === 'controller') {
       const handle = createHandle(this.side);
-      this.stage.add(handle);
+      rig.add(handle);
       this.handle = handle;
       const pose = holdHandPose(this.side, this.controllerId);
       const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 1 });
@@ -811,9 +848,8 @@ export class ToolViewer {
       const at = poseOfHand(pose);
       hand.position.set(at.position.x, at.position.y, at.position.z);
       hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
-      this.stage.add(hand);
+      rig.add(hand);
       this.hand = hand;
-      this.addHandLine(local);
     } else if (this.mode === 'vr') {
       // **Nicht durchsichtig**: ein Geist ist gläsern, damit man die eigene
       // Hand dahinter sieht — hier gibt es keine, und was man ansieht, soll
@@ -826,12 +862,54 @@ export class ToolViewer {
       hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
       this.stage.add(hand);
       this.hand = hand;
-      this.addHandLine(local);
     }
 
-    this.placeTarget(local);
+    this.placeTarget();
     if (refit) this.fit();
     this.sizeLines();
+  }
+
+  /**
+   * Das Werkzeug **durchsichtig** schalten und wieder zurück.
+   *
+   * Am Controller ist das Werkzeug nicht da — man hält ein Gerät —, aber ganz
+   * wegzunehmen wäre zu viel: dann wüsste niemand mehr, wovon dieses Bild die
+   * echte Hand zeigt. Also steht es als Geist da, wo es wäre.
+   *
+   * Die Werte kommen aus den Materialien selbst und werden gemerkt, statt sie
+   * hinterher zu erraten: ein Werkzeug hat Lack, Glas und Leuchtendes
+   * nebeneinander, und „einfach wieder undurchsichtig" macht aus einem
+   * Fernrohrglas eine Wand.
+   */
+  private setToolGhost(on: boolean): void {
+    const tool = this.tool;
+    if (!tool) return;
+    if (on) {
+      tool.traverse((object) => {
+        const mesh = object as THREE.Mesh & THREE.Line;
+        // Auch die Linien daran — ein blasses Werkzeug mit einem knallvioletten
+        // Pfeil darin sähe aus, als gehörte der Pfeil nicht dazu.
+        if (!mesh.isMesh && !mesh.isLine) return;
+        for (const material of materialsOf(mesh)) {
+          if (this.opaque.has(material)) continue;
+          this.opaque.set(material, {
+            transparent: material.transparent,
+            opacity: material.opacity,
+            depthWrite: material.depthWrite,
+          });
+          material.transparent = true;
+          material.opacity = Math.min(material.opacity, GHOST_OPACITY);
+          material.depthWrite = false;
+        }
+      });
+      return;
+    }
+    for (const [material, was] of this.opaque) {
+      material.transparent = was.transparent;
+      material.opacity = was.opacity;
+      material.depthWrite = was.depthWrite;
+    }
+    this.opaque.clear();
   }
 
   /**
@@ -848,19 +926,23 @@ export class ToolViewer {
    * messen, dann stellen. Sonst zählte die Scheibe sich selbst mit und rückte
    * mit jedem Aufstellen ein Stück weiter weg.
    */
-  private placeTarget(local: Pose): void {
+  private placeTarget(): void {
     const target = this.target;
-    if (!target) return;
+    const rig = this.rig;
+    if (!target || !rig) return;
     target.visible = false;
     this.stage.updateWorldMatrix(true, true);
-    this.measure();
+    // Gemessen wird das **Werkzeug** und nicht, was gerade sonst noch dasteht:
+    // Größe und Abstand der Scheibe gehören zum Werkzeug, und eine Scheibe, die
+    // beim Umschalten der Hand ihren Platz wechselt, ist keine Welt mehr.
+    this.measure(this.tool ? [this.tool] : [this.stage]);
     _box.getSize(_size);
     const radius = Math.max(_size.length() / 2, 0.02);
     this.targetDistance = Math.max(TARGET_MIN_DISTANCE, radius * TARGET_DISTANCE);
     target.scale.setScalar(Math.max(TARGET_MIN_RADIUS, radius * TARGET_RADIUS));
 
-    this.gripInStage(local);
-    _dir.copy(_rayInGrip).applyQuaternion(_quat);
+    _at.set(rig.position.x, rig.position.y, rig.position.z);
+    _dir.copy(_rayInGrip).applyQuaternion(rig.quaternion);
     target.position.copy(_at).addScaledVector(_dir, this.targetDistance);
     // Die Scheibe schaut die Hand an: ihr +Z ist die Fläche, und die zeigt
     // den Strahl zurück.
@@ -884,7 +966,7 @@ export class ToolViewer {
    * das Werkzeug an und nicht an eine Linie, die absichtlich über den Rand
    * hinausgeht.
    */
-  private addHandLine(local: Pose): void {
+  private addHandLine(rig: THREE.Group): void {
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, -1),
@@ -894,32 +976,9 @@ export class ToolViewer {
       new THREE.LineBasicMaterial({ color: HAND_LINE_COLOR, transparent: true, opacity: 0.9 }),
     );
     line.name = 'hand-ray';
-    this.gripInStage(local);
-    line.position.copy(_at);
-    line.quaternion.copy(_quat).multiply(_aimQuat);
-    this.stage.add(line);
+    line.quaternion.copy(_aimQuat);
+    rig.add(line);
     this.handLine = line;
-  }
-
-  /**
-   * Wo der **Griffraum** auf der Bühne steht — der Ort und die Drehung, in der
-   * ein Controller läge.
-   *
-   * In der Ansicht *Am Controller* ist der Griffraum die Bühne selbst — dort
-   * steht ja das Gerät. In den beiden anderen steht das Werkzeug aufrecht, und
-   * der Griffraum liegt darin bei `Lage-im-Griff⁻¹` — derselbe Weg, den die
-   * Hand nimmt (`ghostOnTool`). Das Ergebnis steht in `_at` und `_quat`, denn
-   * beide Aufrufer rechnen damit gleich weiter.
-   */
-  private gripInStage(local: Pose): void {
-    if (this.mode === 'controller') {
-      _at.set(0, 0, 0);
-      _quat.identity();
-      return;
-    }
-    const grip = invertPose(local);
-    _at.set(grip.position.x, grip.position.y, grip.position.z);
-    _quat.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
   }
 
   /**
@@ -965,6 +1024,8 @@ export class ToolViewer {
     }
     this.hand?.dispose();
     this.hand = null;
+    this.rig?.removeFromParent();
+    this.rig = null;
   }
 
   /**
@@ -979,7 +1040,13 @@ export class ToolViewer {
   private fit(): void {
     this.stage.position.set(0, 0, 0);
     this.stage.updateWorldMatrix(true, true);
-    this.measure();
+    // Bei einem Werkzeug zählen **Werkzeug und Zielscheibe** und sonst nichts.
+    // Das ist die Welt, in der die Hand steht, und sie darf sich beim
+    // Umschalten der Hand nicht bewegen — sonst vergleicht man zwei Bilder,
+    // die verschieden weit weg sind.
+    const tool = this.tool;
+    const target = this.target;
+    this.measure(tool ? (target ? [tool, target] : [tool]) : [this.stage]);
     _box.getCenter(_centre);
     _box.getSize(_size);
     this.stage.position.copy(_centre).multiplyScalar(-1);
@@ -1030,7 +1097,7 @@ export class ToolViewer {
    * wie im Handgelenk-Menü: sichtbare Meshes, sonst nichts. Lichter, Kameras
    * und Zielpunkte fallen damit gleich mit heraus.
    */
-  private measure(): void {
+  private measure(roots: readonly THREE.Object3D[] = [this.stage]): void {
     _box.makeEmpty();
     const visit = (object: THREE.Object3D): void => {
       // Kulisse zählt nicht mit: der Himmel einer Welt ist eine Kugel von 560
@@ -1049,7 +1116,7 @@ export class ToolViewer {
       }
       for (const child of object.children) visit(child);
     };
-    visit(this.stage);
+    for (const root of roots) visit(root);
     // Ein Werkzeug ganz ohne sichtbares Mesh gibt es nicht, aber eine leere
     // Kiste ergäbe eine Kamera im Nichts. Dann eben eine Handbreit.
     if (_box.isEmpty()) _box.setFromCenterAndSize(_zero, _handspan);
@@ -1102,6 +1169,10 @@ export class ToolViewer {
     this.studio.visible = true;
     this.spin = 0;
     this.setCut(null);
+    // Erst das Werkzeug wieder undurchsichtig machen, dann weg damit: die
+    // gemerkten Materialien gehören ihm, und nach `disposeTool` gibt es sie
+    // nicht mehr.
+    this.setToolGhost(false);
     const tool = this.tool;
     this.tool = null;
     tool?.removeFromParent();
@@ -1383,4 +1454,11 @@ function createHandle(side: Handedness): THREE.Mesh {
   mesh.scale.x = radius.x / radius.y;
   mesh.position.set(mirror * centre.x, centre.y, (from + to) / 2);
   return mesh;
+}
+
+/** Die Materialien eines Meshes oder einer Linie, ob nun eines oder eine Liste. */
+function materialsOf(mesh: THREE.Mesh | THREE.Line): THREE.Material[] {
+  const material = mesh.material as THREE.Material | THREE.Material[];
+  if (!material) return [];
+  return Array.isArray(material) ? material : [material];
 }

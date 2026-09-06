@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#05070d" />
     <title>Werkzeuge — Baumgartner VR</title>
-    <meta name="description" content="Alles aus der VR-Spielwiese zum Ansehen: Werkzeuge, Welten und der magische Beutel — Übersicht, 3D-Ansicht zum Drehen und die Hand daran — in VR und am Controller." />
+    <meta name="description" content="Alles aus der VR-Spielwiese zum Ansehen: Werkzeuge, Welten und der magische Beutel — Übersicht, 3D-Ansicht zum Drehen und die Hand daran — in VR und in echt am Controller." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A7%3C/text%3E%3C/svg%3E" />
   </head>
   <body class="page">
@@ -26,17 +26,18 @@
       </button>
       <h1 id="title" class="top__title">Werkzeuge</h1>
       <!--
-        Zwei Hände, nicht zweimal dieselbe: **In VR** zeigt das Werkzeug mit
-        der gezeichneten Hand daran — so sieht es in der Brille aus. **Am
-        Controller** zeigt den roten Handgriff des Geräts mit der Faust darum —
-        so hält die echte Hand, während die gezeichnete etwas anderes tut. Beim
-        Pinsel sieht man erst dadurch beides: echt hält man ihn wie die Waffe,
-        gezeichnet wie einen Stift.
+        Zwei Hände, nicht zweimal dieselbe — und die Namen sagen, welche:
+        **Hand in VR** ist die gezeichnete Hand am Werkzeug, so wie sie in der
+        Brille aussieht. **Hand in echt** ist die eigene Hand am Controller,
+        also nur eine Handhaltung; das Werkzeug steht dabei als Geist da, wo es
+        wäre. Werkzeug und Zielscheibe bleiben in beiden an derselben Stelle —
+        was wechselt, ist die Hand. Beim Pinsel sieht man erst dadurch beides:
+        echt hält man ihn wie die Waffe, gezeichnet wie einen Stift.
       -->
-      <div id="hands" class="seg top__seg" role="group" aria-label="Ansicht" hidden>
-        <button type="button" data-hand="off">Hand aus</button>
-        <button type="button" data-hand="vr">In VR</button>
-        <button type="button" data-hand="controller">Am Controller</button>
+      <div id="hands" class="seg top__seg" role="group" aria-label="Hand" hidden>
+        <button type="button" data-hand="off" title="Nur das Werkzeug">Hand aus</button>
+        <button type="button" data-hand="vr" title="Die gezeichnete Hand am Werkzeug — so sieht es in der Brille aus">Hand in VR</button>
+        <button type="button" data-hand="controller" title="Die eigene Hand am Controller — so hältst du in Wirklichkeit; das Werkzeug steht als Geist dabei">Hand in echt</button>
       </div>
       <!--
         Und die beiden Knöpfe am Controller, die Finger bewegen: der Griffknopf
