@@ -1130,7 +1130,6 @@ export class PortalWorld implements World {
     return parent;
   }
 
-  /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
   /**
    * **Eine Meldung an den, der zusieht.**
    *
@@ -1158,6 +1157,7 @@ export class PortalWorld implements World {
     return this.npcBars;
   }
 
+  /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
   protected navLayerState(): Readonly<NavLayerState> {
     return this.navLayers;
   }
@@ -2864,21 +2864,6 @@ export class PortalWorld implements World {
   // --- die Welt zum Ansehen ------------------------------------------------
 
   /**
-   * Die Kulisse dieser Welt, ohne Spiel darin — für die Werkzeugseite.
-   *
-   * Gebaut wird mit **denselben Zeilen** wie in `init`: derselbe Boden,
-   * dasselbe `buildEnvironment` mit allem, was eine Welt daran umbaut. Was
-   * fehlt, ist alles, wofür es einen Spieler braucht — Portale, Gürtel,
-   * Werkzeuge in Händen, Netzwerk, Menü. Die Physik ist eine Attrappe
-   * (`silentPhysics`), damit die Bauzeilen unverändert durchlaufen: sie legen
-   * jede Wand in eine Simulation, in der nie jemand steht.
-   *
-   * Angesehen wird das Ergebnis wie ein Werkzeug: von weit genug weg, damit
-   * die ganze Welt draufpasst, und schräg von oben. Wer wissen will, ob ihm
-   * eine Welt gefällt, will zuerst ihren Grundriss sehen — die Runde, das
-   * Tal, die vier Zimmer — und erst danach, wie es darin aussieht.
-   */
-  /**
    * **Dieselbe Welt, aber sie läuft** — für das Telefon, das ein Labor
    * bedienen will (`shared/livePreview.ts`).
    *
@@ -3002,6 +2987,21 @@ export class PortalWorld implements World {
   /** Eine Ebene wurde von außen umgelegt — die Welt zieht ihre Anzeigen nach. */
   protected previewLayersChanged(): void {}
 
+  /**
+   * Die Kulisse dieser Welt, ohne Spiel darin — für die Werkzeugseite.
+   *
+   * Gebaut wird mit **denselben Zeilen** wie in `init`: derselbe Boden,
+   * dasselbe `buildEnvironment` mit allem, was eine Welt daran umbaut. Was
+   * fehlt, ist alles, wofür es einen Spieler braucht — Portale, Gürtel,
+   * Werkzeuge in Händen, Netzwerk, Menü. Die Physik ist eine Attrappe
+   * (`silentPhysics`), damit die Bauzeilen unverändert durchlaufen: sie legen
+   * jede Wand in eine Simulation, in der nie jemand steht.
+   *
+   * Angesehen wird das Ergebnis wie ein Werkzeug: von weit genug weg, damit
+   * die ganze Welt draufpasst, und schräg von oben. Wer wissen will, ob ihm
+   * eine Welt gefällt, will zuerst ihren Grundriss sehen — die Runde, das
+   * Tal, die vier Zimmer — und erst danach, wie es darin aussieht.
+   */
   preview(): WorldPreview {
     this.root.name = 'preview';
     this.physics = silentPhysics();
@@ -4472,9 +4472,10 @@ export class PortalWorld implements World {
       const reach = speed * dt + STICK_MARGIN;
 
       // **Erst die Leute, dann die Wand.** Ein geworfenes Messer, das in einem
-      // Zombie steckt, hat ihn getroffen und nicht die Wand dahinter — und die
-      // Strecke ist bei 15 m/s einen Vierteldemeter lang, also länger als ein
-      // Zombie dick ist.
+      // Zombie steckt, hat ihn getroffen und nicht die Wand dahinter. Gefragt
+      // wird dabei dieselbe **Strecke**, die gleich die Wände bekommen — bei
+      // einem schnellen Wurf oder einem ausgelassenen Bild ist sie länger als
+      // ein Zombie dick, und ein Punkt ginge dann mitten durch ihn hindurch.
       if (loose.tool.meleeDamage > 0 && this.director) {
         _swingTo.copy(_point).addScaledVector(_ray.direction, reach);
         const zone = this.director.hit(_point, _swingTo, loose.tool.meleeDamage);

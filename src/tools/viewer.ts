@@ -1384,7 +1384,7 @@ export class ToolViewer {
     this.footprint = Math.max(Math.hypot(_size.x, _size.z) / 2, 0.02);
     this.height = Math.max(_size.y / 2, 0.01);
 
-    // Und dasselbe noch einmal **ungedreht**, für die Draufsicht (`topZoom`).
+    // Und dasselbe noch einmal **ungedreht**, für die Draufsicht (`distance`).
     // Der Kasten oben ist der um die schräg im Raum liegende Welt: Er ist so
     // hoch wie breit, sobald man sie kippt, und aus ihm ließen sich die Kanten
     // nicht ablesen — bei diesem Labor stand 48 Meter Höhe darin, wo drei
@@ -1705,6 +1705,10 @@ export class ToolViewer {
    * Gezeigten verschoben und im Drehpunkt gedreht (`fit`, `place`). Ein Punkt,
    * den man aus der Szene abliest und ungedreht als „dort steht der Zombie
    * gleich" einsetzt, landet um genau diese Verschiebung daneben.
+   *
+   * Vom **Schnitt** (`setCut`) weiß ein Strahl nichts: Eine weggeschnittene
+   * Decke ist nur nicht gezeichnet, dastehen tut sie. In einer Welt mit Dach
+   * trifft ein Tipp deshalb womöglich das, was man gerade nicht sieht.
    */
   private pick(clientX: number, clientY: number): StagePick | null {
     const rect = this.canvas.getBoundingClientRect();
