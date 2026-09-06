@@ -1,10 +1,54 @@
-import { LANE, TARGET, swapTargets } from './lane';
+import { LANE, PARTITION, POSE_ROOM, POSE_ROOM_WIDTH, TARGET, swapTargets } from './lane';
 
 describe('lane', () => {
   it('hält die Scheiben im Gang', () => {
     expect(TARGET.z).toBeLessThan(LANE.length);
-    expect(TARGET.radius).toBeLessThan(LANE.half);
+    // Die Scheiben hängen in der Mitte, also zählt die schmalere Seite.
+    expect(TARGET.radius).toBeLessThan(Math.min(LANE.left, LANE.right));
     expect(TARGET.y).toBeLessThan(LANE.height);
+  });
+
+  it('ist rechts breiter als links — dort liegt der Poseraum', () => {
+    expect(LANE.right).toBeGreaterThan(LANE.left);
+  });
+});
+
+describe('die Trennwand', () => {
+  it('lässt die Knöpfe stehen, wo die alte Wand stand', () => {
+    // Ihre Gangseite liegt exakt auf −LANE.left: die Knöpfe hängen ein paar
+    // Zentimeter davor und wandern damit keinen Millimeter.
+    expect(PARTITION.x + PARTITION.thickness / 2).toBeCloseTo(-LANE.left, 6);
+  });
+
+  it('hat eine Tür, die in den Gang passt und breit genug ist', () => {
+    expect(PARTITION.doorFrom).toBeGreaterThan(0);
+    expect(PARTITION.doorTo).toBeLessThan(LANE.length);
+    // Schulterbreit plus Luft — eine Tür, durch die man nicht zielen muss.
+    expect(PARTITION.doorTo - PARTITION.doorFrom).toBeGreaterThan(1);
+    expect(PARTITION.doorHeight).toBeLessThan(LANE.height);
+  });
+});
+
+describe('der Poseraum', () => {
+  it('liegt zwischen Trennwand und rechter Wand', () => {
+    expect(POSE_ROOM.far).toBeLessThan(POSE_ROOM.near);
+    expect(POSE_ROOM.x).toBeLessThan(POSE_ROOM.near);
+    expect(POSE_ROOM.x).toBeGreaterThan(POSE_ROOM.far);
+  });
+
+  it('ist breit genug für den Kasten und für den, der davorsteht', () => {
+    expect(POSE_ROOM_WIDTH).toBeGreaterThan(POSE_ROOM.box + 0.8);
+  });
+
+  it('hängt den Kasten auf Arbeitshöhe unter die Decke', () => {
+    expect(POSE_ROOM.height - POSE_ROOM.box / 2).toBeGreaterThan(0.6);
+    expect(POSE_ROOM.height + POSE_ROOM.box / 2).toBeLessThan(LANE.height);
+  });
+
+  it('stellt ihn auf Höhe der Tür in der Trennwand', () => {
+    // Man geht hindurch und steht davor — nicht daneben.
+    expect(POSE_ROOM.z).toBeGreaterThan(PARTITION.doorFrom);
+    expect(POSE_ROOM.z).toBeLessThan(PARTITION.doorTo);
   });
 });
 

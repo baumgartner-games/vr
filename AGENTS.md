@@ -241,9 +241,21 @@ dass „größer" mehr und dickere Partikel heißt, aber nie mehr als die Obergr
 und dass die Physik dahinter dieselbe bleibt; `effectBurst.ts` — dass eine
 Wolke am Ursprung anfängt, unter dem Tempo ihres Effekts bleibt, bei
 `spread = 0` eine Säule und bei 1 eine Kugel ist, dass Rauch steigt, Funken
-fallen und nichts durch den Boden sinkt). Diese
-Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
-weder WebGL noch WebXR noch wasm.
+fallen und nichts durch den Boden sinkt), die **Passung des Handschuhs auf
+echte Knochen** (`src/core/gloveFit.ts` — dass Handgelenk und
+Mittelfingerknöchel des gebauten Skeletts wirklich auf den gemessenen Gelenken
+landen, in jeder Lage im Raum; dass eine große Hand einen großen Handschuh
+bekommt und ein ausgerutschtes Gelenk keinen Punkt daraus macht; dass links und
+rechts sich an genau einem Vorzeichen unterscheiden, und dass eine schiefe
+Querachse — echte Knöchel stehen gestaffelt — trotzdem eine saubere Drehung
+ergibt), die **geteilte Handhaltung** (`src/worlds/tune/handShare.ts` — hin und
+zurück ohne Verlust, und dass alles, was nicht danach aussieht, verworfen wird
+statt eine halbe Hand zu bauen) und die **Maße des Gangs samt Poseraum**
+(`src/worlds/tune/lane.ts` — dass die Trennwand die Knöpfe stehen lässt, wo die
+alte Wand stand, dass ihre Tür breit genug ist und in den Gang passt, und dass
+der Schwebekasten in den Streifen dahinter passt, mitsamt dem, der davorsteht).
+Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
+Jest weder WebGL noch WebXR noch wasm.
 
 Drei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
 **Pointer** (`src/core/Pointer.ts`) muss jeder Hand ihren eigenen Strahl und
@@ -271,7 +283,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   den Kreis. Ausgelegt wird das aus nichts als der Länge der Weltenliste
   (`src/worlds/hub/hubLayout.ts`, mit Test): eine neue Welt bleibt damit das,
   was sie sein soll — ein Eintrag in der Registry. Der alte 90°-Bogen war für
-  vier Welten hübsch und für zehn ein Gedränge.
+  vier Welten hübsch und für zehn ein Gedränge. Gebaut wird ein Gang entlang
+  −Z und dann gedreht — und zwar um den **negativen** Winkel
+  (`corridorYaw`, mit Test): eine Drehung um φ legt −Z auf (−sin φ, −cos φ),
+  die Tore stehen aber auf `corridorDirection`. Mit dem Winkel selbst lagen
+  Gang und Tore gespiegelt zueinander, und ab dem dritten Gang stand das
+  letzte Tor (die Alpen) hinter der Rückwand eines fremden Gangs im Freien —
+  aus dem Gang heraus war die Welt schlicht nicht da.
 - **Handgelenk-Menü**: an **beiden** Händen schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
   Es ist zweimal dasselbe Menü, und immer nur **eins offen**: das zweite geht
@@ -887,14 +905,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     **wie eine Waffe**, ohne Zusatzneigung: er lag eine Weile 23° nach vorn
     gekippt darin, damit das Display zum Gesicht zeigt, und rollte damit so
     weit über die Faust, dass er nicht mehr aussah wie etwas, das man hält,
-    sondern wie etwas, das aus der Hand fällt. Geneigt ist jetzt das Display
-    am Gehäuse und nicht das ganze Gerät in der Hand — und zwar um **90° nach
-    hinten** (`DISPLAY_TILT`), also flach auf dem Gehäuse liegend und nach oben
-    schauend, dem Kopf entgegen. Der Weg dahin ging über zwei Zwischenstände:
-    0,45 rad (gut 25°) ließen den Schirm sichtbar kippen, 45° stellten ihn im
-    Raum zwar senkrecht — aufrecht, aber am Leser vorbei, denn ein Gerät wird
-    auf Brusthöhe gehalten und der Kopf ist darüber. Erst die vollen 90° drehen
-    ihn so weit herum, dass man von oben daraufsieht statt von der Seite. Er
+    sondern wie etwas, das aus der Hand fällt. Das Display steht
+    **aufrecht** auf dem Gehäuse — geneigt wird weder das eine noch das
+    andere. Es lag zweimal geneigt darauf (0,45 rad, dann 45° nach hinten),
+    beide Male mit der Rechnung, die ablesende Hand zeige nach vorn unten und
+    die Neigung nehme das heraus; sie nimmt es aber nur bei genau dieser einen
+    Handhaltung heraus und legt es überall sonst dazu — in der Hand, die
+    geradeaus zeigt, hing der Schirm um 45° nach vorn gebeugt und man las ihn
+    von der Kante. Wie schräg die Hand steht, ist Sache der Hand. Er
     verändert
     **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
     halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
@@ -1358,6 +1376,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   als bewegten sie sich mit dem Kopf mit. In einer VR-Sitzung bleibt der
   Hintergrund deshalb undurchsichtig, nur eben dunkel statt Himmel.
 
+  **Rechts hinter der Trennwand liegt der Poseraum** — der Gang ist dafür nach
+  rechts breiter geworden, und die alte rechte Wand ist zur Trennwand mit Tür
+  geworden, damit Knöpfe und Werte-Tafel bleiben, wo sie waren. Darin hängt
+  ein **Schwebekasten**: eine durchsichtige Kiste in der Luft, in der die
+  Schwerkraft aufhört. Ein Werkzeug, das man darin loslässt, bleibt liegen —
+  und daran legt man die **blanke** Hand, die dafür einen Handschuh trägt
+  (Schalter an derselben Wand). Was zwischen Hand und Werkzeug liegt, ist die
+  Haltung; sie steht mit ihrem Konfig-Code auf der Tafel dahinter. _Handpose
+  teilen_ schickt sie live an alle im Raum — geteilt wird immer die Hand, die
+  **nicht** gedrückt hat, und deren Trigger hält sie fest. Zusehen kann dabei
+  auch die Werkzeugseite im Browser (`tools.html`, Menüpunkt _Verbinden_).
+  Ausführlich unter _Der Poseraum_.
+
   **Gelaufen und
   gedreht wird hier nicht** (`PlayerRig.locked`), der Kopf natürlich schon:
   man kommt her, um eine Haltung zu halten und sie anzusehen. Weil die Tafeln
@@ -1415,6 +1446,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   unten liegt eine **Landewiese** mit Windsack und Ring, daneben eine Alm mit
   ein paar Kisten. Wald bis zur Baumgrenze, Fels wo es steil ist, Schnee ab
   175 m — alles Vertexfarben aus Höhe und Steigung.
+  Unten stehen zwei **rote Knöpfe** (`shared/redButton.ts`), einer auf der
+  Wiese und einer vor der Alm: drücken, und man steht wieder auf der Rampe.
+  Der Weg zurück nach oben wären sonst 236 Höhenmeter über eine Flanke, die
+  stellenweise zu steil zum Gehen ist — eine Wartezeit zwischen zwei Flügen,
+  und damit genau dort, wo an dieser Welt nichts stehen soll. Der Knopf setzt
+  auch den **Blick** neu (`teleportPlayerTo` mit `yaw`): wer aus dem Tal auf
+  einen Berg gebracht wird, weiß ohnehin nicht mehr, wo vorn war, und die
+  Rampe zeigt ins Tal.
   Das Gelände ist ein **Höhenfeld** (`alps/alpsTerrain.ts`, mit Test): eine
   Höhe je Punkt aus Glockenkurven, Rauschen mit Gedächtnis und zwei absichtlich
   ebenen Stellen, zum Rand hin auf null auslaufend, und dahinter eine Wiese bis
@@ -1555,6 +1594,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Einstellungen verschicken          | _Werkzeug senden_ / _Alles senden_ an der Wand des Gangs — der Code geht als Chat-Zeile an alle im Raum und steht am PC mit _Kopieren_ daneben                        | –                                                                                               | –                    |
 | AR an/aus (Schießgang)             | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf _AR_ an der rechten Wand                                                   | –                                                                                               | –                    |
 | Griff einmessen (Schießgang)       | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug**     | –                                                                                               | –                    |
+| Handschuh an blanken Händen        | Knopf _Handschuh_ an der Wand im **Poseraum**, oder Menü → Hände → _Blanke Hände_                                                                                     | –                                                                                               | –                    |
+| Handpose teilen (Poseraum)         | Werkzeug im **Schwebekasten** loslassen, blanke Hand daran, mit der **Controller-Hand** auf _Handpose teilen_ zeigen; **deren Trigger** speichert                     | –                                                                                               | –                    |
+| Geteilte Handpose ansehen          | –                                                                                                                                                                     | `tools.html` → Menü → _Verbinden_, Raum-Code eintragen                                          | dito                 |
 | Grundhaltung einmessen             | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger**                                                      | –                                                                                               | –                    |
 | Stand stellen (beide)              | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert                                                                      | –                                                                                               | –                    |
 | Vibration ausprobieren             | Griff auf der Bank links greifen und halten                                                                                                                           | –                                                                                               | –                    |
@@ -2224,6 +2266,44 @@ auf, das Boxhand-Werkzeug hört selbst zu. Der Handschuh ist weiß, wo immer er
 steht (`GLOVE_COLOR`, auch auf der Werkzeugseite); die Boxhand behält ihr
 Hellblau. Im Konfig-Code steht das Modell nicht — es ist Geschmack, keine
 Messung —, und _Eigene Einstellungen löschen_ räumt es mit weg.
+
+#### Und auf getrackten Händen
+
+Eine Hand **ohne Controller** war bisher das, was die Brille misst: fünfundzwanzig
+Gelenke, an jedem eine Kugel. Ehrlich, und es sieht nach Messgerät aus. Seit
+dieser Runde gibt es daneben den Schalter **Blanke Hände: Handschuh** — unter
+_Einstellungen → Hände_ und, wo man ihn wirklich braucht, an der Wand im
+Poseraum. Ab Werk aus; die Kugeln sind das, was gemessen wurde, und wer eine
+Geste einstellt, will genau das sehen.
+
+Angeschaltet liegt **dasselbe gebaute Skelett** auf den echten Knochen, und die
+Rechnung dazu ist drei Gelenke lang (`core/gloveFit.ts`, mit Test, ohne
+three.js):
+
+- **Handgelenk → Mittelfingerknöchel** ist die Handachse, also das -Z der
+  gebauten Hand, und ihre **Länge ist das Maß**: die gebaute Handfläche misst
+  `PALM_LENGTH` (8,3 cm, aus dem Kasten und der Fingerwurzel abgeleitet), die
+  echte misst, was sie misst — eine kleine Hand bekommt einen kleinen
+  Handschuh. Geklemmt auf 0,6 … 1,7, denn ein Gelenk, das für ein Bild bei null
+  liegt, machte ihn sonst zum Punkt.
+- **Zeige- → kleiner Knöchel** ist die Querachse und sagt, wohin der Handrücken
+  schaut. Genau **ein Vorzeichen** darin unterscheidet links von rechts: in der
+  gebauten Hand liegt der Zeigefinger auf der Daumenseite, und die ist rechts
+  bei -X. Der Anteil entlang der Handachse wird herausgenommen, bevor daraus
+  eine Basis wird — eine echte Hand ist kein Rechteck, ihre Knöchel stehen
+  gestaffelt.
+- Die **Finger** kommen aus dem Faltmaß, das die Gesten ohnehin messen
+  (`handGestures.foldCurls`). Damit folgen sie wirklich: was die echte Hand
+  tut, tut der Handschuh, und es ist keine Geste aus einer Liste.
+
+Die Gelenkkugeln gehen dabei **aus** — zwei Hände am selben Ort wären das
+Schlechteste von beidem —, und eine Geisterhand daneben zieht sich mit an
+(`lookOf`): verglichen wird nur ehrlich, wenn das Vergleichsstück so aussieht
+wie das, was man in der Brille sieht.
+
+Wozu das gut ist, steht unter _Der Poseraum_: eine Reihe Kugeln hat keine
+Handfläche, an die man einen Gegenstand legen könnte, und ohne Handfläche gibt
+es nichts zu messen.
 
 ### Eingemessene Griffe
 
@@ -2898,6 +2978,107 @@ Ferngreifen_. Ferngreifen schaltet sich außerdem selbst ab, solange beide Händ
 dicht beieinander sind und eine davon schon etwas hält — dann will man den
 Gegenstand übergeben und nicht quer durch den Raum zielen.
 
+### Der Poseraum
+
+Rechts hinter dem Schießgang liegt seit dieser Runde ein dritter Arbeitsplatz,
+und er beantwortet eine Frage, die die beiden Stände nicht können. Halter und
+Griffstand messen beide die Hand **am Controller** — und eine Hand am
+Controller ist eine Faust um einen Zylinder. Wie eine Hand einen Gegenstand
+wirklich anfasst, sieht anders aus. Wer eine Handhaltung _realistischer_ haben
+will, muss die **blanke** Hand messen, und das ging erst, seit sie einen
+Handschuh tragen kann (siehe _Handmodell_).
+
+**Der Gang ist dafür rechts breiter geworden, und nur rechts.** `LANE` hat
+seither zwei halbe Breiten (`tune/lane.ts`, mit Test): links 2,2 m wie immer,
+rechts 4,2 m. Die alte rechte Wand ist nicht verschwunden, sondern zur
+**Trennwand mit Tür** geworden — ihre Gangseite liegt exakt dort, wo die Wand
+stand, also hängen die acht Knöpfe und die Werte-Tafel keinen Zentimeter weiter
+weg. Den ganzen Gang zu verbreitern wäre die naheliegende Änderung gewesen und
+die falsche: eine Tafel wird nicht dadurch lesbarer, dass der Raum größer wird.
+Die Tür sitzt hinter der zweiten Knopfspalte und vor der Werte-Tafel; die Tafel
+ist dafür ein Stück weiter nach hinten gewandert, denn eine Tür, die eine Tafel
+halbiert, ist eine Tafel weniger.
+
+Drei Dinge stehen darin:
+
+- **Der Schwebekasten** (`tune/HoverBox.ts`): eine durchsichtige Kiste in der
+  Luft, in der die Schwerkraft aufhört. Man hält ein Werkzeug hinein, lässt es
+  los, und es bleibt liegen — samt der Lage, in der man es gehalten hat.
+  Justiert wird danach, indem man es wieder anfasst und anders hinlegt. Der
+  Griffstand nebenan löst dasselbe mit einer **Kopie** in einer Aufnahme, und
+  das ist genau richtig, solange man vorher weiß, welches Werkzeug man ansehen
+  will; hier geht es andersherum.
+
+  Er hat **keinen Körper**: er hält nichts auf, er sagt nur, wo die Schwerkraft
+  aufhört. Ein Kasten mit Wänden wäre eine Vitrine, und in eine Vitrine legt man
+  nichts hinein, ohne die Tür zu öffnen. Gebaut ist er als **Kanten plus Hauch**
+  (sechs Flächen bei 6 %) — sechs halbdurchsichtige Wände vor einem Werkzeug
+  sind sechs Schleier, und dahinter beurteilt man nichts mehr.
+
+  Was er tut, steht in `PortalWorld.floatZone`: eine **Zone** und kein Sonderfall
+  im Loslassen. Sonst wären es zwei — ein Werkzeug fliegt über `releaseTool` aus
+  der Hand, ein Gegenstand über `release` —, und hineingeworfen werden kann
+  ohnehin von überall. Eine Zone, die jedes Bild nachsieht, kennt keinen dieser
+  Wege und trifft trotzdem alle. Gemerkt wird dabei der **Zustand vor dem
+  Eintritt** und nicht „Schwerkraft 1": ein geworfenes Messer fliegt mit
+  abgeschalteter Schwerkraft geradeaus, und wer es beim Verlassen auf 1 setzte,
+  ließe es mitten im Flug fallen. Gedämpft wird kräftig (4,5), damit ein
+  losgelassenes Ding steht, wo man es hingelegt hat, statt langsam durch den
+  Kasten zu driften.
+
+- **Der Schalter an der Wand** zieht getrackten Händen den Handschuh an. Er
+  steht hier und nicht nur im Menü, weil man ihn genau hier braucht.
+
+- **Der Knopf _Handpose teilen_** schickt die Haltung der **anderen** Hand live
+  an alle im Raum. Gezeigt hat die Hand mit dem Controller, geteilt wird die
+  daneben, und das ist keine Höflichkeit, sondern die einzige Aufteilung, die
+  aufgeht: die gemessene Hand liegt am Gegenstand und darf sich nicht rühren,
+  also muss die andere drücken — und die andere ist die mit dem Gerät darin.
+  Ihr **Trigger** hält die Haltung dann fest; ein Knopf an der Wand ginge auch,
+  nur müsste man dafür die Hand vom Gegenstand nehmen.
+
+**Gemessen wird mit derselben Kette wie am Griffstand** (`tune/handGrip.ts`):
+die Lage der gezeichneten Hand im Raum des Werkzeugs, und daraus über
+`handFromGhost` die Haltung im Griffraum. Der Griff kürzt sich heraus, und
+genau das ist hier der Punkt — in der messenden Hand steckt kein Controller.
+Hängt **nichts** im Kasten, bleibt die nützlichere Hälfte übrig: die **Finger**.
+Eine blanke Hand misst das Headset ohnehin (`foldCurls`), und bis hierher
+landete das nirgends; die Grundhaltung behält damit ihre Lage und bekommt die
+Krümmung der echten Hand.
+
+**Sieht die Brille die Hand gerade nicht** — sie liegt hinter dem Werkzeug, der
+Handschuh ist aus —, dann steht statt der Messung die **eingestellte** Haltung
+da, und die Tafel sagt das im Titel („— eingestellt"), denn die Zahlen sehen in
+beiden Fällen gleich aus. Sie geht trotzdem über die Leitung: damit sieht ein
+Zuschauer das Werkzeug im Kasten auch dann, und genau dafür ist der Kasten da.
+Gespeichert wird sie nicht — eine Haltung auf sich selbst zu schreiben ist
+keine Messung.
+
+Der **Konfig-Code** dazu wird an Ort und Stelle gebaut (`packShortGear`) und
+nicht aus dem Speicher geholt: was auf der Tafel steht, soll die Haltung sein,
+die man gerade sieht, und nicht die, die zuletzt gespeichert wurde. Auf der
+Tafel steht er unter den zwölf Zahlen, der Knopf _Pose senden_ schickt ihn als
+Chat-Zeile an alle (siehe _Über die Leitung_).
+
+#### Live auf die Werkzeugseite
+
+Über der Leitung geht dabei **mehr als der Code** (`tune/handShare.ts`, mit
+Test, ohne three.js). Ein Zuschauer im Browser hat keinen Griff, keine
+Zielkorrektur und keinen Speicher, gegen den er eine Haltung aus dem Griffraum
+verrechnen könnte; er müsste die halbe Kette nachbauen, und stünde die Hand
+dann ein Grad anders als in der Brille, wüsste niemand, welche der beiden
+stimmt. Also gehen **beide** Formen hinaus und keine wird nachgerechnet:
+
+- `at`, `curls` und `spread` sind das **Bild**: wo die Hand am Werkzeug liegt,
+  in dessen eigenem Raum, so wie sie gerade gezeichnet wird. Drüben wird das
+  Werkzeug gebaut, die Hand hineingehängt, fertig.
+- `code` ist der **Zettel**: dieselbe Zeile, die auf der Tafel steht. Sie wird
+  drüben nicht gelesen, sondern kopiert.
+
+Zwanzigmal je Sekunde, auf dem Kanal `hpose` — derselbe Weg, den auch Portale
+und Gegenstände nehmen (`NetSession.emit`). Das Bild, das der Trigger festhält,
+trägt `saved` und geht sofort hinaus, ohne auf den nächsten Takt zu warten.
+
 ## Architektur
 
 ```
@@ -3116,8 +3297,9 @@ Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" ist in de
 Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
 eine Frage, die man im Vorbeigehen stellt.
 
-**Drei Regale, eine Schublade.** Hinter dem Burger-Symbol liegen **Werkzeuge**,
-**Welten** und der **Magische Beutel**, dazu der Weg zurück in die Spielwiese
+**Drei Regale, ein Zuschauerplatz, eine Schublade.** Hinter dem Burger-Symbol
+liegen **Werkzeuge**, **Welten** und der **Magische Beutel**, darunter
+**Verbinden** (siehe unten), dazu der Weg zurück in die Spielwiese
 und zum Quellcode; das Regal, in dem man steht, trägt ein Lesezeichen. Ganz
 unten, in Warnfarbe, steht **Eigene Einstellungen löschen**: der Weg zurück auf
 die ausgelieferten Zahlen für dieses Gerät. Er gehört hierher, weil hier
@@ -3591,6 +3773,43 @@ Handgelenk-Menü. Eine Seite mit eigenen, hübscheren Kopien zeigt irgendwann
 etwas anderes als das Spiel, und dann ist sie schlimmer als keine. Aus
 demselben Grund liest die Liste `TOOL_IDS`: ein neues Werkzeug steht dort,
 sobald es im Spiel steht.
+
+#### Verbinden: zusehen, während drüben gemessen wird
+
+Eine Sache konnte die Seite bis hierher nicht: sagen, wie eine Hand **gerade
+jetzt** an einem Werkzeug liegt. Sie zeigt die eingestellte Haltung aus dem
+eigenen Speicher, und das ist die Haltung von zuletzt — wer in der Brille daran
+arbeitet, sah hier nichts davon. Der Menüpunkt **Verbinden** (`#verbinden`,
+`tools/liveHand.ts`) schließt genau diese Lücke.
+
+Es ist **dieselbe Sitzung** wie beim Zusammenspielen: derselbe Raum-Code,
+dasselbe Trystero, dieselben Nachrichten (`net/`). Was hereinkommt, ist der
+Kanal `hpose` aus dem Poseraum — die Haltung der Hand, die drüben gerade
+gemessen wird, zwanzigmal je Sekunde. Oben die Leitung (Raum-Code, Name, ein
+Knopf, eine Statuszeile), in der Mitte die Bühne, unten der Konfig-Code in
+einem **Textfeld**: dieser Code wird nicht angesehen, sondern mitgenommen, und
+ein Feld kann man auch dort noch markieren, wo es keine Zwischenablage gibt.
+
+Gezeigt wird **eine** Hand und sonst nichts — wer beim Einstellen zusieht, will
+die Hand am Ding sehen und nicht einen halben Spieler drumherum. Gebaut wird
+sie mit demselben `createTool` und derselben `GhostHand` wie überall, und sie
+hängt als **Kind des Werkzeugs**, denn genau das ist die geteilte Zahl: ihre
+Lage in dessen eigenem Raum. Neu gebaut wird nur, wenn Werkzeug oder Seite
+wechseln; die Bewegung dazwischen ist ein Verschieben, sonst stünde zwanzigmal
+je Sekunde ein frisches Modell auf der Bühne.
+
+Drei Kleinigkeiten, die dabei nötig waren:
+
+- Die **Leitung bleibt**, wenn man weiterblättert. Wer zwischendurch ein
+  Werkzeug nachsieht, soll nicht neu verbinden müssen; die Codes laufen derweil
+  weiter ins Feld, nur die Bühne gehört dann jemand anderem.
+- Ein **`hello` alle drei Sekunden**. Die Sitzung wirft einen Mitspieler nach
+  acht Sekunden Stille hinaus, und ein Zuschauer schickt keine Pose — er fiele
+  drüben aus der Liste, während er zusieht, und der Poseraum meldete „noch
+  niemand verbunden".
+- `Section` ist nicht mehr dasselbe wie ein **Regal**. Kacheln gibt es nur in
+  Regalen (`Shelf`), der Zuschauerplatz hat keine; er bringt die Bühne mit und
+  sonst nichts.
 
 Zwei Kleinigkeiten, an denen es zuerst scheiterte und die man wiederfindet, wenn
 man eine dritte Seite baut: Die Kamera passt sich an das an, was man **sieht** —
