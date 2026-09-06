@@ -140,7 +140,7 @@ import { playPick, playPop, playTone } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
 import { bakeNav, type BakeReport } from '../nav/navBake';
-import { boxesFrom, levelCensus, navDebugView } from '../nav/navScene';
+import { boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
@@ -730,6 +730,9 @@ export class PortalWorld implements World {
   protected nav: NavGraph | null = null;
   private navReport: BakeReport | null = null;
   private navDebug: THREE.Group | null = null;
+  /** Die Wege, die gerade gelaufen werden — eigene Ebene, weil sie sich ändern. */
+  private navTracks: THREE.Group | null = null;
+  private navTrackTimer = 0;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -787,6 +790,7 @@ export class PortalWorld implements World {
       playerAt: (target) => this.playerFeet(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.context?.notify(message),
+      nav: () => this.nav,
     });
     this.host = this.buildHost(ctx);
     this.keys = new KeyPanel();
@@ -822,6 +826,7 @@ export class PortalWorld implements World {
     this.reportHands();
     this.sync?.update(dt);
 
+    this.updateNavTracks(dt);
     this.updatePropPhasing();
     // Vor dem Schritt und nicht danach: was gerade in die Zone geflogen ist,
     // soll in demselben Schritt schweben und nicht erst im nächsten fallen.
@@ -1003,7 +1008,17 @@ export class PortalWorld implements World {
     });
     this.navReport = report;
     this.nav = report.graph;
+    this.navReady(report.graph);
   }
+
+  /**
+   * Nach dem Abtasten: was in keiner Geometrie steht.
+   *
+   * Stacheln, Türen, Leitern — davon weiß ein Quader nichts, und eine Welt, die
+   * so etwas hat, malt es hier auf (`navBuild.ts`: `paintRect`, `doorBetween`).
+   * Voreingestellt passiert nichts, und für die meisten Welten ist das richtig.
+   */
+  protected navReady(_graph: NavGraph): void {}
 
   /** Der Schalter, mit dem man das Gitter ansehen kann. */
   private navMenu(): MenuEntry {
@@ -1040,12 +1055,44 @@ export class PortalWorld implements World {
       this.root.remove(this.navDebug);
       disposeTree(this.navDebug);
       this.navDebug = null;
+      this.clearNavTracks();
       return false;
     }
     if (!this.nav) return false;
     this.navDebug = navDebugView(this.nav);
     this.root.add(this.navDebug);
+    this.navTrackTimer = 0;
     return true;
+  }
+
+  /**
+   * Die gelaufenen Wege, solange das Gitter an ist.
+   *
+   * **Fünfmal je Sekunde und nicht sechzigmal**: Ein Weg ändert sich, wenn neu
+   * geplant wird, und das ist alle halbe Sekunde. Jedes Bild eine neue
+   * Liniengeometrie zu bauen wäre die teuerste Art, dasselbe zu zeigen.
+   */
+  private updateNavTracks(dt: number): void {
+    if (!this.navDebug || !this.nav || !this.director) return;
+    this.navTrackTimer -= dt;
+    if (this.navTrackTimer > 0) return;
+    this.navTrackTimer = 0.2;
+
+    this.clearNavTracks();
+    const paths = this.director.paths();
+    if (paths.length === 0) return;
+    const group = new THREE.Group();
+    group.name = 'nav-tracks';
+    for (const path of paths) group.add(navPathView(this.nav, path));
+    this.root.add(group);
+    this.navTracks = group;
+  }
+
+  private clearNavTracks(): void {
+    if (!this.navTracks) return;
+    this.root.remove(this.navTracks);
+    disposeTree(this.navTracks);
+    this.navTracks = null;
   }
 
   private npcMenu(): MenuEntry {
@@ -2619,6 +2666,7 @@ export class PortalWorld implements World {
     this.nav = null;
     this.navReport = null;
     this.navDebug = null;
+    this.navTracks = null;
     this.solids.length = 0;
     this.surfaceGroups.clear();
 

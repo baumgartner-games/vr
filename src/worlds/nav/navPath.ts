@@ -209,6 +209,11 @@ function unwind(cameFrom: Map<TileKey, TileKey>, end: TileKey): TileKey[] {
  * ist. Gestrichen wird ein Wegpunkt, wenn man den nächsten schon von seinem
  * Vorgänger aus in gerader Linie erreicht (`navSight.ts`).
  *
+ * **Und was Kosten hat, wird nicht überquert.** Was die Suche wegen einer
+ * Gefahr gemieden hat, darf die Glättung nicht wieder hineinziehen — sonst
+ * plant der Mensch sauber um die Stachelgrube herum und läuft dann quer
+ * hindurch, und das ganze Kostensystem war umsonst.
+ *
  * **Über eine Verbindung hinweg wird nicht geglättet.** Wer eine Treppe
  * abkürzt, kürzt durch die Decke ab. Jeder Sprung, der keine Nachbarschaft auf
  * derselben Etage ist, bleibt als fester Punkt stehen.
@@ -221,6 +226,13 @@ export function smoothPath(
   if (tiles.length <= 2) return [...tiles];
   const canOpen = options.canOpen ?? options.profile.opens;
   const belief = options.belief ?? null;
+
+  // Was die Suche gemieden hat, zieht die Glättung nicht wieder herein: eine
+  // Kachel, die diesem Profil einen Aufschlag kostet, ist keine Abkürzung.
+  const forbid = (tile: TileKey): boolean => {
+    const facts = graph.tile(tile);
+    return facts !== undefined && hazardCost(options.profile, facts.hazard) > 0;
+  };
 
   const out: TileKey[] = [tiles[0]!];
   let anchor = 0;
@@ -236,7 +248,7 @@ export function smoothPath(
       anchor = i;
       continue;
     }
-    if (!canWalkLine(graph, tiles[anchor]!, here, canOpen, belief)) {
+    if (!canWalkLine(graph, tiles[anchor]!, here, canOpen, belief, forbid)) {
       out.push(previous);
       anchor = i - 1;
     }

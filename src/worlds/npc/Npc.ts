@@ -10,6 +10,10 @@ import {
   type PhysicsBody,
   type PhysicsWorld,
 } from '../../physics/PhysicsWorld';
+import { NavAgent, type Spot3 } from '../nav/navAgent';
+import type { NavGraph } from '../nav/navGraph';
+import { profileOf } from '../nav/navProfile';
+import { NO_TILE, type TileKey } from '../nav/navTile';
 
 /**
  * **Einer, der herumläuft** — Haut, Hirn und ein Körper in der Physik.
@@ -55,6 +59,15 @@ export class Npc {
   private dying: number | null = null;
   private speed = 0;
   private striking = false;
+  /**
+   * Sein Läufer (`worlds/nav/navAgent.ts`) — erst da, wenn er zum ersten Mal
+   * einen Weg braucht.
+   *
+   * Nicht jeder braucht einen: Wer stehen bleibt oder blind herumschlendert,
+   * plant nichts, und fünfzig ungenutzte Wegsucher wären fünfzig Meinungen,
+   * die niemand liest.
+   */
+  private agent: NavAgent | null = null;
 
   constructor(options: {
     physics: PhysicsWorld;
@@ -138,7 +151,7 @@ export class Npc {
    *               ist (der Zuschauer, ein Spieler in der Drohne).
    * @returns `true`, wenn in dieser Frame ein Schlag landet.
    */
-  update(dt: number, player: Point | null, random: () => number): boolean {
+  update(dt: number, player: Point | null, random: () => number, nav?: NavRun | null): boolean {
     if (this.dying !== null) {
       this.dying += dt;
       // Das Umfallen dauert eine halbe Sekunde, das Liegenbleiben besorgt der
@@ -149,10 +162,11 @@ export class Npc {
     }
 
     const t = this.entry.body.translation();
+    const waypoint = this.navigate(dt, { x: t.x, z: t.z }, player, nav ?? null);
     const step = stepBrain(
       this.brain,
       this.state,
-      { at: { x: t.x, z: t.z }, yaw: this.yaw, player, dt, random },
+      { at: { x: t.x, z: t.z }, yaw: this.yaw, player, waypoint, dt, random },
       this.tuning,
     );
 
@@ -167,6 +181,64 @@ export class Npc {
     this.model.update(dt, this.speed, this.striking);
     this.model.setAlert(step.sees);
     return step.attack;
+  }
+
+  /**
+   * Der nächste Wegpunkt — oder `null`, wenn geradeaus richtig ist.
+   *
+   * **Wer nicht sucht, plant nicht.** Ein Läufer wird nur angelegt, wenn dieses
+   * Hirn überhaupt jemandem nachgeht (Sicht *und* Tempo über null) und der
+   * Spieler nah genug ist, dass es ihn interessiert. Ein Zombie am anderen
+   * Ende der Karte rechnet keinen Weg zu jemandem, den er nicht bemerkt hat.
+   */
+  private navigate(dt: number, at: Point, player: Point | null, nav: NavRun | null): Point | null {
+    if (!nav || !player || !nav.at) return null;
+    if (this.tuning.sense <= 0 || this.tuning.speed <= 0) return null;
+    const range = Math.hypot(player.x - at.x, player.z - at.z);
+    if (range > this.tuning.sense) {
+      this.agent?.clear();
+      return null;
+    }
+
+    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile) });
+    this.feet(_feet);
+    const step = this.agent.step(nav.graph, _feet, nav.at, dt, nav.now);
+    if (step.jump !== NO_TILE) this.teleport(nav.graph, step.jump);
+    return step.waypoint;
+  }
+
+  /**
+   * Durch ein Portal.
+   *
+   * Die einzige Verbindung, die ein Körper nicht laufen kann: Treppen und
+   * Absätze haben eine Geometrie, durch die er wirklich kommt, ein Portal
+   * nicht. Die Geschwindigkeit wird dabei gelöscht und die letzte Position
+   * mitgezogen — sonst zieht das Zeichnen einen Strich quer durch die Welt.
+   */
+  private teleport(graph: NavGraph, tile: TileKey): void {
+    const at = graph.worldOf(tile);
+    const y = at.y + this.skin.height / 2 + 0.05;
+    this.entry.body.setTranslation({ x: at.x, y, z: at.z }, true);
+    this.entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.entry.previousPosition.set(at.x, y, at.z);
+    this.holder.position.set(at.x, y, at.z);
+  }
+
+  /** Der Weg, den er gerade läuft — für die Debug-Ansicht. */
+  get path(): readonly TileKey[] {
+    return this.agent?.path ?? EMPTY_PATH;
+  }
+
+  /**
+   * Sein Läufer, notfalls frisch angelegt.
+   *
+   * Für alles, was seiner **Meinung** etwas beibringen will, bevor er zum
+   * ersten Mal gelaufen ist: „von diesem Portal weißt du nichts"
+   * (`navBelief.ts`). Wer nur zusehen will, nimmt `path`.
+   */
+  mind(): NavAgent {
+    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile) });
+    return this.agent;
   }
 
   /**
@@ -201,3 +273,15 @@ export class Npc {
     this.holder.removeFromParent();
   }
 }
+
+/** Was ein NPC über das Navigationsgitter dieser Frame wissen muss. */
+export interface NavRun {
+  graph: NavGraph;
+  /** Wo der Spieler steht, mit Höhe — die Etage hängt daran. */
+  at: Spot3 | null;
+  /** Weltzeit in Sekunden. */
+  now: number;
+}
+
+const _feet = new THREE.Vector3();
+const EMPTY_PATH: readonly TileKey[] = [];

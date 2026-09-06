@@ -1,6 +1,18 @@
 import { NavGraph, type NavLink, type TileFacts, type WallKind } from './navGraph';
 import type { LinkKind } from './navProfile';
-import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir, type TileKey } from './navTile';
+import {
+  DIRS,
+  DIR_E,
+  DIR_N,
+  DIR_S,
+  DIR_W,
+  NO_TILE,
+  TILE,
+  neighbour,
+  tileKey,
+  type Dir,
+  type TileKey,
+} from './navTile';
 
 /**
  * **Karten bauen** — die paar Handgriffe, die man beim Hinstellen einer Welt
@@ -141,6 +153,61 @@ export function dropPortal(graph: NavGraph, id: string): boolean {
 /** Die beiden Namen, unter denen ein Portal im Graphen steht. */
 export function portalLinkIds(id: string): [string, string] {
   return [`${id}:in`, `${id}:out`];
+}
+
+/**
+ * **Ein Stück Karte in Weltmaßen anfassen.**
+ *
+ * Was abgetastet wurde, weiß nichts von Stacheln, Wasser oder Feuer — das
+ * steht in keiner Geometrie. Eine Welt malt es hinterher auf: „von hier bis
+ * dort ist eine Grube". Die Rechteckangabe ist dabei in **Metern** und nicht in
+ * Kacheln, denn wer eine Welt baut, denkt in Metern.
+ */
+export function paintRect(
+  graph: NavGraph,
+  area: { minX: number; minZ: number; maxX: number; maxZ: number; y?: number },
+  facts: Partial<TileFacts>,
+): number {
+  let touched = 0;
+  const y = area.y;
+  for (let x = area.minX; x <= area.maxX; x += TILE / 2) {
+    for (let z = area.minZ; z <= area.maxZ; z += TILE / 2) {
+      const key = graph.at(x, z, y);
+      if (key === NO_TILE) continue;
+      graph.setTile(key, facts);
+      touched++;
+    }
+  }
+  return touched;
+}
+
+/**
+ * Setzt eine Tür in die Wand zwischen zwei Stellen der Welt.
+ *
+ * Auch das kann kein Abtasten liefern: In der Geometrie ist eine Tür entweder
+ * eine Lücke oder eine Wand, aber nie beides nacheinander. Die Welt sagt, wo
+ * eine ist, und ab dann kann sie auf- und zugehen — und ein NPC kann sich über
+ * sie irren (`navBelief.ts`).
+ *
+ * Gibt `false` zurück, wenn die beiden Stellen keine Nachbarn sind; dann steht
+ * die Tür woanders, als der Bauplan denkt, und das soll auffallen.
+ */
+export function doorBetween(
+  graph: NavGraph,
+  from: { x: number; z: number; y?: number },
+  to: { x: number; z: number; y?: number },
+  id: string,
+  open = true,
+): boolean {
+  const a = graph.at(from.x, from.z, from.y);
+  const b = graph.at(to.x, to.z, to.y);
+  if (a === NO_TILE || b === NO_TILE) return false;
+  for (const dir of DIRS) {
+    if (neighbour(a, dir) !== b) continue;
+    setDoor(graph, a, dir, id, open);
+    return true;
+  }
+  return false;
 }
 
 /**

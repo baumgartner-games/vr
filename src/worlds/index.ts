@@ -114,6 +114,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./effects/EffectsWorld')).EffectsWorld(),
   },
   {
+    id: 'navlab',
+    title: 'Navigationslabor',
+    tagline: 'Sechs Buchten, sechs Behauptungen',
+    description:
+      'Wegsuche zum Ansehen: langer Gang, Stachelgrube, Kiste im Weg, Tür fällt zu, Portal und Dach. Roter Knopf startet, gelber macht es schwer. Gitter und Wege im NPC-Menü.',
+    accent: 0x39d0ff,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./navlab/NavLabWorld')).NavLabWorld(),
+  },
+  {
     id: 'dark',
     title: 'Dunkelhaus',
     tagline: 'Licht aus, Taschenlampe an',
