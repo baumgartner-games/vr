@@ -164,9 +164,11 @@ einmal in die Hand schlägt), die **Augenhöhen**
 (`src/core/posture.ts` — dass die Anhebung die Differenz der beiden ist und
 niemanden in den Boden drückt, der sitzend höher ist als stehend), der
 **Räumung nach dem Loslassen**
-(`src/physics/playerClearance.ts` — ob ein Ding noch in der Spielerkapsel
-steckt, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
-Luft, ohne den der Zustand an der Grenze flackert), der
+(`src/physics/playerClearance.ts` — ob ein Ding noch im Spieler steckt: in der
+Kapsel, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
+Luft, ohne den der Zustand an der Grenze flackert — **oder in einer Hand**, denn
+der fallengelassene Gegenstand steckt in der Faust, aus der er fällt, und die
+Kapsel ist dort längst geräumt), der
 **Menüweg** (`src/ui/menuNav.ts` — dass beide Handgelenke denselben Weg lesen
 und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
 die **Welt-Physik**
@@ -216,9 +218,12 @@ einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
 aufeinander stehen), die **Flächen der Würfel**
 (`src/worlds/portal/diceFaces.ts` — dass aus zwölf Dreiecken sechs Seiten
 werden, dass jede Augenzahl genau einmal vorkommt und dass gegenüberliegende
-Flächen `n + 1` ergeben, wie auf einem echten Würfel) und die **beiden Listen
+Flächen `n + 1` ergeben, wie auf einem echten Würfel), die **beiden Listen
 des Beutels** (`src/worlds/portal/props.test.ts` — dass jede angebotene Sorte
-einen Namen hat und keine doppelt im Raster steht), die **Leinwand**
+einen Namen hat und keine doppelt im Raster steht), das **Raster im Beutel**
+(`src/worlds/portal/tools/bagGrid.ts` — wo die Fächer einer Seite liegen, dass
+hinter der letzten Seite wieder die erste kommt, und dass eine **Ziellinie**
+aus einem Meter dasselbe Fach meint wie ein Finger darüber), die **Leinwand**
 (`src/worlds/portal/tools/paintCanvas.ts` — wo die Pinselspitze und wo der
 Zielstrahl auf ihr landen: der Strich, der knapp danebengeht, der Strahl von
 hinten, der parallel zur Fläche und der, der sie erst hinter der Reichweite
@@ -232,13 +237,18 @@ fallen und nichts durch den Boden sinkt). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
 weder WebGL noch WebXR noch wasm.
 
-Zwei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
+Drei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
 **Pointer** (`src/core/Pointer.ts`) muss jeder Hand ihren eigenen Strahl und
-ihren eigenen Trigger lassen, und die **Handform** (`src/core/HandVisuals.ts`)
+ihren eigenen Trigger lassen, die **Handform** (`src/core/HandVisuals.ts`)
 muss links links und rechts rechts sein — und der weiße Handschuh muss
 dasselbe Skelett tragen wie die Boxhand, mit seinen **drei schwarzen Strichen**
-oben auf dem Handrücken. Beides sind Vorzeichen, die man in der
-Brille erst nach Minuten bemerkt und dann nicht mehr los wird. Alles, was schwer zu testen ist, gehört
+oben auf dem Handrücken —, und die **Öffnung des magischen Beutels**
+(`src/worlds/portal/tools/MagicBagTool.test.ts`) muss fassen, was in ihr liegt:
+Fächer, Blätterpfeile und Seitenpunkte. Die ersten beiden sind Vorzeichen, die
+man in der Brille erst nach Minuten bemerkt und dann nicht mehr los wird; das
+dritte ist eine Zahl, die von oben niemand sieht — der Beutel ist ein Trichter,
+und dort, wo die Felder liegen, ist er anderthalb Zentimeter enger als am Saum.
+Der erste Blätterpfeil stand deshalb im Leder. Alles, was schwer zu testen ist, gehört
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
@@ -853,12 +863,36 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gerechnet, denn er zielt nicht). Am Gürtel hängt ein zugezogener Lederbeutel; in
     der Hand geht er auf, und in der Öffnung liegt ein **Raster** aus
     Miniaturen — jede das Ding selbst, mit `createPropShape` gebaut und auf
-    Fachgröße gerechnet, keine Strichzeichnung. Die freie Hand fährt hinein:
-    das Fach unter der Fingerspitze leuchtet, ein Stups meldet es, über dem
-    Beutel steht der Name, und **Greifen** holt das Ding in Originalgröße
+    Fachgröße gerechnet, keine Strichzeichnung. Die freie Hand sucht sich eines
+    aus, und dafür gibt es **zwei Wege**: sie fährt hinein, oder sie **zeigt**
+    aus dem Sessel darauf — die Ziellinie trifft die Rasterebene, und das Fach
+    darunter ist gemeint (`tools/bagGrid.ts`, `cellAtRay`). Der Finger hat
+    dabei Vorrang, wenn er wirklich in der Öffnung steht. Das gemeinte Fach
+    leuchtet, ein Stups meldet es, am Saum
+    steht der Name, und **Greifen** holt das Ding in Originalgröße
     genau dorthin, wo die Hand ist — bei allen in der Sitzung
-    (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü).
-    Zwei Dinge daran sind Absicht. Er **zielt nicht** (`alignToAim = false`) —
+    (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü). Der Strahl kam
+    dazu, weil der Finger die Hand jedes Mal bis in den Beutel führt: richtig,
+    solange man ihn vor sich hält, mühsam, sobald er nur in der Hand hängt.
+    Der Vorrat liegt auf **Seiten**: sechs Fächer, links und rechts ein Pfeil,
+    davor ein Punkt je Seite. Angesteuert wird ein Pfeil wie ein Fach, und
+    **Greifen** blättert — im Kreis, hinter der letzten Seite kommt wieder die
+    erste (`bagGrid.ts`, `turnPage`); am Saum steht dabei, wohin er führt.
+    Alle siebzehn Sorten auf einmal hieß siebzehn Fächer von
+    zweieinhalb Zentimetern, dicht an dicht in einer Öffnung von einer
+    Handbreite — daneben zu greifen war der Normalfall. Sechs große Fächer
+    trifft man.
+    Das **Schild** steht dabei auf dem Saum, auf der dem Kopf abgewandten
+    Seite (`placeLabel`): aus der Sicht des Lesenden ist das der **obere Rand
+    der Öffnung**, also hinter dem Raster statt darüber — man liest, was drin
+    ist, und sieht dabei weiter hinein. Eine Runde lang hing es zwei Handbreit
+    senkrecht über der Mitte und stand damit genau in dem Blick, mit dem man in
+    den Beutel schaut. Gerechnet wird die Seite waagerecht im Raum des Beutels,
+    damit das Schild auch am Saum bleibt, wenn die Hand ihn dreht oder kippt;
+    steht der Kopf senkrecht darüber, bleibt es vorn, weg von der haltenden
+    Hand.
+    Eines daran sieht wie ein Versehen aus und ist Absicht: Er **zielt nicht**
+    (`alignToAim = false`) —
     er sitzt in der Faust wie ein Handschuh und nicht auf dem Zeigestrahl wie
     eine Waffe —, und sonst bewegt er sich wie **jedes andere Werkzeug**: er
     steckt im Griff und macht mit, was die Hand tut, Gieren, Nicken _und_
@@ -875,9 +909,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Beutel damit um 180° gedreht **hinter** die Hand — auf der Werkzeugseite
     unsichtbar, denn dort lief sie nie. Solches Zeug fällt mit ihr weg.)
     Und die greifende Hand gehört
-    ihm, solange sie über einem Fach steht (`claimsHand`) — sonst risse
-    derselbe Griff die Kiste hinter dem Beutel an sich, und in einem vollen
-    Labor steht immer eine Kiste dahinter.
+    ihm, solange sie auf ein Fach oder einen Pfeil zeigt (`claimsHand`) —
+    sonst risse derselbe Griff die Kiste hinter dem Beutel an sich, und in
+    einem vollen Labor steht immer eine Kiste dahinter.
     Warum beides, Seite _und_ Werkzeug: Ein Menü ist ein Ort, an den man geht;
     ein Beutel ist etwas, das man dabeihat. Wer eine Reihe Dominosteine
     aufstellt, greift zwanzigmal hinein, ohne dazwischen zwanzigmal ein Panel
@@ -1391,6 +1425,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   nicht für immer über jeder Welt stehen. Reibung und Rückprall fassen die
   Objekte erst an, wenn jemand sie wirklich verstellt — sonst überschriebe der
   Start jede im Code eingestellte Kleinigkeit (Dominos 0,6, Cubes 0,8).
+  Dazu **Körper stößt an**, und das ist ein Schalter: **aus**, wie
+  ausgeliefert, bleibt der eigene Rumpf zwar fest — man geht nicht durch Kisten
+  und steht weiter auf ihnen —, wirft aber nichts mehr um. Der eigene Körper
+  ist das Einzige in der Welt, das man nicht sieht, und er stand ständig in
+  etwas drin: der Stapel, an dem man vorbeiging, fiel, und das eben Abgelegte
+  war beim Umdrehen weg. Wer Kisten mit dem Knie vor sich herschieben will,
+  schaltet die Zeile an. Für die **Hände** gilt das ausdrücklich nicht: mit der
+  Hand hinlangen heißt anstoßen wollen.
 - **Weltenregistry**: eine neue Welt ist ein Eintrag plus ein Modul.
 - **Peer-to-Peer-Sitzungen** (experimentell): beide Geräte tragen denselben
   Raum-Code ein und sind danach direkt verbunden — ohne eigenen Server.
@@ -1428,7 +1470,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Weitergeben                        | mit der freien Hand danach greifen                                                                                                                                    | –                                                                                               | –                    |
 | Anfassen                           | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist                                                                                                            | –                                                                                               | –                    |
 | Nahgreifen                         | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo)                                                                                 | –                                                                                               | –                    |
-| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 8 m/s)                                                                              | –                                                                                               | –                    |
+| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 1,25 m/s — _mittel_)                                                                              | –                                                                                               | –                    |
 | Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
@@ -1469,7 +1511,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
 | Radiergummi                        | Trigger löscht                                                                                                                                                        | –                                                                                               | –                    |
 | Sektflasche (aus dem Beutel)       | greifen: sie rastet am Hals in die Faust wie ein Pistolengriff, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                              | –                                                                                               | –                    |
-| Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen: Greifen holt das Ding heraus                                                                             | –                                                                                               | –                    |
+| Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen oder darauf zeigen: Greifen holt das Ding heraus, auf einem der beiden Pfeile blättert es eine Seite weiter | –                                                                                               | –                    |
 | Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
 | Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
 | Kart: lenken                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                    | `A` / `D`                                                                                       | –                    |
@@ -1606,6 +1648,22 @@ Körper auf den Boden, statt weggeschossen zu werden. Dasselbe gilt für **jeden
 frisch gebauten dynamischen Körper** (`addDynamic`): ein fallengelassenes
 Werkzeug entsteht buchstäblich in der Hand, und die ist am Körper.
 
+**Zum Spieler gehören seine Hände.** Die Sonde an der Fingerspitze ist ein
+fester kinematischer Kasten, der Gegenstände umstoßen soll
+(`PortalWorld.placeProbe`) — und was man gerade loslässt, steckt per Definition
+darin. Daran flog jeder fallengelassene Gegenstand davon, auch weit weg vom
+Rumpf: die Kapsel war längst geräumt, die Faust nicht. Die Räumung rechnet
+deshalb gegen Kapsel **und** Hände, und wer die Sonden setzt, meldet sie der
+Physik (`PhysicsWorld.setPlayerHand`). Die Hand soll stoßen, wenn man mit ihr
+hinlangt; sie soll nichts stoßen, was man eben erst aus ihr entlassen hat.
+
+**Der Rumpf stößt gar nichts mehr an.** Der Kinematik-Controller gab bis
+hierher Impulse an alles ab, wogegen er lief
+(`setApplyImpulsesToDynamicBodies`); jetzt tut er das nur noch, wenn _Körper
+stößt an_ eingeschaltet ist (`PhysicsLocomotion.pushesProps`,
+`worldPhysics.bodyPush`). Fest bleibt er in beiden Fällen: man geht nicht durch
+eine Kiste und steht weiter auf ihr — sie fliegt nur nicht mehr weg.
+
 Dass es dabei einen Augenblick lang durch die eigenen Füße fällt, ist kein
 Preis, sondern dasselbe Prinzip von der anderen Seite. Deshalb steht dort auch
 **keine Zeitschranke**: eine, die abläuft, während das Ding noch drinsteckt,
@@ -1664,7 +1722,7 @@ Schritten. Was getroffen ist, leuchtet auf. Mit **Grip** rastet es ein: Es
 bleibt markiert, auch wenn die Hand woanders hinzeigt, und ein dünner Strahl
 zwischen Hand und Gegenstand sagt, dass jetzt gezogen werden kann. **Zuckst du
 die Hand danach zum Körper** — schneller als das eingestellte _Zugtempo_,
-ab Werk 8 m/s —, kommt der Gegenstand geflogen und landet in der Hand.
+ab Werk 1,25 m/s —, kommt der Gegenstand geflogen und landet in der Hand.
 
 Dasselbe Zucken holt auch einen **nah gefassten** Gegenstand doch noch
 her — eine Geste, drei Entfernungen. Im Nahbereich hat man damit die Wahl:
@@ -1688,9 +1746,32 @@ durch ihn hindurch.
 Das **Zugtempo** steht im Menü unter _Einstellungen → Greifen_ und ist eine
 Zahl wie jede andere dort (`core/grabSettings.ts`, `pull`, in Zentimetern je
 Sekunde gespeichert und in Metern je Sekunde gelesen). Die Zeile schaltet
-0 → 4 → 8 → 12 m/s durch, _Werte eingeben_ nimmt jede Zahl dazwischen, und
+**fünf benannte Tempi** durch, je 25 cm/s auseinander (`PULL_STEPS`):
+
+| sehr langsam | langsam | **mittel (ab Werk)** | schnell | sehr schnell |
+| ------------ | ------- | -------------------- | ------- | ------------ |
+| 0,75 m/s     | 1,0 m/s | **1,25 m/s**         | 1,5 m/s | 1,75 m/s     |
+
+Der Name steht in der Zeile hinter der Zahl — „1,25 m/s · mittel" —, denn
+zwischen zwei Rasten liegen 25 cm/s, und „schnell" sagt mehr als der Abstand
+zur vorigen Zahl. Gelesen wird mit **zwei Nachkommastellen**, weil eine sie
+verfälschte: 125 cm/s las sich gerundet als „1,3 m/s", und die nächste Raste
+danach ebenfalls als „1,5".
+
+Vorher lagen die Rasten bei 0 → 4 → 8 → 12 m/s, ab Werk auf 8 — und das ist
+ein Schlag und kein Zucken: Wer den Arm zum Körper zieht, kommt selten über
+anderthalb Meter je Sekunde, und so ging das Ferngreifen bei den meisten
+schlicht nie los. Weil das Menü die ganze Seite speichert, sobald irgendetwas
+darauf verstellt wird, stünden die alten 800 cm/s bei fast allen im Speicher
+und die neue Vorgabe käme nie an — **genau dieser eine Wert wird beim Lesen
+auf 125 gezogen** (`LEGACY_PULL`). Der Preis dafür: Eine von Hand getippte 800
+wird ebenso gezogen; 790 und 810 bleiben stehen.
+
+_Werte eingeben_ nimmt weiterhin jede Zahl von 0 bis 2000 cm/s, und
 **0 heißt „ohne Zucken"**: dann kommt der Gegenstand, sobald der Grip sitzt —
-das alte Verhalten für alle, denen die Geste im Weg ist.
+das alte Verhalten für alle, denen die Geste im Weg ist. Die Null steht nur
+nicht mehr im Ring der Zeile: Sie ist eine Betriebsart und keine
+Geschwindigkeit.
 
 **Die Geisterhand** steht dort, wo die echte anfassen würde: am Trefferpunkt
 des Strahls, mit der Drehung der echten Hand, halbtransparent und türkis. Sie

@@ -14,6 +14,11 @@
  * will genau das — nicht die Erdschwere auf dem Mond, nur weil sie einmal
  * getippt wurde. Erst ein bewusst gesetzter Wert überstimmt die Welt.
  *
+ * Nicht jede Zeile hier ist eine Zahl: **Körper stößt an** ist ein Schalter,
+ * und er steht hier, weil er dieselbe Frage beantwortet wie die anderen — wie
+ * hart es in dieser Welt zugeht. Aus ist er, weil der eigene Rumpf das Einzige
+ * ist, das man in der Brille nicht sieht und trotzdem überall anstößt.
+ *
  * Reine Daten und Beschriftungen, kein three.js und kein Rapier. Wer die Werte
  * anwendet, ist `PortalWorld`; wie sie im Menü stehen, sagt `worldPhysicsLabel`.
  */
@@ -31,6 +36,16 @@ export interface WorldPhysics {
   friction: number;
   /** Rückprall der Objekte, 0 = Sandsack, 1 = Flummi. */
   bounce: number;
+  /**
+   * Ob der eigene Körper Gegenstände anschiebt, gegen die er läuft.
+   *
+   * Aus, und zwar mit Absicht: der eigene Rumpf ist das Einzige in der Welt,
+   * das man nicht sieht, und er stand ständig in etwas drin. Er bleibt fest —
+   * man geht nicht durch Kisten und steht weiter auf ihnen —, er stößt nur
+   * nichts mehr um (`PhysicsLocomotion.pushesProps`). Die Hände sind davon
+   * nicht betroffen: mit der Hand hinlangen heißt anstoßen wollen.
+   */
+  bodyPush: boolean;
 }
 
 /** Die Erde, und ein Absprung, der eine Kistenhöhe schafft. */
@@ -40,6 +55,7 @@ export const DEFAULT_WORLD_PHYSICS: WorldPhysics = {
   jump: 4.4,
   friction: 0.7,
   bounce: 0.05,
+  bodyPush: false,
 };
 
 /** Was eine Welt mitbringt, wenn sie nichts anderes sagt. */
@@ -113,6 +129,10 @@ export function clampWorldPhysics(settings: Partial<WorldPhysics> | undefined): 
   const next: WorldPhysics = { ...DEFAULT_WORLD_PHYSICS, ...settings };
   for (const field of PHYSICS_FIELDS) next[field.key] = clampPhysicsField(field, next[field.key]);
   next.autoGravity = next.autoGravity !== false;
+  // Anders herum als beim Welt-Standard: wer nichts gesagt hat — und jeder
+  // gespeicherte Stand von gestern hat nichts gesagt —, will den Körper, der
+  // nichts umstößt.
+  next.bodyPush = next.bodyPush === true;
   return next;
 }
 

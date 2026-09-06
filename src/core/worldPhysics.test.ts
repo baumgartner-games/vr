@@ -22,6 +22,14 @@ describe('Welt-Physik', () => {
     expect(DEFAULT_WORLD_PHYSICS.autoGravity).toBe(true);
   });
 
+  it('liefert einen Körper aus, der nichts umstößt', () => {
+    expect(DEFAULT_WORLD_PHYSICS.bodyPush).toBe(false);
+    // Und ein gespeicherter Stand, der das Feld noch gar nicht kannte, bekommt
+    // dasselbe: „nichts gesagt" heißt hier nicht „anschieben".
+    expect(clampWorldPhysics({ gravity: 1.62 }).bodyPush).toBe(false);
+    expect(clampWorldPhysics({ bodyPush: true }).bodyPush).toBe(true);
+  });
+
   it('holt jeden Wert in seinen Bereich', () => {
     expect(clampPhysicsField(gravity, -5)).toBe(0);
     expect(clampPhysicsField(gravity, 999)).toBe(gravity.max);

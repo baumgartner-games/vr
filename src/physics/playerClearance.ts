@@ -1,5 +1,6 @@
 /**
- * Ob ein losgelassenes Ding noch **im Spieler steckt**.
+ * Ob ein losgelassenes Ding noch **im Spieler steckt** — im Rumpf oder in einer
+ * Hand.
  *
  * Aus dem magischen Beutel kommt ein Objekt genau dort, wo die Hand ist, und
  * eine Hand ist beim Herbeirufen selten weit vom Körper weg. Lässt man dann los,
@@ -16,15 +17,23 @@
  * Körper auf den Boden, statt weggeschossen zu werden, und das ist genau das,
  * was man erwartet.
  *
- * Dass es dabei einen Augenblick lang durch die eigenen Füße fällt, ist kein
- * Preis, sondern dasselbe Prinzip von der anderen Seite: Ein Ding *in* jemandem
- * darf nie fest sein. Deshalb steht hier auch keine Zeitschranke — eine, die
- * abläuft, während das Ding noch drinsteckt, holt genau den Stoß zurück, um den
- * es hier geht.
+ * Dazu gehören die **Hände**, und zwar aus demselben Grund und mit demselben
+ * Recht: die Sonde an der Fingerspitze ist ein fester kinematischer Kasten, der
+ * Gegenstände umstoßen soll (`PortalWorld.placeProbe`) — und ein Ding, das man
+ * gerade loslässt, steckt per Definition darin. Genau daran flog jeder
+ * fallengelassene Gegenstand davon, auch weit weg vom Rumpf: die Kapsel war
+ * längst geräumt, die Faust nicht. Die Hand *soll* stoßen, wenn man mit ihr
+ * hinlangt; sie soll nichts stoßen, was man eben erst aus ihr entlassen hat.
+ *
+ * Dass ein Ding dabei einen Augenblick lang durch die eigenen Füße fällt, ist
+ * kein Preis, sondern dasselbe Prinzip von der anderen Seite: Ein Ding *in*
+ * jemandem darf nie fest sein. Deshalb steht hier auch keine Zeitschranke —
+ * eine, die abläuft, während das Ding noch drinsteckt, holt genau den Stoß
+ * zurück, um den es hier geht.
  *
  * Gerechnet wird gegen die **Kapsel**, aus der der Spieler besteht: eine Strecke
- * mit einem Radius (`PhysicsLocomotion`). Ohne three.js und ohne Rapier, damit
- * die Zahlen einzeln geprüft werden können.
+ * mit einem Radius (`PhysicsLocomotion`), und gegen eine **Kugel** je Hand.
+ * Ohne three.js und ohne Rapier, damit die Zahlen einzeln geprüft werden können.
  */
 
 /** Die Spielerkapsel: Mittelpunkt, halbe Achslänge, Radius. In Metern. */
@@ -37,8 +46,28 @@ export interface PlayerCapsule {
   radius: number;
 }
 
+/** Eine Hand, so grob, wie ihre Sonde ist: ein Punkt mit einem Radius. */
+export interface HandSphere {
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
+}
+
 /**
- * Wie viel Luft zwischen Ding und Kapsel sein muss, damit es wieder fest wird.
+ * Alles am Spieler, worin ein Ding stecken kann.
+ *
+ * `capsule` ist `null`, wo niemand herumläuft (der Zuschauer, ein Test), und
+ * `hands` ist dann meist leer — beides zusammen heißt: es gibt nichts, worin
+ * etwas stecken könnte, und alles ist sofort frei.
+ */
+export interface PlayerBody {
+  capsule: PlayerCapsule | null;
+  hands: readonly HandSphere[];
+}
+
+/**
+ * Wie viel Luft zwischen Ding und Spieler sein muss, damit es wieder fest wird.
  *
  * Nicht null: bei genau null flackerte der Zustand an der Grenze — ein Ding, das
  * die Kapsel gerade eben verlassen hat, wird fest, wird im nächsten Bild vom
@@ -68,11 +97,38 @@ export function capsuleOverlap(
   return capsule.radius + radius - distance;
 }
 
+/** Dasselbe für eine Hand: zwei Kugeln, ein Abstand. */
+export function handOverlap(
+  hand: HandSphere,
+  point: { x: number; y: number; z: number },
+  radius: number,
+): number {
+  return hand.radius + radius - Math.hypot(point.x - hand.x, point.y - hand.y, point.z - hand.z);
+}
+
+/**
+ * Wie tief das Ding im Spieler steckt — im Rumpf oder in der Hand, je nachdem,
+ * welches von beidem tiefer greift.
+ *
+ * Ein Spieler ohne Kapsel und ohne Hände ist keiner: dann steckt nichts in
+ * nichts, und die Antwort ist `-Infinity` statt einer Null, die für „gerade
+ * eben berührt" stünde.
+ */
+export function bodyOverlap(
+  body: PlayerBody,
+  point: { x: number; y: number; z: number },
+  radius: number,
+): number {
+  let deepest = body.capsule ? capsuleOverlap(body.capsule, point, radius) : -Infinity;
+  for (const hand of body.hands) deepest = Math.max(deepest, handOverlap(hand, point, radius));
+  return deepest;
+}
+
 /** Ist das Ding weit genug weg, um wieder fest werden zu dürfen? */
 export function clearOfPlayer(
-  capsule: PlayerCapsule,
+  body: PlayerBody,
   point: { x: number; y: number; z: number },
   radius: number,
 ): boolean {
-  return capsuleOverlap(capsule, point, radius) <= -CLEARANCE_MARGIN;
+  return bodyOverlap(body, point, radius) <= -CLEARANCE_MARGIN;
 }

@@ -52,6 +52,7 @@ export function silentPhysics(): PhysicsWorld {
     sync: () => undefined,
     setPhasing: () => undefined,
     setCarried: () => undefined,
+    setPlayerHand: () => undefined,
     setGhost: () => undefined,
     resize: () => undefined,
     remove: () => undefined,

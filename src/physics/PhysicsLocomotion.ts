@@ -74,6 +74,8 @@ export class PhysicsLocomotion implements Locomotion {
    */
   phaseMask = 0;
 
+  private pushes = false;
+
   /**
    * While this is set the capsule flies: the vector *is* the velocity, gravity
    * is off and the stick has nothing to say. Walls still stop it — flying
@@ -98,7 +100,7 @@ export class PhysicsLocomotion implements Locomotion {
     this.controller = world.createCharacterController(CHARACTER_SKIN);
     this.controller.enableAutostep(0.32, 0.18, true);
     this.controller.enableSnapToGround(0.28);
-    this.controller.setApplyImpulsesToDynamicBodies(true);
+    this.controller.setApplyImpulsesToDynamicBodies(this.pushes);
     this.controller.setCharacterMass(72);
     this.controller.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(MAX_SLOPE_DEG));
     this.controller.setMinSlopeSlideAngle(THREE.MathUtils.degToRad(SLIDE_SLOPE_DEG));
@@ -113,6 +115,30 @@ export class PhysicsLocomotion implements Locomotion {
 
     this.syncCapsuleToRig(rig, true);
     this.publishCapsule();
+  }
+
+  /**
+   * Ob der eigene Körper Gegenstände **anschiebt**, wenn er gegen sie läuft.
+   *
+   * Aus, und das ist die Voreinstellung: der Rumpf bleibt fest — man geht nicht
+   * durch Kisten hindurch und steht weiter auf ihnen —, aber er stößt nichts
+   * mehr um. Ein Körper, den man selbst nicht sieht, trifft ständig etwas, das
+   * man nicht treffen wollte: der Stapel, an dem man vorbeigeht, fällt; das
+   * Ding, das man abgelegt hat, ist beim Umdrehen weg. Wer das *will* — Kisten
+   * mit dem Knie vor sich herschieben —, schaltet es im Menü an
+   * (`worldPhysics.bodyPush`).
+   *
+   * Die Hände sind davon ausdrücklich nicht betroffen: mit der Hand hinlangen
+   * heißt, etwas anstoßen zu wollen.
+   */
+  get pushesProps(): boolean {
+    return this.pushes;
+  }
+
+  set pushesProps(on: boolean) {
+    if (this.pushes === on) return;
+    this.pushes = on;
+    this.controller.setApplyImpulsesToDynamicBodies(on);
   }
 
   /** Capsule centre in world space. */

@@ -1,11 +1,14 @@
 import {
   DEFAULT_GRAB,
   GRAB_FIELDS,
+  PULL_STEPS,
   clampGrab,
   formatGrabField,
+  grabSettings,
   motionLabel,
   nextGrabMotion,
   nextGrabStep,
+  pullStepName,
   type GrabMotion,
   type GrabSettings,
 } from './grabSettings';
@@ -53,9 +56,33 @@ describe('the numbers behind grabbing', () => {
 });
 
 describe('das Zugtempo', () => {
-  it('steht als Vorgabe auf 8 m/s — ein Zucken, keine Handbewegung', () => {
-    expect(DEFAULT_GRAB.pull).toBe(800);
-    expect(formatGrabField(pull, DEFAULT_GRAB)).toBe('8,0 m/s');
+  it('steht als Vorgabe auf 1,25 m/s — die mittlere Raste', () => {
+    expect(DEFAULT_GRAB.pull).toBe(125);
+    expect(formatGrabField(pull, DEFAULT_GRAB)).toBe('1,25 m/s · mittel');
+  });
+
+  it('hat fünf Rasten, je 25 cm/s auseinander, mit Namen', () => {
+    expect(PULL_STEPS.map((step) => step.value)).toEqual([75, 100, 125, 150, 175]);
+    expect(PULL_STEPS.map((step) => step.name)).toEqual([
+      'sehr langsam',
+      'langsam',
+      'mittel',
+      'schnell',
+      'sehr schnell',
+    ]);
+    expect(pull.steps).toEqual([75, 100, 125, 150, 175]);
+  });
+
+  it('liest jede Raste als Tempo mit Namen', () => {
+    expect(formatGrabField(pull, clampGrab({ pull: 75 }))).toBe('0,75 m/s · sehr langsam');
+    expect(formatGrabField(pull, clampGrab({ pull: 100 }))).toBe('1,0 m/s · langsam');
+    expect(formatGrabField(pull, clampGrab({ pull: 150 }))).toBe('1,5 m/s · schnell');
+    expect(formatGrabField(pull, clampGrab({ pull: 175 }))).toBe('1,75 m/s · sehr schnell');
+  });
+
+  it('lässt eine getippte Zahl zwischen den Rasten ohne Namen stehen', () => {
+    expect(formatGrabField(pull, clampGrab({ pull: 130 }))).toBe('1,3 m/s');
+    expect(pullStepName(130)).toBeNull();
   });
 
   it('nimmt die Null als „ohne Zucken" an', () => {
@@ -69,11 +96,44 @@ describe('das Zugtempo', () => {
     expect(clampGrab({ pull: Number.NaN }).pull).toBe(DEFAULT_GRAB.pull);
   });
 
-  it('schaltet die Zeile im Kreis weiter, die Null eingeschlossen', () => {
-    expect(nextGrabStep(pull, 0)).toBe(400);
-    expect(nextGrabStep(pull, 800)).toBe(1200);
-    // Oben wieder von vorn — und vorn steht „ohne Zucken".
-    expect(nextGrabStep(pull, 1200)).toBe(0);
+  it('schaltet die Zeile durch die fünf Tempi, oben wieder von vorn', () => {
+    expect(nextGrabStep(pull, 75)).toBe(100);
+    expect(nextGrabStep(pull, 125)).toBe(150);
+    expect(nextGrabStep(pull, 175)).toBe(75);
+    // Die Null ist keine Raste mehr, bleibt aber ein gültiger Wert: von ihr
+    // aus geht es beim langsamsten Tempo weiter.
+    expect(nextGrabStep(pull, 0)).toBe(75);
+  });
+});
+
+describe('das alte Zugtempo im Speicher', () => {
+  const store = new Map<string, string>();
+
+  beforeEach(() => {
+    store.clear();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+      },
+    });
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'localStorage');
+  });
+
+  it('zieht die alten 8 m/s auf die neue Vorgabe — sonst käme sie nie an', () => {
+    store.set('bgvr.grab', JSON.stringify({ ...DEFAULT_GRAB, pull: 800 }));
+    expect(grabSettings().pull).toBe(DEFAULT_GRAB.pull);
+  });
+
+  it('lässt jede andere gespeicherte Zahl stehen', () => {
+    store.set('bgvr.grab', JSON.stringify({ ...DEFAULT_GRAB, pull: 810 }));
+    expect(grabSettings().pull).toBe(810);
+    store.set('bgvr.grab', JSON.stringify({ ...DEFAULT_GRAB, pull: 0 }));
+    expect(grabSettings().pull).toBe(0);
   });
 });
 
