@@ -44,12 +44,40 @@ export type HitZone = 'head' | 'body';
  */
 export const HEAD_SHARE = 0.1;
 
-/** Was ein Treffer kostet. Drei in den Rumpf, oder einer in den Kopf. */
-export const BODY_DAMAGE = 34;
-export const HEAD_DAMAGE = 100;
+/**
+ * **Was ein Treffer kostet, wenn die Waffe nichts eigenes sagt.**
+ *
+ * Hier stand einmal eine feste Zahl je Zone — 34 in den Rumpf, 100 in den
+ * Kopf —, und das hieß: Ein Messer tut genauso weh wie ein Gewehr, weil die
+ * Zone die ganze Rechnung war. Jetzt bringt **die Waffe** ihre Zahl mit
+ * (`weaponSettings.ts` für die Pistole, `Tool.meleeDamage` für alles, was
+ * zuschlägt), und die Zone ist nur noch der Faktor darauf.
+ *
+ * Diese Zahl ist der Rückfall für alles, was keine mitbringt.
+ */
+export const BODY_DAMAGE = 25;
 
-export function damageFor(zone: HitZone): number {
-  return zone === 'head' ? HEAD_DAMAGE : BODY_DAMAGE;
+/**
+ * **Ein Kopftreffer wiegt vier Rumpftreffer.**
+ *
+ * Die Zahl ist nicht gewürfelt, sondern die Antwort auf eine Frage, die man
+ * in der Brille stellt: Wie viele Schuss braucht ein Zombie? Ein Zombie hat
+ * hundert Leben (`npcKinds.ts`), die Pistole macht fünfundzwanzig — also vier
+ * in den Rumpf **oder einer in den Kopf**. Genau das ist die Regel, die man
+ * nach dem dritten Schuss von selbst begriffen hat.
+ */
+export const HEAD_FACTOR = 4;
+
+/** Was ein Kopftreffer mit der Waffe kostet, die nichts eigenes sagt. */
+export const HEAD_DAMAGE = BODY_DAMAGE * HEAD_FACTOR;
+
+/**
+ * Was ein Treffer abzieht: die Zahl der Waffe, im Kopf vervierfacht.
+ *
+ * @param base was diese Waffe an einem Rumpftreffer kostet.
+ */
+export function damageFor(zone: HitZone, base: number = BODY_DAMAGE): number {
+  return zone === 'head' ? base * HEAD_FACTOR : base;
 }
 
 /** Wo der Kopf sitzt: seine Mitte und sein Radius. */

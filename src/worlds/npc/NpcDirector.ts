@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { Npc, type NavRun } from './Npc';
+import type { BarMode } from './NpcBody';
 import type { NavGraph } from '../nav/navGraph';
 import type { TileKey } from '../nav/navTile';
 import { npcSkin, type NpcKind } from './npcKinds';
 import { brainLabel, type BrainId } from './npcBrains';
-import { damageFor } from './npcHit';
+import { damageFor, type HitZone } from './npcHit';
 import {
   SPAWNER_DEFAULTS,
   newSpawnerState,
@@ -155,7 +156,27 @@ export class NpcDirector implements NpcControl {
   private readonly cages: Cage[] = [];
   private time = 0;
 
+  /**
+   * Wann die Lebensbalken zu sehen sind (`NpcBody.ts`).
+   *
+   * Ausgeliefert wird **bei Schaden**: Ein Balken über einem unversehrten
+   * Zombie ist eine Zeile, die immer dasselbe sagt, und dreißig davon sind
+   * dreißig. Wer die Zahlen prüfen will — genau darum geht es im
+   * Navigationslabor —, stellt im Menü auf *immer*.
+   */
+  private barMode: BarMode = 'hurt';
+
   constructor(private readonly world: NpcWorld) {}
+
+  /** Wann die Balken zu sehen sind — gilt sofort und für alles Neue. */
+  setBars(mode: BarMode): void {
+    this.barMode = mode;
+    for (const npc of this.npcs) npc.setBars(mode);
+  }
+
+  get bars(): BarMode {
+    return this.barMode;
+  }
 
   // --- setzen ---------------------------------------------------------------
 
@@ -184,6 +205,7 @@ export class NpcDirector implements NpcControl {
       speed: request.speed,
       health: request.health,
     });
+    npc.setBars(this.barMode);
     this.world.root.add(npc.holder);
     this.npcs.push(npc);
     return npc;
@@ -433,6 +455,7 @@ export class NpcDirector implements NpcControl {
         health: cage.health,
         owner: cage,
       });
+      npc.setBars(this.barMode);
       this.world.root.add(npc.holder);
       this.npcs.push(npc);
     }
@@ -469,22 +492,39 @@ export class NpcDirector implements NpcControl {
   /**
    * Eine Kugel ist diese Strecke geflogen — hat sie jemanden erwischt?
    *
+   * @param damage was ein Rumpftreffer dieser Waffe abzieht; der Kopf zählt
+   *               vierfach (`npcHit.ts`).
    * @returns ob die Kugel damit verbraucht ist.
    */
-  shoot(from: THREE.Vector3, to: THREE.Vector3): boolean {
+  shoot(from: THREE.Vector3, to: THREE.Vector3, damage?: number): boolean {
+    return this.hit(from, to, damage) !== null;
+  }
+
+  /**
+   * **Dieselbe Rechnung für alles, was zuschlägt** — Kugel, Klinge,
+   * Hammerkopf.
+   *
+   * Eine Kugel legt zwischen zwei Bildern Meter zurück, eine schwingende
+   * Klinge Zentimeter; beide sind eine **Strecke** und keine Stelle, und
+   * beide fragen deshalb dasselbe (`npcHit.ts`). Was sie unterscheidet, ist
+   * die Zahl, die sie mitbringen, und die steht an der Waffe.
+   *
+   * @returns wo es getroffen hat — `null`, wenn niemand im Weg stand.
+   */
+  hit(from: THREE.Vector3, to: THREE.Vector3, damage?: number): HitZone | null {
     for (const npc of this.npcs) {
       const zone = npc.zoneOf(from, to);
       if (!zone) continue;
-      const dead = npc.damage(damageFor(zone));
+      const dead = npc.damage(damageFor(zone, damage));
       if (dead) {
         npc.unbody(this.world.physics);
         this.world.notify(
-          zone === 'head' ? `${npc.skin.label}: Kopfschuss` : `${npc.skin.label} liegt`,
+          zone === 'head' ? `${npc.skin.label}: Kopftreffer` : `${npc.skin.label} liegt`,
         );
       }
-      return true;
+      return zone;
     }
-    return false;
+    return null;
   }
 
   /** Was ein Menü über einen frisch gesetzten NPC meldet. */

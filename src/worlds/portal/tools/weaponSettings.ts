@@ -27,6 +27,17 @@ export const SIGHT_KINDS: readonly SightKind[] = ['reddot', 'irons', 'trace', 'x
 export interface WeaponSettings {
   /** Kilograms per round — the punch is mass times speed. */
   mass: number;
+  /**
+   * **Was ein Rumpftreffer einem NPC abzieht** — ein Kopftreffer das
+   * Vierfache (`worlds/npc/npcHit.ts`).
+   *
+   * Getrennt von der Masse, obwohl beide „stark" heißen: Die Masse ist
+   * Physik — sie schiebt eine Kiste und lässt die Kugel fallen —, der Schaden
+   * ist eine Spielregel. Eine Kugel, die eine Kiste umwirft, muss keinen
+   * Zombie umwerfen, und die 25 hier sind genau die Zahl, mit der ein Zombie
+   * (100 Leben) vier Schuss braucht.
+   */
+  damage: number;
   /** Muzzle velocity in m/s. */
   speed: number;
   /** Rounds per second. */
@@ -51,6 +62,7 @@ export interface WeaponSettings {
 
 export const DEFAULT_WEAPON: WeaponSettings = {
   mass: 0.06,
+  damage: 25,
   speed: 26,
   rate: 5,
   magazine: 12,
@@ -70,6 +82,12 @@ export const POWER_STEPS = [
   { label: 'brutal', mass: 0.3 },
 ] as const;
 
+/**
+ * Die Rasten des Schadens, an den Leben der NPCs entlang (`npcKinds.ts`):
+ * 25 ist die Pistole (ein Zombie in vier Schuss), 50 die Hälfte, 100 nimmt
+ * ihn mit einem Rumpftreffer.
+ */
+export const DAMAGE_STEPS = [10, 25, 50, 100, 200] as const;
 export const SPEED_STEPS = [14, 26, 45, 70, 120] as const;
 /** Rounds per second. */
 export const RATE_STEPS = [2, 5, 9, 14, 20] as const;
@@ -141,6 +159,15 @@ export const WEAPON_FIELDS: readonly WeaponField[] = [
     max: 5,
     decimals: 3,
     sub: 'Masse der Kugel — wie hart sie zuschlägt',
+  },
+  {
+    key: 'damage',
+    label: 'Schaden',
+    unit: '',
+    min: 1,
+    max: 1000,
+    decimals: 0,
+    sub: 'Was ein Rumpftreffer abzieht — der Kopf das Vierfache',
   },
   {
     key: 'speed',

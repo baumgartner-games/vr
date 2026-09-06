@@ -43,13 +43,21 @@ import type { StoredAttachments } from './gearStore';
  * zwölf Werte, von denen nach einer Messung sechs anders sind als die
  * gebauten; die anderen sechs kosten jetzt nichts mehr. Dazu ist das
  * Versions-Byte aus dem Payload in den Prefix gewandert.
+ * **4** hängt der Waffe ihren **Schaden** an. Anhängen allein hätte hier
+ * nicht gereicht: Hinter dem Waffenabschnitt stehen weitere, und ein alter
+ * Code läse sein erstes Byte als Schaden. Ein Feld mitten im Payload kostet
+ * deshalb eine Nummer — das ist der Preis dafür, dass die Reihenfolge zählt.
  *
- * Alte Codes werden weiter gelesen; geschrieben wird nur noch 3.
+ * Alte Codes werden weiter gelesen; geschrieben wird nur noch 4.
  */
-export const GEAR_VERSION = 3;
+export const GEAR_VERSION = 4;
 /** Die Fassungen mit Versions-Byte im Payload — gelesen, nie mehr geschrieben. */
 const VERSION_FULL_ONLY = 1;
 const VERSION_SECTIONS = 2;
+/** Ab hier steht vor jeder Pose die Maske ihrer verstellten Werte. */
+const VERSION_MASKED = 3;
+/** Ab hier trägt die Waffe ihren Schaden. */
+const VERSION_DAMAGE = 4;
 
 /** Welche Abschnitte ein Code trägt. Bits werden angehängt, nie umsortiert. */
 export const SECTION = {
@@ -202,7 +210,7 @@ export function readGear(payload: Uint8Array, version = GEAR_VERSION): GearData 
     const inner = input.byte();
     if (inner === VERSION_FULL_ONLY) return readGearV1(input);
     if (inner !== VERSION_SECTIONS) return null;
-  } else if (version !== GEAR_VERSION) {
+  } else if (version !== VERSION_MASKED && version !== VERSION_DAMAGE) {
     return null;
   }
 
@@ -229,7 +237,7 @@ export function readGear(payload: Uint8Array, version = GEAR_VERSION): GearData 
     data.attachments = attachments;
   }
 
-  if (sections & SECTION.weapon) data.weapon = readWeapon(input);
+  if (sections & SECTION.weapon) data.weapon = readWeapon(input, version);
   if (sections & SECTION.drone) data.drone = readDrone(input);
   if (sections & SECTION.superman) data.superman = readSuperman(input);
   return data;
@@ -337,6 +345,7 @@ function writeWeapon(out: ByteWriter, weapon: WeaponSettings): void {
   }
   out.uint(sights);
   out.fixed(weapon.zoom, 10);
+  out.fixed(weapon.damage, 1);
 }
 
 /** Alles außer dem Zoom — Version 1 hatte den woanders stehen. */
@@ -362,10 +371,24 @@ function readWeaponBody(input: ByteReader): WeaponSettings {
   });
 }
 
-function readWeapon(input: ByteReader): WeaponSettings {
+/**
+ * Der Zoom steht **hinten** und darf fehlen: Ein Code aus der Zeit davor hört
+ * an dieser Stelle auf, und ein leerer Leser gibt null zurück. Null heißt
+ * deshalb „stand nicht drin", und dann gilt der gebaute Wert.
+ *
+ * Beim **Schaden** geht dieser Trick nicht: Hinter der Waffe stehen weitere
+ * Abschnitte, und was dort steht, ist keine Null. Ihn liest deshalb nur, wer
+ * an der Versionsnummer sieht, dass er dasteht (`VERSION_DAMAGE`).
+ */
+function readWeapon(input: ByteReader, version: number): WeaponSettings {
   const weapon = readWeaponBody(input);
   const zoom = input.fixed(10);
-  return zoom > 0 ? clampWeapon({ ...weapon, zoom }) : weapon;
+  const damage = version >= VERSION_DAMAGE ? input.fixed(1) : 0;
+  return clampWeapon({
+    ...weapon,
+    ...(zoom > 0 ? { zoom } : {}),
+    ...(damage > 0 ? { damage } : {}),
+  });
 }
 
 function writeDrone(out: ByteWriter, drone: DroneSettings): void {
@@ -478,7 +501,7 @@ function readValues(
   defaults: readonly number[],
   version: number,
 ): number[] {
-  if (version < GEAR_VERSION) return scales.map((scale) => input.fixed(scale));
+  if (version < VERSION_MASKED) return scales.map((scale) => input.fixed(scale));
   const mask = input.uint();
   return scales.map((scale, i) => (mask & (1 << i) ? input.fixed(scale) : (defaults[i] ?? 0)));
 }

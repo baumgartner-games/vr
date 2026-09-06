@@ -53,6 +53,38 @@ export class NpcBody extends THREE.Group {
    */
   readonly skull: THREE.Mesh<THREE.SphereGeometry, THREE.Material>;
 
+  /**
+   * **Der Lebensbalken über dem Kopf** — zwei Sprites, kein Text.
+   *
+   * Ein Sprite steht in three.js immer quer zur Kamera, ohne dass jemand es
+   * jedes Bild dorthin drehen müsste. Genau das braucht ein Balken: Man sieht
+   * ihn von vorn, von der Seite und von oben — und von oben ist die Ansicht,
+   * in der man das Labor testet.
+   *
+   * Zwei und nicht eine Textur: Die Füllung wird in der Breite gestaucht, und
+   * damit sie dabei **links stehen bleibt** statt in der Mitte zu schrumpfen,
+   * sitzt ihr Bezugspunkt am linken Rand (`center`). Eine Textur pro NPC wäre
+   * bei dreißig Zombies dreißig Texturen für eine Sache, die aus zwei
+   * Rechtecken besteht.
+   */
+  private readonly barBack: THREE.Sprite;
+  private readonly barFill: THREE.Sprite;
+  /**
+   * Die beiden zusammen, in einer eigenen Gruppe.
+   *
+   * Nicht der Ordnung wegen: Ein Balken ist eine **Anzeige über** dem NPC und
+   * kein Teil seines Körpers, und wer die Maße des Körpers nachmisst
+   * (`npcBody.test.ts`), muss ihn deshalb weglassen können. Eine Gruppe mit
+   * Namen ist die Stelle, an der das ohne Raten geht.
+   */
+  readonly bar = new THREE.Group();
+  /** Wie breit der Balken ist, in Metern. */
+  private readonly barWidth: number;
+  /** Wann er zu sehen ist. */
+  private bars: BarMode = 'hurt';
+  /** Wie voll er steht: 1 heißt unversehrt. */
+  private fill = 1;
+
   /** Die Phase des Schritts, in Bogenmaß. */
   private phase = 0;
   /** Wie weit der Arm gerade ausholt: 0 = hängt, 1 = trifft. */
@@ -153,6 +185,65 @@ export class NpcBody extends THREE.Group {
       group.add(hand);
       this.chest.add(group);
     }
+
+    // --- der Lebensbalken -----------------------------------------------------
+    // Er hängt **am Körper und nicht am Kopf**: Der Kopf nickt und wiegt beim
+    // Gehen mit, und ein Balken, der mitwippt, ist schwerer zu lesen als einer,
+    // der über dem NPC steht.
+    this.barWidth = skin.radius * 2.6;
+    const above = h + skin.radius * 0.7;
+    this.barBack = new THREE.Sprite(
+      new THREE.SpriteMaterial({ color: 0x10141c, transparent: true, opacity: 0.75 }),
+    );
+    this.barBack.name = 'npc-health-back';
+    this.barBack.scale.set(this.barWidth, BAR_HEIGHT, 1);
+    this.barBack.position.y = above;
+    this.barFill = new THREE.Sprite(new THREE.SpriteMaterial({ color: HEALTH_FULL }));
+    this.barFill.name = 'npc-health-fill';
+    // Linker Rand als Bezugspunkt: von dort wächst und schrumpft die Füllung.
+    this.barFill.center.set(0, 0.5);
+    this.barFill.scale.set(this.barWidth * BAR_INSET, BAR_HEIGHT * 0.62, 1);
+    this.barFill.position.set(-(this.barWidth * BAR_INSET) / 2, above, 0);
+    // Über dem Rücken, damit die Füllung nicht im schwarzen Grund verschwindet.
+    this.barFill.renderOrder = 1;
+    this.bar.name = 'npc-health';
+    this.bar.add(this.barBack, this.barFill);
+    this.add(this.bar);
+    this.setHealth(1);
+  }
+
+  /**
+   * Wie voll der Balken steht — 1 ist unversehrt, 0 ist leer.
+   *
+   * Die Farbe geht dabei von Grün über Gelb nach Rot: Man soll auf zwanzig
+   * Meter sehen, wie es um jemanden steht, ohne die Länge eines Balkens mit
+   * der eines anderen zu vergleichen.
+   */
+  setHealth(fraction: number): void {
+    this.fill = Math.min(1, Math.max(0, fraction));
+    const width = this.barWidth * BAR_INSET;
+    // Nie ganz auf null: Ein Sprite der Breite 0 ist weg, und „fast tot" soll
+    // man noch sehen.
+    this.barFill.scale.x = Math.max(width * 0.02, width * this.fill);
+    this.barFill.material.color.setHex(
+      this.fill > 0.6 ? HEALTH_FULL : this.fill > 0.3 ? HEALTH_HALF : HEALTH_LOW,
+    );
+    this.applyBars();
+  }
+
+  /** Wann der Balken zu sehen ist: immer, nur bei Schaden, oder gar nicht. */
+  setBars(mode: BarMode): void {
+    this.bars = mode;
+    this.applyBars();
+  }
+
+  private applyBars(): void {
+    const on =
+      this.bars === 'always'
+        ? this.fill > 0
+        : this.bars === 'hurt' && this.fill > 0 && this.fill < 1;
+    this.barBack.visible = on;
+    this.barFill.visible = on;
   }
 
   /**
@@ -198,10 +289,37 @@ export class NpcBody extends THREE.Group {
     const eased = Math.min(1, Math.max(0, t));
     this.rotation.x = -eased * Math.PI * 0.5;
     this.position.y = -eased * this.skin.radius * 0.5;
+    // Wer liegt, hat keinen Balken mehr: er kippte mit dem Körper nach vorn und
+    // läge quer über ihm.
+    if (eased > 0) {
+      this.barBack.visible = false;
+      this.barFill.visible = false;
+    }
   }
 
   dispose(): void {
     disposeTree(this);
     this.eyes.dispose();
+    this.barBack.material.dispose();
+    this.barFill.material.dispose();
   }
 }
+
+/** Wann ein Lebensbalken zu sehen ist. */
+export type BarMode = 'off' | 'hurt' | 'always';
+
+/** Die drei Stellungen, wie das Menü sie durchschaltet und beschriftet. */
+export const NPC_BAR_MODES: ReadonlyArray<{ id: BarMode; label: string; sub: string }> = [
+  { id: 'hurt', label: 'bei Schaden', sub: 'Erst wenn jemand etwas abbekommen hat' },
+  { id: 'always', label: 'immer', sub: 'Über jedem, der steht — zum Prüfen' },
+  { id: 'off', label: 'aus', sub: 'Gar keine Balken' },
+];
+
+/** Die Höhe des Balkens, in Metern. */
+const BAR_HEIGHT = 0.075;
+/** Wie viel von der Breite die Füllung im Rahmen einnimmt. */
+const BAR_INSET = 0.9;
+
+const HEALTH_FULL = 0x5ee0a0;
+const HEALTH_HALF = 0xffc857;
+const HEALTH_LOW = 0xff3b2f;

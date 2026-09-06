@@ -33,6 +33,7 @@ const CONFIG: GearData = {
     mode: 'burst',
     ammo: 'tracer',
     zoom: 12,
+    damage: 50,
     sights: ['reddot', 'trace', 'scope'],
   },
   drone: { profile: 'racing', replace: true, speed: 14, turn: 160 },
@@ -119,6 +120,42 @@ describe('gear codec', () => {
     const back = roundTrip(CONFIG);
     expect(back.weapon?.zoom).toBe(12);
     expect(back.weapon?.sights).toContain('scope');
+  });
+
+  /**
+   * Der Schaden steht **mitten** im Payload und nicht am Ende — hinter ihm
+   * kommen Drohne und Handschuh. Deshalb hat er eine Versionsnummer gekostet,
+   * und deshalb prüft dieser Test beides: dass er heil ankommt, und dass ein
+   * Code aus der Zeit davor die Abschnitte dahinter trotzdem richtig liest.
+   */
+  it('carries the damage a hit does — and lets a code from before it keep its drone', () => {
+    expect(roundTrip(CONFIG).weapon?.damage).toBe(50);
+
+    /**
+     * Ein Code der Fassung 3, von Hand geschrieben: Waffe und Drohne, und
+     * zwischen den beiden **kein** Schadensfeld. Genau daran hängt die
+     * Versionsnummer — läse der Leser hier trotzdem eines, nähme er das erste
+     * Byte der Drohne dafür, und die Drohne käme als Unsinn zurück.
+     */
+    const out = new ByteWriter();
+    out.uint(SECTION.weapon | SECTION.drone);
+    out.fixed(DEFAULT_WEAPON.mass, 1000);
+    out.fixed(DEFAULT_WEAPON.speed, 10);
+    out.fixed(DEFAULT_WEAPON.rate, 10);
+    out.uint(DEFAULT_WEAPON.magazine);
+    out.fixed(DEFAULT_WEAPON.reload, 100);
+    out.uint(DEFAULT_WEAPON.burst);
+    out.byte(0);
+    out.uint(0);
+    out.fixed(20, 10); // Zoom — das letzte Feld, das Fassung 3 kannte
+    out.byte(1); // Drohne: Racing, nicht ersetzen
+    out.fixed(14, 10);
+    out.fixed(160, 1);
+
+    const back = readGear(out.bytes(), 3)!;
+    expect(back.weapon?.zoom).toBe(20);
+    expect(back.weapon?.damage).toBe(DEFAULT_WEAPON.damage);
+    expect(back.drone).toEqual({ profile: 'racing', replace: false, speed: 14, turn: 160 });
   });
 
   /**

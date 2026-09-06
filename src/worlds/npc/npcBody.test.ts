@@ -35,6 +35,10 @@ describe('Kopf und Trefferzone', () => {
 
   it.each([...NPC_KINDS])('%s steht mit den Füßen im Ursprung', (kind) => {
     const body = new NpcBody(kind);
+    // **Ohne den Lebensbalken**: Der schwebt mit Absicht über dem Scheitel und
+    // ist eine Anzeige, kein Körperteil. Ein `Box3` fragt nicht danach, ob
+    // etwas sichtbar ist — also kommt er hier weg, bevor gemessen wird.
+    body.bar.removeFromParent();
     body.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(body);
     // Der Ursprung ist die Standfläche: nichts hängt darunter, und oben hört

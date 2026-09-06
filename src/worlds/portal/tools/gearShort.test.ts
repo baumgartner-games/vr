@@ -248,7 +248,7 @@ describe('der große Code', () => {
   it('bleibt für die ganze Ausrüstung zuständig', () => {
     saveHoldHandPose('right', 'flashlight', grip);
     const code = gearCode();
-    expect(code.startsWith('BG3')).toBe(true);
+    expect(code.startsWith('BG4')).toBe(true);
     expect(parseGearCode(code)).not.toBeNull();
   });
 });

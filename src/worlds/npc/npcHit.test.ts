@@ -1,4 +1,12 @@
-import { BODY_DAMAGE, HEAD_DAMAGE, damageFor, headOf, hitZone, type HitBody } from './npcHit';
+import {
+  BODY_DAMAGE,
+  HEAD_DAMAGE,
+  HEAD_FACTOR,
+  damageFor,
+  headOf,
+  hitZone,
+  type HitBody,
+} from './npcHit';
 
 const body: HitBody = { feet: { x: 0, y: 0, z: 0 }, height: 1.8, radius: 0.3 };
 
@@ -58,14 +66,24 @@ describe('Wohin ein Schuss geht', () => {
     expect(hitZone({ x: 0, y: 3, z: -3 }, { x: 0, y: 0.6, z: 0.4 }, body)).not.toBeNull();
   });
 
-  it('rechnet einen Kopfschuss dreimal so teuer wie einen in den Rumpf', () => {
+  it('rechnet einen Kopfschuss viermal so teuer wie einen in den Rumpf', () => {
     expect(damageFor('head')).toBe(HEAD_DAMAGE);
     expect(damageFor('body')).toBe(BODY_DAMAGE);
-    expect(HEAD_DAMAGE).toBeGreaterThan(BODY_DAMAGE * 2);
+    expect(HEAD_DAMAGE).toBe(BODY_DAMAGE * HEAD_FACTOR);
   });
 
-  it('nimmt einen NPC mit hundert Leben in drei Rumpftreffern um', () => {
-    expect(BODY_DAMAGE * 3).toBeGreaterThanOrEqual(100);
-    expect(BODY_DAMAGE * 2).toBeLessThan(100);
+  it('nimmt die Zahl der Waffe statt einer festen', () => {
+    expect(damageFor('body', 60)).toBe(60);
+    expect(damageFor('head', 60)).toBe(240);
+  });
+
+  // Die Zahl, wegen der es diesen Test gibt: Ein Zombie hat hundert Leben, die
+  // Pistole macht fünfundzwanzig — vier Schuss in den Rumpf, **oder einer in
+  // den Kopf**. Wer an einer der beiden Zahlen dreht, bricht hier.
+  it('nimmt einen Zombie in vier Pistolenschüssen um — oder in einem Kopfschuss', () => {
+    const pistol = 25;
+    expect(damageFor('body', pistol) * 3).toBeLessThan(100);
+    expect(damageFor('body', pistol) * 4).toBeGreaterThanOrEqual(100);
+    expect(damageFor('head', pistol)).toBeGreaterThanOrEqual(100);
   });
 });

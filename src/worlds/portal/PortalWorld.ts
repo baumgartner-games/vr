@@ -153,6 +153,9 @@ import {
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
+import { BODY_DAMAGE } from '../npc/npcHit';
+import { NPC_BAR_MODES, type BarMode } from '../npc/NpcBody';
+import { newSwing, swingHit, swingStep, type SwingState } from './tools/meleeSwing';
 import { BRAINS, brainLabel } from '../npc/npcBrains';
 import { npcSettings, saveNpcSettings } from './tools/gearStore';
 import { withBrain, withKind } from '../npc/npcSettings';
@@ -304,6 +307,10 @@ const _probe = new THREE.Vector3();
 const _placeUp = new THREE.Vector3();
 const _target = new THREE.Vector3();
 const _velocity = new THREE.Vector3();
+/** Die Spitze eines Werkzeugs, das gerade zuschlägt, und ihre Strecke. */
+const _swingTip = new THREE.Vector3();
+const _swingFrom = new THREE.Vector3();
+const _swingTo = new THREE.Vector3();
 const _head = new THREE.Vector3();
 const _cross = new THREE.Vector3();
 const _point = new THREE.Vector3();
@@ -395,6 +402,8 @@ interface Flight {
 interface Bullet {
   entry: PhysicsBody;
   life: number;
+  /** Was ein Rumpftreffer damit abzieht (`npc/npcHit.ts`). */
+  damage: number;
   /** Tracer rounds drag a streak behind them; plain ones do not. */
   trail: Trail | null;
   /** Where it was last frame — the segment a hit is looked for along. */
@@ -691,6 +700,12 @@ export class PortalWorld implements World {
    */
   private readonly loose = new Map<PhysicsBody, LooseTool>();
   /**
+   * Was jede schlagende Spitze sich zwischen zwei Bildern merkt
+   * (`tools/meleeSwing.ts`) — je Werkzeug eine, und nur solange es in einer
+   * Hand liegt.
+   */
+  private readonly swings = new Map<Tool, SwingState>();
+  /**
    * Die Hände, die gerade am Griff der anderen stehen und deren Werkzeug
    * übernehmen könnten — jedes Bild neu gefüllt (`updateGrabs`).
    *
@@ -744,6 +759,8 @@ export class PortalWorld implements World {
   private navTrackTimer = 0;
   /** Welche Ebenen der Debug-Ansicht gerade an sind (`nav/navLayers.ts`). */
   private navLayers: NavLayerState = noLayers();
+  /** Wann die Lebensbalken über den NPCs zu sehen sind (`npc/NpcBody.ts`). */
+  private npcBars: BarMode = 'hurt';
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -803,6 +820,7 @@ export class PortalWorld implements World {
       notify: (message) => this.context?.notify(message),
       nav: () => this.nav,
     });
+    this.director.setBars(this.npcBars);
     this.host = this.buildHost(ctx);
     this.keys = new KeyPanel();
     this.root.add(this.keys);
@@ -1096,6 +1114,19 @@ export class PortalWorld implements World {
   }
 
   /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
+  /**
+   * Wann die Lebensbalken zu sehen sind — auch für die Vorschau der
+   * Werkzeugseite, die kein Handgelenk-Menü hat.
+   */
+  protected setNpcBars(mode: BarMode): void {
+    this.npcBars = mode;
+    this.director?.setBars(mode);
+  }
+
+  protected npcBarMode(): BarMode {
+    return this.npcBars;
+  }
+
   protected navLayerState(): Readonly<NavLayerState> {
     return this.navLayers;
   }
@@ -1197,6 +1228,39 @@ export class PortalWorld implements World {
       brainRow.label = `Hirn: ${brainLabel(npcSettings().brain)}`;
     });
 
+    /**
+     * **Die Lebensbalken** — eine Zeile mit drei Stellungen.
+     *
+     * Sie steht hier und nicht bei den Debug-Ebenen der Navigation, obwohl
+     * beides „etwas sichtbar machen" ist: Ein Balken ist keine Hilfslinie,
+     * sondern gehört zu dem, der ihn trägt. Wer wissen will, ob seine Pistole
+     * wirklich fünfundzwanzig abzieht, stellt hier auf *immer*.
+     */
+    const barsLabel = (): string =>
+      NPC_BAR_MODES.find((mode) => mode.id === (this.director?.bars ?? 'hurt'))?.label ?? 'aus';
+    const barsRow: MenuEntry = {
+      id: 'npc:bars',
+      label: `Lebensbalken: ${barsLabel()}`,
+      sub: 'Wann der Balken über einem NPC zu sehen ist',
+      icon: 'npc',
+      accent: 0x5ee0a0,
+      children: NPC_BAR_MODES.map((mode) => ({
+        id: `npc:bars:${mode.id}`,
+        label: mode.label,
+        sub: mode.sub,
+        icon: 'npc',
+        accent: 0x5ee0a0,
+        run: () => {
+          this.setNpcBars(mode.id);
+          this.refreshMenuLabels();
+          ctx().notify(`Lebensbalken: ${mode.label}`);
+        },
+      })),
+    };
+    this.menuLabels.push(() => {
+      barsRow.label = `Lebensbalken: ${barsLabel()}`;
+    });
+
     return {
       id: 'npc',
       label: 'NPC',
@@ -1213,6 +1277,7 @@ export class PortalWorld implements World {
           run: () => this.placeNpc(ctx(), skin.id),
         })),
         brainRow,
+        barsRow,
         this.navMenu(),
         {
           id: 'npc:spawn',
@@ -1552,6 +1617,13 @@ export class PortalWorld implements World {
           'Masse der Kugel — wie hart sie zuschlägt',
           () => `${pistol.powerLabel} · ${weapon().mass} kg`,
           () => pistol.cyclePower(),
+        ),
+        dial(
+          'damage',
+          'Schaden',
+          'Was ein Rumpftreffer abzieht — der Kopf das Vierfache',
+          () => `${weapon().damage}`,
+          () => pistol.cycleDamage(),
         ),
         dial(
           'speed',
@@ -3838,6 +3910,55 @@ export class PortalWorld implements World {
       tool.update(dt, host, controller);
     }
     this.updateLooseTools(dt);
+    this.updateMelee(dt);
+  }
+
+  /**
+   * **Was eine Klinge in der Hand anrichtet.**
+   *
+   * Eine Kugel fliegt los und trifft; ein Messer liegt in der Hand und ist
+   * immer irgendwo. Der Unterschied ist der Grund, warum hier nicht dieselbe
+   * Zeile steht wie bei den Kugeln, sondern eine eigene Rechnung davor
+   * (`tools/meleeSwing.ts`): Ein Schlag braucht **Tempo** und danach eine
+   * **Pause**, sonst tötet ein hingehaltenes Messer sechzigmal in der Sekunde.
+   *
+   * Getroffen wird entlang der Strecke, die die Spitze seit dem letzten Bild
+   * gefahren ist — dieselbe Frage wie bei einer Kugel, nur über zehn
+   * Zentimeter statt über zwei Meter (`npc/npcHit.ts`).
+   */
+  private updateMelee(dt: number): void {
+    const director = this.director;
+    if (!director) {
+      this.swings.clear();
+      return;
+    }
+    for (const tool of this.swings.keys()) {
+      // Weggelegt, umgehängt, geworfen: was nicht mehr in einer Hand liegt,
+      // fängt beim nächsten Mal von vorn an — sonst zieht die erste Bewegung
+      // danach eine Strecke quer durch den Raum.
+      if (this.held.get(tool.heldBy ?? 'left') !== tool) this.swings.delete(tool);
+    }
+
+    for (const tool of this.held.values()) {
+      if (tool.meleeDamage <= 0 || !tool.meleeTip(_swingTip)) continue;
+      let state = this.swings.get(tool);
+      if (!state) {
+        state = newSwing();
+        this.swings.set(tool, state);
+      }
+      const swing = swingStep(state, _swingTip, dt);
+      if (!swing) continue;
+      _swingFrom.set(swing.from.x, swing.from.y, swing.from.z);
+      _swingTo.set(swing.to.x, swing.to.y, swing.to.z);
+      const zone = director.hit(_swingFrom, _swingTo, tool.meleeDamage);
+      if (!zone) continue;
+      swingHit(state);
+      // Dieselbe Rückmeldung wie beim Hammer an einer Kiste: ein Stoß in die
+      // Hand und ein tiefer Ton. Ein Treffer, den man nicht spürt, ist in der
+      // Brille keiner.
+      if (tool.heldBy) this.context?.input.get(tool.heldBy)?.pulse(0.9, 45);
+      playTone({ type: 'square', from: 320, to: 90, duration: 0.1, gain: 0.06 });
+    }
   }
 
   /** True while a tool in the *other* hand has taken hold of this one too. */
@@ -4193,15 +4314,34 @@ export class PortalWorld implements World {
       }
       _ray.origin.copy(_point);
       _ray.direction.copy(_velocity).divideScalar(speed);
-      const hit = this.castSurface(_ray, speed * dt + STICK_MARGIN, this.solids);
+      const reach = speed * dt + STICK_MARGIN;
+
+      // **Erst die Leute, dann die Wand.** Ein geworfenes Messer, das in einem
+      // Zombie steckt, hat ihn getroffen und nicht die Wand dahinter — und die
+      // Strecke ist bei 15 m/s einen Vierteldemeter lang, also länger als ein
+      // Zombie dick ist.
+      if (loose.tool.meleeDamage > 0 && this.director) {
+        _swingTo.copy(_point).addScaledVector(_ray.direction, reach);
+        const zone = this.director.hit(_point, _swingTo, loose.tool.meleeDamage);
+        if (zone) {
+          // Es bleibt **nicht** stecken, sondern fällt: Wo es steckte, geht
+          // gleich jemand um, und ein Messer, das in der Luft hängt, wo eben
+          // noch ein Zombie stand, sieht nach einem Fehler aus.
+          loose.gliding = false;
+          playTone({ type: 'square', from: 380, to: 120, duration: 0.1, gain: 0.05 });
+          continue;
+        }
+      }
+
+      const hit = this.castSurface(_ray, reach, this.solids);
       if (hit) {
         // A hair *into* the wall, so it reads as stuck rather than as resting
         // against it.
         this.stickTool(loose, _point.copy(hit.point).addScaledVector(_ray.direction, 0.02));
         continue;
       }
-      const reach = this.glideProp(loose, speed * dt + STICK_MARGIN);
-      if (reach !== null) this.stickTool(loose, _point.addScaledVector(_ray.direction, reach));
+      const along = this.glideProp(loose, reach);
+      if (along !== null) this.stickTool(loose, _point.addScaledVector(_ray.direction, along));
     }
   }
 
@@ -4706,6 +4846,7 @@ export class PortalWorld implements World {
     const physics = this.physics;
     if (!physics) return;
     const mass = options.mass ?? 0.06;
+    const damage = options.damage ?? BODY_DAMAGE;
     // A heavier round is a bigger one — otherwise "brutal" looks like "leicht".
     const radius = 0.014 * Math.cbrt(mass / 0.06);
     const tracer = options.tracer === true;
@@ -4735,6 +4876,7 @@ export class PortalWorld implements World {
     this.bullets.push({
       entry,
       life: BULLET_LIFETIME,
+      damage,
       trail: tracer ? this.newTrail() : null,
       from: mesh.position.clone(),
       spent: false,
@@ -4802,7 +4944,7 @@ export class PortalWorld implements World {
       // is a line, not a point. Worlds that count hits get that line.
       if (!bullet.spent) {
         _point.set(t.x, t.y, t.z);
-        if (this.bulletTravelled(bullet.from, _point)) bullet.spent = true;
+        if (this.bulletTravelled(bullet.from, _point, bullet.damage)) bullet.spent = true;
       }
       bullet.from.set(t.x, t.y, t.z);
       if (bullet.life > 0 && t.y > -30) continue;
@@ -4823,8 +4965,8 @@ export class PortalWorld implements World {
    *
    * @returns true when the round was used up by whatever it ran into
    */
-  protected bulletTravelled(from: THREE.Vector3, to: THREE.Vector3): boolean {
-    return this.director?.shoot(from, to) ?? false;
+  protected bulletTravelled(from: THREE.Vector3, to: THREE.Vector3, damage?: number): boolean {
+    return this.director?.shoot(from, to, damage) ?? false;
   }
 
   private clearBullets(): void {

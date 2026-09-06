@@ -209,7 +209,11 @@ export class RangeWorld extends PortalWorld {
    * position: at 120 m/s a bullet moves two metres between two frames, and a
    * target it went straight through would otherwise never have been touched.
    */
-  protected override bulletTravelled(from: THREE.Vector3, to: THREE.Vector3): boolean {
+  protected override bulletTravelled(
+    from: THREE.Vector3,
+    to: THREE.Vector3,
+    damage?: number,
+  ): boolean {
     for (const entry of this.switches) {
       if (!segmentHitsBox(entry.body, from, to)) continue;
       entry.toggle();
@@ -231,7 +235,7 @@ export class RangeWorld extends PortalWorld {
     // Und was hier nicht zählt, zählt vielleicht die Halle: dort laufen die
     // NPCs herum, und eine Kugel, die keine Scheibe trifft, kann einen von
     // ihnen treffen.
-    return super.bulletTravelled(from, to);
+    return super.bulletTravelled(from, to, damage);
   }
 
   /**

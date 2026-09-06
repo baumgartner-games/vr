@@ -140,6 +140,10 @@ export class HammerTool extends Tool {
     this.icon = 'hammer';
     this.accent = 0xc98b52;
     this.hint = 'Überall am Stiel greifen · zweite Hand dazu · Trigger schiebt die Hand';
+    // Ein Zombie hat hundert Leben (`npc/npcKinds.ts`) — ein Schlag mit dem
+    // großen Hammer ist genau das. Er ist die langsamste Waffe im Spiel, man
+    // muss ihn erreichen und ausholen; wer das schafft, hat es verdient.
+    this.meleeDamage = 100;
     // **Eingemessen in der Brille** und nicht am Schreibtisch gesetzt: der
     // Stiel liegt so in der Faust, wie der Controller wirklich darin liegt
     // (`HAMMER_HOLD`, aus dem Kurzcode `BPcMCn7Vw2xWajnzvwfCTCQjsWgsnUF`).
@@ -454,6 +458,12 @@ export class HammerTool extends Tool {
       const at = this.gripUnder(controller);
       if (at !== null) this.grips[side] = at;
     }
+  }
+
+  /** Der Kopf, für den Schlag gegen einen NPC (`meleeSwing.ts`). */
+  override meleeTip(target: THREE.Vector3): boolean {
+    this.head.getWorldPosition(target);
+    return true;
   }
 
   /** Was der Kopf trifft, und wie schnell er dabei war. */
