@@ -94,6 +94,7 @@ const TOOLS = [
   'controller-right',
   'teleport',
   'hammer',
+  'map',
 ] as const;
 
 /** Attachment ids. Append only, same rule. */

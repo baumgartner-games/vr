@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { NavLayer, NavLayerState } from '../nav/navLayers';
+import type { MapScene } from './mapScene';
 import type { BarMode } from '../npc/NpcBody';
 
 /**
@@ -48,8 +49,33 @@ export interface LivePreview {
    */
   readonly target: THREE.Object3D;
 
-  /** Setzt sie auf diesen Punkt (Füße, Weltkoordinaten). */
-  moveTarget(at: THREE.Vector3): void;
+  /**
+   * Setzt sie auf diesen Punkt (Füße, Weltkoordinaten).
+   *
+   * Drei Zahlen und kein `Vector3`: Der Aufrufer ist womöglich eine Karte, und
+   * eine Karte rechnet in Metern und nicht in three.js.
+   */
+  moveTarget(at: { x: number; y: number; z: number }): void;
+
+  /**
+   * **Die Karte dieser Welt**, so wie sie gerade aussieht
+   * (`mapScene.ts`) — `null`, solange es kein Gitter gibt.
+   *
+   * Jedes Mal frisch: Was darauf steht, bewegt sich. Der Aufrufer entscheidet,
+   * wie oft er fragt — die Seite tut es jedes Bild, eine Tafel in der Brille
+   * fünfmal je Sekunde.
+   */
+  scene(): MapScene | null;
+
+  /**
+   * **Alles zurück auf Anfang** — weg mit dem, was läuft, und das Ziel wieder
+   * an seinen Platz.
+   *
+   * Der eine Knopf, den ein Labor wirklich braucht: Nach vier Szenarien steht
+   * überall etwas herum, und sie einzeln abzuräumen ist die Arbeit, wegen der
+   * man es sein lässt.
+   */
+  reset(): void;
 
   /** Welche Debug-Ebenen gerade an sind. */
   layers(): Readonly<NavLayerState>;
@@ -65,6 +91,12 @@ export interface LivePreview {
 
 /** Ein Knopf in der Welt, den eine Vorschau anbietet. */
 export interface PreviewButton {
+  /**
+   * Seine Kennung — dieselbe, unter der er als Marke auf der Karte steht
+   * (`mapScene.ts`: `MapMark.id`). Ein Tipp auf die Karte findet darüber
+   * zurück zu diesem Knopf.
+   */
+  id: string;
   /**
    * Das Ding im Bild — daran wird getippt, und daran erkennt die Seite auch,
    * welcher Knopf gemeint war.

@@ -104,9 +104,12 @@ Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen; mit
 **Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
 hinein) — und **Laufen lassen**: dieselbe Welt mit echter Physik, Gitter und
-NPCs, senkrecht von oben, mit den Knöpfen der Welt als Zeilen daneben, den fünf
-Debug-Ebenen des Navigationsgitters als Schalter und einem **Ziel**, das ein
-Tipp auf den Boden versetzt und dem die NPCs nachlaufen. Im
+NPCs, als **Karte** von oben. Jeder Knopf der Welt ist darauf ein Quadrat mit
+seinem Namen — antippen drückt ihn —, ein Tipp auf den Boden setzt das **Ziel**,
+dem die NPCs nachlaufen, und man sieht zu, welchen Weg das Gitter hergibt. Die
+Karte kommt aus dem Navigationsgitter und gilt deshalb für **jede** Welt, die
+eines hat; in der Brille zeigt sie das Werkzeug **Karte** auf einer Tafel über
+der Faust, wahlweise ganz oder als mitlaufender Ausschnitt. Im
 [Navigationslabor](https://baumgartner-games.github.io/vr/tools.html#welt/navlab)
 ist das die ganze Brille, die man zum Zusehen braucht. Dazu der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen) und die **NPCs** (jede

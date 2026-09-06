@@ -152,6 +152,7 @@ import {
   type NavLayerState,
 } from '../nav/navLayers';
 import type { LivePreview, PreviewButton } from '../shared/livePreview';
+import { pathSpots, sceneFromGraph, type MapMark, type MapScene } from '../shared/mapScene';
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
@@ -2914,6 +2915,11 @@ export class PortalWorld implements World {
     const live: LivePreview = {
       buttons: this.previewButtons(),
       step: (dt) => this.stepPreview(dt),
+      scene: () => this.mapScene(),
+      reset: () => {
+        this.previewReset();
+        ghost.position.copy(this.spawnPoint());
+      },
       target: ghost,
       moveTarget: (at) => ghost.position.copy(at),
       layers: () => this.navLayerState(),
@@ -2944,6 +2950,60 @@ export class PortalWorld implements World {
         this.physics = null;
       },
     };
+  }
+
+  /**
+   * **Die Karte dieser Welt** (`shared/mapScene.ts`) — der Grundriss aus dem
+   * Navigationsgitter, dazu alles, was gerade darauf herumsteht.
+   *
+   * Sie steht hier und nicht in jeder Welt einzeln, und sie kommt aus dem
+   * **Gitter** und nicht aus der Geometrie: Damit hat jede Welt, die
+   * navigierbar ist, eine Karte, ohne eine Zeile dafür zu schreiben — das
+   * Labor, Dust, der Mond. Was eine Welt beisteuern *darf*, sind eigene Marken
+   * (`mapMarks`): das Labor stellt seine Knöpfe darauf.
+   *
+   * `null`, solange kein Gitter da ist. Eine Karte ohne Grundriss wäre ein
+   * leeres Blatt, und ein leeres Blatt beantwortet keine Frage.
+   */
+  mapScene(): MapScene | null {
+    const graph = this.nav;
+    if (!graph) return null;
+    const scene = sceneFromGraph(graph, this.navBounds() ?? undefined);
+    if (this.director) {
+      scene.marks.push(...this.director.marks());
+      for (const path of this.director.paths()) scene.paths.push(pathSpots(graph, path));
+    }
+    const player = this.playerFeet(_point);
+    if (player) {
+      scene.marks.push({
+        kind: this.ghost ? 'target' : 'player',
+        x: player.x,
+        z: player.z,
+        color: 0x39d0ff,
+        yaw: this.playerYaw(),
+      });
+    }
+    scene.marks.push(...this.mapMarks());
+    return scene;
+  }
+
+  /**
+   * Was diese Welt außer ihrem Grundriss auf der Karte stehen hat.
+   *
+   * Leer voreingestellt. Das Labor trägt hier seine Knöpfe ein — auf der Karte
+   * sind sie das, was man antippt, und ein Knopf, den man von oben sieht, ist
+   * einfacher zu treffen als eine Kuppel in einer 3D-Ansicht.
+   */
+  protected mapMarks(): MapMark[] {
+    return [];
+  }
+
+  /** Wohin der Spieler schaut — für den Pfeil auf der Karte. */
+  private playerYaw(): number {
+    const ctx = this.context;
+    if (!ctx) return 0;
+    ctx.rig.getHeadForward(_direction);
+    return Math.atan2(-_direction.x, -_direction.z);
   }
 
   /**
@@ -2986,6 +3046,16 @@ export class PortalWorld implements World {
 
   /** Eine Ebene wurde von außen umgelegt — die Welt zieht ihre Anzeigen nach. */
   protected previewLayersChanged(): void {}
+
+  /**
+   * **Zurück auf Anfang.** Voreingestellt: weg mit allem, was herumläuft.
+   *
+   * Eine Welt mit eigenen Zuständen räumt hier ihre mit weg — das Labor seine
+   * sechs Szenarien samt Türen, Kisten und Portalen.
+   */
+  protected previewReset(): void {
+    this.director?.clear();
+  }
 
   /**
    * Die Kulisse dieser Welt, ohne Spiel darin — für die Werkzeugseite.
@@ -4686,6 +4756,7 @@ export class PortalWorld implements World {
       unparkTool: (tool) => this.unparkTool(tool),
       stowTool: (tool) => this.stowTool(tool),
       npcs: (): NpcControl | null => this.director,
+      map: (): MapScene | null => this.mapScene(),
       takeTool: (tool, hand) => {
         const now = this.context;
         const controller = now?.input.get(hand);

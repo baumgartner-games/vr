@@ -16,6 +16,7 @@ import {
   type SpawnerState,
 } from './npcSpawn';
 import { disposeTree } from '../shared/environment';
+import type { MapMark } from '../shared/mapScene';
 import {
   GROUP_WORLD,
   ALL_GROUPS,
@@ -472,6 +473,37 @@ export class NpcDirector implements NpcControl {
     for (const npc of this.npcs) {
       if (!npc.alive || npc.path.length < 2) continue;
       found.push([...npc.path]);
+    }
+    return found;
+  }
+
+  /**
+   * **Wer gerade wo steht** — für die Karte (`shared/mapScene.ts`).
+   *
+   * Eine flache Liste aus Zahlen und Farben und keine `Npc`-Objekte: Was die
+   * Karte zeichnet, soll nichts über Physik, Hirne und Wegsucher wissen
+   * müssen, und was hier herausgeht, geht auch in eine Minikarte in der Brille.
+   * Die Gefallenen bleiben draußen — ein Punkt auf der Karte ist jemand, der
+   * noch etwas vorhat.
+   */
+  marks(): MapMark[] {
+    const found: MapMark[] = [];
+    for (const npc of this.npcs) {
+      if (!npc.alive) continue;
+      npc.feet(_probe);
+      found.push({
+        kind: 'npc',
+        x: _probe.x,
+        z: _probe.z,
+        color: npc.skin.accent,
+        health: npc.health / npc.maxHealth,
+      });
+    }
+    for (const cage of this.cages) {
+      found.push({ kind: 'point', x: cage.at.x, z: cage.at.z, color: 0xffc857 });
+    }
+    for (const mark of this.points) {
+      found.push({ kind: 'point', x: mark.at.x, z: mark.at.z, color: 0x5ee0a0 });
     }
     return found;
   }
