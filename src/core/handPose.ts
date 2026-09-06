@@ -585,6 +585,8 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   'tape',
   'eraser',
   'xray',
+  // Der Handspiegel: derselbe Rahmen über derselben Faust wie der Scanner.
+  'mirror',
   // Der Lötkolben trägt den Griff quer unter sich, wie eine Lötpistole. Die
   // Taschenlampe tat das eine Weile auch — „eine Lampe mit Griff wie ein
   // Megaphon" — und liegt jetzt als **Stab** im Griffpunkt, um 45° nach vorn

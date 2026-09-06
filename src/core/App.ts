@@ -34,6 +34,7 @@ import {
 } from './posture';
 import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
 import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
+import { MirrorRenderer } from '../worlds/shared/Mirror';
 import type { PlayerRole, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
 import type { Peer } from '../net/NetSession';
@@ -98,6 +99,16 @@ export class App {
   readonly voice: Voice;
   private readonly flat: FlatControls;
   private readonly hooks: AppHooks;
+  /**
+   * Die Spiegelbilder — bei der App und nicht bei einer Welt.
+   *
+   * Ein Spiegel ist ein Ding wie jedes andere: Er kommt als Handspiegel aus
+   * dem Werkzeugregal oder als Standspiegel aus dem Beutel, und beide reisen
+   * mit ihrem Träger durch jede Welt. Er sucht sich seine Flächen deshalb
+   * selbst in der Szene (`worlds/shared/Mirror.ts`) — eine Welt, die von
+   * Spiegeln wüsste, wäre eine Welt, in der man einen vergessen kann.
+   */
+  private readonly mirrors: MirrorRenderer;
 
   private world: World | null = null;
   private worldMenu: MenuEntry[] = [];
@@ -156,6 +167,7 @@ export class App {
       0.05,
       700,
     );
+    this.mirrors = new MirrorRenderer(this.renderer);
     this.rig = new PlayerRig(this.renderer, this.camera);
     this.scene.add(this.rig);
 
@@ -438,6 +450,7 @@ export class App {
     this.avatars.dispose();
     this.voice.dispose();
     this.spectator.dispose();
+    this.mirrors.dispose();
     this.net.disconnect();
     this.renderer.dispose();
   }
@@ -1129,6 +1142,9 @@ export class App {
     this.voice.update(dt, this.camera, this.avatars);
     if (this.menuDirty) this.refreshMenu();
 
+    // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
+    // sich die Welt gleich selbst zeichnet.
+    this.mirrors.render(this.scene, this.camera);
     const rendered = this.world?.render?.(context) ?? false;
     if (!rendered) this.renderer.render(this.scene, this.camera);
   };

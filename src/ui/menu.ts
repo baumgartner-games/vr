@@ -48,6 +48,11 @@ export type MenuIcon =
   | 'rod'
   | 'marble'
   | 'bottle'
+  // Die beiden Spiegel: der Handspiegel am Stiel, der Standspiegel im Bügel.
+  // Beide tragen denselben Schrägstrich über dem Glas — daran erkennt man im
+  // Raster einen Spiegel und nicht irgendeinen Rahmen.
+  | 'mirror'
+  | 'mirror-stand'
   // Die NPC-Kategorie: einer, der herumläuft, das Hirn dahinter, der Zombie
   // selbst und der Käfig, aus dem immer wieder einer kommt.
   | 'npc'
@@ -934,6 +939,34 @@ export function drawMenuIcon(
       ctx.fill();
       break;
     }
+    case 'mirror': {
+      // Der Handspiegel: ovales Glas über einem kurzen Stiel.
+      ctx.beginPath();
+      ctx.ellipse(0, -s * 0.28, s * 0.5, s * 0.58, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.3);
+      ctx.lineTo(0, s * 0.88);
+      ctx.stroke();
+      shine(ctx, -s * 0.28, s * 0.26, s * 0.3);
+      break;
+    }
+    case 'mirror-stand': {
+      // Der Standspiegel: hohes Glas zwischen zwei Pfosten, auf einem Fuß.
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.38, -s * 0.88, s * 0.76, s * 1.42, s * 0.1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.62, -s * 0.82);
+      ctx.lineTo(-s * 0.62, s * 0.7);
+      ctx.moveTo(s * 0.62, -s * 0.82);
+      ctx.lineTo(s * 0.62, s * 0.7);
+      ctx.moveTo(-s * 0.78, s * 0.82);
+      ctx.lineTo(s * 0.78, s * 0.82);
+      ctx.stroke();
+      shine(ctx, -s * 0.18, s * 0.2, s * 0.42);
+      break;
+    }
     case 'd4':
     case 'd6':
     case 'd8':
@@ -954,6 +987,21 @@ export function drawMenuIcon(
  * Fünf Ikonen aus einer Zeichnung, weil sie sich nur in zwei Zahlen
  * unterscheiden — wie viele Ecken der Umriss hat und was darin steht.
  */
+/**
+ * Der Schrägstrich auf einem Glas — zwei Striche quer über die Fläche.
+ *
+ * Ohne ihn ist ein Spiegel im Raster ein leerer Rahmen, und ein leerer Rahmen
+ * ist im Menü schon vergeben (die Leinwand). Zwei Striche machen daraus Glas.
+ */
+function shine(ctx: CanvasRenderingContext2D, cy: number, half: number, reach: number): void {
+  ctx.beginPath();
+  for (const offset of [-half, half]) {
+    ctx.moveTo(offset - reach * 0.5, cy + reach);
+    ctx.lineTo(offset + reach * 0.5, cy - reach);
+  }
+  ctx.stroke();
+}
+
 function drawDie(ctx: CanvasRenderingContext2D, kind: MenuIcon, s: number): void {
   const corners =
     kind === 'd4' ? 3 : kind === 'd6' ? 4 : kind === 'd8' ? 4 : kind === 'd12' ? 5 : 6;

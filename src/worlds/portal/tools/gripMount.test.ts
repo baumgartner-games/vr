@@ -28,6 +28,7 @@ import { HangGliderTool } from './HangGliderTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
 import { KnifeTool } from './KnifeTool';
+import { MirrorTool } from './MirrorTool';
 import { PistolTool } from './PistolTool';
 import { createPortalGunTool } from './PortalGunTool';
 import { StopwatchTool } from './StopwatchTool';
@@ -82,6 +83,7 @@ const BUILDERS: Record<string, () => Tool> = {
   tape: () => new TapeTool(),
   eraser: () => new EraserTool(),
   xray: () => new XrayTool(),
+  mirror: () => new MirrorTool(),
   knife: () => new KnifeTool(),
   stopwatch: () => new StopwatchTool(),
   flashlight: () => new FlashlightTool(),
