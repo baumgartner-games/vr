@@ -466,6 +466,8 @@ export class ToolViewer {
   private readonly extent = new THREE.Vector3();
   /** Ob gerade senkrecht von oben gesehen wird (`lookDown`). */
   private topDown = false;
+  /** Und ob die Welt dabei quer liegt, weil das Bild hochkant ist. */
+  private topTurn = false;
   /**
    * Höhe eines waagerechten Schnitts durch das Gezeigte, oder `null`.
    *
@@ -608,6 +610,7 @@ export class ToolViewer {
     // Eine neue Bühne fängt von außen an; die Draufsicht ist ein Griff, den
     // jemand tut, und keine Einstellung, die über den Wechsel hinweg gilt.
     this.topDown = false;
+    this.topTurn = false;
     this.studio.visible = !options.ownLight;
     this.flat = options.flat ?? false;
     this.setCut(options.cut ?? null);
@@ -1426,8 +1429,12 @@ export class ToolViewer {
     // einem breiten Fenster mehr als ein Drittel. Gerechnet wird mit den
     // Kanten des **ungedrehten** Kastens (`extent`): quer die Breite, längs die
     // Tiefe unter dem Kippwinkel plus die Höhe, die dabei aufragt.
-    const wide = this.topDown ? this.extent.x / 2 : this.footprint;
-    const along = this.topDown ? this.extent.z / 2 : this.footprint;
+    // Quergelegt tauschen die beiden Kanten die Rollen — die Tiefe liegt dann
+    // quer im Bild und die Breite längs.
+    const across = this.topTurn ? this.extent.z : this.extent.x;
+    const deep = this.topTurn ? this.extent.x : this.extent.z;
+    const wide = this.topDown ? across / 2 : this.footprint;
+    const along = this.topDown ? deep / 2 : this.footprint;
     const tall = this.topDown ? this.extent.y / 2 : this.height;
     const high = along * Math.sin(tilt) + tall * Math.cos(tilt);
     return PADDING * Math.max(wide / Math.tan(horizontal), high / Math.tan(vertical));
@@ -1736,12 +1743,21 @@ export class ToolViewer {
     this.fly = null;
     this.spinning = false;
     this.topDown = true;
-    this.yaw = 0;
+    // **Quer legen, wenn das Bild hochkant ist.** Ein Labor von 75 × 51 Metern
+    // in einem Telefon im Hochformat füllt die Breite und lässt oben und unten
+    // je ein Drittel leer; eine Vierteldrehung legt seine lange Kante auf die
+    // lange Kante des Bildes und macht es doppelt so groß. Gefragt wird die
+    // **Leinwand** und nicht die Kamera: Deren Seitenverhältnis wird erst im
+    // nächsten Bild nachgezogen, und dieses hier entscheidet jetzt.
+    const upright = this.canvas.clientHeight > this.canvas.clientWidth;
+    const wideWorld = this.extent.x > this.extent.z;
+    this.topTurn = upright === wideWorld;
+    this.yaw = this.topTurn ? Math.PI / 2 : 0;
     this.pitch = TOP_PITCH;
     // Die Ansicht, auf die der Doppeltipp zurückgeht, ist ab jetzt diese: Wer
     // von oben zusieht und zwischendurch etwas heranholt, will beim
     // Zurückstellen wieder von oben sehen und nicht wieder von schräg vorn.
-    this.home = { yaw: 0, pitch: TOP_PITCH };
+    this.home = { yaw: this.yaw, pitch: TOP_PITCH };
     this.zoom = 1;
     this.fit();
     this.sizeLines();
