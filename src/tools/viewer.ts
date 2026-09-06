@@ -10,6 +10,7 @@ import {
   type FingerButtons,
 } from '../core/handPose';
 import { createTool } from '../worlds/portal/tools';
+import { TOOL_HOME, stageForGrip } from './handStage';
 import { GRIP_TO_RAY, STANDARD_GRIP_IN_HAND } from '../worlds/portal/tools/gripFit';
 import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
 import {
@@ -83,6 +84,14 @@ import type { WorldPreview } from '../core/types';
  * am Controller der Griffraum in der Bühne, das Werkzeug war weg und die
  * Scheibe stand plötzlich schräg unten links — zwei Bilder, die man nicht
  * vergleichen konnte.
+ *
+ * **Und sie steht bei jedem Werkzeug gleich herum.** Die Bühne wird so
+ * gedreht, dass die echte Hand überall dieselbe Lage hat und ihr Zeigestrahl
+ * waagerecht quer durchs Bild auf die Scheibe läuft (`tools/handStage.ts`) —
+ * in allen drei Ansichten dieselbe Drehung, sonst spränge beim Umschalten
+ * wieder die Welt. Schräg im Bild liegt danach nur noch, was auch in der Hand
+ * schräg liegt: die Taschenlampe zeigt an der Scheibe vorbei, weil man sie so
+ * hält.
  *
  * Der grüne **Halterzylinder** gehört zum Werkzeug und bleibt, wo er ist: er
  * ist das, was alle Waffen einander ähnlich macht. Der rote Zylinder daneben
@@ -384,6 +393,18 @@ export class ToolViewer {
    * Gegenteil — dann stünde das Werkzeug und die Hand drehte sich darunter.
    */
   private gripBase: Pose | null = null;
+  /**
+   * **Die Drehung, die die echte Hand hinstellt** (`HAND_IN_STAGE`) — oder
+   * `null`, solange sie neu gerechnet werden darf.
+   *
+   * Beim Ansehen wird sie in jedem `apply` frisch aus der Lage des Griffraums
+   * gerechnet; beim **Justieren** ist sie eingefroren, aus demselben Grund wie
+   * `gripBase`: in *Hand in VR* steht das Werkzeug still und die gezeichnete
+   * Hand wandert daran. Führte die Bühne die echte Hand dabei nach, drehte sich
+   * stattdessen das Werkzeug unter ihr weg, und man justierte gegen ein Bild,
+   * das sich mitbewegt.
+   */
+  private align: THREE.Quaternion | null = null;
   /** Die gezeichnete Hand als Geist — nur beim Justieren in *Hand in echt*. */
   private vrHand: GhostHand | null = null;
   /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
@@ -398,7 +419,7 @@ export class ToolViewer {
   /** Wie schnell sich das Gezeigte von selbst dreht — nur eine Welt tut das. */
   private spin = 0;
   /** Die Ansicht, auf die der Doppeltipp zurückgeht. */
-  private home = { yaw: 0.6, pitch: 0.35 };
+  private home = { ...TOOL_HOME };
   /**
    * Höhe eines waagerechten Schnitts durch das Gezeigte, oder `null`.
    *
@@ -496,7 +517,7 @@ export class ToolViewer {
       this.aimLine = line;
     }
     this.flat = false;
-    this.home = { yaw: 0.6, pitch: 0.35 };
+    this.home = { ...TOOL_HOME };
     this.yaw = this.home.yaw;
     this.pitch = this.home.pitch;
     this.zoom = 1;
@@ -517,7 +538,7 @@ export class ToolViewer {
     this.options = options;
     this.shownFor = 0;
     this.stage.add(object);
-    this.home = { yaw: 0.6, pitch: options.pitch ?? 0.25 };
+    this.home = { yaw: TOOL_HOME.yaw, pitch: options.pitch ?? 0.25 };
     this.yaw = this.home.yaw;
     this.pitch = this.home.pitch;
     this.zoom = 1;
@@ -882,8 +903,9 @@ export class ToolViewer {
    * **Eine Bühne, zwei Hände.**
    *
    * Werkzeug und Zielscheibe stehen in *jeder* Ansicht an derselben Stelle: das
-   * Werkzeug aufrecht in seinem eigenen Raum, die Scheibe davor auf dem
-   * Zeigestrahl. Auch die Kamera passt sich nur an die beiden an
+   * Werkzeug in seinem eigenen Raum, die Scheibe davor auf dem Zeigestrahl, und
+   * die ganze Bühne darunter auf die echte Hand gedreht (`tools/handStage.ts`).
+   * Auch die Kamera passt sich nur an die beiden an
    * (`fit`, `placeTarget`) und nicht an die Hand. Wer umschaltet, sieht deshalb
    * **dieselbe Welt** und darin eine andere Hand — und nur so kann man die
    * beiden überhaupt vergleichen. Vorher sprang beim Umschalten die halbe
@@ -958,7 +980,9 @@ export class ToolViewer {
       // Nichts eingefroren, solange nicht im Griffraum justiert wird: der
       // nächste Wechsel dorthin friert die Lage neu ein, die dann gilt.
       this.gripBase = null;
-      // Werkzeugraum als Bühne: das Werkzeug steht aufrecht in seinem eigenen.
+      // Werkzeugraum als Bühne: das Werkzeug steht in seinem eigenen Raum, und
+      // der Griffraum liegt darin. Wie das Ganze dann im Bild hängt, sagt die
+      // Drehung der Bühne weiter unten — die richtet sich nach der Hand.
       tool.position.set(0, 0, 0);
       tool.quaternion.identity();
       const grip = invertPose(local);
@@ -967,6 +991,21 @@ export class ToolViewer {
     }
     this.stage.add(rig);
     this.rig = rig;
+
+    // Und die **Bühne auf die echte Hand gedreht** (`tools/handStage.ts`): der
+    // Griffraum steht bei jedem Werkzeug woanders — bei der Taschenlampe gut
+    // 30° tiefer als bei der Pistole —, und mit ihm stand die Hand mal so und
+    // mal so im Bild. Diese Drehung nimmt genau den Unterschied heraus: sie
+    // legt den Rahmen der echten Hand auf jeder Seite auf dieselbe Lage, und
+    // was schräg bleibt, ist dann wirklich das Werkzeug. Beim Justieren bleibt
+    // sie eingefroren (`align`).
+    if (!this.editing) this.align = null;
+    if (!this.align) {
+      const turn = stageForGrip(rig.quaternion);
+      this.align = new THREE.Quaternion(turn.x, turn.y, turn.z, turn.w);
+    }
+    this.stage.quaternion.copy(this.align);
+
     this.addHandLine(rig);
 
     if (this.mode === 'controller') {
@@ -1189,6 +1228,11 @@ export class ToolViewer {
     this.measure(tool ? (target ? [tool, target] : [tool]) : [this.stage]);
     _box.getCenter(_centre);
     _box.getSize(_size);
+    // Gemessen wird in der **Welt**, verschoben wird im **Drehpunkt**: der
+    // dreht sich (`place`), und eine Mitte, die man aus der Welt abliest und
+    // ungedreht wieder einsetzt, landet um genau diese Drehung daneben. Das
+    // war das schräg im Bild hängende Werkzeug mit der leeren Ecke daneben.
+    _centre.applyQuaternion(_quat.copy(this.pivot.quaternion).invert());
     this.stage.position.copy(_centre).multiplyScalar(-1);
     // Die **Kugel** um das Gezeigte und nicht sein Kasten: es dreht sich, und
     // ein Kasten hat je nach Blickwinkel eine andere Breite. Eine Kugel hat
@@ -1280,6 +1324,10 @@ export class ToolViewer {
     this.flyInput = NO_INPUT;
     // Und die eingefrorene Lage gehört dem Werkzeug, das gerade weggeht.
     this.gripBase = null;
+    // Die Drehung auf die echte Hand ebenso: ein Ding ohne Hand — eine Welt,
+    // ein Beutel-Objekt — steht wieder aufrecht, wie es gebaut wurde.
+    this.align = null;
+    this.stage.quaternion.identity();
     // Die Linien an den Griffen einzeln: `disposeTool` räumt ab, was das
     // Werkzeug selbst gebaut hat, und eine Linie, die diese Seite drangehängt
     // hat, gehört nicht dazu.

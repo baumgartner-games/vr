@@ -195,7 +195,11 @@ dritte Zahl) samt dem **Rahmen, in dem er zieht**
 (`src/tools/handFrame.ts` — dass „vorne" der Zeigestrahl der Hand ist und
 nicht das -Z des Griffraums, dass ein Zentimeter auf einer Achse bei jedem
 Werkzeug in dieselbe Richtung geht, und dass der Weg zurück in den Speicher
-derselbe Weg ist) samt den Knöpfen daneben
+derselbe Weg ist) samt der **Bühnendrehung**, die die echte Hand hinstellt
+(`src/tools/handStage.ts` — dass der Zeigestrahl in der Ausgangsansicht bei
+jedem noch so schräg gehaltenen Werkzeug waagerecht quer durchs Bild läuft und
+dass zwei Werkzeuge wirklich dieselbe Hand zeigen, das Rollen der Faust
+eingeschlossen) samt den Knöpfen daneben
 (`src/tools/alignHand.ts` — dass die Fingerlinie hinterher wirklich auf der
 Grifflinie liegt und nicht ungefähr, dass die Hand dabei nur so weit kippt, wie
 die beiden Richtungen auseinanderliegen, dass beim Schwenken in die Zielrichtung
@@ -2680,6 +2684,43 @@ mit — das Werkzeug wird dadurch kleiner, dafür gibt es das Zoomen
 (`placeTarget` in `tools/viewer.ts`; der Strahl liegt im Griffraum 30° unter
 dessen -Z, `GRIP_TO_RAY`, und in der Ansicht _In VR_ bei
 `Lage-im-Griff⁻¹`).
+
+**Und die Hand steht bei jedem Werkzeug gleich.** Lange stand das *Werkzeug*
+aufrecht in seinem eigenen Raum und die Hand lag daran, wie dieses Werkzeug
+eben gehalten wird — damit brachte jede Seite ihre eigene Schräge mit: an der
+Pistole zeigte die Hand waagerecht nach vorn und die Scheibe stand ordentlich
+daneben, an der Taschenlampe zeigte dieselbe Hand gut 30° in den Boden und die
+Scheibe rutschte mit ihr schräg nach unten aus der Mitte. Wer zwei Werkzeuge
+vergleichen wollte, verglich zuerst zwei Schrägen. Dabei ist die **Hand** das
+Einzige, was an allen Werkzeugen dasselbe ist. Also steht jetzt sie und nicht
+das Werkzeug: die Bühne wird so gedreht, dass der Rahmen der echten Hand
+(`handFrame.ts`) überall dieselbe Lage hat und der Zeigestrahl in der
+Ausgangsansicht **waagerecht quer durchs Bild** auf die Scheibe läuft
+(`tools/handStage.ts`, mit Test). Die Zahl dazu ist eine reine Gierung, und sie
+hängt am Gierwinkel der Ausgangsansicht: gemeinsam ergeben die beiden den
+Viertelkreis, der den Strahl quer vor die Kamera legt statt in sie hinein — und
+eine Querlinie kippt das Nicken der Ansicht nicht.
+
+Gedreht wird dabei die **ganze Bühne** und nur sie: Werkzeug, Hand, Zylinder,
+Strahl und Scheibe gehen miteinander, zueinander ändert sich nichts. Es ist ein
+anderer Blick auf dieselbe Welt und keine andere Welt — deshalb gilt die
+Drehung in allen drei Ansichten, sonst spränge beim Umschalten der Hand die
+Bühne. Schräg im Bild liegt danach nur noch, was auch in der Hand schräg liegt:
+dass die Taschenlampe an der Scheibe vorbeisieht, ist keine schiefe Ansicht
+mehr, sondern die Auskunft — **so hält man sie**. Beim Justieren ist die
+Drehung eingefroren wie `gripBase`, und aus demselben Grund: in _Hand in VR_
+steht das Werkzeug still und die gezeichnete Hand wandert daran; führte die
+Bühne die echte Hand dabei nach, drehte sich stattdessen das Werkzeug unter ihr
+weg.
+
+**Die Mitte kommt in den Drehpunkt, und zwar richtig.** Eingepasst wird auf
+Werkzeug und Zielscheibe: erst wird gemessen, dann wird das Gezeigte um seine
+Mitte versetzt. Gemessen wird in der **Welt**, versetzt aber im **Drehpunkt**,
+und der ist gedreht — eine Mitte, die man aus der Welt abliest und ungedreht
+wieder einsetzt, landet um genau diese Drehung daneben. Das war das schräg im
+Bild hängende Werkzeug mit der großen leeren Ecke daneben; seit die Mitte den
+Weg zurück durch die Drehung nimmt, sitzt sie wirklich im Drehpunkt und bleibt
+auch beim Drehen dort (`fit` in `tools/viewer.ts`).
 
 **Ein Werkzeug dreht sich nur um seine Y-Achse.** Ziehen giert, mehr nicht: das
 Nicken ist am Werkzeug abgeschaltet, und der Blickwinkel von schräg vorn, mit
