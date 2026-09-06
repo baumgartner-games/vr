@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { NavBox } from './navBake';
 import { wallState, type NavGraph } from './navGraph';
+import type { NavLayer, NavLayerState } from './navLayers';
 import { DIR_N, TILE, keyLevel, wallDir, wallTile, type TileKey } from './navTile';
 
 /**
@@ -124,15 +125,37 @@ export function navDebugView(
     links.push(from.x, from.y + LIFT + 0.1, from.z, to.x, to.y + LIFT + 0.1, to.z);
   }
 
-  addLines(group, tiles, colors.tile, 0.35);
-  addLines(group, blocked, colors.blocked, 0.9);
-  addLines(group, walls, colors.wall, 0.85);
-  addLines(group, ledges, colors.ledge, 0.8);
-  addLines(group, links, colors.link, 0.9);
+  // Jede Linienmenge trägt den Namen ihrer Ebene: daran schaltet
+  // `applyNavLayers` sie an und aus, ohne etwas neu zu bauen.
+  addLines(group, 'tiles', tiles, colors.tile, 0.35);
+  addLines(group, 'blocked', blocked, colors.blocked, 0.9);
+  addLines(group, 'walls', walls, colors.wall, 0.85);
+  addLines(group, 'walls', ledges, colors.ledge, 0.8);
+  addLines(group, 'links', links, colors.link, 0.9);
   return group;
 }
 
-function addLines(parent: THREE.Group, points: number[], color: number, opacity: number): void {
+/**
+ * Schaltet die Ebenen an und aus.
+ *
+ * Umgeschaltet wird die **Sichtbarkeit** und nicht die Geometrie: Ein Gitter
+ * neu zu bauen, weil jemand die Wände sehen will, wäre bei ein paar tausend
+ * Kacheln ein Ruckler je Knopfdruck.
+ */
+export function applyNavLayers(group: THREE.Object3D, state: NavLayerState): void {
+  for (const child of group.children) {
+    const layer = child.name as NavLayer;
+    if (layer in state) child.visible = state[layer];
+  }
+}
+
+function addLines(
+  parent: THREE.Group,
+  layer: NavLayer,
+  points: number[],
+  color: number,
+  opacity: number,
+): void {
   if (points.length === 0) return;
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
@@ -143,6 +166,7 @@ function addLines(parent: THREE.Group, points: number[], color: number, opacity:
     depthTest: false,
   });
   const lines = new THREE.LineSegments(geometry, material);
+  lines.name = layer;
   // Über allem: ein Debug-Gitter, das hinter einer Wand verschwindet, hilft
   // genau dort nicht, wo man es braucht.
   lines.renderOrder = 900;

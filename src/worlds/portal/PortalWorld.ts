@@ -140,7 +140,16 @@ import { playPick, playPop, playTone } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
 import { bakeNav, type BakeReport } from '../nav/navBake';
-import { boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
+import { applyNavLayers, boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
+import {
+  NAV_LAYERS,
+  anyLayer,
+  layerSummary,
+  nextAll,
+  noLayers,
+  type NavLayer,
+  type NavLayerState,
+} from '../nav/navLayers';
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
@@ -733,6 +742,8 @@ export class PortalWorld implements World {
   /** Die Wege, die gerade gelaufen werden — eigene Ebene, weil sie sich ändern. */
   private navTracks: THREE.Group | null = null;
   private navTrackTimer = 0;
+  /** Welche Ebenen der Debug-Ansicht gerade an sind (`nav/navLayers.ts`). */
+  private navLayers: NavLayerState = noLayers();
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -1020,60 +1031,126 @@ export class PortalWorld implements World {
    */
   protected navReady(_graph: NavGraph): void {}
 
-  /** Der Schalter, mit dem man das Gitter ansehen kann. */
+  /** Die Schalter, mit denen man die Navigation ansehen kann. */
   private navMenu(): MenuEntry {
     const summary = (): string => {
       const report = this.navReport;
       if (!report) return 'Für diese Welt gibt es kein Gitter';
-      const census = levelCensus(report.graph)
+      return layerSummary(this.navLayers);
+    };
+    const census = (): string => {
+      const report = this.navReport;
+      if (!report) return '';
+      return levelCensus(report.graph)
         .map((count, level) => `E${level}\u00a0${count}`)
         .join(' · ');
-      return `${report.tiles} Kacheln · ${report.links} Verbindungen · ${census}`;
     };
-    const row: MenuEntry = {
+
+    const rows: MenuEntry[] = NAV_LAYERS.map((layer) => {
+      const row: MenuEntry = {
+        id: `npc:nav-layer:${layer.id}`,
+        label: layer.label,
+        sub: layer.sub,
+        icon: 'gizmo',
+        accent: layer.color,
+        checked: this.navLayers[layer.id],
+        run: () => {
+          const on = this.setNavLayer(layer.id, !this.navLayers[layer.id]);
+          row.checked = on;
+          this.refreshMenuLabels();
+          this.context?.notify(`${layer.label}: ${on ? 'an' : 'aus'}`);
+        },
+      };
+      this.menuLabels.push(() => {
+        row.checked = this.navLayers[layer.id];
+      });
+      return row;
+    });
+
+    const parent: MenuEntry = {
       id: 'npc:nav-debug',
-      label: 'Navigationsgitter zeigen',
+      label: 'Navigation zeigen',
       sub: summary(),
       icon: 'gizmo',
       accent: 0x39d0ff,
-      checked: this.navDebug !== null,
-      run: () => {
-        row.checked = this.toggleNavDebug();
-        this.refreshMenuLabels();
-        this.context?.notify(row.checked ? summary() : 'Gitter aus');
-      },
+      children: [
+        {
+          id: 'npc:nav-all',
+          label: 'Alles an oder aus',
+          sub: census(),
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            this.setNavLayers(nextAll(this.navLayers));
+            this.refreshMenuLabels();
+            this.context?.notify(layerSummary(this.navLayers));
+          },
+        },
+        ...rows,
+      ],
     };
     this.menuLabels.push(() => {
-      row.sub = summary();
-      row.checked = this.navDebug !== null;
+      parent.sub = summary();
     });
-    return row;
+    return parent;
   }
 
-  private toggleNavDebug(): boolean {
-    if (this.navDebug) {
-      this.root.remove(this.navDebug);
-      disposeTree(this.navDebug);
-      this.navDebug = null;
-      this.clearNavTracks();
-      return false;
-    }
-    if (!this.nav) return false;
-    this.navDebug = navDebugView(this.nav);
-    this.root.add(this.navDebug);
-    this.navTrackTimer = 0;
-    return true;
+  /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
+  protected navLayerState(): Readonly<NavLayerState> {
+    return this.navLayers;
+  }
+
+  /** Schaltet eine Ebene und gibt zurück, ob sie jetzt an ist. */
+  protected setNavLayer(layer: NavLayer, on: boolean): boolean {
+    if (this.navLayers[layer] === on) return on;
+    this.navLayers[layer] = on;
+    this.applyNav();
+    return on;
+  }
+
+  protected setNavLayers(state: NavLayerState): void {
+    this.navLayers = { ...state };
+    this.applyNav();
   }
 
   /**
-   * Die gelaufenen Wege, solange das Gitter an ist.
+   * Zieht den Zustand der Ebenen an der Ansicht nach.
+   *
+   * Gebaut wird das Gitter erst, wenn wirklich etwas davon zu sehen sein soll —
+   * und wieder abgeräumt, wenn nichts mehr an ist. Ein paar tausend Linien, die
+   * unsichtbar mitgezeichnet werden, kosten in der Brille genauso viel wie
+   * sichtbare.
+   */
+  private applyNav(): void {
+    const wanted = anyLayer(this.navLayers);
+    if (!wanted) {
+      if (this.navDebug) {
+        this.root.remove(this.navDebug);
+        disposeTree(this.navDebug);
+        this.navDebug = null;
+      }
+      this.clearNavTracks();
+      return;
+    }
+    if (!this.nav) return;
+    if (!this.navDebug) {
+      this.navDebug = navDebugView(this.nav);
+      this.root.add(this.navDebug);
+      this.navTrackTimer = 0;
+    }
+    applyNavLayers(this.navDebug, this.navLayers);
+    if (!this.navLayers.paths) this.clearNavTracks();
+  }
+
+  /**
+   * Die gelaufenen Wege, solange ihre Ebene an ist.
    *
    * **Fünfmal je Sekunde und nicht sechzigmal**: Ein Weg ändert sich, wenn neu
    * geplant wird, und das ist alle halbe Sekunde. Jedes Bild eine neue
    * Liniengeometrie zu bauen wäre die teuerste Art, dasselbe zu zeigen.
    */
   private updateNavTracks(dt: number): void {
-    if (!this.navDebug || !this.nav || !this.director) return;
+    if (!this.navLayers.paths || !this.nav || !this.director) return;
     this.navTrackTimer -= dt;
     if (this.navTrackTimer > 0) return;
     this.navTrackTimer = 0.2;
@@ -2356,7 +2433,7 @@ export class PortalWorld implements World {
   // --- typing numbers and codes --------------------------------------------
 
   /** Rewrites every label that shows a value, then redraws the panel. */
-  private refreshMenuLabels(): void {
+  protected refreshMenuLabels(): void {
     for (const refresh of this.menuLabels) refresh();
     this.context?.menu.refresh();
   }
@@ -2667,6 +2744,7 @@ export class PortalWorld implements World {
     this.navReport = null;
     this.navDebug = null;
     this.navTracks = null;
+    this.navLayers = noLayers();
     this.solids.length = 0;
     this.surfaceGroups.clear();
 
