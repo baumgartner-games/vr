@@ -22,6 +22,21 @@
  * je zwei benachbarte Bilder gemittelt werden — ein Wurf ist nie ein Bild
  * lang, ein Trackingzucken schon.
  *
+ * ## Was fliegt, dreht sich auch
+ *
+ * Ein Dominostein, den man hochwirft, taumelt — ein Werkzeug flog wie ein
+ * Brett. Der Unterschied lag nicht in der Physik, sondern darin, *woher* die
+ * beiden ihren Drall bekommen: ein gegriffener Gegenstand hängt als
+ * kinematischer Körper an der Hand, und Rapier liest seine Winkel­geschwindigkeit
+ * beim Loslassen aus zwei aufeinanderfolgenden Lagen ab. Ein Werkzeug hängt
+ * dagegen als Kind der Hand im Szenengraph und bekommt seinen Körper erst in
+ * dem Moment, in dem es losgelassen wird — mit allem auf null.
+ *
+ * Also wird die **Drehung** der Hand genauso gemessen wie ihr Tempo: aus zwei
+ * Lagen die kleine Drehung dazwischen, aus ihr die Achse und der Winkel je
+ * Sekunde, und beim Loslassen wieder der schnellste Moment im Fenster. Was aus
+ * der Hand geht, dreht sich damit weiter, wie es sich in der Hand gedreht hat.
+ *
  * ## Ein Messer dreht sich vorwärts
  *
  * Ein geworfenes Messer überschlägt sich in der **Ebene des Wurfs**: die
@@ -40,6 +55,14 @@ export interface Vec3 {
   z: number;
 }
 
+/** Eine Drehung, wie three.js sie schreibt. */
+export interface Quat {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+}
+
 /**
  * Wie weit ein Wurf zurückblickt, in Sekunden.
  *
@@ -56,6 +79,10 @@ interface Sample {
   x: number;
   y: number;
   z: number;
+  /** Die Drehung im selben Bild, in Radiant je Sekunde. */
+  sx: number;
+  sy: number;
+  sz: number;
   /** Wie lange her, in Sekunden. */
   age: number;
 }
@@ -70,16 +97,26 @@ export class HandSpeed {
   /** Das geglättete Tempo — was die Hand gerade tut. */
   readonly velocity: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly last: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly lastTurn: Quat = { x: 0, y: 0, z: 0, w: 1 };
+  /** Ob zur Position auch eine Drehung mitkommt. */
+  private turning = false;
   private known = false;
   private readonly samples: Sample[] = [];
 
-  /** Eine neue Handposition, und wie lange das letzte Bild gedauert hat. */
-  feed(position: Vec3, dt: number): void {
+  /**
+   * Eine neue Handposition, und wie lange das letzte Bild gedauert hat.
+   *
+   * @param rotation die Lage der Hand im selben Bild. Ohne sie bleibt der
+   *                 Drall null — wer nur wirft, braucht keine.
+   */
+  feed(position: Vec3, dt: number, rotation?: Quat): void {
     if (!(dt > 0)) return;
     if (!this.known) {
       this.last.x = position.x;
       this.last.y = position.y;
       this.last.z = position.z;
+      if (rotation) copyQuat(rotation, this.lastTurn);
+      this.turning = Boolean(rotation);
       this.known = true;
       return;
     }
@@ -90,6 +127,20 @@ export class HandSpeed {
     this.last.y = position.y;
     this.last.z = position.z;
 
+    let sx = 0;
+    let sy = 0;
+    let sz = 0;
+    if (rotation && this.turning) {
+      spinBetween(this.lastTurn, rotation, dt, _spin);
+      sx = _spin.x;
+      sy = _spin.y;
+      sz = _spin.z;
+    }
+    if (rotation) {
+      copyQuat(rotation, this.lastTurn);
+      this.turning = true;
+    }
+
     const blend = Math.min(1, dt * SPEED_SMOOTH);
     this.velocity.x += (vx - this.velocity.x) * blend;
     this.velocity.y += (vy - this.velocity.y) * blend;
@@ -97,7 +148,7 @@ export class HandSpeed {
 
     for (const sample of this.samples) sample.age += dt;
     while (this.samples.length && this.samples[0]!.age > THROW_WINDOW) this.samples.shift();
-    this.samples.push({ x: vx, y: vy, z: vz, age: 0 });
+    this.samples.push({ x: vx, y: vy, z: vz, sx, sy, sz, age: 0 });
   }
 
   /**
@@ -128,14 +179,85 @@ export class HandSpeed {
     return out;
   }
 
+  /**
+   * Und **womit es sich dabei dreht**, in Radiant je Sekunde — nach derselben
+   * Regel wie das Tempo: der schnellste Moment im Fenster, über je zwei
+   * benachbarte Bilder gemittelt.
+   *
+   * Getrennt vom Tempo und nicht aus demselben Bild genommen: eine Hand, die
+   * am Ende einer Wurfbewegung aufdreht, tut das eine Spur später als sie
+   * beschleunigt, und der Drall ist gerade dann am größten, wenn losgelassen
+   * wird. Ohne Drehungen im Fenster kommt Null heraus — ein Werkzeug, das
+   * unverdreht abgelegt wird, fliegt auch unverdreht.
+   */
+  throwSpin(out: Vec3): Vec3 {
+    out.x = 0;
+    out.y = 0;
+    out.z = 0;
+    let best = -1;
+    for (let i = 0; i < this.samples.length; i++) {
+      const a = this.samples[i]!;
+      const b = this.samples[i + 1] ?? a;
+      const x = (a.sx + b.sx) / 2;
+      const y = (a.sy + b.sy) / 2;
+      const z = (a.sz + b.sz) / 2;
+      const rate = x * x + y * y + z * z;
+      if (rate <= best) continue;
+      best = rate;
+      out.x = x;
+      out.y = y;
+      out.z = z;
+    }
+    return out;
+  }
+
   /** Die Hand ist weg — was sie vorhin tat, ist kein Wurf mehr. */
   forget(): void {
     this.known = false;
+    this.turning = false;
     this.samples.length = 0;
     this.velocity.x = 0;
     this.velocity.y = 0;
     this.velocity.z = 0;
   }
+}
+
+const _spin: Vec3 = { x: 0, y: 0, z: 0 };
+
+function copyQuat(from: Quat, to: Quat): void {
+  to.x = from.x;
+  to.y = from.y;
+  to.z = from.z;
+  to.w = from.w;
+}
+
+/**
+ * Die **Winkelgeschwindigkeit** zwischen zwei Lagen, in Radiant je Sekunde.
+ *
+ * Der Weg von `from` nach `to` ist die Drehung `to · from⁻¹`; ihr Vektoranteil
+ * ist für kleine Winkel die halbe Achse mal dem Winkel, also `ω = 2·v/dt`. Bei
+ * 72 Bildern je Sekunde ist „klein" jede Drehung, die ein Handgelenk schafft.
+ *
+ * Das Vorzeichen der Drehung ist frei — `q` und `−q` sind dieselbe Lage —, und
+ * ohne die Umkehrung bei negativem `w` käme aus einer winzigen Drehung
+ * gelegentlich eine fast volle heraus, in die falsche Richtung.
+ */
+export function spinBetween(from: Quat, to: Quat, dt: number, out: Vec3): Vec3 {
+  // to · from⁻¹, mit from⁻¹ = (−x, −y, −z, w) für eine normierte Drehung.
+  let x = to.w * -from.x + to.x * from.w + to.y * -from.z - to.z * -from.y;
+  let y = to.w * -from.y - to.x * -from.z + to.y * from.w + to.z * -from.x;
+  let z = to.w * -from.z + to.x * -from.y - to.y * -from.x + to.z * from.w;
+  const w = to.w * from.w - to.x * -from.x - to.y * -from.y - to.z * -from.z;
+  if (w < 0) {
+    x = -x;
+    y = -y;
+    z = -z;
+  }
+  const scale = 2 / dt;
+  out.x = x * scale;
+  out.y = y * scale;
+  out.z = z * scale;
+  return out;
 }
 
 /**

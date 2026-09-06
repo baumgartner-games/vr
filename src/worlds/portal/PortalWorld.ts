@@ -222,7 +222,21 @@ const _zeroVelocity = new THREE.Vector3();
 const _spin = new THREE.Vector3();
 /** Das Tempo, mit dem ein losgelassenes Werkzeug fliegt, und seine Drehachse. */
 const _throw = { x: 0, y: 0, z: 0 };
+/** Und der Drall, den die Hand ihm dabei mitgibt, in Radiant je Sekunde. */
+const _handSpin = { x: 0, y: 0, z: 0 };
+/**
+ * Wie schnell ein losgelassenes Werkzeug höchstens kreiselt, in Radiant je
+ * Sekunde — gut drei Umdrehungen.
+ *
+ * Dieselbe Vorsicht wie beim Tempo, das auf 12 m/s gedeckelt wird: eine
+ * Handverfolgung, die für ein Bild aussetzt und wiederkommt, meldet eine
+ * Drehung von einer halben Umdrehung in 14 Millisekunden — das sind zweihundert
+ * Radiant je Sekunde, und ein Hammer, der damit losgeht, ist nicht geworfen,
+ * sondern verschossen.
+ */
+const MAX_TOOL_SPIN = 20;
 const _handSpeed = new THREE.Vector3();
+const _handTurn = new THREE.Quaternion();
 const _toolBox = new THREE.Box3();
 const _toolLocal = new THREE.Box3();
 const _toolMatrix = new THREE.Matrix4();
@@ -3302,6 +3316,19 @@ export class PortalWorld implements World {
     this.loose.set(entry, { tool, entry, gliding, home, hip });
 
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
+    // **Der Drall der Hand geht mit.** Ein gegriffener Dominostein taumelt,
+    // wenn man ihn hochwirft, ein Werkzeug flog wie ein Brett — und der
+    // Unterschied lag nicht an der Physik, sondern daran, woher die beiden
+    // ihre Drehung bekommen: der Stein hängt als kinematischer Körper an der
+    // Hand, und Rapier liest seine Winkelgeschwindigkeit beim Loslassen aus
+    // zwei Lagen ab. Ein Werkzeug hängt im Szenengraph und bekommt seinen
+    // Körper erst hier, mit allem auf null. Also wird die Drehung der Hand
+    // mitgemessen (`throwMotion.ts`) und hier angelegt.
+    if (motion && !gliding) {
+      motion.throwSpin(_handSpin);
+      _spin.set(_handSpin.x, _handSpin.y, _handSpin.z).clampLength(0, MAX_TOOL_SPIN);
+      entry.body.setAngvel({ x: _spin.x, y: _spin.y, z: _spin.z }, true);
+    }
     if (gliding) {
       // Straight on: no gravity, and an overhand tumble in the plane of the
       // throw — die Spitze geht oben herum nach vorn, in beiden Händen gleich
@@ -3532,7 +3559,8 @@ export class PortalWorld implements World {
         continue;
       }
       gripOf(controller).getWorldPosition(_handSpeed);
-      motion.feed(_handSpeed, dt);
+      gripOf(controller).getWorldQuaternion(_handTurn);
+      motion.feed(_handSpeed, dt, _handTurn);
     }
   }
 

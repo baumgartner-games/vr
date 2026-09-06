@@ -2,7 +2,14 @@
  * Der Wurf: das Tempo, mit dem etwas die Hand verlässt, und die Achse, um die
  * sich ein Messer dabei überschlägt.
  */
-import { HandSpeed, THROW_WINDOW, tumbleAxis, type Vec3 } from './throwMotion';
+import {
+  HandSpeed,
+  THROW_WINDOW,
+  spinBetween,
+  tumbleAxis,
+  type Quat,
+  type Vec3,
+} from './throwMotion';
 
 const FRAME = 1 / 72;
 
@@ -97,5 +104,65 @@ describe('worum sich ein geworfenes Messer dreht', () => {
     const axis = vec(1, 1, 1);
     expect(tumbleAxis(vec(0, 7, 0), axis)).toBe(false);
     expect(axis).toEqual(vec(1, 1, 1));
+  });
+});
+
+describe('wie schnell sich die Hand dabei dreht', () => {
+  /** Eine Drehung um `axis` um `angle` Radiant. */
+  function turn(axis: Vec3, angle: number): Quat {
+    const length = Math.hypot(axis.x, axis.y, axis.z) || 1;
+    const half = Math.sin(angle / 2) / length;
+    return { x: axis.x * half, y: axis.y * half, z: axis.z * half, w: Math.cos(angle / 2) };
+  }
+
+  /** Eine Hand, die sich Bild für Bild um `rate` Radiant je Sekunde um Y dreht. */
+  function spun(rates: readonly number[], dt = FRAME): HandSpeed {
+    const hand = new HandSpeed();
+    let angle = 0;
+    hand.feed(vec(), dt, turn(vec(0, 1, 0), angle));
+    for (const rate of rates) {
+      angle += rate * dt;
+      hand.feed(vec(), dt, turn(vec(0, 1, 0), angle));
+    }
+    return hand;
+  }
+
+  it('rechnet aus zwei Lagen die Winkelgeschwindigkeit', () => {
+    const out = vec();
+    spinBetween(turn(vec(0, 1, 0), 0), turn(vec(0, 1, 0), 0.1), 0.1, out);
+    expect(out.x).toBeCloseTo(0, 6);
+    expect(out.y).toBeCloseTo(1, 3);
+    expect(out.z).toBeCloseTo(0, 6);
+  });
+
+  it('nimmt den kürzeren Bogen, auch wenn das Vorzeichen kippt', () => {
+    const from = turn(vec(0, 1, 0), 3.1);
+    const to = turn(vec(0, 1, 0), 3.2);
+    const out = vec();
+    spinBetween(from, { x: -to.x, y: -to.y, z: -to.z, w: -to.w }, 0.1, out);
+    expect(out.y).toBeCloseTo(1, 3);
+  });
+
+  it('gibt dem Wurf den schnellsten Drall aus dem Fenster mit', () => {
+    const hand = spun([1, 4, 9, 3, 1]);
+    const spin = hand.throwSpin(vec());
+    // Der Gipfel liegt bei 9 rad/s; über zwei Bilder gemittelt bleiben 6.
+    expect(spin.y).toBeGreaterThan(5.5);
+    expect(spin.y).toBeLessThan(9.1);
+    expect(Math.abs(spin.x)).toBeCloseTo(0, 3);
+  });
+
+  it('bleibt bei null, solange keine Lage mitkommt', () => {
+    expect(swing([6, 8, 6]).throwSpin(vec())).toEqual(vec());
+  });
+
+  it('vergisst eine Drehung, die länger her ist als das Fenster', () => {
+    const hand = spun([9, 9, 9]);
+    const still = turn(vec(0, 1, 0), 9 * 3 * FRAME);
+    for (let i = 0; i < Math.ceil((THROW_WINDOW * 2) / FRAME); i++) {
+      hand.feed(vec(), FRAME, still);
+    }
+    const spin = hand.throwSpin(vec());
+    expect(Math.hypot(spin.x, spin.y, spin.z)).toBeCloseTo(0, 6);
   });
 });
