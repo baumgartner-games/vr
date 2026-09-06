@@ -51,6 +51,7 @@ import { saveHoldHandPose } from '../../core/handPoseStore';
 import { BOX_HAND_COLOR, GhostHand } from '../../core/HandVisuals';
 import { createControllerHandle } from '../../core/controllerHandle';
 import { createAxes, disposeAxes } from '../../core/axesCross';
+import { GRIP_TO_RAY } from '../portal/tools/gripFit';
 import { eyeHeights, saveEyeHeights, seatedLift } from '../../core/posture';
 import {
   formatPose,
@@ -204,6 +205,13 @@ const _poseRotation = new THREE.Quaternion();
 const _inverseMatrix = new THREE.Matrix4();
 /** Nur für die Lage-Tafel: der Weg vom Griffraum in den Strahlraum. */
 const _between = new THREE.Quaternion();
+/**
+ * Und dieselbe Drehung, wie sie **im Code** steht (`GRIP_TO_RAY`) — als Grad
+ * neben der gemessenen. Gerechnet und nicht getippt: ändert sich die Konstante,
+ * ändert sich die Zahl auf der Tafel mit, und niemand vergleicht eine Messung
+ * mit einer Zahl, die es nicht mehr gibt.
+ */
+const CODED_AIM = Math.round((2 * Math.acos(Math.min(1, Math.abs(GRIP_TO_RAY.w))) * 180) / Math.PI);
 const DEG = 180 / Math.PI;
 
 /**
@@ -2545,7 +2553,7 @@ function aims(tool: Tool): boolean {
  * Die dritte Zeile misst genau diesen Versatz: **wie weit der Strahl gegen den
  * Griff steht**, wie das Gerät selbst ihn meldet. Sie ist der Grund, warum es
  * diese Tafel gibt — im Code steht dafür bisher eine geschätzte Zahl
- * (`GRIP_TO_RAY`, 30°), und hier steht die gemessene.
+ * (`GRIP_TO_RAY`), und hier steht beides nebeneinander.
  *
  * Eine **getrackte Hand** hat weder Griff noch Gerät; dort tritt das
  * **Handgelenk** an die Stelle des Griffs, und die dritte Zeile sagt, wie weit
@@ -2564,12 +2572,13 @@ function tiltOf(state: ControllerState): string {
       `${state.isHand ? 'Handgelenk' : 'Griff'} (XYZ): Pitch ${deg(xyz.x)}° · ` +
         `Yaw ${deg(xyz.y)}° · Roll ${deg(xyz.z)}°`,
     );
-    // Der Weg vom Griff zum Strahl — die Zahl, die das Gerät selbst kennt und
-    // die im Code bisher geraten ist.
+    // Der Weg vom Griff zum Strahl — die Zahl, die das **Gerät** selbst kennt,
+    // und daneben die, die im Code dafür steht. Nur nebeneinander sind sie eine
+    // Auskunft: eine gemessene Zahl allein sagt nicht, ob sie neu ist.
     _between.copy(grip).invert().multiply(ray);
     const between = _euler.setFromQuaternion(_between, 'XYZ');
     const total = 2 * Math.acos(Math.min(1, Math.abs(_between.w)));
-    line.push(`Griff → Strahl: X ${deg(between.x)}° · gesamt ${deg(total)}°`);
+    line.push(`Griff → Strahl: X ${deg(between.x)}° · gesamt ${deg(total)}° (Code: ${CODED_AIM}°)`);
   }
   return line.join('\n');
 }

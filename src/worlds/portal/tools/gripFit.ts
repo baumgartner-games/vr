@@ -112,19 +112,27 @@ export const STANDARD_GRIP: GripPose = {
  * Eine Hand steht im Griffraum (dort sitzt sie auf dem Controller), ein
  * gehaltenes Werkzeug im Strahlraum (dorthin zielt es). Wer wissen will, wo der
  * Griff eines Werkzeugs in der Faust landet, braucht die Drehung zwischen
- * beiden — und die gehört dem Gerät, nicht dem Code.
+ * beiden.
  *
- * Es ist dieselbe Drehung, die `aimRotation` aus einem Controller liest: sie
- * legt etwas aus dem Griffraum auf den Zeigestrahl. Im Spiel kommt sie von dort
- * und nicht von hier — diese Zahl ist für alles da, was **gebaut** wird, lange
- * bevor eine Brille auf dem Kopf sitzt: die Lage eines Griffs im Werkzeug, die
- * Faust darum, und das Bild auf der Werkzeugseite.
+ * **Die Richtung gibt der Strahl des Geräts vor, nicht diese Zahl.** Im Spiel
+ * kommt sie aus `aimRotation`, gelesen aus dem Controller, den jemand gerade in
+ * der Hand hat (`Tool.applyHold`) — sie ist dort die Wahrheit, und wenn eine
+ * Brille anderer Bauart einen anderen Winkel meldet, zielt das Werkzeug
+ * trotzdem dorthin, wohin gezeigt wird. Hier steht sie als **Ersatz für den
+ * Fall, dass kein Gerät da ist**: für alles, was gebaut wird, lange bevor eine
+ * Brille auf dem Kopf sitzt — die Lage eines Griffs im Werkzeug, die Faust
+ * darum, und das Bild auf der Werkzeugseite.
  *
- * Es sind die **30°**, die es hier ohnehin an drei Stellen gibt: so weit
- * schossen früher alle Werkzeuge zu hoch (`aim.ts`), so weit steht der Griff
- * einer Quest gegen ihren Zeigestrahl, und genau so weit war die am
- * Justierstand eingemessene Taschenlampe gegen den Strahl gedreht (30/5/9°).
- * Drei Wege, eine Zahl.
+ * Ersatz heißt: **geschätzt**. Es sind die 30°, die es hier an drei Stellen
+ * gibt (so weit schossen früher alle Werkzeuge zu hoch, `aim.ts`; so weit steht
+ * der Griff einer Quest gegen ihren Zeigestrahl; so weit war die am
+ * Justierstand eingemessene Taschenlampe gedreht) — drei Wege, eine Zahl, und
+ * keiner davon eine Messung am Gerät. Die gibt es im **Eingaberaum**: dessen
+ * Lage-Tafel schreibt „Griff → Strahl" fortlaufend an die Wand und daneben in
+ * Klammern, was hier steht (`worlds/tune/TuneWorld.ts`). Stehen die beiden
+ * Zahlen auseinander, ist die gemessene die richtige — wer sie hier einträgt,
+ * verschiebt allerdings auch `GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und
+ * jede daran gerechnete Faust, und `core/gripFist.test.ts` sagt, welche.
  */
 export const GRIP_TO_RAY: Quat = quatFromEulerXYZ({ x: (-30 * Math.PI) / 180, y: 0, z: 0 });
 

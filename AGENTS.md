@@ -882,8 +882,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Griffraum**, gelesen als Euler `XYZ` — die Schreibweise jeder
     `HandPose`. Das ist die Zeile, die man weitersagt.
   - **Griff → Strahl**: wie weit der Strahl gegen den Griff steht, wie das
-    Gerät selbst es meldet. Im Code steht dafür eine geschätzte Zahl
-    (`GRIP_TO_RAY`, 30°); hier steht die gemessene.
+    Gerät selbst es meldet — und in Klammern daneben, was im Code dafür steht
+    (`GRIP_TO_RAY`). Nur nebeneinander sind die beiden eine Auskunft: eine
+    gemessene Zahl allein sagt nicht, ob sie neu ist. Stehen sie auseinander,
+    ist die gemessene die richtige.
 
   Dass die ersten beiden so weit auseinanderliegen, ist der Punkt: der
   Handgriff eines Quest-Controllers steht schräg zu seinem Strahl, und wer
@@ -2033,6 +2035,27 @@ eingemessenen Taschenlampe steckten (30/5/9°). Drei Wege, eine Zahl — und
 **die Werkzeugseite rechnet jetzt mit ihr**: vorher nahm sie dort die Ruhe an,
 zeigte Hand und Werkzeug um genau diese 30° gegeneinander verdreht und
 speicherte sie als Handhaltung ab, sobald jemand sie „geradezog".
+
+**Die Richtung gibt aber der Strahl des Geräts vor, nicht diese Konstante.** Im
+Spiel liest `aimRotation` sie aus dem Controller, den jemand gerade hält, und
+`Tool.applyHold` dreht das Werkzeug damit: meldet eine Brille anderer Bauart
+einen anderen Winkel, zielt das Werkzeug trotzdem dorthin, wohin gezeigt wird.
+`GRIP_TO_RAY` ist der **Ersatz für den Fall, dass kein Gerät da ist** — für
+alles, was gebaut wird, bevor eine Brille aufgesetzt wird: die Lage eines
+Griffs im Werkzeug, die Faust darum, das Bild auf der Werkzeugseite. Und
+Ersatz heißt geschätzt: keiner der drei Wege oben ist eine Messung am Gerät.
+Die gibt es im **Eingaberaum**, auf der Lage-Tafel, Zeile „Griff → Strahl".
+Wer die dort abgelesene Zahl hier einträgt, verschiebt allerdings auch
+`GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und jede daran gerechnete Faust —
+`core/gripFist.test.ts` sagt, welche.
+
+Deshalb ist ein *gemessener Roll* an der Hand nicht die Antwort auf einen
+schiefen Strahl. Kam der Vorschlag auf, der rechten Hand −100° Roll statt −90°
+zu geben, damit der Strahl geradeaus geht: die −90° sind die Vierteldrehung aus
+`fistOnGrip`, mit der die Faust überhaupt erst quadratisch auf dem Zylinder
+sitzt (ein Schwenk landet dort im Yaw, nicht im Roll). Zehn Grad daran wären
+zehn Grad schief auf dem Griff — die Richtung kommt vom Gerät, nicht aus der
+Handhaltung.
 
 **Und zwar an allem, was man in die Faust nimmt.** Lange trugen ihn nur die
 sieben Pistolenwerkzeuge und die beiden Stäbe, und der Rest hielt sich an
