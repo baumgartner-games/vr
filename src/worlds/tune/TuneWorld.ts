@@ -15,7 +15,9 @@ import {
   type HapticPattern,
 } from './haptics';
 import { ToolRange, MOUNT_REACH, ZONE_RADIUS, type RangeGrip } from './ToolRange';
-import { LANE, swapTargets } from './lane';
+import { LANE, LANE_MID, LANE_WIDTH, PARTITION, POSE_ROOM, swapTargets } from './lane';
+import { HoverBox } from './HoverBox';
+import { HAND_SHARE_CHANNEL, packHandShare, type HandShare } from './handShare';
 import { HANDLE_REACH } from './StandFrame';
 import { GripStand, HAND_REACH } from './GripStand';
 import {
@@ -49,7 +51,14 @@ import {
   HOLD_HAND_POSE,
   type HandPose,
 } from '../../core/handPose';
-import { saveHoldHandPose } from '../../core/handPoseStore';
+import {
+  holdHandPose,
+  idleHandPose,
+  saveHoldHandPose,
+  saveIdleHandPose,
+} from '../../core/handPoseStore';
+import { saveTrackedGlove, trackedGlove } from '../../core/handLook';
+import { packShortGear } from '../portal/tools/shortCode';
 import { BOX_HAND_COLOR, GhostHand } from '../../core/HandVisuals';
 import { createControllerHandle } from '../../core/controllerHandle';
 import { createAxes, disposeAxes } from '../../core/axesCross';
@@ -177,6 +186,37 @@ interface Buzz {
   /** Sekunden seit dem Zupacken — der Zeiger im Muster. */
   elapsed: number;
 }
+
+/**
+ * Eine Messung im Poseraum — zweimal dasselbe, für zwei Zwecke.
+ *
+ * `pose` ist, was **gespeichert** wird: die Haltung im Griffraum, in der Form,
+ * in der jede andere Haltung dieses Spiels steht. `share` ist, was **gesendet**
+ * wird: die Lage der Hand im Raum des Werkzeugs, weil ein Zuschauer im Browser
+ * keinen Griff hat, gegen den er das verrechnen könnte (`handShare.ts`).
+ */
+interface Measured {
+  pose: HandPose;
+  /** Was im Kasten schwebt, oder `null` für die blanke Hand. */
+  toolId: string | null;
+  /**
+   * Ob dahinter wirklich eine **gesehene** Hand steht.
+   *
+   * `false` heißt: die Brille sieht sie gerade nicht, und was hier steht, ist
+   * die eingestellte Haltung — gut genug zum Zeigen, nichts zum Speichern.
+   */
+  live: boolean;
+  share: HandShare;
+}
+
+/**
+ * Wie oft eine geteilte Haltung hinausgeht.
+ *
+ * Zwanzigmal je Sekunde — dieselbe Rate, mit der die Sitzung ohnehin die Köpfe
+ * und Hände verschickt (`NetSession.POSE_INTERVAL`). Schneller sähe niemand,
+ * langsamer ruckelte die Hand drüben.
+ */
+const SHARE_INTERVAL = 1 / 20;
 
 /**
  * Auf diesem Kanal reisen Konfig-Codes zwischen den Mitspielern.
@@ -415,6 +455,37 @@ export class TuneWorld extends PortalWorld {
     roughness: 0.9,
   });
 
+  // --- der Poseraum ---------------------------------------------------------
+
+  /** Der Schwebekasten hinter der Trennwand — und die Zone, die er meint. */
+  private hover: HoverBox | null = null;
+  /** Was gerade darin hängt. `null`, solange er leer ist. */
+  private hoverTool: Tool | null = null;
+  /** Die Tafel daneben: gemessene Haltung, Finger, Konfig-Code. */
+  private poseBoard: TextPlane | null = null;
+  private poseLine = '';
+  /**
+   * Wessen Haltung gerade geteilt wird — die Hand **ohne** Controller.
+   *
+   * `null` heißt: niemand schaut zu. Gemessen wird trotzdem weiter, damit die
+   * Tafel im Raum etwas anzeigt; über die Leitung geht nur, was hier steht.
+   */
+  private sharing: Handedness | null = null;
+  /**
+   * Und die Hand, die den Knopf gedrückt hat: **ihr** Trigger hält fest.
+   *
+   * Sie ist die mit dem Controller — die andere hat gerade keinen, sonst gäbe
+   * es hier nichts zu messen. Damit drückt niemand mit der Hand, die er
+   * gerade stillhalten soll.
+   */
+  private sharingFrom: Handedness | null = null;
+  /** Sekunden seit der letzten gesendeten Haltung — 20 Hz sind genug. */
+  private shareAge = 0;
+  /** Und seit dem letzten Neuzeichnen der Tafel — die darf langsamer sein. */
+  private poseAge = 0;
+  /** Der Konfig-Code der zuletzt gemessenen Haltung. */
+  private poseCode = '';
+
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
     // No walking, no snap turn — the head still goes wherever it likes. Der
@@ -467,6 +538,7 @@ export class TuneWorld extends PortalWorld {
     this.updateGripStand(ctx);
     this.updateFine(ctx);
     this.updateBuzz(dt, ctx);
+    this.updatePoseRoom(dt, ctx);
   }
 
   override dispose(ctx: WorldContext): void {
@@ -522,6 +594,17 @@ export class TuneWorld extends PortalWorld {
     this.range = null;
     this.grip?.dispose();
     this.grip = null;
+    // Die Schwerelosigkeit gehört diesem Raum: wer ihn verlässt, nimmt sonst
+    // eine Zone mit, deren Kasten längst weg ist.
+    this.floatZone = null;
+    this.hover?.dispose();
+    this.hover = null;
+    this.hoverTool = null;
+    this.poseBoard?.dispose();
+    this.poseBoard = null;
+    this.poseLine = '';
+    this.sharing = null;
+    this.sharingFrom = null;
     this.mountBlocked = null;
     this.rangeDrag = null;
     this.gripDrag = null;
@@ -600,7 +683,7 @@ export class TuneWorld extends PortalWorld {
     // Die Rückwand hat eine Tür: dahinter liegt der Schießgang. Zwei Stücke
     // links und rechts, ein Sturz darüber — eine Wand mit Loch gibt es in
     // einem Kasten nicht.
-    const door = LANE.half + 0.15;
+    const door = LANE.left + 0.15;
     const side = (half - door) / 2;
     for (const sign of [-1, 1]) {
       this.slab(
@@ -1038,29 +1121,34 @@ export class TuneWorld extends PortalWorld {
     const { half, thickness } = ROOM;
     const z0 = half;
     const middle = z0 + LANE.length / 2;
-    const width = LANE.half * 2 + thickness * 2;
+    const width = LANE_WIDTH + thickness * 2;
     const shellGroup = this.shellGroup;
 
     this.slab(
       shellGroup,
       this.floorMaterial,
       [width, thickness, LANE.length],
-      [0, -thickness / 2, middle],
+      [LANE_MID, -thickness / 2, middle],
       false,
     );
     this.slab(
       shellGroup,
       this.shell,
       [width, thickness, LANE.length],
-      [0, LANE.height + thickness / 2, middle],
+      [LANE_MID, LANE.height + thickness / 2, middle],
       false,
     );
-    for (const sign of [-1, 1]) {
+    // Links und rechts stehen nicht mehr gleich weit weg: rechts liegt hinter
+    // der Trennwand der Poseraum (`lane.ts`).
+    for (const [sign, edge] of [
+      [1, LANE.left],
+      [-1, LANE.right],
+    ] as const) {
       this.slab(
         shellGroup,
         this.shell,
         [thickness, LANE.height, LANE.length],
-        [sign * (LANE.half + thickness / 2), LANE.height / 2, middle],
+        [sign * (edge + thickness / 2), LANE.height / 2, middle],
         false,
       );
     }
@@ -1068,9 +1156,23 @@ export class TuneWorld extends PortalWorld {
       shellGroup,
       this.shell,
       [width, LANE.height, thickness],
-      [0, LANE.height / 2, z0 + LANE.length + thickness / 2],
+      [LANE_MID, LANE.height / 2, z0 + LANE.length + thickness / 2],
       false,
     );
+
+    // Und vorn das Stück, das der Raum nicht mehr abdeckt: seine Rückwand ist
+    // nur so breit wie er selbst, der Gang seit dieser Runde breiter. Ohne
+    // diese Platte stünde der Poseraum vorn offen ins Nichts.
+    const overhang = LANE.right - half;
+    if (overhang > 0) {
+      this.slab(
+        shellGroup,
+        this.shell,
+        [overhang, LANE.height, thickness],
+        [-(half + overhang / 2), LANE.height / 2, z0],
+        false,
+      );
+    }
 
     const range = new ToolRange();
     range.position.set(0, 0, z0);
@@ -1096,7 +1198,7 @@ export class TuneWorld extends PortalWorld {
       width: 2.4,
       height: 0.26,
       title: 'Schießgang',
-      body: 'Links das Werkzeug-Menü · dann der Halter im Kreis · dann die Boxhand am Werkzeug · rechts die Werte',
+      body: 'Links das Werkzeug-Menü · dann der Halter im Kreis · dann die Boxhand am Werkzeug · rechts die Werte und die Tür in den Poseraum',
       accent: 0xffc857,
       align: 'center',
     });
@@ -1107,6 +1209,7 @@ export class TuneWorld extends PortalWorld {
     this.buildRangeButton(range);
     this.buildGripPanel(grip);
     this.buildRangePanels(room, z0);
+    this.buildPoseRoom(room, z0);
   }
 
   /**
@@ -1249,7 +1352,10 @@ export class TuneWorld extends PortalWorld {
    * nachziehen, Zahlen ablesen.
    */
   private buildRangePanels(room: THREE.Group, z0: number): void {
-    const x = -(LANE.half - 0.02);
+    // Auf der Gangseite der **Trennwand**, also genau dort, wo früher die Wand
+    // stand: der Gang ist rechts breiter geworden, seine Knöpfe sind deshalb
+    // keinen Zentimeter weiter weg (`lane.ts`).
+    const x = -(LANE.left - 0.02);
 
     // Zwei Spalten statt einer langen Reihe: acht Knöpfe untereinander reichen
     // sonst bis auf den Boden, und der unterste ist der, den man am seltensten
@@ -1268,7 +1374,8 @@ export class TuneWorld extends PortalWorld {
     // Die Tafel hängt weiter hinten an derselben Wand: man liest sie im
     // Vorbeigehen zur Scheibe, und sie ist nichts zum Drücken. Groß, weil auf
     // ihr **alles** stehen soll — eine Werte-Tafel, die kürzt, lässt genau die
-    // Zahl weg, für die man hergekommen ist.
+    // Zahl weg, für die man hergekommen ist. Sie steht **hinter** der Tür in
+    // den Poseraum: in der Tür hinge sie in der Luft.
     const values = new TextPlane({
       width: 1.7,
       height: 0.9,
@@ -1276,10 +1383,433 @@ export class TuneWorld extends PortalWorld {
       body: 'Werkzeug in den Halter, Hand daran, Greifen oder Trigger',
       accent: 0x5ee0a0,
     });
-    values.position.set(x, 1.5, z0 + 3.3);
+    values.position.set(x, 1.5, z0 + PARTITION.doorTo + 0.95);
     values.rotation.y = Math.PI / 2;
     room.add(values);
     this.rangeBoard = values;
+  }
+
+  // --- der Poseraum hinter der Trennwand ------------------------------------
+
+  /**
+   * **Der Poseraum**: der Streifen rechts hinter der Trennwand, mit dem
+   * Schwebekasten darin.
+   *
+   * Er beantwortet eine dritte Frage, die die beiden Stände nicht können.
+   * Der Halter misst, *wie ich ein Werkzeug halte*, der Griffstand, *wie die
+   * gezeichnete Hand es umfasst* — und beide messen die Hand **am Controller**.
+   * Eine Hand am Controller ist aber eine Faust um einen Zylinder, und was
+   * eine Hand mit einem Gegenstand wirklich macht, sieht anders aus. Wer eine
+   * Handhaltung *realistischer* haben will, muss die **blanke** Hand messen,
+   * und das geht erst, seit sie einen Handschuh tragen kann (`gloveFit.ts`).
+   *
+   * Also drei Dinge an einem Ort:
+   *
+   * - Der **Schwebekasten** hält, was man hineinlegt: eine durchsichtige Kiste
+   *   in der Luft, in der die Schwerkraft aufhört (`HoverBox.ts`,
+   *   `PortalWorld.floatZone`). Man lässt ein Werkzeug darin los, es bleibt
+   *   liegen, und man rückt es zurecht, bis es so hängt, wie man es halten
+   *   will.
+   * - Der **Schalter an der Wand** zieht getrackten Händen den Handschuh an.
+   *   Ohne ihn misst man gegen eine Reihe Kugeln, und eine Reihe Kugeln hat
+   *   keine Handfläche, an der man etwas ausrichten könnte.
+   * - Der **Teilen-Knopf** schickt die Haltung der *anderen* Hand live an alle
+   *   im Raum — und damit an die Werkzeugseite, die sich als Zuschauer
+   *   verbindet (`handShare.ts`). Der Trigger der Hand, die gedrückt hat,
+   *   hält sie fest.
+   *
+   * Warum die andere Hand: wer misst, hat eine Hand am Gegenstand und braucht
+   * die zweite zum Drücken. Beide Hände frei gäbe es nur ohne Controller, und
+   * dann gäbe es auch keinen Trigger.
+   */
+  private buildPoseRoom(room: THREE.Group, z0: number): void {
+    const shellGroup = this.shellGroup;
+    const wall = PARTITION.thickness;
+
+    // Die Trennwand: zwei Stücke und ein Sturz — dieselbe Machart wie die
+    // Rückwand des Raums, denn es ist dieselbe Aufgabe.
+    for (const [from, to] of [
+      [0, PARTITION.doorFrom],
+      [PARTITION.doorTo, LANE.length],
+    ] as const) {
+      const span = to - from;
+      if (span <= 0) continue;
+      this.slab(
+        shellGroup,
+        this.shell,
+        [wall, LANE.height, span],
+        [PARTITION.x, LANE.height / 2, z0 + from + span / 2],
+        false,
+      );
+    }
+    this.slab(
+      shellGroup,
+      this.shell,
+      [wall, LANE.height - PARTITION.doorHeight, PARTITION.doorTo - PARTITION.doorFrom],
+      [
+        PARTITION.x,
+        (LANE.height + PARTITION.doorHeight) / 2,
+        z0 + (PARTITION.doorFrom + PARTITION.doorTo) / 2,
+      ],
+      false,
+    );
+
+    // Über der Tür, zum Gang hin: man liest es im Vorbeigehen, und genau dann
+    // will man wissen, was dahinter liegt.
+    const sign = new TextPlane({
+      width: 1.5,
+      height: 0.22,
+      title: 'Poseraum',
+      body: 'Schwerelos justieren · Handschuh an die blanke Hand · Haltung teilen',
+      accent: 0x9d7bff,
+      align: 'center',
+    });
+    sign.position.set(
+      -(LANE.left - 0.02),
+      (LANE.height + PARTITION.doorHeight) / 2,
+      z0 + (PARTITION.doorFrom + PARTITION.doorTo) / 2,
+    );
+    sign.rotation.y = Math.PI / 2;
+    room.add(sign);
+    this.plates.push(sign);
+
+    // Der Kasten selbst, auf Arbeitshöhe in der Mitte des Streifens.
+    const box = new HoverBox(POSE_ROOM.box);
+    box.position.set(POSE_ROOM.x, POSE_ROOM.height, z0 + POSE_ROOM.z);
+    room.add(box);
+    this.hover = box;
+    // Von hier an schwebt alles, was darin losgelassen wird.
+    this.floatZone = box;
+
+    // Die Tafeln stehen an der **Außenwand**, also hinter dem Kasten aus
+    // Sicht dessen, der durch die Tür kommt: Kasten im Blick, Zahlen dahinter,
+    // beides in einer Ansicht. Genau das macht die Tafelwand im Raum vorn auch.
+    const x = -(LANE.right - 0.02);
+    const z = z0 + POSE_ROOM.z;
+
+    const title = new TextPlane({
+      width: 1.8,
+      height: 0.28,
+      title: 'Schwebekasten',
+      body: 'Werkzeug hineinhalten und loslassen · blanke Hand daran · Trigger der anderen Hand speichert',
+      accent: 0x9d7bff,
+      align: 'center',
+    });
+    title.position.set(x, 2.42, z);
+    title.rotation.y = Math.PI / 2;
+    room.add(title);
+    this.plates.push(title);
+
+    const board = new TextPlane({
+      width: 1.8,
+      height: 0.6,
+      title: 'Noch nichts gemessen',
+      body: 'Handpose teilen drücken — gemessen wird die andere Hand',
+      accent: 0x6f7d99,
+    });
+    board.position.set(x, 1.98, z);
+    board.rotation.y = Math.PI / 2;
+    room.add(board);
+    this.poseBoard = board;
+
+    for (const [index, row] of this.poseRows().entries()) {
+      const button = this.wallButton(room, 0.94, 0.28, row.run);
+      button.plane.position.set(x, 1.9 - index * 0.32, z + 1.2);
+      button.plane.rotation.y = Math.PI / 2;
+      button.refresh = () => row.refresh(button);
+    }
+  }
+
+  /** Die drei Knöpfe an der Außenwand des Poseraums. */
+  private poseRows(): Array<{
+    refresh: (button: WallButton) => void;
+    run: (hand: Handedness | null) => void;
+  }> {
+    return [
+      {
+        refresh: (button) => {
+          const on = trackedGlove();
+          this.label(
+            button,
+            on ? 'Handschuh: an' : 'Handschuh: aus',
+            on
+              ? 'Blanke Hände tragen ihn, die Finger folgen'
+              : 'Blanke Hände sind Kugeln an den Gelenken',
+            on ? GRAB_GLOW : 0x4aa8ff,
+          );
+        },
+        run: () => this.toggleTrackedGlove(),
+      },
+      {
+        refresh: (button) => {
+          const side = this.sharing;
+          const peers = this.context?.net.peers.size ?? 0;
+          this.label(
+            button,
+            side ? `Teilen läuft: ${handLabel(side)}` : 'Handpose teilen',
+            side
+              ? `Trigger ${handLabel(this.sharingFrom ?? side)} speichert · an ${peers}`
+              : 'Zeigen mit der Hand am Controller — geteilt wird die andere',
+            side ? GRAB_GLOW : 0x9d7bff,
+          );
+        },
+        run: (hand) => this.toggleShare(hand),
+      },
+      {
+        refresh: (button) => {
+          this.label(
+            button,
+            'Pose senden',
+            this.poseCode || 'Erst messen, dann senden',
+            this.poseCode ? 0x5ee0a0 : 0x6f7d99,
+          );
+        },
+        run: () => this.sendPoseCode(),
+      },
+    ];
+  }
+
+  /**
+   * Der Schalter an der Wand: Handschuh an die blanke Hand — oder wieder ab.
+   *
+   * Er steht hier und nicht nur im Menü, weil man ihn genau hier braucht: eine
+   * Reihe Gelenkkugeln hat keine Handfläche, und an eine Handfläche legt man
+   * einen Gegenstand.
+   */
+  private toggleTrackedGlove(): void {
+    const on = saveTrackedGlove(!trackedGlove());
+    this.context?.hands.refreshPoses();
+    this.refreshButtons();
+    this.context?.notify(
+      on ? 'Handschuh an den blanken Händen' : 'Blanke Hände wieder als Gelenkkugeln',
+    );
+  }
+
+  /**
+   * **Teilen an, teilen aus** — und zwar immer für die *andere* Hand.
+   *
+   * Gezeigt hat die Hand mit dem Controller; geteilt wird die daneben. Das ist
+   * keine Höflichkeit, sondern die einzige Aufteilung, die aufgeht: die
+   * gemessene Hand liegt am Gegenstand und darf sich nicht rühren, also muss
+   * die andere drücken — und die andere ist die mit dem Gerät darin.
+   */
+  private toggleShare(pointing: Handedness | null): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.sharing) {
+      this.sharing = null;
+      this.sharingFrom = null;
+      this.refreshButtons();
+      ctx.notify('Teilen beendet');
+      return;
+    }
+    const from = pointing ?? 'right';
+    const side: Handedness = from === 'left' ? 'right' : 'left';
+    this.sharing = side;
+    this.sharingFrom = from;
+    this.shareAge = Number.POSITIVE_INFINITY;
+    this.refreshButtons();
+    const peers = ctx.net.peers.size;
+    ctx.notify(
+      `${handLabel(side)} wird geteilt · Trigger ${handLabel(from)} speichert` +
+        (peers > 0 ? ` · ${peers} sehen zu` : ' · noch niemand verbunden'),
+    );
+  }
+
+  /**
+   * Der gemessene Konfig-Code an alle im Raum — als Chat-Zeile wie jeder
+   * andere, damit er drüben mit einem Knopf *Kopieren* im Panel steht.
+   */
+  private sendPoseCode(): void {
+    const ctx = this.context;
+    if (!ctx || !this.poseCode) {
+      this.context?.notify('Erst eine Hand messen — Handpose teilen drücken');
+      return;
+    }
+    const side = this.sharing ?? this.gripState.side;
+    const label = `${this.poseTitle(side, this.hoverTool?.toolId ?? null)} · Poseraum`;
+    ctx.say(this.poseCode, { kind: 'code', note: label });
+    const peers = ctx.net.peers.size;
+    ctx.notify(
+      peers > 0 ? `Gesendet an ${peers}: ${label}` : `${label}: im Chat — noch niemand verbunden`,
+    );
+  }
+
+  /**
+   * Ein Bild im Poseraum: was schwebt, was die Hand tut, und wer davon etwas
+   * erfährt.
+   */
+  private updatePoseRoom(dt: number, ctx: WorldContext): void {
+    const box = this.hover;
+    if (!box) return;
+
+    const floating = this.floatingTool();
+    if (floating !== this.hoverTool) {
+      this.hoverTool = floating;
+      box.setOccupied(Boolean(floating));
+      this.refreshButtons();
+    }
+
+    const side = this.sharing;
+    if (!side) {
+      this.showPose(null);
+      return;
+    }
+
+    const measured = this.measurePose(ctx, side);
+    // Dieselbe Bremse wie an den Handtafeln: eine Zahl, die sich mit jeder
+    // Handbewegung ändert, malt sonst in jedem Bild eine Leinwand neu.
+    this.poseAge += dt;
+    if (this.poseAge >= TILT_REFRESH) {
+      this.poseAge = 0;
+      this.showPose(measured);
+    }
+    // **Der Trigger der anderen Hand hält fest.** Ein Knopf an der Wand ginge
+    // auch — nur müsste man dafür die Hand vom Gegenstand nehmen, und genau
+    // die soll liegen bleiben. Festgehalten wird nur eine **gesehene** Hand:
+    // die eingestellte auf sich selbst zu schreiben ist keine Messung.
+    const from = this.sharingFrom;
+    const saved = measured.live && Boolean(from && ctx.input.get(from)?.trigger.justPressed);
+    if (saved) this.savePose(ctx, side, measured);
+
+    this.shareAge += dt;
+    if (!saved && this.shareAge < SHARE_INTERVAL) return;
+    this.shareAge = 0;
+    ctx.net.emit(HAND_SHARE_CHANNEL, packHandShare({ ...measured.share, saved }));
+  }
+
+  /**
+   * **Was die Hand gerade tut**, gemessen gegen das, was im Kasten schwebt.
+   *
+   * Die Kette ist dieselbe wie am Griffstand (`handGrip.ts`) und aus demselben
+   * Grund: der Griff kürzt sich heraus. Gerechnet wird im Raum des Werkzeugs —
+   * dort liegt die Hand, und dort ist die Antwort ablesbar, ohne dass jemand
+   * einen Controller in der messenden Hand halten müsste.
+   *
+   * Hängt **nichts** im Kasten, bleibt die halbe Messung übrig, und sie ist die
+   * nützlichere Hälfte: die **Finger**. Eine blanke Hand misst das Headset
+   * ohnehin (`handGestures.foldCurls`), und bis hierher landete das nirgends —
+   * die Grundhaltung behält damit ihre Lage und bekommt die Krümmung der
+   * echten Hand.
+   *
+   * Und sieht die Brille die Hand gerade **nicht** — sie liegt hinter dem
+   * Werkzeug, oder der Handschuh ist aus —, dann steht statt der Messung die
+   * **eingestellte** Haltung da (`live: false`). Das ist genau das, was die
+   * Brille in diesem Moment auch zeichnet, es geht weiter über die Leitung, und
+   * damit sieht der Zuschauer im Browser das Werkzeug im Kasten auch dann. Nur
+   * gespeichert wird es nicht: eine Haltung auf sich selbst zu schreiben ist
+   * keine Messung.
+   */
+  private measurePose(ctx: WorldContext, side: Handedness): Measured {
+    const hand = ctx.hands.drawnHandOf(side);
+    const tool = this.hoverTool;
+    const toolId = tool?.toolId ?? null;
+    const base = toolId ? holdHandPose(side, toolId) : idleHandPose(side);
+    const curls = hand ? ctx.hands.trackedCurlsOf(side) : null;
+    const pose: HandPose = { ...clonePose(base), curls: curls ?? clonePose(base).curls };
+
+    let at: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
+    if (tool && hand) {
+      tool.updateWorldMatrix(true, false);
+      hand.updateWorldMatrix(true, false);
+      _matrix.copy(tool.matrixWorld).invert().multiply(hand.matrixWorld);
+      // Der Maßstab des Handschuhs fällt hier heraus: gemessen wird, **wo**
+      // die Hand liegt, und eine große Hand liegt nicht anders als eine
+      // kleine.
+      _matrix.decompose(_posePosition, _poseRotation, _scale);
+      const ghost: Pose = {
+        position: { x: _posePosition.x, y: _posePosition.y, z: _posePosition.z },
+        rotation: {
+          x: _poseRotation.x,
+          y: _poseRotation.y,
+          z: _poseRotation.z,
+          w: _poseRotation.w,
+        },
+      };
+      at = readPose(ghost as HoldPose);
+      Object.assign(pose, readPose(handFromGhost(this.gripLocal(tool, side), ghost) as HoldPose));
+    } else if (tool) {
+      // Keine Hand zu sehen: die eingestellte Haltung ans Werkzeug legen —
+      // dieselbe Rechnung, die auch der Griffstand für seine Boxhand macht.
+      at = readPose(ghostOnTool(this.gripLocal(tool, side), poseOfHand(pose)) as HoldPose);
+    }
+
+    // Der Kurzcode wird **hier** gebaut und nicht aus dem Speicher geholt: was
+    // auf der Tafel steht, soll die Haltung sein, die man gerade sieht, und
+    // nicht die, die zuletzt gespeichert wurde.
+    const code = packShortGear({
+      toolId: toolId ?? '',
+      hand: side,
+      grip: [pose.x, pose.y, pose.z, pose.pitch, pose.yaw, pose.roll],
+      fingers: { curls: pose.curls, spread: pose.spread },
+    });
+    return {
+      pose,
+      toolId,
+      live: hand !== null,
+      share: {
+        hand: side,
+        toolId,
+        at: readoutValues(at),
+        curls: pose.curls,
+        spread: pose.spread,
+        code,
+        saved: false,
+      },
+    };
+  }
+
+  /** Die gemessene Haltung in den Speicher — dorthin, wo die Brille sie liest. */
+  private savePose(ctx: WorldContext, side: Handedness, measured: Measured): void {
+    const { pose, toolId } = measured;
+    if (toolId) saveHoldHandPose(side, toolId, pose);
+    else saveIdleHandPose(side, pose);
+    ctx.hands.refreshPoses();
+    this.placeGripHand();
+    this.poseCode = measured.share.code;
+    this.refreshButtons();
+    const controller = this.sharingFrom ? ctx.input.get(this.sharingFrom) : null;
+    controller?.pulse(0.6, 40);
+    ctx.notify(`Gespeichert: ${this.poseTitle(side, toolId)} · ${measured.share.code}`);
+  }
+
+  /**
+   * Die Tafel im Poseraum — höchstens ein paar Mal je Sekunde, wie jede andere
+   * Tafel hier: eine Zahl, die sich mit jeder Handbewegung ändert, malt sonst
+   * in jedem Bild eine Leinwand neu.
+   */
+  private showPose(measured: Measured | null): void {
+    const board = this.poseBoard;
+    if (!board) return;
+    if (!measured) {
+      const title = 'Noch nichts gemessen';
+      const body = 'Handpose teilen drücken — gemessen wird die andere Hand';
+      const line = `${title}|${body}`;
+      if (line === this.poseLine) return;
+      this.poseLine = line;
+      board.setText(title, body, 0x6f7d99);
+      return;
+    }
+    const { pose, toolId, share, live } = measured;
+    // **Gesehen oder eingestellt** — das ist der Unterschied, auf den es hier
+    // ankommt, und deshalb steht er im Titel und nicht in einer Fußnote: die
+    // Zahlen sehen in beiden Fällen gleich aus.
+    const title = live
+      ? this.poseTitle(share.hand, toolId)
+      : `${this.poseTitle(share.hand, toolId)} — eingestellt`;
+    const body = live
+      ? `${formatHandPose(pose)}\n${share.code}`
+      : trackedGlove()
+        ? 'Keine Hand zu sehen — Hand ins Blickfeld halten'
+        : 'Keine Hand zu sehen — Handschuh einschalten: blanke Hände sind sonst nur Gelenkkugeln';
+    const line = `${title}|${body}`;
+    if (line === this.poseLine) return;
+    this.poseLine = line;
+    if (live) this.poseCode = share.code;
+    board.setText(title, body, live ? (toolId ? 0x5ee0a0 : 0x9d7bff) : 0x6f7d99);
+    // Der Knopf *Pose senden* trägt den Code als Beschriftung — er gehört zu
+    // dem, was gerade auf der Tafel steht, und nicht zu dem von vorhin.
+    this.refreshButtons();
   }
 
   /**
@@ -2749,4 +3279,9 @@ function deg(radians: number): number {
 
 function handLabel(hand: Handedness): string {
   return hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
+}
+
+/** Sechs Zahlen aus einer Ablesung — die Reihenfolge, in der jede Pose reist. */
+function readoutValues(readout: PoseReadout): number[] {
+  return [readout.x, readout.y, readout.z, readout.pitch, readout.yaw, readout.roll];
 }

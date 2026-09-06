@@ -11,9 +11,16 @@
  * was man gewählt hat.
  *
  * Umgeschaltet wird unter *Einstellungen → Hände → Handmodell* und in der
- * Schublade der Werkzeugseite. Getrackte Hände (ohne Controller) bleiben
- * Kugeln an den Gelenken — die liefert die Brille, und dort ist nichts
- * anzuziehen.
+ * Schublade der Werkzeugseite.
+ *
+ * Getrackte Hände (ohne Controller) waren lange Kugeln an den Gelenken — die
+ * liefert die Brille, und dort schien nichts anzuziehen zu sein. Seit
+ * `gloveFit.ts` gibt es den zweiten Schalter daneben: **Handschuh an
+ * getrackten Händen**. Er legt dasselbe Skelett auf dieselben Gelenke, und die
+ * Finger folgen weiter den echten (`handGestures.foldCurls`). Ein eigener
+ * Schalter und keine dritte Stufe von `HandLook`, weil es eine andere Frage
+ * ist: das Modell gilt für die Hand am Controller, dieser hier für die Hand
+ * ohne.
  *
  * Ohne three.js, wie jede Einstellung hier.
  */
@@ -70,4 +77,37 @@ export function saveHandLook(look: HandLook): HandLook {
   }
   for (const listener of listeners) listener();
   return next;
+}
+
+// --- der Handschuh an getrackten Händen -------------------------------------
+
+const TRACKED_KEY = 'bgvr.trackedGlove';
+
+/**
+ * Ob eine Hand **ohne Controller** einen Handschuh trägt statt Gelenkkugeln.
+ *
+ * Ab Werk aus: die Kugeln sind das, was die Brille misst, und wer eine Geste
+ * einstellt, will genau das sehen. Angeschaltet liegt derselbe Handschuh
+ * darüber, den die Hand am Controller trägt — dieselben Finger, dasselbe Maß,
+ * nur auf echte Knochen gelegt (`gloveFit.ts`). Der Schalter dafür hängt im
+ * Poseraum des Eingaberaums an der Wand, dort, wo man ihn braucht.
+ */
+export function trackedGlove(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(TRACKED_KEY) === 'on';
+  } catch {
+    // Privater Modus, kein Speicher — siehe oben.
+    return false;
+  }
+}
+
+export function saveTrackedGlove(on: boolean): boolean {
+  try {
+    globalThis.localStorage?.setItem(TRACKED_KEY, on ? 'on' : 'off');
+  } catch {
+    /* siehe oben */
+  }
+  // Derselbe Verteiler wie beim Modell: die Hände ziehen sich neu an.
+  for (const listener of listeners) listener();
+  return on;
 }

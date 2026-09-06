@@ -44,6 +44,10 @@ import {
 } from './poseEdit';
 import { alignHandToLine, handAboutPivot, turnHandTo } from './alignHand';
 import { ToolViewer, type HandMode } from './viewer';
+import { LiveHand, LiveLink } from './liveHand';
+import { rememberedName, rememberedRoom } from '../net/room';
+import type { HandShare } from '../worlds/tune/handShare';
+import type { NetStatus } from '../net/types';
 import type { Vec3 } from '../worlds/portal/tools/aim';
 import type { PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { WorldDefinition } from '../core/types';
@@ -91,7 +95,15 @@ import type { WorldDefinition } from '../core/types';
  * (mit Test).
  */
 
-type Section = 'tools' | 'worlds' | 'bag';
+/** Ein Regal mit Kacheln — die drei, die eine Übersicht und Einzelseiten haben. */
+type Shelf = 'tools' | 'worlds' | 'bag';
+
+/**
+ * Und alles, was die Schublade anbietet: die drei Regale und der
+ * **Zuschauerplatz**. `live` ist kein Regal — es gibt dort nichts anzutippen,
+ * sondern eine Leitung, eine Hand und einen Code (`liveHand.ts`).
+ */
+type Section = Shelf | 'live';
 
 const nav = document.querySelector<HTMLButtonElement>('#nav')!;
 const back = document.querySelector<HTMLButtonElement>('#back')!;
@@ -99,7 +111,7 @@ const title = document.querySelector<HTMLElement>('#title')!;
 const hands = document.querySelector<HTMLElement>('#hands')!;
 const fingers = document.querySelector<HTMLElement>('#fingers')!;
 const drawer = document.querySelector<HTMLElement>('#drawer')!;
-const grids: Record<Section, HTMLElement> = {
+const grids: Record<Shelf, HTMLElement> = {
   tools: document.querySelector<HTMLElement>('#grid-tools')!,
   worlds: document.querySelector<HTMLElement>('#grid-worlds')!,
   bag: document.querySelector<HTMLElement>('#grid-bag')!,
@@ -132,6 +144,15 @@ const lede = document.querySelector<HTMLElement>('#lede')!;
 const wipe = document.querySelector<HTMLButtonElement>('#wipe')!;
 const look = document.querySelector<HTMLButtonElement>('#look')!;
 const wipeNote = document.querySelector<HTMLElement>('#wipe-note')!;
+const livePanel = document.querySelector<HTMLElement>('#live')!;
+const liveOut = document.querySelector<HTMLElement>('#live-out')!;
+const liveRoom = document.querySelector<HTMLInputElement>('#live-room')!;
+const liveName = document.querySelector<HTMLInputElement>('#live-name')!;
+const liveConnect = document.querySelector<HTMLButtonElement>('#live-connect')!;
+const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
+const liveWhat = document.querySelector<HTMLElement>('#live-what')!;
+const liveCode = document.querySelector<HTMLTextAreaElement>('#live-code')!;
+const liveCopy = document.querySelector<HTMLButtonElement>('#live-copy')!;
 
 const HAND_STORE = 'bgvr.toolPageHand';
 const BUTTONS_STORE = 'bgvr.toolPageButtons';
@@ -141,6 +162,7 @@ const SECTION_TITLES: Record<Section, string> = {
   tools: 'Werkzeuge',
   worlds: 'Welten',
   bag: 'Magischer Beutel',
+  live: 'Verbinden',
 };
 
 /** Die Übersicht eines Regals, als Hash. */
@@ -148,11 +170,13 @@ const SECTION_HASH: Record<Section, string> = {
   tools: 'werkzeuge',
   worlds: 'welten',
   bag: 'beutel',
+  live: 'verbinden',
 };
 
 /** Was auf einer Kachel steht — einmal aus dem Spiel gelesen. */
 interface Entry {
-  section: Section;
+  /** Kacheln gibt es nur in Regalen; der Zuschauerplatz hat keine. */
+  section: Shelf;
   id: string;
   /** Der Hash, unter dem das Ding einzeln steht. */
   hash: string;
@@ -1215,6 +1239,155 @@ function copy(button: HTMLButtonElement, code: string, label: string): void {
   );
 }
 
+// --- der Zuschauerplatz ------------------------------------------------------
+
+/**
+ * **Verbinden**: dieselbe Sitzung wie beim Zusammenspielen, nur ohne Spiel.
+ *
+ * Drüben drückt jemand im Poseraum *Handpose teilen*; von da an schickt seine
+ * Brille zwanzigmal je Sekunde die Haltung der Hand, die er gerade misst
+ * (`worlds/tune/handShare.ts`). Hier steht sie als Werkzeug mit einer Hand
+ * daran — dieselben Modelle wie im Spiel — und darunter ihr Konfig-Code, in
+ * einem Feld, aus dem man ihn herauskopiert.
+ *
+ * Gezeigt wird **eine** Hand und sonst nichts. Das ist der Punkt: wer beim
+ * Einstellen zusieht, will die Hand am Ding sehen und nicht einen halben
+ * Spieler drumherum.
+ */
+const live = new LiveHand();
+const link = new LiveLink(applyShare, showLiveStatus);
+
+/** Die zuletzt angekommene Haltung — beim Betreten der Seite steht sie sofort da. */
+let lastShare: HandShare | null = null;
+/** Ob die Bühne gerade dem Zuschauerplatz gehört. */
+let liveShowing = false;
+
+liveRoom.value = rememberedRoom();
+liveName.value = rememberedName();
+liveConnect.addEventListener('click', () => void toggleLive());
+liveCopy.addEventListener('click', () => copyLiveCode());
+
+async function toggleLive(): Promise<void> {
+  if (link.connecting) return;
+  if (link.connected) {
+    link.disconnect();
+    showLiveStatus('offline', '');
+    return;
+  }
+  liveConnect.disabled = true;
+  try {
+    liveRoom.value = await link.connect(liveRoom.value, liveName.value);
+  } catch (error) {
+    showLiveStatus('error', (error as Error).message);
+  } finally {
+    liveConnect.disabled = false;
+    showLiveButton();
+  }
+}
+
+/** Die Statuszeile — dieselben fünf Zustände, die die Sitzung kennt. */
+function showLiveStatus(status: NetStatus, detail: string): void {
+  const words: Record<NetStatus, string> = {
+    offline: 'Nicht verbunden',
+    connecting: 'Verbinde …',
+    waiting: 'Verbunden — warte auf die Brille',
+    online: 'Verbunden',
+    error: 'Fehler',
+  };
+  liveStatus.textContent = detail ? `${words[status]} · ${detail}` : words[status];
+  liveStatus.classList.toggle('is-bad', status === 'error');
+  liveStatus.classList.toggle('is-good', status === 'online');
+  showLiveButton();
+}
+
+function showLiveButton(): void {
+  liveConnect.textContent = link.connected ? 'Trennen' : 'Verbinden';
+  liveConnect.classList.toggle('is-on', link.connected);
+}
+
+/**
+ * Eine hereingekommene Haltung: auf die Bühne, in das Feld.
+ *
+ * Gebaut wird nur, wenn sich Werkzeug oder Seite geändert haben — die
+ * Bewegung dazwischen verschiebt die stehende Hand. Und gebaut wird gar
+ * nichts, solange die Bühne einem Werkzeug aus dem Regal gehört: der Code
+ * steht trotzdem im Feld, denn den will man auch dann.
+ */
+function applyShare(share: HandShare): void {
+  lastShare = share;
+  showLiveCode(share);
+  if (!liveShowing) return;
+  const built = live.update(share);
+  if (built) {
+    viewer.showObject(built.object, { dispose: () => built.dispose(), pitch: LIVE_PITCH });
+    viewer.start();
+  }
+}
+
+/** Wie schräg von oben man auf eine geteilte Hand sieht. */
+const LIVE_PITCH = 0.22;
+
+function showLiveCode(share: HandShare): void {
+  const what = share.toolId ? toolLabel(share.toolId) : 'Leere Hand';
+  const hand = share.hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
+  liveWhat.textContent = share.saved
+    ? `${hand} · ${what} — gespeichert ✓`
+    : `${hand} · ${what} — live`;
+  liveWhat.classList.toggle('is-good', share.saved);
+  if (liveCode.value !== share.code) liveCode.value = share.code;
+}
+
+/** Wie ein Werkzeug heißt — aus derselben Liste, aus der das Regal liest. */
+function toolLabel(id: string): string {
+  return byHash.get(id)?.label ?? id;
+}
+
+function copyLiveCode(): void {
+  const code = liveCode.value;
+  if (!code) return;
+  const done = (text: string): void => {
+    liveCopy.textContent = text;
+    window.setTimeout(() => (liveCopy.textContent = 'Code kopieren'), 1400);
+  };
+  // Ohne Zwischenablage bleibt das Feld: markieren geht immer noch, und genau
+  // dafür ist es ein Feld und kein Knopf mit Schrift darauf.
+  const clipboard = globalThis.navigator?.clipboard;
+  if (!clipboard) {
+    liveCode.select();
+    done('Markiert — jetzt kopieren');
+    return;
+  }
+  clipboard.writeText(code).then(
+    () => done('Kopiert ✓'),
+    () => {
+      liveCode.select();
+      done('Markiert — jetzt kopieren');
+    },
+  );
+}
+
+/**
+ * Den Zuschauerplatz auf- oder zuklappen.
+ *
+ * Die **Leitung bleibt**, wenn man weiterblättert: wer zwischendurch ein
+ * Werkzeug nachsieht, soll nicht neu verbinden müssen, und die Codes laufen
+ * derweil weiter ins Feld. Nur die Bühne gehört dann jemand anderem.
+ */
+function showLive(on: boolean): void {
+  liveShowing = on;
+  livePanel.hidden = !on;
+  liveOut.hidden = !on;
+  if (!on) return;
+  detail.hidden = false;
+  hint.textContent = 'Die Hand, die drüben gerade gemessen wird.';
+  note.hidden = true;
+  enter.hidden = true;
+  help.textContent = HELP_VIEW;
+  showLiveButton();
+  if (lastShare) applyShare(lastShare);
+  viewer.start();
+}
+
 // --- welcher Zustand gilt ----------------------------------------------------
 
 window.addEventListener('hashchange', route);
@@ -1225,6 +1398,7 @@ function sectionOf(hash: string): Section | null {
   if (hash === '' || hash === SECTION_HASH.tools) return 'tools';
   if (hash === SECTION_HASH.worlds) return 'worlds';
   if (hash === SECTION_HASH.bag) return 'bag';
+  if (hash === SECTION_HASH.live) return 'live';
   return null;
 }
 
@@ -1248,6 +1422,9 @@ function route(): void {
   }
 
   markSection(entry.section);
+  // Ein einzelnes Ding aus einem Regal: der Zuschauerplatz gibt die Bühne ab,
+  // die Leitung behält er.
+  showLive(false);
   for (const grid of Object.values(grids)) grid.hidden = true;
   lede.hidden = true;
   detail.hidden = false;
@@ -1299,4 +1476,7 @@ function showOverview(section: Section): void {
   setFlying(false);
   title.textContent = SECTION_TITLES[section];
   document.title = `${SECTION_TITLES[section]} — Baumgartner VR`;
+  // Der Zuschauerplatz ist kein Regal: er bringt die Bühne mit, aber keine
+  // Kacheln — und deshalb steht er hier und nicht in `route`.
+  showLive(section === 'live');
 }
