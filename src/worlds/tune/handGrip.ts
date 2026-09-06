@@ -107,6 +107,33 @@ export function toolInGrip(hold: HoldPose, aim: Quat): Pose {
 }
 
 /**
+ * Und zurück: die **gespeicherte** Lage im Griff zu einem Werkzeug, das dort
+ * so hängt — die genaue Umkehrung von `toolInGrip`.
+ *
+ * Gebraucht, sobald jemand ein gehaltenes Werkzeug im Griffraum *anfasst*
+ * statt es nur hinzustellen: der Regler der Werkzeugseite schiebt es im Rahmen
+ * der echten Hand (`tools/handFrame.ts`), und was dabei herauskommt, ist seine
+ * Lage im Griff — die Zielkorrektur muss also wieder heraus, sonst stünde sie
+ * beim nächsten Zeichnen ein zweites Mal darin.
+ *
+ * @param local die Lage des Werkzeugs im Griffraum, wie sie gezeichnet wird
+ * @param aim   dieselbe Zielkorrektur, mit der `toolInGrip` sie hineingerechnet hat
+ */
+export function holdFromGrip(local: Pose, aim: Quat): HoldPose {
+  return {
+    position: local.position,
+    rotation: normalize(
+      multiplyQuat(conjugate(aim, { x: 0, y: 0, z: 0, w: 1 }), local.rotation, {
+        x: 0,
+        y: 0,
+        z: 0,
+        w: 1,
+      }),
+    ),
+  };
+}
+
+/**
  * Wo die Boxhand am Werkzeug hängt — in dessen eigenem Raum.
  *
  * @param local die Lage des Werkzeugs im Griff (`toolInGrip`)

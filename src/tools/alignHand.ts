@@ -41,10 +41,12 @@
  * damit die Hand ihre Rolllage behält und man sie danach dort findet, wo man
  * sie gelassen hat.
  *
- * Gerechnet wird im **Raum des Werkzeugs** — dieselbe Größe, an der auch der
- * Regler zieht (`ghostOnTool` in `tune/handGrip.ts`) —, und ohne three.js wie
- * die übrige geprüfte Mathematik: ein vertauschtes Vorzeichen fällt hier auf
- * und nicht erst in der Brille.
+ * Gerechnet wird im **Rahmen der echten Hand** — demselben Raum, in dem auch
+ * der Regler zieht (`handFrame.ts`) —, und ohne three.js wie die übrige
+ * geprüfte Mathematik: ein vertauschtes Vorzeichen fällt hier auf und nicht
+ * erst in der Brille. Welcher Raum es ist, ist der Rechnung selbst egal: sie
+ * verlangt nur, dass Hand, Fingerlinie und Ziellinie **im selben** stehen. Der
+ * Betrachter liefert deshalb alle drei aus einer Hand (`viewer.intoHand`).
  */
 
 import {

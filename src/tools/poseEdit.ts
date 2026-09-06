@@ -9,24 +9,27 @@
  * (`core/handPose.ts`) sind dieselben sechs Zahlen. Ein Regler, der auf beide
  * passt, muss deshalb nichts umrechnen.
  *
- * Bewegt wird dabei immer **die Hand**, nie das Werkzeug. Das Werkzeug ist das,
- * was man ansieht: es steht aufrecht in seinem eigenen Raum und bleibt dort
- * stehen, und die Hand legt man daran, wie man eine echte Hand an ein echtes
- * Ding legt. Die sechs Zahlen sind deshalb die Lage der **Hand im Raum des
- * Werkzeugs** — dieselbe Größe, die der zweite Justierstand im Eingaberaum
- * misst (`tune/handGrip.ts`, `ghostOnTool`).
+ * Und sie gelten **immer im selben Raum: dem der echten Hand**
+ * (`handFrame.ts`) — Nullpunkt der Griffpunkt, -Z die Blickrichtung der Hand,
+ * Y nach oben aus der Faust. Das ist der einzige Rahmen, den man beim
+ * Justieren wirklich vor sich hat: die eigene Hand hält ein Gerät und zeigt
+ * irgendwohin, und „ein Stück nach rechts" heißt rechts *von ihr aus* — beim
+ * Pinsel wie bei der Pistole, in beiden Ansichten. Vorher hing der Rahmen an
+ * dem, was man gerade verstellte (Werkzeugraum hier, Griffraum dort), und
+ * dieselbe Achse zog je nach Ansicht und Werkzeug in eine andere Richtung.
  *
- * Und **zwei Ziele**, denn dieselbe Handlage kann auf zwei Arten wahr werden —
- * es sind die Antworten der beiden Justierstände, und beide sehen auf dem
- * Schirm gleich aus:
+ * Und **zwei Ziele**, denn dieselbe Lage kann auf zwei Arten wahr werden — es
+ * sind die Antworten der beiden Justierstände, und beide sehen auf dem Schirm
+ * gleich aus:
  *
- * - `hold` — *In der Hand*: gespeichert wird die **Lage des Werkzeugs im
- *   Griff** (`poseStore`, also `holdPosition`/`holdRotation`). Die Haltung der
- *   Hand bleibt, wie sie ist — was sich ändert, ist, wie das Ding in der Faust
- *   liegt und wohin es damit zeigt.
- * - `grip` — *Am Griff*: gespeichert wird die **Griffhaltung der Hand**
- *   (`handPoseStore`). Die Lage des Werkzeugs im Griff bleibt — was sich
- *   ändert, ist, wie die Faust den Griff umfasst.
+ * - `hold` — *Hand in echt*: die eigene Hand steht, das **Werkzeug** wandert
+ *   darin. Gespeichert wird seine **Lage im Griff** (`poseStore`, also
+ *   `holdPosition`/`holdRotation`). Was sich ändert, ist, wie das Ding in der
+ *   Faust liegt und wohin es damit zeigt.
+ * - `grip` — *Hand in VR*: das Werkzeug steht, die **gezeichnete Hand** wandert
+ *   daran. Gespeichert wird ihre **Griffhaltung** (`handPoseStore`). Die Lage
+ *   des Werkzeugs im Griff bleibt — was sich ändert, ist, wie die Faust den
+ *   Griff umfasst.
  *
  * Beide Wege enden in denselben Speichern wie die Brille, also auch im
  * Konfig-Code — die Seite ist eine zweite Bedienung derselben Einstellung und
@@ -66,20 +69,43 @@ export interface AxisSpec {
  * Schrittweiten sind die Raster, auf denen gespeichert wird: ein Zehntel
  * Zentimeter, ein ganzes Grad.
  *
- * Zu `Z`: im Griffraum zeigt **-Z nach vorn**, aus der Faust heraus — die
- * Finger sitzen bei z = -0,046 (`core/HandVisuals.ts`). Ein positives Z
- * schiebt also **nach hinten**, zum Handgelenk. Das Wertefeld im
- * Handgelenk-Menü schreibt an derselben Zahl „Z (vor)"; hier steht, was
- * wirklich passiert, denn ein Regler, den man ansieht, während man ihn zieht,
- * verrät eine falsche Beschriftung sofort.
+ * Zu `Z`: **-Z ist die Blickrichtung der echten Hand**, also der weiße
+ * Zeigestrahl. Ein positives Z schiebt deshalb **nach hinten**, zum
+ * Handgelenk. Das Wertefeld im Handgelenk-Menü schreibt an derselben Zahl
+ * „Z (vor)"; hier steht, was wirklich passiert, denn ein Regler, den man
+ * ansieht, während man ihn zieht, verrät eine falsche Beschriftung sofort.
  */
 export const EDIT_AXES: readonly AxisSpec[] = [
-  { key: 'x', label: 'X', hint: 'nach rechts', unit: 'cm', min: -30, max: 30, step: 0.1 },
-  { key: 'y', label: 'Y', hint: 'nach oben', unit: 'cm', min: -30, max: 30, step: 0.1 },
-  { key: 'z', label: 'Z', hint: 'nach hinten', unit: 'cm', min: -30, max: 30, step: 0.1 },
+  {
+    key: 'x',
+    label: 'X',
+    hint: 'nach rechts (echte Hand)',
+    unit: 'cm',
+    min: -30,
+    max: 30,
+    step: 0.1,
+  },
+  {
+    key: 'y',
+    label: 'Y',
+    hint: 'nach oben (echte Hand)',
+    unit: 'cm',
+    min: -30,
+    max: 30,
+    step: 0.1,
+  },
+  {
+    key: 'z',
+    label: 'Z',
+    hint: 'nach hinten, gegen den Strahl',
+    unit: 'cm',
+    min: -30,
+    max: 30,
+    step: 0.1,
+  },
   // Und wohin die drei Drehungen greifen, steht dabei: Pitch um **X** (rot),
   // Yaw um **Y** (grün), Roll um **Z** (blau) — dieselben Achsen, die im
-  // Bearbeiten-Modus als Kreuz danebenstehen. Ohne das rät man bei jedem
+  // Bearbeiten-Modus als Kreuz in der Hand stehen. Ohne das rät man bei jedem
   // Regler neu, welcher der drei gerade der richtige ist.
   { key: 'yaw', label: 'Yaw', hint: 'drehen um Y (grün)', unit: '°', min: -180, max: 180, step: 1 },
   {
@@ -94,7 +120,7 @@ export const EDIT_AXES: readonly AxisSpec[] = [
   {
     key: 'roll',
     label: 'Roll',
-    hint: 'kippen um Z (blau)',
+    hint: 'kippen um Z (blau) — die Blickrichtung',
     unit: '°',
     min: -180,
     max: 180,
@@ -112,6 +138,9 @@ export const EDIT_AXES: readonly AxisSpec[] = [
  *   nichts einzustellen —, und das **Werkzeug** wandert darin; geschrieben
  *   wird die Lage des Werkzeugs im Griff.
  *
+ * Der Rahmen, in dem geschoben und gedreht wird, ist dabei in beiden derselbe:
+ * die echte Hand. Was wechselt, ist nur, was sich darin bewegt.
+ *
  * Vorher war das ein zweiter Umschalter unter dem Regler, mit eigenen Namen
  * („In der Hand", „Am Griff"), und man musste zwei Schalter im Kopf
  * zusammenhalten, die dasselbe meinten.
@@ -124,12 +153,12 @@ export const EDIT_TARGETS: readonly {
   {
     key: 'hold',
     label: 'Hand in echt',
-    hint: 'der Regler bewegt das Werkzeug — gespeichert als seine Lage im Griff',
+    hint: 'der Regler bewegt das Werkzeug in der echten Hand — gespeichert als seine Lage im Griff',
   },
   {
     key: 'grip',
     label: 'Hand in VR',
-    hint: 'der Regler bewegt die Hand — gespeichert als ihre Griffhaltung',
+    hint: 'der Regler bewegt die Hand im Rahmen der echten — gespeichert als ihre Griffhaltung',
   },
 ];
 

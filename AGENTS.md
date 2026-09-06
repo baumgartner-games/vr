@@ -117,7 +117,9 @@ Achse bedient), der **zweite Justierstand**
 eine Werkzeug-Id, die es nicht mehr gibt) samt seiner **Rechnung**
 (`src/worlds/tune/handGrip.ts` — dass die Kette Griff → Werkzeug → Hand sich
 wirklich schließt und der Griff sich dabei herauskürzt, denn am Stand hält
-niemand etwas), die **Faust am Griff**
+niemand etwas, und dass die Zielkorrektur, die ein gehaltenes Werkzeug
+hineinbekommt, auch wieder herausgeht: `holdFromGrip` ist die Umkehrung von
+`toolInGrip`, und ohne sie stünde sie beim nächsten Zeichnen doppelt darin), die **Faust am Griff**
 (`src/core/gripHandPose.test.ts` — dass eine am Griff eingestellte Haltung für
 jedes Werkzeug mit diesem Griff gilt, eine für ein einzelnes Werkzeug aber
 darüber gewinnt) und dass sie **wirklich um den Griff liegt**
@@ -186,7 +188,11 @@ der **Regler der Werkzeugseite**
 (`src/tools/poseEdit.ts` — die sechs Achsen, ihre Grenzen und dass ein Wert
 auf demselben Raster landet, auf dem auch gespeichert wird: ein Regler liefert
 0,30000000000000004, der Konfig-Code trüge 0,3, und die Seite zeigte eine
-dritte Zahl) samt den Knöpfen daneben
+dritte Zahl) samt dem **Rahmen, in dem er zieht**
+(`src/tools/handFrame.ts` — dass „vorne" der Zeigestrahl der Hand ist und
+nicht das -Z des Griffraums, dass ein Zentimeter auf einer Achse bei jedem
+Werkzeug in dieselbe Richtung geht, und dass der Weg zurück in den Speicher
+derselbe Weg ist) samt den Knöpfen daneben
 (`src/tools/alignHand.ts` — dass die Fingerlinie hinterher wirklich auf der
 Grifflinie liegt und nicht ungefähr, dass die Hand dabei nur so weit kippt, wie
 die beiden Richtungen auseinanderliegen, dass beim Schwenken in die Zielrichtung
@@ -2850,18 +2856,16 @@ Punkt: was man ansieht, ist das, was man verstellt.
 
 - **Hand in VR** — das Werkzeug steht aufrecht in seinem eigenen Raum, und die
   **gezeichnete Hand** wandert daran, wie man eine echte Hand an ein echtes
-  Ding legt. Die sechs Zahlen sind die Lage der **Hand im Raum des Werkzeugs**
-  (`ghostOnTool` in `tune/handGrip.ts`), übernommen als **Griffhaltung der
-  Hand** (`handPoseStore`, `bgvr.handPoses`) — und zwar nur in ihren sechs
-  Zahlen: Finger und Spreizung sind keine Frage von „wo liegt die Hand" und
-  bleiben stehen. Gerechnet als `Haltung = Lage-im-Griff · Hand-am-Werkzeug`
-  (`handFromGhost`).
+  Ding legt. Übernommen wird das als **Griffhaltung der Hand**
+  (`handPoseStore`, `bgvr.handPoses`) — und zwar nur in ihren sechs Zahlen:
+  Finger und Spreizung sind keine Frage von „wo liegt die Hand" und bleiben
+  stehen.
 - **Hand in echt** — die eigene Hand steht, und an ihr gibt es nichts
   einzustellen: sie hält einen Controller. Also wandert das **Werkzeug** darin.
-  Die sechs Zahlen sind seine **Lage im Griff** (`poseStore`,
+  Übernommen wird das als seine **Lage im Griff** (`poseStore`,
   `bgvr.holdPoses`, also `holdPosition`/`holdRotation`) — dieselben Zahlen, die
-  gespeichert werden und im Kurzcode stehen, ohne Umweg über eine Hand, die
-  dort gar nicht bewegt wird.
+  im Kurzcode stehen, ohne Umweg über eine Hand, die dort gar nicht bewegt
+  wird.
 
   Dafür wechselt beim Justieren der **Nullpunkt der Bühne**: er liegt sonst im
   Werkzeug (damit ein Wechsel der Ansicht die Welt nicht springen lässt), hier
@@ -2893,12 +2897,45 @@ Vorher war das ein **zweiter Umschalter** unter dem Regler, mit eigenen Namen
 Schalter, die dasselbe meinten und die man im Kopf zusammenhalten musste. Und
 bewegt wurde immer die Hand, auch dort, wo sie das Einzige ist, was feststeht.
 
-Dazu stehen im Bearbeiten-Modus **zwei Achsenkreuze** (`core/axesCross.ts`,
-dieselben wie im Eingaberaum): eines im Nullpunkt des **Werkzeugs** und eines
-im **Griffraum** — die beiden Räume, in denen die sechs Zahlen stehen. X rot, Y
+**Und geschoben wird im Rahmen der echten Hand — immer.** Was sich bewegt,
+wechselt mit der Ansicht; die **Richtungen** tun es nicht mehr. Die sechs
+Zahlen unter dem Regler stehen in beiden Ansichten und an jedem Werkzeug im
+selben Raum (`src/tools/handFrame.ts`, mit Test):
+
+- **Nullpunkt** ist der Griffpunkt — die Mitte der Faust, dort, wo das Gerät
+  wirklich liegt. Null bleibt damit dasselbe Null wie im Speicher.
+- **-Z ist die Blickrichtung der Hand**, also der weiße Zeigestrahl, und nicht
+  das -Z des Griffraums: die beiden liegen `GRIP_TO_RAY` auseinander, auf der
+  Quest 30°. Y geht nach oben aus der Faust, X nach rechts, +Z nach hinten zum
+  Handgelenk.
+
+Vorher hing der Rahmen an dem, was man gerade verstellte: in _Hand in VR_ am
+**Werkzeug** (`ghostOnTool`), in _Hand in echt_ am **Griffraum**. Dieselbe
+Achse zog damit je nach Ansicht und Werkzeug in eine andere Richtung — bei der
+Taschenlampe zeigte „X nach rechts" dorthin, wo bei der Pistole halb „vorne"
+war —, und keine der beiden Richtungen war die, in der ein Mensch beim
+Justieren denkt: der sitzt hinter seiner eigenen Hand. Jetzt heißt „X ein Stück
+weiter" überall dasselbe, und Yaw, Pitch und Roll drehen um die Achsen dieser
+Hand, Roll also um die Blickrichtung.
+
+Gespeichert wird davon nichts: eine Drehung später ist die Lage wieder im
+Griffraum, und dort landet sie in denselben Speichern und im selben Kurzcode
+wie zuvor (`fromRealHand`, und für das Werkzeug `holdFromGrip` — die
+Zielkorrektur muss wieder heraus, mit der der Betrachter es hineingerechnet
+hat). Der Rahmen ist eine **Bedienung** und kein zweiter Zustand daneben. Die
+Zeile unter dem Regler sagt deshalb auch dazu, was sie zeigt: _Werkzeug in der
+echten Hand_ beziehungsweise _Hand in der echten Hand_ — es sind nicht mehr die
+Zahlen aus dem Speicher.
+
+Dazu steht im Bearbeiten-Modus **ein Achsenkreuz** (`core/axesCross.ts`,
+dasselbe wie im Eingaberaum), und zwar genau in diesem Rahmen: am Griffpunkt,
+gedreht auf den Zeigestrahl, sein weißer Arm auf der weißen Linie. X rot, Y
 grün, Z blau, -Z weiß nach vorn, und die Beschriftung der drei Drehregler sagt
 dazu, um welche Achse sie greifen (_Pitch — nicken um X (rot)_). Sechs Zahlen
-ohne ein Kreuz daneben sind sechs Zahlen.
+ohne ein Kreuz daneben sind sechs Zahlen. Es waren einmal zwei — eines im
+Werkzeug, eines im Griffraum —, weil die Zahlen je nach Ansicht in einem der
+beiden Räume galten; ein Kreuz, zu dem kein Regler gehört, sagt beim Justieren
+nur, dass man sich die Achse falsch gemerkt hat.
 
 **Und der kürzeste Weg:** _Hand in echt übernehmen_ nimmt die Faust, mit der
 die eigene Hand das Gerät hält (`GRIP_POSE_ID`, siehe _Die Faust gehört zum
@@ -2944,11 +2981,19 @@ er für die ganze Ziehbewegung und nicht Bild für Bild neu genommen: gespeicher
 wird auf Zehntelzentimeter, und ein Punkt, der sich jedes Mal aus der gerundeten
 Lage neu ergibt, wandert über zweihundert Regler-Ticks um Millimeter davon.
 
+Das gilt allerdings nur, solange die **Hand** das ist, was wandert, also in
+_Hand in VR_. In _Hand in echt_ dreht sich das **Werkzeug** um seinen eigenen
+Nullpunkt und bleibt liegen, wo es liegt — um die Spitze einer Hand gedreht,
+die sich gar nicht bewegt, spränge es bei jedem Grad quer durch die Faust.
+
 Die Rechnung zu allen dreien steht in `src/tools/alignHand.ts` (mit Test, ohne
 three.js), die Linien holt die Seite aus den Weltmatrizen der Bühne
 (`viewer.handAim`, `viewer.gripAim`, `viewer.toolAim`) statt sie nachzurechnen:
 sie hängen an der Fingerspitze, am Griff und am Werkzeug, gehen also jede
 Krümmung und jeden Anbau mit, und damit ist ausgerichtet, was man auch sieht.
+Herausgegeben werden sie alle im **Rahmen der echten Hand** (`viewer.intoHand`)
+— derselbe Raum, in dem der Regler zieht; der Rechnung selbst ist er egal, sie
+verlangt nur, dass Hand, Fingerlinie und Ziellinie im _selben_ stehen.
 Trägt ein Werkzeug **mehrere** Griffe — das Drohnendeck hat zwei —, gewinnt der,
 der der Fingerspitze am nächsten liegt; ohne Standardgriff (Hammer, Handschuhe)
 gibt es den einen Knopf gar nicht erst, ohne Ziel (Boxhand, Controller, Flügel,

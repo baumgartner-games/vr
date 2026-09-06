@@ -261,7 +261,7 @@ const AIM_LINE_MIN = 0.16;
 /** Wie gläsern die gezeichnete Hand neben der echten steht (`apply`). */
 const VR_GHOST_OPACITY = 0.4;
 
-/** Wie lang die Arme der beiden Achsenkreuze im Bearbeiten-Modus sind. */
+/** Wie lang die Arme des Achsenkreuzes im Bearbeiten-Modus sind. */
 const AXES_SIZE = 0.13;
 
 /** Wie durchsichtig das Werkzeug wird, wo es nur zeigt, wo es wäre. */
@@ -276,8 +276,9 @@ const _handspan = new THREE.Vector3(0.2, 0.2, 0.2);
 const _down = new THREE.Vector3(0, -1, 0);
 /** Der Blick der freien Kamera, in derselben Reihenfolge wie sie ihn führt. */
 const _look = new THREE.Euler(0, 0, 0, 'YXZ');
-/** Für den Weg aus der Bühne in den Raum des Werkzeugs (`gripAim`). */
+/** Für den Weg aus der Bühne in den Rahmen der echten Hand (`intoHand`). */
 const _inverse = new THREE.Matrix4();
+const _frame = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 const _at = new THREE.Vector3();
 const _dir = new THREE.Vector3();
@@ -370,7 +371,7 @@ export class ToolViewer {
   private handle: THREE.Mesh | null = null;
   /** Der Griffraum als Knoten: dort läge der Controller, der dieses Werkzeug hält. */
   private rig: THREE.Group | null = null;
-  /** Die beiden Achsenkreuze im Bearbeiten-Modus — Werkzeugraum und Griffraum. */
+  /** Das Achsenkreuz im Bearbeiten-Modus — der Rahmen der echten Hand. */
   private axes: THREE.Group[] = [];
   /** Beim Justieren: Achsen dazu, und in echt wandert das Werkzeug statt der Hand. */
   private editing = false;
@@ -636,13 +637,14 @@ export class ToolViewer {
   /**
    * **Die Achsen einblenden** — im Bearbeiten-Modus, und nur dort.
    *
-   * Zwei Kreuze, denn es gibt zwei Räume, und die sechs Zahlen des Reglers
-   * stehen je nach Ansicht im einen oder im anderen: der **Werkzeugraum** im
-   * Nullpunkt des Werkzeugs (dort wandert die Hand *in VR*) und der
-   * **Griffraum** dort, wo der Controller läge (dort wandert das Werkzeug
-   * *in echt*). X rot, Y grün, Z blau, und -Z weiß nach vorn
-   * (`core/axesCross.ts`) — dieselben Farben wie im Eingaberaum, und dieselben
-   * Achsen, um die Pitch, Yaw und Roll drehen.
+   * **Ein** Kreuz, und es steht dort, wo die sechs Zahlen des Reglers gelten:
+   * im **Rahmen der echten Hand** — am Griffpunkt, gedreht auf den
+   * Zeigestrahl (`tools/handFrame.ts`). X rot, Y grün, Z blau, und -Z weiß
+   * nach vorn (`core/axesCross.ts`) — dieselben Farben wie im Eingaberaum,
+   * dieselben Achsen, um die Pitch, Yaw und Roll drehen, und sein weißer Arm
+   * liegt auf der weißen Linie des Zeigestrahls. Vorher standen zwei da,
+   * eines im Werkzeug und eines im Griffraum, weil die Zahlen je nach Ansicht
+   * im einen oder im anderen Raum galten.
    */
   setEditing(on: boolean): void {
     if (this.editing === on) return;
@@ -760,8 +762,8 @@ export class ToolViewer {
   }
 
   /**
-   * **Die Hand und ihre Fingerlinie**, im Raum des Werkzeugs — die Größe, an
-   * der der Regler zieht (`ghostOnTool`).
+   * **Die Hand und ihre Fingerlinie**, im Rahmen der echten Hand — dem Raum,
+   * in dem der Regler zieht (`intoHand`, `tools/handFrame.ts`).
    *
    * Genommen aus den Weltmatrizen und nicht nachgerechnet: die Richtung ist das
    * -Z der **Fingerspitze**, geht also jede Krümmung mit, und was hier
@@ -771,10 +773,8 @@ export class ToolViewer {
    * sagte nur noch, wie weit dieser eine Finger gerade gekrümmt ist.
    */
   handAim(): { hand: Pose; finger: Ray } | null {
-    const tool = this.tool;
     const hand = this.hand;
-    if (!tool || !hand) return null;
-    this.intoTool(tool);
+    if (!hand || !this.intoHand()) return null;
     const line = rayIn(hand.indexTip);
     _local.multiplyMatrices(_inverse, hand.matrixWorld).decompose(_at, _quat, _scale);
     return {
@@ -787,17 +787,15 @@ export class ToolViewer {
   }
 
   /**
-   * Der Pfeil am **Halterzylinder**, ebenfalls im Raum des Werkzeugs.
+   * Der Pfeil am **Halterzylinder**, ebenfalls im Rahmen der echten Hand.
    *
    * Trägt ein Werkzeug **mehrere** (das Drohnendeck hat zwei), gewinnt der, der
    * der Fingerspitze am nächsten liegt — man richtet an dem Zylinder aus, an
    * dem die Hand schon ungefähr liegt, und nicht am erstbesten im Baum.
    */
   gripAim(): Ray | null {
-    const tool = this.tool;
     const hand = this.hand;
-    if (!tool || this.gripFronts.length === 0) return null;
-    this.intoTool(tool);
+    if (this.gripFronts.length === 0 || !this.intoHand()) return null;
     const from = hand ? rayIn(hand.indexTip).origin : { x: 0, y: 0, z: 0 };
     let nearest: Ray | null = null;
     let closest = Infinity;
@@ -814,17 +812,34 @@ export class ToolViewer {
 
   /** Und der **Zielpfeil** des Werkzeugs: sein Nullpunkt, sein -Z. */
   toolAim(): Ray | null {
-    const tool = this.tool;
     const line = this.aimLine;
-    if (!tool || !line) return null;
-    this.intoTool(tool);
+    if (!line || !this.intoHand()) return null;
     return rayIn(line);
   }
 
-  /** Frische Matrizen, und der Weg aus der Bühne in den Raum des Werkzeugs. */
-  private intoTool(tool: Tool): void {
+  /**
+   * Frische Matrizen, und der Weg aus der Bühne in den **Rahmen der echten
+   * Hand** — den Raum, in dem der Regler zieht (`tools/handFrame.ts`).
+   *
+   * Er liegt im Griffraum, gedreht auf den Zeigestrahl (`GRIP_TO_RAY`): sein
+   * Nullpunkt ist der Griffpunkt, sein -Z die Blickrichtung der Hand. Alles,
+   * was diese Seite misst — Hand, Fingerlinie, Zylinderpfeil, Zielpfeil —,
+   * kommt deshalb in *diesem* Raum heraus, und die Rechnungen daneben
+   * (`alignHand.ts`) rechnen darin weiter. Vorher war es der Raum des
+   * **Werkzeugs**, und damit hing die Richtung, in die der Regler schob, an
+   * dem Ding, das man gerade verstellte.
+   *
+   * `false`, solange keine Bühne steht: ohne Griffraum gibt es den Rahmen
+   * nicht, und eine Linie in einem Raum, den es nicht gibt, ist keine Auskunft.
+   */
+  private intoHand(): boolean {
+    const rig = this.rig;
+    if (!rig) return false;
     this.stage.updateWorldMatrix(true, true);
-    _inverse.copy(tool.matrixWorld).invert();
+    _frame.makeRotationFromQuaternion(_aimQuat);
+    _frame.premultiply(rig.matrixWorld);
+    _inverse.copy(_frame).invert();
+    return true;
   }
 
   /** Im Speicher steht eine neue Handhaltung: Hand noch einmal hinstellen. */
@@ -1021,11 +1036,13 @@ export class ToolViewer {
     }
 
     if (this.editing) {
-      const inTool = createAxes(AXES_SIZE);
-      tool.add(inTool);
-      const inGrip = createAxes(AXES_SIZE);
-      rig.add(inGrip);
-      this.axes = [inTool, inGrip];
+      // Das Kreuz gehört dem Griffraum und ist doch um die Zielkorrektur
+      // gedreht: es zeigt den Rahmen der echten Hand, in dem der Regler zieht
+      // (siehe `setEditing`).
+      const inHand = createAxes(AXES_SIZE);
+      inHand.quaternion.copy(_aimQuat);
+      rig.add(inHand);
+      this.axes = [inHand];
     }
 
     this.placeTarget();
@@ -1588,8 +1605,8 @@ function disposeMaterial(material: THREE.Material): void {
 }
 
 /**
- * Eine Linie, wie sie im Raum des Werkzeugs liegt: ihr eigener Nullpunkt und
- * ihr -Z.
+ * Eine Linie, wie sie im Rahmen der echten Hand liegt (`intoHand`): ihr
+ * eigener Nullpunkt und ihr -Z.
  *
  * Beide Linien sind entlang **-Z ihres eigenen Knotens** gezeichnet — die am
  * Finger von (0,0,0) nach (0,0,-1), die am Griff von der Mitte zur Spitze des

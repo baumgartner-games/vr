@@ -30,7 +30,7 @@ const HAND: Pose = {
 const TIP: Vec3 = { x: 0.01, y: 0.005, z: -0.09 };
 const TIP_FORWARD: Vec3 = { x: 0.1, y: -0.2, z: -1 };
 
-/** Dieselbe Linie im Raum des Werkzeugs, für eine Hand, die dort liegt. */
+/** Dieselbe Linie im Raum, in dem die Hand liegt — auf der Seite ist das der der echten Hand. */
 function fingerRay(hand: Pose): Ray {
   const origin = rotateVec(TIP, hand.rotation, { x: 0, y: 0, z: 0 });
   return {

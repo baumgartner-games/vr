@@ -15,6 +15,7 @@ import {
   composePose,
   ghostOnTool,
   handFromGhost,
+  holdFromGrip,
   invertPose,
   toolInGrip,
   type Pose,
@@ -102,6 +103,18 @@ describe('toolInGrip', () => {
       rotation: axisAngle({ x: 0, y: 0, z: 1 }, 40),
     };
     expectSamePose(toolInGrip(hold, IDENTITY), hold);
+  });
+
+  it('nimmt die Zielkorrektur wieder heraus, wenn das Werkzeug angefasst wurde', () => {
+    // Der Weg des Reglers auf der Werkzeugseite: er schiebt das Werkzeug im
+    // Griffraum, gespeichert wird aber die Lage *unter* der Zielkorrektur.
+    // Bliebe sie drin, stünde sie beim nächsten Zeichnen ein zweites Mal da.
+    const aim = axisAngle({ x: 1, y: 0, z: 0 }, -30);
+    const hold = {
+      position: { x: 0.01, y: -0.04, z: 0.02 },
+      rotation: axisAngle({ x: 0.3, y: 1, z: 0 }, 62),
+    };
+    expectSamePose(holdFromGrip(toolInGrip(hold, aim), aim), hold);
   });
 });
 
