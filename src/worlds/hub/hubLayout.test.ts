@@ -3,6 +3,7 @@ import {
   GATES_PER_CORRIDOR,
   HALL_RADIUS,
   corridorDirection,
+  corridorYaw,
   layoutHub,
 } from './hubLayout';
 
@@ -48,6 +49,30 @@ describe('Hub-Auslegung', () => {
       expect(Math.abs(across)).toBeLessThanOrEqual(CORRIDOR_WIDTH / 2);
       expect(along).toBeGreaterThan(HALL_RADIUS);
       expect(along).toBeLessThanOrEqual(corridor.length);
+    }
+  });
+
+  it('legt den gebauten Gang um seine eigenen Tore', () => {
+    // Ein Gang wird entlang −Z gebaut und dann gedreht; gedreht um φ liegt
+    // seine Achse auf (−sin φ, −cos φ). Genau dort müssen seine Tore stehen.
+    // Mit dem Winkel selbst statt seinem Gegenteil lagen Gang und Tore
+    // gespiegelt zueinander: der Gang mit vier Toren bekam die kurze Rückwand
+    // des Gangs mit zweien, und sein viertes Tor stand dahinter im Freien.
+    for (const count of [1, 5, 9, 10, 12]) {
+      const layout = layoutHub(count);
+      for (const corridor of layout.corridors) {
+        const yaw = corridorYaw(corridor.angle);
+        const built = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+        const side = { x: -built.z, z: built.x };
+        for (const gate of layout.gates) {
+          if (gate.corridor !== layout.corridors.indexOf(corridor)) continue;
+          const along = gate.x * built.x + gate.z * built.z;
+          const across = gate.x * side.x + gate.z * side.z;
+          expect(along).toBeGreaterThan(corridor.start);
+          expect(along).toBeLessThanOrEqual(corridor.length);
+          expect(Math.abs(across)).toBeLessThanOrEqual(corridor.width / 2);
+        }
+      }
     }
   });
 

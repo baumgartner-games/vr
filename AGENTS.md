@@ -263,7 +263,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   den Kreis. Ausgelegt wird das aus nichts als der Länge der Weltenliste
   (`src/worlds/hub/hubLayout.ts`, mit Test): eine neue Welt bleibt damit das,
   was sie sein soll — ein Eintrag in der Registry. Der alte 90°-Bogen war für
-  vier Welten hübsch und für zehn ein Gedränge.
+  vier Welten hübsch und für zehn ein Gedränge. Gebaut wird ein Gang entlang
+  −Z und dann gedreht — und zwar um den **negativen** Winkel
+  (`corridorYaw`, mit Test): eine Drehung um φ legt −Z auf (−sin φ, −cos φ),
+  die Tore stehen aber auf `corridorDirection`. Mit dem Winkel selbst lagen
+  Gang und Tore gespiegelt zueinander, und ab dem dritten Gang stand das
+  letzte Tor (die Alpen) hinter der Rückwand eines fremden Gangs im Freien —
+  aus dem Gang heraus war die Welt schlicht nicht da.
 - **Handgelenk-Menü**: an **beiden** Händen schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
   Es ist zweimal dasselbe Menü, und immer nur **eins offen**: das zweite geht

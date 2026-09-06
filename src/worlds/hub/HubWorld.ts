@@ -4,7 +4,7 @@ import { WORLDS } from '../index';
 import { TextPlane } from '../../ui/TextPlane';
 import { createGround, createLighting, createSky, disposeTree } from '../shared/environment';
 import { FreeLocomotion } from '../../core/Locomotion';
-import { layoutHub, type HubLayout } from './hubLayout';
+import { corridorYaw, layoutHub, type HubLayout } from './hubLayout';
 
 /**
  * Ein Tor, wie es im Hub steht — und wie es die Werkzeugseite als Bild einer
@@ -220,7 +220,9 @@ function buildHall(layout: HubLayout): THREE.Group {
 function buildCorridor(corridor: HubLayout['corridors'][number]): THREE.Group {
   const group = new THREE.Group();
   group.name = 'corridor';
-  group.rotation.y = corridor.angle;
+  // Nicht `corridor.angle`: der Gang wird entlang −Z gebaut, und eine Drehung
+  // um diesen Winkel legte ihn spiegelverkehrt hin — siehe `corridorYaw`.
+  group.rotation.y = corridorYaw(corridor.angle);
 
   const half = corridor.width / 2;
   // Der Gang fängt am Rand der Halle an und geht von dort nach außen; die

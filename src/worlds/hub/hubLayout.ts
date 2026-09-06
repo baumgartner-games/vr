@@ -76,6 +76,26 @@ export function corridorDirection(angle: number): { x: number; z: number } {
 }
 
 /**
+ * Um wie viel ein **gebauter** Gang gedreht wird, damit er dort liegt, wo
+ * seine Tore stehen.
+ *
+ * Ein Gang wird entlang −Z gebaut und dann an seinen Platz gedreht. Eine
+ * Drehung um φ legt die −Z-Achse aber auf (−sin φ, −cos φ), und das ist
+ * `corridorDirection(−φ)` — die Drehung ist also der **negative** Winkel.
+ *
+ * Mit dem Winkel selbst standen Gang und Tore gespiegelt zueinander: die
+ * Wände des einen Gangs lagen um die Tore des anderen. Bei drei Gängen (vier,
+ * vier, zwei Tore) hieß das, dass die vier Tore die Rückwand des kurzen Gangs
+ * bekamen — das vierte, die **Alpen**, stand dahinter im Freien und war aus
+ * dem Gang heraus schlicht nicht zu sehen. Symmetrisch fällt es nicht auf:
+ * bei einem oder zwei Gängen (0° und 180°) ist der gespiegelte Winkel
+ * derselbe, und genau so lange war der Hub in Ordnung.
+ */
+export function corridorYaw(angle: number): number {
+  return -angle;
+}
+
+/**
  * Legt `count` Tore auf so viele Gänge, wie es braucht.
  *
  * Ein Tor steht an der Wand seines Gangs und schaut quer hinüber; die beiden
