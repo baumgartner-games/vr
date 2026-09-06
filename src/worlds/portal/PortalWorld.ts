@@ -390,7 +390,6 @@ interface LooseTool {
   hip: Handedness | null;
 }
 
-/** Where a hand was last frame and how fast it is going, in m/s. */
 /** Ein Prop, wie es beim Speichern stand — Pose, Größe und Schwung. */
 interface SavedProp {
   entry: PhysicsBody;
@@ -4579,6 +4578,8 @@ export class PortalWorld implements World {
     anchor: THREE.Object3D,
     entry: PhysicsBody,
     controller: ControllerState | null = null,
+    /** Beim **Nahgreifen** der Trefferpunkt des Strahls: dort steht die
+     * Geisterhand, und um ihn dreht der Nahgriff (`pivotGrab`). */
     hold: THREE.Vector3 | null = null,
   ): void {
     // A tool lying on the floor is picked up as a *tool*, not carried around
@@ -4619,7 +4620,7 @@ export class PortalWorld implements World {
       offset,
       lastPosition: _point.clone(),
       velocity: new THREE.Vector3(),
-      near: controller ? this.nearGrabOf(controller, anchor, entry, hold ?? _hand) : null,
+      near: controller ? this.nearGrabOf(controller, anchor, entry, hold) : null,
       poseId: grip ? kind : null,
       shake:
         kind === 'champagne' && entry.object.getObjectByName(CORK_NAME) ? new ShakeMeter() : null,
@@ -4639,7 +4640,7 @@ export class PortalWorld implements World {
     controller: ControllerState,
     anchor: THREE.Object3D,
     entry: PhysicsBody,
-    hold: THREE.Vector3,
+    hold: THREE.Vector3 | null,
   ): NearGrab {
     anchor.getWorldPosition(_point);
     anchor.getWorldQuaternion(_quaternion);
@@ -4657,7 +4658,10 @@ export class PortalWorld implements World {
       pitch: this.handPitch(controller),
       handStart,
       objectStart,
-      hold: { x: hold.x, y: hold.y, z: hold.z },
+      // Ohne Trefferpunkt bleibt die Mitte des Gegenstands als Drehpunkt: das
+      // ist dieselbe Rechnung, nur um den Punkt, den man sich denken muss
+      // statt den, den man sieht.
+      hold: hold ? { x: hold.x, y: hold.y, z: hold.z } : { ...objectStart.position },
     };
   }
 
