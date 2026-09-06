@@ -252,6 +252,9 @@ const LINE_BEYOND = 1.15;
 const AIM_LINE_COLOR = 0xb388ff;
 const AIM_LINE_MIN = 0.16;
 
+/** Wie gläsern die gezeichnete Hand neben der echten steht (`apply`). */
+const VR_GHOST_OPACITY = 0.4;
+
 /** Wie lang die Arme der beiden Achsenkreuze im Bearbeiten-Modus sind. */
 const AXES_SIZE = 0.13;
 
@@ -357,7 +360,10 @@ export class ToolViewer {
   private rig: THREE.Group | null = null;
   /** Die beiden Achsenkreuze im Bearbeiten-Modus — Werkzeugraum und Griffraum. */
   private axes: THREE.Group[] = [];
-  private showAxes = false;
+  /** Beim Justieren: Achsen dazu, und in echt wandert das Werkzeug statt der Hand. */
+  private editing = false;
+  /** Die gezeichnete Hand als Geist — nur beim Justieren in *Hand in echt*. */
+  private vrHand: GhostHand | null = null;
   /** Was ein Material war, bevor das Werkzeug zum Geist wurde (`setToolGhost`). */
   private readonly opaque = new Map<
     THREE.Material,
@@ -614,10 +620,13 @@ export class ToolViewer {
    * (`core/axesCross.ts`) — dieselben Farben wie im Eingaberaum, und dieselben
    * Achsen, um die Pitch, Yaw und Roll drehen.
    */
-  setAxes(on: boolean): void {
-    if (this.showAxes === on) return;
-    this.showAxes = on;
-    this.apply(false);
+  setEditing(on: boolean): void {
+    if (this.editing === on) return;
+    this.editing = on;
+    // **Mit** Einpassen: in *Hand in echt* wechselt dabei der Nullpunkt der
+    // Bühne vom Werkzeug in den Griffraum, und was dabei aus dem Bild liefe,
+    // holt die Kamera zurück. Zoom und Drehung bleiben, wo sie sind.
+    this.apply();
   }
 
   /**
@@ -863,6 +872,15 @@ export class ToolViewer {
    *   Halten dieses Werkzeugs wirklich stünde, und das Werkzeug bleibt als
    *   **Geist** stehen, damit man sieht, wo es dabei wäre.
    *
+   * **Wer steht, und wer wandert.** Solange man nur hinsieht, steht das
+   * Werkzeug: dann kann man zwischen den Ansichten hin und her schalten, ohne
+   * dass die Welt springt. Beim **Justieren** steht das, was man *nicht*
+   * verstellt — und in *Hand in echt* verstellt man das Werkzeug: die eigene
+   * Hand ist die eigene Hand, die rückt man nicht, sondern man legt das
+   * Werkzeug hinein. Dort liegt der Nullpunkt der Bühne deshalb im
+   * **Griffraum**, Hand und Zylinder stehen still, und das Werkzeug wandert
+   * darin — samt der gezeichneten Hand, die daran hängt.
+   *
    * @param refit ob die Kamera sich neu einpassen darf. Beim Justieren nicht:
    *              siehe `setHoldPose`.
    */
@@ -878,20 +896,29 @@ export class ToolViewer {
     const aim = this.aimOf();
     const local = toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, aim);
 
-    // Das Werkzeug steht aufrecht in seinem eigenen Raum — immer, in jeder
-    // Ansicht. In echt ist es nur nicht da, also steht es dort als Geist.
-    tool.position.set(0, 0, 0);
-    tool.quaternion.identity();
+    // In echt ist das Werkzeug nicht da, also steht es dort als Geist.
     this.setToolGhost(this.mode === 'controller');
 
     // Der **Griffraum** als Knoten: dort, wo der Controller läge, der dieses
     // Werkzeug hält. Daran hängt alles, was dem Gerät gehört — der
     // Zeigestrahl, und in echt der Handgriff samt Faust.
-    const grip = invertPose(local);
     const rig = new THREE.Group();
     rig.name = 'grip-space';
-    rig.position.set(grip.position.x, grip.position.y, grip.position.z);
-    rig.quaternion.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
+    const held = this.mode === 'controller' && this.editing;
+    if (held) {
+      // Griffraum als Bühne: die Hand steht, das Werkzeug liegt darin.
+      rig.position.set(0, 0, 0);
+      rig.quaternion.identity();
+      tool.position.set(local.position.x, local.position.y, local.position.z);
+      tool.quaternion.set(local.rotation.x, local.rotation.y, local.rotation.z, local.rotation.w);
+    } else {
+      // Werkzeugraum als Bühne: das Werkzeug steht aufrecht in seinem eigenen.
+      tool.position.set(0, 0, 0);
+      tool.quaternion.identity();
+      const grip = invertPose(local);
+      rig.position.set(grip.position.x, grip.position.y, grip.position.z);
+      rig.quaternion.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w);
+    }
     this.stage.add(rig);
     this.rig = rig;
     this.addHandLine(rig);
@@ -923,6 +950,26 @@ export class ToolViewer {
       hand.quaternion.set(on.rotation.x, on.rotation.y, on.rotation.z, on.rotation.w);
       rig.add(hand);
       this.hand = hand;
+
+      // Und beim Justieren **die gezeichnete Hand dazu**, als Geist am
+      // Werkzeug: sie hängt daran und geht deshalb mit, wenn man das Werkzeug
+      // in der stehenden Faust verschiebt. Genau das ist die Auskunft — was
+      // ich hier bewege, bewegt drüben die Hand mit, und meine eigene bleibt,
+      // wo sie ist. Gläsern, damit man sie von der festen echten Hand
+      // unterscheidet: fest ist, was wirklich da ist.
+      if (held) {
+        const vrPose = holdHandPose(this.side, tool.toolId);
+        const ghost = new GhostHand(this.side, vrPose, {
+          color: handColor(),
+          opacity: VR_GHOST_OPACITY,
+        });
+        ghost.setCurls(this.curlsFor(tool));
+        const at = poseOfHand(vrPose);
+        ghost.position.set(at.position.x, at.position.y, at.position.z);
+        ghost.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
+        rig.add(ghost);
+        this.vrHand = ghost;
+      }
     } else if (this.mode === 'vr') {
       // **Nicht durchsichtig**: ein Geist ist gläsern, damit man die eigene
       // Hand dahinter sieht — hier gibt es keine, und was man ansieht, soll
@@ -937,7 +984,7 @@ export class ToolViewer {
       this.hand = hand;
     }
 
-    if (this.showAxes) {
+    if (this.editing) {
       const inTool = createAxes(AXES_SIZE);
       tool.add(inTool);
       const inGrip = createAxes(AXES_SIZE);
@@ -1094,6 +1141,8 @@ export class ToolViewer {
   private dropHand(): void {
     for (const cross of this.axes) disposeAxes(cross);
     this.axes = [];
+    this.vrHand?.dispose();
+    this.vrHand = null;
     const line = this.handLine;
     this.handLine = null;
     if (line) {

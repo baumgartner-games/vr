@@ -871,7 +871,7 @@ function setEditing(on: boolean): void {
   fingers.hidden = hands.hidden;
   applyButtons();
   // Und die Achsen dazu: sechs Zahlen ohne ein Kreuz daneben sind sechs Zahlen.
-  viewer.setAxes(editing);
+  viewer.setEditing(editing);
   if (editing && mode === 'off') {
     wasMode ??= mode;
     setMode('vr');

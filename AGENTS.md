@@ -2830,6 +2830,15 @@ Punkt: was man ansieht, ist das, was man verstellt.
   gespeichert werden und im Kurzcode stehen, ohne Umweg über eine Hand, die
   dort gar nicht bewegt wird.
 
+  Dafür wechselt beim Justieren der **Nullpunkt der Bühne**: er liegt sonst im
+  Werkzeug (damit ein Wechsel der Ansicht die Welt nicht springen lässt), hier
+  aber im **Griffraum**. Sonst stünde das Werkzeug still und die Hand wanderte
+  darunter weg — dieselbe Verkehrung, nur andersherum, und genauso falsch:
+  „die Hand in echt soll sich nicht mitbewegen". Und die **gezeichnete Hand**
+  steht dabei als Geist am Werkzeug: sie hängt daran und geht deshalb mit,
+  während die eigene bleibt, wo sie ist. Gläsern gegen die feste echte —
+  fest ist, was wirklich da ist.
+
 Vorher war das ein **zweiter Umschalter** unter dem Regler, mit eigenen Namen
 („In der Hand", „Am Griff"), während der obere so lange verschwand — zwei
 Schalter, die dasselbe meinten und die man im Kopf zusammenhalten musste. Und
