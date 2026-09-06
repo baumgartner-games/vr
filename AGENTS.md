@@ -2559,7 +2559,17 @@ der Scheibe hängen an der Größe des Werkzeugs, und sie zählt beim Einpassen
 mit — das Werkzeug wird dadurch kleiner, dafür gibt es das Zoomen
 (`placeTarget` in `tools/viewer.ts`; der Strahl liegt im Griffraum 30° unter
 dessen -Z, `GRIP_TO_RAY`, und in der Ansicht _In VR_ bei
-`Lage-im-Griff⁻¹`). Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
+`Lage-im-Griff⁻¹`).
+
+**Ein Werkzeug dreht sich nur um seine Y-Achse.** Ziehen giert, mehr nicht: das
+Nicken ist am Werkzeug abgeschaltet, und der Blickwinkel von schräg vorn, mit
+dem die Seite aufmacht, bleibt der einzige. Ein Werkzeug steht in der Ansicht
+so, wie es in der Hand steht, und wer daran zieht, will es von allen Seiten
+sehen — nicht von oben und unten. Bei einer **Welt** bleibt das Nicken, dort
+_ist_ die Vogelperspektive das, worum es geht; und in der freien Kamera
+sowieso, die schaut sich um (`onMove` in `tools/viewer.ts`).
+
+Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
 Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
 eine Frage, die man im Vorbeigehen stellt.
 
@@ -2834,10 +2844,26 @@ Punkt: was man ansieht, ist das, was man verstellt.
   Werkzeug (damit ein Wechsel der Ansicht die Welt nicht springen lässt), hier
   aber im **Griffraum**. Sonst stünde das Werkzeug still und die Hand wanderte
   darunter weg — dieselbe Verkehrung, nur andersherum, und genauso falsch:
-  „die Hand in echt soll sich nicht mitbewegen". Und die **gezeichnete Hand**
-  steht dabei als Geist am Werkzeug: sie hängt daran und geht deshalb mit,
-  während die eigene bleibt, wo sie ist. Gläsern gegen die feste echte —
-  fest ist, was wirklich da ist.
+  „die Hand in echt soll sich nicht mitbewegen".
+
+  **Die Bühne kippt dabei nicht.** Der Griffraum steht nicht aufrecht, sondern
+  genau dort, wo er beim _Ansehen_ stand: seine Lage wird eingefroren, sobald
+  das Justieren anfängt (`gripBase` in `tools/viewer.ts`), und das Werkzeug
+  liegt darin bei `eingefroren · Lage-im-Griff`. Im ersten Bild heben sich die
+  beiden auf — der Anblick ist derselbe wie eine Sekunde vorher, Zeigestrahl
+  und Zielscheibe eingeschlossen. Vorher stand der Griffraum aufrecht und das
+  Werkzeug schräg darin, und weil das die ganze Lage-im-Griff ist, kippte die
+  Bühne beim Druck auf _Bearbeiten_ um genau diesen Winkel weg: bei der
+  Taschenlampe gut 30°, und es sah aus, als hätte sich die Kamera verstellt.
+  **Eingefroren** und nicht nachgeführt, denn nachgeführt wäre es das
+  Gegenteil des Gewollten: dann stünde das Werkzeug im Bild still und die Hand
+  drehte sich darunter. Ein anderes Werkzeug, ein Wechsel der Ansicht oder
+  _Fertig_ tauen sie wieder auf — der nächste Anlauf friert die Lage neu ein,
+  die dann gilt.
+
+  Und die **gezeichnete Hand** steht dabei als Geist am Werkzeug: sie hängt
+  daran und geht deshalb mit, während die eigene bleibt, wo sie ist. Gläsern
+  gegen die feste echte — fest ist, was wirklich da ist.
 
 Vorher war das ein **zweiter Umschalter** unter dem Regler, mit eigenen Namen
 („In der Hand", „Am Griff"), während der obere so lange verschwand — zwei

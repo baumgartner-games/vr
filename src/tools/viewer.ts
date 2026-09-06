@@ -22,7 +22,13 @@ import {
 import { HANDLE_COLOR } from '../core/controllerHandle';
 import { createAxes, disposeAxes } from '../core/axesCross';
 import { readPose } from '../worlds/portal/tools/toolPose';
-import { ghostOnTool, invertPose, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
+import {
+  composePose,
+  ghostOnTool,
+  invertPose,
+  poseOfHand,
+  toolInGrip,
+} from '../worlds/tune/handGrip';
 import {
   NO_INPUT,
   flyDolly,
@@ -329,10 +335,16 @@ const _noPlanes: THREE.Plane[] = [];
  * Winkel — mehr Freiheitsgrade braucht ein Blick auf ein Werkzeug nicht, und
  * eine Kamera, die auch noch schweben kann, verliert man sofort.
  *
+ * An einem **Werkzeug** ist es sogar nur *einer*: das Ziehen giert, das Nicken
+ * bleibt auf dem Winkel, mit dem die Ansicht aufmacht (`onMove`). Ein Werkzeug
+ * steht da, wie es in der Hand steht, und man will es von allen Seiten sehen —
+ * nicht von oben und unten.
+ *
  * Eine **Welt** (`showWorld`) ist davon kein Sonderfall, sondern ein großes
- * Ding: dieselbe Bühne, dieselben zwei Winkel, dieselben Finger — nur schräger
- * von oben, langsamer gedreht, mit ihrem eigenen Licht und, wenn sie ein Dach
- * hat, unter dem Dach aufgeschnitten.
+ * Ding: dieselbe Bühne, dieselben zwei Winkel — und sie behält beide, denn bei
+ * ihr *ist* der Blick von oben das Thema —, dieselben Finger, nur schräger von
+ * oben, langsamer gedreht, mit ihrem eigenen Licht und, wenn sie ein Dach hat,
+ * unter dem Dach aufgeschnitten.
  */
 export class ToolViewer {
   private readonly renderer: THREE.WebGLRenderer;
@@ -362,6 +374,18 @@ export class ToolViewer {
   private axes: THREE.Group[] = [];
   /** Beim Justieren: Achsen dazu, und in echt wandert das Werkzeug statt der Hand. */
   private editing = false;
+  /**
+   * **Die Lage des Griffraums beim Justieren in echt** — eingefroren.
+   *
+   * Sie wird genommen, sobald das Justieren im Griffraum anfängt, und gilt bis
+   * es endet oder ein anderes Werkzeug kommt (`apply`). Zwei Dinge zugleich:
+   * Der Anblick ist im ersten Bild derselbe wie beim Ansehen — sonst kippte
+   * die Bühne beim Druck auf *Bearbeiten* um die Lage-im-Griff weg —, und die
+   * Bühne steht danach still, während der Regler zieht: eingefroren heißt,
+   * dass das Werkzeug wandert und nicht die Ansicht. Nachgeführt wäre das
+   * Gegenteil — dann stünde das Werkzeug und die Hand drehte sich darunter.
+   */
+  private gripBase: Pose | null = null;
   /** Die gezeichnete Hand als Geist — nur beim Justieren in *Hand in echt*. */
   private vrHand: GhostHand | null = null;
   /** Was ein Material war, bevor das Werkzeug zum Geist wurde (`setToolGhost`). */
@@ -906,12 +930,24 @@ export class ToolViewer {
     rig.name = 'grip-space';
     const held = this.mode === 'controller' && this.editing;
     if (held) {
-      // Griffraum als Bühne: die Hand steht, das Werkzeug liegt darin.
-      rig.position.set(0, 0, 0);
-      rig.quaternion.identity();
-      tool.position.set(local.position.x, local.position.y, local.position.z);
-      tool.quaternion.set(local.rotation.x, local.rotation.y, local.rotation.z, local.rotation.w);
+      // Griffraum als Bühne: die Hand steht, das Werkzeug liegt darin — aber
+      // **in der Lage, in der man es eben angesehen hat**. Die eingefrorene
+      // Lage (`gripBase`) ist genau die des Griffraums beim Ansehen, und
+      // solange der Regler noch nicht gezogen wurde, heben sich die beiden
+      // Posen auf: das Werkzeug steht dann bei der Ruhe, also da, wo es im
+      // Zweig darunter steht. Ohne sie kippte die Bühne beim Druck auf
+      // *Bearbeiten* um die ganze Lage-im-Griff — bei der Taschenlampe gut
+      // 30° —, und das sah aus, als hätte die Kamera sich verstellt.
+      const base = (this.gripBase ??= invertPose(local));
+      const at = composePose(base, local);
+      rig.position.set(base.position.x, base.position.y, base.position.z);
+      rig.quaternion.set(base.rotation.x, base.rotation.y, base.rotation.z, base.rotation.w);
+      tool.position.set(at.position.x, at.position.y, at.position.z);
+      tool.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
     } else {
+      // Nichts eingefroren, solange nicht im Griffraum justiert wird: der
+      // nächste Wechsel dorthin friert die Lage neu ein, die dann gilt.
+      this.gripBase = null;
       // Werkzeugraum als Bühne: das Werkzeug steht aufrecht in seinem eigenen.
       tool.position.set(0, 0, 0);
       tool.quaternion.identity();
@@ -1273,6 +1309,8 @@ export class ToolViewer {
     // Eine neue Welt fängt von außen an: der Flug gehört der, die man verlässt.
     this.fly = null;
     this.flyInput = NO_INPUT;
+    // Und die eingefrorene Lage gehört dem Werkzeug, das gerade weggeht.
+    this.gripBase = null;
     // Die Linien an den Griffen einzeln: `disposeTool` räumt ab, was das
     // Werkzeug selbst gebaut hat, und eine Linie, die diese Seite drangehängt
     // hat, gehört nicht dazu.
@@ -1441,6 +1479,14 @@ export class ToolViewer {
       return;
     }
     this.yaw += dx * scale;
+    // Ein **Werkzeug dreht sich nur um seine Y-Achse**: es steht in der
+    // Ansicht, wie es in der Hand steht, und es soll auch beim Umsehen so
+    // stehen bleiben. Wer daran zieht, will es von allen Seiten sehen und
+    // nicht von oben und unten — der Blickwinkel von schräg vorn ist die
+    // Ansicht, mit der die Seite aufmacht, und die bleibt jetzt die einzige.
+    // Bei einer Welt bleibt das Nicken: dort *ist* die Vogelperspektive das,
+    // worum es geht, und man will von ihr aus auch flacher heransehen.
+    if (this.tool) return;
     // Nicht überkopf: eine Ansicht, die auf dem Kopf steht, dreht sich beim
     // nächsten Wischen andersherum, und dann weiß man nicht mehr, wo oben war.
     this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch + dy * scale));
