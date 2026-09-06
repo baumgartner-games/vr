@@ -50,6 +50,7 @@ import {
 import { saveHoldHandPose } from '../../core/handPoseStore';
 import { BOX_HAND_COLOR, GhostHand } from '../../core/HandVisuals';
 import { createControllerHandle } from '../../core/controllerHandle';
+import { createAxes, disposeAxes } from '../../core/axesCross';
 import { eyeHeights, saveEyeHeights, seatedLift } from '../../core/posture';
 import {
   formatPose,
@@ -201,6 +202,8 @@ const _gripRotation = new THREE.Quaternion();
 const _posePosition = new THREE.Vector3();
 const _poseRotation = new THREE.Quaternion();
 const _inverseMatrix = new THREE.Matrix4();
+/** Nur für die Lage-Tafel: der Weg vom Griffraum in den Strahlraum. */
+const _between = new THREE.Quaternion();
 const DEG = 180 / Math.PI;
 
 /**
@@ -327,6 +330,8 @@ export class TuneWorld extends PortalWorld {
    * bewegten.
    */
   private readonly tiltAge = new Map<Handedness, number>();
+  /** Das Achsenkreuz des Raums — es steht still, und alles andere dreht sich dagegen. */
+  private worldAxes: THREE.Group | null = null;
   private readonly buttons: WallButton[] = [];
   private bench: VibeBench | null = null;
   private range: ToolRange | null = null;
@@ -477,6 +482,8 @@ export class TuneWorld extends PortalWorld {
     this.boards.clear();
     for (const board of this.tiltBoards.values()) board.dispose();
     this.tiltBoards.clear();
+    if (this.worldAxes) disposeAxes(this.worldAxes);
+    this.worldAxes = null;
     for (const side of ['left', 'right'] as const) this.clearFreeze(side);
     for (const freeze of this.freezes.values()) freeze.removeFromParent();
     this.freezes.clear();
@@ -629,12 +636,12 @@ export class TuneWorld extends PortalWorld {
       // Zahl — und nur eine Zahl kann man weitersagen.
       const tilt = new TextPlane({
         width: 1.5,
-        height: 0.34,
+        height: 0.62,
         title: `${handLabel(side)} · Lage`,
         body: 'nicht getrackt',
         accent: 0x9fe3ff,
       });
-      tilt.position.set(sign * 0.82, 1.16, -half + thickness / 2 + 0.02);
+      tilt.position.set(sign * 0.82, 1.02, -half + thickness / 2 + 0.02);
       room.add(tilt);
       this.tiltBoards.set(side, tilt);
 
@@ -656,6 +663,27 @@ export class TuneWorld extends PortalWorld {
     });
     hint.position.set(0, 0.72, -half + thickness / 2 + 0.02);
     room.add(hint);
+
+    // **Das Achsenkreuz des Raums**, mitten im Zimmer auf Brusthöhe, und
+    // daneben die Legende. Ein Kreuz allein sagt „hier sind drei Achsen"; erst
+    // mit den Worten daneben sagt es, welche.
+    this.worldAxes = createAxes(0.5);
+    this.worldAxes.position.set(0, 1.1, -0.4);
+    room.add(this.worldAxes);
+
+    const legend = new TextPlane({
+      width: 1.9,
+      height: 0.62,
+      title: 'Achsen',
+      body:
+        'X rot — nach rechts\n' +
+        'Y grün — nach oben\n' +
+        'Z blau — nach hinten\n' +
+        '−Z weiß — nach VORN (dorthin schaut man, dorthin zeigt jeder Strahl)',
+      accent: 0x9fe3ff,
+    });
+    legend.position.set(0, 1.5, -half + thickness / 2 + 0.02);
+    room.add(legend);
 
     this.buildTurnButton(room);
     this.buildValues(room);
@@ -1579,7 +1607,7 @@ export class TuneWorld extends PortalWorld {
     this.tiltLines.set(side, text);
     board.setText(
       held ? `${handLabel(side)} · eingefroren` : `${handLabel(side)} · Lage`,
-      held ? `${held} · Greifen gibt frei` : text,
+      held ? `${held}\nGreifen gibt wieder frei` : text,
       held ? 0xffc857 : 0x9fe3ff,
     );
   }
@@ -1594,6 +1622,9 @@ export class TuneWorld extends PortalWorld {
     const anchor = state.grip.visible ? state.grip : state.targetRay;
     freeze.quaternion.copy(anchor.quaternion);
     freeze.add(createControllerHandle(side));
+    // Und das Achsenkreuz dazu: eingefroren will man nicht nur die Zahl sehen,
+    // sondern auch, um welche Achsen sie gemeint ist.
+    freeze.add(createAxes(0.14));
 
     // Die Faust um genau diesen Zylinder, wie sie in `handPose.ts` steht —
     // und **gebaut** und nicht gespeichert: hier soll stehen, was das Spiel
@@ -1620,15 +1651,8 @@ export class TuneWorld extends PortalWorld {
     const freeze = this.freezes.get(side);
     if (!freeze) return;
     for (const child of [...freeze.children]) {
-      if (child instanceof GhostHand) {
-        child.dispose();
-        continue;
-      }
-      const mesh = child as THREE.Mesh;
-      mesh.removeFromParent();
-      mesh.geometry?.dispose();
-      const material = mesh.material as THREE.Material | undefined;
-      material?.dispose();
+      if (child instanceof GhostHand) child.dispose();
+      else disposeAxes(child);
     }
     freeze.visible = false;
   }
@@ -2496,20 +2520,71 @@ function aims(tool: Tool): boolean {
 }
 
 /**
- * Die Lage eines Controllers als Zeile: **Pitch, Yaw und Roll des Griffraums**
- * in Grad, gelesen als Euler `XYZ` — dieselbe Schreibweise wie in jeder
- * `HandPose`, damit man die Zahlen ohne Umrechnung nebeneinanderlegen kann.
+ * Die Lage eines Geräts als **drei Zeilen** — und zwar in **zwei Räumen**,
+ * denn genau das ist die Verwirrung, um die es hier geht.
  *
- * Der **Griffraum** und nicht der Zeigestrahl: dort steht alles, was dieses
- * Spiel an Haltungen kennt, und zwischen beiden liegen die 30° von
- * `GRIP_TO_RAY`. Eine getrackte Hand hat keinen Griffraum — dort steht ihr
- * eigener Knoten, und das ist ehrlicher als eine erfundene Null.
+ * - **Zeigestrahl**: der Raum, dessen -Z dorthin läuft, wohin man zeigt.
+ *   Gelesen als Euler `YXZ`, also in der Reihenfolge, in der ein Flugzeug oder
+ *   eine Kamera geführt wird: erst gieren, dann nicken, dann rollen. Darin
+ *   heißt „geradeaus gezielt" **Pitch 0**, und ein Rollen um die Zeigeachse
+ *   ändert **nur** den Roll. Das ist die Zeile, die man liest.
+ * - **Griffraum**: der Raum, in dem jede Haltung, jeder Halterzylinder und
+ *   jede Faust dieses Spiels stehen, gelesen als Euler `XYZ` — die
+ *   Schreibweise jeder `HandPose`. Das ist die Zeile, die man mir sagt.
+ *
+ * Dass die beiden so weit auseinanderliegen, ist der ganze Punkt: der
+ * Handgriff eines Quest-Controllers steht schräg zu seinem Strahl, und wer
+ * geradeaus zielt, hat im Griffraum deshalb einen kräftigen Pitch stehen — die
+ * gemeldeten 45° waren keine Fehlmessung, sondern das Gerät. Und weil die
+ * beiden Räume gegeneinander verdreht sind, verteilt sich ein Rollen um den
+ * Strahl im Griffraum auf **Yaw und Roll zugleich**: auch das ist kein Fehler,
+ * sondern eine Drehung, die dort nun einmal um keine einzelne Achse geht.
+ *
+ * Die dritte Zeile misst genau diesen Versatz: **wie weit der Strahl gegen den
+ * Griff steht**, wie das Gerät selbst ihn meldet. Sie ist der Grund, warum es
+ * diese Tafel gibt — im Code steht dafür bisher eine geschätzte Zahl
+ * (`GRIP_TO_RAY`, 30°), und hier steht die gemessene.
+ *
+ * Eine **getrackte Hand** hat weder Griff noch Gerät; dort tritt das
+ * **Handgelenk** an die Stelle des Griffs, und die dritte Zeile sagt, wie weit
+ * der Pinch-Strahl dagegen steht. Vorher stand dort gar nichts, weil
+ * `hand.quaternion` die Ruhe ist — die Gelenke tragen die Drehung, nicht die
+ * Gruppe darum.
  */
 function tiltOf(state: ControllerState): string {
-  const anchor = state.isHand ? state.hand : state.grip.visible ? state.grip : state.targetRay;
-  _euler.setFromQuaternion(anchor.quaternion, 'XYZ');
-  const deg = (value: number): number => Math.round((value * 180) / Math.PI);
-  return `Pitch ${deg(_euler.x)}° · Yaw ${deg(_euler.y)}° · Roll ${deg(_euler.z)}°`;
+  const ray = state.targetRay.quaternion;
+  const grip = gripSpaceOf(state);
+  const yxz = _euler.setFromQuaternion(ray, 'YXZ');
+  const line = [`Strahl (YXZ): Yaw ${deg(yxz.y)}° · Pitch ${deg(yxz.x)}° · Roll ${deg(yxz.z)}°`];
+  if (grip) {
+    const xyz = _euler.setFromQuaternion(grip, 'XYZ');
+    line.push(
+      `${state.isHand ? 'Handgelenk' : 'Griff'} (XYZ): Pitch ${deg(xyz.x)}° · ` +
+        `Yaw ${deg(xyz.y)}° · Roll ${deg(xyz.z)}°`,
+    );
+    // Der Weg vom Griff zum Strahl — die Zahl, die das Gerät selbst kennt und
+    // die im Code bisher geraten ist.
+    _between.copy(grip).invert().multiply(ray);
+    const between = _euler.setFromQuaternion(_between, 'XYZ');
+    const total = 2 * Math.acos(Math.min(1, Math.abs(_between.w)));
+    line.push(`Griff → Strahl: X ${deg(between.x)}° · gesamt ${deg(total)}°`);
+  }
+  return line.join('\n');
+}
+
+/**
+ * Der Raum, gegen den hier gemessen wird: der **Griffraum** am Controller, das
+ * **Handgelenk** an einer getrackten Hand — oder nichts, wenn die Brille
+ * weder das eine noch das andere meldet.
+ */
+function gripSpaceOf(state: ControllerState): THREE.Quaternion | null {
+  if (!state.isHand) return state.grip.visible ? state.grip.quaternion : null;
+  const wrist = state.hand.joints['wrist'];
+  return wrist?.visible ? wrist.quaternion : null;
+}
+
+function deg(radians: number): number {
+  return Math.round((radians * 180) / Math.PI);
 }
 
 function handLabel(hand: Handedness): string {

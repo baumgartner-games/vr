@@ -1,12 +1,25 @@
 import * as THREE from 'three';
 import { GhostHand, handColor } from '../core/HandVisuals';
 import { holdHandPose } from '../core/handPoseStore';
-import { HELD_BUTTONS, buttonCurls, fingerMovesOf, type FingerButtons } from '../core/handPose';
+import {
+  GRIP_FINGER_MOVES,
+  GRIP_POSE_ID,
+  HELD_BUTTONS,
+  buttonCurls,
+  fingerMovesOf,
+  type FingerButtons,
+} from '../core/handPose';
 import { createTool } from '../worlds/portal/tools';
-import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
+import { GRIP_TO_RAY, STANDARD_GRIP_IN_HAND } from '../worlds/portal/tools/gripFit';
 import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
-import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
-import { createControllerHandle } from '../core/controllerHandle';
+import {
+  GRIP_LENGTH,
+  addGripFronts,
+  arrowPoints,
+  createArrow,
+  createGripShape,
+} from '../worlds/portal/tools/grip';
+import { HANDLE_COLOR } from '../core/controllerHandle';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, invertPose, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import {
@@ -40,14 +53,22 @@ import type { WorldPreview } from '../core/types';
  *   liegt so am Werkzeug, wie die Haltung dieses Werkzeugs es sagt. Hier soll
  *   der Pinsel wie ein Stift gehalten aussehen und die Pistole wie eine
  *   Pistole — hier ist der Unterschied zu Hause, den es in echt nicht gibt.
- * - `controller` — **Hand in echt**, wie die Hand wirklich hält: der rote
- *   Zylinder ist der Handgriff des Quest-Controllers
- *   (`core/controllerGrip.ts`, aus dem Modell des Herstellers abgelesen), und
- *   die Faust liegt darum. Das Werkzeug bleibt als **Geist** stehen — in der
- *   echten Hand liegt keines, aber ohne es wüsste man nicht mehr, wovon das
- *   Bild handelt. Es ist deshalb für jedes Werkzeug fast dasselbe Bild, und
- *   das ist keine Schwäche, sondern die Auskunft: **echt hält man den Pinsel
- *   wie die Waffe.**
+ * - `controller` — **Hand in echt**, wie die Hand wirklich hält: die Hand nach
+ *   vorn ausgestreckt wie an einer Pistole, der **Halterzylinder** aufrecht in
+ *   ihr (rot, weil er hier nicht das Werkzeug meint, sondern das Gerät), und
+ *   der Zeigestrahl läuft von seiner **oberen Kante** geradeaus auf die
+ *   Scheibe. Das ist die Haltung, an der man sich orientiert. Das Werkzeug
+ *   bleibt als **Geist** stehen — in der echten Hand liegt keines, aber ohne
+ *   es wüsste man nicht mehr, wovon das Bild handelt. Es ist deshalb für jedes
+ *   Werkzeug dasselbe Bild, und das ist keine Schwäche, sondern die Auskunft:
+ *   **echt hält man den Pinsel wie die Waffe.**
+ *
+ *   Hier stand eine Weile die Faust um den **Handgriff des Geräts**
+ *   (`CONTROLLER_HAND_POSE` um `CONTROLLER_HANDLE`, ein Zylinder entlang der
+ *   Z-Achse des Griffraums). Die beiden sind **47° in Pitch** auseinander — es
+ *   sind zwei Modelle desselben Handgriffs, und nur eines kann stimmen. Es ist
+ *   dieses: an ihm hängt jede Faust, jedes Werkzeug und jede Zahl dieses
+ *   Spiels.
  *
  * **Die Welt bleibt dabei stehen.** Werkzeug und Zielscheibe stehen in jeder
  * Ansicht an derselben Stelle, und die Kamera passt sich nur an die beiden an;
@@ -252,6 +273,36 @@ const _scale = new THREE.Vector3();
 /** Der Zeigestrahl der Hand im Griffraum: 30° unter dem -Z des Griffs (`GRIP_TO_RAY`). */
 const _aimQuat = new THREE.Quaternion(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w);
 const _rayInGrip = new THREE.Vector3(0, 0, -1).applyQuaternion(_aimQuat);
+/**
+ * **Wo der Zeigestrahl anfängt**, im Griffraum: an der **oberen Kante** des
+ * Halterzylinders.
+ *
+ * Der Nullpunkt des Griffraums ist die *Mitte* der Faust — dort sitzt die
+ * Mitte des Zylinders, eine halbe Faustbreite tiefer. Ein Strahl, der dort
+ * anfängt, läuft eine Handbreit unter dem Lauf des Werkzeugs her: zwei
+ * parallele Linien, von denen man beim Hinsehen keine der beiden glaubt. Aus
+ * der oberen Kante gezogen liegt er da, wo an einer Pistole der Lauf sitzt —
+ * und damit fast genau auf dem Zielpfeil des Werkzeugs.
+ *
+ * Verschoben wird nur das **Bild**: die Richtung bleibt, und die Zielscheibe
+ * wandert mit (`placeTarget`), also zeigt die Linie weiter genau auf sie.
+ */
+const _rayFromGrip = new THREE.Vector3(0, GRIP_LENGTH / 2, 0)
+  .applyQuaternion(
+    new THREE.Quaternion(
+      STANDARD_GRIP_IN_HAND.rotation.x,
+      STANDARD_GRIP_IN_HAND.rotation.y,
+      STANDARD_GRIP_IN_HAND.rotation.z,
+      STANDARD_GRIP_IN_HAND.rotation.w,
+    ),
+  )
+  .add(
+    new THREE.Vector3(
+      STANDARD_GRIP_IN_HAND.position.x,
+      STANDARD_GRIP_IN_HAND.position.y,
+      STANDARD_GRIP_IN_HAND.position.z,
+    ),
+  );
 const _forward = new THREE.Vector3(0, 0, 1);
 /** Nichts abschneiden — dieselbe leere Liste, statt jedes Bild eine neue. */
 const _noPlanes: THREE.Plane[] = [];
@@ -562,11 +613,6 @@ export class ToolViewer {
     return buttonCurls(pose, fingerMovesOf(tool.toolId), this.buttons);
   }
 
-  /** Unter welcher Id die **echte** Hand am Controller gespeichert ist. */
-  private get controllerId(): string {
-    return this.side === 'left' ? 'controller-left' : 'controller-right';
-  }
-
   /** Welches Werkzeug auf der Bühne steht — der Editor fragt danach. */
   get toolId(): string | null {
     return this.tool?.toolId ?? null;
@@ -827,15 +873,30 @@ export class ToolViewer {
     this.addHandLine(rig);
 
     if (this.mode === 'controller') {
-      const handle = createControllerHandle(this.side);
+      // **Die Faust am Halterzylinder** — die Hand nach vorn ausgestreckt, wie
+      // an einer Pistole. Der Zylinder steht dabei aufrecht in ihr, und der
+      // Zeigestrahl läuft von seiner oberen Kante geradeaus auf die Scheibe:
+      // genau die Haltung, an der man sich orientiert.
+      //
+      // Hier stand eine Weile die Faust um den **Handgriff des Geräts**
+      // (`CONTROLLER_HAND_POSE` um `CONTROLLER_HANDLE`, ein Zylinder entlang
+      // der Z-Achse des Griffraums). Die beiden sind **47° in Pitch**
+      // auseinander — es sind zwei Modelle desselben Handgriffs, und nur eines
+      // kann stimmen. Es ist dieses: an ihm hängt jede Faust, jedes Werkzeug
+      // und jede Zahl dieses Spiels, und es ist das, was man in der Hand
+      // wiedererkennt.
+      const handle = createGripShape({ color: HANDLE_COLOR });
+      const at = STANDARD_GRIP_IN_HAND;
+      handle.position.set(at.position.x, at.position.y, at.position.z);
+      handle.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
       rig.add(handle);
       this.handle = handle;
-      const pose = holdHandPose(this.side, this.controllerId);
+      const pose = holdHandPose(this.side, GRIP_POSE_ID);
       const hand = new GhostHand(this.side, pose, { color: handColor(), opacity: 1 });
-      hand.setCurls(buttonCurls(pose, fingerMovesOf(this.controllerId), this.buttons));
-      const at = poseOfHand(pose);
-      hand.position.set(at.position.x, at.position.y, at.position.z);
-      hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
+      hand.setCurls(buttonCurls(pose, GRIP_FINGER_MOVES, this.buttons));
+      const on = poseOfHand(pose);
+      hand.position.set(on.position.x, on.position.y, on.position.z);
+      hand.quaternion.set(on.rotation.x, on.rotation.y, on.rotation.z, on.rotation.w);
       rig.add(hand);
       this.hand = hand;
     } else if (this.mode === 'vr') {
@@ -929,7 +990,9 @@ export class ToolViewer {
     this.targetDistance = Math.max(TARGET_MIN_DISTANCE, radius * TARGET_DISTANCE);
     target.scale.setScalar(Math.max(TARGET_MIN_RADIUS, radius * TARGET_RADIUS));
 
-    _at.set(rig.position.x, rig.position.y, rig.position.z);
+    // Von derselben Kante wie die Linie (`_rayFromGrip`) — sonst zielte die
+    // Linie an der Scheibe vorbei.
+    _at.copy(_rayFromGrip).applyQuaternion(rig.quaternion).add(rig.position);
     _dir.copy(_rayInGrip).applyQuaternion(rig.quaternion);
     target.position.copy(_at).addScaledVector(_dir, this.targetDistance);
     // Die Scheibe schaut die Hand an: ihr +Z ist die Fläche, und die zeigt
@@ -964,6 +1027,7 @@ export class ToolViewer {
       new THREE.LineBasicMaterial({ color: HAND_LINE_COLOR, transparent: true, opacity: 0.9 }),
     );
     line.name = 'hand-ray';
+    line.position.copy(_rayFromGrip);
     line.quaternion.copy(_aimQuat);
     rig.add(line);
     this.handLine = line;

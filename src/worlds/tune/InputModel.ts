@@ -8,6 +8,7 @@ import {
   ownMaterials,
 } from '../../core/ControllerModels';
 import type { XRControllerModel } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
+import { createAxes, disposeAxes } from '../../core/axesCross';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 
 /**
@@ -112,7 +113,16 @@ export class InputModel extends THREE.Group {
     this.buildController();
     this.buildHand();
     this.hand.visible = false;
+    // **Das Achsenkreuz des Geräts.** Es dreht sich mit, weil es an derselben
+    // Gruppe hängt wie das Modell — und genau darum geht es: man sieht, dass
+    // der Raum des Controllers schräg im Zimmer steht, und wie schräg. Ohne
+    // das ist „Pitch 45°" eine Zahl ohne Bild.
+    this.axes = createAxes(0.16);
+    this.add(this.axes);
   }
+
+  /** Das Achsenkreuz des Griffraums — es gehört dem Modell und geht mit ihm. */
+  private readonly axes: THREE.Group;
 
   /**
    * Puts the model where the real input is: the same orientation, every
@@ -123,8 +133,10 @@ export class InputModel extends THREE.Group {
     if (!state?.tracked) {
       this.controller.visible = false;
       this.hand.visible = false;
+      this.axes.visible = false;
       return 'nicht getrackt';
     }
+    this.axes.visible = true;
 
     // The model does not follow the hand around the room — it stays where it
     // can be looked at — but it does turn with it, because "what is moving"
@@ -196,6 +208,7 @@ export class InputModel extends THREE.Group {
       const mesh = object as THREE.Mesh;
       if (mesh.isMesh) mesh.geometry.dispose();
     });
+    disposeAxes(this.axes);
     this.markerGeometry?.dispose();
     this.markerGeometry = null;
     for (const material of this.owned) material.dispose();

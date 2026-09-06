@@ -872,17 +872,42 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten.
 
-  Und darunter je Hand die **Lage des Geräts als Zahl**: Pitch, Yaw und Roll
-  des Griffraums in Grad, als Euler `XYZ` — dieselbe Schreibweise wie in jeder
-  `HandPose`, damit man sie ohne Umrechnung nebeneinanderlegen kann. Man
-  *sieht* das Modell mitkippen; was es *ist*, kann man nur ablesen, und nur
-  eine Zahl kann man weitersagen: „so halte ich den Controller wirklich" ist
-  als Satz wertlos und als `Pitch -74 · Yaw 12 · Roll -31` eine Messung, aus
-  der eine Grundhaltung wird. Gelesen wird der **Griffraum** und nicht der
-  Zeigestrahl — dort steht alles, was dieses Spiel an Haltungen kennt, und
-  zwischen beiden liegen die 30° von `GRIP_TO_RAY`. Neu gezeichnet wird
-  höchstens fünfmal je Sekunde: eine Zahl, die sich mit jedem Bild um ein Grad
-  ändert, ist ein Flackern, und jedes Neuzeichnen malt eine Leinwand neu.
+  Und darunter je Hand die **Lage des Geräts als Zahl**, in **zwei Räumen**,
+  denn genau dazwischen liegt die Verwirrung:
+
+  - **Zeigestrahl**, gelesen als Euler `YXZ` — die Reihenfolge, in der ein
+    Flugzeug oder eine Kamera geführt wird: erst gieren, dann nicken, dann
+    rollen. Darin heißt „geradeaus gezielt" **Pitch 0**, und ein Rollen um die
+    Zeigeachse ändert **nur** den Roll. Das ist die Zeile, die man liest.
+  - **Griffraum**, gelesen als Euler `XYZ` — die Schreibweise jeder
+    `HandPose`. Das ist die Zeile, die man weitersagt.
+  - **Griff → Strahl**: wie weit der Strahl gegen den Griff steht, wie das
+    Gerät selbst es meldet. Im Code steht dafür eine geschätzte Zahl
+    (`GRIP_TO_RAY`, 30°); hier steht die gemessene.
+
+  Dass die ersten beiden so weit auseinanderliegen, ist der Punkt: der
+  Handgriff eines Quest-Controllers steht schräg zu seinem Strahl, und wer
+  geradeaus zielt, hat im Griffraum deshalb einen kräftigen Pitch stehen — die
+  gemeldeten **45°** waren keine Fehlmessung, sondern das Gerät. Und weil die
+  Räume gegeneinander verdreht sind, verteilt sich ein Rollen um den Strahl im
+  Griffraum auf **Yaw und Roll zugleich**; auch das ist kein Fehler, sondern
+  eine Drehung, die dort um keine einzelne Achse geht.
+
+  Eine **getrackte Hand** hat weder Griff noch Gerät; dort tritt das
+  **Handgelenk** an die Stelle des Griffs. Vorher stand für sie gar nichts da,
+  weil `hand.quaternion` die Ruhe ist — die Gelenke tragen die Drehung, nicht
+  die Gruppe darum. Neu gezeichnet wird höchstens fünfmal je Sekunde: eine
+  Zahl, die sich mit jedem Bild um ein Grad ändert, ist ein Flackern, und jedes
+  Neuzeichnen malt eine Leinwand neu.
+
+  **Und dazu die Achsen selbst**, denn eine Zahl ohne Achse ist keine Auskunft
+  (`core/axesCross.ts`). Ein Kreuz steht mitten im Raum und je eines an jedem
+  Controller-Modell, sodass man beide nebeneinander sieht und daran, wie schräg
+  der Raum des Geräts im Zimmer steht. Die Farben sind die üblichen — **X rot,
+  Y grün, Z blau**, wie in three.js und Blender —, und dazu kommt der vierte
+  Pfeil, um den es eigentlich geht: **-Z in Weiß**. Vorne ist überall in diesem
+  Spiel das *negative* Z; ein Kreuz, das nur +Z zeigt, zeigt genau dorthin, wo
+  nichts ist. Die Legende an der Wand schreibt es aus.
 
   **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei.
   Der Stick bewegt in diesem Raum nichts, man steht also ohnehin still; was
@@ -2685,13 +2710,26 @@ Die Namen sagen, welche:
   sagt. Hier soll der Pinsel wie ein Stift gehalten aussehen und die Pistole
   wie eine Pistole.
 - **Hand in echt** — die **eigene** Hand am Gerät, also nur eine Handhaltung:
-  der **rote Zylinder** ist der Handgriff des Quest-Controllers
-  (`core/controllerGrip.ts`, aus dem Modell des Herstellers abgelesen), und die
-  Faust liegt darum. Das Werkzeug bleibt als **Geist** stehen — in der echten
-  Hand liegt keines, aber ohne es wüsste man nicht mehr, wovon das Bild
-  handelt. Es ist deshalb für jedes Werkzeug fast dasselbe Bild, und das ist
-  keine Schwäche, sondern die Auskunft: **echt hält man den Pinsel wie die
-  Waffe.**
+  nach vorn ausgestreckt wie an einer Pistole, der **Halterzylinder** aufrecht
+  darin (rot, weil er hier nicht das Werkzeug meint, sondern das Gerät), und
+  der Zeigestrahl läuft von seiner **oberen Kante** geradeaus auf die Scheibe.
+  Das ist die Haltung, an der man sich orientiert. Das Werkzeug bleibt als
+  **Geist** stehen — in der echten Hand liegt keines, aber ohne es wüsste man
+  nicht mehr, wovon das Bild handelt. Es ist deshalb für jedes Werkzeug
+  dasselbe Bild, und das ist keine Schwäche, sondern die Auskunft: **echt hält
+  man den Pinsel wie die Waffe.**
+
+  Dort stand eine Weile die Faust um den **Handgriff des Geräts**
+  (`CONTROLLER_HAND_POSE` um `CONTROLLER_HANDLE`, ein Zylinder entlang der
+  Z-Achse des Griffraums) — gemeldet als „die Hand ist um 45° falsch". Sie war
+  es: die beiden Fäuste stehen **47° in Pitch** auseinander. Es sind zwei
+  Modelle desselben Handgriffs, und nur eines kann stimmen; genommen wird das,
+  an dem jede Faust, jedes Werkzeug und jede Zahl dieses Spiels hängt. Der
+  Zeigestrahl beginnt dabei an der **oberen Kante** des Zylinders und nicht in
+  seiner Mitte: der Nullpunkt des Griffraums ist die Mitte der Faust, und ein
+  Strahl von dort läuft eine Handbreit unter dem Lauf des Werkzeugs her — zwei
+  parallele Linien, von denen man keine glaubt. Verschoben wird nur das Bild;
+  die Zielscheibe wandert mit.
 
 Lange waren die beiden dasselbe Bild in zwei Rahmen — einmal stand die Hand
 still, einmal das Werkzeug —, und wer sich den Pinsel ansah, sah zweimal genau

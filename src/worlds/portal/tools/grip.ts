@@ -44,6 +44,12 @@ export interface GripOptions {
   thickness?: number;
   /** Mit der Linie, die zeigt, wo bei diesem Halter vorne ist. */
   front?: boolean;
+  /**
+   * Eine andere Farbe als die Greiffarbe — für den einen Fall, in dem der
+   * Zylinder nicht das Werkzeug meint, sondern das **Gerät** in der echten
+   * Hand (`tools/viewer.ts`, Ansicht *Hand in echt*).
+   */
+  color?: number;
 }
 
 /**
@@ -136,7 +142,15 @@ export function createGripShape(options: GripOptions = {}): THREE.Mesh {
   const radius = GRIP_RADIUS * (options.thickness ?? 1);
   const mesh = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius, length, 20),
-    grabMaterial({ roughness: 0.78 }),
+    grabMaterial(
+      options.color === undefined
+        ? { roughness: 0.78 }
+        : {
+            roughness: 0.78,
+            color: options.color,
+            emissive: new THREE.Color(options.color).multiplyScalar(0.18),
+          },
+    ),
   );
   mesh.name = `${GRIP_NAME}-shape`;
   if (options.front) mesh.add(createGripFront());
