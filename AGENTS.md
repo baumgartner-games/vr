@@ -832,11 +832,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     **wie eine Waffe**, ohne Zusatzneigung: er lag eine Weile 23° nach vorn
     gekippt darin, damit das Display zum Gesicht zeigt, und rollte damit so
     weit über die Faust, dass er nicht mehr aussah wie etwas, das man hält,
-    sondern wie etwas, das aus der Hand fällt. Geneigt ist jetzt das Display
-    am Gehäuse und nicht das ganze Gerät in der Hand — und zwar um **45° nach
-    hinten** (`DISPLAY_TILT`): so weit, wie eine ablesende Hand nach vorn unten
-    zeigt, und damit steht der Schirm im Raum senkrecht. Vorher waren es 0,45
-    rad, also gut 25° — die Hälfte des Wegs, und man sah den Schirm kippen. Er
+    sondern wie etwas, das aus der Hand fällt. Das Display steht
+    **aufrecht** auf dem Gehäuse — geneigt wird weder das eine noch das
+    andere. Es lag zweimal geneigt darauf (0,45 rad, dann 45° nach hinten),
+    beide Male mit der Rechnung, die ablesende Hand zeige nach vorn unten und
+    die Neigung nehme das heraus; sie nimmt es aber nur bei genau dieser einen
+    Handhaltung heraus und legt es überall sonst dazu — in der Hand, die
+    geradeaus zeigt, hing der Schirm um 45° nach vorn gebeugt und man las ihn
+    von der Kante. Wie schräg die Hand steht, ist Sache der Hand. Er
     verändert
     **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
     halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
