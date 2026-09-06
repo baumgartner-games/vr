@@ -6,7 +6,7 @@ import { createTool } from '../worlds/portal/tools';
 import { GRIP_TO_RAY } from '../worlds/portal/tools/gripFit';
 import { IDENTITY, type Quat } from '../worlds/portal/tools/aim';
 import { addGripFronts, arrowPoints, createArrow } from '../worlds/portal/tools/grip';
-import { CONTROLLER_HANDLE } from '../core/controllerGrip';
+import { createControllerHandle } from '../core/controllerHandle';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, invertPose, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import {
@@ -229,20 +229,6 @@ const LINE_BEYOND = 1.15;
  */
 const AIM_LINE_COLOR = 0xb388ff;
 const AIM_LINE_MIN = 0.16;
-
-/**
- * **Der rote Zylinder**: der Handgriff des Controllers in der Ansicht
- * *Hand in echt*.
- *
- * Rot, weil grün schon vergeben ist — grün heißt „hier fasst die Hand das
- * **Werkzeug** an", und genau das tut sie hier nicht: sie fasst das Gerät an,
- * und das Werkzeug ist gar nicht da. Zwei türkise Zylinder nebeneinander wären
- * zwei Griffe eines Dings; ein roter neben keinem grünen ist ein anderes Ding.
- *
- * Die Maße sind die gemessenen (`CONTROLLER_HANDLE`): eine flache Ellipse
- * entlang der Z-Achse des Griffraums, vom Kopf des Geräts nach hinten.
- */
-const HANDLE_COLOR = 0xe0554a;
 
 /** Wie durchsichtig das Werkzeug wird, wo es nur zeigt, wo es wäre. */
 const GHOST_OPACITY = 0.22;
@@ -841,7 +827,7 @@ export class ToolViewer {
     this.addHandLine(rig);
 
     if (this.mode === 'controller') {
-      const handle = createHandle(this.side);
+      const handle = createControllerHandle(this.side);
       rig.add(handle);
       this.handle = handle;
       const pose = holdHandPose(this.side, this.controllerId);
@@ -1426,36 +1412,6 @@ function rayIn(line: THREE.Object3D): Ray {
     origin: { x: _at.x, y: _at.y, z: _at.z },
     direction: { x: _dir.x, y: _dir.y, z: _dir.z },
   };
-}
-
-/**
- * **Der Handgriff des Controllers**, im Griffraum: ein roter Zylinder mit
- * flach-elliptischem Querschnitt, entlang der Z-Achse vom Kopf des Geräts nach
- * hinten (`core/controllerGrip.ts`).
- *
- * Es ist nicht das ganze Gerät, sondern das Stück davon, das in der Faust
- * liegt. Mehr braucht das Bild auch nicht: die Frage ist, wo die Hand
- * zufasst, und nicht, wo der Stick sitzt. Die linke Schale ist das
- * Spiegelbild — eine Zahl, `x` mit anderem Vorzeichen.
- */
-function createHandle(side: Handedness): THREE.Mesh {
-  const mirror = side === 'left' ? -1 : 1;
-  const { centre, radius, from, to } = CONTROLLER_HANDLE;
-  const mesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius.y, radius.y, to - from, 20),
-    new THREE.MeshStandardMaterial({
-      color: HANDLE_COLOR,
-      roughness: 0.7,
-      emissive: new THREE.Color(HANDLE_COLOR).multiplyScalar(0.18),
-    }),
-  );
-  mesh.name = 'controller-handle';
-  // Der Zylinder steht in three.js auf Y; der Handgriff liegt auf Z.
-  mesh.rotation.x = Math.PI / 2;
-  // Quer flacher als hoch: die Ellipse des echten Griffs.
-  mesh.scale.x = radius.x / radius.y;
-  mesh.position.set(mirror * centre.x, centre.y, (from + to) / 2);
-  return mesh;
 }
 
 /** Die Materialien eines Meshes oder einer Linie, ob nun eines oder eine Liste. */

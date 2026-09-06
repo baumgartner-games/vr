@@ -872,6 +872,31 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten.
 
+  Und darunter je Hand die **Lage des Geräts als Zahl**: Pitch, Yaw und Roll
+  des Griffraums in Grad, als Euler `XYZ` — dieselbe Schreibweise wie in jeder
+  `HandPose`, damit man sie ohne Umrechnung nebeneinanderlegen kann. Man
+  *sieht* das Modell mitkippen; was es *ist*, kann man nur ablesen, und nur
+  eine Zahl kann man weitersagen: „so halte ich den Controller wirklich" ist
+  als Satz wertlos und als `Pitch -74 · Yaw 12 · Roll -31` eine Messung, aus
+  der eine Grundhaltung wird. Gelesen wird der **Griffraum** und nicht der
+  Zeigestrahl — dort steht alles, was dieses Spiel an Haltungen kennt, und
+  zwischen beiden liegen die 30° von `GRIP_TO_RAY`. Neu gezeichnet wird
+  höchstens fünfmal je Sekunde: eine Zahl, die sich mit jedem Bild um ein Grad
+  ändert, ist ein Flackern, und jedes Neuzeichnen malt eine Leinwand neu.
+
+  **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei.
+  Der Stick bewegt in diesem Raum nichts, man steht also ohnehin still; was
+  fehlte, war ein Weg, eine Zahl festzuhalten, ohne sie im selben Moment durch
+  das Hinsehen zu verändern. Eingefroren steht die Tafel bernsteinfarben da,
+  und unter das Modell stellt sich, was diese Lage **bedeutet**: die
+  **Boxhand** in der Faust um den **Handgriff des Geräts** — derselbe rote
+  Zylinder wie auf der Werkzeugseite unter _Hand in echt_
+  (`core/controllerHandle.ts`, eine Geometrie für beide Stellen) und dieselbe
+  gerechnete Faust (`CONTROLLER_HAND_POSE`). Man liest die Zahl also nicht
+  nur, man sieht auch, was das Spiel daraus macht. Gebaut und nicht
+  gespeichert: dort soll stehen, was aus der Lage **folgt**, nicht, was jemand
+  vorhin eingestellt hat.
+
   An der **rechten Wand hängen die Zahlen**, die man abliest statt sie
   anzufassen: zwei Knöpfe messen die **Augenhöhe** (siehe _Sitzen oder
   stehen_), stehend und sitzend, und daneben hängt die **Werte-Tafel** mit der

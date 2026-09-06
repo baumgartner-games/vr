@@ -48,7 +48,8 @@ import {
   type HandPose,
 } from '../../core/handPose';
 import { saveHoldHandPose } from '../../core/handPoseStore';
-import { GhostHand } from '../../core/HandVisuals';
+import { BOX_HAND_COLOR, GhostHand } from '../../core/HandVisuals';
+import { createControllerHandle } from '../../core/controllerHandle';
 import { eyeHeights, saveEyeHeights, seatedLift } from '../../core/posture';
 import {
   formatPose,
@@ -71,6 +72,18 @@ const ROOM = { half: 3.4, height: 3, thickness: 0.3 };
 const MODEL_Y = 1.42;
 const MODEL_Z = -1.15;
 const MODEL_X = 0.34;
+/** Wie weit unter dem lebenden Modell die eingefrorene Lage steht. */
+const FREEZE_DROP = 0.46;
+/**
+ * Wie oft die beiden Lage-Tafeln höchstens neu gezeichnet werden.
+ *
+ * Eine Zahl in Grad ändert sich bei jeder Handbewegung in jedem Bild, und
+ * jedes Neuzeichnen malt eine Leinwand neu — mit 90 Hz ist das der billigste
+ * Weg, ein Headset stocken zu lassen. Fünfmal je Sekunde liest sich flüssig
+ * und ist zu langsam zum Flackern. Eingefrorene Zahlen kommen sofort: dort
+ * ändert sich danach nichts mehr.
+ */
+const TILT_REFRESH = 0.2;
 
 /** Ein Knopf an der Wand: die Tafel, was sie tut und was gerade daraufsteht. */
 interface WallButton {
@@ -299,6 +312,21 @@ const DEG = 180 / Math.PI;
 export class TuneWorld extends PortalWorld {
   private readonly models = new Map<Handedness, InputModel>();
   private readonly boards = new Map<Handedness, TextPlane>();
+  /** Die zweite Tafel je Hand: Pitch, Yaw und Roll des Geräts, laufend. */
+  private readonly tiltBoards = new Map<Handedness, TextPlane>();
+  /** Die eingefrorene Lage je Hand — Boxhand und Zylinder, wo sie dann lagen. */
+  private readonly freezes = new Map<Handedness, THREE.Group>();
+  /** Die Zahlen dazu, solange sie eingefroren sind. */
+  private readonly frozen = new Map<Handedness, string>();
+  /** Was zuletzt auf einer Lage-Tafel stand — ein Canvas ohne Not ist teuer. */
+  private readonly tiltLines = new Map<Handedness, string>();
+  /**
+   * Sekunden seit dem letzten Neuzeichnen — **je Tafel**, nicht eine für
+   * beide. Mit einer gemeinsamen Uhr gewann immer dieselbe Hand: sie setzte
+   * die Uhr zurück, und die andere kam nie an die Reihe, solange sich beide
+   * bewegten.
+   */
+  private readonly tiltAge = new Map<Handedness, number>();
   private readonly buttons: WallButton[] = [];
   private bench: VibeBench | null = null;
   private range: ToolRange | null = null;
@@ -398,6 +426,8 @@ export class TuneWorld extends PortalWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     for (const side of ['left', 'right'] as const) {
+      this.tiltAge.set(side, (this.tiltAge.get(side) ?? 0) + dt);
+      this.updateTilt(side, ctx.input.get(side));
       const model = this.models.get(side);
       const board = this.boards.get(side);
       if (!model || !board) continue;
@@ -445,6 +475,11 @@ export class TuneWorld extends PortalWorld {
     this.models.clear();
     for (const board of this.boards.values()) board.dispose();
     this.boards.clear();
+    for (const board of this.tiltBoards.values()) board.dispose();
+    this.tiltBoards.clear();
+    for (const side of ['left', 'right'] as const) this.clearFreeze(side);
+    for (const freeze of this.freezes.values()) freeze.removeFromParent();
+    this.freezes.clear();
     for (const button of this.buttons) {
       ctx.pointer.remove(button.plane);
       button.plane.dispose();
@@ -588,6 +623,27 @@ export class TuneWorld extends PortalWorld {
       board.position.set(sign * 0.82, 1.62, -half + thickness / 2 + 0.02);
       room.add(board);
       this.boards.set(side, board);
+
+      // Und darunter die **Lage**: Pitch, Yaw und Roll des Geräts, laufend.
+      // Was das Modell darüber zeigt, sieht man; was es *ist*, steht hier als
+      // Zahl — und nur eine Zahl kann man weitersagen.
+      const tilt = new TextPlane({
+        width: 1.5,
+        height: 0.34,
+        title: `${handLabel(side)} · Lage`,
+        body: 'nicht getrackt',
+        accent: 0x9fe3ff,
+      });
+      tilt.position.set(sign * 0.82, 1.16, -half + thickness / 2 + 0.02);
+      room.add(tilt);
+      this.tiltBoards.set(side, tilt);
+
+      const freeze = new THREE.Group();
+      freeze.name = `freeze-${side}`;
+      freeze.visible = false;
+      freeze.position.set(sign * MODEL_X, MODEL_Y - FREEZE_DROP, MODEL_Z);
+      room.add(freeze);
+      this.freezes.set(side, freeze);
     }
 
     const hint = new TextPlane({
@@ -1470,6 +1526,113 @@ export class TuneWorld extends PortalWorld {
     this.refreshButtons();
   }
 
+  // --- die Lage des Geräts, als Zahl ----------------------------------------
+
+  /**
+   * **Wie das Gerät gerade in der Hand liegt**, als drei Zahlen an der Wand —
+   * und, auf Knopfdruck, eingefroren.
+   *
+   * Man sieht in der Brille, wie das Modell an der Wand mitkippt; was man
+   * *nicht* sieht, sind die Zahlen dahinter. Und nur Zahlen kann man
+   * weitersagen: „so halte ich den Controller wirklich" ist als Satz wertlos
+   * und als `Pitch -74 · Yaw 12 · Roll -31` eine Messung, aus der eine
+   * Grundhaltung wird.
+   *
+   * Gelesen wird der **Griffraum** — der Raum, in dem jede Haltung, jeder
+   * Halterzylinder und jede Faust dieses Spiels stehen — als Euler XYZ in
+   * Grad, also genau in der Schreibweise einer `HandPose`. Was hier steht,
+   * kann man ohne Umrechnung nebeneinanderlegen.
+   *
+   * **Greifen friert ein.** Der Stick bewegt in diesem Raum nichts, man steht
+   * also ohnehin still; was fehlt, ist ein Weg, eine Zahl festzuhalten, ohne
+   * sie im selben Moment durch das Hinsehen zu verändern. Ein Druck auf den
+   * Griffknopf hält die Lage fest, ein zweiter gibt sie wieder frei — und
+   * dazu stellt sich unter das Modell, was diese Lage bedeutet: die
+   * **Boxhand** in der Faust um den **Handgriff des Geräts**
+   * (`CONTROLLER_HAND_POSE`, `createControllerHandle`). Man liest die Zahl
+   * also nicht nur, man sieht auch, was das Spiel daraus macht.
+   */
+  private updateTilt(side: Handedness, state: ControllerState | null): void {
+    const board = this.tiltBoards.get(side);
+    if (!board) return;
+    const live = state?.tracked ? tiltOf(state) : null;
+
+    // Getrackte Hände haben kein Gerät, das man festhalten könnte.
+    if (state && !state.isHand && state.squeeze.justPressed) {
+      if (this.frozen.has(side)) {
+        this.clearFreeze(side);
+        state.pulse(0.5, 30);
+      } else if (live) {
+        this.setFreeze(side, state, live);
+        state.pulse(0.5, 30);
+      }
+    }
+
+    const held = this.frozen.get(side);
+    const text = held ?? live ?? 'nicht getrackt';
+    // Höchstens ein paar Mal je Sekunde: eine Zahl, die sich mit jedem Bild um
+    // ein Grad ändert, ist keine Anzeige, sondern ein Flackern — und jedes
+    // Neuzeichnen kostet eine Leinwand.
+    if (text === this.tiltLines.get(side)) return;
+    if (!held && (this.tiltAge.get(side) ?? 0) < TILT_REFRESH) return;
+    this.tiltAge.set(side, 0);
+    this.tiltLines.set(side, text);
+    board.setText(
+      held ? `${handLabel(side)} · eingefroren` : `${handLabel(side)} · Lage`,
+      held ? `${held} · Greifen gibt frei` : text,
+      held ? 0xffc857 : 0x9fe3ff,
+    );
+  }
+
+  /** Die Lage festhalten — samt Boxhand und Zylinder darin. */
+  private setFreeze(side: Handedness, state: ControllerState, line: string): void {
+    const freeze = this.freezes.get(side);
+    if (!freeze) return;
+    this.clearFreeze(side);
+    this.frozen.set(side, line);
+
+    const anchor = state.grip.visible ? state.grip : state.targetRay;
+    freeze.quaternion.copy(anchor.quaternion);
+    freeze.add(createControllerHandle(side));
+
+    // Die Faust um genau diesen Zylinder, wie sie in `handPose.ts` steht —
+    // und **gebaut** und nicht gespeichert: hier soll stehen, was das Spiel
+    // aus der Lage macht, nicht, was jemand vorhin eingestellt hat.
+    const pose = defaultHoldPose(side, side === 'left' ? 'controller-left' : 'controller-right');
+    const hand = new GhostHand(side, pose, {
+      look: 'bones',
+      color: BOX_HAND_COLOR,
+      opacity: 0.55,
+    });
+    const at = poseOfHand(pose);
+    hand.position.set(at.position.x, at.position.y, at.position.z);
+    hand.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
+    freeze.add(hand);
+    freeze.visible = true;
+  }
+
+  /** Und wieder auftauen: alles weg, was beim Einfrieren entstanden ist. */
+  private clearFreeze(side: Handedness): void {
+    this.frozen.delete(side);
+    // Die Zeile gilt nicht mehr — ohne das bliebe die aufgetaute Tafel stehen,
+    // weil der neue Text zufällig derselbe ist.
+    this.tiltLines.delete(side);
+    const freeze = this.freezes.get(side);
+    if (!freeze) return;
+    for (const child of [...freeze.children]) {
+      if (child instanceof GhostHand) {
+        child.dispose();
+        continue;
+      }
+      const mesh = child as THREE.Mesh;
+      mesh.removeFromParent();
+      mesh.geometry?.dispose();
+      const material = mesh.material as THREE.Material | undefined;
+      material?.dispose();
+    }
+    freeze.visible = false;
+  }
+
   /** Der AR-Knopf: die Welt durchsichtig, und den Himmel weg. */
   private toggleSeeThrough(): void {
     const ctx = this.context;
@@ -2330,6 +2493,23 @@ function readoutOfHand(pose: HandPose): PoseReadout {
  */
 function aims(tool: Tool): boolean {
   return tool.alignToAim;
+}
+
+/**
+ * Die Lage eines Controllers als Zeile: **Pitch, Yaw und Roll des Griffraums**
+ * in Grad, gelesen als Euler `XYZ` — dieselbe Schreibweise wie in jeder
+ * `HandPose`, damit man die Zahlen ohne Umrechnung nebeneinanderlegen kann.
+ *
+ * Der **Griffraum** und nicht der Zeigestrahl: dort steht alles, was dieses
+ * Spiel an Haltungen kennt, und zwischen beiden liegen die 30° von
+ * `GRIP_TO_RAY`. Eine getrackte Hand hat keinen Griffraum — dort steht ihr
+ * eigener Knoten, und das ist ehrlicher als eine erfundene Null.
+ */
+function tiltOf(state: ControllerState): string {
+  const anchor = state.isHand ? state.hand : state.grip.visible ? state.grip : state.targetRay;
+  _euler.setFromQuaternion(anchor.quaternion, 'XYZ');
+  const deg = (value: number): number => Math.round((value * 180) / Math.PI);
+  return `Pitch ${deg(_euler.x)}° · Yaw ${deg(_euler.y)}° · Roll ${deg(_euler.z)}°`;
 }
 
 function handLabel(hand: Handedness): string {
