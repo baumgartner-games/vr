@@ -33,6 +33,90 @@ describe('Kopf und Trefferzone', () => {
     body.dispose();
   });
 
+  it.each([...NPC_KINDS])('%s trägt seinen Lebensbalken über dem Scheitel', (kind) => {
+    const body = new NpcBody(kind);
+    body.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(body.bar);
+    expect(box.min.y).toBeGreaterThan(body.skin.height);
+    body.dispose();
+  });
+
+  describe('Der Lebensbalken', () => {
+    /** Die Füllung: das zweite Sprite in der Gruppe. */
+    const fillOf = (body: NpcBody): THREE.Sprite => body.bar.children[1] as THREE.Sprite;
+
+    it('bleibt bei voller Gesundheit unsichtbar und kommt beim ersten Treffer', () => {
+      const body = new NpcBody('zombie');
+      expect(fillOf(body).visible).toBe(false);
+      body.setHealth(0.75);
+      expect(fillOf(body).visible).toBe(true);
+      body.dispose();
+    });
+
+    /**
+     * Ein Sprite wird um seinen Bezugspunkt skaliert, und der liegt
+     * voreingestellt in der Mitte — eine halbierte Füllung schrumpfte dann von
+     * **beiden** Seiten und stünde als schmaler Strich mittig im Rahmen. Mit
+     * `center.x = 0` ist der Bezugspunkt der linke Rand, und `position.x` *ist*
+     * damit dieser Rand: Er bleibt liegen, nur das rechte Ende wandert.
+     */
+    it('schrumpft nach links statt aus der Mitte', () => {
+      const body = new NpcBody('zombie');
+      const fill = fillOf(body);
+      const full = fill.scale.x;
+      const left = fill.position.x;
+      expect(fill.center.x).toBe(0);
+      body.setHealth(0.5);
+      expect(fill.scale.x).toBeCloseTo(full / 2, 6);
+      expect(fill.position.x).toBeCloseTo(left, 6);
+      body.dispose();
+    });
+
+    it('bleibt sichtbar, solange noch etwas übrig ist', () => {
+      const body = new NpcBody('zombie');
+      body.setHealth(0.001);
+      expect(fillOf(body).visible).toBe(true);
+      expect(fillOf(body).scale.x).toBeGreaterThan(0);
+      body.dispose();
+    });
+
+    it('geht mit dem Umfallen weg', () => {
+      const body = new NpcBody('zombie');
+      body.setHealth(0.4);
+      body.setFallen(0.2);
+      expect(fillOf(body).visible).toBe(false);
+      body.dispose();
+    });
+
+    it('kennt drei Stellungen: immer, bei Schaden, aus', () => {
+      const body = new NpcBody('zombie');
+      body.setBars('always');
+      expect(fillOf(body).visible).toBe(true);
+      body.setBars('off');
+      body.setHealth(0.5);
+      expect(fillOf(body).visible).toBe(false);
+      body.setBars('hurt');
+      expect(fillOf(body).visible).toBe(true);
+      body.dispose();
+    });
+
+    it('färbt sich von Grün über Gelb nach Rot', () => {
+      const body = new NpcBody('zombie');
+      const fill = fillOf(body);
+      body.setHealth(1);
+      const green = fill.material.color.getHex();
+      body.setHealth(0.5);
+      const yellow = fill.material.color.getHex();
+      body.setHealth(0.1);
+      const red = fill.material.color.getHex();
+      expect(new Set([green, yellow, red]).size).toBe(3);
+      // Rot ist rot: der rote Kanal überwiegt, der grüne nicht mehr.
+      expect(new THREE.Color(red).r).toBeGreaterThan(new THREE.Color(red).g);
+      expect(new THREE.Color(green).g).toBeGreaterThan(new THREE.Color(green).r);
+      body.dispose();
+    });
+  });
+
   it.each([...NPC_KINDS])('%s steht mit den Füßen im Ursprung', (kind) => {
     const body = new NpcBody(kind);
     // **Ohne den Lebensbalken**: Der schwebt mit Absicht über dem Scheitel und
