@@ -161,6 +161,8 @@ const wipeNote = document.querySelector<HTMLElement>('#wipe-note')!;
 const labPanel = document.querySelector<HTMLElement>('#lab')!;
 const labRun = document.querySelector<HTMLButtonElement>('#lab-run')!;
 const labTop = document.querySelector<HTMLButtonElement>('#lab-top')!;
+const labGo = document.querySelector<HTMLButtonElement>('#lab-go')!;
+const labMe = document.querySelector<HTMLButtonElement>('#lab-me')!;
 const labLede = document.querySelector<HTMLElement>('#lab-lede')!;
 const labSay = document.querySelector<HTMLElement>('#lab-say')!;
 const labKeys = document.querySelector<HTMLElement>('#lab-keys')!;
@@ -788,7 +790,8 @@ const FLY_KEYS: Record<string, string> = {
 };
 
 /** Die Zeile unter der Bühne — sie sagt, was die Finger dort gerade tun. */
-const HELP_VIEW = 'Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück';
+const HELP_VIEW =
+  'Ziehen dreht · zwei Finger schieben und zoomen · Rad zoomt · Doppeltipp stellt zurück';
 const HELP_FLY = 'Wischen schaut sich um · Knöpfe oder W A S D fliegen · Doppeltipp stellt zurück';
 
 /** Ob die freie Kamera gerade fliegt. */
@@ -884,7 +887,9 @@ function setFlying(on: boolean): void {
  * - **Ein Ziel.** In einer Vorschau steht kein Spieler, und ein Zombie ohne
  *   jemanden bleibt stehen. Ein Tipp auf den Boden setzt die Attrappe, und
  *   von da an läuft alles dorthin — das ist die Ansicht, wegen der es das
- *   Ganze gibt: von oben zusehen, wie das Gitter benutzt wird.
+ *   Ganze gibt: von oben zusehen, wie das Gitter benutzt wird. Zwei Knöpfe
+ *   machen daraus mehr als ein Ziel: **Gehe zu** lässt sie zu Fuß hingehen
+ *   statt sich versetzen zu lassen, **Figur weg** nimmt sie ganz aus der Welt.
  */
 let lab: LivePreview | null = null;
 /** Welche Welt der Startknopf gerade anbietet — `null`, wenn keine kann. */
@@ -908,22 +913,36 @@ function offerLab(definition: WorldDefinition | null): void {
   labRun.textContent = 'Laufen lassen';
   labRun.setAttribute('aria-pressed', 'false');
   labTop.hidden = true;
+  labGo.hidden = true;
+  labMe.hidden = true;
   labSay.hidden = true;
   labKeys.hidden = true;
   labShow.hidden = true;
   labLede.hidden = definition === null;
 }
 
+/**
+ * **Was ein Tipp ins Bild bedeutet** — versetzen oder hingehen.
+ *
+ * Ein Modus und kein Knopf, und zwar aus demselben Grund wie in den Sims: Man
+ * tippt hintereinander an fünf Stellen, und fünfmal vorher einen Knopf zu
+ * drücken wäre fünfmal zu viel. Er gilt, bis man ihn wieder ausschaltet.
+ */
+let labGoing = false;
+
 /** Beendet, was läuft — beim Blättern, beim Verlassen, beim zweiten Druck. */
 function stopLab(): void {
   lab = null;
   labRunning = false;
+  labGoing = false;
   labDraws.length = 0;
   detail.classList.remove('is-lab');
   viewer.onTap = null;
   labRun.textContent = 'Laufen lassen';
   labRun.setAttribute('aria-pressed', 'false');
   labTop.hidden = true;
+  labGo.hidden = true;
+  labMe.hidden = true;
   labSay.hidden = true;
   labSay.textContent = '';
   labKeys.hidden = true;
@@ -950,6 +969,37 @@ labTop.addEventListener('click', () => {
   setFlying(false);
   viewer.lookDown();
 });
+
+labGo.addEventListener('click', () => {
+  labGoing = !labGoing;
+  drawLabGo();
+});
+
+labMe.addEventListener('click', () => {
+  const live = lab;
+  if (!live) return;
+  live.setHere(!live.here());
+  // Wer nicht in der Welt steht, geht auch nirgendwo hin: Der Modus geht mit
+  // aus, sonst steht danach ein Knopf an, der nichts mehr tut.
+  if (!live.here()) labGoing = false;
+  drawLabGo();
+});
+
+/** Zieht die beiden Knöpfe nach — sie sagen beide einen Zustand an. */
+function drawLabGo(): void {
+  const live = lab;
+  const here = live?.here() ?? false;
+  labGo.setAttribute('aria-pressed', String(labGoing));
+  labGo.disabled = !here;
+  labGo.title = here
+    ? 'Auf den Boden tippen: die Figur geht dorthin — über dasselbe Gitter wie die NPCs'
+    : 'Erst die Figur wieder in die Welt stellen';
+  labMe.setAttribute('aria-pressed', String(!here));
+  labMe.textContent = here ? 'Figur weg' : 'Figur her';
+  labMe.title = here
+    ? 'Nimmt dich aus der Welt — dann hat auch kein Zombie mehr jemanden'
+    : 'Stellt dich wieder hinein';
+}
 
 /**
  * Startet die Welt.
@@ -982,6 +1032,10 @@ async function startLab(definition: WorldDefinition): Promise<void> {
     // Schalter, und die drückten sie auf ihre Mindesthöhe zusammen.
     detail.classList.add('is-lab');
     labTop.hidden = false;
+    labGo.hidden = false;
+    labMe.hidden = false;
+    labGoing = false;
+    drawLabGo();
     buildLabKeys();
     buildLabShow();
     lab?.onMessage((message) => {
@@ -999,7 +1053,7 @@ async function startLab(definition: WorldDefinition): Promise<void> {
   }
 }
 
-/** Ein Tipp ins Bild: erst die Knöpfe, sonst das Ziel. */
+/** Ein Tipp ins Bild: erst die Knöpfe, sonst der Boden. */
 function onLabTap(pick: StagePick | null): void {
   const live = lab;
   if (!live || !pick) return;
@@ -1008,11 +1062,22 @@ function onLabTap(pick: StagePick | null): void {
     button.press();
     flashKey(button.label);
     // Ein Druck im Bild kann eine Ebene umlegen (die Wandkonsole tut genau
-    // das) — die Schalter unter dem Bild sagen dann sonst das Gegenteil.
-    for (const draw of labDraws) draw();
+    // das) und ein Szenario stellt die Figur um — die Schalter unter dem Bild
+    // sagen dann sonst das Gegenteil.
+    refreshLab();
     return;
   }
-  live.moveTarget(pick.point);
+  // Ein Knopf trifft in beiden Moden dasselbe: Wer *Gehe zu* an hat, will
+  // trotzdem ein Szenario starten können, ohne erst umzuschalten. Auf dem
+  // Boden entscheidet dann der Modus.
+  if (labGoing && live.here()) live.walkTarget(pick.point);
+  else live.moveTarget(pick.point);
+}
+
+/** Alles unter dem Bild einmal nachziehen — Ebenen, Balken, die zwei Knöpfe. */
+function refreshLab(): void {
+  for (const draw of labDraws) draw();
+  drawLabGo();
 }
 
 /** Ob `object` das Ding selbst ist oder darin hängt. */
@@ -1069,6 +1134,9 @@ function buildLabKeys(): void {
       key.addEventListener('click', () => {
         button.press();
         flashKey(button.label);
+        // Derselbe Griff wie im Bild: Ein Szenario stellt die Figur in seine
+        // Bucht, und ein Druck auf die Wandkonsole legt eine Ebene um.
+        refreshLab();
       });
       row.append(key);
     }

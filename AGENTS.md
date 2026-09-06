@@ -3876,6 +3876,40 @@ Dachkante. Der Grundriss ist geprüft (`scenarios.test.ts`), bevor er gebaut
 ist: Zwei Buchten, die sich überlappen, sieht man in der Brille erst daran,
 dass ein Zombie durch eine Wand kommt.
 
+**Der Grundriss steht als Daten und nicht als Zeilen in einer three.js-Methode**
+(`scenarios.ts`): wo eine Bucht liegt, wo ihre Wände stehen (`bayWalls`), wer in
+ihr auftritt (`cast`) und wo der Spieler dabei steht (`stand`).
+`NavLabWorld.buildBay` baut nur noch, was dort steht. Der Grund ist nicht
+Ordnung, sondern dass ein Test die zwei Zahlen nachrechnen kann, an denen
+dieses Labor zweimal gescheitert ist:
+
+- **Jedes Maß ist ein Vielfaches der Kachel** (2,5 m, `nav/navTile.ts`). Das
+  Abtasten fragt zwischen zwei Kachelmitten genau **einen** Punkt: die Grenze
+  dazwischen (`navBake.ts`, `joinTiles`). Eine Wand einen halben Meter daneben
+  steht in der Welt, aber nicht auf der Karte — der NPC plant seelenruhig einen
+  Weg mitten hindurch und bleibt daran hängen. Genau so war das Labor lange
+  gebaut (22 × 16 Meter im Raster von 2,5), und von den Wänden jeder Bucht
+  kannte die Wegsuche zwei: die Rückwand fehlte, die Stirnwände fehlten, und
+  ein Zombie im langen Gang lief hinten aus seiner Bucht heraus und um das
+  ganze Labor herum. Jetzt sind es 25 × 15 Meter, der Gang 5, der Abstand der
+  Buchten 2,5 — und wer eine Wand danebenstellt, sieht es im Test und nicht in
+  der Brille.
+- **Der Spieler steht in der Bucht, nicht im Mittelgang.** Ein Zombie bemerkt
+  einen Spieler auf **22 Meter** (`npcBrains.ts`, `sense`); vom Mittelgang zu
+  den äußeren Buchten sind es fast vierzig. Fünf der sechs roten Knöpfe
+  starteten damit ein Szenario, in dem niemand einen Schritt tat — und das sah
+  nicht nach einer zu großen Zahl aus, sondern nach kaputter Wegsuche. Jeder
+  rote Knopf stellt die Attrappe deshalb an den Platz seiner Bucht: vorne, mit
+  dem Hindernis zwischen sich und dem Auftritt. Ein Knopf räumt dabei auch die
+  anderen fünf Buchten ab — zwei Szenarien gleichzeitig sind zwei, von denen
+  keines mehr zeigt, was es behauptet.
+
+Außen an den Buchten steht die **Bande** dicht an ihnen und nicht am Rand des
+Bodens: Der Boden steht ein Stück über, damit die Bande auf etwas steht, und
+läge sie dort, liefe zwischen ihr und den Buchten ein Rundgang um das ganze
+Labor — den findet die Wegsuche, und dann geht ein Zombie außen herum statt
+durch die Bucht, um die es gerade geht.
+
 **Eine Zahl daraus ist keine Geschmacksfrage**: Das Dach in der Etagen-Bucht
 liegt auf 2,4 m, also unter dem, was das Abtasten noch als **Absprung**
 durchgehen lässt. Eine Treppe hinauf gäbe es im Gitter zwar, aber ein NPC ist
@@ -3889,9 +3923,11 @@ bleibt: **NPCs auf den Character-Controller umstellen**.
 baut dieselbe Welt mit echter Physik, kippt die Ansicht senkrecht nach unten
 und legt die sechs Buchten samt ihren Knöpfen als Zeilen daneben — dazu die
 fünf Debug-Ebenen als Schalter und ein **Ziel**, das ein Tipp auf den Boden
-versetzt. Das ist die Vogelperspektive aus „was noch fehlt", ohne Brille und
-ohne Editor; wie sie funktioniert, steht bei der Werkzeugseite unter *Eine Welt
-laufen lassen*.
+versetzt. Daneben stehen **Gehe zu** (dann geht die Figur zu Fuß dorthin, statt
+sich versetzen zu lassen) und **Figur weg** (dann steht niemand in der Welt).
+Das ist die Vogelperspektive aus „was noch fehlt", ohne Brille und ohne Editor;
+wie sie funktioniert, steht bei der Werkzeugseite unter *Eine Welt laufen
+lassen*.
 
 **Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, ein Editor, der
 das Gitter auch **ändern** kann, zerstörbare Hindernisse samt „schlag drauf,
@@ -4073,6 +4109,18 @@ zweite — wie sieht es _darin_ aus — beantworten zwei Dinge:
   schnell hinterher wie ein zweiter Tipp und stellte die Ansicht damit jedes
   Mal zurück, kaum dass man zu zoomen anfing. Gezählt wird jetzt nur, was
   _allein_ aufgesetzt hat.
+- **Und dorthin, wo man hinsieht.** Zwei Finger **zoomen und schieben**
+  zugleich, wie auf jeder Karte: Der Zoom sitzt am Punkt zwischen den Fingern
+  (das Rad genauso, am Zeiger), und was die Mitte zwischen ihnen wandert, wandert
+  das Bild mit. Ohne das Schieben ist eine herangeholte Draufsicht eine
+  Sackgasse — man sieht eine Ecke groß und kommt nicht zur nächsten, ohne
+  wieder ganz herauszuzoomen. Verschoben wird dabei die **Kamera**
+  (`panX`, `panY` in `viewer.ts`) und nicht die Bühne: Die dreht sich um ihren
+  Drehpunkt, und ein Versatz dort ließe dieselbe Drehung anders aussehen und
+  jeden Tipp danebentreffen. Weiter als der Halbmesser des Gezeigten geht es
+  nicht — sonst wischt man sich mit zwei Fingern in eine schwarze Fläche und
+  findet die Welt nicht wieder. Zurück in die Mitte kommt sie mit dem
+  Doppeltipp, mit **Von oben** und mit jedem neuen Einpassen.
 - **Die freie Kamera** (Knopf oben in der Ecke, nur bei Welten). Sie fliegt wie
   eine **Drohne**: die Welt steht still, die Kamera geht darin herum, und zwar
   ohne Schwerkraft, ohne Wände und ohne Boden — wer sich eine Kulisse ansieht,
@@ -4152,6 +4200,32 @@ Draufsicht zum Werkzeug: Man setzt das Ziel und sieht, welchen Weg das Gitter
 hergibt. Wie im Spiel gilt dabei die **Sichtweite** des Hirns: Wer sein Ziel
 quer über die Karte setzt, sieht einen Zombie, der stehen bleibt, weil er
 nichts bemerkt hat.
+
+Zwei Knöpfe machen aus dem Ziel mehr als ein Ziel, und beide beantworten
+dieselbe Frage von zwei Seiten — *stehe ich eigentlich in dieser Welt?*
+
+- **Gehe zu** ist ein **Modus** wie in den Sims und kein Druck: Solange er an
+  ist, heißt ein Tipp auf den Boden nicht „stell dich dorthin", sondern „geh
+  dorthin". Gegangen wird über **dieselbe Wegsuche wie ein NPC**
+  (`shared/previewWalk.ts` um `nav/navAgent.ts`) — dasselbe Gitter, dieselben
+  Türen, dieselben Portale, und die nimmt sie auch. Das ist keine
+  Bequemlichkeit, sondern der Sinn: Wer im Gehe-zu-Modus vor einer
+  verriegelten Tür stehen bleibt, hat gerade gesehen, dass sie verriegelt ist.
+  Zwei Unterschiede zum NPC sind Absicht. Sie **irrt sich nicht**: Ein NPC
+  läuft nach seiner Meinung über die Karte (`navBelief.ts`) und darf gegen eine
+  Tür rennen, die er offen glaubte; die Attrappe ist der Zuschauer und nimmt
+  den Graphen, wie er ist. Und sie hat **keine Physik**: Ihre Höhe holt sie
+  sich von der Kachel, auf der sie steht, statt sich schieben zu lassen.
+  Führt kein Weg ans Ziel, geht sie den Teilweg bis vor das Hindernis und
+  meldet dort *„Da komme ich nicht hin"* — eine Figur, die ohne Grund stehen
+  bleibt, sieht kaputt aus.
+- **Figur weg** nimmt sie ganz heraus, und zwar wörtlich: nicht unsichtbar,
+  sondern **nicht da**. `playerFeet()` gibt danach `null` zurück, und damit hat
+  kein Zombie mehr jemanden, dem er nachläuft. Das ist der Unterschied zwischen
+  „ich sehe meine Figur nicht" und „ich stehe nicht in dieser Welt" — gemeint
+  ist das zweite: Wer eine Karte von oben ansehen will, will nicht, dass ihm
+  dabei sechs Zombies entgegenkommen. Ein roter Knopf holt sie zurück, denn ein
+  Szenario ohne jemanden wäre ein Knopf ohne Wirkung.
 
 Was die Seite daraus macht, steht in einer kleinen Schnittstelle
 (`worlds/shared/livePreview.ts`) und ist absichtlich klein — fünf Sachen:

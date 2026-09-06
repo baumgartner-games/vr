@@ -1,10 +1,16 @@
+import { brainOf } from '../npc/npcBrains';
+import { TILE } from '../nav/navTile';
 import {
   BAY_D,
   BAY_W,
+  CRATE,
+  PORTAL,
   SCENARIOS,
   SCENARIO_TIME,
   bayBounds,
   bayPoint,
+  baySpot,
+  bayWalls,
   labBounds,
   newScenarioState,
   scenarioOf,
@@ -82,6 +88,98 @@ describe('Der Grundriss', () => {
       expect(box.maxX).toBeLessThanOrEqual(all.maxX);
       expect(box.minZ).toBeGreaterThanOrEqual(all.minZ);
       expect(box.maxZ).toBeLessThanOrEqual(all.maxZ);
+    }
+  });
+
+  it('legt zwischen Spieler und Auftritt eine Strecke', () => {
+    // Die Behauptung jeder Bucht ist ein Weg, und ein Weg braucht zwei Enden.
+    // Stünden beide beieinander, liefe niemand an dem vorbei, worum es geht —
+    // an den zwei Ecken, der Grube, dem Durchgang, der Tür, der Wand.
+    for (const bay of SCENARIOS) {
+      expect(bay.cast.length).toBeGreaterThan(0);
+      const stand = baySpot(bay, bay.stand);
+      for (const one of bay.cast) {
+        const at = baySpot(bay, one);
+        expect(Math.hypot(at.x - stand.x, at.z - stand.z)).toBeGreaterThan(8);
+      }
+    }
+  });
+
+  it('lässt jeden Auftritt innerhalb seiner Bucht stehen', () => {
+    for (const bay of SCENARIOS) {
+      const box = bayBounds(bay);
+      for (const spot of [bay.stand, ...bay.cast]) {
+        const point = baySpot(bay, spot);
+        expect(point.x).toBeGreaterThan(box.minX);
+        expect(point.x).toBeLessThan(box.maxX);
+        expect(point.z).toBeGreaterThan(box.minZ);
+        expect(point.z).toBeLessThan(box.maxZ);
+      }
+    }
+  });
+
+  it('stellt den Spieler nah genug, dass ein Zombie ihn bemerkt', () => {
+    // **Der Prüfstein dieser Datei.** Lange stand der Spieler im Mittelgang
+    // auf (0,0), und von dort sind es zu den äußeren Buchten sechsunddreißig
+    // Meter — mehr als die Sichtweite eines Zombies. Fünf der sechs Knöpfe
+    // starteten damit ein Szenario, in dem niemand einen Schritt tat, und das
+    // sah nicht nach einer zu großen Zahl aus, sondern nach kaputter
+    // Wegsuche. Die Zahl kommt aus dem Hirn selbst und nicht aus dieser
+    // Datei: Wer sie dort ändert, soll es hier merken.
+    const sense = brainOf('chase').tuning.sense;
+    for (const bay of SCENARIOS) {
+      const stand = baySpot(bay, bay.stand);
+      for (const one of bay.cast) {
+        const at = baySpot(bay, one);
+        const far = Math.hypot(at.x - stand.x, at.z - stand.z);
+        expect(far).toBeLessThan(sense);
+      }
+    }
+  });
+
+  it('stellt jede Wand auf eine Kachelgrenze', () => {
+    // **Der zweite Prüfstein.** Das Abtasten fragt zwischen zwei Kachelmitten
+    // genau einen Punkt — die Grenze dazwischen (`nav/navBake.ts`,
+    // `joinTiles`). Eine Wand einen halben Meter daneben steht in der Welt,
+    // aber nicht auf der Karte: Der NPC plant mitten hindurch und bleibt
+    // daran hängen. Bei 22 × 16 Metern im Raster von 2,5 traf das die
+    // Rückwand jeder Bucht, beide Stirnwände und die Hälfte der Seiten.
+    for (const bay of SCENARIOS) {
+      for (const wall of bayWalls(bay)) {
+        const at = bayPoint(bay, wall.lx, wall.lz);
+        // Die dünne Achse ist die, auf der die Wand als Wand wirkt.
+        const thin = wall.w < wall.d ? at.x : at.z;
+        expect(thin % TILE).toBeCloseTo(0);
+        expect(Math.min(wall.w, wall.d)).toBeLessThan(TILE);
+      }
+    }
+  });
+
+  it('lässt jede Wand auf einer Kachelgrenze enden', () => {
+    // Sonst liegt eine Lücke halb hinter einer Wand: Die Grenze, die sie
+    // freigeben soll, ist dann noch verdeckt, und aus zwei Kacheln Durchgang
+    // wird eine — oder keine.
+    for (const bay of SCENARIOS) {
+      for (const wall of bayWalls(bay)) {
+        const at = bayPoint(bay, wall.lx, wall.lz);
+        const [along, length] = wall.w < wall.d ? [at.z, wall.d] : [at.x, wall.w];
+        expect((along - length / 2) % TILE).toBeCloseTo(0);
+        expect((along + length / 2) % TILE).toBeCloseTo(0);
+      }
+    }
+  });
+
+  it('setzt jeden, der laufen soll, auf eine Kachelmitte', () => {
+    // Ein NPC oder eine Kiste auf einer Kachelgrenze gehört je nach Rundung
+    // mal der einen und mal der anderen Kachel — und wenn die eine hinter
+    // einer Wand liegt, steht er mal davor und mal dahinter.
+    const centre = (value: number): number => Math.abs(((value % TILE) + TILE) % TILE) - TILE / 2;
+    for (const bay of SCENARIOS) {
+      for (const spot of [...bay.cast, ...PORTAL, CRATE]) {
+        const at = baySpot(bay, spot);
+        expect(centre(at.x)).toBeCloseTo(0);
+        expect(centre(at.z)).toBeCloseTo(0);
+      }
     }
   });
 
