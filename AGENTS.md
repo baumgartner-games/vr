@@ -31,6 +31,14 @@ Lösch-Push kommt dann als `HTTP 403` zurück. Dann wird das nicht stillschweige
 liegengelassen, sondern im Ergebnis gesagt: welcher Branch übrig ist und mit
 welchem Befehl er wegkommt.
 
+Für den Weg über einen Pull Request räumt `.github/workflows/branch-cleanup.yml`
+zusätzlich hinterher: Sobald ein PR **zusammengeführt** ist, löscht der Workflow
+dessen Head-Branch auf `origin`. Das ersetzt die Regel nicht — es fängt sie nur
+ab, wenn der Lösch-Push vergessen wurde oder an fehlenden Rechten scheitert. Der
+lokale Branch bleibt in jedem Fall Sache dessen, der gearbeitet hat, und ein
+geschlossener, aber nicht gemergter PR wird nicht angefasst: dessen Commits
+stecken eben nicht in `main`.
+
 Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
@@ -5004,3 +5012,11 @@ nur die einmalige Einstellung:
 
 Der Basispfad kommt aus `BASE_PATH` (im Workflow `/<repo-name>/`), lokal wird
 von `/` ausgegangen.
+
+Der zweite Workflow, `.github/workflows/branch-cleanup.yml`, baut nichts: er
+löscht nach einem zusammengeführten Pull Request dessen Head-Branch (siehe die
+Arbeitsregeln ganz oben). Er läuft nur für Branches aus diesem Repository —
+Forks gehören uns nicht — und lässt `main` und `gh-pages` in Ruhe. Ist der
+Branch schon weg, etwa weil die Repository-Einstellung „Automatically delete
+head branches" schneller war, meldet er das und ist zufrieden; kommt ein anderer
+Fehler zurück, schlägt der Lauf fehl und nennt den Befehl zum Löschen von Hand.

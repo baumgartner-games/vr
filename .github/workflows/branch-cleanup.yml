@@ -1,0 +1,70 @@
+name: Branch aufräumen
+
+# AGENTS.md verlangt, dass ein Branch, dessen Commits in `main` stecken, sofort
+# wieder verschwindet — lokal und auf `origin`. Der lokale Teil bleibt Sache
+# dessen, der gearbeitet hat; den Rest erledigt dieser Workflow, damit auf
+# `origin` nichts liegen bleibt, wenn jemand den Lösch-Push vergisst oder ihn
+# (HTTP 403) gar nicht ausführen darf.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  delete-branch:
+    name: Head-Branch löschen
+    # Nur zusammengeführte Pull Requests: ein geschlossener, nicht gemergter PR
+    # kann verworfene oder noch unfertige Arbeit enthalten, die niemand sonst
+    # mehr hat. Und nur Branches aus diesem Repository — Forks gehören uns
+    # nicht, und der Token dürfte dort ohnehin nichts.
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Branch entfernen
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          # gh-pages trägt das Deployment und ist kein Feature-Branch; der
+          # Default-Branch kann in einem PR nie der Head sein, aber wenn doch
+          # einmal jemand daran dreht, soll er nicht gelöscht werden.
+          case "$BRANCH" in
+            "$DEFAULT_BRANCH" | gh-pages)
+              echo "::notice::$BRANCH wird nicht gelöscht (geschützter Branch)."
+              exit 0
+              ;;
+          esac
+
+          # 422 heißt: der Ref ist schon weg — etwa weil die Repository-
+          # Einstellung „Automatically delete head branches" schneller war oder
+          # jemand von Hand aufgeräumt hat. Das ist genau das gewünschte
+          # Ergebnis und kein Fehler.
+          status=$(
+            curl -sS -o /dev/null -w '%{http_code}' \
+              -X DELETE \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}"
+          ) || status="000"
+
+          case "$status" in
+            204)
+              echo "::notice::Branch $BRANCH gelöscht."
+              ;;
+            422)
+              echo "::notice::Branch $BRANCH existiert nicht mehr — nichts zu tun."
+              ;;
+            *)
+              echo "::error::Branch $BRANCH konnte nicht gelöscht werden (HTTP $status)."
+              echo "Von Hand: git push origin --delete $BRANCH"
+              exit 1
+              ;;
+          esac
