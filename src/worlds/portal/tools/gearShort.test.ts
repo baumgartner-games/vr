@@ -187,12 +187,12 @@ describe('die eine Faust am Griff', () => {
 
   it('gilt für jedes Werkzeug am Griff — der Lötkolben hält ihn wie die Pistole', () => {
     expect(defaultHoldPose('right', 'pistol')).toEqual(defaultHoldPose('right', 'welder'));
-    // Und für die **Taschenlampe** auch: ihr Batterierohr liegt genau auf dem
-    // Halterzylinder der Hand, also dieselbe Faust — obwohl sie keinen
-    // Standardgriff anbaut und nicht entlang des Zeigestrahls zielt.
-    expect(defaultHoldPose('right', 'flashlight')).toEqual(defaultHoldPose('right', 'pistol'));
-    // Der Hammer bleibt am Stab: sein Stiel liegt quer durch die Faust.
-    expect(defaultHoldPose('right', 'hammer')).not.toEqual(defaultHoldPose('right', 'pistol'));
+    // Die Lampe nicht: ihr Rohr liegt zwar auf derselben Zielachse wie jeder
+    // Lauf, aber *in* der Faust und nicht darunter — also die Faust am Stab,
+    // an der Stelle, an der das Rohr liegt.
+    expect(defaultHoldPose('right', 'flashlight')).not.toEqual(defaultHoldPose('right', 'pistol'));
+    // Der Hammer trägt denselben Stab weiter hinten, in seinem Griffpunkt.
+    expect(defaultHoldPose('right', 'hammer')).not.toEqual(defaultHoldPose('right', 'flashlight'));
   });
 
   it('lässt alles ohne Griff bei der gebauten Faust', () => {

@@ -19,7 +19,7 @@
  * gezeichnete Hand am wirklich gebauten Werkzeug landet. Für den Standardgriff
  * (auch am Messer und am Hals der Sektflasche), und mit derselben Rechnung für
  * alles mit eigenem Zylinder: den Stab des Hammers, denselben Stab auf dem
- * Halterzylinder der Hand (die Taschenlampe) und denselben von oben am Pinsel, die Griffe der Drohne, den Rand der Stoppuhr, den Saum
+ * Zeigestrahl (das Rohr der Taschenlampe) und denselben von oben am Pinsel, die Griffe der Drohne, den Rand der Stoppuhr, den Saum
  * des Beutels, die Querstange des Hängegleiters und den Handgriff des
  * Controllers — und für das, was auf der Hand sitzt statt in ihr.
  *
@@ -38,8 +38,10 @@ import {
   HOLD_HAND_POSE,
   IDLE_HAND_POSE_RIGHT,
   POLE_HAND_POSE,
+  STANDARD_GRIP_TOOLS,
   STOPWATCH_FINGER_MOVES,
   STOPWATCH_HAND_POSE,
+  TORCH_HAND_POSE,
   WORN_HAND_POSE,
   buttonCurls,
   defaultHoldPose,
@@ -47,6 +49,7 @@ import {
 } from './handPose';
 import { CONTROLLER_GRIP, CONTROLLER_HANDLE } from './controllerGrip';
 import {
+  GRIP_HOLD_POSITION,
   GRIP_TO_RAY,
   STANDARD_GRIP_IN_HAND,
   fistOnGrip,
@@ -54,7 +57,7 @@ import {
 } from '../worlds/portal/tools/gripFit';
 import { POLE_GRIP } from '../worlds/portal/tools/poleGrip';
 import { IDENTITY } from '../worlds/portal/tools/aim';
-import { GRIP_NAME } from '../worlds/portal/tools/grip';
+import { GRIP_LENGTH, GRIP_NAME } from '../worlds/portal/tools/grip';
 import { ghostOnTool, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import { GripTool } from '../worlds/portal/tools/GripTool';
 import { PistolTool } from '../worlds/portal/tools/PistolTool';
@@ -465,10 +468,10 @@ describe('die Faust am Stab', () => {
     }
   });
 
-  it('gilt nicht mehr für die Taschenlampe — deren Rohr liegt im Halterzylinder', () => {
-    // Sie lag hier einmal neben dem Hammer: derselbe Stab, dieselbe Faust. Ihr
-    // Rohr liegt jetzt auf dem Zylinder der Hand, also hält sie die Faust am
-    // Standardgriff (siehe unten).
+  it('gilt nicht mehr für die Taschenlampe — deren Rohr liegt auf dem Strahl', () => {
+    // Sie lag hier einmal neben dem Hammer: derselbe Stab an derselben Stelle.
+    // Ihr Rohr liegt jetzt auf der Zielachse der echten Hand, also hält es
+    // dieselbe Faust an einem anderen Ort (`TORCH_HAND_POSE`, siehe unten).
     expect(defaultHoldPose('right', 'flashlight')).not.toEqual(POLE_HAND_POSE);
   });
 
@@ -712,54 +715,78 @@ describe('der Daumen auf der Krone der Stoppuhr', () => {
   });
 });
 
-describe('das Rohr der Taschenlampe im Halterzylinder der Hand', () => {
+describe('die Taschenlampe auf der Zielachse der echten Hand', () => {
   /**
    * Die eine Ausnahme in dieser Datei, und sie ist gewollt: eine Taschenlampe
-   * hält man **wie das Gerät selbst**. Ihr Batterierohr liegt deshalb genau
-   * dort, wo der Halterzylinder in der Faust liegt — Achse auf Achse, Mitte
-   * auf Mitte —, und das Licht folgt dem Rohr statt dem Zeigestrahl. Wer
-   * leuchten will, dreht das Handgelenk, wie an einer echten Lampe.
+   * leuchtet dorthin, wohin man zeigt, und dafür muss ihr Rohr **auf** dem
+   * Zeigestrahl liegen und nicht daneben. Sie trägt deshalb die geteilte
+   * `holdPosition` jedes Werkzeugs mit Standardgriff und keine eigene Drehung —
+   * nur den Griff dazu baut sie nicht an, denn ihr Zylinder *ist* das Rohr.
    *
-   * Vorher lag das Rohr auf dem Zeigestrahl und damit quer durch die Faust:
-   * die Lampe leuchtete dorthin, wohin man zeigte, und die gezeichnete Hand
-   * stand dafür 77° gegen die eigene verdreht.
+   * Der Preis ist die Faust: sie liegt eine Handbreit über der eigenen, weil
+   * die eigene den Controller hält und nicht die Lampe (`TORCH_HAND_POSE`).
+   * Ein Rohr kann in der Faust liegen oder auf dem Strahl, nicht beides —
+   * vorher lag es im Griffpunkt und leuchtete 7 cm am Strahl vorbei, und eine
+   * Runde lang auf dem Halterzylinder der Hand, 77° daneben.
    */
-  it('legt das Rohr Achse auf Achse und Mitte auf Mitte in den Zylinder', () => {
+  it('legt das Rohr auf den Zeigestrahl, ohne eigene Drehung', () => {
     const tool = new FlashlightTool();
-    const tube = gripInHand(
-      { position: tool.holdPosition, rotation: tool.holdRotation },
-      POLE_GRIP,
-    );
-    const at = (grip: { position: THREE.Vector3Like; rotation: THREE.QuaternionLike }) => ({
-      centre: new THREE.Vector3(grip.position.x, grip.position.y, grip.position.z),
-      axis: new THREE.Vector3(0, 1, 0).applyQuaternion(toQuat(grip.rotation)),
-    });
-    const tubeInHand = at(tube);
-    const handle = at(STANDARD_GRIP_IN_HAND);
-    expect(tubeInHand.centre.distanceTo(handle.centre)).toBeLessThan(1e-9);
-    expect(between(tubeInHand.axis, handle.axis)).toBeLessThan(0.01);
+    expect(tool.alignToAim).toBe(true);
+    expect(tool.gripPart).toBeNull();
+    expect(STANDARD_GRIP_TOOLS.has('flashlight')).toBe(false);
+    // Dieselbe Lage in der Hand wie jedes Werkzeug mit Griff — daran hängt,
+    // dass das Rohr wirklich auf der Linie liegt, auf der auch die Zielscheibe
+    // steht.
+    expect(tool.holdPosition.x).toBeCloseTo(GRIP_HOLD_POSITION.x, 9);
+    expect(tool.holdPosition.y).toBeCloseTo(GRIP_HOLD_POSITION.y, 9);
+    expect(tool.holdPosition.z).toBeCloseTo(GRIP_HOLD_POSITION.z, 9);
+    expect(tool.holdRotation.angleTo(new THREE.Quaternion())).toBeCloseTo(0, 9);
   });
 
-  it.each(['right', 'left'] as const)('hält sie mit der Faust am Griff: %s', (side) => {
-    // Derselbe Zylinder, dieselbe Faust — wie am Hals der Sektflasche.
-    expect(defaultHoldPose(side, 'flashlight')).toEqual(defaultHoldPose(side, 'grip'));
-    const held = hold(new FlashlightTool(), side);
-    const fist = fistOf(defaultHoldPose(side, 'flashlight'), fistCentre(GRIP_HAND_POSE));
-    expectFistOn(fist, poleOf(held));
-  });
-
-  it('leuchtet das Rohr entlang und nicht den Zeigestrahl entlang', () => {
+  it('leuchtet den Zeigestrahl entlang und liegt auf ihm', () => {
     const held = hold(new FlashlightTool());
     const beam = new THREE.Vector3(0, 0, -1).applyQuaternion(
       held.getWorldQuaternion(new THREE.Quaternion()),
     );
     const ray = new THREE.Vector3(0, 0, -1).applyQuaternion(aim);
-    const handle = new THREE.Vector3(0, 1, 0).applyQuaternion(
-      toQuat(STANDARD_GRIP_IN_HAND.rotation),
+    expect(between(beam, ray)).toBeLessThan(0.01);
+    // Und nicht nur parallel: der Strahl der Hand läuft durch das Rohr. Er
+    // fängt an der oberen Kante des Halterzylinders an (`tools/viewer.ts`),
+    // das Rohr ist 2 cm dick — 7 mm dazwischen sind mitten im Rohr.
+    const from = new THREE.Vector3(0, GRIP_LENGTH / 2, 0)
+      .applyQuaternion(toQuat(STANDARD_GRIP_IN_HAND.rotation))
+      .add(
+        new THREE.Vector3(
+          STANDARD_GRIP_IN_HAND.position.x,
+          STANDARD_GRIP_IN_HAND.position.y,
+          STANDARD_GRIP_IN_HAND.position.z,
+        ),
+      );
+    const tube = poleOf(held);
+    const offset = from.clone().sub(tube.centre);
+    const across = offset.clone().sub(tube.axis.clone().multiplyScalar(offset.dot(tube.axis)));
+    expect(across.length()).toBeLessThan(0.01);
+  });
+
+  it.each(['right', 'left'] as const)('hält das Rohr mit der Faust am Stab: %s', (side) => {
+    // Dieselbe Faust wie am Hammer, nur an der Stelle, an der das Rohr liegt.
+    expect(defaultHoldPose(side, 'flashlight')).not.toEqual(defaultHoldPose(side, 'hammer'));
+    const held = hold(new FlashlightTool(), side);
+    const fist = fistOf(defaultHoldPose(side, 'flashlight'), fistCentre(TORCH_HAND_POSE));
+    expectFistOn(fist, poleOf(held));
+  });
+
+  it('steht in `handPose.ts` als das, was `fistOnGrip` um das Rohr ausrechnet', () => {
+    const want = fistOnGrip(
+      { centre: fistCentre(TORCH_HAND_POSE) },
+      ownGrip(new FlashlightTool(), POLE_GRIP),
     );
-    // Auf der Achse des Halterzylinders, also 77° neben dem Strahl des Geräts.
-    expect(between(beam, handle)).toBeLessThan(0.01);
-    expect(between(beam, ray)).toBeGreaterThan(70);
+    expectPoseIs(TORCH_HAND_POSE, want);
+    // Dieselbe Drehung wie am Stab des Hammers — nur der Ort ist ein anderer.
+    expect(TORCH_HAND_POSE.pitch).toBe(POLE_HAND_POSE.pitch);
+    expect(TORCH_HAND_POSE.yaw).toBe(POLE_HAND_POSE.yaw);
+    expect(TORCH_HAND_POSE.roll).toBe(POLE_HAND_POSE.roll);
+    expect(TORCH_HAND_POSE.curls).toEqual(POLE_HAND_POSE.curls);
   });
 });
 

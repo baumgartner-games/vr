@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
-import { POLE_GRIP } from './poleGrip';
-import { holdForGrip } from './gripFit';
+import { GRIP_HOLD_POSITION } from './gripFit';
 import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
 import { playSwitch } from '../../../core/Audio';
 import {
@@ -44,10 +43,9 @@ const _inverse = new THREE.Matrix4();
  * Narrow is bright and reaches far, wide is soft and short — `flashlightBeam.ts`
  * works that out and is tested on its own.
  *
- * **Gehalten wie das Gerät selbst**: das Batterierohr liegt genau auf dem
- * Halterzylinder der Hand, und deshalb folgt der Kegel dem **Rohr** und nicht
- * dem Zeigestrahl — wer leuchten will, dreht das Handgelenk, wie an einer
- * echten Lampe. Die Zahlen dazu stehen im Konstruktor.
+ * **Sie liegt auf der Zielachse der echten Hand**: das Batterierohr liegt auf
+ * dem Zeigestrahl, nicht daneben, und der Kegel geht deshalb genau dorthin,
+ * wohin man zeigt. Die Zahlen dazu stehen im Konstruktor.
  *
  * The spot light stays in the scene when the torch is off; it is turned down
  * to zero instead of being hidden, because three.js rebuilds every shader in
@@ -82,26 +80,28 @@ export class FlashlightTool extends Tool {
     this.hint = 'Trigger schaltet · andere Hand an der Linse stellt den Kegel';
     // **Eine Stabtaschenlampe**, und das Batterierohr *ist* der Griff — dort,
     // wo die Batterien sind, in Greiffarbe, ein Stab wie der Stiel des Hammers
-    // (`POLE_GRIP`). Eine Weile war sie eine „Lampe mit Griff": das Rohr über
-    // der Faust und der Standardgriff quer darunter wie an einem Megaphon.
+    // (`POLE_GRIP`).
     //
-    // **Und das Rohr liegt genau dort, wo das Gerät in der Faust liegt** — auf
-    // dem Halterzylinder der Hand (`STANDARD_GRIP_IN_HAND`), Achse auf Achse,
-    // Mitte auf Mitte. Das ist die eine Sache, die eine Taschenlampe von jedem
-    // anderen Werkzeug unterscheidet: man hält sie *wie den Controller* und
-    // dreht dann das Handgelenk dorthin, wo es hell werden soll. `holdForGrip`
-    // rechnet die Drehung dazu aus (77,4° Nicken), und die `holdPosition`
-    // bleibt die Null, weil der Stabgriff im Ursprung des Werkzeugs sitzt und
-    // der Halterzylinder im Griffpunkt.
+    // **Und das Rohr liegt auf der Zielachse der echten Hand**: keine eigene
+    // Drehung (`holdRotation` ist die Ruhe, also liegt die z-Achse auf dem
+    // Zeigestrahl) und `GRIP_HOLD_POSITION` als Ort — dieselbe geteilte Lage,
+    // in der jedes Werkzeug mit Standardgriff hängt. Der Strahl läuft damit
+    // **durch das Rohr** und aus der Linse heraus: die Lampe leuchtet dorthin,
+    // wohin man zeigt, und die Zielscheibe der Werkzeugseite steht auf
+    // derselben Linie.
     //
-    // Sie zielt deshalb **nicht** entlang des Zeigestrahls, als einziges
-    // Werkzeug: der Strahl gehört dem Gerät, das Licht dem Rohr, und die
-    // beiden stehen 77° auseinander. Vorher lag das Rohr auf dem Strahl und
-    // quer durch die Faust — die Lampe leuchtete dorthin, wohin man zeigte,
-    // und die gezeichnete Hand stand dafür 77° gegen die eigene verdreht.
-    const held = holdForGrip(POLE_GRIP.rotation);
-    this.holdPosition.set(0, 0, 0);
-    this.holdRotation.set(held.x, held.y, held.z, held.w);
+    // Vorher lag das Rohr im Griffpunkt, also eine Handbreit **unter** dem
+    // Strahl — die Lampe leuchtete an ihm vorbei, parallel und 7 cm daneben —,
+    // und davor eine Runde lang auf dem Halterzylinder der Hand, wo sie den
+    // Strahl um 77° verfehlte. Ein Rohr kann in der Faust liegen **oder** auf
+    // dem Zeigestrahl; für eine Lampe entscheidet der Strahl. Was das kostet,
+    // steht in `TORCH_HAND_POSE`: die gezeichnete Faust liegt eine Handbreit
+    // über der eigenen, weil sie das Rohr hält und nicht das Gerät.
+    //
+    // Einen **Standardgriff** baut sie darum trotzdem nicht an (kein
+    // `mountGrip`, nicht in `STANDARD_GRIP_TOOLS`): sie hat nur den einen
+    // Zylinder, und das ist das Rohr.
+    this.holdPosition.set(GRIP_HOLD_POSITION.x, GRIP_HOLD_POSITION.y, GRIP_HOLD_POSITION.z);
 
     const body = new THREE.MeshStandardMaterial({
       color: 0x2b3242,

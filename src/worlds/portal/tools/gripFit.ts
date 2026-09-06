@@ -346,22 +346,20 @@ export function fistOnGrip(fist: Fist, grip: GripInHand = STANDARD_GRIP_IN_HAND)
  * Und rückwärts: wie das Werkzeug in der Hand liegen **muss**, wenn sein Griff
  * dort sitzt, wo er sitzt.
  *
- * Das ist der Weg für alles, dessen Griff nicht frei wählbar ist — das Rohr
- * einer Taschenlampe liegt, wo es liegt, und die Lampe hat sich danach zu
+ * Das ist der Weg für alles, dessen Griff nicht frei wählbar ist — der Zylinder
+ * eines Werkzeugs liegt, wo er liegt, und das Werkzeug hat sich danach zu
  * richten. Die `holdPosition` ist dabei nicht frei, sondern folgt daraus, wo
  * der Griff **im Werkzeug** sitzt: `holdPosition + (aim · holdRotation) ·
  * gripPosition` muss die Mitte des Halterzylinders in der Hand treffen, und
  * die ist die Null (`STANDARD_GRIP_IN_HAND`). Ein Werkzeug, das den Griff bei
  * `gripInTool(hier)` anbaut, bekommt so `GRIP_HOLD_POSITION` —
- * `gripDeviation` sagt, ob es das getan hat; eines, dessen Griff im eigenen
- * **Ursprung** liegt (das Batterierohr der Taschenlampe, `POLE_GRIP`), bekommt
- * die Null.
+ * `gripDeviation` sagt, ob es das getan hat.
  *
- * Und was dabei aus der Zielrichtung wird, ist die Sache dessen, der es
- * benutzt: eine Drehung, die einen Griff auf den Zylinder legt, dreht das
- * Werkzeug mit. Bei der Taschenlampe sind das 77°, und sie leuchtet seitdem
- * das Rohr entlang statt den Zeigestrahl entlang — gewollt, denn man hält eine
- * Lampe wie das Gerät und dreht das Handgelenk.
+ * Und was dabei aus der **Zielrichtung** wird, muss man mitrechnen: eine
+ * Drehung, die einen Griff auf den Zylinder legt, dreht das Werkzeug mit.
+ * Wessen Vorne dabei quer zum Strahl zeigen würde, gehört nicht hierher — die
+ * Taschenlampe etwa liegt lieber mit ihrem Rohr auf dem Strahl und nimmt
+ * dafür eine Faust in Kauf, die neben der eigenen liegt (`FlashlightTool`).
  */
 export function holdForGrip(gripRotation: Quat): Quat {
   return normalize(

@@ -96,10 +96,11 @@ export const HAMMER_HOME = 0.28;
  * eine Spur unter und vor dem Griffpunkt des Controllers.
  *
  * **Dieselbe Form, ein anderer Ort** ist dabei erlaubt und kommt vor: die
- * Taschenlampe legt ihr Rohr auf den Halterzylinder der Hand statt auf den
- * Zeigestrahl (`FlashlightTool`, `holdForGrip`) und wird deshalb von der Faust
- * am Standardgriff gehalten. Der Stab sagt, *was* in der Hand liegt; wo, sagt
- * die `holdPosition` des Werkzeugs.
+ * Taschenlampe legt ihr Rohr auf die **Zielachse der echten Hand**
+ * (`GRIP_HOLD_POSITION`, `FlashlightTool`), damit sie dorthin leuchtet, wohin
+ * man zeigt — und wird deshalb von derselben Faust an einer anderen Stelle
+ * gehalten (`TORCH_HAND_POSE`). Der Stab sagt, *was* in der Hand liegt; wo,
+ * sagt die `holdPosition` des Werkzeugs.
  */
 export const POLE_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },

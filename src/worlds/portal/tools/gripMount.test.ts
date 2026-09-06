@@ -137,9 +137,9 @@ describe('Der Griff sitzt, wo die Liste ihn hinschreibt', () => {
     // sein Display um 23° zum Kopf —, aber ein halbes Rechteck ist keine
     // Neigung mehr, sondern eine andere Richtung.
     //
-    // Die Lampe zielt inzwischen wieder daneben, und zwar mit Absicht: ihr
-    // Rohr deckt den Halterzylinder der Hand, sie *baut* aber keinen
-    // Standardgriff an und steht deshalb nicht in dieser Liste.
+    // Die Lampe hält sich inzwischen daran, ohne in der Liste zu stehen: ihr
+    // Rohr liegt auf derselben Zielachse wie jeder Lauf, sie *baut* nur keinen
+    // Standardgriff an — ihr Zylinder ist das Rohr selbst.
     for (const id of STANDARD_GRIP_TOOLS) {
       const tool = BUILDERS[id]!();
       const angle = 2 * Math.acos(Math.min(1, Math.abs(tool.holdRotation.w)));
