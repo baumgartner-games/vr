@@ -735,8 +735,9 @@ describe('die Faust um die Stoppuhr', () => {
   it('hängt in beiden Händen gleich weit in der Faust — nicht links neun Zentimeter tiefer', () => {
     // **Die Zahl, wegen der es diesen Test gibt.** Das Gehäuse sitzt einen
     // Halbmesser neben dem Griffpunkt, und *neben* heißt: auf der Seite der
-    // Handfläche. Diese Seite steckte im Raum des Werkzeugs — die linke Hand
-    // bekommt die Uhr aber um die eigene Hochachse gedreht (`otherHand`), und
+    // Handfläche. Diese Seite steckte im Raum des Werkzeugs — und die linke
+    // Hand bekam die Uhr damals obendrein um die eigene Hochachse gedreht
+    // (`'turn'`; inzwischen gespiegelt wie alles andere, `toolPose.ts`), und
     // eine Drehung nimmt einen Versatz mit. Beides zusammen schob das Gehäuse
     // links um zwei Halbmesser aus der Faust: 3,4 cm neben der Faustmitte
     // rechts, 8,6 cm links — die Uhr hing unter dem kleinen Finger.

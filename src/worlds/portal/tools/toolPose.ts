@@ -169,42 +169,45 @@ export function mirrorReadout(readout: PoseReadout): PoseReadout {
 }
 
 /**
- * **Wie ein Werkzeug in der anderen Hand liegt.**
+ * **Wie ein Werkzeug in der anderen Hand liegt: gespiegelt.**
  *
  * Eine gemessene Haltung gehört immer *einer* Hand — bei allen Werkzeugen hier
  * der rechten, wie bei den Fäusten daneben (`core/handPose.ts`,
  * `defaultHoldPose`). Die andere Hand ist kein Sonderfall, den man ein zweites
- * Mal einmisst, sondern dieselbe Haltung, einmal umgerechnet:
+ * Mal einmisst, sondern dieselbe Haltung, an der Mitte des Körpers
+ * **gespiegelt** — genau so, wie die gezeichnete Hand selbst gespiegelt wird
+ * (`mirrorHandPose`): der Versatz zur Seite, Gier und Roll drehen das
+ * Vorzeichen um (`mirrorReadout`), auf der Drehung gerechnet wird aus
+ * `(x, y, z, w)` ein `(x, −y, −z, w)`.
  *
- * - `mirror` — **gespiegelt** an der Mitte des Körpers, genau so, wie die
- *   gezeichnete Hand selbst gespiegelt wird (`mirrorHandPose`). Der Normalfall,
- *   und für alles richtig, was man in beiden Händen gleich hält. Gespiegelt
- *   wird dabei die *Lage*, nicht das Modell: der Griff liegt spiegelbildlich,
- *   das Ding darin bleibt, wie es gebaut ist.
- * - `turn` — **um die eigene Hochachse gedreht**, um 180°. Für alles, dessen
- *   Vorderseite eine Vorderseite bleiben muss: eine Stoppuhr, die man
- *   spiegelt, zeigt der linken Hand ihre Rückseite oder liest sich verkehrt;
- *   eine, die man umdreht, zeigt beiden Händen dasselbe Zifferblatt.
+ * Gespiegelt wird dabei die *Lage*, nicht das Modell — und das ist keine
+ * Wortwahl, sondern Mathematik: eine gespiegelte Drehung ist selbst wieder
+ * eine Drehung, und ein Modell, das man nur dreht, bleibt, wie es gebaut ist.
+ * Keine seitenverkehrte Schrift, kein rückwärts laufender Zeiger. Was der
+ * rechten Hand zum Gesicht zeigt, zeigt der linken zum Gesicht; was rechts zur
+ * Handfläche zeigt, zeigt links zur Handfläche. Und ein Versatz *im Werkzeug*
+ * — das Gehäuse der Stoppuhr sitzt einen Halbmesser neben dem Griffpunkt, je
+ * Hand auf der anderen Seite (`showHeldBy`) — landet gespiegelt genau dort,
+ * wo er hingehört.
  *
- * Der Ort wandert in beiden Fällen auf die andere Seite — ein Werkzeug, das
- * rechts neben der Faust hängt, hängt links links davon. Nur die Drehung
- * unterscheidet die beiden.
+ * Eine Weile gab es daneben eine zweite Regel, `'turn'`: die Stoppuhr wurde
+ * für die linke Hand nicht gespiegelt, sondern um ihre eigene Hochachse um
+ * 180° gedreht, aus der Sorge, gespiegelt liefe ihr Zeiger rückwärts. Die
+ * Sorge war unbegründet, die Regel aber nicht harmlos: die halbe Drehung kippt
+ * das Blatt in der **Tiefe** um und nimmt den Gehäuseversatz mit auf die
+ * falsche Seite. Bei der *gebauten* Lage fiel das nicht auf, weil ihr Blatt
+ * genau zur Seite schaut und ihr Gehäuse fast auf der Griffachse sitzt — dort
+ * ergaben beide Regeln auf den Millimeter dasselbe, und die Vorschau auf der
+ * Werkzeugseite zeigt genau diese Zahlen. Bei jeder *neu gemessenen* Lage
+ * aber, deren Blatt auch nur ein Stück zum Gesicht kippt, lag die Uhr in der
+ * anderen Hand verdreht und um Zentimeter neben der Faust: links gemessen,
+ * rechts daneben — und umgekehrt. Deshalb gibt es nur noch die eine Regel;
+ * `toolPose.test.ts` hält fest, was sie leistet.
  */
-export type OtherHandFit = 'mirror' | 'turn';
-
-/**
- * Dieselbe Haltung für die andere Hand, nach einer der beiden Regeln.
- *
- * Die Spiegelung ist die von `mirrorReadout`, nur direkt auf der Drehung
- * gerechnet statt über die sechs Zahlen: `(x, y, z, w)` wird `(x, −y, −z, w)`,
- * und in `XYZ`-Winkeln sind das genau die beiden Vorzeichen dort.
- */
-export function holdForOtherHand(pose: HoldPose, fit: OtherHandFit): HoldPose {
+export function holdForOtherHand(pose: HoldPose): HoldPose {
   const position: Vec3 = { x: -pose.position.x, y: pose.position.y, z: pose.position.z };
   const { x, y, z, w } = pose.rotation;
-  // Die halbe Drehung um die eigene Y-Achse ist `q · (0, 1, 0, 0)`.
-  const rotation: Quat = fit === 'turn' ? { x: -z, y: w, z: x, w: -y } : { x, y: -y, z: -z, w };
-  return { position, rotation };
+  return { position, rotation: { x, y: -y, z: -z, w } };
 }
 
 /** Six numbers for the config code — shorter than the field names would be. */

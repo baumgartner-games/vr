@@ -4,7 +4,7 @@ import { createGrip, type GripOptions } from './grip';
 import { GRIP_HOLD_POSITION } from './gripFit';
 import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../../core/colors';
 import { holdHandPose } from '../../../core/handPoseStore';
-import { holdForOtherHand, type HoldPose, type OtherHandFit } from './toolPose';
+import { holdForOtherHand, type HoldPose } from './toolPose';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { WorldContext } from '../../../core/types';
 import type { MenuIcon } from '../../../ui/menu';
@@ -362,19 +362,14 @@ export abstract class Tool extends THREE.Group {
   holdHand: Handedness = 'right';
 
   /**
-   * Wie es in der **anderen** Hand liegt: gespiegelt (`'mirror'`, der
-   * Normalfall) oder um die eigene Hochachse gedreht (`'turn'`).
+   * Die Lage im Griff **dieser** Hand — die gebaute, oder die gespiegelte.
    *
-   * Gedreht braucht es alles, dessen Vorderseite eine Vorderseite bleiben
-   * muss — die **Stoppuhr** ist der Fall, für den es das gibt: gespiegelt
-   * liefe ihr Zeiger rückwärts und das Blatt läse sich verkehrt. Für alles
-   * andere ist die Spiegelung richtig, und sie ist es aus demselben Grund, aus
-   * dem die Hand selbst gespiegelt wird.
-   */
-  otherHand: OtherHandFit = 'mirror';
-
-  /**
-   * Die Lage im Griff **dieser** Hand — die gebaute, oder die umgerechnete.
+   * In der anderen Hand liegt jedes Werkzeug **gespiegelt**, aus demselben
+   * Grund, aus dem die Hand selbst gespiegelt wird (`holdForOtherHand`).
+   * Auch die Stoppuhr: gespiegelt wird die Lage, nicht das Modell, ihr Zeiger
+   * läuft weiter vorwärts. Die Sonderregel, die sie stattdessen um ihre
+   * Hochachse drehte, legte jede neu gemessene Lage in der anderen Hand
+   * daneben — siehe `toolPose.ts`.
    *
    * Ein **angezogenes** Werkzeug geht hier vorbei: seine Lage *ist* die
    * Haltung der Hand (`followHand`), und die ist schon je Hand gespiegelt.
@@ -393,7 +388,7 @@ export abstract class Tool extends THREE.Group {
     _hold.rotation.y = this.holdRotation.y;
     _hold.rotation.z = this.holdRotation.z;
     _hold.rotation.w = this.holdRotation.w;
-    const other = holdForOtherHand(_hold, this.otherHand);
+    const other = holdForOtherHand(_hold);
     position.set(other.position.x, other.position.y, other.position.z);
     rotation.set(other.rotation.x, other.rotation.y, other.rotation.z, other.rotation.w);
   }

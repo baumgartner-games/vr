@@ -811,9 +811,7 @@ export class ToolViewer {
     const tool = this.tool;
     if (!tool) return null;
     const factory: HoldPose = { position: tool.factoryPosition, rotation: tool.factoryRotation };
-    return readPose(
-      tool.factoryHand === this.side ? factory : holdForOtherHand(factory, tool.otherHand),
-    );
+    return readPose(tool.factoryHand === this.side ? factory : holdForOtherHand(factory));
   }
 
   /**

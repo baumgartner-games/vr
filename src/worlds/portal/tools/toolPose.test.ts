@@ -244,9 +244,19 @@ describe('holdForOtherHand', () => {
     position: { x: 0.025, y: -0.012, z: 0.03 },
     rotation: axisAngle({ x: 0, y: 1, z: 0 }, 40),
   };
+  // Eine Uhr, wie eine Hand sie in der Brille wirklich einmisst: das Blatt
+  // schräg zum Gesicht, die Achse gekippt, das Gehäuse neben dem Griffpunkt —
+  // nichts davon liegt auf einer Achse des Griffraums.
+  const measured = {
+    position: { x: 0.012, y: -0.03, z: 0.026 },
+    rotation: quatFromEulerXYZ({ x: 0.4, y: -0.9, z: -0.6 }),
+  };
+  const dial: Vec3 = { x: 0, y: 0, z: 1 };
+  const crown: Vec3 = { x: 0, y: 1, z: 0 };
+  const zero = (): Vec3 => ({ x: 0, y: 0, z: 0 });
 
   it('mirrors a pose exactly like the readable numbers do', () => {
-    const mirrored = holdForOtherHand(pose, 'mirror');
+    const mirrored = holdForOtherHand(pose);
     const viaReadout = poseFromReadout(mirrorReadout(readPose(pose)));
     expect(mirrored.position.x).toBeCloseTo(viaReadout.position.x, 6);
     expect(mirrored.position.y).toBeCloseTo(viaReadout.position.y, 6);
@@ -255,47 +265,66 @@ describe('holdForOtherHand', () => {
   });
 
   it('is its own inverse — the other hand of the other hand is this one', () => {
-    for (const fit of ['mirror', 'turn'] as const) {
-      const there = holdForOtherHand(pose, fit);
-      const back = holdForOtherHand(there, fit);
-      expect(back.position.x).toBeCloseTo(pose.position.x, 6);
-      expect(back.position.y).toBeCloseTo(pose.position.y, 6);
-      expect(back.position.z).toBeCloseTo(pose.position.z, 6);
-      expectSameRotation(back.rotation, pose.rotation);
+    for (const source of [pose, measured]) {
+      const back = holdForOtherHand(holdForOtherHand(source));
+      expect(back.position.x).toBeCloseTo(source.position.x, 6);
+      expect(back.position.y).toBeCloseTo(source.position.y, 6);
+      expect(back.position.z).toBeCloseTo(source.position.z, 6);
+      expectSameRotation(back.rotation, source.rotation);
     }
   });
 
-  it('turns a pose by half a turn around its own up axis', () => {
-    const turned = holdForOtherHand(pose, 'turn');
-    expectSameRotation(
-      turned.rotation,
-      multiplyQuat(pose.rotation, axisAngle({ x: 0, y: 1, z: 0 }, 180), { ...IDENTITY }),
-    );
-    // Der Ort wandert dabei genauso auf die andere Seite wie beim Spiegeln.
-    expect(turned.position.x).toBeCloseTo(-pose.position.x, 6);
+  it('keeps a front a front — the mirrored pose is a rotation, not a mirrored model', () => {
+    // **Der Grund, aus dem es die zweite Regel nicht mehr gibt.** Gespiegelt
+    // wird die Lage: das Blatt schaut in der anderen Hand genauso weit zum
+    // Gesicht (die Tiefe bleibt) und zur anderen Seite (quer kippt um) — so,
+    // wie die gezeichnete Hand selbst gespiegelt wird. Eine halbe Drehung um
+    // die Hochachse (`'turn'`) kippte stattdessen die Tiefe um und zeigte der
+    // anderen Hand die Rückseite, sobald das Blatt nicht genau zur Seite sah.
+    const facing = rotateVec(dial, measured.rotation, zero());
+    const mirrored = rotateVec(dial, holdForOtherHand(measured).rotation, zero());
+    expect(mirrored.x).toBeCloseTo(-facing.x, 6);
+    expect(mirrored.y).toBeCloseTo(facing.y, 6);
+    expect(mirrored.z).toBeCloseTo(facing.z, 6);
+    // Was die halbe Drehung daraus gemacht hätte — als Gegenprobe, nicht als
+    // Regel: die Tiefe kippt um.
+    const halfTurn = multiplyQuat(measured.rotation, axisAngle({ x: 0, y: 1, z: 0 }, 180), {
+      ...IDENTITY,
+    });
+    const turned = rotateVec(dial, halfTurn, zero());
+    expect(turned.z).toBeCloseTo(-facing.z, 6);
+    expect(Math.abs(turned.z - mirrored.z)).toBeGreaterThan(0.5);
   });
 
-  it('keeps the front a front where the mirror would turn it around', () => {
-    // Eine Uhr, deren Blatt zur Seite schaut: gespiegelt zeigt es dorthin, wo
-    // es hinzeigt, gedreht auf die andere Seite — und genau darum geht es.
-    const dial: Vec3 = { x: 0, y: 0, z: 1 };
-    const facing = rotateVec(dial, pose.rotation, { x: 0, y: 0, z: 0 });
-    const mirrored = rotateVec(dial, holdForOtherHand(pose, 'mirror').rotation, {
-      x: 0,
-      y: 0,
-      z: 0,
-    });
-    const turned = rotateVec(dial, holdForOtherHand(pose, 'turn').rotation, {
-      x: 0,
-      y: 0,
-      z: 0,
-    });
-    // Gespiegelt bleibt die Tiefe stehen, gedreht kippt sie um.
-    expect(mirrored.z).toBeCloseTo(facing.z, 6);
-    expect(turned.z).toBeCloseTo(-facing.z, 6);
-    // Und quer ist es umgekehrt.
-    expect(mirrored.x).toBeCloseTo(-facing.x, 6);
-    expect(turned.x).toBeCloseTo(-facing.x, 6);
+  it('puts the crown where the other hand has its thumb', () => {
+    // Die Achse der Uhr — und mit ihr die Krone — liegt in der anderen Hand
+    // spiegelbildlich: seitlich umgekehrt, sonst gleich.
+    const up = rotateVec(crown, measured.rotation, zero());
+    const mirrored = rotateVec(crown, holdForOtherHand(measured).rotation, zero());
+    expect(mirrored.x).toBeCloseTo(-up.x, 6);
+    expect(mirrored.y).toBeCloseTo(up.y, 6);
+    expect(mirrored.z).toBeCloseTo(up.z, 6);
+  });
+
+  it('carries a case that hangs beside the grip to the mirrored side', () => {
+    // Das Gehäuse der Stoppuhr sitzt einen Halbmesser neben dem Ursprung des
+    // Werkzeugs, rechts bei +x und links bei −x (`StopwatchTool.showHeldBy`).
+    // Seine Mitte muss in der anderen Hand genau spiegelbildlich liegen —
+    // sonst hängt die Uhr dort neben der Faust statt darin.
+    const radius = 0.045;
+    const centre = (hold: { position: Vec3; rotation: Quat }, side: number): Vec3 => {
+      const offset = rotateVec({ x: side * radius, y: 0, z: 0 }, hold.rotation, zero());
+      return {
+        x: hold.position.x + offset.x,
+        y: hold.position.y + offset.y,
+        z: hold.position.z + offset.z,
+      };
+    };
+    const right = centre(measured, 1);
+    const left = centre(holdForOtherHand(measured), -1);
+    expect(left.x).toBeCloseTo(-right.x, 6);
+    expect(left.y).toBeCloseTo(right.y, 6);
+    expect(left.z).toBeCloseTo(right.z, 6);
   });
 });
 
