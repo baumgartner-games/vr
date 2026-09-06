@@ -48,6 +48,7 @@ import {
   storedPoseCount,
   storedPoseHand,
   type BulletOptions,
+  type PaintSurface,
   type SightKind,
   type ToolHost,
   type SurfaceHit,
@@ -581,6 +582,19 @@ export class PortalWorld implements World {
   private selected: readonly PhysicsBody[] = [];
   /** 1 = normal, less while the stopwatch is wound down, more while it winds up. */
   private timeScale = 1;
+
+  /**
+   * Wie schnell die Zeit hier gerade läuft — für alles, was eine abgeleitete
+   * Welt **selbst** animiert.
+   *
+   * Die Physik rechnet damit ohnehin (`physics.step(dt * timeScale)`); was eine
+   * Welt daneben von Hand bewegt, weiß nichts davon und liefe in der Zeitlupe
+   * der Stoppuhr munter weiter. Genau das wäre im Effektlabor der Witz an der
+   * Sache — eine Explosion in Zeitlupe ansehen —, also fragt es hier nach.
+   */
+  protected get worldTimeScale(): number {
+    return this.timeScale;
+  }
   /**
    * Einzelbilder, die noch zu rechnen sind. Die Stoppuhr legt sie hin: bei
    * angehaltener Zeit ist ein Druck genau ein Schritt der Simulation — das
@@ -2901,6 +2915,23 @@ export class PortalWorld implements World {
     return tool;
   }
 
+  /**
+   * Alles, worauf gerade gemalt werden kann.
+   *
+   * Gefragt werden die Werkzeuge selbst (`Tool.paintSurface`), und zwar jedes
+   * Mal neu: eine Liste, die die Welt mitführte, überlebte kein weggeräumtes
+   * Werkzeug. Es sind ohnehin selten mehr als zwei — Staffeleien stellt man
+   * hin, man sät sie nicht aus.
+   */
+  private paintSurfaces(): readonly PaintSurface[] {
+    const surfaces: PaintSurface[] = [];
+    for (const tool of this.liveTools) {
+      const surface = tool.paintSurface();
+      if (surface) surfaces.push(surface);
+    }
+    return surfaces;
+  }
+
   private idOf(entry: PhysicsBody): string | null {
     return this.ids.get(entry) ?? null;
   }
@@ -3588,6 +3619,7 @@ export class PortalWorld implements World {
         this.conjureProp(this.context!, kind, hand);
       },
       styleProp: (entry, style) => this.styleProp(entry, style, true),
+      paintSurfaces: () => this.paintSurfaces(),
       inspectProp: (entry) => this.describeProp(entry),
       spawnBullet: (origin, direction, speed, options) =>
         this.spawnBullet(origin, direction, speed, options),

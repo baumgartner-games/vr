@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { playPick } from '../../../core/Audio';
 import { DEFAULT_MATERIAL, MATERIALS, type SurfaceMaterial } from './materials';
+import type { PaintSurface } from './paintCanvas';
+import type { PointerHit } from '../../../core/Pointer';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
 /** The palette. Four columns, so a row is easy to sweep along with the brush. */
@@ -15,6 +17,12 @@ const ROWS = Math.ceil(COLORS.length / COLUMNS);
 const CANVAS_W = 512;
 /** Die Reiterzeile über beiden Seiten. */
 const TAB_H = 74;
+/**
+ * Der **Schließknopf** ganz rechts in der Reiterzeile, quadratisch — und
+ * damit ist der Platz für die beiden Reiter um genau ihn kürzer.
+ */
+const CLOSE_W = TAB_H;
+const TABS_W = CANVAS_W - CLOSE_W;
 const CELL = CANVAS_W / COLUMNS;
 const GRID_H = CELL * ROWS;
 const CANVAS_H = TAB_H + GRID_H;
@@ -56,9 +64,9 @@ const HANDLE_R = 0.016;
 /** Welche Seite der Palette gerade oben liegt. */
 type Page = 'colors' | 'materials';
 
-/** Ein Feld auf der Palette: ein Reiter oder eine Zelle der Seite. */
+/** Ein Feld auf der Palette: ein Reiter, das Kreuz oder eine Zelle der Seite. */
 interface Slot {
-  kind: 'tab' | 'cell';
+  kind: 'tab' | 'cell' | 'close';
   index: number;
 }
 
@@ -75,10 +83,28 @@ const _quaternion = new THREE.Quaternion();
 /**
  * Pinsel, Farbe und Material.
  *
- * Solange der Pinsel gehalten wird, schwebt die Palette über der anderen Hand:
- * antippen oder anzielen und Trigger lädt, worauf man zeigt. Von da an gibt
- * der Trigger jedem Objekt, das der Pinsel berührt oder anzielt, **beides** —
- * Farbe *und* Material —, und zwar für alle in der Sitzung.
+ * Solange der Pinsel gehalten wird, schwebt die Palette über der anderen Hand.
+ * Ausgewählt wird auf **zwei** Arten, und beide sind dieselbe Geste wie
+ * anderswo im Spiel:
+ *
+ * - **Antippen** mit der Pinselspitze — der kurze Weg, wenn die Hand ohnehin
+ *   dort ist.
+ * - **Zielen und Trigger**, wie an jeder anderen Tafel: der Zeigestrahl der
+ *   Pinselhand liegt auf der Palette, das Feld darunter leuchtet, Trigger
+ *   nimmt es. Dafür hängt die Palette als Pointer-Ziel im Raum
+ *   (`ctx.pointer`), und sie hört bewusst **nur auf die Pinselhand**: der
+ *   Strahl der Hand, die sie trägt, striche sonst dauernd über sie hinweg und
+ *   nähme dieser Hand ihren Trigger weg.
+ *
+ * Von da an gibt der Trigger jedem Objekt, das der Pinsel berührt oder
+ * anzielt, **beides** — Farbe *und* Material —, und zwar für alle in der
+ * Sitzung. Trifft er stattdessen eine **Leinwand** (die Staffelei), malt er
+ * darauf: Trigger halten und ziehen ist ein Strich, kein Anstrich.
+ *
+ * Oben rechts steht ein **✕**: die Palette geht zu und bleibt zu, bis `A`/`X`
+ * sie wieder aufmacht. Sie ist die eine Tafel, die die ganze Zeit über der
+ * freien Hand hängt — wer mit dem Pinsel etwas *anderes* tun will, soll sie
+ * wegräumen können, ohne den Pinsel wegzulegen.
  *
  * Oben stehen zwei Reiter:
  *
@@ -108,15 +134,26 @@ export class BrushTool extends Tool {
   private color = COLORS[6]!;
   private material: SurfaceMaterial = DEFAULT_MATERIAL;
   private page: Page = 'colors';
+  /** Was gerade leuchtet — die Spitze gewinnt, sonst zählt der Strahl. */
   private hovered: Slot | null = null;
+  private tipSlot: Slot | null = null;
+  private raySlot: Slot | null = null;
   private touching = '';
+  /** Ob die Palette überhaupt gezeigt wird. Das ✕ macht sie zu, `A`/`X` auf. */
+  private open = true;
+  /** Die Hand, über der sie schwebt — deren Strahl hört sie nicht. */
+  private paletteSide: Handedness | null = null;
+  private hostRef: ToolHost | null = null;
+  private listening = false;
+  /** Die Leinwand, auf der der laufende Strich liegt. */
+  private stroke: PaintSurface | null = null;
 
   constructor() {
     super();
     this.name = 'tool-brush';
     this.icon = 'brush';
     this.accent = 0x5ee0a0;
-    this.hint = 'Farbe und Material wählen · Trigger streicht an';
+    this.hint = 'Palette: antippen oder zielen + Trigger · ✕ zu, A/X auf · Trigger streicht an';
 
     const metal = new THREE.MeshStandardMaterial({
       color: 0xb9c2d4,
@@ -193,20 +230,45 @@ export class BrushTool extends Tool {
   }
 
   override onTake(_controller: ControllerState, host: ToolHost): void {
+    this.hostRef = host;
     if (this.palette.parent !== host.root) host.root.add(this.palette);
+    this.open = true;
     this.palette.visible = true;
+    this.listen(host);
   }
 
-  override onStow(_host: ToolHost): void {
+  override onStow(host: ToolHost): void {
     this.palette.visible = false;
-    this.hovered = null;
+    this.setHover(null, null);
     this.touching = '';
+    this.endStroke();
+    this.unlisten(host);
+  }
+
+  /**
+   * `A`/`X` holt die geschlossene Palette zurück — und räumt sie auch wieder
+   * weg. Ein Knopf, der nur in eine Richtung schaltet, ist einer, den man beim
+   * zweiten Druck sucht.
+   */
+  override onPrimary(controller: ControllerState, host: ToolHost): void {
+    this.open = !this.open;
+    if (!this.open) this.setHover(null, null);
+    controller.pulse(0.25, 15);
+    playPick(this.open);
+    host.notify(this.open ? 'Palette offen' : 'Palette zu · A/X öffnet sie wieder');
   }
 
   override onTrigger(controller: ControllerState, host: ToolHost): void {
     // Pointing at the palette always wins: that is where the colour comes from.
     if (this.hovered) {
-      this.pick(this.hovered, controller);
+      this.pick(this.hovered, controller, host);
+      return;
+    }
+
+    // Eine Leinwand vor der Nase ist keine Kiste, die angestrichen wird,
+    // sondern etwas, worauf man malt — sie kommt deshalb vor den Props.
+    if (this.paintOn(host, false)) {
+      controller.pulse(0.25, 12);
       return;
     }
 
@@ -228,18 +290,37 @@ export class BrushTool extends Tool {
     controller.pulse(0.4, 25);
   }
 
+  override onTriggerUp(_controller: ControllerState, _host: ToolHost): void {
+    this.endStroke();
+  }
+
   override update(_dt: number, host: ToolHost, controller: ControllerState | null): void {
+    this.hostRef = host;
     if (!controller || !this.heldBy) {
       this.palette.visible = false;
+      this.endStroke();
       return;
     }
+    this.listen(host);
+
+    // Ein gehaltener Trigger, der auf einer Leinwand angefangen hat, malt
+    // weiter — Bild für Bild, mit einer Linie vom letzten Punkt. Erst das
+    // macht aus dem Tupfer einen Strich.
+    if (this.stroke && controller.trigger.pressed) this.paintOn(host, true);
+    else if (!controller.trigger.pressed) this.endStroke();
 
     const other: Handedness = this.heldBy === 'left' ? 'right' : 'left';
+    this.paletteSide = other;
+    if (!this.open) {
+      this.palette.visible = false;
+      this.setHover(null, null);
+      return;
+    }
     const free = host.ctx.input.get(other);
     const anchor = free?.tracked ? handAnchor(free) : null;
     if (!anchor) {
       this.palette.visible = false;
-      this.hovered = null;
+      this.setHover(null, null);
       return;
     }
 
@@ -264,6 +345,8 @@ export class BrushTool extends Tool {
   }
 
   override disposeTool(): void {
+    if (this.hostRef) this.unlisten(this.hostRef);
+    this.hostRef = null;
     disposeToolTree(this);
     this.palette.geometry.dispose();
     this.palette.material.dispose();
@@ -274,6 +357,71 @@ export class BrushTool extends Tool {
   /** Farbe und Material auf ein Objekt — beides zusammen, für alle. */
   private applyTo(entry: Parameters<ToolHost['styleProp']>[0], host: ToolHost): void {
     host.styleProp(entry, { color: this.color, material: this.material.id });
+  }
+
+  /**
+   * Ein Klecks auf eine Leinwand — mit der Spitze, sonst mit dem Zielstrahl.
+   *
+   * `join` zieht die Linie vom letzten Punkt: das ist der laufende Strich,
+   * und er bleibt auf derselben Leinwand, auf der er angefangen hat.
+   */
+  private paintOn(host: ToolHost, join: boolean): boolean {
+    const surfaces = host.paintSurfaces();
+    if (surfaces.length === 0) return false;
+    this.tipAnchor.getWorldPosition(_tip);
+    _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
+
+    const only = join ? this.stroke : null;
+    for (const surface of only ? [only] : surfaces) {
+      const painted =
+        surface.paintAt(_tip, this.color, join) ||
+        surface.paintRay(_tip, _direction, PAINT_RANGE, this.color, join);
+      if (!painted) continue;
+      this.stroke = surface;
+      return true;
+    }
+    return false;
+  }
+
+  /** Der Strich ist zu Ende — der nächste fängt neu an, auch am selben Fleck. */
+  private endStroke(): void {
+    this.stroke?.endStroke();
+    this.stroke = null;
+  }
+
+  /**
+   * Die Palette hängt als Tafel im Raum: dieselbe Bedienung wie jedes andere
+   * Panel — zielen, Trigger. Nur die Hand, die sie trägt, wird überhört.
+   */
+  private listen(host: ToolHost): void {
+    if (this.listening) return;
+    this.listening = true;
+    host.ctx.pointer.add({
+      object: this.palette,
+      // Angetippt wird mit der Pinselspitze und nicht mit dem Finger der Hand,
+      // die die Palette trägt — die läge sonst dauernd auf ihrem eigenen Panel.
+      pokeable: false,
+      ignore: (hand) => hand !== null && hand === this.paletteSide,
+      onHover: (hit) => this.setHover(this.tipSlot, this.slotFromHit(hit)),
+      onBlur: () => this.setHover(this.tipSlot, null),
+      onSelect: (hit) => {
+        const slot = this.slotFromHit(hit);
+        const controller = hit.hand ? host.ctx.input.get(hit.hand) : null;
+        if (slot) this.pick(slot, controller ?? null, host);
+      },
+    });
+  }
+
+  private unlisten(host: ToolHost): void {
+    if (!this.listening) return;
+    this.listening = false;
+    host.ctx.pointer.remove(this.palette);
+  }
+
+  /** Wo ein Strahl die Palette getroffen hat, als Feld. */
+  private slotFromHit(hit: PointerHit): Slot | null {
+    if (!hit.uv) return null;
+    return this.slotAtCanvas(hit.uv.x * CANVAS_W, (1 - hit.uv.y) * CANVAS_H);
   }
 
   /** Which slot the brush tip is over, and whether it actually touches it. */
@@ -287,23 +435,44 @@ export class BrushTool extends Tool {
       Math.abs(_local.y) <= PANEL_H / 2 &&
       Math.abs(_local.z) <= 0.07;
     const slot = inside ? this.slotAt(_local) : null;
-    if (keyOf(slot) !== keyOf(this.hovered)) {
-      this.hovered = slot;
-      this.drawPalette();
-    }
+    this.setHover(slot, this.raySlot);
 
     // Actually poking a swatch picks it without the trigger.
     const touching = slot && Math.abs(_local.z) < 0.022 ? keyOf(slot) : '';
-    if (touching && touching !== this.touching && slot) this.pick(slot, controller);
+    if (touching && touching !== this.touching && slot) this.pick(slot, controller, this.hostRef);
     this.touching = touching;
+  }
+
+  /**
+   * Was leuchtet: die Spitze, sonst der Strahl.
+   *
+   * Zwei Quellen, ein Bild — und nur so bleibt das Anzielen stehen, während
+   * die Pinselspitze irgendwo im Raum herumfährt. Beide in *ein* Feld zu
+   * schreiben hieße: wer zielt, verliert es im nächsten Bild wieder.
+   */
+  private setHover(tip: Slot | null, ray: Slot | null): void {
+    this.tipSlot = tip;
+    this.raySlot = ray;
+    const next = tip ?? ray;
+    if (keyOf(next) === keyOf(this.hovered)) return;
+    this.hovered = next;
+    this.drawPalette();
   }
 
   /** Welches Feld unter diesem Punkt liegt — Reiter oben, Seite darunter. */
   private slotAt(local: THREE.Vector3): Slot | null {
     const x = ((local.x + PANEL_W / 2) / PANEL_W) * CANVAS_W;
     const y = ((PANEL_H / 2 - local.y) / PANEL_H) * CANVAS_H;
+    return this.slotAtCanvas(x, y);
+  }
+
+  /** Dasselbe auf der Leinwand der Palette, in Bildpunkten. */
+  private slotAtCanvas(x: number, y: number): Slot | null {
     if (x < 0 || x >= CANVAS_W || y < 0 || y >= CANVAS_H) return null;
-    if (y < TAB_H) return { kind: 'tab', index: x < CANVAS_W / 2 ? 0 : 1 };
+    if (y < TAB_H) {
+      if (x >= TABS_W) return { kind: 'close', index: 0 };
+      return { kind: 'tab', index: x < TABS_W / 2 ? 0 : 1 };
+    }
 
     if (this.page === 'materials') {
       const row = Math.floor((y - TAB_H) / ROW_H);
@@ -315,14 +484,27 @@ export class BrushTool extends Tool {
     return index >= 0 && index < COLORS.length ? { kind: 'cell', index } : null;
   }
 
-  private pick(slot: Slot, controller: ControllerState): void {
+  private pick(slot: Slot, controller: ControllerState | null, host: ToolHost | null): void {
+    if (slot.kind === 'close') {
+      this.open = false;
+      this.palette.visible = false;
+      this.setHover(null, null);
+      this.touching = '';
+      controller?.pulse(0.25, 15);
+      playPick(false);
+      host?.notify('Palette zu · A/X öffnet sie wieder');
+      return;
+    }
+
     if (slot.kind === 'tab') {
       const page: Page = slot.index === 0 ? 'colors' : 'materials';
       if (page === this.page) return;
       this.page = page;
       this.hovered = null;
+      this.tipSlot = null;
+      this.raySlot = null;
       this.touching = '';
-      controller.pulse(0.25, 15);
+      controller?.pulse(0.25, 15);
       playPick(false);
       this.drawPalette();
       return;
@@ -343,7 +525,7 @@ export class BrushTool extends Tool {
       this.color = next;
       this.tip.material.color.setHex(next);
     }
-    controller.pulse(0.3, 20);
+    controller?.pulse(0.3, 20);
     playPick(true);
     this.drawPalette();
   }
@@ -368,11 +550,11 @@ export class BrushTool extends Tool {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let index = 0; index < 2; index++) {
-      const x = index * (CANVAS_W / 2);
+      const x = index * (TABS_W / 2);
       const active = (index === 0) === (this.page === 'colors');
       const hot = this.hovered?.kind === 'tab' && this.hovered.index === index;
       ctx.beginPath();
-      ctx.roundRect(x + 8, 8, CANVAS_W / 2 - 16, TAB_H - 16, 14);
+      ctx.roundRect(x + 8, 8, TABS_W / 2 - 16, TAB_H - 16, 14);
       ctx.fillStyle = active ? 'rgba(94, 224, 160, 0.22)' : 'rgba(255,255,255,0.05)';
       ctx.fill();
       if (active || hot) {
@@ -382,8 +564,33 @@ export class BrushTool extends Tool {
       }
       ctx.fillStyle = active ? '#ffffff' : 'rgba(255,255,255,0.65)';
       ctx.font = '600 30px system-ui, sans-serif';
-      ctx.fillText(labels[index]!, x + CANVAS_W / 4, TAB_H / 2);
+      ctx.fillText(labels[index]!, x + TABS_W / 4, TAB_H / 2);
     }
+    this.drawClose(ctx);
+  }
+
+  /** Das ✕ ganz rechts: dieselbe Stelle wie in jedem Fenster, das man kennt. */
+  private drawClose(ctx: CanvasRenderingContext2D): void {
+    const hot = this.hovered?.kind === 'close';
+    ctx.beginPath();
+    ctx.roundRect(TABS_W + 8, 8, CLOSE_W - 16, TAB_H - 16, 14);
+    ctx.fillStyle = hot ? 'rgba(255, 110, 163, 0.22)' : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.lineWidth = hot ? 4 : 2;
+    ctx.strokeStyle = hot ? '#ff6ea3' : 'rgba(255,255,255,0.35)';
+    ctx.stroke();
+
+    const cx = TABS_W + CLOSE_W / 2;
+    const cy = TAB_H / 2;
+    const arm = 12;
+    ctx.beginPath();
+    ctx.moveTo(cx - arm, cy - arm);
+    ctx.lineTo(cx + arm, cy + arm);
+    ctx.moveTo(cx + arm, cy - arm);
+    ctx.lineTo(cx - arm, cy + arm);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = hot ? '#ffffff' : 'rgba(255,255,255,0.75)';
+    ctx.stroke();
   }
 
   private drawColors(ctx: CanvasRenderingContext2D): void {

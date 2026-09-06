@@ -50,6 +50,15 @@ export interface HeadRelative {
  * es geht. Berührt die Kapsel wieder Boden, ist gelandet — mit dem Schwung, der
  * noch da war.
  *
+ * **Gehalten wird es wie alles andere**: solange die Hand zu ist. Wer sie am
+ * Boden aufmacht, lässt den Gleiter fallen — er liegt dann als gepacktes
+ * Bündel im Raum, und auf der Hüfte, von der er kam, wächst einer nach. Das
+ * war einmal anders (`sticky`: einmal nehmen, an der Hüfte wieder abgeben), und
+ * es war die eine Stelle, an der ein Werkzeug sich anders benahm als jeder
+ * Gegenstand daneben. **In der Luft** gilt es nicht: dort hängt man im Gerät,
+ * und eine Hand, die zwischendurch aufgeht, wirft niemanden aus dem Flug
+ * (`update` setzt `sticky` deshalb Bild für Bild auf „fliegt gerade").
+ *
  * Was die Hände dabei tun, ist bei beiden verschieden und steht in der
  * Ableitung (`readCommand`); wie der Flügel aussieht und wo er im Raum steht,
  * ebenfalls (`placeWing`). Der Flügel selbst hängt beim Fliegen **im Raum**
@@ -83,7 +92,9 @@ export abstract class GlideTool extends Tool {
 
   constructor() {
     super();
-    this.sticky = true;
+    // Am Boden ist ein Fluggerät ein Gegenstand wie jeder andere: **loslassen
+    // heißt fallen lassen**. In der Luft nicht — siehe `update`.
+    this.sticky = false;
     this.wing.name = 'wing';
     this.pack.name = 'pack';
     this.pack.visible = false;
@@ -120,6 +131,7 @@ export abstract class GlideTool extends Tool {
 
   override onStow(host: ToolHost): void {
     this.land(host, false);
+    this.sticky = false;
     this.add(this.wing);
     this.wing.position.set(0, 0, 0);
     this.wing.quaternion.identity();
@@ -137,6 +149,7 @@ export abstract class GlideTool extends Tool {
     this.hostRef = host;
     if (!this.heldBy || !controller) {
       if (this.flying) this.land(host, false);
+      this.sticky = false;
       // An einer Hüfte: gepackt. Das erste Verstauen beim Bau der Welt läuft
       // nicht über `onStow`, deshalb steht die Regel hier und nicht nur dort —
       // ein zehn Meter breites Segel an der Hüfte ist das Bild, das sonst
@@ -175,6 +188,14 @@ export abstract class GlideTool extends Tool {
 
     this.markHands(host, this.flying);
     this.placeWing(host, controller);
+    // **Nur in der Luft klebt es an der Hand.** Am Boden trägt man den Gleiter,
+    // und wer ihn loslässt, legt ihn hin — er fällt, liegt als Bündel da und
+    // wird wieder aufgehoben wie jedes andere Ding. Wer fliegt, hängt dagegen
+    // darin: die Hand geht auf, weil der Arm müde wird, und niemand rechnet
+    // damit, dafür aus zweihundert Metern zu fallen. Landen macht ihn wieder
+    // zum Gegenstand — die Hand, die dabei schon offen war, legt ihn also im
+    // selben Augenblick hin.
+    this.sticky = this.flying;
   }
 
   override disposeTool(): void {

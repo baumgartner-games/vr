@@ -490,6 +490,8 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   // Der Griff selbst — das Werkzeug, an dem man die Faust einstellt.
   'grip',
   'pistol',
+  // Die Staffelei: ein Bündel Latten, am selben Griff getragen wie alles andere.
+  'easel',
   'duplicator',
   'inspect',
   'teleport',

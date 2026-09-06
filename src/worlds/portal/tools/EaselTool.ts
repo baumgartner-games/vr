@@ -1,0 +1,286 @@
+import * as THREE from 'three';
+import { Tool, disposeToolTree, type ToolHost } from './Tool';
+import { PaintBoard } from './PaintBoard';
+import { playPick, playTone } from '../../../core/Audio';
+import { GRAB_TINT } from '../../../core/colors';
+import type { PaintSurface } from './paintCanvas';
+import type { ControllerState } from '../../../core/XRInput';
+
+/** Wie weit man sie hinstellen kann, in Metern. */
+const RANGE = 8;
+/** Flacher als das ist kein Boden — auf einer Schräge steht keine Staffelei. */
+const MIN_NORMAL_Y = 0.75;
+
+/** Das Blatt: siebzig auf neunzig Zentimeter, wie eine echte Leinwand. */
+const BOARD_W = 0.7;
+const BOARD_H = 0.9;
+/** Wo seine Mitte über dem Boden steht, und wie weit es sich zurücklehnt. */
+const BOARD_Y = 1.24;
+const BOARD_TILT = -0.1;
+/** Höhe der Ablage, auf der das Blatt aufsitzt. */
+const LEDGE_Y = 0.76;
+/** Wie hoch die Beine zusammenlaufen. */
+const APEX_Y = 1.78;
+
+const WOOD = 0xb2854b;
+const DARK_WOOD = 0x7a5730;
+
+const _tip = new THREE.Vector3();
+const _direction = new THREE.Vector3();
+const _quaternion = new THREE.Quaternion();
+const _head = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 0, 1);
+
+/**
+ * **Die Staffelei**: das Werkzeug, das eine Leinwand hinstellt.
+ *
+ * Der Pinsel konnte bisher nur Dinge anstreichen — eine Kiste rot, eine Kugel
+ * aus Glas. Malen konnte man nicht, weil es nichts gab, worauf ein Strich ein
+ * Strich bleibt. Das hier ist dieses Etwas: ein Dreibein mit einem Blatt
+ * darauf, das man irgendwo hinstellt und stehen lässt.
+ *
+ * In der Hand ist sie ein **zusammengelegtes Bündel** — drei Latten und die
+ * gerollte Leinwand, am Standardgriff wie jedes andere Werkzeug. Wohin sie
+ * kommt, zeigt ein Kreis auf dem Boden; der **Trigger** stellt sie dort auf,
+ * mit dem Blatt zum Spieler. Nochmal Trigger stellt dieselbe Staffelei
+ * woandershin — eine zweite bekommt man, indem man eine zweite aus dem Regal
+ * holt, und nicht dadurch, dass man zweimal drückt.
+ *
+ * `A`/`X` **wischt das Blatt leer**. Ohne das wäre der erste misslungene Strich
+ * das Ende des Bildes, und man holte sich für jeden Versuch eine neue
+ * Staffelei.
+ *
+ * Gemalt wird mit dem **Pinsel**, nicht mit ihr: Spitze ans Blatt (oder von
+ * weiter weg daraufzielen), Trigger halten und ziehen. Die Farbe kommt von der
+ * Palette an der anderen Hand. Die Staffelei weiß davon nichts — sie meldet der
+ * Welt nur, dass hier eine Fläche steht, auf die man malen kann
+ * (`Tool.paintSurface`), und die Welt reicht das an den Pinsel weiter.
+ *
+ * Sie ist **kein Hindernis**: man geht durch sie hindurch. Das ist kein
+ * Versehen, sondern die Bedingung fürs Malen — eine Pinselspitze muss das Blatt
+ * berühren dürfen, und ein Körper, der sie wegschiebt, verhindert genau das.
+ */
+export class EaselTool extends Tool {
+  override readonly toolId = 'easel';
+  override readonly label = 'Staffelei';
+
+  /** Die aufgestellte Staffelei — im Raum, sobald sie steht. */
+  private readonly stand = new THREE.Group();
+  /** Das Bündel in der Hand. */
+  private readonly pack = new THREE.Group();
+  private readonly board: PaintBoard;
+  /** Der Kreis, der zeigt, wo sie hinkommt. */
+  private readonly marker: THREE.Group;
+  private readonly ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  private planted = false;
+  /** Wohin sie diese Frame käme, oder `null` — der Trigger liest nur das hier. */
+  private target: THREE.Vector3 | null = null;
+  private readonly spot = new THREE.Vector3();
+
+  constructor() {
+    super();
+    this.name = 'tool-easel';
+    this.icon = 'palette';
+    this.accent = WOOD;
+    this.hint = 'Trigger stellt sie hin · A/X wischt das Blatt · gemalt wird mit dem Pinsel';
+
+    const wood = new THREE.MeshStandardMaterial({ color: WOOD, roughness: 0.85 });
+    const dark = new THREE.MeshStandardMaterial({ color: DARK_WOOD, roughness: 0.8 });
+
+    // Derselbe Griff wie an der Pistole: ein Bündel Latten trägt man am
+    // Bündel, und die Faust dazu ist die, die alle Werkzeuge teilen.
+    this.mountGrip();
+
+    // --- das Bündel in der Hand ---------------------------------------------
+    this.pack.name = 'easel-pack';
+    for (const [x, z] of [
+      [-0.03, 0],
+      [0.03, 0],
+      [0, 0.045],
+    ] as const) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.62, 0.022), wood);
+      slat.position.set(x, 0.2, z);
+      this.pack.add(slat);
+    }
+    // Die gerollte Leinwand, quer über dem Bündel.
+    const roll = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.22, 12),
+      new THREE.MeshStandardMaterial({ color: 0xefe7d6, roughness: 0.95 }),
+    );
+    roll.rotation.z = Math.PI / 2;
+    roll.position.set(0, 0.34, 0.02);
+    this.pack.add(roll);
+    for (const y of [0.08, 0.32]) {
+      const strap = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.008, 6, 16), dark);
+      strap.rotation.x = Math.PI / 2;
+      strap.position.set(0, y, 0.015);
+      this.pack.add(strap);
+    }
+    this.add(this.pack);
+
+    // --- die aufgestellte Staffelei ------------------------------------------
+    // Ursprung auf dem Boden, Blatt nach +Z: beim Hinstellen wird sie um Y
+    // gedreht, bis dieses +Z zum Spieler zeigt.
+    this.stand.name = 'easel-stand';
+    const apex = new THREE.Vector3(0, APEX_Y, 0);
+    for (const foot of [
+      new THREE.Vector3(-0.38, 0, 0.22),
+      new THREE.Vector3(0.38, 0, 0.22),
+      new THREE.Vector3(0, 0, -0.5),
+    ]) {
+      this.stand.add(leg(foot, apex, wood));
+    }
+    // Die Ablage, auf der das Blatt aufsitzt, und die Leiste darüber.
+    const ledge = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.045, 0.14), dark);
+    ledge.position.set(0, LEDGE_Y, 0.1);
+    this.stand.add(ledge);
+    const brace = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.03, 0.03), dark);
+    brace.position.set(0, BOARD_Y + BOARD_H / 2 - 0.02, 0.02);
+    this.stand.add(brace);
+
+    // Der Rahmen hinter dem Blatt: ohne ihn schwebt eine Fläche in den Beinen.
+    const backing = new THREE.Mesh(
+      new THREE.BoxGeometry(BOARD_W + 0.05, BOARD_H + 0.05, 0.02),
+      dark,
+    );
+    backing.position.set(0, BOARD_Y, 0.06);
+    backing.rotation.x = BOARD_TILT;
+    this.stand.add(backing);
+
+    this.board = new PaintBoard(BOARD_W, BOARD_H);
+    this.board.position.set(0, BOARD_Y, 0.075);
+    this.board.rotation.x = BOARD_TILT;
+    this.stand.add(this.board);
+    this.add(this.stand);
+
+    // --- der Kreis am Boden ---------------------------------------------------
+    this.marker = new THREE.Group();
+    this.marker.name = 'easel-marker';
+    this.marker.visible = false;
+    this.ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.3, 0.36, 40),
+      new THREE.MeshBasicMaterial({
+        color: GRAB_TINT,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    this.marker.add(this.ring);
+    this.refreshShape();
+  }
+
+  /** Die Leinwand — solange sie steht. Auf ein Bündel malt niemand. */
+  override paintSurface(): PaintSurface | null {
+    return this.planted ? this.board : null;
+  }
+
+  override onTake(_controller: ControllerState, host: ToolHost): void {
+    if (this.marker.parent !== host.root) host.root.add(this.marker);
+    this.refreshShape();
+  }
+
+  override onStow(_host: ToolHost): void {
+    this.blank();
+    this.refreshShape();
+  }
+
+  override onTrigger(controller: ControllerState, host: ToolHost): void {
+    if (!this.target) {
+      host.notify('Kein Boden für die Staffelei');
+      playTone({ type: 'square', from: 220, to: 130, duration: 0.08, gain: 0.05 });
+      return;
+    }
+    this.plant(host, this.target);
+    controller.pulse(0.6, 40);
+    playPick(true);
+  }
+
+  /** `A`/`X`: das Blatt wieder leer. */
+  override onPrimary(controller: ControllerState, host: ToolHost): void {
+    this.board.wipe();
+    controller.pulse(0.3, 20);
+    playPick(false);
+    host.notify(this.planted ? 'Leinwand gewischt' : 'Leinwand gewischt · Trigger stellt sie hin');
+  }
+
+  override update(_dt: number, host: ToolHost, controller: ControllerState | null): void {
+    if (!this.heldBy || !controller || this.parked) {
+      this.blank();
+      this.refreshShape();
+      return;
+    }
+
+    this.getWorldPosition(_tip);
+    _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
+    const surface = host.castSurface(_tip, _direction);
+    if (!surface || surface.normal.y < MIN_NORMAL_Y || surface.point.distanceTo(_tip) > RANGE) {
+      this.blank();
+      return;
+    }
+
+    this.target = this.spot.copy(surface.point);
+    this.marker.visible = true;
+    this.marker.position.copy(surface.point);
+    this.marker.quaternion.setFromUnitVectors(_up, surface.normal);
+    this.marker.translateZ(0.012);
+  }
+
+  override disposeTool(): void {
+    this.board.dispose();
+    this.stand.removeFromParent();
+    disposeToolTree(this.stand);
+    this.marker.removeFromParent();
+    disposeToolTree(this.marker);
+    disposeToolTree(this);
+  }
+
+  /**
+   * Hinstellen: der Ständer gehört ab jetzt dem Raum und nicht mehr dem
+   * Werkzeug — wer die Staffelei wieder einsteckt, nimmt ihr Blatt nicht mit.
+   */
+  private plant(host: ToolHost, point: THREE.Vector3): void {
+    if (this.stand.parent !== host.root) host.root.add(this.stand);
+    this.stand.position.copy(point);
+    // Das Blatt schaut den an, der sie hinstellt: eine Leinwand mit dem Rücken
+    // zum Maler ist eine Staffelei, die man erst einmal umdrehen muss.
+    host.ctx.rig.getHeadPosition(_head);
+    this.stand.rotation.set(0, Math.atan2(_head.x - point.x, _head.z - point.z), 0);
+    this.planted = true;
+    this.refreshShape();
+    host.notify('Staffelei steht · mit dem Pinsel darauf malen');
+  }
+
+  /**
+   * Was zu sehen ist: der ganze Ständer im Regal und dort, wo er steht — das
+   * Bündel überall sonst.
+   *
+   * Eine Kopie, die **nirgends hängt**, ist die des Regals (dasselbe Zeichen
+   * wie beim Hängegleiter): sie zeigt das Ding, um das es geht, und nicht
+   * seine Verpackung. Was in einer Hand liegt oder im Raum herumliegt, ist
+   * gepackt — eine Staffelei in Lebensgröße an der Hüfte wäre ein Bild, das
+   * man nicht wieder los wird.
+   */
+  private refreshShape(): void {
+    const shelf = !this.planted && !this.heldBy && this.parent === null;
+    this.stand.visible = this.planted || shelf;
+    this.pack.visible = !shelf;
+    if (this.gripPart) this.gripPart.visible = !shelf;
+  }
+
+  private blank(): void {
+    this.target = null;
+    this.marker.visible = false;
+  }
+}
+
+/** Ein Bein vom Fuß zum Kopf der Staffelei. */
+function leg(from: THREE.Vector3, to: THREE.Vector3, material: THREE.Material): THREE.Mesh {
+  const length = from.distanceTo(to);
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.045, length, 0.045), material);
+  mesh.position.copy(from).add(to).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+  return mesh;
+}

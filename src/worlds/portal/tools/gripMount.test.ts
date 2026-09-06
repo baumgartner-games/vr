@@ -17,6 +17,7 @@
 import { BrushTool } from './BrushTool';
 import { DroneTool } from './DroneTool';
 import { DuplicatorTool } from './DuplicatorTool';
+import { EaselTool } from './EaselTool';
 import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
@@ -67,6 +68,7 @@ const BUILDERS: Record<string, () => Tool> = {
   grip: () => new GripTool(),
   pistol: () => new PistolTool(),
   duplicator: () => new DuplicatorTool(),
+  easel: () => new EaselTool(),
   inspect: () => new InspectTool(),
   teleport: () => new TeleportTool(),
   gizmo: () => new TransformTool(),
