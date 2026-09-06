@@ -197,25 +197,45 @@ export const POLE_HAND_POSE: HandPose = {
 };
 
 /**
- * **Die Faust am Pinsel** — rechte Hand, links gespiegelt.
+ * **Die Hand am Pinsel** — rechte Hand, links gespiegelt. Und als einzige
+ * **keine Faust**.
  *
- * Derselbe Stab wie beim Hammer, aber **von oben** gehalten, wie ein Maler
- * seinen Pinsel hält (`BrushTool.ts`, `BRUSH_GRIP`): der Handrücken zeigt
- * nach oben, die Finger greifen von oben um den Stiel, der Daumen liegt zur
- * Spitze hin. Der Zeigefinger ist etwas weniger gekrümmt als die anderen — er
- * liegt am Stiel, statt sich ganz darum zu schließen. Mit der Hammerfaust sah
- * der Pinsel aus wie ein Hammer: Handfläche nach innen, Stiel quer in der
- * Faust.
+ * Ein Pinsel wird gehalten wie ein Stift: Daumen und Zeigefinger kneifen den
+ * Stiel kurz hinter der Zwinge, der Mittelfinger stützt ihn von unten, Ring-
+ * und kleiner Finger liegen eingerollt darunter, und der Stiel läuft nach
+ * hinten über die **Schwimmhaut zwischen Daumen und Zeigefinger** aus der Hand
+ * heraus. Das ist der Dreipunktgriff, und er ist etwas grundsätzlich anderes
+ * als alles andere in dieser Datei: eine Faust legt sich **quer** um einen
+ * Zylinder — die Handachse liegt auf der Zylinderachse, die Finger schließen
+ * sich senkrecht dazu —, ein Stift liegt **längs** in der Hand, und der
+ * Zeigefinger zeigt den Stiel entlang zur Spitze.
+ *
+ * Deshalb steht sie nicht als `fistOnGrip`-Rechnung da wie die anderen: die
+ * kann nur Fäuste. Sie ist trotzdem **gemessen und nicht geraten** — die sechs
+ * Zahlen sind das Ergebnis einer Ausgleichsrechnung über vier Berührungen
+ * (Daumenkuppe, Zeigefingerkuppe, Mittelgelenk des Mittelfingers,
+ * Schwimmhaut), die alle auf der Oberfläche des Stiels liegen sollen, plus der
+ * Bedingung, dass sie ihn dabei **umschließen** statt ihn von einer Seite zu
+ * berühren. `core/gripFist.test.ts` misst genau das nach, statt die Zahlen
+ * nachzurechnen: was zählt, ist, wo die Finger am gebauten Pinsel landen.
+ *
+ * Davor lag der Pinsel als **Stab von oben** in der ganzen Faust, wie ein
+ * Hammerstiel, den man umdreht. Das war schon besser als die Hammerfaust
+ * davor — aber es war weiter eine Faust, und in der Brille sah der Pinsel
+ * damit aus wie ein Werkzeug und nicht wie ein Stift. Der Unterschied ist
+ * genau der, um den es auf der Werkzeugseite geht: **echt** hält man ihn wie
+ * jedes andere Werkzeug (der Controller liegt in der Faust), **gezeichnet**
+ * wie einen Stift.
  */
 export const BRUSH_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
-  x: -3,
-  y: 1.1,
-  z: 0.7,
-  pitch: -30,
-  yaw: -90,
-  roll: 0,
-  curls: [0.55, 0.6, 0.85, 0.9, 0.9],
+  x: -2.6,
+  y: -1.6,
+  z: 6.8,
+  pitch: 31,
+  yaw: -52,
+  roll: 10,
+  curls: [0.35, 0.45, 0.55, 0.9, 1],
 };
 
 /**
@@ -528,11 +548,15 @@ export const POLE_FINGER_MOVES: FingerMoves = {
   trigger: [null, 1, null, null, null],
 };
 
-/** Am **Pinsel** liegt er am Stiel und schließt sich darum. */
+/**
+ * Am **Pinsel** drückt der Zeigefinger auf den Stiel, statt sich darum zu
+ * schließen: aus 0,45 wird 0,65 und keine Faust. Wer beim Malen den Finger
+ * ganz krümmt, hält keinen Stift mehr.
+ */
 export const BRUSH_FINGER_MOVES: FingerMoves = {
   grab: KEEP,
   release: RELEASED_CURLS,
-  trigger: [null, 0.9, null, null, null],
+  trigger: [null, 0.65, null, null, null],
 };
 
 /**

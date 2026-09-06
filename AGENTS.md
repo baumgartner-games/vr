@@ -125,12 +125,16 @@ darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
 Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
 entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
-den **Stab** (Hammer, Taschenlampe — eine Faust für zwei), denselben Stab
-**von oben am Pinsel**, den **Griff der Drohne**, die **Kante der Stoppuhr**, den **Saum des Beutels**,
+den **Stab** (Hammer, Taschenlampe — eine Faust für zwei),
+den **Griff der Drohne**, die **Kante der Stoppuhr**, den **Saum des Beutels**,
 die **Querstange des Hängegleiters** und den **Handgriff des Controllers** (aus dem
 Modell des Herstellers abgelesen: entlang der Z-Achse des Griffraums), an beiden
 Händen; dass Messer und Sektflaschenhals in derselben Faust liegen wie die
-Pistole, und dass Handschuhe die Grundhaltung tragen; dass die drei
+Pistole; dass die Hand am **Pinsel** gerade *keine* Faust ist, sondern ihn wie
+einen **Stift** kneift — vier Berührungen auf der Oberfläche des Stiels, rings
+um ihn herum, der Zeigefinger den Stiel entlang zur Spitze und die Handachse
+deutlich quer zur Stielachse, an beiden Händen —; dass Handschuhe die
+Grundhaltung tragen; dass die drei
 **Handschuhe auf dem Handrücken liegen** statt als Reifen um die Hand herum
 und die Manschette quer zum Unterarm steht; und
 die beiden Zahlen, wegen derer es diesen Test gibt: die alte gebaute Faust
@@ -395,11 +399,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     kann man in der Brille nicht lesen. Farbe und Material gehen über das Netz
     (ältere Mitspieler schicken nur die Farbe).
     Gehalten wird er am **Stiel**: der ist in Greiffarbe und liegt als Stab
-    auf dem Zeigestrahl wie der Stiel des Hammers — aber **von oben** gegriffen,
-    wie ein Maler seinen Pinsel hält (`BRUSH_GRIP`, `BRUSH_HAND_POSE`):
-    Handrücken oben, die Finger über dem Stiel, der Daumen zur Spitze hin. Mit
-    der Hammerfaust sah er aus wie ein Hammer. Kein sichtbarer Standardgriff
-    mehr darunter, und er zeigt trotzdem dorthin, wohin man zeigt.
+    auf dem Zeigestrahl wie der Stiel des Hammers — nur **wie ein Stift**
+    (`BRUSH_HAND_POSE`): Daumen und Zeigefinger kneifen ihn kurz hinter der
+    Zwinge, der Mittelfinger stützt von unten, Ring- und kleiner Finger liegen
+    eingerollt darunter, und der Stiel läuft nach hinten über die Schwimmhaut
+    aus der Hand. Er lag davor als Stab **von oben** in der ganzen Faust, wie
+    ein umgedrehter Hammerstiel — besser als die Hammerfaust davor, aber immer
+    noch eine Faust, und in der Brille sah der Pinsel damit nach Werkzeug aus
+    statt nach Stift. Kein sichtbarer Halterzylinder darunter, und er zeigt
+    trotzdem dorthin, wohin man zeigt.
   - **Pistole** mit Magazin (`x/∞` an der Seite). Unter
     _Einstellungen → Pistole_ steht jeder Wert einzeln: Stärke, Kugeltempo,
     Feuerrate, **Magazingröße**, Nachladezeit, Salvenlänge und Modus (Einzel,
@@ -2013,9 +2021,8 @@ Batterierohr der Taschenlampe, beide mit derselben
 das Messer lag eine Weile auch darauf und steht jetzt mit dem Standardgriff in
 der Faust.
 Der **Stiel des Pinsels** liegt auf demselben Stab mit derselben
-`holdPosition`, aber als `BRUSH_GRIP` in `BrushTool.ts` **von oben** gehalten,
-wie ein Maler: Handrücken oben, Finger über dem Stiel, Daumen zur Spitze
-(`BRUSH_HAND_POSE`) — mit der Hammerfaust sah der Pinsel aus wie ein Hammer.
+`holdPosition` — und ist als einziger **keine Faust**: er wird wie ein Stift
+gehalten (`BRUSH_HAND_POSE`, siehe unten).
 Der rechte Griff der Drohne als
 `DRONE_GRIP` in `DroneTool.ts` (mit einer Hand rutscht das Deck so weit, dass
 er im Griffpunkt sitzt). Die **Kante der Stoppuhr** als `STOPWATCH_GRIP`: ein
@@ -2039,8 +2046,28 @@ der Stange (`GLIDER_HAND_POSE`). Und der **Handgriff des Controllers** als
 `CONTROLLER_GRIP` in `core/controllerGrip.ts`, ohne Zielkorrektur, denn das
 Gerät liegt im Griffraum selbst: entlang z, Daumen zum Kopf, Handrücken außen,
 der Zeigefinger gestreckt zum Trigger — mit dem Trigger krümmt er sich darauf
-(`CONTROLLER_HAND_POSE`). Die Rahmen
-dieser Zylinder schreibt man nicht als Winkel hin, sondern als zwei
+(`CONTROLLER_HAND_POSE`).
+
+**Und eine Ausnahme, die die Regel bestätigt: der Pinsel.** Ein Stift ist keine
+Faust um einen Zylinder, und man bekommt ihn deshalb aus `fistOnGrip` auch
+nicht heraus — die Rechnung legt die **Handachse auf die Zylinderachse**, und
+damit stehen die Finger zwangsläufig senkrecht auf dem Stiel. Ein Stift liegt
+aber **längs** in der Hand: Daumen und Zeigefinger kneifen ihn, der
+Mittelfinger stützt ihn von unten, der Stiel läuft nach hinten über die
+Schwimmhaut zwischen Daumen und Zeigefinger aus der Hand, und der Zeigefinger
+zeigt den Stiel entlang zur Spitze. Die sechs Zahlen dazu sind trotzdem
+**gemessen und nicht geraten**: sie kommen aus einer Ausgleichsrechnung über
+vier Berührungen (Daumenkuppe, Zeigefingerkuppe, Mittelgelenk des
+Mittelfingers, Schwimmhaut), die alle auf der Oberfläche des Stiels liegen
+sollen, plus der Bedingung, dass sie ihn dabei _umschließen_ statt ihn von
+einer Seite zu berühren. Nachgemessen wird genau das (`core/gripFist.test.ts`,
+_die Hand am Pinsel_) — nicht die Rechnung nachgerechnet, sondern das
+Ergebnis: wo die Finger am gebauten Pinsel landen. Und der **Trigger** drückt
+den Zeigefinger dort auf den Stiel (0,45 → 0,65) statt eine Faust zu machen;
+wer beim Malen den Finger ganz krümmt, hält keinen Stift mehr.
+
+Die Rahmen
+der übrigen Zylinder schreibt man nicht als Winkel hin, sondern als zwei
 Richtungen — wohin die Achse zeigt, wohin der Handrücken —, `gripFrame`
 macht die Drehung daraus. Alle diese Fäuste sind ganz geschlossen, denn dort
 zeigt kein Finger etwas an, und sie stehen in `core/handPose.ts`

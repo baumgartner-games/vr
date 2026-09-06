@@ -29,6 +29,7 @@ import * as THREE from 'three';
 import { GhostHand } from './HandVisuals';
 import {
   BAG_HAND_POSE,
+  BRUSH_FINGER_MOVES,
   BRUSH_HAND_POSE,
   CONTROLLER_HAND_POSE,
   DRONE_HAND_POSE,
@@ -60,7 +61,7 @@ import { PistolTool } from '../worlds/portal/tools/PistolTool';
 import { WelderTool } from '../worlds/portal/tools/WelderTool';
 import { HammerTool } from '../worlds/portal/tools/HammerTool';
 import { FlashlightTool } from '../worlds/portal/tools/FlashlightTool';
-import { BRUSH_GRIP, BrushTool } from '../worlds/portal/tools/BrushTool';
+import { BrushTool } from '../worlds/portal/tools/BrushTool';
 import { KnifeTool } from '../worlds/portal/tools/KnifeTool';
 import { BAR_GRIP, HangGliderTool } from '../worlds/portal/tools/HangGliderTool';
 import { DRONE_GRIP, DroneTool } from '../worlds/portal/tools/DroneTool';
@@ -477,42 +478,132 @@ describe('die Faust am Stab', () => {
   });
 });
 
-describe('die Faust am Pinsel', () => {
-  it('steht in `handPose.ts` als das, was `fistOnGrip` um den Stiel von oben ausrechnet', () => {
-    const want = fistOnGrip(
-      { centre: fistCentre(BRUSH_HAND_POSE) },
-      ownGrip(new BrushTool(), BRUSH_GRIP),
-    );
-    expectPoseIs(BRUSH_HAND_POSE, want);
-    // Der Zeigefinger liegt am Stiel, statt sich ganz darum zu schließen.
-    expect(BRUSH_HAND_POSE.curls[1]).toBeLessThan(BRUSH_HAND_POSE.curls[2]!);
-  });
+describe('die Hand am Pinsel', () => {
+  /**
+   * Die vier Stellen, an denen eine Hand einen Stift berührt, im Raum der
+   * gebauten Hand: die beiden Kuppen, die kneifen, das Mittelgelenk des
+   * Mittelfingers, das von unten stützt, und die **Schwimmhaut** zwischen
+   * Daumen und Zeigefinger, über die der Stiel nach hinten ausläuft.
+   *
+   * Dazu, wohin der Zeigefinger dabei zeigt: am Stift den Stiel entlang zur
+   * Spitze — das ist der Unterschied zu jeder Faust, in der er quer darüber
+   * liegt.
+   */
+  function penContacts(side: 'left' | 'right', pose: HandPose) {
+    const ghost = new GhostHand(side, pose, { opacity: 1 });
+    ghost.update(1);
+    ghost.position.set(pose.x / 100, pose.y / 100, pose.z / 100);
+    ghost.quaternion.copy(rotationOf(pose));
+    ghost.updateMatrixWorld(true);
+    const hand = ghost.children[0]!;
+    const roots = hand.children.filter((child) => !(child as THREE.Mesh).isMesh);
+    const chain = (root: THREE.Object3D): THREE.Object3D[] => {
+      const out: THREE.Object3D[] = [];
+      let node: THREE.Object3D = root;
+      for (;;) {
+        out.push(node);
+        const next = node.children.find(
+          (child) => !(child as THREE.Mesh).isMesh && child !== ghost.indexTip,
+        );
+        if (!next) break;
+        node = next;
+      }
+      return out;
+    };
+    const at = (object: THREE.Object3D) => object.getWorldPosition(new THREE.Vector3());
+    const thumb = chain(roots[0]!);
+    const index = chain(roots[1]!);
+    const middle = chain(roots[2]!);
+    return {
+      // Halbmesser: der Knochen, der aufliegt, plus den des Stiels (1,6 cm).
+      touch: [
+        { name: 'Daumenkuppe', point: at(thumb[thumb.length - 1]!), radius: 0.016 + 0.017 },
+        { name: 'Zeigekuppe', point: at(ghost.indexTip), radius: 0.016 + 0.013 },
+        { name: 'Mittelgelenk', point: at(middle[2]!), radius: 0.016 + 0.013 },
+        {
+          name: 'Schwimmhaut',
+          point: at(index[0]!).add(at(thumb[0]!)).multiplyScalar(0.5),
+          radius: 0.016 + 0.015,
+        },
+      ],
+      finger: new THREE.Vector3(0, 0, -1).applyQuaternion(
+        ghost.indexTip.getWorldQuaternion(new THREE.Quaternion()),
+      ),
+      wrist: at(ghost),
+      back: new THREE.Vector3(0, 1, 0).applyQuaternion(rotationOf(pose)),
+      across: new THREE.Vector3(1, 0, 0).applyQuaternion(rotationOf(pose)),
+    };
+  }
 
   it.each(['right', 'left'] as const)(
-    'liegt von oben um den Stiel, Handrücken oben, Daumen zur Spitze: %s',
+    'kneift den Stiel wie einen Stift, statt ihn in die Faust zu nehmen: %s',
     (side) => {
       // Derselbe Stab wie beim Hammer — dieselbe `holdPosition`, derselbe
-      // Zeigestrahl —, nur die Hand liegt anders darum.
+      // Zeigestrahl —, nur hält die Hand ihn ganz anders.
       const tool = hold(new BrushTool(), side);
       expect(tool.alignToAim).toBe(true);
       expect(tool.holdPosition).toEqual(new HammerTool().holdPosition);
-      const pose = defaultHoldPose(side, 'brush');
-      const fist = fistOf(pose, fistCentre(BRUSH_HAND_POSE));
       const pole = poleOf(tool);
-      expectFistOn(fist, pole);
-      const rotation = rotationOf(pose);
-      const toolRotation = tool.getWorldQuaternion(new THREE.Quaternion());
-      // Der Handrücken zeigt nach oben (+y des Werkzeugs): die Hand greift
-      // von oben über den Stiel, wie ein Maler.
-      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(toolRotation);
-      const back = new THREE.Vector3(0, 1, 0).applyQuaternion(rotation);
-      expect(back.dot(up)).toBeGreaterThan(0.99);
-      // Und die Daumenseite zeigt zur Spitze (-z).
-      const mirror = side === 'left' ? -1 : 1;
-      const thumbSide = new THREE.Vector3(-mirror, 0, 0).applyQuaternion(rotation);
-      expect(thumbSide.dot(pole.axis)).toBeLessThan(-0.99);
+      const pose = defaultHoldPose(side, 'brush');
+      const hand = penContacts(side, pose);
+
+      // Alle vier Berührungen liegen auf der Oberfläche des Stiels — auf drei
+      // Millimeter, denn die sechs Zahlen stehen auf Zehntelzentimeter und
+      // ganze Grad gerundet im Code.
+      const spread = new THREE.Vector3();
+      for (const { name, point, radius } of hand.touch) {
+        const offset = point.clone().sub(pole.centre);
+        const along = offset.dot(pole.axis);
+        const radial = offset.clone().addScaledVector(pole.axis, -along);
+        expect({ name, gap: Math.round((radial.length() - radius) * 1000) }).toEqual({
+          name,
+          gap: expect.closeTo(0, -1),
+        });
+        // Und alle auf dem vorderen Stück des Stiels, nicht am Knauf.
+        expect(along).toBeLessThan(0.03);
+        expect(along).toBeGreaterThan(-0.055);
+        spread.addScaledVector(radial, 1 / radial.length());
+      }
+      // Sie **umschließen** ihn: vier Einheitsvektoren rings um die Achse
+      // heben sich weitgehend auf. Lägen alle auf derselben Seite, käme hier
+      // eine Vier heraus — dann berührte die Hand den Stiel, statt ihn zu
+      // halten.
+      expect(spread.length()).toBeLessThan(1.4);
+
+      // Der Zeigefinger zeigt den Stiel entlang **zur Spitze** (-z des
+      // Werkzeugs). In jeder Faust dieser Datei steht er senkrecht darauf; das
+      // ist der ganze Unterschied zwischen einem Stift und einem Hammer.
+      expect(hand.finger.dot(pole.axis)).toBeLessThan(-0.7);
+      // Und die Handachse liegt gerade **nicht** auf der Stielachse: eine
+      // Faust täte genau das.
+      expect(between(hand.across, pole.axis)).toBeGreaterThan(30);
+      // Der Handrücken bleibt oben — man malt nicht mit der Handfläche nach oben.
+      expect(
+        hand.back.dot(
+          new THREE.Vector3(0, 1, 0).applyQuaternion(
+            tool.getWorldQuaternion(new THREE.Quaternion()),
+          ),
+        ),
+      ).toBeGreaterThan(0.4);
+      // Die Handwurzel liegt hinter den Fingern am Stiel, nicht davor.
+      expect(hand.wrist.clone().sub(pole.centre).dot(pole.axis)).toBeGreaterThan(0.02);
     },
   );
+
+  it('lässt Ring- und kleinen Finger eingerollt und den Zeigefinger offen', () => {
+    // Ein Stift wird gekniffen, nicht umschlossen: die beiden hinteren Finger
+    // liegen in der Handfläche, die vorderen sind offen.
+    expect(BRUSH_HAND_POSE.curls[1]).toBeLessThan(BRUSH_HAND_POSE.curls[3]!);
+    expect(BRUSH_HAND_POSE.curls[2]).toBeLessThan(BRUSH_HAND_POSE.curls[3]!);
+    expect(BRUSH_HAND_POSE.curls[4]).toBeGreaterThanOrEqual(BRUSH_HAND_POSE.curls[3]!);
+    // Und der Trigger drückt den Finger auf den Stiel, statt eine Faust zu machen.
+    const pressed = buttonCurls(BRUSH_HAND_POSE, BRUSH_FINGER_MOVES, {
+      grab: true,
+      trigger: true,
+    });
+    expect(pressed[1]).toBeGreaterThan(BRUSH_HAND_POSE.curls[1]!);
+    expect(pressed[1]).toBeLessThan(0.8);
+  });
 });
 
 /** Die seitliche Kante der Uhr: die y-Achse des gehaltenen Werkzeugs durch seinen Ursprung. */
