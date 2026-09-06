@@ -25,6 +25,7 @@ import {
 import {
   AMMO_KINDS,
   AMMO_LABELS,
+  BrainTool,
   COLOR_BLUE,
   COLOR_RED,
   DroneTool,
@@ -135,8 +136,13 @@ import {
 } from '../../core/handLook';
 import { GhostHand } from '../../core/HandVisuals';
 import { TextPlane } from '../../ui/TextPlane';
-import { playPick, playPop } from '../../core/Audio';
+import { playPick, playPop, playTone } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
+import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
+import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
+import { BRAINS, brainLabel } from '../npc/npcBrains';
+import { npcSettings, saveNpcSettings } from './tools/gearStore';
+import { withBrain, withKind } from '../npc/npcSettings';
 import { LANDING_CLEARANCE, needsRescue, rescueHeight } from '../shared/fallRescue';
 import {
   EARTH_GRAVITY,
@@ -701,6 +707,14 @@ export class PortalWorld implements World {
    */
   protected roof: number | null = null;
   protected physics: PhysicsWorld | null = null;
+  /**
+   * **Wer hier herumläuft** (`worlds/npc/NpcDirector.ts`).
+   *
+   * Er hängt an der Welt und nicht am Werkzeug: ein Zombie bleibt stehen, wenn
+   * man das Hirn weglegt, und der Käfig legt weiter nach. Das Werkzeug ist die
+   * Bedienung, nicht der Besitzer.
+   */
+  protected director: NpcDirector | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -749,6 +763,13 @@ export class PortalWorld implements World {
     this.unsubscribeGrab = onGrabChange(() => this.applyGrabSettings(grabSettings()));
     this.hasPreviousHead = false;
 
+    this.director = new NpcDirector({
+      root: this.root,
+      physics: this.physics,
+      playerAt: (target) => this.playerFeet(target),
+      strikePlayer: (direction, strength) => this.takeHit(direction, strength),
+      notify: (message) => this.context?.notify(message),
+    });
     this.host = this.buildHost(ctx);
     this.keys = new KeyPanel();
     this.root.add(this.keys);
@@ -788,6 +809,9 @@ export class PortalWorld implements World {
     // soll in demselben Schritt schweben und nicht erst im nächsten fallen.
     this.updateFloatZone();
     this.updateBullets(dt);
+    // Vor dem Schritt: was das Hirn in dieser Frame will, soll in *dieser*
+    // Frame gelaufen werden und nicht in der nächsten.
+    this.director?.update(dt * this.timeScale);
     // The stopwatch slows the simulation, not the frame rate: everything the
     // player does with their hands stays as responsive as ever. Bei
     // angehaltener Zeit rechnet stattdessen die Stoppuhr die Schritte ab, die
@@ -845,6 +869,7 @@ export class PortalWorld implements World {
           run: (hand: Handedness | null) => this.spawnProp(ctx(), hand, kind),
         })),
       },
+      this.npcMenu(),
       {
         id: 'settings',
         label: 'Einstellungen',
@@ -883,6 +908,151 @@ export class PortalWorld implements World {
         run: () => this.resetWorld(ctx()),
       },
     ];
+  }
+
+  /**
+   * **NPC** — die dritte Kategorie neben Werkzeugen und Beutel.
+   *
+   * Sie ist keine Werkzeugkiste und kein Beutel: was hier herauskommt, läuft
+   * von selbst weiter. Und sie ist in **zwei Hälften** geteilt, weil ein NPC
+   * aus zweien besteht — die **Haut** sagt, wie er aussieht
+   * (`worlds/npc/npcKinds.ts`), das **Hirn**, was er tut
+   * (`worlds/npc/npcBrains.ts`). Wer hier einen Zombie setzt, setzt eine Haut
+   * mit dem Hirn, das gerade eingestellt ist; wer beides in Ruhe aussuchen
+   * will, nimmt das **Hirn-Werkzeug** in die Hand, das dieselben Zahlen
+   * bedient (`tools/BrainTool.ts`). Zwei Bedienungen, ein Speicher — wie beim
+   * Beutel, den es als Rasterseite *und* als Werkzeug gibt.
+   */
+  private npcMenu(): MenuEntry {
+    const ctx = (): WorldContext => this.context!;
+    const brainRow: MenuEntry = {
+      id: 'npc:brain',
+      label: `Hirn: ${brainLabel(npcSettings().brain)}`,
+      sub: 'Gilt für alles, was hier gesetzt wird',
+      icon: 'brain',
+      accent: 0xe58aa8,
+      children: BRAINS.map((brain) => ({
+        id: `npc:brain:${brain.id}`,
+        label: brain.label,
+        sub: brain.sub,
+        icon: brain.icon,
+        accent: brain.accent,
+        run: () => {
+          saveNpcSettings(withBrain(npcSettings(), brain.id));
+          this.refreshMenuLabels();
+          ctx().notify(`Hirn: ${brain.label}`);
+        },
+      })),
+    };
+    this.menuLabels.push(() => {
+      brainRow.label = `Hirn: ${brainLabel(npcSettings().brain)}`;
+    });
+
+    return {
+      id: 'npc',
+      label: 'NPC',
+      sub: 'Haut und Hirn — wer hier herumläuft',
+      icon: 'npc',
+      accent: 0x7fbf5a,
+      children: [
+        ...NPC_SKINS.map((skin) => ({
+          id: `npc:place:${skin.id}`,
+          label: `${skin.label} setzen`,
+          sub: skin.sub,
+          icon: skin.icon,
+          accent: skin.accent,
+          run: () => this.placeNpc(ctx(), skin.id),
+        })),
+        brainRow,
+        {
+          id: 'npc:spawn',
+          label: 'Am Spawnpunkt setzen',
+          sub: 'Würfelt einen der gesetzten Punkte aus',
+          icon: 'npc',
+          accent: 0x5ee0a0,
+          run: () => {
+            const settings = npcSettings();
+            const placed = this.director?.placeAtSpawn({
+              kind: settings.kind,
+              brain: settings.brain,
+              speed: settings.speed,
+              health: settings.health,
+            });
+            ctx().notify(placed ? npcSkin(settings.kind).label : 'Kein Spawnpunkt da');
+          },
+        },
+        {
+          id: 'npc:point',
+          label: 'Spawnpunkt hier',
+          sub: 'Setzt einen dorthin, wo du stehst',
+          icon: 'teleport',
+          accent: 0x5ee0a0,
+          run: () => {
+            const at = this.playerFeet(_point);
+            if (!at || !this.director) return;
+            ctx().notify(`Spawnpunkt ${this.director.addPoint(at)}`);
+          },
+        },
+        {
+          id: 'npc:cage',
+          label: 'Brutkäfig hier',
+          sub: 'Legt von selbst nach, solange du in der Nähe bist',
+          icon: 'spawn',
+          accent: 0xffc857,
+          run: () => {
+            const at = this.playerFeet(_point);
+            if (!at || !this.director) return;
+            const settings = npcSettings();
+            // Nicht auf die eigenen Füße: ein Käfig ist ein fester Körper, und
+            // wer in einem steht, steckt fest.
+            ctx().rig.getHeadForward(_direction);
+            at.addScaledVector(_direction, 1.6);
+            const count = this.director.addCage({
+              kind: settings.kind,
+              brain: settings.brain,
+              at,
+              speed: settings.speed,
+              health: settings.health,
+              interval: settings.interval,
+              max: settings.max,
+            });
+            ctx().notify(`Brutkäfig ${count} · ${npcSkin(settings.kind).label}`);
+          },
+        },
+        {
+          id: 'npc:clear',
+          label: 'Alles wegräumen',
+          sub: 'NPCs, Käfige und Spawnpunkte',
+          icon: 'reset',
+          accent: COLOR_RED,
+          run: () => {
+            const count = this.director?.clear() ?? 0;
+            ctx().notify(count ? `${count} weggeräumt` : 'Da war nichts');
+          },
+        },
+      ],
+    };
+  }
+
+  /**
+   * Einer aus dem Menü: er entsteht ein paar Schritte vor dem Spieler und
+   * schaut ihn an. Die Haut kommt aus der Zeile, das Hirn und die Zahlen aus
+   * derselben Einstellung, die auch das Hirn-Werkzeug bedient.
+   */
+  private placeNpc(ctx: WorldContext, kind: NpcKind): void {
+    const at = this.playerFeet(_point);
+    if (!at || !this.director) return;
+    ctx.rig.getHeadForward(_direction);
+    at.addScaledVector(_direction, 2.4);
+    const settings = saveNpcSettings(withKind(npcSettings(), kind));
+    const placed = this.director.place({
+      kind,
+      brain: settings.brain,
+      at,
+      speed: settings.speed,
+      health: settings.health,
+    });
+    if (placed) ctx.notify(`${npcSkin(kind).label} · ${brainLabel(settings.brain)}`);
   }
 
   /**
@@ -2241,6 +2411,8 @@ export class PortalWorld implements World {
     this.pendingSteps = 0;
     this.horizonFloor = null;
     this.hasLastGround = false;
+    this.director?.dispose();
+    this.director = null;
     this.sync?.dispose();
     this.sync = null;
     this.clearRemotePlayers(ctx);
@@ -2260,7 +2432,7 @@ export class PortalWorld implements World {
     for (const loose of [...this.loose.values()]) this.retireLoose(loose);
     this.loose.clear();
     for (const tool of this.liveTools) {
-      if (tool instanceof DroneTool || tool instanceof StopwatchTool) {
+      if (tool instanceof DroneTool || tool instanceof StopwatchTool || tool instanceof BrainTool) {
         tool.forgetPointer(ctx.pointer);
       }
       tool.removeFromParent();
@@ -3962,6 +4134,7 @@ export class PortalWorld implements World {
       parkTool: (tool) => this.parkTool(tool),
       unparkTool: (tool) => this.unparkTool(tool),
       stowTool: (tool) => this.stowTool(tool),
+      npcs: (): NpcControl | null => this.director,
       takeTool: (tool, hand) => {
         const now = this.context;
         const controller = now?.input.get(hand);
@@ -4221,6 +4394,48 @@ export class PortalWorld implements World {
     this.hasPreviousHead = false;
   }
 
+  /**
+   * Wo der Spieler **steht** — nicht, wo er hinsieht.
+   *
+   * Der Unterschied ist die Drohne: wer mit ihr unterwegs ist, hat seine Sicht
+   * verliehen, und `rig` steht dann dort draußen bei der Maschine. Sein Körper
+   * ist aber hiergeblieben (`bodyHome`, `setViewOverride`), und ein Zombie
+   * läuft zu dem Körper, den er sehen kann, und nicht zu einer Kamera in der
+   * Luft.
+   */
+  private playerFeet(target: THREE.Vector3): THREE.Vector3 | null {
+    const ctx = this.context;
+    if (!ctx) return null;
+    if (this.viewOverride) return target.copy(this.bodyHome);
+    ctx.rig.getHeadPosition(target);
+    target.y = ctx.rig.getFloorY();
+    return target;
+  }
+
+  /**
+   * **Ein Schlag hat gesessen.**
+   *
+   * Der Spieler hat keine Lebenspunkte — es gibt in dieser Welt nichts, was
+   * sie zählen würde —, und ein Treffer, den man nicht *spürt*, ist trotzdem
+   * keiner. Also tut er das, was in einem Raum ohne Punktestand übrig bleibt
+   * und in der Brille am deutlichsten ankommt: er **schiebt**. Dazu ein Rütteln
+   * in beiden Händen und ein tiefer Ton. Wer eine Lebensanzeige will, hängt sie
+   * hier an — die Stelle ist genau eine.
+   */
+  private takeHit(direction: THREE.Vector3, strength: number): void {
+    const locomotion = this.locomotion;
+    if (locomotion) {
+      locomotion.velocity.copy(direction).normalize().multiplyScalar(strength);
+      // Geschoben wird nur, wer nicht am Boden klebt: eine stehende Kapsel
+      // bekommt ihre Waagerechte jedes Bild vom Stick zurückgeschrieben.
+      locomotion.grounded = false;
+    }
+    const ctx = this.context;
+    for (const side of ['left', 'right'] as const) ctx?.input.get(side)?.pulse(0.9, 90);
+    ctx?.notify('Treffer!');
+    playTone({ type: 'sawtooth', from: 260, to: 90, duration: 0.16, gain: 0.06 });
+  }
+
   // --- bullets ------------------------------------------------------------
 
   /**
@@ -4344,13 +4559,17 @@ export class PortalWorld implements World {
   }
 
   /**
-   * One round's path since the last frame. The lab does not care where its
-   * bullets go; the shooting range counts them, so it overrides this.
+   * One round's path since the last frame — es fragt, wen es unterwegs
+   * getroffen hat.
+   *
+   * Hier ist das, wer herumläuft (`worlds/npc/NpcDirector.shoot`); der
+   * Schießstand zählt zuerst seine Scheiben und reicht danach hierher
+   * weiter, damit ein Zombie in der Halle auch dort getroffen wird.
    *
    * @returns true when the round was used up by whatever it ran into
    */
-  protected bulletTravelled(_from: THREE.Vector3, _to: THREE.Vector3): boolean {
-    return false;
+  protected bulletTravelled(from: THREE.Vector3, to: THREE.Vector3): boolean {
+    return this.director?.shoot(from, to) ?? false;
   }
 
   private clearBullets(): void {
@@ -5815,6 +6034,10 @@ export class PortalWorld implements World {
       if (hip && this.belt) this.refillSlot(this.belt.slot(hip));
     }
     for (const entry of this.props) this.respawn(entry);
+    // Was herumläuft, gehört zum Aufgeräumten dazu: „zurücksetzen" heißt auch
+    // „und keine Zombies mehr". Sie stehen nur hier — über das Netz geht davon
+    // nichts, also räumt jede Seite ihre eigenen weg.
+    this.director?.clear();
     this.worldReset();
   }
 

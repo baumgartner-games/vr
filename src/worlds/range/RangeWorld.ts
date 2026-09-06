@@ -228,7 +228,10 @@ export class RangeWorld extends PortalWorld {
       this.score(points, target.distance);
       return true;
     }
-    return false;
+    // Und was hier nicht zählt, zählt vielleicht die Halle: dort laufen die
+    // NPCs herum, und eine Kugel, die keine Scheibe trifft, kann einen von
+    // ihnen treffen.
+    return super.bulletTravelled(from, to);
   }
 
   /**

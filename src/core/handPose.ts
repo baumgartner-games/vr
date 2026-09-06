@@ -594,6 +594,8 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   'welder',
   // Das Messer: der Griff steht in der Faust, die Klinge ragt oben heraus.
   'knife',
+  // Das Hirn sitzt auf demselben Zylinder wie die Pistole — ein Hirn am Stiel.
+  'brain',
 ]);
 
 /**
