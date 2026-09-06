@@ -796,10 +796,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     der Hand geht er auf, und in der Öffnung liegt ein **Raster** aus
     Miniaturen — jede das Ding selbst, mit `createPropShape` gebaut und auf
     Fachgröße gerechnet, keine Strichzeichnung. Die freie Hand fährt hinein:
-    das Fach unter der Fingerspitze leuchtet, ein Stups meldet es, über dem
-    Beutel steht der Name, und **Greifen** holt das Ding in Originalgröße
+    das Fach unter der Fingerspitze leuchtet, ein Stups meldet es, am Saum
+    steht der Name, und **Greifen** holt das Ding in Originalgröße
     genau dorthin, wo die Hand ist — bei allen in der Sitzung
     (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü).
+    Das **Schild** steht dabei auf dem Saum, auf der dem Kopf abgewandten
+    Seite (`placeLabel`): aus der Sicht des Lesenden ist das der **obere Rand
+    der Öffnung**, also hinter dem Raster statt darüber — man liest, was drin
+    ist, und sieht dabei weiter hinein. Eine Runde lang hing es zwei Handbreit
+    senkrecht über der Mitte und stand damit genau in dem Blick, mit dem man in
+    den Beutel schaut. Gerechnet wird die Seite waagerecht im Raum des Beutels,
+    damit das Schild auch am Saum bleibt, wenn die Hand ihn dreht oder kippt;
+    steht der Kopf senkrecht darüber, bleibt es vorn, weg von der haltenden
+    Hand.
     Zwei Dinge daran sind Absicht. Er **zielt nicht** (`alignToAim = false`) —
     er sitzt in der Faust wie ein Handschuh und nicht auf dem Zeigestrahl wie
     eine Waffe —, und sonst bewegt er sich wie **jedes andere Werkzeug**: er
@@ -1341,7 +1350,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Weitergeben                        | mit der freien Hand danach greifen                                                                                                                                    | –                                                                                               | –                    |
 | Anfassen                           | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist                                                                                                            | –                                                                                               | –                    |
 | Nahgreifen                         | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo)                                                                                 | –                                                                                               | –                    |
-| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 8 m/s)                                                                              | –                                                                                               | –                    |
+| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 1,25 m/s — _mittel_)                                                                              | –                                                                                               | –                    |
 | Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
@@ -1591,7 +1600,7 @@ Schritten. Was getroffen ist, leuchtet auf. Mit **Grip** rastet es ein: Es
 bleibt markiert, auch wenn die Hand woanders hinzeigt, und ein dünner Strahl
 zwischen Hand und Gegenstand sagt, dass jetzt gezogen werden kann. **Zuckst du
 die Hand danach zum Körper** — schneller als das eingestellte _Zugtempo_,
-ab Werk 8 m/s —, kommt der Gegenstand geflogen und landet in der Hand.
+ab Werk 1,25 m/s —, kommt der Gegenstand geflogen und landet in der Hand.
 
 Dasselbe Zucken holt auch einen **nah gefassten** Gegenstand doch noch
 her — eine Geste, drei Entfernungen. Im Nahbereich hat man damit die Wahl:
@@ -1615,9 +1624,32 @@ durch ihn hindurch.
 Das **Zugtempo** steht im Menü unter _Einstellungen → Greifen_ und ist eine
 Zahl wie jede andere dort (`core/grabSettings.ts`, `pull`, in Zentimetern je
 Sekunde gespeichert und in Metern je Sekunde gelesen). Die Zeile schaltet
-0 → 4 → 8 → 12 m/s durch, _Werte eingeben_ nimmt jede Zahl dazwischen, und
+**fünf benannte Tempi** durch, je 25 cm/s auseinander (`PULL_STEPS`):
+
+| sehr langsam | langsam | **mittel (ab Werk)** | schnell | sehr schnell |
+| ------------ | ------- | -------------------- | ------- | ------------ |
+| 0,75 m/s     | 1,0 m/s | **1,25 m/s**         | 1,5 m/s | 1,75 m/s     |
+
+Der Name steht in der Zeile hinter der Zahl — „1,25 m/s · mittel" —, denn
+zwischen zwei Rasten liegen 25 cm/s, und „schnell" sagt mehr als der Abstand
+zur vorigen Zahl. Gelesen wird mit **zwei Nachkommastellen**, weil eine sie
+verfälschte: 125 cm/s las sich gerundet als „1,3 m/s", und die nächste Raste
+danach ebenfalls als „1,5".
+
+Vorher lagen die Rasten bei 0 → 4 → 8 → 12 m/s, ab Werk auf 8 — und das ist
+ein Schlag und kein Zucken: Wer den Arm zum Körper zieht, kommt selten über
+anderthalb Meter je Sekunde, und so ging das Ferngreifen bei den meisten
+schlicht nie los. Weil das Menü die ganze Seite speichert, sobald irgendetwas
+darauf verstellt wird, stünden die alten 800 cm/s bei fast allen im Speicher
+und die neue Vorgabe käme nie an — **genau dieser eine Wert wird beim Lesen
+auf 125 gezogen** (`LEGACY_PULL`). Der Preis dafür: Eine von Hand getippte 800
+wird ebenso gezogen; 790 und 810 bleiben stehen.
+
+_Werte eingeben_ nimmt weiterhin jede Zahl von 0 bis 2000 cm/s, und
 **0 heißt „ohne Zucken"**: dann kommt der Gegenstand, sobald der Grip sitzt —
-das alte Verhalten für alle, denen die Geste im Weg ist.
+das alte Verhalten für alle, denen die Geste im Weg ist. Die Null steht nur
+nicht mehr im Ring der Zeile: Sie ist eine Betriebsart und keine
+Geschwindigkeit.
 
 **Die Geisterhand** steht dort, wo die echte anfassen würde: am Trefferpunkt
 des Strahls, mit der Drehung der echten Hand, halbtransparent und türkis. Sie
