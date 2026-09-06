@@ -152,6 +152,7 @@ import {
   type NavLayerState,
 } from '../nav/navLayers';
 import type { LivePreview, PreviewButton } from '../shared/livePreview';
+import { PreviewWalk } from '../shared/previewWalk';
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
@@ -775,6 +776,19 @@ export class PortalWorld implements World {
    * Hirne, die Wegsuche und die Spawnpunkte ist das der Spieler.
    */
   private ghost: THREE.Group | null = null;
+  /**
+   * **Ob die Attrappe gerade in der Welt steht.**
+   *
+   * Weggeschaltet ist sie nicht bloß unsichtbar, sondern *weg*: `playerFeet()`
+   * gibt dann `null` zurück, und für die Hirne, die Wegsuche und die
+   * Spawnpunkte ist damit **niemand** da. Das ist der Unterschied zwischen
+   * „ich sehe meine Figur nicht" und „ich stehe nicht in dieser Welt" — und
+   * gemeint ist das zweite: Wer eine Karte von oben ansehen will, will nicht,
+   * dass sechs Zombies dabei auf ihn zulaufen.
+   */
+  private ghostHere = true;
+  /** Und was sie tut, wenn man sie **gehen** lässt (`shared/previewWalk.ts`). */
+  private ghostWalk: PreviewWalk | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -2905,6 +2919,8 @@ export class PortalWorld implements World {
     ghost.position.copy(this.spawnPoint());
     this.root.add(ghost);
     this.ghost = ghost;
+    this.ghostHere = true;
+    this.ghostWalk = new PreviewWalk();
 
     // **Kacheln und Wege an.** Im Spiel ist das aus, weil man dort spielt; wer
     // eine Welt von oben aufmacht, um das Gitter anzusehen, hat es genau
@@ -2915,7 +2931,16 @@ export class PortalWorld implements World {
       buttons: this.previewButtons(),
       step: (dt) => this.stepPreview(dt),
       target: ghost,
-      moveTarget: (at) => ghost.position.copy(at),
+      moveTarget: (at) => {
+        // Versetzen heißt auch: aufhören zu gehen. Wer eine Figur woanders
+        // hinstellt, während sie unterwegs ist, sähe sie sonst sofort wieder
+        // zurücklaufen.
+        this.ghostWalk?.stop();
+        ghost.position.copy(at);
+      },
+      walkTarget: (at) => this.ghostWalk?.to(at),
+      here: () => this.ghostHere,
+      setHere: (on) => this.showPreviewPlayer(on),
       layers: () => this.navLayerState(),
       setLayer: (layer, on) => {
         this.setNavLayer(layer, on);
@@ -2937,6 +2962,7 @@ export class PortalWorld implements World {
         this.director?.dispose();
         this.director = null;
         this.ghost = null;
+        this.ghostWalk = null;
         for (const tool of this.liveTools) tool.disposeTool();
         this.liveTools.clear();
         disposeTree(this.root);
@@ -2955,10 +2981,80 @@ export class PortalWorld implements World {
    */
   private stepPreview(dt: number): void {
     this.simulate(dt);
+    // **Vor den Hirnen**: Wer in diesem Bild einen Schritt geht, soll auch in
+    // diesem Bild der sein, dem sie nachlaufen — sonst hinken sie um ein Bild
+    // hinterher, und bei sechzig Bildern in der Sekunde ist das ein halber
+    // Meter Abstand, den niemand erklären kann.
+    this.walkPreviewPlayer(dt);
     this.director?.update(dt);
     this.physics?.step(dt);
     this.physics?.sync();
     this.updateNavTracks(dt);
+  }
+
+  /**
+   * Ein Bild des Gehe-zu-Modus (`shared/previewWalk.ts`).
+   *
+   * Eine weggeschaltete Figur geht nicht: Sie steht nicht in der Welt, und
+   * etwas, das nicht da ist, läuft auch nicht herum.
+   */
+  private walkPreviewPlayer(dt: number): void {
+    const walk = this.ghostWalk;
+    const ghost = this.ghost;
+    if (!walk || !ghost || !walk.going) return;
+    if (!this.ghostHere) {
+      walk.stop();
+      return;
+    }
+    const step = walk.step(this.nav, ghost.position, dt);
+    ghost.position.set(step.at.x, step.at.y, step.at.z);
+    // Kein Weg dorthin — und das gesagt, nicht verschwiegen: Eine Figur, die
+    // ohne Grund stehen bleibt, sieht kaputt aus; eine, die sagt, dass sie
+    // nicht hinkommt, hat gerade etwas über diese Welt erzählt.
+    if (step.stuck) {
+      walk.stop();
+      this.announce('Da komme ich nicht hin');
+    }
+  }
+
+  /**
+   * **Die Figur hinstellen oder wegnehmen** — der Schalter hinter
+   * `LivePreview.setHere`.
+   *
+   * Sie verschwindet nicht nur aus dem Bild, sie ist weg: `playerFeet()` gibt
+   * danach `null` zurück, und damit haben die Hirne niemanden mehr
+   * (`ghostHere`).
+   */
+  private showPreviewPlayer(on: boolean): void {
+    if (this.ghostHere === on) return;
+    this.ghostHere = on;
+    if (this.ghost) this.ghost.visible = on;
+    if (!on) this.ghostWalk?.stop();
+    this.announce(on ? 'Du stehst wieder in der Welt' : 'Du bist weg — sie bleiben stehen');
+  }
+
+  /**
+   * **Die Figur an eine Stelle stellen, von der aus ein Szenario etwas zeigt.**
+   *
+   * Eine Welt, die eine Behauptung aufstellt, braucht dafür jemanden, dem die
+   * NPCs nachlaufen — und der muss **nah genug** stehen: Ein Zombie bemerkt
+   * einen Spieler auf 22 Meter (`npc/npcBrains.ts`), und eine Bucht am Rand
+   * eines 75 Meter breiten Labors liegt weiter weg als das. Wer das übersieht,
+   * hat sechs Knöpfe, von denen fünf nichts tun.
+   *
+   * `false`, wenn es keine Vorschau gibt: In der Brille steht ein echter
+   * Spieler, und den stellt niemand um.
+   */
+  protected placePreviewPlayer(at: THREE.Vector3): boolean {
+    const ghost = this.ghost;
+    if (!ghost) return false;
+    this.ghostWalk?.stop();
+    ghost.position.copy(at);
+    // Und sie kommt zurück, wenn sie weggeschaltet war: Ein Szenario ohne
+    // jemanden, dem die NPCs nachlaufen, wäre ein Knopf ohne Wirkung.
+    this.ghostHere = true;
+    ghost.visible = true;
+    return true;
   }
 
   /**
@@ -4957,8 +5053,9 @@ export class PortalWorld implements World {
   private playerFeet(target: THREE.Vector3): THREE.Vector3 | null {
     const ctx = this.context;
     // Kein Spieler, aber eine Attrappe: die laufende Vorschau der
-    // Werkzeugseite. Für alles, was den Spieler sucht, *ist* sie er.
-    if (!ctx) return this.ghost ? target.copy(this.ghost.position) : null;
+    // Werkzeugseite. Für alles, was den Spieler sucht, *ist* sie er — und wenn
+    // sie weggeschaltet ist, steht eben niemand da (`ghostHere`).
+    if (!ctx) return this.ghost && this.ghostHere ? target.copy(this.ghost.position) : null;
     if (this.viewOverride) return target.copy(this.bodyHome);
     ctx.rig.getHeadPosition(target);
     target.y = ctx.rig.getFloorY();

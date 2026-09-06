@@ -313,6 +313,8 @@ const _frame = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 /** Die Stelle im Bild, an der getippt wurde, in Bildkoordinaten von −1 bis 1. */
 const _ndc = new THREE.Vector2();
+/** Wo der Zeiger gerade steht, in Bildpunkten — für das Zoomen am Rad. */
+const _pointer = new THREE.Vector2();
 /** Die Lage eines Meshes in dem Raum, in dem gerade gemessen wird. */
 const _measured = new THREE.Matrix4();
 const _identity = new THREE.Matrix4();
@@ -491,6 +493,22 @@ export class ToolViewer {
   private yaw = 0.6;
   private pitch = 0.35;
   private spinning = true;
+  /**
+   * **Wohin das Bild geschoben ist**, in Metern der Bühne — quer und hoch.
+   *
+   * Nicht die Bühne wandert, sondern die **Kamera**: Sie sitzt sonst auf
+   * (0, 0, Abstand) und schaut geradeaus, und ein Versatz dort schiebt genau
+   * den Ausschnitt, ohne am Gezeigten etwas zu drehen. Verschöbe man die
+   * Bühne, wanderte der Drehpunkt mit — dieselbe Drehung sähe danach anders
+   * aus, und ein Tipp träfe daneben (`fit` rechnet mit der Mitte).
+   *
+   * Der Grund dafür ist die Draufsicht: Ein Grundriss, der ganz ins Bild
+   * passt, ist eine Übersicht; wer eine Ecke davon **groß** sehen will,
+   * zoomt heran und braucht dann einen Weg, dorthin zu kommen. Zwei Finger
+   * schieben, wie auf jeder Karte.
+   */
+  private panX = 0;
+  private panY = 0;
 
   /**
    * Die **freie Kamera**, oder `null` für die Ansicht von außen.
@@ -505,6 +523,8 @@ export class ToolViewer {
 
   private readonly pointers = new Map<number, THREE.Vector2>();
   private pinch = 0;
+  /** Wo die Mitte zwischen zwei Fingern zuletzt lag — daran hängt das Schieben. */
+  private pinchAt: THREE.Vector2 | null = null;
   private lastTap = 0;
   /** Ob der letzte Zeiger allein herunterging — ein Zangengriff ist kein Tipp. */
   private lastAlone = false;
@@ -1362,6 +1382,9 @@ export class ToolViewer {
    * dem Bild.
    */
   private fit(): void {
+    // Neu eingepasst heißt mittig: Was einmal ganz ins Bild gerechnet wurde,
+    // soll nicht am Rand kleben, weil vorher jemand geschoben hat.
+    this.centre();
     this.stage.position.set(0, 0, 0);
     this.stage.updateWorldMatrix(true, true);
     const roots = this.tool ? (this.target ? [this.tool, this.target] : [this.tool]) : [this.stage];
@@ -1610,7 +1633,9 @@ export class ToolViewer {
     } else {
       const fitted = this.distance(this.camera.aspect);
       const away = fitted * this.zoom;
-      this.camera.position.set(0, 0, away);
+      // Quer und hoch versetzt, wenn jemand geschoben hat (`panBy`): Die
+      // Kamera schaut weiter geradeaus, nur eben neben die Mitte.
+      this.camera.position.set(this.panX, this.panY, away);
       this.camera.quaternion.identity();
       this.camera.near = Math.max(0.005, away * 0.02);
       this.camera.far = fitted * 12 + away;
@@ -1627,7 +1652,10 @@ export class ToolViewer {
     // Der erste Griff beendet das Kreisen: ab jetzt gehört die Drehung dem, der
     // sie in der Hand hat.
     this.spinning = false;
-    if (this.pointers.size === 2) this.pinch = this.spread();
+    if (this.pointers.size === 2) {
+      this.pinch = this.spread();
+      this.pinchAt = this.middle();
+    }
     // Ein **Doppeltipp** sind zwei Tipps mit *einem* Finger. Der zweite Finger
     // eines Zangengriffs kommt genauso schnell hinterher wie ein zweiter Tipp —
     // und stellte damit jedes Mal die Ansicht zurück, kaum dass man zu zoomen
@@ -1658,16 +1686,29 @@ export class ToolViewer {
     this.tapMoved += Math.hypot(dx, dy);
 
     if (this.pointers.size >= 2) {
-      // Zwei Finger zoomen, und zwar nur das: gleichzeitig zu drehen macht aus
-      // jedem Zoom eine kleine Drehung, die niemand wollte. Im Flug gibt es
-      // nichts zu zoomen — dort schieben sie nach vorn und zurück.
+      // Zwei Finger **zoomen und schieben**, und zwar nur das: gleichzeitig zu
+      // drehen macht aus jedem Zoom eine kleine Drehung, die niemand wollte.
+      // Beides zusammen ist der Griff, den jede Karte hat — heranholen und
+      // dabei dorthin fahren, wo man hinsieht. Im Flug gibt es nichts zu
+      // zoomen: dort schieben die beiden nach vorn und zurück.
       const spread = this.spread();
-      if (this.pinch > 0 && spread > 0) {
-        if (this.fly)
+      const middle = this.middle();
+      if (this.fly) {
+        if (this.pinch > 0 && spread > 0) {
           this.fly = flyDolly(this.fly, (spread / this.pinch - 1) * this.flySpeed * 0.6);
-        else this.setZoom(this.zoom * (this.pinch / spread));
+        }
+      } else {
+        // Erst der Zoom — um den Punkt **zwischen den Fingern** herum, nicht um
+        // die Bildmitte: Wer eine Ecke der Karte aufzieht, will diese Ecke
+        // größer sehen und nicht die Mitte.
+        if (this.pinch > 0 && spread > 0) this.zoomAt(this.zoom * (this.pinch / spread), middle);
+        // Und dann das Schieben, um so viel, wie die Mitte selbst gewandert
+        // ist. In dieser Reihenfolge, weil das Schieben in Metern rechnet und
+        // die erst nach dem Zoom feststehen.
+        if (this.pinchAt) this.panBy(middle.x - this.pinchAt.x, middle.y - this.pinchAt.y);
       }
       this.pinch = spread;
+      this.pinchAt = middle;
       return;
     }
 
@@ -1695,7 +1736,10 @@ export class ToolViewer {
   private readonly onUp = (event: PointerEvent): void => {
     const alone = this.pointers.size === 1;
     this.pointers.delete(event.pointerId);
-    if (this.pointers.size < 2) this.pinch = 0;
+    if (this.pointers.size < 2) {
+      this.pinch = 0;
+      this.pinchAt = null;
+    }
 
     const from = this.tapFrom;
     this.tapFrom = null;
@@ -1770,7 +1814,13 @@ export class ToolViewer {
       this.fly = flyDolly(this.fly, (event.deltaY > 0 ? -1 : 1) * this.flySpeed * FLY_DOLLY_STEP);
       return;
     }
-    this.setZoom(this.zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12));
+    // Am Rad genauso wie mit zwei Fingern: Was unter dem Zeiger liegt, bleibt
+    // liegen. Ein Rad, das immer auf die Bildmitte zoomt, schiebt die Stelle,
+    // die man ansieht, mit jedem Rasten weiter aus dem Bild.
+    this.zoomAt(
+      this.zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12),
+      _pointer.set(event.clientX, event.clientY),
+    );
   };
 
   /**
@@ -1782,9 +1832,93 @@ export class ToolViewer {
     this.zoom = Math.max(near, Math.min(ZOOM_MAX, value));
   }
 
+  /**
+   * Zoomen **um eine Stelle im Bild herum**: Was dort liegt, liegt danach
+   * wieder dort.
+   *
+   * Die Rechnung ist eine Zeile, wenn man sie richtig herum aufschreibt: Ein
+   * Punkt im Bild sitzt auf einem festen Anteil des Ausschnitts (`share`), und
+   * der Ausschnitt wird beim Zoomen schmaler. Was er dabei an Breite verliert,
+   * legt die Verschiebung anteilig drauf — dann steht der Punkt wieder über
+   * derselben Stelle der Welt.
+   */
+  private zoomAt(value: number, at: THREE.Vector2 | null): void {
+    const before = this.viewSpan();
+    const was = this.zoom;
+    this.setZoom(value);
+    if (!at || this.zoom === was) return;
+    const now = this.viewSpan();
+    const share = this.share(at);
+    this.panX += share.x * (before.width - now.width);
+    this.panY += share.y * (before.height - now.height);
+    this.clampPan();
+  }
+
+  /** Das Bild um so viele **Bildpunkte** schieben — die Welt geht mit. */
+  private panBy(dx: number, dy: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const span = this.viewSpan();
+    // Gegenläufig, denn geschoben wird die Kamera: Ein Finger nach rechts
+    // schiebt die Welt nach rechts, also die Kamera nach links.
+    this.panX -= (dx / rect.width) * span.width;
+    this.panY += (dy / rect.height) * span.height;
+    this.clampPan();
+  }
+
+  /**
+   * Nicht weiter schieben, als das Gezeigte groß ist.
+   *
+   * Ohne Grenze wischt man auf einem Telefon mit zwei Fingern versehentlich in
+   * eine leere schwarze Fläche und findet die Welt nicht wieder — und der
+   * Doppeltipp, der sie zurückholt, ist genau dann der Griff, den niemand
+   * kennt.
+   */
+  private clampPan(): void {
+    const reach = this.radius;
+    this.panX = Math.max(-reach, Math.min(reach, this.panX));
+    this.panY = Math.max(-reach, Math.min(reach, this.panY));
+  }
+
+  /** Zurück in die Mitte — was `fit` einpasst, soll auch mittig stehen. */
+  private centre(): void {
+    this.panX = 0;
+    this.panY = 0;
+  }
+
+  /**
+   * Wie groß der Ausschnitt in der Ebene des Drehpunkts ist, in Metern.
+   *
+   * Dort und nirgends sonst: Das Gezeigte ist um seine Mitte in den Drehpunkt
+   * geschoben (`fit`), und ein Schieben, das in dieser Ebene rechnet, bewegt
+   * das Bild um genau so viel, wie der Finger gewandert ist.
+   */
+  private viewSpan(): { width: number; height: number } {
+    const away = this.distance(this.camera.aspect) * this.zoom;
+    const height = 2 * away * Math.tan((this.camera.fov * Math.PI) / 360);
+    return { width: height * this.camera.aspect, height };
+  }
+
+  /** Wo eine Stelle im Bild liegt, als Anteil von der Mitte aus (−0,5 … 0,5). */
+  private share(at: THREE.Vector2): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+    return {
+      x: (at.x - rect.left) / rect.width - 0.5,
+      y: 0.5 - (at.y - rect.top) / rect.height,
+    };
+  }
+
   private spread(): number {
     const [a, b] = [...this.pointers.values()];
     return a && b ? a.distanceTo(b) : 0;
+  }
+
+  /** Die Mitte zwischen den ersten beiden Fingern, in Bildpunkten. */
+  private middle(): THREE.Vector2 {
+    const [a, b] = [...this.pointers.values()];
+    if (!a || !b) return new THREE.Vector2();
+    return new THREE.Vector2((a.x + b.x) / 2, (a.y + b.y) / 2);
   }
 
   /**

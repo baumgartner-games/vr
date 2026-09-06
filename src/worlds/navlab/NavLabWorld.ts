@@ -16,10 +16,17 @@ import type { Npc } from '../npc/Npc';
 import {
   BAY_D,
   BAY_W,
+  BLOCK,
+  CRATE,
+  DOOR,
+  PIT,
+  PORTAL,
   ROOF,
   SCENARIOS,
   WALL_H,
   bayPoint,
+  baySpot,
+  bayWalls,
   labBounds,
   newScenarioState,
   startScenario,
@@ -83,7 +90,9 @@ export class NavLabWorld extends PortalWorld {
   /** Was ein Szenario an Dingen in die Welt gestellt hat. */
   private readonly litter = new Map<ScenarioId, PhysicsBody[]>();
   private door: THREE.Object3D | null = null;
+  /** Wo das Türblatt steht, wenn die Tür offen ist — und wo, wenn sie zu ist. */
   private doorHome = new THREE.Vector3();
+  private doorShut = new THREE.Vector3();
   private portalRings: THREE.Object3D[] = [];
   /** Die beiden aus der Portal-Bucht: der erste weiß davon, der zweite nicht. */
   private portalPair: Npc[] = [];
@@ -148,12 +157,18 @@ export class NavLabWorld extends PortalWorld {
     const depth = box.maxZ - box.minZ + 6;
     this.slab(lab, this.floorMat, [width, 0.4, depth], [0, -0.2, 0], true);
 
-    // Eine Bande außen herum, damit niemand aus dem Labor spaziert.
+    // Eine Bande außen herum, damit niemand aus dem Labor spaziert — und zwar
+    // **dicht an den Buchten** und nicht am Rand des Bodens. Der Boden steht
+    // ein Stück über, damit die Bande auf etwas steht; wäre sie dort, liefe
+    // zwischen ihr und den Buchten ein Rundgang um das ganze Labor. Ein
+    // Zombie, der ihn findet, geht außen herum statt durch die Bucht, um die
+    // es gerade geht — und das war er auch: ein Weg über die Rückseite, wo
+    // eine Wand steht.
     for (const [x, z, w, d] of [
-      [0, -depth / 2, width, 0.5],
-      [0, depth / 2, width, 0.5],
-      [-width / 2, 0, 0.5, depth],
-      [width / 2, 0, 0.5, depth],
+      [0, box.minZ, width, 0.5],
+      [0, box.maxZ, width, 0.5],
+      [box.minX, 0, 0.5, depth],
+      [box.maxX, 0, 0.5, depth],
     ] as const) {
       this.slab(lab, this.wallMat, [w, 3, d], [x, 1.5, z], false);
     }
@@ -191,94 +206,78 @@ export class NavLabWorld extends PortalWorld {
   /** Diese Welt bringt keine Kisten mit — was hier steht, stellt ein Szenario hin. */
   protected override buildProps(): void {}
 
-  /** Die Wände einer Bucht: außen herum, mit einer Lücke zum Gang. */
+  /**
+   * Die Wände einer Bucht — **alle aus `bayWalls`** und keine hier
+   * ausgerechnet.
+   *
+   * Was hier bleibt, ist das, was keine Wand ist: der Anstrich der Grube, ihre
+   * Stacheln, das Türblatt, die beiden Ringe, der Klotz mit dem Dach.
+   */
   private buildBay(parent: THREE.Group, bay: Scenario): void {
-    const wall = (lx: number, lz: number, w: number, d: number, h = WALL_H): void => {
-      const at = bayPoint(bay, lx, lz);
-      this.slab(parent, this.wallMat, [w, h, d], [at.x, h / 2, at.z], false);
-    };
-
-    // Hinten und an den Seiten dicht, vorne zwei Stummel und dazwischen der
-    // Eingang: eine Bucht, die man nicht betreten kann, zeigt nichts.
-    wall(0, -BAY_D / 2, BAY_W, 0.4);
-    wall(-BAY_W / 2, 0, 0.4, BAY_D);
-    wall(BAY_W / 2, 0, 0.4, BAY_D);
-    wall(-8, BAY_D / 2, 6, 0.4);
-    wall(8, BAY_D / 2, 6, 0.4);
-
-    if (bay.id === 'corridor') {
-      // Ein Z: zwei Wände mit Lücken auf verschiedenen Seiten. Geradeaus geht
-      // hier nichts, und genau das ist der Punkt.
-      wall(-3, -2.5, 16, 0.4);
-      wall(3, 2.5, 16, 0.4);
+    for (const wall of bayWalls(bay)) {
+      const at = bayPoint(bay, wall.lx, wall.lz);
+      this.slab(parent, this.wallMat, [wall.w, WALL_H, wall.d], [at.x, WALL_H / 2, at.z], false);
     }
 
-    if (bay.id === 'pit') {
-      const at = bayPoint(bay, 0, 0);
-      const pit = new THREE.Mesh(new THREE.BoxGeometry(12, 0.06, 4), this.hazardMat);
-      pit.position.set(at.x, 0.03, at.z);
-      parent.add(pit);
-      // Stacheln: man muss auf zwanzig Meter sehen, dass das keine Fußmatte ist.
-      for (let i = 0; i < 24; i++) {
-        const spot = bayPoint(bay, -5.5 + (i % 12) * 1, -1 + Math.floor(i / 12) * 2);
-        const spike = new THREE.Mesh(
-          new THREE.ConeGeometry(0.14, 0.55, 6),
-          new THREE.MeshStandardMaterial({ color: 0xb8c2d4, roughness: 0.4, metalness: 0.4 }),
-        );
-        spike.position.set(spot.x, 0.28, spot.z);
-        parent.add(spike);
-      }
-    }
-
-    if (bay.id === 'crate') {
-      // Eine Wand mit zwei Durchgängen: links kurz, rechts weit.
-      wall(-9.5, 0, 3, 0.4);
-      wall(0, 0, 12, 0.4);
-      wall(9.5, 0, 3, 0.4);
-    }
-
-    if (bay.id === 'door') {
-      // Eine Wand mit der Tür links und einer Lücke ganz rechts.
-      wall(-10, 0, 2, 0.4);
-      wall(1, 0, 16, 0.4);
-      this.buildDoor(parent, bay);
-    }
-
-    if (bay.id === 'portal') {
-      // Längs geteilt, vorne offen: der lange Weg führt einmal herum.
-      wall(0, -2.5, 0.4, 11);
-      this.buildRings(parent, bay);
-    }
-
+    if (bay.id === 'pit') this.buildPit(parent, bay);
+    if (bay.id === 'door') this.buildDoor(parent, bay);
+    if (bay.id === 'portal') this.buildRings(parent, bay);
     if (bay.id === 'levels') {
       // Ein Klotz mit flachem Dach, sonst nichts. **Keine Treppe**: Ein NPC
       // ist heute ein dynamischer Zylinder, und ein Zylinder steigt keine
       // Stufe. Was er kann, ist von einer Kante fallen — und genau das ist
       // die Behauptung dieser Bucht (`ROOF` in `scenarios.ts`).
-      const block = bayPoint(bay, -2, -2);
-      this.slab(parent, this.blockMat, [11, ROOF, 9], [block.x, ROOF / 2, block.z], false);
+      const at = bayPoint(bay, BLOCK.lx, BLOCK.lz);
+      this.slab(parent, this.blockMat, [BLOCK.w, ROOF, BLOCK.d], [at.x, ROOF / 2, at.z], false);
+    }
+  }
+
+  /** Die Grube: ein roter Anstrich und Stacheln darin. */
+  private buildPit(parent: THREE.Group, bay: Scenario): void {
+    const at = bayPoint(bay, (PIT.minLx + PIT.maxLx) / 2, (PIT.minLz + PIT.maxLz) / 2);
+    const wide = PIT.maxLx - PIT.minLx;
+    const deep = PIT.maxLz - PIT.minLz;
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(wide, 0.06, deep), this.hazardMat);
+    floor.position.set(at.x, 0.03, at.z);
+    parent.add(floor);
+    // Stacheln: man muss auf zwanzig Meter sehen, dass das keine Fußmatte ist.
+    // Zwei Reihen zu zwölf, gleichmäßig über die Grube verteilt.
+    const columns = 12;
+    for (let i = 0; i < columns * 2; i++) {
+      const spot = bayPoint(
+        bay,
+        PIT.minLx + ((i % columns) + 0.5) * (wide / columns),
+        PIT.minLz + (Math.floor(i / columns) + 0.5) * (deep / 2),
+      );
+      const spike = new THREE.Mesh(
+        new THREE.ConeGeometry(0.14, 0.55, 6),
+        new THREE.MeshStandardMaterial({ color: 0xb8c2d4, roughness: 0.4, metalness: 0.4 }),
+      );
+      spike.position.set(spot.x, 0.28, spot.z);
+      parent.add(spike);
     }
   }
 
   private buildDoor(parent: THREE.Group, bay: Scenario): void {
-    const at = bayPoint(bay, -8, 0);
+    const at = bayPoint(bay, DOOR.lx, 0);
     const leaf = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2.2, 0.16),
+      new THREE.BoxGeometry(DOOR.width, 2.2, 0.16),
       new THREE.MeshStandardMaterial({ color: 0xe58aa8, roughness: 0.6 }),
     );
-    leaf.position.set(at.x, 1.1, at.z);
     leaf.name = 'navlab-door';
     parent.add(leaf);
     this.door = leaf;
-    // Offen heißt: zur Seite geschoben. Der Platz dafür ist die Wand daneben.
-    this.doorHome.set(at.x - 2, 1.1, at.z);
+    // Zu heißt: in seiner Lücke. Offen heißt: um eine Kachel zur Seite
+    // geschoben, und der Platz dafür ist die Wand daneben.
+    this.doorShut.set(at.x, 1.1, at.z);
+    this.doorHome.set(at.x - DOOR.slide, 1.1, at.z);
     leaf.position.copy(this.doorHome);
   }
 
   private buildRings(parent: THREE.Group, bay: Scenario): void {
     this.portalRings = [];
-    for (const lx of [-7, 7]) {
-      const at = bayPoint(bay, lx, -5);
+    for (const end of PORTAL) {
+      const at = baySpot(bay, end);
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(1.1, 0.12, 12, 32),
         new THREE.MeshStandardMaterial({
@@ -371,8 +370,8 @@ export class NavLabWorld extends PortalWorld {
   protected override navReady(graph: NavGraph): void {
     for (const bay of SCENARIOS) {
       if (bay.id === 'pit') {
-        const a = bayPoint(bay, -6, -2);
-        const b = bayPoint(bay, 6, 2);
+        const a = bayPoint(bay, PIT.minLx, PIT.minLz);
+        const b = bayPoint(bay, PIT.maxLx, PIT.maxLz);
         paintRect(
           graph,
           {
@@ -386,8 +385,10 @@ export class NavLabWorld extends PortalWorld {
         );
       }
       if (bay.id === 'door') {
-        const north = bayPoint(bay, -8, -1.6);
-        const south = bayPoint(bay, -8, 1.6);
+        // Die beiden Kachelmitten links und rechts der Türlinie: Zwischen
+        // ihnen sitzt die Wand, und in diese Wand kommt die Tür.
+        const north = bayPoint(bay, DOOR.lx, -DOOR.gap);
+        const south = bayPoint(bay, DOOR.lx, DOOR.gap);
         doorBetween(graph, { ...north, y: 0 }, { ...south, y: 0 }, DOOR_ID, true);
       }
     }
@@ -439,10 +440,29 @@ export class NavLabWorld extends PortalWorld {
       this.announce(`${scenario(id).title}: zurückgesetzt`);
       return;
     }
-    this.reset(id);
+    // Erst alles andere weg: Sechs Buchten teilen sich einen Bestand an NPCs
+    // und einen Spieler, und zwei Szenarien gleichzeitig sind zwei, von denen
+    // keines mehr zeigt, was es behauptet.
+    for (const bay of SCENARIOS) this.reset(bay.id);
     startScenario(state);
+    this.stand(id);
     this.play(id);
     this.announce(`${scenario(id).title} läuft`);
+  }
+
+  /**
+   * **Den Spieler dorthin stellen, wo die Bucht ihn braucht** (`stand` in
+   * `scenarios.ts`).
+   *
+   * Ohne das tut ein Knopf nichts: Ein Zombie bemerkt einen Spieler auf 22
+   * Meter, und der Mittelgang ist von den äußeren Buchten fast vierzig weit
+   * weg. In der Brille steht ein echter Spieler — der geht selbst hin, und
+   * dann macht dieser Handgriff nichts (`placePreviewPlayer`).
+   */
+  private stand(id: ScenarioId): void {
+    const bay = scenario(id);
+    const at = baySpot(bay, bay.stand);
+    this.placePreviewPlayer(_stand.set(at.x, 0, at.z));
   }
 
   /** Der gelbe Knopf: das, was das Szenario schwer macht. */
@@ -457,7 +477,7 @@ export class NavLabWorld extends PortalWorld {
     const bay = scenario(id);
 
     if (id === 'crate' && graph) {
-      const at = bayPoint(bay, -7.8, 0);
+      const at = baySpot(bay, CRATE);
       const cube = createCompanionCube(1.4);
       cube.position.set(at.x, 0.75, at.z);
       this.root.add(cube);
@@ -473,14 +493,14 @@ export class NavLabWorld extends PortalWorld {
 
     if (id === 'door' && graph) {
       graph.setDoor(DOOR_ID, { open: false, barred: true });
-      if (this.door) this.door.position.set(this.doorHome.x + 2, 1.1, this.doorHome.z);
+      if (this.door) this.door.position.copy(this.doorShut);
       this.announce('Verriegelt — er weiß es noch nicht');
       return;
     }
 
     if (id === 'portal' && graph) {
-      const a = bayPoint(bay, -7, -5);
-      const b = bayPoint(bay, 7, -5);
+      const a = baySpot(bay, PORTAL[0]!);
+      const b = baySpot(bay, PORTAL[1]!);
       const from = graph.at(a.x, a.z, 0);
       const to = graph.at(b.x, b.z, 0);
       if (from === NO_TILE || to === NO_TILE) return;
@@ -495,43 +515,40 @@ export class NavLabWorld extends PortalWorld {
     }
   }
 
-  /** Stellt hin, was ein Szenario braucht. */
+  /**
+   * Stellt hin, was ein Szenario braucht.
+   *
+   * **Wer auftritt, steht in den Daten** (`cast` in `scenarios.ts`) — hier
+   * steht nur noch, was danach mit den Gesetzten passiert. Der Grund ist ein
+   * Prüfstein: Ob ein Auftritt nah genug am Spieler steht, um überhaupt
+   * bemerkt zu werden, kann ein Test ausrechnen, solange die Zahlen Daten
+   * sind; als Zeilen mitten in einer three.js-Methode kann er es nicht.
+   */
   private play(id: ScenarioId): void {
     const bay = scenario(id);
     const director = this.director;
     if (!director) return;
 
-    const put = (lx: number, lz: number, kind: 'zombie' | 'dummy', y = 0): Npc | null => {
-      const at = bayPoint(bay, lx, lz);
-      return director.spawn({
-        kind,
+    const cast: Npc[] = [];
+    for (const one of bay.cast) {
+      const at = baySpot(bay, one);
+      const npc = director.spawn({
+        kind: one.kind,
         brain: 'chase',
-        at: new THREE.Vector3(at.x, y, at.z),
+        at: new THREE.Vector3(at.x, one.y ?? 0, at.z),
         yaw: bay.z < 0 ? 0 : Math.PI,
       });
-    };
-
-    if (id === 'corridor') put(-8, -6, 'zombie');
-    if (id === 'pit') {
-      put(-2.5, -6, 'zombie');
-      put(2.5, -6, 'dummy');
+      if (npc) cast.push(npc);
     }
-    if (id === 'crate') put(-7.8, -6, 'zombie');
+
     if (id === 'door') {
-      const npc = put(-8, -6, 'zombie');
       // Er hat die Tür offen gesehen. Was der Spieler gleich damit macht,
       // erfährt er erst, wenn er davorsteht (`navBelief.ts`).
       const door = this.nav?.door(DOOR_ID);
+      const npc = cast[0];
       if (npc && door) npc.mind().belief.seeDoor(DOOR_ID, door, this.clock);
     }
-    if (id === 'portal') {
-      this.portalPair = [];
-      for (const lz of [-6, -3]) {
-        const npc = put(-7, lz, 'zombie');
-        if (npc) this.portalPair.push(npc);
-      }
-    }
-    if (id === 'levels') put(-2, -2, 'zombie', ROOF);
+    if (id === 'portal') this.portalPair = cast;
   }
 
   /** Räumt ein Szenario weg: NPCs, Kisten, Türen, Portale. */
@@ -630,6 +647,9 @@ export class NavLabWorld extends PortalWorld {
 
 const DOOR_ID = 'navlab-tuer';
 const PORTAL_ID = 'navlab-portal';
+
+/** Wohin der Spieler beim Start eines Szenarios gestellt wird (`stand`). */
+const _stand = new THREE.Vector3();
 
 /** Wie eine Konsolentaste in der Liste auf dem Telefon heißt. */
 function consoleLabel(key: ConsoleKey): string {

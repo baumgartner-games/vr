@@ -796,6 +796,21 @@ html, body {
 
 .lab__view[hidden] { display: none; }
 
+.lab__view:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Der Gehe-zu-Modus ist ein Zustand und kein Druck: Solange er an ist, tut ein
+   Tipp ins Bild etwas anderes als sonst, und das muss man sehen, ohne es
+   auszuprobieren. */
+.lab__view[aria-pressed="true"] {
+  color: #05070d;
+  background: var(--accent);
+  border-color: transparent;
+}
+
 .lab__lede,
 .lab__say {
   margin: 0;

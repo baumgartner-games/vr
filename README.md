@@ -100,13 +100,17 @@ liegen bleibt. Alles landet in denselben Speichern wie
 in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
 Über die Schublade daneben die
 **Welten** (jede ganz zum Drehen, schräg von oben für den Überblick, Räume mit
-Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen; mit
+Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen — zwei
+Finger schieben und zoomen dabei wie auf einer Karte; mit
 **Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
 hinein) — und **Laufen lassen**: dieselbe Welt mit echter Physik, Gitter und
 NPCs, senkrecht von oben, mit den Knöpfen der Welt als Zeilen daneben, den fünf
 Debug-Ebenen des Navigationsgitters als Schalter und einem **Ziel**, das ein
-Tipp auf den Boden versetzt und dem die NPCs nachlaufen. Im
+Tipp auf den Boden versetzt und dem die NPCs nachlaufen. Mit **Gehe zu** geht
+die eigene Figur stattdessen zu Fuß dorthin — über dasselbe Gitter wie die
+NPCs, durch dieselben Türen und Portale —, und mit **Figur weg** steht man gar
+nicht erst in der Welt. Im
 [Navigationslabor](https://baumgartner-games.github.io/vr/tools.html#welt/navlab)
 ist das die ganze Brille, die man zum Zusehen braucht. Dazu der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen) und die **NPCs** (jede

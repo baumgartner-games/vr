@@ -22,7 +22,10 @@ import type { BarMode } from '../npc/NpcBody';
  * - **Ein Schritt** — Physik, Hirne, Wege, ein Bild lang.
  * - **Ein Ziel** — wohin die NPCs laufen. In der Vorschau steht kein Spieler,
  *   und ein Zombie ohne jemanden, dem er nachgeht, bleibt stehen. Das Ziel ist
- *   seine Attrappe: Man tippt auf den Boden, und er läuft dorthin.
+ *   seine Attrappe: Man tippt auf den Boden, und er läuft dorthin. Sie kann
+ *   **weggehen** (`setHere`) — dann steht niemand in der Welt und alles bleibt
+ *   stehen —, und sie kann statt zu springen zu Fuß **hingehen**
+ *   (`walkTarget`), über dasselbe Gitter wie ein NPC.
  * - **Ebenen** — welche Debug-Linien zu sehen sind (`nav/navLayers.ts`), und
  *   wann die Lebensbalken erscheinen (`npc/NpcBody.ts`).
  * - **Meldungen** — was im Spiel am Handgelenk stünde.
@@ -50,6 +53,29 @@ export interface LivePreview {
 
   /** Setzt sie auf diesen Punkt (Füße, Weltkoordinaten). */
   moveTarget(at: THREE.Vector3): void;
+
+  /**
+   * **Lässt sie dorthin gehen**, statt sie zu versetzen — über dieselbe
+   * Wegsuche, die auch die NPCs benutzen (`shared/previewWalk.ts`).
+   *
+   * Der Unterschied ist der zwischen einem Ziel und einem Spieler: Ein Ziel
+   * setzt man hin und sieht, welchen Weg die anderen dorthin nehmen; ein
+   * Spieler geht, und was zwischen ihm und der anderen Ecke liegt, merkt er
+   * dabei. Vor einer verriegelten Tür bleibt sie stehen — das ist keine Panne,
+   * sondern die Auskunft.
+   */
+  walkTarget(at: THREE.Vector3): void;
+
+  /**
+   * **Ob die Figur überhaupt in der Welt steht.**
+   *
+   * Ausgeschaltet ist sie nicht bloß unsichtbar: Für alles, was den Spieler
+   * sucht, ist dann **keiner da** — die Zombies bleiben stehen, die Wegsuche
+   * hat kein Ziel. Genau das will man, wenn man eine Welt ansehen möchte, ohne
+   * in ihr zu stehen.
+   */
+  here(): boolean;
+  setHere(on: boolean): void;
 
   /** Welche Debug-Ebenen gerade an sind. */
   layers(): Readonly<NavLayerState>;

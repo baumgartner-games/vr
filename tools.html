@@ -203,10 +203,26 @@
               Laufen lassen
             </button>
             <button id="lab-top" class="lab__view" type="button" hidden>Von oben</button>
+            <!--
+              Und die beiden Knöpfe, die aus dem Zuschauer einen Bewohner
+              machen. **Gehe zu** ist ein Modus wie in den Sims: Er ist an oder
+              aus, und solange er an ist, heißt ein Tipp auf den Boden nicht
+              „stell dich dorthin", sondern „geh dorthin" — über dasselbe
+              Gitter, das die NPCs benutzen. **Figur weg** nimmt sie ganz aus
+              der Welt: nicht unsichtbar, sondern nicht da, und dann hat auch
+              kein Zombie mehr jemanden, dem er nachläuft.
+            -->
+            <button id="lab-go" class="lab__view lab__view--go" type="button" aria-pressed="false" hidden>
+              Gehe zu
+            </button>
+            <button id="lab-me" class="lab__view" type="button" aria-pressed="false" hidden>
+              Figur weg
+            </button>
           </div>
           <p id="lab-lede" class="lab__lede">
             Startet die Welt wirklich — mit Physik, Gitter und NPCs. Auf den Boden tippen setzt
-            das <b>Ziel</b>, dem sie nachlaufen.
+            das <b>Ziel</b>, dem sie nachlaufen; mit <b>Gehe zu</b> geht deine Figur selbst
+            dorthin.
           </p>
           <p id="lab-say" class="lab__say" aria-live="polite" hidden></p>
           <div id="lab-keys" class="lab__keys" hidden></div>
@@ -217,7 +233,7 @@
           <p id="hint" class="detail__hint"></p>
           <p id="note" class="detail__note" hidden></p>
           <a id="enter" class="detail__enter" href="./" hidden>Welt betreten →</a>
-          <p id="help" class="detail__help">Ziehen dreht · zwei Finger oder Rad zoomen · Doppeltipp stellt zurück</p>
+          <p id="help" class="detail__help">Ziehen dreht · zwei Finger schieben und zoomen · Rad zoomt · Doppeltipp stellt zurück</p>
         </div>
 
         <section id="editor" class="editor" hidden>
