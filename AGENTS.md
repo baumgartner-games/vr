@@ -4179,7 +4179,10 @@ Was die Seite daraus macht, steht in einer kleinen Schnittstelle
   sieht man von einer Wand nur die Oberkante) und passt dabei das **Rechteck**
   statt des Kreises darum ein. Gemessen wird das am **ungedrehten** Kasten
   (`extent`) — der Kasten um eine gekippte Welt ist so hoch wie breit, und aus
-  ihm gelesen stünden im Labor 48 Meter Höhe, wo drei Meter Wand stehen.
+  ihm gelesen stünden im Labor 48 Meter Höhe, wo drei Meter Wand stehen. Ist
+  das Bild **hochkant** und die Welt breit, wird sie dabei um eine
+  Vierteldrehung quer gelegt: Auf einem Telefon ist das der Unterschied
+  zwischen einem Drittel Bild und dem ganzen.
 
 **Ein Tipp ist dabei keine Drehung.** Auf dieser Bühne wird gedreht, gezoomt
 und geflogen, und jede dieser Bewegungen fängt mit einem Finger auf dem Glas
