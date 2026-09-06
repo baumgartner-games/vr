@@ -13,6 +13,7 @@ import { HandTool } from './HandTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
 import { MagicBagTool } from './MagicBagTool';
+import { MirrorTool } from './MirrorTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
 import { KnifeTool } from './KnifeTool';
@@ -57,6 +58,10 @@ export const TOOL_IDS = [
   'superman-glove',
   'welder',
   'xray',
+  // Der Handspiegel: derselbe Rahmen wie der Scanner, nur mit Glas darin —
+  // deshalb steht er direkt daneben. Der große Standspiegel ist kein Werkzeug,
+  // sondern ein Ding aus dem Beutel (`standingMirror.ts`).
+  'mirror',
   'drone',
   // Die beiden Fluggeräte: ein Drachen zum Hängen und Flügel für die Arme.
   'hang-glider',
@@ -129,6 +134,8 @@ function buildTool(id: string): Tool | null {
       return new WelderTool();
     case 'xray':
       return new XrayTool();
+    case 'mirror':
+      return new MirrorTool();
     case 'drone':
       return new DroneTool();
     case 'hang-glider':
@@ -170,6 +177,7 @@ export {
   WingsTool,
   HolsterTool,
   MagicBagTool,
+  MirrorTool,
   PistolTool,
   KnifeTool,
   StopwatchTool,

@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import type { Portal } from './Portal';
-import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
-import { LAYER_HUD } from '../../ui/ScoreHud';
+import { viewLayers } from '../../core/viewLayers';
 import { DEFAULT_PORTAL_DEPTH, clampPortalDepth } from './portalDepth';
 
 const _plane = new THREE.Plane();
@@ -292,11 +291,6 @@ export class PortalRenderer {
 /** How much of the frame buffer one level of nesting is drawn at. */
 function shrinkOf(level: number): number {
   return Math.max(MIN_LEVEL_SCALE, LEVEL_SCALE ** level);
-}
-
-/** What a portal view draws: the player's own body in, the HUD out. */
-function viewLayers(mask: number): number {
-  return (mask | (1 << LAYER_SELF_ONLY)) & ~(1 << LAYER_HUD);
 }
 
 /**
