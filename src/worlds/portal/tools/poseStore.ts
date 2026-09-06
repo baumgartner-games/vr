@@ -94,6 +94,13 @@ export function applyStoredPose(tool: Tool): void {
   if (!usable(pose)) return;
   tool.holdPosition.set(pose.position.x, pose.position.y, pose.position.z);
   tool.holdRotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
+  // **Samt der Hand, an der gemessen wurde.** Eine Haltung ist die einer Hand,
+  // und die andere wird daraus gerechnet (`Tool.holdIn`) — ohne diese Zeile
+  // läse eine links gemessene Haltung als rechte, und das Werkzeug läge in
+  // beiden Händen falsch statt in keiner. Fehlt die Seite (ein Konfig-Code
+  // trägt nur Zahlen, ein Speicher von vorletzter Woche gar nichts), bleibt es
+  // bei der gebauten: rechts.
+  if (pose.hand) tool.holdHand = pose.hand;
 }
 
 /** Ob das, was im Speicher steht, überhaupt eine Lage ist: zwei Vektoren aus Zahlen. */

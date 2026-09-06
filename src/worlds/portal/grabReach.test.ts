@@ -11,6 +11,8 @@ import {
   flightArrived,
   flightDuration,
   flightPosition,
+  HANDOVER_REACH,
+  atHandGrip,
   handsTooClose,
   nearZoneDistance,
   pickAimTarget,
@@ -192,6 +194,32 @@ describe('hands that are up to something else', () => {
 
   it('copes with a hand that is not tracked at all', () => {
     expect(handsTooClose(null, vec(0, 1, 0), true)).toBe(false);
+  });
+});
+
+describe('ein Werkzeug von Hand zu Hand', () => {
+  const grip = vec(0.2, 1.1, -0.35);
+
+  it('geht, sobald die leere Hand am Griff der vollen steht', () => {
+    expect(atHandGrip(vec(0.2, 1.1, -0.25), grip)).toBe(true);
+  });
+
+  it('geht nicht mehr eine Handbreit weiter weg', () => {
+    const away = vec(grip.x, grip.y, grip.z + HANDOVER_REACH * 1.5);
+    expect(atHandGrip(away, grip)).toBe(false);
+  });
+
+  it('reicht nicht bis dorthin, wo eine Taschenlampe ihre Linse hat', () => {
+    // Das Rohr ist gut 25 cm lang; die Hand vorn an der Linse ist keine Hand
+    // am Griff, und genau das war der Fehler, den es zu vermeiden gilt.
+    expect(atHandGrip(vec(grip.x, grip.y, grip.z - 0.25), grip)).toBe(false);
+    // Und weiter, als zwei Fäuste nebeneinander brauchen, ist sie auch nicht.
+    expect(HANDOVER_REACH).toBeLessThan(HANDS_TOGETHER);
+  });
+
+  it('kommt mit einer Hand zurecht, die gerade nicht verfolgt wird', () => {
+    expect(atHandGrip(null, grip)).toBe(false);
+    expect(atHandGrip(grip, null)).toBe(false);
   });
 });
 

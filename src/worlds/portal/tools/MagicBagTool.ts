@@ -123,12 +123,19 @@ const SPIN = 0.7;
 const REACH: Reach = { plane: MOUTH, up: REACH_UP, down: REACH_DOWN, side: REACH_SIDE };
 
 /**
- * **Wo das Schild steht**: auf dem Saum, auf der dem Kopf abgewandten Seite —
- * also am *oberen* Rand der Öffnung, so wie man sie sieht, wenn man
- * hineinschaut. Es hing eine Runde lang zwei Handbreit senkrecht über der
- * Mitte und stand damit genau in dem Blick, mit dem man in den Beutel schaut:
- * Wer las, was drin ist, sah nicht mehr, was drin ist. Am Saum steht es
- * **hinter** dem Raster statt darüber, und beides ist auf einmal zu lesen.
+ * **Wo das Schild steht**: auf dem Saum, an dessen **höchster Stelle**.
+ *
+ * Der Weg dorthin ging über zwei Fassungen. Erst hing es zwei Handbreit
+ * senkrecht über der Mitte und stand damit genau in dem Blick, mit dem man in
+ * den Beutel schaut: Wer las, was drin ist, sah nicht mehr, was drin ist. Dann
+ * stand es am Saum gegenüber dem Kopf — hinter dem Raster statt darüber, und
+ * beides war auf einmal zu lesen. Nur ist „gegenüber dem Kopf" eine Stelle,
+ * die wandert, sobald man den Kopf dreht: das Schild rutschte um den Saum
+ * herum, und bei einem gekippten Beutel landete es unten am tiefsten Punkt.
+ *
+ * Der höchste Punkt des Saums wandert nicht. Er hängt nur daran, wie der
+ * Beutel gehalten wird, und das ist genau die Stelle, an der ein Schild an
+ * einem Beutel steht — oben, über allem, was darin liegt.
  */
 const LABEL_RIM = RIM + 0.015;
 /** Und so hoch darüber, damit die Tafel nicht im Leder steckt. */
@@ -160,6 +167,7 @@ const _ray = new THREE.Ray();
 const _origin = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
+const _up = new THREE.Vector3();
 
 /** Ein Fach des Rasters: was darin liegt, wo es liegt, und das Feld darunter. */
 interface Slot {
@@ -218,6 +226,13 @@ interface Arrow {
  * Sechs große Fächer trifft man, und hinter der letzten Seite kommt wieder die
  * erste.
  *
+ * Geblättert wird auf drei Arten, und die dritte ist die, die man am Ende
+ * nimmt: über einen **Pfeil** mit dem Griff, über einen Pfeil mit dem
+ * **Trigger** — und mit dem **Trigger der Hand, die den Beutel hält**, ganz
+ * ohne die andere. Die Pfeile setzen voraus, dass eine zweite Hand frei ist;
+ * die ist sie oft nicht, und dann blättert der Daumen der Hand, in der der
+ * Beutel ohnehin liegt.
+ *
  * Drittens gehört die **greifende Hand** dem Beutel, solange sie über einem
  * Fach oder einem Pfeil steht (`claimsHand`). Sonst risse derselbe Griff, mit
  * dem man in den Beutel fasst, die Kiste hinter ihm an sich — und in einem
@@ -256,7 +271,7 @@ export class MagicBagTool extends Tool {
     this.name = 'tool-bag';
     this.icon = 'bag';
     this.accent = ACCENT;
-    this.hint = 'Fach anzeigen oder hineingreifen, dann greifen; die Pfeile blättern';
+    this.hint = 'Fach anzeigen oder hineingreifen, dann greifen; Trigger blättert';
     // Er sitzt in der Faust und zielt nicht — sonst bewegt er sich wie jedes
     // andere Werkzeug: er liegt im Griffraum und folgt der Hand in allen drei
     // Achsen.
@@ -524,14 +539,35 @@ export class MagicBagTool extends Tool {
     if (this.hovered !== NO_CELL && this.hovered !== before) reaching?.pulse(0.18, 14);
     this.showSpots(host);
 
-    if (this.hovered === NO_CELL || !reaching?.squeeze.justPressed) return;
+    if (this.hovered === NO_CELL || !reaching) return;
     const arrow = this.arrows[this.hovered - PER_PAGE];
+    // Über einem Pfeil blättert **beides**: der Griff, mit dem man sonst
+    // hineinfasst, und der Trigger, mit dem man sonst auf etwas zeigt. Ein
+    // Pfeil ist ein Knopf, und wer auf einen Knopf zielt, drückt den Trigger.
     if (arrow) {
-      this.flip(arrow.step, reaching);
+      if (reaching.squeeze.justPressed || reaching.trigger.justPressed)
+        this.flip(arrow.step, reaching);
       return;
     }
+    // Ein Fach dagegen bleibt beim Griff: der Trigger holte sonst ein Ding
+    // heraus, sobald der Strahl der anderen Hand über den Beutel streift.
+    if (!reaching.squeeze.justPressed) return;
     const slot = this.slotAt(this.hovered);
     if (slot) this.take(host, slot, reaching);
+  }
+
+  /**
+   * **Der Trigger der haltenden Hand blättert.**
+   *
+   * Blättern ging bisher nur über die Pfeile, und für die braucht es die
+   * *andere* Hand — die aber hält oft schon etwas oder ist gerade woanders.
+   * Der Beutel liegt in einer Hand, und diese Hand hat einen Trigger frei:
+   * einmal drücken, nächste Seite, und hinter der letzten kommt wieder die
+   * erste (`turnPage`). Gibt es nur eine Seite, gibt es nichts zu blättern.
+   */
+  override onTrigger(controller: ControllerState, _host: ToolHost): void {
+    if (this.pages < 2) return;
+    this.flip(1, controller);
   }
 
   /** Die Hand, die gerade nicht den Beutel hält — sie greift hinein. */
@@ -640,24 +676,43 @@ export class MagicBagTool extends Tool {
   }
 
   /**
-   * Das Schild an den Saum stellen, gegenüber dem Kopf — und es anschauen
-   * lassen.
+   * Das Schild an die **höchste Stelle des Saums** stellen — und es den Kopf
+   * anschauen lassen.
    *
-   * Gegenüber, weil das aus der Sicht des Lesenden der **obere** Rand der
-   * Öffnung ist: Das Schild steht dann hinter dem Raster, nicht davor, und der
-   * Blick in den Beutel läuft daran vorbei. Gerechnet wird waagerecht im Raum
-   * des Beutels, damit es auch dann am Saum bleibt, wenn die Hand den Beutel
-   * dreht oder kippt. Angeschaut wird der Kopf in Weltkoordinaten: Das Schild
-   * hängt am Beutel, und der dreht sich unter ihm weg.
+   * Der Saum ist ein Kreis in der Ebene der Öffnung; gesucht ist der Punkt
+   * darauf, der in der **Welt** am höchsten liegt. Das ist keine Suche,
+   * sondern eine Zeile: die Welt-Hochachse in den Raum des Beutels gedreht,
+   * ihr waagerechter Anteil normiert — dorthin zeigt der Halbmesser, der am
+   * weitesten nach oben führt. Gerechnet im Raum des Beutels, damit die Stelle
+   * mitwandert, wenn die Hand ihn dreht oder kippt.
+   *
+   * Steht der Beutel **aufrecht**, hat der Saum keine höchste Stelle — dann
+   * liegt er ganz auf einer Höhe. Für diesen Fall bleibt das alte Gegenüber
+   * zum Kopf stehen: hinter dem Raster, weg von dem Blick, mit dem man
+   * hineinschaut.
+   *
+   * Angeschaut wird der Kopf in Weltkoordinaten: Das Schild hängt am Beutel,
+   * und der dreht sich unter ihm weg.
    */
   private placeLabel(head: THREE.Vector3): void {
-    this.body.worldToLocal(_local.copy(head));
-    const flat = Math.hypot(_local.x, _local.z);
-    // Steht der Kopf senkrecht über der Öffnung, gibt es kein Gegenüber — dann
-    // bleibt das Schild vorn, weg von der Hand, die den Saum hält.
-    const toHeadX = flat > 1e-4 ? _local.x / flat : 0;
-    const toHeadZ = flat > 1e-4 ? _local.z / flat : 1;
-    this.label3d.position.set(-toHeadX * LABEL_RIM, MOUTH + LABEL_RISE, -toHeadZ * LABEL_RIM);
+    this.body.getWorldQuaternion(_quat).invert();
+    _up.set(0, 1, 0).applyQuaternion(_quat);
+    let x = _up.x;
+    let z = _up.z;
+    let flat = Math.hypot(x, z);
+    if (flat < 1e-4) {
+      // Aufrecht: kein höchster Punkt. Dann das Gegenüber zum Kopf, wie bisher.
+      this.body.worldToLocal(_local.copy(head));
+      x = -_local.x;
+      z = -_local.z;
+      flat = Math.hypot(x, z);
+    }
+    if (flat < 1e-4) {
+      x = 0;
+      z = -1;
+      flat = 1;
+    }
+    this.label3d.position.set((x / flat) * LABEL_RIM, MOUTH + LABEL_RISE, (z / flat) * LABEL_RIM);
     this.label3d.lookAt(head);
   }
 

@@ -7,7 +7,7 @@
  * Taschenlampe und bei jedem noch so schräg gehaltenen Ding dazwischen.
  */
 
-import { HAND_ON_STAGE, TOOL_HOME, stageForGrip } from './handStage';
+import { HAND_ON_STAGE, TOOL_HOME, handOnStage, stageForGrip } from './handStage';
 import { REAL_HAND } from './handFrame';
 import { multiplyQuat, rotateVec, type Quat, type Vec3 } from '../worlds/portal/tools/aim';
 import { quatFromEulerXYZ } from '../worlds/portal/tools/toolPose';
@@ -26,8 +26,8 @@ const GRIPS: Quat[] = [
 ];
 
 /** Wohin der Zeigestrahl dieser Hand auf dem Schirm läuft, in der Ausgangsansicht. */
-function onScreen(grip: Quat): Vec3 {
-  const stage = stageForGrip(grip);
+function onScreen(grip: Quat, side: 'left' | 'right' = 'right'): Vec3 {
+  const stage = stageForGrip(grip, side);
   const hand = multiplyQuat(multiplyQuat(stage, grip, { ...IDLE }), REAL_HAND.rotation, {
     ...IDLE,
   });
@@ -64,6 +64,26 @@ describe('die Bühne stellt die echte Hand hin', () => {
       );
       expect(dot).toBeCloseTo(1, 6);
     }
+  });
+
+  test('die linke Hand zeigt quer in die andere Richtung', () => {
+    for (const grip of GRIPS) {
+      const ray = onScreen(grip, 'left');
+      // Dieselbe Waagerechte, nur andersherum: die Kamera steht damit auf der
+      // anderen Seite der Faust — der Seite, auf der in der Brille der Kopf
+      // sitzt.
+      expect(ray.x).toBeCloseTo(1, 6);
+      expect(ray.y).toBeCloseTo(0, 6);
+      expect(ray.z).toBeCloseTo(0, 6);
+    }
+  });
+
+  test('auch links ist es eine reine Gierung', () => {
+    const left = handOnStage('left');
+    expect(left.x).toBeCloseTo(0, 12);
+    expect(left.z).toBeCloseTo(0, 12);
+    const up = rotateVec({ x: 0, y: 1, z: 0 }, left, { ...ZERO });
+    expect(up.y).toBeCloseTo(1, 12);
   });
 
   test('sie ist eine reine Gierung — die Hand hält aufrecht', () => {

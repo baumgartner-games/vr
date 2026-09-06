@@ -135,5 +135,10 @@ export class HandTool extends Tool {
     this.holdRotation.setFromEuler(
       _euler.set(pose.pitch * DEG, pose.yaw * DEG, pose.roll * DEG, 'XYZ'),
     );
+    // Die Haltung, die hier hereinkommt, ist immer schon die **dieser** Seite
+    // (`idleHandPose` spiegelt selbst). Ohne diese Zeile spiegelte `holdIn` sie
+    // ein zweites Mal, und die linke Boxhand läge seitenverkehrt in der linken
+    // Hand.
+    this.holdHand = this.side;
   }
 }

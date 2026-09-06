@@ -103,4 +103,24 @@ export interface PaintSurface {
   ): boolean;
   /** Der Strich ist zu Ende; der nächste Punkt fängt einen neuen an. */
   endStroke(): void;
+
+  /**
+   * **Wo der nächste Klecks landen würde** — als Kreis auf dem Blatt, ohne
+   * dass etwas gemalt wird.
+   *
+   * Aus zwei Metern Abstand auf eine Leinwand zu zielen hieß bisher: drücken
+   * und nachsehen. Der Zeigestrahl endet irgendwo im Raum, und wo genau er das
+   * Blatt schneidet, sieht man einem Strich in der Luft nicht an — der erste
+   * Punkt saß deshalb fast nie dort, wo er sollte. Der Ring nimmt das vorweg:
+   * er steht auf dem Blatt, er ist so breit wie der Strich, und er hat die
+   * Farbe, die gerade geladen ist.
+   *
+   * Dieselben beiden Wege wie beim Malen — Spitze (`aimAt`) und Strahl
+   * (`aimRay`) —, damit die Vorschau *dasselbe* trifft wie der Trigger und
+   * nicht etwas daneben.
+   */
+  aimAt(point: THREE.Vector3, color: number): boolean;
+  aimRay(origin: THREE.Vector3, direction: THREE.Vector3, range: number, color: number): boolean;
+  /** Es wird gerade nicht darauf gezielt: der Kreis geht weg. */
+  clearAim(): void;
 }

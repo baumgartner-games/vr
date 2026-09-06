@@ -168,6 +168,45 @@ export function mirrorReadout(readout: PoseReadout): PoseReadout {
   };
 }
 
+/**
+ * **Wie ein Werkzeug in der anderen Hand liegt.**
+ *
+ * Eine gemessene Haltung gehört immer *einer* Hand — bei allen Werkzeugen hier
+ * der rechten, wie bei den Fäusten daneben (`core/handPose.ts`,
+ * `defaultHoldPose`). Die andere Hand ist kein Sonderfall, den man ein zweites
+ * Mal einmisst, sondern dieselbe Haltung, einmal umgerechnet:
+ *
+ * - `mirror` — **gespiegelt** an der Mitte des Körpers, genau so, wie die
+ *   gezeichnete Hand selbst gespiegelt wird (`mirrorHandPose`). Der Normalfall,
+ *   und für alles richtig, was man in beiden Händen gleich hält. Gespiegelt
+ *   wird dabei die *Lage*, nicht das Modell: der Griff liegt spiegelbildlich,
+ *   das Ding darin bleibt, wie es gebaut ist.
+ * - `turn` — **um die eigene Hochachse gedreht**, um 180°. Für alles, dessen
+ *   Vorderseite eine Vorderseite bleiben muss: eine Stoppuhr, die man
+ *   spiegelt, zeigt der linken Hand ihre Rückseite oder liest sich verkehrt;
+ *   eine, die man umdreht, zeigt beiden Händen dasselbe Zifferblatt.
+ *
+ * Der Ort wandert in beiden Fällen auf die andere Seite — ein Werkzeug, das
+ * rechts neben der Faust hängt, hängt links links davon. Nur die Drehung
+ * unterscheidet die beiden.
+ */
+export type OtherHandFit = 'mirror' | 'turn';
+
+/**
+ * Dieselbe Haltung für die andere Hand, nach einer der beiden Regeln.
+ *
+ * Die Spiegelung ist die von `mirrorReadout`, nur direkt auf der Drehung
+ * gerechnet statt über die sechs Zahlen: `(x, y, z, w)` wird `(x, −y, −z, w)`,
+ * und in `XYZ`-Winkeln sind das genau die beiden Vorzeichen dort.
+ */
+export function holdForOtherHand(pose: HoldPose, fit: OtherHandFit): HoldPose {
+  const position: Vec3 = { x: -pose.position.x, y: pose.position.y, z: pose.position.z };
+  const { x, y, z, w } = pose.rotation;
+  // Die halbe Drehung um die eigene Y-Achse ist `q · (0, 1, 0, 0)`.
+  const rotation: Quat = fit === 'turn' ? { x: -z, y: w, z: x, w: -y } : { x, y: -y, z: -z, w };
+  return { position, rotation };
+}
+
 /** Six numbers for the config code — shorter than the field names would be. */
 export function readoutToArray(readout: PoseReadout): number[] {
   return [readout.x, readout.y, readout.z, readout.pitch, readout.yaw, readout.roll];

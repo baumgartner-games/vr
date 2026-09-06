@@ -136,6 +136,13 @@ export class StopwatchTool extends Tool {
     // Controller hält. Die gebaute Lage darunter (`RIM_HOLD_POSITION`) ist die
     // Zahl, aus der die Faust um die Kante gerechnet wurde — die Messung sagt,
     // wohin die Uhr in dieser Faust gehört.
+    // **In der linken Hand gedreht, nicht gespiegelt** (`Tool.otherHand`). Die
+    // gemessenen Zahlen gelten für rechts; die andere Hand bekommt sie sonst
+    // an der Körpermitte gespiegelt, und eine gespiegelte Uhr ist eine, deren
+    // Zeiger rückwärts laufen und deren Blatt sich verkehrt liest. Eine halbe
+    // Drehung um die eigene Hochachse legt sie stattdessen genauso in die
+    // linke Faust, mit demselben Zifferblatt zum Gesicht.
+    this.otherHand = 'turn';
     this.holdPosition.set(RIM_HOLD.x, RIM_HOLD.y, RIM_HOLD.z);
     this.holdRotation.setFromEuler(
       new THREE.Euler(RIM_TILT.x * DEG, RIM_TILT.y * DEG, RIM_TILT.z * DEG, 'XYZ'),

@@ -96,6 +96,7 @@ import {
   flightArrived,
   flightDuration,
   flightPosition,
+  atHandGrip,
   handsTooClose,
   nearZoneDistance,
   pickAimTarget,
@@ -229,7 +230,22 @@ const _zeroVelocity = new THREE.Vector3();
 const _spin = new THREE.Vector3();
 /** Das Tempo, mit dem ein losgelassenes Werkzeug fliegt, und seine Drehachse. */
 const _throw = { x: 0, y: 0, z: 0 };
+/** Und der Drall, den die Hand ihm dabei mitgibt, in Radiant je Sekunde. */
+const _handSpin = { x: 0, y: 0, z: 0 };
+/**
+ * Wie schnell ein losgelassenes Werkzeug höchstens kreiselt, in Radiant je
+ * Sekunde — gut drei Umdrehungen.
+ *
+ * Dieselbe Vorsicht wie beim Tempo, das auf 12 m/s gedeckelt wird: eine
+ * Handverfolgung, die für ein Bild aussetzt und wiederkommt, meldet eine
+ * Drehung von einer halben Umdrehung in 14 Millisekunden — das sind zweihundert
+ * Radiant je Sekunde, und ein Hammer, der damit losgeht, ist nicht geworfen,
+ * sondern verschossen.
+ */
+const MAX_TOOL_SPIN = 20;
+
 const _handSpeed = new THREE.Vector3();
+const _handTurn = new THREE.Quaternion();
 const _toolBox = new THREE.Box3();
 const _toolLocal = new THREE.Box3();
 const _toolMatrix = new THREE.Matrix4();
@@ -653,6 +669,15 @@ export class PortalWorld implements World {
    * oldest goes.
    */
   private readonly loose = new Map<PhysicsBody, LooseTool>();
+  /**
+   * Die Hände, die gerade am Griff der anderen stehen und deren Werkzeug
+   * übernehmen könnten — jedes Bild neu gefüllt (`updateGrabs`).
+   *
+   * Ein Feld und keine zweite Rechnung an der Stelle, an der es gebraucht
+   * wird: die Handhaltung (`updateHandGestures`) fragt danach, und zwei
+   * Rechnungen für dieselbe Frage laufen irgendwann auseinander.
+   */
+  private readonly handover = new Set<Handedness>();
   /** How fast each hand is moving, for throwing whatever it lets go of. */
   private readonly handMotion = new Map<Handedness, HandSpeed>();
   private belt: ToolBelt | null = null;
@@ -3226,6 +3251,15 @@ export class PortalWorld implements World {
       const slot = belt.nearest(_hand, ctx.rig);
 
       if (!tool) {
+        // **Erst die andere Hand, dann die Hüfte.** Wer beide Hände
+        // zusammenführt und greift, will das Werkzeug übernehmen und nicht das
+        // Regal hinter seiner Hüfte aufmachen — und über einer Hüfte stehen
+        // die Hände nun einmal beieinander.
+        const passed = grabPressed ? this.handoverTool(ctx, hand, gripOf(controller)) : null;
+        if (passed) {
+          this.takeTool(ctx, controller, passed);
+          continue;
+        }
         // A hand that is holding the other end of a two-handed tool is busy —
         // squeezing it must not also pull something off the hip.
         if (grabPressed && slot?.tool && !this.claimedHand(hand)) {
@@ -3451,6 +3485,19 @@ export class PortalWorld implements World {
     this.loose.set(entry, { tool, entry, gliding, home, hip });
 
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
+    // **Der Drall der Hand geht mit.** Ein gegriffener Dominostein taumelt,
+    // wenn man ihn hochwirft, ein Werkzeug flog wie ein Brett — und der
+    // Unterschied lag nicht an der Physik, sondern daran, woher die beiden
+    // ihre Drehung bekommen: der Stein hängt als kinematischer Körper an der
+    // Hand, und Rapier liest seine Winkelgeschwindigkeit beim Loslassen aus
+    // zwei Lagen ab. Ein Werkzeug hängt im Szenengraph und bekommt seinen
+    // Körper erst hier, mit allem auf null. Also wird die Drehung der Hand
+    // mitgemessen (`throwMotion.ts`) und hier angelegt.
+    if (motion && !gliding) {
+      motion.throwSpin(_handSpin);
+      _spin.set(_handSpin.x, _handSpin.y, _handSpin.z).clampLength(0, MAX_TOOL_SPIN);
+      entry.body.setAngvel({ x: _spin.x, y: _spin.y, z: _spin.z }, true);
+    }
     if (gliding) {
       // Straight on: no gravity, and an overhand tumble in the plane of the
       // throw — die Spitze geht oben herum nach vorn, in beiden Händen gleich
@@ -3681,7 +3728,8 @@ export class PortalWorld implements World {
         continue;
       }
       gripOf(controller).getWorldPosition(_handSpeed);
-      motion.feed(_handSpeed, dt);
+      gripOf(controller).getWorldQuaternion(_handTurn);
+      motion.feed(_handSpeed, dt, _handTurn);
     }
   }
 
@@ -4248,6 +4296,10 @@ export class PortalWorld implements World {
       const hand = controller.handedness;
       if (!hand) continue;
       const grab = this.grabs.get(hand);
+      // Ob sie im letzten Bild schon am Griff der anderen stand — und damit
+      // der Eintrag weg, falls sie es jetzt nicht mehr ist. `delete` sagt
+      // beides in einer Zeile, und der Stups unten hängt daran.
+      const wasHandover = this.handover.delete(hand);
 
       if (!controller.tracked) {
         // Eine Hand, die weg war, fängt beim Wiederkommen von vorn an: was
@@ -4275,6 +4327,26 @@ export class PortalWorld implements World {
       ctx.hands.setGlow(hand, false);
       if (this.held.has(hand) || this.claimedHand(hand)) {
         this.dropReach(ctx, hand);
+        continue;
+      }
+
+      // **Von Hand zu Hand.** Steht diese Hand am Griff der anderen, gehört
+      // ihr Griffknopf der Übergabe — genommen wird sie in `updateTools`, hier
+      // steht nur, dass es so weit ist. Die Hand leuchtet dafür wie beim
+      // Anfassen eines Gegenstands, und mehr braucht es nicht: was sie gleich
+      // hält, hält die andere schon sichtbar.
+      // Eine Faust, die schon zu ist, nimmt nichts mehr entgegen — sie hat
+      // gerade losgelassen oder greift ins Leere. Das ist auch die Hand, die
+      // ein Werkzeug eben abgegeben hat: sie soll sich nicht im selben
+      // Atemzug wieder öffnen, um es zurückzunehmen.
+      if (!controller.squeeze.pressed && this.handoverTool(ctx, hand, anchor)) {
+        this.dropReach(ctx, hand);
+        // Ein Stups beim Ankommen, einer je Annäherung: zwei Fäuste
+        // aneinander sieht man in der Brille schlecht, und was man nicht
+        // sieht, muss man spüren — dieselbe Regel wie im magischen Beutel.
+        if (!wasHandover) controller.pulse(0.2, 12);
+        this.handover.add(hand);
+        ctx.hands.setGlow(hand, true);
         continue;
       }
 
@@ -4587,6 +4659,38 @@ export class PortalWorld implements World {
       z: _quaternion.z,
       w: _quaternion.w,
     });
+  }
+
+  /**
+   * **Das Werkzeug, das diese Hand der anderen gerade abnehmen könnte** —
+   * `null`, wenn keins da ist oder die Hand zu weit vom Griff weg steht.
+   *
+   * Eine Taschenlampe wandert damit von einer Hand in die andere wie ein
+   * Gegenstand: Hände zusammen, greifen, fertig. Vorher ging das nur über den
+   * Umweg „fallen lassen und wieder aufheben", und ein Werkzeug, das man in
+   * der Luft übergibt, fiel dabei zu Boden.
+   *
+   * Gemessen wird gegen den **Griffpunkt** der haltenden Hand und nicht gegen
+   * das Werkzeug: dort liegt der Griff, und nur dort soll das Zeichen kommen
+   * (`HANDOVER_REACH`). Eine Reichweite über die Ausdehnung des Dings ließe
+   * die Lampe auch dann übernehmen, wenn die Hand vorn an der Linse steht —
+   * an einer Stelle, an der man sie in Wirklichkeit nicht anfasst.
+   *
+   * Ein **geparktes** Werkzeug bleibt, wo es ist: es hängt am Justierstand in
+   * der Luft, und die Hand daneben misst gerade seine Haltung ein. Und eines,
+   * das diese Hand ohnehin schon beansprucht (`claimsHand` — das Deck der
+   * Drohne, ein Fach im Beutel), wird nicht genommen, sondern bedient.
+   */
+  private handoverTool(ctx: WorldContext, hand: Handedness, anchor: THREE.Object3D): Tool | null {
+    if (this.grabs.has(hand)) return null;
+    const other: Handedness = hand === 'left' ? 'right' : 'left';
+    const tool = this.held.get(other);
+    if (!tool || tool.parked || tool.claimsHand(hand)) return null;
+    const there = ctx.input.get(other);
+    if (!there?.tracked) return null;
+    anchor.getWorldPosition(_thisHand);
+    gripOf(there).getWorldPosition(_otherHand);
+    return atHandGrip(_thisHand, _otherHand) ? tool : null;
   }
 
   /**
@@ -5013,6 +5117,12 @@ export class PortalWorld implements World {
       );
       if (this.held.has(hand) || this.grabs.has(hand) || this.links.has(hand)) {
         ctx.hands.setGestureOverride(hand, 'grip');
+        continue;
+      }
+      // Am Griff der anderen Hand öffnet sich die Hand zum Zugreifen, genau wie
+      // vor einem Gegenstand: die Geste sagt „ich nehme das gleich".
+      if (this.handover.has(hand)) {
+        ctx.hands.setGestureOverride(hand, 'ready');
         continue;
       }
       if (reachable.size > 0 && controller.tracked) {
@@ -5828,7 +5938,11 @@ export class PortalWorld implements World {
     }
     const tool = createTool(wanted);
     if (!tool) return;
-    tool.position.copy(tool.holdPosition);
+    // In der Hand, die es drüben hält: Ort und Neigung dieser Seite
+    // (`Tool.holdIn`), und die Gestalt dazu (`showHeldBy`). Ohne beides läge
+    // das Werkzeug am fremden Avatar in der linken Hand so wie in der rechten.
+    tool.showHeldBy(side);
+    tool.holdIn(side, tool.position, tool.quaternion);
     this.remoteTools.set(key, tool);
     ctx.avatars.setAttachment(peerId, side, tool);
   }

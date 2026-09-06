@@ -58,6 +58,23 @@ export const REMOTE_AIM_CONE = Math.tan((3.5 * Math.PI) / 180);
 export const GRAB_MARGIN = 0.09;
 /** Both hands closer than this: the player is reaching for what they hold. */
 export const HANDS_TOGETHER = 0.28;
+/**
+ * Und so nah muss die leere Hand an den **Griff** der vollen, damit ein
+ * Werkzeug von einer Hand in die andere geht.
+ *
+ * Am Griff und nicht am Werkzeug, und das ist der Punkt: eine Taschenlampe ist
+ * dreißig Zentimeter lang, und wer sie übernehmen will, fasst sie am Rohr an
+ * und nicht vorn an der Linse. Der Griffpunkt der haltenden Hand *ist* der
+ * Griff — dorthin legt jede Haltung ihr Werkzeug (`Tool.holdPosition`) —, also
+ * wird gegen ihn gemessen und nicht gegen die Ausdehnung des Dings. Sechzehn
+ * Zentimeter sind zwei Fäuste nebeneinander und etwas Luft.
+ *
+ * Deutlich enger als `HANDS_TOGETHER`, ab dem das Ferngreifen dieser Hand
+ * ohnehin aussetzt. Das ist Absicht: das Aussetzen darf großzügig sein, das
+ * **Leuchten** nicht — es sagt „jetzt", und ein „jetzt", das schon eine
+ * Armlänge vorher angeht, sagt nichts.
+ */
+export const HANDOVER_REACH = 0.16;
 /** A pull never takes longer than this, however far away the object is. */
 export const FLIGHT_MIN = 0.28;
 export const FLIGHT_MAX = 0.85;
@@ -323,4 +340,18 @@ export function flightArrived(position: Vec3, hand: Vec3, t: number): boolean {
 export function handsTooClose(a: Vec3 | null, b: Vec3 | null, otherHandBusy: boolean): boolean {
   if (!otherHandBusy || !a || !b) return false;
   return distance(a, b) < HANDS_TOGETHER;
+}
+
+/**
+ * Ob eine Hand nah genug am **Griffpunkt** der anderen steht, um ihr das
+ * Werkzeug abzunehmen (`HANDOVER_REACH`).
+ *
+ * Zwei Punkte und ein Abstand — die ganze Rechnung. Sie steht hier und nicht in
+ * der Welt, weil hier die Zahl steht, gegen die sie prüft, und weil eine
+ * Reichweite, die keiner nachrechnet, irgendwann die Reichweite von etwas
+ * anderem ist.
+ */
+export function atHandGrip(here: Vec3 | null, there: Vec3 | null): boolean {
+  if (!here || !there) return false;
+  return distance(here, there) <= HANDOVER_REACH;
 }

@@ -67,6 +67,9 @@ export class ControllerTool extends Tool {
     // und alles, was man später einmisst, ist die Abweichung davon.
     this.holdPosition.set(0, 0, 0);
     this.holdRotation.identity();
+    // Es *gibt* dieses Gerät nur für diese Seite: was daran gemessen wird, gilt
+    // für sie und wird nicht in die andere Hand gerechnet (`Tool.holdIn`).
+    this.holdHand = side;
 
     const shell = this.own(
       new THREE.MeshStandardMaterial({ color: 0x1d2331, roughness: 0.6, metalness: 0.15 }),

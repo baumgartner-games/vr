@@ -27,6 +27,7 @@ import { clearPose, clearPoses, savePose, storedPoseCount } from '../worlds/port
 import { poseFromReadout, readPose } from '../worlds/portal/tools/toolPose';
 import { holdFromGrip, poseOfHand, toolInGrip, type Pose } from '../worlds/tune/handGrip';
 import { fromRealHand, inRealHand } from './handFrame';
+import type { Handedness } from '../core/XRInput';
 import { gearCode, toolGearCode } from '../worlds/portal/tools/gearConfig';
 import {
   EDIT_AXES,
@@ -110,6 +111,7 @@ const back = document.querySelector<HTMLButtonElement>('#back')!;
 const title = document.querySelector<HTMLElement>('#title')!;
 const hands = document.querySelector<HTMLElement>('#hands')!;
 const fingers = document.querySelector<HTMLElement>('#fingers')!;
+const sides = document.querySelector<HTMLElement>('#sides')!;
 const drawer = document.querySelector<HTMLElement>('#drawer')!;
 const grids: Record<Shelf, HTMLElement> = {
   tools: document.querySelector<HTMLElement>('#grid-tools')!,
@@ -156,6 +158,7 @@ const liveCopy = document.querySelector<HTMLButtonElement>('#live-copy')!;
 
 const HAND_STORE = 'bgvr.toolPageHand';
 const BUTTONS_STORE = 'bgvr.toolPageButtons';
+const SIDE_STORE = 'bgvr.toolPageSide';
 const viewer = new ToolViewer(stage);
 
 const SECTION_TITLES: Record<Section, string> = {
@@ -490,6 +493,66 @@ function setMode(next: HandMode): void {
 function showMode(): void {
   for (const button of hands.querySelectorAll<HTMLButtonElement>('button')) {
     button.classList.toggle('is-active', button.dataset['hand'] === mode);
+  }
+}
+
+// --- links oder rechts -------------------------------------------------------
+
+/**
+ * **Welche Hand die Seite zeigt.**
+ *
+ * Eingemessen ist jede Haltung an *einer* Hand — hier durchweg der rechten —,
+ * und die andere rechnet das Werkzeug daraus (`Tool.holdIn`): gespiegelt, oder
+ * bei der Stoppuhr um die eigene Hochachse gedreht, weil ein gespiegeltes
+ * Zifferblatt rückwärts liefe. Vergleichen kann man das nur, wenn man beide
+ * ansehen darf, und dafür steht dieser Schalter im Kopf.
+ *
+ * Er gilt für die ganze Seite und nicht je Werkzeug: wer wissen will, wie
+ * seine Linkshänderei mit dem Regal zurechtkommt, will das bei allen
+ * zwanzig sehen und nicht bei einem.
+ */
+let side: Handedness = readSide();
+
+for (const button of sides.querySelectorAll<HTMLButtonElement>('button')) {
+  button.addEventListener('click', () => setSide(button.dataset['side'] as Handedness));
+}
+
+function readSide(): Handedness {
+  try {
+    return globalThis.localStorage?.getItem(SIDE_STORE) === 'left' ? 'left' : 'right';
+  } catch {
+    /* Privater Modus, kein Speicher — dann eben rechts. */
+    return 'right';
+  }
+}
+
+function setSide(next: Handedness): void {
+  side = next;
+  try {
+    globalThis.localStorage?.setItem(SIDE_STORE, next);
+  } catch {
+    /* siehe oben */
+  }
+  viewer.setHandSide(next);
+  showSide();
+  // Die sechs Zahlen gehören zu der Hand, die man ansieht — ein Entwurf aus
+  // der anderen ist dort eine falsche Zahl.
+  forgetDraft();
+  showEditor();
+}
+
+/**
+ * Der Schalter zeigt, was gilt — und **welche Hand wirklich zu sehen ist**.
+ * Bei den beiden Controllern ist das nicht dasselbe: sie behalten ihre Seite,
+ * und der Schalter sagt das, indem er sie und nicht die Wahl markiert und
+ * dabei stumpf wird.
+ */
+function showSide(): void {
+  const shown = viewer.toolId ? viewer.handSide : side;
+  const locked = shown !== side;
+  for (const button of sides.querySelectorAll<HTMLButtonElement>('button')) {
+    button.classList.toggle('is-active', button.dataset['side'] === shown);
+    button.disabled = locked;
   }
 }
 
@@ -920,6 +983,7 @@ function setEditing(on: boolean): void {
   // steht gar keine Hand, gegen die man etwas ausrichten könnte.
   hands.hidden = viewer.toolId === null;
   fingers.hidden = hands.hidden;
+  sides.hidden = hands.hidden;
   applyButtons();
   showButtons();
   // Und die Achsen dazu: sechs Zahlen ohne ein Kreuz daneben sind sechs Zahlen.
@@ -1430,6 +1494,7 @@ function route(): void {
   detail.hidden = false;
   hands.hidden = entry.section !== 'tools';
   fingers.hidden = hands.hidden;
+  sides.hidden = hands.hidden;
   back.hidden = false;
   nav.hidden = true;
   title.textContent = entry.label;
@@ -1442,8 +1507,13 @@ function route(): void {
   showMode();
   showButtons();
   viewer.setHandMode(mode);
+  // Vor `entry.show()`: die Seite steht fest, bevor das Werkzeug aufgestellt
+  // wird — sonst baute der Betrachter erst die rechte Hand und drehte gleich
+  // darauf auf die linke um.
+  viewer.setHandSide(side);
   applyButtons();
   entry.show();
+  showSide();
   forgetDraft();
   showHandTool(true);
   viewer.start();
@@ -1468,6 +1538,7 @@ function showOverview(section: Section): void {
   lede.hidden = section !== 'tools';
   hands.hidden = true;
   fingers.hidden = true;
+  sides.hidden = true;
   back.hidden = true;
   nav.hidden = false;
   edit.hidden = true;
