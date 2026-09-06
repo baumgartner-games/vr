@@ -627,7 +627,7 @@ export class TuneWorld extends PortalWorld {
         body: 'nicht getrackt',
         accent: 0x9fe3ff,
       });
-      board.position.set(sign * 0.82, 1.62, -half + thickness / 2 + 0.02);
+      board.position.set(sign * 0.82, 1.78, -half + thickness / 2 + 0.02);
       room.add(board);
       this.boards.set(side, board);
 
@@ -641,7 +641,7 @@ export class TuneWorld extends PortalWorld {
         body: 'nicht getrackt',
         accent: 0x9fe3ff,
       });
-      tilt.position.set(sign * 0.82, 1.02, -half + thickness / 2 + 0.02);
+      tilt.position.set(sign * 0.82, 1.14, -half + thickness / 2 + 0.02);
       room.add(tilt);
       this.tiltBoards.set(side, tilt);
 
@@ -661,28 +661,30 @@ export class TuneWorld extends PortalWorld {
       accent: 0x6f7d99,
       align: 'center',
     });
-    hint.position.set(0, 0.72, -half + thickness / 2 + 0.02);
+    hint.position.set(0, 0.55, -half + thickness / 2 + 0.02);
     room.add(hint);
 
-    // **Das Achsenkreuz des Raums**, mitten im Zimmer auf Brusthöhe, und
-    // daneben die Legende. Ein Kreuz allein sagt „hier sind drei Achsen"; erst
-    // mit den Worten daneben sagt es, welche.
-    this.worldAxes = createAxes(0.5);
-    this.worldAxes.position.set(0, 1.1, -0.4);
+    // **Das Achsenkreuz des Raums** — auf dem Boden zwischen einem selbst und
+    // der Wand, und daneben die Legende. Auf dem Boden und nicht auf
+    // Brusthöhe: dort stand es eine Weile, mitten im Blick auf die Tafeln und
+    // genau dort, wo man die Hände hält. Ein Kreuz allein sagt „hier sind drei
+    // Achsen"; erst mit den Worten daneben sagt es, welche.
+    this.worldAxes = createAxes(0.45);
+    this.worldAxes.position.set(0, 0.02, -1.9);
     room.add(this.worldAxes);
 
     const legend = new TextPlane({
-      width: 1.9,
-      height: 0.62,
+      width: 1.3,
+      height: 0.55,
       title: 'Achsen',
       body:
         'X rot — nach rechts\n' +
         'Y grün — nach oben\n' +
         'Z blau — nach hinten\n' +
-        '−Z weiß — nach VORN (dorthin schaut man, dorthin zeigt jeder Strahl)',
+        '−Z weiß — nach VORN',
       accent: 0x9fe3ff,
     });
-    legend.position.set(0, 1.5, -half + thickness / 2 + 0.02);
+    legend.position.set(-1.05, 0.55, -1.9);
     room.add(legend);
 
     this.buildTurnButton(room);

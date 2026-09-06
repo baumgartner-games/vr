@@ -5,8 +5,10 @@ import { WORLDS } from '../worlds';
 import { buildGate } from '../worlds/hub/HubWorld';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
 import {
+  GRIP_POSE_ID,
   HELD_BUTTONS,
   STANDARD_GRIP_TOOLS,
+  clonePose,
   type FingerButtons,
   type HandPose,
 } from '../core/handPose';
@@ -24,10 +26,8 @@ import {
 import { clearPose, clearPoses, savePose, storedPoseCount } from '../worlds/portal/tools/poseStore';
 import { poseFromReadout, readPose } from '../worlds/portal/tools/toolPose';
 import {
-  composePose,
   ghostOnTool,
   handFromGhost,
-  invertPose,
   poseOfHand,
   toolInGrip,
   type Pose,
@@ -41,17 +41,15 @@ import {
   clampPose,
   formatAxes,
   formatAxis,
-  isEditTarget,
   nudgeAxis,
   readAxis,
   withAxis,
   type EditAxis,
   type EditTarget,
 } from './poseEdit';
-import { conjugate } from '../worlds/portal/tools/aim';
 import { alignHandToLine, handAboutPivot, turnHandTo } from './alignHand';
 import { ToolViewer, type HandMode } from './viewer';
-import type { Quat, Vec3 } from '../worlds/portal/tools/aim';
+import type { Vec3 } from '../worlds/portal/tools/aim';
 import type { PoseReadout } from '../worlds/portal/tools/toolPose';
 import type { WorldDefinition } from '../core/types';
 
@@ -122,7 +120,8 @@ const pad = document.querySelector<HTMLElement>('#pad')!;
 const help = document.querySelector<HTMLElement>('#help')!;
 const axesBar = document.querySelector<HTMLElement>('#axes')!;
 const editor = document.querySelector<HTMLElement>('#editor')!;
-const targets = document.querySelector<HTMLElement>('#targets')!;
+const asReal = document.querySelector<HTMLButtonElement>('#asreal')!;
+asReal.addEventListener('click', takeRealHand);
 const align = document.querySelector<HTMLButtonElement>('#align')!;
 const aimAt = document.querySelector<HTMLButtonElement>('#aim')!;
 const revert = document.querySelector<HTMLButtonElement>('#revert')!;
@@ -459,6 +458,11 @@ function setMode(next: HandMode): void {
   }
   viewer.setHandMode(next);
   showMode();
+  // Die Ansicht sagt, **was** der Regler verschiebt (`editTarget`) — und damit
+  // stehen die sechs Zahlen in einem anderen Raum. Ein Entwurf aus der einen
+  // Ansicht ist in der anderen eine falsche Zahl.
+  forgetDraft();
+  showEditor();
 }
 
 function showMode(): void {
@@ -650,7 +654,6 @@ function setFlying(on: boolean): void {
  */
 let editing = false;
 let axis: EditAxis = 'x';
-let target: EditTarget = 'hold';
 /** Die Ansicht, die vor dem Justieren galt — danach gilt wieder sie. */
 let wasMode: HandMode | null = null;
 /** Die Lage der Hand am Werkzeug, wie sie gerade eingestellt wird. */
@@ -667,15 +670,6 @@ for (const spec of EDIT_AXES) {
     showEditor();
   });
   axesBar.append(button);
-}
-
-for (const button of targets.querySelectorAll<HTMLButtonElement>('button')) {
-  button.addEventListener('click', () => {
-    const key = button.dataset['target'] ?? '';
-    if (!isEditTarget(key)) return;
-    target = key;
-    showEditor();
-  });
 }
 
 edit.addEventListener('click', () => setEditing(!editing));
@@ -744,7 +738,7 @@ revert.addEventListener('click', () => {
   forgetDraft();
   // Das ganze Ziel und nicht nur die eine Achse: wer zurücksetzt, will die
   // gebaute Haltung wiederhaben, und die besteht aus sechs Zahlen.
-  if (target !== 'hold') {
+  if (editTarget() !== 'hold') {
     clearHoldHandPose(viewer.handSide, id);
     viewer.refresh();
   } else if (id === HAND_TOOL) {
@@ -867,16 +861,18 @@ function setEditing(on: boolean): void {
   // Eine Haltung, die sich beim Justieren von selbst weiterdreht, justiert
   // niemand.
   if (editing) viewer.setSpinning(false);
-  // Beim Justieren gilt **eine** Ansicht: das Werkzeug steht aufrecht in seinem
-  // eigenen Raum, und die Hand ist das, was sich bewegt. Man legt eine Hand an
-  // ein Ding und nicht ein Ding an eine Hand — und im Griffraum wanderte für
-  // das Ziel „In der Hand" das Werkzeug unter der stehenden Hand weg, was genau
-  // der falsche Film ist. Deshalb weicht der Umschalter oben so lange und
-  // kommt danach mit der Ansicht zurück, die vorher galt.
-  hands.hidden = editing || viewer.toolId === null;
+  // **Der Umschalter oben bleibt**, und er ist beim Justieren mehr als eine
+  // Ansicht: er sagt, was der Regler verschiebt. *Hand in VR* bewegt die
+  // gezeichnete Hand am stehenden Werkzeug, *Hand in echt* das Werkzeug in der
+  // stehenden Hand — die eigene Hand hält einen Controller, an ihr gibt es
+  // nichts einzustellen. Nur *Hand aus* ergibt beim Justieren keinen Sinn: dort
+  // steht gar keine Hand, gegen die man etwas ausrichten könnte.
+  hands.hidden = viewer.toolId === null;
   fingers.hidden = hands.hidden;
   applyButtons();
-  if (editing && mode !== 'vr') {
+  // Und die Achsen dazu: sechs Zahlen ohne ein Kreuz daneben sind sechs Zahlen.
+  viewer.setAxes(editing);
+  if (editing && mode === 'off') {
     wasMode ??= mode;
     setMode('vr');
   } else if (!editing && wasMode) {
@@ -903,11 +899,6 @@ function sixOf(pose: HandPose): PoseReadout {
 
 const ZERO: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
 
-/** Die Zielkorrektur zurück: aus dem Strahl- in den Griffraum. */
-function rayToGrip(): Quat {
-  return conjugate(viewer.aimOf(), { x: 0, y: 0, z: 0, w: 1 });
-}
-
 /**
  * Die Lage des **Werkzeugs im Griff**, als Pose — die eine Hälfte der Kette.
  *
@@ -932,17 +923,33 @@ function handInGripNow(): Pose {
 }
 
 /**
- * Die sechs Zahlen, an denen der Regler gerade zieht: **wo die Hand am
- * Werkzeug liegt**, im Raum des Werkzeugs.
+ * **Was der Regler gerade verschiebt** — und das sagt die Ansicht oben im Kopf,
+ * nicht ein zweiter Umschalter darunter.
  *
- * Und zwar für *beide* Ziele dieselben. Das ist der Punkt: bewegt wird die
- * Hand, das Werkzeug steht. Wohin das Ergebnis geschrieben wird — in die Lage
- * des Werkzeugs im Griff oder in die Haltung der Hand —, entscheidet erst
- * `writeAxis`, und auf dem Schirm sieht man dabei zweimal dasselbe.
+ * In *Hand in VR* steht das Werkzeug und die gezeichnete Hand wandert daran
+ * (`grip`: geschrieben wird ihre Griffhaltung). In *Hand in echt* steht die
+ * eigene Hand — an ihr gibt es nichts einzustellen, sie hält einen Controller
+ * — und das **Werkzeug** wandert darin (`hold`: geschrieben wird seine Lage im
+ * Griff).
+ */
+function editTarget(): EditTarget {
+  return mode === 'controller' ? 'hold' : 'grip';
+}
+
+/**
+ * Die sechs Zahlen, an denen der Regler gerade zieht — und **welche** das
+ * sind, hängt an der Ansicht:
  *
- * Es ist genau die Größe, die der zweite Justierstand misst und die auch der
- * Betrachter zeichnet (`ghostOnTool`) — deshalb ist der Regler das, was man
- * sieht, und nicht eine Zahl daneben.
+ * - *Hand in VR*: **wo die Hand am Werkzeug liegt**, im Raum des Werkzeugs
+ *   (`ghostOnTool`) — genau die Größe, die auch der zweite Justierstand misst
+ *   und die der Betrachter zeichnet.
+ * - *Hand in echt*: **wo das Werkzeug im Griff liegt**, im Griffraum
+ *   (`holdReadout`) — genau die sechs Zahlen, die `poseStore` speichert und
+ *   die im Kurzcode stehen. Kein Umweg über eine Hand, die dort gar nicht
+ *   verstellt wird.
+ *
+ * In beiden Fällen ist es das, was sich auf dem Schirm bewegt, und deshalb ist
+ * der Regler das, was man sieht, und nicht eine Zahl daneben.
  */
 function currentPose(): PoseReadout {
   if (!viewer.toolId) return ZERO;
@@ -952,7 +959,10 @@ function currentPose(): PoseReadout {
   // dann wanderten die fünf Achsen, an denen gerade *niemand* zieht, um je eine
   // halbe Rundung mit. Ein Entwurf, der nur seine eigene Achse ändert, kann das
   // nicht.
-  draft ??= readPose(ghostOnTool(toolInGripNow(), handInGripNow()));
+  draft ??=
+    editTarget() === 'hold'
+      ? (viewer.holdReadout() ?? ZERO)
+      : readPose(ghostOnTool(toolInGripNow(), handInGripNow()));
   return draft;
 }
 
@@ -1046,36 +1056,54 @@ function writePose(next: PoseReadout, syncSlider = true): void {
   draft = clampPose(next);
   const ghost = poseFromReadout(draft);
 
-  if (target === 'grip') {
-    // Die Hand rückt, das Werkzeug bleibt im Griff, wo es ist:
-    //   Haltung = Lage-im-Griff · Hand-am-Werkzeug.
-    // Nur die sechs Zahlen — Finger und Spreizung gehören zur Haltung und
-    // werden von einem Regler für Ort und Winkel nicht angefasst.
-    const pose = handFromGhost(toolInGripNow(), ghost);
-    const base = holdHandPose(viewer.handSide, id);
-    saveHoldHandPose(viewer.handSide, id, { ...base, ...readPose(pose) });
-    viewer.refresh();
-  } else {
-    // Dieselbe Handlage, andersherum aufgelöst: die Haltung der Hand bleibt,
-    // also muss das Werkzeug im Griff dorthin, wo die Hand von selbst daran
-    // liegt — Lage-im-Griff = Haltung · Hand-am-Werkzeug⁻¹. Auf dem Schirm
-    // wandert trotzdem die Hand: das Werkzeug steht in seinem eigenen Raum.
-    // Und die Zielkorrektur wieder heraus: `holdRotation` ist die Neigung
-    // **gegen den Zeigestrahl**, nicht die Lage im Griffraum.
-    const local = toolInGrip(composePose(handInGripNow(), invertPose(ghost)), rayToGrip());
+  if (editTarget() === 'hold') {
+    // **Das Werkzeug wandert.** Die sechs Zahlen *sind* seine Lage im Griff —
+    // dieselbe, die gespeichert wird —, also gibt es hier nichts umzurechnen.
     if (id === HAND_TOOL) {
       // Die Boxhand ist die Hand selbst; ihre Lage im Griff *ist* die
       // Grundhaltung dieser Hand (siehe oben).
-      saveIdleHandPose(viewer.handSide, { ...idleHandPose(viewer.handSide), ...readPose(local) });
+      saveIdleHandPose(viewer.handSide, { ...idleHandPose(viewer.handSide), ...draft });
     } else {
       // Die Seite misst immer an derselben Hand, also steht sie auch als
       // Herkunft im Speicher — eine Zahl ohne Seite ist später nicht mehr zu
       // deuten.
-      savePose(id, local, viewer.handSide);
+      savePose(id, ghost, viewer.handSide);
     }
-    viewer.setHoldPose(local);
+    viewer.setHoldPose(ghost);
+    showEditor(syncSlider);
+    return;
   }
+
+  // **Die Hand wandert**, das Werkzeug bleibt im Griff, wo es ist:
+  //   Haltung = Lage-im-Griff · Hand-am-Werkzeug.
+  // Nur die sechs Zahlen — Finger und Spreizung gehören zur Haltung und werden
+  // von einem Regler für Ort und Winkel nicht angefasst.
+  const pose = handFromGhost(toolInGripNow(), ghost);
+  const base = holdHandPose(viewer.handSide, id);
+  saveHoldHandPose(viewer.handSide, id, { ...base, ...readPose(pose) });
+  viewer.refresh();
   showEditor(syncSlider);
+}
+
+/**
+ * **Hand in echt übernehmen** — die Faust, mit der die eigene Hand das Gerät
+ * hält, als gezeichnete Haltung dieses Werkzeugs.
+ *
+ * Der kürzeste Weg zu einer Haltung, die sicher sitzt: „halte es so, wie ich
+ * es wirklich halte." Übernommen wird die ganze Haltung samt Fingern —
+ * Krümmung und Spreizung gehören dazu, wenn es dieselbe Faust sein soll — und
+ * für ein Werkzeug mit Halterzylinder ist das Ergebnis genau die Faust, die es
+ * ohnehin erbt. Interessant wird der Knopf bei allem anderen: der Pinsel, der
+ * Beutel, die Stoppuhr liegen dann so in der Hand, wie der Controller darin
+ * liegt.
+ */
+function takeRealHand(): void {
+  const id = viewer.toolId;
+  if (!id || id === HAND_TOOL) return;
+  forgetDraft();
+  saveHoldHandPose(viewer.handSide, id, clonePose(holdHandPose(viewer.handSide, GRIP_POSE_ID)));
+  viewer.refresh();
+  showEditor();
 }
 
 /** Alles am Justierer auf den Stand bringen, den der Speicher gerade hat. */
@@ -1088,10 +1116,6 @@ function showEditor(syncSlider = true): void {
   for (const button of axesBar.querySelectorAll<HTMLButtonElement>('button')) {
     button.classList.toggle('is-active', button.dataset['axis'] === axis);
   }
-  for (const button of targets.querySelectorAll<HTMLButtonElement>('button')) {
-    button.classList.toggle('is-active', button.dataset['target'] === target);
-  }
-
   if (syncSlider) {
     slider.min = String(spec.min);
     slider.max = String(spec.max);
@@ -1099,15 +1123,19 @@ function showEditor(syncSlider = true): void {
     slider.value = String(value);
   }
 
-  // Die beiden Knöpfe gibt es nur, wo es auch etwas auszurichten gibt: an einem
-  // Hammer wäre *Auf den Zylinder* ein Knopf, der nichts tun kann, und die Boxhand
-  // zielt nirgendwohin.
-  align.hidden = !viewer.hasGrip;
-  aimAt.hidden = !viewer.hasAim;
-
-  const targetHint = EDIT_TARGETS.find((entry) => entry.key === target);
+  // Alle drei Knöpfe richten die **Hand** aus — es gibt sie also nur dort, wo
+  // die Hand das ist, was sich bewegt, und nur, wo es etwas auszurichten gibt:
+  // an einem Hammer wäre *Auf den Zylinder* ein Knopf, der nichts tun kann,
+  // die Boxhand zielt nirgendwohin, und sie *ist* die Hand.
+  const moving = editTarget();
+  align.hidden = !viewer.hasGrip || moving === 'hold';
+  aimAt.hidden = !viewer.hasAim || moving === 'hold';
+  asReal.hidden = moving === 'hold' || viewer.toolId === HAND_TOOL;
+  const targetHint = EDIT_TARGETS.find((entry) => entry.key === moving);
   reading.textContent = `${spec.label} ${formatAxis(axis, value)} · ${spec.hint}`;
-  values.textContent = `Hand am Werkzeug: ${formatAxes(pose)} — ${targetHint?.hint ?? ''}`;
+  values.textContent =
+    `${moving === 'hold' ? 'Werkzeug im Griff' : 'Hand am Werkzeug'}: ` +
+    `${formatAxes(pose)} — ${targetHint?.hint ?? ''}`;
 
   const id = viewer.toolId;
   showCode(codeTool, 'Werkzeug', id ? toolGearCode(id, viewer.handSide) : '');

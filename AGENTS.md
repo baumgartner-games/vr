@@ -901,7 +901,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Neuzeichnen malt eine Leinwand neu.
 
   **Und dazu die Achsen selbst**, denn eine Zahl ohne Achse ist keine Auskunft
-  (`core/axesCross.ts`). Ein Kreuz steht mitten im Raum und je eines an jedem
+  (`core/axesCross.ts`). Ein Kreuz steht auf dem **Boden** zwischen einem
+  selbst und der Wand — es stand eine Weile auf Brusthöhe mitten im Blick auf
+  die Tafeln und genau dort, wo man die Hände hält — und je eines an jedem
   Controller-Modell, sodass man beide nebeneinander sieht und daran, wie schräg
   der Raum des Geräts im Zimmer steht. Die Farben sind die üblichen — **X rot,
   Y grün, Z blau**, wie in three.js und Blender —, und dazu kommt der vierte
@@ -2809,35 +2811,46 @@ untereinander sind auf einem Telefon kein Werkzeug, sondern ein Formular.
 Neben dem Regler stehen zwei Rasten-Knöpfe, denn ein Zehntel Zentimeter ist auf
 360 Bildpunkten Reglerweg nicht zu treffen.
 
-Bewegt wird dabei **immer die Hand**, nie das Werkzeug. Das Werkzeug ist das,
-was man ansieht: es steht aufrecht in seinem eigenen Raum und bleibt dort
-stehen, und die Hand legt man daran, wie man eine echte Hand an ein echtes Ding
-legt. Die sechs Zahlen am Regler sind deshalb die Lage der **Hand im Raum des
-Werkzeugs** — genau die Größe, die der zweite Justierstand misst und die der
-Betrachter ohnehin zeichnet (`ghostOnTool` in `tune/handGrip.ts`). Deswegen
-weicht der Ansichts-Umschalter im Kopf, solange justiert wird: es gilt die
-Ansicht _In VR_, und danach kommt die zurück, die vorher galt. Im
-Griffraum wanderte sonst für das eine Ziel das Werkzeug unter der stehenden
-Hand weg — genau der falsche Film, und genau der, der als „ich will das
-Werkzeug nicht bewegen" zurückkam.
+**Was der Regler verschiebt, sagt der Umschalter im Kopf** — derselbe, der
+sonst nur die Ansicht wählt. Er bleibt beim Justieren stehen, und das ist der
+Punkt: was man ansieht, ist das, was man verstellt.
 
-Der zweite Umschalter, unten links, sagt deshalb nicht mehr, _was_ sich bewegt,
-sondern **wohin die eingestellte Handlage übernommen wird**. Dieselbe Lage kann
-auf zwei Arten wahr werden, und es sind die Antworten der beiden Justierstände:
+- **Hand in VR** — das Werkzeug steht aufrecht in seinem eigenen Raum, und die
+  **gezeichnete Hand** wandert daran, wie man eine echte Hand an ein echtes
+  Ding legt. Die sechs Zahlen sind die Lage der **Hand im Raum des Werkzeugs**
+  (`ghostOnTool` in `tune/handGrip.ts`), übernommen als **Griffhaltung der
+  Hand** (`handPoseStore`, `bgvr.handPoses`) — und zwar nur in ihren sechs
+  Zahlen: Finger und Spreizung sind keine Frage von „wo liegt die Hand" und
+  bleiben stehen. Gerechnet als `Haltung = Lage-im-Griff · Hand-am-Werkzeug`
+  (`handFromGhost`).
+- **Hand in echt** — die eigene Hand steht, und an ihr gibt es nichts
+  einzustellen: sie hält einen Controller. Also wandert das **Werkzeug** darin.
+  Die sechs Zahlen sind seine **Lage im Griff** (`poseStore`,
+  `bgvr.holdPoses`, also `holdPosition`/`holdRotation`) — dieselben Zahlen, die
+  gespeichert werden und im Kurzcode stehen, ohne Umweg über eine Hand, die
+  dort gar nicht bewegt wird.
 
-- **In der Hand** — übernommen als **Lage des Werkzeugs im Griff**
-  (`poseStore`, `bgvr.holdPoses`, also `holdPosition`/`holdRotation`). Die
-  Handhaltung bleibt; was sich ändert, ist, wie das Ding in der Faust liegt und
-  wohin es damit zeigt. Gerechnet als `Lage-im-Griff = Haltung ·
-Hand-am-Werkzeug⁻¹`.
-- **Am Griff** — übernommen als **Griffhaltung der Hand** (`handPoseStore`,
-  `bgvr.handPoses`), und zwar nur in ihren sechs Zahlen: Finger und Spreizung
-  sind keine Frage von „wo liegt die Hand" und bleiben stehen. Gerechnet als
-  `Haltung = Lage-im-Griff · Hand-am-Werkzeug` (`handFromGhost`).
+Vorher war das ein **zweiter Umschalter** unter dem Regler, mit eigenen Namen
+(„In der Hand", „Am Griff"), während der obere so lange verschwand — zwei
+Schalter, die dasselbe meinten und die man im Kopf zusammenhalten musste. Und
+bewegt wurde immer die Hand, auch dort, wo sie das Einzige ist, was feststeht.
 
-Auf dem Schirm sehen beide gleich aus — dieselbe Hand wandert an dasselbe
-stehende Werkzeug. Der Unterschied liegt in der Brille, und deshalb steht er
-als Satz unter dem Regler und nicht nur als Knopfbeschriftung.
+Dazu stehen im Bearbeiten-Modus **zwei Achsenkreuze** (`core/axesCross.ts`,
+dieselben wie im Eingaberaum): eines im Nullpunkt des **Werkzeugs** und eines
+im **Griffraum** — die beiden Räume, in denen die sechs Zahlen stehen. X rot, Y
+grün, Z blau, -Z weiß nach vorn, und die Beschriftung der drei Drehregler sagt
+dazu, um welche Achse sie greifen (_Pitch — nicken um X (rot)_). Sechs Zahlen
+ohne ein Kreuz daneben sind sechs Zahlen.
+
+**Und der kürzeste Weg:** _Hand in echt übernehmen_ nimmt die Faust, mit der
+die eigene Hand das Gerät hält (`GRIP_POSE_ID`, siehe _Die Faust gehört zum
+Griff_), und macht sie zur gezeichneten Haltung dieses Werkzeugs — samt Fingern,
+denn eine Faust ohne ihre Krümmung ist eine andere. „Halte es so, wie ich es
+wirklich halte." Für alles mit Halterzylinder kommt dabei die Faust heraus, die
+es ohnehin erbt; interessant ist der Knopf bei allem anderen — Pinsel, Beutel,
+Stoppuhr liegen danach so in der Hand, wie der Controller darin liegt. Es gibt
+ihn nur in _Hand in VR_ (dort bewegt sich die Hand) und nicht an der Boxhand
+(die _ist_ die Hand).
 
 **Drei Richtungen, zwei Knöpfe, ein Drehpunkt.** Im Bild stehen drei
 Richtungen, und sie sind die eigentliche Auskunft beim Justieren: die des

@@ -147,15 +147,20 @@
         </div>
 
         <section id="editor" class="editor" hidden>
+          <!--
+            Kein zweiter Umschalter mehr für „was der Regler verschiebt": das
+            sagt die **Ansicht** oben im Kopf. In *Hand in VR* steht das
+            Werkzeug und die gezeichnete Hand wandert daran; in *Hand in echt*
+            steht die eigene Hand — an ihr gibt es nichts einzustellen — und
+            das Werkzeug wandert darin. Zwei Schalter, die dasselbe meinten,
+            musste man im Kopf zusammenhalten.
+          -->
           <div class="editor__row">
-            <div id="targets" class="seg" role="group" aria-label="Was der Regler verschiebt">
-              <button type="button" data-target="hold">In der Hand</button>
-              <button type="button" data-target="grip">Am Griff</button>
-            </div>
             <!--
-              Die beiden rechts stehen zusammen in einer eigenen Gruppe: der
-              linke Knopf ist nicht an jedem Werkzeug da, und ohne Gruppe hinge
-              der Abstand nach links an genau dem Knopf, der gerade fehlt.
+              Die Knöpfe stehen zusammen in einer eigenen Gruppe: die linken
+              sind nicht an jedem Werkzeug und nicht in jeder Ansicht da, und
+              ohne Gruppe hinge der Abstand an genau dem Knopf, der gerade
+              fehlt.
             -->
             <div class="editor__ghosts">
               <!--
@@ -171,6 +176,12 @@
                 dann aufs Ziel — die beiden sind ein Weg und keine Alternative.
               -->
               <button id="aim" class="editor__ghost" type="button" hidden>In Zielrichtung</button>
+              <!--
+                Und der kürzeste Weg zu einer Haltung, die sicher passt: die
+                Faust, mit der die echte Hand das Gerät hält, als Haltung
+                dieses Werkzeugs. „So wie ich es wirklich halte."
+              -->
+              <button id="asreal" class="editor__ghost" type="button" hidden>Hand in echt übernehmen</button>
               <button id="revert" class="editor__ghost" type="button">Zurücksetzen</button>
             </div>
           </div>

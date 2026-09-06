@@ -20,6 +20,7 @@ import {
   createGripShape,
 } from '../worlds/portal/tools/grip';
 import { HANDLE_COLOR } from '../core/controllerHandle';
+import { createAxes, disposeAxes } from '../core/axesCross';
 import { readPose } from '../worlds/portal/tools/toolPose';
 import { ghostOnTool, invertPose, poseOfHand, toolInGrip } from '../worlds/tune/handGrip';
 import {
@@ -251,6 +252,9 @@ const LINE_BEYOND = 1.15;
 const AIM_LINE_COLOR = 0xb388ff;
 const AIM_LINE_MIN = 0.16;
 
+/** Wie lang die Arme der beiden Achsenkreuze im Bearbeiten-Modus sind. */
+const AXES_SIZE = 0.13;
+
 /** Wie durchsichtig das Werkzeug wird, wo es nur zeigt, wo es wäre. */
 const GHOST_OPACITY = 0.22;
 
@@ -351,6 +355,9 @@ export class ToolViewer {
   private handle: THREE.Mesh | null = null;
   /** Der Griffraum als Knoten: dort läge der Controller, der dieses Werkzeug hält. */
   private rig: THREE.Group | null = null;
+  /** Die beiden Achsenkreuze im Bearbeiten-Modus — Werkzeugraum und Griffraum. */
+  private axes: THREE.Group[] = [];
+  private showAxes = false;
   /** Was ein Material war, bevor das Werkzeug zum Geist wurde (`setToolGhost`). */
   private readonly opaque = new Map<
     THREE.Material,
@@ -594,6 +601,23 @@ export class ToolViewer {
     if (this.mode === mode) return;
     this.mode = mode;
     this.apply();
+  }
+
+  /**
+   * **Die Achsen einblenden** — im Bearbeiten-Modus, und nur dort.
+   *
+   * Zwei Kreuze, denn es gibt zwei Räume, und die sechs Zahlen des Reglers
+   * stehen je nach Ansicht im einen oder im anderen: der **Werkzeugraum** im
+   * Nullpunkt des Werkzeugs (dort wandert die Hand *in VR*) und der
+   * **Griffraum** dort, wo der Controller läge (dort wandert das Werkzeug
+   * *in echt*). X rot, Y grün, Z blau, und -Z weiß nach vorn
+   * (`core/axesCross.ts`) — dieselben Farben wie im Eingaberaum, und dieselben
+   * Achsen, um die Pitch, Yaw und Roll drehen.
+   */
+  setAxes(on: boolean): void {
+    if (this.showAxes === on) return;
+    this.showAxes = on;
+    this.apply(false);
   }
 
   /**
@@ -913,6 +937,14 @@ export class ToolViewer {
       this.hand = hand;
     }
 
+    if (this.showAxes) {
+      const inTool = createAxes(AXES_SIZE);
+      tool.add(inTool);
+      const inGrip = createAxes(AXES_SIZE);
+      rig.add(inGrip);
+      this.axes = [inTool, inGrip];
+    }
+
     this.placeTarget();
     if (refit) this.fit();
     this.sizeLines();
@@ -1060,6 +1092,8 @@ export class ToolViewer {
    * ist keines — ihre Geometrie bliebe bei jedem Werkzeugwechsel liegen.
    */
   private dropHand(): void {
+    for (const cross of this.axes) disposeAxes(cross);
+    this.axes = [];
     const line = this.handLine;
     this.handLine = null;
     if (line) {

@@ -456,6 +456,14 @@ export class App {
     this.worldId = '';
     this.worldMenu = [];
 
+    // **Die Hände gehören keiner Welt.** Zwei Dinge blenden sie aus — die
+    // Drohne, die die Sicht aus dem Körper trägt, und der Kreis im
+    // Eingaberaum, in dem man die echte Hand ans Werkzeug legt. Beides ist
+    // eine Sperre, und eine Sperre, die beim Verlassen der Welt hängen
+    // bleibt, nimmt die Hände in die nächste mit: man steht dann in einer
+    // fremden Welt und hat keine. Jede Welt fängt deshalb mit Händen an.
+    this.handVisuals.hidden = false;
+
     // Safety net: drop anything the world forgot to remove.
     for (const child of [...this.scene.children]) {
       if (!this.baseChildren.has(child)) this.scene.remove(child);

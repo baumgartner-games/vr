@@ -77,16 +77,44 @@ export const EDIT_AXES: readonly AxisSpec[] = [
   { key: 'x', label: 'X', hint: 'nach rechts', unit: 'cm', min: -30, max: 30, step: 0.1 },
   { key: 'y', label: 'Y', hint: 'nach oben', unit: 'cm', min: -30, max: 30, step: 0.1 },
   { key: 'z', label: 'Z', hint: 'nach hinten', unit: 'cm', min: -30, max: 30, step: 0.1 },
-  { key: 'yaw', label: 'Yaw', hint: 'drehen', unit: '°', min: -180, max: 180, step: 1 },
-  { key: 'pitch', label: 'Pitch', hint: 'nicken', unit: '°', min: -180, max: 180, step: 1 },
-  { key: 'roll', label: 'Roll', hint: 'kippen', unit: '°', min: -180, max: 180, step: 1 },
+  // Und wohin die drei Drehungen greifen, steht dabei: Pitch um **X** (rot),
+  // Yaw um **Y** (grün), Roll um **Z** (blau) — dieselben Achsen, die im
+  // Bearbeiten-Modus als Kreuz danebenstehen. Ohne das rät man bei jedem
+  // Regler neu, welcher der drei gerade der richtige ist.
+  { key: 'yaw', label: 'Yaw', hint: 'drehen um Y (grün)', unit: '°', min: -180, max: 180, step: 1 },
+  {
+    key: 'pitch',
+    label: 'Pitch',
+    hint: 'nicken um X (rot)',
+    unit: '°',
+    min: -180,
+    max: 180,
+    step: 1,
+  },
+  {
+    key: 'roll',
+    label: 'Roll',
+    hint: 'kippen um Z (blau)',
+    unit: '°',
+    min: -180,
+    max: 180,
+    step: 1,
+  },
 ];
 
 /**
- * Die beiden Ziele — wohin die eingestellte Handlage übernommen wird.
+ * Die beiden Ziele — und sie sind keine eigene Wahl mehr, sondern **die
+ * Ansicht**: was man ansieht, ist das, was man verstellt.
  *
- * Auf dem Schirm tun beide dasselbe: die Hand wandert, das Werkzeug steht. Der
- * Unterschied liegt in der Brille, und deshalb steht er hier als Satz.
+ * - In **Hand in VR** steht das Werkzeug, und die gezeichnete Hand wandert
+ *   daran; geschrieben wird die Griffhaltung der Hand.
+ * - In **Hand in echt** steht die Hand — sie ist die eigene, an ihr gibt es
+ *   nichts einzustellen —, und das **Werkzeug** wandert darin; geschrieben
+ *   wird die Lage des Werkzeugs im Griff.
+ *
+ * Vorher war das ein zweiter Umschalter unter dem Regler, mit eigenen Namen
+ * („In der Hand", „Am Griff"), und man musste zwei Schalter im Kopf
+ * zusammenhalten, die dasselbe meinten.
  */
 export const EDIT_TARGETS: readonly {
   key: EditTarget;
@@ -95,13 +123,13 @@ export const EDIT_TARGETS: readonly {
 }[] = [
   {
     key: 'hold',
-    label: 'In der Hand',
-    hint: 'übernommen als Lage des Werkzeugs im Griff — die Handhaltung bleibt',
+    label: 'Hand in echt',
+    hint: 'der Regler bewegt das Werkzeug — gespeichert als seine Lage im Griff',
   },
   {
     key: 'grip',
-    label: 'Am Griff',
-    hint: 'übernommen als Griffhaltung der Hand — die Lage im Griff bleibt',
+    label: 'Hand in VR',
+    hint: 'der Regler bewegt die Hand — gespeichert als ihre Griffhaltung',
   },
 ];
 
