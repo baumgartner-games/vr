@@ -64,8 +64,8 @@ Zylinder, Flug **und die Reichweite, in der ein Werkzeug von einer Hand in die
 andere geht**; `src/core/grabSettings.ts` — Rasten und Grenzen dazu), die
 Achsenzuordnung der Griffe (`src/worlds/portal/tools/axisMatch.ts`), die
 gemessene Werkzeug-Pose samt Spiegelung **und ihrer Umrechnung auf die andere
-Hand** (`src/worlds/portal/tools/toolPose.ts` — gespiegelt oder um die eigene
-Hochachse gedreht, und beides ist seine eigene Umkehrung), die **Flugmathematik der Drohne**
+Hand** (`src/worlds/portal/tools/toolPose.ts` — gespiegelt, und die Spiegelung
+ist ihre eigene Umkehrung), die **Flugmathematik der Drohne**
 (`src/worlds/portal/tools/droneFlight.ts` — Kopter und Jet, inklusive der
 Vorzeichen, die im Headset sonst die halbe Welt verdrehen, und das Tuning aus
 Tempo und Drehrate), die **Drohnen-Einstellungen**
@@ -2878,26 +2878,39 @@ der einen ordentlich in der Faust und in der anderen daneben — bei allem, was
 nicht ohnehin symmetrisch im Griff sitzt. In der Brille sah man das an der
 **Stoppuhr** und am **großen Hammer**.
 
-Also weiß `Tool` zweierlei: an welcher Hand seine Haltung gemessen ist
-(`holdHand`, ab Werk rechts) und wie sie in der anderen zu lesen ist
-(`otherHand`):
+Also weiß `Tool`, an welcher Hand seine Haltung gemessen ist (`holdHand`, ab
+Werk rechts), und die andere Hand rechnet sie daraus — **gespiegelt** an der
+Mitte des Körpers, dieselbe Regel wie bei der Hand selbst: Versatz zur Seite,
+Gier und Roll drehen das Vorzeichen um. Gespiegelt wird dabei die _Lage_ und
+nicht das **Modell**, und das ist Mathematik, keine Wortwahl: eine gespiegelte
+Drehung ist selbst wieder eine Drehung, das Ding darin bleibt, wie es gebaut
+ist — keine seitenverkehrte Schrift, keine rückwärts laufenden Zeiger. Was der
+rechten Hand zum Gesicht zeigt, zeigt der linken zum Gesicht.
 
-- `'mirror'` — an der Mitte des Körpers **gespiegelt**, dieselbe Regel wie bei
-  der Hand selbst: Versatz zur Seite, Gier und Roll drehen das Vorzeichen um.
-  Der Normalfall. Gespiegelt wird dabei die _Lage_ und nicht das **Modell** —
-  keine seitenverkehrte Schrift, keine rückwärts laufenden Zeiger.
-- `'turn'` — um die eigene Hochachse **gedreht**, um 180°, für alles, dessen
-  Vorderseite eine Vorderseite bleiben muss. Die **Stoppuhr** nimmt das: eine
-  gespiegelte Uhr liest sich verkehrt, eine gedrehte zeigt beiden Händen
-  dasselbe Zifferblatt.
+**Die Stoppuhr hatte eine Weile eine eigene Regel, und die war falsch.**
+`otherHand = 'turn'` drehte sie für die linke Hand um ihre eigene Hochachse um
+180° statt sie zu spiegeln, aus der Sorge, gespiegelt liefe ihr Zeiger
+rückwärts. Die Sorge war unbegründet (siehe oben), die Drehung aber nicht
+harmlos: sie kippt das Blatt in der _Tiefe_ um und nimmt den Gehäuseversatz
+(`showHeldBy`, ein Halbmesser neben dem Griffpunkt) mit auf die falsche Seite.
+Bei der **gebauten** Lage (`RIM_HOLD`/`RIM_TILT`) fiel das nicht auf: ihr Blatt
+schaut genau zur Seite und ihr Gehäuse sitzt fast auf der Griffachse, dort
+ergeben Spiegelung und Drehung auf den Millimeter dasselbe — und genau diese
+Zahlen zeigt die Vorschau auf der Werkzeugseite, in beiden Händen richtig. Bei
+jeder **neu gemessenen** Lage aber, deren Blatt auch nur ein Stück zum Gesicht
+kippt, lag die Uhr in der _anderen_ Hand verdreht und um Zentimeter neben der
+Faust: links gemessen, rechts daneben, und umgekehrt. In der Brille sah man
+das, in der Vorschau nicht, weil dort keine gemessene Lage im Speicher lag.
+Die Regel ist weg; es gibt nur noch die Spiegelung.
 
-Gerechnet wird es in `holdForOtherHand` (`tools/toolPose.ts`, mit Test: die
-Spiegelung stimmt mit `mirrorReadout` überein, und beide Regeln sind ihre eigene
-Umkehrung), angewandt in `Tool.holdIn` — und von dort aus überall, wo eine Hand
-im Spiel ist: `applyHold`, der Griffstand, die Werkzeugseite und der Avatar der
-Mitspieler. Für alles mit **Standardgriff** ist die Umrechnung ein Nullschritt:
-dessen Haltung hat weder Versatz zur Seite noch Gier oder Roll. Es ändert sich
-also nur dort etwas, wo wirklich etwas schief lag.
+Gerechnet wird sie in `holdForOtherHand` (`tools/toolPose.ts`, mit Test: die
+Spiegelung stimmt mit `mirrorReadout` überein, ist ihre eigene Umkehrung, lässt
+ein Blatt zum Gesicht schauen und legt ein Gehäuse neben dem Griff auf die
+spiegelbildliche Seite), angewandt in `Tool.holdIn` — und von dort aus überall,
+wo eine Hand im Spiel ist: `applyHold`, der Griffstand, die Werkzeugseite und
+der Avatar der Mitspieler. Für alles mit **Standardgriff** ist die Umrechnung
+ein Nullschritt: dessen Haltung hat weder Versatz zur Seite noch Gier oder
+Roll. Es ändert sich also nur dort etwas, wo wirklich etwas schief lag.
 
 Wer eine Haltung einmisst, schreibt die Hand mit dazu — Justierstand,
 Werkzeugseite und `applyStoredPose` setzen `holdHand` zusammen mit den Zahlen.
@@ -2926,8 +2939,8 @@ Modell je Hand hin, für die eigenen Hände im Spiel tat es niemand — dort bli
 es für immer so stehen, wie der Bausatz es hingelegt hatte. Bei der **Stoppuhr**
 war das die Seite der _rechten_ Handfläche (das Gehäuse sitzt einen Halbmesser
 neben dem Griffpunkt, damit seine Kante in der Faust liegt), und die linke Hand
-bekam die Uhr obendrein noch um die eigene Hochachse gedreht (`otherHand`) —
-eine Drehung nimmt einen Versatz mit. Beides zusammen schob das Gehäuse links um
+bekam die Uhr obendrein noch um die eigene Hochachse gedreht (damals
+`otherHand = 'turn'`, siehe oben) — eine Drehung nimmt einen Versatz mit. Beides zusammen schob das Gehäuse links um
 zwei Halbmesser aus der Faust: **3,4 cm** neben der Faustmitte rechts, **8,6 cm**
 links. In der Brille hing die Uhr rechts am Daumen und links unter dem kleinen
 Finger — und in der Vorschau auf der Werkzeugseite sah sie trotzdem richtig aus,

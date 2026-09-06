@@ -136,13 +136,13 @@ export class StopwatchTool extends Tool {
     // Controller hält. Die gebaute Lage darunter (`RIM_HOLD_POSITION`) ist die
     // Zahl, aus der die Faust um die Kante gerechnet wurde — die Messung sagt,
     // wohin die Uhr in dieser Faust gehört.
-    // **In der linken Hand gedreht, nicht gespiegelt** (`Tool.otherHand`). Die
-    // gemessenen Zahlen gelten für rechts; die andere Hand bekommt sie sonst
-    // an der Körpermitte gespiegelt, und eine gespiegelte Uhr ist eine, deren
-    // Zeiger rückwärts laufen und deren Blatt sich verkehrt liest. Eine halbe
-    // Drehung um die eigene Hochachse legt sie stattdessen genauso in die
-    // linke Faust, mit demselben Zifferblatt zum Gesicht.
-    this.otherHand = 'turn';
+    // **In der linken Hand gespiegelt** wie jedes andere Werkzeug
+    // (`Tool.holdIn`): die gemessenen Zahlen gelten für rechts, und gespiegelt
+    // wird die *Lage*, nicht das Modell — das Blatt schaut links genauso zum
+    // Gesicht wie rechts, der Zeiger läuft vorwärts. Eine Zeit lang wurde sie
+    // stattdessen um ihre Hochachse gedreht (`'turn'`), und das legte jede
+    // *neu gemessene* Lage in der anderen Hand verdreht und Zentimeter neben
+    // die Faust (`toolPose.ts`, `holdForOtherHand`).
     this.holdPosition.set(RIM_HOLD.x, RIM_HOLD.y, RIM_HOLD.z);
     this.holdRotation.setFromEuler(
       new THREE.Euler(RIM_TILT.x * DEG, RIM_TILT.y * DEG, RIM_TILT.z * DEG, 'XYZ'),
@@ -246,7 +246,8 @@ export class StopwatchTool extends Tool {
    * es nie. Das Gehäuse blieb damit im Spiel für immer dort stehen, wo der
    * Bausatz es hingelegt hatte — auf der Seite der rechten Handfläche —, und
    * die linke Hand bekam die Uhr obendrein noch **um die eigene Hochachse
-   * gedreht** (`otherHand = 'turn'`). Die beiden zusammen schoben sie neun
+   * gedreht** (damals `otherHand = 'turn'`; inzwischen liegt sie gespiegelt
+   * wie alles andere, `toolPose.ts`). Die beiden zusammen schoben sie neun
    * Zentimeter aus der Faust heraus: rechts hing sie am Daumen, links unter
    * dem kleinen Finger, und in der Vorschau sah sie trotzdem richtig aus.
    *
