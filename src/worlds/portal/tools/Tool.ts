@@ -13,6 +13,7 @@ import type { PropKind } from '../props';
 import type { BeltOffset } from '../beltSettings';
 import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
+import type { PaintSurface } from './paintCanvas';
 
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
@@ -83,6 +84,16 @@ export interface ToolHost {
   conjureProp(kind: PropKind, hand: Handedness | null): void;
   /** Farbe und/oder Material eines Props, für alle in der Sitzung. */
   styleProp(entry: PhysicsBody, style: PropStyle): void;
+  /**
+   * Alles, worauf gerade **gemalt** werden kann — die aufgestellten
+   * Staffeleien.
+   *
+   * Der Pinsel kennt keine Staffelei und die Staffelei keinen Pinsel; sie
+   * kennen beide `PaintSurface`, und die Welt bringt sie zusammen. Ohne diesen
+   * Umweg müsste ein Werkzeug ein anderes suchen, und das ist genau die Sorte
+   * Verdrahtung, die den Werkzeugkasten sonst zusammenklebt.
+   */
+  paintSurfaces(): readonly PaintSurface[];
   /** Alles, was über ein Prop zu erfahren ist — der Inspektor liest es ab. */
   inspectProp(entry: PhysicsBody): PropReport;
   /** Fires a bullet the world keeps track of and cleans up again. */
@@ -354,6 +365,19 @@ export abstract class Tool extends THREE.Group {
    */
   attachments(): readonly Attachment[] {
     return [];
+  }
+
+  /**
+   * Die Fläche, auf die dieses Werkzeug malen lässt — `null` bei allen bis auf
+   * die aufgestellte Staffelei.
+   *
+   * Die Welt fragt jedes lebende Werkzeug danach und reicht die Antworten an
+   * den Pinsel weiter (`ToolHost.paintSurfaces`). So bleibt „hier kann man
+   * malen" eine Eigenschaft des Dings, das die Leinwand trägt, und keine Liste,
+   * die irgendwo in der Welt mitgeführt und beim Aufräumen vergessen wird.
+   */
+  paintSurface(): PaintSurface | null {
+    return null;
   }
 
   /** Forgets a measured hold pose and goes back to the built-in one. */

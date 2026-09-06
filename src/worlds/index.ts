@@ -103,6 +103,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./alps/AlpsWorld')).AlpsWorld(),
   },
   {
+    id: 'effects',
+    title: 'Effektlabor',
+    tagline: 'Ein Knopf, eine Wolke',
+    description:
+      'Großer roter Knopf, daneben Effekt und Größe: Rauch, Feuer, Funken, Explosion, Staub, Zauber, Wasser. Stoppuhr für Zeitlupe.',
+    accent: 0xff5a4a,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./effects/EffectsWorld')).EffectsWorld(),
+  },
+  {
     id: 'dark',
     title: 'Dunkelhaus',
     tagline: 'Licht aus, Taschenlampe an',

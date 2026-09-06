@@ -11,7 +11,8 @@ Brille, auf dem Handy.
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
 Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
-Dunkelhaus zum Ausprobieren von Licht und
+Dunkelhaus zum Ausprobieren von Licht, ein **Effektlabor** mit einem großen
+roten Knopf für Rauch, Feuer, Funken und Explosionen und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen, ein Werkzeuggürtel
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
 Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen — und
@@ -124,9 +125,11 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Sprechen | Menü → Verbindung → *Mikrofon* — die Stimmen kommen aus der Richtung, in der die anderen stehen | Panel *Verbindung* → *Sprache* | dito |
 | Werkzeug benutzen | Trigger (Greifen = zweite Funktion) | Links-/Rechtsklick | – |
 | Großer Hammer | irgendwo am Stiel greifen, zweite Hand dazu; Trigger halten schiebt die Hand am Stiel | – | – |
-| Hängegleiter (Alpen) | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve | – | – |
+| Hängegleiter (Alpen) | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen | – | – |
 | Flügel (Alpen) | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve | – | – |
 | Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
+| Pinsel | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; ✕ schließt sie, `A`/`X` öffnet sie | Linksklick | – |
+| Staffelei | Trigger stellt sie auf den Boden, `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | – | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
 | Ferngreifen | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar) | – | – |
 | Kart: einsteigen | Lenkrad greifen (oder anzielen + Trigger) | Lenkrad anklicken | – |

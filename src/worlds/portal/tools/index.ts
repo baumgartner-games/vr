@@ -2,6 +2,7 @@ import { BrushTool } from './BrushTool';
 import { ControllerTool } from './ControllerTool';
 import { DroneTool } from './DroneTool';
 import { DuplicatorTool } from './DuplicatorTool';
+import { EaselTool } from './EaselTool';
 import { EraserTool } from './EraserTool';
 import { FlashlightTool } from './FlashlightTool';
 import { GrappleTool } from './GrappleTool';
@@ -40,6 +41,9 @@ export const TOOL_IDS = [
   'grip',
   'bag',
   'brush',
+  // Die Staffelei: das Werkzeug, das eine Leinwand hinstellt — ohne sie hat
+  // der Pinsel nur Kisten zum Anstreichen.
+  'easel',
   'duplicator',
   'inspect',
   'pistol',
@@ -96,6 +100,8 @@ function buildTool(id: string): Tool | null {
       return new MagicBagTool();
     case 'brush':
       return new BrushTool();
+    case 'easel':
+      return new EaselTool();
     case 'duplicator':
       return new DuplicatorTool();
     case 'inspect':
@@ -150,6 +156,7 @@ export {
   ControllerTool,
   DroneTool,
   DuplicatorTool,
+  EaselTool,
   InspectTool,
   EraserTool,
   FlashlightTool,
@@ -273,6 +280,8 @@ export {
   isTransparent,
   type SurfaceMaterial,
 } from './materials';
+export { pointOnCanvas, rayOnCanvas, type CanvasPoint, type PaintSurface } from './paintCanvas';
+export { PaintBoard } from './PaintBoard';
 export {
   DEFAULT_STOPWATCH,
   FACTOR_STEPS,

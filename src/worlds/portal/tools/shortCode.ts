@@ -187,6 +187,8 @@ export const SHORT_SLOTS = [
   // meint.
   'grip-rod',
   'bag',
+  // Angehängt, nie einsortiert: die Staffelei.
+  'easel',
 ] as const;
 
 const FLAG_POSE = 1;

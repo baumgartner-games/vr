@@ -218,7 +218,17 @@ aufeinander stehen), die **Flächen der Würfel**
 werden, dass jede Augenzahl genau einmal vorkommt und dass gegenüberliegende
 Flächen `n + 1` ergeben, wie auf einem echten Würfel) und die **beiden Listen
 des Beutels** (`src/worlds/portal/props.test.ts` — dass jede angebotene Sorte
-einen Namen hat und keine doppelt im Raster steht). Diese
+einen Namen hat und keine doppelt im Raster steht), die **Leinwand**
+(`src/worlds/portal/tools/paintCanvas.ts` — wo die Pinselspitze und wo der
+Zielstrahl auf ihr landen: der Strich, der knapp danebengeht, der Strahl von
+hinten, der parallel zur Fläche und der, der sie erst hinter der Reichweite
+erreicht) und die **Effekte des Effektlabors**
+(`src/worlds/effects/effectKinds.ts` — die Grenzen und das Raster der Größe,
+dass „größer" mehr und dickere Partikel heißt, aber nie mehr als die Obergrenze,
+und dass die Physik dahinter dieselbe bleibt; `effectBurst.ts` — dass eine
+Wolke am Ursprung anfängt, unter dem Tempo ihres Effekts bleibt, bei
+`spread = 0` eine Säule und bei 1 eine Kugel ist, dass Rauch steigt, Funken
+fallen und nichts durch den Boden sinkt). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
 weder WebGL noch WebXR noch wasm.
 
@@ -256,7 +266,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
-  Mond, Alpen, Dunkelhaus, Eingaberaum),
+  Mond, Alpen, Dunkelhaus, Effektlabor, Eingaberaum),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
@@ -409,7 +419,25 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     im Menü unter _Werkzeuge → Gürtel-Justierer → Gürtel_). Während eine Hüfte
     gewählt ist, gehört die andere Hand dem Gürtel (`claimsHand`): sie zieht
     dabei kein Werkzeug aus dem Halfter — sie greift ja genau dort zu.
-  - **Pinsel** samt Palette auf der anderen Hand, mit zwei Reitern: **Farben**
+  - **Pinsel** samt Palette auf der anderen Hand. Ausgewählt wird darauf auf
+    **zwei** Arten, und beide sind Gesten, die es anderswo schon gibt:
+    **antippen** mit der Pinselspitze — der kurze Weg, wenn die Hand ohnehin
+    dort ist — oder **zielen und Trigger**, wie an jeder anderen Tafel. Dafür
+    hängt die Palette als Pointer-Ziel im Raum (`ctx.pointer`) und hört dabei
+    **nur auf die Pinselhand**: der Strahl der Hand, die sie trägt, striche
+    sonst dauernd über sie hinweg und nähme genau dieser Hand ihren Trigger
+    weg (`PointerTarget.ignore`). Antippen war eine Weile der einzige Weg, und
+    das hieß: jede Farbe kostet einen Griff quer durch die Luft, auch wenn man
+    gerade drei Meter weiter etwas anstreicht.
+    Oben rechts steht ein **✕**: die Palette geht zu und bleibt zu, `A`/`X`
+    macht sie wieder auf (und wieder zu). Sie ist die eine Tafel, die die ganze
+    Zeit über der freien Hand schwebt — wer mit dem Pinsel in der Hand etwas
+    _anderes_ tun will, soll sie wegräumen können, ohne den Pinsel wegzulegen.
+    Trifft der Trigger eine **Leinwand** statt eines Objekts (die Staffelei,
+    siehe unten), wird gemalt statt gestrichen: halten und ziehen ist ein
+    Strich, und der Klecks wird mit dem vorigen verbunden, solange derselbe
+    Strich läuft.
+    Die Palette hat zwei Reiter: **Farben**
     und **Material** (Lack, Metall, Gummi, Eis, Stein, Glas, Leuchtend,
     Schaum — `materials.ts`, mit Test). Ein Material ist beides zugleich, wie
     das Objekt _aussieht_ und wie es sich _verhält_: Gummi springt, Eis
@@ -429,6 +457,28 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     noch eine Faust, und in der Brille sah der Pinsel damit nach Werkzeug aus
     statt nach Stift. Kein sichtbarer Halterzylinder darunter, und er zeigt
     trotzdem dorthin, wohin man zeigt.
+  - **Staffelei**: das Werkzeug, das eine **Leinwand hinstellt** — und damit
+    das, was dem Pinsel bisher fehlte. Er konnte Dinge anstreichen; _malen_
+    ging nicht, weil es nichts gab, worauf ein Strich ein Strich bleibt. In
+    der Hand ist sie ein zusammengelegtes Bündel am Standardgriff; ein Kreis
+    auf dem Boden zeigt, wohin sie kommt, **Trigger** stellt sie dort auf, mit
+    dem Blatt zum Spieler (nochmal Trigger stellt _dieselbe_ woandershin — eine
+    zweite holt man aus dem Regal). `A`/`X` **wischt das Blatt leer**, sonst
+    wäre der erste misslungene Strich das Ende des Bildes.
+    Gemalt wird mit dem Pinsel: Spitze ans Blatt oder von weiter weg
+    daraufzielen, Trigger halten und ziehen; die Farbe kommt von der Palette.
+    Sie ist mit Absicht **kein Hindernis** — man geht durch sie hindurch, und
+    genau das ist die Bedingung fürs Malen: eine Pinselspitze muss das Blatt
+    berühren dürfen, und ein Körper, der sie wegschiebt, verhindert es.
+    Die Verdrahtung dazu ist der Punkt, an dem man sie sich ansehen sollte:
+    der Pinsel kennt keine Staffelei und die Staffelei keinen Pinsel. Beide
+    kennen `PaintSurface` (`tools/paintCanvas.ts`), die Staffelei meldet ihre
+    Leinwand über `Tool.paintSurface()`, und die Welt reicht sie über
+    `ToolHost.paintSurfaces()` weiter. Wo ein Punkt oder ein Strahl auf dem
+    Blatt landet, rechnet dasselbe Modul (mit Test), gezeichnet wird in
+    `PaintBoard.ts`. Was gemalt wird, geht **nicht** über das Netz — ein Bild
+    ist eine Leinwand voller Bildpunkte, und die schickt man nicht dreißigmal
+    je Sekunde durch eine Peer-Verbindung.
   - **Pistole** mit Magazin (`x/∞` an der Seite). Unter
     _Einstellungen → Pistole_ steht jeder Wert einzeln: Stärke, Kugeltempo,
     Feuerrate, **Magazingröße**, Nachladezeit, Salvenlänge und Modus (Einzel,
@@ -688,6 +738,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Der Körper dreht sich mit der Bahn: wer eine Kurve
     fliegt, schaut hinterher dorthin, wohin er fliegt. Berührt die Kapsel
     wieder Boden, ist gelandet — mit dem Schwung, der noch da war.
+    **Am Boden ist er ein Gegenstand wie jeder andere**: gehalten, solange die
+    Hand zu ist, und losgelassen fällt er hin, liegt als gepacktes Bündel im
+    Raum und wächst auf seiner Hüfte nach. Er war lange `sticky` — einmal
+    nehmen, an der Hüfte wieder abgeben —, und das war die eine Stelle, an der
+    ein Werkzeug sich anders benahm als alles daneben: man ließ los, und nichts
+    geschah. **In der Luft gilt es nicht**: dort hängt man im Gerät, und eine
+    Hand, die zwischendurch aufgeht, wirft niemanden aus zweihundert Metern
+    Höhe. `GlideTool.update` setzt `sticky` deshalb Bild für Bild auf „fliegt
+    gerade" — und wer beim Landen die Hand schon offen hatte, legt ihn im
+    selben Augenblick hin.
     Das Segel hängt beim Fliegen **im Raum** und nicht an der Hand
     (`GlideTool`): jedes Bild wird es an die Fäuste gestellt, die Stange darin,
     das Segel darüber, gekippt und geneigt, wie der Flug es sagt. Ein zehn
@@ -1275,6 +1335,43 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   wer vom Gipfel dreihundert Meter weit sieht, sähe die Kugel sonst von innen
   an ihrer Naht. Portale gibt es hier keine Flächen für — ein Berg hat keine
   Wände.
+- **Effektlabor** (experimentell): die Welt, die es wegen einer einzigen Frage
+  gibt — _wie sieht das eigentlich aus?_ Ein Effekt dauert anderthalb Sekunden,
+  und genau deshalb ist er so schwer einzustellen: bis man ihn im Spiel gesehen
+  hat, ist er vorbei, und beim nächsten Versuch steht man woanders. Hier steht
+  man immer gleich, und der Unterschied zwischen zwei Einstellungen ist ein
+  Knopfdruck — dieselbe Idee wie im Eingaberaum, nur für das, was man _sieht_,
+  statt für das, was man drückt.
+  Ein geschlossener Kasten (10 × 10 m), vorn eine **Bühne** mit Kreis und
+  Sockel, davor ein Pult mit einem **großen roten Knopf** (antippen oder
+  anzielen + Trigger; er taucht sichtbar ein, damit man weiß, dass man
+  getroffen hat). **Links daneben** die Tafel: eine Kachel je Effekt — Rauch,
+  Feuer, Funken, Explosion, Staub, Zauber, Wasser — und darunter ein
+  **Schieber für die Größe**, von 0,25× bis 4×. Der Schieber wird nicht nur
+  angetippt, sondern **gezogen**: solange der Trigger derselben Hand unten
+  bleibt, folgt der Reiter ihrem Strahl (`updateDrag`); wer lieber klickt,
+  findet dieselben Werte als Rasten im Handgelenk-Menü, zusammen mit _Auslösen_
+  und _Alles weg_. Die Kacheln stehen in **zwei Spalten**: sieben untereinander
+  wären eine Tafel von der Decke bis zum Knie, und der Schieber läge darunter.
+  Auf der Hüfte hängt die **Stoppuhr** — sie ist das eigentliche Werkzeug
+  dieses Raums, denn eine Explosion in Zeitlupe ist der einzige Weg, sie
+  wirklich anzusehen. Damit das trägt, laufen die Wolken in der Zeit der Welt
+  und nicht in der der Wanduhr: `PortalWorld.worldTimeScale` gibt den Faktor
+  heraus, mit dem auch die Physik rechnet. Daneben der **magische Beutel** —
+  etwas, das im Rauch steht, sagt mehr über den Rauch als der Rauch allein, und
+  dafür stehen um die Bühne herum auch drei Kisten und ein Companion Cube.
+  Ein Effekt ist dabei nichts als ein Satz Zahlen (`effects/effectKinds.ts`,
+  mit Test): Anzahl, Lebensdauer, Tempo, Streuung, Auftrieb, Schwerkraft,
+  Luftwiderstand, Größe, Farbverlauf, Leuchten, Lichtblitz. Wer einen
+  dazutut, schreibt eine Zeile in diese Liste — die Tafel im Raum baut sich
+  daraus. Geflogen wird in `effectBurst.ts` (mit Test, reine Zahlenreihen),
+  gezeichnet als **eine** Punktwolke je Auslösung (`Burst.ts`): Punkte und
+  keine Kugeln, was leuchtet additiv gemischt, alles andere verdeckend, und
+  jedes Partikel ein weicher Fleck aus einer 64er-Textur — ohne die ist ein
+  Punkt ein Quadrat, und eine Rauchwolke aus Quadraten sieht aus wie ein
+  Bildfehler. „Größer" heißt dabei mehr, dickere, schnellere und länger
+  lebende Partikel bis zu einer festen Obergrenze — die Physik dahinter bleibt
+  gleich: eine doppelt so große Explosion fällt nicht doppelt so schnell.
 - **Boden bis zum Horizont**: unter _jeder_ Welt liegt eine Fläche mit Raster,
   einen Kilometer im Quadrat, begehbar und portalfähig (`createGround` in
   `worlds/shared/environment.ts`). Vorher stand jede Welt auf ihrer eigenen
@@ -1357,14 +1454,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Wert eintippen                     | auf eine Taste zielen + Trigger, oder mit dem Finger antippen                                                                                                         | echte Tastatur oder Klick                                                                       | tippen               |
 | Lötkolben                          | Trigger setzt Punkte, andere Hand wechselt Modus                                                                                                                      | –                                                                                               | –                    |
 | Drohne                             | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate)                                                                   | –                                                                                               | –                    |
-| Hängegleiter                       | Trigger oder `A` = Anlauf; Stange ziehen = schneller, drücken = langsamer, kippen = Kurve (eine Hand tiefer, oder das Handgelenk); zweite Hand greift ans andere Ende | –                                                                                               | –                    |
+| Hängegleiter                       | Trigger oder `A` = Anlauf; Stange ziehen = schneller, drücken = langsamer, kippen = Kurve (eine Hand tiefer, oder das Handgelenk); zweite Hand greift ans andere Ende; am Boden loslassen lässt ihn fallen | –                                                                                               | –                    |
 | Flügel                             | beide Arme schlagen = Start und Schub; ausbreiten = gleiten, anlegen = Sturzflug; eine Hand tiefer = Kurve, Hände vor = Nase runter                                   | –                                                                                               | –                    |
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
 | Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
 | Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
-| Pinsel                             | Reiter _Farben_/_Material_ antippen, Trigger streicht an                                                                                                              | –                                                                                               | –                    |
+| Pinsel                             | Palette antippen **oder** anzielen + Trigger; ✕ oben rechts schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                  | –                                                                                               | –                    |
+| Staffelei                          | Trigger stellt sie hin (Kreis am Boden zeigt wohin), `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel                                                          | –                                                                                               | –                    |
+| Effektlabor                        | roter Knopf löst aus; links Kachel wählen und den Schieber ziehen (Trigger halten)                                                                                    | anklicken / ziehen                                                                              | tippen               |
 | Duplizier-Waffe                    | zielen + Trigger legt eine Kopie daneben                                                                                                                              | –                                                                                               | –                    |
 | Inspektor                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                    | –                                                                                               | –                    |
 | Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
