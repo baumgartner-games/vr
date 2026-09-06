@@ -145,6 +145,7 @@ import {
   NAV_LAYERS,
   anyLayer,
   defaultLayers,
+  layerSpec,
   layerSummary,
   nextAll,
   noLayers,
@@ -222,6 +223,18 @@ const SHAPE_LABELS: Record<string, string> = {
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
 /** So viel Licht hat auch die dunkelste Welt, wenn man sie nur ansieht. */
 const PREVIEW_LIGHT = 0.45;
+
+/**
+ * **Wie weit die Figur der laufenden Vorschau langt**, in Metern.
+ *
+ * Doppelt so weit wie eine Spielerhand von selbst zugreift
+ * (`DEFAULT_NEAR_RADIUS`, ein Meter), und die Verdopplung ist keine Willkür:
+ * In der Brille streckt man den Arm aus und weiß dabei genau, was man
+ * erwischt; von oben zeigt man mit einem Finger auf ein Telefon, und ein Kreis
+ * von einem Meter ist auf einer Karte von hundert ein Punkt, den niemand
+ * trifft.
+ */
+const PREVIEW_REACH = DEFAULT_NEAR_RADIUS * 2;
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
 /** The portal surface stays at least this far in front of the eye. */
@@ -789,6 +802,8 @@ export class PortalWorld implements World {
   private ghostHere = true;
   /** Und was sie tut, wenn man sie **gehen** lässt (`shared/previewWalk.ts`). */
   private ghostWalk: PreviewWalk | null = null;
+  /** Der Reichweiten-Kreis der laufenden Vorschau (`showPreviewReach`). */
+  private reachRing: THREE.Mesh | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -1198,6 +1213,12 @@ export class PortalWorld implements World {
    * sichtbare.
    */
   private applyNav(): void {
+    // **Der Sichtbereich hängt nicht am Gitter**, sondern an den NPCs: Er wird
+    // an ihre Modelle gebaut und dreht sich mit ihnen (`NpcBody.setSight`).
+    // Deshalb wird er hier zuerst und getrennt geschaltet — sonst wäre er weg,
+    // sobald jemand die Kacheln ausmacht.
+    this.director?.setSight(this.navLayers.sight, layerSpec('sight').color);
+
     const wanted = anyLayer(this.navLayers);
     if (!wanted) {
       if (this.navDebug) {
@@ -2939,6 +2960,8 @@ export class PortalWorld implements World {
         ghost.position.copy(at);
       },
       walkTarget: (at) => this.ghostWalk?.to(at),
+      reach: PREVIEW_REACH,
+      probe: (at) => this.showPreviewReach(at),
       here: () => this.ghostHere,
       setHere: (on) => this.showPreviewPlayer(on),
       layers: () => this.navLayerState(),
@@ -2963,6 +2986,7 @@ export class PortalWorld implements World {
         this.director = null;
         this.ghost = null;
         this.ghostWalk = null;
+        this.reachRing = null;
         for (const tool of this.liveTools) tool.disposeTool();
         this.liveTools.clear();
         disposeTree(this.root);
@@ -3015,6 +3039,36 @@ export class PortalWorld implements World {
       walk.stop();
       this.announce('Da komme ich nicht hin');
     }
+  }
+
+  /**
+   * **Der Kreis „so weit langt sie"** — hingelegt oder weggenommen.
+   *
+   * Gebaut wird er beim ersten Mal und danach nur noch versetzt: Ein Ring aus
+   * dreißig Dreiecken kostet nichts, ihn bei jedem Tipp neu zu bauen wäre eine
+   * Geometrie je Fingerdruck.
+   */
+  private showPreviewReach(at: THREE.Vector3 | null): void {
+    if (!this.reachRing && at) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(PREVIEW_REACH, 0.07, 8, 40),
+        new THREE.MeshBasicMaterial({
+          color: 0xffc857,
+          transparent: true,
+          opacity: 0.8,
+          toneMapped: false,
+        }),
+      );
+      ring.name = 'preview-reach';
+      ring.rotation.x = -Math.PI / 2;
+      ring.renderOrder = 902;
+      this.root.add(ring);
+      this.reachRing = ring;
+    }
+    const ring = this.reachRing;
+    if (!ring) return;
+    ring.visible = at !== null;
+    if (at) ring.position.set(at.x, at.y + 0.08, at.z);
   }
 
   /**
@@ -3443,6 +3497,24 @@ export class PortalWorld implements World {
     ctx.rig.placeAt(_point, _euler.y);
     this.locomotion?.resync(ctx.rig);
     return true;
+  }
+
+  /**
+   * **Den Spieler versetzen** — Rig *und* Kapsel, und deshalb gibt es diese
+   * Methode überhaupt.
+   *
+   * `rig.placeAt` allein verschiebt nur das, was man sieht. Die Kapsel der
+   * Fortbewegung bleibt dabei stehen, wo sie stand, und zieht den Spieler im
+   * nächsten Bild dorthin zurück — ein Versetzen, das eine Zehntelsekunde
+   * hält und dann rückgängig gemacht wird, sieht aus wie ein Fehler in der
+   * Physik und ist einer in einer vergessenen Zeile.
+   *
+   * Ohne `yaw` bleibt die Blickrichtung, die gerade gilt.
+   */
+  protected movePlayerTo(ctx: WorldContext, at: THREE.Vector3, yaw?: number): void {
+    _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
+    ctx.rig.placeAt(_point.copy(at), yaw ?? _euler.y);
+    this.locomotion?.resync(ctx.rig);
   }
 
   /** Setzt den Spieler auf die Oberfläche über der Stelle, an der er fiel. */

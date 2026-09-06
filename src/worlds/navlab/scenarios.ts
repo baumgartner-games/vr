@@ -4,7 +4,7 @@ import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE, TILE } from '../nav/navTile';
 
 /**
- * **Der Grundriss des Navigationslabors** — sechs Buchten, und was in jeder zu
+ * **Der Grundriss des Navigationslabors** — acht Buchten, und was in jeder zu
  * sehen sein soll.
  *
  * Reine Daten und ein bisschen Rechnung: Wo eine Bucht liegt, wo ihre Wände

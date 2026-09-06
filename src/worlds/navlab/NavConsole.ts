@@ -3,8 +3,8 @@ import { TextPlane } from '../../ui/TextPlane';
 import { NAV_LAYERS, anyLayer, type NavLayer, type NavLayerState } from '../nav/navLayers';
 
 /**
- * **Die Konsole an der Wand** — sechs Tasten, mit denen man die Navigation
- * sichtbar macht, ohne ins Handgelenk-Menü zu gehen.
+ * **Die Konsole an der Wand** — eine Taste je Ebene und eine für alle, mit
+ * denen man die Navigation sichtbar macht, ohne ins Handgelenk-Menü zu gehen.
  *
  * Das Menü kann dasselbe, und trotzdem ist die Konsole nicht doppelt gemoppelt:
  * Wer im Labor steht und wissen will, warum ein Zombie stehen bleibt, hat die
@@ -29,7 +29,15 @@ interface Pad {
 }
 
 const PLATE_W = 2.4;
-const PLATE_H = 1.34;
+/**
+ * Wie hoch die Platte ist — **eine Reihe je drei Tasten**, und es sind acht.
+ *
+ * Die Zahl hängt an `NAV_LAYERS`: Wer dort eine Ebene hinzufügt, bekommt eine
+ * vierte Reihe, sobald es zehn Tasten sind. Sie steht deshalb als Rechnung da
+ * und nicht als gemessene 1,8 — eine Taste, die unten aus der Platte
+ * herausragt, sieht in der Brille aus wie ein Fehler und ist einer.
+ */
+const PLATE_H = 0.42 + Math.ceil((NAV_LAYERS.length + 1) / 3) * 0.46;
 const PAD_W = 0.66;
 const PAD_H = 0.3;
 const COLS = 3;

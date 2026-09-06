@@ -40,7 +40,7 @@ import {
 } from './scenarios';
 
 /**
- * **Das Navigationslabor** — sechs Buchten, sechs rote Knöpfe, und in jeder
+ * **Das Navigationslabor** — acht Buchten, acht rote Knöpfe, und in jeder
  * eine Behauptung über die Wegsuche, die man nachprüfen kann.
  *
  * Der Grund für diese Welt ist ein einfacher: Alles, was NPCs tun, kann man
@@ -124,7 +124,7 @@ export class NavLabWorld extends PortalWorld {
   }
 
   protected override welcome(): string {
-    return 'Navigationslabor · Roter Knopf startet · Gelber macht das Szenario schwer';
+    return 'Navigationslabor · Roter Knopf startet · Gelbe machen das Szenario schwer';
   }
 
   protected override worldGravity(): number {
@@ -193,7 +193,8 @@ export class NavLabWorld extends PortalWorld {
     if (!bay) return;
     const at = bayPoint(bay, -BAY_W / 2 + 0.35, 3);
     const panel = new NavConsole();
-    panel.position.set(at.x, 1.55, at.z);
+    // So hoch, dass die gewachsene Platte unter der 2,4-m-Wand bleibt.
+    panel.position.set(at.x, 1.35, at.z);
     // Nach Osten, also in die Bucht hinein. **Eine Tafel schaut nach +Z** und
     // nicht nach −Z wie ein Körper: Ihre Vorderseite ist die Seite, auf der
     // die Knöpfe sitzen. Mit −90° stünde sie mit dem Rücken zum Raum und man
@@ -409,7 +410,7 @@ export class NavLabWorld extends PortalWorld {
       this.announce(`${scenario(id).title}: zurückgesetzt`);
       return;
     }
-    // Erst alles andere weg: Sechs Buchten teilen sich einen Bestand an NPCs
+    // Erst alles andere weg: Acht Buchten teilen sich einen Bestand an NPCs
     // und einen Spieler, und zwei Szenarien gleichzeitig sind zwei, von denen
     // keines mehr zeigt, was es behauptet.
     for (const bay of SCENARIOS) this.reset(bay.id);
@@ -594,11 +595,11 @@ export class NavLabWorld extends PortalWorld {
   }
 
   /**
-   * **Was das Telefon drücken darf**: die sechs roten Knöpfe, die gelben
+   * **Was das Telefon drücken darf**: die acht roten Knöpfe, die gelben
    * daneben — und die Tasten der Wandkonsolen.
    *
    * Dieselben Objekte wie in der Brille, dieselben Handgriffe dahinter. Eine
-   * zweite Bedienung für dieselben sechs Szenarien wäre eine, die irgendwann
+   * zweite Bedienung für dieselben acht Szenarien wäre eine, die irgendwann
    * etwas anderes tut als die erste.
    */
   protected override previewButtons(): PreviewButton[] {
@@ -610,7 +611,7 @@ export class NavLabWorld extends PortalWorld {
       press: () => knob.run(),
     }));
     // Die Tasten beider Wandkonsolen — **leise**: Die Werkzeugseite hat für
-    // dieselben fünf Ebenen eigene Schalter, und eine zweite Reihe daneben
+    // dieselben Ebenen eigene Schalter, und eine zweite Reihe daneben
     // wäre nur eine, die man zusätzlich lesen muss. Antippen im Bild geht
     // trotzdem, denn im Bild stehen sie ja.
     for (const console_ of this.consoles) {

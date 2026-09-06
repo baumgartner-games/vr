@@ -82,6 +82,15 @@ export class NpcBody extends THREE.Group {
   private readonly barWidth: number;
   /** Wann er zu sehen ist. */
   private bars: BarMode = 'hurt';
+  /**
+   * **Radius und Kegel, in denen er etwas mitbekommt** — oder `null`, solange
+   * niemand danach gefragt hat.
+   *
+   * Gebaut wird er erst beim ersten Einschalten und danach nur noch versteckt:
+   * Ein Fächer aus 24 Dreiecken je NPC ist bei dreißig Zombies nichts, und
+   * dreißigmal neu zu bauen wäre bei jedem Umschalten ein Ruckler.
+   */
+  private sight: THREE.Group | null = null;
   /** Wie voll er steht: 1 heißt unversehrt. */
   private fill = 1;
 
@@ -229,6 +238,74 @@ export class NpcBody extends THREE.Group {
       this.fill > 0.6 ? HEALTH_FULL : this.fill > 0.3 ? HEALTH_HALF : HEALTH_LOW,
     );
     this.applyBars();
+  }
+
+  /**
+   * **Den Sichtbereich zeigen** — der Ring, in dem er den Spieler bemerkt, und
+   * der Kegel, in den er dabei schaut.
+   *
+   * Zwei Formen und nicht eine, weil es zwei Zahlen sind und sie verschieden
+   * viel bedeuten: Der **Ring** ist das, woran heute wirklich entschieden wird,
+   * ob ein Zombie einen bemerkt (`npcBrains.ts`, `tuning.sense` — eine
+   * Entfernung, sonst nichts). Der **Kegel** ist die Richtung, in die er
+   * schaut, und er zählt heute nur für die Sinne, die eine Karte lesen
+   * (`nav/navPerception.ts`). Wer beides sieht, sieht auch den Unterschied —
+   * und das ist die halbe Erklärung dafür, warum einer einen im Rücken bemerkt.
+   *
+   * Der Fächer liegt **flach auf dem Boden** und dreht sich mit dem Modell:
+   * Von oben ist er dann genau das, was auf einer Karte ein Sichtkegel ist.
+   */
+  setSight(view: { range: number; fov: number; color: number } | null): void {
+    if (view && !this.sight) this.sight = this.buildSight(view);
+    if (!this.sight) return;
+    this.sight.visible = view !== null;
+  }
+
+  private buildSight(view: { range: number; fov: number; color: number }): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'npc-sight';
+    // Eine Handbreit über dem Boden, sonst flimmert er darin.
+    group.position.y = 0.05;
+    group.rotation.x = -Math.PI / 2;
+
+    const half = THREE.MathUtils.degToRad(Math.min(180, Math.max(1, view.fov)));
+    // Der Kegel schaut nach vorn, und vorne ist −Z; in der gedrehten Ebene ist
+    // das +Y, also fängt der Kreisausschnitt bei 90° minus dem halben Winkel an.
+    const fan = new THREE.Mesh(
+      new THREE.CircleGeometry(view.range, 48, Math.PI / 2 - half, half * 2),
+      new THREE.MeshBasicMaterial({
+        color: view.color,
+        transparent: true,
+        opacity: 0.12,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    fan.name = 'npc-sight-cone';
+    fan.renderOrder = 898;
+    group.add(fan);
+
+    // Der Ring als eigene Punktkette und nicht als `RingGeometry` mit gleichem
+    // Innen- und Außenmaß: Die hätte jeden Punkt doppelt, und eine Linie durch
+    // doppelte Punkte ist ein Stern.
+    const points: number[] = [];
+    const steps = 64;
+    for (let i = 0; i < steps; i++) {
+      const angle = (i / steps) * Math.PI * 2;
+      points.push(Math.cos(angle) * view.range, Math.sin(angle) * view.range, 0);
+    }
+    const circle = new THREE.BufferGeometry();
+    circle.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    const ring = new THREE.LineLoop(
+      circle,
+      new THREE.LineBasicMaterial({ color: view.color, transparent: true, opacity: 0.7 }),
+    );
+    ring.name = 'npc-sight-ring';
+    ring.renderOrder = 899;
+    group.add(ring);
+
+    this.add(group);
+    return group;
   }
 
   /** Wann der Balken zu sehen ist: immer, nur bei Schaden, oder gar nicht. */

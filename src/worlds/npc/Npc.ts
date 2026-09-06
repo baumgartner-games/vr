@@ -11,6 +11,7 @@ import {
   type PhysicsWorld,
 } from '../../physics/PhysicsWorld';
 import { NavAgent, type Spot3 } from '../nav/navAgent';
+import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, type TileKey } from '../nav/navTile';
@@ -216,7 +217,7 @@ export class Npc {
       return null;
     }
 
-    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile) });
+    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
     this.feet(_feet);
     const step = this.agent.step(nav.graph, _feet, nav.at, dt, nav.now);
     if (step.jump !== NO_TILE) this.teleport(nav.graph, step.jump);
@@ -295,7 +296,7 @@ export class Npc {
    * (`navBelief.ts`). Wer nur zusehen will, nimmt `path`.
    */
   mind(): NavAgent {
-    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile) });
+    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
     return this.agent;
   }
 
@@ -320,6 +321,21 @@ export class Npc {
   /** Wann sein Lebensbalken zu sehen ist (`NpcBody.ts`). */
   setBars(mode: BarMode): void {
     this.model.setBars(mode);
+  }
+
+  /**
+   * **Seinen Sichtbereich zeigen oder verstecken.**
+   *
+   * Die Weite kommt aus seinem eigenen Hirn (`tuning.sense`) und nicht aus
+   * einer Zahl in der Anzeige: Wer am Hirn-Werkzeug die Sichtweite verstellt,
+   * soll den Kreis mitwandern sehen. Der Öffnungswinkel kommt aus den Sinnen
+   * seiner Sorte (`nav/navPerception.ts`).
+   */
+  setSight(on: boolean, color: number): void {
+    const senses = this.skin.id === 'zombie' ? ZOMBIE_SENSES : GUARD_SENSES;
+    this.model.setSight(
+      on && this.tuning.sense > 0 ? { range: this.tuning.sense, fov: senses.fov, color } : null,
+    );
   }
 
   /** Wie lange er schon liegt — der Regisseur räumt danach auf. */

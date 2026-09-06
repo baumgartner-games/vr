@@ -314,9 +314,12 @@ einen ein Umweg von drei Metern und für den anderen eine Wand ist), die
 **Linie durch das Gitter** (`navSight.ts` — Sicht, gerader Gehweg und Schall
 aus **einer** Wanderung, samt der Mauerecke, durch die niemand diagonal sehen
 darf), die **Wegsuche** (`navPath.ts` — Umweg statt Durchbruch, Teilweg statt
-Stillstand, Portale und Treppen, die Glättung, die nicht über eine Treppe
-hinweg abkürzt, und das Strömungsfeld, das eine Horde keine Klippe hochlaufen
-lässt), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
+Stillstand, Portale und Treppen, der **Schnurzug**, der aus dem Treppenmuster
+der Kachelmitten eine Diagonale macht und dabei **den Halbmesser dessen
+Abstand hält, der ihn läuft** — ein Weg, der die Hausecke um zwanzig Zentimeter
+verfehlt, ist für einen 58 cm dicken Zombie eine Wand —, der weder über eine
+Treppe hinweg abkürzt noch in die Stachelgrube gerät, und das Strömungsfeld,
+das eine Horde keine Klippe hochlaufen lässt), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
 verschlossene Tür läuft und erst dort umplant: das ist das Ziel und nicht der
 Fehler, und der Test hält es fest, damit es niemand später „repariert"), die
 **Sinne** (`navPerception.ts` — Kegel, Reichweite, Wand, Reaktionszeit und vor
@@ -330,11 +333,27 @@ Tunnel und Sand darüber zwei Kacheln sind, und die Zahl, wegen der es diesen
 Test gibt: ein Boden, der **in** einem Quader steckt, ist keiner — der Sand
 unter einem Podest ist nicht begehbar, und wer ihn mitzählt, legt die Kachel
 des Podests auf den Boden daneben), die **Übersetzung in die Welt**
-(`navScene.ts` — dass ein gedrehter Quader seinen Schatten wirft und eine
-offene Tür in der Debug-Ansicht keine Sperre ist) und das **Format**
+(`navScene.ts` — dass ein gedrehter Quader seinen Schatten wirft, dass eine
+offene Tür in der Debug-Ansicht keine Sperre ist und dass die **betretbare
+Fläche** als einzige Ebene hinter Wänden verschwindet), das **Format**
 (`navSerial.ts` — Hin und Zurück ohne Verlust, und
 jede Datei, die es ablehnt: fremdes Format, fehlende Version, eine Karte aus
-der Zukunft und eine mit einer anderen Kachelgröße).
+der Zukunft und eine mit einer anderen Kachelgröße) — und, seit es sie gibt,
+der **Bauplan des Editors** (`editor/levelPlan.ts` — worauf ein Zeiger trifft,
+Kachel oder Kante; was die vier Werkzeuge daraus machen; und dass der
+Radiergummi erst die Tür, dann die Wand und dann den Boden nimmt), die
+**Geometrie dazu** (`editor/levelBuild.ts` — Pfosten, Sturz und Blatt, und der
+Prüfstein: was der Editor baut, findet das Abtasten wieder), die **Miniatur**
+(`editor/miniature.ts` — Hin und Zurück ohne Drift, der Punkt zwischen den
+Fingern bleibt liegen, und die Grenzen des Maßstabs) samt der Zusicherung, dass
+sie dasselbe rechnet wie die three.js-Gruppe, die man sieht
+(`editor/miniatureFrame.test.ts`) — und das
+**ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`): dieselben
+Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
+**Kontrollpunkt**, an dem er vorbeigekommen sein muss. Der Unterschied zu allen
+anderen ist die Frage: Die übrigen prüfen eine Rechnung, dieser prüft einen
+**Eindruck** — „der Zombie läuft durch die verriegelte Tür" ist keine falsche
+Zahl, sondern ein Weg, den man erst sieht, wenn man ihn abläuft.
 
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
@@ -773,6 +792,18 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Schritte pro Frame, alles darüber wäre eine Lüge im Menü. Und beim
     Schnellladen im Mehrspieler zieht der rechnende Spieler die Objekte
     wieder auf seinen Stand — es wirkt bei dem, der rechnet.
+    **Für den Spieler gilt die Physik weiter, auch wenn die Welt steht.** Das
+    war eine Weile nicht so, und der Fehler ist lehrreich: Rapier zieht die
+    Collider ihren Körpern erst in `world.step()` nach. Solange die Welt
+    Schritte macht, fällt das niemandem auf; bei angehaltener Zeit macht sie
+    keine — und dann stand der Collider der Spielerkapsel für immer dort, wo die
+    Uhr gedrückt wurde, während die Kapsel selbst weiterwanderte. Der
+    Character-Controller tastete danach von der alten Stelle aus und fand weder
+    Boden noch Wand: Man fiel durch den Boden und sprang aus dem Stand endlos
+    weiter, weil er einen immer noch für stehend hielt. `PhysicsWorld.step`
+    ruft deshalb `propagateModifiedBodyPositionsToColliders()`, wenn in diesem
+    Bild kein Schritt fällig war — dieselbe Zeile, die auch ein Schritt als
+    erstes täte. **Die Zeit steht, die Welt ist nicht weg.**
     Gehalten wird sie am **Rand** wie eine Taschenuhr: kein Standardgriff, der
     Mantel des Gehäuses in Greiffarbe, die Kante durch die Faust, das Gehäuse
     daneben in der Handfläche (`STOPWATCH_HAND_POSE` — die Faust der echten
@@ -3803,11 +3834,44 @@ Kachelmitte werden alle Deckel gesucht, die dort liegen — Sand bei 0, die
 Stockwerke bei 3,1 und 6,2, das Dach bei 12,4 —, und jeder wird eine Kachel auf
 seiner Etage, sofern darüber genug Luft für einen NPC ist. Deshalb sind der
 Tunnel und der Sand darüber zwei Kacheln, und deshalb entsteht unter einem zu
-niedrigen Vordach gar keine. Zwischen zwei Kacheln wird auf halber Strecke
-gefragt, ob dort in Kopfhöhe etwas steht; sonst entscheidet der
-Höhenunterschied, ob es eine Stufe, eine Treppe, ein Absprung oder eine Wand
-ist. `PortalWorld` ruft das einmal nach `buildEnvironment()`, und damit hat
-**jede** Welt ihr Gitter — Dust, das Labor, der Hub, alle.
+niedrigen Vordach gar keine. Zwischen zwei Kacheln wird gefragt, ob dort in
+Kopfhöhe etwas steht; sonst entscheidet der Höhenunterschied, ob es eine Stufe,
+eine Treppe, ein Absprung oder eine Wand ist. `PortalWorld` ruft das einmal nach
+`buildEnvironment()`, und damit hat **jede** Welt ihr Gitter — Dust, das Labor,
+der Hub, alle.
+
+Drei Zahlen daran sind teuer bezahlt, und alle drei standen hinter einem
+Eindruck aus der Brille, den niemand erklären konnte:
+
+- **Eine Lücke ist erst eine, wenn jemand hindurchpasst** (`edgeOpen`). Bis
+  dahin lag zwischen zwei Kachelmitten genau **ein** Prüfpunkt: die Grenze
+  dazwischen. Stand dort nichts, war die Kachelgrenze offen — auch dann, wenn
+  links und rechts davon je einen Meter weit eine Mauer stand und der Schlitz
+  dazwischen zwanzig Zentimeter breit war. Auf der Karte war das ein Durchgang,
+  in der Welt eine Wand mit einem Guckloch, und der Zombie davor lief so lange
+  dagegen, bis jemandem auffiel, dass er durch eine Wand *wollte*. Jetzt wird
+  quer zur Laufrichtung abgetastet, vom Mittelpunkt nach beiden Seiten, und was
+  frei bleibt, muss die **Schulterbreite** tragen (`BAKE_DEFAULTS.width`, 70 cm
+  — ein Zombie ist 58 dick). Gemessen wird nur der Streifen um die Mitte: Eine
+  freie Ecke am Rand der Kachelgrenze nützt niemandem, der von Kachelmitte zu
+  Kachelmitte läuft.
+- **Ein Boden, auf dem etwas steht, ist keiner.** „Vergraben" hieß bis dahin,
+  dass ein anderer Kasten den Deckel *überspannt* — ein Klotz, der bei y = 0
+  anfängt, saß aber genau darauf und überspannte ihn nicht. Damit blieb unter
+  jedem Klotz und in jeder aufsitzenden Wand eine Kachel übrig, die es nicht
+  gibt. Zugemauert war sie von allen Seiten, also lief niemand hinein — sichtbar
+  gemacht (Ebene *Betretbar*) sieht man aber sofort, dass die Karte dort Boden
+  behauptet, wo Beton ist.
+- **Ein Absatz ist derselbe, von welcher Seite man ihn ansieht.** Abgetastet
+  werden nur zwei der vier Richtungen (Nord und Ost) — jede Grenze gehört genau
+  einer Kachel, sonst stünde jede Wand zweimal da. Damit hing aber daran, ob ein
+  Absatz eine **Treppe** (hin und zurück) oder ein **Absprung** (nur hinunter)
+  wurde, welche Himmelsrichtung er zufällig hatte: Lag die höhere Kachel im
+  Norden oder Osten, kam man hinauf; lag sie im Süden oder Westen, war dieselbe
+  Stufe eine Einbahnstraße nach unten. In der halben Welt kam niemand die Rampe
+  hinauf, die er gerade heruntergefallen war — und man suchte den Fehler in der
+  Wegsuche, weil das Gitter ja eine Verbindung zeigte. Entschieden wird jetzt
+  nach der **Höhe**: Was man hinaufkommt, geht in beide Richtungen.
 
 Eine Welt darf zwei Dinge dazu sagen: `navLevels()` nennt ihre Stockwerke
 (Dust tut das, sonst würde eine Etage zu viel geraten — die Bodenplatten liegen
@@ -3842,14 +3906,34 @@ nicht daran, was man vorhat. Ein **Portal** ist dabei die eine Verbindung, die
 ein Körper nicht laufen kann — der Läufer meldet sie als `jump`, und `Npc`
 setzt den Körper um.
 
-**Ansehen lässt sich das alles in fünf Ebenen**, einzeln schaltbar
-(`nav/navLayers.ts`): Kacheln, Wände, Verbindungen, Sperren und die gerade
-gelaufenen Wege. Alles auf einmal ist bei ein paar hundert Kacheln eine Wolke
-aus Linien, in der man nichts findet — wer wissen will, warum ein Zombie
-stehen bleibt, schaltet die Sperren an und den Rest aus. Voreingestellt sind
-**Kacheln und Wege**: die beiden beantworten zusammen „wo kann er hin, und wo
-will er gerade hin"; der Rest beantwortet „warum nicht dorthin" und wird erst
-gebraucht, wenn etwas nicht stimmt.
+**Ansehen lässt sich das alles in sieben Ebenen**, einzeln schaltbar
+(`nav/navLayers.ts`): Kacheln, die **betretbare Fläche**, Wände, Verbindungen,
+Sperren, die gerade gelaufenen Wege und der **Sichtbereich** der NPCs. Alles auf
+einmal ist bei ein paar hundert Kacheln eine Wolke aus Linien, in der man nichts
+findet — wer wissen will, warum ein Zombie stehen bleibt, schaltet die Sperren
+an und den Rest aus. Voreingestellt sind **Kacheln, Fläche und Wege**: die drei
+beantworten zusammen „wo kann er hin, und wo will er gerade hin"; der Rest
+beantwortet „warum nicht dorthin" und wird erst gebraucht, wenn etwas nicht
+stimmt.
+
+Die beiden neuen sind es wert, einzeln erklärt zu werden, weil beide aus
+derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wand":
+
+- **Betretbar** ist die Kachel als *Fläche* und nicht als Umriss. Ein Raster aus
+  dünnen Linien zeigt, wo Kacheln liegen; aus dreißig Metern Höhe sieht man
+  darin aber nicht, wo **keine** liegt — und das ist die Frage, wenn ein NPC in
+  eine Lücke plant, die es nicht gibt. Sie ist die einzige Ebene, die
+  `depthTest` **anlässt**: Eine Fläche, die durch jede Wand hindurchleuchtet,
+  ist von oben ein blauer Teppich über dem ganzen Labor und sagt gar nichts
+  mehr.
+- **Sicht** hängt nicht am Gitter, sondern an den NPCs: Der Fächer wird an ihr
+  Modell gebaut und dreht sich mit ihnen (`npc/NpcBody.setSight`). Zwei Formen,
+  und der Unterschied ist die halbe Auskunft: Der **Ring** ist die Entfernung,
+  auf die ein Zombie einen wirklich bemerkt (`npcBrains.ts`, `tuning.sense` —
+  eine Zahl, sonst nichts, und deshalb rundherum); der **Kegel** ist die
+  Richtung, in die er schaut, und die zählt heute nur für die Sinne, die eine
+  Karte lesen (`nav/navPerception.ts`). Wer beides sieht, versteht sofort,
+  warum einer einen im Rücken bemerkt.
 
 Umgeschaltet wird die **Sichtbarkeit** und nicht die Geometrie — jede
 Linienmenge trägt den Namen ihrer Ebene. Gebaut wird das Gitter erst, wenn
@@ -3868,20 +3952,54 @@ Eine Zahl, die man dabei falsch macht: **Eine Tafel schaut nach +Z**, ein
 Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt sie mit dem
 Rücken zum Raum an die Wand und sieht eine schwarze Platte.
 
-**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: sechs Buchten,
-sechs rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
+**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: acht Buchten,
+acht rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
 langer Gang um zwei Ecken, Stachelgrube (Zombie hinein, Puppe herum), Kiste im
-Weg, Tür fällt hinter dem Verfolger zu, Portal, von dem nur einer weiß, und die
-Dachkante. Der Grundriss ist geprüft (`scenarios.test.ts`), bevor er gebaut
-ist: Zwei Buchten, die sich überlappen, sieht man in der Brille erst daran,
-dass ein Zombie durch eine Wand kommt.
+Weg, **zu enger Gang**, Tür fällt hinter dem Verfolger zu, Portal, von dem nur
+einer weiß, die Dachkante und **Podest und Sprung**. Der Grundriss ist geprüft
+(`scenarios.test.ts`), bevor er gebaut ist: Zwei Buchten, die sich überlappen,
+sieht man in der Brille erst daran, dass ein Zombie durch eine Wand kommt.
+
+Die beiden neuen Buchten beantworten je eine Frage, die vorher keine Bucht
+stellte:
+
+- **Zu enger Gang.** Eine Wand mit einer Lücke von einer Kachel, in die zwei
+  Pfosten hineinragen, bis 45 cm übrig sind. Beide Hälften müssen stimmen: In
+  der **Welt** passt ein Zombie nicht hindurch (58 cm dick, `npcKinds.ts`), und
+  auf der **Karte** steht dort deshalb auch keine Lücke. Wo die zweite Hälfte
+  fehlte, plante er hindurch und rannte für immer dagegen — das war der Zombie,
+  der durch eine Wand *wollte*. Möglich macht es `edgeOpen` (siehe unten).
+- **Podest und Sprung.** Eine Rampe aus drei Stufen führt auf ein Podest; einen
+  Gang weiter steht ein zweites, freistehend, auf 2,4 m. Wer springen kann
+  (`HUMAN_PROFILE`, `link.jump`), nimmt die Sprungverbindung und steht drüben;
+  der Zombie hat dort `Infinity` stehen und bleibt unten im Gang, so nah am
+  Podest, wie die Karte ihn lässt. Dazwischen liegt der Gang, durch den man
+  hindurchgeht, wenn man unten ist.
+
+**Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat jetzt zwei gelbe
+Knöpfe: *Tür auf/zu* ist ein Schalter, den man beliebig oft umlegt, auch ohne
+dass ein Szenario läuft (`ScenarioAct.once` steht dort auf `false`); *Tür
+verriegeln* ist die Wendung des Szenarios und gilt einmal je Durchlauf. Beide
+gehen durch **eine** Methode (`setDoor`), und das ist kein Aufräumen: Ein
+Türblatt, das zusteht, während die Karte offen sagt, *ist* der Zombie, der durch
+die Tür läuft.
 
 **Der Grundriss steht als Daten und nicht als Zeilen in einer three.js-Methode**
 (`scenarios.ts`): wo eine Bucht liegt, wo ihre Wände stehen (`bayWalls`), wer in
-ihr auftritt (`cast`) und wo der Spieler dabei steht (`stand`).
-`NavLabWorld.buildBay` baut nur noch, was dort steht. Der Grund ist nicht
-Ordnung, sondern dass ein Test die zwei Zahlen nachrechnen kann, an denen
-dieses Labor zweimal gescheitert ist:
+ihr auftritt (`cast`) und wo der Spieler dabei steht (`stand`). Inzwischen gilt
+das für **jeden Quader**: `labSolids()` gibt das ganze Labor als Liste von
+Kästen heraus, und `NavLabWorld` gibt jedem nur noch seine Farbe. Genauso steht
+alles, was in *keinem* Quader steckt, an einer Stelle (`applyLabMap`): der
+Anstrich der Stachelgrube, die Tür und der Sprung zwischen den Podesten.
+
+Der Grund für beides ist die Testbank (unten): Ein Test, der das Labor
+**abtastet**, muss dieselben Kästen und dieselbe Karte bekommen wie die Brille.
+Baute die Welt ihre Wände selbst und der Test seine eigenen, prüfte er eine
+zweite Welt, die zufällig ähnlich aussieht — und der erste Unterschied zwischen
+beiden wäre genau der Fehler, den er finden sollte.
+
+Weiter gilt, dass ein Test die zwei Zahlen nachrechnen kann, an denen dieses
+Labor zweimal gescheitert ist:
 
 - **Jedes Maß ist ein Vielfaches der Kachel** (2,5 m, `nav/navTile.ts`). Das
   Abtasten fragt zwischen zwei Kachelmitten genau **einen** Punkt: die Grenze
@@ -3911,27 +4029,165 @@ Labor — den findet die Wegsuche, und dann geht ein Zombie außen herum statt
 durch die Bucht, um die es gerade geht.
 
 **Eine Zahl daraus ist keine Geschmacksfrage**: Das Dach in der Etagen-Bucht
-liegt auf 2,4 m, also unter dem, was das Abtasten noch als **Absprung**
-durchgehen lässt. Eine Treppe hinauf gäbe es im Gitter zwar, aber ein NPC ist
-heute ein dynamischer Zylinder ohne Schrittautomatik — er käme keine Stufe
-hoch. Herunterfallen kann er. Solange das so ist, ist jede Höhe im Gitter ein
-Weg nach unten und keiner nach oben, und der erste Schritt zu allem mit Treppen
-bleibt: **NPCs auf den Character-Controller umstellen**.
+liegt auf 2,4 m, also über dem, was das Abtasten noch als **Treppe** durchgehen
+lässt (`climb`, 2,2 m), und unter dem, was es als **Absprung** durchgehen lässt
+(`drop`, 2,6 m). Damit ist diese Bucht ein Weg nach unten und keiner nach oben.
+Dieselben zwei Zahlen halten in der Podest-Bucht das freistehende Podest
+unerreichbar für alle, die nicht springen können.
 
-**Und man muss das Labor nicht betreten, um es zu benutzen.** Auf
-`tools.html#welt/navlab` steht unter dem Bild der Knopf **Laufen lassen**: Er
-baut dieselbe Welt mit echter Physik, kippt die Ansicht senkrecht nach unten
-und legt die sechs Buchten samt ihren Knöpfen als Zeilen daneben — dazu die
-fünf Debug-Ebenen als Schalter und ein **Ziel**, das ein Tipp auf den Boden
-versetzt. Daneben stehen **Gehe zu** (dann geht die Figur zu Fuß dorthin, statt
-sich versetzen zu lassen) und **Figur weg** (dann steht niemand in der Welt).
+**Und hinauf kommt er inzwischen doch — er springt.** Ein NPC ist ein
+dynamischer Zylinder ohne Schrittautomatik: Er *steigt* keine Stufe, er kann nur
+fallen oder fliegen. Also fliegt er. Der Läufer meldet zwei Sorten von
+Absprung getrennt (`navAgent.ts`, `AgentStep`): `jump` ist das **Portal** —
+Versetzen, denn dazwischen gibt es keinen Weg —, `leap` ist der **Sprung**, und
+den rechnet `Npc.launch` als schrägen Wurf aus: aus der gewünschten Steighöhe
+folgt die Absprunggeschwindigkeit, daraus die Flugzeit bis zur Zielhöhe, daraus
+die waagerechte Geschwindigkeit. Die Schwerkraft kommt aus der **Welt** und
+nicht aus einer Konstante — auf dem Mond springt er weiter, und das soll er
+auch. Solange er fliegt, hat das Hirn nichts zu sagen: Eine Wurfparabel, in die
+jedes Bild eine waagerechte Wunschgeschwindigkeit geschrieben wird, ist keine
+mehr, sondern ein Schweben.
+
+Gesprungen wird über **Sprungverbindungen** (die Lücke zwischen den Podesten)
+und über **Treppen, die zu hoch zum Hinauftreten sind** (`AgentTuning.stepUp`,
+35 cm). Eine Treppe mit flachen Stufen bleibt ein Gang — wer für zwanzig
+Zentimeter hüpft, sieht aus wie ein Frosch. Der Character-Controller für NPCs
+bleibt trotzdem der sauberere Weg und steht weiter auf der Liste.
+
+**Das Labor läuft auch ohne Brille** — und zwar zweimal, auf zwei ganz
+verschiedene Arten.
+
+Die eine ist ein **Test**: `navlab/labSim.ts` tastet das Labor ab (`bakeLab`,
+dieselben Kästen und dieselbe Karte wie in der Brille) und lässt einen NPC
+darin laufen — mit **Umfang** (Zylinder, 29 cm Halbmesser aus `npcKinds.ts`),
+mit **Drehrate** (`npcBrain.ts`, `aheadFactor`), mit **Sprung und Fall**, und
+mit Wänden, an denen er entlangrutscht statt hindurchzugehen. Was er nicht hat,
+ist Rapier: keine Trägheit, keine Reibung, kein Anschieben — ein Test, der eine
+Physik-Engine startet, ist kein Test mehr, sondern ein Ladebildschirm.
+
+Der Punkt daran ist die Art der Behauptung. `labSim.test.ts` prüft nie bloß, ob
+einer **ankommt** — durch die verriegelte Tür kommt man auch an. Geprüft wird
+ein **Kontrollpunkt**: „war er dabei an der Stelle, an der er vorbeigekommen
+sein muss?" (`passedNear`). Vor der verriegelten Tür ist das die Lücke ganz
+außen; bei der Kiste der zweite Durchgang; im langen Gang beide Ecken des Z.
+Dazu misst `wander()` die gelaufene Strecke geteilt durch die Luftlinie — die
+Zahl hinter „läuft Manhattan-mäßig".
+
+Die andere ist die **Werkzeugseite**: Auf `tools.html#welt/navlab` steht unter
+dem Bild der Knopf **Laufen lassen**. Er baut dieselbe Welt mit echter Physik,
+kippt die Ansicht senkrecht nach unten und legt die acht Buchten samt ihren
+Knöpfen als Zeilen daneben — dazu die sieben Debug-Ebenen als Schalter und ein
+**Ziel**, das ein Tipp auf den Boden versetzt.
+
+Daneben stehen drei Tipp-Modi, von denen immer genau einer gilt: **Gehe zu**
+(die Figur geht zu Fuß dorthin, statt sich versetzen zu lassen), **Im Bereich**
+(ein Tipp legt einen Kreis hin, und die Liste darunter zeigt nur noch, was darin
+steht — plus, was im selben Kreis um die **Figur** herum liegt) und der
+Normalfall, das Versetzen. **Figur weg** nimmt sie ganz aus der Welt.
+
+Der Kreis ist **doppelt** so weit wie eine Spielerhand von selbst zugreift
+(`DEFAULT_NEAR_RADIUS`, ein Meter), und die Verdopplung ist keine Willkür: In
+der Brille streckt man den Arm aus und weiß dabei, was man erwischt; von oben
+zeigt man mit einem Finger auf ein Telefon, und ein Kreis von einem Meter ist
+auf einer Karte von hundert ein Punkt, den niemand trifft.
+
+Die **Karte selbst** hat zwei eigene Knöpfe, und beide gab es vorher nicht:
+**Ziehen** schaltet um, was ein Finger auf dem Bild tut — die Ansicht drehen und
+kippen (wie bei jedem anderen Modell auf dieser Seite) oder die Karte schieben
+(wie bei jeder anderen Karte). **Folgen** legt die Bildmitte auf die Figur und schaltet
+dabei auf **Gehe zu** um; dann tippt man sich mit Klicks durch die Welt, statt
+nach jedem Schritt nachzuschieben. Die beiden gehören zusammen: Wer die
+Bildmitte an die Figur hängt und sie dann per Tipp *versetzt*, sieht nichts —
+die Mitte springt im selben Bild mit. Ein Labor läuft deshalb ab jetzt als **Karte** an: Der Finger
+schiebt, die Mitte hängt an der Figur. Wer die Welt drehen will, sagt es — das
+ist ein Griff; nach jedem Schritt nachzuschieben sind zwanzig.
+
+Geschoben wird dabei die **Kamera** und nicht die Bühne (`panX`, `panY` in
+`tools/viewer.ts`): Verschöbe man die Bühne, wanderte der Drehpunkt mit,
+dieselbe Drehung sähe danach anders aus, und ein Tipp träfe daneben. Und wer
+selbst schiebt, nimmt der Mitte damit das Folgen ab — man will dorthin sehen,
+wohin man geschoben hat.
+
 Das ist die Vogelperspektive aus „was noch fehlt", ohne Brille und ohne Editor;
 wie sie funktioniert, steht bei der Werkzeugseite unter *Eine Welt laufen
 lassen*.
 
-**Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, ein Editor, der
-das Gitter auch **ändern** kann, zerstörbare Hindernisse samt „schlag drauf,
-wenn kein Weg da ist" — und der Character-Controller oben.
+**Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, zerstörbare
+Hindernisse samt „schlag drauf, wenn kein Weg da ist" — und der
+Character-Controller oben.
+
+### Der Bauplatz
+
+**Ein Level bauen, während man darin steht** (`worlds/editor/`). Die Welt
+beantwortet die Frage, die vorher unter „was noch fehlt" stand — *wie sieht man
+einen Grundriss von oben, wenn man selbst darin steht?* —, und sie tut es mit
+einem **Tischmodell**: Der Grundriss schwebt als Miniatur auf Brusthöhe vor
+einem, und dasselbe Level steht gleichzeitig in **Lebensgröße** um einen herum.
+Man setzt eine Wand am Modell, und eine Sekunde später steht sie neben einem und
+ist wirklich im Weg. Ein Grundriss, den man nur von oben sieht, hat immer zu enge
+Gänge; einer, in dem man steht, während man ihn zieht, nicht.
+
+Drei Entscheidungen tragen das Ganze:
+
+- **Der Plan ist der Navigationsgraph** (`editor/levelPlan.ts`). Kein zweites
+  Datenformat: `has(key)` heißt „hier ist Boden", eine Wand steht zwischen zwei
+  Kacheln, eine Tür ist eine Wand, die aufgeht — das führt `nav/navGraph.ts`
+  ohnehin. Damit können NPCs sofort belaufen, was man baut, `nav/navSerial.ts`
+  kann es speichern, und vor allem kann nichts auseinanderlaufen: Ein Editor,
+  dessen Grundriss etwas anderes sagt als die Karte, ist einer, in dem man eine
+  Tür einbaut und danach zusieht, wie ein Zombie hindurchgeht.
+- **Gebaut wird aus einer Liste** (`editor/levelBuild.ts`). `planSolids()` macht
+  aus dem Plan achsenparallele Quader — die Gegenrichtung von `navBake.ts`, und
+  der Test prüft genau das: Was der Editor baut, muss das Abtasten wiederfinden.
+  Miniatur und Lebensgröße kommen aus **derselben** Liste; zwei Bauanleitungen
+  für dasselbe Zimmer laufen auseinander, und man merkt es an dem Tag, an dem
+  eine Tür im Modell an einer anderen Wand hängt als im Raum.
+- **Die Miniatur ist eine Rechnung mit sechs Zahlen** (`editor/miniature.ts`):
+  Standort, Gierwinkel, Maßstab. Eine Hand schiebt, **zwei Hände drehen und
+  ziehen größer** — dieselbe Geste wie auf jedem Telefon, nur im Raum. Die eine
+  Regel, ohne die sich jede Karte falsch anfühlt, steht dort als eine Zeile:
+  **Der Punkt zwischen den Fingern bleibt liegen.** Gerechnet wird gegen den
+  Stand beim Zugreifen und nicht gegen das letzte Bild — sonst liegt die Geste
+  nach zwei Sekunden Zittern um zehn Prozent daneben.
+
+**Werkzeuge sind vier, und der Radiergummi ist eines davon**: Boden, Wand, Tür,
+Löschen. Was ein Druck tut, hängt an zwei Sachen — am Werkzeug und daran, worauf
+man zeigt —, und diese Kreuzung steht an *einer* Stelle (`applyTool`). Zwei
+Handgriffe daran sind eingebaute Nachsicht: Wer *Boden* gewählt hat und auf eine
+**Kante** zeigt, baut die Kachel dahinter (so malt man einen Raum von seinem Rand
+aus weiter, ohne die Mitte der nächsten Kachel zu treffen); und wer *Tür* auf
+eine freie Kante setzt, bekommt eine Wand mit einer Tür darin statt einer
+Fehlermeldung. Der Radiergummi räumt in der Reihenfolge auf, in der man es meint:
+erst die Tür, dann die Wand, dann den Boden.
+
+**Ob eine Kachel oder ihre Kante gemeint ist, entscheidet ein Streifen**
+(`spotAt`, 70 cm). Das ist die Rechnung, an der ein Kacheleditor steht oder
+fällt: Die Mitte einer Kachel ist ein großes Ziel, ihre Kante eine Linie — und
+eine Linie trifft man in der Brille auf drei Meter Entfernung nicht ohne Hilfe.
+
+**Das fünfte, das keines ist: Hingehen.** Auf eine Kachel der Miniatur tippen und
+dort stehen. Es ändert nichts am Plan und steht deshalb neben den Werkzeugen und
+nicht in ihnen — aber es ist der Griff, der aus einer Zeichnung eine Karte macht:
+Wer den Gang am anderen Ende gebaut hat, muss ihn nicht ablaufen, um zu sehen, ob
+er zu eng ist. Versetzt wird dabei über `PortalWorld.movePlayerTo` — Rig **und**
+Kapsel, denn `rig.placeAt` allein verschiebt nur das, was man sieht, und die
+Fortbewegung zieht einen im nächsten Bild zurück.
+
+Zwei kleine Zahlen, die man sonst falsch macht: Der Boden bis zum Horizont liegt
+hier **zwei Zentimeter tiefer** als sonst, weil er sich mit den Bodenplatten des
+Plans sonst um jedes Pixel streitet; und die Mitte des Plans wandert beim
+Anbauen, weshalb `recentre` das Modell um genau so viel zurückschiebt — ohne das
+springt der Grundriss bei jedem Druck ein Stück zur Seite, und man baut ihm
+hinterher.
+
+Gespeichert wird im Browser, im Format, das es ohnehin gibt (`navSerial.ts`).
+Nicht, weil das eine Speicherlösung wäre, sondern weil das Gegenteil unerträglich
+ist: Wer zwanzig Minuten baut und die Brille absetzt, soll seinen Grundriss
+wiederfinden.
+
+**Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste),
+Rückgängig, Fenster und Rampen, und ein Weg, einen gebauten Plan als eigene Welt
+zu laden statt nur im Bauplatz zu haben.
 
 ### Die Werkzeugseite
 

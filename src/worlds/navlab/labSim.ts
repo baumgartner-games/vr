@@ -187,7 +187,11 @@ export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
       nearest: Infinity,
       arrived: false,
       arrivedAfter: Infinity,
-      agent: new NavAgent({ profile: profileOf(skin.profile) }),
+      // **Mit Umfang geplant**, nicht nur gelaufen: Derselbe Halbmesser, mit
+      // dem er unten gegen die Wände stößt, hält seinen Weg von den Ecken weg
+      // (`nav/navPath.ts`). Wer hier den Vorgabewert stehen ließe, prüfte
+      // einen anderen Zombie als den, der gleich losläuft.
+      agent: new NavAgent({ profile: profileOf(skin.profile), girth: skin.radius }),
     };
   });
   // Erst lernen, dann zuschlagen: Der Zombie hat die Tür **offen** gesehen, und
@@ -462,6 +466,46 @@ export function passedNear(
   return track.some((spot) => Math.hypot(spot.x - at.x, spot.z - at.z) <= radius);
 }
 
+/** Eine Überquerung: wo sie stattfand, und in welchem Bild. */
+export interface SimCrossing {
+  /** Das x der Stelle, an der die Spur die Linie geschnitten hat. */
+  x: number;
+  /** Das Bild, in dem sie drüben ankam — als Startpunkt für die nächste Suche. */
+  frame: number;
+}
+
+/**
+ * **Wo eine Spur eine Wandlinie überquert hat** — oder `null`, wenn nie.
+ *
+ * Der ehrlichere Prüfstein als „war er mal in der Nähe": Eine Wand mit einer
+ * Lücke ist eine Linie quer durch die Bucht, und die Frage ist nicht, wie nah
+ * an der Mitte der Lücke er vorbeikam, sondern **an welcher Stelle er die
+ * Linie überschritten hat**. Liegt diese Stelle in der Lücke, ist er
+ * hindurchgegangen; liegt sie daneben, ist er durch die Wand gelaufen.
+ *
+ * Der Unterschied ist keine Feinheit: Die Lücken im langen Gang sind 7,5 m
+ * breit, und ein Weg, der die Ecke sauber schneidet, geht dicht an der inneren
+ * Kante hindurch — von der Mitte der Lücke ist er dann fast vier Meter weit
+ * weg. Wer die Nähe zur Mitte prüft, bestraft genau den Weg, den er sehen
+ * will.
+ *
+ * `after` ist das Bild, ab dem gesucht wird: Zwei Wände nacheinander heißt
+ * zweimal fragen, die zweite Frage ab der Antwort der ersten.
+ */
+export function crossedAt(track: readonly SimPoint[], z: number, after = 0): SimCrossing | null {
+  for (let frame = Math.max(1, after + 1); frame < track.length; frame++) {
+    const a = track[frame - 1]!;
+    const b = track[frame]!;
+    // Überquert heißt: die beiden Bilder liegen auf verschiedenen Seiten der
+    // Linie. Ein Punkt genau darauf zählt mit — er ist die Überquerung.
+    if ((a.z - z) * (b.z - z) > 0) continue;
+    if (a.z === b.z) continue;
+    const share = (z - a.z) / (b.z - a.z);
+    return { x: a.x + (b.x - a.x) * share, frame };
+  }
+  return null;
+}
+
 /** Wie nah eine Strecke einem Punkt gekommen ist, in Metern. */
 export function closestTo(track: readonly SimPoint[], at: { x: number; z: number }): number {
   let best = Infinity;
@@ -469,27 +513,42 @@ export function closestTo(track: readonly SimPoint[], at: { x: number; z: number
   return best;
 }
 
-/**
- * **Wie krumm eine Strecke ist** — die Zahl hinter „läuft Manhattan-mäßig".
- *
- * Der gelaufene Weg geteilt durch die Luftlinie von Anfang zu Ende. Eine
- * Gerade ist 1; wer jede Ecke rechtwinklig nimmt statt sie zu schneiden,
- * landet bei 1,41 und mehr. Sie ist absichtlich ein **Verhältnis** und keine
- * Länge: Ein langer Weg darf lang sein, er soll nur nicht doppelt so lang
- * sein, wie er sein müsste.
- */
-export function wander(track: readonly SimPoint[]): number {
-  if (track.length < 2) return 1;
-  let walked = 0;
+/** Wie weit einer wirklich gelaufen ist, in Metern — in der Ebene gemessen. */
+export function walked(track: readonly SimPoint[]): number {
+  let sum = 0;
   for (let i = 1; i < track.length; i++) {
     const a = track[i - 1]!;
     const b = track[i]!;
-    walked += Math.hypot(b.x - a.x, b.z - a.z);
+    sum += Math.hypot(b.x - a.x, b.z - a.z);
   }
+  return sum;
+}
+
+/**
+ * **Wie krumm eine Strecke ist** — der gelaufene Weg geteilt durch die
+ * Luftlinie von Anfang zu Ende.
+ *
+ * Eine Gerade ist 1; wer jede Ecke rechtwinklig nimmt statt sie zu schneiden,
+ * landet darüber. Sie ist absichtlich ein **Verhältnis** und keine Länge: Ein
+ * langer Weg darf lang sein, er soll nur nicht doppelt so lang sein, wie er
+ * sein müsste.
+ *
+ * **Als Schranke taugt sie nur dort, wo die Luftlinie etwas bedeutet.** In
+ * einem Z, dessen Luftlinie durch zwei Wände geht, ist selbst der bestmögliche
+ * Weg mehr als doppelt so lang wie sie — eine Zahl wie „unter 2,2" ist dort
+ * nicht streng, sondern unerfüllbar, und sie war nur so lange grün, wie der
+ * Zombie nach fünfzehn Metern stehen blieb und gar nichts mehr maß. Wo es um
+ * „läuft er Manhattan-mäßig" geht, vergleicht man deshalb besser mit dem Weg
+ * über die **Kachelmitten** (`walked` gegen die Länge des rohen A*-Wegs) —
+ * das ist genau das, was „Manhattan" heißt, und es rechnet sich mit der Bucht
+ * mit, statt eine Zahl zu sein, die beim nächsten Umbau still falsch wird.
+ */
+export function wander(track: readonly SimPoint[]): number {
+  if (track.length < 2) return 1;
   const first = track[0]!;
   const last = track[track.length - 1]!;
   const straight = Math.hypot(last.x - first.x, last.z - first.z);
-  return straight < 0.01 ? Infinity : walked / straight;
+  return straight < 0.01 ? Infinity : walked(track) / straight;
 }
 
 /** Die Bucht zu einer Id — bequem für Tests, die ihre Maße brauchen. */

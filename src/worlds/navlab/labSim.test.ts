@@ -1,4 +1,7 @@
-import { closestTo, passedNear, runBay, wander } from './labSim';
+import { findPath } from '../nav/navPath';
+import { profileOf } from '../nav/navProfile';
+import { tileDistance } from '../nav/navTile';
+import { closestTo, crossedAt, passedNear, runBay, walked, wander } from './labSim';
 import {
   CRATE,
   DOOR_ID,
@@ -29,23 +32,92 @@ function spot(id: Parameters<typeof scenarioOf>[0], at: BaySpot): { x: number; z
   return baySpot(scenarioOf(id), at);
 }
 
+describe('Die Überquerung', () => {
+  /** Eine Spur aus reinen Punkten — die Höhe spielt hier keine Rolle. */
+  const track = (...points: readonly [number, number][]) =>
+    points.map(([x, z]) => ({ x, y: 0, z }));
+
+  it('gibt die Stelle her, an der die Spur die Linie schneidet', () => {
+    // Von Norden nach Süden über z = 0, dabei zwei Meter nach Osten: Die
+    // Überquerung liegt genau in der Mitte dazwischen.
+    const cross = crossedAt(track([0, -1], [2, 1]), 0);
+    expect(cross?.x).toBeCloseTo(1, 9);
+    expect(cross?.frame).toBe(1);
+  });
+
+  it('meldet nichts, wo niemand hinüber ist', () => {
+    expect(crossedAt(track([0, -3], [5, -1]), 0)).toBeNull();
+    expect(crossedAt(track([0, -1]), 0)).toBeNull();
+  });
+
+  it('sucht die zweite Überquerung erst nach der ersten', () => {
+    // Hin, zurück, hin: drei Überquerungen an drei Stellen.
+    const spur = track([0, -1], [0, 1], [4, -1], [8, 1]);
+    const first = crossedAt(spur, 0);
+    expect(first?.x).toBeCloseTo(0, 9);
+    const second = crossedAt(spur, 0, first!.frame);
+    expect(second?.x).toBeCloseTo(2, 9);
+    expect(crossedAt(spur, 0, second!.frame)?.x).toBeCloseTo(6, 9);
+  });
+});
+
 describe('Langer Gang', () => {
   it('kommt um beide Ecken beim Spieler an', () => {
+    const bay = scenarioOf('corridor');
     const run = runBay('corridor', { seconds: 40 });
     const zombie = run.runners[0]!;
-    // Zwei Lücken auf verschiedenen Seiten: die östliche in der hinteren Wand,
-    // die westliche in der vorderen. Wer an beiden vorbeikam, hat das Z
-    // gelaufen und ist nicht durch eine Wand gegangen.
-    expect(passedNear(zombie.track, spot('corridor', { lx: 8.75, lz: -2.5 }), 2)).toBe(true);
-    expect(passedNear(zombie.track, spot('corridor', { lx: -8.75, lz: 2.5 }), 2)).toBe(true);
+    // Zwei Wände mit Lücken auf verschiedenen Seiten: die östliche in der
+    // hinteren Wand (lz = −2,5, Lücke lx 5…12,5), die westliche in der
+    // vorderen (lz = 2,5, Lücke lx −12,5…−5). Gefragt wird nicht, wie nah er
+    // an der Mitte einer Lücke vorbeikam — die Lücken sind 7,5 m breit, und
+    // ein Weg, der die Ecke schneidet, geht dicht an ihrer inneren Kante
+    // hindurch. Gefragt wird, **wo** er die Wandlinie überschritten hat:
+    // in der Lücke oder durch die Wand.
+    const east = crossedAt(zombie.track, baySpot(bay, { lx: 0, lz: -2.5 }).z);
+    expect(east).not.toBeNull();
+    expect(east!.x).toBeGreaterThan(baySpot(bay, { lx: 5, lz: 0 }).x);
+    expect(east!.x).toBeLessThan(baySpot(bay, { lx: 12.5, lz: 0 }).x);
+    // Und danach — erst danach — die zweite, auf der anderen Seite. Das ist
+    // das Z, um das es in dieser Bucht geht.
+    const west = crossedAt(zombie.track, baySpot(bay, { lx: 0, lz: 2.5 }).z, east!.frame);
+    expect(west).not.toBeNull();
+    expect(west!.x).toBeGreaterThan(baySpot(bay, { lx: -12.5, lz: 0 }).x);
+    expect(west!.x).toBeLessThan(baySpot(bay, { lx: -5, lz: 0 }).x);
     expect(zombie.arrived).toBe(true);
   });
 
   it('schneidet die Ecken, statt sie rechtwinklig zu nehmen', () => {
-    // Die Zahl hinter „läuft Manhattan-mäßig": Der Weg durch das Z ist lang,
-    // aber er darf nicht doppelt so lang sein wie die Luftlinie.
+    // **„Manhattan-mäßig" ist keine Zahl, sondern ein Vergleich.**
+    //
+    // Hier stand einmal `wander(...) < 2.2`, und die Schranke war doppelt
+    // falsch: Sie war nur grün, solange der Zombie nach fünfzehn Metern an der
+    // Wandecke hängen blieb und die Kennzahl gar nichts mehr maß — und für
+    // einen Lauf, der das Z zu Ende geht, ist sie unerreichbar, weil die
+    // Luftlinie in dieser Bucht durch zwei Wände führt (schon der bestmögliche
+    // Weg liegt bei 2,17).
+    //
+    // Verglichen wird deshalb mit dem, was „Manhattan" wirklich heißt: dem Weg
+    // über die **Kachelmitten**, den die Suche selbst findet. Wer ihn Punkt für
+    // Punkt abläuft, kommt auf 47,5 m; wer die Ecken schneidet, auf gut 34.
+    // Die Schranke rechnet damit bei jedem Umbau der Bucht mit, statt still
+    // falsch zu werden.
     const run = runBay('corridor', { seconds: 40 });
-    expect(wander(run.runners[0]!.track)).toBeLessThan(2.2);
+    const zombie = run.runners[0]!;
+    const bay = scenarioOf('corridor');
+    const start = baySpot(bay, bay.cast[0]!);
+    const goal = baySpot(bay, bay.stand);
+    const found = findPath(
+      run.graph,
+      run.graph.nearest(start.x, start.z, 0),
+      run.graph.nearest(goal.x, goal.z, 0),
+      { profile: profileOf('zombie') },
+    );
+    let overCentres = 0;
+    for (let i = 1; i < found.tiles.length; i++) {
+      overCentres += tileDistance(found.tiles[i - 1]!, found.tiles[i]!);
+    }
+    expect(found.complete).toBe(true);
+    expect(walked(zombie.track)).toBeLessThan(overCentres * 0.85);
   });
 });
 
@@ -58,6 +130,11 @@ describe('Stachelgrube', () => {
     expect(closestTo(dummy!.track, middle)).toBeGreaterThan(3);
     expect(zombie!.arrived).toBe(true);
     expect(dummy!.arrived).toBe(true);
+    // Und der Umweg kostet auch etwas: Hier **taugt** die Krümmung als Zahl,
+    // denn die Luftlinie ist offen — der Zombie läuft sie fast, die Puppe geht
+    // deutlich außen herum.
+    expect(wander(zombie!.track)).toBeLessThan(1.15);
+    expect(wander(dummy!.track)).toBeGreaterThan(wander(zombie!.track) * 1.4);
   });
 });
 

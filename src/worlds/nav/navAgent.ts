@@ -1,6 +1,6 @@
 import { NavBelief } from './navBelief';
 import type { NavGraph } from './navGraph';
-import { findPath, smoothPath } from './navPath';
+import { findPath, pullString, type PathPoint } from './navPath';
 import { HUMAN_PROFILE, type CostProfile, type LinkKind } from './navProfile';
 import {
   DIR_E,
@@ -51,6 +51,15 @@ export interface AgentTuning {
   /** Obergrenze je Suche. */
   maxNodes: number;
   /**
+   * Sein **Umfang** als Halbmesser, in Metern.
+   *
+   * Der Grund, warum ein Läufer überhaupt eine Dicke hat: Der Weg wird um
+   * diese Zahl an jeder Ecke eingezogen (`navPath.pullString`). Ohne sie plant
+   * er sich seinen eigenen Körper in die Hausecke und bleibt dort stehen — in
+   * der Brille sieht das aus, als hätte er es sich anders überlegt.
+   */
+  girth: number;
+  /**
    * Wie hoch er **treten** kann, ohne zu springen, in Metern.
    *
    * Alles darüber wird abgesprungen (`AgentStep.leap`). Der Grund steht im
@@ -70,6 +79,7 @@ export const AGENT_DEFAULTS: AgentTuning = {
   stuckAfter: 1.1,
   stuckWithin: 0.3,
   maxNodes: 3000,
+  girth: 0.3,
   stepUp: 0.35,
 };
 
@@ -128,7 +138,9 @@ export class NavAgent {
   readonly belief = new NavBelief();
   readonly tuning: AgentTuning;
 
-  private route: TileKey[] = [];
+  private route: PathPoint[] = [];
+  /** Derselbe Weg als Kacheln — für die Debug-Ansicht, einmal gerechnet. */
+  private tiles: TileKey[] = [];
   private cursor = 0;
   private timer = 0;
   private goalTile: TileKey = NO_TILE;
@@ -149,7 +161,7 @@ export class NavAgent {
 
   /** Der Weg, den er gerade läuft — für die Debug-Ansicht. */
   get path(): readonly TileKey[] {
-    return this.route;
+    return this.tiles;
   }
 
   /** Der Wegpunkt, der gerade dran ist. */
@@ -165,6 +177,7 @@ export class NavAgent {
   /** Vergisst den Weg, behält aber, was er gesehen hat. */
   clear(): void {
     this.route = [];
+    this.tiles = [];
     this.cursor = 0;
     this.timer = 0;
     this.goalTile = NO_TILE;
@@ -227,7 +240,7 @@ export class NavAgent {
    * Erfahren kann man nur, wovor man steht.
    */
   observe(graph: NavGraph, from: TileKey, now: number): boolean {
-    const next = this.route[this.cursor];
+    const next = this.route[this.cursor]?.tile;
     if (next === undefined || from === NO_TILE) return false;
 
     // **Geschaut wird in die Laufrichtung, nicht auf den Wegpunkt.** Nach der
@@ -263,33 +276,48 @@ export class NavAgent {
       profile: this.tuning.profile,
       belief: this.belief,
       maxNodes: this.tuning.maxNodes,
+      radius: this.tuning.girth,
     };
     const found = findPath(graph, from, to, options);
-    this.route = smoothPath(graph, found.tiles, options);
+    this.route = pullString(graph, found.tiles, options);
+    this.tiles = [];
+    for (const point of this.route) {
+      if (this.tiles[this.tiles.length - 1] !== point.tile) this.tiles.push(point.tile);
+    }
     // Die Kachel, auf der er schon steht, ist kein Wegpunkt.
-    this.cursor = this.route[0] === from ? 1 : 0;
+    this.cursor = this.route[0]?.tile === from ? 1 : 0;
     this.reachesGoal = found.complete;
     this.goalTile = to;
     this.timer = this.tuning.replan;
     this.seenBelief = this.belief.version;
   }
 
-  /** Rückt den Wegpunkt vor, bis einer weit genug weg ist. */
+  /**
+   * Rückt den Wegpunkt vor, bis einer übrig ist, zu dem er noch hinmuss.
+   *
+   * **Nah genug heißt nicht vorbei.** Ein Wegpunkt mitten im Raum ist
+   * abgehakt, sobald er in Reichweite ist — auf einen Meter genau dorthin zu
+   * laufen sähe steif aus. Ein **enger** Punkt dagegen liegt einen Halbmesser
+   * neben einer Hausecke (`navPath.ts`), und wer ihn abhakt, während er noch
+   * davor steht, schneidet genau die Ecke, um die es geht: Er nimmt den
+   * übernächsten Punkt ins Visier, läuft schräg in die Wand und schiebt sich
+   * dort fest. Deshalb zählt an einem engen Punkt nicht der Abstand, sondern
+   * ob er wirklich an ihm vorbei ist — gemessen daran, ob er schon auf der
+   * Seite steht, auf der es weitergeht.
+   */
   private pick(graph: NavGraph, at: Spot3, goal: Spot3): { x: number; z: number } | null {
     while (this.cursor < this.route.length) {
-      const here = this.route[this.cursor]!;
-      const point = graph.worldOf(here);
-      if (Math.hypot(point.x - at.x, point.z - at.z) > this.tuning.reach) {
-        return { x: point.x, z: point.z };
-      }
-      // Angekommen. Führt der nächste Schritt durch ein Portal, geht er nicht
-      // dorthin — er ist dort. Führt er über eine Lücke, springt er.
-      const next = this.route[this.cursor + 1];
-      if (next !== undefined) {
-        if (linkBetween(graph, here, next, 'portal')) this.jump = next;
-        else if (this.leaps(graph, here, next)) this.leap = next;
-      }
+      const point = this.route[this.cursor]!;
+      const far = Math.hypot(point.x - at.x, point.z - at.z) > this.tuning.reach;
+      if (far) break;
+      if (point.tight && !this.passed(point, this.route[this.cursor + 1], at)) break;
       this.cursor++;
+    }
+
+    const point = this.route[this.cursor];
+    if (point) {
+      this.hop(graph, at, point);
+      return { x: point.x, z: point.z };
     }
     // Der Weg ist abgelaufen. Führte er ans Ziel, geht es das letzte Stück
     // geradeaus dorthin — die letzte Kachelmitte ist selten das, was gemeint
@@ -298,8 +326,42 @@ export class NavAgent {
     if (this.reachesGoal) return { x: goal.x, z: goal.z };
     const last = this.route[this.route.length - 1];
     if (last === undefined) return null;
-    const point = graph.worldOf(last);
-    return { x: point.x, z: point.z };
+    return { x: last.x, z: last.z };
+  }
+
+  /**
+   * **Der Schritt, den man nicht läuft.**
+   *
+   * Führt der Weg von hier zum nächsten Wegpunkt durch ein Portal, wird
+   * versetzt; führt er über eine Lücke oder eine zu hohe Stufe, wird
+   * gesprungen. Gefragt wird, sobald er am **Anfang** dieses Schritts steht,
+   * und der Anfang ist der Wegpunkt davor — ganz am Anfang seine eigene
+   * Kachel, denn die ist kein Wegpunkt (`plan`). Genau dieser Fall ist der
+   * Grund für die Zeile mit `atTile`: Wer vor der Stufe steht, die er
+   * hochspringen muss, bekäme sie sonst nie zu sehen und liefe für immer
+   * dagegen.
+   */
+  private hop(graph: NavGraph, at: Spot3, point: PathPoint): void {
+    const start = this.cursor > 0 ? this.route[this.cursor - 1] : undefined;
+    if (!start || start.tile === point.tile) return;
+    const there =
+      start.tile === this.atTile || Math.hypot(start.x - at.x, start.z - at.z) <= this.tuning.reach;
+    if (!there) return;
+    if (linkBetween(graph, start.tile, point.tile, 'portal')) this.jump = point.tile;
+    else if (this.leaps(graph, start.tile, point.tile)) this.leap = point.tile;
+  }
+
+  /**
+   * Ob er an diesem Punkt schon vorbei ist — und nicht bloß in seiner Nähe.
+   *
+   * Gemessen wird gegen die Richtung, in die es von ihm aus weitergeht: Steht
+   * er auf deren Seite, liegt der Punkt hinter ihm. Ohne einen nächsten Punkt
+   * gibt es keine Richtung und nichts mehr abzukürzen — dann ist er vorbei.
+   */
+  private passed(point: PathPoint, next: PathPoint | undefined, at: Spot3): boolean {
+    if (!next) return true;
+    const ahead = (at.x - point.x) * (next.x - point.x) + (at.z - point.z) * (next.z - point.z);
+    return ahead > 0;
   }
 
   /**

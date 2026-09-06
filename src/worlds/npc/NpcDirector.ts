@@ -165,6 +165,9 @@ export class NpcDirector implements NpcControl {
    * Navigationslabor —, stellt im Menü auf *immer*.
    */
   private barMode: BarMode = 'hurt';
+  /** Ob die Sichtbereiche gerade zu sehen sind, und in welcher Farbe. */
+  private sightOn = false;
+  private sightColor = 0xffd166;
 
   constructor(private readonly world: NpcWorld) {}
 
@@ -172,6 +175,23 @@ export class NpcDirector implements NpcControl {
   setBars(mode: BarMode): void {
     this.barMode = mode;
     for (const npc of this.npcs) npc.setBars(mode);
+  }
+
+  /**
+   * **Die Sichtbereiche zeigen** — gilt sofort und für alles Neue.
+   *
+   * Dieselbe Bauart wie die Balken, und aus demselben Grund: Wer eine Ansicht
+   * einschaltet und danach einen Zombie hinstellt, will nicht den einzigen
+   * ohne Kreis dastehen haben.
+   */
+  setSight(on: boolean, color: number): void {
+    this.sightOn = on;
+    this.sightColor = color;
+    for (const npc of this.npcs) npc.setSight(on, color);
+  }
+
+  get sight(): boolean {
+    return this.sightOn;
   }
 
   get bars(): BarMode {
@@ -206,6 +226,7 @@ export class NpcDirector implements NpcControl {
       health: request.health,
     });
     npc.setBars(this.barMode);
+    npc.setSight(this.sightOn, this.sightColor);
     this.world.root.add(npc.holder);
     this.npcs.push(npc);
     return npc;

@@ -88,8 +88,13 @@ export class PreviewWalk {
   /**
    * Derselbe Läufer wie in einem NPC — mit leerer Meinung, die nie etwas
    * lernt, weil sie nie etwas glaubt.
+   *
+   * Und mit **kaum Umfang**: Der Weg eines NPC hält an jeder Ecke dessen
+   * Halbmesser Abstand (`nav/navPath.ts`), weil dort ein Zylinder um die Ecke
+   * muss. Die Attrappe ist ein Ring auf dem Boden — sie stößt nirgends an,
+   * und ein Bogen um jede Hausecke sähe an ihr aus wie ein Umweg ohne Grund.
    */
-  private readonly agent = new NavAgent();
+  private readonly agent = new NavAgent({ girth: 0.1 });
   private goal: WalkPoint | null = null;
   /** Die eigene Uhr: Der Läufer datiert damit, was er gesehen hat. */
   private clock = 0;
