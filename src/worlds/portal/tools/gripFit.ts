@@ -128,7 +128,7 @@ export const STANDARD_GRIP: GripPose = {
  * der Griff einer Quest gegen ihren Zeigestrahl; so weit war die am
  * Justierstand eingemessene Taschenlampe gedreht) — drei Wege, eine Zahl, und
  * keiner davon eine Messung am Gerät. Die gibt es im **Eingaberaum**: dessen
- * Lage-Tafel schreibt „Griff → Strahl" fortlaufend an die Wand und daneben in
+ * Tafelwand schreibt „Griff→Strahl" fortlaufend mit und daneben in
  * Klammern, was hier steht (`worlds/tune/TuneWorld.ts`). Stehen die beiden
  * Zahlen auseinander, ist die gemessene die richtige — wer sie hier einträgt,
  * verschiebt allerdings auch `GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und

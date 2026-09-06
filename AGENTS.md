@@ -898,7 +898,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   fertig auf einen Gästetisch. Der **Mülleimer** löscht, was schiefging. An der
   Wand hinter jeder Station steht, was sie will.
 - **Eingaberaum** (experimentell): eine Kammer, deren einziger Zweck es ist zu
-  zeigen, was die Hände tun. Zwei **Controller-Modelle** schweben auf
+  zeigen, was die Hände tun. Alles, was man hier abliest, hängt auf **einer
+  Tafelwand gut zwei Meter vor dem Spieler** (`tune/inputPanel.ts`, mit Test):
+  Name des Raums, die Aufnahme, die beiden Controller-Modelle und je Hand eine
+  Tafel darunter. Vorher hing es an der **Vorderwand**, vier Meter weg, und
+  beides ging dabei schief: eine Tafel wird nicht dadurch lesbar, dass sie
+  größer wird (die Schrift wächst mit, die Entfernung bleibt — die Lage-Tafel
+  kam auf ein halbes Grad Schrifthöhe, und ihre letzte Zeile fiel ganz weg),
+  und die Modelle hingen auf halbem Weg dorthin, also aus Spielersicht genau
+  auf den Zahlen dahinter. Auf einer Fläche steht nichts mehr **vor** etwas
+  anderem, nur noch daneben, und das rechnet der Test nach: kein Rechteck
+  schneidet ein anderes, und alles zusammen bleibt in einem Blickfeld, für das
+  man den Kopf nicht dreht. Die Tafeln sind dabei **kleiner** geworden und die
+  Schrift doppelt so groß.
+
+  Zwei **Controller-Modelle** schweben auf
   Augenhöhe, drehen sich mit den echten mit, jeder Knopf leuchtet beim Drücken
   auf, Stick und Trigger bewegen sich wirklich. Gezeigt wird dabei das **echte
   Modell** des Geräts, das gerade in der Hand liegt (siehe
@@ -908,8 +922,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten.
 
-  Und darunter je Hand die **Lage des Geräts als Zahl**, in **zwei Räumen**,
-  denn genau dazwischen liegt die Verwirrung:
+  Und darunter je Hand **eine** Tafel: was gedrückt ist, und die **Lage des
+  Geräts als Zahl**, in **zwei Räumen**, denn genau dazwischen liegt die
+  Verwirrung (es waren einmal zwei Tafeln übereinander mit ausgeschriebenen
+  Zeilen — zusammen zu viel Fläche und trotzdem zu kleine Schrift; die Zeilen
+  kürzen sich zu `Strahl YXZ  Y -12°  P 34°  R -5°`):
 
   - **Zeigestrahl**, gelesen als Euler `YXZ` — die Reihenfolge, in der ein
     Flugzeug oder eine Kamera geführt wird: erst gieren, dann nicken, dann
@@ -940,8 +957,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
   **Und dazu die Achsen selbst**, denn eine Zahl ohne Achse ist keine Auskunft
   (`core/axesCross.ts`). Ein Kreuz steht auf dem **Boden** zwischen einem
-  selbst und der Wand — es stand eine Weile auf Brusthöhe mitten im Blick auf
-  die Tafeln und genau dort, wo man die Hände hält — und je eines an jedem
+  selbst und der Tafelwand — es stand eine Weile auf Brusthöhe mitten im Blick
+  auf die Tafeln und genau dort, wo man die Hände hält — und je eines an jedem
   Controller-Modell, sodass man beide nebeneinander sieht und daran, wie schräg
   der Raum des Geräts im Zimmer steht. Die Farben sind die üblichen — **X rot,
   Y grün, Z blau**, wie in three.js und Blender —, und dazu kommt der vierte
@@ -949,11 +966,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Spiel das *negative* Z; ein Kreuz, das nur +Z zeigt, zeigt genau dorthin, wo
   nichts ist. Die Legende an der Wand schreibt es aus.
 
-  **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei.
+  **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei —
+  außer während einer Aufnahme, dann setzt derselbe Knopf eine Marke.
   Der Stick bewegt in diesem Raum nichts, man steht also ohnehin still; was
   fehlte, war ein Weg, eine Zahl festzuhalten, ohne sie im selben Moment durch
   das Hinsehen zu verändern. Eingefroren steht die Tafel bernsteinfarben da,
-  und unter das Modell stellt sich, was diese Lage **bedeutet**: die
+  und neben das Modell stellt sich, was diese Lage **bedeutet**: die
   **Boxhand** in der Faust um den **Handgriff des Geräts** — derselbe rote
   Zylinder wie auf der Werkzeugseite unter _Hand in echt_
   (`core/controllerHandle.ts`, eine Geometrie für beide Stellen) und dieselbe
@@ -961,6 +979,27 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   nur, man sieht auch, was das Spiel daraus macht. Gebaut und nicht
   gespeichert: dort soll stehen, was aus der Lage **folgt**, nicht, was jemand
   vorhin eingestellt hat.
+
+  **Die Aufnahme** steht oben auf der Tafelwand, und der Knopf daneben startet
+  und beendet sie. Sie misst, **wie stark die Hand beschleunigt** — die eine
+  Größe, zu der niemand ein Gefühl hat: ein Meter je Sekunde ist ein Schritt,
+  aber „40 m/s²" sagt nichts, bis man es einmal neben der eigenen Bewegung
+  gesehen hat. Genau solche Zahlen stehen aber in den Schwellen des Spiels (der
+  Schlag des Hammers, das Tempo eines Wurfs, das Schütteln der Sektflasche), und
+  bisher hieß Einstellen: probieren, bis etwas passiert. Die Tafel zeigt die
+  laufende Zeit, den **Höchstwert** samt Hand und Zeitpunkt und den aktuellen
+  Wert, in m/s² **und in g** — ein g kennt man.
+
+  Während sie läuft, setzt **Greifen** eine **Marke**: der Wert genau in dem
+  Moment, in dem man drückt, mit laufender Nummer und Zeit; die letzten drei
+  stehen auf der Tafel, die jüngste oben. Ohne sie misst man einen Wurf und
+  liest hinterher den Höchstwert des Abbremsens ab. Solange aufgenommen wird,
+  gehört der Griffknopf deshalb der Marke und friert **nichts** ein — zwei
+  Bedeutungen zugleich hat er nicht. Gemessen wird aus den Positionen der Hand,
+  also zweimal abgeleitet und beide Male geglättet
+  (`tune/accelRecord.ts`, mit Test); gefüttert wird **jedes** Bild, auch wenn
+  die Tafel nur fünfmal je Sekunde neu gezeichnet wird — ein Gipfel dauert zwei
+  Bilder.
 
   An der **rechten Wand hängen die Zahlen**, die man abliest statt sie
   anzufassen: zwei Knöpfe messen die **Augenhöhe** (siehe _Sitzen oder
@@ -1271,6 +1310,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug fallen lassen             | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht)                                                      | –                                                                                               | –                    |
 | Hüften verschieben                 | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück)                                                    | –                                                                                               | –                    |
 | Messer werfen                      | im Schwung loslassen; es fliegt weiter und bleibt stecken                                                                                                             | –                                                                                               | –                    |
+| Aufnahme im Eingaberaum            | Knopf auf der Tafelwand startet und beendet sie; **Greifen** setzt währenddessen eine Marke                                                                            | Linksklick auf den Knopf                                                                        | –                    |
 | Großer Hammer                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                         | –                                                                                               | –                    |
 | Haltung (sitzen/stehen)            | Startseite oder Menü → Bewegung → Haltung                                                                                                                             | dito                                                                                            | dito                 |
 | Greifen ohne Controller            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                   | –                                                                                               | –                    |
@@ -2098,7 +2138,7 @@ einen anderen Winkel, zielt das Werkzeug trotzdem dorthin, wohin gezeigt wird.
 alles, was gebaut wird, bevor eine Brille aufgesetzt wird: die Lage eines
 Griffs im Werkzeug, die Faust darum, das Bild auf der Werkzeugseite. Und
 Ersatz heißt geschätzt: keiner der drei Wege oben ist eine Messung am Gerät.
-Die gibt es im **Eingaberaum**, auf der Lage-Tafel, Zeile „Griff → Strahl".
+Die gibt es im **Eingaberaum**, auf der Tafel der Hand, Zeile „Griff→Strahl".
 Wer die dort abgelesene Zahl hier einträgt, verschiebt allerdings auch
 `GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und jede daran gerechnete Faust —
 `core/gripFist.test.ts` sagt, welche.
