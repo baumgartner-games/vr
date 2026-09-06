@@ -254,8 +254,21 @@ landen, in jeder Lage im Raum; dass eine große Hand einen großen Handschuh
 bekommt und ein ausgerutschtes Gelenk keinen Punkt daraus macht; dass links und
 rechts sich an genau einem Vorzeichen unterscheiden, und dass eine schiefe
 Querachse — echte Knöchel stehen gestaffelt — trotzdem eine saubere Drehung
-ergibt), die **geteilte Handhaltung** (`src/worlds/tune/handShare.ts` — hin und
-zurück ohne Verlust, und dass alles, was nicht danach aussieht, verworfen wird
+ergibt), die **Knochen einer blanken Hand**
+(`src/core/handBones.ts` — der einzige Weg, der hier etwas beweist: eine Hand
+aus bekannten Winkeln bauen und nachsehen, ob die Messung genau diese Winkel
+wieder herausgibt, den Daumen mit seiner schrägen Ruhelage eingeschlossen; dazu
+die Knochenlängen, die Dicke der Gelenkkugeln, und dass eine verschobene und
+gedrehte Hand dieselbe Haltung misst — sonst stünde in jeder Messung, wo im
+Zimmer man gerade steht), die **Knochenfarben**
+(`src/core/boneColors.test.ts` — dass sich die Töne je Finger und die Stufen je
+Knochen wirklich unterscheiden, dass ein Modell mit zwei Knochen dieselben Enden
+bekommt wie eins mit dreien, dass die Namen der Brille auf die richtigen Kugeln
+zeigen, und dass eine gefärbte Hand die Farben auch trägt — als Material je
+Knochen an der Boxhand, als Punktfarben im Netz des Handschuhs), die **geteilte
+Handhaltung** (`src/worlds/tune/handShare.ts` — hin und
+zurück ohne Verlust, dass die zwanzig Gelenke nur mitgehen, wenn es sie gibt,
+und dass alles, was nicht danach aussieht, verworfen wird
 statt eine halbe Hand zu bauen) und die **Maße des Gangs samt Poseraum**
 (`src/worlds/tune/lane.ts` — dass die Trennwand die Knöpfe stehen lässt, wo die
 alte Wand stand, dass ihre Tür breit genug ist und in den Gang passt, und dass
@@ -263,12 +276,16 @@ der Schwebekasten in den Streifen dahinter passt, mitsamt dem, der davorsteht).
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
 
-Drei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
+Ein paar Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
 **Pointer** (`src/core/Pointer.ts`) muss jeder Hand ihren eigenen Strahl und
 ihren eigenen Trigger lassen, die **Handform** (`src/core/HandVisuals.ts`)
 muss links links und rechts rechts sein — und der weiße Handschuh muss
 dasselbe Skelett tragen wie die Boxhand, mit seinen **drei schwarzen Strichen**
-oben auf dem Handrücken —, und die **Öffnung des magischen Beutels**
+oben auf dem Handrücken; dazu muss eine **gemessene Haltung** an der
+gezeichneten Hand ankommen: der zweite Knochen knickt, ohne den ersten
+anzufassen, jeder Finger fächert einzeln, der Daumen eingeschlossen (den die
+eine alte Spreizung nie anfasste), und eine Haltung ohne Gelenke krümmt sich
+weiter wie eh und je —, und die **Öffnung des magischen Beutels**
 (`src/worlds/portal/tools/MagicBagTool.test.ts`) muss fassen, was in ihr liegt:
 Fächer, Blätterpfeile und Seitenpunkte. Die ersten beiden sind Vorzeichen, die
 man in der Brille erst nach Minuten bemerkt und dann nicht mehr los wird; das
@@ -1642,6 +1659,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | AR an/aus (Schießgang)             | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf _AR_ an der rechten Wand                                                   | –                                                                                               | –                    |
 | Griff einmessen (Schießgang)       | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug**     | –                                                                                               | –                    |
 | Handschuh an blanken Händen        | Knopf _Handschuh_ an der Wand im **Poseraum**, oder Menü → Hände → _Blanke Hände_                                                                                     | –                                                                                               | –                    |
+| Knochenfarben                      | Knopf _Knochenfarben_ an der Wand im **Poseraum**, oder Menü → Hände → _Knochenfarben_                                                                                | –                                                                                               | –                    |
 | Handpose teilen (Poseraum)         | Werkzeug im **Schwebekasten** loslassen, blanke Hand daran, mit der **Controller-Hand** auf _Handpose teilen_ zeigen; **deren Trigger** speichert                     | –                                                                                               | –                    |
 | Schwebekasten feststellen          | Knopf _Schwebe_ an der Wand im **Poseraum** — was darin hängt, steht still und lässt sich nicht greifen; nochmal drücken gibt es frei                                 | –                                                                                               | –                    |
 | Geteilte Handpose ansehen          | –                                                                                                                                                                     | `tools.html` → Menü → _Verbinden_, Raum-Code eintragen                                          | dito                 |
@@ -2324,34 +2342,96 @@ _Einstellungen → Hände_ und, wo man ihn wirklich braucht, an der Wand im
 Poseraum. Ab Werk aus; die Kugeln sind das, was gemessen wurde, und wer eine
 Geste einstellt, will genau das sehen.
 
-Angeschaltet liegt **dasselbe gebaute Skelett** auf den echten Knochen, und die
-Rechnung dazu ist drei Gelenke lang (`core/gloveFit.ts`, mit Test, ohne
+Angeschaltet liegt ein Handschuh auf den echten Knochen. **Wo** die Hand steht,
+sagt eine Rechnung über vier Gelenke (`core/gloveFit.ts`, mit Test, ohne
 three.js):
 
 - **Handgelenk → Mittelfingerknöchel** ist die Handachse, also das -Z der
-  gebauten Hand, und ihre **Länge ist das Maß**: die gebaute Handfläche misst
-  `PALM_LENGTH` (8,3 cm, aus dem Kasten und der Fingerwurzel abgeleitet), die
-  echte misst, was sie misst — eine kleine Hand bekommt einen kleinen
-  Handschuh. Geklemmt auf 0,6 … 1,7, denn ein Gelenk, das für ein Bild bei null
-  liegt, machte ihn sonst zum Punkt.
+  gebauten Hand, und ihre **Länge ist das Maß der Handfläche**: die gebaute
+  misst `PALM_LENGTH` (8,3 cm, aus dem Kasten und der Fingerwurzel abgeleitet),
+  die echte misst, was sie misst — eine kleine Hand bekommt eine kleine
+  Handfläche. Geklemmt auf 0,6 … 1,7, denn ein Gelenk, das für ein Bild bei
+  null liegt, machte sie sonst zum Punkt.
 - **Zeige- → kleiner Knöchel** ist die Querachse und sagt, wohin der Handrücken
   schaut. Genau **ein Vorzeichen** darin unterscheidet links von rechts: in der
   gebauten Hand liegt der Zeigefinger auf der Daumenseite, und die ist rechts
   bei -X. Der Anteil entlang der Handachse wird herausgenommen, bevor daraus
   eine Basis wird — eine echte Hand ist kein Rechteck, ihre Knöchel stehen
   gestaffelt.
-- Die **Finger** kommen aus dem Faltmaß, das die Gesten ohnehin messen
-  (`handGestures.foldCurls`). Damit folgen sie wirklich: was die echte Hand
-  tut, tut der Handschuh, und es ist keine Geste aus einer Liste.
+
+**Die Finger dagegen sind nicht gestreckt, sondern gemessen**
+(`core/handBones.ts`, mit Test, ohne three.js). Vorher kamen sie aus dem
+Faltmaß der Gesten (`handGestures.foldCurls`): **eine** Zahl je Finger, der
+Abstand der Kuppe von der Handflächenmitte. Aus einer Zahl lässt sich ein
+Finger aber nicht stellen — ob er am Grundgelenk knickt oder erst am
+Mittelgelenk, ob er zur Seite steht oder geradeaus, all das fiel in dieselbe
+Zahl, und eine Hand, die die Finger spreizte, spreizte sie gezeichnet nicht.
+Die Brille meldet fünfundzwanzig Gelenke; fünf davon anzusehen war immer die
+halbe Messung. Jetzt gilt für jeden Finger:
+
+- **Wo seine Wurzel liegt und wie lang seine Knochen sind**, in Metern. Der
+  Handschuh wird darauf **gebaut**, statt ein gebautes Modell auf einen
+  Maßstab zu strecken: jede Fingerwurzel steht auf dem gemessenen Knöchel,
+  jedes Gelenk des Handschuhs auf der Kugel, die die Brille dort malt, und die
+  Kuppe auf der echten Kuppe. Und es sind **drei** Knochen je Finger statt
+  zwei, weil eine echte Hand drei hat.
+- **Wie dick seine Gelenkkugeln sind** (`jointRadius`). Der Stoff um den Finger
+  ist so dick wie die Kugeln, die sonst an derselben Stelle säßen — nicht
+  dünner und nicht dicker.
+- **Wie weit jeder einzelne Knochen gebeugt ist** und **wie weit der Finger an
+  der Wurzel zur Seite steht**, beides in Grad. Die Winkel sind genau die, die
+  das Modell einsetzt — eine Fingerwurzel dreht um Y, jeder Knochen darunter um
+  X, beides gegen die Ruhelage der Wurzel (beim Daumen eine Drehung, bei den
+  vier Fingern die Einheit). Es gibt keinen Umrechnungsfaktor dazwischen, den
+  jemand nachziehen müsste, und der Test rechnet genau das nach: eine Hand aus
+  bekannten Winkeln bauen und nachsehen, ob die Messung sie wieder herausgibt.
+
+Genäht wird **einmal**: die Knochen einer Hand ändern ihre Länge nicht, und ein
+Netz je Bild neu zu nähen wäre der teuerste Weg, dasselbe zu zeigen. Neu gebaut
+wird nur, wenn das Maß wirklich ein anderes ist (halbe Millimeter Spiel, damit
+das Rauschen der Brille nicht dauernd näht).
 
 Die Gelenkkugeln gehen dabei **aus** — zwei Hände am selben Ort wären das
 Schlechteste von beidem —, und eine Geisterhand daneben zieht sich mit an
 (`lookOf`): verglichen wird nur ehrlich, wenn das Vergleichsstück so aussieht
 wie das, was man in der Brille sieht.
 
+Gemessen wird übrigens **immer**, auch mit ausgeschaltetem Handschuh: der
+Poseraum speichert die Gelenke einer blanken Hand, und ob dabei Kugeln oder
+Stoff zu sehen sind, ändert an der Messung nichts.
+
 Wozu das gut ist, steht unter _Der Poseraum_: eine Reihe Kugeln hat keine
 Handfläche, an die man einen Gegenstand legen könnte, und ohne Handfläche gibt
 es nichts zu messen.
+
+#### Knochenfarben
+
+Der dritte Schalter daneben (_Einstellungen → Hände → Knochenfarben_, und der
+Knopf im Poseraum): **jeder Knochen in seiner eigenen Farbe**
+(`core/bonePalette.ts`). Ab Werk aus — eine Hand ist einfarbig, und beim
+Spielen soll ein Handschuh ein Handschuh sein und kein Farbfächer. Beim
+**Justieren** ist genau das im Weg: fünf gleich weiße Röhren sagen nicht,
+welche davon der Ringfinger ist und wo sein zweiter Knochen anfängt, und wer
+eine Zahl je Knochen einstellt, sieht ohne Farben nicht, welcher sich bewegt
+hat.
+
+Die Farben sind **gerechnet und nicht ausgesucht**: ein Farbton je Finger, vom
+Daumen (rot) über Zeigefinger (orange), Mittelfinger (grün) und Ringfinger
+(blau) bis zum kleinen Finger (violett), und je Knochen eine Stufe heller zur
+Kuppe hin. Damit sagt die Farbe zwei Dinge auf einmal — welcher Finger und der
+wievielte Knochen — und beides ohne Beschriftung. Ein Modell mit zwei Knochen
+je Finger bekommt dieselben Enden wie eins mit dreien, damit die gebaute Hand
+am Controller und der gemessene Handschuh an derselben Stelle gleich aussehen.
+
+Es gilt für **alles, was eine Hand sein kann**: die Boxhand und die Kugelhand
+bekommen ein Material je Knochen (geteilt, je Farbe und Durchsichtigkeit eines
+— wie die Abnäher des Handschuhs), der Handschuh trägt die Farben als
+Punktfarben **im Netz**, weil er ein einziges Netz ist und kein Material je
+Knochen tragen kann, und die Gelenkkugeln einer blanken Hand färben sich nach
+den Namen, die die Brille ihnen gibt. Das Attribut wird nur geschrieben, wenn
+es auch gelesen wird — ein Drittel mehr Netz für nichts wäre der falsche
+Handel. Umgeschaltet wird sofort: eine gefärbte Hand ist eine anders gebaute,
+also baut `HandVisuals` sie neu.
 
 ### Eingemessene Griffe
 
@@ -3062,7 +3142,7 @@ Die Tür sitzt hinter der zweiten Knopfspalte und vor der Werte-Tafel; die Tafel
 ist dafür ein Stück weiter nach hinten gewandert, denn eine Tür, die eine Tafel
 halbiert, ist eine Tafel weniger.
 
-Vier Dinge stehen darin:
+Fünf Dinge stehen darin:
 
 - **Der Schwebekasten** (`tune/HoverBox.ts`): eine durchsichtige Kiste in der
   Luft, in der die Schwerkraft aufhört. Man hält ein Werkzeug hinein, lässt es
@@ -3112,6 +3192,11 @@ Vier Dinge stehen darin:
 - **Der Schalter an der Wand** zieht getrackten Händen den Handschuh an. Er
   steht hier und nicht nur im Menü, weil man ihn genau hier braucht.
 
+- **Der Knopf _Knochenfarben_** daneben färbt jeden Knochen einzeln ein
+  (siehe _Knochenfarben_ oben). Ein- und ausschaltbar wie der Handschuh, und
+  aus demselben Grund an derselben Wand: hier stellt man eine Zahl je Knochen
+  ein, und fünf gleich weiße Röhren sagen nicht, welcher gerade gemeint ist.
+
 - **Der Knopf _Handpose teilen_** schickt die Haltung der **anderen** Hand live
   an alle im Raum. Gezeigt hat die Hand mit dem Controller, geteilt wird die
   daneben, und das ist keine Höflichkeit, sondern die einzige Aufteilung, die
@@ -3128,6 +3213,29 @@ Hängt **nichts** im Kasten, bleibt die nützlichere Hälfte übrig: die **Finge
 Eine blanke Hand misst das Headset ohnehin (`foldCurls`), und bis hierher
 landete das nirgends; die Grundhaltung behält damit ihre Lage und bekommt die
 Krümmung der echten Hand.
+
+**Und jede Kugel einzeln.** Was gespeichert wird, sind nicht mehr nur fünf
+Krümmungen und eine Spreizung, sondern der ganze Gelenkteil einer Haltung
+(`HandPose.joints`, `core/handBones.ts`): je Finger **drei Beugungen und eine
+Fächerung**, in Grad — zwanzig Zahlen, genau die, mit denen die gezeichnete
+Hand ihre Knochen dreht. Die Krümmungen bleiben daneben stehen und passen dazu:
+sie sind die Zusammenfassung, die auf der Tafel steht, in den Kurzcode geht und
+ein Modell mit weniger Knochen bedient. Wo eine Haltung Gelenke hat, **gewinnen
+sie**; wer im Menü eine Krümmung tippt, wirft sie weg (`setHandPoseField`) —
+sonst änderte man eine Zahl und sähe an der Hand nichts passieren.
+
+Gespeichert werden sie hinten an derselben Zahlenreihe, in der eine Haltung
+schon immer lag (`handPoseToArray`, ab Feld 12): angehängt und nicht
+dazwischengeschoben, damit jeder alte Leser weiter dieselbe Haltung liest. Der
+große **Konfig-Code** liest genau zwölf Felder — mehr passen nicht in seine
+Maske — und trägt sie deshalb **nicht**; die Krümmungen daneben sagen dieselbe
+Haltung so genau, wie ein Modell mit fünf Zahlen sie sagen kann. Der Speicher im
+Browser trägt sie, und dort werden sie gemessen.
+
+Am Werkzeug überleben sie die Knöpfe: über eine gemessene Haltung legt sich nur
+noch die Ebene der Finger, die ein Knopf wirklich bewegt (`buttonCurlLayer`) —
+der Trigger zieht den Zeigefinger, und die anderen vier stehen weiter dort, wo
+die Messung sie gefunden hat.
 
 **Sieht die Brille die Hand gerade nicht** — sie liegt hinter dem Werkzeug, der
 Handschuh ist aus —, dann steht statt der Messung die **eingestellte** Haltung
@@ -3155,6 +3263,11 @@ stimmt. Also gehen **beide** Formen hinaus und keine wird nachgerechnet:
 - `at`, `curls` und `spread` sind das **Bild**: wo die Hand am Werkzeug liegt,
   in dessen eigenem Raum, so wie sie gerade gezeichnet wird. Drüben wird das
   Werkzeug gebaut, die Hand hineingehängt, fertig.
+- `joints` sind **die zwanzig Winkel**, wenn drüben eine blanke Hand gemessen
+  wird: gespreizte Finger, an jedem Gelenk einzeln geknickt. Sie gehen nur mit,
+  wenn es sie gibt — zwanzig Nullen hießen „flach ausgestreckt" und nicht
+  „nicht gemessen" —, und ein Zuschauer, der sie nicht auswertet, zeigt weiter
+  dieselbe Hand aus den Krümmungen.
 - `code` ist der **Zettel**: dieselbe Zeile, die auf der Tafel steht. Sie wird
   drüben nicht gelesen, sondern kopiert.
 

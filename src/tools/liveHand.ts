@@ -149,8 +149,12 @@ export class LiveHand {
       ghost.position.set(at.position.x, at.position.y, at.position.z);
       ghost.quaternion.set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w);
       // Die Finger sofort dorthin: eine Hand, die über eine Leitung kommt,
-      // wächst nicht erst in ihre Krümmung hinein — sie ist schon dort.
-      ghost.setCurls(share.curls);
+      // wächst nicht erst in ihre Krümmung hinein — sie ist schon dort. Und
+      // wenn die Nachricht **jede Kugel** trägt (eine blanke Hand drüben,
+      // `handShare.joints`), dann die statt der fünf Krümmungen: gespreizt und
+      // an jedem Gelenk einzeln geknickt, so wie sie drüben in der Brille
+      // steht.
+      ghost.setFingers(share.curls, share.spread, share.joints);
     }
     return built;
   }
@@ -189,6 +193,7 @@ export class LiveHand {
         roll: 0,
         curls: [...share.curls],
         spread: share.spread,
+        ...(share.joints ? { joints: [...share.joints] } : {}),
       },
       { color: handColor(), opacity: 1 },
     );

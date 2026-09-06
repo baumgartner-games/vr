@@ -6,9 +6,13 @@ const SHARE: HandShare = {
   at: [1.7, 2.4, 2.7, -43, -17, -90],
   curls: [0.55, 0.1, 0.85, 0.9, 0.9],
   spread: 4,
+  joints: null,
   code: 'BPKGSwKKT7nssF8',
   saved: true,
 };
+
+/** Zwanzig Winkel — drei Beugungen und eine Fächerung je Finger. */
+const JOINTS = [12, 30, 18, -6, 40, 55, 20, 8, 45, 60, 22, 2, 44, 58, 21, -5, 41, 52, 19, -12];
 
 describe('handShare', () => {
   it('kommt an, wie es losgeschickt wurde', () => {
@@ -47,5 +51,27 @@ describe('handShare', () => {
   it('hält die Krümmungen in ihrem Bereich', () => {
     const packed = packHandShare({ ...SHARE, curls: [-3, 4, 0.5, 0.5, 0.5] });
     expect(parseHandShare(packed)?.curls).toEqual([0, 1, 0.5, 0.5, 0.5]);
+  });
+
+  /**
+   * Die zwanzig Gelenke einer gemessenen Hand: sie gehen mit, wenn es sie gibt,
+   * und **nicht** als zwanzig Nullen, wenn es sie nicht gibt — eine Null ist
+   * eine flach ausgestreckte Hand und keine fehlende Messung.
+   */
+  it('trägt jede Kugel einzeln, wenn drüben eine blanke Hand gemessen wird', () => {
+    const measured: HandShare = { ...SHARE, joints: JOINTS };
+    expect(parseHandShare(packHandShare(measured))).toEqual(measured);
+  });
+
+  it('schickt keine Gelenke, wo keine gemessen wurden', () => {
+    expect(packHandShare(SHARE)['j']).toBeUndefined();
+    expect(parseHandShare(packHandShare(SHARE))?.joints).toBeNull();
+  });
+
+  it('nimmt eine halbe Gelenkreihe nicht an — die wäre keine Messung', () => {
+    const packed = packHandShare({ ...SHARE, joints: JOINTS });
+    expect(parseHandShare({ ...packed, j: JOINTS.slice(0, 12) })?.joints).toBeNull();
+    // Der Rest der Haltung kommt trotzdem an: die Krümmungen sagen sie auch.
+    expect(parseHandShare({ ...packed, j: 'zwanzig' })?.curls).toEqual(SHARE.curls);
   });
 });

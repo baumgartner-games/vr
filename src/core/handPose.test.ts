@@ -8,8 +8,13 @@ import {
   STOPWATCH_HAND_POSE,
   WORN_FINGER_MOVES,
   WORN_HAND_POSE,
+  buttonCurlLayer,
   buttonCurls,
+  clonePose,
+  fingerJoints,
   fingerMovesOf,
+  HAND_JOINT_VALUES,
+  type HandPose,
   IDLE_HAND_POSE,
   IDLE_HAND_POSE_LEFT,
   defaultIdlePose,
@@ -195,5 +200,100 @@ describe('was die Knöpfe mit den Fingern tun', () => {
     expect(fingerMovesOf('stopwatch')).toBe(GRIP_FINGER_MOVES);
     expect(fingerMovesOf('superman-glove')).toBe(WORN_FINGER_MOVES);
     expect(fingerMovesOf(null)).toBe(GRIP_FINGER_MOVES);
+  });
+});
+
+/**
+ * **Jede Kugel einzeln** — der Gelenkteil einer Haltung.
+ *
+ * Zwanzig Zahlen: je Finger drei Beugungen und eine Fächerung. Sie hängen
+ * hinten an derselben Zahlenreihe, in der eine Haltung schon immer gespeichert
+ * wurde — angehängt und nicht dazwischengeschoben, damit ein Leser, der nur
+ * zwölf liest, weiter dieselbe Haltung liest.
+ */
+describe('die Gelenke einer gemessenen Haltung', () => {
+  const JOINTS = [5, 12, 6, -8, 40, 33, 14, 5, 46, 38, 16, 0, 44, 36, 15, -4, 39, 30, 13, -10];
+  const MEASURED: HandPose = { ...POSE, curls: [...POSE.curls], joints: [...JOINTS] };
+
+  it('liest je Finger drei Beugungen und eine Fächerung heraus', () => {
+    expect(fingerJoints(MEASURED, 0)).toEqual({ bends: [5, 12, 6], fan: -8 });
+    expect(fingerJoints(MEASURED, 4)).toEqual({ bends: [39, 30, 13], fan: -10 });
+    // Eine Haltung ohne Messung hat keine — und keine ist nicht dasselbe wie null.
+    expect(fingerJoints(POSE, 0)).toBeNull();
+    expect(fingerJoints(MEASURED, 5)).toBeNull();
+  });
+
+  it('hängt sie hinten an die Zahlenreihe und liest sie wieder heraus', () => {
+    const values = handPoseToArray(MEASURED);
+    expect(values).toHaveLength(12 + HAND_JOINT_VALUES);
+    expect(values.slice(0, 12)).toEqual(handPoseToArray(POSE));
+    expect(handPoseFromArray(values).joints).toEqual(JOINTS);
+    // Ein alter Code hört nach zwölf auf, und das ist keine halbe Haltung,
+    // sondern eine ohne Messung.
+    expect(handPoseFromArray(values.slice(0, 12)).joints).toBeUndefined();
+    expect(handPoseFromArray(values.slice(0, 20)).joints).toBeUndefined();
+  });
+
+  it('spiegelt die Fächerung und lässt die Beugung, wo sie ist', () => {
+    const mirrored = mirrorHandPose(MEASURED);
+    expect(fingerJoints(mirrored, 0)).toEqual({ bends: [5, 12, 6], fan: 8 });
+    expect(fingerJoints(mirrored, 2)).toEqual({ bends: [46, 38, 16], fan: 0 });
+    // Und die Vorlage bleibt, wie sie war.
+    expect(MEASURED.joints).toEqual(JOINTS);
+  });
+
+  /**
+   * Wer eine Krümmung tippt, wirft die Messung weg. Ohne das änderte man im
+   * Menü eine Zahl und sähe an der Hand nichts passieren — die Gelenke gewinnen
+   * über die Krümmungen, und eine getippte Zahl ist eine Ansage.
+   */
+  it('wirft die Gelenke weg, sobald jemand eine Krümmung tippt', () => {
+    expect(setHandPoseField(MEASURED, 'curl2', 0.5).joints).toBeUndefined();
+    expect(setHandPoseField(MEASURED, 'spread', 9).joints).toBeUndefined();
+    // Die Lage der Hand rührt nicht daran: sie sagt, wo die Hand liegt, und
+    // nicht, wie sie gefaltet ist.
+    expect(setHandPoseField(MEASURED, 'pitch', 30).joints).toEqual(JOINTS);
+  });
+
+  it('sagt auf der Tafel, dass sie gemessen ist', () => {
+    expect(formatHandPose(MEASURED)).toContain('Gelenke');
+    expect(formatHandPose(POSE)).not.toContain('Gelenke');
+  });
+
+  it('kopiert sie, statt sie zu teilen', () => {
+    const copy = clonePose(MEASURED);
+    copy.joints![0] = 99;
+    expect(MEASURED.joints![0]).toBe(5);
+  });
+});
+
+/**
+ * Die Knopf-Ebene: **nur** die Finger, die ein Knopf wirklich bewegt.
+ *
+ * Fünf Krümmungen auf eine gemessene Hand zu legen würfe zwanzig gemessene
+ * Winkel für einen Zeigefinger weg — deshalb gibt es die Ebene auch einzeln.
+ */
+describe('buttonCurlLayer', () => {
+  it('nennt nur, was sich bewegt', () => {
+    const held = buttonCurlLayer(GRIP_FINGER_MOVES, HELD_BUTTONS);
+    expect(held).toEqual([null, null, null, null, null]);
+    const pulled = buttonCurlLayer(GRIP_FINGER_MOVES, { grab: true, trigger: true });
+    expect(pulled[1]).toBe(GRIP_FINGER_MOVES.trigger[1]);
+    expect(pulled[2]).toBeNull();
+  });
+
+  it('sagt dasselbe wie `buttonCurls`, nur ohne die Haltung', () => {
+    for (const buttons of [
+      { grab: true, trigger: false },
+      { grab: false, trigger: false },
+      { grab: false, trigger: true },
+      { grab: true, trigger: true },
+    ]) {
+      const layer = buttonCurlLayer(GRIP_FINGER_MOVES, buttons);
+      const full = buttonCurls(GRIP_HAND_POSE, GRIP_FINGER_MOVES, buttons);
+      for (let i = 0; i < full.length; i++) {
+        expect(layer[i] ?? GRIP_HAND_POSE.curls[i]).toBe(full[i]);
+      }
+    }
   });
 });

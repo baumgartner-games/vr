@@ -1,11 +1,23 @@
 import * as THREE from 'three';
 import type { ControllerState, Handedness, XRInput } from './XRInput';
 import { GRAB_GLOW } from './colors';
-import { buttonCurls, clonePose, fingerMovesOf, type HandPose } from './handPose';
+import {
+  buttonCurlLayer,
+  clonePose,
+  fingerMovesOf,
+  FINGER_BONES,
+  FINGER_JOINT_VALUES,
+  HAND_JOINT_VALUES,
+  handJointsToArray,
+  IDLE_HAND_POSE,
+  type HandPose,
+} from './handPose';
 import { holdHandPose, idleHandPose, onHandPoseChange } from './handPoseStore';
-import { handLook, trackedGlove } from './handLook';
+import { boneColors, handLook, onHandLookChange, trackedGlove } from './handLook';
 import { buildGlove, type GloveFinger } from './gloveMesh';
-import { fitGlove, type GloveJoints } from './gloveFit';
+import { fitGlove, type GloveJoints, type Quat } from './gloveFit';
+import { measureHand, type MeasuredHand, type TrackedFinger } from './handBones';
+import { boneColor, jointColor, PALM_COLOR } from './bonePalette';
 import { foldCurls } from './handGestures';
 
 export type HandGesture = 'open' | 'ready' | 'point' | 'thumbsUp' | 'grip';
@@ -67,6 +79,58 @@ export function handColor(): number {
   return handLook() === 'glove' ? GLOVE_COLOR : BOX_HAND_COLOR;
 }
 
+/**
+ * Die **Ruhelage des Daumens** am Modell — die eine Fingerwurzel, die schräg
+ * steht.
+ *
+ * Der Gierwinkel trägt ihn von der Handfläche weg, das kleine Nicken lässt ihn
+ * ein wenig zur Handflächenseite fallen, und das Rollen dreht seine Beugeachse,
+ * damit ein gekrümmter Daumen sich *quer über* die Handfläche legt statt gerade
+ * nach unten. Alle drei zusammen sind die Ruhelage, gegen die eine gemessene
+ * Haltung ihre Winkel angibt (`handBones.ts`) — deshalb steht sie hier als
+ * eigene Zahlenreihe und nicht mitten im Aufbau.
+ */
+const THUMB_REST: readonly [number, number, number] = [-0.22, 0.75, 0.6];
+
+/**
+ * Die Ruhelage **jeder** Fingerwurzel, als Drehung — Daumen zuerst.
+ *
+ * Die vier Finger stehen gerade, also ist ihre Ruhelage die Einheit; der Daumen
+ * trägt die drei Winkel von oben, an der linken Hand gespiegelt. Die Messung
+ * bekommt genau diese Liste und gibt Winkel heraus, die das Modell unverändert
+ * einsetzt.
+ */
+export function fingerRestRotations(side: Handedness): Quat[] {
+  const mirror = side === 'left' ? -1 : 1;
+  const thumb = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(THUMB_REST[0], mirror * THUMB_REST[1], mirror * THUMB_REST[2], 'XYZ'),
+  );
+  const rest: Quat[] = [{ x: thumb.x, y: thumb.y, z: thumb.z, w: thumb.w }];
+  for (let i = 0; i < FINGERS.length; i++) rest.push({ x: 0, y: 0, z: 0, w: 1 });
+  return rest;
+}
+
+/** Wie eine einzelne Hand gebaut wird — über das Kleid hinaus. */
+interface HandBuild {
+  /**
+   * `limbs` zeichnet Kugeln an den Gelenken statt Knochen dazwischen — die
+   * Form, in der ein Headset eine getrackte Hand zeigt. Alles andere, Haltung
+   * und Krümmung eingeschlossen, ist identisch: es ist dieselbe Hand, nur
+   * anders angezogen.
+   */
+  look?: HandStyle;
+  /**
+   * Das **Maß einer echten Hand** (`handBones.ts`) — dann wird das Skelett
+   * daraus gebaut statt aus den gebauten Zahlen: die Wurzeln stehen auf den
+   * gemessenen Knöcheln, die Knochen sind so lang wie die echten, der Stoff so
+   * dick wie die Gelenkkugeln, die die Brille an dieselbe Stelle malt. Und es
+   * sind **drei** Knochen je Finger statt zwei, weil eine echte Hand drei hat.
+   */
+  measure?: MeasuredHand | null;
+  /** Ob jeder Knochen seine eigene Farbe bekommt (`bonePalette.ts`). */
+  colors?: boolean;
+}
+
 /** One procedural hand: a palm plus five curling fingers. */
 class ProceduralHand extends THREE.Group {
   readonly indexTip = new THREE.Object3D();
@@ -74,24 +138,38 @@ class ProceduralHand extends THREE.Group {
   private readonly chains: THREE.Object3D[][] = [];
   private readonly curls = [0, 0, 0, 0, 0];
   private readonly targets = [0, 0, 0, 0, 0];
-  /** Finger roots, in the order of `FINGERS`, for the spread. */
+  /**
+   * Die Beugung je Knochen, in Grad — oder `null` für einen Finger, der aus
+   * einer Krümmung kommt. Eine Messung wächst nicht in ihre Lage hinein: was
+   * hier steht, gilt sofort.
+   */
+  private readonly bends: (number[] | null)[] = [null, null, null, null, null];
+  /** Die Listen dahinter — einmal angelegt, in jedem Bild neu beschrieben. */
+  private readonly bendBuffers: number[][] = [0, 1, 2, 3, 4].map(() =>
+    new Array<number>(FINGER_BONES).fill(0),
+  );
+  /** Finger roots, thumb first, for the spread. */
   private readonly fingerRoots: THREE.Object3D[] = [];
+  /** Die Ruhelage jeder Fingerwurzel — die Fächerung dreht dagegen. */
+  private readonly rests: THREE.Quaternion[] = [];
   /** How far each finger root sits from the middle, -1 … 1. */
   private readonly fans: number[] = [];
-  private spread = 0;
+  /** Das Material des Stoffs, wenn der Handschuh ein eigenes braucht. */
+  private ownMaterial: THREE.Material | null = null;
+  readonly look: HandStyle;
+  /** Ob diese Hand mit Knochenfarben gebaut wurde — Umschalten heißt neu bauen. */
+  readonly colored: boolean;
 
   constructor(
     readonly side: Handedness,
     material: THREE.Material,
-    /**
-     * `limbs` zeichnet Kugeln an den Gelenken statt Knochen dazwischen — die
-     * Form, in der ein Headset eine getrackte Hand zeigt. Alles andere,
-     * Haltung und Krümmung eingeschlossen, ist identisch: es ist dieselbe
-     * Hand, nur anders angezogen.
-     */
-    readonly look: HandStyle = 'bones',
+    build: HandStyle | HandBuild = 'bones',
   ) {
     super();
+    const options: HandBuild = typeof build === 'string' ? { look: build } : build;
+    const { look = 'bones', measure = null, colors = false } = options;
+    this.look = look;
+    this.colored = colors;
     this.name = `hand-${side}`;
     // Which way round the thumb sits — the one constant that tells a left hand
     // from a right one. The grip space is *not* mirrored between the hands, so
@@ -99,62 +177,103 @@ class ProceduralHand extends THREE.Group {
     // forward (-Z) and the thumb points to the left, towards -X. Getting this
     // sign wrong puts a left hand on the right controller and vice versa.
     const mirror = side === 'left' ? -1 : 1;
+    const palmScale = measure?.palmScale ?? 1;
+
+    // Am Handschuh liest das Material die Farben aus dem Netz; überall sonst
+    // trägt jeder Knochen sein eigenes.
+    if (colors && look === 'glove') {
+      const cloth = material.clone() as THREE.MeshStandardMaterial;
+      cloth.vertexColors = true;
+      cloth.color.setHex(0xffffff);
+      if (cloth.emissive) cloth.emissive.setHex(0x111111);
+      this.ownMaterial = cloth;
+      material = cloth;
+    }
+    const skin = (hex: number): THREE.Material =>
+      colors ? paletteMaterial(hex, material) : material;
 
     // The grip space points -Z forward with the back of the hand towards +Y.
     // Der Handschuh hat keine eigene Handfläche als Teil: sie ist Teil des
     // einen Netzes, das unten um das fertige Skelett gelegt wird.
-    if (this.look !== 'glove') {
+    if (look !== 'glove') {
       const palm =
-        this.look === 'limbs'
-          ? new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), material)
-          : new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.09), material);
-      palm.position.set(0, 0, -0.01);
+        look === 'limbs'
+          ? new THREE.Mesh(new THREE.SphereGeometry(0.026 * palmScale, 12, 10), skin(PALM_COLOR))
+          : new THREE.Mesh(
+              new THREE.BoxGeometry(0.075 * palmScale, 0.028 * palmScale, 0.09 * palmScale),
+              skin(PALM_COLOR),
+            );
+      palm.position.set(0, 0, -0.01 * palmScale);
       this.add(palm);
     }
-    if (this.look === 'limbs') {
+    if (look === 'limbs') {
       // Der Handrücken ist bei getrackten Händen eine Reihe Knöchel und keine
       // einzelne Kugel — vier davon, dort, wo die Finger ansetzen.
-      for (const finger of FINGERS) {
-        const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), material);
-        knuckle.position.set(mirror * finger.x, 0, finger.z);
+      for (let i = 0; i < FINGERS.length; i++) {
+        const finger = FINGERS[i]!;
+        const at = measure?.fingers[i + 1]?.root;
+        const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), skin(PALM_COLOR));
+        if (at) knuckle.position.set(at.x, at.y, at.z);
+        else knuckle.position.set(mirror * finger.x, 0, finger.z);
         this.add(knuckle);
       }
     }
 
-    // Thumb: sits at the wrist end of the thumb edge and juts out sideways —
-    // the yaw carries it away from the palm, the small pitch drops it a little
-    // towards the palm side, and the roll turns its bending axis so that
-    // curling it folds it *across* the palm instead of straight down.
-    const thumbRoot = new THREE.Object3D();
-    thumbRoot.position.set(mirror * -0.034, -0.006, 0.014);
-    thumbRoot.rotation.set(-0.22, mirror * 0.75, mirror * 0.6);
-    this.add(thumbRoot);
-    const thumbLengths: [number, number] = [0.034, 0.028];
-    this.chains.push(buildChain(thumbRoot, thumbLengths, 0.017, material, this.look));
-
-    const gloveFingers: GloveFinger[] = [
-      { bones: boneChain(this.chains[0]!), lengths: thumbLengths, radius: 0.0175 },
+    const rests = fingerRestRotations(side);
+    const gloveFingers: GloveFinger[] = [];
+    // Der Daumen zuerst, dann die vier Finger — dieselbe Reihenfolge wie in
+    // jeder Krümmung, jeder Haltung und jeder Messung.
+    const built = [
+      {
+        position: new THREE.Vector3(mirror * -0.034, -0.006, 0.014),
+        lengths: [0.034, 0.028] as readonly number[],
+        radius: 0.017,
+        cloth: 0.0175,
+        fan: 0,
+      },
+      ...FINGERS.map((finger) => ({
+        position: new THREE.Vector3(mirror * finger.x, 0, finger.z),
+        lengths: finger.lengths as readonly number[],
+        radius: 0.013,
+        cloth: 0.0135,
+        fan: (mirror * finger.x) / 0.028,
+      })),
     ];
-    for (const finger of FINGERS) {
+
+    for (let i = 0; i < built.length; i++) {
+      const spec = built[i]!;
+      const found = measure?.fingers[i];
       const root = new THREE.Object3D();
-      root.position.set(mirror * finger.x, 0, finger.z);
+      if (found) root.position.set(found.root.x, found.root.y, found.root.z);
+      else root.position.copy(spec.position);
+      const rest = new THREE.Quaternion(rests[i]!.x, rests[i]!.y, rests[i]!.z, rests[i]!.w);
+      root.quaternion.copy(rest);
       this.add(root);
       this.fingerRoots.push(root);
-      this.fans.push((mirror * finger.x) / 0.028);
-      const chain = buildChain(root, finger.lengths, 0.013, material, this.look);
+      this.rests.push(rest);
+      // Der Daumen fächert **nicht** mit der einen Spreizung der Haltung: die
+      // meint die vier Finger, die auseinandergehen. Seine eigene Fächerung
+      // bekommt er aus einer Messung (`HandPose.joints`), und dort steht sie
+      // je Finger.
+      this.fans.push(spec.fan);
+      const lengths = found?.lengths ?? spec.lengths;
+      const radius = found?.radius ?? spec.radius;
+      const chain = buildChain(root, lengths, radius, material, look, colors ? i : null);
       this.chains.push(chain);
       gloveFingers.push({
-        bones: boneChain(chain),
-        lengths: [finger.lengths[0]!, finger.lengths[1]!],
-        radius: 0.0135,
+        bones: chain as THREE.Bone[],
+        lengths,
+        radius: found?.radius ?? spec.cloth,
       });
-      if (finger.name === 'index') {
-        this.indexTip.position.set(0, 0, -finger.lengths[1]!);
-        chain[1]!.add(this.indexTip);
+      if (i === 1) {
+        // Der Zeigefinger: die Kuppe hängt am letzten Gelenk, so weit davor,
+        // wie dessen Knochen lang ist.
+        this.indexTip.position.set(0, 0, -(lengths[lengths.length - 1] ?? 0));
+        chain[chain.length - 1]!.add(this.indexTip);
       }
     }
 
-    if (this.look === 'glove') {
+    if (look === 'glove') {
       // Der Stoff, zum Schluss und um alles: die Knochen stehen in Ruhelage,
       // ihre Weltmatrizen sind frisch, und `buildGlove` merkt sich daraus, wie
       // jeder Punkt zu seinem Knochen liegt. Der Wurzelknochen kommt als
@@ -164,14 +283,19 @@ class ProceduralHand extends THREE.Group {
       const root = new THREE.Bone();
       root.name = 'hand-root';
       this.add(root);
+      // In Ruhelage gebaut: die Fächerung einer Messung darf den Stoff nicht
+      // schon beim Binden verdrehen, sonst steht sie hinterher doppelt darin.
+      for (const finger of this.fingerRoots) finger.quaternion.identity();
       this.updateMatrixWorld(true);
-      this.add(buildGlove(root, gloveFingers, material));
+      this.add(buildGlove(root, gloveFingers, material, { palmScale, colors }));
+      for (let i = 0; i < this.fingerRoots.length; i++) {
+        this.fingerRoots[i]!.quaternion.copy(this.rests[i]!);
+      }
     }
   }
 
   setGesture(gesture: HandGesture): void {
-    const values = GESTURES[gesture];
-    for (let i = 0; i < this.targets.length; i++) this.targets[i] = values[i]!;
+    this.setCurls(GESTURES[gesture]!);
   }
 
   /**
@@ -184,45 +308,149 @@ class ProceduralHand extends THREE.Group {
     this.quaternion.setFromEuler(
       _euler.set(pose.pitch * DEG, pose.yaw * DEG, pose.roll * DEG, 'XYZ'),
     );
-    this.setCurls(pose.curls);
-    if (this.spread === pose.spread) return;
-    this.spread = pose.spread;
-    // Fanning out is a turn of the whole finger away from the middle one.
-    for (let i = 0; i < this.fingerRoots.length; i++) {
-      this.fingerRoots[i]!.rotation.y = -this.fans[i]! * pose.spread * DEG;
+    this.setFingers(pose);
+  }
+
+  /**
+   * **Die Finger einer Haltung**, ohne deren Lage anzufassen.
+   *
+   * Trägt sie gemessene Gelenke (`HandPose.joints`), gelten die: jeder Knochen
+   * bekommt seine eigene Beugung und jeder Finger seine eigene Fächerung. Sonst
+   * gilt, was es immer gab — eine Krümmung je Finger und **eine** Spreizung für
+   * alle. Die Krümmungen werden in beiden Fällen nachgezogen, damit eine Hand,
+   * deren Messung wegfällt, dort weitermacht, wo sie steht, statt zu springen.
+   */
+  setFingers(pose: HandPose): void {
+    // Die Zahlen werden **abgeschrieben** und nicht abgeholt: das hier läuft in
+    // jedem Bild für jede Hand, und fünf frische Listen je Bild sind fünf, die
+    // jemand wieder wegräumen muss.
+    const joints = pose.joints?.length === HAND_JOINT_VALUES ? pose.joints : null;
+    for (let i = 0; i < this.chains.length; i++) {
+      if (!joints) {
+        this.bends[i] = null;
+        this.setFan(i, -this.fans[i]! * pose.spread * DEG);
+        continue;
+      }
+      const at = i * FINGER_JOINT_VALUES;
+      const buffer = this.bendBuffers[i]!;
+      for (let bone = 0; bone < FINGER_BONES; bone++) buffer[bone] = joints[at + bone] ?? 0;
+      this.bends[i] = buffer;
+      this.setFan(i, (joints[at + FINGER_BONES] ?? 0) * DEG);
+    }
+    for (let i = 0; i < this.targets.length; i++) this.targets[i] = pose.curls[i] ?? 0;
+  }
+
+  /**
+   * Nur die Finger als **Krümmung**: eine Geste, eine Haltung über die
+   * Leitung, die Hand am Abzug. Eine Krümmung ist eine Antwort ohne Gelenke,
+   * also treten die gemessenen ab — sonst rührte sich beim Drücken nichts.
+   */
+  setCurls(curls: readonly number[]): void {
+    for (let i = 0; i < this.targets.length; i++) {
+      this.targets[i] = curls[i] ?? 0;
+      this.bends[i] = null;
     }
   }
 
   /**
-   * Nur die Finger, ohne die Lage: was die Knöpfe aus der Haltung machen
-   * (`buttonCurls`) — der Zeigefinger am Abzug, die Hand, die den Griff
-   * loslässt. Auch das sind Ziele, keine Sprünge.
+   * Und dasselbe für **einzelne** Finger: was `null` ist, bleibt, wie die
+   * Haltung es gesetzt hat — samt seiner gemessenen Gelenke.
+   *
+   * Das ist der Unterschied, der eine gemessene Hand am Werkzeug überleben
+   * lässt: der Trigger zieht den Zeigefinger, und die anderen vier stehen
+   * weiter dort, wo die Messung sie gefunden hat.
    */
-  setCurls(curls: readonly number[]): void {
-    for (let i = 0; i < this.targets.length; i++) this.targets[i] = curls[i] ?? 0;
+  setCurlOverrides(curls: readonly (number | null)[]): void {
+    for (let i = 0; i < this.targets.length; i++) {
+      const curl = curls[i];
+      if (curl === null || curl === undefined) continue;
+      this.targets[i] = curl;
+      this.bends[i] = null;
+    }
+  }
+
+  /** Die Fächerung eines Fingers: eine Drehung gegen seine Ruhelage. */
+  private setFan(finger: number, angle: number): void {
+    const root = this.fingerRoots[finger];
+    const rest = this.rests[finger];
+    if (!root || !rest) return;
+    root.quaternion.copy(rest).multiply(_fan.setFromAxisAngle(_up, angle));
   }
 
   update(dt: number): void {
     const blend = Math.min(1, dt * 14);
     for (let i = 0; i < this.chains.length; i++) {
       this.curls[i]! += (this.targets[i]! - this.curls[i]!) * blend;
-      const curl = this.curls[i]!;
       const chain = this.chains[i]!;
+      const bends = this.bends[i];
       // Every joint bends around its own X, which is the only axis that moves
       // the next bone at all — the chain runs along -Z, so a turn around Z just
       // rolls it and the thumb used to stay stubbornly straight. The thumb's
       // root is rolled instead, which sends the same bend across the palm.
-      const first = i === 0 ? 1.1 : 1.5;
-      const second = i === 0 ? 0.9 : 1.4;
-      chain[0]!.rotation.x = -curl * first;
-      chain[1]!.rotation.x = -curl * second;
+      if (bends) {
+        // Gemessen: jeder Knochen seinen eigenen Winkel. Hat das Modell
+        // weniger Knochen als die Messung — die gebaute Hand hat zwei, die
+        // gemessene drei —, landen die übrigen auf dem letzten: zwei Knicke
+        // hintereinander sind zusammen der eine, den es zeichnen kann.
+        for (let k = 0; k < chain.length; k++) {
+          let angle = bends[k] ?? 0;
+          if (k === chain.length - 1) for (let j = k + 1; j < bends.length; j++) angle += bends[j]!;
+          chain[k]!.rotation.x = -angle * DEG;
+        }
+        continue;
+      }
+      const curl = this.curls[i]!;
+      // Aus einer Krümmung: der erste Knochen etwas mehr als der zweite, und
+      // der Daumen weniger als ein Finger.
+      const factors = i === 0 ? THUMB_CURL : FINGER_CURL;
+      for (let k = 0; k < chain.length; k++) {
+        chain[k]!.rotation.x = -curl * (factors[Math.min(k, factors.length - 1)] ?? 1);
+      }
     }
+  }
+
+  /** Was nur dieser Hand gehört — der Stoff mit den Knochenfarben. */
+  disposeMaterial(): void {
+    this.ownMaterial?.dispose();
+    this.ownMaterial = null;
   }
 }
 
-/** Die beiden Gelenke einer Kette als Knochen — am Handschuh sind sie welche. */
-function boneChain(chain: THREE.Object3D[]): [THREE.Bone, THREE.Bone] {
-  return [chain[0] as THREE.Bone, chain[1] as THREE.Bone];
+/** Wie stark sich ein Knochen bei voller Krümmung dreht, im Bogenmaß. */
+const FINGER_CURL: readonly number[] = [1.5, 1.4];
+const THUMB_CURL: readonly number[] = [1.1, 0.9];
+
+const _fan = new THREE.Quaternion();
+const _up = new THREE.Vector3(0, 1, 0);
+
+/**
+ * **Ein Material je Knochenfarbe** — geteilt, und zwar je Farbe und
+ * Durchsichtigkeit eines.
+ *
+ * Wie bei den Abnähern des Handschuhs (`gloveMesh.ts`): eine Farbe aus der
+ * Palette gehört keiner Hand, sie gehört einem Knochen, und derselbe Knochen
+ * hat an jeder Hand dieselbe. Freigegeben wird deshalb keines — es hängt an
+ * keiner Hand allein.
+ */
+const boneMaterials = new Map<string, THREE.MeshStandardMaterial>();
+
+function paletteMaterial(hex: number, template: THREE.Material): THREE.MeshStandardMaterial {
+  const opacity = template.transparent ? template.opacity : 1;
+  const key = `${hex}:${opacity}`;
+  let material = boneMaterials.get(key);
+  if (!material) {
+    material = new THREE.MeshStandardMaterial({
+      color: hex,
+      roughness: 0.45,
+      metalness: 0.05,
+      emissive: new THREE.Color(hex).multiplyScalar(0.18),
+      transparent: opacity < 1,
+      opacity,
+      depthWrite: opacity >= 1,
+    });
+    boneMaterials.set(key, material);
+  }
+  return material;
 }
 
 function buildChain(
@@ -231,10 +459,17 @@ function buildChain(
   radius: number,
   material: THREE.Material,
   look: HandStyle = 'bones',
+  /** Der wievielte Finger — nur gesetzt, wenn die Knochen Farben bekommen. */
+  colored: number | null = null,
 ): THREE.Object3D[] {
   const joints: THREE.Object3D[] = [];
   let parent: THREE.Object3D = root;
-  for (const length of lengths) {
+  for (let bone = 0; bone < lengths.length; bone++) {
+    const length = lengths[bone]!;
+    const skin =
+      colored === null
+        ? material
+        : paletteMaterial(boneColor(colored, bone, lengths.length), material);
     // Am Handschuh sind die Gelenke **Knochen**: das Netz hängt daran. Ein
     // Knochen ist ein Object3D wie jedes andere, die Kette merkt nichts davon.
     const joint = look === 'glove' ? new THREE.Bone() : new THREE.Object3D();
@@ -245,15 +480,15 @@ function buildChain(
       // Zwei Kugeln je Knochen: eine am Gelenk, eine an der Spitze. Damit
       // sieht die Kette aus wie die Gelenkkugeln einer getrackten Hand und
       // bewegt sich trotzdem an genau denselben Achsen.
-      const knuckle = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.85, 10, 8), material);
+      const knuckle = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.85, 10, 8), skin);
       joint.add(knuckle);
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.7, 10, 8), material);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.7, 10, 8), skin);
       tip.position.set(0, 0, -length);
       joint.add(tip);
     } else {
       const bone = new THREE.Mesh(
         new THREE.CapsuleGeometry(radius, Math.max(length - radius * 2, 0.005), 3, 8),
-        material,
+        skin,
       );
       bone.rotation.x = Math.PI / 2;
       bone.position.set(0, 0, -length / 2);
@@ -322,7 +557,10 @@ export class GhostHand extends THREE.Group {
       roughness: 0.5,
       emissive: new THREE.Color(color).multiplyScalar(0.35),
     });
-    this.hand = new ProceduralHand(side, this.material, look);
+    // Ein Geist wird gebaut und nicht nachgeführt: er trägt die Knochenfarben,
+    // die beim Bauen galten. Wer sie umschaltet, baut den Stand neu, an dem er
+    // steht — dort steht ohnehin einer je Werkzeugwechsel.
+    this.hand = new ProceduralHand(side, this.material, { look, colors: boneColors() });
     this.setPose(pose);
     // A full second of blending: the fingers are where they belong at once,
     // because nobody watches a ghost grow into its pose.
@@ -375,6 +613,25 @@ export class GhostHand extends THREE.Group {
     this.hand.update(1);
   }
 
+  /**
+   * Dasselbe für eine **gemessene** Hand: Krümmung, Spreizung und jedes Gelenk
+   * einzeln, sofort dort.
+   *
+   * Die Werkzeugseite bekommt eine geteilte Haltung zwanzigmal je Sekunde
+   * (`handShare.ts`) und baut die Hand nicht jedes Mal neu — sie stellt sie
+   * hierhin. Ohne die Gelenke stünde dort eine Hand aus fünf Zahlen, während
+   * drüben eine aus zwanzig gemessen wird.
+   */
+  setFingers(curls: readonly number[], spread: number, joints?: readonly number[] | null): void {
+    this.hand.setFingers({
+      ...IDLE_HAND_POSE,
+      curls: [...curls],
+      spread,
+      ...(joints ? { joints: [...joints] } : {}),
+    });
+    this.hand.update(1);
+  }
+
   /** Lässt die Finger nachziehen — ohne das steht der Geist auf der Startpose. */
   update(dt: number): void {
     this.hand.update(dt);
@@ -385,6 +642,7 @@ export class GhostHand extends THREE.Group {
       const mesh = object as THREE.Mesh;
       if (mesh.isMesh) mesh.geometry.dispose();
     });
+    this.hand.disposeMaterial();
     this.material.dispose();
     this.removeFromParent();
   }
@@ -395,10 +653,18 @@ export class GhostHand extends THREE.Group {
  * a procedural hand with gestures when the player holds controllers.
  *
  * **Und wahlweise beides zugleich**: mit *Handschuh an getrackten Händen*
- * (`handLook.ts`) legt sich dasselbe gebaute Skelett auf die echten Knochen —
- * gestellt aus vier Gelenken (`gloveFit.ts`), gekrümmt aus dem Faltmaß, das die
- * Gesten ohnehin messen. Die Kugeln gehen dafür aus; sie wären sonst die zweite
- * Hand am selben Ort.
+ * (`handLook.ts`) legt sich ein Skelett auf die echten Knochen — gestellt aus
+ * vier Gelenken (`gloveFit.ts`) und **gebaut aus allen** (`handBones.ts`): die
+ * Wurzeln stehen auf den gemessenen Knöcheln, die Knochen sind so lang wie die
+ * echten, der Stoff ist so dick wie die Gelenkkugeln, die an derselben Stelle
+ * säßen, und jeder einzelne Knochen bekommt den Winkel, in dem er wirklich
+ * steht. Die Kugeln gehen dafür aus; sie wären sonst die zweite Hand am selben
+ * Ort — und der Handschuh sitzt jetzt genau dort, wo sie waren.
+ *
+ * Vorher war es das **gebaute** Skelett auf einen Maßstab gestreckt und aus dem
+ * Faltmaß gekrümmt: fünf Zahlen für fünfundzwanzig Gelenke. Eine Hand, die die
+ * Finger spreizte, spreizte sie damit nicht, und eine, die nur am Mittelgelenk
+ * knickte, knickte am Grundgelenk mit.
  */
 export class HandVisuals extends THREE.Group {
   private readonly jointMeshes = new Map<THREE.Object3D, THREE.Mesh>();
@@ -412,6 +678,18 @@ export class HandVisuals extends THREE.Group {
    * Brille kann mitten in der Sitzung von Controllern auf Hände umschalten.
    */
   private readonly gloves = new Map<ControllerState, ProceduralHand>();
+  /**
+   * Das Maß, auf das der Handschuh dieser Hand gebaut wurde.
+   *
+   * Ein Handschuh wird **einmal** auf eine Hand gebaut und danach nur noch
+   * bewegt: die Knochen einer Hand ändern ihre Länge nicht, und ein Netz je
+   * Bild neu zu nähen wäre der teuerste Weg, dasselbe zu zeigen. Neu gebaut
+   * wird nur, wenn das Maß wirklich ein anderes ist — eine andere Hand vor der
+   * Brille, oder eine Messung, die beim ersten Bild danebenlag.
+   */
+  private readonly fitted = new Map<ControllerState, MeasuredHand>();
+  /** Die letzte Messung je Seite — daraus liest der Poseraum seine Gelenke. */
+  private readonly measured = new Map<Handedness, MeasuredHand>();
   private readonly overrides = new Map<Handedness, HandGesture | null>();
   /** Welche Hand ein Werkzeug zur **Faust** schließt — der Flug, nicht die Welt. */
   private readonly fists = new Set<Handedness>();
@@ -449,7 +727,25 @@ export class HandVisuals extends THREE.Group {
       emissive: new THREE.Color(color).multiplyScalar(0.06),
     });
     // A number typed into the menu has to show on the hand right away.
-    this.unsubscribe = onHandPoseChange(() => this.poses.clear());
+    const poses = onHandPoseChange(() => this.poses.clear());
+    // Und wer die Knochenfarben umlegt, bekommt sie im selben Bild: eine
+    // gefärbte Hand ist eine anders gebaute, also wird sie neu gebaut.
+    const look = onHandLookChange(() => this.rebuild());
+    this.unsubscribe = () => {
+      poses();
+      look();
+    };
+  }
+
+  /** Alle Hände weg — die nächste Runde baut sie so, wie die Einstellung sagt. */
+  private rebuild(): void {
+    for (const [controller, hand] of this.hands) {
+      this.disposeHand(hand);
+      this.hands.delete(controller);
+    }
+    for (const controller of [...this.gloves.keys()]) this.dropGlove(controller);
+    for (const [joint, mesh] of this.jointMeshes) joint.remove(mesh);
+    this.jointMeshes.clear();
   }
 
   /**
@@ -647,6 +943,20 @@ export class HandVisuals extends THREE.Group {
     return null;
   }
 
+  /**
+   * **Jede Kugel dieser Hand als Zahl** — die zwanzig Werte, die in eine
+   * Haltung gehen (`HandPose.joints`), oder `null`, solange die Brille die
+   * Hand nicht vollständig sieht.
+   *
+   * Es ist genau die Messung, aus der auch der Handschuh gebaut und gestellt
+   * wird: was der Poseraum speichert, ist das, was man in der Brille sieht,
+   * und keine zweite Rechnung daneben.
+   */
+  trackedBonesOf(handedness: Handedness): number[] | null {
+    const measured = this.measured.get(handedness);
+    return measured ? handJointsToArray(measured.fingers) : null;
+  }
+
   dispose(): void {
     this.unsubscribe();
     for (const [joint, mesh] of this.jointMeshes) joint.remove(mesh);
@@ -655,6 +965,8 @@ export class HandVisuals extends THREE.Group {
     this.hands.clear();
     for (const glove of this.gloves.values()) this.disposeHand(glove);
     this.gloves.clear();
+    this.fitted.clear();
+    this.measured.clear();
     this.jointGeometry.dispose();
     for (const material of this.handMaterials.values()) material.dispose();
     this.handMaterials.clear();
@@ -667,6 +979,7 @@ export class HandVisuals extends THREE.Group {
       const mesh = object as THREE.Mesh;
       if (mesh.isMesh) mesh.geometry.dispose();
     });
+    hand.disposeMaterial();
     hand.removeFromParent();
   }
 
@@ -674,13 +987,19 @@ export class HandVisuals extends THREE.Group {
     // Der Handschuh zuerst: sitzt er, gehen die Kugeln aus. Zwei Hände
     // übereinander wären das Schlechteste von beidem.
     const glove = this.updateTrackedGlove(dt, controller);
-    for (const joint of Object.values(controller.hand.joints)) {
+    const colors = boneColors();
+    for (const [name, joint] of Object.entries(controller.hand.joints)) {
       if (!joint) continue;
       let mesh = this.jointMeshes.get(joint);
       if (!mesh) {
-        const material = controller.handedness
-          ? this.handMaterial(controller.handedness)
-          : this.material;
+        // Mit Knochenfarben trägt **jede Kugel** die Farbe ihres Knochens; das
+        // ist genau die Ansicht, für die es den Schalter gibt — man sieht, wo
+        // ein Gelenk anfängt, ohne es abzuzählen.
+        const material = colors
+          ? paletteMaterial(jointColor(name), this.material)
+          : controller.handedness
+            ? this.handMaterial(controller.handedness)
+            : this.material;
         mesh = new THREE.Mesh(this.jointGeometry, material);
         joint.add(mesh);
         this.jointMeshes.set(joint, mesh);
@@ -693,49 +1012,85 @@ export class HandVisuals extends THREE.Group {
   }
 
   /**
-   * **Denselben Handschuh auf echte Knochen legen.**
+   * **Einen Handschuh auf echte Knochen legen** — und zwar auf *alle*.
    *
-   * Gebaut wird das gebaute Skelett, gestellt wird es aus vier Gelenken
-   * (`gloveFit.ts`), und gekrümmt wird es aus dem Faltmaß, das die Gesten
-   * ohnehin messen (`handGestures.foldCurls`). Damit sind es wirklich dieselben
-   * Finger: was die echte Hand tut, tut der Handschuh, und was der Handschuh
-   * zeigt, ist keine Geste aus einer Liste.
+   * Gestellt wird er aus vier Gelenken (`gloveFit.ts`) und **gebaut aus
+   * allen** (`handBones.ts`): jede Fingerwurzel steht auf dem gemessenen
+   * Knöchel, jeder Knochen ist so lang wie der echte, und der Stoff ist so
+   * dick wie die Gelenkkugel, die die Brille an dieselbe Stelle malt. Gebeugt
+   * wird er dann Knochen für Knochen mit den Winkeln derselben Messung — und
+   * gefächert, denn eine blanke Hand spreizt die Finger, und das kann eine
+   * Krümmung je Finger gar nicht sagen.
+   *
+   * **Genäht wird einmal.** Die Knochen einer Hand ändern ihre Länge nicht;
+   * ein Netz je Bild neu zu nähen wäre der teuerste Weg, dasselbe zu zeigen.
+   * Neu gebaut wird nur, wenn das Maß wirklich ein anderes ist.
    *
    * @returns den Handschuh, solange er steht — sonst `null`, und dann sind die
    *          Gelenkkugeln wieder dran.
    */
   private updateTrackedGlove(dt: number, controller: ControllerState): ProceduralHand | null {
     const side = controller.handedness;
-    if (!side || !trackedGlove() || !controller.hand.visible) {
-      this.dropGlove(controller);
-      return null;
+    // Gemessen wird **immer**, auch wenn kein Handschuh darauf soll: der
+    // Poseraum speichert die Gelenke einer blanken Hand, und ob dabei Kugeln
+    // oder Stoff zu sehen sind, ändert an der Messung nichts.
+    const fit =
+      side && controller.hand.visible ? fitGlove(side, trackedJoints(controller.hand)) : null;
+    const measure =
+      side && fit
+        ? measureHand(fit, trackedFingers(controller.hand), fingerRestRotations(side))
+        : null;
+    if (side) {
+      if (measure) this.measured.set(side, measure);
+      else this.measured.delete(side);
     }
-    const fit = fitGlove(side, trackedJoints(controller.hand));
-    if (!fit) {
+    if (!side || !fit || !trackedGlove()) {
       this.dropGlove(controller);
       return null;
     }
 
     let glove = this.gloves.get(controller);
-    if (glove && glove.side !== side) {
+    const colors = boneColors();
+    if (
+      glove &&
+      measure &&
+      (glove.side !== side ||
+        glove.colored !== colors ||
+        !sameMeasure(this.fitted.get(controller), measure))
+    ) {
       this.dropGlove(controller);
       glove = undefined;
     }
     if (!glove) {
+      // Ein Bild, in dem ein Gelenk fehlt, ist kein Grund für einen halb
+      // gemessenen Handschuh: gebaut wird erst, wenn die Hand einmal ganz zu
+      // sehen war. Bis dahin machen die Gelenkkugeln weiter.
+      if (!measure) return null;
       const material = this.handMaterial(side);
       // Ein Handschuh ist weiß, wo immer er steht — auch auf echten Knochen.
       material.color.setHex(GLOVE_COLOR);
       if (!this.glowing.has(side)) material.emissive.setHex(GLOVE_COLOR).multiplyScalar(0.06);
-      glove = new ProceduralHand(side, material, 'glove');
+      glove = new ProceduralHand(side, material, { look: 'glove', measure, colors });
       controller.hand.add(glove);
       this.gloves.set(controller, glove);
+      this.fitted.set(controller, measure);
     }
 
+    // Der Maßstab bleibt bei eins: gebaut ist er in echten Metern, und was in
+    // echten Metern gebaut ist, streckt man nicht noch einmal.
     glove.position.set(fit.position.x, fit.position.y, fit.position.z);
     glove.quaternion.set(fit.rotation.x, fit.rotation.y, fit.rotation.z, fit.rotation.w);
-    glove.scale.setScalar(fit.scale);
-    const curls = foldCurls(controller.fold);
-    if (curls) glove.setCurls(curls);
+    glove.scale.setScalar(1);
+    // Fällt ein Gelenk für ein Bild aus, bleiben die Finger stehen, wo sie
+    // waren — das ist immer noch näher an der Wahrheit als eine Hand, die
+    // einmal aufklappt und wieder zugeht.
+    if (measure) {
+      glove.setFingers({
+        ...IDLE_HAND_POSE,
+        curls: foldCurls(controller.fold) ?? IDLE_HAND_POSE.curls,
+        joints: handJointsToArray(measure.fingers),
+      });
+    }
     glove.update(dt);
     glove.visible = !this.hidden;
     return glove.visible ? glove : null;
@@ -746,6 +1101,7 @@ export class HandVisuals extends THREE.Group {
     const glove = this.gloves.get(controller);
     if (!glove) return;
     this.gloves.delete(controller);
+    this.fitted.delete(controller);
     this.disposeHand(glove);
     const side = controller.handedness;
     if (!side) return;
@@ -768,7 +1124,11 @@ export class HandVisuals extends THREE.Group {
     // hand mesh on the right controller is what made both look mirrored. Und
     // wer im Menü das Handmodell wechselt, bekommt die Hand neu angezogen.
     const style = styleOfSetting();
-    if (hand && (hand.side !== controller.handedness || hand.look !== style)) {
+    const colors = boneColors();
+    if (
+      hand &&
+      (hand.side !== controller.handedness || hand.look !== style || hand.colored !== colors)
+    ) {
       this.disposeHand(hand);
       this.hands.delete(controller);
       hand = undefined;
@@ -780,7 +1140,7 @@ export class HandVisuals extends THREE.Group {
       if (!this.glowing.has(controller.handedness)) {
         material.emissive.setHex(material.color.getHex()).multiplyScalar(0.06);
       }
-      hand = new ProceduralHand(controller.handedness, material, style);
+      hand = new ProceduralHand(controller.handedness, material, { look: style, colors });
       this.hands.set(controller, hand);
     }
     const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
@@ -797,8 +1157,11 @@ export class HandVisuals extends THREE.Group {
     // Griffknopf aufgeht, öffnet sich vom Griff (`buttonCurls`).
     const toolId = this.holding.get(controller.handedness) ?? null;
     if (toolId) {
-      hand.setCurls(
-        buttonCurls(pose, fingerMovesOf(toolId), {
+      // Nur die Finger, die ein Knopf wirklich bewegt (`buttonCurlLayer`): eine
+      // gemessene Haltung trägt jedes Gelenk einzeln, und fünf Krümmungen
+      // darüberzulegen würfe zwanzig gemessene Winkel für einen Zeigefinger weg.
+      hand.setCurlOverrides(
+        buttonCurlLayer(fingerMovesOf(toolId), {
           grab: controller.squeeze.pressed,
           trigger: controller.trigger.pressed,
         }),
@@ -843,6 +1206,88 @@ function trackedJoints(hand: THREE.XRHandSpace): GloveJoints {
     indexKnuckle: at('index-finger-phalanx-proximal'),
     pinkyKnuckle: at('pinky-finger-phalanx-proximal'),
   };
+}
+
+/**
+ * Wie die Brille die Gelenke jedes Fingers nennt — Wurzel, zwei Gelenke, Kuppe.
+ *
+ * Der **Daumen** hat kein Mittelglied und fängt dafür einen Knochen früher an:
+ * sein Mittelhandknochen ist das, was bei den anderen der Knöchel ist. Damit
+ * haben alle fünf dieselbe Form — vier Kugeln, drei Knochen —, und die Messung
+ * daneben muss nicht wissen, welcher Finger gerade dran ist.
+ */
+const FINGER_JOINTS: ReadonlyArray<readonly [string, string, string, string]> = [
+  ['thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'],
+  [
+    'index-finger-phalanx-proximal',
+    'index-finger-phalanx-intermediate',
+    'index-finger-phalanx-distal',
+    'index-finger-tip',
+  ],
+  [
+    'middle-finger-phalanx-proximal',
+    'middle-finger-phalanx-intermediate',
+    'middle-finger-phalanx-distal',
+    'middle-finger-tip',
+  ],
+  [
+    'ring-finger-phalanx-proximal',
+    'ring-finger-phalanx-intermediate',
+    'ring-finger-phalanx-distal',
+    'ring-finger-tip',
+  ],
+  [
+    'pinky-finger-phalanx-proximal',
+    'pinky-finger-phalanx-intermediate',
+    'pinky-finger-phalanx-distal',
+    'pinky-finger-tip',
+  ],
+];
+
+/** Dieselben Gelenke als Zahlen — Ort und Dicke, wie die Messung sie braucht. */
+function trackedFingers(hand: THREE.XRHandSpace): TrackedFinger[] {
+  const joints = hand.joints as Partial<Record<string, THREE.XRJointSpace>>;
+  const at = (name: string): { position: THREE.Vector3; radius: number } | null => {
+    const joint = joints[name];
+    if (!joint || !joint.visible) return null;
+    return { position: joint.position, radius: joint.jointRadius ?? 0.008 };
+  };
+  return FINGER_JOINTS.map(([root, mid, far, tip]) => ({
+    root: at(root),
+    mid: at(mid),
+    far: at(far),
+    tip: at(tip),
+  }));
+}
+
+/**
+ * Ob zwei Messungen dieselbe Hand meinen.
+ *
+ * Verglichen werden **Maße und keine Winkel**: eine Hand, die sich bewegt, ist
+ * dieselbe Hand, und ein Handschuh, der bei jeder Bewegung neu genäht würde,
+ * wäre ein Standbild aus Netzen. Ein halber Millimeter Spiel ist dabei
+ * großzügig gerechnet — die Brille misst eine Fingerlänge von Bild zu Bild
+ * nicht auf den Zehntelmillimeter, und wer bei jedem Rauschen neu näht, näht
+ * dauernd.
+ */
+const MEASURE_TOLERANCE = 0.0015;
+
+function sameMeasure(a: MeasuredHand | undefined, b: MeasuredHand): boolean {
+  if (!a || a.fingers.length !== b.fingers.length) return false;
+  if (Math.abs(a.palmScale - b.palmScale) > 0.05) return false;
+  for (let i = 0; i < a.fingers.length; i++) {
+    const one = a.fingers[i]!;
+    const two = b.fingers[i]!;
+    if (Math.abs(one.radius - two.radius) > MEASURE_TOLERANCE) return false;
+    if (one.lengths.length !== two.lengths.length) return false;
+    for (let bone = 0; bone < one.lengths.length; bone++) {
+      if (Math.abs(one.lengths[bone]! - two.lengths[bone]!) > MEASURE_TOLERANCE) return false;
+    }
+    if (Math.abs(one.root.x - two.root.x) > MEASURE_TOLERANCE) return false;
+    if (Math.abs(one.root.y - two.root.y) > MEASURE_TOLERANCE) return false;
+    if (Math.abs(one.root.z - two.root.z) > MEASURE_TOLERANCE) return false;
+  }
+  return true;
 }
 
 /** World position of a hand's index fingertip, if it is currently tracked. */

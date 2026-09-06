@@ -57,7 +57,7 @@ import {
   saveHoldHandPose,
   saveIdleHandPose,
 } from '../../core/handPoseStore';
-import { saveTrackedGlove, trackedGlove } from '../../core/handLook';
+import { boneColors, saveBoneColors, saveTrackedGlove, trackedGlove } from '../../core/handLook';
 import { packShortGear } from '../portal/tools/shortCode';
 import { BOX_HAND_COLOR, GhostHand } from '../../core/HandVisuals';
 import { createControllerHandle } from '../../core/controllerHandle';
@@ -1432,19 +1432,23 @@ export class TuneWorld extends PortalWorld {
    * Handhaltung *realistischer* haben will, muss die **blanke** Hand messen,
    * und das geht erst, seit sie einen Handschuh tragen kann (`gloveFit.ts`).
    *
-   * Also drei Dinge an einem Ort:
+   * Also fünf Dinge an einem Ort:
    *
    * - Der **Schwebekasten** hält, was man hineinlegt: eine durchsichtige Kiste
    *   in der Luft, in der die Schwerkraft aufhört (`HoverBox.ts`,
    *   `PortalWorld.floatZone`). Man lässt ein Werkzeug darin los, es bleibt
    *   liegen, und man rückt es zurecht, bis es so hängt, wie man es halten
    *   will.
-   * - Der **Schalter an der Wand** zieht getrackten Händen den Handschuh an.
-   *   Ohne ihn misst man gegen eine Reihe Kugeln, und eine Reihe Kugeln hat
-   *   keine Handfläche, an der man etwas ausrichten könnte.
    * - Der **Feststeller** hält an, was im Kasten hängt: schwerelos ist nicht
    *   unbeweglich, und eine Hand, die man an ein weich hängendes Werkzeug
    *   legt, stupst es an, statt es zu messen (`toggleFloatFixed`).
+   * - Der **Schalter an der Wand** zieht getrackten Händen den Handschuh an.
+   *   Ohne ihn misst man gegen eine Reihe Kugeln, und eine Reihe Kugeln hat
+   *   keine Handfläche, an der man etwas ausrichten könnte.
+   * - Der **Knopf daneben** färbt jeden Knochen einzeln ein
+   *   (`core/bonePalette.ts`). Fünf gleich weiße Röhren sagen nicht, welcher
+   *   Finger welcher ist und wo sein zweiter Knochen anfängt — und genau das
+   *   ist die Frage, sobald man eine Zahl je Knochen einstellt.
    * - Der **Teilen-Knopf** schickt die Haltung der *anderen* Hand live an alle
    *   im Raum — und damit an die Werkzeugseite, die sich als Zuschauer
    *   verbindet (`handShare.ts`). Der Trigger der Hand, die gedrückt hat,
@@ -1553,7 +1557,7 @@ export class TuneWorld extends PortalWorld {
     }
   }
 
-  /** Die vier Knöpfe an der Außenwand des Poseraums. */
+  /** Die fünf Knöpfe an der Außenwand des Poseraums. */
   private poseRows(): Array<{
     refresh: (button: WallButton) => void;
     run: (hand: Handedness | null) => void;
@@ -1566,12 +1570,24 @@ export class TuneWorld extends PortalWorld {
             button,
             on ? 'Handschuh: an' : 'Handschuh: aus',
             on
-              ? 'Blanke Hände tragen ihn, die Finger folgen'
+              ? 'Blanke Hände tragen ihn, auf den echten Knochen'
               : 'Blanke Hände sind Kugeln an den Gelenken',
             on ? GRAB_GLOW : 0x4aa8ff,
           );
         },
         run: () => this.toggleTrackedGlove(),
+      },
+      {
+        refresh: (button) => {
+          const on = boneColors();
+          this.label(
+            button,
+            on ? 'Knochenfarben: an' : 'Knochenfarben: aus',
+            on ? 'Ein Ton je Finger, eine Stufe je Knochen' : 'Alle Knochen in der Farbe der Hand',
+            on ? GRAB_GLOW : 0x5ee0a0,
+          );
+        },
+        run: () => this.toggleBoneColors(),
       },
       {
         refresh: (button) => {
@@ -1652,6 +1668,29 @@ export class TuneWorld extends PortalWorld {
     this.refreshButtons();
     this.context?.notify(
       on ? 'Handschuh an den blanken Händen' : 'Blanke Hände wieder als Gelenkkugeln',
+    );
+  }
+
+  /**
+   * **Knochenfarben an, Knochenfarben aus.**
+   *
+   * Der Knopf daneben, und aus demselben Grund: hier misst man eine Hand, und
+   * eine einfarbige Hand sagt nicht, welcher Finger welcher ist und wo sein
+   * zweiter Knochen anfängt. Angeschaltet bekommt jeder Finger einen Ton und
+   * jeder Knochen darin eine Stufe (`bonePalette.ts`) — an der Boxhand, am
+   * Handschuh und an den Gelenkkugeln gleichermaßen, damit man auch dann noch
+   * dasselbe vergleicht.
+   *
+   * Er ist eine Einstellung wie jede andere und bleibt an, bis jemand ihn
+   * ausmacht: wer eine Haltung über mehrere Sitzungen einstellt, will nicht
+   * jedes Mal von vorn anfangen.
+   */
+  private toggleBoneColors(): void {
+    const on = saveBoneColors(!boneColors());
+    this.context?.hands.refreshPoses();
+    this.refreshButtons();
+    this.context?.notify(
+      on ? 'Knochenfarben an — ein Ton je Finger' : 'Knochenfarben aus — wieder eine Hand',
     );
   }
 
@@ -1776,7 +1815,16 @@ export class TuneWorld extends PortalWorld {
     const toolId = tool?.toolId ?? null;
     const base = toolId ? holdHandPose(side, toolId) : idleHandPose(side);
     const curls = hand ? ctx.hands.trackedCurlsOf(side) : null;
+    // **Und jede Kugel einzeln.** Die Krümmungen bleiben daneben stehen — sie
+    // sind das, was auf der Tafel steht und was in den Kurzcode geht —, aber
+    // gespeichert wird, was die Brille wirklich sieht: je Knochen ein Winkel,
+    // je Finger eine Fächerung (`core/handBones.ts`). Sieht sie die Hand
+    // gerade nicht, fällt der Gelenkteil weg statt auf Null zu stehen; eine
+    // Null wäre eine flach ausgestreckte Hand und keine fehlende Messung.
+    const joints = hand ? ctx.hands.trackedBonesOf(side) : null;
     const pose: HandPose = { ...clonePose(base), curls: curls ?? clonePose(base).curls };
+    if (joints) pose.joints = joints;
+    else delete pose.joints;
 
     let at: PoseReadout = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
     if (tool && hand) {
@@ -1823,6 +1871,7 @@ export class TuneWorld extends PortalWorld {
         at: readoutValues(at),
         curls: pose.curls,
         spread: pose.spread,
+        joints: pose.joints ?? null,
         code,
         saved: false,
       },

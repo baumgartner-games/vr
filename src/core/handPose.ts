@@ -35,6 +35,87 @@ export interface HandPose {
   curls: number[];
   /** How far the fingers fan out sideways, in degrees. */
   spread: number;
+  /**
+   * **Jede Kugel einzeln** — die gemessene Haltung einer blanken Hand, oder
+   * `undefined` für eine, die aus Krümmungen besteht.
+   *
+   * Eine Krümmung ist eine Zahl je Finger, und ein Finger hat drei Knochen:
+   * ob er am Grundgelenk knickt oder erst am Mittelgelenk, ob er zur Seite
+   * steht oder geradeaus, all das fällt in dieselbe Zahl. Wer eine Haltung an
+   * der **echten** Hand misst, hat aber jedes Gelenk vor sich
+   * (`handBones.ts`) — und dann ist es Verschwendung, fünfundzwanzig Kugeln
+   * auf fünf Zahlen einzudampfen.
+   *
+   * Also stehen sie hier: je Finger **drei Beugungen und eine Fächerung**, in
+   * Grad, in der Reihenfolge Daumen … kleiner Finger — zwanzig Zahlen
+   * (`HAND_JOINT_VALUES`). Beugung positiv zur Handfläche hin, Fächerung
+   * positiv zur Daumenseite der rechten Hand. Sie gehen unverändert in die
+   * Drehungen des Modells; es gibt keinen Faktor dazwischen.
+   *
+   * **Sie gewinnen über `curls` und `spread`**, solange sie da sind. Die
+   * beiden bleiben trotzdem gefüllt und passen dazu: sie sind das, was eine
+   * Tafel anzeigt, was in einen Kurzcode geht und was ein Modell mit weniger
+   * Knochen daraus macht. Wer eine Krümmung von Hand ändert, wirft die
+   * Gelenke weg (`setHandPoseField`) — eine getippte Zahl ist eine Ansage und
+   * keine Messung.
+   */
+  joints?: number[];
+}
+
+/** Wie viele Knochen ein Finger in einer gemessenen Haltung hat. */
+export const FINGER_BONES = 3;
+
+/** Und wie viele Zahlen er damit belegt: die Beugungen plus die Fächerung. */
+export const FINGER_JOINT_VALUES = FINGER_BONES + 1;
+
+/** Zwanzig — fünf Finger zu je vier Zahlen. */
+export const HAND_JOINT_VALUES = FINGER_NAMES.length * FINGER_JOINT_VALUES;
+
+/** Was zu einem Finger gehört, aus dem Gelenkteil einer Haltung gelesen. */
+export interface FingerJoints {
+  /** Die Beugung je Knochen, in Grad, positiv zur Handfläche hin. */
+  bends: number[];
+  /** Wie weit der Finger an der Wurzel zur Seite steht, in Grad. */
+  fan: number;
+}
+
+/**
+ * Die Gelenke eines Fingers — oder `null`, wenn diese Haltung keine hat.
+ *
+ * Ein Aufrufer mit weniger Knochen (die gebaute Hand hat zwei je Finger, die
+ * gemessene drei) legt die überzähligen Beugungen auf seinen letzten Knochen;
+ * das ist genau richtig, denn zwei Knicke hintereinander sind zusammen der
+ * eine, den er zeichnen kann.
+ */
+export function fingerJoints(pose: HandPose, finger: number): FingerJoints | null {
+  const joints = pose.joints;
+  if (!joints || joints.length < HAND_JOINT_VALUES) return null;
+  if (finger < 0 || finger >= FINGER_NAMES.length) return null;
+  const at = finger * FINGER_JOINT_VALUES;
+  const bends: number[] = [];
+  for (let i = 0; i < FINGER_BONES; i++) bends.push(joints[at + i] ?? 0);
+  return { bends, fan: joints[at + FINGER_BONES] ?? 0 };
+}
+
+/**
+ * Die Zahlenreihe zu einer gemessenen Hand — dieselbe Reihenfolge, in der
+ * `fingerJoints` sie wieder herausliest.
+ */
+export function handJointsToArray(
+  fingers: ReadonlyArray<{ bends: readonly number[]; fan: number }>,
+): number[] {
+  const values: number[] = [];
+  for (let finger = 0; finger < FINGER_NAMES.length; finger++) {
+    const measured = fingers[finger];
+    for (let bone = 0; bone < FINGER_BONES; bone++) values.push(round(measured?.bends[bone] ?? 0));
+    values.push(round(measured?.fan ?? 0));
+  }
+  return values;
+}
+
+/** Auf ein Zehntelgrad: eine Hand wird nicht genauer gemessen, als sie stillhält. */
+function round(value: number): number {
+  return Number.isFinite(value) ? Math.round(value * 10) / 10 : 0;
 }
 
 /** The hand as it was built: on the grip, barely curled, not turned at all. */
@@ -674,14 +755,32 @@ export function fingerMovesOf(toolId: string | null): FingerMoves {
  */
 export function buttonCurls(pose: HandPose, moves: FingerMoves, buttons: FingerButtons): number[] {
   const curls = clonePose(pose).curls;
+  buttonCurlLayer(moves, buttons).forEach((curl, i) => {
+    if (curl !== null) curls[i] = curl;
+  });
+  return curls;
+}
+
+/**
+ * Dasselbe, aber **nur die Finger, die die Knöpfe wirklich bewegen** — der
+ * Rest bleibt `null`.
+ *
+ * Der Unterschied zählt, seit eine Haltung jedes Gelenk einzeln tragen kann:
+ * `buttonCurls` gibt fünf Zahlen heraus, und fünf Zahlen auf eine gemessene
+ * Hand zu legen wirft zwanzig gemessene weg — auch für die vier Finger, die
+ * kein Knopf anfasst. Wer die Ebene einzeln bekommt, ersetzt den Zeigefinger
+ * am Abzug und lässt die anderen, wie die Messung sie gefunden hat.
+ */
+export function buttonCurlLayer(moves: FingerMoves, buttons: FingerButtons): (number | null)[] {
+  const layer: (number | null)[] = [null, null, null, null, null];
   const layers = [buttons.grab ? moves.grab : moves.release];
   if (buttons.trigger) layers.push(moves.trigger);
-  for (const layer of layers) {
-    layer.forEach((curl, i) => {
-      if (curl !== null) curls[i] = curl;
+  for (const source of layers) {
+    source.forEach((curl, i) => {
+      if (curl !== null && i < layer.length) layer[i] = curl;
     });
   }
-  return curls;
+  return layer;
 }
 
 /** What the value editor offers, in the order it lists them. */
@@ -713,12 +812,22 @@ export function handPoseField(pose: HandPose, key: string): number {
   return (pose as unknown as Record<string, number>)[key] ?? 0;
 }
 
-/** The same pose with one field replaced — never the one that was passed in. */
+/**
+ * The same pose with one field replaced — never the one that was passed in.
+ *
+ * Eine getippte **Krümmung** oder **Spreizung** wirft die gemessenen Gelenke
+ * weg. Das muss so sein: die Gelenke gewinnen über beide, und ohne diese Zeile
+ * änderte man im Menü eine Zahl und sähe an der Hand nichts passieren — der
+ * ärgerlichste Fehler, den eine Einstellung machen kann. Die sechs Werte der
+ * Lage rühren nicht daran; sie sagen, wo die Hand liegt, und nicht, wie sie
+ * gefaltet ist.
+ */
 export function setHandPoseField(pose: HandPose, key: string, value: number): HandPose {
   const next = clonePose(pose);
   const curl = curlIndex(key);
   if (curl !== null) next.curls[curl] = value;
   else if (key in next) (next as unknown as Record<string, number>)[key] = value;
+  if (curl !== null || key === 'spread') delete next.joints;
   return next;
 }
 
@@ -739,12 +848,35 @@ export function mirrorHandPose(pose: HandPose): HandPose {
   mirrored.x = -pose.x + 0;
   mirrored.yaw = -pose.yaw + 0;
   mirrored.roll = -pose.roll + 0;
+  // Und dasselbe eine Ebene tiefer: eine **Fächerung** ist eine Drehung um die
+  // Hochachse und kippt beim Spiegeln um, eine **Beugung** ist eine um die
+  // Querachse und bleibt. Genau dieselben zwei Vorzeichen wie oben, nur je
+  // Finger — ohne das stünde an einer gespiegelten Hand der Zeigefinger dort,
+  // wo der kleine hingehört.
+  if (mirrored.joints) {
+    for (let finger = 0; finger < FINGER_NAMES.length; finger++) {
+      const at = finger * FINGER_JOINT_VALUES + FINGER_BONES;
+      mirrored.joints[at] = -(mirrored.joints[at] ?? 0) + 0;
+    }
+  }
   return mirrored;
 }
 
-/** Numbers only, for the config code: 6 pose values, 5 curls, 1 spread. */
+/**
+ * Numbers only, for the store and the config code: 6 pose values, 5 curls,
+ * 1 spread — und dahinter, **wenn es sie gibt**, die zwanzig Gelenke.
+ *
+ * Angehängt und nicht dazwischengeschoben: die ersten zwölf Zahlen sind das
+ * Format, das jeder alte Code trägt, und ein Leser, der nur zwölf liest, liest
+ * weiter dieselbe Haltung. Genau das tut der große Konfig-Code
+ * (`gearCodec.ts`) — er kennt zwölf Felder, und mehr passen nicht in seine
+ * Maske. Er trägt die Gelenke deshalb **nicht**; die Krümmungen daneben sagen
+ * dieselbe Haltung so genau, wie ein Modell mit fünf Zahlen sie sagen kann.
+ * Der Speicher im Browser trägt sie (`handPoseStore.ts`), und dort werden sie
+ * gemessen.
+ */
 export function handPoseToArray(pose: HandPose): number[] {
-  return [
+  const values = [
     pose.x,
     pose.y,
     pose.z,
@@ -754,13 +886,18 @@ export function handPoseToArray(pose: HandPose): number[] {
     ...normalizeCurls(pose.curls),
     pose.spread,
   ];
+  if (pose.joints?.length === HAND_JOINT_VALUES) values.push(...pose.joints);
+  return values;
 }
+
+/** Where the joint values start in that array. */
+const JOINTS_AT = 12;
 
 /** The inverse, tolerant of a short or overlong array from an older code. */
 export function handPoseFromArray(values: readonly number[], fallback = IDLE_HAND_POSE): HandPose {
   const at = (index: number, spare: number): number =>
     Number.isFinite(values[index]) ? (values[index] as number) : spare;
-  return {
+  const pose: HandPose = {
     x: at(0, fallback.x),
     y: at(1, fallback.y),
     z: at(2, fallback.z),
@@ -770,10 +907,19 @@ export function handPoseFromArray(values: readonly number[], fallback = IDLE_HAN
     curls: normalizeCurls(fallback.curls).map((spare, i) => at(6 + i, spare)),
     spread: at(11, fallback.spread),
   };
+  const joints = values.slice(JOINTS_AT, JOINTS_AT + HAND_JOINT_VALUES);
+  // Ganz oder gar nicht: eine halbe Gelenkreihe ist keine Messung, sondern ein
+  // abgeschnittener Code — und die Krümmungen daneben sind dann die Auskunft.
+  if (joints.length === HAND_JOINT_VALUES && joints.every((value) => Number.isFinite(value))) {
+    pose.joints = joints;
+  }
+  return pose;
 }
 
 export function clonePose(pose: HandPose): HandPose {
-  return { ...pose, curls: normalizeCurls(pose.curls) };
+  const clone: HandPose = { ...pose, curls: normalizeCurls(pose.curls) };
+  if (pose.joints) clone.joints = [...pose.joints];
+  return clone;
 }
 
 /** One line for a display: the six numbers, then the five fingers. */
@@ -781,9 +927,12 @@ export function formatHandPose(pose: HandPose): string {
   const curls = normalizeCurls(pose.curls)
     .map((value) => value.toFixed(2))
     .join('/');
+  // Dass eine Haltung **jedes Gelenk** trägt, sieht man ihr an den Krümmungen
+  // nicht an — und es ist der Unterschied zwischen gemessen und geschätzt.
+  const joints = pose.joints?.length === HAND_JOINT_VALUES ? ' · Gelenke' : '';
   return (
     `x ${pose.x} y ${pose.y} z ${pose.z} cm · ` +
-    `${pose.pitch}/${pose.yaw}/${pose.roll}° · ${curls}`
+    `${pose.pitch}/${pose.yaw}/${pose.roll}° · ${curls}${joints}`
   );
 }
 

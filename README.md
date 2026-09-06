@@ -15,7 +15,7 @@ Dunkelhaus zum Ausprobieren von Licht, ein **Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
-damit man die blanke Hand daran einmessen kann —, ein Werkzeuggürtel
+damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
 Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen — und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
@@ -65,7 +65,9 @@ hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf
 samt Putzen fremden Textes, die Wahl des Gastgebers einer geteilten Welt, die
 Auslegung der Hub-Gänge, die Flächen der Würfel (dass gegenüberliegende
 Seiten zusammen `n + 1` ergeben, wie auf einem echten Würfel), die Passung des
-Handschuhs auf die Knochen einer getrackten Hand, die geteilte Handhaltung auf
+Handschuhs auf die Knochen einer getrackten Hand, die **Messung dieser Knochen**
+(eine Hand aus bekannten Winkeln bauen und nachsehen, ob die Messung sie wieder
+herausgibt), die **Knochenfarben**, die geteilte Handhaltung auf
 dem Weg über die Leitung und die Maße des Poseraums. Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der

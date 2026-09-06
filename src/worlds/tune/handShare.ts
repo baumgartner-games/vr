@@ -26,6 +26,7 @@
  * die richtig ankommen, prüft man ohne Renderer.
  */
 
+import { HAND_JOINT_VALUES } from '../../core/handPose';
 import type { Handedness } from '../../core/XRInput';
 
 /**
@@ -53,6 +54,17 @@ export interface HandShare {
   curls: readonly number[];
   /** Wie weit die Finger fächern, in Grad. */
   spread: number;
+  /**
+   * **Jede Kugel einzeln** — zwanzig Winkel, wenn drüben eine blanke Hand
+   * gemessen wird (`core/handPose.ts`, `HandPose.joints`), sonst `null`.
+   *
+   * Die Krümmungen daneben bleiben, wo sie sind: sie sind die Zusammenfassung,
+   * die auf jeder Tafel steht und in jeden Kurzcode geht, und ein Zuschauer,
+   * der die zwanzig nicht auswerten will, zeigt weiter dieselbe Hand. Wer sie
+   * auswertet, sieht die Finger gespreizt und an jedem Gelenk einzeln geknickt
+   * — also das, was in der Brille wirklich steht.
+   */
+  joints: readonly number[] | null;
   /** Der Konfig-Code für genau diese Haltung — zum Kopieren, nicht zum Rechnen. */
   code: string;
   /** Ob der Trigger sie eben festgehalten hat. Nur dann ist sie gespeichert. */
@@ -73,6 +85,11 @@ export function packHandShare(share: HandShare): Record<string, unknown> {
     a: [...share.at].slice(0, 6).map(round),
     c: [...share.curls].slice(0, 5).map(round),
     s: round(share.spread),
+    // Nur, wenn es sie gibt: zwanzig Nullen zu schicken hieße „flach
+    // ausgestreckt" und nicht „nicht gemessen".
+    ...(share.joints?.length === HAND_JOINT_VALUES
+      ? { j: [...share.joints].map(round) }
+      : undefined),
     k: share.code,
     v: share.saved ? 1 : 0,
   };
@@ -102,6 +119,10 @@ export function parseHandShare(data: unknown): HandShare | null {
     at,
     curls: curls.map((value) => Math.min(1, Math.max(0, value))),
     spread: Number.isFinite(raw['s']) ? (raw['s'] as number) : 0,
+    // Ganz oder gar nicht: eine halbe Gelenkreihe ist keine Messung. Und ein
+    // Sender, der sie nicht kennt, ist keiner mit kaputten Daten — er ist
+    // einer, der nur die Krümmungen schickt.
+    joints: numbers(raw['j'], HAND_JOINT_VALUES),
     code,
     saved: raw['v'] === 1 || raw['v'] === true,
   };
