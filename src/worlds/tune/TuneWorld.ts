@@ -617,8 +617,11 @@ export class TuneWorld extends PortalWorld {
     this.grip?.dispose();
     this.grip = null;
     // Die Schwerelosigkeit gehört diesem Raum: wer ihn verlässt, nimmt sonst
-    // eine Zone mit, deren Kasten längst weg ist.
+    // eine Zone mit, deren Kasten längst weg ist. Und mit ihr der Schalter —
+    // ein festgestellter Kasten ohne Kasten wäre ein Ding, das sich in der
+    // nächsten Welt nicht mehr anfassen lässt.
     this.floatZone = null;
+    this.setFloatFixed(false);
     this.hover?.dispose();
     this.hover = null;
     this.hoverTool = null;
@@ -1439,6 +1442,9 @@ export class TuneWorld extends PortalWorld {
    * - Der **Schalter an der Wand** zieht getrackten Händen den Handschuh an.
    *   Ohne ihn misst man gegen eine Reihe Kugeln, und eine Reihe Kugeln hat
    *   keine Handfläche, an der man etwas ausrichten könnte.
+   * - Der **Feststeller** hält an, was im Kasten hängt: schwerelos ist nicht
+   *   unbeweglich, und eine Hand, die man an ein weich hängendes Werkzeug
+   *   legt, stupst es an, statt es zu messen (`toggleFloatFixed`).
    * - Der **Teilen-Knopf** schickt die Haltung der *anderen* Hand live an alle
    *   im Raum — und damit an die Werkzeugseite, die sich als Zuschauer
    *   verbindet (`handShare.ts`). Der Trigger der Hand, die gedrückt hat,
@@ -1504,6 +1510,7 @@ export class TuneWorld extends PortalWorld {
     box.position.set(POSE_ROOM.x, POSE_ROOM.height, z0 + POSE_ROOM.z);
     room.add(box);
     this.hover = box;
+    box.setFixed(this.floatIsFixed());
     // Von hier an schwebt alles, was darin losgelassen wird.
     this.floatZone = box;
 
@@ -1546,7 +1553,7 @@ export class TuneWorld extends PortalWorld {
     }
   }
 
-  /** Die drei Knöpfe an der Außenwand des Poseraums. */
+  /** Die vier Knöpfe an der Außenwand des Poseraums. */
   private poseRows(): Array<{
     refresh: (button: WallButton) => void;
     run: (hand: Handedness | null) => void;
@@ -1583,6 +1590,20 @@ export class TuneWorld extends PortalWorld {
       },
       {
         refresh: (button) => {
+          const on = this.floatIsFixed();
+          this.label(
+            button,
+            on ? 'Schwebe: festgestellt' : 'Schwebe: frei',
+            on
+              ? 'Nichts rührt sich mehr — auch keine Hand nimmt es'
+              : 'Losgelassenes hängt weich und lässt sich anstupsen',
+            on ? 0xffc857 : 0x4aa8ff,
+          );
+        },
+        run: () => this.toggleFloatFixed(),
+      },
+      {
+        refresh: (button) => {
           this.label(
             button,
             'Pose senden',
@@ -1593,6 +1614,29 @@ export class TuneWorld extends PortalWorld {
         run: () => this.sendPoseCode(),
       },
     ];
+  }
+
+  /**
+   * **Feststellen**: was im Kasten hängt, steht still, bis der Schalter wieder
+   * ausgeht.
+   *
+   * Schwerelos ist nicht dasselbe wie unbeweglich. Ein Werkzeug im Kasten hängt
+   * weich: die Hand, die man daran legt, stupst es an, man rückt nach, und
+   * gemessen wird am Ende die Nachbewegung. Und schlimmer — die blanke Hand,
+   * die man zum Messen um ein Werkzeug schließt, *ist* die Greifgeste: sie nahm
+   * einem das Werkzeug bei jedem Versuch wieder aus dem Kasten. Festgestellt
+   * steht es wie angeschraubt und lässt sich auch nicht greifen; erst der
+   * zweite Druck gibt es wieder frei (`PortalWorld.setFloatFixed`).
+   */
+  private toggleFloatFixed(): void {
+    const on = this.setFloatFixed(!this.floatIsFixed());
+    this.hover?.setFixed(on);
+    this.refreshButtons();
+    this.context?.notify(
+      on
+        ? 'Schwebekasten festgestellt — Hand daran legen, ohne dass etwas ausweicht'
+        : 'Schwebekasten wieder frei',
+    );
   }
 
   /**
