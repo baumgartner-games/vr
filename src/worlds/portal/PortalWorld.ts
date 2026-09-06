@@ -127,6 +127,8 @@ import {
   handLook,
   handLookLabel,
   nextHandLook,
+  boneColors,
+  saveBoneColors,
   saveHandLook,
   saveTrackedGlove,
   trackedGlove,
@@ -1640,6 +1642,7 @@ export class PortalWorld implements World {
       children: [
         this.handLookMenu(),
         this.trackedGloveMenu(),
+        this.boneColorsMenu(),
         this.handSideMenu('left'),
         this.handSideMenu('right'),
         {
@@ -1704,13 +1707,14 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Handschuh an getrackten Händen** — dasselbe Skelett auf echten Knochen.
+   * **Handschuh an getrackten Händen** — ein Handschuh auf echten Knochen.
    *
    * Eine Hand ohne Controller ist ab Werk das, was die Brille misst: Kugeln an
-   * den Gelenken. Angeschaltet legt sich derselbe Handschuh darüber, den die
-   * Hand am Controller trägt, gestellt aus vier Gelenken und gekrümmt aus dem
-   * Faltmaß der echten Finger (`core/gloveFit.ts`). Derselbe Schalter hängt im
-   * Poseraum an der Wand, dort, wo man ihn braucht.
+   * den Gelenken. Angeschaltet legt sich ein Handschuh darüber, der auf genau
+   * diese Kugeln gebaut ist — jede Fingerwurzel auf dem gemessenen Knöchel,
+   * jeder Knochen so lang und so dick wie der echte, jedes Gelenk in dem
+   * Winkel, in dem es wirklich steht (`core/gloveFit.ts`, `core/handBones.ts`).
+   * Derselbe Schalter hängt im Poseraum an der Wand, dort, wo man ihn braucht.
    */
   private trackedGloveMenu(): MenuEntry {
     const label = (): string => `Blanke Hände: ${trackedGlove() ? 'Handschuh' : 'Gelenkkugeln'}`;
@@ -1732,6 +1736,41 @@ export class PortalWorld implements World {
     this.menuLabels.push(() => {
       entry.label = label();
       entry.checked = trackedGlove();
+    });
+    return entry;
+  }
+
+  /**
+   * **Knochenfarben** — jeder Knochen in seiner eigenen Farbe.
+   *
+   * Ab Werk aus: eine Hand ist einfarbig, und beim Spielen soll ein Handschuh
+   * ein Handschuh sein und kein Farbfächer. Beim Einstellen ist genau das im
+   * Weg — fünf gleich weiße Röhren, und welcher Finger welcher ist und wo sein
+   * zweiter Knochen anfängt, muss man erraten. Angeschaltet bekommt jeder
+   * Finger einen Ton und jeder Knochen darin eine Stufe
+   * (`core/bonePalette.ts`), an Boxhand, Handschuh und Gelenkkugeln
+   * gleichermaßen. Derselbe Schalter hängt im Poseraum neben dem Handschuh.
+   */
+  private boneColorsMenu(): MenuEntry {
+    const label = (): string => `Knochenfarben: ${boneColors() ? 'an' : 'aus'}`;
+    const entry: MenuEntry = {
+      id: 'setting:hands-bone-colors',
+      label: label(),
+      sub: 'Ein Farbton je Finger, eine Stufe je Knochen — zum Einstellen',
+      icon: 'glove',
+      accent: 0x5ee0a0,
+      checked: boneColors(),
+      run: () => {
+        const on = saveBoneColors(!boneColors());
+        entry.checked = on;
+        this.context?.hands.refreshPoses();
+        this.refreshMenuLabels();
+        this.context?.notify(on ? 'Knochenfarben an' : 'Knochenfarben aus');
+      },
+    };
+    this.menuLabels.push(() => {
+      entry.label = label();
+      entry.checked = boneColors();
     });
     return entry;
   }

@@ -19,9 +19,15 @@
  *
  * Der **Maßstab** kommt aus derselben Messung: die gebaute Hand hat vom
  * Handgelenk bis zum Ansatz des Mittelfingers `PALM_LENGTH`, die echte hat, was
- * sie hat. Eine Kinderhand bekommt damit einen kleinen Handschuh und eine große
- * Hand einen großen — und die Fingerspitzen des Handschuhs landen dort, wo die
- * echten sind, statt einen Zentimeter davor zu schweben.
+ * sie hat. Eine Kinderhand bekommt damit eine kleine Handfläche und eine große
+ * Hand eine große.
+ *
+ * Für die **Finger** gilt er nicht mehr: die werden nicht gestreckt, sondern
+ * auf ihre echten Maße gebaut (`handBones.ts`) — jeder Knochen so lang wie der
+ * echte, jede Wurzel auf dem gemessenen Knöchel. Ein Maßstab ist eine Zahl für
+ * eine ganze Hand, und keine Hand hat fünf gleich lange Finger. Was hier
+ * herauskommt, sagt deshalb nur noch, **wo** die Hand steht und wie groß ihre
+ * Handfläche ist.
  *
  * Ohne three.js, wie `handGestures.ts` daneben: die Vorzeichen einer Handachse
  * prüft man einzeln und nicht in einer Brille.

@@ -185,3 +185,88 @@ describe('a ghost hand that follows the real one', () => {
     expect(lanes[2]!).toBeGreaterThan(0.005);
   });
 });
+
+/**
+ * **Jede Kugel einzeln an der gezeichneten Hand.**
+ *
+ * Eine Krümmung ist eine Zahl je Finger, und beide Knochen folgen ihr in
+ * festem Verhältnis: eine Hand, die nur am Mittelgelenk knickt, gab es damit
+ * nicht. Eine gemessene Haltung (`HandPose.joints`) hat je Knochen einen
+ * Winkel und je Finger eine Fächerung — und genau das muss man an der
+ * gezeichneten Hand wiederfinden, sonst ist die Messung eine Zahl im Speicher.
+ */
+describe('eine gemessene Haltung an der gezeichneten Hand', () => {
+  /** Alle Gelenke eines Fingers, von der Wurzel zur Kuppe, in Weltkoordinaten. */
+  function jointsOf(pose: HandPose, finger: number): THREE.Vector3[] {
+    const ghost = new GhostHand('right', pose, { look: 'bones' });
+    ghost.update(1);
+    ghost.updateMatrixWorld(true);
+    const hand = ghost.children[0]!;
+    let node = hand.children.filter((child) => !(child as THREE.Mesh).isMesh)[finger]!;
+    const out = [node.getWorldPosition(new THREE.Vector3())];
+    for (;;) {
+      const next = node.children.find((child) => !(child as THREE.Mesh).isMesh);
+      if (!next) return out;
+      node = next;
+      out.push(node.getWorldPosition(new THREE.Vector3()));
+    }
+  }
+
+  /** Eine Haltung, in der jeder Finger gestreckt und ungefächert steht. */
+  const FLAT: HandPose = {
+    ...IDLE_HAND_POSE,
+    curls: [0, 0, 0, 0, 0],
+    joints: new Array(20).fill(0) as number[],
+  };
+
+  /** Dieselbe, mit anderen Zahlen an genau einem Finger. */
+  function bend(finger: number, bends: number[], fan = 0): HandPose {
+    const joints = [...FLAT.joints!];
+    joints.splice(finger * 4, 4, bends[0]!, bends[1]!, bends[2]!, fan);
+    return { ...FLAT, joints };
+  }
+
+  it('beugt den zweiten Knochen, ohne den ersten anzufassen', () => {
+    const straight = jointsOf(FLAT, 1);
+    const tipOnly = jointsOf(bend(1, [0, 50, 0]), 1);
+    const rootToo = jointsOf(bend(1, [50, 0, 0]), 1);
+    // Der Knick sitzt hinter dem ersten Knochen: dessen Ende steht still …
+    expect(tipOnly[2]!.distanceTo(straight[2]!)).toBeLessThan(1e-9);
+    // … und die Kuppe nicht.
+    expect(tipOnly[4]!.distanceTo(straight[4]!)).toBeGreaterThan(0.005);
+    // Am Grundgelenk geknickt bewegt sich beides.
+    expect(rootToo[2]!.distanceTo(straight[2]!)).toBeGreaterThan(0.005);
+  });
+
+  it('beugt zur Handfläche hin und nicht in den Handrücken', () => {
+    const straight = jointsOf(FLAT, 2);
+    const closed = jointsOf(bend(2, [60, 60, 0]), 2);
+    // Die Handfläche ist -Y (`HandVisuals`), also geht eine Kuppe dorthin.
+    expect(closed[4]!.y).toBeLessThan(straight[4]!.y - 0.01);
+  });
+
+  /**
+   * Die **Spreizung je Finger** — der Grund, warum es die Gelenke gibt. Bisher
+   * gab es eine einzige Zahl für alle vier Finger, und der Daumen war gar nicht
+   * dabei: eine blanke Hand, die die Finger auffächert, sah gezeichnet aus wie
+   * eine, die es nicht tut.
+   */
+  it('spreizt jeden Finger einzeln — den Daumen eingeschlossen', () => {
+    for (const finger of [0, 1, 4]) {
+      const straight = jointsOf(FLAT, finger);
+      const fanned = jointsOf(bend(finger, [0, 0, 0], 25), finger);
+      expect(fanned[4]!.distanceTo(straight[4]!)).toBeGreaterThan(0.01);
+    }
+    // Und die eine Spreizung der alten Haltung rührt den Daumen weiter nicht an:
+    // sie meint die vier Finger, die auseinandergehen.
+    const spread = { ...IDLE_HAND_POSE, spread: 25 };
+    const thumb = jointsOf({ ...IDLE_HAND_POSE, spread: 0 }, 0);
+    expect(jointsOf(spread, 0)[4]!.distanceTo(thumb[4]!)).toBeLessThan(1e-9);
+  });
+
+  it('lässt eine Haltung ohne Gelenke krümmen wie eh und je', () => {
+    const open = jointsOf(IDLE_HAND_POSE, 1);
+    const fist = jointsOf(HOLD_HAND_POSE, 1);
+    expect(fist[4]!.distanceTo(open[4]!)).toBeGreaterThan(0.02);
+  });
+});
