@@ -95,12 +95,12 @@ export const HAMMER_HOME = 0.28;
  * (`POLE_HOLD_POSITION`): ein Stab liegt in der Faust wie jeder andere Griff,
  * eine Spur unter und vor dem Griffpunkt des Controllers.
  *
- * **Dieselbe Form, ein anderer Ort** ist dabei erlaubt und kommt vor: die
- * Taschenlampe legt ihr Rohr auf die **Zielachse der echten Hand**
- * (`GRIP_HOLD_POSITION`, `FlashlightTool`), damit sie dorthin leuchtet, wohin
- * man zeigt — und wird deshalb von derselben Faust an einer anderen Stelle
- * gehalten (`TORCH_HAND_POSE`). Der Stab sagt, *was* in der Hand liegt; wo,
- * sagt die `holdPosition` des Werkzeugs.
+ * **Dieselbe Form, eine andere Lage** ist dabei erlaubt und kommt vor: die
+ * Taschenlampe kippt ihr Rohr um 45° nach vorn (`TORCH_PITCH`,
+ * `FlashlightTool`), damit sie nach vorn leuchtet statt in die Decke — und
+ * wird deshalb von derselben Faust in einer anderen Lage gehalten
+ * (`TORCH_HAND_POSE`). Der Stab sagt, *was* in der Hand liegt; wie und wo,
+ * sagen `holdPosition` und `holdRotation` des Werkzeugs.
  */
 export const POLE_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },

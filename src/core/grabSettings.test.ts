@@ -4,7 +4,9 @@ import {
   clampGrab,
   formatGrabField,
   motionLabel,
+  nextGrabMotion,
   nextGrabStep,
+  type GrabMotion,
   type GrabSettings,
 } from './grabSettings';
 
@@ -72,6 +74,18 @@ describe('what the menu reads out', () => {
 
   it('names both motion modes', () => {
     expect(motionLabel('rigid')).toContain('Starr');
-    expect(motionLabel('spin')).toContain('Objektmitte');
+    expect(motionLabel('hand')).toContain('eigene Hand');
+  });
+
+  it('schaltet die Zeile im Kreis weiter', () => {
+    expect(nextGrabMotion('hand')).toBe('rigid');
+    expect(nextGrabMotion('rigid')).toBe('hand');
+  });
+
+  it('nimmt die Geisterhand als Vorgabe und wirft alte Namen weg', () => {
+    expect(DEFAULT_GRAB.motion).toBe('hand');
+    // `spin` gab es einmal — ein gespeicherter Rest davon fällt auf die Vorgabe
+    // zurück, statt als unbekannte Betriebsart stehen zu bleiben.
+    expect(clampGrab({ motion: 'spin' as unknown as GrabMotion }).motion).toBe('hand');
   });
 });

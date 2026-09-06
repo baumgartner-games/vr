@@ -227,30 +227,50 @@ export interface GrabPose {
 
 const _delta: Quat = { x: 0, y: 0, z: 0, w: 1 };
 const _flip: Quat = { x: 0, y: 0, z: 0, w: 1 };
+const _arm: Vec3 = { x: 0, y: 0, z: 0 };
 
 /**
- * Nahgriff, Betriebsart **Drehung um Objektmitte**: die Hand verschiebt eins
- * zu eins, und sie dreht das Ding um sich selbst statt es um die Hand kreisen
- * zu lassen.
+ * Nahgriff, Betriebsart **wie die eigene Hand**: der Gegenstand hängt starr an
+ * der **Geisterhand**, und die tut eins zu eins, was die echte Hand tut.
  *
- * Der starre Griff — dieselbe Matrix wie in der Faust — ist die Vorgabe und
- * die ehrlichere Antwort: man hat eben einen langen Arm. Nur wächst dabei
- * jedes Grad am Handgelenk mit dem Abstand zu einem Ausschlag, und auf einen
- * Meter stellt damit niemand einen Dominostein auf. Wer das lieber hat,
- * schaltet hier um; gerechnet wird gegen die Posen von dem Moment, in dem
- * zugegriffen wurde, damit sich nichts aufsummiert.
+ * Der starre Griff — dieselbe Matrix wie in der Faust — ist die ehrlichere
+ * Antwort auf „was passiert, wenn ich einen langen Arm habe": man hat eben
+ * einen langen Arm. Nur wächst dabei jedes Grad am Handgelenk mit dem Abstand
+ * zu einem Ausschlag, und auf einen Meter stellt damit niemand einen
+ * Dominostein auf — ein Zittern an der eigenen Hand wird am Gegenstand zum
+ * Schlenkern.
+ *
+ * Also wird der Drehpunkt dorthin gelegt, wo die Hand **anfassen würde**: auf
+ * die Geisterhand am Gegenstand. Dann verschiebt die Hand eins zu eins, und
+ * ihre Drehung dreht den Gegenstand genau so, als läge sie dort an ihm — die
+ * Geisterhand macht also Bild für Bild dieselbe Bewegung wie die echte, und
+ * der Gegenstand hängt daran. Aus einem Grad Handgelenk wird ein Grad am
+ * Würfel, egal wie weit weg er liegt.
+ *
+ * Gerechnet wird gegen die Posen von dem Moment, in dem zugegriffen wurde,
+ * damit sich nichts aufsummiert.
+ *
+ * @param pivot der Punkt, um den gedreht wird — der Griffpunkt der
+ *              Geisterhand, in Weltkoordinaten und aus demselben Moment.
  */
-export function spinGrab(
+export function pivotGrab(
   objectStart: GrabPose,
   handStart: GrabPose,
   hand: GrabPose,
+  pivot: Vec3,
   out: GrabPose,
 ): GrabPose {
   multiplyQuat(hand.rotation, conjugate(handStart.rotation, _flip), _delta);
   multiplyQuat(_delta, objectStart.rotation, out.rotation);
-  out.position.x = objectStart.position.x + (hand.position.x - handStart.position.x);
-  out.position.y = objectStart.position.y + (hand.position.y - handStart.position.y);
-  out.position.z = objectStart.position.z + (hand.position.z - handStart.position.z);
+  // Der Gegenstand dreht sich um den Griffpunkt: erst der Arm vom Punkt zur
+  // Mitte, gedreht wie die Hand, dann derselbe Weg, den die Hand gegangen ist.
+  _arm.x = objectStart.position.x - pivot.x;
+  _arm.y = objectStart.position.y - pivot.y;
+  _arm.z = objectStart.position.z - pivot.z;
+  rotateVec(_arm, _delta, _arm);
+  out.position.x = pivot.x + _arm.x + (hand.position.x - handStart.position.x);
+  out.position.y = pivot.y + _arm.y + (hand.position.y - handStart.position.y);
+  out.position.z = pivot.z + _arm.z + (hand.position.z - handStart.position.z);
   return out;
 }
 

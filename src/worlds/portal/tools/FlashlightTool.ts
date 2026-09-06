@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
-import { GRIP_HOLD_POSITION } from './gripFit';
+import { quatFromEulerXYZ } from './toolPose';
 import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
 import { playSwitch } from '../../../core/Audio';
 import {
@@ -12,6 +12,15 @@ import {
   clampBeamAngle,
 } from './flashlightBeam';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
+
+/**
+ * Wie weit das Rohr aus der Senkrechten nach vorn gekippt ist — gegen den
+ * **Zeigestrahl** gemessen, also gegen die Richtung, in die jedes andere
+ * Werkzeug zielt. 45° ist die Haltung einer Stablampe in der Faust: nicht
+ * senkrecht nach oben wie ein Staffelstab, nicht flach auf der Ziellinie wie
+ * ein Lauf.
+ */
+export const TORCH_PITCH = (45 * Math.PI) / 180;
 
 /** Where the lens sits on the torch, in the tool's own space. */
 const LENS_Z = -0.15;
@@ -43,9 +52,9 @@ const _inverse = new THREE.Matrix4();
  * Narrow is bright and reaches far, wide is soft and short — `flashlightBeam.ts`
  * works that out and is tested on its own.
  *
- * **Sie liegt auf der Zielachse der echten Hand**: das Batterierohr liegt auf
- * dem Zeigestrahl, nicht daneben, und der Kegel geht deshalb genau dorthin,
- * wohin man zeigt. Die Zahlen dazu stehen im Konstruktor.
+ * **Sie liegt in der Faust und leuchtet 45° nach vorn** (`TORCH_PITCH`): das
+ * Batterierohr steckt im Griffpunkt wie das Gerät selbst und ist aus der
+ * Senkrechten nach vorn gekippt. Die Zahlen dazu stehen im Konstruktor.
  *
  * The spot light stays in the scene when the torch is off; it is turned down
  * to zero instead of being hidden, because three.js rebuilds every shader in
@@ -82,26 +91,27 @@ export class FlashlightTool extends Tool {
     // wo die Batterien sind, in Greiffarbe, ein Stab wie der Stiel des Hammers
     // (`POLE_GRIP`).
     //
-    // **Und das Rohr liegt auf der Zielachse der echten Hand**: keine eigene
-    // Drehung (`holdRotation` ist die Ruhe, also liegt die z-Achse auf dem
-    // Zeigestrahl) und `GRIP_HOLD_POSITION` als Ort — dieselbe geteilte Lage,
-    // in der jedes Werkzeug mit Standardgriff hängt. Der Strahl läuft damit
-    // **durch das Rohr** und aus der Linse heraus: die Lampe leuchtet dorthin,
-    // wohin man zeigt, und die Zielscheibe der Werkzeugseite steht auf
-    // derselben Linie.
+    // **Sie liegt in der Faust und leuchtet 45° nach vorn.** Das Rohr steckt
+    // dort, wo die Hand das Gerät hält (der Griffpunkt, also `holdPosition`
+    // null), und ist aus der Senkrechten um `TORCH_PITCH` nach vorn gekippt —
+    // die Haltung, in der man eine Stablampe wirklich hält: die Faust
+    // aufrecht, das Rohr schräg voraus.
     //
-    // Vorher lag das Rohr im Griffpunkt, also eine Handbreit **unter** dem
-    // Strahl — die Lampe leuchtete an ihm vorbei, parallel und 7 cm daneben —,
-    // und davor eine Runde lang auf dem Halterzylinder der Hand, wo sie den
-    // Strahl um 77° verfehlte. Ein Rohr kann in der Faust liegen **oder** auf
-    // dem Zeigestrahl; für eine Lampe entscheidet der Strahl. Was das kostet,
-    // steht in `TORCH_HAND_POSE`: die gezeichnete Faust liegt eine Handbreit
-    // über der eigenen, weil sie das Rohr hält und nicht das Gerät.
+    // Zwei Runden lang war sie an den Enden dieser Strecke. Einmal **ganz auf
+    // dem Rohr der Faust** (`holdForGrip`, 77° Nicken): so hält man sie, aber
+    // sie leuchtete beinahe senkrecht nach oben. Einmal **ganz auf dem
+    // Zeigestrahl** (keine eigene Drehung): so leuchtet sie dorthin, wohin man
+    // zeigt, aber dann ist sie keine Lampe in der Faust mehr, sondern ein Rohr
+    // auf der Ziellinie, und die gezeichnete Hand lag eine Handbreit über der
+    // eigenen. 45° ist die Mitte, und sie ist die richtige: die Faust hält das
+    // Rohr, und das Licht geht nach vorn.
     //
     // Einen **Standardgriff** baut sie darum trotzdem nicht an (kein
     // `mountGrip`, nicht in `STANDARD_GRIP_TOOLS`): sie hat nur den einen
     // Zylinder, und das ist das Rohr.
-    this.holdPosition.set(GRIP_HOLD_POSITION.x, GRIP_HOLD_POSITION.y, GRIP_HOLD_POSITION.z);
+    this.holdPosition.set(0, 0, 0);
+    const pitched = quatFromEulerXYZ({ x: TORCH_PITCH, y: 0, z: 0 });
+    this.holdRotation.set(pitched.x, pitched.y, pitched.z, pitched.w);
 
     const body = new THREE.MeshStandardMaterial({
       color: 0x2b3242,

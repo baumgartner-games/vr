@@ -264,9 +264,6 @@ const VR_GHOST_OPACITY = 0.4;
 /** Wie lang die Arme des Achsenkreuzes im Bearbeiten-Modus sind. */
 const AXES_SIZE = 0.13;
 
-/** Wie durchsichtig das Werkzeug wird, wo es nur zeigt, wo es wäre. */
-const GHOST_OPACITY = 0.22;
-
 const _box = new THREE.Box3();
 const _bounds = new THREE.Box3();
 const _centre = new THREE.Vector3();
@@ -389,11 +386,6 @@ export class ToolViewer {
   private gripBase: Pose | null = null;
   /** Die gezeichnete Hand als Geist — nur beim Justieren in *Hand in echt*. */
   private vrHand: GhostHand | null = null;
-  /** Was ein Material war, bevor das Werkzeug zum Geist wurde (`setToolGhost`). */
-  private readonly opaque = new Map<
-    THREE.Material,
-    { transparent: boolean; opacity: number; depthWrite: boolean }
-  >();
   /** Der Zielpfeil am Werkzeug — `null`, wenn dieses Werkzeug nicht zielt. */
   private aimLine: THREE.LineSegments | null = null;
   /** Die Zielscheibe auf dem Zeigestrahl der Hand, und wie weit weg sie steht. */
@@ -908,8 +900,14 @@ export class ToolViewer {
    * - **in echt** liegt im Griffraum der rote Handgriff des Geräts und die
    *   Faust darum. Der Griffraum ist dabei genau der, in dem das Werkzeug
    *   hängt (`Lage-im-Griff⁻¹`) — der Controller steht also dort, wo er beim
-   *   Halten dieses Werkzeugs wirklich stünde, und das Werkzeug bleibt als
-   *   **Geist** stehen, damit man sieht, wo es dabei wäre.
+   *   Halten dieses Werkzeugs wirklich stünde, und das Werkzeug steht daneben,
+   *   wo es dabei wäre.
+   *
+   * Das Werkzeug war in dieser Ansicht eine Weile **gläsern**, weil man ja
+   * ein Gerät in der Hand hat und keine Lampe. Nur ist genau das die Ansicht,
+   * in der man die Lage des Werkzeugs beurteilt — und ein Ding bei 22 %
+   * Deckkraft beurteilt niemand. Es steht deshalb überall gleich fest da; wo
+   * die *echte* Hand ist, sagt der rote Handgriff.
    *
    * **Wer steht, und wer wandert.** Solange man nur hinsieht, steht das
    * Werkzeug: dann kann man zwischen den Ansichten hin und her schalten, ohne
@@ -934,9 +932,6 @@ export class ToolViewer {
     tool.showHeldBy(this.side);
     const aim = this.aimOf();
     const local = toolInGrip({ position: tool.holdPosition, rotation: tool.holdRotation }, aim);
-
-    // In echt ist das Werkzeug nicht da, also steht es dort als Geist.
-    this.setToolGhost(this.mode === 'controller');
 
     // Der **Griffraum** als Knoten: dort, wo der Controller läge, der dieses
     // Werkzeug hält. Daran hängt alles, was dem Gerät gehört — der
@@ -1048,49 +1043,6 @@ export class ToolViewer {
     this.placeTarget();
     if (refit) this.fit();
     this.sizeLines();
-  }
-
-  /**
-   * Das Werkzeug **durchsichtig** schalten und wieder zurück.
-   *
-   * Am Controller ist das Werkzeug nicht da — man hält ein Gerät —, aber ganz
-   * wegzunehmen wäre zu viel: dann wüsste niemand mehr, wovon dieses Bild die
-   * echte Hand zeigt. Also steht es als Geist da, wo es wäre.
-   *
-   * Die Werte kommen aus den Materialien selbst und werden gemerkt, statt sie
-   * hinterher zu erraten: ein Werkzeug hat Lack, Glas und Leuchtendes
-   * nebeneinander, und „einfach wieder undurchsichtig" macht aus einem
-   * Fernrohrglas eine Wand.
-   */
-  private setToolGhost(on: boolean): void {
-    const tool = this.tool;
-    if (!tool) return;
-    if (on) {
-      tool.traverse((object) => {
-        const mesh = object as THREE.Mesh & THREE.Line;
-        // Auch die Linien daran — ein blasses Werkzeug mit einem knallvioletten
-        // Pfeil darin sähe aus, als gehörte der Pfeil nicht dazu.
-        if (!mesh.isMesh && !mesh.isLine) return;
-        for (const material of materialsOf(mesh)) {
-          if (this.opaque.has(material)) continue;
-          this.opaque.set(material, {
-            transparent: material.transparent,
-            opacity: material.opacity,
-            depthWrite: material.depthWrite,
-          });
-          material.transparent = true;
-          material.opacity = Math.min(material.opacity, GHOST_OPACITY);
-          material.depthWrite = false;
-        }
-      });
-      return;
-    }
-    for (const [material, was] of this.opaque) {
-      material.transparent = was.transparent;
-      material.opacity = was.opacity;
-      material.depthWrite = was.depthWrite;
-    }
-    this.opaque.clear();
   }
 
   /**
@@ -1359,10 +1311,6 @@ export class ToolViewer {
     this.studio.visible = true;
     this.spin = 0;
     this.setCut(null);
-    // Erst das Werkzeug wieder undurchsichtig machen, dann weg damit: die
-    // gemerkten Materialien gehören ihm, und nach `disposeTool` gibt es sie
-    // nicht mehr.
-    this.setToolGhost(false);
     const tool = this.tool;
     this.tool = null;
     tool?.removeFromParent();
@@ -1622,11 +1570,4 @@ function rayIn(line: THREE.Object3D): Ray {
     origin: { x: _at.x, y: _at.y, z: _at.z },
     direction: { x: _dir.x, y: _dir.y, z: _dir.z },
   };
-}
-
-/** Die Materialien eines Meshes oder einer Linie, ob nun eines oder eine Liste. */
-function materialsOf(mesh: THREE.Mesh | THREE.Line): THREE.Material[] {
-  const material = mesh.material as THREE.Material | THREE.Material[];
-  if (!material) return [];
-  return Array.isArray(material) ? material : [material];
 }

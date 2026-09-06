@@ -20,9 +20,10 @@
  */
 
 /** Wie sich ein nah gefasster Gegenstand bewegt, während die Hand ihn führt. */
-export type GrabMotion = 'rigid' | 'spin';
+export type GrabMotion = 'hand' | 'rigid';
 
-export const GRAB_MOTIONS: readonly GrabMotion[] = ['rigid', 'spin'];
+/** Der Reihe nach, wie die Menüzeile sie durchschaltet. */
+export const GRAB_MOTIONS: readonly GrabMotion[] = ['hand', 'rigid'];
 
 export interface GrabSettings {
   /** Ferngreifen: der Gegenstand kommt geflogen. */
@@ -36,9 +37,11 @@ export interface GrabSettings {
   /** Höhe des Zylinders über dem Boden, in Zentimetern. */
   height: number;
   /**
-   * `rigid` hält den Gegenstand so starr wie eine Faust — ein langer Arm, und
-   * jedes Grad am Handgelenk wird auf einen Meter zum Ausschlag. `spin` dreht
-   * ihn stattdessen um seine eigene Mitte und verschiebt eins zu eins.
+   * `hand` hängt den Gegenstand an die **Geisterhand**: die tut eins zu eins,
+   * was die echte Hand tut, und der Gegenstand dreht sich um den Punkt, an
+   * dem sie ihn anfasst. `rigid` hält ihn stattdessen so starr wie eine
+   * Faust — ein langer Arm, und jedes Grad am Handgelenk wird auf einen Meter
+   * zum Ausschlag.
    */
   motion: GrabMotion;
   /** Die Geisterhand am Gegenstand, solange er nah gefasst werden kann. */
@@ -53,7 +56,7 @@ export const DEFAULT_GRAB: GrabSettings = {
   near: true,
   radius: 100,
   height: 210,
-  motion: 'rigid',
+  motion: 'hand',
   ghost: true,
 };
 
@@ -123,7 +126,13 @@ export function formatGrabField(field: GrabField, settings: GrabSettings): strin
 
 /** Wie die Betriebsart heißt, wenn ein Mensch sie liest. */
 export function motionLabel(motion: GrabMotion): string {
-  return motion === 'spin' ? 'Drehung um Objektmitte' : 'Starr wie in der Faust';
+  return motion === 'rigid' ? 'Starr wie in der Faust' : 'Wie die eigene Hand';
+}
+
+/** Die nächste Betriebsart, hinten wieder von vorn — was die Menüzeile tut. */
+export function nextGrabMotion(motion: GrabMotion): GrabMotion {
+  const index = GRAB_MOTIONS.indexOf(motion);
+  return GRAB_MOTIONS[(index + 1) % GRAB_MOTIONS.length]!;
 }
 
 // --- der Speicher ----------------------------------------------------------
