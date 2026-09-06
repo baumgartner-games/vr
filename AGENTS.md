@@ -218,19 +218,27 @@ einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
 aufeinander stehen), die **Flächen der Würfel**
 (`src/worlds/portal/diceFaces.ts` — dass aus zwölf Dreiecken sechs Seiten
 werden, dass jede Augenzahl genau einmal vorkommt und dass gegenüberliegende
-Flächen `n + 1` ergeben, wie auf einem echten Würfel) und die **beiden Listen
+Flächen `n + 1` ergeben, wie auf einem echten Würfel), die **beiden Listen
 des Beutels** (`src/worlds/portal/props.test.ts` — dass jede angebotene Sorte
-einen Namen hat und keine doppelt im Raster steht). Diese
+einen Namen hat und keine doppelt im Raster steht) und das **Raster im Beutel**
+(`src/worlds/portal/tools/bagGrid.ts` — wo die Fächer einer Seite liegen, dass
+hinter der letzten Seite wieder die erste kommt, und dass eine **Ziellinie**
+aus einem Meter dasselbe Fach meint wie ein Finger darüber). Diese
 Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht Jest
 weder WebGL noch WebXR noch wasm.
 
-Zwei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
+Drei Tests benutzen doch three.js — aber nur als Geometrie, ohne WebGL: der
 **Pointer** (`src/core/Pointer.ts`) muss jeder Hand ihren eigenen Strahl und
-ihren eigenen Trigger lassen, und die **Handform** (`src/core/HandVisuals.ts`)
+ihren eigenen Trigger lassen, die **Handform** (`src/core/HandVisuals.ts`)
 muss links links und rechts rechts sein — und der weiße Handschuh muss
 dasselbe Skelett tragen wie die Boxhand, mit seinen **drei schwarzen Strichen**
-oben auf dem Handrücken. Beides sind Vorzeichen, die man in der
-Brille erst nach Minuten bemerkt und dann nicht mehr los wird. Alles, was schwer zu testen ist, gehört
+oben auf dem Handrücken —, und die **Öffnung des magischen Beutels**
+(`src/worlds/portal/tools/MagicBagTool.test.ts`) muss fassen, was in ihr liegt:
+Fächer, Blätterpfeile und Seitenpunkte. Die ersten beiden sind Vorzeichen, die
+man in der Brille erst nach Minuten bemerkt und dann nicht mehr los wird; das
+dritte ist eine Zahl, die von oben niemand sieht — der Beutel ist ein Trichter,
+und dort, wo die Felder liegen, ist er anderthalb Zentimeter enger als am Saum.
+Der erste Blätterpfeil stand deshalb im Leder. Alles, was schwer zu testen ist, gehört
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
@@ -795,12 +803,27 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gerechnet, denn er zielt nicht). Am Gürtel hängt ein zugezogener Lederbeutel; in
     der Hand geht er auf, und in der Öffnung liegt ein **Raster** aus
     Miniaturen — jede das Ding selbst, mit `createPropShape` gebaut und auf
-    Fachgröße gerechnet, keine Strichzeichnung. Die freie Hand fährt hinein:
-    das Fach unter der Fingerspitze leuchtet, ein Stups meldet es, über dem
+    Fachgröße gerechnet, keine Strichzeichnung. Die freie Hand sucht sich eines
+    aus, und dafür gibt es **zwei Wege**: sie fährt hinein, oder sie **zeigt**
+    aus dem Sessel darauf — die Ziellinie trifft die Rasterebene, und das Fach
+    darunter ist gemeint (`tools/bagGrid.ts`, `cellAtRay`). Der Finger hat
+    dabei Vorrang, wenn er wirklich in der Öffnung steht. Das gemeinte Fach
+    leuchtet, ein Stups meldet es, über dem
     Beutel steht der Name, und **Greifen** holt das Ding in Originalgröße
     genau dorthin, wo die Hand ist — bei allen in der Sitzung
-    (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü).
-    Zwei Dinge daran sind Absicht. Er **zielt nicht** (`alignToAim = false`) —
+    (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü). Der Strahl kam
+    dazu, weil der Finger die Hand jedes Mal bis in den Beutel führt: richtig,
+    solange man ihn vor sich hält, mühsam, sobald er nur in der Hand hängt.
+    Der Vorrat liegt auf **Seiten**: sechs Fächer, links und rechts ein Pfeil,
+    davor ein Punkt je Seite. Angesteuert wird ein Pfeil wie ein Fach, und
+    **Greifen** blättert — im Kreis, hinter der letzten Seite kommt wieder die
+    erste (`bagGrid.ts`, `turnPage`); über dem Beutel steht dabei, wohin er
+    führt. Alle siebzehn Sorten auf einmal hieß siebzehn Fächer von
+    zweieinhalb Zentimetern, dicht an dicht in einer Öffnung von einer
+    Handbreite — daneben zu greifen war der Normalfall. Sechs große Fächer
+    trifft man.
+    Eines daran sieht wie ein Versehen aus und ist Absicht: Er **zielt nicht**
+    (`alignToAim = false`) —
     er sitzt in der Faust wie ein Handschuh und nicht auf dem Zeigestrahl wie
     eine Waffe —, und sonst bewegt er sich wie **jedes andere Werkzeug**: er
     steckt im Griff und macht mit, was die Hand tut, Gieren, Nicken _und_
@@ -817,9 +840,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Beutel damit um 180° gedreht **hinter** die Hand — auf der Werkzeugseite
     unsichtbar, denn dort lief sie nie. Solches Zeug fällt mit ihr weg.)
     Und die greifende Hand gehört
-    ihm, solange sie über einem Fach steht (`claimsHand`) — sonst risse
-    derselbe Griff die Kiste hinter dem Beutel an sich, und in einem vollen
-    Labor steht immer eine Kiste dahinter.
+    ihm, solange sie auf ein Fach oder einen Pfeil zeigt (`claimsHand`) —
+    sonst risse derselbe Griff die Kiste hinter dem Beutel an sich, und in
+    einem vollen Labor steht immer eine Kiste dahinter.
     Warum beides, Seite _und_ Werkzeug: Ein Menü ist ein Ort, an den man geht;
     ein Beutel ist etwas, das man dabeihat. Wer eine Reihe Dominosteine
     aufstellt, greift zwanzigmal hinein, ohne dazwischen zwanzigmal ein Panel
@@ -1380,7 +1403,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
 | Radiergummi                        | Trigger löscht                                                                                                                                                        | –                                                                                               | –                    |
 | Sektflasche (aus dem Beutel)       | greifen: sie rastet am Hals in die Faust wie ein Pistolengriff, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                              | –                                                                                               | –                    |
-| Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen: Greifen holt das Ding heraus                                                                             | –                                                                                               | –                    |
+| Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen oder darauf zeigen: Greifen holt das Ding heraus, auf einem der beiden Pfeile blättert es eine Seite weiter | –                                                                                               | –                    |
 | Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
 | Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
 | Kart: lenken                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                    | `A` / `D`                                                                                       | –                    |
