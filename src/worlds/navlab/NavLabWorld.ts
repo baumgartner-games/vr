@@ -8,7 +8,8 @@ import type { NavGraph } from '../nav/navGraph';
 import { addPortal, doorBetween, dropPortal, paintRect, portalLinkIds } from '../nav/navBuild';
 import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE } from '../nav/navTile';
-import { layerSummary, nextAll, type NavLayer } from '../nav/navLayers';
+import { layerSpec, layerSummary, nextAll, type NavLayer } from '../nav/navLayers';
+import type { PreviewButton } from '../shared/livePreview';
 import { NavConsole, type ConsoleKey } from './NavConsole';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import type { Npc } from '../npc/Npc';
@@ -66,8 +67,19 @@ export class NavLabWorld extends PortalWorld {
   });
 
   private readonly states = new Map<ScenarioId, ScenarioState>();
-  /** Die Knöpfe, die im Zeiger hängen — beim Verlassen müssen sie wieder heraus. */
-  private readonly knobs: { mesh: THREE.Mesh; run: () => void }[] = [];
+  /**
+   * Die Knöpfe, die im Zeiger hängen — beim Verlassen müssen sie wieder
+   * heraus. Sie tragen ihren Namen mit: Auf dem Telefon steht daneben eine
+   * Liste, und „Stachelgrube · Start" trifft man dort sicherer als eine
+   * Kuppel aus dreißig Metern Höhe (`shared/livePreview.ts`).
+   */
+  private readonly knobs: {
+    mesh: THREE.Mesh;
+    label: string;
+    group: string;
+    accent: number;
+    run: () => void;
+  }[] = [];
   /** Was ein Szenario an Dingen in die Welt gestellt hat. */
   private readonly litter = new Map<ScenarioId, PhysicsBody[]>();
   private door: THREE.Object3D | null = null;
@@ -298,8 +310,10 @@ export class NavLabWorld extends PortalWorld {
 
   /** Der rote Knopf, und wo es einen gibt der gelbe daneben. */
   private buildKnobs(parent: THREE.Group, bay: Scenario): void {
-    this.knob(parent, bay, -3, 0xff3b2f, 'START', () => this.toggle(bay.id));
-    if (bay.act) this.knob(parent, bay, 3, 0xffc857, bay.act.toUpperCase(), () => this.act(bay.id));
+    this.knob(parent, bay, -3, 0xff3b2f, 'START', bay.title, () => this.toggle(bay.id));
+    if (bay.act) {
+      this.knob(parent, bay, 3, 0xffc857, bay.act.toUpperCase(), bay.title, () => this.act(bay.id));
+    }
   }
 
   private knob(
@@ -308,6 +322,7 @@ export class NavLabWorld extends PortalWorld {
     lx: number,
     color: number,
     label: string,
+    bayName: string,
     run: () => void,
   ): void {
     const at = bayPoint(bay, lx, BAY_D / 2 - 1.6);
@@ -341,7 +356,7 @@ export class NavLabWorld extends PortalWorld {
     plate.rotation.x = -0.5;
     group.add(plate);
 
-    this.knobs.push({ mesh: dome, run });
+    this.knobs.push({ mesh: dome, label, group: bayName, accent: color, run });
   }
 
   // --- was in keiner Geometrie steht ----------------------------------------
@@ -409,7 +424,7 @@ export class NavLabWorld extends PortalWorld {
     }
     this.refreshConsoles();
     this.refreshMenuLabels();
-    this.context?.notify(layerSummary(this.navLayerState()));
+    this.announce(layerSummary(this.navLayerState()));
   }
 
   private refreshConsoles(): void {
@@ -421,20 +436,20 @@ export class NavLabWorld extends PortalWorld {
     const state = this.states.get(id)!;
     if (state.running) {
       this.reset(id);
-      this.context?.notify(`${scenario(id).title}: zurückgesetzt`);
+      this.announce(`${scenario(id).title}: zurückgesetzt`);
       return;
     }
     this.reset(id);
     startScenario(state);
     this.play(id);
-    this.context?.notify(`${scenario(id).title} läuft`);
+    this.announce(`${scenario(id).title} läuft`);
   }
 
   /** Der gelbe Knopf: das, was das Szenario schwer macht. */
   private act(id: ScenarioId): void {
     const state = this.states.get(id)!;
     if (!state.running || state.acted) {
-      this.context?.notify('Erst den roten Knopf');
+      this.announce('Erst den roten Knopf');
       return;
     }
     state.acted = true;
@@ -452,14 +467,14 @@ export class NavLabWorld extends PortalWorld {
       // Der Graph erfährt es sofort — die NPCs erst, wenn sie davorstehen.
       const key = graph.at(at.x, at.z, 0);
       if (key !== NO_TILE) graph.setBlocked(key, true);
-      this.context?.notify('Durchgang zu — er plant um');
+      this.announce('Durchgang zu — er plant um');
       return;
     }
 
     if (id === 'door' && graph) {
       graph.setDoor(DOOR_ID, { open: false, barred: true });
       if (this.door) this.door.position.set(this.doorHome.x + 2, 1.1, this.doorHome.z);
-      this.context?.notify('Verriegelt — er weiß es noch nicht');
+      this.announce('Verriegelt — er weiß es noch nicht');
       return;
     }
 
@@ -476,7 +491,7 @@ export class NavLabWorld extends PortalWorld {
       if (blind) {
         for (const link of portalLinkIds(PORTAL_ID)) blind.mind().belief.hideLink(link, this.clock);
       }
-      this.context?.notify('Portal offen — nur der vordere weiß davon');
+      this.announce('Portal offen — nur der vordere weiß davon');
     }
   }
 
@@ -551,8 +566,15 @@ export class NavLabWorld extends PortalWorld {
 
   // --- das Bild -------------------------------------------------------------
 
-  override update(dt: number, ctx: WorldContext): void {
-    super.update(dt, ctx);
+  /**
+   * Die eigene Uhr und die Zeitschaltung der Szenarien.
+   *
+   * Sie steht in `simulate` und nicht in `update`, und das ist der ganze
+   * Unterschied zwischen „im Labor stehen" und „das Labor vom Telefon aus
+   * laufen lassen": `update` braucht einen Spieler, `simulate` nicht
+   * (`PortalWorld.simulate`).
+   */
+  protected override simulate(dt: number): void {
     this.clock += dt;
     for (const bay of SCENARIOS) {
       const state = this.states.get(bay.id)!;
@@ -562,12 +584,57 @@ export class NavLabWorld extends PortalWorld {
     }
   }
 
+  /**
+   * **Was das Telefon drücken darf**: die sechs roten Knöpfe, die gelben
+   * daneben — und die Tasten der Wandkonsolen.
+   *
+   * Dieselben Objekte wie in der Brille, dieselben Handgriffe dahinter. Eine
+   * zweite Bedienung für dieselben sechs Szenarien wäre eine, die irgendwann
+   * etwas anderes tut als die erste.
+   */
+  protected override previewButtons(): PreviewButton[] {
+    const buttons: PreviewButton[] = this.knobs.map((knob) => ({
+      object: knob.mesh,
+      label: knob.label,
+      group: knob.group,
+      accent: knob.accent,
+      press: () => knob.run(),
+    }));
+    // Die Tasten beider Wandkonsolen — **leise**: Die Werkzeugseite hat für
+    // dieselben fünf Ebenen eigene Schalter, und eine zweite Reihe daneben
+    // wäre nur eine, die man zusätzlich lesen muss. Antippen im Bild geht
+    // trotzdem, denn im Bild stehen sie ja.
+    for (const console_ of this.consoles) {
+      for (const key of console_.keys()) {
+        buttons.push({
+          object: key.mesh,
+          label: consoleLabel(key.key),
+          group: 'Navigation zeigen',
+          accent: 0x39d0ff,
+          quiet: true,
+          press: () => this.pressLayer(key.key),
+        });
+      }
+    }
+    return buttons;
+  }
+
+  /** Von außen umgelegt (Werkzeugseite): die Konsolen leuchten trotzdem mit. */
+  protected override previewLayersChanged(): void {
+    this.refreshConsoles();
+  }
+
   /** Die eigene Uhr dieser Welt — die der Basis ist ihre Sache. */
   private clock = 0;
 }
 
 const DOOR_ID = 'navlab-tuer';
 const PORTAL_ID = 'navlab-portal';
+
+/** Wie eine Konsolentaste in der Liste auf dem Telefon heißt. */
+function consoleLabel(key: ConsoleKey): string {
+  return key === 'all' ? 'Alles' : layerSpec(key).label;
+}
 
 function scenario(id: ScenarioId): Scenario {
   return SCENARIOS.find((bay) => bay.id === id)!;

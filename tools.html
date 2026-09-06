@@ -186,6 +186,33 @@
             </div>
           </div>
         </div>
+        <!--
+          **Das Labor** — nur bei einer Welt, die läuft (`shared/livePreview.ts`).
+
+          Eine Vorschau ist sonst ein Bild: Man dreht eine Welt und sieht ihren
+          Grundriss. Das Navigationslabor besteht aber aus sechs Knöpfen und
+          dem, was danach passiert — und davon zeigt ein Bild genau nichts.
+          Hier steht deshalb dieselbe Welt in Betrieb: Knöpfe zum Drücken, die
+          Debug-Ebenen zum Ein- und Ausschalten und ein Ziel, dem die NPCs
+          nachlaufen. Auf dem Telefon ist das die ganze Brille, die man dafür
+          braucht.
+        -->
+        <section id="lab" class="lab" hidden>
+          <div class="lab__head">
+            <button id="lab-run" class="lab__run" type="button" aria-pressed="false">
+              Laufen lassen
+            </button>
+            <button id="lab-top" class="lab__view" type="button" hidden>Von oben</button>
+          </div>
+          <p id="lab-lede" class="lab__lede">
+            Startet die Welt wirklich — mit Physik, Gitter und NPCs. Auf den Boden tippen setzt
+            das <b>Ziel</b>, dem sie nachlaufen.
+          </p>
+          <p id="lab-say" class="lab__say" aria-live="polite" hidden></p>
+          <div id="lab-keys" class="lab__keys" hidden></div>
+          <div id="lab-show" class="lab__show" hidden></div>
+        </section>
+
         <div id="foot" class="detail__foot">
           <p id="hint" class="detail__hint"></p>
           <p id="note" class="detail__note" hidden></p>

@@ -144,12 +144,14 @@ import { applyNavLayers, boxesFrom, levelCensus, navDebugView, navPathView } fro
 import {
   NAV_LAYERS,
   anyLayer,
+  defaultLayers,
   layerSummary,
   nextAll,
   noLayers,
   type NavLayer,
   type NavLayerState,
 } from '../nav/navLayers';
+import type { LivePreview, PreviewButton } from '../shared/livePreview';
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
@@ -761,6 +763,18 @@ export class PortalWorld implements World {
   private navLayers: NavLayerState = noLayers();
   /** Wann die Lebensbalken über den NPCs zu sehen sind (`npc/NpcBody.ts`). */
   private npcBars: BarMode = 'hurt';
+  /** Wohin Meldungen gehen, solange die Welt als Vorschau läuft. */
+  private previewSink: ((message: string) => void) | null = null;
+  /**
+   * **Die Attrappe des Spielers in der laufenden Vorschau** — oder `null`,
+   * solange richtig gespielt wird.
+   *
+   * Sie ist der Grund, warum eine Vorschau überhaupt etwas zeigt: Ein Zombie
+   * geht jemandem nach, und in einer Vorschau steht niemand. Was hier steht,
+   * bekommt `playerFeet()` zurück, wenn es keinen Spieler gibt — für die
+   * Hirne, die Wegsuche und die Spawnpunkte ist das der Spieler.
+   */
+  private ghost: THREE.Group | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -817,7 +831,7 @@ export class PortalWorld implements World {
       physics: this.physics,
       playerAt: (target) => this.playerFeet(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
-      notify: (message) => this.context?.notify(message),
+      notify: (message) => this.announce(message),
       nav: () => this.nav,
     });
     this.director.setBars(this.npcBars);
@@ -882,6 +896,9 @@ export class PortalWorld implements World {
     this.updateAim(ctx);
     this.applyViewOverride(ctx);
     this.updateFallRescue(ctx);
+    // Zuletzt: was die Welt für sich selbst tut. Dieselbe Zeile läuft in der
+    // laufenden Vorschau ohne alles darüber (`stepPreview`).
+    this.simulate(dt);
   }
 
   menu(): MenuEntry[] {
@@ -1114,6 +1131,20 @@ export class PortalWorld implements World {
   }
 
   /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
+  /**
+   * **Eine Meldung an den, der zusieht.**
+   *
+   * Im Spiel ist das das Handgelenk (`ctx.notify`), in der laufenden Vorschau
+   * die Zeile unter der Bühne der Werkzeugseite. Eine Welt, die etwas zu sagen
+   * hat, soll nicht wissen müssen, wer gerade zuhört — und `this.context` ist
+   * in der Vorschau `null`, also verschluckte ein `ctx?.notify` dort jede
+   * Antwort auf jeden Knopfdruck.
+   */
+  protected announce(message: string): void {
+    this.context?.notify(message);
+    this.previewSink?.(message);
+  }
+
   /**
    * Wann die Lebensbalken zu sehen sind — auch für die Vorschau der
    * Werkzeugseite, die kein Handgelenk-Menü hat.
@@ -2847,6 +2878,130 @@ export class PortalWorld implements World {
    * eine Welt gefällt, will zuerst ihren Grundriss sehen — die Runde, das
    * Tal, die vier Zimmer — und erst danach, wie es darin aussieht.
    */
+  /**
+   * **Dieselbe Welt, aber sie läuft** — für das Telefon, das ein Labor
+   * bedienen will (`shared/livePreview.ts`).
+   *
+   * Der Unterschied zur stillen Vorschau ist genau eine Zeile und alles, was
+   * daran hängt: Statt der Attrappe (`silentPhysics`) steht hier eine **echte
+   * Physik**. Damit stehen die Wände wirklich, das Gitter wird abgetastet wie
+   * im Spiel (`bakeNavigation`), und der Bestand an NPCs (`NpcDirector`) hat
+   * einen Raum, in dem er laufen kann. Gebaut wird mit denselben Zeilen wie in
+   * `init` — was fehlt, ist alles, wofür es einen **Spieler** braucht:
+   * Portale, Gürtel, Werkzeuge, Netz, Menü.
+   *
+   * An seiner Stelle steht die **Attrappe** (`ghost`): ein Ring auf dem Boden,
+   * dem die Hirne nachlaufen. Sie ist keine Vereinfachung, sondern das, was
+   * die Ansicht von oben erst zu einem Werkzeug macht — man setzt sie
+   * irgendwohin und sieht, welchen Weg das Gitter dorthin hergibt.
+   *
+   * Asynchron, weil die Physik geladen werden muss; wer nur ein Bild will,
+   * nimmt weiter `preview()` und wartet auf nichts.
+   */
+  async previewLive(): Promise<WorldPreview> {
+    this.root.name = 'preview-live';
+    this.physics = await PhysicsWorld.create(-this.gravityNow());
+    this.root.add(createLighting(Math.max(this.lightIntensity(), PREVIEW_LIGHT)));
+    this.buildHorizonFloor();
+    this.buildEnvironment();
+    this.bakeNavigation();
+
+    this.director = new NpcDirector({
+      root: this.root,
+      physics: this.physics,
+      playerAt: (target) => this.playerFeet(target),
+      strikePlayer: (direction, strength) => this.takeHit(direction, strength),
+      notify: (message) => this.announce(message),
+      nav: () => this.nav,
+    });
+    this.director.setBars(this.npcBars);
+
+    const ghost = createGhostTarget();
+    ghost.position.copy(this.spawnPoint());
+    this.root.add(ghost);
+    this.ghost = ghost;
+
+    // **Kacheln und Wege an.** Im Spiel ist das aus, weil man dort spielt; wer
+    // eine Welt von oben aufmacht, um das Gitter anzusehen, hat es genau
+    // deshalb aufgemacht.
+    this.setNavLayers(defaultLayers());
+
+    const live: LivePreview = {
+      buttons: this.previewButtons(),
+      step: (dt) => this.stepPreview(dt),
+      target: ghost,
+      moveTarget: (at) => ghost.position.copy(at),
+      layers: () => this.navLayerState(),
+      setLayer: (layer, on) => {
+        this.setNavLayer(layer, on);
+        this.previewLayersChanged();
+      },
+      bars: () => this.npcBarMode(),
+      setBars: (mode) => this.setNpcBars(mode),
+      onMessage: (sink) => {
+        this.previewSink = sink;
+      },
+    };
+
+    return {
+      object: this.root,
+      roof: this.roof,
+      live,
+      dispose: () => {
+        this.previewSink = null;
+        this.director?.dispose();
+        this.director = null;
+        this.ghost = null;
+        for (const tool of this.liveTools) tool.disposeTool();
+        this.liveTools.clear();
+        disposeTree(this.root);
+        this.physics?.dispose();
+        this.physics = null;
+      },
+    };
+  }
+
+  /**
+   * Ein Bild einer laufenden Vorschau — dieselbe Reihenfolge wie in `update`,
+   * nur ohne alles, was einen Spieler voraussetzt.
+   *
+   * Vor dem Schritt und nicht danach: Was ein Hirn in diesem Bild will, soll
+   * in *diesem* Bild gelaufen werden.
+   */
+  private stepPreview(dt: number): void {
+    this.simulate(dt);
+    this.director?.update(dt);
+    this.physics?.step(dt);
+    this.physics?.sync();
+    this.updateNavTracks(dt);
+  }
+
+  /**
+   * **Was eine Welt jedes Bild für sich selbst tut** — ihre Uhr, ihre
+   * Zeitschaltungen, ihre Szenarien.
+   *
+   * Getrennt von `update`, weil `update` einen Spieler und einen Kontext
+   * voraussetzt und die laufende Vorschau beides nicht hat. Wer hier etwas
+   * hineinschreibt, bekommt es in der Brille **und** auf dem Telefon; wer es
+   * in `update` schreibt, nur in der Brille.
+   */
+  protected simulate(_dt: number): void {}
+
+  /**
+   * **Was man in der laufenden Vorschau drücken darf.**
+   *
+   * Leer voreingestellt: Die meisten Welten haben keine Knöpfe, und eine Liste
+   * mit allem Anfassbaren wäre bei der Portalwelt der halbe Werkzeugkasten.
+   * Wer welche anbietet, gibt ihnen Namen — auf einem Telefon liest man die
+   * Zeile und trifft sie, statt eine Kuppel im Bild zu suchen.
+   */
+  protected previewButtons(): PreviewButton[] {
+    return [];
+  }
+
+  /** Eine Ebene wurde von außen umgelegt — die Welt zieht ihre Anzeigen nach. */
+  protected previewLayersChanged(): void {}
+
   preview(): WorldPreview {
     this.root.name = 'preview';
     this.physics = silentPhysics();
@@ -4800,7 +4955,9 @@ export class PortalWorld implements World {
    */
   private playerFeet(target: THREE.Vector3): THREE.Vector3 | null {
     const ctx = this.context;
-    if (!ctx) return null;
+    // Kein Spieler, aber eine Attrappe: die laufende Vorschau der
+    // Werkzeugseite. Für alles, was den Spieler sucht, *ist* sie er.
+    if (!ctx) return this.ghost ? target.copy(this.ghost.position) : null;
     if (this.viewOverride) return target.copy(this.bodyHome);
     ctx.rig.getHeadPosition(target);
     target.y = ctx.rig.getFloorY();
@@ -4827,7 +4984,7 @@ export class PortalWorld implements World {
     }
     const ctx = this.context;
     for (const side of ['left', 'right'] as const) ctx?.input.get(side)?.pulse(0.9, 90);
-    ctx?.notify('Treffer!');
+    this.announce('Treffer!');
     playTone({ type: 'sawtooth', from: 260, to: 90, duration: 0.16, gain: 0.06 });
   }
 
@@ -6931,4 +7088,34 @@ function measuredNote(hand: Handedness | null): string {
   const built = 'Zurück auf die gebaute Pose';
   if (!hand) return built;
   return `${built} · gemessen: ${hand === 'left' ? 'links' : 'rechts'}`;
+}
+
+/**
+ * **Die Attrappe des Spielers** in einer laufenden Vorschau: ein Ring auf dem
+ * Boden, ein kurzer Stab darin.
+ *
+ * Kein Körper und keine Puppe, mit Absicht. Sie ist kein Mitspieler, sondern
+ * eine **Stelle** — die, auf die die Hirne zulaufen. Ein Ring liest sich von
+ * oben als Markierung; eine Figur läse sich als jemand, der gleich etwas tut.
+ * Der Stab ist dafür da, dass man sie auch von der Seite sieht, wenn die
+ * Ansicht flach steht.
+ */
+function createGhostTarget(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'preview-target';
+  const color = 0x39d0ff;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.05, 10, 28),
+    new THREE.MeshBasicMaterial({ color, toneMapped: false }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.06;
+  group.add(ring);
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 1.7, 8),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, toneMapped: false }),
+  );
+  post.position.y = 0.85;
+  group.add(post);
+  return group;
 }
