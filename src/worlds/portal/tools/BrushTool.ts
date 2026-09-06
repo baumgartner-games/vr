@@ -147,6 +147,8 @@ export class BrushTool extends Tool {
   private listening = false;
   /** Die Leinwand, auf der der laufende Strich liegt. */
   private stroke: PaintSurface | null = null;
+  /** Und die, auf der gerade der Vorschaukreis steht. */
+  private aimed: PaintSurface | null = null;
 
   constructor() {
     super();
@@ -242,6 +244,7 @@ export class BrushTool extends Tool {
     this.setHover(null, null);
     this.touching = '';
     this.endStroke();
+    this.clearAim();
     this.unlisten(host);
   }
 
@@ -299,6 +302,7 @@ export class BrushTool extends Tool {
     if (!controller || !this.heldBy) {
       this.palette.visible = false;
       this.endStroke();
+      this.clearAim();
       return;
     }
     this.listen(host);
@@ -308,6 +312,8 @@ export class BrushTool extends Tool {
     // macht aus dem Tupfer einen Strich.
     if (this.stroke && controller.trigger.pressed) this.paintOn(host, true);
     else if (!controller.trigger.pressed) this.endStroke();
+
+    this.showAim(host);
 
     const other: Handedness = this.heldBy === 'left' ? 'right' : 'left';
     this.paletteSide = other;
@@ -387,6 +393,46 @@ export class BrushTool extends Tool {
   private endStroke(): void {
     this.stroke?.endStroke();
     this.stroke = null;
+  }
+
+  /**
+   * **Der Kreis auf der Leinwand**: wo ein Strich jetzt hinginge.
+   *
+   * Gesucht wird genau wie beim Malen (`paintOn`) — erst die Spitze, dann der
+   * Strahl, die erste Leinwand gewinnt —, damit der Ring dort steht, wo der
+   * Trigger auch hinträfe, und nicht auf der Leinwand daneben.
+   *
+   * Liegt der Strahl gerade auf der **Palette**, gibt es keinen Ring: dann
+   * nimmt der Trigger eine Farbe und malt nicht, und ein Kreis auf der
+   * Leinwand verspräche das Gegenteil.
+   */
+  private showAim(host: ToolHost): void {
+    if (this.hovered) {
+      this.clearAim();
+      return;
+    }
+    this.tipAnchor.getWorldPosition(_tip);
+    _direction.set(0, 0, -1).applyQuaternion(this.getWorldQuaternion(_quaternion)).normalize();
+
+    let found: PaintSurface | null = null;
+    for (const surface of host.paintSurfaces()) {
+      if (
+        !surface.aimAt(_tip, this.color) &&
+        !surface.aimRay(_tip, _direction, PAINT_RANGE, this.color)
+      ) {
+        continue;
+      }
+      found = surface;
+      break;
+    }
+    if (this.aimed && this.aimed !== found) this.aimed.clearAim();
+    this.aimed = found;
+  }
+
+  /** Kein Ziel mehr — der Ring geht weg, auch wenn die Staffelei bleibt. */
+  private clearAim(): void {
+    this.aimed?.clearAim();
+    this.aimed = null;
   }
 
   /**

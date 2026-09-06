@@ -8,10 +8,13 @@ const RANGE = 30;
 /**
  * Wie weit der Schirm im Gehäuse nach hinten lehnt, in Bogenmaß.
  *
- * 45°: so viel, wie eine ablesende Hand nach vorn unten zeigt — im Raum steht
- * der Schirm damit senkrecht.
+ * **90°**, also flach auf dem Gehäuse liegend. Die ersten 45° stellten ihn im
+ * Raum nur senkrecht — er stand dann zwar nicht mehr schräg, schaute aber
+ * geradeaus ins Zimmer und nicht den an, der ihn liest. Ein Gerät wird auf
+ * Brusthöhe gehalten, und der Kopf ist darüber; die zweiten 45° kippen den
+ * Schirm genau diesen Rest zum Gesicht.
  */
-const DISPLAY_TILT = Math.PI / 4;
+const DISPLAY_TILT = Math.PI / 2;
 /** Wie oft die Anzeige neu geschrieben wird — sie muss nicht mit 90 Hz zittern. */
 const REFRESH = 0.12;
 
@@ -92,12 +95,13 @@ export class InspectTool extends Tool {
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false }),
     );
     this.display.position.set(0, 0.075, -0.02);
-    // **Um 45° nach hinten gekippt** — und damit steht der Schirm in der Hand
-    // senkrecht. Das Gerät zeigt dorthin, wohin die Hand zeigt, und eine Hand,
-    // die etwas abliest, zeigt nach vorn **unten**; ein Schirm, der im Gehäuse
-    // aufrecht steht, lehnt dann im Raum genauso weit nach vorn weg. Die 45°
-    // nehmen genau das heraus. Vorher waren es 0,45 rad, also gut 25° — die
-    // Hälfte des Wegs, und in der Brille sah man den Schirm kippen.
+    // **Um 90° nach hinten gekippt** — der Schirm liegt damit auf dem Gehäuse
+    // und schaut nach oben, dem Kopf entgegen. Das Gerät zeigt dorthin, wohin
+    // die Hand zeigt, und eine Hand, die etwas abliest, zeigt nach vorn
+    // **unten**; der Weg dahin ging über zwei Zwischenstände: 0,45 rad (gut
+    // 25°) ließen den Schirm sichtbar kippen, 45° stellten ihn im Raum
+    // senkrecht — aufrecht, aber am Leser vorbei. Erst die vollen 90° drehen
+    // ihn so weit herum, dass man von oben daraufsieht statt von der Seite.
     this.display.rotation.x = -DISPLAY_TILT;
     this.add(this.display);
 

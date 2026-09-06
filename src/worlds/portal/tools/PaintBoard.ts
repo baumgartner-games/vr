@@ -9,6 +9,14 @@ const STROKE = 0.028;
 const REACH = 0.025;
 /** Der Grundton des Blattes — Leinwand, kein Papier und schon gar kein Weiß. */
 const GROUND = '#f4efe3';
+/**
+ * Wie weit der Vorschaukreis vor dem Blatt schwebt, in Metern.
+ *
+ * Genau auf der Fläche läge er *in* ihr, und zwei Flächen auf demselben
+ * Millimeter flackern gegeneinander (z-fighting). Ein halber Millimeter
+ * reicht und ist auf Armlänge nicht zu sehen.
+ */
+const AIM_LIFT = 0.0005;
 
 const _local = new THREE.Vector3();
 const _origin = new THREE.Vector3();
@@ -33,6 +41,8 @@ export class PaintBoard extends THREE.Mesh implements PaintSurface {
   private readonly texture: THREE.CanvasTexture;
   /** Wo der laufende Strich zuletzt war, in Bildpunkten. */
   private last: { x: number; y: number } | null = null;
+  /** Der Ring, der zeigt, wo der nächste Klecks landet. */
+  private readonly aim: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
 
   constructor(
     readonly width: number,
@@ -65,6 +75,28 @@ export class PaintBoard extends THREE.Mesh implements PaintSurface {
     this.name = 'paint-board';
     this.canvas = canvas;
     this.texture = texture;
+
+    // Der Vorschaukreis: **so breit wie der Strich**, den er ankündigt. Er ist
+    // damit keine Zielhilfe daneben, sondern die Spur selbst, nur noch nicht
+    // gemalt — wer den Ring auf einer Kante liegen sieht, weiß, dass der Strich
+    // sie trifft. Ein Ring und kein Punkt, weil ein gefüllter Fleck genau das
+    // verdeckt, worauf man zielt.
+    const stroke = (STROKE * width) / 2;
+    this.aim = new THREE.Mesh(
+      new THREE.RingGeometry(stroke * 0.72, stroke, 24),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    this.aim.name = 'paint-aim';
+    this.aim.renderOrder = 12;
+    this.aim.visible = false;
+    this.add(this.aim);
+
     this.wipe();
   }
 
@@ -103,6 +135,32 @@ export class PaintBoard extends THREE.Mesh implements PaintSurface {
     this.last = null;
   }
 
+  aimAt(point: THREE.Vector3, color: number): boolean {
+    _local.copy(point);
+    this.worldToLocal(_local);
+    const hit = pointOnCanvas(_local, this.width, this.height, REACH);
+    if (!hit) return false;
+    // Auf der Seite, von der gezielt wird: eine Leinwand hat zwei, und ein Ring
+    // hinter dem Blatt sieht man nicht.
+    this.showAim(hit, _local.z < 0 ? -1 : 1, color);
+    return true;
+  }
+
+  aimRay(origin: THREE.Vector3, direction: THREE.Vector3, range: number, color: number): boolean {
+    this.updateWorldMatrix(true, false);
+    _inverse.copy(this.matrixWorld).invert();
+    _origin.copy(origin).applyMatrix4(_inverse);
+    _direction.copy(direction).transformDirection(_inverse).normalize();
+    const hit = rayOnCanvas(_origin, _direction, this.width, this.height, range);
+    if (!hit) return false;
+    this.showAim(hit, _origin.z < 0 ? -1 : 1, color);
+    return true;
+  }
+
+  clearAim(): void {
+    this.aim.visible = false;
+  }
+
   /**
    * Wieder leer. Ohne das wäre der erste Fehlstrich das Ende des Bildes.
    *
@@ -120,8 +178,17 @@ export class PaintBoard extends THREE.Mesh implements PaintSurface {
   dispose(): void {
     this.geometry.dispose();
     (this.material as THREE.Material).dispose();
+    this.aim.geometry.dispose();
+    this.aim.material.dispose();
     this.texture.dispose();
     this.removeFromParent();
+  }
+
+  /** Den Ring auf den getroffenen Punkt stellen — `side` ist die Blattseite. */
+  private showAim(hit: CanvasPoint, side: number, color: number): void {
+    this.aim.position.set((hit.u - 0.5) * this.width, (0.5 - hit.v) * this.height, side * AIM_LIFT);
+    this.aim.material.color.setHex(color);
+    this.aim.visible = true;
   }
 
   private dab(hit: CanvasPoint, color: number, join: boolean): void {

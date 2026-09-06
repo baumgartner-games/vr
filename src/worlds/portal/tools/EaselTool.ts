@@ -17,8 +17,27 @@ const BOARD_H = 0.9;
 /** Wo seine Mitte über dem Boden steht, und wie weit es sich zurücklehnt. */
 const BOARD_Y = 1.24;
 const BOARD_TILT = -0.1;
-/** Höhe der Ablage, auf der das Blatt aufsitzt. */
+/**
+ * **Wie weit das Blatt vor dem Dreibein steht** — und das ist die Zahl, an der
+ * die Staffelei einmal gescheitert ist.
+ *
+ * Die Beine laufen von den Füßen zur Spitze zusammen und kreuzen dabei genau
+ * die Höhe des Blattes: auf Bildmitte stehen die beiden vorderen noch sieben
+ * Zentimeter vor der Achse, die Querlatte oben liegt bei zwei. Ein Blatt bei
+ * 7,5 cm lag damit *im* Holz — von vorn sah man zwei Latten quer über der
+ * Leinwand, und mit dem Pinsel malte man auf einen Balken.
+ *
+ * Fünfzehn Zentimeter räumen das aus, und sie sind kein Trick: eine echte
+ * Staffelei stellt die Leinwand **vor** die Beine auf eine Ablage, nicht
+ * zwischen sie. Die Ablage wandert deshalb mit (`LEDGE_Z`) — sonst stünde das
+ * Blatt über ihrer Vorderkante in der Luft.
+ */
+const BOARD_Z = 0.15;
+/** Der Rahmen dahinter, eine Blattdicke zurück. */
+const BACKING_Z = BOARD_Z - 0.015;
+/** Höhe der Ablage, auf der das Blatt aufsitzt, und wie weit sie vorsteht. */
 const LEDGE_Y = 0.76;
+const LEDGE_Z = 0.17;
 /** Wie hoch die Beine zusammenlaufen. */
 const APEX_Y = 1.78;
 
@@ -132,7 +151,7 @@ export class EaselTool extends Tool {
     }
     // Die Ablage, auf der das Blatt aufsitzt, und die Leiste darüber.
     const ledge = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.045, 0.14), dark);
-    ledge.position.set(0, LEDGE_Y, 0.1);
+    ledge.position.set(0, LEDGE_Y, LEDGE_Z);
     this.stand.add(ledge);
     const brace = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.03, 0.03), dark);
     brace.position.set(0, BOARD_Y + BOARD_H / 2 - 0.02, 0.02);
@@ -143,12 +162,12 @@ export class EaselTool extends Tool {
       new THREE.BoxGeometry(BOARD_W + 0.05, BOARD_H + 0.05, 0.02),
       dark,
     );
-    backing.position.set(0, BOARD_Y, 0.06);
+    backing.position.set(0, BOARD_Y, BACKING_Z);
     backing.rotation.x = BOARD_TILT;
     this.stand.add(backing);
 
     this.board = new PaintBoard(BOARD_W, BOARD_H);
-    this.board.position.set(0, BOARD_Y, 0.075);
+    this.board.position.set(0, BOARD_Y, BOARD_Z);
     this.board.rotation.x = BOARD_TILT;
     this.stand.add(this.board);
     this.add(this.stand);
