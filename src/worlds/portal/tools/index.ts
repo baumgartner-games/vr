@@ -1,3 +1,4 @@
+import { BrainTool } from './BrainTool';
 import { BrushTool } from './BrushTool';
 import { ControllerTool } from './ControllerTool';
 import { DroneTool } from './DroneTool';
@@ -63,6 +64,9 @@ export const TOOL_IDS = [
   // sondern ein Ding aus dem Beutel (`standingMirror.ts`).
   'mirror',
   'drone',
+  // Das Hirn: kein Werkzeug, das etwas tut, sondern eines, das jemanden
+  // hinstellt, der etwas tut (`worlds/npc/`).
+  'brain',
   // Die beiden Fluggeräte: ein Drachen zum Hängen und Flügel für die Arme.
   'hang-glider',
   'wings',
@@ -138,6 +142,8 @@ function buildTool(id: string): Tool | null {
       return new MirrorTool();
     case 'drone':
       return new DroneTool();
+    case 'brain':
+      return new BrainTool();
     case 'hang-glider':
       return new HangGliderTool();
     case 'wings':
@@ -160,6 +166,7 @@ function buildTool(id: string): Tool | null {
 }
 
 export {
+  BrainTool,
   BrushTool,
   ControllerTool,
   DroneTool,

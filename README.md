@@ -3,8 +3,8 @@
 **Live: https://baumgartner-games.github.io/vr/**
 
 **Werkzeug-Übersicht: https://baumgartner-games.github.io/vr/tools.html** —
-alle Werkzeuge, Welten und der magische Beutel zum Ansehen und Drehen, ohne
-Brille, auf dem Handy.
+alle Werkzeuge, Welten, der magische Beutel und die NPCs zum Ansehen und
+Drehen, ohne Brille, auf dem Handy.
 
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
@@ -17,7 +17,9 @@ ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
-Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen — und
+Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen —, **NPCs**, die
+einem hinterherlaufen (Haut und Hirn getrennt gewählt, dazu Spawnpunkte und
+Brutkäfige) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
@@ -100,8 +102,9 @@ Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen; mit
 **Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
 hinein) und der
-**Magische Beutel** (jedes Objekt mit Masse und Maßen). Keine Brille nötig, das
-Telefon reicht.
+**Magische Beutel** (jedes Objekt mit Masse und Maßen) und die **NPCs** (jede
+Haut geht auf der Stelle, jedes Hirn mit seinen Zahlen daneben). Keine Brille
+nötig, das Telefon reicht.
 
 Und **Verbinden**: derselbe Raum-Code wie beim Zusammenspielen, aber ohne Spiel
 darin. Wer in der Brille im **Poseraum** _Handpose teilen_ drückt, dessen Hand

@@ -15,6 +15,7 @@ import type { BeltOffset } from '../beltSettings';
 import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
 import type { PaintSurface } from './paintCanvas';
+import type { NpcControl } from '../../npc/NpcDirector';
 
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
@@ -198,6 +199,17 @@ export interface ToolHost {
    * den Gürtel.
    */
   takeTool(tool: Tool, hand: Handedness): boolean;
+  /**
+   * **Wer hier herumläuft** — der NPC-Bestand dieser Welt, oder `null` in
+   * einer Welt, die keinen führt.
+   *
+   * Eine Antwort statt sechs Methoden: Setzen, Spawnpunkt, Brutkäfig,
+   * Entfernen, Aufräumen und Zählen gehören zusammen, und sie gehören einem
+   * anderen (`worlds/npc/NpcDirector.ts`). Der Werkzeugkasten weiß davon
+   * nichts weiter als den Weg dorthin — dieselbe Grenze wie bei den
+   * Malflächen: Das Werkzeug kennt die Fähigkeit, nicht ihren Besitzer.
+   */
+  npcs(): NpcControl | null;
 }
 
 /** How hard a round hits: the punch is its mass times its speed. */

@@ -280,6 +280,24 @@ statt eine halbe Hand zu bauen) und die **Maße des Gangs samt Poseraum**
 (`src/worlds/tune/lane.ts` — dass die Trennwand die Knöpfe stehen lässt, wo die
 alte Wand stand, dass ihre Tür breit genug ist und in den Gang passt, und dass
 der Schwebekasten in den Streifen dahinter passt, mitsamt dem, der davorsteht).
+das **Hirn eines NPC** (`src/worlds/npc/npcBrain.ts` — dass „vorne" wirklich
+-Z ist und ein Zombie einem nicht rückwärts davonläuft, dass er über den
+kürzeren Bogen dreht und nur läuft, wohin er schon schaut, dass er ankommt,
+auch wenn er anfangs in die andere Richtung sieht, dass er in Reichweite
+stehen bleibt und im Takt seiner Wartezeit zuschlägt statt sechzigmal je
+Sekunde, und dass der Schlenderer seinen gewürfelten Kurs behält, bis die Uhr
+abgelaufen ist), seine **Einstellung**
+(`src/worlds/npc/npcSettings.ts` — dass ein kaputter Speicher keinen Zombie
+ohne Leben ergibt, dass ein Tempo von null erlaubt ist — das ist ein Hirn, das
+steht —, und dass eine neue Haut ihr Leben und ein neues Hirn sein Tempo
+mitbringt), **woher einer kommt** (`src/worlds/npc/npcSpawn.ts` — dass ein
+Brutkäfig seinen Takt hält, nicht läuft, solange niemand in der Nähe ist,
+nichts nachlegt, solange er voll ist, und dass ein Spawnpunkt nicht der ist,
+auf dem der Spieler gerade steht — es sei denn, es gibt keinen anderen) und
+**wo eine Kugel ihn trifft** (`src/worlds/npc/npcHit.ts` — Kopf, Rumpf,
+darüber weg, daneben vorbei und unter den Füßen durch, aus jeder Richtung
+gleich, weil beide Zonen drehsymmetrisch sind, und eine Strecke, die vor ihm
+endet, trifft nicht).
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
 
@@ -292,7 +310,11 @@ oben auf dem Handrücken; dazu muss eine **gemessene Haltung** an der
 gezeichneten Hand ankommen: der zweite Knochen knickt, ohne den ersten
 anzufassen, jeder Finger fächert einzeln, der Daumen eingeschlossen (den die
 eine alte Spreizung nie anfasste), und eine Haltung ohne Gelenke krümmt sich
-weiter wie eh und je —, und die **Öffnung des magischen Beutels**
+weiter wie eh und je —, der **Kopf eines NPC** muss dort sitzen, wo die Kugel ihn sucht
+(`src/worlds/npc/npcBody.test.ts` — Modell und Trefferzone rechnen dieselbe
+Zahl, und der Scheitel liegt auf der Körperhöhe: sonst zielt man auf die Stirn
+und trifft die Luft darüber),
+und die **Öffnung des magischen Beutels**
 (`src/worlds/portal/tools/MagicBagTool.test.ts`) muss fassen, was in ihr liegt:
 Fächer, Blätterpfeile und Seitenpunkte. Die ersten beiden sind Vorzeichen, die
 man in der Brille erst nach Minuten bemerkt und dann nicht mehr los wird; das
@@ -339,6 +361,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Pyramide, Quader, Planke, Zylinder, Kegel, Rampe, Stab, Murmel, Sektflasche
   und dem **Würfelsatz** W4, W6, W8, W12, W20 — siehe _Was aus dem Beutel
   kommt_),
+  **NPC** (wer hier herumläuft — Haut und Hirn getrennt, dazu Spawnpunkte und
+  Brutkäfige; siehe _Wer hier herumläuft_),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Einstellungen** und
   die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
@@ -879,6 +903,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gesetzt als der Kopter und hält mehr Abstand zum Boden.
     Beim Parken richtet sie sich wieder waagerecht aus. Der Kopf bleibt in
     beiden Modi frei.
+  - **Hirn**: ein Gehirn auf einem Halterzylinder, und das einzige Werkzeug,
+    das nicht selbst etwas tut, sondern **jemanden hinstellt, der etwas tut**.
+    Der Knopf hinten am Hirn (oder `A`/`X`) öffnet sein Panel — dieselbe
+    Mechanik wie bei Drohne und Stoppuhr —, und dort stehen die zwei Hälften
+    eines NPC **einzeln**: die **Haut** (Zombie, Übungspuppe) und das **Hirn**
+    (Stehen, Schlendern, Verfolgen), dazu Tempo, Leben und die zwei Zahlen
+    eines Brutkäfigs. Was der **Trigger** setzt, sagt die Zeile _Setzen_: einen
+    NPC, einen Spawnpunkt, einen Brutkäfig — oder er nimmt weg, worauf man
+    zeigt. Ein **Kreis am Boden** sagt vorher, wohin es geht und ob es geht,
+    wie beim Teleporter. Alles Weitere unter _Wer hier herumläuft_
+    (`tools/BrainTool.ts`).
   - **Messband**: Trigger setzt Punkt 1, Trigger setzt Punkt 2, der Abstand
     bleibt im Raum stehen. Nimmt man das Band wieder in die Hand, ist die
     letzte Messung wieder da.
@@ -1708,6 +1743,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
 | Radiergummi                        | Trigger löscht                                                                                                                                                        | –                                                                                               | –                    |
 | Sektflasche (aus dem Beutel)       | greifen: sie rastet am Hals in die Faust wie ein Pistolengriff, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                              | –                                                                                               | –                    |
+| Hirn                               | Knopf/`A` öffnet das Panel (Haut, Hirn, Tempo, Leben, Käfig); zielen + Trigger setzt, was in _Setzen_ steht — oder nimmt weg, worauf du zeigst                          | –                                                                                               | –                    |
 | Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen oder darauf zeigen: Greifen holt das Ding heraus; geblättert wird mit dem **Trigger** der haltenden Hand, oder über einen der beiden Pfeile (Greifen oder Trigger) | –                                                                                               | –                    |
 | Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
 | Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
@@ -3323,6 +3359,8 @@ src/
              Zuschauer-Kamera
   worlds/    Weltenregistry + je eine Welt pro Ordner (inkl. `PortalSync`,
              dem geteilten Zustand des Portal Labors)
+             — darin `npc/`, alles, was in einer Welt herumläuft: Haut, Hirn,
+             Körper und der Regisseur, der sie zusammenhält
 tools/     Kommandozeile: `npm run config` liest und schreibt Konfig-Codes
 ```
 
@@ -3449,6 +3487,151 @@ Ausgangsgröße daneben zu merken — damit landet zweimal Verdoppeln dort, wo
 einmal Vervierfachen landet, und das Transformationswerkzeug funktioniert an
 einem Würfel wie an einer Kiste.
 
+### Wer hier herumläuft
+
+Bis hierher war die Spielwiese leer: Dinge, die man anfasst, Werkzeuge, mit
+denen man sie bearbeitet, und sonst niemand. **NPCs** sind die dritte
+Kategorie im Handgelenk-Menü, neben Werkzeugen und Beutel, und sie sind
+bewusst keine von beiden — was hier herauskommt, läuft von selbst weiter.
+
+**Ein NPC besteht aus zwei Hälften, und sie werden einzeln ausgesucht.**
+
+- Die **Haut** (`worlds/npc/npcKinds.ts`) sagt, wie er aussieht: Modell,
+  Größe, Masse, Leben, seine Farben und ob die Arme vor dem Körper hängen oder
+  daneben. Zwei gibt es, den **Zombie** und die **Übungspuppe**.
+- Das **Hirn** (`worlds/npc/npcBrains.ts`) sagt, was er tut: **Stehen**
+  (bleibt, dreht sich zum Spieler, schlägt nie zu), **Schlendern** (läuft
+  einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden)
+  oder **Verfolgen** (der Zombie: kommt, sobald man in Sichtweite ist, und
+  schlägt in Reichweite zu).
+
+Warum getrennt: Zwei mal drei ist sechs, und eine Liste von sechs Sorten NPC
+wäre beim nächsten Modell zwölf und beim übernächsten vierundzwanzig. Vor
+allem aber sind es zwei verschiedene Fragen — *wie sieht der aus* und *was
+macht der* —, und wer sie zusammenlegt, kann keine davon mehr einzeln
+beantworten. Eine Übungspuppe mit einem Verfolger-Hirn ist ein Trainingsgegner,
+ein Zombie mit „Stehen" eine grüne Zielscheibe; beides fällt ab, ohne dass
+jemand etwas dafür gebaut hätte.
+
+**Bedient wird es zweimal, und beide lesen denselben Speicher** — genau wie
+beim Beutel, den es als Rasterseite *und* als Werkzeug gibt. Im Menü unter
+**NPC** stehen die Häute als Zeilen (`Zombie setzen`), dazu das eingestellte
+Hirn als Unterseite, _Spawnpunkt hier_, _Brutkäfig hier_ und _Alles
+wegräumen_. In der Hand tut dasselbe das **Hirn** (`tools/BrainTool.ts`): ein
+Gehirn auf dem Standardgriff, mit einem Knopf, der ein Panel öffnet, und einem
+Trigger, der setzt, wohin man zeigt. Die Einstellung dahinter steht in
+`worlds/npc/npcSettings.ts` und liegt im Browser bei der übrigen Ausrüstung
+(`gearStore.ts`, `bgvr.npc`) — wer sich seinen Zombie einmal eingestellt hat,
+soll ihn nach dem Neuladen nicht noch einmal einstellen. **Tempo und Leben
+sind dabei absolute Zahlen und keine Faktoren**, und sie ziehen mit: eine neue
+Haut bringt ihr Leben mit, ein neues Hirn sein Tempo. Wer danach selbst an
+einer der beiden dreht, hat sie gesetzt, und dann bleibt sie stehen.
+
+**Das Hirn ist eine Rechnung, und sie steht ohne three.js da**
+(`worlds/npc/npcBrain.ts`, mit Test). Hinein gehen zwei Punkte in der Ebene,
+ein Gierwinkel und die Zeit; heraus kommt eine Wunschgeschwindigkeit, ein
+Gierwinkel und die Frage, ob in dieser Frame ein Schlag landet. Was ein Zombie
+tut, ist damit etwas, das man ansehen kann, ohne die Brille aufzusetzen — und
+was man nur in der Brille ansehen kann, sieht sich niemand an. Zwei Regeln
+darin sind es wert, hier zu stehen:
+
+- **Gelaufen wird, wohin geschaut wird.** Ein NPC schiebt sich nicht seitwärts
+  auf den Spieler zu; er dreht sich zu ihm (Drehrate aus dem Hirn, immer über
+  den kürzeren Bogen) und geht dann los, und wie weit er schon herumgedreht
+  ist, entscheidet über sein Tempo (`aheadFactor`, der Kosinus des Fehlers,
+  nach hinten null). Das ist der Unterschied zwischen einem Zombie, der
+  torkelt, und einem Schrank auf Schienen.
+- **In Reichweite wird nicht mehr gelaufen, sondern geschlagen** — und zwischen
+  zwei Schlägen gewartet. Ohne Wartezeit träfe er sechzigmal je Sekunde, und
+  das ist kein Schlag mehr, sondern ein Föhn.
+
+**Ein NPC ist ein Körper in der Physik**, ein Zylinder mit **gesperrter
+Drehung** (`worlds/npc/Npc.ts`): er fällt, stößt gegen Wände, lässt sich
+schieben — kippt aber nicht um, denn einer, der beim ersten Schubser auf dem
+Rücken liegt, ist kein Gegner, sondern ein Kegel. Seine **Waagerechte** setzt
+das Hirn jedes Bild, die **Senkrechte** bleibt bei der Schwerkraft; darum
+fällt er von einer Kante und läuft trotzdem nicht in den Himmel. Weil die
+Drehung gesperrt ist, schreibt `physics.sync()` sie als Einheitsdrehung
+zurück — der Gierwinkel gehört deshalb dem **Modell** in der Gruppe und nicht
+der Gruppe selbst, sonst sähe man ihn genau ein Bild lang.
+
+**Der Ursprung liegt zwischen den Füßen.** Collider, Trefferzonen und der
+Punkt, an den einer gesetzt wird, rechnen alle von der Standfläche aus; ein
+Modell mit dem Ursprung in der Mitte versinkt bei jeder dieser Rechnungen zur
+Hälfte im Boden. Das Modell selbst (`worlds/npc/NpcBody.ts`) ist ein Skelett
+aus Klötzen mit vier Gelenken — zwei Hüften, zwei Schultern —, deren
+X-Drehung der Schritt ist; die Schrittfrequenz hängt am Tempo, damit ein
+stehender NPC nicht auf der Stelle tanzt. Die Augen leuchten auf, sobald das
+Hirn jemanden bemerkt hat. **In den Händen sitzt je ein leerer Anker**
+(`NpcBody.hands`): er trägt heute nichts und ist die Stelle, an der später ein
+Werkzeug hängt — ein NPC mit einer Schusswaffe ist genau das, dieselbe
+`Tool`-Instanz wie in einer Spielerhand, nur an diesem Anker statt am
+Griffraum eines Controllers. Dass der Anker schon jetzt mitschwingt, ist der
+Unterschied zwischen „später einhängen" und „später umbauen".
+
+**Getroffen wird mit der Strecke, nicht mit der Kugel** (`worlds/npc/npcHit.ts`,
+mit Test). Eine Kugel legt zwischen zwei Bildern Meter zurück; was sie
+durchquert hat, ist eine Strecke — dieselbe Rechnung, mit der der Schießstand
+seine Scheiben abrechnet (`bulletTravelled`, die der Schießstand jetzt an die
+Halle weiterreicht). Der Körper ist dabei ein **Zylinder** für den Rumpf und
+eine **Kugel** für den Kopf, und beide sind drehsymmetrisch um die Hochachse:
+ein Kopftreffer ist einer, wo der Kopf ist, egal wohin der Kopf gerade schaut.
+Drei Rumpftreffer oder einer in den Kopf, und er fällt. Dass der Kopf, den man
+*sieht*, auch der ist, auf den man *zielt*, hält `npcBody.test.ts` fest —
+Modell und Trefferzone rechnen dieselbe Zahl (`HEAD_SHARE`), und zwei
+Rechnungen, die dasselbe meinen, laufen sonst irgendwann auseinander. Wer
+fällt, geht sofort aus der Physik heraus, liegt ein paar Sekunden als Bild da
+und verschwindet dann; ohne das Aufräumen füllt sich eine Halle mit Leichen,
+und jede davon zeichnet weiter mit.
+
+**Und andersherum:** ein Schlag, der sitzt, **schiebt den Spieler** und
+rüttelt in beiden Händen. Lebenspunkte hat der Spieler nicht — es gibt in
+dieser Welt nichts, was sie zählen würde —, und ein Treffer, den man nicht
+spürt, ist trotzdem keiner. Wer eine Lebensanzeige will, hängt sie an genau
+einer Stelle ein (`PortalWorld.takeHit`).
+
+**Woher einer kommt, dafür gibt es zwei Antworten** (`worlds/npc/npcSpawn.ts`,
+mit Test), und beide sind reine Rechnung:
+
+- Ein **Spawnpunkt** ist eine Stelle, an der jemand auftauchen *darf* — ein
+  Kreis auf dem Boden, durch den man hindurchläuft. Wer einen braucht, bekommt
+  einen ausgewürfelt, und zwar nach derselben Regel, nach der ein Spieler nach
+  dem Tod wieder ins Spiel kommt: **möglichst nicht direkt vor der Nase
+  dessen, der schon da ist**. Taugt keiner, wird nicht aufgegeben, sondern der
+  entfernteste genommen — in einem kleinen Raum ist keiner weit genug weg,
+  und „nicht ideal" ist besser als „gar nicht".
+- Ein **Brutkäfig** ist eine Stelle, die von selbst nachlegt; das Vorbild
+  steht in einem Verlies aus Klötzchen. Er hat einen Takt, eine Grenze für
+  seine eigenen Kinder und einen Ring, in dem sie entstehen — nie in ihm
+  selbst. Seine Uhr läuft **nur, während jemand in Reichweite ist**: ein Käfig
+  am anderen Ende der Halle soll nicht die ganze Zeit Zombies auswerfen, die
+  dort niemand sieht, und wer zurückkommt, soll nicht in eine Wand aus dreißig
+  Stück laufen. Sie läuft auch nicht weiter, solange er voll ist, sonst spuckt
+  er nach jedem Todesfall sofort nach. Angehalten wird sie, nicht
+  zurückgesetzt: wer zurückkommt, wartet den Rest des Takts ab und nicht einen
+  ganzen neuen.
+
+Verwaltet wird der ganze Bestand vom **Regisseur** (`worlds/npc/NpcDirector.ts`).
+Er hängt an der **Welt** und nicht am Werkzeug — ein Zombie bleibt stehen, wenn
+man das Hirn weglegt, und der Käfig legt weiter nach; das Werkzeug ist die
+Bedienung, nicht der Besitzer. Der Schnitt dazwischen ist derselbe wie beim
+Werkzeugkasten: die Welt reicht ein paar Fähigkeiten herein (`NpcWorld`), der
+Bestand reicht ein paar Befehle heraus (`NpcControl`, am Werkzeug erreichbar
+über `ToolHost.npcs()`), und keiner der beiden kennt die Innereien des
+anderen. _Labor zurücksetzen_ räumt sie mit weg; vierzig gleichzeitig sind die
+Notbremse.
+
+**Wer verfolgt wird, ist der Körper und nicht die Kamera.** Wer mit der Drohne
+unterwegs ist, hat seine Sicht verliehen, und der Rig steht dann draußen bei
+der Maschine — sein Körper ist aber hiergeblieben (`bodyHome`), und ein Zombie
+läuft zu dem Körper, den er sehen kann.
+
+**Was noch nicht geht: das Netz.** Ein NPC ist heute das, was der Sektkorken
+ist — jeder sieht seinen eigenen. Zwei Spieler in einem Raum sehen also zwei
+verschiedene Zombies. Der Weg dahin, dass sie denselben sehen, führt über
+`PortalSync` und über eine Antwort auf die Frage, wer von beiden das Hirn
+rechnet; das ist der nächste Schritt und nicht dieser.
+
 ### Die Werkzeugseite
 
 Neben dem Spiel steht eine zweite Seite: **`tools.html`**, und sie ist kein
@@ -3543,8 +3726,9 @@ Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" ist in de
 Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
 eine Frage, die man im Vorbeigehen stellt.
 
-**Drei Regale, ein Zuschauerplatz, eine Schublade.** Hinter dem Burger-Symbol
-liegen **Werkzeuge**, **Welten** und der **Magische Beutel**, darunter
+**Vier Regale, ein Zuschauerplatz, eine Schublade.** Hinter dem Burger-Symbol
+liegen **Werkzeuge**, **Welten**, der **Magische Beutel** und die **NPCs**,
+darunter
 **Verbinden** (siehe unten), dazu der Weg zurück in die Spielwiese
 und zum Quellcode; das Regal, in dem man steht, trägt ein Lesezeichen. Ganz
 unten, in Warnfarbe, steht **Eigene Einstellungen löschen**: der Weg zurück auf
@@ -3567,7 +3751,16 @@ Welt zeigt **sich selbst** (siehe unten), darunter die Beschreibung aus der
 Registry, für wen sie ist, ob sie experimentell ist, und einen Knopf _Welt
 betreten_, der auf `./#<id>` führt. Ein Beutel-Objekt zeigt sich selbst,
 gebaut mit demselben `createPropShape` wie im Spiel, mit Masse, Maßen und
-Collider-Form als Zeile. Beide Listen kommen aus dem Spiel (`WORLDS`,
+Collider-Form als Zeile. Im **NPC-Regal** stehen die beiden Hälften
+nebeneinander und einzeln, so wie sie es im Spiel auch sind: eine **Haut**
+steht da und **geht auf der Stelle** — ein NPC, der still steht, ist ein
+Kleiderständer, und das Einzige, was man an ihm ansehen will, ist sein Gang —,
+daneben liegen die **Hirne** als eigene Kacheln mit ihren Zahlen: Tempo,
+Drehrate, Sichtweite, Reichweite und Wartezeit. Eine Liste aus sechs
+Kombinationen beantwortete keine der beiden Fragen, die man hier stellt (*wie
+sieht ein Zombie aus* und *was macht „Verfolgen"*). Gedreht steht die Haut im
+**Dreiviertelprofil**: genau auf die Kamera zu sind die ausgestreckten Arme
+eines Zombies zwei Stummel, und die Silhouette ist bei ihm die Auskunft. Beide Listen kommen aus dem Spiel (`WORLDS`,
 `BAG_ITEMS` — die Beutel-Liste ist dafür aus `PortalWorld` nach `props.ts`
 gewandert): ein Regal, das man von Hand pflegt, ist nach dem dritten Werkzeug
 veraltet. Was kein Werkzeug ist, stellt der Viewer über `showObject` auf die
@@ -3678,10 +3871,10 @@ Zwei Zustände je Regal, ein Kopf: die Übersicht trägt links das
 die Übersicht _seines_ Regals. Welcher Zustand gilt, steht im **Hash** und
 nicht in einer Variablen — damit tut der Zurück-Knopf des Browsers dasselbe wie
 der im Kopf, und ein Link ist ein Link: `tools.html#hammer` wie eh und je (die
-Werkzeuge behalten den nackten Hash, damit alte Links halten), `#welt/alps`
-und `#objekt/cube` für die beiden anderen Regale, `#welten` und `#beutel` für
-ihre Übersichten. Ein Hash, den es nicht gibt, endet in der Werkzeug-Übersicht
-und nicht in einer leeren Seite.
+Werkzeuge behalten den nackten Hash, damit alte Links halten), `#welt/alps`,
+`#objekt/cube`, `#npc/zombie` und `#hirn/chase` für die anderen Regale,
+`#welten`, `#beutel` und `#npcs` für ihre Übersichten. Ein Hash, den es nicht
+gibt, endet in der Werkzeug-Übersicht und nicht in einer leeren Seite.
 
 Im Kopf steht außerdem der Umschalter für die Hand, und seine drei Zustände
 sind **zwei verschiedene Hände** und nicht zweimal dieselbe aus zwei Winkeln.

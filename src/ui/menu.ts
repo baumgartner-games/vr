@@ -53,6 +53,12 @@ export type MenuIcon =
   // Raster einen Spiegel und nicht irgendeinen Rahmen.
   | 'mirror'
   | 'mirror-stand'
+  // Die NPC-Kategorie: einer, der herumläuft, das Hirn dahinter, der Zombie
+  // selbst und der Käfig, aus dem immer wieder einer kommt.
+  | 'npc'
+  | 'brain'
+  | 'zombie'
+  | 'spawn'
   // Die fünf platonischen Körper: gezeichnet wird jeder als das Vieleck, als
   // das man ihn von vorn sieht — ein W20 ist ein Sechseck mit einem Dreieck
   // darin, und genau so erkennt man ihn auch im Raster wieder.
@@ -848,6 +854,88 @@ export function drawMenuIcon(
       ctx.stroke();
       ctx.beginPath();
       ctx.roundRect(-s * 0.16, -s * 0.9, s * 0.32, s * 0.2, s * 0.06);
+      ctx.fill();
+      break;
+    }
+    case 'npc': {
+      // Einer, der herumläuft: Kopf, Rumpf, ein Schritt.
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.56, s * 0.24, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.32);
+      ctx.lineTo(0, s * 0.14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.42, -s * 0.06);
+      ctx.lineTo(s * 0.42, -s * 0.06);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.14);
+      ctx.lineTo(-s * 0.34, s * 0.8);
+      ctx.moveTo(0, s * 0.14);
+      ctx.lineTo(s * 0.34, s * 0.8);
+      ctx.stroke();
+      break;
+    }
+    case 'brain': {
+      // Zwei Hälften mit einer Furche dazwischen, darunter der Stamm.
+      ctx.beginPath();
+      ctx.arc(-s * 0.34, -s * 0.24, s * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(s * 0.34, -s * 0.24, s * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.66);
+      ctx.lineTo(0, s * 0.18);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.12, s * 0.18);
+      ctx.lineTo(-s * 0.12, s * 0.7);
+      ctx.lineTo(s * 0.12, s * 0.7);
+      ctx.lineTo(s * 0.12, s * 0.18);
+      ctx.stroke();
+      break;
+    }
+    case 'zombie': {
+      // Der Zombie ist der NPC mit den ausgestreckten Armen — daran erkennt
+      // man ihn im Raster, und nicht an einer grünen Farbe, die das Symbol
+      // ohnehin nicht hat.
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.56, s * 0.24, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.32);
+      ctx.lineTo(0, s * 0.14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.06, -s * 0.16);
+      ctx.lineTo(-s * 0.72, -s * 0.36);
+      ctx.moveTo(s * 0.06, -s * 0.16);
+      ctx.lineTo(s * 0.72, -s * 0.36);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.14);
+      ctx.lineTo(-s * 0.3, s * 0.8);
+      ctx.moveTo(0, s * 0.14);
+      ctx.lineTo(s * 0.3, s * 0.8);
+      ctx.stroke();
+      break;
+    }
+    case 'spawn': {
+      // Der Brutkäfig: ein Kasten aus Gitterstäben mit etwas darin.
+      ctx.beginPath();
+      ctx.rect(-s * 0.76, -s * 0.68, s * 1.52, s * 1.36);
+      ctx.stroke();
+      for (const x of [-s * 0.25, s * 0.25]) {
+        ctx.beginPath();
+        ctx.moveTo(x, -s * 0.68);
+        ctx.lineTo(x, s * 0.68);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
       ctx.fill();
       break;
     }

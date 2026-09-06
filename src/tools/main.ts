@@ -1,6 +1,10 @@
 import './tools.css';
-import { TOOL_IDS, createTool } from '../worlds/portal/tools';
+import { TOOL_IDS, createTool, disposeToolTree } from '../worlds/portal/tools';
 import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
+import { NPC_SKINS } from '../worlds/npc/npcKinds';
+import { BRAINS } from '../worlds/npc/npcBrains';
+import { NpcBody } from '../worlds/npc/NpcBody';
+import { createBrainShape } from '../worlds/npc/brainShape';
 import { WORLDS } from '../worlds';
 import { buildGate } from '../worlds/hub/HubWorld';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
@@ -45,6 +49,7 @@ import {
 } from './poseEdit';
 import { alignHandToLine, handAboutPivot, turnHandTo } from './alignHand';
 import { ToolViewer, type HandMode } from './viewer';
+import { TOOL_HOME } from './handStage';
 import { LiveHand, LiveLink } from './liveHand';
 import { rememberedName, rememberedRoom } from '../net/room';
 import type { HandShare } from '../worlds/tune/handShare';
@@ -63,21 +68,23 @@ import type { WorldDefinition } from '../core/types';
  * und einen Stand bedient, und für „wie sieht das eigentlich aus" ist das ein
  * weiter Weg.
  *
- * Drei Regale, eine Schublade: **Werkzeuge**, **Welten** und der **magische
- * Beutel**. Eine Welt zeigt sich selbst — ihre Kulisse, gebaut mit ihrem
- * eigenen Code, ganz drauf und schräg von oben —, dazu einen Knopf hinein; ein
- * Beutel-Objekt zeigt sich selbst, mit Masse und Maßen. Alle drei Listen
- * kommen aus dem Spiel
- * (`TOOL_IDS`, `WORLDS`, `BAG_ITEMS`): eine Seite mit eigenen, hübscheren
- * Kopien zeigt irgendwann etwas anderes als das Spiel, und dann ist sie
- * schlimmer als keine.
+ * Vier Regale, eine Schublade: **Werkzeuge**, **Welten**, der **magische
+ * Beutel** und die **NPCs**. Eine Welt zeigt sich selbst — ihre Kulisse,
+ * gebaut mit ihrem eigenen Code, ganz drauf und schräg von oben —, dazu einen
+ * Knopf hinein; ein Beutel-Objekt zeigt sich selbst, mit Masse und Maßen; ein
+ * NPC geht auf der Stelle, und sein Hirn liegt als eigene Kachel daneben.
+ * Alle vier Listen kommen aus dem Spiel
+ * (`TOOL_IDS`, `WORLDS`, `BAG_ITEMS`, `NPC_SKINS`/`BRAINS`): eine Seite mit
+ * eigenen, hübscheren Kopien zeigt irgendwann etwas anderes als das Spiel, und
+ * dann ist sie schlimmer als keine.
  *
  * Zwei Zustände je Regal, ein Kopf: die Übersicht trägt links das
  * Burger-Symbol, ein einzelnes Ding den Pfeil zurück. Welcher gilt, steht im
  * **Hash** und nicht in einer Variablen — damit tut der Zurück-Knopf des
  * Browsers dasselbe wie der im Kopf, und ein Link auf ein einzelnes Werkzeug
- * ist ein Link: `#hammer` wie eh und je, `#welt/alps` und `#objekt/cube` für
- * die beiden anderen Regale, `#welten` und `#beutel` für ihre Übersichten.
+ * ist ein Link: `#hammer` wie eh und je, `#welt/alps`, `#objekt/cube`,
+ * `#npc/zombie` und `#hirn/chase` für die anderen Regale, `#welten`,
+ * `#beutel` und `#npcs` für ihre Übersichten.
  *
  * **Und sie schaut nicht nur.** Der Knopf *Bearbeiten* oben rechts macht aus
  * der Ansicht einen Justierstand: eine Achse oben, ein Regler unten,
@@ -96,8 +103,8 @@ import type { WorldDefinition } from '../core/types';
  * (mit Test).
  */
 
-/** Ein Regal mit Kacheln — die drei, die eine Übersicht und Einzelseiten haben. */
-type Shelf = 'tools' | 'worlds' | 'bag';
+/** Ein Regal mit Kacheln — die vier, die eine Übersicht und Einzelseiten haben. */
+type Shelf = 'tools' | 'worlds' | 'bag' | 'npc';
 
 /**
  * Und alles, was die Schublade anbietet: die drei Regale und der
@@ -117,6 +124,7 @@ const grids: Record<Shelf, HTMLElement> = {
   tools: document.querySelector<HTMLElement>('#grid-tools')!,
   worlds: document.querySelector<HTMLElement>('#grid-worlds')!,
   bag: document.querySelector<HTMLElement>('#grid-bag')!,
+  npc: document.querySelector<HTMLElement>('#grid-npc')!,
 };
 const detail = document.querySelector<HTMLElement>('#detail')!;
 const stage = document.querySelector<HTMLCanvasElement>('#stage')!;
@@ -165,6 +173,7 @@ const SECTION_TITLES: Record<Section, string> = {
   tools: 'Werkzeuge',
   worlds: 'Welten',
   bag: 'Magischer Beutel',
+  npc: 'NPCs',
   live: 'Verbinden',
 };
 
@@ -173,6 +182,7 @@ const SECTION_HASH: Record<Section, string> = {
   tools: 'werkzeuge',
   worlds: 'welten',
   bag: 'beutel',
+  npc: 'npcs',
   live: 'verbinden',
 };
 
@@ -352,7 +362,87 @@ const SHAPE_LABELS: Record<string, string> = {
   hull: 'Hülle',
 };
 
-const entries = [...readTools(), ...readWorlds(), ...readBag()];
+/**
+ * **Das NPC-Regal**: die Häute und die Hirne, getrennt.
+ *
+ * Getrennt, weil sie es im Spiel auch sind — eine Haut sagt, wie einer
+ * aussieht, ein Hirn, was er tut (`worlds/npc/`). Auf dem Telefon ist genau
+ * das die Frage, die man hier stellt: *Wie sieht ein Zombie eigentlich aus*,
+ * und *was macht „Verfolgen" eigentlich*. Eine Liste aus sechs Kombinationen
+ * beantwortete keine von beiden.
+ *
+ * Eine Haut steht da und **geht auf der Stelle** — ein NPC, der still steht,
+ * ist ein Kleiderständer, und das Einzige, was man an ihm ansehen will, ist
+ * sein Gang. Ein Hirn ist ein Hirn; es dreht sich langsam, damit man es von
+ * allen Seiten sieht.
+ */
+function readNpcs(): Entry[] {
+  const skins: Entry[] = NPC_SKINS.map((skin) => ({
+    section: 'npc' as const,
+    id: skin.id,
+    hash: `npc/${skin.id}`,
+    label: skin.label,
+    hint: skin.sub,
+    note: `${Math.round(skin.height * 100)} cm · ${skin.mass} kg · ${skin.health} Leben · ${skin.speed} m/s · Hirn: ${brainOfLabel(skin.brain)}`,
+    icon: skin.icon,
+    accent: skin.accent,
+    show: () => {
+      const body = new NpcBody(skin.id);
+      // Ein NPC schaut nach -Z, die Bühne steht um `TOOL_HOME.yaw` gedreht vor
+      // der Kamera: ungedreht sähe man ihn von hinten. Gedreht steht er im
+      // **Dreiviertelprofil** — Gesicht *und* Silhouette, und die Silhouette
+      // ist bei einem Zombie die Auskunft (die Arme zeigen nach vorn; genau auf
+      // die Kamera zu sind sie zwei Stummel).
+      body.rotation.y = Math.PI - TOOL_HOME.yaw + 0.7;
+      let last = 0;
+      viewer.showObject(body, {
+        // Auf der Stelle: der Betrachter bewegt nichts, also bekommt der Gang
+        // sein Tempo aus der Uhr und nicht aus einer Strecke.
+        animate: (time) => {
+          const dt = Math.min(0.1, Math.max(0, time - last));
+          last = time;
+          body.update(dt, skin.speed, false);
+        },
+        dispose: () => body.dispose(),
+      });
+    },
+  }));
+
+  const brains: Entry[] = BRAINS.map((brain) => ({
+    section: 'npc' as const,
+    id: brain.id,
+    hash: `hirn/${brain.id}`,
+    label: `Hirn: ${brain.label}`,
+    hint: brain.sub,
+    note: brainNumbers(brain.tuning),
+    icon: 'brain' as MenuIcon,
+    accent: brain.accent,
+    show: () => {
+      const shape = createBrainShape({ radius: 0.06, color: brain.accent });
+      viewer.showObject(shape, {
+        spin: 0.35,
+        dispose: () => disposeToolTree(shape),
+      });
+    },
+  }));
+
+  return [...skins, ...brains];
+}
+
+/** Wie das Hirn heißt, das eine Haut von Haus aus mitbringt. */
+function brainOfLabel(id: string): string {
+  return BRAINS.find((brain) => brain.id === id)?.label ?? id;
+}
+
+/** Die Zahlen eines Hirns in einer Zeile — Sicht und Reichweite nur, wo es sie gibt. */
+function brainNumbers(tuning: (typeof BRAINS)[number]['tuning']): string {
+  const parts = [`${tuning.speed} m/s`, `${tuning.turn}°/s`];
+  if (tuning.sense > 0) parts.push(`sieht ${tuning.sense} m`);
+  if (tuning.reach > 0) parts.push(`schlägt ab ${tuning.reach} m, alle ${tuning.cooldown} s`);
+  return parts.join(' · ');
+}
+
+const entries = [...readTools(), ...readWorlds(), ...readBag(), ...readNpcs()];
 const byHash = new Map(entries.map((entry) => [entry.hash, entry]));
 
 // --- die Übersichten -----------------------------------------------------------
@@ -1462,6 +1552,7 @@ function sectionOf(hash: string): Section | null {
   if (hash === '' || hash === SECTION_HASH.tools) return 'tools';
   if (hash === SECTION_HASH.worlds) return 'worlds';
   if (hash === SECTION_HASH.bag) return 'bag';
+  if (hash === SECTION_HASH.npc) return 'npc';
   if (hash === SECTION_HASH.live) return 'live';
   return null;
 }

@@ -1,4 +1,5 @@
 import { clampBrush, DEFAULT_BRUSH, type BrushSettings } from './brushSettings';
+import { clampNpc, DEFAULT_NPC, type NpcSettings } from '../../npc/npcSettings';
 import { clampDrone, DEFAULT_DRONE, type DroneSettings } from './droneSettings';
 import { clampSuperman, DEFAULT_SUPERMAN, type SupermanSettings } from './supermanSettings';
 import { clampStopwatch, DEFAULT_STOPWATCH, type StopwatchSettings } from './stopwatchSettings';
@@ -24,6 +25,7 @@ const DRONE_KEY = 'bgvr.drone';
 const SUPERMAN_KEY = 'bgvr.superman';
 const STOPWATCH_KEY = 'bgvr.stopwatch';
 const BRUSH_KEY = 'bgvr.brush';
+const NPC_KEY = 'bgvr.npc';
 
 type Listener = () => void;
 
@@ -168,4 +170,30 @@ export function saveBrushSettings(settings: Partial<BrushSettings>): BrushSettin
 export function clearBrushSettings(): BrushSettings {
   writeJson(BRUSH_KEY, { ...DEFAULT_BRUSH });
   return { ...DEFAULT_BRUSH };
+}
+
+// --- das Hirn --------------------------------------------------------------
+
+/**
+ * Was am **Hirn** eingestellt ist: Haut, Hirn, was der Trigger setzt und die
+ * vier Zahlen dazu (`worlds/npc/npcSettings.ts`).
+ *
+ * Es liegt hier bei der übrigen Ausrüstung und nicht bei den NPCs, weil es
+ * dasselbe ist wie die Werte der Pistole oder der Drohne: eine Einstellung
+ * *am Werkzeug*, die einen Neuladevorgang überleben soll. Die NPCs selbst
+ * überleben ihn nicht — sie stehen in der Welt und nicht im Speicher.
+ */
+export function npcSettings(): NpcSettings {
+  return clampNpc(readJson<Partial<NpcSettings>>(NPC_KEY, {}));
+}
+
+export function saveNpcSettings(settings: Partial<NpcSettings>): NpcSettings {
+  const next = clampNpc({ ...npcSettings(), ...settings });
+  writeJson(NPC_KEY, next);
+  return next;
+}
+
+export function clearNpcSettings(): NpcSettings {
+  writeJson(NPC_KEY, { ...DEFAULT_NPC });
+  return { ...DEFAULT_NPC };
 }

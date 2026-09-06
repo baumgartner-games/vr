@@ -14,6 +14,7 @@
  * ihre Anzeige auf eine — die Attrappe unten schluckt das, ohne dass ein
  * Werkzeug etwas davon merkt.
  */
+import { BrainTool } from './BrainTool';
 import { BrushTool } from './BrushTool';
 import { DroneTool } from './DroneTool';
 import { DuplicatorTool } from './DuplicatorTool';
@@ -90,6 +91,7 @@ const BUILDERS: Record<string, () => Tool> = {
   'hang-glider': () => new HangGliderTool(),
   hammer: () => new HammerTool(),
   drone: () => new DroneTool(),
+  brain: () => new BrainTool(),
 };
 
 describe('Der Griff sitzt, wo die Liste ihn hinschreibt', () => {
