@@ -167,6 +167,13 @@
         <div class="stage">
           <canvas id="stage" class="stage__canvas"></canvas>
           <!--
+            **Die Karte** — dieselbe Bühne, nur von oben und in zwei
+            Dimensionen (`worlds/shared/mapScene.ts`). Sie liegt über dem Bild
+            statt daneben: Es ist dieselbe Welt, und zwei Fenster
+            nebeneinander wären zwei halb so große.
+          -->
+          <canvas id="map" class="stage__map" hidden></canvas>
+          <!--
             Die Knöpfe der freien Kamera, über dem Bild und nicht darunter: man
             fliegt mit den Daumen und sieht dabei zu. Links das Kreuz für vor,
             zurück und seitwärts, rechts hoch und runter — und beschriftet mit
@@ -202,14 +209,21 @@
             <button id="lab-run" class="lab__run" type="button" aria-pressed="false">
               Laufen lassen
             </button>
-            <button id="lab-top" class="lab__view" type="button" hidden>Von oben</button>
+            <!--
+              Karte oder Bild — und die Karte ist die Voreinstellung: Auf ihr
+              ist ein Knopf ein Quadrat mit einem Namen daneben, im Bild eine
+              Kuppel von vier Pixeln.
+            -->
+            <button id="lab-map" class="lab__view" type="button" aria-pressed="true" hidden>
+              3D-Ansicht
+            </button>
+            <button id="lab-reset" class="lab__view" type="button" hidden>Zurücksetzen</button>
           </div>
           <p id="lab-lede" class="lab__lede">
-            Startet die Welt wirklich — mit Physik, Gitter und NPCs. Auf den Boden tippen setzt
-            das <b>Ziel</b>, dem sie nachlaufen.
+            Startet die Welt wirklich — mit Physik, Gitter und NPCs. Auf einen <b>Knopf</b> tippen
+            drückt ihn, auf den <b>Boden</b> tippen setzt das Ziel, dem die NPCs nachlaufen.
           </p>
           <p id="lab-say" class="lab__say" aria-live="polite" hidden></p>
-          <div id="lab-keys" class="lab__keys" hidden></div>
           <div id="lab-show" class="lab__show" hidden></div>
         </section>
 

@@ -10,6 +10,7 @@ import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE } from '../nav/navTile';
 import { layerSpec, layerSummary, nextAll, type NavLayer } from '../nav/navLayers';
 import type { PreviewButton } from '../shared/livePreview';
+import type { MapMark } from '../shared/mapScene';
 import { NavConsole, type ConsoleKey } from './NavConsole';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import type { Npc } from '../npc/Npc';
@@ -74,6 +75,7 @@ export class NavLabWorld extends PortalWorld {
    * Kuppel aus dreißig Metern Höhe (`shared/livePreview.ts`).
    */
   private readonly knobs: {
+    id: string;
     mesh: THREE.Mesh;
     label: string;
     group: string;
@@ -310,9 +312,13 @@ export class NavLabWorld extends PortalWorld {
 
   /** Der rote Knopf, und wo es einen gibt der gelbe daneben. */
   private buildKnobs(parent: THREE.Group, bay: Scenario): void {
-    this.knob(parent, bay, -3, 0xff3b2f, 'START', bay.title, () => this.toggle(bay.id));
+    this.knob(parent, bay, -3, 0xff3b2f, 'START', bay, `${bay.id}:start`, () =>
+      this.toggle(bay.id),
+    );
     if (bay.act) {
-      this.knob(parent, bay, 3, 0xffc857, bay.act.toUpperCase(), bay.title, () => this.act(bay.id));
+      this.knob(parent, bay, 3, 0xffc857, bay.act.toUpperCase(), bay, `${bay.id}:act`, () =>
+        this.act(bay.id),
+      );
     }
   }
 
@@ -322,7 +328,8 @@ export class NavLabWorld extends PortalWorld {
     lx: number,
     color: number,
     label: string,
-    bayName: string,
+    home: Scenario,
+    id: string,
     run: () => void,
   ): void {
     const at = bayPoint(bay, lx, BAY_D / 2 - 1.6);
@@ -356,7 +363,7 @@ export class NavLabWorld extends PortalWorld {
     plate.rotation.x = -0.5;
     group.add(plate);
 
-    this.knobs.push({ mesh: dome, label, group: bayName, accent: color, run });
+    this.knobs.push({ id, mesh: dome, label, group: home.title, accent: color, run });
   }
 
   // --- was in keiner Geometrie steht ----------------------------------------
@@ -594,6 +601,7 @@ export class NavLabWorld extends PortalWorld {
    */
   protected override previewButtons(): PreviewButton[] {
     const buttons: PreviewButton[] = this.knobs.map((knob) => ({
+      id: knob.id,
       object: knob.mesh,
       label: knob.label,
       group: knob.group,
@@ -607,6 +615,7 @@ export class NavLabWorld extends PortalWorld {
     for (const console_ of this.consoles) {
       for (const key of console_.keys()) {
         buttons.push({
+          id: `konsole:${key.key}`,
           object: key.mesh,
           label: consoleLabel(key.key),
           group: 'Navigation zeigen',
@@ -619,6 +628,39 @@ export class NavLabWorld extends PortalWorld {
     return buttons;
   }
 
+  /**
+   * **Die Knöpfe auf der Karte** — jeder mit seiner Kennung, damit ein Tipp
+   * darauf denselben Handgriff auslöst wie ein Druck in der Welt.
+   *
+   * Von oben ist ein Knopf ein Quadrat mit einem Namen daneben und keine
+   * Kuppel von vier Pixeln. Das ist der ganze Grund, warum die Karte im Labor
+   * die bessere Bedienung ist als das Bild.
+   */
+  protected override mapMarks(): MapMark[] {
+    return this.knobs.map((knob) => {
+      knob.mesh.getWorldPosition(_at);
+      return {
+        kind: 'button' as const,
+        id: knob.id,
+        x: _at.x,
+        z: _at.z,
+        color: knob.accent,
+        // **Nur der rote trägt einen Namen**, und zwar den der Bucht. Zwölf
+        // Beschriftungen auf einer Karte von der Größe einer Handfläche sind
+        // zwölf Zeilen, die einander überdecken — und der gelbe steht ohnehin
+        // neben seinem roten. Was er tut, sagt seine Farbe: Gelb macht das
+        // Szenario schwer, überall im Labor.
+        label: knob.id.endsWith(':start') ? knob.group : '',
+      };
+    });
+  }
+
+  /** Alles aus: sechs Szenarien, jedes mit seinen Türen, Kisten und Portalen. */
+  protected override previewReset(): void {
+    for (const bay of SCENARIOS) this.reset(bay.id);
+    this.announce('Labor zurückgesetzt');
+  }
+
   /** Von außen umgelegt (Werkzeugseite): die Konsolen leuchten trotzdem mit. */
   protected override previewLayersChanged(): void {
     this.refreshConsoles();
@@ -627,6 +669,9 @@ export class NavLabWorld extends PortalWorld {
   /** Die eigene Uhr dieser Welt — die der Basis ist ihre Sache. */
   private clock = 0;
 }
+
+/** Wo ein Knopf gerade steht — Zwischenlage für die Karte. */
+const _at = new THREE.Vector3();
 
 const DOOR_ID = 'navlab-tuer';
 const PORTAL_ID = 'navlab-portal';

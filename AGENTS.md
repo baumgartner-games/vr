@@ -93,7 +93,13 @@ zum Scheinwerfer zu werden), die **Gürtel-Position**
 Hüften, dass die Höhe ein Anteil der Augenhöhe bleibt und dass ein gezogener
 Zentimeter dort ankommt, wo gezogen wurde), die **Portaltiefe**
 (`src/worlds/portal/portalDepth.ts` — Rasten, Grenzen und der Fall, dass im
-Speicher eine Zeichenkette statt einer Zahl steht), die **Spiegelung an einer
+Speicher eine Zeichenkette statt einer Zahl steht), die **Projektion einer Karte**
+(`src/worlds/shared/mapFit.ts` — dass ein Punkt hin und zurück wieder er selbst
+ist, denn ein Tipp, der zehn Zentimeter danebengeht, drückt den falschen Knopf,
+und dass eine breite Welt auf einem hochkanten Telefon quer gelegt wird), ihre
+**Auswahl** (`src/worlds/shared/mapScene.ts` — jede Wand einmal, die offene Tür
+gar nicht, die oberste Etage bei einem Tipp, und welche Marke ein Daumen meint),
+die **Spiegelung an einer
 Ebene** (`src/worlds/shared/mirrorMath.ts` — dass die Ebene selbst liegen
 bleibt, dass die Rechnung ihre eigene Umkehrung ist, dass der Abstand
 vorzeichenrichtig kippt, und die Zahl, wegen der es diesen Test gibt: die
@@ -3886,16 +3892,71 @@ bleibt: **NPCs auf den Character-Controller umstellen**.
 
 **Und man muss das Labor nicht betreten, um es zu benutzen.** Auf
 `tools.html#welt/navlab` steht unter dem Bild der Knopf **Laufen lassen**: Er
-baut dieselbe Welt mit echter Physik, kippt die Ansicht senkrecht nach unten
-und legt die sechs Buchten samt ihren Knöpfen als Zeilen daneben — dazu die
-fünf Debug-Ebenen als Schalter und ein **Ziel**, das ein Tipp auf den Boden
-versetzt. Das ist die Vogelperspektive aus „was noch fehlt", ohne Brille und
-ohne Editor; wie sie funktioniert, steht bei der Werkzeugseite unter *Eine Welt
-laufen lassen*.
+baut dieselbe Welt mit echter Physik und legt sie als **Karte** hin. Darauf ist
+jeder Knopf ein Quadrat mit dem Namen seiner Bucht — antippen drückt ihn, rot
+startet, gelb macht es schwer —, ein Tipp auf den Boden setzt das **Ziel**, dem
+die NPCs nachlaufen, und man sieht dabei zu, welchen Weg das Gitter hergibt.
+Darunter stehen drei Sachen und nicht dreizehn: *Zurücksetzen*, *Kacheln*,
+*Wege*. Das ist die Vogelperspektive aus „was noch fehlt", ohne Brille und ohne
+Editor; wie sie funktioniert, steht oben unter *Die Karte* und bei der
+Werkzeugseite unter *Eine Welt laufen lassen*.
 
 **Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, ein Editor, der
 das Gitter auch **ändern** kann, zerstörbare Hindernisse samt „schlag drauf,
 wenn kein Weg da ist" — und der Character-Controller oben.
+
+### Die Karte
+
+Jede Welt mit einem Navigationsgitter hat eine **Karte**, und keine Welt tut
+etwas dafür. Das ist die ganze Idee dahinter: Ein Grundriss aus der *Geometrie*
+müsste je Welt hergerichtet werden — welche Wand zählt, welche Deko nicht,
+welcher Boden ist Boden —, und genau diese Frage hat das **Gitter** schon
+beantwortet, als es abgetastet wurde (`nav/navBake.ts`). Wer daraus zeichnet,
+bekommt die Karte geschenkt, sobald eine Welt navigierbar ist. Dust bekam seine,
+ohne dass jemand Dust angefasst hätte.
+
+Drei Dateien, und die Aufteilung ist dieselbe wie überall hier — zwei rechnen,
+eine malt:
+
+- **`shared/mapFit.ts`** (mit Test) ist die **Projektion**: eine Verschiebung,
+  ein Maßstab, eine mögliche Vierteldrehung. Alles, was je auf einer Karte
+  landet, geht durch `toScreen`, und alles, was ein Finger meint, durch
+  `toWorld`. Der Hin- und Rückweg ist die eine Stelle, an der eine Karte falsch
+  sein kann, ohne dass man es sieht: Ein Tipp, der zehn Zentimeter danebengeht,
+  drückt den falschen Knopf.
+- **`shared/mapScene.ts`** (mit Test) ist die **Auswahl**: Kacheln samt Etage,
+  Höhe und Gefahr, Wände (jede einmal — im Gitter gehört sie genau einer Kachel
+  und einer Richtung), Fensterbänke, Verbindungen, die Wege der NPCs und die
+  **Marken**: wer wo steht, wo das Ziel ist, wo ein Knopf sitzt. Eine offene Tür
+  ist dabei keine Wand, mit derselben Zeile wie in der 3D-Ansicht.
+- **`shared/mapPaint.ts`** ist die einzige Datei davon, die einen Bildschirm
+  kennt — ein gewöhnlicher `CanvasRenderingContext2D`, und deshalb kann
+  dieselbe Karte an drei Stellen stehen, ohne dreimal gebaut zu werden.
+
+**Von oben und nicht schräg.** Es ist eine Draufsicht mit Norden oben und keine
+isometrische Ansicht, und das ist eine Entscheidung: Auf einer gekippten Karte
+ist ein rechter Winkel keiner mehr, zwei gleich große Räume sind verschieden
+groß, und ein Weg, der geradeaus läuft, sieht aus wie ein Umweg. Was eine Karte
+kann und ein Bild nicht, ist **Maßstabstreue** — und die kippt man sich als
+Erstes weg. Wer trotzdem eine Schräge will, ändert zwei Funktionen in `mapFit`
+und sonst nichts.
+
+**Eine Karte trägt keine Handgriffe.** Marken haben eine **Kennung**
+(`MapMark.id`) und keinen Rückruf: Sie ist ein Bild aus Zahlen und kein
+Bedienfeld, und ein Rückruf darin wäre die Stelle, an der eine Minikarte in der
+Brille plötzlich ein Szenario startet. Wer die Kennung vergeben hat, weiß, was
+zu tun ist — im Labor sind das die Knöpfe (`PreviewButton.id`).
+
+Benutzt wird das heute dreimal:
+
+- Auf der **Werkzeugseite** als 2D-Ansicht des laufenden Labors (siehe unten).
+- In der Brille als **Werkzeug „Karte"** (`tools/MapTool.ts`): eine Tafel über
+  der Faust, die sich sechsmal je Sekunde neu malt. Der Trigger schaltet
+  zwischen der ganzen Karte und einem **Ausschnitt**, der einem folgt — das ist
+  dieselbe Rechnung mit einem anderen Mittelpunkt (`fitMap({ centre })`) und
+  genau das, was eine Minikarte ist.
+- Und überall dort, wo als Nächstes eine gebraucht wird: `ToolHost.map()` gibt
+  sie jedem Werkzeug, `LivePreview.scene()` jeder Seite.
 
 ### Die Werkzeugseite
 
@@ -4154,24 +4215,36 @@ quer über die Karte setzt, sieht einen Zombie, der stehen bleibt, weil er
 nichts bemerkt hat.
 
 Was die Seite daraus macht, steht in einer kleinen Schnittstelle
-(`worlds/shared/livePreview.ts`) und ist absichtlich klein — fünf Sachen:
+(`worlds/shared/livePreview.ts`) und ist absichtlich klein — sieben Sachen:
 
-- **Knöpfe mit Namen.** Dieselben Objekte und dieselben Handgriffe wie in der
-  Brille (`previewButtons()`), nur mit Beschriftung: Unter dem Bild stehen sie
-  als Zeilen, nach Buchten gruppiert und im Farbstreifen ihres Gegenstücks.
-  Antippen im Bild geht auch — aber „Stachelgrube · START" trifft man auf einem
-  Telefon sicherer als eine Kuppel von vier Pixeln. Knöpfe, für die es daneben
-  schon eine Bedienung gibt, sind `quiet`: die Wandkonsolen des Labors bleiben
-  antippbar, ohne die fünf Ebenen ein zweites Mal aufzulisten.
+- **Die Karte** (`scene()`, siehe oben) — und sie ist die **Voreinstellung**,
+  sobald etwas läuft. Auf ihr ist ein Knopf ein Quadrat mit dem Namen seiner
+  Bucht daneben; in der 3D-Ansicht ist er eine Kuppel von vier Pixeln. Hier
+  stand eine Weile eine **Liste aller Knöpfe** unter dem Bild — sie war
+  umständlich und beantwortete die Frage „welcher ist das im Raum" gerade
+  nicht. Die 3D-Ansicht bleibt einen Knopfdruck weit weg: Sie zeigt, wie eine
+  Welt *aussieht*, die Karte, wie sie *funktioniert*.
+- **Knöpfe** (`previewButtons()`) — dieselben Objekte und dieselben Handgriffe
+  wie in der Brille, jeder mit einer Kennung, unter der er auch als Marke auf
+  der Karte steht. Antippen geht damit in beiden Ansichten. Knöpfe, für die es
+  daneben schon eine Bedienung gibt, sind `quiet`: die Wandkonsolen des Labors
+  bleiben antippbar, ohne die fünf Ebenen ein zweites Mal aufzulisten.
+- **Zurücksetzen** (`reset()`): weg mit allem, was läuft, und das Ziel wieder an
+  seinen Platz. Der eine Knopf, den ein Labor wirklich braucht — nach vier
+  Szenarien steht überall etwas herum, und sie einzeln abzuräumen ist die
+  Arbeit, wegen der man es sein lässt.
 - **Ein Schritt.** `step(dt)` rechnet ein Bild — dieselbe Reihenfolge wie in
   `update`, nur ohne alles, was einen Spieler voraussetzt. Was eine Welt
   jedes Bild für sich selbst tut (die Uhr des Labors, seine Zeitschaltungen),
   steht dafür in `simulate(dt)` und nicht in `update`: von dort läuft es in der
   Brille **und** auf dem Telefon.
-- **Die Debug-Ebenen** (`nav/navLayers.ts`) als Schalter, dazu die
-  Lebensbalken. Sie stehen im Labor an **drei** Stellen — Handgelenk,
-  Wandkonsole, Werkzeugseite —, und alle drei ziehen einander nach; eine
-  Anzeige, die das nicht tut, glaubt man danach keiner mehr.
+- **Zwei Debug-Ebenen** als Schalter darunter: **Kacheln** und **Wege**
+  (`nav/navLayers.ts`). Zwei und nicht fünf — die anderen drei beantworten
+  „warum geht es dort nicht lang", und diese Frage stellt man in der Brille vor
+  der Wand. Auf der Karte stehen Wände und Verbindungen ohnehin immer, denn sie
+  *sind* der Grundriss. Geschaltet wird derselbe Zustand wie am Handgelenk und
+  an der Wandkonsole; alle drei ziehen einander nach, denn eine Anzeige, die das
+  nicht tut, glaubt man danach keiner mehr.
 - **Meldungen.** `announce()` in `PortalWorld` ersetzt das `ctx?.notify`, das
   in einer Vorschau jede Antwort auf jeden Knopfdruck verschluckte: Im Spiel
   geht sie ans Handgelenk, hier in die Zeile unter der Bühne.

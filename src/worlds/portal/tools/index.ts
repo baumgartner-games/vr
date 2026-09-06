@@ -20,6 +20,7 @@ import { PistolTool } from './PistolTool';
 import { KnifeTool } from './KnifeTool';
 import { SupermanGloveTool } from './SupermanGloveTool';
 import { StopwatchTool } from './StopwatchTool';
+import { MapTool } from './MapTool';
 import { TapeTool } from './TapeTool';
 import { TeleportTool } from './TeleportTool';
 import { TransformTool } from './TransformTool';
@@ -71,6 +72,9 @@ export const TOOL_IDS = [
   'hang-glider',
   'wings',
   'tape',
+  // Die Karte: die Draufsicht dieser Welt in der Hand, aus demselben Gitter,
+  // aus dem auch die NPCs ihre Wege lesen (`shared/mapScene.ts`).
+  'map',
   'teleport',
   'eraser',
   // Die drei, die im Eingaberaum eingemessen werden: die Hand selbst und die
@@ -150,6 +154,8 @@ function buildTool(id: string): Tool | null {
       return new WingsTool();
     case 'tape':
       return new TapeTool();
+    case 'map':
+      return new MapTool();
     case 'teleport':
       return new TeleportTool();
     case 'eraser':

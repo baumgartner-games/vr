@@ -16,6 +16,7 @@ import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
 import type { PaintSurface } from './paintCanvas';
 import type { NpcControl } from '../../npc/NpcDirector';
+import type { MapScene } from '../../shared/mapScene';
 
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
@@ -210,6 +211,17 @@ export interface ToolHost {
    * Malflächen: Das Werkzeug kennt die Fähigkeit, nicht ihren Besitzer.
    */
   npcs(): NpcControl | null;
+
+  /**
+   * **Die Karte dieser Welt** (`worlds/shared/mapScene.ts`) — `null`, wo es
+   * kein Navigationsgitter gibt.
+   *
+   * Reine Daten, jedes Mal frisch: Wer sie zeichnet, bekommt einen Grundriss
+   * und alles, was gerade darauf steht. Für das Werkzeug ist das der ganze
+   * Unterschied zwischen „eine Karte bauen" und „eine Karte ansehen" — bauen
+   * tut sie die Welt, und zwar für jede Welt dieselbe Zeile.
+   */
+  map(): MapScene | null;
 }
 
 /** How hard a round hits: the punch is its mass times its speed. */
