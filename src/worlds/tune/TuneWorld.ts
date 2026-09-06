@@ -4,6 +4,8 @@ import { TextPlane } from '../../ui/TextPlane';
 import { WristMenu } from '../../ui/WristMenu';
 import type { MenuEntry } from '../../ui/menu';
 import { InputModel } from './InputModel';
+import { AccelRecording, formatAccel, recordLines } from './accelRecord';
+import { PANEL, PANEL_Z } from './inputPanel';
 import { VibeBench, KNOB_REACH } from './VibeBench';
 import {
   hapticPattern,
@@ -70,14 +72,8 @@ import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 
 const ROOM = { half: 3.4, height: 3, thickness: 0.3 };
-/** Where the two models hang: eye height, an arm's length out, one per side. */
-const MODEL_Y = 1.42;
-const MODEL_Z = -1.15;
-const MODEL_X = 0.34;
-/** Wie weit unter dem lebenden Modell die eingefrorene Lage steht. */
-const FREEZE_DROP = 0.46;
 /**
- * Wie oft die beiden Lage-Tafeln höchstens neu gezeichnet werden.
+ * Wie oft die beiden Handtafeln höchstens neu gezeichnet werden.
  *
  * Eine Zahl in Grad ändert sich bei jeder Handbewegung in jedem Bild, und
  * jedes Neuzeichnen malt eine Leinwand neu — mit 90 Hz ist das der billigste
@@ -203,7 +199,7 @@ const _gripRotation = new THREE.Quaternion();
 const _posePosition = new THREE.Vector3();
 const _poseRotation = new THREE.Quaternion();
 const _inverseMatrix = new THREE.Matrix4();
-/** Nur für die Lage-Tafel: der Weg vom Griffraum in den Strahlraum. */
+/** Nur für die letzte Zeile der Handtafel: vom Griffraum in den Strahlraum. */
 const _between = new THREE.Quaternion();
 /**
  * Und dieselbe Drehung, wie sie **im Code** steht (`GRIP_TO_RAY`) — als Grad
@@ -322,14 +318,29 @@ const DEG = 180 / Math.PI;
  */
 export class TuneWorld extends PortalWorld {
   private readonly models = new Map<Handedness, InputModel>();
+  /**
+   * Eine Tafel je Hand: was gedrückt ist, und darunter die Lage des Geräts.
+   * Es waren einmal zwei übereinander — zusammen zu viel Fläche und trotzdem
+   * zu kleine Schrift (`inputPanel.ts`).
+   */
   private readonly boards = new Map<Handedness, TextPlane>();
-  /** Die zweite Tafel je Hand: Pitch, Yaw und Roll des Geräts, laufend. */
-  private readonly tiltBoards = new Map<Handedness, TextPlane>();
+  /** Die Fläche, auf der alles davon hängt. */
+  private panel: THREE.Group | null = null;
+  /** Schilder ohne eigenes Leben — sie werden nur beim Aufräumen gebraucht. */
+  private readonly plates: TextPlane[] = [];
+  /** Die Tafel der Aufnahme, und was gerade darauf steht. */
+  private recordBoard: TextPlane | null = null;
+  private recordLine = '';
+  /** Sekunden seit dem letzten Neuzeichnen der Aufnahme-Tafel. */
+  private recordAge = 0;
+  /** Die laufende Aufnahme, und die letzte beendete daneben. */
+  private recording: AccelRecording | null = null;
+  private lastRecording: AccelRecording | null = null;
   /** Die eingefrorene Lage je Hand — Boxhand und Zylinder, wo sie dann lagen. */
   private readonly freezes = new Map<Handedness, THREE.Group>();
   /** Die Zahlen dazu, solange sie eingefroren sind. */
   private readonly frozen = new Map<Handedness, string>();
-  /** Was zuletzt auf einer Lage-Tafel stand — ein Canvas ohne Not ist teuer. */
+  /** Was zuletzt auf einer Handtafel stand — ein Canvas ohne Not ist teuer. */
   private readonly tiltLines = new Map<Handedness, string>();
   /**
    * Sekunden seit dem letzten Neuzeichnen — **je Tafel**, nicht eine für
@@ -438,18 +449,13 @@ export class TuneWorld extends PortalWorld {
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
+    this.updateRecording(dt, ctx);
     for (const side of ['left', 'right'] as const) {
       this.tiltAge.set(side, (this.tiltAge.get(side) ?? 0) + dt);
-      this.updateTilt(side, ctx.input.get(side));
-      const model = this.models.get(side);
-      const board = this.boards.get(side);
-      if (!model || !board) continue;
-      const line = model.show(ctx.input.get(side));
-      // A canvas redraw per frame for a line that has not changed is the
-      // cheapest way there is to make a headset stutter.
-      if (line === model.lastLine) continue;
-      model.lastLine = line;
-      board.setText(side === 'left' ? 'Linke Hand' : 'Rechte Hand', line, 0x9fe3ff);
+      // Das Modell zuerst: seine Zeile steht mit auf der Tafel darunter.
+      const controller = ctx.input.get(side);
+      const line = this.models.get(side)?.show(controller) ?? '';
+      this.updateBoard(side, controller, line);
     }
     if (this.toolMenu) {
       ctx.rig.getHeadMatrix(_matrix);
@@ -488,8 +494,14 @@ export class TuneWorld extends PortalWorld {
     this.models.clear();
     for (const board of this.boards.values()) board.dispose();
     this.boards.clear();
-    for (const board of this.tiltBoards.values()) board.dispose();
-    this.tiltBoards.clear();
+    this.recordBoard?.dispose();
+    this.recordBoard = null;
+    this.recording = null;
+    this.lastRecording = null;
+    for (const plate of this.plates) plate.dispose();
+    this.plates.length = 0;
+    this.panel?.removeFromParent();
+    this.panel = null;
     if (this.worldAxes) disposeAxes(this.worldAxes);
     this.worldAxes = null;
     for (const side of ['left', 'right'] as const) this.clearFreeze(side);
@@ -607,83 +619,92 @@ export class TuneWorld extends PortalWorld {
       false,
     );
 
-    const title = new TextPlane({
-      width: 2.4,
-      height: 0.44,
+    // **Die Tafelwand**: alles, was man hier abliest, auf einer Fläche gut
+    // zwei Meter vor dem Spieler. Die Maße stehen in `inputPanel.ts` und sind
+    // dort geprüft — dass nichts vor etwas anderem steht, und dass man für das
+    // Ganze den Kopf nicht drehen muss. Vorher hing es an der Vorderwand, vier
+    // Meter weg: die Schrift war ein halbes Grad hoch, und die Modelle standen
+    // aus Spielersicht mitten auf den Zahlen dahinter.
+    const panel = new THREE.Group();
+    panel.name = 'input-panel';
+    panel.position.z = PANEL_Z;
+    room.add(panel);
+    this.panel = panel;
+
+    const title = this.panelBoard(panel, PANEL.title, {
       title: 'Eingaberaum',
-      body: 'Greifen = Mittel-, Ring- und kleiner Finger an der Handfläche · Trigger = Zeigefinger',
-      accent: 0x4aa8ff,
+      body: 'Greifen = drei Finger an der Handfläche · Trigger = Zeigefinger',
       align: 'center',
+      accent: 0x4aa8ff,
     });
-    title.position.set(0, 2.32, -half + thickness / 2 + 0.02);
-    room.add(title);
+    this.plates.push(title);
+
+    // Die Aufnahme und ihr Knopf, nebeneinander in der obersten Zeile.
+    const record = this.panelBoard(panel, PANEL.record, {
+      title: 'Aufnahme',
+      body: recordLines(null, null),
+      accent: 0x5ee0a0,
+    });
+    this.recordBoard = record;
+    this.plates.push(record);
+
+    const recordButton = this.wallButton(
+      panel,
+      PANEL.recordButton.width,
+      PANEL.recordButton.height,
+      () => this.toggleRecording(),
+    );
+    recordButton.plane.position.set(PANEL.recordButton.x, PANEL.recordButton.y, 0);
+    recordButton.refresh = () => {
+      this.label(
+        recordButton,
+        this.recording ? 'Aufnahme beenden' : 'Aufnahme starten',
+        this.recording ? 'Greifen setzt eine Marke' : 'Misst, wie stark die Hand beschleunigt',
+        this.recording ? GRAB_GLOW : 0x5ee0a0,
+      );
+    };
 
     for (const side of ['left', 'right'] as const) {
       const sign = side === 'left' ? -1 : 1;
 
       const model = new InputModel(side);
-      model.position.set(sign * MODEL_X, MODEL_Y, MODEL_Z);
-      room.add(model);
+      model.position.set(sign * PANEL.model.x, PANEL.model.y, 0);
+      panel.add(model);
       this.models.set(side, model);
 
-      // The words go straight behind the model it belongs to, so the eye does
-      // not have to hunt for which board is which hand.
-      const board = new TextPlane({
-        width: 1.5,
-        height: 0.5,
-        title: side === 'left' ? 'Linke Hand' : 'Rechte Hand',
-        body: 'nicht getrackt',
-        accent: 0x9fe3ff,
-      });
-      board.position.set(sign * 0.82, 1.78, -half + thickness / 2 + 0.02);
-      room.add(board);
+      // Die Tafel steht unter dem Modell, zu dem sie gehört: was gedrückt ist,
+      // und darunter die **Lage** des Geräts als Zahl. Es waren einmal zwei
+      // Tafeln übereinander, jede mit langen Zeilen — zusammen zu viel Fläche
+      // und trotzdem zu kleine Schrift.
+      const board = this.panelBoard(
+        panel,
+        { ...PANEL.board, x: sign * PANEL.board.x },
+        { title: handLabel(side), body: 'nicht getrackt', accent: 0x9fe3ff },
+      );
       this.boards.set(side, board);
-
-      // Und darunter die **Lage**: Pitch, Yaw und Roll des Geräts, laufend.
-      // Was das Modell darüber zeigt, sieht man; was es *ist*, steht hier als
-      // Zahl — und nur eine Zahl kann man weitersagen.
-      const tilt = new TextPlane({
-        width: 1.5,
-        height: 0.62,
-        title: `${handLabel(side)} · Lage`,
-        body: 'nicht getrackt',
-        accent: 0x9fe3ff,
-      });
-      tilt.position.set(sign * 0.82, 1.14, -half + thickness / 2 + 0.02);
-      room.add(tilt);
-      this.tiltBoards.set(side, tilt);
 
       const freeze = new THREE.Group();
       freeze.name = `freeze-${side}`;
       freeze.visible = false;
-      freeze.position.set(sign * MODEL_X, MODEL_Y - FREEZE_DROP, MODEL_Z);
-      room.add(freeze);
+      freeze.position.set(sign * PANEL.freeze.x, PANEL.freeze.y, 0);
+      panel.add(freeze);
       this.freezes.set(side, freeze);
     }
 
-    const hint = new TextPlane({
-      width: 2.6,
-      height: 0.4,
-      title: 'Hier läuft niemand',
-      body: 'Stick bewegt und dreht nicht — der Knopf rechts daneben gibt ihn frei',
-      accent: 0x6f7d99,
-      align: 'center',
-    });
-    hint.position.set(0, 0.55, -half + thickness / 2 + 0.02);
-    room.add(hint);
-
     // **Das Achsenkreuz des Raums** — auf dem Boden zwischen einem selbst und
-    // der Wand, und daneben die Legende. Auf dem Boden und nicht auf
+    // der Tafelwand, und daneben die Legende. Auf dem Boden und nicht auf
     // Brusthöhe: dort stand es eine Weile, mitten im Blick auf die Tafeln und
     // genau dort, wo man die Hände hält. Ein Kreuz allein sagt „hier sind drei
-    // Achsen"; erst mit den Worten daneben sagt es, welche.
+    // Achsen"; erst mit den Worten daneben sagt es, welche. Die Legende liegt
+    // dabei tief genug, dass die unterste Zeile der Tafelwand sie nicht
+    // verdeckt.
     this.worldAxes = createAxes(0.45);
     this.worldAxes.position.set(0, 0.02, -1.9);
     room.add(this.worldAxes);
 
     const legend = new TextPlane({
-      width: 1.3,
-      height: 0.55,
+      width: 1.1,
+      height: 0.5,
       title: 'Achsen',
       body:
         'X rot — nach rechts\n' +
@@ -692,8 +713,9 @@ export class TuneWorld extends PortalWorld {
         '−Z weiß — nach VORN',
       accent: 0x9fe3ff,
     });
-    legend.position.set(-1.05, 0.55, -1.9);
+    legend.position.set(-1.05, 0.4, -1.9);
     room.add(legend);
+    this.plates.push(legend);
 
     this.buildTurnButton(room);
     this.buildValues(room);
@@ -717,8 +739,9 @@ export class TuneWorld extends PortalWorld {
   // --- der Knopf, der das Drehen freigibt -----------------------------------
 
   /**
-   * Direkt neben dem Hinweis, dass hier niemand läuft — dort wird man ihn
-   * suchen, und dort widerspricht er dem Schild, das gerade gelesen wurde.
+   * Er sagt selbst, was er aufhebt: *Hier läuft niemand — antippen erlaubt
+   * Drehen und Gehen.* Das Schild daneben, das dasselbe sagte, ist weg; eins
+   * von beidem reicht, und der Knopf ist das, was man drücken kann.
    */
   private buildTurnButton(room: THREE.Group): void {
     const { half, thickness } = ROOM;
@@ -729,13 +752,19 @@ export class TuneWorld extends PortalWorld {
       this.refreshButtons();
       ctx.notify(ctx.rig.locked ? 'Stick gesperrt' : 'Stick frei — bewegen und drehen');
     });
-    button.plane.position.set(1.9, 0.72, -half + thickness / 2 + 0.02);
+    // Außen an der Wand, neben der Tafelwand vorbei: die hängt in Lesenähe und
+    // deckt aus Spielersicht alles, was mittig dahinter steht. Das Schild „Hier
+    // läuft niemand" stand einmal daneben und sagte dasselbe wie der Knopf —
+    // eins von beidem reicht, und der Knopf ist das, was man drücken kann.
+    button.plane.position.set(2.35, 0.72, -half + thickness / 2 + 0.02);
     button.refresh = () => {
       const locked = this.context?.rig.locked !== false;
       this.label(
         button,
         locked ? 'Stick freigeben' : 'Stick sperren',
-        locked ? 'Antippen erlaubt Drehen und Gehen' : 'Stick dreht und geht · Gang hinter dir',
+        locked
+          ? 'Hier läuft niemand — antippen erlaubt Drehen und Gehen'
+          : 'Stick dreht und geht · Gang hinter dir',
         locked ? 0x6f7d99 : GRAB_GLOW,
       );
     };
@@ -1564,60 +1593,83 @@ export class TuneWorld extends PortalWorld {
     this.refreshButtons();
   }
 
-  // --- die Lage des Geräts, als Zahl ----------------------------------------
+  // --- die Tafel einer Hand -------------------------------------------------
 
   /**
-   * **Wie das Gerät gerade in der Hand liegt**, als drei Zahlen an der Wand —
-   * und, auf Knopfdruck, eingefroren.
+   * **Was gedrückt ist, und wie das Gerät dabei liegt** — beides auf einer
+   * Tafel unter dem Modell, und auf Knopfdruck eingefroren.
    *
-   * Man sieht in der Brille, wie das Modell an der Wand mitkippt; was man
-   * *nicht* sieht, sind die Zahlen dahinter. Und nur Zahlen kann man
-   * weitersagen: „so halte ich den Controller wirklich" ist als Satz wertlos
-   * und als `Pitch -74 · Yaw 12 · Roll -31` eine Messung, aus der eine
-   * Grundhaltung wird.
+   * Man sieht in der Brille, wie das Modell mitkippt; was man *nicht* sieht,
+   * sind die Zahlen dahinter. Und nur Zahlen kann man weitersagen: „so halte
+   * ich den Controller wirklich" ist als Satz wertlos und als
+   * `P -74 · Y 12 · R -31` eine Messung, aus der eine Grundhaltung wird.
    *
    * Gelesen wird der **Griffraum** — der Raum, in dem jede Haltung, jeder
    * Halterzylinder und jede Faust dieses Spiels stehen — als Euler XYZ in
    * Grad, also genau in der Schreibweise einer `HandPose`. Was hier steht,
    * kann man ohne Umrechnung nebeneinanderlegen.
    *
+   * Es waren einmal **zwei Tafeln** übereinander, eine für die Tasten und eine
+   * für die Lage, jede 1,5 m breit an der vier Meter entfernten Wand. Zusammen
+   * war das zu viel Fläche und trotzdem zu kleine Schrift: drei lange Zeilen
+   * brachen um, und die letzte fiel weg. Jetzt ist es eine Tafel in Lesenähe
+   * mit kurzen Zeilen (`inputPanel.ts`, `tiltOf`).
+   *
    * **Greifen friert ein.** Der Stick bewegt in diesem Raum nichts, man steht
    * also ohnehin still; was fehlt, ist ein Weg, eine Zahl festzuhalten, ohne
    * sie im selben Moment durch das Hinsehen zu verändern. Ein Druck auf den
-   * Griffknopf hält die Lage fest, ein zweiter gibt sie wieder frei — und
-   * dazu stellt sich unter das Modell, was diese Lage bedeutet: die
-   * **Boxhand** in der Faust um den **Handgriff des Geräts**
-   * (`CONTROLLER_HAND_POSE`, `createControllerHandle`). Man liest die Zahl
-   * also nicht nur, man sieht auch, was das Spiel daraus macht.
+   * Griffknopf hält die Lage fest, ein zweiter gibt sie wieder frei — und dazu
+   * stellt sich neben das Modell, was diese Lage bedeutet: die **Boxhand** in
+   * der Faust um den **Handgriff des Geräts** (`CONTROLLER_HAND_POSE`,
+   * `createControllerHandle`). Man liest die Zahl also nicht nur, man sieht
+   * auch, was das Spiel daraus macht.
+   *
+   * **Während einer Aufnahme setzt derselbe Knopf eine Marke** und friert
+   * nichts ein: dann ist der Griffknopf die Stoppuhr, und zwei Bedeutungen
+   * zugleich hat er nicht.
    */
-  private updateTilt(side: Handedness, state: ControllerState | null): void {
-    const board = this.tiltBoards.get(side);
-    if (!board) return;
+  private updateBoard(side: Handedness, state: ControllerState | null, line: string): void {
+    const board = this.boards.get(side);
+    const model = this.models.get(side);
+    if (!board || !model) return;
     const live = state?.tracked ? tiltOf(state) : null;
 
-    // Getrackte Hände haben kein Gerät, das man festhalten könnte.
-    if (state && !state.isHand && state.squeeze.justPressed) {
-      if (this.frozen.has(side)) {
-        this.clearFreeze(side);
-        state.pulse(0.5, 30);
-      } else if (live) {
-        this.setFreeze(side, state, live);
-        state.pulse(0.5, 30);
+    if (state && state.squeeze.justPressed) {
+      if (this.recording) {
+        const mark = this.recording.mark(side);
+        state.pulse(0.6, 35);
+        this.context?.notify(`Marke ${mark.index}: ${formatAccel(mark.value)}`);
+        // Eine Marke ist der eine Moment, für den man den Knopf drückt: die
+        // steht sofort da und wartet nicht auf die nächste Zeichenrunde.
+        this.showRecording(true);
+        // Getrackte Hände haben kein Gerät, dessen Lage man festhalten könnte.
+      } else if (!state.isHand) {
+        if (this.frozen.has(side)) {
+          this.clearFreeze(side);
+          state.pulse(0.5, 30);
+        } else if (live) {
+          this.setFreeze(side, state, live);
+          state.pulse(0.5, 30);
+        }
       }
     }
 
     const held = this.frozen.get(side);
-    const text = held ?? live ?? 'nicht getrackt';
+    const pose = held ?? live ?? 'nicht getrackt';
+    const text = `${line || 'nicht getrackt'}\n${pose}`;
     // Höchstens ein paar Mal je Sekunde: eine Zahl, die sich mit jedem Bild um
     // ein Grad ändert, ist keine Anzeige, sondern ein Flackern — und jedes
-    // Neuzeichnen kostet eine Leinwand.
+    // Neuzeichnen kostet eine Leinwand. Eine gedrückte **Taste** kommt dagegen
+    // sofort: genau dafür ist dieser Raum da.
+    const pressed = line !== model.lastLine;
     if (text === this.tiltLines.get(side)) return;
-    if (!held && (this.tiltAge.get(side) ?? 0) < TILT_REFRESH) return;
+    if (!held && !pressed && (this.tiltAge.get(side) ?? 0) < TILT_REFRESH) return;
     this.tiltAge.set(side, 0);
     this.tiltLines.set(side, text);
+    model.lastLine = line;
     board.setText(
-      held ? `${handLabel(side)} · eingefroren` : `${handLabel(side)} · Lage`,
-      held ? `${held}\nGreifen gibt wieder frei` : text,
+      held ? `${handLabel(side)} · eingefroren` : handLabel(side),
+      held ? `${text}\nGreifen gibt wieder frei` : text,
       held ? 0xffc857 : 0x9fe3ff,
     );
   }
@@ -2451,6 +2503,102 @@ export class TuneWorld extends PortalWorld {
    * in `init` an — hier wird nur gebaut, weil die Welt zu diesem Zeitpunkt
    * noch keinen Kontext hat.
    */
+  /**
+   * Eine Tafel an ihrem Platz auf der Tafelwand — die Maße kommen aus
+   * `inputPanel.ts`, damit der Test sie prüfen kann und nicht die Brille.
+   */
+  private panelBoard(
+    parent: THREE.Object3D,
+    rect: { x: number; y: number; width: number; height: number },
+    text: { title: string; body: string; accent: number; align?: 'left' | 'center' },
+  ): TextPlane {
+    const plane = new TextPlane({
+      width: rect.width,
+      height: rect.height,
+      title: text.title,
+      body: text.body,
+      accent: text.accent,
+      align: text.align,
+    });
+    plane.position.set(rect.x, rect.y, 0);
+    parent.add(plane);
+    return plane;
+  }
+
+  // --- die Aufnahme ---------------------------------------------------------
+
+  /**
+   * **Aufnehmen, wie stark die Hand beschleunigt** — Knopf an, Bewegung
+   * machen, Knopf aus.
+   *
+   * Es ist die eine Größe in diesem Spiel, zu der niemand ein Gefühl hat: ein
+   * Meter je Sekunde ist ein Schritt, aber „40 m/s²" sagt nichts, bis man es
+   * einmal neben der eigenen Bewegung gesehen hat. Genau solche Zahlen stehen
+   * aber in den Schwellen — der Schlag des Hammers, das Tempo eines Wurfs, das
+   * Schütteln der Sektflasche —, und bisher hieß Einstellen: probieren, bis
+   * etwas passiert.
+   *
+   * Während sie läuft, setzt **Greifen** eine Marke: der Wert genau in dem
+   * Moment, in dem man den Knopf drückt. Ohne das misst man den Wurf und liest
+   * hinterher den Höchstwert des Abbremsens ab. Die Zuggeste am Ende der
+   * Aufnahme friert deshalb auch nichts ein — solange aufgenommen wird, gehört
+   * der Griffknopf der Marke (`updateBoard`).
+   */
+  private toggleRecording(): void {
+    const ctx = this.context;
+    if (this.recording) {
+      this.lastRecording = this.recording;
+      this.recording = null;
+      const peak = this.lastRecording.peak();
+      ctx?.notify(`Aufnahme beendet · Max ${formatAccel(peak.value)}`);
+    } else {
+      this.recording = new AccelRecording();
+      this.lastRecording = null;
+      ctx?.notify('Aufnahme läuft · Greifen setzt eine Marke');
+    }
+    this.recordLine = '';
+    this.refreshButtons();
+    this.showRecording(true);
+  }
+
+  /**
+   * Ein Bild der Aufnahme: beide Hände füttern und die Tafel nachziehen.
+   *
+   * Gemessen wird an demselben Punkt der Hand, an dem auch alles andere hängt
+   * (dem Griffpunkt) — und **jedes** Bild, auch wenn die Tafel nur fünfmal je
+   * Sekunde neu gezeichnet wird. Ein Gipfel dauert zwei Bilder; wer nur zum
+   * Zeichnen misst, misst ihn nicht.
+   */
+  private updateRecording(dt: number, ctx: WorldContext): void {
+    const recording = this.recording;
+    if (recording) {
+      recording.tick(dt);
+      for (const side of ['left', 'right'] as const) {
+        const controller = ctx.input.get(side);
+        recording.feed(side, controller?.tracked ? handPosition(controller, _hand) : null, dt);
+      }
+    }
+    this.recordAge += dt;
+    this.showRecording();
+  }
+
+  /**
+   * Die Tafel der Aufnahme — neu gezeichnet nur, wenn sich der Text ändert,
+   * und höchstens ein paar Mal je Sekunde: eine laufende Uhr ändert ihn in
+   * jedem Bild, und eine 512er-Leinwand je Bild ist der billigste Weg, ein
+   * Headset zum Stocken zu bringen.
+   */
+  private showRecording(force = false): void {
+    const board = this.recordBoard;
+    if (!board) return;
+    if (!force && this.recordAge < TILT_REFRESH) return;
+    const text = recordLines(this.recording, this.lastRecording);
+    if (text === this.recordLine) return;
+    this.recordAge = 0;
+    this.recordLine = text;
+    board.setText('Aufnahme', text, this.recording ? GRAB_GLOW : 0x5ee0a0);
+  }
+
   private wallButton(
     parent: THREE.Object3D,
     width: number,
@@ -2565,20 +2713,23 @@ function tiltOf(state: ControllerState): string {
   const ray = state.targetRay.quaternion;
   const grip = gripSpaceOf(state);
   const yxz = _euler.setFromQuaternion(ray, 'YXZ');
-  const line = [`Strahl (YXZ): Yaw ${deg(yxz.y)}° · Pitch ${deg(yxz.x)}° · Roll ${deg(yxz.z)}°`];
+  // **Kurze Zeilen**, denn die Tafel ist schmal und soll groß schreiben: `Y`,
+  // `P` und `R` stehen für Yaw, Pitch und Roll, und welcher Raum gemeint ist,
+  // sagt der Anfang der Zeile. Ausgeschrieben brach jede Zeile um, und die
+  // Schrift schrumpfte auf die Hälfte, bis am Ende eine Zeile fehlte.
+  const line = [`Strahl YXZ  Y ${deg(yxz.y)}°  P ${deg(yxz.x)}°  R ${deg(yxz.z)}°`];
   if (grip) {
     const xyz = _euler.setFromQuaternion(grip, 'XYZ');
     line.push(
-      `${state.isHand ? 'Handgelenk' : 'Griff'} (XYZ): Pitch ${deg(xyz.x)}° · ` +
-        `Yaw ${deg(xyz.y)}° · Roll ${deg(xyz.z)}°`,
+      `${state.isHand ? 'Gelenk' : 'Griff'} XYZ  P ${deg(xyz.x)}°  ` +
+        `Y ${deg(xyz.y)}°  R ${deg(xyz.z)}°`,
     );
     // Der Weg vom Griff zum Strahl — die Zahl, die das **Gerät** selbst kennt,
     // und daneben die, die im Code dafür steht. Nur nebeneinander sind sie eine
     // Auskunft: eine gemessene Zahl allein sagt nicht, ob sie neu ist.
     _between.copy(grip).invert().multiply(ray);
-    const between = _euler.setFromQuaternion(_between, 'XYZ');
     const total = 2 * Math.acos(Math.min(1, Math.abs(_between.w)));
-    line.push(`Griff → Strahl: X ${deg(between.x)}° · gesamt ${deg(total)}° (Code: ${CODED_AIM}°)`);
+    line.push(`Griff→Strahl ${deg(total)}° (Code ${CODED_AIM}°)`);
   }
   return line.join('\n');
 }

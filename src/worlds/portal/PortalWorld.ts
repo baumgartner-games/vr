@@ -98,19 +98,22 @@ import {
   handsTooClose,
   nearZoneDistance,
   pickAimTarget,
+  pivotGrab,
   rayReach,
   reachDepth,
-  spinGrab,
   type AimTarget,
   type GrabPose,
   type GrabStage,
   type NearZone,
+  type Vec3,
 } from './grabReach';
+import { HandSpeed, tumbleAxis } from './throwMotion';
 import {
   GRAB_FIELDS,
   formatGrabField,
   grabSettings,
   motionLabel,
+  nextGrabMotion,
   nextGrabStep,
   onGrabChange,
   saveGrabSettings,
@@ -202,6 +205,8 @@ const HIGHLIGHT_PICKED = GRAB_GLOW_PICKED;
 const _ropeTaut = new THREE.Color(0xffb35c);
 const _zeroVelocity = new THREE.Vector3();
 const _spin = new THREE.Vector3();
+/** Das Tempo, mit dem ein losgelassenes Werkzeug fliegt, und seine Drehachse. */
+const _throw = { x: 0, y: 0, z: 0 };
 const _handSpeed = new THREE.Vector3();
 const _toolBox = new THREE.Box3();
 const _toolLocal = new THREE.Box3();
@@ -385,13 +390,6 @@ interface LooseTool {
   hip: Handedness | null;
 }
 
-/** Where a hand was last frame and how fast it is going, in m/s. */
-interface HandMotion {
-  last: THREE.Vector3;
-  velocity: THREE.Vector3;
-  known: boolean;
-}
-
 /** Ein Prop, wie es beim Speichern stand — Pose, Größe und Schwung. */
 interface SavedProp {
   entry: PhysicsBody;
@@ -482,6 +480,12 @@ interface NearGrab {
   objectStart: GrabPose;
   /** Wo die Hand dabei war. */
   handStart: GrabPose;
+  /**
+   * Wo die **Geisterhand** dabei stand — der Trefferpunkt des Strahls, und
+   * damit der Punkt, an dem die Hand anfassen würde. Um ihn dreht die
+   * Betriebsart *wie die eigene Hand* (`pivotGrab`).
+   */
+  hold: Vec3;
 }
 
 /**
@@ -616,7 +620,7 @@ export class PortalWorld implements World {
    */
   private readonly loose = new Map<PhysicsBody, LooseTool>();
   /** How fast each hand is moving, for throwing whatever it lets go of. */
-  private readonly handMotion = new Map<Handedness, HandMotion>();
+  private readonly handMotion = new Map<Handedness, HandSpeed>();
   private belt: ToolBelt | null = null;
   /**
    * Was die Werkzeuge am Raum dürfen. `protected`, weil eine abgeleitete Welt
@@ -892,11 +896,11 @@ export class PortalWorld implements World {
     const motion: MenuEntry = {
       id: 'setting:grab-motion',
       label: `Im Nahgriff: ${motionLabel(this.grabConfig.motion)}`,
-      sub: 'Starr hat einen Hebel, die Drehung um die Mitte nicht',
+      sub: 'Die Geisterhand führt eins zu eins — starr hat dafür einen Hebel',
       icon: 'settings',
       accent,
       run: () => {
-        const next = this.grabConfig.motion === 'rigid' ? 'spin' : 'rigid';
+        const next = nextGrabMotion(this.grabConfig.motion);
         this.applyGrabSettings(saveGrabSettings({ motion: next }));
         this.refreshMenuLabels();
         this.context?.notify(motionLabel(next));
@@ -3185,8 +3189,12 @@ export class PortalWorld implements World {
     // aber zu der Seite, in deren Hand es lag.
     const hip = this.homes.get(tool) ?? null;
     const home = hip ?? hand ?? null;
+    // Der **schnellste Moment** der letzten Sekundenbruchteile und nicht das
+    // geglättete Jetzt: wer wirft, öffnet die Hand am Ende der Bewegung, und
+    // bis der Griffknopf das meldet, bremst der Arm schon wieder ab.
     const motion = hand ? this.handMotion.get(hand) : null;
-    _velocity.copy(motion?.velocity ?? _zeroVelocity).clampLength(0, 12);
+    if (motion) motion.throwVelocity(_throw);
+    _velocity.copy(motion ? _throw : _zeroVelocity).clampLength(0, 12);
     const speed = _velocity.length();
 
     if (hand) this.held.delete(hand);
@@ -3226,10 +3234,15 @@ export class PortalWorld implements World {
 
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
     if (gliding) {
-      // Straight on: no gravity, and a spin around the axis the star turns on.
+      // Straight on: no gravity, and an overhand tumble in the plane of the
+      // throw — die Spitze geht oben herum nach vorn, in beiden Händen gleich
+      // (`throwMotion.ts`). Vorher war es die x-Achse des Werkzeugs, und die
+      // liegt links anders herum als rechts.
       entry.body.setGravityScale(0, true);
-      _spin.set(1, 0, 0).applyQuaternion(tool.quaternion).multiplyScalar(SPIN_RATE);
-      entry.body.setAngvel({ x: _spin.x, y: _spin.y, z: _spin.z }, true);
+      if (tumbleAxis(_velocity, _throw)) {
+        _spin.set(_throw.x, _throw.y, _throw.z).multiplyScalar(SPIN_RATE);
+        entry.body.setAngvel({ x: _spin.x, y: _spin.y, z: _spin.z }, true);
+      }
     }
     tool.onThrow(host, speed);
 
@@ -3430,29 +3443,27 @@ export class PortalWorld implements World {
     if (this.host) loose.tool.onStick(this.host);
   }
 
-  /** How fast each hand is moving — what a let-go tool is thrown with. */
+  /**
+   * How fast each hand is moving — what a let-go tool is thrown with.
+   *
+   * Gemerkt wird dabei nicht nur das laufende Tempo, sondern das der letzten
+   * Sekundenbruchteile: geworfen wird mit dem **schnellsten Moment** darin und
+   * nicht mit dem, was beim Loslassen noch übrig ist (`throwMotion.ts`).
+   */
   private trackHands(dt: number, ctx: WorldContext): void {
     for (const side of ['left', 'right'] as const) {
       let motion = this.handMotion.get(side);
       if (!motion) {
-        motion = { last: new THREE.Vector3(), velocity: new THREE.Vector3(), known: false };
+        motion = new HandSpeed();
         this.handMotion.set(side, motion);
       }
       const controller = ctx.input.get(side);
       if (!controller?.tracked || dt <= 0) {
-        motion.known = false;
-        motion.velocity.set(0, 0, 0);
+        motion.forget();
         continue;
       }
       gripOf(controller).getWorldPosition(_handSpeed);
-      if (motion.known) {
-        // Smoothed a little: a single frame of tracking noise is not a throw,
-        // and a throw is never a single frame either.
-        _probe.copy(_handSpeed).sub(motion.last).divideScalar(dt);
-        motion.velocity.lerp(_probe, Math.min(1, dt * 26));
-      }
-      motion.last.copy(_handSpeed);
-      motion.known = true;
+      motion.feed(_handSpeed, dt);
     }
   }
 
@@ -4156,7 +4167,7 @@ export class PortalWorld implements World {
     // Already in the other hand? Then this is a hand-over, not a pick-up.
     const other = this.handHolding(aim.entry);
     if (other) this.release(ctx, other, this.grabs.get(other)!, false);
-    this.attach(hand, anchor, aim.entry, aim.stage === 'near' ? controller : null);
+    this.attach(hand, anchor, aim.entry, aim.stage === 'near' ? controller : null, aim.point);
     this.pinGhost(hand, aim.entry);
     controller.pulse(aim.stage === 'near' ? 0.35 : 0.5, 30);
   }
@@ -4291,10 +4302,12 @@ export class PortalWorld implements World {
    *
    * Der Unterschied steckt allein darin, welche Pose gerechnet wird: in der
    * Faust dieselbe Matrix wie eh und je, beim Nahgriff wahlweise dieselbe
-   * (dann hat man eben einen langen Arm) oder eine Drehung um die Mitte des
-   * Gegenstands. Und beim Nahgriff hört die Hand auf die Zuggeste — wer ihn
-   * doch in der Hand haben will, kippt sie hoch, statt loszulassen und neu zu
-   * zielen.
+   * (dann hat man eben einen langen Arm, Betriebsart *starr*) oder — die
+   * Vorgabe — eine Drehung um den Punkt, an dem die **Geisterhand** anfasst.
+   * Dann verschiebt die Hand eins zu eins und dreht den Gegenstand genau so,
+   * als läge sie dort an ihm. Und beim Nahgriff hört die Hand auf die
+   * Zuggeste — wer ihn doch in der Hand haben will, kippt sie hoch, statt
+   * loszulassen und neu zu zielen.
    */
   private carryGrab(
     dt: number,
@@ -4319,11 +4332,11 @@ export class PortalWorld implements World {
       }
     }
 
-    if (near && this.grabConfig.motion === 'spin') {
+    if (near && this.grabConfig.motion !== 'rigid') {
       anchor.getWorldPosition(_point);
       anchor.getWorldQuaternion(_quaternion);
       copyPose(_point, _quaternion, _handNow);
-      spinGrab(near.objectStart, near.handStart, _handNow, _spun);
+      pivotGrab(near.objectStart, near.handStart, _handNow, near.hold, _spun);
       _point.set(_spun.position.x, _spun.position.y, _spun.position.z);
       _quaternion.set(_spun.rotation.x, _spun.rotation.y, _spun.rotation.z, _spun.rotation.w);
     } else {
@@ -4565,6 +4578,9 @@ export class PortalWorld implements World {
     anchor: THREE.Object3D,
     entry: PhysicsBody,
     controller: ControllerState | null = null,
+    /** Beim **Nahgreifen** der Trefferpunkt des Strahls: dort steht die
+     * Geisterhand, und um ihn dreht der Nahgriff (`pivotGrab`). */
+    hold: THREE.Vector3 | null = null,
   ): void {
     // A tool lying on the floor is picked up as a *tool*, not carried around
     // like a crate: one place for it, so a hand, a remote grab and a gravity
@@ -4604,7 +4620,7 @@ export class PortalWorld implements World {
       offset,
       lastPosition: _point.clone(),
       velocity: new THREE.Vector3(),
-      near: controller ? this.nearGrabOf(controller, anchor, entry) : null,
+      near: controller ? this.nearGrabOf(controller, anchor, entry, hold) : null,
       poseId: grip ? kind : null,
       shake:
         kind === 'champagne' && entry.object.getObjectByName(CORK_NAME) ? new ShakeMeter() : null,
@@ -4624,6 +4640,7 @@ export class PortalWorld implements World {
     controller: ControllerState,
     anchor: THREE.Object3D,
     entry: PhysicsBody,
+    hold: THREE.Vector3 | null,
   ): NearGrab {
     anchor.getWorldPosition(_point);
     anchor.getWorldQuaternion(_quaternion);
@@ -4637,7 +4654,15 @@ export class PortalWorld implements World {
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0, w: 1 },
     });
-    return { pitch: this.handPitch(controller), handStart, objectStart };
+    return {
+      pitch: this.handPitch(controller),
+      handStart,
+      objectStart,
+      // Ohne Trefferpunkt bleibt die Mitte des Gegenstands als Drehpunkt: das
+      // ist dieselbe Rechnung, nur um den Punkt, den man sich denken muss
+      // statt den, den man sieht.
+      hold: hold ? { x: hold.x, y: hold.y, z: hold.z } : { ...objectStart.position },
+    };
   }
 
   private release(ctx: WorldContext, hand: Handedness, grab: HandGrab, drop: boolean): void {

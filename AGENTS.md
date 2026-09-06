@@ -127,9 +127,10 @@ darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
 Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
 entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
-den **Stab** (Hammer), denselben Stab auf der **Zielachse der echten Hand**
-(das Rohr der Taschenlampe: dass es wirklich auf dem Zeigestrahl liegt und
-nicht daneben, und dass dieselbe Faust es an seiner neuen Stelle umschließt),
+den **Stab** (Hammer), denselben Stab **45° nach vorn gekippt**
+(das Rohr der Taschenlampe: dass es im Griffpunkt liegt, genau 45° über dem
+Zeigestrahl und um keine Achse sonst, und dass dieselbe Faust es in seiner
+neuen Lage umschließt),
 den **Griff der Drohne**, die **Kante der Stoppuhr**, den **Saum des Beutels**,
 die **Querstange des Hängegleiters** und den **Handgriff des Controllers** (aus dem
 Modell des Herstellers abgelesen: entlang der Z-Achse des Griffraums), an beiden
@@ -367,7 +368,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Raum, kann angestoßen und von jeder Hand wieder aufgehoben oder in der Luft
   aufgefangen werden. Im selben Moment wächst auf der Hüfte, von der es kam,
   ein **neues** nach. Damit ist „Waffe ziehen, in die andere Hand geben, noch
-  eine ziehen" eine durchgehende Bewegung. Wie viele Exemplare gleichzeitig
+  eine ziehen" eine durchgehende Bewegung.
+  **Geworfen wird mit dem schnellsten Moment**, nicht mit dem letzten: wer
+  wirft, öffnet die Hand am Ende der Bewegung, der Griffknopf meldet das ein
+  paar Millisekunden später, und da bremst der Arm schon wieder ab. Ein
+  geglättetes „jetzt" trifft dann genau in die Bremsphase — es fühlt sich an,
+  als hätte das Spiel den Wurf einen Tick zu spät erkannt, und das hatte es
+  auch. Genommen wird deshalb die schnellste Bewegung der letzten 0,14 s,
+  über je zwei Bilder gemittelt, damit ein Trackingzucken keinen Wurf auslöst
+  (`portal/throwMotion.ts`, mit Test). Wie viele Exemplare gleichzeitig
   _außerhalb des Gürtels_ sein dürfen — herumliegend und in Händen zusammen —,
   sagt das Werkzeug selbst (`Tool.looseLimit`, normal eins), und zwar **pro
   Gürtelplatz**: kommt eins zu viel dazu, holt sich der Raum das älteste
@@ -427,7 +436,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     zwischen 1 und 60 tippen) und die **Munition** (normal oder Leuchtspur).
   - **Messer**: das eine Werkzeug, das zum Loslassen gedacht ist. Aus der
     Bewegung heraus losgelassen fällt es nicht, sondern **fliegt weiter** —
-    geradeaus, ohne Bogen, mit der Drehung um die eigene Achse — und bleibt
+    geradeaus, ohne Bogen, und überschlägt sich dabei **vorwärts**: die Spitze
+    geht oben herum nach vorn, in der Ebene des Wurfs. Die Drehachse ist
+    deshalb `oben × Flugrichtung` (`portal/throwMotion.ts`, mit Test) und
+    nicht mehr die x-Achse des Werkzeugs — die liegt in der linken Hand anders
+    herum als in der rechten, und aus derselben Wurfbewegung wurde einmal ein
+    Überschlag nach vorn und einmal einer nach hinten. Es bleibt
     stecken, wo es auftrifft (Wand, Kiste, egal). Fünf dürfen gleichzeitig
     unterwegs oder eingeschlagen sein; der sechste Wurf holt das erste
     zurück. Die Bahn wird pro Frame selbst abgetastet statt auf einen
@@ -497,28 +511,28 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     (`STOPWATCH_HAND_POSE`). Und das **Zifferblatt schaut zum Kopf** (+z) —
     lange schaute es nach vorn wie ein Lauf, und man sah den Zeiger nie.
   - **Taschenlampe**: eine **Stabtaschenlampe** — das Batterierohr _ist_ der
-    Griff, in Greiffarbe, ein Stab wie der Stiel des Hammers (`POLE_GRIP`). Und
-    es liegt **auf der Zielachse der echten Hand**: keine eigene Drehung und
-    die geteilte `GRIP_HOLD_POSITION` als Ort, also dieselbe Linie, auf der
-    jeder Lauf liegt. Der Zeigestrahl läuft damit durch das Rohr und aus der
-    Linse heraus — die Lampe leuchtet dorthin, wohin man zeigt, und auf der
-    Werkzeugseite trifft ihr Kegel die Zielscheibe.
+    Griff, in Greiffarbe, ein Stab wie der Stiel des Hammers (`POLE_GRIP`). Es
+    liegt **im Griffpunkt**, dort, wo die Hand auch das Gerät hält
+    (`holdPosition` null), und ist um **45° nach vorn gekippt**
+    (`TORCH_PITCH`): die Faust steht aufrecht, das Licht geht nach vorn. Sie
+    ist damit das einzige Werkzeug, das nicht entlang des Zeigestrahls zielt,
+    sondern 45° darüber — eine Lampe ist kein Lauf.
 
-    Die **Faust** dazu ist die am Stab, nur an der Stelle, an der das Rohr
-    liegt (`TORCH_HAND_POSE`: dieselbe Drehung wie `POLE_HAND_POSE`, 5,5 cm
-    höher und 5,6 cm weiter vorn, gerechnet mit `fistOnGrip`). Das ist der
-    Preis, und er steht sichtbar im Bild: die gezeichnete Hand liegt eine
-    Handbreit über der eigenen, denn die eigene hält den Controller und nicht
-    die Lampe. **Ein Rohr kann in der Faust liegen oder auf dem Zeigestrahl**,
-    beides zugleich geht nicht — bei einer Taschenlampe entscheidet der Strahl.
+    Die **Faust** dazu ist die am Stab in genau dieser Lage
+    (`TORCH_HAND_POSE`: dieselben Finger und dieselbe Rolllage wie
+    `POLE_HAND_POSE`, um die 45° aufgerichtet — `pitch -75` statt `-120` —,
+    gerechnet mit `fistOnGrip`).
 
-    Die beiden Umwege dorthin: Sie lag eine Runde lang mit dem Rohr auf dem
-    **Halterzylinder der Hand** — Achse auf Achse, gehalten wie das Gerät
-    selbst —, und leuchtete damit 77° an dem vorbei, worauf man zeigte. Und
-    davor lag das Rohr im **Griffpunkt**: dieselbe Richtung wie der Strahl,
-    aber 7 cm daneben, also parallel am Ziel vorbei. Ganz am Anfang war sie
-    eine „Lampe mit Griff", das Rohr über der Faust und der Standardgriff quer
-    darunter; das sah aus wie ein Megaphon.
+    Die beiden Umwege dorthin sind die Enden derselben Strecke. Einmal lag das
+    Rohr ganz auf dem **Halterzylinder der Hand** — Achse auf Achse, gehalten
+    wie das Gerät selbst — und leuchtete damit 77° an dem vorbei, worauf man
+    zeigte, also fast senkrecht nach oben. Einmal lag es ganz auf dem
+    **Zeigestrahl** — dann leuchtet sie zwar dorthin, wohin man zeigt, ist aber
+    keine Lampe in der Faust mehr, sondern ein Rohr auf der Ziellinie, und die
+    gezeichnete Hand lag eine Handbreit über der eigenen. Davor lag das Rohr im
+    Griffpunkt ohne Kippung (parallel am Ziel vorbei), und ganz am Anfang war
+    sie eine „Lampe mit Griff", das Rohr über der Faust und der Standardgriff
+    quer darunter; das sah aus wie ein Megaphon.
     **Trigger** schaltet sie an und aus. Der **Lichtkegel**
     wird mit der _anderen_ Hand eingestellt: vorne an die Linse greifen (der
     Ring leuchtet, sobald die Hand nah genug ist) und mit gedrücktem Griff nach
@@ -884,7 +898,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   fertig auf einen Gästetisch. Der **Mülleimer** löscht, was schiefging. An der
   Wand hinter jeder Station steht, was sie will.
 - **Eingaberaum** (experimentell): eine Kammer, deren einziger Zweck es ist zu
-  zeigen, was die Hände tun. Zwei **Controller-Modelle** schweben auf
+  zeigen, was die Hände tun. Alles, was man hier abliest, hängt auf **einer
+  Tafelwand gut zwei Meter vor dem Spieler** (`tune/inputPanel.ts`, mit Test):
+  Name des Raums, die Aufnahme, die beiden Controller-Modelle und je Hand eine
+  Tafel darunter. Vorher hing es an der **Vorderwand**, vier Meter weg, und
+  beides ging dabei schief: eine Tafel wird nicht dadurch lesbar, dass sie
+  größer wird (die Schrift wächst mit, die Entfernung bleibt — die Lage-Tafel
+  kam auf ein halbes Grad Schrifthöhe, und ihre letzte Zeile fiel ganz weg),
+  und die Modelle hingen auf halbem Weg dorthin, also aus Spielersicht genau
+  auf den Zahlen dahinter. Auf einer Fläche steht nichts mehr **vor** etwas
+  anderem, nur noch daneben, und das rechnet der Test nach: kein Rechteck
+  schneidet ein anderes, und alles zusammen bleibt in einem Blickfeld, für das
+  man den Kopf nicht dreht. Die Tafeln sind dabei **kleiner** geworden und die
+  Schrift doppelt so groß.
+
+  Zwei **Controller-Modelle** schweben auf
   Augenhöhe, drehen sich mit den echten mit, jeder Knopf leuchtet beim Drücken
   auf, Stick und Trigger bewegen sich wirklich. Gezeigt wird dabei das **echte
   Modell** des Geräts, das gerade in der Hand liegt (siehe
@@ -894,8 +922,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten.
 
-  Und darunter je Hand die **Lage des Geräts als Zahl**, in **zwei Räumen**,
-  denn genau dazwischen liegt die Verwirrung:
+  Und darunter je Hand **eine** Tafel: was gedrückt ist, und die **Lage des
+  Geräts als Zahl**, in **zwei Räumen**, denn genau dazwischen liegt die
+  Verwirrung (es waren einmal zwei Tafeln übereinander mit ausgeschriebenen
+  Zeilen — zusammen zu viel Fläche und trotzdem zu kleine Schrift; die Zeilen
+  kürzen sich zu `Strahl YXZ  Y -12°  P 34°  R -5°`):
 
   - **Zeigestrahl**, gelesen als Euler `YXZ` — die Reihenfolge, in der ein
     Flugzeug oder eine Kamera geführt wird: erst gieren, dann nicken, dann
@@ -926,8 +957,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
   **Und dazu die Achsen selbst**, denn eine Zahl ohne Achse ist keine Auskunft
   (`core/axesCross.ts`). Ein Kreuz steht auf dem **Boden** zwischen einem
-  selbst und der Wand — es stand eine Weile auf Brusthöhe mitten im Blick auf
-  die Tafeln und genau dort, wo man die Hände hält — und je eines an jedem
+  selbst und der Tafelwand — es stand eine Weile auf Brusthöhe mitten im Blick
+  auf die Tafeln und genau dort, wo man die Hände hält — und je eines an jedem
   Controller-Modell, sodass man beide nebeneinander sieht und daran, wie schräg
   der Raum des Geräts im Zimmer steht. Die Farben sind die üblichen — **X rot,
   Y grün, Z blau**, wie in three.js und Blender —, und dazu kommt der vierte
@@ -935,11 +966,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Spiel das *negative* Z; ein Kreuz, das nur +Z zeigt, zeigt genau dorthin, wo
   nichts ist. Die Legende an der Wand schreibt es aus.
 
-  **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei.
+  **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei —
+  außer während einer Aufnahme, dann setzt derselbe Knopf eine Marke.
   Der Stick bewegt in diesem Raum nichts, man steht also ohnehin still; was
   fehlte, war ein Weg, eine Zahl festzuhalten, ohne sie im selben Moment durch
   das Hinsehen zu verändern. Eingefroren steht die Tafel bernsteinfarben da,
-  und unter das Modell stellt sich, was diese Lage **bedeutet**: die
+  und neben das Modell stellt sich, was diese Lage **bedeutet**: die
   **Boxhand** in der Faust um den **Handgriff des Geräts** — derselbe rote
   Zylinder wie auf der Werkzeugseite unter _Hand in echt_
   (`core/controllerHandle.ts`, eine Geometrie für beide Stellen) und dieselbe
@@ -947,6 +979,27 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   nur, man sieht auch, was das Spiel daraus macht. Gebaut und nicht
   gespeichert: dort soll stehen, was aus der Lage **folgt**, nicht, was jemand
   vorhin eingestellt hat.
+
+  **Die Aufnahme** steht oben auf der Tafelwand, und der Knopf daneben startet
+  und beendet sie. Sie misst, **wie stark die Hand beschleunigt** — die eine
+  Größe, zu der niemand ein Gefühl hat: ein Meter je Sekunde ist ein Schritt,
+  aber „40 m/s²" sagt nichts, bis man es einmal neben der eigenen Bewegung
+  gesehen hat. Genau solche Zahlen stehen aber in den Schwellen des Spiels (der
+  Schlag des Hammers, das Tempo eines Wurfs, das Schütteln der Sektflasche), und
+  bisher hieß Einstellen: probieren, bis etwas passiert. Die Tafel zeigt die
+  laufende Zeit, den **Höchstwert** samt Hand und Zeitpunkt und den aktuellen
+  Wert, in m/s² **und in g** — ein g kennt man.
+
+  Während sie läuft, setzt **Greifen** eine **Marke**: der Wert genau in dem
+  Moment, in dem man drückt, mit laufender Nummer und Zeit; die letzten drei
+  stehen auf der Tafel, die jüngste oben. Ohne sie misst man einen Wurf und
+  liest hinterher den Höchstwert des Abbremsens ab. Solange aufgenommen wird,
+  gehört der Griffknopf deshalb der Marke und friert **nichts** ein — zwei
+  Bedeutungen zugleich hat er nicht. Gemessen wird aus den Positionen der Hand,
+  also zweimal abgeleitet und beide Male geglättet
+  (`tune/accelRecord.ts`, mit Test); gefüttert wird **jedes** Bild, auch wenn
+  die Tafel nur fünfmal je Sekunde neu gezeichnet wird — ein Gipfel dauert zwei
+  Bilder.
 
   An der **rechten Wand hängen die Zahlen**, die man abliest statt sie
   anzufassen: zwei Knöpfe messen die **Augenhöhe** (siehe _Sitzen oder
@@ -1257,6 +1310,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Werkzeug fallen lassen             | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht)                                                      | –                                                                                               | –                    |
 | Hüften verschieben                 | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück)                                                    | –                                                                                               | –                    |
 | Messer werfen                      | im Schwung loslassen; es fliegt weiter und bleibt stecken                                                                                                             | –                                                                                               | –                    |
+| Aufnahme im Eingaberaum            | Knopf auf der Tafelwand startet und beendet sie; **Greifen** setzt währenddessen eine Marke                                                                            | Linksklick auf den Knopf                                                                        | –                    |
 | Großer Hammer                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                         | –                                                                                               | –                    |
 | Haltung (sitzen/stehen)            | Startseite oder Menü → Bewegung → Haltung                                                                                                                             | dito                                                                                            | dito                 |
 | Greifen ohne Controller            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                   | –                                                                                               | –                    |
@@ -1477,10 +1531,24 @@ wer sich duckt, sinkt, der Fußboden nicht.
 
 Ein nah gefasster Gegenstand **fliegt nicht**. Er bleibt liegen, wo er liegt,
 und folgt der Hand von dort, als hätte man ihn dort angefasst. Wie er das tut,
-steht unter _Im Nahgriff_: **starr** wie in der Faust (Vorgabe — man hat eben
-einen langen Arm) oder als **Drehung um die Objektmitte**, die eins zu eins
-verschiebt und den Gegenstand um sich selbst dreht statt um die Hand kreisen zu
-lassen. Auf einen Meter wird aus jedem Grad am Handgelenk sonst ein Ausschlag.
+steht unter _Im Nahgriff_, und es sind zwei Betriebsarten:
+
+- **Wie die eigene Hand** (Vorgabe): der Gegenstand hängt starr an der
+  **Geisterhand**, und die tut Bild für Bild dasselbe wie die echte. Die Hand
+  verschiebt eins zu eins, und ihre Drehung dreht den Gegenstand um genau den
+  Punkt, an dem die Geisterhand ihn hält — als läge sie dort an ihm. Aus einem
+  Grad am Handgelenk wird ein Grad am Würfel, ganz gleich, wie weit er weg
+  liegt.
+- **Starr wie in der Faust**: dieselbe Matrix wie in der Faust. Die ehrlichere
+  Antwort auf „ich habe einen langen Arm" — und die unbrauchbarere, denn auf
+  einen Meter wird aus jedem Grad am Handgelenk ein Ausschlag, und ein Zittern
+  an der eigenen Hand zum Schlenkern am Gegenstand. Damit stellt niemand einen
+  Dominostein auf.
+
+Eine dritte gab es einmal, die _Drehung um die Objektmitte_: dieselbe Rechnung
+wie heute, nur mit dem Drehpunkt in der Mitte des Gegenstands statt dort, wo
+die Hand ihn anfasst. Sie ist in der Vorgabe aufgegangen — ein Drehpunkt, den
+man sieht, ist besser als einer, den man sich denkt.
 
 **Ferngreifen** (standardmäßig an) erweitert das auf 9 m und läuft in zwei
 Schritten. Was getroffen ist, leuchtet auf. Mit **Grip** rastet es ein: Es
@@ -2014,10 +2082,12 @@ zielt, und niemand hatte sie beschlossen — sie fiel bei einer Messung an und
 blieb liegen. Lampe, Lötkolben und Hängegleiter trugen danach denselben Griff
 quer unter sich, wie eine Lampe mit Griff oder eine Lötpistole, und zielten
 wieder dorthin, wohin man zeigt — der Hängegleiter hängt inzwischen an seiner
-Querstange, und der Lötkolben ist geblieben. Die **Lampe** ist wieder ein Stab,
-liegt damit aber selbst auf dem Zeigestrahl (dazu unten) und zielt also wie
-alles andere; was sie dafür bezahlt, ist eine gezeichnete Faust neben der
-eigenen — nicht mehr ein Kegel neben dem Ziel.
+Querstange, und der Lötkolben ist geblieben. Die **Lampe** ist wieder ein Stab
+und liegt im Griffpunkt, 45° nach vorn gekippt (dazu unten): sie ist damit das
+einzige Werkzeug, das nicht den Strahl entlang zielt, und zwar erklärtermaßen —
+eine Lampe hält man in der Faust, und die Faust steht nun einmal quer zum
+Strahl. Die 30° waren dagegen ein Rest aus einer Messung, den niemand
+beschlossen hatte.
 
 **Warum sich die Zielkorrektur dabei herauskürzt** — und warum das die ganze
 Sache erst möglich macht: Ein gehaltenes Werkzeug liegt bei `(holdPosition,
@@ -2068,7 +2138,7 @@ einen anderen Winkel, zielt das Werkzeug trotzdem dorthin, wohin gezeigt wird.
 alles, was gebaut wird, bevor eine Brille aufgesetzt wird: die Lage eines
 Griffs im Werkzeug, die Faust darum, das Bild auf der Werkzeugseite. Und
 Ersatz heißt geschätzt: keiner der drei Wege oben ist eine Messung am Gerät.
-Die gibt es im **Eingaberaum**, auf der Lage-Tafel, Zeile „Griff → Strahl".
+Die gibt es im **Eingaberaum**, auf der Tafel der Hand, Zeile „Griff→Strahl".
 Wer die dort abgelesene Zahl hier einträgt, verschiebt allerdings auch
 `GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und jede daran gerechnete Faust —
 `core/gripFist.test.ts` sagt, welche.
@@ -2115,9 +2185,9 @@ Griffs im Werkzeug), und die beiden Zylinder stehen dort, wo sie hingehören:
 der **Stab** als `POLE_GRIP` in `poleGrip.ts` (die z-Achse durch den
 Griffpunkt, die Daumenseite zur Spitze, die Handfläche innen — so hält man
 einen Hammer): den trägt der **Stiel des Hammers** mit `POLE_HOLD_POSITION` und
-`POLE_HAND_POSE`. Das **Batterierohr der Taschenlampe** ist derselbe Stab an
-einer anderen Stelle — auf der Zielachse der echten Hand statt im Griffpunkt —,
-und dazu gehört dieselbe Faust, um genau diesen Versatz verschoben
+`POLE_HAND_POSE`. Das **Batterierohr der Taschenlampe** ist derselbe Stab in
+einer anderen Lage — im Griffpunkt, aber 45° nach vorn gekippt —, und dazu
+gehört dieselbe Faust, um genau diese Kippung aufgerichtet
 (`TORCH_HAND_POSE`). Das Messer lag eine Weile auch auf dem Stab und steht
 jetzt mit dem Standardgriff in der Faust.
 Der **Stiel des Pinsels** liegt auf demselben Stab mit derselben
@@ -2775,11 +2845,14 @@ Die Namen sagen, welche:
   nach vorn ausgestreckt wie an einer Pistole, der **Halterzylinder** aufrecht
   darin (rot, weil er hier nicht das Werkzeug meint, sondern das Gerät), und
   der Zeigestrahl läuft von seiner **oberen Kante** geradeaus auf die Scheibe.
-  Das ist die Haltung, an der man sich orientiert. Das Werkzeug bleibt als
-  **Geist** stehen — in der echten Hand liegt keines, aber ohne es wüsste man
-  nicht mehr, wovon das Bild handelt. Es ist deshalb für jedes Werkzeug
-  dasselbe Bild, und das ist keine Schwäche, sondern die Auskunft: **echt hält
-  man den Pinsel wie die Waffe.**
+  Das ist die Haltung, an der man sich orientiert. Das Werkzeug bleibt dabei
+  stehen, wo es wäre — **fest und nicht gläsern**: es war eine Weile
+  durchsichtig, weil in der echten Hand ja keines liegt, nur ist genau das die
+  Ansicht, in der man seine Lage beurteilt, und ein Ding bei 22 % Deckkraft
+  beurteilt niemand. Wo die eigene Hand ist, sagt der rote Handgriff; das
+  Werkzeug ist das, was man ansieht. Hand und Zylinder sind deshalb für jedes
+  Werkzeug dasselbe Bild, und das ist keine Schwäche, sondern die Auskunft:
+  **echt hält man den Pinsel wie die Waffe.**
 
   Dort stand eine Weile die Faust um den **Handgriff des Geräts**
   (`CONTROLLER_HAND_POSE` um `CONTROLLER_HANDLE`, ein Zylinder entlang der

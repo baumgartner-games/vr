@@ -16,13 +16,14 @@ import {
   pickAimTarget,
   rayReach,
   reachDepth,
-  spinGrab,
+  pivotGrab,
   type AimTarget,
   type GrabPose,
   type NearZone,
   type Quat,
   type Vec3,
 } from './grabReach';
+import { conjugate, rotateVec } from './tools/aim';
 
 const NO_ROTATION: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
@@ -247,7 +248,7 @@ describe('the cylinder around the player', () => {
   });
 });
 
-describe('the near grab that spins around the object', () => {
+describe('der Nahgriff, der an der Geisterhand hängt', () => {
   function pose(position: Vec3, rotation: Quat = NO_ROTATION): GrabPose {
     return { position, rotation };
   }
@@ -257,10 +258,11 @@ describe('the near grab that spins around the object', () => {
   }
 
   it('moves the object exactly as far as the hand moved', () => {
-    const result = spinGrab(
+    const result = pivotGrab(
       pose(vec(0, 0.1, -1.2)),
       pose(vec(0.2, 1.1, -0.3)),
       pose(vec(0.5, 1.4, -0.4)),
+      vec(0, 0.3, -1.2),
       out(),
     );
     expect(result.position.x).toBeCloseTo(0.3, 6);
@@ -268,33 +270,85 @@ describe('the near grab that spins around the object', () => {
     expect(result.position.z).toBeCloseTo(-1.3, 6);
   });
 
-  it('leaves the object where it is when only the wrist turns', () => {
+  it('dreht den Gegenstand um den Punkt, an dem die Geisterhand ihn hält', () => {
     const start = vec(0, 0.1, -1.2);
+    // Die Geisterhand liegt einen halben Meter vor der Mitte des Würfels; eine
+    // Vierteldrehung am Handgelenk schwenkt ihn also um genau diesen Arm.
+    const hold = vec(0, 0.1, -0.7);
     const hand = vec(0.2, 1.1, -0.3);
-    const result = spinGrab(pose(start), pose(hand, NO_ROTATION), pose(hand, yaw(90)), out());
-    expect(distance(result.position, start)).toBeCloseTo(0, 6);
-    // …and turns it by exactly that angle, about its own centre.
+    const result = pivotGrab(
+      pose(start),
+      pose(hand, NO_ROTATION),
+      pose(hand, yaw(90)),
+      hold,
+      out(),
+    );
+    expect(result.position.x).toBeCloseTo(-0.5, 6);
+    expect(result.position.y).toBeCloseTo(0.1, 6);
+    expect(result.position.z).toBeCloseTo(-0.7, 6);
     expect(result.rotation.y).toBeCloseTo(Math.sin(Math.PI / 4), 6);
   });
 
-  it('carries the turn the object already had', () => {
-    const result = spinGrab(
-      pose(vec(0, 0.1, -1.2), yaw(90)),
-      pose(vec(0, 1, 0), NO_ROTATION),
-      pose(vec(0, 1, 0), yaw(90)),
+  it('lässt ihn liegen, wenn die Geisterhand selbst der Drehpunkt ist', () => {
+    const start = vec(0, 0.1, -1.2);
+    const hand = vec(0.2, 1.1, -0.3);
+    const result = pivotGrab(
+      pose(start),
+      pose(hand, NO_ROTATION),
+      pose(hand, yaw(90)),
+      start,
       out(),
     );
-    // 90° on top of 90° is a half turn: w drops to zero.
-    expect(result.rotation.w).toBeCloseTo(0, 6);
-    expect(Math.abs(result.rotation.y)).toBeCloseTo(1, 6);
+    expect(distance(result.position, start)).toBeCloseTo(0, 6);
+    expect(result.rotation.y).toBeCloseTo(Math.sin(Math.PI / 4), 6);
+  });
+
+  it('bewegt die Geisterhand eins zu eins mit der echten', () => {
+    // Die Geisterhand hängt starr am Gegenstand. Fährt der Griffpunkt genau den
+    // Weg der echten Hand und dreht sich genau wie sie, dann ist die
+    // Geisterhand die eigene Hand an einem anderen Ort — das ist die ganze
+    // Zusage dieser Betriebsart.
+    const hold = vec(0.1, 0.4, -0.9);
+    const handStart = pose(vec(0.2, 1.1, -0.3));
+    const hand = pose(vec(0.35, 1.0, -0.55), yaw(37));
+    const object = pose(vec(0, 0.1, -1.2), yaw(15));
+    const moved = pivotGrab(object, handStart, hand, hold, out());
+
+    // Der Griffpunkt im Raum des Gegenstands — und wo er danach liegt.
+    const local = rotateVec(
+      {
+        x: hold.x - object.position.x,
+        y: hold.y - object.position.y,
+        z: hold.z - object.position.z,
+      },
+      conjugate(object.rotation, { x: 0, y: 0, z: 0, w: 1 }),
+      { x: 0, y: 0, z: 0 },
+    );
+    const after = rotateVec(local, moved.rotation, { x: 0, y: 0, z: 0 });
+    expect(after.x + moved.position.x).toBeCloseTo(hold.x + 0.15, 6);
+    expect(after.y + moved.position.y).toBeCloseTo(hold.y - 0.1, 6);
+    expect(after.z + moved.position.z).toBeCloseTo(hold.z - 0.25, 6);
   });
 
   it('holds still when the hand does', () => {
     const start = pose(vec(0.4, 0.6, -1), yaw(30));
     const hand = pose(vec(0, 1.2, -0.2), yaw(-15));
-    const result = spinGrab(start, hand, hand, out());
+    const result = pivotGrab(start, hand, hand, vec(0.2, 0.7, -0.8), out());
     expect(distance(result.position, start.position)).toBeCloseTo(0, 6);
     expect(result.rotation.w).toBeCloseTo(start.rotation.w, 6);
     expect(result.rotation.y).toBeCloseTo(start.rotation.y, 6);
+  });
+
+  it('carries the turn the object already had', () => {
+    const result = pivotGrab(
+      pose(vec(0, 0.1, -1.2), yaw(90)),
+      pose(vec(0, 1, 0), NO_ROTATION),
+      pose(vec(0, 1, 0), yaw(90)),
+      vec(0, 0.1, -1.2),
+      out(),
+    );
+    // 90° on top of 90° is a half turn: w drops to zero.
+    expect(result.rotation.w).toBeCloseTo(0, 6);
+    expect(Math.abs(result.rotation.y)).toBeCloseTo(1, 6);
   });
 });

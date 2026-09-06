@@ -177,8 +177,8 @@ export const GRIP_HAND_POSE: HandPose = {
  * `POLE_GRIP`). Ein Stab hat kein Vorne, also zeigt hier kein Finger etwas an:
  * **alle** Finger sind in der Faust, und die Faust steht ungeschwenkt — die
  * Daumenseite zur Spitze, die Handfläche innen am Stab, wie man einen Hammer
- * hält. Gehalten wird so der Stiel des **Hammers**, und mit demselben Griff
- * an einer anderen Stelle das Batterierohr der **Taschenlampe**
+ * hält. Gehalten wird so der Stiel des **Hammers**, und mit demselben Griff in
+ * einer anderen Lage das Batterierohr der **Taschenlampe**
  * (`TORCH_HAND_POSE`, gleich darunter). Der Pinsel liegt auf demselben Stab,
  * aber von oben gehalten (`BRUSH_HAND_POSE`); das Messer lag eine Weile auch
  * hier und steht jetzt mit dem Standardgriff in der Faust. Vorher stand am Hammer die
@@ -197,32 +197,31 @@ export const POLE_HAND_POSE: HandPose = {
 };
 
 /**
- * **Die Faust an der Taschenlampe** — derselbe Stab, eine Handbreit weiter
- * oben.
+ * **Die Faust an der Taschenlampe** — derselbe Stab, um 45° gekippt.
  *
- * Das Batterierohr liegt nicht dort, wo der Stiel des Hammers liegt, sondern
- * auf der **Zielachse der echten Hand**: derselben Linie, auf der jedes
- * gehaltene Werkzeug zielt und auf der die Zielscheibe der Werkzeugseite steht
- * (`GRIP_HOLD_POSITION`, `FlashlightTool`). Eine Lampe leuchtet dorthin, wohin
- * man zeigt, und dafür muss sie auf dem Strahl liegen und nicht daneben.
+ * Das Batterierohr liegt dort, wo die Hand das Gerät hält (im Griffpunkt, wie
+ * der Halterzylinder), aber es steht nicht senkrecht in der Faust: es ist um
+ * `TORCH_PITCH` nach vorn gekippt, damit die Lampe nach vorn leuchtet und
+ * nicht in die Decke (`FlashlightTool`). Die Faust folgt dem Rohr, also ist es
+ * dieselbe Haltung wie am Stab des Hammers, nur um genau diese 45° weiter
+ * aufgerichtet — `pitch -75` statt `-120` — und um den Weg verschoben, den die
+ * Kippung die Mitte des Rohrs gehen lässt.
  *
- * Die Faust ist deshalb dieselbe wie am Stab, nur um genau diesen Versatz
- * verschoben — dieselbe Drehung, dieselben Finger, ein anderer Ort: 5,5 cm
- * höher und 5,6 cm weiter vorn. Sie ist gerechnet wie jede andere
- * (`fistOnGrip` um das Rohr an seiner Stelle, nachgerechnet in
- * `core/gripFist.test.ts`) und nicht von Hand verschoben.
+ * Gerechnet wie jede andere Faust (`fistOnGrip` um das Rohr an seiner Stelle,
+ * nachgerechnet in `core/gripFist.test.ts`) und nicht von Hand verschoben.
  *
- * Der Preis steht dabei im Bild und soll dort stehen: die gezeichnete Hand
- * liegt eine Handbreit über der eigenen, denn die eigene hält den Controller
- * und nicht die Lampe. Ein Rohr kann in der Faust liegen **oder** auf dem
- * Zeigestrahl — beides zugleich geht nicht, und für eine Taschenlampe
- * entscheidet der Strahl.
+ * Zwei Runden lang lag das Rohr an den Enden dieser Strecke: einmal ganz auf
+ * dem Halterzylinder der Hand (die Lampe leuchtete 77° an dem vorbei, worauf
+ * man zeigte) und einmal ganz auf dem Zeigestrahl (die gezeichnete Hand lag
+ * eine Handbreit über der eigenen). Dazwischen liegt die Haltung, in der man
+ * eine Stablampe wirklich hält.
  */
 export const TORCH_HAND_POSE: HandPose = {
   ...POLE_HAND_POSE,
   x: 2.6,
-  y: 6.8,
-  z: -5.1,
+  y: 2.9,
+  z: 0.8,
+  pitch: -75,
 };
 
 /**
@@ -425,9 +424,9 @@ export const DRONE_HAND_POSE: HandPose = {
  */
 export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
   hammer: POLE_HAND_POSE,
-  // Die **Taschenlampe** trägt denselben Stab, aber auf der Zielachse der
-  // echten Hand statt im Griffpunkt — also dieselbe Faust um denselben
-  // Zylinder, nur an dessen neuer Stelle (`TORCH_HAND_POSE`).
+  // Die **Taschenlampe** trägt denselben Stab, nur um 45° nach vorn gekippt —
+  // also dieselbe Faust um denselben Zylinder, in dessen neuer Lage
+  // (`TORCH_HAND_POSE`).
   flashlight: TORCH_HAND_POSE,
   brush: BRUSH_HAND_POSE,
   drone: DRONE_HAND_POSE,
@@ -476,9 +475,8 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   'xray',
   // Der Lötkolben trägt den Griff quer unter sich, wie eine Lötpistole. Die
   // Taschenlampe tat das eine Weile auch — „eine Lampe mit Griff wie ein
-  // Megaphon" — und liegt jetzt als **Stab** auf der Zielachse der echten Hand
-  // (`TORCH_HAND_POSE`), mit derselben `holdPosition` wie alles hier, aber
-  // ohne Standardgriff: das Rohr *ist* ihr Griff. Der Pinsel liegt an seinem
+  // Megaphon" — und liegt jetzt als **Stab** im Griffpunkt, um 45° nach vorn
+  // gekippt (`TORCH_HAND_POSE`), ohne Standardgriff: das Rohr *ist* ihr Griff. Der Pinsel liegt an seinem
   // Stiel, die Stoppuhr an ihrem Rand. Der Hängegleiter hing auch hier und
   // wird jetzt an seiner **Querstange** gehalten (`GLIDER_HAND_POSE`).
   'welder',
