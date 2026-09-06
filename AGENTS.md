@@ -1354,6 +1354,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   unten liegt eine **Landewiese** mit Windsack und Ring, daneben eine Alm mit
   ein paar Kisten. Wald bis zur Baumgrenze, Fels wo es steil ist, Schnee ab
   175 m — alles Vertexfarben aus Höhe und Steigung.
+  Unten stehen zwei **rote Knöpfe** (`shared/redButton.ts`), einer auf der
+  Wiese und einer vor der Alm: drücken, und man steht wieder auf der Rampe.
+  Der Weg zurück nach oben wären sonst 236 Höhenmeter über eine Flanke, die
+  stellenweise zu steil zum Gehen ist — eine Wartezeit zwischen zwei Flügen,
+  und damit genau dort, wo an dieser Welt nichts stehen soll. Der Knopf setzt
+  auch den **Blick** neu (`teleportPlayerTo` mit `yaw`): wer aus dem Tal auf
+  einen Berg gebracht wird, weiß ohnehin nicht mehr, wo vorn war, und die
+  Rampe zeigt ins Tal.
   Das Gelände ist ein **Höhenfeld** (`alps/alpsTerrain.ts`, mit Test): eine
   Höhe je Punkt aus Glockenkurven, Rauschen mit Gedächtnis und zwei absichtlich
   ebenen Stellen, zum Rand hin auf null auslaufend, und dahinter eine Wiese bis

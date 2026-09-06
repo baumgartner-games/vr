@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
 import { createPropShape } from '../portal/props';
 import { GROUND_THICKNESS, GROUND_TOP, createSky } from '../shared/environment';
+import { buildRedButton, type RedButton } from '../shared/redButton';
 import type { WorldContext } from '../../core/types';
 import { TextPlane } from '../../ui/TextPlane';
 import type { Handedness } from '../../core/XRInput';
@@ -30,6 +31,22 @@ const SNOW = new THREE.Color(0xf4f7fb);
 const HUT = { x: 62, z: 262, yaw: -0.6 };
 /** Wie viele Bäume in den Wald kommen. */
 const TREE_COUNT = 900;
+
+/**
+ * Wo die **roten Knöpfe** stehen, die einen zurück auf die Startrampe bringen:
+ * einer mitten auf der Landewiese, einer vor der Alm.
+ *
+ * `yaw` dreht das Schild dem entgegen, der auf den Knopf zukommt — auf der
+ * Wiese ist das der Landende (er fliegt gegen den Berg, also nach −Z), an der
+ * Alm der, der vor der Hütte steht.
+ */
+const LIFTS: ReadonlyArray<{ x: number; z: number; yaw: number }> = [
+  // Auf der Wiese, ein Stück vor dem Ring: dort setzt man auf, dort steht er.
+  { x: 5, z: LANDING.z - 10, yaw: 0 },
+  // Vor der Alm, seitlich neben ihrer Tür — genau davor stünden zwei Schilder
+  // übereinander, ihres und seines.
+  { x: HUT.x + 0.1, z: HUT.z + 4.4, yaw: HUT.yaw },
+];
 
 /**
  * Der Steg der Startrampe: Mitte bei z = 9 (im Raum des Startplatzes), 12 m
@@ -71,6 +88,8 @@ export class AlpsWorld extends PortalWorld {
   });
   private readonly stone = new THREE.MeshStandardMaterial({ color: 0x8b8680, roughness: 0.95 });
   private samples: TerrainSamples | null = null;
+  /** Die roten Knöpfe im Tal — siehe `buildLifts`. */
+  private readonly lifts: RedButton[] = [];
   /** Der Himmel — er wandert mit dem Kopf, siehe `update`. */
   private sky: THREE.Mesh | null = null;
 
@@ -129,11 +148,34 @@ export class AlpsWorld extends PortalWorld {
     this.buildSummit(alps);
     this.buildLanding(alps);
     this.buildHut(alps);
+    this.buildLifts(alps);
     this.buildProps();
+  }
+
+  override async init(ctx: WorldContext): Promise<void> {
+    await super.init(ctx);
+    for (const lift of this.lifts) {
+      ctx.pointer.add({
+        object: lift.dome,
+        onSelect: () => this.rideUp(lift),
+        onHover: () => lift.hover(true),
+        onBlur: () => lift.hover(false),
+      });
+    }
+  }
+
+  override dispose(ctx: WorldContext): void {
+    for (const lift of this.lifts) {
+      ctx.pointer.remove(lift.dome);
+      lift.dispose();
+    }
+    this.lifts.length = 0;
+    super.dispose(ctx);
   }
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
+    for (const lift of this.lifts) lift.update(dt);
     // Der Himmel steht um den Kopf, nicht um den Ursprung: wer vom Gipfel aus
     // dreihundert Meter weit sieht, sähe sonst die Kugel von innen an ihrer
     // Naht — und wer über den Rand fliegt, käme aus ihr heraus. Die Höhe
@@ -565,6 +607,45 @@ export class AlpsWorld extends PortalWorld {
     field.add(sign);
   }
 
+  /**
+   * Die **roten Knöpfe im Tal**: ein Druck, und man steht wieder auf der
+   * Rampe.
+   *
+   * Unten angekommen ist der Flug vorbei — und der Weg zurück nach oben sind
+   * knapp dreihundert Höhenmeter über eine Flanke, die stellenweise zu steil
+   * zum Gehen ist. Das ist keine Aufgabe, sondern eine Wartezeit, und sie
+   * steht ausgerechnet zwischen zwei Flügen: also genau dort, wo an dieser
+   * Welt nichts stehen soll. Der Knopf ist die Bergbahn, die es hier sonst
+   * nicht gibt.
+   *
+   * Zwei Stück, weil es unten zwei Orte gibt, an denen man landet und dann
+   * dasteht: die Wiese mit dem Ring und die Alm nebenan. Einer allein wäre
+   * derselbe Fußweg noch einmal, nur kürzer.
+   */
+  private buildLifts(parent: THREE.Object3D): void {
+    const climb = Math.round(LAUNCH_HEIGHT - LANDING.height);
+    for (const spot of LIFTS) {
+      const lift = buildRedButton({
+        title: 'Zur Rampe',
+        body: `Drücken und oben stehen — ${climb} Höhenmeter, ohne zu laufen.`,
+      });
+      lift.group.position.set(spot.x, alpsHeight(spot.x, spot.z), spot.z);
+      lift.group.rotation.y = spot.yaw;
+      parent.add(lift.group);
+      this.lifts.push(lift);
+    }
+  }
+
+  /**
+   * Hoch zur Rampe — dorthin, wo die Welt auch anfängt, und mit dem Blick, mit
+   * dem sie anfängt: über die Rampe ins Tal.
+   */
+  private rideUp(lift: RedButton): void {
+    lift.press();
+    if (!this.teleportPlayerTo(this.spawnPoint(), this.spawnYaw())) return;
+    this.context?.notify('Zurück auf der Startrampe');
+  }
+
   /** Die Alm: eine Hütte am Rand der Wiese, mit Blick auf den Berg. */
   private buildHut(parent: THREE.Object3D): void {
     const hut = new THREE.Group();
@@ -593,7 +674,7 @@ export class AlpsWorld extends PortalWorld {
       width: 2.2,
       height: 0.7,
       title: 'Alm',
-      body: 'Kisten stehen daneben. Der Weg nach oben ist weit — die Rampe liegt am großen Berg.',
+      body: 'Kisten stehen daneben. Der rote Knopf davor bringt dich zurück auf die Rampe.',
       accent: 0xffc857,
     });
     sign.position.set(0, 2.2, 2.62);
