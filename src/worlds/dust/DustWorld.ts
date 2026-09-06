@@ -71,6 +71,18 @@ export class DustWorld extends PortalWorld {
     return new THREE.Vector3(-6, 0, 33);
   }
 
+  /**
+   * Die fünf Ebenen dieser Karte: Sand, drei Stockwerke und das Dach des
+   * hohen Blocks.
+   *
+   * Geraten würde hier eine zu viel — die Bodenplatten liegen `WALL` über dem
+   * Stockwerk, und die Kistenpodeste bei 1,2 m sähen wie eine eigene Etage
+   * aus. Als Feinhöhe auf der Etage darunter sind sie richtig aufgehoben.
+   */
+  protected override navLevels(): readonly number[] {
+    return [0, STOREY, STOREY * 2, STOREY * 3, STOREY * 4];
+  }
+
   protected override skyColor(): number {
     return 0xbcd3ec;
   }

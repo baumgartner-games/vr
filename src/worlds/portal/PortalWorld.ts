@@ -139,6 +139,10 @@ import { TextPlane } from '../../ui/TextPlane';
 import { playPick, playPop, playTone } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
+import { bakeNav, type BakeReport } from '../nav/navBake';
+import { boxesFrom, levelCensus, navDebugView } from '../nav/navScene';
+import type { NavGraph } from '../nav/navGraph';
+import { TILE } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
 import { BRAINS, brainLabel } from '../npc/npcBrains';
 import { npcSettings, saveNpcSettings } from './tools/gearStore';
@@ -715,6 +719,17 @@ export class PortalWorld implements World {
    * Bedienung, nicht der Besitzer.
    */
   protected director: NpcDirector | null = null;
+
+  /**
+   * **Der Kachelgraph dieser Welt** (`worlds/nav/`).
+   *
+   * Wird beim Laden aus den Quadern abgetastet, die `slab()` gebaut hat — eine
+   * Welt muss dafür nichts tun und nichts wissen. `null`, solange nichts
+   * gebaut wurde oder das Abtasten nichts gefunden hat.
+   */
+  protected nav: NavGraph | null = null;
+  private navReport: BakeReport | null = null;
+  private navDebug: THREE.Group | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
   protected context: WorldContext | null = null;
@@ -741,6 +756,9 @@ export class PortalWorld implements World {
     // Fläche, die es überall gibt, nicht der Fußboden dieses Raums.
     this.buildHorizonFloor();
     this.buildEnvironment();
+    // Erst jetzt: vorher steht noch kein Quader, aus dem sich ein Gitter
+    // ableiten ließe.
+    this.bakeNavigation();
     this.sync = this.createSync(ctx);
 
     this.portalBlue.link = this.portalRed;
@@ -923,6 +941,113 @@ export class PortalWorld implements World {
    * bedient (`tools/BrainTool.ts`). Zwei Bedienungen, ein Speicher — wie beim
    * Beutel, den es als Rasterseite *und* als Werkzeug gibt.
    */
+  // --- das Navigationsgitter ------------------------------------------------
+
+  /**
+   * Die Etagenhöhen dieser Welt, oder `null` zum Raten.
+   *
+   * Eine Welt, die ihre Stockwerke kennt, soll es sagen — Dust baut mit 3,1 m,
+   * und geraten wird daraus im Zweifel eine Etage zu viel, weil ein Vordach
+   * genauso aussieht wie ein Boden.
+   */
+  protected navLevels(): readonly number[] | null {
+    return null;
+  }
+
+  /**
+   * Der Ausschnitt, der abgetastet wird.
+   *
+   * Der Umriss aller gebauten Quader, aber **ohne die Fläche bis zum
+   * Horizont**: Die ist absichtlich riesig, und wer sie mitzählte, tastete
+   * einen halben Quadratkilometer leeren Sand ab. Als Boden zählt sie
+   * trotzdem — sie steckt in den Kästen, nur nicht in den Grenzen.
+   */
+  protected navBounds(): { minX: number; minZ: number; maxX: number; maxZ: number } | null {
+    const bounds = new THREE.Box3();
+    const one = new THREE.Box3();
+    let found = false;
+    for (const mesh of this.solids) {
+      if (mesh === this.horizonFloor) continue;
+      mesh.updateWorldMatrix(true, false);
+      one.setFromObject(mesh);
+      if (one.isEmpty()) continue;
+      bounds.union(one);
+      found = true;
+    }
+    if (!found) return null;
+    // Eine Notbremse gegen die Welt, die versehentlich einen Kilometer weit
+    // etwas hinstellt: abgetastet wird, was ein Mensch auch abläuft.
+    const limit = 150;
+    return {
+      minX: Math.max(-limit, bounds.min.x - TILE),
+      minZ: Math.max(-limit, bounds.min.z - TILE),
+      maxX: Math.min(limit, bounds.max.x + TILE),
+      maxZ: Math.min(limit, bounds.max.z + TILE),
+    };
+  }
+
+  /**
+   * Tastet die gebaute Welt ab und legt den Graphen bereit.
+   *
+   * Läuft genau einmal, direkt nach `buildEnvironment()`. Kostet für eine
+   * Karte wie Dust ein paar Millisekunden — das ist der Grund, warum hier
+   * nichts gespeichert und nichts von Hand gepflegt werden muss.
+   */
+  private bakeNavigation(): void {
+    const bounds = this.navBounds();
+    if (!bounds) return;
+    const levels = this.navLevels();
+    const report = bakeNav(boxesFrom(this.solids), {
+      bounds,
+      ...(levels ? { levels } : {}),
+    });
+    this.navReport = report;
+    this.nav = report.graph;
+  }
+
+  /** Der Schalter, mit dem man das Gitter ansehen kann. */
+  private navMenu(): MenuEntry {
+    const summary = (): string => {
+      const report = this.navReport;
+      if (!report) return 'Für diese Welt gibt es kein Gitter';
+      const census = levelCensus(report.graph)
+        .map((count, level) => `E${level}\u00a0${count}`)
+        .join(' · ');
+      return `${report.tiles} Kacheln · ${report.links} Verbindungen · ${census}`;
+    };
+    const row: MenuEntry = {
+      id: 'npc:nav-debug',
+      label: 'Navigationsgitter zeigen',
+      sub: summary(),
+      icon: 'gizmo',
+      accent: 0x39d0ff,
+      checked: this.navDebug !== null,
+      run: () => {
+        row.checked = this.toggleNavDebug();
+        this.refreshMenuLabels();
+        this.context?.notify(row.checked ? summary() : 'Gitter aus');
+      },
+    };
+    this.menuLabels.push(() => {
+      row.sub = summary();
+      row.checked = this.navDebug !== null;
+    });
+    return row;
+  }
+
+  private toggleNavDebug(): boolean {
+    if (this.navDebug) {
+      this.root.remove(this.navDebug);
+      disposeTree(this.navDebug);
+      this.navDebug = null;
+      return false;
+    }
+    if (!this.nav) return false;
+    this.navDebug = navDebugView(this.nav);
+    this.root.add(this.navDebug);
+    return true;
+  }
+
   private npcMenu(): MenuEntry {
     const ctx = (): WorldContext => this.context!;
     const brainRow: MenuEntry = {
@@ -964,6 +1089,7 @@ export class PortalWorld implements World {
           run: () => this.placeNpc(ctx(), skin.id),
         })),
         brainRow,
+        this.navMenu(),
         {
           id: 'npc:spawn',
           label: 'Am Spawnpunkt setzen',
@@ -2490,6 +2616,9 @@ export class PortalWorld implements World {
     this.props.length = 0;
     this.spawns.clear();
     this.surfaces.length = 0;
+    this.nav = null;
+    this.navReport = null;
+    this.navDebug = null;
     this.solids.length = 0;
     this.surfaceGroups.clear();
 

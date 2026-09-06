@@ -320,7 +320,16 @@ Fehler, und der Test hält es fest, damit es niemand später „repariert"), die
 allem die letzte bekannte Stelle), die **Fortbewegung** (`locomotion.ts` — dass
 ein Fußgänger sich erst dreht und dann losgeht, dass ein Fahrzeug im Stand
 **gar nicht** lenkt, weil ω = v/R ist, und dass eine Drohne sich auch seitwärts
-schiebt) und das **Format** (`navSerial.ts` — Hin und Zurück ohne Verlust, und
+schiebt), das **Abtasten** (`navBake.ts` — dass aus einer Platte ein Kachelfeld
+wird, dass eine Wand zwischen zwei Kacheln landet und eine Lücke darin wieder
+durchlässt, dass unter ein zu niedriges Vordach niemand gesetzt wird, dass
+Tunnel und Sand darüber zwei Kacheln sind, und die Zahl, wegen der es diesen
+Test gibt: ein Boden, der **in** einem Quader steckt, ist keiner — der Sand
+unter einem Podest ist nicht begehbar, und wer ihn mitzählt, legt die Kachel
+des Podests auf den Boden daneben), die **Übersetzung in die Welt**
+(`navScene.ts` — dass ein gedrehter Quader seinen Schatten wirft und eine
+offene Tür in der Debug-Ansicht keine Sperre ist) und das **Format**
+(`navSerial.ts` — Hin und Zurück ohne Verlust, und
 jede Datei, die es ablehnt: fremdes Format, fehlende Version, eine Karte aus
 der Zukunft und eine mit einer anderen Kachelgröße).
 
@@ -3734,11 +3743,42 @@ Karte ergibt immer dieselbe Datei — sonst zeigt ein Diff Umsortierung statt
 Version erhöht, schreibt in `migrate()` einen Zweig dazu; ein stilles „geht
 schon" ist die einzige Möglichkeit, sich hier die Karten kaputtzumachen.
 
-**Was noch fehlt**: die Debug-Ansichten in der Welt, das lokale Ausweichen
-(RVO) für Engstellen, der Editor mit Vogelperspektive, die Testwelt mit ihren
-Szenarien — und die Verdrahtung, die aus `chase` in `npcBrain.ts` einen NPC
-macht, der diese Wege wirklich läuft. Bis dahin ist die Schicht gebaut und
-geprüft, aber noch an keiner Welt angeschlossen.
+**Keine Welt wird „auf Kacheln umgebaut" — sie wird abgetastet**
+(`navBake.ts`). Die Welten dieses Projekts bestehen aus achsenparallelen
+Quadern, `slab()` baut sie und `solids` sammelt sie; daraus lässt sich das
+Gitter ableiten, ohne eine einzige Weltklasse anzufassen. Über jeder
+Kachelmitte werden alle Deckel gesucht, die dort liegen — Sand bei 0, die
+Stockwerke bei 3,1 und 6,2, das Dach bei 12,4 —, und jeder wird eine Kachel auf
+seiner Etage, sofern darüber genug Luft für einen NPC ist. Deshalb sind der
+Tunnel und der Sand darüber zwei Kacheln, und deshalb entsteht unter einem zu
+niedrigen Vordach gar keine. Zwischen zwei Kacheln wird auf halber Strecke
+gefragt, ob dort in Kopfhöhe etwas steht; sonst entscheidet der
+Höhenunterschied, ob es eine Stufe, eine Treppe, ein Absprung oder eine Wand
+ist. `PortalWorld` ruft das einmal nach `buildEnvironment()`, und damit hat
+**jede** Welt ihr Gitter — Dust, das Labor, der Hub, alle.
+
+Eine Welt darf zwei Dinge dazu sagen: `navLevels()` nennt ihre Stockwerke
+(Dust tut das, sonst würde eine Etage zu viel geraten — die Bodenplatten liegen
+`WALL` über dem Stockwerk, und die Kistenpodeste bei 1,2 m sähen aus wie eine
+eigene Ebene), und `navBounds()` sagt, was abgetastet wird. Voreingestellt ist
+der Umriss aller gebauten Quader **ohne** die Fläche bis zum Horizont: Die ist
+absichtlich riesig, und wer sie mitzählte, tastete einen halben
+Quadratkilometer leeren Sand ab. Als Boden zählt sie trotzdem — sie steckt in
+den Kästen, nur nicht in den Grenzen.
+
+**Ansehen kann man es im Menü**: _NPC → Navigationsgitter zeigen_
+(`navScene.ts`). Kacheln blau, Wände rot, Kanten gelb, Verbindungen violett,
+Gesperrtes magenta — und die Zeile darunter sagt, wie viele Kacheln auf welcher
+Etage gefunden wurden. Ein Gitter, das man nicht sieht, ist eines, dessen
+Fehler man an einem NPC sucht, der komisch läuft; und dort findet man sie nie.
+`navScene.ts` ist dabei die **einzige** Datei der Schicht, die three.js kennt —
+alles andere rechnet mit Zahlen und läuft im Test.
+
+**Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, der Editor mit
+Vogelperspektive, die Testwelt mit ihren Szenarien — und vor allem die
+Verdrahtung, die aus `chase` in `npcBrain.ts` einen NPC macht, der diese Wege
+wirklich läuft. Das Gitter ist da und sichtbar; die NPCs laufen weiterhin
+Luftlinie.
 
 ### Die Werkzeugseite
 
