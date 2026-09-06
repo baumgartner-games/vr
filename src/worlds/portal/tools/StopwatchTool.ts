@@ -237,6 +237,29 @@ export class StopwatchTool extends Tool {
     this.body.position.x = hand === 'right' ? RADIUS : hand === 'left' ? -RADIUS : 0;
   }
 
+  /**
+   * **Und dieselbe Zeile jedes Bild, solange sie gehalten wird** — das ist der
+   * ganze Unterschied zwischen der Vorschau und der Brille.
+   *
+   * Die Werkzeugseite und der Griffstand rufen `showHeldBy` selbst, die Welt
+   * für die Hand eines *fremden* Spielers auch; für die eigene Hand rief sie
+   * es nie. Das Gehäuse blieb damit im Spiel für immer dort stehen, wo der
+   * Bausatz es hingelegt hatte — auf der Seite der rechten Handfläche —, und
+   * die linke Hand bekam die Uhr obendrein noch **um die eigene Hochachse
+   * gedreht** (`otherHand = 'turn'`). Die beiden zusammen schoben sie neun
+   * Zentimeter aus der Faust heraus: rechts hing sie am Daumen, links unter
+   * dem kleinen Finger, und in der Vorschau sah sie trotzdem richtig aus.
+   *
+   * Ein Versatz, der in der Hand gilt, muss also *mit der Hand* wechseln —
+   * genau wie beim Stiel des Hammers und beim Deck der Drohne, die es aus
+   * demselben Grund hier tun.
+   */
+  override applyHold(controller: ControllerState | null): void {
+    if (!this.heldBy || this.parked) return;
+    this.showHeldBy(this.heldBy);
+    super.applyHold(controller);
+  }
+
   override onTake(_controller: ControllerState, host: ToolHost): void {
     this.hostRef = host;
     this.pointer = host.ctx.pointer;

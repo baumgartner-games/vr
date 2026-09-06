@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { GRAB_GLOW, GRAB_TINT } from '../../core/colors';
 
+/**
+ * Die Farbe des **festgestellten** Kastens: Bernstein, wie überall im Spiel,
+ * wo etwas angehalten ist (die Stoppuhr trägt sie auch). Grün hieße „hier
+ * hängt etwas", und genau das soll sich davon unterscheiden.
+ */
+const FIXED_TINT = 0xffc857;
+
 const _local = new THREE.Vector3();
 const _inverse = new THREE.Matrix4();
 
@@ -33,6 +40,7 @@ export class HoverBox extends THREE.Group {
   private readonly faces: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
   private readonly edges: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
   private occupied = false;
+  private fixed = false;
 
   constructor(readonly size: number) {
     super();
@@ -83,10 +91,29 @@ export class HoverBox extends THREE.Group {
   setOccupied(occupied: boolean): void {
     if (occupied === this.occupied) return;
     this.occupied = occupied;
-    const color = occupied ? GRAB_GLOW : GRAB_TINT;
+    this.paint();
+  }
+
+  /**
+   * Und er wechselt die Farbe, wenn der Schalter ihn **feststellt**.
+   *
+   * Ein Kasten, in dem sich nichts mehr bewegt, sieht aus wie einer, in dem
+   * sich gerade nichts bewegt — den Unterschied muss er sagen, sonst hält man
+   * beim nächsten Mal die gesperrte Hand für einen Fehler
+   * (`PortalWorld.setFloatFixed`).
+   */
+  setFixed(fixed: boolean): void {
+    if (fixed === this.fixed) return;
+    this.fixed = fixed;
+    this.paint();
+  }
+
+  private paint(): void {
+    const color = this.fixed ? FIXED_TINT : this.occupied ? GRAB_GLOW : GRAB_TINT;
     this.faces.material.color.setHex(color);
-    this.faces.material.opacity = occupied ? 0.1 : 0.06;
+    this.faces.material.opacity = this.fixed ? 0.14 : this.occupied ? 0.1 : 0.06;
     this.edges.material.color.setHex(color);
+    this.edges.material.opacity = this.fixed ? 1 : 0.8;
   }
 
   dispose(): void {

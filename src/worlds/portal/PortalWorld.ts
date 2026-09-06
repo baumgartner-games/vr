@@ -2984,6 +2984,60 @@ export class PortalWorld implements World {
    */
   private static readonly FLOAT_DAMPING = 4.5;
 
+  /**
+   * **Festgestellt**: was schwebt, rührt sich gar nicht mehr.
+   *
+   * Schwerelos ist nicht dasselbe wie still. Ein Werkzeug im Kasten hängt zwar,
+   * aber es hängt *weich*: die Hand, die man daran legt, stupst es an, und
+   * gerade beim Einmessen einer Handhaltung ist das genau die Bewegung, die
+   * man nicht will — man legt die Hand an, das Ding weicht aus, man rückt nach,
+   * und was man am Ende misst, ist die Nachbewegung. Festgestellt steht es wie
+   * angeschraubt, bis der Schalter wieder ausgeht.
+   *
+   * Es hält dabei auch die **Hand** ab: ein festgestelltes Ding lässt sich
+   * nicht greifen (`aimGrab`). Das ist keine Härte, sondern der Grund für den
+   * Schalter — die blanke Hand, die man zum Messen um ein Werkzeug schließt,
+   * *ist* die Greifgeste, und ohne diese Sperre nähme sie einem das Werkzeug
+   * bei jedem Versuch wieder weg.
+   */
+  private floatFixed = false;
+
+  /** Ob der Schalter an ist — die Tafel am Kasten liest es ab. */
+  protected floatIsFixed(): boolean {
+    return this.floatFixed;
+  }
+
+  /** Den Schalter umlegen; gibt zurück, wie er danach steht. */
+  protected setFloatFixed(on: boolean): boolean {
+    if (this.floatFixed === on) return on;
+    this.floatFixed = on;
+    for (const entry of this.floating.keys()) this.fixFloating(entry, on);
+    return on;
+  }
+
+  /** Ob dieser Körper gerade festgestellt ist — was fest ist, wird nicht gegriffen. */
+  private fixedInZone(entry: PhysicsBody): boolean {
+    return this.floatFixed && this.floating.has(entry);
+  }
+
+  /**
+   * Einen schwebenden Körper anhalten — oder wieder freigeben.
+   *
+   * Gesperrt werden **Verschiebung und Drehung** und nicht die Schwerkraft:
+   * die ist in der Zone ohnehin aus, und ein Körper ohne Schwerkraft behält
+   * trotzdem jeden Stoß. Die Sperre nimmt ihm beides ab, und beim Freigeben
+   * steht er da, wo er stand, statt mit dem alten Schwung weiterzuziehen.
+   */
+  private fixFloating(entry: PhysicsBody, fixed: boolean): void {
+    const body = entry.body;
+    if (fixed) {
+      body.setLinvel(_zeroVelocity, true);
+      body.setAngvel(_zeroVelocity, true);
+    }
+    body.lockTranslations(fixed, true);
+    body.lockRotations(fixed, true);
+  }
+
   private updateFloatZone(): void {
     const physics = this.physics;
     if (!physics) return;
@@ -3011,8 +3065,13 @@ export class PortalWorld implements World {
         entry.body.setAngularDamping(PortalWorld.FLOAT_DAMPING);
         // Ein schlafender Körper merkt von einer geänderten Schwerkraft nichts.
         entry.body.wakeUp();
+        // Wer bei angezogenem Schalter hineinkommt, steht sofort still.
+        if (this.floatFixed) this.fixFloating(entry, true);
       } else if (before) {
         this.floating.delete(entry);
+        // Erst wieder beweglich, dann wieder schwer: eine gesperrte Achse
+        // nähme die zurückgegebene Schwerkraft sonst nicht an.
+        this.fixFloating(entry, false);
         entry.body.setGravityScale(before[0], true);
         entry.body.setLinearDamping(before[1]);
         entry.body.setAngularDamping(before[2]);
@@ -3300,6 +3359,12 @@ export class PortalWorld implements World {
     // stowed or loose one gets its frame too — `applyHold` steps aside for
     // both, because the belt and the physics own where those are.
     for (const tool of [...this.liveTools]) {
+      // Die Liste ist eine Kopie, denn ein Werkzeug darf in seinem eigenen
+      // `update` etwas auslösen, das Werkzeuge kommen und gehen lässt — die
+      // Staffelei nimmt sich an ihren Griffen selbst wieder in die Hand. Was
+      // dabei ausgemustert wurde, ist hier aber weg und wird nicht mehr
+      // angefasst: ein weggeräumtes Werkzeug beantwortet keine Frage mehr.
+      if (!this.liveTools.has(tool)) continue;
       const controller = tool.heldBy ? ctx.input.get(tool.heldBy) : null;
       // Every held tool is turned out of the grip and onto the pointing ray
       // before it runs — one place, so no tool can aim 30° high again.
@@ -3857,6 +3922,14 @@ export class PortalWorld implements World {
         this.belt?.setPose(offset, persist) ?? saveBelt(clampBelt(offset)),
       parkTool: (tool) => this.parkTool(tool),
       unparkTool: (tool) => this.unparkTool(tool),
+      stowTool: (tool) => this.stowTool(tool),
+      takeTool: (tool, hand) => {
+        const now = this.context;
+        const controller = now?.input.get(hand);
+        if (!now || !controller?.tracked) return false;
+        this.takeTool(now, controller, tool);
+        return this.held.get(hand) === tool;
+      },
     };
   }
 
@@ -4485,6 +4558,10 @@ export class PortalWorld implements World {
     anchor.getWorldPosition(_hand);
     const touched = this.findProp(_hand);
     if (touched) {
+      // Ein festgestelltes Ding im Schwebekasten wird nicht angefasst: die
+      // Faust, die man zum Messen darum schließt, ist dieselbe Geste wie
+      // Greifen (`floatFixed`).
+      if (this.fixedInZone(touched)) return null;
       _aim0.set('touch', touched).point.copy(_hand);
       return _aim0;
     }
@@ -4495,7 +4572,7 @@ export class PortalWorld implements World {
 
     controller.getRay(_ray);
     const entry = this.findAimTarget(_ray);
-    if (!entry) return null;
+    if (!entry || this.fixedInZone(entry)) return null;
     const target = aimTargetOf(entry);
     const inZone = near && nearZoneDistance(target, this.nearZone) !== null;
     if (!inZone && !this.grabConfig.remote) return null;
@@ -4851,6 +4928,10 @@ export class PortalWorld implements World {
     handPosition: THREE.Vector3,
     viaTool = false,
   ): void {
+    // Was im Schwebekasten **festgestellt** ist, fliegt auch nicht: ein Flug
+    // hängt den Körper kinematisch an die Hand, und eine gesperrte Achse hält
+    // einen kinematischen Körper nicht auf (`setFloatFixed`).
+    if (this.fixedInZone(entry)) return;
     const physics = this.physics!;
     const t = entry.body.translation();
     _point.set(t.x, t.y, t.z);
@@ -4948,6 +5029,10 @@ export class PortalWorld implements World {
     // A tool lying on the floor is picked up as a *tool*, not carried around
     // like a crate: one place for it, so a hand, a remote grab and a gravity
     // glove all end the same way.
+    // Und auch hier: festgestellt ist festgestellt. `attach` ist die Stelle, an
+    // der *jeder* Weg endet — die Hand, der Ferngriff, der Schwerkrafthandschuh
+    // —, also steht die Sperre auch hier und nicht nur beim Zielen.
+    if (this.fixedInZone(entry)) return;
     const loose = this.loose.get(entry);
     if (loose) {
       this.catchLooseTool(hand, loose);

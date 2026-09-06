@@ -179,6 +179,25 @@ export interface ToolHost {
    */
   parkTool(tool: Tool): boolean;
   unparkTool(tool: Tool): boolean;
+  /**
+   * Legt ein gehaltenes Werkzeug **weg** — an den Gürtel, genau so, wie eine
+   * über einer Hüfte geöffnete Hand es täte.
+   *
+   * Dafür gibt es einen Fall: die **Staffelei**. Wer sie hinstellt, hat sie
+   * hingestellt — sie danach noch als Bündel in der Hand zu halten, ist die
+   * Sorte Zustand, die man erst bemerkt, wenn man mit der Hand irgendwo
+   * hängenbleibt. Alles andere legt seine Hand selbst weg, indem sie aufgeht.
+   */
+  stowTool(tool: Tool): void;
+  /**
+   * Und der Weg zurück: dieses Werkzeug in diese Hand, als hätte man es von
+   * der Hüfte gezogen. `false`, wenn die Hand gerade nicht da ist.
+   *
+   * Auch das ist die Staffelei: sie steht im Raum, man fasst sie an einem
+   * ihrer Griffe an, und dann liegt sie wieder im Arm — ohne den Umweg über
+   * den Gürtel.
+   */
+  takeTool(tool: Tool, hand: Handedness): boolean;
 }
 
 /** How hard a round hits: the punch is its mass times its speed. */

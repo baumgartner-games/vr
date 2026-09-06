@@ -717,6 +717,53 @@ describe('die Faust um die Stoppuhr', () => {
     },
   );
 
+  it.each(['right', 'left'] as const)(
+    'rückt es auch **im Spiel** dorthin, und nicht nur in der Vorschau: %s',
+    (side) => {
+      // Die Werkzeugseite und der Griffstand rufen `showHeldBy` selbst; für die
+      // eigene Hand im Spiel rief es niemand, und das Gehäuse blieb dort, wo
+      // der Bausatz es hingelegt hatte. `applyHold` läuft dagegen jedes Bild —
+      // dort gehört die Zeile hin (wie beim Hammer und bei der Drohne).
+      const tool = new StopwatchTool();
+      tool.heldBy = side;
+      tool.applyHold(null);
+      const shell = tool.children.find((child) => child.children.length > 3)!;
+      expect(Math.sign(shell.position.x)).toBe(side === 'left' ? -1 : 1);
+    },
+  );
+
+  it('hängt in beiden Händen gleich weit in der Faust — nicht links neun Zentimeter tiefer', () => {
+    // **Die Zahl, wegen der es diesen Test gibt.** Das Gehäuse sitzt einen
+    // Halbmesser neben dem Griffpunkt, und *neben* heißt: auf der Seite der
+    // Handfläche. Diese Seite steckte im Raum des Werkzeugs — die linke Hand
+    // bekommt die Uhr aber um die eigene Hochachse gedreht (`otherHand`), und
+    // eine Drehung nimmt einen Versatz mit. Beides zusammen schob das Gehäuse
+    // links um zwei Halbmesser aus der Faust: 3,4 cm neben der Faustmitte
+    // rechts, 8,6 cm links — die Uhr hing unter dem kleinen Finger.
+    const distances = (['right', 'left'] as const).map((side) => {
+      const tool = new StopwatchTool();
+      tool.heldBy = side;
+      // `applyHold` ohne Controller legt Modell und Lage dieser Hand hin; die
+      // Zielkorrektur kommt hier dazu, weil sie es im Spiel auch tut.
+      tool.applyHold(null);
+      tool.quaternion.premultiply(aim);
+      tool.updateMatrixWorld(true);
+      const body = tool.children.find((child) => child.children.length > 3)!;
+      const centre = body.getWorldPosition(new THREE.Vector3());
+      const fist = fistOf(defaultHoldPose(side, 'stopwatch'), fistCentre(STOPWATCH_HAND_POSE));
+      return centre.distanceTo(fist.centre);
+    });
+    const [right, left] = distances as [number, number];
+    // Ein Gehäuse von 4,5 cm Halbmesser liegt mit seinem Rand in der Faust;
+    // weiter als sein Halbmesser darf seine Mitte nicht von ihr wegstehen.
+    expect(right).toBeLessThan(0.045);
+    expect(left).toBeLessThan(0.045);
+    // Und beide Hände halten dieselbe Uhr: der Griffraum ist nicht gespiegelt,
+    // die Faust liegt in beiden bei x ≈ 0, also gehört das Gehäuse in beiden an
+    // dieselbe Stelle.
+    expect(Math.abs(left - right)).toBeLessThan(0.002);
+  });
+
   it('gilt in der linken Hand als Spiegelung — und die sitzt lockerer', () => {
     // **Die Grenze einer Messung an einer Hand.** Die Lage im Griff gehört dem
     // Werkzeug und ist für beide Hände dieselbe (`Tool.applyHold`); gespiegelt
