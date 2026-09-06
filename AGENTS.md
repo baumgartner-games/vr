@@ -3790,9 +3790,31 @@ nicht daran, was man vorhat. Ein **Portal** ist dabei die eine Verbindung, die
 ein Körper nicht laufen kann — der Läufer meldet sie als `jump`, und `Npc`
 setzt den Körper um.
 
-**Ansehen kann man auch die Wege**: Solange das Gitter an ist, zeichnet die
-Welt fünfmal je Sekunde die Wege mit, die gerade gelaufen werden. Nicht
-sechzigmal — ein Weg ändert sich, wenn neu geplant wird.
+**Ansehen lässt sich das alles in fünf Ebenen**, einzeln schaltbar
+(`nav/navLayers.ts`): Kacheln, Wände, Verbindungen, Sperren und die gerade
+gelaufenen Wege. Alles auf einmal ist bei ein paar hundert Kacheln eine Wolke
+aus Linien, in der man nichts findet — wer wissen will, warum ein Zombie
+stehen bleibt, schaltet die Sperren an und den Rest aus. Voreingestellt sind
+**Kacheln und Wege**: die beiden beantworten zusammen „wo kann er hin, und wo
+will er gerade hin"; der Rest beantwortet „warum nicht dorthin" und wird erst
+gebraucht, wenn etwas nicht stimmt.
+
+Umgeschaltet wird die **Sichtbarkeit** und nicht die Geometrie — jede
+Linienmenge trägt den Namen ihrer Ebene. Gebaut wird das Gitter erst, wenn
+wirklich etwas davon zu sehen sein soll, und wieder abgeräumt, wenn nichts mehr
+an ist: Unsichtbare Linien kosten in der Brille genauso viel wie sichtbare. Die
+Wege werden fünfmal je Sekunde neu gezeichnet, nicht sechzigmal — ein Weg
+ändert sich, wenn neu geplant wird.
+
+Im Labor hängen dafür **zwei Konsolen an den Seitenwänden** der mittleren
+Buchten (`navlab/NavConsole.ts`), dort, wo man beim Zusehen steht. Jede Taste
+trägt die Farbe ihrer Ebene, damit niemand die Beschriftung lesen muss: Man
+drückt Violett und sieht Violett. Was an ist, leuchtet — ohne diese Rückmeldung
+drückt man in der Brille zweimal.
+
+Eine Zahl, die man dabei falsch macht: **Eine Tafel schaut nach +Z**, ein
+Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt sie mit dem
+Rücken zum Raum an die Wand und sieht eine schwarze Platte.
 
 **Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: sechs Buchten,
 sechs rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —

@@ -8,6 +8,8 @@ import type { NavGraph } from '../nav/navGraph';
 import { addPortal, doorBetween, dropPortal, paintRect, portalLinkIds } from '../nav/navBuild';
 import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE } from '../nav/navTile';
+import { layerSummary, nextAll, type NavLayer } from '../nav/navLayers';
+import { NavConsole, type ConsoleKey } from './NavConsole';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import type { Npc } from '../npc/Npc';
 import {
@@ -73,6 +75,8 @@ export class NavLabWorld extends PortalWorld {
   private portalRings: THREE.Object3D[] = [];
   /** Die beiden aus der Portal-Bucht: der erste weiß davon, der zweite nicht. */
   private portalPair: Npc[] = [];
+  /** Die Wandkonsolen im Mittelgang — beide zeigen denselben Zustand. */
+  private readonly consoles: NavConsole[] = [];
 
   constructor() {
     super();
@@ -147,6 +151,29 @@ export class NavLabWorld extends PortalWorld {
       this.buildSign(lab, bay);
       this.buildKnobs(lab, bay);
     }
+
+    // Zwei Konsolen, je eine an der linken Seitenwand der mittleren Bucht —
+    // dort, wo man beim Zusehen steht. An der Stirnwand am Gang stünden sie im
+    // 76°-Winkel zum Startpunkt und wären genau dann nicht im Blick, wenn man
+    // sie braucht. Mehr wären schöner: Jede Beschriftung kostet eine eigene
+    // 512-px-Textur, und sechs Konsolen sind vierzig davon.
+    this.buildConsole(lab, 'pit');
+    this.buildConsole(lab, 'portal');
+  }
+
+  private buildConsole(parent: THREE.Group, id: ScenarioId): void {
+    const bay = SCENARIOS.find((one) => one.id === id);
+    if (!bay) return;
+    const at = bayPoint(bay, -BAY_W / 2 + 0.35, 3);
+    const panel = new NavConsole();
+    panel.position.set(at.x, 1.55, at.z);
+    // Nach Osten, also in die Bucht hinein. **Eine Tafel schaut nach +Z** und
+    // nicht nach −Z wie ein Körper: Ihre Vorderseite ist die Seite, auf der
+    // die Knöpfe sitzen. Mit −90° stünde sie mit dem Rücken zum Raum und man
+    // sähe eine schwarze Platte — genau das war der erste Versuch.
+    panel.rotation.y = Math.PI / 2;
+    parent.add(panel);
+    this.consoles.push(panel);
   }
 
   /** Diese Welt bringt keine Kisten mit — was hier steht, stellt ein Szenario hin. */
@@ -358,6 +385,35 @@ export class NavLabWorld extends PortalWorld {
     for (const knob of this.knobs) {
       ctx.pointer.add({ object: knob.mesh, onSelect: () => knob.run() });
     }
+    for (const console_ of this.consoles) {
+      for (const key of console_.keys()) {
+        ctx.pointer.add({ object: key.mesh, onSelect: () => this.pressLayer(key.key) });
+      }
+    }
+    this.refreshConsoles();
+  }
+
+  /**
+   * Eine Taste der Wandkonsole.
+   *
+   * Beide Konsolen zeigen denselben Zustand, also werden nach jedem Druck
+   * **beide** nachgezogen — sonst leuchtet die eine und die andere nicht, und
+   * man traut keiner von beiden mehr.
+   */
+  private pressLayer(key: ConsoleKey): void {
+    if (key === 'all') {
+      this.setNavLayers(nextAll(this.navLayerState()));
+    } else {
+      const layer = key as NavLayer;
+      this.setNavLayer(layer, !this.navLayerState()[layer]);
+    }
+    this.refreshConsoles();
+    this.refreshMenuLabels();
+    this.context?.notify(layerSummary(this.navLayerState()));
+  }
+
+  private refreshConsoles(): void {
+    for (const console_ of this.consoles) console_.refresh(this.navLayerState());
   }
 
   /** Startet ein Szenario — oder räumt es weg, wenn es schon läuft. */
