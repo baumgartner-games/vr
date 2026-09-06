@@ -1,14 +1,8 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
-import {
-  HAMMER_HOME,
-  HAMMER_SHAFT,
-  POLE_HOLD_POSITION,
-  clampShaftGrip,
-  spanPole,
-  swingPush,
-} from './poleGrip';
+import { HAMMER_HOME, HAMMER_SHAFT, clampShaftGrip, spanPole, swingPush } from './poleGrip';
 import { playTone } from '../../../core/Audio';
+import type { Vec3 } from './aim';
 import type { ControllerState, Handedness, XRInput } from '../../../core/XRInput';
 
 /** Wo der Kopf sitzt und wo der Knauf — die beiden Enden der Stange. */
@@ -98,6 +92,23 @@ const _quat = new THREE.Quaternion();
  * Werkzeug immer der Punkt, an dem die Faust liegt. Einmal eingemessen gilt die
  * Haltung damit an jedem Punkt des Stiels.
  */
+/** Grad in Bogenmaß — die eingemessene Lage steht in Grad, wie im Kurzcode. */
+const DEG = Math.PI / 180;
+
+/**
+ * **Die eingemessene Lage des Hammers im Griff** — Zentimeter, aus dem
+ * Kurzcode `BPcMCn7Vw2xWajnzvwfCTCQjsWgsnUF` (rechte Hand, in der Brille am
+ * Justierer gemessen).
+ *
+ * Gerechnet wird in Metern; die Zahl steht in Zentimetern da, weil sie so
+ * gemessen und so aufgeschrieben wurde und jeder Vergleich mit dem Code sonst
+ * eine Kopfrechnung wäre.
+ */
+export const HAMMER_HOLD: Vec3 = { x: 0, y: -0.006, z: 0.029 };
+
+/** Und ihre Drehung, in Grad, gelesen als `Euler` in der Reihenfolge `XYZ`. */
+export const HAMMER_TILT: Vec3 = { x: 45, y: 0, z: 90 };
+
 export class HammerTool extends Tool {
   override readonly toolId = 'hammer';
   override readonly label = 'Großer Hammer';
@@ -129,11 +140,20 @@ export class HammerTool extends Tool {
     this.icon = 'hammer';
     this.accent = 0xc98b52;
     this.hint = 'Überall am Stiel greifen · zweite Hand dazu · Trigger schiebt die Hand';
-    // Der Ursprung ist der Griffpunkt, und ein Stiel liegt in der Faust wie
-    // jeder Stab (`POLE_GRIP`): eine Spur unter und vor dem Griffpunkt des
-    // Controllers — dieselbe Zahl wie bei Lampe, Pinsel und Messer, denn die
-    // Faust am Stab (`POLE_HAND_POSE`) ist für alle vier dieselbe.
-    this.holdPosition.set(POLE_HOLD_POSITION.x, POLE_HOLD_POSITION.y, POLE_HOLD_POSITION.z);
+    // **Eingemessen in der Brille** und nicht am Schreibtisch gesetzt: der
+    // Stiel liegt so in der Faust, wie der Controller wirklich darin liegt
+    // (`HAMMER_HOLD`, aus dem Kurzcode `BPcMCn7Vw2xWajnzvwfCTCQjsWgsnUF`).
+    // Vorher stand hier die gebaute Lage jedes Stabs (`POLE_HOLD_POSITION`,
+    // dieselbe wie bei Lampe, Pinsel und Messer) — sie ist die Zahl, aus der
+    // die Faust am Stab gerechnet ist, aber nicht die, in der ein Hammer in
+    // einer echten Hand liegt: der Stiel lief quer durch die Handfläche
+    // heraus. Der Stab bleibt, was er ist; nur seine Lage im Griff ist jetzt
+    // gemessen, und die Faust dazu ist die der echten Hand
+    // (`HAMMER_HAND_POSE`).
+    this.holdPosition.set(HAMMER_HOLD.x, HAMMER_HOLD.y, HAMMER_HOLD.z);
+    this.holdRotation.setFromEuler(
+      new THREE.Euler(HAMMER_TILT.x * DEG, HAMMER_TILT.y * DEG, HAMMER_TILT.z * DEG, 'XYZ'),
+    );
 
     const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.78 });
     const iron = new THREE.MeshStandardMaterial({

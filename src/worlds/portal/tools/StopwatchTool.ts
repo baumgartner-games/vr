@@ -58,6 +58,18 @@ export const STOPWATCH_GRIP: HoldPose = {
 /** Und wo der Rand in der Hand liegt: wie ein Stab, eine Spur unter und vor dem Griffpunkt. */
 export const RIM_HOLD_POSITION: Vec3 = { x: 0, y: -0.012, z: 0.02 };
 
+/** Grad in Bogenmaß — die eingemessene Lage steht in Grad, wie im Kurzcode. */
+const DEG = Math.PI / 180;
+
+/**
+ * **Die eingemessene Lage der Uhr im Griff**, in Metern — aus dem Kurzcode
+ * `BPMMCn6HFri5P_Ryc_jWiuiUGnVuWEQ` (rechte Hand, am Justierer in der Brille).
+ */
+export const RIM_HOLD: Vec3 = { x: 0, y: -0.03, z: 0.026 };
+
+/** Und ihre Drehung, in Grad, gelesen als `Euler` in der Reihenfolge `XYZ`. */
+export const RIM_TILT: Vec3 = { x: 157, y: -89, z: -145 };
+
 /**
  * Die Stoppuhr: das Werkzeug, mit dem man Physik ansieht.
  *
@@ -119,7 +131,15 @@ export class StopwatchTool extends Tool {
     // nach vorn wie eine Waffe. Lange schaute es nach vorn, und man sah den
     // Zeiger nie; dann stand es hochkant auf der Faust, und niemand hält eine
     // Uhr so.
-    this.holdPosition.set(RIM_HOLD_POSITION.x, RIM_HOLD_POSITION.y, RIM_HOLD_POSITION.z);
+    // **Eingemessen in der Brille** (Kurzcode `BPMMCn6HFri5P_Ryc_jWiuiUGnVuWEQ`,
+    // rechte Hand): so liegt die Uhr in der Faust, die wirklich einen
+    // Controller hält. Die gebaute Lage darunter (`RIM_HOLD_POSITION`) ist die
+    // Zahl, aus der die Faust um die Kante gerechnet wurde — die Messung sagt,
+    // wohin die Uhr in dieser Faust gehört.
+    this.holdPosition.set(RIM_HOLD.x, RIM_HOLD.y, RIM_HOLD.z);
+    this.holdRotation.setFromEuler(
+      new THREE.Euler(RIM_TILT.x * DEG, RIM_TILT.y * DEG, RIM_TILT.z * DEG, 'XYZ'),
+    );
     // Alles, woraus die Uhr besteht, hängt an `body` — und das rückt je Hand
     // zur Seite, damit die gegriffene Kante im Griffpunkt liegt.
     this.add(this.body);

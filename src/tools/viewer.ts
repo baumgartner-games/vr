@@ -641,9 +641,27 @@ export class ToolViewer {
     return Math.min(fast, Math.max(slow, outside * FLY_SPEED_SHARE));
   }
 
+  /**
+   * Die Ansicht wechseln — und dabei **beide Einfrierungen auftauen**.
+   *
+   * Beim Justieren stehen zwei Dinge still: die Lage des Griffraums
+   * (`gripBase`) und die Drehung der Bühne auf die echte Hand (`align`). Sie
+   * gehören zusammen — die eine sagt, wo die Hand steht, die andere, wie das
+   * Bild darauf schaut —, und beim Wechsel der Ansicht wurde bisher nur die
+   * erste neu genommen. Danach standen sie auf zwei verschiedenen Ständen: die
+   * Bühne schaute noch auf die Hand von vorhin, der Griffraum stand aber auf
+   * dem Stand von jetzt, und jedes Grad, das man inzwischen am Regler gedreht
+   * hatte, drehte die ganze Vorschau mit. „Ich ändere Roll, und die Ansicht
+   * dreht sich" — genau das, und es passierte erst nach einem Tabwechsel.
+   *
+   * Zusammen aufgetaut heben sie sich im ersten Bild wieder auf: die Hand steht
+   * im Bild, wo sie stehen soll, und schräg ist wieder nur das Werkzeug.
+   */
   setHandMode(mode: HandMode): void {
     if (this.mode === mode) return;
     this.mode = mode;
+    this.gripBase = null;
+    this.align = null;
     this.apply();
   }
 
@@ -676,7 +694,22 @@ export class ToolViewer {
    */
   setButtons(buttons: FingerButtons): void {
     this.buttons = buttons;
-    if (this.tool && this.hand) this.hand.setCurls(this.curlsFor(this.tool));
+    const tool = this.tool;
+    if (!tool) return;
+    // In *Hand in echt* hält die feste Hand einen Controller — ihre Finger
+    // liegen am **Halterzylinder**, wie beim Aufbau (`apply`) —, und daneben
+    // hängt die gezeichnete Hand als Geist am Werkzeug. Der Geist wurde hier
+    // vergessen: er blieb beim Drücken von *Trigger* stehen, während die feste
+    // Hand den Finger zog, und zeigte damit dauerhaft etwas anderes an als der
+    // Knopf oben sagte.
+    if (this.hand) {
+      this.hand.setCurls(
+        this.mode === 'controller'
+          ? buttonCurls(holdHandPose(this.side, GRIP_POSE_ID), GRIP_FINGER_MOVES, buttons)
+          : this.curlsFor(tool),
+      );
+    }
+    this.vrHand?.setCurls(this.curlsFor(tool));
   }
 
   /** Die Finger dieser Hand an diesem Werkzeug bei den Knöpfen, die gerade gelten. */
@@ -703,12 +736,10 @@ export class ToolViewer {
    * Flügel um 30° gegen die Hand verdreht und speichert die 30° beim ersten
    * Zug am Regler als Haltung ab.
    *
-   * Der **Beutel** war eine Weile der Fall dazwischen und bekam sie ebenfalls:
-   * er folgte der Hand nur in der Gierachse, hing also waagerecht, während der
-   * Griff um die Zielkorrektur gekippt war. Seit er auch dem **Nicken** folgt
-   * (`MagicBagTool.hangUpright`), steht er gegenüber einem Griff ohne Rollen
-   * unverdreht — er sitzt damit im Griffraum wie jedes andere Werkzeug, das
-   * nicht zielt, und `hangsUpright` ist hier kein Sonderfall mehr.
+   * Der **Beutel** war eine Weile der Fall dazwischen: er hing aufrecht im
+   * Raum und folgte der Hand nur in Teilen ihrer Drehung. Diese Ausnahme gibt
+   * es nicht mehr — er sitzt im Griffraum wie jedes andere Werkzeug, das nicht
+   * zielt, und wird hier wie jedes andere gerechnet.
    */
   aimOf(): Quat {
     const tool = this.tool;

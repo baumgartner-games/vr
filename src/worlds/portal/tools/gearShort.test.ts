@@ -191,17 +191,21 @@ describe('die eine Faust am Griff', () => {
     // Lauf, aber *in* der Faust und nicht darunter — also die Faust am Stab,
     // an der Stelle, an der das Rohr liegt.
     expect(defaultHoldPose('right', 'flashlight')).not.toEqual(defaultHoldPose('right', 'pistol'));
-    // Der Hammer trägt denselben Stab weiter hinten, in seinem Griffpunkt.
+    // Der Hammer liegt eingemessen in der Faust der echten Hand — also nicht
+    // in der Haltung, die um das Rohr der Lampe gerechnet ist.
     expect(defaultHoldPose('right', 'hammer')).not.toEqual(defaultHoldPose('right', 'flashlight'));
   });
 
   it('lässt alles ohne Griff bei der gebauten Faust', () => {
     // Die Flügel sitzen an den Armen, an keinem Zylinder.
     expect(defaultHoldPose('right', 'wings')).toEqual(HOLD_HAND_POSE);
-    // Hammer und Drohne tragen einen eigenen Zylinder — und eine eigene,
-    // dazu gerechnete Faust, die weder die gebaute noch die am Griff ist.
+    // Der Hammer trägt einen eigenen Zylinder und keine gebaute Faust: er
+    // liegt eingemessen in der Faust der **echten** Hand, also in derselben
+    // Haltung wie alles am Halterzylinder — die gebaute ist es damit nicht.
     expect(defaultHoldPose('right', 'hammer')).not.toEqual(HOLD_HAND_POSE);
-    expect(defaultHoldPose('right', 'hammer')).not.toEqual(defaultHoldPose('right', 'grip'));
+    expect(defaultHoldPose('right', 'hammer')).toEqual(defaultHoldPose('right', 'grip'));
+    // Die Drohne liegt daneben: dieselbe Faust, nur weiter außen am Deck.
+    expect(defaultHoldPose('right', 'drone')).not.toEqual(defaultHoldPose('right', 'grip'));
   });
 });
 

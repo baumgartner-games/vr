@@ -512,22 +512,51 @@ function setButtons(next: FingerButtons): void {
 }
 
 /**
- * Was die Bühne zeigt: beim Justieren immer die haltende Hand. Der Regler
- * richtet die Linie des Zeigefingers aus, und ein Finger am Abzug zeigt
+ * Was die Bühne wirklich zeigt: beim Justieren immer die haltende Hand. Der
+ * Regler richtet die Linie des Zeigefingers aus, und ein Finger am Abzug zeigt
  * woandershin als einer am Rahmen — man justierte sonst an einem Finger, der
  * gerade etwas anderes tut.
  */
-function applyButtons(): void {
-  viewer.setButtons(editing ? HELD_BUTTONS : buttons);
+function shownButtons(): FingerButtons {
+  return editing ? HELD_BUTTONS : buttons;
 }
 
+function applyButtons(): void {
+  viewer.setButtons(shownButtons());
+}
+
+/**
+ * Die beiden Knöpfe im Kopf auf den Stand bringen — und zwar auf den, den die
+ * **Bühne** zeigt, nicht auf den zuletzt gespeicherten.
+ *
+ * Beim Justieren hält die Hand, komme was wolle; die Knöpfe standen dabei
+ * trotzdem so da, wie man sie zuletzt gelassen hatte. Wer *Trigger* eingeschaltet
+ * hatte und dann *Bearbeiten* drückte, sah einen leuchtenden Knopf und einen
+ * Finger, der nicht zog — und wer ihn drückte, sah gar nichts passieren. Also
+ * zeigen sie jetzt den Stand der Bühne und sind so lange **aus dem Betrieb**,
+ * wie das Justieren läuft; ihr Titel sagt warum.
+ */
 function showButtons(): void {
+  const shown = shownButtons();
   for (const button of fingers.querySelectorAll<HTMLButtonElement>('button')) {
-    const on = buttons[button.dataset['button'] as keyof FingerButtons];
+    const key = button.dataset['button'] as keyof FingerButtons;
+    const on = shown[key];
     button.classList.toggle('is-active', on);
     button.setAttribute('aria-pressed', String(on));
+    button.disabled = editing;
+    button.title = editing
+      ? 'Beim Justieren hält die Hand das Werkzeug — der Zeigefinger liegt am Rahmen, damit die Linie stimmt'
+      : (ORIGINAL_TITLES.get(button) ?? '');
   }
 }
+
+/** Die Titel, wie sie in `tools.html` stehen — der Justierer leiht sie sich. */
+const ORIGINAL_TITLES = new Map<HTMLButtonElement, string>(
+  [...fingers.querySelectorAll<HTMLButtonElement>('button')].map((button) => [
+    button,
+    button.title,
+  ]),
+);
 
 // --- die freie Kamera --------------------------------------------------------
 
@@ -868,6 +897,7 @@ function setEditing(on: boolean): void {
   hands.hidden = viewer.toolId === null;
   fingers.hidden = hands.hidden;
   applyButtons();
+  showButtons();
   // Und die Achsen dazu: sechs Zahlen ohne ein Kreuz daneben sind sechs Zahlen.
   viewer.setEditing(editing);
   if (editing && mode === 'off') {

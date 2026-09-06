@@ -486,10 +486,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Hand los, fällt er, auch wenn die zweite noch am Stiel liegt: `heldBy`
     gehört der Welt, nicht dem Werkzeug (genau wie bei der Drohne). Die Rechnung
     steht in `tools/poleGrip.ts` mit Test, das Werkzeug in `tools/HammerTool.ts`.
-  - **Stoppuhr**: das Werkzeug, mit dem man Physik _ansieht_. Sie liegt in der
-    Hand wie bei einem Zeitnehmer: Blatt zum Gesicht, Finger um die seitliche
-    Kante, Daumen auf der Krone (siehe _Ein Griff für alle Werkzeuge_), und der
-    Gehäusemantel trägt die Greiffarbe. Ein **Knopf** an
+  - **Stoppuhr**: das Werkzeug, mit dem man Physik _ansieht_. Sie liegt
+    **eingemessen** in der Hand: Blatt zum Gesicht, die seitliche Kante in der
+    Faust, die einen Controller hält (siehe _Ein Griff für alle Werkzeuge_),
+    und der Gehäusemantel trägt die Greiffarbe. Ein **Knopf** an
     der Krone (oder `A`/`X`) öffnet ein Panel an der Uhr — dieselbe Mechanik
     wie beim Drohnen-Display —, und dort steht, was der **Trigger** tut
     (`stopwatchSettings.ts`, mit Test):
@@ -510,10 +510,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Schnellladen im Mehrspieler zieht der rechnende Spieler die Objekte
     wieder auf seinen Stand — es wirkt bei dem, der rechnet.
     Gehalten wird sie am **Rand** wie eine Taschenuhr: kein Standardgriff, der
-    Mantel des Gehäuses in Greiffarbe, das Gehäuse steht hochkant über dem
-    Griffpunkt, die Handfläche dahinter, die Finger unten herum
-    (`STOPWATCH_HAND_POSE`). Und das **Zifferblatt schaut zum Kopf** (+z) —
-    lange schaute es nach vorn wie ein Lauf, und man sah den Zeiger nie.
+    Mantel des Gehäuses in Greiffarbe, die Kante durch die Faust, das Gehäuse
+    daneben in der Handfläche (`STOPWATCH_HAND_POSE` — die Faust der echten
+    Hand, und die Uhr in der Brille dort hineingelegt, `RIM_HOLD`/`RIM_TILT`).
+    Und das **Zifferblatt schaut zum Kopf** — lange schaute es nach vorn wie
+    ein Lauf, und man sah den Zeiger nie.
   - **Taschenlampe**: eine **Stabtaschenlampe** — das Batterierohr _ist_ der
     Griff, in Greiffarbe, ein Stab wie der Stiel des Hammers (`POLE_GRIP`). Es
     liegt **im Griffpunkt**, dort, wo die Hand auch das Gerät hält
@@ -762,7 +763,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gekippt darin, damit das Display zum Gesicht zeigt, und rollte damit so
     weit über die Faust, dass er nicht mehr aussah wie etwas, das man hält,
     sondern wie etwas, das aus der Hand fällt. Geneigt ist jetzt das Display
-    am Gehäuse und nicht das ganze Gerät in der Hand. Er verändert
+    am Gehäuse und nicht das ganze Gerät in der Hand — und zwar um **45° nach
+    hinten** (`DISPLAY_TILT`): so weit, wie eine ablesende Hand nach vorn unten
+    zeigt, und damit steht der Schirm im Raum senkrecht. Vorher waren es 0,45
+    rad, also gut 25° — die Hälfte des Wegs, und man sah den Schirm kippen. Er
+    verändert
     **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
     halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
     ist die Frage nie „wie sieht sie aus", sondern „was steht in ihr drin".
@@ -793,22 +798,23 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Beutel steht der Name, und **Greifen** holt das Ding in Originalgröße
     genau dorthin, wo die Hand ist — bei allen in der Sitzung
     (`ToolHost.conjureProp`, derselbe Weg wie aus dem Menü).
-    Zwei Dinge daran sind Absicht. Er **hängt**, folgt der Hand dabei aber in
-    **Gieren und Nicken**: wohin man zeigt, dorthin zeigt er, und wie schräg
-    man die Hand hält, so schräg steht er. Nicht mit geht allein das
-    **Rollen** — nur das könnte ihn auf den Kopf stellen und sein Raster
-    ausschütten, und genau davor schützte die erste Fassung, die überhaupt nur
-    die Gierachse nahm; ein Beutel, den man nicht hinhalten kann, ist dafür
-    aber ein steifes Ding (`alignToAim = false` plus `hangUpright`). Zwei Vorzeichen dazu, beide
-    gefunden, als „die Hand greift ihn anders herum" gemeldet wurde:
-    `hangUpright` nahm die Gierachse mit `atan2(x, z)` statt `atan2(-x, -z)`
-    und hängte den Beutel damit um 180° gedreht **hinter** die Hand, den Bauch
-    im Unterarm — auf der Werkzeugseite unsichtbar, denn dort läuft
-    `hangUpright` nie. Und aufrecht heißt nicht „im Griffraum": bei zielend
-    gehaltenem Controller steht das Aufrechte um die Zielkorrektur gegen den
-    Griff gedreht, also wird die Faust am Saum jetzt **mit** ihr gerechnet wie
-    bei allem, das zielt (`Tool.hangsUpright`, dieselbe Frage stellen
-    Werkzeugseite und Justierstände). Und die greifende Hand gehört
+    Zwei Dinge daran sind Absicht. Er **zielt nicht** (`alignToAim = false`) —
+    er sitzt in der Faust wie ein Handschuh und nicht auf dem Zeigestrahl wie
+    eine Waffe —, und sonst bewegt er sich wie **jedes andere Werkzeug**: er
+    steckt im Griff und macht mit, was die Hand tut, Gieren, Nicken _und_
+    Rollen. Zwei Runden lang hing er stattdessen **aufrecht im Raum**: eine
+    eigene Rechnung (`hangUpright`) nahm der Hand erst das Nicken und das
+    Rollen weg, dann nur noch das Rollen, damit die Öffnung oben bleibt und das
+    Raster nicht ausgeschüttet wird. Das las sich vernünftig und fühlte sich
+    falsch an — ein Ding in der Hand, das einer Drehung des Handgelenks nicht
+    folgt, ist keines, das man hält, sondern eines, das an einem klebt; und
+    weil das Raster an seiner Drehung hängt, kippte es dabei gegen die Finger,
+    die hineingreifen. Wer ihn ausschütten will, darf ihn jetzt ausschütten.
+    (Die Rechnung hatte nebenbei zwei Vorzeichenfallen: `hangUpright` nahm die
+    Gierachse einmal mit `atan2(x, z)` statt `atan2(-x, -z)` und hängte den
+    Beutel damit um 180° gedreht **hinter** die Hand — auf der Werkzeugseite
+    unsichtbar, denn dort lief sie nie. Solches Zeug fällt mit ihr weg.)
+    Und die greifende Hand gehört
     ihm, solange sie über einem Fach steht (`claimsHand`) — sonst risse
     derselbe Griff die Kiste hinter dem Beutel an sich, und in einem vollen
     Labor steht immer eine Kiste dahinter.
@@ -1325,8 +1331,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Weitergeben                        | mit der freien Hand danach greifen                                                                                                                                    | –                                                                                               | –                    |
 | Anfassen                           | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist                                                                                                            | –                                                                                               | –                    |
 | Nahgreifen                         | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo)                                                                                 | –                                                                                               | –                    |
-| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand >30° nach oben kippen                                                                                                         | –                                                                                               | –                    |
-| Nah Gefasstes doch holen           | dieselbe Kippgeste, >30° nach oben                                                                                                                                    | –                                                                                               | –                    |
+| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 8 m/s)                                                                              | –                                                                                               | –                    |
+| Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
 | Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
@@ -1557,13 +1563,35 @@ man sieht, ist besser als einer, den man sich denkt.
 **Ferngreifen** (standardmäßig an) erweitert das auf 9 m und läuft in zwei
 Schritten. Was getroffen ist, leuchtet auf. Mit **Grip** rastet es ein: Es
 bleibt markiert, auch wenn die Hand woanders hinzeigt, und ein dünner Strahl
-zwischen Hand und Gegenstand sagt, dass jetzt gezogen werden kann. Kippst du
-die Hand danach mehr als **30°** nach oben/hinten, kommt der Gegenstand
-geflogen und landet in der Hand.
+zwischen Hand und Gegenstand sagt, dass jetzt gezogen werden kann. **Zuckst du
+die Hand danach zum Körper** — schneller als das eingestellte _Zugtempo_,
+ab Werk 8 m/s —, kommt der Gegenstand geflogen und landet in der Hand.
 
-Dieselbe Kippgeste holt auch einen **nah gefassten** Gegenstand doch noch
+Dasselbe Zucken holt auch einen **nah gefassten** Gegenstand doch noch
 her — eine Geste, drei Entfernungen. Im Nahbereich hat man damit die Wahl:
-dort lassen und manipulieren, oder hochkippen und in die Hand nehmen.
+dort lassen und manipulieren, oder zu sich reißen und in die Hand nehmen.
+
+Vorher war das ein **Winkel**: Handgelenk um 30° nach oben kippen. Eine Geste,
+die man sich merken muss — und die beim Hantieren von selbst losging, denn wer
+die Hand mit einem gefassten Ding hebt, kippt sie dabei. Ein Zucken zum Körper
+ist die Bewegung, mit der ein Mensch etwas an sich zieht; die muss niemand
+lernen.
+
+Gemessen wird nicht das Tempo der Hand im Raum, sondern das **Näherkommen**:
+`(Abstand vorher − Abstand jetzt) / Zeit`, gegen den Kopf, gemittelt über 50
+Millisekunden (`worlds/portal/pullGesture.ts`, mit Test). Damit fällt zweierlei
+von selbst weg — wer **geht**, nimmt die Hand mit und zuckt nicht, und wer die
+Hand **quer** vor sich herzieht, kommt dem Körper nicht näher. Gemittelt statt
+tiefpassgefiltert, weil ein Tiefpass eine Schwelle, die in Metern je Sekunde
+angeschrieben steht, still nach unten zöge: eine kurze Bewegung liefe nie ganz
+durch ihn hindurch.
+
+Das **Zugtempo** steht im Menü unter _Einstellungen → Greifen_ und ist eine
+Zahl wie jede andere dort (`core/grabSettings.ts`, `pull`, in Zentimetern je
+Sekunde gespeichert und in Metern je Sekunde gelesen). Die Zeile schaltet
+0 → 4 → 8 → 12 m/s durch, _Werte eingeben_ nimmt jede Zahl dazwischen, und
+**0 heißt „ohne Zucken"**: dann kommt der Gegenstand, sobald der Grip sitzt —
+das alte Verhalten für alle, denen die Geste im Weg ist.
 
 **Die Geisterhand** steht dort, wo die echte anfassen würde: am Trefferpunkt
 des Strahls, mit der Drehung der echten Hand, halbtransparent und türkis. Sie
@@ -2188,8 +2216,11 @@ eine eigene dazu. `fistOnGrip` nimmt dafür den Zylinder als zweites Argument
 Griffs im Werkzeug), und die beiden Zylinder stehen dort, wo sie hingehören:
 der **Stab** als `POLE_GRIP` in `poleGrip.ts` (die z-Achse durch den
 Griffpunkt, die Daumenseite zur Spitze, die Handfläche innen — so hält man
-einen Hammer): den trägt der **Stiel des Hammers** mit `POLE_HOLD_POSITION` und
-`POLE_HAND_POSE`. Das **Batterierohr der Taschenlampe** ist derselbe Stab in
+einen Hammer): dort saß der **Stiel des Hammers** mit `POLE_HOLD_POSITION` und
+`POLE_HAND_POSE`, bis er eingemessen wurde (siehe _Gemessen schlägt gerechnet_
+weiter unten); als Rechnung um einen Stab an dieser Stelle bleibt beides
+stehen, denn die Lampe leitet ihre Faust daraus ab.
+Das **Batterierohr der Taschenlampe** ist derselbe Stab in
 einer anderen Lage — im Griffpunkt, aber 45° nach vorn gekippt —, und dazu
 gehört dieselbe Faust, um genau diese Kippung aufgerichtet
 (`TORCH_HAND_POSE`). Das Messer lag eine Weile auch auf dem Stab und steht
@@ -2214,11 +2245,11 @@ an einem Eimer sah es nach einem Eimer aus) — **ohne** Zielkorrektur, wie
 alles, was in der Faust sitzt. Das war eine Weile andersherum: solange der
 Beutel nur der **Gierachse** folgte, hing er waagerecht, während der Griff um
 die Zielkorrektur gekippt war, und die Faust trug dieselben 30° eingerechnet
-mit sich herum. Seit er auch dem **Nicken** folgt, steht er gegenüber einem
-Griff ohne Rollen unverdreht und sitzt im Griffraum wie jedes andere Werkzeug,
-das nicht zielt (`Tool.hangsUpright`). Zu sehen war die alte Ausnahme auf der
-Werkzeugseite unter _Hand in echt_: der Controller stand dort 30° gegen den
-aufrecht hängenden Beutel gekippt — eine Hand, die so keinen Beutel hält. Die **Querstange
+mit sich herum. Zu sehen war die Ausnahme auf der Werkzeugseite unter _Hand in
+echt_: der Controller stand dort 30° gegen den aufrecht hängenden Beutel
+gekippt — eine Hand, die so keinen Beutel hält. Inzwischen hängt er gar nicht
+mehr aufrecht, sondern liegt im Griff wie jedes andere Werkzeug, das nicht
+zielt; die Sonderbehandlung ist weg, die Faust bleibt, wie sie ist. Die **Querstange
 des Hängegleiters** als `BAR_GRIP` in `HangGliderTool.ts`: quer (x) durch den
 Griffpunkt, von oben gehalten wie ein Lenker, Handrücken oben, Daumen zur Mitte
 der Stange (`GLIDER_HAND_POSE`). Und der **Handgriff des Controllers** als
@@ -2244,6 +2275,43 @@ _die Hand am Pinsel_) — nicht die Rechnung nachgerechnet, sondern das
 Ergebnis: wo die Finger am gebauten Pinsel landen. Und der **Trigger** drückt
 den Zeigefinger dort auf den Stiel (0,45 → 0,65) statt eine Faust zu machen;
 wer beim Malen den Finger ganz krümmt, hält keinen Stift mehr.
+
+#### Gemessen schlägt gerechnet
+
+Drei Werkzeuge tragen seit einer Runde **keine gerechnete Faust** mehr:
+**Stoppuhr**, **Hammer** und **Drohne**. Sie liegen in der Faust, mit der eine
+echte Hand einen Controller hält (`GRIP_HAND_POSE`) — die Drohne gut
+zweieinhalb Zentimeter weiter außen, denn ein Deck ist breiter als ein
+Pistolengriff —, und _sie_ sind dorthin gelegt worden, wo sie in dieser Faust
+hingehören. Die Zahlen kommen aus dem Justierer in der Brille und stehen als
+**Kurzcode** am jeweiligen Werkzeug im Quelltext
+(`BPMMCn6HFri5P_Ryc_jWiuiUGnVuWEQ`, `BPcMCn7Vw2xWajnzvwfCTCQjsWgsnUF`,
+`BPVMCn8QZJYHLxAE_RBXKE2uiPpQ9pK`), damit jeder sie nachlesen und wieder
+einspielen kann.
+
+Damit dreht sich die Richtung der Rechnung um. Bisher stand der Zylinder fest,
+und die Faust wurde um ihn gerechnet; jetzt steht die Faust fest — es ist die
+Hand am Gerät, und die ist nicht verhandelbar —, und das Werkzeug wandert
+hinein. Beides ist ehrlich, und wo sie sich widersprechen, gewinnt die Messung:
+eine Rechnung sagt, wo eine Faust um einen Zylinder liegen _müsste_, eine
+Messung sagt, wo das Ding in der Hand wirklich liegt.
+
+Die Zylinder sind darüber nicht verschwunden, und der Test misst sie weiter
+nach — nur mit der Genauigkeit einer Messung statt der einer Rechnung
+(`expectFistAround` in `core/gripFist.test.ts`): der Stiel des Hammers läuft
+zwei Millimeter neben der Faustmitte durch die Hand, die Kante der Uhr acht,
+der Griff der Drohne knapp zwei Zentimeter — und schräg über die Handfläche
+statt genau quer. So legt ein Mensch etwas in seine Hand.
+
+**Eine Grenze hat das.** Gemessen wurde die **rechte** Hand. Die Lage im Griff
+gehört dem Werkzeug und ist für beide Hände dieselbe (`Tool.applyHold`, der
+Griffraum ist nicht gespiegelt); gespiegelt wird allein die Haltung der Hand.
+Solange ein Werkzeug ungedreht im Griff hängt, geht das glatt auf — bei einer
+eingemessenen Lage mit kräftiger Eigendrehung tut es das nicht mehr, und die
+gezeichnete linke Hand steht schräger an der Uhr als die rechte. Das Gerät
+_liegt_ in beiden Händen gleich; nur die gezeichnete Hand daneben stimmt links
+weniger genau. Wer es genauso genau will, misst die linke Hand einmal ein — der
+Kurzcode trägt die Seite mit sich.
 
 Die Rahmen
 der übrigen Zylinder schreibt man nicht als Winkel hin, sondern als zwei
@@ -2933,14 +3001,25 @@ eigene Hand dahinter.
 
 Daneben stehen **Grab** und **Trigger** — die beiden Knöpfe am Controller, als
 Schalter, unabhängig voneinander. Gehalten wird mit gedrücktem Griffknopf, so
-fängt die Seite an; Trigger dazu, und der Zeigefinger zieht ihn, an der
-Stoppuhr der Daumen die Krone; Grab weg, und die Hand öffnet sich vom Griff —
-dieselbe Rechnung wie in der Brille (`buttonCurls`, siehe _Handhaltung_). Nur
+fängt die Seite an; Trigger dazu, und der Zeigefinger zieht ihn; Grab weg, und
+die Hand öffnet sich vom Griff — dieselbe Rechnung wie in der Brille
+(`buttonCurls`, siehe _Handhaltung_). Nur
 die Finger bewegen sich, die Hand bleibt liegen — und die **weiße Linie** auch:
 sie kommt aus dem Controller und nicht aus dem Zeigefinger, also ändert der
-Trigger nichts an ihr. Beim Justieren gilt trotzdem immer die haltende Hand:
+Trigger nichts an ihr.
+
+Und sie bewegen **jede** Hand, die auf der Bühne steht. In _Hand in echt_ sind
+das zwei: die feste Hand am Halterzylinder und, beim Justieren, die gezeichnete
+als Geist am Werkzeug. Der Geist blieb lange stehen, während die feste den
+Finger zog — und die feste bekam dabei die Finger des _Werkzeugs_ statt die des
+Griffs, den sie wirklich hält. Beides zeigte etwas anderes an, als der Knopf
+oben sagte; jetzt fragt jede Hand die Bewegung ihres eigenen Griffs.
+
+Beim Justieren gilt trotzdem immer die haltende Hand:
 der Regler richtet die Richtung des Zeigefingers aus, und ein Finger am Abzug
-zeigt woandershin als einer am Rahmen.
+zeigt woandershin als einer am Rahmen. **Das sagen die Knöpfe jetzt auch**: sie
+stehen dann auf dem Stand der Bühne — Grab an, Trigger aus — und nehmen keinen
+Druck an, statt hell zu leuchten, während der Finger nicht zieht.
 
 In VR sieht man beides zugleich: ob der Halterzylinder in der Faust sitzt und
 wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
@@ -3022,6 +3101,19 @@ Punkt: was man ansieht, ist das, was man verstellt.
   drehte sich darunter. Ein anderes Werkzeug, ein Wechsel der Ansicht oder
   _Fertig_ tauen sie wieder auf — der nächste Anlauf friert die Lage neu ein,
   die dann gilt.
+
+  **Und zwar beide zusammen.** Eingefroren sind zwei Dinge: die Lage des
+  Griffraums (`gripBase`) und die Drehung der Bühne auf die echte Hand
+  (`align`, `tools/handStage.ts`). Sie gehören zusammen — die eine sagt, wo die
+  Hand steht, die andere, wie das Bild darauf schaut —, und beim Wechsel der
+  Ansicht wurde lange nur die erste neu genommen. Danach standen sie auf zwei
+  verschiedenen Ständen: die Bühne schaute noch auf die Hand von vorhin, der
+  Griffraum stand schon auf dem Stand von jetzt, und jedes Grad, das man
+  inzwischen am Regler gedreht hatte, drehte die **ganze Vorschau** mit. „Ich
+  ändere Roll, und die Ansicht dreht sich, obwohl das nur den Gegenstand
+  betreffen sollte" — genau das, und es fing erst nach einem Tabwechsel an.
+  Zusammen aufgetaut heben sie sich im ersten Bild wieder auf: die Hand steht
+  im Bild, wo sie stehen soll, und schräg ist wieder nur das Werkzeug.
 
   Und die **gezeichnete Hand** steht dabei als Geist am Werkzeug: sie hängt
   daran und geht deshalb mit, während die eigene bleibt, wo sie ist. Gläsern

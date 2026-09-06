@@ -120,6 +120,13 @@ html, body {
 
 .seg button:hover { color: var(--fg); }
 
+/* Beim Justieren hält die Hand, und die beiden Knöpfe sagen genau das: sie
+   zeigen den Stand der Bühne und nehmen keinen Druck mehr an. */
+.seg button[disabled] {
+  cursor: default;
+  opacity: 0.5;
+}
+
 .seg button.is-active {
   color: #04121f;
   background: linear-gradient(120deg, #7cc4ff, var(--accent));

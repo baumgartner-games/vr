@@ -21,6 +21,7 @@ import {
 } from './droneFlight';
 import { createGripShape } from './grip';
 import { quatFromEulerXYZ, type HoldPose } from './toolPose';
+import type { Vec3 } from './aim';
 import { JET_BELLY, JET_EYE, JetBody } from './droneJet';
 import { droneSettings, saveDroneSettings } from './gearStore';
 import { playTone } from '../../../core/Audio';
@@ -76,6 +77,18 @@ export const DRONE_GRIP: HoldPose = {
   position: { x: 0, y: -0.004, z: 0.006 },
   rotation: quatFromEulerXYZ({ x: 0, y: 0, z: -GRIP_TILT }),
 };
+/** Grad in Bogenmaß — die eingemessene Lage steht in Grad, wie im Kurzcode. */
+const DEG = Math.PI / 180;
+
+/**
+ * **Die eingemessene Lage des Decks im Griff**, in Metern — aus dem Kurzcode
+ * `BPVMCn8QZJYHLxAE_RBXKE2uiPpQ9pK` (rechte Hand, am Justierer in der Brille).
+ */
+const DECK_HOLD: Vec3 = { x: 0, y: 0.012, z: 0.001 };
+
+/** Und ihre Kippung, in Grad, gelesen als `Euler` in der Reihenfolge `XYZ`. */
+const DECK_TILT: Vec3 = { x: -32, y: 0, z: 0 };
+
 /** How far from the free grip the second hand still counts as holding on. */
 const GRIP_REACH = 0.32;
 
@@ -191,10 +204,16 @@ export class DroneTool extends Tool {
     this.icon = 'drone';
     this.accent = 0x4aa8ff;
     this.hint = 'Beide Griffe halten · Trigger fliegt · A öffnet das Menü';
-    this.holdPosition.set(0, -0.02, 0.02);
-    // The display is read, not aimed: it faces the player, tilted like a
-    // console screen rather than pointing off along the ray.
-    this.holdRotation.setFromEuler(new THREE.Euler(-0.55, 0, 0));
+    // **Eingemessen in der Brille** (Kurzcode `BPVMCn8QZJYHLxAE_RBXKE2uiPpQ9pK`,
+    // rechte Hand): das Deck liegt dort, wo es in einer Faust liegt, die einen
+    // Controller hält. Die Kippung ist dieselbe geblieben, die sie war — das
+    // Deck wird gelesen und nicht gezielt, es schaut den Spieler an wie eine
+    // Konsole —, nur eben auf ganze Grad gemessen statt in Bogenmaß geschätzt;
+    // gewandert ist es in der Höhe und in der Tiefe.
+    this.holdPosition.set(DECK_HOLD.x, DECK_HOLD.y, DECK_HOLD.z);
+    this.holdRotation.setFromEuler(
+      new THREE.Euler(DECK_TILT.x * DEG, DECK_TILT.y * DEG, DECK_TILT.z * DEG, 'XYZ'),
+    );
 
     const shell = new THREE.MeshStandardMaterial({ color: 0x2b3346, roughness: 0.6 });
     const trim = new THREE.MeshStandardMaterial({

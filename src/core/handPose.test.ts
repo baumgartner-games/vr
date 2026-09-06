@@ -5,7 +5,6 @@ import {
   HELD_BUTTONS,
   HOLD_HAND_POSE,
   RELEASED_CURLS,
-  STOPWATCH_FINGER_MOVES,
   STOPWATCH_HAND_POSE,
   WORN_FINGER_MOVES,
   WORN_HAND_POSE,
@@ -164,13 +163,16 @@ describe('was die Knöpfe mit den Fingern tun', () => {
     expect(curls[2]).toBe(RELEASED_CURLS[2]);
   });
 
-  it('drückt an der Stoppuhr mit dem Daumen, nicht mit dem Zeigefinger', () => {
-    const curls = buttonCurls(STOPWATCH_HAND_POSE, STOPWATCH_FINGER_MOVES, {
+  it('zieht an der Stoppuhr denselben Zeigefinger wie an jedem Griff', () => {
+    // Hier drückte einmal der **Daumen** auf die Krone. Das gehörte zu der
+    // Lage, in der die Uhr gerechnet in der Hand lag; eingemessen liegt sie
+    // anders darin, und der Daumen drückte in die Luft.
+    const curls = buttonCurls(STOPWATCH_HAND_POSE, fingerMovesOf('stopwatch'), {
       grab: true,
       trigger: true,
     });
-    expect(curls[0]).toBeGreaterThan(STOPWATCH_HAND_POSE.curls[0]!);
-    expect(curls[1]).toBe(STOPWATCH_HAND_POSE.curls[1]);
+    expect(curls[0]).toBe(STOPWATCH_HAND_POSE.curls[0]);
+    expect(curls[1]).toBe(GRIP_FINGER_MOVES.trigger[1]);
   });
 
   it('schließt an einem Handschuh die Faust mit dem Griffknopf und lässt sie offen ohne ihn', () => {
@@ -190,7 +192,7 @@ describe('was die Knöpfe mit den Fingern tun', () => {
   it('kennt für jedes Werkzeug eine Bewegung — am Standardgriff die des Griffs', () => {
     expect(fingerMovesOf('pistol')).toBe(GRIP_FINGER_MOVES);
     expect(fingerMovesOf('grip')).toBe(GRIP_FINGER_MOVES);
-    expect(fingerMovesOf('stopwatch')).toBe(STOPWATCH_FINGER_MOVES);
+    expect(fingerMovesOf('stopwatch')).toBe(GRIP_FINGER_MOVES);
     expect(fingerMovesOf('superman-glove')).toBe(WORN_FINGER_MOVES);
     expect(fingerMovesOf(null)).toBe(GRIP_FINGER_MOVES);
   });

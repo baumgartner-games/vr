@@ -2667,11 +2667,9 @@ function readoutOfHand(pose: HandPose): PoseReadout {
 /**
  * Ob für dieses Werkzeug die **Zielkorrektur** gilt: für alles, was zielt, und
  * sonst für nichts. Was in der Faust sitzt, bekommt die Ruhe — auch der
- * **Beutel**: er hängt zwar aufrecht im Raum, folgt der Hand dabei aber in
- * Gieren *und* Nicken und steht damit gegenüber einem Griff ohne Rollen
- * unverdreht (`Tool.hangsUpright`). Solange er nur der Gierachse folgte, war
- * er hier die Ausnahme. Dieselbe Frage stellt die Werkzeugseite
- * (`viewer.aimOf`).
+ * **Beutel**, der seit dieser Runde im Griff liegt wie jedes andere Werkzeug,
+ * das nicht zielt. Er hing eine Weile aufrecht im Raum und war hier die
+ * Ausnahme. Dieselbe Frage stellt die Werkzeugseite (`viewer.aimOf`).
  */
 function aims(tool: Tool): boolean {
   return tool.alignToAim;

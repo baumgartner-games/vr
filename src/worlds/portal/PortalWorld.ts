@@ -168,6 +168,7 @@ import {
 } from './tools/supermanSettings';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
 import { findMaterial, isTransparent } from './tools/materials';
+import { PullMeter, pullTension, pullTriggered } from './pullGesture';
 
 const ROOM = { half: 8, height: 4.6, thickness: 0.4 };
 /** Oberkante der Fläche bis zum Horizont — knapp unter den gebauten Böden. */
@@ -188,8 +189,20 @@ const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
 /** The portal surface stays at least this far in front of the eye. */
 const NEAR_PAD = 0.12;
-/** Tilt the hand up/back by this much while holding grab and the prop comes. */
-const REMOTE_PULL_ANGLE = THREE.MathUtils.degToRad(30);
+/**
+ * Wie schnell die Hand **ohne Einstellung** zum Körper zucken muss, damit ein
+ * gefasster Gegenstand geflogen kommt — in Metern je Sekunde.
+ *
+ * Steht hier nur als Rückfall für den Fall, dass gar keine Einstellung gelesen
+ * werden konnte; die Zahl, die gilt, ist `grabConfig.pull` (`core/grabSettings.ts`,
+ * in Zentimetern je Sekunde) und im Menü *Einstellungen → Greifen* zu ändern.
+ *
+ * Vorher stand hier ein **Winkel**: 30° Handgelenk nach oben. Eine Geste, die
+ * man sich merken muss — und die beim Hantieren von selbst losging, weil jede
+ * gehobene Hand dabei kippt. Ein Zucken zum Körper ist die Bewegung, mit der
+ * ein Mensch etwas an sich zieht (`pullGesture.ts`).
+ */
+const REMOTE_PULL_SPEED = 8;
 /** Segments of the rope between hand and locked prop. */
 const ROPE_POINTS = 18;
 const ROPE_IDLE = 0x9fe3ff;
@@ -259,7 +272,6 @@ const _quaternion = new THREE.Quaternion();
 const _hitPoint = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
 const _hit = { point: _hitPoint, normal: _hitNormal, object: null as unknown as THREE.Object3D };
-const _aim = new THREE.Vector3();
 const _far = new THREE.Vector3();
 const _funnelNormal = new THREE.Vector3();
 const _carryA = new THREE.Vector3();
@@ -311,8 +323,6 @@ export interface PropReport {
 /** A prop a hand has locked onto from a distance. */
 interface RemoteLink {
   entry: PhysicsBody;
-  /** Hand pitch at the moment the grab button went down. */
-  pitch: number;
 }
 
 /**
@@ -474,8 +484,6 @@ function copyPose(position: THREE.Vector3, rotation: THREE.Quaternion, out: Grab
 }
 
 interface NearGrab {
-  /** Handneigung im Moment des Zugreifens, als Nullpunkt der Zuggeste. */
-  pitch: number;
   /** Wo der Gegenstand stand, als zugegriffen wurde. */
   objectStart: GrabPose;
   /** Wo die Hand dabei war. */
@@ -551,6 +559,8 @@ export class PortalWorld implements World {
   private remoteBusy = new Set<PhysicsBody>();
   /** Wie weit die Hand reicht und was am Ende der Reichweite passiert. */
   private grabConfig: GrabSettings = grabSettings();
+  /** Das Zucken je Hand — die Geste, die einen gefassten Gegenstand holt. */
+  private readonly pullMeters = new Map<Handedness, PullMeter>();
   /** Läuft, wenn jemand die Reichweiten umstellt. */
   private unsubscribeGrab: (() => void) | null = null;
   /**
@@ -869,7 +879,7 @@ export class PortalWorld implements World {
     const remoteOn: MenuEntry = {
       id: 'setting:grab-remote',
       label: 'Ferngreifen',
-      sub: 'Zielen, greifen, Hand nach oben kippen — es kommt geflogen',
+      sub: 'Zielen, greifen, Hand zum Körper zucken — es kommt geflogen',
       icon: 'settings',
       accent,
       checked: this.grabConfig.remote,
@@ -933,14 +943,17 @@ export class PortalWorld implements World {
     const typed = (field: GrabField): MenuEntry => ({
       id: `setting:grab-type-${field.key}`,
       label: field.label,
-      sub: `${field.min}–${field.max} cm`,
+      // Getippt wird in der Einheit, in der die Zahl **steht** — beim Zugtempo
+      // also in Zentimetern je Sekunde, auch wenn die Zeile darüber Meter je
+      // Sekunde liest. Deshalb steht die Einheit im Hinweis.
+      sub: `${field.min}–${field.max} ${field.unit}`,
       icon: 'settings',
       accent,
       run: () => {
         this.askNumber({
           title: field.label,
           sub: field.sub,
-          hint: `${field.min}–${field.max} cm`,
+          hint: `${field.min}–${field.max} ${field.unit}`,
           value: String(Math.round(this.grabConfig[field.key])),
           commit: (value) => {
             this.applyGrabSettings(saveGrabSettings({ [field.key]: value }));
@@ -4009,8 +4022,10 @@ export class PortalWorld implements World {
    *   Geisterhand, damit man sieht, wo man ihn angefasst hat. So stellt man
    *   einen Dominostein auf, ohne sich zu bücken.
    * - **Ferngreifen** — alles bis 9 m. Der Grip rastet ein und zieht einen
-   *   dünnen Strahl zur Hand; kippt die Hand danach über 30° nach oben, kommt
-   *   der Gegenstand geflogen.
+   *   dünnen Strahl zur Hand; **zuckt** die Hand danach zum Körper — schneller
+   *   als das eingestellte Zugtempo —, kommt der Gegenstand geflogen
+   *   (`pullGesture.ts`). Dasselbe Zucken holt auch einen nah gefassten
+   *   Gegenstand in die Faust.
    *
    * Die Reihenfolge ist die Antwort auf die Frage, die sonst jede Runde neu
    * gestellt würde: *welchen* Gegenstand meint die Hand? Es gibt pro Hand
@@ -4029,6 +4044,9 @@ export class PortalWorld implements World {
       const grab = this.grabs.get(hand);
 
       if (!controller.tracked) {
+        // Eine Hand, die weg war, fängt beim Wiederkommen von vorn an: was
+        // zwischendurch geschehen ist, ist kein Zucken.
+        this.pullMeters.get(hand)?.reset();
         if (grab) this.release(ctx, hand, grab, true);
         this.dropReach(ctx, hand);
         continue;
@@ -4036,6 +4054,7 @@ export class PortalWorld implements World {
 
       const anchor = gripOf(controller);
       anchor.updateWorldMatrix(true, false);
+      this.measurePull(ctx, hand, anchor, dt);
 
       if (grab) {
         if (!controller.squeeze.pressed) {
@@ -4109,9 +4128,9 @@ export class PortalWorld implements World {
         reachable.add(link.entry);
         this.locked.add(link.entry);
         this.hideGhost(hand);
-        const pull = this.handPitch(controller) - link.pitch;
-        this.drawRope(controller, link.entry, pull / REMOTE_PULL_ANGLE);
-        if (pull >= REMOTE_PULL_ANGLE) {
+        const pull = this.pullSpeed(hand);
+        this.drawRope(controller, link.entry, pullTension(pull, this.pullLimit));
+        if (pullTriggered(pull, this.pullLimit)) {
           gripOf(controller).getWorldPosition(_hand);
           this.startFlight(link.entry, hand, _hand);
           controller.pulse(0.7, 45);
@@ -4150,7 +4169,7 @@ export class PortalWorld implements World {
     if (aim.stage === 'remote') {
       this.hideGhost(hand);
       if (!controller.squeeze.justPressed) return;
-      this.links.set(hand, { entry: aim.entry, pitch: this.handPitch(controller) });
+      this.links.set(hand, { entry: aim.entry });
       controller.pulse(0.4, 25);
       return;
     }
@@ -4322,7 +4341,7 @@ export class PortalWorld implements World {
     const near = grab.near;
     if (near) {
       reachable.add(grab.entry);
-      if (this.handPitch(controller) - near.pitch >= REMOTE_PULL_ANGLE) {
+      if (pullTriggered(this.pullSpeed(hand), this.pullLimit)) {
         gripOf(controller).getWorldPosition(_hand);
         this.release(ctx, hand, grab, false);
         this.startFlight(grab.entry, hand, _hand);
@@ -4381,10 +4400,44 @@ export class PortalWorld implements World {
     return handsTooClose(_thisHand, _otherHand, true);
   }
 
-  /** How far the hand points up, in radians. Yaw and roll do not matter. */
-  private handPitch(controller: ControllerState): number {
-    _aim.set(0, 0, -1).applyQuaternion(controller.targetRay.getWorldQuaternion(_quaternion));
-    return Math.asin(THREE.MathUtils.clamp(_aim.y, -1, 1));
+  /**
+   * **Ab wann ein Zucken eines ist**, in Metern je Sekunde — die Zahl aus den
+   * Einstellungen (`Greifen → Zugtempo`, dort in Zentimetern je Sekunde). `0`
+   * heißt „ohne Zucken": dann kommt der Gegenstand, sobald er gefasst ist.
+   */
+  private get pullLimit(): number {
+    const stored = this.grabConfig.pull;
+    return Number.isFinite(stored) ? stored / 100 : REMOTE_PULL_SPEED;
+  }
+
+  /** Wie schnell diese Hand gerade zum Körper zieht, in Metern je Sekunde. */
+  private pullSpeed(hand: Handedness): number {
+    return this.pullMeters.get(hand)?.current ?? 0;
+  }
+
+  /**
+   * Das Zucken dieser Hand messen — **jedes Bild und für jede Hand**, ob sie
+   * gerade etwas gefasst hat oder nicht.
+   *
+   * Erst beim Zugreifen anzufangen wäre zu spät: dann läge im Fenster
+   * (`pullGesture.ts`) noch nichts, und das erste Zucken nach dem Griff fiele
+   * durch. Gemessen wird gegen den **Kopf**, denn dorthin zieht der Arm; wer
+   * geht, nimmt beide mit und zuckt damit nicht.
+   */
+  private measurePull(
+    ctx: WorldContext,
+    hand: Handedness,
+    anchor: THREE.Object3D,
+    dt: number,
+  ): void {
+    let meter = this.pullMeters.get(hand);
+    if (!meter) {
+      meter = new PullMeter();
+      this.pullMeters.set(hand, meter);
+    }
+    anchor.getWorldPosition(_hand);
+    ctx.rig.getHeadPosition(_point);
+    meter.feed(_hand, _point, dt);
   }
 
   /**
@@ -4620,7 +4673,7 @@ export class PortalWorld implements World {
       offset,
       lastPosition: _point.clone(),
       velocity: new THREE.Vector3(),
-      near: controller ? this.nearGrabOf(controller, anchor, entry, hold) : null,
+      near: controller ? this.nearGrabOf(anchor, entry, hold) : null,
       poseId: grip ? kind : null,
       shake:
         kind === 'champagne' && entry.object.getObjectByName(CORK_NAME) ? new ShakeMeter() : null,
@@ -4631,13 +4684,16 @@ export class PortalWorld implements World {
   }
 
   /**
-   * Was der Moment des Zugreifens festhält: die Neigung der Hand als Nullpunkt
-   * der Zuggeste und beide Posen, gegen die *Drehung um Objektmitte* rechnet.
-   * Gegen den Moment und nicht gegen das letzte Bild — sonst summiert sich
-   * jeder Rundungsfehler zu einem Drift.
+   * Was der Moment des Zugreifens festhält: beide Posen, gegen die *Drehung um
+   * Objektmitte* rechnet. Gegen den Moment und nicht gegen das letzte Bild —
+   * sonst summiert sich jeder Rundungsfehler zu einem Drift.
+   *
+   * Die **Neigung der Hand** stand hier einmal daneben, als Nullpunkt der
+   * Zuggeste. Die Geste ist heute ein Zucken zum Körper und braucht keinen
+   * Nullpunkt: sie wird in Metern je Sekunde gemessen, nicht in Grad gegen
+   * vorher (`pullGesture.ts`).
    */
   private nearGrabOf(
-    controller: ControllerState,
     anchor: THREE.Object3D,
     entry: PhysicsBody,
     hold: THREE.Vector3 | null,
@@ -4655,7 +4711,6 @@ export class PortalWorld implements World {
       rotation: { x: 0, y: 0, z: 0, w: 1 },
     });
     return {
-      pitch: this.handPitch(controller),
       handStart,
       objectStart,
       // Ohne Trefferpunkt bleibt die Mitte des Gegenstands als Drehpunkt: das

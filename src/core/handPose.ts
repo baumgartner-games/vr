@@ -181,9 +181,14 @@ export const GRIP_HAND_POSE: HandPose = {
  * einer anderen Lage das Batterierohr der **Taschenlampe**
  * (`TORCH_HAND_POSE`, gleich darunter). Der Pinsel liegt auf demselben Stab,
  * aber von oben gehalten (`BRUSH_HAND_POSE`); das Messer lag eine Weile auch
- * hier und steht jetzt mit dem Standardgriff in der Faust. Vorher stand am Hammer die
- * allgemeine Faust, und die lag **quer** zum Stiel: die Handfläche stand wie ein
- * Brett auf der Stange, die Finger schlossen sich neben ihr um Luft.
+ * hier und steht jetzt mit dem Standardgriff in der Faust.
+ *
+ * **Der Hammer trägt sie nicht mehr.** Sie ist um den Stab an seiner
+ * *gebauten* Lage gerechnet (`POLE_HOLD_POSITION`, ungedreht) — und genau die
+ * hat der Hammer nicht mehr: seine Lage im Griff ist eingemessen
+ * (`HammerTool.HAMMER_HOLD`), und die Faust dazu ist die der echten Hand
+ * (`HAMMER_HAND_POSE`). Als Rechnung um einen Stab an dieser Stelle bleibt sie
+ * trotzdem stehen, denn die Lampe leitet ihre Faust daraus ab.
  */
 export const POLE_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
@@ -267,29 +272,46 @@ export const BRUSH_HAND_POSE: HandPose = {
 };
 
 /**
- * **Die Faust um die Stoppuhr** — rechte Hand, links gespiegelt.
+ * **Die Faust um die Stoppuhr** — rechte Hand, links gespiegelt, und
+ * **gemessen statt gerechnet**.
  *
- * So, wie ein Zeitnehmer sie hält: die Uhr liegt **in der Hand**, das
- * Zifferblatt zum Gesicht, die Handfläche hinter dem Gehäuse, die Finger um
- * die seitliche Kante gekrümmt (rechts um die linke), der Daumen oben auf der
- * Krone. Die Kante ist als Zylinder durch den Griffpunkt gedacht, um gut 35°
- * gekippt (`StopwatchTool.ts`, `STOPWATCH_GRIP`, `STOPWATCH_TILT`): die Finger
- * zeigen nach links **oben** um die Kante, der Arm kommt von rechts unten —
- * so steht die Hand auf dem Foto eines Zeitnehmers. Die Faust liegt darum wie
- * um jeden anderen Zylinder; dass das Gehäuse dabei neben der Faust in der
- * Handfläche liegt, ist genau die Absicht. Vorher stand die Uhr hochkant *auf*
- * der Faust, mit den Fingern unter dem unteren Rand, und danach lag die Hand
- * waagerecht wie an einem Türgriff; beides hält niemand so.
+ * Es ist die Faust der **echten Hand** am Halterzylinder (`GRIP_HAND_POSE`):
+ * die Uhr wird so gehalten, wie der Controller in der Hand liegt, und sie ist
+ * dorthin gelegt worden, wo sie in dieser Faust hingehört (`StopwatchTool.ts`,
+ * `RIM_HOLD`/`RIM_TILT`, aus dem Kurzcode `BPMMCn6HFri5P_Ryc_jWiuiUGnVuWEQ`).
+ * Ihre seitliche Kante läuft dabei weiterhin durch die Faust — knapp einen
+ * Zentimeter neben deren Achse und um zehn Grad dagegen gedreht, so genau, wie
+ * eine Hand in einer Brille eben misst (`core/gripFist.test.ts` rechnet es
+ * nach).
+ *
+ * Davor war sie **gerechnet**: die Faust um die gekippte Kante, mit dem Daumen
+ * oben auf der Krone und dem Zifferblatt zum Gesicht — die Haltung eines
+ * Zeitnehmers auf einem Foto. Die Rechnung war richtig, und die Uhr lag
+ * trotzdem daneben, weil sie von der *gebauten* Lage der Uhr ausging und nicht
+ * von der, in der eine Hand sie wirklich hält. Wo Messung und Rechnung sich
+ * widersprechen, gilt hier die Messung.
  */
 export const STOPWATCH_HAND_POSE: HandPose = {
-  ...HOLD_HAND_POSE,
-  x: 2.4,
-  y: -4,
-  z: 0.6,
-  pitch: 60,
-  yaw: 55,
-  roll: -180,
-  curls: [0.25, 0.85, 0.85, 0.9, 0.9],
+  ...GRIP_HAND_POSE,
+  curls: [...GRIP_HAND_POSE.curls],
+};
+
+/**
+ * **Die Faust am Hammer** — rechte Hand, links gespiegelt, und ebenfalls
+ * gemessen.
+ *
+ * Dieselbe Faust wie an der Pistole, denn es ist dieselbe Hand am selben
+ * Controller: der Stiel ist dorthin gelegt worden, wo er in ihr liegt
+ * (`HammerTool.ts`, `HAMMER_HOLD`/`HAMMER_TILT`, aus dem Kurzcode
+ * `BPcMCn7Vw2xWajnzvwfCTCQjsWgsnUF`). Der Stab läuft dabei praktisch durch die
+ * Faustmitte — zwei Millimeter daneben —, nur eben schräg über die Handfläche
+ * statt genau quer.
+ *
+ * Vorher trug der Hammer die gerechnete Faust am Stab (`POLE_HAND_POSE`).
+ */
+export const HAMMER_HAND_POSE: HandPose = {
+  ...GRIP_HAND_POSE,
+  curls: [...GRIP_HAND_POSE.curls],
 };
 
 /**
@@ -302,15 +324,15 @@ export const STOPWATCH_HAND_POSE: HandPose = {
  * entlang (`MagicBagTool.ts`, `BAG_GRIP`). Die erste Fassung hatte die Hand
  * senkrecht wie an einem Eimer; um 90° gekippt ist es eine Kappe.
  *
- * **Ohne Zielkorrektur** gerechnet, wie alles, was in der Faust sitzt — und
- * das ist seit einer Runde anders als vorher. Der Beutel folgt der Hand
- * inzwischen in **Gieren und Nicken** und nur das Rollen bleibt draußen
- * (`MagicBagTool.hangUpright`); damit steht er gegenüber einem Griff ohne
- * Rollen **unverdreht**, und die Faust gehört genau dorthin. Vorher folgte er
- * nur der Gierachse: dann hing er waagerecht, während der Griff um die
- * Zielkorrektur gekippt war, und die Faust musste um dieselben 30° gedreht
- * eingerechnet werden. Die alten Zahlen (y -2,8 · z 5,9 · Pitch -30°) sind
- * genau diese Drehung — sie standen nach der Umstellung 30° neben dem Saum.
+ * **Ohne Zielkorrektur** gerechnet, wie alles, was in der Faust sitzt: der
+ * Beutel liegt im Griffraum und folgt der Hand in allen drei Achsen — er
+ * steht gegenüber einem Griff ohne Rollen **unverdreht**, und die Faust gehört
+ * genau dorthin. Zwei Zwischenschritte liegen dahinter: erst hing er nur an
+ * der Gierachse (dann stand er waagerecht gegen einen um die Zielkorrektur
+ * gekippten Griff, und die Faust trug dieselben 30° eingerechnet mit sich
+ * herum — die alten Zahlen y -2,8 · z 5,9 · Pitch -30° sind genau diese
+ * Drehung), dann folgte er auch dem Nicken. Seit er auch **rollt**, ist er
+ * ein Werkzeug wie jedes andere, und die Zahlen unten bleiben, wie sie sind.
  */
 export const BAG_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
@@ -396,25 +418,28 @@ export const HAND_TOOL_ID = 'hand-box';
 
 /**
  * **Die Faust am Griff der Drohne** — die rechte Hand am rechten Griff, links
- * gespiegelt am linken.
+ * gespiegelt am linken, und **gemessen statt gerechnet**.
  *
- * Auch gerechnet, um den Zylinder am Ende des Decks (`DroneTool.ts`,
- * `DRONE_GRIP`): das Deck ist zum Kopf gekippt und rutscht mit einer Hand so
- * weit zur Seite, dass dieser Griff im Griffpunkt sitzt — dort liegt die Faust,
- * Handrücken nach außen, die Finger um die Rückseite geschlossen wie an einer
- * Konsole. Auch hier ohne Fingerzeig: eine Konsole hält man mit der ganzen
- * Faust. Der Standardgriff säße 5,5 cm tiefer und 20° anders gedreht; die
- * Faust dazu passte hier nicht.
+ * Fast die Faust der echten Hand am Halterzylinder (`GRIP_HAND_POSE`), nur
+ * zweieinhalb Zentimeter weiter nach außen und ein wenig anders gegiert: das
+ * Deck ist breiter als ein Pistolengriff, und die Hand liegt an seinem Ende.
+ * Gemessen in der Brille am Justierer, zusammen mit der Lage des Decks im
+ * Griff (`DroneTool.ts`, aus dem Kurzcode `BPVMCn8QZJYHLxAE_RBXKE2uiPpQ9pK`).
+ *
+ * Davor war sie um den Zylinder am Deckende gerechnet — wie jede andere Faust
+ * dieser Datei. Der Griff liegt auch jetzt in ihr, knapp zwei Zentimeter neben
+ * ihrer Achse; was sich geändert hat, ist, dass die Zahl aus einer Hand kommt
+ * und nicht aus einer Formel.
  */
 export const DRONE_HAND_POSE: HandPose = {
-  ...HOLD_HAND_POSE,
-  x: 2.6,
-  y: 0.8,
-  z: 4.3,
-  pitch: -62,
-  yaw: 0,
-  roll: -97,
-  curls: [0.55, 0.85, 0.85, 0.9, 0.9],
+  ...GRIP_HAND_POSE,
+  x: 4.2,
+  y: 2.4,
+  z: 2.7,
+  pitch: -43,
+  yaw: 3,
+  roll: -90,
+  curls: [...GRIP_HAND_POSE.curls],
 };
 
 /**
@@ -423,7 +448,8 @@ export const DRONE_HAND_POSE: HandPose = {
  * sitzen statt in ihr. Was hier steht, steht nicht in `STANDARD_GRIP_TOOLS`.
  */
 export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
-  hammer: POLE_HAND_POSE,
+  // Gemessen, nicht gerechnet: der Stiel liegt in der Faust der echten Hand.
+  hammer: HAMMER_HAND_POSE,
   // Die **Taschenlampe** trägt denselben Stab, nur um 45° nach vorn gekippt —
   // also dieselbe Faust um denselben Zylinder, in dessen neuer Lage
   // (`TORCH_HAND_POSE`).
@@ -597,21 +623,6 @@ export const BRUSH_FINGER_MOVES: FingerMoves = {
 };
 
 /**
- * An der **Stoppuhr** drückt der Trigger nicht den Zeigefinger, sondern den
- * **Daumen**: fast gestreckt liegt er von hinten oben auf der Krone
- * (`STOPWATCH_HAND_POSE`, Krümmung 0,25), und gekrümmt kommt seine Kuppe über
- * die Krone nach vorn und unten — so drückt ein Zeitnehmer seine Uhr. Die
- * Zahlen sind gemessen (`gripFist.test.ts`: die Kuppe liegt in Ruhe auf der
- * Krone und geht beim Drücken hinunter), nicht geschätzt: bei 0,55, der
- * Daumenkrümmung der anderen Fäuste, lag die Kuppe schon vor dem Blatt.
- */
-export const STOPWATCH_FINGER_MOVES: FingerMoves = {
-  grab: KEEP,
-  release: RELEASED_CURLS,
-  trigger: [0.45, null, null, null, null],
-};
-
-/**
  * **Angezogen** (Handschuhe): der Griffknopf hält nichts fest, er schließt die
  * Faust — Superman fliegt mit ihr —, und losgelassen bleibt die Hand offen,
  * wie die Grundhaltung sie zeigt.
@@ -638,7 +649,6 @@ export const TOOL_FINGER_MOVES: Readonly<Record<string, FingerMoves>> = {
   hammer: POLE_FINGER_MOVES,
   flashlight: POLE_FINGER_MOVES,
   brush: BRUSH_FINGER_MOVES,
-  stopwatch: STOPWATCH_FINGER_MOVES,
   'gravity-glove': WORN_FINGER_MOVES,
   'translate-glove': WORN_FINGER_MOVES,
   'superman-glove': WORN_FINGER_MOVES,

@@ -41,11 +41,7 @@ const SPIN = 0.7;
  * Hand nach rechts (+x), die Daumenseite. Die erste Fassung hatte die Hand
  * senkrecht wie an einem Eimer, und das sah nach einem Eimer aus. Daraus
  * rechnet `core/gripFist.test.ts` die Faust (`BAG_HAND_POSE`) — **ohne**
- * Zielkorrektur, wie alles, was in der Faust sitzt: der Beutel folgt der Hand
- * in Gieren und Nicken und steht damit gegenüber einem Griff ohne Rollen
- * unverdreht (`Tool.hangsUpright`, `hangUpright`). Solange er nur der
- * Gierachse folgte, brauchte er sie — dann hing er waagerecht gegen einen
- * gekippten Griff.
+ * Zielkorrektur, wie alles, was in der Faust sitzt.
  */
 export const BAG_GRIP: HoldPose = {
   position: { x: 0, y: 0, z: 0 },
@@ -57,10 +53,6 @@ export const BAG_HOLD_POSITION: Vec3 = { x: 0, y: -0.02, z: 0.02 };
 const _tip = new THREE.Vector3();
 const _local = new THREE.Vector3();
 const _head = new THREE.Vector3();
-const _forward = new THREE.Vector3();
-const _quaternion = new THREE.Quaternion();
-const _upright = new THREE.Quaternion();
-const _euler = new THREE.Euler();
 
 /** Ein Fach des Rasters: was darin liegt, wo es liegt, und das Feld darunter. */
 interface Slot {
@@ -91,13 +83,18 @@ interface Slot {
  *
  * Zwei Dinge sind dabei nicht selbstverständlich:
  *
- * Erstens **hängt** er. Was man sonst in die Hand nimmt, folgt der Zielachse —
- * eine Waffe zeigt dorthin, wohin die Hand zeigt. Ein Beutel, der das täte,
- * kippte bei jeder Drehung des Handgelenks aus, und mit ihm sein Raster. Er
- * folgt der Hand deshalb in **Gieren und Nicken** und nicht im Rollen
- * (`hangUpright`): wohin man zeigt, dorthin zeigt er, und wie schräg man die
- * Hand hält, so schräg steht er — aber um die eigene Zeigeachse dreht er sich
- * nicht mit, und nur die könnte ihn auf den Kopf stellen.
+ * Erstens **zielt** er nicht (`alignToAim = false`): er sitzt in der Faust wie
+ * ein Handschuh und nicht auf dem Zeigestrahl wie eine Waffe. Sonst aber
+ * bewegt er sich wie **jedes andere Werkzeug**: er steckt im Griff und macht
+ * mit, was die Hand tut — Gieren, Nicken *und* Rollen.
+ *
+ * Zwei Runden lang hing er stattdessen **aufrecht im Raum**: eine eigene
+ * Rechnung nahm der Hand das Rollen weg, damit die Öffnung oben bleibt. Das
+ * las sich vernünftig und fühlte sich falsch an — ein Ding in der Hand, das
+ * einer Drehung des Handgelenks nicht folgt, ist keines, das man hält, sondern
+ * eines, das an einem klebt; und weil das Raster darin an *seiner* Drehung
+ * hängt, kippte es dabei gegen die Finger, die hineingreifen. Wer ihn ausschütten
+ * will, darf ihn ausschütten.
  *
  * Zweitens gehört die **greifende Hand** dem Beutel, solange sie über einem Fach
  * steht (`claimsHand`). Sonst risse derselbe Griff, mit dem man in den Beutel
@@ -126,13 +123,10 @@ export class MagicBagTool extends Tool {
     this.icon = 'bag';
     this.accent = ACCENT;
     this.hint = 'Hineingreifen: Fach ansteuern, greifen — das Ding kommt in die Hand';
-    // Er hängt an der Faust und zielt nicht: die Öffnung bleibt oben, komme,
-    // was wolle (`hangUpright`) — er folgt der Hand dabei in Gieren und
-    // Nicken, nur das Rollen bleibt draußen. Damit steht er gegenüber einem
-    // Griff ohne Rollen unverdreht und sitzt im Griffraum wie jedes andere
-    // Werkzeug, das nicht zielt (`Tool.hangsUpright`).
+    // Er sitzt in der Faust und zielt nicht — sonst bewegt er sich wie jedes
+    // andere Werkzeug: er liegt im Griffraum und folgt der Hand in allen drei
+    // Achsen.
     this.alignToAim = false;
-    this.hangsUpright = true;
     this.holdPosition.set(BAG_HOLD_POSITION.x, BAG_HOLD_POSITION.y, BAG_HOLD_POSITION.z);
 
     // **Von außen** gehalten, am Saum: der Beutel hängt vor der Hand, und sein
@@ -320,9 +314,9 @@ export class MagicBagTool extends Tool {
       return;
     }
     this.setOpen(true);
-    this.hangUpright(controller);
-    // Gleich nachgezogen: gemessen wird in diesem Bild gegen diese Drehung, und
-    // nicht gegen die von gestern.
+    // Gleich nachgezogen: `applyHold` hat den Beutel in diesem Bild in die Hand
+    // gestellt, und gemessen wird gegen diese Lage — nicht gegen die von
+    // gestern.
     this.updateWorldMatrix(true, false);
 
     this.spin = (this.spin + dt * SPIN) % (Math.PI * 2);
@@ -336,47 +330,6 @@ export class MagicBagTool extends Tool {
 
     if (!this.hovered || !reaching?.squeeze.justPressed) return;
     this.take(host, this.hovered, reaching);
-  }
-
-  /**
-   * Hält den Beutel **aufrecht** — aber er folgt der Hand, wohin sie zeigt.
-   *
-   * Der Beutel steckt im Griff der Hand, und `applyHold` hat ihn dorthin
-   * gestellt; hier bekommt er seine **Weltdrehung** aufgezwungen und rechnet
-   * sie in den Raum seines Elternteils zurück. Mitgenommen werden von der Hand
-   * **Gieren und Nicken**: der Beutel dreht sich mit, wenn man den Arm dreht,
-   * und er kippt mit, wenn man die Hand kippt — man hält ihn schräg, wenn man
-   * ihn schräg hält, so wie eine offene Kappe, die man jemandem hinhält.
-   *
-   * Was **nicht** mitgeht, ist das **Rollen**. Genau das war der Grund, warum
-   * er anfangs nur die Gierachse nahm: eine Hand, die sich um ihre eigene
-   * Zeigeachse dreht, würde den Beutel sonst auf den Kopf stellen und sein
-   * Raster mit ausschütten. Nicken tut das nicht — es neigt die Öffnung, und
-   * über sie sieht man weiterhin hinein.
-   *
-   * Die Gierachse mit dem **richtigen Vorzeichen**: `rotation.y = 0` heißt in
-   * three.js „schaut nach -Z", also ist der Winkel `atan2(-x, -z)` der
-   * Vorwärtsrichtung (wie `headYaw` in `GlideTool.ts`). Die erste Fassung nahm
-   * `atan2(x, z)`, und das ist derselbe Winkel plus 180°: der Beutel hing
-   * **hinter** der Hand statt vor ihr, mit dem Saum am Griffpunkt und dem
-   * Bauch im Unterarm — in der Brille sah es aus, als hätte die Hand ihn von
-   * der falschen Seite gegriffen. Auf der Werkzeugseite war davon nichts zu
-   * sehen, denn dort läuft `hangUpright` nie.
-   */
-  private hangUpright(controller: ControllerState): void {
-    const parent = this.parent;
-    if (!parent) return;
-    const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
-    _forward.set(0, 0, -1).applyQuaternion(anchor.getWorldQuaternion(_quaternion)).normalize();
-    const yaw = Math.atan2(-_forward.x, -_forward.z);
-    // Der Nickwinkel derselben Richtung. In der Reihenfolge `YXZ` ist die
-    // X-Drehung die zweite, wirkt also auf die schon gegierte Achse — das ist
-    // dieselbe Kette, die eine Kamera führt, und deshalb ist `asin(y)` der
-    // gesuchte Winkel.
-    const pitch = Math.asin(Math.max(-1, Math.min(1, _forward.y)));
-    _upright.setFromEuler(_euler.set(pitch, yaw, 0, 'YXZ'));
-    parent.getWorldQuaternion(_quaternion).invert();
-    this.quaternion.copy(_quaternion).multiply(_upright);
   }
 
   /** Die Hand, die gerade nicht den Beutel hält — sie greift hinein. */

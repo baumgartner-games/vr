@@ -12,6 +12,7 @@ import {
 
 const radius = GRAB_FIELDS.find((field) => field.key === 'radius')!;
 const height = GRAB_FIELDS.find((field) => field.key === 'height')!;
+const pull = GRAB_FIELDS.find((field) => field.key === 'pull')!;
 
 describe('the numbers behind grabbing', () => {
   it('hands back the defaults when nothing is stored', () => {
@@ -48,6 +49,31 @@ describe('the numbers behind grabbing', () => {
     const changed = clampGrab({ ...DEFAULT_GRAB, remote: false });
     expect(changed.remote).toBe(false);
     expect(changed.near).toBe(DEFAULT_GRAB.near);
+  });
+});
+
+describe('das Zugtempo', () => {
+  it('steht als Vorgabe auf 8 m/s — ein Zucken, keine Handbewegung', () => {
+    expect(DEFAULT_GRAB.pull).toBe(800);
+    expect(formatGrabField(pull, DEFAULT_GRAB)).toBe('8,0 m/s');
+  });
+
+  it('nimmt die Null als „ohne Zucken" an', () => {
+    expect(clampGrab({ pull: 0 }).pull).toBe(0);
+    expect(formatGrabField(pull, clampGrab({ pull: 0 }))).toBe('ohne Zucken');
+  });
+
+  it('bleibt in seinem Bereich und fällt sonst auf die Vorgabe zurück', () => {
+    expect(clampGrab({ pull: 9000 }).pull).toBe(pull.max);
+    expect(clampGrab({ pull: -100 }).pull).toBe(pull.min);
+    expect(clampGrab({ pull: Number.NaN }).pull).toBe(DEFAULT_GRAB.pull);
+  });
+
+  it('schaltet die Zeile im Kreis weiter, die Null eingeschlossen', () => {
+    expect(nextGrabStep(pull, 0)).toBe(400);
+    expect(nextGrabStep(pull, 800)).toBe(1200);
+    // Oben wieder von vorn — und vorn steht „ohne Zucken".
+    expect(nextGrabStep(pull, 1200)).toBe(0);
   });
 });
 

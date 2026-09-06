@@ -5,6 +5,13 @@ import type { PropReport } from '../PortalWorld';
 
 /** So weit reicht der Blick des Geräts. */
 const RANGE = 30;
+/**
+ * Wie weit der Schirm im Gehäuse nach hinten lehnt, in Bogenmaß.
+ *
+ * 45°: so viel, wie eine ablesende Hand nach vorn unten zeigt — im Raum steht
+ * der Schirm damit senkrecht.
+ */
+const DISPLAY_TILT = Math.PI / 4;
 /** Wie oft die Anzeige neu geschrieben wird — sie muss nicht mit 90 Hz zittern. */
 const REFRESH = 0.12;
 
@@ -85,7 +92,13 @@ export class InspectTool extends Tool {
       new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false }),
     );
     this.display.position.set(0, 0.075, -0.02);
-    this.display.rotation.x = -0.45;
+    // **Um 45° nach hinten gekippt** — und damit steht der Schirm in der Hand
+    // senkrecht. Das Gerät zeigt dorthin, wohin die Hand zeigt, und eine Hand,
+    // die etwas abliest, zeigt nach vorn **unten**; ein Schirm, der im Gehäuse
+    // aufrecht steht, lehnt dann im Raum genauso weit nach vorn weg. Die 45°
+    // nehmen genau das heraus. Vorher waren es 0,45 rad, also gut 25° — die
+    // Hälfte des Wegs, und in der Brille sah man den Schirm kippen.
+    this.display.rotation.x = -DISPLAY_TILT;
     this.add(this.display);
 
     this.muzzle.position.set(0, 0, -0.13);

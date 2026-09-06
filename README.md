@@ -128,7 +128,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Flügel (Alpen) | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve | – | – |
 | Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
 | Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
-| Ferngreifen | zielen, Grip, Hand >30° nach oben kippen | – | – |
+| Ferngreifen | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar) | – | – |
 | Kart: einsteigen | Lenkrad greifen (oder anzielen + Trigger) | Lenkrad anklicken | – |
 | Kart: fahren | rechter Trigger Gas, linker bremst, linker Stick lenkt | `W`/`S`, `A`/`D` | – |
 | Kart: aussteigen | `A`/`X` halten | `E` halten | – |

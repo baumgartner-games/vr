@@ -13,6 +13,10 @@
  *   ohne sich zu bücken. Am Gegenstand steht dabei eine Geisterhand.
  * - **Ferngreifen**: alles bis 9 m. Hier kommt der Gegenstand geflogen.
  *
+ * Geflogen kommt er dabei nicht von selbst, sondern auf ein **Zucken**: die
+ * Hand muss sich schneller als `pull` zum Körper hin bewegen. Die Zahl steht
+ * hier, gemessen wird sie in `worlds/portal/pullGesture.ts`.
+ *
  * Was hier steht, sind die Zahlen dazu und ihre Grenzen — keine Mechanik. Die
  * Mathematik liegt in `worlds/portal/grabReach.ts`, die Bedienung im Menü
  * *Einstellungen → Greifen*. Zentimeter, weil das die Einheit ist, in der ein
@@ -32,6 +36,14 @@ export interface GrabSettings {
   rope: boolean;
   /** Nahgreifen: fassen, ohne dass etwas fliegt. */
   near: boolean;
+  /**
+   * **Das Zugtempo**: so schnell muss die Hand zum Körper zucken, damit ein
+   * gefasster Gegenstand geflogen kommt — in Zentimetern je Sekunde, wie jede
+   * andere Zahl dieser Seite, angezeigt wird sie in Metern je Sekunde.
+   *
+   * `0` heißt „ohne Zucken": dann kommt er, sobald der Grip sitzt.
+   */
+  pull: number;
   /** Radius des Zylinders um den Spieler, in Zentimetern. */
   radius: number;
   /** Höhe des Zylinders über dem Boden, in Zentimetern. */
@@ -54,6 +66,9 @@ export const DEFAULT_GRAB: GrabSettings = {
   // wirklich zugegriffen wurde — dann sagt er etwas.
   rope: true,
   near: true,
+  // 8 m/s ist ein **Zucken** und keine Handbewegung: den Arm ruhig zum Körper
+  // zu führen bleibt darunter, ein Ruck nach hinten geht deutlich darüber.
+  pull: 800,
   radius: 100,
   height: 210,
   motion: 'hand',
@@ -62,11 +77,18 @@ export const DEFAULT_GRAB: GrabSettings = {
 
 /** Eine Zahl dieser Seite samt dem Bereich, der Sinn ergibt. */
 export interface GrabField {
-  key: 'radius' | 'height';
+  key: 'radius' | 'height' | 'pull';
   label: string;
   sub: string;
   min: number;
   max: number;
+  /**
+   * Die Einheit, in der die Zahl **steht** — und in der sie auch getippt wird.
+   * Wie sie *gelesen* wird, sagt `formatGrabField`: ein Zugtempo in
+   * Zentimetern je Sekunde steht als Zahl da, angezeigt wird es in Metern je
+   * Sekunde, weil niemand über 800 cm/s spricht.
+   */
+  unit: 'cm' | 'cm/s';
   /** Was die Menüzeile durchklickt, in derselben Einheit. */
   steps: readonly number[];
 }
@@ -80,6 +102,7 @@ export const GRAB_FIELDS: readonly GrabField[] = [
     // sucht; darüber hinaus wird aus „um mich herum" ein halber Raum.
     min: 0,
     max: 250,
+    unit: 'cm',
     steps: [60, 100, 140, 180],
   },
   {
@@ -88,7 +111,19 @@ export const GRAB_FIELDS: readonly GrabField[] = [
     sub: 'Bis wohin der Zylinder reicht — darüber ist es nicht mehr bei dir',
     min: 50,
     max: 400,
+    unit: 'cm',
     steps: [180, 210, 240, 300],
+  },
+  {
+    key: 'pull',
+    label: 'Zugtempo',
+    sub: 'So schnell muss die Hand zum Körper zucken, damit es geflogen kommt',
+    // 0 heißt „ohne Zucken" — dann kommt der Gegenstand, sobald zugegriffen
+    // ist; darüber wird aus einem Zucken ein Schlag, den niemand macht.
+    min: 0,
+    max: 2000,
+    unit: 'cm/s',
+    steps: [0, 400, 800, 1200],
   },
 ];
 
@@ -119,9 +154,18 @@ export function nextGrabStep(field: GrabField, value: number): number {
   return field.steps.find((step) => step > value + 1e-9) ?? field.steps[0]!;
 }
 
-/** Was in der Menüzeile hinter dem Namen steht. */
+/**
+ * Was in der Menüzeile hinter dem Namen steht.
+ *
+ * Zentimeter bleiben Zentimeter; ein Tempo wird in Metern je Sekunde gelesen —
+ * „8,0 m/s" ist eine Zahl, die jemand mit einer Bewegung verbindet, „800 cm/s"
+ * ist eine, die man erst umrechnet. Ohne Schwelle steht dort, was gemeint ist.
+ */
 export function formatGrabField(field: GrabField, settings: GrabSettings): string {
-  return `${Math.round(settings[field.key])} cm`;
+  const value = Math.round(settings[field.key]);
+  if (field.unit !== 'cm/s') return `${value} cm`;
+  if (value === 0) return 'ohne Zucken';
+  return `${(value / 100).toFixed(1).replace('.', ',')} m/s`;
 }
 
 /** Wie die Betriebsart heißt, wenn ein Mensch sie liest. */
