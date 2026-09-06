@@ -244,13 +244,16 @@ export const TORCH_HAND_POSE: HandPose = {
  * Zeigefinger zeigt den Stiel entlang zur Spitze.
  *
  * Deshalb steht sie nicht als `fistOnGrip`-Rechnung da wie die anderen: die
- * kann nur Fäuste. Sie ist trotzdem **gemessen und nicht geraten** — die sechs
- * Zahlen sind das Ergebnis einer Ausgleichsrechnung über vier Berührungen
- * (Daumenkuppe, Zeigefingerkuppe, Mittelgelenk des Mittelfingers,
- * Schwimmhaut), die alle auf der Oberfläche des Stiels liegen sollen, plus der
- * Bedingung, dass sie ihn dabei **umschließen** statt ihn von einer Seite zu
- * berühren. `core/gripFist.test.ts` misst genau das nach, statt die Zahlen
- * nachzurechnen: was zählt, ist, wo die Finger am gebauten Pinsel landen.
+ * kann nur Fäuste. Sie ist trotzdem **gemessen und nicht geraten** — zuerst als
+ * Ausgleichsrechnung über vier Berührungen (Daumenkuppe, Zeigefingerkuppe,
+ * Mittelgelenk des Mittelfingers, Schwimmhaut), inzwischen **in der Brille
+ * nachjustiert** und als Kurzcode abgetippt (`BPGDLMh46J5ruqr3SNVh4H3V`, samt
+ * der Lage des Pinsels im Griff — beides steht in `gearShort.test.ts`, damit
+ * man sieht, woher die Zahlen kommen). Geprüft wird weiter dieselbe Sache:
+ * alle vier Berührungen liegen auf der Oberfläche des Stiels und **umschließen**
+ * ihn, statt ihn von einer Seite zu berühren. `core/gripFist.test.ts` misst
+ * genau das nach, statt die Zahlen nachzurechnen — was zählt, ist, wo die
+ * Finger am gebauten Pinsel landen.
  *
  * Davor lag der Pinsel als **Stab von oben** in der ganzen Faust, wie ein
  * Hammerstiel, den man umdreht. Das war schon besser als die Hammerfaust
@@ -262,12 +265,12 @@ export const TORCH_HAND_POSE: HandPose = {
  */
 export const BRUSH_HAND_POSE: HandPose = {
   ...HOLD_HAND_POSE,
-  x: -2.6,
-  y: -1.6,
-  z: 6.8,
+  x: 0.7,
+  y: 3.2,
+  z: 4.5,
   pitch: 31,
-  yaw: -52,
-  roll: 10,
+  yaw: -35,
+  roll: -6,
   curls: [0.35, 0.45, 0.55, 0.9, 1],
 };
 
