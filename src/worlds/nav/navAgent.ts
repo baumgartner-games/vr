@@ -1,7 +1,7 @@
 import { NavBelief } from './navBelief';
 import type { NavGraph } from './navGraph';
 import { findPath, smoothPath } from './navPath';
-import { HUMAN_PROFILE, type CostProfile } from './navProfile';
+import { HUMAN_PROFILE, type CostProfile, type LinkKind } from './navProfile';
 import {
   DIR_E,
   DIR_N,
@@ -50,6 +50,17 @@ export interface AgentTuning {
   stuckWithin: number;
   /** Obergrenze je Suche. */
   maxNodes: number;
+  /**
+   * Wie hoch er **treten** kann, ohne zu springen, in Metern.
+   *
+   * Alles darüber wird abgesprungen (`AgentStep.leap`). Der Grund steht im
+   * Körper und nicht in der Karte: Ein NPC ist ein dynamischer Zylinder, und
+   * ein Zylinder steigt keine Stufe — er kann nur fallen oder fliegen. Vor
+   * dieser Zahl gab es Treppen, die das Gitter kannte und die trotzdem
+   * niemand hinaufkam; die halbe Welt war für NPCs eine Sackgasse mit
+   * Aussicht.
+   */
+  stepUp: number;
 }
 
 export const AGENT_DEFAULTS: AgentTuning = {
@@ -59,6 +70,7 @@ export const AGENT_DEFAULTS: AgentTuning = {
   stuckAfter: 1.1,
   stuckWithin: 0.3,
   maxNodes: 3000,
+  stepUp: 0.35,
 };
 
 /** Ein Punkt in der Welt, wie ihn die Welt herüberreicht. */
@@ -81,6 +93,19 @@ export interface AgentStep {
    * hat einen NPC, der vor der Wand steht, hinter der sein Weg weitergeht.
    */
   jump: TileKey;
+  /**
+   * Eine Kachel, zu der er **springen** muss — der Absprung über eine Lücke.
+   *
+   * Der Unterschied zu `jump` ist der zwischen Versetzen und Fliegen: Ein
+   * Portal setzt einen ans andere Ende, ein Sprung ist eine Wurfparabel, die
+   * man sieht. Beides gibt es getrennt, weil beides anders aussieht — und weil
+   * ein Sprung schiefgehen darf, ein Portal nicht.
+   *
+   * Wer ihn ignoriert, hat einen NPC, der an der Kante des Podests vorwärts
+   * läuft und in den Gang darunter fällt. Genau das tat er, bevor es dieses
+   * Feld gab.
+   */
+  leap: TileKey;
   /** Ob der Weg wirklich ans Ziel führt. `false` = Teilweg bis vor das Hindernis. */
   complete: boolean;
   /** Ob in diesem Bild neu geplant wurde. */
@@ -92,6 +117,7 @@ export interface AgentStep {
 const NOWHERE: AgentStep = {
   waypoint: null,
   jump: NO_TILE,
+  leap: NO_TILE,
   complete: false,
   planned: false,
   stuck: false,
@@ -115,6 +141,7 @@ export class NavAgent {
   private started = false;
   private seenBelief = -1;
   private jump: TileKey = NO_TILE;
+  private leap: TileKey = NO_TILE;
 
   constructor(tuning: Partial<AgentTuning> = {}) {
     this.tuning = { ...AGENT_DEFAULTS, ...tuning };
@@ -178,8 +205,16 @@ export class NavAgent {
     if (planned) this.plan(graph, from, to);
 
     this.jump = NO_TILE;
+    this.leap = NO_TILE;
     const waypoint = this.pick(graph, at, goal);
-    return { waypoint, jump: this.jump, complete: this.reachesGoal, planned, stuck };
+    return {
+      waypoint,
+      jump: this.jump,
+      leap: this.leap,
+      complete: this.reachesGoal,
+      planned,
+      stuck,
+    };
   }
 
   /**
@@ -248,9 +283,12 @@ export class NavAgent {
         return { x: point.x, z: point.z };
       }
       // Angekommen. Führt der nächste Schritt durch ein Portal, geht er nicht
-      // dorthin — er ist dort.
+      // dorthin — er ist dort. Führt er über eine Lücke, springt er.
       const next = this.route[this.cursor + 1];
-      if (next !== undefined && portalBetween(graph, here, next)) this.jump = next;
+      if (next !== undefined) {
+        if (linkBetween(graph, here, next, 'portal')) this.jump = next;
+        else if (this.leaps(graph, here, next)) this.leap = next;
+      }
       this.cursor++;
     }
     // Der Weg ist abgelaufen. Führte er ans Ziel, geht es das letzte Stück
@@ -262,6 +300,20 @@ export class NavAgent {
     if (last === undefined) return null;
     const point = graph.worldOf(last);
     return { x: point.x, z: point.z };
+  }
+
+  /**
+   * **Ob dieser Schritt ein Sprung ist.**
+   *
+   * Zwei Fälle, und sie sehen gleich aus: die Lücke, über die es keinen Boden
+   * gibt (`jump`), und die Stufe, die zu hoch zum Hinauftreten ist. Eine Treppe
+   * mit flachen Stufen bleibt ein Gang — wer für zwanzig Zentimeter hüpft,
+   * sieht aus wie ein Frosch.
+   */
+  private leaps(graph: NavGraph, here: TileKey, next: TileKey): boolean {
+    if (linkBetween(graph, here, next, 'jump')) return true;
+    if (!linkBetween(graph, here, next, 'stairs')) return false;
+    return graph.worldOf(next).y - graph.worldOf(here).y > this.tuning.stepUp;
   }
 
   /**
@@ -291,10 +343,10 @@ export class NavAgent {
   }
 }
 
-/** Ob zwischen diesen beiden Kacheln ein offenes Portal liegt. */
-function portalBetween(graph: NavGraph, from: TileKey, to: TileKey): boolean {
+/** Ob zwischen diesen beiden Kacheln eine offene Verbindung dieser Art liegt. */
+function linkBetween(graph: NavGraph, from: TileKey, to: TileKey, kind: LinkKind): boolean {
   for (const exit of graph.linksFrom(from)) {
-    if (exit.to === to && exit.link.kind === 'portal' && exit.link.open) return true;
+    if (exit.to === to && exit.link.kind === kind && exit.link.open) return true;
   }
   return false;
 }

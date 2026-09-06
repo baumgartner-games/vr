@@ -287,12 +287,32 @@ export class PhysicsWorld {
     return this.addBody(object, 'kinematic', options);
   }
 
+  /**
+   * Ein Bild Physik — und **wenn es keines gibt, wenigstens die Buchhaltung**.
+   *
+   * Rapier zieht die Collider ihren Körpern erst in `world.step()` nach. Solange
+   * die Welt Schritte macht, fällt das niemandem auf; bei angehaltener Zeit
+   * (`timeScale` 0, die Stoppuhr) macht sie keine — und dann steht der Collider
+   * der Spielerkapsel für immer dort, wo die Uhr gedrückt wurde, während die
+   * Kapsel selbst weiterwandert. Der Character-Controller tastet danach von der
+   * alten Stelle aus und findet weder den Boden noch die Wand: Man fällt
+   * hindurch und springt aus dem Stand endlos weiter, weil er einen immer noch
+   * für stehend hält.
+   *
+   * Deshalb dieselbe Zeile, die auch ein Schritt als erstes täte. Sie kostet
+   * nichts, wenn sich nichts bewegt hat, und sie ist der Unterschied zwischen
+   * „die Zeit steht" und „die Welt ist weg": **Die Physik gilt weiter, sie
+   * rechnet nur nichts mehr.**
+   */
   step(dt: number): void {
     this.accumulator = Math.min(this.accumulator + dt, FIXED_STEP * MAX_STEPS);
+    let stepped = false;
     while (this.accumulator >= FIXED_STEP) {
       this.world.step();
       this.accumulator -= FIXED_STEP;
+      stepped = true;
     }
+    if (!stepped) this.world.propagateModifiedBodyPositionsToColliders();
     for (const entry of this.dynamicBodies) {
       if (entry.clearing) this.checkClearing(entry);
     }

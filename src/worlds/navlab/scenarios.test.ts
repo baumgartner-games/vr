@@ -1,9 +1,13 @@
+import { BAKE_DEFAULTS } from '../nav/navBake';
 import { brainOf } from '../npc/npcBrains';
+import { npcSkin } from '../npc/npcKinds';
 import { TILE } from '../nav/navTile';
 import {
   BAY_D,
   BAY_W,
   CRATE,
+  NARROW,
+  PODIUM,
   PORTAL,
   SCENARIOS,
   SCENARIO_TIME,
@@ -12,6 +16,7 @@ import {
   baySpot,
   bayWalls,
   labBounds,
+  labSolids,
   newScenarioState,
   scenarioOf,
   startScenario,
@@ -25,9 +30,11 @@ describe('Der Grundriss', () => {
       'corridor',
       'pit',
       'crate',
+      'narrow',
       'door',
       'portal',
       'levels',
+      'podium',
     ]);
   });
 
@@ -180,6 +187,67 @@ describe('Der Grundriss', () => {
         expect(centre(at.x)).toBeCloseTo(0);
         expect(centre(at.z)).toBeCloseTo(0);
       }
+    }
+  });
+
+  it('lässt die Kiste in den Durchgang fallen und nicht daneben', () => {
+    // Der Knopf heißt „Kiste in den Durchgang". Sie muss also in der Lücke
+    // stehen — in der Kachel, die an der Türlinie liegt, und quer dazu
+    // zwischen den beiden Wandstücken.
+    const bay = scenarioOf('crate');
+    const walls = bayWalls(bay).filter((wall) => wall.d < wall.w && wall.lz === 0);
+    expect(walls.length).toBeGreaterThan(1);
+    // Die Kiste liegt in keiner Wand, sondern in der Lücke dazwischen.
+    for (const wall of walls) {
+      const inside = Math.abs(CRATE.lx - wall.lx) < wall.w / 2;
+      expect(inside).toBe(false);
+    }
+    // Und direkt an der Wand: eine halbe Kachel von der Türlinie weg.
+    expect(Math.abs(CRATE.lz)).toBeCloseTo(TILE / 2);
+  });
+
+  it('macht den engen Gang schmaler als jeden, der hindurch will', () => {
+    // Beide Hälften der Behauptung: Der Zombie passt nicht (Welt), und das
+    // Abtasten sieht dort keine Lücke (Karte). Fällt eine davon weg, plant er
+    // hindurch und rennt für immer dagegen.
+    expect(NARROW.gap).toBeLessThan(npcSkin('zombie').radius * 2);
+    expect(NARROW.gap).toBeLessThan(BAKE_DEFAULTS.width);
+    // Und die Pfosten sitzen wirklich in der einen Kachel Lücke.
+    expect(NARROW.gap).toBeLessThan(NARROW.opening);
+  });
+
+  it('legt die Podeste so hoch, dass nur der Sprung hinaufführt', () => {
+    // Über der Treppe, die das Abtasten von selbst bauen würde, und unter dem
+    // Absprung, mit dem man wieder herunterkommt (`navBake.ts`).
+    expect(PODIUM.high).toBeGreaterThan(BAKE_DEFAULTS.climb);
+    expect(PODIUM.high).toBeLessThanOrEqual(BAKE_DEFAULTS.drop);
+    // Zwischen den beiden Decken liegt ein Gang und keine Fuge.
+    expect(PODIUM.far.minLx - PODIUM.near.maxLx).toBeCloseTo(TILE);
+    // Die Rampe steigt in Schritten, die man hinaufkommt.
+    let below = 0;
+    for (const step of PODIUM.ramp) {
+      expect(step.y - below).toBeLessThanOrEqual(BAKE_DEFAULTS.climb);
+      expect(step.y).toBeGreaterThan(below);
+      below = step.y;
+    }
+    expect(below).toBeCloseTo(PODIUM.high);
+  });
+
+  it('baut jeden Quader des Labors aus denselben Daten', () => {
+    // `labSolids` ist die Liste, die die Welt baut *und* ein Test abtastet.
+    // Wären es zwei Listen, prüfte der Test eine zweite Welt.
+    const solids = labSolids();
+    expect(solids.filter((one) => one.kind === 'floor')).toHaveLength(1);
+    expect(solids.filter((one) => one.kind === 'rim')).toHaveLength(4);
+    const walls = SCENARIOS.reduce((sum, bay) => sum + bayWalls(bay).length, 0);
+    expect(solids.filter((one) => one.kind === 'wall').length).toBeGreaterThanOrEqual(walls);
+    // Jeder Quader steht innerhalb dessen, was der Boden trägt.
+    const box = labBounds();
+    for (const solid of solids) {
+      if (solid.kind === 'floor' || solid.kind === 'rim') continue;
+      expect(solid.x).toBeGreaterThanOrEqual(box.minX - 1);
+      expect(solid.x).toBeLessThanOrEqual(box.maxX + 1);
+      expect(solid.h).toBeGreaterThan(0);
     }
   });
 

@@ -1,0 +1,498 @@
+import { bakeNav, type NavBox } from '../nav/navBake';
+import { NavAgent } from '../nav/navAgent';
+import type { NavGraph } from '../nav/navGraph';
+import { profileOf } from '../nav/navProfile';
+import { NO_TILE, type TileKey } from '../nav/navTile';
+import { newBrainState, stepBrain, type BrainState } from '../npc/npcBrain';
+import { brainOf } from '../npc/npcBrains';
+import { npcSkin, type NpcKind } from '../npc/npcKinds';
+import {
+  ROOF,
+  SCENARIOS,
+  applyLabMap,
+  baySpot,
+  labBounds,
+  labSolids,
+  scenarioOf,
+  type BaySpot,
+  type LabSolid,
+  type ScenarioId,
+} from './scenarios';
+
+/**
+ * **Das Labor ohne Brille** — dieselben Wände, dieselbe Karte, dieselben
+ * Hirne, nur dass niemand zusieht.
+ *
+ * Der Grund für diese Datei steht in den Fehlern, die sie gefunden hat: Ein
+ * Zombie, der durch eine Tür läuft, ein Zombie, der eine Kurve zu eng nimmt und
+ * an der Ecke hängen bleibt, ein Zombie, der in eine Lücke plant, durch die er
+ * nicht passt. Keiner davon ist ein fehlgeschlagener Test gewesen — alle drei
+ * waren ein *Eindruck* aus der Brille, und Eindrücke kann man nicht wiederholen,
+ * bis man verstanden hat, woran es lag.
+ *
+ * Was hier läuft, ist deshalb **nicht** die Wegsuche allein. Die ist längst
+ * geprüft (`nav/navPath.test.ts`) und war jedes Mal im Recht: Der Weg, den sie
+ * fand, war kurz und ging durch keine Wand. Falsch war, was **danach** kam —
+ * der Körper, der ihn laufen sollte. Ein NPC ist ein Zylinder mit 29 cm
+ * Halbmesser, und ein Weg, der die Hausecke um zwanzig Zentimeter verfehlt,
+ * ist für ihn eine Wand. Deshalb steht hier ein Körper und keine Kette von
+ * Kachelmitten:
+ *
+ * - **Er hat einen Umfang.** Gelaufen wird gegen dieselben Quader, die auch in
+ *   der Welt stehen (`labSolids`), mit demselben Halbmesser wie in der Physik
+ *   (`npcKinds.ts`) — und er rutscht daran entlang, statt hindurchzugehen.
+ * - **Er dreht sich.** Das Tempo hängt daran, wie weit er schon in die richtige
+ *   Richtung schaut (`npcBrain.ts`, `aheadFactor`) — genau daran scheitert eine
+ *   zu eng genommene Kurve, und ohne Drehrate merkt man davon nichts.
+ * - **Er springt und fällt.** Absätze, Stufen und die Lücke zwischen den beiden
+ *   Podesten gehen genauso wie in der Welt (`navAgent.ts`, `AgentStep.leap`).
+ *
+ * Was er **nicht** hat, ist Rapier: keine Trägheit, kein Anschieben, keine
+ * Reibung. Das ist Absicht — ein Test, der eine Physik-Engine startet, ist kein
+ * Test mehr, sondern ein Ladebildschirm. Was er misst, ist die Frage, die im
+ * Labor gestellt wird: *Kommt er da an, und wo lang?*
+ */
+
+/** Die Schwerkraft, mit der hier gesprungen wird — dieselbe wie im Labor. */
+export const SIM_GRAVITY = 9.81;
+
+/** Wie fein gerechnet wird. Dreißig Bilder je Sekunde reichen für einen Gang. */
+export const SIM_DT = 1 / 30;
+
+/** Wie hoch ein Sprung über sein höheres Ende hinausgeht (`Npc.launch`). */
+const LEAP_RISE = 0.7;
+
+/** Wie hoch er tritt, ohne zu springen (`AGENT_DEFAULTS.stepUp`). */
+const STEP_UP = 0.35;
+
+/** Ein Ort im Labor, in Weltmetern. */
+export interface SimPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Alle Quader des Labors als Kästen fürs Abtasten — plus, was ein Szenario
+ * hinstellt (das zugefallene Türblatt, die Kiste im Durchgang).
+ */
+export function labBoxes(extra: readonly LabSolid[] = []): NavBox[] {
+  return [...labSolids(), ...extra].map((solid) => ({
+    minX: solid.x - solid.w / 2,
+    maxX: solid.x + solid.w / 2,
+    minY: solid.y - solid.h / 2,
+    maxY: solid.y + solid.h / 2,
+    minZ: solid.z - solid.d / 2,
+    maxZ: solid.z + solid.d / 2,
+  }));
+}
+
+/**
+ * Das Labor abtasten — mit **denselben** Grenzen und Etagen wie
+ * `NavLabWorld`.
+ *
+ * Stimmt eine der beiden Zahlen nicht überein, tastet der Test eine andere
+ * Welt ab als die, die läuft, und das Grün darunter ist wertlos.
+ */
+export function bakeLab(extra: readonly LabSolid[] = []): NavGraph {
+  const box = labBounds();
+  const graph = bakeNav(labBoxes(extra), {
+    bounds: { minX: box.minX - 2, minZ: box.minZ - 2, maxX: box.maxX + 2, maxZ: box.maxZ + 2 },
+    levels: [0, ROOF],
+  }).graph;
+  // Und alles, was in keinem Quader steht: Grube, Tür, Sprung.
+  applyLabMap(graph);
+  return graph;
+}
+
+/** Einer, der im Labor läuft. */
+export interface SimRunner {
+  kind: NpcKind;
+  /** Seine Füße, jetzt. */
+  at: SimPoint;
+  /** Wo er überall war — ein Punkt je Bild. */
+  readonly track: SimPoint[];
+  /** Wie nah er dem Spieler je gekommen ist, in Metern (räumlich). */
+  nearest: number;
+  /** Ob er ihn erreicht hat — in Schlagreichweite seines Hirns. */
+  arrived: boolean;
+  /**
+   * Nach wie vielen Sekunden das war — `Infinity`, solange er es nicht ist.
+   *
+   * Die ehrliche Zahl für „wer war schneller da". Die gelaufene Strecke taugt
+   * dafür nicht: Wer ein Portal nimmt, legt in einem Bild fünfzehn Meter
+   * zurück, und in jeder Längenrechnung sieht das nach einem Umweg aus.
+   */
+  arrivedAfter: number;
+  /** Sein Läufer, für alles, was ihm vorher etwas beibringen will. */
+  readonly agent: NavAgent;
+}
+
+export interface BayRunOptions {
+  /** Wie lange gelaufen wird, in Sekunden Weltzeit. */
+  seconds?: number;
+  dt?: number;
+  /** Quader, die zusätzlich in der Welt stehen — Türblatt, Kiste. */
+  props?: readonly LabSolid[];
+  /** Was an der Karte geändert wird, bevor es losgeht. */
+  setup?: (graph: NavGraph) => void;
+  /** Was ein Läufer schon weiß, bevor er losläuft (`navBelief.ts`). */
+  brief?: (runner: SimRunner, graph: NavGraph) => void;
+  /** Wo der Spieler steht — sonst dort, wo die Bucht ihn hinstellt. */
+  player?: BaySpot;
+}
+
+export interface BayRun {
+  graph: NavGraph;
+  player: SimPoint;
+  runners: SimRunner[];
+  /** Wie lange wirklich gelaufen wurde. */
+  seconds: number;
+}
+
+/**
+ * **Eine Bucht laufen lassen.**
+ *
+ * Der Spieler steht, wo die Bucht ihn hinstellt, der Auftritt läuft los, und
+ * am Ende steht da, wer wie weit gekommen ist. Mehr braucht ein Test nicht:
+ * Ein Zombie, der ankommt, kam durch; einer, der bei 2,60 m stehen bleibt,
+ * steht vor etwas.
+ */
+export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
+  const bay = scenarioOf(id);
+  const dt = options.dt ?? SIM_DT;
+  const seconds = options.seconds ?? 40;
+  const props = options.props ?? [];
+  // **Abgetastet wird ohne die Requisiten**, gelaufen wird mit ihnen — genauso
+  // wie in der Welt: Das Labor tastet einmal beim Laden ab, und was ein
+  // Szenario danach hinstellt, ändert die Karte einzeln (`setBlocked`,
+  // `setDoor`). Wer die Kiste mitabtastet, bekommt eine Kachel *auf* ihr und
+  // keine gesperrte darunter.
+  const graph = bakeLab();
+  const boxes = labBoxes(props);
+  const stand = baySpot(bay, options.player ?? bay.stand);
+  const player: SimPoint = {
+    x: stand.x,
+    y: (options.player ?? bay.stand).y ?? 0,
+    z: stand.z,
+  };
+
+  const runners: SimRunner[] = bay.cast.map((one) => {
+    const at = baySpot(bay, one);
+    const skin = npcSkin(one.kind);
+    return {
+      kind: one.kind,
+      at: { x: at.x, y: one.y ?? 0, z: at.z },
+      track: [{ x: at.x, y: one.y ?? 0, z: at.z }],
+      nearest: Infinity,
+      arrived: false,
+      arrivedAfter: Infinity,
+      agent: new NavAgent({ profile: profileOf(skin.profile) }),
+    };
+  });
+  // Erst lernen, dann zuschlagen: Der Zombie hat die Tür **offen** gesehen, und
+  // erst danach fällt sie zu. Andersherum wüsste er es von Anfang an, und die
+  // ganze Bucht behauptete nichts mehr (`navBelief.ts`).
+  for (const runner of runners) options.brief?.(runner, graph);
+  options.setup?.(graph);
+
+  const bodies = runners.map((runner) => newBody(runner, bay.z < 0 ? 0 : Math.PI));
+
+  let now = 0;
+  const frames = Math.round(seconds / dt);
+  for (let frame = 0; frame < frames; frame++) {
+    now += dt;
+    for (let i = 0; i < runners.length; i++) {
+      advance(runners[i]!, bodies[i]!, graph, boxes, player, dt, now);
+    }
+  }
+  return { graph, player, runners, seconds: now };
+}
+
+// --- der Körper -------------------------------------------------------------
+
+/** Was ein Läufer zwischen zwei Bildern mit sich herumträgt. */
+interface Body {
+  yaw: number;
+  brain: BrainState;
+  radius: number;
+  height: number;
+  reach: number;
+  speed: number;
+  turn: number;
+  /** Ein laufender Sprung — `null`, solange er steht oder geht. */
+  flight: Flight | null;
+}
+
+interface Flight {
+  from: SimPoint;
+  to: SimPoint;
+  /** Gesamte Flugzeit und wie viel davon schon vorbei ist. */
+  time: number;
+  spent: number;
+  /** Anfangsgeschwindigkeit nach oben — daraus wird der Bogen. */
+  up: number;
+}
+
+function newBody(runner: SimRunner, yaw: number): Body {
+  const skin = npcSkin(runner.kind);
+  const tuning = brainOf('chase').tuning;
+  return {
+    yaw,
+    brain: newBrainState(yaw),
+    radius: skin.radius,
+    height: skin.height,
+    reach: tuning.reach,
+    // Das Tempo kommt von der Haut, alles andere vom Hirn — genauso wie in
+    // `Npc` (`tuning.speed = options.speed ?? base.speed`).
+    speed: skin.speed,
+    turn: tuning.turn,
+    flight: null,
+  };
+}
+
+/** Ein Bild eines Läufers. */
+function advance(
+  runner: SimRunner,
+  body: Body,
+  graph: NavGraph,
+  boxes: readonly NavBox[],
+  player: SimPoint,
+  dt: number,
+  now: number,
+): void {
+  if (body.flight) {
+    fly(runner, body, dt);
+  } else {
+    const step = runner.agent.step(graph, runner.at, player, dt, now);
+    if (step.jump !== NO_TILE) {
+      place(runner, graph, step.jump);
+    } else if (step.leap !== NO_TILE) {
+      body.flight = launch(runner, graph, step.leap);
+    } else {
+      walk(runner, body, boxes, player, step.waypoint, dt);
+      settle(runner, body, boxes, graph);
+    }
+  }
+
+  runner.track.push({ ...runner.at });
+  const gap = Math.hypot(player.x - runner.at.x, player.y - runner.at.y, player.z - runner.at.z);
+  runner.nearest = Math.min(runner.nearest, gap);
+  const flat = Math.hypot(player.x - runner.at.x, player.z - runner.at.z);
+  if (flat <= body.reach && Math.abs(player.y - runner.at.y) < 1 && !runner.arrived) {
+    runner.arrived = true;
+    runner.arrivedAfter = now;
+  }
+}
+
+/** Ein Schritt zu Fuß — mit Drehung, Umfang und Wänden, an denen er entlangrutscht. */
+function walk(
+  runner: SimRunner,
+  body: Body,
+  boxes: readonly NavBox[],
+  player: SimPoint,
+  waypoint: { x: number; z: number } | null,
+  dt: number,
+): void {
+  const step = stepBrain(
+    'chase',
+    body.brain,
+    {
+      at: { x: runner.at.x, z: runner.at.z },
+      yaw: body.yaw,
+      player: { x: player.x, z: player.z },
+      waypoint,
+      dt,
+      random: () => 0.5,
+    },
+    { ...brainOf('chase').tuning, speed: body.speed, turn: body.turn },
+  );
+  body.yaw = step.yaw;
+  slide(runner, body, boxes, step.vx * dt, step.vz * dt);
+}
+
+/**
+ * **Gegen die Wand und daran entlang** — getrennt nach Achsen, damit aus einem
+ * Anstoßen ein Vorbeischieben wird und kein Stehenbleiben.
+ *
+ * Genau das tut auch die Physik in der Welt, nur mit mehr Aufwand: Ein Zylinder,
+ * der schräg gegen eine Wand läuft, verliert den Anteil zur Wand hin und behält
+ * den daran entlang. Wer hier beide Achsen zusammen prüfte, hätte einen NPC, der
+ * an jeder Wand klebt — und dann prüfte dieser Test eine Panne, die es in der
+ * Welt gar nicht gibt.
+ */
+function slide(
+  runner: SimRunner,
+  body: Body,
+  boxes: readonly NavBox[],
+  dx: number,
+  dz: number,
+): void {
+  const low = runner.at.y + 0.15;
+  const high = runner.at.y + body.height * 0.9;
+  const free = (x: number, z: number): boolean => !hitsAny(boxes, x, z, low, high, body.radius);
+
+  const wantX = runner.at.x + dx;
+  if (free(wantX, runner.at.z)) runner.at.x = wantX;
+  const wantZ = runner.at.z + dz;
+  if (free(runner.at.x, wantZ)) runner.at.z = wantZ;
+}
+
+function hitsAny(
+  boxes: readonly NavBox[],
+  x: number,
+  z: number,
+  low: number,
+  high: number,
+  radius: number,
+): boolean {
+  for (const box of boxes) {
+    if (box.maxY <= low || box.minY >= high) continue;
+    const nx = Math.max(box.minX, Math.min(x, box.maxX));
+    const nz = Math.max(box.minZ, Math.min(z, box.maxZ));
+    if (Math.hypot(x - nx, z - nz) < radius) return true;
+  }
+  return false;
+}
+
+/** Auf welcher Höhe er nach diesem Schritt steht. */
+function settle(runner: SimRunner, body: Body, boxes: readonly NavBox[], graph: NavGraph): void {
+  const tile = graph.at(runner.at.x, runner.at.z, runner.at.y);
+  if (tile === NO_TILE) return;
+  const floor = graph.worldOf(tile).y;
+  // Hinauf nur, was man tritt; hinunter alles — er fällt.
+  if (floor > runner.at.y + STEP_UP) return;
+  if (floor === runner.at.y) return;
+  runner.at.y = floor;
+  // **Und dann steht er womöglich in einem Klotz.** Wer über die Dachkante
+  // tritt, ist mit seiner Mitte draußen und mit seinem Umfang noch darin; eine
+  // Etage tiefer steckt er dann in der Wand des Klotzes, von dem er gerade
+  // gefallen ist. In der Welt schiebt die Physik ihn dort in einem Bild
+  // heraus; hier tut es diese Zeile, und ohne sie klebt er für immer an einer
+  // Hausecke, die es gar nicht ist.
+  push(runner, body, boxes);
+}
+
+/** Heraus aus allem, worin er steckt — über die kürzeste Seite. */
+function push(runner: SimRunner, body: Body, boxes: readonly NavBox[]): void {
+  const low = runner.at.y + 0.15;
+  const high = runner.at.y + body.height * 0.9;
+  for (let round = 0; round < 4; round++) {
+    let moved = false;
+    for (const box of boxes) {
+      if (box.maxY <= low || box.minY >= high) continue;
+      const nx = Math.max(box.minX, Math.min(runner.at.x, box.maxX));
+      const nz = Math.max(box.minZ, Math.min(runner.at.z, box.maxZ));
+      const dx = runner.at.x - nx;
+      const dz = runner.at.z - nz;
+      const gap = Math.hypot(dx, dz);
+      if (gap >= body.radius) continue;
+      if (gap > 1e-6) {
+        runner.at.x = nx + (dx / gap) * body.radius;
+        runner.at.z = nz + (dz / gap) * body.radius;
+      } else {
+        // Genau auf der Kante oder mitten drin: über die nächstgelegene Seite.
+        const west = runner.at.x - box.minX;
+        const east = box.maxX - runner.at.x;
+        const north = runner.at.z - box.minZ;
+        const south = box.maxZ - runner.at.z;
+        const least = Math.min(west, east, north, south);
+        if (least === west) runner.at.x = box.minX - body.radius;
+        else if (least === east) runner.at.x = box.maxX + body.radius;
+        else if (least === north) runner.at.z = box.minZ - body.radius;
+        else runner.at.z = box.maxZ + body.radius;
+      }
+      moved = true;
+    }
+    if (!moved) return;
+  }
+}
+
+/** Durch ein Portal: er ist dort, er geht nicht dorthin. */
+function place(runner: SimRunner, graph: NavGraph, tile: TileKey): void {
+  const at = graph.worldOf(tile);
+  runner.at.x = at.x;
+  runner.at.y = at.y;
+  runner.at.z = at.z;
+}
+
+/** Derselbe schräge Wurf wie in der Welt (`Npc.launch`). */
+function launch(runner: SimRunner, graph: NavGraph, tile: TileKey): Flight | null {
+  const to = graph.worldOf(tile);
+  const dy = to.y - runner.at.y;
+  const far = Math.hypot(to.x - runner.at.x, to.z - runner.at.z);
+  if (far < 0.05) return null;
+  const rise = Math.max(dy, 0) + LEAP_RISE;
+  const up = Math.sqrt(2 * SIM_GRAVITY * rise);
+  const time = (up + Math.sqrt(Math.max(0, up * up - 2 * SIM_GRAVITY * dy))) / SIM_GRAVITY;
+  if (!Number.isFinite(time) || time <= 0) return null;
+  return { from: { ...runner.at }, to: { x: to.x, y: to.y, z: to.z }, time, spent: 0, up };
+}
+
+/** Ein Bild im Flug — waagerecht gleichmäßig, senkrecht ein Bogen. */
+function fly(runner: SimRunner, body: Body, dt: number): void {
+  const flight = body.flight!;
+  flight.spent = Math.min(flight.time, flight.spent + dt);
+  const share = flight.spent / flight.time;
+  runner.at.x = flight.from.x + (flight.to.x - flight.from.x) * share;
+  runner.at.z = flight.from.z + (flight.to.z - flight.from.z) * share;
+  runner.at.y =
+    flight.from.y + flight.up * flight.spent - 0.5 * SIM_GRAVITY * flight.spent * flight.spent;
+  if (flight.spent < flight.time) return;
+  runner.at.y = flight.to.y;
+  body.flight = null;
+}
+
+// --- was ein Test daran fragt ----------------------------------------------
+
+/**
+ * **Ob eine Strecke an einem Punkt vorbeikam.**
+ *
+ * Der Prüfstein, mit dem man einen Umweg von einem Durchmarsch unterscheidet:
+ * Vor einer verriegelten Tür soll er nicht bloß irgendwo ankommen, sondern
+ * *außen herum* — und das heißt, dass seine Spur die Kachel neben der Tür
+ * berührt haben muss. Ohne so einen Kontrollpunkt sieht ein Weg durch die Wand
+ * genauso erfolgreich aus wie der richtige.
+ */
+export function passedNear(
+  track: readonly SimPoint[],
+  at: { x: number; z: number },
+  radius: number,
+): boolean {
+  return track.some((spot) => Math.hypot(spot.x - at.x, spot.z - at.z) <= radius);
+}
+
+/** Wie nah eine Strecke einem Punkt gekommen ist, in Metern. */
+export function closestTo(track: readonly SimPoint[], at: { x: number; z: number }): number {
+  let best = Infinity;
+  for (const spot of track) best = Math.min(best, Math.hypot(spot.x - at.x, spot.z - at.z));
+  return best;
+}
+
+/**
+ * **Wie krumm eine Strecke ist** — die Zahl hinter „läuft Manhattan-mäßig".
+ *
+ * Der gelaufene Weg geteilt durch die Luftlinie von Anfang zu Ende. Eine
+ * Gerade ist 1; wer jede Ecke rechtwinklig nimmt statt sie zu schneiden,
+ * landet bei 1,41 und mehr. Sie ist absichtlich ein **Verhältnis** und keine
+ * Länge: Ein langer Weg darf lang sein, er soll nur nicht doppelt so lang
+ * sein, wie er sein müsste.
+ */
+export function wander(track: readonly SimPoint[]): number {
+  if (track.length < 2) return 1;
+  let walked = 0;
+  for (let i = 1; i < track.length; i++) {
+    const a = track[i - 1]!;
+    const b = track[i]!;
+    walked += Math.hypot(b.x - a.x, b.z - a.z);
+  }
+  const first = track[0]!;
+  const last = track[track.length - 1]!;
+  const straight = Math.hypot(last.x - first.x, last.z - first.z);
+  return straight < 0.01 ? Infinity : walked / straight;
+}
+
+/** Die Bucht zu einer Id — bequem für Tests, die ihre Maße brauchen. */
+export function bay(id: ScenarioId): (typeof SCENARIOS)[number] {
+  return scenarioOf(id);
+}

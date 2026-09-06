@@ -2,6 +2,7 @@ import { NavGraph, type WallKind } from './navGraph';
 import {
   DIR_E,
   DIR_N,
+  DIR_S,
   LEVEL_MAX,
   NO_TILE,
   TILE,
@@ -83,6 +84,12 @@ export interface BakeOptions {
   drop?: number;
   /** Wie weit eine Fläche von einem Etagenboden weg sein darf, um dazuzugehören. */
   band?: number;
+  /**
+   * Wie **breit** einer ist, der hier durchgehen soll, in Metern.
+   *
+   * Siehe `edgeOpen`: Eine Lücke ist erst eine, wenn jemand hindurchpasst.
+   */
+  width?: number;
 }
 
 export const BAKE_DEFAULTS = {
@@ -93,7 +100,16 @@ export const BAKE_DEFAULTS = {
   climb: 2.2,
   drop: 2.6,
   band: 1.6,
+  /**
+   * Schulterbreite. Ein Zombie ist 0,58 m dick (`npcKinds.ts`), ein Mensch
+   * kaum weniger — 0,7 lässt beiden eine Handbreit Luft und erklärt jede
+   * Lücke darunter für das, was sie ist: keine.
+   */
+  width: 0.7,
 } as const;
+
+/** Wie fein eine Kachelgrenze abgetastet wird, in Metern (`edgeOpen`). */
+const EDGE_STEP = 0.1;
 
 /** Was beim Abtasten herauskam — für die Meldung im Menü und die Debug-Ansicht. */
 export interface BakeReport {
@@ -122,6 +138,7 @@ export function bakeNav(boxes: readonly NavBox[], options: BakeOptions): BakeRep
   const climb = options.climb ?? BAKE_DEFAULTS.climb;
   const drop = options.drop ?? BAKE_DEFAULTS.drop;
   const band = options.band ?? BAKE_DEFAULTS.band;
+  const width = options.width ?? BAKE_DEFAULTS.width;
 
   const minX = tileIndexAt(options.bounds.minX);
   const maxX = tileIndexAt(options.bounds.maxX);
@@ -158,7 +175,7 @@ export function bakeNav(boxes: readonly NavBox[], options: BakeOptions): BakeRep
   let links = 0;
   for (const key of [...graph.tileKeys()]) {
     for (const dir of [DIR_N, DIR_E] as const) {
-      links += joinTiles(graph, index, key, dir, { height, step, climb, drop });
+      links += joinTiles(graph, index, key, dir, { height, step, climb, drop, width });
     }
   }
 
@@ -184,7 +201,7 @@ function joinTiles(
   index: ColumnIndex,
   key: TileKey,
   dir: Dir,
-  limits: { height: number; step: number; climb: number; drop: number },
+  limits: { height: number; step: number; climb: number; drop: number; width: number },
 ): number {
   const other = neighbour(key, dir);
   if (other === NO_TILE) return 0;
@@ -211,9 +228,10 @@ function joinTiles(
     const sameLevel = level === keyLevel(key);
 
     // Steht auf halber Strecke etwas in Kopfhöhe? Dann ist es eine Wand, und
-    // zwar egal, wie hoch die beiden Böden liegen.
+    // zwar egal, wie hoch die beiden Böden liegen. Gefragt wird dabei nicht
+    // ein Punkt, sondern die **Breite** der Lücke (`edgeOpen`).
     const low = Math.max(hereY, thereY) + 0.05;
-    if (index.blocks(midX, midZ, low, low + limits.height * 0.6)) {
+    if (!edgeOpen(index, midX, midZ, dir, low, low + limits.height * 0.6, limits.width)) {
       if (sameLevel) {
         setBarrier(graph, key, dir, 'solid');
         sameLevelHandled = true;
@@ -235,13 +253,28 @@ function joinTiles(
     }
 
     const id = `bake:${key}:${candidate}`;
-    if (rise > 0 && rise <= limits.climb) {
+    // **Ein Absatz ist derselbe, von welcher Seite man ihn auch ansieht.**
+    //
+    // Abgetastet werden nur zwei der vier Richtungen (N und O) — jede Grenze
+    // gehört genau einer Kachel, sonst stünde jede Wand zweimal da. Damit hing
+    // aber, ob ein Absatz eine Treppe (hin und zurück) oder ein Absprung (nur
+    // hinunter) wurde, an seiner **Himmelsrichtung**: Lag die höhere Kachel im
+    // Norden oder Osten, kam man hinauf; lag sie im Süden oder Westen, war
+    // dieselbe Stufe eine Einbahnstraße nach unten. In der halben Welt kam
+    // niemand die Rampe hinauf, die er gerade heruntergefallen war — und man
+    // suchte den Fehler in der Wegsuche, weil das Gitter ja eine Verbindung
+    // zeigte.
+    //
+    // Entschieden wird deshalb nach der **Höhe** und nicht nach der Seite: Was
+    // man hinaufkommt, geht in beide Richtungen; was zu hoch dafür ist, geht
+    // nur hinunter.
+    if (Math.abs(rise) <= limits.climb) {
       graph.addLink({
         id,
         from: key,
         to: candidate,
         kind: 'stairs',
-        cost: TILE + rise,
+        cost: TILE + Math.abs(rise),
         both: true,
         open: true,
       });
@@ -264,6 +297,56 @@ function joinTiles(
   // dann steht dort eine Wand, auch wenn niemand eine gebaut hat.
   if (!sameLevelHandled && graph.has(other)) setBarrier(graph, key, dir, 'solid');
   return links;
+}
+
+/**
+ * **Ob eine Lücke breit genug ist** — die Frage, die ein einzelner Messpunkt
+ * nicht beantworten kann.
+ *
+ * Zwischen zwei Kachelmitten lag bis hierher genau ein Prüfpunkt: die Grenze
+ * dazwischen. Steht dort nichts, war die Kachelgrenze offen — auch dann, wenn
+ * links und rechts davon je einen Meter weit eine Mauer stand und der Schlitz
+ * dazwischen zwanzig Zentimeter breit war. Auf der Karte war das ein Durchgang,
+ * in der Welt eine Wand mit einem Guckloch, und der Zombie davor lief so lange
+ * dagegen, bis jemandem auffiel, dass er durch eine Wand *wollte*.
+ *
+ * Deshalb wird jetzt **quer zur Laufrichtung** abgetastet: vom Mittelpunkt aus
+ * nach beiden Seiten, bis etwas kommt oder die Kachel zu Ende ist. Was
+ * dazwischen frei bleibt, ist die Lücke — und sie ist erst eine, wenn `width`
+ * hindurchpasst.
+ *
+ * Gemessen wird nur der Streifen **um die Mitte herum**: Eine freie Ecke am
+ * Rand der Kachelgrenze nützt niemandem, der von Kachelmitte zu Kachelmitte
+ * läuft.
+ */
+export function edgeOpen(
+  index: ColumnIndex,
+  midX: number,
+  midZ: number,
+  dir: Dir,
+  low: number,
+  high: number,
+  width: number,
+): boolean {
+  if (index.blocks(midX, midZ, low, high)) return false;
+  // Die Grenze läuft quer zur Richtung: nach Norden und Süden liegt sie in X,
+  // nach Osten und Westen in Z.
+  const alongX = dir === DIR_N || dir === DIR_S;
+  const reach = TILE / 2;
+  let free = 0;
+  for (const side of [-1, 1] as const) {
+    let open = reach;
+    for (let offset = EDGE_STEP; offset <= reach + 1e-9; offset += EDGE_STEP) {
+      const x = alongX ? midX + side * offset : midX;
+      const z = alongX ? midZ : midZ + side * offset;
+      if (!index.blocks(x, z, low, high)) continue;
+      // Bis zum letzten Punkt, von dem man weiß, dass er frei war.
+      open = offset - EDGE_STEP;
+      break;
+    }
+    free += open;
+  }
+  return free >= width;
 }
 
 /** Setzt eine Sperre, ohne eine schon vorhandene Tür zu überbauen. */
@@ -296,11 +379,19 @@ export function floorsAt(index: ColumnIndex, x: number, z: number, height: numbe
     let buried = false;
     let ceiling = Infinity;
     for (const box of over) {
-      // **Vergraben**: Der Deckel liegt mitten in einem anderen Kasten. Das ist
-      // der Sand *unter* dem Podest, das darauf steht — man kommt dort nicht
-      // hin, und wer ihn mitzählt, legt die Kachel eines Podests auf den Boden
-      // daneben und wundert sich, warum niemand hinaufsteigt.
-      if (box.minY < top - PROBE && box.maxY > top + PROBE) {
+      // **Vergraben**: Auf diesem Deckel steht etwas — er liegt mitten in einem
+      // anderen Kasten oder unmittelbar unter ihm. Das ist der Sand *unter* dem
+      // Podest, das darauf steht, und es ist das Innere jeder Wand und jedes
+      // Klotzes, der auf dem Boden steht.
+      //
+      // Die zweite Hälfte dieser Bedingung ist neu und der Grund dafür steht in
+      // der Ansicht der begehbaren Flächen: Ein Klotz, der bei y=0 anfängt,
+      // *straddelte* den Boden nicht — er saß genau darauf —, und damit blieb
+      // unter jedem Klotz und in jeder aufsitzenden Wand eine Kachel übrig, die
+      // es nicht gibt. Zugemauert war sie von allen Seiten, also lief niemand
+      // hinein; sichtbar gemacht sieht man aber sofort, dass die Karte dort
+      // Boden behauptet, wo Beton ist.
+      if (box.minY < top + PROBE && box.maxY > top + PROBE) {
         buried = true;
         break;
       }
