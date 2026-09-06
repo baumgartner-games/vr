@@ -348,9 +348,20 @@ export function fistOnGrip(fist: Fist, grip: GripInHand = STANDARD_GRIP_IN_HAND)
  *
  * Das ist der Weg für alles, dessen Griff nicht frei wählbar ist — das Rohr
  * einer Taschenlampe liegt, wo es liegt, und die Lampe hat sich danach zu
- * richten. Die `holdPosition` ist dabei nicht frei: sie ist `GRIP_HOLD_POSITION`,
- * und das Werkzeug hat seinen Griff an `gripInTool(kind, hier)` zu setzen —
- * `gripDeviation` sagt, ob es das getan hat.
+ * richten. Die `holdPosition` ist dabei nicht frei, sondern folgt daraus, wo
+ * der Griff **im Werkzeug** sitzt: `holdPosition + (aim · holdRotation) ·
+ * gripPosition` muss die Mitte des Halterzylinders in der Hand treffen, und
+ * die ist die Null (`STANDARD_GRIP_IN_HAND`). Ein Werkzeug, das den Griff bei
+ * `gripInTool(hier)` anbaut, bekommt so `GRIP_HOLD_POSITION` —
+ * `gripDeviation` sagt, ob es das getan hat; eines, dessen Griff im eigenen
+ * **Ursprung** liegt (das Batterierohr der Taschenlampe, `POLE_GRIP`), bekommt
+ * die Null.
+ *
+ * Und was dabei aus der Zielrichtung wird, ist die Sache dessen, der es
+ * benutzt: eine Drehung, die einen Griff auf den Zylinder legt, dreht das
+ * Werkzeug mit. Bei der Taschenlampe sind das 77°, und sie leuchtet seitdem
+ * das Rohr entlang statt den Zeigestrahl entlang — gewollt, denn man hält eine
+ * Lampe wie das Gerät und dreht das Handgelenk.
  */
 export function holdForGrip(gripRotation: Quat): Quat {
   return normalize(

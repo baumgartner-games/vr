@@ -177,11 +177,11 @@ export const GRIP_HAND_POSE: HandPose = {
  * `POLE_GRIP`). Ein Stab hat kein Vorne, also zeigt hier kein Finger etwas an:
  * **alle** Finger sind in der Faust, und die Faust steht ungeschwenkt — die
  * Daumenseite zur Spitze, die Handfläche innen am Stab, wie man einen Hammer
- * hält. Zwei Werkzeuge werden so gehalten, und deshalb ist es **eine** Faust:
- * der Stiel des **Hammers** und das Batterierohr der **Taschenlampe** (der
- * Pinsel liegt auf demselben Stab, aber von oben gehalten —
- * `BRUSH_HAND_POSE`; das Messer lag eine Weile auch hier und steht jetzt mit
- * dem Standardgriff in der Faust). Vorher stand am Hammer die
+ * hält. Gehalten wird so der Stiel des **Hammers** (der Pinsel liegt auf
+ * demselben Stab, aber von oben gehalten — `BRUSH_HAND_POSE`; das Messer lag
+ * eine Weile auch hier und steht jetzt mit dem Standardgriff in der Faust; das
+ * Batterierohr der **Taschenlampe** ebenfalls, bis es auf den Halterzylinder
+ * der Hand gelegt wurde — siehe `TOOL_FISTS`). Vorher stand am Hammer die
  * allgemeine Faust, und die lag **quer** zum Stiel: die Handfläche stand wie ein
  * Brett auf der Stange, die Finger schlossen sich neben ihr um Luft.
  */
@@ -396,7 +396,13 @@ export const DRONE_HAND_POSE: HandPose = {
  */
 export const TOOL_FISTS: Readonly<Record<string, HandPose>> = {
   hammer: POLE_HAND_POSE,
-  flashlight: POLE_HAND_POSE,
+  // Die **Taschenlampe** liegt mit ihrem Batterierohr genau auf dem
+  // Halterzylinder der Hand (`FlashlightTool`) — derselbe Ort, dieselbe Achse,
+  // dieselbe Dicke. Also dieselbe Faust wie an der Pistole, wie beim Hals der
+  // Sektflasche weiter unten; in `STANDARD_GRIP_TOOLS` steht sie trotzdem
+  // nicht, denn sie *baut* keinen Standardgriff an und zielt als einziges
+  // Werkzeug nicht entlang des Zeigestrahls, sondern das Rohr entlang.
+  flashlight: GRIP_HAND_POSE,
   brush: BRUSH_HAND_POSE,
   drone: DRONE_HAND_POSE,
   stopwatch: STOPWATCH_HAND_POSE,
@@ -444,10 +450,13 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   'xray',
   // Der Lötkolben trägt den Griff quer unter sich, wie eine Lötpistole. Die
   // Taschenlampe tat das eine Weile auch — „eine Lampe mit Griff wie ein
-  // Megaphon" — und liegt jetzt wieder als **Stab** in der Faust, am
-  // Batterierohr (`TOOL_FISTS`), genauso der Pinsel an seinem Stiel und die
-  // Stoppuhr an ihrem Rand. Der Hängegleiter hing auch hier und wird jetzt an
-  // seiner **Querstange** gehalten (`GLIDER_HAND_POSE`).
+  // Megaphon" — und liegt jetzt als **Stab** in derselben Faust: ihr
+  // Batterierohr *ist* der Halterzylinder der Hand (`TOOL_FISTS`). In dieser
+  // Liste steht sie trotzdem nicht, denn sie baut keinen Standardgriff an und
+  // zielt nicht entlang des Zeigestrahls, sondern das Rohr entlang. Der Pinsel
+  // liegt an seinem Stiel, die Stoppuhr an ihrem Rand. Der Hängegleiter hing
+  // auch hier und wird jetzt an seiner **Querstange** gehalten
+  // (`GLIDER_HAND_POSE`).
   'welder',
   // Das Messer: der Griff steht in der Faust, die Klinge ragt oben heraus.
   'knife',
@@ -605,7 +614,9 @@ export const STICKY_FINGER_MOVES: FingerMoves = {
 /** Die Werkzeuge, deren Finger sich anders bewegen als am Standardgriff. */
 export const TOOL_FINGER_MOVES: Readonly<Record<string, FingerMoves>> = {
   hammer: POLE_FINGER_MOVES,
-  flashlight: POLE_FINGER_MOVES,
+  // Die Taschenlampe liegt in der Faust am Standardgriff und fehlt hier
+  // deshalb: ihr Zeigefinger liegt am Rahmen und krümmt sich auf den Schalter,
+  // wie an jedem Abzug (`GRIP_FINGER_MOVES`).
   brush: BRUSH_FINGER_MOVES,
   stopwatch: STOPWATCH_FINGER_MOVES,
   'gravity-glove': WORN_FINGER_MOVES,

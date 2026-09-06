@@ -136,6 +136,10 @@ describe('Der Griff sitzt, wo die Liste ihn hinschreibt', () => {
     // lag. Ein Werkzeug darf schräg in der Hand liegen — der Inspektor kippt
     // sein Display um 23° zum Kopf —, aber ein halbes Rechteck ist keine
     // Neigung mehr, sondern eine andere Richtung.
+    //
+    // Die Lampe zielt inzwischen wieder daneben, und zwar mit Absicht: ihr
+    // Rohr deckt den Halterzylinder der Hand, sie *baut* aber keinen
+    // Standardgriff an und steht deshalb nicht in dieser Liste.
     for (const id of STANDARD_GRIP_TOOLS) {
       const tool = BUILDERS[id]!();
       const angle = 2 * Math.acos(Math.min(1, Math.abs(tool.holdRotation.w)));

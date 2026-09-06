@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
-import { POLE_HOLD_POSITION } from './poleGrip';
+import { POLE_GRIP } from './poleGrip';
+import { holdForGrip } from './gripFit';
 import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
 import { playSwitch } from '../../../core/Audio';
 import {
@@ -43,6 +44,11 @@ const _inverse = new THREE.Matrix4();
  * Narrow is bright and reaches far, wide is soft and short — `flashlightBeam.ts`
  * works that out and is tested on its own.
  *
+ * **Gehalten wie das Gerät selbst**: das Batterierohr liegt genau auf dem
+ * Halterzylinder der Hand, und deshalb folgt der Kegel dem **Rohr** und nicht
+ * dem Zeigestrahl — wer leuchten will, dreht das Handgelenk, wie an einer
+ * echten Lampe. Die Zahlen dazu stehen im Konstruktor.
+ *
  * The spot light stays in the scene when the torch is off; it is turned down
  * to zero instead of being hidden, because three.js rebuilds every shader in
  * the room when the number of lights changes, and a torch that stutters the
@@ -74,17 +80,28 @@ export class FlashlightTool extends Tool {
     this.icon = 'flashlight';
     this.accent = 0xffd88a;
     this.hint = 'Trigger schaltet · andere Hand an der Linse stellt den Kegel';
-    // **Eine Stabtaschenlampe**: das Batterierohr liegt in der Faust, und es
-    // *ist* der Griff — dort, wo die Batterien sind, in Greiffarbe, ein Stab
-    // wie der Stiel des Hammers (`POLE_GRIP`, `POLE_HAND_POSE`). Eine Weile war
-    // sie eine „Lampe mit Griff": das Rohr über der Faust und der Standardgriff
-    // quer darunter wie an einem Megaphon. Das sah nach einem Megaphon aus.
+    // **Eine Stabtaschenlampe**, und das Batterierohr *ist* der Griff — dort,
+    // wo die Batterien sind, in Greiffarbe, ein Stab wie der Stiel des Hammers
+    // (`POLE_GRIP`). Eine Weile war sie eine „Lampe mit Griff": das Rohr über
+    // der Faust und der Standardgriff quer darunter wie an einem Megaphon.
     //
-    // Und sie leuchtet trotzdem dorthin, wohin man zeigt: der Stab liegt auf der
-    // z-Achse, und die *ist* der Zeigestrahl (`aim.ts`). Was am alten Stabgriff
-    // 30° danebenging, war nicht das Rohr in der Faust, sondern ein Rohr auf der
-    // *Faustachse*; hier liegt es quer durch die Faust, wie ein Hammerstiel.
-    this.holdPosition.set(POLE_HOLD_POSITION.x, POLE_HOLD_POSITION.y, POLE_HOLD_POSITION.z);
+    // **Und das Rohr liegt genau dort, wo das Gerät in der Faust liegt** — auf
+    // dem Halterzylinder der Hand (`STANDARD_GRIP_IN_HAND`), Achse auf Achse,
+    // Mitte auf Mitte. Das ist die eine Sache, die eine Taschenlampe von jedem
+    // anderen Werkzeug unterscheidet: man hält sie *wie den Controller* und
+    // dreht dann das Handgelenk dorthin, wo es hell werden soll. `holdForGrip`
+    // rechnet die Drehung dazu aus (77,4° Nicken), und die `holdPosition`
+    // bleibt die Null, weil der Stabgriff im Ursprung des Werkzeugs sitzt und
+    // der Halterzylinder im Griffpunkt.
+    //
+    // Sie zielt deshalb **nicht** entlang des Zeigestrahls, als einziges
+    // Werkzeug: der Strahl gehört dem Gerät, das Licht dem Rohr, und die
+    // beiden stehen 77° auseinander. Vorher lag das Rohr auf dem Strahl und
+    // quer durch die Faust — die Lampe leuchtete dorthin, wohin man zeigte,
+    // und die gezeichnete Hand stand dafür 77° gegen die eigene verdreht.
+    const held = holdForGrip(POLE_GRIP.rotation);
+    this.holdPosition.set(0, 0, 0);
+    this.holdRotation.set(held.x, held.y, held.z, held.w);
 
     const body = new THREE.MeshStandardMaterial({
       color: 0x2b3242,

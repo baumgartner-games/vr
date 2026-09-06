@@ -127,7 +127,9 @@ darüber gewinnt) und dass sie **wirklich um den Griff liegt**
 zur Griffachse einen Millimeter genau, und die **Fingerlinie auf der
 Grifflinie**: der Zeigefinger liegt gestreckt am Rahmen und zeigt den Lauf
 entlang, die Hand steht dafür 17° schräg am Griff; dazu dieselbe Rechnung um
-den **Stab** (Hammer, Taschenlampe — eine Faust für zwei),
+den **Stab** (Hammer), dasselbe Rohr auf dem **Halterzylinder der Hand**
+(die Taschenlampe: Achse auf Achse, Mitte auf Mitte, dieselbe Faust wie an der
+Pistole — und ein Kegel, der dem Rohr folgt statt dem Zeigestrahl),
 den **Griff der Drohne**, die **Kante der Stoppuhr**, den **Saum des Beutels**,
 die **Querstange des Hängegleiters** und den **Handgriff des Controllers** (aus dem
 Modell des Herstellers abgelesen: entlang der Z-Achse des Griffraums), an beiden
@@ -435,9 +437,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     aus. Das Messer hat einen: den **Standardgriff**, senkrecht in der Faust
     wie ein Pistolengriff, mit derselben Faust darum; die Klinge ragt oben aus
     der Faust heraus, entlang der Griffachse, die Schneide nach vorn
-    (`tools/KnifeTool.ts`). Eine Weile lag es als **Stab** quer durch die Faust
-    wie die Taschenlampe, die Klinge auf dem Zeigestrahl — so hält man eine
-    Lampe, kein Messer; um 90° gekippt also. Die
+    (`tools/KnifeTool.ts`). Eine Weile lag es als **Stab** quer durch die Faust,
+    wie die Taschenlampe damals, die Klinge auf dem Zeigestrahl — so hält man
+    eine Lampe, kein Messer; um 90° gekippt also. Die
     Id heißt `knife`; im Kurzcode steht es auf dem Platz des Sterns.
   - **Großer Hammer**: ein Meter Stange, vorn ein Kopf aus Eisen — und das
     erste Werkzeug, das man **irgendwo** anfassen kann. Der türkise Belag am
@@ -495,14 +497,23 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     (`STOPWATCH_HAND_POSE`). Und das **Zifferblatt schaut zum Kopf** (+z) —
     lange schaute es nach vorn wie ein Lauf, und man sah den Zeiger nie.
   - **Taschenlampe**: eine **Stabtaschenlampe** — das Batterierohr liegt in
-    der Faust, und es _ist_ der Griff, in Greiffarbe, ein Stab wie der Stiel
-    des Hammers (`POLE_HAND_POSE`). Eine Weile war sie eine „Lampe mit Griff",
-    das Rohr über der Faust und der Standardgriff quer darunter; das sah aus
-    wie ein Megaphon. Davor lag ihr Rohr schon einmal in der Faust, aber auf
-    der _Faustachse_, und dafür bezahlte sie mit einem Kegel, der 30° über das
-    hinwegging, worauf man zeigte (siehe _Ein Griff für alle Werkzeuge_). Jetzt
-    liegt der Stab **quer durch die Faust auf dem Zeigestrahl**, wie ein
-    Hammerstiel, und leuchtet dorthin, wohin man zeigt.
+    der Faust, und es _ist_ der Griff, in Greiffarbe. Es liegt genau dort, wo
+    das **Gerät** in der Faust liegt: auf dem Halterzylinder der Hand
+    (`STANDARD_GRIP_IN_HAND`), Achse auf Achse und Mitte auf Mitte, gerechnet
+    mit `holdForGrip` (77,4° Nicken, `holdPosition` null). Also dieselbe Faust
+    wie an der Pistole (`GRIP_HAND_POSE`), und der Zeigefinger liegt am
+    Rahmen, wo der Schalter ist.
+
+    Sie ist damit das **einzige Werkzeug, das nicht entlang des Zeigestrahls
+    zielt**: der Strahl gehört dem Gerät, das Licht dem Rohr, und die beiden
+    stehen 77° auseinander. Das ist gewollt und keine liegengebliebene
+    Messung — eine Taschenlampe hält man wie das Gerät selbst und dreht dann
+    das Handgelenk dorthin, wo es hell werden soll. Vorher lag das Rohr quer
+    durch die Faust auf dem Zeigestrahl: die Lampe leuchtete dorthin, wohin man
+    zeigte, und die gezeichnete Hand stand dafür 77° gegen die eigene verdreht,
+    zu sehen auf der Werkzeugseite unter _Hand in echt_. Und davor war sie eine
+    „Lampe mit Griff", das Rohr über der Faust und der Standardgriff quer
+    darunter; das sah aus wie ein Megaphon.
     **Trigger** schaltet sie an und aus. Der **Lichtkegel**
     wird mit der _anderen_ Hand eingestellt: vorne an die Linse greifen (der
     Ring leuchtet, sobald die Hand nah genug ist) und mit gedrücktem Griff nach
@@ -1997,9 +2008,12 @@ die einzige Ausnahme von der Regel, dass jedes Werkzeug entlang des Strahls
 zielt, und niemand hatte sie beschlossen — sie fiel bei einer Messung an und
 blieb liegen. Lampe, Lötkolben und Hängegleiter trugen danach denselben Griff
 quer unter sich, wie eine Lampe mit Griff oder eine Lötpistole, und zielten
-wieder dorthin, wohin man zeigt — die Lampe liegt inzwischen wieder als Stab in
-der Faust (dazu unten), der Hängegleiter an seiner Querstange, und der
-Lötkolben ist geblieben.
+wieder dorthin, wohin man zeigt — der Hängegleiter hängt inzwischen an seiner
+Querstange, und der Lötkolben ist geblieben. Die **Lampe** liegt wieder als
+Stab in der Faust, und zwar auf dem Halterzylinder der Hand (dazu unten): sie
+leuchtet damit erneut neben dem Zeigestrahl her, jetzt aber, weil das
+beschlossen ist — man hält eine Taschenlampe wie das Gerät und dreht das
+Handgelenk, und was daran zählt, ist der Kegel und nicht der Strahl.
 
 **Warum sich die Zielkorrektur dabei herauskürzt** — und warum das die ganze
 Sache erst möglich macht: Ein gehaltenes Werkzeug liegt bei `(holdPosition,
@@ -2096,11 +2110,12 @@ eine eigene dazu. `fistOnGrip` nimmt dafür den Zylinder als zweites Argument
 Griffs im Werkzeug), und die beiden Zylinder stehen dort, wo sie hingehören:
 der **Stab** als `POLE_GRIP` in `poleGrip.ts` (die z-Achse durch den
 Griffpunkt, die Daumenseite zur Spitze, die Handfläche innen — so hält man
-einen Hammer), und ihn tragen **zwei**: der Stiel des Hammers und das
-Batterierohr der Taschenlampe, beide mit derselben
-`holdPosition` (`POLE_HOLD_POSITION`) und derselben Faust (`POLE_HAND_POSE`);
-das Messer lag eine Weile auch darauf und steht jetzt mit dem Standardgriff in
-der Faust.
+einen Hammer): den trägt der **Stiel des Hammers** mit `POLE_HOLD_POSITION` und
+`POLE_HAND_POSE`. Das **Batterierohr der Taschenlampe** ist derselbe Stab,
+liegt aber nicht mehr an derselben Stelle: es deckt den Halterzylinder der
+Hand, und deshalb hält es die Faust am Standardgriff (siehe oben).
+Das Messer lag eine Weile auch auf dem Stab und steht jetzt mit dem
+Standardgriff in der Faust.
 Der **Stiel des Pinsels** liegt auf demselben Stab mit derselben
 `holdPosition` — und ist als einziger **keine Faust**: er wird wie ein Stift
 gehalten (`BRUSH_HAND_POSE`, siehe unten).
@@ -2177,7 +2192,10 @@ legt das Maßband an — inzwischen zweiundzwanzig Stück. Es prüft dort gleich
 Zweite mit: dass **jedes** Werkzeug mit Griff entlang des Zeigestrahls zielt.
 Eine Neigung darf sein (das Drohnendeck kippt zum Kopf), ein
 halbes Rechteck ist keine Neigung mehr, sondern eine andere Richtung — genau
-das war die Taschenlampe.
+das war die Taschenlampe. Sie zielt inzwischen wieder woanders hin, und zwar
+mit Absicht (siehe oben); dass die Regel sie nicht mehr fasst, ist der Preis
+dafür, dass sie keinen Standardgriff _anbaut_ und deshalb nicht in der Liste
+steht.
 
 #### Die Faust gehört zum Griff
 
