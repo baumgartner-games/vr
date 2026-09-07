@@ -1,15 +1,34 @@
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
-import { climbHall, HALL } from './climbHall';
+import { climbHall, hallUpperWalls, HALL } from './climbHall';
 import { ClimbHud } from './ClimbHud';
 import { TextPlane } from '../../ui/TextPlane';
 import { GRAB_GLOW, GRAB_TINT_EMISSIVE } from '../../core/colors';
-import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
-import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
+import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 import { holdColor, holdLabel, type HoldFeature, type HoldMaterial } from './holds';
 import { gripReport, seatOf, type ClimbPose, type HandGrip } from './gripQuality';
 import { GRAB_AT, SLIP_AT, freshStamina, stepStamina, type Stamina } from './stamina';
 import { fatigueTick, landingBuzz, slipTick, ticksBetween } from './gripHaptics';
+import {
+  PAD_HEIGHT,
+  PAD_LOAD_GAP,
+  PAD_MAX_DRIVE_TIME,
+  PAD_REST,
+  overPad,
+  padAtRest,
+  padCatches,
+  padDrive,
+  padHit,
+  padRise,
+  padSlide,
+  padTop,
+  padTurned,
+  rampBox,
+  stepPad,
+  RAMP_THICK,
+  type PadRect,
+  type PadSpring,
+} from './crashPad';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
 import type { MenuEntry } from '../../ui/menu';
@@ -64,6 +83,8 @@ import { gripAnchor } from '../../core/XRInput';
 
 /** Innenmaße der Halle. */
 
+/** Die Farbe der Hallenwand — gerastert wie gebaut, siehe `buildShell`. */
+const HALL_WALL = 0xb9c2d2;
 /** Wie weit eine Hand neben einem Griff noch zupacken darf. */
 const REACH = 0.11;
 /** Wie schnell einen die Arme höchstens ziehen dürfen. */
@@ -92,30 +113,25 @@ const DECK_GAP = 0.9;
 /** Halbmesser des Stahlrohrs, aus dem sie besteht. */
 const TOPOUT_TUBE = 0.028;
 /**
- * **Wie viel Luft unter ihrer waagerechten Strecke bleibt.**
- *
- * Zwei Meter, und die sind gemessen und nicht geschätzt: Die Strecke läuft
- * über das Podest hinweg, also genau dort, wo man nach dem Ausstieg steht und
- * herumläuft. Vorher lag sie 1,70 m über dem Blech — abzüglich Rohr blieben
- * keine 1,67 m, und wer aufrecht steht, ging mit dem Kopf dagegen und musste
- * sich ducken. Zwei Meter freie Höhe ist Türsturzmaß: Da geht jeder drunter
- * durch, ohne den Kopf einzuziehen.
- */
-const TOPOUT_CLEAR = 2;
-/**
  * **Wie hoch die Ausstiegshilfe über ihrem Podest liegt.**
  *
- * Nicht bis zur Kante, sondern gut zwei Meter darüber, und das ist der ganze
- * Trick am Aussteigen: Wer sich an einem Griff auf Podesthöhe hochzieht,
- * hängt am Ende **an** der Kante — die Füße baumeln im Schacht, und der Boden
- * ist zwar in Reichweite, aber nicht unter einem. Erst ein Griff über
- * Kopfhöhe über dem Blech lässt einen so weit hochziehen, dass die Füße über
- * dessen Oberkante kommen. Und wer oben steht, hat ihn immer noch in der Hand.
+ * Nicht bis zur Kante, sondern deutlich darüber, und das ist der ganze Trick
+ * am Aussteigen: Wer sich an einem Griff auf Podesthöhe hochzieht, hängt am
+ * Ende **an** der Kante — die Füße baumeln im Schacht, und der Boden ist zwar
+ * in Reichweite, aber nicht unter einem. Erst ein Griff weit über dem Blech
+ * lässt einen so weit hochziehen, dass die Füße über dessen Oberkante kommen.
  *
- * Die Zahl ist die Mitte des Rohrs, `TOPOUT_CLEAR` ist die Luft darunter —
- * deshalb steht hier die Summe und keine zweite gerundete Zahl.
+ * **Und die Zahl misst sich am Hangeln, nicht am Hochziehen.** 1,70 m waren zu
+ * wenig: Der Körper hängt an seinen Händen (`driveBody`), also liegen die Füße
+ * so weit unter dem Holm, wie die Hand über ihnen steht — bei aufgestrecktem
+ * Arm gut zwei Meter. An einem Holm auf 8,20 m baumelten die Beine damit auf
+ * 6,10 m, also **unter** der Podestkante bei 6,50 m: Man stieß mit den Knien
+ * gegen das Blech, statt sich darunter hinüberzuhangeln. `REACH_HANG` ist
+ * diese Armlänge, `TOPOUT_CLEAR` die Handbreit Luft darüber.
  */
-const TOPOUT_ABOVE = TOPOUT_CLEAR + TOPOUT_TUBE;
+const REACH_HANG = 2.15;
+const TOPOUT_CLEAR = 0.35;
+const TOPOUT_ABOVE = REACH_HANG + TOPOUT_CLEAR;
 /** Wie weit ihre waagerechte Strecke über die Podestkante hereinreicht. */
 const TOPOUT_OVER = 1;
 /** Abstand der Sprossen entlang der Leiter. */
@@ -128,36 +144,20 @@ const TOPOUT_OFF = 0.1;
 const TOPOUT_REACH = 0.1;
 
 /**
- * **Das Landekissen** — die dicke Matte, auf die man von oben herunterspringt.
+ * **Die Farbe der Sprungkissen** — und warum sie nicht die des Bodens ist.
  *
- * Sie liegt unter der Innenkante des linken Podestschenkels, und zwar dort und
- * nicht vor der Rauwand: Die Vorderkante des großen Podests hat ein Geländer,
- * der Schenkel keines. Wer oben ankommt und wieder herunter will, geht drei
- * Schritte nach rechts und springt — sechseinhalb Meter, und unten ist etwas
- * Weiches.
- *
- * Weich ist sie nicht in der Physik: Die Kapsel des Spielers landet auf einer
- * festen Fläche wie auf jeder anderen. Weich ist die **Sicht**
- * (`viewSink.ts`) — sie sinkt beim Aufprall ein und federt zurück. Das ist der
- * Unterschied zwischen einer Matte und einem Betonboden, und in der Brille ist
- * es der einzige, den man überhaupt wahrnehmen kann.
+ * Der Hallenboden ist schon eine Matte (`tint`, `floor`), und ein Kissen in
+ * derselben Farbe wäre von oben eine Fläche unter vielen. Von einem Podest auf
+ * 6,50 m sieht man aber genau eine Sache nach: **wohin darf ich springen**.
+ * Also ein kräftigeres, helleres Blau, das aus zehn Metern Höhe noch als
+ * eigenes Ding zu erkennen ist, und die Anlauframpe in einem dunkleren Ton
+ * daneben — sonst wäre der Keil Teil des Kissens und man liefe von oben
+ * darüber hinaus.
  */
-const PAD = {
-  x: -6.5,
-  z: -3.5,
-  halfX: 2,
-  halfZ: 2.5,
-  thick: 0.45,
-};
-/** Oberkante des Kissens — die Hallenmatte liegt auf null. */
-const PAD_TOP = PAD.thick;
-/**
- * Ab welcher Fallgeschwindigkeit sich das Einsinken lohnt, in m/s.
- *
- * Darunter ist es kein Sprung, sondern ein Schritt — und ein Boden, der bei
- * jedem Schritt nachgibt, ist kein Kissen, sondern ein Wackelpudding.
- */
-const PAD_MIN_SPEED = 2.5;
+const PAD_FACE = 0x3a76d8;
+const PAD_RAMP = 0x24487f;
+/** Wie breit die Rampe ist, über die man auf ein Kissen hinaufkommt. */
+const RAMP_W = 1.8;
 
 /** Aus der Wand heraus — im Rahmen einer Ausstiegshilfe. */
 const OUTWARD: readonly [number, number, number] = [0, 0, 1];
@@ -183,6 +183,34 @@ interface Hold {
   normal: THREE.Vector3;
 }
 
+/**
+ * Ein aufgebautes Sprungkissen: sein Rechteck auf dem Boden, der Quader, den
+ * man sieht, der Körper, auf dem man steht — und die Feder, die beide jedes
+ * Bild neu hinstellt (`crashPad.ts`).
+ */
+interface Pad {
+  rect: PadRect;
+  mesh: THREE.Mesh;
+  body: PhysicsBody;
+  /** Mitte des Rechtecks; der Körper wird nur noch in der Höhe verschoben. */
+  x: number;
+  z: number;
+  spring: PadSpring;
+}
+
+/**
+ * Ein laufendes Aufkommen: Solange es dauert, führt das Kissen den Körper und
+ * nicht die Schwerkraft.
+ */
+interface Landing {
+  pad: Pad;
+  /** Der waagerechte Schwung des Sprungs — er läuft im Kissen aus. */
+  slideX: number;
+  slideZ: number;
+  /** Sekunden seit dem Einschlag, allein für die Notbremse. */
+  time: number;
+}
+
 /** Eine Hand, die gerade an der Wand hängt. */
 interface Grasp {
   hold: Hold;
@@ -206,6 +234,8 @@ const _point = new THREE.Vector3();
 const _down = new THREE.Vector3(0, -1, 0);
 const _feet = new THREE.Vector3();
 const _seat = new THREE.Vector3();
+const _drop = new THREE.Vector3();
+const _cushion = new THREE.Vector3();
 
 export class ClimbWorld extends GridWorld {
   private readonly holds: Hold[] = [];
@@ -222,10 +252,19 @@ export class ClimbWorld extends GridWorld {
   private lockedByUs = false;
   /** Ob der rechte Stick für die nächste Rastdrehung wieder scharf ist. */
   private turnArmed = true;
-  /** Ob der Spieler gerade in der Luft war — sonst ist Landen kein Ereignis. */
-  private airborne = false;
-  /** Und wie schnell es dabei höchstens nach unten ging, in m/s. */
-  private fallSpeed = 0;
+  /** Die Sprungkissen der Halle (`crashPad.ts`). */
+  private readonly pads: Pad[] = [];
+  /** Das Aufkommen, das gerade läuft — höchstens eines, es gibt ja einen Körper. */
+  private landing: Landing | null = null;
+  /**
+   * Das höchste Falltempo seit dem letzten Bodenkontakt, in m/s.
+   *
+   * Gemerkt, weil die Reihenfolge im Bild gegen uns läuft: Die Fortbewegung
+   * rechnet **vor** der Welt (`App`), und wer in derselben Frame aufkommt, hat
+   * seine Fallgeschwindigkeit schon verloren, bevor das Kissen davon erfährt.
+   * Ein Kissen, das dann mit 0 m/s zupackt, ist eine Bodenplatte mit Farbe.
+   */
+  private fell = 0;
 
   private readonly rock = new THREE.MeshStandardMaterial({
     color: 0x7d7367,
@@ -248,16 +287,25 @@ export class ClimbWorld extends GridWorld {
     metalness: 0.35,
   });
   private readonly wood = new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.85 });
-  /** Das Landekissen — auffällig rot, damit man es von oben sieht. */
+  /** Der Bezug der Sprungkissen: mattes Planenblau, kein Glanz. */
   private readonly cushion = new THREE.MeshStandardMaterial({
-    color: 0xc0392b,
-    roughness: 1,
+    color: PAD_FACE,
+    roughness: 0.94,
     metalness: 0,
   });
-  /** Sein heller Rand: derselbe Ton wie die Matte der Halle. */
-  private readonly cushionEdge = new THREE.MeshStandardMaterial({
-    color: 0x35577a,
-    roughness: 1,
+  private readonly wedge = new THREE.MeshStandardMaterial({
+    color: PAD_RAMP,
+    roughness: 0.94,
+    metalness: 0,
+  });
+  /**
+   * Die Hallenwand über Zimmerhöhe — dieselbe Farbe, die `tint` den gerasterten
+   * Wänden darunter gibt. Eine andere wäre auf 2,80 m Höhe eine Naht quer durch
+   * die ganze Halle.
+   */
+  private readonly hallWall = new THREE.MeshStandardMaterial({
+    color: HALL_WALL,
+    roughness: 0.9,
     metalness: 0,
   });
 
@@ -295,6 +343,9 @@ export class ClimbWorld extends GridWorld {
     this.hud = null;
     this.hudEntry = null;
     this.holds.length = 0;
+    this.pads.length = 0;
+    this.landing = null;
+    this.fell = 0;
     this.lit.clear();
     this.skins.clear();
     this.shapes.clear();
@@ -305,7 +356,10 @@ export class ClimbWorld extends GridWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.updateClimb(dt, ctx);
-    this.watchLanding(ctx);
+    // Nach dem Klettern und nicht davor: Wer in dieser Frame zugepackt hat,
+    // hängt an seinen Händen, und ein Kissen, das ihn gleichzeitig führen
+    // wollte, zöge in zwei Richtungen.
+    this.updatePads(dt, ctx);
   }
 
   override menu(): MenuEntry[] {
@@ -353,7 +407,7 @@ export class ClimbWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Kletterhalle · Greifen hält dich an der Wand · unten im Blick: Ausdauer und Halt';
+    return 'Kletterhalle · Greifen hält dich an der Wand · von oben in die blauen Sprungkissen';
   }
 
   /** Nichts am Gürtel: Wer klettert, will beide Hände frei haben. */
@@ -366,13 +420,22 @@ export class ClimbWorld extends GridWorld {
     this.backToTheMat();
   }
 
+  /** Unter diesem Namen liegt die Welt im Speicher (`grid/worldStore.ts`). */
+  protected override worldId(): string {
+    return 'climb';
+  }
+
+  protected override editorTitle(): string {
+    return 'Kletterhalle';
+  }
+
   protected override layout(): GridPlan {
     return climbHall();
   }
 
   /** Matte und Hallenwand — der Rest der Halle ist gebaut, nicht gerastert. */
   protected override tint(): Partial<Record<PlanSolidKind, number>> {
-    return { floor: 0x35577a, wall: 0xb9c2d2 };
+    return { floor: 0x35577a, wall: HALL_WALL };
   }
 
   protected override buildEnvironment(): void {
@@ -391,7 +454,7 @@ export class ClimbWorld extends GridWorld {
     this.buildSmoothWall(hall);
     this.buildChimney(hall);
     this.buildDecks(hall);
-    this.buildPad(hall);
+    this.buildPads(hall);
     this.buildBanner(hall);
     this.buildProps();
   }
@@ -399,14 +462,26 @@ export class ClimbWorld extends GridWorld {
   // --- die Halle ------------------------------------------------------------
 
   /**
-   * **Das Licht über der Halle** — mehr ist hier nicht mehr zu tun.
+   * **Die oberen Stockwerke und das Licht** — mehr ist hier nicht mehr zu tun.
    *
    * Matte, Decke und die vier Wände kommen aus dem Grundriss (`climbHall.ts`);
-   * sie waren sechs `slab()`-Aufrufe und sind jetzt vier Zeilen. Was hier
-   * bleibt, sind die Lampen: Eine Halle ohne Licht von oben sieht aus wie eine
+   * sie waren sechs `slab()`-Aufrufe und sind jetzt vier Zeilen.
+   *
+   * Zwei Dinge bleiben. Erstens die **Wand über Zimmerhöhe**: Eine Wand aus dem
+   * Gitter ist 2,80 m hoch, diese Halle ist zehn. Wer unten steht, merkt davon
+   * nichts; wer auf den Podesten bei 6,50 m ankommt, stand bisher vor einer
+   * offenen Kante. Wo die Quader liegen, rechnet `hallUpperWalls` aus — hier
+   * werden sie nur noch hingestellt, in der Farbe der Wände darunter
+   * (`tint`).
+   *
+   * Und zweitens die Lampen: Eine Halle ohne Licht von oben sieht aus wie eine
    * Höhle, und man sieht die Griffe nicht, um die es hier geht.
    */
   private buildShell(hall: THREE.Group): void {
+    for (const band of hallUpperWalls()) {
+      this.slab(hall, this.hallWall, band.size, band.centre, false);
+    }
+
     for (const [x, z] of [
       [-7, -4],
       [7, -4],
@@ -668,114 +743,113 @@ export class ClimbWorld extends GridWorld {
   }
 
   /**
-   * **Das Landekissen** — die Matte, auf die man von oben herunterspringt.
+   * **Die Sprungkissen** — der Weg nach unten, und der einzige Ort in dieser
+   * Halle, an dem ein Fall nicht in einem Bild endet.
    *
-   * Ein Quader, ein Rand und ein Schild; die ganze Arbeit steckt woanders.
-   * Physikalisch ist es eine feste Fläche wie jede andere, denn eine Matte, in
-   * die der Körper wirklich einsänke, wäre eine Kapsel, die im Boden steckt —
-   * und aus der käme sie so schlecht wieder heraus wie aus jeder anderen
-   * Fläche, in der sie steckt. Nachgeben tut deshalb nur die **Sicht**
-   * (`watchLanding`, `viewSink.ts`), und das ist auch das Einzige, was man
-   * überhaupt spürt.
+   * Oben auf den Podesten steht man sechseinhalb Meter über der Matte, und
+   * jeder nimmt von dort denselben Weg zurück: springen. Bis hierher endete er
+   * auf einer Bodenplatte — zehn Meter in der Sekunde, und im nächsten Bild
+   * steht der Kopf still. Das ist in der Brille kein Aufkommen, sondern der
+   * kürzeste Weg zur Übelkeit: Das Auge meldet eine Vollbremsung, die der
+   * Gleichgewichtssinn nicht mitbekommen hat. Was dagegen hilft, ist nicht
+   * weniger Fall, sondern ein **Ende, das eine Weile dauert** — und genau das
+   * steht in einer echten Halle auch dort: ein großes Kissen, in das man
+   * einsinkt (`crashPad.ts` rechnet, wie tief und wie lange).
    *
-   * Der helle Rand ringsum ist kein Zierrat: Von sechseinhalb Metern Höhe
-   * sieht man einen roten Quader auf einer blauen Matte schlecht, eine Kante
-   * gut. Wer springt, will vorher wissen, wo er hinkommt.
+   * **Wo sie liegen, entscheiden die Podestkanten und nicht die Wände.** Ein
+   * Kissen am Wandfuß wäre eine Bouldermatte; die verschluckte die untersten
+   * Griffe jeder Route und man finge 1,20 m über dem Boden an zu klettern.
+   * Diese beiden liegen deshalb frei in der Halle, jedes vor der Vorderkante
+   * der Podeste, von denen aus gesprungen wird: das große vor Rauwand, Riss
+   * und Kamin, das zweite vor Überhang und Glattwand. Von oben sieht man sie
+   * als die beiden hellblauen Flächen, und mehr Anleitung braucht es nicht.
+   *
+   * **Und eine Rampe je Kissen**, sonst käme man nie wieder hinauf: Der Körper
+   * steigt Stufen bis 32 cm (`PhysicsLocomotion`, Autostep), ein Kissen ist
+   * 1,40 m hoch. Ein Keil von 25° ist flacher als alles, was diese Fortbewegung
+   * hinaufkommt, und ein Bauteil statt einer Treppe aus vier.
    */
-  private buildPad(hall: THREE.Group): void {
-    const width = PAD.halfX * 2;
-    const depth = PAD.halfZ * 2;
-    this.slab(hall, this.cushion, [width, PAD.thick, depth], [PAD.x, PAD_TOP / 2, PAD.z], false);
+  private buildPads(hall: THREE.Group): void {
+    // Vor Rauwand und Riss: Die Vorderkante ihres Podests liegt bei z = −5,
+    // gesprungen wird nach Süden. Nach Osten hin schließt es bündig an die
+    // Westwand des Kamins an (x = −0,875) — ein Schlitz dazwischen sähe aus
+    // wie eine Ritze, in die man fällt.
+    this.pad(hall, { minX: -9.4, maxX: -0.88, minZ: -5.3, maxZ: -1.1 });
+    // Und das zweite vor Überhang (Podestkante z = −3,9) und Glattwand
+    // (Kante x = 8). Es fängt erst bei x = 2,9 an: Davor steht die Tafel des
+    // Kamins, und der Streifen dazwischen ist der Weg zu seinem Einstieg.
+    this.pad(hall, { minX: 2.9, maxX: 7.9, minZ: -4, maxZ: 1.6 });
 
-    // Der Rand: vier flache Leisten auf der Oberkante, einen Hauch darüber,
-    // damit sie nicht in der Fläche darunter flimmern. Bloße Netze, kein
-    // `slab` — was acht Millimeter dick ist, hat weder in der Physik noch
-    // unter den Flächen etwas zu suchen, auf die man zielt.
-    const edge = 0.16;
-    const y = PAD_TOP + 0.004;
-    for (const [size, at] of [
-      [
-        [width, 0.008, edge],
-        [PAD.x, y, PAD.z - PAD.halfZ + edge / 2],
-      ],
-      [
-        [width, 0.008, edge],
-        [PAD.x, y, PAD.z + PAD.halfZ - edge / 2],
-      ],
-      [
-        [edge, 0.008, depth - edge * 2],
-        [PAD.x - PAD.halfX + edge / 2, y, PAD.z],
-      ],
-      [
-        [edge, 0.008, depth - edge * 2],
-        [PAD.x + PAD.halfX - edge / 2, y, PAD.z],
-      ],
-    ] as const) {
-      const strip = new THREE.Mesh(
-        new THREE.BoxGeometry(size[0], size[1], size[2]),
-        this.cushionEdge,
-      );
-      strip.position.set(at[0], at[1], at[2]);
-      hall.add(strip);
-    }
+    this.padRamp(hall, -5.5, -1.1, 1.9);
+    this.padRamp(hall, 5.4, 1.6, 4.6);
 
-    // Ein Pfosten, damit das Schild nicht in der Luft hängt.
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.5, 8), this.steel);
-    post.position.set(PAD.x, PAD_TOP + 0.75, PAD.z + PAD.halfZ + 0.12);
-    hall.add(post);
-
-    this.sign(hall, [PAD.x, PAD_TOP + 1.35, PAD.z + PAD.halfZ + 0.14], 0, 1.6, {
-      title: 'Landekissen',
-      body: 'Von oben herunterspringen ist hier vorgesehen: Der Schenkel des Podests darüber hat kein Geländer. Unten sinkt man kurz ein und kommt wieder hoch.',
-      accent: 0xff6b5a,
+    this.sign(hall, [-5.5, 2.6, 2.4], 0, 2.4, {
+      title: 'Sprungkissen',
+      body: 'Der Weg nach unten: von der Podestkante hinunterspringen. Das Kissen gibt nach, der Blick läuft aus statt anzuschlagen — und schiebt dich wieder heraus. Zurück hinauf geht es über die Rampe.',
+      accent: PAD_FACE,
     });
   }
 
   /**
-   * **Weich landen.** Wer von oben auf das Kissen fällt, sinkt kurz ein und
-   * federt zurück, statt im Aufprallbild stehenzubleiben.
+   * Ein Kissen: ein Quader, den man sieht, und ein **kinematischer** Körper,
+   * auf dem man steht.
    *
-   * Die Fallgeschwindigkeit muss **mitgeschrieben** werden, solange man noch
-   * fällt: Im Bild der Landung ist sie längst null — die Physik hat sie
-   * gelöscht, dafür ist sie da. Gemerkt wird die schnellste des ganzen Sturzes
-   * und nicht die letzte; die letzte ist bei einem Aufprall, der sich über
-   * zwei Bilder verteilt, schon die halbe.
+   * Kinematisch und nicht fest, denn darin steckt der ganze Trick: Der Körper
+   * wird jedes Bild um die Einsinktiefe nach unten gesetzt (`showPad`), und
+   * damit ist die Fläche, auf der der Spieler steht, selbst in Bewegung. Der
+   * Quader darüber wird dabei gestaucht — was einsinkt, wird flacher, sonst
+   * stünde man in der Luft über einem Kissen, das aussieht wie immer.
    *
-   * Und es zählt nur, wer wirklich in der Luft war. Ohne das löste jeder
-   * Schritt über eine Kante das Kissen aus — der Körper ist zwischen zwei
-   * Schritten ständig für ein Bild nicht am Boden.
+   * Der Collider behält seine volle Höhe und wandert nur mit; unten schaut er
+   * dabei in die Bodenplatte hinein, und das ist genau richtig: Seine
+   * **Oberkante** ist die Fläche, um die es geht.
    */
-  private watchLanding(ctx: WorldContext): void {
-    const loco = ctx.rig.locomotion;
-    if (!(loco instanceof PhysicsLocomotion)) return;
+  private pad(hall: THREE.Group, rect: PadRect): void {
+    const x = (rect.minX + rect.maxX) / 2;
+    const z = (rect.minZ + rect.maxZ) / 2;
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(rect.maxX - rect.minX, PAD_HEIGHT, rect.maxZ - rect.minZ),
+      this.cushion,
+    );
+    mesh.name = 'crash-pad';
+    mesh.position.set(x, PAD_HEIGHT / 2, z);
+    hall.add(mesh);
+    mesh.updateWorldMatrix(true, false);
 
-    if (!loco.grounded) {
-      this.airborne = true;
-      this.fallSpeed = Math.max(this.fallSpeed, -loco.velocity.y);
-      return;
-    }
-
-    const speed = this.fallSpeed;
-    this.fallSpeed = 0;
-    if (!this.airborne) return;
-    this.airborne = false;
-    if (speed < PAD_MIN_SPEED || !this.onThePad(ctx)) return;
-
-    ctx.rig.softLanding(speed);
-    // Ein kurzer, weicher Stoß in beide Hände: Das Kissen soll man auch dann
-    // merken, wenn man beim Fallen die Augen zumacht.
-    const punch = THREE.MathUtils.clamp(speed / 12, 0.2, 0.55);
-    for (const side of HANDS) ctx.input.get(side)?.pulse(punch, 90);
+    this.solids.push(mesh);
+    const body = this.physics!.addKinematic(mesh, {
+      membership: GROUP_WORLD,
+      filter: ALL_GROUPS,
+      friction: 0.95,
+      restitution: 0,
+    });
+    this.pads.push({ rect, mesh, body, x, z, spring: padAtRest() });
   }
 
-  /** Stehen die Füße gerade auf dem Kissen? */
-  private onThePad(ctx: WorldContext): boolean {
-    ctx.rig.getHeadPosition(_head);
-    return (
-      Math.abs(_head.x - PAD.x) <= PAD.halfX &&
-      Math.abs(_head.z - PAD.z) <= PAD.halfZ &&
-      Math.abs(ctx.rig.getFloorY() - PAD_TOP) < 0.35
-    );
+  /**
+   * Die Rampe auf ein Kissen: ein flach gekippter Quader, dessen **Oberseite**
+   * von der Kissenkante bis auf den Boden läuft.
+   *
+   * Wo er dafür liegen muss, rechnet `rampBox` — ohne three.js und mit Test,
+   * denn eine Rampe, die zwanzig Zentimeter neben ihrer Kante anschließt,
+   * sieht man erst im Headset und findet sie dann nirgends.
+   *
+   * @param edgeZ Die Kissenkante, an der sie oben anschließt
+   * @param footZ Und wo sie unten auf dem Boden ankommt (weiter im Süden)
+   */
+  private padRamp(hall: THREE.Group, x: number, edgeZ: number, footZ: number): void {
+    const box = rampBox(edgeZ, footZ);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(RAMP_W, RAMP_THICK, box.length), this.wedge);
+    // Um +x gedreht zeigt die lokale Oberseite nach oben und nach Süden — die
+    // Rampe fällt also von der Kissenkante zum Boden hin ab.
+    mesh.rotation.x = box.slope;
+    mesh.position.set(x, box.centreY, box.centreZ);
+    mesh.name = 'crash-pad-ramp';
+    hall.add(mesh);
+    mesh.updateWorldMatrix(true, false);
+
+    this.solids.push(mesh);
+    this.physics!.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS, friction: 0.95 });
   }
 
   /**
@@ -931,7 +1005,7 @@ export class ClimbWorld extends GridWorld {
   private buildBanner(hall: THREE.Group): void {
     this.sign(hall, [0, 4, 2.4], 0, 4.4, {
       title: 'Kletterhalle',
-      body: 'Greifen hält dich an der Wand — überall, nicht nur an vorgesehenen Stellen. Am unteren Bildrand: die Ausdauer, links und rechts daneben der Halt jeder Hand. Über dem oberen Strich erholst du dich, unter dem unteren rutschst du ab. Oben geht jede Route zwischen Wand und Podest hindurch: senkrecht die Leiter hoch, über die Kante hinaus, und dann an ihren Holmen entlang aufs Podest — anfassen kannst du sie überall.',
+      body: 'Greifen hält dich an der Wand — überall, nicht nur an vorgesehenen Stellen. Am unteren Bildrand: die Ausdauer, links und rechts daneben der Halt jeder Hand. Über dem oberen Strich erholst du dich, unter dem unteren rutschst du ab. Oben geht jede Route zwischen Wand und Podest hindurch: senkrecht die Leiter hoch, über die Kante hinaus, und dann an ihren Holmen entlang aufs Podest — anfassen kannst du sie überall. Hinunter geht es über die blauen Sprungkissen: Sie federn den Fall ab, statt ihn anzuhalten.',
       accent: GRAB_GLOW,
     });
   }
@@ -1163,6 +1237,109 @@ export class ClimbWorld extends GridWorld {
     this.hud?.setValues(this.stamina.value, report.left, report.right);
   }
 
+  /**
+   * **Ein Bild Sprungkissen** — nachsehen, wer wo aufkommt, die Federn
+   * fortschreiben und den Körper mitnehmen, solange er einsinkt.
+   *
+   * Die eigentliche Sache dabei ist der **Zeitpunkt**: Die Fortbewegung
+   * rechnet vor der Welt, also ist der Spieler in dem Bild, in dem wir seinen
+   * Aufprall sehen könnten, oft schon gestoppt. Deshalb zwei Wege ans Tempo —
+   * ein Bild **Vorhalt** (`padCatches` fängt, wer im nächsten Bild ohnehin im
+   * Kissen stünde) und das gemerkte Falltempo (`fell`) als Netz darunter.
+   *
+   * Und dann führt das Kissen den Körper: über den **Flugmodus**
+   * (`setFlight`), dieselbe Tür, durch die auch das Klettern geht. Nur bis zum
+   * tiefsten Punkt — danach steigt die Fläche wieder, und eine Fläche, die von
+   * unten kommt, hebt einen von selbst an. Der Umkehrpunkt ist der beste
+   * Moment zum Loslassen, den es gibt: Dort steht der Körper still.
+   */
+  private updatePads(dt: number, ctx: WorldContext): void {
+    if (dt <= 0 || this.pads.length === 0) return;
+    const host = this.host;
+
+    ctx.rig.getHeadPosition(_head);
+    const feet = ctx.rig.getFloorY();
+    const under = this.padAt(_head.x, _head.z);
+
+    // Wie schnell fällt er? Während das Kissen führt, ist die Geschwindigkeit
+    // unsere eigene — dann sagt sie nichts über einen Sturz aus.
+    let speed = 0;
+    if (host && !this.landing) {
+      host.playerVelocity(_drop);
+      speed = Math.max(this.fell, -_drop.y);
+      this.fell = host.onGround() ? 0 : speed;
+    }
+
+    // Wer an der Wand hängt, wird von seinen Händen geführt (`driveBody`).
+    if (this.grasps.size > 0) this.landing = null;
+
+    if (!this.landing && host && under && this.grasps.size === 0) {
+      if (padCatches(feet - padTop(under.spring), speed, dt)) {
+        under.spring = padHit(under.spring, speed);
+        this.landing = { pad: under, slideX: _drop.x, slideZ: _drop.z, time: 0 };
+        this.fell = 0;
+        // Ein weicher, langer Stoß in beide Hände — die Rückmeldung eines
+        // Kissens ist keine, die klopft.
+        const buzz = Math.min(0.55, speed / 22);
+        if (buzz > 0.08) for (const side of HANDS) ctx.input.get(side)?.pulse(buzz, 140);
+      }
+    }
+
+    // Die Federn: Wo jemand steht, sinkt das Kissen auf seine Ruhelage; wo
+    // niemand steht, kommt es wieder hoch.
+    for (const pad of this.pads) {
+      const loaded =
+        pad === under && (this.landing?.pad === pad || feet - padTop(pad.spring) <= PAD_LOAD_GAP);
+      pad.spring = stepPad(pad.spring, loaded ? PAD_REST : 0, dt);
+      this.showPad(pad);
+    }
+
+    const landing = this.landing;
+    if (!landing || !host) return;
+
+    landing.time += dt;
+    const slide = padSlide(dt);
+    landing.slideX *= slide;
+    landing.slideZ *= slide;
+    _cushion.set(
+      landing.slideX,
+      padDrive(feet - padTop(landing.pad.spring), padRise(landing.pad.spring)),
+      landing.slideZ,
+    );
+    host.setFlight(_cushion);
+
+    if (padTurned(landing.pad.spring) || landing.time > PAD_MAX_DRIVE_TIME) {
+      host.setFlight(null);
+      this.landing = null;
+      this.fell = 0;
+    }
+  }
+
+  /** Das Kissen, über dem dieser Punkt liegt — oder keines. */
+  private padAt(x: number, z: number): Pad | null {
+    for (const pad of this.pads) if (overPad(pad.rect, x, z)) return pad;
+    return null;
+  }
+
+  /**
+   * Ein Kissen hinstellen, so hoch wie es gerade ist: Der Quader wird
+   * gestaucht, der Körper darunter wandert mit.
+   *
+   * Beides bleibt dabei bündig, weil der Collider seine **volle** Höhe behält
+   * und nur um die Einsinktiefe nach unten geht — seine Oberkante liegt damit
+   * genau dort, wo auch die des gestauchten Quaders liegt.
+   */
+  private showPad(pad: Pad): void {
+    const height = PAD_HEIGHT - pad.spring.sink;
+    pad.mesh.scale.y = height / PAD_HEIGHT;
+    pad.mesh.position.y = height / 2;
+    pad.body.body.setNextKinematicTranslation({
+      x: pad.x,
+      y: PAD_HEIGHT / 2 - pad.spring.sink,
+      z: pad.z,
+    });
+  }
+
   /** Was die Hände tun: zupacken, loslassen, und was in Reichweite liegt. */
   private readHands(ctx: WorldContext): void {
     for (const controller of ctx.input.controllers) {
@@ -1302,6 +1479,8 @@ export class ClimbWorld extends GridWorld {
     if (!ctx) return;
     for (const side of HANDS) this.letGo(ctx, side, false);
     this.releaseRig(ctx);
+    this.landing = null;
+    this.fell = 0;
     this.stamina = freshStamina();
     this.teleportPlayerTo(this.spawnPoint(), this.spawnYaw());
     ctx.notify('Zurück auf der Matte');

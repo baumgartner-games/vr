@@ -167,6 +167,15 @@ export class DarkWorld extends GridWorld {
     return { floor: 0x6b6f78, wall: 0x9aa0ad, wood: 0x8a6440 };
   }
 
+  /** Unter diesem Namen liegt die Welt im Speicher (`grid/worldStore.ts`). */
+  protected override worldId(): string {
+    return 'dark';
+  }
+
+  protected override editorTitle(): string {
+    return 'Dunkelhaus';
+  }
+
   protected override layout(): GridPlan {
     return darkHouse();
   }

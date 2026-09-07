@@ -119,24 +119,20 @@ statt sofort zu laufen und ihren Anlauf verliert, sobald der Halt wieder
 wegrutscht) und der **Vibration**, die dazu in die Hand geht
 (`src/worlds/climb/gripHaptics.ts` — guter Halt kurz und hart, schlechter
 schwach und lang, das Ticken schneller statt lauter; und dass beim Zupacken
-selbst nicht getickt wird, weil dort schon der Schlag saß), die **Federung der
-Sicht beim Landen** (`src/core/viewSink.ts` — dass sie einsinkt und wieder
-hochkommt, dass sie dabei über die Ruhelage hinausschießt, weil ein Kissen
-genau daran zu erkennen ist, dass sie nie tiefer nachgibt als das Kissen dick
-ist, dass ein Bild von einer halben Sekunde die Feder nicht sprengt und dass
-zwanzig Bilder in der Sekunde an derselben Stelle landen wie neunzig), die
+selbst nicht getickt wird, weil dort schon der Schlag saß), die **Federung
+der Sprungkissen** (`src/worlds/climb/crashPad.ts` — dass ein Sturz vom
+höchsten Podest das Kissen nicht durchschlägt, dass der Blick dabei trotzdem
+mindestens eine Zehntelsekunde in Bewegung bleibt statt in einem Bild
+anzuhalten, dass eine Feder dafür genau richtig ist, weil ihre Zeit nach unten
+**nicht** am Aufpralltempo hängt — anders als jede feste Bremsstrecke, die den
+harten Sturz umso härter bremst —, dass sie bei 45 Hz dasselbe tut wie bei 120,
+und dass die Rampe oben an der Kissenkante und unten auf dem Boden ankommt und
+dabei flacher bleibt als das, was der Körper noch hinaufsteigt), die
 **Laufrichtung** (`src/core/walkFrame.ts` — dass die Blickrichtung beim
 Loslaufen gemerkt wird und der Kopf danach frei ist, dass sie beim Loslassen
 wieder vergessen wird, dass der Snap-Turn sie mitdreht, und die Zeile, wegen
 der es diesen Test gibt: **null ist eine gemerkte Richtung wie jede andere** —
-nach Norden loszulaufen darf nicht heißen, dass gar nichts gemerkt wurde), die
-**Draufsicht auf der Bauplatzkarte**
-(`src/worlds/editor/mapPaper.ts` — dass beide Achsen denselben Maßstab
-bekommen, weil ein gestreckter Grundriss einen Gang breiter aussehen lässt, als
-er ist, und dass Norden oben liegt), die **Gegenstände im Grundriss**
-(`src/worlds/editor/planProps.ts` — fortlaufende Kennungen, die nach dem
-Löschen nicht wiederverwendet werden, das Stehen auf dem Boden, und ein
-Speicherstand, in dem eine Sorte steht, die es nicht mehr gibt), der
+nach Norden loszulaufen darf nicht heißen, dass gar nichts gemerkt wurde), der
 **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
@@ -144,11 +140,22 @@ und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 Physik jeden Treffer verschluckt), die Zielrichtung der Werkzeuge
 (`src/worlds/portal/tools/aim.ts` — der Test hält fest, dass ein Werkzeug in
 der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber), die
-**Kart-Werte** (`src/worlds/kart/kartSettings.ts`), die **Fahrphysik**
+**Kart-Werte** (`src/worlds/kart/kartSettings.ts` — samt der Regel, dass das
+Standardkart auf jeder Raste sitzt), die **Fahrphysik**
 (`src/worlds/kart/kartDynamics.ts` — Höchstgeschwindigkeit, Ausrollen,
-Rückwärtsgang, Lenken erst ab Tempo, Driften bei wenig Traktion), die
-**Streckenführung** (`src/worlds/kart/kartTrack.ts` — Spline, nächster Punkt,
-Leitplanke, Rundenzähler über die Ziellinie hinweg), das **Pizza-Rezept**
+Rückwärtsgang, Lenken erst ab Tempo, Driften bei wenig Traktion und der
+**Schlupf**, mit dem Vollgas und Vollbremsung den Seitenhalt auffressen), die
+**Streckenteile** (`src/worlds/kart/kartCourse.ts` — Geraden und Kurven auf dem
+Kachelgitter, jede Naht auf einer ganzen Kachel, und dass die Runde sich
+schließt), die **Boxengasse** (`src/worlds/kart/kartPit.ts` — ein Boden statt
+tausend Kacheln, eine Säule je Lücke, Mauern überall außer an der Ausfahrt),
+der **Nachlauf des Kopfes** (`src/worlds/kart/kartView.ts` — dass der Blick der
+Lenkung folgt statt an ihr festzuhängen, dass eine Ausweichbewegung innerhalb
+der Totzone ihn gar nicht erst bewegt, dass der Drehratendeckel greift, wo er
+greifen soll, dass er den kurzen Weg um den Vollkreis nimmt und nie weiter als
+der harte Deckel zurückbleibt), die **Streckenführung**
+(`src/worlds/kart/kartTrack.ts` — nächster Punkt, Leitplanke, Boxengasse und
+Rundenzähler über die Ziellinie hinweg), das **Pizza-Rezept**
 (`src/worlds/shop/pizza.ts` — Kneten, Belegen, Backen, Punkte), das
 **Werkzeug-Budget pro Gürtelplatz**
 (`src/worlds/portal/tools/looseBudget.ts` — dass eine Waffe links und eine
@@ -220,6 +227,26 @@ und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
 die **Welt-Physik**
 (`src/core/worldPhysics.ts` — Rasten, Grenzen, und dass „Welt-Standard" die
 Schwerkraft der Welt gewinnen lässt statt einer einmal getippten Zahl), die
+**Grafikstufen** (`src/core/graphicsSettings.ts` — vor allem die eine Zusage,
+auf der alles andere steht: dass „Einfach" _nichts_ einschaltet und damit genau
+das Bild von vorher ist, und dass ein gespeicherter Stand aus der abgeschafften
+Stufe _Schön_ dorthin zurückfällt) samt dem, was sie **in einer Szene**
+anrichten (`src/core/graphicsScene.ts` — wer Schatten wirft und wer nur
+empfängt, dass sich alles vollständig zurücknehmen lässt, dass Nachzügler beim
+nächsten Durchlauf abgeholt werden, und dass die Sonne mitwandert, ohne ihre
+Richtung zu drehen) und dem, was **in die Shader der Welt eingebaut** wird
+(`src/core/materialLook.ts` — Ein- und Ausbau ohne Spuren, ein eigener
+Programmschlüssel je Stufenzahl, und der eigentliche Grund für den Test: dass
+die `#include`-Zeile, an der der Umbau hängt, im echten Shader von three.js
+noch steht — eine umbenannte fiele sonst erst in der Brille auf), **wie man
+aussieht** (`src/core/appearance.ts` — dass aus fremdem Text nie eine
+Kopfbedeckung wird, die es nicht gibt), **was die Karte in der Hand zeigt**
+(`src/worlds/portal/tools/mapPlot.ts` — Norden oben und Osten rechts, der
+Ausschnitt, der mit dem Träger wandert, Wände auf ihren Kachelkanten, offene
+und geschlossene Türen, und dass ein Stockwerk gezeigt wird und nicht vier
+übereinander), **wie der Kopf im Kart der Lenkung folgt**
+(`src/worlds/kart/kartView.ts` — Totzone, Nachlauf und Drehratendeckel in
+dieser Reihenfolge, und der harte Deckel darüber), die
 **Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
 Sturz einer ist, und dass der _höchste_ Treffer gewinnt: von unten gesucht
 landet man im Keller eines Hauses, von oben auf seinem Dach), die **Dicke der
@@ -450,7 +477,27 @@ sie dasselbe rechnet wie die three.js-Gruppe, die man sieht
 (`editor/miniatureFrame.test.ts`), die **Vorfahrt beim Zugreifen**
 (`editor/reach.ts` — dass die kleine Spielfigur mitten im großen Grundriss
 gewinnt, wenn die Hand auf ihr liegt: das nächstgelegene Ding gewinnt und
-nicht das mit der größeren Blase) — und das
+nicht das mit der größeren Blase), das **Malen und die Flächen**
+(`editor/planPaint.ts` — dass zwischen zwei Bildern keine Lücke bleibt, wenn
+eine Hand über drei Kacheln fährt; dass die Himmelsrichtung des Ziels für den
+ganzen Strich gilt, weil sonst jede zweite Wand quer stünde; dass ein Rechteck
+aus **Boden** seine Fläche füllt und eines aus **Wänden** nur seinen Rand, nach
+außen gerichtet — ein gefülltes Rechteck aus Wänden wäre ein Klotz, gemeint ist
+ein Zimmer; und dass eine getroffene Kante die Ecke nicht um eine Kachel
+verschiebt), das **Gedrückthalten des Zeigers**
+(`core/pointer.test.ts` — Druck genau einmal, Halten in jedem Bild danach,
+Loslassen genau einmal, auch wenn der Strahl abrutscht oder das Ziel mitten im
+Strich abgemeldet wird), das **Weltformat**
+(`grid/worldFile.ts` — dass eine Welt mit Dach, Möbeln und eigenen Kachelkosten
+durch JSON und wieder zurück dieselbe ist; dass der Aufschlag einer Küchenzeile
+über **drei** Runden konstant bleibt, statt sich zu verdoppeln; dass eine Datei
+ohne Version, mit fremdem Format oder aus der Zukunft abgelehnt wird — und mit
+zwei *verschiedenen* Meldungen, weil „zu neu" und „zu alt" verschiedene Sachen
+sind; dass ein Baustein ohne Boden stillschweigend wegfällt, eine kaputte Masse
+dagegen abbricht) und der **Speicher dahinter**
+(`grid/worldStore.ts` — dass jede Welt ihren eigenen Schlüssel hat, dass Müll im
+Speicher weggeworfen wird statt die Welt aufzuhalten, und dass ein privates
+Fenster ohne `localStorage` ein Nein bekommt statt eines Absturzes) — und das
 **ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`, und einmal
 mit echter Physik in `labPhysics.test.ts`): dieselben
 Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
@@ -559,8 +606,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   kommt_),
   **NPC** (wer hier herumläuft — Haut und Hirn getrennt, dazu Spawnpunkte und
   Brutkäfige; siehe _Wer hier herumläuft_),
-  **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Einstellungen** und
-  die Aktionen der Welt.
+  **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Aussehen** (was man
+  auf dem Kopf trägt — siehe _Wie man aussieht_), **Grafik** (die
+  experimentelle Seite: Einfach oder Comic — siehe _Wie schön es aussieht_),
+  **Einstellungen** und die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
   `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht
   versehentlich die Hand füllt. Das Raster kommt zurück, sobald du loslässt.
@@ -1260,6 +1309,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     **nichts** — genau deshalb kann man ihn in einen wackeligen Stapel
     halten, ohne ihn umzuwerfen. Wenn eine Kiste anders fällt als erwartet,
     ist die Frage nie „wie sieht sie aus", sondern „was steht in ihr drin".
+  - **Karte**: ein Blatt in der Hand mit der Umgebung von oben — Norden oben,
+    ein Pfeil in der Mitte für einen selbst, ein Punkt je Mitspieler, Trigger
+    zoomt. Sie zeigt nirgendwohin und zielt deshalb auch nicht; gezeichnet
+    wird aus dem Kachelgitter der Welt. Ausführlich in _Die Karte in der Hand_.
   - **Teleporter**: hinzeigen, Kreis ansehen, Trigger — und dort stehen. Der
     Stick trägt einen über eine Fläche, die bis zum Horizont geht, und das ist
     eine Wanderung; die Portalwaffe kann es besser, verlangt dafür aber zwei
@@ -1425,12 +1478,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Treffer, desto höher. Beides direkt beim Schützen, ohne Laufzeit und ohne
   Entfernung, und beides an zwei Tafeln auf der Schießlinie abschaltbar
   (anschießen oder Trigger).
-- **Gokart** (experimentell): kleine Strecke mit vier Karts, jedes mit eigenem
-  Charakter und eigenem **Klemmbrett**. Lenkrad greifen setzt dich hinein,
-  rechter Trigger ist Gas, linker die Bremse, der linke Stick lenkt — oder das
-  Lenkrad selbst, wenn die erste Zeile des Klemmbretts das sagt. Aussteigen
-  steht die ganze Zeit auf einem Schild über dem Lenkrad. Rundenzeiten stehen
-  an der Strecke.
+- **Gokart** (experimentell): eine Strecke aus **Streckenteilen** auf dem
+  Kachelgitter — vier Geraden und vier Kurven mit vier verschiedenen Radien
+  (`kart/kartCourse.ts`) — und daneben eine **Boxengasse** mit vier Buchten
+  unter einem Dach, in denen die Karts stehen (`kart/kartPit.ts`). Jedes hat
+  seinen eigenen Charakter und sein eigenes **Klemmbrett**. Lenkrad greifen
+  setzt dich hinein, rechter Trigger ist Gas, linker die Bremse, der linke
+  Stick lenkt — oder das Lenkrad selbst, wenn die erste Zeile des Klemmbretts
+  das sagt. Losfahren heißt: aus der Box nach rechts auf die Gerade ziehen; eine
+  Ein- und Ausfahrt gibt es nicht, weil Gasse und Strecke kachelbündig
+  aneinander stoßen. Der **Kopf zieht der Lenkung nach**, statt an ihr
+  festzuhängen — das ist die Zeile gegen die Übelkeit, und wie weit, steht auf
+  dem Klemmbrett. Aussteigen steht die ganze Zeit auf einem Schild über dem
+  Lenkrad. Rundenzeiten stehen an der Strecke.
 - **Pizzeria** (experimentell): Küche, Thresen, Gastraum. Teig aus der Kiste auf
   den Arbeitstisch legen und mit der **Faust** flach kneten, mit der roten
   **Kelle** Soße verteilen, **Käse** darüber streuen, ab in den **Ofen** und
@@ -1460,6 +1520,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten.
+
+  Daneben hängt je Hand der **Zug an Trigger und Griff** als zwei Balken
+  (`tune/PullGauge.ts`), mit einer Marke bei der Hälfte und einer ganz oben.
+  Das sind die einzigen zwei Eingaben eines Quest-Controllers, die nicht nur an
+  oder aus sind: Das Gamepad meldet für beide einen Wert zwischen 0 und 1, und
+  WebXR sagt **getrennt davon**, ab wann die Laufzeitumgebung das ein „Drücken"
+  nennt. Beides ging vorher verloren — ein Leuchtpunkt kennt zwei Zustände, und
+  ein halb gezogener Trigger sah aus wie ein gar nicht gezogener, bis er
+  umsprang. Jetzt ist der **Balken** der Zug, der **Farbumschlag** das Drücken,
+  und auf der Tafel steht die Zahl dazu (`Trigger 65 %`, auf fünf Prozent
+  gerundet, weil jede Änderung dieser Zeile eine neue Leinwand kostet). Wer
+  wissen will, ob sein Trigger wirklich bis zum Anschlag geht oder ob der
+  Auslösepunkt zu früh liegt, sieht hier beides gleichzeitig. Die Balken hängen
+  an der Tafelwand und nicht am Modell: Das dreht sich mit der Hand mit, und
+  eine Füllstandsanzeige darauf stünde die halbe Zeit auf dem Kopf.
 
   Und darunter je Hand **eine** Tafel: was gedrückt ist, und die **Lage des
   Geräts als Zahl**, in **zwei Räumen**, denn genau dazwischen liegt die
@@ -1797,6 +1872,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   dagegen austauschbar und sehen jetzt aus wie überall sonst. Nebenbei hat die
   Halle dadurch einen Boden bekommen, auf dem ein NPC herumlaufen kann.
 
+  **Über Zimmerhöhe muss die Hülle von Hand nach** (`hallUpperWalls`). Eine
+  gerasterte Wand ist `PLAN_WALL_H` hoch, also 2,80 m — die Höhe eines
+  Zimmers; diese Halle ist **zehn Meter** hoch. Unten merkt das niemand, oben
+  jeder: Wer auf den Podesten bei 6,50 m ankam, stand zwischen offenen Kanten
+  und sah statt einer Hallenwand ins Nichts. Der fehlende Streifen sind vier
+  Quader in Wanddicke auf denselben Kachelkanten wie die Wände darunter, über
+  Eck geschlossen, damit in keiner Ecke ein senkrechter Schlitz bleibt. Eine
+  **Masse** im Grundriss (`GridPlan.mass`) ginge dafür nicht: Die deckt ein
+  Kachelrechteck ab, und die schmalste Kachel ist 2,5 m — die Wand stünde
+  mitten in den Kletterwänden, die einen guten Meter davor hängen. Gerechnet
+  wird sie in `climbHall.ts` und damit ohne Brille geprüft; hingestellt wird
+  sie in `ClimbWorld.buildShell`.
+
   **Wie das Klettern selbst funktioniert.** Jede greifende Hand bekommt einen
   **Anker** in der Welt, und der Körper wird jedes Bild so weit verschoben,
   dass die Hände wieder dort sind (`ClimbWorld.driveBody`). Zieht man die Hand
@@ -1923,8 +2011,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   passiert nichts davon außer dem Schlag beim Zupacken — eine Welt, in der auch
   das sichere Material vibriert, hat kein sicheres Material mehr.
 
-  **Die Halle** ist eine Lehrtafel: 26 × 18 m, 10 m hoch, Boden ganz aus
-  Matten, und jede Wand beantwortet genau eine Frage. **Leiterwand** (perfektes
+  **Die Halle** ist eine Lehrtafel: 25 × 20 m, 10 m hoch, Boden ganz aus
+  Matten, zwei große **Sprungkissen** davor (siehe unten), und jede Wand
+  beantwortet genau eine Frage. **Leiterwand** (perfektes
   Material, der Nullpunkt und der Weg nach oben für jeden, der erst einmal
   sehen will, wie hoch es hier ist), **Rauwand** mit einer Route von Henkeln
   über Leisten bis zu Ballen und blanken Flächen, daneben der **Riss** (eine
@@ -1954,15 +2043,20 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   1. **Ein Griff auf Podesthöhe reicht nicht.** Wer sich an der Kante
      hochzieht, hängt am Ende _an_ ihr: Die Hand ist oben, die Füße baumeln im
      Schacht, und der Boden ist zwar in Reichweite, aber nicht unter einem.
-     Deshalb geht die Hilfe über die Podestoberkante hinaus (`TOPOUT_ABOVE`) —
-     erst ein Griff über Kopfhöhe über dem Blech lässt einen so weit
+     Deshalb geht die Hilfe **2,50 m über die Podestoberkante hinaus**
+     (`TOPOUT_ABOVE`) — erst ein Griff weit über dem Blech lässt einen so weit
      hochziehen, dass die Füße über dessen Kante kommen, und wer oben steht,
-     hat ihn immer noch in der Hand. **Wie weit hinaus, sagt die Luft
-     darunter**: `TOPOUT_CLEAR` sind **zwei Meter** freie Höhe, Türsturzmaß.
-     Vorher waren es 1,70 m bis zur Rohrmitte, also keine 1,67 m Luft — und die
-     waagerechte Strecke läuft genau über das Podest hinweg, auf dem man nach
-     dem Ausstieg steht und herumläuft. Wer aufrecht ging, ging mit dem Kopf
-     dagegen.
+     hat ihn immer noch in der Hand.
+
+     **Die Zahl misst sich am Hangeln, nicht am Hochziehen**, und daran ist sie
+     beim ersten Versuch gescheitert: 1,70 m waren zu wenig. Der Körper hängt
+     an seinen Händen (`driveBody`), also liegen die Füße so weit unter dem
+     Holm, wie die Hand über ihnen steht — bei aufgestrecktem Arm gut zwei
+     Meter (`REACH_HANG` = 2,15 m). An einem waagerechten Holm auf 8,20 m
+     baumelten die Beine damit auf 6,10 m, also **unter** der Podestkante bei
+     6,50 m: Man stieß mit den Knien gegen das Blech, statt sich darunter
+     hinüberzuhangeln. Jetzt ist es die Armlänge plus eine Handbreit Luft
+     (`TOPOUT_CLEAR`).
   2. **Eine schräge Leiter steht im eigenen Weg.** Zuerst lehnte sie nach
      außen, über den Schacht — also über genau die Strecke, die der Kletterer
      nach oben nimmt —, und man stieß von unten gegen ihre Unterseite. Deshalb
@@ -1985,29 +2079,72 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Die rechte Spur der Rauwand bekommt dazu oben eine **Querung** aus drei
   Henkeln, weil die Leiter am Kopf der linken steht.
 
-  **Wer wieder hinunter will, springt** — und dafür liegt unter der Innenkante
-  des linken Podestschenkels ein **Landekissen** (`ClimbWorld.buildPad`), rot,
-  mit hellem Rand, damit man es von sechseinhalb Metern Höhe auch sieht. Dort
-  und nicht vor der Rauwand, weil die Vorderkante des großen Podests ein
-  Geländer hat und der Schenkel keines.
+  **Der Weg hinunter: die Sprungkissen** (`climb/crashPad.ts`, mit Test —
+  reine Zahlen, kein three.js). Jeder nimmt von oben denselben Weg zurück, und
+  bis vor kurzem endete er an einer Bodenplatte: Der Kopf fällt mit gut zehn
+  Metern in der Sekunde, und **im nächsten Bild steht er still**. Das ist in
+  der Brille kein Aufkommen, sondern der kürzeste Weg zur Übelkeit — das Auge
+  meldet eine Vollbremsung, von der der Gleichgewichtssinn nichts mitbekommen
+  hat, und genau diese Lücke ist es, aus der Motion Sickness entsteht. Ein
+  Fall lässt sich in VR nicht abschaffen, sein **Ende** schon. Also steht dort
+  jetzt, was in einer echten Halle auch dort steht: zwei große Kissen, 1,40 m
+  dick, in die man einsinkt.
 
-  Weich ist es dabei **nicht in der Physik**: Die Kapsel landet auf einer festen
-  Fläche wie auf jeder anderen — eine Matte, in die der Körper wirklich
-  einsänke, wäre eine Kapsel, die im Boden steckt, und aus der käme sie so
-  schlecht wieder heraus wie aus jeder anderen. Weich ist die **Sicht**
-  (`core/viewSink.ts`, mit Test): Beim Aufprall sinkt sie ein und federt
-  zurück, gefahren von einer gewöhnlichen gedämpften Feder, die absichtlich
-  unterdämpft ist — ein Kissen, das ohne Überschwingen zurückkommt, fühlt sich
-  an wie Sand. Gerechnet wird sie wie das Ducken: Das Rig geht hinunter, die
-  Füße bleiben stehen; deshalb rechnen `getFloorY` und `getHeadHeight` sie
-  wieder heraus, sonst schrumpfte der Körper beim Landen und die Kapsel mit
-  ihm. Ein Aufprall aus sechs Metern gibt gut 20 cm nach und ist in einer
-  halben Sekunde durch; ein Schritt über eine Kante löst gar nichts aus
-  (`PAD_MIN_SPEED`, 2,5 m/s). Die Fallgeschwindigkeit wird dabei **mitgeschrieben,
-  solange man noch fällt** — im Bild der Landung ist sie längst null, dafür ist
-  die Physik da.
+  **Sie sind wirklich weich und nicht nur blau.** Jedes Kissen ist eine
+  **Feder mit Dämpfer**, und seine Oberfläche ist der Boden, auf dem man steht:
+  ein **kinematischer** Körper, der jedes Bild um die Einsinktiefe nach unten
+  gesetzt wird, mit dem gestauchten Quader darüber. Wer daraufspringt, drückt
+  ihn hinunter; der Blick fährt mit, wird langsamer, kehrt um und wird wieder
+  herausgeschoben. Aus dem einen Bild werden gut acht Zehntelsekunden, und
+  keines davon ist ein Ruck.
 
-  Sonst nimmt man _Zurück auf die Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
+  **Warum eine Feder und keine Bremsstrecke.** Bei einer Feder hängt die Zeit
+  bis zum tiefsten Punkt _nicht_ am Aufpralltempo — sie ist ihre Viertelperiode
+  und damit für den Stolperer dieselbe wie für den Sprung aus sechs Metern.
+  Eine feste Bremsstrecke täte das Gegenteil: Je schneller jemand ankommt,
+  desto härter bremst sie ihn, und der Sturz vom höchsten Podest wäre der
+  einzige, bei dem es wieder schlägt. Die eine Zahl, um die es geht, ist
+  deshalb die **Kreisfrequenz** (`PAD_OMEGA` = 7 → gut anderthalb
+  Zehntelsekunden nach unten); dass ein Sprung von oben trotzdem nicht
+  durchschlägt, macht die **progressive Härte** — ein halb zusammengedrücktes
+  Kissen wehrt sich stärker als eines in Ruhe, so wie Luft in einem Sack. Die
+  Dämpfung liegt knapp unter der kritischen, damit ein Rest Rückstoß bleibt und
+  einen wieder heraushebt, ohne dass es zum Trampolin wird (Überschwinger unter
+  sieben Zentimetern).
+
+  **Geführt wird der Körper über den Flugmodus** (`setFlight`) — dieselbe Tür,
+  durch die auch das Klettern geht —, und zwar **nur bis zum tiefsten Punkt**.
+  Danach steigt die Fläche wieder, und eine Fläche, die von unten kommt, hebt
+  einen von selbst an; der Umkehrpunkt ist außerdem der Moment, in dem der
+  Körper stillsteht, also der beste zum Loslassen. Der Stick ist damit nur eine
+  gute Zehntelsekunde lang aus statt eine ganze Sekunde. Ein Problem der
+  Reihenfolge steckt darin: Die Fortbewegung rechnet **vor** der Welt (`App`),
+  wer also in derselben Frame aufkommt, hat sein Falltempo schon verloren,
+  bevor das Kissen davon erfährt — ein Kissen, das mit 0 m/s zupackt, ist eine
+  Bodenplatte mit Farbe. Deshalb zwei Wege ans Tempo: ein Bild **Vorhalt**
+  (gefangen wird, wer im nächsten Bild ohnehin darin stünde) und das gemerkte
+  Falltempo als Netz darunter.
+
+  **Wo sie liegen, entscheiden die Podestkanten und nicht die Wände.** Ein
+  Kissen am Wandfuß wäre eine Bouldermatte — die verschluckte die untersten
+  Griffe jeder Route, und man finge 1,20 m über dem Boden an zu klettern. Die
+  beiden liegen deshalb frei in der Halle, jedes vor der Vorderkante der
+  Podeste, von denen aus gesprungen wird: das große vor Rauwand und Riss
+  (bündig an die Westwand des Kamins, ein Schlitz dazwischen sähe aus wie eine
+  Ritze zum Hineinfallen), das zweite vor Überhang und Glattwand. Dazwischen
+  bleibt der Streifen zum Einstieg in den Kamin. Dazu **je eine Rampe**, sonst
+  wäre ein Kissen eine Falle: Der Körper steigt Stufen bis 32 cm (Autostep),
+  ein Kissen ist 1,40 m hoch — ein Keil von 25° ist flacher als alles, was
+  diese Fortbewegung noch hinaufkommt, und ein Bauteil statt einer Treppe aus
+  vieren.
+
+  In einer **geteilten Sitzung** rechnet jeder Client seine eigenen Kissen: Man
+  sieht das Kissen unter dem eigenen Sprung einsinken, nicht das unter dem
+  eines Mitspielers. Das ist der billige Weg und für eine Federung, die eine
+  halbe Sekunde dauert, auch der richtige.
+
+  Wer wieder hinunter will, springt in die Kissen oder nimmt _Zurück auf die
+  Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
   und keine zweiten: Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton,
   glatter den dunklen; den Rest macht die Oberfläche, denn glatter Fels glänzt
   auch. Wer im Spiel gelernt hat, dass Türkis „hier anfassen“ heißt, sucht an
@@ -2278,6 +2415,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
 | Nah Gefasstes zur anderen Hand     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
+| Grafik umstellen                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Comic)                                                                                                    | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
 | Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
 | Augenhöhe messen                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_, oder die Knöpfe an der rechten Wand im Eingaberaum                                                                      | –                                                                                               | –                    |
@@ -2313,9 +2451,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
 | Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
-| Landekissen (Kletterhalle)         | vom Podestschenkel auf die rote Matte springen — die Sicht sinkt kurz ein und federt zurück                                                                            | –                                                                                               | –                    |
-| Bauplatz: Karte                    | **Greifen** an der Hüfte nimmt sie in die Hand (Draufsicht auf den Grundriss); **Trigger** führt in den Konstruktraum und wieder heraus; Loslassen hängt sie zurück an die Hüfte | Menü → Bauen → _In den Konstruktraum_                                                          | –                    |
-| Bauplatz: Konstruktraum            | Palette an der Hüfte, Musterstücke auf dem Regal (antippen = in die Hand), Miniatur auch **auf Entfernung** greifen (hinzielen + Greifen); grüner Knopf oder Karten-Trigger führt zurück | Menü → Bauen                                                                                    | –                    |
+| Sprungkissen (Kletterhalle)        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                  | dito                                                                                            | dito                 |
 | Halt-Anzeige (Kletterhalle)        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                | dito                                                                                            | dito                 |
 | Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
 | Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
@@ -2334,10 +2470,20 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Hirn                               | Knopf/`A` öffnet das Panel (Haut, Hirn, Tempo, Leben, Käfig); zielen + Trigger setzt, was in _Setzen_ steht — oder nimmt weg, worauf du zeigst                          | –                                                                                               | –                    |
 | Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen oder darauf zeigen: Greifen holt das Ding heraus; geblättert wird mit dem **Trigger** der haltenden Hand, oder über einen der beiden Pfeile (Greifen oder Trigger) | –                                                                                               | –                    |
 | Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
+| Kart: aus der Box fahren           | Gas geben und nach rechts auf die Gerade ziehen                                                                                                                       | `W`, dann `D`                                                                                   | –                    |
 | Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
 | Kart: lenken                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                    | `A` / `D`                                                                                       | –                    |
 | Kart: aussteigen                   | `A`/`X` halten (Balken läuft voll)                                                                                                                                    | `E` halten                                                                                      | –                    |
 | Kart: Klemmbrett                   | anzielen + Trigger, Stick blättert                                                                                                                                    | anklicken                                                                                       | –                    |
+| Karte holen (Bauplatz)             | Greifen an der Hüfte, an der sie hängt                                                                                                                                | –                                                                                               | –                    |
+| Karte (Werkzeug, jede Welt)        | aus dem Regal in die Hand nehmen; **Trigger** schaltet den Maßstab weiter (20 → 40 → 80 → 160 m)                                                                       | –                                                                                               | –                    |
+| Grundriss malen                    | an der Palette eintunken, dann Trigger auf der Miniatur **halten** und ziehen — was der Zeiger überstreicht, wird gesetzt                                              | Linkstaste halten und den Blick schwenken                                                       | –                    |
+| Fläche füllen                      | Tafel am Modell → _Fläche_, dann zwei Ecken: aufziehen und loslassen, **oder** zweimal tippen. Boden füllt die Fläche, Wand zieht ihren Rand                          | dito                                                                                            | –                    |
+| Karte weglegen (Bauplatz)          | über der Hüfte loslassen, oder Menü → _Karte weglegen_ — erst dann steht das Gebaute fest da, und erst dann ist es gespeichert                                        | Menü → _Karte weglegen_                                                                         | dito                 |
+| Welt speichern / mitnehmen         | Bauplatz, Menü → _Welt sichern_: im Browser speichern, als Datei exportieren, eine Datei importieren, Gespeichertes verwerfen                                          | dito — Export und Import gehen nur hier sinnvoll                                                | dito                 |
+| Kopfbedeckung                      | Menü → _Aussehen_: ohne, Basecap, Helm, Bauhelm, Mütze, Zylinder, Krone — alle im Raum sehen sie                                                                       | dito                                                                                            | dito                 |
+| Kart: Helm                         | Klemmbrett → _Helm_: Visierrand steht fest im Blick, gegen Übelkeit                                                                                                    | dito                                                                                            | –                    |
+| Kart: Werte eintippen              | Klemmbrett → _Werte eingeben_ → Zeile, dann der Zifferblock vor dem Kopf                                                                                               | dito, mit der echten Tastatur                                                                   | –                    |
 | Pizza: Teig kneten                 | Faust auf den liegenden Teig schlagen                                                                                                                                 | –                                                                                               | –                    |
 | Pizza: Soße / Käse                 | Kelle bzw. Streuer greifen, Trigger halten                                                                                                                            | –                                                                                               | –                    |
 | Zurücksetzen                       | `B` / `Y` oder Menü                                                                                                                                                   | `R` oder Menü                                                                                   | Menü                 |
@@ -2781,12 +2927,61 @@ Waffe später gehalten wird.
 
 ### Das Gokart
 
-Ein Kart ist vier reine Module und ein bisschen Verdrahtung:
+Ein Kart ist sieben reine Module und ein bisschen Verdrahtung:
 `kartSettings.ts` (die Werte samt Bereich, Raste und Einheit — dieselbe Idee
 wie `weaponSettings.ts`), `kartDynamics.ts` (ein Schritt Fahren),
-`kartTrack.ts` (die Strecke als Mittellinie plus halbe Breite) und
-`kartRace.ts` (Runden, Reihenfolge, Tafel). Alle vier ohne
+`kartCourse.ts` (die Strecke als Liste von Bauteilen), `kartTrack.ts` (die
+Mittellinie plus halbe Breite plus die Fläche der Boxengasse), `kartPit.ts`
+(der Grundriss der Gasse), `kartView.ts` (der Nachlauf des Kopfes) und
+`kartRace.ts` (Runden, Reihenfolge, Tafel). Alle sieben ohne
 three.js und mit Jest-Test; `Kart.ts` und `KartWorld.ts` sind nur noch Blech.
+
+**Die Strecke ist gebaut und nicht gezeichnet.** Sie war einmal ein Dutzend
+Kontrollpunkte in Metern mit einem Catmull-Rom-Spline darüber — eine hübsche
+Linie, deren Lage man nur in der Brille nachsehen konnte, die nirgends am
+Raster lag, und bei der „mach die Gegengerade zwei Zellen länger" hieß, zwei
+Punkte zu verschieben und zu hoffen. Jetzt ist sie eine **Liste von Teilen**
+(`kartCourse.ts`), und ein Teil kennt drei Dinge: seine Sorte (Gerade, links,
+rechts), wie lang bzw. wie eng es ist, und wo es aufhört. Daraus folgt alles
+Übrige — Mittellinie, Ausmaße, Rundenlänge, Asphalt, Randsteine, Reifenstapel.
+
+Drei Zahlen tragen das Ganze, und alle drei sind Kacheln:
+
+- **Eine Zelle sind vier Kacheln** (10 m) — so lang ist eine Gerade.
+- **Die Fahrbahn ist vier Kacheln breit**, und der Asphalt ist **genau** so
+  breit wie der Korridor. Wäre er schmaler, läge zwischen ihm und dem Rand ein
+  Streifen, der auf dem Raster zur Strecke gehört und beim Fahren nicht — und
+  die Boxengasse daneben hätte eine unsichtbare Lücke, durch die niemand
+  hindurchkommt.
+- **Eine Kurve ist ein Viertelkreis, und ihr Radius ist ihr Versatz**: Wer mit
+  Radius `r` abbiegt, kommt `r` Kacheln weiter vorn und `r` weiter zur Seite
+  heraus. Aus dieser einen Zeile folgt, ob eine Runde sich schließt, und der
+  Test rechnet es nach, statt es zu glauben.
+
+Weil alle Maße ganze Kacheln sind, liegt **jede Naht auf einer Kachelkante** —
+und genau deshalb passen Strecke, Boxengasse und Grundriss ohne einen einzigen
+krummen Zwischenwert zusammen. Die gefahrene Bahn hat vier Kurven mit vier
+verschiedenen Radien (15, 15, 10 und 20 m): eine, die man voll fährt, zwei
+mittlere und eine enge, in der ein Kart mit wenig Traktion querstellt. Das
+Format ist bewusst das, was eine spätere **Bauwelt** bearbeiten kann: ein Teil
+anhängen, eine Kurve enger machen, eine Gerade kürzen.
+
+**Die Boxengasse** liegt kachelbündig an der Zielgeraden (`kartPit.ts`): vier
+Buchten unter einem Dach, dazwischen je eine Säule, an jeder Rückwand eine
+Portaltafel, davor der Asphalt der Gasse — und darauf die vier Karts, mit der
+Nase in Fahrtrichtung. **Eine Ein- und eine Ausfahrt gibt es nicht**, und das
+ist keine Auslassung: Die Ostkante der Gasse *ist* der Westrand des
+Streckenkorridors, die beiden Flächen berühren sich also, und wer in einer von
+beiden ist, wird nicht zurückgeschoben (`confineToCourse`). Losfahren heißt
+damit schlicht: das Lenkrad nach rechts. Nach vorn hört die Gasse auf, und dort
+steht eine Mauer — eine Grenze, die man nicht sieht, ist eine, in die man
+fährt.
+
+**Der Boden ist eine Masse und keine tausend Kacheln**, aus demselben Grund wie
+im Schießstand: Tausend Bodenplatten wären tausend Körper in der Physik für
+eine Wiese, über die man geradeaus fährt, und portalfähig kann ohnehin nur eine
+große Fläche sein. Die Navigationskarte kostet das nichts — sie wird aus der
+gebauten Geometrie abgetastet, und eine Masse ist Geometrie wie jede andere.
 
 **Zu zweit fahren.** Vier Karts standen auf dem Start, aber jeder bewegte nur
 seine eigenen: zwei Leute konnten nebeneinander herfahren, ohne voneinander
@@ -2812,6 +3007,12 @@ gebaut ist. Jetzt läuft die Welt über einen eigenen Kanal (`kart`):
 - **Was noch fehlt:** zwei Karts fahren durcheinander hindurch. Beide sind für
   die Physik kinematisch, und zwei kinematische Körper stoßen sich in Rapier
   nicht — Kegel und Kisten schieben sie weiterhin beide.
+- **Und noch etwas:** Beim Lenken mit dem *Lenkrad in der Hand* wandert die
+  virtuelle Hand um den Kranz, solange der Kopf nachzieht — das Lenkrad hängt
+  am Kart, die Hand am Rig, und die beiden drehen sich nicht mehr im selben
+  Bild. Die **Eingabe** stimmt trotzdem, weil sie gegen den Blick gemessen wird
+  (`Kart.handAngle`); es sieht nur aus, als rutschte die Hand. Wer lieber am
+  Lenkrad lenkt, stellt den Nachlauf auf `0`, und die Frage stellt sich nicht.
 
 **Das Fahrmodell** ist bewusst klein und arkadig: Gelenkt wird wie beim
 Fahrrad — Gierrate = Tempo · tan(Einschlag) / Radstand, also dreht ein
@@ -2822,12 +3023,79 @@ den Vorwärtsanteil an. Zum Rollwiderstand gehört ein konstanter Anteil, sonst
 _nähert_ sich ein losgelassenes Kart dem Stillstand nur an und kriecht
 minutenlang weiter.
 
+**Ein Reifen hat ein Budget.** Die Traktion allein beschreibt einen, der immer
+gleich gut hält — und das war der eine Punkt, an dem sich ein Kart nicht wie
+eines anfühlte. Was er längs überträgt, fehlt ihm quer: Wer aus der Kurve
+heraus voll aufs Gas geht, dreht durch; wer voll in sie hineinbremst,
+blockiert. Genau das ist der **Reifenschlupf** (`slip`, 0 bis 1). Das Gas
+dreht die Reifen dabei nur durch, _solange der Motor noch zieht_ — bei Tempo
+null am schlimmsten, bei Höchstgeschwindigkeit gar nicht mehr, weil die Kraft
+dort längst im Luftwiderstand steckt; die Bremse blockiert bei jedem Tempo
+gleich. Beides ist analog, es zählt also, wie weit der Trigger gezogen ist.
+
+Und **die Traktion reicht jetzt tiefer**: bis 0,02 statt bis 0,15. Bei 0,15
+_rutschte_ ein Kart noch nicht, es fuhr nur unpräzise; was man eigentlich will
+— eines, das die ganze Kurve quer nimmt — fängt eine Zehnerpotenz tiefer an.
+Der _Drifter_ steht dort und fährt mit vollem Schlupf.
+
+**Der Kopf ist nicht am Kart festgeschraubt** (`kartView.ts`). Vorher drehten
+sich Kart und Rig im selben Bild: physikalisch richtig — ein Kopf, der in einem
+Sitz steckt, dreht sich mit —, und trotzdem genau das, wovon einem in der
+Brille schlecht wird. Das Auge sieht die ganze Welt herumschwenken, das
+Innenohr meldet nichts dazu, und beim Lenken dauert dieser Widerspruch die
+ganze Kurve. Jetzt dreht sich das **Kart** sofort und der **Blick** hinterher.
+Das ist obendrein näher an der Wirklichkeit als das Festschrauben — wer fährt,
+lässt den Kopf in der Kurve ein Stück zurück und schaut in den Bogen hinein.
+
+**Drei Zahlen machen das aus**, alle drei auf dem Klemmbrett, und sie greifen
+in dieser Reihenfolge ineinander — jede bremst, was die vorige zugelassen hat:
+
+1. **Die Totzone** (`headDeadZone`, Grad) ist die erste Frage und die
+   wichtigste: Bis zu wie viel Grad Unterschied dreht der Kopf **gar nicht**
+   mit? Sie bestimmt nicht, _wie_ er zieht, sondern **wohin** — sein Ziel ist
+   nicht die Fahrtrichtung, sondern der Rand eines Fensters von ±`dead` um sie
+   herum. Eine kurze Ausweichbewegung links-rechts ist damit für den Blick
+   überhaupt kein Ereignis: Das Kart wackelt, der Horizont steht still.
+2. **Die Nachlaufzeit** (`headLag`, Sekunden) sagt, wie träge er dann folgt.
+   Exponentiell: nach `lag` Sekunden ist knapp zwei Drittel des Rückstands
+   aufgeholt. `0` schraubt ihn an den Rand der Totzone.
+3. **Die Drehrate** (`headTurnRate`, Grad je Sekunde) ist der Deckel darüber.
+   Der Nachlauf allein holt einen großen Rückstand mit einem großen Satz auf,
+   und genau dieser Satz ist es, der in der Brille wehtut. `0` heißt: kein
+   Deckel.
+
+Zwei Dinge hängen daran, und beide stehen im Code:
+
+- **Der Sitz kommt vom Kart, die Richtung vom Blick.** `seatDriver` schiebt den
+  Rig jeden Frame auf den Augpunkt — sofort, sonst säße man neben dem Kart —
+  und dreht ihn auf den nachlaufenden Winkel.
+- **Ein Deckel von 25°** (`MAX_LAG`), und der ist **keine** Einstellung: In
+  einer langen Kurve käme der Blick sonst quer zur Fahrtrichtung zu stehen, und
+  dann fährt man seitwärts durch die Gegend. Er ist die Grenze, an der auch ein
+  sehr langsam gestellter Kopf doch mitgenommen wird — deshalb reicht die
+  Totzone auch nur bis 20°.
+- **Das Lenkrad muss gegen den Blick gemessen werden**, nicht gegen das Kart
+  (`Kart.handAngle`). Die Hand hängt am Rig, das Lenkrad am Kart; seit sich die
+  beiden nicht mehr im selben Bild drehen, wanderte eine völlig stillgehaltene
+  Hand um die Nabe — das Lenkrad drehte sich unter ihr weg und lenkte dabei
+  weiter. Wer den Rückstand vorher aus dem Punkt herausdreht, misst wieder das,
+  was die Hand getan hat, und nichts sonst.
+
 **Die Leitplanke** ist keine Physik, sondern Geometrie: `confineToTrack` setzt
 ein Kart, das über den Rand ist, exakt auf die Kante zurück, nimmt den Teil der
 Geschwindigkeit weg, der in die Planke zeigte, und schrubbt den Rest ein wenig.
 So rutscht man an der Bande entlang statt daran zu kleben. Steht man einmal
 stumpf davor, hilft die Bremse: sie ist zugleich der Rückwärtsgang, und rückwärts
 lenkt es wieder.
+
+Darüber liegt `confineToCourse` mit **einer** Regel: Wer in irgendeiner der
+Flächen ist — Strecke oder Boxengasse —, wird nicht angefasst; wer draußen ist,
+kommt auf die **nächstgelegene** zurück. Nicht immer auf die Strecke, denn dann
+schöbe die Box einen quer über die Wiese, sobald man in ihr an die Mauer kommt.
+Die Gasse ist dabei bewusst ein **Rechteck** und keine zweite Mittellinie: Eine
+offene Linie hat zwei Enden, und dort weiß `nearestOnPath` nicht mehr, ob man
+noch daneben oder schon dahinter steht — wer zehn Meter über das Ende
+hinausfährt, hat weiter den Abstand null und rollt fröhlich über die Wiese.
 
 **Einsteigen** ist ein Griff ans Lenkrad — der Rig wird eingefroren
 (`rig.frozen`) und jeden Frame auf den Sitz gesetzt, wobei der _Kopf_ über den
@@ -2848,9 +3116,30 @@ Tempo 60 ist ein Druck zu leicht danebengegriffen. Dieselbe Zeile steht oben
 auf dem Klemmbrett, für alle, die lieber zielen. Am Rechner tut `E` dasselbe.
 
 Das **Klemmbrett** ist ein `UIPanel` am Kart: Lenkart, Beschleunigung,
-Höchstgeschwindigkeit, Bremskraft, Traktion, Gewicht, Lenkeinschlag, Radstand
+Höchstgeschwindigkeit, Bremskraft, Traktion, Reifenschlupf, Kopfnachlauf,
+Kopf-Totzone, Kopf-Drehrate, Gewicht, Lenkeinschlag, Radstand
 und Rückwärtstempo, jede Zeile schaltet auf die nächste Raste und zeigt die
-rohe Zahl daneben. Weil mehr Zeilen als Platz da sind, blättert der Stick der
+rohe Zahl daneben. Darunter zwei Zeilen, die keine Raste sind:
+
+- **Helm** — ein Schalter. Von außen sitzt eine Helmschale auf dem Kopf, die
+  alle im Raum sehen (`ctx.wear`, siehe _Wie man aussieht_); von innen steht
+  der **Visierrand fest im Blick**, während die Welt darin schwenkt. Das ist
+  der eigentliche Zweck: Übelkeit kommt daher, dass das Auge eine Bewegung
+  sieht, die das Innenohr nicht meldet, und das bewährteste Gegenmittel ist
+  etwas im Bild, das sich **nicht** bewegt. Der Rand hängt an der Kamera und
+  liegt auf `LAYER_HUD` — wie die Trefferanzeige, und aus demselben Grund: Ein
+  Rahmen, der dem Kopf ein Bild hinterherläuft, wäre das Gegenteil dessen,
+  wofür es ihn gibt, und einer, den auch die Portalkameras zeichnen, schwebte
+  als schwarzer Ring im Raum.
+- **Werte eingeben** — dieselben Zahlen, aber **getippt** statt
+  durchgeschaltet, auf dem Zifferblock vor dem Kopf (`PortalWorld.askNumber`,
+  derselbe wie bei Pistole und Greifen). Rasten sind zum Ausprobieren da: Man
+  tippt eine Zeile an und merkt am nächsten Bogen, ob es besser wurde. Was sie
+  nicht können, ist das Ende davon — wer weiß, dass sein Kart 0,62 Traktion
+  haben soll, will nicht siebenmal weiterschalten und dabei daran vorbei.
+  Dieselbe Grenze (`clampKartField`), andere Eingabe.
+
+Weil mehr Zeilen als Platz da sind, blättert der Stick der
 zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü, und wie dort bleibt das
 Brett beim Weiterschalten stehen, wo es stand. Liegt der Strahl einer
 Hand auf dem Brett, gehört _ihr_ Trigger dem Brett und nicht dem Gas — pro
@@ -4149,6 +4438,228 @@ Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` �
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
 das Portal Labor nutzt das für seine Zusatzdurchgänge.
 
+### Wie schön es aussieht
+
+_Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Beides hier ist
+ein Experiment, beides kostet Bildrate, und keines ist ab Werk an.
+
+Das Bild, das dieses Projekt immer hatte, ist **eine** von zwei Stufen und
+heißt jetzt so:
+
+- **Einfach** — flache Farben, ein Himmelsverlauf, drei Lichter, keine
+  Schatten. Nicht „sparsam", sondern _identisch_ mit vorher: Wer nichts
+  einstellt, sieht Pixel für Pixel dasselbe Bild wie gestern. Das ist keine
+  Behauptung, sondern eine Prüfbedingung — jede Zahl im einfachen Profil ist
+  der Wert, den `App` ohnehin setzt (`graphicsSettings.test.ts`).
+- **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
+  Ding, Licht, das in **Stufen** auf den Flächen liegt statt in einem Verlauf,
+  **Schatten** von der hellsten Sonne der Welt (ohne sie schwebt in einer
+  Zeichnung alles) und ein **schärferes Bild** in der Brille
+  (`framebufferScale` 1,2, Foveation 0,3 statt 1).
+
+**Es waren einmal drei.** Dazwischen stand **Schön** — Schatten,
+Spiegelungen aus einem Umgebungsbild des Weltenhimmels, schärferes Bild —, und
+daneben ein zweiter Schalter für **prozedurale Texturen**: ein Rauschen im
+Shader, das jeder Oberfläche Körnung, Farbunruhe und eine leichte Unebenheit
+gab, gerechnet aus der Weltposition statt aus einer Bilddatei. Beides ist
+wieder heraus, und zwar vollständig: die Stufe, der Schalter, das
+Umgebungsbild samt `PMREMGenerator` in `GraphicsQuality` und der ganze
+Shader-Umbau in `materialLook.ts`. Was bleibt, ist die Frage, für die es die
+Seite gibt — flach oder gezeichnet. Ein gespeicherter Stand, der noch `fancy`
+sagt, fällt beim Lesen auf _Einfach_ zurück (`clampGraphics`); ein `textures:
+true` daneben wird gelesen und nicht übernommen.
+
+#### Die schwarze Kante
+
+Eine Kontur um alles gibt es auf zwei Arten, und die naheliegende fällt hier
+aus: Ein **Nachbearbeitungsschritt** (Bild rendern, Kanten im Tiefen- und
+Normalenbild suchen) braucht einen Zwischenpuffer für das ganze Bild, und den
+gibt eine WebXR-Sitzung nicht her, ohne dass man ihr das Bild aus der Hand
+nimmt, das sie selbst für zwei Augen zusammenbaut. Also der ältere Weg, den
+Comic-Spiele seit zwanzig Jahren gehen: **die umgestülpte Hülle**
+(`core/outlineShell.ts`). Jedes Ding wird ein zweites Mal gezeichnet, in
+Schwarz, ein wenig aufgeblasen, mit den **Rückseiten** nach vorn — sichtbar
+bleibt nur der Saum, der ringsum darüber hinausragt. Kostet einen zweiten
+Zeichenaufruf pro Ding (Dust: 869 → 1824) und funktioniert in beiden Augen.
+
+Vier Dinge daran sind Erfahrung und keine Theorie:
+
+- **Geglättete Normalen.** Ein Quader aus `BoxGeometry` hat an jeder Ecke drei
+  Normalen, eine je Fläche; bläst man entlang dieser auf, fahren die Flächen
+  auseinander und die Kontur bekommt an jeder Ecke eine Lücke. Also liegt neben
+  jeder Geometrie einmalig eine **gemittelte** Normale (`bgvrOutlineNormal`) —
+  ohne die Geometrie selbst anzufassen. Über 24 000 Ecken wird das
+  übersprungen: Am Alpen-Hang fällt eine Ecke nicht auf, ein Ruckler schon.
+- **Gedeckelt auf einen Anteil des Dings.** Ein gleich breiter Saum auf dem
+  Bildschirm heißt: in der Nähe schmal, in der Ferne (in Metern) breit. Der
+  erste Versuch machte aus der **Dominoreihe im Portallabor eine Reihe
+  schwarzer Klötze** — ein Domino ist zwei Zentimeter breit, und ein Zentimeter
+  Kante ringsherum ist keine Kante mehr, sondern eine Füllung. Jetzt bekommt
+  jedes Ding höchstens ein Achtel seines eigenen Radius.
+- **Unsichtbar für alles andere.** Der Saum wirft keinen Schatten, trägt eine
+  Marke in `userData` und hat ein leeres `raycast` — sonst hätte die Hand
+  plötzlich zwei Kisten unter dem Strahl und bekäme das Kind statt der Kiste.
+  Und wer im Projekt **Objekte abschreibt**, muss ihn kennen: Das kleine Modell
+  in der Menüzeile lässt ihn aus (`denyOutline`, sonst ein schwarzer Klotz in
+  einer vier Zentimeter großen Zeile, und ein Material pro Menü-Neubau, das
+  niemand wegräumt), und die Kopie eines Props nimmt ihn heraus
+  (`stripOutlines` in `cloneVisual` — ein Klon teilt das Material und verliert
+  dabei das leere `raycast`, das ihn harmlos macht). Beide bekommen beim
+  nächsten Durchlauf ihren eigenen.
+- **Ein eigenes Material je Saum**, und ein Skelett bzw. dieselben
+  Instanzmatrizen, wo das Ding eines hat: Ein Wald aus 400 Bäumen soll 400
+  Säume haben und nicht einen am Ursprung, ein Handschuh seinen an der Hand und
+  nicht in der Grundhaltung im Raum. Geteilt wäre das Material auch nur so
+  lange heil, bis die erste Welt beim Verlassen ihren Baum abräumt
+  (`disposeTree`).
+
+Und die **Farbstufen** (`materialLook.ts`) rechnen nicht auf der fertigen
+Farbe, sondern auf dem Licht **ohne** sie: `directDiffuse` ist Beleuchtung mal
+Grundfarbe, und wer das rundet, gibt einer dunklen Kiste eine einzige Stufe und
+einer weißen fünf. Die unterste Stufe ist dabei ausdrücklich **nicht** die
+Null — mit ihr war das Portallabor, in dem das Licht aus zwei Deckenlampen
+kommt, zur Hälfte stockschwarz. Ein Boden von 60 % lässt eine dunkle Fläche
+dunkel bleiben, ohne sie auszulöschen. Die Stufenzahl steht als **Zahl im
+Quelltext** und nicht als Uniform: An ihr hängt der Programmschlüssel, und eine
+Uniform ändert den nicht. Die `#include`-Zeile von three.js, an der der Umbau
+hängt, prüft ein Test gegen den echten Shader — eine umbenannte fiele sonst
+erst in der Brille auf.
+
+Und was in der Szene passiert, steht in `core/graphicsScene.ts` — angewendet
+von `core/GraphicsQuality.ts`, das bei der **App** hängt und nicht bei einer
+Welt: Ein Schatten ist keine Eigenschaft des Portallabors, und der Hub hat gar
+kein Weltmenü, in das eine Grafikeinstellung passte.
+
+- **Die Szene wird abgelaufen, nicht die Welten geändert.** Es gibt fünfzehn
+  davon, sie werden nachgeladen, und jede müsste sonst dieselben vier Zeilen
+  selbst schreiben — die sechzehnte würde sie vergessen. Der Durchlauf ist
+  **idempotent und umkehrbar** (jeder überschriebene Wert liegt vorher unter
+  `userData`) und läuft **jede Sekunde erneut**: Ein Zombie, der nach dem
+  Umschalten aus dem Käfig kommt, hätte sonst als Einziger keinen Schatten.
+- **Eine Kulisse wirft keinen Schatten.** `markBackdrop` ist genau dafür da:
+  Der Himmel steht um alles herum, die Bodenplatte reicht bis zum Horizont, und
+  beide würden die halbe Welt verdunkeln. Empfangen dürfen sie ihn. Genauso
+  wenig wirft Durchsichtiges einen — ein Fenster mit einem Brett als Schatten
+  ist schlimmer als eines ohne.
+- **Der Schattenkasten wandert mit dem Kopf.** Eine Karte deckt 28 Meter ab,
+  die Welten reichen bis zum Horizont: Die Sonne behält exakt ihre Richtung
+  (sonst wanderten die Schatten beim Gehen), nur Lampe und Ziel rücken hinter
+  den Spieler, eingerastet auf zwei Meter — ohne das kriechen die Ränder bei
+  jedem Schritt über die Kanten, und das ist in einer Brille deutlich
+  unangenehmer als ein Schatten, der alle zwei Meter einmal springt. Gerechnet
+  wird in Weltkoordinaten, weil die Schattenkarte genau so liest; das Ziel eines
+  Richtungslichts hängt an keiner Szene, also wird seine Weltmatrix von Hand
+  gerechnet.
+- **Das Grundlicht geht mit herunter** (Hemisphären- und Umgebungslicht auf
+  0,7). Das ist der unscheinbarste Wert und der wichtigste: Ein Schatten ist
+  nur so dunkel, wie das Licht daneben hell ist, und diese Welten leuchten mit
+  1,5 aus — auf voller Stärke war der schönste Schatten ein Hauch. Weiter
+  herunter geht es nicht: Zwei Farbstufen brauchen Mitteltöne zwischen sich.
+  Lampen bleiben unangetastet: Der Dimmer im Dunkelhaus, die Deckenlampen im
+  Interaktionslabor und der Blitz einer Explosion stellen ihre Stärke selbst
+  ein.
+- **Die Schattenkarte wird einmal pro Bild bestellt** (`shadowMap.autoUpdate`
+  aus, `needsUpdate` im Loop). Spiegel und Portalsichten zeichnen die Szene
+  mehrmals; jede dieser Zeichnungen würde sie sonst neu bauen.
+
+Im **Konfig-Code steht davon nichts** (`configCode.ts`). Was ein Gerät leisten
+kann, ist keine Einstellung, die man verschickt: Ein Code aus einer Brille darf
+einem PC nicht die Schatten abschalten und einer vom PC einer Brille keine
+aufzwingen.
+
+### Wie man aussieht
+
+_Menü → Aussehen_, und es ist die erste Sorte **Kleidung** in diesem Projekt
+(`core/appearance.ts`, `core/headgear.ts`).
+
+Bis hierher sahen alle gleich aus: derselbe Körper aus Kapseln, dieselbe Farbe
+nach Gerät, ein schwarzes Visier vorn (`core/AvatarBody.ts`). Für eine
+Werkstatt geht das, für eine Sitzung mit drei Leuten nicht — wer sich
+unterscheiden will, hat sonst nur seinen Namen dafür.
+
+Angefangen wird **oben**, und zwar aus zwei Gründen. Der einfache: Ein Kopf ist
+das, was man von einem anderen Spieler zuerst sieht, und in VR schaut man
+ohnehin ständig auf Köpfe. Der bessere: Ein **Helm ist nicht nur Schmuck**,
+sondern ein Mittel gegen Übelkeit — siehe das Klemmbrett im Gokart.
+
+Sieben Sorten, aus Zylindern, Kugeln und Quadern wie alles hier: **ohne**
+(die Auslieferung), **Basecap**, **Helm**, **Bauhelm**, **Mütze**, **Zylinder**
+und **Krone**. Was eine Anzugfarbe trägt, trägt die des Trägers — ein Spieler
+hat eine Farbe und nicht drei.
+
+Drei Regeln stecken darin, und alle drei sind es wert, aufgeschrieben zu
+werden:
+
+- **Der Hut hängt am Kopf des Avatars und nicht am Körper.** Das ist der ganze
+  Trick daran: `setSelfView` blendet den Kopf aus, sobald man in den eigenen
+  Augen steckt, und nimmt den Hut damit von selbst mit. Man sieht seinen
+  eigenen im Spiegel und durch ein Portal — so wie man auch seinen eigenen
+  Körper nur dort sieht.
+- **Er gehört dem Spieler und keiner Welt.** Gespeichert wird er wie die
+  Augenhöhe und die Grafikstufe, also im Browser und nicht in einer Welt; wer
+  ihn im Hub aufsetzt, trägt ihn im Gokart auch. Eine Welt darf ihn
+  **ausleihen** (`WorldContext.wear`) — das Gokart tut es für den Helm —, und
+  `null` gibt den Kopf wieder der Einstellung zurück. Wer aussteigt, hat wieder
+  seinen eigenen Hut auf.
+- **Er geht über das Netz**, und zwar in der **Anmeldung** und nicht in der
+  Pose (`net/NetSession.ts`, Feld `hat` im `hello`). Ein Hut ändert sich einmal
+  am Abend, eine Pose zwanzigmal in der Sekunde: Wer ihn wechselt, sagt sich
+  neu an. Das Feld ist optional — eine ältere Fassung schickt es nicht mit, und
+  wer nichts sagt, geht barhäuptig. Was hereinkommt, ist fremder Text und geht
+  durch `asHeadgear`.
+
+**Von innen ist ein Helm etwas anderes als von außen.** Außen eine Schale,
+innen ein **Rahmen**: ein Kreisring vor dem Auge (`visorFrame`), dessen Loch
+aus einem halben Meter Abstand rund 90° freies Blickfeld lässt. Die Mitte des
+Bildes bleibt vollständig, außen wird es dunkel — und genau dort, am Bildrand,
+ist die schnelle Bewegung, von der einem schlecht wird. Beide haben außer dem
+Namen nichts miteinander zu tun, und deshalb sind es zwei Funktionen.
+
+### Die Karte in der Hand
+
+Ein Werkzeug im Regal, das nichts tut außer zu sagen, wo man ist
+(`portal/tools/MapTool.ts`, gerechnet in `portal/tools/mapPlot.ts`).
+
+**Sie ist mit Absicht ein Ding und keine Anzeige im Blickfeld.** Eine Minimap
+in der Ecke des Bildes ist die Antwort vom Bildschirm; in einer Brille ist sie
+das, wovon einem schlecht wird — sie klebt am Kopf, hat keine Entfernung, und
+man kann sie nicht weglegen. Eine Karte in der Hand hat all das: Man hebt sie
+an, dreht sie ins Licht, hält sie näher ans Auge und steckt sie wieder weg.
+
+**Woher sie weiß, wie die Welt aussieht: aus dem Kachelgitter**, das jede Welt
+beim Aufbau von sich selbst abtastet (`PortalWorld.bakeNavigation`) — dasselbe,
+über das auch die NPCs laufen, erreichbar über `ToolHost.navMap()`. Das ist
+keine Notlösung, sondern die einzige ehrliche Quelle: Eine zweite, eigens
+gepflegte Kartenbeschreibung je Welt wäre eine Liste, die nach der dritten
+Änderung lügt. So gibt es nichts zu pflegen — wer eine Wand baut, hat sie damit
+auf der Karte, und eine Tür, die aufgeht, geht auch dort auf.
+
+Vier Entscheidungen:
+
+- **Ein Ausschnitt und keine Übersicht.** Ein Kasten um den Träger, der mit ihm
+  wandert. Eine Karte, die immer die ganze Welt zeigt, ist in Dust ein grauer
+  Fleck und in der Kletterhalle ein Punkt. Der **Trigger** schaltet den Maßstab
+  weiter: 20 → 40 → 80 → 160 m, im Kreis. Mehr Bedienung hat sie nicht.
+- **Norden ist oben, immer.** Das Blatt dreht sich nicht mit, der **Pfeil**
+  darauf schon. Die Alternative wäre verführerisch, aber wer die Karte in der
+  Hand hält, dreht sie ohnehin selbst dorthin, wo er sie lesen will — und eine
+  Karte, die sich beim Gehen unter der Hand mitdreht, ist ein Kreisel. In der
+  Umrechnung steckt die eine Zeile, an der sich eine Karte verrät: In three.js
+  zeigt −z nach vorn, auf dem Blatt zeigt kleines _v_ nach oben.
+- **Ein Stockwerk und nicht vier übereinander.** In Dust liegen vier Etagen
+  aufeinander; übereinandergelegt wären sie ein Knäuel aus Wänden, das nichts
+  mehr sagt. Genommen wird die, auf deren Boden der Kopf am ehesten steht
+  (`nearestLevel`).
+- **Was sie zeigt, sagt etwas.** Boden als helle Felder, gesperrte Kacheln rot
+  (`NavGraph.isBlocked` — die eine Auskunft, die eine Karte geben kann und ein
+  Blick nicht), Wände schwarz, **Türen** in einer eigenen Farbe und offene
+  gestrichelt (wer vor einer Karte steht, sucht als Erstes den Ausgang),
+  Fenster dünn und blau. Dazu ein Punkt je Mitspieler aus derselben Sitzung.
+
+Gerechnet wird alles in **Blattkoordinaten** (0…1, _v_ nach unten wie auf jeder
+Leinwand) und ohne three.js, damit es ohne Brille geprüft werden kann;
+`MapTool.ts` malt nur noch.
+
 ### Was aus dem Beutel kommt
 
 Der Beutel ist die Kiste mit dem Spielzeug, und alles darin steht in
@@ -5233,33 +5744,25 @@ Springen sind. Die Karte kann längst mehr, als der Körper einlöst — sie wei
 dass eine Rampe aus 12-cm-Stufen begehbar ist (`CostProfile.stepUp`), und in
 der Brille steht er davor.
 
-### Der Bauplatz
+### Bauen, während man darin steht
 
-**Ein Level bauen, während man darin steht** (`worlds/editor/`). Die Welt
-beantwortet die Frage, die vorher unter „was noch fehlt" stand — *wie sieht man
-einen Grundriss von oben, wenn man selbst darin steht?* —, und sie tut es mit
-einem **Tischmodell**. Man setzt eine Wand am Modell, geht zurück und steht
-neben ihr — sie ist wirklich im Weg. Ein Grundriss, den man nur von oben sieht,
-hat immer zu enge Gänge; einer, in dem man steht, während man ihn zieht, nicht.
+**Jede Gitterwelt lässt sich umbauen, ohne sie zu verlassen**
+(`worlds/editor/WorldEditor.ts`). Das war einmal eine eigene Welt — der
+**Bauplatz** —, und als erste Fassung war das richtig: Man probiert eine
+Bedienung an einem Ort aus, bevor man sie überall hinhängt. Es war aber auch
+die Antwort auf die falsche Frage. Die Frage lautet nicht *wo baue ich ein
+Level?*, sondern *warum kann ich das Haus, in dem ich gerade stehe, nicht
+umbauen?* Wer im Dunkelhaus merkt, dass der Gang zu eng ist, will ihn **dort**
+verbreitern und nicht in einer zweiten Welt nachbauen.
 
-**Es gibt drei Zustände, und dazwischen wird gegangen** (`Stage` in
-`EditorWorld`):
+Also hängt die Bedienung an keiner Welt mehr, sondern an einem **Grundriss**
+(`grid/gridPlan.ts`) und an einem Wirt (`EditorHost`), der drei Sachen kann:
+die Welt neu bauen, jemanden versetzen und etwas sagen. Jede Gitterwelt hat
+beides — Dunkelhaus, Schießstand, Dust, Kletterhalle, Gokart und der Bauplatz
+selbst — und bekommt den Editor damit geschenkt (`grid/GridWorld.ts`,
+`editable()`).
 
-- **Im Level.** Man steht in dem, was man gebaut hat. Die Karte hängt
-  zusammengefaltet an der Hüfte.
-- **Karte in der Hand** (`editor/PlanCard.ts`): eine Draufsicht auf einem
-  Blatt — Grundriss, Gegenstände, die eigene Marke als Pfeil, Norden oben
-  (`editor/mapPaper.ts`). Gezeichnet wird aus **derselben** Liste, aus der auch
-  gebaut wird, und neu gezeichnet nur, wenn sich etwas geändert hat.
-- **Im Konstruktraum** (`editor/Workshop.ts`): eine Werkstatt vierhundert Meter
-  hinter dem Grundriss, mit Werkbank, Regal und einem grünen Knopf zurück.
-
-Die Karte ist damit ein **Werkzeug wie die Drohne** und kein Schalter: Man nimmt
-sie erst in die Hand und sieht, was sie kann; der **Trigger** führt hinein und
-wieder hinaus. Vorher war „Karte ziehen" dasselbe wie „Editor auf" — man griff
-an die Hüfte und stand im nächsten Bild woanders.
-
-Drei Entscheidungen tragen das Ganze:
+Vier Entscheidungen tragen das Ganze:
 
 - **Der Plan ist der Navigationsgraph** (`editor/levelPlan.ts`). Kein zweites
   Datenformat: `has(key)` heißt „hier ist Boden", eine Wand steht zwischen zwei
@@ -5268,12 +5771,13 @@ Drei Entscheidungen tragen das Ganze:
   kann es speichern, und vor allem kann nichts auseinanderlaufen: Ein Editor,
   dessen Grundriss etwas anderes sagt als die Karte, ist einer, in dem man eine
   Tür einbaut und danach zusieht, wie ein Zombie hindurchgeht.
-- **Gebaut wird aus einer Liste** (`editor/levelBuild.ts`). `planSolids()` macht
-  aus dem Plan achsenparallele Quader — die Gegenrichtung von `navBake.ts`, und
-  der Test prüft genau das: Was der Editor baut, muss das Abtasten wiederfinden.
-  Miniatur und Lebensgröße kommen aus **derselben** Liste; zwei Bauanleitungen
-  für dasselbe Zimmer laufen auseinander, und man merkt es an dem Tag, an dem
-  eine Tür im Modell an einer anderen Wand hängt als im Raum.
+- **Gebaut wird aus einer Liste** (`editor/levelBuild.ts`, `grid/gridPlan.ts`).
+  `solids()` macht aus dem Plan achsenparallele Quader — die Gegenrichtung von
+  `navBake.ts`, und der Test prüft genau das: Was der Editor baut, muss das
+  Abtasten wiederfinden. Miniatur und Lebensgröße kommen aus **derselben**
+  Liste; zwei Bauanleitungen für dasselbe Zimmer laufen auseinander, und man
+  merkt es an dem Tag, an dem eine Tür im Modell an einer anderen Wand hängt
+  als im Raum.
 - **Die Miniatur ist ein Gegenstand** (`editor/miniature.ts`): Standort,
   Drehung, Maßstab — und die Drehung ist seit der zweiten Fassung ein
   **Quaternion** und kein Gierwinkel mehr. Eine Hand **trägt** das Modell, samt
@@ -5291,6 +5795,19 @@ Drei Entscheidungen tragen das Ganze:
   Versehen, sondern der Zweck: Wer eine Wand von unten sehen will, kippt das
   Modell, statt sich darunter zu bücken. Gerade legt es *ein* Griff wieder —
   „Zu mir" ist gleichzeitig die Wasserwaage.
+- **Die Welt tritt zur Seite, solange die Karte draußen ist.** Ihre Quader
+  werden unsichtbar und kommen aus der Physik heraus, und was in ihr
+  herumliegt, hält still (`PhysicsWorld.setFrozen`). Drei Gründe, und jeder
+  allein reicht: Ein Grundriss vor der Nase, hinter dem eine Wand steht, ist
+  einer, den man nicht sieht — ein Zimmer ist ein geschlossener Kasten, und man
+  steht darin. Wer eine Wand quer durch den Raum malt, in dem er steht, steckt
+  sonst darin. Und eine Wand, die man nicht sieht, aber gegen die man läuft,
+  ist schlimmer als eine, die im Weg steht — also gehören Sichtbarkeit und
+  Körper zusammen. Was bleibt, ist der Boden bis zum Horizont, der Himmel und
+  alles, was nicht aus dem Grundriss kommt; wo man selbst dabei steht, sagt die
+  Figur in der Miniatur. **Fest wird das Gebaute beim Weglegen der Karte**:
+  Dann werden die Quader mit Körpern neu gebaut und die Navigationskarte neu
+  abgetastet, denn was man gebaut hat, sollen NPCs auch belaufen können.
 
 **Ausgesucht wird an einer Palette** (`editor/Palette.ts`). Drei Antworten
 standen zur Wahl, wie man in der Brille ein Bauteil aussucht: ein Menü (dreimal
@@ -5300,18 +5817,16 @@ beim Bauen setzt man dasselbe zwanzigmal hintereinander) — und eine Palette mi
 einem Pinsel: einmal eintunken, beliebig oft setzen, den Pinsel zurück in die
 Mulde, wenn man fertig ist. Genau das ist der Rhythmus eines Kacheleditors.
 Steckt der Pinsel in der Mulde, baut ein Tipp auf die Miniatur **nichts** —
-dann darf man darin herumfassen, ohne aus Versehen eine Wand zu setzen. Die
-Palette selbst hängt an nichts: Sie schwebt wie das Modell, wird wie das Modell
-mit einer Hand getragen und hängt an der zweiten Hüfte, wenn man sie weglegt.
+dann darf man darin herumfassen, ohne aus Versehen eine Wand zu setzen.
 
 **Werkzeuge sind vier, und der Radiergummi ist eines davon**: Boden, Wand, Tür,
 Löschen. Was ein Druck tut, hängt an zwei Sachen — am Werkzeug und daran, worauf
-man zeigt —, und diese Kreuzung steht an *einer* Stelle (`applyTool`). Zwei
-Handgriffe daran sind eingebaute Nachsicht: Wer *Boden* gewählt hat und auf eine
-**Kante** zeigt, baut die Kachel dahinter (so malt man einen Raum von seinem Rand
-aus weiter, ohne die Mitte der nächsten Kachel zu treffen); und wer *Tür* auf
-eine freie Kante setzt, bekommt eine Wand mit einer Tür darin statt einer
-Fehlermeldung.
+man zeigt —, und diese Kreuzung steht an *einer* Stelle (`applyTool`,
+`applyGridTool`). Zwei Handgriffe daran sind eingebaute Nachsicht: Wer *Boden*
+gewählt hat und auf eine **Kante** zeigt, baut die Kachel dahinter (so malt man
+einen Raum von seinem Rand aus weiter, ohne die Mitte der nächsten Kachel zu
+treffen); und wer *Tür* auf eine freie Kante setzt, bekommt eine Wand mit einer
+Tür darin statt einer Fehlermeldung.
 
 **Und dann gibt es die zweite Reihe der Palette: die Bausteine**
 (`grid/gridTool.ts`, `grid/blocks.ts`). Küchenzeile, Regal, Tisch, Bank, Kisten,
@@ -5334,28 +5849,102 @@ in der man baut: erst der Grundriss, dann das, was darin steht. Wer eine
 Küchenzeile in derselben Reihe suchte, käme beim Wandmalen aus Versehen daran.
 
 Der Radiergummi räumt in der Reihenfolge auf, in der man es meint: **erst der
-lose Gegenstand**, dann der Baustein, dann die Tür, dann die Wand, dann der
-Boden. Wer eine Küchenzeile löschen will, will nicht den Boden darunter los —
-und wer die Kiste treffen will, die darauf steht, erst recht nicht.
+Baustein**, dann die Tür, dann die Wand, dann der Boden. Wer eine Küchenzeile
+löschen will, will nicht den Boden darunter los.
+
+#### Malen und Flächen
+
+**Ein Druck ist eine Kachel, und das ist die falscheste Bedienung, die es für
+einen Boden gibt.** Für eine Tür ist sie richtig; für ein Zimmer von acht mal
+acht Kacheln sind es vierundsechzig Trigger, und spätestens beim dreißigsten
+hört man auf, Räume zu bauen, die größer als eine Stube sind. Zwei Gesten
+nehmen das weg (`editor/planPaint.ts`), und beide kennt jeder aus jedem
+Malprogramm:
+
+- **Malen**: drücken, ziehen, loslassen. Was der Zeiger dabei überstreicht,
+  wird gesetzt. Der einzelne Tipp ist dabei kein eigener Modus, sondern der
+  kürzestmögliche Strich — wer einmal drückt und sofort losläßt, setzt genau
+  eine Kachel und muss dafür nichts umgestellt haben.
+- **Fläche**: zwei Ecken, und dazwischen wird gefüllt. Aufziehen und zweimal
+  tippen sind dasselbe: Wer beim Loslassen woanders steht als beim Drücken, hat
+  aufgezogen; wer auf derselben Kachel losläßt, hat getippt, und die Ecke
+  wartet auf den zweiten Tipp. Aus der Ferne hält niemand den Arm für einen
+  langen Zug ruhig, und wer nah davorsteht, will nicht zweimal tippen.
+
+Drei Rechnungen stehen dahinter, und die dritte ist die, an der ein
+Kacheleditor sonst scheitert:
+
+- **Zwischen zwei Bildern darf keine Lücke bleiben** (`strokeSpots`). Eine Hand
+  fährt in einem Sechzigstel leicht über drei Kacheln; wer nur die unter dem
+  Zeiger setzt, malt gestrichelt. Gerechnet wird deshalb in Kachelschritten und
+  nicht in Metern — zwischen zwei Kacheln liegt eine ganze Zahl von Kacheln.
+  Die **Kante des Ziels gilt für den ganzen Strich**: Wer eine Wand entlang
+  malt, zeigt auf Nordkanten, und sie aus jeder Zwischenkachel neu zu raten
+  stellte an jedem zweiten Schritt eine Wand quer.
+- **Was „füllen" heißt, hängt am Werkzeug** (`areaSpots`). Was auf eine
+  **Kachel** gehört — Boden, Radiergummi, ein Tisch —, füllt die Fläche. Was an
+  eine **Kante** gehört — Wand, Tür, Regal, Geländer —, zieht ihren **Rand**,
+  nach außen gerichtet wie bei `wallRect`. Ein gefülltes Rechteck aus Wänden
+  wäre ein Klotz aus Wänden; gemeint ist ein Zimmer. Damit ist ein Zimmer zwei
+  Gesten: eine Fläche Boden, ein Rechteck Wände.
+- **Die Ecke ist immer eine Kachel**, auch wenn der Zeiger auf einer Fuge lag.
+  Ein Rechteck, dessen Ecke je nach getroffener Kante um eine Kachel springt,
+  bekommt man nicht zweimal gleich hin.
+
+Gehalten wird das vom Zeiger selbst (`core/Pointer.ts`): Neben `onSelect` gibt
+es jetzt `onHold` — jedes Bild, solange die Taste unten bleibt — und
+`onRelease`. Zwei Fallen stecken darin, und beide sind abgefangen: Ein Ziel,
+das mitten im Ziehen **abgemeldet** wird (die Karte wandert an die Hüfte,
+während der Finger noch am Trigger liegt), muss trotzdem sein Loslassen
+bekommen, sonst malt der nächste Druck an dem alten Strich weiter. Und die
+**Zeigefläche der Miniatur entsteht nur einmal** und wird beim Umbauen nur
+nachgezogen — eine Fläche, die bei jeder gesetzten Kachel neu entstünde, nähme
+dem Zeiger mitten im Strich sein Ziel weg, und der Strich wäre nach einer
+Kachel zu Ende.
+
+Im flachen Modus geht dasselbe mit der Maus: gedrückt halten und den Blick
+schwenken. Dafür musste eine alte Ungereimtheit weg — mit gefangener Maus
+(Pointer-Lock) friert der Browser `clientX/clientY` dort ein, wo er sie
+gefangen hat, und der Strahl zeigte für den Rest der Sitzung dorthin, wo der
+Mauszeiger beim ersten Klick zufällig stand. Jetzt zeigt er auf die Bildmitte,
+also dorthin, wo auch das Fadenkreuz ist.
+
+#### Platz zum Weiterbauen
+
+**Man muss neben alles zeigen können, was schon steht** — auch dorthin, wo noch
+gar nichts ist. Der Teller unter dem Modell ist der Plan plus eine Kachel; die
+**Fläche, auf die man zeigen kann, ist der Plan plus fünf** (`FIELD_MARGIN`),
+und das Raster darauf zeigt genau, wo das ist. Ein Editor, in dem man nur an
+vorhandene Kacheln andocken kann, ist einer, in dem man keinen zweiten Flügel
+anbaut; und in einer Welt, in der an dieser Stelle noch nichts steht, ist es der
+Unterschied zwischen bauen und nicht bauen können. Ein **leerer** Plan bekommt
+denselben Rand als Ganzes — sonst hätte, wer bei null anfängt, nichts, worauf er
+zeigen könnte.
 
 **Ob eine Kachel oder ihre Kante gemeint ist, entscheidet ein Streifen**
 (`spotAt`, 70 cm). Das ist die Rechnung, an der ein Kacheleditor steht oder
 fällt: Die Mitte einer Kachel ist ein großes Ziel, ihre Kante eine Linie — und
 eine Linie trifft man in der Brille auf drei Meter Entfernung nicht ohne Hilfe.
 
-**Man selbst steht mit im Modell** (`editor/PlayerPin.ts`) — als **Marke** und
-nicht als Standort. Eine Karte hat einen Punkt „Sie sind hier"; im
-Konstruktraum ist er die Stelle, an der man *wieder auftaucht*. Figur nehmen,
-ans andere Ende des Gangs stellen, loslassen — dort steht man, sobald man
-zurückgeht. Auf eine Kachel, die es nicht gibt, wird nichts gesetzt; dort wäre
-der nächste Schritt ein Sturz. Gebaut ist sie in **Planmetern** und nicht in
+#### Wo Karte und Palette hängen
+
+**Der Gürtel hat zwei Haken, und der Bauplatz macht mit Absicht ohne Werkzeuge
+auf.** Deshalb sucht sich der Editor beim Aufmachen die **freien** Haken: Hier
+sind es beide, also hängt die Karte an der einen und die Palette an der
+anderen, und man zieht sie mit dem Greifknopf heraus wie jedes Werkzeug. Wo
+keiner frei wäre, hingen sie an gar keinem und schwebten vor einem, statt sich
+zu verstecken — der Fall kommt seit dem Wegfall der Seite *Bauen* aus dem
+Handgelenkmenü nicht mehr vor (`GridWorld.editable`), die Vorsorge steht
+trotzdem. Zwei Sachen an demselben Haken hieße, dass ein Griff dorthin eine von
+beiden verschluckt, und welche, wüsste niemand.
+
+**Man selbst steht mit im Modell** (`editor/PlayerPin.ts`). Eine Karte hat einen
+Punkt „Sie sind hier", und weil man ihn anfassen kann, ist er gleichzeitig der
+Weg dorthin: Figur nehmen, ans andere Ende des Gangs stellen, loslassen — dort
+steht man. Auf eine Kachel, die es nicht gibt, geht niemand; dort wäre der
+nächste Schritt ein Sturz. Gebaut ist sie in **Planmetern** und nicht in
 Zentimetern: Sie hängt in der Miniatur, die trägt den Maßstab, und damit ist die
 Figur bei jedem Zoom so groß wie ein Mensch im Grundriss.
-
-Solange man im Level ist, läuft die Marke jedes Bild mit; erst im Konstruktraum
-steht sie still. Das ist der Unterschied, um den es geht: Wer dort vor die Bank
-tritt oder zwei Schritte zurückgeht, um den Grundriss ganz zu sehen, bewegt sich
-in einer **Werkstatt** und nicht in seinem Level.
 
 Damit schweben drei Dinge in derselben Luft, und wer zugreift, greift irgendwo
 hin. Die Vorfahrt steht in `editor/reach.ts` und ist **das nächstgelegene
@@ -5364,101 +5953,190 @@ kleine, der Grundriss eine große. Ohne diese Regel hat jeder Editor denselben
 Fehler — man will die Figur versetzen und schiebt den ganzen Grundriss weg, weil
 das Modell größer ist und deshalb immer zuerst antwortet.
 
-**Gebaut wird im Konstruktraum** (`editor/Workshop.ts`) — einem Zimmer weit weg
-von jedem Grundriss, in das man hineingeht. Die erste Fassung machte dafür das
-Level unsichtbar und durchlässig, ein *weißes Zimmer an derselben Stelle*, und
-das hatte einen Fehler, den man erst merkt, wenn man darin arbeitet: Man stand
-nicht außerhalb seines Levels, sondern mittendrin, nur mit geschlossenen Augen.
-Jeder Schritt vor dem Modell war ein Schritt im Level; wer zurücktrat, stand
-beim Weglegen in der Wand dahinter. Jetzt bleibt das Level stehen — sichtbar,
-fest und vierhundert Meter entfernt —, und was die beiden verbindet, ist nur
-noch die Marke.
+**Das Modell bringt sein eigenes Licht mit.** Eine kleine Lampe schwebt einen
+halben Meter darüber, und sie hängt **neben** dem Modell in der Welt statt
+darin: Ein Licht in einer Gruppe, die auf ein Zwanzigstel geschrumpft ist,
+leuchtet auch nur ein Zwanzigstel weit. Sie muss sein, seit der Editor nicht
+mehr nur im hellen Bauplatz steht — im Dunkelhaus ist die Umgebung mit Absicht
+fast schwarz, und ein Grundriss, den man nur mit der Taschenlampe lesen kann,
+ist keiner.
 
-Eingerichtet ist der Raum wie eine Werkstatt und nicht wie ein Menü: eine
-**Werkbank**, über der das Modell schwebt (ein Grundriss, der frei im Raum
-hängt, hat keine Höhe, die sich von selbst versteht — ein Tisch hat eine), ein
-**Regal** an der Rückwand und ein **grüner Knopf** neben der Bank. Den Knopf
-gibt es, weil ein Raum, den man nur mit dem richtigen Gegenstand in der Hand
-verlassen kann, eine Falle ist; der zweite Weg hinaus ist die Karte und ihr
-Trigger. Wände, Boden und Decke bekommen Körper — ein Zimmer, aus dem man zur
-Seite herausläuft, ist keines.
+**Das fünfte Werkzeug, das keines ist: Hingehen.** Auf eine Kachel der Miniatur
+tippen und dort stehen. Es ändert nichts am Plan und steht deshalb neben den Werkzeugen und
+nicht in ihnen — aber es ist der Griff, der aus einer Zeichnung eine Karte macht:
+Wer den Gang am anderen Ende gebaut hat, muss ihn nicht ablaufen, um zu sehen, ob
+er zu eng ist. Versetzt wird dabei über `PortalWorld.movePlayerTo` — Rig **und**
+Kapsel, denn `rig.placeAt` allein verschiebt nur das, was man sieht, und die
+Fortbewegung zieht einen im nächsten Bild zurück.
 
-**Das Regal ist der Katalog** (`editor/planProps.ts`). Darauf steht je ein
-Musterstück von allem, was der magische Beutel hergibt. Man tippt eines an, hält
-es in der Hand **in der Größe, die es in der Miniatur hätte**, und setzt es auf
-eine Kachel — auf die Kachelmitte und auf den Boden, die beiden einzigen
-Entscheidungen, die diese Welt einem abnimmt. In einer Miniatur von
-Streichholzgröße trifft niemand einen Zentimeter, und niemand stellt dort eine
-Höhe ein; wer es genauer haben will, geht in sein Level und schiebt es dort hin,
-denn dort ist es ein Gegenstand wie jeder andere.
+#### Speichern, exportieren, importieren
 
-**Regal und Palette sind nicht dasselbe**, und der Unterschied ist keiner der
-Ordnung: Die zweite Reihe der Palette setzt **Bausteine** — gebautes Zimmer, es
-steht im Plan, ein NPC weiß davon, bevor er losläuft. Das Regal gibt **lose
-Gegenstände** heraus — Dinge mit einer Masse, die man anfassen, werfen und
-umwerfen kann. Eine Küchenzeile ist Architektur, ein Kegel ist ein Kegel, und
-beide gehören an eine andere Stelle.
+**Eine gebaute Welt muss irgendwo hin**, sonst ist Bauen ein Zeitvertreib. Es
+gibt dafür zwei Wege, und sie sind mit Absicht nicht dasselbe
+(`grid/worldStore.ts`):
 
-Die Gegenstände sind deshalb auch eine **eigene Liste neben dem Plan** und kein
-Feld darin, mit eigenem Speicherplatz und eigener Fassung: Der Plan ist die
-Karte, auf der NPCs laufen. Wer den Plan lädt und die Liste nicht hat, bekommt
-ein leeres Zimmer statt eines Fehlers.
+- **Der Speicher** (`localStorage`, ein Eintrag je Welt unter `vr-welt:<id>`)
+  ist kein Archiv, sondern die Antwort auf eine einzige Frage: *Wer zwanzig
+  Minuten baut und die Brille absetzt, soll seine Welt wiederfinden.*
+  Geschrieben wird beim **Weglegen der Karte** — das ist der Augenblick, in dem
+  jemand fertig ist, und der einzige, an dem ein Schreiben weder sechzigmal in
+  der Sekunde passiert noch zu spät kommt — und beim Verlassen der Welt, falls
+  die Karte dabei noch draußen war. Der Bauplatz schreibt zusätzlich beim
+  Bauen, höchstens alle zwei Sekunden: Dort baut man von Grund auf, oft eine
+  halbe Stunde am Stück, ohne die Karte dazwischen wegzulegen.
+- **Die Datei** ist das Archiv. Sie geht als Download vom Gerät herunter und
+  über die Dateiauswahl wieder hinein, und sie ist das Einzige, was einen Umbau
+  vom nächsten Browser, vom nächsten Rechner und von der nächsten
+  Programmfassung trennt.
 
-**Angefaßt wird das Modell auch auf Entfernung.** Wer hinzielt und zugreift, hat
-es — gerechnet gegen die Kugel um den Grundriss und nicht gegen seine Quader,
-denn ein Grundriss ist überwiegend Luft. Der Grund ist die Werkbank: Das Modell
-steht darauf, und man steht davor, daneben oder am Regal; eines, das man nur mit
-der Hand darin anfassen kann, ist eines, für das man erst hingehen muß — und wer
-hingeht, verliert dabei den Blick, den er gerade darauf hatte.
+Beide schreiben **dasselbe Format**. Ein Speicher mit einem eigenen, kürzeren
+Format wäre das zweite Format neben dem ersten, und das zweite Format ist
+immer das, das eine Kleinigkeit vergisst.
 
-**Die Tafel am Modell ist weg.** *Zu mir*, *Größer*, *Kleiner*, *Drehen*,
-*Weglegen* — ein Brett voller Knöpfe, das vor dem Grundriss stand und dabei
-gerade die Kante verdeckte, an der man baut. Was sie konnte, kann man ohne sie
-besser: Größer und drehen macht man mit zwei Händen am Modell, herangeholt wird
-es durch Hinzielen, und weglegen tut man die Karte. Für den flachen Modus ohne
-Hände stehen die drei Griffe im Menü.
+Im Menü liegen die vier Handgriffe unter **Welt sichern**, und zwar ganz
+oben — und nur im Bauplatz, denn nur dort wird gebaut (`GridWorld.editable`):
+Speichern und Mitnehmen ist keine Fußnote unter den Werkzeugen, und eine Welt,
+die man nicht ändern kann, hat auch nichts aufzuheben. Die erste Zeile heißt *Im Browser speichern* und nicht „Welt
+speichern" — so heißt schon der Knopf der Stoppuhr, und der merkt sich etwas
+ganz anderes (wo die Kisten gerade liegen, für diese Sitzung). *Gespeichertes verwerfen* leert den Eintrag **und** baut die Welt
+im selben Augenblick aus ihrem `layout()` neu — das eine ohne das andere wäre
+eine Welt, die erst beim nächsten Laden wieder die richtige ist, und bis dahin
+fragt man sich, ob der Knopf kaputt ist.
 
-**Das fünfte Werkzeug, das keines ist: Marke setzen.** Auf eine Kachel der
-Miniatur tippen, und dort taucht man auf, wenn man zurückgeht. Es ändert nichts
-am Plan und steht deshalb neben den Werkzeugen und nicht in ihnen — aber es ist
-der Griff, der aus einer Zeichnung eine Karte macht: Wer den Gang am anderen
-Ende gebaut hat, muß ihn nicht ablaufen, um zu sehen, ob er zu eng ist. Versetzt
-wird beim Hinausgehen über `PortalWorld.movePlayerTo` — Rig **und** Kapsel, denn
-`rig.placeAt` allein verschiebt nur das, was man sieht, und die Fortbewegung
-zieht einen im nächsten Bild zurück. Sofort zu versetzen wäre falsch: Wer
-mitten im Bauen quer durch die Welt gerissen wird, hat den Grundriss aus den
-Augen verloren, an dem er gerade arbeitet.
+**Was im Browser liegt, gewinnt** — und zwar ganz. Kein Verschmelzen mit
+`layout()`: Ein halb übernommener Umbau wäre eine Welt, die weder die gebaute
+noch die gespeicherte ist, und man sähe es erst an der Stelle, an der beide
+sich widersprechen.
 
-Zwei kleine Zahlen, die man sonst falsch macht: Der Boden bis zum Horizont liegt
-hier **zwei Zentimeter tiefer** als sonst, weil er sich mit den Bodenplatten des
-Plans sonst um jedes Pixel streitet; und die Mitte des Plans wandert beim
-Anbauen, weshalb `recentre` das Modell um genau so viel zurückschiebt — ohne das
-springt der Grundriss bei jedem Druck ein Stück zur Seite, und man baut ihm
-hinterher.
+**Unter welchem Namen eine Welt liegt, sagt sie selbst** (`worldId()`,
+abstrakt). Naheliegend wäre `ctx.net.world` gewesen — der steht beim Bauen aber
+noch auf der *vorigen* Welt (`App.loadWorld` setzt ihn erst nach `init`), und
+zwei Welten, die sich still denselben Speicherplatz teilen, sind der Fehler, den
+man erst bemerkt, wenn im Dunkelhaus plötzlich Dust steht.
 
-Gespeichert wird im Browser, im Format, das es ohnehin gibt (`navSerial.ts`).
-Nicht, weil das eine Speicherlösung wäre, sondern weil das Gegenteil unerträglich
-ist: Wer zwanzig Minuten baut und die Brille absetzt, soll seinen Grundriss
-wiederfinden. **Das Mobiliar liegt daneben und nicht darin**: Eine Küchenzeile
-ist keine Navigationsinformation, und sie in dieselbe Datei zu schreiben hieße,
-deren Versionsnummer anzuheben und jede gespeicherte Karte für ungültig zu
-erklären — für Möbel. Ein alter Eintrag, der nur die Karte kennt, wird weiter
-gelesen. Der Fehler, den ein Test dabei abfängt, fiele erst beim **zweiten**
-Laden auf: In den gespeicherten Kacheldaten stecken die Aufschläge der Bausteine
-schon drin, und wer sie als Grundwert nimmt und die Bausteine danach anwendet,
-zählt jeden zweimal — nach dem dritten Laden ist die Küche unbegehbar.
+#### Das Weltformat
+
+**Eine Welt als Datei** (`grid/worldFile.ts`), Format `baumgartner-welt`,
+Version **`0.1.0`**.
+
+Bis hierher gab es zwei Hälften und keine Naht dazwischen. Der
+Navigationsgraph hatte längst ein sauberes, versioniertes Format
+(`nav/navSerial.ts`); alles andere, was eine Gitterwelt ausmacht, hatte keins.
+Die **Bausteine** lagen als nacktes JSON daneben, ungeprüft und ohne Version,
+und die **Massen** — das Dach über einer Halle, die Felswand um Dust, der Sand
+darunter — wurden überhaupt nicht gespeichert. Ein „gespeicherter Grundriss"
+war deshalb genau so lange brauchbar, wie die Welt keine hatte.
+
+Vier Entscheidungen tragen das Format:
+
+- **Der Graph bleibt der Graph.** Die Weltdatei *enthält* eine `nav`-Datei, sie
+  ersetzt sie nicht. Damit erbt sie jede Prüfung, die dort schon steht
+  (Kachelgröße, Version, Kachelläufe), und wer nur die Karte braucht, greift
+  sich `nav` heraus.
+- **Gespeichert wird der Grundwert, nicht das Ergebnis.** In den Kacheldaten
+  eines laufenden Plans stecken die Aufschläge der Bausteine schon drin: Eine
+  Küchenzeile macht ihre Kachel teurer. Wer diese Zahl speichert, sie beim
+  Laden als Grundwert nimmt und die Bausteine danach anwendet, zählt jeden
+  Aufschlag zweimal — nach dem dritten Laden ist die Küche unbegehbar. Also
+  steht in `nav` der Plan **ohne** Möbel (`GridPlan.bare()`), und die
+  Aufschläge werden beim Laden neu gerechnet (`GridPlan.restore()`). Ein Test
+  fährt drei Runden und prüft, dass die Zahl dabei stehen bleibt.
+- **Koordinaten sind Zahlen, keine Schlüssel.** Eine Kachel steht als `x`, `z`,
+  `l` in der Datei und nicht als `TileKey`. Der Schlüssel ist eine gepackte
+  Ganzzahl (`navTile.ts`), also ein Implementierungsdetail: Wer seine Packung
+  ändert, macht damit sonst still jede gespeicherte Welt kaputt — und niemand
+  sähe es, weil die Datei weiterhin gültig aussieht.
+- **Die Version ist Semver, als Zeichenkette.** Solange die Hauptnummer `0`
+  ist, gilt eine neue Nebennummer als Bruch — so liest man Semver vor 1.0.
+  Gelesen wird die Zeile `0.1.x`; eine Datei aus der Zukunft wird **abgelehnt**
+  und nicht halb geladen, denn eine Welt, der beim Laden die Hälfte fehlt,
+  sieht aus wie eine kaputte Welt und nicht wie eine zu neue. „Zu neu" und „zu
+  alt" bekommen deshalb zwei verschiedene Meldungen: Sie sind das Einzige,
+  woran jemand sieht, ob er ein Programm oder eine Datei aktualisieren muss.
+
+**Streng und nachsichtig an den richtigen Stellen.** Ein Baustein auf einer
+Kachel, die es nicht gibt, fällt weg; eine unbekannte Baustein-Sorte fällt weg
+(wer eine Welt aus einer neueren Fassung öffnet, will sein Haus sehen und nicht
+eine Fehlermeldung über einen Schrank). Bei den **Massen** ist es andersherum:
+Dort wird abgebrochen. Ein fehlendes Dach ist eine Welt, in die es hineinregnet,
+und eine fehlende Felswand eine, aus der man hinausläuft.
+
+Und noch ein Unterschied, der leicht als Schlamperei durchginge: Eine kaputte
+Zeile im **Speicher** wird weggeworfen und nicht gemeldet — sie kommt aus einer
+Fassung, die es nicht mehr gibt, niemand kann etwas daran tun, und die Welt
+soll trotzdem aufmachen. Eine **Datei**, die jemand bewusst auswählt, meldet
+jeden Fehler: Wer eine Datei auswählt, hat eine Erwartung, und ein stilles
+Nichts wäre die schlechteste aller Antworten.
+
+**Was bewusst nicht in der Datei steht**, damit niemand es sucht: Eine
+Weltdatei ist ein **Grundriss** und kein Spielstand. Sie kennt Kacheln, Wände,
+Türen, Verbindungen, Bausteine und Massen — alles, was `GridPlan` führt. Sie
+kennt **nicht**, was eine Welt darüber hinaus von Hand hinstellt
+(`buildProps`): die Lampen und den Dimmer des Dunkelhauses, die Karts in der
+Boxengasse, die Kisten zum Herumwerfen. Und sie kennt keine Farben — welchen
+Ton eine Wand hat, entscheidet die Welt, in der sie steht (`GridWorld.tint`),
+und genau deshalb sieht ein ins Bauplatz importiertes Dunkelhaus aus wie ein
+Bauplan und nicht wie ein Haus. Das ist die Grenze, und sie ist gezogen und
+nicht vergessen: Ein Format, das *alles* speichert, ist eines, das bei jeder
+neuen Lampe eine neue Version braucht.
+
+Der **Dateiname** ist der Name der Welt plus das Datum plus `.welt.json` — die
+doppelte Endung, damit ein Betriebssystem sie als JSON öffnet und ein Mensch
+trotzdem sieht, was darin steht: `dunkelhaus-2026-09-07.welt.json`. Ein
+Dunkelhaus wiegt so rund neun Kilobyte.
+
+Ein Download und eine Dateiauswahl sind in der Brille wenig wert — man sieht
+von beidem nichts. Sie sind für den Rechner gedacht, und das ist keine Lücke,
+sondern die Arbeitsteilung: In der Brille wird gebaut, am Rechner wird
+abgelegt und weitergegeben.
+
+#### Was der Bauplatz noch selbst macht
+
+Von der Welt `editor/EditorWorld.ts` ist wenig übrig, und das ist ihr Erfolg und
+nicht ihr Ende. Drei Sachen unterscheiden sie vom Umbauen einer fertigen Welt:
+
+- **Sie fängt bei einem Zimmer an** (`starterGrid.ts`) und nicht bei einem Haus,
+  das schon steht. Eine leere Ebene beantwortet die erste Frage nicht, die jeder
+  hat — *wie sieht denn eine Wand hier aus?*
+- **Er schreibt auch beim Bauen** und nicht nur beim Weglegen der Karte
+  (`planEdited`, höchstens alle zwei Sekunden). Hier baut man von Grund auf, oft
+  eine halbe Stunde am Stück und ohne die Karte dazwischen wegzulegen — und wer
+  dabei die Brille absetzt, hätte sonst nichts. Alles Übrige am Speichern ist
+  seit dem Weltformat für jede Gitterwelt dasselbe (*Speichern, exportieren,
+  importieren*). Den **alten Eintrag** aus der Zeit davor (`vr-bauplatz-plan`:
+  die nackte Karte plus Mobiliar, ohne Version und ohne Massen) liest er noch
+  einmal, schreibt ihn im neuen Format und räumt ihn weg — wer zwei Wochen an
+  einem Grundriss gebaut hat, verliert ihn nicht, weil das Programm inzwischen
+  ein richtiges Format hat.
+- **Beim Bearbeiten steht man in einem weißen Raum.** Wo eine fertige Welt nur
+  zur Seite tritt, tauscht der Bauplatz seine Kulisse: Boden bis zum Horizont
+  und ein weißer Himmel statt des dunklen. Der Grund ist derselbe wie beim
+  Tischmodell — wer einen Grundriss von Grund auf zieht, steht nicht
+  gleichzeitig darin. Beide Kulissen liegen von Anfang an übereinander da;
+  umgeschaltet wird nur die Sichtbarkeit, und der Körper des dunklen Bodens
+  trägt für beide. Zwei kleine Zahlen, die man sonst falsch macht: Der Boden bis
+  zum Horizont liegt hier **zwei Zentimeter tiefer** als sonst, weil er sich mit
+  den Bodenplatten des Plans sonst um jedes Pixel streitet; und die Mitte des
+  Plans wandert beim Anbauen, weshalb `recentre` das Modell um genau so viel
+  zurückschiebt — ohne das springt der Grundriss bei jedem Druck ein Stück zur
+  Seite, und man baut ihm hinterher.
 
 **Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste —
-und damit fehlen im Bauplatz auch die beiden Bausteine, die zwischen Etagen
-führen: Treppe und Rampe), Rückgängig, Fenster als Werkzeug (gebaut werden sie
-längst, gesetzt bisher nur von Welten in ihrem Grundriss), ein Weg, einen
-gebauten Plan als eigene Welt zu laden statt nur im Bauplatz zu haben — und die
-Karte als **echtes Werkzeug** im Werkzeugkasten (`portal/tools/`), damit sie
-sich auch in andere Welten mitnehmen ließe. Heute führt der Bauplatz seine
-beiden Hüften selbst; das ist weniger Verdrahtung, aber es bleibt in dieser
-einen Welt. Gesetzte **Gegenstände** stehen außerdem beim Neuaufstellen wieder
-dort, wo sie gesetzt wurden, und nicht dort, wohin sie zuletzt gerollt sind —
-richtig wäre, ihre Lage mitzuschreiben.
+und damit fehlen auch die beiden Bausteine, die zwischen Etagen führen: Treppe
+und Rampe), Rückgängig, Fenster als Werkzeug (gebaut werden sie längst, gesetzt
+bisher nur von Welten in ihrem Grundriss), und ein Weg, eine **eigene** Welt aus
+einer Datei zu laden statt sie in eine vorhandene zu importieren: Heute
+überschreibt ein Import den Grundriss der Welt, in der man gerade steht, und wer
+zwei gebaute Welten nebeneinander haben will, braucht zwei Wirte dafür.
+
+Eine rauhe Kante gibt es dazu, und sie steht hier, damit sie niemand für einen
+Zufall hält: **Der Greifknopf gehört beim Bauen zwei Herren.** Die Welt greift
+weiter nach Requisiten (`PortalWorld`), der Editor nach Modell, Palette und
+Figur — und wer in einer Welt mit Kisten mitten in der Miniatur greift, kann
+beides auf einmal erwischen. Im Bauplatz fällt das nicht auf (dort liegt nichts
+herum), anderswo ist es selten (die Requisiten sind beim Bauen eingefroren und
+das Haus ist unsichtbar), aber es ist da. Der saubere Weg wäre, dass die Welt
+ihr Greifen abgibt, solange die Karte draußen ist.
 
 ### Die Werkzeugseite
 
@@ -5611,12 +6289,20 @@ Drei Dinge machen daraus einen Überblick statt eines Kastens:
   Welt ein Punkt in der Mitte. Was `markBackdrop` trägt (`createSky`,
   `createGround`, Sterne und Erde am Mondhimmel), wird beim Einpassen
   übersprungen und trotzdem gezeichnet: dahinter gehört es hin.
-- **Ein Dach wird aufgeschnitten.** Eine Welt mit Decke füllt beim Bauen
-  `this.roof` (Portal Labor, Dunkelhaus, Pizzeria, Eingaberaum), und die
-  Vorschau legt eine Schnittebene knapp darunter — Puppenhaus statt Deckel. Die
-  Ebene liegt im Raum, das Modell dreht sich, also wird sie in jedem Bild aus
-  der Lage der Bühne nachgerechnet; sonst wanderte der Schnitt beim Drehen
-  durch die Welt.
+- **Ein Dach wird aufgeschnitten — über allem, was darunter steht.** Eine Welt
+  mit Decke füllt beim Bauen `this.roof` (Portal Labor, Dunkelhaus, Pizzeria,
+  Eingaberaum, Kletterhalle), und die Vorschau legt eine Schnittebene hinein —
+  Puppenhaus statt Deckel. **Wie hoch, wird gemessen und nicht gesetzt**
+  (`tools/worldCut.ts`, mit Test): Der Schnitt liegt über der höchsten
+  Oberkante der Welt, nie unter Kopfhöhe und nie über der Decke — und was bis
+  an die Decke reicht, zählt dabei nicht mit, denn das ist die Hülle, die ja
+  gerade weg soll. Vorher lag er fest auf 2,40 m, und das war nur in einem
+  Zimmer richtig: In der **Kletterhalle** stehen 9,4 m hohe Kletterwände unter
+  einer Decke von 10 m, und von der ganzen Halle blieben sechs Stummel auf
+  einer blauen Matte übrig — die Welt selbst war weggeschnitten. Die Ebene
+  liegt im Raum, das Modell dreht sich, also wird sie in jedem Bild aus der
+  Lage der Bühne nachgerechnet; sonst wanderte der Schnitt beim Drehen durch
+  die Welt.
 - **Flach wird enger eingepasst.** Eine Kugel um eine Welt ist so hoch wie
   breit, eine Welt aber ist ein Grundriss mit ein bisschen Höhe darauf. Mit
   Grundriss und Höhe getrennt gerechnet (`ShowOptions.flat`) steht sie doppelt
@@ -6220,7 +6906,10 @@ Vier Dateien, alle **ohne three.js**:
   (`nav/navGraph.ts`), also weiß ein NPC von der Küchenzeile, bevor er
   losläuft.
 - **`grid/GridWorld.ts` — die Basis.** Sie baut den Plan, führt die gemeinsame
-  Palette und entscheidet einmal für alle, woran ein Portal haftet.
+  Palette und entscheidet einmal für alle, woran ein Portal haftet — **und sie
+  gibt jeder Gitterwelt den Bearbeitungsmodus** (`editor/WorldEditor.ts`, siehe
+  *Bauen, während man darin steht*): Der Grundriss liegt ohnehin da, und der
+  Editor kann nichts anderes, als daran zu arbeiten.
 
 Vier Sachen sind daran wichtig, und drei davon merkt man erst hinterher.
 
@@ -6262,10 +6951,12 @@ NPC nicht existiert; das sieht danach aus wie ein kaputter Character-Controller.
 Lauf das Loch für seinen eigenen Kopf schlägt — genau darin müsste der nächste
 stehen.
 
-**Vier Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust und die
-Hülle der Kletterhalle. Der Bauplatz baut ohnehin schon aus derselben Liste,
-und die Alpen und der Mond stehen weiter auf ihrem Höhenfeld — ein Berg ist
-keine Kachel, und die Umrechnung würde ihn nur schlechter machen.
+**Fünf Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust, die
+Hülle der Kletterhalle und das Gokart. Der Bauplatz ist seit der dritten
+Fassung selbst eine davon — er baute ohnehin schon aus derselben Liste, und was
+ihn noch ausmacht, sind ein Startzimmer, ein Speicher und ein weißer Raum. Die
+Alpen und der Mond stehen weiter auf ihrem Höhenfeld — ein Berg ist keine
+Kachel, und die Umrechnung würde ihn nur schlechter machen.
 
 Die Grenze ist bei der **Kletterhalle** am deutlichsten und dort mit Absicht
 gezogen: Überhang, Riss und Kamin sind kein Mobiliar, sondern das Spiel selbst.
@@ -6287,6 +6978,20 @@ erarbeiten musste:
   und eine Welt verstellt daran einzelne (`tint()`), statt sich sechs eigene
   Materialien anzulegen. Das ist die „einheitliche Sache", die man an Böden und
   Wänden zuerst bemerkt.
+- **Der Bearbeitungsmodus.** Karte, Palette, Tischmodell, Malen und Flächen —
+  eine Zeile Verdrahtung, weil `layout()` ohnehin einen `GridPlan` liefert. Wer
+  ihn will, sagt `editable()` `true`, und das tut **nur der Bauplatz**: Eine
+  Weile hing er an jeder Gitterwelt, über eine Seite _Bauen_ im
+  Handgelenkmenü — fünfzehn Zeilen, durch die man blätterte, wann immer man
+  etwas anderes suchte. Die Seite ist wieder weg; was die meisten daran
+  wollten (von oben sehen, wo man ist), ist jetzt ein Werkzeug im Regal
+  (_Die Karte in der Hand_) und in jeder Welt zu haben. Mit `editable()` hängt
+  auch der **Speicher** zusammen (`applyStored`): eine Welt, die man nicht
+  ändern kann, hat keinen eigenen Stand aufzuheben. Zwei Sachen macht die Basis
+  dabei selbst: den **Umbau** (alte Quader vollständig zurücknehmen, `dropSlab`, und
+  aus der Liste neu bauen — höchstens einmal je Bild, egal wie viele Kacheln
+  ein Strich gesetzt hat) und das **Abtasten danach** (`rebake`), damit NPCs
+  belaufen können, was gerade entstanden ist.
 - **Geprüft, bevor jemand die Brille aufsetzt.** Jeder Grundriss liegt in einer
   eigenen Datei ohne three.js (`dark/darkHouse.ts`, `range/rangeStand.ts`,
   `dust/dustTown.ts`, `climb/climbHall.ts`), und sein Test läuft durch jede
@@ -6667,8 +7372,28 @@ du erst einen Spieler und dann die Ansicht:
   waagerecht; nur die Drehung zieht weich nach, damit das Bild nicht bei jedem
   Kopfruck mitzuckt.
 
-Steht der gewählte Spieler in einer anderen Welt, wechselst du automatisch
-dorthin. Verlässt er die Sitzung, fällt die Kamera auf _Frei_ zurück.
+**Wer zusieht, geht mit.** Steht der gewählte Spieler in einer anderen Welt,
+wechselst du beim Aussuchen automatisch dorthin — und genauso, wenn er sie
+**später** wechselt: Geht der VR-Spieler durch ein Portal in die Alpen, wird die
+Welt bei allen Zuschauenden nachgeladen. Vorher endete das Zuschauen in dem
+Moment, in dem es spannend wurde: Seine Posen kamen weiter an und gehörten zu
+nichts mehr, was hier steht, und das Bild blieb stehen, ohne dass irgendwo
+stand, warum.
+
+Gehandelt wird dabei auf den **Wechsel** und nicht auf den Unterschied
+(`App.followWatched`, Merker `watchedWorld`). Das ist mehr als eine Sparmaßnahme
+in der Bildschleife: Ein Unterschied allein zöge einen auch dann wieder zurück,
+wenn man selbst gerade im Menü eine andere Welt gewählt hat — aus dem Mitgehen
+würde ein Festhalten. Und lässt sich die Welt nicht laden, bleibt es bei einem
+Versuch statt einem je Bild.
+
+Dafür sind **zwei Fragen getrennt**, die gleich aussehen: _Wem wird zugesehen?_
+(`App.watched`, die Wahl allein — `net/watch.ts`, mit Test) und _Von wem gibt es
+hier eine Pose?_ (`App.spectatorTarget`, dieselbe Person, aber nur solange sie
+in derselben Welt steht). Nur die zweite hat die Welt als Bedingung; wer durch
+ein Portal geht, hört nicht auf, der zu sein, dem man zusieht — Menü und Panel
+zeigen ihn deshalb weiter als gewählt, während seine Welt lädt. Verlässt er die
+Sitzung, fällt die Kamera auf _Frei_ zurück.
 
 Der Regler **Kamera-Glättung** bestimmt, wie träge das passiert: ganz links
 folgt die Kamera 1:1, ganz rechts schwenkt sie deutlich verzögert nach. In First

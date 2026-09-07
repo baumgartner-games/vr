@@ -14,6 +14,7 @@ import { HandTool } from './HandTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
 import { MagicBagTool } from './MagicBagTool';
+import { MapTool } from './MapTool';
 import { MirrorTool } from './MirrorTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
@@ -52,6 +53,9 @@ export const TOOL_IDS = [
   'sign',
   'duplicator',
   'inspect',
+  // Die Karte: dasselbe Kachelgitter, über das die NPCs laufen, von oben auf
+  // ein Blatt gemalt (`MapTool.ts`).
+  'map',
   'pistol',
   'knife',
   'hammer',
@@ -122,6 +126,8 @@ function buildTool(id: string): Tool | null {
       return new DuplicatorTool();
     case 'inspect':
       return new InspectTool();
+    case 'map':
+      return new MapTool();
     case 'pistol':
       return new PistolTool();
     case 'knife':
@@ -190,6 +196,7 @@ export {
   WingsTool,
   HolsterTool,
   MagicBagTool,
+  MapTool,
   MirrorTool,
   PistolTool,
   KnifeTool,
@@ -304,6 +311,18 @@ export {
   type SurfaceMaterial,
 } from './materials';
 export { pointOnCanvas, rayOnCanvas, type CanvasPoint, type PaintSurface } from './paintCanvas';
+export {
+  EYE,
+  nearestLevel,
+  onSheet,
+  plotMap,
+  toSheet,
+  type MapPlot,
+  type MapTile,
+  type MapWall,
+  type MapWindow,
+  type Sheet,
+} from './mapPlot';
 export { PaintBoard } from './PaintBoard';
 export {
   DEFAULT_STOPWATCH,

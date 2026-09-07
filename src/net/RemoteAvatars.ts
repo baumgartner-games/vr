@@ -79,6 +79,9 @@ export class RemoteAvatars extends THREE.Group {
         avatar.role = peer.role;
         avatar.body.setColor(ROLE_COLORS[peer.role] ?? 0xffffff);
       }
+      // Der Hut kommt mit der Anmeldung und ändert sich fast nie; gebaut wird
+      // er nur, wenn wirklich ein anderer angesagt wurde.
+      avatar.body.setHeadgear(peer.hat);
       const speaking = this.isSpeaking?.(peer.id) ?? false;
       if (avatar.name !== peer.name || avatar.speaking !== speaking) {
         avatar.name = peer.name;

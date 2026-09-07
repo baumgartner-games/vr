@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { PortalWorld } from '../portal/PortalWorld';
+import { GridWorld } from '../grid/GridWorld';
+import type { GridPlan } from '../grid/gridPlan';
+import type { PlanSolidKind } from '../grid/solids';
 import { createSky } from '../shared/environment';
 import { TextPlane } from '../../ui/TextPlane';
 import { playPick, playTone } from '../../core/Audio';
@@ -15,6 +17,8 @@ import {
 import { Kart, EXIT_HOLD, WHEEL_GRAB_RANGE, WHEEL_HOLD_RANGE } from './Kart';
 import { kartSpeed, kmh, stepKart } from './kartDynamics';
 import { gripAnchor } from '../../core/XRInput';
+import { visorFrame } from '../../core/headgear';
+import { LAYER_HUD } from '../../ui/ScoreHud';
 import {
   KART_FIELDS,
   KART_PRESETS,
@@ -23,15 +27,13 @@ import {
   clampKartField,
   kartFieldLabel,
   nextKartStep,
+  viewFollow,
   type KartField,
 } from './kartSettings';
-import {
-  confineToTrack,
-  nearestOnPath,
-  pathLength,
-  sampleClosedSpline,
-  type Vec2,
-} from './kartTrack';
+import { confineToCourse, insideApron, nearestOnPath, pathLength } from './kartTrack';
+import { KART_COURSE, PIT_APRON, pitSpots } from './kartCourse';
+import { kartPit, TARMAC_TOP } from './kartPit';
+import { shortestAngle, stepViewYaw } from './kartView';
 import {
   formatLap,
   raceLines,
@@ -41,26 +43,6 @@ import {
   type LapState,
   type Racer,
 } from './kartRace';
-
-/**
- * The circuit, as a dozen points the tarmac is drawn through. A short lap on
- * purpose: the interesting part is what the settings on the clipboard do to a
- * corner, and that wants a corner every few seconds.
- */
-const TRACK: Vec2[] = [
-  { x: 0, z: -16 },
-  { x: 14, z: -15 },
-  { x: 20, z: -8 },
-  { x: 17, z: 0 },
-  { x: 20, z: 9 },
-  { x: 13, z: 15 },
-  { x: 2, z: 13 },
-  { x: -4, z: 5 },
-  { x: -12, z: 9 },
-  { x: -19, z: 4 },
-  { x: -18, z: -8 },
-  { x: -10, z: -15 },
-];
 
 /** Der Kanal, auf dem die Karts der anderen fahren. */
 const CHANNEL = 'kart';
@@ -74,12 +56,22 @@ const FOLLOW_TAU = 0.06;
 /** Ab diesem Abstand wird doch gesprungen: ein verlorenes Paket, ein Reset. */
 const SNAP_DISTANCE = 3;
 
-/** Half the width of the tarmac. */
-const HALF_WIDTH = 3.2;
+/** Half the width of the tarmac — die halbe Korridorbreite (`kartCourse.ts`). */
+const HALF_WIDTH = KART_COURSE.halfWidth;
 /** How far apart the tyre stacks along the edge stand. */
 const BARRIER_SPACING = 5.5;
 /** How far out from the tarmac the barriers sit. */
 const BARRIER_OFFSET = 1.1;
+/**
+ * Wie weit Randstein und Reifenstapel von der Boxengasse wegbleiben.
+ *
+ * Sie werden aus der Mittellinie abgeleitet und wüssten sonst nichts davon,
+ * dass an der Zielgeraden gar kein Rand ist, sondern die Gasse — und stünden
+ * mitten zwischen den Karts.
+ */
+const PIT_CLEAR = 1.2;
+/** Die Flächen neben der Strecke, auf denen ein Kart auch fahren darf. */
+const APRONS = [PIT_APRON];
 /** Stick deflection that counts as a scroll on the clipboard, and re-arms it. */
 const SCROLL_ON = 0.55;
 const SCROLL_OFF = 0.3;
@@ -112,11 +104,23 @@ const _quaternion = new THREE.Quaternion();
 /**
  * A little go-kart circuit.
  *
- * Four karts stand on the grid, each with its own character and its own
- * clipboard. **Take hold of the steering wheel** (grab, or point at it and
- * pull) and you are sitting in it; from then on the **right trigger is the
- * throttle, the left one the brake** and the **left stick steers** — or the
- * wheel itself does, if the first line of the clipboard says so.
+ * **Die Strecke ist gebaut und nicht gezeichnet.** Sie besteht aus Geraden und
+ * Kurven auf dem Kachelgitter (`kartCourse.ts`) — vier Kurven mit vier
+ * verschiedenen Radien und vier Geraden dazwischen —, und alles Weitere folgt
+ * daraus: der Asphalt, die Randsteine, die Reifenstapel, wo die Runde anfängt
+ * und wie lang sie ist. Wer die Bahn ändern will, ändert eine Liste; eine
+ * spätere Bauwelt ändert dieselbe Liste mit der Hand.
+ *
+ * **Die Karts stehen in der Boxengasse**, die kachelbündig an der Zielgeraden
+ * liegt (`kartPit.ts`): vier Buchten unter einem Dach, davor der Asphalt der
+ * Gasse. Von dort fährt man los, indem man nach rechts auf die Gerade zieht —
+ * es gibt keine Ein- und keine Ausfahrt, weil Gasse und Strecke aneinander
+ * stoßen.
+ *
+ * **Take hold of the steering wheel** (grab, or point at it and pull) and you
+ * are sitting in it; from then on the **right trigger is the throttle, the
+ * left one the brake** and the **left stick steers** — or the wheel itself
+ * does, if the first line of the clipboard says so.
  *
  * Getting out again is the one thing a new driver cannot guess, so it is
  * written on a sign right behind the steering wheel the whole time you are
@@ -124,9 +128,15 @@ const _quaternion = new THREE.Quaternion();
  * thing sits as the first line on the clipboard, for anybody who would rather
  * point at it.
  *
+ * **Der Kopf ist nicht am Kart festgeschraubt.** Er zieht der Lenkung nach
+ * (`kartView.ts`), und wie weit, steht auf dem Klemmbrett. Das ist die eine
+ * Zeile in dieser Welt, die gegen Übelkeit gebaut ist und nicht für das
+ * Fahrgefühl — auch wenn sie beides verbessert.
+ *
  * The clipboard is the pistol's settings menu in kart form: acceleration, top
- * speed, braking, traction, weight, steering lock, wheelbase and reverse, each
- * one stepping through its notches and showing the raw figure it is at.
+ * speed, braking, traction, wheel spin, head lag, weight, steering lock,
+ * wheelbase and reverse, each one stepping through its notches and showing the
+ * raw figure it is at.
  *
  * Everything else is the portal lab's — the same hands, the same physics, the
  * same shared session. The belt starts out empty here: both triggers have a
@@ -170,14 +180,13 @@ interface Rival {
   primed: boolean;
 }
 
-export class KartWorld extends PortalWorld {
-  /** The centre line, smoothed out of `TRACK`. */
-  private readonly path = sampleClosedSpline(TRACK, 10);
+export class KartWorld extends GridWorld {
+  /** Die Mittellinie, aus den Streckenteilen gelegt (`kartCourse.ts`). */
+  private readonly path = KART_COURSE.centre;
   private readonly lapLength = pathLength(this.path);
 
   private readonly tarmac = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.95 });
   private readonly paint = new THREE.MeshBasicMaterial({ color: 0xf2f4f8, toneMapped: false });
-  private readonly grass = new THREE.MeshStandardMaterial({ color: 0x6f9a58, roughness: 0.98 });
   private readonly kerbRed = new THREE.MeshStandardMaterial({ color: 0xd8402f, roughness: 0.8 });
   private readonly kerbWhite = new THREE.MeshStandardMaterial({ color: 0xf0f2f6, roughness: 0.8 });
   private readonly tyre = new THREE.MeshStandardMaterial({ color: 0x1b1e26, roughness: 0.95 });
@@ -192,12 +201,30 @@ export class KartWorld extends PortalWorld {
   private readonly boardTargets: THREE.Object3D[] = [];
 
   private driving: Kart | null = null;
+  /**
+   * **Der Helm von innen** — der Visierrand an der Kamera
+   * (`core/headgear.ts`).
+   *
+   * Er hängt an der Kamera und liegt auf `LAYER_HUD`, aus demselben Grund wie
+   * die Trefferanzeige: Ein Rahmen, der dem Kopf ein Bild hinterherläuft, ist
+   * genau das Gegenteil dessen, wofür es ihn gibt — und einer, den auch die
+   * Portalkameras zeichnen, schwebte als schwarzer Ring im Raum.
+   */
+  private visor: THREE.Mesh | null = null;
   /** Seconds A/X has been held down while seated. */
   private exitHeld = 0;
   /** The hand on the steering wheel, and where around it that hand last was. */
   private wheelGrab: { hand: Handedness; angle: number } | null = null;
   /** Stick steering, eased so a flick of the thumb is not a flick of the kart. */
   private steer = 0;
+  /**
+   * Wohin der **Blick** zeigt, während das Kart schon woanders hinzeigt.
+   *
+   * Der Rig wird jeden Frame auf diesen Winkel gestellt und nicht auf den des
+   * Karts — das ist der ganze Nachlauf (`kartView.ts`). Beim Einsteigen sind
+   * die beiden gleich, danach läuft dieser hinterher.
+   */
+  private viewYaw = 0;
   /** Der eigene Rundenstand (`kartRace.ts`, mit Test). */
   private lap: LapState = startLap(0);
   /** Die Mitfahrer, nach Peer-Id — jeder in genau einem Kart. */
@@ -297,7 +324,7 @@ export class KartWorld extends PortalWorld {
       {
         id: 'kart:home',
         label: 'Karts in die Box',
-        sub: 'Alle vier zurück auf den Start',
+        sub: 'Alle vier zurück in ihre Bucht',
         icon: 'reset',
         accent: 0xffc857,
         run: () => {
@@ -307,7 +334,7 @@ export class KartWorld extends PortalWorld {
             this.syncBody(kart);
           }
           this.context?.net.emit(CHANNEL, { t: 'home' } satisfies KartMessage);
-          this.context?.notify('Karts stehen wieder auf dem Start');
+          this.context?.notify('Karts stehen wieder in der Box');
         },
       },
       {
@@ -326,7 +353,7 @@ export class KartWorld extends PortalWorld {
     ];
   }
 
-  /** `B`/`Y` puts the karts back on the grid, driver and all. */
+  /** `B`/`Y` stellt alle Karts zurück in die Boxengasse, Fahrer und alles. */
   protected override worldReset(): void {
     if (this.driving && this.context) this.leave(this.context);
     for (const kart of this.karts) {
@@ -335,19 +362,23 @@ export class KartWorld extends PortalWorld {
     }
   }
 
+  /** Am Südende der Boxengasse, mit Blick auf die Reihe der Karts. */
   protected override spawnPoint(): THREE.Vector3 {
-    // On the tarmac a few metres behind the grid, looking at the karts.
-    const point = this.pointAt(-4);
-    return new THREE.Vector3(point.x, 0, point.z);
+    return new THREE.Vector3((PIT_APRON.x0 + PIT_APRON.x1) / 2, 0, PIT_APRON.z1 - 3.5);
   }
 
+  /** Nach Norden, also die Gasse entlang — bei `yaw = 0` schaut man auf −Z. */
   protected override spawnYaw(): number {
-    const point = this.pointAt(-4);
-    return Math.atan2(-point.tx, -point.tz);
+    return 0;
   }
 
   protected override skyColor(): number {
     return 0xa9c9ea;
+  }
+
+  /** Die Fläche bis zum Horizont ist hier Wiese, wie das Gelände auch. */
+  protected override horizonColor(): number {
+    return 0x5d8449;
   }
 
   protected override lightIntensity(): number {
@@ -363,20 +394,46 @@ export class KartWorld extends PortalWorld {
     return [];
   }
 
+  /** Unter diesem Namen liegt die Welt im Speicher (`grid/worldStore.ts`). */
+  protected override worldId(): string {
+    return 'kart';
+  }
+
+  protected override editorTitle(): string {
+    return 'Gokart';
+  }
+
+  /** Wiese, Boxengasse, Boxen — alles, was Kachelform hat (`kartPit.ts`). */
+  protected override layout(): GridPlan {
+    return kartPit();
+  }
+
+  /**
+   * Die Palette der Gitterwelten, an zwei Stellen verstellt: Der Boden ist
+   * hier Wiese und der Stein Asphalt. Alles andere — Wände, Dach, Säulen,
+   * Tafeln — sieht aus wie in jeder anderen Gitterwelt, und genau das ist der
+   * Sinn einer gemeinsamen Palette.
+   */
+  protected override tint(): Partial<Record<PlanSolidKind, number>> {
+    return { floor: 0x6f9a58, stone: 0x3a3f4a };
+  }
+
   protected override buildEnvironment(): void {
+    // Erst der Grundriss (und mit ihm die Requisiten), dann die Strecke: Was
+    // aus Kacheln kommt, kommt aus dem Plan, und was eine Kurve ist, wird
+    // danach als Band darübergelegt.
+    super.buildEnvironment();
+
     const circuit = new THREE.Group();
     circuit.name = 'kart-circuit';
     this.root.add(circuit);
     this.root.add(createSky(0x6ea8e8, 0xdbe7f2));
 
-    // One slab for the whole field, so a portal in the ground opens the ground.
-    this.slab(circuit, this.grass, [70, 0.4, 62], [0, -0.2, -1], true);
     this.buildRoad(circuit);
     this.buildKerbs(circuit);
     this.buildBarriers(circuit);
     this.buildStart(circuit);
-    this.buildProps();
-    this.buildGrid();
+    this.buildPitLane();
   }
 
   /** Cones on the track: the one thing a kart is guaranteed to hit. */
@@ -429,8 +486,12 @@ export class KartWorld extends PortalWorld {
     }
     this.driving = kart;
     this.exitHeld = 0;
+    this.applyHelmet();
     this.steer = 0;
     this.wheelGrab = null;
+    // Beim Einsteigen schaut man dorthin, wohin das Kart schaut; erst ab dem
+    // ersten Lenkeinschlag läuft der Blick hinterher.
+    this.viewYaw = kart.motion.yaw;
     this.lap = startLap(nearestOnPath(this.path, kart.motion.x, kart.motion.z).along);
     kart.setSeated(true);
     ctx.rig.frozen = true;
@@ -451,6 +512,7 @@ export class KartWorld extends PortalWorld {
     this.driving = null;
     this.wheelGrab = null;
     this.exitHeld = 0;
+    this.applyHelmet();
     kart.setSeated(false);
     kart.setBraking(0);
 
@@ -458,11 +520,45 @@ export class KartWorld extends PortalWorld {
     _spot.set(-1.5, 0, 0.2).applyMatrix4(kart.matrixWorld);
     _spot.y = 0;
     ctx.rig.frozen = false;
-    ctx.rig.placeAt(_spot, kart.motion.yaw);
+    // Mit dem Blickwinkel und nicht mit dem des Karts: wer aussteigt, soll
+    // dorthin weiterschauen, wo er gerade hingeschaut hat.
+    ctx.rig.placeAt(_spot, this.viewYaw);
     ctx.rig.locomotion.resync?.(ctx.rig);
     this.announceSeat();
     playPick(false);
     ctx.notify('Ausgestiegen');
+  }
+
+  /**
+   * **Helm auf, Helm ab** — beides an einer Stelle, weil es zwei Dinge sind,
+   * die immer zusammen gelten.
+   *
+   * Von **außen** ist es ein Helm auf dem Kopf: `ctx.wear` setzt ihn dem
+   * eigenen Körper auf und sagt ihn allen im Raum an (`core/types.ts`). Von
+   * **innen** ist es der Visierrand vor dem Auge — und der ist der eigentliche
+   * Zweck der Einstellung: etwas, das stillsteht, während die Welt in der
+   * Kurve schwenkt. Wer aussteigt, ist beides wieder los und hat seinen
+   * eigenen Hut auf.
+   */
+  private applyHelmet(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const on = this.driving?.settings.helmet === true;
+    ctx.wear(on ? 'helmet' : null);
+
+    if (!on) {
+      this.visor?.removeFromParent();
+      this.visor?.geometry.dispose();
+      (this.visor?.material as THREE.Material | undefined)?.dispose();
+      this.visor = null;
+      return;
+    }
+    if (this.visor) return;
+    const frame = visorFrame();
+    frame.layers.set(LAYER_HUD);
+    ctx.camera.layers.enable(LAYER_HUD);
+    ctx.camera.add(frame);
+    this.visor = frame;
   }
 
   /**
@@ -475,11 +571,17 @@ export class KartWorld extends PortalWorld {
    * at seat level while somebody standing looks over the roll bar. So the rig
    * is slid until the head lands on the kart's eye point, sideways *and*
    * vertically — the seat is a place for a head, not for a pair of feet.
+   *
+   * **Der Ort kommt vom Kart, die Richtung vom Blick.** Der Sitz wandert mit
+   * dem Kart, sofort und ohne Verzug — sonst säße man neben ihm. Gedreht wird
+   * dagegen nur so schnell, wie der Nachlauf es zulässt (`kartView.ts`), und
+   * das ist der ganze Unterschied zwischen „das Kart dreht sich unter mir" und
+   * „die Welt wird mir weggerissen".
    */
   private seatDriver(ctx: WorldContext, kart: Kart): void {
     kart.updateWorldMatrix(true, false);
     kart.seat.getWorldPosition(_seat);
-    ctx.rig.placeAt(_seat, kart.motion.yaw);
+    ctx.rig.placeAt(_seat, this.viewYaw);
     ctx.rig.getHeadPosition(_head);
     ctx.rig.position.x += _seat.x - _head.x;
     ctx.rig.position.y += _seat.y - _head.y;
@@ -524,9 +626,10 @@ export class KartWorld extends PortalWorld {
       dt,
     );
 
-    const guarded = confineToTrack(
+    const guarded = confineToCourse(
       this.path,
       HALF_WIDTH,
+      APRONS,
       kart.motion.x,
       kart.motion.z,
       kart.motion.vx,
@@ -545,6 +648,9 @@ export class KartWorld extends PortalWorld {
     kart.roll(Math.hypot(kart.motion.x - before.x, kart.motion.z - before.z));
     kart.setBraking(brake);
     this.syncBody(kart);
+    // Der Blick zieht nach, und **danach** wird der Sitz gestellt: `seatDriver`
+    // dreht den Rig auf genau diesen Winkel.
+    this.viewYaw = stepViewYaw(this.viewYaw, kart.motion.yaw, viewFollow(kart.settings), dt);
     this.seatDriver(ctx, kart);
     this.updateLap(dt, ctx, kart);
     this.updateExit(dt, ctx);
@@ -562,8 +668,14 @@ export class KartWorld extends PortalWorld {
    * Steering by turning the wheel: one hand takes hold of it anywhere on the
    * rim, and however far that hand travels around the middle is however far
    * the wheel turns. Letting go — or reaching too far away — hands it back.
+   *
+   * Gemessen wird dabei **gegen den Blick und nicht gegen das Kart**
+   * (`Kart.handAngle`): Seit der Kopf nachzieht, drehen sich die beiden nicht
+   * mehr im selben Bild, und eine völlig stillgehaltene Hand wanderte sonst um
+   * die Nabe — das Lenkrad drehte sich unter ihr weg und lenkte dabei weiter.
    */
   private updateWheelGrab(ctx: WorldContext, kart: Kart): void {
+    const lag = shortestAngle(kart.motion.yaw - this.viewYaw);
     const grab = this.wheelGrab;
     if (grab) {
       const controller = ctx.input.get(grab.hand);
@@ -577,7 +689,7 @@ export class KartWorld extends PortalWorld {
         this.wheelGrab = null;
         return;
       }
-      const angle = kart.handAngle(_hand);
+      const angle = kart.handAngle(_hand, lag);
       kart.turnWheelBy(shortestAngle(angle - grab.angle));
       grab.angle = angle;
       return;
@@ -588,7 +700,7 @@ export class KartWorld extends PortalWorld {
       gripAnchor(controller).getWorldPosition(_hand);
       kart.hubPosition(_hub);
       if (_hand.distanceTo(_hub) > WHEEL_HOLD_RANGE) continue;
-      this.wheelGrab = { hand: controller.handedness!, angle: kart.handAngle(_hand) };
+      this.wheelGrab = { hand: controller.handedness!, angle: kart.handAngle(_hand, lag) };
       controller.pulse(0.3, 20);
       return;
     }
@@ -697,6 +809,40 @@ export class KartWorld extends PortalWorld {
     }
 
     rows.push({
+      id: 'kart:helmet',
+      label: 'Helm',
+      sub: 'Visierrand steht fest im Blick — gegen Übelkeit',
+      badge: kart.settings.helmet ? 'auf' : 'ab',
+      icon: 'settings',
+      accent: 0x9fd8ff,
+      checked: kart.settings.helmet,
+      run: () => {
+        kart.settings.helmet = !kart.settings.helmet;
+        this.applyHelmet();
+        this.showBoard(kart);
+        playPick(true);
+        this.context?.notify(kart.settings.helmet ? 'Helm auf' : 'Helm ab');
+      },
+    });
+    rows.push({
+      id: 'kart:values',
+      label: 'Werte eingeben',
+      sub: 'Jede Zahl direkt tippen statt durchzuschalten',
+      icon: 'settings',
+      accent: kart.preset.color,
+      children: KART_FIELDS.map((field) => ({
+        id: `kart:type:${field.key}`,
+        label: field.label,
+        // Die Spanne und nicht der Wert: Der steht schon eine Seite höher, und
+        // was hier fehlt, ist die Frage „was darf ich überhaupt eintippen".
+        sub: `${field.min}–${field.max} ${field.unit}`.trim(),
+        badge: kartFieldLabel(field, kart.settings),
+        icon: 'settings',
+        accent: kart.preset.color,
+        run: () => this.typeField(kart, field),
+      })),
+    });
+    rows.push({
       id: 'kart:reset',
       label: 'Werte zurücksetzen',
       sub: `Wie ${kart.preset.name} aus der Box kam`,
@@ -712,14 +858,14 @@ export class KartWorld extends PortalWorld {
     rows.push({
       id: 'kart:box',
       label: 'Zurück in die Box',
-      sub: 'Setzt genau dieses Kart auf den Start',
+      sub: 'Setzt genau dieses Kart zurück in seine Bucht',
       icon: 'reset',
       accent: 0x6f7d99,
       run: () => {
         if (this.driving === kart) this.leave(this.context!);
         kart.returnHome();
         this.syncBody(kart);
-        this.context?.notify(`${kart.preset.name} steht wieder auf dem Start`);
+        this.context?.notify(`${kart.preset.name} steht wieder in der Box`);
       },
     });
     return rows;
@@ -732,6 +878,31 @@ export class KartWorld extends PortalWorld {
     this.showBoard(kart);
     playPick(true);
     this.context?.notify(`${field.label}: ${kartFieldLabel(field, kart.settings)}`);
+  }
+
+  /**
+   * **Und derselbe Wert getippt** — der Zifferblock vor dem Kopf
+   * (`PortalWorld.askNumber`).
+   *
+   * Rasten sind zum Ausprobieren da: Man tippt eine Zeile an und merkt am
+   * nächsten Bogen, ob es besser wurde. Was sie nicht können, ist das Ende
+   * davon — wer weiß, dass sein Kart 0,62 Traktion haben soll, will nicht
+   * siebenmal weiterschalten und dabei daran vorbei. Dieselbe Zeile, dieselbe
+   * Grenze (`clampKartField`), nur eine andere Eingabe.
+   */
+  private typeField(kart: Kart, field: KartField): void {
+    this.askNumber({
+      title: field.label,
+      sub: `${kart.preset.name} · ${field.min} bis ${field.max} ${field.unit}`.trim(),
+      hint: field.sub,
+      value: String(kart.settings[field.key]),
+      commit: (value) => {
+        kart.settings[field.key] = clampKartField(field, value);
+        kart.refreshSign();
+        this.showBoard(kart);
+        this.context?.notify(`${field.label}: ${kartFieldLabel(field, kart.settings)}`);
+      },
+    });
   }
 
   /** Draws the clipboard afresh — every row shows the value it is at. */
@@ -770,12 +941,18 @@ export class KartWorld extends PortalWorld {
 
   // --- the place ------------------------------------------------------------
 
-  /** The tarmac, as one ribbon along the centre line. */
+  /**
+   * The tarmac, as one ribbon along the centre line.
+   *
+   * Auf derselben Höhe wie der Asphalt der Boxengasse (`kartPit.ts`), damit an
+   * der Zielgeraden keine Stufe zwischen den beiden steht — sie stoßen dort
+   * kachelbündig aneinander, und das soll man auch sehen.
+   */
   private buildRoad(parent: THREE.Object3D): void {
-    parent.add(this.ribbon(0, HALF_WIDTH, 0.012, this.tarmac));
+    parent.add(this.ribbon(0, HALF_WIDTH, TARMAC_TOP, this.tarmac));
     // The white lines just inside the edge; the eye needs them in a corner.
-    parent.add(this.ribbon(HALF_WIDTH - 0.25, 0.09, 0.022, this.paint));
-    parent.add(this.ribbon(-(HALF_WIDTH - 0.25), 0.09, 0.022, this.paint));
+    parent.add(this.ribbon(HALF_WIDTH - 0.25, 0.09, TARMAC_TOP + 0.01, this.paint));
+    parent.add(this.ribbon(-(HALF_WIDTH - 0.25), 0.09, TARMAC_TOP + 0.01, this.paint));
   }
 
   /**
@@ -820,7 +997,10 @@ export class KartWorld extends PortalWorld {
     return mesh;
   }
 
-  /** Red and white kerbs, laid along both edges of the tarmac. */
+  /**
+   * Red and white kerbs, laid along both edges of the tarmac — nur eben nicht
+   * dort, wo die Boxengasse liegt: Dort ist kein Rand, sondern die Ausfahrt.
+   */
   private buildKerbs(parent: THREE.Object3D): void {
     const step = 2.2;
     let index = 0;
@@ -828,12 +1008,11 @@ export class KartWorld extends PortalWorld {
       const point = this.pointAt(distance);
       const material = index % 2 === 0 ? this.kerbRed : this.kerbWhite;
       for (const side of [1, -1]) {
+        const x = point.x + point.nx * side * (HALF_WIDTH + 0.28);
+        const z = point.z + point.nz * side * (HALF_WIDTH + 0.28);
+        if (this.overPit(x, z)) continue;
         const kerb = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.07, step * 0.95), material);
-        kerb.position.set(
-          point.x + point.nx * side * (HALF_WIDTH + 0.28),
-          0.035,
-          point.z + point.nz * side * (HALF_WIDTH + 0.28),
-        );
+        kerb.position.set(x, 0.035, z);
         kerb.rotation.y = Math.atan2(-point.tx, -point.tz);
         parent.add(kerb);
       }
@@ -848,6 +1027,7 @@ export class KartWorld extends PortalWorld {
       for (const side of [1, -1]) {
         const x = point.x + point.nx * side * (HALF_WIDTH + BARRIER_OFFSET);
         const z = point.z + point.nz * side * (HALF_WIDTH + BARRIER_OFFSET);
+        if (this.overPit(x, z)) continue;
         const stack = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.6, 1.1), this.tyre);
         stack.position.set(x, 0.3, z);
         stack.rotation.y = Math.atan2(-point.tx, -point.tz);
@@ -857,6 +1037,27 @@ export class KartWorld extends PortalWorld {
         this.solids.push(stack);
       }
     }
+  }
+
+  /**
+   * Ob an dieser Stelle die Boxengasse liegt.
+   *
+   * Randsteine und Reifenstapel folgen der Mittellinie und wissen von der
+   * Gasse nichts — ohne diese Frage stünde die halbe Bande zwischen den Karts.
+   */
+  private overPit(x: number, z: number): boolean {
+    return APRONS.some((apron) =>
+      insideApron(
+        {
+          x0: apron.x0 - PIT_CLEAR,
+          z0: apron.z0 - PIT_CLEAR,
+          x1: apron.x1 + PIT_CLEAR,
+          z1: apron.z1 + PIT_CLEAR,
+        },
+        x,
+        z,
+      ),
+    );
   }
 
   /** Start line, and the two boards standing beside it. */
@@ -869,26 +1070,29 @@ export class KartWorld extends PortalWorld {
     line.rotation.x = -Math.PI / 2;
     // Laid flat first, then turned so its width runs across the track.
     line.rotation.z = Math.atan2(point.tx, point.tz);
-    line.position.set(point.x, 0.03, point.z);
+    line.position.set(point.x, TARMAC_TOP + 0.015, point.z);
     parent.add(line);
 
+    // Beide Tafeln stehen **rechts** der Zielgeraden: links liegt die
+    // Boxengasse, und eine Tafel auf Stelzen mitten in der Gasse wäre das
+    // Erste, was jemand beim Losfahren umfährt.
     this.lapBoard = new TextPlane({
       width: 4.4,
       height: 1.5,
       title: 'Rundenzeiten',
       accent: 0xffc857,
     });
-    this.standBoard(parent, this.lapBoard, 2, 1, 2.2);
+    this.standBoard(parent, this.lapBoard, 4, -1, 2.2);
     this.drawLapBoard();
 
     const sign = new TextPlane({
       width: 4,
       height: 1.3,
       title: 'Gokart',
-      body: 'Lenkrad greifen = einsteigen. Rechter Trigger gibt Gas, linker bremst, der linke Stick lenkt. Aussteigen: A/X halten. Alles Weitere steht auf dem Klemmbrett im Kart.',
+      body: 'Aus der Box nach rechts auf die Gerade. Rechter Trigger gibt Gas, linker bremst, der linke Stick lenkt. Aussteigen: A/X halten. Alles Weitere steht auf dem Klemmbrett im Kart.',
       accent: 0x4aa8ff,
     });
-    this.standBoard(parent, sign, -4, -1, 2);
+    this.standBoard(parent, sign, 14, -1, 2);
   }
 
   /**
@@ -930,18 +1134,21 @@ export class KartWorld extends PortalWorld {
     );
   }
 
-  /** The karts, lined up on the grid the way a grid is lined up. */
-  private buildGrid(): void {
+  /**
+   * **Die Karts in der Boxengasse**, eines vor jeder Bucht.
+   *
+   * Vorher standen sie in Zweierreihen auf der Strecke, wie ein Startfeld —
+   * und wer ausstieg, stand mitten auf der Fahrbahn, während der Nächste
+   * angefahren kam. Die Gasse ist der Ort, an dem ein Kart wartet: neben der
+   * Strecke, mit der Nase in Fahrtrichtung, und mit Platz zum Herumgehen.
+   */
+  private buildPitLane(): void {
     const physics = this.physics!;
+    const spots = pitSpots();
     KART_PRESETS.forEach((preset, index) => {
       const kart = new Kart(preset);
-      const point = this.pointAt(3 + index * 3.4);
-      const side = index % 2 === 0 ? 1 : -1;
-      kart.placeHome(
-        point.x + point.nx * side * 1.5,
-        point.z + point.nz * side * 1.5,
-        Math.atan2(-point.tx, -point.tz),
-      );
+      const spot = spots[index % spots.length]!;
+      kart.placeHome(spot.x, spot.z, spot.yaw);
       this.root.add(kart);
       this.karts.push(kart);
 
@@ -1234,11 +1441,6 @@ export class KartWorld extends PortalWorld {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-/** The same angle, brought back into -π…π. */
-function shortestAngle(angle: number): number {
-  return Math.atan2(Math.sin(angle), Math.cos(angle));
-}
 
 /** Millimeter und Milliradiant reichen über das Netz; der Rest ist Bandbreite. */
 function round(value: number): number {

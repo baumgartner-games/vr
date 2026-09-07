@@ -109,6 +109,23 @@ export function createLighting(intensity = 1): THREE.Group {
   return group;
 }
 
+/**
+ * **Nur die Formen wegräumen, die Materialien behalten.**
+ *
+ * Für alles, was **umgebaut** statt verlassen wird: eine Gitterwelt, an der
+ * man im Stehen weiterbaut (`grid/GridWorld.ts`), die Miniatur des Editors.
+ * Dort teilen sich hundert Quader acht Materialien — und wer beim Umbauen
+ * `disposeTree` nimmt, gibt dieselben acht hundertmal frei und lädt sie im
+ * nächsten Bild wieder hoch. Die Geometrie dagegen gehört jedem Quader
+ * allein, und sie muss weg.
+ */
+export function disposeShapes(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    (object as Partial<THREE.Mesh>).geometry?.dispose();
+  });
+  root.removeFromParent();
+}
+
 /** Disposes every geometry/material below `root` and detaches it. */
 export function disposeTree(root: THREE.Object3D): void {
   root.traverse((object) => {

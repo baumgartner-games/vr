@@ -22,7 +22,21 @@ export type NetMessage =
    * längsten da ist, rechnet. Eine Dauer, weil zwei Rechner sich über die
    * Uhrzeit nie einig sind, über die Länge einer Minute aber schon.
    */
-  | { type: 'hello'; from: string; role: PlayerRole; name: string; world: string; since: number }
+  /**
+   * `hat` ist die Kopfbedeckung, die dieser Spieler trägt
+   * (`core/headgear.ts`) — das Einzige an seinem Aussehen, was er selbst
+   * wählt. Optional, weil eine ältere Fassung sie nicht mitschickt: Wer
+   * nichts sagt, geht barhäuptig.
+   */
+  | {
+      type: 'hello';
+      from: string;
+      role: PlayerRole;
+      name: string;
+      world: string;
+      since: number;
+      hat?: string;
+    }
   | { type: 'bye'; from: string }
   | { type: 'world'; from: string; world: string; since: number }
   | { type: 'pose'; from: string; pose: PeerPose }

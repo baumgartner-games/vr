@@ -1,6 +1,7 @@
 import { DIRS, TILE, tileKey } from '../nav/navTile';
 import { solidBounds } from '../grid/solids';
-import { HALL, climbHall } from './climbHall';
+import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
+import { HALL, HALL_BOUNDS, climbHall, hallUpperWalls } from './climbHall';
 
 const plan = climbHall();
 
@@ -38,5 +39,46 @@ describe('Die Kletterhalle als Grundriss', () => {
     // muss man laufen können — sonst wäre es keine Halle, sondern eine Nische.
     const box = solidBounds(plan.solids())!;
     expect(box.minZ).toBeLessThan(-9.5);
+  });
+
+  /**
+   * **Die oberen Stockwerke.** Eine gerasterte Wand ist zimmerhoch, die Halle
+   * ist zehn Meter — dazwischen klaffte bis hierher nichts als Luft, und von
+   * den Podesten auf 6,50 m sah man hinaus statt an eine Wand.
+   */
+  describe('die Wände über Zimmerhöhe', () => {
+    const bands = hallUpperWalls();
+
+    it('schließt genau die Lücke zwischen Wandkopf und Decke', () => {
+      expect(bands).toHaveLength(4);
+      for (const band of bands) {
+        const bottom = band.centre[1] - band.size[1] / 2;
+        const top = band.centre[1] + band.size[1] / 2;
+        expect(bottom).toBeCloseTo(PLAN_WALL_H);
+        expect(top).toBeCloseTo(HALL.height);
+      }
+    });
+
+    it('legt sie auf dieselben Kanten wie die Wände darunter', () => {
+      const { minX, maxX, minZ, maxZ } = HALL_BOUNDS;
+      const edges = bands.map((band) =>
+        band.size[0] > band.size[2] ? band.centre[2] : band.centre[0],
+      );
+      expect(edges.sort((a, b) => a - b)).toEqual([minZ, minX, maxZ, maxX].sort((a, b) => a - b));
+      // Wanddick und keinen Zentimeter mehr: Eine Masse aus dem Grundriss wäre
+      // eine ganze Kachel dick und stünde mitten in den Kletterwänden.
+      for (const band of bands)
+        expect(Math.min(band.size[0], band.size[2])).toBeCloseTo(PLAN_WALL_T);
+    });
+
+    it('schließt die vier Ecken', () => {
+      // Über Eck gemessen: Ohne den Überstand bliebe in jeder Ecke ein
+      // senkrechter Schlitz über die ganzen sieben Meter.
+      const across = bands.filter((band) => band.size[0] > band.size[2]);
+      expect(across).toHaveLength(2);
+      for (const band of across) {
+        expect(band.size[0]).toBeCloseTo(HALL.w * TILE + PLAN_WALL_T);
+      }
+    });
   });
 });

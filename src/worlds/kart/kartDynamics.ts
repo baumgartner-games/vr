@@ -10,7 +10,10 @@
  *   appears from that is the drift, and the traction setting is how quickly the
  *   tyres eat it again;
  * - throttle, brake, drag and rolling resistance only ever touch the forward
- *   part.
+ *   part;
+ * - und ein Reifen hat **ein** Budget: was er längs überträgt, fehlt ihm quer
+ *   (`slip`). Vollgas dreht ihn durch, Vollbremsung blockiert ihn, und in
+ *   beiden Fällen hält er weniger zur Seite als vorher.
  *
  * Angles follow three.js: `yaw` is a rotation about +Y and the kart looks along
  * its own -Z, so forward is `(-sin yaw, -cos yaw)` and a *bigger* yaw is a turn
@@ -130,7 +133,19 @@ export function stepKart(
   forward -= Math.sign(forward) * Math.min(speed, resistance);
   forward = clamp(forward, -back, top);
 
-  lateral *= Math.exp(-(GRIP_BASE + clamp(settings.traction, 0, 1) * GRIP_SPAN) * dt);
+  /**
+   * **Wie hart die Reifen gerade längs arbeiten**, 0 bis 1.
+   *
+   * Das Gas dreht sie durch, *solange der Motor noch zieht*: bei Tempo null
+   * am schlimmsten, bei Höchstgeschwindigkeit gar nicht mehr, denn dort ist
+   * die Kraft längst vom Luftwiderstand aufgebraucht. Die Bremse blockiert
+   * dagegen bei jedem Tempo gleich — deshalb steht sie ungedämpft da. Beides
+   * ist analog, es zählt also, *wie weit* der Trigger gezogen ist.
+   */
+  const pull = top > 0 ? clamp(Math.abs(forwardBefore) / top, 0, 1) : 1;
+  const strain = Math.max(throttle * (1 - pull), brake);
+  const grip = clamp(settings.traction, 0, 1) * (1 - clamp(settings.slip, 0, 1) * strain);
+  lateral *= Math.exp(-(GRIP_BASE + grip * GRIP_SPAN) * dt);
 
   if (throttle === 0 && brake === 0 && Math.abs(forward) < STANDSTILL) forward = 0;
   if (Math.abs(lateral) < STANDSTILL) lateral = 0;

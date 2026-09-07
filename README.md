@@ -13,17 +13,29 @@ Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
 Dunkelhaus zum Ausprobieren von Licht, eine **Kletterhalle**, in der Greifen
 dich an der Wand hält — der Halt wird gerechnet, aus Material, Form,
-Körperhaltung und dem Verspreizen im Kamin, und schlechte Griffe kosten
-Ausdauer —, ein **Effektlabor** mit einem großen
+Körperhaltung und dem Verspreizen im Kamin, schlechte Griffe kosten Ausdauer,
+und hinunter geht es in **Sprungkissen**, die den Fall abfedern statt ihn
+anzuhalten —, ein **Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
 und sie fällt nicht; an einer Palette tunkt man Boden, Wand oder Tür ein und
 setzt sie beliebig oft, und in der zweiten Reihe liegen die **Bausteine**:
 Küchenzeile, Regal, Tisch, Bank, Kisten, Säule, Geländer, Brüstung, Podest —
-eine Kachel, eine Sorte, eine Blickrichtung, wie bei Minecraft. Die eigene
+eine Kachel, eine Sorte, eine Blickrichtung, wie bei Minecraft. Man hält den
+Trigger gedrückt und **malt** eine ganze Reihe, oder zieht **zwei Ecken** auf
+und füllt die Fläche dazwischen — ein Zimmer sind damit zwei Gesten statt
+sechzig Trigger. Die eigene
 Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
-ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum —, und
+ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
+**Und es bleibt**: Unter *Welt sichern* liegt eine
+gebaute Welt im Browser, geht als Datei herunter (`bauplatz-2026-09-07.welt.json`,
+Format `baumgartner-welt` in der Fassung `0.1.0`, mit Kacheln, Wänden, Türen,
+Möbeln und Dächern darin) und kommt so auch wieder zurück. Wer in einer
+fertigen Welt nur wissen will, wo er gerade ist, nimmt statt eines Grundrisses
+die **Karte** aus dem Werkzeugregal: ein Blatt in der Hand mit der Umgebung von
+oben, Norden oben, ein Pfeil für einen selbst und ein Punkt je Mitspieler — der
+Trigger zoomt. Dazu kommt
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
@@ -46,6 +58,11 @@ räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
+Unter **Menü → Grafik** steht ein experimenteller Schalter, der
+**Grafik-Modus**: _Einfach_ ist das Bild von bisher, _Comic_ zeichnet dieselbe
+Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Daneben liegt
+**Aussehen** — sieben Kopfbedeckungen von der Basecap bis zur Krone, und alle
+im Raum sehen, was man aufhat.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -72,9 +89,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
-Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
+Spiegelung beider Hüften, die Portaltiefe, die Grafikstufen, das Aussehen,
+den Ausschnitt der Karte in der Hand, die Lichtstufen
 des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
-dazu, die Blätterposition der Menüs und den Weg durch sie, die
+dazu, die **Federung der Sprungkissen** (dass ein Sturz aus sieben Metern nicht
+durchschlägt und der Blick trotzdem nicht in einem Bild stehen bleibt),
+die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
 Haltung an derselben Stelle in der Faust landet, die Faust am Griff (eine
@@ -102,7 +122,13 @@ dem Weg über die Leitung, die Maße des Poseraums, den **Bauplan des Editors**
 (worauf ein Zeiger trifft — Kachel oder Kante —, was die vier Werkzeuge daraus
 machen, und dass die gebauten Quader vom Abtasten wiedergefunden werden) samt
 der **Miniatur** (Hin und Zurück ohne Drift, und dass der Punkt zwischen den
-Fingern beim Ziehen liegen bleibt), **was ein NPC an einer Kante anfängt**
+Fingern beim Ziehen liegen bleibt), dem **Malen** (dass zwischen zwei
+Bildern keine Lücke bleibt, und dass ein Rechteck aus Boden seine Fläche füllt,
+eines aus Wänden dagegen nur seinen Rand — sonst wäre es ein Klotz und kein
+Zimmer) und dem **Weltformat** (dass eine Welt mit Dach und Möbeln durch die
+Datei und wieder zurück dieselbe ist, dass der Aufschlag einer Küchenzeile
+dabei nicht jedes Mal mitwächst, und dass eine Datei aus der Zukunft abgelehnt
+statt halb geladen wird), **was ein NPC an einer Kante anfängt**
 (wie hoch er tritt, wie hoch er sich hochzieht, wie steil ein Weg für ihn noch
 einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte) und das
 **ganze Navigationslabor auf einmal**
@@ -135,7 +161,8 @@ liegen bleibt. Alles landet in denselben Speichern wie
 in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
 Über die Schublade daneben die
 **Welten** (jede ganz zum Drehen, schräg von oben für den Überblick, Räume mit
-Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen — zwei
+Decke aufgeschnitten wie ein Puppenhaus — über allem, was darin steht, damit
+eine Halle ihre Wände behält —, und beliebig nah heranzuzoomen — zwei
 Finger schieben und zoomen dabei wie auf einer Karte; mit
 **Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf

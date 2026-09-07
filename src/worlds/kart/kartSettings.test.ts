@@ -6,7 +6,9 @@ import {
   clampKartField,
   kartFieldLabel,
   nextKartStep,
+  viewFollow,
 } from './kartSettings';
+import { MAX_LAG } from './kartView';
 
 const field = (key: string) => KART_FIELDS.find((entry) => entry.key === key)!;
 
@@ -35,6 +37,12 @@ describe('clampKart', () => {
     expect(clampKart({ steering: 'joystick' as never }).steering).toBe(DEFAULT_KART.steering);
   });
 
+  it('nimmt für den Helm nur ein ausdrückliches Ja', () => {
+    // Jeder gespeicherte Stand von gestern kennt das Feld nicht.
+    expect(clampKart({ helmet: 'ja' as never }).helmet).toBe(false);
+    expect(clampKart({ helmet: true }).helmet).toBe(true);
+  });
+
   it('leaves every preset exactly as it is', () => {
     for (const preset of KART_PRESETS) {
       expect(clampKart(preset.settings)).toEqual(preset.settings);
@@ -44,6 +52,37 @@ describe('clampKart', () => {
   it('gives every preset its own name and id', () => {
     const ids = KART_PRESETS.map((preset) => preset.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('KART_FIELDS', () => {
+  it('keeps every notch inside the range it belongs to', () => {
+    for (const entry of KART_FIELDS) {
+      for (const step of entry.steps) {
+        expect(step).toBeGreaterThanOrEqual(entry.min);
+        expect(step).toBeLessThanOrEqual(entry.max);
+      }
+    }
+  });
+
+  it('has the standard kart sitting on a notch of every value', () => {
+    // Sonst springt die erste Rast beim Antippen irgendwohin, statt zur
+    // nächsten — und niemand findet den Ausgangswert wieder.
+    for (const entry of KART_FIELDS) {
+      expect(entry.steps).toContain(DEFAULT_KART[entry.key]);
+    }
+  });
+
+  it('lets the tyres go properly slippery', () => {
+    const traction = field('traction');
+    expect(traction.min).toBeLessThanOrEqual(0.05);
+    expect(Math.min(...traction.steps)).toBeLessThanOrEqual(0.05);
+  });
+
+  it('lets the head be screwed to the kart again', () => {
+    // Die eine Einstellung, deren Null einen Sinn hat: kein Nachlauf.
+    expect(field('headLag').min).toBe(0);
+    expect(field('headLag').steps).toContain(0);
   });
 });
 
@@ -68,5 +107,28 @@ describe('kartFieldLabel', () => {
 
   it('leaves a bare number alone', () => {
     expect(kartFieldLabel(field('traction'), DEFAULT_KART)).toBe('0.75');
+  });
+});
+
+describe('die drei Zahlen des Kopfes', () => {
+  it('reicht sie unverändert an die Rechnung weiter', () => {
+    expect(viewFollow(DEFAULT_KART)).toEqual({
+      lag: DEFAULT_KART.headLag,
+      dead: DEFAULT_KART.headDeadZone,
+      rate: DEFAULT_KART.headTurnRate,
+    });
+  });
+
+  it('lässt die Totzone nicht über den harten Deckel hinaus', () => {
+    // Eine Totzone größer als `MAX_LAG` wäre keine: Der harte Deckel zöge den
+    // Kopf ohnehin nach, und die Einstellung täte nichts mehr.
+    expect(field('headDeadZone').max).toBeLessThan(MAX_LAG);
+  });
+
+  it('lässt beide neuen Werte ganz abschalten', () => {
+    // 0 heißt bei beiden „gibt es nicht": keine Totzone, kein Deckel — also
+    // genau das Verhalten von vorher.
+    expect(clampKartField(field('headDeadZone'), 0)).toBe(0);
+    expect(clampKartField(field('headTurnRate'), 0)).toBe(0);
   });
 });

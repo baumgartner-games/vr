@@ -14,6 +14,7 @@ import { Voice } from '../net/Voice';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTransport';
 import { SpectatorCamera, type SpectatorMode } from '../net/SpectatorCamera';
+import { pickWatched } from '../net/watch';
 import {
   normalizeRoomCode,
   randomRoomCode,
@@ -24,6 +25,18 @@ import {
 } from '../net/room';
 import { KeyPanel, type KeyPanelRequest } from '../ui/KeyPanel';
 import { detectFlatRole } from './device';
+import { GraphicsQuality } from './GraphicsQuality';
+import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
+import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS, type HeadgearKind } from './headgear';
+import {
+  GRAPHICS_MODE_LABELS,
+  GRAPHICS_MODE_SUBS,
+  clearGraphics,
+  graphics,
+  graphicsSummary,
+  nextGraphicsMode,
+  saveGraphics,
+} from './graphicsSettings';
 import {
   DEFAULT_EYES,
   EYE_RANGE,
@@ -67,6 +80,7 @@ export interface ConnectOptions extends TrysteroOptions {
 
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
+const _headPos = new THREE.Vector3();
 const _keyPosition = new THREE.Vector3();
 const _keyRotation = new THREE.Quaternion();
 const _keyOffset = new THREE.Vector3();
@@ -102,6 +116,11 @@ export class App {
 
   private readonly handVisuals: HandVisuals;
   private readonly avatar: PlayerAvatar;
+  /**
+   * Was eine Welt dem Spieler gerade aufgesetzt hat (`WorldContext.wear`), oder
+   * `null` — dann gilt die Einstellung (`core/appearance.ts`).
+   */
+  private worn: HeadgearKind | null = null;
   readonly avatars: RemoteAvatars;
   /** Die Stimmen der anderen, räumlich am Kopf ihres Sprechers (`net/Voice.ts`). */
   readonly voice: Voice;
@@ -117,6 +136,11 @@ export class App {
    * Spiegeln wüsste, wäre eine Welt, in der man einen vergessen kann.
    */
   private readonly mirrors: MirrorRenderer;
+  /**
+   * Wie schön es aussieht — bei der App, weil ein Schatten keine Eigenschaft
+   * einer Welt ist (`core/GraphicsQuality.ts`).
+   */
+  private readonly quality: GraphicsQuality;
 
   private world: World | null = null;
   private worldMenu: MenuEntry[] = [];
@@ -146,6 +170,12 @@ export class App {
   /** Something changed a menu label or row; the tree is rebuilt next frame. */
   private menuDirty = false;
   private spectating = false;
+  /**
+   * In welcher Welt der Beobachtete zuletzt stand — `''`, solange niemandem
+   * zugesehen wird. Der Merker, an dem `followWatched` einen **Wechsel**
+   * erkennt statt bloß einen Unterschied.
+   */
+  private watchedWorld = '';
 
   constructor(canvas: HTMLCanvasElement, stickEl: HTMLElement | null, hooks: AppHooks = {}) {
     this.hooks = hooks;
@@ -178,6 +208,7 @@ export class App {
       700,
     );
     this.mirrors = new MirrorRenderer(this.renderer);
+    this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.rig = new PlayerRig(this.renderer, this.camera);
     this.scene.add(this.rig);
 
@@ -240,6 +271,11 @@ export class App {
     this.scene.add(this.keys);
     this.pointer.add(this.keys.asPointerTarget());
 
+    // Der Hut sitzt sofort und bleibt sitzen: Wer ihn im Menü wechselt, sieht
+    // ihn im Spiegel und die anderen im selben Augenblick.
+    onAppearanceChange(() => this.applyAppearance());
+    this.applyAppearance();
+
     this.baseChildren = new Set(this.scene.children);
 
     window.addEventListener('resize', this.onResize);
@@ -267,6 +303,7 @@ export class App {
       goTo: (id: string) => void this.goTo(id),
       notify: (message: string) => this.notify(message),
       say: (text, options) => void this.say(text, options),
+      wear: (kind) => this.wear(kind),
     };
   }
 
@@ -315,6 +352,9 @@ export class App {
       this.worldMenu = next.menu?.() ?? [];
 
       this.net.setWorld(definition.id);
+      // Neue Lichter, neuer Himmel: Die Grafikstufe legt sich noch einmal
+      // über das, was gerade aufgebaut wurde.
+      this.quality.worldChanged();
       this.refreshMenu();
       this.hooks.onWorldChanged?.(definition.id, definition.title);
       this.notify(definition.title);
@@ -441,25 +481,69 @@ export class App {
   /**
    * Watch a player — the same call behind the wrist menu and the flat panel.
    * Somebody standing in another world is followed there first; you cannot
-   * watch a room you are not in.
+   * watch a room you are not in. The same goes for a world they switch to
+   * later on: `followWatched` keeps the view with them.
    */
   spectate(peerId: string | null, mode?: SpectatorMode): void {
-    const peer = peerId ? this.net.peers.get(peerId) : null;
-    if (peer && peer.world !== this.net.world) void this.goTo(peer.world);
-
     this.spectator.setTarget(peerId);
     if (mode) this.spectator.setMode(mode);
     else if (peerId && this.spectator.settings.mode === 'free') this.spectator.setMode('third');
+    // Hinterher gefragt und nicht vorher: Ohne ausgesuchte Id gilt der erste
+    // VR-Spieler, und auch dem soll man dorthin folgen, wo er steht.
+    this.followWatched(this.watched);
     this.menuDirty = true;
     this.hooks.onNetChanged?.();
   }
 
-  /** The peer the spectator camera follows — an explicit pick, else the first VR player. */
+  /**
+   * **Wem zugesehen wird** — die Wahl allein, ohne Rücksicht auf die Welt
+   * (`net/watch.ts`). Auch wer gerade durch ein Portal in eine andere Welt
+   * gegangen ist, steht hier noch.
+   */
+  get watched(): Peer | null {
+    return pickWatched(
+      [...this.net.peers.values()],
+      this.spectator.settings.targetId,
+      this.net.world,
+    );
+  }
+
+  /**
+   * Derselbe, solange er **hier** steht: Nur von ihm gibt es eine Pose, in die
+   * sich eine Kamera setzen kann. Steht er woanders, wird seine Welt geladen
+   * (`followWatched`), und bis sie steht, gibt es nichts zu übernehmen.
+   */
   get spectatorTarget(): Peer | null {
-    const here = [...this.net.peers.values()].filter((peer) => peer.world === this.net.world);
-    const wanted = this.spectator.settings.targetId;
-    if (wanted) return here.find((peer) => peer.id === wanted) ?? null;
-    return here.find((peer) => peer.role === 'vr') ?? here[0] ?? null;
+    const peer = this.watched;
+    return peer && peer.world === this.net.world ? peer : null;
+  }
+
+  /**
+   * **Wer zusieht, geht mit.**
+   *
+   * Ein Weltwechsel ist in VR ein Schritt durch ein Portal, und wer dabei
+   * zusieht, sah bisher zu, wie sein Bild stehenblieb: Der andere war
+   * plötzlich in einer Welt, die hier nicht geladen ist, seine Posen kamen
+   * weiter an und gehörten zu nichts mehr, was man sehen kann. Also wird die
+   * Welt hier nachgeladen — dieselbe Antwort wie beim Aussuchen eines
+   * Spielers, nur eben auch dann, wenn er sie **später** wechselt.
+   *
+   * Gehandelt wird auf den **Wechsel** und nicht auf den Unterschied: Gemerkt
+   * wird die Welt, in der der Beobachtete zuletzt stand, und erst eine andere
+   * löst etwas aus. Das ist mehr als eine Sparmaßnahme in der Bildschleife —
+   * ein Unterschied allein zöge einen auch dann wieder zurück, wenn man selbst
+   * gerade im Menü eine andere Welt gewählt hat, und aus dem Mitgehen würde
+   * ein Festhalten. Und lässt sich die Welt nicht laden, bleibt es bei einem
+   * Versuch statt einem je Bild.
+   */
+  private followWatched(peer: Peer | null): void {
+    // Ohne Zusehen gibt es nichts mitzugehen — und beim nächsten Einschalten
+    // fängt es wieder mit dem Wechsel dorthin an, wo der andere steht.
+    const world = peer && this.spectator.following ? peer.world : '';
+    if (world === this.watchedWorld) return;
+    this.watchedWorld = world;
+    if (!world || world === this.net.world) return;
+    void this.goTo(world);
   }
 
   toggleMenu(force?: boolean): void {
@@ -486,6 +570,7 @@ export class App {
     this.voice.dispose();
     this.spectator.dispose();
     this.mirrors.dispose();
+    this.quality.dispose();
     this.net.disconnect();
     this.renderer.dispose();
   }
@@ -554,6 +639,8 @@ export class App {
       },
       this.networkMenu(),
       this.movementMenu(),
+      this.appearanceMenu(),
+      this.graphicsMenu(),
       ...this.worldMenu,
       {
         id: 'menu:close',
@@ -759,6 +846,124 @@ export class App {
             saveEyeHeights({ ...DEFAULT_EYES });
             apply();
             this.notify('Augenhöhen zurückgesetzt');
+          },
+        },
+      ],
+    };
+  }
+
+  /**
+   * **Aussehen** — was die anderen von einem sehen.
+   *
+   * Sie steht neben *Bewegung* und *Grafik* und aus demselben Grund: Ein Hut
+   * gehört dem Spieler und keiner Welt. Wer im Hub einen aufsetzt, trägt ihn
+   * im Gokart auch, und alle im Raum sehen ihn (`net/NetSession.ts`).
+   *
+   * Eine Zeile je Kopfbedeckung statt einer, die durchschaltet: Es sind
+   * sieben, und wer den Zylinder sucht, soll ihn sehen und nicht sechsmal
+   * weiterdrücken.
+   */
+  private appearanceMenu(): MenuEntry {
+    const accent = 0x5ee0a0;
+    const look = appearance();
+
+    return {
+      id: 'look',
+      label: 'Aussehen',
+      sub: appearanceSummary(look),
+      icon: 'npc',
+      accent,
+      children: HEADGEAR_KINDS.map((kind) => ({
+        id: `look:hat:${kind}`,
+        label: HEADGEAR_LABELS[kind],
+        sub: HEADGEAR_SUBS[kind],
+        icon: 'npc',
+        accent,
+        selected: look.hat === kind,
+        run: () => {
+          saveAppearance({ hat: kind });
+          this.menuDirty = true;
+          this.notify(kind === 'none' ? 'Kopfbedeckung ab' : `Auf: ${HEADGEAR_LABELS[kind]}`);
+        },
+      })),
+    };
+  }
+
+  /**
+   * **Was auf dem Kopf sitzt** — die Einstellung, oder was eine Welt darüber
+   * gelegt hat (`WorldContext.wear`).
+   *
+   * Ein Ort und nicht zwei: Der eigene Körper trägt es (sichtbar im Spiegel und
+   * durch ein Portal), und dieselbe Sorte geht als Ansage an alle im Raum. Wer
+   * das an zwei Stellen setzte, hätte irgendwann einen Spieler mit zwei
+   * verschiedenen Hüten, je nachdem, wen man fragt.
+   */
+  private wear(kind: HeadgearKind | null): void {
+    this.worn = kind;
+    this.applyAppearance();
+  }
+
+  private applyAppearance(): void {
+    const hat = this.worn ?? appearance().hat;
+    this.avatar.setHeadgear(hat);
+    if (this.net.hat === hat) return;
+    this.net.hat = hat;
+    // Der Hut steht in der Vorstellung und nicht in der Pose: einmal ansagen
+    // reicht, zwanzigmal in der Sekunde wäre Unfug.
+    this.net.announce();
+  }
+
+  /**
+   * **Grafik** — die experimentelle Seite.
+   *
+   * Sie steht hier oben neben *Bewegung* und nicht in den Einstellungen einer
+   * Welt, und zwar aus demselben Grund: Eine Welt darf den Boden unter dem
+   * Spieler ändern, nie aber seine Augen. Wer im Hub auf *Comic* stellt, will
+   * es im Gokart genauso — und der Hub hat gar keine Weltmenüs, in die eine
+   * Grafikeinstellung passte.
+   *
+   * Eine Zeile, und sie sagt dasselbe zweimal: was gerade gilt, und was ein
+   * Druck daraus macht — der Modus schaltet im Kreis (Einfach → Comic). Was er
+   * tatsächlich anstellt, steht in `core/graphicsSettings.ts`.
+   */
+  private graphicsMenu(): MenuEntry {
+    const accent = 0xb98bff;
+    const settings = graphics();
+
+    return {
+      id: 'gfx',
+      label: 'Grafik',
+      sub: graphicsSummary(settings),
+      icon: 'palette',
+      accent,
+      // Experimentell und als solches beschriftet: Der Comic kostet Bildrate,
+      // und was auf einer Quest 2 noch flüssig ist, weiß niemand vorher.
+      badge: 'EXP',
+      children: [
+        {
+          id: 'gfx:mode',
+          label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
+          sub: GRAPHICS_MODE_SUBS[settings.mode],
+          caption:
+            'Einfach → Comic · alles sofort sichtbar, nur das schärfere Bild ab der nächsten Sitzung',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ mode: nextGraphicsMode(graphics().mode) });
+            this.menuDirty = true;
+            this.notify(`Grafik: ${GRAPHICS_MODE_LABELS[next.mode]}`);
+          },
+        },
+        {
+          id: 'gfx:reset',
+          label: 'Zurück auf Einfach',
+          sub: 'Das Bild, das dieses Projekt immer hatte',
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            clearGraphics();
+            this.menuDirty = true;
+            this.notify('Grafik zurückgesetzt');
           },
         },
       ],
@@ -1003,7 +1208,10 @@ export class App {
    */
   private spectateMenu(): MenuEntry {
     const settings = this.spectator.settings;
-    const target = this.spectatorTarget;
+    // Der Ausgesuchte und nicht der Sichtbare: Wer gerade in einer anderen
+    // Welt steht, ist der, dem zugesehen wird — das Menü soll ihn währenddessen
+    // nicht abwählen, sondern zeigen, wo er ist.
+    const target = this.watched;
     const presenting = this.renderer.xr.isPresenting;
 
     const players: MenuEntry[] = [...this.net.peers.values()].map((peer) => ({
@@ -1168,7 +1376,7 @@ export class App {
 
     // The spectator borrows the view after the world had its say, so it can
     // follow a player that a portal just moved.
-    const target = this.spectatorTarget;
+    const watched = this.watched;
     // Nobody left to watch — hand the view back instead of freezing it. A
     // target that is only briefly missing (loading their world) is kept.
     const wanted = this.spectator.settings.targetId;
@@ -1177,6 +1385,10 @@ export class App {
       this.spectator.setMode('free');
       this.menuDirty = true;
     }
+    // Und wechselt der Beobachtete die Welt, geht das Zusehen mit — danach
+    // erst steht fest, ob es hier eine Pose von ihm zu übernehmen gibt.
+    this.followWatched(watched);
+    const target = this.spectatorTarget;
     const following = this.spectator.update(dt, target?.pose ?? null, presenting);
     this.avatars.hiddenPeer =
       following && this.spectator.settings.mode === 'first' ? (target?.id ?? null) : null;
@@ -1202,6 +1414,11 @@ export class App {
     // Nach den Avataren: die Stimme sitzt am Kopf, und der steht erst jetzt.
     this.voice.update(dt, this.camera, this.avatars);
     if (this.menuDirty) this.refreshMenu();
+
+    // Vor allem, was zeichnet: Der Schattenkasten steht um den Kopf, und die
+    // Schattenkarte wird einmal fürs ganze Bild bestellt — Spiegel und
+    // Portalsichten zeichnen die Szene ja gleich noch mehrmals.
+    this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
 
     // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
     // sich die Welt gleich selbst zeichnet.

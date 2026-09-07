@@ -16,6 +16,8 @@ interface Panel {
   mesh: THREE.Mesh;
   hovers: Array<Handedness | null>;
   selects: Array<Handedness | null>;
+  holds: Array<Handedness | null>;
+  releases: number;
 }
 
 let scene: THREE.Scene;
@@ -65,12 +67,16 @@ function panel(x: number, ignore?: (hand: Handedness | null) => boolean): Panel 
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial());
   mesh.position.set(x, 0, -1);
   scene.add(mesh);
-  const entry: Panel = { mesh, hovers: [], selects: [] };
+  const entry: Panel = { mesh, hovers: [], selects: [], holds: [], releases: 0 };
   pointer.add({
     object: mesh,
     ignore,
     onHover: (hit: PointerHit) => entry.hovers.push(hit.hand),
     onSelect: (hit: PointerHit) => entry.selects.push(hit.hand),
+    onHold: (hit: PointerHit) => entry.holds.push(hit.hand),
+    onRelease: () => {
+      entry.releases++;
+    },
   });
   return entry;
 }
@@ -133,4 +139,66 @@ test('the pointer switched off drops every hover', () => {
   expect(pointer.hovering).toBe(false);
   expect(pointer.hoveringWith('left')).toBe(false);
   expect(left.hovers).toEqual(['left']);
+});
+
+/**
+ * **Gedrückt halten** — der Unterschied zwischen einem Editor, in dem man
+ * Kacheln tippt, und einem, in dem man sie malt (`editor/planPaint.ts`).
+ *
+ * Drei Sachen müssen dafür stimmen, und alle drei sind hier festgehalten: Der
+ * Druck kommt genau einmal, das Halten in jedem Bild danach, und das
+ * Loslassen genau einmal — auch dann, wenn der Strahl das Ziel vorher
+ * verlässt oder das Ziel unter ihm verschwindet.
+ */
+test('holding the trigger keeps the target informed, releasing it ends the stroke', () => {
+  const left = panel(-0.3);
+
+  controllers.left.trigger.justPressed = true;
+  controllers.left.trigger.pressed = true;
+  frame();
+  expect(left.selects).toEqual(['left']);
+  expect(left.holds).toEqual([]);
+
+  controllers.left.trigger.justPressed = false;
+  frame();
+  frame();
+  expect(left.selects).toEqual(['left']);
+  expect(left.holds).toEqual(['left', 'left']);
+  expect(left.releases).toBe(0);
+
+  controllers.left.trigger.pressed = false;
+  frame();
+  expect(left.releases).toBe(1);
+  expect(left.holds).toEqual(['left', 'left']);
+});
+
+test('a ray that wanders off the target ends the stroke there and then', () => {
+  const left = panel(-0.3);
+
+  controllers.left.trigger.justPressed = true;
+  controllers.left.trigger.pressed = true;
+  frame();
+  controllers.left.trigger.justPressed = false;
+
+  // Der Strahl zeigt jetzt ins Leere.
+  controllers.left.targetRay.position.set(-4, 0, 0);
+  frame();
+  expect(left.releases).toBe(1);
+  expect(left.holds).toEqual([]);
+});
+
+/**
+ * Ein Ziel, das mitten im Ziehen abgemeldet wird — die Karte wandert an die
+ * Hüfte, während der Finger noch am Trigger liegt. Ohne das Loslassen malte
+ * der nächste Druck an dem alten Strich weiter.
+ */
+test('a target taken away mid-stroke still hears the release', () => {
+  const left = panel(-0.3);
+
+  controllers.left.trigger.justPressed = true;
+  controllers.left.trigger.pressed = true;
+  frame();
+
+  pointer.remove(left.mesh);
+  expect(left.releases).toBe(1);
 });

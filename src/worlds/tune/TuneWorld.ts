@@ -4,6 +4,7 @@ import { TextPlane } from '../../ui/TextPlane';
 import { WristMenu } from '../../ui/WristMenu';
 import type { MenuEntry } from '../../ui/menu';
 import { InputModel } from './InputModel';
+import { PullGauge } from './PullGauge';
 import { AccelRecording, formatAccel, recordLines } from './accelRecord';
 import { PANEL, PANEL_Z } from './inputPanel';
 import { VibeBench, KNOB_REACH } from './VibeBench';
@@ -386,6 +387,14 @@ export class TuneWorld extends PortalWorld {
    * zu kleine Schrift (`inputPanel.ts`).
    */
   private readonly boards = new Map<Handedness, TextPlane>();
+  /**
+   * Wie weit Trigger und Griff gezogen sind — zwei Balken je Hand.
+   *
+   * Sie hängen an der Tafelwand und nicht am Modell: Das dreht sich mit der
+   * Hand mit, und eine Füllstandsanzeige darauf stünde die halbe Zeit auf dem
+   * Kopf (`PullGauge.ts`).
+   */
+  private readonly pulls = new Map<Handedness, PullGauge>();
   /** Die Fläche, auf der alles davon hängt. */
   private panel: THREE.Group | null = null;
   /** Schilder ohne eigenes Leben — sie werden nur beim Aufräumen gebraucht. */
@@ -548,6 +557,9 @@ export class TuneWorld extends PortalWorld {
       // Das Modell zuerst: seine Zeile steht mit auf der Tafel darunter.
       const controller = ctx.input.get(side);
       const line = this.models.get(side)?.show(controller) ?? '';
+      // Die Balken laufen in **jedem** Bild mit — sie sind Geometrie und keine
+      // Leinwand, und ein Zug am Trigger dauert eine Zehntelsekunde.
+      this.pulls.get(side)?.show(controller);
       this.updateBoard(side, controller, line);
     }
     if (this.toolMenu) {
@@ -588,6 +600,8 @@ export class TuneWorld extends PortalWorld {
     this.models.clear();
     for (const board of this.boards.values()) board.dispose();
     this.boards.clear();
+    for (const pull of this.pulls.values()) pull.dispose();
+    this.pulls.clear();
     this.recordBoard?.dispose();
     this.recordBoard = null;
     this.recording = null;
@@ -779,6 +793,15 @@ export class TuneWorld extends PortalWorld {
       model.position.set(sign * PANEL.model.x, PANEL.model.y, 0);
       panel.add(model);
       this.models.set(side, model);
+
+      // Daneben, in Lesenähe und ohne sich mitzudrehen: wie weit Trigger und
+      // Griff gerade gezogen sind, samt der Marke bei der Hälfte. Die Frage
+      // „ist der ganz durchgedrückt oder nur halb?" beantwortet kein
+      // Leuchtpunkt.
+      const pull = new PullGauge(side);
+      pull.position.set(sign * PANEL.pull.x, PANEL.pull.y, 0);
+      panel.add(pull);
+      this.pulls.set(side, pull);
 
       // Die Tafel steht unter dem Modell, zu dem sie gehört: was gedrückt ist,
       // und darunter die **Lage** des Geräts als Zahl. Es waren einmal zwei

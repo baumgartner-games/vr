@@ -100,6 +100,37 @@ describe('stepKart', () => {
     expect(kartSpeed(afterLight)).toBeGreaterThan(kartSpeed(afterHeavy));
   });
 
+  it('loses the back end when the throttle is stamped on', () => {
+    // Zweimal dieselbe Kurve bei demselben Tempo, einmal mit Vollgas und
+    // einmal im Schub: der Unterschied ist allein der Schlupf.
+    const settings = clampKart({ traction: 0.5, slip: 1 });
+    const rolling = drive(kartAt(0, 0, 0), { throttle: 0.35 }, 4, settings);
+    const flatOut = drive(rolling, { throttle: 1, steer: 1 }, 0.8, settings);
+    const coasting = drive(rolling, { steer: 1 }, 0.8, settings);
+    expect(kartSlip(flatOut)).toBeGreaterThan(kartSlip(coasting));
+  });
+
+  it('leaves the grip alone when nothing spins', () => {
+    const smooth = clampKart({ traction: 0.5, slip: 0 });
+    const spinny = clampKart({ traction: 0.5, slip: 1 });
+    // Ohne Gas und ohne Bremse arbeitet kein Reifen längs — beide Karts
+    // müssen dieselbe Kurve fahren.
+    const rollingSmooth = drive(kartAt(0, 0, 0), { throttle: 0.5 }, 4, smooth);
+    const rollingSpinny = drive(kartAt(0, 0, 0), { throttle: 0.5 }, 4, spinny);
+    expect(kartSlip(drive(rollingSmooth, { steer: 1 }, 0.6, smooth))).toBeCloseTo(
+      kartSlip(drive(rollingSpinny, { steer: 1 }, 0.6, spinny)),
+      9,
+    );
+  });
+
+  it('locks up under the brake as well', () => {
+    const settings = clampKart({ traction: 0.5, slip: 1 });
+    const rolling = drive(kartAt(0, 0, 0), { throttle: 1 }, 4, settings);
+    const braked = drive(rolling, { brake: 1, steer: 1 }, 0.5, settings);
+    const rolled = drive(rolling, { steer: 1 }, 0.5, settings);
+    expect(kartSlip(braked)).toBeGreaterThan(kartSlip(rolled));
+  });
+
   it('slides through a corner when the tyres have no grip', () => {
     const slippery = clampKart({ traction: 0.15 });
     const sticky = clampKart({ traction: 1 });

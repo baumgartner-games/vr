@@ -8,6 +8,7 @@
  */
 
 import { nextStep } from '../portal/tools/weaponSettings';
+import type { ViewFollow } from './kartView';
 
 /** How the front wheels are told where to go. */
 export type SteeringMode = 'stick' | 'wheel';
@@ -39,6 +40,55 @@ export interface KartSettings {
    * it points; low lets the back step out and slide through a corner.
    */
   traction: number;
+  /**
+   * **Wie viel Griff Gas und Bremse auffressen**, 0 bis 1.
+   *
+   * Die Traktion allein beschreibt einen Reifen, der immer gleich gut hält —
+   * und das ist der eine Punkt, an dem ein Kart sich nicht so anfühlt wie
+   * eines. Ein Reifen hat *ein* Budget: Was er längs überträgt, fehlt ihm quer.
+   * Wer aus der Kurve heraus voll aufs Gas geht, dreht durch; wer voll in die
+   * Kurve hineinbremst, blockiert. Genau das steht hier — `0` ist der
+   * gutmütige Reifen von vorher, `1` einer, der bei Vollgas praktisch keinen
+   * Seitenhalt mehr hat.
+   */
+  slip: number;
+  /**
+   * **Wie weit der Blick der Lenkung hinterherzieht**, in Sekunden.
+   *
+   * Keine Fahrwerkszahl, sondern eine Sitzposition: Der Kopf ist nicht am Kart
+   * festgeschraubt, sondern läuft ihm nach (`kartView.ts`). `0` schraubt ihn
+   * an den Rand der Totzone — und wer das eine halbe Runde lang probiert,
+   * weiß, warum es die Einstellung gibt.
+   */
+  headLag: number;
+  /**
+   * **Die Totzone des Kopfes**, in Grad.
+   *
+   * So weit darf das Kart voraus sein, ohne dass der Blick überhaupt mitgeht.
+   * Eine kurze Ausweichbewegung links-rechts ist damit für den Kopf kein
+   * Ereignis mehr: Das Kart wackelt, der Horizont steht still. Erst am Rand
+   * dieses Fensters wird er mitgenommen.
+   */
+  headDeadZone: number;
+  /**
+   * **Wie schnell der Kopf höchstens mitdreht**, in Grad je Sekunde; `0` heißt
+   * ohne Deckel.
+   *
+   * Der Nachlauf allein holt einen großen Rückstand mit einem großen Satz auf,
+   * und genau dieser Satz ist es, der in der Brille wehtut. Hier steht, wie
+   * langsam er sein soll.
+   */
+  headTurnRate: number;
+  /**
+   * **Helm auf beim Fahren.**
+   *
+   * Ein Gegenstand aus der Kleiderkiste (`core/headgear.ts`) und zugleich das
+   * billigste Mittel gegen Übelkeit, das es in VR gibt: Der Rand des Visiers
+   * steht **fest im Blick**, während die Welt darin schwenkt. Das Auge hat
+   * damit wieder etwas, das sich nicht bewegt, und der Widerspruch zum
+   * Innenohr wird kleiner. Wer ihn nicht mag, lässt ihn aus.
+   */
+  helmet: boolean;
   /** Kilograms. A heavy kart accelerates worse and shoves harder. */
   mass: number;
   /** Biggest angle the front wheels turn to, in degrees. */
@@ -56,6 +106,11 @@ export const DEFAULT_KART: KartSettings = {
   topSpeed: 45,
   braking: 14,
   traction: 0.75,
+  slip: 0.5,
+  headLag: 0.15,
+  headDeadZone: 8,
+  headTurnRate: 45,
+  helmet: false,
   mass: 140,
   steerAngle: 32,
   wheelbase: 1.15,
@@ -68,9 +123,12 @@ export const DEFAULT_KART: KartSettings = {
  */
 export const REFERENCE_MASS = 140;
 
+/** Every setting that is a plain number — everything but the two switches. */
+export type NumericKartKey = Exclude<keyof KartSettings, 'steering' | 'helmet'>;
+
 /** One value the player may step through or type in. */
 export interface KartField {
-  key: Exclude<keyof KartSettings, 'steering'>;
+  key: NumericKartKey;
   label: string;
   unit: string;
   min: number;
@@ -118,11 +176,57 @@ export const KART_FIELDS: readonly KartField[] = [
     key: 'traction',
     label: 'Traktion',
     unit: '',
-    min: 0.05,
+    // Zwei Hundertstel, und das ist Absicht: Bei 0,15 war unten Schluss, und
+    // dort *rutscht* ein Kart noch nicht, es fährt nur unpräzise. Was man
+    // eigentlich will — ein Kart, das die ganze Kurve quer nimmt — fängt eine
+    // Zehnerpotenz tiefer an.
+    min: 0.02,
     max: 1,
     decimals: 2,
     sub: 'Griff der Reifen — wenig heißt driften',
-    steps: [0.15, 0.3, 0.5, 0.75, 1],
+    steps: [0.05, 0.1, 0.2, 0.35, 0.55, 0.75, 1],
+  },
+  {
+    key: 'slip',
+    label: 'Reifenschlupf',
+    unit: '',
+    min: 0,
+    max: 1,
+    decimals: 2,
+    sub: 'Wie viel Griff Gas und Bremse auffressen',
+    steps: [0, 0.25, 0.5, 0.75, 1],
+  },
+  {
+    key: 'headLag',
+    label: 'Kopf zieht nach',
+    unit: 's',
+    min: 0,
+    max: 0.6,
+    decimals: 2,
+    sub: 'Der Blick folgt der Kurve verzögert — gegen Übelkeit',
+    steps: [0, 0.08, 0.15, 0.25, 0.4],
+  },
+  {
+    key: 'headDeadZone',
+    label: 'Kopf-Totzone',
+    unit: '°',
+    min: 0,
+    // Knapp unter `MAX_LAG`: Eine Totzone, die größer wäre als der
+    // Höchstversatz, wäre keine — der harte Deckel zöge den Kopf ohnehin nach.
+    max: 20,
+    decimals: 0,
+    sub: 'So weit dreht das Kart, ohne dass der Kopf mitgeht',
+    steps: [0, 5, 8, 12, 18],
+  },
+  {
+    key: 'headTurnRate',
+    label: 'Kopf-Drehrate',
+    unit: '°/s',
+    min: 0,
+    max: 360,
+    decimals: 0,
+    sub: 'Wie schnell er höchstens mitdreht — 0 ist ohne Deckel',
+    steps: [0, 20, 30, 45, 70, 120],
   },
   {
     key: 'mass',
@@ -173,12 +277,24 @@ export function clampKartField(field: KartField, value: number): number {
   return Math.round(Math.min(field.max, Math.max(field.min, value)) * factor) / factor;
 }
 
-/** Every value inside its range, and the steering mode spelled correctly. */
+/** Every value inside its range, and the two switches spelled correctly. */
 export function clampKart(settings: Partial<KartSettings>): KartSettings {
   const next: KartSettings = { ...DEFAULT_KART, ...settings };
   for (const field of KART_FIELDS) next[field.key] = clampKartField(field, next[field.key]);
   if (!STEERING_MODES.includes(next.steering)) next.steering = DEFAULT_KART.steering;
+  next.helmet = next.helmet === true;
   return next;
+}
+
+/**
+ * Die drei Zahlen, mit denen der Kopf dem Kart folgt (`kartView.ts`).
+ *
+ * Hier und nicht dort: `kartView` rechnet und kennt kein Kart, `kartSettings`
+ * weiß, wie die Werte heißen. Ein Übersetzer von drei Zeilen ist billiger als
+ * eine Datei, die beides tut.
+ */
+export function viewFollow(settings: KartSettings): ViewFollow {
+  return { lag: settings.headLag, dead: settings.headDeadZone, rate: settings.headTurnRate };
 }
 
 /** The next notch above where the kart is set, wrapping around at the top. */
@@ -224,7 +340,8 @@ export const KART_PRESETS: readonly KartPreset[] = [
       acceleration: 14,
       topSpeed: 90,
       braking: 22,
-      traction: 0.5,
+      traction: 0.55,
+      slip: 0.75,
       mass: 100,
       steerAngle: 28,
       wheelbase: 1.15,
@@ -240,6 +357,7 @@ export const KART_PRESETS: readonly KartPreset[] = [
       topSpeed: 30,
       braking: 9,
       traction: 1,
+      slip: 0.25,
       mass: 380,
       steerAngle: 22,
       wheelbase: 2.2,
@@ -254,7 +372,10 @@ export const KART_PRESETS: readonly KartPreset[] = [
       acceleration: 14,
       topSpeed: 65,
       braking: 14,
-      traction: 0.15,
+      // Der eine Wagen, der die neue Untergrenze auch ausreizt: bei 0,05 hält
+      // gar nichts mehr, und mit vollem Schlupf steht er beim Gasgeben quer.
+      traction: 0.05,
+      slip: 1,
       mass: 100,
       steerAngle: 44,
       wheelbase: 0.9,

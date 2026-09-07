@@ -17,6 +17,21 @@ export interface PointerTarget {
   onHover?(hit: PointerHit): void;
   onBlur?(): void;
   onSelect?(hit: PointerHit): void;
+  /**
+   * **Gedrückt halten** — jedes Bild, solange die Taste unten bleibt und der
+   * Strahl auf demselben Ziel liegt.
+   *
+   * Der Unterschied zwischen einem Editor, in dem man Kacheln *tippt*, und
+   * einem, in dem man sie *malt*. `onSelect` kommt beim Drücken, `onHold`
+   * danach in jedem Bild, `onRelease` einmal beim Loslassen — wer eine Fläche
+   * ziehen will, braucht alle drei.
+   */
+  onHold?(hit: PointerHit): void;
+  /**
+   * Losgelassen — mit dem letzten Punkt, auf dem der Strahl lag, oder `null`,
+   * wenn er das Ziel vorher verlassen hat.
+   */
+  onRelease?(hit: PointerHit | null): void;
   /** Allow direct touch with the index fingertip. Defaults to true. */
   pokeable?: boolean;
   /**
@@ -56,6 +71,10 @@ class Beam {
   readonly line: THREE.Line;
   readonly cursor: THREE.Mesh;
   hovered: PointerTarget | null = null;
+  /** Worauf dieser Strahl gerade drückt — für `onHold` und `onRelease`. */
+  held: PointerTarget | null = null;
+  /** Und der letzte Punkt darauf, damit das Loslassen sagen kann, wo es war. */
+  heldAt: PointerHit | null = null;
 
   constructor(readonly hand: Handedness | null) {
     const geometry = new THREE.BufferGeometry().setFromPoints([
@@ -83,6 +102,23 @@ class Beam {
   hide(): void {
     this.line.visible = false;
     this.cursor.visible = false;
+  }
+
+  /**
+   * **Loslassen** — und zwar genau einmal.
+   *
+   * Ein Ziel, das mitten im Ziehen unsichtbar wird (die Karte wandert an die
+   * Hüfte, während der Finger noch am Trigger liegt), muss trotzdem erfahren,
+   * dass der Strich zu Ende ist. Sonst malt der nächste Druck an dem alten
+   * weiter.
+   */
+  drop(): void {
+    const held = this.held;
+    if (!held) return;
+    this.held = null;
+    const at = this.heldAt;
+    this.heldAt = null;
+    held.onRelease?.(at);
   }
 }
 
@@ -121,6 +157,8 @@ export class Pointer {
   private screen = new THREE.Vector2(0, 0);
   private screenActive = false;
   private screenClick = false;
+  /** Ob die Maustaste unten ist — mit der Maus wird genauso gemalt wie mit dem Trigger. */
+  private screenDown = false;
 
   constructor(
     private readonly rig: PlayerRig,
@@ -152,13 +190,17 @@ export class Pointer {
     this.targets = this.targets.filter((t) => t.object !== object);
     for (const beam of this.beams.values()) {
       if (beam.hovered?.object === object) beam.hovered = null;
+      if (beam.held?.object === object) beam.drop();
     }
     this.poking.delete(object);
   }
 
   clear(): void {
     this.targets = [];
-    for (const beam of this.beams.values()) beam.hovered = null;
+    for (const beam of this.beams.values()) {
+      beam.drop();
+      beam.hovered = null;
+    }
     this.poking.clear();
   }
 
@@ -200,13 +242,32 @@ export class Pointer {
     beam.line.scale.z = hit ? hit.hit.distance : 1.6;
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
 
+    // **Erst das Loslassen, dann das Drücken.** Eine Hand, die im selben Bild
+    // losläßt und wieder drückt, fängt sonst einen Strich an, den das
+    // Loslassen gleich darauf beendet.
+    const down =
+      controller.trigger.pressed ||
+      controller.primary.pressed ||
+      (beam.held?.grab === true && controller.squeeze.pressed);
+    if (beam.held && (!down || beam.held !== hit?.target)) beam.drop();
+
     // Deliberately a button press: hovering alone never triggers anything.
     if (!hit) return;
     const pressed =
       controller.trigger.justPressed ||
       controller.primary.justPressed ||
       (hit.target.grab === true && controller.squeeze.justPressed);
-    if (pressed) hit.target.onSelect?.(hit.hit);
+    if (pressed) {
+      hit.target.onSelect?.(hit.hit);
+      if (hit.target.onHold || hit.target.onRelease) {
+        beam.held = hit.target;
+        beam.heldAt = hit.hit;
+      }
+      return;
+    }
+    if (beam.held !== hit.target) return;
+    beam.heldAt = hit.hit;
+    hit.target.onHold?.(hit.hit);
   }
 
   // --- ray from the 2D screen --------------------------------------------
@@ -222,7 +283,18 @@ export class Pointer {
     this.raycaster.far = 12;
     const hit = this.castAll(null);
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
-    if (hit && this.screenClick) hit.target.onSelect?.(hit.hit);
+
+    if (beam.held && (!this.screenDown || beam.held !== hit?.target)) beam.drop();
+    if (hit && this.screenClick) {
+      hit.target.onSelect?.(hit.hit);
+      if (hit.target.onHold || hit.target.onRelease) {
+        beam.held = hit.target;
+        beam.heldAt = hit.hit;
+      }
+    } else if (hit && beam.held === hit.target) {
+      beam.heldAt = hit.hit;
+      hit.target.onHold?.(hit.hit);
+    }
     this.screenClick = false;
   }
 
@@ -231,6 +303,7 @@ export class Pointer {
   }
 
   private blank(beam: Beam): void {
+    beam.drop();
     this.setHover(beam, null, null);
     beam.hide();
   }
@@ -303,6 +376,19 @@ export class Pointer {
 
   private bindScreenPointer(): void {
     const setFrom = (event: PointerEvent) => {
+      // **Mit gefangener Maus zeigt die Bildmitte**, und zwar bei *jedem*
+      // Ereignis. Ein Browser friert `clientX/Y` unter Pointer-Lock auf der
+      // Stelle ein, an der er sie gefangen hat, und meldet die Bewegung nur
+      // noch als `movementX/Y`. Wer das nicht abfängt, zielt für den Rest der
+      // Sitzung dorthin, wo der Mauszeiger beim ersten Klick zufällig stand —
+      // das Fadenkreuz in der Mitte zeigt dann woandershin als der Strahl,
+      // und beim Malen fährt der Blick über den Grundriss, ohne dass sich der
+      // Zeiger mitbewegt.
+      if (document.pointerLockElement === this.canvas) {
+        this.screen.set(0, 0);
+        this.screenActive = true;
+        return;
+      }
       const rect = this.canvas.getBoundingClientRect();
       this.screen.set(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -316,6 +402,13 @@ export class Pointer {
     this.canvas.addEventListener('pointerdown', (event) => {
       setFrom(event);
       this.screenClick = true;
+      this.screenDown = true;
+    });
+    // Am Dokument und nicht an der Leinwand: Wer beim Ziehen über den Rand
+    // hinausfährt und dort losläßt, bekäme sonst nie ein Loslassen zu sehen —
+    // und malte beim nächsten Hineinfahren weiter.
+    document.addEventListener('pointerup', () => {
+      this.screenDown = false;
     });
     this.canvas.addEventListener('pointerleave', () => {
       this.screenActive = false;

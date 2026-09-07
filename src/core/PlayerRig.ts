@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { Handedness, XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
 import { STANDING_EYE, eyeHeights, playerPosture, seatedLift, type Posture } from './posture';
-import { landOnCushion, newViewSink, stepViewSink, type Cushion } from './viewSink';
 import {
   forwardOfYaw,
   newWalkFrame,
@@ -127,17 +126,6 @@ export class PlayerRig extends THREE.Group {
    * exact mirror image of `crouchOffset`: the rig goes up, the feet stay put.
    */
   private seatLift = 0;
-  /**
-   * Die Federung der Sicht beim Landen auf etwas Weichem (`viewSink.ts`) —
-   * und wie weit sie den Kopf gerade absenkt.
-   *
-   * Sie rechnet wie das Ducken: Das Rig geht hinunter, die Füße bleiben
-   * stehen. Deshalb muss `sinkOffset` überall dort wieder herausgerechnet
-   * werden, wo `crouchOffset` es auch wird — sonst schrumpfte der Körper beim
-   * Landen und die Kapsel darunter mit ihm.
-   */
-  private readonly sink = newViewSink();
-  private sinkOffset = 0;
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -202,25 +190,7 @@ export class PlayerRig extends THREE.Group {
 
   /** Eye height above the floor — crouching makes the body shorter, not lower. */
   getHeadHeight(): number {
-    return Math.max(
-      0.6,
-      this.camera.position.y - this.crouchOffset + this.seatLift - this.sinkOffset,
-    );
-  }
-
-  /**
-   * **Weich gelandet.** Die Sicht sinkt kurz ein und federt zurück, statt auf
-   * der Stelle stehenzubleiben (`viewSink.ts`).
-   *
-   * Wer das aufruft, entscheidet damit, dass das, worauf gerade gelandet
-   * wurde, nachgibt — die Matte in der Kletterhalle tut es, der Asphalt in der
-   * Stadt nicht. Der Körper merkt davon nichts: Er steht, wo die Physik ihn
-   * hingestellt hat.
-   *
-   * @param speed Wie schnell es nach unten ging, in m/s
-   */
-  softLanding(speed: number, pad?: Cushion): void {
-    landOnCushion(this.sink, speed, pad);
+    return Math.max(0.6, this.camera.position.y - this.crouchOffset + this.seatLift);
   }
 
   /**
@@ -229,7 +199,7 @@ export class PlayerRig extends THREE.Group {
    * `position.y`.
    */
   getFloorY(): number {
-    return this.position.y + this.crouchOffset - this.seatLift + this.sinkOffset;
+    return this.position.y + this.crouchOffset - this.seatLift;
   }
 
   /** How far the view is currently dropped below the standing pose. */
@@ -245,10 +215,7 @@ export class PlayerRig extends THREE.Group {
   /** Stands back up, e.g. when a world is left. */
   standUp(): void {
     this.locked = false;
-    this.position.y -= this.crouchOffset - this.seatLift + this.sinkOffset;
-    this.sink.depth = 0;
-    this.sink.rate = 0;
-    this.sinkOffset = 0;
+    this.position.y -= this.crouchOffset - this.seatLift;
     this.crouchOffset = 0;
     this.seatLift = 0;
     this.crouchWanted = false;
@@ -320,10 +287,6 @@ export class PlayerRig extends THREE.Group {
    * @param uiActive the pointer rests on a menu — the buttons belong to it then.
    */
   update(dt: number, input: XRInput, presenting: boolean, uiActive = false): void {
-    // Vor allem anderen, und auch mit angehaltenem Körper: Eine Federung, die
-    // stehenbleibt, lässt den Spieler im Boden versinken (`viewSink.ts`).
-    this.updateSink(dt);
-
     if (this.paused) {
       this.intent.set(0, 0, 0);
       this.intentJump = false;
@@ -376,19 +339,6 @@ export class PlayerRig extends THREE.Group {
         this.snapArmed = true;
       }
     }
-  }
-
-  /**
-   * Ein Bild Landefederung: Was die Feder an Tiefe hergibt, geht als
-   * Höhenunterschied ins Rig — der Unterschied zum letzten Bild, nicht die
-   * Tiefe selbst, sonst sänke der Spieler mit jedem Bild ein Stück weiter.
-   */
-  private updateSink(dt: number): void {
-    const now = stepViewSink(this.sink, dt);
-    if (now === this.sinkOffset) return;
-    this.position.y -= now - this.sinkOffset;
-    this.sinkOffset = now;
-    this.updateMatrixWorld(true);
   }
 
   /** Walking speed right now — sprinting is a factor on top of it. */

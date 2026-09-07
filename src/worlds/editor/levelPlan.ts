@@ -320,7 +320,9 @@ export interface PlanBounds {
  * **Mit einer Kachel Rand ringsherum**, und das ist keine Kosmetik: Ein Modell,
  * das genau an seiner äußersten Kachel endet, hat keinen Platz, an dem man die
  * nächste anbauen könnte — man zeigt daneben und trifft nichts. Der Rand ist
- * die Einladung, weiterzubauen.
+ * die Einladung, weiterzubauen, und wie groß sie ausfällt, sagt `margin`: Der
+ * Teller unter dem Modell nimmt eine Kachel, die Fläche, auf die man zeigen
+ * kann, deutlich mehr (`WorldEditor`, `FIELD_MARGIN`).
  */
 export function planBounds(plan: NavGraph, margin = 1): PlanBounds {
   let minX = Infinity;
@@ -335,7 +337,13 @@ export function planBounds(plan: NavGraph, margin = 1): PlanBounds {
     minZ = Math.min(minZ, keyZ(key));
     maxZ = Math.max(maxZ, keyZ(key));
   }
-  if (!any) return { minX: -TILE, minZ: -TILE, maxX: TILE, maxZ: TILE, any: false };
+  // **Ein leerer Plan bekommt trotzdem eine Fläche**, und zwar den Rand als
+  // Ganzes: Wer in einer Welt anfängt, in der noch nichts steht, hat sonst
+  // nichts, worauf er zeigen könnte — und käme nie zur ersten Kachel.
+  if (!any) {
+    const reach = (margin + 1) * TILE;
+    return { minX: -reach, minZ: -reach, maxX: reach, maxZ: reach, any: false };
+  }
   return {
     minX: (minX - margin) * TILE,
     minZ: (minZ - margin) * TILE,

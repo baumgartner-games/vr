@@ -39,9 +39,9 @@ export const WORLDS: WorldDefinition[] = [
   {
     id: 'kart',
     title: 'Gokart',
-    tagline: 'Kleine Strecke, vier Karts',
+    tagline: 'Strecke aus Bauteilen, vier Karts in der Box',
     description:
-      'Lenkrad greifen und einsteigen. Rechter Trigger Gas, linker bremst, Klemmbrett stellt alles ein.',
+      'In der Boxengasse einsteigen und nach rechts auf die Gerade. Rechter Trigger Gas, linker bremst, Klemmbrett stellt alles ein — jede Zahl auch getippt, dazu Helm und wie weit, wie langsam und ab wie viel Grad der Kopf der Lenkung nachzieht.',
     accent: 0x5ee0a0,
     roles: ['vr', 'desktop'],
     experimental: true,
@@ -118,7 +118,7 @@ export const WORLDS: WorldDefinition[] = [
     title: 'Bauplatz',
     tagline: 'Level bauen, während man darin steht',
     description:
-      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Tippen setzt Boden, Wände und Türen — und alles wächst in Lebensgröße um dich herum.',
+      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Gedrückt halten malt eine ganze Reihe, zwei Ecken füllen eine Fläche — und alles wächst in Lebensgröße um dich herum. Karte und Palette hängen am Gürtel. Gebaute Welten bleiben im Browser und lassen sich als Datei mitnehmen.',
     accent: 0x39d0ff,
     roles: ['vr', 'desktop'],
     experimental: true,
