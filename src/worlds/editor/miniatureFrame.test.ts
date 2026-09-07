@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { planToWorld, worldToPlan, type Model } from './miniature';
+import { planToWorld, worldToPlan, yawTurn, type Model } from './miniature';
 
 /**
  * **Zwei Rechnungen, die dasselbe meinen** — geprüft aneinander.
@@ -25,7 +25,7 @@ import { planToWorld, worldToPlan, type Model } from './miniature';
 function group(model: Model): THREE.Group {
   const mini = new THREE.Group();
   mini.position.set(model.at.x, model.at.y, model.at.z);
-  mini.rotation.set(0, model.yaw, 0);
+  mini.quaternion.set(model.turn.x, model.turn.y, model.turn.z, model.turn.w);
   mini.scale.setScalar(model.scale);
   mini.updateMatrixWorld(true);
   return mini;
@@ -33,10 +33,23 @@ function group(model: Model): THREE.Group {
 
 const CENTRE = { x: 7.5, z: -12.5 };
 
+/** Eine Drehung um eine schräge Achse — ein Modell darf seit Neuestem kippen. */
+const TILTED = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(0.3, 0.5, 0.8).normalize(),
+  0.9,
+);
+
 const MODELS: readonly Model[] = [
-  { at: { x: 0, y: 1, z: -1 }, yaw: 0, scale: 1 / 24 },
-  { at: { x: -1.3, y: 1.45, z: 2.2 }, yaw: 1.1, scale: 1 / 12 },
-  { at: { x: 4, y: 0.8, z: -3.5 }, yaw: -2.4, scale: 1 / 40 },
+  { at: { x: 0, y: 1, z: -1 }, turn: yawTurn(0), scale: 1 / 24 },
+  { at: { x: -1.3, y: 1.45, z: 2.2 }, turn: yawTurn(1.1), scale: 1 / 12 },
+  { at: { x: 4, y: 0.8, z: -3.5 }, turn: yawTurn(-2.4), scale: 1 / 40 },
+  // Und eines, das schief hängt: Seit die Miniatur wie ein Gegenstand in der
+  // Hand liegt, ist das der Normalfall und nicht die Ausnahme.
+  {
+    at: { x: 0.6, y: 1.3, z: -0.8 },
+    turn: { x: TILTED.x, y: TILTED.y, z: TILTED.z, w: TILTED.w },
+    scale: 1 / 18,
+  },
 ];
 
 const PLAN_POINTS: readonly { x: number; y: number; z: number }[] = [

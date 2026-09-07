@@ -2,21 +2,24 @@ import * as THREE from 'three';
 import { TextPlane } from '../../ui/TextPlane';
 
 /**
- * **Die Werkzeugleiste am Modell** — eine Tafel mit Tasten, die neben der
- * Miniatur schwebt und mit ihr mitgeht.
+ * **Die Tafel am Modell** — Tasten, die neben der Miniatur schweben und mit
+ * ihr mitgehen.
  *
  * Sie ist absichtlich **kein** Handgelenk-Menü. Das Menü ist die richtige
  * Antwort auf „stell etwas ein und mach es wieder zu"; ein Editor ist das
- * Gegenteil davon — man wechselt zwischen Boden und Wand zwanzigmal in einer
- * Minute, und dreimal Menü aufklappen je Wechsel ist die Sorte Bedienung, nach
- * der man aufhört zu bauen. Also hängt jedes Werkzeug an einem Knopf, den man
- * sieht, und der Knopf, der gerade gilt, leuchtet.
+ * Gegenteil davon — man greift zwanzigmal in der Minute zu, und dreimal Menü
+ * aufklappen je Handgriff ist die Sorte Bedienung, nach der man aufhört zu
+ * bauen. Also hängt jeder Handgriff an einem Knopf, den man sieht.
+ *
+ * **Womit gebaut wird, steht nicht mehr hier**, sondern an der Palette
+ * (`Palette.ts`): Eine Farbe holt man sich, indem man eintunkt, und nicht,
+ * indem man eine Taste drückt. Übrig bleibt hier das, wofür man in der Brille
+ * zwei Hände nimmt und im flachen Modus keine hat — größer, kleiner, drehen —
+ * und der Weg zurück ins Level.
  *
  * Gebaut wie die Wandkonsole des Navigationslabors (`navlab/NavConsole.ts`) und
- * aus demselben Grund: Jede Taste trägt die Farbe dessen, was sie schaltet, und
- * was an ist, steht ein Stück tiefer und leuchtet. Ohne diese Rückmeldung
- * drückt man in der Brille zweimal — einmal, und dann noch einmal, weil man
- * nicht sieht, ob das erste angekommen ist.
+ * aus demselben Grund: Jede Taste trägt die Farbe dessen, was sie tut, groß
+ * genug, dass man sie in der Brille trifft.
  */
 
 /** Eine Taste: was sie schaltet, wie sie heißt, in welcher Farbe. */
@@ -100,20 +103,5 @@ export class EditorPanel extends THREE.Group {
   /** Die Tasten, so wie der Zeiger sie braucht. */
   keys(): readonly { id: string; mesh: THREE.Object3D }[] {
     return this.pads.map((pad) => ({ id: pad.id, mesh: pad.mesh }));
-  }
-
-  /**
-   * Zieht die Tasten am Zustand nach: Was gilt, leuchtet und steht tiefer.
-   *
-   * Zwei Rückmeldungen für dasselbe, und beide braucht es: Das Leuchten sieht
-   * man aus dem Augenwinkel, den Tiefstand auch dann noch, wenn die Tafel
-   * gerade von der Seite steht.
-   */
-  setActive(ids: ReadonlySet<string>): void {
-    for (const pad of this.pads) {
-      const on = ids.has(pad.id);
-      pad.mesh.material.emissiveIntensity = on ? 0.85 : 0;
-      pad.mesh.position.z = on ? 0.014 : 0.02;
-    }
   }
 }
