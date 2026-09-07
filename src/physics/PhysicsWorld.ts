@@ -348,10 +348,26 @@ export class PhysicsWorld {
       this.accumulator -= FIXED_STEP;
       stepped = true;
     }
-    if (!stepped) this.world.propagateModifiedBodyPositionsToColliders();
+    if (!stepped) this.syncColliders();
     for (const entry of this.dynamicBodies) {
       if (entry.clearing) this.checkClearing(entry);
     }
+  }
+
+  /**
+   * **Die Collider dorthin ziehen, wo ihre Körper stehen** — ohne zu rechnen.
+   *
+   * Rapier tut das sonst als erstes in `world.step()`, und alles, was zwischen
+   * zwei Schritten einen Körper *versetzt*, muss es selbst tun: Abgefragt wird
+   * nämlich der Collider, nicht der Körper. Wer den Spieler umsetzt und im
+   * nächsten Bild den Character-Controller rechnen lässt, fragt sonst von der
+   * **alten** Stelle aus — und bekommt eine Bewegung zurück, die zu einem
+   * anderen Ort gehört. In der Brille war das ein Spieler, der nach einem
+   * Portal fünf Zentimeter in den Boden gesetzt wurde.
+   */
+  syncColliders(): void {
+    if (this.freed) return;
+    this.world.propagateModifiedBodyPositionsToColliders();
   }
 
   /**
