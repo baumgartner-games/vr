@@ -1,5 +1,5 @@
 /**
- * **Was man von der Navigation sehen kann** — fünf Ebenen, einzeln
+ * **Was man von der Navigation sehen kann** — sieben Ebenen, einzeln
  * schaltbar.
  *
  * Alles auf einmal ist bei ein paar hundert Kacheln eine Wolke aus Linien, in
@@ -7,12 +7,12 @@
  * schaltet die Sperren an und alles andere aus; wer den Umweg sehen will, nur
  * die Wege. Das ist der ganze Grund, warum es fünf sind und nicht eine.
  *
- * Reine Daten und ein Zustand aus fünf Wahrheitswerten — kein three.js, damit
+ * Reine Daten und ein Zustand aus sieben Wahrheitswerten — kein three.js, damit
  * die Beschriftungen, die Voreinstellung und das Umschalten geprüft sind, bevor
  * jemand einen Knopf dafür an die Wand schraubt (`navLayers.test.ts`).
  */
 
-export type NavLayer = 'tiles' | 'walls' | 'links' | 'blocked' | 'paths';
+export type NavLayer = 'tiles' | 'floor' | 'walls' | 'links' | 'blocked' | 'paths' | 'sight';
 
 export interface NavLayerSpec {
   id: NavLayer;
@@ -29,6 +29,12 @@ export const NAV_LAYERS: readonly NavLayerSpec[] = [
     label: 'Kacheln',
     sub: 'Wo überhaupt Boden ist',
     color: 0x39d0ff,
+  },
+  {
+    id: 'floor',
+    label: 'Betretbar',
+    sub: 'Die Fläche, auf der ein NPC wirklich steht',
+    color: 0x3b7dff,
   },
   {
     id: 'walls',
@@ -54,6 +60,12 @@ export const NAV_LAYERS: readonly NavLayerSpec[] = [
     sub: 'Was die NPCs gerade laufen',
     color: 0x5ee0a0,
   },
+  {
+    id: 'sight',
+    label: 'Sicht',
+    sub: 'Wie weit und wie breit ein NPC schaut',
+    color: 0xffd166,
+  },
 ];
 
 export const NAV_LAYER_IDS: readonly NavLayer[] = NAV_LAYERS.map((layer) => layer.id);
@@ -65,23 +77,52 @@ export function layerSpec(id: string | undefined): NavLayerSpec {
 export type NavLayerState = Record<NavLayer, boolean>;
 
 /**
- * Die Voreinstellung: **Kacheln und Wege**.
+ * Die Voreinstellung: **Kacheln, betretbare Fläche und Wege**.
  *
- * Die beiden beantworten zusammen die Frage, die man zuerst hat — „wo kann er
- * hin, und wo will er gerade hin". Wände, Verbindungen und Sperren sind die
- * Antworten auf „warum nicht dorthin", und die braucht man erst, wenn etwas
- * nicht stimmt.
+ * Die drei beantworten zusammen die Frage, die man zuerst hat — „wo kann er
+ * hin, und wo will er gerade hin". Die Fläche ist dabei die Antwort, die man
+ * aus dem Gitter allein nicht ablesen kann: Ein Raster aus dünnen Linien sagt,
+ * wo Kacheln liegen, aber nicht, wo *keine* liegt — und genau das ist die
+ * Frage, wenn ein Zombie durch eine Wand zu wollen scheint.
+ *
+ * Wände, Verbindungen, Sperren und der Sichtkegel sind die Antworten auf
+ * „warum nicht dorthin" und „warum überhaupt", und die braucht man erst, wenn
+ * etwas nicht stimmt.
  */
 export function defaultLayers(): NavLayerState {
-  return { tiles: true, walls: false, links: false, blocked: false, paths: true };
+  return {
+    tiles: true,
+    floor: true,
+    walls: false,
+    links: false,
+    blocked: false,
+    paths: true,
+    sight: false,
+  };
 }
 
 export function noLayers(): NavLayerState {
-  return { tiles: false, walls: false, links: false, blocked: false, paths: false };
+  return {
+    tiles: false,
+    floor: false,
+    walls: false,
+    links: false,
+    blocked: false,
+    paths: false,
+    sight: false,
+  };
 }
 
 export function allLayers(): NavLayerState {
-  return { tiles: true, walls: true, links: true, blocked: true, paths: true };
+  return {
+    tiles: true,
+    floor: true,
+    walls: true,
+    links: true,
+    blocked: true,
+    paths: true,
+    sight: true,
+  };
 }
 
 /** Schaltet eine Ebene um und gibt zurück, ob sie jetzt an ist. */

@@ -114,11 +114,22 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./effects/EffectsWorld')).EffectsWorld(),
   },
   {
+    id: 'editor',
+    title: 'Bauplatz',
+    tagline: 'Level bauen, während man darin steht',
+    description:
+      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Tippen setzt Boden, Wände und Türen — und alles wächst in Lebensgröße um dich herum.',
+    accent: 0x39d0ff,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./editor/EditorWorld')).EditorWorld(),
+  },
+  {
     id: 'navlab',
     title: 'Navigationslabor',
-    tagline: 'Sechs Buchten, sechs Behauptungen',
+    tagline: 'Acht Buchten, acht Behauptungen',
     description:
-      'Wegsuche zum Ansehen: langer Gang, Stachelgrube, Kiste im Weg, Tür fällt zu, Portal und Dach. Roter Knopf startet, gelber macht es schwer. Gitter und Wege im NPC-Menü.',
+      'Wegsuche zum Ansehen: langer Gang, Stachelgrube, Kiste im Weg, zu enger Gang, Tür fällt zu, Portal, Dachkante und der Sprung aufs freistehende Podest. Roter Knopf startet, gelbe machen es schwer. Gitter, Flächen, Sichtkegel und Wege im NPC-Menü.',
     accent: 0x39d0ff,
     roles: ['vr', 'desktop'],
     experimental: true,

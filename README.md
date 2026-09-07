@@ -13,6 +13,9 @@ Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
 Dunkelhaus zum Ausprobieren von Licht, ein **Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
+ein **Bauplatz**, in dem der Grundriss als Miniatur vor einem schwebt — greifen
+und schieben, zwei Hände drehen und zoomen, tippen setzt Boden, Wände und Türen,
+und alles wächst in Lebensgröße um einen herum —, und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
@@ -72,7 +75,13 @@ Seiten zusammen `n + 1` ergeben, wie auf einem echten Würfel), die Passung des
 Handschuhs auf die Knochen einer getrackten Hand, die **Messung dieser Knochen**
 (eine Hand aus bekannten Winkeln bauen und nachsehen, ob die Messung sie wieder
 herausgibt), die **Knochenfarben**, die geteilte Handhaltung auf
-dem Weg über die Leitung und die Maße des Poseraums. Diese
+dem Weg über die Leitung, die Maße des Poseraums, den **Bauplan des Editors**
+(worauf ein Zeiger trifft — Kachel oder Kante —, was die vier Werkzeuge daraus
+machen, und dass die gebauten Quader vom Abtasten wiedergefunden werden) samt
+der **Miniatur** (Hin und Zurück ohne Drift, und dass der Punkt zwischen den
+Fingern beim Ziehen liegen bleibt) und das **ganze Navigationslabor auf einmal**
+(ein Körper mit Umfang und Drehrate läuft jede Bucht ab, und je Bucht prüft ein
+Kontrollpunkt, dass er den richtigen Weg genommen hat). Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
@@ -105,12 +114,16 @@ Finger schieben und zoomen dabei wie auf einer Karte; mit
 **Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
 hinein) — und **Laufen lassen**: dieselbe Welt mit echter Physik, Gitter und
-NPCs, senkrecht von oben, mit den Knöpfen der Welt als Zeilen daneben, den fünf
-Debug-Ebenen des Navigationsgitters als Schalter und einem **Ziel**, das ein
-Tipp auf den Boden versetzt und dem die NPCs nachlaufen. Mit **Gehe zu** geht
-die eigene Figur stattdessen zu Fuß dorthin — über dasselbe Gitter wie die
-NPCs, durch dieselben Türen und Portale —, und mit **Figur weg** steht man gar
-nicht erst in der Welt. Im
+NPCs, senkrecht von oben, mit den Knöpfen der Welt als Zeilen daneben, den
+sieben Debug-Ebenen des Navigationsgitters als Schalter — darunter die
+**betretbare Fläche** und der **Sichtkegel** der NPCs — und einem **Ziel**, das
+ein Tipp auf den Boden versetzt und dem die NPCs nachlaufen. Mit **Gehe zu**
+geht die eigene Figur stattdessen zu Fuß dorthin — über dasselbe Gitter wie die
+NPCs, durch dieselben Türen und Portale —, mit **Im Bereich** legt ein Tipp
+einen Kreis hin und die Liste zeigt nur noch, was darin (oder in Reichweite der
+Figur) zu drücken ist, und mit **Figur weg** steht man gar nicht erst in der
+Welt. Die Karte selbst hat zwei eigene Knöpfe: **Ziehen** schaltet zwischen
+Drehen und Schieben um, **Folgen** legt die Bildmitte auf die Figur. Im
 [Navigationslabor](https://baumgartner-games.github.io/vr/tools.html#welt/navlab)
 ist das die ganze Brille, die man zum Zusehen braucht. Dazu der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen) und die **NPCs** (jede

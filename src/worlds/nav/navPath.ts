@@ -1,16 +1,23 @@
 import { believedLinkOpen, believedWalkable, believedWallState, type NavBelief } from './navBelief';
-import { newWallState, type NavGraph, type NavLink } from './navGraph';
+import { newWallState, type NavGraph, type NavLink, type WallState } from './navGraph';
 import { hazardCost, type CostProfile } from './navProfile';
-import { canWalkLine } from './navSight';
+import { canWalkLine, traceLine } from './navSight';
 import {
   DIRS,
+  DIR_N,
   NO_TILE,
   TILE,
+  dirX,
+  dirZ,
   keyLevel,
   keyX,
   keyZ,
   neighbour,
+  opposite,
+  tileCentreX,
+  tileCentreZ,
   tileManhattan,
+  type Dir,
   type TileKey,
 } from './navTile';
 
@@ -52,6 +59,42 @@ export interface PathOptions {
    * Bild, das eine Zehntelsekunde steht.
    */
   maxNodes?: number;
+  /**
+   * Wie dick der ist, der den Weg laufen soll — sein **Halbmesser** in Metern.
+   *
+   * Nur der Schnurzug (`pullString`) fragt danach, und er ist der einzige
+   * Schritt der Wegsuche, den der Umfang überhaupt etwas angeht: Welche
+   * Kacheln begehbar sind, entscheidet das Abtasten (`navBake.ts`) mit der
+   * Schulterbreite, mit der es die Lücken misst. Wie **nah an der Hausecke**
+   * der fertige Weg vorbeiführt, entscheidet dagegen diese Zahl — und ein Weg,
+   * der die Ecke um zwanzig Zentimeter verfehlt, ist für einen 58 cm dicken
+   * Zombie eine Wand.
+   */
+  radius?: number;
+}
+
+/**
+ * **Ein Wegpunkt** — wo er liegt, und auf welcher Kachel.
+ *
+ * Zwei Angaben, weil zwei Fragen daran hängen. Gelaufen wird zum **Punkt**,
+ * und der liegt nach dem Schnurzug selten auf einer Kachelmitte — das ist der
+ * ganze Sinn der Sache. Gefragt wird aber nach der **Kachel**: Die
+ * Debug-Ansicht zeichnet Kacheln (`navScene.navPathView`), und wer vor einer
+ * Tür steht, sucht sie an seiner eigenen (`navAgent.observe`).
+ */
+export interface PathPoint {
+  tile: TileKey;
+  x: number;
+  z: number;
+  /**
+   * Ob dieser Punkt **Abstand hält** — er liegt einen Halbmesser neben einer
+   * Ecke, und wer ihn abkürzt, läuft in sie hinein.
+   *
+   * Der Unterschied zählt beim Ablaufen: Einen Punkt mitten im Raum darf man
+   * großzügig streifen, einen engen erst dann hinter sich lassen, wenn man
+   * wirklich an ihm vorbei ist (`navAgent.ts`).
+   */
+  tight: boolean;
 }
 
 export interface PathResult {
@@ -73,6 +116,50 @@ export interface PathResult {
 }
 
 const DEFAULT_MAX_NODES = 6000;
+
+/**
+ * Der Halbmesser, mit dem gerechnet wird, wenn niemand einen nennt, in Metern.
+ *
+ * Ungefähr ein Mensch (`npc/npcKinds.ts`: 0,29 m für den Zombie, 0,28 für die
+ * Puppe). Wer schmaler ist, sagt es — ein Ring auf dem Boden braucht keinen
+ * Abstand zur Wand (`shared/previewWalk.ts`).
+ */
+export const DEFAULT_RADIUS = 0.3;
+
+/**
+ * Was eine Wand über ihre Kachelgrenze hinausragt, in Metern.
+ *
+ * Auf der Karte ist eine Wand eine **Linie** zwischen zwei Kacheln; in der
+ * Welt ist sie ein Klotz mit Dicke, und der steht zur Hälfte auf jeder Seite
+ * dieser Linie (im Labor 40 cm, außen herum 50). Wer an einer Ecke nur um
+ * seinen eigenen Halbmesser einzieht, plant seinen Weg deshalb in die Wand
+ * hinein: Von 29 cm Abstand zur Linie bleiben neun zum Klotz, und der Zombie
+ * steht am Wandende und kommt weder vor noch zurück. Genau das war der Fehler,
+ * wegen dem diese Zeile hier steht — die halbe Wandstärke kommt zum
+ * Halbmesser dazu.
+ */
+export const WALL_SKIN = 0.25;
+
+/**
+ * Wie weit ein Durchlass an einer besetzten Ecke eingezogen wird, in Metern.
+ *
+ * Drei Posten, und der dritte ist der, den man nicht sieht: der **Halbmesser**
+ * dessen, der läuft, die **halbe Wandstärke** (`WALL_SKIN`) — und ein
+ * Aufschlag von √2 für die **Sehne**. Die Schnur legt sich nicht als Bogen um
+ * eine Ecke, sondern als Kette von Geraden: Zwei Wegpunkte, die je einen
+ * Halbmesser neben derselben Ecke liegen, sind über ihre Verbindungslinie nur
+ * noch das 0,71-fache davon entfernt. Wer ohne diesen Aufschlag rechnet, hält
+ * an den Wegpunkten sauber Abstand und schleift dazwischen an der Ecke
+ * entlang.
+ *
+ * Nach oben begrenzt eine halbe Kachel: Wer dicker ist als der Durchlass,
+ * bekäme einen, der sich selbst überkreuzt — und damit einen Weg, der
+ * rückwärts läuft. Dass er dann durch die Lücke nicht passt, ist nicht die
+ * Frage der Glättung, sondern die des Abtastens (`navBake.ts`).
+ */
+export function shrinkFor(radius: number): number {
+  return Math.min((Math.max(radius, 0) + WALL_SKIN) * Math.SQRT2, TILE * 0.45);
+}
 
 /** Was es kostet, diese Kachel zu betreten, in Metern. `Infinity` = niemals. */
 function enterCost(graph: NavGraph, key: TileKey, profile: CostProfile): number {
@@ -201,61 +288,428 @@ function unwind(cameFrom: Map<TileKey, TileKey>, end: TileKey): TileKey[] {
 }
 
 /**
- * **Ecken wegnehmen.** Aus dem Treppenmuster der Kachelmitten wird eine Linie,
+ * **Der Schnurzug** — aus dem Treppenmuster der Kachelmitten wird die Linie,
  * die ein Mensch auch gelaufen wäre.
  *
- * Ohne diesen Schritt läuft jeder NPC exakt über die Kachelmitten, und bei 2,5
- * Metern Kantenlänge sieht man das: Er zickzackt durch einen Gang, der gerade
- * ist. Gestrichen wird ein Wegpunkt, wenn man den nächsten schon von seinem
- * Vorgänger aus in gerader Linie erreicht (`navSight.ts`).
+ * Ohne ihn läuft jeder NPC exakt über die Kachelmitten, und bei 2,5 Metern
+ * Kantenlänge sieht man das: Er zickzackt durch einen Gang, der gerade ist —
+ * genau das ist gemeint, wenn jemand aus der Brille kommt und sagt, die
+ * Navigation laufe „Manhattan-mäßig".
  *
- * **Und was Kosten hat, wird nicht überquert.** Was die Suche wegen einer
- * Gefahr gemieden hat, darf die Glättung nicht wieder hineinziehen — sonst
- * plant der Mensch sauber um die Stachelgrube herum und läuft dann quer
- * hindurch, und das ganze Kostensystem war umsonst.
+ * Er arbeitet in zwei Schritten, und jeder beantwortet eine eigene Frage:
  *
- * **Über eine Verbindung hinweg wird nicht geglättet.** Wer eine Treppe
- * abkürzt, kürzt durch die Decke ab. Jeder Sprung, der keine Nachbarschaft auf
- * derselben Etage ist, bleibt als fester Punkt stehen.
+ * 1. **Über welche Kacheln geht der Weg wirklich?** Was man von seinem
+ *    Vorgänger aus in gerader Linie erreicht, braucht keinen eigenen Wegpunkt
+ *    (`navSight.canWalkLine`); übrig bleiben die Ecken, um die tatsächlich
+ *    herumgelaufen wird, und dazwischen die Kacheln unter der Geraden
+ *    (`channels`). Was die Suche wegen einer Gefahr gemieden hat, bleibt dabei
+ *    tabu — sonst plant der Mensch sauber um die Stachelgrube herum und läuft
+ *    dann quer hindurch.
+ * 2. **Wo genau in diesen Kacheln?** Dafür wird eine Schnur durch die
+ *    **Durchlässe** zwischen je zwei aufeinanderfolgenden Kacheln gezogen (der
+ *    „Trichter"): Sie liegt anfangs im Startpunkt und wird Durchlass für
+ *    Durchlass straffgezogen; wo sie sich verhakt, steht ein Wegpunkt.
+ *
+ * Der zweite Schritt ist der, wegen dem es diese Datei gibt. Jeder Durchlass
+ * wird an beiden Enden **eingezogen** — überall dort, wo an der Ecke wirklich
+ * etwas steht, und zwar um den Halbmesser dessen, der ihn laufen soll, plus
+ * Wandstärke und Sehne (`shrinkFor`). Das ist der Unterschied zwischen einer
+ * Linie und einem Weg: Ein NPC ist ein Zylinder mit 29 cm Halbmesser, und eine
+ * Linie, die die Hausecke um zwanzig Zentimeter verfehlt, ist für ihn eine
+ * Wand. Ohne den Einzug blieb der Zombie im langen Gang des Labors an der
+ * Wandkante hängen — sein Weg schickte ihn nie den einen Schritt nach Osten,
+ * den sein Körper gebraucht hätte (`navlab/labSim.ts`).
+ *
+ * **Über eine Verbindung hinweg wird nicht gezogen.** Wer eine Treppe abkürzt,
+ * kürzt durch die Decke ab. Jeder Schritt, der kein Schritt ist — eine andere
+ * Etage, oder eine Wand zwischen zwei Nachbarn, an der eine Treppe hängt
+ * (`walkStep`) —, teilt den Weg in Stücke; jedes Stück bekommt seine eigene
+ * Schnur, und beide Enden der Verbindung bleiben feste Punkte.
+ */
+export function pullString(
+  graph: NavGraph,
+  tiles: readonly TileKey[],
+  options: PathOptions,
+): PathPoint[] {
+  const out: PathPoint[] = [];
+  if (tiles.length === 0) return out;
+  const setup: PullSetup = {
+    shrink: shrinkFor(options.radius ?? DEFAULT_RADIUS),
+    canOpen: options.canOpen ?? options.profile.opens,
+    belief: options.belief ?? null,
+    shunned: shunned(graph, options),
+    scratch: newWallState(),
+  };
+  for (const run of channels(graph, tiles, setup)) pullRun(graph, run, setup, out);
+  return out;
+}
+
+/**
+ * Derselbe Weg, aber nur als Kacheln — für alles, was ihn nicht läuft, sondern
+ * bloß wissen will, wo er langführt (Debug-Ansicht, `navAgent.observe`).
+ *
+ * Zwei Wegpunkte auf derselben Kachel sind dabei einer: An einer Ecke setzt
+ * der Schnurzug zwei Punkte in dieselbe Kachel, und auf die Frage „über welche
+ * Kacheln geht der Weg" ist das dieselbe Antwort.
  */
 export function smoothPath(
   graph: NavGraph,
   tiles: readonly TileKey[],
   options: PathOptions,
 ): TileKey[] {
-  if (tiles.length <= 2) return [...tiles];
-  const canOpen = options.canOpen ?? options.profile.opens;
-  const belief = options.belief ?? null;
+  const out: TileKey[] = [];
+  for (const point of pullString(graph, tiles, options)) {
+    if (out[out.length - 1] !== point.tile) out.push(point.tile);
+  }
+  return out;
+}
 
-  // Was die Suche gemieden hat, zieht die Glättung nicht wieder herein: eine
-  // Kachel, die diesem Profil einen Aufschlag kostet, ist keine Abkürzung.
-  const forbid = (tile: TileKey): boolean => {
-    const facts = graph.tile(tile);
-    return facts !== undefined && hazardCost(options.profile, facts.hazard) > 0;
-  };
-
-  const out: TileKey[] = [tiles[0]!];
+/**
+ * **Schritt eins: welche Kacheln bleiben übrig** — und zwar als lückenlose
+ * Kette, ein Stück je Verbindung.
+ *
+ * Gestrichen wird eine Ecke, wenn man den nächsten Wegpunkt schon von ihrem
+ * Vorgänger aus in gerader Linie erreicht. Was dabei herausfällt, kommt aber
+ * nicht einfach weg: Der Trichter danach braucht **Nachbarn** und keine
+ * Sprünge, also werden die Kacheln unter der geraden Linie wieder eingesetzt
+ * (`extend`). Das Ergebnis ist derselbe Schlauch, nur eben der um die *kurze*
+ * Linie herum statt der um das Treppenmuster der Suche — und darin kann die
+ * Schnur wirklich diagonal laufen.
+ */
+function channels(graph: NavGraph, tiles: readonly TileKey[], setup: PullSetup): TileKey[][] {
+  const runs: TileKey[][] = [];
+  let run: TileKey[] = [tiles[0]!];
   let anchor = 0;
   for (let i = 1; i < tiles.length; i++) {
     const previous = tiles[i - 1]!;
     const here = tiles[i]!;
-    const jumped = !isNeighbour(previous, here);
-    if (jumped) {
-      // Beide Enden der Verbindung bleiben stehen: das eine, um hinzulaufen,
-      // das andere, um von dort weiterzugehen.
-      if (out[out.length - 1] !== previous) out.push(previous);
-      out.push(here);
+    if (!walkStep(graph, previous, here, setup)) {
+      // Eine Verbindung: Hier endet das Stück, und drüben fängt das nächste an.
+      extend(run, tiles[anchor]!, previous);
+      runs.push(run);
+      run = [here];
       anchor = i;
       continue;
     }
-    if (!canWalkLine(graph, tiles[anchor]!, here, canOpen, belief, forbid)) {
-      out.push(previous);
+    if (!canWalkLine(graph, tiles[anchor]!, here, setup.canOpen, setup.belief, setup.shunned)) {
+      extend(run, tiles[anchor]!, previous);
       anchor = i - 1;
     }
   }
-  const last = tiles[tiles.length - 1]!;
-  if (out[out.length - 1] !== last) out.push(last);
-  return out;
+  extend(run, tiles[anchor]!, tiles[tiles.length - 1]!);
+  runs.push(run);
+  return runs;
+}
+
+/**
+ * Hängt die Kacheln unter der Geraden von `from` nach `to` an — `from` steht
+ * schon darin.
+ *
+ * Dieselbe Wanderung wie der Sichttest (`navSight.traceLine`), und das ist
+ * kein Zufall: Es sind genau die Kacheln, die dort eben noch als frei
+ * durchgegangen sind. Trifft die Linie eine Ecke genau, bietet die Wanderung
+ * **beide** Wege um sie herum an; genommen wird der erste, denn der Trichter
+ * braucht eine Kette und keine Gabel.
+ */
+function extend(run: TileKey[], from: TileKey, to: TileKey): void {
+  let last = from;
+  traceLine(from, to, (tile, _dir, next) => {
+    if (tile !== last) return true;
+    run.push(next);
+    last = next;
+    return true;
+  });
+}
+
+/**
+ * **Was die Suche gemieden hat** — eine Kachel, die diesem Profil einen
+ * Aufschlag kostet.
+ *
+ * Für die Glättung ist sie so gut wie eine Wand, und zwar in beide
+ * Richtungen: Sie wird weder überquert (sonst plant der Mensch sauber um die
+ * Stachelgrube herum und läuft dann quer hindurch) noch **gestreift** — an
+ * ihrer Kante hält die Schnur denselben Abstand wie an einer Mauer. Wer mit
+ * einem Fuß in der Grube steht, steht in der Grube.
+ */
+function shunned(graph: NavGraph, options: PathOptions): (tile: TileKey) => boolean {
+  return (tile: TileKey): boolean => {
+    const facts = graph.tile(tile);
+    return facts !== undefined && hazardCost(options.profile, facts.hazard) > 0;
+  };
+}
+
+/** Was der Schnurzug über den wissen muss, der den Weg laufen soll. */
+interface PullSetup {
+  /** Wie weit ein Durchlass an einer besetzten Ecke eingezogen wird. */
+  shrink: number;
+  canOpen: boolean;
+  belief: NavBelief | null;
+  shunned: (tile: TileKey) => boolean;
+  scratch: WallState;
+}
+
+/**
+ * Ein Durchlass: die Kante zwischen zwei Kacheln, mit ihren beiden Enden
+ * **links** und **rechts** der Laufrichtung.
+ *
+ * Links und rechts und nicht Nord und Süd, denn der Trichter stellt nur eine
+ * Frage: Ist die Schnur inzwischen über die andere Seite hinausgekippt? Wer
+ * die Enden nach Himmelsrichtung sortierte, müsste sie für vier Richtungen
+ * einzeln beantworten.
+ */
+interface Gate {
+  tile: TileKey;
+  lx: number;
+  lz: number;
+  lTight: boolean;
+  rx: number;
+  rz: number;
+  rTight: boolean;
+}
+
+/**
+ * **Schritt zwei: der Trichter** — ein Stück Weg ohne Verbindung.
+ *
+ * Er trägt drei Punkte mit sich: den **Scheitel**, an dem die Schnur zuletzt
+ * hing, und die beiden Kanten, zwischen denen sie noch Spiel hat. Jeder neue
+ * Durchlass zieht die eine oder die andere Kante enger. Kippt eine über die
+ * andere hinweg, führt keine gerade Linie mehr an beiden vorbei: Dort verhakt
+ * sich die Schnur, dieser Punkt wird ein Wegpunkt, und von ihm aus geht es
+ * weiter.
+ */
+function pullRun(
+  graph: NavGraph,
+  run: readonly TileKey[],
+  setup: PullSetup,
+  out: PathPoint[],
+): void {
+  const first = run[0]!;
+  const last = run[run.length - 1]!;
+  // Der Anfang eines Stücks steht immer da: Er ist entweder der Start oder das
+  // Ende einer Verbindung, und beides ist ein fester Punkt.
+  out.push({ tile: first, x: tileCentreX(first), z: tileCentreZ(first), tight: false });
+  if (run.length === 1) return;
+
+  const gates: Gate[] = [];
+  for (let i = 1; i < run.length; i++) gates.push(gateBetween(graph, run[i - 1]!, run[i]!, setup));
+  // Das Ziel als Durchlass ohne Breite: So endet die Schnur an ihm und nicht
+  // an der letzten Kante davor.
+  gates.push({
+    tile: last,
+    lx: tileCentreX(last),
+    lz: tileCentreZ(last),
+    lTight: false,
+    rx: tileCentreX(last),
+    rz: tileCentreZ(last),
+    rTight: false,
+  });
+
+  let apexX = tileCentreX(first);
+  let apexZ = tileCentreZ(first);
+  let apexAt = -1;
+  let leftX = apexX;
+  let leftZ = apexZ;
+  let leftTile = first;
+  let leftTight = false;
+  let leftAt = -1;
+  let rightX = apexX;
+  let rightZ = apexZ;
+  let rightTile = first;
+  let rightTight = false;
+  let rightAt = -1;
+
+  // Jeder Durchlass wird höchstens dreimal angefasst: einmal vorwärts und
+  // zweimal, wenn die Schnur zu ihm zurückspringt. Die Zugabe ist die
+  // Versicherung gegen eine Schleife ohne Ende — in einer Render-Schleife wäre
+  // die das Ende der Sitzung.
+  let guard = gates.length * 3 + 8;
+  for (let i = 0; i < gates.length && guard > 0; i++, guard--) {
+    const gate = gates[i]!;
+
+    // Die rechte Kante: Zieht dieser Durchlass sie enger?
+    if (turn(apexX, apexZ, rightX, rightZ, gate.rx, gate.rz) <= 0) {
+      const loose = apexX === rightX && apexZ === rightZ;
+      if (loose || turn(apexX, apexZ, leftX, leftZ, gate.rx, gate.rz) > 0) {
+        rightX = gate.rx;
+        rightZ = gate.rz;
+        rightTile = gate.tile;
+        rightTight = gate.rTight;
+        rightAt = i;
+      } else {
+        // Rechts ist über links hinweggekippt: An der linken Kante verhakt
+        // sich die Schnur, und von dort aus wird neu gezogen.
+        out.push({ tile: leftTile, x: leftX, z: leftZ, tight: leftTight });
+        apexX = leftX;
+        apexZ = leftZ;
+        apexAt = leftAt;
+        rightX = apexX;
+        rightZ = apexZ;
+        rightTile = leftTile;
+        rightTight = leftTight;
+        rightAt = apexAt;
+        i = apexAt;
+        continue;
+      }
+    }
+
+    // Und dieselbe Frage von der anderen Seite.
+    if (turn(apexX, apexZ, leftX, leftZ, gate.lx, gate.lz) >= 0) {
+      const loose = apexX === leftX && apexZ === leftZ;
+      if (loose || turn(apexX, apexZ, rightX, rightZ, gate.lx, gate.lz) < 0) {
+        leftX = gate.lx;
+        leftZ = gate.lz;
+        leftTile = gate.tile;
+        leftTight = gate.lTight;
+        leftAt = i;
+      } else {
+        out.push({ tile: rightTile, x: rightX, z: rightZ, tight: rightTight });
+        apexX = rightX;
+        apexZ = rightZ;
+        apexAt = rightAt;
+        leftX = apexX;
+        leftZ = apexZ;
+        leftTile = rightTile;
+        leftTight = rightTight;
+        leftAt = apexAt;
+        i = apexAt;
+        continue;
+      }
+    }
+  }
+
+  const end = out[out.length - 1]!;
+  const goalX = tileCentreX(last);
+  const goalZ = tileCentreZ(last);
+  // Das Ende steht nur dann noch einmal da, wenn die Schnur nicht ohnehin
+  // schon dort hängt.
+  if (Math.abs(end.x - goalX) > 1e-6 || Math.abs(end.z - goalZ) > 1e-6) {
+    out.push({ tile: last, x: goalX, z: goalZ, tight: false });
+  }
+}
+
+/**
+ * Auf welcher Seite der Strahl von `o` nach `b` gegenüber dem nach `a` liegt.
+ *
+ * Positiv heißt **rechts**, negativ links, null in einer Linie — bei X nach
+ * Osten und Z nach Süden. Mehr braucht der Trichter nicht: Er vergleicht
+ * Seiten und misst nie einen Winkel.
+ */
+function turn(ox: number, oz: number, ax: number, az: number, bx: number, bz: number): number {
+  return (ax - ox) * (bz - oz) - (az - oz) * (bx - ox);
+}
+
+/** Der Durchlass zwischen zwei benachbarten Kacheln. */
+function gateBetween(graph: NavGraph, a: TileKey, b: TileKey, setup: PullSetup): Gate {
+  const dir = dirBetween(a, b);
+  const left = leftOf(dir);
+  const right = opposite(left);
+  const one = gateEnd(graph, a, b, dir, left, setup);
+  const other = gateEnd(graph, a, b, dir, right, setup);
+  return {
+    tile: b,
+    lx: one.x,
+    lz: one.z,
+    lTight: one.tight,
+    rx: other.x,
+    rz: other.z,
+    rTight: other.tight,
+  };
+}
+
+/**
+ * Ein Ende eines Durchlasses — die Ecke, und wie weit von ihr weg.
+ *
+ * Steht an der Ecke etwas, rückt der Punkt um den Halbmesser in den Durchlass
+ * hinein und heißt fortan **eng**: Wer ihn abkürzt, läuft in die Ecke. Ist
+ * dort nur Boden, bleibt er auf der Ecke und ist keine Vorschrift, sondern nur
+ * eine Stelle, an der die Schnur zufällig hängt.
+ */
+function gateEnd(
+  graph: NavGraph,
+  a: TileKey,
+  b: TileKey,
+  dir: Dir,
+  side: Dir,
+  setup: PullSetup,
+): { x: number; z: number; tight: boolean } {
+  const x = (keyX(a) + 0.5 + (dirX(dir) + dirX(side)) / 2) * TILE;
+  const z = (keyZ(a) + 0.5 + (dirZ(dir) + dirZ(side)) / 2) * TILE;
+  if (!pinched(graph, a, b, dir, side, setup)) return { x, z, tight: false };
+  return { x: x - dirX(side) * setup.shrink, z: z - dirZ(side) * setup.shrink, tight: true };
+}
+
+/**
+ * Ob an dieser Ecke des Durchlasses wirklich etwas steht.
+ *
+ * Vier Kacheln stoßen dort zusammen: die beiden, zwischen denen der Durchlass
+ * liegt, und ihre beiden Nachbarn auf dieser Seite. Fehlt einer der Nachbarn,
+ * ist er gesperrt, oder steht zwischen zweien der vier eine Wand, dann ist die
+ * Ecke eine Ecke, und wer um sie herum will, hält seinen Halbmesser Abstand.
+ * Sind alle vier offen, liegt dort nur Boden — und den darf die Schnur
+ * ausnutzen, sonst schlingerte sie um jede Kachelecke eines leeren Saals.
+ */
+function pinched(
+  graph: NavGraph,
+  a: TileKey,
+  b: TileKey,
+  dir: Dir,
+  side: Dir,
+  setup: PullSetup,
+): boolean {
+  const besideA = neighbour(a, side);
+  const besideB = neighbour(b, side);
+  if (besideA === NO_TILE || besideB === NO_TILE) return true;
+  if (!believedWalkable(setup.belief, graph, besideA)) return true;
+  if (!believedWalkable(setup.belief, graph, besideB)) return true;
+  if (setup.shunned(besideA) || setup.shunned(besideB)) return true;
+  if (!openWall(graph, a, side, setup)) return true;
+  if (!openWall(graph, b, side, setup)) return true;
+  return !openWall(graph, besideA, dir, setup);
+}
+
+/**
+ * Ob zwischen dieser Kachel und ihrem Nachbarn nichts steht.
+ *
+ * Eine Tür, die erst aufgemacht werden muss, zählt an einer Ecke wie eine
+ * Wand: Ihr Blatt hängt dort, ob sie nun aufgeht oder nicht.
+ */
+function openWall(graph: NavGraph, tile: TileKey, dir: Dir, setup: PullSetup): boolean {
+  const state = believedWallState(
+    setup.belief,
+    graph.wall(tile, dir),
+    setup.canOpen,
+    setup.scratch,
+  );
+  return state.walk && state.cost === 0;
+}
+
+/** In welche Richtung es von `a` nach `b` geht — die beiden sind Nachbarn. */
+function dirBetween(a: TileKey, b: TileKey): Dir {
+  for (const dir of DIRS) {
+    if (neighbour(a, dir) === b) return dir;
+  }
+  return DIR_N;
+}
+
+/** Was von dieser Richtung aus links liegt. Norden ist −Z (`navTile.ts`). */
+function leftOf(dir: Dir): Dir {
+  return ((dir + 3) % 4) as Dir;
+}
+
+/**
+ * Ob von hier nach dort ein **Schritt** geht — Nachbarn auf derselben Etage,
+ * und nichts dazwischen.
+ *
+ * Zwei Kacheln können Nachbarn sein und trotzdem eine Wand zwischen sich
+ * haben; dann führt der Weg über eine **Verbindung**, die das Abtasten daneben
+ * gelegt hat — die Treppe neben der Stufe, die zu hoch zum Hinauftreten ist
+ * (`navBake.ts`). Über die wird nicht geglättet: Sonst zieht die Schnur eine
+ * gerade Linie über die Stufe hinweg, der Läufer sieht keine Verbindung mehr
+ * und läuft für immer gegen sie an, statt hinaufzuspringen.
+ */
+function walkStep(graph: NavGraph, a: TileKey, b: TileKey, setup: PullSetup): boolean {
+  if (!isNeighbour(a, b)) return false;
+  return openWall(graph, a, dirBetween(a, b), setup);
 }
 
 function isNeighbour(a: TileKey, b: TileKey): boolean {

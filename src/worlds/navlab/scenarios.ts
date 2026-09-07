@@ -1,7 +1,10 @@
-import { TILE } from '../nav/navTile';
+import { addPortal, connect, doorBetween, paintRect } from '../nav/navBuild';
+import type { NavGraph } from '../nav/navGraph';
+import { HAZARD_SPIKES } from '../nav/navProfile';
+import { NO_TILE, TILE } from '../nav/navTile';
 
 /**
- * **Der Grundriss des Navigationslabors** — sechs Buchten, und was in jeder zu
+ * **Der Grundriss des Navigationslabors** — acht Buchten, und was in jeder zu
  * sehen sein soll.
  *
  * Reine Daten und ein bisschen Rechnung: Wo eine Bucht liegt, wo ihre Wände
@@ -51,19 +54,41 @@ export const ROOF = 2.4;
 /** Nach so vielen Sekunden räumt ein Szenario sich selbst auf. */
 export const SCENARIO_TIME = 100;
 
-export type ScenarioId = 'corridor' | 'pit' | 'crate' | 'door' | 'portal' | 'levels';
+export type ScenarioId =
+  'corridor' | 'pit' | 'crate' | 'narrow' | 'door' | 'portal' | 'levels' | 'podium';
 
 /** Ein Punkt im Maß einer Bucht — `lx` quer, `lz` in die Tiefe (`bayPoint`). */
 export interface BaySpot {
   lx: number;
   lz: number;
+  /**
+   * Höhe über dem Boden der Bucht, in Metern.
+   *
+   * Zwei Buchten brauchen sie: das Dach der Etagen-Bucht und das freistehende
+   * Podest. Wer sie wegläßt, steht auf dem Boden — das ist der Normalfall und
+   * bleibt es.
+   */
+  y?: number;
 }
 
 /** Wer in einer Bucht losläuft, und wo. */
 export interface BayCast extends BaySpot {
   kind: 'zombie' | 'dummy';
-  /** Höhe über dem Boden der Bucht — nur die Etagen-Bucht braucht sie. */
-  y?: number;
+}
+
+/**
+ * **Was ein gelber Knopf tut.**
+ *
+ * Eine Liste und nicht mehr ein einzelnes Wort, seit die Tür zwei Sachen
+ * kann: auf- und zugehen, und verriegelt werden. Das eine ist ein Schalter,
+ * den man beliebig oft umlegt, das andere die Wendung des Szenarios — deshalb
+ * `once`.
+ */
+export interface ScenarioAct {
+  id: string;
+  label: string;
+  /** Nur einmal je Durchlauf, und nur solange einer läuft. */
+  once?: boolean;
 }
 
 export interface Scenario {
@@ -71,8 +96,8 @@ export interface Scenario {
   title: string;
   /** Worauf man achten soll, in einer Zeile. */
   watch: string;
-  /** Was der gelbe Knopf tut — leer heißt: es gibt keinen. */
-  act: string;
+  /** Was die gelben Knöpfe tun — leer heißt: es gibt keine. */
+  acts: readonly ScenarioAct[];
   /** Die Mitte der Bucht in Weltmetern. */
   x: number;
   z: number;
@@ -97,15 +122,111 @@ export interface Scenario {
 }
 
 const ROW = BAY_D / 2 + AISLE / 2;
-const COL = BAY_W + TILE;
+/**
+ * Der Abstand zweier Buchtmitten in einer Reihe — **zwölf Kacheln**.
+ *
+ * Zwei Kacheln Luft zwischen zwei Buchten und nicht eine, und das ist keine
+ * Geschmacksfrage: Vier Buchten je Reihe stehen bei ungerader Spaltenzahl
+ * symmetrisch nur dann auf Kachelmitten, wenn der halbe Abstand selbst ein
+ * Vielfaches der Kachel ist. Bei 27,5 m wäre die Hälfte 13,75 — und damit
+ * stünde jede Wand jeder Bucht neben der Kachelgrenze statt darauf, was das
+ * Abtasten still verschluckt (`scenarios.test.ts`).
+ */
+const COL = BAY_W + 2 * TILE;
+
+// --- was in den einzelnen Buchten steht ------------------------------------
+
+/** Die Stachelgrube, in Buchtmaßen — sechs Kacheln breit, zwei tief. */
+export const PIT = { minLx: -7.5, maxLx: 7.5, minLz: -2.5, maxLz: 2.5 };
+
+/**
+ * Die Tür: die Lücke, in der sie hängt, und die beiden Kacheln, zwischen denen
+ * sie in der Karte steht.
+ *
+ * `slide` ist der Weg, den das Blatt beim Öffnen zur Seite macht — genau eine
+ * Kachel, also in die Wand daneben.
+ */
+export const DOOR = { lx: -6.25, width: TILE, slide: TILE, gap: 1.25, height: 2.2, thick: 0.16 };
+
+/** Die beiden Enden des Portals — Kachelmitten, sonst findet es der Graph nicht. */
+export const PORTAL: readonly BaySpot[] = [
+  { lx: -6.25, lz: -6.25 },
+  { lx: 6.25, lz: -6.25 },
+];
+
+/**
+ * **Wo die Kiste in den Durchgang fällt** — in die Kachel *vor* der Lücke, auf
+ * der Seite, von der der Zombie kommt.
+ *
+ * Sie lag lange eine Kachel weiter (`lz: 1.25`), also hinter der Wand auf der
+ * Seite des Spielers. Auf der Karte war das dasselbe — gesperrt ist gesperrt —,
+ * anzusehen war es etwas anderes: Der Knopf hieß „Kiste in den Durchgang", und
+ * die Kiste stand daneben. Jetzt steht sie da, wo der Zombie sie sieht, und
+ * genau dort merkt er auch, dass sie im Weg ist (`navAgent.observe`).
+ */
+export const CRATE: BaySpot = { lx: -6.25, lz: -1.25 };
+
+/** Der Klotz mit dem flachen Dach: Mitte und Maße in Buchtmaßen. */
+export const BLOCK = { lx: -5, lz: -2.5, w: 10, d: 5 };
+
+/** Wo der Schlitz im engen Gang sitzt — eine Kachelmitte, sonst trifft ihn niemand. */
+const NARROW_LX = -6.25;
+
+/**
+ * **Der zu enge Gang**: eine Kachel Lücke, in die zwei Pfosten hineinragen, bis
+ * nur noch ein Schlitz übrig ist.
+ *
+ * `gap` ist absichtlich schmaler als die Schulterbreite, mit der das Abtasten
+ * rechnet (`navBake.ts`, `BAKE_DEFAULTS.width`) — und schmaler als ein Zombie
+ * dick ist (0,58 m, `npcKinds.ts`). Beides muss stimmen, denn beide Hälften
+ * dieser Bucht sind eine Behauptung: In der **Welt** passt er nicht hindurch,
+ * und auf der **Karte** steht deshalb auch keine Lücke. Wo die zweite Hälfte
+ * fehlt, plant er hindurch, rennt dagegen und kommt nie an — das ist der
+ * Zombie, der durch eine Wand will.
+ */
+export const NARROW = { lx: NARROW_LX, gap: 0.45, opening: TILE };
+
+/**
+ * **Rampe, Podest und das Podest daneben.**
+ *
+ * Der Aufbau in einem Satz: Über drei Stufen geht es an der Westwand hinauf auf
+ * das nahe Podest; von dessen Ostkante ist das freistehende Podest **einen
+ * Gang breit** entfernt, und dazwischen läuft der Boden durch. Wer springen
+ * kann, ist drüben; wer nicht, steht unten im Gang.
+ *
+ * Die Höhe ist dieselbe wie die des Dachs (`ROOF`): Sie muss über dem liegen,
+ * was das Abtasten noch als Treppe durchgehen lässt (`climb`, 2,2 m) — sonst
+ * baut es von selbst eine Verbindung hinauf, und der Zombie steht oben.
+ * Gleichzeitig muss sie **unter** dem Absprung bleiben (`drop`, 2,6 m), damit
+ * man wieder herunterkommt.
+ */
+export const PODIUM = {
+  high: ROOF,
+  /** Die Rampe an der Westwand: drei Stufen, je eine Kachel tief. */
+  ramp: [
+    { lx: -11.25, lz: 3.75, y: 0.8 },
+    { lx: -11.25, lz: 1.25, y: 1.6 },
+    { lx: -11.25, lz: -1.25, y: ROOF },
+  ],
+  /** Das Podest, auf das die Rampe führt — zwei mal zwei Kacheln. */
+  near: { minLx: -12.5, maxLx: -7.5, minLz: -7.5, maxLz: -2.5 },
+  /** Und das freistehende: derselbe Zuschnitt, einen Gang weiter östlich. */
+  far: { minLx: -5, maxLx: 0, minLz: -7.5, maxLz: -2.5 },
+  /** Die beiden Kachelmitten, zwischen denen gesprungen wird. */
+  from: { lx: -8.75, lz: -3.75 },
+  to: { lx: -3.75, lz: -3.75 },
+} as const;
+
+/** Die vier Spalten einer Reihe, von West nach Ost. */
+const COLS = [-1.5 * COL, -0.5 * COL, 0.5 * COL, 1.5 * COL] as const;
 
 export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'corridor',
     title: 'Langer Gang',
     watch: 'Er kommt um zwei Ecken statt an der Wand zu kleben',
-    act: '',
-    x: -COL,
+    acts: [],
+    x: COLS[0],
     z: -ROW,
     accent: 0x39d0ff,
     stand: { lx: 0, lz: 6.25 },
@@ -115,8 +236,8 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'pit',
     title: 'Stachelgrube',
     watch: 'Der Zombie läuft hinein, die Puppe geht außen herum',
-    act: '',
-    x: 0,
+    acts: [],
+    x: COLS[1],
     z: -ROW,
     accent: 0xff6b6b,
     stand: { lx: 0, lz: 6.25 },
@@ -129,19 +250,33 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'crate',
     title: 'Kiste im Weg',
     watch: 'Er plant um, sobald der Durchgang zu ist',
-    act: 'Kiste in den Durchgang',
-    x: COL,
+    acts: [{ id: 'crate', label: 'Kiste in den Durchgang', once: true }],
+    x: COLS[2],
     z: -ROW,
     accent: 0xffc857,
     stand: { lx: 0, lz: 6.25 },
     cast: [{ kind: 'zombie', lx: -6.25, lz: -6.25 }],
   },
   {
+    id: 'narrow',
+    title: 'Zu enger Gang',
+    watch: 'Er stellt sich in den Schlitz und kommt keinen Schritt weiter',
+    acts: [],
+    x: COLS[3],
+    z: -ROW,
+    accent: 0xff9f45,
+    stand: { lx: NARROW_LX, lz: 3.75 },
+    cast: [{ kind: 'zombie', lx: NARROW_LX, lz: -6.25 }],
+  },
+  {
     id: 'door',
     title: 'Tür fällt zu',
     watch: 'Er läuft dagegen, merkt es dort und geht dann außen herum',
-    act: 'Tür verriegeln',
-    x: -COL,
+    acts: [
+      { id: 'door', label: 'Tür auf/zu' },
+      { id: 'bar', label: 'Tür verriegeln', once: true },
+    ],
+    x: COLS[0],
     z: ROW,
     accent: 0xe58aa8,
     stand: { lx: 0, lz: 6.25 },
@@ -151,8 +286,8 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'portal',
     title: 'Portal, von dem einer weiß',
     watch: 'Einer nimmt die Abkürzung, der andere läuft außen herum',
-    act: 'Portal öffnen',
-    x: 0,
+    acts: [{ id: 'portal', label: 'Portal öffnen', once: true }],
+    x: COLS[1],
     z: ROW,
     accent: 0x9d7bff,
     stand: { lx: 6.25, lz: -6.25 },
@@ -165,12 +300,26 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'levels',
     title: 'Vom Dach herunter',
     watch: 'Er steht oben, sucht sich die Kante und springt',
-    act: '',
-    x: COL,
+    acts: [],
+    x: COLS[2],
     z: ROW,
     accent: 0x5ee0a0,
     stand: { lx: 6.25, lz: 3.75 },
     cast: [{ kind: 'zombie', lx: -6.25, lz: -3.75, y: ROOF }],
+  },
+  {
+    id: 'podium',
+    title: 'Podest und Sprung',
+    watch: 'Die Puppe nimmt Rampe und Sprung, der Zombie steht unten davor',
+    acts: [],
+    x: COLS[3],
+    z: ROW,
+    accent: 0x6fd3ff,
+    stand: { ...PODIUM.to, y: PODIUM.high },
+    cast: [
+      { kind: 'dummy', lx: -11.25, lz: 6.25 },
+      { kind: 'zombie', lx: -8.75, lz: 6.25 },
+    ],
   },
 ];
 
@@ -263,36 +412,21 @@ const INSIDE: Record<ScenarioId, readonly BayWall[]> = {
   portal: [{ lx: 0, lz: -2.5, w: WALL_T, d: 10 }],
   // Der Klotz ist keine Wand, sondern ein Dach mit etwas darunter (`BLOCK`).
   levels: [],
+  // Eine durchgehende Wand mit **einer** Lücke von einer Kachel. Was daraus
+  // einen Schlitz macht, sind zwei Pfosten (`NARROW`) — die stehen nicht hier,
+  // denn sie enden absichtlich *nicht* auf einer Kachelgrenze.
+  narrow: [
+    { lx: -10, lz: 0, w: 5, d: WALL_T },
+    { lx: 3.75, lz: 0, w: 17.5, d: WALL_T },
+  ],
+  // Rampe und Podeste sind Klötze und keine Wände (`PODIUM`).
+  podium: [],
 };
 
 /** Alle Wände einer Bucht — Hülle und Innenleben. */
 export function bayWalls(bay: Scenario): readonly BayWall[] {
   return [...SHELL, ...INSIDE[bay.id]];
 }
-
-/** Die Stachelgrube, in Buchtmaßen — sechs Kacheln breit, zwei tief. */
-export const PIT = { minLx: -7.5, maxLx: 7.5, minLz: -2.5, maxLz: 2.5 };
-
-/**
- * Die Tür: die Lücke, in der sie hängt, und die beiden Kacheln, zwischen denen
- * sie in der Karte steht.
- *
- * `slide` ist der Weg, den das Blatt beim Öffnen zur Seite macht — genau eine
- * Kachel, also in die Wand daneben.
- */
-export const DOOR = { lx: -6.25, width: TILE, slide: TILE, gap: 1.25 };
-
-/** Die beiden Enden des Portals — Kachelmitten, sonst findet es der Graph nicht. */
-export const PORTAL: readonly BaySpot[] = [
-  { lx: -6.25, lz: -6.25 },
-  { lx: 6.25, lz: -6.25 },
-];
-
-/** Wo die Kiste in den Durchgang fällt. */
-export const CRATE: BaySpot = { lx: -6.25, lz: 1.25 };
-
-/** Der Klotz mit dem flachen Dach: Mitte und Maße in Buchtmaßen. */
-export const BLOCK = { lx: -5, lz: -2.5, w: 10, d: 5 };
 
 /** Die Ecken einer Bucht in Weltmetern. */
 export function bayBounds(bay: Scenario): {
@@ -323,6 +457,233 @@ export function labBounds(): { minX: number; minZ: number; maxX: number; maxZ: n
     maxZ = Math.max(maxZ, box.maxZ);
   }
   return { minX, minZ, maxX, maxZ };
+}
+
+// --- der ganze Bau als Kästen ---------------------------------------------
+
+/**
+ * Woraus ein Quader des Labors besteht — die Sorte entscheidet nur über seine
+ * Farbe, für die Wegsuche sind alle gleich.
+ */
+export type LabSolidKind = 'floor' | 'rim' | 'wall' | 'block';
+
+/** Ein Quader in Weltmetern: Mitte und Kantenlängen. */
+export interface LabSolid {
+  kind: LabSolidKind;
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  h: number;
+  d: number;
+}
+
+/**
+ * **Das ganze Labor als Liste von Quadern** — genau die, die auch in der Welt
+ * stehen.
+ *
+ * Der Grund, warum das hier steht und nicht in `NavLabWorld`, ist derselbe wie
+ * beim Grundriss darüber, nur eine Stufe schärfer: Ein Test, der das Labor
+ * **abtastet** (`bakeNav`), muss dieselben Kästen abtasten, die man in der
+ * Brille sieht. Baute die Welt ihre Wände selbst und der Test seine eigenen,
+ * prüfte er eine zweite Welt, die zufällig ähnlich aussieht — und der erste
+ * Unterschied zwischen beiden wäre genau der Fehler, den er finden sollte.
+ *
+ * `NavLabWorld` läuft diese Liste ab und gibt jeder Sorte ihr Material. Was
+ * hier **nicht** steht, ist alles, was keine Wand ist: der Anstrich der Grube,
+ * ihre Stacheln, das Türblatt, die Portalringe. Die stehen in keinem Quader,
+ * weil sie keinen Weg versperren (`NavLabWorld.navReady`).
+ */
+export function labSolids(): LabSolid[] {
+  const box = labBounds();
+  const width = box.maxX - box.minX + 6;
+  const depth = box.maxZ - box.minZ + 6;
+  const out: LabSolid[] = [{ kind: 'floor', x: 0, y: -0.2, z: 0, w: width, h: 0.4, d: depth }];
+
+  // Eine Bande außen herum, damit niemand aus dem Labor spaziert — und zwar
+  // **dicht an den Buchten** und nicht am Rand des Bodens. Der Boden steht ein
+  // Stück über, damit die Bande auf etwas steht; wäre sie dort, liefe zwischen
+  // ihr und den Buchten ein Rundgang um das ganze Labor. Ein Zombie, der ihn
+  // findet, geht außen herum statt durch die Bucht, um die es gerade geht.
+  for (const [x, z, w, d] of [
+    [0, box.minZ, width, 0.5],
+    [0, box.maxZ, width, 0.5],
+    [box.minX, 0, 0.5, depth],
+    [box.maxX, 0, 0.5, depth],
+  ] as const) {
+    out.push({ kind: 'rim', x, y: 1.5, z, w, h: 3, d });
+  }
+
+  for (const bay of SCENARIOS) {
+    for (const wall of bayWalls(bay)) {
+      const at = bayPoint(bay, wall.lx, wall.lz);
+      out.push({
+        kind: 'wall',
+        x: at.x,
+        y: WALL_H / 2,
+        z: at.z,
+        w: wall.w,
+        h: WALL_H,
+        d: wall.d,
+      });
+    }
+    out.push(...bayFixtures(bay));
+  }
+  return out;
+}
+
+/**
+ * **Das Türblatt** — offen zur Seite geschoben, zu in seiner Lücke.
+ *
+ * Es steht *nicht* in `labSolids()`, und das ist der Unterschied zwischen einer
+ * Tür und einer Wand: Was abgetastet wird, gilt für immer, eine Tür aber geht
+ * auf und zu. Auf der Karte steht sie deshalb als Tür (`navReady`), und diese
+ * Funktion sagt nur, wo ihr Blatt gerade hängt — für die Brille und für jeden
+ * Test, der wissen will, ob ein Zombie da wirklich durchkommt.
+ */
+export function doorLeaf(bay: Scenario, open: boolean): LabSolid {
+  const at = bayPoint(bay, DOOR.lx - (open ? DOOR.slide : 0), 0);
+  return {
+    kind: 'wall',
+    x: at.x,
+    y: DOOR.height / 2,
+    z: at.z,
+    w: DOOR.width,
+    h: DOOR.height,
+    d: DOOR.thick,
+  };
+}
+
+/** Was eine einzelne Bucht an Klötzen mitbringt. */
+function bayFixtures(bay: Scenario): LabSolid[] {
+  if (bay.id === 'levels') {
+    // Ein Klotz mit flachem Dach, sonst nichts. **Keine Treppe**: Ein NPC ist
+    // heute ein dynamischer Zylinder, und ein Zylinder steigt keine Stufe. Was
+    // er kann, ist von einer Kante fallen — und genau das ist die Behauptung
+    // dieser Bucht (`ROOF`).
+    const at = bayPoint(bay, BLOCK.lx, BLOCK.lz);
+    return [{ kind: 'block', x: at.x, y: ROOF / 2, z: at.z, w: BLOCK.w, h: ROOF, d: BLOCK.d }];
+  }
+
+  if (bay.id === 'narrow') {
+    // Die beiden Pfosten, die aus einer Kachel Lücke einen Schlitz machen.
+    // Ihre Enden liegen mit Absicht **nicht** auf einer Kachelgrenze: Genau
+    // das ist der Fall, den ein einzelner Messpunkt auf der Grenze übersieht.
+    const half = (NARROW.opening - NARROW.gap) / 2;
+    return [-1, 1].map((side) => {
+      const at = bayPoint(bay, NARROW.lx + (side * (NARROW.gap + half)) / 2, 0);
+      return {
+        kind: 'wall' as const,
+        x: at.x,
+        y: WALL_H / 2,
+        z: at.z,
+        w: half,
+        h: WALL_H,
+        d: WALL_T,
+      };
+    });
+  }
+
+  if (bay.id === 'podium') {
+    const out: LabSolid[] = [];
+    for (const step of PODIUM.ramp) {
+      const at = bayPoint(bay, step.lx, step.lz);
+      out.push({ kind: 'block', x: at.x, y: step.y / 2, z: at.z, w: TILE, h: step.y, d: TILE });
+    }
+    for (const deck of [PODIUM.near, PODIUM.far]) {
+      const a = bayPoint(bay, deck.minLx, deck.minLz);
+      const b = bayPoint(bay, deck.maxLx, deck.maxLz);
+      out.push({
+        kind: 'block',
+        x: (a.x + b.x) / 2,
+        y: PODIUM.high / 2,
+        z: (a.z + b.z) / 2,
+        w: Math.abs(b.x - a.x),
+        h: PODIUM.high,
+        d: Math.abs(b.z - a.z),
+      });
+    }
+    return out;
+  }
+
+  return [];
+}
+
+// --- was in keiner Geometrie steht ----------------------------------------
+
+/** Die Tür des Labors, unter dem Namen, unter dem eine Meinung sie kennt. */
+export const DOOR_ID = 'navlab-tuer';
+/** Das Portal der Portal-Bucht. */
+export const PORTAL_ID = 'navlab-portal';
+/** Der Sprung zwischen den beiden Podesten. */
+export const JUMP_ID = 'navlab-sprung';
+
+/**
+ * **Was das Abtasten nicht finden kann**, in die frisch abgetastete Karte
+ * eingetragen.
+ *
+ * Drei Sachen stehen in keinem Quader: Eine Grube ist ein *Anstrich* und kein
+ * Hindernis — man kann hineinlaufen, es tut nur weh. Eine Tür ist in der
+ * Geometrie entweder eine Lücke oder eine Wand, nie beides nacheinander. Und
+ * ein Sprung über einen Gang ist ein Loch, kein Weg.
+ *
+ * Sie stehen hier und nicht in `NavLabWorld`, aus demselben Grund wie
+ * `labSolids()`: Ein Test, der das Labor abtastet, muss dieselbe Karte
+ * bekommen wie die Brille. Eine Grube, die nur in der Welt weh tut, ließe im
+ * Test Zombie und Puppe denselben Weg laufen — und genau das ist die eine
+ * Behauptung, die diese Bucht aufstellt.
+ */
+export function applyLabMap(graph: NavGraph): void {
+  for (const bay of SCENARIOS) {
+    if (bay.id === 'pit') {
+      const a = bayPoint(bay, PIT.minLx, PIT.minLz);
+      const b = bayPoint(bay, PIT.maxLx, PIT.maxLz);
+      paintRect(
+        graph,
+        {
+          minX: Math.min(a.x, b.x),
+          maxX: Math.max(a.x, b.x),
+          minZ: Math.min(a.z, b.z),
+          maxZ: Math.max(a.z, b.z),
+          y: 0,
+        },
+        { hazard: HAZARD_SPIKES },
+      );
+    }
+    if (bay.id === 'door') {
+      // Die beiden Kachelmitten links und rechts der Türlinie: Zwischen ihnen
+      // sitzt die Wand, und in diese Wand kommt die Tür.
+      const north = bayPoint(bay, DOOR.lx, -DOOR.gap);
+      const south = bayPoint(bay, DOOR.lx, DOOR.gap);
+      doorBetween(graph, { ...north, y: 0 }, { ...south, y: 0 }, DOOR_ID, true);
+    }
+    if (bay.id === 'podium') {
+      // **Der Sprung von einem Podest auf das andere.** Ihn kann kein Abtasten
+      // finden: Zwischen den beiden Decken liegt ein Gang, und ein Gang ist in
+      // der Geometrie ein Loch und keine Verbindung. Wer springen kann, nimmt
+      // ihn (`HUMAN_PROFILE`); der Zombie hat dafür `Infinity` stehen und
+      // bleibt unten (`navProfile.ts`).
+      const a = baySpot(bay, PODIUM.from);
+      const b = baySpot(bay, PODIUM.to);
+      const from = graph.at(a.x, a.z, PODIUM.high);
+      const to = graph.at(b.x, b.z, PODIUM.high);
+      if (from !== NO_TILE && to !== NO_TILE) {
+        connect(graph, JUMP_ID, from, to, 'jump', { both: true });
+      }
+    }
+  }
+}
+
+/** Das Portal der Portal-Bucht öffnen — dieselben zwei Enden wie in der Welt. */
+export function openLabPortal(graph: NavGraph): boolean {
+  const bay = scenarioOf('portal');
+  const a = baySpot(bay, PORTAL[0]!);
+  const b = baySpot(bay, PORTAL[1]!);
+  const from = graph.at(a.x, a.z, 0);
+  const to = graph.at(b.x, b.z, 0);
+  if (from === NO_TILE || to === NO_TILE) return false;
+  addPortal(graph, PORTAL_ID, from, to);
+  return true;
 }
 
 // --- die Uhr eines Szenarios ----------------------------------------------

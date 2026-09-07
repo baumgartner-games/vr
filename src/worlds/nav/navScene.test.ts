@@ -108,27 +108,42 @@ describe('Die Debug-Ansicht', () => {
 
   it('zeichnet Kacheln, Wände, Kanten, Sperren und Verbindungen — je eine Linienmenge', () => {
     const view = navDebugView(sample());
-    // Kacheln, Gesperrte, Wand, Kante, Verbindung: fünf Farben, fünf Objekte.
-    expect(view.children).toHaveLength(5);
-    for (const child of view.children) {
+    // Fläche, Kacheln, Gesperrte, Wand, Kante, Verbindung: sechs Objekte.
+    expect(view.children).toHaveLength(6);
+    expect(view.children.map((child) => child.name)).toEqual([
+      'floor',
+      'tiles',
+      'blocked',
+      'walls',
+      'walls',
+      'links',
+    ]);
+    // Alles außer der betretbaren Fläche ist eine Linienmenge; die eine
+    // Ausnahme ist der Grund, warum es sie gibt — man sieht eine Fläche.
+    for (const child of view.children.slice(1)) {
       expect(child).toBeInstanceOf(THREE.LineSegments);
     }
+    expect(view.children[0]).toBeInstanceOf(THREE.Mesh);
   });
 
   it('zeichnet eine offene Tür nicht als Sperre', () => {
     const graph = new NavGraph([0]);
     fillRect(graph, { x: 0, z: 0, w: 2, d: 1 });
     graph.setWall(tileKey(0, 0, 0), DIR_E, { kind: 'door', open: true, id: 'tuer' });
-    // Nur die Kachelumrisse, keine Wandlinie.
-    expect(navDebugView(graph).children).toHaveLength(1);
-    graph.setDoor('tuer', { open: false });
+    // Nur die Fläche und die Kachelumrisse, keine Wandlinie.
     expect(navDebugView(graph).children).toHaveLength(2);
+    graph.setDoor('tuer', { open: false });
+    expect(navDebugView(graph).children).toHaveLength(3);
   });
 
   it('legt die Linien über alles, damit eine Wand sie nicht verschluckt', () => {
     for (const child of navDebugView(sample()).children) {
       expect(child.renderOrder).toBeGreaterThan(0);
-      expect((child as THREE.LineSegments).material).toMatchObject({ depthTest: false });
+      // Die **Fläche** ist die Ausnahme, und zwar mit Absicht: Sie soll den
+      // Boden einfärben, den man sieht, und nicht durch jede Wand hindurch
+      // einen blauen Teppich über die ganze Welt legen.
+      const behindWalls = child.name === 'floor';
+      expect((child as THREE.LineSegments).material).toMatchObject({ depthTest: behindWalls });
     }
   });
 

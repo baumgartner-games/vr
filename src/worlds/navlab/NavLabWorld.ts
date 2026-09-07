@@ -5,8 +5,7 @@ import { createSky } from '../shared/environment';
 import { TextPlane } from '../../ui/TextPlane';
 import type { WorldContext } from '../../core/types';
 import type { NavGraph } from '../nav/navGraph';
-import { addPortal, doorBetween, dropPortal, paintRect, portalLinkIds } from '../nav/navBuild';
-import { HAZARD_SPIKES } from '../nav/navProfile';
+import { dropPortal, portalLinkIds } from '../nav/navBuild';
 import { NO_TILE } from '../nav/navTile';
 import { layerSpec, layerSummary, nextAll, type NavLayer } from '../nav/navLayers';
 import type { PreviewButton } from '../shared/livePreview';
@@ -16,29 +15,32 @@ import type { Npc } from '../npc/Npc';
 import {
   BAY_D,
   BAY_W,
-  BLOCK,
   CRATE,
-  DOOR,
+  DOOR_ID,
   PIT,
   PORTAL,
+  PORTAL_ID,
   ROOF,
   SCENARIOS,
-  WALL_H,
+  applyLabMap,
   bayPoint,
   baySpot,
-  bayWalls,
+  doorLeaf,
   labBounds,
+  labSolids,
   newScenarioState,
+  openLabPortal,
   startScenario,
   stopScenario,
   tickScenario,
+  type LabSolidKind,
   type Scenario,
   type ScenarioId,
   type ScenarioState,
 } from './scenarios';
 
 /**
- * **Das Navigationslabor** — sechs Buchten, sechs rote Knöpfe, und in jeder
+ * **Das Navigationslabor** — acht Buchten, acht rote Knöpfe, und in jeder
  * eine Behauptung über die Wegsuche, die man nachprüfen kann.
  *
  * Der Grund für diese Welt ist ein einfacher: Alles, was NPCs tun, kann man
@@ -122,7 +124,7 @@ export class NavLabWorld extends PortalWorld {
   }
 
   protected override welcome(): string {
-    return 'Navigationslabor · Roter Knopf startet · Gelber macht das Szenario schwer';
+    return 'Navigationslabor · Roter Knopf startet · Gelbe machen das Szenario schwer';
   }
 
   protected override worldGravity(): number {
@@ -152,29 +154,21 @@ export class NavLabWorld extends PortalWorld {
     this.root.add(lab);
     this.root.add(createSky(0x1b2434, 0x39d0ff));
 
-    const box = labBounds();
-    const width = box.maxX - box.minX + 6;
-    const depth = box.maxZ - box.minZ + 6;
-    this.slab(lab, this.floorMat, [width, 0.4, depth], [0, -0.2, 0], true);
-
-    // Eine Bande außen herum, damit niemand aus dem Labor spaziert — und zwar
-    // **dicht an den Buchten** und nicht am Rand des Bodens. Der Boden steht
-    // ein Stück über, damit die Bande auf etwas steht; wäre sie dort, liefe
-    // zwischen ihr und den Buchten ein Rundgang um das ganze Labor. Ein
-    // Zombie, der ihn findet, geht außen herum statt durch die Bucht, um die
-    // es gerade geht — und das war er auch: ein Weg über die Rückseite, wo
-    // eine Wand steht.
-    for (const [x, z, w, d] of [
-      [0, box.minZ, width, 0.5],
-      [0, box.maxZ, width, 0.5],
-      [box.minX, 0, 0.5, depth],
-      [box.maxX, 0, 0.5, depth],
-    ] as const) {
-      this.slab(lab, this.wallMat, [w, 3, d], [x, 1.5, z], false);
+    // **Jeder Quader kommt aus den Daten** (`labSolids`), damit ein Test
+    // dasselbe Labor abtasten kann, das man in der Brille sieht. Hier bleibt
+    // nur noch die Farbe.
+    for (const solid of labSolids()) {
+      this.slab(
+        lab,
+        this.materialFor(solid.kind),
+        [solid.w, solid.h, solid.d],
+        [solid.x, solid.y, solid.z],
+        solid.kind === 'floor',
+      );
     }
 
     for (const bay of SCENARIOS) {
-      this.buildBay(lab, bay);
+      this.decorate(lab, bay);
       this.buildSign(lab, bay);
       this.buildKnobs(lab, bay);
     }
@@ -188,12 +182,19 @@ export class NavLabWorld extends PortalWorld {
     this.buildConsole(lab, 'portal');
   }
 
+  private materialFor(kind: LabSolidKind): THREE.Material {
+    if (kind === 'floor') return this.floorMat;
+    if (kind === 'block') return this.blockMat;
+    return this.wallMat;
+  }
+
   private buildConsole(parent: THREE.Group, id: ScenarioId): void {
     const bay = SCENARIOS.find((one) => one.id === id);
     if (!bay) return;
     const at = bayPoint(bay, -BAY_W / 2 + 0.35, 3);
     const panel = new NavConsole();
-    panel.position.set(at.x, 1.55, at.z);
+    // So hoch, dass die gewachsene Platte unter der 2,4-m-Wand bleibt.
+    panel.position.set(at.x, 1.35, at.z);
     // Nach Osten, also in die Bucht hinein. **Eine Tafel schaut nach +Z** und
     // nicht nach −Z wie ein Körper: Ihre Vorderseite ist die Seite, auf der
     // die Knöpfe sitzen. Mit −90° stünde sie mit dem Rücken zum Raum und man
@@ -207,29 +208,17 @@ export class NavLabWorld extends PortalWorld {
   protected override buildProps(): void {}
 
   /**
-   * Die Wände einer Bucht — **alle aus `bayWalls`** und keine hier
-   * ausgerechnet.
+   * Was in einer Bucht steht, ohne ein Quader zu sein.
    *
-   * Was hier bleibt, ist das, was keine Wand ist: der Anstrich der Grube, ihre
-   * Stacheln, das Türblatt, die beiden Ringe, der Klotz mit dem Dach.
+   * Die Wände kommen aus `labSolids()`; hier bleibt das, was **keinen Weg
+   * versperrt**: der Anstrich der Grube, ihre Stacheln, das Türblatt und die
+   * beiden Portalringe. Genau deshalb steht es getrennt — was hier gebaut
+   * wird, sieht das Abtasten nie, und das ist Absicht.
    */
-  private buildBay(parent: THREE.Group, bay: Scenario): void {
-    for (const wall of bayWalls(bay)) {
-      const at = bayPoint(bay, wall.lx, wall.lz);
-      this.slab(parent, this.wallMat, [wall.w, WALL_H, wall.d], [at.x, WALL_H / 2, at.z], false);
-    }
-
+  private decorate(parent: THREE.Group, bay: Scenario): void {
     if (bay.id === 'pit') this.buildPit(parent, bay);
     if (bay.id === 'door') this.buildDoor(parent, bay);
     if (bay.id === 'portal') this.buildRings(parent, bay);
-    if (bay.id === 'levels') {
-      // Ein Klotz mit flachem Dach, sonst nichts. **Keine Treppe**: Ein NPC
-      // ist heute ein dynamischer Zylinder, und ein Zylinder steigt keine
-      // Stufe. Was er kann, ist von einer Kante fallen — und genau das ist
-      // die Behauptung dieser Bucht (`ROOF` in `scenarios.ts`).
-      const at = bayPoint(bay, BLOCK.lx, BLOCK.lz);
-      this.slab(parent, this.blockMat, [BLOCK.w, ROOF, BLOCK.d], [at.x, ROOF / 2, at.z], false);
-    }
   }
 
   /** Die Grube: ein roter Anstrich und Stacheln darin. */
@@ -259,18 +248,20 @@ export class NavLabWorld extends PortalWorld {
   }
 
   private buildDoor(parent: THREE.Group, bay: Scenario): void {
-    const at = bayPoint(bay, DOOR.lx, 0);
+    // Beide Lagen kommen aus denselben Daten wie im Test (`doorLeaf`): Zu heißt
+    // in seiner Lücke, offen heißt um eine Kachel zur Seite geschoben, und der
+    // Platz dafür ist die Wand daneben.
+    const open = doorLeaf(bay, true);
+    const shut = doorLeaf(bay, false);
     const leaf = new THREE.Mesh(
-      new THREE.BoxGeometry(DOOR.width, 2.2, 0.16),
+      new THREE.BoxGeometry(shut.w, shut.h, shut.d),
       new THREE.MeshStandardMaterial({ color: 0xe58aa8, roughness: 0.6 }),
     );
     leaf.name = 'navlab-door';
     parent.add(leaf);
     this.door = leaf;
-    // Zu heißt: in seiner Lücke. Offen heißt: um eine Kachel zur Seite
-    // geschoben, und der Platz dafür ist die Wand daneben.
-    this.doorShut.set(at.x, 1.1, at.z);
-    this.doorHome.set(at.x - DOOR.slide, 1.1, at.z);
+    this.doorShut.set(shut.x, shut.y, shut.z);
+    this.doorHome.set(open.x, open.y, open.z);
     leaf.position.copy(this.doorHome);
   }
 
@@ -307,12 +298,14 @@ export class NavLabWorld extends PortalWorld {
     parent.add(sign);
   }
 
-  /** Der rote Knopf, und wo es einen gibt der gelbe daneben. */
+  /** Der rote Knopf, und daneben je ein gelber für das, was die Bucht sonst kann. */
   private buildKnobs(parent: THREE.Group, bay: Scenario): void {
-    this.knob(parent, bay, -3, 0xff3b2f, 'START', bay.title, () => this.toggle(bay.id));
-    if (bay.act) {
-      this.knob(parent, bay, 3, 0xffc857, bay.act.toUpperCase(), bay.title, () => this.act(bay.id));
-    }
+    this.knob(parent, bay, -5, 0xff3b2f, 'START', bay.title, () => this.toggle(bay.id));
+    bay.acts.forEach((act, index) => {
+      this.knob(parent, bay, 1 + index * 5, 0xffc857, act.label.toUpperCase(), bay.title, () =>
+        this.act(bay.id, act.id),
+      );
+    });
   }
 
   private knob(
@@ -368,30 +361,7 @@ export class NavLabWorld extends PortalWorld {
    * nacheinander (`navBuild.ts`).
    */
   protected override navReady(graph: NavGraph): void {
-    for (const bay of SCENARIOS) {
-      if (bay.id === 'pit') {
-        const a = bayPoint(bay, PIT.minLx, PIT.minLz);
-        const b = bayPoint(bay, PIT.maxLx, PIT.maxLz);
-        paintRect(
-          graph,
-          {
-            minX: Math.min(a.x, b.x),
-            maxX: Math.max(a.x, b.x),
-            minZ: Math.min(a.z, b.z),
-            maxZ: Math.max(a.z, b.z),
-            y: 0,
-          },
-          { hazard: HAZARD_SPIKES },
-        );
-      }
-      if (bay.id === 'door') {
-        // Die beiden Kachelmitten links und rechts der Türlinie: Zwischen
-        // ihnen sitzt die Wand, und in diese Wand kommt die Tür.
-        const north = bayPoint(bay, DOOR.lx, -DOOR.gap);
-        const south = bayPoint(bay, DOOR.lx, DOOR.gap);
-        doorBetween(graph, { ...north, y: 0 }, { ...south, y: 0 }, DOOR_ID, true);
-      }
-    }
+    applyLabMap(graph);
   }
 
   // --- die Knöpfe -----------------------------------------------------------
@@ -440,7 +410,7 @@ export class NavLabWorld extends PortalWorld {
       this.announce(`${scenario(id).title}: zurückgesetzt`);
       return;
     }
-    // Erst alles andere weg: Sechs Buchten teilen sich einen Bestand an NPCs
+    // Erst alles andere weg: Acht Buchten teilen sich einen Bestand an NPCs
     // und einen Spieler, und zwei Szenarien gleichzeitig sind zwei, von denen
     // keines mehr zeigt, was es behauptet.
     for (const bay of SCENARIOS) this.reset(bay.id);
@@ -462,19 +432,39 @@ export class NavLabWorld extends PortalWorld {
   private stand(id: ScenarioId): void {
     const bay = scenario(id);
     const at = baySpot(bay, bay.stand);
-    this.placePreviewPlayer(_stand.set(at.x, 0, at.z));
+    this.placePreviewPlayer(_stand.set(at.x, bay.stand.y ?? 0, at.z));
   }
 
-  /** Der gelbe Knopf: das, was das Szenario schwer macht. */
-  private act(id: ScenarioId): void {
+  /**
+   * **Ein gelber Knopf.**
+   *
+   * Zwei Sorten, und der Unterschied steht in den Daten (`ScenarioAct.once`):
+   * Die Wendung eines Szenarios gibt es einmal je Durchlauf und nur, solange
+   * einer läuft — die Kiste fällt einmal, das Portal geht einmal auf. Ein
+   * **Schalter** dagegen gilt immer: Die Tür des Labors macht man auf und zu,
+   * wann man will, auch ohne dass etwas läuft. Wer sie zumacht und dann
+   * startet, hat ein anderes Szenario, und genau dafür ist sie da.
+   */
+  private act(id: ScenarioId, actId: string): void {
     const state = this.states.get(id)!;
-    if (!state.running || state.acted) {
-      this.announce('Erst den roten Knopf');
+    const bay = scenario(id);
+    const act = bay.acts.find((one) => one.id === actId);
+    if (!act) return;
+    if (act.once) {
+      if (!state.running || state.acted) {
+        this.announce('Erst den roten Knopf');
+        return;
+      }
+      state.acted = true;
+    }
+    const graph = this.nav;
+
+    if (actId === 'door' && graph) {
+      const shut = graph.door(DOOR_ID)?.open ?? true;
+      this.setDoor(graph, shut ? 'shut' : 'open');
+      this.announce(shut ? 'Tür zu' : 'Tür offen');
       return;
     }
-    state.acted = true;
-    const graph = this.nav;
-    const bay = scenario(id);
 
     if (id === 'crate' && graph) {
       const at = baySpot(bay, CRATE);
@@ -491,20 +481,14 @@ export class NavLabWorld extends PortalWorld {
       return;
     }
 
-    if (id === 'door' && graph) {
-      graph.setDoor(DOOR_ID, { open: false, barred: true });
-      if (this.door) this.door.position.copy(this.doorShut);
+    if (actId === 'bar' && graph) {
+      this.setDoor(graph, 'barred');
       this.announce('Verriegelt — er weiß es noch nicht');
       return;
     }
 
     if (id === 'portal' && graph) {
-      const a = baySpot(bay, PORTAL[0]!);
-      const b = baySpot(bay, PORTAL[1]!);
-      const from = graph.at(a.x, a.z, 0);
-      const to = graph.at(b.x, b.z, 0);
-      if (from === NO_TILE || to === NO_TILE) return;
-      addPortal(graph, PORTAL_ID, from, to);
+      if (!openLabPortal(graph)) return;
       for (const ring of this.portalRings) ring.visible = true;
       // Der zweite hat nicht hingesehen. Für ihn gibt es das Portal nicht.
       const blind = this.portalPair[1];
@@ -513,6 +497,18 @@ export class NavLabWorld extends PortalWorld {
       }
       this.announce('Portal offen — nur der vordere weiß davon');
     }
+  }
+
+  /**
+   * **Die Tür, in der Welt und auf der Karte zugleich.**
+   *
+   * Ein Türblatt, das zusteht, während die Karte offen sagt, ist der Zombie,
+   * der durch die Tür läuft — und andersherum der, der vor einer offenen Tür
+   * stehen bleibt. Deshalb geht beides nur hier und nur zusammen.
+   */
+  private setDoor(graph: NavGraph, how: 'open' | 'shut' | 'barred'): void {
+    graph.setDoor(DOOR_ID, { open: how === 'open', barred: how === 'barred' });
+    if (this.door) this.door.position.copy(how === 'open' ? this.doorHome : this.doorShut);
   }
 
   /**
@@ -565,10 +561,7 @@ export class NavLabWorld extends PortalWorld {
     if (id === 'crate') {
       for (const key of [...graph.blockedKeys()]) graph.setBlocked(key, false);
     }
-    if (id === 'door') {
-      graph.setDoor(DOOR_ID, { open: true, barred: false });
-      if (this.door) this.door.position.copy(this.doorHome);
-    }
+    if (id === 'door') this.setDoor(graph, 'open');
     if (id === 'portal') {
       dropPortal(graph, PORTAL_ID);
       for (const ring of this.portalRings) ring.visible = false;
@@ -602,11 +595,11 @@ export class NavLabWorld extends PortalWorld {
   }
 
   /**
-   * **Was das Telefon drücken darf**: die sechs roten Knöpfe, die gelben
+   * **Was das Telefon drücken darf**: die acht roten Knöpfe, die gelben
    * daneben — und die Tasten der Wandkonsolen.
    *
    * Dieselben Objekte wie in der Brille, dieselben Handgriffe dahinter. Eine
-   * zweite Bedienung für dieselben sechs Szenarien wäre eine, die irgendwann
+   * zweite Bedienung für dieselben acht Szenarien wäre eine, die irgendwann
    * etwas anderes tut als die erste.
    */
   protected override previewButtons(): PreviewButton[] {
@@ -618,7 +611,7 @@ export class NavLabWorld extends PortalWorld {
       press: () => knob.run(),
     }));
     // Die Tasten beider Wandkonsolen — **leise**: Die Werkzeugseite hat für
-    // dieselben fünf Ebenen eigene Schalter, und eine zweite Reihe daneben
+    // dieselben Ebenen eigene Schalter, und eine zweite Reihe daneben
     // wäre nur eine, die man zusätzlich lesen muss. Antippen im Bild geht
     // trotzdem, denn im Bild stehen sie ja.
     for (const console_ of this.consoles) {
@@ -644,9 +637,6 @@ export class NavLabWorld extends PortalWorld {
   /** Die eigene Uhr dieser Welt — die der Basis ist ihre Sache. */
   private clock = 0;
 }
-
-const DOOR_ID = 'navlab-tuer';
-const PORTAL_ID = 'navlab-portal';
 
 /** Wohin der Spieler beim Start eines Szenarios gestellt wird (`stand`). */
 const _stand = new THREE.Vector3();

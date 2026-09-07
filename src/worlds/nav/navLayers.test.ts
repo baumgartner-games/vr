@@ -30,11 +30,15 @@ describe('Die Debug-Ebenen', () => {
     const state = defaultLayers();
     expect(state.tiles).toBe(true);
     expect(state.paths).toBe(true);
+    // Die betretbare Fläche ist von Anfang an dabei: Sie beantwortet die Frage,
+    // wegen der man die Ansicht überhaupt aufmacht — „kann er da überhaupt hin".
+    expect(state.floor).toBe(true);
     // Wände, Verbindungen und Sperren beantworten „warum nicht dorthin" — die
     // braucht man erst, wenn etwas nicht stimmt.
     expect(state.walls).toBe(false);
     expect(state.links).toBe(false);
     expect(state.blocked).toBe(false);
+    expect(state.sight).toBe(false);
   });
 
   it('kennen jede Ebene in jedem Zustand', () => {
@@ -63,7 +67,7 @@ describe('Die Debug-Ebenen', () => {
 
   it('schreiben hin, was an ist — und „Aus", wenn nichts an ist', () => {
     expect(layerSummary(noLayers())).toBe('Aus');
-    expect(layerSummary(defaultLayers())).toBe('Kacheln · Wege');
+    expect(layerSummary(defaultLayers())).toBe('Kacheln · Betretbar · Wege');
     expect(layerSummary(allLayers())).toContain('Verbindungen');
   });
 

@@ -11,6 +11,7 @@ import {
   type PhysicsWorld,
 } from '../../physics/PhysicsWorld';
 import { NavAgent, type Spot3 } from '../nav/navAgent';
+import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, type TileKey } from '../nav/navTile';
@@ -68,6 +69,15 @@ export class Npc {
    * die niemand liest.
    */
   private agent: NavAgent | null = null;
+  /**
+   * Wie lange er noch fliegt, in Sekunden — `0`, solange er auf dem Boden ist.
+   *
+   * Solange etwas darin steht, hat das **Hirn nichts zu sagen**: Eine
+   * Wurfparabel, in die jedes Bild eine waagerechte Wunschgeschwindigkeit
+   * hineingeschrieben wird, ist keine mehr, sondern ein Schweben.
+   */
+  private flying = 0;
+  private readonly physics: PhysicsWorld;
 
   constructor(options: {
     physics: PhysicsWorld;
@@ -82,6 +92,7 @@ export class Npc {
     owner?: object | null;
   }) {
     const skin = npcSkin(options.kind);
+    this.physics = options.physics;
     this.skin = skin;
     this.brain = options.brain;
     const base = brainOf(options.brain).tuning;
@@ -170,9 +181,15 @@ export class Npc {
       this.tuning,
     );
 
-    // Die Waagerechte kommt vom Hirn, die Senkrechte von der Schwerkraft.
-    const velocity = this.entry.body.linvel();
-    this.entry.body.setLinvel({ x: step.vx, y: velocity.y, z: step.vz }, true);
+    // Die Waagerechte kommt vom Hirn, die Senkrechte von der Schwerkraft —
+    // **außer im Flug**: Wer springt, hat seine Geschwindigkeit beim Absprung
+    // bekommen, und jedes weitere Hineinschreiben macht aus dem Sprung ein
+    // Schweben.
+    this.flying = Math.max(0, this.flying - dt);
+    if (this.flying === 0) {
+      const velocity = this.entry.body.linvel();
+      this.entry.body.setLinvel({ x: step.vx, y: velocity.y, z: step.vz }, true);
+    }
 
     this.yaw = step.yaw;
     this.model.rotation.y = this.yaw;
@@ -200,11 +217,53 @@ export class Npc {
       return null;
     }
 
-    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile) });
+    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
     this.feet(_feet);
     const step = this.agent.step(nav.graph, _feet, nav.at, dt, nav.now);
     if (step.jump !== NO_TILE) this.teleport(nav.graph, step.jump);
+    // Ein Sprung wird nicht nachbestellt, solange einer läuft: Der Läufer plant
+    // alle halbe Sekunde neu und meldet den Absprung dann noch einmal — mitten
+    // im Flug wäre das ein zweiter Absprung aus der Luft.
+    if (step.leap !== NO_TILE && this.flying === 0) this.launch(nav.graph, step.leap);
     return step.waypoint;
+  }
+
+  /**
+   * **Der Absprung** — die eine Verbindung, die man wirklich fliegt.
+   *
+   * Ein Portal versetzt, eine Treppe geht man, ein Absatz fällt man hinunter.
+   * Ein Sprung über eine Lücke ist keines davon: Es gibt keine Geometrie
+   * dazwischen, über die ein Körper käme, und Versetzen sähe aus wie ein
+   * Fehler. Also wird geworfen — mit der Geschwindigkeit, die ihn in einem Bogen
+   * genau auf der Zielkachel landen lässt.
+   *
+   * Die Rechnung ist die des schrägen Wurfs: Aus der gewünschten Steighöhe
+   * (`LEAP_RISE` über dem höheren der beiden Enden) folgt die
+   * Absprunggeschwindigkeit nach oben, daraus die Flugzeit bis zur Zielhöhe,
+   * und daraus die waagerechte Geschwindigkeit. Die Schwerkraft kommt aus der
+   * **Welt** und nicht aus einer Konstante: Auf dem Mond springt er weiter, und
+   * das soll er auch.
+   */
+  private launch(graph: NavGraph, tile: TileKey): void {
+    const to = graph.worldOf(tile);
+    const t = this.entry.body.translation();
+    const dx = to.x - t.x;
+    const dz = to.z - t.z;
+    // Gerechnet wird von Mitte zu Mitte: Der Körper sitzt eine halbe Höhe über
+    // seinen Füßen, das Ziel ist ein Boden.
+    const dy = to.y + this.skin.height / 2 - t.y;
+    const far = Math.hypot(dx, dz);
+    const gravity = Math.abs(this.physics.gravityY);
+    if (far < 0.05 || gravity < 0.01) return;
+
+    const rise = Math.max(dy, 0) + LEAP_RISE;
+    const up = Math.sqrt(2 * gravity * rise);
+    // Zeit bis zurück auf Zielhöhe: die größere der beiden Lösungen.
+    const time = (up + Math.sqrt(Math.max(0, up * up - 2 * gravity * dy))) / gravity;
+    if (!Number.isFinite(time) || time <= 0) return;
+
+    this.entry.body.setLinvel({ x: dx / time, y: up, z: dz / time }, true);
+    this.flying = time;
   }
 
   /**
@@ -237,7 +296,7 @@ export class Npc {
    * (`navBelief.ts`). Wer nur zusehen will, nimmt `path`.
    */
   mind(): NavAgent {
-    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile) });
+    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
     return this.agent;
   }
 
@@ -264,6 +323,21 @@ export class Npc {
     this.model.setBars(mode);
   }
 
+  /**
+   * **Seinen Sichtbereich zeigen oder verstecken.**
+   *
+   * Die Weite kommt aus seinem eigenen Hirn (`tuning.sense`) und nicht aus
+   * einer Zahl in der Anzeige: Wer am Hirn-Werkzeug die Sichtweite verstellt,
+   * soll den Kreis mitwandern sehen. Der Öffnungswinkel kommt aus den Sinnen
+   * seiner Sorte (`nav/navPerception.ts`).
+   */
+  setSight(on: boolean, color: number): void {
+    const senses = this.skin.id === 'zombie' ? ZOMBIE_SENSES : GUARD_SENSES;
+    this.model.setSight(
+      on && this.tuning.sense > 0 ? { range: this.tuning.sense, fov: senses.fov, color } : null,
+    );
+  }
+
   /** Wie lange er schon liegt — der Regisseur räumt danach auf. */
   get restingFor(): number {
     return this.dying ?? 0;
@@ -288,6 +362,9 @@ export interface NavRun {
   /** Weltzeit in Sekunden. */
   now: number;
 }
+
+/** Wie hoch ein Sprung über das höhere Ende hinausgeht, in Metern. */
+const LEAP_RISE = 0.7;
 
 const _feet = new THREE.Vector3();
 const EMPTY_PATH: readonly TileKey[] = [];

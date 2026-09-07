@@ -1,6 +1,6 @@
 import { addPortal, connect, fillRect, setDoor } from './navBuild';
 import { DOOR_COST, NavGraph } from './navGraph';
-import { findPath, flowField, flowPath, smoothPath } from './navPath';
+import { findPath, flowField, flowPath, pullString, smoothPath, type PathPoint } from './navPath';
 import {
   HAZARD_SPIKES,
   HUMAN_PROFILE,
@@ -8,7 +8,17 @@ import {
   ZOMBIE_PROFILE,
   type CostProfile,
 } from './navProfile';
-import { DIR_E, TILE, keyLevel, keyX, keyZ, tileKey } from './navTile';
+import {
+  DIR_E,
+  DIR_S,
+  TILE,
+  keyLevel,
+  keyX,
+  keyZ,
+  tileCentreX,
+  tileCentreZ,
+  tileKey,
+} from './navTile';
 
 const human = { profile: HUMAN_PROFILE };
 const zombie = { profile: ZOMBIE_PROFILE };
@@ -217,6 +227,143 @@ describe('Die Glättung', () => {
     const graph = new NavGraph();
     fillRect(graph, { x: 0, z: 0, w: 2, d: 1 });
     expect(smoothPath(graph, [at(0, 0), at(1, 0)], human)).toEqual([at(0, 0), at(1, 0)]);
+  });
+});
+
+describe('Der Schnurzug', () => {
+  /** Die Länge eines Wegs aus Punkten, in Metern. */
+  function walked(points: readonly PathPoint[]): number {
+    let sum = 0;
+    for (let i = 1; i < points.length; i++) {
+      sum += Math.hypot(points[i]!.x - points[i - 1]!.x, points[i]!.z - points[i - 1]!.z);
+    }
+    return sum;
+  }
+
+  /** Wie nah ein Weg an einem Punkt vorbeikommt — Strecke für Strecke. */
+  function closestTo(points: readonly PathPoint[], x: number, z: number): number {
+    let best = Infinity;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1]!;
+      const b = points[i]!;
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      const length = dx * dx + dz * dz;
+      const t =
+        length < 1e-9 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / length));
+      best = Math.min(best, Math.hypot(a.x + dx * t - x, a.z + dz * t - z));
+    }
+    return best;
+  }
+
+  /** Der geglättete Weg von hier nach dort, für einen mit diesem Halbmesser. */
+  function pull(graph: NavGraph, from: number, to: number, radius: number): PathPoint[] {
+    const options = { ...human, radius };
+    return pullString(graph, findPath(graph, from, to, options).tiles, options);
+  }
+
+  it('zieht die Diagonale durch den Saal, statt über die Kachelmitten zu treppen', () => {
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 6, d: 6 });
+    const points = pull(graph, at(0, 0), at(5, 5), 0.3);
+    // Zwei Punkte, und dazwischen genau die Luftlinie: Das ist der ganze
+    // Unterschied zwischen „Manhattan" und einem Weg.
+    expect(points).toHaveLength(2);
+    expect(walked(points)).toBeCloseTo(Math.hypot(5, 5) * TILE, 9);
+  });
+
+  it('hält an der Hausecke den Halbmesser Abstand', () => {
+    // Eine Wand mit einem Ende mitten im Feld: Der Weg muss um ihre Spitze
+    // herum, und für einen Zylinder ist eine Linie, die sie streift, eine Wand.
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 6, d: 6 });
+    for (const z of [0, 1, 2]) graph.setWall(at(2, z), DIR_E, { kind: 'solid' });
+    // Die Spitze der Wand: die Ecke zwischen den Kacheln (2,2) und (2,3).
+    const tip = { x: 3 * TILE, z: 3 * TILE };
+
+    // Gemessen wird die **Strecke** und nicht der Wegpunkt: Zwischen zwei
+    // Punkten neben derselben Ecke liegt die Sehne, und die kommt ihr näher
+    // als beide (`shrinkFor`).
+    const points = pull(graph, at(0, 0), at(5, 0), 0.3);
+    expect(closestTo(points, tip.x, tip.z)).toBeGreaterThanOrEqual(0.3);
+    // Und wer dicker ist, geht weiter außen herum.
+    const wide = pull(graph, at(0, 0), at(5, 0), 0.5);
+    expect(closestTo(wide, tip.x, tip.z)).toBeGreaterThanOrEqual(0.5);
+    expect(closestTo(wide, tip.x, tip.z)).toBeGreaterThan(closestTo(points, tip.x, tip.z));
+    expect(walked(wide)).toBeGreaterThan(walked(points));
+  });
+
+  it('bleibt in den Kacheln, die die Suche gefunden hat', () => {
+    // Die Stachelgrube: Der Mensch plant außen herum, und die Schnur darf ihn
+    // nicht wieder hineinziehen — auch nicht mit einem Fuß auf der Kante.
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 7, d: 3 });
+    for (const x of [2, 3, 4]) graph.setTile(at(x, 1), { hazard: HAZARD_SPIKES });
+    const points = pull(graph, at(0, 1), at(6, 1), 0.3);
+    for (const point of points) {
+      expect(graph.tile(point.tile)?.hazard ?? 0).toBe(0);
+      // Und nicht nur nicht **auf** der Grube: Wer mit einem Fuß hineinragt,
+      // steht in ihr. Die drei Stachelkacheln liegen zwischen x = 5 und
+      // x = 12,5, z = 2,5 und z = 5.
+      const dx = Math.max(5 - point.x, point.x - 12.5, 0);
+      const dz = Math.max(2.5 - point.z, point.z - 5, 0);
+      expect(Math.hypot(dx, dz)).toBeGreaterThanOrEqual(0.3);
+    }
+  });
+
+  it('lässt beide Enden einer Treppe stehen', () => {
+    const graph = new NavGraph([0, 3.1]);
+    fillRect(graph, { x: 0, z: 0, w: 4, d: 1 });
+    fillRect(graph, { x: 0, z: 0, w: 4, d: 1, level: 1 });
+    connect(graph, 'treppe', at(3, 0, 0), at(3, 0, 1), 'stairs');
+    const points = pull(graph, at(0, 0, 0), at(0, 0, 1), 0.3);
+    const tiles = points.map((point) => point.tile);
+    expect(tiles).toContain(at(3, 0, 0));
+    expect(tiles).toContain(at(3, 0, 1));
+    // Und die beiden liegen wirklich übereinander: über eine Verbindung wird
+    // nicht geglättet, also bleibt ihre Kachelmitte stehen.
+    const up = points[tiles.indexOf(at(3, 0, 1))]!;
+    expect(up.x).toBeCloseTo(tileCentreX(at(3, 0, 1)), 9);
+    expect(up.z).toBeCloseTo(tileCentreZ(at(3, 0, 1)), 9);
+  });
+
+  it('glättet nicht über eine Stufe hinweg, an der eine Treppe hängt', () => {
+    // Zwei Nachbarn auf derselben Etage, dazwischen eine Wand und daneben eine
+    // Treppe: die Stufe, die zu hoch zum Hinauftreten ist (`navBake.ts`). Wer
+    // hier durchglättet, schickt den Läufer geradeaus dagegen — er sieht die
+    // Verbindung nie und springt deshalb nie.
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 1, d: 4 });
+    graph.setTile(at(0, 2), { rise: 0.8 });
+    graph.setTile(at(0, 3), { rise: 0.8 });
+    graph.setWall(at(0, 1), DIR_S, { kind: 'solid' });
+    connect(graph, 'stufe', at(0, 1), at(0, 2), 'stairs');
+    const tiles = pull(graph, at(0, 0), at(0, 3), 0.3).map((point) => point.tile);
+    expect(tiles).toContain(at(0, 1));
+    expect(tiles).toContain(at(0, 2));
+  });
+
+  it('nimmt einen Weg aus einer einzigen Kachel, ohne zu stolpern', () => {
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 1 });
+    expect(pullString(graph, [], human)).toEqual([]);
+    expect(pullString(graph, [at(1, 0)], human)).toEqual([
+      { tile: at(1, 0), x: tileCentreX(at(1, 0)), z: tileCentreZ(at(1, 0)), tight: false },
+    ]);
+  });
+
+  it('kommt durch eine Lücke, die kaum breiter ist als er selbst', () => {
+    // Ein Durchlass von einer Kachel, an beiden Enden eingezogen: Was übrig
+    // bleibt, muss ein Weg sein und keine Schleife.
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 5, d: 3 });
+    for (const z of [0, 2]) graph.setWall(at(2, z), DIR_E, { kind: 'solid' });
+    const points = pull(graph, at(0, 1), at(4, 1), 1.2);
+    expect(points[points.length - 1]!.tile).toBe(at(4, 1));
+    // Und er läuft wirklich hindurch: keine Strecke geht rückwärts.
+    for (let i = 1; i < points.length; i++) {
+      expect(points[i]!.x).toBeGreaterThanOrEqual(points[i - 1]!.x - 1e-9);
+    }
   });
 });
 

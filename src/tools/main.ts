@@ -1,5 +1,5 @@
 import './tools.css';
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import { TOOL_IDS, createTool, disposeToolTree } from '../worlds/portal/tools';
 import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
 import { NPC_SKINS } from '../worlds/npc/npcKinds';
@@ -163,6 +163,10 @@ const labRun = document.querySelector<HTMLButtonElement>('#lab-run')!;
 const labTop = document.querySelector<HTMLButtonElement>('#lab-top')!;
 const labGo = document.querySelector<HTMLButtonElement>('#lab-go')!;
 const labMe = document.querySelector<HTMLButtonElement>('#lab-me')!;
+const labNear = document.querySelector<HTMLButtonElement>('#lab-near')!;
+const labMap = document.querySelector<HTMLElement>('#lab-map')!;
+const labDrag = document.querySelector<HTMLButtonElement>('#lab-drag')!;
+const labFollow = document.querySelector<HTMLButtonElement>('#lab-follow')!;
 const labLede = document.querySelector<HTMLElement>('#lab-lede')!;
 const labSay = document.querySelector<HTMLElement>('#lab-say')!;
 const labKeys = document.querySelector<HTMLElement>('#lab-keys')!;
@@ -793,6 +797,9 @@ const FLY_KEYS: Record<string, string> = {
 const HELP_VIEW =
   'Ziehen dreht · zwei Finger schieben und zoomen · Rad zoomt · Doppeltipp stellt zurück';
 const HELP_FLY = 'Wischen schaut sich um · Knöpfe oder W A S D fliegen · Doppeltipp stellt zurück';
+/** Und im Labor, solange der Finger die Karte schiebt statt sie zu drehen. */
+const HELP_MAP =
+  'Ziehen schiebt die Karte · zwei Finger zoomen · Tippen setzt das Ziel · Doppeltipp stellt zurück';
 
 /** Ob die freie Kamera gerade fliegt. */
 let flying = false;
@@ -865,7 +872,7 @@ function setFlying(on: boolean): void {
   // *Fertig* beim Werkzeug.
   flyLabel.textContent = flying ? 'Von außen' : 'Freie Kamera';
   pad.hidden = !flying;
-  help.textContent = flying ? HELP_FLY : HELP_VIEW;
+  help.textContent = flying ? HELP_FLY : viewer.dragPan ? HELP_MAP : HELP_VIEW;
 }
 
 // --- das Labor ---------------------------------------------------------------
@@ -874,8 +881,8 @@ function setFlying(on: boolean): void {
  * **Eine Welt, die läuft** — auf einem Telefon, ohne Brille und ohne die Welt
  * zu betreten (`worlds/shared/livePreview.ts`).
  *
- * Der Grund dafür steht im Navigationslabor: Es besteht aus sechs Knöpfen und
- * dem, was danach passiert, und ein stehendes Bild davon zeigt sechs Kuppeln.
+ * Der Grund dafür steht im Navigationslabor: Es besteht aus acht Knöpfen und
+ * dem, was danach passiert, und ein stehendes Bild davon zeigt acht Kuppeln.
  * Was hier dazukommt, sind drei Sachen, und mehr braucht es nicht:
  *
  * - **Die Knöpfe der Welt als Zeilen.** Dieselben Objekte, dieselben
@@ -883,7 +890,8 @@ function setFlying(on: boolean): void {
  *   Bild geht auch, aber „Stachelgrube · Start" trifft man aus dreißig Metern
  *   Höhe sicherer als eine Kuppel von vier Pixeln.
  * - **Die Debug-Ebenen zum Schalten.** Kacheln, Wände, Verbindungen, Sperren,
- *   Wege — dieselben fünf wie im Handgelenk-Menü und an der Wandkonsole.
+ *   Wege, betretbare Fläche, Sichtkegel — dieselben wie im Handgelenk-Menü
+ *   und an der Wandkonsole.
  * - **Ein Ziel.** In einer Vorschau steht kein Spieler, und ein Zombie ohne
  *   jemanden bleibt stehen. Ein Tipp auf den Boden setzt die Attrappe, und
  *   von da an läuft alles dorthin — das ist die Ansicht, wegen der es das
@@ -915,6 +923,8 @@ function offerLab(definition: WorldDefinition | null): void {
   labTop.hidden = true;
   labGo.hidden = true;
   labMe.hidden = true;
+  labNear.hidden = true;
+  labMap.hidden = true;
   labSay.hidden = true;
   labKeys.hidden = true;
   labShow.hidden = true;
@@ -930,19 +940,38 @@ function offerLab(definition: WorldDefinition | null): void {
  */
 let labGoing = false;
 
+/**
+ * **Was in Reichweite ist**, oder `null`, solange niemand danach gefragt hat.
+ *
+ * Der dritte Tipp-Modus, und er ist der einzige, der nichts *tut*: Er legt
+ * einen Kreis hin und fragt „was steht hier". Die Liste unter dem Bild
+ * antwortet darauf — und zwar auch über die Figur, denn was **sie** erreichen
+ * kann, ist dieselbe Frage von der anderen Seite.
+ */
+let labSpot: THREE.Vector3 | null = null;
+
+/** Ob der Reichweiten-Modus gerade an ist. */
+let labNearOn = false;
+
 /** Beendet, was läuft — beim Blättern, beim Verlassen, beim zweiten Druck. */
 function stopLab(): void {
   lab = null;
   labRunning = false;
   labGoing = false;
+  labNearOn = false;
+  labSpot = null;
   labDraws.length = 0;
   detail.classList.remove('is-lab');
   viewer.onTap = null;
+  viewer.follow(null);
+  viewer.setDragPan(false);
   labRun.textContent = 'Laufen lassen';
   labRun.setAttribute('aria-pressed', 'false');
   labTop.hidden = true;
   labGo.hidden = true;
   labMe.hidden = true;
+  labNear.hidden = true;
+  labMap.hidden = true;
   labSay.hidden = true;
   labSay.textContent = '';
   labKeys.hidden = true;
@@ -972,6 +1001,9 @@ labTop.addEventListener('click', () => {
 
 labGo.addEventListener('click', () => {
   labGoing = !labGoing;
+  // Drei Tipp-Modi, von denen immer genau einer gilt: Ein Tipp kann nicht
+  // zugleich ein Ziel setzen, die Figur losschicken und einen Kreis hinlegen.
+  if (labGoing) clearNear();
   drawLabGo();
 });
 
@@ -985,7 +1017,64 @@ labMe.addEventListener('click', () => {
   drawLabGo();
 });
 
-/** Zieht die beiden Knöpfe nach — sie sagen beide einen Zustand an. */
+labNear.addEventListener('click', () => {
+  if (labNearOn) clearNear();
+  else {
+    labNearOn = true;
+    labGoing = false;
+  }
+  drawLabGo();
+  buildLabKeys();
+});
+
+/** Kreis weg, Liste wieder vollständig. */
+function clearNear(): void {
+  labNearOn = false;
+  labSpot = null;
+  lab?.probe(null);
+}
+
+labDrag.addEventListener('click', () => {
+  viewer.setDragPan(!viewer.dragPan);
+  drawLabMap();
+});
+
+labFollow.addEventListener('click', () => {
+  const live = lab;
+  if (!live) return;
+  const on = !viewer.following;
+  viewer.follow(on ? live.target : null);
+  // **Folgen schaltet auch das Tippen um.** Die beiden gehören zusammen: Wer
+  // die Bildmitte an die Figur hängt und dann auf den Boden tippt, versetzt sie
+  // — und sieht dabei nichts, weil die Mitte im selben Bild mitspringt. Gemeint
+  // ist das andere: hintippen, laufen, zusehen.
+  if (on && live.here()) {
+    labGoing = true;
+    clearNear();
+    drawLabGo();
+    buildLabKeys();
+  }
+  drawLabMap();
+});
+
+/** Zieht die beiden Kartenknöpfe nach. */
+function drawLabMap(): void {
+  const pan = viewer.dragPan;
+  labDrag.setAttribute('aria-pressed', String(pan));
+  labDrag.textContent = pan ? 'Ziehen: Schieben' : 'Ziehen: Drehen';
+  labDrag.title = pan
+    ? 'Ein Finger schiebt die Karte — noch einmal drücken, um wieder zu drehen und zu kippen'
+    : 'Ein Finger dreht und kippt die Ansicht — noch einmal drücken, um die Karte zu schieben';
+  labFollow.setAttribute('aria-pressed', String(viewer.following));
+  labFollow.title = viewer.following
+    ? 'Die Bildmitte hängt an der Figur — noch einmal drücken, um sie stehen zu lassen'
+    : 'Legt die Bildmitte auf die Figur: tippen, laufen, zusehen, ohne nachzuschieben';
+  // Die Zeile unter dem Bild sagt, was ein Finger tut — und sie darf nicht das
+  // Gegenteil von dem sagen, was er gerade wirklich tut.
+  if (labRunning && !flying) help.textContent = pan ? HELP_MAP : HELP_VIEW;
+}
+
+/** Zieht die Knöpfe nach, die einen Tipp-Modus ansagen. */
 function drawLabGo(): void {
   const live = lab;
   const here = live?.here() ?? false;
@@ -999,6 +1088,10 @@ function drawLabGo(): void {
   labMe.title = here
     ? 'Nimmt dich aus der Welt — dann hat auch kein Zombie mehr jemanden'
     : 'Stellt dich wieder hinein';
+  labNear.setAttribute('aria-pressed', String(labNearOn));
+  labNear.title = labNearOn
+    ? 'Auf den Boden tippen legt den Kreis dorthin — unten steht dann nur noch, was darin steht'
+    : `Zeigt nur die Knöpfe im Umkreis von ${(live?.reach ?? 2).toFixed(0)} m — um den Kreis und um die Figur`;
 }
 
 /**
@@ -1034,8 +1127,18 @@ async function startLab(definition: WorldDefinition): Promise<void> {
     labTop.hidden = false;
     labGo.hidden = false;
     labMe.hidden = false;
+    labNear.hidden = false;
+    labMap.hidden = false;
     labGoing = false;
+    labNearOn = false;
+    labSpot = null;
+    // Eine Karte fängt als Karte an: Der Finger schiebt, die Mitte hängt an der
+    // Figur. Wer die Welt drehen will, sagt es — das ist ein Griff; nach jedem
+    // Schritt nachzuschieben sind zwanzig.
+    viewer.setDragPan(true);
+    viewer.follow(preview.live?.target ?? null);
     drawLabGo();
+    drawLabMap();
     buildLabKeys();
     buildLabShow();
     lab?.onMessage((message) => {
@@ -1067,17 +1170,27 @@ function onLabTap(pick: StagePick | null): void {
     refreshLab();
     return;
   }
-  // Ein Knopf trifft in beiden Moden dasselbe: Wer *Gehe zu* an hat, will
+  // Ein Knopf trifft in jedem Modus dasselbe: Wer *Gehe zu* an hat, will
   // trotzdem ein Szenario starten können, ohne erst umzuschalten. Auf dem
   // Boden entscheidet dann der Modus.
+  if (labNearOn) {
+    labSpot = pick.point.clone();
+    live.probe(labSpot);
+    buildLabKeys();
+    return;
+  }
   if (labGoing && live.here()) live.walkTarget(pick.point);
   else live.moveTarget(pick.point);
 }
 
-/** Alles unter dem Bild einmal nachziehen — Ebenen, Balken, die zwei Knöpfe. */
+/** Alles unter dem Bild einmal nachziehen — Ebenen, Balken, die Knöpfe. */
 function refreshLab(): void {
   for (const draw of labDraws) draw();
   drawLabGo();
+  drawLabMap();
+  // Ein Szenario stellt die Figur in seine Bucht — und damit steht etwas
+  // anderes in Reichweite als vorher.
+  if (labNearOn) buildLabKeys();
 }
 
 /** Ob `object` das Ding selbst ist oder darin hängt. */
@@ -1108,6 +1221,7 @@ function buildLabKeys(): void {
   const groups = new Map<string, PreviewButton[]>();
   for (const button of live.buttons) {
     if (button.quiet) continue;
+    if (!inReach(live, button)) continue;
     const name = button.group ?? '';
     const list = groups.get(name);
     if (list) list.push(button);
@@ -1143,8 +1257,41 @@ function buildLabKeys(): void {
     group.append(row);
     labKeys.append(group);
   }
-  labKeys.hidden = groups.size === 0;
+  if (groups.size === 0 && labNearOn) {
+    // Eine leere Liste sieht kaputt aus; eine leere Liste mit einem Satz
+    // darüber sagt, was zu tun ist.
+    const empty = document.createElement('span');
+    empty.className = 'lab__name';
+    empty.textContent = labSpot
+      ? 'Hier steht nichts zum Drücken'
+      : 'Auf den Boden tippen — oder mit der Figur hingehen';
+    labKeys.append(empty);
+  }
+  labKeys.hidden = groups.size === 0 && !labNearOn;
 }
+
+/**
+ * **Ob dieser Knopf in Reichweite steht.**
+ *
+ * Zwei Kreise, und der zweite ist der, wegen dem der Modus überhaupt etwas
+ * taugt: der um die **Stelle**, auf die man getippt hat, und der um die
+ * **Figur**. Wer sie irgendwohin laufen lässt, sieht damit unterwegs, was er
+ * dort anfassen könnte, ohne noch einmal zu tippen.
+ *
+ * Gemessen wird in der Ebene: Auf einer Karte von oben ist die Höhe kein
+ * Abstand, sondern eine Etage — und ein Knopf, der einen Meter über einem
+ * steht, ist trotzdem der, den man drückt.
+ */
+function inReach(live: LivePreview, button: PreviewButton): boolean {
+  if (!labNearOn) return true;
+  viewer.spotOf(button.object, _reach);
+  const near = (at: THREE.Vector3 | null): boolean =>
+    at !== null && Math.hypot(_reach.x - at.x, _reach.z - at.z) <= live.reach;
+  return near(labSpot) || (live.here() && near(live.target.position));
+}
+
+/** Wo ein Knopf gerade steht (`inReach`). */
+const _reach = new THREE.Vector3();
 
 /** Die Debug-Ebenen und die Lebensbalken — was man sehen will, einzeln. */
 function buildLabShow(): void {

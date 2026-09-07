@@ -764,6 +764,10 @@ html, body {
   align-items: center;
 }
 
+/* Die zweite Reihe — die Knöpfe für die Karte selbst — rückt etwas nach. */
+.lab__head + .lab__head { margin-top: 8px; }
+.lab__head[hidden] { display: none; }
+
 /* Der eine Knopf, mit dem alles anfängt — auffällig wie ein Startknopf. */
 .lab__run {
   padding: 10px 16px;

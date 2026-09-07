@@ -218,11 +218,38 @@
             <button id="lab-me" class="lab__view" type="button" aria-pressed="false" hidden>
               Figur weg
             </button>
+            <!--
+              **Im Bereich** ist der dritte Tipp-Modus: Er legt einen Kreis auf
+              den Boden, und die Liste darunter zeigt dann nur noch, was darin
+              steht — plus das, was in demselben Kreis um die Figur herum
+              liegt. Auf einer Karte mit acht Buchten und zwanzig Knöpfen ist
+              das der Unterschied zwischen „was kann ich hier drücken" und
+              einer Liste, die man erst lesen muss.
+            -->
+            <button id="lab-near" class="lab__view" type="button" aria-pressed="false" hidden>
+              Im Bereich
+            </button>
+          </div>
+          <!--
+            Und die zwei Knöpfe für die Karte selbst. **Ziehen** schaltet um,
+            was ein Finger auf dem Bild tut: die Ansicht drehen und kippen (wie
+            bei jedem anderen Modell auf dieser Seite) oder die Karte schieben
+            (wie bei jeder anderen Karte). **Folgen** legt die Bildmitte auf die
+            Figur — dann tippt man sich mit Klicks durch die Welt, statt nach
+            jedem Schritt nachzuschieben.
+          -->
+          <div class="lab__head" id="lab-map" hidden>
+            <button id="lab-drag" class="lab__view" type="button" aria-pressed="false">
+              Ziehen: Drehen
+            </button>
+            <button id="lab-follow" class="lab__view" type="button" aria-pressed="false">
+              Folgen
+            </button>
           </div>
           <p id="lab-lede" class="lab__lede">
             Startet die Welt wirklich — mit Physik, Gitter und NPCs. Auf den Boden tippen setzt
             das <b>Ziel</b>, dem sie nachlaufen; mit <b>Gehe zu</b> geht deine Figur selbst
-            dorthin.
+            dorthin, mit <b>Im Bereich</b> siehst du, was an einer Stelle zu drücken ist.
           </p>
           <p id="lab-say" class="lab__say" aria-live="polite" hidden></p>
           <div id="lab-keys" class="lab__keys" hidden></div>

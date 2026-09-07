@@ -49,6 +49,7 @@ const LIFT = 0.06;
 
 export interface NavDebugColors {
   tile: number;
+  floor: number;
   wall: number;
   ledge: number;
   link: number;
@@ -57,6 +58,7 @@ export interface NavDebugColors {
 
 export const NAV_DEBUG_COLORS: NavDebugColors = {
   tile: 0x39d0ff,
+  floor: 0x3b7dff,
   wall: 0xff5a5a,
   ledge: 0xffc857,
   link: 0x9d7bff,
@@ -80,6 +82,8 @@ export function navDebugView(
   group.name = 'nav-debug';
 
   const tiles: number[] = [];
+  /** Die **Fläche** statt ihres Umrisses — zwei Dreiecke je Kachel. */
+  const floor: number[] = [];
   const walls: number[] = [];
   const ledges: number[] = [];
   const links: number[] = [];
@@ -102,6 +106,26 @@ export function navDebugView(
       const b = corners[(i + 1) % 4]!;
       target.push(a[0], y, a[1], b[0], y, b[1]);
     }
+
+    // **Und dieselbe Kachel als Fläche**, sofern man sie betreten kann.
+    //
+    // Sie beantwortet eine andere Frage als der Umriss, und das ist der Grund,
+    // warum es beide gibt: Ein Raster aus dünnen Linien zeigt, *wo* Kacheln
+    // liegen; aus dreißig Metern Höhe sieht man darin aber nicht, wo **keine**
+    // liegt. Genau das will man wissen, wenn ein Zombie durch eine Wand zu
+    // wollen scheint — und genau dort fehlte die Antwort.
+    if (graph.isBlocked(key)) continue;
+    const [nw, ne, se, sw] = corners as [
+      [number, number],
+      [number, number],
+      [number, number],
+      [number, number],
+    ];
+    // Etwas tiefer als die Linien: Eine Fläche auf derselben Höhe streitet sich
+    // mit ihnen um jedes Pixel.
+    const face = y - 0.01;
+    floor.push(nw[0], face, nw[1], ne[0], face, ne[1], se[0], face, se[1]);
+    floor.push(nw[0], face, nw[1], se[0], face, se[1], sw[0], face, sw[1]);
   }
 
   const scratch = { walk: true, cost: 0, see: true, hear: 1 };
@@ -127,6 +151,7 @@ export function navDebugView(
 
   // Jede Linienmenge trägt den Namen ihrer Ebene: daran schaltet
   // `applyNavLayers` sie an und aus, ohne etwas neu zu bauen.
+  addFaces(group, 'floor', floor, colors.floor, 0.16);
   addLines(group, 'tiles', tiles, colors.tile, 0.35);
   addLines(group, 'blocked', blocked, colors.blocked, 0.9);
   addLines(group, 'walls', walls, colors.wall, 0.85);
@@ -147,6 +172,40 @@ export function applyNavLayers(group: THREE.Object3D, state: NavLayerState): voi
     const layer = child.name as NavLayer;
     if (layer in state) child.visible = state[layer];
   }
+}
+
+/**
+ * Eine Ebene aus **Flächen** statt aus Linien — dieselbe Buchhaltung, nur mit
+ * Dreiecken.
+ *
+ * Durchsichtig und ohne Tiefenschreiben: Sie liegt über dem Boden und soll ihn
+ * einfärben, nicht verdecken. `depthTest` bleibt dagegen **an**, anders als bei
+ * den Linien: Eine Fläche, die durch jede Wand hindurchleuchtet, ist von oben
+ * ein blauer Teppich über dem ganzen Labor und sagt gar nichts mehr.
+ */
+function addFaces(
+  parent: THREE.Group,
+  layer: NavLayer,
+  points: number[],
+  color: number,
+  opacity: number,
+): void {
+  if (points.length === 0) return;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  mesh.name = layer;
+  mesh.renderOrder = 895;
+  parent.add(mesh);
 }
 
 function addLines(

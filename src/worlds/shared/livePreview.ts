@@ -9,7 +9,7 @@ import type { BarMode } from '../npc/NpcBody';
  * Die stille Vorschau (`WorldPreview`) ist eine Kulisse: gebaut mit denselben
  * Zeilen wie im Spiel, aber mit einer Attrappe statt einer Physik, damit man
  * sie ansehen kann, ohne sie zu betreten. Das reicht für „wie ist diese Welt
- * angelegt" und für nichts sonst — ein Navigationslabor, dessen sechs Knöpfe
+ * angelegt" und für nichts sonst — ein Navigationslabor, dessen acht Knöpfe
  * man nicht drücken kann, zeigt genau das, was an ihm nicht interessant ist.
  *
  * Diese Schnittstelle ist die Antwort darauf, und sie ist absichtlich **klein**:
@@ -77,6 +77,27 @@ export interface LivePreview {
   here(): boolean;
   setHere(on: boolean): void;
 
+  /**
+   * **Wie weit die Figur langt**, in Metern.
+   *
+   * Der Halbmesser des Kreises, in dem etwas „in Reichweite" ist —
+   * **doppelt** so groß wie der, in dem eine Spielerhand von selbst zugreift
+   * (`portal/grabReach.ts`, `DEFAULT_NEAR_RADIUS`). Doppelt, weil hier niemand
+   * eine Hand ausstreckt: Man zeigt von oben auf eine Stelle und will wissen,
+   * was dort steht, und ein Kreis von einem Meter auf einer Karte von hundert
+   * ist ein Punkt.
+   */
+  readonly reach: number;
+
+  /**
+   * **Den Kreis dorthin legen** — oder wegnehmen (`null`).
+   *
+   * Er ist die andere Hälfte von „was steht hier": Die Liste unter dem Bild
+   * sagt, *was* in Reichweite ist, der Kreis sagt, *wo* das ist. Ohne ihn
+   * verschwindet die Hälfte der Knöpfe aus der Liste, und niemand weiß, warum.
+   */
+  probe(at: THREE.Vector3 | null): void;
+
   /** Welche Debug-Ebenen gerade an sind. */
   layers(): Readonly<NavLayerState>;
   setLayer(layer: NavLayer, on: boolean): void;
@@ -106,7 +127,7 @@ export interface PreviewButton {
    * **Nur im Bild, nicht in der Liste.**
    *
    * Für Knöpfe, die daneben schon anders bedient werden: Die Wandkonsole des
-   * Labors schaltet dieselben fünf Ebenen, für die die Seite eigene Schalter
+   * Labors schaltet dieselben Ebenen, für die die Seite eigene Schalter
    * hat. Antippen soll man sie trotzdem können — was in der Welt steht, soll
    * auch gehen —, aber zweimal dieselben sechs Zeilen sind sechs zu viel.
    */

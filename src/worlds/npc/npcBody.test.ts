@@ -117,6 +117,39 @@ describe('Kopf und Trefferzone', () => {
     });
   });
 
+  describe('Der Sichtbereich', () => {
+    it('wird erst gebaut, wenn ihn jemand sehen will', () => {
+      const body = new NpcBody('zombie');
+      expect(body.getObjectByName('npc-sight')).toBeUndefined();
+      body.setSight({ range: 12, fov: 110, color: 0xffd166 });
+      expect(body.getObjectByName('npc-sight')?.visible).toBe(true);
+      // Danach wird er nur noch versteckt und nicht weggeworfen: Ein Fächer je
+      // NPC ist nichts, dreißig neu zu bauen ist ein Ruckler.
+      body.setSight(null);
+      expect(body.getObjectByName('npc-sight')?.visible).toBe(false);
+      body.dispose();
+    });
+
+    it('liegt flach auf dem Boden und schaut nach vorn', () => {
+      const body = new NpcBody('zombie');
+      body.setSight({ range: 10, fov: 60, color: 0xffd166 });
+      body.updateWorldMatrix(true, true);
+      const box = new THREE.Box3().setFromObject(body.getObjectByName('npc-sight')!);
+      // Flach: Er reicht nicht in die Höhe, sondern über den Boden.
+      expect(box.max.y - box.min.y).toBeLessThan(0.2);
+      // Der **Ring** ist rundherum — er ist die Entfernung, auf die ein Zombie
+      // einen bemerkt, und die kennt keine Richtung (`npcBrains.ts`).
+      expect(box.min.z).toBeCloseTo(-10, 1);
+      expect(box.max.z).toBeCloseTo(10, 1);
+      // Der **Kegel** dagegen schaut nach vorn, also nach −Z. Das ist das
+      // Vorzeichen, das man in der Brille nur bemerkt und nicht nachvollzieht.
+      const cone = new THREE.Box3().setFromObject(body.getObjectByName('npc-sight-cone')!);
+      expect(cone.min.z).toBeCloseTo(-10, 1);
+      expect(cone.max.z).toBeLessThan(0.01);
+      body.dispose();
+    });
+  });
+
   it.each([...NPC_KINDS])('%s steht mit den Füßen im Ursprung', (kind) => {
     const body = new NpcBody(kind);
     // **Ohne den Lebensbalken**: Der schwebt mit Absicht über dem Scheitel und

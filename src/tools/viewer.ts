@@ -312,6 +312,13 @@ const _inverse = new THREE.Matrix4();
 const _frame = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 /** Die Stelle im Bild, an der getippt wurde, in Bildkoordinaten von −1 bis 1. */
+/** Wo das Verfolgte gerade steht (`trackFollowed`). */
+const _follow = new THREE.Vector3();
+/** Die zwei Drehungen und der Punkt dazwischen (`turnTo`). */
+const _spinFrom = new THREE.Quaternion();
+const _spinTo = new THREE.Quaternion();
+const _spinEuler = new THREE.Euler();
+const _spinAt = new THREE.Vector3();
 const _ndc = new THREE.Vector2();
 /** Wo der Zeiger gerade steht, in Bildpunkten — für das Zoomen am Rad. */
 const _pointer = new THREE.Vector2();
@@ -511,6 +518,33 @@ export class ToolViewer {
   private panY = 0;
 
   /**
+   * **Was ein Finger auf dem Glas tut**: die Ansicht drehen oder die Karte
+   * schieben.
+   *
+   * Zwei Griffe, die beide richtig sind, und keiner davon ist es immer. Wer
+   * eine Welt *ansieht*, dreht sie — dafür ist ein Betrachter da. Wer eine
+   * Karte *benutzt*, schiebt sie, und zwar mit einem Finger, wie in jeder
+   * anderen Karte auch: Von oben zusehen und dabei mit zwei Fingern
+   * herumfahren, während man mit dem ersten schon wieder aus Versehen die
+   * Ansicht kippt, ist das Gegenteil von einer Karte.
+   *
+   * Deshalb ein Schalter und keine Geste: Ein Modus, der an oder aus ist, sagt
+   * einem beim Hinsehen, was der nächste Wisch tut.
+   */
+  private dragPans = false;
+
+  /**
+   * **Wem die Bildmitte folgt** — `null`, solange sie stehen bleibt.
+   *
+   * Der Griff, ohne den ein Klick-Weiter-Klick über eine Karte von hundert
+   * Metern nicht geht: Man tippt hin, die Figur läuft los, und der Ausschnitt
+   * wandert mit. Verschoben wird dabei die **Kamera** (`panX`, `panY`) und
+   * nicht die Bühne — dieselbe Rechnung wie beim Schieben mit dem Finger, nur
+   * dass die Zahl nicht aus der Hand kommt, sondern aus der Figur.
+   */
+  private followed: THREE.Object3D | null = null;
+
+  /**
    * Die **freie Kamera**, oder `null` für die Ansicht von außen.
    *
    * Zwei Ansichten, ein Bild: von außen dreht sich die Bühne vor einer Kamera,
@@ -696,6 +730,41 @@ export class ToolViewer {
    * Also steht die Welt im Flug aufrecht, und die Kamera ist die, die schief
    * hängt.
    */
+  /** Ob ein Finger gerade die Karte schiebt statt die Ansicht zu drehen. */
+  get dragPan(): boolean {
+    return this.dragPans;
+  }
+
+  setDragPan(on: boolean): void {
+    this.dragPans = on;
+  }
+
+  /**
+   * **Wo ein Ding der gezeigten Welt steht** — in denselben Koordinaten, die
+   * ein Tipp liefert (`pick`).
+   *
+   * Der Unterschied ist keine Feinheit und derselbe wie dort: Die Bühne ist um
+   * die Mitte des Gezeigten verschoben und im Drehpunkt gedreht. Wer die
+   * Weltlage eines Knopfes mit dem Punkt vergleicht, den ein Tipp geliefert
+   * hat, vergleicht zwei verschiedene Räume — und misst dann Abstände von
+   * dreißig Metern zwischen zwei Dingen, die nebeneinander stehen.
+   */
+  spotOf(object: THREE.Object3D, target: THREE.Vector3): THREE.Vector3 {
+    object.getWorldPosition(target);
+    return this.stage.worldToLocal(target);
+  }
+
+  /** Wem die Bildmitte folgt — `null` lässt sie stehen, wo sie ist. */
+  follow(object: THREE.Object3D | null): void {
+    this.followed = object;
+    if (!object) return;
+    this.spinning = false;
+  }
+
+  get following(): boolean {
+    return this.followed !== null;
+  }
+
   setFlying(on: boolean): void {
     if (on === (this.fly !== null)) return;
     this.flyInput = NO_INPUT;
@@ -1521,6 +1590,8 @@ export class ToolViewer {
     // Eine neue Welt fängt von außen an: der Flug gehört der, die man verlässt.
     this.fly = null;
     this.flyInput = NO_INPUT;
+    // Eine Figur aus der alten Welt gibt es in der neuen nicht.
+    this.followed = null;
     // Und die eingefrorene Lage gehört dem Werkzeug, das gerade weggeht.
     this.gripBase = null;
     // Die Drehung auf die echte Hand ebenso: ein Ding ohne Hand — eine Welt,
@@ -1633,6 +1704,7 @@ export class ToolViewer {
     } else {
       const fitted = this.distance(this.camera.aspect);
       const away = fitted * this.zoom;
+      this.trackFollowed();
       // Quer und hoch versetzt, wenn jemand geschoben hat (`panBy`): Die
       // Kamera schaut weiter geradeaus, nur eben neben die Mitte.
       this.camera.position.set(this.panX, this.panY, away);
@@ -1642,6 +1714,27 @@ export class ToolViewer {
       this.pivot.rotation.set(this.pitch, this.yaw, 0);
     }
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Die Bildmitte auf das Verfolgte schieben.
+   *
+   * Die Rechnung ist eine Zeile, wenn man weiß, wo die Kamera sitzt: Sie steht
+   * auf `(panX, panY, Abstand)` und schaut geradeaus (`place`). Ein Punkt steht
+   * also genau dann in der Bildmitte, wenn `panX`/`panY` **seine** Weltmaße
+   * sind — die Bühne ist bereits im Drehpunkt gedreht und um ihre Mitte
+   * verschoben, und `getWorldPosition` liefert das Ergebnis davon.
+   *
+   * Ohne Grenze (`clampPan`): Die gilt für den Finger, damit niemand die Welt
+   * aus dem Bild schiebt und sie nicht wiederfindet. Wer einer Figur folgt,
+   * kann sie nicht verlieren — sie ist ja das, was in der Mitte steht.
+   */
+  private trackFollowed(): void {
+    const target = this.followed;
+    if (!target) return;
+    target.getWorldPosition(_follow);
+    this.panX = _follow.x;
+    this.panY = _follow.y;
   }
 
   // --- Finger ----------------------------------------------------------------
@@ -1719,7 +1812,15 @@ export class ToolViewer {
       this.fly = flyLook(this.fly, dx * scale, dy * scale);
       return;
     }
-    this.yaw += dx * scale;
+    // Im Karten-Modus schiebt derselbe Finger, mit dem man sonst dreht — und
+    // er nimmt der Bildmitte damit auch das Folgen ab: Wer selbst schiebt, will
+    // dorthin sehen, wohin er geschoben hat, und nicht dorthin, wo die Figur
+    // gerade steht.
+    if (this.dragPans) {
+      this.followed = null;
+      this.panBy(dx, dy);
+      return;
+    }
     // Ein **Werkzeug dreht sich nur um seine Y-Achse**: es steht in der
     // Ansicht, wie es in der Hand steht, und es soll auch beim Umsehen so
     // stehen bleiben. Wer daran zieht, will es von allen Seiten sehen und
@@ -1727,11 +1828,48 @@ export class ToolViewer {
     // Ansicht, mit der die Seite aufmacht, und die bleibt jetzt die einzige.
     // Bei einer Welt bleibt das Nicken: dort *ist* die Vogelperspektive das,
     // worum es geht, und man will von ihr aus auch flacher heransehen.
-    if (this.tool) return;
+    //
     // Nicht überkopf: eine Ansicht, die auf dem Kopf steht, dreht sich beim
     // nächsten Wischen andersherum, und dann weiß man nicht mehr, wo oben war.
-    this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch + dy * scale));
+    this.turnTo(
+      this.yaw + dx * scale,
+      this.tool ? this.pitch : Math.max(-1.35, Math.min(1.35, this.pitch + dy * scale)),
+    );
   };
+
+  /**
+   * **Gedreht wird um das, was in der Mitte steht** — und nicht um die Mitte
+   * der Welt.
+   *
+   * Solange nichts geschoben ist, sind das dieselben zwei Punkte und die
+   * Rechnung hier ändert nichts. Sobald man aber auf einer Karte heranzoomt und
+   * an eine Ecke fährt, liegt der Drehpunkt außerhalb des Bildes — und ein Zug
+   * am Finger schiebt dann die Stelle, die man ansieht, quer aus dem Bild
+   * heraus, statt sie zu drehen. Das ist der Unterschied zwischen „ich sehe
+   * mir das von der Seite an" und „wo ist es hin".
+   *
+   * Der Kniff ist eine Zeile: Die Kamera sitzt auf `(panX, panY, Abstand)` und
+   * schaut geradeaus (`place`), in der Bildmitte steht also der Weltpunkt
+   * `(panX, panY, 0)`. Wer die Drehung wechselt, dreht diesen Vektor mit —
+   * dann steht danach derselbe Punkt wieder dort.
+   */
+  private turnTo(yaw: number, pitch: number): void {
+    _spinFrom.setFromEuler(_spinEuler.set(this.pitch, this.yaw, 0));
+    _spinTo.setFromEuler(_spinEuler.set(pitch, yaw, 0));
+    this.yaw = yaw;
+    this.pitch = pitch;
+    // Wer einer Figur folgt, bekommt seine Mitte ohnehin jedes Bild neu
+    // gesetzt (`trackFollowed`) — hier daran zu rechnen wäre ein Bild lang
+    // falsch und danach vergessen.
+    if (this.followed || (this.panX === 0 && this.panY === 0)) return;
+    _spinAt
+      .set(this.panX, this.panY, 0)
+      .applyQuaternion(_spinFrom.invert())
+      .applyQuaternion(_spinTo);
+    this.panX = _spinAt.x;
+    this.panY = _spinAt.y;
+    this.clampPan();
+  }
 
   private readonly onUp = (event: PointerEvent): void => {
     const alone = this.pointers.size === 1;
