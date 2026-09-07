@@ -365,7 +365,8 @@ Prüfstein: was der Editor baut, findet das Abtasten wieder), die **Miniatur**
 Fingern bleibt liegen, und die Grenzen des Maßstabs) samt der Zusicherung, dass
 sie dasselbe rechnet wie die three.js-Gruppe, die man sieht
 (`editor/miniatureFrame.test.ts`) — und das
-**ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`): dieselben
+**ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`, und einmal
+mit echter Physik in `labPhysics.test.ts`): dieselben
 Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
 **Kontrollpunkt**, an dem er vorbeigekommen sein muss — darunter der, um den es
 seit den Türen geht: Vor der **Metalltür** muss der Zombie außen herum, und der
@@ -4161,7 +4162,8 @@ Rücken zum Raum an die Wand und sieht eine schwarze Platte.
 
 **Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: acht Buchten,
 acht rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
-langer Gang um zwei Ecken, Stachelgrube (Zombie hinein, Puppe herum), Kiste im
+langer Gang um zwei Ecken, Stachelgrube (Zombie hinein und liegen bleiben,
+Puppe dicht daran vorbei), Kiste im
 Weg, **zu enger Gang**, Tür fällt hinter dem Verfolger zu, Portal, von dem nur
 einer weiß, die Dachkante und **Podest und Sprung**. Der Grundriss ist geprüft
 (`scenarios.test.ts`), bevor er gebaut ist: Zwei Buchten, die sich überlappen,
@@ -4241,7 +4243,27 @@ ihr auftritt (`cast`) und wo der Spieler dabei steht (`stand`). Inzwischen gilt
 das für **jeden Quader**: `labSolids()` gibt das ganze Labor als Liste von
 Kästen heraus, und `NavLabWorld` gibt jedem nur noch seine Farbe. Genauso steht
 alles, was in *keinem* Quader steckt, an einer Stelle (`applyLabMap`): der
-Anstrich der Stachelgrube, die Tür und der Sprung zwischen den Podesten.
+**Boden über der Stachelgrube**, die Tür und der Sprung zwischen den Podesten.
+
+**Die Stachelgrube ist eine Falle und kein Anstrich.** In der Welt ist sie ein
+Loch: Der Laborboden besteht aus vier Streifen um sie herum (`labFloor`), 2,6 m
+dick, damit das Loch Wände hat, und unten liegt eine rote Platte mit Stacheln
+darauf. Wer hineinläuft, fällt 2,2 m tief, kommt nicht mehr heraus und ist nach
+knapp zwei Sekunden hin (`PIT_DEPTH`, `PIT_DAMAGE`, `labHarm` — dieselbe
+Rechnung für die Brille wie für den Test). Auf der **Karte** liegt an derselben
+Stelle ein ganz normaler Weg, auf dem Stacheln stehen (`navBuild.coverRect`):
+Das Abtasten findet über einem Loch keinen Boden, und ohne diese Zeile plante
+niemand mehr hindurch — aus der Falle würde eine Wand, um die beide Sorten
+herumgehen. Es ist die einzige Stelle im Labor, an der die Karte mit Absicht
+etwas anderes sagt als die Geometrie, und genau das ist eine Falle.
+
+Zwei Sachen hängen daran. Die Grube muss **tiefer sein als das Band**, mit dem
+das Abtasten Böden einer Etage zuschlägt (`BAKE_DEFAULTS.band`, 1,6 m) — sonst
+wäre sie für die Karte bloß eine tiefergelegte Kachel mit einer Treppe hinein
+und wieder heraus. Und das Labor lässt die **Fläche bis zum Horizont** weg
+(`horizonColor(): null`): Die ist eine einzige Platte fünf Zentimeter unter
+null und zöge sich quer durch jedes Loch. Dass der Test dieselben Kästen
+abtastet wie die Brille, gilt damit sogar genauer als vorher.
 
 Der Grund für beides ist die Testbank (unten): Ein Test, der das Labor
 **abtastet**, muss dieselben Kästen und dieselbe Karte bekommen wie die Brille.
@@ -4263,6 +4285,16 @@ Labor zweimal gescheitert ist:
   ganze Labor herum. Jetzt sind es 25 × 15 Meter, der Gang 5, der Abstand der
   Buchten 2,5 — und wer eine Wand danebenstellt, sieht es im Test und nicht in
   der Brille.
+- **Die Kachelmitte entscheidet, auch beim Anmalen** (`navBuild.paintRect`,
+  `coverRect`). Eine Kachel gehört zu einem Rechteck in Weltmetern, wenn ihre
+  **Mitte** darin liegt — dieselbe Regel, nach der das Abtasten Boden findet.
+  Hier lief einmal eine Schleife bis einschließlich der Rechteckkante, und die
+  gehört schon zur nächsten Kachel: Die sechs Kacheln breite Stachelgrube war
+  auf der Karte sieben breit, und zwar nur nach Osten und nach Süden. Zu sehen
+  war davon nichts als ein Mensch, der einen viel zu großen Bogen um die Grube
+  lief, an der Wand der Bucht entlang — die Kachel daneben galt ihm ja als
+  Grube. Ein Anmalen, das eine Kachel zu weit reicht, sieht man nie an der
+  Karte, sondern immer nur an einem Weg, der komisch aussieht.
 - **Der Spieler steht in der Bucht, nicht im Mittelgang.** Ein Zombie bemerkt
   einen Spieler auf **22 Meter** (`npcBrains.ts`, `sense`); vom Mittelgang zu
   den äußeren Buchten sind es fast vierzig. Fünf der sechs roten Knöpfe
@@ -4331,6 +4363,33 @@ außen — er *muss* außen herum, es gibt keinen zweiten Weg. Bei einer
 wirklich drei Sekunden gestanden hat (`SimRunner.atDoor`) und die Tür hinterher
 hin ist (`broke`). Wer nur „angekommen" prüfte, sähe zwischen beiden Läufen
 keinen Unterschied.
+
+**Und eine Bank mit echter Physik gibt es jetzt auch** — eine einzige Datei,
+und sie hat sich verdient (`navlab/labPhysics.test.ts`, rund eine Sekunde). Sie
+startet Rapier wirklich, baut dieselben Quader (`labSolids`) und lässt den
+Auftritt einer Bucht darin laufen. Der Grund ist ein Fehler, den kein
+nachgebauter Körper zeigt, weil er in der Engine steckt: In der Brille nahm die
+Puppe die Rampe, stand oben auf dem nahen Podest, ihr Weg zeigte quer über den
+Gang — und sie rührte sich nicht mehr. Karte, Weg, Sprungverbindung und
+Absprunghöhe waren alle im Recht, `labSim` lief die Bucht grün.
+
+Falsch war ein Zwanzigstelmillimeter. Ein Zylinder sinkt beim Aufliegen ein
+wenig in seine Unterlage ein, und damit steht die **senkrechte Seitenfläche des
+Nachbarkastens** vor seiner scharfen Bodenkante: Zwei gleich hohe Klötze, die
+aneinanderstoßen — die oberste Rampenstufe und das Podest daneben —, sind für
+ihn keine ebene Fläche, sondern eine Wand. Ein Zylinder steigt keine Stufe,
+auch keine von zwanzig Mikrometern. Die Abhilfe ist eine **gebrochene Kante**:
+Jeder Zylinder-Collider bekommt sechs Zentimeter Rundung
+(`PhysicsWorld.CYLINDER_BEVEL`, `roundCylinder`, Außenmaße bleiben gleich) —
+hoch genug für jede Fuge und jede Schwelle, die auf der Karte als eben gilt,
+klein genug, dass niemand damit eine Stufe hinaufspaziert, die er springen
+müsste. Der Test dazu ist so klein wie der Fehler: zwei Klötze, ein Zylinder,
+1,5 m/s geradeaus über die Naht.
+
+Dieselbe Bank prüft, was der Zylinder ohne sie nie täte: dass die Puppe am Ende
+wirklich **auf dem freistehenden Podest** steht (nicht bloß irgendwo auf 2,4 m
+Höhe — auf das nahe kommt man auch die Rampe hinauf), und dass der Zombie in
+die Grube fällt und darin liegen bleibt.
 
 Dieselbe Bank prüft auch die **Schalter**: Ohne Verbindungen springt die Puppe
 nicht mehr auf das freistehende Podest, ohne Hindernisse plant der Zombie mitten

@@ -500,6 +500,31 @@ export class NpcDirector implements NpcControl {
     return found;
   }
 
+  /**
+   * **Was der Boden mit ihnen macht** — Stacheln, Feuer, Säure.
+   *
+   * Die Welt sagt, was an einer Stelle wehtut, der Regisseur weiß, wer dort
+   * steht: Er fragt für jeden, der noch steht, und teilt aus. Deshalb ist es
+   * eine Funktion und keine Liste von Gruben — eine Welt mit einem Lavasee
+   * schreibt hier keine Zeile Code hinein, sondern rechnet ihren See selbst
+   * aus (`navlab/scenarios.ts`, `labHarm`).
+   *
+   * Wer daran fällt, wird im selben Zug aus der Physik genommen, genau wie bei
+   * einem Treffer (`hit`): Was liegt, ist ein Bild und kein Hindernis mehr.
+   *
+   * @param hurt was diese Stelle in diesem Bild abzieht — 0 heißt: nichts.
+   */
+  harm(hurt: (feet: THREE.Vector3) => number): void {
+    for (const npc of this.npcs) {
+      if (!npc.alive) continue;
+      const amount = hurt(npc.feet(_probe));
+      if (amount <= 0) continue;
+      if (!npc.damage(amount)) continue;
+      npc.unbody(this.world.physics);
+      this.world.notify(`${npc.skin.label} liegt`);
+    }
+  }
+
   /** Ein Schlag hat gesessen: er schiebt den Spieler von sich weg. */
   private strike(npc: Npc, player: THREE.Vector3): void {
     npc.feet(_at);

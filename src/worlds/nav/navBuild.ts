@@ -10,6 +10,7 @@ import {
   NO_TILE,
   TILE,
   neighbour,
+  tileIndexAt,
   tileKey,
   type Dir,
   type TileKey,
@@ -163,6 +164,48 @@ export function portalLinkIds(id: string): [string, string] {
   return [`${id}:in`, `${id}:out`];
 }
 
+/** Ein Stück Welt in Metern, wie eine Welt es hinschreibt. */
+export interface WorldArea {
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+  y?: number;
+}
+
+/**
+ * **Die Kachelmitten in einem Rechteck** — und nur die.
+ *
+ * Die eine Regel, nach der aus Metern Kacheln werden, und sie ist dieselbe wie
+ * beim Abtasten (`navBake.ts`: „Die Kachelmitte entscheidet"): Eine Kachel
+ * gehört zu einem Rechteck, wenn ihre **Mitte** darin liegt — nicht, wenn das
+ * Rechteck sie irgendwo streift.
+ *
+ * Der Unterschied ist keine Feinheit. Hier lief einmal eine Schleife von
+ * `minX` bis `maxX` in halben Kacheln und fragte an jedem Punkt, welche Kachel
+ * dort liegt. Der letzte Punkt ist aber die Rechteckkante, und die gehört
+ * schon zur **nächsten** Kachel: Eine Grube von sechs Kacheln Breite wurde so
+ * sieben breit, und zwar nur nach Osten und nach Süden. In der Brille sah man
+ * davon nichts als einen Menschen, der einen viel zu großen Bogen um die
+ * Stachelgrube lief — an der Wand entlang, weil die Kachel daneben ihm als
+ * Grube galt.
+ */
+function* centresIn(area: WorldArea): Generator<{ x: number; z: number }> {
+  const first = tileIndexAt(area.minX);
+  const last = tileIndexAt(area.maxX);
+  const top = tileIndexAt(area.minZ);
+  const bottom = tileIndexAt(area.maxZ);
+  for (let tx = first; tx <= last; tx++) {
+    const x = (tx + 0.5) * TILE;
+    if (x < area.minX || x > area.maxX) continue;
+    for (let tz = top; tz <= bottom; tz++) {
+      const z = (tz + 0.5) * TILE;
+      if (z < area.minZ || z > area.maxZ) continue;
+      yield { x, z };
+    }
+  }
+}
+
 /**
  * **Ein Stück Karte in Weltmaßen anfassen.**
  *
@@ -170,23 +213,47 @@ export function portalLinkIds(id: string): [string, string] {
  * steht in keiner Geometrie. Eine Welt malt es hinterher auf: „von hier bis
  * dort ist eine Grube". Die Rechteckangabe ist dabei in **Metern** und nicht in
  * Kacheln, denn wer eine Welt baut, denkt in Metern.
+ *
+ * Angefasst werden die Kacheln, deren **Mitte** im Rechteck liegt
+ * (`centresIn`); Kacheln, die es nur streift, bleiben, wie sie sind.
  */
-export function paintRect(
-  graph: NavGraph,
-  area: { minX: number; minZ: number; maxX: number; maxZ: number; y?: number },
-  facts: Partial<TileFacts>,
-): number {
+export function paintRect(graph: NavGraph, area: WorldArea, facts: Partial<TileFacts>): number {
   let touched = 0;
-  const y = area.y;
-  for (let x = area.minX; x <= area.maxX; x += TILE / 2) {
-    for (let z = area.minZ; z <= area.maxZ; z += TILE / 2) {
-      const key = graph.at(x, z, y);
-      if (key === NO_TILE) continue;
-      graph.setTile(key, facts);
-      touched++;
-    }
+  for (const spot of centresIn(area)) {
+    const key = graph.at(spot.x, spot.z, area.y);
+    if (key === NO_TILE) continue;
+    graph.setTile(key, facts);
+    touched++;
   }
   return touched;
+}
+
+/**
+ * **Boden legen, wo die Geometrie keinen hergibt** — die abgedeckte Falle.
+ *
+ * Der Unterschied zu `paintRect` ist der zwischen Anstreichen und Bauen: Jenes
+ * ändert Kacheln, die es gibt, dieses legt sie an. Gebraucht wird es für
+ * genau eine Sorte Ort, und die ist eine **Falle**: In der Welt ist dort ein
+ * Loch, auf der Karte ein Weg mit Stacheln darauf. Wer die Gefahr nicht liest
+ * — der Zombie —, plant seelenruhig hindurch und fällt hinein; wer sie liest,
+ * geht außen herum. Genau das ist eine Falle, und sie ist der einzige Grund,
+ * warum eine Karte an einer Stelle etwas anderes sagen darf als die Geometrie.
+ *
+ * Die Etage kommt aus `level` und nicht aus einem `y`: Wo kein Boden ist, gibt
+ * es auch keine Höhe, an der man ablesen könnte, welche Etage gemeint ist.
+ */
+export function coverRect(
+  graph: NavGraph,
+  area: WorldArea,
+  facts: Partial<TileFacts> = {},
+  level = 0,
+): number {
+  let laid = 0;
+  for (const spot of centresIn(area)) {
+    graph.setTile(tileKey(tileIndexAt(spot.x), tileIndexAt(spot.z), level), facts);
+    laid++;
+  }
+  return laid;
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   applyLabMap,
   baySpot,
   labBounds,
+  labHarm,
   labSolids,
   scenarioOf,
   type BaySpot,
@@ -117,6 +118,16 @@ export interface SimRunner {
   kind: NpcKind;
   /** Seine Füße, jetzt. */
   at: SimPoint;
+  /**
+   * Was er noch aushält, und ob er schon liegt.
+   *
+   * Es gibt hier nur eine Sorte Schaden, und sie kommt vom Boden: die Stacheln
+   * am Grund der Grube (`scenarios.labHarm`). Wer dort landet, kommt nicht mehr
+   * heraus, und deshalb ist „er stirbt darin" keine Frage der Zeit, sondern
+   * eine der Rechnung — genau die, die in der Brille auch läuft.
+   */
+  health: number;
+  dead: boolean;
   /** Wo er überall war — ein Punkt je Bild. */
   readonly track: SimPoint[];
   /** Wie nah er dem Spieler je gekommen ist, in Metern (räumlich). */
@@ -201,6 +212,8 @@ export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
       kind: one.kind,
       at: { x: at.x, y: one.y ?? 0, z: at.z },
       track: [{ x: at.x, y: one.y ?? 0, z: at.z }],
+      health: skin.health,
+      dead: false,
       nearest: Infinity,
       arrived: false,
       arrivedAfter: Infinity,
@@ -289,6 +302,12 @@ function advance(
   now: number,
 ): boolean {
   let broke = false;
+  // **Wer liegt, läuft nicht mehr.** Das ist der ganze Unterschied zwischen
+  // einer Grube, die wehtut, und einer, die eine Falle ist.
+  if (runner.dead) {
+    runner.track.push({ ...runner.at });
+    return false;
+  }
   if (body.flight) {
     fly(runner, body, dt);
   } else {
@@ -305,9 +324,17 @@ function advance(
       broke = atDoor(runner, graph, step.door, step.doorAction, dt);
       if (step.doorAction === 'none') {
         walk(runner, body, boxes, player, step.waypoint, dt);
-        settle(runner, body, boxes, graph);
+        settle(runner, body, boxes);
       }
     }
+  }
+
+  // Und was der Boden mit ihm macht — dieselbe Rechnung wie in der Brille
+  // (`scenarios.labHarm`, `NavLabWorld.simulate`).
+  runner.health -= labHarm(runner.at, dt);
+  if (runner.health <= 0) {
+    runner.health = 0;
+    runner.dead = true;
   }
 
   runner.track.push({ ...runner.at });
@@ -417,11 +444,19 @@ function hitsAny(
   return false;
 }
 
-/** Auf welcher Höhe er nach diesem Schritt steht. */
-function settle(runner: SimRunner, body: Body, boxes: readonly NavBox[], graph: NavGraph): void {
-  const tile = graph.at(runner.at.x, runner.at.z, runner.at.y);
-  if (tile === NO_TILE) return;
-  const floor = graph.worldOf(tile).y;
+/**
+ * Auf welcher Höhe er nach diesem Schritt steht.
+ *
+ * **Gefragt werden die Quader und nicht die Karte** — und das ist keine
+ * Feinheit, sondern der Unterschied zwischen einer Grube und einem Anstrich:
+ * Über der Stachelgrube sagt die Karte „hier ist Boden" (`applyLabMap`), und
+ * genau darum läuft der Zombie hinein. Was ihn auffängt, ist die Welt, und in
+ * der ist dort ein Loch. Wer hier die Karte fragte, ließe ihn über die Falle
+ * spazieren, in die er in der Brille fällt.
+ */
+function settle(runner: SimRunner, body: Body, boxes: readonly NavBox[]): void {
+  const floor = groundUnder(boxes, runner.at, body.radius);
+  if (floor === null) return;
   // Hinauf nur, was man tritt; hinunter alles — er fällt.
   if (floor > runner.at.y + STEP_UP) return;
   if (floor === runner.at.y) return;
@@ -433,6 +468,26 @@ function settle(runner: SimRunner, body: Body, boxes: readonly NavBox[], graph: 
   // heraus; hier tut es diese Zeile, und ohne sie klebt er für immer an einer
   // Hausecke, die es gar nicht ist.
   push(runner, body, boxes);
+}
+
+/**
+ * **Der oberste Deckel unter seinen Füßen** — oder `null`, wo gar keiner ist.
+ *
+ * Dieselbe Frage, die auch das Abtasten stellt (`navBake.floorsAt`), nur für
+ * einen, der schon steht: Gesucht wird über der Stelle, an der er gerade ist,
+ * und gezählt wird, worauf man treten kann — alles über Kniehöhe ist eine
+ * Wand und kein Boden.
+ */
+function groundUnder(boxes: readonly NavBox[], at: SimPoint, radius: number): number | null {
+  let best: number | null = null;
+  for (const box of boxes) {
+    if (box.maxY > at.y + STEP_UP) continue;
+    // Ein Fuß auf der Kante steht noch darauf: gemessen wird mit seinem Umfang.
+    if (at.x < box.minX - radius || at.x > box.maxX + radius) continue;
+    if (at.z < box.minZ - radius || at.z > box.maxZ + radius) continue;
+    if (best === null || box.maxY > best) best = box.maxY;
+  }
+  return best;
 }
 
 /** Heraus aus allem, worin er steckt — über die kürzeste Seite. */
