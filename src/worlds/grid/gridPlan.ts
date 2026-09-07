@@ -1,5 +1,5 @@
 import { planSolids } from '../editor/levelBuild';
-import { doorName } from '../editor/levelPlan';
+import { doorName, replacePlan } from '../editor/levelPlan';
 import { NavGraph, type TileFacts, type WallKind } from '../nav/navGraph';
 import { connect, fillRect, setDoor, setWindow, wallRect, type NavRect } from '../nav/navBuild';
 import {
@@ -104,6 +104,17 @@ export class GridPlan {
   readonly graph: NavGraph;
   private readonly placed: BlockPlacement[] = [];
   private readonly masses: Mass[] = [];
+  /**
+   * Was auf einer Kachel gälte, wenn kein Baustein darauf stünde.
+   *
+   * Ohne diese Notiz wäre ein Baustein nicht wieder wegzunehmen: Sein
+   * Aufschlag steckt in den Kacheldaten, und die kennen ihre eigene Herkunft
+   * nicht. Wer im Editor eine Küchenzeile setzt und wieder löscht, hätte
+   * sonst eine Kachel, die für immer teuer bleibt.
+   */
+  private readonly base = new Map<TileKey, { cost: number; rise: number }>();
+  /** Wie oft ein Baustein gesetzt oder weggenommen wurde. */
+  private edits = 0;
 
   /**
    * @param levels Die Höhen der Etagen in Metern. Eine Welt ohne Stockwerke
@@ -113,11 +124,40 @@ export class GridPlan {
     this.graph = new NavGraph(levels);
   }
 
+  /**
+   * **Einen gespeicherten Graphen wieder zu einem Plan machen**, samt dem
+   * Mobiliar, das daneben lag.
+   *
+   * Die eine Annahme dabei, und sie steht hier, weil sie sonst niemand sähe:
+   * Die Kacheln des geladenen Graphen gelten als **blanker Boden**. Ihre
+   * Kosten werden neu gerechnet, statt übernommen zu werden — und das ist
+   * richtig, weil in den gespeicherten Kosten die Aufschläge der Bausteine
+   * schon stecken. Wer sie übernähme und die Bausteine danach anwendete,
+   * zählte jeden zweimal, und die Küche wäre nach dem zweiten Laden
+   * unbegehbar. Eine Welt, die ihren Kacheln von Hand Kosten gibt, lädt sie
+   * deshalb nicht über diesen Weg.
+   */
+  static from(graph: NavGraph, blocks: readonly BlockPlacement[] = []): GridPlan {
+    const plan = new GridPlan(graph.levels);
+    replacePlan(plan.graph, graph);
+    for (const key of plan.graph.tileKeys()) plan.base.set(key, { cost: 1, rise: 0 });
+    plan.loadBlocks(blocks);
+    return plan;
+  }
+
   // --- der Grundriss ------------------------------------------------------
 
   /** Boden über ein Rechteck. */
   floor(rect: NavRect, facts: Partial<TileFacts> = {}): this {
     fillRect(this.graph, rect, facts);
+    const level = rect.level ?? 0;
+    for (let dz = 0; dz < rect.d; dz++) {
+      for (let dx = 0; dx < rect.w; dx++) {
+        const key = tileKey(rect.x + dx, rect.z + dz, level);
+        this.base.set(key, { cost: facts.cost ?? 1, rise: facts.rise ?? 0 });
+        this.refresh(key);
+      }
+    }
     return this;
   }
 
@@ -200,19 +240,73 @@ export class GridPlan {
    * der Klassiker, und er fällt erst auf, wenn schon fünfzig davon herumstehen.
    */
   put(kind: BlockKind, x: number, z: number, dir: Dir, level = 0, height?: number): this {
-    const tile = tileKey(x, z, level);
-    this.placed.push({ kind, tile, dir, ...(height === undefined ? {} : { height }) });
+    return this.putAt(kind, tileKey(x, z, level), dir, height);
+  }
 
-    const facts = BLOCKS[kind];
-    const rise = blockRise(kind, height);
-    const was = this.graph.tile(tile);
-    if (was || rise > 0) {
-      this.graph.setTile(tile, {
-        cost: (was?.cost ?? 1) * facts.cost,
-        rise: (was?.rise ?? 0) + rise,
-      });
-    }
+  /** Dasselbe für eine Kachel, die man schon in der Hand hat. */
+  putAt(kind: BlockKind, tile: TileKey, dir: Dir, height?: number): this {
+    this.placed.push({ kind, tile, dir, ...(height === undefined ? {} : { height }) });
+    this.edits++;
+    this.refresh(tile);
     return this;
+  }
+
+  /**
+   * **Woran man erkennt, dass sich am Plan etwas getan hat.**
+   *
+   * Die Zahl des Graphen allein genügt nicht: Ein Baustein auf einer Kachel,
+   * die schon Boden hat, ändert am Graphen nur die Kosten — und wer einen
+   * setzt und im selben Atemzug wieder wegnimmt, landet dort, wo er
+   * angefangen hat. Ein Editor, der daraufhin nicht neu baut, zeigt die
+   * Küchenzeile weiter an, die es nicht mehr gibt.
+   */
+  get version(): number {
+    return this.graph.version + this.edits;
+  }
+
+  /**
+   * **Den obersten Baustein einer Kachel wieder wegnehmen.**
+   *
+   * Den obersten und nicht alle: Auf einer Kachel dürfen mehrere stehen — der
+   * Schießstand hat auf jeder Bahn eine Bank *und* eine Trennwand —, und wer
+   * löscht, meint das, was er zuletzt gesetzt hat. Gibt zurück, was weg ist,
+   * damit die Meldung sagen kann, *was* verschwunden ist.
+   */
+  takeBlock(tile: TileKey): BlockPlacement | null {
+    for (let i = this.placed.length - 1; i >= 0; i--) {
+      if (this.placed[i]!.tile !== tile) continue;
+      const [gone] = this.placed.splice(i, 1);
+      this.edits++;
+      this.refresh(tile);
+      return gone ?? null;
+    }
+    return null;
+  }
+
+  /** Was auf dieser Kachel steht, von unten nach oben. */
+  blocksOn(tile: TileKey): BlockPlacement[] {
+    return this.placed.filter((one) => one.tile === tile);
+  }
+
+  /**
+   * Die Kacheldaten neu rechnen: Grundwert mal die Aufschläge dessen, was
+   * darauf steht, plus deren Anhebung.
+   *
+   * Multiplikativ und nicht additiv, denn ein Aufschlag ist ein Faktor: Zwei
+   * Möbel auf einer Kachel machen sie doppelt so mühsam und nicht um zwei
+   * Meter länger.
+   */
+  private refresh(tile: TileKey): void {
+    if (!this.graph.has(tile)) return;
+    const base = this.base.get(tile) ?? { cost: 1, rise: 0 };
+    let cost = base.cost;
+    let rise = base.rise;
+    for (const one of this.placed) {
+      if (one.tile !== tile) continue;
+      cost *= BLOCKS[one.kind].cost;
+      rise += blockRise(one.kind, one.height);
+    }
+    this.graph.setTile(tile, { cost, rise });
   }
 
   /** Dieselbe Sorte über eine Reihe von Kacheln — die Küchenzeile ist selten eine Kachel lang. */
@@ -301,6 +395,55 @@ export class GridPlan {
   /** Die gesetzten Bausteine — für Welten, die noch etwas daran hängen wollen. */
   blocks(): readonly BlockPlacement[] {
     return this.placed;
+  }
+
+  /**
+   * **Die Bausteine zum Speichern**, und zwar getrennt vom Graphen.
+   *
+   * Der Graph hat sein eigenes Format mit eigener Versionsnummer
+   * (`nav/navSerial.ts`), und dort gehören Bausteine nicht hinein: Eine
+   * Küchenzeile ist keine Navigationsinformation, sie hinterlässt dort nur
+   * eine Kachel mit einem Aufschlag. Wer sie in dieselbe Datei schriebe,
+   * müsste deren Version anheben und alle gespeicherten Karten ungültig
+   * machen — für Möbel.
+   */
+  saveBlocks(): BlockPlacement[] {
+    return this.placed.map((one) => ({ ...one }));
+  }
+
+  /** Und wieder zurück. Was auf einer Kachel steht, die es nicht gibt, fällt weg. */
+  loadBlocks(list: readonly BlockPlacement[]): this {
+    const touched = new Set<TileKey>(this.placed.map((one) => one.tile));
+    this.placed.length = 0;
+    for (const one of list) {
+      if (!this.graph.has(one.tile)) continue;
+      if (!(one.kind in BLOCKS)) continue;
+      this.placed.push({ ...one });
+      touched.add(one.tile);
+    }
+    this.edits++;
+    for (const tile of touched) this.refresh(tile);
+    return this;
+  }
+
+  /**
+   * **Den Inhalt eines anderen Plans übernehmen** — Kacheln, Kanten und
+   * Bausteine.
+   *
+   * Es gibt keinen anderen Weg: An einem Plan hängen Zeiger (die Welt zeichnet
+   * daraus, NPCs laufen darauf), und ihn auszutauschen hieße, alle
+   * nachzuziehen. Also wird sein *Inhalt* ausgetauscht.
+   */
+  replaceWith(source: GridPlan): this {
+    replacePlan(this.graph, source.graph);
+    // **Der Grundwert kommt vom anderen Plan und nicht aus den Kacheldaten.**
+    // In denen stecken die Aufschläge der Bausteine schon drin; wer sie als
+    // Grundwert nähme und die Bausteine danach anwendete, zählte jeden
+    // zweimal — und die Küche wäre nach dem zweiten Laden unbegehbar.
+    this.base.clear();
+    for (const [key, facts] of source.base) this.base.set(key, { ...facts });
+    this.loadBlocks(source.saveBlocks());
+    return this;
   }
 }
 
