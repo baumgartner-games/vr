@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { GlideTool, anchorOf, type GlideCommand } from './GlideTool';
+import { GlideTool, type GlideCommand } from './GlideTool';
 import type { ToolHost } from './Tool';
 import { WINGS, flapThrust, wingCommand, type GlideParams } from './glideFlight';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
+import { gripAnchor } from '../../../core/XRInput';
 
 /** Länge eines Flügels, wie er gebaut ist, in Metern — von der Schulter bis zur Spitze. */
 const WING_LENGTH = 1.05;
@@ -175,7 +176,7 @@ export class WingsTool extends GlideTool {
         .addScaledVector(_right, sign * SHOULDER_SIDE)
         .addScaledVector(UP, -SHOULDER_DROP);
       const hand = hands[side];
-      if (hand) anchorOf(hand).getWorldPosition(_hand);
+      if (hand) gripAnchor(hand).getWorldPosition(_hand);
       else _hand.copy(_shoulder).addScaledVector(_right, sign * 0.6);
       this.spanWing(this.feathers[side], _shoulder, _hand, sign);
     }
@@ -222,7 +223,7 @@ export class WingsTool extends GlideTool {
     side: Handedness,
     controller: ControllerState,
   ): void {
-    anchorOf(controller).getWorldPosition(_local);
+    gripAnchor(controller).getWorldPosition(_local);
     host.ctx.rig.worldToLocal(_local);
     const last = this.lastHands[side];
     if (last && dt > 0) {

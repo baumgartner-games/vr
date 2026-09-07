@@ -38,24 +38,35 @@ export interface PaletteDab {
   id: string;
   label: string;
   color: number;
+  /**
+   * In welcher Reihe er liegt — `0` ist die hinterste.
+   *
+   * Zwei Reihen, seit es Bausteine gibt: oben die vier Bauwerkzeuge und das
+   * Hingehen, darunter das Mobiliar. Alles in einer Reihe wären vierzehn Näpfe
+   * nebeneinander, und eine Palette, die breiter ist als ein Unterarm, legt
+   * man nicht mehr hin, sondern weg.
+   */
+  row?: number;
 }
 
 /** Halbmesser der Palette, in Metern — quer breiter als tief, wie ein Brett. */
-const BOARD_X = 0.115;
-const BOARD_Z = 0.085;
+const BOARD_X = 0.175;
+const BOARD_Z = 0.105;
 const BOARD_T = 0.012;
 
 /** Ein Farbnapf: Halbmesser und wie hoch er über dem Brett steht. */
-const DAB_R = 0.017;
+const DAB_R = 0.015;
 const DAB_Y = BOARD_T / 2 + 0.004;
 /** Wie weit die Näpfe auseinanderstehen. */
-const DAB_GAP = 0.042;
-/** Und wie weit hinten sie liegen — vorn bleibt Platz für die Mulde. */
-const DAB_Z = -0.028;
+const DAB_GAP = 0.036;
+/** Und wie weit hinten die erste Reihe liegt — vorn bleibt Platz für die Mulde. */
+const DAB_Z = -0.062;
+/** Der Abstand zwischen zwei Reihen. */
+const ROW_GAP = 0.038;
 
 /** Die Mulde, in der der Pinsel steckt. */
-const REST_Z = 0.042;
-const REST_R = 0.022;
+const REST_Z = 0.055;
+const REST_R = 0.02;
 
 /**
  * Wie lang der Pinsel ist und wie dick sein Stiel — klein genug, dass er in
@@ -102,8 +113,24 @@ export class Palette extends THREE.Group {
     rim.scale.set(BOARD_X, BOARD_Z, 1);
     this.add(rim);
 
-    const span = (dabs.length - 1) * DAB_GAP;
-    dabs.forEach((dab, index) => {
+    // Je Reihe eigens zentriert: Zwei Reihen unterschiedlicher Länge, die an
+    // derselben Kante anfangen, sehen aus wie ein Fehler.
+    const rows = new Map<number, PaletteDab[]>();
+    for (const dab of dabs) {
+      const row = dab.row ?? 0;
+      const list = rows.get(row) ?? [];
+      list.push(dab);
+      rows.set(row, list);
+    }
+    const place = new Map<PaletteDab, { x: number; z: number }>();
+    for (const [row, list] of rows) {
+      const span = (list.length - 1) * DAB_GAP;
+      list.forEach((dab, index) => {
+        place.set(dab, { x: -span / 2 + index * DAB_GAP, z: DAB_Z + row * ROW_GAP });
+      });
+    }
+
+    dabs.forEach((dab) => {
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(DAB_R, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2),
         new THREE.MeshStandardMaterial({
@@ -115,7 +142,8 @@ export class Palette extends THREE.Group {
       );
       // Ein Klecks Farbe ist flach, keine Kugel: eine halbe Kugel, plattgedrückt.
       mesh.scale.set(1, 0.45, 1);
-      mesh.position.set(-span / 2 + index * DAB_GAP, DAB_Y, DAB_Z);
+      const at = place.get(dab)!;
+      mesh.position.set(at.x, DAB_Y, at.z);
       mesh.name = `palette-dab:${dab.id}`;
       this.add(mesh);
       this.pads.push({ id: dab.id, mesh, base: mesh.position.clone() });
@@ -148,7 +176,7 @@ export class Palette extends THREE.Group {
     // Flach auf dem Brett, vor der Mulde: Wer auf die Palette schaut, liest
     // mit, was der Pinsel gerade trägt.
     this.label.rotation.x = -Math.PI / 2;
-    this.label.position.set(0, BOARD_T / 2 + 0.001, REST_Z + 0.036);
+    this.label.position.set(0, BOARD_T / 2 + 0.001, REST_Z + 0.035);
     this.add(this.label);
 
     const [brush, bristles] = buildBrush();

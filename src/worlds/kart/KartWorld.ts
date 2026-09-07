@@ -5,7 +5,7 @@ import { TextPlane } from '../../ui/TextPlane';
 import { playPick, playTone } from '../../core/Audio';
 import type { MenuEntry } from '../../ui/menu';
 import type { WorldContext } from '../../core/types';
-import type { ControllerState, Handedness } from '../../core/XRInput';
+import type { Handedness } from '../../core/XRInput';
 import {
   ALL_GROUPS,
   GROUP_PLAYER,
@@ -14,6 +14,7 @@ import {
 } from '../../physics/PhysicsWorld';
 import { Kart, EXIT_HOLD, WHEEL_GRAB_RANGE, WHEEL_HOLD_RANGE } from './Kart';
 import { kartSpeed, kmh, stepKart } from './kartDynamics';
+import { gripAnchor } from '../../core/XRInput';
 import {
   KART_FIELDS,
   KART_PRESETS,
@@ -409,7 +410,7 @@ export class KartWorld extends PortalWorld {
   private checkBoarding(ctx: WorldContext): void {
     for (const controller of ctx.input.controllers) {
       if (!controller.tracked || !controller.squeeze.justPressed) continue;
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       for (const kart of this.karts) {
         kart.hubPosition(_hub);
         if (_hand.distanceTo(_hub) > WHEEL_GRAB_RANGE) continue;
@@ -570,7 +571,7 @@ export class KartWorld extends PortalWorld {
         this.wheelGrab = null;
         return;
       }
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       kart.hubPosition(_hub);
       if (_hand.distanceTo(_hub) > WHEEL_HOLD_RANGE) {
         this.wheelGrab = null;
@@ -584,7 +585,7 @@ export class KartWorld extends PortalWorld {
 
     for (const controller of ctx.input.controllers) {
       if (!controller.tracked || !controller.squeeze.justPressed) continue;
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       kart.hubPosition(_hub);
       if (_hand.distanceTo(_hub) > WHEEL_HOLD_RANGE) continue;
       this.wheelGrab = { hand: controller.handedness!, angle: kart.handAngle(_hand) };
@@ -1233,11 +1234,6 @@ export class KartWorld extends PortalWorld {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-/** The node a hand's belongings hang on. */
-function gripOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
-}
 
 /** The same angle, brought back into -π…π. */
 function shortestAngle(angle: number): number {

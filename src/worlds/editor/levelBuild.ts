@@ -1,6 +1,16 @@
 import type { NavGraph } from '../nav/navGraph';
 import { DIR_N, TILE, keyLevel, tileCentreX, tileCentreZ, wallDir, wallTile } from '../nav/navTile';
-import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_FLOOR_T, PLAN_WALL_H, PLAN_WALL_T } from './levelPlan';
+import { slab, type PlanSolid, type PlanSolidKind } from '../grid/solids';
+import {
+  PLAN_DOOR_H,
+  PLAN_DOOR_W,
+  PLAN_FLOOR_T,
+  PLAN_WALL_H,
+  PLAN_WALL_T,
+  PLAN_WINDOW_HEAD,
+  PLAN_WINDOW_SILL,
+  PLAN_WINDOW_W,
+} from './levelPlan';
 
 /**
  * **Aus dem Bauplan werden Quader** — die andere Richtung von `nav/navBake.ts`.
@@ -20,21 +30,12 @@ import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_FLOOR_T, PLAN_WALL_H, PLAN_WALL_T } from
  * Bauanleitungen für dasselbe Zimmer laufen auseinander.
  */
 
-/** Wozu ein Quader gehört — die Sorte entscheidet über Farbe und Härte. */
-export type PlanSolidKind = 'floor' | 'wall' | 'door';
-
-/** Ein Quader in Planmetern: Mitte und Kantenlängen. */
-export interface PlanSolid {
-  kind: PlanSolidKind;
-  x: number;
-  y: number;
-  z: number;
-  w: number;
-  h: number;
-  d: number;
-  /** Bei einer Tür: ihr Name im Plan — daran erkennt man das Blatt wieder. */
-  door?: string;
-}
+/**
+ * Der Quader und seine Sorte wohnen in `grid/solids.ts` — dort, wo auch die
+ * Bausteine sie brauchen. Hier stehen sie weiter zur Verfügung, weil an diesem
+ * Namen der halbe Bauplatz hängt.
+ */
+export type { PlanSolid, PlanSolidKind };
 
 /** Wie dick ein Türblatt ist. */
 export const PLAN_LEAF_T = 0.1;
@@ -70,6 +71,10 @@ export function planSolids(plan: NavGraph): PlanSolid[] {
     const z = tileCentreZ(key) + (alongX ? -TILE / 2 : 0);
     if (facts.kind === 'door') {
       out.push(...doorParts(x, base, z, alongX, facts.open, facts.id));
+      continue;
+    }
+    if (facts.kind === 'window') {
+      out.push(...windowParts(x, base, z, alongX));
       continue;
     }
     out.push(slab(x, base + PLAN_WALL_H / 2, z, alongX, TILE, PLAN_WALL_H, PLAN_WALL_T, 'wall'));
@@ -145,30 +150,41 @@ export function doorParts(
 }
 
 /**
- * Ein Quader an einer Kante: `length` läuft **die Kante entlang**, `thick`
- * steht quer dazu.
+ * **Ein Fenster als das, was es ist**: Brüstung unten, Sturz oben, Loch dazwischen.
  *
- * Die eine Stelle, an der die Achsen getauscht werden — und deshalb die eine
- * Stelle, an der man sie vertauschen kann. Überall sonst steht danach nur noch
- * `alongX`.
+ * Der Graph kennt diese Wandsorte von Anfang an (`nav/navGraph.ts`: sie hält
+ * auf, lässt aber Sicht und Geräusch durch), gebaut wurde daraus bisher eine
+ * ganz normale massive Wand — ein Fenster, durch das ein NPC einen sehen
+ * konnte und man selbst nichts. Beides an derselben Kante, und niemand hätte
+ * je verstanden, warum der Zombie um die Ecke wusste, wo man steht.
  */
-function slab(
-  x: number,
-  y: number,
-  z: number,
-  alongX: boolean,
-  length: number,
-  height: number,
-  thick: number,
-  kind: PlanSolidKind,
-): PlanSolid {
-  return {
-    kind,
-    x,
-    y,
-    z,
-    w: alongX ? length : thick,
-    h: height,
-    d: alongX ? thick : length,
-  };
+export function windowParts(x: number, base: number, z: number, alongX: boolean): PlanSolid[] {
+  const sill = PLAN_WINDOW_SILL;
+  const head = PLAN_WINDOW_HEAD;
+  const out: PlanSolid[] = [slab(x, base + sill / 2, z, alongX, TILE, sill, PLAN_WALL_T, 'wall')];
+  const lintel = PLAN_WALL_H - head;
+  if (lintel > 0.01) {
+    out.push(slab(x, base + head + lintel / 2, z, alongX, TILE, lintel, PLAN_WALL_T, 'wall'));
+  }
+  // Die Pfosten links und rechts: Ein Fenster über die ganze Kachelbreite ist
+  // ein Durchbruch, kein Fenster.
+  const post = (TILE - PLAN_WINDOW_W) / 2;
+  if (post > 0.01) {
+    const offset = (PLAN_WINDOW_W + post) / 2;
+    for (const side of [-1, 1]) {
+      out.push(
+        slab(
+          x + (alongX ? side * offset : 0),
+          base + sill + (head - sill) / 2,
+          z + (alongX ? 0 : side * offset),
+          alongX,
+          post,
+          head - sill,
+          PLAN_WALL_T,
+          'wall',
+        ),
+      );
+    }
+  }
+  return out;
 }

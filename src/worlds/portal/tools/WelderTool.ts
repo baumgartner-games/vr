@@ -3,6 +3,7 @@ import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playPick, playTone } from '../../../core/Audio';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
+import { wristAnchor } from '../../../core/XRInput';
 
 /** How far the iron reaches when it is not touching anything. */
 const RANGE = 6;
@@ -229,7 +230,7 @@ export class WelderTool extends Tool {
 
     const other: Handedness = this.heldBy === 'left' ? 'right' : 'left';
     const free = host.ctx.input.get(other);
-    const anchor = free?.tracked ? handAnchor(free) : null;
+    const anchor = free?.tracked ? wristAnchor(free) : null;
     if (!free || !anchor) {
       this.panel.visible = false;
       return;
@@ -327,12 +328,4 @@ export class WelderTool extends Tool {
 
     this.texture.needsUpdate = true;
   }
-}
-
-function handAnchor(controller: ControllerState): THREE.Object3D | null {
-  if (controller.isHand) {
-    const wrist = controller.hand.joints['wrist'];
-    return wrist && wrist.visible ? wrist : null;
-  }
-  return controller.grip.visible ? controller.grip : controller.targetRay;
 }

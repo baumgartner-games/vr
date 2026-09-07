@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { PortalWorld } from '../portal/PortalWorld';
+import { GridWorld } from '../grid/GridWorld';
+import { climbHall, HALL } from './climbHall';
 import { ClimbHud } from './ClimbHud';
 import { TextPlane } from '../../ui/TextPlane';
 import { GRAB_GLOW, GRAB_TINT_EMISSIVE } from '../../core/colors';
@@ -8,9 +9,12 @@ import { holdColor, holdLabel, type HoldFeature, type HoldMaterial } from './hol
 import { gripReport, seatOf, type ClimbPose, type HandGrip } from './gripQuality';
 import { GRAB_AT, SLIP_AT, freshStamina, stepStamina, type Stamina } from './stamina';
 import { fatigueTick, landingBuzz, slipTick, ticksBetween } from './gripHaptics';
+import type { GridPlan } from '../grid/gridPlan';
+import type { PlanSolidKind } from '../grid/solids';
 import type { MenuEntry } from '../../ui/menu';
 import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
+import { gripAnchor } from '../../core/XRInput';
 
 /**
  * **Die Kletterhalle** — die Welt, in der der Greifknopf etwas anderes tut.
@@ -58,7 +62,6 @@ import type { ControllerState, Handedness } from '../../core/XRInput';
  */
 
 /** Innenmaße der Halle. */
-const HALL = { halfX: 13, halfZ: 9, height: 10, wall: 0.35 };
 
 /** Wie weit eine Hand neben einem Griff noch zupacken darf. */
 const REACH = 0.11;
@@ -157,12 +160,7 @@ const _down = new THREE.Vector3(0, -1, 0);
 const _feet = new THREE.Vector3();
 const _seat = new THREE.Vector3();
 
-/** Der Knoten, an dem die Sachen einer Hand hängen — wie im Portal Labor. */
-function gripOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
-}
-
-export class ClimbWorld extends PortalWorld {
+export class ClimbWorld extends GridWorld {
   private readonly holds: Hold[] = [];
   private readonly grasps = new Map<Handedness, Grasp>();
   private readonly drive = new THREE.Vector3();
@@ -176,11 +174,6 @@ export class ClimbWorld extends PortalWorld {
   /** Ob wir dem Rig den Stick abgenommen haben. */
   private lockedByUs = false;
 
-  private readonly hallWall = new THREE.MeshStandardMaterial({
-    color: 0xb9c2d2,
-    roughness: 0.9,
-    metalness: 0.02,
-  });
   private readonly rock = new THREE.MeshStandardMaterial({
     color: 0x7d7367,
     roughness: 0.98,
@@ -195,11 +188,6 @@ export class ClimbWorld extends PortalWorld {
     color: 0x6f7a8d,
     roughness: 0.75,
     metalness: 0.1,
-  });
-  private readonly padding = new THREE.MeshStandardMaterial({
-    color: 0x35577a,
-    roughness: 1,
-    metalness: 0,
   });
   private readonly steel = new THREE.MeshStandardMaterial({
     color: 0x99a1b2,
@@ -312,10 +300,23 @@ export class ClimbWorld extends PortalWorld {
     this.backToTheMat();
   }
 
+  protected override layout(): GridPlan {
+    return climbHall();
+  }
+
+  /** Matte und Hallenwand — der Rest der Halle ist gebaut, nicht gerastert. */
+  protected override tint(): Partial<Record<PlanSolidKind, number>> {
+    return { floor: 0x35577a, wall: 0xb9c2d2 };
+  }
+
   protected override buildEnvironment(): void {
+    super.buildEnvironment();
     const hall = new THREE.Group();
     hall.name = 'climbing-hall';
     this.root.add(hall);
+
+    // Eine Halle hat ein Dach, und die Vorschau von oben braucht es weg.
+    this.roof = HALL.height;
 
     this.buildShell(hall);
     this.buildLadderWall(hall);
@@ -330,40 +331,15 @@ export class ClimbWorld extends PortalWorld {
 
   // --- die Halle ------------------------------------------------------------
 
-  /** Matte, Decke, vier Wände und das Licht darüber. */
+  /**
+   * **Das Licht über der Halle** — mehr ist hier nicht mehr zu tun.
+   *
+   * Matte, Decke und die vier Wände kommen aus dem Grundriss (`climbHall.ts`);
+   * sie waren sechs `slab()`-Aufrufe und sind jetzt vier Zeilen. Was hier
+   * bleibt, sind die Lampen: Eine Halle ohne Licht von oben sieht aus wie eine
+   * Höhle, und man sieht die Griffe nicht, um die es hier geht.
+   */
   private buildShell(hall: THREE.Group): void {
-    const { halfX, halfZ, height, wall } = HALL;
-    const width = (halfX + wall) * 2;
-    const depth = (halfZ + wall) * 2;
-
-    // Die Matte: dick und weich, und sie ist der Grund, warum man hier ohne
-    // Seil klettert. Sie liegt eine Handbreit hoch, damit man sie sieht.
-    this.slab(hall, this.padding, [width, 0.3, depth], [0, -0.15, 0], false);
-    this.slab(hall, this.hallWall, [width, wall, depth], [0, height + wall / 2, 0], false);
-    // Eine Halle hat ein Dach, und die Vorschau von oben braucht es weg.
-    this.roof = height;
-
-    for (const [size, at] of [
-      [
-        [width, height, wall],
-        [0, height / 2, -halfZ - wall / 2],
-      ],
-      [
-        [width, height, wall],
-        [0, height / 2, halfZ + wall / 2],
-      ],
-      [
-        [wall, height, depth],
-        [-halfX - wall / 2, height / 2, 0],
-      ],
-      [
-        [wall, height, depth],
-        [halfX + wall / 2, height / 2, 0],
-      ],
-    ] as const) {
-      this.slab(hall, this.hallWall, size, at, false);
-    }
-
     for (const [x, z] of [
       [-7, -4],
       [7, -4],
@@ -372,10 +348,10 @@ export class ClimbWorld extends PortalWorld {
       [0, 1],
     ] as const) {
       const lamp = new THREE.PointLight(0xf2f6ff, 24, 36, 2);
-      lamp.position.set(x, height - 1.2, z);
+      lamp.position.set(x, HALL.height - 1.2, z);
       hall.add(lamp);
       const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.42, 0.16, 14), this.steel);
-      shade.position.set(x, height - 1, z);
+      shade.position.set(x, HALL.height - 1, z);
       hall.add(shade);
     }
   }
@@ -1036,7 +1012,7 @@ export class ClimbWorld extends PortalWorld {
         continue;
       }
 
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       const near = this.nearestHold(_hand);
       this.light(hand, near?.hold ?? null);
       ctx.hands.setGlow(hand, near !== null);
@@ -1094,7 +1070,7 @@ export class ClimbWorld extends PortalWorld {
     hold: Hold,
     distance: number,
   ): void {
-    gripOf(controller).getWorldPosition(_hand);
+    gripAnchor(controller).getWorldPosition(_hand);
     // Der Anker ist da, wo die Hand ist — aber höchstens einen Griffradius von
     // der Stelle des Griffs entfernt, an der sie sitzt. Sonst hinge man an
     // einem Punkt in der Luft daneben.
@@ -1175,7 +1151,7 @@ export class ClimbWorld extends PortalWorld {
     const grasp = this.grasps.get(hand);
     if (!grasp) return null;
     const controller = ctx.input.get(hand);
-    if (controller) gripOf(controller).getWorldPosition(grasp.point);
+    if (controller) gripAnchor(controller).getWorldPosition(grasp.point);
     else grasp.point.copy(grasp.anchor);
     return {
       material: grasp.hold.material,
@@ -1222,7 +1198,7 @@ export class ClimbWorld extends PortalWorld {
     for (const [hand, grasp] of this.grasps) {
       const controller = ctx.input.get(hand);
       if (!controller) continue;
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       _delta.add(_target.copy(grasp.anchor).sub(_hand));
       count++;
     }

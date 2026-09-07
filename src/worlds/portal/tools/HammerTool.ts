@@ -4,6 +4,7 @@ import { HAMMER_HOME, HAMMER_SHAFT, clampShaftGrip, spanPole, swingPush } from '
 import { playTone } from '../../../core/Audio';
 import type { Vec3 } from './aim';
 import type { ControllerState, Handedness, XRInput } from '../../../core/XRInput';
+import { gripAnchor } from '../../../core/XRInput';
 
 /** Wo der Kopf sitzt und wo der Knauf — die beiden Enden der Stange. */
 const HEAD_Z = -0.52;
@@ -298,13 +299,13 @@ export class HammerTool extends Tool {
     const follow = this.input?.get(other);
     if (!lead?.tracked || !follow?.tracked) return false;
 
-    anchorOf(lead).getWorldPosition(_a);
-    anchorOf(follow).getWorldPosition(_b);
+    gripAnchor(lead).getWorldPosition(_a);
+    gripAnchor(follow).getWorldPosition(_b);
     const span = spanPole({ point: _a, z: mine }, { point: _b, z: theirs });
     if (!span) return false;
 
     _axisZ.set(span.axis.x, span.axis.y, span.axis.z);
-    _up.set(0, 1, 0).applyQuaternion(anchorOf(lead).getWorldQuaternion(_quat));
+    _up.set(0, 1, 0).applyQuaternion(gripAnchor(lead).getWorldQuaternion(_quat));
     _axisX.copy(_up).cross(_axisZ);
     // Die Faust genau in der Achse: dann sagt sie über die Rolle nichts, und
     // eine Basis daraus wäre ein Nullvektor. Einhändig ist dann die ehrlichere
@@ -497,7 +498,7 @@ export class HammerTool extends Tool {
    * zählt, wie weit die Hand hinter das Ende hinausgerutscht ist.
    */
   private gripUnder(controller: ControllerState): number | null {
-    anchorOf(controller).getWorldPosition(_a);
+    gripAnchor(controller).getWorldPosition(_a);
     this.updateWorldMatrix(true, false);
     _matrix.copy(this.matrixWorld).invert();
     _point.copy(_a).applyMatrix4(_matrix);
@@ -556,8 +557,4 @@ export class HammerTool extends Tool {
 
 function otherHand(hand: Handedness): Handedness {
   return hand === 'left' ? 'right' : 'left';
-}
-
-function anchorOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
 }

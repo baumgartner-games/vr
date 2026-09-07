@@ -1,3 +1,5 @@
+import { nextInSteps } from '../../core/steps';
+
 /**
  * **Wie ein Schild aussieht** — Größe, Farben, Markdown, Rollen.
  *
@@ -134,7 +136,7 @@ export function clampSign(settings: Partial<SignSettings> | undefined): SignSett
 
 /** Die nächste Raste über dem Wert, oben wieder von vorn. */
 export function nextStep(steps: readonly number[], value: number): number {
-  return steps.find((step) => step > value + 1e-9) ?? steps[0]!;
+  return nextInSteps(steps, value);
 }
 
 /** Die nächste Farbe der Liste; eine unbekannte fängt vorn an. */

@@ -1,6 +1,7 @@
 import { BRAIN_IDS, brainOf, type BrainId } from './npcBrains';
 import { NPC_KINDS, npcSkin, type NpcKind } from './npcKinds';
 import { SPAWNER_DEFAULTS } from './npcSpawn';
+import { nextInSteps } from '../../core/steps';
 
 /**
  * **Was am Hirn eingestellt ist** — die Zahlen und die zwei Listen, aus denen
@@ -140,7 +141,7 @@ export function clampNpcField(field: NpcField, value: number | undefined): numbe
 
 /** Die nächste Raste über dem Wert, oben angekommen wieder von vorne. */
 export function nextNpcStep(field: NpcField, value: number): number {
-  return field.steps.find((step) => step > value + 1e-9) ?? field.steps[0]!;
+  return nextInSteps(field.steps, value);
 }
 
 /** Wie die Zahl auf der Zeile steht. */

@@ -25,6 +25,7 @@ import {
 import type { BrushStroke, PaintSurface } from './paintCanvas';
 import type { PointerHit } from '../../../core/Pointer';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
+import { wristAnchor } from '../../../core/XRInput';
 
 /** The palette. Six columns, so a row is easy to sweep along with the brush. */
 const COLORS = [
@@ -426,7 +427,7 @@ export class BrushTool extends Tool {
       return;
     }
     const free = host.ctx.input.get(other);
-    const anchor = free?.tracked ? handAnchor(free) : null;
+    const anchor = free?.tracked ? wristAnchor(free) : null;
     if (!anchor) {
       this.palette.visible = false;
       this.setHover(null, null);
@@ -1206,12 +1207,4 @@ function shade(color: number, material: SurfaceMaterial): string {
 /** Ein Feld als Zeichenkette, damit „dasselbe wie eben" vergleichbar ist. */
 function keyOf(slot: Slot | null): string {
   return slot ? `${slot.kind}:${slot.index}` : '';
-}
-
-function handAnchor(controller: ControllerState): THREE.Object3D | null {
-  if (controller.isHand) {
-    const wrist = controller.hand.joints['wrist'];
-    return wrist && wrist.visible ? wrist : null;
-  }
-  return controller.grip.visible ? controller.grip : controller.targetRay;
 }
