@@ -10,11 +10,14 @@ import type {
 } from './types';
 import type { PlayerRig } from '../core/PlayerRig';
 import type { XRInput } from '../core/XRInput';
+import { asHeadgear, type HeadgearKind } from '../core/headgear';
 
 export interface Peer {
   id: string;
   role: PlayerRole;
   name: string;
+  /** Was dieser Spieler auf dem Kopf trägt (`core/headgear.ts`). */
+  hat: HeadgearKind;
   world: string;
   pose: PeerPose | null;
   lastSeen: number;
@@ -66,6 +69,14 @@ export class NetSession {
 
   role: PlayerRole = 'desktop';
   name = 'Spieler';
+  /**
+   * Die eigene Kopfbedeckung, so wie sie angesagt wird.
+   *
+   * Sie steht hier und nicht in der Pose: Ein Hut ändert sich einmal am Abend,
+   * eine Pose zwanzigmal in der Sekunde. Wer sie ändert, sagt sich neu an
+   * (`announce`) — das ist eine Nachricht und kein Strom.
+   */
+  hat: HeadgearKind = 'none';
   world = 'hub';
   connected = false;
   room = '';
@@ -157,6 +168,7 @@ export class NetSession {
       name: this.name,
       world: this.world,
       since: this.localSeniority,
+      hat: this.hat,
     });
   }
 
@@ -306,6 +318,7 @@ export class NetSession {
         const peer = this.touchPeer(message.from, stamp);
         peer.role = message.role;
         peer.name = message.name;
+        peer.hat = asHeadgear(message.hat);
         peer.world = message.world;
         setSeniority(peer, message.since);
         // Answer so the newcomer learns about us too — but only once, otherwise
@@ -360,6 +373,7 @@ export class NetSession {
         id,
         role: 'desktop',
         name: id,
+        hat: 'none',
         world: 'hub',
         pose: null,
         lastSeen: now,

@@ -6,7 +6,9 @@ import {
   clampKartField,
   kartFieldLabel,
   nextKartStep,
+  viewFollow,
 } from './kartSettings';
+import { MAX_LAG } from './kartView';
 
 const field = (key: string) => KART_FIELDS.find((entry) => entry.key === key)!;
 
@@ -33,6 +35,12 @@ describe('clampKart', () => {
 
   it('refuses a steering mode it does not know', () => {
     expect(clampKart({ steering: 'joystick' as never }).steering).toBe(DEFAULT_KART.steering);
+  });
+
+  it('nimmt für den Helm nur ein ausdrückliches Ja', () => {
+    // Jeder gespeicherte Stand von gestern kennt das Feld nicht.
+    expect(clampKart({ helmet: 'ja' as never }).helmet).toBe(false);
+    expect(clampKart({ helmet: true }).helmet).toBe(true);
   });
 
   it('leaves every preset exactly as it is', () => {
@@ -99,5 +107,28 @@ describe('kartFieldLabel', () => {
 
   it('leaves a bare number alone', () => {
     expect(kartFieldLabel(field('traction'), DEFAULT_KART)).toBe('0.75');
+  });
+});
+
+describe('die drei Zahlen des Kopfes', () => {
+  it('reicht sie unverändert an die Rechnung weiter', () => {
+    expect(viewFollow(DEFAULT_KART)).toEqual({
+      lag: DEFAULT_KART.headLag,
+      dead: DEFAULT_KART.headDeadZone,
+      rate: DEFAULT_KART.headTurnRate,
+    });
+  });
+
+  it('lässt die Totzone nicht über den harten Deckel hinaus', () => {
+    // Eine Totzone größer als `MAX_LAG` wäre keine: Der harte Deckel zöge den
+    // Kopf ohnehin nach, und die Einstellung täte nichts mehr.
+    expect(field('headDeadZone').max).toBeLessThan(MAX_LAG);
+  });
+
+  it('lässt beide neuen Werte ganz abschalten', () => {
+    // 0 heißt bei beiden „gibt es nicht": keine Totzone, kein Deckel — also
+    // genau das Verhalten von vorher.
+    expect(clampKartField(field('headDeadZone'), 0)).toBe(0);
+    expect(clampKartField(field('headTurnRate'), 0)).toBe(0);
   });
 });

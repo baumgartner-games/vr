@@ -12,21 +12,18 @@
  *
  * - **Einfach** — Zeile für Zeile derselbe Aufbau wie vorher. Wer nichts
  *   einstellt, merkt von dieser Datei nichts.
- * - **Schön** — Schatten von der Sonne, ein Umgebungsbild aus dem Himmel der
- *   Welt (damit Metall etwas zu spiegeln hat) und ein schärferes Bild in der
- *   Brille.
  * - **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
- *   Ding (`outlineShell.ts`) und Licht, das in **Stufen** auf den Flächen
- *   liegt statt in einem Verlauf. Kein Umgebungsbild — eine Spiegelung ist
- *   genau das, was ein gezeichnetes Bild nicht hat.
+ *   Ding (`outlineShell.ts`), Licht, das in **Stufen** auf den Flächen liegt
+ *   statt in einem Verlauf, und Schatten von der Sonne. Kein Umgebungsbild —
+ *   eine Spiegelung ist genau das, was ein gezeichnetes Bild nicht hat.
  *
- * Daneben steht ein zweiter Schalter, der mit der Stufe nichts zu tun hat:
- * **Texturen**. Die Welten sind absichtlich ohne Bilddateien gebaut — nichts
- * lädt nach, nichts wartet —, und deshalb ist auch die Antwort darauf keine
- * Datei, sondern **Rechnung**: ein Rauschen im Shader, das jeder Oberfläche
- * Körnung, ein bisschen Farbunruhe und eine leichte Unebenheit gibt
- * (`proceduralDetail.ts`). Das kostet kein Byte Ladezeit und ein paar Prozent
- * Bildrate, und es ist der Unterschied zwischen „aus Plastik" und „aus etwas".
+ * **Es waren einmal drei.** Dazwischen stand *Schön*: Schatten, ein
+ * Umgebungsbild aus dem Himmel der Welt und ein schärferes Bild in der Brille;
+ * daneben ein zweiter Schalter für **prozedurale Texturen** — ein Rauschen im
+ * Shader, das jeder Oberfläche Körnung gab. Beides ist wieder heraus, und zwar
+ * vollständig: die Stufe, der Schalter, das Umgebungsbild und der ganze
+ * Shader-Umbau dahinter. Was bleibt, ist die Frage, für die es diese Datei
+ * gibt — flach oder gezeichnet.
  *
  * Diese Datei ist **reine Rechnung und Beschriftung** — kein three.js. Wer die
  * Werte anwendet, ist `GraphicsQuality.ts`; wie sie in der Szene ankommen,
@@ -40,32 +37,25 @@
 
 const KEY = 'bgvr.graphics';
 
-/** Die drei Stufen. `simple` ist das Bild, das dieses Projekt immer hatte. */
-export type GraphicsMode = 'simple' | 'fancy' | 'comic';
+/** Die beiden Stufen. `simple` ist das Bild, das dieses Projekt immer hatte. */
+export type GraphicsMode = 'simple' | 'comic';
 
-export const GRAPHICS_MODES = ['simple', 'fancy', 'comic'] as const;
+export const GRAPHICS_MODES = ['simple', 'comic'] as const;
 
 export interface GraphicsSettings {
   mode: GraphicsMode;
-  /**
-   * Prozedurale Oberflächen: Körnung, Farbunruhe und eine leichte Unebenheit,
-   * im Shader gerechnet statt aus einer Bilddatei geladen.
-   */
-  textures: boolean;
 }
 
 /** Was ausgeliefert wird: das Bild von vorher, ohne alles Neue. */
-export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple', textures: false };
+export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple' };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
   simple: 'Einfach',
-  fancy: 'Schön',
   comic: 'Comic',
 };
 
 export const GRAPHICS_MODE_SUBS: Record<GraphicsMode, string> = {
   simple: 'Wie bisher · flache Farben, keine Schatten',
-  fancy: 'Schatten, Spiegelungen, schärferes Bild · kostet Bildrate',
   comic: 'Schwarze Konturen und Licht in Stufen · zeichnet alles zweimal',
 };
 
@@ -92,19 +82,13 @@ export interface GraphicsProfile {
   shadowRange: number;
   /** Wie weit die Sonne für die Schattenrechnung hinter den Spieler rückt. */
   shadowDistance: number;
-  /** Ob aus dem Himmel der Welt ein Umgebungsbild gerechnet wird. */
-  environment: boolean;
-  /** Wie stark dieses Umgebungsbild leuchtet (`Scene.environmentIntensity`). */
-  environmentIntensity: number;
   /**
    * Womit Hemisphären- und Umgebungslicht multipliziert werden.
    *
    * Der unscheinbarste Wert hier und der wichtigste: Ein Schatten ist nur so
    * dunkel, wie das Licht daneben hell ist, und diese Welten leuchten ihr
    * Grundlicht mit 1,5 aus. Auf voller Stärke war der schönste Schatten ein
-   * Hauch — man sah ihn erst, wenn man das Grundlicht herunterdrehte. Also
-   * dreht die schöne Stufe es selbst herunter und ersetzt den Anteil durch das
-   * Umgebungsbild, das aus derselben Richtung kommt wie der Himmel darüber.
+   * Hauch — man sah ihn erst, wenn man das Grundlicht herunterdrehte.
    */
   ambientScale: number;
   /**
@@ -114,8 +98,6 @@ export interface GraphicsProfile {
   framebufferScale: number;
   /** 0 ist scharf bis zum Rand, 1 ist am billigsten (`XR.setFoveation`). */
   foveation: number;
-  /** Ob die prozeduralen Oberflächen in die Shader eingebaut werden. */
-  detail: boolean;
   /**
    * In wie vielen Stufen das Licht liegt; 0 heißt: in keiner, also im Verlauf.
    *
@@ -149,29 +131,21 @@ export interface GraphicsProfile {
  * verändern, sonst ist „wie bisher" gelogen.
  */
 export function graphicsProfile(settings: GraphicsSettings): GraphicsProfile {
-  const fancy = settings.mode === 'fancy';
   const comic = settings.mode === 'comic';
-  const plain = !fancy && !comic;
   return {
-    // Schatten hat auch der Comic: Ein gezeichnetes Bild ohne sie sieht aus,
-    // als schwebte alles einen Zentimeter über dem Boden — und in Stufen
-    // gerechnet wird aus dem weichen Rand ohnehin eine harte Fläche.
-    shadows: !plain,
+    // Schatten hat der Comic: Ein gezeichnetes Bild ohne sie sieht aus, als
+    // schwebte alles einen Zentimeter über dem Boden — und in Stufen gerechnet
+    // wird aus dem weichen Rand ohnehin eine harte Fläche.
+    shadows: comic,
     shadowMapSize: 2048,
     shadowRange: 14,
     shadowDistance: 24,
-    environment: fancy,
-    // Deutlich unter 1: Das Umgebungsbild kommt zusätzlich zu Hemisphären- und
-    // Richtungslicht, die schon da sind. Es soll spiegeln, nicht aufhellen.
-    environmentIntensity: fancy ? 0.45 : 0,
-    // Der Comic dämpft weniger als die schöne Stufe: Was ihm das Grundlicht
-    // wegnimmt, ersetzt dort kein Umgebungsbild, und zwei Stufen brauchen
+    // Der Comic dämpft das Grundlicht nur mäßig: Zwei Stufen brauchen
     // Mitteltöne zwischen sich.
-    ambientScale: fancy ? 0.45 : comic ? 0.7 : 1,
-    framebufferScale: plain ? 1 : 1.2,
+    ambientScale: comic ? 0.7 : 1,
+    framebufferScale: comic ? 1.2 : 1,
     // Eine Kontur von zwei Pixeln verträgt keine verwaschenen Bildränder.
-    foveation: plain ? 1 : 0.3,
-    detail: settings.textures,
+    foveation: comic ? 0.3 : 1,
     toonBands: comic ? 3 : 0,
     outlines: comic,
     outlineWidth: 0.006,
@@ -183,12 +157,12 @@ export function graphicsProfile(settings: GraphicsSettings): GraphicsProfile {
 /** Ein Einstellungsobjekt, bei dem jeder Wert erlaubt ist. */
 export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): GraphicsSettings {
   const raw = settings ?? {};
+  // Ein gespeicherter Stand von gestern kann `fancy` sagen — die Stufe gibt es
+  // nicht mehr, und aus etwas, das es nicht gibt, wird der Auslieferungszustand.
   const mode = GRAPHICS_MODES.includes(raw.mode as GraphicsMode)
     ? (raw.mode as GraphicsMode)
     : DEFAULT_GRAPHICS.mode;
-  // Anders herum als beim Modus: Wer nichts gesagt hat — und jeder gespeicherte
-  // Stand von gestern hat nichts gesagt —, will die Oberflächen aus.
-  return { mode, textures: raw.textures === true };
+  return { mode };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -199,7 +173,7 @@ export function nextGraphicsMode(mode: GraphicsMode): GraphicsMode {
 
 /** Wie die Seite im Menü unter ihrer Überschrift steht. */
 export function graphicsSummary(settings: GraphicsSettings): string {
-  return `${GRAPHICS_MODE_LABELS[settings.mode]} · Texturen ${settings.textures ? 'an' : 'aus'}`;
+  return GRAPHICS_MODE_LABELS[settings.mode];
 }
 
 // --- der Speicher ----------------------------------------------------------

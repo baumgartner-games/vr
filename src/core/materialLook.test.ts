@@ -9,10 +9,8 @@ import {
   supportsLook,
 } from './materialLook';
 
-/** Nur die Körnung, ohne Farbstufen — die häufigste Fassung im Test. */
-const GRAIN = { detail: true, toon: 0 };
-/** Und der Comic: Farbstufen ohne Körnung. */
-const TOON = { detail: false, toon: 3 };
+/** Der Comic: Licht in drei Stufen. */
+const TOON = 3;
 
 /**
  * Der Haken eines Materials, ohne ihn anzufassen.
@@ -39,7 +37,7 @@ describe('was in die Shader der Welt eingebaut wird', () => {
     expect(supportsLook(new THREE.MeshStandardMaterial())).toBe(true);
     expect(supportsLook(new THREE.MeshPhysicalMaterial())).toBe(true);
     // Sämtliche Menüs, Schilder und Beschriftungen sind hieraus gebaut: Ein
-    // körniger Text wäre ein kaputter Text.
+    // gestufter Text wäre ein kaputter Text.
     expect(supportsLook(new THREE.MeshBasicMaterial())).toBe(false);
     expect(supportsLook(new THREE.MeshStandardMaterial({ transparent: true }))).toBe(false);
   });
@@ -48,7 +46,7 @@ describe('was in die Shader der Welt eingebaut wird', () => {
     const material = new THREE.MeshStandardMaterial();
     material.userData['bgvrNoLook'] = true;
     expect(supportsLook(material)).toBe(false);
-    expect(applyLook(material, GRAIN)).toBe(false);
+    expect(applyLook(material, TOON)).toBe(false);
   });
 
   it('baut ein und wieder aus, ohne Spuren', () => {
@@ -56,23 +54,23 @@ describe('was in die Shader der Welt eingebaut wird', () => {
     const before = hook(material);
     const version = material.version;
 
-    expect(applyLook(material, GRAIN)).toBe(true);
-    expect(lookOf(material).detail).toBe(true);
+    expect(applyLook(material, TOON)).toBe(true);
+    expect(lookOf(material)).toBe(TOON);
     expect(hook(material)).not.toBe(before);
     // `needsUpdate` zählt die Fassung hoch — ohne das übersetzt three.js
     // weiter den Shader von vorhin.
     expect(material.version).toBeGreaterThan(version);
 
     expect(clearLook(material)).toBe(true);
-    expect(lookOf(material)).toEqual(PLAIN_LOOK);
+    expect(lookOf(material)).toBe(PLAIN_LOOK);
     expect(hook(material)).toBe(before);
     expect(Object.keys(material.userData)).toHaveLength(0);
   });
 
   it('baut nicht zweimal ein und nicht zweimal aus', () => {
     const material = new THREE.MeshStandardMaterial();
-    expect(applyLook(material, GRAIN)).toBe(true);
-    expect(applyLook(material, GRAIN)).toBe(false);
+    expect(applyLook(material, TOON)).toBe(true);
+    expect(applyLook(material, TOON)).toBe(false);
     expect(clearLook(material)).toBe(true);
     expect(clearLook(material)).toBe(false);
   });
@@ -82,7 +80,7 @@ describe('was in die Shader der Welt eingebaut wird', () => {
     const mine = jest.fn();
     material.onBeforeCompile = mine;
 
-    applyLook(material, GRAIN);
+    applyLook(material, TOON);
     expect(hook(material)).not.toBe(mine);
     clearLook(material);
 
@@ -91,50 +89,10 @@ describe('was in die Shader der Welt eingebaut wird', () => {
     expect(mine).toHaveBeenCalledTimes(1);
   });
 
-  it('findet seine Stellen im echten Shader von three.js', () => {
-    // Der eigentliche Grund für diesen Test: Der Umbau hängt an sechs
-    // `#include`-Zeilen, die three.js gehören. Wird eine davon in einer neuen
-    // Fassung umbenannt, fällt das sonst erst in der Brille auf — als eine
-    // Welt, in der die Körnung fehlt oder gar nichts mehr gezeichnet wird.
-    const shader = physicalShader();
-    const before = { ...shader };
-    injectLook(shader, GRAIN);
-
-    expect(shader.vertexShader).not.toBe(before.vertexShader);
-    expect(shader.fragmentShader).not.toBe(before.fragmentShader);
-    // Die Weltposition: hinten im Vertex-Shader gerechnet, vorn deklariert.
-    expect(shader.vertexShader).toContain('varying vec3 vBgvrWorld;');
-    expect(shader.vertexShader).toContain('#include <project_vertex>\n');
-    expect(shader.vertexShader.indexOf('vBgvrWorld =')).toBeGreaterThan(
-      shader.vertexShader.indexOf('#include <project_vertex>'),
-    );
-    // Und die drei Zugriffe im Fragment-Shader, jeder hinter seinem Baustein.
-    for (const [chunk, mark] of [
-      ['#include <map_fragment>', 'diffuseColor.rgb *='],
-      ['#include <roughnessmap_fragment>', 'roughnessFactor = clamp('],
-      ['#include <normal_fragment_maps>', 'normal = bgvrPerturb('],
-    ] as const) {
-      expect(shader.fragmentShader).toContain(chunk);
-      expect(shader.fragmentShader.indexOf(mark)).toBeGreaterThan(
-        shader.fragmentShader.indexOf(chunk),
-      );
-    }
-  });
-
-  it('rechnet die Körnung, bevor sie gebraucht wird', () => {
-    // Rauheit und Normale lesen `bgvrGrain`; steht es weiter hinten, übersetzt
-    // der Shader nicht mehr.
-    const shader = physicalShader();
-    injectLook(shader, GRAIN);
-    const source = shader.fragmentShader;
-    expect(source.indexOf('float bgvrGrain =')).toBeGreaterThan(source.indexOf('float bgvrNoise('));
-    expect(source.indexOf('float bgvrGrain =')).toBeLessThan(
-      source.indexOf('roughnessFactor = clamp('),
-    );
-    expect(source.indexOf('float bgvrGrain =')).toBeLessThan(source.indexOf('dFdx( bgvrGrain )'));
-  });
-
   it('legt die Farbstufen hinter das zusammengezählte Licht', () => {
+    // Der eigentliche Grund für diesen Test: Der Umbau hängt an einer
+    // `#include`-Zeile, die three.js gehört. Wird sie in einer neuen Fassung
+    // umbenannt, fällt das sonst erst in der Brille auf.
     const shader = physicalShader();
     injectLook(shader, TOON);
     const source = shader.fragmentShader;
@@ -151,57 +109,52 @@ describe('was in die Shader der Welt eingebaut wird', () => {
     // Die Stufenzahl steht als Zahl im Quelltext, nicht als Uniform: An ihr
     // hängt der Programmschlüssel.
     expect(source).toContain('* 3.0 + 0.5');
-    // Die Körnung bleibt draußen, wenn nur der Comic bestellt war.
-    expect(source).not.toContain('bgvrNoise');
   });
 
-  it('kann beides zugleich, und dann steht auch beides drin', () => {
-    // Ein Material hat genau ein `onBeforeCompile`. Texturen an *und* Comic an
-    // war der Fall, an dem sich zwei getrennte Umbauten gegenseitig
-    // überschrieben hätten.
+  it('lässt einen Shader in Ruhe, wenn keine Stufen bestellt sind', () => {
     const shader = physicalShader();
-    injectLook(shader, { detail: true, toon: 4 });
-    expect(shader.fragmentShader).toContain('bgvrNoise');
-    expect(shader.fragmentShader).toContain('bgvrScale');
-    expect(shader.fragmentShader).toContain('* 4.0 + 0.5');
+    const before = { ...shader };
+    injectLook(shader, PLAIN_LOOK);
+    expect(shader.fragmentShader).toBe(before.fragmentShader);
+    expect(shader.vertexShader).toBe(before.vertexShader);
   });
 
-  it('gibt jeder Fassung ihren eigenen Programmschlüssel', () => {
-    // Ohne das bekämen Körnung und Farbstufen denselben übersetzten Shader —
+  it('gibt jeder Stufenzahl ihren eigenen Programmschlüssel', () => {
+    // Ohne das bekämen drei und fünf Stufen denselben übersetzten Shader —
     // three.js schlüsselt seinen Cache sonst über den *Text* von
     // `onBeforeCompile`, und der ist bei beiden Zeichen für Zeichen derselbe.
-    const keys = [GRAIN, TOON, { detail: true, toon: 3 }, PLAIN_LOOK].map(lookKey);
-    expect(new Set(keys).size).toBe(4);
+    const keys = [PLAIN_LOOK, 3, 4].map(lookKey);
+    expect(new Set(keys).size).toBe(3);
 
-    const grain = new THREE.MeshStandardMaterial();
-    const toon = new THREE.MeshStandardMaterial();
-    applyLook(grain, GRAIN);
-    applyLook(toon, TOON);
-    expect(grain.customProgramCacheKey()).not.toBe(toon.customProgramCacheKey());
-    expect(grain.customProgramCacheKey()).not.toBe(
+    const three = new THREE.MeshStandardMaterial();
+    const four = new THREE.MeshStandardMaterial();
+    applyLook(three, 3);
+    applyLook(four, 4);
+    expect(three.customProgramCacheKey()).not.toBe(four.customProgramCacheKey());
+    expect(three.customProgramCacheKey()).not.toBe(
       new THREE.MeshStandardMaterial().customProgramCacheKey(),
     );
 
-    clearLook(grain);
-    expect(grain.customProgramCacheKey()).toBe(
+    clearLook(three);
+    expect(three.customProgramCacheKey()).toBe(
       new THREE.MeshStandardMaterial().customProgramCacheKey(),
     );
   });
 
   it('wechselt die Fassung, statt sie zu stapeln', () => {
     const material = new THREE.MeshStandardMaterial();
-    applyLook(material, GRAIN);
-    expect(applyLook(material, TOON)).toBe(true);
-    expect(lookOf(material)).toEqual(TOON);
+    applyLook(material, 3);
+    expect(applyLook(material, 4)).toBe(true);
+    expect(lookOf(material)).toBe(4);
 
     const shader = physicalShader();
     material.onBeforeCompile(shader, null as never);
-    expect(shader.fragmentShader).not.toContain('bgvrNoise');
-    expect(shader.fragmentShader).toContain('bgvrScale');
+    expect(shader.fragmentShader).toContain('* 4.0 + 0.5');
+    expect(shader.fragmentShader).not.toContain('* 3.0 + 0.5');
 
     // Und die leere Fassung ist der Ausbau, nicht eine dritte Sorte Umbau.
     expect(applyLook(material, PLAIN_LOOK)).toBe(true);
-    expect(lookOf(material)).toEqual(PLAIN_LOOK);
+    expect(lookOf(material)).toBe(PLAIN_LOOK);
     expect(Object.keys(material.userData)).toHaveLength(0);
   });
 });

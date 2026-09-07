@@ -5452,6 +5452,7 @@ export class PortalWorld implements World {
       stowTool: (tool) => this.stowTool(tool),
       npcs: (): NpcControl | null => this.director,
       signs: (): SignControl | null => this.signs,
+      navMap: (): NavGraph | null => this.nav,
       takeTool: (tool, hand) => {
         const now = this.context;
         const controller = now?.input.get(hand);

@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
+import type { HeadgearKind } from './headgear';
 import type { XRInput } from './XRInput';
 import type { Pointer } from './Pointer';
 import type { PlayerAvatar } from './PlayerAvatar';
@@ -49,6 +50,16 @@ export interface WorldContext {
    * Maschine wieder lesen kann.
    */
   say(text: string, options?: { kind?: 'text' | 'code'; note?: string }): void;
+  /**
+   * **Setzt dem Spieler etwas auf den Kopf** — für die Dauer dessen, was die
+   * Welt gerade mit ihm anstellt (`core/headgear.ts`).
+   *
+   * `null` gibt den Kopf wieder der Einstellung zurück (`core/appearance.ts`).
+   * Das ist die ganze Regel dahinter: Was man selbst gewählt hat, gehört einem
+   * und keiner Welt — ein Helm im Gokart ist geliehen, und wer aussteigt, hat
+   * wieder seinen eigenen Hut auf.
+   */
+  wear(kind: HeadgearKind | null): void;
 }
 
 /**
