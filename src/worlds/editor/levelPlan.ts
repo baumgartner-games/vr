@@ -63,6 +63,10 @@ export const PLAN_FLOOR_T = 0.3;
 export const PLAN_DOOR_W = 1.2;
 /** Und wie hoch. */
 export const PLAN_DOOR_H = 2.1;
+/** Ein Fenster: wie breit, und zwischen welchen beiden Höhen es offen ist. */
+export const PLAN_WINDOW_W = 1.4;
+export const PLAN_WINDOW_SILL = 0.95;
+export const PLAN_WINDOW_HEAD = 2.1;
 
 /**
  * **Womit ein Werkzeug auf den Plan zeigt** — was man gerade baut.
