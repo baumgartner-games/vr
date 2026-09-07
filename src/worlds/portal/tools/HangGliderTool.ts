@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GlideTool, anchorOf, type GlideCommand } from './GlideTool';
+import { GlideTool, type GlideCommand } from './GlideTool';
 import { disposeToolTree, type ToolHost } from './Tool';
 import { createGripShape } from './grip';
 import { gripFrame } from './gripFit';
@@ -7,6 +7,7 @@ import { HANG_GLIDER, BAR_NEUTRAL, barCommand, barTilt, type GlideParams } from 
 import type { HoldPose } from './toolPose';
 import type { Vec3 } from './aim';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
+import { gripAnchor } from '../../../core/XRInput';
 
 /** Halbe Breite des Steuerbügels — so weit liegen die Fäuste auseinander. */
 export const BAR_HALF = 0.34;
@@ -244,7 +245,7 @@ export class HangGliderTool extends GlideTool {
   }
 
   protected override placeWing(host: ToolHost, controller: ControllerState): void {
-    anchorOf(controller).getWorldPosition(_mid);
+    gripAnchor(controller).getWorldPosition(_mid);
     // Schräglage nach rechts ist eine Drehung um die Bahn nach rechts herum,
     // und die ist in three.js negativ um Z.
     const bank = (-this.state.bank * Math.PI) / 180;
@@ -255,7 +256,7 @@ export class HangGliderTool extends GlideTool {
 
     const other = this.twoHanded ? this.secondHand(host, controller) : null;
     if (other) {
-      anchorOf(other).getWorldPosition(_other);
+      gripAnchor(other).getWorldPosition(_other);
       _mid.add(_other).multiplyScalar(0.5);
     } else {
       // Der Bügel liegt mit einem Ende in der Faust; seine Mitte ist eine
@@ -308,8 +309,8 @@ export class HangGliderTool extends GlideTool {
     const other = host.ctx.input.get(side);
     if (!other?.tracked || !other.squeeze.pressed) return null;
     if (host.heldTool(side)) return null;
-    anchorOf(controller).getWorldPosition(_mid);
-    anchorOf(other).getWorldPosition(_other);
+    gripAnchor(controller).getWorldPosition(_mid);
+    gripAnchor(other).getWorldPosition(_other);
     return _mid.distanceTo(_other) < BAR_REACH ? other : null;
   }
 }
@@ -320,7 +321,7 @@ export class HangGliderTool extends GlideTool {
  * rechte Seite hängt.
  */
 function wristTilt(controller: ControllerState): number {
-  _right.set(1, 0, 0).applyQuaternion(anchorOf(controller).getWorldQuaternion(_quaternion));
+  _right.set(1, 0, 0).applyQuaternion(gripAnchor(controller).getWorldQuaternion(_quaternion));
   const flat = Math.hypot(_right.x, _right.z);
   return (Math.atan2(-_right.y, flat) * 180) / Math.PI;
 }

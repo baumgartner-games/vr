@@ -14,6 +14,7 @@ import type { PlanSolidKind } from '../grid/solids';
 import type { MenuEntry } from '../../ui/menu';
 import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
+import { gripAnchor } from '../../core/XRInput';
 
 /**
  * **Die Kletterhalle** — die Welt, in der der Greifknopf etwas anderes tut.
@@ -158,11 +159,6 @@ const _point = new THREE.Vector3();
 const _down = new THREE.Vector3(0, -1, 0);
 const _feet = new THREE.Vector3();
 const _seat = new THREE.Vector3();
-
-/** Der Knoten, an dem die Sachen einer Hand hängen — wie im Portal Labor. */
-function gripOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
-}
 
 export class ClimbWorld extends GridWorld {
   private readonly holds: Hold[] = [];
@@ -1016,7 +1012,7 @@ export class ClimbWorld extends GridWorld {
         continue;
       }
 
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       const near = this.nearestHold(_hand);
       this.light(hand, near?.hold ?? null);
       ctx.hands.setGlow(hand, near !== null);
@@ -1074,7 +1070,7 @@ export class ClimbWorld extends GridWorld {
     hold: Hold,
     distance: number,
   ): void {
-    gripOf(controller).getWorldPosition(_hand);
+    gripAnchor(controller).getWorldPosition(_hand);
     // Der Anker ist da, wo die Hand ist — aber höchstens einen Griffradius von
     // der Stelle des Griffs entfernt, an der sie sitzt. Sonst hinge man an
     // einem Punkt in der Luft daneben.
@@ -1155,7 +1151,7 @@ export class ClimbWorld extends GridWorld {
     const grasp = this.grasps.get(hand);
     if (!grasp) return null;
     const controller = ctx.input.get(hand);
-    if (controller) gripOf(controller).getWorldPosition(grasp.point);
+    if (controller) gripAnchor(controller).getWorldPosition(grasp.point);
     else grasp.point.copy(grasp.anchor);
     return {
       material: grasp.hold.material,
@@ -1202,7 +1198,7 @@ export class ClimbWorld extends GridWorld {
     for (const [hand, grasp] of this.grasps) {
       const controller = ctx.input.get(hand);
       if (!controller) continue;
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       _delta.add(_target.copy(grasp.anchor).sub(_hand));
       count++;
     }

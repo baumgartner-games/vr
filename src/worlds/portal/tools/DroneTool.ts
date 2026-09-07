@@ -29,6 +29,7 @@ import { UIPanel } from '../../../ui/UIPanel';
 import { drawMenuIcon, type MenuEntry } from '../../../ui/menu';
 import type { ControllerState, Handedness, XRInput } from '../../../core/XRInput';
 import type { Pointer } from '../../../core/Pointer';
+import { gripAnchor } from '../../../core/XRInput';
 
 /** Resolution of the picture on the hand-held display. */
 const FEED_W = 384;
@@ -593,8 +594,8 @@ export class DroneTool extends Tool {
     const right = this.input?.get('right');
     if (!parent || !left?.tracked || !right?.tracked) return false;
 
-    anchorOf(left).getWorldPosition(_a);
-    anchorOf(right).getWorldPosition(_b);
+    gripAnchor(left).getWorldPosition(_a);
+    gripAnchor(right).getWorldPosition(_b);
     _axisX.copy(_b).sub(_a);
     if (_axisX.lengthSq() < 1e-4) return false;
     _axisX.normalize();
@@ -652,7 +653,7 @@ export class DroneTool extends Tool {
   private nearFreeGrip(hand: Handedness): boolean {
     const controller = this.input?.get(hand);
     if (!controller?.tracked) return false;
-    anchorOf(controller).getWorldPosition(_a);
+    gripAnchor(controller).getWorldPosition(_a);
     this.grips[hand].getWorldPosition(_b);
     return _a.distanceToSquared(_b) < GRIP_REACH * GRIP_REACH;
   }
@@ -914,9 +915,4 @@ export class DroneTool extends Tool {
 
   /** The room, kept from the last frame — the panel's rows need it too. */
   private hostRef: ToolHost | null = null;
-}
-
-/** Where a hand actually is: the grip when there is one, else the ray. */
-function anchorOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
 }

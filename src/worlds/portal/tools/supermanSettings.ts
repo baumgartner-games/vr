@@ -1,3 +1,5 @@
+import { nextInSteps } from '../../../core/steps';
+
 /**
  * Wie sich der Supermanhandschuh fliegt.
  *
@@ -193,7 +195,7 @@ export function clampSupermanField(field: SupermanField, value: number | undefin
 
 /** Die nächste Raste über dem eingestellten Wert, oben wieder von vorne. */
 export function nextSupermanStep(field: SupermanField, value: number): number {
-  return field.steps.find((step) => step > value + 1e-9) ?? field.steps[0]!;
+  return nextInSteps(field.steps, value);
 }
 
 /** Die nächste Quelle in der Runde: Hand → Kopf → beide → aus → Hand. */

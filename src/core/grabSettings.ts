@@ -1,3 +1,5 @@
+import { nextInSteps } from './steps';
+
 /**
  * Wie weit eine Hand reicht, und was am Ende der Reichweite passiert.
  *
@@ -179,7 +181,7 @@ export function clampGrab(settings: Partial<GrabSettings> | undefined): GrabSett
  * Raste hinter der zufällig nächstgelegenen".
  */
 export function nextGrabStep(field: GrabField, value: number): number {
-  return field.steps.find((step) => step > value + 1e-9) ?? field.steps[0]!;
+  return nextInSteps(field.steps, value);
 }
 
 /**

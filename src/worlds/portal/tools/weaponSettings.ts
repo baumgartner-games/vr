@@ -1,3 +1,5 @@
+import { nextInSteps } from '../../../core/steps';
+
 /**
  * Every number the pistol runs on, in one place.
  *
@@ -278,7 +280,7 @@ export function clampField(field: WeaponField, value: number): number {
  * happens to be nearest".
  */
 export function nextStep(steps: readonly number[], value: number): number {
-  return steps.find((step) => step > value + 1e-9) ?? steps[0]!;
+  return nextInSteps(steps, value);
 }
 
 /** How the magnification reads: "4×", and 2.5 stays 2.5×. */

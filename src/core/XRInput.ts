@@ -47,6 +47,43 @@ export class ButtonState {
   }
 }
 
+/**
+ * **Woran eine Hand ihre Sachen hält** — der Griffraum, wenn es einen gibt,
+ * sonst der Zeigestrahl.
+ *
+ * Diese eine Zeile stand an **dreizehn** Stellen im Projekt, in drei
+ * Schreibweisen und unter vier Namen (`gripOf`, `anchorOf`, `handAnchor`,
+ * `handPosition`). Sie ist keine Bequemlichkeit, sondern eine Entscheidung:
+ * Ein Controller meldet beides, eine bloße Hand nur den Zeigestrahl — und wer
+ * das nicht abfängt, hängt sein Werkzeug bei getrackten Händen an einen Raum,
+ * der auf `(0,0,0)` steht und unsichtbar bleibt.
+ *
+ * Wo bewusst etwas anderes gilt, steht es weiter ausgeschrieben: `updateHold`
+ * schließt bloße Hände ausdrücklich aus, und der Eingaberaum zeigt das
+ * Handmodell selbst an.
+ */
+export function gripAnchor(controller: ControllerState): THREE.Object3D {
+  return controller.grip.visible ? controller.grip : controller.targetRay;
+}
+
+/**
+ * **Das Handgelenk, wenn es eines gibt** — sonst derselbe Griffraum wie oben.
+ *
+ * Der Unterschied zu `gripAnchor` ist eine Sache und eine wichtige: Bei einer
+ * getrackten Hand hängt hier etwas am **Handgelenk** statt am Zeigestrahl, und
+ * das ist der Unterschied zwischen einer Palette, die neben der Hand
+ * mitschwebt, und einer, die vor ihr her fliegt. `null`, solange das Gelenk
+ * nicht gesehen wird — daran erkennt der Aufrufer, dass er gerade nichts
+ * anzeigen soll.
+ */
+export function wristAnchor(controller: ControllerState): THREE.Object3D | null {
+  if (controller.isHand) {
+    const wrist = controller.hand.joints['wrist'];
+    return wrist && wrist.visible ? wrist : null;
+  }
+  return gripAnchor(controller);
+}
+
 export class ControllerState {
   handedness: Handedness | null = null;
   connected = false;
