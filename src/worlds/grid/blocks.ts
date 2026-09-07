@@ -45,7 +45,8 @@ export type BlockKind =
   | 'parapet'
   | 'stairs'
   | 'ramp'
-  | 'platform';
+  | 'platform'
+  | 'panel';
 
 /** Wo ein Baustein steht: Kachelmitte, Bodenoberkante, Blickrichtung. */
 export interface BlockSite {
@@ -102,6 +103,7 @@ export const BLOCKS: Readonly<Record<BlockKind, BlockFacts>> = {
   // Ein Podest **ist** der Boden, auf dem man dort steht — deshalb hebt es ihn
   // an, statt ein Hindernis darauf zu sein.
   platform: { label: 'Podest', rise: 1.2, cost: 1, height: 1.2 },
+  panel: { label: 'Portaltafel', rise: 0, cost: 1, height: 2.4 },
 };
 
 export const BLOCK_KINDS: readonly BlockKind[] = Object.keys(BLOCKS) as BlockKind[];
@@ -163,6 +165,8 @@ export function turned(solids: readonly PlanSolid[], dir: Dir): PlanSolid[] {
 const CLEAR = PLAN_WALL_T / 2;
 /** Die Kante, an der etwas steht — in der lokalen Welt die Nordkante. */
 const EDGE = -TILE / 2;
+/** Wie hoch die Portaltafel über dem Boden anfängt. */
+const PANEL_SILL = 0.2;
 
 const BUILD: Readonly<Record<BlockKind, (height: number) => PlanSolid[]>> = {
   /**
@@ -331,6 +335,30 @@ const BUILD: Readonly<Record<BlockKind, (height: number) => PlanSolid[]>> = {
    * daneben; wer darunter durch will, kann es nicht, und das ist der Zweck.
    */
   platform: (height) => [standing('stone', 0, 0, 0, TILE, height, TILE)],
+
+  /**
+   * **Die Portaltafel**: das helle Brett an der Wand, an dem ein Portal hält.
+   *
+   * Es ist der einzige Baustein, der nicht dafür da ist, dass man ihn ansieht,
+   * sondern dafür, dass man ihn *erkennt*: In jeder Welt hier haften Portale
+   * an denselben hellen Flächen und nirgends sonst, und wer das einmal gesehen
+   * hat, sucht in der nächsten Welt nicht wieder danach. Deshalb ist es ein
+   * Baustein und keine Zahl in einer Welt.
+   *
+   * Es hängt eine Handbreit über dem Boden — ein Portal, dessen Unterkante im
+   * Boden steckt, führt in die Bodenplatte.
+   */
+  panel: (height) => [
+    standing(
+      'panel',
+      0,
+      PANEL_SILL,
+      EDGE + PLAN_WALL_T / 2 + 0.09,
+      TILE - 0.1,
+      height - PANEL_SILL,
+      0.14,
+    ),
+  ],
 };
 
 /** Nur damit die vier Richtungen einmal namentlich in dieser Datei stehen. */
