@@ -112,6 +112,16 @@ export interface PhysicsBody {
 const FIXED_STEP = 1 / 60;
 const MAX_STEPS = 4;
 
+/**
+ * Wie stark die Kante eines Zylinders gebrochen ist, in Metern (`colliderFor`).
+ *
+ * Sechs Zentimeter: hoch genug, dass jede Fuge und jede Schwelle, die auf der
+ * Karte als eben gilt, auch wirklich eben ist — und klein genug, dass ein NPC
+ * damit keine Stufe hinaufspaziert, die er eigentlich springen müsste
+ * (`nav/navAgent.ts`, `stepUp` 0,35 m).
+ */
+const CYLINDER_BEVEL = 0.06;
+
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _position = new THREE.Vector3();
@@ -544,8 +554,29 @@ function colliderFor(
   switch (shape.kind) {
     case 'ball':
       return rapier.ColliderDesc.ball(Math.max(half.x, half.y, half.z));
-    case 'cylinder':
-      return rapier.ColliderDesc.cylinder(half.y, Math.max(half.x, half.z));
+    case 'cylinder': {
+      // **Ein Zylinder mit gebrochener Kante** — und die Fase ist kein
+      // Feinschliff, sondern der Unterschied zwischen einem NPC, der über eine
+      // Fuge läuft, und einem, der davor stehen bleibt.
+      //
+      // Zwei gleich hohe Kästen, die aneinanderstoßen, sind zusammen eine
+      // ebene Fläche — bis ein Zylinder darauf steht. Der sinkt beim Aufliegen
+      // Bruchteile eines Millimeters ein, und schon steht die senkrechte
+      // Seitenfläche des Nachbarkastens vor seiner scharfen Bodenkante: eine
+      // Wand von zwanzig Mikrometern, und ein Zylinder steigt keine Stufe. Im
+      // Navigationslabor hing die Puppe genau daran fest, an der Fuge zwischen
+      // der obersten Rampenstufe und dem Podest daneben — sie stand oben, ihr
+      // Weg zeigte über die Lücke, und sie rührte sich nicht mehr
+      // (`navlab/labPhysics.test.ts`).
+      //
+      // Die Rundung nimmt der Kante genau diese Ecke: Was so hoch ist wie sie,
+      // schiebt den Körper hinauf statt ihn zu blockieren. **Die Außenmaße
+      // bleiben, wie sie waren** — der Rand wächst nach außen, also wird er
+      // vom Halbmesser und von der halben Höhe abgezogen.
+      const radius = Math.max(half.x, half.z);
+      const round = Math.min(CYLINDER_BEVEL, radius / 2, half.y / 2);
+      return rapier.ColliderDesc.roundCylinder(half.y - round, radius - round, round);
+    }
     case 'cone':
       return rapier.ColliderDesc.cone(half.y, Math.max(half.x, half.z));
     case 'box':

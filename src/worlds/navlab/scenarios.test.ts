@@ -237,7 +237,10 @@ describe('Der Grundriss', () => {
     // `labSolids` ist die Liste, die die Welt baut *und* ein Test abtastet.
     // Wären es zwei Listen, prüfte der Test eine zweite Welt.
     const solids = labSolids();
-    expect(solids.filter((one) => one.kind === 'floor')).toHaveLength(1);
+    // Vier Streifen und nicht eine Platte: dazwischen liegt das Loch der Grube
+    // (`labFloor`), und darunter deren Grund.
+    expect(solids.filter((one) => one.kind === 'floor')).toHaveLength(4);
+    expect(solids.filter((one) => one.kind === 'pit')).toHaveLength(1);
     expect(solids.filter((one) => one.kind === 'rim')).toHaveLength(4);
     const walls = SCENARIOS.reduce((sum, bay) => sum + bayWalls(bay).length, 0);
     expect(solids.filter((one) => one.kind === 'wall').length).toBeGreaterThanOrEqual(walls);

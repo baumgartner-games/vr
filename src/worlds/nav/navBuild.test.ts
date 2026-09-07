@@ -3,14 +3,17 @@ import {
   checkGraph,
   clearRect,
   connect,
+  coverRect,
   dropPortal,
   fillRect,
+  paintRect,
   portalLinkIds,
   setDoor,
   wallRect,
 } from './navBuild';
 import { NavGraph } from './navGraph';
-import { DIRS, DIR_E, DIR_N, DIR_S, DIR_W, tileKey } from './navTile';
+import { HAZARD_SPIKES } from './navProfile';
+import { DIRS, DIR_E, DIR_N, DIR_S, DIR_W, TILE, tileKey } from './navTile';
 
 describe('Karten bauen', () => {
   it('legt Boden über ein Rechteck, von der Nordwestecke aus gezählt', () => {
@@ -115,5 +118,62 @@ describe('Die Karte prüfen', () => {
       graph.setWall(tileKey(1, 1, 0), dir, { kind: 'solid' });
     }
     expect(checkGraph(graph).join(' ')).toMatch(/keinen Ausgang/);
+  });
+});
+
+describe('Ein Stück Karte in Weltmaßen', () => {
+  /** Ein Feld von vier mal vier Kacheln, von (0,0) aus nach Osten und Süden. */
+  const field = (): NavGraph => {
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 4, d: 4 });
+    return graph;
+  };
+
+  it('malt genau die Kacheln an, deren Mitte im Rechteck liegt', () => {
+    // Zwei Kacheln breit, zwei tief — und zwar die ersten beiden: Ihre Mitten
+    // liegen auf 1,25 und 3,75, die der dritten auf 6,25 und damit draußen.
+    const graph = field();
+    expect(
+      paintRect(graph, { minX: 0, maxX: 2 * TILE, minZ: 0, maxZ: 2 * TILE }, { cost: 3 }),
+    ).toBe(4);
+    expect(graph.tile(tileKey(1, 1, 0))!.cost).toBe(3);
+    expect(graph.tile(tileKey(2, 1, 0))!.cost).toBe(1);
+    expect(graph.tile(tileKey(1, 2, 0))!.cost).toBe(1);
+  });
+
+  it('nimmt die Kachel hinter der Kante nicht mit', () => {
+    // **Der Fehler, der einen Menschen einen viel zu großen Bogen um die
+    // Stachelgrube laufen ließ.** Die Kante bei `maxX` gehört schon zur
+    // nächsten Kachel; wer dort noch einmal fragt, malt eine Spalte zu viel an
+    // — und zwar nur nach Osten und nach Süden, was das Ganze schief macht
+    // (`navlab/labSim.test.ts`, „dicht an der Grube vorbei").
+    const graph = field();
+    const touched = paintRect(
+      graph,
+      { minX: 0, maxX: 2 * TILE, minZ: 0, maxZ: 2 * TILE },
+      { hazard: HAZARD_SPIKES },
+    );
+    expect(touched).toBe(4);
+    expect(graph.tile(tileKey(2, 0, 0))!.hazard).toBe(0);
+    expect(graph.tile(tileKey(0, 2, 0))!.hazard).toBe(0);
+  });
+
+  it('lässt an, was es nicht gibt', () => {
+    const graph = new NavGraph();
+    expect(paintRect(graph, { minX: 0, maxX: 10, minZ: 0, maxZ: 10 }, { cost: 2 })).toBe(0);
+  });
+
+  it('legt für eine Falle Boden, wo keiner ist — nach derselben Regel', () => {
+    // `coverRect` ist die andere Hälfte: Es ändert nicht, was es gibt, sondern
+    // legt an, was fehlt. Über einem Loch im Boden steht damit auf der Karte
+    // ein Weg mit Stacheln — und wer die nicht liest, fällt hinein.
+    const graph = new NavGraph();
+    expect(coverRect(graph, { minX: 0, maxX: 2 * TILE, minZ: 0, maxZ: TILE }, { hazard: 1 })).toBe(
+      2,
+    );
+    expect(graph.size).toBe(2);
+    expect(graph.tile(tileKey(0, 0, 0))!.hazard).toBe(1);
+    expect(graph.tile(tileKey(1, 0, 0))!.hazard).toBe(1);
+    expect(graph.has(tileKey(2, 0, 0))).toBe(false);
   });
 });

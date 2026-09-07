@@ -1,4 +1,4 @@
-import { addPortal, connect, doorBetween, paintRect } from '../nav/navBuild';
+import { addPortal, connect, coverRect, doorBetween } from '../nav/navBuild';
 import type { DoorMaterial } from '../nav/navDoor';
 import type { NavGraph } from '../nav/navGraph';
 import { HAZARD_SPIKES } from '../nav/navProfile';
@@ -141,6 +141,33 @@ const COL = BAY_W + 2 * TILE;
 export const PIT = { minLx: -7.5, maxLx: 7.5, minLz: -2.5, maxLz: 2.5 };
 
 /**
+ * **Wie tief die Grube ist — und warum ausgerechnet so tief.**
+ *
+ * Sie ist ein **Loch** und kein Anstrich: Wer hineinläuft, fällt hinein, steht
+ * unten zwischen den Stacheln und kommt dort nicht mehr heraus. Das ist der
+ * Unterschied zwischen einer Warnung und einer Falle, und es ist der Grund,
+ * warum diese Bucht überhaupt zwei Sorten NPC auf die Bühne stellt.
+ *
+ * Die Zahl ist keine Geschmacksfrage: Sie muss **über** dem Band liegen, mit
+ * dem das Abtasten Böden einer Etage zuschlägt (`BAKE_DEFAULTS.band`, 1,6 m).
+ * Eine flachere Grube wäre für die Karte nur eine tiefergelegte Kachel des
+ * Erdgeschosses — mit einer Treppe hinein und wieder heraus. So findet das
+ * Abtasten dort gar keinen Boden, und was die Karte an dieser Stelle sagt,
+ * sagt die Welt bewusst allein (`applyLabMap`).
+ */
+export const PIT_DEPTH = 2.2;
+
+/**
+ * Was die Stacheln je Sekunde abziehen.
+ *
+ * Ein Zombie hält 100 aus (`npcKinds.ts`) — er zappelt also knapp zwei
+ * Sekunden zwischen ihnen herum und bleibt dann liegen. Das ist mit Absicht
+ * lang genug zum Zusehen und kurz genug, dass niemand sich fragt, ob die
+ * Grube überhaupt etwas tut.
+ */
+export const PIT_DAMAGE = 60;
+
+/**
  * Die Tür: die Lücke, in der sie hängt, und die beiden Kacheln, zwischen denen
  * sie in der Karte steht.
  *
@@ -248,7 +275,7 @@ export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'pit',
     title: 'Stachelgrube',
-    watch: 'Der Zombie läuft hinein, die Puppe geht außen herum',
+    watch: 'Der Zombie fällt hinein und bleibt darin, die Puppe geht außen herum',
     acts: [],
     x: COLS[1],
     z: -ROW,
@@ -408,7 +435,7 @@ const INSIDE: Record<ScenarioId, readonly BayWall[]> = {
     { lx: -3.75, lz: -2.5, w: 17.5, d: WALL_T },
     { lx: 3.75, lz: 2.5, w: 17.5, d: WALL_T },
   ],
-  // Die Grube ist ein Anstrich und keine Wand (`PIT`).
+  // Die Grube ist ein Loch im Boden und keine Wand (`PIT`, `labFloor`).
   pit: [],
   // Eine Wand mit zwei Durchgängen von je einer Kachel: links kurz, rechts weit.
   crate: [
@@ -479,7 +506,7 @@ export function labBounds(): { minX: number; minZ: number; maxX: number; maxZ: n
  * Woraus ein Quader des Labors besteht — die Sorte entscheidet nur über seine
  * Farbe, für die Wegsuche sind alle gleich.
  */
-export type LabSolidKind = 'floor' | 'rim' | 'wall' | 'block';
+export type LabSolidKind = 'floor' | 'rim' | 'wall' | 'block' | 'pit';
 
 /** Ein Quader in Weltmetern: Mitte und Kantenlängen. */
 export interface LabSolid {
@@ -513,15 +540,16 @@ export interface LabSolid {
  * Unterschied zwischen beiden wäre genau der Fehler, den er finden sollte.
  *
  * `NavLabWorld` läuft diese Liste ab und gibt jeder Sorte ihr Material. Was
- * hier **nicht** steht, ist alles, was keine Wand ist: der Anstrich der Grube,
- * ihre Stacheln, das Türblatt, die Portalringe. Die stehen in keinem Quader,
- * weil sie keinen Weg versperren (`NavLabWorld.navReady`).
+ * hier **nicht** steht, ist alles, was keinen Weg versperrt: die Stacheln am
+ * Grund der Grube, das Türblatt, die Portalringe (`NavLabWorld.navReady`). Das
+ * **Loch** der Grube dagegen steht sehr wohl hier — es ist ein Stück Boden,
+ * das fehlt, und das ist eine Sache der Geometrie (`labFloor`).
  */
 export function labSolids(): LabSolid[] {
   const box = labBounds();
   const width = box.maxX - box.minX + 6;
   const depth = box.maxZ - box.minZ + 6;
-  const out: LabSolid[] = [{ kind: 'floor', x: 0, y: -0.2, z: 0, w: width, h: 0.4, d: depth }];
+  const out: LabSolid[] = [...labFloor(width, depth)];
 
   // Eine Bande außen herum, damit niemand aus dem Labor spaziert — und zwar
   // **dicht an den Buchten** und nicht am Rand des Bodens. Der Boden steht ein
@@ -553,6 +581,92 @@ export function labSolids(): LabSolid[] {
     out.push(...bayFixtures(bay));
   }
   return out;
+}
+
+/** Die Grube in Weltmetern — das Loch im Boden und der Bereich, der wehtut. */
+export function pitBox(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  const bay = scenarioOf('pit');
+  const a = bayPoint(bay, PIT.minLx, PIT.minLz);
+  const b = bayPoint(bay, PIT.maxLx, PIT.maxLz);
+  return {
+    minX: Math.min(a.x, b.x),
+    maxX: Math.max(a.x, b.x),
+    minZ: Math.min(a.z, b.z),
+    maxZ: Math.max(a.z, b.z),
+  };
+}
+
+/**
+ * Wie dick die Bodenplatte ist — tief genug, dass die Grube Wände hat.
+ *
+ * Die Grube ist ein Loch **in** dieser Platte, und ihre Seiten sind deren
+ * Schnittflächen. Wäre die Platte so dünn wie früher (40 cm), stünde ein
+ * Zombie in der Grube unter einem Vordach von 40 cm und spazierte seelenruhig
+ * unter dem Labor davon.
+ */
+const FLOOR_DEEP = PIT_DEPTH + 0.4;
+
+/**
+ * **Der Boden des Labors, mit dem Loch darin.**
+ *
+ * Vier Streifen um die Grube herum statt einer Platte — und der Grund steht
+ * eine Zeile weiter oben in `PIT_DEPTH`: Eine Falle, in die niemand fallen
+ * kann, ist keine. Darunter, am Grund des Lochs, liegt die Platte mit den
+ * Stacheln (`kind: 'pit'`), und die liegt so tief, dass das Abtasten sie
+ * keiner Etage mehr zuschlägt.
+ *
+ * **Das Labor bringt seinen Boden damit selbst mit** und lässt die Fläche bis
+ * zum Horizont weg (`NavLabWorld.horizonColor`). Anders geht es nicht: Die ist
+ * eine einzige Platte über die ganze Welt, und die zöge sich fünf Zentimeter
+ * unter dem Laborboden auch quer durch jedes Loch darin.
+ */
+function labFloor(width: number, depth: number): LabSolid[] {
+  const hole = pitBox();
+  const half = { x: width / 2, z: depth / 2 };
+  const slab = (minX: number, maxX: number, minZ: number, maxZ: number): LabSolid => ({
+    kind: 'floor',
+    x: (minX + maxX) / 2,
+    y: -FLOOR_DEEP / 2,
+    z: (minZ + maxZ) / 2,
+    w: maxX - minX,
+    h: FLOOR_DEEP,
+    d: maxZ - minZ,
+  });
+  return [
+    // Nord und Süd über die ganze Breite, West und Ost nur zwischen den beiden.
+    slab(-half.x, half.x, -half.z, hole.minZ),
+    slab(-half.x, half.x, hole.maxZ, half.z),
+    slab(-half.x, hole.minX, hole.minZ, hole.maxZ),
+    slab(hole.maxX, half.x, hole.minZ, hole.maxZ),
+    {
+      kind: 'pit',
+      x: (hole.minX + hole.maxX) / 2,
+      y: -PIT_DEPTH - 0.2,
+      z: (hole.minZ + hole.maxZ) / 2,
+      w: hole.maxX - hole.minX,
+      h: 0.4,
+      d: hole.maxZ - hole.minZ,
+    },
+  ];
+}
+
+/**
+ * **Was der Boden an dieser Stelle abzieht**, in dieser Zeitspanne.
+ *
+ * Die eine Rechnung hinter „der Zombie stirbt in der Grube", und sie steht
+ * hier bei den Daten und nicht in der Welt: Die Brille wendet sie auf ihre
+ * NPCs an (`NavLabWorld.simulate`), der Test auf seine (`labSim.ts`) — und nur
+ * deshalb heißt „er stirbt darin" in beiden dasselbe.
+ *
+ * Wehtun tut es **unter der Kante**: Wer über die Grube springen könnte, käme
+ * heil hinüber; wer hineinfällt, steht zwischen den Stacheln.
+ */
+export function labHarm(at: { x: number; y: number; z: number }, dt: number): number {
+  const hole = pitBox();
+  if (at.y > -0.5) return 0;
+  if (at.x < hole.minX || at.x > hole.maxX) return 0;
+  if (at.z < hole.minZ || at.z > hole.maxZ) return 0;
+  return PIT_DAMAGE * dt;
 }
 
 /**
@@ -646,10 +760,12 @@ export const JUMP_ID = 'navlab-sprung';
  * **Was das Abtasten nicht finden kann**, in die frisch abgetastete Karte
  * eingetragen.
  *
- * Drei Sachen stehen in keinem Quader: Eine Grube ist ein *Anstrich* und kein
- * Hindernis — man kann hineinlaufen, es tut nur weh. Eine Tür ist in der
- * Geometrie entweder eine Lücke oder eine Wand, nie beides nacheinander. Und
- * ein Sprung über einen Gang ist ein Loch, kein Weg.
+ * Drei Sachen stehen in keinem Quader: Über der Grube liegt auf der Karte ein
+ * Weg mit Stacheln, wo in der Welt ein Loch ist — das ist eine Falle und die
+ * einzige Stelle, an der die Karte absichtlich etwas anderes sagt als die
+ * Geometrie. Eine Tür ist in der Geometrie entweder eine Lücke oder eine Wand,
+ * nie beides nacheinander. Und ein Sprung über einen Gang ist ein Loch, kein
+ * Weg.
  *
  * Sie stehen hier und nicht in `NavLabWorld`, aus demselben Grund wie
  * `labSolids()`: Ein Test, der das Labor abtastet, muss dieselbe Karte
@@ -660,19 +776,13 @@ export const JUMP_ID = 'navlab-sprung';
 export function applyLabMap(graph: NavGraph): void {
   for (const bay of SCENARIOS) {
     if (bay.id === 'pit') {
-      const a = bayPoint(bay, PIT.minLx, PIT.minLz);
-      const b = bayPoint(bay, PIT.maxLx, PIT.maxLz);
-      paintRect(
-        graph,
-        {
-          minX: Math.min(a.x, b.x),
-          maxX: Math.max(a.x, b.x),
-          minZ: Math.min(a.z, b.z),
-          maxZ: Math.max(a.z, b.z),
-          y: 0,
-        },
-        { hazard: HAZARD_SPIKES },
-      );
+      // **Die Falle**: In der Welt ist dort ein Loch, auf der Karte ein Weg mit
+      // Stacheln (`navBuild.coverRect`). Das Abtasten findet am Grund keinen
+      // Boden, den es einer Etage zuschlagen könnte — also legt die Bucht
+      // selbst Kacheln über das Loch. Wer die Stacheln liest, geht außen herum
+      // (`HUMAN_PROFILE`); wer sie nicht kennt, plant hindurch, fällt hinein
+      // und kommt dort nicht mehr heraus.
+      coverRect(graph, pitBox(), { hazard: HAZARD_SPIKES });
     }
     if (bay.id === 'door') {
       // Die beiden Kachelmitten links und rechts der Türlinie: Zwischen ihnen

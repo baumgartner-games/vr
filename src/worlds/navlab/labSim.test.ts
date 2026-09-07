@@ -1,12 +1,16 @@
 import { breakTime, type DoorMaterial } from '../nav/navDoor';
 import { doorBroken } from '../nav/navGraph';
 import { findPath } from '../nav/navPath';
-import { profileOf } from '../nav/navProfile';
-import { tileDistance } from '../nav/navTile';
-import { closestTo, crossedAt, passedNear, runBay, walked, wander } from './labSim';
+import { HAZARD_SPIKES, profileOf } from '../nav/navProfile';
+import { NO_TILE, TILE, tileDistance } from '../nav/navTile';
+import { npcSkin } from '../npc/npcKinds';
+import { closestTo, crossedAt, passedNear, runBay, walked } from './labSim';
 import {
   CRATE,
   DOOR_ID,
+  PIT,
+  PIT_DAMAGE,
+  PIT_DEPTH,
   PODIUM,
   baySpot,
   doorLeaf,
@@ -124,19 +128,63 @@ describe('Langer Gang', () => {
 });
 
 describe('Stachelgrube', () => {
-  it('lässt den Zombie hindurch und die Puppe außen herum', () => {
-    const run = runBay('pit', { seconds: 40 });
-    const [zombie, dummy] = run.runners;
+  it('legt über das Loch einen Weg mit Stacheln — das ist die Falle', () => {
+    // **Die eine Stelle, an der die Karte etwas anderes sagt als die Welt**,
+    // und zwar mit Absicht: Das Abtasten findet über der Grube keinen Boden
+    // (sie ist ein Loch), die Bucht legt dort trotzdem Kacheln hin
+    // (`applyLabMap`). Ohne sie plante *niemand* mehr durch die Grube, und aus
+    // der Falle würde eine Wand, um die beide Sorten herumgehen.
+    const graph = runBay('pit', { seconds: 0 }).graph;
     const middle = spot('pit', { lx: 0, lz: 0 });
-    expect(passedNear(zombie!.track, middle, 1.5)).toBe(true);
-    expect(closestTo(dummy!.track, middle)).toBeGreaterThan(3);
-    expect(zombie!.arrived).toBe(true);
-    expect(dummy!.arrived).toBe(true);
-    // Und der Umweg kostet auch etwas: Hier **taugt** die Krümmung als Zahl,
-    // denn die Luftlinie ist offen — der Zombie läuft sie fast, die Puppe geht
-    // deutlich außen herum.
-    expect(wander(zombie!.track)).toBeLessThan(1.15);
-    expect(wander(dummy!.track)).toBeGreaterThan(wander(zombie!.track) * 1.4);
+    const key = graph.at(middle.x, middle.z, 0);
+    expect(key).not.toBe(NO_TILE);
+    expect(graph.tile(key)!.hazard & HAZARD_SPIKES).toBe(HAZARD_SPIKES);
+    // Und sie liegt auf der Höhe des Bodens ringsum: Auf der Karte ist das ein
+    // Weg wie jeder andere — bloß einer mit Stacheln darauf.
+    expect(graph.worldOf(key).y).toBeCloseTo(0);
+  });
+
+  it('lässt den Zombie in die Falle fallen und darin sterben', () => {
+    const run = runBay('pit', { seconds: 40 });
+    const zombie = run.runners[0]!;
+    const middle = spot('pit', { lx: 0, lz: 0 });
+    // Er plant geradeaus — die Stacheln kosten ihn nichts (`ZOMBIE_PROFILE`) —
+    // und läuft dabei über eine Kante, die auf seiner Karte gar nicht steht.
+    expect(passedNear(zombie.track, middle, 3)).toBe(true);
+    // Unten angekommen, und zwar wirklich unten: die Grube ist ein Loch und
+    // kein Anstrich.
+    expect(zombie.at.y).toBeCloseTo(-PIT_DEPTH);
+    // Und er kommt dort nicht mehr heraus, sondern bleibt liegen.
+    expect(zombie.dead).toBe(true);
+    expect(zombie.health).toBe(0);
+    expect(zombie.arrived).toBe(false);
+    // Zwei Sekunden Stacheln, mehr braucht es nicht (`PIT_DAMAGE`).
+    expect(npcSkin('zombie').health / PIT_DAMAGE).toBeLessThan(3);
+  });
+
+  it('führt die Puppe dicht an der Grube vorbei und nicht an der Wand entlang', () => {
+    const run = runBay('pit', { seconds: 40 });
+    const dummy = run.runners[1]!;
+    const bay = scenarioOf('pit');
+    const middle = spot('pit', { lx: 0, lz: 0 });
+    // Sie liest die Stacheln (`HUMAN_PROFILE`) und geht außen herum — heil,
+    // trocken und angekommen.
+    expect(closestTo(dummy.track, middle)).toBeGreaterThan(3);
+    expect(dummy.dead).toBe(false);
+    expect(dummy.at.y).toBeCloseTo(0);
+    expect(dummy.arrived).toBe(true);
+
+    // **Und zwar dicht daran vorbei.** Das ist die Zahl, wegen der es diesen
+    // Test gibt: Sie lief einmal einen Bogen bis an die Ostwand der Bucht,
+    // weil das Anmalen der Grube eine Kachelspalte zu weit reichte
+    // (`navBuild.paintRect`). Auf der Karte war die Grube damit sieben Kacheln
+    // breit statt sechs — und der einzige freie Streifen östlich davon der an
+    // der Wand. Erlaubt ist deshalb genau **eine** Kachel Luft neben der
+    // Grube; alles darüber ist wieder der alte Bogen.
+    let east = -Infinity;
+    for (const step of dummy.track) east = Math.max(east, step.x - bay.x);
+    expect(east).toBeGreaterThan(PIT.maxLx);
+    expect(east).toBeLessThan(PIT.maxLx + TILE);
   });
 });
 
@@ -441,8 +489,15 @@ describe('Podest und Sprung', () => {
   it('lässt die Puppe hinüberspringen und den Zombie darunter stehen', () => {
     const run = runBay('podium', { seconds: 60 });
     const [dummy, zombie] = run.runners;
-    // Die Puppe nimmt die Rampe und springt: Sie steht am Ende oben.
+    // **Am Ende steht sie auf dem freistehenden Podest** — nicht irgendwo auf
+    // 2,4 m Höhe, sondern auf dem einen Klotz, den man nur mit einem Sprung
+    // erreicht (`PODIUM.far`). Genau das ist die Behauptung dieser Bucht, und
+    // „oben" allein bewiese sie nicht: Auf das nahe Podest kommt man auch die
+    // Rampe hinauf, und dort blieb sie in der Brille stehen.
+    const bay = scenarioOf('podium');
     expect(dummy!.at.y).toBeCloseTo(PODIUM.high);
+    expect(dummy!.at.x - bay.x).toBeGreaterThan(PODIUM.far.minLx);
+    expect(dummy!.at.x - bay.x).toBeLessThan(PODIUM.far.maxLx);
     expect(dummy!.arrived).toBe(true);
     // Der Zombie kann nicht springen — er steht unten, so nah wie möglich.
     expect(zombie!.at.y).toBeCloseTo(0);

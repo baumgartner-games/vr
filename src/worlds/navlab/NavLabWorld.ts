@@ -15,6 +15,7 @@ import type { PreviewButton } from '../shared/livePreview';
 import { NavConsole, switchOf, type ConsoleKey } from './NavConsole';
 import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 import type { Npc } from '../npc/Npc';
+import { npcSkin } from '../npc/npcKinds';
 import {
   BAY_D,
   BAY_W,
@@ -22,6 +23,7 @@ import {
   DOOR_ID,
   DOOR_MATERIAL,
   PIT,
+  PIT_DEPTH,
   PORTAL,
   PORTAL_ID,
   ROOF,
@@ -31,6 +33,7 @@ import {
   baySpot,
   doorLeaf,
   labBounds,
+  labHarm,
   labSolids,
   newScenarioState,
   openLabPortal,
@@ -144,6 +147,20 @@ export class NavLabWorld extends PortalWorld {
     return 9.81;
   }
 
+  /**
+   * **Keine Fläche bis zum Horizont** — das Labor bringt seinen Boden selbst
+   * mit (`labSolids`).
+   *
+   * Der Grund ist die Stachelgrube: Die ist ein Loch im Laborboden, und die
+   * Fläche der Basis ist eine einzige Platte fünf Zentimeter darunter. Sie
+   * zöge sich quer durch jedes Loch, und aus der Falle würde eine Stufe von
+   * fünf Zentimetern. Dass der Test dieselben Kästen abtastet wie die Brille,
+   * gilt damit sogar genauer als vorher: Jetzt sind es wirklich dieselben.
+   */
+  protected override horizonColor(): number | null {
+    return null;
+  }
+
   /** Erdgeschoss und das Dach aus der Etagen-Bucht. */
   protected override navLevels(): readonly number[] {
     return [0, ROOF];
@@ -198,6 +215,9 @@ export class NavLabWorld extends PortalWorld {
   private materialFor(kind: LabSolidKind): THREE.Material {
     if (kind === 'floor') return this.floorMat;
     if (kind === 'block') return this.blockMat;
+    // Der Grund der Grube ist rot: Auf zwanzig Meter sieht man dann, dass da
+    // kein Schatten liegt, sondern etwas, in das man nicht hineinfallen will.
+    if (kind === 'pit') return this.hazardMat;
     return this.wallMat;
   }
 
@@ -234,16 +254,19 @@ export class NavLabWorld extends PortalWorld {
     if (bay.id === 'portal') this.buildRings(parent, bay);
   }
 
-  /** Die Grube: ein roter Anstrich und Stacheln darin. */
+  /**
+   * **Die Stacheln am Grund der Grube.**
+   *
+   * Das Loch selbst ist Geometrie und steht in `labSolids()` — vier
+   * Bodenstreifen darum herum und eine Platte darunter. Hier stehen nur die
+   * Stacheln: Sie versperren keinen Weg, sie sagen bloß, was einen unten
+   * erwartet. Was sie anrichten, rechnet `labHarm` aus, und zwar für die
+   * Brille und für den Test dieselbe Zahl.
+   */
   private buildPit(parent: THREE.Group, bay: Scenario): void {
-    const at = bayPoint(bay, (PIT.minLx + PIT.maxLx) / 2, (PIT.minLz + PIT.maxLz) / 2);
     const wide = PIT.maxLx - PIT.minLx;
     const deep = PIT.maxLz - PIT.minLz;
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(wide, 0.06, deep), this.hazardMat);
-    floor.position.set(at.x, 0.03, at.z);
-    parent.add(floor);
-    // Stacheln: man muss auf zwanzig Meter sehen, dass das keine Fußmatte ist.
-    // Zwei Reihen zu zwölf, gleichmäßig über die Grube verteilt.
+    // Zwei Reihen zu zwölf, gleichmäßig über den Grund verteilt.
     const columns = 12;
     for (let i = 0; i < columns * 2; i++) {
       const spot = bayPoint(
@@ -255,7 +278,7 @@ export class NavLabWorld extends PortalWorld {
         new THREE.ConeGeometry(0.14, 0.55, 6),
         new THREE.MeshStandardMaterial({ color: 0xb8c2d4, roughness: 0.4, metalness: 0.4 }),
       );
-      spike.position.set(spot.x, 0.28, spot.z);
+      spike.position.set(spot.x, PIT_DEPTH * -1 + 0.28, spot.z);
       parent.add(spike);
     }
   }
@@ -627,6 +650,11 @@ export class NavLabWorld extends PortalWorld {
         brain: 'chase',
         at: new THREE.Vector3(at.x, one.y ?? 0, at.z),
         yaw: bay.z < 0 ? 0 : Math.PI,
+        // **Das Tempo kommt aus der Haut** und nicht aus dem Hirn: Eine
+        // Übungspuppe geht 1,1 m/s, ein Zombie 1,5 (`npcKinds.ts`). Ohne diese
+        // Zeile liefen im Labor beide gleich schnell — und der Test, der
+        // dasselbe Rennen ohne Brille läuft, prüfte ein anderes.
+        speed: npcSkin(one.kind).speed,
       });
       if (npc) cast.push(npc);
     }
@@ -689,6 +717,12 @@ export class NavLabWorld extends PortalWorld {
   protected override simulate(dt: number): void {
     this.clock += dt;
     this.syncDoor();
+    // **Die Stacheln.** Wer in der Grube steht, steht zwischen ihnen — und
+    // zwar nach derselben Rechnung, die auch der Test anstellt
+    // (`scenarios.labHarm`, `labSim.ts`). Sie steht in `simulate` und nicht in
+    // `update`, damit die Falle auch dann zuschnappt, wenn das Labor vom
+    // Telefon aus läuft.
+    this.director?.harm((feet) => labHarm(feet, dt));
     for (const bay of SCENARIOS) {
       const state = this.states.get(bay.id)!;
       // Ein Szenario, das niemand abbricht, räumt sich selbst weg — sonst

@@ -100,6 +100,12 @@ export class Npc {
    */
   brokeDoor = '';
   private readonly physics: PhysicsWorld;
+  /**
+   * Ob er noch einen Körper in der Physik hat — und wo er stand, als er ihn
+   * verlor (`feet`).
+   */
+  private bodied = true;
+  private readonly resting = new THREE.Vector3();
 
   constructor(options: {
     physics: PhysicsWorld;
@@ -155,17 +161,28 @@ export class Npc {
     return this.dying === null;
   }
 
-  /** Wo seine Füße stehen — der Punkt, mit dem alle anderen rechnen. */
+  /**
+   * Wo seine Füße stehen — der Punkt, mit dem alle anderen rechnen.
+   *
+   * **Wer keinen Körper mehr hat, hat trotzdem eine Stelle.** Ein Gefallener
+   * wird im selben Zug aus der Physik genommen (`unbody`), liegt aber noch ein
+   * paar Sekunden herum, und in dieser Zeit fragt der Regisseur jedes Bild, wo
+   * er ist. Ein Rapier-Körper, den es nicht mehr gibt, beantwortet das nicht,
+   * sondern reißt die ganze wasm mit („recursive use of an object" —
+   * `RuntimeError: unreachable`). Deshalb merkt er sich beim Abbau, wo er
+   * zuletzt stand, und antwortet von da an von dort.
+   */
   feet(target: THREE.Vector3): THREE.Vector3 {
+    if (!this.bodied) return target.copy(this.resting);
     const t = this.entry.body.translation();
     return target.set(t.x, t.y - this.skin.height / 2, t.z);
   }
 
   /** Sein Körper, so wie ihn eine Kugel sieht (`npcHit.ts`). */
   hitBody(): HitBody {
-    const t = this.entry.body.translation();
+    const at = this.feet(_probe);
     return {
-      feet: { x: t.x, y: t.y - this.skin.height / 2, z: t.z },
+      feet: { x: at.x, y: at.y, z: at.z },
       height: this.skin.height,
       radius: this.skin.radius,
     };
@@ -412,8 +429,16 @@ export class Npc {
     return this.dying ?? 0;
   }
 
-  /** Nimmt ihn aus der Physik heraus, ohne das Modell wegzuwerfen. */
+  /**
+   * Nimmt ihn aus der Physik heraus, ohne das Modell wegzuwerfen.
+   *
+   * Vorher wird gemerkt, wo er steht: Danach gibt es den Körper nicht mehr, und
+   * jede Frage an ihn ist ein Absturz und keine Antwort (`feet`).
+   */
   unbody(physics: PhysicsWorld): void {
+    if (!this.bodied) return;
+    this.feet(this.resting);
+    this.bodied = false;
     physics.remove(this.entry);
   }
 
@@ -436,6 +461,8 @@ export interface NavRun {
 const LEAP_RISE = 0.7;
 
 const _feet = new THREE.Vector3();
+/** Für alles, was nebenher nach einer Stelle fragt (`hitBody`). */
+const _probe = new THREE.Vector3();
 
 /** Der Weg dessen, der noch keinen hat. */
 const EMPTY_ROUTE: readonly PathPoint[] = [];
