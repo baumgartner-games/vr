@@ -77,6 +77,8 @@ export interface Mass {
   /** Unterkante und Oberkante in Metern, gemessen vom Boden der Etage. */
   from: number;
   to: number;
+  /** Ob ein Portal daran haftet — siehe `PlanSolid.portal`. */
+  portal?: boolean;
 }
 
 /** Was ein Zimmer außer Boden noch bekommt. */
@@ -228,8 +230,14 @@ export class GridPlan {
   }
 
   /** Eine Masse: ein Quader über ein Kachelrechteck. */
-  mass(kind: PlanSolidKind, rect: NavRect, from: number, to: number): this {
-    this.masses.push({ kind, rect, from, to });
+  mass(
+    kind: PlanSolidKind,
+    rect: NavRect,
+    from: number,
+    to: number,
+    options: { portal?: boolean } = {},
+  ): this {
+    this.masses.push({ kind, rect, from, to, ...options });
     return this;
   }
 
@@ -270,7 +278,7 @@ export class GridPlan {
 function massSolid(graph: NavGraph, mass: Mass): PlanSolid {
   const { rect } = mass;
   const base = graph.levelY(rect.level ?? 0);
-  return standing(
+  const solid = standing(
     mass.kind,
     (rect.x + rect.w / 2) * TILE,
     base + mass.from,
@@ -279,6 +287,7 @@ function massSolid(graph: NavGraph, mass: Mass): PlanSolid {
     Math.max(0.01, mass.to - mass.from),
     rect.d * TILE,
   );
+  return mass.portal === undefined ? solid : { ...solid, portal: mass.portal };
 }
 
 /** Die vier Richtungen, damit eine Welt sie nicht aus dem Kachelmodul holen muss. */

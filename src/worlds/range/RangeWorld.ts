@@ -1,34 +1,32 @@
 import * as THREE from 'three';
-import { PortalWorld } from '../portal/PortalWorld';
+import { GridWorld } from '../grid/GridWorld';
 import { createSky } from '../shared/environment';
 import { bullseyeFace } from '../shared/target';
+import { segmentHitsBounds } from '../shared/hitBox';
 import { TextPlane } from '../../ui/TextPlane';
 import { ScoreHud } from '../../ui/ScoreHud';
 import { faceHit } from './scoring';
+import { LANES, MIDDLE_LANE, STAND, laneX, rangeStand } from './rangeStand';
 import { playTone } from '../../core/Audio';
+import type { GridPlan } from '../grid/gridPlan';
+import type { PlanSolidKind } from '../grid/solids';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 
-/** Half width of the range; it runs long into -Z. */
-const HALF_W = 26;
-/** How far downrange the backstop stands. */
-const DEPTH = 120;
-/** Lanes, and how far apart they are. */
-const LANES = [-8, -4, 0, 4, 8];
 /** Distances the round targets stand at, in metres from the firing line. */
 const TARGET_ROWS = [10, 25, 50];
 /** How high the hangers stand. */
 const POST_HEIGHT = 1.9;
 /** How far in front of its post a target hangs. */
 const STANDOFF = 0.14;
+/** Wo der Schütze steht: knapp hinter der Bank der mittleren Bahn. */
+const FIRING_Z = 1.6;
 
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
 const _inverse = new THREE.Matrix4();
 const _box = new THREE.Box3();
-const _ray = new THREE.Ray();
-const _corner = new THREE.Vector3();
 
 /** A disc that can be scored, and how far out it stands. */
 interface ScoreTarget {
@@ -61,6 +59,15 @@ interface RangeSwitch {
  * from the line — the whole point of the place is to see what a setting does
  * to a shot.
  *
+ * **Der Stand steht auf dem Kachelgitter** (`rangeStand.ts`), und die
+ * Schießbank ist dabei das, was sie in Wirklichkeit ist: eine **Küchenzeile**.
+ * Dasselbe Möbel wie in der Küche, dieselbe Arbeitshöhe, derselbe geprüfte
+ * Baustein. Das ist der ganze Witz an der Umstellung — wer einmal
+ * nachgerechnet hat, dass eine Arbeitsplatte auf 90 cm liegt und an ihrer
+ * Kante klebt, hat es für beide Welten nachgerechnet. Übrig bleiben in dieser
+ * Datei nur noch die Sachen, die es sonst nirgends gibt: die Scheiben, die
+ * Punkte und die zwei Schalter.
+ *
  * Every hit is **counted**: a bullseye by the ring it lands in (10 down to 2,
  * the same five rings the face is painted with), a steel plate flat. The score
  * goes into the **upper field of view** (`ScoreHud`) and a short tone rises
@@ -69,10 +76,6 @@ interface RangeSwitch {
  * the honest place for the number and it is where nobody could read it; the
  * tone comes out of nowhere right at the ear, because a hit a hundred metres
  * out would otherwise arrive a third of a second late and barely be audible.
- *
- * What was missing all along is the lead in `scoring.ts`: the physics stops the
- * round *in front of* the face, so a frame's path never reaches the face plane
- * — and nothing was counted and nothing was heard.
  *
  * Both can be switched off, and the switches are where they belong: two boards
  * on the firing line that can be **shot** or picked with the **trigger**. The
@@ -84,20 +87,11 @@ interface RangeSwitch {
  * firing line and to the ground, not to the target frames — a portal in front
  * of a target would be the end of the exercise.
  */
-export class RangeWorld extends PortalWorld {
-  private readonly ground = new THREE.MeshStandardMaterial({ color: 0x7f8b62, roughness: 0.95 });
-  private readonly gravel = new THREE.MeshStandardMaterial({ color: 0x9a9481, roughness: 0.95 });
-  private readonly concrete = new THREE.MeshStandardMaterial({ color: 0xb9bcc2, roughness: 0.85 });
-  private readonly timber = new THREE.MeshStandardMaterial({ color: 0x8a5f38, roughness: 0.8 });
+export class RangeWorld extends GridWorld {
   private readonly steel = new THREE.MeshStandardMaterial({
     color: 0x9aa6bd,
     roughness: 0.4,
     metalness: 0.6,
-  });
-  private readonly panel = new THREE.MeshStandardMaterial({
-    color: 0xf2f4f8,
-    roughness: 0.6,
-    metalness: 0.05,
   });
   /** The bullseye face, built once and shared by every disc. */
   private targetFace: THREE.MeshStandardMaterial | null = null;
@@ -139,7 +133,7 @@ export class RangeWorld extends PortalWorld {
 
   protected override spawnPoint(): THREE.Vector3 {
     // On the firing line of the middle lane, looking downrange.
-    return new THREE.Vector3(0, 0, 3);
+    return new THREE.Vector3(laneX(MIDDLE_LANE), 0, FIRING_Z);
   }
 
   protected override skyColor(): number {
@@ -162,16 +156,21 @@ export class RangeWorld extends PortalWorld {
     ];
   }
 
-  protected override buildEnvironment(): void {
-    const range = new THREE.Group();
-    range.name = 'range';
-    this.root.add(range);
-    this.root.add(createSky(0x6fa3dd, 0xdfe7d6));
+  /** Draußen: Kies, Beton, Holz — kein Innenraumgrau. */
+  protected override tint(): Partial<Record<PlanSolidKind, number>> {
+    return { floor: 0x7f8b62, stone: 0x9a9481, wood: 0x8a5f38, wall: 0xb9bcc2 };
+  }
 
-    this.buildGround(range);
-    this.buildStand(range);
-    this.buildLaneMarkers(range);
-    this.buildProps();
+  protected override layout(): GridPlan {
+    return rangeStand();
+  }
+
+  protected override buildEnvironment(): void {
+    super.buildEnvironment();
+    this.root.add(createSky(0x6fa3dd, 0xdfe7d6));
+    this.buildSign();
+    this.buildSwitches();
+    this.buildLaneMarkers();
   }
 
   /** The targets: discs on posts, and steel plates on a rail. */
@@ -180,21 +179,22 @@ export class RangeWorld extends PortalWorld {
 
     for (const distance of TARGET_ROWS) {
       for (const lane of LANES) {
-        this.hangTarget(lane, distance, POST_HEIGHT, 0.34, `range-target-${index++}`);
+        this.hangTarget(laneX(lane), distance, POST_HEIGHT, 0.34, `range-target-${index++}`);
       }
     }
 
     // Two big ones far out, for a barrel that has been turned all the way up.
     for (const [lane, distance, radius] of [
-      [-4, 75, 0.7],
-      [4, 100, 0.9],
+      [-2, 75, 0.7],
+      [0, 100, 0.9],
     ] as const) {
-      this.hangTarget(lane, distance, 2.8, radius, `range-far-${index++}`);
+      this.hangTarget(laneX(lane), distance, 2.8, radius, `range-far-${index++}`);
     }
 
     // Steel plates at 18 m: small, heavy, and they fall over properly.
+    const middle = laneX(MIDDLE_LANE);
     for (let i = 0; i < 6; i++) {
-      const x = -6 + i * 2.4;
+      const x = middle + (i - 2.5) * 2.4;
       this.buildRail(x, 18);
       this.spawnPlate(x, 0.93, -18, `range-plate-${index++}`);
     }
@@ -215,7 +215,8 @@ export class RangeWorld extends PortalWorld {
     damage?: number,
   ): boolean {
     for (const entry of this.switches) {
-      if (!segmentHitsBox(entry.body, from, to)) continue;
+      _box.setFromObject(entry.body);
+      if (_box.isEmpty() || !segmentHitsBounds(from, to, _box.min, _box.max)) continue;
       entry.toggle();
       return true;
     }
@@ -284,59 +285,7 @@ export class RangeWorld extends PortalWorld {
 
   // --- the place ------------------------------------------------------------
 
-  private buildGround(parent: THREE.Object3D): void {
-    // One slab for the whole field, so a portal in the ground opens up the
-    // ground and nothing else.
-    this.slab(parent, this.ground, [HALF_W * 2, 0.4, DEPTH + 40], [0, -0.2, -DEPTH / 2 + 10], true);
-
-    // The gravel strip everybody stands on, and the lane markings on it.
-    const apron = new THREE.Mesh(new THREE.BoxGeometry(HALF_W * 2 - 4, 0.04, 12), this.gravel);
-    apron.position.set(0, 0.02, 2);
-    parent.add(apron);
-
-    for (const lane of LANES) {
-      const line = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, DEPTH), this.concrete);
-      line.position.set(lane, 0.03, -DEPTH / 2);
-      parent.add(line);
-    }
-
-    // The backstop berm: high, solid, and no portals on it.
-    this.slab(parent, this.gravel, [HALF_W * 2, 9, 3], [0, 4.5, -DEPTH], false);
-    for (const side of [-1, 1]) {
-      this.slab(parent, this.gravel, [2, 6, DEPTH], [side * HALF_W, 3, -DEPTH / 2], false);
-    }
-  }
-
-  /** Roof, bench and side walls of the firing line. */
-  private buildStand(parent: THREE.Object3D): void {
-    const width = HALF_W * 2 - 6;
-
-    // The bench you rest on, one slab across all lanes.
-    this.slab(parent, this.timber, [width, 0.12, 0.7], [0, 1.05, -0.4], false);
-    for (const lane of LANES) {
-      for (const side of [-0.5, 0.5]) {
-        this.slab(parent, this.timber, [0.12, 1.05, 0.5], [lane + side * 1.9, 0.52, -0.4], false);
-      }
-      // A low divider between the lanes — chest high, so the range stays open.
-      this.slab(parent, this.concrete, [0.1, 1.4, 2], [lane + 2, 0.7, 0.2], false);
-    }
-
-    // Posts and roof over the line. The posts stand *between* the lanes — one
-    // in the middle would be exactly in the way of the middle lane.
-    for (const x of [-width / 2 + 0.6, -10, 10, width / 2 - 0.6]) {
-      for (const z of [-1.4, 3.8]) {
-        this.slab(parent, this.timber, [0.24, 3.6, 0.24], [x, 1.8, z], false);
-      }
-    }
-    // The roof stops just behind the line, so there is sky over the shooter.
-    this.slab(parent, this.timber, [width + 1.4, 0.22, 5.8], [0, 3.7, 1.2], false);
-
-    // The back wall, and the white boards a portal actually sticks to.
-    this.slab(parent, this.concrete, [width + 1.4, 3.6, 0.3], [0, 1.8, 5], false);
-    for (const side of [-1, 1]) {
-      this.slab(parent, this.panel, [0.3, 2.8, 3], [side * (width / 2 + 0.4), 1.5, 1.4], true);
-    }
-
+  private buildSign(): void {
     const sign = new TextPlane({
       width: 3.4,
       height: 1,
@@ -346,16 +295,20 @@ export class RangeWorld extends PortalWorld {
         'Werte, Zielhilfen und Zoom im Menü.',
       accent: 0xffc857,
     });
-    sign.position.set(0, 2.6, 4.82);
+    // An der Rückwand, mit dem Gesicht zur Linie.
+    sign.position.set(laneX(MIDDLE_LANE), 2.6, (STAND.z + STAND.d) * 2.5 - 0.2);
     sign.rotation.y = Math.PI;
-    parent.add(sign);
+    this.root.add(sign);
+  }
 
-    // The two switches, one to each side of the middle lane, facing the line.
-    // They stand head high: a lane divider is 1.4 m, and a board behind one is
-    // a board nobody can hit.
+  /**
+   * The two switches, one to each end of the bench, facing the line. They stand
+   * head high: a lane divider is 0.9 m, and a board behind one is a board
+   * nobody can hit.
+   */
+  private buildSwitches(): void {
     this.buildSwitch(
-      parent,
-      -2.4,
+      laneX(STAND.x),
       'Ton',
       () => this.sound,
       () => {
@@ -363,8 +316,7 @@ export class RangeWorld extends PortalWorld {
       },
     );
     this.buildSwitch(
-      parent,
-      2.4,
+      laneX(STAND.x + STAND.w - 1),
       'Punkte',
       () => this.showPoints,
       () => {
@@ -378,20 +330,14 @@ export class RangeWorld extends PortalWorld {
    * plate behind it that a bullet can be tested against. It answers to the
    * pointer as well, so it works whether you shoot it or point and pull.
    */
-  private buildSwitch(
-    parent: THREE.Object3D,
-    x: number,
-    label: string,
-    on: () => boolean,
-    flip: () => void,
-  ): void {
+  private buildSwitch(x: number, label: string, on: () => boolean, flip: () => void): void {
     const height = 1.95;
     const group = new THREE.Group();
     group.name = `range-switch-${label}`;
-    group.position.set(x, height, 0.4);
-    parent.add(group);
+    group.position.set(x, height, 1);
+    this.root.add(group);
 
-    this.slab(group, this.steel, [0.08, height, 0.08], [0, -height / 2, 0], false);
+    this.postUnder(group, height);
     // Its own material: the board changes colour with its state, and the rest
     // of the range's steel must not change with it.
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.44, 0.06), this.steel.clone());
@@ -421,6 +367,13 @@ export class RangeWorld extends PortalWorld {
     this.drawSwitch(entry);
   }
 
+  /** Der Pfosten, auf dem ein Schild oder ein Schalter steht. */
+  private postUnder(parent: THREE.Object3D, height: number): void {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, height, 0.08), this.steel);
+    post.position.y = -height / 2;
+    parent.add(post);
+  }
+
   /** What the board says right now, and what colour it says it in. */
   private drawSwitch(entry: RangeSwitch): void {
     entry.face.setText(`${entry.label}: ${entry.on() ? 'an' : 'aus'}`, 'Anschießen oder Trigger');
@@ -430,7 +383,7 @@ export class RangeWorld extends PortalWorld {
   }
 
   /** The distance markers along the left-hand side. */
-  private buildLaneMarkers(parent: THREE.Object3D): void {
+  private buildLaneMarkers(): void {
     for (const distance of [...TARGET_ROWS, 75, 100]) {
       // Facing the firing line, so the number can be read from it.
       const marker = new TextPlane({
@@ -439,9 +392,11 @@ export class RangeWorld extends PortalWorld {
         title: `${distance} m`,
         accent: 0x4aa8ff,
       });
-      marker.position.set(-12, 1.6, -distance);
-      parent.add(marker);
-      this.slab(parent, this.steel, [0.1, 1.6, 0.1], [-12, 0.8, -distance], false);
+      const group = new THREE.Group();
+      group.position.set(laneX(STAND.x - 3), 1.6, -distance);
+      this.root.add(group);
+      group.add(marker);
+      this.postUnder(group, 1.6);
     }
   }
 
@@ -551,16 +506,4 @@ export class RangeWorld extends PortalWorld {
     if (!this.targetFace) this.targetFace = bullseyeFace();
     return this.targetFace;
   }
-}
-
-/** True when the segment runs into an object's box — used for the switches. */
-function segmentHitsBox(object: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3): boolean {
-  _box.setFromObject(object);
-  if (_box.isEmpty()) return false;
-  if (_box.containsPoint(from)) return true;
-  _to.copy(to).sub(from);
-  const length = _to.length();
-  if (length < 1e-6) return false;
-  _ray.set(from, _to.divideScalar(length));
-  return _ray.intersectBox(_box, _corner) !== null && from.distanceTo(_corner) <= length;
 }

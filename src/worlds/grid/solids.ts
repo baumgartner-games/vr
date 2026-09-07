@@ -50,6 +50,17 @@ export interface PlanSolid {
   d: number;
   /** Bei einer Tür: ihr Name im Plan — daran erkennt man das Blatt wieder. */
   door?: string;
+  /**
+   * Ob ein Portal daran haftet.
+   *
+   * Ohne Angabe entscheidet die Sorte: helle Tafeln ja, alles andere nein.
+   * Gesetzt wird es für die eine Ausnahme, die jede Freiluftkarte hat — **den
+   * Boden**. Er ist ein einziger großer Quader und muss es sein: Jede
+   * Portalfläche bekommt eine eigene Kollisionsgruppe, davon gibt es zehn
+   * (`PhysicsWorld.ts`), und tausend Bodenkacheln einzeln portalfähig zu
+   * machen hieße, dass ein Bodenportal auch die Wand gegenüber aufmacht.
+   */
+  portal?: boolean;
 }
 
 /**

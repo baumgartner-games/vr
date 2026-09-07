@@ -81,7 +81,7 @@ export abstract class GridWorld extends PortalWorld {
       this.materialFor(solid.kind),
       [solid.w, solid.h, solid.d],
       [solid.x, solid.y, solid.z],
-      solid.kind === 'panel',
+      solid.portal ?? solid.kind === 'panel',
     );
     if (solid.door) mesh.userData.door = solid.door;
   }
