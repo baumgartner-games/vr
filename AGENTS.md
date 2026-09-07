@@ -3886,6 +3886,47 @@ sucht das im Boden. Die Fläche bis zum Horizont ist deshalb ein **Kasten** von
 einem halben Meter (`GROUND_THICKNESS`, mit Test), dessen Oberseite dort liegt,
 wo vorher die Ebene lag.
 
+**Und die Kapsel wird über dem Boden abgesetzt, nicht auf ihm**
+(`SEAT_CLEARANCE`, 6 cm). Das ist die Zahl, wegen der man beim Stehen langsam
+im Fußboden versank, nach dem nächsten Portal wieder oben drüber stand und der
+Sprung mal kam und mal nicht — drei Beschwerden, ein Ursprung. Der
+Character-Controller sucht den Boden nämlich nur auf der Strecke, die er gehen
+soll, und was näher liegt als seine eigene Haut, sieht er überhaupt nicht: Eine
+Sohle, die genau auf der Fläche steht, steht in seinem toten Winkel, wird von
+ihr nicht mehr gehalten und sackt Bild für Bild tiefer, bis sie unten
+herausfällt (gemessen: ein Meter in zehn Sekunden, bei manchen Bildraten der
+ganze Weg aus der Welt). Genau so wurde sie aber abgesetzt, beim Betreten jeder
+Welt und nach jeder Versetzung. Die paar Zentimeter, um die sie sich danach
+setzt, bekommt der Spieler nicht mit: Das Rig lässt sie aus (`seatSlack`).
+
+Dazu **misst** die Fortbewegung jedes Bild den Abstand zwischen Sohle und
+Fläche, statt ihn dem Controller zu glauben (`groundGap` — ein Formwurf der
+Kapsel nach unten). Liegt die Fläche in Hautnähe und der Controller hat sie
+trotzdem nicht gesehen, unterbleibt der Schritt nach unten; steckt die Kapsel
+schon darin, wird sie mit zwei Millimetern je Bild herausgeschoben. Das
+Zweite kommt vom **Ansaugen** (`GROUND_SNAP`), das gelegentlich danebengreift:
+Es stand auf 28 cm — eine ganze Treppenstufe — und riss den Spieler auf freier
+Fläche dreizehn Zentimeter in die Bodenplatte hinein, wo der Controller ihn
+auch nicht mehr vorwärts ließ. Das ist das Stocken beim Gehen, das aus dem
+Nichts kommt und sekundenlang anhält. Jetzt sind es 8 cm; eine Treppe hält das
+genauso sauber, und was höher ist, ist ohnehin ein Absatz, den man fällt.
+
+**Ein Sprung wartet kurz auf den Boden und gilt kurz nach der Kante weiter**
+(`JUMP_BUFFER` 0,15 s, `COYOTE_TIME` 0,12 s). Wer im Laufen abspringt, drückt
+oft ein Bild zu früh oder ein Bild zu spät, und beides verschluckte den Sprung
+ganz. Dazu kam ein zweiter Fehler mit demselben Ergebnis: Der Controller meldet
+den frisch verlassenen Boden noch ein, zwei Bilder als betreten, und dort
+löschte ein `min(v, 0)` die frische Sprunggeschwindigkeit wieder — aus 4,4 m/s
+wurden fünf Zentimeter Hüpfer, und zwar mal so, mal so. Gemessen wird das jetzt
+mit echtem Rapier bei fünf Bildraten (`physics/playerFooting.test.ts`).
+
+**Wer einen Körper versetzt, zieht die Collider nach** (`syncColliders`).
+Rapier tut das sonst als Erstes im nächsten Schritt, und abgefragt wird der
+Collider, nicht der Körper: Wer den Spieler umsetzt und im selben Bild den
+Character-Controller rechnen lässt, fragt sonst von der alten Stelle aus und
+bekommt eine Bewegung zurück, die zu einem anderen Ort gehört — in der Brille
+ein Spieler, der nach dem Portal fünf Zentimeter im Boden steht.
+
 **Ein Körper wird höchstens einmal weggenommen** (`PhysicsWorld.remove`), und
 das steht hier, weil der Preis so hoch ist: Ein zweites `removeRigidBody`
 desselben Eintrags — oder eines aus einer Welt, die schon freigegeben ist —
