@@ -139,6 +139,30 @@ import { TextPlane } from '../../ui/TextPlane';
 import { playPick, playPop, playTone } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
+import { SignRoom, type SignControl } from '../signs/SignRoom';
+import {
+  FONT_STEPS,
+  HEIGHT_STEPS,
+  SCROLL_STEPS,
+  SIGN_BACKGROUNDS,
+  SIGN_COLORS,
+  WIDTH_STEPS,
+  alignLabel,
+  fontLabel,
+  nextPalette,
+  nextStep as nextSignStep,
+  paletteLabel,
+  scrollLabel,
+  type SignSettings,
+} from '../signs/signSettings';
+import { saveSignTemplate, signTemplate } from '../signs/signStore';
+import {
+  KEYBOARD_MODE_LABELS,
+  KEYBOARD_MODE_SUBS,
+  keyboardMode,
+  nextKeyboardMode,
+  saveKeyboardMode,
+} from '../../core/systemKeyboard';
 import { bakeNav, type BakeReport } from '../nav/navBake';
 import { applyNavLayers, boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
 import {
@@ -759,6 +783,14 @@ export class PortalWorld implements World {
    * Bedienung, nicht der Besitzer.
    */
   protected director: NpcDirector | null = null;
+  /**
+   * Die aufgestellten Schilder dieser Welt (`worlds/signs/SignRoom.ts`).
+   *
+   * Sie hängen am Raum und nicht am Werkzeug: Wer eines hinstellt, kann sein
+   * Werkzeug danach weglegen, und das Schild bleibt — bei ihm und bei allen
+   * anderen in der Sitzung.
+   */
+  protected signs: SignRoom | null = null;
 
   /**
    * **Der Kachelgraph dieser Welt** (`worlds/nav/`).
@@ -864,6 +896,21 @@ export class PortalWorld implements World {
       nav: () => this.nav,
     });
     this.director.setBars(this.npcBars);
+    this.signs = new SignRoom({
+      root: this.root,
+      context: () => this.context,
+      worldId: () => this.context?.net.world ?? 'portal',
+      notify: (message) => this.announce(message),
+      handBusy: (hand) => this.held.get(hand) !== undefined,
+      askText: (request) =>
+        this.askLines({
+          title: request.title,
+          sub: request.sub,
+          value: request.value,
+          hint: request.hint,
+          commit: request.commit,
+        }),
+    });
     this.host = this.buildHost(ctx);
     this.keys = new KeyPanel();
     this.root.add(this.keys);
@@ -907,6 +954,9 @@ export class PortalWorld implements World {
     // Vor dem Schritt: was das Hirn in dieser Frame will, soll in *dieser*
     // Frame gelaufen werden und nicht in der nächsten.
     this.director?.update(dt * this.timeScale);
+    // Die Schilder laufen in **echter** Zeit: Ein Aushang, den die Stoppuhr
+    // anhält, wäre eine Zeitlupe des Lesens.
+    this.signs?.update(dt);
     // The stopwatch slows the simulation, not the frame rate: everything the
     // player does with their hands stays as responsive as ever. Bei
     // angehaltener Zeit rechnet stattdessen die Stoppuhr die Schritte ab, die
@@ -2634,6 +2684,34 @@ export class PortalWorld implements World {
     });
   }
 
+  /**
+   * Dieselbe Tastatur, aber **mehrzeilig** — für alles, was ein Text ist und
+   * kein Wert: der Aushang auf einem Schild.
+   *
+   * Sie liegt hier und nicht bei den Schildern, weil die Tastatur der Welt
+   * gehört: Sie hängt vor dem Kopf des Spielers, sie ist beim Zeiger
+   * angemeldet, und es darf immer nur eine offen sein.
+   */
+  protected askLines(options: {
+    title: string;
+    sub?: string;
+    value: string;
+    hint?: string;
+    commit(text: string): void;
+  }): void {
+    this.openKeys({
+      title: options.title,
+      sub: options.sub,
+      value: options.value,
+      hint: options.hint,
+      layout: 'lines',
+      onCommit: (text) => {
+        options.commit(text);
+        this.refreshMenuLabels();
+      },
+    });
+  }
+
   /** Puts the keypad an arm's length in front of the player and opens it. */
   private openKeys(request: KeyPanelRequest): void {
     const keys = this.keys;
@@ -2695,7 +2773,9 @@ export class PortalWorld implements World {
           ? (this.supermanMenu().children ?? [])
           : id === 'holster'
             ? this.beltMenu()
-            : [];
+            : id === 'sign'
+              ? this.signMenu()
+              : [];
 
     return [
       ...own,
@@ -2722,6 +2802,152 @@ export class PortalWorld implements World {
           tool?.resetHold();
           this.refreshMenuLabels();
           this.context?.notify(`${tool?.label ?? id}: Lage zurückgesetzt`);
+        },
+      },
+    ];
+  }
+
+  /**
+   * **Wie ein Schild aussieht** — hinter dem Werkzeug, das es aufstellt.
+   *
+   * Jede Zeile ändert **zweierlei**: das Schild, vor dem man gerade steht (das
+   * zuletzt aufgestellte oder angezielte), und die Vorlage für das nächste.
+   * Beides zusammen, weil beides gemeint ist — wer die Schrift größer stellt,
+   * während er davorsteht, will dieses Schild größer haben und das nächste
+   * nicht wieder von Hand einstellen (`worlds/signs/SignRoom.ts`).
+   */
+  private signMenu(): MenuEntry[] {
+    const accent = 0x9fd0ff;
+    const read = (): SignSettings => this.signs?.settings() ?? signTemplate();
+    const write = (patch: Partial<SignSettings>): void => {
+      const next = this.signs?.apply(patch) ?? saveSignTemplate({ ...read(), ...patch });
+      this.refreshMenuLabels();
+      void next;
+    };
+
+    const dial = (
+      id: string,
+      label: string,
+      sub: string,
+      value: () => string,
+      step: () => void,
+    ): MenuEntry => {
+      const entry: MenuEntry = {
+        id: `setting:sign-${id}`,
+        label: `${label}: ${value()}`,
+        sub,
+        icon: 'sign',
+        accent,
+        run: () => {
+          step();
+          this.refreshMenuLabels();
+          this.context?.notify(`${label}: ${value()}`);
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = `${label}: ${value()}`;
+      });
+      return entry;
+    };
+
+    return [
+      {
+        id: 'setting:sign-text',
+        label: 'Schild beschriften',
+        sub: 'Die Tastatur für das Schild, vor dem du stehst',
+        icon: 'chat',
+        accent,
+        run: () => {
+          const signs = this.signs;
+          if (!signs) return;
+          if (signs.current()) signs.edit();
+          else this.context?.notify('Erst eines aufstellen · Trigger mit dem Schild in der Hand');
+        },
+      },
+      dial(
+        'font',
+        'Schriftgröße',
+        'Zeilenhöhe auf dem Schild — in Zentimetern, nicht in Pixeln',
+        () => fontLabel(read().fontCm),
+        () => write({ fontCm: nextSignStep(FONT_STEPS, read().fontCm) }),
+      ),
+      dial(
+        'markdown',
+        'Markdown',
+        '# Titel, - Punkt, **fett**, ![Bild](Adresse) — oder alles wörtlich',
+        () => (read().markdown ? 'an' : 'aus'),
+        () => write({ markdown: !read().markdown }),
+      ),
+      dial(
+        'align',
+        'Ausrichtung',
+        'Linksbündig liest sich länger, mittig sieht nach Aushang aus',
+        () => alignLabel(read().align),
+        () => write({ align: read().align === 'center' ? 'left' : 'center' }),
+      ),
+      dial(
+        'color',
+        'Schriftfarbe',
+        'Sechs Farben, die zu den Hintergründen passen',
+        () => paletteLabel(SIGN_COLORS, read().color),
+        () => write({ color: nextPalette(SIGN_COLORS, read().color) }),
+      ),
+      dial(
+        'background',
+        'Hintergrund',
+        'Dunkel für einen Raum, Papier für einen Aushang',
+        () => paletteLabel(SIGN_BACKGROUNDS, read().background),
+        () => write({ background: nextPalette(SIGN_BACKGROUNDS, read().background) }),
+      ),
+      dial(
+        'scroll',
+        'Automatisch rollen',
+        'Läuft von selbst hoch, wartet oben und unten',
+        () => scrollLabel(read().autoScroll),
+        () => write({ autoScroll: nextSignStep(SCROLL_STEPS, read().autoScroll) }),
+      ),
+      dial(
+        'manual',
+        'Von Hand rollen',
+        'Daumenstick der Hand, die auf das Schild zeigt',
+        () => (read().manualScroll ? 'an' : 'aus'),
+        () => write({ manualScroll: !read().manualScroll }),
+      ),
+      dial(
+        'width',
+        'Breite',
+        'Wie breit die Tafel ist — die Schrift bleibt dabei gleich groß',
+        () => `${read().width.toFixed(1).replace('.', ',')} m`,
+        () => write({ width: nextSignStep(WIDTH_STEPS, read().width) }),
+      ),
+      dial(
+        'height',
+        'Höhe',
+        'Höher heißt: mehr steht da, bevor gerollt werden muss',
+        () => `${read().height.toFixed(1).replace('.', ',')} m`,
+        () => write({ height: nextSignStep(HEIGHT_STEPS, read().height) }),
+      ),
+      {
+        id: 'setting:sign-keyboard',
+        label: `Tastatur: ${KEYBOARD_MODE_LABELS[keyboardMode()]}`,
+        sub: KEYBOARD_MODE_SUBS[keyboardMode()],
+        icon: 'settings',
+        accent,
+        run: (): void => {
+          const mode = saveKeyboardMode(nextKeyboardMode(keyboardMode()));
+          this.refreshMenuLabels();
+          this.context?.notify(`Tastatur: ${KEYBOARD_MODE_LABELS[mode]}`);
+        },
+      },
+      {
+        id: 'setting:sign-clear',
+        label: 'Eigene Schilder abräumen',
+        sub: 'Alles, was du selbst aufgestellt hast — bei allen im Raum',
+        icon: 'eraser',
+        accent: 0xffc857,
+        run: () => {
+          const count = this.signs?.clear() ?? 0;
+          this.context?.notify(count ? `${count} Schilder abgeräumt` : 'Da stand nichts');
         },
       },
     ];
@@ -2801,6 +3027,8 @@ export class PortalWorld implements World {
     this.hasLastGround = false;
     this.director?.dispose();
     this.director = null;
+    this.signs?.dispose();
+    this.signs = null;
     this.sync?.dispose();
     this.sync = null;
     this.clearRemotePlayers(ctx);
@@ -4854,6 +5082,7 @@ export class PortalWorld implements World {
       unparkTool: (tool) => this.unparkTool(tool),
       stowTool: (tool) => this.stowTool(tool),
       npcs: (): NpcControl | null => this.director,
+      signs: (): SignControl | null => this.signs,
       takeTool: (tool, hand) => {
         const now = this.context;
         const controller = now?.input.get(hand);

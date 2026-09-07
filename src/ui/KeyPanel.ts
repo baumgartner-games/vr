@@ -1,11 +1,20 @@
 import * as THREE from 'three';
 import type { PointerHit, PointerTarget } from '../core/Pointer';
 import { beginTextEntry, endTextEntry } from '../core/textEntry';
+import { openSystemInput, useSystemKeyboard, type SystemInput } from '../core/systemKeyboard';
 
 const CANVAS_W = 1024;
 const CANVAS_H = 640;
 const PAD = 26;
 const HEADER_H = 190;
+/**
+ * Mehrzeilig bekommt das Feld mehr als das Doppelte an Höhe.
+ *
+ * Ein Schild zu tippen und dabei nur die letzte Zeile zu sehen ist dasselbe,
+ * wie durch einen Strohhalm zu schreiben: Man weiß nach vier Zeilen nicht
+ * mehr, ob die Überschrift eine war.
+ */
+const HEADER_LINES_H = 330;
 const GAP = 8;
 
 /** What a key does when it is hit. */
@@ -35,8 +44,11 @@ export interface KeyPanelRequest {
   /**
    * Zifferblock, die Zeichen eines Konfig-Codes — oder dieselben Buchstaben mit
    * einer Leertaste, für alles, was ein Mensch sich ausdenkt (`name`).
+   *
+   * `lines` ist der vierte Fall und der einzige mehrzeilige: ein ganzes Schild
+   * mit Umlauten, Satzzeichen und den Zeichen, aus denen Markdown besteht.
    */
-  layout: 'number' | 'text' | 'name';
+  layout: 'number' | 'text' | 'name' | 'lines';
   /** Shown under the field — the range, the format, whatever helps. */
   hint?: string;
   /** Called with every keystroke, so a value can be tried out live. */
@@ -107,6 +119,33 @@ const NAME_ROWS: Key[][] = [
   ],
 ];
 
+/**
+ * **Die Schreibmaschine** — für alles, was mehr als eine Zeile ist.
+ *
+ * Vierzehn Spalten statt dreizehn, und in der sechsten Reihe stehen die
+ * Zeichen, an denen sonst jedes Schild scheitert: Umlaute, Satzzeichen und die
+ * eckigen Klammern, ohne die kein Markdown-Link zustande kommt. Der Rest —
+ * `@`, `;`, alles Seltene — bleibt der Systemtastatur überlassen; eine Tafel,
+ * auf der jedes Zeichen der Welt steht, hat Tasten von der Größe eines
+ * Reiskorns.
+ */
+const LINE_ROWS: Key[][] = [
+  row('0123456789#*-_'),
+  row('ABCDEFGHIJKLMN'),
+  row('OPQRSTUVWXYZÄÖ'),
+  row('abcdefghijklmn'),
+  row('opqrstuvwxyzäö'),
+  row('üßÜ.,:!?()[]/>'),
+  [
+    { label: '←', action: { kind: 'back' }, span: 2, accent: '#ffb35c' },
+    { label: 'Leeren', action: { kind: 'clear' }, span: 2, accent: '#ffb35c' },
+    { label: 'Leertaste', action: { kind: 'char', char: ' ' }, span: 4 },
+    { label: '⏎ Zeile', action: { kind: 'char', char: '\n' }, span: 2, accent: '#9fd0ff' },
+    { label: 'Abbrechen', action: { kind: 'cancel' }, span: 2, accent: '#ff7a7a' },
+    { label: 'Fertig', action: { kind: 'ok' }, span: 2, accent: '#5ee0a0' },
+  ],
+];
+
 function row(chars: string): Key[] {
   return [...chars].map((char) => ({ label: char, action: { kind: 'char', char } }) as Key);
 }
@@ -119,11 +158,18 @@ function row(chars: string): Key[] {
  * need real typing, and a headset has nowhere to type. So: a panel of keys in
  * front of you, hit with the same pointer as everything else.
  *
- * Two layouts, because two jobs. A number pad for the raw values, and the 64
- * characters a config code is made of — plus **Einfügen** and **Kopieren**,
- * which are what actually get used at a desk.
+ * Vier Belegungen, weil vier Aufgaben: ein Zifferblock für die nackten Werte,
+ * die 64 Zeichen eines Konfig-Codes — mit **Einfügen** und **Kopieren**, die am
+ * Schreibtisch das sind, was wirklich benutzt wird —, dieselben Buchstaben mit
+ * Leertaste für einen Namen, und die mehrzeilige Schreibmaschine für ein
+ * ganzes Schild.
  *
- * A real keyboard, if there is one, types into it as well.
+ * A real keyboard, if there is one, types into it as well — und in der Brille
+ * kommt, wo es sie gibt, die **Systemtastatur des Geräts** dazu
+ * (`core/systemKeyboard.ts`). Sie tritt neben diese Tafel und nicht an ihre
+ * Stelle: Ob eine Quest ihre Tastatur wirklich einblendet, erfährt kein
+ * Programm, und eine Eingabe, die auf einer unsichtbaren Zusage beruht, hat
+ * man dann gar nicht.
  */
 export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
   private readonly ctx: CanvasRenderingContext2D;
@@ -135,6 +181,10 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
   private rows: Key[][] = NUMBER_ROWS;
   private readonly keys: Array<{ key: Key; x: number; y: number; w: number; h: number }> = [];
   private readonly onKeyDown: (event: KeyboardEvent) => void;
+  /** Das Feld des Geräts, solange eines offen ist (`core/systemKeyboard.ts`). */
+  private bridge: SystemInput | null = null;
+  /** Wie hoch der Kopf gerade ist — mehrzeilig braucht er mehr. */
+  private header = HEADER_H;
 
   constructor(width = 0.42) {
     const canvas = document.createElement('canvas');
@@ -174,22 +224,71 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
   open(request: KeyPanelRequest): void {
     // Already open on another field: the old entry ends before the new begins.
     if (this.request) endTextEntry();
+    this.closeBridge();
     beginTextEntry();
     this.request = request;
     this.text = request.value ?? '';
     this.rows =
-      request.layout === 'text' ? TEXT_ROWS : request.layout === 'name' ? NAME_ROWS : NUMBER_ROWS;
+      request.layout === 'lines'
+        ? LINE_ROWS
+        : request.layout === 'text'
+          ? TEXT_ROWS
+          : request.layout === 'name'
+            ? NAME_ROWS
+            : NUMBER_ROWS;
+    this.header = request.layout === 'lines' ? HEADER_LINES_H : HEADER_H;
     this.status = '';
     this.hover = -1;
     this.visible = true;
+    this.openBridge();
     this.layout();
     this.draw();
   }
 
   close(): void {
     if (this.request) endTextEntry();
+    this.closeBridge();
     this.request = null;
     this.visible = false;
+  }
+
+  /**
+   * Die Tastatur des Geräts dazuholen, wenn es eine gibt.
+   *
+   * Sie tritt **neben** die Tafel und nicht an ihre Stelle: Was dort getippt
+   * wird, steht hier, und was hier getippt wird, steht dort. Ob die Quest ihre
+   * Tastatur wirklich einblendet, erfährt kein Programm — also darf nichts
+   * davon abhängen.
+   */
+  private openBridge(): void {
+    const request = this.request;
+    if (!request || !useSystemKeyboard()) return;
+    this.bridge = openSystemInput({
+      value: this.text,
+      multiline: request.layout === 'lines',
+      label: request.title,
+      onChange: (text) => {
+        this.text = request.layout === 'lines' ? text : text.replace(/\n/g, '');
+        this.status = '';
+        request.onPreview?.(this.text);
+        this.draw();
+      },
+      onCommit: (text) => {
+        this.text = text;
+        this.run({ kind: 'ok' });
+      },
+      onCancel: () => this.run({ kind: 'cancel' }),
+      onBlur: () => {
+        this.status = 'Systemtastatur zu · auf das Feld tippen holt sie zurück';
+        this.draw();
+      },
+    });
+    if (this.bridge) this.status = 'Systemtastatur angefordert';
+  }
+
+  private closeBridge(): void {
+    this.bridge?.close();
+    this.bridge = null;
   }
 
   asPointerTarget(): PointerTarget {
@@ -215,12 +314,20 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
 
   private select(hit: PointerHit): void {
     const index = hit.uv ? this.indexAt(hit.uv) : -1;
-    if (index < 0) return;
+    if (index < 0) {
+      // Auf das Feld getippt: Die Systemtastatur schließt sich, sobald das Feld
+      // den Fokus verliert — irgendwo hinzufassen ist die einzige Geste, mit
+      // der man sie in der Brille zurückholt.
+      if (hit.uv && (1 - hit.uv.y) * CANVAS_H < this.header) this.bridge?.focus();
+      return;
+    }
     this.run(this.keys[index]!.key.action);
   }
 
   private handlePhysicalKey(event: KeyboardEvent): void {
     if (!this.request) return;
+    // Das Feld des Geräts hat den Anschlag schon; hier käme er ein zweites Mal an.
+    if (this.bridge) return;
     if (event.key === 'Enter') this.run({ kind: 'ok' });
     else if (event.key === 'Escape') this.run({ kind: 'cancel' });
     else if (event.key === 'Backspace') this.run({ kind: 'back' });
@@ -262,6 +369,9 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
     }
 
     this.status = '';
+    // Was auf der Tafel getippt wurde, gehört auch ins Feld des Geräts —
+    // sonst schreibt die nächste Systemtaste über einem alten Stand weiter.
+    this.bridge?.setValue(this.text);
     request.onPreview?.(this.text);
     this.draw();
   }
@@ -302,14 +412,14 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
     const columns = Math.max(...this.rows.map((r) => r.reduce((sum, k) => sum + (k.span ?? 1), 0)));
     const width = CANVAS_W - PAD * 2;
     const cell = (width - GAP * (columns - 1)) / columns;
-    const height = (CANVAS_H - HEADER_H - PAD - GAP * (this.rows.length - 1)) / this.rows.length;
+    const height = (CANVAS_H - this.header - PAD - GAP * (this.rows.length - 1)) / this.rows.length;
 
     this.rows.forEach((row, r) => {
       let x = PAD;
       for (const key of row) {
         const span = key.span ?? 1;
         const w = cell * span + GAP * (span - 1);
-        this.keys.push({ key, x, y: HEADER_H + r * (height + GAP), w, h: height });
+        this.keys.push({ key, x, y: this.header + r * (height + GAP), w, h: height });
         x += w + GAP;
       }
     });
@@ -346,9 +456,11 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
       ctx.fillText(request.sub, PAD, 92);
     }
 
-    // The field itself.
+    // The field itself. Mehrzeilig ist es so hoch, wie der Kopf hergibt.
+    const fieldTop = 106;
+    const fieldHeight = this.header - fieldTop - 30;
     ctx.beginPath();
-    ctx.roundRect(PAD, 106, CANVAS_W - PAD * 2, 54, 14);
+    ctx.roundRect(PAD, fieldTop, CANVAS_W - PAD * 2, fieldHeight, 14);
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fill();
     ctx.strokeStyle = '#4aa8ff';
@@ -356,14 +468,27 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
     ctx.stroke();
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 30px ui-monospace, monospace';
-    const shown = fit(ctx, this.text || ' ', CANVAS_W - PAD * 2 - 40);
-    ctx.fillText(`${shown}▌`, PAD + 18, 145);
+    if (this.request?.layout === 'lines') {
+      // Die **letzten** Zeilen und nicht die ersten: Getippt wird am Ende, und
+      // dorthin will man sehen. Der Rest steht danach auf dem Schild.
+      const lineHeight = 34;
+      const room = Math.max(1, Math.floor((fieldHeight - 20) / lineHeight));
+      const lines = wrapField(ctx, this.text, CANVAS_W - PAD * 2 - 36);
+      const shown = lines.slice(-room);
+      shown.forEach((line, index) => {
+        const last = index === shown.length - 1;
+        ctx.fillText(last ? `${line}▌` : line, PAD + 18, fieldTop + 34 + index * lineHeight);
+      });
+    } else {
+      const shown = fit(ctx, this.text || ' ', CANVAS_W - PAD * 2 - 40);
+      ctx.fillText(`${shown}▌`, PAD + 18, fieldTop + 39);
+    }
 
     const note = this.status || request?.hint || '';
     if (note) {
       ctx.fillStyle = this.status ? '#9fd0ff' : '#71809e';
       ctx.font = '400 22px system-ui, sans-serif';
-      ctx.fillText(note, PAD, 182);
+      ctx.fillText(note, PAD, this.header - 8);
     }
 
     this.keys.forEach((slot, index) => {
@@ -394,6 +519,30 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
 function withAlpha(hex: string, alpha: number): string {
   const value = parseInt(hex.slice(1), 16);
   return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
+/**
+ * Der Text im mehrzeiligen Feld, umgebrochen — ein `\n` bricht, wo es steht.
+ *
+ * Eine leere Zeile bleibt eine leere Zeile: Sie ist in Markdown der Absatz und
+ * damit das Zeichen, an dem man beim Tippen die Gliederung erkennt.
+ */
+function wrapField(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    for (const word of paragraph.split(' ')) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
 }
 
 /** Long codes are shown from the back — that is where the typing happens. */

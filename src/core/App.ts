@@ -35,6 +35,7 @@ import {
 import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
 import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
 import { MirrorRenderer } from '../worlds/shared/Mirror';
+import { setImmersive } from './systemKeyboard';
 import type { PlayerRole, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
 import type { Peer } from '../net/NetSession';
@@ -1056,6 +1057,9 @@ export class App {
 
   private onSessionStart = (): void => {
     this.role = 'vr';
+    // Ab jetzt darf eine Texteingabe die Tastatur des Geräts anfordern: Im
+    // Browserfenster gibt es dafür die echte Tastatur, in der Brille nicht.
+    setImmersive(true);
     this.flat.enabled = false;
     this.rig.camera.rotation.set(0, 0, 0);
     // The camera moved inside the rig while spectating flat; the headset owns
@@ -1070,6 +1074,7 @@ export class App {
 
   private onSessionEnd = (): void => {
     this.role = detectFlatRole();
+    setImmersive(false);
     if (this.rig.paused) {
       // Spectating in VR carried the rig around; the body has to catch up.
       this.rig.paused = false;

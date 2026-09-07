@@ -16,6 +16,7 @@ import type { PropReport, PropStyle } from '../PortalWorld';
 import type { Attachment } from './attachments';
 import type { PaintSurface } from './paintCanvas';
 import type { NpcControl } from '../../npc/NpcDirector';
+import type { SignControl } from '../../signs/SignRoom';
 
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
@@ -210,6 +211,16 @@ export interface ToolHost {
    * Malflächen: Das Werkzeug kennt die Fähigkeit, nicht ihren Besitzer.
    */
   npcs(): NpcControl | null;
+  /**
+   * **Die Schilder dieser Welt** — der Bestand an aufgestellten Tafeln, oder
+   * `null` in einer Welt, die keinen führt (`worlds/signs/SignRoom.ts`).
+   *
+   * Dieselbe Grenze wie bei den NPCs und den Malflächen: Das Werkzeug kennt
+   * die Fähigkeit, nicht ihren Besitzer. Ein Schild aufzustellen heißt, es dem
+   * Raum zu übergeben — samt dem Weg zu den anderen Spielern, von dem das
+   * Werkzeug nichts wissen muss.
+   */
+  signs(): SignControl | null;
 }
 
 /** How hard a round hits: the punch is its mass times its speed. */
