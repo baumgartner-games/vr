@@ -4,7 +4,7 @@ import { findPath } from '../nav/navPath';
 import { HAZARD_SPIKES, profileOf } from '../nav/navProfile';
 import { NO_TILE, TILE, tileDistance } from '../nav/navTile';
 import { npcSkin } from '../npc/npcKinds';
-import { closestTo, crossedAt, passedNear, runBay, walked } from './labSim';
+import { bakeLab, closestTo, crossedAt, passedNear, runBay, walked } from './labSim';
 import {
   CRATE,
   DOOR_ID,
@@ -12,6 +12,7 @@ import {
   PIT_DAMAGE,
   PIT_DEPTH,
   PODIUM,
+  RAMP,
   baySpot,
   doorLeaf,
   openLabPortal,
@@ -425,6 +426,38 @@ describe('Vom Dach herunter', () => {
     // Irgendwann steht er unten.
     expect(zombie.at.y).toBeCloseTo(0);
     expect(zombie.arrived).toBe(true);
+    // **Und der Sprung hat ihn etwas gekostet** — 2,4 m sind über dem, was
+    // umsonst ist (`nav/navFall.ts`). Ohne diese Zeile wäre der Fallschaden
+    // eine Behauptung, die nur die Wegsuche kennt.
+    expect(zombie.health).toBeLessThan(npcSkin('zombie').health);
+    expect(zombie.dead).toBe(false);
+  });
+
+  it('lässt den Hamster oben stehen, weil er den Sprung nicht überlebt', () => {
+    // **Dieselbe Kante, dieselbe Karte, ein anderes Leben.** Der Hamster hat
+    // zwanzig (`npcKinds.ts`), und `navFall.safeFall` macht daraus zwei Meter —
+    // das Dach ist 2,4 hoch. Er sieht den Spieler, er will zu ihm, und er
+    // bleibt trotzdem oben: Der einzige Weg hinunter zöge ihm mehr ab, als er
+    // hat.
+    const run = runBay('levels', { seconds: 45 });
+    const hamster = run.runners[1]!;
+    expect(hamster.kind).toBe('hamster');
+    expect(hamster.at.y).toBeCloseTo(2.4);
+    expect(hamster.dead).toBe(false);
+    expect(hamster.health).toBe(npcSkin('hamster').health);
+    expect(hamster.arrived).toBe(false);
+  });
+
+  it('lässt ihn springen, sobald er mehr aushält', () => {
+    // **Die Gegenprobe**, und sie ist der eigentliche Beweis: Nicht die Sorte
+    // hält ihn oben, sondern die Rechnung. Mit dem Leben eines Zombies nimmt
+    // derselbe Hamster dieselbe Kante.
+    const run = runBay('levels', { seconds: 45, profiles: { hamster: 'zombie' } });
+    const hamster = run.runners[1]!;
+    expect(hamster.at.y).toBeCloseTo(0);
+    // Und er liegt unten: Der Fallschaden ist derselbe, den die Wegsuche vorher
+    // ausgerechnet hat — nur hat ihn diesmal niemand gelesen.
+    expect(hamster.dead).toBe(true);
   });
 });
 
@@ -503,5 +536,51 @@ describe('Podest und Sprung', () => {
     expect(zombie!.at.y).toBeCloseTo(0);
     expect(zombie!.arrived).toBe(false);
     expect(zombie!.nearest).toBeLessThan(4.5);
+  });
+});
+
+describe('Die beiden Steigungen', () => {
+  it('lässt beide die flache hinaufspringen', () => {
+    // Vier Stufen von 60 cm: zu hoch zum Treten (`stepUp`), gerade recht zum
+    // Hochziehen (`jumpUp`) — und oben steht der Spieler.
+    const run = runBay('ramp', { seconds: 45 });
+    for (const runner of run.runners) {
+      expect(runner.at.y).toBeCloseTo(RAMP.high);
+      expect(runner.arrived).toBe(true);
+      // Hinaufgesprungen heißt nicht hinuntergefallen: Wer die Stufen nimmt,
+      // kommt heil oben an.
+      expect(runner.health).toBe(npcSkin(runner.kind).health);
+    }
+  });
+
+  it('lässt beide vor der steilen stehen', () => {
+    // **Dieselbe Höhe, und diesmal kommt keiner hinauf.** Die Stufen sind hier
+    // zwölf Zentimeter hoch — die tritt jeder. Was ihn aufhält, ist der Winkel
+    // und sonst nichts (`nav/navProfile.ts`, `maxSlope`).
+    const run = runBay('steep', { seconds: 45 });
+    for (const runner of run.runners) {
+      expect(runner.at.y).toBeCloseTo(0);
+      expect(runner.arrived).toBe(false);
+      // Er steht aber auch nicht irgendwo herum, sondern so nah am Spieler, wie
+      // die Karte ihn lässt: unten an der Wand des Podests.
+      expect(runner.nearest).toBeLessThan(6);
+    }
+  });
+
+  it('lässt den hinauf, dem die Steigung reicht', () => {
+    // **Die Gegenprobe zur steilen Bucht.** Ein Kleintier geht steiler als ein
+    // Mensch (`CRITTER_PROFILE.maxSlope`) — und derselbe Weg, vor dem der
+    // Zombie steht, führt es hinauf. Damit hängt das Verhalten wirklich an der
+    // einen Zahl und nicht an der Bucht.
+    const bay = scenarioOf('steep');
+    const graph = bakeLab();
+    const foot = baySpot(bay, { lx: -1.25, lz: 3.75 });
+    const deck = baySpot(bay, { lx: -1.25, lz: -3.75 });
+    const from = graph.at(foot.x, foot.z, 0);
+    const to = graph.at(deck.x, deck.z, RAMP.high);
+    expect(from).not.toBe(NO_TILE);
+    expect(to).not.toBe(NO_TILE);
+    expect(findPath(graph, from, to, { profile: profileOf('zombie') }).complete).toBe(false);
+    expect(findPath(graph, from, to, { profile: profileOf('critter') }).complete).toBe(true);
   });
 });

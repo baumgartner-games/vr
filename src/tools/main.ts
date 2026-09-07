@@ -882,7 +882,7 @@ function setFlying(on: boolean): void {
  * **Eine Welt, die läuft** — auf einem Telefon, ohne Brille und ohne die Welt
  * zu betreten (`worlds/shared/livePreview.ts`).
  *
- * Der Grund dafür steht im Navigationslabor: Es besteht aus acht Knöpfen und
+ * Der Grund dafür steht im Navigationslabor: Es besteht aus zehn Knöpfen und
  * dem, was danach passiert, und ein stehendes Bild davon zeigt acht Kuppeln.
  * Was hier dazukommt, sind drei Sachen, und mehr braucht es nicht:
  *

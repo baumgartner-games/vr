@@ -1,5 +1,6 @@
 import { bakeNav, type NavBox } from '../nav/navBake';
 import { NavAgent } from '../nav/navAgent';
+import { fallDamage, fallHeight } from '../nav/navFall';
 import { doorBroken, type NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, type TileKey } from '../nav/navTile';
@@ -63,8 +64,17 @@ export const SIM_DT = 1 / 30;
 /** Wie hoch ein Sprung über sein höheres Ende hinausgeht (`Npc.launch`). */
 const LEAP_RISE = 0.7;
 
-/** Wie hoch er tritt, ohne zu springen (`AGENT_DEFAULTS.stepUp`). */
-const STEP_UP = 0.35;
+/**
+ * Wie hoch einer tritt, ohne zu springen — **seine** Zahl, nicht eine für alle
+ * (`nav/navProfile.CostProfile.stepUp`).
+ *
+ * Sie steckt am Körper und nicht in einer Konstante, seit die Sorten sich darin
+ * unterscheiden: Ein Test, der jeden mit derselben Schrittweite laufen lässt,
+ * lässt den Hamster Stufen nehmen, vor denen er in der Brille steht.
+ */
+function stepUpOf(runner: SimRunner): number {
+  return runner.agent.tuning.profile.stepUp;
+}
 
 /** Ein Ort im Labor, in Weltmetern. */
 export interface SimPoint {
@@ -166,6 +176,16 @@ export interface BayRunOptions {
   setup?: (graph: NavGraph) => void;
   /** Was ein Läufer schon weiß, bevor er losläuft (`navBelief.ts`). */
   brief?: (runner: SimRunner, graph: NavGraph) => void;
+  /**
+   * **Ein anderes Profil für eine Sorte** — für die Gegenprobe.
+   *
+   * Dieselbe Bucht, dieselbe Haut, ein anderer Kopf: Der Hamster, der oben auf
+   * dem Dach bleibt, springt mit dem Profil eines Zombies dieselbe Kante
+   * hinunter — und stirbt dann auch wirklich daran (`nav/navFall.ts`). Erst
+   * das macht aus „er bleibt oben" eine Aussage über die Rechnung und nicht
+   * über die Sorte.
+   */
+  profiles?: Readonly<Partial<Record<NpcKind, string>>>;
   /** Wo der Spieler steht — sonst dort, wo die Bucht ihn hinstellt. */
   player?: BaySpot;
 }
@@ -223,7 +243,10 @@ export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
       // dem er unten gegen die Wände stößt, hält seinen Weg von den Ecken weg
       // (`nav/navPath.ts`). Wer hier den Vorgabewert stehen ließe, prüfte
       // einen anderen Zombie als den, der gleich losläuft.
-      agent: new NavAgent({ profile: profileOf(skin.profile), girth: skin.radius }),
+      agent: new NavAgent({
+        profile: profileOf(options.profiles?.[one.kind] ?? skin.profile),
+        girth: skin.radius,
+      }),
     };
   });
   // Erst lernen, dann zuschlagen: Der Zombie hat die Tür **offen** gesehen, und
@@ -260,6 +283,8 @@ interface Body {
   reach: number;
   speed: number;
   turn: number;
+  /** Wie hoch er tritt, ohne zu springen — aus seinem Profil. */
+  stepUp: number;
   /** Ein laufender Sprung — `null`, solange er steht oder geht. */
   flight: Flight | null;
 }
@@ -287,6 +312,7 @@ function newBody(runner: SimRunner, yaw: number): Body {
     // `Npc` (`tuning.speed = options.speed ?? base.speed`).
     speed: skin.speed,
     turn: tuning.turn,
+    stepUp: stepUpOf(runner),
     flight: null,
   };
 }
@@ -455,11 +481,16 @@ function hitsAny(
  * spazieren, in die er in der Brille fällt.
  */
 function settle(runner: SimRunner, body: Body, boxes: readonly NavBox[]): void {
-  const floor = groundUnder(boxes, runner.at, body.radius);
+  const floor = groundUnder(boxes, runner.at, body.radius, body.stepUp);
   if (floor === null) return;
   // Hinauf nur, was man tritt; hinunter alles — er fällt.
-  if (floor > runner.at.y + STEP_UP) return;
+  if (floor > runner.at.y + body.stepUp) return;
   if (floor === runner.at.y) return;
+  // **Und ein Sturz kostet.** Dieselbe Rechnung wie in der Brille
+  // (`nav/navFall.ts`, `Npc.land`) — hier ohne den Umweg über eine
+  // Geschwindigkeit, denn dieser Körper fällt in einem Bild: Was er dabei an
+  // Höhe verliert, *ist* die Fallhöhe.
+  runner.health -= fallDamage(runner.at.y - floor);
   runner.at.y = floor;
   // **Und dann steht er womöglich in einem Klotz.** Wer über die Dachkante
   // tritt, ist mit seiner Mitte draußen und mit seinem Umfang noch darin; eine
@@ -478,10 +509,15 @@ function settle(runner: SimRunner, body: Body, boxes: readonly NavBox[]): void {
  * und gezählt wird, worauf man treten kann — alles über Kniehöhe ist eine
  * Wand und kein Boden.
  */
-function groundUnder(boxes: readonly NavBox[], at: SimPoint, radius: number): number | null {
+function groundUnder(
+  boxes: readonly NavBox[],
+  at: SimPoint,
+  radius: number,
+  stepUp: number,
+): number | null {
   let best: number | null = null;
   for (const box of boxes) {
-    if (box.maxY > at.y + STEP_UP) continue;
+    if (box.maxY > at.y + stepUp) continue;
     // Ein Fuß auf der Kante steht noch darauf: gemessen wird mit seinem Umfang.
     if (at.x < box.minX - radius || at.x > box.maxX + radius) continue;
     if (at.z < box.minZ - radius || at.z > box.maxZ + radius) continue;
@@ -557,6 +593,11 @@ function fly(runner: SimRunner, body: Body, dt: number): void {
     flight.from.y + flight.up * flight.spent - 0.5 * SIM_GRAVITY * flight.spent * flight.spent;
   if (flight.spent < flight.time) return;
   runner.at.y = flight.to.y;
+  // Auch ein geplanter Sprung kommt irgendwo an: Was er dabei an Tempo nach
+  // unten hat, zählt wie ein Sturz aus der Höhe, aus der es käme
+  // (`nav/navFall.fallHeight`). Ein Bogen von 70 cm über die Kante bleibt
+  // damit gratis — genau darauf ist `FALL_FREE` eingestellt.
+  runner.health -= fallDamage(fallHeight(flight.up - SIM_GRAVITY * flight.time, SIM_GRAVITY));
   body.flight = null;
 }
 

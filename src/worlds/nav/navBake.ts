@@ -42,9 +42,24 @@ import {
  * **Was zwischen zwei Kacheln steht, wird einzeln gefragt.** Zwischen zwei
  * Kachelmitten wird auf halber Strecke geprüft, ob dort in Kopfhöhe etwas
  * steht — dann ist es eine Wand. Ist dort nichts, aber die beiden Böden
- * liegen verschieden hoch, entscheidet der Höhenunterschied: eine Stufe geht
- * man hoch, eine Treppe bekommt eine Verbindung, eine Kante zum Hinunter
- * einen Absprung, und alles darüber ist eine Wand.
+ * liegen verschieden hoch, wird der **Boden dazwischen abgetastet** und als
+ * Verbindung eingetragen: wie viel es hinaufgeht und wie hoch die größte
+ * einzelne Stufe darin ist.
+ *
+ * **Beurteilt wird dabei nichts.** Bis hierher entschied das Abtasten für
+ * alle, was eine Treppe ist und was ein Absprung — und damit war eine Rampe
+ * entweder für jeden begehbar oder für keinen. Jetzt misst es nur noch, und ob
+ * da jemand hochkommt, entscheidet sein Profil (`navProfile.canTraverse`): Der
+ * Zombie zieht sich die Stufe hoch, der Hamster bleibt davor, und die steile
+ * Rampe ist für beide keine. Von den beiden Grenzen `climb` und `drop` ist
+ * deshalb eine einzige übrig (`reach`), und die ist kein Urteil, sondern nur
+ * noch die Frage, was überhaupt in der Karte landet.
+ *
+ * **Und über eine Lücke wird gesprungen.** Zwei Kacheln, zwischen denen auf
+ * dieser Etage kein Boden liegt, bekommen eine Sprungverbindung — das ist der
+ * Gang zwischen zwei Dächern, und bis hierher musste ihn jede Welt von Hand
+ * eintragen (`navlab/scenarios.ts`). Wer springen kann, nimmt ihn; wer nicht,
+ * sieht ihn gar nicht erst.
  *
  * **Eine Kante ist für die Navigation dasselbe wie ein Fenster.** Über eine
  * anderthalb Meter hohe Mauer sieht man hinweg, man geht aber nicht hindurch
@@ -76,12 +91,32 @@ export interface BakeOptions {
   levels?: readonly number[];
   /** Wie hoch ein NPC ist — wo weniger Luft ist, geht keiner. */
   height?: number;
-  /** Wie hoch er tritt, ohne zu klettern. */
+  /**
+   * Ab wann ein Höhenunterschied überhaupt einer ist, in Metern.
+   *
+   * Darunter sind zwei Kacheln schlicht Nachbarn, und das ist keine Feinheit,
+   * sondern die halbe Rechenzeit: Eine hügelige Karte, die jede Fuge als
+   * Verbindung einträgt, hat zehntausend Verbindungen und keine Aussage mehr.
+   * Es ist zugleich die feinste Stufe, die ein Profil noch angeben kann
+   * (`navProfile.CostProfile.stepUp`).
+   */
   step?: number;
-  /** Bis wohin ein Höhenunterschied noch eine Treppe ist. */
-  climb?: number;
-  /** Wie tief er springen darf. */
-  drop?: number;
+  /**
+   * Bis zu welchem Höhenunterschied zwei Kacheln überhaupt noch verbunden
+   * werden, in Metern.
+   *
+   * **Eine Zahl und nicht mehr zwei.** Hier standen einmal `climb` und `drop`
+   * getrennt, und das war ein Urteil: „so hoch kommt man noch hinauf, so tief
+   * noch hinunter". Weil das Abtasten aber nur zwei der vier Richtungen
+   * abläuft, hing das Urteil an der Himmelsrichtung — eine vier Meter hohe
+   * Kante, die von Westen kam, wurde eingetragen, dieselbe von Osten nicht.
+   * Wer hinauf- oder hinunterkommt, entscheidet jetzt ohnehin das Profil
+   * (`navProfile.canTraverse`); hier bleibt nur noch die Frage, ab wann eine
+   * Kante keine mehr ist, sondern eine Hauswand.
+   */
+  reach?: number;
+  /** Ob über Lücken hinweg Sprungverbindungen entstehen (`joinGap`). */
+  leap?: boolean;
   /** Wie weit eine Fläche von einem Etagenboden weg sein darf, um dazuzugehören. */
   band?: number;
   /**
@@ -97,8 +132,16 @@ export const BAKE_DEFAULTS = {
   height: 1.7,
   /** Dieselbe Stufe, die der Character-Controller nimmt (`PhysicsLocomotion`). */
   step: 0.32,
-  climb: 2.2,
-  drop: 2.6,
+  /**
+   * **Was noch in die Karte kommt**, in Metern.
+   *
+   * Sechs, und die Zahl ist großzügig mit Absicht: Sie ist keine Entscheidung
+   * mehr darüber, wer wo hinaufkommt (das steht im Profil), sondern nur noch
+   * die Grenze, ab der eine Kante keine Kante mehr ist, sondern eine Hauswand.
+   * Was darüber liegt, einzutragen, kostet Speicher für eine Verbindung, die
+   * niemand je benutzt — ein Flieger nimmt ohnehin keine.
+   */
+  reach: 6,
   band: 1.6,
   /**
    * Schulterbreite. Ein Zombie ist 0,58 m dick (`npcKinds.ts`), ein Mensch
@@ -135,10 +178,10 @@ export function bakeNav(boxes: readonly NavBox[], options: BakeOptions): BakeRep
   const started = Date.now();
   const height = options.height ?? BAKE_DEFAULTS.height;
   const step = options.step ?? BAKE_DEFAULTS.step;
-  const climb = options.climb ?? BAKE_DEFAULTS.climb;
-  const drop = options.drop ?? BAKE_DEFAULTS.drop;
+  const reach = options.reach ?? BAKE_DEFAULTS.reach;
   const band = options.band ?? BAKE_DEFAULTS.band;
   const width = options.width ?? BAKE_DEFAULTS.width;
+  const leap = options.leap ?? true;
 
   const minX = tileIndexAt(options.bounds.minX);
   const maxX = tileIndexAt(options.bounds.maxX);
@@ -171,11 +214,14 @@ export function bakeNav(boxes: readonly NavBox[], options: BakeOptions): BakeRep
     }
   }
 
-  // 2. Zwischen den Kacheln aufräumen: Wände, Treppen, Absprünge.
+  // 2. Zwischen den Kacheln aufräumen: Wände, Rampen, Kanten, Sprünge.
+  const limits = { height, step, reach, width };
   let links = 0;
-  for (const key of [...graph.tileKeys()]) {
+  const keys = [...graph.tileKeys()];
+  for (const key of keys) {
     for (const dir of [DIR_N, DIR_E] as const) {
-      links += joinTiles(graph, index, key, dir, { height, step, climb, drop, width });
+      links += joinTiles(graph, index, key, dir, limits);
+      if (leap) links += joinGap(graph, index, key, dir, limits);
     }
   }
 
@@ -189,6 +235,9 @@ export function bakeNav(boxes: readonly NavBox[], options: BakeOptions): BakeRep
   };
 }
 
+/** Zwei Höhen gelten als dieselbe, wenn sie es auf den Zentimeter sind. */
+const EVEN = 0.02;
+
 /**
  * Verbindet eine Kachel mit ihrer Nachbarin — oder stellt eine Wand dazwischen.
  *
@@ -201,7 +250,7 @@ function joinTiles(
   index: ColumnIndex,
   key: TileKey,
   dir: Dir,
-  limits: { height: number; step: number; climb: number; drop: number; width: number },
+  limits: { height: number; step: number; reach: number; width: number },
 ): number {
   const other = neighbour(key, dir);
   if (other === NO_TILE) return 0;
@@ -252,7 +301,18 @@ function joinTiles(
       sameLevelHandled = true;
     }
 
-    const id = `bake:${key}:${candidate}`;
+    // Zu hoch, zu tief: Was hier steht, ist eine Hauswand und keine Kante.
+    if (Math.abs(rise) > limits.reach) continue;
+
+    // **Wie der Boden dazwischen verläuft** — die eine Messung, die aus
+    // derselben Höhe zwei ganz verschiedene Sachen macht: eine Rampe aus
+    // zwanzig Stufen und eine glatte Wand.
+    const step = edgeStep(
+      index,
+      { x: world.x, z: world.z, y: hereY },
+      { x: there.x, z: there.z, y: thereY },
+      limits.height,
+    );
     // **Ein Absatz ist derselbe, von welcher Seite man ihn auch ansieht.**
     //
     // Abgetastet werden nur zwei der vier Richtungen (N und O) — jede Grenze
@@ -265,38 +325,152 @@ function joinTiles(
     // suchte den Fehler in der Wegsuche, weil das Gitter ja eine Verbindung
     // zeigte.
     //
-    // Entschieden wird deshalb nach der **Höhe** und nicht nach der Seite: Was
-    // man hinaufkommt, geht in beide Richtungen; was zu hoch dafür ist, geht
-    // nur hinunter.
-    if (Math.abs(rise) <= limits.climb) {
-      graph.addLink({
-        id,
-        from: key,
-        to: candidate,
-        kind: 'stairs',
-        cost: TILE + Math.abs(rise),
-        both: true,
-        open: true,
-      });
-      links++;
-    } else if (rise < 0 && -rise <= limits.drop) {
-      graph.addLink({
-        id,
-        from: key,
-        to: candidate,
-        kind: 'drop',
-        cost: TILE + -rise * 0.5,
-        both: false,
-        open: true,
-      });
-      links++;
-    }
+    // Eingetragen wird deshalb **beides in einem** und in beide Richtungen;
+    // welche davon geht, sagt erst das Profil (`navProfile.canTraverse`). Die
+    // Art ist dabei nur noch die Auskunft, ob der Boden durchläuft: Eine
+    // **Kante** ist ein Absprung, auch von unten gesehen — wer sie hinaufkommt,
+    // zieht sich hoch, und wer sie hinuntergeht, fällt. Eine **Rampe** ist eine
+    // Treppe, hin wie zurück.
+    const ledge = step >= Math.abs(rise) - EVEN;
+    graph.addLink({
+      id: `bake:${key}:${candidate}`,
+      from: key,
+      to: candidate,
+      kind: ledge ? 'drop' : 'stairs',
+      cost: TILE + Math.abs(rise) * (ledge ? 0.5 : 1),
+      both: true,
+      open: true,
+      rise,
+      step,
+    });
+    links++;
   }
 
   // Nachbar auf derselben Etage vorhanden, aber nichts davon hat gegriffen:
   // dann steht dort eine Wand, auch wenn niemand eine gebaut hat.
   if (!sameLevelHandled && graph.has(other)) setBarrier(graph, key, dir, 'solid');
   return links;
+}
+
+/**
+ * Wie fein der Boden zwischen zwei Kachelmitten abgetastet wird, in Metern.
+ *
+ * Zehn Zentimeter, also fünfundzwanzig Punkte je Kante — und nur dort, wo
+ * überhaupt ein Höhenunterschied ist. Feiner misst niemand: Zwei Stufen, die
+ * enger beieinander stehen, sieht diese Messung als eine, und eine Rampe aus
+ * Fünf-Zentimeter-Stufen steht deshalb mit zehn in der Karte. Das ist die
+ * sichere Richtung — sie macht eine Kante eher zu hoch als zu niedrig.
+ */
+const GROUND_STEP = 0.1;
+
+/**
+ * **Die größte einzelne Stufe zwischen zwei Kachelmitten**, in Metern.
+ *
+ * Die Messung, an der eine Rampe und eine Mauer auseinandergehen. Beide gehen
+ * 2,4 m hinauf; die eine tut es in zwanzig Schritten von zwölf Zentimetern,
+ * die andere in einem. Der Höhenunterschied allein sagt das nicht — er ist bei
+ * beiden derselbe —, und deshalb wird der Boden dazwischen wirklich abgelaufen.
+ *
+ * An jedem Messpunkt wird der Deckel genommen, der der geraden Verbindung
+ * zwischen den beiden Enden am nächsten liegt (`floorsAt`). Das ist die
+ * richtige Wahl in beiden schwierigen Fällen: Unter einer Brücke gewinnt die
+ * Brücke, und an einer Kante gewinnt unten der Boden und oben der Klotz — die
+ * Stufe steht dann in der Messung, wo sie in der Welt auch steht.
+ *
+ * Wo gar kein Deckel ist, wird nichts gemessen: Ein Loch dazwischen ist keine
+ * Stufe, sondern eine Lücke, und über die springt man (`joinGap`).
+ */
+export function edgeStep(
+  index: ColumnIndex,
+  from: { x: number; z: number; y: number },
+  to: { x: number; z: number; y: number },
+  height: number,
+): number {
+  const count = Math.max(2, Math.round(Math.hypot(to.x - from.x, to.z - from.z) / GROUND_STEP));
+  let previous = from.y;
+  let biggest = 0;
+  for (let i = 1; i < count; i++) {
+    const share = i / count;
+    const want = from.y + (to.y - from.y) * share;
+    const floor = nearestFloor(
+      floorsAt(index, from.x + (to.x - from.x) * share, from.z + (to.z - from.z) * share, height),
+      want,
+    );
+    if (floor === null) continue;
+    biggest = Math.max(biggest, Math.abs(floor - previous));
+    previous = floor;
+  }
+  return Math.max(biggest, Math.abs(to.y - previous));
+}
+
+/** Der Boden, der einer Wunschhöhe am nächsten liegt — `null`, wo keiner ist. */
+function nearestFloor(floors: readonly number[], want: number): number | null {
+  let best: number | null = null;
+  let bestGap = Infinity;
+  for (const floor of floors) {
+    const gap = Math.abs(floor - want);
+    if (gap >= bestGap) continue;
+    bestGap = gap;
+    best = floor;
+  }
+  return best;
+}
+
+/**
+ * **Der Sprung über eine Lücke** — zwei Kacheln, zwischen denen auf dieser
+ * Etage kein Boden liegt.
+ *
+ * Das ist der Gang zwischen zwei Dächern, und bis hierher musste ihn jede Welt
+ * von Hand eintragen: Im Labor stand dafür eine eigene Zeile mit zwei
+ * Kachelmitten darin (`navlab/scenarios.ts`), und wer das Podest um eine
+ * Kachel verschob, verschob den Sprung nicht mit. Gefunden wird er jetzt beim
+ * Abtasten — genauso, wie Recast seine Off-Mesh-Links findet.
+ *
+ * **Genau eine Kachel Lücke**, nicht zwei: Fünf Meter von Mitte zu Mitte sind
+ * schon eine sportliche Ansage (`CostProfile.leapOver`), und wer weiter
+ * springen lässt, bekommt NPCs, die durch die halbe Karte fliegen.
+ *
+ * Verlangt wird dreierlei: dass die Kachel dazwischen auf dieser Etage
+ * wirklich fehlt, dass drüben Boden ist — und dass in der Flugbahn nichts
+ * steht. Ohne das Letzte spränge er durch die Wand, die genau in der Lücke
+ * steht.
+ */
+function joinGap(
+  graph: NavGraph,
+  index: ColumnIndex,
+  key: TileKey,
+  dir: Dir,
+  limits: { height: number; reach: number },
+): number {
+  const over = neighbour(key, dir);
+  if (over === NO_TILE || graph.has(over)) return 0;
+  const far = neighbour(over, dir);
+  if (far === NO_TILE || !graph.has(far)) return 0;
+
+  const here = graph.worldOf(key);
+  const there = graph.worldOf(far);
+  const rise = there.y - here.y;
+  if (Math.abs(rise) > limits.reach) return 0;
+
+  // In der Flugbahn darf nichts stehen: gemessen über der Lücke, von der
+  // höheren der beiden Kanten aus aufwärts.
+  const gap = graph.worldOf(over);
+  const low = Math.max(here.y, there.y) + 0.05;
+  if (index.blocks(gap.x, gap.z, low, low + limits.height * 0.6)) return 0;
+
+  graph.addLink({
+    id: `bake:leap:${key}:${far}`,
+    from: key,
+    to: far,
+    kind: 'jump',
+    cost: 2 * TILE,
+    both: true,
+    open: true,
+    rise,
+    step: Math.abs(rise),
+    gap: 2 * TILE,
+  });
+  return 1;
 }
 
 /**

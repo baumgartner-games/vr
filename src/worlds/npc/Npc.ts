@@ -13,6 +13,7 @@ import {
 import { NavAgent, type DoorAction, type Spot3 } from '../nav/navAgent';
 import type { PathPoint } from '../nav/navPath';
 import { DOOR_OPEN_TIME } from '../nav/navDoor';
+import { fallDamage, fallHeight } from '../nav/navFall';
 import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
@@ -79,6 +80,11 @@ export class Npc {
    * hineingeschrieben wird, ist keine mehr, sondern ein Schweben.
    */
   private flying = 0;
+  /**
+   * Wie schnell er in diesem Sturz höchstens gefallen ist, in m/s — `0`,
+   * solange er steht (`land`).
+   */
+  private falling = 0;
   /**
    * Die Tür, an der er gerade arbeitet, und wie lange schon.
    *
@@ -229,6 +235,8 @@ export class Npc {
       return false;
     }
 
+    if (this.land()) return false;
+
     const t = this.entry.body.translation();
     const waypoint = this.navigate(dt, { x: t.x, z: t.z }, player, nav ?? null);
     const step = stepBrain(
@@ -257,6 +265,35 @@ export class Npc {
     this.model.update(dt, this.speed, this.striking);
     this.model.setAlert(step.sees);
     return step.attack;
+  }
+
+  /**
+   * **Der Aufprall** — was ein Sturz kostet, wenn er unten ankommt.
+   *
+   * `true`, wenn er daran gestorben ist; dann ist dieses Bild für ihn zu Ende.
+   *
+   * Gemessen wird die **Fallgeschwindigkeit** und nicht die Kante, von der er
+   * kam: Wer geschubst wird, hatte nie eine Kante, und wer über eine Lücke
+   * springt, kommt flacher an, als der Höhenunterschied vermuten lässt
+   * (`nav/navFall.fallHeight`). Die Schwerkraft ist die der Welt — auf dem Mond
+   * fällt man langsamer, und dann tut es auch weniger weh.
+   *
+   * Das ist die **zweite Hälfte** dessen, was die Wegsuche vorher schon weiß:
+   * Sie plant keinen Absprung ein, den seine Sorte nicht überlebt
+   * (`nav/navProfile.canTraverse`). Ohne diese Hälfte wäre das eine Behauptung,
+   * die man nicht widerlegen kann — mit ihr fällt der Hamster, der doch
+   * springt, wirklich um.
+   */
+  private land(): boolean {
+    const speed = this.entry.body.linvel().y;
+    if (speed < -FALL_WATCH) {
+      this.falling = Math.max(this.falling, -speed);
+      return false;
+    }
+    if (this.falling === 0) return false;
+    const height = fallHeight(this.falling, Math.abs(this.physics.gravityY));
+    this.falling = 0;
+    return this.damage(fallDamage(height));
   }
 
   /**
@@ -374,6 +411,10 @@ export class Npc {
     const y = at.y + this.skin.height / 2 + 0.05;
     this.entry.body.setTranslation({ x: at.x, y, z: at.z }, true);
     this.entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    // Wer versetzt wird, fällt nicht mehr: Ein Portal mitten im Sturz nimmt
+    // ihm die Geschwindigkeit, und dann soll es ihm auch den Aufprall nehmen
+    // (`land`).
+    this.falling = 0;
     this.entry.previousPosition.set(at.x, y, at.z);
     this.holder.position.set(at.x, y, at.z);
   }
@@ -494,6 +535,15 @@ export interface NavRun {
 
 /** Wie hoch ein Sprung über das höhere Ende hinausgeht, in Metern. */
 const LEAP_RISE = 0.7;
+
+/**
+ * Ab welchem Sinken er überhaupt als fallend gilt, in m/s.
+ *
+ * Ein halber Meter je Sekunde: Ein Zylinder, der auf einer Kante aufliegt,
+ * sinkt zwischen zwei Bildern ein paar Zehntel — wer das als Sturz zählt,
+ * lässt jeden NPC beim Herumstehen langsam sterben.
+ */
+const FALL_WATCH = 0.5;
 
 const _feet = new THREE.Vector3();
 /** Für alles, was nebenher nach einer Stelle fragt (`hitBody`). */

@@ -268,10 +268,33 @@ export interface NavLink {
   kind: LinkKind;
   /** Was der Weg darüber kostet, in Metern, bevor das Profil daran multipliziert. */
   cost: number;
-  /** Auch rückwärts? Eine Treppe ja, ein Absprung nicht. */
+  /**
+   * Auch rückwärts?
+   *
+   * **Fast immer ja**, seit die Verbindung ihre Form mitbringt: Ob man eine
+   * Kante auch wieder hochkommt, entscheidet nicht mehr die Kante, sondern der,
+   * der davorsteht (`navProfile.canTraverse`). `false` bleibt für das, was
+   * wirklich nur in eine Richtung geht — die eine Hälfte eines Portals.
+   */
   both: boolean;
   /** Ob sie gerade benutzbar ist. */
   open: boolean;
+
+  /**
+   * **Wie es hier aussieht** — die drei Zahlen, aus denen jedes Profil seine
+   * eigene Antwort zieht (`navProfile.EdgeShape`).
+   *
+   * Sie sind optional, und das ist kein Nachlassen: Ein Portal hat keine
+   * Steigung, und eine von Hand eingehängte Leiter auch nicht. Was fehlt, gilt
+   * als eben — und eine ebene Verbindung darf jeder benutzen, der ihre Art
+   * benutzen darf.
+   */
+  /** Höhenunterschied von `from` nach `to`, in Metern (positiv = hinauf). */
+  rise?: number;
+  /** Die größte einzelne Stufe dazwischen, in Metern. */
+  step?: number;
+  /** Die waagerechte Weite, in Metern — nur beim Sprung über eine Lücke. */
+  gap?: number;
 }
 
 /** Die Schalter des Gitters (`NavGraph.features`). */

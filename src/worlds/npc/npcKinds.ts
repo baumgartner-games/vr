@@ -17,7 +17,7 @@ import type { BrainId } from './npcBrains';
  * Werkzeugseite, der Konfig-Speicher —, soll dafür keine Geometrie bauen
  * müssen. Dieselbe Aufteilung wie beim Beutel (`props.ts`, `PROP_LABELS`).
  */
-export type NpcKind = 'zombie' | 'dummy';
+export type NpcKind = 'zombie' | 'dummy' | 'hamster';
 
 /** Woraus ein Körper gebaut wird, und was er aushält. */
 export interface NpcSkin {
@@ -61,11 +61,13 @@ export interface NpcSkin {
 /**
  * Alles, was es an Häuten gibt, in der Reihenfolge, in der das Menü sie zeigt.
  *
- * Zwei sind es, und die zweite ist keine Zierde: die **Übungspuppe** ist
- * derselbe Körper ohne Absicht — ohne sie sähe man der Aufteilung in Haut und
- * Hirn nie an, dass sie eine ist. Wer eine dritte hinzufügt, schreibt sie hier
- * hin und nirgends sonst; Menü, Werkzeugseite und Hirn-Werkzeug lesen diese
- * Liste.
+ * Drei sind es, und keine davon ist Zierde. Die **Übungspuppe** ist derselbe
+ * Körper ohne Absicht — ohne sie sähe man der Aufteilung in Haut und Hirn nie
+ * an, dass sie eine ist. Der **Hamster** ist derselbe Körper mit einem anderen
+ * Knochenbau: klein, leicht und mit zwanzig Leben, und damit ist er die dritte
+ * Antwort auf dieselbe Dachkante (`worlds/nav/navProfile.ts`,
+ * `CRITTER_PROFILE`). Wer eine vierte hinzufügt, schreibt sie hier hin und
+ * nirgends sonst; Menü, Werkzeugseite und Hirn-Werkzeug lesen diese Liste.
  */
 export const NPC_SKINS: readonly NpcSkin[] = [
   {
@@ -98,6 +100,31 @@ export const NPC_SKINS: readonly NpcSkin[] = [
     brain: 'idle',
     profile: 'human',
     palette: { skin: 0xd9b271, cloth: 0x8a6b3f, eye: 0x2a2a2a },
+    arms: 'down',
+  },
+  {
+    id: 'hamster',
+    label: 'Hamster',
+    // Kein eigenes Zeichen für ihn: Eine Kugel im Raster ist etwas Kleines,
+    // Rundes — und ein eigenes Modell wäre eine eigene Datei für eine Sorte,
+    // deren ganze Aussage in zwei Zahlen steht (Höhe und Leben).
+    icon: 'marble',
+    accent: 0xe0a24a,
+    sub: 'Klein und leicht — eine Dachkante überlebt er nicht',
+    height: 0.6,
+    radius: 0.22,
+    mass: 4,
+    /**
+     * **Zwanzig Leben, und das ist die ganze Bucht.** Daraus macht
+     * `nav/navFall.safeFall` zwei Meter, und damit ist das 2,4 m hohe Dach für
+     * ihn kein Weg nach unten mehr. Ein Zombie mit hundert Leben springt
+     * dieselbe Kante hinunter, ohne nachzudenken.
+     */
+    health: 20,
+    speed: 1.8,
+    brain: 'chase',
+    profile: 'critter',
+    palette: { skin: 0xc98b3f, cloth: 0x7a4f22, eye: 0x1a1a1a },
     arms: 'down',
   },
 ];

@@ -26,6 +26,7 @@ import {
   PIT_DEPTH,
   PORTAL,
   PORTAL_ID,
+  RAMP,
   ROOF,
   SCENARIOS,
   applyLabMap,
@@ -47,7 +48,7 @@ import {
 } from './scenarios';
 
 /**
- * **Das Navigationslabor** — acht Buchten, acht rote Knöpfe, und in jeder
+ * **Das Navigationslabor** — zehn Buchten, zehn rote Knöpfe, und in jeder
  * eine Behauptung über die Wegsuche, die man nachprüfen kann.
  *
  * Der Grund für diese Welt ist ein einfacher: Alles, was NPCs tun, kann man
@@ -342,7 +343,11 @@ export class NavLabWorld extends PortalWorld {
       body: bay.watch,
       accent: bay.accent,
     });
-    sign.position.set(at.x, 2.6, at.z);
+    // **Über dem, was hinten in der Bucht steht.** In den Rampen-Buchten reicht
+    // das Podest bis an die Rückwand; ein Schild auf der üblichen Höhe steckte
+    // zur Hälfte darin und wäre von vorn ein halbes Schild.
+    const back = bay.id === 'ramp' || bay.id === 'steep' ? RAMP.high : 0;
+    sign.position.set(at.x, 2.6 + back, at.z);
     sign.rotation.y = bay.z < 0 ? Math.PI : 0;
     parent.add(sign);
   }
@@ -732,7 +737,7 @@ export class NavLabWorld extends PortalWorld {
   }
 
   /**
-   * **Was das Telefon drücken darf**: die acht roten Knöpfe, die gelben
+   * **Was das Telefon drücken darf**: die zehn roten Knöpfe, die gelben
    * daneben — und die Tasten der Wandkonsolen.
    *
    * Dieselben Objekte wie in der Brille, dieselben Handgriffe dahinter. Eine

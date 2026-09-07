@@ -2,7 +2,7 @@ import { NavBelief } from './navBelief';
 import { breakable } from './navDoor';
 import { doorBroken, type DoorPower, type NavGraph, type WallFacts } from './navGraph';
 import { findPath, pullString, type PathPoint } from './navPath';
-import { HUMAN_PROFILE, powerOf, type CostProfile, type LinkKind } from './navProfile';
+import { HUMAN_PROFILE, powerOf, shapeOf, type CostProfile, type LinkKind } from './navProfile';
 import {
   DIR_E,
   DIR_N,
@@ -74,6 +74,11 @@ export interface AgentTuning {
    * dieser Zahl gab es Treppen, die das Gitter kannte und die trotzdem
    * niemand hinaufkam; die halbe Welt war für NPCs eine Sackgasse mit
    * Aussicht.
+   *
+   * **Sie kommt aus dem Profil** (`navProfile.CostProfile.stepUp`) und steht
+   * hier nur noch, damit man sie einzeln setzen kann: Wer die Karte mit einer
+   * anderen Schrittweite liest, als er sie läuft, plant sich Wege, die er
+   * nicht gehen kann.
    */
   stepUp: number;
 }
@@ -86,7 +91,7 @@ export const AGENT_DEFAULTS: AgentTuning = {
   stuckWithin: 0.3,
   maxNodes: 3000,
   girth: 0.3,
-  stepUp: 0.35,
+  stepUp: HUMAN_PROFILE.stepUp,
 };
 
 /** Ein Punkt in der Welt, wie ihn die Welt herüberreicht. */
@@ -186,7 +191,11 @@ export class NavAgent {
   private leap: TileKey = NO_TILE;
 
   constructor(tuning: Partial<AgentTuning> = {}) {
-    this.tuning = { ...AGENT_DEFAULTS, ...tuning };
+    // Der Tritt gehört zum Profil und nicht zu dieser Zeile: Wer eine Sorte
+    // wählt, bekommt ihre Beine mit. Wer trotzdem eine eigene Zahl hinschreibt,
+    // behält sie.
+    const profile = tuning.profile ?? AGENT_DEFAULTS.profile;
+    this.tuning = { ...AGENT_DEFAULTS, stepUp: profile.stepUp, ...tuning };
   }
 
   /** Der Weg, den er gerade läuft, als Kacheln — grob, aber handlich. */
@@ -457,14 +466,24 @@ export class NavAgent {
    * **Ob dieser Schritt ein Sprung ist.**
    *
    * Zwei Fälle, und sie sehen gleich aus: die Lücke, über die es keinen Boden
-   * gibt (`jump`), und die Stufe, die zu hoch zum Hinauftreten ist. Eine Treppe
-   * mit flachen Stufen bleibt ein Gang — wer für zwanzig Zentimeter hüpft,
+   * gibt (`jump`), und die **Stufe**, die zu hoch zum Hinauftreten ist. Eine
+   * Rampe mit flachen Stufen bleibt ein Gang — wer für zwölf Zentimeter hüpft,
    * sieht aus wie ein Frosch.
+   *
+   * Gefragt wird deshalb nicht nach dem Höhenunterschied, sondern nach der
+   * **größten einzelnen Stufe** darin (`NavLink.step`). Genau daran gehen die
+   * beiden Rampen im Labor auseinander: Über zehn Meter oder über zwei Meter
+   * dieselben 2,4 m hinauf sind derselbe Höhenunterschied, aber zwanzigmal
+   * zwölf Zentimeter — und die geht man, man springt sie nicht.
    */
   private leaps(graph: NavGraph, here: TileKey, next: TileKey): boolean {
-    if (linkBetween(graph, here, next, 'jump')) return true;
-    if (!linkBetween(graph, here, next, 'stairs')) return false;
-    return graph.worldOf(next).y - graph.worldOf(here).y > this.tuning.stepUp;
+    for (const exit of graph.linksFrom(here)) {
+      if (exit.to !== next || !exit.link.open) continue;
+      if (exit.link.kind === 'jump') return true;
+      const shape = shapeOf(exit.link, next);
+      if (shape.rise > 0 && shape.step > this.tuning.stepUp) return true;
+    }
+    return false;
   }
 
   /**
