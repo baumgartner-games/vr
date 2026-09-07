@@ -10,9 +10,26 @@ import type { PointerHit } from '../../core/Pointer';
 import type { NavGraph } from '../nav/navGraph';
 import { readNav, writeNav } from '../nav/navSerial';
 import { TILE, tileCentreX, tileCentreZ } from '../nav/navTile';
-import { EditorPanel, type PanelKey } from './EditorPanel';
 import { Palette } from './Palette';
+import { PlanCard } from './PlanCard';
 import { PlayerPin } from './PlayerPin';
+import {
+  MODEL_OVER,
+  WORKSHOP_SPAWN,
+  WORKSHOP_YAW,
+  buildWorkshop,
+  type WorkshopParts,
+} from './Workshop';
+import {
+  addProp,
+  propNear,
+  readProps,
+  removeProp as dropProp,
+  standingY,
+  writeProps,
+  type PlanProp,
+} from './planProps';
+import { createPropShape, PROP_LABELS, type PropKind } from '../portal/props';
 import { planSolids, type PlanSolid } from './levelBuild';
 import { grabbedAt, HIP_REACH, type Target } from './reach';
 import {
@@ -57,27 +74,41 @@ import {
  * schiebt sie, dreht sie, zieht sie größer — und was man an ihr baut, wächst
  * im selben Augenblick **in Lebensgröße** um einen herum.
  *
- * **Die zweite Fassung macht daraus Werkzeug statt Möbel**, und das ist der
- * ganze Unterschied. Vorher schwebte das Modell einfach da, und man konnte es
- * schieben. Jetzt ist es ein Ding, das man **dabeihat**:
+ * **Drei Zustände, und zwischen ihnen wird gegangen** (`Stage`):
  *
- * - Die **Karte hängt am Gürtel** und wird von dort gezogen wie jedes
- *   Werkzeug. Wer sie zieht, ist im Bearbeiten; wer sie weglegt, steht wieder
- *   in seinem Level.
- * - Sie wird gehalten wie ein Gegenstand: eine Hand trägt sie samt Handgelenk,
- *   **zwei Hände** ziehen sie größer, kippen und drehen sie (`miniature.ts`).
- *   Nur fallen tut sie nicht — losgelassen bleibt sie in der Luft stehen, und
- *   genau deshalb hat man beim Bauen zwei Hände frei.
- * - Ausgesucht wird an einer **Palette** (`Palette.ts`): einmal eintunken,
+ * - **Im Level.** Man steht in dem, was man gebaut hat. Die Karte hängt
+ *   zusammengefaltet an der Hüfte.
+ * - **Karte in der Hand** (`PlanCard.ts`). Sie ist ein Werkzeug wie die
+ *   Drohne und kein Schalter: Erst hält man sie und sieht von oben, wo man
+ *   steht — Grundriss, Gegenstände, die eigene Marke als Pfeil. Der
+ *   **Trigger** führt hinein.
+ * - **Im Konstruktraum** (`Workshop.ts`). Eine Werkstatt weit weg von jedem
+ *   Grundriss, mit einer Werkbank, einem Regal voller Musterstücke und einem
+ *   Knopf zurück. Hier steht das Modell, hier wird gebaut.
+ *
+ * **Der Konstruktraum ist wirklich woanders**, und das ist der Unterschied zur
+ * ersten Fassung. Die machte das Level unsichtbar und ließ einen darin stehen
+ * — ein weißes Zimmer an derselben Stelle. Jeder Schritt vor dem Modell war
+ * damit ein Schritt im Level, und wer zurücktrat, um den Grundriss ganz zu
+ * sehen, stand beim Weglegen in einer Wand. Jetzt hält nur noch eine **Marke**
+ * die Verbindung: die Stelle, an der man das Level verlassen hat. Sie steht als
+ * Figur in der Miniatur (`PlayerPin.ts`), man versetzt **sie** statt sich
+ * selbst, und beim Zurückgehen taucht man dort auf.
+ *
+ * Gebaut wird mit zwei Sachen in der Hand:
+ *
+ * - Der **Palette** (`Palette.ts`) für den Grundriss: einmal eintunken,
  *   beliebig oft setzen, den Pinsel zurück in die Mulde, wenn man fertig ist.
- * - In der Miniatur steht die **eigene Figur** (`PlayerPin.ts`). Man nimmt sie
- *   und stellt sie woandershin — das ist der kürzeste Weg quer durch ein
- *   Level, das man gerade erst gebaut hat.
- * - Und solange die Karte draußen ist, steht man in einem **weißen Raum**:
- *   kein Zimmer, keine Wand, nur ein Boden bis zum Horizont. Wer einen
- *   Grundriss bearbeitet, steht nicht gleichzeitig darin — er stünde sonst mit
- *   dem Kopf in einer Wand, die er gerade selbst gesetzt hat, und sähe vom
- *   Modell nichts mehr.
+ * - Den **Musterstücken vom Regal** für alles, was darin steht
+ *   (`planProps.ts`). Man nimmt eines vom Brett, hält es in der Größe in der
+ *   Hand, die es in der Miniatur hätte, und setzt es auf eine Kachel. Es steht
+ *   dann auf dem Boden — eine Höhe stellt hier niemand ein.
+ *
+ * Das Modell selbst wird gehalten wie ein Gegenstand: eine Hand trägt es samt
+ * Handgelenk, **zwei Hände** ziehen es größer, kippen und drehen es
+ * (`miniature.ts`); und angefaßt wird es auch **auf Entfernung** — wer
+ * hinzielt und zugreift, hat es, egal wie weit weg es steht. Fallen tut es
+ * nicht.
  *
  * **Der Plan ist der Navigationsgraph** (`levelPlan.ts`). Nichts an dieser
  * Welt ist ein eigenes Format: Was hier gebaut wird, können NPCs sofort
@@ -103,6 +134,15 @@ export class EditorWorld extends PortalWorld {
    * Handgriffen immer dasselbe.
    */
   private bounds = planBounds(this.plan);
+  /**
+   * Die Quader des Grundrisses, so wie sie zuletzt gebaut wurden.
+   *
+   * Sie werden bei jedem Umbau ohnehin gerechnet; die Karte in der Hand
+   * zeichnet aus **dieser** Liste (`PlanCard.draw`) und nicht aus einer
+   * zweiten. Ein Grundriss, den zwei Rechnungen zeichnen, ist einer, der an
+   * zwei Stellen verschieden aussieht.
+   */
+  private planShapes: readonly PlanSolid[] = [];
 
   /** Das Gebaute in Lebensgröße — hier läuft man herum. */
   private readonly stage = new THREE.Group();
@@ -110,6 +150,20 @@ export class EditorWorld extends PortalWorld {
   private readonly mini = new THREE.Group();
   /** Die Körper der Lebensgröße; beim Umbauen müssen sie wieder heraus. */
   private readonly built: PhysicsBody[] = [];
+
+  /**
+   * **Was im Grundriss steht** — die Gegenstände (`planProps.ts`).
+   *
+   * Eine zweite Liste neben dem Plan, und zwar aus dem Grund, der dort steht:
+   * Der Plan ist die Karte, auf der NPCs laufen, und eine Kiste ist keine
+   * Karte. Sie überleben das Umbauen des Grundrisses — wer eine Kachel
+   * anbaut, soll nicht seine halbe Werkstatt neu aufstellen.
+   */
+  private readonly things: PlanProp[] = [];
+  /** Ihre Körper, je Kennung — damit einer einzeln wieder wegkann. */
+  private readonly thingBodies = new Map<string, PhysicsBody>();
+  /** Woran die Miniatur erkennt, dass sich an ihnen etwas getan hat. */
+  private thingsVersion = 0;
 
   private model: Model = newModel();
   /**
@@ -127,9 +181,26 @@ export class EditorWorld extends PortalWorld {
   private brush: PlanTool | 'go' | null = null;
   /** In welcher Hand der Pinsel liegt — `null`, solange er in der Mulde steckt. */
   private brushHand: Handedness | null = null;
+  /**
+   * **Das Musterstück in der Hand** — `null`, wenn keines vom Regal genommen
+   * wurde.
+   *
+   * Es steht neben dem Pinsel und nicht in ihm, denn es ist etwas anderes:
+   * Der Pinsel ändert den *Grundriss*, das Musterstück stellt etwas **hinein**.
+   * Beides zugleich in der Hand zu haben ergäbe keinen Sinn — wer eines
+   * nimmt, legt das andere weg.
+   */
+  private thing: PropKind | null = null;
+  private thingHand: Handedness | null = null;
+  /** Die Vorschau in der Hand: das Ding in Miniaturgröße. */
+  private thingView: THREE.Object3D | null = null;
 
-  private panel: EditorPanel | null = null;
   private palette: Palette | null = null;
+  /** Die Karte, solange sie in einer Hand liegt. */
+  private card: PlanCard | null = null;
+  private cardHand: Handedness | null = null;
+  /** Der Konstruktraum: Werkbank, Regal, Ausgang (`Workshop.ts`). */
+  private shop: WorkshopParts | null = null;
   private pin: PlayerPin | null = null;
   /** Die Vorschau: eine Kachel und ein Wandstück, immer nur eines davon. */
   private ghostTile: THREE.Mesh | null = null;
@@ -158,21 +229,33 @@ export class EditorWorld extends PortalWorld {
    * **An welcher Hüfte Karte und Palette hängen** — `null` heißt: sie sind
    * draußen.
    *
-   * Die Karte ist gleichzeitig der Schalter dieser Welt: Solange sie an der
-   * Hüfte hängt, steht man in seinem Level; sobald sie gezogen ist, steht man
-   * im weißen Raum und bearbeitet es (`editing`).
+   * Die Karte ist der Anfang von allem: Solange sie an der Hüfte hängt, steht
+   * man einfach in seinem Level; gezogen liegt sie in der Hand und zeigt den
+   * Grundriss von oben, und ihr Trigger führt in den Konstruktraum
+   * (`readCardTrigger`).
    */
   private mapHip: Handedness | null = 'left';
   private paletteHip: Handedness | null = 'right';
   /** Die zusammengefaltete Karte an der Hüfte — sie sagt, wo sie zu holen ist. */
   private folded: THREE.Object3D | null = null;
 
-  /** Die Kulisse, die es zweimal gibt: das Level, und der weiße Raum darum. */
-  private darkGround: THREE.Object3D | null = null;
-  private darkSky: THREE.Object3D | null = null;
-  private whiteGround: THREE.Object3D | null = null;
-  private whiteSky: THREE.Object3D | null = null;
-  private sign: TextPlane | null = null;
+  /**
+   * **Wo man gerade ist** — und damit alles andere.
+   *
+   * `'level'`: in dem, was man gebaut hat. `'map'`: dasselbe, aber mit der
+   * Karte in der Hand. `'shop'`: im Konstruktraum, weit weg.
+   */
+  private stageOf: Stage = 'level';
+  /**
+   * **Die Marke** — wo im Level man wieder auftaucht, in Planmetern samt
+   * Blickrichtung.
+   *
+   * Sie ist das Einzige, was den Konstruktraum mit dem Level verbindet, und
+   * genau deshalb gibt es sie: Wer dort herumläuft, läuft in einer Werkstatt
+   * und nicht in seinem Level. Versetzt wird sie in der Miniatur — mit der
+   * Figur oder mit dem Hingehen.
+   */
+  private mark = { x: 0, y: 0, z: 0, yaw: 0 };
 
   private readonly floorMat = new THREE.MeshStandardMaterial({ color: 0x39415a, roughness: 0.95 });
   private readonly wallMat = new THREE.MeshStandardMaterial({ color: 0x6a7590, roughness: 0.85 });
@@ -211,12 +294,17 @@ export class EditorWorld extends PortalWorld {
   }
 
   protected override welcome(): string {
-    return 'Bauplatz · Karte und Palette hängen am Gürtel · Greifen holt sie heraus';
+    return 'Bauplatz · Karte von der Hüfte ziehen · Trigger führt in den Konstruktraum';
   }
 
-  /** Ob die Karte draußen ist — und damit, ob man gerade baut. */
+  /** Ob man im Konstruktraum steht — und damit, ob gebaut werden kann. */
   private get editing(): boolean {
-    return this.mapHip === null;
+    return this.stageOf === 'shop';
+  }
+
+  /** Ob die Karte gerade in einer Hand liegt. */
+  private get carrying(): boolean {
+    return this.stageOf !== 'level';
   }
 
   /**
@@ -267,51 +355,45 @@ export class EditorWorld extends PortalWorld {
     ground.updateMatrixWorld(true);
     this.root.add(ground);
     this.physics?.addStatic(ground, { membership: GROUP_WORLD, filter: ALL_GROUPS });
-    this.darkGround = ground;
 
-    // **Der weiße Raum**, und er liegt von Anfang an da: eine zweite Fläche
-    // genau auf der ersten und ein zweiter Himmel um sie herum. Umgeschaltet
-    // wird nur die Sichtbarkeit — ein Boden, der beim Aufklappen der Karte
-    // erst gebaut werden müsste, wäre ein Ruckler an genau der Stelle, an der
-    // man ihn am wenigsten braucht. Einen eigenen Körper bekommt er nicht: Er
-    // liegt auf demselben Millimeter wie der dunkle, und dessen Körper trägt
-    // für beide.
-    const white = createGround(0xeef1f6, { line: 0xd4dae6 });
-    white.position.y -= 0.02;
-    white.visible = false;
-    this.root.add(white);
-    this.whiteGround = white;
-
-    const darkSky = createSky(0x141c2c, 0x39d0ff);
-    this.root.add(darkSky);
-    this.darkSky = darkSky;
-
-    const whiteSky = createSky(0xffffff, 0xe8ecf3);
-    whiteSky.visible = false;
-    this.root.add(whiteSky);
-    this.whiteSky = whiteSky;
+    this.root.add(createSky(0x141c2c, 0x39d0ff));
 
     this.root.add(this.stage);
     this.root.add(this.mini);
 
-    const panel = new EditorPanel('BAUPLATZ', PANEL_ROWS);
-    this.root.add(panel);
-    this.panel = panel;
+    // **Der Konstruktraum steht von Anfang an da**, gut vierhundert Meter
+    // hinter dem Grundriss (`Workshop.ts`). Ein Zimmer, das erst beim
+    // Hineingehen gebaut würde, wäre ein Ruckler an genau der Stelle, an der
+    // man ihn am wenigsten braucht — und die vierhundert Meter kosten nichts:
+    // Was man nicht sieht, zeichnet auch niemand.
+    const shop = buildWorkshop();
+    this.root.add(shop.root);
+    this.shop = shop;
+    // Wände, Boden und Decke bekommen Körper: Ein Zimmer, aus dem man zur
+    // Seite herausläuft, ist keines (`Workshop.WorkshopParts.walls`).
+    for (const mesh of shop.walls) {
+      mesh.updateWorldMatrix(true, false);
+      this.physics?.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+    }
 
     const palette = new Palette(PALETTE_DABS);
     this.root.add(palette);
     this.palette = palette;
 
+    const card = new PlanCard();
+    card.visible = false;
+    this.root.add(card);
+    this.card = card;
+
     const sign = new TextPlane({
       width: 5,
       height: 1.5,
       title: 'Bauplatz',
-      body: 'Karte von der Hüfte ziehen. Eine Hand trägt, zwei drehen und zoomen.',
+      body: 'Karte von der Hüfte ziehen — sie zeigt den Grundriss von oben. Trigger führt in den Konstruktraum.',
       accent: 0x39d0ff,
     });
     sign.position.set(0, 2.6, -12.5);
     this.root.add(sign);
-    this.sign = sign;
 
     this.folded = foldedMap();
     this.root.add(this.folded);
@@ -326,23 +408,43 @@ export class EditorWorld extends PortalWorld {
     await super.init(ctx);
     this.restore();
 
-    for (const key of this.panel?.keys() ?? []) {
-      ctx.pointer.add({ object: key.mesh, pokeable: true, onSelect: () => this.pad(key.id, ctx) });
+    const shop = this.shop;
+    if (shop) {
+      ctx.pointer.add({
+        object: shop.exit,
+        pokeable: true,
+        onSelect: () => this.leaveShop(),
+      });
+      // **Das Regal ist der Katalog.** Ein Tipp auf ein Musterstück nimmt es
+      // in die Hand — dieselbe Bewegung wie das Eintunken an der Palette, und
+      // aus demselben Grund: Man sucht sich hier etwas aus und trägt es
+      // danach herum, bis man es nicht mehr braucht.
+      for (const sample of shop.samples) {
+        ctx.pointer.add({
+          object: sample.object,
+          pokeable: true,
+          ignore: (hand) => hand !== null && this.cardHand === hand,
+          onSelect: (hit) => this.takeThing(sample.kind, hit),
+        });
+      }
     }
+
     for (const key of this.palette?.keys() ?? []) {
       ctx.pointer.add({
         object: key.mesh,
         pokeable: true,
         // Die Hand, die die Palette trägt, zeigt nicht auf sie: Ihr eigener
         // Strahl läge sonst dauernd auf dem eigenen Brett und schluckte den
-        // Trigger, mit dem sie gerade etwas anderes tut.
-        ignore: (hand) => hand !== null && this.carry?.hand === hand,
+        // Trigger, mit dem sie gerade etwas anderes tut. Dasselbe gilt für die
+        // Hand mit der Karte — deren Trigger gehört dem Konstruktraum.
+        ignore: (hand) => hand !== null && (this.carry?.hand === hand || this.cardHand === hand),
         onSelect: (hit) => this.dip(key.id, hit),
       });
     }
     // Die Karte hängt am Gürtel, und das Level steht um einen herum: Der
     // Bauplatz macht als **Level** auf und nicht als Editor.
-    this.setEditing(false);
+    this.setStage('level');
+    this.markHere(ctx);
     this.drawPanel();
   }
 
@@ -351,10 +453,33 @@ export class EditorWorld extends PortalWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.handleHands(ctx);
+    this.readCardTrigger(ctx);
     this.placeModel();
     this.placePalette();
     this.placePin(ctx);
     this.placeBrush(ctx);
+    this.placeCard(ctx);
+    this.placeThing(ctx);
+  }
+
+  /**
+   * **Der Trigger an der Karte** — hinein in den Konstruktraum und wieder
+   * heraus.
+   *
+   * Dieselbe Bedienung wie an der Drohne: Man hat das Ding in der Hand, und
+   * der Trigger ist das, was es *tut*. Der Greifknopf bleibt dabei, was er
+   * überall ist — er hält die Karte fest; wer loslässt, legt sie weg.
+   *
+   * Er wird hier gelesen und nicht über den Zeiger: Ein Zeiger braucht eine
+   * Fläche, auf die er trifft, und diese Karte tut etwas, egal wohin man mit
+   * ihr zeigt.
+   */
+  private readCardTrigger(ctx: WorldContext): void {
+    const hand = this.cardHand;
+    if (!hand || !this.carrying) return;
+    if (!ctx.input.get(hand)?.trigger.justPressed) return;
+    if (this.stageOf === 'shop') this.leaveShop();
+    else this.enterShop(ctx);
   }
 
   /**
@@ -381,7 +506,7 @@ export class EditorWorld extends PortalWorld {
       if (!piece) continue;
       if (pressed.has(hand) && now.has(hand)) continue;
       this.holds.delete(hand);
-      this.letGo(ctx, piece, now.get(hand) ?? null);
+      this.letGo(piece, now.get(hand) ?? null);
     }
 
     for (const [hand, hold] of now) {
@@ -408,18 +533,19 @@ export class EditorWorld extends PortalWorld {
     const hip = this.hipAt(hold.at);
     if (hip && this.mapHip === hip) {
       this.drawMap(ctx, hand, hold);
+      this.holds.set(hand, 'card');
       return;
     }
-    // Alles andere gibt es nur, solange die Karte draußen ist: Eine Palette in
-    // der Hand, während man durch sein fertiges Level läuft, hätte nichts, worauf
-    // sie malen könnte.
+    // Alles andere gibt es nur im Konstruktraum: Eine Palette in der Hand,
+    // während man durch sein fertiges Level läuft, hätte nichts, worauf sie
+    // malen könnte.
     if (!this.editing) return;
     if (hip && this.paletteHip === hip) {
       this.drawPalette(hand, hold);
       return;
     }
 
-    const piece = grabbedAt(hold.at, this.targets());
+    const piece = grabbedAt(hold.at, this.targets()) ?? this.aimedAt(ctx, hand);
     if (!piece) return;
     this.holds.set(hand, piece);
     if (piece === 'figure') {
@@ -437,13 +563,22 @@ export class EditorWorld extends PortalWorld {
    * Grundriss, der beim Loslassen zu Boden fällt, wäre ein Grundriss, den man
    * beim Bauen dauernd wieder aufhebt.
    */
-  private letGo(ctx: WorldContext, piece: Piece, hold: Hold | null): void {
+  private letGo(piece: Piece, hold: Hold | null): void {
     if (piece === 'figure') {
       this.pin?.setHeld(false);
-      this.dropPin(ctx);
+      this.dropPin();
       return;
     }
     const hip = hold ? this.hipAt(hold.at) : null;
+    if (piece === 'card') {
+      // **Die Karte geht zurück an die Hüfte**, egal wo man loslässt — sie ist
+      // ein Werkzeug und kein Möbel, und ein Blatt Papier, das in der Luft
+      // stehenbliebe, wäre das Erste, wogegen man im Konstruktraum stößt. Wer
+      // dabei im Konstruktraum steht, bleibt darin: Hinaus geht es mit dem
+      // Trigger oder über den Knopf.
+      this.stowMap(hip ?? this.mapHip ?? 'left');
+      return;
+    }
     if (piece === 'model') {
       this.grip = null;
       // **Nur, wenn wirklich niemand mehr daran hängt.** Beim Zoomen mit zwei
@@ -482,6 +617,35 @@ export class EditorWorld extends PortalWorld {
       });
     }
     return out;
+  }
+
+  /**
+   * **Das Modell auf Entfernung** — worauf diese Hand zeigt, wenn in ihrer
+   * Nähe nichts liegt.
+   *
+   * Der Grund ist die Werkstatt: Das Modell steht auf der Bank, und man steht
+   * davor, daneben oder am Regal. Ein Grundriss, den man nur anfassen kann,
+   * wenn man mit der Hand hineinfaßt, ist einer, für den man erst hingehen
+   * muß — und wer hingeht, verliert dabei den Blick, den er gerade auf ihn
+   * hatte. Also: hinzielen und zugreifen, und zwar aus jeder Entfernung.
+   *
+   * Gerechnet wird gegen die **Kugel** um das Modell und nicht gegen seine
+   * Quader. Ein Grundriss ist überwiegend Luft; wer die Wände treffen müßte,
+   * zielte durch sein eigenes Zimmer hindurch ins Leere.
+   *
+   * Nur das Modell, und das mit Absicht: Palette und Figur sind kleine Dinge,
+   * und ein Strahl, der sie auf zehn Meter mitnähme, nähme sie einem aus der
+   * Hand, sobald man daran vorbeizielt.
+   */
+  private aimedAt(ctx: WorldContext, hand: Handedness): Piece | null {
+    if (!this.editing) return null;
+    const controller = ctx.input.get(hand);
+    if (!controller?.tracked) return null;
+    controller.getRay(_ray);
+    const span = Math.max(this.bounds.maxX - this.bounds.minX, this.bounds.maxZ - this.bounds.minZ);
+    _sphere.center.set(this.model.at.x, this.model.at.y, this.model.at.z);
+    _sphere.radius = (span / 2) * this.model.scale + 0.22;
+    return _ray.intersectsSphere(_sphere) ? 'model' : null;
   }
 
   /** Über welcher Hüfte diese Hand steht — `null`, wenn über keiner. */
@@ -560,52 +724,45 @@ export class EditorWorld extends PortalWorld {
   }
 
   /**
-   * Abgesetzt: Auf einer Kachel steht man dann dort — daneben nicht.
+   * Abgesetzt: Auf einer Kachel steht die Marke dann dort — daneben nicht.
    *
-   * Auf eine Kachel, die es nicht gibt, geht niemand: Dort wäre der nächste
-   * Schritt ein Sturz.
+   * Versetzt wird die **Marke** und nicht der Spieler, und das ist der
+   * Unterschied zur ersten Fassung: Wer im Konstruktraum die Figur verschiebt,
+   * will sagen, wo er beim Zurückgehen stehen soll — und nicht mitten im
+   * Arbeiten quer durch die Welt gerissen werden. Auf eine Kachel, die es
+   * nicht gibt, wird nichts gesetzt: Dort wäre der nächste Schritt ein Sturz.
    */
-  private dropPin(ctx: WorldContext): void {
+  private dropPin(): void {
     const dragged = this.dragged;
     this.dragged = null;
     if (!dragged) return;
     const spot = spotAt(dragged.x, dragged.z);
     if (!this.plan.has(spot.tile)) {
-      this.announce('Da ist kein Boden — die Figur bleibt, wo sie war');
+      this.announce('Da ist kein Boden — die Marke bleibt, wo sie war');
       return;
     }
     const at = this.plan.worldOf(spot.tile);
-    this.movePlayerTo(ctx, _target.set(at.x, at.y, at.z));
-    this.announce('Dort stehst du jetzt');
+    this.mark = { x: at.x, y: at.y, z: at.z, yaw: this.mark.yaw };
+    this.announce('Dort tauchst du auf, wenn du zurückgehst');
   }
 
   // --- wo alles hängt -------------------------------------------------------
 
   /**
-   * Das Modell und seine Tafel an ihre Plätze.
+   * Das Modell an seinen Platz.
    *
-   * Die Tafel hängt an der **Vorderkante** des Modells und geht nicht mit
-   * seinem Maßstab mit: Ein Knopf, der beim Herauszoomen zur Briefmarke wird,
-   * ist einer, den man nicht mehr trifft. Gekippt wird sie dagegen mit — sie
-   * gehört zum Modell, und eine Tafel, die waagerecht stehen bleibt, während
-   * ihr Modell sich dreht, sieht aus wie vergessen.
+   * Eine Tafel mit Knöpfen hing hier lange an seiner Vorderkante — *Zu mir*,
+   * *Größer*, *Kleiner*, *Drehen*, *Weglegen*. Sie ist weg, und was sie konnte,
+   * kann man ohne sie besser: Größer und kleiner macht man mit zwei Händen,
+   * gedreht wird mit zweien ebenso, herangeholt wird es, indem man hinzielt
+   * und zugreift (`aimedAt`) — und weglegen tut man die Karte, nicht das
+   * Modell. Was übrig blieb, steht im Menü, für den flachen Modus ohne Hände.
    */
   private placeModel(): void {
     _turn.set(this.model.turn.x, this.model.turn.y, this.model.turn.z, this.model.turn.w);
     this.mini.position.set(this.model.at.x, this.model.at.y, this.model.at.z);
     this.mini.quaternion.copy(_turn);
     this.mini.scale.setScalar(this.model.scale);
-
-    const panel = this.panel;
-    if (!panel) return;
-    const front = ((this.bounds.maxZ - this.bounds.minZ) / 2) * this.model.scale + 0.12;
-    _offset.set(0, -0.06, front).applyQuaternion(_turn);
-    panel.position.set(
-      this.model.at.x + _offset.x,
-      this.model.at.y + _offset.y,
-      this.model.at.z + _offset.z,
-    );
-    panel.quaternion.copy(_turn).multiply(_lean.setFromAxisAngle(_right, -0.45));
   }
 
   /** Die Palette dorthin, wo sie schwebt — es sei denn, sie hängt an der Hüfte. */
@@ -630,16 +787,19 @@ export class EditorWorld extends PortalWorld {
    * ein Mensch im Grundriss.
    */
   private placePin(ctx: WorldContext): void {
+    // **Solange man im Level ist, läuft die Marke mit.** Erst im
+    // Konstruktraum steht sie still — dort ist sie die Auskunft, und was sich
+    // dort bewegt, ist die Werkstatt und nicht das Level.
+    if (this.stageOf !== 'shop') this.markHere(ctx);
+
     const pin = this.pin;
     if (!pin) return;
     if (this.dragged) {
       pin.position.set(this.dragged.x - this.centre.x, 0.2, this.dragged.z - this.centre.z);
       return;
     }
-    ctx.rig.getHeadPosition(_head);
-    ctx.rig.getHeadForward(_forward);
-    pin.position.set(_head.x - this.centre.x, 0, _head.z - this.centre.z);
-    pin.rotation.set(0, Math.atan2(-_forward.x, -_forward.z), 0);
+    pin.position.set(this.mark.x - this.centre.x, 0, this.mark.z - this.centre.z);
+    pin.rotation.set(0, this.mark.yaw, 0);
   }
 
   /**
@@ -674,6 +834,119 @@ export class EditorWorld extends PortalWorld {
     palette.brush.quaternion.copy(_lean).multiply(_turn);
   }
 
+  /**
+   * **Die Karte in der Hand** — gehalten wie ein Blatt, das man liest.
+   *
+   * Sie liegt auf dem Zeigestrahl wie jedes Werkzeug dieses Projekts
+   * (`portal/tools/aim.ts`), aber sie zeigt nicht nach vorn, sondern nach
+   * oben: Eine Karte hält man waagerecht vor sich. Die `TILT` kippt ihre
+   * Fläche der Nasenspitze entgegen — ohne sie sieht man mit ausgestrecktem
+   * Arm eine Kante und keine Karte.
+   */
+  private placeCard(ctx: WorldContext): void {
+    const card = this.card;
+    if (!card) return;
+    const hand = this.cardHand;
+    const controller = hand && this.carrying ? ctx.input.get(hand) : null;
+    if (!controller?.tracked) {
+      card.visible = false;
+      return;
+    }
+    card.visible = true;
+
+    controller.getRay(_ray);
+    _at.copy(_ray.origin).addScaledVector(_ray.direction, CARD_AHEAD);
+    this.root.worldToLocal(_at);
+    card.position.copy(_at);
+    controller.targetRay.getWorldQuaternion(_turn);
+    this.root.getWorldQuaternion(_lean).invert();
+    card.quaternion.copy(_lean).multiply(_turn).multiply(_tilt.setFromAxisAngle(_right, CARD_TILT));
+
+    card.draw(this.planShapes, this.things, this.bounds, this.mark, this.mapKey());
+  }
+
+  /** Woran die Karte erkennt, dass sich am Gezeichneten etwas geändert hat. */
+  private mapKey(): string {
+    return `${this.plan.version}:${this.thingsVersion}`;
+  }
+
+  // --- die Musterstücke vom Regal -------------------------------------------
+
+  /**
+   * **Ein Musterstück in die Hand** — und damit den Pinsel aus ihr heraus.
+   *
+   * Beides zugleich ginge nicht: Ein Tipp auf die Miniatur tut genau eine
+   * Sache, und ob das eine Wand ist oder eine Kiste, entscheidet sich hier und
+   * nicht dort.
+   */
+  private takeThing(kind: PropKind, hit: PointerHit): void {
+    if (!this.editing) return;
+    this.brush = null;
+    this.brushHand = null;
+    this.palette?.stow();
+    this.thing = kind;
+    this.thingHand = hit.hand ?? this.thingHand ?? 'right';
+    this.showThing(kind);
+    this.drawPanel();
+    this.drawGhost();
+    this.announce(`${PROP_LABELS[kind]} in der Hand — auf eine Kachel tippen`);
+  }
+
+  /** Das Musterstück wieder weglegen. */
+  private putThingBack(): void {
+    this.thing = null;
+    this.thingHand = null;
+    this.showThing(null);
+  }
+
+  /**
+   * Die Vorschau in der Hand bauen — oder wegräumen.
+   *
+   * Sie ist ein **echtes Exemplar** und kein Symbol: dieselbe Geometrie, die
+   * gleich im Level steht (`createPropShape`). Deshalb sieht man in der Hand
+   * wirklich, was man setzt, und nicht nur, wie es heißt.
+   */
+  private showThing(kind: PropKind | null): void {
+    if (this.thingView) {
+      disposeTree(this.thingView);
+      this.thingView = null;
+    }
+    if (!kind) return;
+    const view = new THREE.Group();
+    view.name = `thing-preview:${kind}`;
+    view.add(createPropShape(kind).mesh);
+    this.root.add(view);
+    this.thingView = view;
+  }
+
+  /**
+   * **Wie groß es in der Miniatur wäre** — die Vorschau in der Hand trägt den
+   * Maßstab des Modells.
+   *
+   * Das ist die eigentliche Auskunft: Ein Klotz, den man in Lebensgröße in der
+   * Hand hielte, sagt nichts darüber, ob er in den Gang paßt, den man gerade
+   * gebaut hat. In Miniaturgröße hält man ihn neben den Gang und sieht es.
+   */
+  private placeThing(ctx: WorldContext): void {
+    const view = this.thingView;
+    if (!view) return;
+    const hand = this.thingHand;
+    const controller = hand ? ctx.input.get(hand) : null;
+    if (!controller?.tracked || !this.editing) {
+      view.visible = false;
+      return;
+    }
+    view.visible = true;
+    controller.getRay(_ray);
+    _at.copy(_ray.origin).addScaledVector(_ray.direction, 0.09);
+    this.root.worldToLocal(_at);
+    view.position.copy(_at);
+    view.scale.setScalar(this.model.scale);
+    controller.targetRay.getWorldQuaternion(_turn);
+    this.root.getWorldQuaternion(_lean).invert();
+    view.quaternion.copy(_lean).multiply(_turn);
+  }
+
   // --- Karte und Palette an der Hüfte ---------------------------------------
 
   /**
@@ -684,19 +957,22 @@ export class EditorWorld extends PortalWorld {
    * Hüfte steht, ist eines, dem man hinterherfasst. Der Maßstab kommt aus der
    * Größe des Plans, die Richtung aus dem Blick — sein Norden liegt vorn.
    */
-  private drawMap(ctx: WorldContext, hand: Handedness, hold: Hold): void {
+  private drawMap(ctx: WorldContext, hand: Handedness, _hold: Hold): void {
     this.mapHip = null;
-    ctx.rig.getHeadForward(_forward);
-    this.model = clampModel({
-      at: { ...hold.at },
-      turn: yawTurn(Math.atan2(-_forward.x, -_forward.z)),
-      scale: this.fitScale(),
-    });
-    this.setEditing(true);
-    this.holds.set(hand, 'model');
-    this.grip = { hands: [hand], from: [hold], start: this.model };
+    this.cardHand = hand;
+    if (this.folded) this.folded.visible = false;
+    // **Wer im Konstruktraum nach der Karte greift, bleibt darin.** Sie ist
+    // dort der zweite Weg hinaus (der erste ist der grüne Knopf), und ein
+    // Griff an die Hüfte, der einen unversehens ins Level zurückstellte, wäre
+    // das Gegenteil davon.
+    if (this.stageOf === 'level') this.setStage('map');
+    else if (this.card) this.card.visible = true;
     ctx.input.get(hand)?.pulse(0.5, 30);
-    this.announce('Karte draußen — du stehst im weißen Raum');
+    this.announce(
+      this.stageOf === 'shop'
+        ? 'Karte in der Hand — Trigger führt zurück ins Level'
+        : 'Karte in der Hand — Trigger führt in den Konstruktraum',
+    );
   }
 
   private drawPalette(hand: Handedness, hold: Hold): void {
@@ -720,8 +996,13 @@ export class EditorWorld extends PortalWorld {
    */
   private stowMap(side: Handedness): void {
     this.mapHip = side;
-    this.setEditing(false);
-    this.announce('Karte weg — du stehst wieder in deinem Level');
+    this.cardHand = null;
+    if (this.card) this.card.visible = false;
+    if (this.stageOf === 'map') this.setStage('level');
+    this.foldMap();
+    this.announce(
+      this.stageOf === 'shop' ? 'Karte an der Hüfte' : 'Karte weg — du stehst in deinem Level',
+    );
   }
 
   private stowPalette(side: Handedness): void {
@@ -744,59 +1025,114 @@ export class EditorWorld extends PortalWorld {
   }
 
   /**
-   * **Bearbeiten an oder aus** — und mit ihm die halbe Welt.
+   * **Wo man ist** — und was daran hängt.
    *
-   * Beim Bearbeiten steht das Level nicht mehr um einen herum: Es wird
-   * unsichtbar, und seine Körper kommen aus der Physik heraus. Beides gehört
-   * zusammen — eine Wand, die man nicht sieht, aber gegen die man läuft, ist
-   * schlimmer als eine, die im Weg steht.
+   * Die halbe Welt schaltet sich hier um, und dass es nur *eine* Stelle ist,
+   * ist der Grund, warum man sie noch versteht: Miniatur, Palette, Zeigefläche
+   * und Karte gehören zusammen, und ein Zustand, der sich an vier Stellen
+   * einzeln einstellt, ist einer, von dem irgendwann drei stimmen.
    *
-   * Der weiße Raum ist dann kein Nichts, sondern ein Boden bis zum Horizont.
-   * Man steht darin, man kann darin herumgehen, und die eigene Figur in der
-   * Miniatur sagt weiterhin, wo im Level das wäre.
+   * Das **Level bleibt stehen**, immer — sichtbar und fest. Es steht
+   * vierhundert Meter von der Werkstatt entfernt und ist damit niemandem im
+   * Weg; und wer aus der Werkstatt zurückkommt, kommt in ein Zimmer, das
+   * inzwischen niemand abgebaut hat.
    */
-  private setEditing(on: boolean): void {
-    this.stage.visible = !on;
-    this.setStageSolid(!on);
-    if (this.darkGround) this.darkGround.visible = !on;
-    if (this.darkSky) this.darkSky.visible = !on;
-    if (this.whiteGround) this.whiteGround.visible = on;
-    if (this.whiteSky) this.whiteSky.visible = on;
-    if (this.sign) this.sign.visible = !on;
-    if (this.folded) this.folded.visible = !on;
+  private setStage(next: Stage): void {
+    this.stageOf = next;
+    const shop = next === 'shop';
 
-    this.mini.visible = on;
-    if (this.panel) this.panel.visible = on;
-    if (this.palette) this.palette.visible = on || this.paletteHip !== null;
+    this.mini.visible = shop;
+    if (this.palette) this.palette.visible = shop || this.paletteHip !== null;
     // Der Zeiger fragt jedes Ziel nach seiner **eigenen** Sichtbarkeit und
-    // nicht nach der seiner Eltern: Eine versteckte Tafel, deren Tasten noch
+    // nicht nach der seiner Eltern: Eine versteckte Palette, deren Näpfe noch
     // sichtbar sind, fängt weiter jeden Strahl.
-    for (const key of this.panel?.keys() ?? []) key.mesh.visible = on;
-    for (const key of this.palette?.keys() ?? []) key.mesh.visible = on;
-    if (this.aimed) this.aimed.visible = on;
-    if (on) return;
+    for (const key of this.palette?.keys() ?? []) key.mesh.visible = shop;
+    if (this.aimed) this.aimed.visible = shop;
+    if (this.card) this.card.visible = next !== 'level';
+    if (this.folded) this.folded.visible = this.mapHip !== null;
+
+    if (shop) return;
 
     this.spot = null;
     this.drawGhost();
     this.grip = null;
     this.carry = null;
     this.dragged = null;
-    this.holds.clear();
-    this.foldMap();
-    // **Wer die Karte weglegt, räumt auch die Palette weg** — auf die Hüfte,
-    // an der sie hing, sonst auf die freie. Eine Palette, die weiter im Raum
-    // schwebte, während man wieder durch sein Level läuft, wäre ein Brett,
-    // gegen das man auf dem Rückweg stößt; und unsichtbar herumschweben zu
-    // lassen ist noch schlechter — dann sucht man sie beim nächsten Mal.
+    // **Die Karte bleibt in der Hand**, alles andere nicht: Wer aus dem
+    // Konstruktraum herauskommt, hat sie ja gerade dazu benutzt — und eine
+    // Karte, die einem beim Hinausgehen aus der Hand fällt, ist eine, mit der
+    // man nicht wieder hineinkommt.
+    for (const [hand, piece] of [...this.holds]) {
+      if (piece !== 'card') this.holds.delete(hand);
+    }
+    // **Wer den Konstruktraum verlässt, räumt auch die Palette weg** — auf die
+    // Hüfte, an der sie hing, sonst auf die freie. Eine Palette, die weiter im
+    // Raum schwebte, während man wieder durch sein Level läuft, wäre ein
+    // Brett, gegen das man auf dem Rückweg stößt.
     this.stowPalette(this.paletteHip ?? other(this.mapHip ?? 'left'));
     if (this.palette) this.palette.visible = this.paletteHip !== null;
+    this.putThingBack();
+    if (next === 'level') this.foldMap();
+  }
+
+  /**
+   * **In den Konstruktraum.**
+   *
+   * Erst die Marke — wo man steht, gilt ab jetzt als die Stelle, an der man
+   * wiederkommt —, dann das Modell auf die Bank, dann man selbst hinüber. Die
+   * Reihenfolge ist keine Kleinigkeit: Wer sich zuerst versetzt, merkt sich
+   * anschließend die Werkbank als seinen Platz im Level.
+   */
+  private enterShop(ctx: WorldContext): void {
+    if (this.stageOf === 'shop') return;
+    this.markHere(ctx);
+    this.setStage('shop');
+    this.model = clampModel({
+      at: { x: MODEL_OVER.x, y: MODEL_OVER.y, z: MODEL_OVER.z },
+      turn: yawTurn(0),
+      scale: this.fitScale(),
+    });
+    this.grip = null;
+    this.placeModel();
+    this.movePlayerTo(ctx, _target.copy(WORKSHOP_SPAWN), WORKSHOP_YAW);
+    this.announce('Konstruktraum — die Figur zeigt, wo du wieder auftauchst');
+  }
+
+  /** Und wieder heraus: dorthin, wo die Marke steht. */
+  private leaveShop(): void {
+    const ctx = this.context;
+    if (!ctx || this.stageOf !== 'shop') return;
+    this.setStage(this.cardHand ? 'map' : 'level');
+    this.movePlayerTo(ctx, _target.set(this.mark.x, this.mark.y, this.mark.z), this.mark.yaw);
+    this.announce('Zurück im Level');
+  }
+
+  /**
+   * Die Marke dorthin, wo man gerade steht.
+   *
+   * Jedes Bild, solange man im Level ist — dadurch zeigt die Karte in der Hand
+   * einen laufenden Pfeil und keine alte Notiz. Im Konstruktraum steht sie
+   * still: Dort *ist* sie die Auskunft, und was sich dort bewegt, ist die
+   * Werkstatt und nicht das Level.
+   */
+  private markHere(ctx: WorldContext): void {
+    ctx.rig.getHeadPosition(_head);
+    ctx.rig.getHeadForward(_forward);
+    this.mark = {
+      x: _head.x,
+      y: ctx.rig.getFloorY(),
+      z: _head.z,
+      yaw: Math.atan2(-_forward.x, -_forward.z),
+    };
   }
 
   /** Die zusammengefaltete Karte an die Hüfte hängen, an der sie hängt. */
   private foldMap(): void {
     const folded = this.folded;
     const side = this.mapHip;
-    if (!folded || !side) return;
+    if (!folded) return;
+    folded.visible = side !== null;
+    if (!side) return;
     const slot = this.host?.beltSlot(side);
     if (!slot) return;
     slot.add(folded);
@@ -805,21 +1141,20 @@ export class EditorWorld extends PortalWorld {
   }
 
   /**
-   * Die Körper der Lebensgröße hinein oder heraus.
+   * Die Körper der Lebensgröße anmelden.
    *
-   * Es sind dieselben Netze wie eben — nur ihre Anmeldung bei der Physik
-   * wechselt. Neu bauen müsste sie niemand, und wer es täte, hätte beim
-   * dritten Umschalten drei Sätze Wände übereinander.
+   * Es sind dieselben Netze wie eben — nur ihre Anmeldung bei der Physik kommt
+   * dazu. Neu bauen müsste sie niemand, und wer es täte, hätte beim dritten
+   * Umschalten drei Sätze Wände übereinander.
+   *
+   * Herausgenommen wurden sie früher beim Bearbeiten, weil man dabei mitten im
+   * eigenen Level stand. Das ist vorbei: Gebaut wird im Konstruktraum, und das
+   * Level bleibt fest — eine Wand, die durchlässig wäre, während niemand
+   * hinsieht, wäre eine, durch die beim Zurückkommen jemand fällt.
    */
-  private setStageSolid(solid: boolean): void {
+  private setStageSolid(): void {
     const physics = this.physics;
-    if (!physics) return;
-    if (!solid) {
-      for (const entry of this.built) physics.remove(entry);
-      this.built.length = 0;
-      return;
-    }
-    if (this.built.length > 0) return;
+    if (!physics || this.built.length > 0) return;
     for (const mesh of this.stage.children) {
       mesh.updateMatrixWorld(true);
       this.built.push(physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS }));
@@ -877,14 +1212,22 @@ export class EditorWorld extends PortalWorld {
   private press(): void {
     const spot = this.spot;
     if (!spot || !this.editing) return;
+    // **Erst das Ding in der Hand.** Wer ein Musterstück vom Regal geholt hat,
+    // will es hinstellen und nicht eine Wand bauen — und er hat dafür gerade
+    // den Pinsel weggelegt.
+    if (this.thing) {
+      this.dropThing(spot);
+      return;
+    }
     if (this.brush === null) {
-      this.announce('Erst an der Palette eintunken');
+      this.announce('Erst an der Palette eintunken oder etwas vom Regal nehmen');
       return;
     }
     if (this.brush === 'go') {
       this.stepInto(spot);
       return;
     }
+    if (this.brush === 'erase' && this.eraseThing(spot)) return;
     const before = planCentre(this.plan);
     const edit = applyTool(this.plan, this.brush, spot);
     if (!edit.changed) return;
@@ -911,15 +1254,107 @@ export class EditorWorld extends PortalWorld {
    * andersherum: Die eine zeigt, wo man steht, das andere sagt, wohin.
    */
   private stepInto(spot: PlanSpot): void {
-    const ctx = this.context;
-    if (!ctx) return;
     if (!this.plan.has(spot.tile)) {
       this.announce('Da ist kein Boden');
       return;
     }
     const at = this.plan.worldOf(spot.tile);
-    this.movePlayerTo(ctx, _target.set(at.x, at.y, at.z));
-    this.announce('Hier stehst du');
+    this.mark = { x: at.x, y: at.y, z: at.z, yaw: this.mark.yaw };
+    this.announce('Dort tauchst du auf, wenn du zurückgehst');
+  }
+
+  // --- Gegenstände in den Grundriss -----------------------------------------
+
+  /**
+   * **Ein Ding auf eine Kachel stellen.**
+   *
+   * Auf die **Kachelmitte** und auf den **Boden** — die beiden einzigen
+   * Entscheidungen, die diese Welt einem abnimmt, und beide aus demselben
+   * Grund: In einer Miniatur von Streichholzgröße trifft niemand einen
+   * Zentimeter, und niemand stellt dort eine Höhe ein. Wer es genauer haben
+   * will, geht in sein Level und schiebt es dort hin; dort ist es ein
+   * Gegenstand wie jeder andere.
+   *
+   * Auf eine Kachel, die es nicht gibt, wird nichts gestellt: Das Ding fiele
+   * ins Nichts.
+   */
+  private dropThing(spot: PlanSpot): void {
+    const kind = this.thing;
+    if (!kind) return;
+    if (!this.plan.has(spot.tile)) {
+      this.announce('Da ist kein Boden — erst eine Kachel legen');
+      return;
+    }
+    const x = tileCentreX(spot.tile);
+    const z = tileCentreZ(spot.tile);
+    addProp(this.things, kind, x, z);
+    this.thingsChanged();
+    this.announce(`${PROP_LABELS[kind]} steht`);
+  }
+
+  /**
+   * Das Löschwerkzeug nimmt zuerst weg, was **auf** der Kachel steht.
+   *
+   * `true`, wenn dabei etwas wegging — dann bleibt die Kachel selbst liegen.
+   * Andersherum wäre es eine Falle: Wer die Kiste treffen will und die Kachel
+   * darunter löscht, verliert beides auf einmal.
+   */
+  private eraseThing(spot: PlanSpot): boolean {
+    if (spot.dir !== null) return false;
+    const near = propNear(this.things, tileCentreX(spot.tile), tileCentreZ(spot.tile), TILE / 2);
+    if (!near) return false;
+    dropProp(this.things, near.id);
+    this.thingsChanged();
+    this.announce(`${PROP_LABELS[near.kind]} weg`);
+    return true;
+  }
+
+  /**
+   * Die Liste hat sich geändert: Lebensgröße neu aufstellen, Miniatur neu
+   * bauen, speichern.
+   *
+   * Der Neubau der Miniatur läuft über `rebuild(true)` — sie wird ohnehin an
+   * einem Stück gebaut, und ein Editor, der einzelne Kisten nachpflegt, ist
+   * genau der, in dem nach dem dreißigsten Handgriff eine zu viel steht.
+   */
+  private thingsChanged(): void {
+    this.thingsVersion++;
+    this.rebuildThings();
+    this.rebuild(true);
+    this.store();
+  }
+
+  /**
+   * **Die Gegenstände in Lebensgröße** — als richtige Körper, die man
+   * anfassen, werfen und umstoßen kann.
+   *
+   * Sie stehen dort, wo sie gesetzt wurden, und nicht dort, wo sie zuletzt
+   * hingerollt sind: Wer die Liste ändert, stellt sie neu auf. Das ist die
+   * ehrliche Fassung von „was im Grundriss steht" — die Liste ist der
+   * Grundriss, und das Zimmer ist nur, was gerade daraus gebaut ist.
+   */
+  private rebuildThings(): void {
+    for (const entry of this.thingBodies.values()) this.removeProp(entry, false);
+    this.thingBodies.clear();
+    const physics = this.physics;
+    if (!physics) return;
+    for (const thing of this.things) {
+      const blueprint = createPropShape(thing.kind);
+      const mesh = blueprint.mesh;
+      mesh.position.set(thing.x, standingY(blueprint.halfExtents.y), thing.z);
+      mesh.rotation.y = thing.yaw;
+      this.root.add(mesh);
+      mesh.updateMatrixWorld(true);
+      const entry = physics.addDynamic(mesh, {
+        shape: blueprint.shape,
+        halfExtents: blueprint.halfExtents,
+        mass: blueprint.mass,
+        friction: 0.7,
+        restitution: 0.05,
+      });
+      this.registerProp(entry, `plan-${thing.id}`);
+      this.thingBodies.set(thing.id, entry);
+    }
   }
 
   /** Die Vorschau unter dem Zeiger — eine Kachel oder ein Wandstück. */
@@ -929,10 +1364,12 @@ export class EditorWorld extends PortalWorld {
     if (!tile || !edge) return;
     // Beim Hingehen zählt die **Kachel** und nie eine Kante: Man stellt sich
     // auf einen Boden und nicht in eine Wand.
-    const brush = this.brush;
+    // Das Musterstück in der Hand zeigt immer auf die **Kachel**: Es steht
+    // darauf, es hängt nicht an ihrer Kante.
+    const brush = this.thing ? 'thing' : this.brush;
     const spot =
       this.spot && brush
-        ? brush === 'go'
+        ? brush === 'go' || brush === 'thing'
           ? { tile: this.spot.tile, dir: null }
           : aimOf(brush, this.spot)
         : null;
@@ -940,7 +1377,8 @@ export class EditorWorld extends PortalWorld {
     edge.visible = false;
     if (!spot || !brush) return;
 
-    const colour = brush === 'go' ? GO_COLOR : planToolSpec(brush).accent;
+    const colour =
+      brush === 'thing' ? THING_COLOR : brush === 'go' ? GO_COLOR : planToolSpec(brush).accent;
     if (spot.dir === null) {
       tile.visible = true;
       (tile.material as THREE.MeshBasicMaterial).color.setHex(colour);
@@ -971,68 +1409,45 @@ export class EditorWorld extends PortalWorld {
     if (id === Palette.REST) {
       this.brush = null;
       this.brushHand = null;
+      this.putThingBack();
       this.palette?.stow();
       this.announce('Pinsel zurück — jetzt baut ein Tipp nichts mehr');
     } else {
       this.brush = id as PlanTool | 'go';
       this.brushHand = hit.hand ?? this.brushHand;
+      // Ein Pinsel und ein Musterstück in derselben Hand wären zwei Antworten
+      // auf dieselbe Frage; wer eintunkt, legt das Musterstück zurück.
+      this.putThingBack();
       this.announce(
-        id === 'go' ? 'Auf eine Kachel tippen — dort stehst du dann' : planToolSpec(id).sub,
+        id === 'go'
+          ? 'Auf eine Kachel tippen — dort tauchst du auf, wenn du zurückgehst'
+          : planToolSpec(id).sub,
       );
     }
     this.drawPanel();
     this.drawGhost();
   }
 
-  // --- die Tafel ------------------------------------------------------------
-
-  private pad(id: string, ctx: WorldContext): void {
-    switch (id) {
-      case 'near':
-        this.bring(ctx);
-        this.announce('Modell vor dir, flach gelegt');
-        break;
-      case 'bigger':
-      case 'smaller':
-        this.model = clampModel({
-          ...this.model,
-          scale: this.model.scale * (id === 'bigger' ? 1.35 : 1 / 1.35),
-        });
-        break;
-      case 'turn':
-        this.model = clampModel({
-          ...this.model,
-          turn: turnedBy(this.model, Math.PI / 8),
-        });
-        break;
-      case 'doors':
-        this.swingDoors();
-        break;
-      case 'away':
-        this.putMapAway();
-        break;
-      case 'clear':
-        this.reset();
-        break;
-    }
-    this.drawPanel();
-  }
+  // --- Karte holen und weglegen, ohne Hände ---------------------------------
 
   /**
    * Die Karte weglegen, ohne eine Hüfte zu treffen — für den flachen Modus, in
    * dem es keine Hände gibt, die etwas an einen Gürtel halten könnten.
    */
   private putMapAway(): void {
-    this.stowMap(this.mapHip ?? 'left');
+    if (this.stageOf === 'shop') this.leaveShop();
+    this.mapHip = this.mapHip ?? 'left';
+    this.cardHand = null;
+    this.setStage('level');
+    this.announce('Karte weg — du stehst wieder in deinem Level');
   }
 
-  /** Und der Weg zurück, wenn keine Hand danach greifen kann. */
+  /** Und der Weg in den Konstruktraum, wenn keine Hand danach greifen kann. */
   private takeMapOut(ctx: WorldContext): void {
     if (this.editing) return;
     this.mapHip = null;
-    this.setEditing(true);
-    this.bring(ctx);
-    this.announce('Karte draußen — du stehst im weißen Raum');
+    this.setStage('map');
+    this.enterShop(ctx);
   }
 
   /** Alle Türen auf oder alle zu — in der Karte und im Gebauten zugleich. */
@@ -1052,12 +1467,27 @@ export class EditorWorld extends PortalWorld {
   private reset(): void {
     replacePlan(this.plan, starterPlan());
     this.centre = planCentre(this.plan);
-    this.rebuild();
+    this.things.length = 0;
+    this.thingsVersion++;
+    this.rebuildThings();
+    this.rebuild(true);
     this.store();
     this.announce('Von vorn');
   }
 
+  /**
+   * Was die Palette gerade anzeigt.
+   *
+   * Ein Musterstück in der Hand steht mit darauf, obwohl es nicht von ihr
+   * kommt: Sie ist die eine Stelle, an der man abliest, was ein Tipp auf die
+   * Miniatur tut — und „ein Kegel“ ist darauf eine so gute Antwort wie „eine
+   * Wand“. Ein Napf leuchtet dabei nicht, denn es liegt in keinem.
+   */
   private drawPanel(): void {
+    if (this.thing) {
+      this.palette?.setActive(null, PROP_LABELS[this.thing], THING_COLOR);
+      return;
+    }
     const brush = this.brush;
     const spec = brush === null ? null : brush === 'go' ? GO_SPEC : planToolSpec(brush);
     this.palette?.setActive(
@@ -1077,8 +1507,8 @@ export class EditorWorld extends PortalWorld {
    * Quadern kostet ein vollständiger Neubau nichts, und er kann nicht
    * auseinanderlaufen.
    */
-  private rebuild(): void {
-    if (this.builtVersion === this.plan.version) return;
+  private rebuild(force = false): void {
+    if (!force && this.builtVersion === this.plan.version) return;
     this.builtVersion = this.plan.version;
     this.bounds = planBounds(this.plan);
 
@@ -1088,14 +1518,16 @@ export class EditorWorld extends PortalWorld {
     clear(this.mini);
 
     const solids = planSolids(this.plan);
+    this.planShapes = solids;
     for (const solid of solids) {
       const mesh = box(solid, this.materialFor(solid.kind));
       this.stage.add(mesh);
       mesh.updateMatrixWorld(true);
     }
-    // Beim Bearbeiten steht das Level nicht im Weg — dann bleiben die Körper
-    // draußen, bis die Karte weggelegt wird.
-    this.setStageSolid(!this.editing);
+    // **Das Level bleibt fest**, auch während gebaut wird: Gebaut wird jetzt
+    // im Konstruktraum, vierhundert Meter entfernt, und eine Wand, die dort
+    // durchlässig wäre, wäre eine, durch die beim Zurückkommen jemand fällt.
+    this.setStageSolid();
 
     this.buildMini(solids);
   }
@@ -1145,6 +1577,21 @@ export class EditorWorld extends PortalWorld {
       );
     }
 
+    // **Und was darin steht** (`planProps.ts`). In der Miniatur brauchen sie
+    // keinen eigenen Maßstab: Die Gruppe trägt ihn, und damit ist eine Kiste
+    // von 32 cm in der Miniatur genau so klein wie der Gang, in dem sie steht.
+    for (const thing of this.things) {
+      const blueprint = createPropShape(thing.kind);
+      const view = blueprint.mesh;
+      view.position.set(
+        thing.x - this.centre.x,
+        standingY(blueprint.halfExtents.y),
+        thing.z - this.centre.z,
+      );
+      view.rotation.y = thing.yaw;
+      this.mini.add(view);
+    }
+
     // Man selbst, klein, mittendrin. Sie entsteht bei jedem Neubau neu, weil
     // `clear` die ganze Gruppe leert — und dabei die alte Figur längst
     // freigegeben hat. Ein zweites `dispose` hier wäre eines zu viel.
@@ -1184,6 +1631,9 @@ export class EditorWorld extends PortalWorld {
     this.aimed = canvas;
     ctx.pointer.add({
       object: canvas,
+      // Der Trigger der Kartenhand führt in den Konstruktraum und wieder
+      // heraus (`readCardTrigger`) — er darf nicht nebenbei eine Wand setzen.
+      ignore: (hand) => hand !== null && this.cardHand === hand,
       onHover: (hit) => this.aim(hit.point),
       onBlur: () => this.aim(null),
       onSelect: () => this.press(),
@@ -1204,6 +1654,7 @@ export class EditorWorld extends PortalWorld {
   private store(): void {
     try {
       window.localStorage.setItem(STORE_KEY, JSON.stringify(writeNav(this.plan, 'Bauplatz')));
+      window.localStorage.setItem(THINGS_KEY, JSON.stringify(writeProps(this.things)));
     } catch {
       // Kein Speicher (privates Fenster, abgeschaltete Cookies): dann eben
       // nicht. Ein Editor, der daran abstürzt, ist schlimmer als einer, der
@@ -1219,10 +1670,27 @@ export class EditorWorld extends PortalWorld {
     } catch {
       saved = null;
     }
-    if (!saved || saved.size === 0) return;
-    replacePlan(this.plan, saved);
-    this.centre = planCentre(this.plan);
-    this.rebuild();
+    // **Die Gegenstände kommen auch dann zurück, wenn der Plan es nicht tut.**
+    // Zwei Speicherplätze, zwei Fassungen: Ein Grundriss ohne Kisten ist ein
+    // leeres Zimmer, Kisten ohne Grundriss sind ein Haufen auf der Wiese —
+    // beides ist besser als eine Ausnahme beim Laden.
+    try {
+      const raw = window.localStorage.getItem(THINGS_KEY);
+      if (raw) {
+        this.things.length = 0;
+        this.things.push(...readProps(JSON.parse(raw)));
+        this.thingsVersion++;
+      }
+    } catch {
+      this.things.length = 0;
+    }
+
+    if (saved && saved.size > 0) {
+      replacePlan(this.plan, saved);
+      this.centre = planCentre(this.plan);
+    }
+    this.rebuildThings();
+    this.rebuild(true);
   }
 
   override dispose(ctx: WorldContext): void {
@@ -1234,6 +1702,12 @@ export class EditorWorld extends PortalWorld {
     this.folded = null;
     this.palette?.dispose();
     this.palette = null;
+    this.card?.dispose();
+    this.card = null;
+    if (this.thingView) disposeTree(this.thingView);
+    this.thingView = null;
+    this.thingBodies.clear();
+    this.shop = null;
     this.pin = null;
     this.aimed = null;
     super.dispose(ctx);
@@ -1251,6 +1725,7 @@ export class EditorWorld extends PortalWorld {
       checked: this.brush === tool.id,
       run: () => {
         this.brush = tool.id;
+        this.putThingBack();
         this.drawPanel();
       },
     }));
@@ -1264,8 +1739,8 @@ export class EditorWorld extends PortalWorld {
         children: [
           {
             id: 'plan-map',
-            label: this.editing ? 'Karte weglegen' : 'Karte holen',
-            sub: 'Draußen wird gebaut, weggelegt steht man im Level',
+            label: this.editing ? 'Konstruktraum verlassen' : 'In den Konstruktraum',
+            sub: 'Dort steht der Grundriss auf der Werkbank',
             icon: 'teleport',
             accent: 0x39d0ff,
             run: () => {
@@ -1278,8 +1753,8 @@ export class EditorWorld extends PortalWorld {
           ...rows,
           {
             id: 'plan-go',
-            label: 'Hingehen',
-            sub: 'Auf eine Kachel der Miniatur tippen und dort stehen',
+            label: 'Marke setzen',
+            sub: 'Auf eine Kachel tippen — dort tauchst du auf, wenn du zurückgehst',
             icon: 'teleport',
             accent: GO_COLOR,
             checked: this.brush === 'go',
@@ -1312,6 +1787,64 @@ export class EditorWorld extends PortalWorld {
               if (this.context) this.bring(this.context);
             },
           },
+          // **Größer, kleiner, drehen** — in der Brille macht man das mit zwei
+          // Händen am Modell; hier stehen sie für den flachen Modus, in dem es
+          // keine zweite Hand gibt. Die Tafel, an der sie früher hingen, ist
+          // weg: Ein Brett voller Knöpfe vor dem Grundriss verdeckte gerade
+          // die Kante, an der man baut.
+          {
+            id: 'plan-bigger',
+            label: 'Modell größer',
+            sub: 'Eine Stufe heran',
+            icon: 'cube',
+            accent: 0x9ad9ff,
+            run: () => {
+              this.model = clampModel({ ...this.model, scale: this.model.scale * 1.35 });
+            },
+          },
+          {
+            id: 'plan-smaller',
+            label: 'Modell kleiner',
+            sub: 'Eine Stufe weg',
+            icon: 'cube',
+            accent: 0x9ad9ff,
+            run: () => {
+              this.model = clampModel({ ...this.model, scale: this.model.scale / 1.35 });
+            },
+          },
+          {
+            id: 'plan-turn',
+            label: 'Modell drehen',
+            sub: 'Eine Achtel Umdrehung um die Hochachse',
+            icon: 'cube',
+            accent: 0x9ad9ff,
+            run: () => {
+              this.model = clampModel({
+                ...this.model,
+                turn: turnedBy(this.model, Math.PI / 8),
+              });
+            },
+          },
+          {
+            id: 'plan-things',
+            label: 'Musterstück weglegen',
+            sub: 'Dann setzt ein Tipp auf die Miniatur nichts mehr hinein',
+            icon: 'cube',
+            accent: 0xffb14e,
+            checked: this.thing !== null,
+            run: () => {
+              this.putThingBack();
+              this.drawPanel();
+            },
+          },
+          {
+            id: 'plan-clear',
+            label: 'Von vorn',
+            sub: 'Grundriss und alles darin zurücksetzen',
+            icon: 'reset',
+            accent: 0x8892a6,
+            run: () => this.reset(),
+          },
           {
             id: 'plan-doors',
             label: 'Türen auf/zu',
@@ -1328,13 +1861,24 @@ export class EditorWorld extends PortalWorld {
 }
 
 /** Was in dieser Welt in der Luft schwebt und angefasst werden kann. */
-type Piece = 'model' | 'palette' | 'figure';
+type Piece = 'model' | 'palette' | 'figure' | 'card';
+
+/**
+ * **Wo man ist.** Drei Zustände, und der Unterschied zwischen den ersten
+ * beiden ist wirklich nur die Karte in der Hand: Man steht in seinem Level und
+ * sieht nach, wo man ist.
+ */
+type Stage = 'level' | 'map' | 'shop';
 
 const STORE_KEY = 'vr-bauplatz-plan';
+/** Und der zweite Platz: was im Grundriss steht (`planProps.ts`). */
+const THINGS_KEY = 'vr-bauplatz-dinge';
 
 /** Die Farbe des Hingehens — kein Bauwerkzeug, also auch keine Bauwerkzeugfarbe. */
 const GO_COLOR = 0x5ee0a0;
-const GO_SPEC = { label: 'Hingehen', accent: GO_COLOR };
+const GO_SPEC = { label: 'Marke setzen', accent: GO_COLOR };
+/** Und die Farbe dessen, was man hineinstellt. */
+const THING_COLOR = 0xffb14e;
 
 const HANDS: readonly Handedness[] = ['left', 'right'];
 
@@ -1347,28 +1891,6 @@ function other(side: Handedness): Handedness {
 const PALETTE_DABS = [
   ...PLAN_TOOLS.map((tool) => ({ id: tool.id, label: tool.label, color: tool.accent })),
   { id: 'go', label: GO_SPEC.label, color: GO_COLOR },
-];
-
-/**
- * Die Tafel am Modell: nur noch, was mit dem Modell selbst passiert.
- *
- * Womit gebaut wird, steht seit der Palette dort, wo man es sich holt. Was
- * hier bleibt, ist das, wofür man in der Brille zwei Hände bräuchte und im
- * flachen Modus keine hat: größer, kleiner, drehen — und der Weg zurück ins
- * Level, ohne eine Hüfte treffen zu müssen.
- */
-const PANEL_ROWS: readonly (readonly PanelKey[])[] = [
-  [
-    { id: 'near', label: 'Zu mir', color: 0xffc857 },
-    { id: 'bigger', label: 'Größer', color: 0x9ad9ff },
-    { id: 'smaller', label: 'Kleiner', color: 0x9ad9ff },
-    { id: 'turn', label: 'Drehen', color: 0x9ad9ff },
-  ],
-  [
-    { id: 'doors', label: 'Türen', color: 0xe58aa8 },
-    { id: 'away', label: 'Weglegen', color: 0x39d0ff },
-    { id: 'clear', label: 'Von vorn', color: 0x8892a6 },
-  ],
 ];
 
 /** Wo eine Hand ist und wie sie steht — das, was ein Griff hier braucht. */
@@ -1482,10 +2004,23 @@ const _head = new THREE.Vector3();
 const _local = new THREE.Vector3();
 const _at = new THREE.Vector3();
 const _forward = new THREE.Vector3();
-const _offset = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _right = new THREE.Vector3(1, 0, 0);
 const _target = new THREE.Vector3();
 const _ray = new THREE.Ray();
+const _sphere = new THREE.Sphere();
+const _tilt = new THREE.Quaternion();
+
+/** Wie weit vor der Hand die Karte liegt, in Metern. */
+const CARD_AHEAD = 0.11;
+/**
+ * Und wie weit ihre Fläche dem Gesicht entgegengekippt ist.
+ *
+ * 35°, und das ist gemessen und nicht geraten: Mit ausgestrecktem Arm sieht man
+ * auf eine waagerechte Karte fast von der Seite. Ein wenig aufgestellt liest
+ * sich das Blatt, ohne dass man die Hand verdrehen muss — dasselbe, was man mit
+ * einem Blatt Papier auch täte.
+ */
+const CARD_TILT = 0.61;
 const _turn = new THREE.Quaternion();
 const _lean = new THREE.Quaternion();

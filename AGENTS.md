@@ -119,7 +119,25 @@ statt sofort zu laufen und ihren Anlauf verliert, sobald der Halt wieder
 wegrutscht) und der **Vibration**, die dazu in die Hand geht
 (`src/worlds/climb/gripHaptics.ts` — guter Halt kurz und hart, schlechter
 schwach und lang, das Ticken schneller statt lauter; und dass beim Zupacken
-selbst nicht getickt wird, weil dort schon der Schlag saß), der **Konfig-Code**
+selbst nicht getickt wird, weil dort schon der Schlag saß), die **Federung der
+Sicht beim Landen** (`src/core/viewSink.ts` — dass sie einsinkt und wieder
+hochkommt, dass sie dabei über die Ruhelage hinausschießt, weil ein Kissen
+genau daran zu erkennen ist, dass sie nie tiefer nachgibt als das Kissen dick
+ist, dass ein Bild von einer halben Sekunde die Feder nicht sprengt und dass
+zwanzig Bilder in der Sekunde an derselben Stelle landen wie neunzig), die
+**Laufrichtung** (`src/core/walkFrame.ts` — dass die Blickrichtung beim
+Loslaufen gemerkt wird und der Kopf danach frei ist, dass sie beim Loslassen
+wieder vergessen wird, dass der Snap-Turn sie mitdreht, und die Zeile, wegen
+der es diesen Test gibt: **null ist eine gemerkte Richtung wie jede andere** —
+nach Norden loszulaufen darf nicht heißen, dass gar nichts gemerkt wurde), die
+**Draufsicht auf der Bauplatzkarte**
+(`src/worlds/editor/mapPaper.ts` — dass beide Achsen denselben Maßstab
+bekommen, weil ein gestreckter Grundriss einen Gang breiter aussehen lässt, als
+er ist, und dass Norden oben liegt), die **Gegenstände im Grundriss**
+(`src/worlds/editor/planProps.ts` — fortlaufende Kennungen, die nach dem
+Löschen nicht wiederverwendet werden, das Stehen auf dem Boden, und ein
+Speicherstand, in dem eine Sorte steht, die es nicht mehr gibt), der
+**Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 (`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
@@ -1752,10 +1770,26 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Position des Rigs — dadurch bleiben Wände Wände, man klettert nicht in die
   Halle hinein, und beim Loslassen wird aus dem letzten Zug ein **Schwung**
   (gedeckelt, damit aus einem Klimmzug kein Raketenstart wird). Solange eine
-  Hand hängt, ist der **Stick abgeschaltet** (`PlayerRig.locked`): Eine
-  Rastdrehung schwenkt die Hände um den Kopf, während ihre Anker in der Welt
-  stehen bleiben, und im nächsten Bild risse einen der Zug quer durch die
-  Halle. Damit der Greifknopf sich nicht mit dem normalen Greifen schlägt,
+  Hand hängt, ist der **linke Stick abgeschaltet** (`PlayerRig.locked`) — wer
+  hängt, geht nicht und springt nicht.
+
+  **Gedreht wird trotzdem** (`ClimbWorld.turnAtTheWall`): Der rechte Stick
+  gehört weiter dem Hals, denn wer sich an einer Wand hochzieht, will genauso
+  über die Schulter schauen und die Route nebenan ansehen wie überall sonst —
+  und wer es nicht kann, dreht sich körperlich im Zimmer und steht irgendwann
+  mit dem Kabel um den Hals vor der Wand. Die Rastdrehung steht deshalb hier
+  und nicht im Rig, denn sie hat einen Nachsatz: Sie schwenkt den ganzen
+  Spieler um seinen Kopf, also auch seine Hände, während die **Anker** in der
+  Welt stehen. Bliebe es dabei, hinge die Hand danach einen halben Meter neben
+  ihrem Griff in der Luft, und der Zug risse einen dorthin. Also wird jeder
+  Anker danach **neu auf seinen Griff gesetzt**, genau wie beim Zupacken; der
+  Körper schwingt in den nächsten Bildern um die Griffe herum an seine neue
+  Stelle. Das ist auch die ehrlichere Bewegung — an einer echten Wand dreht
+  sich der Körper um die Hände und nicht die Hände um den Körper. Der Sitz
+  (`seat`) bleibt dabei, was er beim Zupacken war: Wie gut man getroffen hat,
+  ändert sich nicht dadurch, dass man sich umdreht.
+
+  Damit der Greifknopf sich nicht mit dem normalen Greifen schlägt,
   klettert nur eine Hand, die wirklich leer ist (`PortalWorld.handFree`) — wer
   eine Kiste trägt, trägt eine Kiste. Am Gürtel hängt deshalb auch nichts.
 
@@ -1824,6 +1858,18 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   eine Farbe, die man glauben muss, statt einer Höhe, die man abliest.
   Abschaltbar im Menü.
 
+  Zwei Zahlen daran waren lange falsch, und beide sieht man erst in der Brille.
+  **Das Vorzeichen der Drehung**: Ein positives `rotation.x` kippt die Normale
+  einer Tafel nach *unten* und damit vom Auge weg — die Tafel hing also nicht
+  um 24° zurückgedreht, sondern um 24° weiter nach vorn, knapp 50° schräg im
+  Blick statt null. Und **die Reihenfolge**: Sie liegt ohne Tiefentest auf dem
+  Glas (sonst verschwände sie hinter jeder Wand, an der man gerade hängt), und
+  dann entscheidet allein die Zeichenreihenfolge, wer über wem liegt. Mit den
+  60 von vorher lag sie über *allem*, auch über dem aufgeklappten
+  Handgelenkmenü (`UIPanel`, Reihenfolge 10). Jetzt wird sie **davor**
+  gezeichnet (4) statt darüber: Drei Balken, die quer durch eine Menüseite
+  laufen, sind schlimmer als drei Balken, die man kurz nicht sieht.
+
   **Die Vibration** (`climb/gripHaptics.ts`, mit Test) ist bewusst **kein
   Dauerbrummen, dessen Stärke den Halt anzeigt**: Ein Motor, der die ganze Zeit
   läuft, wird nach zwanzig Sekunden nicht mehr wahrgenommen, verdeckt jede
@@ -1872,10 +1918,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   1. **Ein Griff auf Podesthöhe reicht nicht.** Wer sich an der Kante
      hochzieht, hängt am Ende _an_ ihr: Die Hand ist oben, die Füße baumeln im
      Schacht, und der Boden ist zwar in Reichweite, aber nicht unter einem.
-     Deshalb geht die Hilfe **1,70 m über die Podestoberkante hinaus**
-     (`TOPOUT_ABOVE`) — erst ein Griff über Kopfhöhe über dem Blech lässt einen
-     so weit hochziehen, dass die Füße über dessen Kante kommen, und wer oben
-     steht, hat ihn immer noch in der Hand.
+     Deshalb geht die Hilfe über die Podestoberkante hinaus (`TOPOUT_ABOVE`) —
+     erst ein Griff über Kopfhöhe über dem Blech lässt einen so weit
+     hochziehen, dass die Füße über dessen Kante kommen, und wer oben steht,
+     hat ihn immer noch in der Hand. **Wie weit hinaus, sagt die Luft
+     darunter**: `TOPOUT_CLEAR` sind **zwei Meter** freie Höhe, Türsturzmaß.
+     Vorher waren es 1,70 m bis zur Rohrmitte, also keine 1,67 m Luft — und die
+     waagerechte Strecke läuft genau über das Podest hinweg, auf dem man nach
+     dem Ausstieg steht und herumläuft. Wer aufrecht ging, ging mit dem Kopf
+     dagegen.
   2. **Eine schräge Leiter steht im eigenen Weg.** Zuerst lehnte sie nach
      außen, über den Schacht — also über genau die Strecke, die der Kletterer
      nach oben nimmt —, und man stieß von unten gegen ihre Unterseite. Deshalb
@@ -1898,8 +1949,29 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Die rechte Spur der Rauwand bekommt dazu oben eine **Querung** aus drei
   Henkeln, weil die Leiter am Kopf der linken steht.
 
-  Wer wieder hinunter will, springt in die Matten oder nimmt _Zurück auf die
-  Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
+  **Wer wieder hinunter will, springt** — und dafür liegt unter der Innenkante
+  des linken Podestschenkels ein **Landekissen** (`ClimbWorld.buildPad`), rot,
+  mit hellem Rand, damit man es von sechseinhalb Metern Höhe auch sieht. Dort
+  und nicht vor der Rauwand, weil die Vorderkante des großen Podests ein
+  Geländer hat und der Schenkel keines.
+
+  Weich ist es dabei **nicht in der Physik**: Die Kapsel landet auf einer festen
+  Fläche wie auf jeder anderen — eine Matte, in die der Körper wirklich
+  einsänke, wäre eine Kapsel, die im Boden steckt, und aus der käme sie so
+  schlecht wieder heraus wie aus jeder anderen. Weich ist die **Sicht**
+  (`core/viewSink.ts`, mit Test): Beim Aufprall sinkt sie ein und federt
+  zurück, gefahren von einer gewöhnlichen gedämpften Feder, die absichtlich
+  unterdämpft ist — ein Kissen, das ohne Überschwingen zurückkommt, fühlt sich
+  an wie Sand. Gerechnet wird sie wie das Ducken: Das Rig geht hinunter, die
+  Füße bleiben stehen; deshalb rechnen `getFloorY` und `getHeadHeight` sie
+  wieder heraus, sonst schrumpfte der Körper beim Landen und die Kapsel mit
+  ihm. Ein Aufprall aus sechs Metern gibt gut 20 cm nach und ist in einer
+  halben Sekunde durch; ein Schritt über eine Kante löst gar nichts aus
+  (`PAD_MIN_SPEED`, 2,5 m/s). Die Fallgeschwindigkeit wird dabei **mitgeschrieben,
+  solange man noch fällt** — im Bild der Landung ist sie längst null, dafür ist
+  die Physik da.
+
+  Sonst nimmt man _Zurück auf die Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
   und keine zweiten: Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton,
   glatter den dunklen; den Rest macht die Oberfläche, denn glatter Fels glänzt
   auch. Wer im Spiel gelernt hat, dass Türkis „hier anfassen“ heißt, sucht an
@@ -2156,6 +2228,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Messer werfen                      | im Schwung loslassen; es fliegt weiter und bleibt stecken                                                                                                             | –                                                                                               | –                    |
 | Aufnahme im Eingaberaum            | Knopf auf der Tafelwand startet und beendet sie; **Greifen** setzt währenddessen eine Marke                                                                            | Linksklick auf den Knopf                                                                        | –                    |
 | Großer Hammer                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                         | –                                                                                               | –                    |
+| Laufrichtung                       | voreingestellt beim Loslaufen gemerkt (Kopfdrehen ändert den Weg nicht mehr); Menü → Bewegung → _Laufrichtung_ schaltet auf Blickrichtung zurück                                                                                                                            | dito                                                                                            | dito                 |
 | Haltung (sitzen/stehen)            | Startseite oder Menü → Bewegung → Haltung                                                                                                                             | dito                                                                                            | dito                 |
 | Greifen ohne Controller            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                   | –                                                                                               | –                    |
 | Trigger ohne Controller            | Zeigefinger an die Handfläche                                                                                                                                         | –                                                                                               | –                    |
@@ -2201,8 +2274,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der Stick aus | –                                                                                               | –                    |
+| Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
+| Landekissen (Kletterhalle)         | vom Podestschenkel auf die rote Matte springen — die Sicht sinkt kurz ein und federt zurück                                                                            | –                                                                                               | –                    |
+| Bauplatz: Karte                    | **Greifen** an der Hüfte nimmt sie in die Hand (Draufsicht auf den Grundriss); **Trigger** führt in den Konstruktraum und wieder heraus; Loslassen hängt sie zurück an die Hüfte | Menü → Bauen → _In den Konstruktraum_                                                          | –                    |
+| Bauplatz: Konstruktraum            | Palette an der Hüfte, Musterstücke auf dem Regal (antippen = in die Hand), Miniatur auch **auf Entfernung** greifen (hinzielen + Greifen); grüner Knopf oder Karten-Trigger führt zurück | Menü → Bauen                                                                                    | –                    |
 | Halt-Anzeige (Kletterhalle)        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                | dito                                                                                            | dito                 |
 | Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
 | Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
@@ -2553,6 +2629,22 @@ _Werte eingeben_.
 linken Stick reindrücken sprintet. Unter **Menü → Bewegung** lässt sich für
 beide einstellen, ob gedrückt gehalten oder umgeschaltet wird (Ducken schaltet
 standardmäßig um, Sprint wird gehalten), dazu Sprint-Tempo und Duck-Tiefe.
+
+**Die Laufrichtung wird beim Loslaufen gemerkt** (`core/walkFrame.ts`, mit
+Test), und das ist die Voreinstellung. Der Stick schob seit jeher entlang der
+Blickrichtung, und beim *Losgehen* ist das auch genau richtig: Man schaut hin,
+wo man hinwill, und drückt nach vorn. Falsch wird es im nächsten Moment, beim
+Weitergehen — wer über die Schulter zurückschaut, ob ihm jemand folgt, oder
+beim Laufen nach links auf ein Schild sieht, dreht damit seinen ganzen Weg mit.
+Man kommt nie dort an, wo man hinwollte, und lernt sich an, den Kopf beim Gehen
+stillzuhalten, was in einer Brille ungefähr das Gegenteil von dem ist, wofür
+man sie aufsetzt. Also: Die Blickrichtung wird beim Loslaufen gemerkt und
+bleibt stehen, solange der Stick ausgelenkt ist; beim Loslassen ist die Marke
+weg, und der nächste Schritt geht wieder dorthin, wo man gerade hinsieht. **Der
+Snap-Turn dreht die Marke mit** — bliebe sie stehen, liefe man nach einer
+Vierteldrehung seitwärts weiter und wüßte nicht, warum. Wer es anders mag,
+stellt unter **Menü → Bewegung → Laufrichtung** auf _Blickrichtung_ zurück; das
+ist das alte Verhalten, Zeile für Zeile.
 
 Geduckt wird, indem das ganze Rig sinkt — im Headset gehört die Kamera der
 Brille, nicht uns, also ist das der einzige Weg. Die Füße bleiben trotzdem
@@ -4095,11 +4187,18 @@ bewusst keine von beiden — was hier herauskommt, läuft von selbst weiter.
   Geometrie.
 - Das **Hirn** (`worlds/npc/npcBrains.ts`) sagt, was er tut: **Stehen**
   (bleibt, dreht sich zum Spieler, schlägt nie zu), **Schlendern** (läuft
-  einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden)
-  oder **Verfolgen** (der Zombie: kommt, sobald man in Sichtweite ist, und
-  schlägt in Reichweite zu).
+  einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden),
+  **Verfolgen** (der Zombie: kommt, sobald man in Sichtweite ist, und
+  schlägt in Reichweite zu) oder **Zum Ziel** (er hat einen Auftrag und sonst
+  nichts: geht dorthin, wo er hinsoll, sieht den Spieler nicht, will ihn nicht,
+  schlägt nicht zu — Sichtweite null ist dort die Aussage und keine vergessene
+  Zahl). Das vierte ist das Hirn für alles, was etwas **vorführen** soll: Der
+  NPC, der zeigen soll, dass man die Treppe hinaufkommt, hat genau eine
+  Aufgabe, nämlich hinaufzukommen. Sein Ziel steht im NPC (`Npc.sendTo`) und
+  ersetzt den Spieler in beiden Rechnungen auf einmal — der Läufer sucht den
+  Weg dorthin, das Hirn bekommt es als Ziel.
 
-Warum getrennt: Zwei mal drei ist sechs, und eine Liste von sechs Sorten NPC
+Warum getrennt: Zwei mal vier ist acht, und eine Liste von acht Sorten NPC
 wäre beim nächsten Modell zwölf und beim übernächsten vierundzwanzig. Vor
 allem aber sind es zwei verschiedene Fragen — *wie sieht der aus* und *was
 macht der* —, und wer sie zusammenlegt, kann keine davon mehr einzeln
@@ -4656,7 +4755,15 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
 - **Flache Steigung** und **steile Steigung**, zwei Buchten, die sich
   gegenüberstehen und dieselbe Höhe hinaufführen — 2,4 m auf ein Podest, auf
   dem der Spieler steht. Der NPC will hier **nicht** zuschlagen, sondern nach
-  oben, und was er dabei tut, hängt an je einer Zahl seines Profils:
+  oben, und seit der zweiten Fassung steht das auch so in den Daten
+  (`BayCast.brain`, `BayCast.goal`): Die drei Buchten, die vorführen, dass man
+  irgendwo hinaufkommt — beide Steigungen und das Podest —, bekommen das Hirn
+  **Zum Ziel** und eine Kachel, auf die sie wollen. Vorher hing beides am
+  Spieler, und das war in der Brille kaputt: Ein NPC plant nur, wenn jemand in
+  Sichtweite ist (22 m), und der Knopf stellt in der Brille niemanden hin — wer
+  im Mittelgang stand und zusah, sah zwei NPCs, die sich nicht rührten; wer in
+  die Bucht ging, wurde verfolgt statt vorgeführt. Was er dabei kann, hängt
+  weiter an je einer Zahl seines Profils:
   - Die **flache** besteht aus vier Stufen von 60 cm, eine je Kachel. Sechzig
     Zentimeter *tritt* keiner (`stepUp`), aber jeder hier zieht sich hinauf
     (`jumpUp`) — man sieht vier Sätze, und dann steht er oben.
@@ -4665,7 +4772,10 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
     Bei jedem hier ist vorher Schluss (`maxSlope`), und deshalb bleibt er davor
     stehen: nicht an der Stufe, sondern am **Winkel**. Er stellt sich dabei so
     nah an das Podest, wie die Karte ihn lässt, und bleibt dort — genau das
-    ist „er merkt, dass er nicht hochkommt".
+    ist „er merkt, dass er nicht hochkommt". Dass er dabei *hinaufwill* und
+    nicht bloß herumsteht, ist der Grund, warum auch diese Bucht das
+    Auftrags-Hirn bekommt: Beide wollen hinauf, und beide bleiben unten — erst
+    dann sagt die Bucht etwas.
 
   Dass ausgerechnet die flache Bucht die groben Stufen hat, ist keine
   Nachlässigkeit, sondern die Engine: **Ein NPC ist ein dynamischer Zylinder
@@ -4683,6 +4793,14 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   Er springt und bleibt unten liegen. Genau diese Gegenprobe steht als Test da
   (`labSim.test.ts`) — sie ist der Unterschied zwischen „die Sorte bleibt oben"
   und „die Rechnung hält ihn oben".
+
+**Am Gürtel hängt hier keine Portalkanone**, sondern ein **Teleporter** links
+und eine **Pistole** rechts (`NavLabWorld.beltLoadout`). Ein Labor, in dem man
+zusieht, wie NPCs Wege gehen, hat für Portale keine Verwendung — sie sind der
+eine Weg durch das Gitter, den kein NPC kennt, und wer sie hier benutzt, misst
+nichts mehr. Was man dagegen dauernd braucht: schnell woanders stehen (die
+Bucht am anderen Ende, das Dach über der Treppe) und etwas abschießen, wenn ein
+Zombie aus seinem Käfig kommt.
 
 **Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat drei gelbe
 Knöpfe: *Tür auf/zu* ist ein Schalter, den man beliebig oft umlegt, auch ohne
@@ -5004,11 +5122,26 @@ der Brille steht er davor.
 **Ein Level bauen, während man darin steht** (`worlds/editor/`). Die Welt
 beantwortet die Frage, die vorher unter „was noch fehlt" stand — *wie sieht man
 einen Grundriss von oben, wenn man selbst darin steht?* —, und sie tut es mit
-einem **Tischmodell**: Man zieht die **Karte vom Gürtel**, und der Grundriss
-hängt als Miniatur vor einem in der Luft. Man setzt eine Wand am Modell, legt
-die Karte weg und steht neben ihr — sie ist wirklich im Weg. Ein Grundriss, den
-man nur von oben sieht, hat immer zu enge Gänge; einer, in dem man steht,
-während man ihn zieht, nicht.
+einem **Tischmodell**. Man setzt eine Wand am Modell, geht zurück und steht
+neben ihr — sie ist wirklich im Weg. Ein Grundriss, den man nur von oben sieht,
+hat immer zu enge Gänge; einer, in dem man steht, während man ihn zieht, nicht.
+
+**Es gibt drei Zustände, und dazwischen wird gegangen** (`Stage` in
+`EditorWorld`):
+
+- **Im Level.** Man steht in dem, was man gebaut hat. Die Karte hängt
+  zusammengefaltet an der Hüfte.
+- **Karte in der Hand** (`editor/PlanCard.ts`): eine Draufsicht auf einem
+  Blatt — Grundriss, Gegenstände, die eigene Marke als Pfeil, Norden oben
+  (`editor/mapPaper.ts`). Gezeichnet wird aus **derselben** Liste, aus der auch
+  gebaut wird, und neu gezeichnet nur, wenn sich etwas geändert hat.
+- **Im Konstruktraum** (`editor/Workshop.ts`): eine Werkstatt vierhundert Meter
+  hinter dem Grundriss, mit Werkbank, Regal und einem grünen Knopf zurück.
+
+Die Karte ist damit ein **Werkzeug wie die Drohne** und kein Schalter: Man nimmt
+sie erst in die Hand und sieht, was sie kann; der **Trigger** führt hinein und
+wieder hinaus. Vorher war „Karte ziehen" dasselbe wie „Editor auf" — man griff
+an die Hüfte und stand im nächsten Bild woanders.
 
 Drei Entscheidungen tragen das Ganze:
 
@@ -5070,13 +5203,19 @@ erst die Tür, dann die Wand, dann den Boden.
 fällt: Die Mitte einer Kachel ist ein großes Ziel, ihre Kante eine Linie — und
 eine Linie trifft man in der Brille auf drei Meter Entfernung nicht ohne Hilfe.
 
-**Man selbst steht mit im Modell** (`editor/PlayerPin.ts`). Eine Karte hat einen
-Punkt „Sie sind hier", und weil man ihn anfassen kann, ist er gleichzeitig der
-Weg dorthin: Figur nehmen, ans andere Ende des Gangs stellen, loslassen — dort
-steht man. Auf eine Kachel, die es nicht gibt, geht niemand; dort wäre der
-nächste Schritt ein Sturz. Gebaut ist sie in **Planmetern** und nicht in
+**Man selbst steht mit im Modell** (`editor/PlayerPin.ts`) — als **Marke** und
+nicht als Standort. Eine Karte hat einen Punkt „Sie sind hier"; im
+Konstruktraum ist er die Stelle, an der man *wieder auftaucht*. Figur nehmen,
+ans andere Ende des Gangs stellen, loslassen — dort steht man, sobald man
+zurückgeht. Auf eine Kachel, die es nicht gibt, wird nichts gesetzt; dort wäre
+der nächste Schritt ein Sturz. Gebaut ist sie in **Planmetern** und nicht in
 Zentimetern: Sie hängt in der Miniatur, die trägt den Maßstab, und damit ist die
 Figur bei jedem Zoom so groß wie ein Mensch im Grundriss.
+
+Solange man im Level ist, läuft die Marke jedes Bild mit; erst im Konstruktraum
+steht sie still. Das ist der Unterschied, um den es geht: Wer dort vor die Bank
+tritt oder zwei Schritte zurückgeht, um den Grundriss ganz zu sehen, bewegt sich
+in einer **Werkstatt** und nicht in seinem Level.
 
 Damit schweben drei Dinge in derselben Luft, und wer zugreift, greift irgendwo
 hin. Die Vorfahrt steht in `editor/reach.ts` und ist **das nächstgelegene
@@ -5085,23 +5224,64 @@ kleine, der Grundriss eine große. Ohne diese Regel hat jeder Editor denselben
 Fehler — man will die Figur versetzen und schiebt den ganzen Grundriss weg, weil
 das Modell größer ist und deshalb immer zuerst antwortet.
 
-**Beim Bearbeiten steht man in einem weißen Raum.** Solange die Karte draußen
-ist, wird das Level unsichtbar und seine Körper kommen aus der Physik heraus —
-beides gehört zusammen, denn eine Wand, die man nicht sieht, aber gegen die man
-läuft, ist schlimmer als eine, die im Weg steht. Übrig bleibt ein Boden bis zum
-Horizont und ein weißer Himmel. Der Grund ist derselbe wie beim Tischmodell:
-Wer einen Grundriss bearbeitet, steht nicht gleichzeitig darin — er stünde
-sonst mit dem Kopf in einer Wand, die er gerade selbst gesetzt hat. Beide
-Kulissen liegen von Anfang an übereinander da; umgeschaltet wird nur die
-Sichtbarkeit, und der Körper des dunklen Bodens trägt für beide.
+**Gebaut wird im Konstruktraum** (`editor/Workshop.ts`) — einem Zimmer weit weg
+von jedem Grundriss, in das man hineingeht. Die erste Fassung machte dafür das
+Level unsichtbar und durchlässig, ein *weißes Zimmer an derselben Stelle*, und
+das hatte einen Fehler, den man erst merkt, wenn man darin arbeitet: Man stand
+nicht außerhalb seines Levels, sondern mittendrin, nur mit geschlossenen Augen.
+Jeder Schritt vor dem Modell war ein Schritt im Level; wer zurücktrat, stand
+beim Weglegen in der Wand dahinter. Jetzt bleibt das Level stehen — sichtbar,
+fest und vierhundert Meter entfernt —, und was die beiden verbindet, ist nur
+noch die Marke.
 
-**Das fünfte Werkzeug, das keines ist: Hingehen.** Auf eine Kachel der Miniatur
-tippen und dort stehen. Es ändert nichts am Plan und steht deshalb neben den Werkzeugen und
-nicht in ihnen — aber es ist der Griff, der aus einer Zeichnung eine Karte macht:
-Wer den Gang am anderen Ende gebaut hat, muss ihn nicht ablaufen, um zu sehen, ob
-er zu eng ist. Versetzt wird dabei über `PortalWorld.movePlayerTo` — Rig **und**
-Kapsel, denn `rig.placeAt` allein verschiebt nur das, was man sieht, und die
-Fortbewegung zieht einen im nächsten Bild zurück.
+Eingerichtet ist der Raum wie eine Werkstatt und nicht wie ein Menü: eine
+**Werkbank**, über der das Modell schwebt (ein Grundriss, der frei im Raum
+hängt, hat keine Höhe, die sich von selbst versteht — ein Tisch hat eine), ein
+**Regal** an der Rückwand und ein **grüner Knopf** neben der Bank. Den Knopf
+gibt es, weil ein Raum, den man nur mit dem richtigen Gegenstand in der Hand
+verlassen kann, eine Falle ist; der zweite Weg hinaus ist die Karte und ihr
+Trigger. Wände, Boden und Decke bekommen Körper — ein Zimmer, aus dem man zur
+Seite herausläuft, ist keines.
+
+**Das Regal ist der Katalog** (`editor/planProps.ts`). Darauf steht je ein
+Musterstück von allem, was der magische Beutel hergibt. Man tippt eines an, hält
+es in der Hand **in der Größe, die es in der Miniatur hätte**, und setzt es auf
+eine Kachel — auf die Kachelmitte und auf den Boden, die beiden einzigen
+Entscheidungen, die diese Welt einem abnimmt. In einer Miniatur von
+Streichholzgröße trifft niemand einen Zentimeter, und niemand stellt dort eine
+Höhe ein; wer es genauer haben will, geht in sein Level und schiebt es dort hin,
+denn dort ist es ein Gegenstand wie jeder andere. Der Löschpinsel nimmt zuerst
+weg, was **auf** einer Kachel steht, und erst dann die Kachel selbst.
+
+Die Gegenstände sind eine **zweite Liste neben dem Plan** und kein Feld darin,
+mit eigenem Speicherplatz und eigener Fassung: Der Plan ist die Karte, auf der
+NPCs laufen, und eine Kiste ist keine Karte. Wer den Plan lädt und die Liste
+nicht hat, bekommt ein leeres Zimmer statt eines Fehlers.
+
+**Angefaßt wird das Modell auch auf Entfernung.** Wer hinzielt und zugreift, hat
+es — gerechnet gegen die Kugel um den Grundriss und nicht gegen seine Quader,
+denn ein Grundriss ist überwiegend Luft. Der Grund ist die Werkbank: Das Modell
+steht darauf, und man steht davor, daneben oder am Regal; eines, das man nur mit
+der Hand darin anfassen kann, ist eines, für das man erst hingehen muß — und wer
+hingeht, verliert dabei den Blick, den er gerade darauf hatte.
+
+**Die Tafel am Modell ist weg.** *Zu mir*, *Größer*, *Kleiner*, *Drehen*,
+*Weglegen* — ein Brett voller Knöpfe, das vor dem Grundriss stand und dabei
+gerade die Kante verdeckte, an der man baut. Was sie konnte, kann man ohne sie
+besser: Größer und drehen macht man mit zwei Händen am Modell, herangeholt wird
+es durch Hinzielen, und weglegen tut man die Karte. Für den flachen Modus ohne
+Hände stehen die drei Griffe im Menü.
+
+**Das fünfte Werkzeug, das keines ist: Marke setzen.** Auf eine Kachel der
+Miniatur tippen, und dort taucht man auf, wenn man zurückgeht. Es ändert nichts
+am Plan und steht deshalb neben den Werkzeugen und nicht in ihnen — aber es ist
+der Griff, der aus einer Zeichnung eine Karte macht: Wer den Gang am anderen
+Ende gebaut hat, muß ihn nicht ablaufen, um zu sehen, ob er zu eng ist. Versetzt
+wird beim Hinausgehen über `PortalWorld.movePlayerTo` — Rig **und** Kapsel, denn
+`rig.placeAt` allein verschiebt nur das, was man sieht, und die Fortbewegung
+zieht einen im nächsten Bild zurück. Sofort zu versetzen wäre falsch: Wer
+mitten im Bauen quer durch die Welt gerissen wird, hat den Grundriss aus den
+Augen verloren, an dem er gerade arbeitet.
 
 Zwei kleine Zahlen, die man sonst falsch macht: Der Boden bis zum Horizont liegt
 hier **zwei Zentimeter tiefer** als sonst, weil er sich mit den Bodenplatten des
@@ -5120,7 +5300,10 @@ Rückgängig, Fenster und Rampen, ein Weg, einen gebauten Plan als eigene Welt z
 laden statt nur im Bauplatz zu haben — und die Karte als **echtes Werkzeug** im
 Werkzeugkasten (`portal/tools/`), damit sie sich auch in andere Welten
 mitnehmen ließe. Heute führt der Bauplatz seine beiden Hüften selbst; das ist
-weniger Verdrahtung, aber es bleibt in dieser einen Welt.
+weniger Verdrahtung, aber es bleibt in dieser einen Welt. Gesetzte Gegenstände
+stehen außerdem beim Neuaufstellen wieder dort, wo sie gesetzt wurden, und
+nicht dort, wohin sie zuletzt gerollt sind — richtig wäre, ihre Lage
+mitzuschreiben.
 
 ### Die Werkzeugseite
 
