@@ -135,7 +135,8 @@ liegen bleibt. Alles landet in denselben Speichern wie
 in der Brille, und der **Konfig-Code** dazu steht gleich darunter zum Kopieren.
 Über die Schublade daneben die
 **Welten** (jede ganz zum Drehen, schräg von oben für den Überblick, Räume mit
-Decke aufgeschnitten wie ein Puppenhaus, und beliebig nah heranzuzoomen — zwei
+Decke aufgeschnitten wie ein Puppenhaus — über allem, was darin steht, damit
+eine Halle ihre Wände behält —, und beliebig nah heranzuzoomen — zwei
 Finger schieben und zoomen dabei wie auf einer Karte; mit
 **Freie Kamera** fliegt man wie mit einer Drohne hindurch — W A S D und
 hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf

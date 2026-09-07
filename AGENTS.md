@@ -5540,12 +5540,20 @@ Drei Dinge machen daraus einen Überblick statt eines Kastens:
   Welt ein Punkt in der Mitte. Was `markBackdrop` trägt (`createSky`,
   `createGround`, Sterne und Erde am Mondhimmel), wird beim Einpassen
   übersprungen und trotzdem gezeichnet: dahinter gehört es hin.
-- **Ein Dach wird aufgeschnitten.** Eine Welt mit Decke füllt beim Bauen
-  `this.roof` (Portal Labor, Dunkelhaus, Pizzeria, Eingaberaum), und die
-  Vorschau legt eine Schnittebene knapp darunter — Puppenhaus statt Deckel. Die
-  Ebene liegt im Raum, das Modell dreht sich, also wird sie in jedem Bild aus
-  der Lage der Bühne nachgerechnet; sonst wanderte der Schnitt beim Drehen
-  durch die Welt.
+- **Ein Dach wird aufgeschnitten — über allem, was darunter steht.** Eine Welt
+  mit Decke füllt beim Bauen `this.roof` (Portal Labor, Dunkelhaus, Pizzeria,
+  Eingaberaum, Kletterhalle), und die Vorschau legt eine Schnittebene hinein —
+  Puppenhaus statt Deckel. **Wie hoch, wird gemessen und nicht gesetzt**
+  (`tools/worldCut.ts`, mit Test): Der Schnitt liegt über der höchsten
+  Oberkante der Welt, nie unter Kopfhöhe und nie über der Decke — und was bis
+  an die Decke reicht, zählt dabei nicht mit, denn das ist die Hülle, die ja
+  gerade weg soll. Vorher lag er fest auf 2,40 m, und das war nur in einem
+  Zimmer richtig: In der **Kletterhalle** stehen 9,4 m hohe Kletterwände unter
+  einer Decke von 10 m, und von der ganzen Halle blieben sechs Stummel auf
+  einer blauen Matte übrig — die Welt selbst war weggeschnitten. Die Ebene
+  liegt im Raum, das Modell dreht sich, also wird sie in jedem Bild aus der
+  Lage der Bühne nachgerechnet; sonst wanderte der Schnitt beim Drehen durch
+  die Welt.
 - **Flach wird enger eingepasst.** Eine Kugel um eine Welt ist so hoch wie
   breit, eine Welt aber ist ein Grundriss mit ein bisschen Höhe darauf. Mit
   Grundriss und Höhe getrennt gerechnet (`ShowOptions.flat`) steht sie doppelt
@@ -6596,8 +6604,28 @@ du erst einen Spieler und dann die Ansicht:
   waagerecht; nur die Drehung zieht weich nach, damit das Bild nicht bei jedem
   Kopfruck mitzuckt.
 
-Steht der gewählte Spieler in einer anderen Welt, wechselst du automatisch
-dorthin. Verlässt er die Sitzung, fällt die Kamera auf _Frei_ zurück.
+**Wer zusieht, geht mit.** Steht der gewählte Spieler in einer anderen Welt,
+wechselst du beim Aussuchen automatisch dorthin — und genauso, wenn er sie
+**später** wechselt: Geht der VR-Spieler durch ein Portal in die Alpen, wird die
+Welt bei allen Zuschauenden nachgeladen. Vorher endete das Zuschauen in dem
+Moment, in dem es spannend wurde: Seine Posen kamen weiter an und gehörten zu
+nichts mehr, was hier steht, und das Bild blieb stehen, ohne dass irgendwo
+stand, warum.
+
+Gehandelt wird dabei auf den **Wechsel** und nicht auf den Unterschied
+(`App.followWatched`, Merker `watchedWorld`). Das ist mehr als eine Sparmaßnahme
+in der Bildschleife: Ein Unterschied allein zöge einen auch dann wieder zurück,
+wenn man selbst gerade im Menü eine andere Welt gewählt hat — aus dem Mitgehen
+würde ein Festhalten. Und lässt sich die Welt nicht laden, bleibt es bei einem
+Versuch statt einem je Bild.
+
+Dafür sind **zwei Fragen getrennt**, die gleich aussehen: _Wem wird zugesehen?_
+(`App.watched`, die Wahl allein — `net/watch.ts`, mit Test) und _Von wem gibt es
+hier eine Pose?_ (`App.spectatorTarget`, dieselbe Person, aber nur solange sie
+in derselben Welt steht). Nur die zweite hat die Welt als Bedingung; wer durch
+ein Portal geht, hört nicht auf, der zu sein, dem man zusieht — Menü und Panel
+zeigen ihn deshalb weiter als gewählt, während seine Welt lädt. Verlässt er die
+Sitzung, fällt die Kamera auf _Frei_ zurück.
 
 Der Regler **Kamera-Glättung** bestimmt, wie träge das passiert: ganz links
 folgt die Kamera 1:1, ganz rechts schwenkt sie deutlich verzögert nach. In First
