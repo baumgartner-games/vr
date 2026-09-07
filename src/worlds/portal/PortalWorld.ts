@@ -1444,7 +1444,7 @@ export class PortalWorld implements World {
     // Einschalten in einem leeren Labor gar nichts. Er bekommt eine eigene
     // Farbe, denn er beantwortet eine andere Frage: nicht „wie kommen sie zu
     // mir", sondern „wie komme ich dorthin".
-    const mine = this.ghostWalk?.path ?? [];
+    const mine = this.ghostWalk?.points ?? [];
     if (paths.length === 0 && mine.length === 0) return;
     const group = new THREE.Group();
     group.name = 'nav-tracks';

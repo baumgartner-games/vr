@@ -1,6 +1,7 @@
 import { NavAgent } from '../nav/navAgent';
 import { DOOR_OPEN_TIME } from '../nav/navDoor';
 import type { NavGraph } from '../nav/navGraph';
+import type { PathPoint } from '../nav/navPath';
 import { NO_TILE, type TileKey } from '../nav/navTile';
 
 /**
@@ -95,8 +96,8 @@ export interface WalkStep {
 
 export class PreviewWalk {
   /**
-   * Derselbe Läufer wie in einem NPC — mit leerer Meinung, die nie etwas
-   * lernt, weil sie nie etwas glaubt.
+   * Derselbe Läufer wie in einem NPC — mit leerer Meinung und **ohne
+   * Hoffnung** (siehe der Konstruktor): Sie nimmt den Graphen, wie er ist.
    *
    * Und mit **kaum Umfang**: Der Weg eines NPC hält an jeder Ecke dessen
    * Halbmesser Abstand (`nav/navPath.ts`), weil dort ein Zylinder um die Ecke
@@ -110,6 +111,15 @@ export class PreviewWalk {
   /** Wie lange sie schon an der Tür steht, die gerade dran ist. */
   private opening = 0;
 
+  constructor() {
+    // **Und ohne Hoffnung.** Ein NPC hält eine Tür, die er nie gesehen hat, für
+    // offen, läuft hin und merkt es dort (`nav/navBelief.ts`, `hopeful`). Für
+    // die Attrappe wäre das falsch: Sie ist der Zuschauer, sie sieht die Karte,
+    // und ein Ring, der zu einer verriegelten Tür läuft und wieder umkehrt,
+    // sähe aus wie eine kaputte Wegsuche.
+    this.agent.belief.hopeful = false;
+  }
+
   /**
    * **Ihr eigener Weg**, als Kacheln — dasselbe, was die Debug-Ansicht von
    * jedem NPC zeichnet (`nav/navScene.navPathView`).
@@ -121,6 +131,11 @@ export class PreviewWalk {
    */
   get path(): readonly TileKey[] {
     return this.goal ? this.agent.path : EMPTY_PATH;
+  }
+
+  /** Derselbe Weg als **Linie** — das, was gezeichnet wird (`nav/navScene.ts`). */
+  get points(): readonly PathPoint[] {
+    return this.goal ? this.agent.points : EMPTY_POINTS;
   }
 
   /** Wohin sie gerade unterwegs ist — `null`, wenn sie steht. */
@@ -237,3 +252,4 @@ export class PreviewWalk {
 
 /** Der Weg, den sie hat, solange sie keinen hat. */
 const EMPTY_PATH: readonly TileKey[] = [];
+const EMPTY_POINTS: readonly PathPoint[] = [];

@@ -181,6 +181,63 @@ describe('Die Debug-Ansicht', () => {
     expect(face.geometry.getAttribute('position').count).toBe(18);
   });
 
+  /** Ob die betretbare Fläche diesen Punkt überhaupt bedeckt. */
+  function covered(view: THREE.Object3D, x: number, z: number): boolean {
+    const face = view.children.find((child) => child.name === 'floor') as THREE.Mesh;
+    const points = face.geometry.getAttribute('position');
+    for (let i = 0; i < points.count; i += 3) {
+      const ax = points.getX(i);
+      const az = points.getZ(i);
+      const bx = points.getX(i + 1);
+      const bz = points.getZ(i + 1);
+      const cx = points.getX(i + 2);
+      const cz = points.getZ(i + 2);
+      const side = (px: number, pz: number, qx: number, qz: number): number =>
+        (qx - px) * (z - pz) - (qz - pz) * (x - px);
+      const one = side(ax, az, bx, bz);
+      const two = side(bx, bz, cx, cz);
+      const three = side(cx, cz, ax, az);
+      if (one >= 0 && two >= 0 && three >= 0) return true;
+      if (one <= 0 && two <= 0 && three <= 0) return true;
+    }
+    return false;
+  }
+
+  it('rückt auch vom Kopfende einer Wand ab und nicht nur von ihrer Seite', () => {
+    // **Der Fehler, den man von oben sieht.** Neben der letzten Kachel einer
+    // Wand liegt eine, die auf allen vier Seiten frei ist — und trotzdem steht
+    // die Stirnseite des Klotzes in ihrer Ecke. Wer nur Seite für Seite
+    // einzieht, malt die Fläche bis an das Wandende heran, und ein Zylinder,
+    // der dorthin plant, steckt darin.
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 3 });
+    // Die Ecke, an der die vier Kacheln (1|2, 0|1) zusammenstoßen.
+    const corner = { x: 2 * TILE, z: 1 * TILE };
+    const inCorner = { x: corner.x + 0.2, z: corner.z + 0.2 };
+    const middle = graph.worldOf(tileKey(2, 1, 0));
+
+    // Ohne Wand ist dort Boden, und die Fläche reicht bis dorthin.
+    expect(covered(navDebugView(graph), inCorner.x, inCorner.z)).toBe(true);
+
+    // Ein Wandstück von einer Kachel Länge, das genau an dieser Ecke aufhört.
+    graph.setWall(tileKey(1, 0, 0), DIR_E, { kind: 'solid' });
+    const view = navDebugView(graph);
+    expect(covered(view, inCorner.x, inCorner.z)).toBe(false);
+    // Und zwar nur die Ecke: In der Mitte derselben Kachel steht man weiter.
+    expect(covered(view, middle.x, middle.z)).toBe(true);
+    // Auf der anderen Seite des Wandendes genauso.
+    expect(covered(view, corner.x - 0.2, corner.z + 0.2)).toBe(false);
+  });
+
+  it('bleibt ein Rechteck je Kachel, solange keine Ecke besetzt ist', () => {
+    // Neun Rechtecke je Kachel wären in der Brille dreitausend Dreiecke, wo
+    // dreihundert reichen — die Felder werden wieder zusammengefasst.
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 3 });
+    const face = navDebugView(graph).children[0] as THREE.Mesh;
+    expect(face.geometry.getAttribute('position').count).toBe(9 * 6);
+  });
+
   it('zeichnet eine Tür in der Farbe ihres Materials', () => {
     // Holz und Metall sind auf der Karte dieselbe Linie und für einen Zombie
     // das Gegenteil voneinander — man muss sie unterscheiden können.
@@ -196,11 +253,24 @@ describe('Die Debug-Ansicht', () => {
     expect(new Set(colors).size).toBe(2);
   });
 
-  it('zeichnet einen Weg als eine Linie durch alle seine Punkte', () => {
+  it('zeichnet einen Weg dort, wo er wirklich läuft — nicht über die Kachelmitten', () => {
+    // **Der gezeichnete Weg ist der gelaufene.** Die Wegpunkte liegen nach dem
+    // Schnurzug neben den Kachelmitten (`navPath.pullString`), und genau das
+    // ist der Bogen um die Hausecke, den man sehen will. Eine Linie durch die
+    // Mitten schnitte ihn ab und sähe aus wie ein Weg durch die Wand.
     const graph = sample();
-    const path = [tileKey(0, 0, 0), tileKey(1, 0, 0), tileKey(2, 0, 0)];
-    const line = navPathView(graph, path);
-    expect(line.geometry.getAttribute('position').count).toBe(3);
+    const route = [
+      { tile: tileKey(0, 0, 0), x: 0.4, z: 0.7, tight: false },
+      { tile: tileKey(1, 0, 0), x: 3.1, z: 0.9, tight: true },
+      { tile: tileKey(2, 0, 0), x: 6.2, z: 1.4, tight: false },
+    ];
+    const line = navPathView(graph, route);
+    const points = line.geometry.getAttribute('position');
+    expect(points.count).toBe(3);
+    expect(points.getX(1)).toBeCloseTo(3.1, 6);
+    expect(points.getZ(1)).toBeCloseTo(0.9, 6);
+    // Die Höhe kommt weiter von der Kachel: ein Wegpunkt hat keine.
+    expect(points.getY(1)).toBeGreaterThan(graph.worldOf(tileKey(1, 0, 0)).y);
   });
 
   it('zählt die Kacheln je Etage', () => {

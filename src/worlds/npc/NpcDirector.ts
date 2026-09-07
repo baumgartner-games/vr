@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Npc, type NavRun } from './Npc';
 import type { BarMode } from './NpcBody';
 import type { NavGraph } from '../nav/navGraph';
-import type { TileKey } from '../nav/navTile';
+import type { PathPoint } from '../nav/navPath';
 import { npcSkin, type NpcKind } from './npcKinds';
 import { brainLabel, type BrainId } from './npcBrains';
 import { damageFor, type HitZone } from './npcHit';
@@ -488,14 +488,19 @@ export class NpcDirector implements NpcControl {
   /**
    * Die Wege, die gerade gelaufen werden — für die Debug-Ansicht.
    *
+   * **Als Linie und nicht als Kachelmitten** (`nav/navAgent.points`): Der
+   * gezeichnete Weg soll derselbe sein wie der gelaufene, sonst schneidet er
+   * auf dem Bild jede Hausecke, um die die Schnur in Wirklichkeit einen Bogen
+   * macht — und man sucht den Fehler in einer Wegsuche, die recht hatte.
+   *
    * Nur die, die auch einen haben: Wer stehen bleibt, hat keinen, und ein
    * leeres Feld zeichnet sich schlecht.
    */
-  paths(): readonly TileKey[][] {
-    const found: TileKey[][] = [];
+  paths(): readonly (readonly PathPoint[])[] {
+    const found: PathPoint[][] = [];
     for (const npc of this.npcs) {
-      if (!npc.alive || npc.path.length < 2) continue;
-      found.push([...npc.path]);
+      if (!npc.alive || npc.route.length < 2) continue;
+      found.push([...npc.route]);
     }
     return found;
   }

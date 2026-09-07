@@ -3,7 +3,7 @@ import type { NavBox } from './navBake';
 import { doorSpec, type DoorMaterial } from './navDoor';
 import { wallState, type NavGraph } from './navGraph';
 import type { NavLayer, NavLayerState } from './navLayers';
-import { DEFAULT_RADIUS, shrinkFor } from './navPath';
+import { DEFAULT_RADIUS, cornerBlocked, shrinkFor, type PathPoint } from './navPath';
 import {
   DIR_E,
   DIR_N,
@@ -159,8 +159,7 @@ export function navDebugView(
     // Etwas tiefer als die Linien: Eine Fläche auf derselben Höhe streitet sich
     // mit ihnen um jedes Pixel.
     const face = y - 0.01;
-    floor.push(minX, face, minZ, maxX, face, minZ, maxX, face, maxZ);
-    floor.push(minX, face, minZ, maxX, face, maxZ, minX, face, maxZ);
+    tileFace(graph, key, { minX, maxX, minZ, maxZ, midX: at.x, midZ: at.z, y: face, inset }, floor);
   }
 
   const scratch = { walk: true, cost: 0, see: true, hear: 1 };
@@ -204,6 +203,107 @@ export function navDebugView(
   for (const [material, line] of doors) addLines(group, 'walls', line, doorSpec(material).color, 1);
   addLines(group, 'links', links, colors.link, 0.9);
   return group;
+}
+
+/** Die Maße, aus denen die betretbare Fläche einer Kachel entsteht. */
+interface FaceBox {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  /** Die Kachelmitte — von ihr aus wird die Ecke gemessen. */
+  midX: number;
+  midZ: number;
+  y: number;
+  inset: number;
+}
+
+/**
+ * **Die betretbare Fläche einer Kachel — mit ausgeschnittenen Ecken.**
+ *
+ * Die Seiten allein reichen nicht, und das ist der Fehler, den man von oben
+ * sieht: An einer Wand entlang rückt die Fläche sauber ab, am **Kopfende**
+ * derselben Wand nicht. Dort liegt eine Kachel, die auf allen vier Seiten frei
+ * ist — nur steht die Stirnseite des Klotzes eben in ihrer Ecke, und ein
+ * Zylinder, der dorthin plant, steckt darin.
+ *
+ * Deshalb wird jede der vier Ecken einzeln gefragt (`navPath.cornerBlocked` —
+ * dieselbe Frage, die der Schnurzug an jedem Durchlass stellt), und wo etwas
+ * steht, fehlt ein Quadrat von der Größe des Abstands. Aus einem Rechteck
+ * werden dabei bis zu neun Felder eines 3 × 3-Rasters; die ausgesparten fallen
+ * weg, der Rest wird wieder zusammengefasst — und wo keine Ecke besetzt ist,
+ * bleibt es bei den zwei Dreiecken von vorher.
+ */
+function tileFace(graph: NavGraph, key: TileKey, box: FaceBox, out: number[]): void {
+  const corners: [Dir, Dir][] = [
+    [DIR_W, DIR_N],
+    [DIR_E, DIR_N],
+    [DIR_W, DIR_S],
+    [DIR_E, DIR_S],
+  ];
+  const blocked = corners.map(([x, z]) => cornerBlocked(graph, key, x, z));
+  // Die Schnittlinien: eine Abstandsbreite von der Kachelgrenze nach innen,
+  // aber nie über die schon eingezogene Seite hinaus. Wo die Seite ohnehin
+  // abrückt, fällt die Linie mit ihr zusammen, und das Eckfeld hat die Breite
+  // null — die Ecke ist dann längst weg.
+  const cutW = Math.max(box.minX, box.midX - TILE / 2 + box.inset);
+  const cutE = Math.min(box.maxX, box.midX + TILE / 2 - box.inset);
+  const cutN = Math.max(box.minZ, box.midZ - TILE / 2 + box.inset);
+  const cutS = Math.min(box.maxZ, box.midZ + TILE / 2 - box.inset);
+  const xs = [box.minX, Math.min(cutW, cutE), Math.max(cutW, cutE), box.maxX];
+  const zs = [box.minZ, Math.min(cutN, cutS), Math.max(cutN, cutS), box.maxZ];
+
+  /** Ob dieses Feld des Rasters übrig bleibt — nur Eckfelder fallen weg. */
+  const keep = (i: number, j: number): boolean => {
+    if (xs[i + 1]! - xs[i]! < 1e-6 || zs[j + 1]! - zs[j]! < 1e-6) return false;
+    if (i === 1 || j === 1) return true;
+    return !blocked[(i === 2 ? 1 : 0) + (j === 2 ? 2 : 0)];
+  };
+
+  // **Und dann wieder zusammengefasst**: erst waagerecht, dann über Zeilen
+  // hinweg. Eine Kachel ohne besetzte Ecke ist damit genau ein Rechteck wie
+  // vorher — neun Rechtecke je Kachel wären in der Brille dreitausend
+  // Dreiecke, wo dreihundert reichen.
+  for (let j = 0; j < 3;) {
+    const row = runsIn(keep, j);
+    if (row.length === 0) {
+      j++;
+      continue;
+    }
+    let end = j + 1;
+    while (end < 3 && sameRuns(runsIn(keep, end), row)) end++;
+    for (const [from, to] of row) quad(out, xs[from]!, xs[to]!, zs[j]!, zs[end]!, box.y);
+    j = end;
+  }
+}
+
+/** Die zusammenhängenden Stücke einer Zeile, als Paare von Schnittlinien. */
+function runsIn(keep: (i: number, j: number) => boolean, j: number): [number, number][] {
+  const runs: [number, number][] = [];
+  for (let i = 0; i < 3; i++) {
+    if (!keep(i, j)) continue;
+    const last = runs[runs.length - 1];
+    if (last && last[1] === i) last[1] = i + 1;
+    else runs.push([i, i + 1]);
+  }
+  return runs;
+}
+
+function sameRuns(a: readonly [number, number][], b: readonly [number, number][]): boolean {
+  return a.length === b.length && a.every((run, i) => run[0] === b[i]![0] && run[1] === b[i]![1]);
+}
+
+/** Ein waagerechtes Rechteck als zwei Dreiecke. */
+function quad(
+  out: number[],
+  minX: number,
+  maxX: number,
+  minZ: number,
+  maxZ: number,
+  y: number,
+): void {
+  out.push(minX, y, minZ, maxX, y, minZ, maxX, y, maxZ);
+  out.push(minX, y, minZ, maxX, y, maxZ, minX, y, maxZ);
 }
 
 /**
@@ -303,16 +403,24 @@ function addLines(
  *
  * Getrennt vom Gitter, weil er sich jedes Mal ändert, wenn jemand neu plant —
  * und das Gitter bleibt dabei, wie es ist.
+ *
+ * **Gezeichnet werden die Wegpunkte und nicht die Kachelmitten**
+ * (`navPath.pullString`, `navAgent.points`). Der Unterschied ist der ganze
+ * Zweck dieser Ebene: Eine Linie durch Kachelmitten schneidet jede Hausecke,
+ * um die der Läufer in Wirklichkeit einen Bogen macht — sie sieht aus wie ein
+ * Weg durch die Wand, und dann sucht man den Fehler in einer Wegsuche, die
+ * gerade recht hatte. Die Höhe kommt weiter von der Kachel: Ein Wegpunkt hat
+ * nur x und z, der Boden darunter hat eine Etage.
  */
 export function navPathView(
   graph: NavGraph,
-  tiles: readonly TileKey[],
+  route: readonly PathPoint[],
   color = 0x5ee0a0,
 ): THREE.Line {
   const points: number[] = [];
-  for (const key of tiles) {
-    const at = graph.worldOf(key);
-    points.push(at.x, at.y + LIFT + 0.25, at.z);
+  for (const point of route) {
+    const at = graph.worldOf(point.tile);
+    points.push(point.x, at.y + LIFT + 0.25, point.z);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
