@@ -403,7 +403,25 @@ der **Bauplan des Editors** (`editor/levelPlan.ts` — worauf ein Zeiger trifft,
 Kachel oder Kante; was die vier Werkzeuge daraus machen; und dass der
 Radiergummi erst die Tür, dann die Wand und dann den Boden nimmt), die
 **Geometrie dazu** (`editor/levelBuild.ts` — Pfosten, Sturz und Blatt, und der
-Prüfstein: was der Editor baut, findet das Abtasten wieder), die **Miniatur**
+Prüfstein: was der Editor baut, findet das Abtasten wieder), die **Bausteine
+auf dem Kachelgitter** (`grid/blocks.ts` — dass jeder von ihnen in **jeder der
+vier Richtungen** auf seiner Kachel bleibt und über dem Boden, dass eine
+Küchenzeile an der Ostwand genauso aussieht wie an der Nordwand, und die Zahl,
+wegen der es diesen Test gibt: **0,32 m**, so hoch steigt der
+Character-Controller, und keine Treppenstufe darf höher werden), der
+**Grundriss** dazu (`grid/gridPlan.ts` — dass ein Zimmer seine Wände außen an
+die Randkacheln stellt, dass eine Decke **ein** Quader ist und nicht vierzig,
+dass ein Fenster wirklich ein Loch lässt, und wieder der Prüfstein: was ein Plan
+baut, findet das Abtasten wieder), das **Setzen von Bausteinen**
+(`grid/gridTool.ts` — dass eine Küchenzeile ohne Kante zurückgewiesen statt
+geraten wird, dass der Radiergummi erst den Baustein und dann den Boden nimmt,
+dass eine Kachel danach wieder so billig ist wie vorher, und der Fehler, der
+erst beim **zweiten** Laden aufflöge: dass ein Aufschlag nicht doppelt zählt),
+und die **vier Grundrisse der Gitterwelten** (`dark/darkHouse.ts`,
+`range/rangeStand.ts`, `dust/dustTown.ts`, `climb/climbHall.ts` — dass man vom
+Startzimmer in jedes Zimmer kommt, dass jedes Haus in Dust vom Erdgeschoss aufs
+Dach begehbar ist, dass kein Baustein in einer Tür steht und dass die Matte der
+Kletterhalle nicht als zweite Fläche auf dem Boden liegt), die **Miniatur**
 (`editor/miniature.ts` — Hin und Zurück ohne Drift, **auch bei einem gekippten
 Modell**; dass eine Hand es samt Handgelenk trägt und der angefasste Punkt
 dabei unter ihr bleibt; dass zwei Hände es kippen **und** rollen — das Rollen
@@ -1372,7 +1390,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Meter steigt und sich dreht, zog Beine, Hals und Torso jedes Mal lang. Direkt sieht man nur die eigenen Hände — und sich
   selbst, wenn man durch ein Portal schaut. Die anderen Spieler bekommen
   denselben Körper, samt Namensschild und der Waffe in ihrer Hand.
-- **Schießstand** (experimentell): überdachte Schießlinie mit fünf Bahnen und
+- **Schießstand** (experimentell): überdachte Schießlinie mit fünf Bahnen —
+  gebaut auf dem **Kachelgitter** (`range/rangeStand.ts`), und die Schießbank
+  ist dort der Baustein, der sie in Wirklichkeit ist: dieselbe **Küchenzeile**
+  wie im Dunkelhaus, dieselbe Arbeitshöhe. Wer einmal nachgerechnet hat, dass
+  eine Arbeitsplatte auf 90 cm liegt, hat es für beide Welten nachgerechnet.
   Zielscheiben auf 10, 25 und 50 m, zwei großen auf 75 und 100 m sowie einer
   Reihe Stahlplatten auf 18 m. Die Scheiben hängen an Scharnieren und schwingen
   beim Treffer zurück. Am Gürtel hängt hier die Pistole. Gedacht zum
@@ -1712,9 +1734,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
   aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
   dieselbe geteilte Sitzung wie im Portal Labor; Portale haften dort an den
-  hellen Tafeln und am Boden.
+  hellen Tafeln und am Boden. Die Karte steht auf dem **Kachelgitter**
+  (`dust/dustTown.ts`): acht Häuser als Liste — wo eines steht, wie viele
+  Stockwerke, auf welcher Seite die Tür. Die Obergeschosse haben seither
+  **Fenster**, die wirklich Löcher sind, und die Treppen stehen im
+  Navigationsgraphen statt nur in der Geometrie.
 - **Dunkelhaus** (experimentell): ein kleines Haus ohne Fenster — Startraum,
-  ein Flur quer durch, vier Zimmer und ein Gang, der nirgendwohin führt. Es
+  ein Flur quer durch, vier Zimmer und ein Hinterzimmer. Es steht auf dem
+  **Kachelgitter** (`dark/darkHouse.ts`), und seit es das tut, steht auch etwas
+  darin: eine **Küchenzeile** über drei Kacheln im Südostzimmer, Regale, Tische,
+  eine Bank, ein Kistenstapel. Es
   gibt kein Tageslicht: das Umgebungslicht steht fast auf null, gesehen wird
   nur, was man anmacht oder trägt. Im Startraum hängt ein **Dimmer** an der
   Wand (anzielen + Trigger, oder mit dem Finger antippen), der die Deckenlampen
@@ -1742,6 +1771,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   es den ganzen Spieler an die Wand. Von Griff zu Griff geführt wird dabei
   niemand — man fasst hin, wo man will, und die Welt rechnet aus, wie gut das
   war. Das Vorbild ist die Haltemechanik aus _Cairn_.
+
+  **Die Halle steht auf dem Kachelgitter, die Kletterwände nicht**
+  (`climb/climbHall.ts`), und die Grenze ist Absicht: Überhang, Riss und Kamin
+  sind kein Mobiliar, sondern das Spiel selbst — ihre Maße sind über viele
+  Sitzungen im Headset entstanden. Matte, Decke und die vier Wände sind
+  dagegen austauschbar und sehen jetzt aus wie überall sonst. Nebenbei hat die
+  Halle dadurch einen Boden bekommen, auf dem ein NPC herumlaufen kann.
 
   **Wie das Klettern selbst funktioniert.** Jede greifende Hand bekommt einen
   **Anker** in der Welt, und der Körper wird jedes Bild so weit verschoben,
@@ -4445,6 +4481,15 @@ eine Treppe, ein Absprung oder eine Wand ist. `PortalWorld` ruft das einmal nach
 `buildEnvironment()`, und damit hat **jede** Welt ihr Gitter — Dust, das Labor,
 der Hub, alle.
 
+**Eine Welt auf dem Kachelgitter wird trotzdem abgetastet** (`grid/GridWorld.ts`),
+und das ist kein Versehen. Sie *hätte* ihren Graphen ja schon; ihn hier
+einzusetzen statt abzutasten wäre bequem und würde genau eine Sache verlieren:
+die Probe. Das Abtasten liest, was wirklich gebaut wurde, und wenn dabei die
+Karte des Plans herauskommt, stimmen Plan und Welt überein. Danach wird
+darübergelegt, was in keinem Quader steht und nur der Plan weiß: dass eine Wand
+aufgehen kann, dass auf einer Kachel eine Küchenzeile steht, dass eine Treppe
+zwei Etagen verbindet.
+
 Drei Zahlen daran sind teuer bezahlt, und alle drei standen hinter einem
 Eindruck aus der Brille, den niemand erklären konnte:
 
@@ -5062,8 +5107,31 @@ Handgriffe daran sind eingebaute Nachsicht: Wer *Boden* gewählt hat und auf ein
 **Kante** zeigt, baut die Kachel dahinter (so malt man einen Raum von seinem Rand
 aus weiter, ohne die Mitte der nächsten Kachel zu treffen); und wer *Tür* auf
 eine freie Kante setzt, bekommt eine Wand mit einer Tür darin statt einer
-Fehlermeldung. Der Radiergummi räumt in der Reihenfolge auf, in der man es meint:
-erst die Tür, dann die Wand, dann den Boden.
+Fehlermeldung.
+
+**Und dann gibt es die zweite Reihe der Palette: die Bausteine**
+(`grid/gridTool.ts`, `grid/blocks.ts`). Küchenzeile, Regal, Tisch, Bank, Kisten,
+Säule, Geländer, Brüstung, Podest — eintunken, auf die Miniatur tippen, fertig.
+Ohne sie ist ein Zimmer ein leerer Kasten mit einer Tür, und genau daran merkt
+man beim Bauen *nicht*, ob ein Raum funktioniert. Zwei Regeln erklären das
+Setzen ganz:
+
+- **Was an eine Wand gehört, will eine Kante.** Küchenzeile, Regal, Bank,
+  Geländer, Brüstung, Portaltafel: Die Kante, auf die man zeigt, ist
+  gleichzeitig die Seite, an der sie stehen. Zeigt jemand auf die Mitte einer
+  Kachel, sagt der Editor das — eine geratene Küchenzeile steht in drei von vier
+  Fällen falsch herum, und man sieht es erst, wenn man davorsteht.
+- **Was frei steht, nimmt die Kante als Blickrichtung.** Tisch, Kiste, Säule,
+  Podest: Die Kachel entscheidet, *wo* sie stehen, die Kante nur, *wohin* sie
+  schauen; wer auf die Mitte zeigt, bekommt Norden.
+
+Die zwei Reihen auf der Palette sind kein Ordnungssinn, sondern die Reihenfolge,
+in der man baut: erst der Grundriss, dann das, was darin steht. Wer eine
+Küchenzeile in derselben Reihe suchte, käme beim Wandmalen aus Versehen daran.
+
+Der Radiergummi räumt in der Reihenfolge auf, in der man es meint: **erst der
+Baustein**, dann die Tür, dann die Wand, dann der Boden. Wer eine Küchenzeile
+löschen will, will nicht den Boden darunter los.
 
 **Ob eine Kachel oder ihre Kante gemeint ist, entscheidet ein Streifen**
 (`spotAt`, 70 cm). Das ist die Rechnung, an der ein Kacheleditor steht oder
@@ -5113,13 +5181,22 @@ hinterher.
 Gespeichert wird im Browser, im Format, das es ohnehin gibt (`navSerial.ts`).
 Nicht, weil das eine Speicherlösung wäre, sondern weil das Gegenteil unerträglich
 ist: Wer zwanzig Minuten baut und die Brille absetzt, soll seinen Grundriss
-wiederfinden.
+wiederfinden. **Das Mobiliar liegt daneben und nicht darin**: Eine Küchenzeile
+ist keine Navigationsinformation, und sie in dieselbe Datei zu schreiben hieße,
+deren Versionsnummer anzuheben und jede gespeicherte Karte für ungültig zu
+erklären — für Möbel. Ein alter Eintrag, der nur die Karte kennt, wird weiter
+gelesen. Der Fehler, den ein Test dabei abfängt, fiele erst beim **zweiten**
+Laden auf: In den gespeicherten Kacheldaten stecken die Aufschläge der Bausteine
+schon drin, und wer sie als Grundwert nimmt und die Bausteine danach anwendet,
+zählt jeden zweimal — nach dem dritten Laden ist die Küche unbegehbar.
 
-**Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste),
-Rückgängig, Fenster und Rampen, ein Weg, einen gebauten Plan als eigene Welt zu
-laden statt nur im Bauplatz zu haben — und die Karte als **echtes Werkzeug** im
-Werkzeugkasten (`portal/tools/`), damit sie sich auch in andere Welten
-mitnehmen ließe. Heute führt der Bauplatz seine beiden Hüften selbst; das ist
+**Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste —
+und damit fehlen im Bauplatz auch die beiden Bausteine, die zwischen Etagen
+führen: Treppe und Rampe), Rückgängig, Fenster als Werkzeug (gebaut werden sie
+längst, gesetzt bisher nur von Welten in ihrem Grundriss), ein Weg, einen
+gebauten Plan als eigene Welt zu laden statt nur im Bauplatz zu haben — und die
+Karte als **echtes Werkzeug** im Werkzeugkasten (`portal/tools/`), damit sie
+sich auch in andere Welten mitnehmen ließe. Heute führt der Bauplatz seine beiden Hüften selbst; das ist
 weniger Verdrahtung, aber es bleibt in dieser einen Welt.
 
 ### Die Werkzeugseite
@@ -5855,6 +5932,107 @@ Fläche — im Fluss schiebt jedes Retina-Display die Seite ein Stück auf.
 Gebaut wird sie im selben Vite-Lauf (`rollupOptions.input` in `vite.config.ts`);
 ohne diesen Eintrag landete nur `index.html` im `dist`.
 
+### Welten auf dem Kachelgitter
+
+**Eine Welt beschreibt sich in Kacheln, nicht in Metern** (`worlds/grid/`).
+Das ist die jüngste der großen Entscheidungen in diesem Projekt, und sie ist
+aus einem Ärgernis entstanden, das lange als naturgegeben galt: Jede Welt stand
+auf ihrer eigenen Handvoll `slab()`-Aufrufe. Dust hatte siebzehn, der
+Schießstand zwölf, die Pizzeria dreißig. Jeder einzelne ist eine Zahl in
+Metern, die niemand nachprüfen kann, ohne die Brille aufzusetzen — und genau
+deshalb war eine große Welt nur am Stück zu testen, nie in Teilen.
+
+Vier Dateien, alle **ohne three.js**:
+
+- **`grid/solids.ts` — der Quader.** Die einzige Form, in der hier gebaut wird:
+  Mitte und Kantenlängen, dazu seine Sorte (Boden, Wand, Tür, Tafel, Holz,
+  Stahl, Stein, Leuchten). Er hieß `PlanSolid` und gehörte dem Bauplatz; er
+  heißt weiter so, gehört aber jetzt jeder Welt auf dem Gitter. Dazu die beiden
+  Handgriffe, die vorher überall von Hand standen: an einer Kante bauen
+  (`slab`), auf etwas stellen (`standing`).
+- **`grid/blocks.ts` — die Bausteine.** Zwölf Stück: Küchenzeile, Regal, Tisch,
+  Bank, Kisten, Säule, Geländer, Brüstung, Treppe, Rampe, Podest, Portaltafel.
+  Ein Baustein ist genau das, was er bei Minecraft ist — **eine Kachel, eine
+  Sorte, eine Blickrichtung** —, und mehr braucht niemand anzugeben.
+- **`grid/gridPlan.ts` — der Grundriss.** Zimmer, Wände, Türen, Fenster,
+  Bausteine und **Massen**. Der Plan *ist* der Navigationsgraph
+  (`nav/navGraph.ts`), also weiß ein NPC von der Küchenzeile, bevor er
+  losläuft.
+- **`grid/GridWorld.ts` — die Basis.** Sie baut den Plan, führt die gemeinsame
+  Palette und entscheidet einmal für alle, woran ein Portal haftet.
+
+Vier Sachen sind daran wichtig, und drei davon merkt man erst hinterher.
+
+**Gebaut wird nach Norden, gedreht wird danach.** Jeder Baustein steht in
+seiner eigenen kleinen Welt: Ursprung in der Kachelmitte, Boden auf null, vorne
+ist −Z. Erst `turned()` legt ihn in die Richtung, in die er zeigen soll. Das
+ist der Unterschied zwischen zwölf Bausteinen und achtundvierzig Sonderfällen —
+und vor allem der Grund, warum eine Küchenzeile an der Ostwand genauso aussieht
+wie dieselbe an der Nordwand. Wer die vier Fälle einzeln schreibt, hat
+irgendwann drei richtige und einen, bei dem die Arbeitsplatte in der Wand
+steckt.
+
+**Ein Baustein weiß, was er der Kachel antut.** Ein Podest hebt sie an
+(`rise`), ein Tisch macht das Herumkommen teurer (`cost`). Kein „blockiert
+ja/nein": Eine Kachel ist zweieinhalb Meter breit, ein Tisch darin lässt
+reichlich Platz — er ist nur der Weg, den man nicht nimmt, wenn daneben einer
+frei ist. Beides landet im Graphen, und deshalb läuft ein NPC um den Tisch
+herum und auf das Podest hinauf, ohne dass jemand die Karte von Hand
+nachpinselt.
+
+**Eine Masse ist der ehrliche Ausweg.** Nicht alles hat Kachelform: das Dach
+über einer Halle, der Kugelfang hinter den Scheiben, die Felswand um Dust, der
+Sand darunter. `mass()` baut dafür **einen** Quader über ein Kachelrechteck —
+grid-treu, weil seine Kanten Kachelkanten sind, aber eben einer statt tausend.
+Beim Boden ist das keine Bequemlichkeit, sondern Pflicht: Jede Portalfläche
+bekommt eine eigene Kollisionsgruppe, davon gibt es zehn
+(`PhysicsWorld.ts`) — tausend portalfähige Bodenkacheln hießen, dass ein
+Bodenportal nebenbei die Wand gegenüber aufmacht. Deshalb trägt ein Quader eine
+Marke `portal`, und die setzt genau eine Fläche je Welt.
+
+**Eine Treppe ist drei Sachen.** Der Baustein, das **Loch** in der Decke
+darüber (sonst stößt man beim dritten Schritt mit dem Kopf an) und der **Weg im
+Graphen** (sonst steht ein NPC unten und weiß nicht, dass es nach oben geht —
+Stockwerke haben in diesem Gitter absichtlich keine Nachbarschaft). Wer die
+dritte vergisst, hat eine Treppe, die man hinauflaufen kann und die für jeden
+NPC nicht existiert; das sieht danach aus wie ein kaputter Character-Controller.
+`GridPlan.stairs()` macht alle drei. Und ein Treppenhaus wechselt zwischen
+**zwei** Kacheln hin und her: Alle Läufe übereinander ginge nicht, weil jeder
+Lauf das Loch für seinen eigenen Kopf schlägt — genau darin müsste der nächste
+stehen.
+
+**Vier Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust und die
+Hülle der Kletterhalle. Der Bauplatz baut ohnehin schon aus derselben Liste,
+und die Alpen und der Mond stehen weiter auf ihrem Höhenfeld — ein Berg ist
+keine Kachel, und die Umrechnung würde ihn nur schlechter machen.
+
+Die Grenze ist bei der **Kletterhalle** am deutlichsten und dort mit Absicht
+gezogen: Überhang, Riss und Kamin sind kein Mobiliar, sondern das Spiel selbst.
+Ihre Maße sind über viele Sitzungen im Headset entstanden, und jede davon auf
+eine Kachelkante zu ziehen hieße, sie noch einmal von vorn einzumessen — für
+nichts. Auf das Gitter gehört die Hülle: Matte, Decke, vier Wände.
+
+**Was jede Welt dabei geschenkt bekommt**, und was vorher jede einzeln
+erarbeiten musste:
+
+- **Fenster sind Löcher.** Der Graph kannte die Wandsorte immer schon — sie
+  hält auf, lässt aber Sicht und Geräusch durch —, gebaut wurde daraus eine
+  ganz normale massive Wand. Dahinter stand ein NPC im ersten Stock, der einen
+  durch eine Wand sah, durch die man selbst nichts sah, und niemand hätte je
+  vermutet, dass das Fenster daran schuld ist.
+- **Türen stehen im Graphen**, nicht nur als Loch in einer Wand. Erst damit
+  kann sich eine Meinung über sie irren (`nav/navBelief.ts`).
+- **Eine gemeinsame Palette.** Acht Töne für alle Gitterwelten (`GRID_COLORS`),
+  und eine Welt verstellt daran einzelne (`tint()`), statt sich sechs eigene
+  Materialien anzulegen. Das ist die „einheitliche Sache", die man an Böden und
+  Wänden zuerst bemerkt.
+- **Geprüft, bevor jemand die Brille aufsetzt.** Jeder Grundriss liegt in einer
+  eigenen Datei ohne three.js (`dark/darkHouse.ts`, `range/rangeStand.ts`,
+  `dust/dustTown.ts`, `climb/climbHall.ts`), und sein Test läuft durch jede
+  Tür und jedes Haus vom Erdgeschoss aufs Dach. Ein Zimmer ohne Tür merkt man
+  sonst erst, wenn man davorsteht — nach dem Laden, nach dem Aufsetzen, nach
+  dem Hinlaufen.
+
 ### Eine neue Welt hinzufügen
 
 1. `src/worlds/<name>/<Name>World.ts` anlegen und `World` implementieren
@@ -5879,6 +6057,16 @@ nimmt (die Taschenlampe im Dunkelhaus). Genau das machen `DustWorld`,
 `RangeWorld`, `KartWorld`, `ShopWorld`, `DarkWorld`, `MoonWorld` und `AlpsWorld` — die ganze Maschinerie
 (Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu
 werden.
+
+Steht die neue Welt auf **Kacheln** — und das ist inzwischen der Normalfall für
+alles, was Zimmer, Gänge und Türen hat —, erbt sie besser gleich von
+`GridWorld` (siehe oben) und schreibt statt `buildEnvironment()` nur noch
+`layout()`: einen Grundriss aus Zimmern, Kanten und Bausteinen. Geometrie,
+Physik, Portalflächen und die Navigationskarte kommen mit. Der Grundriss gehört
+dabei in eine **eigene Datei ohne three.js** (`darkHouse.ts`, `rangeStand.ts`,
+`dustTown.ts`, `climbHall.ts`) — das ist der einzige Unterschied zwischen einer
+Karte, die ein Test in einer Millisekunde abläuft, und einer, für die man die
+Brille aufsetzen muss.
 
 Mehr braucht es nicht: Menü, Hub-Tor, Deep-Link (`#<id>`), der Eintrag auf der
 Werkzeugseite samt Vorschau von innen (`preview()` erbt eine `PortalWorld`
