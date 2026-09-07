@@ -441,7 +441,17 @@ sie dasselbe rechnet wie die three.js-Gruppe, die man sieht
 (`editor/miniatureFrame.test.ts`), die **Vorfahrt beim Zugreifen**
 (`editor/reach.ts` — dass die kleine Spielfigur mitten im großen Grundriss
 gewinnt, wenn die Hand auf ihr liegt: das nächstgelegene Ding gewinnt und
-nicht das mit der größeren Blase) — und das
+nicht das mit der größeren Blase), das **Malen und die Flächen**
+(`editor/planPaint.ts` — dass zwischen zwei Bildern keine Lücke bleibt, wenn
+eine Hand über drei Kacheln fährt; dass die Himmelsrichtung des Ziels für den
+ganzen Strich gilt, weil sonst jede zweite Wand quer stünde; dass ein Rechteck
+aus **Boden** seine Fläche füllt und eines aus **Wänden** nur seinen Rand, nach
+außen gerichtet — ein gefülltes Rechteck aus Wänden wäre ein Klotz, gemeint ist
+ein Zimmer; und dass eine getroffene Kante die Ecke nicht um eine Kachel
+verschiebt), das **Gedrückthalten des Zeigers**
+(`core/pointer.test.ts` — Druck genau einmal, Halten in jedem Bild danach,
+Loslassen genau einmal, auch wenn der Strahl abrutscht oder das Ziel mitten im
+Strich abgemeldet wird) — und das
 **ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`, und einmal
 mit echter Physik in `labPhysics.test.ts`): dieselben
 Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
@@ -2294,6 +2304,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Kart: lenken                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                    | `A` / `D`                                                                                       | –                    |
 | Kart: aussteigen                   | `A`/`X` halten (Balken läuft voll)                                                                                                                                    | `E` halten                                                                                      | –                    |
 | Kart: Klemmbrett                   | anzielen + Trigger, Stick blättert                                                                                                                                    | anklicken                                                                                       | –                    |
+| Karte holen (jede Kachelwelt)      | Bauplatz: Greifen an der Hüfte, an der sie hängt. Sonst Menü → _Bauen_ → _Karte holen_ (dort ist der Gürtel voller Werkzeuge)                                          | Menü → _Bauen_ → _Karte holen_                                                                  | dito                 |
+| Grundriss malen                    | an der Palette eintunken, dann Trigger auf der Miniatur **halten** und ziehen — was der Zeiger überstreicht, wird gesetzt                                              | Linkstaste halten und den Blick schwenken                                                       | –                    |
+| Fläche füllen                      | Tafel am Modell → _Fläche_, dann zwei Ecken: aufziehen und loslassen, **oder** zweimal tippen. Boden füllt die Fläche, Wand zieht ihren Rand                          | dito                                                                                            | –                    |
+| Karte weglegen                     | über der Hüfte loslassen, oder Menü → _Bauen_ → _Karte weglegen_ — erst dann steht das Gebaute fest da                                                                 | Menü → _Bauen_ → _Karte weglegen_                                                               | dito                 |
 | Pizza: Teig kneten                 | Faust auf den liegenden Teig schlagen                                                                                                                                 | –                                                                                               | –                    |
 | Pizza: Soße / Käse                 | Kelle bzw. Streuer greifen, Trigger halten                                                                                                                            | –                                                                                               | –                    |
 | Zurücksetzen                       | `B` / `Y` oder Menü                                                                                                                                                   | `R` oder Menü                                                                                   | Menü                 |
@@ -5234,18 +5248,25 @@ Springen sind. Die Karte kann längst mehr, als der Körper einlöst — sie wei
 dass eine Rampe aus 12-cm-Stufen begehbar ist (`CostProfile.stepUp`), und in
 der Brille steht er davor.
 
-### Der Bauplatz
+### Bauen, während man darin steht
 
-**Ein Level bauen, während man darin steht** (`worlds/editor/`). Die Welt
-beantwortet die Frage, die vorher unter „was noch fehlt" stand — *wie sieht man
-einen Grundriss von oben, wenn man selbst darin steht?* —, und sie tut es mit
-einem **Tischmodell**: Man zieht die **Karte vom Gürtel**, und der Grundriss
-hängt als Miniatur vor einem in der Luft. Man setzt eine Wand am Modell, legt
-die Karte weg und steht neben ihr — sie ist wirklich im Weg. Ein Grundriss, den
-man nur von oben sieht, hat immer zu enge Gänge; einer, in dem man steht,
-während man ihn zieht, nicht.
+**Jede Gitterwelt lässt sich umbauen, ohne sie zu verlassen**
+(`worlds/editor/WorldEditor.ts`). Das war einmal eine eigene Welt — der
+**Bauplatz** —, und als erste Fassung war das richtig: Man probiert eine
+Bedienung an einem Ort aus, bevor man sie überall hinhängt. Es war aber auch
+die Antwort auf die falsche Frage. Die Frage lautet nicht *wo baue ich ein
+Level?*, sondern *warum kann ich das Haus, in dem ich gerade stehe, nicht
+umbauen?* Wer im Dunkelhaus merkt, dass der Gang zu eng ist, will ihn **dort**
+verbreitern und nicht in einer zweiten Welt nachbauen.
 
-Drei Entscheidungen tragen das Ganze:
+Also hängt die Bedienung an keiner Welt mehr, sondern an einem **Grundriss**
+(`grid/gridPlan.ts`) und an einem Wirt (`EditorHost`), der drei Sachen kann:
+die Welt neu bauen, jemanden versetzen und etwas sagen. Jede Gitterwelt hat
+beides — Dunkelhaus, Schießstand, Dust, Kletterhalle, Gokart und der Bauplatz
+selbst — und bekommt den Editor damit geschenkt (`grid/GridWorld.ts`,
+`editable()`).
+
+Vier Entscheidungen tragen das Ganze:
 
 - **Der Plan ist der Navigationsgraph** (`editor/levelPlan.ts`). Kein zweites
   Datenformat: `has(key)` heißt „hier ist Boden", eine Wand steht zwischen zwei
@@ -5254,12 +5275,13 @@ Drei Entscheidungen tragen das Ganze:
   kann es speichern, und vor allem kann nichts auseinanderlaufen: Ein Editor,
   dessen Grundriss etwas anderes sagt als die Karte, ist einer, in dem man eine
   Tür einbaut und danach zusieht, wie ein Zombie hindurchgeht.
-- **Gebaut wird aus einer Liste** (`editor/levelBuild.ts`). `planSolids()` macht
-  aus dem Plan achsenparallele Quader — die Gegenrichtung von `navBake.ts`, und
-  der Test prüft genau das: Was der Editor baut, muss das Abtasten wiederfinden.
-  Miniatur und Lebensgröße kommen aus **derselben** Liste; zwei Bauanleitungen
-  für dasselbe Zimmer laufen auseinander, und man merkt es an dem Tag, an dem
-  eine Tür im Modell an einer anderen Wand hängt als im Raum.
+- **Gebaut wird aus einer Liste** (`editor/levelBuild.ts`, `grid/gridPlan.ts`).
+  `solids()` macht aus dem Plan achsenparallele Quader — die Gegenrichtung von
+  `navBake.ts`, und der Test prüft genau das: Was der Editor baut, muss das
+  Abtasten wiederfinden. Miniatur und Lebensgröße kommen aus **derselben**
+  Liste; zwei Bauanleitungen für dasselbe Zimmer laufen auseinander, und man
+  merkt es an dem Tag, an dem eine Tür im Modell an einer anderen Wand hängt
+  als im Raum.
 - **Die Miniatur ist ein Gegenstand** (`editor/miniature.ts`): Standort,
   Drehung, Maßstab — und die Drehung ist seit der zweiten Fassung ein
   **Quaternion** und kein Gierwinkel mehr. Eine Hand **trägt** das Modell, samt
@@ -5277,6 +5299,19 @@ Drei Entscheidungen tragen das Ganze:
   Versehen, sondern der Zweck: Wer eine Wand von unten sehen will, kippt das
   Modell, statt sich darunter zu bücken. Gerade legt es *ein* Griff wieder —
   „Zu mir" ist gleichzeitig die Wasserwaage.
+- **Die Welt tritt zur Seite, solange die Karte draußen ist.** Ihre Quader
+  werden unsichtbar und kommen aus der Physik heraus, und was in ihr
+  herumliegt, hält still (`PhysicsWorld.setFrozen`). Drei Gründe, und jeder
+  allein reicht: Ein Grundriss vor der Nase, hinter dem eine Wand steht, ist
+  einer, den man nicht sieht — ein Zimmer ist ein geschlossener Kasten, und man
+  steht darin. Wer eine Wand quer durch den Raum malt, in dem er steht, steckt
+  sonst darin. Und eine Wand, die man nicht sieht, aber gegen die man läuft,
+  ist schlimmer als eine, die im Weg steht — also gehören Sichtbarkeit und
+  Körper zusammen. Was bleibt, ist der Boden bis zum Horizont, der Himmel und
+  alles, was nicht aus dem Grundriss kommt; wo man selbst dabei steht, sagt die
+  Figur in der Miniatur. **Fest wird das Gebaute beim Weglegen der Karte**:
+  Dann werden die Quader mit Körpern neu gebaut und die Navigationskarte neu
+  abgetastet, denn was man gebaut hat, sollen NPCs auch belaufen können.
 
 **Ausgesucht wird an einer Palette** (`editor/Palette.ts`). Drei Antworten
 standen zur Wahl, wie man in der Brille ein Bauteil aussucht: ein Menü (dreimal
@@ -5286,18 +5321,16 @@ beim Bauen setzt man dasselbe zwanzigmal hintereinander) — und eine Palette mi
 einem Pinsel: einmal eintunken, beliebig oft setzen, den Pinsel zurück in die
 Mulde, wenn man fertig ist. Genau das ist der Rhythmus eines Kacheleditors.
 Steckt der Pinsel in der Mulde, baut ein Tipp auf die Miniatur **nichts** —
-dann darf man darin herumfassen, ohne aus Versehen eine Wand zu setzen. Die
-Palette selbst hängt an nichts: Sie schwebt wie das Modell, wird wie das Modell
-mit einer Hand getragen und hängt an der zweiten Hüfte, wenn man sie weglegt.
+dann darf man darin herumfassen, ohne aus Versehen eine Wand zu setzen.
 
 **Werkzeuge sind vier, und der Radiergummi ist eines davon**: Boden, Wand, Tür,
 Löschen. Was ein Druck tut, hängt an zwei Sachen — am Werkzeug und daran, worauf
-man zeigt —, und diese Kreuzung steht an *einer* Stelle (`applyTool`). Zwei
-Handgriffe daran sind eingebaute Nachsicht: Wer *Boden* gewählt hat und auf eine
-**Kante** zeigt, baut die Kachel dahinter (so malt man einen Raum von seinem Rand
-aus weiter, ohne die Mitte der nächsten Kachel zu treffen); und wer *Tür* auf
-eine freie Kante setzt, bekommt eine Wand mit einer Tür darin statt einer
-Fehlermeldung.
+man zeigt —, und diese Kreuzung steht an *einer* Stelle (`applyTool`,
+`applyGridTool`). Zwei Handgriffe daran sind eingebaute Nachsicht: Wer *Boden*
+gewählt hat und auf eine **Kante** zeigt, baut die Kachel dahinter (so malt man
+einen Raum von seinem Rand aus weiter, ohne die Mitte der nächsten Kachel zu
+treffen); und wer *Tür* auf eine freie Kante setzt, bekommt eine Wand mit einer
+Tür darin statt einer Fehlermeldung.
 
 **Und dann gibt es die zweite Reihe der Palette: die Bausteine**
 (`grid/gridTool.ts`, `grid/blocks.ts`). Küchenzeile, Regal, Tisch, Bank, Kisten,
@@ -5323,10 +5356,91 @@ Der Radiergummi räumt in der Reihenfolge auf, in der man es meint: **erst der
 Baustein**, dann die Tür, dann die Wand, dann der Boden. Wer eine Küchenzeile
 löschen will, will nicht den Boden darunter los.
 
+#### Malen und Flächen
+
+**Ein Druck ist eine Kachel, und das ist die falscheste Bedienung, die es für
+einen Boden gibt.** Für eine Tür ist sie richtig; für ein Zimmer von acht mal
+acht Kacheln sind es vierundsechzig Trigger, und spätestens beim dreißigsten
+hört man auf, Räume zu bauen, die größer als eine Stube sind. Zwei Gesten
+nehmen das weg (`editor/planPaint.ts`), und beide kennt jeder aus jedem
+Malprogramm:
+
+- **Malen**: drücken, ziehen, loslassen. Was der Zeiger dabei überstreicht,
+  wird gesetzt. Der einzelne Tipp ist dabei kein eigener Modus, sondern der
+  kürzestmögliche Strich — wer einmal drückt und sofort losläßt, setzt genau
+  eine Kachel und muss dafür nichts umgestellt haben.
+- **Fläche**: zwei Ecken, und dazwischen wird gefüllt. Aufziehen und zweimal
+  tippen sind dasselbe: Wer beim Loslassen woanders steht als beim Drücken, hat
+  aufgezogen; wer auf derselben Kachel losläßt, hat getippt, und die Ecke
+  wartet auf den zweiten Tipp. Aus der Ferne hält niemand den Arm für einen
+  langen Zug ruhig, und wer nah davorsteht, will nicht zweimal tippen.
+
+Drei Rechnungen stehen dahinter, und die dritte ist die, an der ein
+Kacheleditor sonst scheitert:
+
+- **Zwischen zwei Bildern darf keine Lücke bleiben** (`strokeSpots`). Eine Hand
+  fährt in einem Sechzigstel leicht über drei Kacheln; wer nur die unter dem
+  Zeiger setzt, malt gestrichelt. Gerechnet wird deshalb in Kachelschritten und
+  nicht in Metern — zwischen zwei Kacheln liegt eine ganze Zahl von Kacheln.
+  Die **Kante des Ziels gilt für den ganzen Strich**: Wer eine Wand entlang
+  malt, zeigt auf Nordkanten, und sie aus jeder Zwischenkachel neu zu raten
+  stellte an jedem zweiten Schritt eine Wand quer.
+- **Was „füllen" heißt, hängt am Werkzeug** (`areaSpots`). Was auf eine
+  **Kachel** gehört — Boden, Radiergummi, ein Tisch —, füllt die Fläche. Was an
+  eine **Kante** gehört — Wand, Tür, Regal, Geländer —, zieht ihren **Rand**,
+  nach außen gerichtet wie bei `wallRect`. Ein gefülltes Rechteck aus Wänden
+  wäre ein Klotz aus Wänden; gemeint ist ein Zimmer. Damit ist ein Zimmer zwei
+  Gesten: eine Fläche Boden, ein Rechteck Wände.
+- **Die Ecke ist immer eine Kachel**, auch wenn der Zeiger auf einer Fuge lag.
+  Ein Rechteck, dessen Ecke je nach getroffener Kante um eine Kachel springt,
+  bekommt man nicht zweimal gleich hin.
+
+Gehalten wird das vom Zeiger selbst (`core/Pointer.ts`): Neben `onSelect` gibt
+es jetzt `onHold` — jedes Bild, solange die Taste unten bleibt — und
+`onRelease`. Zwei Fallen stecken darin, und beide sind abgefangen: Ein Ziel,
+das mitten im Ziehen **abgemeldet** wird (die Karte wandert an die Hüfte,
+während der Finger noch am Trigger liegt), muss trotzdem sein Loslassen
+bekommen, sonst malt der nächste Druck an dem alten Strich weiter. Und die
+**Zeigefläche der Miniatur entsteht nur einmal** und wird beim Umbauen nur
+nachgezogen — eine Fläche, die bei jeder gesetzten Kachel neu entstünde, nähme
+dem Zeiger mitten im Strich sein Ziel weg, und der Strich wäre nach einer
+Kachel zu Ende.
+
+Im flachen Modus geht dasselbe mit der Maus: gedrückt halten und den Blick
+schwenken. Dafür musste eine alte Ungereimtheit weg — mit gefangener Maus
+(Pointer-Lock) friert der Browser `clientX/clientY` dort ein, wo er sie
+gefangen hat, und der Strahl zeigte für den Rest der Sitzung dorthin, wo der
+Mauszeiger beim ersten Klick zufällig stand. Jetzt zeigt er auf die Bildmitte,
+also dorthin, wo auch das Fadenkreuz ist.
+
+#### Platz zum Weiterbauen
+
+**Man muss neben alles zeigen können, was schon steht** — auch dorthin, wo noch
+gar nichts ist. Der Teller unter dem Modell ist der Plan plus eine Kachel; die
+**Fläche, auf die man zeigen kann, ist der Plan plus fünf** (`FIELD_MARGIN`),
+und das Raster darauf zeigt genau, wo das ist. Ein Editor, in dem man nur an
+vorhandene Kacheln andocken kann, ist einer, in dem man keinen zweiten Flügel
+anbaut; und in einer Welt, in der an dieser Stelle noch nichts steht, ist es der
+Unterschied zwischen bauen und nicht bauen können. Ein **leerer** Plan bekommt
+denselben Rand als Ganzes — sonst hätte, wer bei null anfängt, nichts, worauf er
+zeigen könnte.
+
 **Ob eine Kachel oder ihre Kante gemeint ist, entscheidet ein Streifen**
 (`spotAt`, 70 cm). Das ist die Rechnung, an der ein Kacheleditor steht oder
 fällt: Die Mitte einer Kachel ist ein großes Ziel, ihre Kante eine Linie — und
 eine Linie trifft man in der Brille auf drei Meter Entfernung nicht ohne Hilfe.
+
+#### Wo Karte und Palette hängen
+
+**Der Gürtel hat zwei Haken, und in den meisten Welten hängt an beiden schon
+ein Werkzeug.** Deshalb sucht sich der Editor beim Aufmachen die **freien**
+Haken: Wo beide frei sind — im Bauplatz, der mit Absicht ohne Werkzeuge
+aufmacht —, hängt die Karte an der einen und die Palette an der anderen, und
+man zieht sie mit dem Greifknopf heraus wie jedes Werkzeug. Wo keiner frei ist
+— im Dunkelhaus, in Dust, im Schießstand —, hängen sie an gar keinem und kommen
+aus dem Handgelenk-Menü (*Bauen → Karte holen*); die Palette schwebt dann
+vor einem, statt sich zu verstecken. Zwei Sachen an demselben Haken hieße, dass
+ein Griff dorthin eine von beiden verschluckt, und welche, wüsste niemand.
 
 **Man selbst steht mit im Modell** (`editor/PlayerPin.ts`). Eine Karte hat einen
 Punkt „Sie sind hier", und weil man ihn anfassen kann, ist er gleichzeitig der
@@ -5343,15 +5457,13 @@ kleine, der Grundriss eine große. Ohne diese Regel hat jeder Editor denselben
 Fehler — man will die Figur versetzen und schiebt den ganzen Grundriss weg, weil
 das Modell größer ist und deshalb immer zuerst antwortet.
 
-**Beim Bearbeiten steht man in einem weißen Raum.** Solange die Karte draußen
-ist, wird das Level unsichtbar und seine Körper kommen aus der Physik heraus —
-beides gehört zusammen, denn eine Wand, die man nicht sieht, aber gegen die man
-läuft, ist schlimmer als eine, die im Weg steht. Übrig bleibt ein Boden bis zum
-Horizont und ein weißer Himmel. Der Grund ist derselbe wie beim Tischmodell:
-Wer einen Grundriss bearbeitet, steht nicht gleichzeitig darin — er stünde
-sonst mit dem Kopf in einer Wand, die er gerade selbst gesetzt hat. Beide
-Kulissen liegen von Anfang an übereinander da; umgeschaltet wird nur die
-Sichtbarkeit, und der Körper des dunklen Bodens trägt für beide.
+**Das Modell bringt sein eigenes Licht mit.** Eine kleine Lampe schwebt einen
+halben Meter darüber, und sie hängt **neben** dem Modell in der Welt statt
+darin: Ein Licht in einer Gruppe, die auf ein Zwanzigstel geschrumpft ist,
+leuchtet auch nur ein Zwanzigstel weit. Sie muss sein, seit der Editor nicht
+mehr nur im hellen Bauplatz steht — im Dunkelhaus ist die Umgebung mit Absicht
+fast schwarz, und ein Grundriss, den man nur mit der Taschenlampe lesen kann,
+ist keiner.
 
 **Das fünfte Werkzeug, das keines ist: Hingehen.** Auf eine Kachel der Miniatur
 tippen und dort stehen. Es ändert nichts am Plan und steht deshalb neben den Werkzeugen und
@@ -5361,33 +5473,63 @@ er zu eng ist. Versetzt wird dabei über `PortalWorld.movePlayerTo` — Rig **un
 Kapsel, denn `rig.placeAt` allein verschiebt nur das, was man sieht, und die
 Fortbewegung zieht einen im nächsten Bild zurück.
 
-Zwei kleine Zahlen, die man sonst falsch macht: Der Boden bis zum Horizont liegt
-hier **zwei Zentimeter tiefer** als sonst, weil er sich mit den Bodenplatten des
-Plans sonst um jedes Pixel streitet; und die Mitte des Plans wandert beim
-Anbauen, weshalb `recentre` das Modell um genau so viel zurückschiebt — ohne das
-springt der Grundriss bei jedem Druck ein Stück zur Seite, und man baut ihm
-hinterher.
+#### Was der Bauplatz noch selbst macht
 
-Gespeichert wird im Browser, im Format, das es ohnehin gibt (`navSerial.ts`).
-Nicht, weil das eine Speicherlösung wäre, sondern weil das Gegenteil unerträglich
-ist: Wer zwanzig Minuten baut und die Brille absetzt, soll seinen Grundriss
-wiederfinden. **Das Mobiliar liegt daneben und nicht darin**: Eine Küchenzeile
-ist keine Navigationsinformation, und sie in dieselbe Datei zu schreiben hieße,
-deren Versionsnummer anzuheben und jede gespeicherte Karte für ungültig zu
-erklären — für Möbel. Ein alter Eintrag, der nur die Karte kennt, wird weiter
-gelesen. Der Fehler, den ein Test dabei abfängt, fiele erst beim **zweiten**
-Laden auf: In den gespeicherten Kacheldaten stecken die Aufschläge der Bausteine
-schon drin, und wer sie als Grundwert nimmt und die Bausteine danach anwendet,
-zählt jeden zweimal — nach dem dritten Laden ist die Küche unbegehbar.
+Von der Welt `editor/EditorWorld.ts` ist wenig übrig, und das ist ihr Erfolg und
+nicht ihr Ende. Drei Sachen unterscheiden sie vom Umbauen einer fertigen Welt:
+
+- **Sie fängt bei einem Zimmer an** (`starterGrid.ts`) und nicht bei einem Haus,
+  das schon steht. Eine leere Ebene beantwortet die erste Frage nicht, die jeder
+  hat — *wie sieht denn eine Wand hier aus?*
+- **Sie merkt sich, was gebaut wurde.** Gespeichert wird im Browser, im Format,
+  das es ohnehin gibt (`navSerial.ts`). Nicht, weil das eine Speicherlösung
+  wäre, sondern weil das Gegenteil unerträglich ist: Wer zwanzig Minuten baut
+  und die Brille absetzt, soll seinen Grundriss wiederfinden. Geschrieben wird
+  beim Weglegen der Karte, beim Verlassen der Welt und beim Bauen höchstens alle
+  zwei Sekunden — ein gemalter Strich sind sechzig Änderungen in der Sekunde,
+  und der ganze Grundriss durch `JSON.stringify` ist keine Zeile, die sechzigmal
+  laufen darf. **Das Mobiliar liegt daneben und nicht darin**: Eine Küchenzeile
+  ist keine Navigationsinformation, und sie in dieselbe Datei zu schreiben
+  hieße, deren Versionsnummer anzuheben und jede gespeicherte Karte für ungültig
+  zu erklären — für Möbel. Ein alter Eintrag, der nur die Karte kennt, wird
+  weiter gelesen. Der Fehler, den ein Test dabei abfängt, fiele erst beim
+  **zweiten** Laden auf: In den gespeicherten Kacheldaten stecken die Aufschläge
+  der Bausteine schon drin, und wer sie als Grundwert nimmt und die Bausteine
+  danach anwendet, zählt jeden zweimal — nach dem dritten Laden ist die Küche
+  unbegehbar.
+- **Beim Bearbeiten steht man in einem weißen Raum.** Wo eine fertige Welt nur
+  zur Seite tritt, tauscht der Bauplatz seine Kulisse: Boden bis zum Horizont
+  und ein weißer Himmel statt des dunklen. Der Grund ist derselbe wie beim
+  Tischmodell — wer einen Grundriss von Grund auf zieht, steht nicht
+  gleichzeitig darin. Beide Kulissen liegen von Anfang an übereinander da;
+  umgeschaltet wird nur die Sichtbarkeit, und der Körper des dunklen Bodens
+  trägt für beide. Zwei kleine Zahlen, die man sonst falsch macht: Der Boden bis
+  zum Horizont liegt hier **zwei Zentimeter tiefer** als sonst, weil er sich mit
+  den Bodenplatten des Plans sonst um jedes Pixel streitet; und die Mitte des
+  Plans wandert beim Anbauen, weshalb `recentre` das Modell um genau so viel
+  zurückschiebt — ohne das springt der Grundriss bei jedem Druck ein Stück zur
+  Seite, und man baut ihm hinterher.
 
 **Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste —
-und damit fehlen im Bauplatz auch die beiden Bausteine, die zwischen Etagen
-führen: Treppe und Rampe), Rückgängig, Fenster als Werkzeug (gebaut werden sie
-längst, gesetzt bisher nur von Welten in ihrem Grundriss), ein Weg, einen
-gebauten Plan als eigene Welt zu laden statt nur im Bauplatz zu haben — und die
-Karte als **echtes Werkzeug** im Werkzeugkasten (`portal/tools/`), damit sie
-sich auch in andere Welten mitnehmen ließe. Heute führt der Bauplatz seine beiden Hüften selbst; das ist
-weniger Verdrahtung, aber es bleibt in dieser einen Welt.
+und damit fehlen auch die beiden Bausteine, die zwischen Etagen führen: Treppe
+und Rampe), Rückgängig, Fenster als Werkzeug (gebaut werden sie längst, gesetzt
+bisher nur von Welten in ihrem Grundriss), ein Weg, einen gebauten Plan als
+eigene Welt zu laden statt nur im Bauplatz zu haben — und dass ein Umbau an
+einer fertigen Welt den Neustart überlebt. Heute merkt sich nur der Bauplatz
+seinen Grundriss; wer im Dunkelhaus eine Wand versetzt, findet sie beim nächsten
+Laden wieder an ihrem alten Platz. Der Grund ist keine Bequemlichkeit, sondern
+die **Massen**: Ein Dach oder eine Felswand steht in keinem Navigationsgraphen,
+und ein gespeicherter Grundriss allein könnte eine Welt deshalb nicht
+zurückbringen.
+
+Eine rauhe Kante gibt es dazu, und sie steht hier, damit sie niemand für einen
+Zufall hält: **Der Greifknopf gehört beim Bauen zwei Herren.** Die Welt greift
+weiter nach Requisiten (`PortalWorld`), der Editor nach Modell, Palette und
+Figur — und wer in einer Welt mit Kisten mitten in der Miniatur greift, kann
+beides auf einmal erwischen. Im Bauplatz fällt das nicht auf (dort liegt nichts
+herum), anderswo ist es selten (die Requisiten sind beim Bauen eingefroren und
+das Haus ist unsichtbar), aber es ist da. Der saubere Weg wäre, dass die Welt
+ihr Greifen abgibt, solange die Karte draußen ist.
 
 ### Die Werkzeugseite
 
@@ -6149,7 +6291,10 @@ Vier Dateien, alle **ohne three.js**:
   (`nav/navGraph.ts`), also weiß ein NPC von der Küchenzeile, bevor er
   losläuft.
 - **`grid/GridWorld.ts` — die Basis.** Sie baut den Plan, führt die gemeinsame
-  Palette und entscheidet einmal für alle, woran ein Portal haftet.
+  Palette und entscheidet einmal für alle, woran ein Portal haftet — **und sie
+  gibt jeder Gitterwelt den Bearbeitungsmodus** (`editor/WorldEditor.ts`, siehe
+  *Bauen, während man darin steht*): Der Grundriss liegt ohnehin da, und der
+  Editor kann nichts anderes, als daran zu arbeiten.
 
 Vier Sachen sind daran wichtig, und drei davon merkt man erst hinterher.
 
@@ -6191,10 +6336,12 @@ NPC nicht existiert; das sieht danach aus wie ein kaputter Character-Controller.
 Lauf das Loch für seinen eigenen Kopf schlägt — genau darin müsste der nächste
 stehen.
 
-**Vier Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust und die
-Hülle der Kletterhalle. Der Bauplatz baut ohnehin schon aus derselben Liste,
-und die Alpen und der Mond stehen weiter auf ihrem Höhenfeld — ein Berg ist
-keine Kachel, und die Umrechnung würde ihn nur schlechter machen.
+**Fünf Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust, die
+Hülle der Kletterhalle und das Gokart. Der Bauplatz ist seit der dritten
+Fassung selbst eine davon — er baute ohnehin schon aus derselben Liste, und was
+ihn noch ausmacht, sind ein Startzimmer, ein Speicher und ein weißer Raum. Die
+Alpen und der Mond stehen weiter auf ihrem Höhenfeld — ein Berg ist keine
+Kachel, und die Umrechnung würde ihn nur schlechter machen.
 
 Die Grenze ist bei der **Kletterhalle** am deutlichsten und dort mit Absicht
 gezogen: Überhang, Riss und Kamin sind kein Mobiliar, sondern das Spiel selbst.
@@ -6216,6 +6363,13 @@ erarbeiten musste:
   und eine Welt verstellt daran einzelne (`tint()`), statt sich sechs eigene
   Materialien anzulegen. Das ist die „einheitliche Sache", die man an Böden und
   Wänden zuerst bemerkt.
+- **Der Bearbeitungsmodus.** Karte, Palette, Tischmodell, Malen und Flächen —
+  eine Zeile Verdrahtung, weil `layout()` ohnehin einen `GridPlan` liefert. Wer
+  ihn nicht will, sagt `editable()` `false`. Zwei Sachen macht die Basis dabei
+  selbst: den **Umbau** (alte Quader vollständig zurücknehmen, `dropSlab`, und
+  aus der Liste neu bauen — höchstens einmal je Bild, egal wie viele Kacheln
+  ein Strich gesetzt hat) und das **Abtasten danach** (`rebake`), damit NPCs
+  belaufen können, was gerade entstanden ist.
 - **Geprüft, bevor jemand die Brille aufsetzt.** Jeder Grundriss liegt in einer
   eigenen Datei ohne three.js (`dark/darkHouse.ts`, `range/rangeStand.ts`,
   `dust/dustTown.ts`, `climb/climbHall.ts`), und sein Test läuft durch jede

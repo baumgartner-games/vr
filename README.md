@@ -21,9 +21,17 @@ Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoom
 und sie fällt nicht; an einer Palette tunkt man Boden, Wand oder Tür ein und
 setzt sie beliebig oft, und in der zweiten Reihe liegen die **Bausteine**:
 Küchenzeile, Regal, Tisch, Bank, Kisten, Säule, Geländer, Brüstung, Podest —
-eine Kachel, eine Sorte, eine Blickrichtung, wie bei Minecraft. Die eigene
+eine Kachel, eine Sorte, eine Blickrichtung, wie bei Minecraft. Man hält den
+Trigger gedrückt und **malt** eine ganze Reihe, oder zieht **zwei Ecken** auf
+und füllt die Fläche dazwischen — ein Zimmer sind damit zwei Gesten statt
+sechzig Trigger. Die eigene
 Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
-ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum —, und
+ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
+**Dasselbe geht in jeder Kachelwelt**: Im Dunkelhaus, im Schießstand, in Dust,
+in der Kletterhalle und auf der Kartbahn holt man die Karte aus dem
+Handgelenk-Menü (*Bauen → Karte holen*), baut an dem Haus weiter, in dem man
+gerade steht, und legt sie wieder weg — dann steht das Umgebaute fest da und
+NPCs laufen darauf. Dazu kommt
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
@@ -102,7 +110,10 @@ dem Weg über die Leitung, die Maße des Poseraums, den **Bauplan des Editors**
 (worauf ein Zeiger trifft — Kachel oder Kante —, was die vier Werkzeuge daraus
 machen, und dass die gebauten Quader vom Abtasten wiedergefunden werden) samt
 der **Miniatur** (Hin und Zurück ohne Drift, und dass der Punkt zwischen den
-Fingern beim Ziehen liegen bleibt), **was ein NPC an einer Kante anfängt**
+Fingern beim Ziehen liegen bleibt) und dem **Malen** (dass zwischen zwei
+Bildern keine Lücke bleibt, und dass ein Rechteck aus Boden seine Fläche füllt,
+eines aus Wänden dagegen nur seinen Rand — sonst wäre es ein Klotz und kein
+Zimmer), **was ein NPC an einer Kante anfängt**
 (wie hoch er tritt, wie hoch er sich hochzieht, wie steil ein Weg für ihn noch
 einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte) und das
 **ganze Navigationslabor auf einmal**

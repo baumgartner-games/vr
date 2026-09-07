@@ -104,4 +104,18 @@ export class EditorPanel extends THREE.Group {
   keys(): readonly { id: string; mesh: THREE.Object3D }[] {
     return this.pads.map((pad) => ({ id: pad.id, mesh: pad.mesh }));
   }
+
+  /**
+   * **Welche Taste gerade gilt** — sie leuchtet, die anderen nicht.
+   *
+   * Für die Tasten, die einen Zustand schalten statt etwas auszulösen: Malen
+   * oder Fläche ist keine Handlung, sondern eine Haltung, und eine Haltung,
+   * die man nicht sieht, ist eine, die man vergisst. Bei den übrigen Tasten
+   * ändert der Aufruf nichts — sie sind nie „an".
+   */
+  setActive(id: string | null): void {
+    for (const pad of this.pads) {
+      pad.mesh.material.emissiveIntensity = pad.id === id ? 0.7 : 0;
+    }
+  }
 }

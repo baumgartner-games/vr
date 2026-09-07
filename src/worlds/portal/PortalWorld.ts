@@ -140,7 +140,13 @@ import {
 import { GhostHand } from '../../core/HandVisuals';
 import { TextPlane } from '../../ui/TextPlane';
 import { playPick, playPop, playTone } from '../../core/Audio';
-import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
+import {
+  GROUND_TOP,
+  createGround,
+  createLighting,
+  disposeShapes,
+  disposeTree,
+} from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
 import { SignRoom, type SignControl } from '../signs/SignRoom';
 import {
@@ -695,6 +701,16 @@ export class PortalWorld implements World {
     THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
   >();
   protected readonly surfaceGroups = new Map<THREE.Object3D, number>();
+  /**
+   * Der Körper, den ein gebauter Quader in der Physik hat.
+   *
+   * Nur dafür da, ihn **wieder wegnehmen** zu können (`dropSlab`). Solange eine
+   * Welt einmal gebaut und dann nur noch bewohnt wurde, brauchte das niemand;
+   * seit man an einer Gitterwelt im Stehen weiterbaut (`grid/GridWorld.ts`),
+   * wird sie zwischendurch umgebaut — und eine Wand, die man löscht, deren
+   * Körper aber stehen bleibt, ist eine unsichtbare Wand.
+   */
+  private readonly slabBodies = new Map<THREE.Object3D, PhysicsBody>();
   /** Shared id of every prop, in both directions. */
   private readonly bodies = new Map<string, PhysicsBody>();
   private readonly ids = new Map<PhysicsBody, string>();
@@ -3339,6 +3355,7 @@ export class PortalWorld implements World {
     this.navSwitches = allOn();
     this.solids.length = 0;
     this.surfaceGroups.clear();
+    this.slabBodies.clear();
 
     this.flights.clear();
     this.bodies.clear();
@@ -3822,9 +3839,62 @@ export class PortalWorld implements World {
       this.surfaces.push(mesh);
     }
     if (physics) {
-      this.physics!.addStatic(mesh, { membership: group, filter: ALL_GROUPS });
+      this.slabBodies.set(
+        mesh,
+        this.physics!.addStatic(mesh, { membership: group, filter: ALL_GROUPS }),
+      );
     }
     return mesh;
+  }
+
+  /**
+   * **Ob an dieser Hüfte noch Platz ist.**
+   *
+   * Der Gürtel hat zwei Haken, und in den meisten Welten hängt an beiden schon
+   * ein Werkzeug. Wer noch etwas dort unterbringen will — die Karte des
+   * Bearbeitungsmodus etwa (`grid/GridWorld.ts`) —, muss vorher fragen: Zwei
+   * Sachen am selben Haken heißt, dass ein Griff dorthin eine von beiden
+   * verschluckt, und welche, weiß niemand.
+   */
+  protected beltFree(side: Handedness): boolean {
+    return this.belt?.slot(side).tool == null;
+  }
+
+  /**
+   * **Einen gebauten Quader wieder aus der Welt nehmen** — Körper, Portalfläche,
+   * Abtastliste und Geometrie.
+   *
+   * Die Gegenrichtung von `slab()`, und sie gehört an dieselbe Stelle: Ein
+   * Quader steht in vier Listen, und wer ihn nur aus der Szene nimmt, hat ihn
+   * in dreien davon noch. Der Fehler, den das sonst macht, ist der schlimmste,
+   * den eine Welt haben kann — man läuft gegen eine Wand, die nicht mehr da
+   * ist.
+   */
+  protected dropSlab(mesh: THREE.Object3D): void {
+    const body = this.slabBodies.get(mesh);
+    if (body) {
+      this.physics?.remove(body);
+      this.slabBodies.delete(mesh);
+    }
+    const solid = this.solids.indexOf(mesh);
+    if (solid >= 0) this.solids.splice(solid, 1);
+    const surface = this.surfaces.indexOf(mesh);
+    if (surface >= 0) this.surfaces.splice(surface, 1);
+    this.surfaceGroups.delete(mesh);
+    // **Nur die Form.** Die Materialien einer Gitterwelt sind geteilt: Wer sie
+    // hier freigäbe, gäbe dieselben acht bei jedem Umbau hundertmal frei — und
+    // die Quader, die gleich neu entstehen, brauchen genau diese acht.
+    disposeShapes(mesh);
+  }
+
+  /**
+   * **Noch einmal abtasten** — nachdem eine Welt umgebaut wurde.
+   *
+   * Der Graph wird dabei ersetzt und nicht nachgepflegt; wer ihn liest, holt
+   * ihn sich ohnehin bei jedem Zugriff neu (`NpcDirector`, `navForAgents`).
+   */
+  protected rebake(): void {
+    this.bakeNavigation();
   }
 
   // --- der Boden, die Schwerkraft und der Weg zurück ------------------------
