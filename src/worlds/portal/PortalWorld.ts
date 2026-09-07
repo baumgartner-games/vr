@@ -94,6 +94,7 @@ import { CORK_LENGTH, CORK_NAME, CORK_RADIUS, CORK_SPEED, Foam, ShakeMeter } fro
 import {
   DEFAULT_NEAR_HEIGHT,
   DEFAULT_NEAR_RADIUS,
+  DEFAULT_NEAR_SCALE,
   REMOTE_RANGE,
   flightArrived,
   flightDuration,
@@ -103,6 +104,7 @@ import {
   nearZoneDistance,
   pickAimTarget,
   pivotGrab,
+  stretchGrab,
   rayReach,
   reachDepth,
   type AimTarget,
@@ -262,10 +264,10 @@ const PREVIEW_LIGHT = 0.45;
  * **Wie weit die Figur der laufenden Vorschau langt**, in Metern.
  *
  * Doppelt so weit wie eine Spielerhand von selbst zugreift
- * (`DEFAULT_NEAR_RADIUS`, ein Meter), und die Verdopplung ist keine Willkür:
+ * (`DEFAULT_NEAR_RADIUS`, 1,40 m), und die Verdopplung ist keine Willkür:
  * In der Brille streckt man den Arm aus und weiß dabei genau, was man
  * erwischt; von oben zeigt man mit einem Finger auf ein Telefon, und ein Kreis
- * von einem Meter ist auf einer Karte von hundert ein Punkt, den niemand
+ * von anderthalb Metern ist auf einer Karte von hundert ein Punkt, den niemand
  * trifft.
  */
 const PREVIEW_REACH = DEFAULT_NEAR_RADIUS * 2;
@@ -6048,9 +6050,14 @@ export class PortalWorld implements World {
     }
     if (!controller.squeeze.justPressed) return;
 
-    // Already in the other hand? Then this is a hand-over, not a pick-up.
+    // Already in the other hand? Then this is a hand-over, not a pick-up. Ihre
+    // festgefrorene Geisterhand geht mit: gehalten wird der Gegenstand ab
+    // jetzt hier, und zwei Geister an einem Ding sagen nichts mehr.
     const other = this.handHolding(aim.entry);
-    if (other) this.release(ctx, other, this.grabs.get(other)!, false);
+    if (other) {
+      this.release(ctx, other, this.grabs.get(other)!, false);
+      this.hideGhost(other);
+    }
     this.attach(hand, anchor, aim.entry, aim.stage === 'near' ? controller : null, aim.point);
     this.pinGhost(hand, aim.entry);
     controller.pulse(aim.stage === 'near' ? 0.35 : 0.5, 30);
@@ -6085,7 +6092,7 @@ export class PortalWorld implements World {
     if (!near && !this.grabConfig.remote) return null;
 
     controller.getRay(_ray);
-    const entry = this.findAimTarget(_ray);
+    const entry = this.findAimTarget(_ray, REMOTE_RANGE, controller.handedness);
     if (!entry || this.fixedInZone(entry)) return null;
     const target = aimTargetOf(entry);
     const inZone = near && nearZoneDistance(target, this.nearZone) !== null;
@@ -6224,12 +6231,21 @@ export class PortalWorld implements World {
       anchor.getWorldPosition(_point);
       anchor.getWorldQuaternion(_quaternion);
       copyPose(_point, _quaternion, _handNow);
-      pivotGrab(near.objectStart, near.handStart, _handNow, near.hold, _spun);
+      pivotGrab(near.objectStart, near.handStart, _handNow, near.hold, this.nearScale, _spun);
       _point.set(_spun.position.x, _spun.position.y, _spun.position.z);
       _quaternion.set(_spun.rotation.x, _spun.rotation.y, _spun.rotation.z, _spun.rotation.w);
     } else {
       _matrix.multiplyMatrices(anchor.matrixWorld, grab.offset);
       _matrix.decompose(_point, _quaternion, _probe);
+      // Auch der starre Griff fährt verstärkt: seine Verschiebung steckt schon
+      // eins zu eins in der Matrix der Hand, also kommt hier nur noch der
+      // Zuschlag dazu. In der Faust nicht — dort *ist* die Hand am Gegenstand,
+      // und ein Würfel, der weiter fährt als die Faust, die ihn hält, wäre
+      // kein Griff mehr, sondern ein Fehler.
+      if (near) {
+        anchor.getWorldPosition(_hand);
+        stretchGrab(near.handStart.position, _hand, this.nearScale, _point);
+      }
     }
 
     grab.velocity
@@ -6309,6 +6325,20 @@ export class PortalWorld implements World {
   private get pullLimit(): number {
     const stored = this.grabConfig.pull;
     return Number.isFinite(stored) ? stored / 100 : REMOTE_PULL_SPEED;
+  }
+
+  /**
+   * **Wie stark der Nahgriff verstärkt** — die Zahl aus den Einstellungen
+   * (`Greifen → Nahverstärkung`, dort in Prozent), als Faktor.
+   *
+   * Der Zylinder reicht weiter, als ein Arm langt; die Hand vor dem Körper
+   * legt aber nur den Weg zurück, den ein Arm eben zurücklegt. Der Faktor
+   * schließt die Lücke, und er gilt nur für die **Verschiebung** — die Drehung
+   * bleibt Grad für Grad.
+   */
+  private get nearScale(): number {
+    const stored = this.grabConfig.scale;
+    return Number.isFinite(stored) ? stored / 100 : DEFAULT_NEAR_SCALE;
   }
 
   /** Wie schnell diese Hand gerade zum Körper zieht, in Metern je Sekunde. */
@@ -6418,14 +6448,51 @@ export class PortalWorld implements World {
     for (const hand of this.ropes.keys()) this.hideRope(hand);
   }
 
-  /** Nearest prop the aiming ray actually enters — the aim for all three reaches. */
-  private findAimTarget(ray: THREE.Ray, range = REMOTE_RANGE): PhysicsBody | null {
+  /**
+   * Nearest prop the aiming ray actually enters — the aim for all three reaches.
+   *
+   * @param hand die zielende Hand, wenn es eine ist: dann darf sie auch das
+   *             ins Auge fassen, was die **andere** gerade nah gefasst hält
+   *             (`takeable`). Ohne Hand zielt ein Werkzeug, und für das ist
+   *             alles, was in einer Hand steckt, weiterhin vergeben.
+   */
+  private findAimTarget(
+    ray: THREE.Ray,
+    range = REMOTE_RANGE,
+    hand: Handedness | null = null,
+  ): PhysicsBody | null {
     _aimTargets.length = 0;
     for (const entry of this.props) {
-      if (this.flights.has(entry) || this.handHolding(entry)) continue;
+      if (this.flights.has(entry) || !this.takeable(entry, hand)) continue;
       _aimTargets.push(aimTargetOf(entry));
     }
     return pickAimTarget(_aimTargets, ray.origin, ray.direction, range)?.entry ?? null;
+  }
+
+  /**
+   * **Von Hand zu Hand, über den Strahl** — ob eine zielende Hand nach etwas
+   * greifen darf, das schon in einer Hand liegt.
+   *
+   * Ein **nah gefasster** Gegenstand darf gewechselt werden: Er liegt sichtbar
+   * da draußen und folgt einer Geisterhand, und die andere Hand soll ihn
+   * übernehmen können, ohne dass man ihn erst fallen lässt und neu zielt. Das
+   * ist derselbe Vorgang wie beim Anfassen, nur auf Armlänge plus Zylinder —
+   * man sieht dabei die Geisterhand der zweiten Hand daneben stehen und
+   * drückt.
+   *
+   * Was **in der Faust** steckt, wechselt dagegen weiter nur von Hand zu Hand:
+   * ein Ding aus der eigenen Faust quer durch den Raum anzuvisieren ist kein
+   * Wechsel, sondern ein Versehen. Und das Ziel muss **im Zylinder** liegen —
+   * sonst wäre es ein Ferngriff auf etwas, das eine andere Hand jedes Bild
+   * woandershin schreibt, und beide zögen daran.
+   */
+  private takeable(entry: PhysicsBody, hand: Handedness | null): boolean {
+    const holder = this.handHolding(entry);
+    if (!holder) return true;
+    if (!hand || holder === hand) return false;
+    if (!this.grabs.get(holder)?.near) return false;
+    if (!this.grabConfig.near || this.nearZone.radius <= 0) return false;
+    return nearZoneDistance(aimTargetOf(entry), this.nearZone) !== null;
   }
 
   /**
