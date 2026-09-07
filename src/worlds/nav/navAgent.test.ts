@@ -164,6 +164,57 @@ describe('Die Tür, die inzwischen zu ist', () => {
     expect(agent.belief.doorOpinion('tuer-7')).toMatchObject({ known: true, barred: true });
   });
 
+  it('läuft zur Metalltür, weil er sie für offen hielt, und geht dort außen herum', () => {
+    // **Der Umweg fängt an der Tür an.** Der Zombie macht keine Tür auf und
+    // bekommt eine aus Blech auch nicht klein — aber wissen kann er das erst,
+    // wenn er davorsteht (`navBelief.ts`, `hopeful`). Vorher bog er am Start
+    // ab, ohne je dagewesen zu sein.
+    const graph = house();
+    graph.setDoor('tuer-7', { open: false, material: 'metal' });
+    const agent = new NavAgent({ profile: ZOMBIE_PROFILE });
+    const at = spot(graph, 0, 1);
+
+    // Erst einmal geradeaus: geplant ist quer durch die Tür.
+    expect(agent.step(graph, at, spot(graph, 6, 1), 1 / 30, 0).complete).toBe(true);
+    expect(agent.path.some((key) => keyZ(key) === 3)).toBe(false);
+    expect(agent.belief.doorOpinion('tuer-7')).toBeUndefined();
+
+    const result = run(graph, agent, at, () => spot(graph, 6, 1), { seconds: 60 });
+    expect(result.arrived).toBe(true);
+    // Er hat sie angesehen, und zwar dort, wo man sie ansieht.
+    expect(agent.belief.doorOpinion('tuer-7')).toMatchObject({ known: true, open: false });
+    // Und ist wirklich außen herum gegangen: der Gang in Reihe 3.
+    expect([...result.visited].some((key) => keyZ(key) === 3)).toBe(true);
+  });
+
+  it('verlangt an der hölzernen Tür die Faust und an der metallenen gar nichts', () => {
+    // Dieselbe Bucht, dasselbe Blatt, zwei Materialien: Aus Holz ist die Tür
+    // drei Sekunden Arbeit, aus Metall eine Wand (`navDoor.ts`). Beide Male
+    // steht er davor — nur einmal ist etwas zu tun.
+    const actions = (material: 'wood' | 'metal'): Set<string> => {
+      const graph = house();
+      graph.setDoor('tuer-7', { open: false, material });
+      const agent = new NavAgent({ profile: ZOMBIE_PROFILE });
+      const at = spot(graph, 0, 1);
+      const seen = new Set<string>();
+      const dt = 1 / 30;
+      for (let i = 0; i < 900; i++) {
+        const step = agent.step(graph, at, spot(graph, 6, 1), dt, i * dt);
+        seen.add(step.doorAction);
+        if (!step.waypoint) continue;
+        const dx = step.waypoint.x - at.x;
+        const dz = step.waypoint.z - at.z;
+        const length = Math.hypot(dx, dz) || 1;
+        slide(graph, at, (dx / length) * 2.4 * dt, (dz / length) * 2.4 * dt);
+      }
+      // Angesehen hat er sie in beiden Fällen — sonst stünde er ewig davor.
+      expect(agent.belief.doorOpinion('tuer-7')).toMatchObject({ known: true });
+      return seen;
+    };
+    expect(actions('wood').has('break')).toBe(true);
+    expect(actions('metal')).toEqual(new Set(['none']));
+  });
+
   it('bemerkt eine Kiste, die jemand vor ihn stellt, und plant um', () => {
     const graph = new NavGraph([0]);
     fillRect(graph, { x: 0, z: 0, w: 7, d: 3 });

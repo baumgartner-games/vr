@@ -189,9 +189,22 @@ export class NavAgent {
     this.tuning = { ...AGENT_DEFAULTS, ...tuning };
   }
 
-  /** Der Weg, den er gerade läuft — für die Debug-Ansicht. */
+  /** Der Weg, den er gerade läuft, als Kacheln — grob, aber handlich. */
   get path(): readonly TileKey[] {
     return this.tiles;
+  }
+
+  /**
+   * **Derselbe Weg als Linie** — die Punkte, die er wirklich abläuft.
+   *
+   * Der Unterschied zu `path` ist genau der, um den es beim Zeichnen geht: Die
+   * Kacheln sagen, *über welche* er geht, ihre Mitten aber nicht, *wo*. Ein Weg
+   * aus Kachelmitten schneidet auf dem Bild jede Hausecke, um die die Schnur in
+   * Wirklichkeit einen Bogen macht (`navPath.pullString`) — und dann sucht man
+   * den Fehler in der Wegsuche, die gerade recht hatte.
+   */
+  get points(): readonly PathPoint[] {
+    return this.route;
   }
 
   /** Der Wegpunkt, der gerade dran ist. */
@@ -250,7 +263,7 @@ export class NavAgent {
     this.jump = NO_TILE;
     this.leap = NO_TILE;
     const waypoint = this.pick(graph, at, goal);
-    const door = this.doorAhead(graph, from, at);
+    const door = this.doorAhead(graph, from, at, now);
     return {
       waypoint,
       jump: this.jump,
@@ -274,24 +287,35 @@ export class NavAgent {
    * Wandlinie, nicht zur Kachelmitte. Eine Kachel ist 2,5 m breit, und eine
    * Tür, die aufgeht, während man noch am anderen Ende der Kachel steht, sieht
    * aus wie ein Gespenst.
+   *
+   * **Und hier erfährt er sie auch.** Wer so dicht davorsteht, sieht, ob sie
+   * offen ist und ob sie verriegelt ist — das kommt in seine Meinung
+   * (`navBelief.ts`), und beim nächsten Bild plant er damit. Genau das ist die
+   * andere Hälfte der Freiraum-Annahme: Er läuft hin, *weil* er sie für offen
+   * hielt, und geht außen herum, weil er jetzt weiß, dass sie es nicht ist.
+   * Ohne diese Zeile stünde ein Zombie vor einer Metalltür und drückte
+   * dagegen, bis das Festfahren ihn nachsehen lässt (`observe`).
    */
   private doorAhead(
     graph: NavGraph,
     from: TileKey,
     at: Spot3,
+    now: number,
   ): { id: string; action: DoorAction } | null {
     const next = this.route[this.cursor]?.tile;
     if (next === undefined || from === NO_TILE || next === from) return null;
+    let todo: { id: string; action: DoorAction } | null = null;
     for (const dir of headings(from, next)) {
       const facts = graph.wall(from, dir);
       if (!facts || facts.kind !== 'door' || !facts.id) continue;
       if (neighbour(from, dir) === NO_TILE) continue;
+      if (doorBroken(facts)) continue;
       if (this.gapTo(from, dir, at) > this.tuning.reach) continue;
+      this.belief.seeDoor(facts.id, facts, now);
       const action = doorTodo(facts, powerFor(this.tuning));
-      if (action === 'none') continue;
-      return { id: facts.id, action };
+      if (action !== 'none' && !todo) todo = { id: facts.id, action };
     }
-    return null;
+    return todo;
   }
 
   /** Wie weit er von der Wandlinie zwischen seiner Kachel und der nächsten weg ist. */
@@ -323,9 +347,10 @@ export class NavAgent {
       const side = neighbour(from, dir);
       if (side === NO_TILE) continue;
       const wall = graph.wall(from, dir);
-      if (wall && wall.kind === 'door' && wall.id) {
-        this.belief.seeDoor(wall.id, wall, now);
-        learned = true;
+      if (wall && wall.kind === 'door' && wall.id && !doorBroken(wall)) {
+        // Nur eine **Änderung** ist eine Neuigkeit: Wer dreimal dieselbe
+        // geschlossene Tür ansieht, hat einmal etwas gelernt.
+        if (this.belief.seeDoor(wall.id, wall, now)) learned = true;
       }
       if (graph.has(side) && graph.isBlocked(side)) {
         this.belief.seeTile(side, true, now);

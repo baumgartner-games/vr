@@ -490,14 +490,37 @@ function shunned(graph: NavGraph, options: PathOptions): (tile: TileKey) => bool
   };
 }
 
-/** Was der Schnurzug über den wissen muss, der den Weg laufen soll. */
-interface PullSetup {
-  /** Wie weit ein Durchlass an einer besetzten Ecke eingezogen wird. */
-  shrink: number;
+/**
+ * Was man wissen muss, um eine **Ecke** zu beurteilen — mehr braucht
+ * `cornerBlocked` nicht, und deshalb steht es getrennt vom Schnurzug: Die
+ * Debug-Ansicht stellt dieselbe Frage und läuft keinen Weg.
+ */
+export interface CornerSetup {
   power: DoorPower;
   belief: NavBelief | null;
   shunned: (tile: TileKey) => boolean;
+  /** Ein Zustandsobjekt zum Wiederverwenden — die Frage wird oft gestellt. */
   scratch: WallState;
+}
+
+/**
+ * Die Ecke, wie sie **ist**: keine Meinung, keine Gefahr, und eine
+ * geschlossene Tür zählt wie ein Türblatt, das dort hängt.
+ *
+ * Für alles, was keinen Läufer mitbringt — die Debug-Ansicht zeichnet die
+ * betretbare Fläche für niemanden Bestimmten.
+ */
+const TRUTH_CORNER: CornerSetup = {
+  power: doorPower(true),
+  belief: null,
+  shunned: () => false,
+  scratch: newWallState(),
+};
+
+/** Was der Schnurzug über den wissen muss, der den Weg laufen soll. */
+interface PullSetup extends CornerSetup {
+  /** Wie weit ein Durchlass an einer besetzten Ecke eingezogen wird. */
+  shrink: number;
 }
 
 /**
@@ -655,8 +678,8 @@ function gateBetween(graph: NavGraph, a: TileKey, b: TileKey, setup: PullSetup):
   const dir = dirBetween(a, b);
   const left = leftOf(dir);
   const right = opposite(left);
-  const one = gateEnd(graph, a, b, dir, left, setup);
-  const other = gateEnd(graph, a, b, dir, right, setup);
+  const one = gateEnd(graph, a, dir, left, setup);
+  const other = gateEnd(graph, a, dir, right, setup);
   return {
     tile: b,
     lx: one.x,
@@ -679,43 +702,54 @@ function gateBetween(graph: NavGraph, a: TileKey, b: TileKey, setup: PullSetup):
 function gateEnd(
   graph: NavGraph,
   a: TileKey,
-  b: TileKey,
   dir: Dir,
   side: Dir,
   setup: PullSetup,
 ): { x: number; z: number; tight: boolean } {
   const x = (keyX(a) + 0.5 + (dirX(dir) + dirX(side)) / 2) * TILE;
   const z = (keyZ(a) + 0.5 + (dirZ(dir) + dirZ(side)) / 2) * TILE;
-  if (!pinched(graph, a, b, dir, side, setup)) return { x, z, tight: false };
+  if (!cornerBlocked(graph, a, dir, side, setup)) return { x, z, tight: false };
   return { x: x - dirX(side) * setup.shrink, z: z - dirZ(side) * setup.shrink, tight: true };
 }
 
 /**
- * Ob an dieser Ecke des Durchlasses wirklich etwas steht.
+ * **Ob an dieser Ecke einer Kachel wirklich etwas steht.**
  *
- * Vier Kacheln stoßen dort zusammen: die beiden, zwischen denen der Durchlass
- * liegt, und ihre beiden Nachbarn auf dieser Seite. Fehlt einer der Nachbarn,
- * ist er gesperrt, oder steht zwischen zweien der vier eine Wand, dann ist die
+ * Gemeint ist die Ecke, an der `tile`, sein Nachbar in Richtung `dir`, sein
+ * Nachbar in Richtung `side` und die Kachel schräg gegenüber zusammenstoßen —
+ * `dir` und `side` stehen dafür quer zueinander. Fehlt eine der drei anderen,
+ * ist sie gesperrt, oder steht zwischen zweien der vier eine Wand, dann ist die
  * Ecke eine Ecke, und wer um sie herum will, hält seinen Halbmesser Abstand.
  * Sind alle vier offen, liegt dort nur Boden — und den darf die Schnur
  * ausnutzen, sonst schlingerte sie um jede Kachelecke eines leeren Saals.
+ *
+ * **Das Kopfende einer Wand ist genau so eine Ecke**, und es ist die, die man
+ * übersieht: Neben der letzten Kachel der Wand liegt eine, die auf allen vier
+ * Seiten frei ist — und trotzdem steht der Klotz mit seiner Stirnseite in ihrer
+ * Ecke. Wer nur Seite für Seite fragt, hält an der Wand entlang sauber Abstand
+ * und stößt an ihrem Ende dagegen.
+ *
+ * Steht hier und nicht in der Glättung, weil die **Debug-Ansicht** dieselbe
+ * Frage stellt (`navScene.ts`, Ebene *Betretbar*): Zwei Antworten darauf wären
+ * eine Ansicht, die etwas anderes zeigt, als gelaufen wird.
  */
-function pinched(
+export function cornerBlocked(
   graph: NavGraph,
-  a: TileKey,
-  b: TileKey,
+  tile: TileKey,
   dir: Dir,
   side: Dir,
-  setup: PullSetup,
+  setup: CornerSetup = TRUTH_CORNER,
 ): boolean {
-  const besideA = neighbour(a, side);
-  const besideB = neighbour(b, side);
+  const across = neighbour(tile, dir);
+  if (across === NO_TILE || !believedWalkable(setup.belief, graph, across)) return true;
+  const besideA = neighbour(tile, side);
+  const besideB = neighbour(across, side);
   if (besideA === NO_TILE || besideB === NO_TILE) return true;
   if (!believedWalkable(setup.belief, graph, besideA)) return true;
   if (!believedWalkable(setup.belief, graph, besideB)) return true;
   if (setup.shunned(besideA) || setup.shunned(besideB)) return true;
-  if (!openWall(graph, a, side, setup)) return true;
-  if (!openWall(graph, b, side, setup)) return true;
+  if (!openWall(graph, tile, side, setup)) return true;
+  if (!openWall(graph, across, side, setup)) return true;
   return !openWall(graph, besideA, dir, setup);
 }
 
@@ -725,7 +759,7 @@ function pinched(
  * Eine Tür, die erst aufgemacht werden muss, zählt an einer Ecke wie eine
  * Wand: Ihr Blatt hängt dort, ob sie nun aufgeht oder nicht.
  */
-function openWall(graph: NavGraph, tile: TileKey, dir: Dir, setup: PullSetup): boolean {
+function openWall(graph: NavGraph, tile: TileKey, dir: Dir, setup: CornerSetup): boolean {
   const state = believedWallState(setup.belief, graph.wall(tile, dir), setup.power, setup.scratch);
   return state.walk && state.cost === 0;
 }
