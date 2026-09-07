@@ -17,6 +17,7 @@ import { MagicBagTool } from './MagicBagTool';
 import { MirrorTool } from './MirrorTool';
 import { GravityGloveTool } from './GravityGloveTool';
 import { PistolTool } from './PistolTool';
+import { SignTool } from './SignTool';
 import { KnifeTool } from './KnifeTool';
 import { SupermanGloveTool } from './SupermanGloveTool';
 import { StopwatchTool } from './StopwatchTool';
@@ -46,6 +47,9 @@ export const TOOL_IDS = [
   // Die Staffelei: das Werkzeug, das eine Leinwand hinstellt — ohne sie hat
   // der Pinsel nur Kisten zum Anstreichen.
   'easel',
+  // Und ihr Gegenstück zum Lesen: eine Tafel, auf der Text steht. In einer
+  // Lobby ist das der Aushang (`worlds/signs/`).
+  'sign',
   'duplicator',
   'inspect',
   'pistol',
@@ -112,6 +116,8 @@ function buildTool(id: string): Tool | null {
       return new BrushTool();
     case 'easel':
       return new EaselTool();
+    case 'sign':
+      return new SignTool();
     case 'duplicator':
       return new DuplicatorTool();
     case 'inspect':
@@ -187,6 +193,7 @@ export {
   MirrorTool,
   PistolTool,
   KnifeTool,
+  SignTool,
   StopwatchTool,
   SupermanGloveTool,
   TapeTool,

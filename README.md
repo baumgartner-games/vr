@@ -20,7 +20,11 @@ ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
-Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen —, **NPCs**, die
+Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen, und ein **Schild**,
+das man irgendwo hinstellt und mit Markdown beschriftet (Überschriften, Listen,
+Bilder), das von selbst rollen kann und das alle im Raum sehen — der Aushang
+für eine Lobby; getippt wird in der Brille auf Wunsch mit der **Systemtastatur
+der Quest** —, **NPCs**, die
 einem hinterherlaufen (Haut und Hirn getrennt gewählt, dazu Spawnpunkte und
 Brutkäfige, mit Lebensbalken über dem Kopf — ein Zombie hat hundert Leben, die
 Pistole macht fünfundzwanzig, das Messer fünfzig und der große Hammer hundert,
@@ -65,7 +69,9 @@ Einstellung für alle Werkzeuge mit demselben Griff), die Räumung nach dem
 Loslassen (ob ein Ding noch im Spieler steckt), den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
 Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
-der Tiefe, die Stoppuhr-Einstellungen, die Pinselwerte (Breite, Art und die eigene
+der Tiefe, die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
+ihrem Rollen und dem, was von ihnen über das Netz geht, die Türen des
+Interaktionslabors, die Pinselwerte (Breite, Art und die eigene
 Farbreihe), die Materialien, die Dicke der Bodenplatte, den
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
 hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf

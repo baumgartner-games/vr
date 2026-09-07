@@ -40,6 +40,8 @@ export type MenuIcon =
   | 'trace'
   | 'scope'
   | 'chat'
+  // Das Schild: eine Tafel auf einem Pfosten, auf der Text steht.
+  | 'sign'
   | 'palette'
   | 'glider'
   | 'wings'
@@ -730,6 +732,29 @@ export function drawMenuIcon(
         ctx.beginPath();
         ctx.arc(x, -s * 0.12, s * 0.1, 0, Math.PI * 2);
         ctx.fill();
+      }
+      break;
+    }
+    case 'sign': {
+      // Eine Tafel auf einem Pfosten mit drei Zeilen darauf. Sie zeigt das,
+      // was das Werkzeug hinstellt — und nicht etwa eine Feder oder einen
+      // Stift: Geschrieben wird auf einer Tastatur, aufgestellt wird ein Brett.
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.85, -s * 0.85, s * 1.7, s * 1.15, s * 0.16);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.3);
+      ctx.lineTo(0, s * 0.9);
+      ctx.stroke();
+      for (const [y, width] of [
+        [-0.5, 0.62],
+        [-0.18, 0.5],
+        [0.06, 0.34],
+      ] as const) {
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.62, s * y);
+        ctx.lineTo(-s * 0.62 + s * 1.24 * width, s * y);
+        ctx.stroke();
       }
       break;
     }

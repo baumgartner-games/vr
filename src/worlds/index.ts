@@ -125,6 +125,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./editor/EditorWorld')).EditorWorld(),
   },
   {
+    id: 'interact',
+    title: 'Interaktionslabor',
+    tagline: 'Knöpfe, Türen, Schilder',
+    description:
+      'Helle Halle mit einer Wand voller Türen: roter Knopf, Hebel und eine Druckplatte, auf die eine Kiste gehört. Dahinter die Schildergalerie — Tafeln, die man selbst beschriftet und aufstellt.',
+    accent: 0x9fd0ff,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./interact/InteractWorld')).InteractWorld(),
+  },
+  {
     id: 'navlab',
     title: 'Navigationslabor',
     tagline: 'Acht Buchten, acht Behauptungen',
