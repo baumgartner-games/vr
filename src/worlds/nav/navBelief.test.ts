@@ -85,12 +85,49 @@ describe('Die Meinung über eine Tür', () => {
     expect(state.walk).toBe(false);
   });
 
-  it('nimmt die Wahrheit, wo er keine eigene Meinung hat', () => {
+  it('hält eine Tür, die er nie gesehen hat, für offen — und läuft hin', () => {
+    // **Die Freiraum-Annahme.** Vorher galt an ihrer Stelle die Wahrheit, und
+    // damit wusste ein Zombie schon dreißig Meter vor einer Metalltür, dass sie
+    // zu ist. Er ging außen herum, ohne je dagewesen zu sein — Hellsicht, nur
+    // dass man ihr nicht ansah, woran man sie merkt. Jetzt läuft er hin.
     const graph = house();
     const belief = new NavBelief();
+    graph.setDoor('tuer-7', { open: false, barred: true, material: 'metal' });
+    // Auch dem, der weder aufmacht noch einschlägt, steht sie offen.
+    expect(believedWallState(belief, graph.door('tuer-7'), false).walk).toBe(true);
+    expect(
+      usesDoor(findPath(graph, tileKey(0, 1, 0), tileKey(6, 1, 0), { ...human, belief }).tiles),
+    ).toBe(true);
+
+    // Sehen kann er trotzdem nicht hindurch: geirrt wird über den Weg.
+    expect(believedWallState(belief, graph.door('tuer-7'), false).see).toBe(false);
+    expect(canSee(graph, tileKey(3, 1, 0), tileKey(4, 1, 0))).toBe(false);
+  });
+
+  it('nimmt die Wahrheit, wo er keine eigene Meinung hat — wenn er sie kennt', () => {
+    // Die Attrappe der Vorschau ist der Zuschauer und keine Figur im Stück
+    // (`shared/previewWalk.ts`): Sie hofft nicht, sie sieht die Karte.
+    const graph = house();
+    const belief = new NavBelief();
+    belief.hopeful = false;
     graph.setDoor('tuer-7', { open: false });
     expect(believedWallState(belief, graph.door('tuer-7'), false).walk).toBe(false);
     expect(believedWallState(null, graph.door('tuer-7'), true).cost).toBeGreaterThan(0);
+  });
+
+  it('meldet nur eine Änderung als Änderung, auch wenn er dreimal hinsieht', () => {
+    // Er steht jedes Bild vor derselben Tür. Ein `version++` je Bild hieße
+    // sechzig Wegsuchen je Sekunde, weil er seine eigene Meinung für eine
+    // Neuigkeit hält (`navAgent.step`).
+    const belief = new NavBelief();
+    expect(belief.seeDoor('tuer-7', { open: false, barred: false }, 1)).toBe(true);
+    const after = belief.version;
+    expect(belief.seeDoor('tuer-7', { open: false, barred: false }, 2)).toBe(false);
+    expect(belief.version).toBe(after);
+    // Aber die Uhr läuft mit: Vergessen soll er sie ab dem letzten Hinsehen.
+    expect(belief.doorOpinion('tuer-7')!.at).toBe(2);
+    expect(belief.seeDoor('tuer-7', { open: true, barred: false }, 3)).toBe(true);
+    expect(belief.version).toBeGreaterThan(after);
   });
 });
 

@@ -10,7 +10,9 @@ import {
   type PhysicsBody,
   type PhysicsWorld,
 } from '../../physics/PhysicsWorld';
-import { NavAgent, type Spot3 } from '../nav/navAgent';
+import { NavAgent, type DoorAction, type Spot3 } from '../nav/navAgent';
+import type { PathPoint } from '../nav/navPath';
+import { DOOR_OPEN_TIME } from '../nav/navDoor';
 import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
@@ -77,6 +79,26 @@ export class Npc {
    * hineingeschrieben wird, ist keine mehr, sondern ein Schweben.
    */
   private flying = 0;
+  /**
+   * Die Tür, an der er gerade arbeitet, und wie lange schon.
+   *
+   * Zwei Handgriffe, ein Zähler: Wer aufmachen kann, braucht eine halbe
+   * Sekunde (`nav/navDoor.DOOR_OPEN_TIME`); wer nur zuschlagen kann, so lange,
+   * wie das Blatt aushält. Der Zähler fängt bei jeder neuen Tür von vorn an —
+   * sonst spränge eine zweite Tür auf, weil er an der ersten lange genug
+   * gestanden hat.
+   */
+  private doorAt = '';
+  private doorWork = 0;
+  /** Ob er in diesem Bild auf eine Tür einschlägt — dafür holt das Modell aus. */
+  private hammering = false;
+  /**
+   * Die Tür, die er **in diesem Bild** kleingekriegt hat — sonst `''`.
+   *
+   * Ein Ereignis und kein Zustand: Daran hängt eine Meldung, und die soll
+   * einmal kommen und nicht sechzigmal je Sekunde (`NpcDirector`).
+   */
+  brokeDoor = '';
   private readonly physics: PhysicsWorld;
 
   constructor(options: {
@@ -163,6 +185,12 @@ export class Npc {
    * @returns `true`, wenn in dieser Frame ein Schlag landet.
    */
   update(dt: number, player: Point | null, random: () => number, nav?: NavRun | null): boolean {
+    // **Beides gilt für ein Bild.** Wer nicht mehr plant — weil der Spieler
+    // außer Reichweite ist oder weil er gerade umfällt —, kommt gar nicht erst
+    // bis `workDoor`; ohne diese zwei Zeilen holte er dann für immer aus, und
+    // die Meldung „Die Tür ist hin" käme sechzigmal je Sekunde.
+    this.brokeDoor = '';
+    this.hammering = false;
     if (this.dying !== null) {
       this.dying += dt;
       // Das Umfallen dauert eine halbe Sekunde, das Liegenbleiben besorgt der
@@ -194,7 +222,9 @@ export class Npc {
     this.yaw = step.yaw;
     this.model.rotation.y = this.yaw;
     this.speed = Math.hypot(step.vx, step.vz);
-    this.striking = step.gait === 'strike';
+    // Er holt aus, wenn er zuschlägt — und auch dann, wenn das, was er
+    // einschlägt, eine Tür ist und kein Spieler.
+    this.striking = step.gait === 'strike' || this.hammering;
     this.model.update(dt, this.speed, this.striking);
     this.model.setAlert(step.sees);
     return step.attack;
@@ -220,12 +250,48 @@ export class Npc {
     this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
     this.feet(_feet);
     const step = this.agent.step(nav.graph, _feet, nav.at, dt, nav.now);
+    // **Der Schritt, den man nicht geht.** Steht eine Tür im Weg, wird sie
+    // aufgemacht oder eingeschlagen; gelaufen wird trotzdem weiter, denn er
+    // drückt dabei dagegen (`nav/navAgent.ts`, `AgentStep.doorAction`).
+    this.workDoor(nav.graph, step.door, step.doorAction, dt);
     if (step.jump !== NO_TILE) this.teleport(nav.graph, step.jump);
     // Ein Sprung wird nicht nachbestellt, solange einer läuft: Der Läufer plant
     // alle halbe Sekunde neu und meldet den Absprung dann noch einmal — mitten
     // im Flug wäre das ein zweiter Absprung aus der Luft.
     if (step.leap !== NO_TILE && this.flying === 0) this.launch(nav.graph, step.leap);
     return step.waypoint;
+  }
+
+  /**
+   * **Was er an einer Tür tut** — die eine Stelle, an der ein NPC die Welt
+   * verändert, statt nur durch sie zu laufen.
+   *
+   * Aufmachen dauert eine halbe Sekunde, Einschlagen so lange, wie das
+   * Material hergibt (`nav/navDoor.ts`). Beides passiert **hier** und nicht in
+   * der Welt: Wer davorsteht, weiß es selbst am besten, und eine Welt, die
+   * fünfzig NPCs nach ihren Türen fragen müsste, fragte jedes Bild fünfzigmal.
+   */
+  private workDoor(graph: NavGraph, id: string, action: DoorAction, dt: number): void {
+    if (!id || action === 'none') {
+      this.doorAt = '';
+      this.doorWork = 0;
+      return;
+    }
+    if (id !== this.doorAt) {
+      this.doorAt = id;
+      this.doorWork = 0;
+    }
+    this.doorWork += dt;
+    if (action === 'break') {
+      this.hammering = true;
+      if (!graph.poundDoor(id, dt)) return;
+      this.brokeDoor = id;
+      this.doorAt = '';
+      return;
+    }
+    if (this.doorWork < DOOR_OPEN_TIME) return;
+    graph.setDoor(id, { open: true });
+    this.doorAt = '';
   }
 
   /**
@@ -283,9 +349,12 @@ export class Npc {
     this.holder.position.set(at.x, y, at.z);
   }
 
-  /** Der Weg, den er gerade läuft — für die Debug-Ansicht. */
-  get path(): readonly TileKey[] {
-    return this.agent?.path ?? EMPTY_PATH;
+  /**
+   * Der Weg, den er gerade läuft — als **Linie** und nicht als Kachelmitten,
+   * denn genau die wird gezeichnet (`nav/navScene.navPathView`).
+   */
+  get route(): readonly PathPoint[] {
+    return this.agent?.points ?? EMPTY_ROUTE;
   }
 
   /**
@@ -367,4 +436,6 @@ export interface NavRun {
 const LEAP_RISE = 0.7;
 
 const _feet = new THREE.Vector3();
-const EMPTY_PATH: readonly TileKey[] = [];
+
+/** Der Weg dessen, der noch keinen hat. */
+const EMPTY_ROUTE: readonly PathPoint[] = [];

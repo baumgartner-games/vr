@@ -1,16 +1,22 @@
 import { NavBelief } from './navBelief';
-import type { NavGraph } from './navGraph';
+import { breakable } from './navDoor';
+import { doorBroken, type DoorPower, type NavGraph, type WallFacts } from './navGraph';
 import { findPath, pullString, type PathPoint } from './navPath';
-import { HUMAN_PROFILE, type CostProfile, type LinkKind } from './navProfile';
+import { HUMAN_PROFILE, powerOf, type CostProfile, type LinkKind } from './navProfile';
 import {
   DIR_E,
   DIR_N,
   DIR_S,
   DIR_W,
   NO_TILE,
+  TILE,
+  dirX,
+  dirZ,
   keyX,
   keyZ,
   neighbour,
+  tileCentreX,
+  tileCentreZ,
   type Dir,
   type TileKey,
 } from './navTile';
@@ -122,7 +128,29 @@ export interface AgentStep {
   planned: boolean;
   /** Ob er in diesem Bild als festgefahren erkannt wurde. */
   stuck: boolean;
+  /**
+   * Die Tür, **vor der er steht** und durch die sein Weg führt — sonst `''`.
+   *
+   * Sie ist der eine Schritt des Wegs, den man nicht geht, sondern *tut*: Wer
+   * hier steht, drückt eine Klinke oder holt aus. Gemeldet wird sie erst in
+   * Reichweite und nicht schon von der Kachel davor — sonst öffnete sich eine
+   * Tür zwei Meter, bevor jemand sie anfasst.
+   */
+  door: string;
+  /** Was er mit ihr vorhat. */
+  doorAction: DoorAction;
 }
+
+/**
+ * **Was an einer Tür zu tun ist**, aus der Sicht dessen, der davorsteht.
+ *
+ * Drei Ausgänge, und die Welt macht daraus drei verschiedene Sachen: nichts
+ * (offen, oder es geht ohnehin nicht), die Klinke (`open`) und die Faust
+ * (`break`). Der Läufer entscheidet das und nicht die Welt, denn er ist der
+ * einzige, der seinen Weg kennt: Eine Tür neben ihm, durch die er gar nicht
+ * will, geht ihn nichts an.
+ */
+export type DoorAction = 'none' | 'open' | 'break';
 
 const NOWHERE: AgentStep = {
   waypoint: null,
@@ -131,6 +159,8 @@ const NOWHERE: AgentStep = {
   complete: false,
   planned: false,
   stuck: false,
+  door: '',
+  doorAction: 'none',
 };
 
 export class NavAgent {
@@ -159,9 +189,22 @@ export class NavAgent {
     this.tuning = { ...AGENT_DEFAULTS, ...tuning };
   }
 
-  /** Der Weg, den er gerade läuft — für die Debug-Ansicht. */
+  /** Der Weg, den er gerade läuft, als Kacheln — grob, aber handlich. */
   get path(): readonly TileKey[] {
     return this.tiles;
+  }
+
+  /**
+   * **Derselbe Weg als Linie** — die Punkte, die er wirklich abläuft.
+   *
+   * Der Unterschied zu `path` ist genau der, um den es beim Zeichnen geht: Die
+   * Kacheln sagen, *über welche* er geht, ihre Mitten aber nicht, *wo*. Ein Weg
+   * aus Kachelmitten schneidet auf dem Bild jede Hausecke, um die die Schnur in
+   * Wirklichkeit einen Bogen macht (`navPath.pullString`) — und dann sucht man
+   * den Fehler in der Wegsuche, die gerade recht hatte.
+   */
+  get points(): readonly PathPoint[] {
+    return this.route;
   }
 
   /** Der Wegpunkt, der gerade dran ist. */
@@ -220,6 +263,7 @@ export class NavAgent {
     this.jump = NO_TILE;
     this.leap = NO_TILE;
     const waypoint = this.pick(graph, at, goal);
+    const door = this.doorAhead(graph, from, at, now);
     return {
       waypoint,
       jump: this.jump,
@@ -227,7 +271,58 @@ export class NavAgent {
       complete: this.reachesGoal,
       planned,
       stuck,
+      door: door?.id ?? '',
+      doorAction: door?.action ?? 'none',
     };
+  }
+
+  /**
+   * **Die Tür, an der er gerade steht** — und was sie von ihm verlangt.
+   *
+   * Gesucht wird in der Laufrichtung und nicht am nächsten Wegpunkt, aus
+   * demselben Grund wie beim Nachsehen (`observe`): Nach der Glättung liegt
+   * der zehn Kacheln weit weg, die Tür aber an der eigenen Kachel.
+   *
+   * Und gesucht wird nur **in Reichweite**: Gemessen wird der Abstand zur
+   * Wandlinie, nicht zur Kachelmitte. Eine Kachel ist 2,5 m breit, und eine
+   * Tür, die aufgeht, während man noch am anderen Ende der Kachel steht, sieht
+   * aus wie ein Gespenst.
+   *
+   * **Und hier erfährt er sie auch.** Wer so dicht davorsteht, sieht, ob sie
+   * offen ist und ob sie verriegelt ist — das kommt in seine Meinung
+   * (`navBelief.ts`), und beim nächsten Bild plant er damit. Genau das ist die
+   * andere Hälfte der Freiraum-Annahme: Er läuft hin, *weil* er sie für offen
+   * hielt, und geht außen herum, weil er jetzt weiß, dass sie es nicht ist.
+   * Ohne diese Zeile stünde ein Zombie vor einer Metalltür und drückte
+   * dagegen, bis das Festfahren ihn nachsehen lässt (`observe`).
+   */
+  private doorAhead(
+    graph: NavGraph,
+    from: TileKey,
+    at: Spot3,
+    now: number,
+  ): { id: string; action: DoorAction } | null {
+    const next = this.route[this.cursor]?.tile;
+    if (next === undefined || from === NO_TILE || next === from) return null;
+    let todo: { id: string; action: DoorAction } | null = null;
+    for (const dir of headings(from, next)) {
+      const facts = graph.wall(from, dir);
+      if (!facts || facts.kind !== 'door' || !facts.id) continue;
+      if (neighbour(from, dir) === NO_TILE) continue;
+      if (doorBroken(facts)) continue;
+      if (this.gapTo(from, dir, at) > this.tuning.reach) continue;
+      this.belief.seeDoor(facts.id, facts, now);
+      const action = doorTodo(facts, powerFor(this.tuning));
+      if (action !== 'none' && !todo) todo = { id: facts.id, action };
+    }
+    return todo;
+  }
+
+  /** Wie weit er von der Wandlinie zwischen seiner Kachel und der nächsten weg ist. */
+  private gapTo(from: TileKey, dir: Dir, at: Spot3): number {
+    const lineX = tileCentreX(from) + (dirX(dir) * TILE) / 2;
+    const lineZ = tileCentreZ(from) + (dirZ(dir) * TILE) / 2;
+    return dirX(dir) !== 0 ? Math.abs(at.x - lineX) : Math.abs(at.z - lineZ);
   }
 
   /**
@@ -247,21 +342,15 @@ export class NavAgent {
     // Glättung liegt der nächste Wegpunkt oft zehn Kacheln weit weg; die Tür,
     // vor der er steht, ist die an seiner eigenen Kachel. Wer hier den
     // Wegpunkt nähme, fände nie etwas und liefe für immer gegen dieselbe Tür.
-    const dx = keyX(next) - keyX(from);
-    const dz = keyZ(next) - keyZ(from);
-    const sides: Dir[] = [];
-    if (dx !== 0) sides.push(dx > 0 ? DIR_E : DIR_W);
-    if (dz !== 0) sides.push(dz > 0 ? DIR_S : DIR_N);
-    if (Math.abs(dz) > Math.abs(dx)) sides.reverse();
-
     let learned = false;
-    for (const dir of sides) {
+    for (const dir of headings(from, next)) {
       const side = neighbour(from, dir);
       if (side === NO_TILE) continue;
       const wall = graph.wall(from, dir);
-      if (wall && wall.kind === 'door' && wall.id) {
-        this.belief.seeDoor(wall.id, wall, now);
-        learned = true;
+      if (wall && wall.kind === 'door' && wall.id && !doorBroken(wall)) {
+        // Nur eine **Änderung** ist eine Neuigkeit: Wer dreimal dieselbe
+        // geschlossene Tür ansieht, hat einmal etwas gelernt.
+        if (this.belief.seeDoor(wall.id, wall, now)) learned = true;
       }
       if (graph.has(side) && graph.isBlocked(side)) {
         this.belief.seeTile(side, true, now);
@@ -403,6 +492,38 @@ export class NavAgent {
     this.since = 0;
     return stuck;
   }
+}
+
+/**
+ * **In welche Richtungen es von hier aus zum nächsten Wegpunkt geht** — eine
+ * oder zwei, die wichtigere zuerst.
+ *
+ * Der Wegpunkt liegt nach der Glättung selten geradeaus; wer nur eine Richtung
+ * nähme, sähe die Tür neben sich nicht. Und wer die Reihenfolge vertauscht,
+ * findet die Wand quer zur Laufrichtung zuerst — also die, an der er gar nicht
+ * entlangwill.
+ */
+function headings(from: TileKey, to: TileKey): Dir[] {
+  const dx = keyX(to) - keyX(from);
+  const dz = keyZ(to) - keyZ(from);
+  const sides: Dir[] = [];
+  if (dx !== 0) sides.push(dx > 0 ? DIR_E : DIR_W);
+  if (dz !== 0) sides.push(dz > 0 ? DIR_S : DIR_N);
+  if (Math.abs(dz) > Math.abs(dx)) sides.reverse();
+  return sides;
+}
+
+/** Was diese Tür von dem verlangt, der durch sie hindurchwill. */
+function doorTodo(facts: WallFacts, power: DoorPower): DoorAction {
+  if (facts.open || doorBroken(facts)) return 'none';
+  if (power.opens && !facts.barred) return 'open';
+  if (power.breaks && breakable(facts.material)) return 'break';
+  return 'none';
+}
+
+/** Was dieser Läufer an einer Tür kann (`navProfile.powerOf`). */
+function powerFor(tuning: AgentTuning): DoorPower {
+  return powerOf(tuning.profile);
 }
 
 /** Ob zwischen diesen beiden Kacheln eine offene Verbindung dieser Art liegt. */

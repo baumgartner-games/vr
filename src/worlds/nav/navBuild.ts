@@ -1,3 +1,4 @@
+import type { DoorMaterial } from './navDoor';
 import { NavGraph, type NavLink, type TileFacts, type WallKind } from './navGraph';
 import type { LinkKind } from './navProfile';
 import {
@@ -86,8 +87,15 @@ export function wallRect(graph: NavGraph, rect: NavRect, kind: WallKind = 'solid
  * sie kann sich niemand über sie irren, und die halbe Hälfte des Verhaltens
  * fällt weg. Deshalb ist sie hier Pflicht und nicht optional.
  */
-export function setDoor(graph: NavGraph, at: TileKey, dir: Dir, id: string, open = true): void {
-  graph.setWall(at, dir, { kind: 'door', open, id, muffle: 0.8 });
+export function setDoor(
+  graph: NavGraph,
+  at: TileKey,
+  dir: Dir,
+  id: string,
+  open = true,
+  material: DoorMaterial = 'wood',
+): void {
+  graph.setWall(at, dir, { kind: 'door', open, id, muffle: 0.8, material });
 }
 
 /** Und ein Fenster: hält auf, verrät aber, was dahinter passiert. */
@@ -198,13 +206,14 @@ export function doorBetween(
   to: { x: number; z: number; y?: number },
   id: string,
   open = true,
+  material: DoorMaterial = 'wood',
 ): boolean {
   const a = graph.at(from.x, from.z, from.y);
   const b = graph.at(to.x, to.z, to.y);
   if (a === NO_TILE || b === NO_TILE) return false;
   for (const dir of DIRS) {
     if (neighbour(a, dir) !== b) continue;
-    setDoor(graph, a, dir, id, open);
+    setDoor(graph, a, dir, id, open, material);
     return true;
   }
   return false;

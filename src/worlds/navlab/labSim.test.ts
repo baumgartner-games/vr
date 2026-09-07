@@ -1,3 +1,5 @@
+import { breakTime, type DoorMaterial } from '../nav/navDoor';
+import { doorBroken } from '../nav/navGraph';
 import { findPath } from '../nav/navPath';
 import { profileOf } from '../nav/navProfile';
 import { tileDistance } from '../nav/navTile';
@@ -209,11 +211,134 @@ describe('Tür fällt zu', () => {
         graph.setDoor(DOOR_ID, { open: false, barred: true });
       },
     });
-    // Kein einziges Bild in der Türöffnung: Das Blatt steht dort.
-    for (const step of run.runners[0]!.track) {
-      const inDoorway = Math.abs(step.x - line.x) < 1.25 && Math.abs(step.z - line.z) < 0.6;
-      expect(inDoorway).toBe(false);
+    const track = run.runners[0]!.track;
+    // **Davorstehen ja, hindurch nein.** Er *soll* hingehen — das ist die
+    // Freiraum-Annahme (`nav/navBelief.ts`, `hopeful`), und ohne sie wüsste er
+    // von einem Riegel, den niemand ihm gezeigt hat. Was das Blatt verhindert,
+    // ist der Schritt auf die andere Seite: Keine einzige Überquerung der
+    // Wandlinie liegt in der Türöffnung.
+    expect(closestTo(track, line)).toBeLessThan(1.5);
+    let cross = crossedAt(track, line.z);
+    while (cross) {
+      expect(Math.abs(cross.x - line.x)).toBeGreaterThan(1.25);
+      cross = crossedAt(track, line.z, cross.frame);
     }
+  });
+});
+
+describe('Tür aus Metall oder aus Holz', () => {
+  const bay = scenarioOf('door');
+  /** Die Wandlinie quer durch die Bucht — auf ihrer Höhe hat er sie überquert. */
+  const line = baySpot(bay, { lx: 0, lz: 0 }).z;
+  /** Die beiden Lücken in dieser Wand, in Weltmaßen (`INSIDE.door`). */
+  const doorway = [baySpot(bay, { lx: -7.5, lz: 0 }).x, baySpot(bay, { lx: -5, lz: 0 }).x];
+  const around = [baySpot(bay, { lx: 10, lz: 0 }).x, baySpot(bay, { lx: 12.5, lz: 0 }).x];
+
+  /**
+   * Ein Durchlauf mit **geschlossener** Tür — nicht verriegelt, nur zu.
+   *
+   * Das ist der Fall, um den es hier geht: Bis es Material gab, war eine bloß
+   * geschlossene Tür für jeden Zombie eine Wand; jetzt entscheidet, woraus sie
+   * ist. Das Blatt steht dabei in seiner Lücke — in der Welt und auf der Karte,
+   * denn eine Tür, die nur auf der Karte zu ist, hält niemanden auf.
+   */
+  const shut = (material: DoorMaterial) =>
+    runBay('door', {
+      seconds: 60,
+      props: [doorLeaf(bay, false)],
+      setup: (graph) => {
+        graph.setDoor(DOOR_ID, { open: false, material });
+      },
+    });
+
+  it('schickt ihn an der Metalltür zwingend außen herum', () => {
+    // **Der Kontrollpunkt.** Diese Bucht hat genau zwei Lücken in ihrer Wand:
+    // die mit der Tür und die ganz außen rechts. Ist die Tür aus Metall, bleibt
+    // nur eine — und „angekommen" allein bewiese gar nichts, denn durch die Tür
+    // käme er genauso an. Gefragt wird deshalb, **wo** er die Wandlinie
+    // überschritten hat.
+    const run = shut('metal');
+    const zombie = run.runners[0]!;
+    expect(passedNear(zombie.track, spot('door', { lx: 11.25, lz: 0 }), 2)).toBe(true);
+
+    const cross = crossedAt(zombie.track, line);
+    expect(cross).not.toBeNull();
+    expect(cross!.x).toBeGreaterThan(Math.min(...around));
+    expect(cross!.x).toBeLessThan(Math.max(...around));
+    // Und keine einzige Überquerung durch die Türöffnung — auch keine spätere.
+    let next = crossedAt(zombie.track, line);
+    while (next) {
+      const throughDoor = next.x > Math.min(...doorway) && next.x < Math.max(...doorway);
+      expect(throughDoor).toBe(false);
+      next = crossedAt(zombie.track, line, next.frame);
+    }
+    // Die Tür hält: Sie steht am Ende noch, und er hat sie nicht angerührt.
+    expect(zombie.broke).toEqual([]);
+    expect(run.graph.door(DOOR_ID)!.health).toBe(Infinity);
+    expect(zombie.arrived).toBe(true);
+  });
+
+  it('geht erst zur Metalltür und erst dann außen herum', () => {
+    // **Der Umweg fängt an der Tür an und nicht am Start.** Vorher wusste er
+    // von einer Tür, die er nie gesehen hatte, dass sie zu ist, und bog schon
+    // dreißig Meter davor ab — Hellsicht, die man ihm ansah, ohne sagen zu
+    // können, woran. Jetzt hält er sie für offen (`nav/navBelief.ts`,
+    // `hopeful`), läuft hin, steht davor, sieht sie an und plant dort um.
+    const run = shut('metal');
+    const zombie = run.runners[0]!;
+    const door = baySpot(bay, { lx: -6.25, lz: 0 });
+    // Bis an das Blatt heran: Halbmesser plus halbe Blattdicke, mehr nicht.
+    expect(closestTo(zombie.track, door)).toBeLessThan(1.5);
+    // Und er weiß jetzt, woran es lag — vorher wusste er es, ohne hinzusehen.
+    expect(zombie.agent.belief.doorOpinion(DOOR_ID)).toMatchObject({ known: true, open: false });
+
+    // Der Umweg kommt trotzdem zustande, und zwar erst danach.
+    const cross = crossedAt(zombie.track, line)!;
+    expect(cross.x).toBeGreaterThan(Math.min(...around));
+    expect(zombie.arrived).toBe(true);
+  });
+
+  it('geht auch zur hölzernen hin und schlägt sie dort ein', () => {
+    // Dieselbe Annahme, das andere Ende: Er läuft hin, sieht eine Tür aus
+    // Brettern — und für die ist der kurze Weg auch nach dem Hinsehen noch der
+    // kurze. Drei Sekunden Prügel, und er geht geradeaus hindurch.
+    const run = shut('wood');
+    const zombie = run.runners[0]!;
+    const door = baySpot(bay, { lx: -6.25, lz: 0 });
+    expect(closestTo(zombie.track, door)).toBeLessThan(1.5);
+    expect(zombie.agent.belief.doorOpinion(DOOR_ID)).toMatchObject({ known: true, open: false });
+    expect(zombie.broke).toEqual([DOOR_ID]);
+  });
+
+  it('lässt ihn die hölzerne einschlagen und geradeaus hindurchgehen', () => {
+    // Dieselbe Bucht, dieselbe geschlossene Tür, ein anderes Material: Jetzt
+    // ist der Umweg der teurere Weg, und er nimmt den kurzen — mit drei
+    // Sekunden Aufenthalt davor, in denen sich gar nichts bewegt.
+    const run = shut('wood');
+    const zombie = run.runners[0]!;
+    expect(zombie.broke).toEqual([DOOR_ID]);
+    expect(run.graph.door(DOOR_ID)!.health).toBe(0);
+    // Er hat wirklich davorgestanden und ist nicht hindurchspaziert.
+    expect(zombie.atDoor).toBeGreaterThan(breakTime('wood') * 0.9);
+
+    const cross = crossedAt(zombie.track, line);
+    expect(cross).not.toBeNull();
+    expect(cross!.x).toBeGreaterThan(Math.min(...doorway));
+    expect(cross!.x).toBeLessThan(Math.max(...doorway));
+    expect(zombie.arrived).toBe(true);
+  });
+
+  it('macht aus der eingeschlagenen Tür einen Weg, der niemanden mehr aufhält', () => {
+    // Wer hinterherkommt, findet ein Loch: kein Aufschlag, keine Meinung, kein
+    // zweites Einschlagen. Das ist der Unterschied zwischen einer Tür, die
+    // wieder zufällt, und einer, die hin ist.
+    const run = shut('wood');
+    const graph = run.graph;
+    expect(doorBroken(graph.door(DOOR_ID))).toBe(true);
+    // Und sie geht auch nicht wieder zu — ein Szenario, das das versuchte,
+    // hätte ein Loch, das niemand sieht.
+    expect(graph.setDoor(DOOR_ID, { open: false })).toBe(false);
+    expect(doorBroken(graph.door(DOOR_ID))).toBe(true);
   });
 });
 
@@ -252,6 +377,63 @@ describe('Vom Dach herunter', () => {
     // Irgendwann steht er unten.
     expect(zombie.at.y).toBeCloseTo(0);
     expect(zombie.arrived).toBe(true);
+  });
+});
+
+describe('Die drei Schalter', () => {
+  /**
+   * **Was ein Schalter wert ist, sieht man erst, wenn er aus ist.**
+   *
+   * Die Ebenen zeigen etwas, die Schalter wirken (`nav/navSwitches.ts`) — und
+   * eine Ansicht, die man an- und ausknipsen kann, beweist gar nichts. Diese
+   * drei Zeilen beweisen es: Dieselbe Bucht, derselbe Zombie, ein Schalter
+   * aus, ein anderes Verhalten.
+   */
+  it('lässt ohne Verbindungen niemanden mehr springen', () => {
+    const run = runBay('podium', {
+      seconds: 60,
+      setup: (graph) => {
+        graph.setFeature('links', false);
+      },
+    });
+    const [dummy] = run.runners;
+    // Mit Verbindungen nimmt die Puppe Rampe und Sprung und steht oben
+    // (`Podest und Sprung`). Ohne sie gibt es den Sprung nicht — sie kommt
+    // zwar hinauf, aber nicht hinüber.
+    expect(dummy!.arrived).toBe(false);
+  });
+
+  it('lässt ohne Hindernisse den Weg mitten durch die Kiste laufen', () => {
+    const bay = scenarioOf('crate');
+    const at = baySpot(bay, CRATE);
+    const run = runBay('crate', {
+      seconds: 45,
+      props: [{ kind: 'block', x: at.x, y: 0.7, z: at.z, w: 1.4, h: 1.4, d: 1.4 }],
+      setup: (graph) => {
+        graph.setBlocked(graph.at(at.x, at.z, 0), true);
+        graph.setFeature('obstacles', false);
+      },
+    });
+    const zombie = run.runners[0]!;
+    // Er plant durch die zugestellte Lücke — und rennt dort gegen die Kiste,
+    // die in der Welt sehr wohl steht. Genau das ist die Antwort auf die Frage,
+    // wozu ein Nav-Mesh-Obstacle da ist.
+    expect(closestTo(zombie.track, at)).toBeLessThan(1.5);
+    expect(passedNear(zombie.track, spot('crate', { lx: 6.25, lz: 0 }), 2)).toBe(false);
+    expect(zombie.arrived).toBe(false);
+  });
+
+  it('lässt eine ausgeschaltete Sperre auch nicht mehr als Sperre gelten', () => {
+    // Der Eintrag bleibt, er zählt bloß nicht — daran hängt, dass die
+    // Debug-Ansicht weiter zeichnet, was da ist (`NavGraph.features`).
+    const graph = runBay('crate', { seconds: 0 }).graph;
+    const at = baySpot(scenarioOf('crate'), CRATE);
+    const key = graph.at(at.x, at.z, 0);
+    graph.setBlocked(key, true);
+    expect(graph.isBlocked(key)).toBe(true);
+    graph.setFeature('obstacles', false);
+    expect(graph.isBlocked(key)).toBe(false);
+    expect([...graph.blockedKeys()]).toContain(key);
   });
 });
 

@@ -1,6 +1,8 @@
 import { NavAgent } from '../nav/navAgent';
+import { DOOR_OPEN_TIME } from '../nav/navDoor';
 import type { NavGraph } from '../nav/navGraph';
-import { NO_TILE } from '../nav/navTile';
+import type { PathPoint } from '../nav/navPath';
+import { NO_TILE, type TileKey } from '../nav/navTile';
 
 /**
  * **Die Attrappe geht selbst** — der Gehe-zu-Modus der laufenden Vorschau
@@ -33,6 +35,12 @@ import { NO_TILE } from '../nav/navTile';
 
 /** Wie schnell sie geht, in m/s — ein zügiger Gang, kein Sprint. */
 export const WALK_SPEED = 3;
+
+/**
+ * Wie lange sie an einer Tür steht, bis sie auf ist — dieselbe halbe Sekunde
+ * wie bei jedem NPC (`nav/navDoor.ts`).
+ */
+export { DOOR_OPEN_TIME };
 
 /**
  * Wie nah am Ziel sie stehen bleibt, in Metern.
@@ -82,12 +90,14 @@ export interface WalkStep {
   arrived: boolean;
   /** Ob sie steht, weil es dorthin keinen Weg gibt. */
   stuck: boolean;
+  /** Die Tür, die sie gerade aufmacht — sonst `''`. */
+  opening: string;
 }
 
 export class PreviewWalk {
   /**
-   * Derselbe Läufer wie in einem NPC — mit leerer Meinung, die nie etwas
-   * lernt, weil sie nie etwas glaubt.
+   * Derselbe Läufer wie in einem NPC — mit leerer Meinung und **ohne
+   * Hoffnung** (siehe der Konstruktor): Sie nimmt den Graphen, wie er ist.
    *
    * Und mit **kaum Umfang**: Der Weg eines NPC hält an jeder Ecke dessen
    * Halbmesser Abstand (`nav/navPath.ts`), weil dort ein Zylinder um die Ecke
@@ -98,6 +108,35 @@ export class PreviewWalk {
   private goal: WalkPoint | null = null;
   /** Die eigene Uhr: Der Läufer datiert damit, was er gesehen hat. */
   private clock = 0;
+  /** Wie lange sie schon an der Tür steht, die gerade dran ist. */
+  private opening = 0;
+
+  constructor() {
+    // **Und ohne Hoffnung.** Ein NPC hält eine Tür, die er nie gesehen hat, für
+    // offen, läuft hin und merkt es dort (`nav/navBelief.ts`, `hopeful`). Für
+    // die Attrappe wäre das falsch: Sie ist der Zuschauer, sie sieht die Karte,
+    // und ein Ring, der zu einer verriegelten Tür läuft und wieder umkehrt,
+    // sähe aus wie eine kaputte Wegsuche.
+    this.agent.belief.hopeful = false;
+  }
+
+  /**
+   * **Ihr eigener Weg**, als Kacheln — dasselbe, was die Debug-Ansicht von
+   * jedem NPC zeichnet (`nav/navScene.navPathView`).
+   *
+   * Bis hierher zeigte die Ebene „Wege" nur, was die *anderen* laufen. Wer von
+   * oben auf eine Welt schaut und seine Figur losschickt, will aber genau den
+   * einen Weg sehen: den eigenen. Ohne ihn schaltet man die Ebene ein und
+   * sieht bei leerem Labor gar nichts.
+   */
+  get path(): readonly TileKey[] {
+    return this.goal ? this.agent.path : EMPTY_PATH;
+  }
+
+  /** Derselbe Weg als **Linie** — das, was gezeichnet wird (`nav/navScene.ts`). */
+  get points(): readonly PathPoint[] {
+    return this.goal ? this.agent.points : EMPTY_POINTS;
+  }
 
   /** Wohin sie gerade unterwegs ist — `null`, wenn sie steht. */
   get target(): WalkPoint | null {
@@ -111,12 +150,14 @@ export class PreviewWalk {
   /** Los dorthin. */
   to(at: WalkPoint): void {
     this.goal = { x: at.x, y: at.y, z: at.z };
+    this.opening = 0;
     this.agent.clear();
   }
 
   /** Stehen bleiben, wo sie ist. */
   stop(): void {
     this.goal = null;
+    this.opening = 0;
     this.agent.clear();
   }
 
@@ -131,7 +172,7 @@ export class PreviewWalk {
     this.clock += dt;
     const goal = this.goal;
     const here: WalkPoint = { x: at.x, y: at.y, z: at.z };
-    if (!goal) return { at: here, going: false, arrived: false, stuck: false };
+    if (!goal) return { at: here, going: false, arrived: false, stuck: false, opening: '' };
 
     // Angekommen? Dann ist Schluss — und zwar vor dem Rechnen, damit ein Tipp
     // auf die eigenen Füße nicht ein Bild lang „unterwegs" heißt.
@@ -142,6 +183,7 @@ export class PreviewWalk {
         going: false,
         arrived: true,
         stuck: false,
+        opening: '',
       };
     }
 
@@ -155,6 +197,7 @@ export class PreviewWalk {
         going: true,
         arrived: false,
         stuck: false,
+        opening: '',
       };
     }
 
@@ -170,9 +213,25 @@ export class PreviewWalk {
         going: true,
         arrived: false,
         stuck: false,
+        opening: '',
       };
     }
-    if (!move.waypoint) return { at: here, going: true, arrived: false, stuck: true };
+    // **Die Tür ist eine Handlung.** Sie steht davor, bis sie auf ist — und
+    // *dann* geht sie weiter. Genau das ist der Unterschied, den man von oben
+    // sehen soll: Eine Tür im Weg kostet Zeit, eine offene keine.
+    if (move.doorAction === 'open' && move.door) {
+      this.opening += dt;
+      if (this.opening < DOOR_OPEN_TIME) {
+        return { at: here, going: true, arrived: false, stuck: false, opening: move.door };
+      }
+      this.opening = 0;
+      graph.setDoor(move.door, { open: true });
+      return { at: here, going: true, arrived: false, stuck: false, opening: move.door };
+    }
+    this.opening = 0;
+    if (!move.waypoint) {
+      return { at: here, going: true, arrived: false, stuck: true, opening: '' };
+    }
 
     const next = stride(here, move.waypoint, WALK_SPEED, dt);
     // Die Höhe gibt die Kachel vor, auf der sie danach steht: So kommt sie das
@@ -187,6 +246,10 @@ export class PreviewWalk {
     // unterschlagen, den es sehr wohl gibt.
     const crept = Math.hypot(next.x - here.x, next.z - here.z);
     const stuck = !move.complete && crept < WALK_SPEED * dt * 0.02;
-    return { at: { x: next.x, y, z: next.z }, going: true, arrived: false, stuck };
+    return { at: { x: next.x, y, z: next.z }, going: true, arrived: false, stuck, opening: '' };
   }
 }
+
+/** Der Weg, den sie hat, solange sie keinen hat. */
+const EMPTY_PATH: readonly TileKey[] = [];
+const EMPTY_POINTS: readonly PathPoint[] = [];

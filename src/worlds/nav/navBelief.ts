@@ -1,6 +1,9 @@
 import {
-  DOOR_COST,
+  closedDoor,
+  doorBroken,
+  doorPower,
   wallState,
+  type DoorPower,
   type NavGraph,
   type NavLink,
   type WallFacts,
@@ -73,6 +76,31 @@ export class NavBelief {
    */
   version = 0;
 
+  /**
+   * **Was er nie gesehen hat, hält er für offen.**
+   *
+   * Die Freiraum-Annahme, mit der Roboter seit je durch unbekannte Gänge
+   * fahren: Wovon man nichts weiß, nimmt man das Beste an, läuft hin und
+   * korrigiert es dort. Ohne sie war das Gegenteil eingebaut — wer eine Tür nie
+   * gesehen hatte, kannte trotzdem ihren Zustand, weil an ihrer Stelle die
+   * Wahrheit galt. Ein Zombie machte deshalb schon dreißig Meter vor einer
+   * Metalltür einen Bogen, und in der Brille sah das aus wie Hellsicht, nur
+   * dass man nicht sagen konnte, woran man es merkt.
+   *
+   * Jetzt läuft er hin, steht davor, sieht sie an (`navAgent.doorAhead`) und
+   * geht dann außen herum — oder schlägt sie ein, wenn sie aus Brettern ist.
+   * **Das ist der ganze Unterschied**, und es ist derselbe, den `seeDoor` seit
+   * jeher meint: irren darf er sich über den Weg, nie über seine Sinne.
+   *
+   * Das **Material** ist davon ausgenommen und kommt immer aus der Welt: Ob
+   * eine Tür aus Brettern oder aus Blech ist, sieht man ihr an; ob sie
+   * abgeschlossen ist, nicht.
+   *
+   * Wer die Karte kennt, schaltet es ab — die Attrappe der Vorschau tut das
+   * (`shared/previewWalk.ts`): Sie ist der Zuschauer und keine Figur im Stück.
+   */
+  hopeful = true;
+
   private readonly doors = new Map<string, DoorOpinion>();
   private readonly linkBeliefs = new Map<string, LinkOpinion>();
   private readonly tiles = new Map<TileKey, TileOpinion>();
@@ -84,10 +112,25 @@ export class NavBelief {
 
   // --- Türen --------------------------------------------------------------
 
-  /** Er hat hingeschaut: die Wahrheit wird zu seiner Meinung. */
-  seeDoor(id: string, truth: { open: boolean; barred: boolean }, now: number): void {
+  /**
+   * Er hat hingeschaut: die Wahrheit wird zu seiner Meinung.
+   *
+   * Gibt zurück, ob sich dabei **etwas geändert** hat. Das ist keine Feinheit:
+   * Er steht jedes Bild vor derselben Tür und sieht jedes Bild dasselbe; ein
+   * `version++` je Bild hieße, dass er sechzigmal je Sekunde neu plant, weil er
+   * seine eigene Meinung für eine Neuigkeit hält (`navAgent.step`).
+   */
+  seeDoor(id: string, truth: { open: boolean; barred: boolean }, now: number): boolean {
+    const before = this.doors.get(id);
     this.doors.set(id, { known: true, open: truth.open, barred: truth.barred, at: now });
+    const same =
+      before !== undefined &&
+      before.known &&
+      before.open === truth.open &&
+      before.barred === truth.barred;
+    if (same) return false;
     this.version++;
+    return true;
   }
 
   /**
@@ -235,13 +278,26 @@ export class NavBelief {
 export function believedWallState(
   belief: NavBelief | null,
   facts: WallFacts | undefined,
-  canOpen: boolean,
+  power: boolean | DoorPower,
   out?: WallState,
 ): WallState {
-  const state = wallState(facts, canOpen, out);
+  const state = wallState(facts, power, out);
   if (!belief || !facts || facts.kind !== 'door' || !facts.id) return state;
+  // **Über ein Loch irrt sich niemand.** Eine eingeschlagene Tür ist keine Tür
+  // mehr, und eine alte Meinung über sie („die war zu") würde ihren eigenen
+  // Schöpfer vor dem Trümmerhaufen stehen lassen, durch den er gerade
+  // gegangen ist.
+  if (doorBroken(facts)) return state;
   const opinion = belief.doorOpinion(facts.id);
-  if (!opinion) return state;
+  if (!opinion) {
+    // **Die Freiraum-Annahme** (`hopeful`): Eine Tür, die er nie gesehen hat,
+    // hält er für offen und läuft hin. `see` bleibt dabei die Wahrheit — er
+    // sieht nicht durch sie hindurch, nur weil er hofft.
+    if (!belief.hopeful || facts.open) return state;
+    state.walk = true;
+    state.cost = 0;
+    return state;
+  }
 
   if (!opinion.known) {
     state.walk = false;
@@ -253,14 +309,10 @@ export function believedWallState(
     state.cost = 0;
     return state;
   }
-  if (opinion.barred || !canOpen) {
-    state.walk = false;
-    state.cost = 0;
-    return state;
-  }
-  state.walk = true;
-  state.cost = DOOR_COST;
-  return state;
+  // Zu ist zu — was das für ihn heißt, rechnet dieselbe Zeile wie für die
+  // Wahrheit. Das **Material** kommt dabei aus der Welt und nicht aus seiner
+  // Meinung: Ob eine Tür aus Brettern oder aus Blech ist, sieht man ihr an.
+  return closedDoor({ barred: opinion.barred, material: facts.material }, doorPower(power), state);
 }
 
 /** Ob er glaubt, diese Verbindung benutzen zu können. */

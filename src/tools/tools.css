@@ -918,3 +918,16 @@ html, body {
   background: var(--key, var(--accent));
   border-color: transparent;
 }
+
+/* Und die drei Schalter daneben (`nav/navSwitches.ts`): Sie sind andersherum
+   gefärbt, denn bei ihnen ist das Ausschalten die Ausnahme — an ist der
+   Normalfall und soll ruhig sein, aus soll auffallen. */
+.lab__layer--switch {
+  border-style: dashed;
+}
+
+.lab__layer--switch[aria-pressed="true"] {
+  color: #05070d;
+  background: var(--key, var(--accent));
+  border-style: solid;
+}

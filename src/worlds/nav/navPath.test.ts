@@ -1,6 +1,16 @@
 import { addPortal, connect, fillRect, setDoor } from './navBuild';
+import { doorSpec, type DoorMaterial } from './navDoor';
 import { DOOR_COST, NavGraph } from './navGraph';
-import { findPath, flowField, flowPath, pullString, smoothPath, type PathPoint } from './navPath';
+import {
+  WALL_SKIN,
+  cornerBlocked,
+  findPath,
+  flowField,
+  flowPath,
+  pullString,
+  smoothPath,
+  type PathPoint,
+} from './navPath';
 import {
   HAZARD_SPIKES,
   HUMAN_PROFILE,
@@ -10,7 +20,9 @@ import {
 } from './navProfile';
 import {
   DIR_E,
+  DIR_N,
   DIR_S,
+  DIR_W,
   TILE,
   keyLevel,
   keyX,
@@ -117,12 +129,19 @@ describe('Dieselbe Karte, zwei Sorten', () => {
 });
 
 describe('Türen', () => {
-  /** Zwei Räume, dazwischen eine Wand mit einer einzigen Tür. */
-  function house(open: boolean, barred = false): NavGraph {
+  /**
+   * Zwei Räume, dazwischen eine Wand mit einer einzigen Tür.
+   *
+   * **Aus Metall, wenn nichts anderes dasteht** — und zwar hier im Test, damit
+   * jede Behauptung über „geschlossen heißt zu" nur von der einen Sache
+   * handelt, um die es ihr geht. Holz ist die interessantere Tür und bekommt
+   * unten seine eigenen Zeilen.
+   */
+  function house(open: boolean, barred = false, material: DoorMaterial = 'metal'): NavGraph {
     const graph = new NavGraph();
     fillRect(graph, { x: 0, z: 0, w: 7, d: 3 });
     for (const z of [0, 1, 2]) graph.setWall(at(3, z), DIR_E, { kind: 'solid' });
-    setDoor(graph, at(3, 1), DIR_E, 'tuer-7', open);
+    setDoor(graph, at(3, 1), DIR_E, 'tuer-7', open, material);
     if (barred) graph.setDoor('tuer-7', { barred: true });
     return graph;
   }
@@ -139,15 +158,45 @@ describe('Türen', () => {
     expect(path.cost).toBeCloseTo(6 * TILE + DOOR_COST, 9);
   });
 
-  it('lässt den Zombie vor der geschlossenen Tür stehen', () => {
+  it('lässt den Zombie vor der geschlossenen Metalltür stehen', () => {
     const graph = house(false);
     const path = findPath(graph, at(0, 1), at(6, 1), zombie);
     expect(path.complete).toBe(false);
     expect(keyX(path.tiles[path.tiles.length - 1]!)).toBe(3);
   });
 
-  it('macht aus der verbarrikadierten Tür für alle eine Wand', () => {
+  it('macht aus der verbarrikadierten Metalltür für alle eine Wand', () => {
     expect(findPath(house(false, true), at(0, 1), at(6, 1), human).complete).toBe(false);
+  });
+
+  it('schlägt die hölzerne ein — und bezahlt mehr dafür als der, der aufmacht', () => {
+    // **Die eine Zeile, wegen der es Material gibt.** Dieselbe geschlossene
+    // Tür, dasselbe Haus: Für den Zombie ist die Metalltür eine Wand und die
+    // Holztür ein Weg, der eben etwas kostet.
+    const wood = house(false, false, 'wood');
+    const path = findPath(wood, at(0, 1), at(6, 1), zombie);
+    expect(path.complete).toBe(true);
+    expect(path.cost).toBeCloseTo(6 * TILE + doorSpec('wood').breakCost, 9);
+    // Und der Mensch tritt sie **nicht** ein, obwohl er könnte: Er hat eine
+    // Klinke, und die ist billiger.
+    expect(findPath(wood, at(0, 1), at(6, 1), human).cost).toBeCloseTo(6 * TILE + DOOR_COST, 9);
+  });
+
+  it('hält auch eine verbarrikadierte Holztür nicht auf, wenn einer zuschlägt', () => {
+    // Eine Barrikade ist etwas, das man **vor** eine Tür stellt, und der
+    // Zombie schlägt beides zusammen kurz und klein. Für den Menschen bleibt
+    // sie eine Wand — er hat nur die Klinke, und die nützt hier nichts.
+    const wood = house(false, true, 'wood');
+    expect(findPath(wood, at(0, 1), at(6, 1), zombie).complete).toBe(true);
+    expect(findPath(wood, at(0, 1), at(6, 1), human).complete).toBe(false);
+  });
+
+  it('macht aus der eingeschlagenen Tür ein Loch, durch das jeder geht', () => {
+    const wood = house(false, true, 'wood');
+    expect(wood.hitDoor('tuer-7', doorSpec('wood').health)).toBe(true);
+    // Kein Aufschlag mehr, für niemanden: Wo das Blatt hing, ist jetzt nichts.
+    expect(findPath(wood, at(0, 1), at(6, 1), human).cost).toBeCloseTo(6 * TILE, 9);
+    expect(findPath(wood, at(0, 1), at(6, 1), zombie).cost).toBeCloseTo(6 * TILE, 9);
   });
 });
 
@@ -293,6 +342,31 @@ describe('Der Schnurzug', () => {
     expect(walked(wide)).toBeGreaterThan(walked(points));
   });
 
+  it('hält über den eigenen Umfang hinaus noch etwas Luft zur Wand', () => {
+    // **Die Zentimeter, wegen denen einer nicht mehr an der Kante hängt.**
+    //
+    // Vorher zog die Schnur genau um Halbmesser und Wandstärke ein: Auf dem
+    // Papier passt der Zylinder damit haargenau vorbei, in der Welt schrammt
+    // er entlang — Rapier drückt ihn bei jeder Berührung zur Seite, das Hirn
+    // zieht ihn zurück auf die Linie, und was man sieht, ist ein Zombie, der
+    // sich an einer Hausecke festfrisst. `NAV_CLEARANCE` ist dieselbe Idee wie
+    // eine Navmesh, die vom Rand abrückt, nur in der Linie statt in der Fläche.
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 6, d: 6 });
+    for (const z of [0, 1, 2]) graph.setWall(at(2, z), DIR_E, { kind: 'solid' });
+    const tip = { x: 3 * TILE, z: 3 * TILE };
+
+    const options = { ...human, radius: 0.3 };
+    const tiles = findPath(graph, at(0, 0), at(5, 0), options).tiles;
+    const roomy = pullString(graph, tiles, options);
+    const bare = pullString(graph, tiles, { ...options, clearance: 0 });
+    expect(closestTo(roomy, tip.x, tip.z)).toBeGreaterThan(closestTo(bare, tip.x, tip.z));
+    // Und was am Ende zählt, ist der Abstand zum **Klotz** und nicht zur Linie:
+    // Eine Wand steht zur Hälfte auf jeder Seite ihrer Kachelgrenze
+    // (`WALL_SKIN`), und erst dahinter fängt die Luft an.
+    expect(closestTo(roomy, tip.x, tip.z)).toBeGreaterThan(0.3 + WALL_SKIN);
+  });
+
   it('bleibt in den Kacheln, die die Suche gefunden hat', () => {
     // Die Stachelgrube: Der Mensch plant außen herum, und die Schnur darf ihn
     // nicht wieder hineinziehen — auch nicht mit einem Fuß auf der Kante.
@@ -364,6 +438,41 @@ describe('Der Schnurzug', () => {
     for (let i = 1; i < points.length; i++) {
       expect(points[i]!.x).toBeGreaterThanOrEqual(points[i - 1]!.x - 1e-9);
     }
+  });
+});
+
+describe('Die Ecke', () => {
+  it('kennt das Kopfende einer Wand als Ecke, obwohl vier Seiten frei sind', () => {
+    // Die Frage, die der Schnurzug an jedem Durchlass stellt und die die
+    // Debug-Ansicht an jeder Kachel stellt (`navScene.ts`, Ebene *Betretbar*).
+    // Sie zu teilen ist der ganze Zweck: Zwei Antworten darauf wären eine
+    // Ansicht, die etwas anderes zeigt, als gelaufen wird.
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 4, d: 4 });
+    // Ein Wandstück von einer Kachel Länge — es endet an der Ecke, an der die
+    // Kacheln (1|2, 0|1) zusammenstoßen.
+    graph.setWall(at(1, 0), DIR_E, { kind: 'solid' });
+
+    // Die Kachel südöstlich davon ist auf **allen vier Seiten** frei …
+    for (const dir of [DIR_N, DIR_E, DIR_S, DIR_W] as const) {
+      expect(graph.wall(at(2, 1), dir)).toBeUndefined();
+    }
+    // … und trotzdem steht in ihrer Nordwestecke das Ende der Wand.
+    expect(cornerBlocked(graph, at(2, 1), DIR_W, DIR_N)).toBe(true);
+    expect(cornerBlocked(graph, at(1, 1), DIR_E, DIR_N)).toBe(true);
+    // Die anderen Ecken derselben Kachel sind offenes Feld.
+    expect(cornerBlocked(graph, at(2, 1), DIR_E, DIR_S)).toBe(false);
+    expect(cornerBlocked(graph, at(2, 1), DIR_W, DIR_S)).toBe(false);
+  });
+
+  it('nennt den Rand der Karte eine Ecke — dahinter ist kein Boden', () => {
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 3 });
+    expect(cornerBlocked(graph, at(0, 0), DIR_W, DIR_N)).toBe(true);
+    expect(cornerBlocked(graph, at(1, 1), DIR_E, DIR_S)).toBe(false);
+    // Und eine Kiste tut dasselbe wie eine fehlende Kachel.
+    graph.setBlocked(at(2, 2), true);
+    expect(cornerBlocked(graph, at(1, 1), DIR_E, DIR_S)).toBe(true);
   });
 });
 

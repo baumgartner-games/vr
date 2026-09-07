@@ -139,6 +139,30 @@ import { TextPlane } from '../../ui/TextPlane';
 import { playPick, playPop, playTone } from '../../core/Audio';
 import { GROUND_TOP, createGround, createLighting, disposeTree } from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
+import { SignRoom, type SignControl } from '../signs/SignRoom';
+import {
+  FONT_STEPS,
+  HEIGHT_STEPS,
+  SCROLL_STEPS,
+  SIGN_BACKGROUNDS,
+  SIGN_COLORS,
+  WIDTH_STEPS,
+  alignLabel,
+  fontLabel,
+  nextPalette,
+  nextStep as nextSignStep,
+  paletteLabel,
+  scrollLabel,
+  type SignSettings,
+} from '../signs/signSettings';
+import { saveSignTemplate, signTemplate } from '../signs/signStore';
+import {
+  KEYBOARD_MODE_LABELS,
+  KEYBOARD_MODE_SUBS,
+  keyboardMode,
+  nextKeyboardMode,
+  saveKeyboardMode,
+} from '../../core/systemKeyboard';
 import { bakeNav, type BakeReport } from '../nav/navBake';
 import { applyNavLayers, boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
 import {
@@ -152,6 +176,14 @@ import {
   type NavLayer,
   type NavLayerState,
 } from '../nav/navLayers';
+import {
+  NAV_SWITCHES,
+  allOn,
+  allSwitchesOn,
+  switchSummary,
+  type NavSwitch,
+  type NavSwitchState,
+} from '../nav/navSwitches';
 import type { LivePreview, PreviewButton } from '../shared/livePreview';
 import { PreviewWalk } from '../shared/previewWalk';
 import type { NavGraph } from '../nav/navGraph';
@@ -235,6 +267,14 @@ const PREVIEW_LIGHT = 0.45;
  * trifft.
  */
 const PREVIEW_REACH = DEFAULT_NEAR_RADIUS * 2;
+/**
+ * Die Farbe des **eigenen** Wegs in der Ebene „Wege".
+ *
+ * Absichtlich nicht das Grün der NPC-Wege: Auf einer Karte von oben laufen
+ * fünf Linien durcheinander, und die Frage ist immer „welche davon ist meine".
+ * Dasselbe Blau wie die Attrappe selbst.
+ */
+const GHOST_PATH_COLOR = 0x39d0ff;
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
 /** The portal surface stays at least this far in front of the eye. */
@@ -759,6 +799,14 @@ export class PortalWorld implements World {
    * Bedienung, nicht der Besitzer.
    */
   protected director: NpcDirector | null = null;
+  /**
+   * Die aufgestellten Schilder dieser Welt (`worlds/signs/SignRoom.ts`).
+   *
+   * Sie hängen am Raum und nicht am Werkzeug: Wer eines hinstellt, kann sein
+   * Werkzeug danach weglegen, und das Schild bleibt — bei ihm und bei allen
+   * anderen in der Sitzung.
+   */
+  protected signs: SignRoom | null = null;
 
   /**
    * **Der Kachelgraph dieser Welt** (`worlds/nav/`).
@@ -775,6 +823,14 @@ export class PortalWorld implements World {
   private navTrackTimer = 0;
   /** Welche Ebenen der Debug-Ansicht gerade an sind (`nav/navLayers.ts`). */
   private navLayers: NavLayerState = noLayers();
+  /**
+   * Was von der Navigation gerade **gilt** (`nav/navSwitches.ts`).
+   *
+   * Nicht zu verwechseln mit den Ebenen darüber: Die machen etwas sichtbar,
+   * diese machen es wirksam. „Fläche aus" heißt, dass niemand mehr einen Weg
+   * sucht — und dann sieht man, was die Wegsuche eigentlich leistet.
+   */
+  private navSwitches: NavSwitchState = allOn();
   /** Wann die Lebensbalken über den NPCs zu sehen sind (`npc/NpcBody.ts`). */
   private npcBars: BarMode = 'hurt';
   /** Wohin Meldungen gehen, solange die Welt als Vorschau läuft. */
@@ -861,9 +917,24 @@ export class PortalWorld implements World {
       playerAt: (target) => this.playerFeet(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
-      nav: () => this.nav,
+      nav: () => this.navForAgents(),
     });
     this.director.setBars(this.npcBars);
+    this.signs = new SignRoom({
+      root: this.root,
+      context: () => this.context,
+      worldId: () => this.context?.net.world ?? 'portal',
+      notify: (message) => this.announce(message),
+      handBusy: (hand) => this.held.get(hand) !== undefined,
+      askText: (request) =>
+        this.askLines({
+          title: request.title,
+          sub: request.sub,
+          value: request.value,
+          hint: request.hint,
+          commit: request.commit,
+        }),
+    });
     this.host = this.buildHost(ctx);
     this.keys = new KeyPanel();
     this.root.add(this.keys);
@@ -907,6 +978,9 @@ export class PortalWorld implements World {
     // Vor dem Schritt: was das Hirn in dieser Frame will, soll in *dieser*
     // Frame gelaufen werden und nicht in der nächsten.
     this.director?.update(dt * this.timeScale);
+    // Die Schilder laufen in **echter** Zeit: Ein Aushang, den die Stoppuhr
+    // anhält, wäre eine Zeitlupe des Lesens.
+    this.signs?.update(dt);
     // The stopwatch slows the simulation, not the frame rate: everything the
     // player does with their hands stays as responsive as ever. Bei
     // angehaltener Zeit rechnet stattdessen die Stoppuhr die Schritte ab, die
@@ -1083,6 +1157,13 @@ export class PortalWorld implements World {
     });
     this.navReport = report;
     this.nav = report.graph;
+    // Ein frisch abgetastetes Gitter kennt keine Schalter — die Stellung, die
+    // gerade gilt, muss es aber trotzdem haben. Sonst zählt eine
+    // ausgeschaltete Sperre nach dem nächsten Abtasten wieder mit, und niemand
+    // versteht, warum.
+    for (const one of NAV_SWITCHES) {
+      if (one.id !== 'surface') report.graph.setFeature(one.id, this.navSwitches[one.id]);
+    }
     this.navReady(report.graph);
   }
 
@@ -1160,6 +1241,65 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Die drei Schalter** — was von der Navigation gilt (`nav/navSwitches.ts`).
+   *
+   * Eine eigene Zeile neben „Navigation zeigen", und der Abstand zwischen
+   * beiden ist der ganze Punkt: Die eine macht etwas sichtbar, die andere
+   * macht es wirksam. Wer sie zusammenlegte, hätte ein Menü, in dem
+   * „Hindernisse" einmal die Ansicht und einmal das Verhalten meint.
+   */
+  private navSwitchMenu(): MenuEntry {
+    const rows: MenuEntry[] = NAV_SWITCHES.map((one) => {
+      const row: MenuEntry = {
+        id: `npc:nav-switch:${one.id}`,
+        label: one.label,
+        sub: one.sub,
+        icon: 'gizmo',
+        accent: one.color,
+        checked: this.navSwitches[one.id],
+        run: () => {
+          const on = this.setNavSwitch(one.id, !this.navSwitches[one.id]);
+          row.checked = on;
+          this.refreshMenuLabels();
+          this.context?.notify(`${one.label}: ${on ? 'an' : 'aus'}`);
+        },
+      };
+      this.menuLabels.push(() => {
+        row.checked = this.navSwitches[one.id];
+      });
+      return row;
+    });
+
+    const parent: MenuEntry = {
+      id: 'npc:nav-switches',
+      label: 'Navigation schalten',
+      sub: switchSummary(this.navSwitches),
+      icon: 'gizmo',
+      accent: 0xffc857,
+      children: [
+        {
+          id: 'npc:nav-switch:all',
+          label: 'Alles wieder an',
+          sub: 'Zurück zu einer vollständigen Navigation',
+          icon: 'reset',
+          accent: 0x5ee0a0,
+          run: () => {
+            for (const one of NAV_SWITCHES) this.setNavSwitch(one.id, true);
+            this.refreshMenuLabels();
+            this.context?.notify(switchSummary(this.navSwitches));
+          },
+        },
+        ...rows,
+      ],
+    };
+    this.menuLabels.push(() => {
+      parent.sub = switchSummary(this.navSwitches);
+      parent.accent = allSwitchesOn(this.navSwitches) ? 0xffc857 : 0xff5a5a;
+    });
+    return parent;
+  }
+
+  /**
    * **Eine Meldung an den, der zusieht.**
    *
    * Im Spiel ist das das Handgelenk (`ctx.notify`), in der laufenden Vorschau
@@ -1189,6 +1329,50 @@ export class PortalWorld implements World {
   /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
   protected navLayerState(): Readonly<NavLayerState> {
     return this.navLayers;
+  }
+
+  /** Was von der Navigation gerade gilt (`nav/navSwitches.ts`). */
+  protected navSwitchState(): Readonly<NavSwitchState> {
+    return this.navSwitches;
+  }
+
+  /**
+   * **Das Gitter, mit dem die NPCs arbeiten** — oder gar keines.
+   *
+   * Der Schalter „Fläche" hängt hier und nicht im Graphen, denn er schaltet
+   * nichts *am* Gitter ab, sondern das Gitter selbst: Ohne eines läuft jedes
+   * Hirn stur auf den Spieler zu (`npcBrain.ts`, `waypoint: null`), und man
+   * sieht in einem einzigen Bild, was die Wegsuche den ganzen Tag tut.
+   */
+  private navForAgents(): NavGraph | null {
+    return this.navSwitches.surface ? this.nav : null;
+  }
+
+  /**
+   * Legt einen der drei Schalter um und gibt zurück, ob er jetzt an ist.
+   *
+   * Zwei davon gehen an den Graphen (Hindernisse, Verbindungen), der dritte
+   * bleibt hier (Fläche). Danach wird die Debug-Ansicht **neu gebaut** und
+   * nicht bloß umgeschaltet: Eine Sperre, die nicht mehr zählt, ist keine
+   * Sperre mehr und wird auch nicht mehr als eine gezeichnet.
+   */
+  protected setNavSwitch(id: NavSwitch, on: boolean): boolean {
+    if (this.navSwitches[id] === on) return on;
+    this.navSwitches[id] = on;
+    if (id !== 'surface') this.nav?.setFeature(id, on);
+    this.rebuildNavDebug();
+    return on;
+  }
+
+  /** Wirft die Debug-Ansicht weg; das nächste `applyNav()` baut sie neu. */
+  private rebuildNavDebug(): void {
+    if (this.navDebug) {
+      this.root.remove(this.navDebug);
+      disposeTree(this.navDebug);
+      this.navDebug = null;
+    }
+    this.clearNavTracks();
+    this.applyNav();
   }
 
   /** Schaltet eine Ebene und gibt zurück, ob sie jetzt an ist. */
@@ -1248,16 +1432,24 @@ export class PortalWorld implements World {
    */
   private updateNavTracks(dt: number): void {
     if (!this.navLayers.paths || !this.nav || !this.director) return;
+
     this.navTrackTimer -= dt;
     if (this.navTrackTimer > 0) return;
     this.navTrackTimer = 0.2;
 
     this.clearNavTracks();
     const paths = this.director.paths();
-    if (paths.length === 0) return;
+    // **Und der eigene Weg dazu.** Bis hierher zeigte diese Ebene nur, was die
+    // *anderen* laufen — wer von oben seine Figur losschickt, sah beim
+    // Einschalten in einem leeren Labor gar nichts. Er bekommt eine eigene
+    // Farbe, denn er beantwortet eine andere Frage: nicht „wie kommen sie zu
+    // mir", sondern „wie komme ich dorthin".
+    const mine = this.ghostWalk?.points ?? [];
+    if (paths.length === 0 && mine.length === 0) return;
     const group = new THREE.Group();
     group.name = 'nav-tracks';
     for (const path of paths) group.add(navPathView(this.nav, path));
+    if (mine.length > 0) group.add(navPathView(this.nav, mine, GHOST_PATH_COLOR));
     this.root.add(group);
     this.navTracks = group;
   }
@@ -1345,6 +1537,7 @@ export class PortalWorld implements World {
         brainRow,
         barsRow,
         this.navMenu(),
+        this.navSwitchMenu(),
         {
           id: 'npc:spawn',
           label: 'Am Spawnpunkt setzen',
@@ -2634,6 +2827,34 @@ export class PortalWorld implements World {
     });
   }
 
+  /**
+   * Dieselbe Tastatur, aber **mehrzeilig** — für alles, was ein Text ist und
+   * kein Wert: der Aushang auf einem Schild.
+   *
+   * Sie liegt hier und nicht bei den Schildern, weil die Tastatur der Welt
+   * gehört: Sie hängt vor dem Kopf des Spielers, sie ist beim Zeiger
+   * angemeldet, und es darf immer nur eine offen sein.
+   */
+  protected askLines(options: {
+    title: string;
+    sub?: string;
+    value: string;
+    hint?: string;
+    commit(text: string): void;
+  }): void {
+    this.openKeys({
+      title: options.title,
+      sub: options.sub,
+      value: options.value,
+      hint: options.hint,
+      layout: 'lines',
+      onCommit: (text) => {
+        options.commit(text);
+        this.refreshMenuLabels();
+      },
+    });
+  }
+
   /** Puts the keypad an arm's length in front of the player and opens it. */
   private openKeys(request: KeyPanelRequest): void {
     const keys = this.keys;
@@ -2695,7 +2916,9 @@ export class PortalWorld implements World {
           ? (this.supermanMenu().children ?? [])
           : id === 'holster'
             ? this.beltMenu()
-            : [];
+            : id === 'sign'
+              ? this.signMenu()
+              : [];
 
     return [
       ...own,
@@ -2722,6 +2945,152 @@ export class PortalWorld implements World {
           tool?.resetHold();
           this.refreshMenuLabels();
           this.context?.notify(`${tool?.label ?? id}: Lage zurückgesetzt`);
+        },
+      },
+    ];
+  }
+
+  /**
+   * **Wie ein Schild aussieht** — hinter dem Werkzeug, das es aufstellt.
+   *
+   * Jede Zeile ändert **zweierlei**: das Schild, vor dem man gerade steht (das
+   * zuletzt aufgestellte oder angezielte), und die Vorlage für das nächste.
+   * Beides zusammen, weil beides gemeint ist — wer die Schrift größer stellt,
+   * während er davorsteht, will dieses Schild größer haben und das nächste
+   * nicht wieder von Hand einstellen (`worlds/signs/SignRoom.ts`).
+   */
+  private signMenu(): MenuEntry[] {
+    const accent = 0x9fd0ff;
+    const read = (): SignSettings => this.signs?.settings() ?? signTemplate();
+    const write = (patch: Partial<SignSettings>): void => {
+      const next = this.signs?.apply(patch) ?? saveSignTemplate({ ...read(), ...patch });
+      this.refreshMenuLabels();
+      void next;
+    };
+
+    const dial = (
+      id: string,
+      label: string,
+      sub: string,
+      value: () => string,
+      step: () => void,
+    ): MenuEntry => {
+      const entry: MenuEntry = {
+        id: `setting:sign-${id}`,
+        label: `${label}: ${value()}`,
+        sub,
+        icon: 'sign',
+        accent,
+        run: () => {
+          step();
+          this.refreshMenuLabels();
+          this.context?.notify(`${label}: ${value()}`);
+        },
+      };
+      this.menuLabels.push(() => {
+        entry.label = `${label}: ${value()}`;
+      });
+      return entry;
+    };
+
+    return [
+      {
+        id: 'setting:sign-text',
+        label: 'Schild beschriften',
+        sub: 'Die Tastatur für das Schild, vor dem du stehst',
+        icon: 'chat',
+        accent,
+        run: () => {
+          const signs = this.signs;
+          if (!signs) return;
+          if (signs.current()) signs.edit();
+          else this.context?.notify('Erst eines aufstellen · Trigger mit dem Schild in der Hand');
+        },
+      },
+      dial(
+        'font',
+        'Schriftgröße',
+        'Zeilenhöhe auf dem Schild — in Zentimetern, nicht in Pixeln',
+        () => fontLabel(read().fontCm),
+        () => write({ fontCm: nextSignStep(FONT_STEPS, read().fontCm) }),
+      ),
+      dial(
+        'markdown',
+        'Markdown',
+        '# Titel, - Punkt, **fett**, ![Bild](Adresse) — oder alles wörtlich',
+        () => (read().markdown ? 'an' : 'aus'),
+        () => write({ markdown: !read().markdown }),
+      ),
+      dial(
+        'align',
+        'Ausrichtung',
+        'Linksbündig liest sich länger, mittig sieht nach Aushang aus',
+        () => alignLabel(read().align),
+        () => write({ align: read().align === 'center' ? 'left' : 'center' }),
+      ),
+      dial(
+        'color',
+        'Schriftfarbe',
+        'Sechs Farben, die zu den Hintergründen passen',
+        () => paletteLabel(SIGN_COLORS, read().color),
+        () => write({ color: nextPalette(SIGN_COLORS, read().color) }),
+      ),
+      dial(
+        'background',
+        'Hintergrund',
+        'Dunkel für einen Raum, Papier für einen Aushang',
+        () => paletteLabel(SIGN_BACKGROUNDS, read().background),
+        () => write({ background: nextPalette(SIGN_BACKGROUNDS, read().background) }),
+      ),
+      dial(
+        'scroll',
+        'Automatisch rollen',
+        'Läuft von selbst hoch, wartet oben und unten',
+        () => scrollLabel(read().autoScroll),
+        () => write({ autoScroll: nextSignStep(SCROLL_STEPS, read().autoScroll) }),
+      ),
+      dial(
+        'manual',
+        'Von Hand rollen',
+        'Daumenstick der Hand, die auf das Schild zeigt',
+        () => (read().manualScroll ? 'an' : 'aus'),
+        () => write({ manualScroll: !read().manualScroll }),
+      ),
+      dial(
+        'width',
+        'Breite',
+        'Wie breit die Tafel ist — die Schrift bleibt dabei gleich groß',
+        () => `${read().width.toFixed(1).replace('.', ',')} m`,
+        () => write({ width: nextSignStep(WIDTH_STEPS, read().width) }),
+      ),
+      dial(
+        'height',
+        'Höhe',
+        'Höher heißt: mehr steht da, bevor gerollt werden muss',
+        () => `${read().height.toFixed(1).replace('.', ',')} m`,
+        () => write({ height: nextSignStep(HEIGHT_STEPS, read().height) }),
+      ),
+      {
+        id: 'setting:sign-keyboard',
+        label: `Tastatur: ${KEYBOARD_MODE_LABELS[keyboardMode()]}`,
+        sub: KEYBOARD_MODE_SUBS[keyboardMode()],
+        icon: 'settings',
+        accent,
+        run: (): void => {
+          const mode = saveKeyboardMode(nextKeyboardMode(keyboardMode()));
+          this.refreshMenuLabels();
+          this.context?.notify(`Tastatur: ${KEYBOARD_MODE_LABELS[mode]}`);
+        },
+      },
+      {
+        id: 'setting:sign-clear',
+        label: 'Eigene Schilder abräumen',
+        sub: 'Alles, was du selbst aufgestellt hast — bei allen im Raum',
+        icon: 'eraser',
+        accent: 0xffc857,
+        run: () => {
+          const count = this.signs?.clear() ?? 0;
+          this.context?.notify(count ? `${count} Schilder abgeräumt` : 'Da stand nichts');
         },
       },
     ];
@@ -2801,6 +3170,8 @@ export class PortalWorld implements World {
     this.hasLastGround = false;
     this.director?.dispose();
     this.director = null;
+    this.signs?.dispose();
+    this.signs = null;
     this.sync?.dispose();
     this.sync = null;
     this.clearRemotePlayers(ctx);
@@ -2883,6 +3254,7 @@ export class PortalWorld implements World {
     this.navDebug = null;
     this.navTracks = null;
     this.navLayers = noLayers();
+    this.navSwitches = allOn();
     this.solids.length = 0;
     this.surfaceGroups.clear();
 
@@ -2932,7 +3304,7 @@ export class PortalWorld implements World {
       playerAt: (target) => this.playerFeet(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
-      nav: () => this.nav,
+      nav: () => this.navForAgents(),
     });
     this.director.setBars(this.npcBars);
 
@@ -2968,6 +3340,12 @@ export class PortalWorld implements World {
       setLayer: (layer, on) => {
         this.setNavLayer(layer, on);
         this.previewLayersChanged();
+      },
+      switches: () => this.navSwitchState(),
+      setSwitch: (id, on) => {
+        this.setNavSwitch(id, on);
+        this.previewLayersChanged();
+        this.announce(switchSummary(this.navSwitchState()));
       },
       bars: () => this.npcBarMode(),
       setBars: (mode) => this.setNpcBars(mode),
@@ -4854,6 +5232,7 @@ export class PortalWorld implements World {
       unparkTool: (tool) => this.unparkTool(tool),
       stowTool: (tool) => this.stowTool(tool),
       npcs: (): NpcControl | null => this.director,
+      signs: (): SignControl | null => this.signs,
       takeTool: (tool, hand) => {
         const now = this.context;
         const controller = now?.input.get(hand);
