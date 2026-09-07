@@ -38,6 +38,7 @@ import {
   TOOL_IDS,
   Tool,
   WEAPON_FIELDS,
+  aimQuaternion,
   applyGearConfig,
   applyStoredPose,
   clearGearConfig,
@@ -110,7 +111,7 @@ import {
   type NearZone,
   type Vec3,
 } from './grabReach';
-import { HandSpeed, tumbleAxis } from './throwMotion';
+import { HandSpeed, throwDirection, tumbleAxis } from './throwMotion';
 import {
   DEFAULT_GRAB,
   GRAB_FIELDS,
@@ -324,9 +325,33 @@ const _handSpin = { x: 0, y: 0, z: 0 };
  * sondern verschossen.
  */
 const MAX_TOOL_SPIN = 20;
+/** Wohin die Hand beim Loslassen zeigte, und wohin von dort aus geschaut wird. */
+const _throwAim = { x: 0, y: 0, z: 0 };
+/** Und was aus beidem und der Bewegung als Wurfrichtung herauskommt. */
+const _throwDir = { x: 0, y: 0, z: 0 };
+const _gaze = new THREE.Vector3();
+const _gazePoint = new THREE.Vector3();
+/**
+ * Wie weit vor dem Kopf der Blick landet, wenn er auf nichts trifft — in
+ * Metern.
+ *
+ * Eine Blickrichtung ist ein Strahl vom *Kopf* aus, ein Wurf geht von der
+ * *Hand* los, und die liegt einen halben Meter daneben. Parallel zum Blick
+ * geworfen ginge der Wurf deshalb um genau diesen halben Meter am Ziel vorbei
+ * — auf fünf Meter sind das gut fünf Grad. Also wird nicht die Richtung des
+ * Blicks genommen, sondern sein **Ziel**: der Punkt, auf dem er liegt, und von
+ * der Klinge aus dorthin. Trifft er nichts, ist das dieser Abstand — weit
+ * genug, dass die Wurfrichtung dann fast die Blickrichtung ist.
+ */
+const GAZE_FOCUS = 12;
+/** So weit schaut die Zielhilfe höchstens, und so nah frühestens. */
+const GAZE_REACH = 60;
+const GAZE_NEAR = 1;
 
 const _handSpeed = new THREE.Vector3();
+const _handAim = new THREE.Vector3();
 const _handTurn = new THREE.Quaternion();
+const _aimTurn = new THREE.Quaternion();
 const _toolBox = new THREE.Box3();
 const _toolLocal = new THREE.Box3();
 const _toolMatrix = new THREE.Matrix4();
@@ -4881,6 +4906,9 @@ export class PortalWorld implements World {
     tool.updateWorldMatrix(true, false);
 
     const gliding = tool.glides && speed >= THROW_SPEED;
+    // Ein Messer, das wirklich geworfen wird, fliegt nicht dorthin, wo der Arm
+    // gerade langfuhr, sondern dorthin, wohin gezielt wurde.
+    if (gliding) this.aimThrow(ctx, tool, motion, _velocity);
     const entry = physics.addDynamic(tool, {
       shape: { kind: 'box' },
       halfExtents: toolHalfExtents(tool, _probe),
@@ -4925,7 +4953,58 @@ export class PortalWorld implements World {
     if (hip && this.belt) this.refillSlot(this.belt.slot(hip));
     this.trimLoose(tool.toolId);
     playPick(false);
-    void ctx;
+  }
+
+  /**
+   * **Wohin ein geworfenes Messer fliegt** — die Richtung, nicht das Tempo.
+   *
+   * Die reine Bewegungsrichtung der Hand war zu wenig: Wer zielt, führt den
+   * Arm von oben nach unten und hält die Klinge dabei auf das Ziel; der Wurf
+   * ging dann in den Boden, und richtig hinbewegen ließ er sich auch nicht,
+   * weil das die Wurfbewegung selbst ist. Also zählen drei Dinge zusammen
+   * (`throwMotion.ts`, mit Test): wohin die Hand fuhr, **wohin sie am Ende
+   * zeigte** — über die letzten Bilder gemittelt, in denen auch das etwas
+   * verspätet gemeldete Loslassen steckt — und **wohin geschaut wird**.
+   *
+   * Der Blick zieht nur innerhalb seines Kegels; wer geradeaus schaut und
+   * absichtlich nach rechts wirft, wirft nach rechts.
+   */
+  private aimThrow(
+    ctx: WorldContext,
+    tool: Tool,
+    motion: HandSpeed | null | undefined,
+    velocity: THREE.Vector3,
+  ): void {
+    const speed = velocity.length();
+    if (speed <= 0) return;
+    tool.getWorldPosition(_gazePoint);
+    const aim = motion?.throwAim(_throwAim) ? _throwAim : null;
+    const gaze = this.gazeAim(ctx, _gazePoint, _gaze) ? _gaze : null;
+    if (!throwDirection(velocity, aim, gaze, _throwDir)) return;
+    velocity.set(_throwDir.x, _throwDir.y, _throwDir.z).multiplyScalar(speed);
+  }
+
+  /**
+   * Der Weg von `from` zu dem, was der Spieler **ansieht**.
+   *
+   * Nicht die Blickrichtung selbst: Der Blick geht vom Kopf aus, der Wurf von
+   * der Hand, und ein halber Meter Versatz sind auf fünf Meter gut fünf Grad
+   * daneben. Gesucht ist also der Punkt, auf dem der Blick liegt — wo er auf
+   * die Welt trifft, sonst `GAZE_FOCUS` Meter geradeaus.
+   *
+   * @returns `false`, wenn `from` genau auf diesem Punkt steht — dann gibt es
+   *          keine Richtung, und `out` bleibt unberührt.
+   */
+  private gazeAim(ctx: WorldContext, from: THREE.Vector3, out: THREE.Vector3): boolean {
+    this.headRay(ctx, _aimRay);
+    const hit = this.castSurface(_aimRay, GAZE_REACH, this.solids);
+    const distance = hit
+      ? THREE.MathUtils.clamp(_aimRay.origin.distanceTo(hit.point), GAZE_NEAR, GAZE_REACH)
+      : GAZE_FOCUS;
+    out.copy(_aimRay.direction).multiplyScalar(distance).add(_aimRay.origin).sub(from);
+    if (out.lengthSq() < 1e-6) return false;
+    out.normalize();
+    return true;
   }
 
   /**
@@ -5145,6 +5224,12 @@ export class PortalWorld implements World {
    * Gemerkt wird dabei nicht nur das laufende Tempo, sondern das der letzten
    * Sekundenbruchteile: geworfen wird mit dem **schnellsten Moment** darin und
    * nicht mit dem, was beim Loslassen noch übrig ist (`throwMotion.ts`).
+   *
+   * Dazu kommt, **wohin die Hand zeigt** — und zwar dieselbe Richtung, in die
+   * ein gehaltenes Werkzeug zeigt: der Halteraum plus die Zielkorrektur
+   * (`aimQuaternion`), also der Zeigestrahl und nicht die Griffachse. Am
+   * Controller liegen die beiden gut 30° auseinander, und eine Wurfrichtung
+   * aus der Griffachse zielte um genau diese 30° daneben.
    */
   private trackHands(dt: number, ctx: WorldContext): void {
     for (const side of ['left', 'right'] as const) {
@@ -5160,7 +5245,10 @@ export class PortalWorld implements World {
       }
       gripOf(controller).getWorldPosition(_handSpeed);
       gripOf(controller).getWorldQuaternion(_handTurn);
-      motion.feed(_handSpeed, dt, _handTurn);
+      // Die Lage, die ein Werkzeug in dieser Hand hätte — daraus sein -Z.
+      _aimTurn.copy(_handTurn).multiply(aimQuaternion(controller, _quaternion));
+      _handAim.set(0, 0, -1).applyQuaternion(_aimTurn);
+      motion.feed(_handSpeed, dt, _handTurn, _handAim);
     }
   }
 
