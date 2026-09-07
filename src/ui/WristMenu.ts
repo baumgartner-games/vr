@@ -5,6 +5,7 @@ import type { MenuEntry } from './menu';
 import { MenuNav } from './menuNav';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
+import { denyOutline, isOutline } from '../core/outlineShell';
 
 const _wrist = new THREE.Vector3();
 const _head = new THREE.Vector3();
@@ -816,7 +817,12 @@ function miniature(source: THREE.Object3D, size: number): THREE.Object3D {
   source.traverseVisible((child) => {
     const mesh = child as THREE.Mesh;
     if (!mesh.isMesh || !mesh.geometry) return;
-    const copy = new THREE.Mesh(mesh.geometry, mesh.material);
+    // Der schwarze Saum aus dem Comic-Modus ist kein Teil des Werkzeugs,
+    // sondern ein zweites Bild davon (`core/outlineShell.ts`). Abgeschrieben
+    // wäre er in der Menüzeile ein schwarzer Klotz — seine Breite ist für ein
+    // Werkzeug in Lebensgröße gerechnet, nicht für vier Zentimeter.
+    if (isOutline(mesh)) return;
+    const copy = denyOutline(new THREE.Mesh(mesh.geometry, mesh.material)) as THREE.Mesh;
     copy.matrixAutoUpdate = false;
     copy.matrix.multiplyMatrices(_world, mesh.matrixWorld);
     copy.matrixWorldNeedsUpdate = true;

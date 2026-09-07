@@ -25,6 +25,16 @@ import {
 } from '../net/room';
 import { KeyPanel, type KeyPanelRequest } from '../ui/KeyPanel';
 import { detectFlatRole } from './device';
+import { GraphicsQuality } from './GraphicsQuality';
+import {
+  GRAPHICS_MODE_LABELS,
+  GRAPHICS_MODE_SUBS,
+  clearGraphics,
+  graphics,
+  graphicsSummary,
+  nextGraphicsMode,
+  saveGraphics,
+} from './graphicsSettings';
 import {
   DEFAULT_EYES,
   EYE_RANGE,
@@ -68,6 +78,7 @@ export interface ConnectOptions extends TrysteroOptions {
 
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
+const _headPos = new THREE.Vector3();
 const _keyPosition = new THREE.Vector3();
 const _keyRotation = new THREE.Quaternion();
 const _keyOffset = new THREE.Vector3();
@@ -118,6 +129,11 @@ export class App {
    * Spiegeln wüsste, wäre eine Welt, in der man einen vergessen kann.
    */
   private readonly mirrors: MirrorRenderer;
+  /**
+   * Wie schön es aussieht — bei der App, weil ein Schatten keine Eigenschaft
+   * einer Welt ist (`core/GraphicsQuality.ts`).
+   */
+  private readonly quality: GraphicsQuality;
 
   private world: World | null = null;
   private worldMenu: MenuEntry[] = [];
@@ -185,6 +201,7 @@ export class App {
       700,
     );
     this.mirrors = new MirrorRenderer(this.renderer);
+    this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.rig = new PlayerRig(this.renderer, this.camera);
     this.scene.add(this.rig);
 
@@ -322,6 +339,9 @@ export class App {
       this.worldMenu = next.menu?.() ?? [];
 
       this.net.setWorld(definition.id);
+      // Neue Lichter, neuer Himmel: Die Grafikstufe legt sich noch einmal
+      // über das, was gerade aufgebaut wurde.
+      this.quality.worldChanged();
       this.refreshMenu();
       this.hooks.onWorldChanged?.(definition.id, definition.title);
       this.notify(definition.title);
@@ -537,6 +557,7 @@ export class App {
     this.voice.dispose();
     this.spectator.dispose();
     this.mirrors.dispose();
+    this.quality.dispose();
     this.net.disconnect();
     this.renderer.dispose();
   }
@@ -605,6 +626,7 @@ export class App {
       },
       this.networkMenu(),
       this.movementMenu(),
+      this.graphicsMenu(),
       ...this.worldMenu,
       {
         id: 'menu:close',
@@ -788,6 +810,78 @@ export class App {
             saveEyeHeights({ ...DEFAULT_EYES });
             apply();
             this.notify('Augenhöhen zurückgesetzt');
+          },
+        },
+      ],
+    };
+  }
+
+  /**
+   * **Grafik** — die experimentelle Seite.
+   *
+   * Sie steht hier oben neben *Bewegung* und nicht in den Einstellungen einer
+   * Welt, und zwar aus demselben Grund: Eine Welt darf den Boden unter dem
+   * Spieler ändern, nie aber seine Augen. Wer im Hub auf *Schön* stellt, will
+   * es im Gokart genauso — und der Hub hat gar keine Weltmenüs, in die eine
+   * Grafikeinstellung passte.
+   *
+   * Zwei Zeilen, und beide sagen dasselbe zweimal: was gerade gilt, und was
+   * ein Druck daraus macht — der Modus schaltet im Kreis (Einfach → Schön →
+   * Comic), die Texturen sind ein Schalter daneben und gelten für jede Stufe.
+   * Was sie tatsächlich anstellen, steht in `core/graphicsSettings.ts`.
+   */
+  private graphicsMenu(): MenuEntry {
+    const accent = 0xb98bff;
+    const settings = graphics();
+
+    return {
+      id: 'gfx',
+      label: 'Grafik',
+      sub: graphicsSummary(settings),
+      icon: 'palette',
+      accent,
+      // Experimentell und als solches beschriftet: Beides kostet Bildrate, und
+      // was auf einer Quest 2 noch flüssig ist, weiß niemand vorher.
+      badge: 'EXP',
+      children: [
+        {
+          id: 'gfx:mode',
+          label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
+          sub: GRAPHICS_MODE_SUBS[settings.mode],
+          caption:
+            'Einfach → Schön → Comic · alles sofort sichtbar, nur das schärfere Bild ab der nächsten Sitzung',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ mode: nextGraphicsMode(graphics().mode) });
+            this.menuDirty = true;
+            this.notify(`Grafik: ${GRAPHICS_MODE_LABELS[next.mode]}`);
+          },
+        },
+        {
+          id: 'gfx:textures',
+          label: 'Texturen',
+          sub: 'Körnung, Farbunruhe und Unebenheit — gerechnet statt geladen',
+          caption: 'Prozedural im Shader: keine Bilddatei, keine Ladezeit, kein Kacheln',
+          icon: 'brush',
+          accent,
+          checked: settings.textures,
+          run: () => {
+            const next = saveGraphics({ textures: !graphics().textures });
+            this.menuDirty = true;
+            this.notify(next.textures ? 'Texturen an' : 'Texturen aus');
+          },
+        },
+        {
+          id: 'gfx:reset',
+          label: 'Zurück auf Einfach',
+          sub: 'Das Bild, das dieses Projekt immer hatte',
+          icon: 'reset',
+          accent: 0xffc857,
+          run: () => {
+            clearGraphics();
+            this.menuDirty = true;
+            this.notify('Grafik zurückgesetzt');
           },
         },
       ],
@@ -1238,6 +1332,11 @@ export class App {
     // Nach den Avataren: die Stimme sitzt am Kopf, und der steht erst jetzt.
     this.voice.update(dt, this.camera, this.avatars);
     if (this.menuDirty) this.refreshMenu();
+
+    // Vor allem, was zeichnet: Der Schattenkasten steht um den Kopf, und die
+    // Schattenkarte wird einmal fürs ganze Bild bestellt — Spiegel und
+    // Portalsichten zeichnen die Szene ja gleich noch mehrmals.
+    this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
 
     // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
     // sich die Welt gleich selbst zeichnet.

@@ -57,6 +57,12 @@ räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
+Unter **Menü → Grafik** liegen zwei experimentelle Schalter: der
+**Grafik-Modus** — _Einfach_ ist das Bild von bisher, _Schön_ gibt jeder Welt
+Schatten, Spiegelungen aus ihrem eigenen Himmel und ein schärferes Bild in der
+Brille, _Comic_ zeichnet dieselbe Welt mit **schwarzen Konturen** und Licht in
+Stufen — und **Texturen**, eine Körnung auf allen Oberflächen, die im Shader
+gerechnet und nicht geladen wird.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -83,7 +89,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
-Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
+Spiegelung beider Hüften, die Portaltiefe, die Grafikstufen samt den
+prozeduralen Oberflächen, die Lichtstufen
 des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
 dazu, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt

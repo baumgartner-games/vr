@@ -211,6 +211,18 @@ und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
 die **Welt-Physik**
 (`src/core/worldPhysics.ts` — Rasten, Grenzen, und dass „Welt-Standard" die
 Schwerkraft der Welt gewinnen lässt statt einer einmal getippten Zahl), die
+**Grafikstufen** (`src/core/graphicsSettings.ts` — vor allem die eine Zusage,
+auf der alles andere steht: dass „Einfach" _nichts_ einschaltet und damit genau
+das Bild von vorher ist) samt dem, was sie **in einer Szene** anrichten
+(`src/core/graphicsScene.ts` — wer Schatten wirft und wer nur empfängt, dass
+sich alles vollständig zurücknehmen lässt, dass Nachzügler beim nächsten
+Durchlauf abgeholt werden, und dass die Sonne mitwandert, ohne ihre Richtung zu
+drehen) und dem, was **in die Shader der Welt eingebaut** wird
+(`src/core/materialLook.ts` — Ein- und Ausbau ohne Spuren, Körnung und
+Comic-Farbstufen **zugleich** an einem Material, das ihre Programmschlüssel
+auseinanderhält, und der eigentliche Grund für den Test: dass die sechs
+`#include`-Zeilen, an denen der Umbau hängt, im echten Shader von three.js noch
+stehen — eine umbenannte fiele sonst erst in der Brille auf), die
 **Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
 Sturz einer ist, und dass der _höchste_ Treffer gewinnt: von unten gesucht
 landet man im Keller eines Hauses, von oben auf seinem Dach), die **Dicke der
@@ -570,7 +582,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   kommt_),
   **NPC** (wer hier herumläuft — Haut und Hirn getrennt, dazu Spawnpunkte und
   Brutkäfige; siehe _Wer hier herumläuft_),
-  **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Einstellungen** und
+  **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Grafik** (die
+  experimentelle Seite: Einfach, Schön oder Comic, dazu prozedurale Texturen —
+  siehe _Wie schön es aussieht_), **Einstellungen** und
   die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
   `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht
@@ -2256,6 +2270,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
 | Nah Gefasstes zur anderen Hand     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
+| Grafik umstellen                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Schön → Comic), _Texturen_ ist ein Schalter daneben                                                        | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
 | Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
 | Augenhöhe messen                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_, oder die Knöpfe an der rechten Wand im Eingaberaum                                                                      | –                                                                                               | –                    |
@@ -4218,6 +4233,159 @@ stürzt derselbe Test mit genau dieser Meldung ab.
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
 das Portal Labor nutzt das für seine Zusatzdurchgänge.
+
+### Wie schön es aussieht
+
+_Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Beides hier ist
+ein Experiment, beides kostet Bildrate, und keines ist ab Werk an.
+
+Das Bild, das dieses Projekt immer hatte, ist **eine** von zwei Stufen und
+heißt jetzt so:
+
+- **Einfach** — flache Farben, ein Himmelsverlauf, drei Lichter, keine
+  Schatten. Nicht „sparsam", sondern _identisch_ mit vorher: Wer nichts
+  einstellt, sieht Pixel für Pixel dasselbe Bild wie gestern. Das ist keine
+  Behauptung, sondern eine Prüfbedingung — jede Zahl im einfachen Profil ist
+  der Wert, den `App` ohnehin setzt (`graphicsSettings.test.ts`).
+- **Schön** — drei Dinge auf einmal: **Schatten** von der hellsten Sonne der
+  Welt, ein **Umgebungsbild** aus ihrem Himmel, damit glänzende Flächen
+  überhaupt etwas zu spiegeln haben, und ein **schärferes Bild** in der Brille
+  (`framebufferScale` 1,2, Foveation 0,3 statt 1).
+- **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
+  Ding und Licht, das in **Stufen** auf den Flächen liegt statt in einem
+  Verlauf. Schatten hat sie auch (ohne sie schwebt in einer Zeichnung alles),
+  ein Umgebungsbild nicht — eine Spiegelung ist genau das, was ein gezeichnetes
+  Bild nicht hat.
+
+#### Die schwarze Kante
+
+Eine Kontur um alles gibt es auf zwei Arten, und die naheliegende fällt hier
+aus: Ein **Nachbearbeitungsschritt** (Bild rendern, Kanten im Tiefen- und
+Normalenbild suchen) braucht einen Zwischenpuffer für das ganze Bild, und den
+gibt eine WebXR-Sitzung nicht her, ohne dass man ihr das Bild aus der Hand
+nimmt, das sie selbst für zwei Augen zusammenbaut. Also der ältere Weg, den
+Comic-Spiele seit zwanzig Jahren gehen: **die umgestülpte Hülle**
+(`core/outlineShell.ts`). Jedes Ding wird ein zweites Mal gezeichnet, in
+Schwarz, ein wenig aufgeblasen, mit den **Rückseiten** nach vorn — sichtbar
+bleibt nur der Saum, der ringsum darüber hinausragt. Kostet einen zweiten
+Zeichenaufruf pro Ding (Dust: 869 → 1824) und funktioniert in beiden Augen.
+
+Vier Dinge daran sind Erfahrung und keine Theorie:
+
+- **Geglättete Normalen.** Ein Quader aus `BoxGeometry` hat an jeder Ecke drei
+  Normalen, eine je Fläche; bläst man entlang dieser auf, fahren die Flächen
+  auseinander und die Kontur bekommt an jeder Ecke eine Lücke. Also liegt neben
+  jeder Geometrie einmalig eine **gemittelte** Normale (`bgvrOutlineNormal`) —
+  ohne die Geometrie selbst anzufassen. Über 24 000 Ecken wird das
+  übersprungen: Am Alpen-Hang fällt eine Ecke nicht auf, ein Ruckler schon.
+- **Gedeckelt auf einen Anteil des Dings.** Ein gleich breiter Saum auf dem
+  Bildschirm heißt: in der Nähe schmal, in der Ferne (in Metern) breit. Der
+  erste Versuch machte aus der **Dominoreihe im Portallabor eine Reihe
+  schwarzer Klötze** — ein Domino ist zwei Zentimeter breit, und ein Zentimeter
+  Kante ringsherum ist keine Kante mehr, sondern eine Füllung. Jetzt bekommt
+  jedes Ding höchstens ein Achtel seines eigenen Radius.
+- **Unsichtbar für alles andere.** Der Saum wirft keinen Schatten, trägt eine
+  Marke in `userData` und hat ein leeres `raycast` — sonst hätte die Hand
+  plötzlich zwei Kisten unter dem Strahl und bekäme das Kind statt der Kiste.
+  Und wer im Projekt **Objekte abschreibt**, muss ihn kennen: Das kleine Modell
+  in der Menüzeile lässt ihn aus (`denyOutline`, sonst ein schwarzer Klotz in
+  einer vier Zentimeter großen Zeile, und ein Material pro Menü-Neubau, das
+  niemand wegräumt), und die Kopie eines Props nimmt ihn heraus
+  (`stripOutlines` in `cloneVisual` — ein Klon teilt das Material und verliert
+  dabei das leere `raycast`, das ihn harmlos macht). Beide bekommen beim
+  nächsten Durchlauf ihren eigenen.
+- **Ein eigenes Material je Saum**, und ein Skelett bzw. dieselben
+  Instanzmatrizen, wo das Ding eines hat: Ein Wald aus 400 Bäumen soll 400
+  Säume haben und nicht einen am Ursprung, ein Handschuh seinen an der Hand und
+  nicht in der Grundhaltung im Raum. Geteilt wäre das Material auch nur so
+  lange heil, bis die erste Welt beim Verlassen ihren Baum abräumt
+  (`disposeTree`).
+
+Und die **Farbstufen** (`materialLook.ts`) rechnen nicht auf der fertigen
+Farbe, sondern auf dem Licht **ohne** sie: `directDiffuse` ist Beleuchtung mal
+Grundfarbe, und wer das rundet, gibt einer dunklen Kiste eine einzige Stufe und
+einer weißen fünf. Die unterste Stufe ist dabei ausdrücklich **nicht** die
+Null — mit ihr war das Portallabor, in dem das Licht aus zwei Deckenlampen
+kommt, zur Hälfte stockschwarz. Ein Boden von 60 % lässt eine dunkle Fläche
+dunkel bleiben, ohne sie auszulöschen.
+
+Daneben steht ein zweiter Schalter, der mit der Stufe nichts zu tun hat:
+**Texturen**. Er ist die Antwort auf „die Welten sehen aus wie aus Plastik",
+und zwar ohne eine einzige Bilddatei — dieses Projekt lädt keine, und das soll
+so bleiben. Stattdessen rechnet ein Rauschen im Shader
+(`core/materialLook.ts`, dieselbe Datei wie die Farbstufen — ein Material hat
+genau ein `onBeforeCompile`, und zwei Umbauten, die sich gegenseitig
+überschreiben, wären ein Fehler, den man erst sieht, wenn beide Schalter
+zugleich anstehen): Farbunruhe in Flecken von einem halben Meter,
+eine wandernde Rauheit, und daraus über die Bildschirm-Ableitungen ein leichter
+Buckel — dieselbe Rechnung, die three.js für `bumpMap` benutzt, nur mit
+gerechneter statt gelesener Höhe. Vier `#include`-Zeilen von three.js sind die
+Nahtstellen; dass sie noch da sind, prüft ein Test gegen den echten Shader, denn
+eine umbenannte Zeile fiele sonst erst in der Brille auf.
+
+Drei Entscheidungen darin sind es wert, aufgeschrieben zu werden:
+
+- **Weltkoordinaten statt UV.** Die Quader dieser Welten haben ihre UVs von
+  `BoxGeometry`, also 0…1 pro Fläche: Eine Kachel darauf wäre auf einer Kiste
+  briefmarkengroß und auf dem Boden bis zum Horizont einen halben Kilometer
+  breit. Weltkoordinaten haben das Problem nicht — die Körnung ist auf jedem
+  Ding gleich groß.
+- **Schräg abgetastet.** Das Rauschgitter liegt sonst parallel zu jeder Wand
+  (hier ist alles achsenparallel gebaut), und aus Körnung wird ein Karomuster.
+  Eine feste Drehmatrix davor kostet nichts und räumt das weg.
+- **Mit der Rauheit skaliert.** Der Buckel wird mit `roughnessFactor`
+  multipliziert. Ohne das sah das Portal Labor aus wie mit Alufolie ausgelegt:
+  Auf einer polierten Fläche macht dieselbe Unebenheit aus dem Glanzlicht ein
+  Funkeln. Was glatt gemeint ist, bleibt glatt.
+
+Und was in der Szene passiert, steht in `core/graphicsScene.ts` — angewendet
+von `core/GraphicsQuality.ts`, das bei der **App** hängt und nicht bei einer
+Welt: Ein Schatten ist keine Eigenschaft des Portallabors, und der Hub hat gar
+kein Weltmenü, in das eine Grafikeinstellung passte.
+
+- **Die Szene wird abgelaufen, nicht die Welten geändert.** Es gibt fünfzehn
+  davon, sie werden nachgeladen, und jede müsste sonst dieselben vier Zeilen
+  selbst schreiben — die sechzehnte würde sie vergessen. Der Durchlauf ist
+  **idempotent und umkehrbar** (jeder überschriebene Wert liegt vorher unter
+  `userData`) und läuft **jede Sekunde erneut**: Ein Zombie, der nach dem
+  Umschalten aus dem Käfig kommt, hätte sonst als Einziger keinen Schatten.
+- **Eine Kulisse wirft keinen Schatten.** `markBackdrop` ist genau dafür da:
+  Der Himmel steht um alles herum, die Bodenplatte reicht bis zum Horizont, und
+  beide würden die halbe Welt verdunkeln. Empfangen dürfen sie ihn. Genauso
+  wenig wirft Durchsichtiges einen — ein Fenster mit einem Brett als Schatten
+  ist schlimmer als eines ohne.
+- **Der Schattenkasten wandert mit dem Kopf.** Eine Karte deckt 28 Meter ab,
+  die Welten reichen bis zum Horizont: Die Sonne behält exakt ihre Richtung
+  (sonst wanderten die Schatten beim Gehen), nur Lampe und Ziel rücken hinter
+  den Spieler, eingerastet auf zwei Meter — ohne das kriechen die Ränder bei
+  jedem Schritt über die Kanten, und das ist in einer Brille deutlich
+  unangenehmer als ein Schatten, der alle zwei Meter einmal springt. Gerechnet
+  wird in Weltkoordinaten, weil die Schattenkarte genau so liest; das Ziel eines
+  Richtungslichts hängt an keiner Szene, also wird seine Weltmatrix von Hand
+  gerechnet.
+- **Das Grundlicht geht mit herunter** (Hemisphären- und Umgebungslicht auf
+  0,45). Das ist der unscheinbarste Wert und der wichtigste: Ein Schatten ist
+  nur so dunkel, wie das Licht daneben hell ist, und diese Welten leuchten mit
+  1,5 aus — auf voller Stärke war der schönste Schatten ein Hauch. Was fehlt,
+  ersetzt das Umgebungsbild, das aus derselben Richtung kommt wie der Himmel.
+  Lampen bleiben unangetastet: Der Dimmer im Dunkelhaus, die Deckenlampen im
+  Interaktionslabor und der Blitz einer Explosion stellen ihre Stärke selbst
+  ein.
+- **Kein Himmel, kein Umgebungsbild.** Das Dunkelhaus ist dunkel, weil es
+  keinen hat; ihm eine erfundene Kuppel überzuhängen wäre genau die Sorte
+  Verbesserung, die ein Experiment kaputt macht. Wo einer steht, werden sechs
+  kleine Bilder daraus gerechnet (`PMREMGenerator`), einmal pro Welt — und für
+  diese paar Millisekunden wird `renderer.xr.enabled` abgeschaltet, weil
+  `render()` in einer laufenden Sitzung sonst die Kamera der Brille einsetzt und
+  sechsmal denselben Blick liefert.
+- **Die Schattenkarte wird einmal pro Bild bestellt** (`shadowMap.autoUpdate`
+  aus, `needsUpdate` im Loop). Spiegel und Portalsichten zeichnen die Szene
+  mehrmals; jede dieser Zeichnungen würde sie sonst neu bauen.
+
+Im **Konfig-Code steht davon nichts** (`configCode.ts`). Was ein Gerät leisten
+kann, ist keine Einstellung, die man verschickt: Ein Code aus einer Brille darf
+einem PC nicht die Schatten abschalten und einer vom PC einer Brille keine
+aufzwingen.
 
 ### Was aus dem Beutel kommt
 
