@@ -300,6 +300,15 @@ export class ClimbWorld extends GridWorld {
     this.backToTheMat();
   }
 
+  /** Unter diesem Namen liegt die Welt im Speicher (`grid/worldStore.ts`). */
+  protected override worldId(): string {
+    return 'climb';
+  }
+
+  protected override editorTitle(): string {
+    return 'Kletterhalle';
+  }
+
   protected override layout(): GridPlan {
     return climbHall();
   }

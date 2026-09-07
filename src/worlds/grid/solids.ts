@@ -39,6 +39,26 @@ export type PlanSolidKind =
   /** Was leuchtet: Lampenglas, Leuchtstreifen. Kein Licht, nur die Farbe. */
   | 'glow';
 
+/**
+ * **Dieselben acht Sorten, aber zum Nachschlagen zur Laufzeit.**
+ *
+ * Ein Typ ist beim Übersetzen weg, und genau dann braucht man ihn: Wer eine
+ * Welt aus einer Datei liest (`worldFile.ts`), hat eine Zeichenkette in der
+ * Hand und muss fragen, ob sie eine Sorte ist. Die Liste steht deshalb neben
+ * dem Typ — und weil sie danebensteht, fällt beim Erweitern auf, dass es zwei
+ * Stellen sind.
+ */
+export const GRID_KINDS: readonly PlanSolidKind[] = [
+  'floor',
+  'wall',
+  'door',
+  'panel',
+  'wood',
+  'steel',
+  'stone',
+  'glow',
+];
+
 /** Ein Quader in Weltmetern: Mitte und Kantenlängen. */
 export interface PlanSolid {
   kind: PlanSolidKind;

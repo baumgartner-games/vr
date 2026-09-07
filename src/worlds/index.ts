@@ -118,7 +118,7 @@ export const WORLDS: WorldDefinition[] = [
     title: 'Bauplatz',
     tagline: 'Level bauen, während man darin steht',
     description:
-      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Tippen setzt Boden, Wände und Türen — und alles wächst in Lebensgröße um dich herum.',
+      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Gedrückt halten malt eine ganze Reihe, zwei Ecken füllen eine Fläche — und alles wächst in Lebensgröße um dich herum. Gebaute Welten bleiben im Browser und lassen sich als Datei mitnehmen. Dasselbe geht in jeder Kachelwelt über das Menü.',
     accent: 0x39d0ff,
     roles: ['vr', 'desktop'],
     experimental: true,
@@ -162,7 +162,7 @@ export const WORLDS: WorldDefinition[] = [
     title: 'Dunkelhaus',
     tagline: 'Licht aus, Taschenlampe an',
     description:
-      'Kleines Haus ohne Fenster: Lichtschalter im Startraum, schwebende Taschenlampe, Leuchtkugel, Laterne und Knicklichter.',
+      'Kleines Haus ohne Fenster: Lichtschalter im Startraum, schwebende Taschenlampe, Leuchtkugel, Laterne und Knicklichter. Im Menü unter „Bauen" holst du die Karte und baust das Haus um.',
     accent: 0xffd88a,
     roles: ['vr', 'desktop'],
     experimental: true,

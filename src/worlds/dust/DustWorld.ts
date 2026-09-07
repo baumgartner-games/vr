@@ -52,6 +52,15 @@ export class DustWorld extends GridWorld {
     };
   }
 
+  /** Unter diesem Namen liegt die Welt im Speicher (`grid/worldStore.ts`). */
+  protected override worldId(): string {
+    return 'dust';
+  }
+
+  protected override editorTitle(): string {
+    return 'Dust';
+  }
+
   protected override layout(): GridPlan {
     return dustTown();
   }

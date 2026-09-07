@@ -522,6 +522,40 @@ export class PhysicsWorld {
     }
   }
 
+  /**
+   * **Einfrieren** — der Körper hält an, wo er ist, und fällt nicht.
+   *
+   * Für den einen Fall, den es dafür gibt: Während jemand an einer Welt baut,
+   * ist ihr Boden nicht fest (`grid/GridWorld.ts`). Ohne diesen Handgriff
+   * fielen alle Kisten der Welt durch ihn hindurch, während man an ihr malt,
+   * und lägen hinterher als Haufen auf dem Boden bis zum Horizont.
+   *
+   * Ein eingefrorener Körper ist `fixed` — er nimmt weiter Platz weg und
+   * lässt sich weiter anfassen, er bewegt sich nur nicht mehr von selbst.
+   * Beim Auftauen bekommt er seine Ruhe mit: eine Kiste, die mit der
+   * Geschwindigkeit von vorhin weiterflöge, hätte zwei Sekunden lang
+   * dieselbe Richtung wie vor dem Bauen.
+   *
+   * Gibt zurück, ob sich wirklich etwas geändert hat — daran erkennt der
+   * Aufrufer, welche Körper *er* eingefroren hat und also auch wieder
+   * auftauen darf.
+   */
+  setFrozen(entry: PhysicsBody, frozen: boolean): boolean {
+    if (entry.removed || this.freed) return false;
+    const { RigidBodyType } = this.rapier;
+    const want = frozen ? RigidBodyType.Fixed : RigidBodyType.Dynamic;
+    // **Nur, was vorher das andere war.** Ein Aufzug ist kinematisch und ein
+    // Türblatt fest; wer beide beim Auftauen zu Kisten machte, hätte danach
+    // eine Welt, die zu Boden fällt.
+    if (entry.body.bodyType() === want) return false;
+    if (frozen && entry.body.bodyType() !== RigidBodyType.Dynamic) return false;
+    entry.body.setBodyType(want, true);
+    if (frozen) return true;
+    entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    return true;
+  }
+
   remove(entry: PhysicsBody): void {
     // **Zweimal wegnehmen ist kein Wegnehmen mehr, sondern ein Absturz**
     // (`PhysicsBody.removed`) — und aus einer Welt, die es nicht mehr gibt,
