@@ -83,6 +83,23 @@ export interface SignPlacement {
   towards?: THREE.Vector3;
   text?: string;
   settings?: SignSettings;
+  /**
+   * Eine feste Kennung — für Schilder, die **zur Welt gehören**.
+   *
+   * Gibt es sie schon, wird nichts gebaut und das vorhandene zurückgegeben:
+   * Ein Aushang, den die Halle selbst hinstellt, steht bei jedem genau einmal,
+   * weil jeder dieselbe Halle baut.
+   */
+  id?: string;
+  /**
+   * Ob es einem selbst gehört. Voreinstellung ja.
+   *
+   * Ein Schild der Welt gehört niemandem: Es wird nicht gespeichert, nicht
+   * verschickt und nicht mit abgeräumt — es entsteht überall aus demselben
+   * Bauplan. Beschriftet jemand es doch, geht *diese Änderung* sehr wohl über
+   * das Netz (`touch`); sie überlebt nur kein Neuladen.
+   */
+  own?: boolean;
 }
 
 /** Und was ein Werkzeug oder ein Menü damit tun darf. */
@@ -193,6 +210,9 @@ export class SignRoom implements SignControl {
   place(request: SignPlacement): SignBoard | null {
     const context = this.world.context();
     if (!context) return null;
+    // Ein Schild mit fester Kennung gibt es genau einmal.
+    const known = request.id ? this.entries.get(request.id) : undefined;
+    if (known) return known.board;
     const normal = request.normal;
     const mount: SignMount | null =
       normal.y >= FLOOR_NORMAL ? 'post' : Math.abs(normal.y) <= WALL_NORMAL ? 'wall' : null;
@@ -222,11 +242,14 @@ export class SignRoom implements SignControl {
       board.quaternion.setFromUnitVectors(_forward, _direction.copy(normal).normalize());
     }
 
-    const id = signId(context.net.localId, this.counter++);
-    this.adopt(id, board, true);
-    this.focus = board;
-    this.broadcast(id);
-    this.persist();
+    const mine = request.own !== false;
+    const id = request.id ?? signId(context.net.localId, this.counter++);
+    this.adopt(id, board, mine);
+    if (mine) {
+      this.focus = board;
+      this.broadcast(id);
+      this.persist();
+    }
     return board;
   }
 
@@ -260,7 +283,7 @@ export class SignRoom implements SignControl {
       title: 'Schild beschriften',
       sub: target.settings.markdown ? 'Markdown: # Titel, - Punkt, **fett**' : 'Reiner Text',
       value: target.text,
-      hint: 'Fertig übernimmt · Abbrechen lässt alles, wie es war',
+      hint: 'Fertig übernimmt (Strg+Eingabe) · Abbrechen lässt alles, wie es war',
       commit: (text) => {
         target.setText(text);
         this.touch(target);

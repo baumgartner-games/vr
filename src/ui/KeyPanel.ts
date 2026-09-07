@@ -328,7 +328,14 @@ export class KeyPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMat
     if (!this.request) return;
     // Das Feld des Geräts hat den Anschlag schon; hier käme er ein zweites Mal an.
     if (this.bridge) return;
-    if (event.key === 'Enter') this.run({ kind: 'ok' });
+    // Mehrzeilig macht die Eingabetaste, wofür sie da ist: eine neue Zeile.
+    // Fertig ist man dann mit Strg+Eingabe oder mit dem Knopf auf der Tafel —
+    // ein Schild, dessen zweite Zeile die Eingabe abschickt, kann keine zweite
+    // Zeile haben.
+    const lines = this.request.layout === 'lines';
+    if (event.key === 'Enter' && lines && !event.ctrlKey && !event.metaKey) {
+      this.run({ kind: 'char', char: '\n' });
+    } else if (event.key === 'Enter') this.run({ kind: 'ok' });
     else if (event.key === 'Escape') this.run({ kind: 'cancel' });
     else if (event.key === 'Backspace') this.run({ kind: 'back' });
     else if (event.key.length === 1) this.run({ kind: 'char', char: event.key });

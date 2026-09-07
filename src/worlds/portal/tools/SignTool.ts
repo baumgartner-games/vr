@@ -92,7 +92,11 @@ export class SignTool extends Tool {
       settings: this.headSettings(),
       mount: 'wall',
     });
-    this.headBoard.position.set(0, 0.2, 0);
+    // Etwas über dem Griff und zurückgelehnt: Der Entwurf soll lesbar sein,
+    // während die Hand das Werkzeug hält, und nicht senkrecht ins Blickfeld
+    // ragen.
+    this.headBoard.position.set(0, 0.2, 0.02);
+    this.headBoard.rotation.x = -0.42;
     this.add(this.headBoard);
 
     // Der Umriss: eine Fläche in Schildgröße, halbdurchsichtig, plus ein Ring

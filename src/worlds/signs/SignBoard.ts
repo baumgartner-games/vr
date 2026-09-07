@@ -470,11 +470,18 @@ function fontOf(style: RunStyle): string {
   return `${slant}${weight} ${Math.round(style.size)}px ${family}`;
 }
 
-/** Die drei Töne einer Tafel, alle aus ihrer einen Schriftfarbe abgeleitet. */
+/**
+ * Die drei Töne einer Tafel — **eine** Farbe, drei Stärken.
+ *
+ * Eine zweite Farbe zu erfinden ginge schief: Sie müsste zum Hintergrund
+ * passen, und den stellt der Spieler ein. Also bekommt die Überschrift die
+ * volle Farbe, der Fließtext ein wenig weniger und das Beiläufige (Code,
+ * Zitat) deutlich weniger. Das reicht, damit eine Gliederung eine ist.
+ */
 function toneColor(settings: SignSettings, tone: RunStyle['tone']): string {
   if (tone === 'accent') return cssColor(settings.color);
-  if (tone === 'muted') return withAlpha(settings.color, 0.72);
-  return cssColor(settings.color);
+  if (tone === 'muted') return withAlpha(settings.color, 0.62);
+  return withAlpha(settings.color, 0.88);
 }
 
 function withAlpha(color: number, alpha: number): string {

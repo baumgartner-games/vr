@@ -355,6 +355,30 @@ anderen ist die Frage: Die übrigen prüfen eine Rechnung, dieser prüft einen
 **Eindruck** — „der Zombie läuft durch die verriegelte Tür" ist keine falsche
 Zahl, sondern ein Weg, den man erst sieht, wenn man ihn abläuft.
 
+Und seit es die **Schilder** gibt (`worlds/signs/`), fünf weitere: was auf
+einem Schild steht (`signMarkup.ts` — die kleine Teilmenge Markdown, und vor
+allem, dass ohne sie jede Zeile wörtlich stehen bleibt: wer eine Liste von
+Namen mit `*` davor tippt, will Sternchen und keine Aufzählung), wie es
+umbrochen wird (`signLayout.ts` — gemessen wird von außen, im Test von einer
+Funktion, die Buchstaben zählt; geprüft werden der Umbruch, das zu lange Wort,
+das *nicht* zerhackt wird, der Punkt links vor dem eingerückten Text und die
+gedeckelte Höhe eines Bildes), wie es **rollt** (`signScroll.ts` — dass was
+hineinpasst gar nicht rollt, dass oben und unten gewartet wird, und die tote
+Zone, ohne die ein ruhender Stick ein Schild in einer Minute quer durch seinen
+Text schöbe), wie es **aussieht** (`signSettings.ts` — Grenzen, Rasten, und die
+Umrechnung, um die es eigentlich geht: die Schriftgröße steht in Zentimetern
+*auf dem Schild*, damit „4 cm" auf der kleinen Tafel dasselbe heißt wie auf der
+großen), und was davon **über das Netz** geht (`signShare.ts` — dass ein
+fremdes Schild geprüft wird, bevor es gezeichnet wird, und dass bei gleicher
+Fassung das Bekannte stehen bleibt: beim Begrüßen antworten mehrere, und ohne
+diese Regel spränge der Rollstand jedes Schildes zurück an den Anfang). Dazu
+die **Tastaturwahl** (`core/systemKeyboard.ts` — die Tabelle aus drei
+Einstellungen mal „in der Brille" mal „auf so einem Gerät", in der man sich
+sonst vertut) und die **Türen des Interaktionslabors**
+(`worlds/interact/doorMotion.ts` — dass eine Tür mit Nachlauf beim zweiten
+Druck *nicht* zufällt, sondern die Uhr neu setzt: eine Tür, die zugeht, während
+man in ihr steht, ist eine Falle und kein Schalter).
+
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
 
@@ -411,7 +435,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
-  Mond, Alpen, Dunkelhaus, Effektlabor, Eingaberaum),
+  Mond, Alpen, Dunkelhaus, Effektlabor, Interaktionslabor, Eingaberaum),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
@@ -1701,6 +1725,110 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Bildfehler. „Größer" heißt dabei mehr, dickere, schnellere und länger
   lebende Partikel bis zu einer festen Obergrenze — die Physik dahinter bleibt
   gleich: eine doppelt so große Explosion fällt nicht doppelt so schnell.
+- **Interaktionslabor** (experimentell): eine helle Halle (32 × 22 m) im Geist
+  der Testkammern aus _Portal_ und der großen Testzelle, die in Oblivion hinter
+  der Karte liegt — ein Raum ohne Geschichte, in dem einmal aufgebaut steht,
+  was man **anfassen** kann. Quer durch die Halle läuft eine Wand mit drei
+  Öffnungen, und das ist der Punkt: Ohne eine Wand, die wirklich trennt, ist
+  eine Tür ein Möbelstück, an dem man vorbeigeht.
+  - **Schiebetür**, geöffnet vom **großen roten Knopf** (derselbe wie im
+    Effektlabor, `worlds/shared/redButton.ts`) — mit **Nachlauf**: sechs
+    Sekunden, dann fällt sie von selbst zu.
+  - **Flügeltür**, zwei Blätter an ihren Scharnieren, geschaltet vom **Hebel**,
+    der **rastet**: auf bleibt auf.
+  - **Drucktür**, offen nur, solange etwas auf der **Druckplatte** liegt — man
+    selbst, oder die Kiste, die daneben steht. Die Platte löst in *jedem* Bild
+    neu aus, in dem sie gedrückt ist; deshalb fällt die Tür anderthalb Sekunden
+    nach dem Verlassen zu und nicht unter dem, der darin steht
+    (`interact/doorMotion.ts`, mit Test).
+  Dazu ein **Kippschalter** an der Westwand für das Deckenlicht, über jeder Tür
+  eine Lampe (aus, gelb in Bewegung, grün offen) und hinter der Wand die
+  **Schildergalerie**: drei Tafeln, die zeigen, was ein Schild kann — Markdown,
+  ein langer Aushang, der von selbst rollt, und der Text, den man selbst
+  hineinschreibt. Die Türblätter sind **kinematische** Körper: sie schieben,
+  was ihnen im Weg liegt, und niemand schiebt sie. Im Gürtel liegt statt der
+  zweiten Portalpistole das **Schild** — in einem Raum, in dem es ums Bedienen
+  geht, ist das Werkzeug, das etwas aufschreibt, wichtiger als das zweite, das
+  Löcher in Wände schießt.
+- **Schilder** (`src/worlds/signs/`, Werkzeug `tools/SignTool.ts`): Tafeln, die
+  man irgendwo hinstellt und beschriftet. Sie sind das Gegenstück zur
+  Staffelei — die stellt eine Fläche zum _Malen_ hin, das Schild eine zum
+  _Lesen_ —, und sie sind das, was eine **Lobby** braucht: Was ein Raum an
+  Absprachen, Regeln und Plänen mit sich trägt, steht sonst im Chat und ist
+  nach dem dritten Beitritt weggescrollt.
+  **Bedienung**: In der Hand ist das Werkzeug eine kleine Tafel am Griff, auf
+  der schon steht, was gleich aufgestellt wird. **Trigger** stellt hin — auf
+  den Boden kommt das Schild auf einen Pfosten, an eine Wand flach darauf;
+  wohin es käme, zeigt ein Umriss in Schildgröße. **A/X** beschriftet: zielt
+  man dabei auf ein aufgestelltes Schild, wird dieses beschriftet, sonst der
+  Entwurf in der Hand. **Greifen an einem der beiden Traggriffe** nimmt ein
+  aufgestelltes Schild wieder auf (dieselbe Geste wie an der Staffelei, und aus
+  demselben Grund: ein Schild ist kein Prop und hat keinen Körper, den eine Hand
+  fassen könnte). Und mit **leerer Hand** genügt hinzeigen und Trigger — dann
+  geht die Tastatur auf. Eine Hand mit einem Werkzeug zeigt hier nicht hin; sie
+  hat mit ihrem Trigger etwas anderes vor (`PointerTarget.ignore`).
+  **Was auf einer Tafel steht**, ist eine kleine Teilmenge Markdown:
+  Überschriften, Aufzählungen (Punkte und Nummern), Zitat, Trennlinie, Code,
+  Bild — und in der Zeile fett, kursiv, Code und Links. Sie ist **selbst
+  geschrieben und nicht geladen**, und das ist die eine Entscheidung, die hier
+  wirklich zählt: Eine Markdown-Bibliothek gibt HTML zurück, und HTML ist in
+  einer WebXR-Szene kein Bild. Was man sieht, ist eine **Leinwand**
+  (`CanvasTexture`) — der Umweg über ein `foreignObject` in einem SVG malt in
+  der Brille entweder gar nicht oder gar nichts mehr, sobald ein fremdes Bild
+  darin steckt: Die Leinwand ist dann „vergiftet" und lässt sich nicht mehr als
+  Textur hochladen. Deshalb wird jedes Bild mit `crossOrigin = 'anonymous'`
+  geladen, und was der Server nicht freigibt, bekommt einen Platzhalter mit
+  seinem Alternativtext statt eines schwarzen Schildes.
+  Der Weg dahin sind drei Schritte, und nur der letzte kennt eine Leinwand:
+  Text → Blöcke (`signMarkup.ts`) → Zeilen mit festen Plätzen
+  (`signLayout.ts`) → gezeichnet (`SignBoard.ts`). Alles bis dorthin ist ohne
+  Brille prüfbar, und deshalb ist die Höhe, aus der das Rollen seine Grenzen
+  zieht, keine geratene Zahl.
+  **Einstellbar** ist im Menü unter dem Werkzeug: **Schriftgröße** (in
+  Zentimetern _auf dem Schild_, nicht in Pixeln — nur so heißt „4 cm" auf der
+  kleinen Tafel dasselbe wie auf der großen), **Markdown an/aus**,
+  **Ausrichtung**, **Schriftfarbe** und **Hintergrund** (sechs bzw. sieben, als
+  Liste statt als Farbkreis: wer im Headset einen Farbkreis bedienen soll,
+  tippt am Ende Zahlen), **automatisches Rollen** (0 bis 16 cm/s, mit Pause
+  oben und unten und einem Sprung zurück an den Anfang — rückwärts laufender
+  Text liest sich wie ein Fehler), **Rollen von Hand** (Daumenstick der Hand,
+  die auf das Schild zeigt; solange sie rollt, wartet das Automatische) und die
+  **Maße** der Tafel. Jede Zeile ändert **zweierlei**: das Schild, vor dem man
+  steht, und die Vorlage für das nächste — wer die Schrift größer stellt, will
+  dieses Schild größer haben und das nächste nicht wieder von Hand einstellen.
+  **Über das Netz** geht ein Schild als sieben Felder (Kennung, Fassung, Lage,
+  Text, Aussehen, Art der Befestigung): Wer eines aufstellt, stellt es allen im
+  Raum auf, und wer später dazukommt, sagt einmal Hallo und bekommt den Bestand
+  nachgereicht (`SignRoom.ts`, Kanal `signs`). Dass dabei mehrere antworten,
+  ist eingeplant — die höhere **Fassungsnummer** gewinnt, die gleiche verliert
+  gegen das Bekannte (`signShare.ts`, mit Test), sonst spränge der Rollstand
+  jedes Schildes bei jeder Begrüßung an den Anfang. Was hereinkommt, wird
+  geprüft: Ein Schild mit einer Million Zeichen ist keine Nachricht, sondern
+  eine stehende Bildrate. **Aufgehoben** werden die **eigenen** Schilder je
+  Welt (`signStore.ts`) — die der anderen kommen über das Netz, wenn die
+  anderen da sind; sie mitzuschreiben hieße, dass ein längst abgeräumtes Schild
+  beim nächsten Besuch wieder an der Wand hängt. Schilder, die zu einer **Welt**
+  gehören (die Galerie im Interaktionslabor), gehören niemandem: feste Kennung,
+  nicht gespeichert, nicht verschickt — jeder baut dieselbe Halle.
+- **Tastatur des Geräts** (`src/core/systemKeyboard.ts`): In der Brille kann
+  eine Texteingabe die **Systemtastatur** anfordern — der Meta-Quest-Browser
+  blendet seine eigene ein, sobald in einer laufenden WebXR-Sitzung ein
+  Eingabefeld des Dokuments den Fokus bekommt (dasselbe gilt für Wolvic und
+  Pico). Sie kann Wortvorschläge, Umlaute, Diktat und die gekoppelte
+  Bluetooth-Tastatur — alles, was eine selbstgemalte Tafel nie können wird.
+  Drei Dinge sind daran wichtig: Sie tritt **neben** die Bordtastatur und nicht
+  an ihre Stelle (ob eine Quest sie wirklich einblendet, erfährt kein Programm
+  — es gibt kein Ereignis dafür, und eine Eingabe, die auf einer unsichtbaren
+  Zusage beruht, hat man dann gar nicht); am **Schreibtisch** bleibt sie aus,
+  weil dort die echte Tastatur steht und ein fokussiertes Feld jeden Anschlag
+  doppelt zustellte; und **abgeschickt** wird nicht dort, sondern weiter mit
+  _Fertig_ auf der Tafel im Raum. Unter _Werkzeuge → Schild → Tastatur_ steht
+  die Wahl: _automatisch_, _Systemtastatur_, _Bordtastatur_.
+  Das Tastenfeld selbst (`ui/KeyPanel.ts`) hat dafür eine vierte, **mehrzeilige**
+  Belegung bekommen — vierzehn Spalten mit Umlauten, Satzzeichen und den
+  Zeichen, aus denen Markdown besteht, ein hohes Feld, das die letzten Zeilen
+  zeigt, und eine Eingabetaste, die eine **neue Zeile** macht statt abzuschicken
+  (fertig ist man mit _Fertig_ oder `Strg`+`Eingabe`).
 - **Boden bis zum Horizont**: unter _jeder_ Welt liegt eine Fläche mit Raster,
   einen Kilometer im Quadrat, begehbar und portalfähig (`createGround` in
   `worlds/shared/environment.ts`). Vorher stand jede Welt auf ihrer eigenen
@@ -1806,6 +1934,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
 | Pinsel                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                  | –                                                                                               | –                    |
 | Staffelei                          | Trigger stellt sie hin (Kreis am Boden zeigt wohin) und die Hand ist danach frei; **Griff an der Ablage + Greifen** nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel                                                          | –                                                                                               | –                    |
+| Schild                             | Trigger stellt es hin (Umriss zeigt wohin: Pfosten am Boden, flach an der Wand); `A`/`X` beschriftet das anvisierte Schild, sonst den Entwurf in der Hand; **Traggriff + Greifen** nimmt ein aufgestelltes wieder auf                                    | –                                                                                               | –                    |
+| Schild lesen und ändern            | mit **leerer Hand** hinzeigen + Trigger öffnet die Tastatur; Daumenstick derselben Hand rollt den Text                                                                | anklicken (gerollt wird in der Brille)                                                          | tippen               |
+| Tastatur (mehrzeilig)              | Tasten anzielen + Trigger; in der Brille kommt, wo es sie gibt, die Systemtastatur des Geräts dazu; `⏎ Zeile` macht eine neue Zeile, `Fertig` übernimmt                | echte Tastatur, `Strg`+`Eingabe` übernimmt, `Esc` bricht ab                                     | tippen               |
+| Interaktionslabor                  | roter Knopf öffnet die Schiebetür (sechs Sekunden), Hebel rastet die Flügeltür, Kiste oder Fuß auf der Druckplatte hält die dritte auf; Kippschalter an der Westwand macht das Licht | anklicken                                                                                       | tippen               |
 | Effektlabor                        | roter Knopf löst aus; links Kachel wählen und den Schieber ziehen (Trigger halten)                                                                                    | anklicken / ziehen                                                                              | tippen               |
 | Duplizier-Waffe                    | zielen + Trigger legt eine Kopie daneben                                                                                                                              | –                                                                                               | –                    |
 | Inspektor                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                    | –                                                                                               | –                    |
