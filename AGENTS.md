@@ -267,7 +267,12 @@ Fenster ist und nicht das Abbremsen danach, dass ein einzelnes Ausreißerbild
 keinen Wurf auslöst, worum sich ein geworfenes Messer überschlägt, und **die
 Drehung der Hand**: die Winkelgeschwindigkeit zwischen zwei Lagen, der kürzere
 Bogen auch dann, wenn das Vorzeichen der Drehung kippt, und null, solange gar
-keine Lage mitkommt) und die **Effekte des Effektlabors**
+keine Lage mitkommt) samt seiner **Richtung** (dieselbe Datei — dass die
+Zeigerichtung aus den letzten Bildern vor dem Loslassen kommt und nicht aus dem
+Ausholen davor, dass der Blick den Wurf im engen Kegel ganz an sich zieht und
+weit außerhalb gar nicht, und der Wurf, um den es geht: der Arm fährt beim
+Zielen von oben nach unten, und die Klinge geht trotzdem waagerecht auf das
+Ziel) und die **Effekte des Effektlabors**
 (`src/worlds/effects/effectKinds.ts` — die Grenzen und das Raster der Größe,
 dass „größer" mehr und dickere Partikel heißt, aber nie mehr als die Obergrenze,
 und dass die Physik dahinter dieselbe bleibt; `effectBurst.ts` — dass eine
@@ -639,6 +644,24 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   drei Umdrehungen je Sekunde — ein Trackingaussetzer meldet sonst zweihundert
   Radiant. Das gleitende Messer behält seinen eigenen Überschlag: es dreht sich
   um die Ebene des Wurfs und nicht um das Handgelenk.
+  **Und die Richtung ist nicht die Bewegungsrichtung**: Wer zielt, führt den Arm
+  von oben nach unten und hält die Klinge dabei die ganze Zeit auf das Ziel —
+  die Bewegung geht nach unten, gemeint ist geradeaus, und der Wurf landete im
+  Boden. Zu beheben war das nicht, indem man die Hand anders bewegt; es _ist_
+  die Wurfbewegung. Ein geworfenes Messer nimmt deshalb drei Antworten
+  zusammen (`throwMotion.ts`, `throwDirection`, mit Test): wohin die Hand fuhr,
+  **wohin sie am Ende zeigte** — der Zeigestrahl, gemittelt über die letzten
+  0,06 s, in denen auch das etwas verspätet gemeldete Loslassen steckt, also
+  ohne dass irgendetwas warten müsste — und **wohin geschaut wird**. Der Blick
+  zieht wie in jedem Spiel mit Wurfwaffen: bis 10° zwischen Wurf und Blick ist
+  er gemeint und gewinnt ganz, bis 35° verläuft sich seine Hilfe weich, darüber
+  hinaus zählt nur die Hand. Wer geradeaus schaut und absichtlich nach rechts
+  wirft, wirft nach rechts. Genommen wird dabei nicht die Blickrichtung,
+  sondern der **Punkt, auf dem der Blick liegt** (`PortalWorld.gazeAim`, sonst
+  zwölf Meter geradeaus): Der Blick geht vom Kopf aus, der Wurf von der Hand,
+  und ein halber Meter Versatz sind auf fünf Meter gut fünf Grad daneben. Das
+  alles gilt nur für einen **wirklichen Wurf** eines gleitenden Werkzeugs; ein
+  fallengelassener Hammer fällt weiter dorthin, wohin er geschoben wurde.
 - **Von Hand zu Hand**: ein gehaltenes Werkzeug kann die andere Hand
   übernehmen, ohne dass es dafür erst fallen muss. Beide Hände zusammenführen,
   die leere greift — fertig. Gemessen wird gegen den **Griffpunkt** der
@@ -815,7 +838,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     deshalb `oben × Flugrichtung` (`portal/throwMotion.ts`, mit Test) und
     nicht mehr die x-Achse des Werkzeugs — die liegt in der linken Hand anders
     herum als in der rechten, und aus derselben Wurfbewegung wurde einmal ein
-    Überschlag nach vorn und einmal einer nach hinten. Es bleibt
+    Überschlag nach vorn und einmal einer nach hinten. **Geflogen wird
+    dorthin, wohin gezielt wurde** — aus Bewegung, Zeigerichtung der Hand und
+    Blick zusammen, siehe „Loslassen heißt fallen lassen" weiter oben. Es bleibt
     stecken, wo es auftrifft (Wand, Kiste, egal). Fünf dürfen gleichzeitig
     unterwegs oder eingeschlagen sein; der sechste Wurf holt das erste
     zurück. Die Bahn wird pro Frame selbst abgetastet statt auf einen

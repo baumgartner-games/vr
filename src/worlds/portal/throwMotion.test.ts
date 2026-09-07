@@ -1,11 +1,16 @@
 /**
- * Der Wurf: das Tempo, mit dem etwas die Hand verlässt, und die Achse, um die
- * sich ein Messer dabei überschlägt.
+ * Der Wurf: das Tempo, mit dem etwas die Hand verlässt, die Richtung, in die
+ * es geht, und die Achse, um die sich ein Messer dabei überschlägt.
  */
 import {
+  AIM_TAIL,
+  GAZE_FADE,
+  GAZE_LOCK,
   HandSpeed,
   THROW_WINDOW,
+  gazeWeight,
   spinBetween,
+  throwDirection,
   tumbleAxis,
   type Quat,
   type Vec3,
@@ -164,5 +169,144 @@ describe('wie schnell sich die Hand dabei dreht', () => {
     }
     const spin = hand.throwSpin(vec());
     expect(Math.hypot(spin.x, spin.y, spin.z)).toBeCloseTo(0, 6);
+  });
+});
+
+describe('wohin die Hand am Ende zeigte', () => {
+  /**
+   * Eine Hand, die still steht und dabei nacheinander in `aims` zeigt — das
+   * letzte Bild zuletzt.
+   */
+  function pointing(aims: readonly Vec3[], dt = FRAME): HandSpeed {
+    const hand = new HandSpeed();
+    hand.feed(vec(), dt, undefined, aims[0]);
+    for (const aim of aims) hand.feed(vec(), dt, undefined, aim);
+    return hand;
+  }
+
+  const AHEAD = vec(0, 0, -1);
+  const RIGHT = vec(1, 0, 0);
+
+  it('nimmt die letzten Bilder und nicht das Ausholen davor', () => {
+    // So viele Bilder passen noch in den Anlauf — das jüngste ist null alt.
+    const tail = Math.floor(AIM_TAIL / FRAME) + 1;
+    const aims = [...Array<Vec3>(10).fill(RIGHT), ...Array<Vec3>(tail).fill(AHEAD)];
+    const aim = vec();
+    expect(pointing(aims).throwAim(aim)).toBe(true);
+    expect(aim.z).toBeCloseTo(-1, 6);
+    expect(aim.x).toBeCloseTo(0, 6);
+  });
+
+  it('lässt sich von einem zuckenden Bild nicht umstellen', () => {
+    // So viele Bilder passen noch in den Anlauf — das jüngste ist null alt.
+    const tail = Math.floor(AIM_TAIL / FRAME) + 1;
+    const aims = [...Array<Vec3>(tail - 1).fill(AHEAD), RIGHT];
+    const aim = vec();
+    expect(pointing(aims).throwAim(aim)).toBe(true);
+    // Ein Bild von vier bis fünf verrutscht die Richtung, kippt sie aber nicht.
+    expect(-aim.z).toBeGreaterThan(0.9);
+    expect(Math.hypot(aim.x, aim.y, aim.z)).toBeCloseTo(1, 6);
+  });
+
+  it('hat ohne Zeigerichtung keine Antwort', () => {
+    const aim = vec(1, 2, 3);
+    expect(swing([6, 8, 6]).throwAim(aim)).toBe(false);
+    expect(aim).toEqual(vec(1, 2, 3));
+  });
+
+  it('vergisst eine Zeigerichtung, die länger her ist als der Anlauf', () => {
+    const hand = pointing([RIGHT]);
+    for (let i = 0; i < Math.ceil((AIM_TAIL * 2) / FRAME); i++) {
+      hand.feed(vec(), FRAME, undefined, AHEAD);
+    }
+    const aim = vec();
+    expect(hand.throwAim(aim)).toBe(true);
+    expect(aim.x).toBeCloseTo(0, 6);
+    expect(aim.z).toBeCloseTo(-1, 6);
+  });
+});
+
+describe('wie stark der Blick den Wurf zieht', () => {
+  it('nimmt ihn im engen Kegel ganz und weit draußen gar nicht', () => {
+    expect(gazeWeight(0)).toBe(1);
+    expect(gazeWeight(GAZE_LOCK)).toBe(1);
+    expect(gazeWeight(GAZE_FADE)).toBe(0);
+    expect(gazeWeight(Math.PI)).toBe(0);
+  });
+
+  it('verläuft dazwischen weich und fällt', () => {
+    const half = gazeWeight((GAZE_LOCK + GAZE_FADE) / 2);
+    expect(half).toBeCloseTo(0.5, 6);
+    let last = 1;
+    for (let angle = GAZE_LOCK; angle <= GAZE_FADE; angle += 0.02) {
+      const weight = gazeWeight(angle);
+      expect(weight).toBeLessThanOrEqual(last + 1e-9);
+      last = weight;
+    }
+  });
+});
+
+describe('wohin ein Wurf geht', () => {
+  /** Der Winkel zwischen zwei Richtungen, in Grad. */
+  function degrees(a: Vec3, b: Vec3): number {
+    const la = Math.hypot(a.x, a.y, a.z);
+    const lb = Math.hypot(b.x, b.y, b.z);
+    const dot = (a.x * b.x + a.y * b.y + a.z * b.z) / (la * lb);
+    return (Math.acos(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI;
+  }
+
+  const AHEAD = vec(0, 0, -1);
+
+  it('ist ohne Hilfe die Bewegung, normiert', () => {
+    const out = vec();
+    expect(throwDirection(vec(0, 0, -9), null, null, out)).toBe(true);
+    expect(out).toEqual(AHEAD);
+  });
+
+  it('rettet den Wurf, der beim Zielen von oben nach unten fährt', () => {
+    // Der Arm fährt 45° nach unten, die Klinge und der Blick liegen waagerecht
+    // auf dem Ziel — genau der Wurf, der vorher im Boden landete.
+    const out = vec();
+    expect(throwDirection(vec(0, -7, -7), AHEAD, AHEAD, out)).toBe(true);
+    expect(degrees(vec(0, -7, -7), AHEAD)).toBeCloseTo(45, 6);
+    expect(degrees(out, AHEAD)).toBeLessThan(8);
+    expect(Math.hypot(out.x, out.y, out.z)).toBeCloseTo(1, 6);
+  });
+
+  it('zieht den Wurf im engen Kegel genau auf den Blick', () => {
+    const gaze = vec(0.08, 0, -1);
+    const out = vec();
+    throwDirection(vec(0, 0, -9), null, gaze, out);
+    expect(degrees(out, gaze)).toBeCloseTo(0, 6);
+  });
+
+  it('lässt einen Wurf weit neben dem Blick in Ruhe', () => {
+    // Nach rechts geworfen, geradeaus geschaut: das ist Absicht.
+    const aside = vec(9, 0, 0);
+    const out = vec();
+    throwDirection(aside, null, AHEAD, out);
+    expect(degrees(out, aside)).toBeCloseTo(0, 6);
+  });
+
+  it('mischt Bewegung und Zeigerichtung, statt eine davon zu übergehen', () => {
+    const motion = vec(0, 0, -6);
+    const aim = vec(1, 0, -1);
+    const out = vec();
+    throwDirection(motion, aim, null, out);
+    // Näher an der Hand als an der Bewegung, aber nicht auf ihr.
+    expect(degrees(out, aim)).toBeGreaterThan(1);
+    expect(degrees(out, aim)).toBeLessThan(degrees(out, motion));
+  });
+
+  it('übergeht eine Zeigerichtung, die dem Wurf entgegensteht', () => {
+    const out = vec();
+    throwDirection(vec(0, 0, -6), vec(0, 0, 1), null, out);
+    expect(out).toEqual(AHEAD);
+  });
+
+  it('ist ohne Bewegung kein Wurf', () => {
+    const out = vec(1, 2, 3);
+    expect(throwDirection(vec(), AHEAD, AHEAD, out)).toBe(false);
+    expect(out).toEqual(vec(1, 2, 3));
   });
 });
