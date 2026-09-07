@@ -5,6 +5,7 @@ import { detectFlatRole, detectXRSupport } from './core/device';
 import { normalizeRoomCode } from './net/room';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
 import { DEFAULT_WORLD, findWorld } from './worlds';
+import { isStaleModuleError, shouldReload } from './core/staleBuild';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
@@ -18,6 +19,9 @@ const hudVr = document.querySelector<HTMLButtonElement>('#hud-vr')!;
 const touch = document.querySelector<HTMLElement>('#touch')!;
 const stick = document.querySelector<HTMLElement>('#touch-stick')!;
 const postureSeg = document.querySelector<HTMLElement>('#posture')!;
+
+/** Wofür zuletzt gegen einen alten Build neu geladen wurde. */
+const RELOADED_FOR = 'bgvr:stale-reload';
 
 const params = new URLSearchParams(window.location.search);
 const requested = window.location.hash.slice(1) || params.get('world') || DEFAULT_WORLD;
@@ -42,6 +46,7 @@ const app = new App(canvas, stick, {
     }
   },
   onNetChanged: () => netPanel?.refresh(),
+  onWorldFailed: (id, error) => recoverFromStaleBuild(id, error),
 });
 
 netPanel = new NetPanel(app, {
@@ -146,6 +151,36 @@ window.addEventListener('hashchange', () => {
   const id = window.location.hash.slice(1);
   if (findWorld(id)) void app.goTo(id);
 });
+
+/**
+ * **Eine Welt kam nicht — weil die Seite aus einem alten Build läuft.**
+ *
+ * Warum das passiert und woran man es erkennt, steht in `core/staleBuild.ts`.
+ * Hier steht nur, was daraufhin zu tun ist, und das kann keine Welt und keine
+ * App: die gewünschte Welt in die Adresse schreiben und **einmal** neu laden.
+ * Danach ist die Seite frisch, der Chunk liegt wieder da, wo sein Name sagt,
+ * und man steht dort, wo man hinwollte, statt dort, wo man war.
+ *
+ * Gezählt wird im `sessionStorage`, denn das Gedächtnis muss das Neuladen
+ * überleben — und ohne dieses Gedächtnis wird lieber gar nicht neu geladen:
+ * Eine Seite, die sich in einer Schleife selbst neu lädt, ist schlimmer als
+ * eine, die einmal eine Welt nicht öffnet.
+ */
+function recoverFromStaleBuild(id: string, error: unknown): void {
+  if (!isStaleModuleError(error)) return;
+
+  let store: Storage;
+  try {
+    store = window.sessionStorage;
+    if (!shouldReload(id, store.getItem(RELOADED_FOR))) return;
+    store.setItem(RELOADED_FOR, id);
+  } catch {
+    return;
+  }
+
+  window.history.replaceState(null, '', `#${id}`);
+  window.location.reload();
+}
 
 function hideLanding(): void {
   if (landing.hidden) return;

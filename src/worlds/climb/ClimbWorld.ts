@@ -44,6 +44,10 @@ import type { ControllerState, Handedness } from '../../core/XRInput';
  * - Der **Kamin**: zwei Wände, 95 cm auseinander, fast ohne Griffe. Der
  *   einzige Weg hoch ist, sich dazwischen zu **verspreizen**.
  *
+ * Oben endet jede Route auf einem **Podest**, und zwar über einen Schacht und
+ * eine **Ausstiegsleiter** (`buildDecks`, `topout`) — beides braucht es, weil
+ * die Podeste vor ihren Wänden stehen und nicht hinter ihnen.
+ *
  * Alles andere ist das Portal Labor: derselbe Gürtel (nur leer — hier will
  * man die Hände frei haben), dasselbe Regal, dieselbe Physik, dieselbe
  * geteilte Sitzung. Portale haften an nichts hier drin, und das ist Absicht:
@@ -67,6 +71,26 @@ const FOOT_PROBE = 0.24;
 /** Oberkante der Podeste. */
 const DECK = 6.5;
 const DECK_T = 0.16;
+/**
+ * **Der Schacht zwischen Wand und Podest.**
+ *
+ * Ein Podest steht vor seiner Wand und nicht hinter ihr — wer die Wand
+ * hochklettert, hat es also über sich. Bleibt zwischen beiden nur eine
+ * Handbreit Luft, endet jede Route unter der Podestkante: Der Körper ist eine
+ * Kapsel von 48 cm Durchmesser (`PhysicsLocomotion`), und was nicht
+ * durchpasst, hängt fest. Deshalb 90 cm — breiter als der Körper, mit Luft
+ * zum Zappeln. Oben aus dem Schacht heraus hilft dann die Ausstiegsleiter
+ * (`topout`).
+ */
+const DECK_GAP = 0.9;
+/** Wie hoch die oberste Sprosse einer Ausstiegsleiter über ihrem Podest steht. */
+const TOPOUT_ABOVE = 1.55;
+/** Und wie weit sie dabei über dessen Kante hereinlehnt. */
+const TOPOUT_OVER = 0.45;
+/** Abstand der Sprossen entlang der Leiter. */
+const TOPOUT_STEP = 0.42;
+/** Halber Abstand ihrer beiden Holme — eine Sprosse ist 62 cm lang. */
+const TOPOUT_HALF = 0.31;
 
 /** Ein Griff an einer Wand. */
 interface Hold {
@@ -381,6 +405,12 @@ export class ClimbWorld extends PortalWorld {
       [0.5, 5.35, 'edge'],
       [1.5, 5.9, 'jug'],
       [0.6, 6.5, 'jug'],
+      // Die **Ausstiegsquerung**: Die Leiter steht am Kopf der linken Spur,
+      // und die rechte muss deshalb oben hinüber. Henkel, weil hier niemand
+      // mehr Kraft hat.
+      [0, 6.55, 'jug'],
+      [-0.65, 6.6, 'jug'],
+      [-1.3, 6.65, 'jug'],
     ];
     for (const [x, y, feature] of route) this.hold(wall, [x, y], 'rough', feature);
 
@@ -438,6 +468,9 @@ export class ClimbWorld extends PortalWorld {
       [0.9, 3.3, 'jug'],
       [-0.5, 3.7, 'jug'],
       [1.5, 3.7, 'jug'],
+      // Der Henkel an der Kante des Bauchs, von dem aus die Ausstiegsleiter
+      // zu fassen ist — genau zwischen den beiden Spuren.
+      [0.5, 3.9, 'jug'],
     ] as ReadonlyArray<readonly [number, number, HoldFeature]>) {
       this.hold(roof, [x, y], 'rough', feature);
     }
@@ -514,19 +547,49 @@ export class ClimbWorld extends PortalWorld {
     });
   }
 
-  /** Die Podeste oben: der Ort, an dem eine Route zu Ende ist. */
+  /**
+   * **Die Podeste oben** — der Ort, an dem eine Route zu Ende ist, und die
+   * beiden Dinge, ohne die man dort nie ankommt.
+   *
+   * Ein Podest steht **vor** seiner Wand, in der Halle. Wer die Wand
+   * hochklettert, hat es also nicht vor der Nase, sondern über dem Kopf: Die
+   * letzten Meter geht es zwischen Wand und Podestkante hindurch. Vorher lag
+   * dort eine Handbreit Luft, und damit endete jede Route unter dem Blech —
+   * die Kapsel des Körpers (48 cm) passte gar nicht durch. Deshalb hält jedes
+   * Podest jetzt `DECK_GAP` Abstand zu seiner Wand: ein **Schacht**, breit
+   * genug für den Körper.
+   *
+   * Durchpassen ist aber nur die halbe Miete: Oben aus dem Schacht heraus
+   * hängt man zwar über Podesthöhe, doch der Boden liegt **neben** einem und
+   * nicht unter einem. Dafür steht in jedem Schacht eine **Ausstiegsleiter**
+   * (`topout`). Das Geländer bleibt, wo es war: an der Vorderkante, mit der
+   * Lücke am Kamin.
+   */
   private buildDecks(hall: THREE.Group): void {
     const y = DECK - DECK_T / 2;
-    // Vor der Rauwand, mit einer Handbreit Luft dazwischen — sonst stecken die
-    // obersten Griffe im Podest.
-    this.slab(hall, this.steel, [9, DECK_T, 3.25], [-3.5, y, -6.625], false);
+    // Vor der Rauwand. Die Hinterkante liegt bei z = -7,7 — genau `DECK_GAP`
+    // vor der Wandfläche bei z = -8,6.
+    this.slab(hall, this.steel, [9, DECK_T, 2.7], [-3.5, y, -6.35], false);
     // Der Schenkel zur Leiterwand, der beide verbindet.
-    this.slab(hall, this.steel, [2.05, DECK_T, 6.2], [-9.025, y, -3.5], false);
+    this.slab(hall, this.steel, [1.5, DECK_T, 6.2], [-8.75, y, -3.5], false);
     // Über der Glattwand.
-    this.slab(hall, this.steel, [2.05, DECK_T, 7], [9.025, y, -1.5], false);
-    // Und über dem Überhang: weiter in die Halle hinein, weil sein Bauch so
-    // weit ausholt, und einen halben Meter höher als der Rest.
-    this.slab(hall, this.steel, [5.4, DECK_T, 2], [5, 7 - DECK_T / 2, -5.2], false);
+    this.slab(hall, this.steel, [1.5, DECK_T, 7], [8.75, y, -1.5], false);
+    // Und über dem Überhang: einen halben Meter höher als der Rest, und der
+    // Schacht misst sich hier an der **Kante des Bauchs** (z = -6,35), nicht
+    // an einer senkrechten Wand — er holt ja aus.
+    this.slab(hall, this.steel, [5.4, DECK_T, 1.55], [5, 7 - DECK_T / 2, -4.675], false);
+
+    // Und **je Route eine Leiter** aus dem Schacht heraus: Der Fuß steht dort,
+    // wo die Route aufhört, die oberste Sprosse über dem Podest. Eine Route,
+    // die oben keine hat, hört im Nichts auf.
+    this.topout(hall, [-5.5, DECK - 0.7, -8.6], 0, DECK, DECK_GAP); // Rauwand
+    this.topout(hall, [-0.1, DECK - 0.7, -8.6], 0, DECK, DECK_GAP); // Riss
+    this.topout(hall, [-10.4, DECK - 0.7, -2.9], Math.PI / 2, DECK, DECK_GAP); // Leiterwand
+    this.topout(hall, [10.4, DECK - 0.7, -3], -Math.PI / 2, DECK, DECK_GAP); // Glattwand
+    this.topout(hall, [5.5, 6.3, -6.35], 0, 7, DECK_GAP); // Überhang
+    // Der Kamin hat keinen Schacht — sein Podest steht ihm gegenüber, und die
+    // Leiter überbrückt nur die 45 cm bis zu dessen Vorderkante.
+    this.topout(hall, [0, DECK - 0.7, -4.55], Math.PI, DECK, 0.45);
 
     // Ein Geländer an der Vorderkante — mit einer Lücke dort, wo man aus dem
     // Kamin heraussteigt.
@@ -535,10 +598,67 @@ export class ClimbWorld extends PortalWorld {
     hall.add(rail);
   }
 
+  /**
+   * **Die Ausstiegsleiter** — der letzte Zug, mit dem man auf das Podest kommt.
+   *
+   * Sie steht im Schacht und **lehnt nach außen**: unten an der Wand, dort wo
+   * die Route aufhört, oben `TOPOUT_OVER` über der Podestkante. Damit ist sie
+   * von den obersten Griffen aus zu fassen, und wer sich an ihrer letzten
+   * Sprosse hochzieht, hängt am Ende über dem Blech statt über dem Schacht —
+   * loslassen heißt dann stehen und nicht fallen. Ihre Sprossen sind
+   * **perfektes Material**: Der Ausstieg ist der Moment, in dem die Ausdauer
+   * ohnehin am Ende ist, und eine Leiter, die einen dort abwirft, wäre keine.
+   *
+   * Sie hat mit Absicht **keinen Körper** für die Physik. Der Weg des
+   * Kletterers führt genau durch sie hindurch — an einem Querholm, an dem der
+   * Kopf hängen bleibt, hätte man nur einen zweiten Ort zum Feststecken
+   * gewonnen.
+   *
+   * @param foot    Fußpunkt in Weltkoordinaten, an der Wand
+   * @param yaw     Wohin sie lehnt — dieselbe Drehung wie die Wand dahinter
+   * @param deckTop Oberkante des Podests, auf das sie führt
+   * @param gap     Wie weit dessen Kante vom Fußpunkt weg ist
+   */
+  private topout(
+    hall: THREE.Group,
+    foot: readonly [number, number, number],
+    yaw: number,
+    deckTop: number,
+    gap: number,
+  ): void {
+    const rise = deckTop + TOPOUT_ABOVE - foot[1];
+    const out = gap + TOPOUT_OVER;
+    const reach = Math.hypot(rise, out);
+
+    const frame = new THREE.Group();
+    frame.name = 'topout-ladder';
+    frame.position.set(foot[0], foot[1], foot[2]);
+    frame.rotation.set(Math.atan2(out, rise), yaw, 0, 'YXZ');
+    hall.add(frame);
+    frame.updateWorldMatrix(true, true);
+
+    const length = reach + 0.25;
+    for (const x of [-TOPOUT_HALF, TOPOUT_HALF]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, length, 0.05), this.steel);
+      // Ein Zehntel unter den Fuß und ein Stück über die letzte Sprosse
+      // hinaus: eine Leiter, die genau an ihrer obersten Sprosse aufhört,
+      // sieht abgeschnitten aus.
+      rail.position.set(x, length / 2 - 0.1, 0.05);
+      frame.add(rail);
+    }
+
+    // Von oben nach unten gezählt, damit die **letzte** Sprosse genau dort
+    // sitzt, wo sie hingehört — über dem Podest. Unten darf eine fehlen.
+    const rungs = Math.max(3, Math.floor((reach - 0.25) / TOPOUT_STEP) + 1);
+    for (let i = 0; i < rungs; i++) {
+      this.hold(frame, [0, reach - i * TOPOUT_STEP], 'perfect', 'rung', false);
+    }
+  }
+
   private buildBanner(hall: THREE.Group): void {
     this.sign(hall, [0, 4, 2.4], 0, 4.4, {
       title: 'Kletterhalle',
-      body: 'Greifen hält dich an der Wand — überall, nicht nur an vorgesehenen Stellen. Unten im Blick: die Ausdauer, links und rechts daneben der Halt jeder Hand. Über dem oberen Strich erholst du dich, unter dem unteren rutschst du ab.',
+      body: 'Greifen hält dich an der Wand — überall, nicht nur an vorgesehenen Stellen. Am unteren Bildrand: die Ausdauer, links und rechts daneben der Halt jeder Hand. Über dem oberen Strich erholst du dich, unter dem unteren rutschst du ab. Oben geht jede Route zwischen Wand und Podest hindurch — die Leiter dort holt dich hinauf.',
       accent: GRAB_GLOW,
     });
   }
@@ -610,12 +730,17 @@ export class ClimbWorld extends PortalWorld {
    * Punkt — man darf überall an ihr entlang zupacken, aber nicht darüber oder
    * darunter. Deshalb wird der Sitz (`seatOf`) am Abstand zur *Strecke*
    * gemessen und nicht zu einem Punkt.
+   *
+   * @param solid Ob der Griff auch ein Hindernis ist. Alles an einer Wand ist
+   *   das (siehe unten); die Sprossen der Ausstiegsleiter sind es nicht — der
+   *   Kletterer zieht sich mitten durch sie hindurch.
    */
   private hold(
     wall: THREE.Group,
     at: readonly [number, number],
     material: HoldMaterial,
     feature: HoldFeature,
+    solid = true,
   ): void {
     const skin = this.skin(material);
     const mesh = new THREE.Mesh(this.shape(feature), skin);
@@ -645,7 +770,7 @@ export class ClimbWorld extends PortalWorld {
     // Henkel und einer Leiste soll man stehen können. Flächen und Ballen
     // tragen zu wenig auf — und jeder Körper, den es nicht gibt, ist einer
     // weniger, den die Physik jedes Bild anfassen muss.
-    if (feature === 'rung' || feature === 'jug' || feature === 'edge') {
+    if (solid && (feature === 'rung' || feature === 'jug' || feature === 'edge')) {
       this.solids.push(mesh);
       this.physics!.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
     }

@@ -428,7 +428,11 @@ Einstellungen mal „in der Brille" mal „auf so einem Gerät", in der man sich
 sonst vertut) und die **Türen des Interaktionslabors**
 (`worlds/interact/doorMotion.ts` — dass eine Tür mit Nachlauf beim zweiten
 Druck *nicht* zufällt, sondern die Uhr neu setzt: eine Tür, die zugeht, während
-man in ihr steht, ist eine Falle und kein Schalter).
+man in ihr steht, ist eine Falle und kein Schalter) und der **alte Build**
+(`core/staleBuild.ts` — die drei Sätze, mit denen die drei Browser-Familien
+ein nicht mehr vorhandenes Modul melden, wörtlich, damit ein Tippfehler in der
+Liste auffällt und nicht erst dann, wenn nach einem Deploy niemand mehr die
+Welt wechseln kann; und die Bremse, die daraus höchstens *ein* Neuladen macht).
 
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
@@ -1763,8 +1767,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
   **Die Anzeige** (`climb/ClimbHud.ts`) hängt wie die Trefferanzeige an der
   **Kamera** und liegt auf `LAYER_HUD` — ein Balken, der dem Kopf ein Bild
-  hinterherläuft, ist das Erste in VR, wovon einem schlecht wird. Unten in der
-  Mitte die Ausdauer, links und rechts daneben je ein Haltbalken; die
+  hinterherläuft, ist das Erste in VR, wovon einem schlecht wird. Sie sitzt am
+  **unteren Bildrand**: 45 cm unter der Blicklinie auf einen Meter, also gut
+  24° — und dem Auge entgegengedreht, weil eine schräg gesehene Tafel eine
+  gestauchte ist. Vorher waren es 20 cm (11°), und damit hing sie die ganze
+  Zeit mit an der Wand; ganz an den Rand wiederum gehört sie auch nicht, sonst
+  sähe man sie nur beim Kopfsenken und könnte sie gleich weglassen. Unten in
+  der Mitte die Ausdauer, links und rechts daneben je ein Haltbalken; die
   Anordnung ist die Anschrift, deshalb steht nichts daran. Auf den Haltbalken
   sitzen zwei feine Striche genau auf den beiden Schwellen — sonst wäre „gut“
   eine Farbe, die man glauben muss, statt einer Höhe, die man abliest.
@@ -1796,8 +1805,35 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   dieselben Griffe, aber sie schauen nach unten), die **Glattwand** (poliert
   und glänzend) und der **Kamin**: zwei Wände, 95 cm auseinander, fast ohne
   Griffe — der einzige Weg hoch ist das Verspreizen, und wer die Kanten sucht
-  statt zu drücken, kommt nicht weit. Oben verbinden Podeste die Routen; wer
-  wieder hinunter will, springt in die Matten oder nimmt _Zurück auf die
+  statt zu drücken, kommt nicht weit.
+
+  **Oben ankommen** ist ein eigenes Stück Bauwerk, und zwar aus einem Grund,
+  den man erst im Headset merkt: Die Podeste stehen **vor** ihren Wänden, in
+  der Halle. Wer eine Wand hochklettert, hat sein Podest also nicht vor der
+  Nase, sondern über dem Kopf, und die letzten Meter gehen zwischen Wand und
+  Podestkante hindurch. Zuerst lag dort eine Handbreit Luft — 35 cm —, und
+  damit endete jede Route unter dem Blech: Der Körper ist eine Kapsel von
+  **48 cm Durchmesser** (`PhysicsLocomotion`), und was nicht durchpasst, hängt
+  fest. Deshalb hält jedes Podest jetzt **90 cm** Abstand zu seiner Wand
+  (`DECK_GAP`) — ein Schacht, durch den der Körper passt.
+
+  Durchpassen ist aber nur die halbe Miete: Oben aus dem Schacht heraus hängt
+  man zwar über Podesthöhe, doch der Boden liegt **neben** einem und nicht
+  unter einem. Dafür steht in jedem Schacht eine **Ausstiegsleiter**
+  (`ClimbWorld.topout`), eine je Route — Rauwand, Riss, Leiterwand, Glattwand,
+  Überhang und Kamin. Sie lehnt nach außen: unten an der Wand, dort wo die
+  Route aufhört, und mit den obersten Sprossen **einen halben Meter über der
+  Podestkante**. Wer sich an der letzten Sprosse hochzieht, hängt am Ende über
+  dem Blech statt über dem Schacht, und Loslassen heißt dann stehen. Ihre
+  Sprossen sind **perfektes Material**: Der Ausstieg ist der Moment, in dem
+  die Ausdauer ohnehin am Ende ist, und eine Leiter, die einen dort abwirft,
+  wäre keine. Sie hat mit Absicht **keinen Körper für die Physik** — der Weg
+  des Kletterers führt genau durch sie hindurch, und an einem Querholm, an dem
+  der Kopf hängen bleibt, hätte man nur einen zweiten Ort zum Feststecken
+  gewonnen. Die rechte Spur der Rauwand bekommt dazu oben eine **Querung** aus
+  drei Henkeln, weil die Leiter am Kopf der linken steht.
+
+  Wer wieder hinunter will, springt in die Matten oder nimmt _Zurück auf die
   Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
   und keine zweiten: Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton,
   glatter den dunklen; den Rest macht die Oberfläche, denn glatter Fels glänzt
@@ -5975,3 +6011,44 @@ nur die einmalige Einstellung:
 
 Der Basispfad kommt aus `BASE_PATH` (im Workflow `/<repo-name>/`), lokal wird
 von `/` ausgegangen.
+
+### Wenn eine Seite aus einem Build läuft, den es nicht mehr gibt
+
+Jede Welt wird erst beim Betreten nachgeladen — ein `import()` je Eintrag in
+`worlds/index.ts`, also ein eigener Chunk je Welt, und jeder Chunk trägt den
+Hash seines Inhalts im Dateinamen. Der Deploy schreibt `gh-pages` komplett neu;
+danach gibt es die alten Dateinamen nicht mehr.
+
+Eine Seite, die vorher geöffnet wurde, läuft trotzdem weiter — und in einer
+Brille bleibt eine Seite schnell einen halben Tag offen, während zwischendurch
+dreimal deployt wurde. Nur greift dann jeder Wechsel in eine Welt, die in
+**dieser Sitzung** noch nicht geladen war, ins Leere: Der Server antwortet mit
+404, das `import()` scheitert, und man bleibt stehen, wo man ist. Welten, die
+schon einmal geladen waren, wechseln weiter, denn ihr Modul liegt im Speicher
+des Browsers. Daran erkennt man den Fehler, und er sieht überhaupt nicht nach
+einem Deploy aus, sondern nach kaputtem Routing:
+
+> „Ins Portal Labor komme ich immer zurück, aber aus einer bestimmten Welt
+> komme ich manchmal in keine andere mehr rein.“
+
+Heilen lässt sich das nur durch **Neuladen** — eine neue `index.html` bringt
+die neuen Dateinamen mit. Genau das passiert jetzt von selbst: `App.goTo`
+meldet einen gescheiterten Ladeversuch über den Haken `onWorldFailed` an die
+Seite, `main.ts` fragt `core/staleBuild.ts` (mit Test), ob der Fehler _dieser_
+Fehler war, schreibt die gewünschte Welt in die Adresse und lädt neu. Man
+steht danach dort, wo man hinwollte, statt dort, wo man war.
+
+**Höchstens einmal je Welt**, vermerkt im `sessionStorage`: Nach dem Neuladen
+steht die Welt in der Adresse und wird sofort wieder geladen — scheitert sie
+erneut (kein Netz, ein echter Fehler im Modul), lädt die Seite sonst wieder
+neu, und der Spieler sieht nie etwas anderes als den Ladebildschirm. Gibt es
+den `sessionStorage` nicht, wird lieber gar nicht neu geladen: Eine Seite in
+einer Neulade-Schleife ist schlimmer als eine, die einmal eine Welt nicht
+öffnet.
+
+Dazu gehört eine zweite Bremse in `App.goTo` selbst: **Es ist immer nur die
+letzte Ladung gültig.** Ein dynamischer Import dauert, und wer im Menü zweimal
+hintereinander tippt, hat zwei davon unterwegs; ohne die Marke räumte die
+zweite die Welt der ersten ab, während deren `init` noch mitten im Aufbauen
+war. Heraus kam eine halbe Welt, in der nichts mehr ging — und der Weg dorthin
+war ein doppelter Tipper.

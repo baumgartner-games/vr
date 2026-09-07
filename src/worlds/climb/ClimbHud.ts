@@ -12,6 +12,10 @@ import { RECOVER_AT, SLIP_AT } from './stamina';
  * Erste in VR, wovon einem schlecht wird — und ein Balken, den auch die
  * Portalkameras oder die Drohne zeichnen, schwebt plötzlich mitten im Raum.
  *
+ * Sie liegen am **unteren Bildrand** und nicht mitten im Blickfeld: Was beim
+ * Klettern zählt, ist die Wand vor der Nase; die Ausdauer sieht man nach, wenn
+ * man sie wissen will.
+ *
  * Die Anordnung ist die Anschrift: der linke Balken gehört zur linken Hand.
  * Deshalb steht auch nichts daran — man liest ihn nicht, man sieht ihn.
  * Farbe sagt den Rest, und sie sagt an beiden Balken **dasselbe**: Türkis
@@ -25,9 +29,19 @@ import { RECOVER_AT, SLIP_AT } from './stamina';
  * das jedes Bild eine Textur neu malt, kostet mehr als es sagt.
  */
 
-/** Wie weit vor dem Auge alles hängt, und wie tief unter der Blicklinie. */
+/**
+ * Wie weit vor dem Auge alles hängt, und wie tief unter der Blicklinie.
+ *
+ * `DROP` ist der eigentliche Regler: 0,45 m auf einen Meter sind gut 24° unter
+ * geradeaus — **an den unteren Bildrand, aber nicht darüber hinaus**. Bei den
+ * 0,2 m von vorher (11°) lagen die Balken mitten im Blickfeld und damit die
+ * ganze Zeit mit an der Wand; ganz unten am Rand wiederum sähe man sie nur
+ * noch, wenn man den Kopf senkt, und dann kann man sie auch weglassen. So
+ * liegen sie da, wo man ohnehin hinschaut, wenn man nachsieht, wo die Füße
+ * hin sollen.
+ */
 const DISTANCE = 1;
-const DROP = 0.2;
+const DROP = 0.45;
 
 /** Der Ausdauerbalken. */
 const BAR_W = 0.26;
@@ -71,6 +85,10 @@ export class ClimbHud extends THREE.Group {
     super();
     this.name = 'climb-hud';
     this.position.set(0, -DROP, -DISTANCE);
+    // So weit unten ist die Tafel schräg im Blick, und eine schräg gesehene
+    // Tafel ist eine gestauchte. Also dreht sie sich dem Auge entgegen —
+    // genau um den Winkel, um den sie unter ihm hängt.
+    this.rotation.x = Math.atan2(DROP, DISTANCE);
     this.layers.set(LAYER_HUD);
 
     this.stamina = this.bar(0, 0, BAR_W, BAR_H, 'x');
