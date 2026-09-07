@@ -446,6 +446,9 @@ export class NpcDirector implements NpcControl {
       const npc = this.npcs[i]!;
       const hit = npc.update(dt, target, Math.random, run);
       if (hit && player) this.strike(npc, player);
+      // Eine Tür, die fällt, ist ein Ereignis: Wer nicht hinsieht, soll es
+      // wenigstens lesen. Einmal, nicht sechzigmal je Sekunde (`Npc.brokeDoor`).
+      if (npc.brokeDoor) this.world.notify('Die Tür ist hin');
       // Ein Gefallener liegt eine Weile herum und verschwindet dann. Ohne das
       // Aufräumen füllt sich eine Halle nach zwanzig Minuten mit Leichen, und
       // jede davon zeichnet weiter mit.

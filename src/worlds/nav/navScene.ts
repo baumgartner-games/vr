@@ -1,8 +1,23 @@
 import * as THREE from 'three';
 import type { NavBox } from './navBake';
+import { doorSpec, type DoorMaterial } from './navDoor';
 import { wallState, type NavGraph } from './navGraph';
 import type { NavLayer, NavLayerState } from './navLayers';
-import { DIR_N, TILE, keyLevel, wallDir, wallTile, type TileKey } from './navTile';
+import { DEFAULT_RADIUS, shrinkFor } from './navPath';
+import {
+  DIR_E,
+  DIR_N,
+  DIR_S,
+  DIR_W,
+  NO_TILE,
+  TILE,
+  keyLevel,
+  neighbour,
+  wallDir,
+  wallTile,
+  type Dir,
+  type TileKey,
+} from './navTile';
 
 /**
  * **Die eine Datei der Navigationsschicht, die three.js kennt.**
@@ -77,6 +92,7 @@ export const NAV_DEBUG_COLORS: NavDebugColors = {
 export function navDebugView(
   graph: NavGraph,
   colors: NavDebugColors = NAV_DEBUG_COLORS,
+  radius = DEFAULT_RADIUS,
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = 'nav-debug';
@@ -86,9 +102,24 @@ export function navDebugView(
   const floor: number[] = [];
   const walls: number[] = [];
   const ledges: number[] = [];
+  /** Türen, nach Material getrennt: Holz sieht anders aus als Metall. */
+  const doors = new Map<DoorMaterial, number[]>();
   const links: number[] = [];
   const blocked: number[] = [];
   const half = TILE / 2 - 0.08;
+  /**
+   * **Wie weit die betretbare Fläche von einer Wand abrückt** — genau so weit,
+   * wie der Weg dort Abstand hält (`navPath.shrinkFor`).
+   *
+   * Das ist der sichtbare Teil derselben Sache: Eine Unity-Navmesh ist um den
+   * Agentenradius von jeder Wand eingezogen, und man sieht ihr auf einen Blick
+   * an, wo ein Körper wirklich hinkommt. Hier ist die Fläche ein Kachelgitter
+   * und kennt keine halben Kacheln — also wird sie beim **Zeichnen**
+   * eingezogen, und zwar mit derselben Zahl, mit der die Schnur später
+   * einzieht. Zwei Zahlen dafür wären eine Ansicht, die etwas anderes zeigt,
+   * als gelaufen wird.
+   */
+  const inset = Math.min(shrinkFor(radius), TILE / 2 - 0.05);
 
   for (const key of graph.tileKeys()) {
     const at = graph.worldOf(key);
@@ -115,17 +146,21 @@ export function navDebugView(
     // liegt. Genau das will man wissen, wenn ein Zombie durch eine Wand zu
     // wollen scheint — und genau dort fehlte die Antwort.
     if (graph.isBlocked(key)) continue;
-    const [nw, ne, se, sw] = corners as [
-      [number, number],
-      [number, number],
-      [number, number],
-      [number, number],
-    ];
+    // **Und dort eingezogen, wo etwas steht.** Jede der vier Seiten einzeln:
+    // Wo es weitergeht, reicht die Fläche bis an die Kachelgrenze und stößt
+    // nahtlos an die der Nachbarin; wo eine Wand, eine zugezogene Tür oder gar
+    // kein Boden ist, rückt sie ab. Was übrig bleibt, ist die Fläche, auf der
+    // ein Körper mit diesem Halbmesser wirklich stehen kann.
+    const minX = at.x - sideReach(graph, key, DIR_W, half, inset);
+    const maxX = at.x + sideReach(graph, key, DIR_E, half, inset);
+    const minZ = at.z - sideReach(graph, key, DIR_N, half, inset);
+    const maxZ = at.z + sideReach(graph, key, DIR_S, half, inset);
+    if (minX >= maxX || minZ >= maxZ) continue;
     // Etwas tiefer als die Linien: Eine Fläche auf derselben Höhe streitet sich
     // mit ihnen um jedes Pixel.
     const face = y - 0.01;
-    floor.push(nw[0], face, nw[1], ne[0], face, ne[1], se[0], face, se[1]);
-    floor.push(nw[0], face, nw[1], se[0], face, se[1], sw[0], face, sw[1]);
+    floor.push(minX, face, minZ, maxX, face, minZ, maxX, face, maxZ);
+    floor.push(minX, face, minZ, maxX, face, maxZ, minX, face, maxZ);
   }
 
   const scratch = { walk: true, cost: 0, see: true, hear: 1 };
@@ -140,6 +175,16 @@ export function navDebugView(
     const line = north
       ? [at.x - half, y, at.z - TILE / 2, at.x + half, y, at.z - TILE / 2]
       : [at.x + TILE / 2, y, at.z - half, at.x + TILE / 2, y, at.z + half];
+    // **Eine Tür in ihrer eigenen Farbe**: Holz und Metall sehen auf der Karte
+    // gleich aus und bedeuten für einen Zombie das Gegenteil voneinander
+    // (`navDoor.ts`). Wer wissen will, warum einer außen herumläuft und der
+    // nächste geradeaus durchbricht, sieht es hier und nirgends sonst.
+    if (facts.kind === 'door') {
+      const list = doors.get(facts.material) ?? [];
+      list.push(...line);
+      doors.set(facts.material, list);
+      continue;
+    }
     (facts.kind === 'window' ? ledges : walls).push(...line);
   }
 
@@ -156,9 +201,30 @@ export function navDebugView(
   addLines(group, 'blocked', blocked, colors.blocked, 0.9);
   addLines(group, 'walls', walls, colors.wall, 0.85);
   addLines(group, 'walls', ledges, colors.ledge, 0.8);
+  for (const [material, line] of doors) addLines(group, 'walls', line, doorSpec(material).color, 1);
   addLines(group, 'links', links, colors.link, 0.9);
   return group;
 }
+
+/**
+ * Wie weit die betretbare Fläche einer Kachel auf dieser Seite reicht.
+ *
+ * Bis kurz vor die Kachelgrenze, wenn es dort weitergeht — und um den
+ * Wandabstand eingezogen, wenn nicht. „Weitergeht" heißt dabei dasselbe wie
+ * überall in dieser Schicht: Es gibt dort Boden, es steht nichts darauf, und
+ * dazwischen ist nichts, wofür man erst stehen bleiben müsste (eine
+ * geschlossene Tür ist etwas, wofür man stehen bleibt).
+ */
+function sideReach(graph: NavGraph, key: TileKey, dir: Dir, half: number, inset: number): number {
+  const next = neighbour(key, dir);
+  if (next === NO_TILE || !graph.walkable(next)) return TILE / 2 - inset;
+  const state = wallState(graph.wall(key, dir), true, _reach);
+  if (!state.walk || state.cost > 0) return TILE / 2 - inset;
+  return half;
+}
+
+/** Der Zustand, den `sideReach` viermal je Kachel füllt — einer reicht. */
+const _reach = { walk: true, cost: 0, see: true, hear: 1 };
 
 /**
  * Schaltet die Ebenen an und aus.

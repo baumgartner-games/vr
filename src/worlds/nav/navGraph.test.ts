@@ -1,6 +1,21 @@
+import { doorSpec } from './navDoor';
 import { connect, fillRect, setDoor, wallRect } from './navBuild';
-import { DOOR_COST, NavGraph, wallState } from './navGraph';
+import { DOOR_COST, NavGraph, wallState, type WallFacts } from './navGraph';
 import { DIR_E, DIR_N, DIR_W, tileKey } from './navTile';
+
+/** Eine Wand, wie der Graph sie anlegt — hier nur mit dem, worum es gerade geht. */
+function wall(facts: Partial<WallFacts> & Pick<WallFacts, 'kind'>): WallFacts {
+  const material = facts.material ?? 'wood';
+  return {
+    open: false,
+    barred: false,
+    muffle: 0.85,
+    id: '',
+    material,
+    health: facts.kind === 'door' ? doorSpec(material).health : Infinity,
+    ...facts,
+  };
+}
 
 describe('Was eine Wand bedeutet', () => {
   it('lässt durch, wo keine steht', () => {
@@ -8,27 +23,21 @@ describe('Was eine Wand bedeutet', () => {
   });
 
   it('hält eine massive Wand fest — nichts geht durch, wenig kommt hindurch', () => {
-    const state = wallState(
-      { kind: 'solid', open: false, barred: false, muffle: 0.9, id: '' },
-      true,
-    );
+    const state = wallState(wall({ kind: 'solid', muffle: 0.9 }), true);
     expect(state.walk).toBe(false);
     expect(state.see).toBe(false);
     expect(state.hear).toBeCloseTo(0.1, 9);
   });
 
   it('lässt ein Fenster sehen, aber nicht gehen', () => {
-    const state = wallState(
-      { kind: 'window', open: false, barred: false, muffle: 0.4, id: '' },
-      true,
-    );
+    const state = wallState(wall({ kind: 'window', muffle: 0.4 }), true);
     expect(state.walk).toBe(false);
     expect(state.see).toBe(true);
     expect(state.hear).toBeCloseTo(0.6, 9);
   });
 
   it('macht aus einer geschlossenen Tür für den einen einen Umweg und für den anderen eine Wand', () => {
-    const shut = { kind: 'door' as const, open: false, barred: false, muffle: 0.8, id: 'd' };
+    const shut = wall({ kind: 'door', muffle: 0.8, id: 'd', material: 'metal' });
     const opener = wallState(shut, true);
     expect(opener.walk).toBe(true);
     expect(opener.cost).toBe(DOOR_COST);
@@ -41,7 +50,7 @@ describe('Was eine Wand bedeutet', () => {
   });
 
   it('macht eine verbarrikadierte Tür für alle zur Wand', () => {
-    const barred = { kind: 'door' as const, open: false, barred: true, muffle: 0.8, id: 'd' };
+    const barred = wall({ kind: 'door', barred: true, muffle: 0.8, id: 'd', material: 'metal' });
     expect(wallState(barred, true).walk).toBe(false);
   });
 

@@ -1,7 +1,7 @@
-import { PreviewWalk, WALK_REACH, WALK_SPEED, stride } from './previewWalk';
-import { addPortal, fillRect, wallRect } from '../nav/navBuild';
+import { DOOR_OPEN_TIME, PreviewWalk, WALK_REACH, WALK_SPEED, stride } from './previewWalk';
+import { addPortal, fillRect, setDoor, wallRect } from '../nav/navBuild';
 import { NavGraph } from '../nav/navGraph';
-import { TILE, tileKey } from '../nav/navTile';
+import { DIR_S, TILE, tileKey } from '../nav/navTile';
 
 /** Wo die Mitte einer Kachel liegt — die Attrappe steht immer auf einer. */
 function spot(
@@ -149,5 +149,71 @@ describe('Die Attrappe, die selbst geht', () => {
     expect(going.going).toBe(false);
     const step = going.step(graph, at, 1);
     expect(step.at).toEqual(at);
+  });
+});
+
+describe('Die Attrappe an einer Tür', () => {
+  /**
+   * Zwei Zimmer, dazwischen eine Wand mit **einer** Tür — sonst kommt man
+   * nirgends hin.
+   */
+  function rooms(open: boolean): NavGraph {
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 3 });
+    for (const x of [0, 1, 2]) graph.setWall(tileKey(x, 1, 0), DIR_S, { kind: 'solid' });
+    setDoor(graph, tileKey(1, 1, 0), DIR_S, 'tuer', open, 'metal');
+    return graph;
+  }
+
+  it('macht die geschlossene Tür auf — und steht so lange davor', () => {
+    // **Die Tür als Handlung.** Bis hierher lief die Figur einfach hindurch,
+    // und von oben war nicht zu sehen, ob eine Tür überhaupt etwas bedeutet.
+    const graph = rooms(false);
+    const going = new PreviewWalk();
+    const at = spot(graph, 1, 0);
+    going.to(spot(graph, 1, 2));
+    const dt = 1 / 30;
+    let waited = 0;
+    let opened = -1;
+    for (let frame = 0; frame < 300; frame++) {
+      const step = going.step(graph, at, dt);
+      if (step.opening) waited += dt;
+      if (opened < 0 && graph.door('tuer')!.open) opened = waited;
+      at.x = step.at.x;
+      at.y = step.at.y;
+      at.z = step.at.z;
+      if (step.arrived) break;
+    }
+    // Sie hat wirklich davorgestanden, und zwar so lange wie vorgesehen.
+    expect(opened).toBeGreaterThanOrEqual(DOOR_OPEN_TIME - dt);
+    expect(opened).toBeLessThan(DOOR_OPEN_TIME + 3 * dt);
+    expect(graph.door('tuer')!.open).toBe(true);
+    // Und danach ist sie durch.
+    expect(at.z).toBeGreaterThan(spot(graph, 1, 1).z);
+  });
+
+  it('bleibt vor der verriegelten stehen, statt sie aufzudrücken', () => {
+    const graph = rooms(false);
+    graph.setDoor('tuer', { barred: true });
+    const at = spot(graph, 1, 0);
+    const run = walk(graph, at, spot(graph, 1, 2), 10);
+    expect(run.arrived).toBe(false);
+    expect(graph.door('tuer')!.open).toBe(false);
+    // Auf ihrer Seite der Wand — die Linie liegt zwischen den beiden Reihen.
+    expect(at.z).toBeLessThan((spot(graph, 1, 1).z + spot(graph, 1, 2).z) / 2);
+  });
+
+  it('zeigt ihren eigenen Weg, solange sie unterwegs ist', () => {
+    // Der Grund für `path`: Die Ebene „Wege" zeigte bis hierher nur, was die
+    // *anderen* laufen. In einem leeren Labor sah man beim Einschalten nichts.
+    const graph = rooms(true);
+    const going = new PreviewWalk();
+    expect(going.path).toEqual([]);
+    const at = spot(graph, 1, 0);
+    going.to(spot(graph, 1, 2));
+    going.step(graph, at, 1 / 30);
+    expect(going.path.length).toBeGreaterThan(1);
+    going.stop();
+    expect(going.path).toEqual([]);
   });
 });

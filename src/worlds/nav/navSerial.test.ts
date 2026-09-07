@@ -1,4 +1,5 @@
 import { addPortal, connect, fillRect, setDoor, setWindow, wallRect } from './navBuild';
+import { fullHealth } from './navDoor';
 import { NavGraph } from './navGraph';
 import { NAV_FORMAT, NAV_VERSION, NavFormatError, readNav, writeNav } from './navSerial';
 import { DIR_E, DIR_N, TILE, tileKey } from './navTile';
@@ -130,5 +131,37 @@ describe('Was das Format ablehnt', () => {
   it('nimmt eine Karte ohne Wände und Verbindungen klaglos an', () => {
     const graph = readNav({ format: NAV_FORMAT, version: 1, tile: TILE, levels: [0], runs: [] });
     expect(graph.size).toBe(0);
+  });
+});
+
+describe('Das Material einer Tür', () => {
+  it('übersteht Hin und Zurück', () => {
+    // Ohne diese Zeile käme eine Metalltür als Holztür zurück — und ein Zombie
+    // ginge durch eine Wand, die vor dem Speichern eine war.
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 1 });
+    setDoor(graph, tileKey(0, 0, 0), DIR_E, 'stahl', false, 'metal');
+    setDoor(graph, tileKey(1, 0, 0), DIR_E, 'holz', false, 'wood');
+    const back = readNav(JSON.parse(JSON.stringify(writeNav(graph))));
+    expect(back.door('stahl')!.material).toBe('metal');
+    expect(back.door('holz')!.material).toBe('wood');
+    // Und mit heilem Blatt: Was jemand in einer Runde kaputtgeschlagen hat,
+    // ist ein Ereignis dieser Runde und kein Bauplan.
+    expect(back.door('holz')!.health).toBe(fullHealth('wood'));
+  });
+
+  it('macht aus einer Tür ohne Angabe eine hölzerne', () => {
+    // Eine Datei der Version 1: Damals gab es nur eine Sorte, und ein Zombie
+    // kam durch sie hindurch.
+    const graph = readNav({
+      format: NAV_FORMAT,
+      version: 1,
+      tile: TILE,
+      levels: [0],
+      runs: [{ z: 0, l: 0, x: 0, n: 2 }],
+      walls: [{ x: 0, z: 0, l: 0, d: 'e', kind: 'door', id: 'alt' }],
+      links: [],
+    });
+    expect(graph.door('alt')!.material).toBe('wood');
   });
 });

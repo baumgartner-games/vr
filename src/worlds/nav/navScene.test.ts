@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { bakeNav } from './navBake';
 import { fillRect } from './navBuild';
 import { NavGraph } from './navGraph';
+import { DEFAULT_RADIUS, shrinkFor } from './navPath';
 import { boxesFrom, levelCensus, navDebugView, navPathView, tileUnder } from './navScene';
-import { DIR_E, TILE, tileKey } from './navTile';
+import { DIR_E, DIR_S, TILE, tileKey } from './navTile';
 
 /** Ein Quader, wie ihn `slab()` in einer Welt baut. */
 function slab(size: [number, number, number], at: [number, number, number], yaw = 0): THREE.Mesh {
@@ -145,6 +146,54 @@ describe('Die Debug-Ansicht', () => {
       const behindWalls = child.name === 'floor';
       expect((child as THREE.LineSegments).material).toMatchObject({ depthTest: behindWalls });
     }
+  });
+
+  /** Die Ausdehnung der betretbaren Fläche in X, aus ihren Punkten gemessen. */
+  function floorSpan(view: THREE.Object3D): number {
+    const face = view.children.find((child) => child.name === 'floor') as THREE.Mesh;
+    const points = face.geometry.getAttribute('position');
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < points.count; i++) {
+      min = Math.min(min, points.getX(i));
+      max = Math.max(max, points.getX(i));
+    }
+    return max - min;
+  }
+
+  it('rückt die betretbare Fläche von allem ab, was im Weg steht', () => {
+    // **Das Bild zur Zahl.** Der Weg hält an einer Wand seinen Abstand
+    // (`navPath.shrinkFor`); die Fläche, die man dazu ansieht, hält denselben.
+    // Zwei verschiedene Zahlen wären eine Ansicht, die etwas anderes zeigt,
+    // als gelaufen wird — und dann sucht man den Fehler dort, wo keiner ist.
+    const inset = shrinkFor(DEFAULT_RADIUS);
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 1 });
+    // Drei Kacheln nebeneinander: außen zieht sie ein, innen läuft sie durch.
+    expect(floorSpan(navDebugView(graph))).toBeCloseTo(3 * TILE - 2 * inset, 6);
+
+    // Und eine Wand mittendrin zieht sie auch dort ein, wo keine Kachel fehlt.
+    graph.setWall(tileKey(1, 0, 0), DIR_E, { kind: 'solid' });
+    expect(floorSpan(navDebugView(graph))).toBeCloseTo(3 * TILE - 2 * inset, 6);
+    const face = navDebugView(graph).children[0] as THREE.Mesh;
+    // Sechs Punkte je Kachel, und die Lücke an der Wand ist zweimal der Abstand
+    // — die Fläche ist jetzt zwei Stücke mit einem Graben dazwischen.
+    expect(face.geometry.getAttribute('position').count).toBe(18);
+  });
+
+  it('zeichnet eine Tür in der Farbe ihres Materials', () => {
+    // Holz und Metall sind auf der Karte dieselbe Linie und für einen Zombie
+    // das Gegenteil voneinander — man muss sie unterscheiden können.
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 1, d: 3 });
+    graph.setWall(tileKey(0, 0, 0), DIR_S, { kind: 'door', id: 'holz', material: 'wood' });
+    graph.setWall(tileKey(0, 1, 0), DIR_S, { kind: 'door', id: 'stahl', material: 'metal' });
+    const lines = navDebugView(graph).children.filter((child) => child.name === 'walls');
+    expect(lines).toHaveLength(2);
+    const colors = lines.map((line) =>
+      ((line as THREE.LineSegments).material as THREE.LineBasicMaterial).color.getHex(),
+    );
+    expect(new Set(colors).size).toBe(2);
   });
 
   it('zeichnet einen Weg als eine Linie durch alle seine Punkte', () => {

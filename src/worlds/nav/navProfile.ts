@@ -18,6 +18,8 @@
  * ist gewollt und in `navPath.test.ts` festgehalten.
  */
 
+import type { DoorPower } from './navGraph';
+
 // --- Gefahren -------------------------------------------------------------
 
 /**
@@ -99,6 +101,21 @@ export interface CostProfile {
    * drei Metern, für den anderen eine Wand.
    */
   readonly opens: boolean;
+  /**
+   * Ob er eine Tür **einschlägt**, die er nicht aufbekommt.
+   *
+   * Die zweite Hälfte derselben Frage, und sie gehört dem Zombie: Er hat keine
+   * Hände für eine Klinke, aber Fäuste für ein Brett. Was dabei
+   * herauskommt, entscheidet das Material der Tür (`navDoor.ts`) — Holz gibt
+   * nach, Metall nicht. Ohne diese Zeile stand ein Zombie vor jeder
+   * Holzhütte, als wäre sie ein Tresor.
+   *
+   * Der Mensch hat sie **nicht**: Wer aufmachen kann, macht auf, und wer vor
+   * einer verriegelten Tür steht, sucht einen anderen Weg statt sie zu
+   * zertrümmern. Das ist eine Entscheidung über das Spiel und keine über die
+   * Physik — Türen eintretende Menschen wären eine eigene Sorte.
+   */
+  readonly breaks: boolean;
 }
 
 /**
@@ -114,6 +131,7 @@ export const HUMAN_PROFILE: CostProfile = {
   hazard: [Infinity, Infinity, 8, Infinity, 6, 12, 2, 0],
   link: { stairs: 1, ladder: 1.4, portal: 1, drop: 2, jump: 1.6 },
   opens: true,
+  breaks: false,
 };
 
 /**
@@ -130,6 +148,7 @@ export const ZOMBIE_PROFILE: CostProfile = {
   hazard: [0, 0, 4, 0, 0, 0, 0, 0],
   link: { stairs: 1, ladder: Infinity, portal: 1, drop: 1, jump: Infinity },
   opens: false,
+  breaks: true,
 };
 
 /** Das Fahrzeug: breit, schwer, und Treppen sind für andere gebaut. */
@@ -139,6 +158,9 @@ export const VEHICLE_PROFILE: CostProfile = {
   hazard: [24, Infinity, Infinity, Infinity, 0, 4, Infinity, Infinity],
   link: { stairs: Infinity, ladder: Infinity, portal: 1, drop: Infinity, jump: Infinity },
   opens: false,
+  // Eine Holztür ist für zwei Tonnen Blech kein Hindernis, sondern ein
+  // Geräusch.
+  breaks: true,
 };
 
 /** Der Flieger kennt den Boden nicht — für ihn ist alles gleich weit. */
@@ -148,6 +170,7 @@ export const FLYER_PROFILE: CostProfile = {
   hazard: [0, 12, 0, 0, 0, 0, 0, 0],
   link: { stairs: 1, ladder: 1, portal: 1, drop: 1, jump: 1 },
   opens: true,
+  breaks: false,
 };
 
 export const COST_PROFILES: readonly CostProfile[] = [
@@ -178,6 +201,17 @@ export function hazardCost(profile: CostProfile, mask: number): number {
     sum += cost;
   }
   return sum;
+}
+
+/**
+ * Was dieses Profil an einer Tür kann (`navGraph.wallState`).
+ *
+ * Die eine Stelle, an der aus zwei Zeilen Tabelle die Frage wird, die die
+ * Wegsuche stellt — damit niemand irgendwo `{ opens: p.opens, breaks: false }`
+ * hinschreibt und sich wundert, warum der Zombie vor der Bretterbude steht.
+ */
+export function powerOf(profile: CostProfile): DoorPower {
+  return { opens: profile.opens, breaks: profile.breaks };
 }
 
 /** Ob dieses Profil eine Verbindung dieser Art überhaupt benutzen kann. */

@@ -15,6 +15,7 @@ import {
   type WallKey,
 } from './navTile';
 import type { LinkKind } from './navProfile';
+import { afterHit, breakable, doorSpec, fullHealth, type DoorMaterial } from './navDoor';
 
 /**
  * **Der Weltgraph** — was es an Boden gibt, was dazwischen steht und was von
@@ -110,6 +111,46 @@ export interface WallFacts {
    * Namen kann niemand falsch in Erinnerung haben.
    */
   id: string;
+  /**
+   * Woraus das Blatt ist — nur bei Türen, sonst bedeutungslos (`navDoor.ts`).
+   *
+   * Die zweite Zahl nach `canOpen`, die aus derselben Karte zwei macht: Eine
+   * Holztür ist für einen Zombie ein Umweg von zehn Metern und drei Sekunden
+   * Prügel, eine Metalltür eine Wand.
+   */
+  material: DoorMaterial;
+  /**
+   * Was das Blatt noch aushält. `Infinity` heißt: es geht nicht kaputt.
+   *
+   * Bei allem außer Türen steht hier `Infinity` und bleibt es. Fällt der Wert
+   * auf null, ist die Tür **hin** — und eine hinüber gegangene Tür ist kein
+   * Sonderfall mehr, sondern ein Loch in der Wand: Man geht hindurch, man
+   * sieht hindurch, und niemand macht sie wieder zu.
+   */
+  health: number;
+}
+
+/** Ob diese Wand eine Tür ist, die schon eingeschlagen wurde. */
+export function doorBroken(facts: WallFacts | undefined): boolean {
+  return facts !== undefined && facts.kind === 'door' && facts.health <= 0;
+}
+
+/**
+ * **Was einer an einer Tür kann** — aufmachen, einschlagen, beides oder
+ * nichts.
+ *
+ * Zwei Wahrheitswerte und nicht einer, seit es Material gibt: Der Mensch macht
+ * auf und tritt nicht ein, der Zombie tritt ein und macht nicht auf. Wer nur
+ * `canOpen` übergibt, bekommt den alten Fall — jemanden, der keine Tür
+ * einschlägt.
+ */
+export interface DoorPower {
+  opens: boolean;
+  breaks: boolean;
+}
+
+export function doorPower(power: boolean | DoorPower): DoorPower {
+  return typeof power === 'boolean' ? { opens: power, breaks: false } : power;
 }
 
 /** Was eine Wand für die drei Fragen bedeutet, die an sie gestellt werden. */
@@ -138,9 +179,17 @@ export function newWallState(): WallState {
 /**
  * Was eine Wand demjenigen bedeutet, der davorsteht.
  *
- * `canOpen` ist der einzige Unterschied zwischen einem Menschen und einem
+ * `power` ist der einzige Unterschied zwischen einem Menschen und einem
  * Zombie an einer geschlossenen Tür — und weil es ihn gibt, ist ein Haus für
- * den einen ein Haus und für den anderen ein Labyrinth.
+ * den einen ein Haus und für den anderen ein Labyrinth. Zwei Fragen stecken
+ * darin: Macht er sie **auf**, und schlägt er sie **ein**? Wer nur einen
+ * Wahrheitswert übergibt, meint die erste.
+ *
+ * Die Reihenfolge ist dabei Absicht: Wer aufmachen kann, macht auf — drei
+ * Meter Umweg sind billiger als eine eingetretene Tür, und niemand tritt eine
+ * Tür ein, deren Klinke er in der Hand hält. Erst wer nicht aufbekommt (oder
+ * vor einer **verriegelten** steht), schlägt zu; und ob das etwas nützt,
+ * entscheidet das Material (`navDoor.ts`).
  *
  * Das Ergebnis wird in `out` **geschrieben** und nicht neu angelegt: die
  * Wegsuche fragt das je Kachel viermal, und ein Objekt je Frage sind bei
@@ -149,7 +198,7 @@ export function newWallState(): WallState {
  */
 export function wallState(
   facts: WallFacts | undefined,
-  canOpen: boolean,
+  power: boolean | DoorPower,
   out: WallState = newWallState(),
 ): WallState {
   out.walk = true;
@@ -171,16 +220,43 @@ export function wallState(
     out.walk = false;
     return out;
   }
+  // Eine eingeschlagene Tür ist keine Tür mehr, sondern das Loch, in dem sie
+  // hing: offen für jeden, für immer, und niemand muss davon erst gehört
+  // haben.
+  if (doorBroken(facts)) {
+    out.hear = 1;
+    return out;
+  }
   if (facts.open) {
     out.hear = 1;
     return out;
   }
   out.see = false;
-  if (facts.barred || !canOpen) {
-    out.walk = false;
+  return closedDoor(facts, doorPower(power), out);
+}
+
+/**
+ * Die geschlossene Tür, für den, der davorsteht — die drei Ausgänge dieser
+ * Frage stehen hier zusammen, weil auch die Meinung sie braucht
+ * (`navBelief.ts`) und zwei Kopien davon irgendwann auseinanderlaufen.
+ */
+export function closedDoor(
+  facts: Pick<WallFacts, 'barred' | 'material'>,
+  power: DoorPower,
+  out: WallState,
+): WallState {
+  if (power.opens && !facts.barred) {
+    out.walk = true;
+    out.cost = DOOR_COST;
     return out;
   }
-  out.cost = DOOR_COST;
+  if (power.breaks && breakable(facts.material)) {
+    out.walk = true;
+    out.cost = doorSpec(facts.material).breakCost;
+    return out;
+  }
+  out.walk = false;
+  out.cost = 0;
   return out;
 }
 
@@ -197,6 +273,11 @@ export interface NavLink {
   /** Ob sie gerade benutzbar ist. */
   open: boolean;
 }
+
+/** Die Schalter des Gitters (`NavGraph.features`). */
+export type NavFeature = 'obstacles' | 'links';
+
+export type NavFeatures = Record<NavFeature, boolean>;
 
 /** Eine Verbindung, wie sie von einer bestimmten Kachel aus aussieht. */
 export interface LinkExit {
@@ -287,12 +368,18 @@ export class NavGraph {
     if (wall === NO_WALL) return;
     const previous = this.wallFacts.get(wall);
     if (previous?.id) this.doorWalls.delete(previous.id);
+    const material = facts.material ?? 'wood';
     const next: WallFacts = {
       kind: facts.kind,
       open: facts.open ?? false,
       barred: facts.barred ?? false,
       muffle: facts.muffle ?? (facts.kind === 'window' ? 0.5 : 0.85),
       id: facts.id ?? '',
+      material,
+      // Nur eine Tür hat Leben. Bei allem anderen steht hier `Infinity`, und
+      // damit ist `health <= 0` für eine Wand nie wahr — es braucht keine
+      // zweite Abfrage, ob das Ding überhaupt kaputtgehen darf.
+      health: facts.health ?? (facts.kind === 'door' ? fullHealth(material) : Infinity),
     };
     this.wallFacts.set(wall, next);
     if (next.id) this.doorWalls.set(next.id, wall);
@@ -337,12 +424,72 @@ export class NavGraph {
     return this.doorWalls.keys();
   }
 
-  /** Macht eine benannte Tür auf oder zu. `false`, wenn es sie nicht gibt. */
-  setDoor(id: string, state: { open?: boolean; barred?: boolean }): boolean {
+  /**
+   * Macht eine benannte Tür auf oder zu. `false`, wenn es sie nicht gibt.
+   *
+   * **Eine eingeschlagene Tür bleibt eingeschlagen.** Wer sie danach „zumacht",
+   * bekommt ein `false` und keine heile Tür — das Blatt liegt in Stücken auf
+   * dem Boden, und ein Szenario, das es wieder zuzieht, hätte ein Loch, das
+   * niemand sieht. Zurück gibt es nur über `mendDoor`, und das ist das
+   * Aufräumen zwischen zwei Durchläufen und keine Handlung in der Welt.
+   */
+  setDoor(
+    id: string,
+    state: { open?: boolean; barred?: boolean; material?: DoorMaterial },
+  ): boolean {
     const facts = this.door(id);
     if (!facts) return false;
+    if (doorBroken(facts) && state.material === undefined) return false;
+    if (state.material !== undefined && state.material !== facts.material) {
+      facts.material = state.material;
+      facts.health = fullHealth(state.material);
+    }
     if (state.open !== undefined) facts.open = state.open;
     if (state.barred !== undefined) facts.barred = state.barred;
+    this.version++;
+    return true;
+  }
+
+  /**
+   * **Ein Schlag auf eine Tür.** `true`, wenn sie **in diesem Schlag** gefallen
+   * ist.
+   *
+   * Der Rückgabewert ist mit Absicht der Moment und nicht der Zustand: Daran
+   * hängt ein Krachen, ein Splitter-Effekt und eine Meldung, und alle drei
+   * sollen einmal kommen und nicht sechzigmal je Sekunde, solange jemand
+   * dagegen haut.
+   */
+  hitDoor(id: string, damage: number): boolean {
+    const facts = this.door(id);
+    if (!facts || facts.kind !== 'door' || facts.health <= 0) return false;
+    const left = afterHit(facts.health, damage);
+    if (left === facts.health) return false;
+    facts.health = left;
+    this.version++;
+    return left <= 0;
+  }
+
+  /**
+   * **Einer haut `dt` Sekunden lang auf eine Tür.** `true`, wenn sie dabei
+   * gefallen ist.
+   *
+   * Die Rechnung steht hier und nicht bei jedem, der zuschlägt: Sonst prügelt
+   * der Zombie im Labor mit einer anderen Zahl auf dieselbe Tür ein als der im
+   * Test, und das Grün darunter sagt nichts mehr.
+   */
+  poundDoor(id: string, dt: number): boolean {
+    const facts = this.door(id);
+    if (!facts) return false;
+    return this.hitDoor(id, doorSpec(facts.material).damage * Math.max(0, dt));
+  }
+
+  /** Eine kaputte Tür wieder heil machen — fürs Aufräumen, nicht fürs Spiel. */
+  mendDoor(id: string, open = true): boolean {
+    const facts = this.door(id);
+    if (!facts) return false;
+    facts.health = fullHealth(facts.material);
+    facts.open = open;
+    facts.barred = false;
     this.version++;
     return true;
   }
@@ -388,6 +535,7 @@ export class NavGraph {
 
   /** Alles, was von dieser Kachel aus wegführt, ohne Nachbarschaft zu sein. */
   linksFrom(key: TileKey): readonly LinkExit[] {
+    if (!this.features.links) return EMPTY_EXITS;
     return this.exits.get(key) ?? EMPTY_EXITS;
   }
 
@@ -422,7 +570,7 @@ export class NavGraph {
   }
 
   isBlocked(key: TileKey): boolean {
-    return this.blocked.has(key);
+    return this.features.obstacles && this.blocked.has(key);
   }
 
   blockedKeys(): IterableIterator<TileKey> {
@@ -431,7 +579,34 @@ export class NavGraph {
 
   /** Begehbar heißt: es gibt sie, und es steht gerade nichts darauf. */
   walkable(key: TileKey): boolean {
-    return this.facts.has(key) && !this.blocked.has(key);
+    return this.facts.has(key) && !this.isBlocked(key);
+  }
+
+  // --- die Schalter -------------------------------------------------------
+
+  /**
+   * **Was am Gitter gerade mitzählt.**
+   *
+   * Zwei Schalter, und sie sind keine Einstellung, sondern ein Werkzeug: Im
+   * Labor legt man sie um, um zu sehen, *woran* ein Verhalten hängt. Aus mit
+   * den Hindernissen heißt, dass die Kiste im Durchgang plötzlich keine mehr
+   * ist — der Zombie plant mitten hindurch und rennt dagegen, und genau das
+   * ist die Antwort auf die Frage, wozu es sie gibt. Aus mit den Verbindungen
+   * heißt: kein Portal, kein Sprung, keine Treppe, und der kurze Weg ist auf
+   * einmal der lange.
+   *
+   * Sie schalten das **Zählen** und nicht den Bestand: Was gesperrt ist, bleibt
+   * gesperrt eingetragen (`blockedKeys`), es gilt bloß nicht. Die
+   * Debug-Ansicht zeichnet deshalb weiter, was da ist — sonst schaltete man
+   * etwas aus und sähe nichts mehr, woran man merkt, dass es aus ist.
+   */
+  readonly features: NavFeatures = { obstacles: true, links: true };
+
+  setFeature(id: NavFeature, on: boolean): boolean {
+    if (this.features[id] === on) return false;
+    this.features[id] = on;
+    this.version++;
+    return true;
   }
 
   // --- Meter --------------------------------------------------------------
@@ -519,12 +694,12 @@ export class NavGraph {
    * sie muss dabei Kosten und Türen mitrechnen und will kein Zwischenarray je
    * Kachel bauen.
    */
-  openNeighbours(key: TileKey, canOpen = true): TileKey[] {
+  openNeighbours(key: TileKey, power: boolean | DoorPower = true): TileKey[] {
     const found: TileKey[] = [];
     for (const dir of DIRS) {
       const next = neighbour(key, dir);
       if (next === NO_TILE || !this.walkable(next)) continue;
-      if (!wallState(this.wall(key, dir), canOpen).walk) continue;
+      if (!wallState(this.wall(key, dir), power).walk) continue;
       found.push(next);
     }
     return found;

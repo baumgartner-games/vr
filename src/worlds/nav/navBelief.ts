@@ -1,6 +1,9 @@
 import {
-  DOOR_COST,
+  closedDoor,
+  doorBroken,
+  doorPower,
   wallState,
+  type DoorPower,
   type NavGraph,
   type NavLink,
   type WallFacts,
@@ -235,11 +238,16 @@ export class NavBelief {
 export function believedWallState(
   belief: NavBelief | null,
   facts: WallFacts | undefined,
-  canOpen: boolean,
+  power: boolean | DoorPower,
   out?: WallState,
 ): WallState {
-  const state = wallState(facts, canOpen, out);
+  const state = wallState(facts, power, out);
   if (!belief || !facts || facts.kind !== 'door' || !facts.id) return state;
+  // **Über ein Loch irrt sich niemand.** Eine eingeschlagene Tür ist keine Tür
+  // mehr, und eine alte Meinung über sie („die war zu") würde ihren eigenen
+  // Schöpfer vor dem Trümmerhaufen stehen lassen, durch den er gerade
+  // gegangen ist.
+  if (doorBroken(facts)) return state;
   const opinion = belief.doorOpinion(facts.id);
   if (!opinion) return state;
 
@@ -253,14 +261,10 @@ export function believedWallState(
     state.cost = 0;
     return state;
   }
-  if (opinion.barred || !canOpen) {
-    state.walk = false;
-    state.cost = 0;
-    return state;
-  }
-  state.walk = true;
-  state.cost = DOOR_COST;
-  return state;
+  // Zu ist zu — was das für ihn heißt, rechnet dieselbe Zeile wie für die
+  // Wahrheit. Das **Material** kommt dabei aus der Welt und nicht aus seiner
+  // Meinung: Ob eine Tür aus Brettern oder aus Blech ist, sieht man ihr an.
+  return closedDoor({ barred: opinion.barred, material: facts.material }, doorPower(power), state);
 }
 
 /** Ob er glaubt, diese Verbindung benutzen zu können. */

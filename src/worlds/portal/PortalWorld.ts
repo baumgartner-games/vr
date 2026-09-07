@@ -152,6 +152,14 @@ import {
   type NavLayer,
   type NavLayerState,
 } from '../nav/navLayers';
+import {
+  NAV_SWITCHES,
+  allOn,
+  allSwitchesOn,
+  switchSummary,
+  type NavSwitch,
+  type NavSwitchState,
+} from '../nav/navSwitches';
 import type { LivePreview, PreviewButton } from '../shared/livePreview';
 import { PreviewWalk } from '../shared/previewWalk';
 import type { NavGraph } from '../nav/navGraph';
@@ -235,6 +243,14 @@ const PREVIEW_LIGHT = 0.45;
  * trifft.
  */
 const PREVIEW_REACH = DEFAULT_NEAR_RADIUS * 2;
+/**
+ * Die Farbe des **eigenen** Wegs in der Ebene „Wege".
+ *
+ * Absichtlich nicht das Grün der NPC-Wege: Auf einer Karte von oben laufen
+ * fünf Linien durcheinander, und die Frage ist immer „welche davon ist meine".
+ * Dasselbe Blau wie die Attrappe selbst.
+ */
+const GHOST_PATH_COLOR = 0x39d0ff;
 const UP = new THREE.Vector3(0, 1, 0);
 const FUNNEL_DEPTH = 1.1;
 /** The portal surface stays at least this far in front of the eye. */
@@ -775,6 +791,14 @@ export class PortalWorld implements World {
   private navTrackTimer = 0;
   /** Welche Ebenen der Debug-Ansicht gerade an sind (`nav/navLayers.ts`). */
   private navLayers: NavLayerState = noLayers();
+  /**
+   * Was von der Navigation gerade **gilt** (`nav/navSwitches.ts`).
+   *
+   * Nicht zu verwechseln mit den Ebenen darüber: Die machen etwas sichtbar,
+   * diese machen es wirksam. „Fläche aus" heißt, dass niemand mehr einen Weg
+   * sucht — und dann sieht man, was die Wegsuche eigentlich leistet.
+   */
+  private navSwitches: NavSwitchState = allOn();
   /** Wann die Lebensbalken über den NPCs zu sehen sind (`npc/NpcBody.ts`). */
   private npcBars: BarMode = 'hurt';
   /** Wohin Meldungen gehen, solange die Welt als Vorschau läuft. */
@@ -861,7 +885,7 @@ export class PortalWorld implements World {
       playerAt: (target) => this.playerFeet(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
-      nav: () => this.nav,
+      nav: () => this.navForAgents(),
     });
     this.director.setBars(this.npcBars);
     this.host = this.buildHost(ctx);
@@ -1083,6 +1107,13 @@ export class PortalWorld implements World {
     });
     this.navReport = report;
     this.nav = report.graph;
+    // Ein frisch abgetastetes Gitter kennt keine Schalter — die Stellung, die
+    // gerade gilt, muss es aber trotzdem haben. Sonst zählt eine
+    // ausgeschaltete Sperre nach dem nächsten Abtasten wieder mit, und niemand
+    // versteht, warum.
+    for (const one of NAV_SWITCHES) {
+      if (one.id !== 'surface') report.graph.setFeature(one.id, this.navSwitches[one.id]);
+    }
     this.navReady(report.graph);
   }
 
@@ -1160,6 +1191,65 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Die drei Schalter** — was von der Navigation gilt (`nav/navSwitches.ts`).
+   *
+   * Eine eigene Zeile neben „Navigation zeigen", und der Abstand zwischen
+   * beiden ist der ganze Punkt: Die eine macht etwas sichtbar, die andere
+   * macht es wirksam. Wer sie zusammenlegte, hätte ein Menü, in dem
+   * „Hindernisse" einmal die Ansicht und einmal das Verhalten meint.
+   */
+  private navSwitchMenu(): MenuEntry {
+    const rows: MenuEntry[] = NAV_SWITCHES.map((one) => {
+      const row: MenuEntry = {
+        id: `npc:nav-switch:${one.id}`,
+        label: one.label,
+        sub: one.sub,
+        icon: 'gizmo',
+        accent: one.color,
+        checked: this.navSwitches[one.id],
+        run: () => {
+          const on = this.setNavSwitch(one.id, !this.navSwitches[one.id]);
+          row.checked = on;
+          this.refreshMenuLabels();
+          this.context?.notify(`${one.label}: ${on ? 'an' : 'aus'}`);
+        },
+      };
+      this.menuLabels.push(() => {
+        row.checked = this.navSwitches[one.id];
+      });
+      return row;
+    });
+
+    const parent: MenuEntry = {
+      id: 'npc:nav-switches',
+      label: 'Navigation schalten',
+      sub: switchSummary(this.navSwitches),
+      icon: 'gizmo',
+      accent: 0xffc857,
+      children: [
+        {
+          id: 'npc:nav-switch:all',
+          label: 'Alles wieder an',
+          sub: 'Zurück zu einer vollständigen Navigation',
+          icon: 'reset',
+          accent: 0x5ee0a0,
+          run: () => {
+            for (const one of NAV_SWITCHES) this.setNavSwitch(one.id, true);
+            this.refreshMenuLabels();
+            this.context?.notify(switchSummary(this.navSwitches));
+          },
+        },
+        ...rows,
+      ],
+    };
+    this.menuLabels.push(() => {
+      parent.sub = switchSummary(this.navSwitches);
+      parent.accent = allSwitchesOn(this.navSwitches) ? 0xffc857 : 0xff5a5a;
+    });
+    return parent;
+  }
+
+  /**
    * **Eine Meldung an den, der zusieht.**
    *
    * Im Spiel ist das das Handgelenk (`ctx.notify`), in der laufenden Vorschau
@@ -1189,6 +1279,50 @@ export class PortalWorld implements World {
   /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
   protected navLayerState(): Readonly<NavLayerState> {
     return this.navLayers;
+  }
+
+  /** Was von der Navigation gerade gilt (`nav/navSwitches.ts`). */
+  protected navSwitchState(): Readonly<NavSwitchState> {
+    return this.navSwitches;
+  }
+
+  /**
+   * **Das Gitter, mit dem die NPCs arbeiten** — oder gar keines.
+   *
+   * Der Schalter „Fläche" hängt hier und nicht im Graphen, denn er schaltet
+   * nichts *am* Gitter ab, sondern das Gitter selbst: Ohne eines läuft jedes
+   * Hirn stur auf den Spieler zu (`npcBrain.ts`, `waypoint: null`), und man
+   * sieht in einem einzigen Bild, was die Wegsuche den ganzen Tag tut.
+   */
+  private navForAgents(): NavGraph | null {
+    return this.navSwitches.surface ? this.nav : null;
+  }
+
+  /**
+   * Legt einen der drei Schalter um und gibt zurück, ob er jetzt an ist.
+   *
+   * Zwei davon gehen an den Graphen (Hindernisse, Verbindungen), der dritte
+   * bleibt hier (Fläche). Danach wird die Debug-Ansicht **neu gebaut** und
+   * nicht bloß umgeschaltet: Eine Sperre, die nicht mehr zählt, ist keine
+   * Sperre mehr und wird auch nicht mehr als eine gezeichnet.
+   */
+  protected setNavSwitch(id: NavSwitch, on: boolean): boolean {
+    if (this.navSwitches[id] === on) return on;
+    this.navSwitches[id] = on;
+    if (id !== 'surface') this.nav?.setFeature(id, on);
+    this.rebuildNavDebug();
+    return on;
+  }
+
+  /** Wirft die Debug-Ansicht weg; das nächste `applyNav()` baut sie neu. */
+  private rebuildNavDebug(): void {
+    if (this.navDebug) {
+      this.root.remove(this.navDebug);
+      disposeTree(this.navDebug);
+      this.navDebug = null;
+    }
+    this.clearNavTracks();
+    this.applyNav();
   }
 
   /** Schaltet eine Ebene und gibt zurück, ob sie jetzt an ist. */
@@ -1248,16 +1382,24 @@ export class PortalWorld implements World {
    */
   private updateNavTracks(dt: number): void {
     if (!this.navLayers.paths || !this.nav || !this.director) return;
+
     this.navTrackTimer -= dt;
     if (this.navTrackTimer > 0) return;
     this.navTrackTimer = 0.2;
 
     this.clearNavTracks();
     const paths = this.director.paths();
-    if (paths.length === 0) return;
+    // **Und der eigene Weg dazu.** Bis hierher zeigte diese Ebene nur, was die
+    // *anderen* laufen — wer von oben seine Figur losschickt, sah beim
+    // Einschalten in einem leeren Labor gar nichts. Er bekommt eine eigene
+    // Farbe, denn er beantwortet eine andere Frage: nicht „wie kommen sie zu
+    // mir", sondern „wie komme ich dorthin".
+    const mine = this.ghostWalk?.path ?? [];
+    if (paths.length === 0 && mine.length === 0) return;
     const group = new THREE.Group();
     group.name = 'nav-tracks';
     for (const path of paths) group.add(navPathView(this.nav, path));
+    if (mine.length > 0) group.add(navPathView(this.nav, mine, GHOST_PATH_COLOR));
     this.root.add(group);
     this.navTracks = group;
   }
@@ -1345,6 +1487,7 @@ export class PortalWorld implements World {
         brainRow,
         barsRow,
         this.navMenu(),
+        this.navSwitchMenu(),
         {
           id: 'npc:spawn',
           label: 'Am Spawnpunkt setzen',
@@ -2883,6 +3026,7 @@ export class PortalWorld implements World {
     this.navDebug = null;
     this.navTracks = null;
     this.navLayers = noLayers();
+    this.navSwitches = allOn();
     this.solids.length = 0;
     this.surfaceGroups.clear();
 
@@ -2932,7 +3076,7 @@ export class PortalWorld implements World {
       playerAt: (target) => this.playerFeet(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
-      nav: () => this.nav,
+      nav: () => this.navForAgents(),
     });
     this.director.setBars(this.npcBars);
 
@@ -2968,6 +3112,12 @@ export class PortalWorld implements World {
       setLayer: (layer, on) => {
         this.setNavLayer(layer, on);
         this.previewLayersChanged();
+      },
+      switches: () => this.navSwitchState(),
+      setSwitch: (id, on) => {
+        this.setNavSwitch(id, on);
+        this.previewLayersChanged();
+        this.announce(switchSummary(this.navSwitchState()));
       },
       bars: () => this.npcBarMode(),
       setBars: (mode) => this.setNpcBars(mode),
