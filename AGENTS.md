@@ -103,7 +103,19 @@ falsche zurückwinkt, und sucht den Fehler dann überall, nur nicht in vier
 Zeilen Matrix), die **Lichtstufen des
 Dunkelhauses** (`src/worlds/dark/lightLevels.ts` — dass die erste Stufe
 wirklich null ist, dass jede folgende heller wird und dass es nach der
-hellsten wieder aus ist), der **Konfig-Code**
+hellsten wieder aus ist), der **Halt an der Kletterwand**
+(`src/worlds/climb/gripQuality.ts` — dass die Leiter immer voll hält, egal wie
+tief, wie weit auseinander und wie erschöpft; dass eine verfehlte Kante genau
+eine blanke Fläche ist; dass es das Verspreizen nur an **entgegengesetzten**
+Flächen und nur bei Händen nah beieinander gibt; und dass zwei Hände mehr
+tragen als eine, aber nie mehr als alles) samt der **Ausdauer** dazu
+(`src/worlds/climb/stamina.ts` — dass perfektes Material nie etwas kostet,
+dass glatter Fels schneller zieht als rauer, dass die Erholung **anläuft**
+statt sofort zu laufen und ihren Anlauf verliert, sobald der Halt wieder
+wegrutscht) und der **Vibration**, die dazu in die Hand geht
+(`src/worlds/climb/gripHaptics.ts` — guter Halt kurz und hart, schlechter
+schwach und lang, das Ticken schneller statt lauter; und dass beim Zupacken
+selbst nicht getickt wird, weil dort schon der Schlag saß), der **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 (`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
@@ -411,7 +423,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
-  Mond, Alpen, Dunkelhaus, Effektlabor, Eingaberaum),
+  Mond, Alpen, Dunkelhaus, Kletterhalle, Effektlabor, Eingaberaum),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
@@ -1614,6 +1626,124 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Gürtel, dasselbe Regal, dieselbe Physik. Portale haften nur an den hellen
   Tafeln im Flur und am Boden — eine Putzwand mit Loch würde das Haus zum
   Nichts draußen aufmachen.
+- **Kletterhalle** (experimentell): die Welt, in der der **Greifknopf etwas
+  anderes tut**. Überall sonst nimmt Greifen ein Ding in die Hand; hier hängt
+  es den ganzen Spieler an die Wand. Von Griff zu Griff geführt wird dabei
+  niemand — man fasst hin, wo man will, und die Welt rechnet aus, wie gut das
+  war. Das Vorbild ist die Haltemechanik aus _Cairn_.
+
+  **Wie das Klettern selbst funktioniert.** Jede greifende Hand bekommt einen
+  **Anker** in der Welt, und der Körper wird jedes Bild so weit verschoben,
+  dass die Hände wieder dort sind (`ClimbWorld.driveBody`). Zieht man die Hand
+  herunter, geht der Körper hinauf; mehr ist Klettern nicht. Gefahren wird das
+  über den **Flugmodus** der Fortbewegung (`PhysicsLocomotion.setFlight`,
+  dieselbe Tür, durch die auch der Supermanhandschuh geht) und nicht über die
+  Position des Rigs — dadurch bleiben Wände Wände, man klettert nicht in die
+  Halle hinein, und beim Loslassen wird aus dem letzten Zug ein **Schwung**
+  (gedeckelt, damit aus einem Klimmzug kein Raketenstart wird). Solange eine
+  Hand hängt, ist der **Stick abgeschaltet** (`PlayerRig.locked`): Eine
+  Rastdrehung schwenkt die Hände um den Kopf, während ihre Anker in der Welt
+  stehen bleiben, und im nächsten Bild risse einen der Zug quer durch die
+  Halle. Damit der Greifknopf sich nicht mit dem normalen Greifen schlägt,
+  klettert nur eine Hand, die wirklich leer ist (`PortalWorld.handFree`) — wer
+  eine Kiste trägt, trägt eine Kiste. Am Gürtel hängt deshalb auch nichts.
+
+  **Was in den Halt eingeht** (`climb/gripQuality.ts`, mit Test — reine
+  Zahlen, kein three.js). Heraus kommt eine Zahl je Hand und daraus der
+  **Halt** (`support`):
+
+  - **Material** (`climb/holds.ts`): _Sprosse_ (perfekt, Grundwert 1),
+    _rauer Fels_ (0,44) und _glatter, glänzender Fels_ (0,24). Dazu, was jedes
+    an Ausdauer frisst: 0, 1 und 1,9.
+  - **Form**, aber nur so weit die Hand wirklich daraufsitzt (`seat`): Sprosse
+    +0,36, Henkel +0,34, Spalte +0,30, Kante +0,26, Ballen +0,06, blanke
+    Fläche nichts. Eine um einen halben Handteller verfehlte Kante ist keine
+    Kante, sondern eine Wand — und genau das ist „wer keine gute Kante
+    erwischt“. Leisten, Sprossen und Risse haben dafür eine **Achse**: An
+    ihnen entlang darf man überall zupacken, darüber und darunter nicht.
+  - **Verspreizen** (Jamming): Stehen zwei Hände an **entgegengesetzten**
+    Flächen, gibt es bis zu +0,40 — abhängig davon, wie genau sie gegeneinander
+    stehen _und_ wie nah die Hände beieinander sind. Druck braucht einen
+    Winkel; mit weit auseinandergerissenen Armen kann man nicht drücken.
+  - **Neigung der Wand**: An einem Überhang schaut die Fläche nach unten, und
+    dann gibt es nichts mehr hineinzudrücken — bis auf die Hälfte herunter,
+    bei einem waagerechten Dach.
+  - **Wie tief die Hände hängen**: voll von über dem Kopf bis vor die Brust,
+    dann fallend bis auf die Hälfte, wenn sie auf Fußhöhe stehen.
+  - **Spannweite**: bis 75 cm umsonst, ab 1,60 m bleiben 70 % übrig.
+  - **Füße** auf etwas Festem: +0,18 (gemessen mit einem kurzen Strahl nach
+    unten, denn `grounded` ist beim Klettern immer falsch — der Körper fliegt
+    ja).
+  - **Restkraft**: leere Ausdauer macht jeden Griff schlechter, aber höchstens
+    auf 70 % — eine Todesspirale, aus der niemand mehr herausklettert, wäre
+    keine Mechanik, sondern eine Strafe.
+
+  Zwei Hände tragen mehr als eine (die bessere plus ein Drittel der anderen),
+  einarmig hängen kostet 22 %. **Die Leiter ist von alledem ausgenommen**: Sie
+  gibt immer 1, egal wie tief, wie weit, wie erschöpft. Eine Leiter, an der man
+  nach zwei Minuten abrutscht, wäre keine.
+
+  **Die Ausdauer** (`climb/stamina.ts`, mit Test) hängt an zwei Schwellen.
+  Über **0,70** füllt sie sich wieder — aber **anlaufend** (1,2 s), denn wer
+  sich für einen Wimpernschlag an einen Henkel hängt, hat sich nicht ausgeruht;
+  eine Erholung, die sofort einsetzt, macht aus jedem guten Griff einen
+  Schalter. Unter **0,18** ist es kein Halt mehr, sondern ein Streifen: Die
+  Hand geht ab, und wer keine zweite mehr an der Wand hat, fällt. Dazwischen
+  läuft sie aus, umso schneller je schlechter der Halt und je glatter das
+  Material. Auf der Matte füllt sie sich in drei Sekunden, an der Wand in
+  sechs. Was dabei herauskommt, in Sekunden bis leer: zwei raue Henkel oder
+  Kanten sind eine **Rast**, zwei raue Ballen 180 s, zwei raue Flächen 55 s,
+  zwei glatte Kanten 95 s, zwei glatte Flächen **9 s** — und einarmig überall
+  ein Drittel davon. Am Überhang wird aus der Rast an der Kante ein Auslaufen;
+  Rasten gibt es dort nur noch an den Henkeln.
+
+  **Die Anzeige** (`climb/ClimbHud.ts`) hängt wie die Trefferanzeige an der
+  **Kamera** und liegt auf `LAYER_HUD` — ein Balken, der dem Kopf ein Bild
+  hinterherläuft, ist das Erste in VR, wovon einem schlecht wird. Unten in der
+  Mitte die Ausdauer, links und rechts daneben je ein Haltbalken; die
+  Anordnung ist die Anschrift, deshalb steht nichts daran. Auf den Haltbalken
+  sitzen zwei feine Striche genau auf den beiden Schwellen — sonst wäre „gut“
+  eine Farbe, die man glauben muss, statt einer Höhe, die man abliest.
+  Abschaltbar im Menü.
+
+  **Die Vibration** (`climb/gripHaptics.ts`, mit Test) ist bewusst **kein
+  Dauerbrummen, dessen Stärke den Halt anzeigt**: Ein Motor, der die ganze Zeit
+  läuft, wird nach zwanzig Sekunden nicht mehr wahrgenommen, verdeckt jede
+  andere Rückmeldung und leert den Akku — und man merkt eine _Änderung_ ohnehin
+  viel besser als einen _Pegel_. Also drei **Ereignisse**: (1) **Der Schlag
+  beim Zupacken**, genau einer, und er ist die Antwort auf „habe ich das gut
+  erwischt?“ — guter Halt **kurz und hart** (1,0 / 60 ms), schlechter **schwach
+  und lang** (0,15 / 190 ms); dieselben zwei Regler in die Gegenrichtung, und
+  dadurch ohne Anzeige auseinanderzuhalten. (2) **Das Rutschen**: Solange ein
+  Griff unter der Erholungsschwelle liegt, tickt es leicht weiter, und je
+  schlechter der Halt, desto **schneller** die Folge — nicht lauter, schneller;
+  ein beschleunigendes Ticken liest sich als Countdown, und das ist es auch.
+  (3) **Die Warnung** ab einem Drittel Ausdauer, kurz und kräftig statt lang
+  und weich, damit beide nebeneinander unterscheidbar bleiben. An der Leiter
+  passiert nichts davon außer dem Schlag beim Zupacken — eine Welt, in der auch
+  das sichere Material vibriert, hat kein sicheres Material mehr.
+
+  **Die Halle** ist eine Lehrtafel: 26 × 18 m, 10 m hoch, Boden ganz aus
+  Matten, und jede Wand beantwortet genau eine Frage. **Leiterwand** (perfektes
+  Material, der Nullpunkt und der Weg nach oben für jeden, der erst einmal
+  sehen will, wie hoch es hier ist), **Rauwand** mit einer Route von Henkeln
+  über Leisten bis zu Ballen und blanken Flächen, daneben der **Riss** (eine
+  senkrechte Spalte, in die die Hand hineingeht), der **Überhang** (34°,
+  dieselben Griffe, aber sie schauen nach unten), die **Glattwand** (poliert
+  und glänzend) und der **Kamin**: zwei Wände, 95 cm auseinander, fast ohne
+  Griffe — der einzige Weg hoch ist das Verspreizen, und wer die Kanten sucht
+  statt zu drücken, kommt nicht weit. Oben verbinden Podeste die Routen; wer
+  wieder hinunter will, springt in die Matten oder nimmt _Zurück auf die
+  Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
+  und keine zweiten: Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton,
+  glatter den dunklen; den Rest macht die Oberfläche, denn glatter Fels glänzt
+  auch. Wer im Spiel gelernt hat, dass Türkis „hier anfassen“ heißt, sucht an
+  einer Wand voller bunter Klötze zuerst das Türkis.
+
+  Portale haften an nichts hier drin, und das ist Absicht — ein Portal an der
+  Hallendecke wäre der kürzeste Weg nach oben und damit das Ende dieser Welt.
+  Geklettert wird mit **Controllern oder getrackten Händen**; am Schreibtisch
+  kann man die Halle ansehen und durchlaufen, aber nicht hinauf.
 - **Mond** (experimentell): die Welt, die es wegen der Schwerkraft gibt —
   1,62 m/s². Ein Sprung dauert dreimal so lange, ein geworfener Stein fliegt
   bis zum nächsten Krater, ein Stapel fällt in Zeitlupe zusammen, ohne dass
@@ -1802,6 +1932,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
+| Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der Stick aus | –                                                                                               | –                    |
+| Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
+| Halt-Anzeige (Kletterhalle)        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                | dito                                                                                            | dito                 |
 | Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
 | Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
 | Pinsel                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                  | –                                                                                               | –                    |

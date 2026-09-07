@@ -136,6 +136,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./navlab/NavLabWorld')).NavLabWorld(),
   },
   {
+    id: 'climb',
+    title: 'Kletterhalle',
+    tagline: 'Greifen hält dich an der Wand',
+    description:
+      'Leiterwand, rauer Fels, Glattwand, Überhang, Riss und ein Kamin zum Verspreizen. Der Halt wird gerechnet — schlechte Griffe kosten Ausdauer.',
+    accent: 0x1e9a84,
+    roles: ['vr', 'desktop'],
+    experimental: true,
+    load: async () => new (await import('./climb/ClimbWorld')).ClimbWorld(),
+  },
+  {
     id: 'dark',
     title: 'Dunkelhaus',
     tagline: 'Licht aus, Taschenlampe an',
