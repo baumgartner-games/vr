@@ -16,9 +16,12 @@ dich an der Wand hält — der Halt wird gerechnet, aus Material, Form,
 Körperhaltung und dem Verspreizen im Kamin, und schlechte Griffe kosten
 Ausdauer —, ein **Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
-ein **Bauplatz**, in dem der Grundriss als Miniatur vor einem schwebt — greifen
-und schieben, zwei Hände drehen und zoomen, tippen setzt Boden, Wände und Türen,
-und alles wächst in Lebensgröße um einen herum —, und
+ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
+Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
+und sie fällt nicht; an einer Palette tunkt man Boden, Wand oder Tür ein und
+setzt sie beliebig oft, die eigene Spielfigur steht mit im Modell und wird
+einfach woandershin gestellt, drumherum ein weißer Raum — und weggelegt steht
+alles in Lebensgröße um einen herum —, und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel

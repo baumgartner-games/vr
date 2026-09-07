@@ -388,10 +388,17 @@ Kachel oder Kante; was die vier Werkzeuge daraus machen; und dass der
 Radiergummi erst die Tür, dann die Wand und dann den Boden nimmt), die
 **Geometrie dazu** (`editor/levelBuild.ts` — Pfosten, Sturz und Blatt, und der
 Prüfstein: was der Editor baut, findet das Abtasten wieder), die **Miniatur**
-(`editor/miniature.ts` — Hin und Zurück ohne Drift, der Punkt zwischen den
-Fingern bleibt liegen, und die Grenzen des Maßstabs) samt der Zusicherung, dass
+(`editor/miniature.ts` — Hin und Zurück ohne Drift, **auch bei einem gekippten
+Modell**; dass eine Hand es samt Handgelenk trägt und der angefasste Punkt
+dabei unter ihr bleibt; dass zwei Hände es kippen **und** rollen — das Rollen
+ist die Drehung um die Achse, die man in den Händen hält, und ohne sie fehlte
+genau die, die man am häufigsten will —; dass „Zu mir" ein verdrehtes Modell
+wieder flach legt; und die Grenzen des Maßstabs) samt der Zusicherung, dass
 sie dasselbe rechnet wie die three.js-Gruppe, die man sieht
-(`editor/miniatureFrame.test.ts`) — und das
+(`editor/miniatureFrame.test.ts`), die **Vorfahrt beim Zugreifen**
+(`editor/reach.ts` — dass die kleine Spielfigur mitten im großen Grundriss
+gewinnt, wenn die Hand auf ihr liegt: das nächstgelegene Ding gewinnt und
+nicht das mit der größeren Blase) — und das
 **ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`, und einmal
 mit echter Physik in `labPhysics.test.ts`): dieselben
 Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
@@ -4798,11 +4805,11 @@ Character-Controller oben.
 **Ein Level bauen, während man darin steht** (`worlds/editor/`). Die Welt
 beantwortet die Frage, die vorher unter „was noch fehlt" stand — *wie sieht man
 einen Grundriss von oben, wenn man selbst darin steht?* —, und sie tut es mit
-einem **Tischmodell**: Der Grundriss schwebt als Miniatur auf Brusthöhe vor
-einem, und dasselbe Level steht gleichzeitig in **Lebensgröße** um einen herum.
-Man setzt eine Wand am Modell, und eine Sekunde später steht sie neben einem und
-ist wirklich im Weg. Ein Grundriss, den man nur von oben sieht, hat immer zu enge
-Gänge; einer, in dem man steht, während man ihn zieht, nicht.
+einem **Tischmodell**: Man zieht die **Karte vom Gürtel**, und der Grundriss
+hängt als Miniatur vor einem in der Luft. Man setzt eine Wand am Modell, legt
+die Karte weg und steht neben ihr — sie ist wirklich im Weg. Ein Grundriss, den
+man nur von oben sieht, hat immer zu enge Gänge; einer, in dem man steht,
+während man ihn zieht, nicht.
 
 Drei Entscheidungen tragen das Ganze:
 
@@ -4819,13 +4826,35 @@ Drei Entscheidungen tragen das Ganze:
   Miniatur und Lebensgröße kommen aus **derselben** Liste; zwei Bauanleitungen
   für dasselbe Zimmer laufen auseinander, und man merkt es an dem Tag, an dem
   eine Tür im Modell an einer anderen Wand hängt als im Raum.
-- **Die Miniatur ist eine Rechnung mit sechs Zahlen** (`editor/miniature.ts`):
-  Standort, Gierwinkel, Maßstab. Eine Hand schiebt, **zwei Hände drehen und
-  ziehen größer** — dieselbe Geste wie auf jedem Telefon, nur im Raum. Die eine
-  Regel, ohne die sich jede Karte falsch anfühlt, steht dort als eine Zeile:
-  **Der Punkt zwischen den Fingern bleibt liegen.** Gerechnet wird gegen den
-  Stand beim Zugreifen und nicht gegen das letzte Bild — sonst liegt die Geste
-  nach zwei Sekunden Zittern um zehn Prozent daneben.
+- **Die Miniatur ist ein Gegenstand** (`editor/miniature.ts`): Standort,
+  Drehung, Maßstab — und die Drehung ist seit der zweiten Fassung ein
+  **Quaternion** und kein Gierwinkel mehr. Eine Hand **trägt** das Modell, samt
+  allem, was das Handgelenk dabei tut; **zwei Hände** ziehen es größer,
+  **kippen** und drehen es, in allen drei Achsen (Kippen aus der kürzesten
+  Drehung zwischen alter und neuer Handverbindung, Rollen aus dem Anteil der
+  Handdrehungen **um** diese Achse — ohne den zweiten Teil ließe sich ein
+  Modell um genau die Achse nicht drehen, die man in den Händen hält). Nur
+  fallen tut es nicht: Losgelassen bleibt es stehen, und genau deshalb hat man
+  beim Bauen zwei Hände frei. Die eine Regel, ohne die sich jede Karte falsch
+  anfühlt, steht dort als eine Zeile: **Der Punkt zwischen den Fingern bleibt
+  liegen.** Gerechnet wird gegen den Stand beim Zugreifen und nicht gegen das
+  letzte Bild — sonst liegt die Geste nach zwei Sekunden Zittern um zehn
+  Prozent daneben. Dass ein Grundriss dabei schief hängen darf, ist kein
+  Versehen, sondern der Zweck: Wer eine Wand von unten sehen will, kippt das
+  Modell, statt sich darunter zu bücken. Gerade legt es *ein* Griff wieder —
+  „Zu mir" ist gleichzeitig die Wasserwaage.
+
+**Ausgesucht wird an einer Palette** (`editor/Palette.ts`). Drei Antworten
+standen zur Wahl, wie man in der Brille ein Bauteil aussucht: ein Menü (dreimal
+Aufklappen je Wechsel — die Sorte Bedienung, nach der man aufhört zu bauen),
+ein magischer Beutel (der gibt *Gegenstände* heraus, einen nach dem anderen;
+beim Bauen setzt man dasselbe zwanzigmal hintereinander) — und eine Palette mit
+einem Pinsel: einmal eintunken, beliebig oft setzen, den Pinsel zurück in die
+Mulde, wenn man fertig ist. Genau das ist der Rhythmus eines Kacheleditors.
+Steckt der Pinsel in der Mulde, baut ein Tipp auf die Miniatur **nichts** —
+dann darf man darin herumfassen, ohne aus Versehen eine Wand zu setzen. Die
+Palette selbst hängt an nichts: Sie schwebt wie das Modell, wird wie das Modell
+mit einer Hand getragen und hängt an der zweiten Hüfte, wenn man sie weglegt.
 
 **Werkzeuge sind vier, und der Radiergummi ist eines davon**: Boden, Wand, Tür,
 Löschen. Was ein Druck tut, hängt an zwei Sachen — am Werkzeug und daran, worauf
@@ -4842,8 +4871,33 @@ erst die Tür, dann die Wand, dann den Boden.
 fällt: Die Mitte einer Kachel ist ein großes Ziel, ihre Kante eine Linie — und
 eine Linie trifft man in der Brille auf drei Meter Entfernung nicht ohne Hilfe.
 
-**Das fünfte, das keines ist: Hingehen.** Auf eine Kachel der Miniatur tippen und
-dort stehen. Es ändert nichts am Plan und steht deshalb neben den Werkzeugen und
+**Man selbst steht mit im Modell** (`editor/PlayerPin.ts`). Eine Karte hat einen
+Punkt „Sie sind hier", und weil man ihn anfassen kann, ist er gleichzeitig der
+Weg dorthin: Figur nehmen, ans andere Ende des Gangs stellen, loslassen — dort
+steht man. Auf eine Kachel, die es nicht gibt, geht niemand; dort wäre der
+nächste Schritt ein Sturz. Gebaut ist sie in **Planmetern** und nicht in
+Zentimetern: Sie hängt in der Miniatur, die trägt den Maßstab, und damit ist die
+Figur bei jedem Zoom so groß wie ein Mensch im Grundriss.
+
+Damit schweben drei Dinge in derselben Luft, und wer zugreift, greift irgendwo
+hin. Die Vorfahrt steht in `editor/reach.ts` und ist **das nächstgelegene
+gewinnt**, mit einer Reichweite am Ding statt am Griff: Die Figur hat eine
+kleine, der Grundriss eine große. Ohne diese Regel hat jeder Editor denselben
+Fehler — man will die Figur versetzen und schiebt den ganzen Grundriss weg, weil
+das Modell größer ist und deshalb immer zuerst antwortet.
+
+**Beim Bearbeiten steht man in einem weißen Raum.** Solange die Karte draußen
+ist, wird das Level unsichtbar und seine Körper kommen aus der Physik heraus —
+beides gehört zusammen, denn eine Wand, die man nicht sieht, aber gegen die man
+läuft, ist schlimmer als eine, die im Weg steht. Übrig bleibt ein Boden bis zum
+Horizont und ein weißer Himmel. Der Grund ist derselbe wie beim Tischmodell:
+Wer einen Grundriss bearbeitet, steht nicht gleichzeitig darin — er stünde
+sonst mit dem Kopf in einer Wand, die er gerade selbst gesetzt hat. Beide
+Kulissen liegen von Anfang an übereinander da; umgeschaltet wird nur die
+Sichtbarkeit, und der Körper des dunklen Bodens trägt für beide.
+
+**Das fünfte Werkzeug, das keines ist: Hingehen.** Auf eine Kachel der Miniatur
+tippen und dort stehen. Es ändert nichts am Plan und steht deshalb neben den Werkzeugen und
 nicht in ihnen — aber es ist der Griff, der aus einer Zeichnung eine Karte macht:
 Wer den Gang am anderen Ende gebaut hat, muss ihn nicht ablaufen, um zu sehen, ob
 er zu eng ist. Versetzt wird dabei über `PortalWorld.movePlayerTo` — Rig **und**
@@ -4863,8 +4917,11 @@ ist: Wer zwanzig Minuten baut und die Brille absetzt, soll seinen Grundriss
 wiederfinden.
 
 **Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste),
-Rückgängig, Fenster und Rampen, und ein Weg, einen gebauten Plan als eigene Welt
-zu laden statt nur im Bauplatz zu haben.
+Rückgängig, Fenster und Rampen, ein Weg, einen gebauten Plan als eigene Welt zu
+laden statt nur im Bauplatz zu haben — und die Karte als **echtes Werkzeug** im
+Werkzeugkasten (`portal/tools/`), damit sie sich auch in andere Welten
+mitnehmen ließe. Heute führt der Bauplatz seine beiden Hüften selbst; das ist
+weniger Verdrahtung, aber es bleibt in dieser einen Welt.
 
 ### Die Werkzeugseite
 
