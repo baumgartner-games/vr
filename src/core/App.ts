@@ -14,6 +14,7 @@ import { Voice } from '../net/Voice';
 import { BroadcastChannelTransport } from '../net/BroadcastChannelTransport';
 import { TrysteroTransport, type TrysteroOptions } from '../net/TrysteroTransport';
 import { SpectatorCamera, type SpectatorMode } from '../net/SpectatorCamera';
+import { pickWatched } from '../net/watch';
 import {
   normalizeRoomCode,
   randomRoomCode,
@@ -146,6 +147,12 @@ export class App {
   /** Something changed a menu label or row; the tree is rebuilt next frame. */
   private menuDirty = false;
   private spectating = false;
+  /**
+   * In welcher Welt der Beobachtete zuletzt stand — `''`, solange niemandem
+   * zugesehen wird. Der Merker, an dem `followWatched` einen **Wechsel**
+   * erkennt statt bloß einen Unterschied.
+   */
+  private watchedWorld = '';
 
   constructor(canvas: HTMLCanvasElement, stickEl: HTMLElement | null, hooks: AppHooks = {}) {
     this.hooks = hooks;
@@ -441,25 +448,69 @@ export class App {
   /**
    * Watch a player — the same call behind the wrist menu and the flat panel.
    * Somebody standing in another world is followed there first; you cannot
-   * watch a room you are not in.
+   * watch a room you are not in. The same goes for a world they switch to
+   * later on: `followWatched` keeps the view with them.
    */
   spectate(peerId: string | null, mode?: SpectatorMode): void {
-    const peer = peerId ? this.net.peers.get(peerId) : null;
-    if (peer && peer.world !== this.net.world) void this.goTo(peer.world);
-
     this.spectator.setTarget(peerId);
     if (mode) this.spectator.setMode(mode);
     else if (peerId && this.spectator.settings.mode === 'free') this.spectator.setMode('third');
+    // Hinterher gefragt und nicht vorher: Ohne ausgesuchte Id gilt der erste
+    // VR-Spieler, und auch dem soll man dorthin folgen, wo er steht.
+    this.followWatched(this.watched);
     this.menuDirty = true;
     this.hooks.onNetChanged?.();
   }
 
-  /** The peer the spectator camera follows — an explicit pick, else the first VR player. */
+  /**
+   * **Wem zugesehen wird** — die Wahl allein, ohne Rücksicht auf die Welt
+   * (`net/watch.ts`). Auch wer gerade durch ein Portal in eine andere Welt
+   * gegangen ist, steht hier noch.
+   */
+  get watched(): Peer | null {
+    return pickWatched(
+      [...this.net.peers.values()],
+      this.spectator.settings.targetId,
+      this.net.world,
+    );
+  }
+
+  /**
+   * Derselbe, solange er **hier** steht: Nur von ihm gibt es eine Pose, in die
+   * sich eine Kamera setzen kann. Steht er woanders, wird seine Welt geladen
+   * (`followWatched`), und bis sie steht, gibt es nichts zu übernehmen.
+   */
   get spectatorTarget(): Peer | null {
-    const here = [...this.net.peers.values()].filter((peer) => peer.world === this.net.world);
-    const wanted = this.spectator.settings.targetId;
-    if (wanted) return here.find((peer) => peer.id === wanted) ?? null;
-    return here.find((peer) => peer.role === 'vr') ?? here[0] ?? null;
+    const peer = this.watched;
+    return peer && peer.world === this.net.world ? peer : null;
+  }
+
+  /**
+   * **Wer zusieht, geht mit.**
+   *
+   * Ein Weltwechsel ist in VR ein Schritt durch ein Portal, und wer dabei
+   * zusieht, sah bisher zu, wie sein Bild stehenblieb: Der andere war
+   * plötzlich in einer Welt, die hier nicht geladen ist, seine Posen kamen
+   * weiter an und gehörten zu nichts mehr, was man sehen kann. Also wird die
+   * Welt hier nachgeladen — dieselbe Antwort wie beim Aussuchen eines
+   * Spielers, nur eben auch dann, wenn er sie **später** wechselt.
+   *
+   * Gehandelt wird auf den **Wechsel** und nicht auf den Unterschied: Gemerkt
+   * wird die Welt, in der der Beobachtete zuletzt stand, und erst eine andere
+   * löst etwas aus. Das ist mehr als eine Sparmaßnahme in der Bildschleife —
+   * ein Unterschied allein zöge einen auch dann wieder zurück, wenn man selbst
+   * gerade im Menü eine andere Welt gewählt hat, und aus dem Mitgehen würde
+   * ein Festhalten. Und lässt sich die Welt nicht laden, bleibt es bei einem
+   * Versuch statt einem je Bild.
+   */
+  private followWatched(peer: Peer | null): void {
+    // Ohne Zusehen gibt es nichts mitzugehen — und beim nächsten Einschalten
+    // fängt es wieder mit dem Wechsel dorthin an, wo der andere steht.
+    const world = peer && this.spectator.following ? peer.world : '';
+    if (world === this.watchedWorld) return;
+    this.watchedWorld = world;
+    if (!world || world === this.net.world) return;
+    void this.goTo(world);
   }
 
   toggleMenu(force?: boolean): void {
@@ -981,7 +1032,10 @@ export class App {
    */
   private spectateMenu(): MenuEntry {
     const settings = this.spectator.settings;
-    const target = this.spectatorTarget;
+    // Der Ausgesuchte und nicht der Sichtbare: Wer gerade in einer anderen
+    // Welt steht, ist der, dem zugesehen wird — das Menü soll ihn währenddessen
+    // nicht abwählen, sondern zeigen, wo er ist.
+    const target = this.watched;
     const presenting = this.renderer.xr.isPresenting;
 
     const players: MenuEntry[] = [...this.net.peers.values()].map((peer) => ({
@@ -1146,7 +1200,7 @@ export class App {
 
     // The spectator borrows the view after the world had its say, so it can
     // follow a player that a portal just moved.
-    const target = this.spectatorTarget;
+    const watched = this.watched;
     // Nobody left to watch — hand the view back instead of freezing it. A
     // target that is only briefly missing (loading their world) is kept.
     const wanted = this.spectator.settings.targetId;
@@ -1155,6 +1209,10 @@ export class App {
       this.spectator.setMode('free');
       this.menuDirty = true;
     }
+    // Und wechselt der Beobachtete die Welt, geht das Zusehen mit — danach
+    // erst steht fest, ob es hier eine Pose von ihm zu übernehmen gibt.
+    this.followWatched(watched);
+    const target = this.spectatorTarget;
     const following = this.spectator.update(dt, target?.pose ?? null, presenting);
     this.avatars.hiddenPeer =
       following && this.spectator.settings.mode === 'first' ? (target?.id ?? null) : null;

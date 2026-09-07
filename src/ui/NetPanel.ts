@@ -280,7 +280,10 @@ export class NetPanel {
       return;
     }
 
-    const active = this.app.spectatorTarget?.id ?? null;
+    // Der Ausgesuchte, auch wenn er gerade in einer anderen Welt steht: Das
+    // Zuschauen geht ihm nach, und bis seine Welt hier steht, soll die Zeile
+    // nicht so aussehen, als hätte sich die Wahl aufgelöst.
+    const active = this.app.watched?.id ?? null;
     for (const peer of peers) {
       const item = document.createElement('button');
       item.type = 'button';

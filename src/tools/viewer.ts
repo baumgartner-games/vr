@@ -39,6 +39,7 @@ import {
   type FlyInput,
   type FlyView,
 } from './flyCamera';
+import { cutHeight } from './worldCut';
 import type { Ray } from './alignHand';
 import type { Pose } from '../worlds/tune/handGrip';
 import type { HoldPose, PoseReadout } from '../worlds/portal/tools/toolPose';
@@ -230,14 +231,6 @@ const FLY_DOLLY_STEP = 0.35;
  */
 const FLY_NEAR = 0.05;
 const FLY_FAR = 2400;
-
-/**
- * Wie hoch der Schnitt durch eine Welt mit Dach höchstens liegt.
- *
- * Etwas über Kopfhöhe: Wände bleiben Wände, Tische, Türen und Schilder bleiben
- * drin, und der Deckel ist weg.
- */
-const CUT_HEIGHT = 2.4;
 
 /** Wie weit ein Finger wandern darf, damit sein Aufsetzen ein Tipp bleibt. */
 const TAP_SLOP = 9;
@@ -700,12 +693,13 @@ export class ToolViewer {
       flat: true,
       spin: live ? 0 : WORLD_SPIN,
       pitch: WORLD_PITCH,
-      // Ein Stück unter der Decke, und nie höher als Kopfhöhe: Wände, die man
-      // noch als Wände erkennt, aber kein Deckel mehr darüber.
+      // Über allem, was in der Welt steht, und ein Stück unter ihrer Decke:
+      // Wände, die man noch als Wände erkennt, kein Deckel darüber — und in
+      // einer Halle bleibt stehen, was eine Halle ausmacht (`worldCut.ts`).
       cut:
         preview.roof === null || preview.roof === undefined
           ? null
-          : Math.min(preview.roof - 0.3, CUT_HEIGHT),
+          : cutHeight(preview.roof, topsOf(preview.object)),
     });
   }
 
@@ -2123,6 +2117,39 @@ function disposeMaterial(material: THREE.Material): void {
   const textured = material as THREE.Material & { map?: THREE.Texture | null };
   textured.map?.dispose();
   material.dispose();
+}
+
+/**
+ * **Die Oberkanten von allem, was man an einer Welt sieht** — für den Schnitt
+ * durch sie (`worldCut.ts`).
+ *
+ * Gemessen wird im Raum der Welt selbst und nicht im Bild: `roof` ist die Höhe,
+ * in der sie ihre Decke gebaut hat, und mit ihr wird verglichen. Gezählt wird
+ * dasselbe wie beim Einpassen (`measure`) — sichtbare Meshes, keine Kulisse:
+ * Der Himmel steht 560 Meter über allem und hätte jeden Schnitt sofort an die
+ * Decke gezogen.
+ */
+function topsOf(root: THREE.Object3D): number[] {
+  const tops: number[] = [];
+  root.updateWorldMatrix(false, true);
+  const intoWorld = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const matrix = new THREE.Matrix4();
+  const box = new THREE.Box3();
+  const visit = (object: THREE.Object3D): void => {
+    if (!object.visible || object.userData.backdrop) return;
+    const mesh = object as THREE.Mesh;
+    if (mesh.isMesh && mesh.geometry) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const bounds = mesh.geometry.boundingBox;
+      if (bounds) {
+        box.copy(bounds).applyMatrix4(matrix.copy(mesh.matrixWorld).premultiply(intoWorld));
+        tops.push(box.max.y);
+      }
+    }
+    for (const child of object.children) visit(child);
+  };
+  visit(root);
+  return tops;
 }
 
 /**
