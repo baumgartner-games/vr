@@ -109,6 +109,8 @@ export interface NpcRequest {
   health?: number;
   /** Wer ihn gesetzt hat — ein Brutkäfig zählt daran seine eigenen Kinder. */
   owner?: object | null;
+  /** Wohin er gehen soll, statt jemandem nachzugehen (`Npc.sendTo`). */
+  errand?: THREE.Vector3 | null;
 }
 
 export interface CageRequest {
@@ -258,6 +260,7 @@ export class NpcDirector implements NpcControl {
       speed: request.speed,
       health: request.health,
       owner: request.owner,
+      errand: request.errand ?? null,
     });
     npc.setBars(this.barMode);
     npc.setSight(this.sightOn, this.sightColor);

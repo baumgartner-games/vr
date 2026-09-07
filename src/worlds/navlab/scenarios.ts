@@ -3,6 +3,7 @@ import type { DoorMaterial } from '../nav/navDoor';
 import type { NavGraph } from '../nav/navGraph';
 import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE, TILE } from '../nav/navTile';
+import type { BrainId } from '../npc/npcBrains';
 import type { NpcKind } from '../npc/npcKinds';
 
 /**
@@ -86,6 +87,25 @@ export interface BaySpot {
 /** Wer in einer Bucht losläuft, und wo. */
 export interface BayCast extends BaySpot {
   kind: NpcKind;
+  /**
+   * Welches Hirn er mitbringt — ohne Angabe verfolgt er den Spieler
+   * (`npc/npcBrains.ts`).
+   *
+   * Der Grund, warum das überhaupt in den Daten steht: Nicht jede Bucht
+   * handelt vom Spieler. Die beiden Steigungen und das Podest führen vor, dass
+   * man **hinaufkommt** — und wer das zeigen soll, darf nicht davon abhängen,
+   * ob gerade jemand in Sichtweite steht. Vorher hing genau das daran: Wer im
+   * Mittelgang stand, sah drei NPCs, die sich nicht rührten; wer in die Bucht
+   * ging, wurde verfolgt statt vorgeführt.
+   */
+  brain?: BrainId;
+  /**
+   * Und wohin er will, in Buchtmaßen — sein Auftrag (`Npc.sendTo`).
+   *
+   * Nur mit `brain: 'errand'` sinnvoll; ein Verfolger hat kein Ziel außer dem
+   * Spieler.
+   */
+  goal?: BaySpot;
 }
 
 /**
@@ -184,6 +204,18 @@ export const RAMP = {
    */
   steep: { foot: 2.5, run: TILE, step: 0.12 },
 } as const;
+
+/**
+ * **Wohin die beiden Steigungen führen** — das Ziel ihrer Auftritte, oben auf
+ * dem Podest hinter der Steigung.
+ *
+ * Dieselbe Stelle, an der auch der Spieler steht (`stand`), und trotzdem eine
+ * eigene Zahl: Der Spieler steht dort, weil man von dort gut zusieht; die
+ * beiden gehen dorthin, weil das ihr Auftrag ist. Wer beides
+ * zusammenzöge, hätte wieder zwei NPCs, die stehen bleiben, sobald der
+ * Zuschauer woanders hingeht.
+ */
+export const RAMP_TOP: BaySpot = { lx: -1.25, lz: -6.25, y: RAMP.high };
 
 /** Wie die Steigung dieser Bucht gebaut ist — Fuß, Anlauf, Stufenhöhe. */
 export function rampPlan(id: ScenarioId): { foot: number; run: number; step: number } {
@@ -350,6 +382,16 @@ export const PODIUM = {
 } as const;
 
 /**
+ * **Wohin die beiden in der Podest-Bucht wollen**: auf das freistehende
+ * Podest, dorthin, wo auch der Zuschauer steht.
+ *
+ * Die Höhe steht mit dabei und ist keine Zierde: Ohne sie stünde das Ziel auf
+ * Bodenhöhe unter dem Podest, und wer oben ankommt, wäre nach dieser Rechnung
+ * noch 2,4 m davon entfernt.
+ */
+export const PODIUM_TOP: BaySpot = { ...PODIUM.to, y: PODIUM.high };
+
+/**
  * Die fünf Spalten einer Reihe, von West nach Ost.
  *
  * Eine ungerade Zahl, und deshalb steht eine Bucht je Reihe **mittig** — das
@@ -464,9 +506,12 @@ export const SCENARIOS: readonly Scenario[] = [
     z: ROW,
     accent: 0x6fd3ff,
     stand: { ...PODIUM.to, y: PODIUM.high },
+    // **Beide haben einen Auftrag und keinen Gegner**: hinauf auf das
+    // hintere Podest. Was die Bucht zeigt, ist die Lücke zwischen den beiden
+    // Podesten — und die springt nur, wer überhaupt losgeht.
     cast: [
-      { kind: 'dummy', lx: -11.25, lz: 6.25 },
-      { kind: 'zombie', lx: -8.75, lz: 6.25 },
+      { kind: 'dummy', lx: -11.25, lz: 6.25, brain: 'errand', goal: PODIUM_TOP },
+      { kind: 'zombie', lx: -8.75, lz: 6.25, brain: 'errand', goal: PODIUM_TOP },
     ],
   },
   {
@@ -478,9 +523,10 @@ export const SCENARIOS: readonly Scenario[] = [
     z: -ROW,
     accent: 0x8ee06a,
     stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    // Ihr Ziel ist oben, und zwar unabhängig davon, wo der Spieler steht.
     cast: [
-      { kind: 'zombie', lx: -3.75, lz: 6.25 },
-      { kind: 'dummy', lx: 1.25, lz: 6.25 },
+      { kind: 'zombie', lx: -3.75, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+      { kind: 'dummy', lx: 1.25, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
     ],
   },
   {
@@ -492,9 +538,11 @@ export const SCENARIOS: readonly Scenario[] = [
     z: ROW,
     accent: 0xffb14e,
     stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    // Dasselbe Ziel wie nebenan — und genau deshalb sieht man hier etwas:
+    // Beide *wollen* hinauf, und beide bleiben unten stehen.
     cast: [
-      { kind: 'zombie', lx: -3.75, lz: 6.25 },
-      { kind: 'dummy', lx: 1.25, lz: 6.25 },
+      { kind: 'zombie', lx: -3.75, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+      { kind: 'dummy', lx: 1.25, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
     ],
   },
 ];

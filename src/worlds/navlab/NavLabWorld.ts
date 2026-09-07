@@ -4,6 +4,7 @@ import { createCompanionCube } from '../portal/props';
 import { createSky } from '../shared/environment';
 import { TextPlane } from '../../ui/TextPlane';
 import type { WorldContext } from '../../core/types';
+import type { Handedness } from '../../core/XRInput';
 import type { NavGraph } from '../nav/navGraph';
 import { dropPortal, portalLinkIds } from '../nav/navBuild';
 import { NO_TILE } from '../nav/navTile';
@@ -146,6 +147,24 @@ export class NavLabWorld extends PortalWorld {
 
   protected override worldGravity(): number {
     return 9.81;
+  }
+
+  /**
+   * **Am Gürtel hängt hier keine Portalkanone**, sondern eine Pistole und der
+   * Teleporter.
+   *
+   * Ein Labor, in dem man zusieht, wie NPCs Wege gehen, hat für Portale keine
+   * Verwendung — sie sind der eine Weg durch das Gitter, den kein NPC kennt,
+   * und wer sie hier benutzt, misst nichts mehr. Was man dagegen dauernd
+   * braucht: **schnell woanders stehen** (die Bucht am anderen Ende, das Dach
+   * über der Treppe) und **etwas abschießen**, wenn ein Zombie aus seinem
+   * Käfig kommt.
+   */
+  protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
+    return [
+      ['teleport', 'left'],
+      ['pistol', 'right'],
+    ];
   }
 
   /**
@@ -650,9 +669,15 @@ export class NavLabWorld extends PortalWorld {
     const cast: Npc[] = [];
     for (const one of bay.cast) {
       const at = baySpot(bay, one);
+      // **Wohin er will, wenn die Bucht ihm ein Ziel gibt** (`BayCast.goal`).
+      // Die Buchtmaße werden dabei genauso umgerechnet wie sein Standort —
+      // ein Ziel in Weltkoordinaten stünde in der ersten Bucht richtig und in
+      // allen anderen im Nachbarhaus.
+      const goal = one.goal ? baySpot(bay, one.goal) : null;
       const npc = director.spawn({
         kind: one.kind,
-        brain: 'chase',
+        brain: one.brain ?? 'chase',
+        errand: goal ? new THREE.Vector3(goal.x, one.goal?.y ?? 0, goal.z) : null,
         at: new THREE.Vector3(at.x, one.y ?? 0, at.z),
         yaw: bay.z < 0 ? 0 : Math.PI,
         // **Das Tempo kommt aus der Haut** und nicht aus dem Hirn: Eine

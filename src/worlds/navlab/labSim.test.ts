@@ -3,6 +3,7 @@ import { doorBroken } from '../nav/navGraph';
 import { findPath } from '../nav/navPath';
 import { HAZARD_SPIKES, profileOf } from '../nav/navProfile';
 import { NO_TILE, TILE, tileDistance } from '../nav/navTile';
+import { brainOf } from '../npc/npcBrains';
 import { npcSkin } from '../npc/npcKinds';
 import { bakeLab, closestTo, crossedAt, passedNear, runBay, walked } from './labSim';
 import {
@@ -550,6 +551,23 @@ describe('Die beiden Steigungen', () => {
       // Hinaufgesprungen heißt nicht hinuntergefallen: Wer die Stufen nimmt,
       // kommt heil oben an.
       expect(runner.health).toBe(npcSkin(runner.kind).health);
+    }
+  });
+
+  it('schickt beide auch dann hinauf, wenn niemand zusieht', () => {
+    // **Die Bucht führt etwas vor und jagt niemanden.** Vorher hing beides am
+    // Spieler: Der Auftritt lief nur los, wenn einer in Sichtweite stand
+    // (`Npc.navigate`), und dann lief er *ihm* nach statt die Stufen hinauf.
+    // Wer im Mittelgang stehenblieb und zusah, sah zwei NPCs, die sich nicht
+    // rührten. Jetzt haben sie einen Auftrag (`BayCast.goal`), und der gilt
+    // unabhängig davon, wo jemand steht.
+    const run = runBay('ramp', { seconds: 45, player: { lx: 12.5, lz: 40 } });
+    for (const runner of run.runners) {
+      expect(runner.brain).toBe('errand');
+      expect(runner.at.y).toBeCloseTo(RAMP.high);
+      expect(runner.arrived).toBe(true);
+      // Und zwar wirklich weit weg: Ein Zombie bemerkt auf 22 m.
+      expect(runner.nearest).toBeGreaterThan(brainOf('chase').tuning.sense);
     }
   });
 

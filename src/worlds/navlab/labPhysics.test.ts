@@ -79,10 +79,16 @@ async function runLab(id: ScenarioId, seconds: number): Promise<LabRun> {
 
   const cast = bay.cast.map((one) => {
     const at = baySpot(bay, one);
+    // **Dasselbe Hirn und dasselbe Ziel wie in der Brille** (`BayCast`): Wer
+    // hier `'chase'` fest einträgt, prüft mit echter Physik ein Verhalten, das
+    // die Bucht gar nicht mehr zeigt — und der Fehler, den man sucht, ist
+    // gerade der, dass ein Auftritt sich nur bewegt, wenn jemand zusieht.
+    const goal = one.goal ? baySpot(bay, one.goal) : null;
     const npc = new Npc({
       physics,
       kind: one.kind,
-      brain: 'chase',
+      brain: one.brain ?? 'chase',
+      errand: goal ? new THREE.Vector3(goal.x, one.goal?.y ?? 0, goal.z) : null,
       at: new THREE.Vector3(at.x, one.y ?? 0, at.z),
       yaw: bay.z < 0 ? 0 : Math.PI,
       speed: npcSkin(one.kind).speed,

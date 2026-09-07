@@ -17,12 +17,19 @@ import type { MenuIcon } from '../../ui/menu';
  * - **Verfolgen** — der Zombie: sobald der Spieler in Sichtweite ist, geht es
  *   auf ihn zu, und in Reichweite wird zugeschlagen. Aus der Sicht heraus
  *   bleibt er stehen.
+ * - **Auftrag** — er hat ein Ziel und sonst nichts. Er sieht den Spieler
+ *   nicht, er will ihn nicht, er schlägt nicht zu; er geht dorthin, wo er
+ *   hinsoll, und bleibt dort stehen. Das ist das Hirn für alles, was etwas
+ *   **vorführen** soll: der NPC im Labor, der zeigen soll, dass man die
+ *   Treppe hinaufkommt, hat genau eine Aufgabe — hinaufzukommen. Vorher hing
+ *   das am Spieler: Wer in der Bucht stand, wurde verfolgt; wer im Mittelgang
+ *   stand, sah einen Zombie, der sich gar nicht erst in Bewegung setzte.
  *
  * Wer ein viertes hinzufügt, schreibt es hier hin und gibt ihm in
  * `npcBrain.ts` einen Zweig. Das Werkzeug, das Menü und die Werkzeugseite
  * lesen diese Liste.
  */
-export type BrainId = 'idle' | 'wander' | 'chase';
+export type BrainId = 'idle' | 'wander' | 'chase' | 'errand';
 
 /** Die vier Zahlen, mit denen ein Hirn seine Welt vermisst. */
 export interface BrainTuning {
@@ -74,6 +81,17 @@ export const BRAINS: readonly Brain[] = [
     accent: 0xff6b6b,
     sub: 'Kommt auf dich zu und schlägt in Reichweite zu',
     tuning: { speed: 1.5, turn: 130, sense: 22, reach: 1.15, cooldown: 1.1, punch: 3.4 },
+  },
+  {
+    id: 'errand',
+    label: 'Zum Ziel',
+    icon: 'teleport',
+    accent: 0x8ee06a,
+    sub: 'Geht zu seinem Ziel und beachtet dich nicht — ohne Ziel bleibt er stehen',
+    // **Sichtweite null ist die Aussage dieses Hirns**, nicht eine vergessene
+    // Zahl: Wer einen Auftrag hat, bemerkt den Spieler gar nicht erst, und
+    // ohne Reichweite schlägt er auch nichts, an dem er vorbeikommt.
+    tuning: { speed: 1.2, turn: 120, sense: 0, reach: 0, cooldown: 0, punch: 0 },
   },
 ];
 

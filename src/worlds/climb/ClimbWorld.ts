@@ -4,6 +4,7 @@ import { ClimbHud } from './ClimbHud';
 import { TextPlane } from '../../ui/TextPlane';
 import { GRAB_GLOW, GRAB_TINT_EMISSIVE } from '../../core/colors';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
+import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
 import { holdColor, holdLabel, type HoldFeature, type HoldMaterial } from './holds';
 import { gripReport, seatOf, type ClimbPose, type HandGrip } from './gripQuality';
 import { GRAB_AT, SLIP_AT, freshStamina, stepStamina, type Stamina } from './stamina';
@@ -85,17 +86,33 @@ const DECK_T = 0.16;
  * (`topout`).
  */
 const DECK_GAP = 0.9;
+/** Halbmesser des Stahlrohrs, aus dem sie besteht. */
+const TOPOUT_TUBE = 0.028;
+/**
+ * **Wie viel Luft unter ihrer waagerechten Strecke bleibt.**
+ *
+ * Zwei Meter, und die sind gemessen und nicht geschätzt: Die Strecke läuft
+ * über das Podest hinweg, also genau dort, wo man nach dem Ausstieg steht und
+ * herumläuft. Vorher lag sie 1,70 m über dem Blech — abzüglich Rohr blieben
+ * keine 1,67 m, und wer aufrecht steht, ging mit dem Kopf dagegen und musste
+ * sich ducken. Zwei Meter freie Höhe ist Türsturzmaß: Da geht jeder drunter
+ * durch, ohne den Kopf einzuziehen.
+ */
+const TOPOUT_CLEAR = 2;
 /**
  * **Wie hoch die Ausstiegshilfe über ihrem Podest liegt.**
  *
- * Nicht bis zur Kante, sondern gut anderthalb Meter darüber, und das ist der
- * ganze Trick am Aussteigen: Wer sich an einem Griff auf Podesthöhe hochzieht,
+ * Nicht bis zur Kante, sondern gut zwei Meter darüber, und das ist der ganze
+ * Trick am Aussteigen: Wer sich an einem Griff auf Podesthöhe hochzieht,
  * hängt am Ende **an** der Kante — die Füße baumeln im Schacht, und der Boden
  * ist zwar in Reichweite, aber nicht unter einem. Erst ein Griff über
  * Kopfhöhe über dem Blech lässt einen so weit hochziehen, dass die Füße über
  * dessen Oberkante kommen. Und wer oben steht, hat ihn immer noch in der Hand.
+ *
+ * Die Zahl ist die Mitte des Rohrs, `TOPOUT_CLEAR` ist die Luft darunter —
+ * deshalb steht hier die Summe und keine zweite gerundete Zahl.
  */
-const TOPOUT_ABOVE = 1.7;
+const TOPOUT_ABOVE = TOPOUT_CLEAR + TOPOUT_TUBE;
 /** Wie weit ihre waagerechte Strecke über die Podestkante hereinreicht. */
 const TOPOUT_OVER = 1;
 /** Abstand der Sprossen entlang der Leiter. */
@@ -104,10 +121,40 @@ const TOPOUT_STEP = 0.42;
 const TOPOUT_HALF = 0.31;
 /** Wie weit sie vor der Wand steht: so weit, dass die Hand hinter die Holme passt. */
 const TOPOUT_OFF = 0.1;
-/** Halbmesser des Stahlrohrs, aus dem sie besteht. */
-const TOPOUT_TUBE = 0.028;
 /** Und wie weit die Hand neben einem Holm noch zupacken darf. */
 const TOPOUT_REACH = 0.1;
+
+/**
+ * **Das Landekissen** — die dicke Matte, auf die man von oben herunterspringt.
+ *
+ * Sie liegt unter der Innenkante des linken Podestschenkels, und zwar dort und
+ * nicht vor der Rauwand: Die Vorderkante des großen Podests hat ein Geländer,
+ * der Schenkel keines. Wer oben ankommt und wieder herunter will, geht drei
+ * Schritte nach rechts und springt — sechseinhalb Meter, und unten ist etwas
+ * Weiches.
+ *
+ * Weich ist sie nicht in der Physik: Die Kapsel des Spielers landet auf einer
+ * festen Fläche wie auf jeder anderen. Weich ist die **Sicht**
+ * (`viewSink.ts`) — sie sinkt beim Aufprall ein und federt zurück. Das ist der
+ * Unterschied zwischen einer Matte und einem Betonboden, und in der Brille ist
+ * es der einzige, den man überhaupt wahrnehmen kann.
+ */
+const PAD = {
+  x: -6.5,
+  z: -3.5,
+  halfX: 2,
+  halfZ: 2.5,
+  thick: 0.45,
+};
+/** Oberkante des Kissens — die Hallenmatte liegt auf null. */
+const PAD_TOP = PAD.thick;
+/**
+ * Ab welcher Fallgeschwindigkeit sich das Einsinken lohnt, in m/s.
+ *
+ * Darunter ist es kein Sprung, sondern ein Schritt — und ein Boden, der bei
+ * jedem Schritt nachgibt, ist kein Kissen, sondern ein Wackelpudding.
+ */
+const PAD_MIN_SPEED = 2.5;
 
 /** Aus der Wand heraus — im Rahmen einer Ausstiegshilfe. */
 const OUTWARD: readonly [number, number, number] = [0, 0, 1];
@@ -175,6 +222,12 @@ export class ClimbWorld extends PortalWorld {
   private readonly lit = new Map<Handedness, Hold>();
   /** Ob wir dem Rig den Stick abgenommen haben. */
   private lockedByUs = false;
+  /** Ob der rechte Stick für die nächste Rastdrehung wieder scharf ist. */
+  private turnArmed = true;
+  /** Ob der Spieler gerade in der Luft war — sonst ist Landen kein Ereignis. */
+  private airborne = false;
+  /** Und wie schnell es dabei höchstens nach unten ging, in m/s. */
+  private fallSpeed = 0;
 
   private readonly hallWall = new THREE.MeshStandardMaterial({
     color: 0xb9c2d2,
@@ -207,6 +260,12 @@ export class ClimbWorld extends PortalWorld {
     metalness: 0.35,
   });
   private readonly wood = new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.85 });
+  /** Das Landekissen — auffällig rot, damit man es von oben sieht. */
+  private readonly cushion = new THREE.MeshStandardMaterial({
+    color: 0xc0392b,
+    roughness: 1,
+    metalness: 0,
+  });
 
   /**
    * Ein Material je Griffart und **eines fürs Leuchten** — nicht eines pro
@@ -252,6 +311,7 @@ export class ClimbWorld extends PortalWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.updateClimb(dt, ctx);
+    this.watchLanding(ctx);
   }
 
   override menu(): MenuEntry[] {
@@ -324,6 +384,7 @@ export class ClimbWorld extends PortalWorld {
     this.buildSmoothWall(hall);
     this.buildChimney(hall);
     this.buildDecks(hall);
+    this.buildPad(hall);
     this.buildBanner(hall);
     this.buildProps();
   }
@@ -622,6 +683,114 @@ export class ClimbWorld extends PortalWorld {
     const rail = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.055, 0.055), this.steel);
     rail.position.set(-4.8, DECK + 0.9, -5.05);
     hall.add(rail);
+  }
+
+  /**
+   * **Das Landekissen** — die Matte, auf die man von oben herunterspringt.
+   *
+   * Ein Quader, ein Rand und ein Schild; die ganze Arbeit steckt woanders.
+   * Physikalisch ist es eine feste Fläche wie jede andere, denn eine Matte, in
+   * die der Körper wirklich einsänke, wäre eine Kapsel, die im Boden steckt —
+   * und aus der käme sie so schlecht wieder heraus wie aus jeder anderen
+   * Fläche, in der sie steckt. Nachgeben tut deshalb nur die **Sicht**
+   * (`watchLanding`, `viewSink.ts`), und das ist auch das Einzige, was man
+   * überhaupt spürt.
+   *
+   * Der helle Rand ringsum ist kein Zierrat: Von sechseinhalb Metern Höhe
+   * sieht man einen roten Quader auf einer blauen Matte schlecht, eine Kante
+   * gut. Wer springt, will vorher wissen, wo er hinkommt.
+   */
+  private buildPad(hall: THREE.Group): void {
+    const width = PAD.halfX * 2;
+    const depth = PAD.halfZ * 2;
+    this.slab(hall, this.cushion, [width, PAD.thick, depth], [PAD.x, PAD_TOP / 2, PAD.z], false);
+
+    // Der Rand: vier flache Leisten auf der Oberkante, einen Hauch darüber,
+    // damit sie nicht in der Fläche darunter flimmern. Bloße Netze, kein
+    // `slab` — was acht Millimeter dick ist, hat weder in der Physik noch
+    // unter den Flächen etwas zu suchen, auf die man zielt.
+    const edge = 0.16;
+    const y = PAD_TOP + 0.004;
+    for (const [size, at] of [
+      [
+        [width, 0.008, edge],
+        [PAD.x, y, PAD.z - PAD.halfZ + edge / 2],
+      ],
+      [
+        [width, 0.008, edge],
+        [PAD.x, y, PAD.z + PAD.halfZ - edge / 2],
+      ],
+      [
+        [edge, 0.008, depth - edge * 2],
+        [PAD.x - PAD.halfX + edge / 2, y, PAD.z],
+      ],
+      [
+        [edge, 0.008, depth - edge * 2],
+        [PAD.x + PAD.halfX - edge / 2, y, PAD.z],
+      ],
+    ] as const) {
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), this.padding);
+      strip.position.set(at[0], at[1], at[2]);
+      hall.add(strip);
+    }
+
+    // Ein Pfosten, damit das Schild nicht in der Luft hängt.
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.5, 8), this.steel);
+    post.position.set(PAD.x, PAD_TOP + 0.75, PAD.z + PAD.halfZ + 0.12);
+    hall.add(post);
+
+    this.sign(hall, [PAD.x, PAD_TOP + 1.35, PAD.z + PAD.halfZ + 0.14], 0, 1.6, {
+      title: 'Landekissen',
+      body: 'Von oben herunterspringen ist hier vorgesehen: Der Schenkel des Podests darüber hat kein Geländer. Unten sinkt man kurz ein und kommt wieder hoch.',
+      accent: 0xff6b5a,
+    });
+  }
+
+  /**
+   * **Weich landen.** Wer von oben auf das Kissen fällt, sinkt kurz ein und
+   * federt zurück, statt im Aufprallbild stehenzubleiben.
+   *
+   * Die Fallgeschwindigkeit muss **mitgeschrieben** werden, solange man noch
+   * fällt: Im Bild der Landung ist sie längst null — die Physik hat sie
+   * gelöscht, dafür ist sie da. Gemerkt wird die schnellste des ganzen Sturzes
+   * und nicht die letzte; die letzte ist bei einem Aufprall, der sich über
+   * zwei Bilder verteilt, schon die halbe.
+   *
+   * Und es zählt nur, wer wirklich in der Luft war. Ohne das löste jeder
+   * Schritt über eine Kante das Kissen aus — der Körper ist zwischen zwei
+   * Schritten ständig für ein Bild nicht am Boden.
+   */
+  private watchLanding(ctx: WorldContext): void {
+    const loco = ctx.rig.locomotion;
+    if (!(loco instanceof PhysicsLocomotion)) return;
+
+    if (!loco.grounded) {
+      this.airborne = true;
+      this.fallSpeed = Math.max(this.fallSpeed, -loco.velocity.y);
+      return;
+    }
+
+    const speed = this.fallSpeed;
+    this.fallSpeed = 0;
+    if (!this.airborne) return;
+    this.airborne = false;
+    if (speed < PAD_MIN_SPEED || !this.onThePad(ctx)) return;
+
+    ctx.rig.softLanding(speed);
+    // Ein kurzer, weicher Stoß in beide Hände: Das Kissen soll man auch dann
+    // merken, wenn man beim Fallen die Augen zumacht.
+    const punch = THREE.MathUtils.clamp(speed / 12, 0.2, 0.55);
+    for (const side of HANDS) ctx.input.get(side)?.pulse(punch, 90);
+  }
+
+  /** Stehen die Füße gerade auf dem Kissen? */
+  private onThePad(ctx: WorldContext): boolean {
+    ctx.rig.getHeadPosition(_head);
+    return (
+      Math.abs(_head.x - PAD.x) <= PAD.halfX &&
+      Math.abs(_head.z - PAD.z) <= PAD.halfZ &&
+      Math.abs(ctx.rig.getFloorY() - PAD_TOP) < 0.35
+    );
   }
 
   /**
@@ -976,6 +1145,7 @@ export class ClimbWorld extends PortalWorld {
     if (dt <= 0) return;
 
     this.readHands(ctx);
+    this.turnAtTheWall(ctx);
 
     const pose = this.buildPose(ctx);
     const report = gripReport(pose);
@@ -1236,14 +1406,71 @@ export class ClimbWorld extends PortalWorld {
     this.host?.setFlight(this.drive);
   }
 
+  /**
+   * **Die Rastdrehung an der Wand** — dieselbe wie überall sonst, nur mit
+   * einem Nachsatz.
+   *
+   * Sie muss hier stehen und nicht im Rig, weil das Rig beim Klettern
+   * abgeschaltet ist (`holdRig`): Der linke Stick gehört den Armen, und wer
+   * hängt, springt nicht. Der rechte Stick aber gehört weiter dem Hals — wer
+   * sich an einer Wand hochzieht, will genauso über die Schulter schauen und
+   * die Route nebenan ansehen wie überall sonst. Ohne Drehung dreht man sich
+   * körperlich im Zimmer, und irgendwann steht man mit dem Kabel um den Hals
+   * vor der Wand.
+   *
+   * Der Nachsatz sind die **Anker**. Eine Drehung schwenkt den ganzen Spieler
+   * um seinen Kopf, also auch seine Hände — die Anker aber stehen in der Welt.
+   * Bliebe es dabei, hinge die Hand nach einer Vierteldrehung einen halben
+   * Meter neben ihrem Griff in der Luft, und der Zug (`driveBody`) risse einen
+   * dorthin. Deshalb wird jeder Anker danach **neu auf seinen Griff gesetzt**,
+   * genau wie beim Zupacken: Die Hand hält weiter denselben Griff, und der
+   * Körper schwingt in den nächsten Bildern um ihn herum an seine neue Stelle.
+   * Das ist auch die ehrlichere Bewegung — an einer echten Wand dreht sich der
+   * Körper um die Hände und nicht die Hände um den Körper.
+   *
+   * Der Sitz (`seat`) bleibt, was er beim Zupacken war. Er ist die Auskunft
+   * darüber, wie gut man getroffen hat, und die ändert sich nicht dadurch,
+   * dass man sich umdreht.
+   */
+  private turnAtTheWall(ctx: WorldContext): void {
+    if (!this.lockedByUs) return;
+    if (ctx.rig.menuStick === 'right') return;
+
+    const turn = ctx.input.get('right')?.thumbstick.x ?? 0;
+    if (Math.abs(turn) < 0.35) this.turnArmed = true;
+    if (!this.turnArmed || Math.abs(turn) <= 0.7) return;
+    this.turnArmed = false;
+
+    ctx.rig.rotateAroundHead(-Math.sign(turn) * ctx.rig.snapAngle);
+
+    for (const [hand, grasp] of this.grasps) {
+      const controller = ctx.input.get(hand);
+      if (!controller) continue;
+      gripOf(controller).getWorldPosition(_hand);
+      this.reseat(grasp, _hand);
+    }
+  }
+
+  /**
+   * Den Anker einer greifenden Hand wieder an ihren Griff heften — dieselbe
+   * Rechnung wie in `takeHold`, nur ohne neu zu greifen.
+   */
+  private reseat(grasp: Grasp, at: THREE.Vector3): void {
+    this.seatOn(grasp.hold, at, _point);
+    _delta.copy(at).sub(_point);
+    if (_delta.length() > grasp.hold.radius) _delta.setLength(grasp.hold.radius);
+    grasp.anchor.copy(_point).add(_delta);
+  }
+
   /** Der Stick gehört jetzt nicht mehr dem Spieler: Er hängt an der Wand. */
   private holdRig(ctx: WorldContext): void {
     if (this.lockedByUs) return;
     this.lockedByUs = true;
-    // Gedreht wird beim Klettern nicht: Eine Rastdrehung schwenkt die Hände um
-    // den Kopf, während ihre Anker in der Welt stehen bleiben — im nächsten
-    // Bild risse einen der Zug quer durch die Halle.
+    // Gehen und springen tut hier niemand mehr — dafür sind die Arme da.
+    // Gedreht wird aber weiter, und zwar von uns selbst: `turnAtTheWall`
+    // nimmt die Anker mit, was das Rig allein nicht könnte.
     ctx.rig.locked = true;
+    this.turnArmed = true;
   }
 
   /** Und beim Loslassen zurück, mitsamt dem Schwung des letzten Zuges. */

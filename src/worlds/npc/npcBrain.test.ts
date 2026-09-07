@@ -1,6 +1,7 @@
 import {
   COURSE_MAX,
   COURSE_MIN,
+  ERRAND_REACH,
   aheadFactor,
   distanceBetween,
   newBrainState,
@@ -180,5 +181,71 @@ describe('Schlendern', () => {
       moved = Math.hypot(step.vx, step.vz);
     }
     expect(moved).toBeGreaterThan(0);
+  });
+});
+
+describe('Der Auftrag', () => {
+  it('läuft zum Ziel, ohne dass jemand da sein muss', () => {
+    const state = newBrainState(0);
+    const step = stepBrain('errand', state, sense({ goal: { x: 0, z: -10 } }));
+    // Vorn ist -Z: Wer nach Norden soll, geht ohne sich zu drehen los.
+    expect(step.vz).toBeLessThan(0);
+    expect(step.gait).toBe('walk');
+  });
+
+  it('beachtet den Spieler nicht — auch nicht, wenn er danebensteht', () => {
+    const state = newBrainState(0);
+    const step = stepBrain(
+      'errand',
+      state,
+      sense({ goal: { x: 0, z: -10 }, player: { x: 0.2, z: 0.2 } }),
+    );
+    expect(step.attack).toBe(false);
+    expect(step.sees).toBe(false);
+    expect(state.awake).toBe(false);
+    // Und er läuft weiter dorthin, wo er hinsoll, statt sich umzudrehen.
+    expect(step.vz).toBeLessThan(0);
+  });
+
+  it('bleibt am Ziel stehen', () => {
+    const state = newBrainState(0);
+    const near = ERRAND_REACH * 0.5;
+    const step = stepBrain('errand', state, sense({ goal: { x: 0, z: -near } }));
+    expect(step.gait).toBe('stand');
+    expect(step.vx).toBe(0);
+    expect(step.vz).toBe(0);
+  });
+
+  it('steht still, solange ihn niemand geschickt hat', () => {
+    const state = newBrainState(0);
+    const step = stepBrain('errand', state, sense({ player: { x: 0, z: -1 } }));
+    expect(step.gait).toBe('stand');
+  });
+
+  it('folgt dem Wegpunkt und misst trotzdem am Ziel', () => {
+    // Der Wegpunkt führt um die Ecke — nach Osten —, das Ziel liegt im Norden.
+    // Gelaufen wird nach Osten, angekommen ist er deshalb noch lange nicht.
+    const state = newBrainState(0);
+    const step = stepBrain(
+      'errand',
+      state,
+      sense({
+        goal: { x: 0, z: -10 },
+        waypoint: { x: 10, z: 0 },
+        // Genug Drehung für ein Bild, damit die Richtung wirklich ankommt.
+        dt: 1,
+      }),
+    );
+    expect(step.vx).toBeGreaterThan(0);
+    expect(Math.abs(step.vz)).toBeLessThan(Math.abs(step.vx));
+  });
+
+  it('geht langsamer los, solange er sich noch dreht', () => {
+    const state = newBrainState(0);
+    // Das Ziel liegt genau hinter ihm: Im ersten Bild dreht er sich, und mehr
+    // als ein Zehntel seines Tempos kommt dabei nicht heraus.
+    const step = stepBrain('errand', state, sense({ goal: { x: 0, z: 10 } }));
+    const full = brainOf('errand').tuning.speed;
+    expect(Math.hypot(step.vx, step.vz)).toBeLessThan(full * 0.1);
   });
 });
