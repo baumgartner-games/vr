@@ -110,6 +110,8 @@ const DECK_T = 0.16;
  * (`topout`).
  */
 const DECK_GAP = 0.9;
+/** Halbmesser des Stahlrohrs, aus dem sie besteht. */
+const TOPOUT_TUBE = 0.028;
 /**
  * **Wie hoch die Ausstiegshilfe über ihrem Podest liegt.**
  *
@@ -138,8 +140,6 @@ const TOPOUT_STEP = 0.42;
 const TOPOUT_HALF = 0.31;
 /** Wie weit sie vor der Wand steht: so weit, dass die Hand hinter die Holme passt. */
 const TOPOUT_OFF = 0.1;
-/** Halbmesser des Stahlrohrs, aus dem sie besteht. */
-const TOPOUT_TUBE = 0.028;
 /** Und wie weit die Hand neben einem Holm noch zupacken darf. */
 const TOPOUT_REACH = 0.1;
 
@@ -250,7 +250,8 @@ export class ClimbWorld extends GridWorld {
   private readonly lit = new Map<Handedness, Hold>();
   /** Ob wir dem Rig den Stick abgenommen haben. */
   private lockedByUs = false;
-
+  /** Ob der rechte Stick für die nächste Rastdrehung wieder scharf ist. */
+  private turnArmed = true;
   /** Die Sprungkissen der Halle (`crashPad.ts`). */
   private readonly pads: Pad[] = [];
   /** Das Aufkommen, das gerade läuft — höchstens eines, es gibt ja einen Körper. */
@@ -1203,6 +1204,7 @@ export class ClimbWorld extends GridWorld {
     if (dt <= 0) return;
 
     this.readHands(ctx);
+    this.turnAtTheWall(ctx);
 
     const pose = this.buildPose(ctx);
     const report = gripReport(pose);
@@ -1568,14 +1570,71 @@ export class ClimbWorld extends GridWorld {
     this.host?.setFlight(this.drive);
   }
 
+  /**
+   * **Die Rastdrehung an der Wand** — dieselbe wie überall sonst, nur mit
+   * einem Nachsatz.
+   *
+   * Sie muss hier stehen und nicht im Rig, weil das Rig beim Klettern
+   * abgeschaltet ist (`holdRig`): Der linke Stick gehört den Armen, und wer
+   * hängt, springt nicht. Der rechte Stick aber gehört weiter dem Hals — wer
+   * sich an einer Wand hochzieht, will genauso über die Schulter schauen und
+   * die Route nebenan ansehen wie überall sonst. Ohne Drehung dreht man sich
+   * körperlich im Zimmer, und irgendwann steht man mit dem Kabel um den Hals
+   * vor der Wand.
+   *
+   * Der Nachsatz sind die **Anker**. Eine Drehung schwenkt den ganzen Spieler
+   * um seinen Kopf, also auch seine Hände — die Anker aber stehen in der Welt.
+   * Bliebe es dabei, hinge die Hand nach einer Vierteldrehung einen halben
+   * Meter neben ihrem Griff in der Luft, und der Zug (`driveBody`) risse einen
+   * dorthin. Deshalb wird jeder Anker danach **neu auf seinen Griff gesetzt**,
+   * genau wie beim Zupacken: Die Hand hält weiter denselben Griff, und der
+   * Körper schwingt in den nächsten Bildern um ihn herum an seine neue Stelle.
+   * Das ist auch die ehrlichere Bewegung — an einer echten Wand dreht sich der
+   * Körper um die Hände und nicht die Hände um den Körper.
+   *
+   * Der Sitz (`seat`) bleibt, was er beim Zupacken war. Er ist die Auskunft
+   * darüber, wie gut man getroffen hat, und die ändert sich nicht dadurch,
+   * dass man sich umdreht.
+   */
+  private turnAtTheWall(ctx: WorldContext): void {
+    if (!this.lockedByUs) return;
+    if (ctx.rig.menuStick === 'right') return;
+
+    const turn = ctx.input.get('right')?.thumbstick.x ?? 0;
+    if (Math.abs(turn) < 0.35) this.turnArmed = true;
+    if (!this.turnArmed || Math.abs(turn) <= 0.7) return;
+    this.turnArmed = false;
+
+    ctx.rig.rotateAroundHead(-Math.sign(turn) * ctx.rig.snapAngle);
+
+    for (const [hand, grasp] of this.grasps) {
+      const controller = ctx.input.get(hand);
+      if (!controller) continue;
+      gripAnchor(controller).getWorldPosition(_hand);
+      this.reseat(grasp, _hand);
+    }
+  }
+
+  /**
+   * Den Anker einer greifenden Hand wieder an ihren Griff heften — dieselbe
+   * Rechnung wie in `takeHold`, nur ohne neu zu greifen.
+   */
+  private reseat(grasp: Grasp, at: THREE.Vector3): void {
+    this.seatOn(grasp.hold, at, _point);
+    _delta.copy(at).sub(_point);
+    if (_delta.length() > grasp.hold.radius) _delta.setLength(grasp.hold.radius);
+    grasp.anchor.copy(_point).add(_delta);
+  }
+
   /** Der Stick gehört jetzt nicht mehr dem Spieler: Er hängt an der Wand. */
   private holdRig(ctx: WorldContext): void {
     if (this.lockedByUs) return;
     this.lockedByUs = true;
-    // Gedreht wird beim Klettern nicht: Eine Rastdrehung schwenkt die Hände um
-    // den Kopf, während ihre Anker in der Welt stehen bleiben — im nächsten
-    // Bild risse einen der Zug quer durch die Halle.
+    // Gehen und springen tut hier niemand mehr — dafür sind die Arme da.
+    // Gedreht wird aber weiter, und zwar von uns selbst: `turnAtTheWall`
+    // nimmt die Anker mit, was das Rig allein nicht könnte.
     ctx.rig.locked = true;
+    this.turnArmed = true;
   }
 
   /** Und beim Loslassen zurück, mitsamt dem Schwung des letzten Zuges. */

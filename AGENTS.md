@@ -119,7 +119,7 @@ statt sofort zu laufen und ihren Anlauf verliert, sobald der Halt wieder
 wegrutscht) und der **Vibration**, die dazu in die Hand geht
 (`src/worlds/climb/gripHaptics.ts` — guter Halt kurz und hart, schlechter
 schwach und lang, das Ticken schneller statt lauter; und dass beim Zupacken
-selbst nicht getickt wird, weil dort schon der Schlag saß) und die **Federung
+selbst nicht getickt wird, weil dort schon der Schlag saß), die **Federung
 der Sprungkissen** (`src/worlds/climb/crashPad.ts` — dass ein Sturz vom
 höchsten Podest das Kissen nicht durchschlägt, dass der Blick dabei trotzdem
 mindestens eine Zehntelsekunde in Bewegung bleibt statt in einem Bild
@@ -127,7 +127,13 @@ anzuhalten, dass eine Feder dafür genau richtig ist, weil ihre Zeit nach unten
 **nicht** am Aufpralltempo hängt — anders als jede feste Bremsstrecke, die den
 harten Sturz umso härter bremst —, dass sie bei 45 Hz dasselbe tut wie bei 120,
 und dass die Rampe oben an der Kissenkante und unten auf dem Boden ankommt und
-dabei flacher bleibt als das, was der Körper noch hinaufsteigt), der **Konfig-Code**
+dabei flacher bleibt als das, was der Körper noch hinaufsteigt), die
+**Laufrichtung** (`src/core/walkFrame.ts` — dass die Blickrichtung beim
+Loslaufen gemerkt wird und der Kopf danach frei ist, dass sie beim Loslassen
+wieder vergessen wird, dass der Snap-Turn sie mitdreht, und die Zeile, wegen
+der es diesen Test gibt: **null ist eine gemerkte Richtung wie jede andere** —
+nach Norden loszulaufen darf nicht heißen, dass gar nichts gemerkt wurde), der
+**Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 (`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
@@ -1888,10 +1894,26 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Position des Rigs — dadurch bleiben Wände Wände, man klettert nicht in die
   Halle hinein, und beim Loslassen wird aus dem letzten Zug ein **Schwung**
   (gedeckelt, damit aus einem Klimmzug kein Raketenstart wird). Solange eine
-  Hand hängt, ist der **Stick abgeschaltet** (`PlayerRig.locked`): Eine
-  Rastdrehung schwenkt die Hände um den Kopf, während ihre Anker in der Welt
-  stehen bleiben, und im nächsten Bild risse einen der Zug quer durch die
-  Halle. Damit der Greifknopf sich nicht mit dem normalen Greifen schlägt,
+  Hand hängt, ist der **linke Stick abgeschaltet** (`PlayerRig.locked`) — wer
+  hängt, geht nicht und springt nicht.
+
+  **Gedreht wird trotzdem** (`ClimbWorld.turnAtTheWall`): Der rechte Stick
+  gehört weiter dem Hals, denn wer sich an einer Wand hochzieht, will genauso
+  über die Schulter schauen und die Route nebenan ansehen wie überall sonst —
+  und wer es nicht kann, dreht sich körperlich im Zimmer und steht irgendwann
+  mit dem Kabel um den Hals vor der Wand. Die Rastdrehung steht deshalb hier
+  und nicht im Rig, denn sie hat einen Nachsatz: Sie schwenkt den ganzen
+  Spieler um seinen Kopf, also auch seine Hände, während die **Anker** in der
+  Welt stehen. Bliebe es dabei, hinge die Hand danach einen halben Meter neben
+  ihrem Griff in der Luft, und der Zug risse einen dorthin. Also wird jeder
+  Anker danach **neu auf seinen Griff gesetzt**, genau wie beim Zupacken; der
+  Körper schwingt in den nächsten Bildern um die Griffe herum an seine neue
+  Stelle. Das ist auch die ehrlichere Bewegung — an einer echten Wand dreht
+  sich der Körper um die Hände und nicht die Hände um den Körper. Der Sitz
+  (`seat`) bleibt dabei, was er beim Zupacken war: Wie gut man getroffen hat,
+  ändert sich nicht dadurch, dass man sich umdreht.
+
+  Damit der Greifknopf sich nicht mit dem normalen Greifen schlägt,
   klettert nur eine Hand, die wirklich leer ist (`PortalWorld.handFree`) — wer
   eine Kiste trägt, trägt eine Kiste. Am Gürtel hängt deshalb auch nichts.
 
@@ -1959,6 +1981,18 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   sitzen zwei feine Striche genau auf den beiden Schwellen — sonst wäre „gut“
   eine Farbe, die man glauben muss, statt einer Höhe, die man abliest.
   Abschaltbar im Menü.
+
+  Zwei Zahlen daran waren lange falsch, und beide sieht man erst in der Brille.
+  **Das Vorzeichen der Drehung**: Ein positives `rotation.x` kippt die Normale
+  einer Tafel nach *unten* und damit vom Auge weg — die Tafel hing also nicht
+  um 24° zurückgedreht, sondern um 24° weiter nach vorn, knapp 50° schräg im
+  Blick statt null. Und **die Reihenfolge**: Sie liegt ohne Tiefentest auf dem
+  Glas (sonst verschwände sie hinter jeder Wand, an der man gerade hängt), und
+  dann entscheidet allein die Zeichenreihenfolge, wer über wem liegt. Mit den
+  60 von vorher lag sie über *allem*, auch über dem aufgeklappten
+  Handgelenkmenü (`UIPanel`, Reihenfolge 10). Jetzt wird sie **davor**
+  gezeichnet (4) statt darüber: Drei Balken, die quer durch eine Menüseite
+  laufen, sind schlimmer als drei Balken, die man kurz nicht sieht.
 
   **Die Vibration** (`climb/gripHaptics.ts`, mit Test) ist bewusst **kein
   Dauerbrummen, dessen Stärke den Halt anzeigt**: Ein Motor, der die ganze Zeit
@@ -2367,6 +2401,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Messer werfen                      | im Schwung loslassen; es fliegt weiter und bleibt stecken                                                                                                             | –                                                                                               | –                    |
 | Aufnahme im Eingaberaum            | Knopf auf der Tafelwand startet und beendet sie; **Greifen** setzt währenddessen eine Marke                                                                            | Linksklick auf den Knopf                                                                        | –                    |
 | Großer Hammer                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                         | –                                                                                               | –                    |
+| Laufrichtung                       | voreingestellt beim Loslaufen gemerkt (Kopfdrehen ändert den Weg nicht mehr); Menü → Bewegung → _Laufrichtung_ schaltet auf Blickrichtung zurück                                                                                                                            | dito                                                                                            | dito                 |
 | Haltung (sitzen/stehen)            | Startseite oder Menü → Bewegung → Haltung                                                                                                                             | dito                                                                                            | dito                 |
 | Greifen ohne Controller            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                   | –                                                                                               | –                    |
 | Trigger ohne Controller            | Zeigefinger an die Handfläche                                                                                                                                         | –                                                                                               | –                    |
@@ -2414,7 +2449,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der Stick aus | –                                                                                               | –                    |
+| Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
 | Sprungkissen (Kletterhalle)        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                  | dito                                                                                            | dito                 |
 | Halt-Anzeige (Kletterhalle)        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                | dito                                                                                            | dito                 |
@@ -2829,6 +2864,22 @@ _Werte eingeben_.
 linken Stick reindrücken sprintet. Unter **Menü → Bewegung** lässt sich für
 beide einstellen, ob gedrückt gehalten oder umgeschaltet wird (Ducken schaltet
 standardmäßig um, Sprint wird gehalten), dazu Sprint-Tempo und Duck-Tiefe.
+
+**Die Laufrichtung wird beim Loslaufen gemerkt** (`core/walkFrame.ts`, mit
+Test), und das ist die Voreinstellung. Der Stick schob seit jeher entlang der
+Blickrichtung, und beim *Losgehen* ist das auch genau richtig: Man schaut hin,
+wo man hinwill, und drückt nach vorn. Falsch wird es im nächsten Moment, beim
+Weitergehen — wer über die Schulter zurückschaut, ob ihm jemand folgt, oder
+beim Laufen nach links auf ein Schild sieht, dreht damit seinen ganzen Weg mit.
+Man kommt nie dort an, wo man hinwollte, und lernt sich an, den Kopf beim Gehen
+stillzuhalten, was in einer Brille ungefähr das Gegenteil von dem ist, wofür
+man sie aufsetzt. Also: Die Blickrichtung wird beim Loslaufen gemerkt und
+bleibt stehen, solange der Stick ausgelenkt ist; beim Loslassen ist die Marke
+weg, und der nächste Schritt geht wieder dorthin, wo man gerade hinsieht. **Der
+Snap-Turn dreht die Marke mit** — bliebe sie stehen, liefe man nach einer
+Vierteldrehung seitwärts weiter und wüßte nicht, warum. Wer es anders mag,
+stellt unter **Menü → Bewegung → Laufrichtung** auf _Blickrichtung_ zurück; das
+ist das alte Verhalten, Zeile für Zeile.
 
 Geduckt wird, indem das ganze Rig sinkt — im Headset gehört die Kamera der
 Brille, nicht uns, also ist das der einzige Weg. Die Füße bleiben trotzdem
@@ -4736,11 +4787,18 @@ bewusst keine von beiden — was hier herauskommt, läuft von selbst weiter.
   Geometrie.
 - Das **Hirn** (`worlds/npc/npcBrains.ts`) sagt, was er tut: **Stehen**
   (bleibt, dreht sich zum Spieler, schlägt nie zu), **Schlendern** (läuft
-  einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden)
-  oder **Verfolgen** (der Zombie: kommt, sobald man in Sichtweite ist, und
-  schlägt in Reichweite zu).
+  einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden),
+  **Verfolgen** (der Zombie: kommt, sobald man in Sichtweite ist, und
+  schlägt in Reichweite zu) oder **Zum Ziel** (er hat einen Auftrag und sonst
+  nichts: geht dorthin, wo er hinsoll, sieht den Spieler nicht, will ihn nicht,
+  schlägt nicht zu — Sichtweite null ist dort die Aussage und keine vergessene
+  Zahl). Das vierte ist das Hirn für alles, was etwas **vorführen** soll: Der
+  NPC, der zeigen soll, dass man die Treppe hinaufkommt, hat genau eine
+  Aufgabe, nämlich hinaufzukommen. Sein Ziel steht im NPC (`Npc.sendTo`) und
+  ersetzt den Spieler in beiden Rechnungen auf einmal — der Läufer sucht den
+  Weg dorthin, das Hirn bekommt es als Ziel.
 
-Warum getrennt: Zwei mal drei ist sechs, und eine Liste von sechs Sorten NPC
+Warum getrennt: Zwei mal vier ist acht, und eine Liste von acht Sorten NPC
 wäre beim nächsten Modell zwölf und beim übernächsten vierundzwanzig. Vor
 allem aber sind es zwei verschiedene Fragen — *wie sieht der aus* und *was
 macht der* —, und wer sie zusammenlegt, kann keine davon mehr einzeln
@@ -5276,17 +5334,17 @@ Eine Zahl, die man dabei falsch macht: **Eine Tafel schaut nach +Z**, ein
 Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt sie mit dem
 Rücken zum Raum an die Wand und sieht eine schwarze Platte.
 
-**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: zehn Buchten,
-zehn rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
+**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: elf Buchten,
+elf rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
 langer Gang um zwei Ecken, Stachelgrube (Zombie hinein und liegen bleiben,
 Puppe dicht daran vorbei), Kiste im
 Weg, **zu enger Gang**, Tür fällt hinter dem Verfolger zu, Portal, von dem nur
-einer weiß, die Dachkante, **Podest und Sprung** und die beiden **Steigungen**.
+einer weiß, die Dachkante, **Podest und Sprung** und die drei **Steigungen**.
 Der Grundriss ist geprüft
 (`scenarios.test.ts`), bevor er gebaut ist: Zwei Buchten, die sich überlappen,
 sieht man in der Brille erst daran, dass ein Zombie durch eine Wand kommt.
 
-Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
+Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
 
 - **Zu enger Gang.** Eine Wand mit einer Lücke von einer Kachel, in die zwei
   Pfosten hineinragen, bis 45 cm übrig sind. Beide Hälften müssen stimmen: In
@@ -5303,10 +5361,17 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   selbst ein**, mit zwei Kachelmitten in `applyLabMap`; heute findet das
   Abtasten sie (`navBake.joinGap`), und wer das Podest um eine Kachel
   verschiebt, verschiebt den Sprung mit.
-- **Flache Steigung** und **steile Steigung**, zwei Buchten, die sich
-  gegenüberstehen und dieselbe Höhe hinaufführen — 2,4 m auf ein Podest, auf
-  dem der Spieler steht. Der NPC will hier **nicht** zuschlagen, sondern nach
-  oben, und was er dabei tut, hängt an je einer Zahl seines Profils:
+- **Flache**, **steile** und **sanfte Steigung**, drei Buchten, die dieselbe
+  Höhe hinaufführen — 2,4 m auf ein Podest, auf dem der Spieler steht. Der NPC will hier **nicht** zuschlagen, sondern nach
+  oben, und seit der zweiten Fassung steht das auch so in den Daten
+  (`BayCast.brain`, `BayCast.goal`): Die drei Buchten, die vorführen, dass man
+  irgendwo hinaufkommt — beide Steigungen und das Podest —, bekommen das Hirn
+  **Zum Ziel** und eine Kachel, auf die sie wollen. Vorher hing beides am
+  Spieler, und das war in der Brille kaputt: Ein NPC plant nur, wenn jemand in
+  Sichtweite ist (22 m), und der Knopf stellt in der Brille niemanden hin — wer
+  im Mittelgang stand und zusah, sah zwei NPCs, die sich nicht rührten; wer in
+  die Bucht ging, wurde verfolgt statt vorgeführt. Was er dabei kann, hängt
+  weiter an je einer Zahl seines Profils:
   - Die **flache** besteht aus vier Stufen von 60 cm, eine je Kachel. Sechzig
     Zentimeter *tritt* keiner (`stepUp`), aber jeder hier zieht sich hinauf
     (`jumpUp`) — man sieht vier Sätze, und dann steht er oben.
@@ -5315,16 +5380,38 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
     Bei jedem hier ist vorher Schluss (`maxSlope`), und deshalb bleibt er davor
     stehen: nicht an der Stufe, sondern am **Winkel**. Er stellt sich dabei so
     nah an das Podest, wie die Karte ihn lässt, und bleibt dort — genau das
-    ist „er merkt, dass er nicht hochkommt".
+    ist „er merkt, dass er nicht hochkommt". Dass er dabei *hinaufwill* und
+    nicht bloß herumsteht, ist der Grund, warum auch diese Bucht das
+    Auftrags-Hirn bekommt: Beide wollen hinauf, und beide bleiben unten — erst
+    dann sagt die Bucht etwas.
+  - Die **sanfte** ist die dritte, und sie behauptet etwas ganz anderes als die
+    beiden: nämlich, dass es an der **Stufe** liegt und nicht am Winkel. 2,4 m
+    über fünf Kacheln sind 10,9°, flacher als alles hier — und ihre Stufen sind
+    acht Zentimeter hoch. Damit ist sie auf der Karte keine Kante mehr, sondern
+    eine *Steigung* (`navProfile.canTraverse`), und in ihrem Weg steht kein
+    einziger Sprung. Man sieht zwei NPCs, die die Rampe **hinaufgehen**.
 
   Dass ausgerechnet die flache Bucht die groben Stufen hat, ist keine
   Nachlässigkeit, sondern die Engine: **Ein NPC ist ein dynamischer Zylinder
-  ohne Schrittautomatik.** Er kommt keine Stufe hinauf, die er nicht *springt*
-  — auch keine von vier Zentimetern; das ist nachgemessen und nicht geraten.
-  Eine flache Rampe aus zwanzig feinen Stufen wäre deshalb kein sanfter
-  Aufstieg, sondern ein NPC, der an der ersten steht. Mit dem
-  Character-Controller für NPCs (weiter unten, „was noch fehlt") werden aus den
-  vier Stufen zwanzig, und die Bucht behauptet dann dasselbe.
+  ohne Schrittautomatik.** Der Character-Controller, der den Spieler 32 cm
+  hinaufhebt, gehört dem Spieler allein; ein Zylinder, den man waagerecht gegen
+  eine Kante schiebt, bleibt daran stehen. Das ist inzwischen **gemessen und
+  nicht mehr behauptet** (`labPhysics.test.ts`): Bei Stufen von 30, 15 und
+  fünf Zentimetern kommt er *null* Zentimeter hinauf — bei jeder Höhe. Eine
+  flache Rampe aus zwanzig feinen Stufen wäre deshalb genau das, was die Karte
+  für begehbar hält und die Welt für eine Wand.
+
+  **Deshalb hat die sanfte Rampe einen Belag** (`scenarios.rampDeck`): einen
+  gekippten Quader, dessen Oberseite genau auf den Nasen ihrer Stufen liegt.
+  Dieselbe Messung sagt nämlich auch die andere Hälfte: Eine **schiefe Ebene**
+  geht derselbe Zylinder mühelos hinauf, bei 9° wie bei 25°. Die Stufen sind
+  damit die **Karte** — achsenparallel, und nur das findet das Abtasten —, der
+  Belag ist der **Boden**, auf dem wirklich gelaufen wird. Er ist der einzige
+  Quader dieses Labors, der nicht achsenparallel steht, und er kommt aus
+  denselben Zahlen wie die Stufen darunter: Wer die Rampe flacher macht, macht
+  ihn mit. Dass er die Stufen nirgends durchstechen lässt, hält ein Test ohne
+  Brille fest — steht auch nur eine einen Zentimeter durch ihn hindurch, ist
+  das wieder die Kante, an der ein Zylinder stehen bleibt.
 - **Und auf dem Dach steht jetzt ein Hamster** (`npcKinds.ts`,
   `CRITTER_PROFILE`). Er sieht denselben Spieler wie der Zombie neben ihm, hat
   dieselbe Karte und denselben Weg — und bleibt oben, weil ihn die einzige
@@ -5333,6 +5420,14 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   Er springt und bleibt unten liegen. Genau diese Gegenprobe steht als Test da
   (`labSim.test.ts`) — sie ist der Unterschied zwischen „die Sorte bleibt oben"
   und „die Rechnung hält ihn oben".
+
+**Am Gürtel hängt hier keine Portalkanone**, sondern ein **Teleporter** links
+und eine **Pistole** rechts (`NavLabWorld.beltLoadout`). Ein Labor, in dem man
+zusieht, wie NPCs Wege gehen, hat für Portale keine Verwendung — sie sind der
+eine Weg durch das Gitter, den kein NPC kennt, und wer sie hier benutzt, misst
+nichts mehr. Was man dagegen dauernd braucht: schnell woanders stehen (die
+Bucht am anderen Ende, das Dach über der Treppe) und etwas abschießen, wenn ein
+Zombie aus seinem Käfig kommt.
 
 **Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat drei gelbe
 Knöpfe: *Tür auf/zu* ist ein Schalter, den man beliebig oft umlegt, auch ohne
@@ -5590,7 +5685,7 @@ Zahl hinter „läuft Manhattan-mäßig".
 
 Die andere ist die **Werkzeugseite**: Auf `tools.html#welt/navlab` steht unter
 dem Bild der Knopf **Laufen lassen**. Er baut dieselbe Welt mit echter Physik,
-kippt die Ansicht senkrecht nach unten und legt die zehn Buchten samt ihren
+kippt die Ansicht senkrecht nach unten und legt die elf Buchten samt ihren
 Knöpfen als Zeilen daneben — dazu die sieben Debug-Ebenen als Schalter, die
 **drei Schalter der Navigation** in derselben Reihe (gestrichelt umrandet, und
 sie tragen ihr „aus" im Namen: an ist der Normalfall und soll ruhig sein) und

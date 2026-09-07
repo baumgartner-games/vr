@@ -52,6 +52,24 @@ const GRIP_H = 0.13;
 /** Luft zwischen Ausdauer- und Haltbalken. */
 const GAP = 0.035;
 
+/**
+ * **Wie früh die Anzeige gezeichnet wird** — und warum das eine Zahl unter 10
+ * sein muss.
+ *
+ * Sie liegt ohne Tiefentest auf dem Glas (`flatten`): Sonst verschwände sie
+ * hinter jeder Wand, an der man gerade hängt, und an einer Wand hängt man hier
+ * die ganze Zeit. Ohne Tiefentest entscheidet aber allein die Reihenfolge, wer
+ * über wem liegt — und mit den 60 von vorher lag sie über *allem*, auch über
+ * dem aufgeklappten Handgelenkmenü (`UIPanel`, Reihenfolge 10). Drei Balken,
+ * die quer durch eine Menüseite laufen, sind schlimmer als drei Balken, die
+ * man kurz nicht sieht.
+ *
+ * Also davor statt darüber: Die Anzeige wird als Erste gezeichnet, das Menü
+ * danach und deshalb darüber. Gegenüber der Welt ändert das nichts — die ist
+ * längst gezeichnet, wenn die durchsichtigen Sachen an die Reihe kommen.
+ */
+const ORDER = 4;
+
 const RAIL = 0x0b1220;
 const GOOD = 0x5ee0a0;
 const WARN = 0xffc857;
@@ -88,7 +106,14 @@ export class ClimbHud extends THREE.Group {
     // So weit unten ist die Tafel schräg im Blick, und eine schräg gesehene
     // Tafel ist eine gestauchte. Also dreht sie sich dem Auge entgegen —
     // genau um den Winkel, um den sie unter ihm hängt.
-    this.rotation.x = Math.atan2(DROP, DISTANCE);
+    //
+    // Das Vorzeichen ist der ganze Punkt, und es stand lange falsch herum: Ein
+    // positives `rotation.x` kippt die Normale einer Tafel **nach unten**
+    // (aus (0,0,1) wird (0,−sin, cos)) und damit vom Auge weg. Die Tafel hing
+    // also nicht um 24° zurückgedreht, sondern um 24° weiter nach vorn — knapp
+    // 50° schräg im Blick statt null. Mit dem Minus zeigt ihre Normale exakt
+    // auf das Auge, und man sieht senkrecht darauf.
+    this.rotation.x = -Math.atan2(DROP, DISTANCE);
     this.layers.set(LAYER_HUD);
 
     this.stamina = this.bar(0, 0, BAR_W, BAR_H, 'x');
@@ -115,6 +140,7 @@ export class ClimbHud extends THREE.Group {
       align: 'center',
     });
     this.label.position.set(0, -BAR_H / 2 - 0.028, 0);
+    this.label.renderOrder = ORDER;
     this.flatten(this.label);
     this.add(this.label);
     this.parts.push(this.label);
@@ -176,7 +202,7 @@ export class ClimbHud extends THREE.Group {
       new THREE.MeshBasicMaterial({ color: RAIL, transparent: true, opacity: 0.72 }),
     );
     this.flatten(rail);
-    rail.renderOrder = 60;
+    rail.renderOrder = ORDER;
     group.add(rail);
     this.parts.push({ dispose: () => disposeMesh(rail) });
 
@@ -191,7 +217,7 @@ export class ClimbHud extends THREE.Group {
     );
     fill.position.set(axis === 'x' ? -width / 2 : 0, axis === 'y' ? -height / 2 : 0, 0.0005);
     this.flatten(fill);
-    fill.renderOrder = 61;
+    fill.renderOrder = ORDER + 1;
     group.add(fill);
     this.parts.push({ dispose: () => disposeMesh(fill) });
 
@@ -206,7 +232,7 @@ export class ClimbHud extends THREE.Group {
     );
     mesh.position.set(x, y, 0.001);
     this.flatten(mesh);
-    mesh.renderOrder = 62;
+    mesh.renderOrder = ORDER + 2;
     this.add(mesh);
     this.parts.push({ dispose: () => disposeMesh(mesh) });
   }

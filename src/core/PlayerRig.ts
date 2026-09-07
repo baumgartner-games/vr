@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import type { Handedness, XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
 import { STANDING_EYE, eyeHeights, playerPosture, seatedLift, type Posture } from './posture';
+import {
+  forwardOfYaw,
+  newWalkFrame,
+  turnWalkFrame,
+  walkYaw,
+  yawOfForward,
+  type WalkFacing,
+} from './walkFrame';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _head = new THREE.Vector3();
@@ -36,6 +44,14 @@ export class PlayerRig extends THREE.Group {
   crouchSpeed = 1.8;
   /** Radians per snap turn. */
   snapAngle = THREE.MathUtils.degToRad(30);
+  /**
+   * Woran sich die Laufrichtung hält (`walkFrame.ts`).
+   *
+   * Voreingestellt ist `'start'`: Wer losläuft, merkt sich damit die Richtung
+   * und darf den Kopf danach frei bewegen. `'head'` ist das alte Verhalten und
+   * steht unter *Menü → Bewegung*.
+   */
+  walkFacing: WalkFacing = 'start';
   /** Eye height used while not in VR — the player's own, if they measured it. */
   flatEyeHeight = eyeHeights().stand / 100 || STANDING_EYE;
   /**
@@ -95,6 +111,8 @@ export class PlayerRig extends THREE.Group {
   private readonly intent = new THREE.Vector3();
   private intentJump = false;
   private snapArmed = true;
+  /** Die Richtung, die beim Loslaufen gemerkt wurde — siehe `walkFrame.ts`. */
+  private readonly walkFrame = newWalkFrame();
   /**
    * How far the view currently sits below the standing pose. The headset owns
    * the camera inside the rig, so crouching can only happen by lowering the
@@ -279,8 +297,20 @@ export class PlayerRig extends THREE.Group {
       const left = input.get('left');
       this.updateStance(dt, input);
       const stick = this.locked || this.menuStick === 'left' ? null : left?.thumbstick;
-      if (stick && (stick.x !== 0 || stick.y !== 0)) {
-        this.getHeadForward(_forward);
+      const moving = stick ? stick.x !== 0 || stick.y !== 0 : false;
+      // Der Kopf sagt, wohin es geht — aber nur beim Loslaufen, wenn der
+      // Spieler es so eingestellt hat (`walkFrame.ts`). Danach steht die
+      // Richtung, und der Blick ist wieder frei.
+      this.getHeadForward(_forward);
+      const yaw = walkYaw(
+        this.walkFrame,
+        this.walkFacing,
+        yawOfForward(_forward.x, _forward.z),
+        moving,
+      );
+      if (stick && moving) {
+        const ahead = forwardOfYaw(yaw);
+        _forward.set(ahead.x, 0, ahead.z);
         _strafe.copy(_forward).cross(UP).normalize();
         _head.set(0, 0, 0).addScaledVector(_forward, -stick.y).addScaledVector(_strafe, stick.x);
         if (_head.lengthSq() > 1) _head.normalize();
@@ -299,7 +329,11 @@ export class PlayerRig extends THREE.Group {
     if (presenting && !this.locked && this.menuStick !== 'right') {
       const turn = input.get('right')?.thumbstick.x ?? 0;
       if (this.snapArmed && Math.abs(turn) > 0.7) {
-        this.rotateAroundHead(-Math.sign(turn) * this.snapAngle);
+        const angle = -Math.sign(turn) * this.snapAngle;
+        this.rotateAroundHead(angle);
+        // Der Snap dreht den ganzen Spieler; die gemerkte Laufrichtung dreht
+        // mit, sonst liefe man nach der Drehung seitwärts weiter.
+        turnWalkFrame(this.walkFrame, angle);
         this.snapArmed = false;
       } else if (Math.abs(turn) < 0.35) {
         this.snapArmed = true;

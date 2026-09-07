@@ -80,6 +80,16 @@ export interface BrainSense {
    * Felder und nicht eines.
    */
   waypoint?: Point | null;
+  /**
+   * Wohin er **will**, wenn ihn jemand geschickt hat — der Auftrag
+   * (`BRAINS`, `'errand'`).
+   *
+   * Der Unterschied zu `waypoint` ist der zwischen Ziel und nächstem Schritt:
+   * Das Ziel steht fest, solange der Auftrag läuft, der Wegpunkt ändert sich
+   * an jeder Ecke. Nur an ihm merkt das Hirn, dass es angekommen ist — ein
+   * Wegpunkt ist immer nah, sonst wäre er keiner.
+   */
+  goal?: Point | null;
   dt: number;
   /** Eine Zahl aus [0,1). Als Funktion, damit ein Test sie stellen kann. */
   random: () => number;
@@ -159,6 +169,7 @@ export function stepBrain(
   const sees = sense.player !== null && tuning.sense > 0 && range <= tuning.sense;
 
   if (id === 'wander') return wander(state, sense, tuning, maxTurn, sees);
+  if (id === 'errand') return errand(state, sense, tuning, maxTurn);
   if (!sees || !sense.player) {
     // Kein Spieler in Sicht: stehen bleiben und schauen, wohin man schaut.
     state.awake = false;
@@ -189,6 +200,62 @@ export function stepBrain(
     attack: false,
     gait: 'walk',
     sees: true,
+  };
+}
+
+/**
+ * Wie nah an sein Ziel einer mit Auftrag herangehen muss, damit es als erledigt
+ * gilt, in Metern.
+ *
+ * Eine halbe Kachel: Näher kommt ein Zylinder von 29 cm Halbmesser an eine
+ * Kachelmitte, auf der noch etwas steht, nicht heran — und wer bis auf den
+ * Zentimeter herangehen müsste, schiebt sich am Ziel für immer hin und her.
+ */
+export const ERRAND_REACH = 1.25;
+
+/**
+ * **Der Auftrag**: Er geht dorthin, wo er hinsoll, und beachtet sonst nichts.
+ *
+ * Kein `sees`, kein Schlag, kein Blick zurück — der Spieler kommt in dieser
+ * Rechnung überhaupt nicht vor. Das ist der Sinn der Sache: Ein NPC, der
+ * vorführen soll, dass man die Treppe hinaufkommt, soll die Treppe
+ * hinaufgehen, und zwar auch dann, wenn jemand zusieht, und erst recht dann,
+ * wenn keiner in der Nähe steht.
+ *
+ * Angekommen wird **am Ziel** gemessen und nicht am Wegpunkt: Der letzte
+ * Wegpunkt liegt auf der letzten Kachel, und wer dort anhält, steht neben dem,
+ * was er zeigen sollte.
+ */
+function errand(
+  state: BrainState,
+  sense: BrainSense,
+  tuning: BrainTuning,
+  maxTurn: number,
+): BrainStep {
+  state.awake = false;
+  const goal = sense.goal ?? null;
+  const still: BrainStep = {
+    vx: 0,
+    vz: 0,
+    yaw: sense.yaw,
+    attack: false,
+    gait: 'stand',
+    sees: false,
+  };
+  if (!goal) return still;
+  if (distanceBetween(sense.at, goal) <= ERRAND_REACH) return still;
+
+  const wanted = yawTo(sense.at, sense.waypoint ?? goal);
+  const yaw = turnToward(sense.yaw, wanted, maxTurn);
+  const drive = tuning.speed * aheadFactor(wanted - yaw);
+  if (drive <= 0) return { ...still, yaw };
+  return {
+    vx: -Math.sin(yaw) * drive,
+    vz: -Math.cos(yaw) * drive,
+    yaw,
+    attack: false,
+    gait: 'walk',
+    sees: false,
   };
 }
 

@@ -23,6 +23,7 @@ import {
   labBounds,
   labSolids,
   newScenarioState,
+  rampDeck,
   scenarioOf,
   startScenario,
   stopScenario,
@@ -58,6 +59,7 @@ describe('Der Grundriss', () => {
       'podium',
       'ramp',
       'steep',
+      'gentle',
     ]);
   });
 
@@ -286,6 +288,52 @@ describe('Der Grundriss', () => {
       expect(RAMP.flat.step).toBeLessThanOrEqual(profile.jumpUp);
       expect(RAMP.flat.step).toBeGreaterThan(profile.stepUp);
     }
+  });
+
+  it('macht die sanfte flacher als die flache und beide begehbar', () => {
+    // **Die dritte Steigung ist die einzige, die keine Kante mehr ist.** Ihre
+    // größte einzelne Stufe liegt unter dem, was jeder hier tritt — damit ist
+    // sie auf der Karte eine Steigung und keine Stufe, und dann entscheidet
+    // allein der Winkel (`navProfile.canTraverse`).
+    const gentle = rampSlope('gentle');
+    expect(gentle).toBeLessThan(rampSlope('ramp'));
+    for (const profile of [HUMAN_PROFILE, ZOMBIE_PROFILE]) {
+      expect(gentle).toBeLessThan(profile.maxSlope);
+      expect(RAMP.gentle.step).toBeLessThan(profile.stepUp);
+    }
+  });
+
+  it('legt den Belag der sanften Rampe genau auf die Nasen ihrer Stufen', () => {
+    // **Die Rechnung, ohne die die Bucht nichts zeigt.** Der Belag ist der
+    // Boden, auf dem gelaufen wird, die Stufen sind die Karte darunter. Steht
+    // eine Stufe auch nur einen Zentimeter durch ihn hindurch, ist genau das
+    // wieder die Kante, an der ein Zylinder stehen bleibt — und die Bucht
+    // behauptet dann das Gegenteil dessen, was sie zeigt.
+    const bay = scenarioOf('gentle');
+    const deck = rampDeck(bay)!;
+    expect(deck).not.toBeNull();
+
+    const plan = RAMP.gentle;
+    const count = Math.round(RAMP.high / plan.step);
+    const tread = plan.run / count;
+    /** Die Oberkante des Belags an einer Stelle der Bucht, in Buchtmaßen. */
+    const deckTop = (lz: number): number =>
+      Math.min(RAMP.high, ((plan.foot + tread - lz) * RAMP.high) / plan.run);
+
+    for (let i = 0; i < count; i++) {
+      const top = plan.step * (i + 1);
+      // Auf der Nase treffen sich beide genau …
+      expect(deckTop(plan.foot - i * tread)).toBeCloseTo(top, 9);
+      // … und über der ganzen Trittfläche liegt der Belag darüber, nie darunter.
+      for (let t = 0; t <= 1; t += 0.1) {
+        expect(deckTop(plan.foot - (i + t) * tread)).toBeGreaterThanOrEqual(top - 1e-9);
+      }
+    }
+    // Vorn läuft er auf null aus: Eine Rampe, die mit einer Kante anfängt, ist
+    // wieder eine Stufe.
+    expect(deckTop(plan.foot + tread)).toBeCloseTo(0, 9);
+    // Und hinten trifft er die Oberkante der letzten Stufe.
+    expect(deckTop(plan.foot + tread - plan.run)).toBeCloseTo(RAMP.high, 9);
   });
 
   it('lässt beide Steigungen auf Kachelmitten enden', () => {

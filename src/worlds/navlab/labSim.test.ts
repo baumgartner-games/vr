@@ -3,6 +3,7 @@ import { doorBroken } from '../nav/navGraph';
 import { findPath } from '../nav/navPath';
 import { HAZARD_SPIKES, profileOf } from '../nav/navProfile';
 import { NO_TILE, TILE, tileDistance } from '../nav/navTile';
+import { brainOf } from '../npc/npcBrains';
 import { npcSkin } from '../npc/npcKinds';
 import { bakeLab, closestTo, crossedAt, passedNear, runBay, walked } from './labSim';
 import {
@@ -553,6 +554,23 @@ describe('Die beiden Steigungen', () => {
     }
   });
 
+  it('schickt beide auch dann hinauf, wenn niemand zusieht', () => {
+    // **Die Bucht führt etwas vor und jagt niemanden.** Vorher hing beides am
+    // Spieler: Der Auftritt lief nur los, wenn einer in Sichtweite stand
+    // (`Npc.navigate`), und dann lief er *ihm* nach statt die Stufen hinauf.
+    // Wer im Mittelgang stehenblieb und zusah, sah zwei NPCs, die sich nicht
+    // rührten. Jetzt haben sie einen Auftrag (`BayCast.goal`), und der gilt
+    // unabhängig davon, wo jemand steht.
+    const run = runBay('ramp', { seconds: 45, player: { lx: 12.5, lz: 40 } });
+    for (const runner of run.runners) {
+      expect(runner.brain).toBe('errand');
+      expect(runner.at.y).toBeCloseTo(RAMP.high);
+      expect(runner.arrived).toBe(true);
+      // Und zwar wirklich weit weg: Ein Zombie bemerkt auf 22 m.
+      expect(runner.nearest).toBeGreaterThan(brainOf('chase').tuning.sense);
+    }
+  });
+
   it('lässt beide vor der steilen stehen', () => {
     // **Dieselbe Höhe, und diesmal kommt keiner hinauf.** Die Stufen sind hier
     // zwölf Zentimeter hoch — die tritt jeder. Was ihn aufhält, ist der Winkel
@@ -564,6 +582,41 @@ describe('Die beiden Steigungen', () => {
       // Er steht aber auch nicht irgendwo herum, sondern so nah am Spieler, wie
       // die Karte ihn lässt: unten an der Wand des Podests.
       expect(runner.nearest).toBeLessThan(6);
+    }
+  });
+
+  it('lässt beide die sanfte hinaufgehen, ohne einen einzigen Absprung', () => {
+    // **Die dritte Bucht.** Dieselbe Höhe wie nebenan, dieselben zwei
+    // Auftritte, dasselbe Ziel — nur ohne Kanten. Auf der Karte ist das keine
+    // Stufe mehr, sondern eine Steigung, und deshalb steht in ihrem Weg kein
+    // Sprung. Dass der Körper darauf wirklich hinaufkommt, kann nur die echte
+    // Engine zeigen (`labPhysics.test.ts`); dass die *Karte* es hergibt, steht
+    // hier.
+    const bay = scenarioOf('gentle');
+    const graph = bakeLab();
+    const foot = baySpot(bay, { lx: -1.25, lz: 6.25 });
+    const deck = baySpot(bay, { lx: -1.25, lz: -6.25 });
+    const from = graph.at(foot.x, foot.z, 0);
+    const to = graph.at(deck.x, deck.z, RAMP.high);
+    expect(from).not.toBe(NO_TILE);
+    expect(to).not.toBe(NO_TILE);
+    for (const profile of ['zombie', 'human']) {
+      const path = findPath(graph, from, to, { profile: profileOf(profile) });
+      expect(path.complete).toBe(true);
+      // **Kein einziger Sprung**, und das ist die eigentliche Aussage: Wo eine
+      // Kante läge, hätte das Abtasten eine Verbindung der Art `jump`
+      // eingetragen, und der Läufer spränge sie ab (`navAgent.leaps`).
+      for (let i = 1; i < path.tiles.length; i++) {
+        const from = path.tiles[i - 1]!;
+        const exit = graph.linksFrom(from).find((one) => one.to === path.tiles[i]);
+        expect(exit?.link.kind).not.toBe('jump');
+      }
+    }
+
+    const run = runBay('gentle', { seconds: 45, player: { lx: 12.5, lz: 40 } });
+    for (const runner of run.runners) {
+      expect(runner.at.y).toBeGreaterThan(RAMP.high - 0.3);
+      expect(runner.arrived).toBe(true);
     }
   });
 

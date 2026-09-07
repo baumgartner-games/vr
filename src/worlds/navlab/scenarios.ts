@@ -3,6 +3,7 @@ import type { DoorMaterial } from '../nav/navDoor';
 import type { NavGraph } from '../nav/navGraph';
 import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE, TILE } from '../nav/navTile';
+import type { BrainId } from '../npc/npcBrains';
 import type { NpcKind } from '../npc/npcKinds';
 
 /**
@@ -67,7 +68,8 @@ export type ScenarioId =
   | 'levels'
   | 'podium'
   | 'ramp'
-  | 'steep';
+  | 'steep'
+  | 'gentle';
 
 /** Ein Punkt im Maß einer Bucht — `lx` quer, `lz` in die Tiefe (`bayPoint`). */
 export interface BaySpot {
@@ -86,6 +88,25 @@ export interface BaySpot {
 /** Wer in einer Bucht losläuft, und wo. */
 export interface BayCast extends BaySpot {
   kind: NpcKind;
+  /**
+   * Welches Hirn er mitbringt — ohne Angabe verfolgt er den Spieler
+   * (`npc/npcBrains.ts`).
+   *
+   * Der Grund, warum das überhaupt in den Daten steht: Nicht jede Bucht
+   * handelt vom Spieler. Die beiden Steigungen und das Podest führen vor, dass
+   * man **hinaufkommt** — und wer das zeigen soll, darf nicht davon abhängen,
+   * ob gerade jemand in Sichtweite steht. Vorher hing genau das daran: Wer im
+   * Mittelgang stand, sah drei NPCs, die sich nicht rührten; wer in die Bucht
+   * ging, wurde verfolgt statt vorgeführt.
+   */
+  brain?: BrainId;
+  /**
+   * Und wohin er will, in Buchtmaßen — sein Auftrag (`Npc.sendTo`).
+   *
+   * Nur mit `brain: 'errand'` sinnvoll; ein Verfolger hat kein Ziel außer dem
+   * Spieler.
+   */
+  goal?: BaySpot;
 }
 
 /**
@@ -183,11 +204,111 @@ export const RAMP = {
    * dabei winzig ist, kann es an ihr nicht liegen.
    */
   steep: { foot: 2.5, run: TILE, step: 0.12 },
+  /**
+   * **Die sanfte**: dieselbe Höhe über fünf Kacheln, in Stufen von acht
+   * Zentimetern — 10,9°, und damit die flachste der drei.
+   *
+   * Sie ist auf der Karte keine Kante mehr, sondern eine **Steigung**: Die
+   * größte einzelne Stufe darin (`navBake.edgeStep`) ist kleiner als das, was
+   * jeder hier tritt (`stepUp`), und dann entscheidet der Winkel. Deshalb
+   * plant hier niemand einen Sprung — er geht.
+   */
+  gentle: { foot: 6.25, run: 5 * TILE, step: 0.08 },
 } as const;
+
+/**
+ * **Der Belag der sanften Rampe** — die schiefe Ebene über ihren Stufen.
+ *
+ * Und der Grund, warum es sie überhaupt gibt, ist eine Messung: Ein NPC ist
+ * ein dynamischer Zylinder, und der kommt **keine** Stufe hinauf, die er nicht
+ * springt. Nicht 30 cm, nicht 10, nicht 5 — nachgemessen mit echter Physik
+ * (`labPhysics.test.ts`) sind es null Zentimeter, bei jeder Stufenhöhe. Eine
+ * Rampe aus feinen Stufen wäre also genau das, was die Karte für begehbar
+ * hält und die Welt für eine Wand.
+ *
+ * Eine **schiefe Ebene** dagegen geht er hinauf, und zwar mühelos: bei 9°
+ * genauso wie bei 25°. Also liegt über den Stufen ein gekippter Quader, dessen
+ * Oberseite genau auf ihren Nasen sitzt. Die Stufen sind damit die **Karte**
+ * (achsenparallel, wie alles hier, und deshalb vom Abtasten zu finden), der
+ * Belag ist der **Boden** (gekippt, und deshalb zu gehen). Sie stehen nie
+ * weiter als eine Stufenhöhe auseinander.
+ */
+export interface RampDeck {
+  /** Mitte des Quaders in Weltmetern. */
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  h: number;
+  d: number;
+  /** Neigung um die Weltachse X, in Radiant. */
+  pitch: number;
+}
+
+/** Wie dick der Belag ist, in Metern. */
+const DECK_T = 0.3;
+
+/**
+ * Der Belag der sanften Rampe, in Weltmetern — oder `null` für jede andere
+ * Bucht.
+ *
+ * Er wird aus denselben Zahlen gerechnet wie ihre Stufen (`RAMP.gentle`): Wer
+ * die Rampe flacher macht, macht den Belag mit.
+ */
+export function rampDeck(bay: Scenario): RampDeck | null {
+  if (bay.id !== 'gentle') return null;
+  const plan = RAMP.gentle;
+  const angle = Math.atan2(RAMP.high, plan.run);
+  const flip = bayFacesSouth(bay) ? 1 : -1;
+
+  /**
+   * **Der Belag liegt auf den Nasen** und nicht auf der Ideallinie — deshalb
+   * fängt er eine Trittstufe **vor** dem Fuß der Treppe an.
+   *
+   * Die Oberkante einer Stufe gilt bis zu ihrer Hinterkante; die Linie von
+   * (Fuß, 0) nach (Fuß − Anlauf, Höhe) läge also überall bis zu eine
+   * Stufenhöhe *unter* den Stufen, und die stünden durch den Belag hindurch.
+   * Um genau eine Trittbreite nach vorn geschoben trifft die Linie jede Nase
+   * exakt und liegt dazwischen darüber. Vorn läuft sie dabei auf null aus —
+   * eine Rampe, die mit einer Kante von acht Zentimetern anfängt, ist wieder
+   * genau die Stufe, an der ein Zylinder stehen bleibt.
+   */
+  const tread = plan.run / Math.round(RAMP.high / plan.step);
+  const start = plan.foot + tread;
+  const middle = bayPoint(bay, (RAMP.minLx + RAMP.maxLx) / 2, start - plan.run / 2);
+  return {
+    x: middle.x,
+    // Der Quader liegt eine halbe Dicke unter seiner Oberseite — entlang seiner
+    // **eigenen** Normale und nicht senkrecht, sonst stünde er quer.
+    y: RAMP.high / 2 - (DECK_T / 2) * Math.cos(angle),
+    z: middle.z - (DECK_T / 2) * Math.sin(angle) * flip,
+    w: RAMP.maxLx - RAMP.minLx,
+    h: DECK_T,
+    d: Math.hypot(RAMP.high, plan.run),
+    // Nach hinten steigend heißt in einer Bucht der Nordreihe „nach +Z
+    // fallend"; in der Südreihe zählt die Tiefe andersherum, und die Neigung
+    // mit ihr.
+    pitch: angle * flip,
+  };
+}
+
+/**
+ * **Wohin die beiden Steigungen führen** — das Ziel ihrer Auftritte, oben auf
+ * dem Podest hinter der Steigung.
+ *
+ * Dieselbe Stelle, an der auch der Spieler steht (`stand`), und trotzdem eine
+ * eigene Zahl: Der Spieler steht dort, weil man von dort gut zusieht; die
+ * beiden gehen dorthin, weil das ihr Auftrag ist. Wer beides
+ * zusammenzöge, hätte wieder zwei NPCs, die stehen bleiben, sobald der
+ * Zuschauer woanders hingeht.
+ */
+export const RAMP_TOP: BaySpot = { lx: -1.25, lz: -6.25, y: RAMP.high };
 
 /** Wie die Steigung dieser Bucht gebaut ist — Fuß, Anlauf, Stufenhöhe. */
 export function rampPlan(id: ScenarioId): { foot: number; run: number; step: number } {
-  return id === 'steep' ? RAMP.steep : RAMP.flat;
+  if (id === 'steep') return RAMP.steep;
+  if (id === 'gentle') return RAMP.gentle;
+  return RAMP.flat;
 }
 
 /**
@@ -350,6 +471,16 @@ export const PODIUM = {
 } as const;
 
 /**
+ * **Wohin die beiden in der Podest-Bucht wollen**: auf das freistehende
+ * Podest, dorthin, wo auch der Zuschauer steht.
+ *
+ * Die Höhe steht mit dabei und ist keine Zierde: Ohne sie stünde das Ziel auf
+ * Bodenhöhe unter dem Podest, und wer oben ankommt, wäre nach dieser Rechnung
+ * noch 2,4 m davon entfernt.
+ */
+export const PODIUM_TOP: BaySpot = { ...PODIUM.to, y: PODIUM.high };
+
+/**
  * Die fünf Spalten einer Reihe, von West nach Ost.
  *
  * Eine ungerade Zahl, und deshalb steht eine Bucht je Reihe **mittig** — das
@@ -358,7 +489,7 @@ export const PODIUM = {
  * neben der Kachelgrenze statt darauf, und das Abtasten verschluckte sie still
  * (`scenarios.test.ts`).
  */
-const COLS = [-2 * COL, -COL, 0, COL, 2 * COL] as const;
+const COLS = [-2 * COL, -COL, 0, COL, 2 * COL, 3 * COL] as const;
 
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -464,9 +595,12 @@ export const SCENARIOS: readonly Scenario[] = [
     z: ROW,
     accent: 0x6fd3ff,
     stand: { ...PODIUM.to, y: PODIUM.high },
+    // **Beide haben einen Auftrag und keinen Gegner**: hinauf auf das
+    // hintere Podest. Was die Bucht zeigt, ist die Lücke zwischen den beiden
+    // Podesten — und die springt nur, wer überhaupt losgeht.
     cast: [
-      { kind: 'dummy', lx: -11.25, lz: 6.25 },
-      { kind: 'zombie', lx: -8.75, lz: 6.25 },
+      { kind: 'dummy', lx: -11.25, lz: 6.25, brain: 'errand', goal: PODIUM_TOP },
+      { kind: 'zombie', lx: -8.75, lz: 6.25, brain: 'errand', goal: PODIUM_TOP },
     ],
   },
   {
@@ -478,9 +612,10 @@ export const SCENARIOS: readonly Scenario[] = [
     z: -ROW,
     accent: 0x8ee06a,
     stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    // Ihr Ziel ist oben, und zwar unabhängig davon, wo der Spieler steht.
     cast: [
-      { kind: 'zombie', lx: -3.75, lz: 6.25 },
-      { kind: 'dummy', lx: 1.25, lz: 6.25 },
+      { kind: 'zombie', lx: -3.75, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+      { kind: 'dummy', lx: 1.25, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
     ],
   },
   {
@@ -492,9 +627,25 @@ export const SCENARIOS: readonly Scenario[] = [
     z: ROW,
     accent: 0xffb14e,
     stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    // Dasselbe Ziel wie nebenan — und genau deshalb sieht man hier etwas:
+    // Beide *wollen* hinauf, und beide bleiben unten stehen.
     cast: [
-      { kind: 'zombie', lx: -3.75, lz: 6.25 },
-      { kind: 'dummy', lx: 1.25, lz: 6.25 },
+      { kind: 'zombie', lx: -3.75, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+      { kind: 'dummy', lx: 1.25, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+    ],
+  },
+  {
+    id: 'gentle',
+    title: 'Sanfte Rampe',
+    watch: 'Dieselbe Höhe, keine Stufe: Hier geht er hinauf, statt zu springen',
+    acts: [],
+    x: COLS[5],
+    z: -ROW,
+    accent: 0x6fe0c0,
+    stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    cast: [
+      { kind: 'zombie', lx: -3.75, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+      { kind: 'dummy', lx: 1.25, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
     ],
   },
 ];
@@ -597,10 +748,11 @@ const INSIDE: Record<ScenarioId, readonly BayWall[]> = {
   ],
   // Rampe und Podeste sind Klötze und keine Wände (`PODIUM`).
   podium: [],
-  // Und die beiden Rampen erst recht: Was hier steht, ist Boden mit einer
+  // Und die drei Rampen erst recht: Was hier steht, ist Boden mit einer
   // Steigung (`RAMP`).
   ramp: [],
   steep: [],
+  gentle: [],
 };
 
 /** Alle Wände einer Bucht — Hülle und Innenleben. */
@@ -861,7 +1013,7 @@ function bayFixtures(bay: Scenario): LabSolid[] {
     });
   }
 
-  if (bay.id === 'ramp' || bay.id === 'steep') {
+  if (bay.id === 'ramp' || bay.id === 'steep' || bay.id === 'gentle') {
     // **Zwanzig Stufen und ein Podest.** Jede Stufe ist ein Quader, der vom
     // Boden bis zu ihrer Höhe reicht — nicht eine Platte auf Stelzen: Das
     // Abtasten sucht Deckel über einer Kachelmitte (`navBake.floorsAt`), und
