@@ -47,6 +47,13 @@ export interface AppHooks {
   onNotify?(message: string): void;
   /** Connection state or the peer list changed — repaint the network panel. */
   onNetChanged?(): void;
+  /**
+   * Eine Welt ließ sich nicht laden. Was daraus folgt, entscheidet die Seite
+   * und nicht die App: Der häufigste Grund ist ein Deploy, der die Chunks
+   * unter der laufenden Seite ausgetauscht hat (`core/staleBuild.ts`), und die
+   * einzige Antwort darauf ist die Adresszeile.
+   */
+  onWorldFailed?(id: string, error: unknown): void;
 }
 
 export interface ConnectOptions extends TrysteroOptions {
@@ -131,6 +138,8 @@ export class App {
    */
   readonly chat = new ChatLog(CHAT_LIMIT, true);
   private loading: string | null = null;
+  /** Welche Ladung gerade die gültige ist — siehe `goTo`. */
+  private loadToken = 0;
   private elapsed = 0;
   private lastTime = 0;
   private role: PlayerRole;
@@ -265,15 +274,39 @@ export class App {
     return this.worldId;
   }
 
-  /** Loads a world, disposing the previous one. */
+  /**
+   * Loads a world, disposing the previous one.
+   *
+   * **Es ist immer nur eine Ladung gültig**, und zwar die letzte. Eine Welt
+   * kommt über einen dynamischen Import, und der dauert; wer im Menü zweimal
+   * hintereinander tippt, hat zwei davon unterwegs. Ohne die Marke unten
+   * räumte die zweite die Welt der ersten ab, während deren `init` noch mitten
+   * im Aufbauen war — heraus kam eine halbe Welt, in der nichts mehr
+   * funktionierte, und der Weg dorthin war ein doppelter Tipper.
+   */
   async goTo(id: string): Promise<void> {
     const definition = findWorld(id) ?? findWorld(DEFAULT_WORLD)!;
-    if (this.loading === definition.id || this.worldId === definition.id) return;
+    if (this.loading === definition.id) return;
+    if (this.worldId === definition.id) {
+      // Schon da. Ist trotzdem etwas anderes unterwegs, ist das hier ein
+      // Abbruch: Die Marke hochzählen genügt, die laufende Ladung tauscht dann
+      // nichts mehr aus.
+      if (this.loading !== null) {
+        this.loadToken++;
+        this.loading = null;
+      }
+      return;
+    }
+
+    const token = ++this.loadToken;
     this.loading = definition.id;
     this.notify(`Lade ${definition.title} …`);
 
     try {
       const next = await definition.load();
+      // Inzwischen wollte jemand woandershin. Die geladene Welt wird einfach
+      // fallen gelassen — `init` lief nie, sie hängt an nichts.
+      if (token !== this.loadToken) return;
       this.unloadWorld();
 
       this.worldId = definition.id;
@@ -289,8 +322,9 @@ export class App {
     } catch (error) {
       console.error(`[app] Welt "${id}" konnte nicht geladen werden`, error);
       this.notify(`Fehler beim Laden von ${definition.title}`);
+      this.hooks.onWorldFailed?.(definition.id, error);
     } finally {
-      this.loading = null;
+      if (token === this.loadToken) this.loading = null;
     }
   }
 
