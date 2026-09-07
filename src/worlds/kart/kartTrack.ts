@@ -1,11 +1,12 @@
 /**
  * The shape of the little circuit, as pure geometry.
  *
- * The track is a closed centre line — a handful of control points blown up
- * into a smooth polyline — plus a half width. Everything the world needs to
- * know follows from that: where the tarmac is drawn, how far off the middle a
- * kart currently is, where to shove it back when it leaves the road, and how
- * far around it has come.
+ * The track is a closed centre line — laid out from straights and corners in
+ * `kartCourse.ts` — plus a half width, and beside it a rectangular apron: the
+ * pit lane. Everything the world needs to know follows from those three
+ * things: where the tarmac is drawn, how far off the middle a kart currently
+ * is, where to shove it back when it leaves the road, and how far around it
+ * has come.
  *
  * Plain `{x, z}` numbers on purpose: no three.js, so it is all under test.
  */
@@ -15,47 +16,24 @@ export interface Vec2 {
   z: number;
 }
 
+/**
+ * **Ein rechteckiges Stück Asphalt neben der Strecke** — die Boxengasse.
+ *
+ * Sie ist bewusst ein Rechteck und keine zweite Mittellinie. Eine offene Linie
+ * hat zwei Enden, und an einem Ende weiß `nearestOnPath` nicht mehr, ob man
+ * noch daneben oder schon dahinter steht: Wer zehn Meter über das Ende
+ * hinausfährt, hat immer noch den Abstand null zur Linie und rollt fröhlich
+ * über die Wiese. Ein Rechteck hat diese Frage nicht.
+ */
+export interface Apron {
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+}
+
 /** How much of its speed a kart keeps per frame while scraping along a wall. */
 const WALL_FRICTION = 0.97;
-
-/**
- * A closed Catmull-Rom spline through the control points, sampled evenly.
- *
- * @param perSegment points per control segment; the result has
- *        `controls.length * perSegment` points and closes back onto the first.
- */
-export function sampleClosedSpline(controls: readonly Vec2[], perSegment: number): Vec2[] {
-  const count = controls.length;
-  if (count < 3 || perSegment < 1) return controls.map((point) => ({ ...point }));
-
-  const path: Vec2[] = [];
-  for (let i = 0; i < count; i++) {
-    const p0 = controls[(i - 1 + count) % count]!;
-    const p1 = controls[i]!;
-    const p2 = controls[(i + 1) % count]!;
-    const p3 = controls[(i + 2) % count]!;
-    for (let step = 0; step < perSegment; step++) {
-      const t = step / perSegment;
-      path.push({
-        x: catmullRom(p0.x, p1.x, p2.x, p3.x, t),
-        z: catmullRom(p0.z, p1.z, p2.z, p3.z, t),
-      });
-    }
-  }
-  return path;
-}
-
-function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return (
-    0.5 *
-    (2 * p1 +
-      (-p0 + p2) * t +
-      (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-      (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
-  );
-}
 
 /** Length of the closed polyline, the lap distance of the centre line. */
 export function pathLength(path: readonly Vec2[]): number {
@@ -173,6 +151,72 @@ export function confineToTrack(
     vz: nextVz * WALL_FRICTION,
     hit: true,
   };
+}
+
+/** Ob ein Punkt auf der Fläche liegt — die Kante zählt dazu. */
+export function insideApron(apron: Apron, x: number, z: number): boolean {
+  return x >= apron.x0 && x <= apron.x1 && z >= apron.z0 && z <= apron.z1;
+}
+
+/**
+ * Dasselbe wie `confineToTrack`, nur für eine Fläche: an die Kante zurück, und
+ * der Teil der Geschwindigkeit, der hinauszeigte, ist weg.
+ */
+export function confineToApron(
+  apron: Apron,
+  x: number,
+  z: number,
+  vx: number,
+  vz: number,
+): Confined {
+  if (insideApron(apron, x, z)) return { x, z, vx, vz, hit: false };
+  const nx = Math.min(apron.x1, Math.max(apron.x0, x));
+  const nz = Math.min(apron.z1, Math.max(apron.z0, z));
+  return {
+    x: nx,
+    z: nz,
+    vx: (nx === x ? vx : 0) * WALL_FRICTION,
+    vz: (nz === z ? vz : 0) * WALL_FRICTION,
+    hit: true,
+  };
+}
+
+/**
+ * **Die Leitplanke der ganzen Anlage**: Strecke *oder* Boxengasse.
+ *
+ * Die Regel ist eine einzige und deshalb steht sie hier und nicht in der Welt:
+ * **Wer in irgendeiner der Flächen ist, wird nicht angefasst.** Weil die Gasse
+ * kachelbündig an den Streckenkorridor stößt (`kartCourse.ts`), ist die
+ * Vereinigung der beiden zusammenhängend — man fährt aus der Box heraus und
+ * auf die Gerade, ohne dass irgendwo eine Ein- und Ausfahrt programmiert wäre.
+ *
+ * Und wer draußen ist, wird auf die **nächstgelegene** der beiden
+ * zurückgesetzt. Nicht auf die Strecke, denn dann schöbe die Box einen jedes
+ * Mal quer über die Wiese, sobald man in ihr an die Mauer kommt.
+ */
+export function confineToCourse(
+  path: readonly Vec2[],
+  halfWidth: number,
+  aprons: readonly Apron[],
+  x: number,
+  z: number,
+  vx: number,
+  vz: number,
+): Confined {
+  for (const apron of aprons) {
+    if (insideApron(apron, x, z)) return { x, z, vx, vz, hit: false };
+  }
+  let best = confineToTrack(path, halfWidth, x, z, vx, vz);
+  if (!best.hit) return best;
+  let bestGap = Math.hypot(best.x - x, best.z - z);
+  for (const apron of aprons) {
+    const back = confineToApron(apron, x, z, vx, vz);
+    const gap = Math.hypot(back.x - x, back.z - z);
+    if (gap >= bestGap) continue;
+    best = back;
+    bestGap = gap;
+  }
+  return best;
 }
 
 /**

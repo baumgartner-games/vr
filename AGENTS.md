@@ -126,11 +126,20 @@ und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 Physik jeden Treffer verschluckt), die Zielrichtung der Werkzeuge
 (`src/worlds/portal/tools/aim.ts` — der Test hält fest, dass ein Werkzeug in
 der Hand exakt entlang des Pointing-Rays zeigt und nicht 30° darüber), die
-**Kart-Werte** (`src/worlds/kart/kartSettings.ts`), die **Fahrphysik**
+**Kart-Werte** (`src/worlds/kart/kartSettings.ts` — samt der Regel, dass das
+Standardkart auf jeder Raste sitzt), die **Fahrphysik**
 (`src/worlds/kart/kartDynamics.ts` — Höchstgeschwindigkeit, Ausrollen,
-Rückwärtsgang, Lenken erst ab Tempo, Driften bei wenig Traktion), die
-**Streckenführung** (`src/worlds/kart/kartTrack.ts` — Spline, nächster Punkt,
-Leitplanke, Rundenzähler über die Ziellinie hinweg), das **Pizza-Rezept**
+Rückwärtsgang, Lenken erst ab Tempo, Driften bei wenig Traktion und der
+**Schlupf**, mit dem Vollgas und Vollbremsung den Seitenhalt auffressen), die
+**Streckenteile** (`src/worlds/kart/kartCourse.ts` — Geraden und Kurven auf dem
+Kachelgitter, jede Naht auf einer ganzen Kachel, und dass die Runde sich
+schließt), die **Boxengasse** (`src/worlds/kart/kartPit.ts` — ein Boden statt
+tausend Kacheln, eine Säule je Lücke, Mauern überall außer an der Ausfahrt),
+der **Nachlauf des Kopfes** (`src/worlds/kart/kartView.ts` — dass der Blick der
+Lenkung folgt statt an ihr festzuhängen, den kurzen Weg um den Vollkreis nimmt
+und nie weiter als der Deckel zurückbleibt), die **Streckenführung**
+(`src/worlds/kart/kartTrack.ts` — nächster Punkt, Leitplanke, Boxengasse und
+Rundenzähler über die Ziellinie hinweg), das **Pizza-Rezept**
 (`src/worlds/shop/pizza.ts` — Kneten, Belegen, Backen, Punkte), das
 **Werkzeug-Budget pro Gürtelplatz**
 (`src/worlds/portal/tools/looseBudget.ts` — dass eine Waffe links und eine
@@ -1407,12 +1416,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Treffer, desto höher. Beides direkt beim Schützen, ohne Laufzeit und ohne
   Entfernung, und beides an zwei Tafeln auf der Schießlinie abschaltbar
   (anschießen oder Trigger).
-- **Gokart** (experimentell): kleine Strecke mit vier Karts, jedes mit eigenem
-  Charakter und eigenem **Klemmbrett**. Lenkrad greifen setzt dich hinein,
-  rechter Trigger ist Gas, linker die Bremse, der linke Stick lenkt — oder das
-  Lenkrad selbst, wenn die erste Zeile des Klemmbretts das sagt. Aussteigen
-  steht die ganze Zeit auf einem Schild über dem Lenkrad. Rundenzeiten stehen
-  an der Strecke.
+- **Gokart** (experimentell): eine Strecke aus **Streckenteilen** auf dem
+  Kachelgitter — vier Geraden und vier Kurven mit vier verschiedenen Radien
+  (`kart/kartCourse.ts`) — und daneben eine **Boxengasse** mit vier Buchten
+  unter einem Dach, in denen die Karts stehen (`kart/kartPit.ts`). Jedes hat
+  seinen eigenen Charakter und sein eigenes **Klemmbrett**. Lenkrad greifen
+  setzt dich hinein, rechter Trigger ist Gas, linker die Bremse, der linke
+  Stick lenkt — oder das Lenkrad selbst, wenn die erste Zeile des Klemmbretts
+  das sagt. Losfahren heißt: aus der Box nach rechts auf die Gerade ziehen; eine
+  Ein- und Ausfahrt gibt es nicht, weil Gasse und Strecke kachelbündig
+  aneinander stoßen. Der **Kopf zieht der Lenkung nach**, statt an ihr
+  festzuhängen — das ist die Zeile gegen die Übelkeit, und wie weit, steht auf
+  dem Klemmbrett. Aussteigen steht die ganze Zeit auf einem Schild über dem
+  Lenkrad. Rundenzeiten stehen an der Strecke.
 - **Pizzeria** (experimentell): Küche, Thresen, Gastraum. Teig aus der Kiste auf
   den Arbeitstisch legen und mit der **Faust** flach kneten, mit der roten
   **Kelle** Soße verteilen, **Käse** darüber streuen, ab in den **Ofen** und
@@ -1442,6 +1458,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
   Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
   steht dasselbe in Worten.
+
+  Daneben hängt je Hand der **Zug an Trigger und Griff** als zwei Balken
+  (`tune/PullGauge.ts`), mit einer Marke bei der Hälfte und einer ganz oben.
+  Das sind die einzigen zwei Eingaben eines Quest-Controllers, die nicht nur an
+  oder aus sind: Das Gamepad meldet für beide einen Wert zwischen 0 und 1, und
+  WebXR sagt **getrennt davon**, ab wann die Laufzeitumgebung das ein „Drücken"
+  nennt. Beides ging vorher verloren — ein Leuchtpunkt kennt zwei Zustände, und
+  ein halb gezogener Trigger sah aus wie ein gar nicht gezogener, bis er
+  umsprang. Jetzt ist der **Balken** der Zug, der **Farbumschlag** das Drücken,
+  und auf der Tafel steht die Zahl dazu (`Trigger 65 %`, auf fünf Prozent
+  gerundet, weil jede Änderung dieser Zeile eine neue Leinwand kostet). Wer
+  wissen will, ob sein Trigger wirklich bis zum Anschlag geht oder ob der
+  Auslösepunkt zu früh liegt, sieht hier beides gleichzeitig. Die Balken hängen
+  an der Tafelwand und nicht am Modell: Das dreht sich mit der Hand mit, und
+  eine Füllstandsanzeige darauf stünde die halbe Zeit auf dem Kopf.
 
   Und darunter je Hand **eine** Tafel: was gedrückt ist, und die **Lage des
   Geräts als Zahl**, in **zwei Räumen**, denn genau dazwischen liegt die
@@ -2258,6 +2289,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Hirn                               | Knopf/`A` öffnet das Panel (Haut, Hirn, Tempo, Leben, Käfig); zielen + Trigger setzt, was in _Setzen_ steht — oder nimmt weg, worauf du zeigst                          | –                                                                                               | –                    |
 | Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen oder darauf zeigen: Greifen holt das Ding heraus; geblättert wird mit dem **Trigger** der haltenden Hand, oder über einen der beiden Pfeile (Greifen oder Trigger) | –                                                                                               | –                    |
 | Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
+| Kart: aus der Box fahren           | Gas geben und nach rechts auf die Gerade ziehen                                                                                                                       | `W`, dann `D`                                                                                   | –                    |
 | Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
 | Kart: lenken                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                    | `A` / `D`                                                                                       | –                    |
 | Kart: aussteigen                   | `A`/`X` halten (Balken läuft voll)                                                                                                                                    | `E` halten                                                                                      | –                    |
@@ -2689,12 +2721,61 @@ Waffe später gehalten wird.
 
 ### Das Gokart
 
-Ein Kart ist vier reine Module und ein bisschen Verdrahtung:
+Ein Kart ist sieben reine Module und ein bisschen Verdrahtung:
 `kartSettings.ts` (die Werte samt Bereich, Raste und Einheit — dieselbe Idee
 wie `weaponSettings.ts`), `kartDynamics.ts` (ein Schritt Fahren),
-`kartTrack.ts` (die Strecke als Mittellinie plus halbe Breite) und
-`kartRace.ts` (Runden, Reihenfolge, Tafel). Alle vier ohne
+`kartCourse.ts` (die Strecke als Liste von Bauteilen), `kartTrack.ts` (die
+Mittellinie plus halbe Breite plus die Fläche der Boxengasse), `kartPit.ts`
+(der Grundriss der Gasse), `kartView.ts` (der Nachlauf des Kopfes) und
+`kartRace.ts` (Runden, Reihenfolge, Tafel). Alle sieben ohne
 three.js und mit Jest-Test; `Kart.ts` und `KartWorld.ts` sind nur noch Blech.
+
+**Die Strecke ist gebaut und nicht gezeichnet.** Sie war einmal ein Dutzend
+Kontrollpunkte in Metern mit einem Catmull-Rom-Spline darüber — eine hübsche
+Linie, deren Lage man nur in der Brille nachsehen konnte, die nirgends am
+Raster lag, und bei der „mach die Gegengerade zwei Zellen länger" hieß, zwei
+Punkte zu verschieben und zu hoffen. Jetzt ist sie eine **Liste von Teilen**
+(`kartCourse.ts`), und ein Teil kennt drei Dinge: seine Sorte (Gerade, links,
+rechts), wie lang bzw. wie eng es ist, und wo es aufhört. Daraus folgt alles
+Übrige — Mittellinie, Ausmaße, Rundenlänge, Asphalt, Randsteine, Reifenstapel.
+
+Drei Zahlen tragen das Ganze, und alle drei sind Kacheln:
+
+- **Eine Zelle sind vier Kacheln** (10 m) — so lang ist eine Gerade.
+- **Die Fahrbahn ist vier Kacheln breit**, und der Asphalt ist **genau** so
+  breit wie der Korridor. Wäre er schmaler, läge zwischen ihm und dem Rand ein
+  Streifen, der auf dem Raster zur Strecke gehört und beim Fahren nicht — und
+  die Boxengasse daneben hätte eine unsichtbare Lücke, durch die niemand
+  hindurchkommt.
+- **Eine Kurve ist ein Viertelkreis, und ihr Radius ist ihr Versatz**: Wer mit
+  Radius `r` abbiegt, kommt `r` Kacheln weiter vorn und `r` weiter zur Seite
+  heraus. Aus dieser einen Zeile folgt, ob eine Runde sich schließt, und der
+  Test rechnet es nach, statt es zu glauben.
+
+Weil alle Maße ganze Kacheln sind, liegt **jede Naht auf einer Kachelkante** —
+und genau deshalb passen Strecke, Boxengasse und Grundriss ohne einen einzigen
+krummen Zwischenwert zusammen. Die gefahrene Bahn hat vier Kurven mit vier
+verschiedenen Radien (15, 15, 10 und 20 m): eine, die man voll fährt, zwei
+mittlere und eine enge, in der ein Kart mit wenig Traktion querstellt. Das
+Format ist bewusst das, was eine spätere **Bauwelt** bearbeiten kann: ein Teil
+anhängen, eine Kurve enger machen, eine Gerade kürzen.
+
+**Die Boxengasse** liegt kachelbündig an der Zielgeraden (`kartPit.ts`): vier
+Buchten unter einem Dach, dazwischen je eine Säule, an jeder Rückwand eine
+Portaltafel, davor der Asphalt der Gasse — und darauf die vier Karts, mit der
+Nase in Fahrtrichtung. **Eine Ein- und eine Ausfahrt gibt es nicht**, und das
+ist keine Auslassung: Die Ostkante der Gasse *ist* der Westrand des
+Streckenkorridors, die beiden Flächen berühren sich also, und wer in einer von
+beiden ist, wird nicht zurückgeschoben (`confineToCourse`). Losfahren heißt
+damit schlicht: das Lenkrad nach rechts. Nach vorn hört die Gasse auf, und dort
+steht eine Mauer — eine Grenze, die man nicht sieht, ist eine, in die man
+fährt.
+
+**Der Boden ist eine Masse und keine tausend Kacheln**, aus demselben Grund wie
+im Schießstand: Tausend Bodenplatten wären tausend Körper in der Physik für
+eine Wiese, über die man geradeaus fährt, und portalfähig kann ohnehin nur eine
+große Fläche sein. Die Navigationskarte kostet das nichts — sie wird aus der
+gebauten Geometrie abgetastet, und eine Masse ist Geometrie wie jede andere.
 
 **Zu zweit fahren.** Vier Karts standen auf dem Start, aber jeder bewegte nur
 seine eigenen: zwei Leute konnten nebeneinander herfahren, ohne voneinander
@@ -2720,6 +2801,12 @@ gebaut ist. Jetzt läuft die Welt über einen eigenen Kanal (`kart`):
 - **Was noch fehlt:** zwei Karts fahren durcheinander hindurch. Beide sind für
   die Physik kinematisch, und zwei kinematische Körper stoßen sich in Rapier
   nicht — Kegel und Kisten schieben sie weiterhin beide.
+- **Und noch etwas:** Beim Lenken mit dem *Lenkrad in der Hand* wandert die
+  virtuelle Hand um den Kranz, solange der Kopf nachzieht — das Lenkrad hängt
+  am Kart, die Hand am Rig, und die beiden drehen sich nicht mehr im selben
+  Bild. Die **Eingabe** stimmt trotzdem, weil sie gegen den Blick gemessen wird
+  (`Kart.handAngle`); es sieht nur aus, als rutschte die Hand. Wer lieber am
+  Lenkrad lenkt, stellt den Nachlauf auf `0`, und die Frage stellt sich nicht.
 
 **Das Fahrmodell** ist bewusst klein und arkadig: Gelenkt wird wie beim
 Fahrrad — Gierrate = Tempo · tan(Einschlag) / Radstand, also dreht ein
@@ -2730,12 +2817,61 @@ den Vorwärtsanteil an. Zum Rollwiderstand gehört ein konstanter Anteil, sonst
 _nähert_ sich ein losgelassenes Kart dem Stillstand nur an und kriecht
 minutenlang weiter.
 
+**Ein Reifen hat ein Budget.** Die Traktion allein beschreibt einen, der immer
+gleich gut hält — und das war der eine Punkt, an dem sich ein Kart nicht wie
+eines anfühlte. Was er längs überträgt, fehlt ihm quer: Wer aus der Kurve
+heraus voll aufs Gas geht, dreht durch; wer voll in sie hineinbremst,
+blockiert. Genau das ist der **Reifenschlupf** (`slip`, 0 bis 1). Das Gas
+dreht die Reifen dabei nur durch, _solange der Motor noch zieht_ — bei Tempo
+null am schlimmsten, bei Höchstgeschwindigkeit gar nicht mehr, weil die Kraft
+dort längst im Luftwiderstand steckt; die Bremse blockiert bei jedem Tempo
+gleich. Beides ist analog, es zählt also, wie weit der Trigger gezogen ist.
+
+Und **die Traktion reicht jetzt tiefer**: bis 0,02 statt bis 0,15. Bei 0,15
+_rutschte_ ein Kart noch nicht, es fuhr nur unpräzise; was man eigentlich will
+— eines, das die ganze Kurve quer nimmt — fängt eine Zehnerpotenz tiefer an.
+Der _Drifter_ steht dort und fährt mit vollem Schlupf.
+
+**Der Kopf ist nicht am Kart festgeschraubt** (`kartView.ts`). Vorher drehten
+sich Kart und Rig im selben Bild: physikalisch richtig — ein Kopf, der in einem
+Sitz steckt, dreht sich mit —, und trotzdem genau das, wovon einem in der
+Brille schlecht wird. Das Auge sieht die ganze Welt herumschwenken, das
+Innenohr meldet nichts dazu, und beim Lenken dauert dieser Widerspruch die
+ganze Kurve. Jetzt dreht sich das **Kart** sofort und der **Blick** hinterher,
+mit einer Zeitkonstante von ein bis drei Zehnteln (`headLag`, auf dem
+Klemmbrett; `0` schraubt ihn wieder fest). Das ist obendrein näher an der
+Wirklichkeit als das Festschrauben — wer fährt, lässt den Kopf in der Kurve ein
+Stück zurück und schaut in den Bogen hinein.
+
+Zwei Dinge hängen daran, und beide stehen im Code:
+
+- **Der Sitz kommt vom Kart, die Richtung vom Blick.** `seatDriver` schiebt den
+  Rig jeden Frame auf den Augpunkt — sofort, sonst säße man neben dem Kart —
+  und dreht ihn auf den nachlaufenden Winkel.
+- **Ein Deckel von 25°.** In einer langen Kurve käme der Blick sonst quer zur
+  Fahrtrichtung zu stehen, und dann fährt man seitwärts durch die Gegend.
+- **Das Lenkrad muss gegen den Blick gemessen werden**, nicht gegen das Kart
+  (`Kart.handAngle`). Die Hand hängt am Rig, das Lenkrad am Kart; seit sich die
+  beiden nicht mehr im selben Bild drehen, wanderte eine völlig stillgehaltene
+  Hand um die Nabe — das Lenkrad drehte sich unter ihr weg und lenkte dabei
+  weiter. Wer den Rückstand vorher aus dem Punkt herausdreht, misst wieder das,
+  was die Hand getan hat, und nichts sonst.
+
 **Die Leitplanke** ist keine Physik, sondern Geometrie: `confineToTrack` setzt
 ein Kart, das über den Rand ist, exakt auf die Kante zurück, nimmt den Teil der
 Geschwindigkeit weg, der in die Planke zeigte, und schrubbt den Rest ein wenig.
 So rutscht man an der Bande entlang statt daran zu kleben. Steht man einmal
 stumpf davor, hilft die Bremse: sie ist zugleich der Rückwärtsgang, und rückwärts
 lenkt es wieder.
+
+Darüber liegt `confineToCourse` mit **einer** Regel: Wer in irgendeiner der
+Flächen ist — Strecke oder Boxengasse —, wird nicht angefasst; wer draußen ist,
+kommt auf die **nächstgelegene** zurück. Nicht immer auf die Strecke, denn dann
+schöbe die Box einen quer über die Wiese, sobald man in ihr an die Mauer kommt.
+Die Gasse ist dabei bewusst ein **Rechteck** und keine zweite Mittellinie: Eine
+offene Linie hat zwei Enden, und dort weiß `nearestOnPath` nicht mehr, ob man
+noch daneben oder schon dahinter steht — wer zehn Meter über das Ende
+hinausfährt, hat weiter den Abstand null und rollt fröhlich über die Wiese.
 
 **Einsteigen** ist ein Griff ans Lenkrad — der Rig wird eingefroren
 (`rig.frozen`) und jeden Frame auf den Sitz gesetzt, wobei der _Kopf_ über den
@@ -2756,7 +2892,8 @@ Tempo 60 ist ein Druck zu leicht danebengegriffen. Dieselbe Zeile steht oben
 auf dem Klemmbrett, für alle, die lieber zielen. Am Rechner tut `E` dasselbe.
 
 Das **Klemmbrett** ist ein `UIPanel` am Kart: Lenkart, Beschleunigung,
-Höchstgeschwindigkeit, Bremskraft, Traktion, Gewicht, Lenkeinschlag, Radstand
+Höchstgeschwindigkeit, Bremskraft, Traktion, Reifenschlupf, Kopfnachlauf,
+Gewicht, Lenkeinschlag, Radstand
 und Rückwärtstempo, jede Zeile schaltet auf die nächste Raste und zeigt die
 rohe Zahl daneben. Weil mehr Zeilen als Platz da sind, blättert der Stick der
 zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü, und wie dort bleibt das
