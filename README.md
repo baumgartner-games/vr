@@ -11,7 +11,10 @@ Drehen, ohne Brille, auf dem Handy.
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
 Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
-Dunkelhaus zum Ausprobieren von Licht, ein **Effektlabor** mit einem großen
+Dunkelhaus zum Ausprobieren von Licht, eine **Kletterhalle**, in der Greifen
+dich an der Wand hält — der Halt wird gerechnet, aus Material, Form,
+Körperhaltung und dem Verspreizen im Kamin, und schlechte Griffe kosten
+Ausdauer —, ein **Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
 ein **Bauplatz**, in dem der Grundriss als Miniatur vor einem schwebt — greifen
 und schieben, zwei Hände drehen und zoomen, tippen setzt Boden, Wände und Türen,
@@ -61,7 +64,8 @@ Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
 Spiegelung beider Hüften, die Portaltiefe, die Lichtstufen
-des Dunkelhauses, die Blätterposition der Menüs und den Weg durch sie, die
+des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
+dazu, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
 Haltung an derselben Stelle in der Faust landet, die Faust am Griff (eine

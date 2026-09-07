@@ -6496,6 +6496,18 @@ export class PortalWorld implements World {
     }
   }
 
+  /**
+   * Ob diese Hand gerade **leer** ist: kein Werkzeug darin, kein Gegenstand.
+   *
+   * Für Welten, die dem Greifknopf eine zweite Bedeutung geben. Die
+   * Kletterhalle hängt den Spieler damit an die Wand — und muss deshalb
+   * zuerst wissen, ob der Knopf hier überhaupt frei ist. Sonst klettert man
+   * an der Kiste, die man gerade trägt.
+   */
+  protected handFree(hand: Handedness): boolean {
+    return !this.held.has(hand) && !this.grabs.has(hand);
+  }
+
   /** The other hand, if it is empty enough to catch something. */
   private freeHand(from: Handedness): Handedness | null {
     const other: Handedness = from === 'left' ? 'right' : 'left';
