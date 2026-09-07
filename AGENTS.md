@@ -310,9 +310,11 @@ Brutkäfig seinen Takt hält, nicht läuft, solange niemand in der Nähe ist,
 nichts nachlegt, solange er voll ist, und dass ein Spawnpunkt nicht der ist,
 auf dem der Spieler gerade steht — es sei denn, es gibt keinen anderen) und
 **wo eine Kugel ihn trifft** (`src/worlds/npc/npcHit.ts` — Kopf, Rumpf,
-darüber weg, daneben vorbei und unter den Füßen durch, aus jeder Richtung
-gleich, weil beide Zonen drehsymmetrisch sind, und eine Strecke, die vor ihm
-endet, trifft nicht).
+Beine, darüber weg, daneben vorbei und unter den Füßen durch, ein Kopfschuss
+aus jeder Richtung, weil der Kopf auf der Hochachse sitzt, eine Strecke, die
+vor ihm endet, trifft nicht — und die Zahl, wegen der die Zone kein Zylinder
+mehr ist: Die **Schulter** trifft, zwei Zentimeter daneben trifft nicht mehr,
+und der Rumpf dreht sich mit ihm, weil er breiter ist als tief).
 Dazu die ganze **Navigationsschicht** (`src/worlds/nav/`), und die ist mit
 Absicht vollständig geprüft, weil man ihr in der Brille nicht ansieht, was sie
 tut: der **Kachelschlüssel** (`navTile.ts` — drei Zahlen in einer, und die
@@ -3769,6 +3771,18 @@ sucht das im Boden. Die Fläche bis zum Horizont ist deshalb ein **Kasten** von
 einem halben Meter (`GROUND_THICKNESS`, mit Test), dessen Oberseite dort liegt,
 wo vorher die Ebene lag.
 
+**Ein Körper wird höchstens einmal weggenommen** (`PhysicsWorld.remove`), und
+das steht hier, weil der Preis so hoch ist: Ein zweites `removeRigidBody`
+desselben Eintrags — oder eines aus einer Welt, die schon freigegeben ist —
+beantwortet keine Frage, sondern reißt die wasm mit („recursive use of an
+object", `RuntimeError: unreachable`), und das Spiel ist weg. Aufräumer gibt es
+mehr als einen: der Bestand räumt seine NPCs weg, die Welt ihre Requisiten, ein
+geworfenes Werkzeug ist beides. Also merkt sich jeder Eintrag, dass er weg ist
+(`PhysicsBody.removed`), und die Welt merkt sich, dass sie freigegeben ist —
+das zweite Mal passiert dann einfach nichts. `labPhysics.test.ts` hält es fest,
+und zwar so, wie man es nur mit echter Engine festhalten kann: ohne die Sperre
+stürzt derselbe Test mit genau dieser Meldung ab.
+
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
 das Portal Labor nutzt das für seine Zusatzdurchgänge.
@@ -3885,8 +3899,13 @@ bewusst keine von beiden — was hier herauskommt, läuft von selbst weiter.
 **Ein NPC besteht aus zwei Hälften, und sie werden einzeln ausgesucht.**
 
 - Die **Haut** (`worlds/npc/npcKinds.ts`) sagt, wie er aussieht: Modell,
-  Größe, Masse, Leben, seine Farben und ob die Arme vor dem Körper hängen oder
-  daneben. Zwei gibt es, den **Zombie** und die **Übungspuppe**.
+  Größe, Masse, Leben, seine Farben und ob die Arme **nach vorn** zeigen wie
+  beim Zombie oder neben ihm hängen wie bei allem anderen — die eine
+  Silhouette, an der man auf dreißig Meter erkennt, was da kommt. Vorne ist
+  −Z, dort sitzen auch die Augen; mit dem falschen Vorzeichen streckte der
+  Zombie sie eine Weile nach hinten und sah aus, als ergäbe er sich. Zwei
+  Häute gibt es, den **Zombie** und die **Übungspuppe** — und beide sterben
+  nach denselben Regeln, die Puppe hält nur mehr aus (160 statt 100).
 - Das **Hirn** (`worlds/npc/npcBrains.ts`) sagt, was er tut: **Stehen**
   (bleibt, dreht sich zum Spieler, schlägt nie zu), **Schlendern** (läuft
   einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden)
@@ -3961,9 +3980,38 @@ Unterschied zwischen „später einhängen" und „später umbauen".
 mit Test). Eine Kugel legt zwischen zwei Bildern Meter zurück; was sie
 durchquert hat, ist eine Strecke — dieselbe Rechnung, mit der der Schießstand
 seine Scheiben abrechnet (`bulletTravelled`, die der Schießstand jetzt an die
-Halle weiterreicht). Der Körper ist dabei ein **Zylinder** für den Rumpf und
-eine **Kugel** für den Kopf, und beide sind drehsymmetrisch um die Hochachse:
-ein Kopftreffer ist einer, wo der Kopf ist, egal wohin der Kopf gerade schaut.
+Halle weiterreicht). Getroffen wird dabei **der Körper, den man sieht**:
+Kopfkugel, Rumpfkasten, Beinkasten, alle drei aus derselben Rechnung wie das
+Modell (`bodyShape`) und deshalb genau dort, wo die Klötze stehen. Weil die
+Kästen breiter als tief sind, bringt ein Treffer den **Gierwinkel** mit
+(`HitBody.yaw`) — gerechnet wird nicht der Kasten in der Welt, sondern die
+Strecke in seinen Maßen. Nur der Kopf sitzt auf der Hochachse und ist damit
+richtungslos: ein Kopftreffer ist einer, wo der Kopf ist, egal wohin der Kopf
+gerade schaut.
+
+Hier stand einmal ein **Zylinder** um die Hochachse — bequem, weil er sich
+nicht mitdrehen muss, und falsch: Sein Halbmesser ist der des Colliders (29 cm
+beim Zombie), die Schultern sind 23 cm breit, und die Handbreit dazwischen
+zählte als Rumpftreffer. Zusammen mit der Kugel, die an eben diesem Collider
+abprallte (siehe unten), war das die Antwort auf „ich treffe ihn und es
+passiert nichts": Beides zeigte auf denselben Zylinder, der weder das eine noch
+das andere war.
+
+**Kugeln fliegen durch NPCs hindurch** (`PhysicsWorld.GROUP_NPC`). Ein NPC hat
+eine eigene Kollisionsgruppe, und eine Kugel filtert sie heraus — als
+_physikalischer_ Körper existiert er für sie nicht. Vorher prallte sie an
+seinem Zylinder ab, blieb eine Handbreit **vor** der Trefferzone stehen und
+sprang zurück: Die Strecke, die anschließend gefragt wurde, hatte ihn nie
+berührt, und vier Schuss richteten nichts aus. Alles andere stößt sich
+weiterhin an ihm — der Spieler, seine Hände, jede Kiste.
+
+**Man kann die Zonen ansehen**: _Menü → NPC → Trefferzonen zeigen_ (und
+derselbe Schalter unter der laufenden Vorschau der Werkzeugseite) hängt jedem
+NPC ein Drahtgitter genau dieser Kästen an — Kopf rot, Rumpf und Beine blau,
+gezeichnet aus `hitParts()` und nicht aus einer zweiten Rechnung daneben. Es
+ist die Ansicht, mit der man „ich treffe ihn nicht" von „ich ziele daneben"
+unterscheiden kann.
+
 **Was ein Treffer kostet, bringt die Waffe mit**: die Pistole ihre eingestellte
 Zahl (25, also vier Rumpftreffer für einen Zombie), das Messer 50, der große
 Hammer 100 — und der Kopf zählt überall vierfach (`HEAD_FACTOR`). Hier stand
@@ -3971,10 +4019,13 @@ einmal eine feste Zahl je Zone, und das hieß: Ein Messer tut genau so weh wie
 ein Gewehr. Dass der Kopf, den man
 *sieht*, auch der ist, auf den man *zielt*, hält `npcBody.test.ts` fest —
 Modell und Trefferzone rechnen dieselbe Zahl (`HEAD_SHARE`), und zwei
-Rechnungen, die dasselbe meinen, laufen sonst irgendwann auseinander. Wer
+Rechnungen, die dasselbe meinen, laufen sonst irgendwann auseinander; dasselbe
+misst er inzwischen für Rumpf und Beine nach. Wer
 fällt, geht sofort aus der Physik heraus, liegt ein paar Sekunden als Bild da
 und verschwindet dann; ohne das Aufräumen füllt sich eine Halle mit Leichen,
-und jede davon zeichnet weiter mit.
+und jede davon zeichnet weiter mit. **Weggeräumt wird immer beides**, Modell
+und Körper (`Npc.dispose`): ein Zylinder, der ohne sein Modell in Rapier
+stehen bleibt, ist ein unsichtbares Hindernis, dessen Ursache man nie findet.
 
 **Was zuschlägt, braucht Tempo und danach eine Pause**
 (`portal/tools/meleeSwing.ts`, mit Test). Eine Kugel fliegt los und trifft; ein
@@ -3995,7 +4046,11 @@ ein Zombie stand.
 Kamera, ohne dass jemand es dorthin drehen müsste, und das ist genau, was ein
 Balken braucht, den man von vorn, von der Seite **und von oben** liest. Die
 Füllung schrumpft nach links (`center`) und geht dabei von Grün über Gelb nach
-Rot. Zu sehen ist er voreingestellt **bei Schaden** — ein Balken über einem
+Rot. **Die Balkengruppe dreht sich nicht mit ihm**: Ein Sprite steht zwar immer
+quer zur Kamera, seine *Stelle* aber kommt aus der Kette darüber — und bei
+einem, der einen ansieht (Gierwinkel um 180°), war der linke Rand plötzlich der
+rechte, die Füllung stand **neben** ihrem Rahmen statt darin. Also nimmt die
+Gruppe die Drehung des Modells wieder heraus. Zu sehen ist er voreingestellt **bei Schaden** — ein Balken über einem
 unversehrten Zombie ist eine Zeile, die immer dasselbe sagt, und dreißig davon
 sind dreißig. Unter **Menü → NPC → Lebensbalken** steht *immer* (zum Nachprüfen
 der Zahlen) und *aus*; dasselbe schaltet die laufende Vorschau auf der
@@ -4019,8 +4074,13 @@ mit Test), und beide sind reine Rechnung:
   und „nicht ideal" ist besser als „gar nicht".
 - Ein **Brutkäfig** ist eine Stelle, die von selbst nachlegt; das Vorbild
   steht in einem Verlies aus Klötzchen. Er hat einen Takt, eine Grenze für
-  seine eigenen Kinder und einen Ring, in dem sie entstehen — nie in ihm
-  selbst. Seine Uhr läuft **nur, während jemand in Reichweite ist**: ein Käfig
+  seine eigenen Kinder und einen Ring, in dem sie entstehen. **Der Käfig sagt
+  wann, der Spawnpunkt sagt wo**: Sein Kind kommt auf einem ausgewürfelten
+  Spawnpunkt heraus (im Ring darum, damit drei Kinder keinen Turm bilden) — und
+  wo **kein** Spawnpunkt steht, legt er gar nichts nach und sagt es einmal je
+  Takt. Wer einen Zombie umlegt, will ihn liegen sehen und nicht zwei Sekunden
+  später wieder vor sich haben; wer Nachschub will, setzt einen Punkt.
+  Seine Uhr läuft **nur, während jemand in Reichweite ist**: ein Käfig
   am anderen Ende der Halle soll nicht die ganze Zeit Zombies auswerfen, die
   dort niemand sieht, und wer zurückkommt, soll nicht in eine Wand aus dreißig
   Stück laufen. Sie läuft auch nicht weiter, solange er voll ist, sonst spuckt

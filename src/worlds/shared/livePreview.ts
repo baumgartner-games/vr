@@ -118,6 +118,16 @@ export interface LivePreview {
   bars(): BarMode;
   setBars(mode: BarMode): void;
 
+  /**
+   * **Ob die Trefferzonen der NPCs zu sehen sind** (`npc/npcHit.ts`).
+   *
+   * Dieselbe Ansicht wie im Menü der Brille, und aus demselben Grund auch
+   * hier: Wer ohne Brille prüfen will, ob Kasten und Modell übereinanderliegen,
+   * sieht es von oben am besten.
+   */
+  hits(): boolean;
+  setHits(on: boolean): void;
+
   /** Was in dieser Welt gerade gemeldet wurde — eine Zeile, die letzte gilt. */
   onMessage(sink: (message: string) => void): void;
 }

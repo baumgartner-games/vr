@@ -5,7 +5,7 @@ import { brainOf, type BrainId, type BrainTuning } from './npcBrains';
 import { hitZone, type HitBody, type HitZone } from './npcHit';
 import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
 import {
-  GROUP_PROP,
+  GROUP_NPC,
   ALL_GROUPS,
   type PhysicsBody,
   type PhysicsWorld,
@@ -149,7 +149,11 @@ export class Npc {
       // läuft, soll nicht daran kleben bleiben.
       friction: 0.25,
       restitution: 0,
-      membership: GROUP_PROP,
+      // **Seine eigene Gruppe** (`GROUP_NPC`): An seinem Zylinder darf sich
+      // alles stoßen — der Spieler, eine Kiste, ein anderer NPC —, nur eine
+      // Kugel nicht. Die prallte sonst vor der Trefferzone ab und träfe nie
+      // (`PhysicsWorld.GROUP_NPC`).
+      membership: GROUP_NPC,
       filter: ALL_GROUPS,
     });
     this.entry.body.lockRotations(true, true);
@@ -178,13 +182,21 @@ export class Npc {
     return target.set(t.x, t.y - this.skin.height / 2, t.z);
   }
 
-  /** Sein Körper, so wie ihn eine Kugel sieht (`npcHit.ts`). */
+  /**
+   * Sein Körper, so wie ihn eine Kugel sieht (`npcHit.ts`).
+   *
+   * **Mit Gierwinkel**, denn die Trefferzonen sind Kästen und keine Röhre: Der
+   * Rumpf ist breiter als tief, und ohne diese Zahl stünde er beim Rechnen
+   * immer nach Norden — man träfe ihn von der Seite zu leicht und von vorn zu
+   * schwer.
+   */
   hitBody(): HitBody {
     const at = this.feet(_probe);
     return {
       feet: { x: at.x, y: at.y, z: at.z },
       height: this.skin.height,
       radius: this.skin.radius,
+      yaw: this.yaw,
     };
   }
 
@@ -401,12 +413,25 @@ export class Npc {
     this.health = 0;
     this.dying = 0;
     this.model.setAlert(false);
+    // Wer liegt, hat keine Trefferzone mehr — und keinen Kasten darum herum.
+    this.model.setHitView(false);
     return true;
   }
 
   /** Wann sein Lebensbalken zu sehen ist (`NpcBody.ts`). */
   setBars(mode: BarMode): void {
     this.model.setBars(mode);
+  }
+
+  /**
+   * **Seine Trefferzonen zeigen oder verstecken** (`npcHit.ts`).
+   *
+   * Die eine Ansicht, mit der man „ich treffe ihn nicht" von „ich ziele
+   * daneben" unterscheiden kann: Was man sieht, ist genau der Kasten, gegen
+   * den gerechnet wird — nicht eine Nachbildung davon.
+   */
+  setHitView(on: boolean): void {
+    this.model.setHitView(on && this.alive);
   }
 
   /**
@@ -435,14 +460,24 @@ export class Npc {
    * Vorher wird gemerkt, wo er steht: Danach gibt es den Körper nicht mehr, und
    * jede Frage an ihn ist ein Absturz und keine Antwort (`feet`).
    */
-  unbody(physics: PhysicsWorld): void {
+  unbody(physics: PhysicsWorld = this.physics): void {
     if (!this.bodied) return;
     this.feet(this.resting);
     this.bodied = false;
     physics.remove(this.entry);
   }
 
+  /**
+   * Weg damit — Modell und Körper.
+   *
+   * **Der Körper geht hier auf jeden Fall mit**, auch wenn ihn schon jemand
+   * herausgenommen hat (`unbody` merkt es) und auch dann, wenn er noch steht.
+   * Ein weggeworfenes Modell, dessen Zylinder in Rapier stehen bleibt, ist ein
+   * unsichtbares Hindernis mitten im Raum, über das man stolpert und dessen
+   * Ursache man nie findet.
+   */
   dispose(): void {
+    this.unbody();
     this.model.dispose();
     this.holder.removeFromParent();
   }

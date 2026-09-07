@@ -3,11 +3,13 @@
  * all. Those modules deliberately avoid three.js and Rapier, so the tests need
  * no browser and no WebGL: plain TypeScript compiled to CommonJS.
  *
- * **Eine Ausnahme gibt es**, und sie hat sich verdient: `navlab/labPhysics.test.ts`
- * startet Rapier wirklich (die wasm steckt im compat-Build) und lässt einen NPC
- * über die Quader des Navigationslabors laufen. Der Grund steht in der Datei —
- * ein Fehler, den kein nachgebauter Körper zeigt, weil er in der Engine steckt.
- * Er kostet eine Sekunde; alles andere bleibt reine Rechnung.
+ * **Zwei Ausnahmen gibt es**, und beide haben sich verdient:
+ * `navlab/labPhysics.test.ts` startet Rapier wirklich (die wasm steckt im
+ * compat-Build) und lässt einen NPC über die Quader des Navigationslabors
+ * laufen — der Grund steht in der Datei: ein Fehler, den kein nachgebauter
+ * Körper zeigt, weil er in der Engine steckt; und `npc/npcDirector.test.ts`
+ * prüft, woher Nachschub kommt, und dafür braucht ein NPC einen Körper. Beide
+ * kosten zusammen eine Sekunde; alles andere bleibt reine Rechnung.
  */
 module.exports = {
   testEnvironment: 'node',

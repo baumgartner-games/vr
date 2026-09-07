@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { NpcBody } from './NpcBody';
-import { NPC_KINDS } from './npcKinds';
-import { headOf } from './npcHit';
+import { NPC_KINDS, npcSkin } from './npcKinds';
+import { headOf, hitParts } from './npcHit';
 
 /**
  * Dass der Kopf, den man **sieht**, der Kopf ist, auf den man **zielt**.
@@ -72,6 +72,32 @@ describe('Kopf und Trefferzone', () => {
       body.dispose();
     });
 
+    /**
+     * **Und er füllt sich nach links, auch wenn der NPC einen ansieht.**
+     *
+     * Die Füllung wächst vom linken Rand; wo links ist, entschied bis hierher
+     * die Drehung des Modells mit — ein Zombie, der auf einen zukommt, steht um
+     * 180° gedreht, und sein grüner Balken stand deshalb **neben** dem Rahmen
+     * statt darin.
+     */
+    it('bleibt in seinem Rahmen, egal wohin der NPC schaut', () => {
+      const body = new NpcBody('zombie');
+      const fill = fillOf(body);
+      const back = body.bar.children[0] as THREE.Sprite;
+      for (const yaw of [0, Math.PI, 2.3]) {
+        body.rotation.y = yaw;
+        body.update(1 / 60, 0, false);
+        body.updateWorldMatrix(true, true);
+        const left = fill.getWorldPosition(new THREE.Vector3());
+        const middle = back.getWorldPosition(new THREE.Vector3());
+        // Der linke Rand der Füllung liegt links von der Mitte des Rahmens —
+        // in **Weltmaßen**, denn dort steht auch die Kamera.
+        expect(left.x).toBeLessThan(middle.x);
+        expect(middle.x - left.x).toBeCloseTo(fill.scale.x / 2, 2);
+      }
+      body.dispose();
+    });
+
     it('bleibt sichtbar, solange noch etwas übrig ist', () => {
       const body = new NpcBody('zombie');
       body.setHealth(0.001);
@@ -113,6 +139,123 @@ describe('Kopf und Trefferzone', () => {
       // Rot ist rot: der rote Kanal überwiegt, der grüne nicht mehr.
       expect(new THREE.Color(red).r).toBeGreaterThan(new THREE.Color(red).g);
       expect(new THREE.Color(green).g).toBeGreaterThan(new THREE.Color(green).r);
+      body.dispose();
+    });
+  });
+
+  /**
+   * **Die Arme eines Zombies zeigen nach vorn.**
+   *
+   * Vorne ist −Z — dort sitzen auch die Augen. Hier stand ein Vorzeichen
+   * falsch herum, und das Ergebnis war eine Silhouette, die von hinten aussah
+   * wie ein Zombie und von vorn wie jemand, der sich ergibt.
+   */
+  describe('Die Arme', () => {
+    it('streckt der Zombie nach vorn', () => {
+      const body = new NpcBody('zombie');
+      body.updateWorldMatrix(true, true);
+      const hand = body.hands.left.getWorldPosition(new THREE.Vector3());
+      expect(hand.z).toBeLessThan(-npcSkin('zombie').height * 0.2);
+      body.dispose();
+    });
+
+    it('lässt die Übungspuppe hängen', () => {
+      const body = new NpcBody('dummy');
+      body.updateWorldMatrix(true, true);
+      const hand = body.hands.left.getWorldPosition(new THREE.Vector3());
+      expect(Math.abs(hand.z)).toBeLessThan(0.01);
+      expect(hand.y).toBeLessThan(npcSkin('dummy').height * 0.5);
+      body.dispose();
+    });
+
+    it('bleibt auch beim Ausholen vorn', () => {
+      const body = new NpcBody('zombie');
+      // Ein paar Bilder Schlagen: Der Arm schwingt, aber er dreht sich nicht
+      // hinter den Rücken.
+      for (let i = 0; i < 60; i++) body.update(1 / 60, 1.5, true);
+      body.updateWorldMatrix(true, true);
+      expect(body.hands.left.getWorldPosition(new THREE.Vector3()).z).toBeLessThan(0);
+      body.dispose();
+    });
+  });
+
+  /**
+   * **Was man sieht, ist das, worauf man zielt.**
+   *
+   * Das Modell und die Trefferzonen lesen dieselbe Rechnung
+   * (`npcHit.bodyShape`); dieser Test misst nach, dass dabei wirklich
+   * dieselben Kästen herauskommen. Er ist der Grund, warum die Zone kein
+   * Zylinder mehr ist: Der hatte den Halbmesser des Colliders und stand eine
+   * Handbreit neben dem Körper in der Luft.
+   */
+  describe('Trefferzone und Modell', () => {
+    it.each([...NPC_KINDS])('%s trägt den Rumpf genau in seinem Kasten', (kind) => {
+      const body = new NpcBody(kind);
+      body.updateWorldMatrix(true, true);
+      const drawn = new THREE.Box3().setFromObject(body.getObjectByName('npc-torso')!);
+      const zone = hitParts({
+        feet: { x: 0, y: 0, z: 0 },
+        height: body.skin.height,
+        radius: body.skin.radius,
+      }).torso;
+      expect(drawn.getCenter(new THREE.Vector3()).y).toBeCloseTo(zone.center.y, 6);
+      expect(drawn.getSize(new THREE.Vector3()).x / 2).toBeCloseTo(zone.half.x, 6);
+      expect(drawn.getSize(new THREE.Vector3()).y / 2).toBeCloseTo(zone.half.y, 6);
+      expect(drawn.getSize(new THREE.Vector3()).z / 2).toBeCloseTo(zone.half.z, 6);
+      body.dispose();
+    });
+
+    it.each([...NPC_KINDS])('%s hat beide Beine in seinem Beinkasten', (kind) => {
+      const body = new NpcBody(kind);
+      body.updateWorldMatrix(true, true);
+      const legs = new THREE.Box3();
+      body.traverse((object) => {
+        if (object.name === 'npc-leg') legs.expandByObject(object);
+      });
+      const zone = hitParts({
+        feet: { x: 0, y: 0, z: 0 },
+        height: body.skin.height,
+        radius: body.skin.radius,
+      }).legs;
+      // Die Breite ist die beider Beine samt der Lücke dazwischen …
+      expect(legs.getSize(new THREE.Vector3()).x / 2).toBeCloseTo(zone.half.x, 6);
+      expect(legs.getSize(new THREE.Vector3()).z / 2).toBeCloseTo(zone.half.z, 6);
+      // … und oben hören beide dort auf, wo der Rumpf anfängt.
+      expect(legs.max.y).toBeCloseTo(zone.center.y + zone.half.y, 6);
+      body.dispose();
+    });
+
+    it('baut das Drahtgitter erst, wenn es jemand sehen will', () => {
+      const body = new NpcBody('zombie');
+      expect(body.getObjectByName('npc-hitbox')).toBeUndefined();
+      body.setHitView(true);
+      expect(body.getObjectByName('npc-hitbox')?.visible).toBe(true);
+      body.setHitView(false);
+      expect(body.getObjectByName('npc-hitbox')?.visible).toBe(false);
+      body.dispose();
+    });
+
+    it('zeichnet das Drahtgitter dorthin, wo gerechnet wird', () => {
+      const body = new NpcBody('zombie');
+      body.setHitView(true);
+      body.updateWorldMatrix(true, true);
+      const zone = hitParts({
+        feet: { x: 0, y: 0, z: 0 },
+        height: body.skin.height,
+        radius: body.skin.radius,
+      });
+      const drawn = new THREE.Box3().setFromObject(body.getObjectByName('npc-hitbox-torso')!);
+      expect(drawn.min.y).toBeCloseTo(zone.torso.center.y - zone.torso.half.y, 5);
+      expect(drawn.max.y).toBeCloseTo(zone.torso.center.y + zone.torso.half.y, 5);
+      expect(drawn.max.x).toBeCloseTo(zone.torso.half.x, 5);
+      body.dispose();
+    });
+
+    it('nimmt das Drahtgitter mit dem Umfallen weg', () => {
+      const body = new NpcBody('zombie');
+      body.setHitView(true);
+      body.setFallen(0.3);
+      expect(body.getObjectByName('npc-hitbox')?.visible).toBe(false);
       body.dispose();
     });
   });

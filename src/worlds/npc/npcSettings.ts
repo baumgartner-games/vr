@@ -57,7 +57,11 @@ export const DEFAULT_NPC: NpcSettings = {
 export const NPC_MODES: ReadonlyArray<{ id: NpcMode; label: string; sub: string }> = [
   { id: 'npc', label: 'NPC', sub: 'Trigger setzt einen dorthin, wo du hinzeigst' },
   { id: 'point', label: 'Spawnpunkt', sub: 'Eine Stelle, an der später welche auftauchen' },
-  { id: 'cage', label: 'Brutkäfig', sub: 'Legt von selbst nach, solange du in der Nähe bist' },
+  {
+    id: 'cage',
+    label: 'Brutkäfig',
+    sub: 'Legt von selbst nach — auf den Spawnpunkten, solange du in der Nähe bist',
+  },
   { id: 'clear', label: 'Entfernen', sub: 'Trigger nimmt weg, worauf du zeigst' },
 ];
 

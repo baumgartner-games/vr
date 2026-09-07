@@ -11,6 +11,19 @@ export type RapierModule = typeof import('@dimforge/rapier3d-compat');
 
 /** Collision membership bits. */
 export const GROUP_WORLD = 1 << 0;
+/**
+ * **Wer herumläuft** (`worlds/npc/Npc.ts`).
+ *
+ * Ein eigenes Bit und nicht `GROUP_PROP`, und der Grund ist eine einzige
+ * Sorte Körper: die **Kugel**. Ein NPC ist in der Physik ein Zylinder mit 29 cm
+ * Halbmesser, seine Trefferzone rechnet dagegen mit dem Körper, den man sieht
+ * (`npc/npcHit.ts`) — und eine Kugel, die an dem breiten Zylinder abprallt,
+ * kommt an der schmalen Zone nie an. Sie blieb kurz davor stehen, sprang
+ * zurück und richtete nichts aus: „Ich treffe ihn, aber es passiert nichts."
+ * Mit diesem Bit fliegen Kugeln durch NPCs hindurch, und wer wirklich
+ * getroffen hat, entscheidet die Strecke.
+ */
+export const GROUP_NPC = 1 << 1;
 export const GROUP_PROP = 1 << 2;
 export const GROUP_PLAYER = 1 << 3;
 export const GROUP_HAND = 1 << 4;
@@ -107,6 +120,18 @@ export interface PhysicsBody {
   membership: number;
   filter: number;
   previousPosition: THREE.Vector3;
+  /**
+   * **Ob er schon aus der Welt genommen wurde** (`remove`).
+   *
+   * Ein Rapier-Körper, den es nicht mehr gibt, beantwortet keine Frage mehr,
+   * sondern reißt die ganze wasm mit („recursive use of an object" —
+   * `RuntimeError: unreachable`). Ein zweites `remove` desselben Eintrags wäre
+   * genau das, und zwei Aufräumer, die beide gründlich sind, gibt es in diesem
+   * Projekt öfter als einen: der Bestand räumt seine NPCs weg, die Welt ihre
+   * Requisiten, und wer beides ist, kommt zweimal vorbei. Deshalb merkt sich
+   * ein Eintrag, dass er weg ist, und das zweite Mal passiert nichts.
+   */
+  removed: boolean;
 }
 
 const FIXED_STEP = 1 / 60;
@@ -272,6 +297,7 @@ export class PhysicsWorld {
       membership,
       filter,
       previousPosition: _position.clone(),
+      removed: false,
     };
   }
 
@@ -481,15 +507,26 @@ export class PhysicsWorld {
   }
 
   remove(entry: PhysicsBody): void {
+    // **Zweimal wegnehmen ist kein Wegnehmen mehr, sondern ein Absturz**
+    // (`PhysicsBody.removed`) — und aus einer Welt, die es nicht mehr gibt,
+    // nimmt man gar nichts mehr heraus. Ein Aufräumer, der beim Weltwechsel
+    // eine Zeile zu spät kommt, soll sie nicht mitreißen.
+    if (entry.removed || this.freed) return;
+    entry.removed = true;
     const index = this.dynamicBodies.indexOf(entry);
     if (index >= 0) this.dynamicBodies.splice(index, 1);
     this.world.removeRigidBody(entry.body);
   }
 
   dispose(): void {
+    if (this.freed) return;
+    this.freed = true;
     this.dynamicBodies.length = 0;
     this.world.free();
   }
+
+  /** Ob die wasm-Welt schon freigegeben ist (`dispose`). */
+  private freed = false;
 
   private addBody(
     object: THREE.Object3D,
@@ -542,6 +579,7 @@ export class PhysicsWorld {
       membership,
       filter,
       previousPosition: _position.clone(),
+      removed: false,
     };
   }
 }

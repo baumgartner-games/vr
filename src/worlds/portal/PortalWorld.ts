@@ -214,6 +214,7 @@ import {
 import {
   ALL_GROUPS,
   GROUP_HAND,
+  GROUP_NPC,
   GROUP_PLAYER,
   GROUP_PROP,
   GROUP_WORLD,
@@ -833,6 +834,8 @@ export class PortalWorld implements World {
   private navSwitches: NavSwitchState = allOn();
   /** Wann die Lebensbalken über den NPCs zu sehen sind (`npc/NpcBody.ts`). */
   private npcBars: BarMode = 'hurt';
+  /** Ob die Trefferzonen der NPCs zu sehen sind (`npc/npcHit.ts`). */
+  private npcHitView = false;
   /** Wohin Meldungen gehen, solange die Welt als Vorschau läuft. */
   private previewSink: ((message: string) => void) | null = null;
   /**
@@ -920,6 +923,7 @@ export class PortalWorld implements World {
       nav: () => this.navForAgents(),
     });
     this.director.setBars(this.npcBars);
+    this.director.setHitView(this.npcHitView);
     this.signs = new SignRoom({
       root: this.root,
       context: () => this.context,
@@ -1326,6 +1330,22 @@ export class PortalWorld implements World {
     return this.npcBars;
   }
 
+  /**
+   * **Die Trefferzonen zeigen** — auch für die Vorschau der Werkzeugseite.
+   *
+   * Der Zustand steht in der Welt und nicht im Bestand: Wer sie einschaltet und
+   * danach einen Zombie hinstellt, soll auch an dem einen Kasten sehen
+   * (`NpcDirector.setHitView`).
+   */
+  protected setNpcHitView(on: boolean): void {
+    this.npcHitView = on;
+    this.director?.setHitView(on);
+  }
+
+  protected npcHitViewOn(): boolean {
+    return this.npcHitView;
+  }
+
   /** Welche Ebenen gerade an sind — eine Welt darf eigene Schalter dafür bauen. */
   protected navLayerState(): Readonly<NavLayerState> {
     return this.navLayers;
@@ -1519,6 +1539,32 @@ export class PortalWorld implements World {
       barsRow.label = `Lebensbalken: ${barsLabel()}`;
     });
 
+    /**
+     * **Die Trefferzonen** — an oder aus, mehr gibt es dazu nicht.
+     *
+     * Sie beantwortet genau eine Frage, und zwar die, die man in der Brille
+     * stellt, wenn ein Schuss nichts bewirkt: *Wo ist er denn nun?* Zu sehen
+     * ist der Kasten, gegen den wirklich gerechnet wird (`npc/npcHit.ts`) —
+     * Kopf rot, Rumpf und Beine blau —, und nicht eine zweite Zeichnung
+     * daneben, die morgen etwas anderes zeigt.
+     */
+    const hitsRow: MenuEntry = {
+      id: 'npc:hits',
+      label: 'Trefferzonen zeigen',
+      sub: 'Kopf und Körper als Drahtgitter — genau so wird gerechnet',
+      icon: 'npc',
+      accent: 0xff3b2f,
+      checked: this.npcHitView,
+      run: () => {
+        this.setNpcHitView(!this.npcHitView);
+        hitsRow.checked = this.npcHitView;
+        ctx().notify(this.npcHitView ? 'Trefferzonen an' : 'Trefferzonen aus');
+      },
+    };
+    this.menuLabels.push(() => {
+      hitsRow.checked = this.npcHitView;
+    });
+
     return {
       id: 'npc',
       label: 'NPC',
@@ -1536,6 +1582,7 @@ export class PortalWorld implements World {
         })),
         brainRow,
         barsRow,
+        hitsRow,
         this.navMenu(),
         this.navSwitchMenu(),
         {
@@ -3307,6 +3354,7 @@ export class PortalWorld implements World {
       nav: () => this.navForAgents(),
     });
     this.director.setBars(this.npcBars);
+    this.director.setHitView(this.npcHitView);
 
     const ghost = createGhostTarget();
     ghost.position.copy(this.spawnPoint());
@@ -3349,6 +3397,8 @@ export class PortalWorld implements World {
       },
       bars: () => this.npcBarMode(),
       setBars: (mode) => this.setNpcBars(mode),
+      hits: () => this.npcHitViewOn(),
+      setHits: (on) => this.setNpcHitView(on),
       onMessage: (sink) => {
         this.previewSink = sink;
       },
@@ -5575,7 +5625,14 @@ export class PortalWorld implements World {
       ccd: true,
       membership: GROUP_PROP,
       // Bullets ignore the player who fired them, otherwise the recoil is you.
-      filter: ALL_GROUPS & ~GROUP_PLAYER & ~GROUP_HAND,
+      //
+      // **Und sie ignorieren, wer herumläuft.** Ein NPC ist in der Physik ein
+      // Zylinder, der breiter ist als der Körper, den man sieht; eine Kugel
+      // prallte daran ab, blieb eine Handbreit vor der Trefferzone stehen und
+      // zählte nie. Was ein Treffer ist, entscheidet die **Strecke**
+      // (`bulletTravelled` → `npc/npcHit.ts`) — und dafür muss die Kugel
+      // hindurchfliegen dürfen.
+      filter: ALL_GROUPS & ~GROUP_PLAYER & ~GROUP_HAND & ~GROUP_NPC,
     });
     _velocity.copy(direction).multiplyScalar(speed);
     entry.body.setLinvel({ x: _velocity.x, y: _velocity.y, z: _velocity.z }, true);
@@ -6821,7 +6878,10 @@ export class PortalWorld implements World {
       const entry = physics.addKinematic(object, {
         halfExtents: new THREE.Vector3(0.016, 0.016, 0.016),
         membership: GROUP_HAND,
-        filter: GROUP_PROP,
+        // Kisten **und** wer herumläuft: Ein Zombie, den man mit der Hand
+        // wegschieben konnte, solange er ein Requisit war, soll das auch
+        // bleiben, seit er eine eigene Gruppe hat (`GROUP_NPC`).
+        filter: GROUP_PROP | GROUP_NPC,
       });
       probe = { object, entry };
       this.probes.set(key, probe);
@@ -7333,7 +7393,7 @@ export class PortalWorld implements World {
         physics.addKinematic(object, {
           halfExtents: new THREE.Vector3(0.05, 0.05, 0.05),
           membership: GROUP_HAND,
-          filter: GROUP_PROP,
+          filter: GROUP_PROP | GROUP_NPC,
         }),
       );
     }

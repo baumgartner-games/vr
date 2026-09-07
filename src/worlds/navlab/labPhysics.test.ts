@@ -35,6 +35,10 @@ import {
  * Deshalb läuft hier, was ohne Rapier nicht zu haben ist: **stehen, stoßen,
  * fallen und springen**. Zwei Buchten reichen dafür — die eine, in der ein NPC
  * ankommen muss, und die andere, in der er es nicht darf.
+ *
+ * Und weil die Welt hier ohnehin läuft, steht am Ende noch das **Aufräumen**:
+ * Ein Körper, den es nicht mehr gibt, beantwortet keine Frage, sondern reißt
+ * die wasm mit — das kann nur eine echte Engine zeigen.
  */
 
 /** Wie fein gerechnet wird — derselbe feste Schritt wie in `PhysicsWorld`. */
@@ -188,5 +192,35 @@ describe('Stachelgrube, mit echter Physik', () => {
     // Die Puppe geht außen herum und steht am Ende oben und heil beim Spieler.
     expect(dummy!.alive).toBe(true);
     expect(run.local(dummy!).y).toBeCloseTo(0, 1);
+  }, 60000);
+});
+
+describe('Aufräumen, ohne die Physik mitzureißen', () => {
+  it('nimmt einen gefallenen NPC samt Körper heraus — auch zweimal', async () => {
+    const physics = await PhysicsWorld.create(-9.81);
+    const npc = new Npc({
+      physics,
+      kind: 'zombie',
+      brain: 'idle',
+      at: new THREE.Vector3(0, 0, 0),
+    });
+    expect(physics.dynamicBodies).toContain(npc.entry);
+
+    // Er stirbt, ohne dass jemand ihn aus der Physik nimmt — genau der Fall,
+    // in dem sein Zylinder früher für immer im Raum stehen blieb.
+    expect(npc.damage(9999)).toBe(true);
+    npc.dispose();
+    expect(physics.dynamicBodies).not.toContain(npc.entry);
+
+    // **Und ein zweites Mal ist kein Absturz.** Zwei Aufräumer, die beide
+    // gründlich sind, gibt es hier öfter als einen; ein doppeltes
+    // `removeRigidBody` wäre „recursive use of an object".
+    npc.dispose();
+    npc.unbody(physics);
+    physics.remove(npc.entry);
+
+    // Die Welt rechnet danach weiter, und das ist die eigentliche Behauptung.
+    for (let frame = 0; frame < 10; frame++) physics.step(DT);
+    expect(physics.dynamicBodies).toHaveLength(0);
   }, 60000);
 });

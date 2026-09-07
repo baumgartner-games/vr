@@ -6,12 +6,21 @@
  * Treffer ab (`PortalWorld.bulletTravelled`), und genau so rechnet es hier
  * weiter: Strecke gegen Körper, nicht Kugel gegen Körper.
  *
- * Der Körper ist dabei zwei Sachen, und beide sind **drehsymmetrisch um die
- * Hochachse**: ein **Zylinder** für den Rumpf und eine **Kugel** für den Kopf.
- * Das ist keine Bequemlichkeit, sondern der Grund, warum es stimmt: ein NPC
- * dreht sich um seine Y-Achse, und ein Kasten müsste bei jedem Schuss
- * mitgedreht werden — ein Zylinder sieht von jeder Seite gleich aus. Ein
- * Kopftreffer ist einer, wo der Kopf ist, egal wohin der Kopf gerade schaut.
+ * **Der Körper ist das, was man sieht.** Hier stand einmal ein Zylinder um die
+ * Hochachse, weil der sich nicht mitdrehen muss — bequem, aber falsch: Sein
+ * Halbmesser ist der des Colliders (29 cm beim Zombie), und der ist so breit
+ * wie die Schultern *und* so tief wie die Schultern breit sind. Man traf
+ * damit eine Handbreit neben dem Arm noch die Luft als „Rumpf" und hielt
+ * daneben für getroffen. Jetzt sind es die drei Teile, aus denen das Modell
+ * gebaut ist (`NpcBody.ts`) — **Kopfkugel, Rumpfkasten, Beinkasten** —, und
+ * ihre Maße stehen hier (`bodyShape`), damit gezeichnete und getroffene Form
+ * dieselbe Zahl lesen. Wer sie sehen will, schaltet sie ein: dieselben Kästen
+ * als Drahtgitter (`NpcBody.setHitView`).
+ *
+ * Die beiden Kästen drehen sich mit ihm, und deshalb bringt ein Treffer seinen
+ * **Gierwinkel** mit (`HitBody.yaw`): Gerechnet wird nicht der Kasten in der
+ * Welt, sondern die Strecke in *seinen* Maßen — einmal gedreht statt achtmal
+ * geprüft.
  *
  * Kein three.js: Punkte hinein, ein Wort heraus (`npcHit.test.ts`).
  */
@@ -22,17 +31,37 @@ export interface Point3 {
   z: number;
 }
 
-/** Der Körper, wie ihn eine Kugel sieht: Standfläche, Höhe, Radius. */
+/** Der Körper, wie ihn eine Kugel sieht: Standfläche, Höhe, Radius, Blick. */
 export interface HitBody {
   /** Die Füße — der Ursprung, an dem ein NPC in der Welt steht. */
   feet: Point3;
   /** Kopf bis Fuß, in Metern. */
   height: number;
-  /** Der Radius des Rumpfs, in Metern. */
+  /** Der Radius seines Colliders, in Metern — daraus folgen Breite und Tiefe. */
   radius: number;
+  /** Wohin er schaut, in Bogenmaß — dasselbe `rotation.y` wie am Modell. */
+  yaw?: number;
 }
 
 export type HitZone = 'head' | 'body';
+
+/**
+ * Ein Kasten in **seinen eigenen** Maßen: Ursprung zwischen den Füßen, −Z ist
+ * vorne, und der ganze Kasten dreht sich mit dem NPC.
+ */
+export interface HitBox {
+  /** Halbe Breite (X), halbe Höhe (Y) und halbe Tiefe (Z). */
+  half: Point3;
+  /** Die Mitte, über der Standfläche. */
+  center: Point3;
+}
+
+/** Die drei Teile, aus denen ein Treffer wird. */
+export interface HitParts {
+  head: { center: Point3; radius: number };
+  torso: HitBox;
+  legs: HitBox;
+}
 
 /**
  * Wie groß der Kopf ist, gemessen an der Körperhöhe.
@@ -43,6 +72,59 @@ export type HitZone = 'head' | 'body';
  * die Stirn und trifft die Luft darüber.
  */
 export const HEAD_SHARE = 0.1;
+
+/**
+ * **Die Maße eines Körpers, an einer Stelle.**
+ *
+ * Beide Seiten lesen sie: das Modell baut daraus seine Klötze
+ * (`NpcBody.ts`), die Trefferabfrage ihre Kästen. Solange es *eine* Rechnung
+ * ist, kann die Hitbox nicht neben dem stehen, was man sieht — und genau das
+ * ist hier schon einmal passiert.
+ *
+ * Alles hängt an der Körperhöhe und am Collider-Halbmesser: eine Haut, die
+ * morgen 1,40 m groß ist, ist dann ein Kind und kein zerquetschter Erwachsener.
+ */
+export function bodyShape(
+  height: number,
+  radius: number,
+): {
+  /** Wo die Beine aufhören und der Rumpf anfängt. */
+  hip: number;
+  /** Wo der Rumpf aufhört und die Schultern sitzen. */
+  shoulder: number;
+  /** Schulterbreite. */
+  width: number;
+  /** Tiefe des Rumpfs (Brust nach Rücken). */
+  depth: number;
+  /** Tiefe eines Beins. */
+  legDepth: number;
+  /** Wie weit die Beine zusammen in die Breite gehen. */
+  legWidth: number;
+  /** Länge eines Arms, vom Schultergelenk. */
+  armLength: number;
+  headRadius: number;
+} {
+  const width = radius * 1.55;
+  return {
+    hip: height * 0.47,
+    shoulder: height * 0.8,
+    width,
+    depth: radius * 1.05,
+    legDepth: radius * 0.72,
+    // Zwei Klötze auf ±width/4, jeder width*0.34 breit: außen also 0,42 · Breite.
+    legWidth: width * 0.84,
+    armLength: height * 0.34,
+    headRadius: height * HEAD_SHARE,
+  };
+}
+
+/**
+ * Ab welcher Höhe der Beinkasten anfängt, als Anteil der Körperhöhe.
+ *
+ * Füße sind keine Trefferzone: Ein Schuss, der über den Boden streift, geht
+ * hindurch — sonst zählt jeder Querschläger am Boden als Beinschuss.
+ */
+const FOOT_SHARE = 0.08;
 
 /**
  * **Was ein Treffer kostet, wenn die Waffe nichts eigenes sagt.**
@@ -80,7 +162,13 @@ export function damageFor(zone: HitZone, base: number = BODY_DAMAGE): number {
   return zone === 'head' ? base * HEAD_FACTOR : base;
 }
 
-/** Wo der Kopf sitzt: seine Mitte und sein Radius. */
+/**
+ * Wo der Kopf sitzt: seine Mitte und sein Radius — in **Weltmaßen**.
+ *
+ * Er sitzt auf der Hochachse, und deshalb ist er der eine Teil, den keine
+ * Drehung verschiebt: ein Kopfschuss ist einer, wo der Kopf ist, egal wohin
+ * der Kopf gerade schaut.
+ */
 export function headOf(body: HitBody): { center: Point3; radius: number } {
   const radius = body.height * HEAD_SHARE;
   return {
@@ -90,20 +178,63 @@ export function headOf(body: HitBody): { center: Point3; radius: number } {
 }
 
 /**
+ * **Die drei Teile, in seinen eigenen Maßen** — Ursprung zwischen den Füßen,
+ * −Z vorne, ungedreht.
+ *
+ * Genau so zeichnet das Modell sie auch (`NpcBody.setHitView`): Es hängt sie
+ * als Drahtgitter an dieselben Stellen, und weil es dieselbe Funktion fragt,
+ * kann gezeichnet und getroffen nicht auseinanderlaufen.
+ */
+export function hitParts(body: HitBody): HitParts {
+  const shape = bodyShape(body.height, body.radius);
+  const legBottom = body.height * FOOT_SHARE;
+  return {
+    head: {
+      center: { x: 0, y: body.height - shape.headRadius, z: 0 },
+      radius: shape.headRadius,
+    },
+    torso: {
+      half: { x: shape.width / 2, y: (shape.shoulder - shape.hip) / 2, z: shape.depth / 2 },
+      center: { x: 0, y: (shape.hip + shape.shoulder) / 2, z: 0 },
+    },
+    legs: {
+      half: { x: shape.legWidth / 2, y: (shape.hip - legBottom) / 2, z: shape.legDepth / 2 },
+      center: { x: 0, y: (shape.hip + legBottom) / 2, z: 0 },
+    },
+  };
+}
+
+/**
  * Welche Zone die Strecke `from → to` trifft — `null`, wenn sie vorbeigeht.
  *
- * Der Kopf zuerst: er steckt oben im Rumpfzylinder, und wer beide fragt und
- * dann den Rumpf nimmt, hat den Kopfschuss verschenkt.
+ * Der Kopf zuerst: er sitzt über dem Rumpf, aber eine Strecke von schräg oben
+ * schneidet beide — und wer beide fragt und dann den Rumpf nimmt, hat den
+ * Kopfschuss verschenkt.
  */
 export function hitZone(from: Point3, to: Point3, body: HitBody): HitZone | null {
-  const head = headOf(body);
-  if (segmentHitsSphere(from, to, head.center, head.radius)) return 'head';
-  // Der Rumpf reicht von knapp über dem Boden bis unter den Kopf: Füße sind
-  // keine Trefferzone, dort geht ein Schuss durch.
-  const top = body.feet.y + body.height - head.radius * 2;
-  const bottom = body.feet.y + body.height * 0.08;
-  if (segmentHitsColumn(from, to, body.feet, body.radius, bottom, top)) return 'body';
+  const parts = hitParts(body);
+  const a = toLocal(from, body);
+  const b = toLocal(to, body);
+  if (segmentHitsSphere(a, b, parts.head.center, parts.head.radius)) return 'head';
+  if (segmentHitsBox(a, b, parts.torso) || segmentHitsBox(a, b, parts.legs)) return 'body';
   return null;
+}
+
+/**
+ * Ein Punkt der Welt in seinen Maßen: erst die Füße abziehen, dann um seinen
+ * Gierwinkel zurückdrehen.
+ */
+function toLocal(point: Point3, body: HitBody): Point3 {
+  const dx = point.x - body.feet.x;
+  const dz = point.z - body.feet.z;
+  const yaw = body.yaw ?? 0;
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  return {
+    x: dx * cos - dz * sin,
+    y: point.y - body.feet.y,
+    z: dx * sin + dz * cos,
+  };
 }
 
 /** Die kürzeste Entfernung von `point` zur Strecke `from → to`, quadriert. */
@@ -133,42 +264,35 @@ export function segmentHitsSphere(
 }
 
 /**
- * Die Strecke gegen einen **stehenden Zylinder**: erst auf das Höhenband
- * beschnitten, dann in der Ebene gegen den Kreis gemessen. Wer beides in einem
- * Rutsch rechnet, hat eine quadratische Gleichung und drei Sonderfälle; so
- * sind es zwei Zeilen, die man noch lesen kann.
+ * Die Strecke gegen einen **achsenparallelen Kasten** — das Scheibenverfahren:
+ * Für jede der drei Achsen bleibt das Stück der Strecke übrig, das zwischen
+ * den beiden Wänden dieser Achse liegt; bleibt am Ende nichts übrig, geht sie
+ * vorbei.
+ *
+ * Beides gilt nur, weil vorher gedreht wurde (`toLocal`): Ein Kasten, den man
+ * mitdrehen müsste, hätte acht Ecken und drei Sonderfälle; ein gedrehter
+ * Strahl hat sechs Zeilen.
  */
-export function segmentHitsColumn(
-  from: Point3,
-  to: Point3,
-  axis: { x: number; z: number },
-  radius: number,
-  bottom: number,
-  top: number,
-): boolean {
+export function segmentHitsBox(from: Point3, to: Point3, box: HitBox): boolean {
   let t0 = 0;
   let t1 = 1;
-  const dy = to.y - from.y;
-  if (Math.abs(dy) < 1e-9) {
-    if (from.y < bottom || from.y > top) return false;
-  } else {
-    const enter = (bottom - from.y) / dy;
-    const leave = (top - from.y) / dy;
-    t0 = Math.max(0, Math.min(enter, leave));
-    t1 = Math.min(1, Math.max(enter, leave));
+  for (const axis of AXES) {
+    const start = from[axis];
+    const delta = to[axis] - start;
+    const min = box.center[axis] - box.half[axis];
+    const max = box.center[axis] + box.half[axis];
+    if (Math.abs(delta) < 1e-9) {
+      // Parallel zu dieser Scheibe: entweder liegt sie ganz darin oder gar nicht.
+      if (start < min || start > max) return false;
+      continue;
+    }
+    const enter = (min - start) / delta;
+    const leave = (max - start) / delta;
+    t0 = Math.max(t0, Math.min(enter, leave));
+    t1 = Math.min(t1, Math.max(enter, leave));
     if (t0 > t1) return false;
   }
-
-  const ax = from.x + (to.x - from.x) * t0;
-  const az = from.z + (to.z - from.z) * t0;
-  const bx = from.x + (to.x - from.x) * t1;
-  const bz = from.z + (to.z - from.z) * t1;
-  return (
-    distanceToSegmentSq(
-      { x: ax, y: 0, z: az },
-      { x: bx, y: 0, z: bz },
-      { x: axis.x, y: 0, z: axis.z },
-    ) <=
-    radius * radius
-  );
+  return true;
 }
+
+const AXES = ['x', 'y', 'z'] as const;
