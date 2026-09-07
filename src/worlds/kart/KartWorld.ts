@@ -381,6 +381,15 @@ export class KartWorld extends GridWorld {
     return [];
   }
 
+  /** Unter diesem Namen liegt die Welt im Speicher (`grid/worldStore.ts`). */
+  protected override worldId(): string {
+    return 'kart';
+  }
+
+  protected override editorTitle(): string {
+    return 'Gokart';
+  }
+
   /** Wiese, Boxengasse, Boxen — alles, was Kachelform hat (`kartPit.ts`). */
   protected override layout(): GridPlan {
     return kartPit();

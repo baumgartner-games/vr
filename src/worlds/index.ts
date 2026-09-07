@@ -118,7 +118,7 @@ export const WORLDS: WorldDefinition[] = [
     title: 'Bauplatz',
     tagline: 'Level bauen, während man darin steht',
     description:
-      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Gedrückt halten malt eine ganze Reihe, zwei Ecken füllen eine Fläche — und alles wächst in Lebensgröße um dich herum. Dasselbe geht in jeder Kachelwelt über das Menü.',
+      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Gedrückt halten malt eine ganze Reihe, zwei Ecken füllen eine Fläche — und alles wächst in Lebensgröße um dich herum. Gebaute Welten bleiben im Browser und lassen sich als Datei mitnehmen. Dasselbe geht in jeder Kachelwelt über das Menü.',
     accent: 0x39d0ff,
     roles: ['vr', 'desktop'],
     experimental: true,

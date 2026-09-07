@@ -4,10 +4,9 @@ import { TextPlane } from '../../ui/TextPlane';
 import { createGround, createSky, disposeTree } from '../shared/environment';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
-import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
 import type { NavGraph } from '../nav/navGraph';
-import { readNav, writeNav } from '../nav/navSerial';
+import { readNav } from '../nav/navSerial';
 import { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
 import { starterGrid } from './starterGrid';
@@ -55,9 +54,29 @@ export class EditorWorld extends GridWorld {
   private sign: TextPlane | null = null;
   /** Wann zuletzt geschrieben wurde — beim Malen wäre jedes Bild eines zu viel. */
   private wrote = 0;
+  /** Ob gerade ein Stand aus der Zeit vor dem Weltformat hereingekommen ist. */
+  private migrated = false;
 
+  /**
+   * Der Bauplatz heißt im Speicher wie überall sonst — und `GridWorld` legt
+   * ihn dort ab (`grid/worldStore.ts`), genau wie jede andere Gitterwelt.
+   */
+  protected override worldId(): string {
+    return 'editor';
+  }
+
+  /**
+   * **Ein Zimmer und nicht das Nichts.**
+   *
+   * Eine leere Ebene beantwortet die erste Frage nicht, die jeder hat — *wie
+   * sieht denn eine Wand hier aus?* Was ein früherer Besuch gebaut hat, kommt
+   * nicht von hier, sondern aus dem Speicher (`GridWorld.applyStored`); nur
+   * ein Stand aus der Zeit **vor** dem Weltformat wird noch hier übernommen.
+   */
   protected override layout(): GridPlan {
-    return readSaved() ?? starterGrid();
+    const old = oldSaved();
+    this.migrated = old !== null;
+    return old ?? starterGrid();
   }
 
   /**
@@ -74,6 +93,11 @@ export class EditorWorld extends GridWorld {
 
   protected override editorTitle(): string {
     return 'Bauplatz';
+  }
+
+  /** „Verwerfen" führt hier nicht zu einem Haus zurück, sondern zum Startzimmer. */
+  protected override originalName(): string {
+    return 'das Startzimmer';
   }
 
   // --- was die Welt ausmacht ------------------------------------------------
@@ -205,34 +229,39 @@ export class EditorWorld extends GridWorld {
     if (this.whiteGround) this.whiteGround.visible = on;
     if (this.whiteSky) this.whiteSky.visible = on;
     if (this.sign) this.sign.visible = !on;
-    if (!on) this.store();
   }
 
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
-    // Ein frisch geladener Plan ist noch nicht gespeichert; wer die Welt
-    // aufmacht und wieder verlässt, soll trotzdem denselben wiederfinden.
-    this.store();
+    // Ein Stand aus der Zeit vor dem Weltformat ist gerade in `layout()`
+    // hereingekommen; einmal im neuen Format geschrieben, und der alte
+    // Eintrag hat seine Schuldigkeit getan.
+    if (this.migrated) {
+      this.saveWorld(true);
+      forgetOld();
+      this.migrated = false;
+    }
   }
 
   /**
-   * **Gespeichert wird beim Bauen, aber nicht in jedem Bild.**
+   * **Der Bauplatz schreibt auch beim Bauen** und nicht nur beim Weglegen der
+   * Karte.
    *
-   * Ein gemalter Strich sind sechzig Änderungen in der Sekunde, und der ganze
-   * Grundriss durch `JSON.stringify` ist keine Zeile, die sechzigmal laufen
-   * darf. Ein paar Sekunden Abstand genügen: Wer die Brille absetzt, hat
-   * vorher aufgehört zu malen — und beim Weglegen der Karte und beim Verlassen
-   * der Welt wird ohnehin geschrieben.
+   * Hier baut man von Grund auf, oft eine halbe Stunde am Stück und ohne die
+   * Karte dazwischen wegzulegen — und wer dabei die Brille absetzt, hat sonst
+   * nichts. Ein paar Sekunden Abstand genügen: Ein gemalter Strich sind
+   * sechzig Änderungen in der Sekunde, und der ganze Grundriss durch
+   * `JSON.stringify` ist keine Zeile, die sechzigmal laufen darf.
    */
   protected override planEdited(): void {
     const now = Date.now();
     if (now - this.wrote < SAVE_EVERY) return;
     this.wrote = now;
-    this.store();
+    this.saveWorld(true);
   }
 
   override dispose(ctx: WorldContext): void {
-    this.store();
+    this.saveWorld(true);
     if (this.sign) disposeTree(this.sign);
     this.sign = null;
     this.darkGround = null;
@@ -241,85 +270,41 @@ export class EditorWorld extends GridWorld {
     this.whiteSky = null;
     super.dispose(ctx);
   }
-
-  // --- was den Neustart überlebt --------------------------------------------
-
-  /**
-   * **Der Plan liegt im Browser.**
-   *
-   * Nicht, weil das eine Speicherlösung wäre, sondern weil das Gegenteil
-   * unerträglich ist: Wer zwanzig Minuten baut und dann die Brille absetzt,
-   * soll seinen Grundriss wiederfinden. Gespeichert wird das Format, das es
-   * ohnehin gibt (`nav/navSerial.ts`) — damit ist derselbe Plan auch das, was
-   * eine Welt später laden kann.
-   *
-   * **Die Bausteine liegen daneben und nicht darin.** Eine Küchenzeile ist
-   * keine Navigationsinformation; sie in dieselbe Datei zu schreiben hieße,
-   * deren Versionsnummer anzuheben und damit jede gespeicherte Karte für
-   * ungültig zu erklären — für Möbel. Also steht die Karte unter `nav` und
-   * das Mobiliar unter `blocks`, und ein alter Eintrag, der nur die Karte
-   * kennt, wird weiterhin gelesen (`readSaved`).
-   */
-  private store(): void {
-    const plan = this.grid;
-    if (!plan) return;
-    try {
-      window.localStorage.setItem(
-        STORE_KEY,
-        JSON.stringify({ nav: writeNav(plan.graph, 'Bauplatz'), blocks: plan.saveBlocks() }),
-      );
-    } catch {
-      // Kein Speicher (privates Fenster, abgeschaltete Cookies): dann eben
-      // nicht. Ein Editor, der daran abstürzt, ist schlimmer als einer, der
-      // vergisst.
-    }
-    this.wrote = Date.now();
-  }
-
-  // --- das Menü -------------------------------------------------------------
-
-  override menu(): MenuEntry[] {
-    const rows = super.menu();
-    const build = rows.find((row) => row.id === 'plan');
-    // „Von vorn" gibt es nur hier: In einer fertigen Welt hieße es, ihr Haus
-    // gegen ein Startzimmer zu tauschen, und das meint niemand.
-    build?.children?.push({
-      id: 'plan-clear',
-      label: 'Von vorn',
-      sub: 'Wirft den Grundriss weg und fängt mit dem Startzimmer an',
-      icon: 'cube',
-      accent: 0x8892a6,
-      run: () => this.reset(),
-    });
-    return rows;
-  }
-
-  private reset(): void {
-    const plan = this.grid;
-    if (!plan) return;
-    // Der Rest kommt von selbst: Der Plan hat eine neue Fassungsnummer, und
-    // die Welt baut im nächsten Bild alles daraus neu (`GridWorld.update`).
-    plan.replaceWith(starterGrid());
-    this.announce('Von vorn');
-  }
 }
 
-const STORE_KEY = 'vr-bauplatz-plan';
+/** Wo der Bauplatz vor dem Weltformat lag. */
+const OLD_KEY = 'vr-bauplatz-plan';
 /** Wie viel Zeit zwischen zwei Schreibvorgängen mindestens liegt, in Millisekunden. */
 const SAVE_EVERY = 2000;
 
+/** Den alten Eintrag wegräumen, sobald er im neuen Format steht. */
+function forgetOld(): void {
+  try {
+    window.localStorage.removeItem(OLD_KEY);
+  } catch {
+    // Kein Speicher, also auch nichts wegzuräumen.
+  }
+}
+
 /**
- * Was im Speicher liegt — die Karte und, seit es Bausteine gibt, das Mobiliar
- * daneben.
+ * **Ein Stand aus der Zeit vor dem Weltformat.**
  *
- * Ein Eintrag aus der Zeit davor ist die nackte Karte, und der wird weiter
- * gelesen: Wer zwei Wochen an einem Grundriss gebaut hat, verliert ihn nicht,
- * weil jemand eine Küchenzeile eingebaut hat.
+ * Der Bauplatz hatte einmal seinen eigenen Speicher: die nackte Karte
+ * (`nav/navSerial.ts`) und das Mobiliar daneben, ohne Version und ohne Massen.
+ * Den gibt es nicht mehr — aber wer zwei Wochen an einem Grundriss gebaut hat,
+ * verliert ihn nicht, weil das Programm inzwischen ein richtiges Format hat.
+ * Also wird er **einmal** gelesen, im neuen Format geschrieben und danach
+ * weggeräumt (`EditorWorld.init`).
+ *
+ * Die eine Annahme dabei: Die Kacheln des alten Standes gelten als **blanker
+ * Boden**, ihre Kosten werden neu gerechnet. Das ist richtig, weil in den
+ * gespeicherten Kosten die Aufschläge der Bausteine schon steckten — genau das
+ * ist der Grund, warum es das neue Format gibt.
  */
-function readSaved(): GridPlan | null {
+function oldSaved(): GridPlan | null {
   let raw: unknown = null;
   try {
-    const text = window.localStorage.getItem(STORE_KEY);
+    const text = window.localStorage.getItem(OLD_KEY);
     if (!text) return null;
     raw = JSON.parse(text);
   } catch {

@@ -451,7 +451,17 @@ ein Zimmer; und dass eine getroffene Kante die Ecke nicht um eine Kachel
 verschiebt), das **Gedrückthalten des Zeigers**
 (`core/pointer.test.ts` — Druck genau einmal, Halten in jedem Bild danach,
 Loslassen genau einmal, auch wenn der Strahl abrutscht oder das Ziel mitten im
-Strich abgemeldet wird) — und das
+Strich abgemeldet wird), das **Weltformat**
+(`grid/worldFile.ts` — dass eine Welt mit Dach, Möbeln und eigenen Kachelkosten
+durch JSON und wieder zurück dieselbe ist; dass der Aufschlag einer Küchenzeile
+über **drei** Runden konstant bleibt, statt sich zu verdoppeln; dass eine Datei
+ohne Version, mit fremdem Format oder aus der Zukunft abgelehnt wird — und mit
+zwei *verschiedenen* Meldungen, weil „zu neu" und „zu alt" verschiedene Sachen
+sind; dass ein Baustein ohne Boden stillschweigend wegfällt, eine kaputte Masse
+dagegen abbricht) und der **Speicher dahinter**
+(`grid/worldStore.ts` — dass jede Welt ihren eigenen Schlüssel hat, dass Müll im
+Speicher weggeworfen wird statt die Welt aufzuhalten, und dass ein privates
+Fenster ohne `localStorage` ein Nein bekommt statt eines Absturzes) — und das
 **ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`, und einmal
 mit echter Physik in `labPhysics.test.ts`): dieselben
 Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
@@ -2307,7 +2317,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Karte holen (jede Kachelwelt)      | Bauplatz: Greifen an der Hüfte, an der sie hängt. Sonst Menü → _Bauen_ → _Karte holen_ (dort ist der Gürtel voller Werkzeuge)                                          | Menü → _Bauen_ → _Karte holen_                                                                  | dito                 |
 | Grundriss malen                    | an der Palette eintunken, dann Trigger auf der Miniatur **halten** und ziehen — was der Zeiger überstreicht, wird gesetzt                                              | Linkstaste halten und den Blick schwenken                                                       | –                    |
 | Fläche füllen                      | Tafel am Modell → _Fläche_, dann zwei Ecken: aufziehen und loslassen, **oder** zweimal tippen. Boden füllt die Fläche, Wand zieht ihren Rand                          | dito                                                                                            | –                    |
-| Karte weglegen                     | über der Hüfte loslassen, oder Menü → _Bauen_ → _Karte weglegen_ — erst dann steht das Gebaute fest da                                                                 | Menü → _Bauen_ → _Karte weglegen_                                                               | dito                 |
+| Karte weglegen                     | über der Hüfte loslassen, oder Menü → _Bauen_ → _Karte weglegen_ — erst dann steht das Gebaute fest da, und erst dann ist es gespeichert                              | Menü → _Bauen_ → _Karte weglegen_                                                               | dito                 |
+| Welt speichern / mitnehmen         | Menü → _Bauen_ → _Welt sichern_: im Browser speichern, als Datei exportieren, eine Datei importieren, Gespeichertes verwerfen                                          | dito — Export und Import gehen nur hier sinnvoll                                                | dito                 |
 | Pizza: Teig kneten                 | Faust auf den liegenden Teig schlagen                                                                                                                                 | –                                                                                               | –                    |
 | Pizza: Soße / Käse                 | Kelle bzw. Streuer greifen, Trigger halten                                                                                                                            | –                                                                                               | –                    |
 | Zurücksetzen                       | `B` / `Y` oder Menü                                                                                                                                                   | `R` oder Menü                                                                                   | Menü                 |
@@ -5473,6 +5484,126 @@ er zu eng ist. Versetzt wird dabei über `PortalWorld.movePlayerTo` — Rig **un
 Kapsel, denn `rig.placeAt` allein verschiebt nur das, was man sieht, und die
 Fortbewegung zieht einen im nächsten Bild zurück.
 
+#### Speichern, exportieren, importieren
+
+**Eine gebaute Welt muss irgendwo hin**, sonst ist Bauen ein Zeitvertreib. Es
+gibt dafür zwei Wege, und sie sind mit Absicht nicht dasselbe
+(`grid/worldStore.ts`):
+
+- **Der Speicher** (`localStorage`, ein Eintrag je Welt unter `vr-welt:<id>`)
+  ist kein Archiv, sondern die Antwort auf eine einzige Frage: *Wer zwanzig
+  Minuten baut und die Brille absetzt, soll seine Welt wiederfinden.*
+  Geschrieben wird beim **Weglegen der Karte** — das ist der Augenblick, in dem
+  jemand fertig ist, und der einzige, an dem ein Schreiben weder sechzigmal in
+  der Sekunde passiert noch zu spät kommt — und beim Verlassen der Welt, falls
+  die Karte dabei noch draußen war. Der Bauplatz schreibt zusätzlich beim
+  Bauen, höchstens alle zwei Sekunden: Dort baut man von Grund auf, oft eine
+  halbe Stunde am Stück, ohne die Karte dazwischen wegzulegen.
+- **Die Datei** ist das Archiv. Sie geht als Download vom Gerät herunter und
+  über die Dateiauswahl wieder hinein, und sie ist das Einzige, was einen Umbau
+  vom nächsten Browser, vom nächsten Rechner und von der nächsten
+  Programmfassung trennt.
+
+Beide schreiben **dasselbe Format**. Ein Speicher mit einem eigenen, kürzeren
+Format wäre das zweite Format neben dem ersten, und das zweite Format ist
+immer das, das eine Kleinigkeit vergisst.
+
+Im Menü liegen die vier Handgriffe unter **Bauen → Welt sichern**, und zwar
+gleich hinter der Karte: Speichern und Mitnehmen ist keine Fußnote unter den
+Werkzeugen. Die erste Zeile heißt *Im Browser speichern* und nicht „Welt
+speichern" — so heißt schon der Knopf der Stoppuhr, und der merkt sich etwas
+ganz anderes (wo die Kisten gerade liegen, für diese Sitzung). *Gespeichertes verwerfen* leert den Eintrag **und** baut die Welt
+im selben Augenblick aus ihrem `layout()` neu — das eine ohne das andere wäre
+eine Welt, die erst beim nächsten Laden wieder die richtige ist, und bis dahin
+fragt man sich, ob der Knopf kaputt ist.
+
+**Was im Browser liegt, gewinnt** — und zwar ganz. Kein Verschmelzen mit
+`layout()`: Ein halb übernommener Umbau wäre eine Welt, die weder die gebaute
+noch die gespeicherte ist, und man sähe es erst an der Stelle, an der beide
+sich widersprechen.
+
+**Unter welchem Namen eine Welt liegt, sagt sie selbst** (`worldId()`,
+abstrakt). Naheliegend wäre `ctx.net.world` gewesen — der steht beim Bauen aber
+noch auf der *vorigen* Welt (`App.loadWorld` setzt ihn erst nach `init`), und
+zwei Welten, die sich still denselben Speicherplatz teilen, sind der Fehler, den
+man erst bemerkt, wenn im Dunkelhaus plötzlich Dust steht.
+
+#### Das Weltformat
+
+**Eine Welt als Datei** (`grid/worldFile.ts`), Format `baumgartner-welt`,
+Version **`0.1.0`**.
+
+Bis hierher gab es zwei Hälften und keine Naht dazwischen. Der
+Navigationsgraph hatte längst ein sauberes, versioniertes Format
+(`nav/navSerial.ts`); alles andere, was eine Gitterwelt ausmacht, hatte keins.
+Die **Bausteine** lagen als nacktes JSON daneben, ungeprüft und ohne Version,
+und die **Massen** — das Dach über einer Halle, die Felswand um Dust, der Sand
+darunter — wurden überhaupt nicht gespeichert. Ein „gespeicherter Grundriss"
+war deshalb genau so lange brauchbar, wie die Welt keine hatte.
+
+Vier Entscheidungen tragen das Format:
+
+- **Der Graph bleibt der Graph.** Die Weltdatei *enthält* eine `nav`-Datei, sie
+  ersetzt sie nicht. Damit erbt sie jede Prüfung, die dort schon steht
+  (Kachelgröße, Version, Kachelläufe), und wer nur die Karte braucht, greift
+  sich `nav` heraus.
+- **Gespeichert wird der Grundwert, nicht das Ergebnis.** In den Kacheldaten
+  eines laufenden Plans stecken die Aufschläge der Bausteine schon drin: Eine
+  Küchenzeile macht ihre Kachel teurer. Wer diese Zahl speichert, sie beim
+  Laden als Grundwert nimmt und die Bausteine danach anwendet, zählt jeden
+  Aufschlag zweimal — nach dem dritten Laden ist die Küche unbegehbar. Also
+  steht in `nav` der Plan **ohne** Möbel (`GridPlan.bare()`), und die
+  Aufschläge werden beim Laden neu gerechnet (`GridPlan.restore()`). Ein Test
+  fährt drei Runden und prüft, dass die Zahl dabei stehen bleibt.
+- **Koordinaten sind Zahlen, keine Schlüssel.** Eine Kachel steht als `x`, `z`,
+  `l` in der Datei und nicht als `TileKey`. Der Schlüssel ist eine gepackte
+  Ganzzahl (`navTile.ts`), also ein Implementierungsdetail: Wer seine Packung
+  ändert, macht damit sonst still jede gespeicherte Welt kaputt — und niemand
+  sähe es, weil die Datei weiterhin gültig aussieht.
+- **Die Version ist Semver, als Zeichenkette.** Solange die Hauptnummer `0`
+  ist, gilt eine neue Nebennummer als Bruch — so liest man Semver vor 1.0.
+  Gelesen wird die Zeile `0.1.x`; eine Datei aus der Zukunft wird **abgelehnt**
+  und nicht halb geladen, denn eine Welt, der beim Laden die Hälfte fehlt,
+  sieht aus wie eine kaputte Welt und nicht wie eine zu neue. „Zu neu" und „zu
+  alt" bekommen deshalb zwei verschiedene Meldungen: Sie sind das Einzige,
+  woran jemand sieht, ob er ein Programm oder eine Datei aktualisieren muss.
+
+**Streng und nachsichtig an den richtigen Stellen.** Ein Baustein auf einer
+Kachel, die es nicht gibt, fällt weg; eine unbekannte Baustein-Sorte fällt weg
+(wer eine Welt aus einer neueren Fassung öffnet, will sein Haus sehen und nicht
+eine Fehlermeldung über einen Schrank). Bei den **Massen** ist es andersherum:
+Dort wird abgebrochen. Ein fehlendes Dach ist eine Welt, in die es hineinregnet,
+und eine fehlende Felswand eine, aus der man hinausläuft.
+
+Und noch ein Unterschied, der leicht als Schlamperei durchginge: Eine kaputte
+Zeile im **Speicher** wird weggeworfen und nicht gemeldet — sie kommt aus einer
+Fassung, die es nicht mehr gibt, niemand kann etwas daran tun, und die Welt
+soll trotzdem aufmachen. Eine **Datei**, die jemand bewusst auswählt, meldet
+jeden Fehler: Wer eine Datei auswählt, hat eine Erwartung, und ein stilles
+Nichts wäre die schlechteste aller Antworten.
+
+**Was bewusst nicht in der Datei steht**, damit niemand es sucht: Eine
+Weltdatei ist ein **Grundriss** und kein Spielstand. Sie kennt Kacheln, Wände,
+Türen, Verbindungen, Bausteine und Massen — alles, was `GridPlan` führt. Sie
+kennt **nicht**, was eine Welt darüber hinaus von Hand hinstellt
+(`buildProps`): die Lampen und den Dimmer des Dunkelhauses, die Karts in der
+Boxengasse, die Kisten zum Herumwerfen. Und sie kennt keine Farben — welchen
+Ton eine Wand hat, entscheidet die Welt, in der sie steht (`GridWorld.tint`),
+und genau deshalb sieht ein ins Bauplatz importiertes Dunkelhaus aus wie ein
+Bauplan und nicht wie ein Haus. Das ist die Grenze, und sie ist gezogen und
+nicht vergessen: Ein Format, das *alles* speichert, ist eines, das bei jeder
+neuen Lampe eine neue Version braucht.
+
+Der **Dateiname** ist der Name der Welt plus das Datum plus `.welt.json` — die
+doppelte Endung, damit ein Betriebssystem sie als JSON öffnet und ein Mensch
+trotzdem sieht, was darin steht: `dunkelhaus-2026-09-07.welt.json`. Ein
+Dunkelhaus wiegt so rund neun Kilobyte.
+
+Ein Download und eine Dateiauswahl sind in der Brille wenig wert — man sieht
+von beidem nichts. Sie sind für den Rechner gedacht, und das ist keine Lücke,
+sondern die Arbeitsteilung: In der Brille wird gebaut, am Rechner wird
+abgelegt und weitergegeben.
+
 #### Was der Bauplatz noch selbst macht
 
 Von der Welt `editor/EditorWorld.ts` ist wenig übrig, und das ist ihr Erfolg und
@@ -5481,22 +5612,16 @@ nicht ihr Ende. Drei Sachen unterscheiden sie vom Umbauen einer fertigen Welt:
 - **Sie fängt bei einem Zimmer an** (`starterGrid.ts`) und nicht bei einem Haus,
   das schon steht. Eine leere Ebene beantwortet die erste Frage nicht, die jeder
   hat — *wie sieht denn eine Wand hier aus?*
-- **Sie merkt sich, was gebaut wurde.** Gespeichert wird im Browser, im Format,
-  das es ohnehin gibt (`navSerial.ts`). Nicht, weil das eine Speicherlösung
-  wäre, sondern weil das Gegenteil unerträglich ist: Wer zwanzig Minuten baut
-  und die Brille absetzt, soll seinen Grundriss wiederfinden. Geschrieben wird
-  beim Weglegen der Karte, beim Verlassen der Welt und beim Bauen höchstens alle
-  zwei Sekunden — ein gemalter Strich sind sechzig Änderungen in der Sekunde,
-  und der ganze Grundriss durch `JSON.stringify` ist keine Zeile, die sechzigmal
-  laufen darf. **Das Mobiliar liegt daneben und nicht darin**: Eine Küchenzeile
-  ist keine Navigationsinformation, und sie in dieselbe Datei zu schreiben
-  hieße, deren Versionsnummer anzuheben und jede gespeicherte Karte für ungültig
-  zu erklären — für Möbel. Ein alter Eintrag, der nur die Karte kennt, wird
-  weiter gelesen. Der Fehler, den ein Test dabei abfängt, fiele erst beim
-  **zweiten** Laden auf: In den gespeicherten Kacheldaten stecken die Aufschläge
-  der Bausteine schon drin, und wer sie als Grundwert nimmt und die Bausteine
-  danach anwendet, zählt jeden zweimal — nach dem dritten Laden ist die Küche
-  unbegehbar.
+- **Er schreibt auch beim Bauen** und nicht nur beim Weglegen der Karte
+  (`planEdited`, höchstens alle zwei Sekunden). Hier baut man von Grund auf, oft
+  eine halbe Stunde am Stück und ohne die Karte dazwischen wegzulegen — und wer
+  dabei die Brille absetzt, hätte sonst nichts. Alles Übrige am Speichern ist
+  seit dem Weltformat für jede Gitterwelt dasselbe (*Speichern, exportieren,
+  importieren*). Den **alten Eintrag** aus der Zeit davor (`vr-bauplatz-plan`:
+  die nackte Karte plus Mobiliar, ohne Version und ohne Massen) liest er noch
+  einmal, schreibt ihn im neuen Format und räumt ihn weg — wer zwei Wochen an
+  einem Grundriss gebaut hat, verliert ihn nicht, weil das Programm inzwischen
+  ein richtiges Format hat.
 - **Beim Bearbeiten steht man in einem weißen Raum.** Wo eine fertige Welt nur
   zur Seite tritt, tauscht der Bauplatz seine Kulisse: Boden bis zum Horizont
   und ein weißer Himmel statt des dunklen. Der Grund ist derselbe wie beim
@@ -5513,14 +5638,10 @@ nicht ihr Ende. Drei Sachen unterscheiden sie vom Umbauen einer fertigen Welt:
 **Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste —
 und damit fehlen auch die beiden Bausteine, die zwischen Etagen führen: Treppe
 und Rampe), Rückgängig, Fenster als Werkzeug (gebaut werden sie längst, gesetzt
-bisher nur von Welten in ihrem Grundriss), ein Weg, einen gebauten Plan als
-eigene Welt zu laden statt nur im Bauplatz zu haben — und dass ein Umbau an
-einer fertigen Welt den Neustart überlebt. Heute merkt sich nur der Bauplatz
-seinen Grundriss; wer im Dunkelhaus eine Wand versetzt, findet sie beim nächsten
-Laden wieder an ihrem alten Platz. Der Grund ist keine Bequemlichkeit, sondern
-die **Massen**: Ein Dach oder eine Felswand steht in keinem Navigationsgraphen,
-und ein gespeicherter Grundriss allein könnte eine Welt deshalb nicht
-zurückbringen.
+bisher nur von Welten in ihrem Grundriss), und ein Weg, eine **eigene** Welt aus
+einer Datei zu laden statt sie in eine vorhandene zu importieren: Heute
+überschreibt ein Import den Grundriss der Welt, in der man gerade steht, und wer
+zwei gebaute Welten nebeneinander haben will, braucht zwei Wirte dafür.
 
 Eine rauhe Kante gibt es dazu, und sie steht hier, damit sie niemand für einen
 Zufall hält: **Der Greifknopf gehört beim Bauen zwei Herren.** Die Welt greift

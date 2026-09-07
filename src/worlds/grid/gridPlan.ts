@@ -103,7 +103,8 @@ export class GridPlan {
    */
   readonly graph: NavGraph;
   private readonly placed: BlockPlacement[] = [];
-  private readonly masses: Mass[] = [];
+  /** Die Massen. Heißt `stack`, weil `masses()` sie herausgibt. */
+  private readonly stack: Mass[] = [];
   /**
    * Was auf einer Kachel gälte, wenn kein Baustein darauf stünde.
    *
@@ -361,7 +362,7 @@ export class GridPlan {
     to: number,
     options: { portal?: boolean } = {},
   ): this {
-    this.masses.push({ kind, rect, from, to, ...options });
+    this.stack.push({ kind, rect, from, to, ...options });
     return this;
   }
 
@@ -377,7 +378,7 @@ export class GridPlan {
    */
   solids(): PlanSolid[] {
     const out = planSolids(this.graph);
-    for (const one of this.masses) out.push(massSolid(this.graph, one));
+    for (const one of this.stack) out.push(massSolid(this.graph, one));
     for (const one of this.placed) {
       out.push(
         ...blockSolids(one.kind, {
@@ -395,6 +396,63 @@ export class GridPlan {
   /** Die gesetzten Bausteine — für Welten, die noch etwas daran hängen wollen. */
   blocks(): readonly BlockPlacement[] {
     return this.placed;
+  }
+
+  /**
+   * **Die Massen** — das Dach, die Felswand, der Sand darunter.
+   *
+   * Öffentlich, seit eine Welt als Datei geschrieben werden kann
+   * (`worldFile.ts`). Vorher wusste außer dem Plan selbst niemand von ihnen,
+   * und genau deshalb fehlten sie in jeder gespeicherten Welt.
+   */
+  masses(): readonly Mass[] {
+    return this.stack;
+  }
+
+  /**
+   * **Derselbe Grundriss ohne die Aufschläge dessen, was darauf steht.**
+   *
+   * Das ist der Graph, der in eine Datei gehört, und der Grund steht in einer
+   * Zeile: In den Kacheldaten eines laufenden Plans stecken die Aufschläge der
+   * Bausteine schon drin. Wer sie speichert, beim Laden als Grundwert nimmt
+   * und die Bausteine danach anwendet, zählt jeden zweimal — nach dem dritten
+   * Laden ist die Küche unbegehbar.
+   *
+   * Die Gefahr (`hazard`) bleibt dabei stehen: Die kommt nicht von Möbeln,
+   * sondern von der Welt, die sie auf die Kachel gemalt hat.
+   */
+  bare(): NavGraph {
+    const out = new NavGraph(this.graph.levels);
+    replacePlan(out, this.graph);
+    for (const key of out.tileKeys()) {
+      const base = this.base.get(key);
+      if (base) out.setTile(key, { cost: base.cost, rise: base.rise });
+    }
+    return out;
+  }
+
+  /**
+   * **Eine gelesene Welt übernehmen** — Grundriss, Grundwerte, Bausteine und
+   * Massen auf einmal.
+   *
+   * Der Gegenpart zu `bare()`, und die Reihenfolge ist die ganze Sorgfalt:
+   * Erst kommt der Grundriss herein, dann gelten seine Kacheldaten als
+   * **Grundwerte** (sie sind ja ohne Möbel gespeichert worden), und erst
+   * danach werden die Bausteine angewendet. Wer das umdreht, zählt wieder
+   * doppelt.
+   */
+  restore(graph: NavGraph, blocks: readonly BlockPlacement[], masses: readonly Mass[] = []): this {
+    replacePlan(this.graph, graph);
+    this.base.clear();
+    for (const key of this.graph.tileKeys()) {
+      const facts = this.graph.tile(key);
+      this.base.set(key, { cost: facts?.cost ?? 1, rise: facts?.rise ?? 0 });
+    }
+    this.stack.length = 0;
+    for (const mass of masses) this.stack.push({ ...mass, rect: { ...mass.rect } });
+    this.placed.length = 0;
+    this.loadBlocks(blocks);
+    return this;
   }
 
   /**

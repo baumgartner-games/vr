@@ -161,6 +161,15 @@ export class RangeWorld extends GridWorld {
     return { floor: 0x7f8b62, stone: 0x9a9481, wood: 0x8a5f38, wall: 0xb9bcc2 };
   }
 
+  /** Unter diesem Namen liegt die Welt im Speicher (`grid/worldStore.ts`). */
+  protected override worldId(): string {
+    return 'range';
+  }
+
+  protected override editorTitle(): string {
+    return 'Schießstand';
+  }
+
   protected override layout(): GridPlan {
     return rangeStand();
   }

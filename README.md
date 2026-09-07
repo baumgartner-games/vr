@@ -31,7 +31,10 @@ ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
 in der Kletterhalle und auf der Kartbahn holt man die Karte aus dem
 Handgelenk-Menü (*Bauen → Karte holen*), baut an dem Haus weiter, in dem man
 gerade steht, und legt sie wieder weg — dann steht das Umgebaute fest da und
-NPCs laufen darauf. Dazu kommt
+NPCs laufen darauf. **Und es bleibt**: Unter *Bauen → Welt sichern* liegt eine
+gebaute Welt im Browser, geht als Datei herunter (`dunkelhaus-2026-09-07.welt.json`,
+Format `baumgartner-welt` in der Fassung `0.1.0`, mit Kacheln, Wänden, Türen,
+Möbeln und Dächern darin) und kommt so auch wieder zurück. Dazu kommt
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
@@ -110,10 +113,13 @@ dem Weg über die Leitung, die Maße des Poseraums, den **Bauplan des Editors**
 (worauf ein Zeiger trifft — Kachel oder Kante —, was die vier Werkzeuge daraus
 machen, und dass die gebauten Quader vom Abtasten wiedergefunden werden) samt
 der **Miniatur** (Hin und Zurück ohne Drift, und dass der Punkt zwischen den
-Fingern beim Ziehen liegen bleibt) und dem **Malen** (dass zwischen zwei
+Fingern beim Ziehen liegen bleibt), dem **Malen** (dass zwischen zwei
 Bildern keine Lücke bleibt, und dass ein Rechteck aus Boden seine Fläche füllt,
 eines aus Wänden dagegen nur seinen Rand — sonst wäre es ein Klotz und kein
-Zimmer), **was ein NPC an einer Kante anfängt**
+Zimmer) und dem **Weltformat** (dass eine Welt mit Dach und Möbeln durch die
+Datei und wieder zurück dieselbe ist, dass der Aufschlag einer Küchenzeile
+dabei nicht jedes Mal mitwächst, und dass eine Datei aus der Zukunft abgelehnt
+statt halb geladen wird), **was ein NPC an einer Kante anfängt**
 (wie hoch er tritt, wie hoch er sich hochzieht, wie steil ein Weg für ihn noch
 einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte) und das
 **ganze Navigationslabor auf einmal**

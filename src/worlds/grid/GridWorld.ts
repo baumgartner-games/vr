@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
 import { WorldEditor, type EditorHost } from '../editor/WorldEditor';
+import { WORLD_VERSION, WorldFormatError, type WorldContents } from './worldFile';
+import {
+  downloadWorld,
+  forgetWorld,
+  hasStoredWorld,
+  keepWorld,
+  pickWorld,
+  storedWorld,
+} from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
 import { DIRS } from '../nav/navTile';
 import type { GridPlan } from './gridPlan';
@@ -74,6 +83,27 @@ export abstract class GridWorld extends PortalWorld {
   protected abstract layout(): GridPlan;
 
   /**
+   * **Unter welchem Namen diese Welt gespeichert wird.**
+   *
+   * Abstrakt und nicht abgeleitet, und das ist Absicht. Naheliegend wäre
+   * `ctx.net.world` gewesen — der steht beim Bauen aber noch auf der *vorigen*
+   * Welt (`App.loadWorld` setzt ihn erst nach `init`), und zwei Welten, die
+   * sich still denselben Speicherplatz teilen, sind der Fehler, den man erst
+   * bemerkt, wenn im Dunkelhaus plötzlich Dust steht.
+   */
+  protected abstract worldId(): string;
+
+  /** Wie sie heißt — für den Dateinamen und die Überschrift am Modell. */
+  protected worldName(): string {
+    return this.editorTitle();
+  }
+
+  /** Wozu „verwerfen" zurückführt — beim Bauplatz ist das kein Haus, sondern ein Zimmer. */
+  protected originalName(): string {
+    return 'die ausgelieferte Welt';
+  }
+
+  /**
    * Eigene Töne für einzelne Sorten. Was hier nicht steht, kommt aus
    * `GRID_COLORS` — und das ist der Normalfall.
    */
@@ -91,6 +121,7 @@ export abstract class GridWorld extends PortalWorld {
     const plan = this.layout();
     this.grid = plan;
     this.planReady(plan);
+    this.applyStored(plan);
 
     const group = new THREE.Group();
     group.name = 'grid';
@@ -236,6 +267,10 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected editingChanged(on: boolean): void {
     this.setSolid(!on);
+    // **Gespeichert wird beim Weglegen der Karte.** Das ist der Augenblick, in
+    // dem jemand fertig ist — und der einzige, an dem ein Schreiben weder
+    // sechzigmal in der Sekunde passiert noch zu spät kommt.
+    if (!on) this.saveWorld(true);
   }
 
   /** Der Bearbeitungsmodus, solange die Welt offen ist. */
@@ -285,29 +320,185 @@ export abstract class GridWorld extends PortalWorld {
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
-    const editor = this.editor;
-    if (!editor) return;
-    editor.update(ctx);
+    this.editor?.update(ctx);
     // Der Umbau läuft **einmal je Bild**, egal wie viele Kacheln in diesem Bild
     // gesetzt wurden. Ein gemalter Strich sind zwanzig Handgriffe und ein
     // Neubau, nicht zwanzig.
-    if (this.grid && this.builtVersion !== this.grid.version) {
-      this.rebuildGrid();
-      editor.refresh();
-      this.planEdited();
-    }
+    //
+    // Und er steht **außerhalb** des Editors: Auch „Importieren" und
+    // „Verwerfen" tauschen den Plan aus, und die passieren im Menü, während
+    // die Karte längst wieder an der Hüfte hängt.
+    if (!this.grid || this.builtVersion === this.grid.version) return;
+    this.rebuildGrid();
+    this.editor?.refresh();
+    // Wer eine Welt austauscht, während sie fest ist, hat sie damit auch
+    // begehbar gemacht — dann muss die Navigationskarte nach.
+    if (this.solid) this.rebake();
+    this.planEdited();
   }
 
   /**
    * Am Plan hat sich etwas getan — höchstens einmal je Bild.
    *
-   * Voreingestellt passiert nichts: Eine Welt, die ihren Grundriss aus
-   * `layout()` nimmt, hat ihn beim nächsten Laden ohnehin wieder. Der
-   * Bauplatz merkt sich seinen dagegen.
+   * Voreingestellt passiert nichts. Gespeichert wird beim **Weglegen der
+   * Karte** und nicht bei jedem Pinselstrich: Ein gemalter Strich sind sechzig
+   * Änderungen in der Sekunde, und der ganze Grundriss durch `JSON.stringify`
+   * ist keine Zeile, die sechzigmal laufen darf.
    */
   protected planEdited(): void {}
 
+  // --- speichern, laden, mitnehmen ------------------------------------------
+
+  /**
+   * **Was im Browser liegt, gewinnt** — und zwar ganz.
+   *
+   * Kein Verschmelzen mit `layout()`: Ein halb übernommener Umbau wäre eine
+   * Welt, die weder die gebaute noch die gespeicherte ist, und man sähe es
+   * erst an der Stelle, an der beide sich widersprechen. Was der Speicher
+   * hergibt, ist die Welt; was er nicht hergibt, ist die aus `layout()`.
+   */
+  private applyStored(plan: GridPlan): void {
+    if (!this.editable()) return;
+    const saved = storedWorld(this.worldId());
+    if (!saved) return;
+    plan.restore(saved.graph, saved.blocks, saved.masses);
+  }
+
+  /** Den Stand in den Browser schreiben. Sagt, ob es geklappt hat. */
+  protected saveWorld(quiet = false): boolean {
+    const plan = this.grid;
+    if (!plan) return false;
+    const ok = keepWorld(this.worldId(), plan, { name: this.worldName() });
+    if (!quiet) {
+      this.announce(ok ? 'Welt gespeichert' : 'Kein Speicher da — nimm den Export');
+    }
+    return ok;
+  }
+
+  /**
+   * **Zurück zur ausgelieferten Welt.**
+   *
+   * Der Speicher wird geleert *und* der Plan neu aus `layout()` gebaut — das
+   * eine ohne das andere wäre eine Welt, die erst beim nächsten Laden wieder
+   * die richtige ist, und bis dahin fragt man sich, ob der Knopf kaputt ist.
+   */
+  protected revertWorld(): void {
+    const plan = this.grid;
+    if (!plan) return;
+    forgetWorld(this.worldId());
+    const fresh = this.layout();
+    this.planReady(fresh);
+    plan.restore(fresh.bare(), fresh.blocks(), fresh.masses());
+    this.announce(`Wieder ${this.originalName()}`);
+  }
+
+  /** Die Welt als Datei herunterladen. */
+  protected exportWorld(): void {
+    const plan = this.grid;
+    if (!plan) return;
+    try {
+      const name = downloadWorld(plan, { world: this.worldId(), name: this.worldName() });
+      this.announce(`Exportiert: ${name}`);
+    } catch {
+      this.announce('Export ging nicht — der Browser lässt keinen Download zu');
+    }
+  }
+
+  /**
+   * Eine Welt aus einer Datei holen.
+   *
+   * **Hier wird gemeldet, was schiefgeht**, anders als beim Speicher: Wer eine
+   * Datei auswählt, hat eine Erwartung, und ein stilles Nichts wäre die
+   * schlechteste aller Antworten.
+   */
+  protected importWorld(): void {
+    pickWorld((result: WorldContents | Error) => {
+      const plan = this.grid;
+      if (!plan) return;
+      if (result instanceof Error) {
+        this.announce(
+          result instanceof WorldFormatError ? result.message : 'Datei konnte nicht gelesen werden',
+        );
+        return;
+      }
+      plan.restore(result.graph, result.blocks, result.masses);
+      this.saveWorld(true);
+      this.announce(`Geladen: ${result.file.name ?? result.file.world ?? 'Welt'}`);
+    });
+  }
+
+  /**
+   * **Eine eigene Schublade fürs Aufheben.**
+   *
+   * Vier Zeilen mehr in „Bauen" wären fünfzehn Zeilen in einem Menü, das man
+   * in der Brille mit dem Daumen durchblättert — und die vier hätte man immer
+   * dann vor sich, wenn man gerade eine Wand sucht. Sie stehen deshalb
+   * gebündelt, und zwar **oben**, gleich hinter der Karte: Speichern und
+   * Mitnehmen ist keine Fußnote unter den Werkzeugen.
+   */
+  private storeMenu(): MenuEntry {
+    return {
+      id: 'plan-store',
+      label: 'Welt sichern',
+      sub: hasStoredWorld(this.worldId())
+        ? 'Gespeichert · exportieren, importieren, verwerfen'
+        : 'Speichern, exportieren, importieren',
+      icon: 'cube',
+      accent: 0x5ee0a0,
+      children: this.storeRows(),
+    };
+  }
+
+  /** Die Zeilen im Menü, mit denen eine Welt aufgehoben und mitgenommen wird. */
+  private storeRows(): MenuEntry[] {
+    return [
+      {
+        id: 'plan-save',
+        // **Nicht „Welt speichern".** So heißt schon der Knopf der Stoppuhr,
+        // und der merkt sich etwas ganz anderes: wo die Kisten gerade liegen,
+        // für diese Sitzung. Zwei Knöpfe mit demselben Namen und zwei
+        // Bedeutungen sind einer zu viel.
+        label: 'Im Browser speichern',
+        sub: 'Für das nächste Mal auf diesem Gerät',
+        icon: 'cube',
+        accent: 0x5ee0a0,
+        run: () => this.saveWorld(),
+      },
+      {
+        id: 'plan-export',
+        label: 'Exportieren',
+        sub: `Als Datei herunterladen — Fassung ${WORLD_VERSION}`,
+        icon: 'cube',
+        accent: 0x39d0ff,
+        run: () => this.exportWorld(),
+      },
+      {
+        id: 'plan-import',
+        label: 'Importieren',
+        sub: 'Eine Weltdatei von der Festplatte laden',
+        icon: 'cube',
+        accent: 0x39d0ff,
+        run: () => this.importWorld(),
+      },
+      {
+        id: 'plan-revert',
+        label: 'Gespeichertes verwerfen',
+        sub: hasStoredWorld(this.worldId())
+          ? `Wieder ${this.originalName()}`
+          : `Nichts gespeichert — das hier ist schon ${this.originalName()}`,
+        icon: 'cube',
+        accent: 0x8892a6,
+        run: () => this.revertWorld(),
+      },
+    ];
+  }
+
   override dispose(ctx: WorldContext): void {
+    // **Wer die Welt verlässt, während die Karte noch draußen ist**, hat nicht
+    // aufgehört zu bauen — er ist woandershin gegangen. Ungefragt gespeichert
+    // wird nur dieser Fall: Sonst bekäme jede Welt, die man einmal betreten
+    // hat, einen gespeicherten Stand, den niemand angelegt hat.
+    if (this.editor?.editing) this.saveWorld(true);
     this.editor?.dispose();
     this.editor = null;
     this.grid = null;
@@ -320,6 +511,13 @@ export abstract class GridWorld extends PortalWorld {
     super.dispose(ctx);
   }
 
+  /** „Bauen": erst die Karte, dann das Sichern, dann die Werkzeuge. */
+  private buildRows(editor: WorldEditor): MenuEntry[] {
+    const rows = editor.menu();
+    rows.splice(1, 0, this.storeMenu());
+    return rows;
+  }
+
   override menu(): MenuEntry[] {
     const editor = this.editor;
     if (!editor) return super.menu();
@@ -330,7 +528,7 @@ export abstract class GridWorld extends PortalWorld {
         sub: 'Karte, Palette und Werkzeug',
         icon: 'cube',
         accent: 0x39d0ff,
-        children: editor.menu(),
+        children: this.buildRows(editor),
       },
       ...super.menu(),
     ];
