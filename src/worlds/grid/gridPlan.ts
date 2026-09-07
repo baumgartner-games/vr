@@ -1,13 +1,15 @@
 import { planSolids } from '../editor/levelBuild';
 import { doorName } from '../editor/levelPlan';
 import { NavGraph, type TileFacts, type WallKind } from '../nav/navGraph';
-import { fillRect, setDoor, setWindow, wallRect, type NavRect } from '../nav/navBuild';
+import { connect, fillRect, setDoor, setWindow, wallRect, type NavRect } from '../nav/navBuild';
 import {
   DIR_E,
   DIR_N,
   DIR_S,
   DIR_W,
   TILE,
+  dirX,
+  dirZ,
   keyLevel,
   tileCentreX,
   tileCentreZ,
@@ -227,6 +229,34 @@ export class GridPlan {
     return this.run(x, z, count, along, (px, pz) => {
       this.put(kind, px, pz, dir, level, height);
     });
+  }
+
+  /**
+   * **Eine Treppe von einer Etage in die nächste** — und alles drei, was dazu
+   * gehört.
+   *
+   * Eine Treppe ist nie nur der Baustein. Sie braucht ein **Loch** in der Decke
+   * darüber (sonst stößt man beim dritten Schritt mit dem Kopf an) und einen
+   * **Weg im Graphen** (sonst steht ein NPC unten und weiß nicht, dass es nach
+   * oben geht — Stockwerke haben in diesem Gitter absichtlich keine
+   * Nachbarschaft, `navTile.ts`). Wer die drei Sachen einzeln macht, vergisst
+   * die zweite, und der Fehler sieht danach aus wie ein kaputter
+   * Character-Controller.
+   *
+   * **Nach dem Stockwerk darüber aufrufen**: Das Loch wird hier geschlagen,
+   * und was danach noch Boden legt, legt ihn wieder zu.
+   */
+  stairs(x: number, z: number, dir: Dir, level = 0): this {
+    const below = tileKey(x, z, level);
+    const above = tileKey(x, z, level + 1);
+    const rise = this.graph.levelY(level + 1) - this.graph.levelY(level);
+    this.put('stairs', x, z, dir, level, rise);
+    this.graph.removeTile(above);
+    // Sie mündet auf der Kachel **vor** ihr: Die letzte Stufe liegt an der
+    // vorderen Kante, und dort steht man dann auf der Etage darüber.
+    const landing = tileKey(x + dirX(dir), z + dirZ(dir), level + 1);
+    connect(this.graph, `treppe:${below}`, below, landing, 'stairs', { cost: rise * 1.6 });
+    return this;
   }
 
   /** Eine Masse: ein Quader über ein Kachelrechteck. */
