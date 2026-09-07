@@ -326,7 +326,14 @@ Normierung, wegen der jede Wand nur einmal existiert; wer sie falsch hätte,
 merkte es erst an einem NPC, der durch eine geschlossene Tür läuft, weil er sie
 von der falschen Seite anschaut), die **Kostenprofile** (`navProfile.ts` — die
 eine Zeile Tabelle, an der hängt, dass der Zombie in die Stachelgrube läuft und
-der Mensch darum herum), das **Material einer Tür**
+der Mensch darum herum, **und was einer an einer Kante anfängt**: dass die
+Stufe nach `stepUp` und `jumpUp` gefragt wird und die Rampe nach dem Winkel,
+dass dieselbe Kante hinunter ein Weg ist und hinauf eine Wand, und dass ein
+Sprung über eine Lücke nach der Weite fragt und nicht nach der Steigung), der
+**Fallschaden** (`navFall.ts` — dass ein Absatz umsonst ist, dass die Höhe, die
+einer noch überlebt, zur Rechnung passt, mit der er unten aufkommt, und dass
+ein Aufprall auf dem Mond aus größerer Höhe käme als auf der Erde), das
+**Material einer Tür**
 (`navDoor.ts` — dass Holz nachgibt und Metall nicht, dass ein Schlag nie unter
 null nimmt, und die Zahl, die man in der Brille wirklich sieht: wie lange einer
 davorsteht, bis sie fällt), die **drei Schalter**
@@ -367,7 +374,11 @@ durchlässt, dass unter ein zu niedriges Vordach niemand gesetzt wird, dass
 Tunnel und Sand darüber zwei Kacheln sind, und die Zahl, wegen der es diesen
 Test gibt: ein Boden, der **in** einem Quader steckt, ist keiner — der Sand
 unter einem Podest ist nicht begehbar, und wer ihn mitzählt, legt die Kachel
-des Podests auf den Boden daneben), die **Übersetzung in die Welt**
+des Podests auf den Boden daneben; dazu die zwei Messungen, mit denen eine
+**Rampe** und eine **Mauer** auseinandergehen, obwohl beide gleich hoch sind,
+und der **Sprung über eine Lücke**, den vorher jede Welt von Hand eintragen
+musste — samt der Wand, die in der Lücke steht und ihn wieder verbietet), die
+**Übersetzung in die Welt**
 (`navScene.ts` — dass ein gedrehter Quader seinen Schatten wirft, dass eine
 offene Tür in der Debug-Ansicht keine Sperre ist, dass die **betretbare
 Fläche** als einzige Ebene hinter Wänden verschwindet, dass sie am **Kopfende
@@ -1052,7 +1063,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     das nicht selbst etwas tut, sondern **jemanden hinstellt, der etwas tut**.
     Der Knopf hinten am Hirn (oder `A`/`X`) öffnet sein Panel — dieselbe
     Mechanik wie bei Drohne und Stoppuhr —, und dort stehen die zwei Hälften
-    eines NPC **einzeln**: die **Haut** (Zombie, Übungspuppe) und das **Hirn**
+    eines NPC **einzeln**: die **Haut** (Zombie, Übungspuppe, Hamster) und das **Hirn**
     (Stehen, Schlendern, Verfolgen), dazu Tempo, Leben und die zwei Zahlen
     eines Brutkäfigs. Was der **Trigger** setzt, sagt die Zeile _Setzen_: einen
     NPC, einen Spawnpunkt, einen Brutkäfig — oder er nimmt weg, worauf man
@@ -3942,9 +3953,15 @@ bewusst keine von beiden — was hier herauskommt, läuft von selbst weiter.
   beim Zombie oder neben ihm hängen wie bei allem anderen — die eine
   Silhouette, an der man auf dreißig Meter erkennt, was da kommt. Vorne ist
   −Z, dort sitzen auch die Augen; mit dem falschen Vorzeichen streckte der
-  Zombie sie eine Weile nach hinten und sah aus, als ergäbe er sich. Zwei
-  Häute gibt es, den **Zombie** und die **Übungspuppe** — und beide sterben
-  nach denselben Regeln, die Puppe hält nur mehr aus (160 statt 100).
+  Zombie sie eine Weile nach hinten und sah aus, als ergäbe er sich. Drei
+  Häute gibt es: den **Zombie**, die **Übungspuppe** — beide sterben nach
+  denselben Regeln, die Puppe hält nur mehr aus (160 statt 100) — und den
+  **Hamster**, denselben Körper in klein (60 cm, 20 Leben). Er ist keine
+  Zierde: Er ist die Sorte, die vor einer Dachkante stehen bleibt, weil sie den
+  Aufprall nicht überlebt (`nav/navFall.ts`), und ohne ihn wäre der Fallschaden
+  eine Zahl ohne sichtbare Folge. Ein eigenes Modell hat er nicht — was ihn
+  ausmacht, sind zwei Zahlen und ein Profil, und dafür baut man keine zweite
+  Geometrie.
 - Das **Hirn** (`worlds/npc/npcBrains.ts`) sagt, was er tut: **Stehen**
   (bleibt, dreht sich zum Spieler, schlägt nie zu), **Schlendern** (läuft
   einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden)
@@ -4186,6 +4203,39 @@ keinen Eintrag und fällt hinein, der Mensch hat dort `Infinity` und geht außen
 herum. `Infinity` heißt dabei „niemals" und nicht „sehr teuer" — wer „lieber
 nicht, aber im Notfall doch" will, schreibt eine große endliche Zahl hin.
 
+**Und dasselbe Gelände liest auch jede Sorte anders.** Das ist derselbe
+Gedanke, eine Etage tiefer, und er hat das Abtasten umgebaut: Eine Verbindung
+trägt nicht mehr die *Antwort* („das ist eine Treppe"), sondern die **Form** —
+wie viel es hinaufgeht (`rise`), wie hoch die größte einzelne Stufe darin ist
+(`step`) und wie weit es waagerecht ist (`gap`). Fünf Zahlen im Profil machen
+daraus ein Ja oder ein Nein:
+
+- **`stepUp`** — was er *tritt*, ohne etwas dafür zu tun. Die Bordsteinkante.
+- **`jumpUp`** — was er sich *hochzieht*. Das ist die Zahl, an der eine
+  60-cm-Stufe für einen Zombie ein Weg ist und für einen Hamster eine Wand.
+- **`maxSlope`** — wie steil ein Weg noch sein darf, in Grad, gemessen über
+  eine Kachel. Sie gilt nur, wo der Boden **durchläuft**; eine einzelne Kante
+  ist keine Steigung, sonst wäre jede Bordsteinkante eine 9°-Rampe und jede
+  Mauer eine 45°.
+- **`dropDown`** — wie tief er *freiwillig* springt.
+- **`leapOver`** — wie weit er über eine Lücke setzt.
+
+Dazu kommt der **Fallschaden** (`navFall.ts`) als sechste Zahl, und er ist die
+einzige, die nicht im Profil steht, sondern sich daraus ergibt: Was mehr
+abzieht, als eine Sorte Leben hat, springt sie nicht. Zwei Meter für einen
+Hamster, vier für einen Zombie — dieselbe Dachkante, zwei Antworten, und keine
+davon steht irgendwo als Sonderfall. Dass der Sprung dann auch wirklich
+wehtut, ist die andere Hälfte davon (`npc/Npc.land`): Eine Wegsuche, die
+Fallschaden einrechnet, den es beim Landen gar nicht gibt, behauptet etwas, das
+niemand widerlegen kann.
+
+**Eine Kante ist damit keine Einbahnstraße mehr.** Sie steht einmal in der
+Karte und gilt in beide Richtungen; welche davon geht, fragt die Wegsuche für
+**die Richtung, in die gelaufen wird** (`linkFactor`) — hinunter ein Absprung,
+hinauf eine Wand. Vorher entschied das Abtasten das ein für alle Mal, und weil
+es nur zwei der vier Himmelsrichtungen abläuft, hing die Antwort daran, ob die
+höhere Kachel im Norden oder im Süden lag.
+
 **Was sich ändert, ändert nichts am Graphen.** Eine Kiste setzt eine Kachel auf
 `blocked`, eine Tür kippt ein Flag, ein Portal fügt zwei Kanten ein. Neu
 gerechnet wird nie — die Wegsuche läuft ohnehin jedes Mal neu, und die ist
@@ -4326,7 +4376,8 @@ Spieler**, sonst schlüge ein Zombie gegen Hausecken.
 
 Welches Kostenprofil einer benutzt, sagt seine **Haut** und nicht sein Hirn
 (`npcKinds.ts`, `profile`): Was einem wehtut, hängt daran, was man ist, und
-nicht daran, was man vorhat. Ein **Portal** ist dabei die eine Verbindung, die
+nicht daran, was man vorhat — und dasselbe gilt für die Beine, mit denen er
+Kanten und Steigungen liest. Ein **Portal** ist dabei die eine Verbindung, die
 ein Körper nicht laufen kann — der Läufer meldet sie als `jump`, und `Npc`
 setzt den Körper um.
 
@@ -4444,17 +4495,17 @@ Eine Zahl, die man dabei falsch macht: **Eine Tafel schaut nach +Z**, ein
 Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt sie mit dem
 Rücken zum Raum an die Wand und sieht eine schwarze Platte.
 
-**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: acht Buchten,
-acht rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
+**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: zehn Buchten,
+zehn rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
 langer Gang um zwei Ecken, Stachelgrube (Zombie hinein und liegen bleiben,
 Puppe dicht daran vorbei), Kiste im
 Weg, **zu enger Gang**, Tür fällt hinter dem Verfolger zu, Portal, von dem nur
-einer weiß, die Dachkante und **Podest und Sprung**. Der Grundriss ist geprüft
+einer weiß, die Dachkante, **Podest und Sprung** und die beiden **Steigungen**.
+Der Grundriss ist geprüft
 (`scenarios.test.ts`), bevor er gebaut ist: Zwei Buchten, die sich überlappen,
 sieht man in der Brille erst daran, dass ein Zombie durch eine Wand kommt.
 
-Die beiden neuen Buchten beantworten je eine Frage, die vorher keine Bucht
-stellte:
+Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
 
 - **Zu enger Gang.** Eine Wand mit einer Lücke von einer Kachel, in die zwei
   Pfosten hineinragen, bis 45 cm übrig sind. Beide Hälften müssen stimmen: In
@@ -4462,12 +4513,45 @@ stellte:
   auf der **Karte** steht dort deshalb auch keine Lücke. Wo die zweite Hälfte
   fehlte, plante er hindurch und rannte für immer dagegen — das war der Zombie,
   der durch eine Wand *wollte*. Möglich macht es `edgeOpen` (siehe unten).
-- **Podest und Sprung.** Eine Rampe aus drei Stufen führt auf ein Podest; einen
+- **Podest und Sprung.** Eine Treppe aus drei Stufen führt auf ein Podest; einen
   Gang weiter steht ein zweites, freistehend, auf 2,4 m. Wer springen kann
   (`HUMAN_PROFILE`, `link.jump`), nimmt die Sprungverbindung und steht drüben;
   der Zombie hat dort `Infinity` stehen und bleibt unten im Gang, so nah am
   Podest, wie die Karte ihn lässt. Dazwischen liegt der Gang, durch den man
-  hindurchgeht, wenn man unten ist.
+  hindurchgeht, wenn man unten ist. **Diese Verbindung trug einmal die Bucht
+  selbst ein**, mit zwei Kachelmitten in `applyLabMap`; heute findet das
+  Abtasten sie (`navBake.joinGap`), und wer das Podest um eine Kachel
+  verschiebt, verschiebt den Sprung mit.
+- **Flache Steigung** und **steile Steigung**, zwei Buchten, die sich
+  gegenüberstehen und dieselbe Höhe hinaufführen — 2,4 m auf ein Podest, auf
+  dem der Spieler steht. Der NPC will hier **nicht** zuschlagen, sondern nach
+  oben, und was er dabei tut, hängt an je einer Zahl seines Profils:
+  - Die **flache** besteht aus vier Stufen von 60 cm, eine je Kachel. Sechzig
+    Zentimeter *tritt* keiner (`stepUp`), aber jeder hier zieht sich hinauf
+    (`jumpUp`) — man sieht vier Sätze, und dann steht er oben.
+  - Die **steile** ist eine richtige Rampe aus 12-cm-Stufen, die sogar ein
+    Hamster tritt — nur eben 1,32 m Höhe je Kachel, und das sind 28°.
+    Bei jedem hier ist vorher Schluss (`maxSlope`), und deshalb bleibt er davor
+    stehen: nicht an der Stufe, sondern am **Winkel**. Er stellt sich dabei so
+    nah an das Podest, wie die Karte ihn lässt, und bleibt dort — genau das
+    ist „er merkt, dass er nicht hochkommt".
+
+  Dass ausgerechnet die flache Bucht die groben Stufen hat, ist keine
+  Nachlässigkeit, sondern die Engine: **Ein NPC ist ein dynamischer Zylinder
+  ohne Schrittautomatik.** Er kommt keine Stufe hinauf, die er nicht *springt*
+  — auch keine von vier Zentimetern; das ist nachgemessen und nicht geraten.
+  Eine flache Rampe aus zwanzig feinen Stufen wäre deshalb kein sanfter
+  Aufstieg, sondern ein NPC, der an der ersten steht. Mit dem
+  Character-Controller für NPCs (weiter unten, „was noch fehlt") werden aus den
+  vier Stufen zwanzig, und die Bucht behauptet dann dasselbe.
+- **Und auf dem Dach steht jetzt ein Hamster** (`npcKinds.ts`,
+  `CRITTER_PROFILE`). Er sieht denselben Spieler wie der Zombie neben ihm, hat
+  dieselbe Karte und denselben Weg — und bleibt oben, weil ihn die einzige
+  Kante nach unten umbrächte: 2,4 m kosten 36 Leben (`navFall.ts`), er hat 20.
+  Wer ihm das Profil eines Zombies gibt, sieht in derselben Bucht das Gegenteil:
+  Er springt und bleibt unten liegen. Genau diese Gegenprobe steht als Test da
+  (`labSim.test.ts`) — sie ist der Unterschied zwischen „die Sorte bleibt oben"
+  und „die Rechnung hält ihn oben".
 
 **Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat drei gelbe
 Knöpfe: *Tür auf/zu* ist ein Schalter, den man beliebig oft umlegt, auch ohne
@@ -4615,11 +4699,19 @@ Labor — den findet die Wegsuche, und dann geht ein Zombie außen herum statt
 durch die Bucht, um die es gerade geht.
 
 **Eine Zahl daraus ist keine Geschmacksfrage**: Das Dach in der Etagen-Bucht
-liegt auf 2,4 m, also über dem, was das Abtasten noch als **Treppe** durchgehen
-lässt (`climb`, 2,2 m), und unter dem, was es als **Absprung** durchgehen lässt
-(`drop`, 2,6 m). Damit ist diese Bucht ein Weg nach unten und keiner nach oben.
-Dieselben zwei Zahlen halten in der Podest-Bucht das freistehende Podest
-unerreichbar für alle, die nicht springen können.
+liegt auf 2,4 m — über dem, was sich der Beweglichste hier noch **hochzieht**
+(`jumpUp`, 1,2 m), und unter dem, was ein Zombie **hinunterspringt** und
+überlebt (vier Meter, `navFall.safeFall`). Damit ist diese Bucht ein Weg nach
+unten und keiner nach oben — und für den Hamster daneben, der zwei Meter
+überlebt, gar keiner. Dieselben Zahlen halten in der Podest-Bucht das
+freistehende Podest unerreichbar für alle, die nicht springen können.
+
+**Diese Zahlen standen einmal im Abtasten** (`climb` 2,2 m, `drop` 2,6 m) und
+galten damit für jeden. Sie stehen jetzt im **Profil**, und das Abtasten hat
+nur noch eine einzige Grenze (`reach`, sechs Meter): ab wann eine Kante keine
+Kante mehr ist, sondern eine Hauswand. Was das ändert, sieht man an dieser
+Bucht: Vorher hätte ein Hamster die Dachkante genommen wie ein Zombie, denn die
+Karte kannte nur eine Sorte Bein.
 
 **Und hinauf kommt er inzwischen doch — er springt.** Ein NPC ist ein
 dynamischer Zylinder ohne Schrittautomatik: Er *steigt* keine Stufe, er kann nur
@@ -4635,10 +4727,14 @@ jedes Bild eine waagerechte Wunschgeschwindigkeit geschrieben wird, ist keine
 mehr, sondern ein Schweben.
 
 Gesprungen wird über **Sprungverbindungen** (die Lücke zwischen den Podesten)
-und über **Treppen, die zu hoch zum Hinauftreten sind** (`AgentTuning.stepUp`,
-35 cm). Eine Treppe mit flachen Stufen bleibt ein Gang — wer für zwanzig
-Zentimeter hüpft, sieht aus wie ein Frosch. Der Character-Controller für NPCs
-bleibt trotzdem der sauberere Weg und steht weiter auf der Liste.
+und über **Stufen, die zu hoch zum Hinauftreten sind** — gemessen an der
+größten einzelnen Stufe der Verbindung (`NavLink.step`) und nicht an ihrem
+Höhenunterschied. Der Unterschied ist genau der zwischen den beiden
+Steigungs-Buchten: Vier Stufen von 60 cm sind vier Sprünge; zwanzig von zwölf
+Zentimetern sind ein Gang, auch wenn beide 2,4 m hoch enden. Wer für zwölf
+Zentimeter hüpft, sieht aus wie ein Frosch — und wer sie geht, ohne einen
+Character-Controller zu haben, steht davor. Der bleibt deshalb der sauberere
+Weg und steht weiter auf der Liste.
 
 **Das Labor läuft auch ohne Brille** — und zwar zweimal, auf zwei ganz
 verschiedene Arten.
@@ -4691,8 +4787,18 @@ müsste. Der Test dazu ist so klein wie der Fehler: zwei Klötze, ein Zylinder,
 
 Dieselbe Bank prüft, was der Zylinder ohne sie nie täte: dass die Puppe am Ende
 wirklich **auf dem freistehenden Podest** steht (nicht bloß irgendwo auf 2,4 m
-Höhe — auf das nahe kommt man auch die Rampe hinauf), und dass der Zombie in
+Höhe — auf das nahe kommt man auch die Treppe hinauf), und dass der Zombie in
 die Grube fällt und darin liegen bleibt.
+
+Und seit es die beiden **Steigungen** gibt, prüft sie auch die: dass beide die
+flache wirklich hinaufkommen und beide vor der steilen stehen bleiben. Das ist
+genau die Frage, die kein nachgebauter Körper beantwortet — `labSim.ts` setzt
+einen Läufer auf jeden Boden, der nicht höher liegt als sein Tritt, und ob der
+Zylinder dort in Rapier hinaufkommt, weiß er nicht. (Er kommt es nicht: Ein
+dynamischer Zylinder steigt auch keine Stufe von vier Zentimetern. Nur was
+gesprungen wird, geht hinauf.) Dazu die Dachkante mit beiden Sorten: dass der
+Zombie springt und dabei wirklich Leben verliert (`Npc.land`), und dass der
+Hamster oben und unversehrt stehen bleibt.
 
 Dieselbe Bank prüft auch die **Schalter**: Ohne Verbindungen springt die Puppe
 nicht mehr auf das freistehende Podest, ohne Hindernisse plant der Zombie mitten
@@ -4703,7 +4809,7 @@ Zahl hinter „läuft Manhattan-mäßig".
 
 Die andere ist die **Werkzeugseite**: Auf `tools.html#welt/navlab` steht unter
 dem Bild der Knopf **Laufen lassen**. Er baut dieselbe Welt mit echter Physik,
-kippt die Ansicht senkrecht nach unten und legt die acht Buchten samt ihren
+kippt die Ansicht senkrecht nach unten und legt die zehn Buchten samt ihren
 Knöpfen als Zeilen daneben — dazu die sieben Debug-Ebenen als Schalter, die
 **drei Schalter der Navigation** in derselben Reihe (gestrichelt umrandet, und
 sie tragen ihr „aus" im Namen: an ist der Normalfall und soll ruhig sein) und
@@ -4755,7 +4861,12 @@ lassen*.
 
 **Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, zerstörbare
 Hindernisse samt „schlag drauf, wenn kein Weg da ist" — und der
-Character-Controller oben.
+Character-Controller oben, der inzwischen der teuerste offene Punkt ist: Solange
+ein NPC ein dynamischer Zylinder ist, kommt er keine Stufe hinauf, die er nicht
+springt, und jede Rampe muss deshalb aus Stufen bestehen, die groß genug zum
+Springen sind. Die Karte kann längst mehr, als der Körper einlöst — sie weiß,
+dass eine Rampe aus 12-cm-Stufen begehbar ist (`CostProfile.stepUp`), und in
+der Brille steht er davor.
 
 ### Der Bauplatz
 

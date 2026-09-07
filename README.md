@@ -32,7 +32,10 @@ einem hinterherlaufen (Haut und Hirn getrennt gewählt, dazu Spawnpunkte und
 Brutkäfige, mit Lebensbalken über dem Kopf — ein Zombie hat hundert Leben, die
 Pistole macht fünfundzwanzig, das Messer fünfzig und der große Hammer hundert,
 Kopftreffer vierfach; getroffen wird der Körper, den man sieht, und wer
-nachsehen will, schaltet die **Trefferzonen** im Menü ein) und
+nachsehen will, schaltet die **Trefferzonen** im Menü ein — und jede Sorte
+liest dieselbe Karte mit ihren eigenen Beinen: Was der eine hochspringt, ist
+für den anderen eine Wand, und wer den Sturz nicht überlebt, bleibt oben
+stehen) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
@@ -90,7 +93,10 @@ dem Weg über die Leitung, die Maße des Poseraums, den **Bauplan des Editors**
 (worauf ein Zeiger trifft — Kachel oder Kante —, was die vier Werkzeuge daraus
 machen, und dass die gebauten Quader vom Abtasten wiedergefunden werden) samt
 der **Miniatur** (Hin und Zurück ohne Drift, und dass der Punkt zwischen den
-Fingern beim Ziehen liegen bleibt) und das **ganze Navigationslabor auf einmal**
+Fingern beim Ziehen liegen bleibt), **was ein NPC an einer Kante anfängt**
+(wie hoch er tritt, wie hoch er sich hochzieht, wie steil ein Weg für ihn noch
+einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte) und das
+**ganze Navigationslabor auf einmal**
 (ein Körper mit Umfang und Drehrate läuft jede Bucht ab, und je Bucht prüft ein
 Kontrollpunkt, dass er den richtigen Weg genommen hat). Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL

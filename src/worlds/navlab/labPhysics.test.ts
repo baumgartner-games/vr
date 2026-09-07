@@ -6,6 +6,8 @@ import { bakeLab } from './labSim';
 import {
   PIT_DEPTH,
   PODIUM,
+  RAMP,
+  ROOF,
   baySpot,
   labHarm,
   labSolids,
@@ -174,6 +176,48 @@ describe('Podest und Sprung, mit echter Physik', () => {
     // (`ZOMBIE_PROFILE`, `link.jump = Infinity`).
     expect(run.local(zombie!).y).toBeCloseTo(0, 1);
   }, 60000);
+});
+
+describe('Die beiden Steigungen, mit echter Physik', () => {
+  it('bringt beide die flache hinauf und keinen die steile', async () => {
+    // **Der Grund, warum diese Bucht Stufen von 60 cm hat und keine von zwölf**
+    // (`scenarios.RAMP`): Ein NPC ist ein dynamischer Zylinder ohne
+    // Schrittautomatik. Er *geht* keine Rampe hinauf, er springt sie stufenweise
+    // (`navAgent.leaps`, `Npc.launch`) — und das kann nur eine echte Engine
+    // zeigen. Der Nachbau in `labSim.ts` setzt ihn auf jeden Boden, der nicht
+    // höher liegt als sein Tritt; ob der Körper dort wirklich hinaufkommt, weiß
+    // er nicht.
+    const flat = await runLab('ramp', 45);
+    for (const npc of flat.cast) {
+      expect(flat.local(npc).y).toBeCloseTo(RAMP.high, 1);
+    }
+
+    // Und dieselbe Höhe über eine Kachel: Da bleiben beide unten stehen. Nicht
+    // weil die Stufen zu hoch wären — die sind hier zwölf Zentimeter —, sondern
+    // weil der Winkel es ist (`navProfile.maxSlope`).
+    const steep = await runLab('steep', 45);
+    for (const npc of steep.cast) {
+      expect(steep.local(npc).y).toBeCloseTo(0, 1);
+    }
+  }, 120000);
+});
+
+describe('Vom Dach herunter, mit echter Physik', () => {
+  it('lässt den Zombie springen und den Hamster oben', async () => {
+    // **Zwei Sorten, eine Kante, zwei Antworten** — und beide Hälften stehen
+    // erst hier auf dem Prüfstand: dass der Sprung wirklich Leben kostet
+    // (`Npc.land`), und dass der, für den er tödlich wäre, ihn gar nicht erst
+    // plant (`navProfile.canTraverse`).
+    const run = await runLab('levels', 40);
+    const [zombie, hamster] = run.cast;
+    expect(run.local(zombie!).y).toBeCloseTo(0, 1);
+    expect(zombie!.alive).toBe(true);
+    expect(zombie!.health).toBeLessThan(zombie!.maxHealth);
+
+    expect(run.local(hamster!).y).toBeCloseTo(ROOF, 1);
+    expect(hamster!.alive).toBe(true);
+    expect(hamster!.health).toBe(hamster!.maxHealth);
+  }, 120000);
 });
 
 describe('Stachelgrube, mit echter Physik', () => {

@@ -1,4 +1,5 @@
 import { BAKE_DEFAULTS } from '../nav/navBake';
+import { HUMAN_PROFILE, ZOMBIE_PROFILE, canTraverse, slopeDegrees } from '../nav/navProfile';
 import { brainOf } from '../npc/npcBrains';
 import { npcSkin } from '../npc/npcKinds';
 import { TILE } from '../nav/navTile';
@@ -9,8 +10,12 @@ import {
   NARROW,
   PODIUM,
   PORTAL,
+  RAMP,
   SCENARIOS,
   SCENARIO_TIME,
+  rampHeight,
+  rampPlan,
+  type ScenarioId,
   bayBounds,
   bayPoint,
   baySpot,
@@ -24,6 +29,22 @@ import {
   tickScenario,
 } from './scenarios';
 
+/**
+ * **Die größte Steigung einer Bucht, in Grad** — so, wie das Abtasten sie
+ * misst: der Höhenunterschied zwischen zwei Kachelmitten (`nav/navBake.ts`).
+ *
+ * Gerechnet aus denselben Daten, aus denen die Bucht gebaut wird — eine Zahl,
+ * die hier stünde, wäre beim nächsten Umbau still falsch.
+ */
+function rampSlope(id: ScenarioId): number {
+  let worst = 0;
+  for (let lz = 7.5 - TILE / 2; lz > -7.5; lz -= TILE) {
+    const rise = rampHeight(id, lz - TILE) - rampHeight(id, lz);
+    worst = Math.max(worst, slopeDegrees(rise));
+  }
+  return worst;
+}
+
 describe('Der Grundriss', () => {
   it('hat zu jedem Szenario aus dem Auftrag eine Bucht', () => {
     expect(SCENARIOS.map((bay) => bay.id)).toEqual([
@@ -35,6 +56,8 @@ describe('Der Grundriss', () => {
       'portal',
       'levels',
       'podium',
+      'ramp',
+      'steep',
     ]);
   });
 
@@ -217,20 +240,64 @@ describe('Der Grundriss', () => {
   });
 
   it('legt die Podeste so hoch, dass nur der Sprung hinaufführt', () => {
-    // Über der Treppe, die das Abtasten von selbst bauen würde, und unter dem
-    // Absprung, mit dem man wieder herunterkommt (`navBake.ts`).
-    expect(PODIUM.high).toBeGreaterThan(BAKE_DEFAULTS.climb);
-    expect(PODIUM.high).toBeLessThanOrEqual(BAKE_DEFAULTS.drop);
-    // Zwischen den beiden Decken liegt ein Gang und keine Fuge.
+    // **Die Zahlen kommen aus den Fähigkeiten und nicht mehr aus dem
+    // Abtasten**: Hier stand einmal „höher als eine Treppe, niedriger als ein
+    // Absprung" (`BAKE_DEFAULTS.climb`, `drop`) — zwei Grenzen, die für alle
+    // galten. Heute misst die Karte nur noch, und die Behauptung dieser Bucht
+    // hängt daran, was ein NPC *kann* (`nav/navProfile.ts`).
+    for (const profile of [HUMAN_PROFILE, ZOMBIE_PROFILE]) {
+      // Von unten kommt keiner hinauf: zu hoch zum Hochziehen.
+      expect(PODIUM.high).toBeGreaterThan(profile.jumpUp);
+      // Und wieder herunter kommt jeder — sonst wäre das Podest eine Falle.
+      expect(canTraverse(profile, 'drop', { rise: -PODIUM.high, step: PODIUM.high, gap: 0 })).toBe(
+        true,
+      );
+    }
+    // Zwischen den beiden Decken liegt ein Gang und keine Fuge — daraus macht
+    // das Abtasten die Sprungverbindung (`navBake.joinGap`).
     expect(PODIUM.far.minLx - PODIUM.near.maxLx).toBeCloseTo(TILE);
-    // Die Rampe steigt in Schritten, die man hinaufkommt.
+    // Die Rampe steigt in Stufen, die ein Zombie sich hochzieht — mehr, als er
+    // tritt, und weniger, als er springt. Genau daran sieht man ihm an, wo die
+    // eine Fähigkeit aufhört und die andere anfängt.
     let below = 0;
     for (const step of PODIUM.ramp) {
-      expect(step.y - below).toBeLessThanOrEqual(BAKE_DEFAULTS.climb);
-      expect(step.y).toBeGreaterThan(below);
+      expect(step.y - below).toBeGreaterThan(ZOMBIE_PROFILE.stepUp);
+      expect(step.y - below).toBeLessThanOrEqual(ZOMBIE_PROFILE.jumpUp);
       below = step.y;
     }
     expect(below).toBeCloseTo(PODIUM.high);
+  });
+
+  it('baut die beiden Steigungen so, dass nur der Winkel sie unterscheidet', () => {
+    // **Die Behauptung der zwei neuen Buchten, als Rechnung.** Beide gehen
+    // gleich hoch; was sie trennt, ist die Steigung je Kachel — und dass die
+    // einzelne Stufe in *keiner* von beiden der Grund ist, warum jemand stehen
+    // bleibt.
+    const flat = rampSlope('ramp');
+    const steep = rampSlope('steep');
+    expect(flat).toBeLessThan(steep);
+    for (const profile of [HUMAN_PROFILE, ZOMBIE_PROFILE]) {
+      expect(flat).toBeLessThan(profile.maxSlope);
+      expect(steep).toBeGreaterThan(profile.maxSlope);
+      // Die feinen Stufen der steilen Steigung tritt jeder — an ihnen liegt es
+      // also nicht.
+      expect(RAMP.steep.step).toBeLessThanOrEqual(profile.stepUp);
+      // Und die groben der flachen zieht sich jeder hoch.
+      expect(RAMP.flat.step).toBeLessThanOrEqual(profile.jumpUp);
+      expect(RAMP.flat.step).toBeGreaterThan(profile.stepUp);
+    }
+  });
+
+  it('lässt beide Steigungen auf Kachelmitten enden', () => {
+    // Was zwischen zwei Kachelmitten liegt, misst das Abtasten nicht — eine
+    // Stufe, die eine Kachelmitte halb trifft, steht mit halber Höhe in der
+    // Karte.
+    for (const id of ['ramp', 'steep'] as const) {
+      const plan = rampPlan(id);
+      expect(plan.foot % TILE).toBeCloseTo(0);
+      expect((plan.foot - plan.run) % TILE).toBeCloseTo(0);
+      expect(Math.round(RAMP.high / plan.step) * plan.step).toBeCloseTo(RAMP.high);
+    }
   });
 
   it('baut jeden Quader des Labors aus denselben Daten', () => {

@@ -7,7 +7,7 @@ import {
   type NavLink,
   type WallState,
 } from './navGraph';
-import { hazardCost, powerOf, type CostProfile } from './navProfile';
+import { hazardCost, linkFactor, powerOf, type CostProfile } from './navProfile';
 import { canWalkLine, traceLine } from './navSight';
 import {
   DIRS,
@@ -288,11 +288,14 @@ export function findPath(
       relax(current, next, g + step + wall.cost);
     }
 
-    // Und alles, was von hier aus gebaut wurde: Treppen, Leitern, Portale.
+    // Und alles, was von hier aus gebaut wurde: Rampen, Kanten, Leitern,
+    // Sprünge, Portale. **Ob er dort hinaufkommt, sagt sein Profil** — und
+    // zwar für diese Richtung: Dieselbe Kante ist hinunter ein Absprung und
+    // hinauf eine Wand (`navProfile.linkFactor`).
     for (const exit of graph.linksFrom(current)) {
       const { link, to: next } = exit;
       if (closed.has(next)) continue;
-      const factor = profile.link[link.kind];
+      const factor = linkFactor(profile, link, next);
       if (!Number.isFinite(factor)) continue;
       if (!believedLinkOpen(belief, link)) continue;
       if (!believedWalkable(belief, graph, next)) continue;
@@ -824,8 +827,10 @@ export interface FlowField {
  *
  * **Rückwärts** heißt: Es wird geprüft, was es kostet, *hierher* zu kommen.
  * Bei den Wänden macht das keinen Unterschied (eine Tür ist von beiden Seiten
- * dieselbe), bei den Verbindungen schon — ein Absprung ist einseitig, und wer
- * das Feld vorwärts bauen würde, ließe seine Horde Klippen hochlaufen.
+ * dieselbe), bei den Verbindungen schon — eine Kante ist hinunter ein
+ * Absprung und hinauf womöglich eine Wand. Gefragt wird deshalb immer nach der
+ * Richtung, in der später **gelaufen** wird; wer hier die Richtung des
+ * Eintrags nähme, ließe seine Horde Klippen hochlaufen.
  */
 export function flowField(
   graph: NavGraph,
@@ -878,7 +883,10 @@ export function flowField(
     for (const entry of incoming.get(current) ?? []) {
       const link = entry.link;
       if (closed.has(entry.from)) continue;
-      const factor = profile.link[link.kind];
+      // Gefragt wird nach der Richtung, in der gelaufen wird — also **hierher**
+      // und nicht von hier weg. Rückwärts gerechnet wird das Feld, gelaufen
+      // wird es vorwärts.
+      const factor = linkFactor(profile, link, current);
       if (!Number.isFinite(factor)) continue;
       if (!believedLinkOpen(belief, link)) continue;
       if (!believedWalkable(belief, graph, entry.from)) continue;

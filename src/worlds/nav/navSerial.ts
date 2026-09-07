@@ -99,6 +99,18 @@ export interface NavLinkEntry {
   cost: number;
   both: boolean;
   open: boolean;
+  /**
+   * **Die Form der Kante** — Höhe, größte Stufe, waagerechte Weite
+   * (`navProfile.EdgeShape`).
+   *
+   * Sie steht in der Datei, weil ohne sie jede geladene Karte eben wäre: Eine
+   * Verbindung ohne Form darf jeder benutzen, und dann klettert der Hamster die
+   * Wand hoch, an der er in der frisch abgetasteten Karte stehen blieb. Was
+   * fehlt, kommt aus einer Datei, die diese Zahlen noch nicht kannte.
+   */
+  rise?: number;
+  step?: number;
+  gap?: number;
 }
 
 /** Eine Karte, so wie sie in der Datei steht. */
@@ -218,6 +230,11 @@ function collectLinks(graph: NavGraph): NavLinkEntry[] {
       cost: link.cost,
       both: link.both,
       open: link.open,
+      // Was eben ist, steht nicht da: Eine Datei voller `rise: 0` wäre nur
+      // länger und nicht genauer.
+      ...(link.rise ? { rise: link.rise } : {}),
+      ...(link.step ? { step: link.step } : {}),
+      ...(link.gap ? { gap: link.gap } : {}),
     });
   }
   links.sort((a, b) => a.id.localeCompare(b.id));
@@ -277,6 +294,9 @@ export function readNav(data: unknown): NavGraph {
       cost: entry.cost,
       both: entry.both,
       open: entry.open,
+      ...(entry.rise === undefined ? {} : { rise: entry.rise }),
+      ...(entry.step === undefined ? {} : { step: entry.step }),
+      ...(entry.gap === undefined ? {} : { gap: entry.gap }),
     };
     graph.addLink(link);
   }

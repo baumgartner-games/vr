@@ -1,11 +1,12 @@
-import { addPortal, connect, coverRect, doorBetween } from '../nav/navBuild';
+import { addPortal, coverRect, doorBetween } from '../nav/navBuild';
 import type { DoorMaterial } from '../nav/navDoor';
 import type { NavGraph } from '../nav/navGraph';
 import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE, TILE } from '../nav/navTile';
+import type { NpcKind } from '../npc/npcKinds';
 
 /**
- * **Der Grundriss des Navigationslabors** — acht Buchten, und was in jeder zu
+ * **Der Grundriss des Navigationslabors** — zehn Buchten, und was in jeder zu
  * sehen sein soll.
  *
  * Reine Daten und ein bisschen Rechnung: Wo eine Bucht liegt, wo ihre Wände
@@ -44,19 +45,29 @@ export const WALL_T = 0.4;
 /**
  * Die Höhe des Dachs in der Etagen-Bucht.
  *
- * **2,4 m, und die Zahl ist keine Geschmacksfrage**: Sie muss unter dem
- * Absprung liegen, den das Abtasten noch als Absprung durchgehen lässt
- * (`BAKE_DEFAULTS.drop`). Eine Treppe hinauf gäbe es zwar im Gitter, aber ein
- * NPC ist heute ein dynamischer Zylinder ohne Schrittautomatik — er käme keine
- * Stufe hoch. Herunterfallen kann er, und deshalb ist diese Bucht ein Weg nach
- * unten und keiner nach oben.
+ * **2,4 m, und die Zahl ist keine Geschmacksfrage** — sie liegt zwischen drei
+ * Fähigkeiten (`nav/navProfile.ts`): über dem, was der Beweglichste sich noch
+ * hochzieht (`jumpUp`, 1,2 m), unter dem, was ein Zombie hinunterspringt
+ * (`dropDown`, und er überlebt es), und **über** dem, was ein Hamster
+ * hinunterspringt, ohne unten liegen zu bleiben (`navFall.safeFall`, zwei
+ * Meter bei zwanzig Leben). Damit ist diese Bucht ein Weg nach unten, keiner
+ * nach oben — und für den einen von beiden gar keiner.
  */
 export const ROOF = 2.4;
 /** Nach so vielen Sekunden räumt ein Szenario sich selbst auf. */
 export const SCENARIO_TIME = 100;
 
 export type ScenarioId =
-  'corridor' | 'pit' | 'crate' | 'narrow' | 'door' | 'portal' | 'levels' | 'podium';
+  | 'corridor'
+  | 'pit'
+  | 'crate'
+  | 'narrow'
+  | 'door'
+  | 'portal'
+  | 'levels'
+  | 'podium'
+  | 'ramp'
+  | 'steep';
 
 /** Ein Punkt im Maß einer Bucht — `lx` quer, `lz` in die Tiefe (`bayPoint`). */
 export interface BaySpot {
@@ -65,16 +76,16 @@ export interface BaySpot {
   /**
    * Höhe über dem Boden der Bucht, in Metern.
    *
-   * Zwei Buchten brauchen sie: das Dach der Etagen-Bucht und das freistehende
-   * Podest. Wer sie wegläßt, steht auf dem Boden — das ist der Normalfall und
-   * bleibt es.
+   * Vier Buchten brauchen sie: das Dach der Etagen-Bucht, das freistehende
+   * Podest und die beiden Rampen-Podeste. Wer sie wegläßt, steht auf dem
+   * Boden — das ist der Normalfall und bleibt es.
    */
   y?: number;
 }
 
 /** Wer in einer Bucht losläuft, und wo. */
 export interface BayCast extends BaySpot {
-  kind: 'zombie' | 'dummy';
+  kind: NpcKind;
 }
 
 /**
@@ -120,6 +131,82 @@ export interface Scenario {
   stand: BaySpot;
   /** Wer in dieser Bucht auftritt. */
   cast: readonly BayCast[];
+}
+
+/**
+ * **Die beiden Steigungen** — zweimal dieselben 2,4 m hinauf, und zweimal
+ * scheitert oder gelingt es aus einem anderen Grund.
+ *
+ * Sie beantworten die zwei Fragen, die ein NPC an jede Kante stellt, und zwar
+ * jede in einer eigenen Bucht (`nav/navProfile.ts`):
+ *
+ * - **Wie hoch ist die einzelne Stufe?** Die flache Steigung besteht aus vier
+ *   Stufen von 60 cm, eine je Kachel. Sechzig Zentimeter *tritt* niemand
+ *   (`stepUp`), aber jeder hier zieht sich hinauf (`jumpUp`) — und genau das
+ *   sieht man: vier Sätze, und er steht oben.
+ * - **Wie steil ist der Weg?** Die steile Steigung ist eine richtige Rampe aus
+ *   12-cm-Stufen. Die tritt sogar der Hamster. Was sie unbegehbar macht, ist
+ *   allein der **Winkel**: 1,32 m Höhe je Kachel sind 28°, und dabei ist bei
+ *   jedem hier Schluss (`maxSlope`). Er bleibt davor stehen, obwohl jede
+ *   einzelne Stufe lächerlich ist — das ist die Behauptung dieser Bucht, und
+ *   ohne die zwölf Zentimeter wäre sie keine.
+ *
+ * **Warum die flache keine feinen Stufen hat**, obwohl sie flacher aussähe: Ein
+ * NPC ist ein dynamischer Zylinder ohne Schrittautomatik. Er kommt keine Stufe
+ * hinauf, die er nicht **springt** (`navAgent.leaps`, `Npc.launch`) — auch
+ * keine von vier Zentimetern, das ist nachgemessen. Zwanzig Stufen wären
+ * zwanzig Sprünge oder, wahrscheinlicher, ein NPC, der an der ersten steht.
+ * Mit dem Character-Controller für NPCs (der weiter auf der Liste steht) werden
+ * aus den vier Stufen zwanzig, und die Bucht behauptet dann dasselbe.
+ */
+export const RAMP = {
+  /** Wie hoch beide steigen — dieselbe Höhe wie das Dach (`ROOF`). */
+  high: ROOF,
+  /** Wie breit sie sind, in Buchtmaßen: vier Kacheln. */
+  minLx: -5,
+  maxLx: 5,
+  /**
+   * Die flache: vier Stufen von 60 cm, jede eine Kachel tief.
+   *
+   * Auf der Karte ist jede davon eine **Kante** und keine Steigung — die ganze
+   * Höhe steckt in einer Stufe —, und deshalb entscheidet hier `jumpUp` und
+   * nicht der Winkel. Dass sie mit 13,5° auch flach *aussieht*, ist die andere
+   * Hälfte: Eine Bucht, in der einer hinaufkommt, soll nicht wie eine Wand
+   * aussehen.
+   */
+  flat: { foot: 5, run: 4 * TILE, step: ROOF / 4 },
+  /**
+   * Die steile: dieselbe Höhe auf einer einzigen Kachel Anlauf, in Stufen von
+   * 12 cm.
+   *
+   * Auf der Karte sind das 1,32 m je Kachel (28°) — und weil die einzelne Stufe
+   * dabei winzig ist, kann es an ihr nicht liegen.
+   */
+  steep: { foot: 2.5, run: TILE, step: 0.12 },
+} as const;
+
+/** Wie die Steigung dieser Bucht gebaut ist — Fuß, Anlauf, Stufenhöhe. */
+export function rampPlan(id: ScenarioId): { foot: number; run: number; step: number } {
+  return id === 'steep' ? RAMP.steep : RAMP.flat;
+}
+
+/**
+ * **Die Höhe der Steigung an einer Stelle**, in Buchtmaßen.
+ *
+ * Stufen und keine schiefe Ebene: Die Welt hier besteht aus achsenparallelen
+ * Quadern (`labSolids`), und eine gekippte Fläche wäre in jeder der drei
+ * Rechnungen ein Fremdkörper, die dieses Labor anstellt — im Abtasten, in der
+ * Physik und im Test ohne Brille.
+ *
+ * Gerechnet wird vom **Fuß** aus nach hinten: `lz` fällt, die Höhe steigt.
+ */
+export function rampHeight(id: ScenarioId, lz: number): number {
+  const plan = rampPlan(id);
+  const along = plan.foot - lz;
+  if (along <= 0) return 0;
+  if (along >= plan.run) return RAMP.high;
+  const tread = plan.run / Math.round(RAMP.high / plan.step);
+  return Math.min(RAMP.high, plan.step * (Math.floor(along / tread) + 1));
 }
 
 const ROW = BAY_D / 2 + AISLE / 2;
@@ -234,11 +321,16 @@ export const NARROW = { lx: NARROW_LX, gap: 0.45, opening: TILE };
  * Gang breit** entfernt, und dazwischen läuft der Boden durch. Wer springen
  * kann, ist drüben; wer nicht, steht unten im Gang.
  *
- * Die Höhe ist dieselbe wie die des Dachs (`ROOF`): Sie muss über dem liegen,
- * was das Abtasten noch als Treppe durchgehen lässt (`climb`, 2,2 m) — sonst
- * baut es von selbst eine Verbindung hinauf, und der Zombie steht oben.
- * Gleichzeitig muss sie **unter** dem Absprung bleiben (`drop`, 2,6 m), damit
- * man wieder herunterkommt.
+ * **Die Rampe ist eine Treppe und keine Rampe**, und das ist der Unterschied
+ * zu den beiden Rampen-Buchten (`RAMP`): Ihre Stufen sind 80 cm hoch, also
+ * mehr, als irgendwer tritt (`stepUp`) und weniger, als ein Zombie sich
+ * hochzieht (`jumpUp`). Er hüpft sie hinauf, einen Satz je Stufe — man sieht
+ * ihm dabei genau an, wo die eine Fähigkeit aufhört und die andere anfängt.
+ *
+ * Die Höhe ist dieselbe wie die des Dachs (`ROOF`), und über die **Lücke**
+ * zwischen den beiden Podesten kommt nur, wer springt: Sie ist eine Kachel
+ * breit, das Abtasten trägt sie als Sprungverbindung ein
+ * (`nav/navBake.joinGap`), und der Zombie hat für die `Infinity` stehen.
  */
 export const PODIUM = {
   high: ROOF,
@@ -257,8 +349,16 @@ export const PODIUM = {
   to: { lx: -3.75, lz: -3.75 },
 } as const;
 
-/** Die vier Spalten einer Reihe, von West nach Ost. */
-const COLS = [-1.5 * COL, -0.5 * COL, 0.5 * COL, 1.5 * COL] as const;
+/**
+ * Die fünf Spalten einer Reihe, von West nach Ost.
+ *
+ * Eine ungerade Zahl, und deshalb steht eine Bucht je Reihe **mittig** — das
+ * geht nur auf, weil der Spaltenabstand selbst ein Vielfaches der Kachel ist
+ * (`COL`, zwölf Kacheln). Bei einer krummen Zahl stünde jede Wand dieser Bucht
+ * neben der Kachelgrenze statt darauf, und das Abtasten verschluckte sie still
+ * (`scenarios.test.ts`).
+ */
+const COLS = [-2 * COL, -COL, 0, COL, 2 * COL] as const;
 
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -340,13 +440,20 @@ export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'levels',
     title: 'Vom Dach herunter',
-    watch: 'Er steht oben, sucht sich die Kante und springt',
+    watch: 'Der Zombie springt, der Hamster bleibt oben — 2,4 m überlebt er nicht',
     acts: [],
     x: COLS[2],
     z: ROW,
     accent: 0x5ee0a0,
     stand: { lx: 6.25, lz: 3.75 },
-    cast: [{ kind: 'zombie', lx: -6.25, lz: -3.75, y: ROOF }],
+    cast: [
+      { kind: 'zombie', lx: -6.25, lz: -3.75, y: ROOF },
+      // **Dieselbe Kante, zwei Antworten.** Der Hamster steht neben ihm, sieht
+      // denselben Spieler und hat dieselbe Karte — nur zwanzig Leben
+      // (`npcKinds.ts`), und `nav/navFall.ts` macht daraus zwei Meter. Das
+      // Dach ist 2,4 hoch. Er bleibt oben und läuft an der Kante entlang.
+      { kind: 'hamster', lx: -8.75, lz: -1.25, y: ROOF },
+    ],
   },
   {
     id: 'podium',
@@ -360,6 +467,34 @@ export const SCENARIOS: readonly Scenario[] = [
     cast: [
       { kind: 'dummy', lx: -11.25, lz: 6.25 },
       { kind: 'zombie', lx: -8.75, lz: 6.25 },
+    ],
+  },
+  {
+    id: 'ramp',
+    title: 'Flache Steigung',
+    watch: 'Vier Stufen von 60 cm: zu hoch zum Treten, gerade recht zum Springen',
+    acts: [],
+    x: COLS[4],
+    z: -ROW,
+    accent: 0x8ee06a,
+    stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    cast: [
+      { kind: 'zombie', lx: -3.75, lz: 6.25 },
+      { kind: 'dummy', lx: 1.25, lz: 6.25 },
+    ],
+  },
+  {
+    id: 'steep',
+    title: 'Steile Steigung',
+    watch: 'Stufen von 12 cm, und trotzdem kein Weg: 28° sind zu steil',
+    acts: [],
+    x: COLS[4],
+    z: ROW,
+    accent: 0xffb14e,
+    stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    cast: [
+      { kind: 'zombie', lx: -3.75, lz: 6.25 },
+      { kind: 'dummy', lx: 1.25, lz: 6.25 },
     ],
   },
 ];
@@ -462,6 +597,10 @@ const INSIDE: Record<ScenarioId, readonly BayWall[]> = {
   ],
   // Rampe und Podeste sind Klötze und keine Wände (`PODIUM`).
   podium: [],
+  // Und die beiden Rampen erst recht: Was hier steht, ist Boden mit einer
+  // Steigung (`RAMP`).
+  ramp: [],
+  steep: [],
 };
 
 /** Alle Wände einer Bucht — Hülle und Innenleben. */
@@ -722,6 +861,43 @@ function bayFixtures(bay: Scenario): LabSolid[] {
     });
   }
 
+  if (bay.id === 'ramp' || bay.id === 'steep') {
+    // **Zwanzig Stufen und ein Podest.** Jede Stufe ist ein Quader, der vom
+    // Boden bis zu ihrer Höhe reicht — nicht eine Platte auf Stelzen: Das
+    // Abtasten sucht Deckel über einer Kachelmitte (`navBake.floorsAt`), und
+    // unter einer schwebenden Platte fände es einen zweiten.
+    const plan = rampPlan(bay.id);
+    const count = Math.round(RAMP.high / plan.step);
+    const tread = plan.run / count;
+    const out: LabSolid[] = [];
+    for (let i = 0; i < count; i++) {
+      const top = plan.step * (i + 1);
+      const at = bayPoint(bay, (RAMP.minLx + RAMP.maxLx) / 2, plan.foot - (i + 0.5) * tread);
+      out.push({
+        kind: 'block',
+        x: at.x,
+        y: top / 2,
+        z: at.z,
+        w: RAMP.maxLx - RAMP.minLx,
+        h: top,
+        d: tread,
+      });
+    }
+    // Das Podest dahinter: von der Rückwand bis an die Rampe heran.
+    const a = bayPoint(bay, RAMP.minLx, -BAY_D / 2);
+    const b = bayPoint(bay, RAMP.maxLx, plan.foot - plan.run);
+    out.push({
+      kind: 'block',
+      x: (a.x + b.x) / 2,
+      y: RAMP.high / 2,
+      z: (a.z + b.z) / 2,
+      w: Math.abs(b.x - a.x),
+      h: RAMP.high,
+      d: Math.abs(b.z - a.z),
+    });
+    return out;
+  }
+
   if (bay.id === 'podium') {
     const out: LabSolid[] = [];
     for (const step of PODIUM.ramp) {
@@ -753,19 +929,25 @@ function bayFixtures(bay: Scenario): LabSolid[] {
 export const DOOR_ID = 'navlab-tuer';
 /** Das Portal der Portal-Bucht. */
 export const PORTAL_ID = 'navlab-portal';
-/** Der Sprung zwischen den beiden Podesten. */
-export const JUMP_ID = 'navlab-sprung';
 
 /**
  * **Was das Abtasten nicht finden kann**, in die frisch abgetastete Karte
  * eingetragen.
  *
- * Drei Sachen stehen in keinem Quader: Über der Grube liegt auf der Karte ein
+ * Zwei Sachen stehen in keinem Quader: Über der Grube liegt auf der Karte ein
  * Weg mit Stacheln, wo in der Welt ein Loch ist — das ist eine Falle und die
  * einzige Stelle, an der die Karte absichtlich etwas anderes sagt als die
- * Geometrie. Eine Tür ist in der Geometrie entweder eine Lücke oder eine Wand,
- * nie beides nacheinander. Und ein Sprung über einen Gang ist ein Loch, kein
- * Weg.
+ * Geometrie. Und eine Tür ist in der Geometrie entweder eine Lücke oder eine
+ * Wand, nie beides nacheinander.
+ *
+ * **Der Sprung zwischen den beiden Podesten stand hier auch einmal**, mit
+ * zwei Kachelmitten und einer Verbindung von Hand. Er steht nicht mehr hier:
+ * Das Abtasten findet ihn selbst (`nav/navBake.joinGap` — zwei Kacheln, und
+ * dazwischen auf dieser Etage kein Boden), und wer springen darf, entscheidet
+ * das Profil und nicht mehr diese Datei. Der Unterschied ist keiner der
+ * Bequemlichkeit: Ein von Hand eingetragener Sprung blieb liegen, wo er war,
+ * wenn jemand das Podest um eine Kachel verschob — und die Bucht behauptete
+ * dann etwas über eine Lücke, über die niemand mehr sprang.
  *
  * Sie stehen hier und nicht in `NavLabWorld`, aus demselben Grund wie
  * `labSolids()`: Ein Test, der das Labor abtastet, muss dieselbe Karte
@@ -790,20 +972,6 @@ export function applyLabMap(graph: NavGraph): void {
       const north = bayPoint(bay, DOOR.lx, -DOOR.gap);
       const south = bayPoint(bay, DOOR.lx, DOOR.gap);
       doorBetween(graph, { ...north, y: 0 }, { ...south, y: 0 }, DOOR_ID, true, DOOR_MATERIAL);
-    }
-    if (bay.id === 'podium') {
-      // **Der Sprung von einem Podest auf das andere.** Ihn kann kein Abtasten
-      // finden: Zwischen den beiden Decken liegt ein Gang, und ein Gang ist in
-      // der Geometrie ein Loch und keine Verbindung. Wer springen kann, nimmt
-      // ihn (`HUMAN_PROFILE`); der Zombie hat dafür `Infinity` stehen und
-      // bleibt unten (`navProfile.ts`).
-      const a = baySpot(bay, PODIUM.from);
-      const b = baySpot(bay, PODIUM.to);
-      const from = graph.at(a.x, a.z, PODIUM.high);
-      const to = graph.at(b.x, b.z, PODIUM.high);
-      if (from !== NO_TILE && to !== NO_TILE) {
-        connect(graph, JUMP_ID, from, to, 'jump', { both: true });
-      }
     }
   }
 }

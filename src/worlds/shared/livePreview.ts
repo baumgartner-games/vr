@@ -10,7 +10,7 @@ import type { BarMode } from '../npc/NpcBody';
  * Die stille Vorschau (`WorldPreview`) ist eine Kulisse: gebaut mit denselben
  * Zeilen wie im Spiel, aber mit einer Attrappe statt einer Physik, damit man
  * sie ansehen kann, ohne sie zu betreten. Das reicht für „wie ist diese Welt
- * angelegt" und für nichts sonst — ein Navigationslabor, dessen acht Knöpfe
+ * angelegt" und für nichts sonst — ein Navigationslabor, dessen zehn Knöpfe
  * man nicht drücken kann, zeigt genau das, was an ihm nicht interessant ist.
  *
  * Diese Schnittstelle ist die Antwort darauf, und sie ist absichtlich **klein**:
