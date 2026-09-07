@@ -17,6 +17,7 @@ import type { Attachment } from './attachments';
 import type { PaintSurface } from './paintCanvas';
 import type { NpcControl } from '../../npc/NpcDirector';
 import type { SignControl } from '../../signs/SignRoom';
+import type { NavGraph } from '../../nav/navGraph';
 
 const _euler = new THREE.Euler();
 const DEG = Math.PI / 180;
@@ -221,6 +222,17 @@ export interface ToolHost {
    * Werkzeug nichts wissen muss.
    */
   signs(): SignControl | null;
+  /**
+   * **Das Kachelgitter dieser Welt** (`worlds/nav/navGraph.ts`), oder `null`,
+   * solange keines abgetastet ist.
+   *
+   * Dieselbe Grenze wie bei den NPCs und den Malflächen: Das Werkzeug kennt
+   * die Fähigkeit, nicht ihren Besitzer. Gebraucht wird sie von der Karte
+   * (`MapTool.ts`) — und dass sie dieselbe Karte liest, über die auch die NPCs
+   * laufen, ist genau der Punkt: eine Karte, die etwas anderes zeigt als die
+   * Welt, ist schlimmer als keine.
+   */
+  navMap(): NavGraph | null;
 }
 
 /** How hard a round hits: the punch is its mass times its speed. */

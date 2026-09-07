@@ -17,6 +17,8 @@ import {
 import { Kart, EXIT_HOLD, WHEEL_GRAB_RANGE, WHEEL_HOLD_RANGE } from './Kart';
 import { kartSpeed, kmh, stepKart } from './kartDynamics';
 import { gripAnchor } from '../../core/XRInput';
+import { visorFrame } from '../../core/headgear';
+import { LAYER_HUD } from '../../ui/ScoreHud';
 import {
   KART_FIELDS,
   KART_PRESETS,
@@ -25,6 +27,7 @@ import {
   clampKartField,
   kartFieldLabel,
   nextKartStep,
+  viewFollow,
   type KartField,
 } from './kartSettings';
 import { confineToCourse, insideApron, nearestOnPath, pathLength } from './kartTrack';
@@ -198,6 +201,16 @@ export class KartWorld extends GridWorld {
   private readonly boardTargets: THREE.Object3D[] = [];
 
   private driving: Kart | null = null;
+  /**
+   * **Der Helm von innen** — der Visierrand an der Kamera
+   * (`core/headgear.ts`).
+   *
+   * Er hängt an der Kamera und liegt auf `LAYER_HUD`, aus demselben Grund wie
+   * die Trefferanzeige: Ein Rahmen, der dem Kopf ein Bild hinterherläuft, ist
+   * genau das Gegenteil dessen, wofür es ihn gibt — und einer, den auch die
+   * Portalkameras zeichnen, schwebte als schwarzer Ring im Raum.
+   */
+  private visor: THREE.Mesh | null = null;
   /** Seconds A/X has been held down while seated. */
   private exitHeld = 0;
   /** The hand on the steering wheel, and where around it that hand last was. */
@@ -473,6 +486,7 @@ export class KartWorld extends GridWorld {
     }
     this.driving = kart;
     this.exitHeld = 0;
+    this.applyHelmet();
     this.steer = 0;
     this.wheelGrab = null;
     // Beim Einsteigen schaut man dorthin, wohin das Kart schaut; erst ab dem
@@ -498,6 +512,7 @@ export class KartWorld extends GridWorld {
     this.driving = null;
     this.wheelGrab = null;
     this.exitHeld = 0;
+    this.applyHelmet();
     kart.setSeated(false);
     kart.setBraking(0);
 
@@ -512,6 +527,38 @@ export class KartWorld extends GridWorld {
     this.announceSeat();
     playPick(false);
     ctx.notify('Ausgestiegen');
+  }
+
+  /**
+   * **Helm auf, Helm ab** — beides an einer Stelle, weil es zwei Dinge sind,
+   * die immer zusammen gelten.
+   *
+   * Von **außen** ist es ein Helm auf dem Kopf: `ctx.wear` setzt ihn dem
+   * eigenen Körper auf und sagt ihn allen im Raum an (`core/types.ts`). Von
+   * **innen** ist es der Visierrand vor dem Auge — und der ist der eigentliche
+   * Zweck der Einstellung: etwas, das stillsteht, während die Welt in der
+   * Kurve schwenkt. Wer aussteigt, ist beides wieder los und hat seinen
+   * eigenen Hut auf.
+   */
+  private applyHelmet(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const on = this.driving?.settings.helmet === true;
+    ctx.wear(on ? 'helmet' : null);
+
+    if (!on) {
+      this.visor?.removeFromParent();
+      this.visor?.geometry.dispose();
+      (this.visor?.material as THREE.Material | undefined)?.dispose();
+      this.visor = null;
+      return;
+    }
+    if (this.visor) return;
+    const frame = visorFrame();
+    frame.layers.set(LAYER_HUD);
+    ctx.camera.layers.enable(LAYER_HUD);
+    ctx.camera.add(frame);
+    this.visor = frame;
   }
 
   /**
@@ -603,7 +650,7 @@ export class KartWorld extends GridWorld {
     this.syncBody(kart);
     // Der Blick zieht nach, und **danach** wird der Sitz gestellt: `seatDriver`
     // dreht den Rig auf genau diesen Winkel.
-    this.viewYaw = stepViewYaw(this.viewYaw, kart.motion.yaw, kart.settings.headLag, dt);
+    this.viewYaw = stepViewYaw(this.viewYaw, kart.motion.yaw, viewFollow(kart.settings), dt);
     this.seatDriver(ctx, kart);
     this.updateLap(dt, ctx, kart);
     this.updateExit(dt, ctx);
@@ -762,6 +809,40 @@ export class KartWorld extends GridWorld {
     }
 
     rows.push({
+      id: 'kart:helmet',
+      label: 'Helm',
+      sub: 'Visierrand steht fest im Blick — gegen Übelkeit',
+      badge: kart.settings.helmet ? 'auf' : 'ab',
+      icon: 'settings',
+      accent: 0x9fd8ff,
+      checked: kart.settings.helmet,
+      run: () => {
+        kart.settings.helmet = !kart.settings.helmet;
+        this.applyHelmet();
+        this.showBoard(kart);
+        playPick(true);
+        this.context?.notify(kart.settings.helmet ? 'Helm auf' : 'Helm ab');
+      },
+    });
+    rows.push({
+      id: 'kart:values',
+      label: 'Werte eingeben',
+      sub: 'Jede Zahl direkt tippen statt durchzuschalten',
+      icon: 'settings',
+      accent: kart.preset.color,
+      children: KART_FIELDS.map((field) => ({
+        id: `kart:type:${field.key}`,
+        label: field.label,
+        // Die Spanne und nicht der Wert: Der steht schon eine Seite höher, und
+        // was hier fehlt, ist die Frage „was darf ich überhaupt eintippen".
+        sub: `${field.min}–${field.max} ${field.unit}`.trim(),
+        badge: kartFieldLabel(field, kart.settings),
+        icon: 'settings',
+        accent: kart.preset.color,
+        run: () => this.typeField(kart, field),
+      })),
+    });
+    rows.push({
       id: 'kart:reset',
       label: 'Werte zurücksetzen',
       sub: `Wie ${kart.preset.name} aus der Box kam`,
@@ -797,6 +878,31 @@ export class KartWorld extends GridWorld {
     this.showBoard(kart);
     playPick(true);
     this.context?.notify(`${field.label}: ${kartFieldLabel(field, kart.settings)}`);
+  }
+
+  /**
+   * **Und derselbe Wert getippt** — der Zifferblock vor dem Kopf
+   * (`PortalWorld.askNumber`).
+   *
+   * Rasten sind zum Ausprobieren da: Man tippt eine Zeile an und merkt am
+   * nächsten Bogen, ob es besser wurde. Was sie nicht können, ist das Ende
+   * davon — wer weiß, dass sein Kart 0,62 Traktion haben soll, will nicht
+   * siebenmal weiterschalten und dabei daran vorbei. Dieselbe Zeile, dieselbe
+   * Grenze (`clampKartField`), nur eine andere Eingabe.
+   */
+  private typeField(kart: Kart, field: KartField): void {
+    this.askNumber({
+      title: field.label,
+      sub: `${kart.preset.name} · ${field.min} bis ${field.max} ${field.unit}`.trim(),
+      hint: field.sub,
+      value: String(kart.settings[field.key]),
+      commit: (value) => {
+        kart.settings[field.key] = clampKartField(field, value);
+        kart.refreshSign();
+        this.showBoard(kart);
+        this.context?.notify(`${field.label}: ${kartFieldLabel(field, kart.settings)}`);
+      },
+    });
   }
 
   /** Draws the clipboard afresh — every row shows the value it is at. */

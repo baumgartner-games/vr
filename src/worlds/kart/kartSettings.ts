@@ -8,6 +8,7 @@
  */
 
 import { nextStep } from '../portal/tools/weaponSettings';
+import type { ViewFollow } from './kartView';
 
 /** How the front wheels are told where to go. */
 export type SteeringMode = 'stick' | 'wheel';
@@ -56,10 +57,38 @@ export interface KartSettings {
    *
    * Keine Fahrwerkszahl, sondern eine Sitzposition: Der Kopf ist nicht am Kart
    * festgeschraubt, sondern läuft ihm nach (`kartView.ts`). `0` schraubt ihn
-   * fest — und wer das eine halbe Runde lang probiert, weiß, warum es die
-   * Einstellung gibt.
+   * an den Rand der Totzone — und wer das eine halbe Runde lang probiert,
+   * weiß, warum es die Einstellung gibt.
    */
   headLag: number;
+  /**
+   * **Die Totzone des Kopfes**, in Grad.
+   *
+   * So weit darf das Kart voraus sein, ohne dass der Blick überhaupt mitgeht.
+   * Eine kurze Ausweichbewegung links-rechts ist damit für den Kopf kein
+   * Ereignis mehr: Das Kart wackelt, der Horizont steht still. Erst am Rand
+   * dieses Fensters wird er mitgenommen.
+   */
+  headDeadZone: number;
+  /**
+   * **Wie schnell der Kopf höchstens mitdreht**, in Grad je Sekunde; `0` heißt
+   * ohne Deckel.
+   *
+   * Der Nachlauf allein holt einen großen Rückstand mit einem großen Satz auf,
+   * und genau dieser Satz ist es, der in der Brille wehtut. Hier steht, wie
+   * langsam er sein soll.
+   */
+  headTurnRate: number;
+  /**
+   * **Helm auf beim Fahren.**
+   *
+   * Ein Gegenstand aus der Kleiderkiste (`core/headgear.ts`) und zugleich das
+   * billigste Mittel gegen Übelkeit, das es in VR gibt: Der Rand des Visiers
+   * steht **fest im Blick**, während die Welt darin schwenkt. Das Auge hat
+   * damit wieder etwas, das sich nicht bewegt, und der Widerspruch zum
+   * Innenohr wird kleiner. Wer ihn nicht mag, lässt ihn aus.
+   */
+  helmet: boolean;
   /** Kilograms. A heavy kart accelerates worse and shoves harder. */
   mass: number;
   /** Biggest angle the front wheels turn to, in degrees. */
@@ -79,6 +108,9 @@ export const DEFAULT_KART: KartSettings = {
   traction: 0.75,
   slip: 0.5,
   headLag: 0.15,
+  headDeadZone: 8,
+  headTurnRate: 45,
+  helmet: false,
   mass: 140,
   steerAngle: 32,
   wheelbase: 1.15,
@@ -91,9 +123,12 @@ export const DEFAULT_KART: KartSettings = {
  */
 export const REFERENCE_MASS = 140;
 
+/** Every setting that is a plain number — everything but the two switches. */
+export type NumericKartKey = Exclude<keyof KartSettings, 'steering' | 'helmet'>;
+
 /** One value the player may step through or type in. */
 export interface KartField {
-  key: Exclude<keyof KartSettings, 'steering'>;
+  key: NumericKartKey;
   label: string;
   unit: string;
   min: number;
@@ -172,6 +207,28 @@ export const KART_FIELDS: readonly KartField[] = [
     steps: [0, 0.08, 0.15, 0.25, 0.4],
   },
   {
+    key: 'headDeadZone',
+    label: 'Kopf-Totzone',
+    unit: '°',
+    min: 0,
+    // Knapp unter `MAX_LAG`: Eine Totzone, die größer wäre als der
+    // Höchstversatz, wäre keine — der harte Deckel zöge den Kopf ohnehin nach.
+    max: 20,
+    decimals: 0,
+    sub: 'So weit dreht das Kart, ohne dass der Kopf mitgeht',
+    steps: [0, 5, 8, 12, 18],
+  },
+  {
+    key: 'headTurnRate',
+    label: 'Kopf-Drehrate',
+    unit: '°/s',
+    min: 0,
+    max: 360,
+    decimals: 0,
+    sub: 'Wie schnell er höchstens mitdreht — 0 ist ohne Deckel',
+    steps: [0, 20, 30, 45, 70, 120],
+  },
+  {
     key: 'mass',
     label: 'Gewicht',
     unit: 'kg',
@@ -220,12 +277,24 @@ export function clampKartField(field: KartField, value: number): number {
   return Math.round(Math.min(field.max, Math.max(field.min, value)) * factor) / factor;
 }
 
-/** Every value inside its range, and the steering mode spelled correctly. */
+/** Every value inside its range, and the two switches spelled correctly. */
 export function clampKart(settings: Partial<KartSettings>): KartSettings {
   const next: KartSettings = { ...DEFAULT_KART, ...settings };
   for (const field of KART_FIELDS) next[field.key] = clampKartField(field, next[field.key]);
   if (!STEERING_MODES.includes(next.steering)) next.steering = DEFAULT_KART.steering;
+  next.helmet = next.helmet === true;
   return next;
+}
+
+/**
+ * Die drei Zahlen, mit denen der Kopf dem Kart folgt (`kartView.ts`).
+ *
+ * Hier und nicht dort: `kartView` rechnet und kennt kein Kart, `kartSettings`
+ * weiß, wie die Werte heißen. Ein Übersetzer von drei Zeilen ist billiger als
+ * eine Datei, die beides tut.
+ */
+export function viewFollow(settings: KartSettings): ViewFollow {
+  return { lag: settings.headLag, dead: settings.headDeadZone, rate: settings.headTurnRate };
 }
 
 /** The next notch above where the kart is set, wrapping around at the top. */

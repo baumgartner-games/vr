@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
-import { climbHall, HALL } from './climbHall';
+import { climbHall, hallUpperWalls, HALL } from './climbHall';
 import { ClimbHud } from './ClimbHud';
 import { TextPlane } from '../../ui/TextPlane';
 import { GRAB_GLOW, GRAB_TINT_EMISSIVE } from '../../core/colors';
@@ -63,6 +63,8 @@ import { gripAnchor } from '../../core/XRInput';
 
 /** Innenmaße der Halle. */
 
+/** Die Farbe der Hallenwand — gerastert wie gebaut, siehe `buildShell`. */
+const HALL_WALL = 0xb9c2d2;
 /** Wie weit eine Hand neben einem Griff noch zupacken darf. */
 const REACH = 0.11;
 /** Wie schnell einen die Arme höchstens ziehen dürfen. */
@@ -91,14 +93,23 @@ const DECK_GAP = 0.9;
 /**
  * **Wie hoch die Ausstiegshilfe über ihrem Podest liegt.**
  *
- * Nicht bis zur Kante, sondern gut anderthalb Meter darüber, und das ist der
- * ganze Trick am Aussteigen: Wer sich an einem Griff auf Podesthöhe hochzieht,
- * hängt am Ende **an** der Kante — die Füße baumeln im Schacht, und der Boden
- * ist zwar in Reichweite, aber nicht unter einem. Erst ein Griff über
- * Kopfhöhe über dem Blech lässt einen so weit hochziehen, dass die Füße über
- * dessen Oberkante kommen. Und wer oben steht, hat ihn immer noch in der Hand.
+ * Nicht bis zur Kante, sondern deutlich darüber, und das ist der ganze Trick
+ * am Aussteigen: Wer sich an einem Griff auf Podesthöhe hochzieht, hängt am
+ * Ende **an** der Kante — die Füße baumeln im Schacht, und der Boden ist zwar
+ * in Reichweite, aber nicht unter einem. Erst ein Griff weit über dem Blech
+ * lässt einen so weit hochziehen, dass die Füße über dessen Oberkante kommen.
+ *
+ * **Und die Zahl misst sich am Hangeln, nicht am Hochziehen.** 1,70 m waren zu
+ * wenig: Der Körper hängt an seinen Händen (`driveBody`), also liegen die Füße
+ * so weit unter dem Holm, wie die Hand über ihnen steht — bei aufgestrecktem
+ * Arm gut zwei Meter. An einem Holm auf 8,20 m baumelten die Beine damit auf
+ * 6,10 m, also **unter** der Podestkante bei 6,50 m: Man stieß mit den Knien
+ * gegen das Blech, statt sich darunter hinüberzuhangeln. `REACH_HANG` ist
+ * diese Armlänge, `TOPOUT_CLEAR` die Handbreit Luft darüber.
  */
-const TOPOUT_ABOVE = 1.7;
+const REACH_HANG = 2.15;
+const TOPOUT_CLEAR = 0.35;
+const TOPOUT_ABOVE = REACH_HANG + TOPOUT_CLEAR;
 /** Wie weit ihre waagerechte Strecke über die Podestkante hereinreicht. */
 const TOPOUT_OVER = 1;
 /** Abstand der Sprossen entlang der Leiter. */
@@ -195,6 +206,16 @@ export class ClimbWorld extends GridWorld {
     metalness: 0.35,
   });
   private readonly wood = new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.85 });
+  /**
+   * Die Hallenwand über Zimmerhöhe — dieselbe Farbe, die `tint` den gerasterten
+   * Wänden darunter gibt. Eine andere wäre auf 2,80 m Höhe eine Naht quer durch
+   * die ganze Halle.
+   */
+  private readonly hallWall = new THREE.MeshStandardMaterial({
+    color: HALL_WALL,
+    roughness: 0.9,
+    metalness: 0,
+  });
 
   /**
    * Ein Material je Griffart und **eines fürs Leuchten** — nicht eines pro
@@ -315,7 +336,7 @@ export class ClimbWorld extends GridWorld {
 
   /** Matte und Hallenwand — der Rest der Halle ist gebaut, nicht gerastert. */
   protected override tint(): Partial<Record<PlanSolidKind, number>> {
-    return { floor: 0x35577a, wall: 0xb9c2d2 };
+    return { floor: 0x35577a, wall: HALL_WALL };
   }
 
   protected override buildEnvironment(): void {
@@ -341,14 +362,26 @@ export class ClimbWorld extends GridWorld {
   // --- die Halle ------------------------------------------------------------
 
   /**
-   * **Das Licht über der Halle** — mehr ist hier nicht mehr zu tun.
+   * **Die oberen Stockwerke und das Licht** — mehr ist hier nicht mehr zu tun.
    *
    * Matte, Decke und die vier Wände kommen aus dem Grundriss (`climbHall.ts`);
-   * sie waren sechs `slab()`-Aufrufe und sind jetzt vier Zeilen. Was hier
-   * bleibt, sind die Lampen: Eine Halle ohne Licht von oben sieht aus wie eine
+   * sie waren sechs `slab()`-Aufrufe und sind jetzt vier Zeilen.
+   *
+   * Zwei Dinge bleiben. Erstens die **Wand über Zimmerhöhe**: Eine Wand aus dem
+   * Gitter ist 2,80 m hoch, diese Halle ist zehn. Wer unten steht, merkt davon
+   * nichts; wer auf den Podesten bei 6,50 m ankommt, stand bisher vor einer
+   * offenen Kante. Wo die Quader liegen, rechnet `hallUpperWalls` aus — hier
+   * werden sie nur noch hingestellt, in der Farbe der Wände darunter
+   * (`tint`).
+   *
+   * Und zweitens die Lampen: Eine Halle ohne Licht von oben sieht aus wie eine
    * Höhle, und man sieht die Griffe nicht, um die es hier geht.
    */
   private buildShell(hall: THREE.Group): void {
+    for (const band of hallUpperWalls()) {
+      this.slab(hall, this.hallWall, band.size, band.centre, false);
+    }
+
     for (const [x, z] of [
       [-7, -4],
       [7, -4],

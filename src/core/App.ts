@@ -26,6 +26,8 @@ import {
 import { KeyPanel, type KeyPanelRequest } from '../ui/KeyPanel';
 import { detectFlatRole } from './device';
 import { GraphicsQuality } from './GraphicsQuality';
+import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
+import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS, type HeadgearKind } from './headgear';
 import {
   GRAPHICS_MODE_LABELS,
   GRAPHICS_MODE_SUBS,
@@ -114,6 +116,11 @@ export class App {
 
   private readonly handVisuals: HandVisuals;
   private readonly avatar: PlayerAvatar;
+  /**
+   * Was eine Welt dem Spieler gerade aufgesetzt hat (`WorldContext.wear`), oder
+   * `null` — dann gilt die Einstellung (`core/appearance.ts`).
+   */
+  private worn: HeadgearKind | null = null;
   readonly avatars: RemoteAvatars;
   /** Die Stimmen der anderen, räumlich am Kopf ihres Sprechers (`net/Voice.ts`). */
   readonly voice: Voice;
@@ -264,6 +271,11 @@ export class App {
     this.scene.add(this.keys);
     this.pointer.add(this.keys.asPointerTarget());
 
+    // Der Hut sitzt sofort und bleibt sitzen: Wer ihn im Menü wechselt, sieht
+    // ihn im Spiegel und die anderen im selben Augenblick.
+    onAppearanceChange(() => this.applyAppearance());
+    this.applyAppearance();
+
     this.baseChildren = new Set(this.scene.children);
 
     window.addEventListener('resize', this.onResize);
@@ -291,6 +303,7 @@ export class App {
       goTo: (id: string) => void this.goTo(id),
       notify: (message: string) => this.notify(message),
       say: (text, options) => void this.say(text, options),
+      wear: (kind) => this.wear(kind),
     };
   }
 
@@ -626,6 +639,7 @@ export class App {
       },
       this.networkMenu(),
       this.movementMenu(),
+      this.appearanceMenu(),
       this.graphicsMenu(),
       ...this.worldMenu,
       {
@@ -817,18 +831,78 @@ export class App {
   }
 
   /**
+   * **Aussehen** — was die anderen von einem sehen.
+   *
+   * Sie steht neben *Bewegung* und *Grafik* und aus demselben Grund: Ein Hut
+   * gehört dem Spieler und keiner Welt. Wer im Hub einen aufsetzt, trägt ihn
+   * im Gokart auch, und alle im Raum sehen ihn (`net/NetSession.ts`).
+   *
+   * Eine Zeile je Kopfbedeckung statt einer, die durchschaltet: Es sind
+   * sieben, und wer den Zylinder sucht, soll ihn sehen und nicht sechsmal
+   * weiterdrücken.
+   */
+  private appearanceMenu(): MenuEntry {
+    const accent = 0x5ee0a0;
+    const look = appearance();
+
+    return {
+      id: 'look',
+      label: 'Aussehen',
+      sub: appearanceSummary(look),
+      icon: 'npc',
+      accent,
+      children: HEADGEAR_KINDS.map((kind) => ({
+        id: `look:hat:${kind}`,
+        label: HEADGEAR_LABELS[kind],
+        sub: HEADGEAR_SUBS[kind],
+        icon: 'npc',
+        accent,
+        selected: look.hat === kind,
+        run: () => {
+          saveAppearance({ hat: kind });
+          this.menuDirty = true;
+          this.notify(kind === 'none' ? 'Kopfbedeckung ab' : `Auf: ${HEADGEAR_LABELS[kind]}`);
+        },
+      })),
+    };
+  }
+
+  /**
+   * **Was auf dem Kopf sitzt** — die Einstellung, oder was eine Welt darüber
+   * gelegt hat (`WorldContext.wear`).
+   *
+   * Ein Ort und nicht zwei: Der eigene Körper trägt es (sichtbar im Spiegel und
+   * durch ein Portal), und dieselbe Sorte geht als Ansage an alle im Raum. Wer
+   * das an zwei Stellen setzte, hätte irgendwann einen Spieler mit zwei
+   * verschiedenen Hüten, je nachdem, wen man fragt.
+   */
+  private wear(kind: HeadgearKind | null): void {
+    this.worn = kind;
+    this.applyAppearance();
+  }
+
+  private applyAppearance(): void {
+    const hat = this.worn ?? appearance().hat;
+    this.avatar.setHeadgear(hat);
+    if (this.net.hat === hat) return;
+    this.net.hat = hat;
+    // Der Hut steht in der Vorstellung und nicht in der Pose: einmal ansagen
+    // reicht, zwanzigmal in der Sekunde wäre Unfug.
+    this.net.announce();
+  }
+
+  /**
    * **Grafik** — die experimentelle Seite.
    *
    * Sie steht hier oben neben *Bewegung* und nicht in den Einstellungen einer
    * Welt, und zwar aus demselben Grund: Eine Welt darf den Boden unter dem
-   * Spieler ändern, nie aber seine Augen. Wer im Hub auf *Schön* stellt, will
+   * Spieler ändern, nie aber seine Augen. Wer im Hub auf *Comic* stellt, will
    * es im Gokart genauso — und der Hub hat gar keine Weltmenüs, in die eine
    * Grafikeinstellung passte.
    *
-   * Zwei Zeilen, und beide sagen dasselbe zweimal: was gerade gilt, und was
-   * ein Druck daraus macht — der Modus schaltet im Kreis (Einfach → Schön →
-   * Comic), die Texturen sind ein Schalter daneben und gelten für jede Stufe.
-   * Was sie tatsächlich anstellen, steht in `core/graphicsSettings.ts`.
+   * Eine Zeile, und sie sagt dasselbe zweimal: was gerade gilt, und was ein
+   * Druck daraus macht — der Modus schaltet im Kreis (Einfach → Comic). Was er
+   * tatsächlich anstellt, steht in `core/graphicsSettings.ts`.
    */
   private graphicsMenu(): MenuEntry {
     const accent = 0xb98bff;
@@ -840,8 +914,8 @@ export class App {
       sub: graphicsSummary(settings),
       icon: 'palette',
       accent,
-      // Experimentell und als solches beschriftet: Beides kostet Bildrate, und
-      // was auf einer Quest 2 noch flüssig ist, weiß niemand vorher.
+      // Experimentell und als solches beschriftet: Der Comic kostet Bildrate,
+      // und was auf einer Quest 2 noch flüssig ist, weiß niemand vorher.
       badge: 'EXP',
       children: [
         {
@@ -849,27 +923,13 @@ export class App {
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
           sub: GRAPHICS_MODE_SUBS[settings.mode],
           caption:
-            'Einfach → Schön → Comic · alles sofort sichtbar, nur das schärfere Bild ab der nächsten Sitzung',
+            'Einfach → Comic · alles sofort sichtbar, nur das schärfere Bild ab der nächsten Sitzung',
           icon: 'sphere',
           accent,
           run: () => {
             const next = saveGraphics({ mode: nextGraphicsMode(graphics().mode) });
             this.menuDirty = true;
             this.notify(`Grafik: ${GRAPHICS_MODE_LABELS[next.mode]}`);
-          },
-        },
-        {
-          id: 'gfx:textures',
-          label: 'Texturen',
-          sub: 'Körnung, Farbunruhe und Unebenheit — gerechnet statt geladen',
-          caption: 'Prozedural im Shader: keine Bilddatei, keine Ladezeit, kein Kacheln',
-          icon: 'brush',
-          accent,
-          checked: settings.textures,
-          run: () => {
-            const next = saveGraphics({ textures: !graphics().textures });
-            this.menuDirty = true;
-            this.notify(next.textures ? 'Texturen an' : 'Texturen aus');
           },
         },
         {

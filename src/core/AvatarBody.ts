@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildHeadgear, type HeadgearKind } from './headgear';
 
 /** Head + hand pose used to drive the skeleton, in the body's parent space. */
 export interface AvatarLimb {
@@ -12,6 +13,18 @@ export interface AvatarBodyOptions {
   /** Draw blocks at the tracked hand poses — off for the local body, which
    *  already has `HandVisuals`. */
   hands?: boolean;
+}
+
+/** Alles, was drei Ebenen tief unter einem Hut hängt, samt seiner Materialien. */
+function disposeTree(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose();
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      material?.dispose();
+    }
+  });
 }
 
 const _world = new THREE.Vector3();
@@ -66,6 +79,9 @@ export class AvatarBody extends THREE.Group {
   private readonly legs: Array<[Bone, Bone]> = [];
   private readonly materials: THREE.Material[] = [];
   private readonly suit: THREE.MeshStandardMaterial;
+  /** Was gerade auf dem Kopf sitzt, und das Ding dazu. */
+  private hat: HeadgearKind = 'none';
+  private headgear: THREE.Group | null = null;
   private readonly previous = new THREE.Vector3();
   private hasPrevious = false;
   private walkPhase = 0;
@@ -135,6 +151,37 @@ export class AvatarBody extends THREE.Group {
   setColor(color: number): void {
     this.suit.color.setHex(color);
     this.suit.emissive.setHex(color).multiplyScalar(0.12);
+    // Der Hut trägt die Anzugfarbe, wo er eine trägt — also neu bauen, sonst
+    // hätte ein Spieler, der die Rolle wechselt, einen Helm von vorhin auf.
+    if (this.hat !== 'none') this.setHeadgear(this.hat, true);
+  }
+
+  /**
+   * **Setzt eine Kopfbedeckung auf** (`core/headgear.ts`).
+   *
+   * Sie hängt am Kopf und nicht am Körper, und das ist der ganze Trick daran:
+   * `setSelfView` blendet den Kopf aus, sobald man in den eigenen Augen steckt
+   * — und nimmt den Hut damit von selbst mit. Was man selbst vom eigenen Helm
+   * sieht, ist etwas anderes und hängt woanders (`visorFrame`).
+   *
+   * @param force baut auch dann neu, wenn dieselbe Sorte schon sitzt — nach
+   *   einem Farbwechsel des Anzugs.
+   */
+  setHeadgear(kind: HeadgearKind, force = false): void {
+    if (kind === this.hat && !force) return;
+    this.hat = kind;
+    if (this.headgear) {
+      this.headgear.removeFromParent();
+      disposeTree(this.headgear);
+      this.headgear = null;
+    }
+    const built = buildHeadgear(kind, this.suit.color.getHex());
+    if (!built) return;
+    this.headgear = built;
+    this.head.add(built);
+    // Der Kopf kann auf einer eigenen Ebene liegen (`PlayerAvatar`): Ein Hut,
+    // der das nicht mitmacht, schwebte dem Spieler vor der Nase.
+    built.traverse((object) => (object.layers.mask = this.head.layers.mask));
   }
 
   /**

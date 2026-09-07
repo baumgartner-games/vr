@@ -21,13 +21,13 @@ import { starterGrid } from './starterGrid';
  * zieht sie größer — und was man an ihr baut, wächst im selben Augenblick **in
  * Lebensgröße** um einen herum.
  *
- * **In der dritten Fassung ist von dieser Welt fast nichts mehr übrig**, und
- * das ist ihr Erfolg und nicht ihr Ende. Die ganze Bedienung — Karte, Palette,
- * Tischmodell, Spielfigur, Malen und Flächen — steht jetzt in
- * `WorldEditor.ts` und hängt an **jeder** Gitterwelt (`grid/GridWorld.ts`).
- * Wer im Dunkelhaus merkt, dass der Gang zu eng ist, verbreitert ihn dort,
- * statt ihn hier nachzubauen. Übrig bleibt an dieser Stelle das, was den
- * Bauplatz vom Umbauen einer fertigen Welt unterscheidet:
+ * **Die Bedienung wohnt nicht mehr hier**, und das ist ihr Erfolg und nicht ihr
+ * Ende: Karte, Palette, Tischmodell, Spielfigur, Malen und Flächen stehen in
+ * `WorldEditor.ts`. Eine Weile hing der damit an **jeder** Gitterwelt, über
+ * eine Seite *Bauen* im Handgelenkmenü — fünfzehn Zeilen, durch die man
+ * blätterte, wann immer man etwas anderes suchte. Die Seite ist wieder weg
+ * (`GridWorld.editable`), und der Bauplatz ist wieder der eine Ort, an dem
+ * gebaut wird. Was ihn ausmacht:
  *
  * - **Er fängt bei einem Zimmer an** (`starterGrid.ts`) und nicht bei einem
  *   Haus, das schon steht.
@@ -42,8 +42,9 @@ import { starterGrid } from './starterGrid';
  *   sähe vom Modell nichts mehr. Beim Umbauen eines fertigen Hauses ist es
  *   genau andersherum, und deshalb tut das nur diese Welt.
  * - **Kein Gürtel voller Werkzeuge**: Beide Haken bleiben frei, und dort
- *   hängen Karte und Palette. Das ist der Unterschied, an dem man den
- *   Bauplatz in der Brille erkennt — anderswo kommt die Karte aus dem Menü.
+ *   hängen Karte und Palette — nicht in einem Menü, sondern an der Hüfte, wo
+ *   man nach ihnen greift. Wer anderswo nur wissen will, wo er gerade ist,
+ *   nimmt die Karte aus dem Werkzeugregal (`portal/tools/MapTool.ts`).
  */
 export class EditorWorld extends GridWorld {
   /** Die Kulisse, die es zweimal gibt: das Level, und der weiße Raum darum. */
@@ -63,6 +64,19 @@ export class EditorWorld extends GridWorld {
    */
   protected override worldId(): string {
     return 'editor';
+  }
+
+  /**
+   * **Die eine Welt, in der gebaut wird** (`GridWorld.editable`).
+   *
+   * Eine Weile konnte man in jeder Gitterwelt bauen, über eine Seite *Bauen*
+   * im Handgelenkmenü. Die ist weg, und damit ist der Bauplatz wieder das, was
+   * sein Name sagt: der Ort, an dem der Grundriss in der Hand liegt statt im
+   * Menü. Wer nur wissen will, wo er gerade ist, nimmt die Karte aus dem
+   * Werkzeugregal (`portal/tools/MapTool.ts`).
+   */
+  protected override editable(): boolean {
+    return true;
   }
 
   /**

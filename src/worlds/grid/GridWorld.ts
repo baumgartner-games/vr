@@ -43,14 +43,12 @@ import type { PhysicsBody } from '../../physics/PhysicsWorld';
  * - **Die Etagen.** Sie stehen im Plan, also muss sie niemand raten
  *   (`navLevels()`); geraten würde bei jedem Vordach eine zu viel.
  *
- * **Und seit der zweiten Fassung: Jede Gitterwelt lässt sich umbauen, während
- * man darin steht** (`editor/WorldEditor.ts`). Das war vorher eine eigene Welt
- * — der Bauplatz —, und das war die Antwort auf die falsche Frage. Die Frage
- * lautet nicht „wo baue ich ein Level?", sondern „warum kann ich das Haus,
- * in dem ich gerade stehe, nicht umbauen?". Wer im Dunkelhaus merkt, dass der
- * Gang zu eng ist, will ihn *dort* verbreitern. Es kostet eine Zeile: Der
- * Grundriss liegt ohnehin als `GridPlan` da, und der Editor kann nichts
- * anderes, als daran zu arbeiten.
+ * **Umgebaut wird im Bauplatz und nicht überall** (`editable`). Eine Weile
+ * hing der Bearbeitungsmodus (`editor/WorldEditor.ts`) an jeder Gitterwelt,
+ * erreichbar über eine Seite *Bauen* im Handgelenkmenü. Die ist wieder weg:
+ * fünfzehn Zeilen, durch die man blätterte, wann immer man etwas anderes
+ * suchte. Der Editor selbst ist geblieben, dort, wo Karte und Palette am
+ * Gürtel hängen statt in einem Menü — im Bauplatz.
  *
  * **Fest wird das Gebaute erst, wenn die Karte weggeht.** Solange sie draußen
  * ist, wächst die Welt in Lebensgröße sichtbar mit, aber ihre Körper bleiben,
@@ -230,14 +228,27 @@ export abstract class GridWorld extends PortalWorld {
   /**
    * **Ob an dieser Welt gebaut werden darf.**
    *
-   * Voreingestellt: ja. Eine Gitterwelt *ist* ein Grundriss, und einen
-   * Grundriss, den man ansehen, aber nicht ändern darf, hätte niemand gebaut.
-   * Wer trotzdem Nein sagt, hat einen Grund, der in seiner Welt steht — eine
-   * Rennstrecke etwa, deren Kurven an Zahlen hängen, die kein Kacheleditor
-   * kennt.
+   * Voreingestellt: **nein**, und das ist die zweite Antwort auf dieselbe
+   * Frage. Eine Weile hing der Bearbeitungsmodus an jeder Gitterwelt, erreicht
+   * über eine Seite *Bauen* im Handgelenkmenü — Karte holen, Palette, Werkzeug,
+   * Bausteine, Welt sichern. Das waren fünfzehn Zeilen, die in jeder Welt
+   * zwischen allem anderen standen, und man kam beim Blättern durch sie
+   * hindurch, wann immer man etwas anderes suchte.
+   *
+   * Sie ist wieder weg. Was vom Bauen bleibt, steht dort, wo es hingehört: im
+   * **Bauplatz** (`editor/EditorWorld.ts`), wo Karte und Palette am Gürtel
+   * hängen statt in einem Menü. Und was die meisten am Menüpunkt eigentlich
+   * wollten — von oben sehen, wo man ist —, ist jetzt ein Werkzeug im Regal
+   * (`portal/tools/MapTool.ts`) und in jeder Welt zu haben, nicht nur in einer
+   * gerasterten.
+   *
+   * Wer Ja sagt, bekommt den Editor **und** seinen Speicher: Gebautes wird im
+   * Browser abgelegt und beim nächsten Besuch wieder eingelesen
+   * (`applyStored`). Beides gehört zusammen — eine Welt, die man nicht ändern
+   * kann, hat auch keinen eigenen Stand aufzuheben.
    */
   protected editable(): boolean {
-    return true;
+    return false;
   }
 
   /** Die Überschrift auf der Tafel am Modell. */
@@ -271,11 +282,6 @@ export abstract class GridWorld extends PortalWorld {
     // dem jemand fertig ist — und der einzige, an dem ein Schreiben weder
     // sechzigmal in der Sekunde passiert noch zu spät kommt.
     if (!on) this.saveWorld(true);
-  }
-
-  /** Der Bearbeitungsmodus, solange die Welt offen ist. */
-  protected get planEditor(): WorldEditor | null {
-    return this.editor;
   }
 
   /**
@@ -430,11 +436,10 @@ export abstract class GridWorld extends PortalWorld {
   /**
    * **Eine eigene Schublade fürs Aufheben.**
    *
-   * Vier Zeilen mehr in „Bauen" wären fünfzehn Zeilen in einem Menü, das man
-   * in der Brille mit dem Daumen durchblättert — und die vier hätte man immer
-   * dann vor sich, wenn man gerade eine Wand sucht. Sie stehen deshalb
-   * gebündelt, und zwar **oben**, gleich hinter der Karte: Speichern und
-   * Mitnehmen ist keine Fußnote unter den Werkzeugen.
+   * Vier Zeilen einzeln im Weltmenü wären vier Zeilen, die man in der Brille
+   * mit dem Daumen durchblättert, wann immer man etwas anderes sucht. Sie
+   * stehen deshalb gebündelt, und zwar **oben**: Speichern und Mitnehmen ist
+   * keine Fußnote unter den Werkzeugen.
    */
   private storeMenu(): MenuEntry {
     return {
@@ -511,27 +516,18 @@ export abstract class GridWorld extends PortalWorld {
     super.dispose(ctx);
   }
 
-  /** „Bauen": erst die Karte, dann das Sichern, dann die Werkzeuge. */
-  private buildRows(editor: WorldEditor): MenuEntry[] {
-    const rows = editor.menu();
-    rows.splice(1, 0, this.storeMenu());
-    return rows;
-  }
-
+  /**
+   * **Im Menü steht nur noch das Aufheben.**
+   *
+   * Die Seite *Bauen* — Karte holen, Palette, Werkzeug, Bausteine — ist aus
+   * dem Handgelenkmenü heraus (siehe `editable`). Übrig bleibt die Schublade
+   * daneben, und die auch nur dort, wo überhaupt gebaut werden kann: Wer eine
+   * Welt umbauen darf, muss sie aufheben, exportieren und wieder verwerfen
+   * können. Wer nicht, hat nichts zu sichern.
+   */
   override menu(): MenuEntry[] {
-    const editor = this.editor;
-    if (!editor) return super.menu();
-    return [
-      {
-        id: 'plan',
-        label: 'Bauen',
-        sub: 'Karte, Palette und Werkzeug',
-        icon: 'cube',
-        accent: 0x39d0ff,
-        children: this.buildRows(editor),
-      },
-      ...super.menu(),
-    ];
+    if (!this.editor) return super.menu();
+    return [this.storeMenu(), ...super.menu()];
   }
 
   /**

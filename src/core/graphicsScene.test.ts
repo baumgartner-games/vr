@@ -4,9 +4,8 @@ import { graphicsProfile } from './graphicsSettings';
 import { lookOf } from './materialLook';
 import { denyOutline, isOutline, outlineOf, stripOutlines } from './outlineShell';
 
-const FANCY = graphicsProfile({ mode: 'fancy', textures: true });
-const COMIC = graphicsProfile({ mode: 'comic', textures: false });
-const SIMPLE = graphicsProfile({ mode: 'simple', textures: false });
+const COMIC = graphicsProfile({ mode: 'comic' });
+const SIMPLE = graphicsProfile({ mode: 'simple' });
 
 interface Built {
   scene: THREE.Scene;
@@ -47,12 +46,12 @@ describe('die Grafikstufe über einer Szene', () => {
       expect(mesh.receiveShadow).toBe(false);
     }
     expect(world.sun.castShadow).toBe(false);
-    expect(lookOf(world.crate.material as THREE.Material).detail).toBe(false);
+    expect(lookOf(world.crate.material as THREE.Material)).toBe(0);
   });
 
   it('verteilt die Schatten nach dem, was ein Ding ist', () => {
     const world = build();
-    const sun = applySceneQuality(world.scene, FANCY);
+    const sun = applySceneQuality(world.scene, COMIC);
 
     // Die Kiste: wirft und empfängt.
     expect(world.crate.castShadow).toBe(true);
@@ -72,9 +71,9 @@ describe('die Grafikstufe über einer Szene', () => {
     expect(sun).toBe(world.sun);
     expect(world.sun.castShadow).toBe(true);
     expect(world.fill.castShadow).toBe(false);
-    expect(world.sun.shadow.mapSize.width).toBe(FANCY.shadowMapSize);
-    expect(world.sun.shadow.camera.right).toBe(FANCY.shadowRange);
-    expect(world.sun.shadow.camera.far).toBeGreaterThan(FANCY.shadowDistance);
+    expect(world.sun.shadow.mapSize.width).toBe(COMIC.shadowMapSize);
+    expect(world.sun.shadow.camera.right).toBe(COMIC.shadowRange);
+    expect(world.sun.shadow.camera.far).toBeGreaterThan(COMIC.shadowDistance);
   });
 
   it('nimmt sich vollständig zurück', () => {
@@ -82,23 +81,23 @@ describe('die Grafikstufe über einer Szene', () => {
     // sonst bleibt von jedem Versuch etwas hängen.
     const world = build();
     world.crate.receiveShadow = true;
-    applySceneQuality(world.scene, FANCY);
+    applySceneQuality(world.scene, COMIC);
     applySceneQuality(world.scene, SIMPLE);
 
     expect(world.crate.castShadow).toBe(false);
     expect(world.crate.receiveShadow).toBe(true);
     expect(world.ground.receiveShadow).toBe(false);
     expect(world.sun.castShadow).toBe(false);
-    expect(lookOf(world.crate.material as THREE.Material).detail).toBe(false);
+    expect(lookOf(world.crate.material as THREE.Material)).toBe(0);
   });
 
-  it('gibt die Körnung nur den beleuchteten Flächen', () => {
+  it('gibt die Farbstufen nur den beleuchteten Flächen', () => {
     const world = build();
-    applySceneQuality(world.scene, FANCY);
-    expect(lookOf(world.crate.material as THREE.Material).detail).toBe(true);
-    expect(lookOf(world.ground.material as THREE.Material).detail).toBe(true);
-    expect(lookOf(world.glass.material as THREE.Material).detail).toBe(false);
-    expect(lookOf(world.panel.material as THREE.Material).detail).toBe(false);
+    applySceneQuality(world.scene, COMIC);
+    expect(lookOf(world.crate.material as THREE.Material)).toBe(COMIC.toonBands);
+    expect(lookOf(world.ground.material as THREE.Material)).toBe(COMIC.toonBands);
+    expect(lookOf(world.glass.material as THREE.Material)).toBe(0);
+    expect(lookOf(world.panel.material as THREE.Material)).toBe(0);
   });
 
   it('holt Nachzügler beim nächsten Durchlauf ab', () => {
@@ -106,14 +105,14 @@ describe('die Grafikstufe über einer Szene', () => {
     // erst nach dem Umschalten aus dem Käfig kommt, hätte sonst als Einziger
     // keinen Schatten.
     const world = build();
-    applySceneQuality(world.scene, FANCY);
+    applySceneQuality(world.scene, COMIC);
     const late = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
     world.scene.add(late);
     expect(late.castShadow).toBe(false);
 
-    applySceneQuality(world.scene, FANCY);
+    applySceneQuality(world.scene, COMIC);
     expect(late.castShadow).toBe(true);
-    expect(lookOf(late.material).detail).toBe(true);
+    expect(lookOf(late.material)).toBe(COMIC.toonBands);
   });
 
   it('findet das hellste Richtungslicht, egal wo es hängt', () => {
@@ -127,10 +126,10 @@ describe('die Grafikstufe über einer Szene', () => {
 
   it('schiebt die Sonne mit, ohne ihre Richtung zu drehen', () => {
     const world = build();
-    applySceneQuality(world.scene, FANCY);
+    applySceneQuality(world.scene, COMIC);
     const before = world.sun.target.position.clone().sub(world.sun.position).normalize();
 
-    aimSun(world.sun, new THREE.Vector3(10.4, 1.6, -3.1), FANCY);
+    aimSun(world.sun, new THREE.Vector3(10.4, 1.6, -3.1), COMIC);
 
     // Der Anker rastet auf zwei Meter ein — sonst kröchen die Schattenränder
     // bei jedem Schritt über die Kanten.
@@ -140,7 +139,7 @@ describe('die Grafikstufe über einer Szene', () => {
     const after = world.sun.target.position.clone().sub(world.sun.position).normalize();
     expect(after.distanceTo(before)).toBeLessThan(1e-6);
     expect(world.sun.position.distanceTo(world.sun.target.position)).toBeCloseTo(
-      FANCY.shadowDistance,
+      COMIC.shadowDistance,
       5,
     );
     // Das Ziel hängt an keiner Szene; ohne die eigene Rechnung bliebe seine
@@ -166,7 +165,7 @@ describe('die Grafikstufe über einer Szene', () => {
       .sub(world.sun.getWorldPosition(new THREE.Vector3()))
       .normalize();
 
-    aimSun(world.sun, new THREE.Vector3(102, 0.4, 0), FANCY);
+    aimSun(world.sun, new THREE.Vector3(102, 0.4, 0), COMIC);
     world.scene.updateMatrixWorld(true);
 
     const anchor = world.sun.target.getWorldPosition(new THREE.Vector3());
@@ -175,7 +174,7 @@ describe('die Grafikstufe über einer Szene', () => {
     // In der Gruppe steht die Lampe woanders als in der Welt — genau das ist
     // die Umrechnung, um die es hier geht.
     expect(world.sun.position.x).not.toBeCloseTo(lamp.x, 3);
-    expect(lamp.distanceTo(anchor)).toBeCloseTo(FANCY.shadowDistance, 5);
+    expect(lamp.distanceTo(anchor)).toBeCloseTo(COMIC.shadowDistance, 5);
     expect(anchor.sub(lamp).normalize().distanceTo(before)).toBeLessThan(1e-6);
   });
 
@@ -245,14 +244,13 @@ describe('die Grafikstufe über einer Szene', () => {
     expect(outline.instanceMatrix).toBe(trees.instanceMatrix);
   });
 
-  it('schaltet im Comic die Farbstufen ein, nicht die Körnung', () => {
+  it('schaltet im Comic die Farbstufen ein und in Einfach wieder aus', () => {
     const world = build();
     applySceneQuality(world.scene, COMIC);
-    expect(lookOf(world.crate.material as THREE.Material)).toEqual({ detail: false, toon: 3 });
+    expect(lookOf(world.crate.material as THREE.Material)).toBe(3);
 
-    // Und Texturen sind auch im Comic der zweite, unabhängige Schalter.
-    applySceneQuality(world.scene, graphicsProfile({ mode: 'comic', textures: true }));
-    expect(lookOf(world.crate.material as THREE.Material)).toEqual({ detail: true, toon: 3 });
+    applySceneQuality(world.scene, SIMPLE);
+    expect(lookOf(world.crate.material as THREE.Material)).toBe(0);
   });
 
   it('lässt ein Ding aus, das ausdrücklich keinen Saum will', () => {

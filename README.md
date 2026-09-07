@@ -27,14 +27,14 @@ und füllt die Fläche dazwischen — ein Zimmer sind damit zwei Gesten statt
 sechzig Trigger. Die eigene
 Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
 ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
-**Dasselbe geht in jeder Kachelwelt**: Im Dunkelhaus, im Schießstand, in Dust,
-in der Kletterhalle und auf der Kartbahn holt man die Karte aus dem
-Handgelenk-Menü (*Bauen → Karte holen*), baut an dem Haus weiter, in dem man
-gerade steht, und legt sie wieder weg — dann steht das Umgebaute fest da und
-NPCs laufen darauf. **Und es bleibt**: Unter *Bauen → Welt sichern* liegt eine
-gebaute Welt im Browser, geht als Datei herunter (`dunkelhaus-2026-09-07.welt.json`,
+**Und es bleibt**: Unter *Welt sichern* liegt eine
+gebaute Welt im Browser, geht als Datei herunter (`bauplatz-2026-09-07.welt.json`,
 Format `baumgartner-welt` in der Fassung `0.1.0`, mit Kacheln, Wänden, Türen,
-Möbeln und Dächern darin) und kommt so auch wieder zurück. Dazu kommt
+Möbeln und Dächern darin) und kommt so auch wieder zurück. Wer in einer
+fertigen Welt nur wissen will, wo er gerade ist, nimmt statt eines Grundrisses
+die **Karte** aus dem Werkzeugregal: ein Blatt in der Hand mit der Umgebung von
+oben, Norden oben, ein Pfeil für einen selbst und ein Punkt je Mitspieler — der
+Trigger zoomt. Dazu kommt
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
@@ -57,12 +57,11 @@ räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
-Unter **Menü → Grafik** liegen zwei experimentelle Schalter: der
-**Grafik-Modus** — _Einfach_ ist das Bild von bisher, _Schön_ gibt jeder Welt
-Schatten, Spiegelungen aus ihrem eigenen Himmel und ein schärferes Bild in der
-Brille, _Comic_ zeichnet dieselbe Welt mit **schwarzen Konturen** und Licht in
-Stufen — und **Texturen**, eine Körnung auf allen Oberflächen, die im Shader
-gerechnet und nicht geladen wird.
+Unter **Menü → Grafik** steht ein experimenteller Schalter, der
+**Grafik-Modus**: _Einfach_ ist das Bild von bisher, _Comic_ zeichnet dieselbe
+Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Daneben liegt
+**Aussehen** — sieben Kopfbedeckungen von der Basecap bis zur Krone, und alle
+im Raum sehen, was man aufhat.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -89,8 +88,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
-Spiegelung beider Hüften, die Portaltiefe, die Grafikstufen samt den
-prozeduralen Oberflächen, die Lichtstufen
+Spiegelung beider Hüften, die Portaltiefe, die Grafikstufen, das Aussehen,
+den Ausschnitt der Karte in der Hand, die Lichtstufen
 des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
 dazu, die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt

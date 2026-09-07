@@ -16,7 +16,7 @@ import type { GraphicsProfile } from './graphicsSettings';
  * einmal, sondern alle paar Sekunden noch einmal — sonst hätte ein Zombie, der
  * nach dem Umschalten aus dem Käfig kommt, als Einziger keinen Schatten. Und
  * jeder Wert, der überschrieben wird, wird vorher unter `userData` gemerkt:
- * „Schön" muss sich vollständig zurücknehmen lassen, sonst ist „Einfach" nach
+ * „Comic" muss sich vollständig zurücknehmen lassen, sonst ist „Einfach" nach
  * einem Ausflug nicht mehr dasselbe Einfach wie vorher.
  *
  * Ohne three.js geht es hier nicht, gerechnet wird trotzdem nichts, was nicht
@@ -49,7 +49,7 @@ function materialsOf(mesh: THREE.Mesh): THREE.Material[] {
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 }
 
-/** Beleuchtet, also von Schatten und Körnung überhaupt betroffen. */
+/** Beleuchtet, also von Schatten und Farbstufen überhaupt betroffen. */
 function isLit(material: THREE.Material): boolean {
   return (material as THREE.MeshStandardMaterial).isMeshStandardMaterial === true;
 }
@@ -99,14 +99,14 @@ export function applySceneQuality(
 
     const mesh = object as THREE.Mesh;
     // Ein Saum ist kein Ding der Welt, sondern ein zweites Bild eines Dings:
-    // Er bekommt weder Schatten noch Körnung, und schon gar keinen eigenen Saum.
+    // Er bekommt weder Schatten noch Stufen, und schon gar keinen eigenen Saum.
     if (!mesh.isMesh || isOutline(mesh)) return;
     const materials = materialsOf(mesh).filter((material) => !!material);
     if (!materials.some(isLit)) return;
 
-    // --- die Oberflächen
+    // --- die Farbstufen
     for (const material of materials) {
-      applyLook(material, { detail: profile.detail, toon: profile.toonBands });
+      applyLook(material, profile.toonBands);
       if (recompile && supportsLook(material)) material.needsUpdate = true;
     }
 
