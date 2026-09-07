@@ -3,6 +3,7 @@ import { doorSpec, type DoorMaterial } from './navDoor';
 import { DOOR_COST, NavGraph } from './navGraph';
 import {
   WALL_SKIN,
+  cornerBlocked,
   findPath,
   flowField,
   flowPath,
@@ -19,7 +20,9 @@ import {
 } from './navProfile';
 import {
   DIR_E,
+  DIR_N,
   DIR_S,
+  DIR_W,
   TILE,
   keyLevel,
   keyX,
@@ -435,6 +438,41 @@ describe('Der Schnurzug', () => {
     for (let i = 1; i < points.length; i++) {
       expect(points[i]!.x).toBeGreaterThanOrEqual(points[i - 1]!.x - 1e-9);
     }
+  });
+});
+
+describe('Die Ecke', () => {
+  it('kennt das Kopfende einer Wand als Ecke, obwohl vier Seiten frei sind', () => {
+    // Die Frage, die der Schnurzug an jedem Durchlass stellt und die die
+    // Debug-Ansicht an jeder Kachel stellt (`navScene.ts`, Ebene *Betretbar*).
+    // Sie zu teilen ist der ganze Zweck: Zwei Antworten darauf wären eine
+    // Ansicht, die etwas anderes zeigt, als gelaufen wird.
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 4, d: 4 });
+    // Ein Wandstück von einer Kachel Länge — es endet an der Ecke, an der die
+    // Kacheln (1|2, 0|1) zusammenstoßen.
+    graph.setWall(at(1, 0), DIR_E, { kind: 'solid' });
+
+    // Die Kachel südöstlich davon ist auf **allen vier Seiten** frei …
+    for (const dir of [DIR_N, DIR_E, DIR_S, DIR_W] as const) {
+      expect(graph.wall(at(2, 1), dir)).toBeUndefined();
+    }
+    // … und trotzdem steht in ihrer Nordwestecke das Ende der Wand.
+    expect(cornerBlocked(graph, at(2, 1), DIR_W, DIR_N)).toBe(true);
+    expect(cornerBlocked(graph, at(1, 1), DIR_E, DIR_N)).toBe(true);
+    // Die anderen Ecken derselben Kachel sind offenes Feld.
+    expect(cornerBlocked(graph, at(2, 1), DIR_E, DIR_S)).toBe(false);
+    expect(cornerBlocked(graph, at(2, 1), DIR_W, DIR_S)).toBe(false);
+  });
+
+  it('nennt den Rand der Karte eine Ecke — dahinter ist kein Boden', () => {
+    const graph = new NavGraph();
+    fillRect(graph, { x: 0, z: 0, w: 3, d: 3 });
+    expect(cornerBlocked(graph, at(0, 0), DIR_W, DIR_N)).toBe(true);
+    expect(cornerBlocked(graph, at(1, 1), DIR_E, DIR_S)).toBe(false);
+    // Und eine Kiste tut dasselbe wie eine fehlende Kachel.
+    graph.setBlocked(at(2, 2), true);
+    expect(cornerBlocked(graph, at(1, 1), DIR_E, DIR_S)).toBe(true);
   });
 });
 

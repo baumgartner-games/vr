@@ -11,6 +11,7 @@ import {
   type PhysicsWorld,
 } from '../../physics/PhysicsWorld';
 import { NavAgent, type DoorAction, type Spot3 } from '../nav/navAgent';
+import type { PathPoint } from '../nav/navPath';
 import { DOOR_OPEN_TIME } from '../nav/navDoor';
 import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
@@ -365,9 +366,12 @@ export class Npc {
     this.holder.position.set(at.x, y, at.z);
   }
 
-  /** Der Weg, den er gerade läuft — für die Debug-Ansicht. */
-  get path(): readonly TileKey[] {
-    return this.agent?.path ?? EMPTY_PATH;
+  /**
+   * Der Weg, den er gerade läuft — als **Linie** und nicht als Kachelmitten,
+   * denn genau die wird gezeichnet (`nav/navScene.navPathView`).
+   */
+  get route(): readonly PathPoint[] {
+    return this.agent?.points ?? EMPTY_ROUTE;
   }
 
   /**
@@ -457,5 +461,8 @@ export interface NavRun {
 const LEAP_RISE = 0.7;
 
 const _feet = new THREE.Vector3();
+/** Für alles, was nebenher nach einer Stelle fragt (`hitBody`). */
 const _probe = new THREE.Vector3();
-const EMPTY_PATH: readonly TileKey[] = [];
+
+/** Der Weg dessen, der noch keinen hat. */
+const EMPTY_ROUTE: readonly PathPoint[] = [];

@@ -13,7 +13,7 @@ import { doorSpec } from '../nav/navDoor';
 import { doorBroken } from '../nav/navGraph';
 import type { PreviewButton } from '../shared/livePreview';
 import { NavConsole, switchOf, type ConsoleKey } from './NavConsole';
-import type { PhysicsBody } from '../../physics/PhysicsWorld';
+import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 import type { Npc } from '../npc/Npc';
 import { npcSkin } from '../npc/npcKinds';
 import {
@@ -99,6 +99,15 @@ export class NavLabWorld extends PortalWorld {
   /** Was ein Szenario an Dingen in die Welt gestellt hat. */
   private readonly litter = new Map<ScenarioId, PhysicsBody[]>();
   private door: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial> | null = null;
+  /**
+   * Der Körper des Türblatts — **kinematisch**, wie jedes Türblatt in diesem
+   * Projekt (`interact/InteractWorld`).
+   *
+   * Ohne ihn war das Blatt eine bemalte Fläche: Auf der Karte stand eine
+   * geschlossene Tür, in der Welt lief jeder mitten hindurch. Genau der
+   * Zombie, den diese Bucht *nicht* zeigen soll.
+   */
+  private doorBody: PhysicsBody | null = null;
   /** Wo das Türblatt steht, wenn die Tür offen ist — und wo, wenn sie zu ist. */
   private doorHome = new THREE.Vector3();
   private doorShut = new THREE.Vector3();
@@ -294,6 +303,15 @@ export class NavLabWorld extends PortalWorld {
     this.doorShut.set(shut.x, shut.y, shut.z);
     this.doorHome.set(open.x, open.y, open.z);
     leaf.position.copy(this.doorHome);
+    leaf.updateWorldMatrix(true, false);
+
+    // **Und es steht wirklich im Weg.** Ein kinematischer Körper, kein
+    // Quader aus `labSolids()`: Das Abtasten darf ihn nicht sehen (auf der
+    // Karte ist er eine *Tür* und keine Wand), die Physik sehr wohl. Was
+    // vorher fehlte, war nicht die Tür, sondern ihr Widerstand — und ohne den
+    // lief jeder Zombie durch die zugezogene Tür wie durch eine Projektion.
+    this.doorBody =
+      this.physics?.addKinematic(leaf, { membership: GROUP_WORLD, filter: ALL_GROUPS }) ?? null;
   }
 
   private buildRings(parent: THREE.Group, bay: Scenario): void {
@@ -595,9 +613,19 @@ export class NavLabWorld extends PortalWorld {
     const facts = graph.door(DOOR_ID);
     if (!facts) return;
     // Was hin ist, ist weg: Wo das Blatt hing, ist ein Loch in der Wand.
-    leaf.visible = !doorBroken(facts);
+    const gone = doorBroken(facts);
+    leaf.visible = !gone;
     leaf.position.copy(facts.open ? this.doorHome : this.doorShut);
     leaf.material.color.setHex(doorSpec(facts.material).color);
+    // **Der Körper geht mit.** Ein Blatt, das man sieht und durch das man
+    // läuft, ist schlimmer als gar keines: Man sucht den Fehler dann in der
+    // Wegsuche, und er steckt in einer fehlenden Zeile Physik.
+    const body = this.doorBody;
+    if (!body) return;
+    leaf.updateWorldMatrix(true, false);
+    leaf.getWorldPosition(_leafAt);
+    body.body.setNextKinematicTranslation(_leafAt);
+    body.collider.setEnabled(!gone);
   }
 
   /**
@@ -749,6 +777,9 @@ export class NavLabWorld extends PortalWorld {
 
 /** Wohin der Spieler beim Start eines Szenarios gestellt wird (`stand`). */
 const _stand = new THREE.Vector3();
+
+/** Wo das Türblatt gerade hängt — für den kinematischen Körper darunter. */
+const _leafAt = new THREE.Vector3();
 
 /** Wie eine Konsolentaste in der Liste auf dem Telefon heißt. */
 function consoleLabel(key: ConsoleKey): string {

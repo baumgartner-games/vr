@@ -330,9 +330,15 @@ Treppe hinweg abkürzt noch in die Stachelgrube gerät, dazu die **Luft**
 über den eigenen Umfang hinaus (`NAV_CLEARANCE`: fünfzehn Zentimeter, die den
 Unterschied zwischen „passt haargenau vorbei" und „kommt vorbei" ausmachen),
 und das Strömungsfeld,
-das eine Horde keine Klippe hochlaufen lässt), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
+das eine Horde keine Klippe hochlaufen lässt), die **Ecke**, an der er Abstand
+hält (`cornerBlocked` — und zwar auch am **Kopfende** einer Wand, wo alle vier
+Seiten der Nachbarkachel frei sind und die Stirnseite des Klotzes trotzdem in
+ihrer Ecke steht; dieselbe Frage beantwortet die Debug-Ansicht, und dass es
+*eine* Frage ist, ist der Zweck), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
 verschlossene Tür läuft und erst dort umplant: das ist das Ziel und nicht der
-Fehler, und der Test hält es fest, damit es niemand später „repariert"), die
+Fehler, und der Test hält es fest, damit es niemand später „repariert"; dazu
+die **Freiraum-Annahme**: eine Tür, die er nie gesehen hat, hält er für offen,
+und wer diese Zeile umdreht, hat die Hellsicht wieder eingebaut), die
 **Sinne** (`navPerception.ts` — Kegel, Reichweite, Wand, Reaktionszeit und vor
 allem die letzte bekannte Stelle), die **Fortbewegung** (`locomotion.ts` — dass
 ein Fußgänger sich erst dreht und dann losgeht, dass ein Fahrzeug im Stand
@@ -345,8 +351,11 @@ Test gibt: ein Boden, der **in** einem Quader steckt, ist keiner — der Sand
 unter einem Podest ist nicht begehbar, und wer ihn mitzählt, legt die Kachel
 des Podests auf den Boden daneben), die **Übersetzung in die Welt**
 (`navScene.ts` — dass ein gedrehter Quader seinen Schatten wirft, dass eine
-offene Tür in der Debug-Ansicht keine Sperre ist und dass die **betretbare
-Fläche** als einzige Ebene hinter Wänden verschwindet), das **Format**
+offene Tür in der Debug-Ansicht keine Sperre ist, dass die **betretbare
+Fläche** als einzige Ebene hinter Wänden verschwindet, dass sie am **Kopfende
+einer Wand** eine Ecke ausspart und ohne besetzte Ecke trotzdem ein einziges
+Rechteck je Kachel bleibt, und dass ein gezeichneter Weg durch seine
+**Wegpunkte** geht und nicht über die Kachelmitten), das **Format**
 (`navSerial.ts` — Hin und Zurück ohne Verlust, das **Material** einer Tür
 eingeschlossen: Eine Metalltür, die als Holztür zurückkäme, wäre ein Zombie,
 der durch eine Wand geht, die vor dem Speichern eine war; und jede Datei, die
@@ -371,7 +380,10 @@ Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
 **Kontrollpunkt**, an dem er vorbeigekommen sein muss — darunter der, um den es
 seit den Türen geht: Vor der **Metalltür** muss der Zombie außen herum, und der
 Beweis ist die Stelle, an der seine Spur die Wandlinie überschreitet; vor der
-**Holztür** steht er drei Sekunden und geht dann geradeaus hindurch. Der Unterschied zu allen
+**Holztür** steht er drei Sekunden und geht dann geradeaus hindurch. Beide Male
+prüft der Test zusätzlich, dass er **wirklich hingegangen** ist: Der Umweg
+fängt an der Tür an und nicht am Start, sonst wusste er von einem Riegel, den
+ihm niemand gezeigt hat. Der Unterschied zu allen
 anderen ist die Frage: Die übrigen prüfen eine Rechnung, dieser prüft einen
 **Eindruck** — „der Zombie läuft durch die verriegelte Tür" ist keine falsche
 Zahl, sondern ein Weg, den man erst sieht, wenn man ihn abläuft.
@@ -3957,6 +3969,27 @@ Hellsicht wieder eingebaut, und man sieht sie einem Bot sofort an, ohne sagen
 zu können, woran. Zum Planen zählt die Meinung, zum Sehen und Hören nie: Man
 sieht nicht durch eine Tür, nur weil man sie für offen hält.
 
+**Und was er nie gesehen hat, hält er für offen** (`hopeful`). Das ist die
+Freiraum-Annahme, mit der Roboter seit je durch unbekannte Gänge fahren, und
+sie schließt die Lücke, die „wo nichts eingetragen ist, gilt die Welt" offen
+ließ: Für eine Tür, an der noch nie jemand stand, *war* die Welt eingetragen —
+also wusste ein Zombie schon dreißig Meter vor einer Metalltür, dass sie zu
+ist, und bog ab, ohne je dagewesen zu sein. Dieselbe Hellsicht wie oben, nur an
+der Stelle, an der niemand sie vermutet. Jetzt läuft er hin, steht davor, sieht
+sie an (`navAgent.doorAhead` trägt sie in dem Moment ein, in dem sie in
+Reichweite ist) und plant *dort* um — außen herum bei Metall, mit den Fäusten
+bei Holz. Das **Material** ist davon ausgenommen und kommt weiter aus der Welt:
+Ob eine Tür aus Brettern oder aus Blech ist, sieht man ihr an; ob sie
+abgeschlossen ist, nicht.
+
+Zwei Feinheiten hängen daran, und beide sind teuer bezahlt: `seeDoor` meldet
+**nur eine Änderung** als Änderung, sonst plant einer, der eine Sekunde vor
+seiner Tür steht, sechzigmal neu, weil er seine eigene Meinung für eine
+Neuigkeit hält. Und die **Attrappe der Vorschau** hofft ausdrücklich nicht
+(`shared/previewWalk.ts`): Sie ist der Zuschauer und keine Figur im Stück, und
+ein Ring, der zu einer verriegelten Tür läuft und wieder umkehrt, sähe aus wie
+eine kaputte Wegsuche.
+
 **Route und Fortbewegung sind getrennt** (`locomotion.ts`). Die Wegsuche
 liefert Kacheln; was daraus wird, entscheidet die Fortbewegungsart hinter einer
 gemeinsamen Schnittstelle: der **Fußgänger** dreht sich und geht los, das
@@ -4089,6 +4122,24 @@ derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wan
   halben Kacheln kennt: Eingezogen wird beim **Zeichnen**. Zwei verschiedene
   Zahlen dafür wären eine Ansicht, die etwas anderes zeigt, als gelaufen wird —
   und dann sucht man den Fehler dort, wo keiner ist.
+
+  **Und an den Ecken auch.** Seite für Seite reicht nämlich nicht, und das war
+  der Fehler, den man von oben sah: An einer Wand entlang rückte die Fläche
+  sauber ab, an ihrem **Kopfende** nicht. Dort liegt eine Kachel, die auf allen
+  vier Seiten frei ist — nur steht die Stirnseite des Klotzes eben in ihrer
+  Ecke, und ein Zylinder, der dorthin plant, steckt darin. Gefragt wird deshalb
+  jede der vier Ecken einzeln, und zwar mit derselben Funktion, die der
+  Schnurzug an jedem Durchlass fragt (`navPath.cornerBlocked`); wo etwas steht,
+  fehlt ein Quadrat von der Größe des Abstands. Aus einem Rechteck werden dabei
+  bis zu neun Felder eines 3 × 3-Rasters — die übrigen werden wieder
+  zusammengefasst, sonst wären ein paar hundert Kacheln ein paar tausend
+  Dreiecke, wo ein Rechteck je Kachel reicht.
+- **Wege** zeichnen die **Wegpunkte** und nicht die Kachelmitten
+  (`navAgent.points`). Der Unterschied ist der ganze Zweck der Ebene: Eine Linie
+  durch Kachelmitten schneidet jede Hausecke, um die der Läufer in Wirklichkeit
+  einen Bogen macht — sie sieht aus wie ein Weg mitten durch die Wand, direkt
+  neben einer betretbaren Fläche, die dort gerade abgerückt ist. Zwei Ansichten
+  desselben Wegs, die sich widersprechen, sind schlimmer als eine grobe.
 - **Wände** zeichnen eine **Tür in der Farbe ihres Materials**: Holz und Metall
   sind auf der Karte dieselbe Linie und bedeuten für einen Zombie das Gegenteil
   voneinander. Wer wissen will, warum einer außen herumläuft und der nächste
@@ -4194,6 +4245,17 @@ am Zustand der Karte (`syncDoor`) und nicht mehr nur am Knopfdruck: Inzwischen
 macht die Attrappe die Tür selbst auf und ein Zombie schlägt sie ein, und ein
 Blatt, das dabei stehen bliebe, *ist* der Zombie, der durch die Tür läuft.
 
+**Und das Blatt steht wirklich im Weg.** Lange war es eine bemalte Fläche und
+sonst nichts: gebaut in `decorate()`, wo alles hinkommt, was *keinen* Weg
+versperrt — und damit stand auf der Karte eine geschlossene Tür, durch die in
+der Welt jeder mitten hindurchlief. Genau der Zombie, den diese Bucht *nicht*
+zeigen soll, nur unfreiwillig. Es hat jetzt einen **kinematischen Körper**, wie
+jedes Türblatt in diesem Projekt (`interact/InteractWorld`), und `syncDoor`
+zieht ihn jedes Bild nach; eingeschlagen wird sein Collider abgeschaltet, denn
+wo das Blatt hing, ist ein Loch. Ein Quader aus `labSolids()` durfte es dabei
+**nicht** werden: Das Abtasten sieht die — für die Karte ist die Tür eine Tür
+und keine Wand.
+
 **Eine Tür ist kein Wahrheitswert mehr, sondern ein Ding aus einem Material**
 (`nav/navDoor.ts`). Vorher gab es nur „offen" und „zu" und dazu die Frage, ob
 jemand Klinken bedienen kann — das reicht für ein Haus mit Bewohnern und nicht
@@ -4236,6 +4298,14 @@ noch zwei Meter davor steht. `Npc.workDoor` macht daraus die halbe Sekunde an
 der Klinke oder das Einprügeln; die Attrappe der Vorschau tut dasselbe
 (`previewWalk.ts`). Eine Welt, die fünfzig NPCs nach ihren Türen fragen müsste,
 fragte jedes Bild fünfzigmal.
+
+**Dieselbe Reichweite ist auch der Moment, in dem er sie erfährt**: Was
+`doorAhead` findet, trägt er in seine Meinung ein, und zwar unabhängig davon,
+ob sie etwas von ihm verlangt. Genau darum geht es bei der Metalltür — sie
+verlangt gar nichts (er macht sie nicht auf und bekommt sie nicht klein), und
+ohne diese Zeile stünde er davor und drückte dagegen, bis das Festfahren ihn
+nachsehen lässt (`observe`). Jetzt sieht er hin, sobald er dort ist, und ist im
+nächsten Bild schon außen herum unterwegs.
 
 **Der Grundriss steht als Daten und nicht als Zeilen in einer three.js-Methode**
 (`scenarios.ts`): wo eine Bucht liegt, wo ihre Wände stehen (`bayWalls`), wer in

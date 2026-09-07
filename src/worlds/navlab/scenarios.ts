@@ -311,7 +311,7 @@ export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'door',
     title: 'Tür fällt zu',
-    watch: 'Metall hält ihn auf, Holz schlägt er ein',
+    watch: 'Er geht erst hin: Metall hält ihn auf, Holz schlägt er ein',
     acts: [
       { id: 'door', label: 'Tür auf/zu' },
       { id: 'wood', label: 'Holz/Metall' },

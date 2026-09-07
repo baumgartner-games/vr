@@ -259,10 +259,17 @@ describe('Tür fällt zu', () => {
         graph.setDoor(DOOR_ID, { open: false, barred: true });
       },
     });
-    // Kein einziges Bild in der Türöffnung: Das Blatt steht dort.
-    for (const step of run.runners[0]!.track) {
-      const inDoorway = Math.abs(step.x - line.x) < 1.25 && Math.abs(step.z - line.z) < 0.6;
-      expect(inDoorway).toBe(false);
+    const track = run.runners[0]!.track;
+    // **Davorstehen ja, hindurch nein.** Er *soll* hingehen — das ist die
+    // Freiraum-Annahme (`nav/navBelief.ts`, `hopeful`), und ohne sie wüsste er
+    // von einem Riegel, den niemand ihm gezeigt hat. Was das Blatt verhindert,
+    // ist der Schritt auf die andere Seite: Keine einzige Überquerung der
+    // Wandlinie liegt in der Türöffnung.
+    expect(closestTo(track, line)).toBeLessThan(1.5);
+    let cross = crossedAt(track, line.z);
+    while (cross) {
+      expect(Math.abs(cross.x - line.x)).toBeGreaterThan(1.25);
+      cross = crossedAt(track, line.z, cross.frame);
     }
   });
 });
@@ -317,6 +324,38 @@ describe('Tür aus Metall oder aus Holz', () => {
     expect(zombie.broke).toEqual([]);
     expect(run.graph.door(DOOR_ID)!.health).toBe(Infinity);
     expect(zombie.arrived).toBe(true);
+  });
+
+  it('geht erst zur Metalltür und erst dann außen herum', () => {
+    // **Der Umweg fängt an der Tür an und nicht am Start.** Vorher wusste er
+    // von einer Tür, die er nie gesehen hatte, dass sie zu ist, und bog schon
+    // dreißig Meter davor ab — Hellsicht, die man ihm ansah, ohne sagen zu
+    // können, woran. Jetzt hält er sie für offen (`nav/navBelief.ts`,
+    // `hopeful`), läuft hin, steht davor, sieht sie an und plant dort um.
+    const run = shut('metal');
+    const zombie = run.runners[0]!;
+    const door = baySpot(bay, { lx: -6.25, lz: 0 });
+    // Bis an das Blatt heran: Halbmesser plus halbe Blattdicke, mehr nicht.
+    expect(closestTo(zombie.track, door)).toBeLessThan(1.5);
+    // Und er weiß jetzt, woran es lag — vorher wusste er es, ohne hinzusehen.
+    expect(zombie.agent.belief.doorOpinion(DOOR_ID)).toMatchObject({ known: true, open: false });
+
+    // Der Umweg kommt trotzdem zustande, und zwar erst danach.
+    const cross = crossedAt(zombie.track, line)!;
+    expect(cross.x).toBeGreaterThan(Math.min(...around));
+    expect(zombie.arrived).toBe(true);
+  });
+
+  it('geht auch zur hölzernen hin und schlägt sie dort ein', () => {
+    // Dieselbe Annahme, das andere Ende: Er läuft hin, sieht eine Tür aus
+    // Brettern — und für die ist der kurze Weg auch nach dem Hinsehen noch der
+    // kurze. Drei Sekunden Prügel, und er geht geradeaus hindurch.
+    const run = shut('wood');
+    const zombie = run.runners[0]!;
+    const door = baySpot(bay, { lx: -6.25, lz: 0 });
+    expect(closestTo(zombie.track, door)).toBeLessThan(1.5);
+    expect(zombie.agent.belief.doorOpinion(DOOR_ID)).toMatchObject({ known: true, open: false });
+    expect(zombie.broke).toEqual([DOOR_ID]);
   });
 
   it('lässt ihn die hölzerne einschlagen und geradeaus hindurchgehen', () => {
