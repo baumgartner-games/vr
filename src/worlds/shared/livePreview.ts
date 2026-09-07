@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { NavLayer, NavLayerState } from '../nav/navLayers';
+import type { NavSwitch, NavSwitchState } from '../nav/navSwitches';
 import type { BarMode } from '../npc/NpcBody';
 
 /**
@@ -101,6 +102,17 @@ export interface LivePreview {
   /** Welche Debug-Ebenen gerade an sind. */
   layers(): Readonly<NavLayerState>;
   setLayer(layer: NavLayer, on: boolean): void;
+
+  /**
+   * Was von der Navigation gerade **gilt** (`nav/navSwitches.ts`).
+   *
+   * Die zweite Reihe unter dem Bild, und sie tut etwas anderes als die erste:
+   * Die Ebenen zeigen, diese Schalter wirken. „Hindernisse aus" heißt nicht,
+   * dass die Kiste verschwindet — es heißt, dass die Wegsuche sie nicht mehr
+   * beachtet und der Zombie dagegenrennt.
+   */
+  switches(): Readonly<NavSwitchState>;
+  setSwitch(id: NavSwitch, on: boolean): void;
 
   /** Wann die Lebensbalken über den NPCs zu sehen sind. */
   bars(): BarMode;

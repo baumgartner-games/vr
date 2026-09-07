@@ -8,8 +8,11 @@ import type { NavGraph } from '../nav/navGraph';
 import { dropPortal, portalLinkIds } from '../nav/navBuild';
 import { NO_TILE } from '../nav/navTile';
 import { layerSpec, layerSummary, nextAll, type NavLayer } from '../nav/navLayers';
+import { switchSpec, switchSummary } from '../nav/navSwitches';
+import { doorSpec } from '../nav/navDoor';
+import { doorBroken } from '../nav/navGraph';
 import type { PreviewButton } from '../shared/livePreview';
-import { NavConsole, type ConsoleKey } from './NavConsole';
+import { NavConsole, switchOf, type ConsoleKey } from './NavConsole';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import type { Npc } from '../npc/Npc';
 import {
@@ -17,6 +20,7 @@ import {
   BAY_W,
   CRATE,
   DOOR_ID,
+  DOOR_MATERIAL,
   PIT,
   PORTAL,
   PORTAL_ID,
@@ -91,7 +95,7 @@ export class NavLabWorld extends PortalWorld {
   }[] = [];
   /** Was ein Szenario an Dingen in die Welt gestellt hat. */
   private readonly litter = new Map<ScenarioId, PhysicsBody[]>();
-  private door: THREE.Object3D | null = null;
+  private door: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial> | null = null;
   /** Wo das Türblatt steht, wenn die Tür offen ist — und wo, wenn sie zu ist. */
   private doorHome = new THREE.Vector3();
   private doorShut = new THREE.Vector3();
@@ -255,7 +259,11 @@ export class NavLabWorld extends PortalWorld {
     const shut = doorLeaf(bay, false);
     const leaf = new THREE.Mesh(
       new THREE.BoxGeometry(shut.w, shut.h, shut.d),
-      new THREE.MeshStandardMaterial({ color: 0xe58aa8, roughness: 0.6 }),
+      // Die Farbe kommt aus dem Material der Tür (`nav/navDoor.ts`) und nicht
+      // aus dieser Zeile: Auf zwanzig Meter ist sie das einzige, woran man
+      // sieht, ob der Zombie gleich außen herumläuft oder geradeaus
+      // durchbricht.
+      new THREE.MeshStandardMaterial({ color: doorSpec(DOOR_MATERIAL).color, roughness: 0.6 }),
     );
     leaf.name = 'navlab-door';
     parent.add(leaf);
@@ -387,6 +395,19 @@ export class NavLabWorld extends PortalWorld {
    * man traut keiner von beiden mehr.
    */
   private pressLayer(key: ConsoleKey): void {
+    const id = switchOf(key);
+    if (id) {
+      // **Der untere Block schaltet, was gilt** — nicht, was man sieht
+      // (`nav/navSwitches.ts`). Deshalb steht danach auch eine andere Zeile
+      // unter dem Bild.
+      const on = this.setNavSwitch(id, !this.navSwitchState()[id]);
+      this.refreshConsoles();
+      this.refreshMenuLabels();
+      this.announce(
+        `${switchSpec(id).label}: ${on ? 'an' : 'aus'} · ${switchSummary(this.navSwitchState())}`,
+      );
+      return;
+    }
     if (key === 'all') {
       this.setNavLayers(nextAll(this.navLayerState()));
     } else {
@@ -399,7 +420,9 @@ export class NavLabWorld extends PortalWorld {
   }
 
   private refreshConsoles(): void {
-    for (const console_ of this.consoles) console_.refresh(this.navLayerState());
+    for (const console_ of this.consoles) {
+      console_.refresh(this.navLayerState(), this.navSwitchState());
+    }
   }
 
   /** Startet ein Szenario — oder räumt es weg, wenn es schon läuft. */
@@ -460,9 +483,30 @@ export class NavLabWorld extends PortalWorld {
     const graph = this.nav;
 
     if (actId === 'door' && graph) {
-      const shut = graph.door(DOOR_ID)?.open ?? true;
+      const facts = graph.door(DOOR_ID);
+      if (!facts || doorBroken(facts)) {
+        this.announce('Die Tür ist hin — erst den roten Knopf');
+        return;
+      }
+      const shut = facts.open;
       this.setDoor(graph, shut ? 'shut' : 'open');
       this.announce(shut ? 'Tür zu' : 'Tür offen');
+      return;
+    }
+
+    if (actId === 'wood' && graph) {
+      // **Der Knopf, wegen dem diese Bucht zwei Behauptungen aufstellt.**
+      // Dieselbe zugezogene Tür: aus Metall eine Wand, aus Holz drei Sekunden
+      // Arbeit. Was der Zombie daraus macht, sieht man am Weg.
+      const facts = graph.door(DOOR_ID);
+      if (!facts) return;
+      if (doorBroken(facts)) {
+        this.announce('Die Tür ist hin — erst den roten Knopf');
+        return;
+      }
+      const next = facts.material === 'wood' ? 'metal' : 'wood';
+      graph.setDoor(DOOR_ID, { material: next });
+      this.announce(`Tür aus ${doorSpec(next).label}`);
       return;
     }
 
@@ -508,7 +552,29 @@ export class NavLabWorld extends PortalWorld {
    */
   private setDoor(graph: NavGraph, how: 'open' | 'shut' | 'barred'): void {
     graph.setDoor(DOOR_ID, { open: how === 'open', barred: how === 'barred' });
-    if (this.door) this.door.position.copy(how === 'open' ? this.doorHome : this.doorShut);
+    this.syncDoor();
+  }
+
+  /**
+   * **Das Türblatt an den Zustand der Karte hängen** — jedes Bild, nicht nur
+   * beim Knopfdruck.
+   *
+   * Bis hierher setzte nur der gelbe Knopf beides zusammen, und das reichte,
+   * solange nur er die Tür anfasste. Inzwischen macht die Attrappe sie selbst
+   * auf (`shared/previewWalk.ts`) und ein Zombie schlägt sie ein
+   * (`npc/Npc.workDoor`) — und ein Blatt, das dabei stehen bliebe, wäre genau
+   * der Fehler, den diese Bucht vorführen soll, nur unfreiwillig.
+   */
+  private syncDoor(): void {
+    const graph = this.nav;
+    const leaf = this.door;
+    if (!graph || !leaf) return;
+    const facts = graph.door(DOOR_ID);
+    if (!facts) return;
+    // Was hin ist, ist weg: Wo das Blatt hing, ist ein Loch in der Wand.
+    leaf.visible = !doorBroken(facts);
+    leaf.position.copy(facts.open ? this.doorHome : this.doorShut);
+    leaf.material.color.setHex(doorSpec(facts.material).color);
   }
 
   /**
@@ -561,7 +627,15 @@ export class NavLabWorld extends PortalWorld {
     if (id === 'crate') {
       for (const key of [...graph.blockedKeys()]) graph.setBlocked(key, false);
     }
-    if (id === 'door') this.setDoor(graph, 'open');
+    if (id === 'door') {
+      // Eine eingeschlagene Tür macht kein `setDoor` wieder heil — das ist
+      // Absicht (`navGraph.setDoor`). Zwischen zwei Durchläufen hängt sie
+      // wieder in ihrer Lücke, und zwar aus dem Material, mit dem die Bucht
+      // anfängt.
+      graph.mendDoor(DOOR_ID, true);
+      graph.setDoor(DOOR_ID, { material: DOOR_MATERIAL, open: true, barred: false });
+      this.syncDoor();
+    }
     if (id === 'portal') {
       dropPortal(graph, PORTAL_ID);
       for (const ring of this.portalRings) ring.visible = false;
@@ -586,6 +660,7 @@ export class NavLabWorld extends PortalWorld {
    */
   protected override simulate(dt: number): void {
     this.clock += dt;
+    this.syncDoor();
     for (const bay of SCENARIOS) {
       const state = this.states.get(bay.id)!;
       // Ein Szenario, das niemand abbricht, räumt sich selbst weg — sonst
@@ -643,6 +718,8 @@ const _stand = new THREE.Vector3();
 
 /** Wie eine Konsolentaste in der Liste auf dem Telefon heißt. */
 function consoleLabel(key: ConsoleKey): string {
+  const id = switchOf(key);
+  if (id) return `${switchSpec(id).label} an/aus`;
   return key === 'all' ? 'Alles' : layerSpec(key).label;
 }
 

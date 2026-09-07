@@ -1,4 +1,5 @@
 import { NavGraph, type NavLink, type WallKind } from './navGraph';
+import type { DoorMaterial } from './navDoor';
 import type { LinkKind } from './navProfile';
 import {
   DIR_E,
@@ -48,7 +49,7 @@ export const NAV_FORMAT = 'vrnav';
  * warum. Ein stilles „geht schon" ist die einzige Möglichkeit, wie man sich
  * hier die Karten kaputtmacht.
  */
-export const NAV_VERSION = 1;
+export const NAV_VERSION = 2;
 
 /** Ein Kachellauf: gleiche Etage, gleiche Zeile, gleiche Werte, nebeneinander. */
 export interface NavRun {
@@ -79,6 +80,15 @@ export interface NavWallEntry {
   barred?: boolean;
   muffle?: number;
   id?: string;
+  /**
+   * Woraus eine Tür ist (`navDoor.ts`) — fehlt bei allem, was keine ist.
+   *
+   * **Ihr Leben steht hier nicht.** Eine gespeicherte Karte hat heile Türen:
+   * Was jemand in einer Runde kaputtgeschlagen hat, ist ein Ereignis in dieser
+   * Runde und kein Bauplan. Wer eine halb zerschlagene Tür speichern will,
+   * speichert einen Spielstand und keine Karte.
+   */
+  mat?: DoorMaterial;
 }
 
 export interface NavLinkEntry {
@@ -190,6 +200,7 @@ function collectWalls(graph: NavGraph): NavWallEntry[] {
     if (facts.barred) entry.barred = true;
     if (facts.muffle !== undefined) entry.muffle = facts.muffle;
     if (facts.id) entry.id = facts.id;
+    if (facts.kind === 'door') entry.mat = facts.material;
     walls.push(entry);
   }
   walls.sort((a, b) => a.l - b.l || a.z - b.z || a.x - b.x || a.d.localeCompare(b.d));
@@ -251,6 +262,9 @@ export function readNav(data: unknown): NavGraph {
       barred: wall.barred ?? false,
       muffle: wall.muffle ?? (wall.kind === 'window' ? 0.5 : 0.85),
       id: wall.id ?? '',
+      // Eine Tür ohne Material kommt aus einer Datei der Version 1 — damals gab
+      // es nur eine Sorte, und die war aus Brettern.
+      material: wall.mat ?? 'wood',
     });
   }
 
@@ -301,7 +315,11 @@ export function migrate(data: unknown): NavFile {
   }
 
   // ── Hier kommen die Migrationen hin, eine je Schritt: ──
-  // if (file.version === 1) { …aus 1 mach 2…; file.version = 2; }
+  // Version 1 → 2: Türen haben ein Material bekommen (`navDoor.ts`). Eine Tür
+  // ohne Angabe ist aus **Holz** — damals gab es nur eine Sorte, und ein
+  // Zombie kam durch sie hindurch. Das steht hier als Kommentar und nicht als
+  // Code, weil `readWalls` den Vorgabewert ohnehin einsetzt; die Zeile darüber
+  // wäre eine Schleife, die dasselbe noch einmal tut.
 
   return {
     format: NAV_FORMAT,

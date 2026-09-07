@@ -33,31 +33,31 @@ export const NAV_LAYERS: readonly NavLayerSpec[] = [
   {
     id: 'floor',
     label: 'Betretbar',
-    sub: 'Die Fläche, auf der ein NPC wirklich steht',
+    sub: 'Nav-Mesh-Fläche: worauf ein NPC wirklich steht',
     color: 0x3b7dff,
   },
   {
     id: 'walls',
     label: 'Wände',
-    sub: 'Was den Weg sperrt — Kanten in Gelb',
+    sub: 'Was den Weg sperrt — Türen in ihrer Farbe',
     color: 0xff5a5a,
   },
   {
     id: 'links',
     label: 'Verbindungen',
-    sub: 'Treppen, Absprünge, Portale',
+    sub: 'Off-Mesh-Links: Treppe, Absprung, Portal',
     color: 0x9d7bff,
   },
   {
     id: 'blocked',
     label: 'Sperren',
-    sub: 'Was gerade im Weg steht',
+    sub: 'Nav-Mesh-Obstacle: was gerade im Weg steht',
     color: 0xff3bd0,
   },
   {
     id: 'paths',
     label: 'Wege',
-    sub: 'Was die NPCs gerade laufen',
+    sub: 'Was die NPCs und deine Figur gerade laufen',
     color: 0x5ee0a0,
   },
   {

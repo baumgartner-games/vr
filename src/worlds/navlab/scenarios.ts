@@ -1,4 +1,5 @@
 import { addPortal, connect, doorBetween, paintRect } from '../nav/navBuild';
+import type { DoorMaterial } from '../nav/navDoor';
 import type { NavGraph } from '../nav/navGraph';
 import { HAZARD_SPIKES } from '../nav/navProfile';
 import { NO_TILE, TILE } from '../nav/navTile';
@@ -148,6 +149,18 @@ export const PIT = { minLx: -7.5, maxLx: 7.5, minLz: -2.5, maxLz: 2.5 };
  */
 export const DOOR = { lx: -6.25, width: TILE, slide: TILE, gap: 1.25, height: 2.2, thick: 0.16 };
 
+/**
+ * **Woraus die Tür des Labors ist, wenn ein Durchlauf beginnt: aus Metall.**
+ *
+ * Und das ist keine Willkür, sondern die Behauptung der Bucht: „Er läuft
+ * dagegen, merkt es dort und geht dann außen herum" gilt nur für eine Tür, die
+ * ihm standhält. Eine hölzerne schlägt er ein (`nav/navDoor.ts`) — auch das
+ * kann man sehen, und dafür gibt es den gelben Knopf daneben. Zwei Materialien,
+ * ein Aufbau, zwei völlig verschiedene Wege: Genau darum steht in dieser Bucht
+ * eine Tür und keine Wand.
+ */
+export const DOOR_MATERIAL: DoorMaterial = 'metal';
+
 /** Die beiden Enden des Portals — Kachelmitten, sonst findet es der Graph nicht. */
 export const PORTAL: readonly BaySpot[] = [
   { lx: -6.25, lz: -6.25 },
@@ -271,9 +284,10 @@ export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'door',
     title: 'Tür fällt zu',
-    watch: 'Er läuft dagegen, merkt es dort und geht dann außen herum',
+    watch: 'Metall hält ihn auf, Holz schlägt er ein',
     acts: [
       { id: 'door', label: 'Tür auf/zu' },
+      { id: 'wood', label: 'Holz/Metall' },
       { id: 'bar', label: 'Tür verriegeln', once: true },
     ],
     x: COLS[0],
@@ -476,6 +490,15 @@ export interface LabSolid {
   w: number;
   h: number;
   d: number;
+  /**
+   * Die Tür, zu der dieser Quader gehört — nur beim Türblatt.
+   *
+   * Damit weiß, wer die Welt aus diesen Quadern baut, welcher davon
+   * verschwindet, wenn die Tür in Stücken auf dem Boden liegt. Ohne diese
+   * Zeile stünde das Blatt der eingeschlagenen Tür weiter in seiner Lücke, und
+   * der Zombie, der gerade hindurchwollte, klebte davor.
+   */
+  door?: string;
 }
 
 /**
@@ -551,6 +574,7 @@ export function doorLeaf(bay: Scenario, open: boolean): LabSolid {
     w: DOOR.width,
     h: DOOR.height,
     d: DOOR.thick,
+    door: DOOR_ID,
   };
 }
 
@@ -655,7 +679,7 @@ export function applyLabMap(graph: NavGraph): void {
       // sitzt die Wand, und in diese Wand kommt die Tür.
       const north = bayPoint(bay, DOOR.lx, -DOOR.gap);
       const south = bayPoint(bay, DOOR.lx, DOOR.gap);
-      doorBetween(graph, { ...north, y: 0 }, { ...south, y: 0 }, DOOR_ID, true);
+      doorBetween(graph, { ...north, y: 0 }, { ...south, y: 0 }, DOOR_ID, true, DOOR_MATERIAL);
     }
     if (bay.id === 'podium') {
       // **Der Sprung von einem Podest auf das andere.** Ihn kann kein Abtasten

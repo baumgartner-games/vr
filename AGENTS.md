@@ -308,9 +308,17 @@ Normierung, wegen der jede Wand nur einmal existiert; wer sie falsch hätte,
 merkte es erst an einem NPC, der durch eine geschlossene Tür läuft, weil er sie
 von der falschen Seite anschaut), die **Kostenprofile** (`navProfile.ts` — die
 eine Zeile Tabelle, an der hängt, dass der Zombie in die Stachelgrube läuft und
-der Mensch darum herum), der **Graph** (`navGraph.ts` — was eine Wand für
-Bewegung, Sicht und Schall bedeutet, und dass eine geschlossene Tür für den
-einen ein Umweg von drei Metern und für den anderen eine Wand ist), die
+der Mensch darum herum), das **Material einer Tür**
+(`navDoor.ts` — dass Holz nachgibt und Metall nicht, dass ein Schlag nie unter
+null nimmt, und die Zahl, die man in der Brille wirklich sieht: wie lange einer
+davorsteht, bis sie fällt), die **drei Schalter**
+(`navSwitches.ts` — dass in jeder Welt alles an ist, denn ein Schalter, der
+irgendwo aus anfängt, lässt einen den Fehler in der Wegsuche suchen, der in
+einer Einstellung steckt), der **Graph** (`navGraph.ts` — was eine Wand für
+Bewegung, Sicht und Schall bedeutet, dass eine geschlossene Tür für den
+einen ein Umweg von drei Metern und für den anderen eine Wand ist — außer sie
+ist aus Holz, dann ist sie zehn Meter und drei Sekunden Prügel —, und dass eine
+eingeschlagene Tür ein Loch bleibt und sich nicht wieder zuziehen lässt), die
 **Linie durch das Gitter** (`navSight.ts` — Sicht, gerader Gehweg und Schall
 aus **einer** Wanderung, samt der Mauerecke, durch die niemand diagonal sehen
 darf), die **Wegsuche** (`navPath.ts` — Umweg statt Durchbruch, Teilweg statt
@@ -318,7 +326,10 @@ Stillstand, Portale und Treppen, der **Schnurzug**, der aus dem Treppenmuster
 der Kachelmitten eine Diagonale macht und dabei **den Halbmesser dessen
 Abstand hält, der ihn läuft** — ein Weg, der die Hausecke um zwanzig Zentimeter
 verfehlt, ist für einen 58 cm dicken Zombie eine Wand —, der weder über eine
-Treppe hinweg abkürzt noch in die Stachelgrube gerät, und das Strömungsfeld,
+Treppe hinweg abkürzt noch in die Stachelgrube gerät, dazu die **Luft**
+über den eigenen Umfang hinaus (`NAV_CLEARANCE`: fünfzehn Zentimeter, die den
+Unterschied zwischen „passt haargenau vorbei" und „kommt vorbei" ausmachen),
+und das Strömungsfeld,
 das eine Horde keine Klippe hochlaufen lässt), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
 verschlossene Tür läuft und erst dort umplant: das ist das Ziel und nicht der
 Fehler, und der Test hält es fest, damit es niemand später „repariert"), die
@@ -336,9 +347,15 @@ des Podests auf den Boden daneben), die **Übersetzung in die Welt**
 (`navScene.ts` — dass ein gedrehter Quader seinen Schatten wirft, dass eine
 offene Tür in der Debug-Ansicht keine Sperre ist und dass die **betretbare
 Fläche** als einzige Ebene hinter Wänden verschwindet), das **Format**
-(`navSerial.ts` — Hin und Zurück ohne Verlust, und
-jede Datei, die es ablehnt: fremdes Format, fehlende Version, eine Karte aus
+(`navSerial.ts` — Hin und Zurück ohne Verlust, das **Material** einer Tür
+eingeschlossen: Eine Metalltür, die als Holztür zurückkäme, wäre ein Zombie,
+der durch eine Wand geht, die vor dem Speichern eine war; und jede Datei, die
+es ablehnt: fremdes Format, fehlende Version, eine Karte aus
 der Zukunft und eine mit einer anderen Kachelgröße) — und, seit es sie gibt,
+der **Bauplan der Wandkonsole** (`navlab/consoleLayout.ts` — dass jede Taste und
+jede Beschriftung auf der Platte bleibt, auch wenn eine Ebene dazukommt, dass
+keine zwei übereinanderliegen und dass „Verbindungen" als Ebene und als
+Schalter nicht dieselbe Taste sind), und
 der **Bauplan des Editors** (`editor/levelPlan.ts` — worauf ein Zeiger trifft,
 Kachel oder Kante; was die vier Werkzeuge daraus machen; und dass der
 Radiergummi erst die Tür, dann die Wand und dann den Boden nimmt), die
@@ -350,7 +367,10 @@ sie dasselbe rechnet wie die three.js-Gruppe, die man sieht
 (`editor/miniatureFrame.test.ts`) — und das
 **ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`): dieselben
 Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
-**Kontrollpunkt**, an dem er vorbeigekommen sein muss. Der Unterschied zu allen
+**Kontrollpunkt**, an dem er vorbeigekommen sein muss — darunter der, um den es
+seit den Türen geht: Vor der **Metalltür** muss der Zombie außen herum, und der
+Beweis ist die Stelle, an der seine Spur die Wandlinie überschreitet; vor der
+**Holztür** steht er drei Sekunden und geht dann geradeaus hindurch. Der Unterschied zu allen
 anderen ist die Frage: Die übrigen prüfen eine Rechnung, dieser prüft einen
 **Eindruck** — „der Zombie läuft durch die verriegelte Tür" ist keine falsche
 Zahl, sondern ein Weg, den man erst sieht, wenn man ihn abläuft.
@@ -3822,7 +3842,12 @@ die Horde Klippen hochlaufen.
 (`navSerial.ts`, `NAV_VERSION`). Kacheln stehen als Läufe darin (ein Zimmer ist
 vier Zeilen und nicht zwanzig), Wände und Verbindungen einzeln, und dieselbe
 Karte ergibt immer dieselbe Datei — sonst zeigt ein Diff Umsortierung statt
-Änderung. Gesperrte Kacheln sind Laufzeit und werden nicht gespeichert. Wer die
+Änderung. Gesperrte Kacheln sind Laufzeit und werden nicht gespeichert, und
+**das Leben einer Tür auch nicht**: Eine gespeicherte Karte hat heile Türen;
+was jemand in einer Runde kaputtgeschlagen hat, ist ein Ereignis dieser Runde
+und kein Bauplan. Ihr **Material** steht sehr wohl darin — dafür ist die
+Version auf **2** gegangen, und eine Tür ohne Angabe stammt aus einer Datei der
+Version 1: Damals gab es nur eine Sorte, und die war aus Brettern. Wer die
 Version erhöht, schreibt in `migrate()` einen Zweig dazu; ein stilles „geht
 schon" ist die einzige Möglichkeit, sich hier die Karten kaputtzumachen.
 
@@ -3925,7 +3950,16 @@ derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wan
   eine Lücke plant, die es nicht gibt. Sie ist die einzige Ebene, die
   `depthTest` **anlässt**: Eine Fläche, die durch jede Wand hindurchleuchtet,
   ist von oben ein blauer Teppich über dem ganzen Labor und sagt gar nichts
-  mehr.
+  mehr. Und sie **rückt von jeder Wand ab**, Seite für Seite, genau so weit, wie
+  der Weg dort Abstand hält (`shrinkFor`) — dasselbe Bild, das eine
+  Unity-Navmesh von ihren Rändern zeigt, nur in einem Kachelgitter, das keine
+  halben Kacheln kennt: Eingezogen wird beim **Zeichnen**. Zwei verschiedene
+  Zahlen dafür wären eine Ansicht, die etwas anderes zeigt, als gelaufen wird —
+  und dann sucht man den Fehler dort, wo keiner ist.
+- **Wände** zeichnen eine **Tür in der Farbe ihres Materials**: Holz und Metall
+  sind auf der Karte dieselbe Linie und bedeuten für einen Zombie das Gegenteil
+  voneinander. Wer wissen will, warum einer außen herumläuft und der nächste
+  geradeaus durchbricht, sieht es hier und nirgends sonst.
 - **Sicht** hängt nicht am Gitter, sondern an den NPCs: Der Fächer wird an ihr
   Modell gebaut und dreht sich mit ihnen (`npc/NpcBody.setSight`). Zwei Formen,
   und der Unterschied ist die halbe Auskunft: Der **Ring** ist die Entfernung,
@@ -3935,6 +3969,32 @@ derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wan
   Karte lesen (`nav/navPerception.ts`). Wer beides sieht, versteht sofort,
   warum einer einen im Rücken bemerkt.
 
+**Und daneben drei Schalter, die etwas anderes tun** (`nav/navSwitches.ts`).
+Der Unterschied zu den Ebenen ist der ganze Punkt und steht deshalb auch im
+Menü in einer eigenen Zeile („Navigation schalten"): Eine **Ebene** macht etwas
+*sichtbar*, ein **Schalter** macht es *wirksam*. „Hindernisse aus" heißt nicht,
+dass die Kiste verschwindet — es heißt, dass die Wegsuche sie nicht mehr
+beachtet, der Zombie mitten hindurchplant und dagegenrennt. Es sind dieselben
+drei, die eine Unity-Navmesh ausmachen:
+
+- **Fläche** (*NavMesh Surface*) — das Gitter selbst. Aus heißt: niemand sucht
+  mehr einen Weg, die Hirne laufen stur auf den Spieler zu. Der einzige
+  Schalter, an dem man in einem Bild sieht, was die Wegsuche den ganzen Tag
+  leistet. Er hängt in der Welt (`PortalWorld.navForAgents`) und nicht im
+  Graphen, denn er schaltet nichts *am* Gitter ab, sondern das Gitter selbst.
+- **Hindernisse** (*NavMesh Obstacle*) — was zur Laufzeit im Weg steht
+  (`setBlocked`): die Kiste, die jemand abstellt.
+- **Verbindungen** (*Off-Mesh Links*) — Treppe, Absprung, Leiter, Portal. Aus
+  heißt: nur noch Nachbarkacheln, und der kurze Weg ist auf einmal der lange.
+
+Die beiden letzten sitzen im Graphen (`NavGraph.features`) und schalten das
+**Zählen** und nicht den Bestand: Was gesperrt ist, bleibt gesperrt eingetragen
+(`blockedKeys`), es gilt bloß nicht. Deshalb zeichnet die Debug-Ansicht
+weiter, was da ist — sonst schaltete man etwas aus und sähe nichts mehr, woran
+man merkt, dass es aus ist. In jeder Welt fangen alle drei **an** an; ein
+Schalter, der irgendwo aus anfängt, lässt einen den Fehler in der Wegsuche
+suchen, der in einer Einstellung steckt.
+
 Umgeschaltet wird die **Sichtbarkeit** und nicht die Geometrie — jede
 Linienmenge trägt den Namen ihrer Ebene. Gebaut wird das Gitter erst, wenn
 wirklich etwas davon zu sehen sein soll, und wieder abgeräumt, wenn nichts mehr
@@ -3943,10 +4003,25 @@ Wege werden fünfmal je Sekunde neu gezeichnet, nicht sechzigmal — ein Weg
 ändert sich, wenn neu geplant wird.
 
 Im Labor hängen dafür **zwei Konsolen an den Seitenwänden** der mittleren
-Buchten (`navlab/NavConsole.ts`), dort, wo man beim Zusehen steht. Jede Taste
-trägt die Farbe ihrer Ebene, damit niemand die Beschriftung lesen muss: Man
-drückt Violett und sieht Violett. Was an ist, leuchtet — ohne diese Rückmeldung
-drückt man in der Brille zweimal.
+Buchten (`navlab/NavConsole.ts`), dort, wo man beim Zusehen steht — mit
+**zwei Blöcken**: oben zeigen, unten schalten, dazwischen eine eigene
+Überschrift. Stünden sie in derselben Reihe, hielte man die Schalter für Ebenen
+und wunderte sich, warum ein Zombie plötzlich durch eine Kiste läuft; und
+„Verbindungen" stünde zweimal darauf und meinte zweierlei. Deshalb tragen die
+Schalter auch intern ein Präfix (`sw:`) — zwei Tasten, die dasselbe heißen und
+Verschiedenes tun, sind der Fehler, den man in der Brille am schwersten findet.
+
+Jede Taste trägt die Farbe ihrer Ebene, damit niemand die Beschriftung lesen
+muss: Man drückt Violett und sieht Violett. Was an ist, leuchtet — ohne diese
+Rückmeldung drückt man in der Brille zweimal.
+
+**Wo welche Taste sitzt, ist gerechnet und nicht abgemessen**
+(`navlab/consoleLayout.ts`) — und weil es eine Rechnung ist, kann ein Test
+nachmessen, dass nichts aus der Platte hängt, auch wenn eine achte Ebene
+dazukommt. Vier Tasten je Reihe und nicht drei: Mit dreien wäre die Platte
+2,3 m hoch und ragte oben aus der 2,4 m hohen Wand heraus, an der sie hängt.
+Breiter statt höher — eine Bucht ist zehn Kacheln breit, Platz nach oben hat
+sie keinen.
 
 Eine Zahl, die man dabei falsch macht: **Eine Tafel schaut nach +Z**, ein
 Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt sie mit dem
@@ -3976,13 +4051,57 @@ stellte:
   Podest, wie die Karte ihn lässt. Dazwischen liegt der Gang, durch den man
   hindurchgeht, wenn man unten ist.
 
-**Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat jetzt zwei gelbe
+**Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat drei gelbe
 Knöpfe: *Tür auf/zu* ist ein Schalter, den man beliebig oft umlegt, auch ohne
-dass ein Szenario läuft (`ScenarioAct.once` steht dort auf `false`); *Tür
-verriegeln* ist die Wendung des Szenarios und gilt einmal je Durchlauf. Beide
-gehen durch **eine** Methode (`setDoor`), und das ist kein Aufräumen: Ein
-Türblatt, das zusteht, während die Karte offen sagt, *ist* der Zombie, der durch
-die Tür läuft.
+dass ein Szenario läuft (`ScenarioAct.once` steht dort auf `false`);
+*Holz/Metall* wechselt das Material; *Tür verriegeln* ist die Wendung des
+Szenarios und gilt einmal je Durchlauf. Das Türblatt hängt dabei **jedes Bild**
+am Zustand der Karte (`syncDoor`) und nicht mehr nur am Knopfdruck: Inzwischen
+macht die Attrappe die Tür selbst auf und ein Zombie schlägt sie ein, und ein
+Blatt, das dabei stehen bliebe, *ist* der Zombie, der durch die Tür läuft.
+
+**Eine Tür ist kein Wahrheitswert mehr, sondern ein Ding aus einem Material**
+(`nav/navDoor.ts`). Vorher gab es nur „offen" und „zu" und dazu die Frage, ob
+jemand Klinken bedienen kann — das reicht für ein Haus mit Bewohnern und nicht
+für eines mit Zombies davor: Der Zombie macht keine Tür auf, aber er läuft auch
+nicht ratlos außen herum, wenn sie aus Brettern ist. Er schlägt sie ein. Drei
+Zahlen je Material entscheiden das:
+
+- **Leben.** Holz hält 80 aus, Metall `Infinity` — und das ist kein Zahlenspiel:
+  Eine Metalltür, die nach fünf Minuten Prügel doch aufgeht, ist keine Wand
+  mehr, und die halbe Karte hängt daran, dass sie eine ist.
+- **Was der Weg durch sie kostet**, wenn man sie erst einschlagen muss: zehn
+  Meter. Die Zahl ist der Umweg, ab dem sich das Einschlagen lohnt — wer außen
+  herum zwanzig Meter läuft, tritt lieber die Tür ein; wer fünf läuft, geht
+  außen herum. Genau so soll es aussehen, und genau so plant die Wegsuche.
+- **Wie schnell einer sie kleinbekommt.** Aus Leben durch Schaden wird die Zeit,
+  die man in der Brille davorsteht — drei Sekunden sind ein Ereignis, zwanzig
+  sind ein Hänger.
+
+Wer **aufmachen** kann, macht auf: drei Meter sind billiger als eine
+eingetretene Tür, und niemand tritt eine Tür ein, deren Klinke er in der Hand
+hält (`navGraph.wallState`, `closedDoor`). Wer nicht aufbekommt — oder vor einer
+**verriegelten** steht —, schlägt zu, und ob das etwas nützt, entscheidet das
+Material. Eine Barrikade ist damit etwas, das man vor eine Tür stellt, und kein
+Zauberspruch: Für den Menschen ist sie eine Wand, der Zombie schlägt beides
+zusammen kurz und klein. Welches Profil zuschlägt, steht in einer Zeile Tabelle
+(`navProfile.ts`, `breaks`).
+
+**Eine eingeschlagene Tür ist keine Tür mehr, sondern das Loch, in dem sie
+hing**: offen für jeden, für immer, und niemand muss davon erst gehört haben —
+auch eine alte Meinung („die war zu") gilt dort nicht mehr, sonst stünde ihr
+Besitzer vor dem Trümmerhaufen, durch den er gerade gegangen ist. `setDoor`
+lehnt es deshalb ab, sie wieder zuzuziehen; heil wird sie nur beim Aufräumen
+zwischen zwei Durchläufen (`mendDoor`).
+
+**Der Handgriff selbst liegt beim Läufer und nicht bei der Welt**: `navAgent.ts`
+meldet je Bild, vor welcher Tür einer steht und was sie von ihm verlangt
+(`AgentStep.door`, `doorAction`) — und zwar erst **in Reichweite**, gemessen
+zur Wandlinie und nicht zur Kachelmitte, sonst ginge eine Tür auf, während man
+noch zwei Meter davor steht. `Npc.workDoor` macht daraus die halbe Sekunde an
+der Klinke oder das Einprügeln; die Attrappe der Vorschau tut dasselbe
+(`previewWalk.ts`). Eine Welt, die fünfzig NPCs nach ihren Türen fragen müsste,
+fragte jedes Bild fünfzigmal.
 
 **Der Grundriss steht als Daten und nicht als Zeilen in einer three.js-Methode**
 (`scenarios.ts`): wo eine Bucht liegt, wo ihre Wände stehen (`bayWalls`), wer in
@@ -4070,17 +4189,45 @@ einer **ankommt** — durch die verriegelte Tür kommt man auch an. Geprüft wir
 ein **Kontrollpunkt**: „war er dabei an der Stelle, an der er vorbeigekommen
 sein muss?" (`passedNear`). Vor der verriegelten Tür ist das die Lücke ganz
 außen; bei der Kiste der zweite Durchgang; im langen Gang beide Ecken des Z.
+
+Der schärfere Prüfstein ist die **Überquerung** (`crossedAt`): nicht „wie nah
+kam er der Mitte einer Lücke", sondern „**an welcher Stelle** hat er die
+Wandlinie überschritten". Genau daran hängt die Behauptung der Tür-Bucht, seit
+es Material gibt: Bei einer **Metalltür** liegt die Stelle in der Lücke ganz
+außen — er *muss* außen herum, es gibt keinen zweiten Weg. Bei einer
+**Holztür** liegt sie in der Türöffnung, und daneben steht, dass er dort
+wirklich drei Sekunden gestanden hat (`SimRunner.atDoor`) und die Tür hinterher
+hin ist (`broke`). Wer nur „angekommen" prüfte, sähe zwischen beiden Läufen
+keinen Unterschied.
+
+Dieselbe Bank prüft auch die **Schalter**: Ohne Verbindungen springt die Puppe
+nicht mehr auf das freistehende Podest, ohne Hindernisse plant der Zombie mitten
+durch die Kiste und rennt dagegen. Eine Ansicht, die man an- und ausknipsen
+kann, beweist gar nichts; ein Verhalten, das sich dabei ändert, schon.
 Dazu misst `wander()` die gelaufene Strecke geteilt durch die Luftlinie — die
 Zahl hinter „läuft Manhattan-mäßig".
 
 Die andere ist die **Werkzeugseite**: Auf `tools.html#welt/navlab` steht unter
 dem Bild der Knopf **Laufen lassen**. Er baut dieselbe Welt mit echter Physik,
 kippt die Ansicht senkrecht nach unten und legt die acht Buchten samt ihren
-Knöpfen als Zeilen daneben — dazu die sieben Debug-Ebenen als Schalter und ein
-**Ziel**, das ein Tipp auf den Boden versetzt.
+Knöpfen als Zeilen daneben — dazu die sieben Debug-Ebenen als Schalter, die
+**drei Schalter der Navigation** in derselben Reihe (gestrichelt umrandet, und
+sie tragen ihr „aus" im Namen: an ist der Normalfall und soll ruhig sein) und
+ein **Ziel**, das ein Tipp auf den Boden versetzt.
+
+**Die Ebene „Wege" zeigt dabei auch den eigenen.** Bis dahin zeigte sie nur, was
+die *anderen* laufen — wer von oben seine Figur losschickt, schaltete sie ein
+und sah in einem leeren Labor gar nichts. Der eigene Weg ist derselbe Weg, den
+ein NPC bekäme (`PreviewWalk.path`), und er hat eine **eigene Farbe**, denn er
+beantwortet eine andere Frage: nicht „wie kommen sie zu mir", sondern „wie komme
+ich dorthin".
 
 Daneben stehen drei Tipp-Modi, von denen immer genau einer gilt: **Gehe zu**
-(die Figur geht zu Fuß dorthin, statt sich versetzen zu lassen), **Im Bereich**
+(die Figur geht zu Fuß dorthin, statt sich versetzen zu lassen — und **bleibt
+dabei an einer geschlossenen Tür stehen, bis sie auf ist**: eine halbe Sekunde,
+denn eine Tür aufzumachen ist eine Handlung und kein Zustand. Vorher lief sie
+einfach hindurch, und ob eine Tür hier überhaupt etwas bedeutet, war von oben
+nicht zu sehen. Vor einer **verriegelten** bleibt sie stehen und sagt es), **Im Bereich**
 (ein Tipp legt einen Kreis hin, und die Liste darunter zeigt nur noch, was darin
 steht — plus, was im selben Kreis um die **Figur** herum liegt) und der
 Normalfall, das Versetzen. **Figur weg** nimmt sie ganz aus der Welt.

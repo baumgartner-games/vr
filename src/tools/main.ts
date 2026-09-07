@@ -5,6 +5,7 @@ import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
 import { NPC_SKINS } from '../worlds/npc/npcKinds';
 import { NPC_BAR_MODES } from '../worlds/npc/NpcBody';
 import { NAV_LAYERS } from '../worlds/nav/navLayers';
+import { NAV_SWITCHES } from '../worlds/nav/navSwitches';
 import { BRAINS } from '../worlds/npc/npcBrains';
 import { NpcBody } from '../worlds/npc/NpcBody';
 import { createBrainShape } from '../worlds/npc/brainShape';
@@ -1315,6 +1316,33 @@ function buildLabShow(): void {
     };
     key.addEventListener('click', () => {
       live.setLayer(layer.id, !live.layers()[layer.id]);
+      draw();
+    });
+    draw();
+    labDraws.push(draw);
+    labShow.append(key);
+  }
+
+  // **Und die drei Schalter daneben** (`nav/navSwitches.ts`).
+  //
+  // Dieselbe Reihe, andere Sorte Knopf, und deshalb tragen sie ihr „aus" im
+  // Namen: Eine Ebene macht etwas *sichtbar*, ein Schalter macht es
+  // *wirksam*. Wer „Hindernisse" ausmacht, sieht die Kiste weiterhin — die
+  // Wegsuche beachtet sie nur nicht mehr, und der Zombie rennt dagegen. Genau
+  // dafür gibt es sie: Man sieht in einem Bild, woran ein Verhalten hängt.
+  for (const one of NAV_SWITCHES) {
+    const key = document.createElement('button');
+    key.type = 'button';
+    key.className = 'lab__layer lab__layer--switch';
+    key.title = one.sub;
+    key.style.setProperty('--key', hexColor(one.color));
+    const draw = (): void => {
+      const on = live.switches()[one.id];
+      key.textContent = on ? one.label : `${one.label} aus`;
+      key.setAttribute('aria-pressed', String(!on));
+    };
+    key.addEventListener('click', () => {
+      live.setSwitch(one.id, !live.switches()[one.id]);
       draw();
     });
     draw();

@@ -1,6 +1,13 @@
 import { believedLinkOpen, believedWalkable, believedWallState, type NavBelief } from './navBelief';
-import { newWallState, type NavGraph, type NavLink, type WallState } from './navGraph';
-import { hazardCost, type CostProfile } from './navProfile';
+import {
+  doorPower,
+  newWallState,
+  type DoorPower,
+  type NavGraph,
+  type NavLink,
+  type WallState,
+} from './navGraph';
+import { hazardCost, powerOf, type CostProfile } from './navProfile';
 import { canWalkLine, traceLine } from './navSight';
 import {
   DIRS,
@@ -49,6 +56,8 @@ export interface PathOptions {
   belief?: NavBelief | null;
   /** Überschreibt, ob er Türen aufmachen kann. Sonst entscheidet das Profil. */
   canOpen?: boolean;
+  /** Überschreibt, ob er Türen einschlagen kann. Sonst entscheidet das Profil. */
+  canBreak?: boolean;
   /**
    * Wie viele Kacheln höchstens angefasst werden.
    *
@@ -71,6 +80,26 @@ export interface PathOptions {
    * Zombie eine Wand.
    */
   radius?: number;
+  /**
+   * Wie viel **Luft** der Weg über den Halbmesser hinaus zur Wand hält, in
+   * Metern (`NAV_CLEARANCE`).
+   */
+  clearance?: number;
+}
+
+/**
+ * Was der, der diesen Weg läuft, an einer Tür kann.
+ *
+ * Steht hier und nicht in jedem Aufrufer, weil sonst die Wegsuche eine andere
+ * Tür sähe als der Schnurzug danach — und dann plant er durch eine Tür, um die
+ * seine Schnur einen Bogen macht.
+ */
+function powerFor(options: PathOptions): DoorPower {
+  const base = powerOf(options.profile);
+  return doorPower({
+    opens: options.canOpen ?? base.opens,
+    breaks: options.canBreak ?? base.breaks,
+  });
 }
 
 /**
@@ -141,24 +170,47 @@ export const DEFAULT_RADIUS = 0.3;
 export const WALL_SKIN = 0.25;
 
 /**
+ * **Wie viel Luft ein Weg zur Wand hält**, über den eigenen Umfang hinaus, in
+ * Metern.
+ *
+ * Der Zentimeterbetrag, der einen Weg von einem *begehbaren* Weg unterscheidet.
+ * Bis hierher zog die Schnur genau um Halbmesser und Wandstärke ein: Auf dem
+ * Papier passt der Zylinder damit haargenau vorbei, in der Welt schrammt er
+ * entlang — Rapier drückt ihn bei jeder Berührung zur Seite, das Hirn zieht
+ * ihn zurück auf die Linie, und was man sieht, ist ein Zombie, der sich an
+ * einer Ecke festfrisst.
+ *
+ * Das ist dieselbe Idee, mit der eine Unity-Navmesh um den Agentenradius von
+ * jeder Wand **abrückt**, nur an der Stelle, an der dieses Projekt sie braucht:
+ * nicht in der Fläche (die ist hier ein Kachelgitter und kennt keine halben
+ * Kacheln), sondern in der Linie, die am Ende gelaufen wird.
+ *
+ * **15 cm**, und die Zahl ist nach oben so begrenzt wie nach unten: Weniger
+ * merkt man nicht, mehr macht aus einer Kachel Durchlass einen, durch den die
+ * Schnur nicht mehr passt (siehe die Deckelung in `shrinkFor`).
+ */
+export const NAV_CLEARANCE = 0.15;
+
+/**
  * Wie weit ein Durchlass an einer besetzten Ecke eingezogen wird, in Metern.
  *
- * Drei Posten, und der dritte ist der, den man nicht sieht: der **Halbmesser**
- * dessen, der läuft, die **halbe Wandstärke** (`WALL_SKIN`) — und ein
- * Aufschlag von √2 für die **Sehne**. Die Schnur legt sich nicht als Bogen um
- * eine Ecke, sondern als Kette von Geraden: Zwei Wegpunkte, die je einen
- * Halbmesser neben derselben Ecke liegen, sind über ihre Verbindungslinie nur
- * noch das 0,71-fache davon entfernt. Wer ohne diesen Aufschlag rechnet, hält
- * an den Wegpunkten sauber Abstand und schleift dazwischen an der Ecke
- * entlang.
+ * Vier Posten, und der dritte ist der, den man nicht sieht: der **Halbmesser**
+ * dessen, der läuft, die **halbe Wandstärke** (`WALL_SKIN`), ein Aufschlag von
+ * √2 für die **Sehne** — und die **Luft** obendrauf (`NAV_CLEARANCE`). Die
+ * Schnur legt sich nicht als Bogen um eine Ecke, sondern als Kette von
+ * Geraden: Zwei Wegpunkte, die je einen Halbmesser neben derselben Ecke
+ * liegen, sind über ihre Verbindungslinie nur noch das 0,71-fache davon
+ * entfernt. Wer ohne diesen Aufschlag rechnet, hält an den Wegpunkten sauber
+ * Abstand und schleift dazwischen an der Ecke entlang.
  *
  * Nach oben begrenzt eine halbe Kachel: Wer dicker ist als der Durchlass,
  * bekäme einen, der sich selbst überkreuzt — und damit einen Weg, der
  * rückwärts läuft. Dass er dann durch die Lücke nicht passt, ist nicht die
  * Frage der Glättung, sondern die des Abtastens (`navBake.ts`).
  */
-export function shrinkFor(radius: number): number {
-  return Math.min((Math.max(radius, 0) + WALL_SKIN) * Math.SQRT2, TILE * 0.45);
+export function shrinkFor(radius: number, clearance: number = NAV_CLEARANCE): number {
+  const near = (Math.max(radius, 0) + WALL_SKIN) * Math.SQRT2 + Math.max(clearance, 0);
+  return Math.min(near, TILE * 0.45);
 }
 
 /** Was es kostet, diese Kachel zu betreten, in Metern. `Infinity` = niemals. */
@@ -186,7 +238,7 @@ export function findPath(
 ): PathResult {
   const { profile } = options;
   const belief = options.belief ?? null;
-  const canOpen = options.canOpen ?? profile.opens;
+  const power = powerFor(options);
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
   const empty: PathResult = { tiles: [], cost: 0, visited: 0, complete: false };
 
@@ -229,7 +281,7 @@ export function findPath(
       const next = neighbour(current, dir);
       if (next === NO_TILE || closed.has(next)) continue;
       if (!believedWalkable(belief, graph, next)) continue;
-      const wall = believedWallState(belief, graph.wall(current, dir), canOpen, scratch);
+      const wall = believedWallState(belief, graph.wall(current, dir), power, scratch);
       if (!wall.walk) continue;
       const step = enterCost(graph, next, profile);
       if (!Number.isFinite(step)) continue;
@@ -334,8 +386,8 @@ export function pullString(
   const out: PathPoint[] = [];
   if (tiles.length === 0) return out;
   const setup: PullSetup = {
-    shrink: shrinkFor(options.radius ?? DEFAULT_RADIUS),
-    canOpen: options.canOpen ?? options.profile.opens,
+    shrink: shrinkFor(options.radius ?? DEFAULT_RADIUS, options.clearance),
+    power: powerFor(options),
     belief: options.belief ?? null,
     shunned: shunned(graph, options),
     scratch: newWallState(),
@@ -391,7 +443,7 @@ function channels(graph: NavGraph, tiles: readonly TileKey[], setup: PullSetup):
       anchor = i;
       continue;
     }
-    if (!canWalkLine(graph, tiles[anchor]!, here, setup.canOpen, setup.belief, setup.shunned)) {
+    if (!canWalkLine(graph, tiles[anchor]!, here, setup.power, setup.belief, setup.shunned)) {
       extend(run, tiles[anchor]!, previous);
       anchor = i - 1;
     }
@@ -442,7 +494,7 @@ function shunned(graph: NavGraph, options: PathOptions): (tile: TileKey) => bool
 interface PullSetup {
   /** Wie weit ein Durchlass an einer besetzten Ecke eingezogen wird. */
   shrink: number;
-  canOpen: boolean;
+  power: DoorPower;
   belief: NavBelief | null;
   shunned: (tile: TileKey) => boolean;
   scratch: WallState;
@@ -674,12 +726,7 @@ function pinched(
  * Wand: Ihr Blatt hängt dort, ob sie nun aufgeht oder nicht.
  */
 function openWall(graph: NavGraph, tile: TileKey, dir: Dir, setup: PullSetup): boolean {
-  const state = believedWallState(
-    setup.belief,
-    graph.wall(tile, dir),
-    setup.canOpen,
-    setup.scratch,
-  );
+  const state = believedWallState(setup.belief, graph.wall(tile, dir), setup.power, setup.scratch);
   return state.walk && state.cost === 0;
 }
 
@@ -753,7 +800,7 @@ export function flowField(
 ): FlowField {
   const { profile } = options;
   const belief = options.belief ?? null;
-  const canOpen = options.canOpen ?? profile.opens;
+  const power = powerFor(options);
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
 
   const next = new Map<TileKey, TileKey>();
@@ -789,7 +836,7 @@ export function flowField(
       const from = neighbour(current, dir);
       if (from === NO_TILE || closed.has(from)) continue;
       if (!believedWalkable(belief, graph, from)) continue;
-      const wall = believedWallState(belief, graph.wall(current, dir), canOpen, scratch);
+      const wall = believedWallState(belief, graph.wall(current, dir), power, scratch);
       if (!wall.walk) continue;
       offer(from, current, here + step + wall.cost);
     }

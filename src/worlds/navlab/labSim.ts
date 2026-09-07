@@ -1,6 +1,6 @@
 import { bakeNav, type NavBox } from '../nav/navBake';
 import { NavAgent } from '../nav/navAgent';
-import type { NavGraph } from '../nav/navGraph';
+import { doorBroken, type NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, type TileKey } from '../nav/navTile';
 import { newBrainState, stepBrain, type BrainState } from '../npc/npcBrain';
@@ -76,8 +76,15 @@ export interface SimPoint {
  * Alle Quader des Labors als Kästen fürs Abtasten — plus, was ein Szenario
  * hinstellt (das zugefallene Türblatt, die Kiste im Durchgang).
  */
-export function labBoxes(extra: readonly LabSolid[] = []): NavBox[] {
-  return [...labSolids(), ...extra].map((solid) => ({
+export function labBoxes(extra: readonly LabSolid[] = [], graph?: NavGraph): NavBox[] {
+  // **Was von einer eingeschlagenen Tür übrig ist, steht nicht mehr im Weg.**
+  // Auf der Karte ist sie ein Loch (`navGraph.doorBroken`), in der Welt liegt
+  // ihr Blatt in Stücken — und ein Test, der es stehen ließe, hätte einen
+  // Zombie, der durch seine eigene Tür nicht kommt.
+  const solids = [...labSolids(), ...extra].filter(
+    (solid) => !solid.door || !doorBroken(graph?.door(solid.door)),
+  );
+  return solids.map((solid) => ({
     minX: solid.x - solid.w / 2,
     maxX: solid.x + solid.w / 2,
     minY: solid.y - solid.h / 2,
@@ -126,6 +133,16 @@ export interface SimRunner {
   arrivedAfter: number;
   /** Sein Läufer, für alles, was ihm vorher etwas beibringen will. */
   readonly agent: NavAgent;
+  /**
+   * Wie lange er insgesamt an Türen gestanden hat — geöffnet und eingeprügelt.
+   *
+   * Die ehrliche Zahl für „hat er wirklich davorgestanden": Wer eine Tür
+   * einschlägt, ist drei Sekunden lang nicht unterwegs, und in jeder
+   * Streckenrechnung sieht das aus wie gar nichts.
+   */
+  atDoor: number;
+  /** Welche Türen er auf dem Weg eingeschlagen hat, in der Reihenfolge. */
+  readonly broke: string[];
 }
 
 export interface BayRunOptions {
@@ -169,7 +186,7 @@ export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
   // `setDoor`). Wer die Kiste mitabtastet, bekommt eine Kachel *auf* ihr und
   // keine gesperrte darunter.
   const graph = bakeLab();
-  const boxes = labBoxes(props);
+  const boxes = labBoxes(props, graph);
   const stand = baySpot(bay, options.player ?? bay.stand);
   const player: SimPoint = {
     x: stand.x,
@@ -187,6 +204,8 @@ export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
       nearest: Infinity,
       arrived: false,
       arrivedAfter: Infinity,
+      atDoor: 0,
+      broke: [],
       // **Mit Umfang geplant**, nicht nur gelaufen: Derselbe Halbmesser, mit
       // dem er unten gegen die Wände stößt, hält seinen Weg von den Ecken weg
       // (`nav/navPath.ts`). Wer hier den Vorgabewert stehen ließe, prüfte
@@ -203,11 +222,15 @@ export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
   const bodies = runners.map((runner) => newBody(runner, bay.z < 0 ? 0 : Math.PI));
 
   let now = 0;
+  let solids = boxes;
   const frames = Math.round(seconds / dt);
   for (let frame = 0; frame < frames; frame++) {
     now += dt;
     for (let i = 0; i < runners.length; i++) {
-      advance(runners[i]!, bodies[i]!, graph, boxes, player, dt, now);
+      const broke = advance(runners[i]!, bodies[i]!, graph, solids, player, dt, now);
+      // Eine Tür fällt selten; wenn sie fällt, wird die Welt einmal neu
+      // aufgestellt statt in jedem Bild.
+      if (broke) solids = labBoxes(props, graph);
     }
   }
   return { graph, player, runners, seconds: now };
@@ -255,7 +278,7 @@ function newBody(runner: SimRunner, yaw: number): Body {
   };
 }
 
-/** Ein Bild eines Läufers. */
+/** Ein Bild eines Läufers. `true`, wenn dabei eine Tür gefallen ist. */
 function advance(
   runner: SimRunner,
   body: Body,
@@ -264,7 +287,8 @@ function advance(
   player: SimPoint,
   dt: number,
   now: number,
-): void {
+): boolean {
+  let broke = false;
   if (body.flight) {
     fly(runner, body, dt);
   } else {
@@ -274,8 +298,15 @@ function advance(
     } else if (step.leap !== NO_TILE) {
       body.flight = launch(runner, graph, step.leap);
     } else {
-      walk(runner, body, boxes, player, step.waypoint, dt);
-      settle(runner, body, boxes, graph);
+      // **Der Schritt, den man nicht geht.** Steht eine Tür im Weg, wird sie
+      // erst aufgemacht oder eingeschlagen — und solange das dauert, kommt er
+      // keinen Meter weiter. Genau das ist der Unterschied zwischen einer Tür
+      // und einer Lücke, und genau den hat man vorher nicht gesehen.
+      broke = atDoor(runner, graph, step.door, step.doorAction, dt);
+      if (step.doorAction === 'none') {
+        walk(runner, body, boxes, player, step.waypoint, dt);
+        settle(runner, body, boxes, graph);
+      }
     }
   }
 
@@ -287,6 +318,33 @@ function advance(
     runner.arrived = true;
     runner.arrivedAfter = now;
   }
+  return broke;
+}
+
+/**
+ * **Was einer an einer Tür tut** — dieselben zwei Handgriffe wie in der Welt
+ * (`NavLabWorld`): aufmachen geht sofort, einschlagen dauert.
+ *
+ * Die Zeit ist der ganze Punkt der Sache: Eine Tür, die in null Sekunden
+ * auffliegt, ist keine — und eine Holztür, die drei Sekunden lang aushält,
+ * kann von einem Umweg geschlagen werden, der nur zwei kostet.
+ */
+function atDoor(
+  runner: SimRunner,
+  graph: NavGraph,
+  id: string,
+  action: 'none' | 'open' | 'break',
+  dt: number,
+): boolean {
+  if (action === 'none' || !id) return false;
+  runner.atDoor += dt;
+  if (action === 'open') {
+    graph.setDoor(id, { open: true });
+    return false;
+  }
+  if (!graph.poundDoor(id, dt)) return false;
+  runner.broke.push(id);
+  return true;
 }
 
 /** Ein Schritt zu Fuß — mit Drehung, Umfang und Wänden, an denen er entlangrutscht. */

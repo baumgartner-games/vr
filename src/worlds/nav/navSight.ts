@@ -1,5 +1,5 @@
 import { believedWalkable, believedWallState, type NavBelief } from './navBelief';
-import { newWallState, type NavGraph } from './navGraph';
+import { newWallState, type DoorPower, type NavGraph } from './navGraph';
 import {
   DIR_E,
   DIR_N,
@@ -166,7 +166,7 @@ export function canWalkLine(
   graph: NavGraph,
   from: TileKey,
   to: TileKey,
-  canOpen = true,
+  power: boolean | DoorPower = true,
   belief: NavBelief | null = null,
   forbid?: (tile: TileKey) => boolean,
 ): boolean {
@@ -179,7 +179,7 @@ export function canWalkLine(
     // ein einziger Glättungsschritt das ganze Kostensystem aus — der Mensch
     // plant sauber außen herum und läuft dann quer hindurch.
     if (forbid?.(next)) return false;
-    const state = believedWallState(belief, graph.wall(tile, dir), canOpen, scratch);
+    const state = believedWallState(belief, graph.wall(tile, dir), power, scratch);
     // Beim Glätten zählt nur, ob es **ohne Halt** durchgeht: eine Tür, die
     // erst aufgemacht werden muss, ist keine gerade Linie.
     return state.walk && state.cost === 0;
