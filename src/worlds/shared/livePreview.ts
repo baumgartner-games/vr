@@ -85,8 +85,8 @@ export interface LivePreview {
    * **doppelt** so groß wie der, in dem eine Spielerhand von selbst zugreift
    * (`portal/grabReach.ts`, `DEFAULT_NEAR_RADIUS`). Doppelt, weil hier niemand
    * eine Hand ausstreckt: Man zeigt von oben auf eine Stelle und will wissen,
-   * was dort steht, und ein Kreis von einem Meter auf einer Karte von hundert
-   * ist ein Punkt.
+   * was dort steht, und ein Kreis von anderthalb Metern auf einer Karte von
+   * hundert ist ein Punkt.
    */
   readonly reach: number;
 

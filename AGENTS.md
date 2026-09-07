@@ -2203,6 +2203,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nahgreifen                         | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo)                                                                                 | –                                                                                               | –                    |
 | Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 1,25 m/s — _mittel_)                                                                              | –                                                                                               | –                    |
 | Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
+| Nah Gefasstes zur anderen Hand     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
 | Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
@@ -2433,12 +2434,36 @@ Der Zylinder ist dann kein Fangnetz, sondern nur die Grenze, ab der aus
 _fassen_ ein _holen_ wird.
 
 **Nahgreifen** (Einstellungen → Greifen, standardmäßig an) fasst alles im
-Zylinder um den Spieler — 1 m im Rund, 2,10 m hoch, beides einstellbar. Ein
-Zylinder und keine Kugel um die Hand, weil „muss ich mich bücken?" eine Frage
-an den **Körper** ist: der Dominostein vor den Füßen liegt außerhalb jeder
-Kugel um eine Hand, die auf Hüfthöhe hängt, und ist genau der Fall, um den es
-geht. Der Boden kommt dabei vom Rig (`getFloorY`) und nicht aus `position.y` —
-wer sich duckt, sinkt, der Fußboden nicht.
+Zylinder um den Spieler — **1,40 m** im Rund, 2,10 m hoch, beides einstellbar.
+Ein Zylinder und keine Kugel um die Hand, weil „muss ich mich bücken?" eine
+Frage an den **Körper** ist: der Dominostein vor den Füßen liegt außerhalb
+jeder Kugel um eine Hand, die auf Hüfthöhe hängt, und ist genau der Fall, um
+den es geht. Der Boden kommt dabei vom Rig (`getFloorY`) und nicht aus
+`position.y` — wer sich duckt, sinkt, der Fußboden nicht.
+
+Ab Werk stand hier einmal **ein Meter**, gerechnet auf den Boden vor den
+eigenen Füßen. Genau dort braucht man die Geisterhand aber am wenigsten: Was
+einen Meter weit weg liegt, hebt man auf. Sie ist das bessere Werkzeug einen
+Schritt weiter — der Dominostein auf dem Tisch gegenüber, die Kiste neben dem
+Regal —, und dafür muss der Zylinder so weit reichen, wie ein Mensch ohne
+hinzugehen noch zeigt.
+
+**Der Nahgriff ist verstärkt**: Der Gegenstand fährt **anderthalbmal** so weit
+wie die Hand, die ihn führt (_Einstellungen → Greifen → Nahverstärkung_,
+`scale`, in Prozent gespeichert und als „1,5-fach" gelesen; 100 heißt „eins zu
+eins" und ist der alte Zustand). Der Grund ist derselbe wie beim größeren
+Radius: Der Zylinder reicht weiter, als ein Arm langt. Vor dem Körper legt eine
+Hand einen halben Meter zurück, der Gegenstand anderthalb Meter weiter soll
+aber über den ganzen Tisch — die Verstärkung schließt genau diese Lücke, und
+eine Handbreit an der Hand sind anderthalb am Dominostein.
+
+Verstärkt wird nur die **Verschiebung**, in beiden Betriebsarten
+(`pivotGrab` rechnet den Faktor mit, `stretchGrab` legt dem starren Griff den
+Zuschlag drauf). Die Drehung bleibt Grad für Grad — ein verstärktes Handgelenk
+wäre wieder der lange Arm mit dem Ausschlag, den der Drehpunkt an der
+Geisterhand gerade beseitigt hat. Und in der **Faust** gilt sie nicht: dort
+_ist_ die Hand am Gegenstand, und ein Würfel, der weiter fährt als die Faust,
+die ihn hält, wäre kein Griff mehr, sondern ein Fehler.
 
 Ein nah gefasster Gegenstand **fliegt nicht**. Er bleibt liegen, wo er liegt,
 und folgt der Hand von dort, als hätte man ihn dort angefasst. Wie er das tut,
@@ -2471,6 +2496,22 @@ ab Werk 1,25 m/s —, kommt der Gegenstand geflogen und landet in der Hand.
 Dasselbe Zucken holt auch einen **nah gefassten** Gegenstand doch noch
 her — eine Geste, drei Entfernungen. Im Nahbereich hat man damit die Wahl:
 dort lassen und manipulieren, oder zu sich reißen und in die Hand nehmen.
+
+**Ein nah gefasster Gegenstand wechselt die Hand.** Was die eine Hand da
+draußen führt, darf die andere anvisieren: Ihre Geisterhand stellt sich daneben
+wie bei jedem anderen Ziel, und mit dem Grip übernimmt sie — dieselbe Übergabe
+wie in der Faust, nur auf Armlänge plus Zylinder. Die Geisterhand der abgebenden
+Hand geht dabei weg; zwei Geister an einem Ding sagen nichts mehr. So dreht man
+einen Gegenstand über beide Hände weiter, statt ihn fallen zu lassen und neu zu
+zielen.
+
+Zwei Grenzen stehen dazu (`PortalWorld.takeable`): Was **in der Faust** steckt,
+wechselt weiter nur von Hand zu Hand und nicht über den Strahl — ein Ding aus
+der eigenen Faust quer durch den Raum anzuvisieren ist kein Wechsel, sondern
+ein Versehen. Und das Ziel muss **im Zylinder** liegen, sonst wäre es ein
+Ferngriff auf etwas, das eine andere Hand jedes Bild woandershin schreibt, und
+beide zögen daran. Für ein **Werkzeug**, das zielt, bleibt alles, was in einer
+Hand steckt, ohnehin vergeben.
 
 Vorher war das ein **Winkel**: Handgelenk um 30° nach oben kippen. Eine Geste,
 die man sich merken muss — und die beim Hantieren von selbst losging, denn wer
@@ -2510,6 +2551,18 @@ darauf verstellt wird, stünden die alten 800 cm/s bei fast allen im Speicher
 und die neue Vorgabe käme nie an — **genau dieser eine Wert wird beim Lesen
 auf 125 gezogen** (`LEGACY_PULL`). Der Preis dafür: Eine von Hand getippte 800
 wird ebenso gezogen; 790 und 810 bleiben stehen.
+
+**Eine neue Vorgabe kommt sonst nie an**, und das ist der allgemeine Fall
+hinter dem Sonderfall oben: Weil das Menü die ganze Seite speichert, steht bei
+fast jedem auch das im Speicher, was er nie angefasst hat. Der Speicher trägt
+deshalb eine **Fassungsnummer** (`version`, `VERSION`, `migrate`): Sie sagt,
+gegen welche Vorgaben ein Stand geschrieben wurde, und ältere werden **einmal**
+nachgezogen — so kam der neue Nahradius von 1,40 m bei denen an, die noch den
+alten Meter gespeichert hatten. Der Weg über den Wert selbst (`LEGACY_PULL`)
+ging dort nicht: 100 ist eine **Raste** der Zeile, und wer sie absichtlich
+anklickt, muss sie behalten dürfen. Jede geschriebene Seite trägt ab jetzt die
+aktuelle Nummer; wer eine Vorgabe ändert und sie ankommen lassen will, zählt
+sie hoch und schreibt den Fall in `migrate`.
 
 _Werte eingeben_ nimmt weiterhin jede Zahl von 0 bis 2000 cm/s, und
 **0 heißt „ohne Zucken"**: dann kommt der Gegenstand, sobald der Grip sitzt —
@@ -5009,9 +5062,9 @@ steht — plus, was im selben Kreis um die **Figur** herum liegt) und der
 Normalfall, das Versetzen. **Figur weg** nimmt sie ganz aus der Welt.
 
 Der Kreis ist **doppelt** so weit wie eine Spielerhand von selbst zugreift
-(`DEFAULT_NEAR_RADIUS`, ein Meter), und die Verdopplung ist keine Willkür: In
-der Brille streckt man den Arm aus und weiß dabei, was man erwischt; von oben
-zeigt man mit einem Finger auf ein Telefon, und ein Kreis von einem Meter ist
+(`DEFAULT_NEAR_RADIUS`, 1,40 m), und die Verdopplung ist keine Willkür: In der
+Brille streckt man den Arm aus und weiß dabei, was man erwischt; von oben zeigt
+man mit einem Finger auf ein Telefon, und ein Kreis von anderthalb Metern ist
 auf einer Karte von hundert ein Punkt, den niemand trifft.
 
 Die **Karte selbst** hat zwei eigene Knöpfe, und beide gab es vorher nicht:

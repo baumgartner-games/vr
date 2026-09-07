@@ -186,8 +186,29 @@ export interface NearZone {
   height: number;
 }
 
-/** Ein Meter im Rund: weit genug für den Boden vor den Füßen, nicht weiter. */
-export const DEFAULT_NEAR_RADIUS = 1;
+/**
+ * **1,40 m im Rund** — die Armlänge und ein Schritt dazu.
+ *
+ * Hier stand einmal ein Meter, und der war auf den Boden vor den eigenen Füßen
+ * gerechnet. Genau dort braucht man die Geisterhand aber am wenigsten: Was
+ * einen Meter weit weg liegt, hebt man auf. Sie ist das bessere Werkzeug einen
+ * Schritt weiter — der Dominostein auf dem Tisch gegenüber, die Kiste neben
+ * dem Regal —, und dafür muss der Zylinder so weit reichen, wie ein Mensch
+ * ohne hinzugehen noch zeigt.
+ */
+export const DEFAULT_NEAR_RADIUS = 1.4;
+/**
+ * **Die Verstärkung des Nahgriffs**: um wie viel weiter der gefasste
+ * Gegenstand fährt als die Hand, die ihn führt.
+ *
+ * Eins zu eins ist ehrlich und trotzdem falsch, sobald der Zylinder größer ist
+ * als der eigene Arm: Vor dem Körper legt eine Hand vielleicht einen halben
+ * Meter zurück, der Gegenstand anderthalb Meter weiter soll aber über den
+ * ganzen Tisch. Anderthalbfach ist der Tausch, der beides behält — die Strecke
+ * reicht, und die Hand ist noch nah genug an dem, was sie führt, um genau zu
+ * bleiben.
+ */
+export const DEFAULT_NEAR_SCALE = 1.5;
 /** Etwas über Kopfhöhe. Was darüber liegt, ist nicht mehr „um mich herum". */
 export const DEFAULT_NEAR_HEIGHT = 2.1;
 
@@ -258,23 +279,29 @@ const _arm: Vec3 = { x: 0, y: 0, z: 0 };
  * Schlenkern.
  *
  * Also wird der Drehpunkt dorthin gelegt, wo die Hand **anfassen würde**: auf
- * die Geisterhand am Gegenstand. Dann verschiebt die Hand eins zu eins, und
- * ihre Drehung dreht den Gegenstand genau so, als läge sie dort an ihm — die
- * Geisterhand macht also Bild für Bild dieselbe Bewegung wie die echte, und
- * der Gegenstand hängt daran. Aus einem Grad Handgelenk wird ein Grad am
- * Würfel, egal wie weit weg er liegt.
+ * die Geisterhand am Gegenstand. Dann verschiebt die Hand, und ihre Drehung
+ * dreht den Gegenstand genau so, als läge sie dort an ihm — die Geisterhand
+ * macht also Bild für Bild dieselbe Bewegung wie die echte, und der
+ * Gegenstand hängt daran. Aus einem Grad Handgelenk wird ein Grad am Würfel,
+ * egal wie weit weg er liegt.
  *
  * Gerechnet wird gegen die Posen von dem Moment, in dem zugegriffen wurde,
  * damit sich nichts aufsummiert.
  *
  * @param pivot der Punkt, um den gedreht wird — der Griffpunkt der
  *              Geisterhand, in Weltkoordinaten und aus demselben Moment.
+ * @param scale die **Verstärkung**: `1` verschiebt eins zu eins, `1.5` fährt
+ *              anderthalbmal so weit wie die Hand (`DEFAULT_NEAR_SCALE`). Nur
+ *              die Verschiebung wächst mit — die Drehung bleibt Grad für Grad,
+ *              sonst wäre der Ausschlag zurück, den der Drehpunkt gerade
+ *              beseitigt hat.
  */
 export function pivotGrab(
   objectStart: GrabPose,
   handStart: GrabPose,
   hand: GrabPose,
   pivot: Vec3,
+  scale: number,
   out: GrabPose,
 ): GrabPose {
   multiplyQuat(hand.rotation, conjugate(handStart.rotation, _flip), _delta);
@@ -285,9 +312,25 @@ export function pivotGrab(
   _arm.y = objectStart.position.y - pivot.y;
   _arm.z = objectStart.position.z - pivot.z;
   rotateVec(_arm, _delta, _arm);
-  out.position.x = pivot.x + _arm.x + (hand.position.x - handStart.position.x);
-  out.position.y = pivot.y + _arm.y + (hand.position.y - handStart.position.y);
-  out.position.z = pivot.z + _arm.z + (hand.position.z - handStart.position.z);
+  out.position.x = pivot.x + _arm.x + (hand.position.x - handStart.position.x) * scale;
+  out.position.y = pivot.y + _arm.y + (hand.position.y - handStart.position.y) * scale;
+  out.position.z = pivot.z + _arm.z + (hand.position.z - handStart.position.z) * scale;
+  return out;
+}
+
+/**
+ * Der **Zuschlag der Verstärkung** auf eine Lage, die den Weg der Hand schon
+ * eins zu eins enthält — die Betriebsart *starr wie in der Faust*, deren
+ * Verschiebung in der Matrix der Hand steckt und nicht in dieser Rechnung.
+ *
+ * Damit gilt derselbe Faktor in beiden Betriebsarten, und er steht trotzdem
+ * nur an einer Stelle: `scale - 1` ist genau das, was `pivotGrab` oben mehr
+ * fährt als die Hand.
+ */
+export function stretchGrab(handStart: Vec3, hand: Vec3, scale: number, out: Vec3): Vec3 {
+  out.x += (hand.x - handStart.x) * (scale - 1);
+  out.y += (hand.y - handStart.y) * (scale - 1);
+  out.z += (hand.z - handStart.z) * (scale - 1);
   return out;
 }
 
