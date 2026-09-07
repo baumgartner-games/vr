@@ -19,9 +19,11 @@ roten Knopf für Rauch, Feuer, Funken und Explosionen und
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
 und sie fällt nicht; an einer Palette tunkt man Boden, Wand oder Tür ein und
-setzt sie beliebig oft, die eigene Spielfigur steht mit im Modell und wird
-einfach woandershin gestellt, drumherum ein weißer Raum — und weggelegt steht
-alles in Lebensgröße um einen herum —, und
+setzt sie beliebig oft, und in der zweiten Reihe liegen die **Bausteine**:
+Küchenzeile, Regal, Tisch, Bank, Kisten, Säule, Geländer, Brüstung, Podest —
+eine Kachel, eine Sorte, eine Blickrichtung, wie bei Minecraft. Die eigene
+Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
+ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum —, und
 ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
 **Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
 damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
@@ -80,7 +82,11 @@ Einstellung für alle Werkzeuge mit demselben Griff), die Räumung nach dem
 Loslassen (ob ein Ding noch im Spieler steckt), den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
 Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
-der Tiefe, die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
+der Tiefe, die **Bausteine auf dem Kachelgitter** (dass jeder in jeder der vier
+Richtungen auf seiner Kachel bleibt, dass keine Treppenstufe höher wird als der
+Spieler steigt) samt den Grundrissen der vier Welten, die darauf stehen (dass
+man vom Startzimmer in jedes Zimmer kommt und in Dust jedes Haus vom
+Erdgeschoss aufs Dach), die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
 ihrem Rollen und dem, was von ihnen über das Netz geht, die Türen des
 Interaktionslabors, die Pinselwerte (Breite, Art und die eigene
 Farbreihe), die Materialien, die Dicke der Bodenplatte, den

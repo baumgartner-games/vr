@@ -1,7 +1,7 @@
 import { wrapAngle, yawTo } from '../npc/npcBrain';
 import type { NavGraph } from './navGraph';
 import { canSee, soundLevel } from './navSight';
-import { NO_TILE, TILE, keyLevel, keyX, keyZ, type TileKey } from './navTile';
+import { NO_TILE, keyLevel, type TileKey } from './navTile';
 
 /**
  * **Die Sinne** — was ein NPC mitbekommt, und wie lange er es behält.
@@ -252,9 +252,4 @@ export function soundAt(
 export function soundReach(loudness: number, ear: number, range: number): number {
   if (loudness <= ear) return 0;
   return range * (1 - ear / loudness);
-}
-
-/** Der Abstand zweier Kacheln in Metern — für die Vorsortierung. */
-export function tileGap(a: TileKey, b: TileKey): number {
-  return Math.hypot((keyX(a) - keyX(b)) * TILE, (keyZ(a) - keyZ(b)) * TILE);
 }

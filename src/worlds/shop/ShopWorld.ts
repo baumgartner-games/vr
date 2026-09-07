@@ -6,6 +6,7 @@ import type { MenuEntry } from '../../ui/menu';
 import type { WorldContext } from '../../core/types';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
+import { gripAnchor } from '../../core/XRInput';
 import {
   addCheese,
   addSauce,
@@ -788,7 +789,7 @@ export class ShopWorld extends PortalWorld {
     let bestDistance = 0.5;
     for (const controller of ctx.input.controllers) {
       if (!controller.tracked) continue;
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       const distance = _hand.distanceTo(_point);
       if (distance < bestDistance) {
         best = controller;
@@ -907,7 +908,7 @@ export class ShopWorld extends PortalWorld {
         this.handWas.delete(hand);
         continue;
       }
-      gripOf(controller).getWorldPosition(_hand);
+      gripAnchor(controller).getWorldPosition(_hand);
       if (!previous) {
         this.handWas.set(hand, _hand.clone());
         continue;
@@ -1119,11 +1120,6 @@ export class ShopWorld extends PortalWorld {
         : `Beste ${this.bestScore} Punkte · Schnitt ${average}`,
     );
   }
-}
-
-/** The node a hand's belongings hang on. */
-function gripOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
 }
 
 /** Lying on the work table, close enough to the top to be resting on it. */

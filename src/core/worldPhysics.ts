@@ -1,3 +1,5 @@
+import { nextInSteps } from './steps';
+
 /**
  * Die Physik der Welt selbst — Schwerkraft, Absprung, Reibung, Sprungkraft der
  * Objekte.
@@ -142,7 +144,7 @@ export function clampWorldPhysics(settings: Partial<WorldPhysics> | undefined): 
  * bricht das Weiterschalten nicht.
  */
 export function nextPhysicsStep(field: PhysicsField, value: number): number {
-  return field.steps.find((step) => step > value + 1e-9) ?? field.steps[0]!;
+  return nextInSteps(field.steps, value);
 }
 
 /** Wie die Zahl auf der Menüzeile steht. */

@@ -9,6 +9,7 @@ import {
   nextGrabMotion,
   nextGrabStep,
   pullStepName,
+  saveGrabSettings,
   type GrabMotion,
   type GrabSettings,
 } from './grabSettings';
@@ -16,6 +17,7 @@ import {
 const radius = GRAB_FIELDS.find((field) => field.key === 'radius')!;
 const height = GRAB_FIELDS.find((field) => field.key === 'height')!;
 const pull = GRAB_FIELDS.find((field) => field.key === 'pull')!;
+const scale = GRAB_FIELDS.find((field) => field.key === 'scale')!;
 
 describe('the numbers behind grabbing', () => {
   it('hands back the defaults when nothing is stored', () => {
@@ -106,6 +108,42 @@ describe('das Zugtempo', () => {
   });
 });
 
+describe('der Nahradius', () => {
+  it('steht als Vorgabe auf 1,40 m — Armlänge und ein Schritt dazu', () => {
+    expect(DEFAULT_GRAB.radius).toBe(140);
+    expect(formatGrabField(radius, DEFAULT_GRAB)).toBe('140 cm');
+  });
+
+  it('hat die Vorgabe als Raste, damit die Zeile sie auch trifft', () => {
+    expect(radius.steps).toContain(DEFAULT_GRAB.radius);
+  });
+});
+
+describe('die Nahverstärkung', () => {
+  it('steht als Vorgabe auf dem Anderthalbfachen', () => {
+    expect(DEFAULT_GRAB.scale).toBe(150);
+    expect(formatGrabField(scale, DEFAULT_GRAB)).toBe('1,5-fach');
+  });
+
+  it('liest die Hundert als „eins zu eins" — das ist keine Zahl, sondern ein Zustand', () => {
+    expect(formatGrabField(scale, clampGrab({ scale: 100 }))).toBe('eins zu eins');
+    expect(formatGrabField(scale, clampGrab({ scale: 200 }))).toBe('2,0-fach');
+    expect(formatGrabField(scale, clampGrab({ scale: 125 }))).toBe('1,25-fach');
+  });
+
+  it('bleibt in ihrem Bereich und fällt sonst auf die Vorgabe zurück', () => {
+    expect(clampGrab({ scale: 9000 }).scale).toBe(scale.max);
+    expect(clampGrab({ scale: 1 }).scale).toBe(scale.min);
+    expect(clampGrab({ scale: Number.NaN }).scale).toBe(DEFAULT_GRAB.scale);
+  });
+
+  it('schaltet die Zeile durch ihre Rasten', () => {
+    expect(nextGrabStep(scale, 100)).toBe(125);
+    expect(nextGrabStep(scale, 150)).toBe(200);
+    expect(nextGrabStep(scale, 200)).toBe(100);
+  });
+});
+
 describe('das alte Zugtempo im Speicher', () => {
   const store = new Map<string, string>();
 
@@ -134,6 +172,58 @@ describe('das alte Zugtempo im Speicher', () => {
     expect(grabSettings().pull).toBe(810);
     store.set('bgvr.grab', JSON.stringify({ ...DEFAULT_GRAB, pull: 0 }));
     expect(grabSettings().pull).toBe(0);
+  });
+});
+
+describe('der alte Nahradius im Speicher', () => {
+  const store = new Map<string, string>();
+
+  beforeEach(() => {
+    store.clear();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+      },
+    });
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'localStorage');
+  });
+
+  /** Ein Stand, wie ihn das Menü vor der Umstellung geschrieben hat. */
+  function stored(settings: Partial<GrabSettings>): void {
+    const old = { ...DEFAULT_GRAB, radius: 100, ...settings };
+    Reflect.deleteProperty(old, 'version');
+    store.set('bgvr.grab', JSON.stringify(old));
+  }
+
+  it('zieht den alten Meter einmalig auf die neuen 1,40 m', () => {
+    stored({});
+    expect(grabSettings().radius).toBe(DEFAULT_GRAB.radius);
+  });
+
+  it('lässt jede andere gespeicherte Weite stehen', () => {
+    stored({ radius: 60 });
+    expect(grabSettings().radius).toBe(60);
+    stored({ radius: 0 });
+    expect(grabSettings().radius).toBe(0);
+  });
+
+  it('fasst einen Meter nicht mehr an, sobald er einmal so gespeichert wurde', () => {
+    // Der Unterschied zum Zugtempo: 100 ist eine **Raste** der Zeile. Wer sie
+    // absichtlich anklickt, muss sie behalten dürfen — die Fassung im
+    // Speicher, nicht der Wert, entscheidet über das Nachziehen.
+    saveGrabSettings({ radius: 100 });
+    expect(grabSettings().radius).toBe(100);
+  });
+
+  it('stempelt jeden geschriebenen Stand mit der heutigen Fassung', () => {
+    stored({});
+    expect(saveGrabSettings({}).version).toBe(DEFAULT_GRAB.version);
+    expect(grabSettings().version).toBe(DEFAULT_GRAB.version);
   });
 });
 

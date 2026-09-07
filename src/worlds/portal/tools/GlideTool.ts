@@ -3,6 +3,7 @@ import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { playTone } from '../../../core/Audio';
 import { attitude, stepGlide, yawDelta, type GlideParams, type GlideState } from './glideFlight';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
+import { gripAnchor } from '../../../core/XRInput';
 
 /** So lange nach dem Abheben wird nicht auf Boden geachtet — die Kapsel klebt sonst noch. */
 const LAUNCH_GRACE = 0.6;
@@ -299,7 +300,7 @@ export abstract class GlideTool extends Tool {
     rig.getHeadPosition(_head);
     rig.getHeadForward(_forward);
     _right.copy(_forward).cross(UP).normalize();
-    anchorOf(controller).getWorldPosition(_hand).sub(_head);
+    gripAnchor(controller).getWorldPosition(_hand).sub(_head);
     return { ahead: _hand.dot(_forward), up: _hand.y, side: _hand.dot(_right) };
   }
 
@@ -318,8 +319,4 @@ export abstract class GlideTool extends Tool {
 function headYaw(host: ToolHost): number {
   host.ctx.rig.getHeadForward(_forward);
   return Math.atan2(-_forward.x, -_forward.z);
-}
-
-export function anchorOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
 }

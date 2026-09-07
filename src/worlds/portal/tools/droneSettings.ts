@@ -1,4 +1,5 @@
 import { DEFAULT_SPEED, DEFAULT_TURN } from './droneFlight';
+import { nextInSteps } from '../../../core/steps';
 
 /**
  * Wie die Drohne geflogen wird, und was mit einer passiert, die schon draußen
@@ -129,7 +130,7 @@ export function clampDroneField(field: DroneField, value: number | undefined): n
  * nach oben“ ist das, was ein Druck auf die Zeile verspricht.
  */
 export function nextDroneStep(field: DroneField, value: number): number {
-  return field.steps.find((step) => step > value + 1e-9) ?? field.steps[0]!;
+  return nextInSteps(field.steps, value);
 }
 
 /** Wie die Zahl auf der Zeile steht. */

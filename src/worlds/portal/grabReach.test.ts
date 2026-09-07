@@ -4,6 +4,7 @@ import {
   FLIGHT_MIN,
   DEFAULT_NEAR_HEIGHT,
   DEFAULT_NEAR_RADIUS,
+  DEFAULT_NEAR_SCALE,
   GRAB_MARGIN,
   HANDS_TOGETHER,
   REMOTE_RANGE,
@@ -19,6 +20,7 @@ import {
   rayReach,
   reachDepth,
   pivotGrab,
+  stretchGrab,
   type AimTarget,
   type GrabPose,
   type NearZone,
@@ -249,7 +251,9 @@ describe('the cylinder around the player', () => {
   });
 
   it('reaches further for a box turned on the diagonal', () => {
-    const straight = vec(0, 1, -1.35);
+    // Gerade steht der Würfel eben draußen (Rand 25 cm), auf die Ecke gedreht
+    // langt er mit 35 cm hinein — die Zahl hängt am Radius, nicht am Zufall.
+    const straight = vec(0, 1, -(DEFAULT_NEAR_RADIUS + 0.3));
     expect(nearZoneDistance(cube(straight), zone)).toBeNull();
     expect(nearZoneDistance(cube(straight, yaw(45)), zone)).not.toBeNull();
   });
@@ -291,6 +295,7 @@ describe('der Nahgriff, der an der Geisterhand hängt', () => {
       pose(vec(0.2, 1.1, -0.3)),
       pose(vec(0.5, 1.4, -0.4)),
       vec(0, 0.3, -1.2),
+      1,
       out(),
     );
     expect(result.position.x).toBeCloseTo(0.3, 6);
@@ -309,6 +314,7 @@ describe('der Nahgriff, der an der Geisterhand hängt', () => {
       pose(hand, NO_ROTATION),
       pose(hand, yaw(90)),
       hold,
+      1,
       out(),
     );
     expect(result.position.x).toBeCloseTo(-0.5, 6);
@@ -325,6 +331,7 @@ describe('der Nahgriff, der an der Geisterhand hängt', () => {
       pose(hand, NO_ROTATION),
       pose(hand, yaw(90)),
       start,
+      1,
       out(),
     );
     expect(distance(result.position, start)).toBeCloseTo(0, 6);
@@ -340,7 +347,7 @@ describe('der Nahgriff, der an der Geisterhand hängt', () => {
     const handStart = pose(vec(0.2, 1.1, -0.3));
     const hand = pose(vec(0.35, 1.0, -0.55), yaw(37));
     const object = pose(vec(0, 0.1, -1.2), yaw(15));
-    const moved = pivotGrab(object, handStart, hand, hold, out());
+    const moved = pivotGrab(object, handStart, hand, hold, 1, out());
 
     // Der Griffpunkt im Raum des Gegenstands — und wo er danach liegt.
     const local = rotateVec(
@@ -361,7 +368,7 @@ describe('der Nahgriff, der an der Geisterhand hängt', () => {
   it('holds still when the hand does', () => {
     const start = pose(vec(0.4, 0.6, -1), yaw(30));
     const hand = pose(vec(0, 1.2, -0.2), yaw(-15));
-    const result = pivotGrab(start, hand, hand, vec(0.2, 0.7, -0.8), out());
+    const result = pivotGrab(start, hand, hand, vec(0.2, 0.7, -0.8), 1, out());
     expect(distance(result.position, start.position)).toBeCloseTo(0, 6);
     expect(result.rotation.w).toBeCloseTo(start.rotation.w, 6);
     expect(result.rotation.y).toBeCloseTo(start.rotation.y, 6);
@@ -373,10 +380,81 @@ describe('der Nahgriff, der an der Geisterhand hängt', () => {
       pose(vec(0, 1, 0), NO_ROTATION),
       pose(vec(0, 1, 0), yaw(90)),
       vec(0, 0.1, -1.2),
+      1,
       out(),
     );
     // 90° on top of 90° is a half turn: w drops to zero.
     expect(result.rotation.w).toBeCloseTo(0, 6);
     expect(Math.abs(result.rotation.y)).toBeCloseTo(1, 6);
+  });
+});
+
+describe('die Verstärkung des Nahgriffs', () => {
+  function pose(position: Vec3, rotation: Quat = NO_ROTATION): GrabPose {
+    return { position, rotation };
+  }
+
+  function out(): GrabPose {
+    return { position: vec(0, 0, 0), rotation: { x: 0, y: 0, z: 0, w: 1 } };
+  }
+
+  it('fährt den Gegenstand anderthalbmal so weit wie die Hand', () => {
+    const result = pivotGrab(
+      pose(vec(0, 0.1, -1.2)),
+      pose(vec(0.2, 1.1, -0.3)),
+      pose(vec(0.4, 1.3, -0.5)),
+      vec(0, 0.3, -1.2),
+      DEFAULT_NEAR_SCALE,
+      out(),
+    );
+    // 20 cm an der Hand sind 30 cm am Würfel — auf jeder Achse.
+    expect(result.position.x).toBeCloseTo(0.3, 6);
+    expect(result.position.y).toBeCloseTo(0.4, 6);
+    expect(result.position.z).toBeCloseTo(-1.5, 6);
+  });
+
+  it('lässt die Drehung Grad für Grad — verstärkt wird nur der Weg', () => {
+    const hand = vec(0.2, 1.1, -0.3);
+    const result = pivotGrab(
+      pose(vec(0, 0.1, -1.2)),
+      pose(hand, NO_ROTATION),
+      pose(hand, yaw(90)),
+      vec(0, 0.1, -0.7),
+      DEFAULT_NEAR_SCALE,
+      out(),
+    );
+    // Dieselbe Vierteldrehung um denselben Griffpunkt wie ohne Verstärkung:
+    // die Hand ist ja nicht von der Stelle gegangen.
+    expect(result.position.x).toBeCloseTo(-0.5, 6);
+    expect(result.position.z).toBeCloseTo(-0.7, 6);
+    expect(result.rotation.y).toBeCloseTo(Math.sin(Math.PI / 4), 6);
+  });
+
+  it('ist bei eins zu eins genau der Griff von vorher', () => {
+    const object = pose(vec(0, 0.1, -1.2), yaw(15));
+    const handStart = pose(vec(0.2, 1.1, -0.3));
+    const hand = pose(vec(0.35, 1.0, -0.55), yaw(37));
+    const hold = vec(0.1, 0.4, -0.9);
+    const plain = pivotGrab(object, handStart, hand, hold, 1, out());
+    // Der starre Griff trägt den Weg der Hand schon in sich; der Zuschlag ist
+    // die Differenz zur Verstärkung — bei 1 ist er null.
+    const same = stretchGrab(handStart.position, hand.position, 1, { ...plain.position });
+    expect(distance(same, plain.position)).toBeCloseTo(0, 6);
+  });
+
+  it('legt dem starren Griff genau den Zuschlag drauf, den der andere fährt', () => {
+    const object = pose(vec(0, 0.1, -1.2), yaw(15));
+    const handStart = pose(vec(0.2, 1.1, -0.3));
+    const hand = pose(vec(0.35, 1.0, -0.55), yaw(37));
+    const hold = vec(0.1, 0.4, -0.9);
+    // Beide Betriebsarten verschieben um denselben Weg — nur der Drehpunkt
+    // unterscheidet sie. Also muss der Zuschlag auf eine Lage, die den Weg
+    // einmal enthält, dasselbe ergeben wie der Faktor in der Rechnung selbst.
+    const scaled = pivotGrab(object, handStart, hand, hold, DEFAULT_NEAR_SCALE, out());
+    const plain = pivotGrab(object, handStart, hand, hold, 1, out());
+    const stretched = stretchGrab(handStart.position, hand.position, DEFAULT_NEAR_SCALE, {
+      ...plain.position,
+    });
+    expect(distance(stretched, scaled.position)).toBeCloseTo(0, 6);
   });
 });

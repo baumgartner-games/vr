@@ -30,20 +30,20 @@ import {
   type PlanProp,
 } from './planProps';
 import { createPropShape, PROP_LABELS, type PropKind } from '../portal/props';
-import { planSolids, type PlanSolid } from './levelBuild';
+import { type PlanSolid } from './levelBuild';
+import { GridPlan } from '../grid/gridPlan';
+import { GRID_COLORS } from '../grid/GridWorld';
+import { PALETTE_BLOCKS, applyGridTool, gridToolSpec, type GridTool } from '../grid/gridTool';
+import { starterGrid } from './starterGrid';
 import { grabbedAt, HIP_REACH, type Target } from './reach';
 import {
   PLAN_TOOLS,
   PLAN_WALL_H,
   aimOf,
-  applyTool,
   edgeAt,
   planBounds,
   planCentre,
-  planToolSpec,
-  replacePlan,
   spotAt,
-  starterPlan,
   type PlanSpot,
   type PlanTool,
 } from './levelPlan';
@@ -121,11 +121,11 @@ import {
  * Tür in der Miniatur an einer anderen Wand hängt als im Raum.
  */
 export class EditorWorld extends PortalWorld {
-  private readonly plan = starterPlan();
+  private readonly plan = starterGrid();
   /** Woran erkannt wird, dass sich am Plan etwas getan hat. */
   private builtVersion = -1;
   /** Die Mitte des Plans, mit der das Modell gerade gebaut ist. */
-  private centre = planCentre(this.plan);
+  private centre = planCentre(this.plan.graph);
   /**
    * Und sein Ausschnitt — einmal je Neubau gerechnet und nicht je Bild.
    *
@@ -133,7 +133,7 @@ export class EditorWorld extends PortalWorld {
    * wäre das die teuerste Zeile dieser Welt, und sie beantwortet zwischen zwei
    * Handgriffen immer dasselbe.
    */
-  private bounds = planBounds(this.plan);
+  private bounds = planBounds(this.plan.graph);
   /**
    * Die Quader des Grundrisses, so wie sie zuletzt gebaut wurden.
    *
@@ -178,7 +178,7 @@ export class EditorWorld extends PortalWorld {
    * kann, ist einer, mit dem man bei jedem Griff in die Miniatur eine Wand
    * setzt. Wer nur hinsehen will, legt ihn zurück.
    */
-  private brush: PlanTool | 'go' | null = null;
+  private brush: GridTool | 'go' | null = null;
   /** In welcher Hand der Pinsel liegt — `null`, solange er in der Mulde steckt. */
   private brushHand: Handedness | null = null;
   /**
@@ -263,6 +263,8 @@ export class EditorWorld extends PortalWorld {
     color: 0xe58aa8,
     roughness: 0.6,
   });
+  /** Die Materialien der Bausteine — beim ersten Gebrauch gebaut und geteilt. */
+  private readonly blockMats = new Map<PlanSolid['kind'], THREE.Material>();
   private readonly miniFloorMat = new THREE.MeshStandardMaterial({
     color: 0x2f7fd0,
     roughness: 0.6,
@@ -330,7 +332,7 @@ export class EditorWorld extends PortalWorld {
    * Änderung neu — der Plan ändert sich einfach mit.
    */
   protected override navReady(_graph: NavGraph): void {
-    this.nav = this.plan;
+    this.nav = this.plan.graph;
   }
 
   /**
@@ -737,11 +739,11 @@ export class EditorWorld extends PortalWorld {
     this.dragged = null;
     if (!dragged) return;
     const spot = spotAt(dragged.x, dragged.z);
-    if (!this.plan.has(spot.tile)) {
+    if (!this.plan.graph.has(spot.tile)) {
       this.announce('Da ist kein Boden — die Marke bleibt, wo sie war');
       return;
     }
-    const at = this.plan.worldOf(spot.tile);
+    const at = this.plan.graph.worldOf(spot.tile);
     this.mark = { x: at.x, y: at.y, z: at.z, yaw: this.mark.yaw };
     this.announce('Dort tauchst du auf, wenn du zurückgehst');
   }
@@ -1228,12 +1230,12 @@ export class EditorWorld extends PortalWorld {
       return;
     }
     if (this.brush === 'erase' && this.eraseThing(spot)) return;
-    const before = planCentre(this.plan);
-    const edit = applyTool(this.plan, this.brush, spot);
+    const before = planCentre(this.plan.graph);
+    const edit = applyGridTool(this.plan, this.brush, spot);
     if (!edit.changed) return;
     // Die Mitte des Plans wandert beim Anbauen — das Modell soll trotzdem
     // stehen bleiben (`recentre`).
-    const after = planCentre(this.plan);
+    const after = planCentre(this.plan.graph);
     this.model = recentre(this.model, before, after);
     this.centre = after;
     // Und der Griff, mit dem es gerade in der Hand liegt, ebenso: Er rechnet
@@ -1254,11 +1256,11 @@ export class EditorWorld extends PortalWorld {
    * andersherum: Die eine zeigt, wo man steht, das andere sagt, wohin.
    */
   private stepInto(spot: PlanSpot): void {
-    if (!this.plan.has(spot.tile)) {
+    if (!this.plan.graph.has(spot.tile)) {
       this.announce('Da ist kein Boden');
       return;
     }
-    const at = this.plan.worldOf(spot.tile);
+    const at = this.plan.graph.worldOf(spot.tile);
     this.mark = { x: at.x, y: at.y, z: at.z, yaw: this.mark.yaw };
     this.announce('Dort tauchst du auf, wenn du zurückgehst');
   }
@@ -1281,7 +1283,7 @@ export class EditorWorld extends PortalWorld {
   private dropThing(spot: PlanSpot): void {
     const kind = this.thing;
     if (!kind) return;
-    if (!this.plan.has(spot.tile)) {
+    if (!this.plan.graph.has(spot.tile)) {
       this.announce('Da ist kein Boden — erst eine Kachel legen');
       return;
     }
@@ -1371,14 +1373,14 @@ export class EditorWorld extends PortalWorld {
       this.spot && brush
         ? brush === 'go' || brush === 'thing'
           ? { tile: this.spot.tile, dir: null }
-          : aimOf(brush, this.spot)
+          : aimOf(brush as PlanTool, this.spot)
         : null;
     tile.visible = false;
     edge.visible = false;
     if (!spot || !brush) return;
 
     const colour =
-      brush === 'thing' ? THING_COLOR : brush === 'go' ? GO_COLOR : planToolSpec(brush).accent;
+      brush === 'thing' ? THING_COLOR : brush === 'go' ? GO_COLOR : gridToolSpec(brush).accent;
     if (spot.dir === null) {
       tile.visible = true;
       (tile.material as THREE.MeshBasicMaterial).color.setHex(colour);
@@ -1413,7 +1415,7 @@ export class EditorWorld extends PortalWorld {
       this.palette?.stow();
       this.announce('Pinsel zurück — jetzt baut ein Tipp nichts mehr');
     } else {
-      this.brush = id as PlanTool | 'go';
+      this.brush = id as GridTool | 'go';
       this.brushHand = hit.hand ?? this.brushHand;
       // Ein Pinsel und ein Musterstück in derselben Hand wären zwei Antworten
       // auf dieselbe Frage; wer eintunkt, legt das Musterstück zurück.
@@ -1421,7 +1423,7 @@ export class EditorWorld extends PortalWorld {
       this.announce(
         id === 'go'
           ? 'Auf eine Kachel tippen — dort tauchst du auf, wenn du zurückgehst'
-          : planToolSpec(id).sub,
+          : gridToolSpec(id).sub,
       );
     }
     this.drawPanel();
@@ -1452,21 +1454,21 @@ export class EditorWorld extends PortalWorld {
 
   /** Alle Türen auf oder alle zu — in der Karte und im Gebauten zugleich. */
   private swingDoors(): void {
-    const ids = [...this.plan.doorIds()];
+    const ids = [...this.plan.graph.doorIds()];
     if (ids.length === 0) {
       this.announce('Noch keine Tür im Plan');
       return;
     }
-    const shut = ids.some((id) => this.plan.door(id)?.open === true);
-    for (const id of ids) this.plan.setDoor(id, { open: !shut });
+    const shut = ids.some((id) => this.plan.graph.door(id)?.open === true);
+    for (const id of ids) this.plan.graph.setDoor(id, { open: !shut });
     this.rebuild();
     this.store();
     this.announce(shut ? 'Alle Türen zu' : 'Alle Türen auf');
   }
 
   private reset(): void {
-    replacePlan(this.plan, starterPlan());
-    this.centre = planCentre(this.plan);
+    this.plan.replaceWith(starterGrid());
+    this.centre = planCentre(this.plan.graph);
     this.things.length = 0;
     this.thingsVersion++;
     this.rebuildThings();
@@ -1489,7 +1491,7 @@ export class EditorWorld extends PortalWorld {
       return;
     }
     const brush = this.brush;
-    const spec = brush === null ? null : brush === 'go' ? GO_SPEC : planToolSpec(brush);
+    const spec = brush === null ? null : brush === 'go' ? GO_SPEC : gridToolSpec(brush);
     this.palette?.setActive(
       brush ?? Palette.REST,
       spec ? spec.label : 'Pinsel liegt',
@@ -1510,14 +1512,14 @@ export class EditorWorld extends PortalWorld {
   private rebuild(force = false): void {
     if (!force && this.builtVersion === this.plan.version) return;
     this.builtVersion = this.plan.version;
-    this.bounds = planBounds(this.plan);
+    this.bounds = planBounds(this.plan.graph);
 
     for (const entry of this.built) this.physics?.remove(entry);
     this.built.length = 0;
     clear(this.stage);
     clear(this.mini);
 
-    const solids = planSolids(this.plan);
+    const solids = this.plan.solids();
     this.planShapes = solids;
     for (const solid of solids) {
       const mesh = box(solid, this.materialFor(solid.kind));
@@ -1532,10 +1534,25 @@ export class EditorWorld extends PortalWorld {
     this.buildMini(solids);
   }
 
+  /**
+   * Das Material einer Sorte — und ab hier ist es dasselbe wie in jeder
+   * Gitterwelt (`grid/GridWorld.ts`: `GRID_COLORS`).
+   *
+   * Boden, Wand und Tür behalten die kühlen Bauplatztöne: Man baut hier an
+   * einem Plan und nicht in einem Zimmer, und ein Grundriss soll wie ein
+   * Grundriss aussehen. Alles, was daraufgestellt wird, trägt dagegen die
+   * Farbe, die es später auch in der fertigen Welt hat — sonst baut man eine
+   * Küche in Grau und sieht sie zum ersten Mal, wenn man sie lädt.
+   */
   private materialFor(kind: PlanSolid['kind']): THREE.Material {
     if (kind === 'floor') return this.floorMat;
     if (kind === 'door') return this.doorMat;
-    return this.wallMat;
+    if (kind === 'wall') return this.wallMat;
+    const had = this.blockMats.get(kind);
+    if (had) return had;
+    const made = new THREE.MeshStandardMaterial({ color: GRID_COLORS[kind], roughness: 0.7 });
+    this.blockMats.set(kind, made);
+    return made;
   }
 
   /**
@@ -1650,10 +1667,29 @@ export class EditorWorld extends PortalWorld {
    * soll seinen Grundriss wiederfinden. Gespeichert wird das Format, das es
    * ohnehin gibt (`nav/navSerial.ts`) — damit ist derselbe Plan auch das, was
    * eine Welt später laden kann.
+   *
+   * **Die Bausteine liegen daneben und nicht darin.** Eine Küchenzeile ist
+   * keine Navigationsinformation; sie in dieselbe Datei zu schreiben hieße,
+   * deren Versionsnummer anzuheben und damit jede gespeicherte Karte für
+   * ungültig zu erklären — für Möbel. Also steht die Karte unter `nav` und
+   * das Mobiliar unter `blocks`, und ein alter Eintrag, der nur die Karte
+   * kennt, wird weiterhin gelesen (`readSaved`).
+   *
+   * **Die losen Gegenstände liegen noch einmal daneben**, unter einem eigenen
+   * Schlüssel (`THINGS_KEY`, `planProps.ts`). Der Unterschied zu den
+   * Bausteinen ist keiner der Ordnung, sondern einer der Art: Ein Baustein ist
+   * gebautes Zimmer und steht im Plan, ein Kegel ist ein Ding, das man
+   * umwerfen kann.
    */
   private store(): void {
     try {
-      window.localStorage.setItem(STORE_KEY, JSON.stringify(writeNav(this.plan, 'Bauplatz')));
+      window.localStorage.setItem(
+        STORE_KEY,
+        JSON.stringify({
+          nav: writeNav(this.plan.graph, 'Bauplatz'),
+          blocks: this.plan.saveBlocks(),
+        }),
+      );
       window.localStorage.setItem(THINGS_KEY, JSON.stringify(writeProps(this.things)));
     } catch {
       // Kein Speicher (privates Fenster, abgeschaltete Cookies): dann eben
@@ -1663,13 +1699,6 @@ export class EditorWorld extends PortalWorld {
   }
 
   private restore(): void {
-    let saved: NavGraph | null = null;
-    try {
-      const raw = window.localStorage.getItem(STORE_KEY);
-      if (raw) saved = readNav(JSON.parse(raw));
-    } catch {
-      saved = null;
-    }
     // **Die Gegenstände kommen auch dann zurück, wenn der Plan es nicht tut.**
     // Zwei Speicherplätze, zwei Fassungen: Ein Grundriss ohne Kisten ist ein
     // leeres Zimmer, Kisten ohne Grundriss sind ein Haufen auf der Wiese —
@@ -1685,9 +1714,10 @@ export class EditorWorld extends PortalWorld {
       this.things.length = 0;
     }
 
-    if (saved && saved.size > 0) {
-      replacePlan(this.plan, saved);
-      this.centre = planCentre(this.plan);
+    const saved = readSaved();
+    if (saved && saved.graph.size > 0) {
+      this.plan.replaceWith(saved);
+      this.centre = planCentre(this.plan.graph);
     }
     this.rebuildThings();
     this.rebuild(true);
@@ -1751,6 +1781,28 @@ export class EditorWorld extends PortalWorld {
             },
           },
           ...rows,
+          {
+            id: 'plan-blocks',
+            label: 'Bausteine',
+            sub: 'Küchenzeile, Regal, Tisch, Bank, Kisten, Säule, Geländer, Brüstung, Podest',
+            icon: 'cube',
+            accent: 0xffa64d,
+            children: PALETTE_BLOCKS.map((kind) => {
+              const spec = gridToolSpec(kind);
+              return {
+                id: `plan-${kind}`,
+                label: spec.label,
+                sub: spec.sub,
+                icon: 'cube' as const,
+                accent: spec.accent,
+                checked: this.brush === kind,
+                run: () => {
+                  this.brush = kind;
+                  this.drawPanel();
+                },
+              };
+            }),
+          },
           {
             id: 'plan-go',
             label: 'Marke setzen',
@@ -1887,11 +1939,51 @@ function other(side: Handedness): Handedness {
   return side === 'left' ? 'right' : 'left';
 }
 
-/** Die Näpfe der Palette: die vier Bauwerkzeuge und das Hingehen. */
+/**
+ * **Die Näpfe der Palette**, in zwei Reihen: oben die vier Bauwerkzeuge und
+ * das Hingehen, darunter das Mobiliar.
+ *
+ * Die Trennung ist keine Ordnungsliebe, sondern die Reihenfolge, in der man
+ * baut: erst der Grundriss, dann das, was darin steht. Wer eine Küchenzeile
+ * setzen will, hat vorher Boden und Wände gelegt — und wer sie in derselben
+ * Reihe suchte, käme beim Wandmalen aus Versehen daran.
+ */
 const PALETTE_DABS = [
-  ...PLAN_TOOLS.map((tool) => ({ id: tool.id, label: tool.label, color: tool.accent })),
-  { id: 'go', label: GO_SPEC.label, color: GO_COLOR },
+  ...PLAN_TOOLS.map((tool) => ({ id: tool.id, label: tool.label, color: tool.accent, row: 0 })),
+  { id: 'go', label: GO_SPEC.label, color: GO_COLOR, row: 0 },
+  ...PALETTE_BLOCKS.map((kind) => {
+    const spec = gridToolSpec(kind);
+    return { id: kind, label: spec.label, color: spec.accent, row: 1 };
+  }),
 ];
+
+/**
+ * Was im Speicher liegt — die Karte und, seit es Bausteine gibt, das Mobiliar
+ * daneben.
+ *
+ * Ein Eintrag aus der Zeit davor ist die nackte Karte, und der wird weiter
+ * gelesen: Wer zwei Wochen an einem Grundriss gebaut hat, verliert ihn nicht,
+ * weil jemand eine Küchenzeile eingebaut hat.
+ */
+function readSaved(): GridPlan | null {
+  let raw: unknown = null;
+  try {
+    const text = window.localStorage.getItem(STORE_KEY);
+    if (!text) return null;
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const box = raw as { nav?: unknown; blocks?: unknown };
+  const navPart = box && typeof box === 'object' && 'nav' in box ? box.nav : raw;
+  let graph: NavGraph;
+  try {
+    graph = readNav(navPart);
+  } catch {
+    return null;
+  }
+  return GridPlan.from(graph, Array.isArray(box?.blocks) ? box.blocks : []);
+}
 
 /** Wo eine Hand ist und wie sie steht — das, was ein Griff hier braucht. */
 function holdOf(controller: ControllerState): Hold {
