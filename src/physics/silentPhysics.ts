@@ -82,5 +82,6 @@ function entry(object: THREE.Object3D, options: BodyOptions): PhysicsBody {
     membership: options.membership ?? GROUP_WORLD,
     filter: options.filter ?? ALL_GROUPS,
     previousPosition: object.position.clone(),
+    removed: false,
   };
 }

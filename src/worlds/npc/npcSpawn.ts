@@ -10,10 +10,12 @@ import type { Point } from './npcBrain';
  *   wieder ins Spiel kommt: **möglichst nicht direkt vor der Nase dessen, der
  *   schon da ist**. Ein Zombie, der einem in den Rücken geboren wird, ist kein
  *   Schreck, sondern ein Fehler.
- * - Ein **Brutkäfig** ist eine Stelle, die von selbst nachlegt (das Vorbild
- *   steht in einem Verlies aus Klötzchen): er sieht nach, ob jemand nah genug
- *   ist, zählt seine eigenen Kinder und lässt in seinem Takt eines mehr aus
- *   dem Boden — im Ring um sich herum, nie in sich selbst.
+ * - Ein **Brutkäfig** ist eine Uhr, die von selbst nachlegt (das Vorbild steht
+ *   in einem Verlies aus Klötzchen): er sieht nach, ob jemand nah genug ist,
+ *   zählt seine eigenen Kinder und lässt in seinem Takt eines mehr aus dem
+ *   Boden — **auf einem Spawnpunkt**, im Ring darum herum. Die beiden gehören
+ *   also zusammen: Der Käfig sagt wann, der Punkt sagt wo, und wo kein Punkt
+ *   steht, kommt niemand wieder.
  *
  * Kein three.js, keine Physik: hinein gehen Punkte in der Ebene und Sekunden,
  * heraus kommt „diese Stelle" oder „jetzt". Damit ist es prüfbar

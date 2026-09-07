@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { disposeTree } from '../shared/environment';
 import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
-import { HEAD_SHARE } from './npcHit';
+import { bodyShape, hitParts } from './npcHit';
 
 /**
  * **Das Modell eines NPC** — die Haut aus `npcKinds.ts`, gebaut.
@@ -91,6 +91,11 @@ export class NpcBody extends THREE.Group {
    * dreißigmal neu zu bauen wäre bei jedem Umschalten ein Ruckler.
    */
   private sight: THREE.Group | null = null;
+  /**
+   * Die Trefferzonen als Drahtgitter — `null`, solange sie niemand sehen
+   * wollte. Dieselbe Bauart wie der Sichtbereich, aus demselben Grund.
+   */
+  private hitView: THREE.Group | null = null;
   /** Wie voll er steht: 1 heißt unversehrt. */
   private fill = 1;
 
@@ -113,17 +118,18 @@ export class NpcBody extends THREE.Group {
       emissive: new THREE.Color(skin.palette.eye).multiplyScalar(0.25),
     });
 
-    // Die Maße hängen alle an der Körperhöhe: eine Haut, die morgen 1,4 m groß
-    // ist, ist dann ein Kind und kein zerquetschter Erwachsener.
+    // **Die Maße kommen aus derselben Rechnung wie die Trefferzonen**
+    // (`npcHit.bodyShape`): Was man sieht, *ist* das, worauf man zielt. Sie
+    // hängen alle an der Körperhöhe — eine Haut, die morgen 1,4 m groß ist, ist
+    // dann ein Kind und kein zerquetschter Erwachsener.
     const h = skin.height;
-    const hip = h * 0.47;
-    const shoulder = h * 0.8;
-    const width = skin.radius * 1.55;
+    const shape = bodyShape(h, skin.radius);
+    const hip = shape.hip;
+    const shoulder = shape.shoulder;
+    const width = shape.width;
     const legLength = hip;
-    const armLength = h * 0.34;
-    // Dieselbe Zahl, aus der die Trefferzone gerechnet wird: der Kopf, den man
-    // sieht, *ist* der Kopf, auf den man zielt (`npcHit.ts`).
-    const headRadius = h * HEAD_SHARE;
+    const armLength = shape.armLength;
+    const headRadius = shape.headRadius;
 
     const box = (
       w: number,
@@ -139,7 +145,8 @@ export class NpcBody extends THREE.Group {
       [this.legRight, 1],
     ] as const) {
       group.position.set((side * width) / 4, hip, 0);
-      const limb = box(width * 0.34, legLength, skin.radius * 0.72, cloth);
+      const limb = box(width * 0.34, legLength, shape.legDepth, cloth);
+      limb.name = 'npc-leg';
       // Der Klotz hängt am Gelenk und dreht sich um dessen Achse, also sitzt
       // seine Mitte eine halbe Länge darunter.
       limb.position.y = -legLength / 2;
@@ -153,7 +160,8 @@ export class NpcBody extends THREE.Group {
     // --- Rumpf ---------------------------------------------------------------
     this.chest.position.y = hip;
     this.add(this.chest);
-    const torso = box(width, shoulder - hip, skin.radius * 1.05, cloth);
+    const torso = box(width, shoulder - hip, shape.depth, cloth);
+    torso.name = 'npc-torso';
     torso.position.y = (shoulder - hip) / 2;
     this.chest.add(torso);
 
@@ -185,8 +193,12 @@ export class NpcBody extends THREE.Group {
     ] as const) {
       group.position.set((side * width) / 2, shoulder - hip, 0);
       // Ein Zombie streckt die Arme nach vorn; alles andere lässt sie hängen.
-      // Es ist dieselbe Kette, nur um 80° vorgedreht.
-      group.rotation.x = skin.arms === 'out' ? -Math.PI * 0.44 : 0;
+      // Es ist dieselbe Kette, nur um 80° vorgedreht — **nach vorn**, und das
+      // Vorzeichen ist der ganze Punkt: Der Arm hängt nach −Y, und eine
+      // *positive* Drehung um X schiebt ihn nach −Z, also dorthin, wo auch die
+      // Augen hinsehen (`ARMS_OUT`). Mit dem falschen Vorzeichen streckte er
+      // sie nach hinten und sah aus, als ergäbe er sich.
+      group.rotation.x = skin.arms === 'out' ? ARMS_OUT : 0;
       const limb = box(width * 0.28, armLength, width * 0.28, flesh);
       limb.position.y = -armLength / 2;
       group.add(limb);
@@ -308,6 +320,66 @@ export class NpcBody extends THREE.Group {
     return group;
   }
 
+  /**
+   * **Die Trefferzonen zeigen** — genau die Kästen, gegen die gerechnet wird.
+   *
+   * Sie kommen aus `npcHit.hitParts()` und nicht aus dieser Datei: Ein
+   * Drahtgitter, das man selbst noch einmal ausrechnet, zeigt beim nächsten
+   * Umbau die alte Form und beweist damit das Gegenteil von dem, wofür man es
+   * eingeschaltet hat. Der Kopf ist eine Kugel, Rumpf und Beine sind Kästen,
+   * und alle drei hängen **am Modell** — sie drehen sich also mit ihm, so wie
+   * die Rechnung es tut (`HitBody.yaw`).
+   *
+   * Gebaut wird beim ersten Einschalten, danach nur noch versteckt: dieselbe
+   * Regel wie beim Sichtkegel.
+   */
+  setHitView(on: boolean): void {
+    if (on && !this.hitView) this.hitView = this.buildHitView();
+    if (!this.hitView) return;
+    this.hitView.visible = on;
+  }
+
+  private buildHitView(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'npc-hitbox';
+    const parts = hitParts({
+      feet: { x: 0, y: 0, z: 0 },
+      height: this.skin.height,
+      radius: this.skin.radius,
+    });
+    const line = (color: number): THREE.LineBasicMaterial =>
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85, toneMapped: false });
+
+    // Der Kopf in seiner eigenen Farbe: Er ist die Zone, die vierfach zählt,
+    // und genau deshalb schaltet man diese Ansicht ein.
+    const head = new THREE.LineSegments(
+      new THREE.WireframeGeometry(new THREE.SphereGeometry(parts.head.radius, 12, 8)),
+      line(HIT_HEAD_COLOR),
+    );
+    head.name = 'npc-hitbox-head';
+    head.position.set(parts.head.center.x, parts.head.center.y, parts.head.center.z);
+    group.add(head);
+
+    for (const [name, part] of [
+      ['npc-hitbox-torso', parts.torso],
+      ['npc-hitbox-legs', parts.legs],
+    ] as const) {
+      const wire = new THREE.LineSegments(
+        new THREE.WireframeGeometry(
+          new THREE.BoxGeometry(part.half.x * 2, part.half.y * 2, part.half.z * 2),
+        ),
+        line(HIT_BODY_COLOR),
+      );
+      wire.name = name;
+      wire.position.set(part.center.x, part.center.y, part.center.z);
+      group.add(wire);
+    }
+
+    for (const child of group.children) child.renderOrder = 900;
+    this.add(group);
+    return group;
+  }
+
   /** Wann der Balken zu sehen ist: immer, nur bei Schaden, oder gar nicht. */
   setBars(mode: BarMode): void {
     this.bars = mode;
@@ -343,13 +415,32 @@ export class NpcBody extends THREE.Group {
     this.chest.position.y = this.skin.height * 0.47 - Math.abs(step) * 0.03;
 
     this.strike = THREE.MathUtils.damp(this.strike, striking ? 1 : 0, 14, dt);
-    const base = this.skin.arms === 'out' ? -Math.PI * 0.44 : 0;
+    const base = this.skin.arms === 'out' ? ARMS_OUT : 0;
     // Beim Schlagen holen beide Arme aus und kommen nach unten durch; sonst
-    // pendeln sie gegen die Beine.
+    // pendeln sie gegen die Beine. Das Ausholen geht **zurück** in Richtung
+    // hängender Arme, also gegen die Grundhaltung.
     const hit = this.strike * (Math.sin(this.phase * 3.4) * 0.5 + 0.5) * 0.9;
     const sway = (1 - this.strike) * -step * 0.6;
     this.armLeft.rotation.x = base - hit + sway;
     this.armRight.rotation.x = base - hit - sway;
+    this.faceBar();
+  }
+
+  /**
+   * **Der Balken dreht sich nicht mit.**
+   *
+   * Ein Sprite steht immer quer zur Kamera, seine *Stelle* aber kommt aus der
+   * Kette darüber — und die dreht sich mit dem NPC. Die Füllung wächst vom
+   * linken Rand aus (`barFill.center`), und bei einem, der einen ansieht
+   * (Gierwinkel um 180°), ist genau dieser linke Rand plötzlich der rechte:
+   * Der grüne Balken stand dann **neben** seinem Rahmen statt darin. Man
+   * bemerkt es nur bei dem, der auf einen zukommt — also bei jedem Zombie.
+   *
+   * Deshalb nimmt die Balkengruppe die Drehung des Modells wieder heraus. Sie
+   * ist eine Anzeige über ihm und kein Körperteil (siehe `bar`).
+   */
+  private faceBar(): void {
+    this.bar.rotation.y = -this.rotation.y;
   }
 
   /** Ob die Augen leuchten: der NPC hat jemanden bemerkt. */
@@ -367,10 +458,13 @@ export class NpcBody extends THREE.Group {
     this.rotation.x = -eased * Math.PI * 0.5;
     this.position.y = -eased * this.skin.radius * 0.5;
     // Wer liegt, hat keinen Balken mehr: er kippte mit dem Körper nach vorn und
-    // läge quer über ihm.
+    // läge quer über ihm. Und keine Trefferzone: Ein Gefallener wird nicht mehr
+    // getroffen (`Npc.zoneOf`), und ein Kasten um ihn herum behauptete das
+    // Gegenteil.
     if (eased > 0) {
       this.barBack.visible = false;
       this.barFill.visible = false;
+      if (this.hitView) this.hitView.visible = false;
     }
   }
 
@@ -391,6 +485,18 @@ export const NPC_BAR_MODES: ReadonlyArray<{ id: BarMode; label: string; sub: str
   { id: 'always', label: 'immer', sub: 'Über jedem, der steht — zum Prüfen' },
   { id: 'off', label: 'aus', sub: 'Gar keine Balken' },
 ];
+
+/**
+ * Wie weit ein ausgestreckter Arm nach vorn zeigt, in Bogenmaß.
+ *
+ * **Positiv ist vorn**: Der Arm hängt entlang −Y, und eine Drehung um +X
+ * schiebt ihn nach −Z — dorthin, wo das Gesicht ist.
+ */
+const ARMS_OUT = Math.PI * 0.44;
+
+/** Die Farben der Trefferzonen-Ansicht: Kopf und Rumpf. */
+const HIT_HEAD_COLOR = 0xff3b2f;
+const HIT_BODY_COLOR = 0x39d0ff;
 
 /** Die Höhe des Balkens, in Metern. */
 const BAR_HEIGHT = 0.075;

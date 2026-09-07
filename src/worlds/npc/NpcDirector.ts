@@ -42,8 +42,9 @@ import {
  *   braucht, bekommt einen ausgewürfelt, und zwar möglichst weit weg vom
  *   Spieler (`npcSpawn.ts`) — dieselbe Regel, nach der ein Spieler nach dem
  *   Tod wieder ins Spiel kommt.
- * - **Brutkäfige** — Stellen, die von selbst nachlegen, solange jemand in der
- *   Nähe ist.
+ * - **Brutkäfige** — Uhren, die von selbst nachlegen, solange jemand in der
+ *   Nähe ist. **Wohin**, sagen sie nicht: Das Kind kommt auf einem Spawnpunkt
+ *   heraus, und wo keiner steht, kommt auch niemand wieder.
  *
  * **Über das Netz geht davon nichts.** Ein NPC ist heute das, was der
  * Sektkorken ist: jeder sieht seinen eigenen. Für zwei Spieler in einem Raum
@@ -84,7 +85,12 @@ export interface NpcControl {
   placeAtSpawn(request: Omit<NpcRequest, 'at'>): boolean;
   /** Legt einen Spawnpunkt an. Gibt zurück, wie viele es jetzt sind. */
   addPoint(at: THREE.Vector3): number;
-  /** Stellt einen Brutkäfig hin. Gibt zurück, wie viele es jetzt sind. */
+  /**
+   * Stellt einen Brutkäfig hin. Gibt zurück, wie viele es jetzt sind.
+   *
+   * Er legt nur nach, solange es mindestens **einen Spawnpunkt** gibt
+   * (`addPoint`) — dort kommen seine Kinder heraus.
+   */
   addCage(request: CageRequest): number;
   /** Nimmt weg, worauf der Strahl zeigt. Gibt zurück, was es war. */
   removeAlong(origin: THREE.Vector3, direction: THREE.Vector3): string | null;
@@ -101,6 +107,8 @@ export interface NpcRequest {
   yaw?: number;
   speed?: number;
   health?: number;
+  /** Wer ihn gesetzt hat — ein Brutkäfig zählt daran seine eigenen Kinder. */
+  owner?: object | null;
 }
 
 export interface CageRequest {
@@ -148,6 +156,13 @@ interface Cage {
   health: number | undefined;
   config: SpawnerConfig;
   state: SpawnerState;
+  /**
+   * Ob schon gesagt wurde, dass ihm die Stelle fehlt.
+   *
+   * Einmal ist eine Auskunft, alle sechs Sekunden ist eine Belästigung — und
+   * sobald wieder ein Spawnpunkt steht, darf er es erneut sagen.
+   */
+  warned: boolean;
 }
 
 export class NpcDirector implements NpcControl {
@@ -168,6 +183,8 @@ export class NpcDirector implements NpcControl {
   /** Ob die Sichtbereiche gerade zu sehen sind, und in welcher Farbe. */
   private sightOn = false;
   private sightColor = 0xffd166;
+  /** Ob die Trefferzonen gerade zu sehen sind (`npcHit.ts`). */
+  private hitViewOn = false;
 
   constructor(private readonly world: NpcWorld) {}
 
@@ -190,8 +207,24 @@ export class NpcDirector implements NpcControl {
     for (const npc of this.npcs) npc.setSight(on, color);
   }
 
+  /**
+   * **Die Trefferzonen zeigen** — gilt sofort und für alles Neue.
+   *
+   * Dieselbe Bauart wie Balken und Sichtbereich, und derselbe Grund: Wer sie
+   * einschaltet, um zu prüfen, wohin er zielen muss, will nicht den nächsten
+   * Gesetzten als einzigen ohne Kasten dastehen haben.
+   */
+  setHitView(on: boolean): void {
+    this.hitViewOn = on;
+    for (const npc of this.npcs) npc.setHitView(on);
+  }
+
   get sight(): boolean {
     return this.sightOn;
+  }
+
+  get hitView(): boolean {
+    return this.hitViewOn;
   }
 
   get bars(): BarMode {
@@ -224,9 +257,11 @@ export class NpcDirector implements NpcControl {
       yaw: request.yaw ?? this.facingPlayer(request.at),
       speed: request.speed,
       health: request.health,
+      owner: request.owner,
     });
     npc.setBars(this.barMode);
     npc.setSight(this.sightOn, this.sightColor);
+    npc.setHitView(this.hitViewOn);
     this.world.root.add(npc.holder);
     this.npcs.push(npc);
     return npc;
@@ -370,6 +405,7 @@ export class NpcDirector implements NpcControl {
         max: request.max ?? SPAWNER_DEFAULTS.max,
       },
       state: newSpawnerState(),
+      warned: false,
     });
     return this.cages.length;
   }
@@ -467,10 +503,26 @@ export class NpcDirector implements NpcControl {
       const mine = this.npcs.filter((npc) => npc.alive && npc.owner === cage).length;
       if (!spawnerTick(cage.state, cage.config, dt, distance, mine)) continue;
       if (this.npcs.length >= NPC_LIMIT) continue;
-      const spot = ringPoint(cage.at, cage.config.radius, Math.random());
-      _at.set(spot.x, cage.at.y, spot.z);
-      const npc = new Npc({
-        physics: this.world.physics,
+      // **Nachschub braucht eine Stelle, aus der er kommt.** Der Käfig sagt
+      // *wann*, ein Spawnpunkt sagt *wo* — und wo keiner steht, kommt auch
+      // niemand wieder: Wer im Testlauf einen Zombie umlegt, will ihn liegen
+      // sehen und nicht zwei Sekunden später wieder vor sich stehen haben. Wer
+      // Nachschub will, setzt einen Spawnpunkt; bis dahin ist der Käfig eine
+      // Uhr ohne Zeiger, und die Meldung sagt es einmal je Takt.
+      const home = this.spawnPoint();
+      if (!home) {
+        // Einmal sagen, nicht bei jedem Takt: Wer keinen Punkt setzen will,
+        // will auch nicht alle sechs Sekunden daran erinnert werden.
+        if (!cage.warned) this.world.notify('Kein Spawnpunkt — der Brutkäfig legt nichts nach');
+        cage.warned = true;
+        continue;
+      }
+      cage.warned = false;
+      // Im Ring um den Punkt und nicht auf ihm: drei Kinder auf derselben
+      // Kachel wären ein Turm, der sich selbst auseinanderschiebt.
+      const spot = ringPoint(home, cage.config.radius, Math.random());
+      _at.set(spot.x, home.y, spot.z);
+      this.spawn({
         kind: cage.kind,
         brain: cage.brain,
         at: _at,
@@ -479,9 +531,6 @@ export class NpcDirector implements NpcControl {
         health: cage.health,
         owner: cage,
       });
-      npc.setBars(this.barMode);
-      this.world.root.add(npc.holder);
-      this.npcs.push(npc);
     }
   }
 
@@ -592,10 +641,16 @@ export class NpcDirector implements NpcControl {
 
   // --- innere Aufräumerei ---------------------------------------------------
 
+  /**
+   * Einer weniger.
+   *
+   * `dispose` nimmt ihn selbst aus der Physik — auch den, der schon liegt und
+   * dessen Körper längst weg ist (`Npc.unbody` merkt es). Hier stand einmal
+   * `if (npc.alive)`, und das war die Lücke: Wer *tot* und trotzdem noch
+   * verkörpert war, ließ seinen Zylinder für immer im Raum stehen.
+   */
   private retire(index: number): void {
-    const npc = this.npcs[index]!;
-    if (npc.alive) npc.unbody(this.world.physics);
-    npc.dispose();
+    this.npcs[index]!.dispose();
     this.npcs.splice(index, 1);
   }
 

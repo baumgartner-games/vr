@@ -1370,6 +1370,26 @@ function buildLabShow(): void {
   drawBars();
   labDraws.push(drawBars);
   labShow.append(bars);
+
+  // Und die Trefferzonen: an oder aus. Sie gehören neben die Balken, denn
+  // beide sagen dasselbe über einen NPC — was er aushält und wo man ihn
+  // trifft.
+  const hits = document.createElement('button');
+  hits.type = 'button';
+  hits.className = 'lab__layer';
+  hits.style.setProperty('--key', hexColor(0xff3b2f));
+  const drawHits = (): void => {
+    hits.textContent = live.hits() ? 'Trefferzonen' : 'Trefferzonen aus';
+    hits.title = 'Kopf und Körper als Drahtgitter — genau so wird gerechnet';
+    hits.setAttribute('aria-pressed', String(live.hits()));
+  };
+  hits.addEventListener('click', () => {
+    live.setHits(!live.hits());
+    drawHits();
+  });
+  drawHits();
+  labDraws.push(drawHits);
+  labShow.append(hits);
 }
 
 /** Eine Farbe aus dem Spiel als CSS-Farbe. */

@@ -31,7 +31,8 @@ der Quest** —, **NPCs**, die
 einem hinterherlaufen (Haut und Hirn getrennt gewählt, dazu Spawnpunkte und
 Brutkäfige, mit Lebensbalken über dem Kopf — ein Zombie hat hundert Leben, die
 Pistole macht fünfundzwanzig, das Messer fünfzig und der große Hammer hundert,
-Kopftreffer vierfach) und
+Kopftreffer vierfach; getroffen wird der Körper, den man sieht, und wer
+nachsehen will, schaltet die **Trefferzonen** im Menü ein) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
@@ -126,7 +127,8 @@ hoch/runter als Knöpfe oder Tasten, Wischen dreht den Blick —, dazu ein Knopf
 hinein) — und **Laufen lassen**: dieselbe Welt mit echter Physik, Gitter und
 NPCs, senkrecht von oben, mit den Knöpfen der Welt als Zeilen daneben, den
 sieben Debug-Ebenen des Navigationsgitters als Schalter — darunter die
-**betretbare Fläche** und der **Sichtkegel** der NPCs — und einem **Ziel**, das
+**betretbare Fläche** und der **Sichtkegel** der NPCs, dazu Lebensbalken und
+**Trefferzonen** — und einem **Ziel**, das
 ein Tipp auf den Boden versetzt und dem die NPCs nachlaufen. Mit **Gehe zu**
 geht die eigene Figur stattdessen zu Fuß dorthin — über dasselbe Gitter wie die
 NPCs, durch dieselben Türen und Portale —, mit **Im Bereich** legt ein Tipp
