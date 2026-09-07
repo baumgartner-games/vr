@@ -826,8 +826,9 @@ export class App {
    * Grafikeinstellung passte.
    *
    * Zwei Zeilen, und beide sagen dasselbe zweimal: was gerade gilt, und was
-   * ein Druck daraus macht. Was sie tatsächlich anstellen, steht in
-   * `core/graphicsSettings.ts`.
+   * ein Druck daraus macht — der Modus schaltet im Kreis (Einfach → Schön →
+   * Comic), die Texturen sind ein Schalter daneben und gelten für jede Stufe.
+   * Was sie tatsächlich anstellen, steht in `core/graphicsSettings.ts`.
    */
   private graphicsMenu(): MenuEntry {
     const accent = 0xb98bff;
@@ -847,7 +848,8 @@ export class App {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
           sub: GRAPHICS_MODE_SUBS[settings.mode],
-          caption: 'Schatten und Spiegelungen sofort · das schärfere Bild ab der nächsten Sitzung',
+          caption:
+            'Einfach → Schön → Comic · alles sofort sichtbar, nur das schärfere Bild ab der nächsten Sitzung',
           icon: 'sphere',
           accent,
           run: () => {

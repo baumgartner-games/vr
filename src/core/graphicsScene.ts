@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { patchDetail, supportsDetail, unpatchDetail } from './proceduralDetail';
+import { applyLook, supportsLook } from './materialLook';
+import { addOutline, deniesOutline, isOutline, removeOutline } from './outlineShell';
 import type { GraphicsProfile } from './graphicsSettings';
 
 /**
@@ -97,15 +98,38 @@ export function applySceneQuality(
     if (dimAmbient(object, profile)) return;
 
     const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
+    // Ein Saum ist kein Ding der Welt, sondern ein zweites Bild eines Dings:
+    // Er bekommt weder Schatten noch Körnung, und schon gar keinen eigenen Saum.
+    if (!mesh.isMesh || isOutline(mesh)) return;
     const materials = materialsOf(mesh).filter((material) => !!material);
     if (!materials.some(isLit)) return;
 
     // --- die Oberflächen
     for (const material of materials) {
-      if (profile.detail) patchDetail(material);
-      else unpatchDetail(material);
-      if (recompile && supportsDetail(material)) material.needsUpdate = true;
+      applyLook(material, { detail: profile.detail, toon: profile.toonBands });
+      if (recompile && supportsLook(material)) material.needsUpdate = true;
+    }
+
+    // --- was für ein Ding das ist
+    // Eine Kulisse ist kein Ding, sondern das, was hinter den Dingen steht:
+    // Der Himmel steht um alles herum, die Bodenplatte reicht bis zum Horizont.
+    // Einen Schatten würfe sie über die halbe Welt, und eine Kontur legte einen
+    // schwarzen Strich um den Horizont. Empfangen darf sie ihn, dafür ist der
+    // Boden ja da.
+    const backdrop = mesh.userData['backdrop'] === true;
+    // Und Durchsichtiges wirft keinen: Ein Fenster mit einem Brett als Schatten
+    // ist schlimmer als ein Fenster ohne Schatten.
+    const solid = materials.every((material) => !material.transparent);
+
+    // --- die Kontur
+    if (profile.outlines && !backdrop && solid && !deniesOutline(mesh)) {
+      addOutline(mesh, {
+        width: profile.outlineWidth,
+        maxGrow: profile.outlineMaxGrow,
+        color: profile.outlineColor,
+      });
+    } else {
+      removeOutline(mesh);
     }
 
     // --- die Schatten
@@ -119,13 +143,6 @@ export function applySceneQuality(
       mesh.receiveShadow = base.receive;
       return;
     }
-    // Eine Kulisse wirft keinen Schatten: Der Himmel steht um alles herum, und
-    // die Bodenplatte reicht bis zum Horizont — beide würden die halbe Welt
-    // verdunkeln. Empfangen dürfen sie ihn, dafür ist der Boden ja da.
-    const backdrop = mesh.userData['backdrop'] === true;
-    // Und Durchsichtiges auch nicht: Ein Fenster mit einem Brett als Schatten
-    // ist schlimmer als ein Fenster ohne Schatten.
-    const solid = materials.every((material) => !material.transparent);
     mesh.castShadow = !backdrop && solid;
     mesh.receiveShadow = true;
   });

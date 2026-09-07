@@ -17,6 +17,10 @@ describe('Grafikeinstellungen', () => {
     expect(DEFAULT_GRAPHICS).toEqual({ mode: 'simple', textures: false });
   });
 
+  it('kennt drei Stufen und keine vierte', () => {
+    expect([...GRAPHICS_MODES]).toEqual(['simple', 'fancy', 'comic']);
+  });
+
   it('macht aus Unsinn den Auslieferungszustand', () => {
     expect(clampGraphics(undefined)).toEqual(DEFAULT_GRAPHICS);
     expect(clampGraphics({ mode: 'hübsch' as never })).toEqual(DEFAULT_GRAPHICS);
@@ -48,6 +52,25 @@ describe('Grafikeinstellungen', () => {
     expect(profile.framebufferScale).toBe(1);
     expect(profile.foveation).toBe(1);
     expect(profile.detail).toBe(false);
+  });
+
+  it('zeichnet im Comic Konturen und Stufen, aber keine Spiegelungen', () => {
+    const profile = graphicsProfile({ mode: 'comic', textures: false });
+    expect(profile.outlines).toBe(true);
+    expect(profile.toonBands).toBeGreaterThan(1);
+    expect(profile.outlineWidth).toBeGreaterThan(0);
+    // Eine Spiegelung ist genau das, was ein gezeichnetes Bild nicht hat.
+    expect(profile.environment).toBe(false);
+    // Schatten schon: Ohne sie schwebt in einer Zeichnung alles.
+    expect(profile.shadows).toBe(true);
+  });
+
+  it('lässt Konturen und Stufen aus den anderen beiden Stufen heraus', () => {
+    for (const mode of ['simple', 'fancy'] as const) {
+      const profile = graphicsProfile({ mode, textures: false });
+      expect(profile.outlines).toBe(false);
+      expect(profile.toonBands).toBe(0);
+    }
   });
 
   it('schaltet in der schönen Stufe alles an', () => {

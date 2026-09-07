@@ -15,6 +15,10 @@
  * - **Schön** — Schatten von der Sonne, ein Umgebungsbild aus dem Himmel der
  *   Welt (damit Metall etwas zu spiegeln hat) und ein schärferes Bild in der
  *   Brille.
+ * - **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
+ *   Ding (`outlineShell.ts`) und Licht, das in **Stufen** auf den Flächen
+ *   liegt statt in einem Verlauf. Kein Umgebungsbild — eine Spiegelung ist
+ *   genau das, was ein gezeichnetes Bild nicht hat.
  *
  * Daneben steht ein zweiter Schalter, der mit der Stufe nichts zu tun hat:
  * **Texturen**. Die Welten sind absichtlich ohne Bilddateien gebaut — nichts
@@ -36,10 +40,10 @@
 
 const KEY = 'bgvr.graphics';
 
-/** Die beiden Stufen. `simple` ist das Bild, das dieses Projekt immer hatte. */
-export type GraphicsMode = 'simple' | 'fancy';
+/** Die drei Stufen. `simple` ist das Bild, das dieses Projekt immer hatte. */
+export type GraphicsMode = 'simple' | 'fancy' | 'comic';
 
-export const GRAPHICS_MODES = ['simple', 'fancy'] as const;
+export const GRAPHICS_MODES = ['simple', 'fancy', 'comic'] as const;
 
 export interface GraphicsSettings {
   mode: GraphicsMode;
@@ -56,11 +60,13 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple', textures: fa
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
   simple: 'Einfach',
   fancy: 'Schön',
+  comic: 'Comic',
 };
 
 export const GRAPHICS_MODE_SUBS: Record<GraphicsMode, string> = {
   simple: 'Wie bisher · flache Farben, keine Schatten',
   fancy: 'Schatten, Spiegelungen, schärferes Bild · kostet Bildrate',
+  comic: 'Schwarze Konturen und Licht in Stufen · zeichnet alles zweimal',
 };
 
 /**
@@ -110,6 +116,29 @@ export interface GraphicsProfile {
   foveation: number;
   /** Ob die prozeduralen Oberflächen in die Shader eingebaut werden. */
   detail: boolean;
+  /**
+   * In wie vielen Stufen das Licht liegt; 0 heißt: in keiner, also im Verlauf.
+   *
+   * Drei ist die Zahl, bei der man die Stufen sieht, ohne dass eine Wand zur
+   * Schachbrettfläche wird: hell, halb, Schatten.
+   */
+  toonBands: number;
+  /** Ob jedes Ding eine schwarze Kontur bekommt. */
+  outlines: boolean;
+  /**
+   * Wie breit sie ist — als Anteil der **halben Bildhöhe**, nicht in Metern
+   * und nicht in Pixeln.
+   *
+   * In Metern wäre sie an einer fernen Wand unsichtbar und an einer nahen
+   * fingerdick; in Pixeln müsste jemand wissen, wie groß das Bild ist, und in
+   * einer Brille weiß das niemand vorher. Ein Anteil der Bildhöhe ist auf
+   * jedem Gerät derselbe Strich.
+   */
+  outlineWidth: number;
+  /** Und wie breit sie in Metern höchstens werden darf. */
+  outlineMaxGrow: number;
+  /** Ihre Farbe. Nicht ganz schwarz — ein Hauch Blau steht der Nacht besser. */
+  outlineColor: number;
 }
 
 /**
@@ -121,8 +150,13 @@ export interface GraphicsProfile {
  */
 export function graphicsProfile(settings: GraphicsSettings): GraphicsProfile {
   const fancy = settings.mode === 'fancy';
+  const comic = settings.mode === 'comic';
+  const plain = !fancy && !comic;
   return {
-    shadows: fancy,
+    // Schatten hat auch der Comic: Ein gezeichnetes Bild ohne sie sieht aus,
+    // als schwebte alles einen Zentimeter über dem Boden — und in Stufen
+    // gerechnet wird aus dem weichen Rand ohnehin eine harte Fläche.
+    shadows: !plain,
     shadowMapSize: 2048,
     shadowRange: 14,
     shadowDistance: 24,
@@ -130,10 +164,19 @@ export function graphicsProfile(settings: GraphicsSettings): GraphicsProfile {
     // Deutlich unter 1: Das Umgebungsbild kommt zusätzlich zu Hemisphären- und
     // Richtungslicht, die schon da sind. Es soll spiegeln, nicht aufhellen.
     environmentIntensity: fancy ? 0.45 : 0,
-    ambientScale: fancy ? 0.45 : 1,
-    framebufferScale: fancy ? 1.2 : 1,
-    foveation: fancy ? 0.3 : 1,
+    // Der Comic dämpft weniger als die schöne Stufe: Was ihm das Grundlicht
+    // wegnimmt, ersetzt dort kein Umgebungsbild, und zwei Stufen brauchen
+    // Mitteltöne zwischen sich.
+    ambientScale: fancy ? 0.45 : comic ? 0.7 : 1,
+    framebufferScale: plain ? 1 : 1.2,
+    // Eine Kontur von zwei Pixeln verträgt keine verwaschenen Bildränder.
+    foveation: plain ? 1 : 0.3,
     detail: settings.textures,
+    toonBands: comic ? 3 : 0,
+    outlines: comic,
+    outlineWidth: 0.006,
+    outlineMaxGrow: 0.05,
+    outlineColor: 0x101319,
   };
 }
 

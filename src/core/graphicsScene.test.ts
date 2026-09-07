@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { aimSun, applySceneQuality, findSun } from './graphicsScene';
 import { graphicsProfile } from './graphicsSettings';
-import { isDetailed } from './proceduralDetail';
+import { lookOf } from './materialLook';
+import { denyOutline, isOutline, outlineOf, stripOutlines } from './outlineShell';
 
 const FANCY = graphicsProfile({ mode: 'fancy', textures: true });
+const COMIC = graphicsProfile({ mode: 'comic', textures: false });
 const SIMPLE = graphicsProfile({ mode: 'simple', textures: false });
 
 interface Built {
@@ -45,7 +47,7 @@ describe('die Grafikstufe über einer Szene', () => {
       expect(mesh.receiveShadow).toBe(false);
     }
     expect(world.sun.castShadow).toBe(false);
-    expect(isDetailed(world.crate.material as THREE.Material)).toBe(false);
+    expect(lookOf(world.crate.material as THREE.Material).detail).toBe(false);
   });
 
   it('verteilt die Schatten nach dem, was ein Ding ist', () => {
@@ -87,16 +89,16 @@ describe('die Grafikstufe über einer Szene', () => {
     expect(world.crate.receiveShadow).toBe(true);
     expect(world.ground.receiveShadow).toBe(false);
     expect(world.sun.castShadow).toBe(false);
-    expect(isDetailed(world.crate.material as THREE.Material)).toBe(false);
+    expect(lookOf(world.crate.material as THREE.Material).detail).toBe(false);
   });
 
   it('gibt die Körnung nur den beleuchteten Flächen', () => {
     const world = build();
     applySceneQuality(world.scene, FANCY);
-    expect(isDetailed(world.crate.material as THREE.Material)).toBe(true);
-    expect(isDetailed(world.ground.material as THREE.Material)).toBe(true);
-    expect(isDetailed(world.glass.material as THREE.Material)).toBe(false);
-    expect(isDetailed(world.panel.material as THREE.Material)).toBe(false);
+    expect(lookOf(world.crate.material as THREE.Material).detail).toBe(true);
+    expect(lookOf(world.ground.material as THREE.Material).detail).toBe(true);
+    expect(lookOf(world.glass.material as THREE.Material).detail).toBe(false);
+    expect(lookOf(world.panel.material as THREE.Material).detail).toBe(false);
   });
 
   it('holt Nachzügler beim nächsten Durchlauf ab', () => {
@@ -111,7 +113,7 @@ describe('die Grafikstufe über einer Szene', () => {
 
     applySceneQuality(world.scene, FANCY);
     expect(late.castShadow).toBe(true);
-    expect(isDetailed(late.material)).toBe(true);
+    expect(lookOf(late.material).detail).toBe(true);
   });
 
   it('findet das hellste Richtungslicht, egal wo es hängt', () => {
@@ -175,5 +177,110 @@ describe('die Grafikstufe über einer Szene', () => {
     expect(world.sun.position.x).not.toBeCloseTo(lamp.x, 3);
     expect(lamp.distanceTo(anchor)).toBeCloseTo(FANCY.shadowDistance, 5);
     expect(anchor.sub(lamp).normalize().distanceTo(before)).toBeLessThan(1e-6);
+  });
+
+  it('legt im Comic um jedes Ding eine Kontur — und nur um die Dinge', () => {
+    const world = build();
+    applySceneQuality(world.scene, COMIC);
+
+    expect(outlineOf(world.crate)).not.toBeNull();
+    // Eine Kulisse bekommt keine: Ein schwarzer Strich um den Horizont ist
+    // kein Umriss, sondern ein Balken.
+    expect(outlineOf(world.ground)).toBeNull();
+    expect(outlineOf(world.glass)).toBeNull();
+    expect(outlineOf(world.panel)).toBeNull();
+
+    const outline = outlineOf(world.crate)!;
+    expect(isOutline(outline)).toBe(true);
+    // Die Kontur teilt die Geometrie ihres Dings — aufgeblasen wird im Shader,
+    // nicht im Speicher.
+    expect(outline.geometry).toBe(world.crate.geometry);
+    expect(outline.material).not.toBe(world.crate.material);
+    expect(outline.castShadow).toBe(false);
+  });
+
+  it('macht die Kontur für jeden Strahl zu Luft', () => {
+    // Sonst greift die Hand nach dem Saum statt nach der Kiste — und hat dann
+    // ein Kind der Kiste in der Hand statt der Kiste.
+    const world = build();
+    applySceneQuality(world.scene, COMIC);
+    const hits: THREE.Intersection[] = [];
+    const raycaster = new THREE.Raycaster(new THREE.Vector3(0, 0, 5), new THREE.Vector3(0, 0, -1));
+    raycaster.intersectObject(world.crate, true, hits);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((hit) => hit.object === world.crate)).toBe(true);
+  });
+
+  it('nimmt die Kontur wieder ab und behandelt sie nie wie ein Ding', () => {
+    const world = build();
+    applySceneQuality(world.scene, COMIC);
+    // Zweimal derselbe Durchlauf hängt keine zweite an — und gibt dem Saum
+    // keinen eigenen Saum.
+    applySceneQuality(world.scene, COMIC);
+    expect(world.crate.children.filter(isOutline)).toHaveLength(1);
+    expect(outlineOf(world.crate)!.children).toHaveLength(0);
+
+    applySceneQuality(world.scene, SIMPLE);
+    expect(outlineOf(world.crate)).toBeNull();
+    expect(world.crate.children).toHaveLength(0);
+  });
+
+  it('gibt einem Wald aus Instanzen einen Saum je Baum', () => {
+    // Ein `InstancedMesh` zeichnet vierhundert Bäume aus einer Geometrie; ein
+    // gewöhnlicher Saum wäre einer davon, am Ursprung.
+    const scene = new THREE.Scene();
+    const trees = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(1, 3, 8),
+      new THREE.MeshStandardMaterial(),
+      12,
+    );
+    scene.add(trees, new THREE.DirectionalLight(0xffffff, 1.6));
+    applySceneQuality(scene, COMIC);
+
+    const outline = outlineOf(trees) as THREE.InstancedMesh;
+    expect(outline.isInstancedMesh).toBe(true);
+    expect(outline.count).toBe(trees.count);
+    // Dieselben Matrizen, nicht abgeschriebene: Ein Baum, der umfällt, nimmt
+    // seinen Saum mit.
+    expect(outline.instanceMatrix).toBe(trees.instanceMatrix);
+  });
+
+  it('schaltet im Comic die Farbstufen ein, nicht die Körnung', () => {
+    const world = build();
+    applySceneQuality(world.scene, COMIC);
+    expect(lookOf(world.crate.material as THREE.Material)).toEqual({ detail: false, toon: 3 });
+
+    // Und Texturen sind auch im Comic der zweite, unabhängige Schalter.
+    applySceneQuality(world.scene, graphicsProfile({ mode: 'comic', textures: true }));
+    expect(lookOf(world.crate.material as THREE.Material)).toEqual({ detail: true, toon: 3 });
+  });
+
+  it('lässt ein Ding aus, das ausdrücklich keinen Saum will', () => {
+    // Die kleinen Modelle in den Menüzeilen: Sie leihen sich Material und
+    // Geometrie vom Werkzeug und werden bei jeder Menüänderung neu gebaut.
+    const world = build();
+    denyOutline(world.crate);
+    applySceneQuality(world.scene, COMIC);
+    expect(outlineOf(world.crate)).toBeNull();
+    expect(outlineOf(world.glass)).toBeNull();
+  });
+
+  it('räumt Säume aus einer Kopie wieder heraus', () => {
+    // `Object3D.clone()` nimmt den Saum mit, und die Kopie verlöre dabei sein
+    // leeres `raycast` — man könnte nach ihm greifen.
+    const world = build();
+    applySceneQuality(world.scene, COMIC);
+    const copy = world.crate.clone(true);
+    expect(copy.children.some(isOutline)).toBe(true);
+
+    expect(stripOutlines(copy)).toBe(1);
+    expect(copy.children).toHaveLength(0);
+    // Und das Original behält seinen — samt einem Material, das noch lebt:
+    // Ein Klon schreibt nur den Zeiger darauf ab, und es beim Aufräumen der
+    // Kopie zu entsorgen hieße, dem Original die Kante abzuschalten.
+    const outline = outlineOf(world.crate)!;
+    expect(outline).not.toBeNull();
+    const material = outline.material as THREE.ShaderMaterial;
+    expect(material.uniforms['thickness']!.value).toBe(COMIC.outlineWidth);
   });
 });

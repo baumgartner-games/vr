@@ -217,11 +217,12 @@ das Bild von vorher ist) samt dem, was sie **in einer Szene** anrichten
 (`src/core/graphicsScene.ts` — wer Schatten wirft und wer nur empfängt, dass
 sich alles vollständig zurücknehmen lässt, dass Nachzügler beim nächsten
 Durchlauf abgeholt werden, und dass die Sonne mitwandert, ohne ihre Richtung zu
-drehen) und den **prozeduralen Oberflächen**
-(`src/core/proceduralDetail.ts` — Ein- und Ausbau ohne Spuren, und der
-eigentliche Grund für den Test: dass die vier `#include`-Zeilen, an denen der
-Umbau hängt, im echten Shader von three.js noch stehen — eine umbenannte fiele
-sonst erst in der Brille auf), die
+drehen) und dem, was **in die Shader der Welt eingebaut** wird
+(`src/core/materialLook.ts` — Ein- und Ausbau ohne Spuren, Körnung und
+Comic-Farbstufen **zugleich** an einem Material, das ihre Programmschlüssel
+auseinanderhält, und der eigentliche Grund für den Test: dass die sechs
+`#include`-Zeilen, an denen der Umbau hängt, im echten Shader von three.js noch
+stehen — eine umbenannte fiele sonst erst in der Brille auf), die
 **Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
 Sturz einer ist, und dass der _höchste_ Treffer gewinnt: von unten gesucht
 landet man im Keller eines Hauses, von oben auf seinem Dach), die **Dicke der
@@ -562,8 +563,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   **NPC** (wer hier herumläuft — Haut und Hirn getrennt, dazu Spawnpunkte und
   Brutkäfige; siehe _Wer hier herumläuft_),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Grafik** (die
-  experimentelle Seite: Grafik-Modus und prozedurale Texturen — siehe _Wie
-  schön es aussieht_), **Einstellungen** und
+  experimentelle Seite: Einfach, Schön oder Comic, dazu prozedurale Texturen —
+  siehe _Wie schön es aussieht_), **Einstellungen** und
   die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
   `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht
@@ -2249,7 +2250,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
 | Nah Gefasstes zur anderen Hand     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
-| Grafik umstellen                   | Menü → Grafik: _Grafik-Modus_ schaltet zwischen Einfach und Schön, _Texturen_ ist ein Schalter                                                                        | dito                                                                                            | dito                 |
+| Grafik umstellen                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Schön → Comic), _Texturen_ ist ein Schalter daneben                                                        | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
 | Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
 | Augenhöhe messen                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_, oder die Knöpfe an der rechten Wand im Eingaberaum                                                                      | –                                                                                               | –                    |
@@ -4225,12 +4226,72 @@ heißt jetzt so:
   Welt, ein **Umgebungsbild** aus ihrem Himmel, damit glänzende Flächen
   überhaupt etwas zu spiegeln haben, und ein **schärferes Bild** in der Brille
   (`framebufferScale` 1,2, Foveation 0,3 statt 1).
+- **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
+  Ding und Licht, das in **Stufen** auf den Flächen liegt statt in einem
+  Verlauf. Schatten hat sie auch (ohne sie schwebt in einer Zeichnung alles),
+  ein Umgebungsbild nicht — eine Spiegelung ist genau das, was ein gezeichnetes
+  Bild nicht hat.
+
+#### Die schwarze Kante
+
+Eine Kontur um alles gibt es auf zwei Arten, und die naheliegende fällt hier
+aus: Ein **Nachbearbeitungsschritt** (Bild rendern, Kanten im Tiefen- und
+Normalenbild suchen) braucht einen Zwischenpuffer für das ganze Bild, und den
+gibt eine WebXR-Sitzung nicht her, ohne dass man ihr das Bild aus der Hand
+nimmt, das sie selbst für zwei Augen zusammenbaut. Also der ältere Weg, den
+Comic-Spiele seit zwanzig Jahren gehen: **die umgestülpte Hülle**
+(`core/outlineShell.ts`). Jedes Ding wird ein zweites Mal gezeichnet, in
+Schwarz, ein wenig aufgeblasen, mit den **Rückseiten** nach vorn — sichtbar
+bleibt nur der Saum, der ringsum darüber hinausragt. Kostet einen zweiten
+Zeichenaufruf pro Ding (Dust: 869 → 1824) und funktioniert in beiden Augen.
+
+Vier Dinge daran sind Erfahrung und keine Theorie:
+
+- **Geglättete Normalen.** Ein Quader aus `BoxGeometry` hat an jeder Ecke drei
+  Normalen, eine je Fläche; bläst man entlang dieser auf, fahren die Flächen
+  auseinander und die Kontur bekommt an jeder Ecke eine Lücke. Also liegt neben
+  jeder Geometrie einmalig eine **gemittelte** Normale (`bgvrOutlineNormal`) —
+  ohne die Geometrie selbst anzufassen. Über 24 000 Ecken wird das
+  übersprungen: Am Alpen-Hang fällt eine Ecke nicht auf, ein Ruckler schon.
+- **Gedeckelt auf einen Anteil des Dings.** Ein gleich breiter Saum auf dem
+  Bildschirm heißt: in der Nähe schmal, in der Ferne (in Metern) breit. Der
+  erste Versuch machte aus der **Dominoreihe im Portallabor eine Reihe
+  schwarzer Klötze** — ein Domino ist zwei Zentimeter breit, und ein Zentimeter
+  Kante ringsherum ist keine Kante mehr, sondern eine Füllung. Jetzt bekommt
+  jedes Ding höchstens ein Achtel seines eigenen Radius.
+- **Unsichtbar für alles andere.** Der Saum wirft keinen Schatten, trägt eine
+  Marke in `userData` und hat ein leeres `raycast` — sonst hätte die Hand
+  plötzlich zwei Kisten unter dem Strahl und bekäme das Kind statt der Kiste.
+  Und wer im Projekt **Objekte abschreibt**, muss ihn kennen: Das kleine Modell
+  in der Menüzeile lässt ihn aus (`denyOutline`, sonst ein schwarzer Klotz in
+  einer vier Zentimeter großen Zeile, und ein Material pro Menü-Neubau, das
+  niemand wegräumt), und die Kopie eines Props nimmt ihn heraus
+  (`stripOutlines` in `cloneVisual` — ein Klon teilt das Material und verliert
+  dabei das leere `raycast`, das ihn harmlos macht). Beide bekommen beim
+  nächsten Durchlauf ihren eigenen.
+- **Ein eigenes Material je Saum**, und ein Skelett bzw. dieselben
+  Instanzmatrizen, wo das Ding eines hat: Ein Wald aus 400 Bäumen soll 400
+  Säume haben und nicht einen am Ursprung, ein Handschuh seinen an der Hand und
+  nicht in der Grundhaltung im Raum. Geteilt wäre das Material auch nur so
+  lange heil, bis die erste Welt beim Verlassen ihren Baum abräumt
+  (`disposeTree`).
+
+Und die **Farbstufen** (`materialLook.ts`) rechnen nicht auf der fertigen
+Farbe, sondern auf dem Licht **ohne** sie: `directDiffuse` ist Beleuchtung mal
+Grundfarbe, und wer das rundet, gibt einer dunklen Kiste eine einzige Stufe und
+einer weißen fünf. Die unterste Stufe ist dabei ausdrücklich **nicht** die
+Null — mit ihr war das Portallabor, in dem das Licht aus zwei Deckenlampen
+kommt, zur Hälfte stockschwarz. Ein Boden von 60 % lässt eine dunkle Fläche
+dunkel bleiben, ohne sie auszulöschen.
 
 Daneben steht ein zweiter Schalter, der mit der Stufe nichts zu tun hat:
 **Texturen**. Er ist die Antwort auf „die Welten sehen aus wie aus Plastik",
 und zwar ohne eine einzige Bilddatei — dieses Projekt lädt keine, und das soll
 so bleiben. Stattdessen rechnet ein Rauschen im Shader
-(`core/proceduralDetail.ts`): Farbunruhe in Flecken von einem halben Meter,
+(`core/materialLook.ts`, dieselbe Datei wie die Farbstufen — ein Material hat
+genau ein `onBeforeCompile`, und zwei Umbauten, die sich gegenseitig
+überschreiben, wären ein Fehler, den man erst sieht, wenn beide Schalter
+zugleich anstehen): Farbunruhe in Flecken von einem halben Meter,
 eine wandernde Rauheit, und daraus über die Bildschirm-Ableitungen ein leichter
 Buckel — dieselbe Rechnung, die three.js für `bumpMap` benutzt, nur mit
 gerechneter statt gelesener Höhe. Vier `#include`-Zeilen von three.js sind die

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { World, WorldContext, WorldPreview } from '../../core/types';
+import { stripOutlines } from '../../core/outlineShell';
 import type { MenuEntry, MenuIcon } from '../../ui/menu';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 import { Portal, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH } from './Portal';
@@ -7728,6 +7729,12 @@ function poseOf(entry: PhysicsBody): Pose7 {
  */
 function cloneVisual(source: THREE.Object3D): THREE.Object3D {
   const clone = source.clone(true);
+  // Der schwarze Saum aus dem Comic-Modus gehört nicht zum Ding, sondern ist
+  // ein zweites Bild davon (`core/outlineShell.ts`): Geklont teilte er sein
+  // Material mit dem Original und verlöre dabei sein leeres `raycast` — die
+  // Kopie hätte also einen Saum, nach dem man greifen kann. Der Durchlauf über
+  // die Szene hängt ihr gleich ihren eigenen an.
+  stripOutlines(clone);
   clone.traverse((child) => {
     const mesh = child as THREE.Mesh;
     if (!mesh.isMesh) return;

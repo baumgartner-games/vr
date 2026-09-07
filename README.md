@@ -49,7 +49,8 @@ gespeicherte Aufstellung zurück.
 Unter **Menü → Grafik** liegen zwei experimentelle Schalter: der
 **Grafik-Modus** — _Einfach_ ist das Bild von bisher, _Schön_ gibt jeder Welt
 Schatten, Spiegelungen aus ihrem eigenen Himmel und ein schärferes Bild in der
-Brille — und **Texturen**, eine Körnung auf allen Oberflächen, die im Shader
+Brille, _Comic_ zeichnet dieselbe Welt mit **schwarzen Konturen** und Licht in
+Stufen — und **Texturen**, eine Körnung auf allen Oberflächen, die im Shader
 gerechnet und nicht geladen wird.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
