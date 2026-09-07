@@ -585,6 +585,41 @@ describe('Die beiden Steigungen', () => {
     }
   });
 
+  it('lässt beide die sanfte hinaufgehen, ohne einen einzigen Absprung', () => {
+    // **Die dritte Bucht.** Dieselbe Höhe wie nebenan, dieselben zwei
+    // Auftritte, dasselbe Ziel — nur ohne Kanten. Auf der Karte ist das keine
+    // Stufe mehr, sondern eine Steigung, und deshalb steht in ihrem Weg kein
+    // Sprung. Dass der Körper darauf wirklich hinaufkommt, kann nur die echte
+    // Engine zeigen (`labPhysics.test.ts`); dass die *Karte* es hergibt, steht
+    // hier.
+    const bay = scenarioOf('gentle');
+    const graph = bakeLab();
+    const foot = baySpot(bay, { lx: -1.25, lz: 6.25 });
+    const deck = baySpot(bay, { lx: -1.25, lz: -6.25 });
+    const from = graph.at(foot.x, foot.z, 0);
+    const to = graph.at(deck.x, deck.z, RAMP.high);
+    expect(from).not.toBe(NO_TILE);
+    expect(to).not.toBe(NO_TILE);
+    for (const profile of ['zombie', 'human']) {
+      const path = findPath(graph, from, to, { profile: profileOf(profile) });
+      expect(path.complete).toBe(true);
+      // **Kein einziger Sprung**, und das ist die eigentliche Aussage: Wo eine
+      // Kante läge, hätte das Abtasten eine Verbindung der Art `jump`
+      // eingetragen, und der Läufer spränge sie ab (`navAgent.leaps`).
+      for (let i = 1; i < path.tiles.length; i++) {
+        const from = path.tiles[i - 1]!;
+        const exit = graph.linksFrom(from).find((one) => one.to === path.tiles[i]);
+        expect(exit?.link.kind).not.toBe('jump');
+      }
+    }
+
+    const run = runBay('gentle', { seconds: 45, player: { lx: 12.5, lz: 40 } });
+    for (const runner of run.runners) {
+      expect(runner.at.y).toBeGreaterThan(RAMP.high - 0.3);
+      expect(runner.arrived).toBe(true);
+    }
+  });
+
   it('lässt den hinauf, dem die Steigung reicht', () => {
     // **Die Gegenprobe zur steilen Bucht.** Ein Kleintier geht steiler als ein
     // Mensch (`CRITTER_PROFILE.maxSlope`) — und derselbe Weg, vor dem der

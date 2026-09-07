@@ -30,6 +30,7 @@ import {
   RAMP,
   ROOF,
   SCENARIOS,
+  rampDeck,
   applyLabMap,
   bayPoint,
   baySpot,
@@ -218,6 +219,7 @@ export class NavLabWorld extends PortalWorld {
     }
 
     for (const bay of SCENARIOS) {
+      this.buildRampDeck(lab, bay);
       this.decorate(lab, bay);
       this.buildSign(lab, bay);
       this.buildKnobs(lab, bay);
@@ -230,6 +232,38 @@ export class NavLabWorld extends PortalWorld {
     // 512-px-Textur, und sechs Konsolen sind vierzig davon.
     this.buildConsole(lab, 'pit');
     this.buildConsole(lab, 'portal');
+  }
+
+  /**
+   * **Der Belag der sanften Rampe** — der einzige Quader dieses Labors, der
+   * nicht achsenparallel steht (`scenarios.rampDeck`).
+   *
+   * Er ist keine Zierde, sondern die Antwort auf eine Messung: Ein NPC ist ein
+   * dynamischer Zylinder und kommt **keine** Stufe hinauf, die er nicht
+   * springt — auch keine von fünf Zentimetern. Eine schiefe Ebene geht er
+   * dagegen mühelos. Die feinen Stufen darunter sind deshalb die *Karte* (nur
+   * achsenparallele Quader findet das Abtasten), dieser Quader ist der
+   * *Boden*, auf dem er wirklich läuft.
+   *
+   * Er läuft **nicht** über `slab()`: Das setzt achsenparallele Quader und
+   * meldet sie so bei der Physik an. Hier wird gedreht, und der Körper muss die
+   * Drehung mitbekommen — sonst stünde in der Physik ein waagerechter Klotz
+   * quer über der Rampe.
+   */
+  private buildRampDeck(parent: THREE.Group, bay: Scenario): void {
+    const deck = rampDeck(bay);
+    if (!deck) return;
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(deck.w, deck.h, deck.d),
+      this.materialFor('block'),
+    );
+    mesh.position.set(deck.x, deck.y, deck.z);
+    mesh.rotation.x = deck.pitch;
+    mesh.name = 'surface:shielded';
+    parent.add(mesh);
+    mesh.updateWorldMatrix(true, false);
+    this.solids.push(mesh);
+    this.physics?.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
   }
 
   private materialFor(kind: LabSolidKind): THREE.Material {

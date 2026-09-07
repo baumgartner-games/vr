@@ -68,7 +68,8 @@ export type ScenarioId =
   | 'levels'
   | 'podium'
   | 'ramp'
-  | 'steep';
+  | 'steep'
+  | 'gentle';
 
 /** Ein Punkt im Maß einer Bucht — `lx` quer, `lz` in die Tiefe (`bayPoint`). */
 export interface BaySpot {
@@ -203,7 +204,93 @@ export const RAMP = {
    * dabei winzig ist, kann es an ihr nicht liegen.
    */
   steep: { foot: 2.5, run: TILE, step: 0.12 },
+  /**
+   * **Die sanfte**: dieselbe Höhe über fünf Kacheln, in Stufen von acht
+   * Zentimetern — 10,9°, und damit die flachste der drei.
+   *
+   * Sie ist auf der Karte keine Kante mehr, sondern eine **Steigung**: Die
+   * größte einzelne Stufe darin (`navBake.edgeStep`) ist kleiner als das, was
+   * jeder hier tritt (`stepUp`), und dann entscheidet der Winkel. Deshalb
+   * plant hier niemand einen Sprung — er geht.
+   */
+  gentle: { foot: 6.25, run: 5 * TILE, step: 0.08 },
 } as const;
+
+/**
+ * **Der Belag der sanften Rampe** — die schiefe Ebene über ihren Stufen.
+ *
+ * Und der Grund, warum es sie überhaupt gibt, ist eine Messung: Ein NPC ist
+ * ein dynamischer Zylinder, und der kommt **keine** Stufe hinauf, die er nicht
+ * springt. Nicht 30 cm, nicht 10, nicht 5 — nachgemessen mit echter Physik
+ * (`labPhysics.test.ts`) sind es null Zentimeter, bei jeder Stufenhöhe. Eine
+ * Rampe aus feinen Stufen wäre also genau das, was die Karte für begehbar
+ * hält und die Welt für eine Wand.
+ *
+ * Eine **schiefe Ebene** dagegen geht er hinauf, und zwar mühelos: bei 9°
+ * genauso wie bei 25°. Also liegt über den Stufen ein gekippter Quader, dessen
+ * Oberseite genau auf ihren Nasen sitzt. Die Stufen sind damit die **Karte**
+ * (achsenparallel, wie alles hier, und deshalb vom Abtasten zu finden), der
+ * Belag ist der **Boden** (gekippt, und deshalb zu gehen). Sie stehen nie
+ * weiter als eine Stufenhöhe auseinander.
+ */
+export interface RampDeck {
+  /** Mitte des Quaders in Weltmetern. */
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  h: number;
+  d: number;
+  /** Neigung um die Weltachse X, in Radiant. */
+  pitch: number;
+}
+
+/** Wie dick der Belag ist, in Metern. */
+const DECK_T = 0.3;
+
+/**
+ * Der Belag der sanften Rampe, in Weltmetern — oder `null` für jede andere
+ * Bucht.
+ *
+ * Er wird aus denselben Zahlen gerechnet wie ihre Stufen (`RAMP.gentle`): Wer
+ * die Rampe flacher macht, macht den Belag mit.
+ */
+export function rampDeck(bay: Scenario): RampDeck | null {
+  if (bay.id !== 'gentle') return null;
+  const plan = RAMP.gentle;
+  const angle = Math.atan2(RAMP.high, plan.run);
+  const flip = bayFacesSouth(bay) ? 1 : -1;
+
+  /**
+   * **Der Belag liegt auf den Nasen** und nicht auf der Ideallinie — deshalb
+   * fängt er eine Trittstufe **vor** dem Fuß der Treppe an.
+   *
+   * Die Oberkante einer Stufe gilt bis zu ihrer Hinterkante; die Linie von
+   * (Fuß, 0) nach (Fuß − Anlauf, Höhe) läge also überall bis zu eine
+   * Stufenhöhe *unter* den Stufen, und die stünden durch den Belag hindurch.
+   * Um genau eine Trittbreite nach vorn geschoben trifft die Linie jede Nase
+   * exakt und liegt dazwischen darüber. Vorn läuft sie dabei auf null aus —
+   * eine Rampe, die mit einer Kante von acht Zentimetern anfängt, ist wieder
+   * genau die Stufe, an der ein Zylinder stehen bleibt.
+   */
+  const tread = plan.run / Math.round(RAMP.high / plan.step);
+  const start = plan.foot + tread;
+  const middle = bayPoint(bay, (RAMP.minLx + RAMP.maxLx) / 2, start - plan.run / 2);
+  return {
+    x: middle.x,
+    // Der Quader liegt eine halbe Dicke unter seiner Oberseite — entlang seiner
+    // **eigenen** Normale und nicht senkrecht, sonst stünde er quer.
+    y: RAMP.high / 2 - (DECK_T / 2) * Math.cos(angle),
+    z: middle.z - (DECK_T / 2) * Math.sin(angle) * flip,
+    w: RAMP.maxLx - RAMP.minLx,
+    h: DECK_T,
+    d: Math.hypot(RAMP.high, plan.run),
+    // Nach hinten steigend heißt in einer Bucht der Nordreihe „nach +Z
+    // fallend"; in der Südreihe zählt die Tiefe andersherum, und die Neigung
+    // mit ihr.
+    pitch: angle * flip,
+  };
+}
 
 /**
  * **Wohin die beiden Steigungen führen** — das Ziel ihrer Auftritte, oben auf
@@ -219,7 +306,9 @@ export const RAMP_TOP: BaySpot = { lx: -1.25, lz: -6.25, y: RAMP.high };
 
 /** Wie die Steigung dieser Bucht gebaut ist — Fuß, Anlauf, Stufenhöhe. */
 export function rampPlan(id: ScenarioId): { foot: number; run: number; step: number } {
-  return id === 'steep' ? RAMP.steep : RAMP.flat;
+  if (id === 'steep') return RAMP.steep;
+  if (id === 'gentle') return RAMP.gentle;
+  return RAMP.flat;
 }
 
 /**
@@ -400,7 +489,7 @@ export const PODIUM_TOP: BaySpot = { ...PODIUM.to, y: PODIUM.high };
  * neben der Kachelgrenze statt darauf, und das Abtasten verschluckte sie still
  * (`scenarios.test.ts`).
  */
-const COLS = [-2 * COL, -COL, 0, COL, 2 * COL] as const;
+const COLS = [-2 * COL, -COL, 0, COL, 2 * COL, 3 * COL] as const;
 
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -545,6 +634,20 @@ export const SCENARIOS: readonly Scenario[] = [
       { kind: 'dummy', lx: 1.25, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
     ],
   },
+  {
+    id: 'gentle',
+    title: 'Sanfte Rampe',
+    watch: 'Dieselbe Höhe, keine Stufe: Hier geht er hinauf, statt zu springen',
+    acts: [],
+    x: COLS[5],
+    z: -ROW,
+    accent: 0x6fe0c0,
+    stand: { lx: -1.25, lz: -6.25, y: RAMP.high },
+    cast: [
+      { kind: 'zombie', lx: -3.75, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+      { kind: 'dummy', lx: 1.25, lz: 6.25, brain: 'errand', goal: RAMP_TOP },
+    ],
+  },
 ];
 
 export function scenarioOf(id: string | undefined): Scenario {
@@ -645,10 +748,11 @@ const INSIDE: Record<ScenarioId, readonly BayWall[]> = {
   ],
   // Rampe und Podeste sind Klötze und keine Wände (`PODIUM`).
   podium: [],
-  // Und die beiden Rampen erst recht: Was hier steht, ist Boden mit einer
+  // Und die drei Rampen erst recht: Was hier steht, ist Boden mit einer
   // Steigung (`RAMP`).
   ramp: [],
   steep: [],
+  gentle: [],
 };
 
 /** Alle Wände einer Bucht — Hülle und Innenleben. */
@@ -909,7 +1013,7 @@ function bayFixtures(bay: Scenario): LabSolid[] {
     });
   }
 
-  if (bay.id === 'ramp' || bay.id === 'steep') {
+  if (bay.id === 'ramp' || bay.id === 'steep' || bay.id === 'gentle') {
     // **Zwanzig Stufen und ein Podest.** Jede Stufe ist ein Quader, der vom
     // Boden bis zu ihrer Höhe reicht — nicht eine Platte auf Stelzen: Das
     // Abtasten sucht Deckel über einer Kachelmitte (`navBake.floorsAt`), und

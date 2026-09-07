@@ -8,9 +8,11 @@ import {
   PODIUM,
   RAMP,
   ROOF,
+  SCENARIOS,
   baySpot,
   labHarm,
   labSolids,
+  rampDeck,
   scenarioOf,
   type ScenarioId,
 } from './scenarios';
@@ -67,6 +69,21 @@ async function runLab(id: ScenarioId, seconds: number): Promise<LabRun> {
   for (const solid of labSolids()) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(solid.w, solid.h, solid.d));
     mesh.position.set(solid.x, solid.y, solid.z);
+    root.add(mesh);
+    mesh.updateWorldMatrix(true, false);
+    physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+  }
+
+  // **Der Belag der sanften Rampe** kommt hier genauso dazu wie in der Welt
+  // (`NavLabWorld.buildRampDeck`): Er ist der einzige gekippte Quader des
+  // Labors, und ohne ihn liefe dieser Test gegen eine Treppe, während in der
+  // Brille eine Rampe steht.
+  for (const bay of SCENARIOS) {
+    const deck = rampDeck(bay);
+    if (!deck) continue;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(deck.w, deck.h, deck.d));
+    mesh.position.set(deck.x, deck.y, deck.z);
+    mesh.rotation.x = deck.pitch;
     root.add(mesh);
     mesh.updateWorldMatrix(true, false);
     physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
@@ -206,7 +223,122 @@ describe('Die beiden Steigungen, mit echter Physik', () => {
       expect(steep.local(npc).y).toBeCloseTo(0, 1);
     }
   }, 120000);
+
+  it('bringt beide die sanfte hinauf, ohne dass einer springt', async () => {
+    // **Die dritte Bucht, und sie behauptet etwas anderes als die zwei
+    // anderen.** Dort geht es um Stufenhöhe und Winkel; hier darum, ob
+    // überhaupt eine Stufe da ist. Ihre feinen 8-cm-Stufen sind die Karte,
+    // gelaufen wird auf dem gekippten Belag darüber (`scenarios.rampDeck`) —
+    // und mit ihm kommt er hinauf, ohne einen einzigen Absprung.
+    const run = await runLab('gentle', 45);
+    for (const npc of run.cast) {
+      expect(run.local(npc).y).toBeGreaterThan(RAMP.high - 0.3);
+      expect(npc.alive).toBe(true);
+    }
+  }, 120000);
 });
+
+describe('Was ein Zylinder ohne Belag schafft', () => {
+  it('kommt keine einzige Stufe hinauf — auch keine von fünf Zentimetern', async () => {
+    // **Die Messung, wegen der es den Belag gibt.** Ein NPC ist ein
+    // dynamischer Körper ohne Schrittautomatik; der Character-Controller, der
+    // den Spieler 32 cm hinaufhebt, gehört dem Spieler allein. Was hier
+    // herauskommt, ist keine kleine Zahl, sondern **null** — und zwar bei
+    // jeder Stufenhöhe. Genau deshalb wäre eine Rampe aus feinen Stufen das,
+    // was die Karte für begehbar hält und die Welt für eine Wand.
+    for (const step of [0.05, 0.15, 0.3]) {
+      expect(await climbedSteps(step)).toBeLessThan(0.01);
+    }
+  }, 120000);
+
+  it('geht dieselbe Höhe als schiefe Ebene mühelos hinauf', async () => {
+    // Die andere Hälfte derselben Messung: Dieselben 2,4 m, dieselbe Sorte,
+    // dasselbe Hirn — nur ohne Kanten dazwischen.
+    expect(await climbedSlope(2.4, 12.5)).toBeGreaterThan(2.3);
+  }, 120000);
+});
+
+/** Wie hoch ein Zombie eine Treppe aus `step` hohen Stufen hinaufkommt. */
+async function climbedSteps(step: number): Promise<number> {
+  const count = 8;
+  const tread = 0.5;
+  return await walkUp(async (add) => {
+    for (let i = 0; i < count; i++) {
+      const h = step * (i + 1);
+      add(6, h, tread, 0, h / 2, -1 - tread / 2 - i * tread, 0);
+    }
+    return { x: 0, y: step * count, z: -2 - count * tread };
+  });
+}
+
+/** Und dieselbe Frage an eine schiefe Ebene: `rise` hoch auf `run` lang. */
+async function climbedSlope(rise: number, run: number): Promise<number> {
+  const angle = Math.atan2(rise, run);
+  const thick = 0.3;
+  return await walkUp(async (add) => {
+    add(
+      6,
+      thick,
+      Math.hypot(rise, run),
+      0,
+      rise / 2 - (thick / 2) * Math.cos(angle),
+      -1 - run / 2 - (thick / 2) * Math.sin(angle),
+      angle,
+    );
+    add(6, rise, 4, 0, rise / 2, -1 - run - 2, 0);
+    return { x: 0, y: rise, z: -1 - run - 2 };
+  });
+}
+
+/**
+ * Ein Zombie mit einem Auftrag, ein Boden, und was der Aufbau dazwischenstellt.
+ * Zurück kommt die größte Höhe, die seine Füße dabei erreicht haben.
+ */
+async function walkUp(
+  build: (
+    add: (w: number, h: number, d: number, x: number, y: number, z: number, pitch: number) => void,
+  ) => Promise<{ x: number; y: number; z: number }>,
+): Promise<number> {
+  const physics = await PhysicsWorld.create(-9.81);
+  const root = new THREE.Group();
+  const add = (
+    w: number,
+    h: number,
+    d: number,
+    x: number,
+    y: number,
+    z: number,
+    pitch: number,
+  ): void => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d));
+    mesh.position.set(x, y, z);
+    mesh.rotation.x = pitch;
+    root.add(mesh);
+    mesh.updateWorldMatrix(true, false);
+    physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+  };
+  add(40, 1, 40, 0, -0.5, 0, 0);
+  const goal = await build(add);
+
+  const npc = new Npc({
+    physics,
+    kind: 'zombie',
+    brain: 'errand',
+    at: new THREE.Vector3(0, 0, 2),
+    yaw: 0,
+    errand: new THREE.Vector3(goal.x, goal.y, goal.z),
+  });
+  root.add(npc.holder);
+
+  const feet = new THREE.Vector3();
+  let best = 0;
+  for (let frame = 0; frame < Math.round(25 / DT); frame++) {
+    npc.update(DT, null, Math.random, null);
+    physics.step(DT);
+    best = Math.max(best, npc.feet(feet).y);
+  }
+  return best;
+}
 
 describe('Vom Dach herunter, mit echter Physik', () => {
   it('lässt den Zombie springen und den Hamster oben', async () => {

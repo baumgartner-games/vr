@@ -4823,17 +4823,17 @@ Eine Zahl, die man dabei falsch macht: **Eine Tafel schaut nach +Z**, ein
 Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt sie mit dem
 Rücken zum Raum an die Wand und sieht eine schwarze Platte.
 
-**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: zehn Buchten,
-zehn rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
+**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: elf Buchten,
+elf rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
 langer Gang um zwei Ecken, Stachelgrube (Zombie hinein und liegen bleiben,
 Puppe dicht daran vorbei), Kiste im
 Weg, **zu enger Gang**, Tür fällt hinter dem Verfolger zu, Portal, von dem nur
-einer weiß, die Dachkante, **Podest und Sprung** und die beiden **Steigungen**.
+einer weiß, die Dachkante, **Podest und Sprung** und die drei **Steigungen**.
 Der Grundriss ist geprüft
 (`scenarios.test.ts`), bevor er gebaut ist: Zwei Buchten, die sich überlappen,
 sieht man in der Brille erst daran, dass ein Zombie durch eine Wand kommt.
 
-Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
+Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
 
 - **Zu enger Gang.** Eine Wand mit einer Lücke von einer Kachel, in die zwei
   Pfosten hineinragen, bis 45 cm übrig sind. Beide Hälften müssen stimmen: In
@@ -4850,9 +4850,8 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   selbst ein**, mit zwei Kachelmitten in `applyLabMap`; heute findet das
   Abtasten sie (`navBake.joinGap`), und wer das Podest um eine Kachel
   verschiebt, verschiebt den Sprung mit.
-- **Flache Steigung** und **steile Steigung**, zwei Buchten, die sich
-  gegenüberstehen und dieselbe Höhe hinaufführen — 2,4 m auf ein Podest, auf
-  dem der Spieler steht. Der NPC will hier **nicht** zuschlagen, sondern nach
+- **Flache**, **steile** und **sanfte Steigung**, drei Buchten, die dieselbe
+  Höhe hinaufführen — 2,4 m auf ein Podest, auf dem der Spieler steht. Der NPC will hier **nicht** zuschlagen, sondern nach
   oben, und seit der zweiten Fassung steht das auch so in den Daten
   (`BayCast.brain`, `BayCast.goal`): Die drei Buchten, die vorführen, dass man
   irgendwo hinaufkommt — beide Steigungen und das Podest —, bekommen das Hirn
@@ -4874,15 +4873,34 @@ Vier von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
     nicht bloß herumsteht, ist der Grund, warum auch diese Bucht das
     Auftrags-Hirn bekommt: Beide wollen hinauf, und beide bleiben unten — erst
     dann sagt die Bucht etwas.
+  - Die **sanfte** ist die dritte, und sie behauptet etwas ganz anderes als die
+    beiden: nämlich, dass es an der **Stufe** liegt und nicht am Winkel. 2,4 m
+    über fünf Kacheln sind 10,9°, flacher als alles hier — und ihre Stufen sind
+    acht Zentimeter hoch. Damit ist sie auf der Karte keine Kante mehr, sondern
+    eine *Steigung* (`navProfile.canTraverse`), und in ihrem Weg steht kein
+    einziger Sprung. Man sieht zwei NPCs, die die Rampe **hinaufgehen**.
 
   Dass ausgerechnet die flache Bucht die groben Stufen hat, ist keine
   Nachlässigkeit, sondern die Engine: **Ein NPC ist ein dynamischer Zylinder
-  ohne Schrittautomatik.** Er kommt keine Stufe hinauf, die er nicht *springt*
-  — auch keine von vier Zentimetern; das ist nachgemessen und nicht geraten.
-  Eine flache Rampe aus zwanzig feinen Stufen wäre deshalb kein sanfter
-  Aufstieg, sondern ein NPC, der an der ersten steht. Mit dem
-  Character-Controller für NPCs (weiter unten, „was noch fehlt") werden aus den
-  vier Stufen zwanzig, und die Bucht behauptet dann dasselbe.
+  ohne Schrittautomatik.** Der Character-Controller, der den Spieler 32 cm
+  hinaufhebt, gehört dem Spieler allein; ein Zylinder, den man waagerecht gegen
+  eine Kante schiebt, bleibt daran stehen. Das ist inzwischen **gemessen und
+  nicht mehr behauptet** (`labPhysics.test.ts`): Bei Stufen von 30, 15 und
+  fünf Zentimetern kommt er *null* Zentimeter hinauf — bei jeder Höhe. Eine
+  flache Rampe aus zwanzig feinen Stufen wäre deshalb genau das, was die Karte
+  für begehbar hält und die Welt für eine Wand.
+
+  **Deshalb hat die sanfte Rampe einen Belag** (`scenarios.rampDeck`): einen
+  gekippten Quader, dessen Oberseite genau auf den Nasen ihrer Stufen liegt.
+  Dieselbe Messung sagt nämlich auch die andere Hälfte: Eine **schiefe Ebene**
+  geht derselbe Zylinder mühelos hinauf, bei 9° wie bei 25°. Die Stufen sind
+  damit die **Karte** — achsenparallel, und nur das findet das Abtasten —, der
+  Belag ist der **Boden**, auf dem wirklich gelaufen wird. Er ist der einzige
+  Quader dieses Labors, der nicht achsenparallel steht, und er kommt aus
+  denselben Zahlen wie die Stufen darunter: Wer die Rampe flacher macht, macht
+  ihn mit. Dass er die Stufen nirgends durchstechen lässt, hält ein Test ohne
+  Brille fest — steht auch nur eine einen Zentimeter durch ihn hindurch, ist
+  das wieder die Kante, an der ein Zylinder stehen bleibt.
 - **Und auf dem Dach steht jetzt ein Hamster** (`npcKinds.ts`,
   `CRITTER_PROFILE`). Er sieht denselben Spieler wie der Zombie neben ihm, hat
   dieselbe Karte und denselben Weg — und bleibt oben, weil ihn die einzige
@@ -5156,7 +5174,7 @@ Zahl hinter „läuft Manhattan-mäßig".
 
 Die andere ist die **Werkzeugseite**: Auf `tools.html#welt/navlab` steht unter
 dem Bild der Knopf **Laufen lassen**. Er baut dieselbe Welt mit echter Physik,
-kippt die Ansicht senkrecht nach unten und legt die zehn Buchten samt ihren
+kippt die Ansicht senkrecht nach unten und legt die elf Buchten samt ihren
 Knöpfen als Zeilen daneben — dazu die sieben Debug-Ebenen als Schalter, die
 **drei Schalter der Navigation** in derselben Reihe (gestrichelt umrandet, und
 sie tragen ihr „aus" im Namen: an ist der Normalfall und soll ruhig sein) und
