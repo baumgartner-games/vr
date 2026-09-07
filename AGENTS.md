@@ -119,7 +119,15 @@ statt sofort zu laufen und ihren Anlauf verliert, sobald der Halt wieder
 wegrutscht) und der **Vibration**, die dazu in die Hand geht
 (`src/worlds/climb/gripHaptics.ts` — guter Halt kurz und hart, schlechter
 schwach und lang, das Ticken schneller statt lauter; und dass beim Zupacken
-selbst nicht getickt wird, weil dort schon der Schlag saß), der **Konfig-Code**
+selbst nicht getickt wird, weil dort schon der Schlag saß) und die **Federung
+der Sprungkissen** (`src/worlds/climb/crashPad.ts` — dass ein Sturz vom
+höchsten Podest das Kissen nicht durchschlägt, dass der Blick dabei trotzdem
+mindestens eine Zehntelsekunde in Bewegung bleibt statt in einem Bild
+anzuhalten, dass eine Feder dafür genau richtig ist, weil ihre Zeit nach unten
+**nicht** am Aufpralltempo hängt — anders als jede feste Bremsstrecke, die den
+harten Sturz umso härter bremst —, dass sie bei 45 Hz dasselbe tut wie bei 120,
+und dass die Rampe oben an der Kissenkante und unten auf dem Boden ankommt und
+dabei flacher bleibt als das, was der Körper noch hinaufsteigt), der **Konfig-Code**
 (`src/core/configCode.ts` — packen und wieder auspacken, inklusive Tippfehler
 und abgeschnittener Zeile), die **Trefferwertung des Schießstands**
 (`src/worlds/range/scoring.ts` — Ringe, Platten und der Vorlauf, ohne den die
@@ -1969,8 +1977,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   passiert nichts davon außer dem Schlag beim Zupacken — eine Welt, in der auch
   das sichere Material vibriert, hat kein sicheres Material mehr.
 
-  **Die Halle** ist eine Lehrtafel: 26 × 18 m, 10 m hoch, Boden ganz aus
-  Matten, und jede Wand beantwortet genau eine Frage. **Leiterwand** (perfektes
+  **Die Halle** ist eine Lehrtafel: 25 × 20 m, 10 m hoch, Boden ganz aus
+  Matten, zwei große **Sprungkissen** davor (siehe unten), und jede Wand
+  beantwortet genau eine Frage. **Leiterwand** (perfektes
   Material, der Nullpunkt und der Weg nach oben für jeden, der erst einmal
   sehen will, wie hoch es hier ist), **Rauwand** mit einer Route von Henkeln
   über Leisten bis zu Ballen und blanken Flächen, daneben der **Riss** (eine
@@ -2036,7 +2045,71 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Die rechte Spur der Rauwand bekommt dazu oben eine **Querung** aus drei
   Henkeln, weil die Leiter am Kopf der linken steht.
 
-  Wer wieder hinunter will, springt in die Matten oder nimmt _Zurück auf die
+  **Der Weg hinunter: die Sprungkissen** (`climb/crashPad.ts`, mit Test —
+  reine Zahlen, kein three.js). Jeder nimmt von oben denselben Weg zurück, und
+  bis vor kurzem endete er an einer Bodenplatte: Der Kopf fällt mit gut zehn
+  Metern in der Sekunde, und **im nächsten Bild steht er still**. Das ist in
+  der Brille kein Aufkommen, sondern der kürzeste Weg zur Übelkeit — das Auge
+  meldet eine Vollbremsung, von der der Gleichgewichtssinn nichts mitbekommen
+  hat, und genau diese Lücke ist es, aus der Motion Sickness entsteht. Ein
+  Fall lässt sich in VR nicht abschaffen, sein **Ende** schon. Also steht dort
+  jetzt, was in einer echten Halle auch dort steht: zwei große Kissen, 1,40 m
+  dick, in die man einsinkt.
+
+  **Sie sind wirklich weich und nicht nur blau.** Jedes Kissen ist eine
+  **Feder mit Dämpfer**, und seine Oberfläche ist der Boden, auf dem man steht:
+  ein **kinematischer** Körper, der jedes Bild um die Einsinktiefe nach unten
+  gesetzt wird, mit dem gestauchten Quader darüber. Wer daraufspringt, drückt
+  ihn hinunter; der Blick fährt mit, wird langsamer, kehrt um und wird wieder
+  herausgeschoben. Aus dem einen Bild werden gut acht Zehntelsekunden, und
+  keines davon ist ein Ruck.
+
+  **Warum eine Feder und keine Bremsstrecke.** Bei einer Feder hängt die Zeit
+  bis zum tiefsten Punkt _nicht_ am Aufpralltempo — sie ist ihre Viertelperiode
+  und damit für den Stolperer dieselbe wie für den Sprung aus sechs Metern.
+  Eine feste Bremsstrecke täte das Gegenteil: Je schneller jemand ankommt,
+  desto härter bremst sie ihn, und der Sturz vom höchsten Podest wäre der
+  einzige, bei dem es wieder schlägt. Die eine Zahl, um die es geht, ist
+  deshalb die **Kreisfrequenz** (`PAD_OMEGA` = 7 → gut anderthalb
+  Zehntelsekunden nach unten); dass ein Sprung von oben trotzdem nicht
+  durchschlägt, macht die **progressive Härte** — ein halb zusammengedrücktes
+  Kissen wehrt sich stärker als eines in Ruhe, so wie Luft in einem Sack. Die
+  Dämpfung liegt knapp unter der kritischen, damit ein Rest Rückstoß bleibt und
+  einen wieder heraushebt, ohne dass es zum Trampolin wird (Überschwinger unter
+  sieben Zentimetern).
+
+  **Geführt wird der Körper über den Flugmodus** (`setFlight`) — dieselbe Tür,
+  durch die auch das Klettern geht —, und zwar **nur bis zum tiefsten Punkt**.
+  Danach steigt die Fläche wieder, und eine Fläche, die von unten kommt, hebt
+  einen von selbst an; der Umkehrpunkt ist außerdem der Moment, in dem der
+  Körper stillsteht, also der beste zum Loslassen. Der Stick ist damit nur eine
+  gute Zehntelsekunde lang aus statt eine ganze Sekunde. Ein Problem der
+  Reihenfolge steckt darin: Die Fortbewegung rechnet **vor** der Welt (`App`),
+  wer also in derselben Frame aufkommt, hat sein Falltempo schon verloren,
+  bevor das Kissen davon erfährt — ein Kissen, das mit 0 m/s zupackt, ist eine
+  Bodenplatte mit Farbe. Deshalb zwei Wege ans Tempo: ein Bild **Vorhalt**
+  (gefangen wird, wer im nächsten Bild ohnehin darin stünde) und das gemerkte
+  Falltempo als Netz darunter.
+
+  **Wo sie liegen, entscheiden die Podestkanten und nicht die Wände.** Ein
+  Kissen am Wandfuß wäre eine Bouldermatte — die verschluckte die untersten
+  Griffe jeder Route, und man finge 1,20 m über dem Boden an zu klettern. Die
+  beiden liegen deshalb frei in der Halle, jedes vor der Vorderkante der
+  Podeste, von denen aus gesprungen wird: das große vor Rauwand und Riss
+  (bündig an die Westwand des Kamins, ein Schlitz dazwischen sähe aus wie eine
+  Ritze zum Hineinfallen), das zweite vor Überhang und Glattwand. Dazwischen
+  bleibt der Streifen zum Einstieg in den Kamin. Dazu **je eine Rampe**, sonst
+  wäre ein Kissen eine Falle: Der Körper steigt Stufen bis 32 cm (Autostep),
+  ein Kissen ist 1,40 m hoch — ein Keil von 25° ist flacher als alles, was
+  diese Fortbewegung noch hinaufkommt, und ein Bauteil statt einer Treppe aus
+  vieren.
+
+  In einer **geteilten Sitzung** rechnet jeder Client seine eigenen Kissen: Man
+  sieht das Kissen unter dem eigenen Sprung einsinken, nicht das unter dem
+  eines Mitspielers. Das ist der billige Weg und für eine Federung, die eine
+  halbe Sekunde dauert, auch der richtige.
+
+  Wer wieder hinunter will, springt in die Kissen oder nimmt _Zurück auf die
   Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
   und keine zweiten: Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton,
   glatter den dunklen; den Rest macht die Oberfläche, denn glatter Fels glänzt
@@ -2343,6 +2416,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
 | Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der Stick aus | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
+| Sprungkissen (Kletterhalle)        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                  | dito                                                                                            | dito                 |
 | Halt-Anzeige (Kletterhalle)        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                | dito                                                                                            | dito                 |
 | Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
 | Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
