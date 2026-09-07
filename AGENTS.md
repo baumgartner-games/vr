@@ -1742,11 +1742,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     _rauer Fels_ (0,44) und _glatter, glänzender Fels_ (0,24). Dazu, was jedes
     an Ausdauer frisst: 0, 1 und 1,9.
   - **Form**, aber nur so weit die Hand wirklich daraufsitzt (`seat`): Sprosse
-    +0,36, Henkel +0,34, Spalte +0,30, Kante +0,26, Ballen +0,06, blanke
-    Fläche nichts. Eine um einen halben Handteller verfehlte Kante ist keine
-    Kante, sondern eine Wand — und genau das ist „wer keine gute Kante
-    erwischt“. Leisten, Sprossen und Risse haben dafür eine **Achse**: An
-    ihnen entlang darf man überall zupacken, darüber und darunter nicht.
+    und Holm +0,36, Henkel +0,34, Spalte +0,30, Kante +0,26, Ballen +0,06,
+    blanke Fläche nichts. Eine um einen halben Handteller verfehlte Kante ist
+    keine Kante, sondern eine Wand — und genau das ist „wer keine gute Kante
+    erwischt“. Leisten, Sprossen, Risse und Holme haben dafür eine **Achse**:
+    An ihnen entlang darf man überall zupacken, darüber und darunter nicht.
+    Beim Holm ist das der ganze Punkt — er ist eine Strebe von zwei Metern
+    Länge, an der man sich entlanghangelt (siehe **Oben ankommen**).
   - **Verspreizen** (Jamming): Stehen zwei Hände an **entgegengesetzten**
     Flächen, gibt es bis zu +0,40 — abhängig davon, wie genau sie gegeneinander
     stehen _und_ wie nah die Hände beieinander sind. Druck braucht einen
@@ -1837,19 +1839,39 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
   Durchpassen ist aber nur die halbe Miete: Oben aus dem Schacht heraus hängt
   man zwar über Podesthöhe, doch der Boden liegt **neben** einem und nicht
-  unter einem. Dafür steht in jedem Schacht eine **Ausstiegsleiter**
+  unter einem. Dafür steht in jedem Schacht eine **Ausstiegshilfe**
   (`ClimbWorld.topout`), eine je Route — Rauwand, Riss, Leiterwand, Glattwand,
-  Überhang und Kamin. Sie lehnt nach außen: unten an der Wand, dort wo die
-  Route aufhört, und mit den obersten Sprossen **einen halben Meter über der
-  Podestkante**. Wer sich an der letzten Sprosse hochzieht, hängt am Ende über
-  dem Blech statt über dem Schacht, und Loslassen heißt dann stehen. Ihre
-  Sprossen sind **perfektes Material**: Der Ausstieg ist der Moment, in dem
-  die Ausdauer ohnehin am Ende ist, und eine Leiter, die einen dort abwirft,
-  wäre keine. Sie hat mit Absicht **keinen Körper für die Physik** — der Weg
-  des Kletterers führt genau durch sie hindurch, und an einem Querholm, an dem
-  der Kopf hängen bleibt, hätte man nur einen zweiten Ort zum Feststecken
-  gewonnen. Die rechte Spur der Rauwand bekommt dazu oben eine **Querung** aus
-  drei Henkeln, weil die Leiter am Kopf der linken steht.
+  Überhang und Kamin. Sie hat die Form, die sie hat, wegen zweier Dinge, die
+  beide erst im Headset auffallen:
+
+  1. **Ein Griff auf Podesthöhe reicht nicht.** Wer sich an der Kante
+     hochzieht, hängt am Ende _an_ ihr: Die Hand ist oben, die Füße baumeln im
+     Schacht, und der Boden ist zwar in Reichweite, aber nicht unter einem.
+     Deshalb geht die Hilfe **1,70 m über die Podestoberkante hinaus**
+     (`TOPOUT_ABOVE`) — erst ein Griff über Kopfhöhe über dem Blech lässt einen
+     so weit hochziehen, dass die Füße über dessen Kante kommen, und wer oben
+     steht, hat ihn immer noch in der Hand.
+  2. **Eine schräge Leiter steht im eigenen Weg.** Zuerst lehnte sie nach
+     außen, über den Schacht — also über genau die Strecke, die der Kletterer
+     nach oben nimmt —, und man stieß von unten gegen ihre Unterseite. Deshalb
+     steht sie jetzt **senkrecht** im Schacht und geht oben **um die Ecke**:
+     Ihre beiden Holme laufen auf Ausstiegshöhe waagerecht weiter und
+     **einen Meter über die Podestkante** hinein (`TOPOUT_OVER`), mit
+     Sprossen dazwischen. Dort hängt man sich lang, hangelt sich hinüber und
+     lässt über dem Boden los.
+
+  Und weil man beim Hangeln nicht nach Sprossen suchen will, ist an ihr
+  **alles anfassbar**: die Sprossen ohnehin, aber auch die beiden **Holme auf
+  ihrer ganzen Länge**. Das ist die Griffart `rail` (`ClimbWorld.bar`) — kein
+  Punkt an einer Wand, sondern eine _Strecke_ mit Achse: Man greift hin, wo man
+  gerade ist, senkrecht wie waagerecht, und die Hand hängt genau dort. Alles
+  daran ist **perfektes Material**: Der Ausstieg ist der Moment, in dem die
+  Ausdauer ohnehin am Ende ist, und eine Leiter, die einen dort abwirft, wäre
+  keine. Sie hat mit Absicht **keinen Körper für die Physik** — der Weg des
+  Kletterers führt genau durch sie hindurch, und an einem Querholm, an dem der
+  Kopf hängen bleibt, hätte man nur einen zweiten Ort zum Feststecken gewonnen.
+  Die rechte Spur der Rauwand bekommt dazu oben eine **Querung** aus drei
+  Henkeln, weil die Leiter am Kopf der linken steht.
 
   Wer wieder hinunter will, springt in die Matten oder nimmt _Zurück auf die
   Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`

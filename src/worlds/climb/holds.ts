@@ -32,8 +32,15 @@ import { GRAB_GLOW, GRAB_TINT, GRAB_TINT_DARK } from '../../core/colors';
 /** Woraus die Oberfläche besteht. */
 export type HoldMaterial = 'perfect' | 'rough' | 'smooth';
 
-/** Welche Form die Hand vorfindet. */
-export type HoldFeature = 'rung' | 'jug' | 'crack' | 'edge' | 'sloper' | 'flat';
+/**
+ * Welche Form die Hand vorfindet.
+ *
+ * Der **Holm** ist der Sonderfall unter ihnen: keine Stelle, sondern eine
+ * ganze Strecke. Er hängt nicht an einer Wand, sondern ist die Strebe einer
+ * Ausstiegshilfe (`ClimbWorld.bar`) — man fasst ihn an, wo man gerade ist, und
+ * zieht sich an ihm entlang.
+ */
+export type HoldFeature = 'rung' | 'rail' | 'jug' | 'crack' | 'edge' | 'sloper' | 'flat';
 
 export interface MaterialSpec {
   label: string;
@@ -66,6 +73,7 @@ export interface FeatureSpec {
 
 export const HOLD_FEATURES: Readonly<Record<HoldFeature, FeatureSpec>> = {
   rung: { label: 'Sprosse', bonus: 0.36 },
+  rail: { label: 'Holm', bonus: 0.36 },
   jug: { label: 'Henkel', bonus: 0.34 },
   crack: { label: 'Spalte', bonus: 0.3 },
   edge: { label: 'Kante', bonus: 0.26 },
@@ -89,9 +97,15 @@ export function holdColor(material: HoldMaterial): number {
   return material === 'rough' ? GRAB_TINT : GRAB_TINT_DARK;
 }
 
-/** Wie eine Griffart in einer Meldung heißt: „Rauer Fels · Kante“. */
+/**
+ * Wie eine Griffart in einer Meldung heißt: „Rauer Fels · Kante“.
+ *
+ * Beim perfekten Material steht nur die Form da — „Sprosse“, „Holm“. Es hat ja
+ * keinen zweiten Namen: Wer an einer Leiter hängt, will wissen, *was* er in der
+ * Hand hat, und nicht, dass es aus Leiter besteht.
+ */
 export function holdLabel(material: HoldMaterial, feature: HoldFeature): string {
   const spec = HOLD_MATERIALS[material];
-  if (material === 'perfect') return spec.label;
+  if (material === 'perfect') return HOLD_FEATURES[feature].label;
   return `${spec.label} · ${HOLD_FEATURES[feature].label}`;
 }
