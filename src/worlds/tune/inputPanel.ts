@@ -56,12 +56,14 @@ export const FREEZE_SIZE = 0.3;
  * Die Zeilen der Tafelwand, von unten nach oben:
  *
  * ```
- *            ┌──────── Eingaberaum ────────┐
- *            │  Aufnahme        [ Start ]  │
- *   ( Lage ) │   ▣ links      ▣ rechts     │ ( Lage )
- *            │ [ linke Hand ] [ rechte H ] │
- *            └─────────────────────────────┘
+ *              ┌──────── Eingaberaum ────────┐
+ *              │  Aufnahme        [ Start ]  │
+ *   ( Lage ) ▮▮│   ▣ links      ▣ rechts     │▮▮ ( Lage )
+ *              │ [ linke Hand ] [ rechte H ] │
+ *              └─────────────────────────────┘
  * ```
+ *
+ * Die beiden `▮▮` sind der Zug an Trigger und Griff (`PullGauge.ts`).
  *
  * `x` ist dabei der Betrag: jede Hand bekommt ihre Seite, die linke mit
  * umgekehrtem Vorzeichen.
@@ -75,6 +77,14 @@ export const PANEL = {
   recordButton: { x: 0.66, y: 2.03, width: 0.8, height: 0.34 } as Rect,
   /** Das lebende Modell des Geräts, je Hand. */
   model: { x: 0.45, y: 1.6, width: MODEL_SIZE, height: MODEL_SIZE } as Rect,
+  /**
+   * Wie weit Trigger und Griff gezogen sind, als zwei Balken (`PullGauge.ts`).
+   *
+   * Zwischen dem Modell und der eingefrorenen Lage, auf der Höhe des Modells:
+   * Was da gemessen wird, ist ein Analogwert desselben Geräts, und es soll im
+   * selben Blick stehen wie das Gerät.
+   */
+  pull: { x: 0.74, y: 1.6, width: 0.2, height: 0.26 } as Rect,
   /** Die eingefrorene Lage, außen daneben. */
   freeze: { x: 1.06, y: 1.6, width: FREEZE_SIZE, height: FREEZE_SIZE } as Rect,
   /** Was gedrückt ist und wie das Gerät liegt — eine Tafel je Hand. */
@@ -82,7 +92,7 @@ export const PANEL = {
 } as const;
 
 /** Was es zweimal gibt, einmal je Hand — der Rest steht einmal da. */
-export const PER_HAND: ReadonlySet<string> = new Set(['model', 'freeze', 'board']);
+export const PER_HAND: ReadonlySet<string> = new Set(['model', 'pull', 'freeze', 'board']);
 
 /** Dasselbe Rechteck für die linke Seite: gespiegelt an der Mitte. */
 export function mirrored(rect: Rect): Rect {

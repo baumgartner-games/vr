@@ -47,6 +47,37 @@ describe('clampKart', () => {
   });
 });
 
+describe('KART_FIELDS', () => {
+  it('keeps every notch inside the range it belongs to', () => {
+    for (const entry of KART_FIELDS) {
+      for (const step of entry.steps) {
+        expect(step).toBeGreaterThanOrEqual(entry.min);
+        expect(step).toBeLessThanOrEqual(entry.max);
+      }
+    }
+  });
+
+  it('has the standard kart sitting on a notch of every value', () => {
+    // Sonst springt die erste Rast beim Antippen irgendwohin, statt zur
+    // nächsten — und niemand findet den Ausgangswert wieder.
+    for (const entry of KART_FIELDS) {
+      expect(entry.steps).toContain(DEFAULT_KART[entry.key]);
+    }
+  });
+
+  it('lets the tyres go properly slippery', () => {
+    const traction = field('traction');
+    expect(traction.min).toBeLessThanOrEqual(0.05);
+    expect(Math.min(...traction.steps)).toBeLessThanOrEqual(0.05);
+  });
+
+  it('lets the head be screwed to the kart again', () => {
+    // Die eine Einstellung, deren Null einen Sinn hat: kein Nachlauf.
+    expect(field('headLag').min).toBe(0);
+    expect(field('headLag').steps).toContain(0);
+  });
+});
+
 describe('nextKartStep', () => {
   it('steps to the next notch', () => {
     expect(nextKartStep(field('topSpeed'), 45)).toBe(65);

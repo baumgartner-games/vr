@@ -35,6 +35,8 @@ const REAR_RADIUS = 0.18;
 const EYE_HEIGHT = 1.02;
 
 const _local = new THREE.Vector3();
+const _pivot = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * One go-kart: a chassis to look at, a steering wheel to take hold of, a seat
@@ -210,10 +212,21 @@ export class Kart extends THREE.Group {
   /**
    * The angle of a hand around the middle of the steering wheel, seen by the
    * driver: bigger is anticlockwise, which is a turn to the left.
+   *
+   * **`lag` nimmt heraus, dass der Kopf nachzieht.** Die Hand hängt am Rig, das
+   * Lenkrad am Kart, und seit sich die beiden nicht mehr im selben Bild drehen
+   * (`kartView.ts`), wandert eine völlig stillgehaltene Hand um die Nabe —
+   * das Lenkrad drehte sich unter ihr weg und lenkte dabei mit. Wer den
+   * Rückstand vorher aus dem Punkt herausdreht, misst wieder das, was die Hand
+   * wirklich getan hat, und nichts sonst.
    */
-  handAngle(worldPoint: THREE.Vector3): number {
+  handAngle(worldPoint: THREE.Vector3, lag = 0): number {
     this.wheelMount.updateWorldMatrix(true, false);
     _local.copy(worldPoint);
+    if (lag !== 0) {
+      this.getWorldPosition(_pivot);
+      _local.sub(_pivot).applyAxisAngle(UP, lag).add(_pivot);
+    }
     this.wheelMount.worldToLocal(_local);
     return Math.atan2(_local.y, _local.x);
   }

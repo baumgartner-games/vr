@@ -39,9 +39,9 @@ export const WORLDS: WorldDefinition[] = [
   {
     id: 'kart',
     title: 'Gokart',
-    tagline: 'Kleine Strecke, vier Karts',
+    tagline: 'Strecke aus Bauteilen, vier Karts in der Box',
     description:
-      'Lenkrad greifen und einsteigen. Rechter Trigger Gas, linker bremst, Klemmbrett stellt alles ein.',
+      'In der Boxengasse einsteigen und nach rechts auf die Gerade. Rechter Trigger Gas, linker bremst, Klemmbrett stellt alles ein — bis hin dazu, wie weit der Kopf der Lenkung nachzieht.',
     accent: 0x5ee0a0,
     roles: ['vr', 'desktop'],
     experimental: true,

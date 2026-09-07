@@ -228,14 +228,39 @@ export class InputModel extends THREE.Group {
       if (on) down.push(label);
     };
 
-    lit('trigger', state.trigger.pressed, 'Trigger');
-    lit('grip', state.squeeze.pressed, 'Greifen');
+    /**
+     * **Trigger und Griff sind nicht an oder aus, sondern gezogen.**
+     *
+     * Das Gamepad meldet für beide einen Wert zwischen 0 und 1, und WebXR sagt
+     * getrennt davon, ab wann die Laufzeitumgebung das ein „Drücken" nennt.
+     * Beides gehört hierher: Ein halb gezogener Trigger stand vorher gar nicht
+     * da, und ein Trigger, der nach Gefühl bis zum Anschlag geht, aber bei 80 %
+     * aufhört, war nicht zu erkennen. Der Leuchtpunkt bleibt das Drücken, die
+     * Zahl ist der Zug — und ein Balken daneben zeichnet ihn (`PullGauge.ts`).
+     *
+     * Gerundet auf fünf Prozent: Die Tafel wird neu gemalt, sobald sich diese
+     * Zeile ändert, und eine Zahl, die bei jeder Handbewegung um ein Prozent
+     * zappelt, ist eine Leinwand je Bild.
+     */
+    const pull = (
+      key: string,
+      button: { pressed: boolean; value: number },
+      label: string,
+    ): void => {
+      this.light(key, button.pressed);
+      // Ohne Gamepad bleibt nur die Taste — dann ist gedrückt gleich ganz.
+      const value = button.value || (button.pressed ? 1 : 0);
+      if (value <= 0 && !button.pressed) return;
+      down.push(`${label} ${Math.round(value * 20) * 5} %`);
+    };
+
+    pull('trigger', state.trigger, 'Trigger');
+    pull('grip', state.squeeze, 'Greifen');
     lit('primary', state.primary.pressed, this.side === 'left' ? 'X' : 'A');
     lit('secondary', state.secondary.pressed, this.side === 'left' ? 'Y' : 'B');
     lit('stick', state.stick.pressed, 'Stick gedrückt');
 
-    // The two analogue things move rather than light up: a trigger that is
-    // half pulled says something a lamp cannot. Am echten Modell macht das
+    // Der Stick bewegt sich mit, statt zu leuchten. Am echten Modell macht das
     // Profil dasselbe von selbst und genauer — dort wäre eine zweite Hand an
     // denselben Knoten nur ein Ruckeln.
     const { x, y } = state.thumbstick;
