@@ -3288,13 +3288,20 @@ export class TuneWorld extends PortalWorld {
 }
 
 function handPosition(controller: ControllerState, target: THREE.Vector3): THREE.Vector3 {
-  const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
-  return anchor.getWorldPosition(target);
+  return handAnchor(controller).getWorldPosition(target);
 }
 
-/** The node a hand hangs on: the grip, or the ray when there is no grip. */
+/**
+ * The node a hand hangs on: the grip, or the ray when there is no grip.
+ *
+ * Es ist derselbe Knoten, an dem im Spiel ein Werkzeug hängt
+ * (`ControllerState.hold`) — und das muss er sein: was hier gemessen wird, ist
+ * die Lage eines Werkzeugs **gegen die Hand**, und gegen eine andere Hand
+ * gemessen wäre jede Zahl um den Versatz der bloßen Hand daneben
+ * (`core/handHold.ts`).
+ */
 function handAnchor(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
+  return controller.hold;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   type HandGesture,
   type HandJoints,
 } from './handGestures';
+import { handHoldTilt } from './handHold';
 
 export type Handedness = 'left' | 'right';
 
@@ -62,6 +63,23 @@ export class ControllerState {
   /** The stick pressed in like a button — sprint on the left, crouch on the right. */
   readonly stick = new ButtonState();
   readonly thumbstick = new THREE.Vector2();
+  /**
+   * **Der Knoten, an dem hängt, was diese Hand hält** — Werkzeug wie
+   * Gegenstand.
+   *
+   * Am Controller ist er der *Griffraum* der Brille und sonst nichts: er sitzt
+   * darin, ohne ihn zu drehen, und alles bleibt, wie es war. Eine **getrackte
+   * Hand** hat keinen Griffraum (three.js lässt ihn stehen, weil eine Hand
+   * keine `gripSpace` meldet), also sitzt er dort im Zeigestrahl — und um den
+   * gemessenen Versatz gedreht, damit ein Gegenstand aufrecht in der Faust
+   * liegt und ein Werkzeug dorthin zielt, wohin die Hand zeigt
+   * (`handHold.ts`).
+   *
+   * Er steht **immer am selben Ort** wie der Raum, in dem er hängt — gedreht
+   * wird, nicht verschoben. Wer nur wissen will, *wo* eine Hand ist, bekommt
+   * hier also dieselbe Antwort wie vorher.
+   */
+  readonly hold = new THREE.Group();
   /** Index fingertip object, provided by the hand visuals. */
   fingertip: THREE.Object3D | null = null;
   /**
@@ -134,6 +152,8 @@ export class ControllerState {
 
 const _quat = new THREE.Quaternion();
 const _vec = new THREE.Vector3();
+const _euler = new THREE.Euler();
+const DEG = Math.PI / 180;
 
 /**
  * Wraps the two WebXR input slots. Controllers and tracked hands are handled
@@ -151,6 +171,8 @@ export class XRInput {
       parent.add(targetRay, grip, hand);
 
       const state = new ControllerState(i, targetRay, grip, hand);
+      state.hold.name = `hold-${i}`;
+      updateHold(state);
       this.controllers.push(state);
 
       targetRay.addEventListener('connected', (event) => {
@@ -192,6 +214,10 @@ export class XRInput {
       // press exactly like a button would.
       if (state.isHand) readHand(state);
 
+      // Und hierhin gehört, was diese Hand trägt: an den Griffraum des
+      // Controllers, an den gedrehten Strahl einer bloßen Hand.
+      updateHold(state);
+
       state.trigger.beginFrame();
       state.squeeze.beginFrame();
       state.select.beginFrame();
@@ -218,6 +244,28 @@ export class XRInput {
       state.thumbstick.set(deadzone(x ?? 0), deadzone(y ?? 0));
     }
   }
+}
+
+/**
+ * Hängt den Halteraum dorthin, wo diese Eingabequelle ihre Sachen trägt, und
+ * dreht ihn, wenn es eine bloße Hand ist.
+ *
+ * Umgehängt wird nur, wenn er woanders hängt — `add` behält die Kinder, ein
+ * Werkzeug in der Faust geht also mit, wenn jemand mitten im Spiel den
+ * Controller weglegt. Die Drehung steht jedes Bild neu, weil eine Hand, die
+ * gerade erst verbunden ist, ihre Seite eine Frame später meldet.
+ */
+function updateHold(state: ControllerState): void {
+  const anchor = !state.isHand && state.grip.visible ? state.grip : state.targetRay;
+  if (state.hold.parent !== anchor) anchor.add(state.hold);
+  if (!state.isHand || !state.handedness) {
+    state.hold.quaternion.identity();
+    return;
+  }
+  const tilt = handHoldTilt(state.handedness);
+  state.hold.quaternion.setFromEuler(
+    _euler.set(tilt.pitch * DEG, tilt.yaw * DEG, tilt.roll * DEG, 'XYZ'),
+  );
 }
 
 /**

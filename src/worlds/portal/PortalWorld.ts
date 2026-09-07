@@ -396,9 +396,17 @@ const _localRotation = new THREE.Quaternion();
 const _size = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
-/** The node a hand's belongings hang on. */
+/**
+ * The node a hand's belongings hang on.
+ *
+ * Am Controller ist das sein Griffraum, an einer **bloßen Hand** der
+ * Zeigestrahl samt dem gemessenen Versatz darauf — sonst läge ein Gegenstand
+ * quer in der Faust und ein Werkzeug zielte daneben (`core/handHold.ts`). Der
+ * Ort ist in beiden Fällen derselbe wie der des Raums darunter; wer hier nur
+ * eine Weltposition abholt, bekommt also, was er immer bekam.
+ */
 function gripOf(controller: ControllerState): THREE.Object3D {
-  return controller.grip.visible ? controller.grip : controller.targetRay;
+  return controller.hold;
 }
 
 interface HandProbe {
@@ -6572,8 +6580,7 @@ export class PortalWorld implements World {
         continue;
       }
       if (reachable.size > 0 && controller.tracked) {
-        const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
-        anchor.getWorldPosition(_hand);
+        gripOf(controller).getWorldPosition(_hand);
         ctx.hands.setGestureOverride(hand, this.findProp(_hand) ? 'ready' : null);
         continue;
       }
@@ -6605,11 +6612,7 @@ export class PortalWorld implements World {
     if (!this.physics) return false;
 
     const controller = hand ? ctx.input.get(hand) : null;
-    const anchor = controller?.tracked
-      ? controller.grip.visible
-        ? controller.grip
-        : controller.targetRay
-      : null;
+    const anchor = controller?.tracked ? gripOf(controller) : null;
 
     if (anchor) {
       anchor.getWorldPosition(_point);

@@ -72,7 +72,11 @@ Tempo und Drehrate), die **Drohnen-Einstellungen**
 (`src/worlds/portal/tools/droneSettings.ts` — Rasten, Grenzen und der Fall,
 dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die Handhaltung
 (`src/core/handPose.ts` — samt der ausgelieferten Grundhaltung und ihrer
-Spiegelung auf die linke Hand), die **Untersetzung der Feinjustage**
+Spiegelung auf die linke Hand), der **Versatz, mit dem eine bloße Hand hält**
+(`src/core/handHold.ts` — die Spiegelung auf die andere Hand und vor allem,
+**wohin** die beiden Winkel drehen: ein Vorzeichen in Grad sieht man nicht an,
+ob es nach links oder nach rechts zeigt, ein gedrehter Vektor schon), die
+**Untersetzung der Feinjustage**
 (`src/worlds/tune/fineTune.ts` — dass ein Zentimeter ein Millimeter wird, dass
 die Drehung den kürzeren Bogen nimmt, und dass zehn Bilder auf demselben Weg
 dort enden, wo eines endet), der **Justierstand im Schießgang**
@@ -2719,6 +2723,41 @@ den Namen, die die Brille ihnen gibt. Das Attribut wird nur geschrieben, wenn
 es auch gelesen wird — ein Drittel mehr Netz für nichts wäre der falsche
 Handel. Umgeschaltet wird sofort: eine gefärbte Hand ist eine anders gebaute,
 also baut `HandVisuals` sie neu.
+
+#### Was eine bloße Hand hält, hängt schräg
+
+Mit **Controller** meldet die Brille zwei Räume: den Zeigestrahl und den
+**Griffraum**, und der liegt dort, wo die Faust das Gerät hält. Jede Haltung,
+jeder Halterzylinder und jede Faust dieses Spiels stehen darin. Eine
+**getrackte Hand hat keinen Griffraum** — three.js lässt ihn unangetastet, weil
+eine Hand keine `gripSpace` meldet —, und alles, was jemand hält, hing deshalb
+im **Pinch-Strahl**: dem Strahl, den die Brille aus Daumen und Zeigefinger
+baut. Der steht schräg zur Faust, und das sah man:
+
+- **90° Roll zu weit nach rechts.** Was aufrecht in der Faust liegen sollte,
+  lag quer.
+- **35° Yaw zu weit nach links.** Wer mit der Hand zielte, schoss links am Ziel
+  vorbei.
+
+Die beiden Zahlen stehen in `core/handHold.ts` — an der **rechten** Hand
+gemessen und für die linke gespiegelt, mit denselben zwei Vorzeichen wie jede
+Haltung (`mirrorHandPose`): Yaw und Roll kippen, Pitch bleibt. Getragen werden
+sie von einem eigenen Knoten je Hand, `ControllerState.hold`: am Controller ist
+er der Griffraum und dreht nichts, an einer bloßen Hand der Strahl samt
+Versatz. **Gedreht wird, nicht verschoben** — wer nur wissen will, _wo_ eine
+Hand ist, bekommt dieselbe Antwort wie vorher.
+
+**Nur das Halten, nicht das Aussehen.** Die Knochenhand wird davon kein Grad
+gedreht: der Versatz sitzt am Knoten, an dem die Sachen hängen, und nicht an
+der gezeichneten Hand. Wer die Hand selbst anders stellen will, ändert eine
+`HandPose` — das hier ist der Raum, in dem sie gilt.
+
+Daran hängen zwei Stellen, und beide dieselbe: die **Portalwelt** (`gripOf` —
+Werkzeuge, Gegenstände, der Gürtel) und der **Eingaberaum** (`handAnchor` —
+was dort gemessen wird, ist die Lage eines Werkzeugs gegen die Hand, und gegen
+eine andere Hand gemessen wäre jede Zahl um genau diesen Versatz daneben). Ein
+Werkzeug bekommt seine Zielkorrektur weiterhin nur, wenn es einen Griffraum
+gibt (`aimQuaternion`); bei einer bloßen Hand trägt der Halteknoten sie schon.
 
 ### Eingemessene Griffe
 

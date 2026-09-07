@@ -623,7 +623,9 @@ export abstract class Tool extends THREE.Group {
     // Und in der anderen Hand liegt es gespiegelt oder gedreht (`holdIn`).
     this.holdIn(this.heldBy, this.position, _tilt);
     if (!this.alignToAim || !controller || !controller.grip.visible) {
-      // Hanging in the target ray already: that *is* the aim.
+      // Hanging in the target ray already: that *is* the aim. Bei einer bloßen
+      // Hand ist es der Strahl **samt Versatz** (`core/handHold.ts`) — der
+      // Halteknoten trägt ihn schon, also bleibt hier nichts zu korrigieren.
       this.quaternion.copy(_tilt);
       return;
     }
@@ -641,7 +643,8 @@ export abstract class Tool extends THREE.Group {
 /**
  * The rotation that turns something parented to a hand out of the grip and
  * onto the pointing ray. Identity when the runtime gives no separate grip —
- * then the tool already hangs in the ray.
+ * then the tool already hangs in the ray, bei einer getrackten Hand im
+ * gedrehten (`core/handHold.ts`).
  */
 export function aimQuaternion(
   controller: ControllerState | null,
