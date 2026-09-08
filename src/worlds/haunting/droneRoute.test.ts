@@ -1,11 +1,18 @@
 import { generateHouse, roomCentre, roomOf, type HouseRoom } from './house';
 import { housePlan, DRONE_PROFILE } from './plan';
 import {
+  droneFov,
+  lampAfter,
+  lampRefill,
+  lampSeconds,
   routeLength,
   routeTo,
   shortestTurn,
   stepAlong,
   tileAt,
+  DRONE_HFOV,
+  LAMP_FILL,
+  LAMP_LIFE,
   type DronePose,
 } from './droneRoute';
 import { wallState } from '../nav/navGraph';
@@ -213,5 +220,100 @@ describe('Wie sie sich dreht', () => {
     for (let i = 0; i < 120; i++) stepAlong(pose, route, 1 / 60);
     expect(routeLength(pose, route)).toBeLessThan(before);
     expect(tileAt(pose.x, pose.z)).not.toBe(goalOf(entry));
+  });
+});
+
+/**
+ * **Der Scheinwerfer erholt sich, der Akku tat es nicht.**
+ *
+ * Vorher lief eine einzige Ladung durch und war nach vier Minuten weg; danach
+ * lag die Drohne im Haus und die Rolle war für den Rest der Runde vorbei.
+ * Nachgerechnet wird deshalb nicht, dass es eine Zahl gibt, sondern die drei
+ * Zusagen, an denen die neue Regel hängt: Sie **kommt zurück**, sie kommt
+ * **langsamer zurück, als sie geht**, und sie tut beides unabhängig davon, wie
+ * viele Bilder je Sekunde das Telefon gerade schafft.
+ */
+describe('Die Ladung des Scheinwerfers', () => {
+  it('leert sich beim Brennen und füllt sich wieder auf', () => {
+    expect(lampAfter(1, LAMP_LIFE, true)).toBeCloseTo(0, 6);
+    expect(lampAfter(0, LAMP_FILL, false)).toBeCloseTo(1, 6);
+  });
+
+  it('bleibt zwischen leer und voll', () => {
+    expect(lampAfter(0.1, 999, true)).toBe(0);
+    expect(lampAfter(0.9, 999, false)).toBe(1);
+  });
+
+  /**
+   * Andersherum wäre der Knopf keine Entscheidung mehr: Was sich schneller
+   * füllt, als es sich leert, ist immer an.
+   */
+  it('füllt sich langsamer, als sie sich leert', () => {
+    expect(LAMP_FILL).toBeGreaterThan(LAMP_LIFE);
+    const burnt = 1 - lampAfter(1, 10, true);
+    const gained = lampAfter(0, 10, false);
+    expect(gained).toBeLessThan(burnt);
+  });
+
+  /**
+   * **Sechzig kleine Schritte enden, wo ein großer endet.** Sonst hinge die
+   * Brenndauer daran, wie flüssig das Bild läuft — und der Pilot auf dem alten
+   * Telefon hätte länger Licht als der auf dem neuen.
+   */
+  it('rechnet unabhängig von der Bildrate', () => {
+    let charge = 1;
+    for (let i = 0; i < 60; i++) charge = lampAfter(charge, 1 / 60, true);
+    expect(charge).toBeCloseTo(lampAfter(1, 1, true), 6);
+  });
+
+  it('sagt die Sekunden an, die noch drinstecken', () => {
+    expect(lampSeconds(1)).toBeCloseTo(LAMP_LIFE, 6);
+    expect(lampSeconds(0)).toBe(0);
+    expect(lampRefill(1)).toBe(0);
+    expect(lampRefill(0)).toBeCloseTo(LAMP_FILL, 6);
+  });
+});
+
+/**
+ * **Der Ausblick hängt an der Form des Bildes** — und `three` rechnet in der
+ * senkrechten Achse.
+ *
+ * Der Pilot zieht sein Bild vom Kinostreifen aufs Vollbild und zurück. Bliebe
+ * dabei der senkrechte Winkel stehen, wäre derselbe Wert einmal Weitwinkel und
+ * einmal Fernrohr — und er merkte nur, dass er auf einmal nichts mehr findet.
+ * Festgehalten wird deshalb der **waagerechte** Winkel; nachgerechnet wird
+ * genau das.
+ */
+describe('Der Öffnungswinkel der Drohnenkamera', () => {
+  /** Wie weit die Kamera bei diesem senkrechten Winkel zur Seite schaut. */
+  function across(fov: number, aspect: number): number {
+    return (Math.atan(Math.tan((fov * Math.PI) / 360) * aspect) * 360) / Math.PI;
+  }
+
+  it('hält den waagerechten Ausblick über alle Bildformen', () => {
+    // Vom Kinostreifen (21:9) bis zum querliegenden Vollbild (3:2).
+    for (const aspect of [21 / 9, 2, 16 / 9, 1.5]) {
+      expect(across(droneFov(aspect), aspect)).toBeCloseTo(DRONE_HFOV, 4);
+    }
+  });
+
+  /**
+   * Hochkant geht das nicht mehr auf: 118° waagerecht wären senkrecht weit
+   * über 140°, und ein so gebogenes Bild ist keine Hilfe mehr. Die Grenze
+   * fängt das ab — und muss es auch sichtbar tun.
+   */
+  it('biegt das hochkante Vollbild nicht auf', () => {
+    const tall = droneFov(0.46);
+    expect(tall).toBeLessThanOrEqual(104);
+    expect(across(tall, 0.46)).toBeLessThan(DRONE_HFOV);
+  });
+
+  it('bleibt auch im Kinostreifen weiter als die alten 70°', () => {
+    expect(droneFov(21 / 9)).toBeGreaterThan(70);
+  });
+
+  it('hält auch einen unsinnigen Wert im Rahmen', () => {
+    expect(droneFov(0)).toBeLessThanOrEqual(104);
+    expect(droneFov(99)).toBeGreaterThanOrEqual(66);
   });
 });

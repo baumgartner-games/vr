@@ -45,35 +45,102 @@ export const DRONE_TURN = 2.6;
 /** Wie nah an einer Kachelmitte sie als angekommen gilt. */
 export const WAYPOINT = 0.25;
 
-/** Wie lange ihr Akku hält, in Sekunden Flug ohne Licht. */
-export const DRONE_LIFE = 260;
+/**
+ * **Kein Akku, der abläuft — eine Sperre, die man abwartet.**
+ *
+ * Vorher lief ein einziger Akku durch: Er ging vom ersten Bild an runter, war
+ * nach vier Minuten leer, und danach lag die Drohne im Haus herum. Das ist
+ * keine Entscheidung, sondern ein Countdown — der Pilot konnte nichts falsch
+ * machen, nur zu lange dabei sein, und wer spät an das Gerät kam, bekam eine
+ * Leiche. Eine Runde, in der die Rolle nach vier Minuten aufhört, ist eine
+ * Rolle weniger.
+ *
+ * An seiner Stelle stehen jetzt zwei Sachen, und beide erholen sich:
+ *
+ * - **Die Wechselsperre.** Ein Zimmerwechsel kostet `HOP_TIME` Sekunden, in
+ *   denen kein neuer Wechsel geht. Damit ist die Drohne kein Suchscheinwerfer
+ *   mehr, der das Haus in einer Minute abklappert — wer sie irgendwohin
+ *   schickt, hat sich für dieses Zimmer entschieden und wartet, bis das
+ *   nächste dran ist. Genau das ist die Frage, die der Van sich zurufen soll:
+ *   *welches Zimmer als Nächstes?*
+ * - **Das Licht.** Der Scheinwerfer zehrt an einer eigenen Ladung, und die
+ *   **füllt sich wieder auf**, sobald er aus ist. Er bleibt damit eine
+ *   Entscheidung (Licht heißt sehen und gesehen werden), ohne je endgültig zu
+ *   sein.
+ *
+ * Beides zusammen macht aus dem Countdown einen Takt: Der Pilot kann sich
+ * verausgaben und sich wieder erholen, und niemand verliert seine Station.
+ */
+
+/** Wie viele Sekunden zwischen zwei Zimmerwechseln liegen. */
+export const HOP_TIME = 14;
+
+/** Wie lange der Scheinwerfer aus einer vollen Ladung leuchtet, in Sekunden. */
+export const LAMP_LIFE = 45;
 
 /**
- * **Was der Scheinwerfer extra kostet**, als Vielfaches des Flugverbrauchs.
+ * Und wie lange er von leer auf voll braucht — länger, als er hält.
  *
- * Der Preis macht aus dem Knopf eine Entscheidung: Licht an heißt sehen und
- * gesehen werden — und früher am Boden zu liegen. Ohne den Preis bliebe er
- * einfach immer an, und dann hätte man ihn auch weglassen können.
+ * Andersherum wäre der Knopf keine Entscheidung mehr: Was sich schneller
+ * füllt, als es sich leert, ist immer an.
  */
-export const DRONE_LAMP_DRAIN = 2.2;
-
-/** Und was ein Schweben ohne Kurs kostet: weniger, aber nicht nichts. */
-export const DRONE_HOVER_DRAIN = 0.35;
+export const LAMP_FILL = 75;
 
 /**
- * Wie schnell der Akku gerade leerläuft, als Vielfaches des Flugverbrauchs.
+ * Ab wie viel Ladung er sich überhaupt wieder einschalten lässt.
  *
- * Steht hier, damit die Anzeige beim Piloten und die Rechnung in der Welt
- * dieselbe ist: Zwei Exemplare derselben Formel antworten irgendwann
- * verschieden, und dann zeigt der Balken eine Minute an, die es nicht gibt.
+ * Ohne diese Schwelle klickt der Pilot an einer leeren Lampe: an, sofort
+ * wieder aus, an, aus. Ein Knopf, der eine Zehntelsekunde hält, ist kaputt —
+ * einer, der erst ab einem Rest wieder angeht, ist eine Ansage.
  */
-export function drainRate(flying: boolean, light: boolean): number {
-  return (flying ? 1 : DRONE_HOVER_DRAIN) + (light ? DRONE_LAMP_DRAIN : 0);
+export const LAMP_MIN = 0.08;
+
+/**
+ * Die Ladung nach `dt` Sekunden — leerer, wenn er brennt, voller, wenn nicht.
+ *
+ * Steht hier und nicht in der Welt, damit die Anzeige beim Piloten und die
+ * Rechnung im Haus dieselbe ist: Zwei Exemplare derselben Formel antworten
+ * irgendwann verschieden, und dann zeigt der Balken eine Minute an, die es
+ * nicht gibt.
+ */
+export function lampAfter(charge: number, dt: number, on: boolean): number {
+  const step = on ? -dt / LAMP_LIFE : dt / LAMP_FILL;
+  return Math.min(1, Math.max(0, charge + step));
 }
 
-/** Wie viele Sekunden Flug in diesem Akku noch stecken — mit Licht weniger. */
-export function droneSeconds(battery: number, light: boolean): number {
-  return Math.max(0, (battery * DRONE_LIFE) / drainRate(true, light));
+/** Wie viele Sekunden Licht in dieser Ladung noch stecken. */
+export function lampSeconds(charge: number): number {
+  return Math.max(0, charge * LAMP_LIFE);
+}
+
+/** Und wie viele Sekunden es noch dauert, bis sie wieder voll ist. */
+export function lampRefill(charge: number): number {
+  return Math.max(0, (1 - charge) * LAMP_FILL);
+}
+
+/**
+ * **Wie weit die Drohnenkamera schaut** — waagerecht festgenagelt, senkrecht
+ * ausgerechnet.
+ *
+ * `THREE.PerspectiveCamera.fov` ist der **senkrechte** Winkel, und genau das
+ * ist die Falle, sobald das Bild seine Form ändert: Dieselbe Zahl ist im
+ * Kinostreifen ein Weitwinkel und im hochkanten Vollbild ein Fernrohr. Der
+ * Pilot merkt davon nur, dass er auf einmal nichts mehr findet.
+ *
+ * Festgehalten wird deshalb, was er wirklich braucht — **wie viel vom Zimmer
+ * links und rechts ins Bild passt** —, und der senkrechte Winkel fällt daraus
+ * ab. Die Grenzen halten das Ergebnis im Erträglichen: Unter `MIN` wird das
+ * Bild zum Guckloch, über `MAX` biegt sich das Haus an den Rändern.
+ */
+export const DRONE_HFOV = 118;
+const FOV_MIN = 66;
+const FOV_MAX = 104;
+
+export function droneFov(aspect: number): number {
+  const wide = Math.max(0.05, aspect);
+  const half = Math.tan((DRONE_HFOV * Math.PI) / 360) / wide;
+  const fov = (Math.atan(half) * 360) / Math.PI;
+  return Math.min(FOV_MAX, Math.max(FOV_MIN, fov));
 }
 
 /** Wie langsam sie im schärfsten Bogen noch fliegt, als Anteil vom Tempo. */
@@ -94,7 +161,7 @@ export interface DroneStatus {
    * aus einer Wegsuche eine Ansage an den Rest des Vans wird — *irgendwo
    * dazwischen ist zu, macht auf*.
    */
-  kind: 'idle' | 'flying' | 'blocked' | 'flat';
+  kind: 'idle' | 'flying' | 'blocked';
   /** Das Zimmer, über dem sie gerade schwebt — `''`, wenn es keines ist. */
   here: string;
   /** Wie weit sie auf ihrer Bahn noch zu fliegen hat, in Metern. */

@@ -17,12 +17,14 @@ import {
 } from './house';
 import { housePlan } from './plan';
 import {
-  drainRate,
+  droneFov,
+  lampAfter,
   routeLength,
   routeTo,
   stepAlong,
   tileAt,
-  DRONE_LIFE,
+  HOP_TIME,
+  LAMP_MIN,
   type DronePose,
   type DroneRoute,
   type DroneStatus,
@@ -91,8 +93,16 @@ const DRONE_RATE = 1 / 10;
 
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 const REACH = 1.1;
-/** Wie hoch sie schwebt. */
-const DRONE_Y = 1.8;
+/**
+ * Wie hoch sie schwebt.
+ *
+ * Unter der Decke (`PLAN_WALL_H` = 2,8 m) und deutlich über Augenhöhe: Auf
+ * 1,80 m hing sie genau dort, wo der VR-Spieler seinen Kopf hat — dann steht
+ * im Bild des Piloten eine Stuhllehne vor dem halben Zimmer, und aus der
+ * Übersicht, für die man eine Drohne fliegt, wird ein zweites Paar Augen auf
+ * derselben Höhe. Von hier oben sieht er über die Möbel hinweg.
+ */
+const DRONE_Y = 2.15;
 
 /** Die Lampe eines Zimmers: das Licht und das Glas, das zeigt, dass es an ist. */
 interface Lamp {
@@ -163,7 +173,17 @@ export class HauntingWorld extends GridWorld {
   /** Die Kuppel darüber: dass sie leuchtet, sieht man auch von hinten. */
   private droneGlass: THREE.MeshBasicMaterial | null = null;
   private topCam: THREE.OrthographicCamera | null = null;
-  private drone: DroneState = { x: 0, z: 0, target: '', battery: 1, light: false };
+  private drone: DroneState = { x: 0, z: 0, target: '', hop: 0, lamp: 1, light: false };
+  /**
+   * **Wohin der Pilot schaut, wenn er nicht geradeaus schaut.**
+   *
+   * Ein Winkel neben der Flugrichtung, kein zweiter Kurs: Die Drohne fliegt
+   * ihre Bahn weiter, nur die Kamera dreht sich darauf. Andersherum wäre das
+   * Wischen eine zweite Steuerung, die gegen die Wegsuche arbeitet — und die
+   * eine Regel, an der hier alles hängt („sie fliegt keine Luftlinie"), wäre
+   * durch eine Fingerbewegung ausgehebelt.
+   */
+  private droneLook = 0;
   /** Wo sie steht und wohin sie schaut — die Bahn rechnet `droneRoute.ts`. */
   private dronePose: DronePose = { x: 0, z: 0, yaw: 0 };
   /** Der Weg, den sie gerade abfliegt, und wie oft er neu gesucht wird. */
@@ -310,6 +330,9 @@ export class HauntingWorld extends GridWorld {
         droneStatus: () => this.droneStatus(),
         droneSeen: () => this.droneSeen,
         droneLight: () => this.toggleDroneLight(),
+        droneLook: () => this.droneLook,
+        droneTurn: (radians) => this.turnDroneView(this.droneLook + radians),
+        droneFace: () => this.turnDroneView(0),
       });
     }
     this.applyLights();
@@ -515,7 +538,11 @@ export class HauntingWorld extends GridWorld {
 
   /** Die Kameras, aus denen die Stationen ihr Bild bekommen. */
   private buildStationViews(): void {
-    const droneCam = new THREE.PerspectiveCamera(70, 1, 0.05, 60);
+    // Der Öffnungswinkel steht hier nur als Startwert: Was der Pilot wirklich
+    // sieht, hängt an der Form seines Bildes und wird beim Zeichnen gerechnet
+    // (`droneRoute.droneFov`) — ein Kinostreifen und ein hochkantes Vollbild
+    // brauchen zwei verschiedene senkrechte Winkel für denselben Ausblick.
+    const droneCam = new THREE.PerspectiveCamera(droneFov(1), 1, 0.05, 60);
     droneCam.rotation.order = 'YXZ';
     // **Sie schaut nach vorn, und „vorn" ist +Z.** Der Gierwinkel der Drohne
     // ist `atan2(dx, dz)`, damit zeigt ihre lokale +Z-Achse in die
@@ -855,7 +882,8 @@ export class HauntingWorld extends GridWorld {
       x: this.dronePose.x,
       z: this.dronePose.z,
       target: '',
-      battery: this.drone.battery,
+      hop: 0,
+      lamp: this.drone.lamp,
       light: this.drone.light,
     };
     this.droneRoute = { tiles: [], complete: true, grounded: true };
@@ -874,21 +902,53 @@ export class HauntingWorld extends GridWorld {
    * wird.
    */
   private setDroneTarget(roomId: string): void {
-    this.drone.target = this.drone.target === roomId ? '' : roomId;
+    if (this.drone.target === roomId) {
+      // **Abbrechen geht immer.** Die Sperre steht gegen das nächste Zimmer,
+      // nicht gegen die Umkehr — ein Knopf, der eine falsche Eingabe eine ganze
+      // Sperre lang festhält, ist auf einem Telefon eine Strafe fürs
+      // Danebentippen.
+      this.drone.target = '';
+      this.droneRoute = { tiles: [], complete: true, grounded: true };
+      this.droneThink = 0;
+      this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
+      return;
+    }
+    // Und sie fliegt nicht dorthin, wo sie schon schwebt: Das kostete eine
+    // Sperre für einen Flug von null Metern.
+    if (this.drone.hop > 0 || (!this.drone.target && this.droneRoom() === roomId)) return;
+    this.drone.target = roomId;
+    this.drone.hop = HOP_TIME;
     this.droneRoute = { tiles: [], complete: true, grounded: true };
     this.droneThink = 0;
+    this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
   }
 
   /** Der Scheinwerfer — vom Piloten geschaltet, bei allen im Haus zu sehen. */
   private toggleDroneLight(): void {
+    // Aus geht immer; an nur, wenn wirklich noch etwas in der Ladung steckt.
+    if (!this.drone.light && this.drone.lamp < LAMP_MIN) return;
     this.drone.light = !this.drone.light;
     this.applyDroneLight();
     playSwitch(this.drone.light);
     this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
   }
 
+  /**
+   * **Umsehen, ohne umzukehren.**
+   *
+   * Der Winkel sitzt an der Kamera und nicht an der Drohne: Die Bahn kommt aus
+   * der Wegsuche, und was der Pilot wischt, ist nur sein Kopf. Begrenzt wird er
+   * auf gut zwei Drittel einer halben Umdrehung — wer weiter drehen dürfte,
+   * flöge rückwärts durch das Haus und wüsste nicht mehr, wo vorn ist.
+   */
+  private turnDroneView(radians: number): void {
+    const most = Math.PI * 0.72;
+    this.droneLook = Math.min(most, Math.max(-most, radians));
+    if (this.droneCam) this.droneCam.rotation.y = Math.PI + this.droneLook;
+  }
+
   private applyDroneLight(): void {
-    const on = this.drone.light && this.drone.battery > 0;
+    const on = this.drone.light && this.drone.lamp > 0;
     // Nur bei Wechsel: Diese Zeile läuft in jedem Bild, und eine Farbe, die
     // sechzigmal je Sekunde auf denselben Wert gesetzt wird, ist sechzigmal
     // je Sekunde ein `needsUpdate` an einem Material, das sich nicht geändert
@@ -910,6 +970,13 @@ export class HauntingWorld extends GridWorld {
   private flyDrone(dt: number): void {
     const body = this.droneBody;
     if (!body) return;
+    // **Sperre und Ladung laufen bei allen mit**, nicht nur beim Piloten. Sonst
+    // stünden beide Uhren still, sobald niemand am Gerät sitzt — und der
+    // Nächste, der sich hinsetzt, erbte eine Sperre von vor drei Minuten und
+    // eine Lampe, die sich in der Zwischenzeit nicht erholt hat.
+    this.drone.hop = Math.max(0, this.drone.hop - dt);
+    this.drone.lamp = lampAfter(this.drone.lamp, dt, this.drone.light);
+
     const mine = seatOf(this.currentClaims(), this.context?.net.localId ?? '') === 'drone';
     if (!mine) {
       // Bei allen anderen ist sie nur eine angesagte Stelle — die Bahn rechnet
@@ -930,8 +997,8 @@ export class HauntingWorld extends GridWorld {
       this.droneThink = 0;
     }
 
-    if (this.drone.target && this.drone.battery > 0) this.stepDrone(dt);
-    this.drainDrone(dt);
+    if (this.drone.target) this.stepDrone(dt);
+    this.spendLamp();
 
     body.position.set(this.dronePose.x, DRONE_Y, this.dronePose.z);
     body.rotation.y = this.dronePose.yaw;
@@ -987,12 +1054,21 @@ export class HauntingWorld extends GridWorld {
     }
   }
 
-  /** Der Akku — und was der Scheinwerfer extra kostet (`droneRoute.drainRate`). */
-  private drainDrone(dt: number): void {
-    if (this.drone.battery <= 0) return;
-    const rate = drainRate(this.droneRoute.tiles.length > 0, this.drone.light);
-    this.drone.battery = Math.max(0, this.drone.battery - (dt * rate) / DRONE_LIFE);
-    if (this.drone.battery === 0) this.applyDroneLight();
+  /**
+   * **Wenn die Ladung alle ist, geht das Licht von selbst aus** — und zwar
+   * beim Piloten, damit es alle mitbekommen.
+   *
+   * Heruntergezählt hat `flyDrone` schon, bei jedem im Van. Hier steht nur der
+   * Schluss daraus: Eine Lampe, die bei null einfach weiterbrennt, wäre eine
+   * Anzeige und keine Ladung — und der Pilot, der sie danach ausschaltet,
+   * bekäme einen Knopf, der nichts tut.
+   */
+  private spendLamp(): void {
+    if (!this.drone.light || this.drone.lamp > 0) return;
+    this.drone.light = false;
+    this.applyDroneLight();
+    playSwitch(false);
+    this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
   }
 
   /** In welchem Zimmer sie gerade ist — und dass sie dort einmal war. */
@@ -1019,7 +1095,6 @@ export class HauntingWorld extends GridWorld {
    */
   private droneStatus(): DroneStatus {
     const here = this.droneRoom();
-    if (this.drone.battery <= 0) return { kind: 'flat', here, metres: 0 };
     if (!this.drone.target) return { kind: 'idle', here, metres: 0 };
     const metres = routeLength(this.dronePose, this.droneRoute);
     if (!this.droneRoute.complete) return { kind: 'blocked', here, metres };
@@ -1090,6 +1165,12 @@ export class HauntingWorld extends GridWorld {
     renderer.setViewport(rect.x, y, rect.w, rect.h);
     if (camera instanceof THREE.PerspectiveCamera) {
       camera.aspect = rect.w / Math.max(1, rect.h);
+      // **Der Öffnungswinkel hängt an der Form des Bildes.** Der Pilot zieht
+      // sein Bild vom Kinostreifen aufs Vollbild und zurück; bliebe der
+      // senkrechte Winkel dabei stehen, sähe er im Streifen fast nichts mehr
+      // nach oben und im hochkanten Vollbild fast nichts mehr zur Seite
+      // (`droneRoute.droneFov`).
+      camera.fov = droneFov(camera.aspect);
       camera.updateProjectionMatrix();
     }
     renderer.render(ctx.scene, camera);

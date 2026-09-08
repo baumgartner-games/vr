@@ -57,8 +57,17 @@ export interface DroneState {
   z: number;
   /** Wohin sie gerade fliegt — die Zimmerkennung, oder `''`. */
   target: string;
-  /** Was noch im Akku ist, von 1 bis 0. */
-  battery: number;
+  /**
+   * **Wie viele Sekunden noch kein Zimmerwechsel geht.**
+   *
+   * Geht mit über die Leitung, obwohl nur der Pilot sie herunterzählt — sonst
+   * wäre der Platzwechsel am Gerät ein Schlupfloch: Wer die Sperre abwarten
+   * müsste, steht auf, jemand anders setzt sich hin und fliegt sofort weiter.
+   * Eine Regel, die man durch Stühlerücken umgeht, ist keine.
+   */
+  hop: number;
+  /** Was in der Ladung des Scheinwerfers noch steckt, von 1 bis 0. */
+  lamp: number;
   /**
    * **Ob ihr Scheinwerfer an ist** — und warum das über die Leitung geht.
    *
@@ -156,7 +165,8 @@ export function readDrone(data: unknown): DroneState | null {
     x: num(it['x']),
     z: num(it['z']),
     target: typeof it['target'] === 'string' ? it['target'].slice(0, 16) : '',
-    battery: Math.min(1, Math.max(0, num(it['battery'], 1))),
+    hop: Math.min(600, Math.max(0, num(it['hop']))),
+    lamp: Math.min(1, Math.max(0, num(it['lamp'], 1))),
     light: it['light'] === true,
   };
 }
