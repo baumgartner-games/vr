@@ -1,10 +1,7 @@
 # Baumgartner VR
 
-**Live: https://baumgartner-games.github.io/vr/**
-
-**Werkzeug-Übersicht: https://baumgartner-games.github.io/vr/tools.html** —
-alle Werkzeuge, Welten, der magische Beutel und die NPCs zum Ansehen und
-Drehen, ohne Brille, auf dem Handy.
+- **[Spiel starten](https://baumgartner-games.github.io/vr/)**
+- **[Werkzeug-Übersicht öffnen](https://baumgartner-games.github.io/vr/tools.html)** — alle Werkzeuge, Welten, der magische Beutel und die NPCs zum Ansehen und Drehen, ohne Brille, auf dem Handy.
 
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
