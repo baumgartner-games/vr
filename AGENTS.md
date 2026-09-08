@@ -7614,27 +7614,44 @@ man eine Drohne fliegt, wurde ein zweites Paar Augen auf derselben Höhe.
 
 **Der Öffnungswinkel hängt an der Form des Bildes** (`droneRoute.droneFov`, mit
 Test). `THREE.PerspectiveCamera.fov` ist der **senkrechte** Winkel, und das ist
-die Falle, sobald der Pilot sein Bild vom Kinostreifen aufs Vollbild zieht:
+die Falle, sobald sich die Form des Bildes ändert — hochkant gehaltenes Telefon,
+quer gehaltenes, breites Laptopfenster, und beim Archivar dazu sein Streifen:
 Dieselbe Zahl ist einmal Weitwinkel und einmal Fernrohr, und er merkt nur, dass
 er auf einmal nichts mehr findet. Festgehalten wird deshalb, was er wirklich
 braucht — **wie viel vom Zimmer links und rechts ins Bild passt**
 (`DRONE_HFOV`, 118°) —, und der senkrechte Winkel fällt daraus ab, begrenzt auf
 66°…104°, damit sich das Haus an den Rändern nicht biegt.
 
-**Umsehen dreht die Kamera, nie die Drohne.** Der Wisch über dem Vollbild (und
-der Blickstock oben rechts im Bild) verstellt einen Winkel *neben* der
-Flugrichtung; die Bahn kommt weiter aus der Wegsuche. Andersherum wäre das
-Wischen eine zweite Steuerung, die gegen die Wegsuche arbeitet, und die eine
-Regel, an der hier alles hängt („sie fliegt keine Luftlinie"), wäre durch eine
-Fingerbewegung ausgehebelt. Gedreht wird in derselben Richtung wie mit der Maus
-im Fenster (`core/FlatControls.ts`), begrenzt auf gut zwei Drittel einer halben
-Umdrehung, und ein Tipp auf den Stock stellt wieder geradeaus — er leuchtet,
-solange der Blick daneben steht, sonst sucht der Pilot ein Zimmer, das hinter
-ihm liegt, und hält die Drohne für kaputt.
+**Umsehen dreht die Drohne, nie ihren Kurs.** Der Wisch über dem Bild (und der
+Blickstock in seiner Ecke) verstellt einen Winkel *neben* der Flugrichtung; die
+Bahn kommt weiter aus der Wegsuche. Andersherum wäre das Wischen eine zweite
+Steuerung, die gegen die Wegsuche arbeitet, und die eine Regel, an der hier
+alles hängt („sie fliegt keine Luftlinie"), wäre durch eine Fingerbewegung
+ausgehebelt. Gedreht wird in derselben Richtung wie mit der Maus im Fenster
+(`core/FlatControls.ts`), begrenzt auf gut zwei Drittel einer halben Umdrehung,
+und ein Tipp auf den Stock stellt wieder geradeaus — er leuchtet, solange der
+Blick daneben steht, sonst sucht der Pilot ein Zimmer, das hinter ihm liegt,
+und hält die Drohne für kaputt.
+
+Gedreht wird dabei der **Rumpf** und nicht nur die Kamera, die als Kind daran
+hängt. Eine Weile saß der Winkel an der Kamera allein, und das war eine
+Bildeinstellung: Der Pilot sah zur Seite, der Scheinwerfer leuchtete weiter
+geradeaus, und im Haus stand eine Drohne, die stur in eine Richtung starrte,
+während ihr Pilot etwas ganz anderes ansagte. Der Kegel ist das Einzige, was
+der Pilot dem VR-Spieler wirklich geben kann — er muss dorthin zeigen, wo der
+Pilot hinsieht. Deshalb geht der Winkel auch **über die Leitung**
+(`net.DroneState.yaw`): Vorher rechneten ihn die Zuschauer aus dem Weg zwischen
+zwei Ansagen, und solange sie flog, stimmte das auch — nur hinterlässt eine
+Drohne, die im Stehen schwenkt, keinen Weg. Das Ruckeln bei zehn Ansagen je
+Sekunde nimmt ihm der weiche Nachlauf beim Empfänger
+(`HauntingWorld.turnDroneBody`, kürzerer Bogen, bildratenunabhängig). Wer sich
+neu ans Gerät setzt, schaut geradeaus: Der Winkel des Vorgängers steckt schon
+in der Drehung des Rumpfes, und ein zweites Mal daraufgerechnet stünde sie
+quer.
 
 **Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
 Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
-zusammenschiebt, nie. Neun Sachen, die dabei nicht Geschmack sind:
+zusammenschiebt, nie. Dreizehn Sachen, die dabei nicht Geschmack sind:
 
 - **Jede Station hat eine Farbe, und es ist ihre** (`--haunt-accent` über
   `data-station` am Wurzelelement) — dieselben vier Töne, die im Haus auf den
@@ -7643,19 +7660,43 @@ zusammenschiebt, nie. Neun Sachen, die dabei nicht Geschmack sind:
 - **Der Auftragsstreifen hat ein Feld je Sache und drei Zustände** — noch im
   Haus, in der Hand, im Van. `0/3` sagt nicht, dass eine davon gerade beim
   VR-Spieler liegt, und genau das ist am Tisch die Frage, die gestellt wird.
-- **Das Bild ist ein Kinostreifen und kein Kasten** (21:9 statt 40 vh Höhe).
-  Ein Zimmer ist breiter als hoch; Bildhöhe, die keiner braucht, war auf einem
-  Telefon die halbe Seite, und der Pilot scrollte zu seinen eigenen Knöpfen.
-  Der Archivar bekommt ein eckigeres Fenster (4:3): Seine Kamera passt das
-  Zimmer in das Fenster ein, und in einem Streifen steht ein hohes Zimmer
-  zwischen zwei schwarzen Balken — breit ist bei ihm *weniger* Bild.
-- **Antippen macht das Bild groß, noch einmal wieder klein.** Groß heißt: Es
-  liegt fest im Hintergrund über dem ganzen Schirm, und die Bedienung liegt
-  darauf. „Bild frei" in der Kopfzeile blendet sie weg, der Menüknopf oben im
-  Bild holt sie zurück — weggeblendet und nicht abgebaut, sonst käme die Liste
-  oben statt dort zurück, wo man war. Im freigeräumten Vollbild schaltet ein
-  Tipp die Größe **nicht** um: Das wäre der versehentliche Ausstieg aus genau
-  der Ansicht, für die man aufgeräumt hat.
+- **Der Pilot sitzt im Cockpit: Bild ganz, Bedienung auf Zuruf**
+  (`.is-cockpit`). Sein Kamerabild liegt unter der Kopfzeile über dem ganzen
+  Schirm — nichts scrollt, nichts läuft über, die kürzere Seite begrenzt es —,
+  und **unten klebt nichts**. Vorher stand es als Kinostreifen über einer
+  Kachelwand, die dauerhaft die halbe Seite aß: auf einem Telefon zwei Drittel
+  des Bildes für Knöpfe, die man dreimal in der Minute drückt, auf dem Laptop
+  ein Bild, das zum Streifen zusammenschrumpfte. Wer fliegt, sieht.
+- **„Steuerung" in der Kopfzeile legt seine Schalttafel darüber** und nimmt sie
+  genauso wieder weg. In der Kopfzeile und nicht im Bild, weil das die einzige
+  Fläche ist, die in beiden Zuständen an derselben Stelle steht — ein Knopf,
+  der sich beim Öffnen unter das schiebt, was er geöffnet hat, ist keiner.
+  Weggeblendet und nicht abgebaut, sonst käme die Liste oben statt dort zurück,
+  wo man war. Der Grund darunter bleibt **durchsichtig**: Die Kacheln bringen
+  ihren eigenen mit, und dazwischen läuft das Bild weiter. Überschriften
+  bekommen dafür ein Schildchen — „Wohin?" stand sonst als graue Schrift auf
+  einem Zimmer voller Möbel und war je nach Blickrichtung da oder nicht.
+- **Hinter der offenen Schalttafel wird das Bild grob gerastert**
+  (`HauntingWorld.veilView`). Ein bewegtes Bild unter Knöpfen zieht den Blick
+  immer auf sich; gerastert bleibt sichtbar, dass sie fliegt und ob das Licht
+  brennt, und lesbar bleibt nur die Bedienung. Gerastert wird über die
+  **Auflösung** und nicht über einen Filter: Die Leinwand bekommt für diese Zeit
+  einen winzigen Bildspeicher, den der Browser hart hochskaliert
+  (`image-rendering: pixelated`, ein Bildpunkt je zehn CSS-Punkte). Das kostet
+  nichts — es zeichnet *weniger* —, und es ist die Stelle, an der später ein
+  eigener Filter (CRT, Rauschen) sitzen wird.
+- **Das Blatt des Archivars ist ein Kinostreifen und kein Kasten** (4:3 in einem
+  21:9-Fenster statt 40 vh Höhe). Bildhöhe, die keiner braucht, war auf einem
+  Telefon die halbe Seite. Seine Kamera passt das Zimmer in das Fenster ein, und
+  in einem breiten Streifen steht ein hohes Zimmer zwischen zwei schwarzen
+  Balken — breit ist bei ihm *weniger* Bild.
+- **Beim Archivar macht Antippen das Bild groß, noch einmal wieder klein.** Groß
+  heißt: Es liegt fest im Hintergrund über dem ganzen Schirm, und die Bedienung
+  liegt darauf. „Bild frei" in der Kopfzeile blendet sie weg, der Menüknopf oben
+  im Bild holt sie zurück. Im freigeräumten Vollbild schaltet ein Tipp die Größe
+  **nicht** um: Das wäre der versehentliche Ausstieg aus genau der Ansicht, für
+  die man aufgeräumt hat. Diese Wahl hat nur er — er liest, und Lesen geht neben
+  dem Bild; der Pilot fliegt, und Fliegen geht nur im Bild.
 - **Tipp und Wisch trennt die Strecke, nicht die Zeit** (`TAP_SLOP`, 8 px).
   Ohne die Schwelle wäre jeder Wisch am Ende auch ein Tipp, und das Bild
   klappte bei jedem Umsehen zusammen. Dazu `touch-action: none` auf dem Bild —
@@ -7668,9 +7709,12 @@ zusammenschiebt, nie. Neun Sachen, die dabei nicht Geschmack sind:
   *andere* Seite kommt.
 - **Quer gehaltenes Telefon bekommt zwei Spalten** (Bild links, Bedienung
   rechts). Hochkant bleibt unter dem Streifen genug für die Liste, quer nicht,
-  und dann tippt der Pilot blind. Dort stehen auch nur zwei Kacheln
+  und dann tippt der Archivar blind. Dort stehen auch nur zwei Kacheln
   nebeneinander statt vier: Der Block für breite Fenster rechnet mit der
-  Fensterbreite, die Liste steht aber in einer Spalte von 42 % davon.
+  Fensterbreite, die Liste steht aber in einer Spalte von 42 % davon. Im Cockpit
+  gilt das nicht — dort liegt die Schalttafel **über** dem Bild und über die
+  ganze Breite: Eine Spalte von 42 % wäre ein Streifen, in dem dieselben
+  Kacheln zweimal umbrechen, und das Bild bliebe trotzdem verdeckt.
 - **Der Späherschirm hängt an der Pixeldichte** und nicht an einer festen
   Zahl. Ausgerechnet bei ihm ist ein verwaschener Strich kein
   Schönheitsfehler, sondern die Auskunft — er hat nichts als Konturen.

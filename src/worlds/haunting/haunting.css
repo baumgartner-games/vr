@@ -13,8 +13,10 @@
  *
  * `.haunt__view` ist mit Absicht **durchsichtig**: Dort zeichnet die Welt ihr
  * Bild direkt in die Leinwand darunter (`HauntingWorld.render`). Was hier
- * steht, ist nur das Loch samt Rahmen — klein ein Kinostreifen, angetippt der
- * ganze Hintergrund, auf dem die Bedienung liegt (`.is-big`, `.is-bare`).
+ * steht, ist nur das Loch samt Rahmen. Der Archivar hat dafür zwei Größen —
+ * Kinostreifen oder aufgezogen (`.is-big`, `.is-bare`) —, der Pilot nur eine:
+ * ganzer Schirm, und die Bedienung kommt auf Zuruf darüber (`.is-cockpit`,
+ * `.is-panel`).
  *
  * Handgesetzt wie `style.css` und `tools.css`, deshalb in `.prettierignore`.
  */
@@ -204,9 +206,10 @@ body.haunt-on .touch { display: none; }
  *
  * Klein ist es ein **Kinostreifen**: breit wie das Fenster, flach wie ein
  * Kinoformat. Vorher stand hier ein 40 vh hoher Kasten, und der aß auf einem
- * Telefon die halbe Seite für Bildhöhe, die kein Zimmer braucht — der Pilot
- * scrollte zu seinen eigenen Knöpfen. Ein Zimmer ist breiter als hoch, also ist
- * das Bild breiter als hoch.
+ * Telefon die halbe Seite für Bildhöhe, die kein Zimmer braucht — man scrollte
+ * zu seinen eigenen Knöpfen. Ein Zimmer ist breiter als hoch, also ist das Bild
+ * breiter als hoch. Beim Piloten kommt die kleine Größe nicht mehr vor: Sein
+ * Bild ist immer der ganze Schirm (`.is-cockpit`, weiter unten).
  *
  * Angetippt (`.is-big`) liegt es **fest im Hintergrund**, über den ganzen
  * Schirm, und die Bedienung liegt darauf. Das ist dieselbe Fläche, nur größer:
@@ -317,6 +320,81 @@ body.haunt-on .touch { display: none; }
 .haunt.is-bare .haunt__bar,
 .haunt.is-bare .haunt__quest,
 .haunt.is-bare .haunt__body { display: none; }
+
+/*
+ * **Das Cockpit des Piloten.**
+ *
+ * Ein Kamerabild über den ganzen Schirm, darüber nur die Kopfzeile — und die
+ * Bedienung erst, wenn der Menüknopf sie holt. Vorher klebten dieselben
+ * Kacheln dauerhaft unten am Rand: auf einem Telefon zwei Drittel des Bildes
+ * für Knöpfe, die man dreimal in der Minute drückt, auf dem Laptop ein Bild,
+ * das zum Streifen zusammenschrumpfte. Wer fliegt, sieht.
+ *
+ * Das Bild selbst kommt aus `.haunt.is-big .haunt__view` — fest im
+ * Hintergrund, über den ganzen Schirm. Es scrollt nichts und läuft nirgends
+ * über: Die Welt zeichnet genau in das Rechteck, das dieses Element einnimmt,
+ * und der Öffnungswinkel der Kamera rechnet sich aus dessen Form
+ * (`droneRoute.droneFov`) — hoch, quer oder quadratisch, es begrenzt immer die
+ * kürzere Seite.
+ */
+.haunt.is-cockpit .haunt__body { display: none; }
+
+/*
+ * **Die Schalttafel liegt auf durchsichtigem Grund.** Kein Kasten, keine
+ * Kante: Die Kacheln bringen ihren eigenen Grund mit, und dazwischen läuft das
+ * Bild weiter. Damit es die Knöpfe nicht überstrahlt, rastert die Welt es für
+ * diese Zeit grob (`HauntingWorld.veilView`) — sichtbar bleibt, dass sie
+ * fliegt, lesbar bleibt nur die Bedienung.
+ */
+.haunt.is-cockpit.is-panel .haunt__body {
+  display: flex;
+  flex: 1 1 auto;
+  margin-top: 0;
+  max-height: none;
+  min-height: 0;
+  background: transparent;
+  backdrop-filter: none;
+  border-top: none;
+}
+
+/*
+ * **Auf durchsichtigem Grund braucht auch eine Überschrift einen.** „Wohin?"
+ * stand sonst als graue Schrift direkt auf einem Zimmer voller Möbel und war
+ * je nach Blickrichtung da oder nicht. Ein Schildchen, das sich um seinen Text
+ * legt und nicht über die ganze Zeile — es ist eine Beschriftung und keine
+ * Leiste.
+ */
+.haunt.is-cockpit.is-panel .haunt__h {
+  align-self: flex-start;
+  max-width: 100%;
+  gap: 10px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--haunt-line);
+  background: rgba(6, 9, 16, 0.88);
+  color: var(--haunt-dim);
+}
+
+/* Dasselbe für die zwei freien Zeilen, die sonst nackt im Bild stünden. */
+.haunt.is-cockpit.is-panel .haunt__blind {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(6, 9, 16, 0.88);
+}
+
+/* Der Menüknopf in der Kopfzeile leuchtet, solange er etwas offen hält. */
+.haunt__back.is-on { border-color: var(--haunt-accent); background: rgba(24, 44, 38, 0.92); }
+.haunt__back.is-on .haunt__back-icon { color: var(--haunt-accent); }
+
+/* **Der Blickstock rutscht nach unten.** Oben steht im Cockpit die Kopfzeile,
+   und darunter läge er in ihrem Schatten; unten rechts liegt er da, wo der
+   Daumen der haltenden Hand ohnehin ist. */
+.haunt.is-cockpit .haunt__vtools {
+  top: auto;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  right: 12px;
+}
 
 .haunt__body {
   flex: 1;
@@ -731,4 +809,9 @@ body.haunt-on .touch { display: none; }
   .haunt.is-big .haunt__body { grid-column: 2 / -1; max-height: none; }
   /* Und es hat keinen Nachbarn mehr, von dem es sich abgrenzen müsste. */
   .haunt.is-big .haunt__view { border-right: none; }
+  /* Im Cockpit liegt die Bedienung **über** dem Bild statt daneben: Eine
+     Spalte rechts wäre quer gehalten ein Streifen von 42 %, in dem dieselben
+     Kacheln zweimal umbrechen — und das Bild bliebe trotzdem verdeckt. */
+  .haunt.is-cockpit .haunt__body { grid-column: 1 / -1; }
+  .haunt.is-cockpit .haunt__map { grid-template-columns: repeat(4, 1fr); }
 }
