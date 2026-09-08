@@ -1,29 +1,34 @@
 import * as THREE from 'three';
-import { ALL_GROUPS, PhysicsWorld, portalSurfaceGroup } from '../../physics/PhysicsWorld';
+import {
+  ALL_GROUPS,
+  PhysicsWorld,
+  portalSurfaceGroup,
+  type PhysicsBody,
+} from '../../physics/PhysicsWorld';
 import { Npc } from '../npc/Npc';
 import { Portal } from './Portal';
 
 /**
- * **Wer herumläuft, fällt durch ein Portal** — mit echtem Rapier.
+ * **Was durch ein Bodenportal fällt und was nicht** — mit echtem Rapier.
  *
  * Der vierte Test dieser Sammlung, der eine Physik-Engine startet, und er hat
  * denselben Grund wie die anderen drei (`jest.config.cjs`): Ob ein Körper
- * durch eine Wand fällt, entscheidet keine Rechnung, sondern eine
+ * durch einen Boden fällt, entscheidet keine Rechnung, sondern eine
  * Kollisionsmaske in der Engine. Ein Nachbau davon prüfte den Nachbau.
  *
- * Der Fall, wegen dem es diese Datei gibt, stand in der Brille: Ein Portal im
- * Boden, ein Zombie läuft darüber — und bleibt darauf stehen. Man sieht das
- * Loch, er läuft dagegen. Die Wand, in der ein Portal hängt, bleibt für alle
- * fest, die niemand davon ausnimmt, und ausgenommen waren bis dahin nur die
- * Kisten und der Spieler (`PortalWorld.updatePhasing`).
+ * Zwei Fälle stehen hier, und beide standen vorher in der Brille:
  *
- * Zwei Dinge stehen hier, und beide zusammen sind der Durchtritt:
+ * - **Ein Zombie blieb auf dem Portal stehen.** Die Wand, in der ein Portal
+ *   hängt, bleibt für alle fest, die niemand davon ausnimmt, und ausgenommen
+ *   waren lange nur die Kisten und der Spieler (`PortalWorld.updatePhasing`).
+ *   Dazu die andere Seite: Stelle, Tempo und Blickrichtung, gedreht wie das
+ *   Portal (`Npc.warp`).
+ * - **Ein Würfel fiel fünf Zentimeter und blieb im Loch liegen.** Im Labor
+ *   liegen zwei portalfähige Böden übereinander, und ein Portal nahm nur den
+ *   oberen mit. Fünf Zentimeter tiefer wartete der zweite (`portalFunnel.ts`).
  *
- * - Der **Boden gibt nach**, aber nur für den, der ausgenommen ist — die
- *   Gegenprobe steht daneben, sonst wäre der Test auch für einen Boden grün,
- *   den es gar nicht gibt.
- * - Auf der anderen Seite kommt er **richtig herum** heraus: Stelle, Tempo und
- *   Blickrichtung, gedreht wie das Portal (`Npc.warp`).
+ * Die Gegenproben stehen jeweils daneben — ohne sie wäre der Test auch für
+ * einen Boden grün, den es gar nicht gibt.
  */
 
 const DT = 1 / 60;
@@ -97,6 +102,48 @@ describe('ein NPC am Bodenportal', () => {
     settle(physics, 1);
 
     expect(npc.feet(_at).y).toBeCloseTo(0, 1);
+  });
+});
+
+describe('zwei Böden übereinander', () => {
+  /** Der Laborboden mit einem Bit und die Fläche bis zum Horizont mit ihrem. */
+  const FLOOR = portalSurfaceGroup(0);
+  const GROUND = portalSurfaceGroup(1);
+
+  async function lab(): Promise<{ physics: PhysicsWorld; cube: THREE.Mesh; entry: PhysicsBody }> {
+    const physics = await PhysicsWorld.create(-9.81);
+    const root = new THREE.Group();
+    labFloor(physics, root, FLOOR);
+    // `GROUND_TOP` ist −0,05: fünf Zentimeter unter dem gebauten Boden.
+    const ground = new THREE.Mesh(new THREE.BoxGeometry(200, 0.6, 200));
+    ground.position.set(0, -0.05 - 0.3, 0);
+    root.add(ground);
+    ground.updateWorldMatrix(true, false);
+    physics.addStatic(ground, { membership: GROUND, filter: ALL_GROUPS });
+
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5));
+    cube.position.set(0, 0.25, 0);
+    root.add(cube);
+    cube.updateWorldMatrix(true, false);
+    const entry = physics.addDynamic(cube, { mass: 8, friction: 0.8, restitution: 0.1 });
+    // Fünf Sekunden stehen, bis er wirklich liegt — und schläft.
+    settle(physics, 5);
+    return { physics, cube, entry };
+  }
+
+  it('lässt einen Würfel fünf Zentimeter tief im Loch liegen, wenn nur der obere Boden nachgibt', async () => {
+    const { physics, cube, entry } = await lab();
+    physics.setPhasing(entry, FLOOR);
+    settle(physics, 2);
+    // Genau das war auf dem Bild zu sehen: angesackt und liegengeblieben.
+    expect(cube.position.y).toBeCloseTo(0.2, 2);
+  });
+
+  it('lässt ihn fallen, sobald beide Böden im Trichter stehen', async () => {
+    const { physics, cube, entry } = await lab();
+    physics.setPhasing(entry, FLOOR | GROUND);
+    settle(physics, 2);
+    expect(cube.position.y).toBeLessThan(-10);
   });
 });
 

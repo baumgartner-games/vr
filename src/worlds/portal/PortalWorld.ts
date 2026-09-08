@@ -15,6 +15,7 @@ import { PortalRenderer } from './PortalRenderer';
 import { nextPortalDepth, portalDepth, savePortalDepth } from './portalDepth';
 import { PortalGhosts } from './PortalGhosts';
 import { crossPoint } from './portalCrossing';
+import { funnelGroups } from './portalFunnel';
 import { ToolBelt, type BeltSlot } from './ToolBelt';
 import {
   DEFAULT_BELT,
@@ -84,8 +85,8 @@ import {
 import {
   BAG_ITEMS,
   createCompanionCube,
-  createDominoes,
   createPropShape,
+  type PropBlueprint,
   DOMINO_SIZE,
   PROP_GRIPS,
   PROP_LABELS,
@@ -4318,22 +4319,44 @@ export class PortalWorld implements World {
       'cube-1',
     );
 
+    // **Die Steine sind die aus dem magischen Beutel** — derselbe Bauplan,
+    // dieselbe Masse, derselbe Collider (`createPropShape('domino')`). Vorher
+    // standen hier eigene: blau nach weiß verlaufend, mit eigenen Zahlen für
+    // Reibung und Dämpfung daneben. Zwei Sorten Domino in einer Welt sind eine
+    // zu viel — wer einen aus dem Beutel neben die Reihe stellt, soll ihn nicht
+    // von den anderen unterscheiden können, und wer die Zahlen ändert, soll das
+    // an einer Stelle tun.
+    //
     // Twice the size means twice the spacing, or they stand on each other.
-    const dominoes = createDominoes(14, COLOR_BLUE);
-    dominoes.forEach((domino, index) => {
+    for (let index = 0; index < 14; index++) {
+      const blueprint = createPropShape('domino');
+      const domino = blueprint.mesh;
       domino.userData.propKind = 'domino';
       domino.position.set(-4.2 + index * 0.62, DOMINO_SIZE.y / 2 + 0.001, 1.6);
       this.root.add(domino);
-      this.registerProp(
-        physics.addDynamic(domino, {
-          mass: 2,
-          friction: 0.6,
-          restitution: 0.02,
-          angularDamping: 0.25,
-          ccd: true,
-        }),
-        `domino-${index}`,
-      );
+      this.registerProp(this.propBody(blueprint), `domino-${index}`);
+    }
+  }
+
+  /**
+   * Der Körper zu einem Bauplan aus dem Beutel.
+   *
+   * Dieselben Zahlen für alles, was daraus gebaut wird: das Herbeigerufene
+   * (`createProp`) und die Reihe, die beim Aufbauen der Welt schon dasteht
+   * (`buildProps`). Zwei Aufrufstellen mit je einem eigenen Satz Reibung und
+   * Rückprall waren zwei Sorten desselben Dings.
+   */
+  private propBody(blueprint: PropBlueprint): PhysicsBody {
+    blueprint.mesh.updateWorldMatrix(true, false);
+    return this.physics!.addDynamic(blueprint.mesh, {
+      shape: blueprint.shape,
+      halfExtents: blueprint.halfExtents,
+      mass: blueprint.mass,
+      friction: 0.7,
+      // Fast alles im Labor soll liegen bleiben, wo es hinfällt. Was springen
+      // soll, sagt es im Bauplan — eine Murmel, die nicht hüpft, ist ein Kies.
+      restitution: blueprint.restitution ?? 0.05,
+      ccd: blueprint.ccd ?? false,
     });
   }
 
@@ -7035,7 +7058,6 @@ export class PortalWorld implements World {
     position: THREE.Vector3,
     quaternion: THREE.Quaternion | null,
   ): PhysicsBody {
-    const physics = this.physics!;
     const blueprint = createPropShape(kind);
     const mesh = blueprint.mesh;
     // Woraus es gebaut wurde, bleibt am Objekt: der Duplizierer baut daraus
@@ -7046,16 +7068,7 @@ export class PortalWorld implements World {
     this.root.add(mesh);
     mesh.updateWorldMatrix(true, false);
 
-    const entry = physics.addDynamic(mesh, {
-      shape: blueprint.shape,
-      halfExtents: blueprint.halfExtents,
-      mass: blueprint.mass,
-      friction: 0.7,
-      // Fast alles im Labor soll liegen bleiben, wo es hinfällt. Was springen
-      // soll, sagt es im Bauplan — eine Murmel, die nicht hüpft, ist ein Kies.
-      restitution: blueprint.restitution ?? 0.05,
-      ccd: blueprint.ccd ?? false,
-    });
+    const entry = this.propBody(blueprint);
     entry.previousPosition.copy(position);
     this.props.push(entry);
     this.spawned.add(entry);
@@ -7267,7 +7280,12 @@ export class PortalWorld implements World {
       }
     }
 
-    portal.place(hit.point, hit.normal, _placeUp, this.surfaceGroups.get(hit.object) ?? 0);
+    portal.place(
+      hit.point,
+      hit.normal,
+      _placeUp,
+      this.funnelGroups(hit.point, hit.normal, _placeUp),
+    );
     this.sync?.portalChanged(portal.key, this.portalState(portal.key));
     ctx.notify(key === 'a' ? 'Blaues Portal' : 'Rotes Portal');
   }
@@ -7334,6 +7352,27 @@ export class PortalWorld implements World {
       mask |= portal.surfaceGroup;
     }
     return mask;
+  }
+
+  /**
+   * Die Bits der Flächen, die ein Portal an dieser Stelle **durchstößt** — was
+   * ein Körper im Trichter also alles ignorieren darf (`portalFunnel.ts`).
+   *
+   * Einmal beim Schießen gerechnet und am Portal gemerkt: Flächen wandern
+   * nicht, und neun Strahlen je Bild wären neun zu viel.
+   */
+  private funnelGroups(point: THREE.Vector3, normal: THREE.Vector3, up: THREE.Vector3): number {
+    return funnelGroups(
+      {
+        raycaster: this.raycaster,
+        surfaces: this.surfaces,
+        groupOf: (surface) => this.surfaceGroups.get(surface) ?? 0,
+        depth: FUNNEL_DEPTH,
+      },
+      point,
+      normal,
+      up,
+    );
   }
 
   /** Lets the player fall through a wall while standing in a portal opening. */

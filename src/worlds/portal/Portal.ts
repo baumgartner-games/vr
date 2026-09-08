@@ -24,7 +24,15 @@ export class Portal extends THREE.Object3D implements ScreenSurface {
 
   link: Portal | null = null;
   placed = false;
-  /** Collision bit of the surface this portal sits on (0 while unplaced). */
+  /**
+   * Collision bits of everything the opening goes through (0 while unplaced).
+   *
+   * Nicht nur die Fläche, auf der das Portal klebt: Wo zwei portalfähige
+   * Flächen übereinanderliegen — im Labor der gebaute Boden und die Fläche bis
+   * zum Horizont fünf Zentimeter darunter —, sind es beide. Mit nur einem Bit
+   * fiel ein Würfel fünf Zentimeter und blieb im Loch stehen
+   * (`portalFunnel.ts`).
+   */
   surfaceGroup = 0;
 
   constructor(
@@ -97,7 +105,10 @@ export class Portal extends THREE.Object3D implements ScreenSurface {
     this.add(this.rim);
   }
 
-  /** Puts the portal onto a surface. `normal` points away from the wall. */
+  /**
+   * Puts the portal onto a surface. `normal` points away from the wall.
+   * `surfaceGroup` sind die Bits aller Flächen, die es durchstößt.
+   */
   place(point: THREE.Vector3, normal: THREE.Vector3, up: THREE.Vector3, surfaceGroup = 0): void {
     const right = new THREE.Vector3().crossVectors(up, normal).normalize();
     const trueUp = new THREE.Vector3().crossVectors(normal, right).normalize();

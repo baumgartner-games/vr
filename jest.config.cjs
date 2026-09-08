@@ -11,9 +11,9 @@
  * prüft, woher Nachschub kommt, und dafür braucht ein NPC einen Körper;
  * `physics/playerFooting.test.ts` stellt den Spieler selbst auf den Boden,
  * bei fünf Bildraten, weil die Bildrate mitentschied, ob er hindurchfiel; und
- * `worlds/portal/npcPortal.test.ts` lässt einen Zombie durch ein Bodenportal
- * fallen, denn ob ein Körper durch eine Wand fällt, entscheidet keine
- * Rechnung, sondern eine Kollisionsmaske in der Engine.
+ * `worlds/portal/portalFall.test.ts` lässt einen Zombie und einen Würfel durch
+ * ein Bodenportal fallen, denn ob ein Körper durch einen Boden fällt,
+ * entscheidet keine Rechnung, sondern eine Kollisionsmaske in der Engine.
  * Alle vier kosten zusammen ein paar Sekunden; alles andere bleibt reine
  * Rechnung.
  */
