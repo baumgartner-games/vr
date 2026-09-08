@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
-import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import { TILE, keyX, keyZ, tileKey } from '../nav/navTile';
+import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
+import { DIR_E, DIR_N, DIR_S, TILE, keyX, keyZ, tileKey } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools';
 import { playSwitch } from '../../core/Audio';
 import { pickHost } from '../../net/host';
@@ -15,6 +15,8 @@ import {
   HOUSE,
   MARKS,
   VAN_ID,
+  type HouseDoor,
+  type HouseRoom,
   type HouseSpec,
   type Rect,
 } from './house';
@@ -126,6 +128,68 @@ const TILT_MOST = Math.PI * 0.45;
  */
 const VEIL_RATIO = 0.1;
 
+/**
+ * **Wie tief das Blatt des Archivars aufgeschnitten wird.**
+ *
+ * Knapp **unter dem Türsturz** und nicht knapp unter der Decke. Über jeder Tür
+ * steht ein Sturz von der Türhöhe bis an die Decke (`levelBuild.doorParts`) —
+ * eine Wandscheibe, die von oben aussieht wie Wand. Wer nur die Decke abnimmt,
+ * legt ein Haus frei, in dem jede Tür zugemauert ist; genau das war der Grund,
+ * aus dem der Archivar seine Türen nicht fand. Ein Fingerbreit tiefer, und aus
+ * jeder Tür wird die Lücke, die sie ist.
+ */
+const PAPER_CUT = PLAN_DOOR_H - 0.05;
+
+/**
+ * Auf welcher Höhe die Türzeichen liegen: knapp unter dem Schnitt, und damit
+ * über den Flächen, die das Blatt freiräumen (`maskAround`) — ein Zeichen,
+ * das unter der Maske liegt, ist keines.
+ */
+const PAPER_MARK_Y = PAPER_CUT - 0.05;
+
+/** Und wie hell sie sind — Sepia frisst die Farbe, die Helligkeit bleibt. */
+const PAPER_INK = 0xf6e6c4;
+
+/**
+ * **Wie schräg der Fernseher auf das Haus schaut**, in Bogenmaß.
+ *
+ * Zehn Grad neben dem Lot. Senkrecht von oben ist ein Grundriss — man sieht,
+ * wo etwas steht, aber nicht, dass es steht; ein Bett und ein Teppich sind
+ * dann derselbe Fleck. Die zehn Grad geben jedem Möbel eine Flanke und jeder
+ * Wand eine Höhe, ohne dass die Wände sich gegenseitig verdecken. Weiter
+ * geschrägt fängt die Südwand an, das halbe Haus zuzudecken.
+ */
+const SHOW_PITCH = (Math.PI / 180) * 80;
+
+/** Der Öffnungswinkel dazu — eng genug, dass das Haus nicht gestaucht wirkt. */
+const SHOW_FOV = 42;
+
+/**
+ * **Und wo ihm die Decke abgenommen wird.**
+ *
+ * Dieselbe Antwort wie in der Vorschau des Werkzeugkastens (`tools/worldCut.ts`):
+ * eine Handbreit unter der Decke, damit Wände Wände bleiben und der Deckel
+ * weg ist. Gemacht wird es hier mit einer Schnittebene und nicht mit der
+ * vorderen Kappe der Kamera — die steht schräg im Raum, und ein schräger
+ * Schnitt ließe hinten die halbe Decke stehen.
+ */
+const SHOW_CUT = PLAN_WALL_H - 0.4;
+
+/** Der Himmel über dem Zuschauer: heller Tag, nicht die Nacht der anderen. */
+const SHOW_SKY = 0x9dc0e4;
+
+/**
+ * **Wie viel vom Bild oben schon vergeben ist.**
+ *
+ * Kopfzeile und Auftragsstreifen liegen über dem Bild, und beim Fernseher
+ * liegt darunter das Haus. Ohne diesen Anteil steckt die Nordwand hinter der
+ * Kopfzeile — sichtbar genug, um zu ärgern, und verdeckt genug, um zu fehlen.
+ * Der Ausschnitt wird deshalb um diesen Anteil größer gerechnet und der Blick
+ * um die Hälfte davon nach Norden gerückt: Das Haus rutscht nach unten, und
+ * oben bleibt genau der Streifen frei, den die Zeilen brauchen.
+ */
+const SHOW_HEADROOM = 0.18;
+
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 const REACH = 1.1;
 
@@ -140,6 +204,10 @@ const _lampOn = new THREE.Color(0xfff0cf);
 const _head = new THREE.Vector3();
 const _feet = new THREE.Vector3();
 const _size = new THREE.Vector2();
+/** Die Schnittebene, die dem Zuschauer die Decke abnimmt — einmal gebaut. */
+const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
+const _noLid: THREE.Plane[] = [];
+const _lidOn = [_lid];
 
 export class HauntingWorld extends GridWorld {
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
@@ -179,6 +247,20 @@ export class HauntingWorld extends GridWorld {
   private paperLight: THREE.AmbientLight | null = null;
   private paperSun: THREE.DirectionalLight | null = null;
   /**
+   * **Und das Tageslicht, unter dem der Fernseher läuft.**
+   *
+   * Dieselbe Bauart, anderer Zweck: Der Zuschauer sitzt nicht im Spiel,
+   * sondern davor. Ein Fernseher, auf dem vier Leute im Dunkeln stochern, ist
+   * für den Zuschauer ein schwarzes Bild — und der Grusel gehört ohnehin
+   * denen, die drinstecken. Also heller Tag, und die Nacht bleibt im Haus.
+   */
+  private showLight: THREE.AmbientLight | null = null;
+  private showSun: THREE.DirectionalLight | null = null;
+  /** Die Kamera über dem ganzen Haus, zehn Grad neben dem Lot. */
+  private showCam: THREE.PerspectiveCamera | null = null;
+  /** Ob der Welt gerade die Decke abgenommen ist — nur für den Zuschauer. */
+  private lidOff = false;
+  /**
    * **Was neben dem aufgeschlagenen Zimmer liegt, gehört nicht aufs Blatt.**
    *
    * Vier dunkle Flächen, die alles außerhalb des Zimmerrechtecks zudecken —
@@ -188,6 +270,25 @@ export class HauntingWorld extends GridWorld {
    * soll. Das ist keine Kosmetik: Es ist die Regel, an der seine Rolle hängt.
    */
   private readonly paperMask = new THREE.Group();
+  /**
+   * **Die Türzeichen auf dem Blatt** — je Tür eines, und zwei Sorten.
+   *
+   * Ein Grundriss zeichnet Türen, er fotografiert sie nicht: eine offene als
+   * Schwelle mit dem Bogen, den das Blatt schlägt, eine geschlossene als
+   * ausgefüllte Lücke. Ohne die Zeichen bleibt von einer Tür auch nach dem
+   * tieferen Schnitt nur ein Stück dunkler Boden zwischen zwei Wandstücken —
+   * auf einem Telefon, durch einen Sepiafilter, in einem braunen Zimmer.
+   *
+   * Sie hängen im Blatt und nicht in der Welt: Der VR-Spieler sieht echte
+   * Türen und braucht keine Symbole, und ein Kreidestrich, der im Haus
+   * herumschwebt, wäre ein Fehler mit Ansage.
+   */
+  private readonly paperDoors = new THREE.Group();
+  /** Welches Zeichen zu welcher Tür gehört — offen und zu, fertig gebaut. */
+  private readonly doorMarks = new Map<
+    string,
+    { open: THREE.Object3D; shut: THREE.Object3D; arc: THREE.Object3D }
+  >();
   /** Der Papierton liegt auf der Leinwand und nicht in der Szene. */
   private tinted = false;
   /** Und ob das Bild gerade grob gerastert hinter der Bedienung liegt. */
@@ -465,6 +566,9 @@ export class HauntingWorld extends GridWorld {
     // ihr verstellt wurde, geht hier auch wieder ab.
     this.veilView(false);
     this.paperTint(false);
+    // Die Schnittebene gehört dem Renderer und nicht dieser Welt: Wer sie
+    // stehen ließe, schnitte der nächsten Welt die Decke ab.
+    this.liftLid(false);
     this.ui?.dispose();
     this.ui = null;
     if (this.fusePlate) ctx.pointer.remove(this.fusePlate);
@@ -473,6 +577,8 @@ export class HauntingWorld extends GridWorld {
     dispose(this.live);
     dispose(this.vanRig);
     dispose(this.paperMask);
+    dispose(this.paperDoors);
+    this.doorMarks.clear();
     this.lamps.clear();
     this.items.clear();
     this.monster = null;
@@ -516,6 +622,10 @@ export class HauntingWorld extends GridWorld {
     }
 
     this.buildFuse();
+    // Die Türzeichen gehören zum Haus: Ein neues Haus hat neue Türen, und die
+    // alten Zeichen lägen sonst über dem neuen Grundriss. Beim allerersten Bau
+    // gibt es noch keine Oberfläche — dort setzt `buildStationViews` sie.
+    if (this.ui) this.buildDoorMarks();
   }
 
   private buildLamp(roomId: string, at: { x: number; z: number }): void {
@@ -580,7 +690,7 @@ export class HauntingWorld extends GridWorld {
     if (ctx) ctx.pointer.add({ object: plate, onSelect: () => this.throwFuse() });
   }
 
-  /** Der Van vor der Haustür: der Ablagetisch und vier Monitore. */
+  /** Der Van vor der Haustür: der Ablagetisch und die Monitore. */
   private buildVan(): void {
     const z = (HOUSE.z + HOUSE.d + 1.2) * TILE;
     const metal = new THREE.MeshStandardMaterial({
@@ -598,16 +708,18 @@ export class HauntingWorld extends GridWorld {
       this.vanRig.add(leg);
     }
 
-    // Vier Monitore, einer je Station. Sie zeigen (noch) nicht, was die
-    // Stationen sehen — aber sie sagen, wer gerade an welchem Gerät sitzt, und
-    // das ist die Auskunft, für die der VR-Spieler den Weg zurückgeht.
-    const colors = [0x4aa8ff, 0xff6b6b, 0x5ee0a0, 0xffc857];
+    // Ein Monitor je Station. Sie zeigen (noch) nicht, was die Stationen sehen
+    // — aber sie sagen, wer gerade an welchem Gerät sitzt, und das ist die
+    // Auskunft, für die der VR-Spieler den Weg zurückgeht. Der fünfte ist der
+    // Fernseher: kein Gerät, sondern das Fenster für die, die zusehen.
+    const colors = [0x4aa8ff, 0xff6b6b, 0x5ee0a0, 0xffc857, 0xb98cff];
+    const step = 0.55;
     colors.forEach((color, index) => {
       const screen = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.5, 0.34),
+        new THREE.PlaneGeometry(0.46, 0.32),
         new THREE.MeshBasicMaterial({ color, toneMapped: false, opacity: 0.55, transparent: true }),
       );
-      screen.position.set(-0.9 + index * 0.6, 1.4, z - 0.5);
+      screen.position.set((index - (colors.length - 1) / 2) * step, 1.4, z - 0.5);
       this.vanRig.add(screen);
       screen.add(new THREE.PointLight(color, 0.6, 2, 2));
 
@@ -780,6 +892,10 @@ export class HauntingWorld extends GridWorld {
     this.paperMask.visible = false;
     this.root.add(this.paperMask);
 
+    this.paperDoors.visible = false;
+    this.root.add(this.paperDoors);
+    this.buildDoorMarks();
+
     const paper = new THREE.AmbientLight(0xfff0dc, 0);
     this.root.add(paper);
     this.paperLight = paper;
@@ -795,6 +911,138 @@ export class HauntingWorld extends GridWorld {
     top.rotation.x = -Math.PI / 2;
     this.root.add(top);
     this.topCam = top;
+
+    // **Der Fernseher**: das ganze Haus, zehn Grad neben dem Lot. Wohin er
+    // rückt, hängt an der Form des Bildes und wird beim Zeichnen gerechnet
+    // (`aimShow`) — ein hochkantes Telefon und ein Fernseher quer brauchen
+    // zwei verschiedene Abstände für dasselbe Haus.
+    const show = new THREE.PerspectiveCamera(SHOW_FOV, 1, 0.5, 160);
+    show.rotation.order = 'YXZ';
+    show.rotation.x = -SHOW_PITCH;
+    this.root.add(show);
+    this.showCam = show;
+
+    const day = new THREE.AmbientLight(0xeaf2ff, 0);
+    this.root.add(day);
+    this.showLight = day;
+    const noon = new THREE.DirectionalLight(0xfff6e6, 0);
+    noon.position.set(9, 18, 14);
+    this.root.add(noon);
+    this.showSun = noon;
+  }
+
+  /**
+   * **Ein Türzeichen für jede Tür**, offen und zu, fertig gebaut.
+   *
+   * Gebaut und dann nur noch ein- und ausgeblendet: Die Türen gehen im Spiel
+   * dauernd auf und zu (der Hacker legt Schalter um), und Geometrie, die
+   * dabei jedes Mal neu entsteht, ist ein Speicherleck mit Zeitplan.
+   *
+   * Die Zeichen sind die aus einem Grundriss: **offen** ein schmaler Strich in
+   * der Öffnung und der Viertelbogen, den das Blatt schlägt; **zu** die
+   * ausgefüllte Lücke. Beide in Papierfarbe — hell genug, dass sie durch den
+   * Sepiafilter kommen, und die Form sagt die Auskunft, nicht die Farbe.
+   */
+  private buildDoorMarks(): void {
+    dispose(this.paperDoors);
+    this.doorMarks.clear();
+    const ink = new THREE.MeshBasicMaterial({
+      color: PAPER_INK,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+
+    for (const door of this.spec.doors) {
+      const { x, z, alongX } = doorEdge(door);
+      const open = new THREE.Group();
+      const shut = new THREE.Group();
+
+      // Die Schwelle: ein Strich quer in der Öffnung, so lang wie die Tür.
+      const sill = new THREE.Mesh(new THREE.PlaneGeometry(PLAN_DOOR_W, 0.08), ink);
+      sill.rotation.x = -Math.PI / 2;
+      if (!alongX) sill.rotation.z = Math.PI / 2;
+      open.add(sill);
+
+      // Der Bogen, den das Blatt schlägt. Er hängt in einem eigenen Träger,
+      // weil er sich je nach aufgeschlagenem Zimmer dreht: Gezeichnet wird er
+      // immer **in das Zimmer hinein**, das gerade auf dem Blatt liegt
+      // (`swingInto`) — ein Bogen, der nach draußen zeigt, läge auf der
+      // schwarzen Fläche ringsum und sähe aus wie ein Fehler.
+      const pivot = new THREE.Group();
+      const arc = new THREE.Mesh(
+        new THREE.RingGeometry(PLAN_DOOR_W - 0.06, PLAN_DOOR_W, 20, 1, 0, Math.PI / 2),
+        ink,
+      );
+      arc.rotation.x = -Math.PI / 2;
+      pivot.add(arc);
+      open.add(pivot);
+
+      // Und zu: die Lücke ausgefüllt. Ein Pfropfen sagt „hier kommt niemand
+      // durch" ohne ein einziges Wort — und er sagt es auch dem, der einen
+      // Grundriss zum ersten Mal sieht.
+      const plug = new THREE.Mesh(new THREE.PlaneGeometry(PLAN_DOOR_W, PLAN_WALL_T + 0.1), ink);
+      plug.rotation.x = -Math.PI / 2;
+      if (!alongX) plug.rotation.z = Math.PI / 2;
+      shut.add(plug);
+
+      for (const mark of [open, shut]) {
+        mark.position.set(x, PAPER_MARK_Y, z);
+        mark.visible = false;
+        this.paperDoors.add(mark);
+      }
+      this.doorMarks.set(door.id, { open, shut, arc: pivot });
+    }
+  }
+
+  /**
+   * **Welche Zeichen gerade gelten** — und es sind nur die des aufgeschlagenen
+   * Zimmers.
+   *
+   * Die Zeichen liegen über den Flächen, die alles andere freiräumen; ohne
+   * diese Auswahl schwebten die Türen der Nachbarzimmer über dem schwarzen
+   * Rand und machten aus dem Blatt doch wieder eine Karte.
+   */
+  private markDoors(roomId: string): void {
+    const room = roomOf(this.spec, roomId) ?? this.spec.rooms[0];
+    const shut = new Set(this.state.shut);
+    for (const door of this.spec.doors) {
+      const mark = this.doorMarks.get(door.id);
+      if (!mark) continue;
+      const mine = !!room && (door.a === room.id || door.b === room.id);
+      const closed = shut.has(door.id);
+      mark.open.visible = mine && !closed;
+      mark.shut.visible = mine && closed;
+      if (mine && room && !closed) this.swingInto(mark.arc, door, room);
+    }
+  }
+
+  /**
+   * **Den Türbogen in das aufgeschlagene Zimmer drehen.**
+   *
+   * Der Bogen ist ein Viertelkreis vom Pfosten aus: Er fängt in der Wand an
+   * (dort steht das Blatt, wenn die Tür zu ist) und endet quer im Zimmer (dort
+   * steht es offen). Welcher der beiden Pfosten der Angelpunkt ist, hängt
+   * daran, auf welcher Seite das Zimmer liegt — der gebaute Bogen läuft von
+   * seiner örtlichen +X-Achse nach −Z, und gedreht wird er so, dass aus diesen
+   * beiden Richtungen „die Wand entlang" und „ins Zimmer hinein" wird.
+   */
+  private swingInto(pivot: THREE.Object3D, door: HouseDoor, room: HouseRoom): void {
+    const edge = doorEdge(door);
+    // Die Wandrichtung, und die Richtung ins Zimmer: Die eine liegt fest, die
+    // andere zeigt dorthin, wo die Mitte des Zimmers liegt.
+    let ax = edge.alongX ? 1 : 0;
+    let az = edge.alongX ? 0 : 1;
+    const mid = roomCentre(room);
+    const inx = edge.alongX ? 0 : Math.sign((mid.x + 0.5) * TILE - edge.x) || 1;
+    const inz = edge.alongX ? Math.sign((mid.z + 0.5) * TILE - edge.z) || 1 : 0;
+    // Beide Drehsinne sind möglich; der gebaute Bogen kennt nur einen. Zeigt
+    // das Paar in die falsche Richtung herum, hängt er am anderen Pfosten.
+    if (ax * inz - az * inx > 0) {
+      ax = -ax;
+      az = -az;
+    }
+    pivot.rotation.y = Math.atan2(-az, ax);
+    pivot.position.set((-ax * PLAN_DOOR_W) / 2, 0, (-az * PLAN_DOOR_W) / 2);
   }
 
   // --- der Stand ------------------------------------------------------------
@@ -1448,40 +1696,58 @@ export class HauntingWorld extends GridWorld {
   override render(ctx: WorldContext): boolean {
     const ui = this.ui;
     if (!ui) return false;
+    const station = ui.station;
+    const archive = station === 'archive';
+    const show = station === 'watch';
     this.veilView(ui.veiled);
+    // Die Decke bleibt nur dem Zuschauer weg, und sie geht nur bei Wechsel ab:
+    // Eine Schnittebene, die je Bild kommt und geht, baut three.js jedes Mal
+    // jeden Shader neu.
+    this.liftLid(show);
     const rect = ui.viewport();
     const renderer = ctx.renderer;
     renderer.getSize(_size);
     renderer.setScissorTest(false);
-    renderer.setClearColor(0x05070c, 1);
+    renderer.setClearColor(show ? SHOW_SKY : 0x05070c, 1);
     renderer.clear();
     if (!rect) return true;
 
-    const camera = ui.station === 'drone' ? this.droneCam : this.topCam;
+    const aspect = rect.w / Math.max(1, rect.h);
+    const camera = station === 'drone' ? this.droneCam : show ? this.showCam : this.topCam;
     if (!camera) return true;
-    if (ui.station === 'archive') this.aimArchive(ui.selected, rect.w / Math.max(1, rect.h));
+    if (archive) this.aimArchive(ui.selected, aspect);
+    if (show) this.aimShow(aspect);
 
     // Der Archivar sieht **keine Lebewesen**: keinen Mitspieler, kein Monster,
     // keine Drohne. Sein Blatt ist ein Grundriss und keine Überwachung.
-    const archive = ui.station === 'archive';
     this.live.visible = !archive;
     ctx.avatars.visible = !archive;
     if (this.paperLight) this.paperLight.intensity = archive ? 2.2 : 0;
     if (this.paperSun) this.paperSun.intensity = archive ? 1.4 : 0;
     this.paperMask.visible = archive;
+    this.paperDoors.visible = archive;
+    if (archive) this.markDoors(ui.selected);
     this.paperTint(archive);
+    // **Der Zuschauer sieht Tag.** Der Nebel gehört zum Grusel derer, die
+    // drinstecken; über dem Puppenhaus wäre er nur eine Milchglasscheibe.
+    const fog = ctx.scene.fog;
+    if (show) ctx.scene.fog = null;
+    if (this.showLight) this.showLight.intensity = show ? 3.4 : 0;
+    if (this.showSun) this.showSun.intensity = show ? 2.2 : 0;
 
     const y = _size.y - rect.y - rect.h;
     renderer.setScissorTest(true);
     renderer.setScissor(rect.x, y, rect.w, rect.h);
     renderer.setViewport(rect.x, y, rect.w, rect.h);
-    if (camera instanceof THREE.PerspectiveCamera) {
-      camera.aspect = rect.w / Math.max(1, rect.h);
+    if (camera instanceof THREE.PerspectiveCamera && !show) {
+      camera.aspect = aspect;
       // **Der Öffnungswinkel hängt an der Form des Bildes.** Der Pilot zieht
       // sein Bild vom Kinostreifen aufs Vollbild und zurück; bliebe der
       // senkrechte Winkel dabei stehen, sähe er im Streifen fast nichts mehr
       // nach oben und im hochkanten Vollbild fast nichts mehr zur Seite
-      // (`droneRoute.droneFov`).
+      // (`droneRoute.droneFov`). Der Fernseher behält seinen Winkel und rückt
+      // stattdessen ab (`aimShow`): Ein Haus, das man von außen ansieht, soll
+      // nicht mit dem Fenster die Perspektive wechseln.
       camera.fov = droneFov(camera.aspect);
       camera.updateProjectionMatrix();
     }
@@ -1492,8 +1758,58 @@ export class HauntingWorld extends GridWorld {
     ctx.avatars.visible = true;
     if (this.paperLight) this.paperLight.intensity = 0;
     if (this.paperSun) this.paperSun.intensity = 0;
+    if (this.showLight) this.showLight.intensity = 0;
+    if (this.showSun) this.showSun.intensity = 0;
+    ctx.scene.fog = fog;
     this.paperMask.visible = false;
+    this.paperDoors.visible = false;
     return true;
+  }
+
+  /**
+   * **Dem Haus die Decke abnehmen** — für den Zuschauer, und nur für ihn.
+   *
+   * Eine Schnittebene am Renderer statt einer nahen Kappe an der Kamera: Die
+   * steht zehn Grad schräg im Raum, und ein Schnitt senkrecht zu ihrer
+   * Blickrichtung ließe hinten die halbe Decke stehen. Und nur bei **Wechsel**,
+   * weil three.js jeden Shader neu baut, sobald sich die Zahl der Ebenen
+   * ändert — je Bild wäre das ein Ruckeln ohne Grund.
+   */
+  private liftLid(on: boolean): void {
+    const renderer = this.context?.renderer;
+    if (!renderer || on === this.lidOff) return;
+    this.lidOff = on;
+    renderer.clippingPlanes = on ? _lidOn : _noLid;
+  }
+
+  /**
+   * **Den Fernseher so weit weg stellen, dass das Haus hineinpasst.**
+   *
+   * Der Öffnungswinkel bleibt und der Abstand wandert — andersherum sähe
+   * dasselbe Haus auf einem Telefon nach Fischauge und auf einem Fernseher
+   * nach Teleobjektiv aus. Gerechnet wird beides einzeln, quer und der Länge
+   * nach, und die schlimmere der beiden Zahlen gewinnt: Ein hochkantes Handy
+   * hat quer zu wenig Platz, ein Fernseher der Länge nach.
+   */
+  private aimShow(aspect: number): void {
+    const camera = this.showCam;
+    if (!camera) return;
+    const cx = (HOUSE.x + HOUSE.w / 2) * TILE;
+    const cz = (HOUSE.z + HOUSE.d / 2) * TILE;
+    // Ein Kachelrand ringsum: Das Haus soll im Bild stehen und nicht daran
+    // kleben — und im Süden liegt der Vorplatz mit dem Van, den man gern
+    // mitsieht, wenn die Drohne heimkommt.
+    const wide = (HOUSE.w + 1) * TILE;
+    // Nach Süden ein Stück mehr: Dort liegen der Vorplatz und der Van, und wer
+    // zusieht, will sehen, wie die Drohne heimkommt und was auf dem Tisch
+    // landet. Und oben der Streifen für die Zeilen, die über dem Bild liegen.
+    const deep = ((HOUSE.d + 3.4) * TILE) / (1 - SHOW_HEADROOM);
+    const rise = Math.tan(((SHOW_FOV / 2) * Math.PI) / 180);
+    const far = Math.max(deep / (2 * rise), wide / (2 * rise * aspect));
+    const look = cz + 1.2 * TILE - (SHOW_HEADROOM / 2) * deep;
+    camera.position.set(cx, Math.sin(SHOW_PITCH) * far, look + Math.cos(SHOW_PITCH) * far);
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
   }
 
   /**
@@ -1582,7 +1898,11 @@ export class HauntingWorld extends GridWorld {
     camera.right = hw;
     camera.top = hh;
     camera.bottom = -hh;
-    camera.near = above - PLAN_WALL_H + 0.05;
+    // **Unter dem Türsturz und nicht unter der Decke** (`PAPER_CUT`): Über jeder
+    // Tür steht eine Wandscheibe bis an die Decke, und von oben sieht sie aus
+    // wie Wand. Wer nur den Deckel abnimmt, legt ein Haus frei, in dem jede
+    // Tür zugemauert ist.
+    camera.near = above - PAPER_CUT;
     camera.far = above + 2;
     camera.updateProjectionMatrix();
     this.maskAround(room.rect, camera.position.x, camera.position.z, hw, hh);
@@ -1636,7 +1956,13 @@ export class HauntingWorld extends GridWorld {
     const x1 = (rect.x + rect.w) * TILE + edge;
     const z0 = rect.z * TILE - edge;
     const z1 = (rect.z + rect.d) * TILE + edge;
-    const y = PLAN_WALL_H - 0.12;
+    // **Knapp unter dem Schnitt und mit ihm zusammen gewandert.** Die Flächen
+    // müssen unter der vorderen Kappe liegen, sonst schneidet die Kamera das
+    // Blatt weg statt die Decke — und der Archivar sähe das halbe Haus. Sie
+    // dürfen aber auch nicht tiefer als nötig hängen: Was zwischen ihnen und
+    // dem Schnitt steht, bleibt sichtbar. Die Türzeichen liegen eine Handbreit
+    // darüber (`PAPER_MARK_Y`) und werden deshalb nicht zugedeckt.
+    const y = PAPER_CUT - 0.08;
     const spans: Array<[number, number, number, number]> = [
       [cx - hw, cz - hh, cx + hw, z0],
       [cx - hw, z1, cx + hw, cz + hh],
@@ -1803,4 +2129,27 @@ function freshState(seed: number): HauntState {
 function nameOfRoom(spec: HouseSpec, id: string): string {
   const room = roomOf(spec, id);
   return room ? `bei ${MARKS[room.signature]}` : 'irgendwo';
+}
+
+/**
+ * **Wo eine Tür wirklich sitzt** — auf der Kante und nicht auf der Kachel.
+ *
+ * Der Bauplan sagt „an dieser Kachel, in dieser Richtung"; gezeichnet wird auf
+ * der Kante dazwischen. Der Späherschirm setzt seinen Punkt großzügig in die
+ * Kachelmitte, weil dort ein Pixel reicht — auf dem Blatt des Archivars läge
+ * das Zeichen dann anderthalb Meter neben der Tür, mitten im Zimmer.
+ *
+ * `alongX` sagt, wie die Kante liegt: nach Norden und Süden läuft sie quer
+ * (entlang X), nach Osten und Westen längs. Dieselbe Unterscheidung wie beim
+ * Bauen der Wände (`levelBuild`), und aus demselben Grund.
+ */
+function doorEdge(door: { x: number; z: number; dir: number }): {
+  x: number;
+  z: number;
+  alongX: boolean;
+} {
+  const alongX = door.dir === DIR_N || door.dir === DIR_S;
+  const x = (door.x + (door.dir === DIR_E ? 1 : alongX ? 0.5 : 0)) * TILE;
+  const z = (door.z + (door.dir === DIR_S ? 1 : alongX ? 0 : 0.5)) * TILE;
+  return { x, z, alongX };
 }

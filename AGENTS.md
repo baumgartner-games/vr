@@ -1910,7 +1910,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   anderen nicht geht. Ein je Runde **gewürfeltes Haus** (`haunting/house.ts`),
   drei Sachen darin, und davor ein Van mit vier Stationen — Archiv, Späher,
   Drohne, Schalttafel —, von denen jede das Haus in einer anderen Sprache
-  kennt. Der VR-Spieler hat als Einziger Hände, alle anderen haben Wissen, und
+  kennt. Dazu ein **Fernseher** für die, die nur zusehen: das ganze Haus von
+  schräg oben, bei Tag, ohne einen einzigen Knopf. Der VR-Spieler hat als Einziger Hände, alle anderen haben Wissen, und
   niemand kann dem anderen eine Koordinate sagen. Das Monster ist **aus**, bis
   die Brille es einschaltet. Ausführlich: _Haunting: einer im Haus, die anderen
   im Van_.
@@ -7494,8 +7495,9 @@ den Welten ergänzen, er muss nur `NetTransport` implementieren.
 Das erste Spiel hier, das ohne die anderen nicht geht (`worlds/haunting/`).
 Einer setzt die Brille auf und wählt im Hub **Spiel Haunting**; alle anderen
 kommen auf der Startseite unter _Zusammen spielen_ herein und sitzen im Van vor
-vier Geräten. Die Aufgabe ist simpel — drei Sachen finden und herausbringen —,
-und schwer ist sie aus genau einem Grund:
+vier Geräten — plus einem Fernseher für die, die nur zusehen. Die Aufgabe ist
+simpel — drei Sachen finden und herausbringen —, und schwer ist sie aus genau
+einem Grund:
 
 **Das Übersetzungsproblem.** Jede Station kennt dasselbe Haus in einer
 **anderen Sprache**. Der Archivar kennt Namen („Bibliothek"), der Späher kennt
@@ -7515,6 +7517,18 @@ die anderen drei wären Deko.
 | **Späher** | Wände und einen Punkt, dem Monster nachgeführt | Namen, Möbel, den VR-Spieler |
 | **Drohne** | ein Zimmer vollständig, in Farbe, im eigenen Scheinwerfer | alles außerhalb; macht keine Tür auf |
 | **Schalttafel** | Schalter mit schlechten Beschriftungen | den Grundriss, überhaupt |
+| **Zuschauer** | alles: das ganze Haus von schräg oben, bei Tag, mit allem darin | nichts — und genau deshalb bedient er auch nichts |
+
+**Der Zuschauer ist keine fünfte Rolle, sondern der Fernseher im Raum.** Er
+bricht die oberste Regel dieser Welt mit voller Absicht: Er sieht Monster
+*und* Mitspieler, Haus und Namen, alles auf einmal. Erlaubt ist ihm das nur,
+weil er **nichts bedienen kann** — kein Schalter, kein Flug, kein Zimmer zum
+Aufschlagen — und weil er nicht mitspielt: Er ist für die gedacht, die
+danebensitzen und zusehen, wie vier andere sich anschreien. Wer am Fernseher
+mitredet, beendet die Runde schneller als das Monster; das steht deshalb auch
+auf seiner Seite. Er ist außerdem der einzige Platz, an dem **mehrere
+gleichzeitig** sitzen dürfen (`stations.shared`) — wer nichts bedient, nimmt
+niemandem etwas weg.
 
 **Eine Quelle, viele Projektionen.** Über die Leitung geht der **Same** und
 nicht das Haus (`haunting/house.ts`): Jedes Gerät baut denselben Grundriss
@@ -7803,7 +7817,7 @@ beides.
 
 **Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
 Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
-zusammenschiebt, nie. Vierzehn Sachen, die dabei nicht Geschmack sind:
+zusammenschiebt, nie. Sechzehn Sachen, die dabei nicht Geschmack sind:
 
 - **Jede Station hat eine Farbe, und es ist ihre** (`--haunt-accent` über
   `data-station` am Wurzelelement) — dieselben vier Töne, die im Haus auf den
@@ -7867,6 +7881,24 @@ zusammenschiebt, nie. Vierzehn Sachen, die dabei nicht Geschmack sind:
   vor der schwarzen Maske um sein Zimmer und hielte das Gerät für kaputt. Ein
   anderes Zimmer aufschlagen fängt wieder beim ganzen an: **Aufgeschlagen heißt
   hinsehen**, genau wie beim Piloten, der ein Zimmer antippt.
+- **Türen werden gezeichnet und nicht fotografiert** (`HauntingWorld.buildDoorMarks`).
+  Zwei Sachen fehlten dem Archivar dafür. Erstens der Schnitt: Er lag knapp
+  unter der **Decke**, und über jeder Tür steht ein Sturz von der Türhöhe bis
+  an die Decke (`levelBuild.doorParts`) — von oben ein Stück Wand. Ein Haus
+  ohne Deckel, in dem jede Tür zugemauert ist. Jetzt liegt er knapp unter dem
+  **Sturz** (`PAPER_CUT`), und aus jeder Tür wird die Lücke, die sie ist.
+  Zweitens das Zeichen: Ein Grundriss zeichnet Türen — **offen** als Schwelle
+  mit dem Viertelbogen, den das Blatt schlägt, **zu** als ausgefüllte Lücke.
+  Die Form sagt die Auskunft und nicht die Farbe: Der Sepiafilter über dem
+  Blatt macht aus Rot und Grün dasselbe Braun, aus hell und dunkel aber nicht.
+  Der Bogen dreht sich dabei immer **in das aufgeschlagene Zimmer** hinein, und
+  gezeigt werden nur dessen Türen — sonst schwebten die Türen der Nachbarn über
+  der schwarzen Fläche ringsum, und aus dem Blatt wäre wieder eine Karte.
+- **Und die Flächen, die das Blatt freiräumen, liegen unter dem Schnitt.** Sie
+  hingen an der Decke, weil der Schnitt dort lag; mit dem tieferen Schnitt
+  schnitt die Kamera erst die Maske weg und dann sah der Archivar das halbe
+  Haus. Wer eine dieser beiden Höhen ändert, ändert die andere mit
+  (`PAPER_CUT`, `PAPER_MARK_Y`, `maskAround`).
 - **Warum überhaupt Zoom?** Weil sein Ausschnitt das ganze Zimmer zeigt und
   damit das Klavier so groß wie eine Kiste. Der Archivar ist der Einzige, der
   Namen hat — er muss sagen können, was auf dem Tisch liegt, und dafür muss er
@@ -7902,10 +7934,25 @@ zusammenschiebt, nie. Vierzehn Sachen, die dabei nicht Geschmack sind:
   hat: Jeder Knopf bekäme die Schriftgröße der Kopfzeile. Vererbt wird die
   Schriftart, die Größe setzt jeder Knopf selbst.
 
-Zwei Sichten kommen aus der Welt (Archiv und Drohne, als
+Drei Sichten kommen aus der Welt (Archiv, Drohne und Fernseher, als
 Kamera in ein Loch im Overlay gezeichnet — `HauntingWorld.render` mit
 Scherenschnitt), zwei zeichnet die Oberfläche selbst (Späher als 2D-Konturen,
-Tafel ganz ohne Haus). Der Archivar bekommt sein eigenes Licht und einen
+Tafel ganz ohne Haus).
+
+**Der Fernseher ist die dritte** und die einzige, die das Haus ganz sieht:
+eine Perspektivkamera **zehn Grad neben dem Lot** (`SHOW_PITCH`). Senkrecht von
+oben wäre es ein Grundriss — man sähe, wo etwas steht, aber nicht, dass es
+steht; ein Bett und ein Teppich wären derselbe Fleck. Weiter geschrägt fängt
+die Südwand an, das halbe Haus zuzudecken. Die Decke nimmt ihm eine
+**Schnittebene** ab (`liftLid`) und nicht die vordere Kappe der Kamera: Die
+steht schräg im Raum und ließe hinten die halbe Decke stehen. Gesetzt wird sie
+nur beim **Wechsel** der Station — three.js baut jeden Shader neu, sobald sich
+die Zahl der Ebenen ändert. Dazu eigenes Tageslicht (dieselbe Bauart wie das
+Papierlicht: immer in der Szene, auf null gedreht) und **kein Nebel**: Der
+gehört dem Grusel derer, die drinstecken; über dem Puppenhaus wäre er eine
+Milchglasscheibe. Der Ausschnitt lässt oben den Streifen frei, den Kopfzeile
+und Auftrag decken (`SHOW_HEADROOM`), und unten den Vorplatz mit dem Van —
+wer zusieht, will sehen, wie die Drohne heimkommt. Der Archivar bekommt sein eigenes Licht und einen
 Sepiaton, damit sein Blatt **nicht** davon abhängt, ob im Haus jemand die Lampe
 angemacht hat: Eine Akte ist eine Bauzeichnung und kein Kamerabild. Die Lichter
 dafür stehen immer in der Szene und werden auf null gedreht statt

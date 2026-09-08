@@ -71,12 +71,13 @@ gebaut.
 Das erste Spiel hier, das ohne die anderen nicht geht. Einer setzt die Brille
 auf und wählt im Hub **Spiel Haunting**; alle anderen kommen auf der Startseite
 unter _Zusammen spielen_ herein — nur der Name, kein Raum-Code — und sitzen im
-Van vor vier Geräten:
+Van vor vier Geräten (und einem Fernseher):
 
 - **Archiv** — schlägt die Akte auf, ein Zimmer je Seite: Name, Möbel, Türen.
   Der Grundriss liegt über dem ganzen Schirm: zwei Finger oder das Mausrad
   ziehen ihn heran, ein Finger schiebt ihn durch, der Menüknopf legt die Akte
-  darüber. Sieht dafür niemanden, der sich bewegt.
+  darüber. Türen stehen als Zeichen darin — Bogen heißt offen, ausgefüllter
+  Balken heißt zu. Sieht dafür niemanden, der sich bewegt.
 - **Späher** — sieht, wo das Monster gerade ist. Nur Wände und einen Punkt:
   keine Namen, keine Möbel, und den Mitspieler auch nicht.
 - **Drohne** — fliegt auf Zimmer, die man antippt, und zeigt eins vollständig.
@@ -88,6 +89,10 @@ Van vor vier Geräten:
   wieder geradeaus, und beim Losfliegen tut sie das von selbst.
 - **Schalttafel** — Licht, Türen, Radios. Ohne Grundriss, mit Beschriftungen
   wie `Wohnzimmer`, `Tür 2` und `X`.
+- **Zuschauer** — das ganze Haus von schräg oben, ohne Decke, bei hellem Tag
+  und mit allem darin. Kein Gerät, sondern der Fernseher im Raum: Hier dürfen
+  beliebig viele mitschauen, bedienen kann man nichts — und wer zusieht, sagt
+  nichts.
 
 Draußen ist Abend: Vor dem Haus stehen der Van mit dem Tisch, vier Plätzen und
 dem Ring, auf dem die Drohne startet — dort fängt auch der VR-Spieler an. Das

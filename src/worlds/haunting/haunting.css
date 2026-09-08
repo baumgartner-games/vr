@@ -51,16 +51,20 @@
 
 .haunt > * { pointer-events: auto; }
 
-/* Vier Stationen, vier Töne — dieselben wie auf den Monitoren im Van. */
+/* Vier Stationen, vier Töne — dieselben wie auf den Monitoren im Van. Der
+   Fernseher hat einen fünften: Er ist kein Gerät, aber er steht in derselben
+   Liste, und eine Kachel ohne eigene Farbe sieht aus wie ein Fehler. */
 .haunt[data-station="archive"] { --haunt-accent: #ffc857; }
 .haunt[data-station="scout"] { --haunt-accent: #ff6b6b; }
 .haunt[data-station="drone"] { --haunt-accent: #5ee0a0; }
 .haunt[data-station="hack"] { --haunt-accent: #4aa8ff; }
+.haunt[data-station="watch"] { --haunt-accent: #b98cff; }
 
 .haunt [data-accent="archive"] { --haunt-accent: #ffc857; }
 .haunt [data-accent="scout"] { --haunt-accent: #ff6b6b; }
 .haunt [data-accent="drone"] { --haunt-accent: #5ee0a0; }
 .haunt [data-accent="hack"] { --haunt-accent: #4aa8ff; }
+.haunt [data-accent="watch"] { --haunt-accent: #b98cff; }
 
 /* Im Van wird nicht gelaufen: Der Touch-Stick des Handys hätte hier nichts zu
    steuern und läge quer über der Schalttafel. */

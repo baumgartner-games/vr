@@ -22,8 +22,15 @@ import { pickHost, type HostCandidate } from '../../net/host';
  * gewinnt — unsichtbar und ärgerlich. Mit ihr wird daraus eine Verhandlung:
  * Zwei sehen sich auf dasselbe Terminal zulaufen, und einer ruft „geh du, ich
  * nehm den Hacker". Genau dieses Zurufen ist das Spiel.
+ *
+ * **Und dann ist da noch der Fernseher** (`watch`). Er ist kein fünftes Gerät,
+ * sondern ein Fenster: das ganze Haus von schräg oben, bei Tag, mit allem
+ * darin. Er gehört nicht ins Spiel, sondern in den Raum — für die, die
+ * zusehen, während vier andere sich anschreien. Deshalb ist er der einzige
+ * Platz, an dem **mehrere gleichzeitig** sitzen dürfen (`shared`): Wer nichts
+ * bedient, nimmt niemandem etwas weg.
  */
-export type StationId = 'archive' | 'scout' | 'drone' | 'hack';
+export type StationId = 'archive' | 'scout' | 'drone' | 'hack' | 'watch';
 
 export interface StationFacts {
   id: StationId;
@@ -34,6 +41,15 @@ export interface StationFacts {
   sees: string;
   /** Ob dafür die Welt gezeichnet werden muss (der Hacker sieht kein Bild). */
   view: boolean;
+  /**
+   * **Ob mehrere gleichzeitig daran dürfen.**
+   *
+   * Die vier Geräte sind mit Absicht einzeln: Der Streit darum ist das Spiel.
+   * Der Fernseher ist kein Gerät, sondern ein Fenster — wer davorsteht,
+   * nimmt niemandem etwas weg, und ein Schubser zwischen zwei Zuschauern wäre
+   * eine Regel ohne Sache dahinter.
+   */
+  shared?: boolean;
 }
 
 export const STATIONS: readonly StationFacts[] = [
@@ -64,6 +80,14 @@ export const STATIONS: readonly StationFacts[] = [
     tagline: 'Licht, Türen, Radios',
     sees: 'Schalter mit schlechten Beschriftungen — und keinen Grundriss',
     view: false,
+  },
+  {
+    id: 'watch',
+    label: 'Zuschauer',
+    tagline: 'Das ganze Haus, bei Tag',
+    sees: 'alles — und darf deshalb nichts sagen',
+    view: true,
+    shared: true,
   },
 ];
 
@@ -98,6 +122,8 @@ export function ownerOf(claims: readonly Claim[], station: StationId): string {
 export function seatOf(claims: readonly Claim[], peer: string): StationId | null {
   const mine = claims.find((claim) => claim.id === peer);
   if (!mine) return null;
+  // Vor dem Fernseher wird niemand weggeschubst: Da ist Platz.
+  if (stationFacts(mine.station).shared) return mine.station;
   return ownerOf(claims, mine.station) === peer ? mine.station : null;
 }
 
@@ -111,7 +137,18 @@ export function seatOf(claims: readonly Claim[], peer: string): StationId | null
 export function shoved(claims: readonly Claim[], peer: string): boolean {
   const mine = claims.find((claim) => claim.id === peer);
   if (!mine) return false;
+  if (stationFacts(mine.station).shared) return false;
   return ownerOf(claims, mine.station) !== peer;
+}
+
+/**
+ * Wie viele gerade an einem Gerät sitzen.
+ *
+ * Für die Kachel im Van: Bei den vier einzelnen ist die Zahl immer null oder
+ * eins und die Kachel sagt einen Namen; vor dem Fernseher sagt sie „zu dritt".
+ */
+export function crowdAt(claims: readonly Claim[], station: StationId): number {
+  return claims.filter((claim) => claim.station === station).length;
 }
 
 /** Wer wo sitzt — für die Kachelübersicht im Van. */

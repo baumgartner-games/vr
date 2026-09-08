@@ -2,6 +2,7 @@ import './haunting.css';
 import { MARKS, namesakes, roomOf, VAN_ID, type HouseRoom, type HouseSpec } from './house';
 import { visibleSwitches } from './panel';
 import {
+  crowdAt,
   MOVE_TIME,
   seating,
   shoved,
@@ -36,6 +37,9 @@ import type { DroneState, HauntState } from './net';
  *   navigiert auf der Karte statt im Bild. Sein Bild ist dabei der ganze
  *   Schirm; die Karte legt der Menüknopf darüber und nimmt sie wieder weg.
  * - Die **Schalttafel** sieht vom Haus überhaupt nichts.
+ * - Der **Zuschauer** sieht alles: das ganze Haus von schräg oben, bei Tag,
+ *   mit allem, was darin herumläuft. Er ist keine fünfte Rolle, sondern der
+ *   Fernseher im Raum — und er kann nichts bedienen, damit das so bleibt.
  *
  * Wer hier eine dieser Grenzen aufweicht, weil es „praktischer" wäre, macht
  * aus vier Rollen eine: Sobald eine Station Monster *und* Mitspieler
@@ -254,8 +258,7 @@ export class StationUi {
    * diese Station keines hat.
    */
   viewport(): { x: number; y: number; w: number; h: number } | null {
-    const station = this.station;
-    if (station !== 'archive' && station !== 'drone') return null;
+    if (!this.hasView) return null;
     const box = this.view.getBoundingClientRect();
     if (box.width < 8 || box.height < 8) return null;
     return { x: box.left, y: box.top, w: box.width, h: box.height };
@@ -330,7 +333,7 @@ export class StationUi {
   /** Ob diese Station überhaupt ein Bild der Welt bekommt. */
   private get hasView(): boolean {
     const station = this.station;
-    return station === 'archive' || station === 'drone';
+    return station === 'archive' || station === 'drone' || station === 'watch';
   }
 
   // --- schreiben -------------------------------------------------------------
@@ -361,7 +364,7 @@ export class StationUi {
     const where = el('span', 'haunt__where');
     where.append(
       el('strong', '', facts ? facts.label : 'Van'),
-      el('small', '', facts ? facts.tagline : 'Vier Geräte, und nie genug Leute'),
+      el('small', '', facts ? facts.tagline : 'Vier Geräte, ein Fernseher, nie genug Leute'),
     );
 
     const bar: HTMLElement[] = [
@@ -398,7 +401,7 @@ export class StationUi {
    */
   private writeShape(station: StationId | null): void {
     const drone = station === 'drone';
-    const view = station === 'archive' || drone;
+    const view = this.hasView;
     // Die offene Bedienung gehört zu dem Gerät, an dem sie aufgemacht wurde:
     // Wer aufsteht und sich woandershin setzt, sieht dort zuerst sein Bild.
     if (!view) this.panel = false;
@@ -505,6 +508,7 @@ export class StationUi {
     if (station === 'archive') return this.archivePage();
     if (station === 'scout') return this.scoutPage();
     if (station === 'drone') return this.dronePage();
+    if (station === 'watch') return this.watchPage();
     return this.hackPage();
   }
 
@@ -543,20 +547,40 @@ export class StationUi {
       tile.dataset['accent'] = station.id;
       tile.setAttribute('aria-pressed', mine ? 'true' : 'false');
       if (mine) tile.classList.add('is-mine');
-      else if (owner) tile.classList.add('is-taken');
+      else if (owner && !station.shared) tile.classList.add('is-taken');
       if (coming) tile.classList.add('is-coming');
 
       const head = el('span', 'haunt__tile-head');
+      // **Vor dem Fernseher ist immer Platz** — dort steht eine Zahl statt
+      // eines Namens: Ein einzelner Name wäre dort die Lüge, dass er besetzt
+      // sei, und „besetzt" ist die eine Auskunft, um die es bei den vier
+      // anderen Kacheln überhaupt geht.
+      const crowd = station.shared ? crowdAt(claims, station.id) : 0;
       head.append(
         el('strong', '', station.label),
         el(
           'span',
-          `haunt__seat${mine ? ' is-mine' : owner ? ' is-taken' : ''}`,
-          mine ? 'du sitzt hier' : owner ? this.host.nameOf(owner) : 'frei',
+          `haunt__seat${mine ? ' is-mine' : owner && !station.shared ? ' is-taken' : ''}`,
+          station.shared
+            ? mine
+              ? crowd > 1
+                ? `du und ${crowd - 1} andere`
+                : 'du siehst zu'
+              : crowd > 0
+                ? `${crowd} sehen zu`
+                : 'frei'
+            : mine
+              ? 'du sitzt hier'
+              : owner
+                ? this.host.nameOf(owner)
+                : 'frei',
         ),
       );
       tile.append(head, el('span', 'haunt__tag', station.tagline));
-      tile.append(el('span', 'haunt__blind', `Sieht nicht: ${station.sees}`));
+      // „Sieht:" und nicht „Sieht nicht:" — die Zeile sagt beides in einem
+      // Satz („Räume und was darin steht — aber niemanden, der sich bewegt"),
+      // und mit der Verneinung davor stand die halbe Auskunft auf dem Kopf.
+      tile.append(el('span', 'haunt__blind', `Sieht: ${station.sees}`));
 
       if (coming) {
         const rail = el('span', 'haunt__rail');
@@ -617,10 +641,17 @@ export class StationUi {
         fact('Licht', room.lamp ? 'Eine Lampe unter der Decke.' : 'Keine. Bleibt dunkel.'),
       );
       const doors = spec.doors.filter((door) => door.a === room.id || door.b === room.id);
+      // **Wie viele davon zu sind**, steht dabei. Das ist keine Auskunft aus
+      // dem Nichts: Es steht auf seinem Blatt, seit die Türen dort gezeichnet
+      // werden. Als Zahl daneben spart es das Abzählen im Bild — und es ist
+      // genau der Satz, mit dem er den Hacker anruft.
+      const closed = doors.filter((door) => state.shut.includes(door.id)).length;
       sheet.append(
         fact(
           doors.length === 1 ? 'Tür' : 'Türen',
-          `${doors.length}${doors.some((door) => door.material === 'metal') ? ', eine davon aus Stahl' : ''}`,
+          `${doors.length}${doors.some((door) => door.material === 'metal') ? ', eine davon aus Stahl' : ''}${
+            closed === 0 ? '' : closed === 1 ? ' — eine steht zu' : ` — ${closed} stehen zu`
+          }`,
         ),
       );
       if (spec.fuse.roomId === room.id) {
@@ -635,8 +666,11 @@ export class StationUi {
         el(
           'span',
           'haunt__blind',
-          'Auf dem Bild: ziehen verschiebt, zwei Finger oder das Mausrad ziehen heran.',
+          'Auf dem Blatt: Strich mit Bogen ist eine offene Tür, ein ausgefüllter Balken eine zu.',
         ),
+      );
+      out.push(
+        el('span', 'haunt__blind', 'Ziehen verschiebt, zwei Finger oder das Mausrad ziehen heran.'),
       );
     }
     return out;
@@ -827,6 +861,38 @@ export class StationUi {
       'Kein Weg',
       `Sie steht in ${where}. Zwischen hier und ${goal} ist etwas zu — sie macht keine Tür auf. Ruf es in den Van.`,
     );
+  }
+
+  /**
+   * **Der Fernseher.** Alles zu sehen, nichts zu bedienen.
+   *
+   * Er ist die einzige Station ohne einen einzigen Knopf, und das ist seine
+   * ganze Bauart: Wer alles sieht *und* etwas tun kann, ist kein Zuschauer
+   * mehr, sondern der fünfte Spieler mit den besten Karten — und dann sind die
+   * anderen vier Deko. Deshalb steht hier nur, was das Bild ist und was man
+   * damit **nicht** macht.
+   */
+  private watchPage(): HTMLElement[] {
+    const state = this.host.state();
+    return [
+      note(
+        'live',
+        'Das ganze Haus, bei Tag',
+        'Von schräg oben, ohne Decke, mit allem darin: den Sachen, der Drohne, dem Mitspieler — und dem Monster, wenn es an ist. Für den Fernseher im Raum gedacht, nicht fürs Telefon in der Hand.',
+      ),
+      note(
+        'warn',
+        'Und du sagst nichts',
+        'Du siehst, was vier andere sich gerade mühsam zusammenrufen. Ein Zuruf von dir beendet die Runde schneller als das Monster — zusehen ist die ganze Rolle.',
+      ),
+      note(
+        state.monsterOn ? 'live' : 'calm',
+        state.monsterOn ? 'Das Monster ist an' : 'Das Monster ist aus',
+        state.monsterOn
+          ? 'Es läuft im Haus herum, und du siehst es. Die im Van sehen es nicht — der Späher hat einen Punkt, sonst niemand etwas.'
+          : 'Der VR-Spieler hat es ausgeschaltet. Solange bleibt das Haus leer, und alle üben.',
+      ),
+    ];
   }
 
   /** Der Hacker: Schalter, und keiner sagt, wo er hingeht. */
