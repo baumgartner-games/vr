@@ -458,6 +458,20 @@ export class NpcDirector implements NpcControl {
     return { npcs: this.npcs.length, points: this.points.length, cages: this.cages.length };
   }
 
+  /**
+   * **Alle, die gerade herumlaufen.**
+   *
+   * Der Regisseur kümmert sich um alles, was ein NPC von sich aus tut. Was
+   * eine *Welt* mit jedem Einzelnen tut, kennt er nicht — und im Portallabor
+   * gibt es genau das: Jeder von ihnen muss durch ein Portal fallen können wie
+   * eine Kiste, und dazu braucht die Welt seinen Körper und sein Modell
+   * (`worlds/portal/PortalWorld.ts`). Die Liste ist die echte und keine Kopie;
+   * wer sie ändert, ändert den Bestand — deshalb steht `readonly` davor.
+   */
+  get crowd(): readonly Npc[] {
+    return this.npcs;
+  }
+
   /** Wie viele davon noch stehen — Gefallene zählen nicht mehr mit. */
   get standing(): number {
     return this.npcs.reduce((sum, npc) => sum + (npc.alive ? 1 : 0), 0);

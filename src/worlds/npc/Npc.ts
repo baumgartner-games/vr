@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { NpcBody, type BarMode } from './NpcBody';
-import { newBrainState, stepBrain, type BrainState, type Point } from './npcBrain';
+import { newBrainState, stepBrain, wrapAngle, type BrainState, type Point } from './npcBrain';
 import { brainOf, type BrainId, type BrainTuning } from './npcBrains';
 import { hitZone, type HitBody, type HitZone } from './npcHit';
 import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
@@ -18,6 +18,7 @@ import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, type TileKey } from '../nav/navTile';
+import { yawThrough } from '../portal/portalCrossing';
 
 /**
  * **Einer, der herumläuft** — Haut, Hirn und ein Körper in der Physik.
@@ -221,6 +222,30 @@ export class Npc {
     if (!this.bodied) return target.copy(this.resting);
     const t = this.entry.body.translation();
     return target.set(t.x, t.y - this.skin.height / 2, t.z);
+  }
+
+  /**
+   * Wo seine **Mitte** steht — der Punkt, mit dem die Physik rechnet und mit
+   * dem ein Portal ihn misst (`worlds/portal/PortalWorld.ts`).
+   *
+   * Die Füße sind der Punkt aller anderen; ein Portal in einer Wand hängt
+   * aber auf Brusthöhe, und wer es mit den Füßen prüfte, ginge einen halben
+   * Körper zu tief durch die Wand.
+   */
+  center(target: THREE.Vector3): THREE.Vector3 {
+    const at = this.feet(target);
+    return at.setY(at.y + this.skin.height / 2);
+  }
+
+  /**
+   * Ob er gerade ein Körper in der Physik ist — und keine Leiche im Abgang.
+   *
+   * Wer gefallen ist, wird im selben Zug herausgenommen (`unbody`), und jede
+   * Frage an einen Rapier-Körper, den es nicht mehr gibt, reißt die wasm mit.
+   * Deshalb fragt jeder, der über alle läuft, zuerst hier nach.
+   */
+  get solid(): boolean {
+    return this.bodied && this.alive;
   }
 
   /**
@@ -465,6 +490,57 @@ export class Npc {
   }
 
   /**
+   * **Durch ein Portal des Spielers** — Körper, Blickrichtung und Tempo auf
+   * einmal.
+   *
+   * Der Unterschied zu `teleport` ist der zwischen einer Verbindung, die in
+   * der Karte steht, und einem Loch, das eben erst jemand in die Wand
+   * geschossen hat: Dort wird auf eine Kachel gesetzt, hier wird eine ganze
+   * Bewegung umgerechnet. `transform` ist dieselbe Matrix, die auch Kisten
+   * und den Spieler versetzt (`Portal.getTraversalMatrix`).
+   *
+   * **Vier Dinge gehen mit, und jedes hat sich sein Bild verdient:**
+   *
+   * - Die **Geschwindigkeit**, gedreht. Wer in ein Bodenportal fällt und aus
+   *   einer Wand kommt, fliegt heraus; wer sie hier vergisst, kippt statt
+   *   dessen vor dem Ausgang auf den Boden.
+   * - Die **Blickrichtung** (`portalCrossing.yawThrough`) — samt dem Kurs, den
+   *   sich ein Schlenderer merkt. Ohne sie läuft er hinter einem gedrehten
+   *   Portal in die nächste Wand, und man sucht den Fehler in der Wegsuche.
+   * - Der **Sturz**: Wer versetzt wird, kommt nicht mehr dort an, wo er
+   *   hingefallen wäre. Dieselbe Regel wie beim Portal in der Karte — sonst
+   *   stirbt der Zombie, den man durch ein Bodenportal fallen lässt, an einem
+   *   Aufprall, den es nie gab (`land`).
+   * - Der **Weg**: Der geplante liegt auf der anderen Seite und ist keiner
+   *   mehr. Er plant im nächsten Bild neu.
+   */
+  warp(transform: THREE.Matrix4): void {
+    if (!this.bodied) return;
+    const t = this.entry.body.translation();
+    _warp.set(t.x, t.y, t.z).applyMatrix4(transform);
+    this.entry.body.setTranslation({ x: _warp.x, y: _warp.y, z: _warp.z }, true);
+    this.entry.previousPosition.copy(_warp);
+    this.holder.position.copy(_warp);
+
+    const v = this.entry.body.linvel();
+    const speed = Math.hypot(v.x, v.y, v.z);
+    if (speed > 1e-6) {
+      // `transformDirection` normiert; das Tempo kommt danach wieder daran.
+      _warp.set(v.x, v.y, v.z).transformDirection(transform).multiplyScalar(speed);
+      this.entry.body.setLinvel({ x: _warp.x, y: _warp.y, z: _warp.z }, true);
+    }
+
+    this.yaw = yawThrough(this.yaw, transform);
+    this.model.rotation.y = this.yaw;
+    this.state.course = wrapAngle(yawThrough(this.state.course, transform));
+    this.falling = 0;
+    // Eine Wurfparabel endet am Portal: Was danach kommt, ist ein neuer Flug
+    // und keiner, in dem das Hirn noch nichts zu sagen hätte.
+    this.flying = 0;
+    this.agent?.clear();
+  }
+
+  /**
    * Der Weg, den er gerade läuft — als **Linie** und nicht als Kachelmitten,
    * denn genau die wird gezeichnet (`nav/navScene.navPathView`).
    */
@@ -591,6 +667,8 @@ const LEAP_RISE = 0.7;
 const FALL_WATCH = 0.5;
 
 const _feet = new THREE.Vector3();
+/** Für den Durchtritt durch ein Portal (`warp`). */
+const _warp = new THREE.Vector3();
 /** Für alles, was nebenher nach einer Stelle fragt (`hitBody`). */
 const _probe = new THREE.Vector3();
 

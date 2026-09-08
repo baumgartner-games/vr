@@ -144,7 +144,13 @@ zum Scheinwerfer zu werden), die **Gürtel-Position**
 Hüften, dass die Höhe ein Anteil der Augenhöhe bleibt und dass ein gezogener
 Zentimeter dort ankommt, wo gezogen wurde), die **Portaltiefe**
 (`src/worlds/portal/portalDepth.ts` — Rasten, Grenzen und der Fall, dass im
-Speicher eine Zeichenkette statt einer Zahl steht), die **Spiegelung an einer
+Speicher eine Zeichenkette statt einer Zahl steht), der **Durchtritt durch ein
+Portal** (`src/worlds/portal/portalCrossing.ts` — dass der Schnitt mit der
+Ebene auch den erwischt, der in einem Bild ganz hindurchfliegt, dass die Wand
+neben der Öffnung Wand bleibt, dass niemand zurückgeholt wird, der gerade
+herauskommt, und wohin die **Blickrichtung** danach zeigt: Ein Zombie, der
+hinter einem gedrehten Portal weiter nach Norden läuft, schickt einen die
+Wegsuche durchsuchen, in der nichts falsch war), die **Spiegelung an einer
 Ebene** (`src/worlds/shared/mirrorMath.ts` — dass die Ebene selbst liegen
 bleibt, dass die Rechnung ihre eigene Umkehrung ist, dass der Abstand
 vorzeichenrichtig kippt, und die Zahl, wegen der es diesen Test gibt: die
@@ -611,6 +617,18 @@ dritte ist eine Zahl, die von oben niemand sieht — der Beutel ist ein Trichter
 und dort, wo die Felder liegen, ist er anderthalb Zentimeter enger als am Saum.
 Der erste Blätterpfeil stand deshalb im Leder. Alles, was schwer zu testen ist, gehört
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
+
+**Vier Tests starten wirklich Rapier**, und jeder hat sich das verdient
+(`jest.config.cjs` führt sie auf): `navlab/labPhysics.test.ts` lässt einen NPC
+über die Quader des Navigationslabors laufen, `npc/npcDirector.test.ts` prüft,
+woher Nachschub kommt, `physics/playerFooting.test.ts` stellt den Spieler bei
+fünf Bildraten auf den Boden — und `worlds/portal/npcPortal.test.ts` lässt
+einen Zombie durch ein Bodenportal fallen. Der letzte, weil die Frage, ob ein
+Körper durch eine Wand fällt, keine Rechnung beantwortet, sondern eine
+Kollisionsmaske in der Engine: Ein Nachbau davon prüfte den Nachbau. Die
+Gegenprobe steht daneben — derselbe Zombie auf demselben Boden, nur ohne die
+Ausnahme, bleibt stehen; ohne sie wäre der Test auch für einen Boden grün, den
+es gar nicht gibt.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
 selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
@@ -5051,6 +5069,17 @@ unterwegs ist, hat seine Sicht verliehen, und der Rig steht dann draußen bei
 der Maschine — sein Körper ist aber hiergeblieben (`bodyHome`), und ein Zombie
 läuft zu dem Körper, den er sehen kann.
 
+**Durch ein Portal fällt er wie eine Kiste.** Dieselbe Kollisionsmaske,
+dieselbe Traversal-Matrix, dasselbe geschnittene Abbild — nachzulesen oben bei
+den Portalen. Was dabei **nicht** passiert: Er *plant* keinen Weg hindurch. Die
+Navigationskarte kennt Portale zwar als Verbindung (`navBuild.addPortal`, und
+das Navigationslabor stellt eines hin), die beiden geschossenen stehen aber
+nicht darin. Ein Zombie fällt also durch ein Bodenportal, das auf seinem Weg
+liegt, und er läuft durch ein Wandportal, hinter dem er den Spieler sieht — den
+Umweg durch das Portal am anderen Ende der Halle nimmt er nicht. Das ist der
+nächste Schritt in dieser Ecke, und er hängt an einer Frage, die die Karte
+beantworten muss: auf welcher Kachel ein eben erst geschossenes Loch liegt.
+
 **Was noch nicht geht: das Netz.** Ein NPC ist heute das, was der Sektkorken
 ist — jeder sieht seinen eigenen. Zwei Spieler in einem Raum sehen also zwei
 verschiedene Zombies. Der Weg dahin, dass sie denselben sehen, führt über
@@ -7115,17 +7144,30 @@ mit der auch die virtuelle Kamera berechnet wird.
 Portale auf Boden und Decke richten sich nach der Blickrichtung aus, damit man
 immer sauber hineinfällt. Beim Durchgehen wandert nicht nur der Spieler, sondern auch jedes Objekt und
 dessen Geschwindigkeit durch dieselbe Matrix — ein Sturz in ein Bodenportal
-wird so zum Schwung aus einem Wandportal.
+wird so zum Schwung aus einem Wandportal. **Wer herumläuft, geht genauso
+hindurch**: Ein NPC ist in der Physik ein Zylinder wie jede Kiste, und er
+bekommt dieselben drei Dinge — die Wand wird für ihn durchlässig, die Matrix
+versetzt ihn, und sein Abbild steht drüben (`PortalWorld.traverseNpcs`,
+`Npc.warp`). Mitgedreht wird dabei auch seine **Blickrichtung**, und sein
+geplanter Weg wird weggeworfen: Der lag auf der anderen Seite.
 
 Damit man überhaupt durch eine Wand fallen kann, ignorieren Körper innerhalb
-des Portaltrichters die Kollisionsgruppe der Fläche, auf der das Portal sitzt.
+des Portaltrichters die Kollisionsgruppe der Fläche, auf der das Portal sitzt —
+der Spieler, die Kisten und jeder, der herumläuft (`updatePhasing`). Das ist die
+Voraussetzung für alles Weitere und nicht eine Feinheit: Ohne sie stößt ein
+Zombie vor dem Portal gegen den Beton, in dem es hängt, und zappelt dort. Man
+sieht das Loch, er läuft dagegen.
 Jede portalfähige Fläche hat dafür ein eigenes Bit — mit einem gemeinsamen Bit
 für alle löste ein Portal an der Wand auch den Boden davor auf, und man sackte
 kurz vor dem Portal ein.
 
 Nichts springt mehr durch die Portalebene: `PortalGhosts` schneidet alles, was
 gerade in einer Öffnung steckt, mit einer Clipping-Ebene ab und zeichnet eine
-Kopie davon vor dem Partnerportal — mit dem umgekehrten Schnitt. Beide Hälften
+Kopie davon vor dem Partnerportal — mit dem umgekehrten Schnitt. Angemeldet
+sind dafür beide Hände, das Werkzeug darin, die Hände der anderen Spieler,
+jedes Prop **und jeder, der herumläuft**; wer aus dem Bestand verschwindet,
+wird im nächsten Bild wieder abgemeldet, sonst bliebe sein Abbild vor dem
+Ausgang stehen. Beide Hälften
 zusammen ergeben ein durchgehendes Objekt. Für die Hände sitzt zusätzlich ein
 zweiter Kollisionsfühler in der herausragenden Hälfte, damit sie drüben auch
 etwas anstoßen kann. Kurz vor dem Durchschreiten rutscht die Portalfläche ein
