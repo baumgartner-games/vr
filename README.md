@@ -13,8 +13,9 @@ Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
 Dunkelhaus zum Ausprobieren von Licht, eine **Kletterhalle**, in der Greifen
 dich an der Wand hält — der Halt wird gerechnet, aus Material, Form,
-Körperhaltung und dem Verspreizen im Kamin, und schlechte Griffe kosten
-Ausdauer —, ein **Effektlabor** mit einem großen
+Körperhaltung und dem Verspreizen im Kamin, schlechte Griffe kosten Ausdauer,
+und hinunter geht es in **Sprungkissen**, die den Fall abfedern statt ihn
+anzuhalten —, ein **Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
@@ -115,7 +116,9 @@ Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
 Spiegelung beider Hüften, die Portaltiefe, die Grafikstufen, das Aussehen,
 den Ausschnitt der Karte in der Hand, die Lichtstufen
 des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
-dazu, die Blätterposition der Menüs und den Weg durch sie, die
+dazu, die **Federung der Sprungkissen** (dass ein Sturz aus sieben Metern nicht
+durchschlägt und der Blick trotzdem nicht in einem Bild stehen bleibt),
+die Blätterposition der Menüs und den Weg durch sie, die
 Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
 der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
 Haltung an derselben Stelle in der Faust landet, die Faust am Griff (eine

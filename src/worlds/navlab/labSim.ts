@@ -4,8 +4,8 @@ import { fallDamage, fallHeight } from '../nav/navFall';
 import { doorBroken, type NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, type TileKey } from '../nav/navTile';
-import { newBrainState, stepBrain, type BrainState } from '../npc/npcBrain';
-import { brainOf } from '../npc/npcBrains';
+import { ERRAND_REACH, newBrainState, stepBrain, type BrainState } from '../npc/npcBrain';
+import { brainOf, type BrainId } from '../npc/npcBrains';
 import { npcSkin, type NpcKind } from '../npc/npcKinds';
 import {
   ROOF,
@@ -142,7 +142,15 @@ export interface SimRunner {
   readonly track: SimPoint[];
   /** Wie nah er dem Spieler je gekommen ist, in Metern (räumlich). */
   nearest: number;
-  /** Ob er ihn erreicht hat — in Schlagreichweite seines Hirns. */
+  /**
+   * Ob er **da** ist, wo er hinwollte.
+   *
+   * Zwei Buchtsorten, zwei Bedeutungen, und das ist Absicht: Wer den Spieler
+   * verfolgt, ist da, wenn er ihn schlagen könnte (`BrainTuning.reach`); wer
+   * einen Auftrag hat, ist da, wenn er an seinem Ziel steht
+   * (`npcBrain.ERRAND_REACH`). Beides ist dasselbe Wort für dasselbe: *Er hat
+   * geschafft, was er wollte.*
+   */
   arrived: boolean;
   /**
    * Nach wie vielen Sekunden das war — `Infinity`, solange er es nicht ist.
@@ -164,6 +172,13 @@ export interface SimRunner {
   atDoor: number;
   /** Welche Türen er auf dem Weg eingeschlagen hat, in der Reihenfolge. */
   readonly broke: string[];
+  /** Womit er entscheidet — dasselbe Hirn, das die Bucht in der Brille setzt. */
+  readonly brain: BrainId;
+  /**
+   * Wohin er will, wenn ihn die Bucht geschickt hat — sonst `null`, und dann
+   * ist der Spieler das Ziel (`BayCast.goal`).
+   */
+  readonly goal: SimPoint | null;
 }
 
 export interface BayRunOptions {
@@ -228,8 +243,11 @@ export function runBay(id: ScenarioId, options: BayRunOptions = {}): BayRun {
   const runners: SimRunner[] = bay.cast.map((one) => {
     const at = baySpot(bay, one);
     const skin = npcSkin(one.kind);
+    const goal = one.goal ? baySpot(bay, one.goal) : null;
     return {
       kind: one.kind,
+      brain: one.brain ?? 'chase',
+      goal: goal ? { x: goal.x, y: one.goal?.y ?? 0, z: goal.z } : null,
       at: { x: at.x, y: one.y ?? 0, z: at.z },
       track: [{ x: at.x, y: one.y ?? 0, z: at.z }],
       health: skin.health,
@@ -301,7 +319,7 @@ interface Flight {
 
 function newBody(runner: SimRunner, yaw: number): Body {
   const skin = npcSkin(runner.kind);
-  const tuning = brainOf('chase').tuning;
+  const tuning = brainOf(runner.brain).tuning;
   return {
     yaw,
     brain: newBrainState(yaw),
@@ -337,7 +355,9 @@ function advance(
   if (body.flight) {
     fly(runner, body, dt);
   } else {
-    const step = runner.agent.step(graph, runner.at, player, dt, now);
+    // **Wonach er läuft**: sein Auftrag, wenn er einen hat, sonst der Spieler
+    // — dieselbe Reihenfolge wie in `Npc.navigate`.
+    const step = runner.agent.step(graph, runner.at, runner.goal ?? player, dt, now);
     if (step.jump !== NO_TILE) {
       place(runner, graph, step.jump);
     } else if (step.leap !== NO_TILE) {
@@ -364,10 +384,17 @@ function advance(
   }
 
   runner.track.push({ ...runner.at });
+  // **Der Abstand zum Spieler** bleibt der Abstand zum Spieler, auch bei einem
+  // Auftrag: Er ist die Auskunft darüber, wie weit die Karte einen überhaupt
+  // heranlässt, und die will man auch von einem wissen, der gar nicht zu ihm
+  // will.
   const gap = Math.hypot(player.x - runner.at.x, player.y - runner.at.y, player.z - runner.at.z);
   runner.nearest = Math.min(runner.nearest, gap);
-  const flat = Math.hypot(player.x - runner.at.x, player.z - runner.at.z);
-  if (flat <= body.reach && Math.abs(player.y - runner.at.y) < 1 && !runner.arrived) {
+
+  const aim = runner.goal ?? player;
+  const close = runner.goal ? ERRAND_REACH : body.reach;
+  const flat = Math.hypot(aim.x - runner.at.x, aim.z - runner.at.z);
+  if (flat <= close && Math.abs(aim.y - runner.at.y) < 1 && !runner.arrived) {
     runner.arrived = true;
     runner.arrivedAfter = now;
   }
@@ -410,17 +437,18 @@ function walk(
   dt: number,
 ): void {
   const step = stepBrain(
-    'chase',
+    runner.brain,
     body.brain,
     {
       at: { x: runner.at.x, z: runner.at.z },
       yaw: body.yaw,
       player: { x: player.x, z: player.z },
       waypoint,
+      goal: runner.goal ? { x: runner.goal.x, z: runner.goal.z } : null,
       dt,
       random: () => 0.5,
     },
-    { ...brainOf('chase').tuning, speed: body.speed, turn: body.turn },
+    { ...brainOf(runner.brain).tuning, speed: body.speed, turn: body.turn },
   );
   body.yaw = step.yaw;
   slide(runner, body, boxes, step.vx * dt, step.vz * dt);

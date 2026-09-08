@@ -727,6 +727,28 @@ export class App {
           },
         },
         {
+          id: 'move:walk-facing',
+          label:
+            rig.walkFacing === 'head'
+              ? 'Laufrichtung: Blickrichtung'
+              : 'Laufrichtung: beim Loslaufen gemerkt',
+          // Wer beim Gehen über die Schulter schaut, will nachsehen und nicht
+          // abbiegen. Gemerkt heißt: Die Richtung steht, bis der Stick
+          // losgelassen wird — der Kopf ist derweil frei (`walkFrame.ts`).
+          sub: 'Ob der Kopf beim Gehen den Weg mitdreht',
+          icon: 'settings',
+          accent: 0x5ee0a0,
+          run: () => {
+            rig.walkFacing = rig.walkFacing === 'head' ? 'start' : 'head';
+            this.notify(
+              rig.walkFacing === 'head'
+                ? 'Laufrichtung folgt dem Blick'
+                : 'Laufrichtung wird beim Loslaufen gemerkt',
+            );
+            cycle();
+          },
+        },
+        {
           id: 'move:crouch-mode',
           label: rig.crouchToggle ? 'Ducken: Umschalten' : 'Ducken: Halten',
           sub: 'Rechten Stick reindrücken',

@@ -112,6 +112,15 @@ export class Npc {
    */
   private bodied = true;
   private readonly resting = new THREE.Vector3();
+  /**
+   * **Wohin er geschickt wurde** — `null`, solange ihn niemand geschickt hat.
+   *
+   * Ein Auftrag ersetzt den Spieler in beiden Rechnungen auf einmal: Der
+   * Läufer sucht den Weg **dorthin** statt zu ihm, und das Hirn (`'errand'`)
+   * bekommt ihn als Ziel. Wer einen Auftrag hat, hat damit auch keinen Grund
+   * mehr, jemanden zu bemerken — das steht in seinem Hirn und nicht hier.
+   */
+  private errand: THREE.Vector3 | null = null;
 
   constructor(options: {
     physics: PhysicsWorld;
@@ -124,6 +133,8 @@ export class Npc {
     speed?: number;
     health?: number;
     owner?: object | null;
+    /** Wohin er gehen soll, statt jemandem nachzugehen. */
+    errand?: THREE.Vector3 | null;
   }) {
     const skin = npcSkin(options.kind);
     this.physics = options.physics;
@@ -164,6 +175,30 @@ export class Npc {
     });
     this.entry.body.lockRotations(true, true);
     this.entry.previousPosition.copy(this.holder.position);
+    if (options.errand) this.errand = options.errand.clone();
+  }
+
+  /**
+   * Ihn irgendwohin schicken — oder den Auftrag wieder aufheben (`null`).
+   *
+   * Ab dann läuft er dorthin statt jemandem nach. Das Hirn dazu ist
+   * `'errand'`; wer einem Verfolger einen Auftrag gibt, bekommt einen, der
+   * den Weg zum Ziel plant und ihn trotzdem nur läuft, solange er jemanden
+   * sieht — die beiden gehören zusammen.
+   */
+  sendTo(point: THREE.Vector3 | null): void {
+    if (!point) {
+      this.errand = null;
+      this.agent?.clear();
+      return;
+    }
+    this.errand ??= new THREE.Vector3();
+    this.errand.copy(point);
+  }
+
+  /** Wohin er geschickt wurde, oder `null`. */
+  get goal(): THREE.Vector3 | null {
+    return this.errand;
   }
 
   /** Ob er noch steht. Ein Gefallener rechnet nicht mehr mit. */
@@ -239,10 +274,11 @@ export class Npc {
 
     const t = this.entry.body.translation();
     const waypoint = this.navigate(dt, { x: t.x, z: t.z }, player, nav ?? null);
+    const goal = this.errand ? { x: this.errand.x, z: this.errand.z } : null;
     const step = stepBrain(
       this.brain,
       this.state,
-      { at: { x: t.x, z: t.z }, yaw: this.yaw, player, waypoint, dt, random },
+      { at: { x: t.x, z: t.z }, yaw: this.yaw, player, waypoint, goal, dt, random },
       this.tuning,
     );
 
@@ -305,17 +341,26 @@ export class Npc {
    * Ende der Karte rechnet keinen Weg zu jemandem, den er nicht bemerkt hat.
    */
   private navigate(dt: number, at: Point, player: Point | null, nav: NavRun | null): Point | null {
-    if (!nav || !player || !nav.at) return null;
-    if (this.tuning.sense <= 0 || this.tuning.speed <= 0) return null;
-    const range = Math.hypot(player.x - at.x, player.z - at.z);
-    if (range > this.tuning.sense) {
-      this.agent?.clear();
-      return null;
+    if (!nav || this.tuning.speed <= 0) return null;
+
+    // **Ein Auftrag geht vor.** Wer geschickt wurde, sucht den Weg dorthin —
+    // und fragt gar nicht erst, ob ein Spieler nah genug ist, um ihn zu
+    // interessieren. Ohne Auftrag ist das Ziel der Spieler, und dann gilt
+    // wieder: Wer niemanden bemerkt, plant auch nichts.
+    const destination = this.errand ?? (player && nav.at ? nav.at : null);
+    if (!destination) return null;
+    if (!this.errand) {
+      if (this.tuning.sense <= 0) return null;
+      const range = Math.hypot(player!.x - at.x, player!.z - at.z);
+      if (range > this.tuning.sense) {
+        this.agent?.clear();
+        return null;
+      }
     }
 
     this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
     this.feet(_feet);
-    const step = this.agent.step(nav.graph, _feet, nav.at, dt, nav.now);
+    const step = this.agent.step(nav.graph, _feet, destination, dt, nav.now);
     // **Der Schritt, den man nicht geht.** Steht eine Tür im Weg, wird sie
     // aufgemacht oder eingeschlagen; gelaufen wird trotzdem weiter, denn er
     // drückt dabei dagegen (`nav/navAgent.ts`, `AgentStep.doorAction`).
