@@ -109,6 +109,13 @@ anderen eine Koordinate sagen kann. **Das Monster ist aus, bis die Brille es
 einschaltet** — die Entscheidung, ob es gruselig wird, trifft der, dem es
 passiert.
 
+**Und wo es steht, geht das Haus kaputt.** Die Lampe des Zimmers, in dem es
+sich aufhält, fängt an zu flackern und geht aus; kommt es an einer Tür vorbei,
+fällt sie zu. Beides dreht nur einer zurück — der an der Schalttafel, der nicht
+weiß, wo seine Schalter hingehen. Eingesperrt wird dabei niemand: Die Haustür
+bleibt in Ruhe, jedes Zimmer hat mindestens zwei Türen, und eine Tür fällt nur
+zu, wenn man danach immer noch überall hinkommt.
+
 > **Hinweis für Agenten:** Entwickelt und gepusht wird **direkt auf `main`** —
 > kein Feature-Branch, kein Pull Request, solange nichts anderes im Auftrag
 > steht. Das ganze Projektwissen — Features im Detail, vollständige Steuerung,

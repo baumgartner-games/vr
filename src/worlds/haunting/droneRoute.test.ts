@@ -178,22 +178,28 @@ describe('Die Drohne navigiert im Graphen', () => {
 });
 
 describe('Wo sie stehen bleibt', () => {
-  const inner = spec.doors.find((door) => door.b !== null)!;
+  /**
+   * **Zugemacht wird ein ganzes Zimmer und nicht eine Tür.**
+   *
+   * Seit jedes Zimmer mindestens zwei Türen hat (`house.ts`), ist eine einzelne
+   * geschlossene Tür für die Drohne kein Halt mehr, sondern ein Umweg — und
+   * genau dafür sind die zweiten Türen da. Wer sie wirklich aussperren will,
+   * muss alle Türen eines Zimmers zumachen, und das kann der Hacker.
+   */
+  const entry = roomOf(spec, spec.entryRoom) ?? spec.rooms[0]!;
+  const sealed = spec.rooms.find((room) => room.id !== entry.id)!;
+  const shut = spec.doors.filter((door) => door.a === sealed.id || door.b === sealed.id);
 
-  it('meldet einen Teilweg, wenn der Hacker die Tür zumacht', () => {
-    const plan = housePlan(spec, new Set([inner.id]));
-    const pose: DronePose = {
-      x: (inner.x + 0.5) * TILE,
-      z: (inner.z + 0.5) * TILE,
-      yaw: 0,
-    };
-    const behind = neighbour(tileAt(pose.x, pose.z), inner.dir);
-    const route = routeTo(plan.graph, pose, behind);
+  it('meldet einen Teilweg, wenn der Hacker das Zimmer zumacht', () => {
+    const plan = housePlan(spec, new Set(shut.map((door) => door.id)));
+    const start = poseAt(entry);
+    const goal = goalOf(sealed);
+    const route = routeTo(plan.graph, start, goal);
     expect(route.grounded).toBe(true);
     expect(route.complete).toBe(false);
     // Und sie fliegt nicht trotzdem hin.
-    fly(plan.graph, pose, behind);
-    expect(tileAt(pose.x, pose.z)).not.toBe(behind);
+    fly(plan.graph, start, goal);
+    expect(tileAt(start.x, start.z)).not.toBe(goal);
   });
 
   it('sagt Bescheid, wenn sie gar nicht im Graphen steht', () => {

@@ -12,6 +12,7 @@ import {
   HOUSE,
   MARKS,
   TASK_COUNT,
+  type Rect,
 } from './house';
 import { DRONE_PROFILE, housePlan } from './plan';
 
@@ -69,6 +70,46 @@ describe('Das gewürfelte Haus', () => {
           const to = tileKey(room.rect.x, room.rect.z, 0);
           const path = findPath(plan.graph, from, to, { profile: HUMAN_PROFILE });
           expect(`${room.name} ${room.id}: ${path.complete}`).toBe(`${room.name} ${room.id}: true`);
+        }
+      });
+
+      /**
+       * **Kein Zimmer mit nur einer Tür.**
+       *
+       * Eine Sackgasse ist hier drei Sachen auf einmal: die Stelle, an der ein
+       * Verfolger einen wirklich stellt, die Stelle, die der Späher nicht
+       * beschreiben kann, weil sie aussieht wie jede andere Kammer — und seit
+       * das Monster Türen zuwirft (`haunt.ts`) die Stelle, an der eine einzige
+       * zugefallene Tür jemanden einsperrt. Die Haustür zählt mit: Sie ist der
+       * zweite Ausgang des Eingangszimmers.
+       */
+      it('gibt jedem Zimmer mindestens zwei Türen', () => {
+        const count = new Map(spec.rooms.map((room) => [room.id, 0]));
+        for (const door of spec.doors) {
+          count.set(door.a, (count.get(door.a) ?? 0) + 1);
+          if (door.b) count.set(door.b, (count.get(door.b) ?? 0) + 1);
+        }
+        for (const room of spec.rooms) {
+          expect(`${room.name} ${room.id}: ${count.get(room.id)}`).toBe(
+            `${room.name} ${room.id}: ${Math.max(2, count.get(room.id) ?? 0)}`,
+          );
+        }
+      });
+
+      /**
+       * Zwei Türen gehen nur, wenn es zwei Nachbarn gibt — dagegen hilft keine
+       * Tür, sondern nur ein anderer Zuschnitt (`SPLIT_TRIES`). Der Test hängt
+       * an derselben Zusage wie der darüber und sagt, **woran** es lag, wenn
+       * sie einmal nicht mehr gilt.
+       */
+      it('lässt jedes Zimmer an mindestens zwei andere grenzen', () => {
+        for (const room of spec.rooms) {
+          const neighbours = spec.rooms.filter(
+            (other) => other.id !== room.id && touches(room.rect, other.rect),
+          );
+          expect(`${room.id}: ${neighbours.length}`).toBe(
+            `${room.id}: ${Math.max(2, neighbours.length)}`,
+          );
         }
       });
 
@@ -266,10 +307,29 @@ describe('Wie weit die Drohne kommt', () => {
    * durchkommt, steht sie davor. Stünde das nur in der Oberfläche
    * („Sie macht keine Tür auf"), wäre es beim nächsten Umbau am Profil eine
    * Behauptung.
+   *
+   * Gefragt wird nach **dieser Kante** und nicht danach, ob sie am Ziel
+   * ankommt: Seit jedes Zimmer zwei Türen hat, gibt es fast immer einen Umweg,
+   * und der ist gewollt. Die Zusage ist „nicht hier hindurch" — ein einziger
+   * Schritt über die geschlossene Tür, den der Mensch macht und sie nicht.
    */
   it('kommt durch eine geschlossene nicht, wo ein Mensch noch durchkommt', () => {
     const plan = housePlan(spec, new Set([inner.id]));
-    expect(findPath(plan.graph, from, to, { profile: DRONE_PROFILE }).complete).toBe(false);
-    expect(findPath(plan.graph, from, to, { profile: HUMAN_PROFILE }).complete).toBe(true);
+    const flight = findPath(plan.graph, from, to, { profile: DRONE_PROFILE });
+    expect(flight.tiles.length === 2 && flight.complete).toBe(false);
+    const walk = findPath(plan.graph, from, to, { profile: HUMAN_PROFILE });
+    expect(walk.tiles.length === 2 && walk.complete).toBe(true);
   });
 });
+
+/**
+ * Ob zwei Rechtecke eine Kante teilen — dieselbe Frage, die der Generator in
+ * `shared` stellt, nur ohne die Türplätze dazu.
+ */
+function touches(a: Rect, b: Rect): boolean {
+  const overX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const overZ = Math.min(a.z + a.d, b.z + b.d) - Math.max(a.z, b.z);
+  const sideX = a.x + a.w === b.x || b.x + b.w === a.x;
+  const sideZ = a.z + a.d === b.z || b.z + b.d === a.z;
+  return (sideX && overZ > 0) || (sideZ && overX > 0);
+}
