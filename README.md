@@ -65,6 +65,30 @@ im Raum sehen, was man aufhat.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
+### Haunting — einer im Haus, die anderen im Van
+
+Das erste Spiel hier, das ohne die anderen nicht geht. Einer setzt die Brille
+auf und wählt im Hub **Spiel Haunting**; alle anderen kommen auf der Startseite
+unter _Zusammen spielen_ herein — nur der Name, kein Raum-Code — und sitzen im
+Van vor vier Geräten:
+
+- **Archiv** — schlägt die Akte auf, ein Zimmer je Seite: Name, Möbel, Türen.
+  Sieht dafür niemanden, der sich bewegt.
+- **Späher** — sieht, wo das Monster gerade ist. Nur Wände und einen Punkt:
+  keine Namen, keine Möbel, und den Mitspieler auch nicht.
+- **Drohne** — fliegt auf Zimmer, die man antippt, und zeigt eins vollständig.
+  Sie macht keine Tür auf.
+- **Schalttafel** — Licht, Türen, Radios. Ohne Grundriss, mit Beschriftungen
+  wie `Wohnzimmer`, `Tür 2` und `X`.
+
+Das Haus wird je Runde gewürfelt und entsteht aus **einem Samen** auf jedem
+Gerät neu — über die Leitung geht deshalb kein Bild, sondern eine Zahl. Die
+Aufgabe ist simpel: drei Sachen finden und in den Van bringen. Schwer ist sie,
+weil jede Station das Haus in einer anderen Sprache kennt und niemand dem
+anderen eine Koordinate sagen kann. **Das Monster ist aus, bis die Brille es
+einschaltet** — die Entscheidung, ob es gruselig wird, trifft der, dem es
+passiert.
+
 > **Hinweis für Agenten:** Entwickelt und gepusht wird **direkt auf `main`** —
 > kein Feature-Branch, kein Pull Request, solange nichts anderes im Auftrag
 > steht. Das ganze Projektwissen — Features im Detail, vollständige Steuerung,

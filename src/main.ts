@@ -2,7 +2,8 @@ import './style.css';
 import { App } from './core/App';
 import { NetPanel } from './ui/NetPanel';
 import { detectFlatRole, detectXRSupport } from './core/device';
-import { normalizeRoomCode } from './net/room';
+import { normalizeRoomCode, rememberName, rememberedName } from './net/room';
+import { HAUNT_ROOM } from './worlds/haunting/net';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
 import { DEFAULT_WORLD, findWorld } from './worlds';
 import { isStaleModuleError, shouldReload } from './core/staleBuild';
@@ -19,6 +20,9 @@ const hudVr = document.querySelector<HTMLButtonElement>('#hud-vr')!;
 const touch = document.querySelector<HTMLElement>('#touch')!;
 const stick = document.querySelector<HTMLElement>('#touch-stick')!;
 const postureSeg = document.querySelector<HTMLElement>('#posture')!;
+const hauntName = document.querySelector<HTMLInputElement>('#haunt-name')!;
+const hauntJoin = document.querySelector<HTMLButtonElement>('#haunt-join')!;
+const hauntStatus = document.querySelector<HTMLElement>('#haunt-status')!;
 
 /** Wofür zuletzt gegen einen alten Build neu geladen wurde. */
 const RELOADED_FOR = 'bgvr:stale-reload';
@@ -49,8 +53,10 @@ const app = new App(canvas, stick, {
   onWorldFailed: (id, error) => recoverFromStaleBuild(id, error),
 });
 
+app.preferLocal = params.get('net') === 'local';
+
 netPanel = new NetPanel(app, {
-  local: params.get('net') === 'local',
+  local: app.preferLocal,
   // Joining a room from the landing page also starts the game — the two
   // buttons there say which way.
   onStart: (mode) => {
@@ -72,6 +78,15 @@ if (room) {
 } else {
   netPanel.restoreLastRoom();
 }
+
+// Wer die Seite mit `#haunting` öffnet, ist eingeladen worden und sucht genau
+// einen Knopf. Der steht unter *Zusammen spielen* — also klappt der Abschnitt
+// gleich auf, statt dass jemand ihn suchen muss.
+if (startWorld === 'haunting') {
+  document.querySelector<HTMLDetailsElement>('#net-setup')?.setAttribute('open', '');
+}
+
+hauntName.value = rememberedName();
 
 void detectXRSupport().then((support) => {
   enterVrButton.textContent = 'Enter VR';
@@ -127,6 +142,34 @@ function startFlat(): void {
   hud.hidden = false;
   touch.hidden = detectFlatRole() !== 'handheld';
 }
+
+/**
+ * **Haunting: nur der Name, kein Code.**
+ *
+ * Alle spielen im Raum `haunting` (`worlds/haunting/net.ts`) — der VR-Spieler,
+ * weil die Welt ihn beim Betreten dorthin holt, und die Web-Spieler über
+ * diesen Knopf. Ein Raum-Code wäre hier eine Zeile Arbeit für jeden am Tisch,
+ * und zwar dieselbe.
+ */
+hauntJoin.addEventListener('click', () => {
+  void (async () => {
+    const name = hauntName.value.trim();
+    hauntStatus.classList.remove('is-error');
+    hauntStatus.textContent = 'Verbinde …';
+    try {
+      if (!app.net.connected) {
+        await app.connect({ room: HAUNT_ROOM, name, local: app.preferLocal });
+      }
+      rememberName(name);
+      hauntStatus.textContent = `Im Raum ${app.net.room}. Willkommen im Van.`;
+      startFlat();
+      await app.goTo('haunting');
+    } catch (error) {
+      hauntStatus.textContent = `Verbindung fehlgeschlagen: ${(error as Error).message}`;
+      hauntStatus.classList.add('is-error');
+    }
+  })();
+});
 
 hudMenu.addEventListener('click', () => app.toggleMenu());
 

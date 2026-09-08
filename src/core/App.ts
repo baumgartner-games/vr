@@ -301,11 +301,18 @@ export class App {
       role: this.role,
       elapsed: this.elapsed,
       goTo: (id: string) => void this.goTo(id),
+      join: (room: string) => void this.joinRoom(room),
       notify: (message: string) => this.notify(message),
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
     };
   }
+
+  /**
+   * Ob Verbindungen über einen `BroadcastChannel` laufen sollen statt über
+   * WebRTC — zwei Tabs im selben Browser, zum Entwickeln (`?net=local`).
+   */
+  preferLocal = false;
 
   get currentWorldId(): string {
     return this.worldId;
@@ -1136,6 +1143,11 @@ export class App {
    * man in einem Raum, nur dass ohne Gegenüber nichts hinausgeht.
    */
   private async joinRoom(code: string): Promise<void> {
+    // `?net=local` gilt auch hier: Wer zum Entwickeln zwei Tabs benutzt, will
+    // das nicht nur für den Knopf auf der Startseite, sondern auch für das
+    // Menü in der Brille und für Welten, die sich selbst einen Raum suchen
+    // (`WorldContext.join`).
+
     const room = normalizeRoomCode(code);
     if (!room) {
       this.notify('Kein gültiger Raum-Code');
@@ -1143,7 +1155,7 @@ export class App {
     }
     this.notify(`Verbinde mit ${room} …`);
     try {
-      await this.connect({ room, name: rememberedName() });
+      await this.connect({ room, name: rememberedName(), local: this.preferLocal });
       rememberRoom(room);
       this.notify(`Im Raum ${room}`);
     } catch (error) {

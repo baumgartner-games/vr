@@ -969,7 +969,7 @@ export class PortalWorld implements World {
     this.director = new NpcDirector({
       root: this.root,
       physics: this.physics,
-      playerAt: (target) => this.playerFeet(target),
+      playerAt: (target) => this.npcTarget(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
@@ -3401,7 +3401,7 @@ export class PortalWorld implements World {
     this.director = new NpcDirector({
       root: this.root,
       physics: this.physics,
-      playerAt: (target) => this.playerFeet(target),
+      playerAt: (target) => this.npcTarget(target),
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
@@ -5721,6 +5721,21 @@ export class PortalWorld implements World {
    * läuft zu dem Körper, den er sehen kann, und nicht zu einer Kamera in der
    * Luft.
    */
+  /**
+   * **Wohin NPCs laufen** — voreingestellt: zum Spieler.
+   *
+   * Eigener Haken und nicht direkt `playerFeet`, weil beides gleich aussieht
+   * und Verschiedenes bedeutet. `playerFeet` beantwortet „wo steht der
+   * Spieler" und wird auch vom Teleporter und von den Werkzeugen gefragt; die
+   * Antwort darf nie eine andere sein als die Wahrheit. Diese Frage hier ist
+   * „wonach geht ein Verfolger", und die darf eine Welt beugen: In Haunting
+   * zieht ein laufendes Radio das Monster an, und das ist der einzige Hebel,
+   * den der Hacker im Van überhaupt auf es hat.
+   */
+  protected npcTarget(target: THREE.Vector3): THREE.Vector3 | null {
+    return this.playerFeet(target);
+  }
+
   private playerFeet(target: THREE.Vector3): THREE.Vector3 | null {
     const ctx = this.context;
     // Kein Spieler, aber eine Attrappe: die laufende Vorschau der

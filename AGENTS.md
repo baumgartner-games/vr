@@ -583,7 +583,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
   Mond, Alpen, Dunkelhaus, Kletterhalle, Effektlabor, Interaktionslabor,
-  Eingaberaum),
+  Eingaberaum, Spiel Haunting),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
@@ -1845,6 +1845,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Gürtel, dasselbe Regal, dieselbe Physik. Portale haften nur an den hellen
   Tafeln im Flur und am Boden — eine Putzwand mit Loch würde das Haus zum
   Nichts draußen aufmachen.
+- **Spiel Haunting** (experimentell): das erste Spiel hier, das ohne die
+  anderen nicht geht. Ein je Runde **gewürfeltes Haus** (`haunting/house.ts`),
+  drei Sachen darin, und davor ein Van mit vier Stationen — Archiv, Späher,
+  Drohne, Schalttafel —, von denen jede das Haus in einer anderen Sprache
+  kennt. Der VR-Spieler hat als Einziger Hände, alle anderen haben Wissen, und
+  niemand kann dem anderen eine Koordinate sagen. Das Monster ist **aus**, bis
+  die Brille es einschaltet. Ausführlich: _Haunting: einer im Haus, die anderen
+  im Van_.
 - **Kletterhalle** (experimentell): die Welt, in der der **Greifknopf etwas
   anderes tut**. Überall sonst nimmt Greifen ein Ding in die Hand; hier hängt
   es den ganzen Spieler an die Wand. Von Griff zu Griff geführt wird dabei
@@ -2341,6 +2349,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
+| Haunting: Station wählen           | –                                                                                                                                                                     | Kachel im Van anklicken                                                                         | antippen             |
+| Haunting: Sache aufheben           | hingehen — sie springt in den Auftrag, sobald man nah genug ist                                                                                                       | dito                                                                                            | –                    |
+| Haunting: Sachen abgeben           | zurück zum Van, in die Nähe des Tisches                                                                                                                              | dito                                                                                            | –                    |
+| Haunting: Sicherungskasten         | anzielen + Trigger, oder antippen — schaltet die halbe Schalttafel frei                                                                                               | anklicken                                                                                       | –                    |
+| Haunting: Monster an/aus           | Menü → _Monster_ — startet **aus**                                                                                                                                    | dito                                                                                            | –                    |
+| Haunting: neues Haus               | Menü → _Neues Haus_ (nur der VR-Spieler)                                                                                                                              | –                                                                                               | –                    |
 | Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der Stick aus | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
 | Halt-Anzeige (Kletterhalle)        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                | dito                                                                                            | dito                 |
@@ -7258,6 +7272,134 @@ auch der eigene Körper benutzt — Kopf plus zwei Hände reichen als Eingabe, m
 weiß ein Headset über seinen Träger nicht. Welten sehen nie, welcher
 Transport darunter liegt — ein WebSocket-Transport ließe sich ohne Änderung an
 den Welten ergänzen, er muss nur `NetTransport` implementieren.
+
+### Haunting: einer im Haus, die anderen im Van
+
+Das erste Spiel hier, das ohne die anderen nicht geht (`worlds/haunting/`).
+Einer setzt die Brille auf und wählt im Hub **Spiel Haunting**; alle anderen
+kommen auf der Startseite unter _Zusammen spielen_ herein und sitzen im Van vor
+vier Geräten. Die Aufgabe ist simpel — drei Sachen finden und herausbringen —,
+und schwer ist sie aus genau einem Grund:
+
+**Das Übersetzungsproblem.** Jede Station kennt dasselbe Haus in einer
+**anderen Sprache**. Der Archivar kennt Namen („Bibliothek"), der Späher kennt
+Formen („L-förmig, zwei Türen"), der Pilot kennt ein Zimmer *jetzt*, der
+Hacker kennt Schalter ohne Ort, und der VR-Spieler kennt nur, was in seinem
+Lichtkegel steht — ist dafür aber der Einzige mit Händen. Niemand kann dem
+anderen eine Koordinate sagen; das Spiel besteht darin, in Echtzeit ein
+gemeinsames Wörterbuch zu bauen, während einer davon Panik hat. Das ist die
+oberste Regel dieser Welt, und sie ist wichtiger als jede Bequemlichkeit:
+**Keine zwei Stationen dürfen die Welt in derselben Sprache sehen.** Sobald
+eine Station Monster *und* Mitspieler gleichzeitig sähe, lotste sie allein, und
+die anderen drei wären Deko.
+
+| Station | Sieht | Sieht **nicht** |
+| --- | --- | --- |
+| **Archiv** | ein Zimmer je Seite: Möbel, Türen, Lampe, Sicherungskasten | alles, was sich bewegt — und die Nachbarzimmer |
+| **Späher** | Wände und einen Punkt, dem Monster nachgeführt | Namen, Möbel, den VR-Spieler |
+| **Drohne** | ein Zimmer vollständig, in Farbe | alles außerhalb; macht keine Tür auf |
+| **Schalttafel** | Schalter mit schlechten Beschriftungen | den Grundriss, überhaupt |
+
+**Eine Quelle, viele Projektionen.** Über die Leitung geht der **Same** und
+nicht das Haus (`haunting/house.ts`): Jedes Gerät baut denselben Grundriss
+selbst. Deshalb ist die Drohnenkamera eine Kamera in der *eigenen* Kopie der
+Welt und kein Videostrom, und die Akte des Archivars dieselbe Kopie von oben.
+Was wirklich fließt, sind ein paar Dutzend Bytes je Sekunde — Monsterposition,
+Türen, Licht, Aufgaben (`haunting/net.ts`, Kanal `haunting`). Wer diese eine
+Entscheidung umdreht und Bilder überträgt, kauft sich Bandbreite, Latenz und
+einen Kodierer ein für etwas, das ohnehin schon auf jedem Gerät steht.
+
+**Der Generator muss beschreibbare Häuser bauen** (`haunting/house.ts`, mit
+Test über zwanzig Samen). Ein zufälliges Labyrinth aus gleichen Kästen wäre in
+zehn Zeilen gewürfelt und unspielbar — „ich bin in einem quadratischen Zimmer"
+träfe dann auf sieben Zimmer zu. Also:
+
+- **Jedes Zimmer bekommt einen Charakter** und die Merkmale dazu (Küche heißt:
+  da steht ein Herd). Name im Dossier und Ding im Raum kommen aus derselben
+  Zeile, sonst laufen sie auseinander.
+- **Zwillinge sind gewollt**: zwei Bäder, ein Name — aber sie unterscheiden
+  sich in genau einem Merkmal, das man **aussprechen** kann. Wanne gegen
+  Dusche, nicht „größer": Von innen ist „groß" nichts, woran man etwas
+  erkennt, und der Archivar sieht seine Zimmer einzeln und kann auch nicht
+  vergleichen. Dann wäre die Verwechslung nicht lustig, sondern unlösbar.
+- **Die Aufgabe zeigt auf ein Merkmal und nicht auf ein Zimmer**: „Das
+  Fotoalbum liegt bei dem Klavier" kann man weitersagen, eine Kachelkoordinate
+  nicht.
+- Ein Zimmer im Haus hat **keine Lampe** und bleibt auf jeder Stufe dunkel.
+
+**Die Beschriftungen der Schalttafel lügen nie, sie sind nur unvollständig**
+(`haunting/panel.ts`, mit Test). `Licht Küche` schaltet immer das Licht der
+Küche; `Wohnzimmer` schaltet *irgendetwas* dort; `Tür 3` sagt gar nichts über
+den Ort, ist aber wirklich eine Tür. Unvollständigkeit lässt sich durch
+Ausprobieren und Zurufen auflösen — eine einzige Lüge macht jede andere Zeile
+wertlos und die halbe Stunde Kartierung gleich mit. (Wenn hier später ein
+Verräter mitspielt, ist genau das seine Waffe. Bis dahin: keine Lügen.)
+
+**Die Kette, wegen der es mehr als zwei Leute braucht.** Der Archivar weiß, in
+welchem Zimmer der Sicherungskasten hängt → der VR-Spieler muss hin und ihn
+umlegen → der Hacker bekommt die zweite Hälfte seiner Tafel. Vorher hat er vier
+Schalter und langweilt sich fast, nachher zwölf und ist der wichtigste Mensch
+im Van.
+
+**Mehr Stationen als Spieler, mit Absicht** (`haunting/stations.ts`, mit Test).
+Der Van ist immer unterbesetzt; die eigentliche Entscheidung ist nie „was tue
+ich", sondern *was lassen wir gerade unbeobachtet*. Wem ein Gerät gehört,
+entscheidet die **Sitzdauer** — dieselbe Regel wie beim Gastgeber der Welt
+(`net/host.ts`) und aus demselben Grund: Jeder kennt seine eigene Dauer, Dauern
+wachsen auf allen Uhren gleich schnell, und es braucht keine Wahl und keinen
+Server. Wer sich auf ein besetztes Gerät setzt, wird weggeschubst und verliert
+Zeit, aber nichts, was er schon weiß. Ein Wechsel **dauert** (2,5 s): Ohne die
+Laufzeit wäre der Griff nach demselben Gerät ein unsichtbares Rennen, das der
+mit dem schnelleren Handy gewinnt; mit ihr wird daraus eine Verhandlung, und
+das Zurufen ist das Spiel.
+
+**Wer rechnet, ist der VR-Spieler** (`pickGameHost`). Die sonst übliche Regel —
+wer am längsten in der Welt steht — gäbe hier einem Web-Spieler das Monster,
+und wenn der den Laptop zuklappt, nimmt er die Runde mit. Im Haus steht genau
+einer, und der geht so schnell nicht weg.
+
+**Das Monster ist aus, bis die Brille es einschaltet.** Nicht aus Vorsicht,
+sondern weil es die Rollen erst spielbar macht: Wer Archiv, Späher, Drohne und
+Tafel in Ruhe ausprobieren will, soll das können, ohne dass ihm dabei jemand in
+den Nacken atmet. Die Entscheidung, ob es gruselig wird, trifft der, dem es
+passiert. Läuft irgendwo ein **Radio**, geht der Verfolger dorthin statt zum
+Spieler — dafür gibt es den Haken `PortalWorld.npcTarget`, und er ist der
+einzige Hebel, den der Hacker überhaupt auf das Monster hat.
+
+**Die Drohne macht keine Tür auf** (`DRONE_PROFILE` in `haunting/plan.ts`, mit
+Test). Sie fliegt über jedes Möbel hinweg, aber wo sie hinkommt, hängt daran,
+was der VR-Spieler und der Hacker offen gelassen haben — Abhängigkeit in beide
+Richtungen, ohne eine einzige Sonderregel. Ihren Weg sucht sie zweimal je
+Sekunde neu: Der Hacker macht Türen zu, *während* sie unterwegs ist.
+
+**Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
+Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
+zusammenschiebt, nie. Zwei Sichten kommen aus der Welt (Archiv und Drohne, als
+Kamera in ein Loch im Overlay gezeichnet — `HauntingWorld.render` mit
+Scherenschnitt), zwei zeichnet die Oberfläche selbst (Späher als 2D-Konturen,
+Tafel ganz ohne Haus). Der Archivar bekommt sein eigenes Licht und einen
+Sepiaton, damit sein Blatt **nicht** davon abhängt, ob im Haus jemand die Lampe
+angemacht hat: Eine Akte ist eine Bauzeichnung und kein Kamerabild. Die Lichter
+dafür stehen immer in der Szene und werden auf null gedreht statt
+herausgenommen — three.js baut jeden Shader neu, sobald sich die *Zahl* der
+Lichter ändert.
+
+**Alle im Raum `haunting`.** Der VR-Spieler wird beim Betreten dorthin geholt
+(`WorldContext.join`), die Web-Spieler kommen über den Knopf auf der
+Startseite; ein Raum-Code wäre hier für jeden am Tisch dieselbe Zeile Arbeit.
+Wer schon in einem anderen Raum steht, wird **nicht** herausgezogen — das wäre
+ein Abbruch der laufenden Runde von jemand anderem —, sondern bekommt eine
+Zeile und einen Menüpunkt.
+
+**Was noch fehlt** und bewusst nicht in dieser ersten Fassung steht: ein
+Verlieren (das Monster schlägt zu, mehr passiert nicht), Ton für Drohne und
+Radio, der Van als betretbarer Ort mit sitzenden Figuren und Monitoren, die
+wirklich zeigen, was die Stationen sehen — und der **Verräter**. Für den reicht
+das heutige Netz nicht: `NetSession` ist ein Rundfunk, jeder bekommt jede
+Nachricht, und ein Geheimnis, das über diesen Kanal geht, ist keins. Er
+braucht einen autoritativen Gastgeber, der jedem nur seine Projektion schickt —
+die Nachrichten sind deshalb schon heute je Projektion geschnitten und nicht
+als eine Wahrheit für alle.
 
 ## Deployment
 

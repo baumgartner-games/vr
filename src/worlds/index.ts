@@ -168,6 +168,17 @@ export const WORLDS: WorldDefinition[] = [
     experimental: true,
     load: async () => new (await import('./dark/DarkWorld')).DarkWorld(),
   },
+  {
+    id: 'haunting',
+    title: 'Spiel Haunting',
+    tagline: 'Einer im Haus, die anderen im Van',
+    description:
+      'Ein gewürfeltes Haus, drei Sachen darin und vier Stationen davor: Archiv, Späher, Drohne, Schalttafel. Der VR-Spieler hat Hände, alle anderen haben Wissen — und keiner kann dem anderen eine Koordinate sagen. Das Monster ist aus, bis die Brille es einschaltet.',
+    accent: 0x9b6bff,
+    roles: ['vr', 'desktop', 'handheld'],
+    experimental: true,
+    load: async () => new (await import('./haunting/HauntingWorld')).HauntingWorld(),
+  },
 ];
 
 export const DEFAULT_WORLD = 'hub';
