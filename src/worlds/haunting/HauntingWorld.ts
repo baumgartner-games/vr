@@ -34,6 +34,7 @@ import {
   type DroneRoute,
   type DroneStatus,
 } from './droneRoute';
+import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import { buildMark } from './marks';
 import { rollSeed } from './rng';
 import { StationUi } from './stationUi';
@@ -262,6 +263,24 @@ export class HauntingWorld extends GridWorld {
   private droneLit = false;
   /** Die Zimmer, in denen sie schon war — das Einzige, was der Pilot behält. */
   private readonly droneSeen = new Set<string>();
+  /**
+   * **Wie der Archivar sein Blatt gerade hält** (`archiveView.ts`).
+   *
+   * Eingepasst ist immer das ganze Zimmer; hier steht nur, wie weit er darüber
+   * hinaus herangegangen ist und wohin er geschoben hat. Ein *relativer*
+   * Ausschnitt und keine zweite Kamera: Wer ein anderes Zimmer aufschlägt,
+   * bekommt wieder das ganze — und die Rechnung dahin ist dieselbe geblieben.
+   */
+  private archive: ArchiveView = homeView();
+  /**
+   * Die halben Kanten des eingepassten Blattes, in Metern.
+   *
+   * Sie fallen beim Zielen der Kamera an (`aimArchive`) und hängen an Zimmer
+   * *und* Bildform: Ein gedrehtes Telefon ist ein anderes Blatt. Die Zange und
+   * der Wisch rechnen damit — sie kommen in Anteilen des Bildes herein und
+   * müssen wissen, wie viele Meter das sind.
+   */
+  private archiveFit = { half: 5, tall: 5 };
 
   private ui: StationUi | null = null;
   /**
@@ -428,6 +447,12 @@ export class HauntingWorld extends GridWorld {
         droneTurn: (radians) => this.turnDroneView(this.droneLook + radians, this.dronePitch),
         droneTilt: (radians) => this.turnDroneView(this.droneLook, this.dronePitch + radians),
         droneFace: () => this.turnDroneView(0, 0),
+        archiveView: () => this.archive,
+        archiveZoom: (factor) => this.zoomArchive(factor),
+        archivePan: (dx, dz) => this.panArchive(dx, dz),
+        archiveHome: () => {
+          this.archive = homeView();
+        },
       });
     }
     this.applyLights();
@@ -1541,15 +1566,61 @@ export class HauntingWorld extends GridWorld {
     const padZ = (room.rect.d * TILE) / 2 + TILE * 0.35;
     const half = Math.max(padX, padZ * aspect);
     const tall = half / aspect;
-    camera.position.set(cx, above, cz);
-    camera.left = -half;
-    camera.right = half;
-    camera.top = tall;
-    camera.bottom = -tall;
+    // **Das eingepasste Blatt ist das Maß für alles Weitere.** Es ändert sich
+    // mit dem Zimmer und mit der Form des Fensters; ein Ausschnitt, der auf
+    // dem vorigen Blatt erlaubt war, hängt sonst halb daneben (`fitView`).
+    this.archiveFit = { half, tall };
+    const view = fitView(this.archive, half, tall);
+    this.archive = view;
+    const hw = half / view.zoom;
+    const hh = tall / view.zoom;
+    // Verschoben wird die Kamera und nicht das Blatt: Die Maske ringsum rechnet
+    // ohnehin von der Kameramitte aus, und ein verschobenes Blatt wäre eine
+    // zweite Wahrheit darüber, wo das Zimmer steht.
+    camera.position.set(cx + view.x, above, cz + view.z);
+    camera.left = -hw;
+    camera.right = hw;
+    camera.top = hh;
+    camera.bottom = -hh;
     camera.near = above - PLAN_WALL_H + 0.05;
     camera.far = above + 2;
     camera.updateProjectionMatrix();
-    this.maskAround(room.rect, cx, cz, camera.right, camera.top);
+    this.maskAround(room.rect, camera.position.x, camera.position.z, hw, hh);
+  }
+
+  /**
+   * **Näher heran ans Blatt** — die Zange auf dem Telefon, das Rad am Laptop.
+   *
+   * Der Anschlag steckt in `archiveView.ts` und nicht hier: Wie weit ein
+   * Archivar heranziehen darf, ist eine Regel und keine Kameraeinstellung.
+   */
+  private zoomArchive(factor: number): void {
+    const { half, tall } = this.archiveFit;
+    this.archive = zoomedView(this.archive, factor, half, tall);
+  }
+
+  /**
+   * **Und das Blatt darunter durchschieben.**
+   *
+   * Herein kommen Anteile des Bildes (`StationHost.archivePan`), gerechnet
+   * wird in Metern: Eine ganze Bildbreite ist `2 · half / zoom` Meter, und
+   * genau deshalb schiebt derselbe Wisch im Zoom weniger weit — das Blatt
+   * folgt dem Finger und nicht einer Zahl.
+   *
+   * **Umgekehrtes Vorzeichen**, weil der Finger das Blatt zieht und nicht die
+   * Kamera: Wer nach rechts wischt, schiebt das Zimmer nach rechts, also die
+   * Kamera nach links.
+   */
+  private panArchive(dx: number, dz: number): void {
+    const { half, tall } = this.archiveFit;
+    const zoom = this.archive.zoom;
+    this.archive = pannedView(
+      this.archive,
+      (-dx * 2 * half) / zoom,
+      (-dz * 2 * tall) / zoom,
+      half,
+      tall,
+    );
   }
 
   /**
