@@ -144,8 +144,13 @@ zum Scheinwerfer zu werden), die **Gürtel-Position**
 Hüften, dass die Höhe ein Anteil der Augenhöhe bleibt und dass ein gezogener
 Zentimeter dort ankommt, wo gezogen wurde), die **Portaltiefe**
 (`src/worlds/portal/portalDepth.ts` — Rasten, Grenzen und der Fall, dass im
-Speicher eine Zeichenkette statt einer Zahl steht), der **Durchtritt durch ein
-Portal** (`src/worlds/portal/portalCrossing.ts` — dass der Schnitt mit der
+Speicher eine Zeichenkette statt einer Zahl steht), **wodurch ein Portal
+hindurchgeht** (`src/worlds/portal/portalFunnel.ts` — dass beide Böden mitgehen,
+wo zwei übereinanderliegen, dass ein Wandportal den Boden davor trotzdem in
+Ruhe lässt, dass ein Keller zwei Meter tiefer nicht mehr dazugehört und dass
+auch die Fläche mitkommt, die nur die halbe Öffnung hinterlegt: der Fehler
+davor war fünf Zentimeter groß und sah aus wie ein halb verschluckter Würfel),
+der **Durchtritt durch ein Portal** (`src/worlds/portal/portalCrossing.ts` — dass der Schnitt mit der
 Ebene auch den erwischt, der in einem Bild ganz hindurchfliegt, dass die Wand
 neben der Öffnung Wand bleibt, dass niemand zurückgeholt wird, der gerade
 herauskommt, und wohin die **Blickrichtung** danach zeigt: Ein Zombie, der
@@ -622,13 +627,14 @@ möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 (`jest.config.cjs` führt sie auf): `navlab/labPhysics.test.ts` lässt einen NPC
 über die Quader des Navigationslabors laufen, `npc/npcDirector.test.ts` prüft,
 woher Nachschub kommt, `physics/playerFooting.test.ts` stellt den Spieler bei
-fünf Bildraten auf den Boden — und `worlds/portal/npcPortal.test.ts` lässt
-einen Zombie durch ein Bodenportal fallen. Der letzte, weil die Frage, ob ein
-Körper durch eine Wand fällt, keine Rechnung beantwortet, sondern eine
-Kollisionsmaske in der Engine: Ein Nachbau davon prüfte den Nachbau. Die
-Gegenprobe steht daneben — derselbe Zombie auf demselben Boden, nur ohne die
-Ausnahme, bleibt stehen; ohne sie wäre der Test auch für einen Boden grün, den
-es gar nicht gibt.
+fünf Bildraten auf den Boden — und `worlds/portal/portalFall.test.ts` lässt
+einen Zombie **und einen Würfel** durch ein Bodenportal fallen. Der letzte, weil
+die Frage, ob ein Körper durch einen Boden fällt, keine Rechnung beantwortet,
+sondern eine Kollisionsmaske in der Engine: Ein Nachbau davon prüfte den
+Nachbau. Die Gegenproben stehen daneben — derselbe Zombie auf demselben Boden
+bleibt ohne die Ausnahme stehen, und der Würfel bleibt fünf Zentimeter tief im
+Loch liegen, wenn nur der obere von zwei Böden nachgibt; ohne sie wäre der Test
+auch für einen Boden grün, den es gar nicht gibt.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
 selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
@@ -1512,7 +1518,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
 - **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
   Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
-  Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine. Portale
+  Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine — es sind
+  die aus dem magischen Beutel, derselbe Bauplan und dieselben Zahlen, damit
+  ein dazugestellter Stein nicht als Fremdkörper in der Reihe steht. Portale
   gehen auch auf Boden und Decke — samt Sturz und Schwung beim Herausfliegen.
   Hände, Waffen und Objekte werden an der Portalebene geschnitten und kommen
   auf der anderen Seite wieder heraus: Du kannst die Hand durch ein Portal
@@ -2437,7 +2445,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Zeile: der Mond bringt seine 1,62 mit, und eine einmal getippte Zahl darf
   nicht für immer über jeder Welt stehen. Reibung und Rückprall fassen die
   Objekte erst an, wenn jemand sie wirklich verstellt — sonst überschriebe der
-  Start jede im Code eingestellte Kleinigkeit (Dominos 0,6, Cubes 0,8).
+  Start jede im Code eingestellte Kleinigkeit (alles aus dem Beutel 0,7, die
+  Companion Cubes des Labors 0,8).
   Dazu **Körper stößt an**, und das ist ein Schalter: **aus**, wie
   ausgeliefert, bleibt der eigene Rumpf zwar fest — man geht nicht durch Kisten
   und steht weiter auf ihnen —, wirft aber nichts mehr um. Der eigene Körper
@@ -7152,7 +7161,8 @@ versetzt ihn, und sein Abbild steht drüben (`PortalWorld.traverseNpcs`,
 geplanter Weg wird weggeworfen: Der lag auf der anderen Seite.
 
 Damit man überhaupt durch eine Wand fallen kann, ignorieren Körper innerhalb
-des Portaltrichters die Kollisionsgruppe der Fläche, auf der das Portal sitzt —
+des Portaltrichters die Kollisionsgruppen aller Flächen, die das Loch
+**durchstößt** —
 der Spieler, die Kisten und jeder, der herumläuft (`updatePhasing`). Das ist die
 Voraussetzung für alles Weitere und nicht eine Feinheit: Ohne sie stößt ein
 Zombie vor dem Portal gegen den Beton, in dem es hängt, und zappelt dort. Man
@@ -7160,6 +7170,16 @@ sieht das Loch, er läuft dagegen.
 Jede portalfähige Fläche hat dafür ein eigenes Bit — mit einem gemeinsamen Bit
 für alle löste ein Portal an der Wand auch den Boden davor auf, und man sackte
 kurz vor dem Portal ein.
+
+**Welche Bits das sind, wird beim Schießen gemessen** (`portalFunnel.ts`, mit
+Test): neun Strahlen entgegen der Normalen, von der Mitte und vom Rand der
+Öffnung, so tief wie der Trichter reicht — alles, was sie treffen, kommt in die
+Maske. Vorher stand dort nur die eine Fläche, auf der das Portal klebt, und
+genau daran scheiterte es: Im Labor liegt die Fläche bis zum Horizont fünf
+Zentimeter unter dem gebauten Boden (`GROUND_TOP`), beide sind portalfähig, und
+ein Bodenportal löste nur den oberen auf. Der Companion Cube fiel fünf
+Zentimeter, setzte auf und blieb im Loch stehen — man sah ihn darin liegen und
+hielt die Physik für kaputt, dabei fehlte ein Bit.
 
 Nichts springt mehr durch die Portalebene: `PortalGhosts` schneidet alles, was
 gerade in einer Öffnung steckt, mit einer Clipping-Ebene ab und zeichnet eine

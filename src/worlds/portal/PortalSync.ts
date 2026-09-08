@@ -10,9 +10,11 @@ export type Pose7 = [number, number, number, number, number, number, number];
 export type { PropKind };
 export type PortalKey = 'a' | 'b';
 /**
- * A placed portal. The surface bit travels along: the chamber is built the
- * same way everywhere, so the number means the same wall on every machine, and
- * without it the receiving side would dissolve the wrong surface.
+ * A placed portal. The surface bits travel along: the chamber is built the
+ * same way everywhere, so the number means the same walls on every machine, and
+ * without it the receiving side would dissolve the wrong surface. Mehrzahl,
+ * seit ein Portal alles auflöst, was es durchstößt (`portalFunnel.ts`) — die
+ * Zahl bleibt eine, es sind nur mehr Bits darin.
  */
 export interface PortalState {
   pose: Pose7;
