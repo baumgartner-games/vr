@@ -78,7 +78,9 @@ Van vor vier Geräten:
 - **Späher** — sieht, wo das Monster gerade ist. Nur Wände und einen Punkt:
   keine Namen, keine Möbel, und den Mitspieler auch nicht.
 - **Drohne** — fliegt auf Zimmer, die man antippt, und zeigt eins vollständig.
-  Sie macht keine Tür auf.
+  Sie macht keine Tür auf und wechselt das Zimmer nur alle paar Sekunden; ihr
+  Scheinwerfer leuchtet auch für den im Haus und lädt sich wieder auf, während
+  er aus ist. Das Bild antippen zeigt es groß, wischen sieht sich um.
 - **Schalttafel** — Licht, Türen, Radios. Ohne Grundriss, mit Beschriftungen
   wie `Wohnzimmer`, `Tür 2` und `X`.
 

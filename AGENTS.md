@@ -7574,20 +7574,67 @@ geschlossene Tür Kulisse und der Hacker Deko. Drei Entscheidungen darin:
 sein Kamerabild aus *und* das Zimmer, in dem der VR-Spieler steht. Deshalb
 steht der Drohnenkörper seit Neuestem bei **allen** in der Szene und nicht nur
 bei den Web-Spielern: Ein Licht, das der Mann im Haus nicht sieht, wäre eine
-Helligkeitseinstellung und keine Hilfe. Es kostet Akku (gut das Dreifache des
-Flugverbrauchs, `droneRoute.drainRate`), damit der Knopf eine Entscheidung
-bleibt und nicht einfach immer an ist.
+Helligkeitseinstellung und keine Hilfe.
+
+**Kein Akku, der abläuft — zwei Uhren, die sich erholen** (`droneRoute.ts`, mit
+Test). Anfangs lief eine einzige Ladung durch: Sie ging vom ersten Bild an
+runter, war nach gut vier Minuten leer, und danach lag die Drohne im Haus. Das
+ist kein Spiel, sondern ein Countdown — der Pilot konnte nichts falsch machen,
+nur zu lange dabei sein, und wer sich spät an das Gerät setzte, erbte eine
+Leiche. Eine Rolle, die nach vier Minuten aufhört, ist eine Rolle weniger.
+An ihre Stelle sind zwei Sachen getreten, und beide kommen zurück:
+
+- **Die Wechselsperre** (`HOP_TIME`, 14 s): Sie wechselt das Zimmer nur alle
+  paar Sekunden. Damit ist sie kein Suchscheinwerfer, der das Haus in einer
+  Minute abklappert — wer sie irgendwohin schickt, hat sich entschieden und
+  sieht sich das Zimmer an, statt weiterzuklicken. Genau die Frage soll im Van
+  gestellt werden: *welches Zimmer als Nächstes?* Sie geht über die Leitung
+  mit (`DroneState.hop`), sonst wäre der Platzwechsel am Gerät ein
+  Schlupfloch: aufstehen, jemand anders setzt sich hin, weiterfliegen.
+- **Die Ladung des Scheinwerfers** (`LAMP_LIFE` 45 s Licht, `LAMP_FILL` 75 s
+  bis wieder voll): Sie leert sich nur, während er brennt, und **füllt sich
+  wieder auf**, wenn er aus ist. Nachfüllen dauert länger als Leerbrennen —
+  andersherum wäre der Knopf keine Entscheidung mehr, sondern immer an. Bei
+  null geht er von selbst aus und lässt sich erst ab einem Rest (`LAMP_MIN`)
+  wieder anschalten; ohne diese Schwelle klickt man an einer leeren Lampe.
+
+Beide Uhren laufen bei **allen** im Van mit und nicht nur beim Piloten: Sonst
+stünden sie still, während niemand am Gerät sitzt, und der Nächste erbte eine
+Sperre von vor drei Minuten und eine Lampe, die sich nicht erholt hat.
 
 **Ihre Kamera schaut nach vorn, und „vorn" ist +Z.** Der Gierwinkel ist
 `atan2(dx, dz)`, damit zeigt die lokale +Z-Achse in die Flugrichtung — eine
 three.js-Kamera von der Stange schaut aber nach −Z. Ohne die halbe Drehung
 flog der Pilot rückwärts durch das Haus, und mit dem Scheinwerfer leuchtete
 der auch noch hinter ihm her. Sie sitzt außerdem knapp *vor* dem Rumpf: Sonst
-füllt die eigene Lampenkuppel das Bild.
+füllt die eigene Lampenkuppel das Bild. Und sie schwebt auf **2,15 m** unter
+einer 2,8 m hohen Decke: Auf Augenhöhe des VR-Spielers stand im Bild des
+Piloten eine Stuhllehne vor dem halben Zimmer, und aus der Übersicht, für die
+man eine Drohne fliegt, wurde ein zweites Paar Augen auf derselben Höhe.
+
+**Der Öffnungswinkel hängt an der Form des Bildes** (`droneRoute.droneFov`, mit
+Test). `THREE.PerspectiveCamera.fov` ist der **senkrechte** Winkel, und das ist
+die Falle, sobald der Pilot sein Bild vom Kinostreifen aufs Vollbild zieht:
+Dieselbe Zahl ist einmal Weitwinkel und einmal Fernrohr, und er merkt nur, dass
+er auf einmal nichts mehr findet. Festgehalten wird deshalb, was er wirklich
+braucht — **wie viel vom Zimmer links und rechts ins Bild passt**
+(`DRONE_HFOV`, 118°) —, und der senkrechte Winkel fällt daraus ab, begrenzt auf
+66°…104°, damit sich das Haus an den Rändern nicht biegt.
+
+**Umsehen dreht die Kamera, nie die Drohne.** Der Wisch über dem Vollbild (und
+der Blickstock oben rechts im Bild) verstellt einen Winkel *neben* der
+Flugrichtung; die Bahn kommt weiter aus der Wegsuche. Andersherum wäre das
+Wischen eine zweite Steuerung, die gegen die Wegsuche arbeitet, und die eine
+Regel, an der hier alles hängt („sie fliegt keine Luftlinie"), wäre durch eine
+Fingerbewegung ausgehebelt. Gedreht wird in derselben Richtung wie mit der Maus
+im Fenster (`core/FlatControls.ts`), begrenzt auf gut zwei Drittel einer halben
+Umdrehung, und ein Tipp auf den Stock stellt wieder geradeaus — er leuchtet,
+solange der Blick daneben steht, sonst sucht der Pilot ein Zimmer, das hinter
+ihm liegt, und hält die Drohne für kaputt.
 
 **Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
 Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
-zusammenschiebt, nie. Sechs Sachen, die dabei nicht Geschmack sind:
+zusammenschiebt, nie. Neun Sachen, die dabei nicht Geschmack sind:
 
 - **Jede Station hat eine Farbe, und es ist ihre** (`--haunt-accent` über
   `data-station` am Wurzelelement) — dieselben vier Töne, die im Haus auf den
@@ -7596,9 +7643,34 @@ zusammenschiebt, nie. Sechs Sachen, die dabei nicht Geschmack sind:
 - **Der Auftragsstreifen hat ein Feld je Sache und drei Zustände** — noch im
   Haus, in der Hand, im Van. `0/3` sagt nicht, dass eine davon gerade beim
   VR-Spieler liegt, und genau das ist am Tisch die Frage, die gestellt wird.
+- **Das Bild ist ein Kinostreifen und kein Kasten** (21:9 statt 40 vh Höhe).
+  Ein Zimmer ist breiter als hoch; Bildhöhe, die keiner braucht, war auf einem
+  Telefon die halbe Seite, und der Pilot scrollte zu seinen eigenen Knöpfen.
+  Der Archivar bekommt ein eckigeres Fenster (4:3): Seine Kamera passt das
+  Zimmer in das Fenster ein, und in einem Streifen steht ein hohes Zimmer
+  zwischen zwei schwarzen Balken — breit ist bei ihm *weniger* Bild.
+- **Antippen macht das Bild groß, noch einmal wieder klein.** Groß heißt: Es
+  liegt fest im Hintergrund über dem ganzen Schirm, und die Bedienung liegt
+  darauf. „Bild frei" in der Kopfzeile blendet sie weg, der Menüknopf oben im
+  Bild holt sie zurück — weggeblendet und nicht abgebaut, sonst käme die Liste
+  oben statt dort zurück, wo man war. Im freigeräumten Vollbild schaltet ein
+  Tipp die Größe **nicht** um: Das wäre der versehentliche Ausstieg aus genau
+  der Ansicht, für die man aufgeräumt hat.
+- **Tipp und Wisch trennt die Strecke, nicht die Zeit** (`TAP_SLOP`, 8 px).
+  Ohne die Schwelle wäre jeder Wisch am Ende auch ein Tipp, und das Bild
+  klappte bei jedem Umsehen zusammen. Dazu `touch-action: none` auf dem Bild —
+  sonst nimmt der Browser die erste Fingerbewegung für sich und schickt danach
+  keine Punkte mehr.
+- **Ein Knopfdruck scrollt die Liste nicht nach oben.** Die Seite wird nach
+  jedem Tipp neu geschrieben, und eine neu geschriebene Liste fängt oben an —
+  der Hacker scrollte nach jedem Schalter wieder zu seinem Schalter. Der
+  Scrollstand wird deshalb aufgehoben und nur verworfen, wenn wirklich eine
+  *andere* Seite kommt.
 - **Quer gehaltenes Telefon bekommt zwei Spalten** (Bild links, Bedienung
-  rechts). Hochkant bleibt unter 40 vh Bild genug für die Liste, quer nicht,
-  und dann tippt der Pilot blind.
+  rechts). Hochkant bleibt unter dem Streifen genug für die Liste, quer nicht,
+  und dann tippt der Pilot blind. Dort stehen auch nur zwei Kacheln
+  nebeneinander statt vier: Der Block für breite Fenster rechnet mit der
+  Fensterbreite, die Liste steht aber in einer Spalte von 42 % davon.
 - **Der Späherschirm hängt an der Pixeldichte** und nicht an einer festen
   Zahl. Ausgerechnet bei ihm ist ein verwaschener Strich kein
   Schönheitsfehler, sondern die Auskunft — er hat nichts als Konturen.

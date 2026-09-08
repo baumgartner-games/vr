@@ -10,7 +10,7 @@ import {
   type Claim,
   type StationId,
 } from './stations';
-import { droneSeconds, type DroneStatus } from './droneRoute';
+import { lampRefill, lampSeconds, HOP_TIME, LAMP_MIN, type DroneStatus } from './droneRoute';
 import type { DroneState, HauntState } from './net';
 
 /**
@@ -65,6 +65,12 @@ export interface StationHost {
   droneSeen(): ReadonlySet<string>;
   /** Ihren Scheinwerfer umlegen. */
   droneLight(): void;
+  /** Wie weit der Pilot gerade neben der Flugrichtung schaut, in Bogenmaß. */
+  droneLook(): number;
+  /** Und ihn weiterdrehen — das Wischen über dem Bild. */
+  droneTurn(radians: number): void;
+  /** Wieder geradeaus. */
+  droneFace(): void;
 }
 
 /**
@@ -78,6 +84,12 @@ export interface StationHost {
  */
 const SCOUT_SIZE = 320;
 
+/** Wie weit ein Finger wandern darf und trotzdem ein Tipp bleibt, in Punkten. */
+const TAP_SLOP = 8;
+
+/** Wie weit ein Wisch dreht, in Bogenmaß je Punkt. */
+const LOOK_RATE = 0.004;
+
 export class StationUi {
   private readonly root = document.createElement('div');
   private readonly bar = document.createElement('header');
@@ -85,13 +97,41 @@ export class StationUi {
   private readonly view = document.createElement('div');
   private readonly body = document.createElement('div');
   private readonly scout = document.createElement('canvas');
+  /** Die zwei Knöpfe, die **im** Bild liegen: Menü und Blickstock. */
+  private readonly viewTools = document.createElement('div');
+  private readonly menuKey = document.createElement('button');
+  private readonly lookKey = document.createElement('button');
 
   /** Ob gerade die Geräteübersicht offen ist statt der eigenen Station. */
   private vanOpen = true;
+  /**
+   * **Ob das Bild den ganzen Schirm hat.**
+   *
+   * Klein ist es ein Kinostreifen über der Bedienung — breit genug für ein
+   * Zimmer, flach genug, dass die Knöpfe darunter ohne Scrollen erreichbar
+   * bleiben. Angetippt füllt es den Hintergrund, und die Bedienung liegt
+   * darauf. Zwei Größen und keine Zwischenstufe: Ein Ziehgriff wäre auf einem
+   * Telefon eine dritte Sache, die man mitten im Spiel bedienen muss.
+   */
+  private big = false;
+  /** Und ob die Bedienung darauf gerade weggeblendet ist. */
+  private bare = false;
   /** Welches Zimmer der Archivar aufgeschlagen hat. */
   selected = '';
   /** Woran erkannt wird, dass die Seite neu geschrieben werden muss. */
   private drawn = '';
+  /**
+   * Welche Seite zuletzt geschrieben wurde — **wofür der Scrollstand gilt**.
+   *
+   * Ohne das sprang die Liste bei jedem Knopfdruck nach oben: Die Seite wird
+   * neu geschrieben, und eine neu geschriebene Liste fängt oben an. Auf einem
+   * Telefon heißt das, dass der Hacker nach jedem Schalter wieder zu seinem
+   * Schalter herunterscrollt. Der Stand wird deshalb aufgehoben und nur dann
+   * verworfen, wenn wirklich eine **andere** Seite kommt.
+   */
+  private paged = '';
+  /** Der Finger, der gerade über dem Bild liegt. */
+  private grab: { id: number; x: number; y: number; from: number; far: number } | null = null;
 
   constructor(private readonly host: StationHost) {
     this.root.className = 'haunt';
@@ -102,11 +142,25 @@ export class StationUi {
     this.scout.className = 'haunt__scout';
     this.scout.width = SCOUT_SIZE;
     this.scout.height = SCOUT_SIZE;
+
+    this.viewTools.className = 'haunt__vtools';
+    this.menuKey.className = 'haunt__vbtn';
+    this.menuKey.dataset['bare'] = '';
+    this.menuKey.textContent = '☰';
+    this.menuKey.setAttribute('aria-label', 'Bedienung wieder einblenden');
+    this.lookKey.className = 'haunt__vbtn haunt__vbtn--look';
+    this.lookKey.textContent = '🕹';
+    this.lookKey.setAttribute('aria-label', 'Umsehen: ziehen dreht, tippen stellt geradeaus');
+    this.viewTools.append(this.menuKey, this.lookKey);
+    this.view.append(this.viewTools);
+
     this.root.append(this.bar, this.quest, this.view, this.body);
     document.body.append(this.root);
     document.body.classList.add('haunt-on');
 
     this.root.addEventListener('click', (event) => this.onClick(event));
+    this.watchDrag(this.view, false);
+    this.watchDrag(this.lookKey, true);
   }
 
   dispose(): void {
@@ -159,9 +213,12 @@ export class StationUi {
         .map((claim) => `${claim.id}:${claim.station}`)
         .sort()
         .join('|'),
-      Math.round(drone.battery * 40),
+      Math.round(drone.lamp * 40),
+      Math.ceil(drone.hop),
       drone.target,
       drone.light,
+      this.big,
+      this.bare,
       status.kind,
       status.here,
       // Nur auf ganze Meter: Eine Anzeige, die zwanzigmal je Sekunde eine
@@ -177,7 +234,13 @@ export class StationUi {
     // Der Punkt des Spähers wandert zwischen zwei Neuschriften weiter — er ist
     // das Einzige, was sich ohne Knopfdruck ändert.
     if (station === 'scout') this.drawScout();
-    this.view.hidden = station !== 'archive' && station !== 'drone';
+    this.view.hidden = !this.hasView;
+  }
+
+  /** Ob diese Station überhaupt ein Bild der Welt bekommt. */
+  private get hasView(): boolean {
+    const station = this.station;
+    return station === 'archive' || station === 'drone';
   }
 
   // --- schreiben -------------------------------------------------------------
@@ -192,6 +255,7 @@ export class StationUi {
     // einzeln: Von hier aus färbt sie Kopfzeile, Rand und Knöpfe über eine
     // einzige Variable, und eine fünfte Station bekommt eine Zeile im CSS.
     this.root.dataset['station'] = station ?? 'van';
+    this.writeShape(station);
 
     const back = el('button', 'haunt__back');
     back.dataset['van'] = '';
@@ -210,19 +274,79 @@ export class StationUi {
       el('small', '', facts ? facts.tagline : 'Vier Geräte, und nie genug Leute'),
     );
 
-    this.bar.replaceChildren(
+    const bar: HTMLElement[] = [
       where,
       el(
         'span',
         `haunt__state${state.monsterOn ? ' is-hot' : ''}`,
         state.monsterOn ? 'Monster an' : 'Monster aus',
       ),
-      back,
-    );
+    ];
+    // Im Vollbild liegt die Bedienung **auf** dem Bild, und dieser Knopf nimmt
+    // sie weg. Er steht nur dort, wo er etwas tut: klein deckt die Bedienung
+    // nichts zu, was man freiräumen müsste.
+    if (this.big && this.hasView) {
+      const free = el('button', 'haunt__back');
+      free.dataset['bare'] = '';
+      free.append(el('span', 'haunt__back-icon', '▽'), el('span', '', 'Bild frei'));
+      free.setAttribute('aria-label', 'Bedienung ausblenden, nur das Bild zeigen');
+      bar.push(free);
+    }
+    bar.push(back);
+    this.bar.replaceChildren(...bar);
 
     this.writeQuest(state, spec);
+
+    // **Der Scrollstand bleibt, solange dieselbe Seite bleibt.** Ein Knopf
+    // schreibt die Seite neu, und eine neu geschriebene Liste fängt oben an —
+    // wer unten auf einen Schalter tippt, stünde danach wieder oben.
+    const page = `${station ?? 'van'}/${this.vanOpen ? 'van' : 'seat'}`;
+    const keep = page === this.paged ? this.body.scrollTop : 0;
+    this.paged = page;
     this.body.replaceChildren(...this.page(station));
-    this.body.scrollTop = 0;
+    this.body.scrollTop = keep;
+  }
+
+  /**
+   * **Die Form der Seite**: Kinostreifen oder Vollbild, mit Bedienung oder ohne.
+   *
+   * Hängt am Wurzelelement statt an jedem Kasten einzeln — das CSS entscheidet
+   * daraus, was wohin rückt, und diese Methode muss nichts über Höhen wissen.
+   * Stationen ohne Bild (Späher, Schalttafel) fallen immer auf die kleine Form
+   * zurück: Ein Vollbild ohne Bild wäre eine leere Fläche mit einem
+   * Menüknopf.
+   */
+  private writeShape(station: StationId | null): void {
+    const view = station === 'archive' || station === 'drone';
+    if (!view) {
+      this.big = false;
+      this.bare = false;
+    }
+    const big = this.big && view;
+    const bare = big && this.bare;
+    this.root.classList.toggle('is-big', big);
+    this.root.classList.toggle('is-bare', bare);
+    this.menuKey.hidden = !bare;
+    // Der Blickstock gehört der Drohne: Beim Archivar dreht sich nichts, seine
+    // Kamera hängt senkrecht über dem aufgeschlagenen Zimmer.
+    this.lookKey.hidden = station !== 'drone';
+    this.markLook();
+    // **Im Vollbild mit Bedienung liegt die Ecke unter der Kopfzeile** — ein
+    // Knopf, den man nicht sieht, ist keiner. Dort wird ohnehin über das Bild
+    // gewischt statt am Stock gezogen; die Ecke bleibt leer.
+    this.viewTools.hidden = !view || (big && !bare) || (this.menuKey.hidden && this.lookKey.hidden);
+  }
+
+  /**
+   * Ob der Blickstock gerade neben der Flugrichtung steht.
+   *
+   * Er ist die einzige Anzeige dafür: Wer sich umgesehen und es vergessen hat,
+   * sucht sonst ein Zimmer, das hinter ihm liegt, und hält die Drohne für
+   * kaputt. Gesetzt wird die Klasse **ohne** die Seite neu zu schreiben — beim
+   * Wischen liefe sonst je Bild ein Neuaufbau der ganzen Liste.
+   */
+  private markLook(): void {
+    this.lookKey.classList.toggle('is-off', Math.abs(this.host.droneLook()) > 0.05);
   }
 
   /**
@@ -416,12 +540,16 @@ export class StationUi {
   }
 
   /**
-   * **Der Pilot**: oben das Bild, darunter Akku, Licht und die Karte.
+   * **Der Pilot**: oben das Bild, darunter Licht, Sperre und die Karte.
    *
    * Drei Sachen kann er, und sie stehen in der Reihenfolge, in der man sie
-   * braucht: sehen (Scheinwerfer), wissen, wie lange noch (Akku), und
-   * hinfliegen (Karte). Die Karte ist keine Karte, sondern eine Liste — der
+   * braucht: sehen (Scheinwerfer), wissen, wann er wieder darf (Wechselsperre),
+   * und hinfliegen (Karte). Die Karte ist keine Karte, sondern eine Liste — der
    * Grundriss gehört dem Archivar, und ein Pilot mit Grundriss lotste allein.
+   *
+   * **Beide Anzeigen erholen sich**, und das ist der ganze Unterschied zum
+   * Akku, der vorher hier stand: Wer sich verausgabt, wartet — er verliert
+   * nicht seine Rolle (`droneRoute.ts`).
    */
   private dronePage(): HTMLElement[] {
     const spec = this.host.spec();
@@ -430,52 +558,58 @@ export class StationUi {
     const seen = this.host.droneSeen();
     const out: HTMLElement[] = [];
 
-    // --- Akku: der Balken und die Zeit, die er noch hergibt.
-    const left = Math.round(droneSeconds(drone.battery, drone.light));
-    const level = drone.battery > 0.4 ? 'good' : drone.battery > 0.15 ? 'low' : 'flat';
-    const gauge = el('div', `haunt__gauge is-${level}`);
+    // --- Der Scheinwerfer, mit seiner eigenen Ladung.
+    const lit = drone.light;
+    const flat = !lit && drone.lamp < LAMP_MIN;
+    const lamp = el('button', `haunt__lamp${lit ? ' is-on' : ''}${flat ? ' is-flat' : ''}`);
+    lamp.dataset['lamp'] = '';
+    if (flat) lamp.setAttribute('disabled', '');
+    lamp.setAttribute('aria-pressed', lit ? 'true' : 'false');
+    const lampRail = el('span', 'haunt__rail');
+    const lampFill = el('i', '');
+    lampFill.style.width = `${Math.round(drone.lamp * 100)}%`;
+    lampRail.append(lampFill);
+    lamp.append(
+      el('span', 'haunt__lamp-bulb', lit ? '☀' : '☾'),
+      el('span', 'haunt__lamp-text', lit ? 'Scheinwerfer an' : 'Scheinwerfer aus'),
+      lampRail,
+      el('span', 'haunt__tag', lampWords(drone)),
+    );
+
+    // --- Die Wechselsperre: der zweite Takt, an dem der Pilot hängt.
+    const free = drone.hop <= 0;
+    const gauge = el('div', `haunt__gauge${free ? '' : ' is-wait'}`);
     const rail = el('span', 'haunt__rail');
     const fill = el('i', '');
-    fill.style.width = `${Math.round(drone.battery * 100)}%`;
+    // Von leer auf voll: Man soll die Freigabe *ankommen* sehen.
+    fill.style.width = `${Math.round((1 - Math.min(1, drone.hop / HOP_TIME)) * 100)}%`;
     rail.append(fill);
     gauge.append(
-      el('span', 'haunt__gauge-num', `${Math.round(drone.battery * 100)} %`),
+      el('span', 'haunt__gauge-num', free ? 'frei' : `${Math.ceil(drone.hop)} s`),
       rail,
       el(
         'span',
         'haunt__tag',
-        drone.battery > 0
-          ? `noch ~${Math.max(0, left)} s${drone.light ? ' · mit Licht' : ''}`
-          : 'leer — sie liegt, wo sie liegt',
-      ),
-    );
-
-    // --- Der Scheinwerfer.
-    const lamp = el('button', `haunt__lamp${drone.light ? ' is-on' : ''}`);
-    lamp.dataset['lamp'] = '';
-    if (drone.battery <= 0) lamp.setAttribute('disabled', '');
-    lamp.setAttribute('aria-pressed', drone.light ? 'true' : 'false');
-    lamp.append(
-      el('span', 'haunt__lamp-bulb', drone.light ? '☀' : '☾'),
-      el('span', 'haunt__lamp-text', drone.light ? 'Scheinwerfer an' : 'Scheinwerfer aus'),
-      el(
-        'span',
-        'haunt__tag',
-        drone.light
-          ? 'Der Kegel leuchtet nach vorn — auch für den im Haus. Und er frisst Akku.'
-          : 'Ein Kegel nach vorn. Er hilft dem VR-Spieler mehr als dir.',
+        free
+          ? `Ein Zimmer antippen. Danach bleibt sie ${HOP_TIME} s, wo sie ist.`
+          : 'Sie wechselt das Zimmer nicht öfter. Solange: hinsehen und ansagen.',
       ),
     );
 
     const cockpit = el('div', 'haunt__cockpit');
-    cockpit.append(gauge, lamp);
+    cockpit.append(lamp, gauge);
     out.push(cockpit);
 
-    // --- Wo sie ist und was die Wegsuche dazu sagt.
-    out.push(this.droneNote(status, drone));
+    // --- Nur was schiefgeht, bekommt eine eigene Kachel. „Unterwegs nach X"
+    // stand vorher hier und sagte nichts, was nicht schon an der Zielkachel
+    // steht — eine Zeile, die immer da ist, liest nach zwei Minuten niemand.
+    const trouble = this.droneNote(status, drone);
+    if (trouble) out.push(trouble);
 
     // --- Die Zimmerliste.
-    out.push(head('Wohin?', 'noch einmal antippen bricht ab'));
+    out.push(
+      head('Wohin?', free ? 'noch einmal antippen bricht ab' : `frei in ${Math.ceil(drone.hop)} s`),
+    );
     const grid = el('div', 'haunt__map');
     for (const room of spec.rooms) {
       const cell = el('button', 'haunt__cell');
@@ -485,11 +619,20 @@ export class StationUi {
       cell.setAttribute('aria-pressed', target ? 'true' : 'false');
       if (target) cell.classList.add('is-target');
       if (here) cell.classList.add('is-here');
+      // Gesperrt ist nur das **nächste** Zimmer, nie der Abbruch: Ein Knopf,
+      // der eine Fehleingabe vierzehn Sekunden festhält, ist eine Strafe fürs
+      // Danebentippen.
+      if (!free && !target) cell.setAttribute('disabled', '');
       const line = el('span', 'haunt__cell-head');
       line.append(el('span', '', room.name));
       if (here) line.append(el('span', 'haunt__chip haunt__chip--here', 'hier'));
-      else if (target) line.append(el('span', 'haunt__chip haunt__chip--go', 'Ziel'));
-      else if (seen.has(room.id)) line.append(el('span', 'haunt__chip', 'gesehen'));
+      else if (target) {
+        // Die Meter stehen an der Zielkachel und nicht in einer eigenen Zeile:
+        // Sie gehören zu dem Zimmer, um das es geht.
+        const far =
+          status.kind === 'blocked' ? 'zu' : `${Math.max(1, Math.round(status.metres))} m`;
+        line.append(el('span', 'haunt__chip haunt__chip--go', `Ziel · ${far}`));
+      } else if (seen.has(room.id)) line.append(el('span', 'haunt__chip', 'gesehen'));
       cell.append(line, el('span', 'haunt__tag', shapeOf(room)));
       // Zwillinge heißen gleich, und auf einer Liste sind zwei gleiche Zeilen
       // ein Zufallsknopf. Die Nummer sagt nicht, welches welches ist — sie sagt
@@ -504,34 +647,23 @@ export class StationUi {
     return out;
   }
 
-  /** Die eine Zeile, in der die Wegsuche zum Piloten spricht. */
-  private droneNote(status: DroneStatus, drone: DroneState): HTMLElement {
+  /**
+   * Die eine Zeile, in der die Wegsuche zum Piloten spricht — **oder keine**.
+   *
+   * Sie meldet sich nur, wenn etwas nicht geht. `blocked` ist die Zeile, auf
+   * die es ankommt: die Stelle, an der aus einer Wegsuche eine Ansage an den
+   * Rest des Vans wird — *irgendwo dazwischen ist zu, macht auf*. Dass sie
+   * fliegt und wie weit noch, steht an ihrer Zielkachel.
+   */
+  private droneNote(status: DroneStatus, drone: DroneState): HTMLElement | null {
+    if (status.kind !== 'blocked') return null;
     const spec = this.host.spec();
     const where = roomOf(spec, status.here)?.name ?? 'zwischen zwei Zimmern';
     const goal = roomOf(spec, drone.target)?.name ?? '';
-    const far = `${Math.max(1, Math.round(status.metres))} m`;
-
-    if (status.kind === 'flat') {
-      return note('warn', 'Akku leer', `Sie liegt in ${where}. Von hier fliegt sie nicht mehr.`);
-    }
-    if (status.kind === 'blocked') {
-      return note(
-        'warn',
-        'Kein Weg',
-        `Sie steht in ${where}. Zwischen hier und ${goal} ist etwas zu — sie macht keine Tür auf. Ruf es in den Van.`,
-      );
-    }
-    if (status.kind === 'flying') {
-      return note(
-        'live',
-        `Unterwegs nach ${goal}`,
-        `Noch ${far} auf ihrer Bahn. Sie fliegt nicht die Luftlinie, sondern sucht sich einen Weg.`,
-      );
-    }
     return note(
-      'calm',
-      `Sie schwebt in ${where}`,
-      'Tipp ein Zimmer an, dann sucht sie sich einen Weg dorthin.',
+      'warn',
+      'Kein Weg',
+      `Sie steht in ${where}. Zwischen hier und ${goal} ist etwas zu — sie macht keine Tür auf. Ruf es in den Van.`,
     );
   }
 
@@ -682,12 +814,14 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-bare]',
     );
     if (!hit) return;
 
     if (hit.dataset['van'] !== undefined) {
       this.vanOpen = !this.vanOpen;
+    } else if (hit.dataset['bare'] !== undefined) {
+      this.bare = !this.bare;
     } else if (hit.dataset['lamp'] !== undefined) {
       this.host.droneLight();
     } else if (hit.dataset['sit']) {
@@ -702,6 +836,78 @@ export class StationUi {
     }
     this.drawn = '';
     this.refresh();
+  }
+
+  /**
+   * **Ein Finger über dem Bild: entweder ein Tipp oder ein Wisch.**
+   *
+   * Unterschieden wird an der zurückgelegten Strecke und nicht an der Zeit:
+   * Wer die Größe umschalten will, tippt; wer sich umsehen will, zieht. Ohne
+   * die Schwelle wäre jeder Wisch am Ende auch ein Tipp, und das Bild
+   * klappte bei jedem Umsehen zusammen.
+   *
+   * `setPointerCapture` hält den Finger am Element fest, auch wenn er darüber
+   * hinauswandert — sonst bliebe die Drohne mitten im Schwenk stehen, sobald
+   * der Daumen den Bildrand streift.
+   *
+   * @param stick ob das Element der Blickstock ist. Er dreht immer und schaltet
+   *   nie die Größe um; ein Tipp auf ihn stellt den Blick wieder geradeaus.
+   */
+  private watchDrag(node: HTMLElement, stick: boolean): void {
+    node.addEventListener('pointerdown', (event: PointerEvent) => {
+      // Die Knöpfe im Bild sind Knöpfe und keine Ziehfläche.
+      if (!stick && (event.target as Element | null)?.closest('.haunt__vtools')) return;
+      this.grab = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        from: event.clientX,
+        far: 0,
+      };
+      node.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    node.addEventListener('pointermove', (event: PointerEvent) => {
+      const grab = this.grab;
+      if (!grab || grab.id !== event.pointerId) return;
+      const step = event.clientX - grab.from;
+      grab.from = event.clientX;
+      grab.far = Math.max(grab.far, Math.hypot(event.clientX - grab.x, event.clientY - grab.y));
+      // Umgesehen wird am Stock immer, über dem Bild nur im Vollbild: Klein ist
+      // das Bild ein Kinostreifen von wenigen Zentimetern, und ein Wisch darauf
+      // wäre öfter ein verrutschter Tipp als eine Absicht.
+      if (!stick && !this.big) return;
+      if (this.station !== 'drone') return;
+      // Nach rechts gewischt heißt nach rechts geschaut — dieselbe Richtung wie
+      // die Maus im Fenster (`core/FlatControls.ts`).
+      this.host.droneTurn(-step * LOOK_RATE);
+      this.markLook();
+    });
+
+    const drop = (event: PointerEvent): void => {
+      const grab = this.grab;
+      if (!grab || grab.id !== event.pointerId) return;
+      this.grab = null;
+      if (node.hasPointerCapture(event.pointerId)) node.releasePointerCapture(event.pointerId);
+      if (grab.far > TAP_SLOP) return;
+      if (stick) {
+        if (this.station === 'drone') this.host.droneFace();
+        this.markLook();
+        return;
+      }
+      // Ein Tipp aufs Bild: groß, und noch einmal wieder klein. Aus dem
+      // freigeräumten Vollbild führt der Menüknopf zurück — ein Tipp, der dort
+      // die Größe umschaltet, wäre der versehentliche Ausstieg aus genau der
+      // Ansicht, für die man aufgeräumt hat.
+      if (!this.hasView || (this.big && this.bare)) return;
+      this.big = !this.big;
+      if (!this.big) this.bare = false;
+      this.drawn = '';
+      this.refresh();
+    };
+    node.addEventListener('pointerup', drop);
+    node.addEventListener('pointercancel', drop);
   }
 }
 
@@ -740,6 +946,21 @@ function fact(label: string, value: string, warn = false): HTMLElement {
   const row = el('div', `haunt__fact${warn ? ' is-warn' : ''}`);
   row.append(el('span', 'haunt__fact-key', label), el('span', 'haunt__fact-value', value));
   return row;
+}
+
+/**
+ * **Was unter dem Lichtknopf steht** — und es sind drei verschiedene Sätze.
+ *
+ * Brennt er, zählt die Ladung herunter; ist er aus und nicht voll, zählt sie
+ * hinauf. Nur die volle Lampe bekommt den Satz, der sagt, wofür der Knopf
+ * überhaupt da ist: Eine Zahl, die nichts mehr zu melden hat, ist Platz für
+ * die Regel.
+ */
+function lampWords(drone: DroneState): string {
+  if (drone.light) return `noch ~${Math.round(lampSeconds(drone.lamp))} s Licht — er frisst Ladung`;
+  if (drone.lamp < LAMP_MIN) return `leer. Voll in ${Math.round(lampRefill(drone.lamp))} s`;
+  if (drone.lamp < 1) return `lädt · voll in ${Math.round(lampRefill(drone.lamp))} s`;
+  return 'Ein Kegel nach vorn. Er hilft dem VR-Spieler mehr als dir.';
 }
 
 /** Die Form eines Zimmers, wie man sie einem Späher zurufen würde. */
