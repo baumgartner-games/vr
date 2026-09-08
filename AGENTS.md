@@ -36,6 +36,35 @@ und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
 keine; deshalb prüft sie jetzt jeder Push nach.
 
+### Sessions, die nicht auf `main` pushen dürfen
+
+Claude Code im Browser (claude.ai/code) läuft in einem fremden Container und
+bekommt vom Harness einen `claude/…`-Branch zugewiesen; `git push -u origin
+main` ist dort nicht möglich, egal was ein paar Absätze weiter oben steht. Für
+diese Sessions gilt deshalb der Umweg — aber vollständig, bis der Commit auf
+`main` steht:
+
+1. Auf dem zugewiesenen Branch entwickeln, die vier Prüfungen laufen lassen,
+   pushen.
+2. Pull Request eröffnen, **nicht als Draft**. Ein Draft ist für GitHub keine
+   fertige Arbeit: mergen lässt er sich nicht, und Auto-Merge lässt sich auf
+   ihm gar nicht erst scharfstellen.
+3. Warten, bis die CI grün ist, und den PR dann **selbst mergen**. Auf einen
+   Menschen wird dabei nicht gewartet: Das Ergebnis dieser Regel ist ein
+   Commit auf `main` und nicht ein offener Pull Request.
+4. Den Branch löschen, lokal und auf `origin` — dieselbe Aufräumregel wie oben,
+   samt dem `HTTP 403`, der gesagt werden will.
+
+Wer am Ende einen offenen PR liegen lässt, hat die Arbeit nicht abgeliefert,
+sondern nur abgelegt. Fehlt das Recht zum Mergen, steht genau das im Ergebnis,
+mitsamt der Nummer des PR.
+
+Sobald auf `main` ein Ruleset mit dem Pflicht-Check `Build` liegt, ersetzt
+GitHubs Auto-Merge den dritten Schritt: einmal scharfstellen, und GitHub mergt
+selbst, sobald die CI durch ist. Ohne so ein Ruleset ist jeder PR von der ersten
+Sekunde an mergebar, und genau dann lässt GitHub Auto-Merge nicht zu — deshalb
+steht hier das Warten und nicht die Automatik.
+
 ### Linter und Formatierer
 
 `npm run lint` ist ESLint mit einem **kleinen** Regelsatz (`eslint.config.js`).
