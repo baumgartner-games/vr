@@ -265,6 +265,21 @@ export class StationUi {
   }
 
   /**
+   * **Wie viele Punkte des Bildes oben schon vergeben sind.**
+   *
+   * Kopfzeile und Auftragsstreifen liegen über dem Bild — beim Piloten ist das
+   * gewollt (sein Kamerabild ist der Hintergrund, und ganz oben steht ohnehin
+   * Himmel), beim Archivar war es ein Fehler: Sein Grundriss ist genau so groß
+   * wie das Bild, und die obere Kante des Zimmers steckte damit hinter der
+   * Kopfzeile. Gemessen und nicht geschätzt — eine Zahl im Kopf ist bei der
+   * nächsten Schriftgröße wieder falsch.
+   */
+  headroom(): number {
+    const box = this.quest.getBoundingClientRect();
+    return Math.max(0, box.bottom);
+  }
+
+  /**
    * **Ob das Bild hinter der Bedienung grob gerastert werden soll.**
    *
    * Die Bedienung liegt auf durchsichtigem Grund über dem Bild; ein Bild unter
@@ -666,7 +681,7 @@ export class StationUi {
         el(
           'span',
           'haunt__blind',
-          'Auf dem Blatt: Strich mit Bogen ist eine offene Tür, ein ausgefüllter Balken eine zu.',
+          'Auf dem Blatt: helle Linien sind Wände, eine Lücke mit Bogen ist eine offene Tür, ein dunkler Riegel eine zu.',
         ),
       );
       out.push(

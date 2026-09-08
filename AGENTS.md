@@ -7817,7 +7817,7 @@ beides.
 
 **Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
 Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
-zusammenschiebt, nie. Sechzehn Sachen, die dabei nicht Geschmack sind:
+zusammenschiebt, nie. Zwanzig Sachen, die dabei nicht Geschmack sind:
 
 - **Jede Station hat eine Farbe, und es ist ihre** (`--haunt-accent` über
   `data-station` am Wurzelelement) — dieselben vier Töne, die im Haus auf den
@@ -7881,24 +7881,58 @@ zusammenschiebt, nie. Sechzehn Sachen, die dabei nicht Geschmack sind:
   vor der schwarzen Maske um sein Zimmer und hielte das Gerät für kaputt. Ein
   anderes Zimmer aufschlagen fängt wieder beim ganzen an: **Aufgeschlagen heißt
   hinsehen**, genau wie beim Piloten, der ein Zimmer antippt.
-- **Türen werden gezeichnet und nicht fotografiert** (`HauntingWorld.buildDoorMarks`).
-  Zwei Sachen fehlten dem Archivar dafür. Erstens der Schnitt: Er lag knapp
-  unter der **Decke**, und über jeder Tür steht ein Sturz von der Türhöhe bis
-  an die Decke (`levelBuild.doorParts`) — von oben ein Stück Wand. Ein Haus
-  ohne Deckel, in dem jede Tür zugemauert ist. Jetzt liegt er knapp unter dem
-  **Sturz** (`PAPER_CUT`), und aus jeder Tür wird die Lücke, die sie ist.
-  Zweitens das Zeichen: Ein Grundriss zeichnet Türen — **offen** als Schwelle
-  mit dem Viertelbogen, den das Blatt schlägt, **zu** als ausgefüllte Lücke.
-  Die Form sagt die Auskunft und nicht die Farbe: Der Sepiafilter über dem
-  Blatt macht aus Rot und Grün dasselbe Braun, aus hell und dunkel aber nicht.
-  Der Bogen dreht sich dabei immer **in das aufgeschlagene Zimmer** hinein, und
-  gezeigt werden nur dessen Türen — sonst schwebten die Türen der Nachbarn über
-  der schwarzen Fläche ringsum, und aus dem Blatt wäre wieder eine Karte.
-- **Und die Flächen, die das Blatt freiräumen, liegen unter dem Schnitt.** Sie
-  hingen an der Decke, weil der Schnitt dort lag; mit dem tieferen Schnitt
-  schnitt die Kamera erst die Maske weg und dann sah der Archivar das halbe
-  Haus. Wer eine dieser beiden Höhen ändert, ändert die andere mit
-  (`PAPER_CUT`, `PAPER_MARK_Y`, `maskAround`).
+- **Der Grundriss wird gezeichnet und nicht fotografiert**
+  (`HauntingWorld.buildDoorMarks`, `wallsOf`). Drei Sachen fehlten dem Archivar
+  dafür. Erstens der Schnitt: Er lag knapp unter der **Decke**, und über jeder
+  Tür steht ein Sturz von der Türhöhe bis an die Decke
+  (`levelBuild.doorParts`) — von oben ein Stück Wand. Ein Haus ohne Deckel, in
+  dem jede Tür zugemauert ist. Jetzt liegt er knapp unter dem **Sturz**
+  (`PAPER_CUT`). Zweitens die **Wände**: Eine aufgeschnittene Wand ist von oben
+  ein offener Kasten — man sieht durch sie hindurch, und übrig blieb ein Boden
+  mit Möbeln und einem Bogen im Nichts. Also bekommt jede Kante, die das Zimmer
+  begrenzt, ihren hellen Strich, mit einer **Lücke, wo eine Tür sitzt**, und
+  mit Enden, die eine halbe Wandstärke über die Ecke hinausragen (sonst steht
+  in jeder Zimmerecke ein schwarzer Zahn). Drittens das Türzeichen: **offen**
+  die Lücke selbst plus der Viertelbogen, den das Blatt schlägt, **zu** ein
+  **dunkler** Riegel in der hellen Wand. Warum dunkel: Ein heller Pfropfen wäre
+  schlicht Wand, und man müsste die Bögen zählen, um zu merken, dass dort eine
+  Tür ist. Farbe hilft dabei nicht — der Sepiafilter macht aus Rot und Grün
+  dasselbe Braun, aus hell und dunkel aber nicht. Der Bogen dreht sich immer
+  **in das aufgeschlagene Zimmer** hinein, und gezeigt werden nur dessen Wände
+  und Türen — sonst schwebten die Nachbarn über der schwarzen Fläche ringsum,
+  und aus dem Blatt wäre wieder eine Karte.
+- **Und die Flächen, die das Blatt freiräumen, liegen dicht unter dem
+  Schnitt.** Sie hingen an der Decke, weil der Schnitt dort lag; mit dem
+  tieferen Schnitt schnitt die Kamera erst die Maske weg, und der Archivar sah
+  das halbe Haus. Dicht darunter und nicht irgendwo darunter: Was zwischen
+  Maske und Schnitt steht — ein hoher Schrank im Nachbarzimmer —, ragt sonst
+  durch sie hindurch. Und ihr Rand ist **eine halbe Wandstärke** und nicht eine
+  ganze, sonst schaut zwischen Wandlinie und Maske der Boden des Nachbarn
+  hervor: ein zweiter heller Rand um den ersten, der wie eine doppelte Wand
+  aussieht. Wer eine dieser Höhen ändert, ändert die anderen mit (`PAPER_CUT`,
+  `PAPER_MARK_Y`, `maskAround`).
+- **Was oben verdeckt ist, wird nicht bezeichnet** (`StationUi.headroom`).
+  Kopfzeile und Auftragsstreifen liegen über dem Bild. Beim Piloten ist das
+  gewollt — sein Kamerabild ist Hintergrund. Beim Archivar war es ein Fehler:
+  Sein Grundriss ist genau so groß wie das Bild, und die Nordwand steckte
+  hinter der Kopfzeile. Beide Kameras, die ein **Ganzes** zeigen (Blatt und
+  Fernseher), passen deshalb in die *freie* Fläche ein und verlängern ihren
+  Ausschnitt nach oben. Gemessen und nicht geschätzt: Eine Zahl im Kopf ist bei
+  der nächsten Schriftgröße wieder falsch.
+- **Der Rand um das Blatt ist anteilig** (`framed`). Ein fester Rand ist beim
+  15-Meter-Saal ein Strich und bei der 5-Meter-Kammer ein Drittel des Blattes.
+  Sechs Prozent, mindestens eine viertel Kachel — damit die Wandlinie nicht die
+  Bildkante anschneidet.
+- **Herausgezoomt wird auch** (`archiveView.ZOOM_MIN`, halb). Nicht, weil es
+  dort mehr zu sehen gäbe — daneben liegt nur die Maske —, sondern damit man
+  sieht, *dass* man alles sieht: Ein Blatt, das erkennbar kleiner ist als das
+  Fenster, beantwortet die Frage „ist das jetzt das ganze Zimmer?" ohne einen
+  Knopf.
+- **Was in einer Liste steht, schrumpft nicht — es läuft über** (`.haunt__body
+  > * { flex: none }`). Flex-Kinder geben von sich aus nach: Zwölf Kacheln
+  drückten sich auf die Höhe zusammen, die gerade da war, schoben sich
+  übereinander — und **scrollen ließ sich nichts**, weil es keinen Überlauf
+  gab. Der Pilot kam damit an seine letzten Zimmer nicht heran.
 - **Warum überhaupt Zoom?** Weil sein Ausschnitt das ganze Zimmer zeigt und
   damit das Klavier so groß wie eine Kiste. Der Archivar ist der Einzige, der
   Namen hat — er muss sagen können, was auf dem Tisch liegt, und dafür muss er

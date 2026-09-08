@@ -27,8 +27,20 @@ export interface ArchiveView {
   z: number;
 }
 
-/** Weiter weg als das ganze Zimmer geht nicht: Daneben liegt nur die Maske. */
-export const ZOOM_MIN = 1;
+/**
+ * **Wie weit man aus dem eingepassten Blatt noch heraus darf.**
+ *
+ * Eingepasst ist das ganze Zimmer (`zoom = 1`), und eigentlich ist damit alles
+ * zu sehen. Trotzdem geht es noch ein Stück weiter hinaus: Wer sich verzoomt
+ * hat, will nicht raten, ob er gerade ein kleines Zimmer ganz oder ein großes
+ * halb vor sich hat — ein Blatt, das erkennbar kleiner ist als das Fenster,
+ * beantwortet das ohne einen Knopf. Weiter als die Hälfte lohnt nicht: Dahinter
+ * liegt nur die Fläche, die alles andere freiräumt.
+ */
+export const ZOOM_MIN = 0.5;
+
+/** Und die Vergrößerung, bei der das Zimmer genau ins Fenster passt. */
+export const ZOOM_HOME = 1;
 
 /**
  * Und näher als ein Sechstel auch nicht.
@@ -41,16 +53,26 @@ export const ZOOM_MAX = 6;
 
 /** Das aufgeschlagene Blatt, wie es der Archivar bekommt: ganz und mittig. */
 export function homeView(): ArchiveView {
-  return { zoom: ZOOM_MIN, x: 0, z: 0 };
+  return { zoom: ZOOM_HOME, x: 0, z: 0 };
 }
 
-/** Ob der Ausschnitt genau so steht — dann braucht es keinen Zurück-Knopf. */
+/**
+ * Ob der Ausschnitt genau so steht — dann braucht es keinen Zurück-Knopf.
+ *
+ * Mit Spielraum und nicht auf die Nachkommastelle: Wer mit zwei Fingern
+ * herauszieht und wieder heran, landet nie exakt auf `1`, und ein Knopf, der
+ * danach für immer stehen bleibt, sieht aus wie ein Fehler.
+ */
 export function atHome(view: ArchiveView): boolean {
-  return view.zoom <= ZOOM_MIN && view.x === 0 && view.z === 0;
+  return (
+    Math.abs(view.zoom - ZOOM_HOME) < 0.02 && Math.abs(view.x) < 0.02 && Math.abs(view.z) < 0.02
+  );
 }
 
 export function clampZoom(zoom: number): number {
-  if (!Number.isFinite(zoom)) return ZOOM_MIN;
+  // Unsinn wird zum eingepassten Blatt und nicht zum Anschlag: Wer sich
+  // verrechnet hat, soll das ganze Zimmer sehen und nicht die Maske ringsum.
+  if (!Number.isFinite(zoom)) return ZOOM_HOME;
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
 }
 

@@ -381,6 +381,20 @@ body.haunt-on .touch { display: none; }
   gap: 8px;
 }
 
+/*
+ * **Was in der Liste steht, schrumpft nicht — es läuft über.**
+ *
+ * Die Liste ist eine Flex-Spalte, und Flex-Kinder geben von sich aus nach:
+ * Statt unten aus dem Kasten zu laufen, drückten sich zwölf Kacheln auf die
+ * Höhe zusammen, die gerade da war. Dann steht scheinbar alles auf dem Schirm,
+ * die Kacheln überlagern sich, und **scrollen lässt sich nichts** — es gibt ja
+ * keinen Überlauf. Genau das ist dem Piloten passiert: Seine letzten Zimmer
+ * waren übereinandergeschoben und nicht erreichbar. `flex: none` gibt jeder
+ * Kachel ihre eigene Höhe zurück, und damit bekommt die Liste ihren Überlauf
+ * und ihren Rollbalken.
+ */
+.haunt__body > * { flex: none; }
+
 .haunt__h {
   display: flex;
   align-items: baseline;
