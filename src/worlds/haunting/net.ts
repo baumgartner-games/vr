@@ -59,6 +59,16 @@ export interface DroneState {
   target: string;
   /** Was noch im Akku ist, von 1 bis 0. */
   battery: number;
+  /**
+   * **Ob ihr Scheinwerfer an ist** — und warum das über die Leitung geht.
+   *
+   * Das Licht der Drohne ist das Einzige, was der Pilot im *Haus* anrichten
+   * kann: Es leuchtet nicht nur sein eigenes Kamerabild aus, sondern auch das
+   * Zimmer, in dem der VR-Spieler steht. Ein Licht, das nur der Pilot sähe,
+   * wäre eine Helligkeitseinstellung; eines, das alle sehen, ist eine Hilfe,
+   * die man sich zurufen muss — und ein Verräter, wenn das Monster kommt.
+   */
+  light: boolean;
 }
 
 /**
@@ -147,6 +157,7 @@ export function readDrone(data: unknown): DroneState | null {
     z: num(it['z']),
     target: typeof it['target'] === 'string' ? it['target'].slice(0, 16) : '',
     battery: Math.min(1, Math.max(0, num(it['battery'], 1))),
+    light: it['light'] === true,
   };
 }
 
