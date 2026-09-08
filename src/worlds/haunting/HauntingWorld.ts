@@ -91,6 +91,22 @@ const STATE_RATE = 1 / 4;
 /** Und wie oft der Pilot seine Drohne ansagt. */
 const DRONE_RATE = 1 / 10;
 
+/**
+ * Wie schnell sich der Rumpf bei den Zuschauern in den angesagten Winkel
+ * dreht, als Anteil des Restes je Sekunde. Hoch genug, dass der Lichtkegel dem
+ * Piloten folgt, statt hinterherzuschleifen; niedrig genug, dass die zehn
+ * Ansagen je Sekunde nicht als zehn Stufen zu sehen sind.
+ */
+const DRONE_TURN = 14;
+
+/**
+ * Wie fein das Bild hinter der offenen Bedienung noch ist: ein Bildpunkt je
+ * zehn CSS-Punkte. Als **Anteil** und nicht als Kachelgröße, weil die Leinwand
+ * damit auf jedem Gerät dieselben Klötzchen zeigt — auf einem Telefon mit
+ * dreifacher Dichte wären feste Bildpunkte drittel so groß.
+ */
+const VEIL_RATIO = 0.1;
+
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 const REACH = 1.1;
 /**
@@ -165,6 +181,8 @@ export class HauntingWorld extends GridWorld {
   private readonly paperMask = new THREE.Group();
   /** Der Papierton liegt auf der Leinwand und nicht in der Szene. */
   private tinted = false;
+  /** Und ob das Bild gerade grob gerastert hinter der Bedienung liegt. */
+  private veiled = false;
 
   private droneBody: THREE.Object3D | null = null;
   private droneCam: THREE.PerspectiveCamera | null = null;
@@ -173,15 +191,22 @@ export class HauntingWorld extends GridWorld {
   /** Die Kuppel darüber: dass sie leuchtet, sieht man auch von hinten. */
   private droneGlass: THREE.MeshBasicMaterial | null = null;
   private topCam: THREE.OrthographicCamera | null = null;
-  private drone: DroneState = { x: 0, z: 0, target: '', hop: 0, lamp: 1, light: false };
+  private drone: DroneState = { x: 0, z: 0, yaw: 0, target: '', hop: 0, lamp: 1, light: false };
   /**
    * **Wohin der Pilot schaut, wenn er nicht geradeaus schaut.**
    *
    * Ein Winkel neben der Flugrichtung, kein zweiter Kurs: Die Drohne fliegt
-   * ihre Bahn weiter, nur die Kamera dreht sich darauf. Andersherum wäre das
+   * ihre Bahn weiter, sie **dreht sich nur darauf**. Andersherum wäre das
    * Wischen eine zweite Steuerung, die gegen die Wegsuche arbeitet — und die
    * eine Regel, an der hier alles hängt („sie fliegt keine Luftlinie"), wäre
    * durch eine Fingerbewegung ausgehebelt.
+   *
+   * **Gedreht wird der Rumpf und nicht die Kamera.** Vorher saß der Winkel an
+   * der Kamera allein, und das war eine Bildeinstellung: Der Pilot sah zur
+   * Seite, der Scheinwerfer leuchtete weiter geradeaus, und im Haus stand eine
+   * Drohne, die stur in eine Richtung starrte, während ihr Pilot etwas ganz
+   * anderes ansagte. Der Kegel ist das Einzige, was der Pilot dem VR-Spieler
+   * wirklich geben kann — er muss dorthin zeigen, wo der Pilot hinsieht.
    */
   private droneLook = 0;
   /** Wo sie steht und wohin sie schaut — die Bahn rechnet `droneRoute.ts`. */
@@ -341,6 +366,10 @@ export class HauntingWorld extends GridWorld {
   override dispose(ctx: WorldContext): void {
     ctx.net.off(HAUNT_CHANNEL);
     ctx.scene.fog = null;
+    // Die Leinwand gehört der ganzen Seite und nicht dieser Welt: Was hier an
+    // ihr verstellt wurde, geht hier auch wieder ab.
+    this.veilView(false);
+    this.paperTint(false);
     this.ui?.dispose();
     this.ui = null;
     if (this.fusePlate) ctx.pointer.remove(this.fusePlate);
@@ -549,6 +578,8 @@ export class HauntingWorld extends GridWorld {
     // Flugrichtung — eine Kamera von der Stange schaut aber nach −Z. Ohne die
     // halbe Drehung flog der Pilot rückwärts durch das Haus und der
     // Scheinwerfer leuchtete hinter ihm her.
+    // Und sie bleibt dort: Was der Pilot wischt, dreht den **Rumpf**, und die
+    // Kamera hängt daran (`turnDroneView`).
     droneCam.rotation.y = Math.PI;
     // Und sie sitzt **vor** der Drohne, nicht in ihr: Rumpf und Lampenkuppel
     // stehen im Weg, sobald die Kamera nach vorn schaut, und eine nahe
@@ -659,18 +690,11 @@ export class HauntingWorld extends GridWorld {
     }
     const drone = readDrone(data);
     if (drone && from !== this.context?.net.localId) {
-      const body = this.droneBody;
-      if (body) {
-        // Die Blickrichtung kommt **nicht** über die Leitung, sondern aus dem
-        // Weg zwischen zwei Ansagen: Ein Winkel mehr in der Nachricht wäre
-        // zehnmal je Sekunde ein Wert, der sich aus zwei anderen ohnehin
-        // ergibt — und bei zehn Ansagen je Sekunde ruckelt eine übertragene
-        // Drehung sichtbar, eine gerechnete nicht.
-        const dx = drone.x - body.position.x;
-        const dz = drone.z - body.position.z;
-        if (Math.hypot(dx, dz) > 0.05) body.rotation.y = Math.atan2(dx, dz);
-        body.position.set(drone.x, DRONE_Y, drone.z);
-      }
+      // Die Stelle wird gesetzt, der Winkel wird **angefahren**: Er steht in
+      // der Nachricht (`net.DroneState.yaw`), weil eine Drohne, die im Stehen
+      // schwenkt, keinen Weg hinterlässt, aus dem er sich ableiten ließe — und
+      // ein gesetzter Winkel bei zehn Ansagen je Sekunde sichtbar ruckelt.
+      this.droneBody?.position.set(drone.x, DRONE_Y, drone.z);
       this.drone = drone;
       this.applyDroneLight();
       return;
@@ -878,9 +902,11 @@ export class HauntingWorld extends GridWorld {
     this.dronePose = { x: (at.x + 0.5) * TILE, z: (at.z + 0.5) * TILE, yaw: 0 };
     body.position.set(this.dronePose.x, DRONE_Y, this.dronePose.z);
     body.rotation.y = 0;
+    this.droneLook = 0;
     this.drone = {
       x: this.dronePose.x,
       z: this.dronePose.z,
+      yaw: 0,
       target: '',
       hop: 0,
       lamp: this.drone.lamp,
@@ -944,7 +970,42 @@ export class HauntingWorld extends GridWorld {
   private turnDroneView(radians: number): void {
     const most = Math.PI * 0.72;
     this.droneLook = Math.min(most, Math.max(-most, radians));
-    if (this.droneCam) this.droneCam.rotation.y = Math.PI + this.droneLook;
+    this.faceDrone();
+  }
+
+  /**
+   * **Den Rumpf dorthin drehen, wo der Pilot hinsieht** — Flugrichtung plus
+   * Blickwinkel, und die Kamera hängt als Kind daran.
+   *
+   * Nur beim Piloten: Bei allen anderen ist der Winkel eine angesagte Zahl, in
+   * die sich der Rumpf hineindreht (`turnDroneBody`). Zwei Stellen, die
+   * denselben Rumpf drehen, drehten ihn gegeneinander.
+   */
+  private faceDrone(): void {
+    const body = this.droneBody;
+    if (!body || !this.piloting) return;
+    body.rotation.y = this.dronePose.yaw + this.droneLook;
+    this.drone.yaw = body.rotation.y;
+  }
+
+  /**
+   * **Bei allen anderen dreht sich die Drohne hin, statt zu springen.**
+   *
+   * Der Winkel kommt zehnmal je Sekunde über die Leitung; direkt gesetzt wäre
+   * das ein Ruckeln in zehn Stufen, und ausgerechnet der Lichtkegel im Haus
+   * würde dabei springen. Der Nachlauf ist bildratenunabhängig — bei 45 Hz
+   * dieselbe Zeit wie bei 120 — und nimmt immer den kürzeren Bogen: Ohne das
+   * dreht sich eine Drohne, die über den Vollkreis läuft, einmal komplett
+   * andersherum.
+   */
+  private turnDroneBody(dt: number): void {
+    const body = this.droneBody;
+    if (!body) return;
+    const gap = Math.atan2(
+      Math.sin(this.drone.yaw - body.rotation.y),
+      Math.cos(this.drone.yaw - body.rotation.y),
+    );
+    body.rotation.y += gap * Math.min(1, dt * DRONE_TURN);
   }
 
   private applyDroneLight(): void {
@@ -983,6 +1044,7 @@ export class HauntingWorld extends GridWorld {
       // der Pilot, und zweimal gerechnet käme sie zweimal woanders an.
       this.piloting = false;
       this.applyDroneLight();
+      this.turnDroneBody(dt);
       return;
     }
 
@@ -993,6 +1055,11 @@ export class HauntingWorld extends GridWorld {
       // zurück ins Zimmer hinter der Haustür — und der Vorgänger sieht es.
       this.piloting = true;
       this.dronePose = { x: this.drone.x, z: this.drone.z, yaw: body.rotation.y };
+      // **Wer sich hinsetzt, schaut geradeaus.** Der Winkel des Vorgängers
+      // steckt schon in der Drehung des Rumpfes, die hier gerade zur
+      // Flugrichtung erklärt wird; ein zweites Mal daraufgerechnet stünde die
+      // Drohne quer, und der Neue hielte sein erstes Bild für kaputt.
+      this.droneLook = 0;
       this.droneRoute = { tiles: [], complete: true, grounded: true };
       this.droneThink = 0;
     }
@@ -1001,9 +1068,11 @@ export class HauntingWorld extends GridWorld {
     this.spendLamp();
 
     body.position.set(this.dronePose.x, DRONE_Y, this.dronePose.z);
-    body.rotation.y = this.dronePose.yaw;
     this.drone.x = this.dronePose.x;
     this.drone.z = this.dronePose.z;
+    // Erst die Bahn, dann der Blick darauf: `faceDrone` rechnet beides
+    // zusammen und schreibt den Winkel in die Ansage.
+    this.faceDrone();
     this.noteDroneRoom();
 
     this.droneTimer -= dt;
@@ -1137,6 +1206,7 @@ export class HauntingWorld extends GridWorld {
   override render(ctx: WorldContext): boolean {
     const ui = this.ui;
     if (!ui) return false;
+    this.veilView(ui.veiled);
     const rect = ui.viewport();
     const renderer = ctx.renderer;
     renderer.getSize(_size);
@@ -1182,6 +1252,36 @@ export class HauntingWorld extends GridWorld {
     if (this.paperSun) this.paperSun.intensity = 0;
     this.paperMask.visible = false;
     return true;
+  }
+
+  /**
+   * **Das Bild hinter der Bedienung wird grob.**
+   *
+   * Die Schalttafel des Piloten liegt auf durchsichtigem Grund über seinem
+   * Kamerabild — und ein bewegtes Bild unter Knöpfen zieht den Blick immer auf
+   * sich. Statt es zuzudecken (dann wäre der Vollbild-Grund umsonst) wird es
+   * **gerastert**: Man sieht weiter, dass die Drohne fliegt und ob das Licht
+   * brennt, aber nichts mehr, worauf man hinsehen müsste.
+   *
+   * Gerastert wird über die **Auflösung** und nicht über einen Filter: Die
+   * Leinwand bekommt für diese Zeit einen winzigen Bildspeicher, den der
+   * Browser hart hochskaliert (`image-rendering: pixelated`). Das kostet
+   * nichts — es zeichnet weniger, nicht mehr —, es ist wirklich verpixelt und
+   * nicht weichgezeichnet, und es ist genau die Stelle, an der später ein
+   * eigener Filter (CRT, Rauschen) sitzen wird.
+   *
+   * Nur bei Wechsel: `setPixelRatio` legt den Bildspeicher neu an.
+   */
+  private veilView(on: boolean): void {
+    const renderer = this.context?.renderer;
+    if (!renderer || on === this.veiled) return;
+    // In der Brille wird nicht gerastert — dort gibt es diese Bedienung nicht,
+    // und eine halbierte Auflösung im Headset wäre kein Effekt, sondern ein
+    // Fehler.
+    if (renderer.xr.isPresenting) return;
+    this.veiled = on;
+    renderer.setPixelRatio(on ? VEIL_RATIO : Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.imageRendering = on ? 'pixelated' : '';
   }
 
   /**

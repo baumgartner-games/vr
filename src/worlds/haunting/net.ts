@@ -55,6 +55,19 @@ export interface HauntState {
 export interface DroneState {
   x: number;
   z: number;
+  /**
+   * **Wohin ihr Rumpf zeigt** — und warum das über die Leitung geht.
+   *
+   * Eine Weile wurde der Winkel bei den Zuschauern aus dem Weg zwischen zwei
+   * Ansagen gerechnet, und solange sie nur flog, stimmte er auch. Sobald der
+   * Pilot aber im Stehen wischt, bewegt sich nichts, aus dem sich eine Drehung
+   * ableiten ließe: Sein Bild schwenkte, der Scheinwerfer im Haus blieb stur
+   * geradeaus stehen — und genau der ist das Einzige, was der Pilot dem
+   * VR-Spieler wirklich geben kann. Also steht der Winkel jetzt in der
+   * Nachricht; das Ruckeln bei zehn Ansagen je Sekunde nimmt ihm der weiche
+   * Nachlauf beim Empfänger (`HauntingWorld.turnDroneBody`).
+   */
+  yaw: number;
   /** Wohin sie gerade fliegt — die Zimmerkennung, oder `''`. */
   target: string;
   /**
@@ -164,6 +177,7 @@ export function readDrone(data: unknown): DroneState | null {
   return {
     x: num(it['x']),
     z: num(it['z']),
+    yaw: num(it['yaw']),
     target: typeof it['target'] === 'string' ? it['target'].slice(0, 16) : '',
     hop: Math.min(600, Math.max(0, num(it['hop']))),
     lamp: Math.min(1, Math.max(0, num(it['lamp'], 1))),

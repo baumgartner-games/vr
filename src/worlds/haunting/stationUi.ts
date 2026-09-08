@@ -30,7 +30,8 @@ import type { DroneState, HauntState } from './net';
  *   Konturen: Wände und einen Punkt. Keine Möbel, keine Namen, kein
  *   Mitspieler. Das ist keine Sparmaßnahme — es *ist* seine Rolle.
  * - Die **Drohne** sieht ein Zimmer vollständig, aber nur eins, und der Pilot
- *   navigiert auf der Karte statt im Bild.
+ *   navigiert auf der Karte statt im Bild. Sein Bild ist dabei der ganze
+ *   Schirm; die Karte legt der Menüknopf darüber und nimmt sie wieder weg.
  * - Die **Schalttafel** sieht vom Haus überhaupt nichts.
  *
  * Wer hier eine dieser Grenzen aufweicht, weil es „praktischer" wäre, macht
@@ -105,17 +106,36 @@ export class StationUi {
   /** Ob gerade die Geräteübersicht offen ist statt der eigenen Station. */
   private vanOpen = true;
   /**
-   * **Ob das Bild den ganzen Schirm hat.**
+   * **Ob das Blatt des Archivars den ganzen Schirm hat.**
    *
    * Klein ist es ein Kinostreifen über der Bedienung — breit genug für ein
    * Zimmer, flach genug, dass die Knöpfe darunter ohne Scrollen erreichbar
    * bleiben. Angetippt füllt es den Hintergrund, und die Bedienung liegt
    * darauf. Zwei Größen und keine Zwischenstufe: Ein Ziehgriff wäre auf einem
    * Telefon eine dritte Sache, die man mitten im Spiel bedienen muss.
+   *
+   * **Nur der Archivar hat diese Wahl.** Er liest, und Lesen geht neben dem
+   * Bild; der Pilot fliegt, und Fliegen geht nur im Bild — sein Cockpit ist
+   * immer groß (`panel`).
    */
   private big = false;
   /** Und ob die Bedienung darauf gerade weggeblendet ist. */
   private bare = false;
+  /**
+   * **Ob die Schalttafel des Piloten gerade über dem Bild liegt.**
+   *
+   * Das Cockpit hat keine zwei Größen: Das Kamerabild steht immer über den
+   * ganzen Schirm, und die Bedienung ist ein Blatt, das der Menüknopf darüber
+   * legt und wieder wegnimmt. Vorher klebten dieselben Kacheln dauerhaft unten
+   * am Rand — auf einem Telefon waren das zwei Drittel des Bildes für Knöpfe,
+   * die man dreimal in der Minute drückt, und auf dem Laptop ein Bild, das
+   * zum Streifen zusammenschrumpfte. Wer fliegt, sieht; wer schaltet, schaltet.
+   *
+   * Weggeblendet und nicht abgebaut, wie beim Vollbild des Archivars: Ein
+   * Panel, das beim Wiedereinblenden neu entsteht, kommt oben statt dort
+   * zurück, wo man war.
+   */
+  private panel = false;
   /** Welches Zimmer der Archivar aufgeschlagen hat. */
   selected = '';
   /** Woran erkannt wird, dass die Seite neu geschrieben werden muss. */
@@ -187,6 +207,19 @@ export class StationUi {
     return { x: box.left, y: box.top, w: box.width, h: box.height };
   }
 
+  /**
+   * **Ob das Bild hinter der Bedienung grob gerastert werden soll.**
+   *
+   * Die Schalttafel des Piloten liegt auf durchsichtigem Grund über seinem
+   * Kamerabild; ein bewegtes Bild unter Knöpfen zieht den Blick aber immer auf
+   * sich. Gerastert bleibt zu sehen, dass sie fliegt und ob das Licht brennt —
+   * und sonst nichts, worauf man hinsehen müsste. Gemacht wird es von der
+   * Welt, die die Leinwand besitzt (`HauntingWorld.veilView`).
+   */
+  get veiled(): boolean {
+    return this.station === 'drone' && this.panel;
+  }
+
   refresh(): void {
     const state = this.host.state();
     const spec = this.host.spec();
@@ -219,6 +252,7 @@ export class StationUi {
       drone.light,
       this.big,
       this.bare,
+      this.panel,
       status.kind,
       status.here,
       // Nur auf ganze Meter: Eine Anzeige, die zwanzigmal je Sekunde eine
@@ -282,10 +316,29 @@ export class StationUi {
         state.monsterOn ? 'Monster an' : 'Monster aus',
       ),
     ];
-    // Im Vollbild liegt die Bedienung **auf** dem Bild, und dieser Knopf nimmt
-    // sie weg. Er steht nur dort, wo er etwas tut: klein deckt die Bedienung
-    // nichts zu, was man freiräumen müsste.
-    if (this.big && this.hasView) {
+    // **Der Menüknopf des Piloten.** Das Cockpit zeigt von sich aus nur das
+    // Bild; die Schalttafel kommt auf Zuruf darüber und geht genauso wieder
+    // weg. In der Kopfzeile und nicht im Bild: Sie ist die einzige Fläche, die
+    // in beiden Zuständen an derselben Stelle steht — ein Knopf, der sich beim
+    // Öffnen unter das verschiebt, was er geöffnet hat, ist keiner.
+    if (station === 'drone') {
+      const key = el('button', `haunt__back${this.panel ? ' is-on' : ''}`);
+      key.dataset['panel'] = '';
+      key.append(
+        el('span', 'haunt__back-icon', this.panel ? '✕' : '☰'),
+        el('span', '', this.panel ? 'Schließen' : 'Steuerung'),
+      );
+      key.setAttribute('aria-expanded', this.panel ? 'true' : 'false');
+      key.setAttribute(
+        'aria-label',
+        this.panel ? 'Steuerung schließen, nur das Bild zeigen' : 'Steuerung der Drohne einblenden',
+      );
+      bar.push(key);
+    }
+    // Im aufgezogenen Blatt des Archivars liegt die Bedienung **auf** dem Bild,
+    // und dieser Knopf nimmt sie weg. Er steht nur dort, wo er etwas tut: klein
+    // deckt die Bedienung nichts zu, was man freiräumen müsste.
+    if (this.big && station === 'archive') {
       const free = el('button', 'haunt__back');
       free.dataset['bare'] = '';
       free.append(el('span', 'haunt__back-icon', '▽'), el('span', '', 'Bild frei'));
@@ -317,24 +370,35 @@ export class StationUi {
    * Menüknopf.
    */
   private writeShape(station: StationId | null): void {
-    const view = station === 'archive' || station === 'drone';
-    if (!view) {
+    const cockpit = station === 'drone';
+    const view = station === 'archive' || cockpit;
+    // Die zwei Größen sind die Wahl des Archivars; wer nicht er ist, erbt sie
+    // nicht, wenn er sich an ein anderes Gerät setzt.
+    if (station !== 'archive') {
       this.big = false;
       this.bare = false;
     }
-    const big = this.big && view;
-    const bare = big && this.bare;
+    if (!cockpit) this.panel = false;
+    // **Das Cockpit ist immer groß.** Es teilt sich die Vollbild-Regeln mit dem
+    // aufgezogenen Blatt des Archivars — nur die Bedienung liegt darauf anders.
+    const big = this.big || cockpit;
+    const bare = this.big && this.bare;
     this.root.classList.toggle('is-big', big);
     this.root.classList.toggle('is-bare', bare);
+    this.root.classList.toggle('is-cockpit', cockpit);
+    this.root.classList.toggle('is-panel', cockpit && this.panel);
     this.menuKey.hidden = !bare;
     // Der Blickstock gehört der Drohne: Beim Archivar dreht sich nichts, seine
     // Kamera hängt senkrecht über dem aufgeschlagenen Zimmer.
-    this.lookKey.hidden = station !== 'drone';
+    this.lookKey.hidden = !cockpit;
     this.markLook();
-    // **Im Vollbild mit Bedienung liegt die Ecke unter der Kopfzeile** — ein
-    // Knopf, den man nicht sieht, ist keiner. Dort wird ohnehin über das Bild
-    // gewischt statt am Stock gezogen; die Ecke bleibt leer.
-    this.viewTools.hidden = !view || (big && !bare) || (this.menuKey.hidden && this.lookKey.hidden);
+    // **Was unter etwas anderem läge, steht gar nicht erst da.** Beim Archivar
+    // ist das die aufgezogene Bedienung, beim Piloten die offene Schalttafel —
+    // ein Knopf, den man nicht sieht, ist keiner.
+    this.viewTools.hidden =
+      !view ||
+      (cockpit ? this.panel : big && !bare) ||
+      (this.menuKey.hidden && this.lookKey.hidden);
   }
 
   /**
@@ -540,11 +604,13 @@ export class StationUi {
   }
 
   /**
-   * **Der Pilot**: oben das Bild, darunter Licht, Sperre und die Karte.
+   * **Die Schalttafel des Piloten**: Licht, Sperre und die Karte.
    *
-   * Drei Sachen kann er, und sie stehen in der Reihenfolge, in der man sie
-   * braucht: sehen (Scheinwerfer), wissen, wann er wieder darf (Wechselsperre),
-   * und hinfliegen (Karte). Die Karte ist keine Karte, sondern eine Liste — der
+   * Sie liegt nicht dauerhaft unter dem Bild, sondern kommt auf den Menüknopf
+   * hin darüber (`panel`) — sein Bild ist der ganze Schirm. Drei Sachen kann
+   * er, und sie stehen in der Reihenfolge, in der man sie braucht: sehen
+   * (Scheinwerfer), wissen, wann er wieder darf (Wechselsperre), und
+   * hinfliegen (Karte). Die Karte ist keine Karte, sondern eine Liste — der
    * Grundriss gehört dem Archivar, und ein Pilot mit Grundriss lotste allein.
    *
    * **Beide Anzeigen erholen sich**, und das ist der ganze Unterschied zum
@@ -814,7 +880,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-bare]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-bare],[data-panel]',
     );
     if (!hit) return;
 
@@ -822,6 +888,8 @@ export class StationUi {
       this.vanOpen = !this.vanOpen;
     } else if (hit.dataset['bare'] !== undefined) {
       this.bare = !this.bare;
+    } else if (hit.dataset['panel'] !== undefined) {
+      this.panel = !this.panel;
     } else if (hit.dataset['lamp'] !== undefined) {
       this.host.droneLight();
     } else if (hit.dataset['sit']) {
@@ -874,10 +942,11 @@ export class StationUi {
       const step = event.clientX - grab.from;
       grab.from = event.clientX;
       grab.far = Math.max(grab.far, Math.hypot(event.clientX - grab.x, event.clientY - grab.y));
-      // Umgesehen wird am Stock immer, über dem Bild nur im Vollbild: Klein ist
-      // das Bild ein Kinostreifen von wenigen Zentimetern, und ein Wisch darauf
-      // wäre öfter ein verrutschter Tipp als eine Absicht.
-      if (!stick && !this.big) return;
+      // Umgesehen wird nur an der Drohne — und dort über das ganze Bild. Die
+      // alte Einschränkung „nur im Vollbild" ist mit dem Kinostreifen des
+      // Piloten weggefallen: Sein Bild *ist* der Schirm, und der Wisch darüber
+      // ist seine Steuerung. Liegt die Schalttafel darauf, kommt hier ohnehin
+      // kein Finger mehr an.
       if (this.station !== 'drone') return;
       // Nach rechts gewischt heißt nach rechts geschaut — dieselbe Richtung wie
       // die Maus im Fenster (`core/FlatControls.ts`).
@@ -899,7 +968,10 @@ export class StationUi {
       // Ein Tipp aufs Bild: groß, und noch einmal wieder klein. Aus dem
       // freigeräumten Vollbild führt der Menüknopf zurück — ein Tipp, der dort
       // die Größe umschaltet, wäre der versehentliche Ausstieg aus genau der
-      // Ansicht, für die man aufgeräumt hat.
+      // Ansicht, für die man aufgeräumt hat. Im Cockpit tut ein Tipp gar
+      // nichts: Dort ist das Bild immer groß, und ein Finger, der beim
+      // Umsehen kurz stehen bleibt, darf die Ansicht nicht umwerfen.
+      if (this.station === 'drone') return;
       if (!this.hasView || (this.big && this.bare)) return;
       this.big = !this.big;
       if (!this.big) this.bare = false;
