@@ -1,4 +1,4 @@
-import { ownerOf, seatOf, seating, shoved, STATIONS, type Claim } from './stations';
+import { crowdAt, ownerOf, seatOf, seating, shoved, STATIONS, type Claim } from './stations';
 
 const claim = (id: string, station: Claim['station'], seniority: number): Claim => ({
   id,
@@ -41,6 +41,28 @@ describe('Wer im Van an welchem Gerät sitzt', () => {
     // Nirgends angemeldet ist nicht dasselbe wie weggeschubst: Nur das zweite
     // kostet Zeit, und beide sähen in der Oberfläche sonst gleich aus.
     expect(shoved([], 'a')).toBe(false);
+  });
+
+  /**
+   * **Vor dem Fernseher wird nicht geschubst.** Er ist kein Gerät, sondern ein
+   * Fenster: Wer nichts bedient, nimmt niemandem etwas weg — und ein Schubser
+   * zwischen zwei Zuschauern wäre eine Regel ohne Sache dahinter.
+   */
+  it('lässt beliebig viele zusehen', () => {
+    const claims = [claim('a', 'watch', 30), claim('b', 'watch', 2), claim('c', 'watch', 1)];
+    expect(seatOf(claims, 'a')).toBe('watch');
+    expect(seatOf(claims, 'b')).toBe('watch');
+    expect(seatOf(claims, 'c')).toBe('watch');
+    expect(shoved(claims, 'b')).toBe(false);
+    expect(crowdAt(claims, 'watch')).toBe(3);
+  });
+
+  it('zählt an den einzelnen Geräten trotzdem nur einen als Besitzer', () => {
+    const claims = [claim('a', 'drone', 30), claim('b', 'drone', 2)];
+    // Zwei greifen danach — gesessen wird von einem, und die Kachel sagt es.
+    expect(crowdAt(claims, 'drone')).toBe(2);
+    expect(ownerOf(claims, 'drone')).toBe('a');
+    expect(crowdAt(claims, 'watch')).toBe(0);
   });
 
   it('lässt vier Leute gleichzeitig an vier Geräten arbeiten', () => {
