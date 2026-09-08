@@ -5,6 +5,7 @@ import {
   panLimit,
   pannedView,
   zoomedView,
+  ZOOM_HOME,
   ZOOM_MAX,
   ZOOM_MIN,
   type ArchiveView,
@@ -17,13 +18,28 @@ const TALL = 3;
 describe('Der Ausschnitt des Archivars', () => {
   it('fängt beim ganzen Zimmer an', () => {
     const view = homeView();
-    expect(view.zoom).toBe(ZOOM_MIN);
+    expect(view.zoom).toBe(ZOOM_HOME);
     expect(atHome(view)).toBe(true);
   });
 
-  it('lässt sich nicht weiter herauszoomen als auf das ganze Zimmer', () => {
-    const out = zoomedView(homeView(), 0.25, HALF, TALL);
-    expect(out.zoom).toBe(ZOOM_MIN);
+  /**
+   * **Ein Stück weiter hinaus als das eingepasste Zimmer**, aber nicht
+   * beliebig: Wer sich verzoomt hat, soll auf einen Blick sehen, dass er das
+   * ganze Zimmer vor sich hat — dahinter liegt nur die Fläche, die alles
+   * andere freiräumt.
+   */
+  it('lässt ein Stück weiter heraus als das ganze Zimmer, aber nicht beliebig', () => {
+    const out = zoomedView(homeView(), 0.7, HALF, TALL);
+    expect(out.zoom).toBeCloseTo(0.7);
+    expect(atHome(out)).toBe(false);
+    expect(zoomedView(homeView(), 0.05, HALF, TALL).zoom).toBe(ZOOM_MIN);
+  });
+
+  it('verschiebt auch herausgezoomt nicht', () => {
+    const out = zoomedView(homeView(), 0.6, HALF, TALL);
+    const moved = pannedView(out, 5, 5, HALF, TALL);
+    expect(moved.x).toBeCloseTo(0);
+    expect(moved.z).toBeCloseTo(0);
   });
 
   it('geht nicht näher heran als bis zum Anschlag', () => {
@@ -93,12 +109,12 @@ describe('Der Ausschnitt des Archivars', () => {
   });
 
   it('macht aus Unsinn keinen Ausschnitt', () => {
-    expect(zoomedView(homeView(), Number.NaN, HALF, TALL).zoom).toBe(ZOOM_MIN);
+    expect(zoomedView(homeView(), Number.NaN, HALF, TALL).zoom).toBe(ZOOM_HOME);
     const moved = pannedView({ zoom: 2, x: 1, z: 1 }, Number.NaN, Number.NaN, HALF, TALL);
     expect(moved.x).toBeCloseTo(1);
     expect(moved.z).toBeCloseTo(1);
     expect(fitView({ zoom: Number.NaN, x: Number.NaN, z: 0 }, HALF, TALL)).toEqual({
-      zoom: ZOOM_MIN,
+      zoom: ZOOM_HOME,
       x: 0,
       z: 0,
     });

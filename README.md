@@ -75,9 +75,10 @@ Van vor vier Geräten (und einem Fernseher):
 
 - **Archiv** — schlägt die Akte auf, ein Zimmer je Seite: Name, Möbel, Türen.
   Der Grundriss liegt über dem ganzen Schirm: zwei Finger oder das Mausrad
-  ziehen ihn heran, ein Finger schiebt ihn durch, der Menüknopf legt die Akte
-  darüber. Türen stehen als Zeichen darin — Bogen heißt offen, ausgefüllter
-  Balken heißt zu. Sieht dafür niemanden, der sich bewegt.
+  ziehen ihn heran und wieder heraus, ein Finger schiebt ihn durch, der
+  Menüknopf legt die Akte darüber. Gezeichnet wie ein Grundriss — helle Wände,
+  eine Lücke mit Bogen ist eine offene Tür, ein dunkler Riegel eine zu. Sieht
+  dafür niemanden, der sich bewegt.
 - **Späher** — sieht, wo das Monster gerade ist. Nur Wände und einen Punkt:
   keine Namen, keine Möbel, und den Mitspieler auch nicht.
 - **Drohne** — fliegt auf Zimmer, die man antippt, und zeigt eins vollständig.

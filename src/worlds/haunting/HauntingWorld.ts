@@ -1,7 +1,19 @@
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
 import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import { DIR_E, DIR_N, DIR_S, TILE, keyX, keyZ, tileKey } from '../nav/navTile';
+import {
+  DIRS,
+  DIR_E,
+  DIR_N,
+  DIR_S,
+  TILE,
+  dirX,
+  dirZ,
+  keyX,
+  keyZ,
+  tileKey,
+  type Dir,
+} from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools';
 import { playSwitch } from '../../core/Audio';
 import { pickHost } from '../../net/host';
@@ -11,6 +23,7 @@ import {
   roomAt,
   roomCentre,
   roomOf,
+  tilesOf,
   DRONE_HOME,
   HOUSE,
   MARKS,
@@ -145,10 +158,24 @@ const PAPER_CUT = PLAN_DOOR_H - 0.05;
  * über den Flächen, die das Blatt freiräumen (`maskAround`) — ein Zeichen,
  * das unter der Maske liegt, ist keines.
  */
-const PAPER_MARK_Y = PAPER_CUT - 0.05;
+const PAPER_MARK_Y = PAPER_CUT - 0.01;
 
-/** Und wie hell sie sind — Sepia frisst die Farbe, die Helligkeit bleibt. */
+/**
+ * Womit auf dem Blatt gezeichnet wird — **hell**, denn Sepia frisst die Farbe
+ * und lässt nur die Helligkeit übrig. Wände und Türbögen kommen aus derselben
+ * Dose: Was gezeichnet ist, gehört zusammen.
+ */
 const PAPER_INK = 0xf6e6c4;
+
+/**
+ * Und der eine dunkle Strich: **das Blatt einer geschlossenen Tür.**
+ *
+ * Eine zugestellte Lücke in derselben hellen Farbe wäre schlicht Wand — man
+ * müsste die Bögen zählen, um zu merken, dass dort eine Tür ist. Dunkel in
+ * einer hellen Wand ist dagegen genau das, was es sein soll: etwas, das den
+ * Durchgang zumacht.
+ */
+const PAPER_SHUT = 0x1b1610;
 
 /**
  * **Wie schräg der Fernseher auf das Haus schaut**, in Bogenmaß.
@@ -177,18 +204,6 @@ const SHOW_CUT = PLAN_WALL_H - 0.4;
 
 /** Der Himmel über dem Zuschauer: heller Tag, nicht die Nacht der anderen. */
 const SHOW_SKY = 0x9dc0e4;
-
-/**
- * **Wie viel vom Bild oben schon vergeben ist.**
- *
- * Kopfzeile und Auftragsstreifen liegen über dem Bild, und beim Fernseher
- * liegt darunter das Haus. Ohne diesen Anteil steckt die Nordwand hinter der
- * Kopfzeile — sichtbar genug, um zu ärgern, und verdeckt genug, um zu fehlen.
- * Der Ausschnitt wird deshalb um diesen Anteil größer gerechnet und der Blick
- * um die Hälfte davon nach Norden gerückt: Das Haus rutscht nach unten, und
- * oben bleibt genau der Streifen frei, den die Zeilen brauchen.
- */
-const SHOW_HEADROOM = 0.18;
 
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 const REACH = 1.1;
@@ -284,6 +299,8 @@ export class HauntingWorld extends GridWorld {
    * herumschwebt, wäre ein Fehler mit Ansage.
    */
   private readonly paperDoors = new THREE.Group();
+  /** Die Wandlinien je Zimmer — sichtbar ist immer nur das aufgeschlagene. */
+  private readonly roomWalls = new Map<string, THREE.Object3D>();
   /** Welches Zeichen zu welcher Tür gehört — offen und zu, fertig gebaut. */
   private readonly doorMarks = new Map<
     string,
@@ -374,14 +391,16 @@ export class HauntingWorld extends GridWorld {
    */
   private archive: ArchiveView = homeView();
   /**
-   * Die halben Kanten des eingepassten Blattes, in Metern.
+   * Die halben Kanten des Blattes und des Bildes, in Metern.
    *
    * Sie fallen beim Zielen der Kamera an (`aimArchive`) und hängen an Zimmer
-   * *und* Bildform: Ein gedrehtes Telefon ist ein anderes Blatt. Die Zange und
-   * der Wisch rechnen damit — sie kommen in Anteilen des Bildes herein und
-   * müssen wissen, wie viele Meter das sind.
+   * *und* Bildform: Ein gedrehtes Telefon ist ein anderes Blatt. Drei Zahlen
+   * und nicht zwei, weil oben ein Streifen des Bildes hinter der Kopfzeile
+   * liegt: `half` und `sheet` sind das **Blatt**, an dem die Verschiebung
+   * endet, `tall` ist das ganze **Bild** — und ein Wisch über das Bild rechnet
+   * mit dem Bild, sonst folgt das Blatt dem Finger nicht.
    */
-  private archiveFit = { half: 5, tall: 5 };
+  private archiveFit = { half: 5, sheet: 5, tall: 5 };
 
   private ui: StationUi | null = null;
   /**
@@ -579,6 +598,7 @@ export class HauntingWorld extends GridWorld {
     dispose(this.paperMask);
     dispose(this.paperDoors);
     this.doorMarks.clear();
+    this.roomWalls.clear();
     this.lamps.clear();
     this.items.clear();
     this.monster = null;
@@ -946,41 +966,50 @@ export class HauntingWorld extends GridWorld {
   private buildDoorMarks(): void {
     dispose(this.paperDoors);
     this.doorMarks.clear();
+    this.roomWalls.clear();
     const ink = new THREE.MeshBasicMaterial({
       color: PAPER_INK,
       toneMapped: false,
       side: THREE.DoubleSide,
     });
+    const shutInk = new THREE.MeshBasicMaterial({
+      color: PAPER_SHUT,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+
+    for (const room of this.spec.rooms) {
+      const walls = this.wallsOf(room, ink);
+      walls.visible = false;
+      this.paperDoors.add(walls);
+      this.roomWalls.set(room.id, walls);
+    }
 
     for (const door of this.spec.doors) {
       const { x, z, alongX } = doorEdge(door);
       const open = new THREE.Group();
       const shut = new THREE.Group();
 
-      // Die Schwelle: ein Strich quer in der Öffnung, so lang wie die Tür.
-      const sill = new THREE.Mesh(new THREE.PlaneGeometry(PLAN_DOOR_W, 0.08), ink);
-      sill.rotation.x = -Math.PI / 2;
-      if (!alongX) sill.rotation.z = Math.PI / 2;
-      open.add(sill);
-
-      // Der Bogen, den das Blatt schlägt. Er hängt in einem eigenen Träger,
-      // weil er sich je nach aufgeschlagenem Zimmer dreht: Gezeichnet wird er
-      // immer **in das Zimmer hinein**, das gerade auf dem Blatt liegt
-      // (`swingInto`) — ein Bogen, der nach draußen zeigt, läge auf der
-      // schwarzen Fläche ringsum und sähe aus wie ein Fehler.
+      // **Offen ist die Lücke selbst die Auskunft**: Zwischen den beiden
+      // Wandstücken bleibt Platz, und der Bogen sagt, dass dort eine Tür
+      // schwingt und keine Wand fehlt. Ein Strich quer durch die Lücke stand
+      // hier einmal — er machte den Durchgang optisch wieder zu.
       const pivot = new THREE.Group();
       const arc = new THREE.Mesh(
-        new THREE.RingGeometry(PLAN_DOOR_W - 0.06, PLAN_DOOR_W, 20, 1, 0, Math.PI / 2),
+        new THREE.RingGeometry(PLAN_DOOR_W - 0.07, PLAN_DOOR_W, 20, 1, 0, Math.PI / 2),
         ink,
       );
       arc.rotation.x = -Math.PI / 2;
       pivot.add(arc);
       open.add(pivot);
 
-      // Und zu: die Lücke ausgefüllt. Ein Pfropfen sagt „hier kommt niemand
-      // durch" ohne ein einziges Wort — und er sagt es auch dem, der einen
-      // Grundriss zum ersten Mal sieht.
-      const plug = new THREE.Mesh(new THREE.PlaneGeometry(PLAN_DOOR_W, PLAN_WALL_T + 0.1), ink);
+      // Und zu: das Blatt steht in der Lücke, **dunkel** in der hellen Wand.
+      // Ein heller Pfropfen wäre schlicht Wand gewesen — man müsste die Bögen
+      // zählen, um zu merken, dass dort überhaupt eine Tür ist.
+      const plug = new THREE.Mesh(
+        new THREE.PlaneGeometry(PLAN_DOOR_W, PLAN_WALL_T + 0.12),
+        shutInk,
+      );
       plug.rotation.x = -Math.PI / 2;
       if (!alongX) plug.rotation.z = Math.PI / 2;
       shut.add(plug);
@@ -995,6 +1024,74 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
+   * **Die Wände eines Zimmers, als Linien auf dem Blatt.**
+   *
+   * Sie sind der Grund, aus dem die Türen vorher im Zimmer zu schweben
+   * schienen: Der Schnitt geht durch jede Wand, und eine aufgeschnittene Wand
+   * ist von oben ein offener Kasten — man sieht durch sie hindurch. Der
+   * Archivar sah also einen Boden, ein paar Möbel und einen Bogen im Nichts.
+   * Gezeichnet wird deshalb, was gemeint ist: ein Strich auf jeder Kante, die
+   * das Zimmer begrenzt, mit einer **Lücke, wo eine Tür sitzt** (zwei
+   * Wandstücke links und rechts davon, genau wie die Pfosten im Haus).
+   *
+   * Gebaut wird je Zimmer und nicht je Haus: Auf dem Blatt liegt immer nur
+   * eines, und zwei Zimmer teilen sich zwar eine Wand, aber jedes zeichnet
+   * seine eigene — das kostet ein paar Rechtecke und spart die Frage, wem sie
+   * gehört.
+   */
+  private wallsOf(room: HouseRoom, ink: THREE.Material): THREE.Object3D {
+    const group = new THREE.Group();
+    // **Bis in die Ecke hinein.** Eine Linie, die genau an der Kachelkante
+    // endet, lässt in jeder Zimmerecke ein Quadrat von einer halben Wandstärke
+    // frei — vier schwarze Zähne im hellen Rahmen. Also ragt jede Linie an
+    // ihren Enden um genau diese halbe Stärke über die Kante hinaus.
+    const reach = TILE / 2 + PLAN_WALL_T / 2;
+
+    for (const tile of tilesOf(room.rect)) {
+      for (const dir of DIRS) {
+        const nx = tile.x + dirX(dir);
+        const nz = tile.z + dirZ(dir);
+        const next = roomAt(this.spec, nx, nz);
+        if (next && next.id === room.id) continue;
+        // **Genau die Kanten, an denen im Haus wirklich eine Wand steht**
+        // (`plan.innerWalls` und die Außenmauer): zwischen zwei verschiedenen
+        // Zimmern und am Rand des Hauses. Eine Kachel ohne Zimmer *im* Haus
+        // wäre eine Lücke im Bauplan und bekommt auch dort keine Wand.
+        if (!next && inside(HOUSE, nx, nz)) continue;
+        const edge = edgeCentre(tile.x, tile.z, dir);
+        const door = this.doorAt(tile.x, tile.z, dir);
+        const parts: Array<[number, number]> = door
+          ? [
+              [reach - PLAN_DOOR_W / 2, -(reach + PLAN_DOOR_W / 2) / 2],
+              [reach - PLAN_DOOR_W / 2, (reach + PLAN_DOOR_W / 2) / 2],
+            ]
+          : [[reach * 2, 0]];
+        for (const [len, shift] of parts) {
+          const bar = new THREE.Mesh(new THREE.PlaneGeometry(len, PLAN_WALL_T), ink);
+          bar.rotation.x = -Math.PI / 2;
+          if (!edge.alongX) bar.rotation.z = Math.PI / 2;
+          bar.position.set(
+            edge.x + (edge.alongX ? shift : 0),
+            PAPER_MARK_Y - 0.005,
+            edge.z + (edge.alongX ? 0 : shift),
+          );
+          group.add(bar);
+        }
+      }
+    }
+    return group;
+  }
+
+  /** Ob auf dieser Kachelkante eine Tür sitzt — egal, von welcher Seite gefragt. */
+  private doorAt(x: number, z: number, dir: Dir): HouseDoor | undefined {
+    const edge = edgeCentre(x, z, dir);
+    return this.spec.doors.find((door) => {
+      const at = doorEdge(door);
+      return Math.abs(at.x - edge.x) < 0.01 && Math.abs(at.z - edge.z) < 0.01;
+    });
+  }
+
+  /**
    * **Welche Zeichen gerade gelten** — und es sind nur die des aufgeschlagenen
    * Zimmers.
    *
@@ -1005,6 +1102,7 @@ export class HauntingWorld extends GridWorld {
   private markDoors(roomId: string): void {
     const room = roomOf(this.spec, roomId) ?? this.spec.rooms[0];
     const shut = new Set(this.state.shut);
+    for (const [id, walls] of this.roomWalls) walls.visible = id === room?.id;
     for (const door of this.spec.doors) {
       const mark = this.doorMarks.get(door.id);
       if (!mark) continue;
@@ -1713,10 +1811,15 @@ export class HauntingWorld extends GridWorld {
     if (!rect) return true;
 
     const aspect = rect.w / Math.max(1, rect.h);
+    // **Was oben schon vergeben ist**, als Anteil des Bildes: Kopfzeile und
+    // Auftragsstreifen liegen darüber. Beide Kameras, die ein Ganzes zeigen —
+    // der Grundriss des Archivars und das Haus des Fernsehers —, lassen den
+    // Streifen frei, statt ihre obere Kante darunter zu schieben.
+    const head = Math.min(0.5, ui.headroom() / Math.max(1, rect.h));
     const camera = station === 'drone' ? this.droneCam : show ? this.showCam : this.topCam;
     if (!camera) return true;
-    if (archive) this.aimArchive(ui.selected, aspect);
-    if (show) this.aimShow(aspect);
+    if (archive) this.aimArchive(ui.selected, aspect, head);
+    if (show) this.aimShow(aspect, head);
 
     // Der Archivar sieht **keine Lebewesen**: keinen Mitspieler, kein Monster,
     // keine Drohne. Sein Blatt ist ein Grundriss und keine Überwachung.
@@ -1791,7 +1894,7 @@ export class HauntingWorld extends GridWorld {
    * nach, und die schlimmere der beiden Zahlen gewinnt: Ein hochkantes Handy
    * hat quer zu wenig Platz, ein Fernseher der Länge nach.
    */
-  private aimShow(aspect: number): void {
+  private aimShow(aspect: number, head: number): void {
     const camera = this.showCam;
     if (!camera) return;
     const cx = (HOUSE.x + HOUSE.w / 2) * TILE;
@@ -1803,10 +1906,10 @@ export class HauntingWorld extends GridWorld {
     // Nach Süden ein Stück mehr: Dort liegen der Vorplatz und der Van, und wer
     // zusieht, will sehen, wie die Drohne heimkommt und was auf dem Tisch
     // landet. Und oben der Streifen für die Zeilen, die über dem Bild liegen.
-    const deep = ((HOUSE.d + 3.4) * TILE) / (1 - SHOW_HEADROOM);
+    const deep = ((HOUSE.d + 3.4) * TILE) / Math.max(0.2, 1 - head);
     const rise = Math.tan(((SHOW_FOV / 2) * Math.PI) / 180);
     const far = Math.max(deep / (2 * rise), wide / (2 * rise * aspect));
-    const look = cz + 1.2 * TILE - (SHOW_HEADROOM / 2) * deep;
+    const look = cz + 1.2 * TILE - (head / 2) * deep;
     camera.position.set(cx, Math.sin(SHOW_PITCH) * far, look + Math.cos(SHOW_PITCH) * far);
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
@@ -1867,7 +1970,7 @@ export class HauntingWorld extends GridWorld {
    * `near`, wird weggeschnitten, und das ist genau die Decke. Ein Puppenhaus
    * mit abgenommenem Dach, ohne dass irgendwo Geometrie verschwinden muss.
    */
-  private aimArchive(roomId: string, aspect: number): void {
+  private aimArchive(roomId: string, aspect: number, head: number): void {
     const camera = this.topCam;
     const room = roomOf(this.spec, roomId) ?? this.spec.rooms[0];
     if (!camera || !room) return;
@@ -1878,22 +1981,39 @@ export class HauntingWorld extends GridWorld {
     // aufgeblasen. Vorher stand hier die längere Seite für beide, und ein
     // 4×2-Zimmer lag als schmaler Streifen in der Mitte eines halbleeren
     // Blattes — auf einem Telefon ist das die Hälfte des Bildschirms für nichts.
-    const padX = (room.rect.w * TILE) / 2 + TILE * 0.35;
-    const padZ = (room.rect.d * TILE) / 2 + TILE * 0.35;
-    const half = Math.max(padX, padZ * aspect);
+    // **Ein Rand, der das Zimmer nicht anstößt.** Die Wandlinien liegen auf den
+    // Kachelkanten und ragen zur Hälfte nach draußen; ein Blatt, das genau am
+    // Zimmer endet, schneidet sie an. Ein halbes Feld Luft ringsum ist der
+    // Unterschied zwischen „der Grundriss steht im Bild" und „der Grundriss
+    // klebt am Rand" — und auf einem Telefon ist genau das die Frage, ob man
+    // ihn ganz sieht.
+    const padX = framed(room.rect.w * TILE);
+    const padZ = framed(room.rect.d * TILE);
+    // **Eingepasst wird in die freie Fläche, nicht in das Bild.** Oben liegen
+    // Kopfzeile und Auftragsstreifen darüber; ein Zimmer, das genau das Bild
+    // füllt, steckt mit seiner Nordwand dahinter. Also wird für die Fläche
+    // *unter* den Zeilen gerechnet und der Ausschnitt danach nach oben
+    // verlängert — das Zimmer rutscht nach unten, und oben bleibt frei, was
+    // ohnehin verdeckt ist.
+    const free = Math.max(0.2, 1 - head);
+    const half = Math.max(padX, (padZ * aspect) / free);
     const tall = half / aspect;
+    const sheet = tall * free;
     // **Das eingepasste Blatt ist das Maß für alles Weitere.** Es ändert sich
     // mit dem Zimmer und mit der Form des Fensters; ein Ausschnitt, der auf
     // dem vorigen Blatt erlaubt war, hängt sonst halb daneben (`fitView`).
-    this.archiveFit = { half, tall };
-    const view = fitView(this.archive, half, tall);
+    this.archiveFit = { half, sheet, tall };
+    const view = fitView(this.archive, half, sheet);
     this.archive = view;
     const hw = half / view.zoom;
     const hh = tall / view.zoom;
+    // Die halbe verdeckte Höhe, in Metern: So weit rückt die Kamera nach
+    // Norden, damit das Zimmer unter den Zeilen hervorkommt.
+    const lift = hh * head;
     // Verschoben wird die Kamera und nicht das Blatt: Die Maske ringsum rechnet
     // ohnehin von der Kameramitte aus, und ein verschobenes Blatt wäre eine
     // zweite Wahrheit darüber, wo das Zimmer steht.
-    camera.position.set(cx + view.x, above, cz + view.z);
+    camera.position.set(cx + view.x, above, cz + view.z - lift);
     camera.left = -hw;
     camera.right = hw;
     camera.top = hh;
@@ -1915,8 +2035,8 @@ export class HauntingWorld extends GridWorld {
    * Archivar heranziehen darf, ist eine Regel und keine Kameraeinstellung.
    */
   private zoomArchive(factor: number): void {
-    const { half, tall } = this.archiveFit;
-    this.archive = zoomedView(this.archive, factor, half, tall);
+    const { half, sheet } = this.archiveFit;
+    this.archive = zoomedView(this.archive, factor, half, sheet);
   }
 
   /**
@@ -1932,14 +2052,14 @@ export class HauntingWorld extends GridWorld {
    * Kamera nach links.
    */
   private panArchive(dx: number, dz: number): void {
-    const { half, tall } = this.archiveFit;
+    const { half, sheet, tall } = this.archiveFit;
     const zoom = this.archive.zoom;
     this.archive = pannedView(
       this.archive,
       (-dx * 2 * half) / zoom,
       (-dz * 2 * tall) / zoom,
       half,
-      tall,
+      sheet,
     );
   }
 
@@ -1951,7 +2071,13 @@ export class HauntingWorld extends GridWorld {
    * Zimmer auf dem Blatt eines ohne Wände.
    */
   private maskAround(rect: Rect, cx: number, cz: number, hw: number, hh: number): void {
-    const edge = PLAN_WALL_T;
+    // **Genau eine halbe Wandstärke**, und keinen Zentimeter mehr: Die Wände
+    // sitzen auf den Kachelkanten und ragen zur Hälfte nach draußen, also
+    // endet das Blatt an ihrer Außenkante. Vorher stand hier eine ganze
+    // Wandstärke, und in dem Streifen dazwischen schaute der Boden des
+    // Nachbarzimmers hervor — ein zweiter heller Rand um den ersten, der wie
+    // eine doppelte Wand aussah.
+    const edge = PLAN_WALL_T / 2;
     const x0 = rect.x * TILE - edge;
     const x1 = (rect.x + rect.w) * TILE + edge;
     const z0 = rect.z * TILE - edge;
@@ -1962,7 +2088,7 @@ export class HauntingWorld extends GridWorld {
     // dürfen aber auch nicht tiefer als nötig hängen: Was zwischen ihnen und
     // dem Schnitt steht, bleibt sichtbar. Die Türzeichen liegen eine Handbreit
     // darüber (`PAPER_MARK_Y`) und werden deshalb nicht zugedeckt.
-    const y = PAPER_CUT - 0.08;
+    const y = PAPER_CUT - 0.03;
     const spans: Array<[number, number, number, number]> = [
       [cx - hw, cz - hh, cx + hw, z0],
       [cx - hw, z1, cx + hw, cz + hh],
@@ -2143,13 +2269,46 @@ function nameOfRoom(spec: HouseSpec, id: string): string {
  * (entlang X), nach Osten und Westen längs. Dieselbe Unterscheidung wie beim
  * Bauen der Wände (`levelBuild`), und aus demselben Grund.
  */
-function doorEdge(door: { x: number; z: number; dir: number }): {
+function doorEdge(door: { x: number; z: number; dir: Dir }): {
   x: number;
   z: number;
   alongX: boolean;
 } {
-  const alongX = door.dir === DIR_N || door.dir === DIR_S;
-  const x = (door.x + (door.dir === DIR_E ? 1 : alongX ? 0.5 : 0)) * TILE;
-  const z = (door.z + (door.dir === DIR_S ? 1 : alongX ? 0 : 0.5)) * TILE;
-  return { x, z, alongX };
+  return edgeCentre(door.x, door.z, door.dir);
+}
+
+/**
+ * Die Mitte einer Kachelkante, in Metern — und wie sie liegt.
+ *
+ * `alongX` sagt, ob die Kante quer läuft (nach Norden und Süden) oder längs
+ * (nach Osten und Westen). Dieselbe Unterscheidung wie beim Bauen der Wände
+ * (`levelBuild`), und aus demselben Grund: Danach richtet sich jedes Rechteck,
+ * das auf einer Wand liegt.
+ */
+function edgeCentre(x: number, z: number, dir: Dir): { x: number; z: number; alongX: boolean } {
+  const alongX = dir === DIR_N || dir === DIR_S;
+  return {
+    x: (x + (dir === DIR_E ? 1 : alongX ? 0.5 : 0)) * TILE,
+    z: (z + (dir === DIR_S ? 1 : alongX ? 0 : 0.5)) * TILE,
+    alongX,
+  };
+}
+
+/**
+ * **Wie viel Luft ein Zimmer auf dem Blatt ringsum bekommt** — halbe Kante
+ * plus Rand, in Metern.
+ *
+ * Anteilig und nicht als feste Zahl: Ein fester Rand von anderthalb Metern ist
+ * bei einem 15-Meter-Saal ein Strich und bei einer 5-Meter-Kammer ein Drittel
+ * des Blattes. Der Anteil hält beide Blätter gleich voll; der Mindestrand
+ * sorgt dafür, dass die Wandlinie nicht die Bildkante anschneidet — sie liegt
+ * auf der Kachelkante und ragt zur Hälfte nach draußen.
+ */
+function framed(size: number): number {
+  return size / 2 + Math.max(TILE * 0.25, size * 0.06);
+}
+
+/** Ob eine Kachel in einem Rechteck liegt — für „ist das noch das Haus?". */
+function inside(rect: Rect, x: number, z: number): boolean {
+  return x >= rect.x && x < rect.x + rect.w && z >= rect.z && z < rect.z + rect.d;
 }
