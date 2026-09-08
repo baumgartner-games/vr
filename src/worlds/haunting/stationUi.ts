@@ -1,3 +1,4 @@
+import { lockerCode, repairsFor } from './mission';
 import './haunting.css';
 import { MARKS, namesakes, roomOf, VAN_ID, type HouseRoom, type HouseSpec } from './house';
 import { visibleSwitches } from './panel';
@@ -37,7 +38,7 @@ import type { DroneState, HauntState } from './net';
  *   navigiert auf der Karte statt im Bild. Sein Bild ist dabei der ganze
  *   Schirm; die Karte legt der Menüknopf darüber und nimmt sie wieder weg.
  * - Die **Schalttafel** sieht vom Haus überhaupt nichts.
- * - Der **Zuschauer** sieht alles: das ganze Haus von schräg oben, bei Tag,
+ * - Der **Zuschauer** sieht alles: das ganze Station von schräg oben, bei Tag,
  *   mit allem, was darin herumläuft. Er ist keine fünfte Rolle, sondern der
  *   Fernseher im Raum — und er kann nichts bedienen, damit das so bleibt.
  *
@@ -47,7 +48,7 @@ import type { DroneState, HauntState } from './net';
  *
  * **Jede Station hat eine Farbe, und es ist ihre.** Sie steht an der Kachel im
  * Van, am Punkt neben dem Namen in der Kopfzeile und am Rand der eigenen
- * Seite — dieselben vier Töne, die im Haus auf den Monitoren des Vans leuchten
+ * Seite — dieselben vier Töne, die in der Station auf den Monitoren des Vans leuchten
  * (`HauntingWorld.buildVan`). Am Tisch wird zugerufen und nicht gelesen; „ich
  * hab den grünen" ist eine Ansage, „ich hab die dritte Kachel von oben" nicht.
  */
@@ -57,6 +58,8 @@ export interface StationHost {
   drone(): DroneState;
   claims(): Claim[];
   me(): string;
+  link(): { peers: number; vr: boolean; room: string };
+  technician(): void;
   nameOf(peer: string): string;
   /** An welchem Gerät ich wirklich sitze — `null`, wenn weggeschubst. */
   seat(): StationId | null;
@@ -127,6 +130,8 @@ export class StationUi {
   private readonly view = document.createElement('div');
   private readonly body = document.createElement('div');
   private readonly scout = document.createElement('canvas');
+  private readonly ecg = document.createElement('canvas');
+  private lastRadar = 0;
   /**
    * **Die Ecke oben rechts im Bild**: Menü, Licht, Zurück-Knopf.
    *
@@ -246,7 +251,7 @@ export class StationUi {
     document.body.classList.remove('haunt-on');
   }
 
-  /** Welche Station gerade zu sehen ist — `null` heißt: die Übersicht im Van. */
+  /** Welche Station gerade zu sehen ist — `null` heißt: die Übersicht in der Zentrale. */
   get station(): StationId | null {
     if (this.vanOpen) return null;
     const seat = this.host.seat();
@@ -307,6 +312,12 @@ export class StationUi {
       this.selected,
       state.phase,
       state.fuse,
+      state.crew.hp,
+      state.crew.options.test,
+      state.crew.hidden,
+      state.crew.inventory.length,
+      this.host.link().peers,
+      this.host.link().vr,
       state.monsterOn,
       state.done.length,
       state.taken.length,
@@ -341,7 +352,11 @@ export class StationUi {
     }
     // Der Punkt des Spähers wandert zwischen zwei Neuschriften weiter — er ist
     // das Einzige, was sich ohne Knopfdruck ändert.
-    if (station === 'scout') this.drawScout();
+    if (station === 'scout' && performance.now() - this.lastRadar > 66) {
+      this.lastRadar = performance.now();
+      this.drawScout();
+      this.drawEcg();
+    }
     this.view.hidden = !this.hasView;
   }
 
@@ -369,17 +384,17 @@ export class StationUi {
     back.dataset['van'] = '';
     back.append(
       el('span', 'haunt__back-icon', this.vanOpen ? '▸' : '◂'),
-      el('span', '', this.vanOpen ? 'Station' : 'Van'),
+      el('span', '', this.vanOpen ? 'Gerät' : 'Zentrale'),
     );
     back.setAttribute(
       'aria-label',
-      this.vanOpen ? 'Zurück zur eigenen Station' : 'Zur Geräteübersicht im Van',
+      this.vanOpen ? 'Zurück zur eigenen Station' : 'Zur Geräteübersicht in der Zentrale',
     );
 
     const where = el('span', 'haunt__where');
     where.append(
-      el('strong', '', facts ? facts.label : 'Van'),
-      el('small', '', facts ? facts.tagline : 'Vier Geräte, ein Fernseher, nie genug Leute'),
+      el('strong', '', facts ? facts.label : 'ORBITAL / EINSATZZENTRALE'),
+      el('small', '', facts ? facts.tagline : 'Ein Außentechniker · zwei im Team'),
     );
 
     const bar: HTMLElement[] = [
@@ -387,7 +402,15 @@ export class StationUi {
       el(
         'span',
         `haunt__state${state.monsterOn ? ' is-hot' : ''}`,
-        state.monsterOn ? 'Monster an' : 'Monster aus',
+        state.crew.options.test
+          ? 'Sicherer Test'
+          : state.phase === 'won'
+            ? 'Mission erfüllt'
+            : state.phase === 'lost'
+              ? 'Mission gescheitert'
+              : state.monsterOn
+                ? 'Mission läuft'
+                : 'Bereit',
       ),
     ];
     bar.push(back);
@@ -485,36 +508,26 @@ export class StationUi {
    * **Der Auftragsstreifen** — ein Feld je Sache, und drei Zustände.
    *
    * `0/3` sagt, wie viele es sind; es sagt nicht, dass eine davon gerade in der
-   * Hand des VR-Spielers liegt und noch nicht im Van. Genau dieser Unterschied
+   * Hand des VR-Spielers liegt und noch nicht in der Zentrale. Genau dieser Unterschied
    * ist am Tisch die Frage, die gestellt wird („hast du sie schon abgelegt?"),
    * und drei Kästchen beantworten sie ohne ein Wort.
    */
   private writeQuest(state: HauntState, spec: HouseSpec): void {
-    const pips = spec.tasks.map((task) => {
-      const done = state.done.includes(task.id);
-      const held = !done && state.taken.includes(task.id);
-      const pip = el('i', `haunt__pip${done ? ' is-done' : held ? ' is-held' : ''}`);
-      pip.title = `${task.label} — ${done ? 'im Van' : held ? 'in der Hand' : 'noch im Haus'}`;
-      return pip;
-    });
-    const held = spec.tasks.filter(
-      (task) => state.taken.includes(task.id) && !state.done.includes(task.id),
-    ).length;
-
+    const repairs = repairsFor(spec);
     const strip = el('span', 'haunt__pips');
-    strip.append(...pips);
+    for (const repair of repairs) {
+      const pip = el('i', `haunt__pip${state.done.includes(repair.id) ? ' is-done' : ''}`);
+      pip.title = repair.title;
+      strip.append(pip);
+    }
     this.quest.replaceChildren(
-      el('span', 'haunt__quest-label', 'Auftrag'),
+      el('span', 'haunt__quest-label', 'SYSTEME'),
       strip,
-      el(
-        'span',
-        'haunt__quest-count',
-        `${state.done.length}/${spec.tasks.length}${held > 0 ? ` · ${held} unterwegs` : ''}`,
-      ),
+      el('span', 'haunt__quest-count', `${state.done.length}/3 · ANZUG ${state.crew.hp}/3`),
     );
     this.quest.setAttribute(
       'aria-label',
-      `${state.done.length} von ${spec.tasks.length} Sachen im Van`,
+      `${state.done.length} von 3 Systemen repariert; Anzug ${state.crew.hp} von 3`,
     );
   }
 
@@ -541,7 +554,24 @@ export class StationUi {
     const seats = seating(claims);
     const wanted = this.host.wanted();
     const travel = this.host.arriving();
-    const out: HTMLElement[] = [];
+    const link = this.host.link();
+    const out: HTMLElement[] = [
+      note(
+        link.vr ? 'live' : 'warn',
+        link.vr ? 'Crew verbunden' : 'Warte auf den VR-Spieler',
+        `${link.peers} Gegenstelle(n) · Raum: ${link.room || 'verbindet …'}. Alle Geräte müssen denselben Raum wählen.`,
+      ),
+      note(
+        'calm',
+        'Eure Dreiercrew',
+        'Quest: Außentechniker. Handy 1: Archiv mit Aufträgen und Codes. Handy 2: Einsatzkontrolle mit Radar, Puls und Schaltern. Drohne und Zuschauer sind optionale Geräte.',
+      ),
+    ];
+    if (!link.vr) {
+      const test = el('button', 'haunt__tile', 'Als Techniker am Desktop testen');
+      test.dataset['technician'] = '';
+      out.push(test);
+    }
 
     if (shoved(claims, me)) {
       out.push(
@@ -619,19 +649,33 @@ export class StationUi {
 
     out.push(head('Auftrag'));
     const tasks = el('div', 'haunt__tasks');
-    for (const task of spec.tasks) {
-      const done = state.done.includes(task.id);
-      const held = !done && state.taken.includes(task.id);
-      const row = el('p', `haunt__task-row${done ? ' is-done' : held ? ' is-held' : ''}`);
-      row.append(el('strong', '', task.label), el('span', '', ` ${task.hint}`));
-      // Nur was vom Normalfall abweicht, bekommt ein Schild. Drei Zeilen mit
-      // dreimal „noch im Haus" sind drei Schilder, die nichts unterscheiden —
-      // und dann sieht man das eine nicht mehr, das etwas sagt.
-      if (done || held) {
-        row.append(el('span', 'haunt__chip', done ? 'im Van' : 'in der Hand'));
-      }
+    for (const repair of repairsFor(spec)) {
+      const done = state.done.includes(repair.id);
+      const row = el('div', `haunt__task-row${done ? ' is-done' : ''}`);
+      row.append(
+        el('strong', '', `${done ? '✓ ' : ''}${repair.title}`),
+        el('span', '', repair.hint),
+      );
+      if (repair.puzzle !== 'wires')
+        row.append(
+          el(
+            'span',
+            'haunt__chip',
+            `${repair.puzzle === 'sequence' ? 'Freigabefolge' : 'Zielfrequenzen'}: ${repair.code}`,
+          ),
+        );
+      else row.append(el('span', 'haunt__chip', 'Vier Kabel: jeweils dasselbe Symbol verbinden'));
+      if (state.taken.includes(repair.itemId))
+        row.append(el('span', 'haunt__chip', `${repair.item} beim Techniker`));
       tasks.append(row);
     }
+    tasks.append(
+      el(
+        'p',
+        'haunt__blind',
+        'Nach allen drei Reparaturen: Außentechniker zur Einsatzzentrale zurückführen.',
+      ),
+    );
     out.push(tasks);
 
     out.push(head('Akte', `${spec.rooms.length} Zimmer`));
@@ -643,7 +687,8 @@ export class StationUi {
       entry.setAttribute('aria-pressed', open ? 'true' : 'false');
       if (open) entry.classList.add('is-open');
       entry.append(el('span', '', one.name));
-      if (namesakes(spec, one) > 1) entry.append(el('span', 'haunt__twin', 'zweimal im Haus'));
+      if (namesakes(spec, one) > 1)
+        entry.append(el('span', 'haunt__twin', 'zweimal in der Station'));
       list.append(entry);
     }
     out.push(list);
@@ -652,6 +697,7 @@ export class StationUi {
       out.push(head(room.name, 'aufgeschlagen'));
       const sheet = el('div', 'haunt__sheet');
       sheet.append(
+        fact('Schutzschrank-Code', lockerCode(spec.seed, room.id)),
         fact('Darin steht', room.marks.map((m) => MARKS[m.id]).join(', ')),
         fact('Licht', room.lamp ? 'Eine Lampe unter der Decke.' : 'Keine. Bleibt dunkel.'),
       );
@@ -669,9 +715,8 @@ export class StationUi {
           }`,
         ),
       );
-      if (spec.fuse.roomId === room.id) {
-        sheet.append(fact('Achtung', 'Hier hängt der Sicherungskasten.', true));
-      }
+      for (const repair of repairsFor(spec).filter((r) => r.roomId === room.id))
+        sheet.append(fact('Wartungskasten', repair.title, true));
       out.push(sheet);
       // Die zwei Griffe am Bild, einmal gesagt. Sie stehen hier unten und
       // nicht als Kachel obenauf: Wer sie einmal gelesen hat, liest sie nie
@@ -701,16 +746,76 @@ export class StationUi {
         el('span', 'haunt__radar-empty', state.monsterOn ? 'Kein Signal' : 'Schirm leer'),
       );
     }
+    const monitor = el('div', 'haunt__telemetry');
+    this.ecg.className = 'haunt__ecg';
+    this.ecg.setAttribute('aria-label', 'Simulierter Puls des VR-Spielers');
+    monitor.append(
+      el('strong', '', 'ANZUG-TELEMETRIE'),
+      this.ecg,
+      el('small', '', 'Spielwert · steigt bei Rennen, Verletzung und Monsternähe'),
+    );
     return [
       frame,
+      monitor,
       note(
-        state.monsterOn ? 'live' : 'calm',
-        state.monsterOn ? 'Es bewegt sich' : 'Nichts im Haus',
-        state.monsterOn
-          ? 'Beschreib die Form — Namen hast du keine. Wände, Türlücken und ein Punkt, mehr gibt der Schirm nicht her.'
-          : 'Der VR-Spieler hat das Monster ausgeschaltet. Solange er es lässt, bleibt dein Schirm dunkel.',
+        state.crew.hidden ? 'calm' : 'live',
+        state.crew.hidden ? 'Techniker im Schutzschrank' : `Anzug: ${state.crew.hp}/3 Treffer`,
+        state.crew.options.test
+          ? 'Sicherer Test: kein Monster und kein Schaden.'
+          : state.crew.venting > 0
+            ? 'Kontakt im Wartungsschacht. Bewegung in ein Nachbarmodul.'
+            : 'Radar beschreibt die Konturen. Archiv kennt Namen und Fundorte.',
       ),
+      ...this.hackPage(),
     ];
+  }
+
+  private drawEcg(): void {
+    const c = this.ecg.getContext('2d');
+    if (!c) return;
+    const state = this.host.state();
+    const w = 600,
+      h = 140;
+    if (this.ecg.width !== w) {
+      this.ecg.width = w;
+      this.ecg.height = h;
+    }
+    c.fillStyle = '#071b22';
+    c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#173d43';
+    c.lineWidth = 1;
+    for (let x = 0; x < w; x += 20) {
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.lineTo(x, h);
+      c.stroke();
+    }
+    const pulse = state.crew.hp === 0 ? 0 : state.crew.pulse;
+    c.strokeStyle = pulse > 115 ? '#ffad7b' : '#81e6bd';
+    c.lineWidth = 3;
+    c.beginPath();
+    for (let x = 0; x < 425; x++) {
+      const p = (x / 150 + (performance.now() / 60000) * Math.max(60, pulse)) % 1;
+      const wave =
+        pulse === 0
+          ? 0
+          : p < 0.07
+            ? Math.sin((p / 0.07) * Math.PI) * -0.22
+            : p < 0.12
+              ? Math.sin(((p - 0.07) / 0.05) * Math.PI)
+              : p < 0.19
+                ? -Math.sin(((p - 0.12) / 0.07) * Math.PI) * 0.4
+                : 0;
+      const y = 78 - wave * 48;
+      if (x === 0) c.moveTo(x, y);
+      else c.lineTo(x, y);
+    }
+    c.stroke();
+    c.fillStyle = '#d9f3e9';
+    c.font = 'bold 48px monospace';
+    c.fillText(String(pulse), 451, 79);
+    c.font = '18px system-ui';
+    c.fillText('BPM / SIM', 451, 108);
   }
 
   /**
@@ -803,7 +908,7 @@ export class StationUi {
     if (!free && !backTarget) back.setAttribute('disabled', '');
     const backLine = el('span', 'haunt__cell-head');
     // Wer schon dort steht, liest kein „zurück".
-    backLine.append(el('span', '', home ? 'Am Van' : 'Zurück zum Van'));
+    backLine.append(el('span', '', home ? 'Am Van' : 'Zurück zur Zentrale'));
     if (home) backLine.append(el('span', 'haunt__chip haunt__chip--here', 'hier'));
     else if (backTarget) {
       const far = status.kind === 'blocked' ? 'zu' : `${Math.max(1, Math.round(status.metres))} m`;
@@ -816,7 +921,7 @@ export class StationUi {
         'haunt__tag',
         home
           ? 'Am Kabel: der Scheinwerfer zehrt nicht und lädt schnell.'
-          : 'Draußen vor der Haustür. Dort lädt der Scheinwerfer im Schnellgang.',
+          : 'Draußen vor der Luftschleuse. Dort lädt der Scheinwerfer im Schnellgang.',
       ),
     );
     out.push(back);
@@ -892,7 +997,7 @@ export class StationUi {
     return [
       note(
         'live',
-        'Das ganze Haus, bei Tag',
+        'Das ganze Station, bei Tag',
         'Von schräg oben, ohne Decke, mit allem darin: den Sachen, der Drohne, dem Mitspieler — und dem Monster, wenn es an ist. Für den Fernseher im Raum gedacht, nicht fürs Telefon in der Hand.',
       ),
       note(
@@ -904,8 +1009,8 @@ export class StationUi {
         state.monsterOn ? 'live' : 'calm',
         state.monsterOn ? 'Das Monster ist an' : 'Das Monster ist aus',
         state.monsterOn
-          ? 'Es läuft im Haus herum, und du siehst es. Die im Van sehen es nicht — der Späher hat einen Punkt, sonst niemand etwas.'
-          : 'Der VR-Spieler hat es ausgeschaltet. Solange bleibt das Haus leer, und alle üben.',
+          ? 'Es läuft in der Station herum, und du siehst es. Die in der Zentrale sehen es nicht — der Späher hat einen Punkt, sonst niemand etwas.'
+          : 'Der VR-Spieler hat es ausgeschaltet. Solange bleibt die Station leer, und alle üben.',
       ),
     ];
   }
@@ -914,16 +1019,14 @@ export class StationUi {
   private hackPage(): HTMLElement[] {
     const spec = this.host.spec();
     const state = this.host.state();
-    const list = visibleSwitches(spec.switches, state.fuse);
+    const list = visibleSwitches(spec.switches, true);
     const out: HTMLElement[] = [];
 
     out.push(
       note(
-        state.fuse ? 'live' : 'calm',
-        state.fuse ? 'Volle Tafel' : 'Halbe Tafel',
-        state.fuse
-          ? 'Der Sicherungskasten ist umgelegt. Mehr Schalter als das hier gibt es nicht.'
-          : 'Der Rest hängt am Sicherungskasten im Haus. Der Archivar weiß, in welchem Zimmer er hängt.',
+        'calm',
+        'Stationssysteme',
+        'Lichter schalten, Schotts öffnen und Schallköder zur Ablenkung aktivieren. Der Techniker kann Schotts auch vor Ort öffnen.',
       ),
     );
 
@@ -980,7 +1083,7 @@ export class StationUi {
    * **Wände und ein Punkt.**
    *
    * Gezeichnet wird nur, was in der Nähe des Monsters liegt: sein Zimmer hell,
-   * die angrenzenden schwach. Der Späher kann das Haus damit nicht absuchen —
+   * die angrenzenden schwach. Der Späher kann die Station damit nicht absuchen —
    * er wird herumgeschleift und kann nur beschreiben, was er gerade sieht.
    * Genau deshalb muss ihm jemand zurufen, ob das der eigene Raum ist.
    *
@@ -997,7 +1100,7 @@ export class StationUi {
     if (!ctx) return;
 
     const box = this.scout.getBoundingClientRect();
-    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
     const size = Math.max(120, Math.round(Math.min(box.width || SCOUT_SIZE, 420) * dpr));
     if (this.scout.width !== size) {
       this.scout.width = size;
@@ -1009,7 +1112,7 @@ export class StationUi {
     ctx.fillRect(0, 0, size, size);
 
     // Ein Fadenkreuz, damit ein leerer Schirm nach *Schirm* aussieht und nicht
-    // nach kaputtem Bild. Es sagt nichts über das Haus — es sagt nur, dass das
+    // nach kaputtem Bild. Es sagt nichts über die Station — es sagt nur, dass das
     // Gerät läuft.
     ctx.strokeStyle = 'rgba(90, 130, 190, 0.16)';
     ctx.lineWidth = Math.max(1, dpr * 0.5);
@@ -1023,6 +1126,12 @@ export class StationUi {
     ctx.lineTo(size / 2, size);
     ctx.moveTo(0, size / 2);
     ctx.lineTo(size, size / 2);
+    ctx.stroke();
+    const sweep = performance.now() / 1200;
+    ctx.strokeStyle = 'rgba(96,220,202,.5)';
+    ctx.beginPath();
+    ctx.moveTo(size / 2, size / 2);
+    ctx.lineTo(size / 2 + (Math.cos(sweep) * size) / 2, size / 2 + (Math.sin(sweep) * size) / 2);
     ctx.stroke();
     if (!state.monster) return;
 
@@ -1075,11 +1184,14 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician]',
     );
     if (!hit) return;
 
-    if (hit.dataset['van'] !== undefined) {
+    if (hit.dataset['technician'] !== undefined) {
+      this.host.technician();
+      return;
+    } else if (hit.dataset['van'] !== undefined) {
       this.vanOpen = !this.vanOpen;
     } else if (hit.dataset['panel'] !== undefined) {
       this.panel = !this.panel;

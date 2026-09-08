@@ -7563,576 +7563,98 @@ weiß ein Headset über seinen Träger nicht. Welten sehen nie, welcher
 Transport darunter liegt — ein WebSocket-Transport ließe sich ohne Änderung an
 den Welten ergänzen, er muss nur `NetTransport` implementieren.
 
-### Haunting: einer im Haus, die anderen im Van
+### Haunting / Orbital: Raumstation für eine Quest und zwei Mobilgeräte
 
-Das erste Spiel hier, das ohne die anderen nicht geht (`worlds/haunting/`).
-Einer setzt die Brille auf und wählt im Hub **Spiel Haunting**; alle anderen
-kommen auf der Startseite unter _Zusammen spielen_ herein und sitzen im Van vor
-vier Geräten — plus einem Fernseher für die, die nur zusehen. Die Aufgabe ist
-simpel — drei Sachen finden und herausbringen —, und schwer ist sie aus genau
-einem Grund:
+Haunting bleibt eine `GridWorld`/`PortalWorld`; Hub und andere Welten bleiben
+unabhängig. Der Weltname ist `Haunting / Orbital`. Der bisherige Van ist die
+geschlossene Einsatzzentrale mit geschütztem Testlabor. Die alten internen
+RoomKind-/MarkId- und `HouseSpec`-Bezeichner bleiben aus Kompatibilitätsgründen
+bestehen; sichtbare Namen und Geometrie sind Stationsmodule.
 
-**Das Übersetzungsproblem.** Jede Station kennt dasselbe Haus in einer
-**anderen Sprache**. Der Archivar kennt Namen („Bibliothek"), der Späher kennt
-Formen („L-förmig, zwei Türen"), der Pilot kennt ein Zimmer *jetzt*, der
-Hacker kennt Schalter ohne Ort, und der VR-Spieler kennt nur, was in seinem
-Lichtkegel steht — ist dafür aber der Einzige mit Händen. Niemand kann dem
-anderen eine Koordinate sagen; das Spiel besteht darin, in Echtzeit ein
-gemeinsames Wörterbuch zu bauen, während einer davon Panik hat. Das ist die
-oberste Regel dieser Welt, und sie ist wichtiger als jede Bequemlichkeit:
-**Keine zwei Stationen dürfen die Welt in derselben Sprache sehen.** Sobald
-eine Station Monster *und* Mitspieler gleichzeitig sähe, lotste sie allein, und
-die anderen drei wären Deko.
+**Generator und Mission**
 
-| Station | Sieht | Sieht **nicht** |
-| --- | --- | --- |
-| **Archiv** | ein Zimmer je Seite: Möbel, Türen, Lampe, Sicherungskasten | alles, was sich bewegt — und die Nachbarzimmer |
-| **Späher** | Wände und einen Punkt, dem Monster nachgeführt | Namen, Möbel, den VR-Spieler |
-| **Drohne** | ein Zimmer vollständig, in Farbe, im eigenen Scheinwerfer | alles außerhalb; macht keine Tür auf |
-| **Schalttafel** | Schalter mit schlechten Beschriftungen | den Grundriss, überhaupt |
-| **Zuschauer** | alles: das ganze Haus von schräg oben, bei Tag, mit allem darin | nichts — und genau deshalb bedient er auch nichts |
+- `house.ts`: deterministisch aus Seed, 6/8/10/12 Räume innerhalb HOUSE.
+  APRON ist die sichere Zentrale. Mindestens zwei Türen pro Raum, verbundener
+  Raumgraph. `generateHouse(seed)` behält den bisherigen Standard für alte
+  Generator-Tests; die Welt übergibt ausdrücklich die gewählte Raumzahl.
+- `plan.ts`: GridPlan, Kollisionen, Türzustände, Fenster, Raum-Merkmale.
+  Die Testlabortür bei (2,4,W) öffnet nur im Test. Die Zentrale ist geschlossen.
+- `mission.ts`: Optionen, drei Reparaturaufträge, Kabel-/Folge-/Frequenzrätsel,
+  Inventar, Schutzcodes, Treffer, simulierter Puls/Visierbelastung, Ventilations-
+  Nachbarschaft. Kein Browser/three.js. Aufträge werden pro HouseSpec gecacht.
+- Der Techniker braucht zuerst den jeweiligen Gegenstand aus einem geöffneten
+  Frachtschrank, entriegelt das Terminal und löst das Rätsel. Alle drei
+  Reparaturen plus Rückkehr zur Zentrale ergeben `won`; null HP ergibt `lost`.
+- Drei HP, drei Sekunden Trefferpause, Medkit heilt eins. Keine Treffer im
+  Briefing, Test, Schutzschrank oder während der Schachtpassage. Die Welt
+  prüft zusätzlich echte Monsterdistanz und Raumzugehörigkeit: NPC-Angriffe
+  auf Geräuschköder dürfen den Spieler nicht aus der Ferne verletzen.
+- Schächte kommen ausschließlich aus echten gemeinsamen Innenwänden.
+  Stalker/Crawler/Sentinel haben getrennte Modelle, Tempi und Schachtintervalle.
 
-**Der Zuschauer ist keine fünfte Rolle, sondern der Fernseher im Raum.** Er
-bricht die oberste Regel dieser Welt mit voller Absicht: Er sieht Monster
-*und* Mitspieler, Haus und Namen, alles auf einmal. Erlaubt ist ihm das nur,
-weil er **nichts bedienen kann** — kein Schalter, kein Flug, kein Zimmer zum
-Aufschlagen — und weil er nicht mitspielt: Er ist für die gedacht, die
-danebensitzen und zusehen, wie vier andere sich anschreien. Wer am Fernseher
-mitredet, beendet die Runde schneller als das Monster; das steht deshalb auch
-auf seiner Seite. Er ist außerdem der einzige Platz, an dem **mehrere
-gleichzeitig** sitzen dürfen (`stations.shared`) — wer nichts bedient, nimmt
-niemandem etwas weg.
+**Darstellung und Interaktion**
 
-**Eine Quelle, viele Projektionen.** Über die Leitung geht der **Same** und
-nicht das Haus (`haunting/house.ts`): Jedes Gerät baut denselben Grundriss
-selbst. Deshalb ist die Drohnenkamera eine Kamera in der *eigenen* Kopie der
-Welt und kein Videostrom, und die Akte des Archivars dieselbe Kopie von oben.
-Was wirklich fließt, sind ein paar Dutzend Bytes je Sekunde — Monsterposition,
-Türen, Licht, Aufgaben (`haunting/net.ts`, Kanal `haunting`). Wer diese eine
-Entscheidung umdreht und Bilder überträgt, kauft sich Bandbreite, Latenz und
-einen Kodierer ein für etwas, das ohnehin schon auf jedem Gerät steht.
+- `shipArt.ts`: instanzierte Paneele, Leisten und raumspezifische Aggregate,
+  prozedurale Schilder/Sterne sowie drei animierbare Gegner ohne Asset-Downloads.
+- `ShipExperience.ts`: Command-Panel, öffnende Frachtschränke, codierte
+  Schutzschränke, drei Terminals, animierte Schiebetürblätter, Testlabor,
+  Raumanzug, Wunden, Visier und Handgelenksensoren. DOM-Bedienung als Desktop-
+  Techniker und dieselben Aktionen über WorldPointer/MenuEntry in VR.
+- Missionseigentum liegt in `HauntState.crew`, nicht in Canvas oder DOM.
+  Puzzle-Canvas werden nur bei Änderungen neu gezeichnet, Puls/Radar gedrosselt.
+  Eigene Pointer, CanvasTexture, Geometrie, Materialien und Synth-Hum werden
+  beim Neuaufbau/Verlassen freigegeben. Geteilte Avatarfarben werden restauriert.
+- Vier gepoolte Raum-PointLights, ein konstantes Testlaborlicht und bestehende
+  Taschen-/Drohnenlichter. Emissive Leisten statt PointLight pro Leiste.
+  Burst-Effekte höchstens drei zugleich, höchstens 48 Partikel, ohne Flash-Light.
+- `GridWorld.batchGridGeometry()` und `gridDoorVisible()` sind standardmäßig
+  aus beziehungsweise an; nur Haunting aktiviert Instancing und ersetzt die
+  sichtbaren Türblätter. Collider bleiben beim GridPlan. Keine Änderung am
+  Verhalten der übrigen Grid-Welten.
+- `PortalWorld.takeHit` ist protected, damit Haunting eigene Lebensregeln hat.
+- `WorldContext.refreshWorldMenu()` erneuert App-Menüeinträge nach Inventar-,
+  Runden- und Rollenwechseln. App erzeugt den Kontext je Frame neu; Haunting
+  behandelt den Wechsel Web → VR auch ohne Neubau der ganzen Welt.
 
-**Der Generator muss beschreibbare Häuser bauen** (`haunting/house.ts`, mit
-Test über zwanzig Samen). Ein zufälliges Labyrinth aus gleichen Kästen wäre in
-zehn Zeilen gewürfelt und unspielbar — „ich bin in einem quadratischen Zimmer"
-träfe dann auf sieben Zimmer zu. Also:
+**Drei Geräte und Netz**
 
-- **Jedes Zimmer bekommt einen Charakter** und die Merkmale dazu (Küche heißt:
-  da steht ein Herd). Name im Dossier und Ding im Raum kommen aus derselben
-  Zeile, sonst laufen sie auseinander.
-- **Zwillinge sind gewollt**: zwei Bäder, ein Name — aber sie unterscheiden
-  sich in genau einem Merkmal, das man **aussprechen** kann. Wanne gegen
-  Dusche, nicht „größer": Von innen ist „groß" nichts, woran man etwas
-  erkennt, und der Archivar sieht seine Zimmer einzeln und kann auch nicht
-  vergleichen. Dann wäre die Verwechslung nicht lustig, sondern unlösbar.
-- **Die Aufgabe zeigt auf ein Merkmal und nicht auf ein Zimmer**: „Das
-  Fotoalbum liegt bei dem Klavier" kann man weitersagen, eine Kachelkoordinate
-  nicht.
-- **Kein Zimmer mit nur einer Tür** (`DOORS_LEAST`, mit Test). Der Baum, der
-  jedes Zimmer erreichbar macht, hat Blätter, und ein Blatt ist eine
-  Sackgasse: die Stelle, an der ein Verfolger einen wirklich stellt, die der
-  Späher nicht beschreiben kann, weil sie aussieht wie jede andere Kammer —
-  und seit das Monster Türen zuwirft die, an der eine einzige zugefallene Tür
-  jemanden einsperrt. Der zweite Durchgang macht deshalb jedem Zimmer eine
-  zweite Tür auf, und **nur** denen, die eine brauchen: Ein Haus, in dem jede
-  Wand eine Tür hat, ist ein Regal. Die Rundwege, die es vorher gewürfelt gab,
-  fallen dabei von selbst an — wer einem Baum eine Kante hinzufügt, schließt
-  einen Kreis. Zwei Türen setzen zwei Nachbarn voraus; ein Zuschnitt mit einem
-  eingeklemmten Zimmer wird verworfen und neu gewürfelt (`SPLIT_TRIES`),
-  weil dagegen keine Tür hilft, sondern nur ein anderer Grundriss.
-- Ein Zimmer im Haus hat **keine Lampe** und bleibt auf jeder Stufe dunkel.
-- **Jedes Zimmer bekommt ein Fenster nach draußen**, eines oder zwei, nie
-  zwischen zwei Zimmern. Es ist die einzige Stelle, an der im Dunkeln etwas
-  steht, das nicht im Lichtkegel liegt — und damit ein Anhaltspunkt, den man
-  aussprechen kann: „ich sehe den Van".
+- VR-Techniker ist Spielhost, sonst ältester anwesender Peer. Die optional
+  gewählte Desktop-Technikerrolle meldet sich regelmäßig auf Haunt-Channel und
+  nimmt an derselben Hostwahl teil; sie ist für Bedienprüfungen ohne XR gedacht.
+- `net.ts`: versionierte Snapshots (`STATION_PROTOCOL = 2`) einschließlich
+  Inventar, Puzzles, HP und Stationsoptionen. Begrenzte, endliche Werte bei
+  Empfang; alte Protokolle werden verworfen. Alle Geräte nach Update neu laden.
+- Nur Host-Zustände übernehmen. Schalter nur vom Besitzer von `scout` oder
+  `hack` akzeptieren, Drohnenkommandos nur vom Drohnenbesitzer.
+- `stationUi.ts`: empfohlen Archiv und Einsatzkontrolle (`scout`). Letztere
+  kombiniert Radar, simulierten Puls, HP und Schalttafel. Archiv zeigt
+  Aufträge, Fundhinweise, benötigte Gegenstände und Codes. Drohne, separate
+  Schalttafel und Zuschauer bleiben optionale weitere Plätze.
+- Gemeinsamer URL-Parameter `room` wird beim Weltbeitritt und auf der Startseite
+  beachtet; sonst `haunting`. Bestehendes Trystero/Nostr/WebRTC ohne Konten.
+  `net=local` ist BroadcastChannel nur zwischen Tabs, kein LAN-Transport.
+  Internet und WLAN brauchen erreichbare öffentliche Signalisierung; für
+  restriktives NAT bleibt TURN optional. Kein garantierter Relay ohne Dienst.
+- Bestehende Drohnen-Wegeführung, Flugbegrenzung, Archiv-Zoom/Schwenken,
+  Besuchskamera und sichere Tür-Streiche bleiben erhalten.
 
-**Die Beschriftungen der Schalttafel lügen nie, sie sind nur unvollständig**
-(`haunting/panel.ts`, mit Test). `Licht Küche` schaltet immer das Licht der
-Küche; `Wohnzimmer` schaltet *irgendetwas* dort; `Tür 3` sagt gar nichts über
-den Ort, ist aber wirklich eine Tür. Unvollständigkeit lässt sich durch
-Ausprobieren und Zurufen auflösen — eine einzige Lüge macht jede andere Zeile
-wertlos und die halbe Stunde Kartierung gleich mit. (Wenn hier später ein
-Verräter mitspielt, ist genau das seine Waffe. Bis dahin: keine Lügen.)
+**Testmodus und Prüfung**
 
-**Die Kette, wegen der es mehr als zwei Leute braucht.** Der Archivar weiß, in
-welchem Zimmer der Sicherungskasten hängt → der VR-Spieler muss hin und ihn
-umlegen → der Hacker bekommt die zweite Hälfte seiner Tafel. Vorher hat er vier
-Schalter und langweilt sich fast, nachher zwölf und ist der wichtigste Mensch
-im Van.
-
-**Mehr Stationen als Spieler, mit Absicht** (`haunting/stations.ts`, mit Test).
-Der Van ist immer unterbesetzt; die eigentliche Entscheidung ist nie „was tue
-ich", sondern *was lassen wir gerade unbeobachtet*. Wem ein Gerät gehört,
-entscheidet die **Sitzdauer** — dieselbe Regel wie beim Gastgeber der Welt
-(`net/host.ts`) und aus demselben Grund: Jeder kennt seine eigene Dauer, Dauern
-wachsen auf allen Uhren gleich schnell, und es braucht keine Wahl und keinen
-Server. Wer sich auf ein besetztes Gerät setzt, wird weggeschubst und verliert
-Zeit, aber nichts, was er schon weiß. Ein Wechsel **dauert** (2,5 s): Ohne die
-Laufzeit wäre der Griff nach demselben Gerät ein unsichtbares Rennen, das der
-mit dem schnelleren Handy gewinnt; mit ihr wird daraus eine Verhandlung, und
-das Zurufen ist das Spiel.
-
-**Wer rechnet, ist der VR-Spieler** (`pickGameHost`). Die sonst übliche Regel —
-wer am längsten in der Welt steht — gäbe hier einem Web-Spieler das Monster,
-und wenn der den Laptop zuklappt, nimmt er die Runde mit. Im Haus steht genau
-einer, und der geht so schnell nicht weg.
-
-**Das Monster ist aus, bis die Brille es einschaltet.** Nicht aus Vorsicht,
-sondern weil es die Rollen erst spielbar macht: Wer Archiv, Späher, Drohne und
-Tafel in Ruhe ausprobieren will, soll das können, ohne dass ihm dabei jemand in
-den Nacken atmet. Die Entscheidung, ob es gruselig wird, trifft der, dem es
-passiert. Läuft irgendwo ein **Radio**, geht der Verfolger dorthin statt zum
-Spieler — dafür gibt es den Haken `PortalWorld.npcTarget`, und er ist der
-einzige Hebel, den der Hacker überhaupt auf das Monster hat.
-
-**Und wo das Monster steht, geht das Haus kaputt** (`haunting/haunt.ts`, mit
-Test). Vorher war es ein Verfolger und sonst nichts: Es lief einem hinterher,
-und das Haus stand still darum herum — der Hacker legte einmal Licht an, einmal
-eine Tür zu, und danach war seine Tafel ein Zustand und kein Spiel. Jetzt
-flackert die Lampe des Zimmers, in dem es steht, und geht aus; kommt es an
-einer Tür vorbei, fällt sie zu. **Das ist die Arbeit, die den Hacker braucht:**
-Alles, was das Monster anstellt, kann genau eine Rolle zurückdrehen, und die
-sieht nicht, wo ihre Schalter hingehen. Vier Entscheidungen darin:
-
-- **Das Flackern ist ehrlich und kostet nichts.** Eine Lampe zuckt genau dann,
-  wenn das Monster in ihrem Zimmer steht, und zuckt tiefer, je näher das Aus
-  kommt — für den VR-Spieler die einzige Warnung, die er ohne den Van bekommt.
-  Weil es nur an der Monsterposition hängt, die ohnehin über die Leitung geht,
-  rechnet **jedes Gerät dieselbe Zustandsmaschine selbst** und schickt dafür
-  kein Byte; angewendet — Licht aus, Tür zu — wird sie nur beim Gastgeber.
-- **Niemand wird eingesperrt.** Die Haustür fällt nie zu, und eine Tür fällt
-  nur zu, wenn man danach von der Haustür aus immer noch in jedes Zimmer kommt
-  (`sealsOff`). Ein Monster, das einen in einer Kammer einmauert, deren
-  Schalter hinter dem Sicherungskasten liegt, spielt nicht gegen die Gruppe,
-  sondern beendet ihren Abend. Zusammen mit den zwei Türen je Zimmer ist das
-  die Zusage, auf der der ganze Spuk steht.
-- **Erst das Licht, dann die Tür.** Ein Monster, das im hellen Zimmer die Tür
-  zuwirft, verrät sich zweimal. Erst wird es dunkel, und dann hört man etwas,
-  das man nicht mehr sieht.
-- **Der Schlag ist nur im Haus zu hören** (`HauntingWorld.hearSlam`). Im Van
-  bleibt es still: Ein Geräusch im Lautsprecher sagte dem Hacker geschenkt,
-  dass gerade irgendwo eine Tür zugefallen ist, und das ist die Sorte Auskunft,
-  die diese Welt keiner Station umsonst gibt.
-
-Für den Hacker steht das auch auf seiner Tafel (`hackPage`), sobald das Monster
-läuft — sonst hält er einen Schalter, der von allein umspringt, für einen
-kaputten und hört auf, ihm zu trauen. Wo es steht, sagt die Zeile ihm nicht;
-das weiß der Späher, und dafür muss geredet werden.
-
-**Die Drohne macht keine Tür auf** (`DRONE_PROFILE` in `haunting/plan.ts`, mit
-Test). Sie fliegt über jedes Möbel hinweg, aber wo sie hinkommt, hängt daran,
-was der VR-Spieler und der Hacker offen gelassen haben — Abhängigkeit in beide
-Richtungen, ohne eine einzige Sonderregel. Ihren Weg sucht sie zweimal je
-Sekunde neu: Der Hacker macht Türen zu, *während* sie unterwegs ist.
-
-**Sie fliegt nicht die Luftlinie, und das steht in einer eigenen Datei**
-(`haunting/droneRoute.ts`, mit Test). Der Pilot tippt ein Zimmer an, und was
-dann passiert, ist eine Wegsuche im Navigationsgraphen und kein Zusteuern auf
-einen Punkt — der Unterschied ist der ganze Rest des Spiels: Eine Drohne, die
-auf das angetippte Zimmer zuhält, fliegt durch die Wand, und dann ist die
-geschlossene Tür Kulisse und der Hacker Deko. Drei Entscheidungen darin:
-
-- **Kachelmitten statt Schnurzug.** Für die NPCs zieht `navPath.pullString`
-  den Weg gerade, weil ein Zombie, der Ecken mitnimmt, besser aussieht. Hier
-  ist das Gegenteil richtig: Die Strecke zwischen zwei Kachelmitten liegt
-  *beweisbar* in diesen beiden Kacheln — der Test fliegt einen Weg ganz ab und
-  schaut nach, dass die Bahn nie eine Wand kreuzt —, während eine geglättete
-  Abkürzung um eine Ecke an der Wand kratzt.
-- **Gedreht wird nur das Bild.** Der Ort folgt den Wegpunkten, die
-  Blickrichtung dreht mit begrenzter Rate nach, und wer scharf abbiegt, fliegt
-  dabei langsamer. Wer es andersherum baut — erst drehen, dann fliegen —,
-  lässt eine Drohne, die noch quersteht, die Ecke schneiden.
-- **Kein Weg ist eine Ansage und kein Fehler.** `findPath` gibt den besten
-  Teilweg zurück; sie fliegt bis vor die geschlossene Tür und bleibt dort, und
-  die Station sagt es mit Worten: *zwischen hier und dem Ziel ist etwas zu.*
-  Das ist die Zeile, mit der aus einer Wegsuche ein Zuruf in den Van wird.
-
-**Die Drohne hat einen Scheinwerfer, und er gehört allen** (`DroneState.light`,
-über die Leitung). Ein Kegel nach vorn, den der Pilot umlegt — er leuchtet
-sein Kamerabild aus *und* das Zimmer, in dem der VR-Spieler steht. Deshalb
-steht der Drohnenkörper seit Neuestem bei **allen** in der Szene und nicht nur
-bei den Web-Spielern: Ein Licht, das der Mann im Haus nicht sieht, wäre eine
-Helligkeitseinstellung und keine Hilfe.
-
-**Kein Akku, der abläuft — zwei Uhren, die sich erholen** (`droneRoute.ts`, mit
-Test). Anfangs lief eine einzige Ladung durch: Sie ging vom ersten Bild an
-runter, war nach gut vier Minuten leer, und danach lag die Drohne im Haus. Das
-ist kein Spiel, sondern ein Countdown — der Pilot konnte nichts falsch machen,
-nur zu lange dabei sein, und wer sich spät an das Gerät setzte, erbte eine
-Leiche. Eine Rolle, die nach vier Minuten aufhört, ist eine Rolle weniger.
-An ihre Stelle sind zwei Sachen getreten, und beide kommen zurück:
-
-- **Die Wechselsperre** (`HOP_TIME`, 14 s): Sie wechselt das Zimmer nur alle
-  paar Sekunden. Damit ist sie kein Suchscheinwerfer, der das Haus in einer
-  Minute abklappert — wer sie irgendwohin schickt, hat sich entschieden und
-  sieht sich das Zimmer an, statt weiterzuklicken. Genau die Frage soll im Van
-  gestellt werden: *welches Zimmer als Nächstes?* Sie geht über die Leitung
-  mit (`DroneState.hop`), sonst wäre der Platzwechsel am Gerät ein
-  Schlupfloch: aufstehen, jemand anders setzt sich hin, weiterfliegen.
-- **Die Ladung des Scheinwerfers** (`LAMP_LIFE` 45 s Licht, `LAMP_FILL` 75 s
-  bis wieder voll): Sie leert sich nur, während er brennt, und **füllt sich
-  wieder auf**, wenn er aus ist. Nachfüllen dauert länger als Leerbrennen —
-  andersherum wäre der Knopf keine Entscheidung mehr, sondern immer an. Bei
-  null geht er von selbst aus und lässt sich erst ab einem Rest (`LAMP_MIN`)
-  wieder anschalten; ohne diese Schwelle klickt man an einer leeren Lampe.
-
-Beide Uhren laufen bei **allen** im Van mit und nicht nur beim Piloten: Sonst
-stünden sie still, während niemand am Gerät sitzt, und der Nächste erbte eine
-Sperre von vor drei Minuten und eine Lampe, die sich nicht erholt hat.
-
-**Ihre Kamera schaut nach vorn, und „vorn" ist +Z.** Der Gierwinkel ist
-`atan2(dx, dz)`, damit zeigt die lokale +Z-Achse in die Flugrichtung — eine
-three.js-Kamera von der Stange schaut aber nach −Z. Ohne die halbe Drehung
-flog der Pilot rückwärts durch das Haus, und mit dem Scheinwerfer leuchtete
-der auch noch hinter ihm her. Sie sitzt außerdem knapp *vor* dem Rumpf: Sonst
-füllt die eigene Lampenkuppel das Bild.
-
-**Ihre Flughöhe ist keine Zahl, sondern eine Rechnung** (`droneRoute.DRONE_Y`,
-mit Test). Sie hing auf 2,15 m, und der Türsturz sitzt auf 2,10 m
-(`PLAN_DOOR_H`): Die Kuppel stand damit im Sturz, im Bild des Piloten schob
-sich bei jeder Tür ein Balken von oben herein, und im Haus flog eine Drohne
-durch den Rahmen statt hindurch. Zu niedrig waren weder Tür noch Decke — ein
-Zimmer mit 2,8 m und Türen mit 2,1 m ist ein Haus. Also folgt die Höhe der
-Tür: Oberkante der Kuppel (`DRONE_CAP`) zwölf Zentimeter unter dem Sturz, das
-sind 1,855 m. Das ist immer noch deutlich über Augenhöhe — der Grund, aus dem
-sie überhaupt hoch fliegt: Auf 1,80 m stand im Bild des Piloten eine
-Stuhllehne vor dem halben Zimmer, und aus der Übersicht, für die man eine
-Drohne fliegt, wurde ein zweites Paar Augen auf derselben Höhe. Der Test
-rechnet beide Grenzen nach, denn einer Zahl sieht man nicht an, dass sie fünf
-Zentimeter im Sturz steckt — man sieht es erst in der Brille, und dann sucht
-man den Fehler bei der Decke.
-
-**Der Öffnungswinkel hängt an der Form des Bildes** (`droneRoute.droneFov`, mit
-Test). `THREE.PerspectiveCamera.fov` ist der **senkrechte** Winkel, und das ist
-die Falle, sobald sich die Form des Bildes ändert — hochkant gehaltenes Telefon,
-quer gehaltenes, breites Laptopfenster, und beim Archivar dazu sein Streifen:
-Dieselbe Zahl ist einmal Weitwinkel und einmal Fernrohr, und er merkt nur, dass
-er auf einmal nichts mehr findet. Festgehalten wird deshalb, was er wirklich
-braucht — **wie viel vom Zimmer links und rechts ins Bild passt**
-(`DRONE_HFOV`, 118°) —, und der senkrechte Winkel fällt daraus ab, begrenzt auf
-66°…104°, damit sich das Haus an den Rändern nicht biegt.
-
-**Umsehen dreht die Drohne, nie ihren Kurs.** Der Wisch über dem Bild (und der
-Blickstock in seiner Ecke) verstellt einen Winkel *neben* der Flugrichtung; die
-Bahn kommt weiter aus der Wegsuche. Andersherum wäre das Wischen eine zweite
-Steuerung, die gegen die Wegsuche arbeitet, und die eine Regel, an der hier
-alles hängt („sie fliegt keine Luftlinie"), wäre durch eine Fingerbewegung
-ausgehebelt. Gedreht wird in derselben Richtung wie mit der Maus im Fenster
-(`core/FlatControls.ts`), und ein Tipp auf den Stock stellt wieder geradeaus —
-er leuchtet, solange der Blick daneben steht, sonst sucht der Pilot ein Zimmer,
-das hinter ihm liegt, und hält die Drohne für kaputt.
-
-**Und zwar ganz herum.** Der Winkel hatte einen Anschlag bei gut zwei Dritteln
-einer halben Umdrehung, gedacht als Schutz gegen den verlorenen Horizont — in
-Wahrheit war es eine Drohne, die sich nicht umdrehen kann: Wer wissen will, ob
-hinter ihr etwas steht, kam nicht hin, und das ist in diesem Haus die Frage,
-die am häufigsten gestellt wird. Der Anschlag ist weg, der Winkel läuft
-stattdessen im Kreis (`droneRoute.wrapAngle`, mit Test) — eine Zahl, die mit
-jedem Wisch weiterwächst, ist nach einer Minute eine, an der weder der
-leuchtende Blickstock noch der Empfänger im Haus etwas ablesen kann.
-
-**Beim Losfliegen schaut sie von selbst wieder nach vorn** — und nur dann
-(`setDroneTarget`). Wer gerade nach hinten geschaut hat und dann ein Zimmer
-antippt, flöge sonst rückwärts los und sähe von seinem eigenen Flug die Wand,
-die hinter ihm wegzieht. Zurückgestellt wird ausschließlich im Moment des
-Starts: Ein Blick, den die Welt laufend geradezieht, ist kein Blick, sondern
-ein Gummiband — sobald sie fliegt, gehört der Kopf wieder dem Piloten.
-
-**Nach oben und unten kippt eine Wiege**, nicht der Rumpf. Kuppel, Scheinwerfer
-und Kamera hängen an einem gemeinsamen Kopf, und derselbe Wisch, der waagerecht
-dreht, kippt senkrecht (±81°, `TILT_MOST`, also fast senkrecht — über den
-Scheitel hinaus stünde das Bild auf dem Kopf). Ein Kopter, der sich zum
-Hochschauen selbst auf den Rücken legt, sähe für den VR-Spieler nach Absturz
-aus und drehte seine Positionslampe mit; und eine Drohne, die nur waagerecht
-schwenkt, findet nie, was unter dem Tisch liegt oder über der Tür hängt. Der
-Winkel geht wie der Gierwinkel über die Leitung (`net.DroneState.pitch`) —
-sonst zeigte der Kegel beim Piloten an die Decke und im Haus auf den Boden.
-
-Gedreht wird dabei der **Rumpf** und nicht nur die Kamera, die als Kind daran
-hängt. Eine Weile saß der Winkel an der Kamera allein, und das war eine
-Bildeinstellung: Der Pilot sah zur Seite, der Scheinwerfer leuchtete weiter
-geradeaus, und im Haus stand eine Drohne, die stur in eine Richtung starrte,
-während ihr Pilot etwas ganz anderes ansagte. Der Kegel ist das Einzige, was
-der Pilot dem VR-Spieler wirklich geben kann — er muss dorthin zeigen, wo der
-Pilot hinsieht. Deshalb geht der Winkel auch **über die Leitung**
-(`net.DroneState.yaw`): Vorher rechneten ihn die Zuschauer aus dem Weg zwischen
-zwei Ansagen, und solange sie flog, stimmte das auch — nur hinterlässt eine
-Drohne, die im Stehen schwenkt, keinen Weg. Das Ruckeln bei zehn Ansagen je
-Sekunde nimmt ihm der weiche Nachlauf beim Empfänger
-(`HauntingWorld.turnDroneBody`, kürzerer Bogen, bildratenunabhängig). Wer sich
-neu ans Gerät setzt, schaut geradeaus: Der Winkel des Vorgängers steckt schon
-in der Drehung des Rumpfes, und ein zweites Mal daraufgerechnet stünde sie
-quer.
-
-**Sie startet draußen, neben dem Van** (`house.DRONE_HOME`), mit dem Haus im
-Bild und brennendem Scheinwerfer. Vorher parkte sie im Zimmer hinter der
-Haustür: Der Pilot setzte sich hin, sah ein dunkles Zimmer und wusste weder,
-wo er ist, noch wohin. Damit es für die Wegsuche ein Draußen gibt, gehört der
-**Vorplatz** zum Kachelgitter (`house.APRON`, zwei Reihen zwischen Südwand und
-Van) — Boden ohne Wände, angeschlossen durch die Haustür. „Zurück zum Van" ist
-damit kein Sonderfall, sondern derselbe Flug wie jeder andere, samt der Tür,
-die zu sein kann; der Test dazu fliegt beides ab und macht als Gegenprobe die
-Haustür zu. Sie steht auf der **hinteren** der beiden Reihen: aus der vorderen
-stünde die Hauswand anderthalb Meter vor der Linse. Und eine Kachel **neben**
-dem Tisch statt darüber: Direkt über den vier Monitoren füllten die im ersten
-Bild des Piloten die halbe untere Hälfte — vier bunte Scheiben statt des
-Hauses, auf das er schauen soll. Auf dem Vorplatz liegt dort, wo sie steht,
-ein Ring (`HauntingWorld.buildPad`), sonst wäre der Hangar eine Zahl in einer
-Datei und im Haus wüsste niemand, was „zurück zum Van" für eine Stelle ist.
-
-**Am Van hängt sie am Kabel** (`droneRoute.lampAfter(…, home)`): Der
-Scheinwerfer zehrt dort überhaupt nicht und lädt dreimal so schnell
-(`LAMP_HOME`, 25 s statt 75). Das ist der einzige Grund, aus dem ein Pilot
-freiwillig zurückfliegt, statt mit halber Ladung weiterzustochern — ohne den
-Unterschied wäre der Knopf einer, den niemand drückt. Bezahlt wird er mit der
-Wechselsperre: Zurück und wieder hinein sind zwei Zimmerwechsel, in denen
-niemand im Haus etwas sieht.
-
-**Draußen ist Abend, drinnen bleibt es dunkel — und dazwischen stehen
-Fenster.** Drei Sachen, die zusammengehören, weil keine davon allein etwas
-taugt:
-
-- **Der Himmel ist Dämmerungsblau** (`skyColor`, dazu ein Nebel in derselben
-  Farbe statt in Schwarz). Er kostet nichts und kommt trotzdem überall an: Er
-  steht hinter dem Haus, wenn man davorsteht, und er ist das, was in einem
-  Fenster steht, wenn man drinnen davor steht. Eine schwarze Scheibe in einer
-  schwarzen Wand ist kein Fenster.
-- **Das Haus hat Fenster in den Außenwänden** (`house.placeWindows`, mit Test;
-  gesetzt werden sie in `plan.ts` nach den Wänden, weil sie eine Kante
-  ersetzen, die schon steht). Je Zimmer eines oder zwei, nie zwischen zwei
-  Zimmern: Ein Fenster nach innen wäre eine zweite Sorte Tür, durch die man
-  sieht, und damit ein Grundriss, den keine Station mehr beschreiben kann.
-  Nach draußen ist es dagegen eine **Sprache mehr für den im Haus** — „ich
-  sehe den Van" sagt dem Späher, an welcher Wand jemand klebt. Sie halten auf
-  wie eine Wand (auch die Drohne, `wallState`), lassen aber Sicht und Geräusch
-  durch; frei bleiben die Kante der Haustür und jede, an der ein Möbel mit dem
-  Rücken steht.
-- **Die Abendsonne ist in Wahrheit eine Leuchte über dem Vorplatz**
-  (`HauntingWorld.buildDusk`). Eine richtige Sonne wäre ein
-  `DirectionalLight`, und das scheint ohne Schattenkarte **durch das Dach** —
-  Schatten gibt es nur in der Stufe „Comic", ausgeliefert wird „Einfach"
-  (`core/graphicsSettings.ts`). Eine Sonne, die in der Auslieferung das halbe
-  Haus aufhellt, nimmt diesem Spiel das Einzige, worauf es steht. Also hängt
-  dort ein warmer Scheinwerfer aus Südwesten, dessen **Reichweite** ein paar
-  Meter hinter der Hauswand endet: Der Vorplatz, der Van und die Fassade sind
-  beleuchtet, im Zimmer hinter der Haustür bleibt ein Rest, der aussieht wie
-  das, was er sein soll — Licht, das durch Tür und Fenster hereinfällt —, und
-  im zweiten Zimmer ist nichts mehr davon übrig.
-
-**Am Van sitzen vier Leute, und man sieht ihre Plätze** (`buildVan`): vier
-Hocker in den vier Stationsfarben hinter dem Tisch, je einer vor seinem
-Monitor. Am Tisch wird zugerufen und nicht gelesen; „ich hab den grünen" ist
-eine Ansage, und im Haus ist der grüne Hocker die Stelle, an der jemand sitzt.
-Der VR-Spieler fängt zwischen Tisch und Hockern an, mit dem Haus vor sich
-(`spawnPoint`).
-
-**Das Monster geht trotzdem nicht mit hinaus.** Der Vorplatz ist begehbar, also
-liefe es dem Spieler ohne Weiteres bis an den Van nach — und der Van ist die
-Stelle, an der abgelegt wird; was dort steht, macht aus einer Runde eine
-Belagerung. Deshalb steht bei seinem Ziel eine Zeile, die jedes Ziel außerhalb
-des Hauses auf das Zimmer hinter der Haustür zurückholt
-(`HauntingWorld.npcTarget`). Es wartet dort — und das ist gruseliger als
-beides.
-
-**Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
-Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
-zusammenschiebt, nie. Zwanzig Sachen, die dabei nicht Geschmack sind:
-
-- **Jede Station hat eine Farbe, und es ist ihre** (`--haunt-accent` über
-  `data-station` am Wurzelelement) — dieselben vier Töne, die im Haus auf den
-  Monitoren des Vans leuchten. Am Tisch wird zugerufen und nicht gelesen; „ich
-  hab den grünen" ist eine Ansage, „ich hab die dritte Kachel von oben" nicht.
-- **Der Auftragsstreifen hat ein Feld je Sache und drei Zustände** — noch im
-  Haus, in der Hand, im Van. `0/3` sagt nicht, dass eine davon gerade beim
-  VR-Spieler liegt, und genau das ist am Tisch die Frage, die gestellt wird.
-- **Wer ein Bild hat, sitzt im Cockpit: Bild ganz, Bedienung auf Zuruf**
-  (`.is-view`, `.is-panel`). Das gilt für den Piloten **und** den Archivar, und
-  zwar mit denselben zwei Klassen: Das Bild liegt unter der Kopfzeile über dem
-  ganzen Schirm — nichts scrollt, nichts läuft über, die kürzere Seite begrenzt
-  es —, und **unten klebt nichts**. Vorher stand es als Kinostreifen über einer
-  Kachelwand, die dauerhaft die halbe Seite aß: auf einem Telefon zwei Drittel
-  des Bildes für Knöpfe, die man dreimal in der Minute drückt, auf dem Laptop
-  ein Bild, das zum Streifen zusammenschrumpfte. Wer fliegt, sieht; wer liest,
-  liest. **Zwei Oberflächen für dieselbe Sache waren die eigentliche Kosten:**
-  Der Archivar hatte zwei Größen und einen „Bild frei"-Knopf, der Pilot eine
-  Größe und einen Menüknopf — wer im Van das Gerät wechselte, suchte die
-  Bedienung von vorn.
-- **Oben rechts im Bild liegen die Knöpfe: Menü, und daneben, was die Station
-  braucht.** Das Menü legt die Bedienung über das Bild und nimmt sie genauso
-  wieder weg — und **es bleibt stehen, solange sie offen ist**: Ein Menü, das
-  sich nur über den Umweg „irgendetwas in der Liste antippen" schließen lässt,
-  ist eine Falle, und beim Piloten hieße dieser Umweg, die Drohne
-  loszuschicken. Daneben steht beim Piloten der Scheinwerfer, weil er der
-  einzige Griff ist, den er *mitten im Sehen* braucht — Licht an, hinsehen,
-  Licht aus; wer dafür erst ein Menü aufmachen muss, macht es nicht mehr zu.
-  Beim Archivar steht dort der Knopf zurück aufs ganze Zimmer, und **nur, wenn
-  es etwas zurückzustellen gibt**: Ein Knopf, der nie etwas tut, ist einer, den
-  man beim Zielen trifft. Sie stehen als eigene **Zeile im Fluss** zwischen
-  Kopfzeile und Bild und nicht als absolut gesetzte Ecke *im* Bild: Das Bild
-  liegt fest im Hintergrund und damit unter der Kopfzeile, und ein Abstand von
-  oben, den jemand ausrechnet, ist bei der nächsten Schriftgröße wieder falsch.
-  Der Blickstock bleibt unten rechts, wo der Daumen ohnehin liegt.
-  Weggeblendet und nicht abgebaut, sonst käme die Liste oben statt dort
-  zurück, wo man war.
-- **Ein angetipptes Zimmer schließt die Schalttafel — beim Piloten, und nur
-  dort.** Wer losschickt, will als Nächstes das Bild; eine Tafel, die danach
-  noch darüber liegt, wird bei jedem Flug einmal von Hand weggeräumt. **Der
-  Archivar blättert dagegen weiter**: Sein Zimmer anzutippen schickt nichts
-  los, es schlägt ein Blatt auf, und wer zwei Zimmer vergleicht, tippt sie
-  nacheinander an, ohne dazwischen zweimal das Menü zu bedienen. Der Ausschnitt
-  springt trotzdem zurück aufs ganze Zimmer — ein geerbter Zoom gehörte zum
-  vorigen Grundriss. Der Grund darunter bleibt **durchsichtig**: Die Kacheln bringen
-  ihren eigenen mit, und dazwischen läuft das Bild weiter. Überschriften
-  bekommen dafür ein Schildchen — „Wohin?" stand sonst als graue Schrift auf
-  einem Zimmer voller Möbel und war je nach Blickrichtung da oder nicht.
-- **Hinter der offenen Bedienung wird das Bild grob gerastert**
-  (`HauntingWorld.veilView`) — beim Piloten wie beim Archivar. Ein Bild unter
-  Knöpfen zieht den Blick immer auf sich; gerastert bleibt sichtbar, dass die
-  Drohne fliegt und ob das Licht brennt, dass unter der Akte ein Zimmer liegt,
-  und lesbar bleibt nur die Bedienung. Gerastert wird über die
-  **Auflösung** und nicht über einen Filter: Die Leinwand bekommt für diese Zeit
-  einen winzigen Bildspeicher, den der Browser hart hochskaliert
-  (`image-rendering: pixelated`, ein Bildpunkt je zehn CSS-Punkte). Das kostet
-  nichts — es zeichnet *weniger* —, und es ist die Stelle, an der später ein
-  eigener Filter (CRT, Rauschen) sitzen wird.
-- **Der Archivar zieht sein Blatt heran und schiebt es durch** (`archiveView.ts`,
-  `HauntingWorld.aimArchive`). Zwei Finger oder das Mausrad zoomen, ein Finger
-  oder die gedrückte Maustaste verschieben — dieselbe Zange wie überall sonst,
-  und deshalb muss sie niemand lernen. Gerechnet wird **relativ zum
-  eingepassten Zimmer**: `zoom = 1` ist immer wieder genau das Blatt, mit dem
-  er angefangen hat, und die Verschiebung ist am Blattrand zu Ende (`panLimit`
-  — bei doppelter Vergrößerung genau eine halbe Kante). Wer weiter zöge, stünde
-  vor der schwarzen Maske um sein Zimmer und hielte das Gerät für kaputt. Ein
-  anderes Zimmer aufschlagen fängt wieder beim ganzen an: **Aufgeschlagen heißt
-  hinsehen**, genau wie beim Piloten, der ein Zimmer antippt.
-- **Der Grundriss wird gezeichnet und nicht fotografiert**
-  (`HauntingWorld.buildDoorMarks`, `wallsOf`). Drei Sachen fehlten dem Archivar
-  dafür. Erstens der Schnitt: Er lag knapp unter der **Decke**, und über jeder
-  Tür steht ein Sturz von der Türhöhe bis an die Decke
-  (`levelBuild.doorParts`) — von oben ein Stück Wand. Ein Haus ohne Deckel, in
-  dem jede Tür zugemauert ist. Jetzt liegt er knapp unter dem **Sturz**
-  (`PAPER_CUT`). Zweitens die **Wände**: Eine aufgeschnittene Wand ist von oben
-  ein offener Kasten — man sieht durch sie hindurch, und übrig blieb ein Boden
-  mit Möbeln und einem Bogen im Nichts. Also bekommt jede Kante, die das Zimmer
-  begrenzt, ihren hellen Strich, mit einer **Lücke, wo eine Tür sitzt**, und
-  mit Enden, die eine halbe Wandstärke über die Ecke hinausragen (sonst steht
-  in jeder Zimmerecke ein schwarzer Zahn). Drittens das Türzeichen: **offen**
-  die Lücke selbst plus der Viertelbogen, den das Blatt schlägt, **zu** ein
-  **dunkler** Riegel in der hellen Wand. Warum dunkel: Ein heller Pfropfen wäre
-  schlicht Wand, und man müsste die Bögen zählen, um zu merken, dass dort eine
-  Tür ist. Farbe hilft dabei nicht — der Sepiafilter macht aus Rot und Grün
-  dasselbe Braun, aus hell und dunkel aber nicht. Der Bogen dreht sich immer
-  **in das aufgeschlagene Zimmer** hinein, und gezeigt werden nur dessen Wände
-  und Türen — sonst schwebten die Nachbarn über der schwarzen Fläche ringsum,
-  und aus dem Blatt wäre wieder eine Karte.
-- **Und die Flächen, die das Blatt freiräumen, liegen dicht unter dem
-  Schnitt.** Sie hingen an der Decke, weil der Schnitt dort lag; mit dem
-  tieferen Schnitt schnitt die Kamera erst die Maske weg, und der Archivar sah
-  das halbe Haus. Dicht darunter und nicht irgendwo darunter: Was zwischen
-  Maske und Schnitt steht — ein hoher Schrank im Nachbarzimmer —, ragt sonst
-  durch sie hindurch. Und ihr Rand ist **eine halbe Wandstärke** und nicht eine
-  ganze, sonst schaut zwischen Wandlinie und Maske der Boden des Nachbarn
-  hervor: ein zweiter heller Rand um den ersten, der wie eine doppelte Wand
-  aussieht. Wer eine dieser Höhen ändert, ändert die anderen mit (`PAPER_CUT`,
-  `PAPER_MARK_Y`, `maskAround`).
-- **Was oben verdeckt ist, wird nicht bezeichnet** (`StationUi.headroom`).
-  Kopfzeile und Auftragsstreifen liegen über dem Bild. Beim Piloten ist das
-  gewollt — sein Kamerabild ist Hintergrund. Beim Archivar war es ein Fehler:
-  Sein Grundriss ist genau so groß wie das Bild, und die Nordwand steckte
-  hinter der Kopfzeile. Beide Kameras, die ein **Ganzes** zeigen (Blatt und
-  Fernseher), passen deshalb in die *freie* Fläche ein und verlängern ihren
-  Ausschnitt nach oben. Gemessen und nicht geschätzt: Eine Zahl im Kopf ist bei
-  der nächsten Schriftgröße wieder falsch.
-- **Der Rand um das Blatt ist anteilig** (`framed`). Ein fester Rand ist beim
-  15-Meter-Saal ein Strich und bei der 5-Meter-Kammer ein Drittel des Blattes.
-  Sechs Prozent, mindestens eine viertel Kachel — damit die Wandlinie nicht die
-  Bildkante anschneidet.
-- **Herausgezoomt wird auch** (`archiveView.ZOOM_MIN`, halb). Nicht, weil es
-  dort mehr zu sehen gäbe — daneben liegt nur die Maske —, sondern damit man
-  sieht, *dass* man alles sieht: Ein Blatt, das erkennbar kleiner ist als das
-  Fenster, beantwortet die Frage „ist das jetzt das ganze Zimmer?" ohne einen
-  Knopf.
-- **Was in einer Liste steht, schrumpft nicht — es läuft über** (`.haunt__body
-  > * { flex: none }`). Flex-Kinder geben von sich aus nach: Zwölf Kacheln
-  drückten sich auf die Höhe zusammen, die gerade da war, schoben sich
-  übereinander — und **scrollen ließ sich nichts**, weil es keinen Überlauf
-  gab. Der Pilot kam damit an seine letzten Zimmer nicht heran.
-- **Warum überhaupt Zoom?** Weil sein Ausschnitt das ganze Zimmer zeigt und
-  damit das Klavier so groß wie eine Kiste. Der Archivar ist der Einzige, der
-  Namen hat — er muss sagen können, was auf dem Tisch liegt, und dafür muss er
-  näher heran. Der Pilot bekommt dieselbe Geste **nicht**: Er sieht sich um,
-  statt heranzuziehen; eine Drohne mit Zoom wäre ein Fernglas, und die Grenze
-  zwischen „ich fliege hin" und „ich sehe es von hier" ist die halbe Rolle.
-- **Tipp und Wisch trennt die Strecke, nicht die Zeit** (`TAP_SLOP`, 8 px).
-  Ohne die Schwelle wäre jeder Wisch am Ende auch ein Tipp, und das Bild
-  klappte bei jedem Umsehen zusammen. Dazu `touch-action: none` auf dem Bild —
-  sonst nimmt der Browser die erste Fingerbewegung für sich und schickt danach
-  keine Punkte mehr.
-- **Ein Knopfdruck scrollt die Liste nicht nach oben.** Die Seite wird nach
-  jedem Tipp neu geschrieben, und eine neu geschriebene Liste fängt oben an —
-  der Hacker scrollte nach jedem Schalter wieder zu seinem Schalter. Der
-  Scrollstand wird deshalb aufgehoben und nur verworfen, wenn wirklich eine
-  *andere* Seite kommt.
-- **Quer gehaltenes Telefon bekommt nichts Eigenes mehr.** Es gab dort einmal
-  zwei Spalten (Bild links, Bedienung rechts), weil unter einem Kinostreifen
-  quer nichts mehr übrig blieb; mit dem Streifen ist auch das Gitter weg. Die
-  Bedienung liegt jetzt in beiden Lagen **über** dem Bild und über die ganze
-  Breite — eine Spalte von 42 % wäre ein Streifen, in dem dieselben Kacheln
-  zweimal umbrechen, und das Bild bliebe trotzdem verdeckt. Geblieben ist eine
-  Zeile: Quer ist der Schirm halb so hoch, und ein Rand für die Kamera-Insel,
-  der hochkant richtig sitzt, frisst hier die halbe Seite.
-- **Der Späherschirm hängt an der Pixeldichte** und nicht an einer festen
-  Zahl. Ausgerechnet bei ihm ist ein verwaschener Strich kein
-  Schönheitsfehler, sondern die Auskunft — er hat nichts als Konturen.
-- **`overscroll-behavior: contain` auf der Liste.** Ein Zug am Ende der Seite
-  lädt sonst auf dem Telefon neu, und das ist mitten in einer Runde ein
-  Spielabbruch.
-- **Kein `font: inherit` auf `.haunt button`.** Diese Regel hat eine Klasse
-  plus ein Element und schlägt jede `font-size` darunter, die nur eine Klasse
-  hat: Jeder Knopf bekäme die Schriftgröße der Kopfzeile. Vererbt wird die
-  Schriftart, die Größe setzt jeder Knopf selbst.
-
-Drei Sichten kommen aus der Welt (Archiv, Drohne und Fernseher, als
-Kamera in ein Loch im Overlay gezeichnet — `HauntingWorld.render` mit
-Scherenschnitt), zwei zeichnet die Oberfläche selbst (Späher als 2D-Konturen,
-Tafel ganz ohne Haus).
-
-**Der Fernseher ist die dritte** und die einzige, die das Haus ganz sieht:
-eine Perspektivkamera **zehn Grad neben dem Lot** (`SHOW_PITCH`). Senkrecht von
-oben wäre es ein Grundriss — man sähe, wo etwas steht, aber nicht, dass es
-steht; ein Bett und ein Teppich wären derselbe Fleck. Weiter geschrägt fängt
-die Südwand an, das halbe Haus zuzudecken. Die Decke nimmt ihm eine
-**Schnittebene** ab (`liftLid`) und nicht die vordere Kappe der Kamera: Die
-steht schräg im Raum und ließe hinten die halbe Decke stehen. Gesetzt wird sie
-nur beim **Wechsel** der Station — three.js baut jeden Shader neu, sobald sich
-die Zahl der Ebenen ändert. Dazu eigenes Tageslicht (dieselbe Bauart wie das
-Papierlicht: immer in der Szene, auf null gedreht) und **kein Nebel**: Der
-gehört dem Grusel derer, die drinstecken; über dem Puppenhaus wäre er eine
-Milchglasscheibe. Der Ausschnitt lässt oben den Streifen frei, den Kopfzeile
-und Auftrag decken (`SHOW_HEADROOM`), und unten den Vorplatz mit dem Van —
-wer zusieht, will sehen, wie die Drohne heimkommt. Der Archivar bekommt sein eigenes Licht und einen
-Sepiaton, damit sein Blatt **nicht** davon abhängt, ob im Haus jemand die Lampe
-angemacht hat: Eine Akte ist eine Bauzeichnung und kein Kamerabild. Die Lichter
-dafür stehen immer in der Szene und werden auf null gedreht statt
-herausgenommen — three.js baut jeden Shader neu, sobald sich die *Zahl* der
-Lichter ändert.
-
-**Alle im Raum `haunting`.** Der VR-Spieler wird beim Betreten dorthin geholt
-(`WorldContext.join`), die Web-Spieler kommen über den Knopf auf der
-Startseite; ein Raum-Code wäre hier für jeden am Tisch dieselbe Zeile Arbeit.
-Wer schon in einem anderen Raum steht, wird **nicht** herausgezogen — das wäre
-ein Abbruch der laufenden Runde von jemand anderem —, sondern bekommt eine
-Zeile und einen Menüpunkt.
-
-**Was noch fehlt** und bewusst nicht in dieser ersten Fassung steht: ein
-Verlieren (das Monster schlägt zu, mehr passiert nicht), Ton für Drohne und
-Radio, der Van als betretbarer Ort mit sitzenden Figuren und Monitoren, die
-wirklich zeigen, was die Stationen sehen — und der **Verräter**. Für den reicht
-das heutige Netz nicht: `NetSession` ist ein Rundfunk, jeder bekommt jede
-Nachricht, und ein Geheimnis, das über diesen Kanal geht, ist keins. Er
-braucht einen autoritativen Gastgeber, der jedem nur seine Projektion schickt —
-die Nachrichten sind deshalb schon heute je Projektion geschnitten und nicht
-als eine Wahrheit für alle.
+- Test erzeugt keinen aktiven Gegner und setzt HP auf drei, unabhängig vom
+  Testlicht. Der geöffnete Testschrank enthält Scanner, Radar, Medkit und alle
+  drei Missionsgegenstände. Testlabor hat unbelebte Modelle, echte Reparatur-
+  Terminals für denselben Testrundenstand, Spiegel und Effektprüfstand.
+- Test-Raumbesuche und Simulation nur bei `options.test`. Simulation friert
+  normale Rig-Physik ein, lässt Stick-Flug zu und nimmt die Decke ab. Ein
+  ungefährlicher Modelltechniker folgt der bestehenden, getesteten Grid-
+  Wegsuche; lokale Textmeldungen zeigen seine Route. Keine KI-Dreiercrew.
+- `mission.test.ts` prüft alle Raumzahlen über viele Seeds, Reparaturziele und
+  Lösungen, Trefferpausen/Schutz, Visier-Erholung, Schachtnachbarn, Testlabortür,
+  vollständige Late-Join-Daten und begrenzte ungültige Netzwerte.
+- Vor Push weiterhin alle vier Projekt-Gates sowie Produktionsbuild prüfen.
+  Interaktive Web-Prüfung ergänzt Regeln/Typen. Echte Quest-Framerate,
+  VR-Controller, Haptik und mehrere physische Mobilgeräte benötigen einen
+  Hardwaretest; ein Desktop- oder BroadcastChannel-Test belegt das nicht.
 
 ## Deployment
 

@@ -1,3 +1,4 @@
+import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission';
 import { isStation, type Claim, type StationId } from './stations';
 
 /**
@@ -30,6 +31,7 @@ export const HAUNT_ROOM = 'haunting';
 export type RoundPhase = 'briefing' | 'running' | 'won' | 'lost';
 
 export interface HauntState {
+  crew: CrewState;
   seed: number;
   phase: RoundPhase;
   /** Sekunden seit Rundenbeginn. */
@@ -154,11 +156,19 @@ function ids(value: unknown): string[] {
 
 export function readState(data: unknown): HauntState | null {
   const it = bag(data);
-  if (!it || it['kind'] !== 'state' || typeof it['seed'] !== 'number') return null;
+  if (
+    !it ||
+    it['kind'] !== 'state' ||
+    typeof it['seed'] !== 'number' ||
+    !Number.isFinite(it['seed']) ||
+    it['version'] !== STATION_PROTOCOL
+  )
+    return null;
   const phase = it['phase'];
   const monster = bag(it['monster']);
   return {
     seed: it['seed'] >>> 0,
+    crew: it['crew'] ? readCrew(it['crew']) : freshCrew(),
     phase:
       phase === 'briefing' || phase === 'running' || phase === 'won' || phase === 'lost'
         ? phase
@@ -205,7 +215,7 @@ export function readFlip(data: unknown): { id: string; on: boolean } | null {
 // --- Schreiben --------------------------------------------------------------
 
 export function stateMessage(state: HauntState): unknown {
-  return { kind: 'state', ...state };
+  return { kind: 'state', version: STATION_PROTOCOL, ...state };
 }
 
 export function claimMessage(station: StationId, seniority: number): unknown {

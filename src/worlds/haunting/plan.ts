@@ -1,6 +1,6 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H } from '../editor/levelPlan';
-import { DIR_E, DIR_S } from '../nav/navTile';
+import { DIR_E, DIR_S, DIR_W } from '../nav/navTile';
 import { APRON, HOUSE, roomAt, tilesOf, type HouseSpec, type MarkId } from './house';
 import { FLYER_PROFILE } from '../nav/navProfile';
 import type { BlockKind } from '../grid/blocks';
@@ -27,7 +27,11 @@ import type { BlockKind } from '../grid/blocks';
  * Klavier von einer Werkbank unterscheidet, ist eine Frage der Farbe und
  * kommt oben drauf (`marks.ts`) — nicht eine von vierzehn Geometrien.
  */
-export function housePlan(spec: HouseSpec, shut: ReadonlySet<string> = new Set()): GridPlan {
+export function housePlan(
+  spec: HouseSpec,
+  shut: ReadonlySet<string> = new Set(),
+  test = false,
+): GridPlan {
   const plan = new GridPlan([0]);
   plan.room(HOUSE, { walls: true, ceiling: PLAN_WALL_H });
   // **Der Vorplatz vor der Haustür** — Boden ohne Wände und ohne Decke. Er ist
@@ -35,7 +39,11 @@ export function housePlan(spec: HouseSpec, shut: ReadonlySet<string> = new Set()
   // müsste die Drohne im Haus starten, käme nie heraus, und „zurück zum Van"
   // wäre eine Sonderregel statt eines Fluges. Die Haustür bleibt dabei genau
   // das, was sie ist — wer sie zumacht, sperrt die Drohne aus.
-  plan.floor(APRON);
+  plan.room(APRON, { walls: true, ceiling: PLAN_WALL_H });
+  // The illuminated training bay is inside the protected command deck.
+  for (const x of [-3, -2, -1, 0, 1]) plan.window(x, 4, DIR_S);
+  plan.wall(2, 3, DIR_W);
+  plan.door(2, 4, DIR_W, 0, test);
   innerWalls(plan, spec);
 
   for (const door of spec.doors) {

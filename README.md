@@ -64,54 +64,71 @@ im Raum sehen, was man aufhat.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
-### Haunting — einer im Haus, die anderen im Van
+### Haunting / Orbital — eine Quest, zwei Handys
 
-Das erste Spiel hier, das ohne die anderen nicht geht. Einer setzt die Brille
-auf und wählt im Hub **Spiel Haunting**; alle anderen kommen auf der Startseite
-unter _Zusammen spielen_ herein — nur der Name, kein Raum-Code — und sitzen im
-Van vor vier Geräten (und einem Fernseher):
+Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
+Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
+Aufträge, Fundorte, Raummerkmale und Schutzcodes. Die **Einsatzkontrolle**
+verfolgt das Monster auf dem Radar, sieht den simulierten Puls und bedient
+Licht, Schiebetüren und Geräuschköder. Redet miteinander: Kein Gerät hat alle
+Informationen. Drohne, separate Schalttafel und Zuschauer bleiben zusätzlich
+verfügbar.
 
-- **Archiv** — schlägt die Akte auf, ein Zimmer je Seite: Name, Möbel, Türen.
-  Der Grundriss liegt über dem ganzen Schirm: zwei Finger oder das Mausrad
-  ziehen ihn heran und wieder heraus, ein Finger schiebt ihn durch, der
-  Menüknopf legt die Akte darüber. Gezeichnet wie ein Grundriss — helle Wände,
-  eine Lücke mit Bogen ist eine offene Tür, ein dunkler Riegel eine zu. Sieht
-  dafür niemanden, der sich bewegt.
-- **Späher** — sieht, wo das Monster gerade ist. Nur Wände und einen Punkt:
-  keine Namen, keine Möbel, und den Mitspieler auch nicht.
-- **Drohne** — fliegt auf Zimmer, die man antippt, und zeigt eins vollständig.
-  Sie macht keine Tür auf und wechselt das Zimmer nur alle paar Sekunden; ihr
-  Scheinwerfer leuchtet auch für den im Haus und lädt sich wieder auf, während
-  er aus ist. Ihr Bild ist der ganze Schirm, wischen sieht sich um, und der
-  Menüknopf legt die Steuerung darüber — dieselbe Oberfläche wie im Archiv.
-  Umgesehen wird dabei **ganz herum**; ein Tipp auf den Blickstock stellt
-  wieder geradeaus, und beim Losfliegen tut sie das von selbst.
-- **Schalttafel** — Licht, Türen, Radios. Ohne Grundriss, mit Beschriftungen
-  wie `Wohnzimmer`, `Tür 2` und `X`.
-- **Zuschauer** — das ganze Haus von schräg oben, ohne Decke, bei hellem Tag
-  und mit allem darin. Kein Gerät, sondern der Fernseher im Raum: Hier dürfen
-  beliebig viele mitschauen, bedienen kann man nichts — und wer zusieht, sagt
-  nichts.
+**Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
+im Hub **Haunting / Orbital** wählen und VR starten. Auf den beiden Handys
+**In der Zentrale mitspielen** wählen, dann Archiv beziehungsweise
+Einsatzkontrolle besetzen. Die Verbindungsanzeige nennt die Gegenstellen und
+den gemeinsamen Raum. Für eine eigene Gruppe denselben Link mit
+`?room=euer-gruppenname#haunting` auf allen drei Geräten öffnen; ohne Parameter
+ist der Raum `haunting`. Es sind keine Konten erforderlich. Die bestehende
+WebRTC-Verbindung nutzt öffentliche Signalisierung und STUN, auch im selben
+WLAN. Internetspiele funktionieren bei direkt erreichbaren Peers; restriktives
+NAT oder gesperrte öffentliche Dienste können ohne TURN eine Verbindung
+verhindern. `?net=local` ist ausschließlich für mehrere Tabs desselben Browsers.
 
-Draußen ist Abend: Vor dem Haus stehen der Van mit dem Tisch, vier Plätzen und
-dem Ring, auf dem die Drohne startet — dort fängt auch der VR-Spieler an. Das
-Haus hat Fenster in den Außenwänden; von drinnen sind sie das Einzige, was im
-Dunkeln nicht schwarz ist.
+**Die Mission:** In der sicheren Einsatzzentrale 6, 8, 10 oder 12 Räume und
+einen Gegner auswählen, dann **Mission starten**. Antrieb, Lebenserhaltung
+und Notsignal müssen repariert werden. Das Archiv findet heraus, welches
+Werkzeug beziehungsweise Bauteil in welchem Frachtschrank liegt. Der Techniker
+öffnet den Schrank, nimmt den Gegenstand und entriegelt damit den passenden
+Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine Schaltfolge
+eingegeben oder drei Frequenzen eingestellt. Die Codes kennt das Archiv.
+Wenn alle drei Systeme online sind, kehrt der Techniker in die Zentrale zurück.
 
-Das Haus wird je Runde gewürfelt und entsteht aus **einem Samen** auf jedem
-Gerät neu — über die Leitung geht deshalb kein Bild, sondern eine Zahl. Die
-Aufgabe ist simpel: drei Sachen finden und in den Van bringen. Schwer ist sie,
-weil jede Station das Haus in einer anderen Sprache kennt und niemand dem
-anderen eine Koordinate sagen kann. **Das Monster ist aus, bis die Brille es
-einschaltet** — die Entscheidung, ob es gruselig wird, trifft der, dem es
-passiert.
+Die Module haben eigene Einrichtungen: roter Maschinenraum, Medizin mit
+Kryokapseln, Kommunikation, Serverarchiv, Hydroponik, Crewquartiere und
+Frachtlager. Hüllensegmente, Lichtleisten und Aggregate entstehen prozedural.
+Schiebetüren, Funken, Rauch, sparsame Feuerpartikel, Maschinenbrummen und
+Gegnerschritte schaffen Atmosphäre. Das Raster und die übrigen Testwelten
+bleiben erhalten.
 
-**Und wo es steht, geht das Haus kaputt.** Die Lampe des Zimmers, in dem es
-sich aufhält, fängt an zu flackern und geht aus; kommt es an einer Tür vorbei,
-fällt sie zu. Beides dreht nur einer zurück — der an der Schalttafel, der nicht
-weiß, wo seine Schalter hingehen. Eingesperrt wird dabei niemand: Die Haustür
-bleibt in Ruhe, jedes Zimmer hat mindestens zwei Türen, und eine Tür fällt nur
-zu, wenn man danach immer noch überall hinkommt.
+**Überleben:** Drei Treffer beenden die Runde; nach jedem Treffer gibt es drei
+Sekunden Schutz. Ein gefundenes Medkit heilt einen Treffer. Der sichtbare
+Raumanzug zeigt Verletzungen, beim längeren Sprint beschlägt der Visier-Rand
+und erholt sich wieder. Radar und Röntgenscanner werden aus Frachtschränken
+geborgen und am linken Handgelenk beziehungsweise im Missionsmenü umgeschaltet.
+Der Scanner zeigt nahe verborgene Fracht. Ein Schutzschrank lässt sich mit dem
+Code aus dem Archiv betreten; bis zum Verlassen kann der Gegner nicht treffen.
+Die drei auswählbaren Gegner unterscheiden sich in Modell, Tempo und Nutzung
+der Lüftungsschächte. Schächte verbinden nur benachbarte Stationsräume, niemals
+die sichere Zentrale. Das Radar-EKG ist Spieltelemetrie, keine echte Pulsmessung.
+
+**Ohne Angst ausprobieren:** **Test ohne Monster** im Startraum oder
+Missionsmenü startet eine unverwundbare Runde ohne aktiven Gegner. Das bleibt
+auch bei ausgeschaltetem Testlicht so. Der Testschrank ist sofort geöffnet und
+enthält alle Werkzeuge und Missionsgegenstände. Eine Schiebetür öffnet das helle
+Testlabor mit unbelebten Gegnermodellen, denselben drei Reparaturpuzzles, einem
+Spiegel, einem Schachtmodell und dem Effektprüfstand. Im Testmenü lassen sich
+Räume direkt besuchen. **Simulation / Flugmodus** hebt die Decke ab: linker
+Stick bewegt, rechter Stick hebt und senkt den Blick. Ein ungefährlicher
+Techniker läuft auf dem Navigationsraster zu Räumen; lokale Textmeldungen
+zeigen seine Anweisungen und Rückmeldungen. Das ist eine Demonstration und
+keine vollständige KI-Dreiercrew. Ohne Headset gibt es in der Geräteübersicht
+**Als Techniker am Desktop testen** mit WASD/Maus und bedienbaren Schaltflächen.
+
+Die Grafik bevorzugt zusammengefasste Geometrie, instanzierte Hüllenteile,
+wenige feste Lichtquellen und begrenzte Partikel. Quest-3-Framerate, Handtracking
+und Controller-Haptik müssen zusätzlich auf dem echten Headset geprüft werden.
 
 > **Hinweis für Agenten:** Entwickelt und gepusht wird **direkt auf `main`** —
 > kein Feature-Branch, kein Pull Request, solange nichts anderes im Auftrag

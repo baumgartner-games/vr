@@ -5790,7 +5790,7 @@ export class PortalWorld implements World {
    * in beiden Händen und ein tiefer Ton. Wer eine Lebensanzeige will, hängt sie
    * hier an — die Stelle ist genau eine.
    */
-  private takeHit(direction: THREE.Vector3, strength: number): void {
+  protected takeHit(direction: THREE.Vector3, strength: number): void {
     const locomotion = this.locomotion;
     if (locomotion) {
       locomotion.velocity.copy(direction).normalize().multiplyScalar(strength);

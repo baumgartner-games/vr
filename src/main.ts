@@ -158,10 +158,15 @@ hauntJoin.addEventListener('click', () => {
     hauntStatus.textContent = 'Verbinde …';
     try {
       if (!app.net.connected) {
-        await app.connect({ room: HAUNT_ROOM, name, local: app.preferLocal });
+        await app.connect({
+          room:
+            normalizeRoomCode(new URLSearchParams(location.search).get('room') || '') || HAUNT_ROOM,
+          name,
+          local: app.preferLocal,
+        });
       }
       rememberName(name);
-      hauntStatus.textContent = `Im Raum ${app.net.room}. Willkommen im Van.`;
+      hauntStatus.textContent = `Im Raum ${app.net.room}. Willkommen in der Einsatzzentrale.`;
       startFlat();
       await app.goTo('haunting');
     } catch (error) {
