@@ -104,7 +104,12 @@ Haunting-Drohne** (`src/worlds/haunting/droneRoute.ts` — und zwar nicht der
 Aufruf der Wegsuche, sondern der **Flug**: Ein Weg wird ganz abgeflogen, und
 dabei darf die Bahn nie eine Wand kreuzen; dazu die Gegenprobe, dass es
 überhaupt ein Zimmer gibt, für das die Luftlinie durch eine Wand ginge — sonst
-wäre der Test auch für eine Drohne grün, die einfach geradeaus fliegt), die
+wäre der Test auch für eine Drohne grün, die einfach geradeaus fliegt), der
+**Ausschnitt des Haunting-Archivars** (`src/worlds/haunting/archiveView.ts` —
+dass im ganzen Blatt gar nicht verschoben wird, dass der Ausschnitt genau bis
+an den Blattrand wandert und beim Herauszoomen wieder hereingezogen wird: die
+Vorzeichen und Anschläge einer Zange sieht man auf einem Telefon niemandem an,
+bevor sie schiefgehen), die
 Handhaltung
 (`src/core/handPose.ts` — samt der ausgelieferten Grundhaltung und ihrer
 Spiegelung auf die linke Hand), der **Versatz, mit dem eine bloße Hand hält**
@@ -7725,51 +7730,67 @@ zusammenschiebt, nie. Vierzehn Sachen, die dabei nicht Geschmack sind:
 - **Der Auftragsstreifen hat ein Feld je Sache und drei Zustände** — noch im
   Haus, in der Hand, im Van. `0/3` sagt nicht, dass eine davon gerade beim
   VR-Spieler liegt, und genau das ist am Tisch die Frage, die gestellt wird.
-- **Der Pilot sitzt im Cockpit: Bild ganz, Bedienung auf Zuruf**
-  (`.is-cockpit`). Sein Kamerabild liegt unter der Kopfzeile über dem ganzen
-  Schirm — nichts scrollt, nichts läuft über, die kürzere Seite begrenzt es —,
-  und **unten klebt nichts**. Vorher stand es als Kinostreifen über einer
+- **Wer ein Bild hat, sitzt im Cockpit: Bild ganz, Bedienung auf Zuruf**
+  (`.is-view`, `.is-panel`). Das gilt für den Piloten **und** den Archivar, und
+  zwar mit denselben zwei Klassen: Das Bild liegt unter der Kopfzeile über dem
+  ganzen Schirm — nichts scrollt, nichts läuft über, die kürzere Seite begrenzt
+  es —, und **unten klebt nichts**. Vorher stand es als Kinostreifen über einer
   Kachelwand, die dauerhaft die halbe Seite aß: auf einem Telefon zwei Drittel
   des Bildes für Knöpfe, die man dreimal in der Minute drückt, auf dem Laptop
-  ein Bild, das zum Streifen zusammenschrumpfte. Wer fliegt, sieht.
-- **Oben rechts im Bild liegen zwei Knöpfe: Menü und Licht.** Das Menü legt
-  seine Schalttafel über das Bild und nimmt sie genauso wieder weg; der
-  Scheinwerfer steht daneben, weil er der einzige Griff ist, den der Pilot
-  *mitten im Sehen* braucht — Licht an, hinsehen, Licht aus. Wer dafür erst ein
-  Menü aufmachen muss, macht es nicht mehr zu. Sie stehen als eigene **Zeile im
-  Fluss** zwischen Kopfzeile und Bild und nicht als absolut gesetzte Ecke *im*
-  Bild: Das Bild liegt fest im Hintergrund und damit unter der Kopfzeile, und
-  ein Abstand von oben, den jemand ausrechnet, ist bei der nächsten
-  Schriftgröße wieder falsch. Der Blickstock bleibt unten rechts, wo der Daumen
-  ohnehin liegt. Weggeblendet und nicht abgebaut, sonst käme die Liste oben
-  statt dort zurück, wo man war.
+  ein Bild, das zum Streifen zusammenschrumpfte. Wer fliegt, sieht; wer liest,
+  liest. **Zwei Oberflächen für dieselbe Sache waren die eigentliche Kosten:**
+  Der Archivar hatte zwei Größen und einen „Bild frei"-Knopf, der Pilot eine
+  Größe und einen Menüknopf — wer im Van das Gerät wechselte, suchte die
+  Bedienung von vorn.
+- **Oben rechts im Bild liegen die Knöpfe: Menü, und daneben, was die Station
+  braucht.** Das Menü legt die Bedienung über das Bild und nimmt sie genauso
+  wieder weg — und **es bleibt stehen, solange sie offen ist**: Ein Menü, das
+  sich nur über den Umweg „irgendetwas in der Liste antippen" schließen lässt,
+  ist eine Falle, und beim Piloten hieße dieser Umweg, die Drohne
+  loszuschicken. Daneben steht beim Piloten der Scheinwerfer, weil er der
+  einzige Griff ist, den er *mitten im Sehen* braucht — Licht an, hinsehen,
+  Licht aus; wer dafür erst ein Menü aufmachen muss, macht es nicht mehr zu.
+  Beim Archivar steht dort der Knopf zurück aufs ganze Zimmer, und **nur, wenn
+  es etwas zurückzustellen gibt**: Ein Knopf, der nie etwas tut, ist einer, den
+  man beim Zielen trifft. Sie stehen als eigene **Zeile im Fluss** zwischen
+  Kopfzeile und Bild und nicht als absolut gesetzte Ecke *im* Bild: Das Bild
+  liegt fest im Hintergrund und damit unter der Kopfzeile, und ein Abstand von
+  oben, den jemand ausrechnet, ist bei der nächsten Schriftgröße wieder falsch.
+  Der Blickstock bleibt unten rechts, wo der Daumen ohnehin liegt.
+  Weggeblendet und nicht abgebaut, sonst käme die Liste oben statt dort
+  zurück, wo man war.
 - **Ein angetipptes Zimmer schließt die Schalttafel.** Wer losschickt, will als
   Nächstes das Bild — eine Tafel, die danach noch darüber liegt, wird bei jedem
   Flug einmal von Hand weggeräumt. Der Grund darunter bleibt **durchsichtig**: Die Kacheln bringen
   ihren eigenen mit, und dazwischen läuft das Bild weiter. Überschriften
   bekommen dafür ein Schildchen — „Wohin?" stand sonst als graue Schrift auf
   einem Zimmer voller Möbel und war je nach Blickrichtung da oder nicht.
-- **Hinter der offenen Schalttafel wird das Bild grob gerastert**
-  (`HauntingWorld.veilView`). Ein bewegtes Bild unter Knöpfen zieht den Blick
-  immer auf sich; gerastert bleibt sichtbar, dass sie fliegt und ob das Licht
-  brennt, und lesbar bleibt nur die Bedienung. Gerastert wird über die
+- **Hinter der offenen Bedienung wird das Bild grob gerastert**
+  (`HauntingWorld.veilView`) — beim Piloten wie beim Archivar. Ein Bild unter
+  Knöpfen zieht den Blick immer auf sich; gerastert bleibt sichtbar, dass die
+  Drohne fliegt und ob das Licht brennt, dass unter der Akte ein Zimmer liegt,
+  und lesbar bleibt nur die Bedienung. Gerastert wird über die
   **Auflösung** und nicht über einen Filter: Die Leinwand bekommt für diese Zeit
   einen winzigen Bildspeicher, den der Browser hart hochskaliert
   (`image-rendering: pixelated`, ein Bildpunkt je zehn CSS-Punkte). Das kostet
   nichts — es zeichnet *weniger* —, und es ist die Stelle, an der später ein
   eigener Filter (CRT, Rauschen) sitzen wird.
-- **Das Blatt des Archivars ist ein Kinostreifen und kein Kasten** (4:3 in einem
-  21:9-Fenster statt 40 vh Höhe). Bildhöhe, die keiner braucht, war auf einem
-  Telefon die halbe Seite. Seine Kamera passt das Zimmer in das Fenster ein, und
-  in einem breiten Streifen steht ein hohes Zimmer zwischen zwei schwarzen
-  Balken — breit ist bei ihm *weniger* Bild.
-- **Beim Archivar macht Antippen das Bild groß, noch einmal wieder klein.** Groß
-  heißt: Es liegt fest im Hintergrund über dem ganzen Schirm, und die Bedienung
-  liegt darauf. „Bild frei" in der Kopfzeile blendet sie weg, der Menüknopf oben
-  im Bild holt sie zurück. Im freigeräumten Vollbild schaltet ein Tipp die Größe
-  **nicht** um: Das wäre der versehentliche Ausstieg aus genau der Ansicht, für
-  die man aufgeräumt hat. Diese Wahl hat nur er — er liest, und Lesen geht neben
-  dem Bild; der Pilot fliegt, und Fliegen geht nur im Bild.
+- **Der Archivar zieht sein Blatt heran und schiebt es durch** (`archiveView.ts`,
+  `HauntingWorld.aimArchive`). Zwei Finger oder das Mausrad zoomen, ein Finger
+  oder die gedrückte Maustaste verschieben — dieselbe Zange wie überall sonst,
+  und deshalb muss sie niemand lernen. Gerechnet wird **relativ zum
+  eingepassten Zimmer**: `zoom = 1` ist immer wieder genau das Blatt, mit dem
+  er angefangen hat, und die Verschiebung ist am Blattrand zu Ende (`panLimit`
+  — bei doppelter Vergrößerung genau eine halbe Kante). Wer weiter zöge, stünde
+  vor der schwarzen Maske um sein Zimmer und hielte das Gerät für kaputt. Ein
+  anderes Zimmer aufschlagen fängt wieder beim ganzen an: **Aufgeschlagen heißt
+  hinsehen**, genau wie beim Piloten, der ein Zimmer antippt.
+- **Warum überhaupt Zoom?** Weil sein Ausschnitt das ganze Zimmer zeigt und
+  damit das Klavier so groß wie eine Kiste. Der Archivar ist der Einzige, der
+  Namen hat — er muss sagen können, was auf dem Tisch liegt, und dafür muss er
+  näher heran. Der Pilot bekommt dieselbe Geste **nicht**: Er sieht sich um,
+  statt heranzuziehen; eine Drohne mit Zoom wäre ein Fernglas, und die Grenze
+  zwischen „ich fliege hin" und „ich sehe es von hier" ist die halbe Rolle.
 - **Tipp und Wisch trennt die Strecke, nicht die Zeit** (`TAP_SLOP`, 8 px).
   Ohne die Schwelle wäre jeder Wisch am Ende auch ein Tipp, und das Bild
   klappte bei jedem Umsehen zusammen. Dazu `touch-action: none` auf dem Bild —
@@ -7780,14 +7801,14 @@ zusammenschiebt, nie. Vierzehn Sachen, die dabei nicht Geschmack sind:
   der Hacker scrollte nach jedem Schalter wieder zu seinem Schalter. Der
   Scrollstand wird deshalb aufgehoben und nur verworfen, wenn wirklich eine
   *andere* Seite kommt.
-- **Quer gehaltenes Telefon bekommt zwei Spalten** (Bild links, Bedienung
-  rechts). Hochkant bleibt unter dem Streifen genug für die Liste, quer nicht,
-  und dann tippt der Archivar blind. Dort stehen auch nur zwei Kacheln
-  nebeneinander statt vier: Der Block für breite Fenster rechnet mit der
-  Fensterbreite, die Liste steht aber in einer Spalte von 42 % davon. Im Cockpit
-  gilt das nicht — dort liegt die Schalttafel **über** dem Bild und über die
-  ganze Breite: Eine Spalte von 42 % wäre ein Streifen, in dem dieselben
-  Kacheln zweimal umbrechen, und das Bild bliebe trotzdem verdeckt.
+- **Quer gehaltenes Telefon bekommt nichts Eigenes mehr.** Es gab dort einmal
+  zwei Spalten (Bild links, Bedienung rechts), weil unter einem Kinostreifen
+  quer nichts mehr übrig blieb; mit dem Streifen ist auch das Gitter weg. Die
+  Bedienung liegt jetzt in beiden Lagen **über** dem Bild und über die ganze
+  Breite — eine Spalte von 42 % wäre ein Streifen, in dem dieselben Kacheln
+  zweimal umbrechen, und das Bild bliebe trotzdem verdeckt. Geblieben ist eine
+  Zeile: Quer ist der Schirm halb so hoch, und ein Rand für die Kamera-Insel,
+  der hochkant richtig sitzt, frisst hier die halbe Seite.
 - **Der Späherschirm hängt an der Pixeldichte** und nicht an einer festen
   Zahl. Ausgerechnet bei ihm ist ein verwaschener Strich kein
   Schönheitsfehler, sondern die Auskunft — er hat nichts als Konturen.
