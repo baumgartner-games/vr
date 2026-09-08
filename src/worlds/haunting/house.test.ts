@@ -4,6 +4,7 @@ import { keyX, keyZ, neighbour, tileKey } from '../nav/navTile';
 import {
   generateHouse,
   onApron,
+  outerEdges,
   roomAt,
   roomOf,
   tilesOf,
@@ -131,6 +132,47 @@ describe('Das gewürfelte Haus', () => {
         expect(dark[0]!.id).not.toBe(spec.entryRoom);
       });
 
+      /**
+       * **Fenster gehen nach draußen und nirgendwo sonst.**
+       *
+       * Ein Fenster zwischen zwei Zimmern wäre eine zweite Sorte Tür, durch
+       * die man sieht — und damit ein Grundriss, den weder der Archivar noch
+       * der Späher noch beschreiben kann. Nach außen ist es dagegen die eine
+       * Stelle, an der der VR-Spieler im Dunkeln etwas sieht, das nicht in
+       * seinem Lichtkegel steht.
+       */
+      it('setzt jedes Fenster in eine Außenwand des Hauses', () => {
+        for (const win of spec.windows) {
+          const room = roomOf(spec, win.roomId)!;
+          const edges = outerEdges(room.rect);
+          expect(
+            edges.some((edge) => edge.x === win.x && edge.z === win.z && edge.dir === win.dir),
+          ).toBe(true);
+          expect(roomAt(spec, win.x, win.z)?.id).toBe(win.roomId);
+        }
+      });
+
+      it('gibt jedem Haus mindestens ein Fenster und keinem eine doppelte Kante', () => {
+        expect(spec.windows.length).toBeGreaterThan(0);
+        const edges = spec.windows.map((win) => `${win.x}:${win.z}:${win.dir}`);
+        expect(new Set(edges).size).toBe(edges.length);
+      });
+
+      /**
+       * Zwei Öffnungen in derselben Kachelkante gibt es nicht — und ein
+       * Fenster hinter dem Bücherregal ist von innen nichts und von außen ein
+       * Rätsel.
+       */
+      it('setzt kein Fenster in eine Tür und keines hinter ein Möbel', () => {
+        const taken = new Set(spec.doors.map((door) => `${door.x}:${door.z}:${door.dir}`));
+        for (const room of spec.rooms) {
+          for (const mark of room.marks) taken.add(`${mark.x}:${mark.z}:${mark.dir}`);
+        }
+        for (const win of spec.windows) {
+          expect(taken.has(`${win.x}:${win.z}:${win.dir}`)).toBe(false);
+        }
+      });
+
       it('hängt den Sicherungskasten nicht ins Eingangszimmer', () => {
         expect(spec.fuse.roomId).not.toBe(spec.entryRoom);
         expect(roomAt(spec, spec.fuse.x, spec.fuse.z)?.id).toBe(spec.fuse.roomId);
@@ -166,6 +208,31 @@ describe('Der Grundriss als Kachelgitter', () => {
     const key = tileKey(inner.x, inner.z, 0);
     expect(open.graph.wall(key, inner.dir)?.open).toBe(true);
     expect(shut.graph.wall(key, inner.dir)?.open).toBe(false);
+  });
+
+  /**
+   * **Ein Fenster hält auf wie eine Wand** — und genau darin unterscheidet es
+   * sich von einer Tür.
+   *
+   * Man sieht hindurch und hört mehr als durch die Wand daneben, aber niemand
+   * geht hindurch, und die Drohne fliegt nicht hindurch. Ohne diese Zusage
+   * wäre die Außenwand des Hauses ein Sieb, und „die Haustür ist zu" hieße
+   * nichts mehr.
+   */
+  it('macht aus einem Fenster kein Loch in der Außenwand', () => {
+    const plan = housePlan(spec);
+    for (const win of spec.windows) {
+      const key = tileKey(win.x, win.z, 0);
+      const facts = plan.graph.wall(key, win.dir);
+      expect(facts?.kind).toBe('window');
+      const outside = neighbour(key, win.dir);
+      for (const profile of [HUMAN_PROFILE, DRONE_PROFILE]) {
+        const path = findPath(plan.graph, key, outside, { profile });
+        // Hinaus geht es nur durch die Haustür: Der Weg nach draußen ist
+        // länger als eine Kante, oder es gibt gar keinen.
+        expect(path.tiles.length === 2 && path.complete).toBe(false);
+      }
+    }
   });
 
   it('stellt keinen Baustein in eine Türöffnung', () => {

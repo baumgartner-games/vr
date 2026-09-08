@@ -1,4 +1,5 @@
 import { findPath } from '../nav/navPath';
+import { PLAN_DOOR_H, PLAN_WALL_H } from '../editor/levelPlan';
 import { tileCentreX, tileCentreZ, tileIndexAt, tileKey, type TileKey } from '../nav/navTile';
 import { DRONE_PROFILE } from './plan';
 import type { NavGraph } from '../nav/navGraph';
@@ -31,6 +32,37 @@ import type { NavGraph } from '../nav/navGraph';
 
 /** Wie schnell sie fliegt, in Metern je Sekunde. */
 export const DRONE_SPEED = 3.4;
+
+/**
+ * Wie weit sie über ihre eigene Mitte hinausragt: die Kuppel über dem Rumpf.
+ *
+ * Steht hier, weil die Zahl darunter aus ihr folgt — und weil eine Höhe, die
+ * nur die Welt kennt, sich nicht nachrechnen lässt, ohne three.js zu starten.
+ */
+export const DRONE_CAP = 0.125;
+
+/** Und wie viel Luft zwischen Kuppel und Türsturz bleibt. */
+const DOOR_GAP = 0.12;
+
+/**
+ * **Wie hoch sie schwebt — und die Zahl ist keine, sondern eine Rechnung.**
+ *
+ * Sie hing eine Weile auf 2,15 m, und das waren knapp dreißig Zentimeter zu
+ * viel: Ein Türsturz sitzt bei `PLAN_DOOR_H` (2,10 m), und die Kuppel stand
+ * damit gut fünf Zentimeter *im* Sturz. Im Bild des Piloten schob sich bei
+ * jeder Tür ein Balken von oben herein, und im Haus flog eine Drohne durch den
+ * Rahmen, den sie eigentlich hätte durchqueren sollen. Zu niedrig war die Decke nicht: Ein
+ * Zimmer mit 2,8 m und Türen mit 2,1 m ist ein Haus und kein Fehler.
+ *
+ * Also folgt die Höhe der Tür und nicht dem Gefühl: Oberkante der Kuppel
+ * `DOOR_GAP` unter dem Sturz. Das bleibt deutlich über Augenhöhe — der Grund,
+ * aus dem sie überhaupt hoch fliegt (auf 1,80 m stand im Bild eine Stuhllehne
+ * vor dem halben Zimmer) — und passt trotzdem durch jede Tür des Hauses.
+ */
+export const DRONE_Y = PLAN_DOOR_H - DRONE_CAP - DOOR_GAP;
+
+/** Die Decke, unter der das alles passieren muss — nur zum Nachrechnen. */
+export const DRONE_ROOF = PLAN_WALL_H;
 
 /**
  * Wie schnell sie sich dreht, in Bogenmaß je Sekunde.
@@ -287,6 +319,19 @@ export function turnTowards(yaw: number, want: number, most: number): number {
   const turn = shortestTurn(yaw, want);
   if (Math.abs(turn) <= most) return want;
   return yaw + Math.sign(turn) * most;
+}
+
+/**
+ * Derselbe Winkel, aber zwischen −π und π.
+ *
+ * Der Blick des Piloten dreht **ganz** herum, seit die alte Sperre bei gut
+ * zwei Dritteln einer halben Umdrehung weg ist — und ein Winkel, der immer
+ * weiter wächst, ist nach dem dritten Wisch eine Zahl, mit der weder die
+ * Anzeige noch der Empfänger etwas anfangen kann. Gedreht wird also im Kreis
+ * und nicht auf einer Geraden.
+ */
+export function wrapAngle(yaw: number): number {
+  return shortestTurn(0, yaw);
 }
 
 /** Der kürzere der beiden Bögen zwischen zwei Winkeln, in Bogenmaß. */

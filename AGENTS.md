@@ -104,7 +104,14 @@ Haunting-Drohne** (`src/worlds/haunting/droneRoute.ts` — und zwar nicht der
 Aufruf der Wegsuche, sondern der **Flug**: Ein Weg wird ganz abgeflogen, und
 dabei darf die Bahn nie eine Wand kreuzen; dazu die Gegenprobe, dass es
 überhaupt ein Zimmer gibt, für das die Luftlinie durch eine Wand ginge — sonst
-wäre der Test auch für eine Drohne grün, die einfach geradeaus fliegt), der
+wäre der Test auch für eine Drohne grün, die einfach geradeaus fliegt; dazu
+ihre **Flughöhe**, die mit Kuppel und allem unter den Türsturz passen muss und
+trotzdem über Augenhöhe bleibt, und der **Blickwinkel**, der ganz herumgeht
+und dabei im Kreis läuft statt weiterzuwachsen), die **Fenster des
+Haunting-Hauses** (`src/worlds/haunting/house.ts` — dass jedes in einer
+Außenwand sitzt und keines in einer Tür oder hinter einem Möbel, und dass es
+im Graphen aufhält wie eine Wand: durch ein Fenster geht niemand nach
+draußen), der
 **Ausschnitt des Haunting-Archivars** (`src/worlds/haunting/archiveView.ts` —
 dass im ganzen Blatt gar nicht verschoben wird, dass der Ausschnitt genau bis
 an den Blattrand wandert und beim Herauszoomen wieder hereingezogen wird: die
@@ -7535,6 +7542,10 @@ träfe dann auf sieben Zimmer zu. Also:
   Fotoalbum liegt bei dem Klavier" kann man weitersagen, eine Kachelkoordinate
   nicht.
 - Ein Zimmer im Haus hat **keine Lampe** und bleibt auf jeder Stufe dunkel.
+- **Jedes Zimmer bekommt ein Fenster nach draußen**, eines oder zwei, nie
+  zwischen zwei Zimmern. Es ist die einzige Stelle, an der im Dunkeln etwas
+  steht, das nicht im Lichtkegel liegt — und damit ein Anhaltspunkt, den man
+  aussprechen kann: „ich sehe den Van".
 
 **Die Beschriftungen der Schalttafel lügen nie, sie sind nur unvollständig**
 (`haunting/panel.ts`, mit Test). `Licht Küche` schaltet immer das Licht der
@@ -7641,10 +7652,22 @@ Sperre von vor drei Minuten und eine Lampe, die sich nicht erholt hat.
 three.js-Kamera von der Stange schaut aber nach −Z. Ohne die halbe Drehung
 flog der Pilot rückwärts durch das Haus, und mit dem Scheinwerfer leuchtete
 der auch noch hinter ihm her. Sie sitzt außerdem knapp *vor* dem Rumpf: Sonst
-füllt die eigene Lampenkuppel das Bild. Und sie schwebt auf **2,15 m** unter
-einer 2,8 m hohen Decke: Auf Augenhöhe des VR-Spielers stand im Bild des
-Piloten eine Stuhllehne vor dem halben Zimmer, und aus der Übersicht, für die
-man eine Drohne fliegt, wurde ein zweites Paar Augen auf derselben Höhe.
+füllt die eigene Lampenkuppel das Bild.
+
+**Ihre Flughöhe ist keine Zahl, sondern eine Rechnung** (`droneRoute.DRONE_Y`,
+mit Test). Sie hing auf 2,15 m, und der Türsturz sitzt auf 2,10 m
+(`PLAN_DOOR_H`): Die Kuppel stand damit im Sturz, im Bild des Piloten schob
+sich bei jeder Tür ein Balken von oben herein, und im Haus flog eine Drohne
+durch den Rahmen statt hindurch. Zu niedrig waren weder Tür noch Decke — ein
+Zimmer mit 2,8 m und Türen mit 2,1 m ist ein Haus. Also folgt die Höhe der
+Tür: Oberkante der Kuppel (`DRONE_CAP`) zwölf Zentimeter unter dem Sturz, das
+sind 1,855 m. Das ist immer noch deutlich über Augenhöhe — der Grund, aus dem
+sie überhaupt hoch fliegt: Auf 1,80 m stand im Bild des Piloten eine
+Stuhllehne vor dem halben Zimmer, und aus der Übersicht, für die man eine
+Drohne fliegt, wurde ein zweites Paar Augen auf derselben Höhe. Der Test
+rechnet beide Grenzen nach, denn einer Zahl sieht man nicht an, dass sie fünf
+Zentimeter im Sturz steckt — man sieht es erst in der Brille, und dann sucht
+man den Fehler bei der Decke.
 
 **Der Öffnungswinkel hängt an der Form des Bildes** (`droneRoute.droneFov`, mit
 Test). `THREE.PerspectiveCamera.fov` ist der **senkrechte** Winkel, und das ist
@@ -7662,14 +7685,30 @@ Bahn kommt weiter aus der Wegsuche. Andersherum wäre das Wischen eine zweite
 Steuerung, die gegen die Wegsuche arbeitet, und die eine Regel, an der hier
 alles hängt („sie fliegt keine Luftlinie"), wäre durch eine Fingerbewegung
 ausgehebelt. Gedreht wird in derselben Richtung wie mit der Maus im Fenster
-(`core/FlatControls.ts`), begrenzt auf gut zwei Drittel einer halben Umdrehung,
-und ein Tipp auf den Stock stellt wieder geradeaus — er leuchtet, solange der
-Blick daneben steht, sonst sucht der Pilot ein Zimmer, das hinter ihm liegt,
-und hält die Drohne für kaputt.
+(`core/FlatControls.ts`), und ein Tipp auf den Stock stellt wieder geradeaus —
+er leuchtet, solange der Blick daneben steht, sonst sucht der Pilot ein Zimmer,
+das hinter ihm liegt, und hält die Drohne für kaputt.
+
+**Und zwar ganz herum.** Der Winkel hatte einen Anschlag bei gut zwei Dritteln
+einer halben Umdrehung, gedacht als Schutz gegen den verlorenen Horizont — in
+Wahrheit war es eine Drohne, die sich nicht umdrehen kann: Wer wissen will, ob
+hinter ihr etwas steht, kam nicht hin, und das ist in diesem Haus die Frage,
+die am häufigsten gestellt wird. Der Anschlag ist weg, der Winkel läuft
+stattdessen im Kreis (`droneRoute.wrapAngle`, mit Test) — eine Zahl, die mit
+jedem Wisch weiterwächst, ist nach einer Minute eine, an der weder der
+leuchtende Blickstock noch der Empfänger im Haus etwas ablesen kann.
+
+**Beim Losfliegen schaut sie von selbst wieder nach vorn** — und nur dann
+(`setDroneTarget`). Wer gerade nach hinten geschaut hat und dann ein Zimmer
+antippt, flöge sonst rückwärts los und sähe von seinem eigenen Flug die Wand,
+die hinter ihm wegzieht. Zurückgestellt wird ausschließlich im Moment des
+Starts: Ein Blick, den die Welt laufend geradezieht, ist kein Blick, sondern
+ein Gummiband — sobald sie fliegt, gehört der Kopf wieder dem Piloten.
 
 **Nach oben und unten kippt eine Wiege**, nicht der Rumpf. Kuppel, Scheinwerfer
 und Kamera hängen an einem gemeinsamen Kopf, und derselbe Wisch, der waagerecht
-dreht, kippt senkrecht (±54°, `TILT_MOST`). Ein Kopter, der sich zum
+dreht, kippt senkrecht (±81°, `TILT_MOST`, also fast senkrecht — über den
+Scheitel hinaus stünde das Bild auf dem Kopf). Ein Kopter, der sich zum
 Hochschauen selbst auf den Rücken legt, sähe für den VR-Spieler nach Absturz
 aus und drehte seine Positionslampe mit; und eine Drohne, die nur waagerecht
 schwenkt, findet nie, was unter dem Tisch liegt oder über der Tür hängt. Der
@@ -7692,7 +7731,7 @@ neu ans Gerät setzt, schaut geradeaus: Der Winkel des Vorgängers steckt schon
 in der Drehung des Rumpfes, und ein zweites Mal daraufgerechnet stünde sie
 quer.
 
-**Sie startet draußen, über dem Van** (`house.DRONE_HOME`), mit dem Haus im
+**Sie startet draußen, neben dem Van** (`house.DRONE_HOME`), mit dem Haus im
 Bild und brennendem Scheinwerfer. Vorher parkte sie im Zimmer hinter der
 Haustür: Der Pilot setzte sich hin, sah ein dunkles Zimmer und wusste weder,
 wo er ist, noch wohin. Damit es für die Wegsuche ein Draußen gibt, gehört der
@@ -7701,7 +7740,12 @@ Van) — Boden ohne Wände, angeschlossen durch die Haustür. „Zurück zum Van
 damit kein Sonderfall, sondern derselbe Flug wie jeder andere, samt der Tür,
 die zu sein kann; der Test dazu fliegt beides ab und macht als Gegenprobe die
 Haustür zu. Sie steht auf der **hinteren** der beiden Reihen: aus der vorderen
-stünde die Hauswand anderthalb Meter vor der Linse.
+stünde die Hauswand anderthalb Meter vor der Linse. Und eine Kachel **neben**
+dem Tisch statt darüber: Direkt über den vier Monitoren füllten die im ersten
+Bild des Piloten die halbe untere Hälfte — vier bunte Scheiben statt des
+Hauses, auf das er schauen soll. Auf dem Vorplatz liegt dort, wo sie steht,
+ein Ring (`HauntingWorld.buildPad`), sonst wäre der Hangar eine Zahl in einer
+Datei und im Haus wüsste niemand, was „zurück zum Van" für eine Stelle ist.
 
 **Am Van hängt sie am Kabel** (`droneRoute.lampAfter(…, home)`): Der
 Scheinwerfer zehrt dort überhaupt nicht und lädt dreimal so schnell
@@ -7710,6 +7754,44 @@ freiwillig zurückfliegt, statt mit halber Ladung weiterzustochern — ohne den
 Unterschied wäre der Knopf einer, den niemand drückt. Bezahlt wird er mit der
 Wechselsperre: Zurück und wieder hinein sind zwei Zimmerwechsel, in denen
 niemand im Haus etwas sieht.
+
+**Draußen ist Abend, drinnen bleibt es dunkel — und dazwischen stehen
+Fenster.** Drei Sachen, die zusammengehören, weil keine davon allein etwas
+taugt:
+
+- **Der Himmel ist Dämmerungsblau** (`skyColor`, dazu ein Nebel in derselben
+  Farbe statt in Schwarz). Er kostet nichts und kommt trotzdem überall an: Er
+  steht hinter dem Haus, wenn man davorsteht, und er ist das, was in einem
+  Fenster steht, wenn man drinnen davor steht. Eine schwarze Scheibe in einer
+  schwarzen Wand ist kein Fenster.
+- **Das Haus hat Fenster in den Außenwänden** (`house.placeWindows`, mit Test;
+  gesetzt werden sie in `plan.ts` nach den Wänden, weil sie eine Kante
+  ersetzen, die schon steht). Je Zimmer eines oder zwei, nie zwischen zwei
+  Zimmern: Ein Fenster nach innen wäre eine zweite Sorte Tür, durch die man
+  sieht, und damit ein Grundriss, den keine Station mehr beschreiben kann.
+  Nach draußen ist es dagegen eine **Sprache mehr für den im Haus** — „ich
+  sehe den Van" sagt dem Späher, an welcher Wand jemand klebt. Sie halten auf
+  wie eine Wand (auch die Drohne, `wallState`), lassen aber Sicht und Geräusch
+  durch; frei bleiben die Kante der Haustür und jede, an der ein Möbel mit dem
+  Rücken steht.
+- **Die Abendsonne ist in Wahrheit eine Leuchte über dem Vorplatz**
+  (`HauntingWorld.buildDusk`). Eine richtige Sonne wäre ein
+  `DirectionalLight`, und das scheint ohne Schattenkarte **durch das Dach** —
+  Schatten gibt es nur in der Stufe „Comic", ausgeliefert wird „Einfach"
+  (`core/graphicsSettings.ts`). Eine Sonne, die in der Auslieferung das halbe
+  Haus aufhellt, nimmt diesem Spiel das Einzige, worauf es steht. Also hängt
+  dort ein warmer Scheinwerfer aus Südwesten, dessen **Reichweite** ein paar
+  Meter hinter der Hauswand endet: Der Vorplatz, der Van und die Fassade sind
+  beleuchtet, im Zimmer hinter der Haustür bleibt ein Rest, der aussieht wie
+  das, was er sein soll — Licht, das durch Tür und Fenster hereinfällt —, und
+  im zweiten Zimmer ist nichts mehr davon übrig.
+
+**Am Van sitzen vier Leute, und man sieht ihre Plätze** (`buildVan`): vier
+Hocker in den vier Stationsfarben hinter dem Tisch, je einer vor seinem
+Monitor. Am Tisch wird zugerufen und nicht gelesen; „ich hab den grünen" ist
+eine Ansage, und im Haus ist der grüne Hocker die Stelle, an der jemand sitzt.
+Der VR-Spieler fängt zwischen Tisch und Hockern an, mit dem Haus vor sich
+(`spawnPoint`).
 
 **Das Monster geht trotzdem nicht mit hinaus.** Der Vorplatz ist begehbar, also
 liefe es dem Spieler ohne Weiteres bis an den Van nach — und der Van ist die

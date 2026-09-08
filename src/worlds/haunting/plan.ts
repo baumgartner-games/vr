@@ -42,6 +42,16 @@ export function housePlan(spec: HouseSpec, shut: ReadonlySet<string> = new Set()
     plan.door(door.x, door.z, door.dir, 0, !shut.has(door.id));
   }
 
+  // **Die Fenster kommen nach den Wänden.** Sie ersetzen eine Kante, die schon
+  // steht — wer sie vorher setzte, bekäme sie von `plan.room(…, { walls: true })`
+  // wieder zugemauert. Sie halten auf wie eine Wand (auch die Drohne), lassen
+  // aber Sicht und Geräusch durch, und genau daran hängt, wozu sie hier gut
+  // sind: Wer im dunklen Haus steht, sieht darin das Abendlicht über dem
+  // Vorplatz und weiß, an welcher Seite des Hauses er klebt.
+  for (const win of spec.windows) {
+    plan.window(win.x, win.z, win.dir);
+  }
+
   for (const room of spec.rooms) {
     for (const mark of room.marks) plan.put(blockFor(mark.id), mark.x, mark.z, mark.dir);
   }
