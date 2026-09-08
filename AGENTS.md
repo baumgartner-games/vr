@@ -70,7 +70,13 @@ ist ihre eigene Umkehrung), die **Flugmathematik der Drohne**
 Vorzeichen, die im Headset sonst die halbe Welt verdrehen, und das Tuning aus
 Tempo und Drehrate), die **Drohnen-Einstellungen**
 (`src/worlds/portal/tools/droneSettings.ts` — Rasten, Grenzen und der Fall,
-dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die Handhaltung
+dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die **Bahn der
+Haunting-Drohne** (`src/worlds/haunting/droneRoute.ts` — und zwar nicht der
+Aufruf der Wegsuche, sondern der **Flug**: Ein Weg wird ganz abgeflogen, und
+dabei darf die Bahn nie eine Wand kreuzen; dazu die Gegenprobe, dass es
+überhaupt ein Zimmer gibt, für das die Luftlinie durch eine Wand ginge — sonst
+wäre der Test auch für eine Drohne grün, die einfach geradeaus fliegt), die
+Handhaltung
 (`src/core/handPose.ts` — samt der ausgelieferten Grundhaltung und ihrer
 Spiegelung auf die linke Hand), der **Versatz, mit dem eine bloße Hand hält**
 (`src/core/handHold.ts` — die Spiegelung auf die andere Hand und vor allem,
@@ -7466,7 +7472,7 @@ die anderen drei wären Deko.
 | --- | --- | --- |
 | **Archiv** | ein Zimmer je Seite: Möbel, Türen, Lampe, Sicherungskasten | alles, was sich bewegt — und die Nachbarzimmer |
 | **Späher** | Wände und einen Punkt, dem Monster nachgeführt | Namen, Möbel, den VR-Spieler |
-| **Drohne** | ein Zimmer vollständig, in Farbe | alles außerhalb; macht keine Tür auf |
+| **Drohne** | ein Zimmer vollständig, in Farbe, im eigenen Scheinwerfer | alles außerhalb; macht keine Tür auf |
 | **Schalttafel** | Schalter mit schlechten Beschriftungen | den Grundriss, überhaupt |
 
 **Eine Quelle, viele Projektionen.** Über die Leitung geht der **Same** und
@@ -7541,9 +7547,70 @@ was der VR-Spieler und der Hacker offen gelassen haben — Abhängigkeit in beid
 Richtungen, ohne eine einzige Sonderregel. Ihren Weg sucht sie zweimal je
 Sekunde neu: Der Hacker macht Türen zu, *während* sie unterwegs ist.
 
+**Sie fliegt nicht die Luftlinie, und das steht in einer eigenen Datei**
+(`haunting/droneRoute.ts`, mit Test). Der Pilot tippt ein Zimmer an, und was
+dann passiert, ist eine Wegsuche im Navigationsgraphen und kein Zusteuern auf
+einen Punkt — der Unterschied ist der ganze Rest des Spiels: Eine Drohne, die
+auf das angetippte Zimmer zuhält, fliegt durch die Wand, und dann ist die
+geschlossene Tür Kulisse und der Hacker Deko. Drei Entscheidungen darin:
+
+- **Kachelmitten statt Schnurzug.** Für die NPCs zieht `navPath.pullString`
+  den Weg gerade, weil ein Zombie, der Ecken mitnimmt, besser aussieht. Hier
+  ist das Gegenteil richtig: Die Strecke zwischen zwei Kachelmitten liegt
+  *beweisbar* in diesen beiden Kacheln — der Test fliegt einen Weg ganz ab und
+  schaut nach, dass die Bahn nie eine Wand kreuzt —, während eine geglättete
+  Abkürzung um eine Ecke an der Wand kratzt.
+- **Gedreht wird nur das Bild.** Der Ort folgt den Wegpunkten, die
+  Blickrichtung dreht mit begrenzter Rate nach, und wer scharf abbiegt, fliegt
+  dabei langsamer. Wer es andersherum baut — erst drehen, dann fliegen —,
+  lässt eine Drohne, die noch quersteht, die Ecke schneiden.
+- **Kein Weg ist eine Ansage und kein Fehler.** `findPath` gibt den besten
+  Teilweg zurück; sie fliegt bis vor die geschlossene Tür und bleibt dort, und
+  die Station sagt es mit Worten: *zwischen hier und dem Ziel ist etwas zu.*
+  Das ist die Zeile, mit der aus einer Wegsuche ein Zuruf in den Van wird.
+
+**Die Drohne hat einen Scheinwerfer, und er gehört allen** (`DroneState.light`,
+über die Leitung). Ein Kegel nach vorn, den der Pilot umlegt — er leuchtet
+sein Kamerabild aus *und* das Zimmer, in dem der VR-Spieler steht. Deshalb
+steht der Drohnenkörper seit Neuestem bei **allen** in der Szene und nicht nur
+bei den Web-Spielern: Ein Licht, das der Mann im Haus nicht sieht, wäre eine
+Helligkeitseinstellung und keine Hilfe. Es kostet Akku (gut das Dreifache des
+Flugverbrauchs, `droneRoute.drainRate`), damit der Knopf eine Entscheidung
+bleibt und nicht einfach immer an ist.
+
+**Ihre Kamera schaut nach vorn, und „vorn" ist +Z.** Der Gierwinkel ist
+`atan2(dx, dz)`, damit zeigt die lokale +Z-Achse in die Flugrichtung — eine
+three.js-Kamera von der Stange schaut aber nach −Z. Ohne die halbe Drehung
+flog der Pilot rückwärts durch das Haus, und mit dem Scheinwerfer leuchtete
+der auch noch hinter ihm her. Sie sitzt außerdem knapp *vor* dem Rumpf: Sonst
+füllt die eigene Lampenkuppel das Bild.
+
 **Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
 Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
-zusammenschiebt, nie. Zwei Sichten kommen aus der Welt (Archiv und Drohne, als
+zusammenschiebt, nie. Sechs Sachen, die dabei nicht Geschmack sind:
+
+- **Jede Station hat eine Farbe, und es ist ihre** (`--haunt-accent` über
+  `data-station` am Wurzelelement) — dieselben vier Töne, die im Haus auf den
+  Monitoren des Vans leuchten. Am Tisch wird zugerufen und nicht gelesen; „ich
+  hab den grünen" ist eine Ansage, „ich hab die dritte Kachel von oben" nicht.
+- **Der Auftragsstreifen hat ein Feld je Sache und drei Zustände** — noch im
+  Haus, in der Hand, im Van. `0/3` sagt nicht, dass eine davon gerade beim
+  VR-Spieler liegt, und genau das ist am Tisch die Frage, die gestellt wird.
+- **Quer gehaltenes Telefon bekommt zwei Spalten** (Bild links, Bedienung
+  rechts). Hochkant bleibt unter 40 vh Bild genug für die Liste, quer nicht,
+  und dann tippt der Pilot blind.
+- **Der Späherschirm hängt an der Pixeldichte** und nicht an einer festen
+  Zahl. Ausgerechnet bei ihm ist ein verwaschener Strich kein
+  Schönheitsfehler, sondern die Auskunft — er hat nichts als Konturen.
+- **`overscroll-behavior: contain` auf der Liste.** Ein Zug am Ende der Seite
+  lädt sonst auf dem Telefon neu, und das ist mitten in einer Runde ein
+  Spielabbruch.
+- **Kein `font: inherit` auf `.haunt button`.** Diese Regel hat eine Klasse
+  plus ein Element und schlägt jede `font-size` darunter, die nur eine Klasse
+  hat: Jeder Knopf bekäme die Schriftgröße der Kopfzeile. Vererbt wird die
+  Schriftart, die Größe setzt jeder Knopf selbst.
+
+Zwei Sichten kommen aus der Welt (Archiv und Drohne, als
 Kamera in ein Loch im Overlay gezeichnet — `HauntingWorld.render` mit
 Scherenschnitt), zwei zeichnet die Oberfläche selbst (Späher als 2D-Konturen,
 Tafel ganz ohne Haus). Der Archivar bekommt sein eigenes Licht und einen

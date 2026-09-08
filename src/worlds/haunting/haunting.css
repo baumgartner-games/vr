@@ -6,6 +6,11 @@
  * ein zusammengeschobenes Laptop-Layout auf einem Telefon immer ein
  * zusammengeschobenes Laptop-Layout bleibt.
  *
+ * **Eine Farbe je Station** (`--haunt-accent`, gesetzt über `data-station` am
+ * Wurzelelement). Dieselben vier Töne leuchten im Haus auf den Monitoren des
+ * Vans — am Tisch wird zugerufen und nicht gelesen, und „ich hab den grünen"
+ * ist eine Ansage.
+ *
  * `.haunt__view` ist mit Absicht **durchsichtig**: Dort zeichnet die Welt ihr
  * Bild direkt in die Leinwand darunter (`HauntingWorld.render`). Was hier
  * steht, ist nur das Loch samt Rahmen.
@@ -14,6 +19,18 @@
  */
 
 .haunt {
+  --haunt-ink: #e8ecf7;
+  --haunt-dim: #97a3bd;
+  --haunt-faint: #6b7690;
+  --haunt-line: rgba(140, 170, 230, 0.2);
+  --haunt-line-strong: rgba(140, 170, 230, 0.42);
+  --haunt-card: rgba(18, 24, 40, 0.92);
+  --haunt-card-hi: rgba(28, 38, 62, 0.95);
+  --haunt-back: rgba(6, 9, 16, 0.96);
+  --haunt-bar: rgba(9, 13, 24, 0.96);
+  --haunt-warn: #ffc857;
+  --haunt-accent: #7f93b8;
+
   position: fixed;
   inset: 0;
   display: flex;
@@ -26,15 +43,58 @@
    */
   z-index: 3;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--fg, #e8ecf7);
+  color: var(--haunt-ink);
   pointer-events: none;
 }
 
 .haunt > * { pointer-events: auto; }
 
+/* Vier Stationen, vier Töne — dieselben wie auf den Monitoren im Van. */
+.haunt[data-station="archive"] { --haunt-accent: #ffc857; }
+.haunt[data-station="scout"] { --haunt-accent: #ff6b6b; }
+.haunt[data-station="drone"] { --haunt-accent: #5ee0a0; }
+.haunt[data-station="hack"] { --haunt-accent: #4aa8ff; }
+
+.haunt [data-accent="archive"] { --haunt-accent: #ffc857; }
+.haunt [data-accent="scout"] { --haunt-accent: #ff6b6b; }
+.haunt [data-accent="drone"] { --haunt-accent: #5ee0a0; }
+.haunt [data-accent="hack"] { --haunt-accent: #4aa8ff; }
+
 /* Im Van wird nicht gelaufen: Der Touch-Stick des Handys hätte hier nichts zu
    steuern und läge quer über der Schalttafel. */
 body.haunt-on .touch { display: none; }
+
+/* Ein Doppeltipp auf einem Schalter soll ihn zweimal umlegen und nicht die
+   Seite zoomen — und die graue Blitzfläche von Android gehört hier nicht hin.
+
+   Hier steht mit Absicht **kein** `font: inherit`: Diese Zeile hat eine
+   Klasse plus ein Element und schlägt damit jede Regel darunter, die nur eine
+   Klasse hat — jeder Knopf bekäme die Schriftgröße der Kopfzeile, und keine
+   `font-size` an `.haunt__cell` käme je an. Vererbt wird die Schriftart, die
+   Größe setzt jeder Knopf selbst. */
+.haunt button {
+  font-family: inherit;
+  font-weight: inherit;
+  line-height: 1.35;
+  color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.haunt button:focus-visible {
+  outline: 2px solid var(--haunt-accent);
+  outline-offset: 2px;
+}
+
+.haunt button:active { transform: translateY(1px); }
+.haunt button[disabled] { opacity: 0.45; cursor: default; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .haunt *, .haunt *::before, .haunt *::after { transition: none !important; }
+}
+
+/* --- Kopfzeile --- */
 
 .haunt__bar {
   display: flex;
@@ -42,76 +102,258 @@ body.haunt-on .touch { display: none; }
   gap: 10px;
   /* Oben schwebt das HUD der Seite (Menü, Verbindung, VR). Es bekommt seinen
      Streifen, statt sich mit der Zeile hier zu überlagern. */
-  padding: calc(14px + max(46px, env(safe-area-inset-top))) 12px 10px;
-  background: rgba(8, 12, 22, 0.92);
-  border-bottom: 1px solid rgba(140, 170, 230, 0.22);
+  padding: calc(12px + max(46px, env(safe-area-inset-top))) 12px 10px;
+  background: var(--haunt-bar);
+  border-bottom: 1px solid var(--haunt-line);
 }
 
-.haunt__where { font-weight: 700; font-size: 15px; }
-.haunt__task { color: #8e9ab8; font-size: 12px; margin-left: auto; }
+.haunt__where {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  /* Der Punkt in der Farbe der Station, links am Namen. */
+  padding-left: 14px;
+  position: relative;
+}
 
-.haunt__jump {
-  border: 1px solid rgba(140, 170, 230, 0.3);
-  background: rgba(20, 28, 46, 0.9);
-  color: inherit;
-  border-radius: 8px;
+.haunt__where::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--haunt-accent);
+  box-shadow: 0 0 10px var(--haunt-accent);
+}
+
+.haunt__where strong { font-size: 16px; letter-spacing: 0.01em; }
+.haunt__where small {
+  font-size: 11px;
+  color: var(--haunt-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.haunt__state {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--haunt-dim);
+  border: 1px solid var(--haunt-line);
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+/* Wenn das Monster läuft, ist das die wichtigste Zeile auf dem Schirm. */
+.haunt__state.is-hot {
+  color: #ffd0d0;
+  border-color: rgba(255, 90, 90, 0.55);
+  background: rgba(90, 20, 24, 0.55);
+}
+
+.haunt__back {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 40px;
+  border: 1px solid var(--haunt-line-strong);
+  background: rgba(24, 32, 52, 0.9);
+  border-radius: 10px;
   padding: 8px 12px;
-  font: inherit;
   font-size: 13px;
 }
 
+.haunt__back-icon { color: var(--haunt-accent); font-size: 11px; }
+
+/* --- Auftragsstreifen --- */
+
+.haunt__quest {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  background: rgba(12, 17, 30, 0.96);
+  border-bottom: 1px solid var(--haunt-line);
+  font-size: 11px;
+  color: var(--haunt-faint);
+}
+
+.haunt__quest-label { letter-spacing: 0.1em; text-transform: uppercase; }
+.haunt__quest-count { margin-left: auto; color: var(--haunt-dim); }
+.haunt__pips { display: flex; gap: 4px; flex: 1; max-width: 220px; }
+
+.haunt__pip {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(140, 170, 230, 0.16);
+}
+
+/* In der Hand des VR-Spielers: unterwegs, aber noch nicht angekommen. */
+.haunt__pip.is-held { background: var(--haunt-warn); opacity: 0.75; }
+.haunt__pip.is-done { background: #5ee0a0; }
+
 /* Das Loch, durch das die Welt zu sehen ist. */
 .haunt__view {
-  height: 42vh;
-  min-height: 180px;
-  border-bottom: 1px solid rgba(140, 170, 230, 0.22);
+  height: 40vh;
+  min-height: 170px;
+  border-bottom: 1px solid var(--haunt-line);
   pointer-events: none;
 }
 
 .haunt__body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 12px 28px;
-  background: rgba(6, 9, 16, 0.94);
+  /* Ein Zug am Ende der Liste soll nicht die Seite neu laden — auf einem
+     Telefon ist das mitten in einer Runde ein Spielabbruch. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+  background: var(--haunt-back);
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .haunt__h {
-  margin: 8px 0 2px;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #8e9ab8;
+  color: var(--haunt-faint);
 }
 
-.haunt__note { margin: 0; font-size: 13px; color: #b9c3da; line-height: 1.45; }
-.haunt__note--warn { color: #ffc857; }
-.haunt__tag { font-size: 11px; color: #8e9ab8; }
-.haunt__blind { font-size: 11px; color: #6b7690; }
-.haunt__who { font-size: 12px; color: #4aa8ff; }
+.haunt__h-aside {
+  margin-left: auto;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--haunt-faint);
+}
+
+/* --- Hinweiskacheln: drei Töne, nicht fünf --- */
+
+.haunt__note {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--haunt-line);
+  border-left: 3px solid var(--haunt-line-strong);
+  background: rgba(14, 19, 32, 0.9);
+  font-size: 13px;
+  line-height: 1.45;
+  color: #b9c3da;
+}
+
+.haunt__note strong { font-size: 13px; color: var(--haunt-ink); }
+.haunt__note.is-live { border-left-color: var(--haunt-accent); }
+.haunt__note.is-warn { border-left-color: var(--haunt-warn); }
+.haunt__note.is-warn strong { color: var(--haunt-warn); }
+
+.haunt__tag { font-size: 11px; color: var(--haunt-dim); line-height: 1.4; }
+.haunt__blind { font-size: 11px; color: var(--haunt-faint); line-height: 1.4; }
+
+.haunt__chip {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--haunt-faint);
+  border: 1px solid var(--haunt-line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.haunt__chip--here { color: #0b1a14; background: var(--haunt-accent); border-color: transparent; }
+.haunt__chip--go { color: var(--haunt-accent); border-color: var(--haunt-accent); }
+
+/* Ein Balken, der sich füllt — Anmarsch, Akku, was auch immer. */
+.haunt__rail {
+  display: block;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(140, 170, 230, 0.16);
+  overflow: hidden;
+}
+
+.haunt__rail i {
+  display: block;
+  height: 100%;
+  background: var(--haunt-accent);
+  transition: width 0.18s linear;
+}
 
 /* --- die Geräte im Van --- */
 
 .haunt__tile {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
+  font-size: 13px;
   text-align: left;
-  padding: 12px 14px;
+  padding: 12px 14px 12px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(140, 170, 230, 0.22);
-  background: rgba(16, 22, 38, 0.9);
-  color: inherit;
-  font: inherit;
+  border: 1px solid var(--haunt-line);
+  border-left: 4px solid var(--haunt-accent);
+  background: var(--haunt-card);
 }
 
-.haunt__tile.is-mine { border-color: #4aa8ff; background: rgba(24, 44, 74, 0.9); }
-.haunt__tile.is-taken { opacity: 0.62; }
-.haunt__tile strong { font-size: 15px; }
+.haunt__tile-head { display: flex; align-items: center; gap: 8px; }
+.haunt__tile-head strong { font-size: 16px; }
+.haunt__tile.is-mine { background: var(--haunt-card-hi); border-color: var(--haunt-accent); }
+.haunt__tile.is-taken { opacity: 0.6; }
+.haunt__tile.is-coming { opacity: 1; }
+
+.haunt__seat {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--haunt-faint);
+  border: 1px solid var(--haunt-line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.haunt__seat.is-mine { color: #06121b; background: var(--haunt-accent); border-color: transparent; }
+.haunt__seat.is-taken { color: var(--haunt-dim); }
 
 /* --- Archiv --- */
+
+.haunt__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
+}
+
+.haunt__task-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: #b9c3da;
+}
+
+.haunt__task-row strong { color: var(--haunt-ink); }
+.haunt__task-row span:nth-child(2) { flex: 1; min-width: 0; }
+.haunt__task-row.is-done { color: var(--haunt-faint); }
+.haunt__task-row.is-done strong { color: #5ee0a0; text-decoration: line-through; }
+.haunt__task-row.is-held strong { color: var(--haunt-warn); }
 
 .haunt__rooms { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -119,60 +361,160 @@ body.haunt-on .touch { display: none; }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 12px;
+  min-height: 44px;
+  padding: 9px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(140, 170, 230, 0.22);
-  background: rgba(16, 22, 38, 0.9);
-  color: inherit;
-  font: inherit;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
   font-size: 13px;
 }
 
-.haunt__room.is-open { border-color: #ffc857; color: #ffe1a3; }
-.haunt__twin { font-size: 10px; color: #ffc857; }
-.haunt__task-row { margin: 0; font-size: 13px; }
-.haunt__task-row.is-done { color: #5ee0a0; text-decoration: line-through; }
+.haunt__room.is-open {
+  border-color: var(--haunt-accent);
+  color: #ffe1a3;
+  background: var(--haunt-card-hi);
+}
+
+.haunt__twin { font-size: 10px; color: var(--haunt-warn); }
+
+.haunt__sheet {
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
+  overflow: hidden;
+}
+
+.haunt__fact {
+  display: flex;
+  gap: 12px;
+  padding: 9px 12px;
+  font-size: 13px;
+  border-top: 1px solid rgba(140, 170, 230, 0.1);
+}
+
+.haunt__fact:first-child { border-top: none; }
+.haunt__fact.is-warn { color: var(--haunt-warn); }
+.haunt__fact-key { flex: none; width: 84px; color: var(--haunt-faint); font-size: 12px; }
+.haunt__fact-value { flex: 1; color: #cbd4e6; }
+.haunt__fact.is-warn .haunt__fact-value { color: var(--haunt-warn); }
 
 /* --- Späher --- */
 
-.haunt__scout {
-  width: 100%;
-  max-width: 320px;
-  aspect-ratio: 1;
+.haunt__radar {
+  position: relative;
   align-self: center;
+  width: 100%;
+  max-width: 340px;
+}
+
+.haunt__scout {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 12px;
-  border: 1px solid rgba(140, 170, 230, 0.22);
+  border: 1px solid var(--haunt-line);
+  background: #070a10;
+}
+
+.haunt__radar-empty {
+  position: absolute;
+  inset: auto 0 12px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--haunt-faint);
 }
 
 /* --- Drohne --- */
 
-.haunt__battery {
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(140, 170, 230, 0.18);
-  overflow: hidden;
+/*
+ * Akku und Scheinwerfer stehen nebeneinander und nicht untereinander: Der
+ * Pilot hat auf einem Telefon oben ein Kamerabild und unten die Zimmerliste,
+ * und alles dazwischen ist Weg, den er scrollen muss, bevor er fliegen kann.
+ */
+.haunt__cockpit { display: grid; gap: 8px; }
+
+.haunt__gauge {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
 }
 
-.haunt__battery span { display: block; height: 100%; background: #5ee0a0; }
+.haunt__gauge-num { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.haunt__gauge .haunt__tag { grid-column: 1 / -1; }
+.haunt__gauge.is-low { --haunt-accent: var(--haunt-warn); }
+.haunt__gauge.is-flat { --haunt-accent: #ff6b6b; }
+
+.haunt__lamp {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 1px 11px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--haunt-line-strong);
+  background: var(--haunt-card);
+  font-size: 13px;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.haunt__lamp-bulb {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--haunt-line-strong);
+  font-size: 15px;
+  color: var(--haunt-dim);
+}
+
+.haunt__lamp-text { font-size: 14px; font-weight: 600; }
+
+.haunt__lamp.is-on {
+  border-color: #ffe6a8;
+  background: rgba(60, 50, 22, 0.9);
+  box-shadow: 0 0 22px rgba(255, 224, 150, 0.16);
+}
+
+.haunt__lamp.is-on .haunt__lamp-bulb {
+  color: #23180a;
+  background: #ffe6a8;
+  border-color: #ffe6a8;
+  box-shadow: 0 0 16px rgba(255, 224, 150, 0.55);
+}
+
+.haunt__lamp.is-on .haunt__lamp-text { color: #ffe6a8; }
 
 .haunt__map { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 
 .haunt__cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px;
+  gap: 3px;
+  padding: 11px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(140, 170, 230, 0.22);
-  background: rgba(16, 22, 38, 0.9);
-  color: inherit;
-  font: inherit;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
   font-size: 13px;
   text-align: left;
+  min-height: 62px;
 }
 
-.haunt__cell.is-target { border-color: #5ee0a0; }
-.haunt__cell.is-here { background: rgba(24, 58, 44, 0.9); }
+.haunt__cell-head { display: flex; align-items: center; gap: 6px; }
+.haunt__cell-head span:first-child { flex: 1; min-width: 0; }
+.haunt__cell.is-target { border-color: var(--haunt-accent); }
+.haunt__cell.is-here { background: rgba(24, 58, 44, 0.92); border-color: rgba(94, 224, 160, 0.5); }
 
 /* --- Schalttafel --- */
 
@@ -180,23 +522,71 @@ body.haunt-on .touch { display: none; }
 
 .haunt__switch {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 16px 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(140, 170, 230, 0.22);
-  background: rgba(16, 22, 38, 0.9);
-  color: inherit;
-  font: inherit;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
   font-size: 14px;
   text-align: left;
+  min-height: 56px;
 }
 
-.haunt__switch.is-on { border-color: #ffc857; background: rgba(58, 46, 20, 0.9); }
+.haunt__switch-label { flex: 1; min-width: 0; }
+
+/* Ein Kippschalter statt der Wörter „an" und „aus": Auf einer Tafel mit zwölf
+   Schaltern liest man den Zustand, statt ihn zu lesen. */
+.haunt__knob {
+  flex: none;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--haunt-line-strong);
+  background: rgba(10, 14, 24, 0.9);
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.haunt__knob i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--haunt-faint);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.haunt__switch.is-on { border-color: var(--haunt-warn); background: rgba(58, 46, 20, 0.9); }
+.haunt__switch.is-on .haunt__knob { background: rgba(120, 92, 24, 0.9); border-color: var(--haunt-warn); }
+.haunt__switch.is-on .haunt__knob i { transform: translateX(16px); background: var(--haunt-warn); }
+
+/* --- breiter --- */
 
 @media (min-width: 760px) {
-  .haunt__body { padding: 16px 24px 32px; }
+  .haunt__body { padding: 16px 24px calc(32px + env(safe-area-inset-bottom)); gap: 10px; }
   .haunt__view { height: 46vh; }
   .haunt__map, .haunt__switches { grid-template-columns: repeat(4, 1fr); }
+  .haunt__cockpit { grid-template-columns: 1fr 1fr; align-items: start; }
   .haunt__rooms { gap: 8px; }
+  .haunt__quest { padding: 8px 24px; }
+  .haunt__bar { padding-left: 24px; padding-right: 24px; }
+}
+
+/*
+ * **Quer gehaltenes Telefon.** 40 vh Bild plus zwei Kopfzeilen lassen hochkant
+ * genug für die Liste; quer bleibt darunter nichts übrig, und der Pilot tippt
+ * blind. Also nebeneinander: Bild links, Bedienung rechts — dieselben Bausteine,
+ * anders gestapelt.
+ */
+@media (orientation: landscape) and (max-height: 560px) {
+  .haunt { display: grid; grid-template-columns: 1fr minmax(280px, 42%); grid-template-rows: auto auto 1fr; }
+  .haunt__bar { grid-column: 1 / -1; padding-top: calc(8px + max(40px, env(safe-area-inset-top))); }
+  .haunt__quest { grid-column: 1 / -1; }
+  .haunt__view { height: auto; border-bottom: none; border-right: 1px solid var(--haunt-line); }
+  .haunt__view[hidden] { display: none; }
+  /* Ohne Bild (Späher, Schalttafel) nimmt die Liste die ganze Breite. */
+  .haunt__view[hidden] + .haunt__body { grid-column: 1 / -1; }
 }
