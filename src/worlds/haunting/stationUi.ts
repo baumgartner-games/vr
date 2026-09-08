@@ -1,5 +1,5 @@
 import './haunting.css';
-import { MARKS, namesakes, roomOf, type HouseRoom, type HouseSpec } from './house';
+import { MARKS, namesakes, roomOf, VAN_ID, type HouseRoom, type HouseSpec } from './house';
 import { visibleSwitches } from './panel';
 import {
   MOVE_TIME,
@@ -68,9 +68,13 @@ export interface StationHost {
   droneLight(): void;
   /** Wie weit der Pilot gerade neben der Flugrichtung schaut, in Bogenmaß. */
   droneLook(): number;
-  /** Und ihn weiterdrehen — das Wischen über dem Bild. */
+  /** Und wie weit darüber oder darunter — positiv nach oben. */
+  dronePitch(): number;
+  /** Weiterdrehen — das Wischen quer über das Bild. */
   droneTurn(radians: number): void;
-  /** Wieder geradeaus. */
+  /** Weiterkippen — dasselbe Wischen der Höhe nach. */
+  droneTilt(radians: number): void;
+  /** Wieder geradeaus, und zwar in beiden Achsen. */
   droneFace(): void;
 }
 
@@ -98,9 +102,24 @@ export class StationUi {
   private readonly view = document.createElement('div');
   private readonly body = document.createElement('div');
   private readonly scout = document.createElement('canvas');
-  /** Die zwei Knöpfe, die **im** Bild liegen: Menü und Blickstock. */
+  /**
+   * **Die Ecke oben rechts im Bild**: Menü und Licht.
+   *
+   * Sie steht als eigene Zeile zwischen Kopfzeile und Bild und nicht als
+   * absolut gesetzte Ecke *im* Bild. Das Bild liegt im Cockpit fest im
+   * Hintergrund und damit unter der Kopfzeile; eine Ecke darin läge unter ihr
+   * begraben, und eine Ecke mit ausgerechnetem Abstand von oben wäre eine
+   * Zahl, die bei jeder Schriftgröße neu falsch ist. Als Zeile im Fluss steht
+   * sie von selbst genau unter dem, was über ihr steht.
+   */
   private readonly viewTools = document.createElement('div');
+  /** Zurück aus dem freigeräumten Blatt des Archivars. */
   private readonly menuKey = document.createElement('button');
+  /** Die Schalttafel des Piloten auf- und zuklappen. */
+  private readonly panelKey = document.createElement('button');
+  /** Sein Scheinwerfer — der eine Knopf, der auch ohne Schalttafel dasein muss. */
+  private readonly lampKey = document.createElement('button');
+  /** Und der Blickstock, unten rechts, wo der Daumen ohnehin liegt. */
   private readonly lookKey = document.createElement('button');
 
   /** Ob gerade die Geräteübersicht offen ist statt der eigenen Station. */
@@ -151,7 +170,14 @@ export class StationUi {
    */
   private paged = '';
   /** Der Finger, der gerade über dem Bild liegt. */
-  private grab: { id: number; x: number; y: number; from: number; far: number } | null = null;
+  private grab: {
+    id: number;
+    x: number;
+    y: number;
+    from: number;
+    over: number;
+    far: number;
+  } | null = null;
 
   constructor(private readonly host: StationHost) {
     this.root.className = 'haunt';
@@ -168,13 +194,19 @@ export class StationUi {
     this.menuKey.dataset['bare'] = '';
     this.menuKey.textContent = '☰';
     this.menuKey.setAttribute('aria-label', 'Bedienung wieder einblenden');
+    this.panelKey.className = 'haunt__vbtn';
+    this.panelKey.dataset['panel'] = '';
+    this.lampKey.className = 'haunt__vbtn haunt__vbtn--lamp';
+    this.lampKey.dataset['lamp'] = '';
     this.lookKey.className = 'haunt__vbtn haunt__vbtn--look';
     this.lookKey.textContent = '🕹';
     this.lookKey.setAttribute('aria-label', 'Umsehen: ziehen dreht, tippen stellt geradeaus');
-    this.viewTools.append(this.menuKey, this.lookKey);
-    this.view.append(this.viewTools);
+    this.viewTools.append(this.menuKey, this.panelKey, this.lampKey);
+    // Der Stock bleibt **im** Bild: Er gehört nach unten rechts an den Daumen
+    // und nicht in die Zeile mit den beiden anderen.
+    this.view.append(this.lookKey);
 
-    this.root.append(this.bar, this.quest, this.view, this.body);
+    this.root.append(this.bar, this.quest, this.viewTools, this.view, this.body);
     document.body.append(this.root);
     document.body.classList.add('haunt-on');
 
@@ -316,25 +348,6 @@ export class StationUi {
         state.monsterOn ? 'Monster an' : 'Monster aus',
       ),
     ];
-    // **Der Menüknopf des Piloten.** Das Cockpit zeigt von sich aus nur das
-    // Bild; die Schalttafel kommt auf Zuruf darüber und geht genauso wieder
-    // weg. In der Kopfzeile und nicht im Bild: Sie ist die einzige Fläche, die
-    // in beiden Zuständen an derselben Stelle steht — ein Knopf, der sich beim
-    // Öffnen unter das verschiebt, was er geöffnet hat, ist keiner.
-    if (station === 'drone') {
-      const key = el('button', `haunt__back${this.panel ? ' is-on' : ''}`);
-      key.dataset['panel'] = '';
-      key.append(
-        el('span', 'haunt__back-icon', this.panel ? '✕' : '☰'),
-        el('span', '', this.panel ? 'Schließen' : 'Steuerung'),
-      );
-      key.setAttribute('aria-expanded', this.panel ? 'true' : 'false');
-      key.setAttribute(
-        'aria-label',
-        this.panel ? 'Steuerung schließen, nur das Bild zeigen' : 'Steuerung der Drohne einblenden',
-      );
-      bar.push(key);
-    }
     // Im aufgezogenen Blatt des Archivars liegt die Bedienung **auf** dem Bild,
     // und dieser Knopf nimmt sie weg. Er steht nur dort, wo er etwas tut: klein
     // deckt die Bedienung nichts zu, was man freiräumen müsste.
@@ -388,9 +401,14 @@ export class StationUi {
     this.root.classList.toggle('is-cockpit', cockpit);
     this.root.classList.toggle('is-panel', cockpit && this.panel);
     this.menuKey.hidden = !bare;
-    // Der Blickstock gehört der Drohne: Beim Archivar dreht sich nichts, seine
-    // Kamera hängt senkrecht über dem aufgeschlagenen Zimmer.
-    this.lookKey.hidden = !cockpit;
+    // Menü und Licht gehören dem Piloten: Der Archivar hat weder eine
+    // Schalttafel noch einen Scheinwerfer.
+    this.panelKey.hidden = !cockpit;
+    this.lampKey.hidden = !cockpit;
+    if (cockpit) this.writeKeys();
+    // Der Blickstock auch — beim Archivar dreht sich nichts, seine Kamera
+    // hängt senkrecht über dem aufgeschlagenen Zimmer.
+    this.lookKey.hidden = !cockpit || this.panel;
     this.markLook();
     // **Was unter etwas anderem läge, steht gar nicht erst da.** Beim Archivar
     // ist das die aufgezogene Bedienung, beim Piloten die offene Schalttafel —
@@ -398,7 +416,36 @@ export class StationUi {
     this.viewTools.hidden =
       !view ||
       (cockpit ? this.panel : big && !bare) ||
-      (this.menuKey.hidden && this.lookKey.hidden);
+      (this.menuKey.hidden && this.panelKey.hidden && this.lampKey.hidden);
+  }
+
+  /**
+   * **Die zwei Knöpfe im Bild**, jedes Mal neu beschriftet.
+   *
+   * Der Scheinwerfer steht hier oben *und* in der Schalttafel, und das ist
+   * kein Versehen: Er ist der einzige Griff, den der Pilot mitten im Sehen
+   * braucht — Licht an, hinsehen, Licht aus. Wer dafür erst ein Menü aufmachen
+   * muss, macht es nicht mehr zu.
+   */
+  private writeKeys(): void {
+    this.panelKey.textContent = this.panel ? '✕' : '☰';
+    this.panelKey.setAttribute('aria-expanded', this.panel ? 'true' : 'false');
+    this.panelKey.setAttribute(
+      'aria-label',
+      this.panel ? 'Steuerung schließen, nur das Bild zeigen' : 'Steuerung der Drohne einblenden',
+    );
+
+    const drone = this.host.drone();
+    const lit = drone.light;
+    const flat = !lit && drone.lamp < LAMP_MIN;
+    this.lampKey.textContent = lit ? '☀' : '☾';
+    this.lampKey.classList.toggle('is-on', lit);
+    this.lampKey.toggleAttribute('disabled', flat);
+    this.lampKey.setAttribute('aria-pressed', lit ? 'true' : 'false');
+    this.lampKey.setAttribute(
+      'aria-label',
+      lit ? 'Scheinwerfer ausschalten' : 'Scheinwerfer einschalten',
+    );
   }
 
   /**
@@ -410,7 +457,8 @@ export class StationUi {
    * Wischen liefe sonst je Bild ein Neuaufbau der ganzen Liste.
    */
   private markLook(): void {
-    this.lookKey.classList.toggle('is-off', Math.abs(this.host.droneLook()) > 0.05);
+    const off = Math.abs(this.host.droneLook()) > 0.05 || Math.abs(this.host.dronePitch()) > 0.05;
+    this.lookKey.classList.toggle('is-off', off);
   }
 
   /**
@@ -622,12 +670,16 @@ export class StationUi {
     const drone = this.host.drone();
     const status = this.host.droneStatus();
     const seen = this.host.droneSeen();
+    const home = status.here === VAN_ID;
     const out: HTMLElement[] = [];
 
     // --- Der Scheinwerfer, mit seiner eigenen Ladung.
     const lit = drone.light;
     const flat = !lit && drone.lamp < LAMP_MIN;
-    const lamp = el('button', `haunt__lamp${lit ? ' is-on' : ''}${flat ? ' is-flat' : ''}`);
+    const lamp = el(
+      'button',
+      `haunt__lamp${lit ? ' is-on' : ''}${flat ? ' is-flat' : ''}${home ? ' is-home' : ''}`,
+    );
     lamp.dataset['lamp'] = '';
     if (flat) lamp.setAttribute('disabled', '');
     lamp.setAttribute('aria-pressed', lit ? 'true' : 'false');
@@ -639,7 +691,7 @@ export class StationUi {
       el('span', 'haunt__lamp-bulb', lit ? '☀' : '☾'),
       el('span', 'haunt__lamp-text', lit ? 'Scheinwerfer an' : 'Scheinwerfer aus'),
       lampRail,
-      el('span', 'haunt__tag', lampWords(drone)),
+      el('span', 'haunt__tag', lampWords(drone, home)),
     );
 
     // --- Die Wechselsperre: der zweite Takt, an dem der Pilot hängt.
@@ -676,6 +728,37 @@ export class StationUi {
     out.push(
       head('Wohin?', free ? 'noch einmal antippen bricht ab' : `frei in ${Math.ceil(drone.hop)} s`),
     );
+
+    // **Der Van steht über der Zimmerliste und nicht darin.** Er ist kein
+    // Zimmer, sondern die Stelle, an der sie lädt — und ein Ziel, das man
+    // *immer* ansteuern kann, gehört nicht zwischen sieben, die je nach Tür
+    // gehen oder nicht.
+    const back = el('button', `haunt__cell haunt__cell--van${home ? ' is-here' : ''}`);
+    back.dataset['fly'] = VAN_ID;
+    const backTarget = drone.target === VAN_ID;
+    back.setAttribute('aria-pressed', backTarget ? 'true' : 'false');
+    if (backTarget) back.classList.add('is-target');
+    if (!free && !backTarget) back.setAttribute('disabled', '');
+    const backLine = el('span', 'haunt__cell-head');
+    // Wer schon dort steht, liest kein „zurück".
+    backLine.append(el('span', '', home ? 'Am Van' : 'Zurück zum Van'));
+    if (home) backLine.append(el('span', 'haunt__chip haunt__chip--here', 'hier'));
+    else if (backTarget) {
+      const far = status.kind === 'blocked' ? 'zu' : `${Math.max(1, Math.round(status.metres))} m`;
+      backLine.append(el('span', 'haunt__chip haunt__chip--go', `Ziel · ${far}`));
+    }
+    back.append(
+      backLine,
+      el(
+        'span',
+        'haunt__tag',
+        home
+          ? 'Am Kabel: der Scheinwerfer zehrt nicht und lädt schnell.'
+          : 'Draußen vor der Haustür. Dort lädt der Scheinwerfer im Schnellgang.',
+      ),
+    );
+    out.push(back);
+
     const grid = el('div', 'haunt__map');
     for (const room of spec.rooms) {
       const cell = el('button', 'haunt__cell');
@@ -724,8 +807,8 @@ export class StationUi {
   private droneNote(status: DroneStatus, drone: DroneState): HTMLElement | null {
     if (status.kind !== 'blocked') return null;
     const spec = this.host.spec();
-    const where = roomOf(spec, status.here)?.name ?? 'zwischen zwei Zimmern';
-    const goal = roomOf(spec, drone.target)?.name ?? '';
+    const where = placeName(spec, status.here) ?? 'zwischen zwei Zimmern';
+    const goal = placeName(spec, drone.target) ?? '';
     return note(
       'warn',
       'Kein Weg',
@@ -899,6 +982,10 @@ export class StationUi {
       this.selected = hit.dataset['room'];
     } else if (hit.dataset['fly']) {
       this.host.flyTo(hit.dataset['fly']);
+      // **Losgeschickt heißt hinsehen.** Wer ein Zimmer antippt, will als
+      // Nächstes das Bild — eine Schalttafel, die danach noch darüber liegt,
+      // wird bei jedem Flug einmal von Hand weggeräumt.
+      this.panel = false;
     } else if (hit.dataset['flip']) {
       this.host.flip(hit.dataset['flip'], hit.dataset['on'] !== '1');
     }
@@ -924,12 +1011,13 @@ export class StationUi {
   private watchDrag(node: HTMLElement, stick: boolean): void {
     node.addEventListener('pointerdown', (event: PointerEvent) => {
       // Die Knöpfe im Bild sind Knöpfe und keine Ziehfläche.
-      if (!stick && (event.target as Element | null)?.closest('.haunt__vtools')) return;
+      if (!stick && (event.target as Element | null)?.closest('.haunt__vbtn')) return;
       this.grab = {
         id: event.pointerId,
         x: event.clientX,
         y: event.clientY,
         from: event.clientX,
+        over: event.clientY,
         far: 0,
       };
       node.setPointerCapture(event.pointerId);
@@ -940,7 +1028,9 @@ export class StationUi {
       const grab = this.grab;
       if (!grab || grab.id !== event.pointerId) return;
       const step = event.clientX - grab.from;
+      const rise = event.clientY - grab.over;
       grab.from = event.clientX;
+      grab.over = event.clientY;
       grab.far = Math.max(grab.far, Math.hypot(event.clientX - grab.x, event.clientY - grab.y));
       // Umgesehen wird nur an der Drohne — und dort über das ganze Bild. Die
       // alte Einschränkung „nur im Vollbild" ist mit dem Kinostreifen des
@@ -948,9 +1038,12 @@ export class StationUi {
       // ist seine Steuerung. Liegt die Schalttafel darauf, kommt hier ohnehin
       // kein Finger mehr an.
       if (this.station !== 'drone') return;
-      // Nach rechts gewischt heißt nach rechts geschaut — dieselbe Richtung wie
-      // die Maus im Fenster (`core/FlatControls.ts`).
+      // Nach rechts gewischt heißt nach rechts geschaut, nach oben gewischt
+      // nach oben — dieselbe Richtung wie die Maus im Fenster
+      // (`core/FlatControls.ts`). Beide Achsen am selben Finger: Eine Drohne,
+      // die nur waagerecht schwenkt, findet nie, was unter dem Tisch liegt.
       this.host.droneTurn(-step * LOOK_RATE);
+      this.host.droneTilt(-rise * LOOK_RATE);
       this.markLook();
     });
 
@@ -1028,11 +1121,26 @@ function fact(label: string, value: string, warn = false): HTMLElement {
  * überhaupt da ist: Eine Zahl, die nichts mehr zu melden hat, ist Platz für
  * die Regel.
  */
-function lampWords(drone: DroneState): string {
+function lampWords(drone: DroneState, home: boolean): string {
+  // Am Van gibt es keine Restlaufzeit, weil nichts abläuft — und ein Zähler,
+  // der eine Zahl nennt, die nicht zählt, ist eine Lüge mit Nachkommastelle.
+  if (home && drone.lamp >= 1) return 'Am Kabel. Leuchte, so lange du willst.';
+  if (home) return `Am Kabel · voll in ${Math.round(lampRefill(drone.lamp, true))} s`;
   if (drone.light) return `noch ~${Math.round(lampSeconds(drone.lamp))} s Licht — er frisst Ladung`;
   if (drone.lamp < LAMP_MIN) return `leer. Voll in ${Math.round(lampRefill(drone.lamp))} s`;
   if (drone.lamp < 1) return `lädt · voll in ${Math.round(lampRefill(drone.lamp))} s`;
   return 'Ein Kegel nach vorn. Er hilft dem VR-Spieler mehr als dir.';
+}
+
+/**
+ * Wie ein Ort heißt, den die Drohne ansteuert — Zimmer oder Van.
+ *
+ * `null`, wenn es keiner ist: Zwischen zwei Kacheln steht sie nirgends, und
+ * ein Satz, der „sie steht in " sagt, hat dort besser gar keinen Namen.
+ */
+function placeName(spec: HouseSpec, id: string): string | null {
+  if (id === VAN_ID) return 'am Van';
+  return roomOf(spec, id)?.name ?? null;
 }
 
 /** Die Form eines Zimmers, wie man sie einem Späher zurufen würde. */

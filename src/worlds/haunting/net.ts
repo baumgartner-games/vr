@@ -68,6 +68,16 @@ export interface DroneState {
    * Nachlauf beim Empfänger (`HauntingWorld.turnDroneBody`).
    */
   yaw: number;
+  /**
+   * **Und wie weit ihr Kopf dabei nach oben oder unten sieht**, in Bogenmaß,
+   * positiv nach oben.
+   *
+   * Aus demselben Grund in der Nachricht wie der Gierwinkel: Der Kegel des
+   * Scheinwerfers hängt daran, und ein Licht, das beim Piloten an die Decke
+   * zeigt und im Haus auf den Boden, ist keine Hilfe, sondern ein zweiter
+   * Streit am Tisch.
+   */
+  pitch: number;
   /** Wohin sie gerade fliegt — die Zimmerkennung, oder `''`. */
   target: string;
   /**
@@ -178,6 +188,7 @@ export function readDrone(data: unknown): DroneState | null {
     x: num(it['x']),
     z: num(it['z']),
     yaw: num(it['yaw']),
+    pitch: num(it['pitch']),
     target: typeof it['target'] === 'string' ? it['target'].slice(0, 16) : '',
     hop: Math.min(600, Math.max(0, num(it['hop']))),
     lamp: Math.min(1, Math.max(0, num(it['lamp'], 1))),

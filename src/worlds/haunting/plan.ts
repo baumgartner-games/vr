@@ -1,7 +1,7 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H } from '../editor/levelPlan';
 import { DIR_E, DIR_S } from '../nav/navTile';
-import { HOUSE, roomAt, tilesOf, type HouseSpec, type MarkId } from './house';
+import { APRON, HOUSE, roomAt, tilesOf, type HouseSpec, type MarkId } from './house';
 import { FLYER_PROFILE } from '../nav/navProfile';
 import type { BlockKind } from '../grid/blocks';
 
@@ -30,6 +30,12 @@ import type { BlockKind } from '../grid/blocks';
 export function housePlan(spec: HouseSpec, shut: ReadonlySet<string> = new Set()): GridPlan {
   const plan = new GridPlan([0]);
   plan.room(HOUSE, { walls: true, ceiling: PLAN_WALL_H });
+  // **Der Vorplatz vor der Haustür** — Boden ohne Wände und ohne Decke. Er ist
+  // der einzige Grund, aus dem es für die Wegsuche einen Van gibt: Ohne ihn
+  // müsste die Drohne im Haus starten, käme nie heraus, und „zurück zum Van"
+  // wäre eine Sonderregel statt eines Fluges. Die Haustür bleibt dabei genau
+  // das, was sie ist — wer sie zumacht, sperrt die Drohne aus.
+  plan.floor(APRON);
   innerWalls(plan, spec);
 
   for (const door of spec.doors) {

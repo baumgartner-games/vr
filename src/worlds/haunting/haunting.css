@@ -239,15 +239,27 @@ body.haunt-on .touch { display: none; }
  */
 .haunt[data-station="archive"] .haunt__view { aspect-ratio: 4 / 3; max-height: 36vh; }
 
-/* Die zwei Knöpfe, die im Bild liegen: oben rechts, damit der Daumen der
-   haltenden Hand sie erreicht, ohne quer über das Bild zu wandern. */
+/*
+ * **Die Ecke oben rechts über dem Bild**: Menü und Licht.
+ *
+ * Eine Zeile im Fluss und keine absolut gesetzte Ecke *im* Bild. Das Bild
+ * liegt im Cockpit fest im Hintergrund und damit unter der Kopfzeile; eine
+ * Ecke darin läge unter ihr begraben, und eine mit ausgerechnetem Abstand von
+ * oben wäre eine Zahl, die bei jeder Schriftgröße neu falsch ist. So steht sie
+ * von selbst genau unter dem, was über ihr steht.
+ */
 .haunt__vtools {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: 6px;
+  position: relative;
   z-index: 2;
+  flex: none;
+  align-self: flex-end;
+  display: flex;
+  /* Rechtsbündig auch dort, wo die Zeile die ganze Breite bekommt: Quer
+     gehalten ist sie ein Gitterfeld und dehnt sich, und `align-self` schiebt
+     dann nichts mehr nach rechts. */
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 8px 12px 0;
 }
 
 .haunt__vtools[hidden] { display: none; }
@@ -268,7 +280,28 @@ body.haunt-on .touch { display: none; }
 }
 
 .haunt__vbtn[hidden] { display: none; }
-.haunt__vbtn--look { color: var(--haunt-accent); touch-action: none; }
+
+/* Der Blickstock sitzt **im** Bild, unten rechts, wo der Daumen der haltenden
+   Hand ohnehin liegt — und nicht in der Zeile mit Menü und Licht: Dort oben
+   wäre er beim Umsehen genau der Weg quer über das Bild, den er ersparen
+   soll. */
+.haunt__vbtn--look {
+  position: absolute;
+  right: 12px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 2;
+  color: var(--haunt-accent);
+  touch-action: none;
+}
+
+/* Brennt der Scheinwerfer, sieht man es dem Knopf an — er ist im Cockpit die
+   einzige Anzeige dafür, solange die Schalttafel zu ist. */
+.haunt__vbtn--lamp.is-on {
+  color: #23180a;
+  background: #ffe6a8;
+  border-color: #ffe6a8;
+  box-shadow: 0 0 16px rgba(255, 224, 150, 0.45);
+}
 
 /* Steht der Blick neben der Flugrichtung, sagt der Stock das — sonst sucht der
    Pilot ein Zimmer, das hinter ihm liegt, und hält die Drohne für kaputt. */
@@ -300,9 +333,9 @@ body.haunt-on .touch { display: none; }
   z-index: 1;
 }
 
-/* Im Vollbild rückt die Ecke unter das HUD der Seite (Menü, Verbindung, VR):
-   Das liegt darüber und deckte den Menüknopf sonst zu. */
-.haunt.is-big .haunt__vtools { top: calc(10px + max(46px, env(safe-area-inset-top))); right: 12px; }
+/* Ohne Kopfzeile über sich rückt die Zeile unter das HUD der Seite (Menü,
+   Verbindung, VR): Das liegt darüber und deckte den Menüknopf sonst zu. */
+.haunt.is-bare .haunt__vtools { margin-top: calc(10px + max(46px, env(safe-area-inset-top))); }
 
 .haunt.is-big .haunt__bar { background: rgba(9, 13, 24, 0.82); backdrop-filter: blur(8px); }
 .haunt.is-big .haunt__quest { background: rgba(12, 17, 30, 0.82); backdrop-filter: blur(8px); }
@@ -387,14 +420,6 @@ body.haunt-on .touch { display: none; }
 .haunt__back.is-on { border-color: var(--haunt-accent); background: rgba(24, 44, 38, 0.92); }
 .haunt__back.is-on .haunt__back-icon { color: var(--haunt-accent); }
 
-/* **Der Blickstock rutscht nach unten.** Oben steht im Cockpit die Kopfzeile,
-   und darunter läge er in ihrem Schatten; unten rechts liegt er da, wo der
-   Daumen der haltenden Hand ohnehin ist. */
-.haunt.is-cockpit .haunt__vtools {
-  top: auto;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  right: 12px;
-}
 
 .haunt__body {
   flex: 1;
@@ -694,6 +719,20 @@ body.haunt-on .touch { display: none; }
 
 .haunt__lamp.is-on .haunt__lamp-text { color: #ffe6a8; }
 
+/* Am Kabel: Der Knopf bekommt den Rand der Station, weil er dort nichts mehr
+   verbraucht — eine Ladung, die nicht sinkt, sieht man dem Balken sonst erst
+   nach einer Minute an. */
+.haunt__lamp.is-home { border-color: var(--haunt-accent); }
+
+/*
+ * **Zurück zum Van** — die eine Kachel über der Zimmerliste.
+ *
+ * Sie steht dort und nicht *in* der Liste: Der Van ist kein Zimmer, sondern
+ * die Stelle, an der sie lädt, und ein Ziel, das immer geht, gehört nicht
+ * zwischen sieben, die je nach Tür gehen oder nicht.
+ */
+.haunt__cell--van { border-left: 4px solid var(--haunt-accent); }
+
 .haunt__map { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 
 .haunt__cell {
@@ -813,5 +852,8 @@ body.haunt-on .touch { display: none; }
      Spalte rechts wäre quer gehalten ein Streifen von 42 %, in dem dieselben
      Kacheln zweimal umbrechen — und das Bild bliebe trotzdem verdeckt. */
   .haunt.is-cockpit .haunt__body { grid-column: 1 / -1; }
+  /* Menü und Licht liegen im selben Feld wie die Schalttafel — sichtbar ist
+     immer nur eines von beiden. */
+  .haunt.is-cockpit .haunt__vtools { grid-column: 1 / -1; grid-row: 3; align-self: start; }
   .haunt.is-cockpit .haunt__map { grid-template-columns: repeat(4, 1fr); }
 }

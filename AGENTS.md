@@ -7633,6 +7633,15 @@ und ein Tipp auf den Stock stellt wieder geradeaus — er leuchtet, solange der
 Blick daneben steht, sonst sucht der Pilot ein Zimmer, das hinter ihm liegt,
 und hält die Drohne für kaputt.
 
+**Nach oben und unten kippt eine Wiege**, nicht der Rumpf. Kuppel, Scheinwerfer
+und Kamera hängen an einem gemeinsamen Kopf, und derselbe Wisch, der waagerecht
+dreht, kippt senkrecht (±54°, `TILT_MOST`). Ein Kopter, der sich zum
+Hochschauen selbst auf den Rücken legt, sähe für den VR-Spieler nach Absturz
+aus und drehte seine Positionslampe mit; und eine Drohne, die nur waagerecht
+schwenkt, findet nie, was unter dem Tisch liegt oder über der Tür hängt. Der
+Winkel geht wie der Gierwinkel über die Leitung (`net.DroneState.pitch`) —
+sonst zeigte der Kegel beim Piloten an die Decke und im Haus auf den Boden.
+
 Gedreht wird dabei der **Rumpf** und nicht nur die Kamera, die als Kind daran
 hängt. Eine Weile saß der Winkel an der Kamera allein, und das war eine
 Bildeinstellung: Der Pilot sah zur Seite, der Scheinwerfer leuchtete weiter
@@ -7649,9 +7658,36 @@ neu ans Gerät setzt, schaut geradeaus: Der Winkel des Vorgängers steckt schon
 in der Drehung des Rumpfes, und ein zweites Mal daraufgerechnet stünde sie
 quer.
 
+**Sie startet draußen, über dem Van** (`house.DRONE_HOME`), mit dem Haus im
+Bild und brennendem Scheinwerfer. Vorher parkte sie im Zimmer hinter der
+Haustür: Der Pilot setzte sich hin, sah ein dunkles Zimmer und wusste weder,
+wo er ist, noch wohin. Damit es für die Wegsuche ein Draußen gibt, gehört der
+**Vorplatz** zum Kachelgitter (`house.APRON`, zwei Reihen zwischen Südwand und
+Van) — Boden ohne Wände, angeschlossen durch die Haustür. „Zurück zum Van" ist
+damit kein Sonderfall, sondern derselbe Flug wie jeder andere, samt der Tür,
+die zu sein kann; der Test dazu fliegt beides ab und macht als Gegenprobe die
+Haustür zu. Sie steht auf der **hinteren** der beiden Reihen: aus der vorderen
+stünde die Hauswand anderthalb Meter vor der Linse.
+
+**Am Van hängt sie am Kabel** (`droneRoute.lampAfter(…, home)`): Der
+Scheinwerfer zehrt dort überhaupt nicht und lädt dreimal so schnell
+(`LAMP_HOME`, 25 s statt 75). Das ist der einzige Grund, aus dem ein Pilot
+freiwillig zurückfliegt, statt mit halber Ladung weiterzustochern — ohne den
+Unterschied wäre der Knopf einer, den niemand drückt. Bezahlt wird er mit der
+Wechselsperre: Zurück und wieder hinein sind zwei Zimmerwechsel, in denen
+niemand im Haus etwas sieht.
+
+**Das Monster geht trotzdem nicht mit hinaus.** Der Vorplatz ist begehbar, also
+liefe es dem Spieler ohne Weiteres bis an den Van nach — und der Van ist die
+Stelle, an der abgelegt wird; was dort steht, macht aus einer Runde eine
+Belagerung. Deshalb steht bei seinem Ziel eine Zeile, die jedes Ziel außerhalb
+des Hauses auf das Zimmer hinter der Haustür zurückholt
+(`HauntingWorld.npcTarget`). Es wartet dort — und das ist gruseliger als
+beides.
+
 **Handy zuerst, Laptop breiter** (`haunting/stationUi.ts`, `haunting.css`). Ein
 Handy-Layout, das man aufzieht, ist immer benutzbar; ein Laptop-Layout, das man
-zusammenschiebt, nie. Dreizehn Sachen, die dabei nicht Geschmack sind:
+zusammenschiebt, nie. Vierzehn Sachen, die dabei nicht Geschmack sind:
 
 - **Jede Station hat eine Farbe, und es ist ihre** (`--haunt-accent` über
   `data-station` am Wurzelelement) — dieselben vier Töne, die im Haus auf den
@@ -7667,12 +7703,20 @@ zusammenschiebt, nie. Dreizehn Sachen, die dabei nicht Geschmack sind:
   Kachelwand, die dauerhaft die halbe Seite aß: auf einem Telefon zwei Drittel
   des Bildes für Knöpfe, die man dreimal in der Minute drückt, auf dem Laptop
   ein Bild, das zum Streifen zusammenschrumpfte. Wer fliegt, sieht.
-- **„Steuerung" in der Kopfzeile legt seine Schalttafel darüber** und nimmt sie
-  genauso wieder weg. In der Kopfzeile und nicht im Bild, weil das die einzige
-  Fläche ist, die in beiden Zuständen an derselben Stelle steht — ein Knopf,
-  der sich beim Öffnen unter das schiebt, was er geöffnet hat, ist keiner.
-  Weggeblendet und nicht abgebaut, sonst käme die Liste oben statt dort zurück,
-  wo man war. Der Grund darunter bleibt **durchsichtig**: Die Kacheln bringen
+- **Oben rechts im Bild liegen zwei Knöpfe: Menü und Licht.** Das Menü legt
+  seine Schalttafel über das Bild und nimmt sie genauso wieder weg; der
+  Scheinwerfer steht daneben, weil er der einzige Griff ist, den der Pilot
+  *mitten im Sehen* braucht — Licht an, hinsehen, Licht aus. Wer dafür erst ein
+  Menü aufmachen muss, macht es nicht mehr zu. Sie stehen als eigene **Zeile im
+  Fluss** zwischen Kopfzeile und Bild und nicht als absolut gesetzte Ecke *im*
+  Bild: Das Bild liegt fest im Hintergrund und damit unter der Kopfzeile, und
+  ein Abstand von oben, den jemand ausrechnet, ist bei der nächsten
+  Schriftgröße wieder falsch. Der Blickstock bleibt unten rechts, wo der Daumen
+  ohnehin liegt. Weggeblendet und nicht abgebaut, sonst käme die Liste oben
+  statt dort zurück, wo man war.
+- **Ein angetipptes Zimmer schließt die Schalttafel.** Wer losschickt, will als
+  Nächstes das Bild — eine Tafel, die danach noch darüber liegt, wird bei jedem
+  Flug einmal von Hand weggeräumt. Der Grund darunter bleibt **durchsichtig**: Die Kacheln bringen
   ihren eigenen mit, und dazwischen läuft das Bild weiter. Überschriften
   bekommen dafür ein Schildchen — „Wohin?" stand sonst als graue Schrift auf
   einem Zimmer voller Möbel und war je nach Blickrichtung da oder nicht.

@@ -45,6 +45,44 @@ export const VAN_Z = HOUSE.z + HOUSE.d + 1;
 /** Wie breit der Van ist, in Kacheln. */
 export const VAN_W = 4;
 
+/**
+ * **Der Vorplatz** — die zwei Kachelreihen zwischen Haustür und Van.
+ *
+ * Er gehört zum Gitter, und das ist keine Kulisse: Ohne Kacheln davor gäbe es
+ * für die Wegsuche keinen Van, die Drohne müsste im Haus starten und käme nie
+ * wieder heraus. Mit ihm ist „zurück zum Van" derselbe Flug wie jeder andere —
+ * eine Wegsuche durch die Haustür, die zu ist, wenn jemand sie zugemacht hat.
+ *
+ * Dass das Monster ihn **nicht** benutzt, steht nicht hier, sondern als eine
+ * Zeile bei seinem Ziel (`HauntingWorld.npcTarget`): Der Van ist die Stelle,
+ * an der abgelegt wird, und was dort steht, macht aus einer Runde eine
+ * Belagerung.
+ */
+export const APRON: Rect = { x: HOUSE.x, z: HOUSE.z + HOUSE.d, w: HOUSE.w, d: 2 };
+
+/** Die Kennung, unter der die Drohne „zurück zum Van" fliegt. */
+export const VAN_ID = 'van';
+
+/**
+ * **Wo die Drohne steht, wenn die Runde anfängt**: über dem Van, mit dem Haus
+ * im Bild.
+ *
+ * Nicht im Zimmer hinter der Haustür, wo sie eine Weile parkte: Dort sah der
+ * Pilot beim Hinsetzen ein dunkles Zimmer und wusste weder, wo er ist, noch
+ * wohin. Hier sieht er den Vorplatz, die Hauswand und die Tür darin — die
+ * erste Ansage, die im Van fällt.
+ *
+ * Und die **hintere** der beiden Vorplatzreihen, nicht die vordere: Aus der
+ * vorderen steht die Hauswand anderthalb Meter vor der Linse, und ein Bild
+ * ohne Tiefe ist dasselbe wie kein Bild.
+ */
+export const DRONE_HOME = { x: 0, z: VAN_Z };
+
+/** Ob eine Kachel auf dem Vorplatz liegt — dort lädt der Scheinwerfer. */
+export function onApron(x: number, z: number): boolean {
+  return x >= APRON.x && x < APRON.x + APRON.w && z >= APRON.z && z < APRON.z + APRON.d;
+}
+
 // --- Merkmale ---------------------------------------------------------------
 
 /**
