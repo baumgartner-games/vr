@@ -303,6 +303,10 @@ export class App {
       goTo: (id: string) => void this.goTo(id),
       join: (room: string) => void this.joinRoom(room),
       notify: (message: string) => this.notify(message),
+      refreshWorldMenu: () => {
+        this.worldMenu = this.world?.menu?.() ?? [];
+        this.menuDirty = true;
+      },
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
     };

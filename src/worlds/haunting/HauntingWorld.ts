@@ -26,7 +26,6 @@ import {
   tilesOf,
   DRONE_HOME,
   HOUSE,
-  MARKS,
   VAN_ID,
   type HouseDoor,
   type HouseRoom,
@@ -51,7 +50,18 @@ import {
 } from './droneRoute';
 import { flickerLevel, freshSpook, stepHaunt, type Spook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
-import { buildMark } from './marks';
+import { buildShip, buildCreature, animateCreature, roomAccent } from './shipArt';
+import { ShipExperience } from './ShipExperience';
+import {
+  freshCrew,
+  MONSTERS,
+  ROOM_COUNTS,
+  stationOptions,
+  takeCrewHit,
+  stepVitals,
+  ventPairs,
+  type StationOptions,
+} from './mission';
 import { rollSeed } from './rng';
 import { StationUi } from './stationUi';
 import { MOVE_TIME, seatOf, type Claim, type StationId } from './stations';
@@ -207,14 +217,14 @@ const SHOW_CUT = PLAN_WALL_H - 0.4;
 const SHOW_SKY = 0x9dc0e4;
 
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
-const REACH = 1.1;
 
 /** Wie hell eine brennende Zimmerlampe ist, wenn niemand an ihr rüttelt. */
 const LAMP_ON = 22;
 
 /** Die Lampe eines Zimmers: das Licht und das Glas, das zeigt, dass es an ist. */
 interface Lamp {
-  light: THREE.PointLight;
+  at: THREE.Vector3;
+  color: number;
   glass: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
 }
 
@@ -230,7 +240,7 @@ const _lidOn = [_lid];
 
 export class HauntingWorld extends GridWorld {
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
-  private spec: HouseSpec = generateHouse(rollSeed());
+  private spec: HouseSpec = generateHouse(rollSeed(), 8);
   private state: HauntState = freshState(this.spec.seed);
 
   /** Alles, was zum Haus gehört und nicht aus dem Kachelplan kommt. */
@@ -245,8 +255,17 @@ export class HauntingWorld extends GridWorld {
   private readonly vanRig = new THREE.Group();
 
   private readonly lamps = new Map<string, Lamp>();
-  private readonly items = new Map<string, THREE.Object3D>();
-  private fusePlate: THREE.Mesh | null = null;
+  private experience: ShipExperience | null = null;
+  private mountedRole = '';
+  private flatTechnician = false;
+  private readonly technicians = new Map<string, number>();
+  private lampPool: THREE.PointLight[] = [];
+  private testLight: THREE.AmbientLight | null = null;
+  private monsterArt: THREE.Object3D | null = null;
+  private previousFeet: THREE.Vector3 | null = null;
+  private ventClock = 0;
+  private ventExit: THREE.Vector3 | null = null;
+  private readonly ventGoal = new THREE.Vector3();
 
   /** Das Monster, solange es eines gibt — nur beim Gastgeber ein echter NPC. */
   private monster: Npc | null = null;
@@ -447,12 +466,11 @@ export class HauntingWorld extends GridWorld {
    * von einer Tür, die zufällt: Nur die zweite macht ein Geräusch.
    */
   private builtDoors = '?';
-  private carried: string[] = [];
 
   // --- die Welt ------------------------------------------------------------
 
   protected override layout(): GridPlan {
-    return housePlan(this.spec, new Set(this.state.shut));
+    return housePlan(this.spec, new Set(this.state.shut), this.state.crew.options.test);
   }
 
   protected override worldId(): string {
@@ -460,7 +478,7 @@ export class HauntingWorld extends GridWorld {
   }
 
   protected override editorTitle(): string {
-    return 'Haunting';
+    return 'Haunting / Orbital';
   }
 
   /**
@@ -473,16 +491,24 @@ export class HauntingWorld extends GridWorld {
    * Schwarz — eine schwarze Scheibe in einer schwarzen Wand ist kein Fenster.
    */
   protected override skyColor(): number {
-    return 0x1d2a44;
+    return 0x020711;
   }
 
   /** Fast nichts — aber nicht *ganz* nichts: die eigenen Hände muss man sehen. */
   protected override lightIntensity(): number {
-    return 0.04;
+    return 0.11;
   }
 
   protected override tint(): Partial<Record<PlanSolidKind, number>> {
-    return { floor: 0x666a74, wall: 0x9aa0ad, wood: 0x8a6440 };
+    return { floor: 0x3a4b58, wall: 0x728590, wood: 0x4c6370, door: 0x536d7b };
+  }
+
+  protected override batchGridGeometry(): boolean {
+    return true;
+  }
+
+  protected override gridDoorVisible(): boolean {
+    return false;
   }
 
   /** Eine Hand bleibt frei — in diesem Haus will man eine Lampe halten. */
@@ -491,7 +517,7 @@ export class HauntingWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Haunting · Du stehst am Van. Drei Sachen holen — die anderen wissen, wo.';
+    return 'HAUNTING / ORBITAL · Sichere Einsatzzentrale. Mission oder Test am Terminal wählen. Archiv + Einsatzkontrolle auf zwei Handys.';
   }
 
   /** Man fängt **draußen** an, am Van, mit dem Haus vor sich. */
@@ -507,6 +533,31 @@ export class HauntingWorld extends GridWorld {
    * Grund, warum ein Schalter mit der Aufschrift `X` etwas wert sein kann.
    */
   protected override npcTarget(target: THREE.Vector3): THREE.Vector3 | null {
+    if (this.state.phase !== 'running' || this.state.crew.options.test || this.state.crew.hp === 0)
+      return null;
+    if (this.ventExit) return null;
+    if (
+      this.monster &&
+      this.ventClock > (MONSTERS.find((m) => m.id === this.state.crew.options.monster)?.vent ?? 28)
+    ) {
+      const at = this.monster.feet(_feet);
+      const current = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
+      const vent =
+        current && ventPairs(this.spec).find((v) => v.a === current.id || v.b === current.id);
+      if (vent) {
+        const sign = vent.a === current?.id ? -1 : 1;
+        return target.set(
+          vent.x * TILE + (vent.dir === 1 ? (sign * TILE) / 2 : 0),
+          0,
+          vent.z * TILE + (vent.dir === 2 ? (sign * TILE) / 2 : 0),
+        );
+      }
+    }
+    if (this.state.crew.hidden) {
+      const rooms = this.spec.rooms.filter((r) => r.id !== this.state.crew.hidden);
+      const roam = roomCentre(rooms[Math.floor(this.state.time / 6) % rooms.length]!);
+      return target.set((roam.x + 0.5) * TILE, 0, (roam.z + 0.5) * TILE);
+    }
     const room = this.state.loud[0];
     if (room) {
       const found = roomOf(this.spec, room);
@@ -548,10 +599,20 @@ export class HauntingWorld extends GridWorld {
     // Etwas dünner als vorher, damit vom Van aus überhaupt ein Haus zu sehen
     // ist — drinnen ändert das nichts, dort ist auf zwölf Meter ohnehin eine
     // Wand.
-    ctx.scene.fog = new THREE.FogExp2(0x121b2e, 0.042);
+    ctx.scene.fog = new THREE.FogExp2(0x07131e, 0.016);
     ctx.net.on(HAUNT_CHANNEL, (data, from) => this.receive(data, from));
     this.joinTable(ctx);
 
+    this.setupRole(ctx);
+    this.applyLights();
+  }
+
+  private setupRole(ctx: WorldContext): void {
+    this.mountedRole = ctx.role;
+    this.ui?.dispose();
+    this.ui = null;
+    this.wanted = null;
+    this.claims.delete(ctx.net.localId);
     if (ctx.role === 'vr') {
       // Nur in der Brille schwebt eine eingeschaltete Taschenlampe im Van —
       // man muss sie im Dunkeln ja finden können.
@@ -570,6 +631,18 @@ export class HauntingWorld extends GridWorld {
         drone: () => this.drone,
         claims: () => this.currentClaims(),
         me: () => ctx.net.localId,
+        technician: () => {
+          this.flatTechnician = true;
+        },
+        link: () => ({
+          peers: [...ctx.net.peers.values()].filter((p) => p.world === 'haunting').length,
+          vr: [...ctx.net.peers.values()].some(
+            (p) =>
+              p.world === 'haunting' &&
+              (p.role === 'vr' || clock() - (this.technicians.get(p.id) ?? -Infinity) < 3000),
+          ),
+          room: ctx.net.room,
+        }),
         nameOf: (peer) => ctx.net.peers.get(peer)?.name ?? 'jemand',
         seat: () => seatOf(this.currentClaims(), ctx.net.localId),
         wanted: () => this.wanted,
@@ -608,8 +681,8 @@ export class HauntingWorld extends GridWorld {
     this.liftLid(false);
     this.ui?.dispose();
     this.ui = null;
-    if (this.fusePlate) ctx.pointer.remove(this.fusePlate);
-    this.fusePlate = null;
+    this.experience?.dispose();
+    this.experience = null;
     dispose(this.stage);
     dispose(this.live);
     dispose(this.vanRig);
@@ -618,7 +691,6 @@ export class HauntingWorld extends GridWorld {
     this.doorMarks.clear();
     this.roomWalls.clear();
     this.lamps.clear();
-    this.items.clear();
     this.monster = null;
     this.blob = null;
     this.droneBody = null;
@@ -637,95 +709,56 @@ export class HauntingWorld extends GridWorld {
 
   /** Lampen, Merkmale, Aufgaben und der Sicherungskasten — alles aus dem Plan. */
   private buildHouse(): void {
-    // **Erst abräumen, dann bauen.** Ein neues Haus (`newRound`, oder der Stand
-    // eines Gastgebers mit anderem Samen) baut hier alles noch einmal; wer nur
-    // die Gruppe leert, lässt die Geometrien im Speicher und den alten
-    // Sicherungskasten als Zielscheibe des Zeigers zurück.
-    if (this.fusePlate) this.context?.pointer.remove(this.fusePlate);
-    this.fusePlate = null;
+    this.experience?.dispose();
+    this.experience = null;
     dispose(this.stage);
     this.lamps.clear();
-    this.items.clear();
-
-    for (const room of this.spec.rooms) {
-      for (const mark of room.marks) this.stage.add(buildMark(mark));
-      if (room.lamp) this.buildLamp(room.id, roomCentre(room));
-    }
-
-    for (const task of this.spec.tasks) {
-      const item = this.buildItem(task.label);
-      item.position.set((task.x + 0.5) * TILE, 0.75, (task.z + 0.5) * TILE);
-      this.stage.add(item);
-      this.items.set(task.id, item);
-    }
-
-    this.buildFuse();
-    // Die Türzeichen gehören zum Haus: Ein neues Haus hat neue Türen, und die
-    // alten Zeichen lägen sonst über dem neuen Grundriss. Beim allerersten Bau
-    // gibt es noch keine Oberfläche — dort setzt `buildStationViews` sie.
+    this.stage.add(buildShip(this.spec));
+    this.lampPool = Array.from({ length: 4 }, () => {
+      const light = new THREE.PointLight(0xcce8e6, 0, 9, 2);
+      this.stage.add(light);
+      return light;
+    });
+    this.testLight = new THREE.AmbientLight(0xd5e9f3, 0);
+    this.stage.add(this.testLight);
+    for (const room of this.spec.rooms) this.buildLamp(room.id, roomCentre(room));
+    if (this.context) this.mountExperience(this.context);
     if (this.ui) this.buildDoorMarks();
   }
 
-  private buildLamp(roomId: string, at: { x: number; z: number }): void {
-    const x = (at.x + 0.5) * TILE;
-    const z = (at.z + 0.5) * TILE;
-    const y = PLAN_WALL_H - 0.2;
+  private mountExperience(ctx: WorldContext): void {
+    this.experience?.dispose();
+    this.experience = new ShipExperience({
+      ctx,
+      spec: () => this.spec,
+      state: () => this.state,
+      say: (text) => this.announce(text),
+      configure: (options) => this.configureStation(options),
+      start: () => this.startMission(),
+      test: () => this.testMission(),
+      door: (id) => this.manualDoor(id),
+      travel: (at) => this.movePlayerTo(ctx, at),
+      route: (from, room) => {
+        const c = roomCentre(room);
+        return this.grid ? routeTo(this.grid.graph, from, tileKey(c.x, c.z, 0)) : null;
+      },
+    });
+    this.stage.add(this.experience.root);
+  }
 
+  private buildLamp(roomId: string, at: { x: number; z: number }): void {
     const glass = new THREE.Mesh(
-      new THREE.CircleGeometry(0.2, 20),
+      new THREE.CircleGeometry(0.2, 12),
       new THREE.MeshBasicMaterial({ color: 0x2b3040, toneMapped: false }),
     );
     glass.rotation.x = Math.PI / 2;
-    glass.position.set(x, y + 0.06, z);
+    glass.position.set((at.x + 0.5) * TILE, PLAN_WALL_H - 0.14, (at.z + 0.5) * TILE);
     this.stage.add(glass);
-
-    // Das Licht bleibt in der Szene und wird auf null gedreht: three.js baut
-    // jeden Shader im Raum neu, wenn sich die Zahl der Lichter ändert.
-    const light = new THREE.PointLight(0xffe7c0, 0, 15, 2);
-    light.position.set(x, y, z);
-    this.stage.add(light);
-
-    this.lamps.set(roomId, { light, glass });
-  }
-
-  /** Eine Sache, die zu holen ist: klein, warm und von allein sichtbar. */
-  private buildItem(label: string): THREE.Object3D {
-    const group = new THREE.Group();
-    group.name = `item-${label}`;
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(0.26, 0.1, 0.2),
-      new THREE.MeshBasicMaterial({ color: 0xffd166, toneMapped: false }),
-    );
-    group.add(body);
-    // Ein eigenes kleines Licht: Ohne das findet man im Dunkeln nie, was man
-    // sucht — und die Suche soll am Beschreiben scheitern, nicht am Sehen.
-    group.add(new THREE.PointLight(0xffd166, 3.5, 5, 2));
-    return group;
-  }
-
-  /**
-   * Der Sicherungskasten. Er leuchtet immer ein bisschen — ein Kasten, den man
-   * mit der Taschenlampe suchen muss, ist genau einmal lustig, und hier steht
-   * ohnehin schon das halbe Haus im Dunkeln.
-   */
-  private buildFuse(): void {
-    const at = this.spec.fuse;
-    const plate = new THREE.Mesh(
-      new THREE.BoxGeometry(0.34, 0.42, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.6, emissive: 0x1a2230 }),
-    );
-    plate.position.set((at.x + 0.5) * TILE, 1.3, (at.z + 0.5) * TILE);
-    const face = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.24, 0.3),
-      new THREE.MeshBasicMaterial({ color: 0x6b5327, toneMapped: false }),
-    );
-    face.position.z = 0.055;
-    plate.add(face);
-    plate.add(new THREE.PointLight(0xffd9a0, 0.5, 2.4, 2));
-    this.stage.add(plate);
-    this.fusePlate = plate;
-    const ctx = this.context;
-    if (ctx) ctx.pointer.add({ object: plate, onSelect: () => this.throwFuse() });
+    this.lamps.set(roomId, {
+      glass,
+      at: glass.position.clone(),
+      color: roomAccent(roomOf(this.spec, roomId)?.kind ?? ''),
+    });
   }
 
   /** Der Van vor der Haustür: der Ablagetisch und die Monitore. */
@@ -759,7 +792,6 @@ export class HauntingWorld extends GridWorld {
       );
       screen.position.set((index - (colors.length - 1) / 2) * step, 1.4, z - 0.5);
       this.vanRig.add(screen);
-      screen.add(new THREE.PointLight(color, 0.6, 2, 2));
 
       // **Und ein Platz davor, in derselben Farbe.** Vier Leute sitzen an
       // diesem Tisch, und der VR-Spieler sieht von ihnen nichts als vier
@@ -829,11 +861,11 @@ export class HauntingWorld extends GridWorld {
    * mehr übrig, weil dort die Reichweite zu Ende ist.
    */
   private buildDusk(): void {
-    const sun = new THREE.SpotLight(0xffb173, 16, 11, 0.78, 0.5, 1);
+    const sun = new THREE.SpotLight(0xb7e2ef, 32, 11, 1.05, 0.5, 1);
     // Aus Südwesten und von oben: Von genau oben glänzt nur der Boden, von der
     // Seite bekommt auch die Hauswand etwas ab — und die ist das, worauf der
     // Pilot in seinem ersten Bild schaut.
-    sun.position.set(-4.5, 5, (HOUSE.z + HOUSE.d + 2.4) * TILE);
+    sun.position.set(-3, 2.7, (HOUSE.z + HOUSE.d + 2.4) * TILE);
     sun.target.position.set(0, 0, (HOUSE.z + HOUSE.d + 0.8) * TILE);
     this.vanRig.add(sun);
     this.vanRig.add(sun.target);
@@ -1173,6 +1205,13 @@ export class HauntingWorld extends GridWorld {
   }
 
   override update(dt: number, ctx: WorldContext): void {
+    if (this.flatTechnician) ctx = { ...ctx, role: 'vr' };
+    if (this.mountedRole !== ctx.role) {
+      this.context = ctx;
+      this.setupRole(ctx);
+      this.mountExperience(ctx);
+      ctx.refreshWorldMenu();
+    }
     super.update(dt, ctx);
     this.refreshHost(ctx);
 
@@ -1180,6 +1219,7 @@ export class HauntingWorld extends GridWorld {
       this.state.time += dt;
       this.trackMonster();
       this.checkItems(ctx);
+      this.stepCrew(dt, ctx);
     }
 
     this.stepSpook(dt);
@@ -1189,11 +1229,18 @@ export class HauntingWorld extends GridWorld {
     // wird, zuckt nicht. Sieben Lampen je Bild kosten nichts.
     this.applyLights();
     this.applyBlob();
+    this.experience?.update(dt);
+    if (this.monsterArt && this.monster) {
+      this.monsterArt.rotation.y = this.monster.model.rotation.y;
+      this.monsterArt.visible = this.state.crew.venting <= 0;
+      animateCreature(this.monsterArt, this.state.time);
+    }
     this.flyDrone(dt);
 
     this.sendTimer -= dt;
     if (this.sendTimer <= 0) {
       this.sendTimer = STATE_RATE;
+      if (ctx.role === 'vr') ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician' });
       if (this.isHost) ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
       if (this.wanted) ctx.net.emit(HAUNT_CHANNEL, claimMessage(this.wanted, this.seated));
     }
@@ -1222,7 +1269,7 @@ export class HauntingWorld extends GridWorld {
       ...here.map((peer) => ({
         id: peer.id,
         seniority: ctx.net.seniorityOf(peer),
-        vr: peer.role === 'vr',
+        vr: peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000,
       })),
     ];
     const next = pickGameHost(candidates) || pickHost(candidates);
@@ -1230,6 +1277,10 @@ export class HauntingWorld extends GridWorld {
   }
 
   private receive(data: unknown, from: string): void {
+    if (typeof data === 'object' && data !== null && 'kind' in data && data.kind === 'technician') {
+      this.technicians.set(from, clock());
+      return;
+    }
     const state = readState(data);
     if (state && from !== this.context?.net.localId && from === this.hostId) {
       this.adopt(state);
@@ -1241,7 +1292,11 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     const drone = readDrone(data);
-    if (drone && from !== this.context?.net.localId) {
+    if (
+      drone &&
+      from !== this.context?.net.localId &&
+      seatOf(this.currentClaims(), from) === 'drone'
+    ) {
       // Die Stelle wird gesetzt, der Winkel wird **angefahren**: Er steht in
       // der Nachricht (`net.DroneState.yaw`), weil eine Drohne, die im Stehen
       // schwenkt, keinen Weg hinterlässt, aus dem er sich ableiten ließe — und
@@ -1252,7 +1307,8 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     const flip = readFlip(data);
-    if (flip && this.isHost) this.applyFlip(flip.id, flip.on);
+    if (flip && this.isHost && ['hack', 'scout'].includes(seatOf(this.currentClaims(), from) ?? ''))
+      this.applyFlip(flip.id, flip.on);
   }
 
   /**
@@ -1283,18 +1339,17 @@ export class HauntingWorld extends GridWorld {
 
   /** Den Stand des Gastgebers übernehmen — samt Haus, wenn es ein anderes ist. */
   private adopt(next: HauntState): void {
-    if (next.seed !== this.spec.seed) {
-      this.spec = generateHouse(next.seed);
+    if (next.seed !== this.spec.seed || next.crew.options.rooms !== this.spec.rooms.length) {
+      this.spec = generateHouse(next.seed, next.crew.options.rooms);
       this.state = next;
       this.spook = freshSpook();
-      this.grid?.replaceWith(housePlan(this.spec, new Set(next.shut)));
+      this.grid?.replaceWith(housePlan(this.spec, new Set(next.shut), next.crew.options.test));
       this.builtDoors = next.shut.join(',');
       this.buildHouse();
       this.parkDrone();
       return;
     }
     this.state = next;
-    this.showItems();
   }
 
   // --- was im Haus passiert -------------------------------------------------
@@ -1319,15 +1374,14 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     if (!this.blob) {
-      const blob = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.3, 1.1, 4, 10),
-        new THREE.MeshBasicMaterial({ color: 0xff5a5a, toneMapped: false }),
-      );
+      const blob = buildCreature(this.state.crew.options.monster);
       this.live.add(blob);
       this.blob = blob;
     }
     this.blob.visible = true;
-    this.blob.position.set(at.x, 0.9, at.z);
+    this.blob.position.set(at.x, 0, at.z);
+    this.blob.visible = this.state.crew.venting <= 0;
+    animateCreature(this.blob, this.state.time);
   }
 
   /**
@@ -1339,54 +1393,118 @@ export class HauntingWorld extends GridWorld {
    * Schwer soll die Frage sein, in *welchem* Zimmer es liegt.
    */
   private checkItems(ctx: WorldContext): void {
-    ctx.camera.getWorldPosition(_head);
-    for (const task of this.spec.tasks) {
-      if (this.state.taken.includes(task.id)) continue;
-      const item = this.items.get(task.id);
-      if (!item) continue;
-      if (_head.distanceTo(item.position) > REACH + 0.6) continue;
-      this.state.taken.push(task.id);
-      this.carried.push(task.id);
-      this.showItems();
-      this.announce(`${task.label} — mitgenommen`);
+    if (ctx.role !== 'vr' || this.state.phase !== 'running' || this.state.crew.simulation) return;
+    ctx.rig.getHeadPosition(_head);
+    if (
+      this.state.done.length >= 3 &&
+      this.state.crew.hp > 0 &&
+      onApron(Math.floor(_head.x / TILE), Math.floor(_head.z / TILE))
+    ) {
+      this.state.phase = 'won';
+      this.removeMonster();
+      this.announce('MISSION ERFÜLLT · Alle Systeme online. Crew zurück in der Zentrale.');
     }
-
-    if (this.carried.length === 0) return;
-    const van = this.spawnPoint();
-    if (_head.distanceTo(van) > 3) return;
-    for (const id of this.carried) {
-      if (!this.state.done.includes(id)) this.state.done.push(id);
-    }
-    this.carried = [];
-    const left = this.spec.tasks.length - this.state.done.length;
-    this.announce(left > 0 ? `Abgelegt · noch ${left}` : 'Alles da. Raus hier.');
-    if (left === 0) this.state.phase = 'won';
   }
 
-  /** Was schon aufgesammelt ist, liegt nicht mehr im Zimmer. */
-  private showItems(): void {
-    for (const [id, item] of this.items) item.visible = !this.state.taken.includes(id);
-  }
-
-  private throwFuse(): void {
-    if (this.state.fuse) return;
+  protected override takeHit(_direction: THREE.Vector3, _strength: number): void {
     const ctx = this.context;
-    if (!ctx) return;
-    ctx.camera.getWorldPosition(_head);
-    if (this.fusePlate && _head.distanceTo(this.fusePlate.position) > 2.5) {
-      this.announce('Zu weit weg');
+    if (!ctx || !this.monster) return;
+    ctx.rig.getHeadPosition(_head);
+    const at = this.monster.feet(_feet);
+    if (
+      !roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)) ||
+      Math.hypot(at.x - _head.x, at.z - _head.z) > 1.65
+    )
+      return;
+    if (!this.isHost || !takeCrewHit(this.state.crew, this.state.phase === 'running')) return;
+    for (const hand of ['left', 'right'] as const) this.context?.input.get(hand)?.pulse(0.65, 120);
+    playSwitch(false);
+    if (this.state.crew.hp === 0) {
+      this.state.phase = 'lost';
+      this.removeMonster();
+      this.announce(
+        'MISSION GESCHEITERT · Drei Treffer. Neuer Versuch oder sicherer Test im Missionsmenü.',
+      );
+    } else
+      this.announce(
+        `Treffer · Anzug ${this.state.crew.hp}/3. Abstand gewinnen, Schutzschrank oder Medkit nutzen.`,
+      );
+    this.context?.refreshWorldMenu();
+  }
+
+  private stepCrew(dt: number, ctx: WorldContext): void {
+    if (ctx.role !== 'vr') return;
+    ctx.rig.getHeadPosition(_head);
+    const speed =
+      this.previousFeet && dt > 0
+        ? Math.min(6, Math.hypot(_head.x - this.previousFeet.x, _head.z - this.previousFeet.z) / dt)
+        : 0;
+    if (!this.previousFeet) this.previousFeet = _head.clone();
+    else this.previousFeet.copy(_head);
+    const monster = this.state.monster;
+    const distance = monster ? Math.hypot(monster.x - _head.x, monster.z - _head.z) : Infinity;
+    stepVitals(this.state.crew, dt, speed, distance);
+    if (this.state.crew.options.test) {
+      this.state.monsterOn = false;
+      this.state.monster = null;
+      this.state.crew.hp = 3;
+      if (this.monster) this.removeMonster();
       return;
     }
-    this.state.fuse = true;
-    playSwitch(true);
-    this.announce('Sicherungskasten an — die Tafel im Van ist jetzt voll');
+    if (!this.monster || !this.state.monsterOn || this.state.phase !== 'running') return;
+    this.ventClock += dt;
+    if (this.ventExit) {
+      if (this.state.crew.venting > 0) return;
+      const exit = this.ventExit;
+      this.ventExit = null;
+      const body = this.monster.entry.body;
+      body.setTranslation({ x: exit.x, y: this.monster.skin.height / 2 + 0.06, z: exit.z }, true);
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      this.monster.holder.position.set(exit.x, this.monster.skin.height / 2, exit.z);
+      this.physics?.syncColliders();
+      this.ventClock = 0;
+      return;
+    }
+    const interval = MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.vent;
+    if (this.ventClock < interval) return;
+    const at = this.monster.feet(_feet);
+    const room = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
+    const vent = room && ventPairs(this.spec).find((v) => v.a === room.id || v.b === room.id);
+    if (!vent) {
+      this.ventClock = 0;
+      return;
+    }
+    const sign = vent.a === room?.id ? -1 : 1;
+    this.ventGoal.set(
+      vent.x * TILE + (vent.dir === 1 ? (sign * TILE) / 2 : 0),
+      0,
+      vent.z * TILE + (vent.dir === 2 ? (sign * TILE) / 2 : 0),
+    );
+    if (Math.hypot(at.x - this.ventGoal.x, at.z - this.ventGoal.z) > 1.5) return;
+    this.ventExit = new THREE.Vector3(
+      vent.x * TILE - (vent.dir === 1 ? (sign * TILE) / 2 : 0),
+      0,
+      vent.z * TILE - (vent.dir === 2 ? (sign * TILE) / 2 : 0),
+    );
+    this.state.crew.venting = 2;
+    this.experience?.burst('smoke', new THREE.Vector3(vent.x * TILE, 2.6, vent.z * TILE));
+    if (distance < 12) playSlam();
+  }
+
+  private manualDoor(id: string): void {
+    if (!this.isHost || this.context?.role !== 'vr' || this.state.phase !== 'running') return;
+    const door = this.spec.doors.find((d) => d.id === id);
+    if (!door) return;
+    const shut = this.state.shut.indexOf(id);
+    if (shut >= 0) this.state.shut.splice(shut, 1);
+    else this.state.shut.push(id);
   }
 
   /** Ein Schalter der Tafel, angewendet beim Gastgeber. */
   private applyFlip(id: string, on: boolean): void {
     const entry = this.spec.switches.find((one) => one.id === id);
     if (!entry) return;
-    if (entry.hidden && !this.state.fuse) return;
+
     const list =
       entry.kind === 'light' ? this.state.lit : entry.kind === 'radio' ? this.state.loud : null;
 
@@ -1416,7 +1534,7 @@ export class HauntingWorld extends GridWorld {
    * ist.
    */
   private applyDoors(): void {
-    const now = this.state.shut.join(',');
+    const now = this.state.shut.join(',') + `/test:${this.state.crew.options.test}`;
     if (now === this.builtDoors) return;
     const before = this.builtDoors;
     this.builtDoors = now;
@@ -1424,6 +1542,7 @@ export class HauntingWorld extends GridWorld {
     for (const door of this.spec.doors) {
       this.grid?.door(door.x, door.z, door.dir, 0, !shut.has(door.id));
     }
+    this.grid?.door(2, 4, 3, 0, this.state.crew.options.test);
     this.hearSlam(before, shut);
   }
 
@@ -1494,12 +1613,25 @@ export class HauntingWorld extends GridWorld {
    */
   private applyLights(): void {
     const lit = new Set(this.state.lit);
-    for (const [roomId, lamp] of this.lamps) {
-      const on = lit.has(roomId);
-      const glow = on && roomId === this.spook.room ? flickerLevel(this.spook.since) : 1;
-      lamp.light.intensity = on ? LAMP_ON * glow : 0;
-      lamp.glass.material.color.lerpColors(_lampOff, _lampOn, on ? glow : 0);
+    const bright = this.state.crew.options.test && this.state.crew.options.bright;
+    if (this.testLight) this.testLight.intensity = bright || this.state.crew.simulation ? 1.25 : 0;
+    this.context?.rig.getHeadPosition(_head);
+    const active = [...this.lamps.entries()].filter(([id]) => bright || lit.has(id));
+    active.sort((a, b) => a[1].at.distanceToSquared(_head) - b[1].at.distanceToSquared(_head));
+    for (let i = 0; i < this.lampPool.length; i++) {
+      const light = this.lampPool[i]!;
+      const entry = active[i];
+      light.intensity = 0;
+      if (entry) {
+        const [id, lamp] = entry;
+        const glow = !bright && id === this.spook.room ? flickerLevel(this.spook.since) : 1;
+        light.position.copy(lamp.at);
+        light.color.setHex(lamp.color);
+        light.intensity = LAMP_ON * glow;
+      }
     }
+    for (const [id, lamp] of this.lamps)
+      lamp.glass.material.color.lerpColors(_lampOff, _lampOn, bright || lit.has(id) ? 1 : 0);
   }
 
   // --- die Drohne -----------------------------------------------------------
@@ -1882,7 +2014,10 @@ export class HauntingWorld extends GridWorld {
    */
   override render(ctx: WorldContext): boolean {
     const ui = this.ui;
-    if (!ui) return false;
+    if (!ui) {
+      this.liftLid(this.state.crew.simulation);
+      return false;
+    }
     const station = ui.station;
     const archive = station === 'archive';
     const show = station === 'watch';
@@ -2197,108 +2332,163 @@ export class HauntingWorld extends GridWorld {
   // --- das Menü in der Brille ------------------------------------------------
 
   override menu(): MenuEntry[] {
-    const monster: MenuEntry = {
-      id: 'haunt:monster',
-      label: `Monster: ${this.state.monsterOn ? 'an' : 'aus'}`,
-      sub: 'Aus üben sich die Rollen im Van in Ruhe — an wird es ernst',
+    if (this.context?.role !== 'vr')
+      return [
+        {
+          id: 'haunt:technician',
+          label: 'Als Techniker am Desktop testen',
+          sub: 'Übernimmt die VR-Rolle ohne Headset · WASD und Maus',
+          icon: 'cube',
+          accent: 0x65dce5,
+          run: () => {
+            this.flatTechnician = true;
+          },
+        },
+      ];
+    const entry = (id: string, label: string, sub: string, run: () => void): MenuEntry => ({
+      id,
+      label,
+      sub,
       icon: 'cube',
-      accent: 0xff5a5a,
-      run: () => this.toggleMonster(),
-    };
-    const fresh: MenuEntry = {
-      id: 'haunt:new',
-      label: 'Neues Haus',
-      sub: 'Würfelt den Grundriss neu — bei allen im Raum',
-      icon: 'cube',
-      accent: 0x5ee0a0,
-      run: () => this.newRound(),
-    };
-    const brief: MenuEntry = {
-      id: 'haunt:brief',
-      label: `Auftrag: ${this.state.done.length}/${this.spec.tasks.length}`,
-      sub: this.spec.tasks.map((task) => task.label).join(', '),
-      icon: 'cube',
-      accent: 0xffc857,
-      run: () => this.announce(`Zu holen: ${this.spec.tasks.map((one) => one.label).join(', ')}`),
-    };
-    const room: MenuEntry = {
-      id: 'haunt:room',
-      label: 'In den Haunting-Raum',
-      sub: `Alle spielen im Raum "haunting" — hier bist du in "${this.context?.net.room || 'keinem'}"`,
-      icon: 'cube',
-      accent: 0x4aa8ff,
-      run: () => this.context?.join(HAUNT_ROOM),
-    };
-    const rows = [brief, monster, fresh];
-    if (this.context?.net.room !== HAUNT_ROOM) rows.push(room);
-    return [...rows, ...super.menu()];
+      accent: 0x65dce5,
+      run,
+    });
+    return [
+      entry(
+        'haunt:start',
+        'Mission starten',
+        'Drei Systeme reparieren und zur Zentrale zurückkehren',
+        () => this.startMission(),
+      ),
+      entry(
+        'haunt:test',
+        'TEST / ohne Monster',
+        'Sicher üben · Ausrüstung und beleuchtetes Testlabor',
+        () => this.testMission(),
+      ),
+      entry(
+        'haunt:light',
+        `Testlicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
+        'Auch im Dunkeln ohne Monster testen',
+        () => {
+          if (this.state.crew.options.test)
+            this.state.crew.options.bright = !this.state.crew.options.bright;
+        },
+      ),
+      entry(
+        'haunt:rooms',
+        `Station: ${this.state.crew.options.rooms} Räume`,
+        '6 / 8 / 10 / 12 · neue Station',
+        () =>
+          this.configureStation({
+            ...this.state.crew.options,
+            rooms: ROOM_COUNTS[(ROOM_COUNTS.indexOf(this.state.crew.options.rooms as 6) + 1) % 4]!,
+          }),
+      ),
+      entry(
+        'haunt:monster-kind',
+        `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
+        'Drei Erscheinungen mit anderem Tempo und Schachtverhalten',
+        () =>
+          this.configureStation({
+            ...this.state.crew.options,
+            monster:
+              MONSTERS[
+                (MONSTERS.findIndex((m) => m.id === this.state.crew.options.monster) + 1) %
+                  MONSTERS.length
+              ]!.id,
+          }),
+      ),
+      ...(this.experience?.menu() ?? []),
+    ];
   }
 
-  /**
-   * **Alle in denselben Raum.**
-   *
-   * Haunting spielt im Raum `haunting`, damit die Web-Spieler auf der
-   * Startseite nur ihren Namen eintippen und keinen Code abtippen müssen. Wer
-   * schon in einem anderen Raum steht, wird aber nicht herausgezogen — das
-   * wäre ein Weltwechsel, der eine laufende Runde von jemand anderem beendet.
-   * Der bekommt stattdessen eine Zeile und einen Knopf.
-   */
   private joinTable(ctx: WorldContext): void {
-    if (!ctx.net.connected) {
-      ctx.join(HAUNT_ROOM);
-      return;
-    }
-    if (ctx.net.room !== HAUNT_ROOM) {
-      this.announce(`Ihr spielt im Raum "${ctx.net.room}" — Haunting läuft im Raum "haunting"`);
-    }
+    if (!ctx.net.connected)
+      ctx.join(new URLSearchParams(location.search).get('room') || HAUNT_ROOM);
   }
 
-  private toggleMonster(): void {
-    this.state.monsterOn = !this.state.monsterOn;
-    // Der Spuk fängt bei null an: Wer das Monster einschaltet, soll nicht in
-    // derselben Sekunde im Dunkeln stehen (`haunt.freshSpook`).
-    this.spook = freshSpook();
-    if (!this.state.monsterOn) {
-      this.director?.clear();
-      this.monster = null;
-      this.state.monster = null;
-      this.announce('Monster aus — das Haus gehört dir');
-      this.context?.menu.refresh();
-      return;
+  private removeMonster(): void {
+    if (this.monsterArt) {
+      this.monsterArt.removeFromParent();
+      dispose(this.monsterArt);
+      this.monsterArt = null;
     }
-    // Es startet so weit weg wie möglich: Ein Monster, das im selben Zimmer
-    // auftaucht, in dem man steht, ist kein Spiel, sondern ein Schreck.
+    this.director?.clear();
+    this.monster = null;
+    this.state.monster = null;
+    this.state.monsterOn = false;
+    this.ventExit = null;
+    this.ventClock = 0;
+    this.state.crew.venting = 0;
+  }
+
+  private startMission(): void {
+    if (!this.isHost || this.context?.role !== 'vr') return;
+    const options = { ...this.state.crew.options, test: false, bright: false };
+    this.newRound(options);
+    this.state.phase = 'running';
+    this.state.monsterOn = true;
     const far = roomOf(this.spec, this.spec.fuse.roomId) ?? this.spec.rooms[0]!;
     const at = roomCentre(far);
+    const kind = MONSTERS.find((m) => m.id === options.monster)!;
     this.monster =
       this.director?.spawn({
         kind: 'zombie',
         brain: 'chase',
+        speed: kind.speed,
+        health: 10000,
         at: new THREE.Vector3((at.x + 0.5) * TILE, 0, (at.z + 0.5) * TILE),
       }) ?? null;
-    this.announce(`Monster an — es startet ${nameOfRoom(this.spec, far.id)}`);
-    this.context?.menu.refresh();
+    if (this.monster) {
+      this.monster.model.visible = false;
+      this.monsterArt = buildCreature(options.monster);
+      this.monsterArt.position.y = -this.monster.skin.height / 2;
+      this.monster.holder.add(this.monsterArt);
+    }
+    this.state.lit = [this.spec.entryRoom];
+    this.announce(
+      'Mission läuft. Archiv: Aufträge und Codes. Einsatzkontrolle: Radar, Puls, Licht und Türen. Nach drei Reparaturen zurück zur Zentrale.',
+    );
   }
 
-  /** Ein neues Haus für alle: Der Same geht mit dem nächsten Stand hinaus. */
-  private newRound(): void {
-    if (!this.isHost) {
-      this.announce('Das Haus würfelt, wer die Brille aufhat');
-      return;
-    }
-    this.director?.clear();
-    this.monster = null;
+  private testMission(): void {
+    if (!this.isHost || this.context?.role !== 'vr') return;
+    this.newRound({ ...this.state.crew.options, test: true, bright: true });
+    this.state.phase = 'running';
+    this.state.crew.opened = ['test-supply'];
+    this.announce(
+      'TEST AKTIV · Kein Monster, kein Schaden. Testschrank rechts ist bestückt; Labor geöffnet. Testlicht lässt sich abschalten.',
+    );
+  }
+
+  private configureStation(options: StationOptions): void {
+    if (!this.isHost || this.context?.role !== 'vr') return;
+    this.newRound(stationOptions(options));
+    this.announce(
+      `Neue Station: ${this.spec.rooms.length} Räume. Mission oder sicheren Test wählen.`,
+    );
+  }
+
+  private newRound(options: StationOptions = this.state.crew.options): void {
+    if (!this.isHost) return;
+    this.removeMonster();
     this.spook = freshSpook();
-    this.spec = generateHouse(rollSeed());
-    this.state = freshState(this.spec.seed);
-    this.carried = [];
-    this.grid?.replaceWith(housePlan(this.spec, new Set()));
-    this.builtDoors = '';
+    this.spec = generateHouse(rollSeed(), options.rooms);
+    this.state = freshState(this.spec.seed, options);
+    this.previousFeet = null;
+    this.grid?.replaceWith(housePlan(this.spec, new Set(), options.test));
+    this.builtDoors = '?';
+    if (this.blob) {
+      dispose(this.blob);
+      this.blob.removeFromParent();
+      this.blob = null;
+    }
     this.buildHouse();
     this.parkDrone();
+    if (this.context) this.movePlayerTo(this.context, this.spawnPoint());
     this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
-    this.announce('Neues Haus. Alle im Van fangen von vorn an.');
-    this.context?.menu.refresh();
+    this.context?.refreshWorldMenu();
   }
 }
 
@@ -2316,8 +2506,10 @@ function dispose(group: THREE.Object3D): void {
       const mesh = one as Partial<THREE.Mesh>;
       mesh.geometry?.dispose();
       const material = mesh.material;
-      if (Array.isArray(material)) for (const part of material) part.dispose();
-      else material?.dispose();
+      for (const part of Array.isArray(material) ? material : material ? [material] : []) {
+        (part as THREE.MeshBasicMaterial).map?.dispose();
+        part.dispose();
+      }
     });
     group.remove(child);
   }
@@ -2328,10 +2520,11 @@ function clock(): number {
   return typeof performance === 'undefined' ? Date.now() : performance.now();
 }
 
-function freshState(seed: number): HauntState {
+function freshState(seed: number, options: StationOptions = stationOptions(null)): HauntState {
   return {
     seed,
-    phase: 'running',
+    phase: 'briefing',
+    crew: freshCrew(options),
     time: 0,
     monsterOn: false,
     monster: null,
@@ -2342,11 +2535,6 @@ function freshState(seed: number): HauntState {
     taken: [],
     done: [],
   };
-}
-
-function nameOfRoom(spec: HouseSpec, id: string): string {
-  const room = roomOf(spec, id);
-  return room ? `bei ${MARKS[room.signature]}` : 'irgendwo';
 }
 
 /**

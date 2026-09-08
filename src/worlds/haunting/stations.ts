@@ -56,15 +56,15 @@ export const STATIONS: readonly StationFacts[] = [
   {
     id: 'archive',
     label: 'Archiv',
-    tagline: 'Grundriss, Zimmer für Zimmer',
+    tagline: 'Aufträge, Fundorte und Freigabecodes',
     sees: 'Räume und was darin steht — aber niemanden, der sich bewegt',
     view: true,
   },
   {
     id: 'scout',
-    label: 'Späher',
-    tagline: 'Wo es gerade ist',
-    sees: 'nur Wände und einen Punkt: keine Namen, keine Möbel, kein Mitspieler',
+    label: 'Einsatzkontrolle',
+    tagline: 'Radar, Puls, Licht und Türen',
+    sees: 'Bewegungsradar, Anzugtelemetrie und Systemschalter — keine Fundorte',
     view: true,
   },
   {
@@ -77,14 +77,14 @@ export const STATIONS: readonly StationFacts[] = [
   {
     id: 'hack',
     label: 'Schalttafel',
-    tagline: 'Licht, Türen, Radios',
+    tagline: 'Licht, Schotts, Schallköder',
     sees: 'Schalter mit schlechten Beschriftungen — und keinen Grundriss',
     view: false,
   },
   {
     id: 'watch',
     label: 'Zuschauer',
-    tagline: 'Das ganze Haus, bei Tag',
+    tagline: 'Die ganze Station, beleuchtet',
     sees: 'alles — und darf deshalb nichts sagen',
     view: true,
     shared: true,

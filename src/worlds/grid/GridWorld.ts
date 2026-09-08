@@ -69,6 +69,7 @@ export abstract class GridWorld extends PortalWorld {
   private editor: WorldEditor | null = null;
   /** Woran erkannt wird, dass am Plan etwas passiert ist. */
   private builtVersion = -1;
+  private readonly batches: THREE.InstancedMesh[] = [];
   /** Ob die Quader gerade auch Körper in der Physik haben. */
   private solid = true;
   /** Was beim Bauen eingefroren wurde — und deshalb hinterher aufzutauen ist. */
@@ -143,9 +144,43 @@ export abstract class GridWorld extends PortalWorld {
     const group = this.group;
     if (!plan || !group) return;
     this.builtVersion = plan.version;
+    for (const batch of this.batches) {
+      batch.geometry.dispose();
+      batch.removeFromParent();
+    }
+    this.batches.length = 0;
     for (const mesh of this.slabs) this.dropSlab(mesh);
     this.slabs.length = 0;
     for (const solid of plan.solids()) this.build(group, solid);
+    if (this.batchGridGeometry()) {
+      const byMaterial = new Map<THREE.Material, THREE.Mesh<THREE.BoxGeometry>[]>();
+      for (const object of this.slabs) {
+        const mesh = object as THREE.Mesh<THREE.BoxGeometry>;
+        if (!mesh.visible || Array.isArray(mesh.material)) continue;
+        const list = byMaterial.get(mesh.material) ?? [];
+        list.push(mesh);
+        byMaterial.set(mesh.material, list);
+      }
+      for (const [material, meshes] of byMaterial) {
+        const batch = new THREE.InstancedMesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          material,
+          meshes.length,
+        );
+        const matrix = new THREE.Matrix4();
+        const scale = new THREE.Vector3();
+        meshes.forEach((mesh, i) => {
+          const p = mesh.geometry.parameters;
+          scale.set(p.width, p.height, p.depth);
+          matrix.compose(mesh.position, mesh.quaternion, scale);
+          batch.setMatrixAt(i, matrix);
+          mesh.visible = false;
+        });
+        batch.computeBoundingSphere();
+        group.add(batch);
+        this.batches.push(batch);
+      }
+    }
   }
 
   /**
@@ -206,8 +241,19 @@ export abstract class GridWorld extends PortalWorld {
       solid.portal ?? solid.kind === 'panel',
       this.solid,
     );
-    if (solid.door) mesh.userData.door = solid.door;
+    if (solid.door) {
+      mesh.userData.door = solid.door;
+      mesh.visible = this.gridDoorVisible();
+    }
     this.slabs.push(mesh);
+  }
+
+  protected batchGridGeometry(): boolean {
+    return false;
+  }
+
+  protected gridDoorVisible(): boolean {
+    return true;
   }
 
   /** Das Material einer Sorte, einmal gebaut und danach geteilt. */
@@ -509,6 +555,7 @@ export abstract class GridWorld extends PortalWorld {
     this.grid = null;
     this.group = null;
     this.slabs.length = 0;
+    this.batches.length = 0;
     this.frozen.length = 0;
     this.palette.clear();
     this.builtVersion = -1;

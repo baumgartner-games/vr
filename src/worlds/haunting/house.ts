@@ -117,20 +117,20 @@ export type MarkId =
 
 /** Wie ein Merkmal heißt — im Dossier und im Satz, den jemand sagt. */
 export const MARKS: Readonly<Record<MarkId, string>> = {
-  wanne: 'Badewanne',
-  dusche: 'Dusche',
-  ofen: 'Herd',
-  spuele: 'Spüle',
-  bett: 'Bett',
-  buecher: 'Bücherregal',
-  werkbank: 'Werkbank',
-  klavier: 'Klavier',
-  kamin: 'Kamin',
-  standuhr: 'Standuhr',
-  sessel: 'Sessel',
-  kiste: 'Kisten',
-  schaukelpferd: 'Schaukelpferd',
-  esstisch: 'Esstisch',
+  wanne: 'Kryokapsel',
+  dusche: 'Dekontaminationskammer',
+  ofen: 'Nährstoffdrucker',
+  spuele: 'Wasseraufbereitung',
+  bett: 'Schlafkoje',
+  buecher: 'Serverracks',
+  werkbank: 'Antriebskern',
+  klavier: 'Kommunikationskonsole',
+  kamin: 'Reaktor',
+  standuhr: 'Sauerstofftank',
+  sessel: 'Pilotensitz',
+  kiste: 'Frachtcontainer',
+  schaukelpferd: 'Probenkammer',
+  esstisch: 'Hydroponikbeet',
 };
 
 /** Ein Merkmal, wie es im Zimmer steht. */
@@ -172,22 +172,22 @@ interface RoomKindFacts {
 }
 
 const ROOM_KINDS: readonly RoomKindFacts[] = [
-  { id: 'kueche', label: 'Küche', signature: 'ofen', extras: ['spuele', 'esstisch'] },
-  { id: 'bad', label: 'Bad', signature: 'wanne', twin: 'dusche', extras: [] },
-  { id: 'wohnzimmer', label: 'Wohnzimmer', signature: 'kamin', extras: ['sessel', 'standuhr'] },
-  { id: 'musikzimmer', label: 'Musikzimmer', signature: 'klavier', extras: ['sessel'] },
-  { id: 'schlafzimmer', label: 'Schlafzimmer', signature: 'bett', extras: ['standuhr'] },
+  { id: 'kueche', label: 'Kombüse', signature: 'ofen', extras: ['spuele', 'esstisch'] },
+  { id: 'bad', label: 'Medizin / Quarantäne', signature: 'wanne', twin: 'dusche', extras: [] },
+  { id: 'wohnzimmer', label: 'Reaktorkammer', signature: 'kamin', extras: ['sessel', 'standuhr'] },
+  { id: 'musikzimmer', label: 'Kommunikation', signature: 'klavier', extras: ['sessel'] },
+  { id: 'schlafzimmer', label: 'Crewquartier', signature: 'bett', extras: ['standuhr'] },
   {
     id: 'kinderzimmer',
-    label: 'Kinderzimmer',
+    label: 'Biolabor',
     signature: 'schaukelpferd',
     twin: 'bett',
     extras: ['kiste'],
   },
-  { id: 'bibliothek', label: 'Bibliothek', signature: 'buecher', extras: ['sessel'] },
-  { id: 'werkstatt', label: 'Werkstatt', signature: 'werkbank', extras: ['kiste'] },
-  { id: 'kammer', label: 'Abstellkammer', signature: 'kiste', extras: [] },
-  { id: 'esszimmer', label: 'Esszimmer', signature: 'esstisch', extras: ['sessel'] },
+  { id: 'bibliothek', label: 'Datenarchiv', signature: 'buecher', extras: ['sessel'] },
+  { id: 'werkstatt', label: 'Maschinenraum', signature: 'werkbank', extras: ['kiste'] },
+  { id: 'kammer', label: 'Frachtlager', signature: 'kiste', extras: [] },
+  { id: 'esszimmer', label: 'Hydroponik', signature: 'esstisch', extras: ['sessel'] },
 ];
 
 // --- Was herauskommt --------------------------------------------------------
@@ -267,15 +267,7 @@ export interface HouseSpec {
 }
 
 /** Woraus die drei Sachen ausgesucht werden, die zu holen sind. */
-const LOOT = [
-  'Fotoalbum',
-  'Schlüsselbund',
-  'Puppe',
-  'Tagebuch',
-  'Medaille',
-  'Spieluhr',
-  'Brief',
-] as const;
+const LOOT = ['Wartungsschlüssel', 'Filterpatrone', 'Signalmodul'] as const;
 
 /** Wie viele davon eine Runde verlangt. */
 export const TASK_COUNT = 3;
@@ -288,9 +280,9 @@ export const TASK_COUNT = 3;
  * dann steht der Archivar in einem Grundriss, den es beim VR-Spieler nicht
  * gibt. Deshalb liegt jeder Wurf an genau einer Stelle.
  */
-export function generateHouse(seed: number): HouseSpec {
+export function generateHouse(seed: number, roomCount?: number): HouseSpec {
   const rng = new Rng(seed);
-  const rects = splitRooms(rng, HOUSE);
+  const rects = roomCount === undefined ? splitRooms(rng, HOUSE) : stationRooms(rng, roomCount);
   const rooms = nameRooms(rng, rects);
   const { doors, entryRoom, frontDoor } = connect(rng, rooms);
   placeMarks(rng, rooms, doorTiles(doors));
@@ -303,6 +295,27 @@ export function generateHouse(seed: number): HouseSpec {
   darkenOne(rng, rooms, entryRoom);
   const switches = buildPanel(rng, rooms, doors);
   return { seed, rooms, doors, windows, entryRoom, frontDoor, fuse, tasks, switches };
+}
+
+/** Exact station sizes; rectangular modules retain two escape routes. */
+function stationRooms(rng: Rng, count: number): Rect[] {
+  const counts: Record<number, number[]> = {
+    6: [2, 2, 2],
+    8: [3, 2, 3],
+    10: [3, 4, 3],
+    12: [4, 4, 4],
+  };
+  const rows = rng.shuffle(counts[count] ?? counts[8]!);
+  const out: Rect[] = [];
+  rows.forEach((columns, row) => {
+    const widths = rng.shuffle(columns === 2 ? [4, 4] : columns === 3 ? [2, 2, 4] : [2, 2, 2, 2]);
+    let x = HOUSE.x;
+    for (const w of widths) {
+      out.push({ x, z: HOUSE.z + row * 2, w, d: 2 });
+      x += w;
+    }
+  });
+  return out;
 }
 
 // --- Grundriss --------------------------------------------------------------
@@ -418,7 +431,13 @@ function cut(rng: Rng, rect: Rect): [Rect, Rect] {
 function nameRooms(rng: Rng, rects: readonly Rect[]): HouseRoom[] {
   const kinds = rng.shuffle(ROOM_KINDS);
   const twinKind = kinds.find((one) => one.twin) ?? kinds[0]!;
-  const others = kinds.filter((one) => one.id !== twinKind.id);
+  const others = kinds
+    .filter((one) => one.id !== twinKind.id)
+    .sort(
+      (a, b) =>
+        Number(['werkstatt', 'bad', 'musikzimmer'].includes(b.id)) -
+        Number(['werkstatt', 'bad', 'musikzimmer'].includes(a.id)),
+    );
 
   // Welche zwei Rechtecke die Zwillinge werden. Nebeneinander wäre zu leicht
   // zu merken, deshalb nur: nicht dasselbe.
@@ -829,7 +848,14 @@ function placeTasks(rng: Rng, rooms: readonly HouseRoom[], entryRoom: string): H
 
 /** „bei dem Klavier", „bei der Badewanne" — der Artikel gehört zum Satz. */
 function article(label: string): string {
-  const feminine = ['Badewanne', 'Dusche', 'Spüle', 'Werkbank', 'Standuhr', 'Kisten'];
+  const feminine = [
+    'Kryokapsel',
+    'Dekontaminationskammer',
+    'Wasseraufbereitung',
+    'Kommunikationskonsole',
+    'Schlafkoje',
+    'Probenkammer',
+  ];
   return `${feminine.includes(label) ? 'der' : 'dem'} ${label}`;
 }
 

@@ -50,6 +50,8 @@ export interface WorldContext {
   join(room: string): void;
   /** Short message shown on the wrist menu / HUD. */
   notify(message: string): void;
+  /** Rebuild world-specific entries after a role or round changes. */
+  refreshWorldMenu(): void;
   /**
    * Eine Zeile in den Chat — an alle im Raum und in den eigenen Verlauf.
    *

@@ -170,13 +170,12 @@ export const WORLDS: WorldDefinition[] = [
   },
   {
     id: 'haunting',
-    title: 'Spiel Haunting',
-    tagline: 'Einer im Haus, die anderen im Van',
+    title: 'Haunting / Orbital',
+    tagline: 'Eine Quest, zwei in der Einsatzzentrale',
     description:
-      'Ein gewürfeltes Haus, drei Sachen darin und vier Stationen davor: Archiv, Späher, Drohne, Schalttafel. Der VR-Spieler hat Hände, alle anderen haben Wissen — und keiner kann dem anderen eine Koordinate sagen. Das Monster ist aus, bis die Brille es einschaltet.',
-    accent: 0x9b6bff,
+      'Kooperative Raumstationsmission: Systeme reparieren, Codes austauschen, Radar überwachen. Mit sicherem Testlabor.',
+    accent: 0x65dce5,
     roles: ['vr', 'desktop', 'handheld'],
-    experimental: true,
     load: async () => new (await import('./haunting/HauntingWorld')).HauntingWorld(),
   },
 ];

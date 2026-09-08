@@ -33,25 +33,40 @@ const startWorld = findWorld(requested)?.id ?? DEFAULT_WORLD;
 
 let netPanel: NetPanel | null = null;
 
-const app = new App(canvas, stick, {
-  onWorldChanged: (id, title) => {
-    hudWorld.textContent = title;
-    if (window.location.hash.slice(1) !== id) {
-      window.history.replaceState(null, '', `#${id}`);
-    }
-  },
-  onSessionChanged: (presenting) => {
-    hud.hidden = presenting;
-    touch.hidden = presenting || detectFlatRole() !== 'handheld';
-    hudVr.textContent = presenting ? 'VR beenden' : 'VR';
-    if (presenting) {
-      netPanel?.toggle(false);
-      hideLanding();
-    }
-  },
-  onNetChanged: () => netPanel?.refresh(),
-  onWorldFailed: (id, error) => recoverFromStaleBuild(id, error),
-});
+const app = (() => {
+  try {
+    return new App(canvas, stick, {
+      onWorldChanged: (id, title) => {
+        hudWorld.textContent = title;
+        if (window.location.hash.slice(1) !== id) {
+          window.history.replaceState(null, '', `#${id}`);
+        }
+      },
+      onSessionChanged: (presenting) => {
+        hud.hidden = presenting;
+        touch.hidden = presenting || detectFlatRole() !== 'handheld';
+        hudVr.textContent = presenting ? 'VR beenden' : 'VR';
+        if (presenting) {
+          netPanel?.toggle(false);
+          hideLanding();
+        }
+      },
+      onNetChanged: () => netPanel?.refresh(),
+      onWorldFailed: (id, error) => recoverFromStaleBuild(id, error),
+    });
+  } catch (error) {
+    const webgl = /webgl|graphics context/i.test(String(error));
+    statusLine.textContent = webgl
+      ? '3D ist in diesem Browser nicht verfügbar. Bitte WebGL bzw. Grafikbeschleunigung aktivieren oder einen Browser mit WebGL-Unterstützung verwenden und die Seite neu laden.'
+      : 'Das Spiel konnte nicht gestartet werden. Bitte die Seite neu laden.';
+    statusLine.classList.add('is-error');
+    statusLine.setAttribute('role', 'alert');
+    enterVrButton.textContent = '3D-Start nicht verfügbar';
+    for (const button of landing.querySelectorAll<HTMLButtonElement>('button'))
+      button.disabled = true;
+    throw error;
+  }
+})();
 
 app.preferLocal = params.get('net') === 'local';
 
@@ -158,10 +173,15 @@ hauntJoin.addEventListener('click', () => {
     hauntStatus.textContent = 'Verbinde …';
     try {
       if (!app.net.connected) {
-        await app.connect({ room: HAUNT_ROOM, name, local: app.preferLocal });
+        await app.connect({
+          room:
+            normalizeRoomCode(new URLSearchParams(location.search).get('room') || '') || HAUNT_ROOM,
+          name,
+          local: app.preferLocal,
+        });
       }
       rememberName(name);
-      hauntStatus.textContent = `Im Raum ${app.net.room}. Willkommen im Van.`;
+      hauntStatus.textContent = `Im Raum ${app.net.room}. Willkommen in der Einsatzzentrale.`;
       startFlat();
       await app.goTo('haunting');
     } catch (error) {
