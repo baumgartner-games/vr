@@ -500,6 +500,8 @@ export class GridPlan {
     // zweimal — und die Küche wäre nach dem zweiten Laden unbegehbar.
     this.base.clear();
     for (const [key, facts] of source.base) this.base.set(key, { ...facts });
+    this.stack.length = 0;
+    for (const mass of source.stack) this.stack.push({ ...mass, rect: { ...mass.rect } });
     this.loadBlocks(source.saveBlocks());
     return this;
   }

@@ -1942,16 +1942,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Gürtel, dasselbe Regal, dieselbe Physik. Portale haften nur an den hellen
   Tafeln im Flur und am Boden — eine Putzwand mit Loch würde das Haus zum
   Nichts draußen aufmachen.
-- **Spiel Haunting** (experimentell): das erste Spiel hier, das ohne die
-  anderen nicht geht. Ein je Runde **gewürfeltes Haus** (`haunting/house.ts`),
-  drei Sachen darin, und davor ein Van mit vier Stationen — Archiv, Späher,
-  Drohne, Schalttafel —, von denen jede das Haus in einer anderen Sprache
-  kennt. Dazu ein **Fernseher** für die, die nur zusehen: das ganze Haus von
-  schräg oben, bei Tag, ohne einen einzigen Knopf. Der VR-Spieler hat als Einziger Hände, alle anderen haben Wissen, und
-  niemand kann dem anderen eine Koordinate sagen. Das Monster ist **aus**, bis
-  die Brille es einschaltet — und wo es steht, flackert das Licht und fällt
-  eine Tür zu, was nur die Schalttafel zurückdrehen kann. Ausführlich:
-  _Haunting: einer im Haus, die anderen im Van_.
+- **Haunting / Orbital**: eine Raumstation für eine Quest und zwei Telefone.
+  Der Außentechniker sucht Gegenstände, löst Reparaturaufträge und kann nach
+  drei Treffern verlieren. Das Archiv führt mit 2D-Karte, Codes und lokalem
+  Anomalienjournal; die Einsatzkontrolle kombiniert Radar/Anzug und Schalttafel
+  in getrennten Reitern. Drohne und Zuschauer bleiben optional. Wählbar sind
+  6/8/10/12 größere Räume und drei Entitäten mit eigener Wahrnehmung und
+  Messsignatur. Sichere Tests bleiben bei ausgeschaltetem Licht gegnerfrei;
+  vier Lehrzimmer liegen abseits der Missionskarte. Ausführlich:
+  _Haunting / Orbital: Raumstation für eine Quest und zwei Mobilgeräte_.
 - **Kletterhalle** (experimentell): die Welt, in der der **Greifknopf etwas
   anderes tut**. Überall sonst nimmt Greifen ein Ding in die Hand; hier hängt
   es den ganzen Spieler an die Wand. Von Griff zu Griff geführt wird dabei
@@ -2543,12 +2542,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Haunting: Station wählen           | –                                                                                                                                                                     | Kachel im Van anklicken                                                                         | antippen             |
-| Haunting: Sache aufheben           | hingehen — sie springt in den Auftrag, sobald man nah genug ist                                                                                                       | dito                                                                                            | –                    |
-| Haunting: Sachen abgeben           | zurück zum Van, in die Nähe des Tisches                                                                                                                              | dito                                                                                            | –                    |
-| Haunting: Sicherungskasten         | anzielen + Trigger, oder antippen — schaltet die halbe Schalttafel frei                                                                                               | anklicken                                                                                       | –                    |
-| Haunting: Monster an/aus           | Menü → _Monster_ — startet **aus**                                                                                                                                    | dito                                                                                            | –                    |
-| Haunting: neues Haus               | Menü → _Neues Haus_ (nur der VR-Spieler)                                                                                                                              | –                                                                                               | –                    |
+| Haunting: Station wählen | – | Archiv, Einsatzkontrolle, Drohne oder Zuschauer in der Zentrale wählen | antippen |
+| Haunting: Schrank / Gegenstand / Rätsel | anvisieren + Trigger | anvisieren + `E` oder Linksklick | als Techniker über sichtbare Schaltflächen |
+| Haunting: linke / rechte Hand | Sensor-/Medkit-Menü; Objekte mit Trigger bedienen | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand | – |
+| Haunting: Medkit | Missionsmenü → Medkit | rechts wählen + `E`, oder Missionsmenü | – |
+| Haunting: Schutzschrank | Code am Display eingeben, offenes Display zum Verstecken; Menü zum Verlassen | Code mit `E`/Klick; `E` oder Menü zum Verlassen | – |
+| Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
+| Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Kontrolle |
+| Haunting: einzelne Lehrzimmer | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum | dito; mit `E` die echten Beispiele bedienen | – |
+| Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
+| Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
+| Haunting: Archivkarte | – | _Karte vergrößern_; ziehen, Mausrad; Raum antippen | ziehen, zwei Finger zoomen |
+| Haunting: Anomalienjournal | Messwerte dem Archiv nennen | Archiv → _Anomalien_: Beobachtungen / Vermutung vormerken | dito |
+| Haunting: Leistungsanzeige | – | `F3`: FPS, Framezeit, Draw Calls und Dreiecke | im Web standardmäßig sichtbar |
 | Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
 | Sprungkissen (Kletterhalle)        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                  | dito                                                                                            | dito                 |
@@ -7566,95 +7572,193 @@ den Welten ergänzen, er muss nur `NetTransport` implementieren.
 ### Haunting / Orbital: Raumstation für eine Quest und zwei Mobilgeräte
 
 Haunting bleibt eine `GridWorld`/`PortalWorld`; Hub und andere Welten bleiben
-unabhängig. Der Weltname ist `Haunting / Orbital`. Der bisherige Van ist die
-geschlossene Einsatzzentrale mit geschütztem Testlabor. Die alten internen
-RoomKind-/MarkId- und `HouseSpec`-Bezeichner bleiben aus Kompatibilitätsgründen
-bestehen; sichtbare Namen und Geometrie sind Stationsmodule.
+unabhängig. Der bisherige Van ist die Einsatzzentrale. Vier getrennte Lehrzimmer
+liegen weit östlich außerhalb der Missionskarte. Die alten internen RoomKind-/
+MarkId- und `HouseSpec`-Namen bleiben kompatibel; sichtbare Namen und Modelle
+sind Stationsmodule.
 
-**Generator und Mission**
+**Geometrie und Platzierung**
 
-- `house.ts`: deterministisch aus Seed, 6/8/10/12 Räume innerhalb HOUSE.
-  APRON ist die sichere Zentrale. Mindestens zwei Türen pro Raum, verbundener
-  Raumgraph. `generateHouse(seed)` behält den bisherigen Standard für alte
-  Generator-Tests; die Welt übergibt ausdrücklich die gewählte Raumzahl.
-- `plan.ts`: GridPlan, Kollisionen, Türzustände, Fenster, Raum-Merkmale.
-  Die Testlabortür bei (2,4,W) öffnet nur im Test. Die Zentrale ist geschlossen.
-- `mission.ts`: Optionen, drei Reparaturaufträge, Kabel-/Folge-/Frequenzrätsel,
-  Inventar, Schutzcodes, Treffer, simulierter Puls/Visierbelastung, Ventilations-
-  Nachbarschaft. Kein Browser/three.js. Aufträge werden pro HouseSpec gecacht.
-- Der Techniker braucht zuerst den jeweiligen Gegenstand aus einem geöffneten
-  Frachtschrank, entriegelt das Terminal und löst das Rätsel. Alle drei
-  Reparaturen plus Rückkehr zur Zentrale ergeben `won`; null HP ergibt `lost`.
-- Drei HP, drei Sekunden Trefferpause, Medkit heilt eins. Keine Treffer im
-  Briefing, Test, Schutzschrank oder während der Schachtpassage. Die Welt
-  prüft zusätzlich echte Monsterdistanz und Raumzugehörigkeit: NPC-Angriffe
-  auf Geräuschköder dürfen den Spieler nicht aus der Ferne verletzen.
-- Schächte kommen ausschließlich aus echten gemeinsamen Innenwänden.
-  Stalker/Crawler/Sentinel haben getrennte Modelle, Tempi und Schachtintervalle.
+- `house.ts` generiert aus Seed und gewählten 6/8/10/12 Räumen denselben Plan
+  auf allen Geräten. HOUSE umfasst 16 × 12 Rasterfelder; die Stationsräume sind
+  mindestens 4 × 4 Felder groß. TILE bleibt projektweit 2,5 m, also mindestens
+  10 × 10 m pro Raum. APRON ist die sichere Zentrale. `generateHouse(seed)`
+  ohne Raumzahl bleibt der historische Generatorpfad für bestehende Tests.
+- `plan.ts` beschreibt Hülle, Türen, Fenster und im Test die getrennten
+  Laborböden. Keine zusätzlichen alten Merkmal-Blöcke unter den neuen Modellen:
+  die hatten Ausgänge blockiert und Flächen doppelt gezeichnet. Offene
+  Stationstürblätter ziehen sich zurück statt als Schwenkflügel im Weg zu stehen.
+- `fixtureDimensions.ts` ist der gemeinsame Maßkatalog. `stationLayout.ts`
+  liefert Position, Yaw, Welt-Footprint und Antrittspunkt für Einrichtungsmodelle,
+  Fracht, Schutzschränke und Konsolen. Es reserviert Wandabstand, Türlandungen,
+  Laufwege vom Eingang zur Raummitte und Schachtzugänge. Keine zusätzlichen
+  frei geratenen Platzierungen in Darstellungs- oder Interaktionscode einführen.
+- `fixtureModels.ts` baut vermessene Module mit abgerundeten Gehäusen, Tanks,
+  Rohren und getrennten Oberflächenschichten. Geometrie-Tests prüfen die
+  Kataloggrenzen; dünne Schilder/Blenden brauchen einen echten Abstand, nicht
+  zwei deckungsgleiche Flächen. `shipArt.ts` baut Hülle, Schilder, Sterne und
+  Gegnerdarstellung aus dem gemeinsamen Plan.
+- `stationNavigation.ts` bestimmt freie Raum-Ankunftsplätze. Weltreisen und
+  Verlassen von Schutz/Simulation müssen die tatsächliche Rig-/Physikposition
+  synchronisieren; ein Kamera-Offset allein lässt die Kapsel am alten Ort.
 
-**Darstellung und Interaktion**
+**Mission und Entitäten: reine Zustandslogik**
 
-- `shipArt.ts`: instanzierte Paneele, Leisten und raumspezifische Aggregate,
-  prozedurale Schilder/Sterne sowie drei animierbare Gegner ohne Asset-Downloads.
-- `ShipExperience.ts`: Command-Panel, öffnende Frachtschränke, codierte
-  Schutzschränke, drei Terminals, animierte Schiebetürblätter, Testlabor,
-  Raumanzug, Wunden, Visier und Handgelenksensoren. DOM-Bedienung als Desktop-
-  Techniker und dieselben Aktionen über WorldPointer/MenuEntry in VR.
-- Missionseigentum liegt in `HauntState.crew`, nicht in Canvas oder DOM.
-  Puzzle-Canvas werden nur bei Änderungen neu gezeichnet, Puls/Radar gedrosselt.
-  Eigene Pointer, CanvasTexture, Geometrie, Materialien und Synth-Hum werden
-  beim Neuaufbau/Verlassen freigegeben. Geteilte Avatarfarben werden restauriert.
-- Vier gepoolte Raum-PointLights, ein konstantes Testlaborlicht und bestehende
-  Taschen-/Drohnenlichter. Emissive Leisten statt PointLight pro Leiste.
-  Burst-Effekte höchstens drei zugleich, höchstens 48 Partikel, ohne Flash-Light.
-- `GridWorld.batchGridGeometry()` und `gridDoorVisible()` sind standardmäßig
-  aus beziehungsweise an; nur Haunting aktiviert Instancing und ersetzt die
-  sichtbaren Türblätter. Collider bleiben beim GridPlan. Keine Änderung am
-  Verhalten der übrigen Grid-Welten.
-- `PortalWorld.takeHit` ist protected, damit Haunting eigene Lebensregeln hat.
-- `WorldContext.refreshWorldMenu()` erneuert App-Menüeinträge nach Inventar-,
-  Runden- und Rollenwechseln. App erzeugt den Kontext je Frame neu; Haunting
-  behandelt den Wechsel Web → VR auch ohne Neubau der ganzen Welt.
+- `mission.ts`: Stationsoptionen, drei Reparaturaufträge, Kabel-/Folge-/
+  Frequenzrätsel, Inventar, Schutzcodes, HP, simulierter Puls/Visierbelastung und
+  echte Schachtnachbarschaft. Aufträge werden pro HouseSpec gecacht.
+- Gegenstand aus geöffnetem Frachtschrank nehmen, zugehöriges Terminal
+  entriegeln, Rätsel lösen. Drei Reparaturen und Rückkehr zur Zentrale ergeben
+  `won`; null HP ergibt `lost`. Drei HP, drei Sekunden Trefferpause; Medkit
+  heilt einen Treffer. Test, Briefing, Schutzschrank und Schachtpassage sperren
+  Treffer. Die Welt prüft zusätzlich echte Spieler-Monster-Distanz und die
+  Stationsgrenze; ein NPC-Angriff auf einen Köder verletzt niemanden fernab.
+- `threat.ts`: Der Host prüft Spielbewegung, Ducken, Taschenlampenzustand und
+  Sichtlinie. Wahrnehmung steigert Aufmerksamkeit; Modi sind Patrouille,
+  Untersuchen, Jagd und Suche. Erinnerung enthält die zuletzt wahrgenommene
+  Position, nicht eine durch Wände ständig aktualisierte Spielerkoordinate.
+  `HauntingMicrophone.ts` ergänzt auf ausdrücklichen Tastendruck einen lokalen
+  Lautstärkepegel als optionalen Hörreiz. Standard aus; kein automatischer
+  `getUserMedia`-Aufruf. Ein wiederverwendeter 512-Sample-Buffer wird mit höchstens
+  20 Hz ausgewertet, nur geglätteter RMS-Pegel weitergereicht. Keine Aufnahme,
+  Wiedergabe oder Übertragung; Ausschalten/Dispose beendet Tracks. Sichere
+  Tests ignorieren den Hörreiz. Verweigerter Zugriff blockiert das Spiel nicht.
+- `ENTITY_EVIDENCE` verbindet echte Eigenschaften und Hinweise: Verlorener
+  mit Kälte/pulsierender EMF/schleifenden Schritten, Schachtläufer mit Wärme/
+  schwacher EMF/schnellem Kratzen, Wächter mit leichter Erwärmung/starker EMF/
+  schweren Metalltritten. `entityReadings()` berechnet entfernungsabhängige
+  Radar-, EMF-, Temperatur- und Audiowerte. Strom kann harmlose EMF-Stufe 1
+  liefern; sichere Tests zeigen Grundwerte. Keine medizinischen Messungen.
+- Schächte stammen nur aus gemeinsamen Innenwänden. Gegnertypen haben eigene
+  Modelle, Geschwindigkeiten, Sinne und Schachtintervalle; keine Gegner in der
+  Zentrale, den Übungsräumen oder der Simulation.
 
-**Drei Geräte und Netz**
+**Interaktion, Komfort und Lehrzimmer**
 
-- VR-Techniker ist Spielhost, sonst ältester anwesender Peer. Die optional
-  gewählte Desktop-Technikerrolle meldet sich regelmäßig auf Haunt-Channel und
-  nimmt an derselben Hostwahl teil; sie ist für Bedienprüfungen ohne XR gedacht.
-- `net.ts`: versionierte Snapshots (`STATION_PROTOCOL = 2`) einschließlich
-  Inventar, Puzzles, HP und Stationsoptionen. Begrenzte, endliche Werte bei
-  Empfang; alte Protokolle werden verworfen. Alle Geräte nach Update neu laden.
-- Nur Host-Zustände übernehmen. Schalter nur vom Besitzer von `scout` oder
-  `hack` akzeptieren, Drohnenkommandos nur vom Drohnenbesitzer.
-- `stationUi.ts`: empfohlen Archiv und Einsatzkontrolle (`scout`). Letztere
-  kombiniert Radar, simulierten Puls, HP und Schalttafel. Archiv zeigt
-  Aufträge, Fundhinweise, benötigte Gegenstände und Codes. Drohne, separate
-  Schalttafel und Zuschauer bleiben optionale weitere Plätze.
-- Gemeinsamer URL-Parameter `room` wird beim Weltbeitritt und auf der Startseite
-  beachtet; sonst `haunting`. Bestehendes Trystero/Nostr/WebRTC ohne Konten.
-  `net=local` ist BroadcastChannel nur zwischen Tabs, kein LAN-Transport.
-  Internet und WLAN brauchen erreichbare öffentliche Signalisierung; für
-  restriktives NAT bleibt TURN optional. Kein garantierter Relay ohne Dienst.
-- Bestehende Drohnen-Wegeführung, Flugbegrenzung, Archiv-Zoom/Schwenken,
-  Besuchskamera und sichere Tür-Streiche bleiben erhalten.
+- `ShipExperience.ts` bindet Zustand an Command-Panel, Schränke, Schlösser,
+  Rätsel, Türen, Raumanzug, Wunden, Visier und Handgeräte. Missionseigentum
+  bleibt in `HauntState.crew`, niemals allein in DOM/Canvas. Canvas-Panels
+  werden nur bei Änderung, Sensoren gedrosselt neu gezeichnet. Neuaufbau und
+  Verlassen geben eigene Pointer, Texturen, Materialien, Geometrie und Audio
+  frei und restaurieren gemeinsame Avatar-/Rig-Einstellungen.
+- `desktopControls.ts` ergänzt Haunting ohne andere Welten umzubelegen:
+  `E` benutzt denselben Zeiger-/Triggerpfad; `1` wechselt linke Sensoren,
+  `2` rechte Lampe/Medkit, jeweils inklusive leerer Hand. `Ctrl` duckt den
+  Web-Techniker. Im Flugmodus steuert WASD direkt den eingefrorenen Rig,
+  Space/Ctrl steigen/sinken, Shift beschleunigt. Texteingaben, Menüs und
+  Fokusverlust sperren beziehungsweise räumen gehaltene Tasten auf.
+- `HauntingComfort.ts` und `comfortSettings.ts`: lokale VR-Einstellungen unter
+  **VR-Komfort**, Snap 30°/45° oder Smooth 45°/60°/90° pro Sekunde, aus/sanft/
+  stark für den Bewegungsrand, optionale kurze Haptik. Reale Kopfbewegung
+  löst keinen Rand aus. Die Bildschirmmitte bleibt frei. Einstellungen werden
+  lokal gespeichert; Verlassen restauriert die vorherige Rig-Drehung.
+- `trainingLayout.ts` definiert vier Räume abseits der Mission sowie
+  kollisionsfreie Ankunftsbereiche; sie existieren nur im Test-Grid.
+  `trainingDeck.ts` baut echte Bedienbeispiele mit lesbaren Lösungen daneben:
+  Safe/Schutz, Ausrüstung/Röntgen, drei Reparaturen, vermessene Modelle samt
+  Attrappen, Spiegel, Schacht und Effekten. Die Aufzugstür liegt bei (2,4,W).
+- Übungsterminals besitzen eigene lokale `practice`-Zustände. Nach einer Lösung
+  setzt ein erneuter Druck nur diese Übung zurück. Keine Missionsgegenstände
+  oder `state.done` werden durch Übungsreparaturen verbraucht/verändert.
+  Rückkehr- und Raumwechselknöpfe gehören in jedes Lehrzimmer.
+- **Test ohne Monster** ist unabhängig von der Beleuchtung unverwundbar und
+  gegnerfrei. Der Testschrank enthält Sensoren, Medkit und Missionsgegenstände.
+  **Testlicht aus** schaltet in der Station Raumlicht, Command-Licht und
+  Ambientlicht aus; die Taschenlampe bleibt nutzbar. Laborlicht ist lokal.
+- Simulation bleibt testgebunden und hebt die Decke ab. Stick-/WASD-Flug und
+  ein ungefährlicher Modelltechniker mit Grid-Route und lokalen Textmeldungen
+  sind vorhanden; es gibt keine vollständige autonome Dreiercrew.
 
-**Testmodus und Prüfung**
+**Zeichen- und Audiobudget**
 
-- Test erzeugt keinen aktiven Gegner und setzt HP auf drei, unabhängig vom
-  Testlicht. Der geöffnete Testschrank enthält Scanner, Radar, Medkit und alle
-  drei Missionsgegenstände. Testlabor hat unbelebte Modelle, echte Reparatur-
-  Terminals für denselben Testrundenstand, Spiegel und Effektprüfstand.
-- Test-Raumbesuche und Simulation nur bei `options.test`. Simulation friert
-  normale Rig-Physik ein, lässt Stick-Flug zu und nimmt die Decke ab. Ein
-  ungefährlicher Modelltechniker folgt der bestehenden, getesteten Grid-
-  Wegsuche; lokale Textmeldungen zeigen seine Route. Keine KI-Dreiercrew.
-- `mission.test.ts` prüft alle Raumzahlen über viele Seeds, Reparaturziele und
-  Lösungen, Trefferpausen/Schutz, Visier-Erholung, Schachtnachbarn, Testlabortür,
-  vollständige Late-Join-Daten und begrenzte ungültige Netzwerte.
-- Vor Push weiterhin alle vier Projekt-Gates sowie Produktionsbuild prüfen.
-  Interaktive Web-Prüfung ergänzt Regeln/Typen. Echte Quest-Framerate,
-  VR-Controller, Haptik und mehrere physische Mobilgeräte benötigen einen
-  Hardwaretest; ein Desktop- oder BroadcastChannel-Test belegt das nicht.
+- `stationVisibility.ts` schließt verdeckte Räume entlang geschlossener oder
+  außerhalb des Blicks liegender Türen aus. Aktueller Raum bleibt sichtbar;
+  Zentrale/Außenansichten verwenden einen konservativen vollständigen Satz.
+  Die Welt koppelt Sichtbarkeit an Raumkunst, Einrichtung und Interaktionen;
+  die allgemeinen Grid-Hüllencollider und -Meshes bleiben bestehen.
+- Zwei wiederverwendete Raum-PointLights; keine Lampe pro Raumpaneel.
+  `stationLighting.ts` trennt Mission, hellen Test, dunklen Test, Simulation
+  und Labor. Normale Station und dunkler Test haben kein globales Ambientlicht.
+  Emissive Markierungen benötigen keine zusätzliche dynamische Lichtquelle.
+  Veränderliche Ambientlichter tragen `userData.dynamicIntensity`, damit ein
+  GraphicsQuality-Rescan keine Dunkelheitsphase durch Neuskalierung aufhellt.
+- `ShipEffects.ts` besitzt drei vorab angelegte Emitter mit jeweils höchstens
+  48 Partikeln. Funken, Rauch und Feuer verwenden wiederverwendete Buffer und
+  Punkt-Shader; Auslösen legt weder neue Geometrie noch Flash-Lichter an.
+  Das ersetzt die wiederholten Burst-Allokationen in Haunting.
+- `shipAudio.ts` besitzt acht wiederverwendete Audiokanäle plus einen
+  Maschinenoszillator. Weitere gleichzeitige Ereignisse werden verworfen.
+  Lokale Synthese, kopfbezogenes Stereo und Distanzabschwächung statt teurer
+  Faltung. Schritte, Atem bei Anstrengung, Schotts, Schächte und Funken
+  verwenden denselben begrenzten Pool. Kein automatisches Mikrofon.
+- `FrameStats.ts` zeigt im Web in Haunting standardmäßig FPS, Framezeit,
+  JS-CPU-Zeit, Draw Calls und Dreiecke; F3 schaltet die Anzeige um. Sie zählt
+  zusätzliche Renderdurchgänge mit, ist aber kein GPU-Timer. Im XR-Headset
+  bleibt das DOM-HUD aus. `App.resizeWebBuffer()` begrenzt Haunting-Web-DPR
+  auf 1,25; andere Welten behalten ihren bisherigen Wert, XR seinen eigenen
+  Framebuffer. Der Laborspiegel rendert nur im passenden nahen Sichtbereich;
+  Web-Spiegel sind auf 768 Pixel ohne MSAA begrenzt und werden außerhalb des
+  Blickfeldes verworfen. Die 3D-Telefonansichten laufen mit höchstens 15 Hz;
+  deren DOM und Canvas-Radar bleiben davon unabhängig.
+- `GridWorld.batchGridGeometry()`/`gridDoorVisible()` bleiben Opt-ins für
+  Instancing und eigene Türblätter. Haunting aktiviert zusätzlich
+  `slidingGridDoors()`: `setSlidingGridDoor()`/`changeSlidingDoor()` ändern bei
+  normalen Türschaltungen nur das geschlossene Blatt als Collider sowie die
+  Türkante im Plan und NPC-Navigationsgraph. Kein kompletter Geometrieneubau
+  oder Nav-Bake pro Türdruck. Bei vorgemerkter struktureller Planänderung
+  bleibt der normale Neuaufbau erhalten. Rapier-Tests prüfen mehrfaches
+  Öffnen/Schließen in allen vier Richtungen. `PortalWorld.takeHit` bleibt protected.
+  `WorldContext.refreshWorldMenu()` erneuert dynamische Einträge bei Inventar-,
+  Runden- und Rollenwechsel. App liefert je Frame einen frischen Kontext;
+  Haunting verarbeitet Web→VR auch ohne erneuten Weltaufbau.
+
+**Telefone und Netzwerk**
+
+- Sichtbare Plätze in `stations.ts`: Archiv, Einsatzkontrolle (`scout`),
+  Drohne und Zuschauer. Keine zweite auswählbare Schalttafel. Interne
+  `hack`-Claims werden weiterhin verstanden und als Kontrollrolle behandelt.
+- `stationUi.ts`/`stationDashboard.css`: Archiv mit **Aufträge**, **Karte**,
+  **Räume & Codes**, **Anomalien**. `archiveMap.ts` zeichnet einen Canvas2D-
+  Gesamtplan mit Vorschau, Vergrößern/Schließen, Drag/Pinch/Mausrad, Raumtippen
+  und eigener Kartenprojektion. Kein THREE-Archivrender; `viewport()` liefert
+  hier null. Live-Positionen kommen nicht in den Kartenrenderer hinein.
+- `evidenceJournal.ts` filtert Entitätshypothesen ausschließlich anhand lokal
+  angekreuzter Beobachtungen. Nicht anhand `options.monster` identifizieren.
+  Notizen bleiben beim Reiterwechsel erhalten und werden bei neuem Seed
+  geleert. Vermutung ist eine Gesprächshilfe, keine serverseitige Spielaktion.
+- Einsatzkontrolle hat getrennte Reiter **Radar & Anzug** und **Schalttafel**.
+  Radar/ECG werden nur im sichtbaren Reiter gedrosselt aktualisiert; die
+  Kartenleinwand nur bei Änderung/Resize. Interface-Zustände und Aktions-
+  Attribute müssen verschieden heißen, damit Klicks auf Checkboxen nicht
+  über einen Root-`data-*`-Treffer zur Navigation werden.
+- `net.ts` verwendet `STATION_PROTOCOL = 3`, inklusive Inventar, Puzzles, HP,
+  Optionen und begrenztem Threat-Zustand. Nur Host-Snapshots übernehmen;
+  endliche und begrenzte Werte validieren, alte Protokolle verwerfen. Nach
+  Update alle Geräte neu laden. Schalterkommandos nur vom Besitzer von
+  `scout` oder Legacy-`hack`, Drohnenkommandos nur vom Drohnenbesitzer.
+- Spielhost ist der VR-Techniker, sonst der älteste Peer. Die ausdrücklich
+  gewählte Desktop-Technikerrolle meldet sich regelmäßig im Haunt-Channel und
+  nimmt an derselben Hostwahl teil. `room` gilt auf Startseite und beim
+  Weltbeitritt, Standard `haunting`. Bestehendes Trystero/Nostr/WebRTC ohne
+  Konten; `net=local` ist BroadcastChannel zwischen Tabs, kein LAN-Transport.
+  WLAN und Internet benötigen erreichbare öffentliche Signalisierung; TURN
+  bleibt bei restriktivem NAT optional, kein garantierter Relay ohne Dienst.
+
+**Prüfung und Grenzen**
+
+- Generator-/Platzierungs-/Navigationsprüfungen laufen über viele Seeds und
+  Raumzahlen: Katalogmaße, Wand-/Türabstände, zugängliche Bedienpunkte, echte
+  Rapier-/Grid-Wege, sichere Ankünfte und getrennte Lehrzimmer.
+- Mission/Threat/Sensoren/Audio/Komfort haben reine Regeltests; DOM-Tests mit
+  `jest-environment-jsdom` prüfen Telefonreiter, E-/Handsteuerung, Canvas-
+  Auswahlgesten, Codes, Fokus und Journal. jsdom ist nur devDependency und
+  prüft keine tatsächlichen GPU-Bilder oder Bildraten.
+- Vor Push bleiben Typecheck, Lint, Formatprüfung, gesamte Tests und
+  Produktionsbuild nötig. Browser-WebGL war in dieser Arbeitsumgebung
+  deaktiviert. Ein vollständiger interaktiver 3D-/P2P-/Quest-Praxistest ist
+  deshalb weiterhin offen. 90–120 Hz auf Quest 3 sind ein **ungemessenes
+  Ziel**; keine erreichte Framerate oder Produktionsreife daraus ableiten.
+  Controller, Haptik und drei physische Geräte erfordern Hardwareprüfung.
 
 ## Deployment
 

@@ -1,7 +1,8 @@
 import { MARKS, roomCentre, type HouseSpec } from './house';
 import { Rng } from './rng';
+import { freshThreat, readThreat, type ThreatState } from './threat';
 
-export const STATION_PROTOCOL = 2;
+export const STATION_PROTOCOL = 3;
 export const ROOM_COUNTS = [6, 8, 10, 12] as const;
 export type MonsterKind = 'stalker' | 'crawler' | 'sentinel';
 export const MONSTERS: ReadonlyArray<{
@@ -14,21 +15,24 @@ export const MONSTERS: ReadonlyArray<{
   {
     id: 'stalker',
     name: 'Der Verlorene',
-    detail: 'Ein verlassener EVA-Anzug. Langsam, folgt Geräuschen.',
+    detail:
+      'Ein verlassener EVA-Anzug. Hört weite Laufgeräusche; hinterlässt Kälte und EMF-Störungen.',
     speed: 1.3,
     vent: 28,
   },
   {
     id: 'crawler',
     name: 'Schachtläufer',
-    detail: 'Niedrig, schnell. Nutzt häufig die Wartungsschächte.',
+    detail:
+      'Niedrig, schnell, wärmestrahlend. Rasches Kratzen verrät seine Wartungsschachtwechsel.',
     speed: 1.8,
     vent: 16,
   },
   {
     id: 'sentinel',
     name: 'Wächter',
-    detail: 'Defekter Sicherheitsroboter. Schwer, deutlich hörbar.',
+    detail:
+      'Defekter Sicherheitsroboter. Erkennt Licht weit; starke EMF-Signatur und schwere Schritte.',
     speed: 1.05,
     vent: 38,
   },
@@ -67,6 +71,7 @@ export interface CrewState {
   puzzles: Record<string, PuzzleState>;
   venting: number;
   simulation: boolean;
+  threat: ThreatState;
 }
 
 export function stationOptions(value: unknown): StationOptions {
@@ -97,6 +102,7 @@ export function freshCrew(options: StationOptions = stationOptions(null)): CrewS
     puzzles: {},
     venting: 0,
     simulation: false,
+    threat: freshThreat(),
   };
 }
 
@@ -113,6 +119,7 @@ export function readCrew(value: unknown): CrewState {
   c.opened = strings(v.opened);
   c.venting = bounded(v.venting, 0, 3, 0);
   c.simulation = v.simulation === true && c.options.test;
+  c.threat = readThreat(v.threat);
   const puzzles = record(v.puzzles);
   for (const id of ['engine', 'oxygen', 'uplink']) {
     const p = record(puzzles[id]);
@@ -125,6 +132,7 @@ export function readCrew(value: unknown): CrewState {
   if (c.options.test) {
     c.hp = 3;
     c.hidden = '';
+    c.threat = freshThreat();
   }
   return c;
 }
@@ -212,9 +220,15 @@ export function stepVitals(
 }
 
 /** Real shared walls only; no shortcut can reach the protected command deck. */
+const ventsCache = new WeakMap<
+  HouseSpec,
+  Array<{ a: string; b: string; x: number; z: number; dir: number }>
+>();
 export function ventPairs(
   spec: HouseSpec,
 ): Array<{ a: string; b: string; x: number; z: number; dir: number }> {
+  const cached = ventsCache.get(spec);
+  if (cached) return cached;
   const pairs: Array<{ a: string; b: string; x: number; z: number; dir: number }> = [];
   for (let i = 0; i < spec.rooms.length; i++)
     for (let j = i + 1; j < spec.rooms.length; j++) {
@@ -232,6 +246,7 @@ export function ventPairs(
           pairs.push({ a: one.id, b: two.id, x: Math.max(r.x, s.x) + 0.5, z: s.z, dir: 2 });
       }
     }
+  ventsCache.set(spec, pairs);
   return pairs;
 }
 

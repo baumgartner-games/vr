@@ -122,6 +122,9 @@ export class Npc {
    * mehr, jemanden zu bemerken — das steht in seinem Hirn und nicht hier.
    */
   private errand: THREE.Vector3 | null = null;
+  private navigator: NpcNavigator | null = null;
+  private navigatorTuning: BrainTuning | null = null;
+  private externallyNavigated = false;
 
   constructor(options: {
     physics: PhysicsWorld;
@@ -200,6 +203,18 @@ export class Npc {
   /** Wohin er geschickt wurde, oder `null`. */
   get goal(): THREE.Vector3 | null {
     return this.errand;
+  }
+
+  /**
+   * Opt in to a world's precise movement path. The world has already selected
+   * a perceived goal or patrol destination; attacks still use that final goal.
+   * Other NPCs retain their existing navigation, sensing and turning behavior.
+   */
+  setNavigator(navigator: NpcNavigator | null): void {
+    this.navigator = navigator;
+    this.navigatorTuning = navigator ? { ...this.tuning, sense: Infinity } : null;
+    this.externallyNavigated = false;
+    this.agent?.clear();
   }
 
   /** Ob er noch steht. Ein Gefallener rechnet nicht mehr mit. */
@@ -304,8 +319,26 @@ export class Npc {
       this.brain,
       this.state,
       { at: { x: t.x, z: t.z }, yaw: this.yaw, player, waypoint, goal, dt, random },
-      this.tuning,
+      this.externallyNavigated ? this.navigatorTuning! : this.tuning,
     );
+
+    if (this.externallyNavigated) {
+      // A cleared path is a contract for the body, not just the model's gaze.
+      // Keep smooth model turning, but do not sweep a wide arc across a tight
+      // doorway while turning. Stop at a corner before the next segment.
+      if (!waypoint) {
+        step.vx = 0;
+        step.vz = 0;
+        if (!step.attack) step.gait = 'stand';
+      } else if (step.gait === 'walk') {
+        const dx = waypoint.x - t.x;
+        const dz = waypoint.z - t.z;
+        const distance = Math.hypot(dx, dz);
+        const speed = Math.min(Math.hypot(step.vx, step.vz), distance / Math.max(dt, 1e-5));
+        step.vx = distance > 1e-6 ? (dx / distance) * speed : 0;
+        step.vz = distance > 1e-6 ? (dz / distance) * speed : 0;
+      }
+    }
 
     // Die Waagerechte kommt vom Hirn, die Senkrechte von der Schwerkraft —
     // **außer im Flug**: Wer springt, hat seine Geschwindigkeit beim Absprung
@@ -366,6 +399,7 @@ export class Npc {
    * Ende der Karte rechnet keinen Weg zu jemandem, den er nicht bemerkt hat.
    */
   private navigate(dt: number, at: Point, player: Point | null, nav: NavRun | null): Point | null {
+    this.externallyNavigated = false;
     if (!nav || this.tuning.speed <= 0) return null;
 
     // **Ein Auftrag geht vor.** Wer geschickt wurde, sucht den Weg dorthin —
@@ -374,6 +408,17 @@ export class Npc {
     // wieder: Wer niemanden bemerkt, plant auch nichts.
     const destination = this.errand ?? (player && nav.at ? nav.at : null);
     if (!destination) return null;
+    if (this.navigator) {
+      this.externallyNavigated = true;
+      this.feet(_feet);
+      return this.navigator({
+        at: _feet,
+        target: destination,
+        dt,
+        now: nav.now,
+        radius: this.skin.radius,
+      });
+    }
     if (!this.errand) {
       if (this.tuning.sense <= 0) return null;
       const range = Math.hypot(player!.x - at.x, player!.z - at.z);
@@ -653,6 +698,17 @@ export interface NavRun {
   /** Weltzeit in Sekunden. */
   now: number;
 }
+
+export interface NpcNavigationInput {
+  readonly at: Spot3;
+  readonly target: Spot3;
+  readonly dt: number;
+  readonly now: number;
+  readonly radius: number;
+}
+
+/** Return the next metre waypoint; null explicitly stops horizontal movement. */
+export type NpcNavigator = (input: NpcNavigationInput) => Point | null;
 
 /** Wie hoch ein Sprung über das höhere Ende hinausgeht, in Metern. */
 const LEAP_RISE = 0.7;

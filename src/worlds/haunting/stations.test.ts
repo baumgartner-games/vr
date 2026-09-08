@@ -1,4 +1,14 @@
-import { crowdAt, ownerOf, seatOf, seating, shoved, STATIONS, type Claim } from './stations';
+import {
+  crowdAt,
+  isStation,
+  ownerOf,
+  seatOf,
+  seating,
+  shoved,
+  stationFacts,
+  STATIONS,
+  type Claim,
+} from './stations';
 
 const claim = (id: string, station: Claim['station'], seniority: number): Claim => ({
   id,
@@ -76,5 +86,21 @@ describe('Wer im Van an welchem Gerät sitzt', () => {
     // Die Zeile steht in der Oberfläche und ist die halbe Spielregel: Wer
     // nicht weiß, was er nicht sieht, hält seine Lücke für die Wahrheit.
     for (const station of STATIONS) expect(station.sees.length).toBeGreaterThan(10);
+  });
+});
+
+describe('Three-person crew devices', () => {
+  it('offers one combined control role while recognizing old switchboard announcements', () => {
+    expect(STATIONS.map((station) => station.id)).toEqual(['archive', 'scout', 'drone', 'watch']);
+    expect(isStation('hack')).toBe(true);
+    expect(stationFacts('hack').label).toBe('Einsatzkontrolle');
+    expect(isStation('unknown')).toBe(false);
+  });
+
+  it('does not request a 3D render for archive or control phone screens', () => {
+    expect(stationFacts('archive').view).toBe(false);
+    expect(stationFacts('scout').view).toBe(false);
+    expect(stationFacts('drone').view).toBe(true);
+    expect(stationFacts('watch').view).toBe(true);
   });
 });

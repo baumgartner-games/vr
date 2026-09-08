@@ -8,6 +8,7 @@ import {
   readCrew,
   repairsFor,
   ROOM_COUNTS,
+  STATION_PROTOCOL,
   stationOptions,
   stepVitals,
   takeCrewHit,
@@ -170,7 +171,10 @@ describe('Orbital missions', () => {
     expect(roundTrip.crew.puzzles.engine!.links).toEqual([2, 3]);
     expect(roundTrip.crew.options.rooms).toBe(12);
     expect(readState({ kind: 'state', ...state })).toBeNull();
-    expect(readState({ ...state, kind: 'state', version: 2, seed: Infinity })).toBeNull();
+    expect(
+      readState({ ...state, kind: 'state', version: STATION_PROTOCOL, seed: Infinity }),
+    ).toBeNull();
+    expect(readState({ ...state, kind: 'state', version: 2 })).toBeNull();
   });
 
   test('malformed network values stay bounded; test snapshots are always harmless', () => {

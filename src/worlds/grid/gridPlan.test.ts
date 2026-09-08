@@ -150,6 +150,21 @@ describe('Massen kleben am Raster', () => {
 });
 
 describe('Hin und zurück', () => {
+  it('copies and replaces ceilings when exchanging a complete plan', () => {
+    const original = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 }, { ceiling: 2.8 });
+    const replacement = new GridPlan()
+      .room({ x: 8, z: 0, w: 4, d: 3 }, { ceiling: 3.2 })
+      .room({ x: 20, z: 0, w: 5, d: 4 }, { ceiling: 3.2 });
+    const expected = replacement.solids();
+    original.replaceWith(replacement);
+    expect(original.solids()).toEqual(expected);
+    expect(original.masses()).toHaveLength(2);
+    expect(original.masses()[0]).not.toBe(replacement.masses()[0]);
+    expect(original.masses()[0]!.rect).not.toBe(replacement.masses()[0]!.rect);
+    original.replaceWith(new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 }));
+    expect(original.masses()).toHaveLength(0);
+  });
+
   /**
    * **Der Prüfstein.** Was ein Plan baut, muss das Abtasten wiederfinden
    * (`nav/navBake.ts`) — sonst steht in der Welt eine Wand, an der die Wegsuche

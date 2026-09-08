@@ -57,15 +57,15 @@ export const STATIONS: readonly StationFacts[] = [
     id: 'archive',
     label: 'Archiv',
     tagline: 'Aufträge, Fundorte und Freigabecodes',
-    sees: 'Räume und was darin steht — aber niemanden, der sich bewegt',
-    view: true,
+    sees: '2D-Stationsplan, Aufträge, Fundorte und Codes — keine Live-Positionen',
+    view: false,
   },
   {
     id: 'scout',
     label: 'Einsatzkontrolle',
     tagline: 'Radar, Puls, Licht und Türen',
     sees: 'Bewegungsradar, Anzugtelemetrie und Systemschalter — keine Fundorte',
-    view: true,
+    view: false,
   },
   {
     id: 'drone',
@@ -73,13 +73,6 @@ export const STATIONS: readonly StationFacts[] = [
     tagline: 'Ein Zimmer, jetzt, vollständig',
     sees: 'alles im Zimmer, in dem sie steht — sonst nichts',
     view: true,
-  },
-  {
-    id: 'hack',
-    label: 'Schalttafel',
-    tagline: 'Licht, Schotts, Schallköder',
-    sees: 'Schalter mit schlechten Beschriftungen — und keinen Grundriss',
-    view: false,
   },
   {
     id: 'watch',
@@ -92,11 +85,12 @@ export const STATIONS: readonly StationFacts[] = [
 ];
 
 export function stationFacts(id: StationId): StationFacts {
-  return STATIONS.find((one) => one.id === id) ?? STATIONS[0]!;
+  // Old peers can still announce `hack`; all current menus use Einsatzkontrolle.
+  return STATIONS.find((one) => one.id === (id === 'hack' ? 'scout' : id)) ?? STATIONS[0]!;
 }
 
 export function isStation(value: unknown): value is StationId {
-  return STATIONS.some((one) => one.id === value);
+  return value === 'hack' || STATIONS.some((one) => one.id === value);
 }
 
 /** Wie lange man von einem Gerät zum nächsten braucht, in Sekunden. */

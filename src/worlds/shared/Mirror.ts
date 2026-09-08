@@ -33,6 +33,8 @@ const MIN_DEPTH = 0.02;
 
 /** Wie viele Spiegel gleichzeitig ein Bild bekommen. Siehe `MirrorRenderer`. */
 const DEFAULT_BUDGET = 2;
+/** A web mirror is a small surface, not another full-resolution 4× MSAA screen. */
+const WEB_MAX_SIZE = 768;
 
 /**
  * Die **Spiegelfläche**: ein Rechteck, das zeigt, was vor ihm steht.
@@ -222,6 +224,8 @@ export class MirrorRenderer {
   private readonly mono = new THREE.PerspectiveCamera();
   private readonly array = new THREE.ArrayCamera();
   private readonly size = new THREE.Vector2();
+  private readonly frustum = new THREE.Frustum();
+  private readonly projectionScreen = new THREE.Matrix4();
 
   constructor(private readonly renderer: THREE.WebGLRenderer) {
     for (const camera of [this.mono, this.array]) {
@@ -242,20 +246,33 @@ export class MirrorRenderer {
     const presenting = renderer.xr.isPresenting;
     const xrCamera = presenting ? renderer.xr.getCamera() : null;
 
-    scene.updateMatrixWorld(true);
+    // Web selection only needs camera and mirror transforms. Actual render
+    // passes update the scene themselves; a second full traversal was wasted
+    // even when every mirror was behind the viewer.
+    if (presenting) scene.updateMatrixWorld(true);
     this.frameSize(xrCamera);
 
     // Wo das Auge steht, entscheidet, welcher Spiegel überhaupt eines
     // bekommt — und in VR ist das der Kopf zwischen den beiden Augen.
     (xrCamera ?? camera).getWorldPosition(_eye);
-    this.pick(mirrors, _eye);
+    // Keep the established stereo selection in XR. On a flat screen, mirrors
+    // behind the viewer used to redraw the whole scene despite being invisible.
+    if (!presenting) {
+      camera.updateWorldMatrix(true, false);
+      this.frustum.setFromProjectionMatrix(
+        this.projectionScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+      );
+    }
+    this.pick(mirrors, _eye, presenting ? null : this.frustum);
 
     // Erst alle blind, dann zeichnen: Ein Spiegel, der beim Zeichnen des
     // nächsten noch sein Bild von eben trüge, zeigte darin einen Raum aus
     // einer anderen Blickrichtung.
     for (const mirror of mirrors) mirror.setView(null);
 
-    const scale = presenting ? this.vrResolutionScale : 1;
+    const scale = presenting
+      ? this.vrResolutionScale
+      : Math.min(1, WEB_MAX_SIZE / Math.max(1, this.size.x, this.size.y));
     // Solange in ein kleineres Ziel gezeichnet wird, ist *das* der Puffer, in
     // dem eine Bildschirmfläche ihre eigene Stelle sucht — auch ein Portal,
     // das im Spiegelbild vorkommt (`screenSurface.ts`).
@@ -270,7 +287,7 @@ export class MirrorRenderer {
     renderer.state.setCullFace(THREE.CullFaceFront);
 
     for (const mirror of this.live) {
-      const target = this.target(mirror, scale, !presenting);
+      const target = this.target(mirror, scale);
       renderer.setRenderTarget(target);
       renderer.render(scene, this.prepareCamera(mirror, camera, xrCamera, scale));
     }
@@ -333,12 +350,18 @@ export class MirrorRenderer {
    * Meter weiter wichtiger, obwohl er ein Zehntel so groß ist, und genau so
    * hält man ihn ja auch hin.
    */
-  private pick(mirrors: readonly MirrorSurface[], eye: THREE.Vector3): void {
+  private pick(
+    mirrors: readonly MirrorSurface[],
+    eye: THREE.Vector3,
+    frustum: THREE.Frustum | null,
+  ): void {
     this.live.length = 0;
     if (this.budget <= 0) return;
     const weights = new Map<MirrorSurface, number>();
     for (const mirror of mirrors) {
       if (!mirror.reflecting) continue;
+      mirror.updateWorldMatrix(true, false);
+      if (frustum && !frustum.intersectsObject(mirror)) continue;
       const size = mirror.worldSize(_worldSize);
       if (size.x < MIN_WIDTH || size.y < MIN_WIDTH) continue;
       mirror.getWorldNormal(_normal);
@@ -364,15 +387,11 @@ export class MirrorRenderer {
     }
   }
 
-  private target(
-    mirror: MirrorSurface,
-    scale: number,
-    multisample: boolean,
-  ): THREE.WebGLRenderTarget {
+  private target(mirror: MirrorSurface, scale: number): THREE.WebGLRenderTarget {
     this.sizeAt(scale, _passSize);
     const width = _passSize.x;
     const height = _passSize.y;
-    const samples = multisample ? 4 : 0;
+    const samples = 0;
     const existing = this.targets.get(mirror);
     if (
       existing &&

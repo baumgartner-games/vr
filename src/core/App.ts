@@ -26,6 +26,7 @@ import {
 import { KeyPanel, type KeyPanelRequest } from '../ui/KeyPanel';
 import { detectFlatRole } from './device';
 import { GraphicsQuality } from './GraphicsQuality';
+import { FrameStats } from './FrameStats';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
 import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS, type HeadgearKind } from './headgear';
 import {
@@ -141,6 +142,7 @@ export class App {
    * einer Welt ist (`core/GraphicsQuality.ts`).
    */
   private readonly quality: GraphicsQuality;
+  private readonly frameStats: FrameStats;
 
   private world: World | null = null;
   private worldMenu: MenuEntry[] = [];
@@ -209,6 +211,9 @@ export class App {
     );
     this.mirrors = new MirrorRenderer(this.renderer);
     this.quality = new GraphicsQuality(this.renderer, this.scene);
+    this.frameStats = new FrameStats();
+    // One reset per complete frame, so diagnostics include mirrors and portals.
+    this.renderer.info.autoReset = false;
     this.rig = new PlayerRig(this.renderer, this.camera);
     this.scene.add(this.rig);
 
@@ -358,6 +363,8 @@ export class App {
       this.unloadWorld();
 
       this.worldId = definition.id;
+      this.frameStats.setWorld(definition.id);
+      this.resizeWebBuffer();
       this.world = next;
       await next.init(this.context);
       this.worldMenu = next.menu?.() ?? [];
@@ -582,6 +589,7 @@ export class App {
     this.spectator.dispose();
     this.mirrors.dispose();
     this.quality.dispose();
+    this.frameStats.dispose();
     this.net.disconnect();
     this.renderer.dispose();
   }
@@ -1332,10 +1340,19 @@ export class App {
     const height = window.innerHeight;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
+    this.resizeWebBuffer();
   };
 
+  /** Bound web fill cost in the station; XR keeps its own framebuffer settings. */
+  private resizeWebBuffer(): void {
+    if (this.renderer.xr.isPresenting) return;
+    const cap = this.worldId === 'haunting' ? 1.25 : 2;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
+    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+  }
+
   private onSessionStart = (): void => {
+    this.frameStats.setImmersive(true);
     this.role = 'vr';
     // Ab jetzt darf eine Texteingabe die Tastatur des Geräts anfordern: Im
     // Browserfenster gibt es dafür die echte Tastatur, in der Brille nicht.
@@ -1353,6 +1370,8 @@ export class App {
   };
 
   private onSessionEnd = (): void => {
+    this.frameStats.setImmersive(false);
+    this.resizeWebBuffer();
     this.role = detectFlatRole();
     setImmersive(false);
     if (this.rig.paused) {
@@ -1368,6 +1387,8 @@ export class App {
   };
 
   private frame = (time: number): void => {
+    const started = performance.now();
+    this.renderer.info.reset();
     const seconds = time / 1000;
     const dt =
       this.lastTime === 0 ? 1 / 60 : THREE.MathUtils.clamp(seconds - this.lastTime, 0, 0.05);
@@ -1441,6 +1462,7 @@ export class App {
     this.mirrors.render(this.scene, this.camera);
     const rendered = this.world?.render?.(context) ?? false;
     if (!rendered) this.renderer.render(this.scene, this.camera);
+    this.frameStats.update(time, performance.now() - started, this.renderer.info.render);
   };
 }
 

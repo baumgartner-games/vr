@@ -1,5 +1,10 @@
-import { lockerCode, repairsFor } from './mission';
+import { lockerCode, repairsFor, type MonsterKind } from './mission';
+import { ENTITY_EVIDENCE } from './threat';
+import { evidenceCandidates, JOURNAL_ENTITIES } from './evidenceJournal';
 import './haunting.css';
+import './stationDashboard.css';
+import { TILE, dirX, dirZ } from '../nav/navTile';
+import { archiveBounds, archiveProjection, archiveRoomAt, paintArchiveMap } from './archiveMap';
 import { MARKS, namesakes, roomOf, VAN_ID, type HouseRoom, type HouseSpec } from './house';
 import { visibleSwitches } from './panel';
 import {
@@ -13,45 +18,11 @@ import {
   type StationId,
 } from './stations';
 import { lampRefill, lampSeconds, HOP_TIME, LAMP_MIN, type DroneStatus } from './droneRoute';
-import { atHome, type ArchiveView } from './archiveView';
+import { atHome, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
 
-/**
- * **Der Van, wie er auf einem Telefon aussieht.**
- *
- * Zuerst fürs Handy gebaut und auf dem Laptop breiter gezogen, nicht
- * andersherum: Ein Handy-Layout, das man aufzieht, ist immer benutzbar; ein
- * Laptop-Layout, das man zusammenschiebt, nie. Deshalb ist hier alles eine
- * Spalte, alles daumengroß und nichts zum Zielen.
- *
- * **Vier Stationen, vier Sprachen** (`stations.ts`) — und die Oberfläche ist
- * die Stelle, an der die Trennung wirklich durchgesetzt wird:
- *
- * - Das **Archiv** bekommt ein Bild der Welt, aber ohne alles Lebendige (die
- *   Welt blendet es beim Zeichnen aus). Namen ja, Bewegung nein. Sein Blatt
- *   ist der ganze Schirm, es lässt sich heranziehen und verschieben, und die
- *   Akte legt der Menüknopf darüber — dieselbe Form wie beim Piloten.
- * - Der **Späher** bekommt gar kein Bild der Welt, sondern gezeichnete
- *   Konturen: Wände und einen Punkt. Keine Möbel, keine Namen, kein
- *   Mitspieler. Das ist keine Sparmaßnahme — es *ist* seine Rolle.
- * - Die **Drohne** sieht ein Zimmer vollständig, aber nur eins, und der Pilot
- *   navigiert auf der Karte statt im Bild. Sein Bild ist dabei der ganze
- *   Schirm; die Karte legt der Menüknopf darüber und nimmt sie wieder weg.
- * - Die **Schalttafel** sieht vom Haus überhaupt nichts.
- * - Der **Zuschauer** sieht alles: das ganze Station von schräg oben, bei Tag,
- *   mit allem, was darin herumläuft. Er ist keine fünfte Rolle, sondern der
- *   Fernseher im Raum — und er kann nichts bedienen, damit das so bleibt.
- *
- * Wer hier eine dieser Grenzen aufweicht, weil es „praktischer" wäre, macht
- * aus vier Rollen eine: Sobald eine Station Monster *und* Mitspieler
- * gleichzeitig sieht, lotst sie allein, und die anderen drei sind Deko.
- *
- * **Jede Station hat eine Farbe, und es ist ihre.** Sie steht an der Kachel im
- * Van, am Punkt neben dem Namen in der Kopfzeile und am Rand der eigenen
- * Seite — dieselben vier Töne, die in der Station auf den Monitoren des Vans leuchten
- * (`HauntingWorld.buildVan`). Am Tisch wird zugerufen und nicht gelesen; „ich
- * hab den grünen" ist eine Ansage, „ich hab die dritte Kachel von oben" nicht.
- */
+/** Phone dashboards for a three-person crew: chart and codes in the archive,
+ * live radar and ship systems in control. Archive drawings never receive actor poses. */
 export interface StationHost {
   spec(): HouseSpec;
   state(): HauntState;
@@ -132,6 +103,20 @@ export class StationUi {
   private readonly scout = document.createElement('canvas');
   private readonly ecg = document.createElement('canvas');
   private lastRadar = 0;
+  private archiveTab: 'orders' | 'map' | 'rooms' | 'anomalies' = 'orders';
+  private archiveBack: 'orders' | 'rooms' | 'anomalies' = 'orders';
+  private controlTab: 'radar' | 'switches' = 'radar';
+  private readonly observations = new Set<string>();
+  private hypothesis: MonsterKind | null = null;
+  private readonly miniMap = document.createElement('canvas');
+  private readonly chart = document.createElement('canvas');
+  private mapView = homeView();
+  private archiveDrawn = '';
+  private mapSeed: number | null = null;
+  private readonly chartResize = new ResizeObserver(() => {
+    this.archiveDrawn = '';
+  });
+
   /**
    * **Die Ecke oben rechts im Bild**: Menü, Licht, Zurück-Knopf.
    *
@@ -241,12 +226,39 @@ export class StationUi {
     document.body.classList.add('haunt-on');
 
     this.root.addEventListener('click', (event) => this.onClick(event));
+    this.root.addEventListener('change', (event) => {
+      const input = event.target as HTMLInputElement | null;
+      if (input?.matches('[data-evidence]')) {
+        const clue = input.dataset['evidence']!;
+        if (input.checked) this.observations.add(clue);
+        else this.observations.delete(clue);
+        this.drawn = '';
+        this.refresh();
+        return;
+      }
+      const select = event.target as HTMLSelectElement | null;
+      if (!select?.matches('[data-room-select]') || !roomOf(this.host.spec(), select.value)) return;
+      this.selected = select.value;
+      this.drawn = '';
+      this.refresh();
+    });
     this.watchDrag(this.view, false);
     this.watchDrag(this.lookKey, true);
     this.watchWheel();
+    this.miniMap.className = 'haunt__mini-chart';
+    this.miniMap.setAttribute('aria-label', 'Vorschau des 2D-Stationsplans');
+    this.chart.className = 'haunt__archive-chart';
+    this.chart.setAttribute(
+      'aria-label',
+      'Stationsplan von oben. Ziehen verschiebt die Karte; Raum antippen zeigt seinen Namen.',
+    );
+    this.watchChart();
+    this.chartResize.observe(this.chart);
+    this.chartResize.observe(this.miniMap);
   }
 
   dispose(): void {
+    this.chartResize.disconnect();
     this.root.remove();
     document.body.classList.remove('haunt-on');
   }
@@ -301,7 +313,14 @@ export class StationUi {
   refresh(): void {
     const state = this.host.state();
     const spec = this.host.spec();
-    if (!this.selected) this.selected = spec.rooms[0]?.id ?? '';
+    if (this.mapSeed !== spec.seed) {
+      this.mapSeed = spec.seed;
+      this.mapView = homeView();
+      this.observations.clear();
+      this.hypothesis = null;
+      this.archiveDrawn = '';
+    }
+    if (!roomOf(spec, this.selected)) this.selected = spec.rooms[0]?.id ?? '';
 
     const station = this.station;
     const drone = this.host.drone();
@@ -310,6 +329,10 @@ export class StationUi {
       spec.seed,
       station ?? 'van',
       this.selected,
+      this.archiveTab,
+      this.controlTab,
+      [...this.observations].sort().join('|'),
+      this.hypothesis,
       state.phase,
       state.fuse,
       state.crew.hp,
@@ -330,10 +353,10 @@ export class StationUi {
         .map((claim) => `${claim.id}:${claim.station}`)
         .sort()
         .join('|'),
-      Math.round(drone.lamp * 40),
-      Math.ceil(drone.hop),
-      drone.target,
-      drone.light,
+      station === 'drone' ? Math.round(drone.lamp * 40) : '',
+      station === 'drone' ? Math.ceil(drone.hop) : '',
+      station === 'drone' ? drone.target : '',
+      station === 'drone' ? drone.light : '',
       this.panel,
       // Der Zurück-Knopf im Bild kommt und geht mit dem Ausschnitt des
       // Archivars — mehr braucht die Seite von ihm nicht zu wissen.
@@ -352,18 +375,23 @@ export class StationUi {
     }
     // Der Punkt des Spähers wandert zwischen zwei Neuschriften weiter — er ist
     // das Einzige, was sich ohne Knopfdruck ändert.
-    if (station === 'scout' && performance.now() - this.lastRadar > 66) {
+    if (
+      (station === 'scout' || station === 'hack') &&
+      this.controlTab === 'radar' &&
+      performance.now() - this.lastRadar > 66
+    ) {
       this.lastRadar = performance.now();
       this.drawScout();
       this.drawEcg();
     }
+    if (station === 'archive') this.drawArchive();
     this.view.hidden = !this.hasView;
   }
 
   /** Ob diese Station überhaupt ein Bild der Welt bekommt. */
   private get hasView(): boolean {
     const station = this.station;
-    return station === 'archive' || station === 'drone' || station === 'watch';
+    return station === 'drone' || station === 'watch';
   }
 
   // --- schreiben -------------------------------------------------------------
@@ -378,6 +406,7 @@ export class StationUi {
     // einzeln: Von hier aus färbt sie Kopfzeile, Rand und Knöpfe über eine
     // einzige Variable, und eine fünfte Station bekommt eine Zeile im CSS.
     this.root.dataset['station'] = station ?? 'van';
+    this.root.dataset['archivePage'] = this.archiveTab;
     this.writeShape(station);
 
     const back = el('button', 'haunt__back');
@@ -421,11 +450,24 @@ export class StationUi {
     // **Der Scrollstand bleibt, solange dieselbe Seite bleibt.** Ein Knopf
     // schreibt die Seite neu, und eine neu geschriebene Liste fängt oben an —
     // wer unten auf einen Schalter tippt, stünde danach wieder oben.
-    const page = `${station ?? 'van'}/${this.vanOpen ? 'van' : 'seat'}`;
+    const page = `${station ?? 'van'}/${this.archiveTab}/${this.controlTab}/${this.vanOpen ? 'van' : 'seat'}`;
     const keep = page === this.paged ? this.body.scrollTop : 0;
     this.paged = page;
+    const focused =
+      document.activeElement instanceof HTMLElement && this.body.contains(document.activeElement)
+        ? document.activeElement
+        : null;
+    const focusKey = focused && Object.entries(focused.dataset)[0];
     this.body.replaceChildren(...this.page(station));
+    if (focusKey) {
+      const [key, value] = focusKey;
+      const replacement = [
+        ...this.body.querySelectorAll<HTMLElement>('button,input,select,canvas'),
+      ].find((element) => element.dataset[key] === value);
+      replacement?.focus({ preventScroll: true });
+    }
     this.body.scrollTop = keep;
+    this.archiveDrawn = '';
   }
 
   /**
@@ -534,10 +576,10 @@ export class StationUi {
   private page(station: StationId | null): HTMLElement[] {
     if (station === null) return this.vanPage();
     if (station === 'archive') return this.archivePage();
-    if (station === 'scout') return this.scoutPage();
+    if (station === 'scout' || station === 'hack') return this.scoutPage();
     if (station === 'drone') return this.dronePage();
     if (station === 'watch') return this.watchPage();
-    return this.hackPage();
+    return [];
   }
 
   /**
@@ -640,14 +682,205 @@ export class StationUi {
     return out;
   }
 
-  /** Der Archivar: eine Akte, in der man **ein** Zimmer aufschlägt. */
+  private tabs(kind: 'archive' | 'control'): HTMLElement {
+    const nav = el('nav', 'haunt__tabs');
+    nav.setAttribute('aria-label', kind === 'archive' ? 'Archivbereiche' : 'Einsatzkontrolle');
+    const entries =
+      kind === 'archive'
+        ? [
+            ['orders', 'Aufträge'],
+            ['map', 'Karte'],
+            ['rooms', 'Räume & Codes'],
+            ['anomalies', 'Anomalien'],
+          ]
+        : [
+            ['radar', 'Radar & Anzug'],
+            ['switches', 'Schalttafel'],
+          ];
+    for (const [id, title] of entries) {
+      const button = el('button', 'haunt__tab', title!);
+      button.dataset[kind === 'archive' ? 'archiveTab' : 'controlTab'] = id!;
+      const active = id === (kind === 'archive' ? this.archiveTab : this.controlTab);
+      button.setAttribute('aria-pressed', String(active));
+      nav.append(button);
+    }
+    return nav;
+  }
+
+  /** Chart preview and explicit navigation stay visible before any long dossier. */
   private archivePage(): HTMLElement[] {
+    return [
+      this.tabs('archive'),
+      ...(this.archiveTab === 'anomalies'
+        ? []
+        : [this.archiveTab === 'map' ? this.chartPage() : this.chartPreview()]),
+      ...(this.archiveTab === 'orders'
+        ? this.archiveOrders()
+        : this.archiveTab === 'rooms'
+          ? this.archiveRooms()
+          : this.archiveTab === 'anomalies'
+            ? this.anomaliesPage()
+            : []),
+    ];
+  }
+
+  private anomaliesPage(): HTMLElement[] {
+    const out: HTMLElement[] = [
+      note(
+        'calm',
+        'Erst messen, dann zuordnen',
+        'Der Techniker nennt dir Temperatur, EMF-Stufe und Geräusch. Halte beobachtete Signaturen hier fest und vergleicht mehrere Messungen. Dieses Journal bleibt auf deinem Gerät; besprecht eure Vermutung per Zuruf.',
+      ),
+    ];
+    const guide = el('div', 'haunt__evidence-guide');
+    for (const [tool, instruction] of [
+      [
+        'Temperatursensor',
+        '19 °C ist der normale Spielwert. Lass den Techniker auf deutliche Kälte, starke Wärme oder nur leichte Erwärmung achten.',
+      ],
+      [
+        'EMF-Messer',
+        'Strom kann bereits Stufe 1 anzeigen. Entscheidend sind stärkere Signale und ihr Verlauf: pulsierend, schwach oder sehr stark.',
+      ],
+      [
+        'Audio-Logger',
+        'Achte auf Rhythmus und Klang: langsames Schleifen, schnelles Kratzen oder schwere metallische Schritte. Es hört nur Spielgeräusche.',
+      ],
+    ])
+      guide.append(note('calm', tool!, instruction!));
+    out.push(
+      guide,
+      el(
+        'p',
+        'haunt__chart-help',
+        'Messungen werden mit Entfernung schwächer. Eine einzelne niedrige Anzeige schließt keine Entität aus. Im sicheren Test bleibt die Station ohne Monster; übt Messgeräte im separaten Labor.',
+      ),
+    );
+    const checklist = el('section', 'haunt__evidence-checklist');
+    checklist.append(head('Beobachtete Signaturen'));
+    ['Temperatur', 'EMF', 'Geräusch'].forEach((label, index) => {
+      const field = document.createElement('fieldset');
+      field.append(el('legend', '', label));
+      for (const kind of JOURNAL_ENTITIES) {
+        const clue = ENTITY_EVIDENCE[kind].clues[index]!;
+        const row = el('label', 'haunt__evidence-option');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.dataset['evidence'] = clue;
+        input.checked = this.observations.has(clue);
+        row.append(input, el('span', '', clue));
+        field.append(row);
+      }
+      checklist.append(field);
+    });
+    out.push(checklist);
+    const candidates = evidenceCandidates(this.observations);
+    const summary = el('p', 'haunt__evidence-result');
+    summary.setAttribute('role', 'status');
+    summary.setAttribute('aria-live', 'polite');
+    summary.textContent =
+      this.observations.size === 0
+        ? 'Noch keine Beobachtungen. Alle drei Entitäten sind möglich.'
+        : candidates.length === 0
+          ? 'Die Notizen passen zu keinem einzelnen Profil. Vergleicht die Messungen erneut; Abstand und Stationsstrom beeinflussen die Werte.'
+          : `Passend zu deinen Notizen: ${candidates.map((kind) => ENTITY_EVIDENCE[kind].label).join(', ')}. Eine Arbeitshypothese, keine bestätigte Identifizierung.`;
+    out.push(summary, head('Entitätsprofile'));
+    const profiles = el('div', 'haunt__entity-profiles');
+    for (const kind of JOURNAL_ENTITIES) {
+      const profile = ENTITY_EVIDENCE[kind];
+      const card = el(
+        'article',
+        `haunt__entity-profile${candidates.includes(kind) ? ' is-match' : ''}`,
+      );
+      card.append(el('h3', '', profile.label));
+      const clues = el('ul', '');
+      for (const clue of profile.clues) clues.append(el('li', '', clue));
+      const select = el(
+        'button',
+        'haunt__chart-key',
+        this.hypothesis === kind ? 'Als Vermutung vorgemerkt' : 'Als Vermutung vormerken',
+      );
+      select.dataset['identify'] = kind;
+      select.setAttribute('aria-pressed', String(this.hypothesis === kind));
+      select.setAttribute(
+        'aria-label',
+        `${profile.label}: ${this.hypothesis === kind ? 'Vermutung entfernen' : 'als Vermutung vormerken'}`,
+      );
+      card.append(clues, select);
+      profiles.append(card);
+    }
+    out.push(profiles);
+    if (this.hypothesis)
+      out.push(
+        note(
+          'live',
+          `Eure Vermutung: ${ENTITY_EVIDENCE[this.hypothesis].label}`,
+          'Gib sie dem Team weiter. Die Auswahl löst keine Spielaktion aus und verrät nicht, welche Entität tatsächlich in der Station ist.',
+        ),
+      );
+    const reset = el('button', 'haunt__chart-key', 'Journal zurücksetzen');
+    reset.dataset['journalReset'] = '';
+    out.push(reset);
+    return out;
+  }
+
+  private chartPreview(): HTMLElement {
+    const preview = el('section', 'haunt__chart-card');
+    preview.append(head('Stationsplan', `${this.host.spec().rooms.length} Räume`));
+    const enlarge = el('button', 'haunt__chart-preview');
+    enlarge.dataset['archiveTab'] = 'map';
+    enlarge.setAttribute('aria-label', 'Karte vergrößern');
+    enlarge.append(this.miniMap, el('span', 'haunt__chart-open', 'Karte vergrößern ↗'));
+    preview.append(enlarge);
+    return preview;
+  }
+
+  private chartPage(): HTMLElement {
+    const card = el('section', 'haunt__chart-card haunt__chart-card--large');
+    const tools = el('div', 'haunt__chart-tools');
+    const close = el('button', 'haunt__chart-key', '← Karte schließen');
+    close.dataset['archiveTab'] = this.archiveBack;
+    tools.append(close);
+    for (const [action, title, label] of [
+      ['out', '−', 'Karte verkleinern'],
+      ['home', 'Gesamtplan', 'Ganze Station zeigen'],
+      ['in', '+', 'Karte heranzoomen'],
+    ]) {
+      const key = el('button', 'haunt__chart-key', title!);
+      key.dataset['mapAction'] = action!;
+      key.setAttribute('aria-label', label!);
+      tools.append(key);
+    }
+    const room = roomOf(this.host.spec(), this.selected);
+    const detail = el('button', 'haunt__chart-detail');
+    detail.dataset['archiveTab'] = 'rooms';
+    detail.append(
+      el('strong', '', room?.name ?? 'Raum auswählen'),
+      el('span', '', 'Raumdetails & Schutzschrank-Code →'),
+    );
+    card.append(
+      tools,
+      this.chart,
+      el(
+        'p',
+        'haunt__chart-help',
+        'Ziehen: Karte bewegen · Zwei Finger / Mausrad: zoomen · Raum antippen: auswählen',
+      ),
+      el(
+        'p',
+        'haunt__chart-legend',
+        'Gelb: ausgewählt · Blau: Tür offen · Rot: Tür geschlossen. Keine Live-Positionen.',
+      ),
+      detail,
+    );
+    return card;
+  }
+
+  private archiveOrders(): HTMLElement[] {
     const spec = this.host.spec();
     const state = this.host.state();
-    const room = roomOf(spec, this.selected) ?? spec.rooms[0];
     const out: HTMLElement[] = [];
-
-    out.push(head('Auftrag'));
+    out.push(head('Reparaturaufträge', `${state.done.length} von 3 erledigt`));
     const tasks = el('div', 'haunt__tasks');
     for (const repair of repairsFor(spec)) {
       const done = state.done.includes(repair.id);
@@ -667,6 +900,17 @@ export class StationUi {
       else row.append(el('span', 'haunt__chip', 'Vier Kabel: jeweils dasselbe Symbol verbinden'));
       if (state.taken.includes(repair.itemId))
         row.append(el('span', 'haunt__chip', `${repair.item} beim Techniker`));
+      const links = el('div', 'haunt__chart-tools');
+      const target = el('button', 'haunt__chart-key', 'Reparaturort zeigen');
+      target.dataset['mapRoom'] = repair.roomId;
+      links.append(target);
+      const task = spec.tasks.find((item) => item.id === repair.itemId);
+      if (task) {
+        const source = el('button', 'haunt__chart-key', 'Fundort zeigen');
+        source.dataset['mapRoom'] = task.roomId;
+        links.append(source);
+      }
+      row.append(links);
       tasks.append(row);
     }
     tasks.append(
@@ -678,20 +922,28 @@ export class StationUi {
     );
     out.push(tasks);
 
-    out.push(head('Akte', `${spec.rooms.length} Zimmer`));
-    const list = el('div', 'haunt__rooms');
-    for (const one of spec.rooms) {
-      const entry = el('button', 'haunt__room');
-      entry.dataset['room'] = one.id;
-      const open = one.id === room?.id;
-      entry.setAttribute('aria-pressed', open ? 'true' : 'false');
-      if (open) entry.classList.add('is-open');
-      entry.append(el('span', '', one.name));
-      if (namesakes(spec, one) > 1)
-        entry.append(el('span', 'haunt__twin', 'zweimal in der Station'));
-      list.append(entry);
-    }
-    out.push(list);
+    return out;
+  }
+
+  private archiveRooms(): HTMLElement[] {
+    const spec = this.host.spec();
+    const state = this.host.state();
+    const room = roomOf(spec, this.selected) ?? spec.rooms[0];
+    const out: HTMLElement[] = [];
+    out.push(head('Raum auswählen', `${spec.rooms.length} Räume`));
+    const field = el('label', 'haunt__room-select');
+    field.append(el('span', '', 'Welchen Raum beschreibt der Techniker?'));
+    const select = document.createElement('select');
+    select.dataset['roomSelect'] = '';
+    spec.rooms.forEach((one, index) => {
+      const option = document.createElement('option');
+      option.value = one.id;
+      option.textContent = `R${String(index + 1).padStart(2, '0')} · ${one.name}`;
+      option.selected = one.id === room?.id;
+      select.append(option);
+    });
+    field.append(select);
+    out.push(field);
 
     if (room) {
       out.push(head(room.name, 'aufgeschlagen'));
@@ -718,20 +970,9 @@ export class StationUi {
       for (const repair of repairsFor(spec).filter((r) => r.roomId === room.id))
         sheet.append(fact('Wartungskasten', repair.title, true));
       out.push(sheet);
-      // Die zwei Griffe am Bild, einmal gesagt. Sie stehen hier unten und
-      // nicht als Kachel obenauf: Wer sie einmal gelesen hat, liest sie nie
-      // wieder, und eine Zeile, die immer oben steht, verdeckt jedes Mal die
-      // erste Zeile der Akte.
-      out.push(
-        el(
-          'span',
-          'haunt__blind',
-          'Auf dem Blatt: helle Linien sind Wände, eine Lücke mit Bogen ist eine offene Tür, ein dunkler Riegel eine zu.',
-        ),
-      );
-      out.push(
-        el('span', 'haunt__blind', 'Ziehen verschiebt, zwei Finger oder das Mausrad ziehen heran.'),
-      );
+      const map = el('button', 'haunt__chart-key', 'Raum auf der Karte zeigen');
+      map.dataset['mapRoom'] = room.id;
+      out.push(map);
     }
     return out;
   }
@@ -739,11 +980,12 @@ export class StationUi {
   /** Der Späher: Konturen und ein Punkt. Sonst nichts, mit Absicht. */
   private scoutPage(): HTMLElement[] {
     const state = this.host.state();
+    if (this.controlTab === 'switches') return [this.tabs('control'), ...this.hackPage()];
     const frame = el('div', `haunt__radar${state.monster ? '' : ' is-empty'}`);
     frame.append(this.scout);
     if (!state.monster) {
       frame.append(
-        el('span', 'haunt__radar-empty', state.monsterOn ? 'Kein Signal' : 'Schirm leer'),
+        el('span', 'haunt__radar-empty', state.monsterOn ? 'Kein Signal' : 'Kein Monster aktiv'),
       );
     }
     const monitor = el('div', 'haunt__telemetry');
@@ -755,18 +997,19 @@ export class StationUi {
       el('small', '', 'Spielwert · steigt bei Rennen, Verletzung und Monsternähe'),
     );
     return [
+      this.tabs('control'),
+      head('Bewegungsradar'),
       frame,
       monitor,
       note(
         state.crew.hidden ? 'calm' : 'live',
-        state.crew.hidden ? 'Techniker im Schutzschrank' : `Anzug: ${state.crew.hp}/3 Treffer`,
+        state.crew.hidden ? 'Techniker im Schutzschrank' : `Anzugzustand: ${state.crew.hp} von 3`,
         state.crew.options.test
           ? 'Sicherer Test: kein Monster und kein Schaden.'
           : state.crew.venting > 0
             ? 'Kontakt im Wartungsschacht. Bewegung in ein Nachbarmodul.'
             : 'Radar beschreibt die Konturen. Archiv kennt Namen und Fundorte.',
       ),
-      ...this.hackPage(),
     ];
   }
 
@@ -908,7 +1151,7 @@ export class StationUi {
     if (!free && !backTarget) back.setAttribute('disabled', '');
     const backLine = el('span', 'haunt__cell-head');
     // Wer schon dort steht, liest kein „zurück".
-    backLine.append(el('span', '', home ? 'Am Van' : 'Zurück zur Zentrale'));
+    backLine.append(el('span', '', home ? 'In der Einsatzzentrale' : 'Zurück zur Zentrale'));
     if (home) backLine.append(el('span', 'haunt__chip haunt__chip--here', 'hier'));
     else if (backTarget) {
       const far = status.kind === 'blocked' ? 'zu' : `${Math.max(1, Math.round(status.metres))} m`;
@@ -979,7 +1222,7 @@ export class StationUi {
     return note(
       'warn',
       'Kein Weg',
-      `Sie steht in ${where}. Zwischen hier und ${goal} ist etwas zu — sie macht keine Tür auf. Ruf es in den Van.`,
+      `Sie steht in ${where}. Zwischen hier und ${goal} ist etwas zu — sie macht keine Tür auf. Bitte die Einsatzkontrolle, die Schotts zu öffnen.`,
     );
   }
 
@@ -997,7 +1240,7 @@ export class StationUi {
     return [
       note(
         'live',
-        'Das ganze Station, bei Tag',
+        'Die ganze Station, bei Tag',
         'Von schräg oben, ohne Decke, mit allem darin: den Sachen, der Drohne, dem Mitspieler — und dem Monster, wenn es an ist. Für den Fernseher im Raum gedacht, nicht fürs Telefon in der Hand.',
       ),
       note(
@@ -1142,7 +1385,7 @@ export class StationUi {
     // Der Ausschnitt folgt dem Monster und nicht dem Haus: eine feste Karte
     // wäre wieder ein Grundriss, und den hat der Archivar.
     const span = 5;
-    const scale = size / (span * 2.5);
+    const scale = size / (span * TILE);
     const cx = state.monster.x;
     const cz = state.monster.z;
     const px = (x: number): number => size / 2 + (x - cx) * scale;
@@ -1152,9 +1395,9 @@ export class StationUi {
       const own = room.id === here.id;
       ctx.strokeStyle = own ? '#8fb7ff' : '#2b3547';
       ctx.lineWidth = (own ? 2 : 1) * dpr;
-      const x = px(room.rect.x * 2.5);
-      const z = pz(room.rect.z * 2.5);
-      ctx.strokeRect(x, z, room.rect.w * 2.5 * scale, room.rect.d * 2.5 * scale);
+      const x = px(room.rect.x * TILE);
+      const z = pz(room.rect.z * TILE);
+      ctx.strokeRect(x, z, room.rect.w * TILE * scale, room.rect.d * TILE * scale);
     }
 
     // Die Türen als Lücken andeuten — die Form eines Zimmers ist auch, wo man
@@ -1163,7 +1406,12 @@ export class StationUi {
       if (!near.some((room) => room.id === door.a || room.id === door.b)) continue;
       ctx.fillStyle = '#586880';
       const r = 3 * dpr;
-      ctx.fillRect(px((door.x + 0.5) * 2.5) - r, pz((door.z + 0.5) * 2.5) - r, r * 2, r * 2);
+      ctx.fillRect(
+        px((door.x + 0.5 + dirX(door.dir) * 0.5) * TILE) - r,
+        pz((door.z + 0.5 + dirZ(door.dir) * 0.5) * TILE) - r,
+        r * 2,
+        r * 2,
+      );
     }
 
     // Der Punkt bekommt einen Hof: Auf einem hellen Telefon im Sonnenlicht ist
@@ -1179,16 +1427,189 @@ export class StationUi {
     ctx.fill();
   }
 
+  private drawArchive(): void {
+    if (this.archiveDrawn || this.station !== 'archive' || this.archiveTab === 'anomalies') return;
+    const mini = this.archiveTab !== 'map';
+    const canvas = mini ? this.miniMap : this.chart;
+    const box = canvas.getBoundingClientRect();
+    if (box.width < 8 || box.height < 8) return;
+    const width = Math.round(box.width),
+      height = Math.round(box.height);
+    const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+    const pw = Math.round(width * dpr),
+      ph = Math.round(height * dpr);
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+    }
+    const c = canvas.getContext('2d');
+    if (!c) return;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paintArchiveMap(
+      c,
+      this.host.spec(),
+      { selected: this.selected, shut: this.host.state().shut },
+      archiveProjection(this.host.spec(), width, height, mini ? homeView() : this.mapView),
+      mini,
+    );
+    this.archiveDrawn = 'painted';
+  }
+
+  private zoomChart(factor: number): void {
+    const bounds = archiveBounds(this.host.spec());
+    this.mapView = zoomedView(this.mapView, factor, bounds.w / 2, bounds.d / 2);
+    this.archiveDrawn = '';
+    this.drawArchive();
+  }
+
+  private panChart(dx: number, dy: number): void {
+    const spec = this.host.spec();
+    const bounds = archiveBounds(spec);
+    const box = this.chart.getBoundingClientRect();
+    const projection = archiveProjection(spec, box.width, box.height, this.mapView);
+    this.mapView = pannedView(
+      this.mapView,
+      -dx / projection.scale,
+      -dy / projection.scale,
+      bounds.w / 2,
+      bounds.d / 2,
+    );
+    this.archiveDrawn = '';
+    this.drawArchive();
+  }
+
+  /** The 2D chart has its own input; it never steers the THREE camera or the player. */
+  private watchChart(): void {
+    const points = new Map<number, { x: number; y: number }>();
+    let start = { x: 0, y: 0 };
+    let far = 0;
+    let gap = 0;
+    const distance = (): number => {
+      const [a, b] = [...points.values()];
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
+    this.chart.addEventListener('pointerdown', (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      this.chart.setPointerCapture(event.pointerId);
+      points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (points.size === 1) {
+        start = { x: event.clientX, y: event.clientY };
+        far = 0;
+      } else {
+        far = TAP_SLOP + 1;
+        gap = distance();
+      }
+    });
+    this.chart.addEventListener('pointermove', (event: PointerEvent) => {
+      const point = points.get(event.pointerId);
+      if (!point) return;
+      const dx = event.clientX - point.x,
+        dy = event.clientY - point.y;
+      point.x = event.clientX;
+      point.y = event.clientY;
+      if (points.size > 1) {
+        const next = distance();
+        if (gap > PINCH_MIN && next > PINCH_MIN) this.zoomChart(next / gap);
+        gap = next;
+      } else {
+        far = Math.max(far, Math.hypot(point.x - start.x, point.y - start.y));
+        if (far > TAP_SLOP) this.panChart(dx, dy);
+      }
+    });
+    const release = (event: PointerEvent): void => {
+      if (!points.has(event.pointerId)) return;
+      const tap = points.size === 1 && far <= TAP_SLOP && event.type === 'pointerup';
+      points.delete(event.pointerId);
+      if (this.chart.hasPointerCapture(event.pointerId))
+        this.chart.releasePointerCapture(event.pointerId);
+      if (!tap) return;
+      const box = this.chart.getBoundingClientRect();
+      const room = archiveRoomAt(
+        this.host.spec(),
+        archiveProjection(this.host.spec(), box.width, box.height, this.mapView),
+        event.clientX - box.left,
+        event.clientY - box.top,
+      );
+      if (room && room !== this.selected) {
+        this.selected = room;
+        this.drawn = '';
+        this.refresh();
+      }
+    };
+    this.chart.addEventListener('pointerup', release);
+    this.chart.addEventListener('pointercancel', release);
+    this.chart.addEventListener('lostpointercapture', (event: PointerEvent) => {
+      points.delete(event.pointerId);
+    });
+    this.chart.addEventListener(
+      'wheel',
+      (event: WheelEvent) => {
+        event.preventDefault();
+        this.zoomChart(Math.exp(-wheelStep(event) * WHEEL_RATE));
+      },
+      { passive: false },
+    );
+    this.chart.tabIndex = 0;
+    this.chart.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key === '+' || event.key === '=') this.zoomChart(1.4);
+      else if (event.key === '-') this.zoomChart(1 / 1.4);
+      else if (event.key === 'Home') {
+        this.mapView = homeView();
+        this.archiveDrawn = '';
+        this.drawArchive();
+      } else if (event.key === 'ArrowLeft') this.panChart(60, 0);
+      else if (event.key === 'ArrowRight') this.panChart(-60, 0);
+      else if (event.key === 'ArrowUp') this.panChart(0, 60);
+      else if (event.key === 'ArrowDown') this.panChart(0, -60);
+      else return;
+      event.preventDefault();
+    });
+  }
+
   // --- Eingaben ---------------------------------------------------------------
 
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-map-action],[data-map-room],[data-identify],[data-journal-reset]',
     );
     if (!hit) return;
 
-    if (hit.dataset['technician'] !== undefined) {
+    if (hit.dataset['identify']) {
+      const kind = hit.dataset['identify'] as MonsterKind;
+      if (JOURNAL_ENTITIES.includes(kind)) this.hypothesis = this.hypothesis === kind ? null : kind;
+    } else if (hit.dataset['journalReset'] !== undefined) {
+      this.observations.clear();
+      this.hypothesis = null;
+    } else if (hit.dataset['mapAction']) {
+      if (hit.dataset['mapAction'] === 'home') this.mapView = homeView();
+      else this.zoomChart(hit.dataset['mapAction'] === 'in' ? 1.4 : 1 / 1.4);
+      this.archiveDrawn = '';
+      this.drawArchive();
+      return;
+    } else if (hit.dataset['archiveTab']) {
+      const tab = hit.dataset['archiveTab'];
+      if (tab === 'orders' || tab === 'rooms' || tab === 'map' || tab === 'anomalies') {
+        if (this.archiveTab !== 'map') this.archiveBack = this.archiveTab;
+        this.archiveTab = tab;
+      }
+    } else if (hit.dataset['controlTab']) {
+      this.controlTab = hit.dataset['controlTab'] === 'switches' ? 'switches' : 'radar';
+    } else if (hit.dataset['mapRoom']) {
+      const room = roomOf(this.host.spec(), hit.dataset['mapRoom']);
+      if (room) {
+        this.selected = room.id;
+        this.archiveBack = this.archiveTab === 'orders' ? 'orders' : 'rooms';
+        this.archiveTab = 'map';
+        const bounds = archiveBounds(this.host.spec());
+        this.mapView = {
+          zoom: 2,
+          x: room.rect.x + room.rect.w / 2 - bounds.x - bounds.w / 2,
+          z: room.rect.z + room.rect.d / 2 - bounds.z - bounds.d / 2,
+        };
+      }
+    } else if (hit.dataset['technician'] !== undefined) {
       this.host.technician();
       return;
     } else if (hit.dataset['van'] !== undefined) {
@@ -1463,7 +1884,7 @@ function lampWords(drone: DroneState, home: boolean): string {
  * ein Satz, der „sie steht in " sagt, hat dort besser gar keinen Namen.
  */
 function placeName(spec: HouseSpec, id: string): string | null {
-  if (id === VAN_ID) return 'am Van';
+  if (id === VAN_ID) return 'Einsatzzentrale';
   return roomOf(spec, id)?.name ?? null;
 }
 
@@ -1480,8 +1901,8 @@ function roomNumber(spec: HouseSpec, room: HouseRoom): number {
 }
 
 function roomAtMetres(spec: HouseSpec, x: number, z: number): HouseRoom | null {
-  const tx = Math.floor(x / 2.5);
-  const tz = Math.floor(z / 2.5);
+  const tx = Math.floor(x / TILE);
+  const tz = Math.floor(z / TILE);
   return (
     spec.rooms.find(
       (room) =>

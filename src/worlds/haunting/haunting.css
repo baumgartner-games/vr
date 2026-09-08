@@ -814,3 +814,15 @@ body.haunt-on .touch { display: none; }
 @media (min-width: 760px) { .haunt[data-station="scout"] .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }
 @media (max-width: 480px) { .haunt__where strong { font-size: 14px; } .haunt__state { font-size: 10px; } .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } }
 @media (prefers-reduced-motion: reduce) { .haunt *, .orbital-player * { animation: none !important; transition: none !important; } }
+
+/* Compact desktop controls; VR uses only the wrist and physical displays. */
+.orbital-player { width: min(580px, calc(100vw - 32px)); padding: 9px 12px; max-height: 48vh; border-color: #34433f; background: rgba(7,14,16,.88); border-radius: 7px; }
+.orbital-player strong { padding-bottom: 3px; font-size: 11px; }
+.orbital-player__keys { color: #bac8c3; line-height: 1.5; font-size: 11px; }
+.orbital-player details { padding-top: 2px; }
+.orbital-player details[open] { padding-top: 8px; }
+.orbital-player summary { padding-block: 6px; }
+.orbital-crosshair { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #e4f5eb; box-shadow: 0 0 0 1px #07100c; pointer-events: none; z-index: 3; }
+.orbital-crosshair[hidden] { display: none; }
+
+.orbital-crosshair::after { content: attr(data-label); position: absolute; top: 22px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #e3eee8; font: 12px system-ui,sans-serif; text-shadow: 0 1px 3px #000, 0 0 6px #000; }

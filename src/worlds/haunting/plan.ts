@@ -1,16 +1,29 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H } from '../editor/levelPlan';
-import { DIR_E, DIR_S, DIR_W } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
 import { APRON, HOUSE, roomAt, tilesOf, type HouseSpec, type MarkId } from './house';
 import { FLYER_PROFILE } from '../nav/navProfile';
 import type { BlockKind } from '../grid/blocks';
+import type { PlanSolid } from '../grid/solids';
+import { TRAINING_DOOR, TRAINING_ROOMS } from './trainingLayout';
+
+/** Open station leaves retract into their frame instead of swinging into a route. */
+class StationPlan extends GridPlan {
+  override solids(): PlanSolid[] {
+    const retracted = new Set<string>();
+    for (const [, wall] of this.graph.wallEntries()) {
+      if (wall.kind === 'door' && wall.open) retracted.add(wall.id);
+    }
+    return super.solids().filter((solid) => !solid.door || !retracted.has(solid.door));
+  }
+}
 
 /**
  * **Vom Bauplan zum Kachelgitter.**
  *
  * Die eine Übersetzung, die zwischen dem Generator (`house.ts`, ohne
  * three.js) und allem anderen steht: Zimmer werden zu Wänden, Türen zu Türen
- * im Graphen, Merkmale zu Bausteinen. Danach ist es ein ganz normaler
+ * im Graphen. Danach ist es ein ganz normaler
  * `GridPlan`, und ab da weiß niemand mehr, dass er gewürfelt wurde — die Welt
  * baut ihn wie den des Dunkelhauses, der Navigationsgraph tastet ihn ab, und
  * der Editor könnte ihn öffnen.
@@ -21,29 +34,37 @@ import type { BlockKind } from '../grid/blocks';
  * müsste bei jeder Änderung am Zuschnitt nachgezogen werden — und wäre beim
  * ersten Mal, an dem sie es nicht wird, ein Haus mit einem Loch.
  *
- * **Ein Merkmal ist ein Baustein.** Damit stimmen drei Sachen von selbst, die
- * sonst einzeln nachzupflegen wären: Es steht wirklich im Weg, die Kachel
- * darunter ist für einen Verfolger teurer, und man sieht es. Woran man ein
- * Klavier von einer Werkbank unterscheidet, ist eine Frage der Farbe und
- * kommt oben drauf (`marks.ts`) — nicht eine von vierzehn Geometrien.
+ * **Einrichtung hat eigene Maße.** Die Raumstation verwendet vollständige
+ * Modelle aus `fixtureModels.ts`. Position, Drehung, Kollisionsfläche und
+ * freie Zugänge kommen aus `stationLayout.ts`. Zusätzliche Raster-Bausteine
+ * unter diesen Modellen würden Türen versperren und Flächen doppelt zeichnen.
+ * Dieser Plan beschreibt deshalb nur die begehbare Hülle.
  */
 export function housePlan(
   spec: HouseSpec,
   shut: ReadonlySet<string> = new Set(),
   test = false,
 ): GridPlan {
-  const plan = new GridPlan([0]);
+  const plan = new StationPlan([0]);
   plan.room(HOUSE, { walls: true, ceiling: PLAN_WALL_H });
-  // **Der Vorplatz vor der Haustür** — Boden ohne Wände und ohne Decke. Er ist
-  // der einzige Grund, aus dem es für die Wegsuche einen Van gibt: Ohne ihn
-  // müsste die Drohne im Haus starten, käme nie heraus, und „zurück zum Van"
-  // wäre eine Sonderregel statt eines Fluges. Die Haustür bleibt dabei genau
-  // das, was sie ist — wer sie zumacht, sperrt die Drohne aus.
+  // Die geschlossene Einsatzzentrale bleibt Teil des Missionsgraphen, damit
+  // die Drohne durch dieselbe Tür zurückkehrt wie der Techniker.
   plan.room(APRON, { walls: true, ceiling: PLAN_WALL_H });
-  // The illuminated training bay is inside the protected command deck.
+  // Der Testdeck-Aufzug liegt in der Zentrale; die Lehrzimmer selbst liegen
+  // mit eigenen Böden, Wänden und Decken weit außerhalb der Missionskarte.
   for (const x of [-3, -2, -1, 0, 1]) plan.window(x, 4, DIR_S);
-  plan.wall(2, 3, DIR_W);
+  // Ein einzelner Aufzugsschacht, keine Trennwand quer durch die Zentrale:
+  // Die zufällige Missionstür kann auch östlich dieses Aufzugs liegen.
+  plan.wall(2, 4, DIR_N);
+  plan.wall(2, 4, DIR_E);
   plan.door(2, 4, DIR_W, 0, test);
+  if (test) {
+    for (const room of TRAINING_ROOMS) {
+      plan.room(room, { walls: true, ceiling: PLAN_WALL_H });
+    }
+  }
+  if (test)
+    plan.door(TRAINING_DOOR.x, TRAINING_DOOR.z, TRAINING_DOOR.dir, 0, !shut.has(TRAINING_DOOR.id));
   innerWalls(plan, spec);
 
   for (const door of spec.doors) {
@@ -58,10 +79,6 @@ export function housePlan(
   // Vorplatz und weiß, an welcher Seite des Hauses er klebt.
   for (const win of spec.windows) {
     plan.window(win.x, win.z, win.dir);
-  }
-
-  for (const room of spec.rooms) {
-    for (const mark of room.marks) plan.put(blockFor(mark.id), mark.x, mark.z, mark.dir);
   }
 
   return plan;
@@ -82,12 +99,8 @@ function innerWalls(plan: GridPlan, spec: HouseSpec): void {
 }
 
 /**
- * Welcher Baustein unter einem Merkmal steht.
- *
- * Sechs Sorten für vierzehn Merkmale, und das ist Absicht: Die Silhouette sagt
- * *wie hoch und wie tief*, die Farbe sagt *was*. Vierzehn eigene Geometrien
- * wären vierzehn Stellen, an denen ein Möbel einen halben Meter neben seiner
- * Kachel steht.
+ * Historische Zuordnung für Werkzeuge, die alte Hausmerkmale darstellen.
+ * Der Raumstationsplan erzeugt diese Bausteine nicht mehr.
  */
 export function blockFor(mark: MarkId): BlockKind {
   switch (mark) {

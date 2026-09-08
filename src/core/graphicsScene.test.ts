@@ -38,6 +38,20 @@ function build(): Built {
 }
 
 describe('die Grafikstufe über einer Szene', () => {
+  it('leaves a gameplay-controlled dark light off during quality rescans', () => {
+    const scene = new THREE.Scene();
+    const light = new THREE.AmbientLight(0xffffff, 1.2);
+    light.userData.dynamicIntensity = true;
+    scene.add(light);
+    applySceneQuality(scene, SIMPLE);
+    light.intensity = 0;
+    applySceneQuality(scene, COMIC);
+    expect(light.intensity).toBe(0);
+    light.intensity = 0.8;
+    applySceneQuality(scene, SIMPLE);
+    expect(light.intensity).toBe(0.8);
+  });
+
   it('lässt in der einfachen Stufe alles, wie es war', () => {
     const world = build();
     expect(applySceneQuality(world.scene, SIMPLE)).toBeNull();

@@ -235,6 +235,8 @@ export interface DronePose {
  */
 export interface DroneRoute {
   tiles: TileKey[];
+  /** Optional collision-cleared world-space path used by the station's fitted models. */
+  points?: Array<{ x: number; z: number }>;
   /**
    * Ob der Graph bis ans Ziel gekommen ist.
    *
@@ -289,15 +291,23 @@ export function stepAlong(
   dt: number,
   speed = DRONE_SPEED,
 ): boolean {
+  const point = route.points?.[0];
   const next = route.tiles[0];
-  if (next === undefined) return false;
+  if (route.points ? !point : next === undefined) return false;
 
-  const gx = tileCentreX(next);
-  const gz = tileCentreZ(next);
+  const gx = point ? point.x : tileCentreX(next!);
+  const gz = point ? point.z : tileCentreZ(next!);
   const dx = gx - pose.x;
   const dz = gz - pose.z;
   const far = Math.hypot(dx, dz);
-  if (far < WAYPOINT) {
+  if (far < (point ? 0.015 : WAYPOINT)) {
+    if (point) {
+      // Reach corners exactly: the old tile tolerance can cut through a frame.
+      pose.x = gx;
+      pose.z = gz;
+      route.points!.shift();
+      return route.points!.length > 0;
+    }
     route.tiles.shift();
     return route.tiles.length > 0;
   }
@@ -353,9 +363,10 @@ export function routeLength(pose: DronePose, route: DroneRoute): number {
   let sum = 0;
   let x = pose.x;
   let z = pose.z;
-  for (const tile of route.tiles) {
-    const gx = tileCentreX(tile);
-    const gz = tileCentreZ(tile);
+  const count = route.points?.length ?? route.tiles.length;
+  for (let i = 0; i < count; i++) {
+    const gx = route.points ? route.points[i]!.x : tileCentreX(route.tiles[i]!);
+    const gz = route.points ? route.points[i]!.z : tileCentreZ(route.tiles[i]!);
     sum += Math.hypot(gx - x, gz - z);
     x = gx;
     z = gz;

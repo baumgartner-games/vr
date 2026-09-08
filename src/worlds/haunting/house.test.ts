@@ -1,6 +1,7 @@
 import { findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { keyX, keyZ, neighbour, tileKey } from '../nav/navTile';
+import { DIR_N, DIR_S, DIR_E, DIR_W, TILE, keyX, keyZ, neighbour, tileKey } from '../nav/navTile';
+import { PLAN_WALL_H } from '../editor/levelPlan';
 import {
   generateHouse,
   onApron,
@@ -15,6 +16,7 @@ import {
   type Rect,
 } from './house';
 import { DRONE_PROFILE, housePlan } from './plan';
+import { TRAINING_ROOMS, trainingSpawn } from './trainingLayout';
 
 /** Zwanzig Häuser, damit ein Fehler nicht vom Samen abhängt. */
 const SEEDS = Array.from({ length: 20 }, (_, i) => 1000 + i * 7919);
@@ -251,6 +253,16 @@ describe('Der Grundriss als Kachelgitter', () => {
     expect(shut.graph.wall(key, inner.dir)?.open).toBe(false);
   });
 
+  it('zieht offene Schottblätter vollständig aus dem Laufweg zurück', () => {
+    const inner = spec.doors.find((door) => door.b !== null)!;
+    const open = housePlan(spec);
+    const shut = housePlan(spec, new Set([inner.id]));
+    const key = tileKey(inner.x, inner.z, 0);
+    const id = open.graph.wall(key, inner.dir)!.id;
+    expect(open.solids().some((solid) => solid.door === id)).toBe(false);
+    expect(shut.solids().filter((solid) => solid.door === id)).toHaveLength(1);
+  });
+
   /**
    * **Ein Fenster hält auf wie eine Wand** — und genau darin unterscheidet es
    * sich von einer Tür.
@@ -276,7 +288,7 @@ describe('Der Grundriss als Kachelgitter', () => {
     }
   });
 
-  it('stellt keinen Baustein in eine Türöffnung', () => {
+  it('baut keine alten Möbel-Bausteine unter die Stationsmodelle', () => {
     const plan = housePlan(spec);
     const blocked = new Set(spec.doors.map((door) => `${door.x}:${door.z}`));
     for (const room of spec.rooms) {
@@ -284,7 +296,76 @@ describe('Der Grundriss als Kachelgitter', () => {
         expect(blocked.has(`${mark.x}:${mark.z}`)).toBe(false);
       }
     }
-    expect(plan.blocks().length).toBeGreaterThan(0);
+    expect(plan.blocks()).toHaveLength(0);
+    expect(housePlan(spec, new Set(), true).blocks()).toHaveLength(0);
+  });
+
+  it('baut die getrennten Lehrzimmer nur im Testmodus mit vollständiger Hülle', () => {
+    const mission = housePlan(spec);
+    const training = housePlan(spec, new Set(), true);
+    const extraTiles = TRAINING_ROOMS.reduce((total, room) => total + room.w * room.d, 0);
+    expect([...training.graph.tileKeys()]).toHaveLength(
+      [...mission.graph.tileKeys()].length + extraTiles,
+    );
+    for (const room of TRAINING_ROOMS) {
+      for (const tile of tilesOf(room)) {
+        const key = tileKey(tile.x, tile.z, 0);
+        expect(mission.graph.tile(key)).toBeUndefined();
+        expect(training.graph.tile(key)).toBeDefined();
+        if (tile.x === room.x) expect(training.graph.wall(key, DIR_W)?.kind).toBe('solid');
+        if (tile.x === room.x + room.w - 1)
+          expect(training.graph.wall(key, DIR_E)?.kind).toBe('solid');
+        if (tile.z === room.z) expect(training.graph.wall(key, DIR_N)?.kind).toBe('solid');
+        if (tile.z === room.z + room.d - 1)
+          expect(training.graph.wall(key, DIR_S)?.kind).toBe('solid');
+      }
+      expect(
+        training
+          .masses()
+          .some(
+            (mass) =>
+              mass.rect.x === room.x &&
+              mass.rect.z === room.z &&
+              mass.rect.w === room.w &&
+              mass.rect.d === room.d &&
+              mass.from === PLAN_WALL_H,
+          ),
+      ).toBe(true);
+    }
+  });
+
+  it('setzt Test-Teleports auf Boden und nicht in Hülle oder Missionspfade', () => {
+    const plan = housePlan(spec, new Set(), true);
+    const solids = plan.solids();
+    const entry = roomOf(spec, spec.entryRoom)!;
+    const from = tileKey(entry.rect.x, entry.rect.z, 0);
+    for (const room of TRAINING_ROOMS) {
+      const spawn = trainingSpawn(room.id);
+      const to = tileKey(Math.floor(spawn.x / TILE), Math.floor(spawn.z / TILE), 0);
+      expect(findPath(plan.graph, from, to, { profile: HUMAN_PROFILE }).complete).toBe(false);
+      const beneath = solids.filter(
+        (solid) =>
+          Math.abs(spawn.x - solid.x) <= solid.w / 2 && Math.abs(spawn.z - solid.z) <= solid.d / 2,
+      );
+      expect(beneath.some((solid) => solid.kind === 'floor' && solid.y + solid.h / 2 === 0)).toBe(
+        true,
+      );
+      expect(
+        solids.some(
+          (solid) =>
+            Math.abs(spawn.x - solid.x) < solid.w / 2 + 0.45 &&
+            Math.abs(spawn.z - solid.z) < solid.d / 2 + 0.45 &&
+            solid.y + solid.h / 2 > 0 &&
+            solid.y - solid.h / 2 < 2,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it('öffnet den Zugang zum Testdeck ausschließlich im Testmodus', () => {
+    const door = tileKey(2, 4, 0);
+    expect(housePlan(spec).graph.wall(door, DIR_W)?.open).toBe(false);
+    expect(housePlan(spec, new Set(), true).graph.wall(door, DIR_W)?.open).toBe(true);
   });
 });
 

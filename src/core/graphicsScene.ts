@@ -66,6 +66,9 @@ function isLit(material: THREE.Material): boolean {
 function dimAmbient(object: THREE.Object3D, profile: GraphicsProfile): boolean {
   const light = object as THREE.HemisphereLight & THREE.AmbientLight;
   if (!light.isHemisphereLight && !light.isAmbientLight) return false;
+  // Gameplay dimmers own their current intensity. Restoring a remembered
+  // baseline once a second would flash a dark room back to its earlier brightness.
+  if (light.userData.dynamicIntensity === true) return true;
   const base = (light.userData[AMBIENT_BASE] as number | undefined) ?? light.intensity;
   light.userData[AMBIENT_BASE] = base;
   light.intensity = base * profile.ambientScale;

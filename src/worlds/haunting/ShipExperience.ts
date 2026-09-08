@@ -1,15 +1,31 @@
 import * as THREE from 'three';
 import './haunting.css';
-import { playTone, sharedAudio } from '../../core/Audio';
+import { playTone } from '../../core/Audio';
+import { ShipAudio, type ShipAudioFrame } from './shipAudio';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { WorldContext } from '../../core/types';
+import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { MirrorSurface } from '../shared/Mirror';
-import { Burst } from '../effects/Burst';
-import { EFFECTS } from '../effects/effectKinds';
+import { ShipEffects } from './ShipEffects';
 import { PLAN_DOOR_H, PLAN_DOOR_W } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
-import { MARKS, roomAt, roomCentre, tilesOf, type HouseRoom, type HouseSpec } from './house';
+import { APRON, MARKS, roomAt, type HouseRoom, type HouseSpec } from './house';
+import { HauntingDesktopControls } from './desktopControls';
+import { HauntingComfort } from './HauntingComfort';
+import { HauntingMicrophone } from './HauntingMicrophone';
+import { entityReadings } from './threat';
+import { stationLayout, safeRoomSpawn } from './stationLayout';
+import { buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
+import {
+  COMMAND_HOME,
+  TRAINING_ROOMS,
+  TRAINING_DOOR,
+  trainingRoomAt,
+  trainingSpawn,
+  type TrainingRoomId,
+} from './trainingLayout';
+import { buildTrainingDeck } from './trainingDeck';
 import {
   MONSTERS,
   ROOM_COUNTS,
@@ -18,6 +34,7 @@ import {
   puzzleSolved,
   repairsFor,
   type Repair,
+  type PuzzleState,
   type StationOptions,
 } from './mission';
 import { SHIP, animateCreature, buildCreature, label } from './shipArt';
@@ -51,6 +68,17 @@ interface Cabinet {
   lootMesh: THREE.Object3D;
   scanner: THREE.Object3D;
   at: THREE.Vector3;
+  leafY: number;
+  leafHeight: number;
+}
+interface Locker {
+  id: string;
+  group: THREE.Group;
+  leaf: THREE.Mesh;
+  leafY: number;
+  leafHeight: number;
+  code: string;
+  open: boolean;
 }
 interface Door {
   id: string;
@@ -65,6 +93,8 @@ interface Console {
   at: THREE.Vector3;
   selected: number;
   training?: boolean;
+  practice?: PuzzleState;
+  solved?: boolean;
 }
 const _head = new THREE.Vector3(),
   _pos = new THREE.Vector3(),
@@ -80,9 +110,22 @@ export class ShipExperience {
   private readonly screens: Screen[] = [];
   private readonly cabinets: Cabinet[] = [];
   private readonly doors: Door[] = [];
+  private readonly lockers: Locker[] = [];
+  private readonly desktop: HauntingDesktopControls;
+  private readonly comfort: HauntingComfort | null;
+  private readonly microphone: HauntingMicrophone;
+  private readonly torch = new THREE.Group();
+  private readonly heldLamp = new THREE.Group();
+  private readonly heldMedkit = new THREE.Group();
+  private readonly torchLight = new THREE.SpotLight(0xffeed2, 0, 16, Math.PI / 7, 0.45, 1.5);
+  private rightItem: 'flashlight' | 'medkit' | 'off' = 'flashlight';
+  private labMirror: MirrorSurface | null = null;
+  private visibleRooms: ReadonlySet<string> | null = null;
+  private readonly crosshair = document.createElement('div');
   private readonly consoles: Console[] = [];
-  private readonly effects: Burst[] = [];
-  private readonly gallery: THREE.Object3D[] = [];
+  private readonly effects = new ShipEffects();
+  private readonly audioHead = new THREE.Vector3();
+  private hasAudioHead = false;
   private readonly lockerEntries = new Map<string, string>();
   private readonly suit = new THREE.Group();
   private readonly wound = new THREE.Mesh(
@@ -93,11 +136,23 @@ export class ShipExperience {
   private readonly wrist: Screen;
   private readonly command: Screen;
   private readonly dom = document.createElement('section');
-  private sensorMode: 'off' | 'radar' | 'xray' = 'off';
+  private sensorMode: 'off' | 'radar' | 'xray' | 'emf' | 'thermal' | 'audio' = 'off';
   private audioOn = true;
-  private hum: { oscillator: OscillatorNode; gain: GainNode } | null = null;
+  private readonly audio = new ShipAudio();
+  private readonly audioFrame: ShipAudioFrame = {
+    listener: { x: 0, z: 0 },
+    forward: { x: 0, z: -1 },
+    monster: null,
+    kind: 'stalker',
+    active: false,
+    test: true,
+    venting: false,
+  };
+  private readonly lastSoundAt = new THREE.Vector3();
+  private actionHand: Handedness | null = null;
+  private focusedTarget: THREE.Object3D | null = null;
+  private audioTimer = 0;
   private paintTimer = 0;
-  private soundTimer = 0;
   private effectTimer = 0;
   private stamp = '';
   private hiddenWas = false;
@@ -106,7 +161,7 @@ export class ShipExperience {
   private simulationTimer = 0;
   private simulationRoute: DroneRoute | null = null;
   private simulationGoal: HouseRoom | null = null;
-  private readonly simulationPose: DronePose = { x: 1.5, z: 13.5, yaw: 0 };
+  private readonly simulationPose: DronePose = { ...COMMAND_HOME, yaw: 0 };
   private simulated: THREE.Object3D | null = null;
   private readonly messages: string[] = [];
   private flatFlight = 0;
@@ -117,8 +172,25 @@ export class ShipExperience {
 
   constructor(private readonly host: ShipHost) {
     this.root.name = 'orbital-interactions';
-    this.command = this.screen(3.6, 1.9);
-    this.command.mesh.position.set(-3.7, 1.72, 10.4);
+    this.microphone = new HauntingMicrophone({
+      changed: () => {
+        host.ctx.refreshWorldMenu();
+        this.stamp = '';
+      },
+      say: (text) => host.say(text),
+    });
+    this.comfort = this.player
+      ? new HauntingComfort({
+          rig: host.ctx.rig,
+          camera: host.ctx.camera,
+          input: host.ctx.input,
+          presenting: () => host.ctx.renderer.xr.isPresenting,
+          enabled: () => !host.ctx.menu.isOpen,
+          changed: () => host.ctx.refreshWorldMenu(),
+        })
+      : null;
+    this.command = this.screen(2.8, 1.5, 768);
+    this.command.mesh.position.set(-3.2, 1.7, APRON.z * TILE + 0.25);
     this.root.add(this.command.mesh);
     this.bind(this.command.mesh, (uv) => {
       if (!uv) return;
@@ -129,7 +201,7 @@ export class ShipExperience {
     this.buildConsoles();
     this.buildDoors();
     this.buildBay();
-    this.wrist = this.screen(0.29, 0.29);
+    this.wrist = this.screen(0.23, 0.23, 384);
     this.wrist.mesh.name = 'mission-wrist-scanner';
     this.root.add(this.wrist.mesh);
     this.bind(this.wrist.mesh, () => this.cycleSensor(), true);
@@ -156,11 +228,33 @@ export class ShipExperience {
       this.dom.className = 'orbital-player';
       this.dom.setAttribute('aria-label', 'Haunting Spielsteuerung');
       this.dom.addEventListener('click', this.domClick);
-      document.body.append(this.dom);
+      this.crosshair.className = 'orbital-crosshair';
+      this.crosshair.setAttribute('aria-hidden', 'true');
+      document.body.append(this.dom, this.crosshair);
     }
-    this.root.add(this.bay);
-    this.bayLight.position.set(9, 2.7, 12);
+    this.root.add(this.bay, this.effects.root);
     this.root.add(this.bayLight);
+    this.buildTorch();
+    this.desktop = new HauntingDesktopControls({
+      rig: host.ctx.rig,
+      pointer: host.ctx.pointer,
+      enabled: () => this.player && !host.ctx.menu.isOpen,
+      presenting: () => host.ctx.renderer.xr.isPresenting,
+      simulation: () => this.crew.simulation,
+      canMove: () => !this.crew.hidden && this.crew.hp > 0,
+      cycleHand: (hand) => (hand === 'left' ? this.cycleSensor() : this.cycleRight()),
+      interact: () => {
+        if (this.crew.hidden) {
+          this.leaveLocker();
+          return true;
+        }
+        if (this.rightItem === 'medkit') {
+          this.heal();
+          return true;
+        }
+        return false;
+      },
+    });
     this.paint();
   }
 
@@ -175,10 +269,10 @@ export class ShipExperience {
     return this.player && (phase === 'running' || this.crew.options.test) && !this.crew.simulation;
   }
 
-  private screen(width: number, height: number): Screen {
+  private screen(width: number, height: number, pixels = 512): Screen {
     const canvas = document.createElement('canvas');
-    canvas.width = 768;
-    canvas.height = Math.round((768 * height) / width);
+    canvas.width = pixels;
+    canvas.height = Math.round((pixels * height) / width);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
@@ -201,12 +295,35 @@ export class ShipExperience {
     this.host.ctx.pointer.add({
       object,
       ignore: (hand) => wearable && hand === 'left',
+      onHover: () => {
+        this.host.ctx.rig.getHeadPosition(_head);
+        object.getWorldPosition(_pos);
+        if (_head.distanceTo(_pos) > PANEL_RANGE || (this.crew.simulation && !wearable)) {
+          if (this.focusedTarget === object) {
+            this.focusedTarget = null;
+            this.crosshair.dataset.label = '';
+          }
+          return;
+        }
+        this.focusedTarget = object;
+        const text = object.userData.interactionLabel as string | undefined;
+        if (this.crosshair.dataset.label !== (text ?? 'E: Benutzen'))
+          this.crosshair.dataset.label = text ?? 'E: Benutzen';
+      },
+      onBlur: () => {
+        if (this.focusedTarget === object) {
+          this.focusedTarget = null;
+          this.crosshair.dataset.label = '';
+        }
+      },
       onSelect: (hit) => {
         this.host.ctx.rig.getHeadPosition(_head);
         object.getWorldPosition(_pos);
         if (_head.distanceTo(_pos) > PANEL_RANGE || (this.crew.simulation && !wearable)) return;
+        this.lastSoundAt.copy(hit.point);
+        this.actionHand = hit.hand;
         action(hit.uv);
-        this.haptic(0.18, 18);
+        this.comfort?.pulse('interact', hit.hand);
         this.paint();
       },
     });
@@ -228,48 +345,71 @@ export class ShipExperience {
 
   private buildCabinets(): void {
     const spec = this.host.spec();
+    const layout = stationLayout(spec);
     let extraIndex = 0;
-    spec.rooms.forEach((room) => {
+    for (const room of spec.rooms) {
       const task = spec.tasks.find((t) => t.roomId === room.id);
-      const loot = task ? task.id : ['radar', 'xray', 'medkit'][extraIndex++ % 3]!;
-      const at = freeSpot(spec, room);
-      this.cabinet(`cargo-${room.id}`, room.id, at, loot);
-      this.locker(room);
-    });
-    this.cabinet('test-supply', '', new THREE.Vector3(1.6, 0, 13.7), 'test-kit');
+      const loot = task ? task.id : ['radar', 'xray', 'survey-kit', 'medkit'][extraIndex++ % 4]!;
+      const at = layout.find((p) => p.id === `cargo-${room.id}`)!;
+      this.cabinet(at.id, room.id, new THREE.Vector3(at.x, 0, at.z), loot, at.yaw);
+      const safe = layout.find((p) => p.id === `locker-${room.id}`)!;
+      this.locker(
+        room.id,
+        new THREE.Vector3(safe.x, 0, safe.z),
+        safe.yaw,
+        lockerCode(spec.seed, room.id),
+      );
+    }
+    this.cabinet('test-supply', '', new THREE.Vector3(2.8, 0, APRON.z * TILE + 0.7), 'test-kit');
   }
-  private cabinet(id: string, room: string, at: THREE.Vector3, loot: string): void {
-    const g = new THREE.Group();
+  private cabinet(id: string, room: string, at: THREE.Vector3, loot: string, yaw = 0): void {
+    const { root: g, door: leaf, lootMount, screenMount } = buildCargoCabinet();
     g.position.copy(at);
+    g.rotation.y = yaw;
     g.name = id;
-    this.mesh([0.82, 0.09, 0.6], SHIP.trim, g, [0, 0.32, 0]);
-    this.mesh([0.82, 0.09, 0.6], SHIP.trim, g, [0, 1.24, 0]);
-    for (const side of [-1, 1]) this.mesh([0.06, 0.9, 0.6], SHIP.hull, g, [side * 0.38, 0.79, 0]);
-    this.mesh([0.8, 0.9, 0.05], SHIP.dark, g, [0, 0.8, -0.28]);
-    const leaf = this.mesh([0.75, 0.86, 0.07], SHIP.trim, g, [0, 0.79, 0.3]);
-    const badge = label(id === 'test-supply' ? 'TESTAUSRÜSTUNG' : 'FRACHT / ÖFFNEN', 0.65, 0.13);
-    badge.position.set(0, 0.2, 0.041);
+    const badge = label(loot === 'test-kit' ? 'TESTAUSRÜSTUNG' : 'FRACHT / ÖFFNEN', 0.65, 0.13);
+    badge.position.copy(screenMount).sub(leaf.position);
     leaf.add(badge);
-    const lootMesh = this.mesh([0.3, 0.15, 0.24], SHIP.amber, g, [0, 0.65, 0]);
-    const lootTag = label(lootLabel(this.host.spec(), loot), 0.65, 0.13, SHIP.amber);
-    lootTag.position.set(0, 1.02, 0.01);
+    const lootMesh = this.mesh([0.28, 0.16, 0.22], loot === 'medkit' ? 0xc9ddcb : SHIP.amber, g, [
+      lootMount.x,
+      lootMount.y,
+      lootMount.z,
+    ]);
+    const lootTag = label(lootLabel(this.host.spec(), loot), 0.66, 0.16, SHIP.amber);
+    lootTag.position.set(0, 0.84, 0.08);
     g.add(lootTag);
-    const scanner = label(lootLabel(this.host.spec(), loot), 0.72, 0.16, SHIP.cyan);
+    const scanner = label(lootLabel(this.host.spec(), loot), 0.7, 0.16, SHIP.cyan);
     scanner.material.depthTest = false;
     scanner.material.transparent = true;
     scanner.material.opacity = 0.85;
-    scanner.position.set(0, 0.83, 0.36);
+    scanner.position.set(0, 0.75, 0.34);
     scanner.renderOrder = 50;
     scanner.visible = false;
     g.add(scanner);
-    this.cabinets.push({ id, room, group: g, leaf, loot, lootMesh, scanner, at });
+    this.cabinets.push({
+      id,
+      room,
+      group: g,
+      leaf,
+      loot,
+      lootMesh,
+      scanner,
+      at,
+      leafY: leaf.position.y,
+      leafHeight: 1.15,
+    });
+    g.userData.roomId = room;
     this.root.add(g);
+    leaf.userData.interactionLabel = 'E: Frachtschrank öffnen / schließen';
+    lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
+    lootTag.userData.interactionLabel = lootMesh.userData.interactionLabel;
     this.bind(leaf, () => this.openCabinet(id));
     this.bind(lootMesh, () => this.takeLoot(id));
+    this.bind(lootTag, () => this.takeLoot(id));
   }
   private openCabinet(id: string): void {
     if (!this.active) return;
-    if (id === 'test-supply' && !this.crew.options.test) {
+    if ((id === 'test-supply' || id.startsWith('training')) && !this.crew.options.test) {
       this.host.say('Testschrank: zuerst TEST / OHNE MONSTER drücken.');
       return;
     }
@@ -283,66 +423,89 @@ export class ShipExperience {
       return;
     if (c.loot === 'test-kit') {
       if (!this.crew.options.test) return;
-      this.crew.inventory.push('radar', 'xray', 'medkit');
+      for (const item of ['radar', 'xray', 'emf', 'thermal', 'audio', 'medkit'])
+        if (!this.crew.inventory.includes(item)) this.crew.inventory.push(item);
       this.host.state().taken = this.host.spec().tasks.map((t) => t.id);
+    } else if (c.loot === 'survey-kit') {
+      for (const item of ['emf', 'thermal', 'audio', 'medkit'])
+        if (!this.crew.inventory.includes(item)) this.crew.inventory.push(item);
     } else if (this.host.spec().tasks.some((t) => t.id === c.loot)) {
       if (!this.host.state().taken.includes(c.loot)) this.host.state().taken.push(c.loot);
     } else this.crew.inventory.push(c.loot);
     this.crew.inventory.push(id);
     this.host.say(
-      `${lootLabel(this.host.spec(), c.loot)} aufgenommen · Werkzeuge im Missionsmenü.`,
+      `${lootLabel(this.host.spec(), c.loot)} aufgenommen · 1: Sensor wechseln · 2: rechte Hand.`,
     );
     this.sound('success');
     this.host.ctx.refreshWorldMenu();
   }
 
-  private locker(room: HouseRoom): void {
-    // Mounted on the south wall away from the walk-through strip.
-    const x = (room.rect.x + room.rect.w) * TILE - 0.72;
-    const z = (room.rect.z + room.rect.d) * TILE - 0.6;
-    const group = new THREE.Group();
-    group.position.set(x, 0, z);
-    group.rotation.y = Math.PI;
-    this.mesh([0.96, 2.16, 0.58], SHIP.dark, group, [0, 1.08, 0]);
-    for (const side of [-1, 1])
-      this.mesh([0.08, 2.18, 0.62], SHIP.hull, group, [side * 0.5, 1.09, 0]);
-    const title = label('SCHUTZSCHRANK\nCODE AUS DEM ARCHIV', 0.83, 0.3);
-    title.position.set(0, 1.78, 0.302);
+  private locker(id: string, at: THREE.Vector3, yaw: number, code: string): void {
+    const { root: group, door: leaf } = buildSafetyLocker();
+    group.position.copy(at);
+    group.rotation.y = yaw;
+    const title = label('SCHUTZSCHRANK', 0.75, 0.14);
+    title.position.set(0, 2.04, 0.415);
     group.add(title);
-    const keypad = this.screen(0.66, 0.64);
-    keypad.mesh.position.set(0, 1.22, 0.31);
+    const keypad = this.screen(0.6, 0.58, 256);
+    keypad.mesh.position.set(0, 1.4, 0.425);
     group.add(keypad.mesh);
-    keypad.mesh.userData.locker = room.id;
+    keypad.mesh.userData.locker = id;
+    keypad.mesh.userData.interactionLabel = 'E: Schutzcode wählen / offenen Schrank betreten';
+    group.userData.roomId = id;
     this.root.add(group);
+    this.lockers.push({
+      id,
+      group,
+      leaf,
+      leafY: leaf.position.y,
+      leafHeight: 1.95,
+      code,
+      open: false,
+    });
     this.bind(keypad.mesh, (uv) => {
       if (!uv || !this.active) return;
+      const locker = this.lockers.find((l) => l.id === id)!;
+      if (locker.open) {
+        this.enterLocker(locker);
+        return;
+      }
       const n = 1 + Math.floor(uv.x * 2) + Math.floor((1 - uv.y) * 2) * 2;
-      this.lockerDigit(room.id, Math.min(4, n));
+      this.lockerDigit(id, Math.min(4, n));
     });
   }
-  private lockerDigit(room: string, digit: number): void {
+  private lockerDigit(id: string, digit: number): void {
     if (!this.active) return;
     if (this.crew.hidden) {
       this.leaveLocker();
       return;
     }
-    const entered = (this.lockerEntries.get(room) ?? '') + digit;
-    this.lockerEntries.set(room, entered);
+    const locker = this.lockers.find((l) => l.id === id);
+    if (!locker) return;
+    if (locker.open) {
+      this.enterLocker(locker);
+      return;
+    }
+    const entered = (this.lockerEntries.get(id) ?? '') + digit;
+    this.lockerEntries.set(id, entered);
     if (entered.length < 3) return;
-    this.lockerEntries.set(room, '');
-    if (entered !== lockerCode(this.host.spec().seed, room)) {
+    this.lockerEntries.set(id, '');
+    if (entered !== locker.code) {
       this.host.say('Code falsch. Das Archiv kennt den Schutzcode.');
       this.sound('error');
       return;
     }
-    const r = this.host.spec().rooms.find((r) => r.id === room)!;
+    locker.open = true;
+    this.host.say('Schutzschrank offen. Display erneut betätigen: verstecken.');
+    this.sound('door');
+  }
+  private enterLocker(locker: Locker): void {
     this.host.ctx.rig.getHeadPosition(this.lockerHome);
     this.lockerHome.y = 0;
-    this.host.travel(
-      new THREE.Vector3((r.rect.x + r.rect.w) * TILE - 0.72, 0, (r.rect.z + r.rect.d) * TILE - 0.6),
-    );
-    this.crew.hidden = room;
-    this.host.say('Im Schutzschrank. Monster zieht vorbei. Missionsmenü → Verlassen.');
+    this.host.travel(locker.group.position.clone());
+    this.crew.hidden = locker.id;
+    locker.open = false;
+    this.host.say('Versteckt. E oder Missionsmenü → Schutzschrank verlassen.');
     this.sound('door');
   }
   private leaveLocker(): void {
@@ -350,36 +513,67 @@ export class ShipExperience {
       this.host.ctx.rig.frozen = false;
       this.host.travel(this.lockerHome);
     }
+    const locker = this.lockers.find((l) => l.id === this.crew.hidden);
+    if (locker) locker.open = true;
     this.crew.hidden = '';
     this.host.say('Schutzschrank verlassen.');
     this.sound('door');
   }
 
   private buildConsoles(): void {
+    const layout = stationLayout(this.host.spec());
     for (const repair of repairsFor(this.host.spec())) {
-      const room = this.host.spec().rooms.find((r) => r.id === repair.roomId)!;
-      const c = roomCentre(room);
-      const at = new THREE.Vector3((c.x + 0.5) * TILE, 1.45, room.rect.z * TILE + 0.48);
-      const screen = this.screen(1.35, 1.05);
-      screen.mesh.position.copy(at);
-      this.mesh([1.55, 1.27, 0.18], SHIP.dark, this.root, [at.x, at.y, at.z - 0.1]);
-      this.root.add(screen.mesh);
-      this.consoles.push({ repair, screen, at, selected: -1 });
-      this.bind(screen.mesh, (uv) => {
-        if (uv) this.repairInput(repair.id, uv.x, 1 - uv.y);
-      });
+      const at = layout.find((p) => p.id === `console-${repair.id}`)!;
+      this.addConsole(repair, new THREE.Vector3(at.x, 0, at.z), at.yaw);
     }
   }
+  private addConsole(repair: Repair, at: THREE.Vector3, yaw = 0, training = false): void {
+    const g = new THREE.Group();
+    g.position.copy(at);
+    g.rotation.y = yaw;
+    this.mesh([1.18, 0.16, 0.5], SHIP.trim, g, [0, 0.08, 0]);
+    this.mesh([0.58, 0.62, 0.32], SHIP.dark, g, [0, 0.44, -0.05]);
+    this.mesh([1.18, 0.95, 0.24], SHIP.trim, g, [0, 1.16, 0]);
+    const screen = this.screen(1.05, 0.83);
+    screen.mesh.position.set(0, 1.16, 0.125);
+    g.add(screen.mesh);
+    g.userData.roomId = training ? null : repair.roomId;
+    this.root.add(g);
+    g.updateMatrixWorld(true);
+    const point = screen.mesh.getWorldPosition(new THREE.Vector3());
+    screen.mesh.userData.interactionLabel = `E: ${repair.title}`;
+    const console: Console = {
+      repair,
+      screen,
+      at: point,
+      selected: -1,
+      training,
+      ...(training ? { practice: { open: false, links: [], digits: [1, 1, 1] } } : {}),
+    };
+    this.consoles.push(console);
+    this.bind(screen.mesh, (uv) => {
+      if (uv) this.repairInput(repair.id, uv.x, 1 - uv.y);
+    });
+  }
   private repairInput(id: string, x: number, y: number): void {
-    if (!this.active || this.host.state().done.includes(id) || this.crew.hidden) return;
+    if (!this.active || this.crew.hidden) return;
     this.host.ctx.rig.getHeadPosition(_head);
     const console = this.consoles
       .filter((c) => c.repair.id === id && (!c.training || this.crew.options.test))
       .sort((a, b) => a.at.distanceToSquared(_head) - b.at.distanceToSquared(_head))[0]!;
+    if (!console) return;
     const repair = console.repair;
-    const p = puzzleFor(this.crew, id);
+    if (console.training && console.solved) {
+      console.practice = { open: false, links: [], digits: [1, 1, 1] };
+      console.solved = false;
+      console.selected = -1;
+      this.paint();
+      return;
+    }
+    if (!console.training && this.host.state().done.includes(id)) return;
+    const p = console.practice ?? puzzleFor(this.crew, id);
     if (!p.open) {
-      if (!this.host.state().taken.includes(repair.itemId)) {
+      if (!console.training && !this.host.state().taken.includes(repair.itemId)) {
         this.host.say(`Abdeckung verriegelt: ${repair.item} fehlt. Archiv fragen.`);
         this.burst('sparks', console.at);
         this.sound('error');
@@ -412,6 +606,13 @@ export class ShipExperience {
       if (!puzzleSolved(repair, p)) this.sound('error');
     }
     if (puzzleSolved(repair, p)) {
+      if (console.training) {
+        console.solved = true;
+        this.host.say('Übung geschafft. Display erneut betätigen: Übung zurücksetzen.');
+        this.sound('success');
+        this.paint();
+        return;
+      }
       this.host.state().done.push(id);
       this.host.state().fuse = true;
       if (!this.host.state().lit.includes(repair.roomId)) this.host.state().lit.push(repair.roomId);
@@ -419,13 +620,16 @@ export class ShipExperience {
         `${repair.title}: fertig. ${this.host.state().done.length === 3 ? 'Zur Einsatzzentrale zurückkehren!' : 'Nächsten Auftrag beim Archiv erfragen.'}`,
       );
       this.sound('success');
-      this.haptic(0.35, 80);
     } else this.sound('click');
     this.paint();
   }
 
   private buildDoors(): void {
-    for (const d of [...this.host.spec().doors, { id: 'test-bay', x: 2, z: 4, dir: 3 as const }]) {
+    for (const d of [
+      ...this.host.spec().doors,
+      { id: 'test-bay', x: 2, z: 4, dir: 3 as const },
+      ...(this.crew.options.test ? [TRAINING_DOOR] : []),
+    ]) {
       const g = new THREE.Group();
       g.position.set(
         (d.x + 0.5 + dirX(d.dir) * 0.5) * TILE,
@@ -449,6 +653,7 @@ export class ShipExperience {
       const panel = this.screen(0.34, 0.36);
       panel.mesh.position.set(PLAN_DOOR_W / 2 + 0.28, 1.25, 0.18);
       g.add(panel.mesh);
+      panel.mesh.userData.interactionLabel = 'E: Schiebetür bedienen';
       const back = panel.mesh.clone();
       back.rotation.y = Math.PI;
       back.position.z = -0.18;
@@ -477,60 +682,93 @@ export class ShipExperience {
   }
 
   private buildBay(): void {
-    const banner = label('TESTLABOR / SICHER\nMODELLE · REPARATUREN · SPIEGEL', 3.8, 0.5);
-    banner.position.set(9, 2.5, 9.25);
-    this.bay.add(banner);
-    MONSTERS.forEach((m, i) => {
-      const creature = buildCreature(m.id);
-      creature.position.set(7.15 + i * 1.75, 0.05, 10.6);
-      this.bay.add(creature);
-      this.gallery.push(creature);
-      const caption = label(`${m.name}\nUNBELEBTE ATTRAPPE`, 1.45, 0.3, SHIP.amber);
-      caption.position.set(7.15 + i * 1.75, 0.18, 11.05);
-      caption.rotation.x = -0.4;
-      this.bay.add(caption);
-    });
-    const mirror = new MirrorSurface(1.1, 1.9);
-    mirror.position.set(11.6, 1.22, 13.3);
-    mirror.rotation.y = -Math.PI / 2;
-    this.bay.add(mirror);
-    repairsFor(this.host.spec()).forEach((repair, i) => {
-      const at = new THREE.Vector3(6.22, 1.4, 11.3 + i * 1.2);
-      const screen = this.screen(1.05, 0.82);
-      screen.mesh.position.copy(at);
-      screen.mesh.rotation.y = Math.PI / 2;
-      this.bay.add(screen.mesh);
-      this.consoles.push({ repair, screen, at, selected: -1, training: true });
-      this.bind(screen.mesh, (uv) => {
-        if (uv && this.crew.options.test) this.repairInput(repair.id, uv.x, 1 - uv.y);
-      });
-    });
-    const controls = label(
-      'EFFEKTPRÜFSTAND\nTRIGGER → FUNKEN / RAUCH / FEUER',
-      1.7,
-      0.55,
-      SHIP.amber,
-    );
-    controls.position.set(8.2, 1.4, 14.6);
-    controls.rotation.y = Math.PI;
-    this.bay.add(controls);
-    let effect = 0;
-    this.bind(controls, () => {
-      if (this.crew.options.test) {
-        const kind = ['sparks', 'smoke', 'fire'][effect++ % 3]!;
-        this.burst(kind, new THREE.Vector3(8.2, 0.9, 13.8));
+    if (!this.crew.options.test) return;
+    this.labMirror = buildTrainingDeck({
+      root: this.bay,
+      spec: this.host.spec(),
+      cabinet: (id, at, loot) => this.cabinet(id, '', at, loot),
+      locker: (id, at, code) => this.locker(id, at, 0, code),
+      console: (repair, at) => this.addConsole(repair, at, 0, true),
+      button: (mesh, action) => this.bind(mesh, action),
+      visit: (id) => this.visitLab(id),
+      home: () => this.home(),
+      effect: (kind, at) => {
+        this.burst(kind, at);
         this.sound('error');
-      }
+      },
     });
-    const vent = label('WARTUNGSSCHACHT\nMONSTERPASSAGE · BENACHBARTE MODULE', 2.2, 0.45);
-    vent.position.set(9.5, 2.3, 14.65);
-    vent.rotation.y = Math.PI;
-    this.bay.add(vent);
-    this.mesh([0.7, 0.55, 0.16], SHIP.dark, this.bay, [9.5, 1.55, 14.65]);
-    for (let i = 0; i < 5; i++)
-      this.mesh([0.64, 0.024, 0.2], SHIP.hull, this.bay, [9.5, 1.35 + i * 0.095, 14.65]);
+    const lift = label(
+      `TESTDECK
+SAFE · WERKZEUGE · RÄTSEL · MODELLE
+ANTIPPEN: ZUM SAFE-RAUM`,
+      1.8,
+      0.65,
+    );
+    lift.position.set(3.1 * TILE, 1.55, APRON.z * TILE + 0.35);
+    this.root.add(lift);
+    this.bind(lift, () => this.visitLab('safe'));
   }
 
+  private buildTorch(): void {
+    if (!this.player) return;
+    this.torch.name = 'desktop-held-tool';
+    const casing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.065, 0.05, 0.25, 10),
+      new THREE.MeshStandardMaterial({ color: SHIP.trim, metalness: 0.55, roughness: 0.45 }),
+    );
+    casing.rotation.x = Math.PI / 2;
+    this.heldLamp.add(casing);
+    const lens = new THREE.Mesh(
+      new THREE.CircleGeometry(0.05, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffefcf }),
+    );
+    lens.rotation.y = Math.PI;
+    lens.position.z = -0.128;
+    this.heldLamp.add(lens);
+    this.torchLight.position.set(0, 0, -0.15);
+    this.torchLight.target.position.set(0, 0, -5);
+    this.torch.add(this.torchLight, this.torchLight.target);
+    this.mesh([0.15, 0.2, 0.07], 0xcad8c9, this.heldMedkit, [0, 0, 0]);
+    this.mesh([0.035, 0.105, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.041]);
+    this.mesh([0.095, 0.033, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.047]);
+    this.torch.add(this.heldLamp, this.heldMedkit);
+    this.host.ctx.camera.add(this.torch);
+    this.torch.position.set(0.24, -0.22, -0.4);
+  }
+  setVisibleRooms(ids: ReadonlySet<string> | null): void {
+    this.visibleRooms = ids;
+    for (const object of this.root.children) {
+      const roomId = object.userData.roomId as string | undefined;
+      if (roomId && !roomId.startsWith('training')) object.visible = !ids || ids.has(roomId);
+    }
+  }
+  get microphoneLevel(): number {
+    return this.player && !this.crew.options.test && !this.crew.simulation
+      ? this.microphone.level
+      : 0;
+  }
+  get flashlightActive(): boolean {
+    return (
+      this.player && this.rightItem === 'flashlight' && !this.crew.hidden && !this.crew.simulation
+    );
+  }
+  private cycleRight(): void {
+    const items = [
+      'off',
+      'flashlight',
+      ...(this.crew.inventory.includes('medkit') ? ['medkit'] : []),
+    ] as Array<'off' | 'flashlight' | 'medkit'>;
+    this.rightItem = items[(items.indexOf(this.rightItem) + 1) % items.length]!;
+    this.host.say(
+      this.rightItem === 'off'
+        ? 'Rechte Hand frei.'
+        : this.rightItem === 'medkit'
+          ? 'Medkit gewählt. E zum Heilen.'
+          : 'Taschenlampe eingeschaltet.',
+    );
+    this.stamp = '';
+    this.paint();
+  }
   private buildSuit(): void {
     const avatar = this.host.ctx.avatar;
     avatar.traverse((object) => {
@@ -592,17 +830,24 @@ export class ShipExperience {
       'off',
       ...(this.crew.inventory.includes('radar') ? ['radar'] : []),
       ...(this.crew.inventory.includes('xray') ? ['xray'] : []),
-    ] as Array<'off' | 'radar' | 'xray'>;
+      ...(this.crew.inventory.includes('emf') ? ['emf'] : []),
+      ...(this.crew.inventory.includes('thermal') ? ['thermal'] : []),
+      ...(this.crew.inventory.includes('audio') ? ['audio'] : []),
+    ] as Array<typeof this.sensorMode>;
     this.sensorMode = modes[(modes.indexOf(this.sensorMode) + 1) % modes.length]!;
     this.host.ctx.refreshWorldMenu();
     this.host.say(
-      this.sensorMode === 'off'
-        ? 'Sensor aus. Sensoren liegen in Frachtcontainern.'
-        : this.sensorMode === 'radar'
-          ? 'Bewegungsradar am linken Handgelenk · 18 Meter Reichweite.'
-          : 'Röntgen aktiv · Fracht in Blickrichtung, bis sechs Meter.',
+      {
+        off: 'Linke Hand frei. Sensoren liegen in Frachtcontainern.',
+        radar: 'Bewegungsradar · 18 Meter Reichweite.',
+        xray: 'Röntgen aktiv · Fracht in Blickrichtung, bis sechs Meter.',
+        emf: 'EMF-Scanner · Feldstärke 0 bis 5. Werte dem Archiv durchgeben.',
+        thermal: 'Thermosensor · Temperatur in deiner Umgebung.',
+        audio: 'Audio-Logger · Anomaliepegel, keine Mikrofonaufnahme.',
+      }[this.sensorMode],
     );
   }
+
   private heal(): void {
     const index = this.crew.inventory.indexOf('medkit');
     if (!this.active || index < 0 || this.crew.hp === 3 || this.crew.hp === 0) {
@@ -612,6 +857,8 @@ export class ShipExperience {
     this.crew.inventory.splice(index, 1);
     this.crew.hp = Math.min(3, this.crew.hp + 1);
     this.crew.invulnerable = 3;
+    if (!this.crew.inventory.includes('medkit') && this.rightItem === 'medkit')
+      this.rightItem = 'off';
     this.sound('success');
     this.host.say('Wunde versorgt. Ein Treffer geheilt.');
     this.host.ctx.refreshWorldMenu();
@@ -622,8 +869,18 @@ export class ShipExperience {
     const state = this.host.state();
     const crew = this.crew;
     ctx.rig.getHeadPosition(_head);
+    const lab = crew.options.test ? trainingRoomAt(_head.x, _head.z) : null;
     this.bay.visible = crew.options.test;
-    this.bayLight.intensity = crew.options.test ? 45 : 0;
+    this.bayLight.intensity = this.player && lab ? 34 : 0;
+    if (lab) this.bayLight.position.set(_head.x, 2.6, _head.z);
+    if (this.labMirror)
+      this.labMirror.visible =
+        this.player && lab?.id === 'models' && _head.distanceTo(this.labMirror.position) < 8;
+    this.torch.visible =
+      this.player && !ctx.renderer.xr.isPresenting && this.rightItem !== 'off' && !crew.simulation;
+    this.heldLamp.visible = this.rightItem === 'flashlight';
+    this.heldMedkit.visible = this.rightItem === 'medkit';
+    this.torchLight.intensity = this.torch.visible && this.flashlightActive ? 25 : 0;
     this.command.mesh.visible = true;
     for (const door of this.doors) {
       const goal =
@@ -637,14 +894,13 @@ export class ShipExperience {
     }
     for (const cabinet of this.cabinets) {
       const opened = crew.opened.includes(cabinet.id);
-      cabinet.leaf.position.x = THREE.MathUtils.damp(
-        cabinet.leaf.position.x,
-        opened ? -0.72 : 0,
-        8,
-        dt,
-      );
+      const amount = THREE.MathUtils.damp(cabinet.leaf.scale.y, opened ? 0.025 : 1, 8, dt);
+      cabinet.leaf.scale.y = amount;
+      cabinet.leaf.position.y = cabinet.leafY + ((1 - amount) * cabinet.leafHeight) / 2;
       cabinet.lootMesh.visible = !crew.inventory.includes(cabinet.id);
-      cabinet.group.visible = cabinet.id !== 'test-supply' || crew.options.test;
+      cabinet.group.visible =
+        (cabinet.id !== 'test-supply' || crew.options.test) &&
+        (!cabinet.room || !this.visibleRooms || this.visibleRooms.has(cabinet.room));
       ctx.camera.getWorldDirection(_direction);
       _pos.copy(cabinet.at).sub(_head);
       cabinet.scanner.visible =
@@ -654,11 +910,12 @@ export class ShipExperience {
         _pos.normalize().dot(_direction) > 0.65 &&
         !crew.inventory.includes(cabinet.id);
     }
-    for (const effect of [...this.effects])
-      if (!effect.update(dt)) {
-        effect.dispose();
-        this.effects.splice(this.effects.indexOf(effect), 1);
-      }
+    for (const locker of this.lockers) {
+      const amount = THREE.MathUtils.damp(locker.leaf.scale.y, locker.open ? 0.025 : 1, 8, dt);
+      locker.leaf.scale.y = amount;
+      locker.leaf.position.y = locker.leafY + ((1 - amount) * locker.leafHeight) / 2;
+    }
+    this.effects.update(dt);
     if (this.player) {
       const left = ctx.input.get('left');
       if (left?.tracked) {
@@ -675,7 +932,8 @@ export class ShipExperience {
         this.wrist.mesh.translateY(-0.3);
         this.wrist.mesh.translateZ(-0.75);
       }
-      this.wrist.mesh.visible = !crew.simulation;
+      this.wrist.mesh.visible =
+        !crew.simulation && (ctx.renderer.xr.isPresenting || this.sensorMode !== 'off');
       this.visor.visible = !crew.simulation;
       this.visor.material.uniforms.fogAmount!.value = crew.exertion;
       this.visor.material.uniforms.damage!.value = Math.max(
@@ -694,8 +952,12 @@ export class ShipExperience {
         this.hiddenWas = hidden;
       }
       this.dom.hidden = ctx.renderer.xr.isPresenting;
+      this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.stepSound(dt, _head);
       this.stepSimulation(dt);
+      this.desktop.update(dt);
+      this.comfort?.update(dt);
+      this.microphone.update(dt);
     } else this.wrist.mesh.visible = false;
     this.paintTimer -= dt;
     if (this.paintTimer <= 0) {
@@ -723,7 +985,9 @@ export class ShipExperience {
     for (const screen of this.screens)
       if (screen.mesh.userData.locker) {
         const id = screen.mesh.userData.locker as string;
-        this.gridScreen(screen, this.lockerEntries.get(id) || 'CODE?', ['1', '2', '3', '4']);
+        const locker = this.lockers.find((l) => l.id === id);
+        if (locker?.open) this.rows(screen, ['OFFEN', 'ANTIPPEN: VERSTECKEN']);
+        else this.gridScreen(screen, this.lockerEntries.get(id) || 'CODE?', ['1', '2', '3', '4']);
       }
     for (const console of this.consoles) this.paintRepair(console);
     this.paintWrist();
@@ -781,13 +1045,17 @@ export class ShipExperience {
   }
   private paintRepair(console: Console): void {
     const { screen, repair } = console;
-    const p = puzzleFor(this.crew, repair.id);
-    const done = this.host.state().done.includes(repair.id);
+    const p = console.practice ?? puzzleFor(this.crew, repair.id);
+    const done = console.training ? console.solved : this.host.state().done.includes(repair.id);
     if (done || !p.open) {
       this.rows(screen, [
         repair.title.toUpperCase(),
         done ? 'SYSTEM ONLINE' : `BENÖTIGT: ${repair.item}`,
-        done ? 'NÄCHSTEN AUFTRAG ERFRAGEN' : 'ABDECKUNG ANTIPPEN',
+        done
+          ? console.training
+            ? 'ANTIPPEN: ÜBUNG ZURÜCKSETZEN'
+            : 'NÄCHSTEN AUFTRAG ERFRAGEN'
+          : 'ABDECKUNG ANTIPPEN',
       ]);
       return;
     }
@@ -883,27 +1151,64 @@ export class ShipExperience {
         }
       }
     }
+    if (['emf', 'thermal', 'audio'].includes(this.sensorMode)) {
+      this.host.ctx.rig.getHeadPosition(_head);
+      const readings = entityReadings(this.crew, {
+        observer: _head,
+        monster: this.host.state().monster,
+        time: performance.now() / 1000,
+      });
+      c.fillStyle = '#081823';
+      c.fillRect(10, h * 0.32, w - 20, h * 0.56);
+      c.fillStyle = '#84dfcf';
+      c.font = `${w * 0.11}px monospace`;
+      const text =
+        this.sensorMode === 'emf'
+          ? `EMF ${readings.emf} / 5`
+          : this.sensorMode === 'thermal'
+            ? `${readings.temperature.toFixed(1)} °C`
+            : `AUDIO ${Math.round(readings.sound * 100)} %`;
+      c.fillText(text, w / 2, h * 0.56);
+      c.font = `${w * 0.045}px system-ui`;
+      c.fillText(
+        readings.active ? 'MESSUNG AKTIV · ARCHIV INFORMIEREN' : 'KEIN ANOMALIESIGNAL',
+        w / 2,
+        h * 0.72,
+        w - 25,
+      );
+    }
     c.fillStyle = '#d6eeed';
     c.fillText('ANTIPPEN: SENSORMODUS', w / 2, h * 0.94);
     s.texture.needsUpdate = true;
   }
 
-  private nearby(): { cabinet?: Cabinet; console?: Console; room?: HouseRoom; door?: Door } {
+  private nearby(): {
+    cabinet?: Cabinet;
+    console?: Console;
+    room?: HouseRoom;
+    door?: Door;
+    locker?: Locker;
+  } {
     this.host.ctx.rig.getHeadPosition(_head);
     const spec = this.host.spec();
     const room = roomAt(spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)) ?? undefined;
     return {
       cabinet: this.cabinets.find(
         (c) =>
-          (c.id === 'test-supply' ? this.crew.options.test : c.room === room?.id) &&
-          _head.distanceTo(_pos.copy(c.at).setY(1)) < 2.8,
+          (c.id === 'test-supply' || c.id.startsWith('training')
+            ? this.crew.options.test
+            : c.room === room?.id) && _head.distanceTo(_pos.copy(c.at).setY(1)) < 2.8,
       ),
       console: this.consoles.find(
         (c) =>
-          (c.training ? this.crew.options.test && _head.x > 6 : c.repair.roomId === room?.id) &&
-          _head.distanceTo(c.at) < PANEL_RANGE,
+          (c.training
+            ? this.crew.options.test && !!trainingRoomAt(_head.x, _head.z)
+            : c.repair.roomId === room?.id) && _head.distanceTo(c.at) < PANEL_RANGE,
       ),
       room,
+      locker: this.lockers.find(
+        (l) => _head.distanceTo(_pos.copy(l.group.position).setY(1.4)) < PANEL_RANGE,
+      ),
       door: this.doors.find((d) => _head.distanceTo(_pos.copy(d.at).setY(1)) < 2.8),
     };
   }
@@ -921,23 +1226,48 @@ export class ShipExperience {
       crew.puzzles,
       crew.simulation,
       this.sensorMode,
+      this.rightItem,
+      this.microphone.status,
       state.phase,
       state.done,
       near.cabinet?.id,
       near.console?.repair.id,
+      near.console?.practice,
+      near.console?.selected,
+      near.console?.solved,
       near.room?.id,
       near.door?.id,
+      near.locker?.id,
+      near.locker?.open,
+      near.locker ? this.lockerEntries.get(near.locker.id) : null,
       this.messages,
     ]);
     if (signature === this.stamp) return;
     this.stamp = signature;
+    const expanded =
+      this.dom.querySelector<HTMLDetailsElement>('details[data-main]')?.open ?? false;
+    const testsExpanded =
+      this.dom.querySelector<HTMLDetailsElement>('details[data-tests]')?.open ?? false;
     this.dom.replaceChildren();
     const title = document.createElement('strong');
     title.textContent = `ORBITAL · ${crew.options.test ? 'TEST / KEIN MONSTER' : state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
     this.dom.append(title);
+    const hint = document.createElement('div');
+    hint.className = 'orbital-player__keys';
+    hint.textContent = crew.simulation
+      ? 'WASD fliegen · Leertaste ↑ · Strg ↓ · Umschalt schneller'
+      : `WASD · Strg ducken · E benutzen · 1: ${this.sensorMode === 'off' ? 'Hand frei' : this.sensorMode} · 2: ${this.rightItem === 'off' ? 'Hand frei' : this.rightItem === 'flashlight' ? 'Lampe' : 'Medkit'}`;
+    this.dom.append(hint);
+    const panel = document.createElement('details');
+    panel.dataset.main = '';
+    panel.open = expanded;
+    const heading = document.createElement('summary');
+    heading.textContent = 'Mission, Ausrüstung & Testdeck';
+    panel.append(heading);
+    this.dom.append(panel);
     const row = document.createElement('div');
     row.className = 'orbital-player__actions';
-    this.dom.append(row);
+    panel.append(row);
     const button = (text: string, action: string, into: HTMLElement = row): void => {
       const b = document.createElement('button');
       b.textContent = text;
@@ -951,8 +1281,13 @@ export class ShipExperience {
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
     button('Missionsmenü', 'menu');
-    button(`Sensor: ${this.sensorMode}`, 'sensor');
+    button(`Linke Hand: ${this.sensorMode}`, 'sensor');
+    button(`Rechte Hand: ${this.rightItem}`, 'right');
     button('Medkit', 'heal');
+    button(
+      `Mikrofon-Gegnerreaktion: ${this.microphone.enabled ? 'an' : this.microphone.pending ? 'abbrechen' : 'aus'}`,
+      'microphone',
+    );
     if (crew.hidden) button('Schutzschrank verlassen', 'leave');
     if (near.cabinet && !crew.hidden) {
       button('Fracht öffnen / schließen', `open:${near.cabinet.id}`);
@@ -965,14 +1300,16 @@ export class ShipExperience {
     if (near.door && !crew.hidden) button('Schiebetür bedienen', `door:${near.door.id}`);
     if (near.console && !crew.hidden) {
       const r = near.console.repair,
-        p = puzzleFor(crew, r.id);
+        p = near.console.practice ?? puzzleFor(crew, r.id);
       const box = document.createElement('div');
       box.className = 'orbital-player__puzzle';
-      this.dom.append(box);
+      panel.append(box);
       const caption = document.createElement('p');
       caption.textContent = `${r.title} · ${p.open ? (r.puzzle === 'wires' ? 'Kabelstart → passendes Symbol' : 'Archiv nach dem Code fragen') : `Benötigt: ${r.item}`}`;
       box.append(caption);
-      if (!p.open) button('Wartungskasten öffnen', `repair:${r.id}:0.5:0.5`, box);
+      if (near.console.training && near.console.solved)
+        button('Übung geschafft — zurücksetzen', `repair:${r.id}:0.5:0.5`, box);
+      else if (!p.open) button('Wartungskasten öffnen', `repair:${r.id}:0.5:0.5`, box);
       else if (r.puzzle === 'wires') {
         const symbols = ['▲', '●', '■', '◆'];
         for (let i = 0; i < 4; i++) {
@@ -987,21 +1324,25 @@ export class ShipExperience {
         button('Bestätigen', `repair:${r.id}:0.5:0.9`, box);
       }
     }
-    if (near.room && !crew.hidden) {
+    if (near.locker && !crew.hidden) {
       const box = document.createElement('div');
-      this.dom.append(box);
+      panel.append(box);
       const caption = document.createElement('span');
-      caption.textContent = 'Schutzcode: ';
+      caption.textContent = near.locker.open
+        ? 'Schrank offen. '
+        : `Schutzcode: ${this.lockerEntries.get(near.locker.id) ?? ''} `;
       box.append(caption);
-      for (let i = 1; i <= 4; i++) button(String(i), `locker:${near.room.id}:${i}`, box);
+      if (near.locker.open) button('Verstecken', `locker:${near.locker.id}:1`, box);
+      else for (let i = 1; i <= 4; i++) button(String(i), `locker:${near.locker.id}:${i}`, box);
     }
     if (crew.options.test) {
       const details = document.createElement('details');
-      details.open = crew.simulation;
+      details.dataset.tests = '';
+      details.open = testsExpanded || crew.simulation;
       const summary = document.createElement('summary');
       summary.textContent = 'Test / Räume / Simulation';
       details.append(summary);
-      this.dom.append(details);
+      panel.append(details);
       button(crew.options.bright ? 'Testlicht aus' : 'Testlicht an', 'light', details);
       button(
         crew.simulation ? 'Simulation beenden' : 'Simulation / Flugmodus',
@@ -1009,6 +1350,7 @@ export class ShipExperience {
         details,
       );
       button('Zur Zentrale', 'home', details);
+      for (const lab of TRAINING_ROOMS) button(lab.name, `lab:${lab.id}`, details);
       for (const room of this.host.spec().rooms)
         button(`Testbesuch: ${room.name} / ${room.id}`, `visit:${room.id}`, details);
       if (crew.simulation) {
@@ -1024,6 +1366,8 @@ export class ShipExperience {
     const action = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]')
       ?.dataset.action;
     if (!action) return;
+    this.host.ctx.rig.getHeadPosition(this.lastSoundAt);
+    this.actionHand = null;
     const [kind, id, a, b] = action.split(':');
     if (kind === 'start') this.host.start();
     else if (kind === 'test') this.host.test();
@@ -1031,6 +1375,8 @@ export class ShipExperience {
     else if (kind === 'monster') this.commandAction(4);
     else if (kind === 'light') this.commandAction(5);
     else if (kind === 'sensor') this.cycleSensor();
+    else if (kind === 'right') this.cycleRight();
+    else if (kind === 'microphone') void this.microphone.toggle();
     else if (kind === 'heal') this.heal();
     else if (kind === 'leave') this.leaveLocker();
     else if (kind === 'menu') this.host.ctx.menu.toggle();
@@ -1044,6 +1390,7 @@ export class ShipExperience {
     else if (kind === 'down') this.flatFlight = -1;
     else if (kind === 'visit' && this.crew.options.test) this.visit(id!);
     else if (kind === 'home') this.home();
+    else if (kind === 'lab') this.visitLab(id as TrainingRoomId);
     this.stamp = '';
     this.paint();
   };
@@ -1058,6 +1405,15 @@ export class ShipExperience {
       run,
     });
     const rows = [
+      ...(this.comfort?.menu() ?? []),
+      row(
+        'microphone',
+        `Mikrofon-Gegnerreaktion: ${this.microphone.enabled ? 'an' : this.microphone.pending ? 'Anfrage abbrechen' : 'aus'}`,
+        'Optional · laute Stimmen locken Gegner an · lokal, keine Aufnahme',
+        () => {
+          void this.microphone.toggle();
+        },
+      ),
       row('sensor', `Sensor: ${this.sensorMode}`, 'Handgelenk · Radar / Röntgen / aus', () =>
         this.cycleSensor(),
       ),
@@ -1076,11 +1432,21 @@ export class ShipExperience {
         'Maschinen, Schritte, Sensor und Türen',
         () => {
           this.audioOn = !this.audioOn;
-          if (this.hum) this.hum.gain.gain.value = 0;
+          this.audio.setEnabled(this.audioOn);
         },
       ),
     ];
     if (this.crew.options.test) {
+      rows.push({
+        id: 'orbital:labs',
+        label: 'Testdeck: einzelne Übungsräume',
+        sub: 'Abseits der Mission · mit Anleitung und Lösung',
+        icon: 'cube',
+        accent: SHIP.amber,
+        children: TRAINING_ROOMS.map((lab) =>
+          row(`lab:${lab.id}`, lab.name, 'Zum sicheren Übungsraum', () => this.visitLab(lab.id)),
+        ),
+      });
       rows.push(
         row(
           'simulation',
@@ -1113,17 +1479,29 @@ export class ShipExperience {
   private visit(id: string): void {
     const room = this.host.spec().rooms.find((r) => r.id === id);
     if (!room || !this.crew.options.test) return;
-    const c = roomCentre(room);
-    this.host.travel(new THREE.Vector3((c.x + 0.5) * TILE, 0, (c.z + 0.5) * TILE));
+    this.leaveLocker();
+    const c = safeRoomSpawn(this.host.spec(), room.id);
+    this.host.travel(new THREE.Vector3(c.x, 0, c.z));
+  }
+  private visitLab(id: TrainingRoomId): void {
+    if (!this.crew.options.test || !TRAINING_ROOMS.some((r) => r.id === id)) return;
+    this.leaveLocker();
+    if (this.crew.simulation) this.toggleSimulation();
+    const at = trainingSpawn(id);
+    this.host.travel(new THREE.Vector3(at.x, at.y, at.z));
+    this.host.say(
+      `${TRAINING_ROOMS.find((r) => r.id === id)!.name} · E / Trigger zum Ausprobieren. Kein Monster.`,
+    );
   }
   private home(): void {
     this.leaveLocker();
     if (this.crew.simulation) this.toggleSimulation();
-    this.host.travel(new THREE.Vector3(0, 0, 13.8));
+    this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z));
   }
 
   private toggleSimulation(): void {
     if (!this.crew.options.test) return;
+    if (this.crew.hidden) this.leaveLocker();
     this.crew.simulation = !this.crew.simulation;
     this.host.ctx.refreshWorldMenu();
     this.host.ctx.rig.frozen = this.crew.simulation;
@@ -1141,8 +1519,9 @@ export class ShipExperience {
     this.simulationTimer = 0;
     this.simulationGoal = null;
     this.simulationRoute = null;
-    Object.assign(this.simulationPose, { x: 1.5, z: 13.5, yaw: 0 });
-    this.simulated.position.set(1.5, 0, 13.5);
+    const start = safeRoomSpawn(this.host.spec(), this.host.spec().rooms[0]!.id);
+    Object.assign(this.simulationPose, { ...start, yaw: 0 });
+    this.simulated.position.set(start.x, 0, start.z);
     this.host.travel(new THREE.Vector3(0, 6, 2));
     this.log('SIMULATION: Techniker startet. Niemand wird angegriffen.');
   }
@@ -1195,82 +1574,78 @@ export class ShipExperience {
   }
 
   burst(kind: string, at: THREE.Vector3): void {
-    if (this.effects.length >= 3) return;
-    const base = EFFECTS.find((e) => e.id === kind);
-    if (!base) return;
-    // No transient point lights or shader recompilation; fixed particle budget.
-    const burst = new Burst({ ...base, count: Math.min(base.count, 48), flash: 0 }, at.clone());
-    this.root.add(burst);
-    this.effects.push(burst);
+    if (kind !== 'sparks' && kind !== 'smoke' && kind !== 'fire') return;
+    this.effects.emit(kind, at);
+    if (this.audioOn && kind === 'sparks') this.audio.play('spark', at);
   }
   private stepSound(dt: number, head: THREE.Vector3): void {
     if (!this.audioOn) return;
+    this.audioTimer -= dt;
+    this.effectTimer -= dt;
     const state = this.host.state();
     const room = roomAt(this.host.spec(), Math.floor(head.x / TILE), Math.floor(head.z / TILE));
-    const context = sharedAudio();
-    if (context?.state === 'running' && !this.hum) {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 52;
-      gain.gain.value = 0;
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start();
-      this.hum = { oscillator, gain };
-    }
-    if (this.hum && context)
-      this.hum.gain.gain.setTargetAtTime(
-        room && !this.crew.simulation ? (room.kind === 'werkstatt' ? 0.018 : 0.005) : 0,
-        context.currentTime,
-        0.5,
-      );
-    this.soundTimer -= dt;
-    this.effectTimer -= dt;
-    const at = state.monster;
-    const distance = at ? Math.hypot(at.x - head.x, at.z - head.z) : Infinity;
-    if (distance < 12 && this.soundTimer <= 0 && state.monsterOn && !this.crew.options.test) {
-      this.soundTimer = this.crew.options.monster === 'sentinel' ? 0.85 : 0.6;
-      this.sound('step', Math.max(0.005, (1 - distance / 12) * 0.04));
+    if (this.audioTimer <= 0) {
+      const step = Math.min(0.1, dt + 0.05 - this.audioTimer);
+      this.audioTimer = 0.05;
+      this.host.ctx.camera.getWorldDirection(_direction);
+      const frame = this.audioFrame;
+      const travelled = this.hasAudioHead ? this.audioHead.distanceTo(head) : 0;
+      frame.playerSpeed =
+        !this.crew.simulation && travelled < 0.8 ? travelled / Math.max(0.02, step) : 0;
+      frame.exertion = this.crew.simulation ? 0 : this.crew.exertion;
+      this.audioHead.copy(head);
+      this.hasAudioHead = true;
+      frame.listener.x = head.x;
+      frame.listener.z = head.z;
+      frame.forward.x = _direction.x;
+      frame.forward.z = _direction.z;
+      frame.monster = state.monster;
+      frame.kind = this.crew.options.monster;
+      frame.active = state.monsterOn && !this.crew.simulation;
+      frame.test = this.crew.options.test;
+      frame.venting = this.crew.venting > 0;
+      const engine = stationLayout(this.host.spec()).find((p) => p.id === 'console-engine');
+      frame.machine = engine;
+      frame.engineRepaired = state.done.includes('engine');
+      this.audio.update(step, frame);
     }
     if (room?.kind === 'werkstatt' && this.effectTimer <= 0 && !state.done.includes('engine')) {
       this.effectTimer = 4;
-      const c = roomCentre(room);
-      this.burst('smoke', new THREE.Vector3((c.x + 0.5) * TILE, 0.6, (c.z + 0.5) * TILE));
+      const engine = stationLayout(this.host.spec()).find((p) => p.id === 'console-engine');
+      if (engine) this.burst('smoke', _pos.set(engine.x, 0.6, engine.z));
     }
   }
   private sound(kind: 'door' | 'click' | 'success' | 'error' | 'step', gain = 0.035): void {
     if (!this.audioOn) return;
-    const from =
-      kind === 'door'
-        ? 170
-        : kind === 'step'
-          ? 65
-          : kind === 'error'
-            ? 260
-            : kind === 'success'
-              ? 620
-              : 480;
+    if (kind === 'door') {
+      this.audio.play('door', this.lastSoundAt);
+      this.comfort?.pulse('door', this.actionHand);
+      return;
+    }
+    if (kind === 'success') this.comfort?.pulse('success', this.actionHand);
+    if (kind === 'error') this.comfort?.pulse('error', this.actionHand);
+    const from = kind === 'step' ? 65 : kind === 'error' ? 260 : kind === 'success' ? 620 : 480;
     playTone({
-      type: kind === 'door' || kind === 'error' ? 'sawtooth' : 'sine',
+      type: kind === 'error' ? 'sawtooth' : 'sine',
       from,
       to: kind === 'success' ? 920 : from * 0.5,
-      duration: kind === 'door' ? 0.36 : 0.15,
+      duration: 0.15,
       gain,
     });
   }
-  private haptic(gain: number, ms: number): void {
-    for (const hand of ['left', 'right'] as const) this.host.ctx.input.get(hand)?.pulse(gain, ms);
-  }
-
   dispose(): void {
     this.disposed = true;
+    this.desktop.dispose();
+    this.comfort?.dispose();
+    this.microphone.dispose();
+    this.crosshair.remove();
+    this.torch.removeFromParent();
+    disposeObject(this.torch);
     this.dom.remove();
     this.dom.removeEventListener('click', this.domClick);
     for (const target of this.targets) this.host.ctx.pointer.remove(target);
-    for (const effect of this.effects) effect.dispose();
-    this.hum?.oscillator.stop();
-    this.hum?.oscillator.disconnect();
-    this.hum?.gain.disconnect();
+    this.effects.dispose();
+    this.audio.dispose();
     for (const [material, color] of this.suitColors) material.color.copy(color);
     if (this.player) {
       this.host.ctx.wear(null);
@@ -1286,18 +1661,6 @@ export class ShipExperience {
   }
 }
 
-function freeSpot(spec: HouseSpec, room: HouseRoom): THREE.Vector3 {
-  const candidates = tilesOf(room.rect).filter(
-    (t) =>
-      !room.marks.some((m) => m.x === t.x && m.z === t.z) &&
-      !spec.doors.some(
-        (d) =>
-          (d.x === t.x && d.z === t.z) || (d.x + dirX(d.dir) === t.x && d.z + dirZ(d.dir) === t.z),
-      ),
-  );
-  const tile = candidates[0] ?? roomCentre(room);
-  return new THREE.Vector3((tile.x + 0.5) * TILE, 0, (tile.z + 0.5) * TILE);
-}
 function lootLabel(spec: HouseSpec, id: string): string {
   return (
     spec.tasks.find((t) => t.id === id)?.label ??
@@ -1305,7 +1668,11 @@ function lootLabel(spec: HouseSpec, id: string): string {
       radar: 'Bewegungsradar',
       xray: 'Röntgenscanner',
       medkit: 'Medkit',
+      emf: 'EMF-Scanner',
+      thermal: 'Thermosensor',
+      audio: 'Audio-Logger',
       'test-kit': 'Alle Werkzeuge + Medkit',
+      'survey-kit': 'Analysekit + Medkit',
     }[id] ??
     id
   );

@@ -11,7 +11,8 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { DIRS } from '../nav/navTile';
+import { DIRS, type Dir } from '../nav/navTile';
+import { changeSlidingDoor } from './slidingDoor';
 import type { GridPlan } from './gridPlan';
 import type { PlanSolid, PlanSolidKind } from './solids';
 import type { WorldContext } from '../../core/types';
@@ -151,7 +152,10 @@ export abstract class GridWorld extends PortalWorld {
     this.batches.length = 0;
     for (const mesh of this.slabs) this.dropSlab(mesh);
     this.slabs.length = 0;
-    for (const solid of plan.solids()) this.build(group, solid);
+    for (const solid of plan.solids()) {
+      if (solid.door && this.slidingGridDoors() && plan.graph.door(solid.door)?.open) continue;
+      this.build(group, solid);
+    }
     if (this.batchGridGeometry()) {
       const byMaterial = new Map<THREE.Material, THREE.Mesh<THREE.BoxGeometry>[]>();
       for (const object of this.slabs) {
@@ -254,6 +258,39 @@ export abstract class GridWorld extends PortalWorld {
 
   protected gridDoorVisible(): boolean {
     return true;
+  }
+
+  /** Opt-in only: these worlds render their own sliding leaves. */
+  protected slidingGridDoors(): boolean {
+    return false;
+  }
+
+  /** Apply a door-only mutation immediately while leaving floors, walls and nav tiles intact. */
+  protected setSlidingGridDoor(x: number, z: number, dir: Dir, open: boolean, level = 0): void {
+    const plan = this.grid;
+    const group = this.group;
+    if (!plan) return;
+    // An outstanding structural edit still requires the normal complete rebuild.
+    if (!this.slidingGridDoors() || !group || !this.solid || this.builtVersion !== plan.version) {
+      plan.door(x, z, dir, level, open);
+      return;
+    }
+    const changed = changeSlidingDoor(
+      plan,
+      this.nav,
+      { x, z, dir, level },
+      open,
+      (id) => {
+        const index = this.slabs.findIndex((mesh) => mesh.userData.door === id);
+        if (index < 0) return;
+        const [leaf] = this.slabs.splice(index, 1);
+        if (leaf) this.dropSlab(leaf);
+      },
+      (solid) => this.build(group, solid),
+    );
+    if (!changed) return;
+    this.builtVersion = plan.version;
+    this.physics?.syncColliders();
   }
 
   /** Das Material einer Sorte, einmal gebaut und danach geteilt. */

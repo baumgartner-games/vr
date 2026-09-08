@@ -57,6 +57,7 @@ const _tip = new THREE.Vector3();
 const _local = new THREE.Vector3();
 const _box = new THREE.Box3();
 const _hitPoint = new THREE.Vector3();
+const _screenCentre = new THREE.Vector2();
 
 const HANDS: readonly Handedness[] = ['left', 'right'];
 
@@ -159,6 +160,8 @@ export class Pointer {
   private screenClick = false;
   /** Ob die Maustaste unten ist — mit der Maus wird genauso gemalt wie mit dem Trigger. */
   private screenDown = false;
+  private keyboardDown = false;
+  private keyboardClick = false;
 
   constructor(
     private readonly rig: PlayerRig,
@@ -180,6 +183,17 @@ export class Pointer {
    */
   hoveringWith(hand: Handedness | null): boolean {
     return this.beam(hand).hovered !== null;
+  }
+
+  /**
+   * A world may map a keyboard key to the same aimed press/hold/release path
+   * as a trigger. Keyboard aim is the crosshair in the centre of the view;
+   * mouse and touch keep their existing cursor positions when it is released.
+   */
+  setKeyboardTrigger(down: boolean, cancelPending = false): void {
+    if (down && !this.keyboardDown) this.keyboardClick = true;
+    this.keyboardDown = down;
+    if (cancelPending) this.keyboardClick = false;
   }
 
   add(target: PointerTarget): void {
@@ -208,11 +222,13 @@ export class Pointer {
     if (!this.enabled) {
       for (const beam of this.beams.values()) this.blank(beam);
       this.poking.clear();
+      this.keyboardClick = false;
       return;
     }
     this.updatePoke(input);
 
     if (presenting) {
+      this.keyboardClick = false;
       this.blank(this.beam(null));
       for (const hand of HANDS) this.updateXrRay(input, hand);
     } else {
@@ -274,18 +290,22 @@ export class Pointer {
 
   private updateScreenRay(): void {
     const beam = this.beam(null);
-    if (!this.screenActive) {
+    if (!this.screenActive && !this.keyboardDown && !this.keyboardClick) {
       this.blank(beam);
       this.screenClick = false;
       return;
     }
-    this.raycaster.setFromCamera(this.screen, this.rig.camera);
+    this.raycaster.setFromCamera(
+      this.keyboardDown || this.keyboardClick ? _screenCentre : this.screen,
+      this.rig.camera,
+    );
     this.raycaster.far = 12;
     const hit = this.castAll(null);
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
 
-    if (beam.held && (!this.screenDown || beam.held !== hit?.target)) beam.drop();
-    if (hit && this.screenClick) {
+    const down = this.screenDown || this.keyboardDown;
+    if (beam.held && (!down || beam.held !== hit?.target)) beam.drop();
+    if (hit && (this.screenClick || this.keyboardClick)) {
       hit.target.onSelect?.(hit.hit);
       if (hit.target.onHold || hit.target.onRelease) {
         beam.held = hit.target;
@@ -296,6 +316,7 @@ export class Pointer {
       hit.target.onHold?.(hit.hit);
     }
     this.screenClick = false;
+    this.keyboardClick = false;
   }
 
   private beam(hand: Handedness | null): Beam {
@@ -311,7 +332,7 @@ export class Pointer {
   private castAll(hand: Handedness | null): { target: PointerTarget; hit: PointerHit } | null {
     let best: { target: PointerTarget; hit: PointerHit } | null = null;
     for (const target of this.targets) {
-      if (!target.object.visible) continue;
+      if (!visibleInHierarchy(target.object)) continue;
       if (target.ignore?.(hand)) continue;
       const intersections = this.raycaster.intersectObject(target.object, true);
       const first = intersections[0];
@@ -361,7 +382,7 @@ export class Pointer {
       if (!controller.getFingertip(_tip)) continue;
 
       for (const target of this.targets) {
-        if (target.pokeable === false || !target.object.visible) continue;
+        if (target.pokeable === false || !visibleInHierarchy(target.object)) continue;
         if (target.ignore?.(controller.handedness)) continue;
         const hit = pokeTest(target.object, _tip, controller.handedness);
         if (!hit) continue;
@@ -421,6 +442,14 @@ export class Pointer {
       }
     });
   }
+}
+
+/** Culled room groups and closed UI panels must not retain invisible controls. */
+function visibleInHierarchy(object: THREE.Object3D): boolean {
+  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
+    if (!node.visible) return false;
+  }
+  return true;
 }
 
 /** Poke test against a flat object: inside its bounds and within 3 cm depth. */

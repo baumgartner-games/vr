@@ -1,0 +1,367 @@
+import { PLAN_DOOR_W, PLAN_WALL_T } from '../editor/levelPlan';
+import type { NavGraph } from '../nav/navGraph';
+import {
+  TILE,
+  keyX,
+  keyZ,
+  keyLevel,
+  tileCentreX,
+  tileCentreZ,
+  tileKey,
+  wallDir,
+  wallTile,
+  dirX,
+  dirZ,
+  type TileKey,
+} from '../nav/navTile';
+import type { DronePose, DroneRoute } from './droneRoute';
+import { APRON, HOUSE, type HouseSpec } from './house';
+import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
+
+/** Quarter-metre samples resolve the tight turn after a 1.2m doorway. */
+const SUBDIVISIONS = 10;
+const STEP = TILE / SUBDIVISIONS;
+const HALF = STEP / 2;
+const DIR_X = [0, 1, 0, -1] as const;
+const DIR_Z = [-1, 0, 1, 0] as const;
+
+interface RouteGrid {
+  spec: HouseSpec;
+  version: number;
+  radius: number;
+  height: number;
+  minX: number;
+  minZ: number;
+  width: number;
+  depth: number;
+  valid: Uint8Array;
+  edges: Uint8Array;
+  obstacles: FloorBounds[];
+  costs: Float64Array;
+  parents: Int32Array;
+  seen: Uint32Array;
+  closed: Uint32Array;
+  epoch: number;
+  heap: number[];
+  priorities: number[];
+}
+
+/** Two cached profiles cover the walking simulation and the flying camera. */
+const cache = new WeakMap<NavGraph, RouteGrid[]>();
+
+/**
+ * Collision-aware station navigation. It retains the coarse architectural
+ * graph and samples only movement at 0.25m resolution. Door frames, closed
+ * doors and fitted module footprints use the same metre dimensions as art
+ * and physics. `height` is the bottom of the travelling body: drones may
+ * pass over low benches, while a walking simulation passes zero.
+ *
+ * Search arrays are reused; geometry is rebuilt only when graph.version or
+ * the generated station changes. Missing floor and blocked destinations
+ * produce a safe partial route, never a teleport or a straight-line fallback.
+ */
+export function stationRoute(
+  spec: HouseSpec,
+  graph: NavGraph,
+  from: DronePose,
+  goal: TileKey | FloorPoint,
+  clearance = 0.45,
+  height = 0,
+): DroneRoute {
+  const empty = (grounded: boolean): DroneRoute => ({
+    tiles: [],
+    points: [],
+    complete: false,
+    grounded,
+  });
+  if (
+    !Number.isFinite(from.x + from.z + clearance + height) ||
+    (typeof goal === 'number' ? keyLevel(goal) !== 0 : !Number.isFinite(goal.x + goal.z))
+  )
+    return empty(false);
+  const radius = Math.max(0.08, Math.min(0.5, clearance));
+  let grids = cache.get(graph);
+  if (!grids) cache.set(graph, (grids = []));
+  let grid = grids.find((g) => g.radius === radius && g.height === height);
+  if (!grid || grid.version !== graph.version || grid.spec !== spec) {
+    const built = buildGrid(spec, graph, radius, height);
+    if (!built) return empty(false);
+    if (grid) grids.splice(grids.indexOf(grid), 1);
+    if (grids.length >= 2) grids.shift();
+    grids.push(built);
+    grid = built;
+  }
+  const start = nearestStart(grid, graph, from);
+  if (start < 0) return empty(false);
+  const target =
+    typeof goal === 'number'
+      ? { x: tileCentreX(goal), z: tileCentreZ(goal) }
+      : { x: goal.x, z: goal.z };
+  const gx = Math.round(target.x / STEP - 0.5) - grid.minX;
+  const gz = Math.round(target.z / STEP - 0.5) - grid.minZ;
+  const targetIndex =
+    gx >= 0 && gx < grid.width && gz >= 0 && gz < grid.depth ? gz * grid.width + gx : -1;
+  const epoch = ++grid.epoch;
+  // A wrap takes years of continuous play; avoid stale visit stamps even then.
+  if (epoch >= 0xffffffff) {
+    grid.seen.fill(0);
+    grid.closed.fill(0);
+    grid.epoch = 1;
+  }
+  const stamp = grid.epoch;
+  const heuristic = (index: number): number =>
+    Math.abs((index % grid!.width) - gx) + Math.abs(Math.floor(index / grid!.width) - gz);
+  grid.heap.length = 0;
+  grid.priorities.length = 0;
+  grid.seen[start] = stamp;
+  grid.costs[start] = 0;
+  grid.parents[start] = -1;
+  push(grid, start, heuristic(start));
+  let best = start;
+  let bestDistance = heuristic(start);
+  let complete = false;
+  while (grid.heap.length) {
+    const current = pop(grid);
+    if (grid.closed[current] === stamp) continue;
+    grid.closed[current] = stamp;
+    const distance = heuristic(current);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = current;
+    }
+    if (
+      current === targetIndex &&
+      !grid.obstacles.some((box) => routeBlocked(pointAt(grid!, current), target, box, radius))
+    ) {
+      best = current;
+      complete = true;
+      break;
+    }
+    const edges = grid.edges[current]!;
+    for (let dir = 0; dir < 4; dir++) {
+      if (!(edges & (1 << dir))) continue;
+      const next = current + DIR_Z[dir]! * grid.width + DIR_X[dir]!;
+      if (grid.closed[next] === stamp) continue;
+      const cost = grid.costs[current]! + 1;
+      if (grid.seen[next] === stamp && cost >= grid.costs[next]!) continue;
+      grid.seen[next] = stamp;
+      grid.costs[next] = cost;
+      grid.parents[next] = current;
+      push(grid, next, cost + heuristic(next));
+    }
+  }
+  const reversed: FloorPoint[] = [];
+  for (let at = best; at >= 0; at = grid.parents[at]!) reversed.push(pointAt(grid, at));
+  reversed.reverse();
+  const points: FloorPoint[] = [];
+  // Keep exact corners, dropping only points on the same straight segment.
+  for (const point of reversed) {
+    const a = points[points.length - 2];
+    const b = points[points.length - 1];
+    if (a && b && ((a.x === b.x && b.x === point.x) || (a.z === b.z && b.z === point.z)))
+      points[points.length - 1] = point;
+    else points.push(point);
+  }
+  if (complete && points.length) points.push(target);
+  // Replanning halfway along a segment must not send the actor backwards to
+  // the nearest sample. Only skip it when the new segment is physically clear.
+  while (points.length > 1 && segmentClear(grid, graph, from, points[1]!)) points.shift();
+  if (points[0] && Math.hypot(points[0].x - from.x, points[0].z - from.z) < 0.001) points.shift();
+  return { tiles: [], points, grounded: true, complete };
+}
+
+function buildGrid(
+  spec: HouseSpec,
+  graph: NavGraph,
+  radius: number,
+  height: number,
+): RouteGrid | null {
+  // Test rooms are reached by teleport. Their remote floors must never enlarge
+  // the mission movement raster or make an off-map actor seem routable.
+  const tiles = [...graph.tileKeys()].filter(
+    (key) =>
+      keyLevel(key) === 0 &&
+      keyX(key) >= HOUSE.x &&
+      keyX(key) < HOUSE.x + HOUSE.w &&
+      keyZ(key) >= HOUSE.z &&
+      keyZ(key) < APRON.z + APRON.d,
+  );
+  if (!tiles.length) return null;
+  let minX = Infinity,
+    minZ = Infinity,
+    maxX = -Infinity,
+    maxZ = -Infinity;
+  for (const tile of tiles) {
+    minX = Math.min(minX, keyX(tile) * SUBDIVISIONS);
+    minZ = Math.min(minZ, keyZ(tile) * SUBDIVISIONS);
+    maxX = Math.max(maxX, keyX(tile) * SUBDIVISIONS + SUBDIVISIONS - 1);
+    maxZ = Math.max(maxZ, keyZ(tile) * SUBDIVISIONS + SUBDIVISIONS - 1);
+  }
+  const width = maxX - minX + 1;
+  const depth = maxZ - minZ + 1;
+  // Bounds come from a generated station, not arbitrary editor worlds.
+  if (width * depth > 120000) return null;
+  const size = width * depth;
+  const valid = new Uint8Array(size);
+  for (const tile of tiles)
+    for (let z = 0; z < SUBDIVISIONS; z++)
+      for (let x = 0; x < SUBDIVISIONS; x++)
+        valid[
+          (keyZ(tile) * SUBDIVISIONS + z - minZ) * width + keyX(tile) * SUBDIVISIONS + x - minX
+        ] = 1;
+  const obstacles: FloorBounds[] = stationLayout(spec)
+    .filter((p) => p.height > height)
+    .map((p) => ({ ...p.bounds }));
+  for (const [key, wall] of graph.wallEntries()) {
+    const tile = wallTile(key);
+    if (keyLevel(tile) !== 0) continue;
+    const dir = wallDir(key);
+    const x = (keyX(tile) + 0.5 + dirX(dir) * 0.5) * TILE;
+    const z = (keyZ(tile) + 0.5 + dirZ(dir) * 0.5) * TILE;
+    if (
+      x < HOUSE.x * TILE ||
+      x > (HOUSE.x + HOUSE.w) * TILE ||
+      z < HOUSE.z * TILE ||
+      z > (APRON.z + APRON.d) * TILE
+    )
+      continue;
+    const horizontal = dirZ(dir) !== 0;
+    const opening = wall.kind === 'door' && wall.open && !wall.barred;
+    const spans = opening
+      ? [
+          [-TILE / 2, -PLAN_DOOR_W / 2],
+          [PLAN_DOOR_W / 2, TILE / 2],
+        ]
+      : [[-TILE / 2, TILE / 2]];
+    for (const [start, end] of spans)
+      obstacles.push({
+        minX: x + (horizontal ? start! : -PLAN_WALL_T / 2),
+        maxX: x + (horizontal ? end! : PLAN_WALL_T / 2),
+        minZ: z + (horizontal ? -PLAN_WALL_T / 2 : start!),
+        maxZ: z + (horizontal ? PLAN_WALL_T / 2 : end!),
+      });
+  }
+  // Rasterize both node centres and edge midpoints. This catches thin walls
+  // that a test of only the two endpoints could accidentally step across.
+  const rasterWidth = width * 2 + 1;
+  const rasterDepth = depth * 2 + 1;
+  const raster = new Uint8Array(rasterWidth * rasterDepth);
+  for (const box of obstacles) {
+    const x0 = Math.max(0, Math.ceil((box.minX - radius) / HALF - minX * 2));
+    const x1 = Math.min(rasterWidth - 1, Math.floor((box.maxX + radius) / HALF - minX * 2));
+    const z0 = Math.max(0, Math.ceil((box.minZ - radius) / HALF - minZ * 2));
+    const z1 = Math.min(rasterDepth - 1, Math.floor((box.maxZ + radius) / HALF - minZ * 2));
+    for (let z = z0; z <= z1; z++) raster.fill(1, z * rasterWidth + x0, z * rasterWidth + x1 + 1);
+  }
+  for (let z = 0; z < depth; z++)
+    for (let x = 0; x < width; x++)
+      if (raster[(z * 2 + 1) * rasterWidth + x * 2 + 1]) valid[z * width + x] = 0;
+  const edges = new Uint8Array(size);
+  for (let z = 0; z < depth; z++)
+    for (let x = 0; x < width; x++) {
+      const at = z * width + x;
+      if (!valid[at]) continue;
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = x + DIR_X[dir]!,
+          nz = z + DIR_Z[dir]!;
+        if (nx < 0 || nx >= width || nz < 0 || nz >= depth || !valid[nz * width + nx]) continue;
+        if (!raster[(z * 2 + 1 + DIR_Z[dir]!) * rasterWidth + x * 2 + 1 + DIR_X[dir]!])
+          edges[at]! |= 1 << dir;
+      }
+    }
+  return {
+    spec,
+    version: graph.version,
+    radius,
+    height,
+    minX,
+    minZ,
+    width,
+    depth,
+    valid,
+    edges,
+    obstacles,
+    costs: new Float64Array(size),
+    parents: new Int32Array(size),
+    seen: new Uint32Array(size),
+    closed: new Uint32Array(size),
+    epoch: 0,
+    heap: [],
+    priorities: [],
+  };
+}
+
+function pointAt(grid: RouteGrid, index: number): FloorPoint {
+  return {
+    x: (grid.minX + (index % grid.width) + 0.5) * STEP,
+    z: (grid.minZ + Math.floor(index / grid.width) + 0.5) * STEP,
+  };
+}
+
+function nearestStart(grid: RouteGrid, graph: NavGraph, from: FloorPoint): number {
+  const x = Math.round(from.x / STEP - 0.5) - grid.minX;
+  const z = Math.round(from.z / STEP - 0.5) - grid.minZ;
+  let best = -1,
+    distance = Infinity;
+  for (let dz = -2; dz <= 2; dz++)
+    for (let dx = -2; dx <= 2; dx++) {
+      const nx = x + dx,
+        nz = z + dz;
+      if (nx < 0 || nx >= grid.width || nz < 0 || nz >= grid.depth) continue;
+      const index = nz * grid.width + nx;
+      if (!grid.valid[index]) continue;
+      const point = pointAt(grid, index);
+      const far = Math.hypot(point.x - from.x, point.z - from.z);
+      if (far < distance && segmentClear(grid, graph, from, point)) {
+        best = index;
+        distance = far;
+      }
+    }
+  return best;
+}
+
+function segmentClear(grid: RouteGrid, graph: NavGraph, from: FloorPoint, to: FloorPoint): boolean {
+  if (grid.obstacles.some((box) => routeBlocked(from, to, box, grid.radius))) return false;
+  const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / HALF));
+  for (let i = 0; i <= steps; i++) {
+    const x = from.x + ((to.x - from.x) * i) / steps;
+    const z = from.z + ((to.z - from.z) * i) / steps;
+    if (!graph.has(tileKey(Math.floor(x / TILE), Math.floor(z / TILE), 0))) return false;
+  }
+  return true;
+}
+
+function push(grid: RouteGrid, node: number, priority: number): void {
+  let at = grid.heap.length;
+  grid.heap.push(node);
+  grid.priorities.push(priority);
+  while (at > 0) {
+    const parent = (at - 1) >> 1;
+    if (grid.priorities[parent]! <= priority) break;
+    grid.heap[at] = grid.heap[parent]!;
+    grid.priorities[at] = grid.priorities[parent]!;
+    at = parent;
+  }
+  grid.heap[at] = node;
+  grid.priorities[at] = priority;
+}
+
+function pop(grid: RouteGrid): number {
+  const first = grid.heap[0]!;
+  const last = grid.heap.pop()!;
+  const priority = grid.priorities.pop()!;
+  if (!grid.heap.length) return first;
+  let at = 0;
+  while (at * 2 + 1 < grid.heap.length) {
+    let child = at * 2 + 1;
+    if (child + 1 < grid.heap.length && grid.priorities[child + 1]! < grid.priorities[child]!)
+      child++;
+    if (priority <= grid.priorities[child]!) break;
+    grid.heap[at] = grid.heap[child]!;
+    grid.priorities[at] = grid.priorities[child]!;
+    at = child;
+  }
+  grid.heap[at] = last;
+  grid.priorities[at] = priority;
+  return first;
+}

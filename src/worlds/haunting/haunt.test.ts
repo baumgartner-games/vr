@@ -1,6 +1,6 @@
 import { findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { TILE, tileKey } from '../nav/navTile';
+import { TILE, tileKey, dirX, dirZ } from '../nav/navTile';
 import { generateHouse, roomCentre, roomOf, tilesOf, HOUSE, type HouseSpec } from './house';
 import { housePlan } from './plan';
 import {
@@ -23,6 +23,16 @@ const FRAME = 1 / 60;
 function inRoom(spec: HouseSpec, roomId: string): { x: number; z: number } {
   const at = roomCentre(roomOf(spec, roomId)!);
   return { x: (at.x + 0.5) * TILE, z: (at.z + 0.5) * TILE };
+}
+
+/** Door tricks require actual proximity; a large room's centre is deliberately too far away. */
+function besideDoor(spec: HouseSpec, roomId: string): { x: number; z: number } {
+  const door = spec.doors.find((d) => d.b !== null && (d.a === roomId || d.b === roomId))!;
+  const sign = door.a === roomId ? -1 : 1;
+  return {
+    x: (door.x + 0.5 + dirX(door.dir) * 0.5) * TILE + dirX(door.dir) * sign * 0.75,
+    z: (door.z + 0.5 + dirZ(door.dir) * 0.5) * TILE + dirZ(door.dir) * sign * 0.75,
+  };
 }
 
 /** Den Spuk so lange rechnen, bis er etwas anrichtet — oder die Zeit um ist. */
@@ -91,7 +101,7 @@ describe('Der Spuk in der Nähe des Monsters', () => {
    * das man nicht mehr sieht.
    */
   it('wirft erst eine Tür zu, wenn kein Licht mehr brennt', () => {
-    const at = inRoom(spec, lampRoom.id);
+    const at = besideDoor(spec, lampRoom.id);
     const bright = haunt({ spec, monster: at, lit: [lampRoom.id], shut: [] });
     expect(bright.doorShut).toBe('');
     const dark = haunt({ spec, monster: at, lit: [], shut: [] });
@@ -100,7 +110,7 @@ describe('Der Spuk in der Nähe des Monsters', () => {
   });
 
   it('wirft nur eine Tür des Zimmers zu, in dem es steht', () => {
-    const dark = haunt({ spec, monster: inRoom(spec, lampRoom.id), lit: [], shut: [] });
+    const dark = haunt({ spec, monster: besideDoor(spec, lampRoom.id), lit: [], shut: [] });
     const door = spec.doors.find((one) => one.id === dark.doorShut)!;
     expect([door.a, door.b]).toContain(lampRoom.id);
   });

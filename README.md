@@ -67,68 +67,125 @@ gebaut.
 ### Haunting / Orbital — eine Quest, zwei Handys
 
 Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
-Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
-Aufträge, Fundorte, Raummerkmale und Schutzcodes. Die **Einsatzkontrolle**
-verfolgt das Monster auf dem Radar, sieht den simulierten Puls und bedient
-Licht, Schiebetüren und Geräuschköder. Redet miteinander: Kein Gerät hat alle
-Informationen. Drohne, separate Schalttafel und Zuschauer bleiben zusätzlich
-verfügbar.
+Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt den
+Grundriss, Aufträge, Fundorte und Schutzcodes. Die **Einsatzkontrolle** verfolgt
+das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
+Schiebetüren und Geräuschköder. Drohne und Zuschauer sind weitere optionale
+Plätze; die Schalttafel gehört zur Einsatzkontrolle.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
-im Hub **Haunting / Orbital** wählen und VR starten. Auf den beiden Handys
+im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
 **In der Zentrale mitspielen** wählen, dann Archiv beziehungsweise
-Einsatzkontrolle besetzen. Die Verbindungsanzeige nennt die Gegenstellen und
-den gemeinsamen Raum. Für eine eigene Gruppe denselben Link mit
-`?room=euer-gruppenname#haunting` auf allen drei Geräten öffnen; ohne Parameter
-ist der Raum `haunting`. Es sind keine Konten erforderlich. Die bestehende
-WebRTC-Verbindung nutzt öffentliche Signalisierung und STUN, auch im selben
-WLAN. Internetspiele funktionieren bei direkt erreichbaren Peers; restriktives
-NAT oder gesperrte öffentliche Dienste können ohne TURN eine Verbindung
-verhindern. `?net=local` ist ausschließlich für mehrere Tabs desselben Browsers.
+Einsatzkontrolle besetzen. Für eine eigene Gruppe auf allen Geräten denselben
+Link mit `?room=euer-gruppenname#haunting` öffnen; ohne Parameter ist der Raum
+`haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
+Update alle Geräte neu laden, damit sie dieselbe Protokollversion verwenden.
+
+Es sind keine Konten erforderlich. WebRTC nutzt öffentliche Signalisierung und
+STUN, auch im selben WLAN. Internetspiele funktionieren bei direkt erreichbaren
+Peers; restriktives NAT oder gesperrte öffentliche Dienste können ohne TURN
+eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
+desselben Browsers, keine getrennten Geräte im WLAN.
 
 **Die Mission:** In der sicheren Einsatzzentrale 6, 8, 10 oder 12 Räume und
-einen Gegner auswählen, dann **Mission starten**. Antrieb, Lebenserhaltung
-und Notsignal müssen repariert werden. Das Archiv findet heraus, welches
-Werkzeug beziehungsweise Bauteil in welchem Frachtschrank liegt. Der Techniker
-öffnet den Schrank, nimmt den Gegenstand und entriegelt damit den passenden
-Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine Schaltfolge
-eingegeben oder drei Frequenzen eingestellt. Die Codes kennt das Archiv.
-Wenn alle drei Systeme online sind, kehrt der Techniker in die Zentrale zurück.
+einen Gegner auswählen, dann **Mission starten**. Die Räume sind mindestens
+4 × 4 Rasterfelder groß; bei 2,5 Metern pro Feld sind das mindestens 10 × 10
+Meter. Antrieb, Lebenserhaltung und Notsignal müssen repariert werden. Das
+Archiv ermittelt den Fundort des benötigten Werkzeugs oder Bauteils. Der
+Techniker öffnet den Frachtschrank, nimmt den Gegenstand und entriegelt den
+passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
+Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
+zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
 
-Die Module haben eigene Einrichtungen: roter Maschinenraum, Medizin mit
-Kryokapseln, Kommunikation, Serverarchiv, Hydroponik, Crewquartiere und
-Frachtlager. Hüllensegmente, Lichtleisten und Aggregate entstehen prozedural.
-Schiebetüren, Funken, Rauch, sparsame Feuerpartikel, Maschinenbrummen und
-Gegnerschritte schaffen Atmosphäre. Das Raster und die übrigen Testwelten
-bleiben erhalten.
+**Die Handyansichten:** Das Archiv startet mit einer Karten-Vorschau und dem
+Knopf **Karte vergrößern**. Die 2D-Karte lässt sich ziehen, mit zwei Fingern
+oder dem Mausrad zoomen und über **Gesamtplan** zurücksetzen. Ein Raum kann
+angetippt und unter **Räume & Codes** nachgeschlagen werden. Die Reiter
+**Aufträge**, **Karte**, **Räume & Codes** und **Anomalien** trennen die Aufgaben;
+Fund- und Reparaturorte lassen sich direkt auf der Karte anzeigen. In der
+Einsatzkontrolle wechselt man zwischen **Radar & Anzug** und **Schalttafel**.
 
-**Überleben:** Drei Treffer beenden die Runde; nach jedem Treffer gibt es drei
-Sekunden Schutz. Ein gefundenes Medkit heilt einen Treffer. Der sichtbare
-Raumanzug zeigt Verletzungen, beim längeren Sprint beschlägt der Visier-Rand
-und erholt sich wieder. Radar und Röntgenscanner werden aus Frachtschränken
-geborgen und am linken Handgelenk beziehungsweise im Missionsmenü umgeschaltet.
-Der Scanner zeigt nahe verborgene Fracht. Ein Schutzschrank lässt sich mit dem
-Code aus dem Archiv betreten; bis zum Verlassen kann der Gegner nicht treffen.
-Die drei auswählbaren Gegner unterscheiden sich in Modell, Tempo und Nutzung
-der Lüftungsschächte. Schächte verbinden nur benachbarte Stationsräume, niemals
-die sichere Zentrale. Das Radar-EKG ist Spieltelemetrie, keine echte Pulsmessung.
+**Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
+Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
+Treffer. Der sichtbare Raumanzug zeigt Verletzungen, beim längeren Sprint
+beschlägt der Visier-Rand. Ein Schutzschrank lässt sich mit dem Code aus dem
+Archiv öffnen und betreten; darin ist der Techniker vor Treffern geschützt.
+Radar, Röntgenscanner, EMF-Scanner, Thermosensor und Audio-Logger liegen in
+Frachtschränken. Röntgen zeigt nahe verborgene Fracht, die Messgeräte liefern
+Spielwerte zu Anomalien. Das Archiv kann angesagte Beobachtungen im Journal
+ankreuzen und eine Vermutung vormerken; das löst keine Spielaktion aus.
 
-**Ohne Angst ausprobieren:** **Test ohne Monster** im Startraum oder
-Missionsmenü startet eine unverwundbare Runde ohne aktiven Gegner. Das bleibt
-auch bei ausgeschaltetem Testlicht so. Der Testschrank ist sofort geöffnet und
-enthält alle Werkzeuge und Missionsgegenstände. Eine Schiebetür öffnet das helle
-Testlabor mit unbelebten Gegnermodellen, denselben drei Reparaturpuzzles, einem
-Spiegel, einem Schachtmodell und dem Effektprüfstand. Im Testmenü lassen sich
-Räume direkt besuchen. **Simulation / Flugmodus** hebt die Decke ab: linker
-Stick bewegt, rechter Stick hebt und senkt den Blick. Ein ungefährlicher
-Techniker läuft auf dem Navigationsraster zu Räumen; lokale Textmeldungen
-zeigen seine Anweisungen und Rückmeldungen. Das ist eine Demonstration und
-keine vollständige KI-Dreiercrew. Ohne Headset gibt es in der Geräteübersicht
-**Als Techniker am Desktop testen** mit WASD/Maus und bedienbaren Schaltflächen.
+Die drei Gegner unterscheiden sich auch beim Erkennen und Suchen: Bewegung
+macht Geräusche, Ducken hilft, und eine eingeschaltete Taschenlampe macht den
+Techniker sichtbarer. Nach verlorenem Sichtkontakt wird die zuletzt bemerkte
+Position abgesucht. Lüftungsschächte verbinden nur benachbarte Stationsräume.
+Temperatur, elektromagnetische Störung und Schrittklang liefern unterschiedliche
+Hinweise auf den Gegnertyp. Die Sensoren und der angezeigte Puls sind simuliert;
+der Audio-Logger nimmt kein Mikrofon auf. Optional kann der Techniker
+**Mikrofon-Gegnerreaktion** ausdrücklich einschalten und den Browserzugriff
+erlauben. Dann kann lautes Sprechen den Gegner anlocken. Dabei wird nur der
+lokale Lautstärkepegel ausgewertet, nichts aufgenommen oder übertragen. Die
+Option startet ausgeschaltet und lässt sich jederzeit wieder abschalten.
 
-Die Grafik bevorzugt zusammengefasste Geometrie, instanzierte Hüllenteile,
-wenige feste Lichtquellen und begrenzte Partikel. Quest-3-Framerate, Handtracking
-und Controller-Haptik müssen zusätzlich auf dem echten Headset geprüft werden.
+**Am Desktop testen:** In der Geräteübersicht **Als Techniker am Desktop
+testen** wählen. Zum Umsehen ins Bild klicken; `Esc` gibt den Mauszeiger frei.
+Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
+
+| Aktion | Tastatur / Maus |
+| --- | --- |
+| Laufen und umsehen | `WASD` und Maus; `Shift` zum Rennen |
+| Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick |
+| Linke Hand wechseln | `1`: gefundene Sensoren durchschalten, einschließlich freie Hand |
+| Rechte Hand wechseln | `2`: Taschenlampe, gefundenes Medkit, freie Hand |
+| Medkit verwenden | Rechts auswählen und `E` drücken |
+| Ducken | `Ctrl` halten |
+| Simulationsflug | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller |
+| Leistungsanzeige | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus |
+
+In VR werden dieselben Objekte mit dem Zeiger und Trigger bedient. Unter
+**VR-Komfort** lassen sich schrittweises oder fließendes Drehen, ein optionaler
+Komfortrand bei künstlicher Bewegung und Controller-Vibration einstellen.
+Diese Einstellungen bleiben lokal auf dem Gerät.
+
+**Ohne Angst ausprobieren:** **Test ohne Monster** startet eine unverwundbare
+Runde ohne aktiven Gegner. Das bleibt bei **Testlicht aus** so: Die Station
+wird dunkel, Raum- und Umgebungslicht gehen aus, und die Taschenlampe wird
+benötigt. Die einzelnen Übungsräume haben ihr eigenes lokales Licht.
+
+Der Testschrank enthält die Ausrüstung und Missionsgegenstände. Über den
+Testdeck-Aufzug oder **Testdeck: einzelne Übungsräume** erreicht man vier
+separate Räume abseits der Missionskarte:
+
+- **Safe und Schutzschrank:** Links steht die Anleitung mit dem Code, daneben
+  der echte bedienbare Schutzschrank.
+- **Ausrüstung und Scanner:** Gegenstände aufnehmen, Hände wechseln und einen
+  geschlossenen Container mit Röntgen untersuchen.
+- **Reparaturen und Rätsel:** Drei voneinander unabhängige Übungen mit Lösungen
+  daneben. Ein gelöstes Display erneut drücken setzt die Übung zurück; der
+  Missionsfortschritt bleibt dabei unverändert.
+- **Modelle, Schotts und Effekte:** Einzelne Module mit Maßangaben, harmlose
+  Gegnerattrappen, Spiegel, Schacht und Funken-/Rauch-/Feuerprüfung.
+
+Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräumen
+verwenden freie Ankunftsplätze. **Simulation / Flugmodus** hebt die Decke ab;
+in VR bewegt der linke Stick, der rechte hebt und senkt den Blick. Ein harmloser
+Modelltechniker läuft auf dem Raster zu Räumen, begleitet von lokalen
+Textmeldungen. Das ist ein beobachtbarer Rundgang, keine vollständige simulierte
+Dreiercrew. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
+wählen.
+
+Die Station verwendet vermessene Einrichtungsmodelle mit reservierten Tür- und
+Laufwegen, abgerundeten Gehäusen, Rohren und raumspezifischen Aggregaten.
+Zusammengefasste Geometrie, das Ausblenden verdeckter Räume, wenige Lichter und
+begrenzte Effekt- und Audiopools halten den Aufwand klein. Die Web-Auflösung ist
+für Haunting begrenzt; der Übungsspiegel rendert nur in seiner Nähe. Hub und
+andere Testwelten bleiben erhalten.
+
+90–120 Hz auf Quest 3 sind ein Leistungsziel, keine hier gemessene Zusage.
+Automatisierte Logik-, Physik- und DOM-Tests ersetzen weder die Prüfung der
+Grafik auf dem Headset noch einen P2P-Test mit drei echten Geräten. In der
+verwendeten Browser-Testumgebung war WebGL deaktiviert; eine vollständige
+interaktive 3D-Prüfung konnte dort nicht stattfinden.
 
 > **Hinweis für Agenten:** Entwickelt und gepusht wird **direkt auf `main`** —
 > kein Feature-Branch, kein Pull Request, solange nichts anderes im Auftrag
@@ -150,7 +207,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 
 ## Tests
 
-Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
+Die Haunting-Handyoberflächen werden zusätzlich mit jsdom geprüft: Karten- und
+Reiterbedienung, Eingabefokus und Anomalienjournal. Das prüft DOM-Verhalten,
+keine gerenderten 3D-Bilder.
+
+Jest testet überwiegend Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
 Spiegelung beider Hüften, die Portaltiefe, den Durchtritt durch ein Portal, die Grafikstufen, das Aussehen,

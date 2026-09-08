@@ -202,3 +202,45 @@ test('a target taken away mid-stroke still hears the release', () => {
   pointer.remove(left.mesh);
   expect(left.releases).toBe(1);
 });
+
+test('hiding a room ancestor releases held panels and skips their raycasts until visible again', () => {
+  const left = panel(-0.3);
+  const room = new THREE.Group();
+  const fixture = new THREE.Group();
+  scene.add(room);
+  room.add(fixture);
+  fixture.add(left.mesh);
+  const raycast = jest.spyOn(left.mesh, 'raycast');
+  controllers.left.trigger.pressed = true;
+  controllers.left.trigger.justPressed = true;
+  frame();
+  expect(left.selects).toEqual(['left']);
+  const casts = raycast.mock.calls.length;
+  room.visible = false;
+  controllers.left.trigger.justPressed = false;
+  frame();
+  expect(raycast.mock.calls).toHaveLength(casts);
+  expect(left.releases).toBe(1);
+  expect(pointer.hovering).toBe(false);
+  room.visible = true;
+  controllers.left.trigger.justPressed = true;
+  frame();
+  expect(left.selects).toEqual(['left', 'left']);
+});
+
+test('a fingertip touching an invisible room panel cannot select it', () => {
+  const left = panel(-0.3);
+  const room = new THREE.Group();
+  scene.add(room);
+  room.add(left.mesh);
+  room.visible = false;
+  const finger = new THREE.Object3D();
+  finger.position.set(-0.3, 0, -0.995);
+  scene.add(finger);
+  controllers.left.fingertip = finger;
+  frame();
+  expect(left.selects).toEqual([]);
+  room.visible = true;
+  frame();
+  expect(left.selects).toEqual(['left']);
+});

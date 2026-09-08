@@ -39,7 +39,7 @@ export interface Rect {
 }
 
 /** Wo das Haus auf dem Gitter steht — dieselbe Ecke wie beim Dunkelhaus. */
-export const HOUSE: Rect = { x: -4, z: -3, w: 8, d: 6 };
+export const HOUSE: Rect = { x: -8, z: -9, w: 16, d: 12 };
 /** Die Kachelreihe südlich des Hauses, in der der Van steht. */
 export const VAN_Z = HOUSE.z + HOUSE.d + 1;
 /** Wie breit der Van ist, in Kacheln. */
@@ -308,10 +308,10 @@ function stationRooms(rng: Rng, count: number): Rect[] {
   const rows = rng.shuffle(counts[count] ?? counts[8]!);
   const out: Rect[] = [];
   rows.forEach((columns, row) => {
-    const widths = rng.shuffle(columns === 2 ? [4, 4] : columns === 3 ? [2, 2, 4] : [2, 2, 2, 2]);
+    const widths = rng.shuffle(columns === 2 ? [8, 8] : columns === 3 ? [5, 5, 6] : [4, 4, 4, 4]);
     let x = HOUSE.x;
     for (const w of widths) {
-      out.push({ x, z: HOUSE.z + row * 2, w, d: 2 });
+      out.push({ x, z: HOUSE.z + row * 4, w, d: 4 });
       x += w;
     }
   });

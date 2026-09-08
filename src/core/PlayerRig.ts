@@ -44,6 +44,10 @@ export class PlayerRig extends THREE.Group {
   crouchSpeed = 1.8;
   /** Radians per snap turn. */
   snapAngle = THREE.MathUtils.degToRad(30);
+  /** Worlds may opt into continuous turning; existing worlds keep snap turns. */
+  turnMode: 'snap' | 'smooth' = 'snap';
+  /** Radians per second at full right-stick deflection in smooth mode. */
+  smoothTurnSpeed = THREE.MathUtils.degToRad(60);
   /**
    * Woran sich die Laufrichtung hält (`walkFrame.ts`).
    *
@@ -207,6 +211,16 @@ export class PlayerRig extends THREE.Group {
     return this.crouchOffset;
   }
 
+  /**
+   * Optional world-owned keyboard stance. The same offset and character
+   * capsule used in VR keep the desktop player's feet on the floor too.
+   * Worlds that do not call this retain their existing controls.
+   */
+  updateDesktopCrouch(wanted: boolean, dt: number): void {
+    this.crouchWanted = wanted;
+    this.updateCrouch(Math.max(0, Number.isFinite(dt) ? dt : 0));
+  }
+
   /** True while the player is sprinting. */
   get sprinting(): boolean {
     return this.sprintWanted;
@@ -328,7 +342,16 @@ export class PlayerRig extends THREE.Group {
 
     if (presenting && !this.locked && this.menuStick !== 'right') {
       const turn = input.get('right')?.thumbstick.x ?? 0;
-      if (this.snapArmed && Math.abs(turn) > 0.7) {
+      if (this.turnMode === 'smooth') {
+        const magnitude = Math.abs(turn);
+        if (magnitude > 0.18) {
+          const angle =
+            -Math.sign(turn) * Math.min(1, (magnitude - 0.18) / 0.82) * this.smoothTurnSpeed * dt;
+          this.rotateAroundHead(angle);
+          turnWalkFrame(this.walkFrame, angle);
+        }
+        this.snapArmed = magnitude < 0.35;
+      } else if (this.snapArmed && Math.abs(turn) > 0.7) {
         const angle = -Math.sign(turn) * this.snapAngle;
         this.rotateAroundHead(angle);
         // Der Snap dreht den ganzen Spieler; die gemerkte Laufrichtung dreht
@@ -381,6 +404,10 @@ export class PlayerRig extends THREE.Group {
 
     this.updateSeatLift(dt);
 
+    this.updateCrouch(dt);
+  }
+
+  private updateCrouch(dt: number): void {
     const target = this.crouchWanted ? this.crouchDepth : 0;
     if (target === this.crouchOffset) return;
     const step = THREE.MathUtils.clamp(
