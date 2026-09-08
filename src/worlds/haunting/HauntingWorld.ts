@@ -26,6 +26,8 @@ import {
   routeTo,
   stepAlong,
   tileAt,
+  wrapAngle,
+  DRONE_Y,
   HOP_TIME,
   LAMP_MIN,
   type DronePose,
@@ -103,19 +105,17 @@ const DRONE_RATE = 1 / 10;
 const DRONE_TURN = 14;
 
 /**
- * Wie weit der Pilot neben die Flugrichtung schauen darf, in Bogenmaß. Gut
- * zwei Drittel einer halben Umdrehung: Wer weiter drehen dürfte, flöge
- * rückwärts durch das Haus und wüsste nicht mehr, wo vorn ist.
+ * Wie weit nach oben oder unten der Pilot schauen darf — 81°, fast senkrecht.
+ *
+ * Waagerecht dreht er **ganz** herum (der Anschlag bei gut zwei Dritteln einer
+ * halben Umdrehung ist weg: Wer wissen will, ob ihm etwas folgt, muss sich
+ * umdrehen können, und das Zurückstellen kostet einen Tipp auf den Blickstock).
+ * Senkrecht bleibt ein Rest Anschlag, und zwar nicht aus Bequemlichkeit: Über
+ * den Scheitel hinaus steht das Bild auf dem Kopf, und ein Lichtkegel, der
+ * dabei nach hinten kippt, sagt dem VR-Spieler das Gegenteil von dem, was der
+ * Pilot ansagt.
  */
-const LOOK_MOST = Math.PI * 0.72;
-
-/**
- * Und wie weit nach oben oder unten — 54°, gerade so viel, dass Decke und
- * Boden des Zimmers ins Bild kommen. Senkrecht nach oben wäre kein Blick mehr,
- * sondern ein verlorener Horizont, und der Lichtkegel im Haus sagte niemandem
- * mehr etwas.
- */
-const TILT_MOST = Math.PI * 0.3;
+const TILT_MOST = Math.PI * 0.45;
 
 /**
  * Wie fein das Bild hinter der offenen Bedienung noch ist: ein Bildpunkt je
@@ -127,16 +127,6 @@ const VEIL_RATIO = 0.1;
 
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 const REACH = 1.1;
-/**
- * Wie hoch sie schwebt.
- *
- * Unter der Decke (`PLAN_WALL_H` = 2,8 m) und deutlich über Augenhöhe: Auf
- * 1,80 m hing sie genau dort, wo der VR-Spieler seinen Kopf hat — dann steht
- * im Bild des Piloten eine Stuhllehne vor dem halben Zimmer, und aus der
- * Übersicht, für die man eine Drohne fliegt, wird ein zweites Paar Augen auf
- * derselben Höhe. Von hier oben sieht er über die Möbel hinweg.
- */
-const DRONE_Y = 2.15;
 
 /** Die Lampe eines Zimmers: das Licht und das Glas, das zeigt, dass es an ist. */
 interface Lamp {
@@ -316,8 +306,17 @@ export class HauntingWorld extends GridWorld {
     return 'Haunting';
   }
 
+  /**
+   * **Draußen ist Abend, nicht Nacht.**
+   *
+   * Der Himmel ist das Einzige an dieser Welt, das nichts kostet und trotzdem
+   * überall ankommt: Er steht hinter dem Haus, wenn man davorsteht, und er ist
+   * das, was in einem Fenster oder in der offenen Haustür steht, wenn man
+   * drinnen davor steht. Genau deshalb ist er ein Dämmerungsblau und kein
+   * Schwarz — eine schwarze Scheibe in einer schwarzen Wand ist kein Fenster.
+   */
   protected override skyColor(): number {
-    return 0x05070c;
+    return 0x1d2a44;
   }
 
   /** Fast nichts — aber nicht *ganz* nichts: die eigenen Hände muss man sehen. */
@@ -387,7 +386,12 @@ export class HauntingWorld extends GridWorld {
 
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
-    ctx.scene.fog = new THREE.FogExp2(0x04060a, 0.055);
+    // Der Nebel hat die Farbe des Himmels und nicht die der Nacht: Was in ihm
+    // verschwindet, soll in die Dämmerung verschwinden und nicht in ein Loch.
+    // Etwas dünner als vorher, damit vom Van aus überhaupt ein Haus zu sehen
+    // ist — drinnen ändert das nichts, dort ist auf zwölf Meter ohnehin eine
+    // Wand.
+    ctx.scene.fog = new THREE.FogExp2(0x121b2e, 0.042);
     ctx.net.on(HAUNT_CHANNEL, (data, from) => this.receive(data, from));
     this.joinTable(ctx);
 
@@ -581,7 +585,83 @@ export class HauntingWorld extends GridWorld {
       screen.position.set(-0.9 + index * 0.6, 1.4, z - 0.5);
       this.vanRig.add(screen);
       screen.add(new THREE.PointLight(color, 0.6, 2, 2));
+
+      // **Und ein Platz davor, in derselben Farbe.** Vier Leute sitzen an
+      // diesem Tisch, und der VR-Spieler sieht von ihnen nichts als vier
+      // Monitore — ein Hocker je Gerät macht aus der Ansage „ich hab den
+      // grünen" eine Stelle im Raum, an der jemand sitzt. Sie stehen hinter
+      // dem Tisch, also südlich davon: Wer die Brille aufsetzt, steht
+      // zwischen ihnen und dem Haus und läuft nicht durch sie hindurch.
+      const stool = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.19, 0.19, 0.08, 14),
+        new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.6,
+          emissive: color,
+          emissiveIntensity: 0.25,
+        }),
+      );
+      stool.position.set(-0.9 + index * 0.6, 0.52, z + 1.6);
+      this.vanRig.add(stool);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.48, 0.07), metal);
+      post.position.set(-0.9 + index * 0.6, 0.24, z + 1.6);
+      this.vanRig.add(post);
     });
+
+    this.buildPad();
+    this.buildDusk();
+  }
+
+  /**
+   * **Der Hangar der Drohne** — ein Ring auf dem Vorplatz, dort, wo sie steht.
+   *
+   * Ohne ihn ist `DRONE_HOME` eine Zahl in einer Datei: Die Drohne schwebt
+   * über einer Stelle, die genauso aussieht wie jede andere, und „zurück zum
+   * Van" heißt für den, der im Haus steht, nichts. Mit ihm ist es ein Ort, auf
+   * den man zeigen kann.
+   */
+  private buildPad(): void {
+    const x = (DRONE_HOME.x + 0.5) * TILE;
+    const z = (DRONE_HOME.z + 0.5) * TILE;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.36, 0.46, 24),
+      new THREE.MeshBasicMaterial({ color: 0x5ee0a0, toneMapped: false, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    // Einen Zentimeter über dem Boden: In derselben Ebene streiten sich zwei
+    // Flächen um jeden Bildpunkt, und das flimmert.
+    ring.position.set(x, 0.01, z);
+    this.vanRig.add(ring);
+  }
+
+  /**
+   * **Die Abendsonne über dem Vorplatz** — und warum sie in Wahrheit eine
+   * Leuchte ist.
+   *
+   * Draußen soll es Licht geben und drinnen nicht, und das ist mit einer
+   * richtigen Sonne genau dann zu haben, wenn jemand die Schatten bezahlt: Ein
+   * `DirectionalLight` scheint ohne Schattenkarte **durch das Dach**, und die
+   * Schattenkarte gibt es nur in der Stufe „Comic" (`core/graphicsSettings.ts`,
+   * ausgeliefert wird „Einfach"). Eine Sonne, die in der Auslieferung das halbe
+   * Haus aufhellt, nimmt diesem Spiel das Einzige, worauf es steht.
+   *
+   * Also hängt hier ein **Scheinwerfer tief über dem Vorplatz** statt einer
+   * Sonne am Himmel. Er ist warm wie ein später Nachmittag, sein Kegel zeigt auf den
+   * Vorplatz, und vor allem: Seine Reichweite (`distance`) endet ein paar
+   * Meter hinter der Hauswand. Was davon in das Zimmer hinter der Haustür
+   * fällt, ist ein Rest — und der sieht aus wie das, was er sein soll: Licht,
+   * das durch Tür und Fenster hereinfällt. Im zweiten Zimmer ist davon nichts
+   * mehr übrig, weil dort die Reichweite zu Ende ist.
+   */
+  private buildDusk(): void {
+    const sun = new THREE.SpotLight(0xffb173, 16, 11, 0.78, 0.5, 1);
+    // Aus Südwesten und von oben: Von genau oben glänzt nur der Boden, von der
+    // Seite bekommt auch die Hauswand etwas ab — und die ist das, worauf der
+    // Pilot in seinem ersten Bild schaut.
+    sun.position.set(-4.5, 5, (HOUSE.z + HOUSE.d + 2.4) * TILE);
+    sun.target.position.set(0, 0, (HOUSE.z + HOUSE.d + 0.8) * TILE);
+    this.vanRig.add(sun);
+    this.vanRig.add(sun.target);
   }
 
   /**
@@ -965,12 +1045,15 @@ export class HauntingWorld extends GridWorld {
   // --- die Drohne -----------------------------------------------------------
 
   /**
-   * **Die Drohne steht im Zimmer hinter der Haustür**, nicht draußen im Van.
+   * **Die Drohne startet draußen, über ihrem Ring auf dem Vorplatz.**
    *
-   * Hineingetragen hat sie jemand vor der Runde — und das ist keine Ausrede,
-   * sondern eine Notwendigkeit: Vor dem Haus gibt es keine Kacheln, und die
-   * Wegsuche fängt nichts mit einem Startpunkt an, den es im Graphen nicht
-   * gibt. Sie stünde dort und behauptete, sie käme nirgends hin.
+   * Eine Weile parkte sie im Zimmer hinter der Haustür, weil es vor dem Haus
+   * keine Kacheln gab und die Wegsuche mit einem Startpunkt außerhalb des
+   * Graphen nichts anfängt. Seit der Vorplatz zum Gitter gehört (`house.APRON`)
+   * ist das andersherum richtig: Der Pilot setzt sich hin und sieht den Van,
+   * den Vorplatz und die Hauswand mit der Tür darin — die erste Ansage, die im
+   * Van fällt. Vorher sah er ein dunkles Zimmer und wusste weder, wo er ist,
+   * noch wohin.
    */
   private parkDrone(): void {
     const body = this.droneBody;
@@ -1028,6 +1111,16 @@ export class HauntingWorld extends GridWorld {
     if (this.drone.hop > 0 || (!this.drone.target && this.droneRoom() === roomId)) return;
     this.drone.target = roomId;
     this.drone.hop = HOP_TIME;
+    // **Beim Losfliegen schaut sie wieder nach vorn** — und nur dann.
+    //
+    // Umsehen dreht seit Neuestem ganz herum, und genau deshalb braucht der
+    // Start diese Zeile: Wer gerade nach hinten geschaut hat und dann ein
+    // Zimmer antippt, flöge sonst rückwärts los und sähe von seinem eigenen
+    // Flug die Wand, die hinter ihm wegzieht. Zurückgestellt wird **nur** hier
+    // und nicht laufend: Ein Blick, den die Welt jede Sekunde wieder
+    // geradezieht, ist kein Blick, sondern ein Gummiband — sobald sie fliegt,
+    // gehört der Kopf wieder dem Piloten.
+    this.turnDroneView(0, 0);
     this.droneRoute = { tiles: [], complete: true, grounded: true };
     this.droneThink = 0;
     this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
@@ -1050,12 +1143,18 @@ export class HauntingWorld extends GridWorld {
    * weiter aus der Wegsuche. Waagerecht dreht sich dabei der ganze Rumpf
    * (`faceDrone`), senkrecht nur die Wiege mit Kamera, Kuppel und
    * Scheinwerfer — ein Kopter, der sich zum Hochschauen auf den Rücken legt,
-   * sähe im Haus nach Absturz aus. Beide Winkel haben einen Anschlag
-   * (`LOOK_MOST`, `TILT_MOST`), und beide aus demselben Grund: Wer weiter
-   * darf, verliert seinen Horizont und hält danach die Drohne für kaputt.
+   * sähe im Haus nach Absturz aus.
+   *
+   * **Waagerecht geht es ganz herum** (`wrapAngle`): Der alte Anschlag bei gut
+   * zwei Dritteln einer halben Umdrehung war als Schutz gegen den verlorenen
+   * Horizont gedacht und war in Wahrheit eine Drohne, die sich nicht umsehen
+   * kann — wer hören will, ob hinter ihr etwas steht, dreht sich um. Zurück
+   * geradeaus kommt der Pilot mit einem Tipp auf den Blickstock, und solange
+   * sein Blick daneben steht, leuchtet der. Senkrecht bleibt der Anschlag
+   * (`TILT_MOST`), denn über den Scheitel hinaus steht das Bild auf dem Kopf.
    */
   private turnDroneView(yaw: number, pitch: number): void {
-    this.droneLook = Math.min(LOOK_MOST, Math.max(-LOOK_MOST, yaw));
+    this.droneLook = wrapAngle(yaw);
     this.dronePitch = Math.min(TILT_MOST, Math.max(-TILT_MOST, pitch));
     this.faceDrone();
   }

@@ -75,8 +75,14 @@ export const VAN_ID = 'van';
  * Und die **hintere** der beiden Vorplatzreihen, nicht die vordere: Aus der
  * vorderen steht die Hauswand anderthalb Meter vor der Linse, und ein Bild
  * ohne Tiefe ist dasselbe wie kein Bild.
+ *
+ * **Neben dem Tisch und nicht darüber.** Auf der Kachel daneben schwebte sie
+ * dem Tisch und seinen vier Monitoren direkt vor der Linse, und die füllten im
+ * ersten Bild des Piloten die halbe untere Hälfte — vier bunte Scheiben statt
+ * des Hauses, auf das er schauen soll. Eine Kachel weiter östlich steht der Van dort, wo er
+ * hingehört: am Rand des Bildes, als das, was hinter einem liegt.
  */
-export const DRONE_HOME = { x: 0, z: VAN_Z };
+export const DRONE_HOME = { x: 1, z: VAN_Z };
 
 /** Ob eine Kachel auf dem Vorplatz liegt — dort lädt der Scheinwerfer. */
 export function onApron(x: number, z: number): boolean {
@@ -223,10 +229,33 @@ export interface HouseTask {
   hint: string;
 }
 
+/**
+ * **Ein Fenster in der Außenwand** — die einzige Stelle, an der das Haus etwas
+ * von draußen hereinlässt.
+ *
+ * Es sitzt immer in der **Außenwand** und nie zwischen zwei Zimmern: Ein
+ * Fenster nach innen wäre eine zweite Sorte Tür, durch die man sieht, und
+ * damit ein Grundriss, den keine Station mehr beschreiben kann. Nach draußen
+ * ist es dagegen genau das, was diesem Haus gefehlt hat — von innen ein heller
+ * Fleck in einer schwarzen Wand, an dem man merkt, an welcher Seite des Hauses
+ * man steht, und von außen ein Haus, das aussieht wie eines.
+ */
+export interface HouseWindow {
+  id: string;
+  /** Das Zimmer dahinter. */
+  roomId: string;
+  /** Die Kachel im Zimmer, und in welche Richtung die Außenwand liegt. */
+  x: number;
+  z: number;
+  dir: Dir;
+}
+
 export interface HouseSpec {
   seed: number;
   rooms: HouseRoom[];
   doors: HouseDoor[];
+  /** Die Fenster in den Außenwänden — je Zimmer eines oder zwei. */
+  windows: HouseWindow[];
   /** Das Zimmer hinter der Haustür — dort steht man, wenn man hereinkommt. */
   entryRoom: string;
   /** Die Haustür selbst. */
@@ -265,11 +294,15 @@ export function generateHouse(seed: number): HouseSpec {
   const rooms = nameRooms(rng, rects);
   const { doors, entryRoom, frontDoor } = connect(rng, rooms);
   placeMarks(rng, rooms, doorTiles(doors));
+  // **Nach den Möbeln und nicht davor**: Ein Fenster hinter dem Bücherregal
+  // ist von innen nichts und von außen ein Rätsel, und welche Kachel ein Regal
+  // trägt, steht erst jetzt fest.
+  const windows = placeWindows(rng, rooms, doors);
   const fuse = placeFuse(rng, rooms, entryRoom);
   const tasks = placeTasks(rng, rooms, entryRoom);
   darkenOne(rng, rooms, entryRoom);
   const switches = buildPanel(rng, rooms, doors);
-  return { seed, rooms, doors, entryRoom, frontDoor, fuse, tasks, switches };
+  return { seed, rooms, doors, windows, entryRoom, frontDoor, fuse, tasks, switches };
 }
 
 // --- Grundriss --------------------------------------------------------------
@@ -573,6 +606,82 @@ function doorFrom(rng: Rng, rooms: readonly HouseRoom[], pair: Touching, index: 
     // schließen kann und die dann wirklich eine ist.
     material: rng.chance(0.18) ? 'metal' : 'wood',
   };
+}
+
+// --- Fenster ----------------------------------------------------------------
+
+/** Wie viele Fenster ein Zimmer höchstens in seine Außenwände bekommt. */
+const WINDOWS_MOST = 2;
+
+/** Und wie oft es das zweite wirklich bekommt. */
+const SECOND_WINDOW = 0.45;
+
+/**
+ * **Fenster nur nach draußen** — und deshalb gibt es sie erst, seit es ein
+ * Draußen gibt.
+ *
+ * Von innen ist ein Fenster der einzige Fleck, an dem in diesem Haus etwas
+ * anderes steht als Schwarz: das Abendlicht über dem Vorplatz, die Silhouette
+ * des Vans, der Himmel. Das ist mehr als Kulisse, es ist eine **Sprache mehr
+ * für den, der im Haus steht** — er kann sagen „ich sehe den Van", und der
+ * Späher weiß, an welcher Wand er klebt. Nach innen gäbe es das nicht: Zwei
+ * Zimmer mit Sichtverbindung wären ein Grundriss, den weder der Archivar noch
+ * der Späher noch beschreiben könnten.
+ *
+ * Zwei Sorten Kante bleiben frei: die der **Haustür** (zwei Öffnungen in
+ * derselben Kachelkante gibt es nicht) und jede, an der ein **Möbel mit dem
+ * Rücken steht** — ein Fenster hinter dem Bücherregal ist von innen nichts und
+ * von außen ein Rätsel.
+ */
+function placeWindows(
+  rng: Rng,
+  rooms: readonly HouseRoom[],
+  doors: readonly HouseDoor[],
+): HouseWindow[] {
+  const taken = new Set(doors.map((door) => edgeKey(door.x, door.z, door.dir)));
+  for (const room of rooms) {
+    for (const mark of room.marks) taken.add(edgeKey(mark.x, mark.z, mark.dir));
+  }
+
+  const out: HouseWindow[] = [];
+  for (const room of rooms) {
+    const free = outerEdges(room.rect).filter(
+      (edge) => !taken.has(edgeKey(edge.x, edge.z, edge.dir)),
+    );
+    if (free.length === 0) continue;
+    // Der Wurf fällt immer, auch wenn nur eine Kante übrig ist: Ein Würfel,
+    // der mal geworfen wird und mal nicht, baut aus demselben Samen zwei
+    // verschiedene Häuser, sobald jemand am Zuschnitt dreht.
+    const second = rng.chance(SECOND_WINDOW);
+    const want = Math.min(free.length, second ? WINDOWS_MOST : 1);
+    for (const edge of rng.shuffle(free).slice(0, want)) {
+      out.push({ id: `w${out.length}`, roomId: room.id, x: edge.x, z: edge.z, dir: edge.dir });
+    }
+  }
+  return out;
+}
+
+/** Eine Kachelkante als Zeichenkette — dieselbe Kante, derselbe Schlüssel. */
+function edgeKey(x: number, z: number, dir: Dir): string {
+  return `${x}:${z}:${dir}`;
+}
+
+/**
+ * Die Kanten eines Zimmers, die auf der **Außenwand des Hauses** liegen.
+ *
+ * Gefragt wird nach dem Haus und nicht nach dem Zimmer: Die Nordkante eines
+ * Zimmers mitten im Grundriss ist die Wand zum Nachbarn, und ein Fenster darin
+ * wäre eines nach nirgendwo.
+ */
+export function outerEdges(rect: Rect): Array<{ x: number; z: number; dir: Dir }> {
+  const out: Array<{ x: number; z: number; dir: Dir }> = [];
+  for (const tile of tilesOf(rect)) {
+    if (tile.z === HOUSE.z) out.push({ ...tile, dir: DIR_N });
+    if (tile.z === HOUSE.z + HOUSE.d - 1) out.push({ ...tile, dir: DIR_S });
+    if (tile.x === HOUSE.x) out.push({ ...tile, dir: DIR_W });
+    if (tile.x === HOUSE.x + HOUSE.w - 1) out.push({ ...tile, dir: DIR_E });
+  }
+  return out;
 }
 
 // --- Was sonst noch im Haus liegt ------------------------------------------

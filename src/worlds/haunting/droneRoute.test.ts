@@ -19,12 +19,17 @@ import {
   shortestTurn,
   stepAlong,
   tileAt,
+  wrapAngle,
+  DRONE_CAP,
   DRONE_HFOV,
+  DRONE_ROOF,
+  DRONE_Y,
   LAMP_FILL,
   LAMP_HOME,
   LAMP_LIFE,
   type DronePose,
 } from './droneRoute';
+import { PLAN_DOOR_H } from '../editor/levelPlan';
 import { wallState } from '../nav/navGraph';
 import { powerOf } from '../nav/navProfile';
 import { DIRS, TILE, neighbour, tileCentreX, tileCentreZ } from '../nav/navTile';
@@ -215,6 +220,33 @@ describe('Wie sie sich dreht', () => {
    * gerade falsch herum steht, die Ecke schneiden, und dann steckt sie in der
    * Wand. Hier steht sie zu Beginn genau verkehrt und kommt trotzdem an.
    */
+  /**
+   * **Umsehen geht ganz herum.**
+   *
+   * Der Blick des Piloten hatte lange einen Anschlag bei gut zwei Dritteln
+   * einer halben Umdrehung, und das war eine Drohne, die sich nicht umdrehen
+   * kann: Wer wissen will, ob hinter ihr etwas steht, kommt nicht hin. Jetzt
+   * dreht er durch — und dafür muss der Winkel im Kreis laufen und nicht auf
+   * einer Geraden. Ein Wert, der mit jedem Wisch weiterwächst, ist nach einer
+   * Minute eine Zahl, an der weder der leuchtende Blickstock noch der
+   * Empfänger im Haus etwas ablesen kann.
+   */
+  it('wickelt jeden Blickwinkel auf eine halbe Umdrehung zurück', () => {
+    expect(wrapAngle(0)).toBeCloseTo(0, 6);
+    expect(wrapAngle(Math.PI * 0.9)).toBeCloseTo(Math.PI * 0.9, 6);
+    // Einmal ganz herum ist wieder geradeaus, und nicht 6,28.
+    expect(wrapAngle(Math.PI * 2)).toBeCloseTo(0, 6);
+    // Und knapp darüber hinaus kommt der Blick von der anderen Seite zurück.
+    expect(wrapAngle(Math.PI * 1.2)).toBeCloseTo(-Math.PI * 0.8, 6);
+    expect(wrapAngle(-Math.PI * 1.2)).toBeCloseTo(Math.PI * 0.8, 6);
+    for (const turns of [-9, -3.5, -1, 2.25, 7]) {
+      const yaw = wrapAngle(turns * Math.PI);
+      expect(Math.abs(yaw)).toBeLessThanOrEqual(Math.PI + 1e-9);
+      // Derselbe Winkel, nur kurz aufgeschrieben: Die Drehung dorthin ist null.
+      expect(shortestTurn(yaw, turns * Math.PI)).toBeCloseTo(0, 6);
+    }
+  });
+
   it('kommt auch aus einer 180°-Wende beim ersten Wegpunkt an', () => {
     const plan = housePlan(spec);
     const entry = roomOf(spec, spec.entryRoom) ?? spec.rooms[0]!;
@@ -230,6 +262,32 @@ describe('Wie sie sich dreht', () => {
     for (let i = 0; i < 120; i++) stepAlong(pose, route, 1 / 60);
     expect(routeLength(pose, route)).toBeLessThan(before);
     expect(tileAt(pose.x, pose.z)).not.toBe(goalOf(entry));
+  });
+});
+
+/**
+ * **Wie hoch sie fliegt — und dass sie damit durch eine Tür passt.**
+ *
+ * Sie hing auf 2,15 m, und der Türsturz sitzt auf 2,10 m: Im Bild des Piloten
+ * schob sich bei jeder Tür ein Balken von oben herein, und im Haus flog eine
+ * Drohne durch den Rahmen statt hindurch. Die Zahl ist deshalb keine mehr,
+ * sondern folgt der Tür — und ein Test hält das fest, weil man einer Zahl
+ * nicht ansieht, dass sie fünf Zentimeter im Sturz steckt. Man sieht es erst
+ * in der Brille, und dann sucht man den Fehler bei der Decke.
+ */
+describe('Die Flughöhe der Drohne', () => {
+  it('passt mit Kuppel und allem unter jeden Türsturz', () => {
+    expect(DRONE_Y + DRONE_CAP).toBeLessThan(PLAN_DOOR_H);
+  });
+
+  it('bleibt trotzdem deutlich über Augenhöhe', () => {
+    // Der Grund, aus dem sie überhaupt hoch fliegt: Auf Augenhöhe steht im
+    // Bild eine Stuhllehne vor dem halben Zimmer.
+    expect(DRONE_Y).toBeGreaterThan(1.75);
+  });
+
+  it('bleibt unter der Decke', () => {
+    expect(DRONE_Y + DRONE_CAP).toBeLessThan(DRONE_ROOF);
   });
 });
 

@@ -80,9 +80,16 @@ Van vor vier Geräten:
 - **Drohne** — fliegt auf Zimmer, die man antippt, und zeigt eins vollständig.
   Sie macht keine Tür auf und wechselt das Zimmer nur alle paar Sekunden; ihr
   Scheinwerfer leuchtet auch für den im Haus und lädt sich wieder auf, während
-  er aus ist. Das Bild antippen zeigt es groß, wischen sieht sich um.
+  er aus ist. Das Bild antippen zeigt es groß, wischen sieht sich um — **ganz
+  herum**, und ein Tipp auf den Blickstock stellt wieder geradeaus. Beim
+  Losfliegen schaut sie von selbst wieder nach vorn.
 - **Schalttafel** — Licht, Türen, Radios. Ohne Grundriss, mit Beschriftungen
   wie `Wohnzimmer`, `Tür 2` und `X`.
+
+Draußen ist Abend: Vor dem Haus stehen der Van mit dem Tisch, vier Plätzen und
+dem Ring, auf dem die Drohne startet — dort fängt auch der VR-Spieler an. Das
+Haus hat Fenster in den Außenwänden; von drinnen sind sie das Einzige, was im
+Dunkeln nicht schwarz ist.
 
 Das Haus wird je Runde gewürfelt und entsteht aus **einem Samen** auf jedem
 Gerät neu — über die Leitung geht deshalb kein Bild, sondern eine Zahl. Die
