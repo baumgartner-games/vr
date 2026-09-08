@@ -52,7 +52,8 @@ Kopftreffer vierfach; getroffen wird der Körper, den man sieht, und wer
 nachsehen will, schaltet die **Trefferzonen** im Menü ein — und jede Sorte
 liest dieselbe Karte mit ihren eigenen Beinen: Was der eine hochspringt, ist
 für den anderen eine Wand, und wer den Sturz nicht überlebt, bleibt oben
-stehen) und
+stehen — und durch ein **Portal** fallen sie wie jede Kiste: halb hier, halb
+drüben, und aus einem Sturz ins Bodenportal wird der Schwung aus der Wand) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
 steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
@@ -131,7 +132,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 Jest testet die reine Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
-Spiegelung beider Hüften, die Portaltiefe, die Grafikstufen, das Aussehen,
+Spiegelung beider Hüften, die Portaltiefe, den Durchtritt durch ein Portal, die Grafikstufen, das Aussehen,
 den Ausschnitt der Karte in der Hand, die Lichtstufen
 des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
 dazu, die **Federung der Sprungkissen** (dass ein Sturz aus sieben Metern nicht

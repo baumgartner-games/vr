@@ -14,6 +14,7 @@ import {
 import { PortalRenderer } from './PortalRenderer';
 import { nextPortalDepth, portalDepth, savePortalDepth } from './portalDepth';
 import { PortalGhosts } from './PortalGhosts';
+import { crossPoint } from './portalCrossing';
 import { ToolBelt, type BeltSlot } from './ToolBelt';
 import {
   DEFAULT_BELT,
@@ -149,6 +150,7 @@ import {
   disposeTree,
 } from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
+import type { Npc } from '../npc/Npc';
 import { SignRoom, type SignControl } from '../signs/SignRoom';
 import {
   FONT_STEPS,
@@ -920,6 +922,11 @@ export class PortalWorld implements World {
   protected context: WorldContext | null = null;
   private portalRenderer: PortalRenderer | null = null;
   private ghosts: PortalGhosts | null = null;
+  /**
+   * Wer davon gerade ein Abbild hat (`updateGhosts`) — die Schlüssel derer,
+   * die im letzten Bild angemeldet waren.
+   */
+  private npcGhosts = new Set<string>();
   private clippingWasEnabled = false;
   private hasPreviousHead = false;
   private time = 0;
@@ -1026,7 +1033,7 @@ export class PortalWorld implements World {
     this.sync?.update(dt);
 
     this.updateNavTracks(dt);
-    this.updatePropPhasing();
+    this.updatePhasing();
     // Vor dem Schritt und nicht danach: was gerade in die Zone geflogen ist,
     // soll in demselben Schritt schweben und nicht erst im nächsten fallen.
     this.updateFloatZone();
@@ -1050,6 +1057,7 @@ export class PortalWorld implements World {
     }
     this.physics.sync();
     this.traverseProps();
+    this.traverseNpcs();
     this.traversePlayer(ctx);
     this.updatePortalDepth(ctx);
     this.updateAim(ctx);
@@ -3338,6 +3346,7 @@ export class PortalWorld implements World {
     // Ghosts hand the originals their real materials back, so they go first.
     this.ghosts?.dispose();
     this.ghosts = null;
+    this.npcGhosts.clear();
     ctx.renderer.localClippingEnabled = this.clippingWasEnabled;
 
     this.portalRenderer?.dispose();
@@ -7172,6 +7181,25 @@ export class PortalWorld implements World {
       ghosts.track(propKey(entry), entry.object, entry.halfExtents.length());
     }
 
+    // **Auch wer herumläuft, wird geschnitten und gespiegelt.** Ohne das
+    // verschwindet ein Zombie, der zur Hälfte im Portal steht, in der Wand und
+    // taucht drüben erst wieder auf, wenn er ganz durch ist — genau der
+    // Sprung, den ein Portal nicht machen soll. Der Bestand wechselt (einer
+    // fällt, einer kommt aus dem Käfig), deshalb wird die Liste der
+    // Angemeldeten jedes Bild abgeglichen: Wer nicht mehr dabei ist, wird
+    // abgemeldet, sonst bliebe sein Abbild vor dem Ausgang stehen.
+    const walkers = new Set<string>();
+    for (const npc of this.director?.crowd ?? []) {
+      if (!npc.solid) continue;
+      const key = npcKey(npc);
+      walkers.add(key);
+      ghosts.track(key, npc.holder, npc.entry.halfExtents.length());
+    }
+    for (const key of this.npcGhosts) {
+      if (!walkers.has(key)) ghosts.untrack(key);
+    }
+    this.npcGhosts = walkers;
+
     ghosts.update([this.portalBlue, this.portalRed]);
   }
 
@@ -7315,12 +7343,28 @@ export class PortalWorld implements World {
     return this.funnelMask(_point, _head);
   }
 
-  private updatePropPhasing(): void {
+  /**
+   * **Wer gerade durch eine Wand darf** — Kisten und die, die herumlaufen.
+   *
+   * Das ist die Voraussetzung für alles Weitere: Ein Portal ist ein Bild an
+   * einer Wand, und die Wand bleibt fest. Ohne diese Zeilen stößt ein Zombie
+   * vor dem Portal gegen den Beton, in dem es hängt, und zappelt dort, bis
+   * jemand ihn wegräumt — man sieht das Loch, er läuft dagegen.
+   */
+  private updatePhasing(): void {
     const physics = this.physics!;
     for (const entry of this.props) {
       const t = entry.body.translation();
       _probe.set(t.x, t.y, t.z);
       physics.setPhasing(entry, this.funnelMask(_probe));
+    }
+    // Der Zylinder eines NPC ist in der Physik eine Kiste wie jede andere, und
+    // er wird hier genauso behandelt. Gemessen wird an seiner **Mitte**: ein
+    // Portal in einer Wand hängt auf Brusthöhe, und wer die Füße nähme, ließe
+    // ihn einen halben Körper zu tief hineinlaufen (`Npc.center`).
+    for (const npc of this.director?.crowd ?? []) {
+      if (!npc.solid) continue;
+      physics.setPhasing(npc.entry, this.funnelMask(npc.center(_probe)));
     }
   }
 
@@ -7341,12 +7385,7 @@ export class PortalWorld implements World {
       for (const portal of [this.portalBlue, this.portalRed]) {
         const transform = portal.getTraversalMatrix(_matrix);
         if (!transform) continue;
-        const before = portal.signedDistance(entry.previousPosition);
-        const after = portal.signedDistance(_point);
-        if (before <= 0 || after > 0) continue;
-        const t0 = before / (before - after);
-        _cross.lerpVectors(entry.previousPosition, _point, t0);
-        if (!portal.isInOpening(_cross, 1.05)) continue;
+        if (!crossPoint(portal, entry.previousPosition, _point, _cross)) continue;
 
         _rotation.setFromRotationMatrix(_rotationMatrix.extractRotation(transform));
         _point.applyMatrix4(transform);
@@ -7370,6 +7409,35 @@ export class PortalWorld implements World {
       }
 
       entry.previousPosition.copy(_point);
+    }
+  }
+
+  /**
+   * **Und dasselbe für die, die herumlaufen.**
+   *
+   * Ein NPC ist ein dynamischer Körper, kein Character Controller: Er fällt
+   * durch ein Bodenportal von selbst, sobald die Wand ihn lässt
+   * (`updatePhasing`). Was ihm fehlt, ist die andere Seite — ohne diese Zeilen
+   * fällt er durch das Loch und dahinter einfach weiter, bis der Regisseur ihn
+   * unter der Welt einsammelt.
+   *
+   * Gerechnet wird mit derselben Strecke wie bei den Kisten: von da, wo er im
+   * letzten Bild stand, bis dahin, wo er jetzt steht. Wer in einem Bild ganz
+   * hindurchfliegt — und geworfen wird ein Zombie durchaus —, wird nur so
+   * erwischt (`portalCrossing.ts`).
+   */
+  private traverseNpcs(): void {
+    for (const npc of this.director?.crowd ?? []) {
+      if (!npc.solid) continue;
+      npc.center(_point);
+      for (const portal of [this.portalBlue, this.portalRed]) {
+        const transform = portal.getTraversalMatrix(_matrix);
+        if (!transform) continue;
+        if (!crossPoint(portal, npc.entry.previousPosition, _point, _cross)) continue;
+        npc.warp(transform);
+        break;
+      }
+      npc.center(npc.entry.previousPosition);
     }
   }
 
@@ -7901,6 +7969,11 @@ function toolHalfExtents(tool: Tool, target: THREE.Vector3): THREE.Vector3 {
 
 function propKey(entry: PhysicsBody): string {
   return `prop:${entry.object.uuid}`;
+}
+
+/** Derselbe Gedanke für einen, der herumläuft: seine Gruppe ist sein Name. */
+function npcKey(npc: Npc): string {
+  return `npc:${npc.holder.uuid}`;
 }
 
 /** Highlight for props within reach, or `null` to put the original glow back. */
