@@ -15,7 +15,7 @@ import {
   type Dir,
 } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools';
-import { playSwitch } from '../../core/Audio';
+import { playSlam, playSwitch } from '../../core/Audio';
 import { pickHost } from '../../net/host';
 import {
   generateHouse,
@@ -49,6 +49,7 @@ import {
   type DroneRoute,
   type DroneStatus,
 } from './droneRoute';
+import { flickerLevel, freshSpook, stepHaunt, type Spook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import { buildMark } from './marks';
 import { rollSeed } from './rng';
@@ -208,6 +209,9 @@ const SHOW_SKY = 0x9dc0e4;
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 const REACH = 1.1;
 
+/** Wie hell eine brennende Zimmerlampe ist, wenn niemand an ihr rüttelt. */
+const LAMP_ON = 22;
+
 /** Die Lampe eines Zimmers: das Licht und das Glas, das zeigt, dass es an ist. */
 interface Lamp {
   light: THREE.PointLight;
@@ -246,6 +250,16 @@ export class HauntingWorld extends GridWorld {
 
   /** Das Monster, solange es eines gibt — nur beim Gastgeber ein echter NPC. */
   private monster: Npc | null = null;
+  /**
+   * **Was das Monster gerade anstellt** (`haunt.ts`).
+   *
+   * Die Zustandsmaschine läuft bei **allen** und nicht nur beim Gastgeber:
+   * Aus ihr kommt das Flackern der Lampe, und das soll jeder sehen, ohne dass
+   * es jemand ansagt. Angewendet — Licht aus, Tür zu — wird trotzdem nur beim
+   * Gastgeber; bei allen anderen fällt das Ergebnis auf den Boden, und der
+   * Stand kommt eine Viertelsekunde später ohnehin über die Leitung.
+   */
+  private spook: Spook = freshSpook();
   /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
   private blob: THREE.Object3D | null = null;
 
@@ -427,8 +441,12 @@ export class HauntingWorld extends GridWorld {
   private hostId = '';
   private sendTimer = 0;
   private droneTimer = 0;
-  /** Woran erkannt wird, dass sich an den Türen etwas geändert hat. */
-  private builtDoors = '';
+  /**
+   * Woran erkannt wird, dass sich an den Türen etwas geändert hat — und das
+   * Fragezeichen heißt „noch nie gebaut". Es unterscheidet den ersten Aufbau
+   * von einer Tür, die zufällt: Nur die zweite macht ein Geräusch.
+   */
+  private builtDoors = '?';
   private carried: string[] = [];
 
   // --- die Welt ------------------------------------------------------------
@@ -1164,7 +1182,12 @@ export class HauntingWorld extends GridWorld {
       this.checkItems(ctx);
     }
 
+    this.stepSpook(dt);
     this.applyDoors();
+    // **Das Licht wird je Bild gesetzt und nicht je Änderung**, seit es
+    // flackert: Eine Lampe, die nur beim Umlegen eines Schalters angefasst
+    // wird, zuckt nicht. Sieben Lampen je Bild kosten nichts.
+    this.applyLights();
     this.applyBlob();
     this.flyDrone(dt);
 
@@ -1263,15 +1286,14 @@ export class HauntingWorld extends GridWorld {
     if (next.seed !== this.spec.seed) {
       this.spec = generateHouse(next.seed);
       this.state = next;
+      this.spook = freshSpook();
       this.grid?.replaceWith(housePlan(this.spec, new Set(next.shut)));
       this.builtDoors = next.shut.join(',');
       this.buildHouse();
       this.parkDrone();
-      this.applyLights();
       return;
     }
     this.state = next;
-    this.applyLights();
     this.showItems();
   }
 
@@ -1372,7 +1394,6 @@ export class HauntingWorld extends GridWorld {
       const at = list.indexOf(entry.target);
       if (on && at < 0) list.push(entry.target);
       if (!on && at >= 0) list.splice(at, 1);
-      this.applyLights();
       return;
     }
     // Türen: `on` heißt offen, und die Liste führt die geschlossenen.
@@ -1397,19 +1418,87 @@ export class HauntingWorld extends GridWorld {
   private applyDoors(): void {
     const now = this.state.shut.join(',');
     if (now === this.builtDoors) return;
+    const before = this.builtDoors;
     this.builtDoors = now;
     const shut = new Set(this.state.shut);
     for (const door of this.spec.doors) {
       this.grid?.door(door.x, door.z, door.dir, 0, !shut.has(door.id));
     }
+    this.hearSlam(before, shut);
   }
 
+  /**
+   * **Eine Tür, die zufällt, macht ein Geräusch — aber nur im Haus.**
+   *
+   * Im Van bleibt es still, und das ist keine Sparsamkeit: Der Hacker legt
+   * seine Schalter blind um, und ein Schlag im Lautsprecher sagte ihm, dass
+   * gerade *irgendwo* eine Tür zugefallen ist — geschenkt und ohne Zuruf.
+   * Genau das ist die Sorte Auskunft, die diese Welt keiner Station umsonst
+   * gibt (`stations.ts`). Der im Haus dagegen soll es hören: Es ist das
+   * Einzige, was ihm sagt, dass das Monster eben an einer Tür vorbeigekommen
+   * ist, ohne dass er es gesehen hat.
+   *
+   * Beim allerersten Aufbau schweigt es (`builtDoors` steht dann auf `?`):
+   * Wer in eine laufende Runde kommt, in der schon eine Tür zu ist, hat sie
+   * nicht zufallen hören.
+   */
+  private hearSlam(before: string, shut: ReadonlySet<string>): void {
+    if (before === '?' || this.context?.role !== 'vr') return;
+    const had = new Set(before ? before.split(',') : []);
+    for (const id of shut) {
+      if (had.has(id)) continue;
+      playSlam();
+      return;
+    }
+  }
+
+  /**
+   * **Der Spuk: bei allen gerechnet, nur beim Gastgeber angewendet.**
+   *
+   * Gerechnet wird er überall, weil aus ihm das Flackern kommt und ein Zucken,
+   * das jedes Gerät für sich aus derselben Monsterposition ableitet, keine
+   * einzige Nachricht kostet. Angewendet — Licht aus, Tür zu — wird er beim
+   * Gastgeber, und von dort kommt er als ganz gewöhnlicher Stand zurück: Für
+   * den Hacker sieht ein Licht, das das Monster ausgemacht hat, aus wie eines,
+   * das jemand ausgemacht hat. Genau so soll es sein.
+   */
+  private stepSpook(dt: number): void {
+    const out = stepHaunt(
+      this.spook,
+      {
+        spec: this.spec,
+        monster: this.state.monsterOn ? this.state.monster : null,
+        lit: this.state.lit,
+        shut: this.state.shut,
+      },
+      dt,
+    );
+    this.spook = out.spook;
+    if (!this.isHost) return;
+
+    const lit = this.state.lit.indexOf(out.lightOut);
+    if (out.lightOut && lit >= 0) this.state.lit.splice(lit, 1);
+    if (out.doorShut && !this.state.shut.includes(out.doorShut)) {
+      this.state.shut.push(out.doorShut);
+    }
+  }
+
+  /**
+   * Die Lampen, wie sie **jetzt** brennen — samt dem Zucken der einen, in
+   * deren Zimmer das Monster steht (`haunt.flickerLevel`).
+   *
+   * Das Glas geht denselben Weg wie das Licht: Eine Kugel, die in voller
+   * Helligkeit weiterleuchtet, während der Raum darunter blinkt, sieht aus
+   * wie ein Fehler in der Beleuchtung und nicht wie eine Lampe, die gleich
+   * ausgeht.
+   */
   private applyLights(): void {
     const lit = new Set(this.state.lit);
     for (const [roomId, lamp] of this.lamps) {
       const on = lit.has(roomId);
-      lamp.light.intensity = on ? 22 : 0;
-      lamp.glass.material.color.copy(on ? _lampOn : _lampOff);
+      const glow = on && roomId === this.spook.room ? flickerLevel(this.spook.since) : 1;
+      lamp.light.intensity = on ? LAMP_ON * glow : 0;
+      lamp.glass.material.color.lerpColors(_lampOff, _lampOn, on ? glow : 0);
     }
   }
 
@@ -2166,6 +2255,9 @@ export class HauntingWorld extends GridWorld {
 
   private toggleMonster(): void {
     this.state.monsterOn = !this.state.monsterOn;
+    // Der Spuk fängt bei null an: Wer das Monster einschaltet, soll nicht in
+    // derselben Sekunde im Dunkeln stehen (`haunt.freshSpook`).
+    this.spook = freshSpook();
     if (!this.state.monsterOn) {
       this.director?.clear();
       this.monster = null;
@@ -2196,6 +2288,7 @@ export class HauntingWorld extends GridWorld {
     }
     this.director?.clear();
     this.monster = null;
+    this.spook = freshSpook();
     this.spec = generateHouse(rollSeed());
     this.state = freshState(this.spec.seed);
     this.carried = [];
@@ -2203,7 +2296,6 @@ export class HauntingWorld extends GridWorld {
     this.builtDoors = '';
     this.buildHouse();
     this.parkDrone();
-    this.applyLights();
     this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
     this.announce('Neues Haus. Alle im Van fangen von vorn an.');
     this.context?.menu.refresh();

@@ -133,6 +133,19 @@ export function playPop(): void {
   playTone({ type: 'sawtooth', from: 2800, to: 1600, duration: 0.55, gain: 0.012, delay: 0.04 });
 }
 
+/**
+ * **Eine Tür, die zufällt** — der Schlag im Rahmen und das Holz, das nachhallt.
+ *
+ * Tiefer und länger als der Schalter darunter, und das ist der ganze Zweck:
+ * Wer im Haunting-Haus im Dunkeln steht, hört daran, dass das Monster eben an
+ * einer Tür vorbeigekommen ist — ein Geräusch, das man weitersagen kann, ohne
+ * etwas gesehen zu haben.
+ */
+export function playSlam(): void {
+  playTone({ type: 'square', from: 180, to: 60, duration: 0.09, gain: 0.09 });
+  playTone({ type: 'triangle', from: 90, to: 40, duration: 0.32, gain: 0.06, delay: 0.02 });
+}
+
 /** A light switch, a torch: the plastic click, up and down. */
 export function playSwitch(on: boolean): void {
   playTone({

@@ -927,6 +927,24 @@ export class StationUi {
       ),
     );
 
+    /**
+     * **Der Hacker muss wissen, dass ihm jemand dazwischenfunkt** — sonst hält
+     * er einen Schalter, der von allein umspringt, für einen kaputten Schalter
+     * und hört auf, ihm zu trauen. Wo das Monster steht, geht das Licht aus
+     * und fällt eine Tür zu (`haunt.ts`); rückgängig machen kann das genau
+     * einer, und der sitzt hier. Wo es steht, sagt ihm die Zeile aber nicht:
+     * Das weiß der Späher, und dafür muss geredet werden.
+     */
+    if (state.monsterOn) {
+      out.push(
+        note(
+          'live',
+          'Es macht dir die Arbeit kaputt',
+          'Wo das Monster steht, flackert das Licht und geht aus, und eine Tür daneben fällt zu. Was von allein umspringt, war nicht dein Finger — und zurückdrehen kann es nur diese Tafel.',
+        ),
+      );
+    }
+
     out.push(head('Tafel', `${list.length} Schalter`));
     const grid = el('div', 'haunt__switches');
     for (const entry of list) {

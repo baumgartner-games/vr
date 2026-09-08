@@ -111,7 +111,17 @@ und dabei im Kreis läuft statt weiterzuwachsen), die **Fenster des
 Haunting-Hauses** (`src/worlds/haunting/house.ts` — dass jedes in einer
 Außenwand sitzt und keines in einer Tür oder hinter einem Möbel, und dass es
 im Graphen aufhält wie eine Wand: durch ein Fenster geht niemand nach
-draußen), der
+draußen) und die **Türen desselben Hauses** (dass **kein Zimmer nur eine**
+hat, die Haustür mitgezählt — eine Sackgasse ist die Stelle, an der ein
+Verfolger einen wirklich stellt und eine zugefallene Tür jemanden einsperrt;
+dazu die Gegenprobe auf den Zuschnitt, weil zwei Türen zwei Nachbarn
+brauchen), der **Spuk des Monsters**
+(`src/worlds/haunting/haunt.ts` — dass es das Licht des Zimmers ausmacht, in
+dem es steht, und keines daneben; dass es erst die Lampe holt und dann eine
+Tür; dass es nach jedem Streich Ruhe hält — und vor allem die eine Zusage, an
+der eine ganze Runde hängt: Es steht auf **jeder Kachel** des Hauses und wirft
+zu, was es zuwerfen kann, und danach kommt man von der Haustür immer noch in
+jedes Zimmer), der
 **Ausschnitt des Haunting-Archivars** (`src/worlds/haunting/archiveView.ts` —
 dass im ganzen Blatt gar nicht verschoben wird, dass der Ausschnitt genau bis
 an den Blattrand wandert und beim Herauszoomen wieder hereingezogen wird: die
@@ -1939,8 +1949,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   kennt. Dazu ein **Fernseher** für die, die nur zusehen: das ganze Haus von
   schräg oben, bei Tag, ohne einen einzigen Knopf. Der VR-Spieler hat als Einziger Hände, alle anderen haben Wissen, und
   niemand kann dem anderen eine Koordinate sagen. Das Monster ist **aus**, bis
-  die Brille es einschaltet. Ausführlich: _Haunting: einer im Haus, die anderen
-  im Van_.
+  die Brille es einschaltet — und wo es steht, flackert das Licht und fällt
+  eine Tür zu, was nur die Schalttafel zurückdrehen kann. Ausführlich:
+  _Haunting: einer im Haus, die anderen im Van_.
 - **Kletterhalle** (experimentell): die Welt, in der der **Greifknopf etwas
   anderes tut**. Überall sonst nimmt Greifen ein Ding in die Hand; hier hängt
   es den ganzen Spieler an die Wand. Von Griff zu Griff geführt wird dabei
@@ -7617,6 +7628,18 @@ träfe dann auf sieben Zimmer zu. Also:
 - **Die Aufgabe zeigt auf ein Merkmal und nicht auf ein Zimmer**: „Das
   Fotoalbum liegt bei dem Klavier" kann man weitersagen, eine Kachelkoordinate
   nicht.
+- **Kein Zimmer mit nur einer Tür** (`DOORS_LEAST`, mit Test). Der Baum, der
+  jedes Zimmer erreichbar macht, hat Blätter, und ein Blatt ist eine
+  Sackgasse: die Stelle, an der ein Verfolger einen wirklich stellt, die der
+  Späher nicht beschreiben kann, weil sie aussieht wie jede andere Kammer —
+  und seit das Monster Türen zuwirft die, an der eine einzige zugefallene Tür
+  jemanden einsperrt. Der zweite Durchgang macht deshalb jedem Zimmer eine
+  zweite Tür auf, und **nur** denen, die eine brauchen: Ein Haus, in dem jede
+  Wand eine Tür hat, ist ein Regal. Die Rundwege, die es vorher gewürfelt gab,
+  fallen dabei von selbst an — wer einem Baum eine Kante hinzufügt, schließt
+  einen Kreis. Zwei Türen setzen zwei Nachbarn voraus; ein Zuschnitt mit einem
+  eingeklemmten Zimmer wird verworfen und neu gewürfelt (`SPLIT_TRIES`),
+  weil dagegen keine Tür hilft, sondern nur ein anderer Grundriss.
 - Ein Zimmer im Haus hat **keine Lampe** und bleibt auf jeder Stufe dunkel.
 - **Jedes Zimmer bekommt ein Fenster nach draußen**, eines oder zwei, nie
   zwischen zwei Zimmern. Es ist die einzige Stelle, an der im Dunkeln etwas
@@ -7661,6 +7684,40 @@ den Nacken atmet. Die Entscheidung, ob es gruselig wird, trifft der, dem es
 passiert. Läuft irgendwo ein **Radio**, geht der Verfolger dorthin statt zum
 Spieler — dafür gibt es den Haken `PortalWorld.npcTarget`, und er ist der
 einzige Hebel, den der Hacker überhaupt auf das Monster hat.
+
+**Und wo das Monster steht, geht das Haus kaputt** (`haunting/haunt.ts`, mit
+Test). Vorher war es ein Verfolger und sonst nichts: Es lief einem hinterher,
+und das Haus stand still darum herum — der Hacker legte einmal Licht an, einmal
+eine Tür zu, und danach war seine Tafel ein Zustand und kein Spiel. Jetzt
+flackert die Lampe des Zimmers, in dem es steht, und geht aus; kommt es an
+einer Tür vorbei, fällt sie zu. **Das ist die Arbeit, die den Hacker braucht:**
+Alles, was das Monster anstellt, kann genau eine Rolle zurückdrehen, und die
+sieht nicht, wo ihre Schalter hingehen. Vier Entscheidungen darin:
+
+- **Das Flackern ist ehrlich und kostet nichts.** Eine Lampe zuckt genau dann,
+  wenn das Monster in ihrem Zimmer steht, und zuckt tiefer, je näher das Aus
+  kommt — für den VR-Spieler die einzige Warnung, die er ohne den Van bekommt.
+  Weil es nur an der Monsterposition hängt, die ohnehin über die Leitung geht,
+  rechnet **jedes Gerät dieselbe Zustandsmaschine selbst** und schickt dafür
+  kein Byte; angewendet — Licht aus, Tür zu — wird sie nur beim Gastgeber.
+- **Niemand wird eingesperrt.** Die Haustür fällt nie zu, und eine Tür fällt
+  nur zu, wenn man danach von der Haustür aus immer noch in jedes Zimmer kommt
+  (`sealsOff`). Ein Monster, das einen in einer Kammer einmauert, deren
+  Schalter hinter dem Sicherungskasten liegt, spielt nicht gegen die Gruppe,
+  sondern beendet ihren Abend. Zusammen mit den zwei Türen je Zimmer ist das
+  die Zusage, auf der der ganze Spuk steht.
+- **Erst das Licht, dann die Tür.** Ein Monster, das im hellen Zimmer die Tür
+  zuwirft, verrät sich zweimal. Erst wird es dunkel, und dann hört man etwas,
+  das man nicht mehr sieht.
+- **Der Schlag ist nur im Haus zu hören** (`HauntingWorld.hearSlam`). Im Van
+  bleibt es still: Ein Geräusch im Lautsprecher sagte dem Hacker geschenkt,
+  dass gerade irgendwo eine Tür zugefallen ist, und das ist die Sorte Auskunft,
+  die diese Welt keiner Station umsonst gibt.
+
+Für den Hacker steht das auch auf seiner Tafel (`hackPage`), sobald das Monster
+läuft — sonst hält er einen Schalter, der von allein umspringt, für einen
+kaputten und hört auf, ihm zu trauen. Wo es steht, sagt die Zeile ihm nicht;
+das weiß der Späher, und dafür muss geredet werden.
 
 **Die Drohne macht keine Tür auf** (`DRONE_PROFILE` in `haunting/plan.ts`, mit
 Test). Sie fliegt über jedes Möbel hinweg, aber wo sie hinkommt, hängt daran,

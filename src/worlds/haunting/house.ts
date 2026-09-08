@@ -313,6 +313,18 @@ const MIN_SIDE = 2;
 const ROOM_RANGE = [6, 7] as const;
 
 /**
+ * **Wie oft ein Zuschnitt neu gewürfelt wird**, wenn in ihm ein Zimmer mit nur
+ * einem einzigen Nachbarn steht.
+ *
+ * Zwei Türen bekommt ein Zimmer nur, wenn es zwei Nachbarn hat — gegen ein
+ * eingeklemmtes Zimmer, das an nichts als eine einzige Wand grenzt, hilft
+ * keine Tür, sondern nur ein anderer Zuschnitt. Es ist selten (unter einem
+ * halben Prozent der Häuser), und deshalb ist Neuwürfeln hier billiger und
+ * ehrlicher als eine Reparatur, die den Grundriss verbiegt.
+ */
+const SPLIT_TRIES = 6;
+
+/**
  * **Der Grundriss entsteht durch Teilen und nicht durch Setzen.**
  *
  * Ein Rechteck wird so lange in zwei zerschnitten, bis genug Zimmer da sind.
@@ -320,8 +332,28 @@ const ROOM_RANGE = [6, 7] as const;
  * kann, was hinterher jemandem auffiele: keine Löcher, keine Überlappungen,
  * kein Zimmer ohne Fläche. Was ein Setz-Generator mit Prüfschleifen erkaufen
  * müsste, ist hier eine Eigenschaft des Verfahrens.
+ *
+ * Was das Verfahren **nicht** von selbst mitbringt, ist der zweite Nachbar
+ * (`SPLIT_TRIES`): Ein Zuschnitt, in dem ein Zimmer nur an ein einziges
+ * anderes grenzt, wird verworfen und neu gewürfelt.
  */
 function splitRooms(rng: Rng, outer: Rect): Rect[] {
+  let rects = cutUp(rng, outer);
+  for (let tries = 1; tries < SPLIT_TRIES && lonely(rects); tries++) rects = cutUp(rng, outer);
+  return rects;
+}
+
+/** Ob ein Zimmer des Zuschnitts weniger Nachbarn hat, als es Türen braucht. */
+function lonely(rects: readonly Rect[]): boolean {
+  return rects.some(
+    (rect) =>
+      rects.filter((other) => other !== rect && shared(rect, other).length > 0).length <
+      DOORS_LEAST,
+  );
+}
+
+/** Ein Anlauf: teilen, bis genug Zimmer da sind. */
+function cutUp(rng: Rng, outer: Rect): Rect[] {
   const want = rng.between(ROOM_RANGE[0], ROOM_RANGE[1]);
   let rects: Rect[] = [{ ...outer }];
 
@@ -500,13 +532,33 @@ interface Touching {
 }
 
 /**
- * **Erst ein Baum, dann ein paar Abkürzungen.**
+ * **Wie viele Türen ein Zimmer mindestens hat** — die Haustür zählt mit.
+ *
+ * Zwei, und das ist die Zahl, an der die halbe Welt hängt. Ein Zimmer mit
+ * genau einer Tür ist eine Sackgasse, und eine Sackgasse ist hier drei Sachen
+ * auf einmal: die Stelle, an der ein Verfolger einen wirklich stellt (man
+ * kommt an ihm nicht vorbei); die Stelle, die der Späher nicht beschreiben
+ * kann, weil sie aussieht wie jede andere Kammer; und seit das Monster Türen
+ * zuwirft die Stelle, an der eine einzige zugefallene Tür jemanden einsperrt.
+ * Mit zwei Türen ist jedes Zimmer ein **Durchgang**: Man kann hindurch,
+ * herumlaufen und ausweichen, und der Grundriss hat von selbst Rundwege.
+ */
+const DOORS_LEAST = 2;
+
+/**
+ * **Erst ein Baum, dann die Sackgassen auf.**
  *
  * Der Baum garantiert, dass jedes Zimmer erreichbar ist — die Sorte Fehler,
  * die man sonst erst bemerkt, wenn jemand zwanzig Minuten lang eine Tür sucht,
- * die es nicht gibt. Die Abkürzungen danach machen aus dem Baum ein Haus: Ein
- * Grundriss ohne einen einzigen Rundweg ist ein Schlauch, und in einem
- * Schlauch kann man einem Verfolger nicht ausweichen.
+ * die es nicht gibt. Er hat aber Blätter, und ein Blatt ist ein Zimmer mit
+ * einer einzigen Tür. Der zweite Durchgang macht deshalb jedem Zimmer eine
+ * zweite auf (`DOORS_LEAST`), und **nur** denen, die eine brauchen: Ein Haus,
+ * in dem jede Wand eine Tür hat, ist ein Regal.
+ *
+ * Die Rundwege, die es vorher gewürfelt gab, fallen damit von selbst an — wer
+ * einem Baum eine Kante hinzufügt, schließt einen Kreis. Ein gewürfelter
+ * Abkürzungs-Durchgang obendrauf wäre nur noch eine dritte Tür in einem
+ * Zimmer, das schon zwei hat.
  */
 function connect(
   rng: Rng,
@@ -536,18 +588,18 @@ function connect(
     parent[ra] = rb;
     doors.push(doorFrom(rng, rooms, pair, doors.length));
   }
-  // Ein bis zwei Rundwege, mehr nicht: Ein Haus, in dem jede Wand eine Tür
-  // hat, ist ein Regal.
-  for (const pair of spare) {
-    if (doors.length >= rooms.length + 1) break;
-    if (rng.chance(0.4)) doors.push(doorFrom(rng, rooms, pair, doors.length));
-  }
 
-  // Die Haustür in die Südwand — der Van steht davor.
+  // **Die Haustür steht fest, bevor gezählt wird**, auch wenn sie erst hinterher
+  // in die Liste kommt: Sie ist die zweite Tür des Eingangszimmers. Wer sie
+  // nicht mitzählt, bricht ausgerechnet dort noch eine Wand auf, wo ohnehin
+  // schon zwei Wege hinausführen.
   const southEdge = HOUSE.z + HOUSE.d - 1;
   const atSouth = rooms.filter((room) => room.rect.z + room.rect.d - 1 === southEdge);
   const entry = atSouth.length > 0 ? rng.pick(atSouth) : rooms[0]!;
   const x = entry.rect.x + rng.int(entry.rect.w);
+
+  openDeadEnds(rng, rooms, doors, spare, entry.id);
+
   const front: HouseDoor = {
     id: `d${doors.length}`,
     a: entry.id,
@@ -560,6 +612,48 @@ function connect(
   doors.push(front);
 
   return { doors, entryRoom: entry.id, frontDoor: front.id };
+}
+
+/**
+ * **Jedem Zimmer seine zweite Tür**, aus den Nachbarschaften, die der Baum
+ * übrig gelassen hat.
+ *
+ * Durchgegangen wird die Liste, die schon gemischt ist (`spare` fällt in der
+ * gemischten Reihenfolge des Baums an) — ein zweiter Wurf hier wäre einer
+ * mehr in einem Ablauf, dessen Reihenfolge Teil des Vertrags ist. Aufgemacht
+ * wird eine Tür nur, wenn **mindestens eine** der beiden Seiten sie noch
+ * braucht; sonst wüchse das Haus in Türen, die niemand zählt.
+ *
+ * Ein Zimmer, das überhaupt nur einen Nachbarn hat, bleibt eine Sackgasse —
+ * dagegen hilft keine Tür, sondern nur ein anderer Zuschnitt. Beim Teilen
+ * dieses Hauses kommt das nicht vor, und der Test in `house.test.ts` merkt
+ * es, falls doch einmal jemand am Zuschnitt dreht.
+ */
+function openDeadEnds(
+  rng: Rng,
+  rooms: readonly HouseRoom[],
+  doors: HouseDoor[],
+  spare: readonly Touching[],
+  entryRoom: string,
+): void {
+  const count = new Map<string, number>(rooms.map((room) => [room.id, 0]));
+  const bump = (id: string): void => {
+    count.set(id, (count.get(id) ?? 0) + 1);
+  };
+  for (const door of doors) {
+    bump(door.a);
+    if (door.b) bump(door.b);
+  }
+  bump(entryRoom);
+
+  for (const pair of spare) {
+    const a = rooms[pair.a]!.id;
+    const b = rooms[pair.b]!.id;
+    if ((count.get(a) ?? 0) >= DOORS_LEAST && (count.get(b) ?? 0) >= DOORS_LEAST) continue;
+    doors.push(doorFrom(rng, rooms, pair, doors.length));
+    bump(a);
+    bump(b);
+  }
 }
 
 /** Welche Zimmer sich berühren, und wo eine Tür hinpasste. */
