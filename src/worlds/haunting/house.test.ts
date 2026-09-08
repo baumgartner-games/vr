@@ -1,7 +1,17 @@
 import { findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { neighbour, tileKey } from '../nav/navTile';
-import { generateHouse, HOUSE, roomAt, roomOf, tilesOf, TASK_COUNT, MARKS } from './house';
+import { keyX, keyZ, neighbour, tileKey } from '../nav/navTile';
+import {
+  generateHouse,
+  onApron,
+  roomAt,
+  roomOf,
+  tilesOf,
+  APRON,
+  HOUSE,
+  MARKS,
+  TASK_COUNT,
+} from './house';
 import { DRONE_PROFILE, housePlan } from './plan';
 
 /** Zwanzig Häuser, damit ein Fehler nicht vom Samen abhängt. */
@@ -132,9 +142,19 @@ describe('Das gewürfelte Haus', () => {
 describe('Der Grundriss als Kachelgitter', () => {
   const spec = generateHouse(2024);
 
-  it('legt Boden über das ganze Haus und nicht darüber hinaus', () => {
+  /**
+   * Haus **und** Vorplatz — und keine Kachel mehr.
+   *
+   * Der Vorplatz kam dazu, als die Drohne einen Hangar am Van bekam; ohne ihn
+   * gäbe es für die Wegsuche kein Draußen. Die Zahl steht trotzdem noch hier,
+   * und zwar genau deshalb: Ein Gitter, das unbemerkt weiterwächst, ist ein
+   * Haus, in dem irgendwann jemand über den Rand hinausläuft.
+   */
+  it('legt Boden über Haus und Vorplatz und nicht darüber hinaus', () => {
     const plan = housePlan(spec);
-    expect([...plan.graph.tileKeys()]).toHaveLength(HOUSE.w * HOUSE.d);
+    const tiles = [...plan.graph.tileKeys()];
+    expect(tiles).toHaveLength(HOUSE.w * HOUSE.d + APRON.w * APRON.d);
+    expect(tiles.filter((key) => onApron(keyX(key), keyZ(key)))).toHaveLength(APRON.w * APRON.d);
   });
 
   it('sperrt eine geschlossene Tür wirklich zu', () => {

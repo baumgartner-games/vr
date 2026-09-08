@@ -1,4 +1,13 @@
-import { generateHouse, roomCentre, roomOf, type HouseRoom } from './house';
+import {
+  generateHouse,
+  onApron,
+  roomCentre,
+  roomOf,
+  APRON,
+  DRONE_HOME,
+  HOUSE,
+  type HouseRoom,
+} from './house';
 import { housePlan, DRONE_PROFILE } from './plan';
 import {
   droneFov,
@@ -12,6 +21,7 @@ import {
   tileAt,
   DRONE_HFOV,
   LAMP_FILL,
+  LAMP_HOME,
   LAMP_LIFE,
   type DronePose,
 } from './droneRoute';
@@ -224,6 +234,58 @@ describe('Wie sie sich dreht', () => {
 });
 
 /**
+ * **Der Van ist ein Ziel und keine Sonderregel.**
+ *
+ * Die Drohne startet vor ihm, draußen, mit dem Haus im Bild — und kommt von
+ * dort in jedes Zimmer und wieder zurück. Das ist keine Kosmetik, sondern die
+ * Probe darauf, dass der Vorplatz wirklich am Gitter hängt: Ohne ihn stünde
+ * sie beim ersten Bild auf keiner Kachel und behauptete, sie käme nirgends
+ * hin. Die Gegenprobe steht darunter — zugemachte Haustür, und der Hangar ist
+ * unerreichbar. Wer beides hat, hat bewiesen, dass der Weg nach draußen durch
+ * die Tür geht und nicht durch die Wand.
+ */
+describe('Der Hangar vor dem Van', () => {
+  const plan = housePlan(spec);
+  const home = tileAt((DRONE_HOME.x + 0.5) * TILE, (DRONE_HOME.z + 0.5) * TILE);
+
+  function homePose(): DronePose {
+    return { x: (DRONE_HOME.x + 0.5) * TILE, z: (DRONE_HOME.z + 0.5) * TILE, yaw: Math.PI };
+  }
+
+  it('liegt auf dem Vorplatz und nicht im Haus', () => {
+    expect(onApron(DRONE_HOME.x, DRONE_HOME.z)).toBe(true);
+    expect(roomAt((DRONE_HOME.x + 0.5) * TILE, (DRONE_HOME.z + 0.5) * TILE)).toBeNull();
+  });
+
+  it('schließt an die Südwand des Hauses an', () => {
+    expect(APRON.z).toBe(HOUSE.z + HOUSE.d);
+  });
+
+  it('kommt von draußen in jedes Zimmer, ohne je eine Wand zu kreuzen', () => {
+    for (const room of spec.rooms) {
+      const flight = fly(plan.graph, homePose(), goalOf(room));
+      expect(flight.crossings).toEqual([]);
+      expect(flight.arrived).toBe(true);
+    }
+  });
+
+  it('findet aus jedem Zimmer wieder zurück', () => {
+    for (const room of spec.rooms) {
+      const flight = fly(plan.graph, poseAt(room), home);
+      expect(flight.crossings).toEqual([]);
+      expect(flight.arrived).toBe(true);
+    }
+  });
+
+  it('kommt nicht mehr heraus, wenn jemand die Haustür zumacht', () => {
+    const locked = housePlan(spec, new Set([spec.frontDoor]));
+    const entry = roomOf(spec, spec.entryRoom) ?? spec.rooms[0]!;
+    const route = routeTo(locked.graph, poseAt(entry), home);
+    expect(route.complete).toBe(false);
+  });
+});
+
+/**
  * **Der Scheinwerfer erholt sich, der Akku tat es nicht.**
  *
  * Vorher lief eine einzige Ladung durch und war nach vier Minuten weg; danach
@@ -237,6 +299,27 @@ describe('Die Ladung des Scheinwerfers', () => {
   it('leert sich beim Brennen und füllt sich wieder auf', () => {
     expect(lampAfter(1, LAMP_LIFE, true)).toBeCloseTo(0, 6);
     expect(lampAfter(0, LAMP_FILL, false)).toBeCloseTo(1, 6);
+  });
+
+  /**
+   * **Am Van hängt sie am Kabel** — und das ist der einzige Grund, aus dem ein
+   * Pilot freiwillig zurückfliegt, statt mit halber Ladung weiterzustochern.
+   * Ohne den Unterschied wäre „zurück zum Van" ein Knopf, den niemand drückt.
+   */
+  it('zehrt am Van auch mit brennendem Scheinwerfer nicht', () => {
+    expect(lampAfter(0.5, 10, true, true)).toBeGreaterThan(0.5);
+    expect(lampAfter(1, LAMP_LIFE, true, true)).toBeCloseTo(1, 6);
+  });
+
+  it('lädt am Van schneller als im Haus', () => {
+    expect(LAMP_HOME).toBeLessThan(LAMP_FILL);
+    expect(lampAfter(0, LAMP_HOME, false, true)).toBeCloseTo(1, 6);
+    expect(lampAfter(0, LAMP_HOME, false, false)).toBeLessThan(1);
+  });
+
+  it('sagt die Wartezeit am Van im Schnellgang an', () => {
+    expect(lampRefill(0, true)).toBeCloseTo(LAMP_HOME, 6);
+    expect(lampRefill(0)).toBeCloseTo(LAMP_FILL, 6);
   });
 
   it('bleibt zwischen leer und voll', () => {

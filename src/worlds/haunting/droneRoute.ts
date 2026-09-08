@@ -96,6 +96,17 @@ export const LAMP_FILL = 75;
 export const LAMP_MIN = 0.08;
 
 /**
+ * Und wie lange dasselbe **am Van** dauert — dreimal so schnell, und dort
+ * zehrt der Scheinwerfer überhaupt nicht.
+ *
+ * Der Vorplatz ist damit kein Abstellgleis, sondern eine Entscheidung: Wer
+ * zurückfliegt, ist zwei Zimmerwechsel lang nicht im Haus und kommt dafür mit
+ * voller Ladung wieder. Ohne diesen Unterschied wäre „zurück zum Van" ein
+ * Knopf, den niemand je drückt.
+ */
+export const LAMP_HOME = 25;
+
+/**
  * Die Ladung nach `dt` Sekunden — leerer, wenn er brennt, voller, wenn nicht.
  *
  * Steht hier und nicht in der Welt, damit die Anzeige beim Piloten und die
@@ -103,7 +114,14 @@ export const LAMP_MIN = 0.08;
  * irgendwann verschieden, und dann zeigt der Balken eine Minute an, die es
  * nicht gibt.
  */
-export function lampAfter(charge: number, dt: number, on: boolean): number {
+export function lampAfter(charge: number, dt: number, on: boolean, home = false): number {
+  // **Am Van hängt sie am Kabel.** Sie zehrt dort nicht, egal ob der
+  // Scheinwerfer brennt, und sie füllt sich schneller als im Haus. Das ist die
+  // Erholung, die es sonst nirgends gibt — und damit der eine Grund, aus dem
+  // ein Pilot freiwillig zurückfliegt, statt mit halber Ladung
+  // weiterzustochern. Draußen sieht er ohnehin nichts, was ihm jemand
+  // abnehmen müsste.
+  if (home) return Math.min(1, charge + dt / LAMP_HOME);
   const step = on ? -dt / LAMP_LIFE : dt / LAMP_FILL;
   return Math.min(1, Math.max(0, charge + step));
 }
@@ -114,8 +132,8 @@ export function lampSeconds(charge: number): number {
 }
 
 /** Und wie viele Sekunden es noch dauert, bis sie wieder voll ist. */
-export function lampRefill(charge: number): number {
-  return Math.max(0, (1 - charge) * LAMP_FILL);
+export function lampRefill(charge: number, home = false): number {
+  return Math.max(0, (1 - charge) * (home ? LAMP_HOME : LAMP_FILL));
 }
 
 /**
