@@ -1077,11 +1077,12 @@ export class StationUi {
       this.host.archiveHome();
     } else if (hit.dataset['room']) {
       this.selected = hit.dataset['room'];
-      // **Aufgeschlagen heißt hinsehen**, genau wie beim Piloten, der ein
-      // Zimmer antippt: Die Akte geht weg, und der Ausschnitt steht wieder auf
-      // dem ganzen Zimmer statt im Zoom des vorigen Blattes.
+      // Der Ausschnitt steht wieder auf dem ganzen Zimmer statt im Zoom des
+      // vorigen Blattes — ein geerbter Ausschnitt gehörte zu einem anderen
+      // Grundriss. **Die Akte bleibt dabei offen**: Der Archivar blättert,
+      // liest, blättert weiter, und eine Akte, die bei jedem Blatt zuklappt,
+      // macht aus dem Vergleich zweier Zimmer zweimal Menü aufmachen.
       this.host.archiveHome();
-      this.panel = false;
     } else if (hit.dataset['fly']) {
       this.host.flyTo(hit.dataset['fly']);
       // **Losgeschickt heißt hinsehen.** Wer ein Zimmer antippt, will als

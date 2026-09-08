@@ -7855,9 +7855,14 @@ zusammenschiebt, nie. Zwanzig Sachen, die dabei nicht Geschmack sind:
   Der Blickstock bleibt unten rechts, wo der Daumen ohnehin liegt.
   Weggeblendet und nicht abgebaut, sonst käme die Liste oben statt dort
   zurück, wo man war.
-- **Ein angetipptes Zimmer schließt die Schalttafel.** Wer losschickt, will als
-  Nächstes das Bild — eine Tafel, die danach noch darüber liegt, wird bei jedem
-  Flug einmal von Hand weggeräumt. Der Grund darunter bleibt **durchsichtig**: Die Kacheln bringen
+- **Ein angetipptes Zimmer schließt die Schalttafel — beim Piloten, und nur
+  dort.** Wer losschickt, will als Nächstes das Bild; eine Tafel, die danach
+  noch darüber liegt, wird bei jedem Flug einmal von Hand weggeräumt. **Der
+  Archivar blättert dagegen weiter**: Sein Zimmer anzutippen schickt nichts
+  los, es schlägt ein Blatt auf, und wer zwei Zimmer vergleicht, tippt sie
+  nacheinander an, ohne dazwischen zweimal das Menü zu bedienen. Der Ausschnitt
+  springt trotzdem zurück aufs ganze Zimmer — ein geerbter Zoom gehörte zum
+  vorigen Grundriss. Der Grund darunter bleibt **durchsichtig**: Die Kacheln bringen
   ihren eigenen mit, und dazwischen läuft das Bild weiter. Überschriften
   bekommen dafür ein Schildchen — „Wohin?" stand sonst als graue Schrift auf
   einem Zimmer voller Möbel und war je nach Blickrichtung da oder nicht.
