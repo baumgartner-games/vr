@@ -74,13 +74,16 @@ unter _Zusammen spielen_ herein — nur der Name, kein Raum-Code — und sitzen 
 Van vor vier Geräten:
 
 - **Archiv** — schlägt die Akte auf, ein Zimmer je Seite: Name, Möbel, Türen.
-  Sieht dafür niemanden, der sich bewegt.
+  Der Grundriss liegt über dem ganzen Schirm: zwei Finger oder das Mausrad
+  ziehen ihn heran, ein Finger schiebt ihn durch, der Menüknopf legt die Akte
+  darüber. Sieht dafür niemanden, der sich bewegt.
 - **Späher** — sieht, wo das Monster gerade ist. Nur Wände und einen Punkt:
   keine Namen, keine Möbel, und den Mitspieler auch nicht.
 - **Drohne** — fliegt auf Zimmer, die man antippt, und zeigt eins vollständig.
   Sie macht keine Tür auf und wechselt das Zimmer nur alle paar Sekunden; ihr
   Scheinwerfer leuchtet auch für den im Haus und lädt sich wieder auf, während
-  er aus ist. Das Bild antippen zeigt es groß, wischen sieht sich um.
+  er aus ist. Ihr Bild ist der ganze Schirm, wischen sieht sich um, und der
+  Menüknopf legt die Steuerung darüber — dieselbe Oberfläche wie im Archiv.
 - **Schalttafel** — Licht, Türen, Radios. Ohne Grundriss, mit Beschriftungen
   wie `Wohnzimmer`, `Tür 2` und `X`.
 

@@ -11,6 +11,7 @@ import {
   type StationId,
 } from './stations';
 import { lampRefill, lampSeconds, HOP_TIME, LAMP_MIN, type DroneStatus } from './droneRoute';
+import { atHome, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
 
 /**
@@ -25,7 +26,9 @@ import type { DroneState, HauntState } from './net';
  * die Stelle, an der die Trennung wirklich durchgesetzt wird:
  *
  * - Das **Archiv** bekommt ein Bild der Welt, aber ohne alles Lebendige (die
- *   Welt blendet es beim Zeichnen aus). Namen ja, Bewegung nein.
+ *   Welt blendet es beim Zeichnen aus). Namen ja, Bewegung nein. Sein Blatt
+ *   ist der ganze Schirm, es lässt sich heranziehen und verschieben, und die
+ *   Akte legt der Menüknopf darüber — dieselbe Form wie beim Piloten.
  * - Der **Späher** bekommt gar kein Bild der Welt, sondern gezeichnete
  *   Konturen: Wände und einen Punkt. Keine Möbel, keine Namen, kein
  *   Mitspieler. Das ist keine Sparmaßnahme — es *ist* seine Rolle.
@@ -76,6 +79,18 @@ export interface StationHost {
   droneTilt(radians: number): void;
   /** Wieder geradeaus, und zwar in beiden Achsen. */
   droneFace(): void;
+  /** Wie der Archivar sein Blatt gerade hält (`archiveView.ts`). */
+  archiveView(): ArchiveView;
+  /** Näher heran oder weiter weg — Faktor über 1 heißt näher. */
+  archiveZoom(factor: number): void;
+  /**
+   * Das Blatt verschieben, in **Anteilen des Bildes** und nicht in Metern:
+   * Wie viele Meter ein Punkt auf dem Schirm ist, hängt am Ausschnitt, und
+   * den kennt die Welt (`HauntingWorld.aimArchive`).
+   */
+  archivePan(dx: number, dz: number): void;
+  /** Und wieder auf das ganze Zimmer zurück. */
+  archiveHome(): void;
 }
 
 /**
@@ -95,6 +110,12 @@ const TAP_SLOP = 8;
 /** Wie weit ein Wisch dreht, in Bogenmaß je Punkt. */
 const LOOK_RATE = 0.004;
 
+/** Wie weit zwei Finger mindestens auseinanderliegen müssen, damit gezoomt wird. */
+const PINCH_MIN = 12;
+
+/** Wie stark das Mausrad zoomt, je Punkt Raddrehung. */
+const WHEEL_RATE = 0.0016;
+
 export class StationUi {
   private readonly root = document.createElement('div');
   private readonly bar = document.createElement('header');
@@ -103,56 +124,46 @@ export class StationUi {
   private readonly body = document.createElement('div');
   private readonly scout = document.createElement('canvas');
   /**
-   * **Die Ecke oben rechts im Bild**: Menü und Licht.
+   * **Die Ecke oben rechts im Bild**: Menü, Licht, Zurück-Knopf.
    *
    * Sie steht als eigene Zeile zwischen Kopfzeile und Bild und nicht als
-   * absolut gesetzte Ecke *im* Bild. Das Bild liegt im Cockpit fest im
-   * Hintergrund und damit unter der Kopfzeile; eine Ecke darin läge unter ihr
-   * begraben, und eine Ecke mit ausgerechnetem Abstand von oben wäre eine
-   * Zahl, die bei jeder Schriftgröße neu falsch ist. Als Zeile im Fluss steht
-   * sie von selbst genau unter dem, was über ihr steht.
+   * absolut gesetzte Ecke *im* Bild. Das Bild liegt fest im Hintergrund und
+   * damit unter der Kopfzeile; eine Ecke darin läge unter ihr begraben, und
+   * eine Ecke mit ausgerechnetem Abstand von oben wäre eine Zahl, die bei
+   * jeder Schriftgröße neu falsch ist. Als Zeile im Fluss steht sie von selbst
+   * genau unter dem, was über ihr steht.
    */
   private readonly viewTools = document.createElement('div');
-  /** Zurück aus dem freigeräumten Blatt des Archivars. */
-  private readonly menuKey = document.createElement('button');
-  /** Die Schalttafel des Piloten auf- und zuklappen. */
+  /**
+   * **Die Bedienung über das Bild legen und wieder wegnehmen.**
+   *
+   * Der eine Knopf, den beide Stationen mit Bild teilen — und er bleibt
+   * stehen, solange die Bedienung offen ist: Ein Menü, das sich nur über den
+   * Umweg „irgendetwas in der Liste antippen" wieder schließen lässt, ist
+   * eine Falle, und beim Piloten hieße dieser Umweg, die Drohne loszuschicken.
+   */
   private readonly panelKey = document.createElement('button');
-  /** Sein Scheinwerfer — der eine Knopf, der auch ohne Schalttafel dasein muss. */
+  /** Der Scheinwerfer des Piloten — der Griff, den er mitten im Sehen braucht. */
   private readonly lampKey = document.createElement('button');
-  /** Und der Blickstock, unten rechts, wo der Daumen ohnehin liegt. */
+  /** Und beim Archivar an derselben Stelle: zurück auf das ganze Zimmer. */
+  private readonly homeKey = document.createElement('button');
+  /** Der Blickstock, unten rechts, wo der Daumen ohnehin liegt. */
   private readonly lookKey = document.createElement('button');
 
   /** Ob gerade die Geräteübersicht offen ist statt der eigenen Station. */
   private vanOpen = true;
   /**
-   * **Ob das Blatt des Archivars den ganzen Schirm hat.**
+   * **Ob die Bedienung gerade über dem Bild liegt.**
    *
-   * Klein ist es ein Kinostreifen über der Bedienung — breit genug für ein
-   * Zimmer, flach genug, dass die Knöpfe darunter ohne Scrollen erreichbar
-   * bleiben. Angetippt füllt es den Hintergrund, und die Bedienung liegt
-   * darauf. Zwei Größen und keine Zwischenstufe: Ein Ziehgriff wäre auf einem
-   * Telefon eine dritte Sache, die man mitten im Spiel bedienen muss.
-   *
-   * **Nur der Archivar hat diese Wahl.** Er liest, und Lesen geht neben dem
-   * Bild; der Pilot fliegt, und Fliegen geht nur im Bild — sein Cockpit ist
-   * immer groß (`panel`).
-   */
-  private big = false;
-  /** Und ob die Bedienung darauf gerade weggeblendet ist. */
-  private bare = false;
-  /**
-   * **Ob die Schalttafel des Piloten gerade über dem Bild liegt.**
-   *
-   * Das Cockpit hat keine zwei Größen: Das Kamerabild steht immer über den
+   * Beide Stationen mit Bild haben dieselbe Form: Das Bild steht über den
    * ganzen Schirm, und die Bedienung ist ein Blatt, das der Menüknopf darüber
-   * legt und wieder wegnimmt. Vorher klebten dieselben Kacheln dauerhaft unten
-   * am Rand — auf einem Telefon waren das zwei Drittel des Bildes für Knöpfe,
-   * die man dreimal in der Minute drückt, und auf dem Laptop ein Bild, das
-   * zum Streifen zusammenschrumpfte. Wer fliegt, sieht; wer schaltet, schaltet.
+   * legt und wieder wegnimmt. Vorher waren es zwei — der Pilot hatte sein
+   * Cockpit, der Archivar einen Kinostreifen über einer Kachelwand, den man
+   * antippen musste, damit er groß wird. Zwei Oberflächen für dieselbe Sache
+   * heißt: Wer das Gerät wechselt, sucht die zweite erst wieder.
    *
-   * Weggeblendet und nicht abgebaut, wie beim Vollbild des Archivars: Ein
-   * Panel, das beim Wiedereinblenden neu entsteht, kommt oben statt dort
-   * zurück, wo man war.
+   * Weggeblendet und nicht abgebaut: Ein Panel, das beim Wiedereinblenden neu
+   * entsteht, kommt oben statt dort zurück, wo man war.
    */
   private panel = false;
   /** Welches Zimmer der Archivar aufgeschlagen hat. */
@@ -169,7 +180,7 @@ export class StationUi {
    * verworfen, wenn wirklich eine **andere** Seite kommt.
    */
   private paged = '';
-  /** Der Finger, der gerade über dem Bild liegt. */
+  /** Der Finger, der gerade über dem Bild zieht. */
   private grab: {
     id: number;
     x: number;
@@ -178,6 +189,16 @@ export class StationUi {
     over: number;
     far: number;
   } | null = null;
+  /**
+   * **Alle Finger, die auf dem Bild liegen** — für die Zange des Archivars.
+   *
+   * Der Zoom braucht zwei, und zwei Finger sind zwei Zeiger, die einzeln
+   * kommen und einzeln gehen. Ein einzelnes `grab` reicht dafür nicht: Es
+   * kennt nur den letzten, und die Zange misst den Abstand zwischen beiden.
+   */
+  private readonly touches = new Map<number, { x: number; y: number }>();
+  /** Wie weit die zwei Finger beim letzten Mal auseinanderlagen, in Punkten. */
+  private span = 0;
 
   constructor(private readonly host: StationHost) {
     this.root.className = 'haunt';
@@ -190,20 +211,20 @@ export class StationUi {
     this.scout.height = SCOUT_SIZE;
 
     this.viewTools.className = 'haunt__vtools';
-    this.menuKey.className = 'haunt__vbtn';
-    this.menuKey.dataset['bare'] = '';
-    this.menuKey.textContent = '☰';
-    this.menuKey.setAttribute('aria-label', 'Bedienung wieder einblenden');
     this.panelKey.className = 'haunt__vbtn';
     this.panelKey.dataset['panel'] = '';
+    this.homeKey.className = 'haunt__vbtn';
+    this.homeKey.dataset['home'] = '';
+    this.homeKey.textContent = '⤢';
+    this.homeKey.setAttribute('aria-label', 'Wieder das ganze Zimmer zeigen');
     this.lampKey.className = 'haunt__vbtn haunt__vbtn--lamp';
     this.lampKey.dataset['lamp'] = '';
     this.lookKey.className = 'haunt__vbtn haunt__vbtn--look';
     this.lookKey.textContent = '🕹';
     this.lookKey.setAttribute('aria-label', 'Umsehen: ziehen dreht, tippen stellt geradeaus');
-    this.viewTools.append(this.menuKey, this.panelKey, this.lampKey);
+    this.viewTools.append(this.homeKey, this.panelKey, this.lampKey);
     // Der Stock bleibt **im** Bild: Er gehört nach unten rechts an den Daumen
-    // und nicht in die Zeile mit den beiden anderen.
+    // und nicht in die Zeile mit den anderen.
     this.view.append(this.lookKey);
 
     this.root.append(this.bar, this.quest, this.viewTools, this.view, this.body);
@@ -213,6 +234,7 @@ export class StationUi {
     this.root.addEventListener('click', (event) => this.onClick(event));
     this.watchDrag(this.view, false);
     this.watchDrag(this.lookKey, true);
+    this.watchWheel();
   }
 
   dispose(): void {
@@ -242,14 +264,15 @@ export class StationUi {
   /**
    * **Ob das Bild hinter der Bedienung grob gerastert werden soll.**
    *
-   * Die Schalttafel des Piloten liegt auf durchsichtigem Grund über seinem
-   * Kamerabild; ein bewegtes Bild unter Knöpfen zieht den Blick aber immer auf
-   * sich. Gerastert bleibt zu sehen, dass sie fliegt und ob das Licht brennt —
-   * und sonst nichts, worauf man hinsehen müsste. Gemacht wird es von der
-   * Welt, die die Leinwand besitzt (`HauntingWorld.veilView`).
+   * Die Bedienung liegt auf durchsichtigem Grund über dem Bild; ein Bild unter
+   * Knöpfen zieht den Blick aber immer auf sich. Gerastert bleibt beim Piloten
+   * zu sehen, dass sie fliegt und ob das Licht brennt, und beim Archivar, dass
+   * unter der Akte sein Zimmer liegt — und sonst nichts, worauf man hinsehen
+   * müsste. Gemacht wird es von der Welt, die die Leinwand besitzt
+   * (`HauntingWorld.veilView`).
    */
   get veiled(): boolean {
-    return this.station === 'drone' && this.panel;
+    return this.hasView && this.panel;
   }
 
   refresh(): void {
@@ -282,9 +305,10 @@ export class StationUi {
       Math.ceil(drone.hop),
       drone.target,
       drone.light,
-      this.big,
-      this.bare,
       this.panel,
+      // Der Zurück-Knopf im Bild kommt und geht mit dem Ausschnitt des
+      // Archivars — mehr braucht die Seite von ihm nicht zu wissen.
+      atHome(this.host.archiveView()),
       status.kind,
       status.here,
       // Nur auf ganze Meter: Eine Anzeige, die zwanzigmal je Sekunde eine
@@ -348,16 +372,6 @@ export class StationUi {
         state.monsterOn ? 'Monster an' : 'Monster aus',
       ),
     ];
-    // Im aufgezogenen Blatt des Archivars liegt die Bedienung **auf** dem Bild,
-    // und dieser Knopf nimmt sie weg. Er steht nur dort, wo er etwas tut: klein
-    // deckt die Bedienung nichts zu, was man freiräumen müsste.
-    if (this.big && station === 'archive') {
-      const free = el('button', 'haunt__back');
-      free.dataset['bare'] = '';
-      free.append(el('span', 'haunt__back-icon', '▽'), el('span', '', 'Bild frei'));
-      free.setAttribute('aria-label', 'Bedienung ausblenden, nur das Bild zeigen');
-      bar.push(free);
-    }
     bar.push(back);
     this.bar.replaceChildren(...bar);
 
@@ -374,70 +388,58 @@ export class StationUi {
   }
 
   /**
-   * **Die Form der Seite**: Kinostreifen oder Vollbild, mit Bedienung oder ohne.
+   * **Die Form der Seite**: Bild ganz, Bedienung auf Zuruf.
    *
    * Hängt am Wurzelelement statt an jedem Kasten einzeln — das CSS entscheidet
    * daraus, was wohin rückt, und diese Methode muss nichts über Höhen wissen.
-   * Stationen ohne Bild (Späher, Schalttafel) fallen immer auf die kleine Form
-   * zurück: Ein Vollbild ohne Bild wäre eine leere Fläche mit einem
-   * Menüknopf.
+   * Stationen ohne Bild (Späher, Schalttafel) bekommen ihre Liste wieder in
+   * den Fluss: Ein Vollbild ohne Bild wäre eine schwarze Fläche mit einem
+   * Menüknopf darauf.
    */
   private writeShape(station: StationId | null): void {
-    const cockpit = station === 'drone';
-    const view = station === 'archive' || cockpit;
-    // Die zwei Größen sind die Wahl des Archivars; wer nicht er ist, erbt sie
-    // nicht, wenn er sich an ein anderes Gerät setzt.
-    if (station !== 'archive') {
-      this.big = false;
-      this.bare = false;
-    }
-    if (!cockpit) this.panel = false;
-    // **Das Cockpit ist immer groß.** Es teilt sich die Vollbild-Regeln mit dem
-    // aufgezogenen Blatt des Archivars — nur die Bedienung liegt darauf anders.
-    const big = this.big || cockpit;
-    const bare = this.big && this.bare;
-    this.root.classList.toggle('is-big', big);
-    this.root.classList.toggle('is-bare', bare);
-    this.root.classList.toggle('is-cockpit', cockpit);
-    this.root.classList.toggle('is-panel', cockpit && this.panel);
-    this.menuKey.hidden = !bare;
-    // Menü und Licht gehören dem Piloten: Der Archivar hat weder eine
-    // Schalttafel noch einen Scheinwerfer.
-    this.panelKey.hidden = !cockpit;
-    this.lampKey.hidden = !cockpit;
-    if (cockpit) this.writeKeys();
-    // Der Blickstock auch — beim Archivar dreht sich nichts, seine Kamera
-    // hängt senkrecht über dem aufgeschlagenen Zimmer.
-    this.lookKey.hidden = !cockpit || this.panel;
+    const drone = station === 'drone';
+    const view = station === 'archive' || drone;
+    // Die offene Bedienung gehört zu dem Gerät, an dem sie aufgemacht wurde:
+    // Wer aufsteht und sich woandershin setzt, sieht dort zuerst sein Bild.
+    if (!view) this.panel = false;
+    this.root.classList.toggle('is-view', view);
+    this.root.classList.toggle('is-panel', view && this.panel);
+    this.panelKey.hidden = !view;
+    // **Was unter der offenen Bedienung läge, steht gar nicht erst da** — bis
+    // auf den Menüknopf selbst, der sie wieder zumacht. Der Scheinwerfer steht
+    // dann in der Schalttafel, der Zurück-Knopf hätte kein Bild zum Zurück.
+    this.lampKey.hidden = !drone || this.panel;
+    // Der Zurück-Knopf kommt erst, wenn es etwas zurückzustellen gibt: Ein
+    // Knopf, der nie etwas tut, ist einer, den man beim Zielen trifft.
+    this.homeKey.hidden = station !== 'archive' || this.panel || atHome(this.host.archiveView());
+    if (view) this.writeKeys(drone);
+    // Der Blickstock gehört dem Piloten — beim Archivar dreht sich nichts,
+    // seine Kamera hängt senkrecht über dem aufgeschlagenen Zimmer.
+    this.lookKey.hidden = !drone || this.panel;
     this.markLook();
-    // **Was unter etwas anderem läge, steht gar nicht erst da.** Beim Archivar
-    // ist das die aufgezogene Bedienung, beim Piloten die offene Schalttafel —
-    // ein Knopf, den man nicht sieht, ist keiner.
-    this.viewTools.hidden =
-      !view ||
-      (cockpit ? this.panel : big && !bare) ||
-      (this.menuKey.hidden && this.panelKey.hidden && this.lampKey.hidden);
+    this.viewTools.hidden = !view;
   }
 
   /**
-   * **Die zwei Knöpfe im Bild**, jedes Mal neu beschriftet.
+   * **Die Knöpfe im Bild**, jedes Mal neu beschriftet.
    *
    * Der Scheinwerfer steht hier oben *und* in der Schalttafel, und das ist
    * kein Versehen: Er ist der einzige Griff, den der Pilot mitten im Sehen
    * braucht — Licht an, hinsehen, Licht aus. Wer dafür erst ein Menü aufmachen
    * muss, macht es nicht mehr zu.
    */
-  private writeKeys(): void {
+  private writeKeys(drone: boolean): void {
     this.panelKey.textContent = this.panel ? '✕' : '☰';
     this.panelKey.setAttribute('aria-expanded', this.panel ? 'true' : 'false');
+    const what = drone ? 'Steuerung der Drohne' : 'Akte des Archivars';
     this.panelKey.setAttribute(
       'aria-label',
-      this.panel ? 'Steuerung schließen, nur das Bild zeigen' : 'Steuerung der Drohne einblenden',
+      this.panel ? `${what} schließen, nur das Bild zeigen` : `${what} einblenden`,
     );
+    if (!drone) return;
 
-    const drone = this.host.drone();
-    const lit = drone.light;
-    const flat = !lit && drone.lamp < LAMP_MIN;
+    const lit = this.host.drone().light;
+    const flat = !lit && this.host.drone().lamp < LAMP_MIN;
     this.lampKey.textContent = lit ? '☀' : '☾';
     this.lampKey.classList.toggle('is-on', lit);
     this.lampKey.toggleAttribute('disabled', flat);
@@ -625,6 +627,17 @@ export class StationUi {
         sheet.append(fact('Achtung', 'Hier hängt der Sicherungskasten.', true));
       }
       out.push(sheet);
+      // Die zwei Griffe am Bild, einmal gesagt. Sie stehen hier unten und
+      // nicht als Kachel obenauf: Wer sie einmal gelesen hat, liest sie nie
+      // wieder, und eine Zeile, die immer oben steht, verdeckt jedes Mal die
+      // erste Zeile der Akte.
+      out.push(
+        el(
+          'span',
+          'haunt__blind',
+          'Auf dem Bild: ziehen verschiebt, zwei Finger oder das Mausrad ziehen heran.',
+        ),
+      );
     }
     return out;
   }
@@ -963,23 +976,31 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-bare],[data-panel]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel]',
     );
     if (!hit) return;
 
     if (hit.dataset['van'] !== undefined) {
       this.vanOpen = !this.vanOpen;
-    } else if (hit.dataset['bare'] !== undefined) {
-      this.bare = !this.bare;
     } else if (hit.dataset['panel'] !== undefined) {
       this.panel = !this.panel;
+    } else if (hit.dataset['home'] !== undefined) {
+      this.host.archiveHome();
     } else if (hit.dataset['lamp'] !== undefined) {
       this.host.droneLight();
     } else if (hit.dataset['sit']) {
       this.host.sit(hit.dataset['sit'] as StationId);
       this.vanOpen = false;
+      // Wer sich neu hinsetzt, fängt beim ganzen Zimmer an — ein geerbter
+      // Ausschnitt aus der vorigen Sitzung ist ein Bild, das niemand versteht.
+      this.host.archiveHome();
     } else if (hit.dataset['room']) {
       this.selected = hit.dataset['room'];
+      // **Aufgeschlagen heißt hinsehen**, genau wie beim Piloten, der ein
+      // Zimmer antippt: Die Akte geht weg, und der Ausschnitt steht wieder auf
+      // dem ganzen Zimmer statt im Zoom des vorigen Blattes.
+      this.host.archiveHome();
+      this.panel = false;
     } else if (hit.dataset['fly']) {
       this.host.flyTo(hit.dataset['fly']);
       // **Losgeschickt heißt hinsehen.** Wer ein Zimmer antippt, will als
@@ -994,24 +1015,38 @@ export class StationUi {
   }
 
   /**
-   * **Ein Finger über dem Bild: entweder ein Tipp oder ein Wisch.**
+   * **Ein Finger über dem Bild: Tipp, Wisch — oder zwei Finger, eine Zange.**
    *
-   * Unterschieden wird an der zurückgelegten Strecke und nicht an der Zeit:
-   * Wer die Größe umschalten will, tippt; wer sich umsehen will, zieht. Ohne
-   * die Schwelle wäre jeder Wisch am Ende auch ein Tipp, und das Bild
-   * klappte bei jedem Umsehen zusammen.
+   * Tipp und Wisch trennt die zurückgelegte Strecke und nicht die Zeit: Ohne
+   * die Schwelle wäre jeder Wisch am Ende auch ein Tipp. Was der Wisch tut,
+   * hängt an der Station — der Pilot sieht sich um, der Archivar schiebt sein
+   * Blatt unter dem Fenster durch. Beides ist dieselbe Geste, weil beides
+   * dasselbe Bedürfnis ist: *da drüben will ich hinsehen*.
    *
    * `setPointerCapture` hält den Finger am Element fest, auch wenn er darüber
    * hinauswandert — sonst bliebe die Drohne mitten im Schwenk stehen, sobald
    * der Daumen den Bildrand streift.
    *
    * @param stick ob das Element der Blickstock ist. Er dreht immer und schaltet
-   *   nie die Größe um; ein Tipp auf ihn stellt den Blick wieder geradeaus.
+   *   nie etwas um; ein Tipp auf ihn stellt den Blick wieder geradeaus.
    */
   private watchDrag(node: HTMLElement, stick: boolean): void {
     node.addEventListener('pointerdown', (event: PointerEvent) => {
       // Die Knöpfe im Bild sind Knöpfe und keine Ziehfläche.
       if (!stick && (event.target as Element | null)?.closest('.haunt__vbtn')) return;
+      node.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      if (!stick) {
+        this.touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (this.touches.size > 1) {
+          // **Der zweite Finger macht aus dem Zug eine Zange.** Der laufende
+          // Zug hört dabei auf: Sonst schöbe das Aufsetzen des zweiten Fingers
+          // das Blatt einmal quer durchs Bild, bevor der Zoom anfängt.
+          this.grab = null;
+          this.span = this.pinchSpan();
+          return;
+        }
+      }
       this.grab = {
         id: event.pointerId,
         x: event.clientX,
@@ -1020,11 +1055,19 @@ export class StationUi {
         over: event.clientY,
         far: 0,
       };
-      node.setPointerCapture(event.pointerId);
-      event.preventDefault();
     });
 
     node.addEventListener('pointermove', (event: PointerEvent) => {
+      const touch = this.touches.get(event.pointerId);
+      if (touch) {
+        touch.x = event.clientX;
+        touch.y = event.clientY;
+      }
+      if (!stick && this.touches.size > 1) {
+        this.pinchZoom();
+        return;
+      }
+
       const grab = this.grab;
       if (!grab || grab.id !== event.pointerId) return;
       const step = event.clientX - grab.from;
@@ -1032,51 +1075,120 @@ export class StationUi {
       grab.from = event.clientX;
       grab.over = event.clientY;
       grab.far = Math.max(grab.far, Math.hypot(event.clientX - grab.x, event.clientY - grab.y));
-      // Umgesehen wird nur an der Drohne — und dort über das ganze Bild. Die
-      // alte Einschränkung „nur im Vollbild" ist mit dem Kinostreifen des
-      // Piloten weggefallen: Sein Bild *ist* der Schirm, und der Wisch darüber
-      // ist seine Steuerung. Liegt die Schalttafel darauf, kommt hier ohnehin
-      // kein Finger mehr an.
-      if (this.station !== 'drone') return;
-      // Nach rechts gewischt heißt nach rechts geschaut, nach oben gewischt
-      // nach oben — dieselbe Richtung wie die Maus im Fenster
-      // (`core/FlatControls.ts`). Beide Achsen am selben Finger: Eine Drohne,
-      // die nur waagerecht schwenkt, findet nie, was unter dem Tisch liegt.
-      this.host.droneTurn(-step * LOOK_RATE);
-      this.host.droneTilt(-rise * LOOK_RATE);
-      this.markLook();
+
+      const station = this.station;
+      if (station === 'drone') {
+        // Nach rechts gewischt heißt nach rechts geschaut, nach oben gewischt
+        // nach oben — dieselbe Richtung wie die Maus im Fenster
+        // (`core/FlatControls.ts`). Beide Achsen am selben Finger: Eine Drohne,
+        // die nur waagerecht schwenkt, findet nie, was unter dem Tisch liegt.
+        this.host.droneTurn(-step * LOOK_RATE);
+        this.host.droneTilt(-rise * LOOK_RATE);
+        this.markLook();
+        return;
+      }
+      // Beim Archivar folgt das Blatt dem Finger: Wer nach rechts zieht, zieht
+      // das Zimmer nach rechts, nicht die Kamera. Gemessen wird in Anteilen des
+      // Bildes — wie viele Meter ein Punkt ist, hängt am Ausschnitt, und den
+      // kennt die Welt.
+      if (station === 'archive' && !stick) {
+        const box = this.view.getBoundingClientRect();
+        this.host.archivePan(step / Math.max(1, box.width), rise / Math.max(1, box.height));
+      }
     });
 
     const drop = (event: PointerEvent): void => {
+      if (node.hasPointerCapture(event.pointerId)) node.releasePointerCapture(event.pointerId);
+      const pinched = !stick && this.touches.size > 1;
+      this.touches.delete(event.pointerId);
+      if (pinched) {
+        // Von der Zange zurück auf einen Finger: Der übrig gebliebene fängt
+        // dort an, wo er gerade liegt, und holt den Weg des abgehobenen nicht
+        // nach. `far` steht dabei schon über der Tipp-Schwelle — was als Zange
+        // angefangen hat, ist am Ende kein Tipp.
+        this.span = 0;
+        const [id, spot] = [...this.touches.entries()][0] ?? [];
+        this.grab =
+          id === undefined || !spot
+            ? null
+            : { id, x: spot.x, y: spot.y, from: spot.x, over: spot.y, far: TAP_SLOP + 1 };
+        return;
+      }
+
       const grab = this.grab;
       if (!grab || grab.id !== event.pointerId) return;
       this.grab = null;
-      if (node.hasPointerCapture(event.pointerId)) node.releasePointerCapture(event.pointerId);
       if (grab.far > TAP_SLOP) return;
       if (stick) {
         if (this.station === 'drone') this.host.droneFace();
         this.markLook();
         return;
       }
-      // Ein Tipp aufs Bild: groß, und noch einmal wieder klein. Aus dem
-      // freigeräumten Vollbild führt der Menüknopf zurück — ein Tipp, der dort
-      // die Größe umschaltet, wäre der versehentliche Ausstieg aus genau der
-      // Ansicht, für die man aufgeräumt hat. Im Cockpit tut ein Tipp gar
-      // nichts: Dort ist das Bild immer groß, und ein Finger, der beim
-      // Umsehen kurz stehen bleibt, darf die Ansicht nicht umwerfen.
-      if (this.station === 'drone') return;
-      if (!this.hasView || (this.big && this.bare)) return;
-      this.big = !this.big;
-      if (!this.big) this.bare = false;
-      this.drawn = '';
-      this.refresh();
+      // **Ein Tipp aufs Bild tut nichts.** Beide Stationen haben ihr Bild
+      // immer ganz, und ein Finger, der beim Umsehen oder beim Schieben kurz
+      // stehen bleibt, darf die Ansicht nicht umwerfen. Was es umzuschalten
+      // gibt, hat einen Knopf.
     };
     node.addEventListener('pointerup', drop);
     node.addEventListener('pointercancel', drop);
   }
+
+  /** Wie weit die zwei Finger gerade auseinanderliegen, in Punkten. */
+  private pinchSpan(): number {
+    const [a, b] = [...this.touches.values()];
+    if (!a || !b) return 0;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  /**
+   * **Zwei Finger auseinander heißt näher heran.**
+   *
+   * Verrechnet wird das Verhältnis der Abstände und nicht ihre Differenz: So
+   * zieht dieselbe Fingerbewegung nah wie fern gleich weit, und die Zange
+   * fühlt sich an wie überall sonst. Unter ein paar Punkten Abstand wird gar
+   * nichts gerechnet — dort steht im Nenner beinahe eine Null, und der Zoom
+   * spränge beim Aufsetzen an den Anschlag.
+   */
+  private pinchZoom(): void {
+    const span = this.pinchSpan();
+    if (this.span > PINCH_MIN && span > PINCH_MIN) this.host.archiveZoom(span / this.span);
+    this.span = span;
+  }
+
+  /**
+   * **Das Mausrad ist die Zange am Laptop.**
+   *
+   * `passive: false`, weil die Seite sonst mitscrollt: Ein Rad über dem Bild
+   * soll das Zimmer heranziehen und nicht die Akte darunter verschieben.
+   * Gerechnet wird über die Exponentialfunktion — zwei Rasten hinein und zwei
+   * heraus stehen dann wieder genau dort, wo man angefangen hat.
+   */
+  private watchWheel(): void {
+    this.view.addEventListener(
+      'wheel',
+      (event: WheelEvent) => {
+        if (this.station !== 'archive') return;
+        event.preventDefault();
+        this.host.archiveZoom(Math.exp(-wheelStep(event) * WHEEL_RATE));
+      },
+      { passive: false },
+    );
+  }
 }
 
 // --- Kleinkram ---------------------------------------------------------------
+
+/**
+ * Wie weit ein Rad gedreht wurde, in Punkten.
+ *
+ * Ein Mausrad meldet Punkte, manche Trackpads und Firefox melden Zeilen oder
+ * ganze Seiten (`deltaMode`). Ohne die Umrechnung wären drei gemeldete Zeilen
+ * drei Punkte, und das Rad täte scheinbar nichts.
+ */
+function wheelStep(event: WheelEvent): number {
+  const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+  return event.deltaY * unit;
+}
 
 function el(tag: string, className: string, text = ''): HTMLElement {
   const node = document.createElement(tag);
