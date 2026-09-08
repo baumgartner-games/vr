@@ -38,6 +38,16 @@ export interface WorldContext {
   readonly elapsed: number;
   /** Switch to another world by id (safe to call from inside update). */
   goTo(worldId: string): void;
+  /**
+   * **Einem Raum beitreten**, ohne dass die Welt den Transport kennt.
+   *
+   * Welten sehen nie, was unter der Verbindung liegt (`net/types.ts`), können
+   * aber Anlass haben, einen bestimmten Raum zu wollen: Haunting spielt für
+   * alle im Raum `haunting`, damit die Web-Spieler auf der Startseite nur
+   * noch ihren Namen eintippen müssen und keinen Code abtippen. Ein Anruf,
+   * kein Zwang — wer schon in einem Raum steht, bleibt dort.
+   */
+  join(room: string): void;
   /** Short message shown on the wrist menu / HUD. */
   notify(message: string): void;
   /**
