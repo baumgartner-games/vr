@@ -221,27 +221,33 @@ function castPolygon(
  * hält einen je Runde), damit zwei Ansichten sich nicht in die Quere kommen.
  */
 export class LitCache {
-  private key = '';
-  private readonly regions = new Map<string, LitRegion>();
+  private readonly regions = new Map<string, { key: string; region: LitRegion }>();
 
+  /**
+   * `doorsKey` ist der Stand der Türen, die diese Lampe erreichen kann —
+   * je Lampe, nicht für alle: Eine Tür am anderen Ende der Station ändert
+   * die Fläche einer Deckenlampe nicht (Paket Rundenregeln, Messung).
+   */
   take(doorsKey: string, light: MapLight): LitRegion | null {
-    if (doorsKey !== this.key) {
-      this.key = doorsKey;
-      this.regions.clear();
-      return null;
-    }
     const known = this.regions.get(light.id);
-    return known && known.at.x === light.at.x && known.at.z === light.at.z ? known : null;
+    if (!known || known.key !== doorsKey) return null;
+    const region = known.region;
+    return region.at.x === light.at.x && region.at.z === light.at.z ? region : null;
   }
 
-  keep(region: LitRegion): void {
-    this.regions.set(region.lightId, region);
+  keep(region: LitRegion, doorsKey = ''): void {
+    this.regions.set(region.lightId, { key: doorsKey, region });
   }
 }
 
 /** Ob ein Punkt in irgendeiner hellen Fläche liegt. */
 export function litAt(field: Pick<VisibilityField, 'lit' | 'self'>, at: MapPoint): boolean {
-  for (const region of field.lit) if (pointInPolygon(at, region.polygon)) return true;
+  for (const region of field.lit) {
+    // Erst der Radius, dann das Polygon: Die meisten Lampen sind zu weit weg,
+    // als dass sich der Punkt-in-Polygon-Test lohnte (Paket Rundenregeln).
+    if (Math.hypot(at.x - region.at.x, at.z - region.at.z) > region.radius) continue;
+    if (pointInPolygon(at, region.polygon)) return true;
+  }
   return !!field.self && pointInPolygon(at, field.self.polygon);
 }
 
@@ -256,12 +262,23 @@ export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId 
   const field = emptyField(mode);
   const viewer = viewerId ? (snapshot.entities.find((e) => e.id === viewerId) ?? null) : null;
   const blockers = blockersOf(snapshot);
-  const doorsKey = snapshot.doors.map((d) => (d.open ? 'o' : 'c')).join('');
+  // Der Türstand in Reichweite einer Lampe — nur der entscheidet über ihre Fläche.
+  const doorsKeyFor = (light: MapLight): string => {
+    let key = '';
+    for (const door of snapshot.doors) {
+      const reach = light.radius + door.width;
+      if (Math.abs(door.at.x - light.at.x) > reach || Math.abs(door.at.z - light.at.z) > reach)
+        continue;
+      key += door.open ? 'o' : 'c';
+    }
+    return key;
+  };
 
   for (const light of snapshot.lights) {
     if (!light.on) continue;
     if (light.kind === 'lamp' && !snapshot.power) continue;
     const still = light.kind === 'lamp' || light.kind === 'command' || light.kind === 'beacon';
+    const doorsKey = still && cache ? doorsKeyFor(light) : '';
     const known = still && cache ? cache.take(doorsKey, light) : null;
     if (known) {
       field.lit.push(known);
@@ -276,7 +293,7 @@ export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId 
       color: light.color,
       polygon: castPolygon(blockers, light.at, light.radius, light.yaw, light.fov),
     };
-    if (still && cache) cache.keep(region);
+    if (still && cache) cache.keep(region, doorsKey);
     field.lit.push(region);
   }
   if (viewer && !viewer.concealed) {

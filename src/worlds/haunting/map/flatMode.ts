@@ -7,6 +7,7 @@ import { Joystick } from './joystick';
 import { MapView } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
+import { clockText } from '../rules/roundRules';
 
 /**
  * **Die 2D-Welt** — die Station von oben, gespielt mit dem Daumen.
@@ -198,11 +199,15 @@ export class FlatMode {
     const state = this.round.state();
     const crew = state.crew;
     const monster = MONSTERS.find((m) => m.id === crew.options.monster)?.name ?? '';
-    const hp = '●'.repeat(crew.hp) + '○'.repeat(Math.max(0, 3 - crew.hp));
-    const text = `${hp}  ·  Reparaturen ${state.done.length}/3  ·  ${
+    const round = this.round.round();
+    const hp = '●'.repeat(round.suit) + '○'.repeat(Math.max(0, round.suitMax - round.suit));
+    const text = `${hp}  ·  O₂ ${clockText(round.oxygen)}  ·  Reparaturen ${state.done.length}/3  ·  ${
       crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : ''
     }`;
-    const line = `${state.monsterOn ? monster : 'Test ohne Monster'} · ${this.mode.label} · ${Math.floor(state.time / 60)}:${String(Math.floor(state.time % 60)).padStart(2, '0')}`;
+    const cabins = round.cabinsDestroyed.length
+      ? ` · ${round.cabinsDestroyed.length} Kabinen hin`
+      : '';
+    const line = `${state.monsterOn ? monster : 'Test ohne Monster'} · ${this.mode.label}${cabins}`;
     if (this.hud.dataset['text'] !== text + line) {
       this.hud.dataset['text'] = text + line;
       this.hud.replaceChildren(el('strong', '', text.trim()), el('span', '', line));
@@ -242,12 +247,17 @@ export class FlatMode {
     again.dataset['restart'] = '';
     const leave = el('button', 'flat__option flat__option--leave', '2D-Welt verlassen');
     leave.dataset['leave'] = '';
+    const ending = this.round.round().ending;
     this.ending.replaceChildren(
       el('strong', '', won ? 'MISSION ERFÜLLT' : 'MISSION GESCHEITERT'),
       el(
         'span',
         '',
-        won ? 'Alle Systeme online, Crew zurück in der Zentrale.' : 'Drei Treffer. Noch einmal?',
+        won
+          ? 'Alle Systeme online, Crew zurück in der Zentrale.'
+          : ending === 'oxygen'
+            ? 'Der Sauerstoff ist aufgebraucht. Noch einmal?'
+            : 'Anzug zerstört. Noch einmal?',
       ),
       again,
       leave,

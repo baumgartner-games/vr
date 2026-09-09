@@ -24,6 +24,7 @@ import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
+import { RoundRules } from '../rules/roundRules';
 import { doorCentre, nextThroughDoor, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
@@ -32,6 +33,7 @@ import {
   type MapEntity,
   type MapItem,
   type MapLight,
+  type MapRound,
   type MapSnapshot,
 } from './mapSnapshot';
 import { applyPuzzle, type PuzzleAction } from './flatPuzzles';
@@ -149,6 +151,8 @@ export class FlatRound implements MapSource {
   readonly graph: StationGraph;
   readonly player: Actor;
   readonly monster: Actor;
+  /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
+  readonly rules = new RoundRules();
   /** Welche Werkzeuge man hat, in Reihenfolge des Durchschaltens. */
   readonly tools: string[] = ['flashlight'];
   active = 0;
@@ -366,8 +370,12 @@ export class FlatRound implements MapSource {
         label: 'Schutzschrank',
         roomId: locker.roomId,
         at: { ...locker.at },
-        state: crew.hidden === locker.id ? 'open' : 'locked',
-        interactive: true,
+        state: !this.rules.cabinUsable(locker.id)
+          ? 'destroyed'
+          : crew.hidden === locker.id
+            ? 'open'
+            : 'locked',
+        interactive: this.rules.cabinUsable(locker.id),
       });
     out.push({
       id: 'van',
@@ -406,6 +414,10 @@ export class FlatRound implements MapSource {
     return this.haunt;
   }
 
+  round(): MapRound {
+    return this.rules.status(this.haunt);
+  }
+
   /** Der Snapshot dieses Bildes — einmal je Schritt gerechnet. */
   snapshot(): MapSnapshot {
     if (!this.snapshotCache) this.snapshotCache = extractMapSnapshot(this, 'flat');
@@ -431,6 +443,11 @@ export class FlatRound implements MapSource {
   private tick(dt: number, input: FlatInput): void {
     if (this.haunt.phase !== 'running') return;
     this.haunt.time += dt;
+    const out = this.rules.step(this.haunt);
+    if (out) {
+      this.events.push(out);
+      return;
+    }
     this.radarPing = Math.max(0, this.radarPing - dt);
     const crew = this.haunt.crew;
 
@@ -542,10 +559,9 @@ export class FlatRound implements MapSource {
     });
     this.decision = decision;
     if (decision.strike && hidden) {
-      crew.hidden = '';
       this.caught = '';
-      if (takeCrewHit(crew, true)) this.hit('Der Schrank wird aufgerissen.');
-      crew.invulnerable = 3;
+      // Die Kabine ist danach hin (`rules/roundRules.ts`).
+      if (this.rules.cabinStrike(crew)) this.hit('Die Kabine wird aufgerissen.');
     }
     if (
       decision.mode === 'search' &&
@@ -570,7 +586,7 @@ export class FlatRound implements MapSource {
     const crew = this.haunt.crew;
     if (crew.hp <= 0) {
       this.haunt.phase = 'lost';
-      this.events.push({ kind: 'bad', text: 'MISSION GESCHEITERT · Drei Treffer.' });
+      this.events.push({ kind: 'bad', text: 'MISSION GESCHEITERT · Anzug zerstört.' });
     } else this.events.push({ kind: 'bad', text: `${text} Anzug ${crew.hp}/3.` });
   }
 
@@ -750,12 +766,13 @@ export class FlatRound implements MapSource {
           at: console.at,
         });
     for (const locker of this.lockers)
-      candidates.push({
-        kind: 'locker',
-        id: locker.id,
-        label: 'Im Schrank verstecken',
-        at: locker.at,
-      });
+      if (this.rules.cabinUsable(locker.id))
+        candidates.push({
+          kind: 'locker',
+          id: locker.id,
+          label: 'Im Schrank verstecken',
+          at: locker.at,
+        });
     for (const door of this.house.doors) {
       const locked = this.haunt.shut.includes(door.id);
       candidates.push({
