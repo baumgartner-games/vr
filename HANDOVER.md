@@ -3,6 +3,204 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Paket nav — Navmesh / Pathfinding
+
+Branch: `claude/navmesh-path-smoothing-jhml50` (der Auftrag nannte
+`feat/navmesh`; die Browser-Session bekommt ihren Branch vom Harness und darf
+auf keinen anderen pushen — siehe „Abweichungen"). Alles Neue liegt in
+`src/worlds/haunting/navmesh/**`.
+
+### Der Befund
+
+Die Zickzack-Wege kommen aus `stationRoute` (`stationNavigation.ts`): ein A*
+auf einem Raster mit **vier** Nachbarn und 0,25 m Schritt. Ein Weg schräg durch
+einen Raum ist dort eine Treppe aus Viertelmetern; der Kurvenschleifer
+(`softenCorners`) rundet danach jede Stufe mit drei Stützpunkten. Vom
+Eingang ins Zimmer `r2` (Seed 2, 14 Räume) kamen so 243 Wegpunkte auf 61,65 m
+mit 4 585° Richtungswechsel heraus. Diesen Weg laufen das Monster in 3D
+(`StationNpcNavigator`), der Bot (`missionBot`) und die Drohne. Das Monster
+der **2D-Welt** (`FlatRound.moveMonster`) benutzt ihn heute nicht — es geht
+Raum für Raum über Türwegpunkte und hat das Problem nicht.
+
+### Was drin ist
+
+- **Schnurzug** (`navmesh/pathSmoothing.ts`, `pullString`): Sichtlinien-
+  Verkürzung über den fertigen Rasterweg. Vom Anker aus wird der entfernteste
+  Wegpunkt genommen, den eine gerade Strecke erreicht (`SegmentClear`), mit
+  vier Blicken über eine verdeckte Ecke hinweg (`LOOKAHEAD`). Zwei Durchgänge:
+  erst mit dem Radius der Wegsuche **plus `SMOOTH_MARGIN` (0,1 m)**, dann
+  durch die übrig gebliebenen Rasterketten (Türlauf, Gasse zwischen Modulen,
+  Gang mit versetzten Türen) mit dem Radius allein (`PullOptions.tight`). Eine
+  Abkürzung aus dem ersten Durchgang wird im zweiten nie wieder enger gezogen.
+  Strecken zwischen benachbarten Rasterpunkten bleiben unangetastet — die hat
+  der A* schon geprüft. Der Weg wird dadurch nie länger und nie enger als das
+  Raster.
+- **Abstandsprüfung über die 2D-Welt** (`navmesh/snapshotClearance.ts`,
+  `snapshotSegmentClear`): dieselbe `SegmentClear`-Form, aber gegen
+  `MapSnapshot.walls` und geschlossene Türblätter — die Geometrie aus dem
+  Contract des Pakets `map`. Heute die zweite, unabhängige Prüfung in den
+  Tests; morgen die Prüfung, mit der `FlatRound` denselben Schnurzug bekommen
+  kann.
+- **Andockung** in `stationRoute`: Der Schnurzug läuft **vor** dem
+  Kurvenschleifer, der dann nur noch echte Ecken rundet. Der Vertrag des
+  Pakets steht in `navmesh/index.ts`.
+
+### Messung — dieselben Start-Ziel-Paare vorher und nachher
+
+Drei Stationen (Seeds 2, 9, 1009, je 14 Räume), Radius 0,45 m; je Station
+vom Eingangsraum in jedes Zimmer, von der Zentrale zum Eingang und quer vom
+letzten ins erste Zimmer — 45 Paare. „Punkte" ist der gelieferte Weg
+**einschließlich** der Bogenstützen des Kurvenschleifers (alle 12 cm; die
+gibt es weiterhin, nur nicht mehr an jeder Treppenstufe). „Drehung" ist die
+Summe aller Richtungswechsel — das Maß für Zickzack, das die Länge allein
+nicht zeigt. Tabelle mit `NAV_METRICS=1 npx jest stationSmoothing`.
+
+| Seed | Start → Ziel | Länge vorher (m) | Länge nachher (m) | Punkte vorher | Punkte nachher | Drehung vorher (°) | Drehung nachher (°) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2 | r0 → r1 | 37.82 | 37.80 | 44 | 40 | 251 | 203 |
+| 2 | r0 → r2 | 61.65 | 57.66 | 243 | 98 | 4585 | 441 |
+| 2 | r0 → r3 | 60.88 | 58.92 | 110 | 68 | 1975 | 424 |
+| 2 | r0 → r4 | 31.34 | 31.10 | 37 | 33 | 261 | 125 |
+| 2 | r0 → r5 | 73.48 | 71.72 | 93 | 47 | 1435 | 334 |
+| 2 | r0 → r6 | 70.07 | 67.33 | 120 | 72 | 1665 | 329 |
+| 2 | r0 → r7 | 42.50 | 42.50 | 1 | 1 | 0 | 0 |
+| 2 | r0 → r8 | 25.82 | 25.59 | 44 | 40 | 348 | 211 |
+| 2 | r0 → r9 | 42.32 | 39.79 | 128 | 82 | 2058 | 490 |
+| 2 | r0 → r10 | 56.77 | 52.89 | 215 | 133 | 4128 | 560 |
+| 2 | r0 → r11 | 44.42 | 42.64 | 75 | 54 | 1665 | 142 |
+| 2 | r0 → r12 | 69.19 | 67.70 | 70 | 23 | 1125 | 90 |
+| 2 | r0 → r13 | 60.70 | 57.74 | 139 | 69 | 2385 | 192 |
+| 2 | command → r0 | 13.14 | 11.35 | 62 | 31 | 1130 | 112 |
+| 2 | r13 → r0 | 59.35 | 58.22 | 101 | 52 | 1337 | 212 |
+| 9 | r0 → r1 | 37.88 | 36.88 | 50 | 20 | 611 | 79 |
+| 9 | r0 → r2 | 63.21 | 59.34 | 228 | 108 | 4045 | 461 |
+| 9 | r0 → r3 | 62.63 | 61.56 | 80 | 67 | 1255 | 399 |
+| 9 | r0 → r4 | 31.34 | 31.10 | 37 | 33 | 261 | 125 |
+| 9 | r0 → r5 | 74.49 | 72.50 | 123 | 70 | 2065 | 335 |
+| 9 | r0 → r6 | 70.00 | 67.50 | 131 | 72 | 2025 | 333 |
+| 9 | r0 → r7 | 42.50 | 42.50 | 1 | 1 | 0 | 0 |
+| 9 | r0 → r8 | 25.82 | 25.59 | 44 | 40 | 348 | 211 |
+| 9 | r0 → r9 | 42.28 | 40.26 | 112 | 95 | 1337 | 555 |
+| 9 | r0 → r10 | 57.18 | 54.05 | 183 | 95 | 3407 | 437 |
+| 9 | r0 → r11 | 44.38 | 42.63 | 73 | 54 | 1485 | 149 |
+| 9 | r0 → r12 | 69.24 | 67.70 | 70 | 23 | 1305 | 90 |
+| 9 | r0 → r13 | 60.89 | 57.98 | 149 | 79 | 3015 | 192 |
+| 9 | command → r0 | 13.14 | 11.35 | 62 | 31 | 1130 | 112 |
+| 9 | r13 → r0 | 59.15 | 57.86 | 91 | 59 | 1150 | 205 |
+| 1009 | r0 → r1 | 37.88 | 36.88 | 50 | 20 | 611 | 79 |
+| 1009 | r0 → r2 | 62.28 | 58.47 | 257 | 104 | 4585 | 454 |
+| 1009 | r0 → r3 | 61.62 | 59.35 | 115 | 92 | 1885 | 416 |
+| 1009 | r0 → r4 | 31.34 | 31.10 | 37 | 33 | 261 | 125 |
+| 1009 | r0 → r5 | 74.04 | 72.09 | 128 | 69 | 2155 | 335 |
+| 1009 | r0 → r6 | 70.09 | 67.50 | 122 | 72 | 1665 | 333 |
+| 1009 | r0 → r7 | 42.50 | 42.50 | 1 | 1 | 0 | 0 |
+| 1009 | r0 → r8 | 25.82 | 25.59 | 44 | 40 | 348 | 211 |
+| 1009 | r0 → r9 | 42.45 | 40.00 | 118 | 83 | 1878 | 524 |
+| 1009 | r0 → r10 | 56.75 | 53.01 | 193 | 123 | 3048 | 584 |
+| 1009 | r0 → r11 | 44.34 | 42.54 | 73 | 44 | 1485 | 132 |
+| 1009 | r0 → r12 | 69.77 | 68.75 | 46 | 43 | 765 | 90 |
+| 1009 | r0 → r13 | 61.58 | 59.83 | 79 | 77 | 1215 | 185 |
+| 1009 | command → r0 | 13.14 | 11.35 | 62 | 31 | 1130 | 112 |
+| 1009 | r13 → r0 | 59.29 | 58.05 | 92 | 82 | 1330 | 205 |
+| Σ | 45 Paare | 2256.49 | 2178.79 | 4333 | 2604 | 70140 | 11335 |
+
+Über alle Paare: Länge −3,4 %, Punkte −40 %, Drehung −84 %. Die Länge fällt
+wenig, weil der Rasterweg ohnehin durch dieselben Türen muss und ein
+Großteil jeder Strecke gerader Gang ist; was fällt, ist das Wackeln. Kein
+Paar wurde länger (Test). Die Rechenzeit je Weg sinkt leicht (≈ 65 → ≈ 58 ms
+in Jest, Seed 2, 14 Räume, kalter Cache je Aufruf), weil der Kurvenschleifer
+weniger Ecken bekommt.
+
+### Kollisionsfreiheit
+
+`navmesh/stationSmoothing.test.ts` prüft jeden geglätteten Weg zweimal, mit
+Geometrien, die voneinander nichts wissen: gegen die Quader der 3D-Welt
+(Wände, Türrahmen aus `housePlan(spec).solids()`, Module aus `stationLayout`)
+mit dem Kapseltest `routeBlocked` beim Radius — und gegen die Raumwände des
+`MapSnapshot` (`wallSegments(spec)`) mit Radius plus halber Wanddicke. Dazu:
+Jede Türkreuzung liegt so mittig, dass der Körper in die 1,2 m passt, und
+schneidet die Türlinie mit höchstens 20° zur Senkrechten — eine Abkürzung
+passt mit Radius plus Spielraum nur in ±5 cm um die Mitte, ohne Spielraum in
+±15 cm. Eine geschlossene Tür wird weiterhin nicht gekürzt (Teilweg endet
+davor), die Drohne (Radius 0,22, fliegt über niedrige Module) bekommt
+dieselbe Glättung und bleibt frei.
+
+### Entscheidungen und Alternativen
+
+- **Sichtlinie statt Trichter.** Der Funnel-/String-Pulling-Algorithmus
+  braucht eine Folge konvexer Polygone mit gemeinsamen Portalen. Die Räume
+  sind zwar Rechtecke, aber mit Schränken, Konsolen und Fracht darin — nicht
+  konvex frei —, und die Wegsuche selbst kennt nur ein Raster und Quader.
+  Zu dieser Datenstruktur passt der Strahl gegen dieselben Quader
+  (`segmentClear`, jetzt mit wählbarem Radius); ein Portalnetz daneben wäre
+  eine zweite Geometrie, die mit der ersten in Deckung zu halten wäre. Für
+  die 2D-Welt allein (Räume ohne Module) wäre der Trichter über die Türen
+  exakt; sobald sie Module bekommt, gilt dort dasselbe Argument.
+- **Zwei Durchgänge statt einem Radius.** Nur mit Spielraum blieben in
+  Gängen mit versetzten Türen und in Gassen zwischen Modulen Treppen stehen
+  (Drehung −71 % statt −84 %); nur ohne Spielraum streifte jede Abkürzung
+  Ecken mit genau dem Radius. Jetzt: Luft, wo Luft ist; sonst der Radius,
+  mit dem auch das Raster gültig war.
+- **`SMOOTH_MARGIN` = 0,1 m.** Mehr, und keine Abkürzung käme mehr durch
+  eine Gasse (`LANE` = Radius + 0,13); weniger, und man sieht das Monster
+  Ecken schneiden.
+- **Der Kurvenschleifer bleibt, wie er war** (Bögen mit dem Radius allein,
+  Stützpunkte alle 12 cm). Er ist der Grund, warum „Punkte nachher" nicht
+  stärker fällt: Jede echte Ecke kostet weiterhin bis zu 20 Stützpunkte.
+  Ihn mit Spielraum rechnen zu lassen, nähme den Bogen an jeder Türlaufecke
+  weg (die Kette liegt dort ohnehin näher als der Spielraum) — das wäre für
+  die Drohne ein Rückschritt.
+- **`stationRoute` bekommt ein optionales `smooth = true`.** Nur damit sich
+  vorher und nachher auf denselben Paaren messen lassen; kein Aufrufer
+  setzt es.
+
+### Fremde Dateien, die ich angefasst habe (Minimaländerungen)
+
+- `src/worlds/haunting/stationNavigation.ts` (Grenzfall Paket nav): ein
+  Import, ein optionaler siebter Parameter `smooth`, ein `radius`-Parameter
+  mit Vorgabe an `segmentClear`, ein Aufruf von `pullString` vor
+  `softenCorners`. Kein Refactor.
+- `HANDOVER.md`: dieser Abschnitt.
+
+### Abweichungen
+
+- **Branch.** Entwickelt auf `claude/navmesh-path-smoothing-jhml50` statt
+  `feat/navmesh`: Diese Session bekommt ihren Branch zugewiesen und darf auf
+  keinen anderen pushen (AGENTS.md, „Sessions, die nicht auf `main` pushen
+  dürfen"). Der Umweg wird zu Ende gegangen: PR, grüne CI, Merge, Branch weg.
+- **Tests importieren `map`-Dateien direkt** (`map/geometry`,
+  `map/mapSnapshot`) statt über `map/index.ts`: Der Index zieht `flatMode.ts`
+  und damit CSS, und das bricht Jest (steht so in BOUNDARIES.md). Der Code
+  selbst importiert von `map/index.ts` nur Typen.
+- **2D-Monster unverändert.** `FlatRound.moveMonster` (Paket map) nutzt
+  keine Wegsuche, sondern Raumkarte und Türwegpunkte; die Glättung greift
+  dort nicht, und der Auftrag verlangte keine Andockung. `snapshotSegmentClear`
+  liegt bereit, falls das Monster der 2D-Welt einmal `stationRoute` bekommt.
+
+### Offene Fragen an dich
+
+- **Vorplatzhülle der Karte.** `map/extract.ts` (`apronWalls`) setzt die
+  Schleusenlücke an die **Nordkante** des Vorplatzes (`z0`); in den drei
+  gemessenen Stationen liegt die Haustür an der **Südkante** (`z1`, −52,5 m).
+  Der Weg von der Zentrale zum Eingang schneidet auf der Karte daher ein
+  „Fenster" — vorher wie nachher, also nichts, was die Glättung verursacht.
+  Ich habe die Vorplatzhülle deshalb aus der Kartenprüfung gelassen und
+  nichts am Paket `map` geändert. Gehört ans Paket `map`.
+- **Soll das Monster der 2D-Welt** denselben Weg bekommen wie in 3D
+  (`stationRoute` + Schnurzug statt Raum für Raum)? Dann lässt sich die
+  Glättung auch in der 2D-Welt *sehen*, nicht nur messen.
+- **Punkte je Ecke.** Wenn 20 Stützpunkte je Bogen für das Monster zu viel
+  sind (die Drohne braucht sie), wäre ein eigener Schleifer mit weiterem
+  Abstand der nächste Schritt — nicht in diesem Auftrag.
+
+### Tests
+
+`src/worlds/haunting/navmesh/pathSmoothing.test.ts` (Schnurzug, Blick über
+die Ecke, zweiter Durchgang, Abstandsrechnung, Snapshot-Prüfung) und
+`stationSmoothing.test.ts` (45 Paare: vollständig, nie länger, frei nach
+beiden Geometrien, Türkreuzungen, Drohne, geschlossene Tür). Die bestehende
+`stationNavigation.test.ts` läuft unverändert.
+
 ## Paket world3d — 3D-Welt / Kleinkram
 
 Branch `feat/world-3d` — in dieser Session vom Harness als
