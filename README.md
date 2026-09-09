@@ -263,6 +263,8 @@ begrenzt die Auswahl; `--loops=2 --bot-seconds=30` wiederholt den Durchlauf und
 beobachtet die Bot-Demo länger. `--headless` ist für Läufe ohne Fenster gedacht
 (in CI automatisch aktiv). Nur bei Bedarf erzwingt `--software` für Chromium
 SwiftShader; dessen Bildrate ist kein Vergleichswert für native Grafik.
+`--no-screenshots` lässt alle Prüfungen laufen, speichert aber ausschließlich
+den Report und nimmt auch bei Fehlern kein Bild auf.
 
 Screenshots und `report.json` dokumentieren Ansichten, Browserfehler,
 WebGL-Renderer, Botbewegung und ein kurzes Frame-Timing. Der Loop prüft auch,
@@ -272,7 +274,7 @@ noch eine Quest-Abnahme mit echten VR-Controllern und mehreren Mobilgeräten.
 Details und noch offene Hardwaretests: [Orbital-QA](docs/orbital-qa.md).
 
 Der Workflow [Browser smoke](.github/workflows/browser.yml) prüft den gebauten
-Stand zusätzlich mit Chromium in CI. Screenshots und Report bleiben dort
+Stand zusätzlich mit Chromium und `--no-screenshots` in CI. Der Report bleibt dort
 14 Tage als Artefakt **orbital-browser-review** verfügbar, auch bei einem
 fehlgeschlagenen Lauf. Die Softwaregrafik dieses CI-Tests ist kein FPS-Benchmark.
 

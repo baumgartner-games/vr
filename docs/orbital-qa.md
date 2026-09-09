@@ -231,3 +231,14 @@ Lokale Abnahme: `.artifacts/browser-smoke/software-final/report.json` — alle
 13 Pflichtbilder erfolgreich, keine Browser-/Konsolenfehler, echte Bewegung
 beider Akteure, HP=3 und positiver Kameraanstieg nach Tastendruck. Dies ist eine
 Funktionsprüfung mit Software-Rendering, kein Hardware-Performancevergleich.
+
+
+CI läuft nun ausdrücklich mit `--no-screenshots`, nachdem auch Lauf
+34332594079 beim Linux-Screenshot hängen blieb. Alle Rollen-, Interaktions-,
+Neustart-, Bewegungs-, Kamera- und WebGL-Prüfungen bleiben aktiv. Das Flag
+überspringt auch das zusätzliche Fehlerbild, schreibt aber weiterhin den
+JSON-Report und alle erreichten Schritte. Lokal bleiben Screenshots Standard.
+
+Abnahme ohne Bilder: `.artifacts/browser-smoke/no-screenshots/report.json`
+meldet `passed: true`, `screenshots: false` und 13 erreichte Schritte mit
+`screenshot: null`. Im Ausgabeordner liegt keine PNG-Datei.

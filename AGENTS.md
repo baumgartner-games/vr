@@ -7716,8 +7716,13 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Chromium-Fallback. Diese Läufe nicht als native Leistungsmessung ausgeben.
   Browser einmalig via `npm run test:browser:install` installieren; Playwright
   und Browserrevision müssen zusammenpassen.
+- CI verwendet `--no-screenshots`: Alle Funktionsprüfungen bleiben aktiv,
+  aber weder Pflicht- noch Fehlerbilder werden aufgenommen. Der JSON-Report
+  bleibt das CI-Artefakt; `screenshots: false`, `screenshot: null` und
+  `captureMode: 'disabled'` machen den Modus ausdrücklich erkennbar.
+  Lokale Läufe nehmen ohne dieses Flag weiterhin Screenshots auf.
 - Browser-Smoke-Screenshots pausieren nur für die Aufnahme die WebGL-
-  Animationsschleife und setzen sie in `finally` fort. So kann SwiftShader die
+  Animationsschleife und setzen sie in `finally` fort. So kann SwiftShader
   ein frisches Einzelbild abarbeiten, ohne ständig neue Frames zu erhalten. Bewegung
   und Frame-Samples laufen danach regulär weiter. Pflicht-Screenshots bleiben
   harte Fehler (30s); das Fehlerbild hat 10s Budget. Reports nennen den aktiven
@@ -7737,7 +7742,7 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   und jeweils belegte Ergebnisse stehen in `docs/orbital-qa.md`.
 - `.github/workflows/browser.yml` baut bei main-Push/PR/manuellem Start einen
   Produktions-Preview und prüft ihn mit Chromium (`--software`, in CI headless).
-  Das Artefakt **orbital-browser-review** enthält Screenshots/JSON auch bei
+  Das Artefakt **orbital-browser-review** enthält den JSON-Report auch bei
   Fehlern, Aufbewahrung 14 Tage. Kein nativer Leistungsbenchmark.
 - Die lokale Generation `acceptance/` hat vier erfolgreiche Produktions-Smokes
   (zweimal Chromium, zweimal Firefox), jeweils ohne Browser-/Konsolenfehler oder

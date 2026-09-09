@@ -27,6 +27,7 @@ const output = path.resolve(
     `.artifacts/browser-smoke/${new Date().toISOString().replace(/[:.]/g, '-')}`,
 );
 await mkdir(output, { recursive: true });
+const screenshots = !args.has('no-screenshots');
 const results = [];
 const summary = () =>
   writeFile(path.join(output, 'report.json'), JSON.stringify({ base, output, results }, null, 2));
@@ -50,6 +51,7 @@ for (const name of browserNames) {
         browser: name,
         loop,
         passed: false,
+        screenshots,
         steps: [],
         pageErrors: [],
         consoleErrors: [],
@@ -103,6 +105,13 @@ for (const name of browserNames) {
         const file = `${prefix}-${label}.png`;
         result.activeStep = label;
         await summary();
+        if (!screenshots) {
+          result.steps.push({ label, screenshot: null, captureMode: 'disabled' });
+          delete result.activeStep;
+          console.log(`[${prefix}] ${label} (screenshots disabled)`);
+          await summary();
+          return;
+        }
         const started = Date.now();
         await capture(file);
         result.steps.push({
@@ -408,9 +417,10 @@ for (const name of browserNames) {
         result.passed = true;
       } catch (error) {
         result.failure = error.stack ?? String(error);
-        await capture(`${prefix}-failure.png`, 10000).catch((captureError) => {
-          result.failureScreenshotError = captureError.message;
-        });
+        if (screenshots)
+          await capture(`${prefix}-failure.png`, 10000).catch((captureError) => {
+            result.failureScreenshotError = captureError.message;
+          });
         console.error(`[${prefix}] FAILED: ${error.message}`);
       } finally {
         await summary();
