@@ -25,6 +25,9 @@ import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
+import { VentNet } from '../vents/ventGraph';
+import { VentTravel } from '../vents/ventTravel';
+import { VentPilot } from '../vents/ventPilot';
 import { doorCentre, nextThroughDoor, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
@@ -153,6 +156,10 @@ export class FlatRound implements MapSource {
   readonly monster: Actor;
   /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
   readonly rules = new RoundRules();
+  /** Das Lüftungsnetz, die Fahrt des Monsters darin und der Lotse der KI (`vents/`). */
+  readonly vents: VentNet;
+  readonly ventRide: VentTravel;
+  private readonly ventPilot: VentPilot;
   /** Welche Werkzeuge man hat, in Reihenfolge des Durchschaltens. */
   readonly tools: string[] = ['flashlight'];
   active = 0;
@@ -210,6 +217,14 @@ export class FlatRound implements MapSource {
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
+    this.vents = new VentNet(this.house);
+    this.ventRide = new VentTravel(this.vents);
+    this.ventPilot = new VentPilot(
+      this.vents,
+      this.ventRide,
+      MONSTERS.find((m) => m.id === crewOptions.monster)?.vent ?? 28,
+      monsterBase(crewOptions.monster) * this.tuning.monster.speed,
+    );
     this.player = { x: COMMAND_HOME.x, z: COMMAND_HOME.z, yaw: 0, space: COMMAND };
     const start = farthest(this.graph, this.player);
     const centre = this.graph.centre(start);
@@ -291,7 +306,7 @@ export class FlatRound implements MapSource {
     if (!door) return false;
     const at = doorCentre(door);
     for (const actor of [this.player, this.monster]) {
-      if (actor === this.monster && !this.haunt.monsterOn) continue;
+      if (actor === this.monster && (!this.haunt.monsterOn || this.ventRide.concealed)) continue;
       if (Math.hypot(actor.x - at.x, actor.z - at.z) < 2.2) return true;
     }
     return false;
@@ -323,8 +338,8 @@ export class FlatRound implements MapSource {
         at: { x: this.monster.x, z: this.monster.z },
         yaw: this.monster.yaw,
         roomId: this.monster.space,
-        concealed: false,
-        moving: (this.decision?.pace ?? 'still') !== 'still',
+        concealed: this.ventRide.concealed,
+        moving: !this.ventRide.busy && (this.decision?.pace ?? 'still') !== 'still',
         sprinting: this.decision?.pace === 'hunt',
         held: '',
         sense: {
@@ -386,7 +401,13 @@ export class FlatRound implements MapSource {
       state: this.haunt.done.length >= 3 ? 'ready' : '',
       interactive: false,
     });
+    const open = this.ventRide.openFlap;
+    out.push(...this.vents.items(open ? [open.id] : []));
     return out;
+  }
+
+  ventLinks(): MapSnapshot['ventLinks'] {
+    return this.vents.mapLinks();
   }
 
   carriedLights(): readonly MapLight[] {
@@ -516,6 +537,13 @@ export class FlatRound implements MapSource {
 
     if (!this.haunt.monsterOn) return;
 
+    // --- Im Schacht: nichts hören, nichts sehen, nur fahren (`vents/ventTravel.ts`).
+    if (this.ventRide.busy) {
+      this.ventRide.step(dt, this.monster, true);
+      this.haunt.monster = { x: this.monster.x, z: this.monster.z };
+      return;
+    }
+
     // --- Wahrnehmung des Monsters --------------------------------------------
     const profile = ENTITY_PROFILES[crew.options.monster];
     const hidden = !!crew.hidden;
@@ -571,11 +599,14 @@ export class FlatRound implements MapSource {
     )
       this.caught = crew.hidden;
     if (decision.cue === 'scream') this.events.push({ kind: 'bad', text: 'Ein Schrei.' });
-    this.moveMonster(
-      decision,
-      dt,
-      paceSpeed(monsterBase(crew.options.monster), this.tuning.monster, decision.pace),
-    );
+    // Der Lotse biegt das Ziel auf eine Klappe um, wenn der Schacht lohnt (`vents/ventPilot.ts`).
+    const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.graph);
+    if (!this.ventRide.busy)
+      this.moveMonster(
+        steered,
+        dt,
+        paceSpeed(monsterBase(crew.options.monster), this.tuning.monster, steered.pace),
+      );
     this.haunt.monster = { x: this.monster.x, z: this.monster.z };
 
     if (gap < CONTACT && !hidden && !decision.strike && takeCrewHit(crew, true))

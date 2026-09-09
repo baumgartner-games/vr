@@ -63,6 +63,9 @@ als `console.info`; beim Schreiben dieses Abschnitts: siehe unten
   Treffer binnen drei Sekunden nach dem letzten ab; für den Kabinenangriff
   wird die Frist vorher auf null gesetzt und danach neu gewährt (`mission.ts`
   unverändert).
+- **Nur eine Klappe je Raum.** Räume sind hier klein (vier mal vier
+  Kacheln); zwei Klappen im selben Raum wären Deko. Wer die Cafeteria
+  zweifach anschließen will, fügt eine Zeile in `ventNet.data.ts` ein.
 - **Der Bot der 2D-Runde erkennt Gefahr wie `roundSim.ts`** (Abstand und
   Raumkarte), nicht über das Sichtbarkeitsfeld. Ein Bot, der das Monster erst
   im Licht sieht, würde die Schleife nie erreichen, die ein Mensch mit Ohren
@@ -98,7 +101,83 @@ Feld, fünf kleine Hooks), `map/flatMode.ts` (HUD-Zeile, Endkarte),
   `map/flatWalk` und `map/mapSnapshot` direkt. Vorschlag an Paket map: den
   Index in einen headless Teil und einen DOM-Teil trennen.
 
+### Etappe B — Lüftungssystem (`vents/`)
+
+**Was drin ist.**
+
+- `vents/ventNet.data.ts`: **das Netz als Daten** — vierzehn Klappen (eine
+  je Raum, an Innenwänden zu Gängen, nie in einer Türöffnung) und neun
+  Verbindungen in vier getrennten Netzen (Reaktor–Triebwerke,
+  Sicherheit–MedBay–Elektrik, Cafeteria–Admin, Lager–Kommunikation,
+  Waffen–O2–Navigation–Schilde). Wer das Netz ändert, ändert diese Datei.
+- `vents/ventGraph.ts`: `VentNet` baut aus Daten und Bauplan die Klappen in
+  Metern (`at` an der Wand, `approach` davor) und **prüft die Daten** beim
+  Bauen (Kachel im Raum, Wand am Rand, keine Türöffnung, bekannte Klappen in
+  jeder Verbindung). `ventGraph.test.ts` prüft das gegen vier Samen.
+- `vents/ventTravel.ts`: `VentTravel`, die Fahrt als Zustandsmaschine —
+  einsteigen (1,2 s, sichtbar, Klappe offen), fahren (Länge des Schachts
+  durch 3,5 m/s, mindestens 2,5 s, **unsichtbar**: `concealed`), ankommen,
+  aussteigen (0,9 s, Klappe drüben offen). Die KI steigt sofort aus
+  (`autoExit`), ein Spieler muss den Knopf drücken. Der Zustand liegt in der
+  Maschine und nicht beim Steuernden — deshalb übersteht er einen Wechsel
+  der Steuerung (Etappe C).
+- `vents/ventPilot.ts`: **wie die KI fährt.** Die Routine kennt keine
+  Schächte und bleibt unangetastet; der Lotse liest ihr Ziel und biegt es auf
+  eine Klappe um, wenn Umweg, Ein-/Aussteigen und Fahrt zusammen mindestens
+  sechs Meter Weg sparen. Pause zwischen Fahrten aus `MONSTERS[].vent`.
+- `vents/ventArt.ts`: die Klappen in 3D — Rahmen, vier Lamellen, ein
+  Leuchtstreifen, alles in einer `ShipBatch` (zwei Draw-Calls für die ganze
+  Station). `vents/vents.register.ts` meldet Modell und Netz als Assets an.
+- Contract: Klappen als `MapItem` der Sorte `vent` (`closed`/`open`, nie
+  `interactive`), `MapSnapshot.ventLinks` als Graph, `MapSource.ventLinks?()`.
+  Das Monster im Schacht ist `concealed` — das Sichtbarkeitsmodell nimmt es
+  damit in beiden Modi aus `visibleEntities`; im Modus „Alles sehen" bleibt
+  der blasse Marker an der Einstiegsklappe stehen, was für die Prüfansicht
+  gewollt ist. `MapView` zeichnet eine Klappe als Gitter (kleine Ergänzung
+  im `items`-Zweig).
+- 2D-Runde (`map/flatRound.ts`): drei Felder, vier Zeilen im Konstruktor,
+  der Fahrt-Schritt am Anfang des Monsterblocks (im Schacht wird weder
+  wahrgenommen noch gelaufen noch getroffen), der Lotse vor `moveMonster`,
+  Klappen in `items()`, `ventLinks()`, `concealed` am Monster, und die
+  automatischen Türen ignorieren ein Monster im Schacht.
+- 3D-Welt (`HauntingWorld.buildHouse`): ein Import, ein `stage.add`.
+
+**Entscheidungen und Alternativen.**
+
+- **Die alte Schacht-Logik der 3D-Welt bleibt, wie sie ist.** `HauntingWorld`
+  lässt das Monster weiter über `mission.ventPairs` (jede gemeinsame Wand)
+  mit Rauch und zwei Sekunden Unsichtbarkeit springen. Sie auf den neuen
+  Graphen umzustellen hieße, `npcTarget`, `stepMonster`-Schachtteil und
+  `monsterVent` umzuschreiben (~60 Zeilen der gemeinsamen Grenzfall-Datei)
+  und die Fahrt mit dem NPC-Körper zu verheiraten. Das ist der nächste
+  Schritt, nicht dieser: Die neuen Klappen stehen in 3D sichtbar an den
+  Wänden, das Netz und die Fahrt sind headless fertig und getestet, und die
+  Umstellung ist damit ein Austausch von drei Methoden. Bis dahin gibt es
+  in 3D zwei Sorten Gitter: die alten hoch an den Wänden (`shipArt`) und die
+  neuen Klappen unten.
+- **Klappenwahl bei zwei Zielen:** `enter(rider, choice)` nimmt die
+  Datenreihenfolge; die KI rechnet die bessere aus, die Monster-Rolle zeigt
+  die Ziele als Knöpfe (Etappe C).
+- **Der Schacht ist Luftlinie.** Die Fahrtdauer ist die Luftlinie zwischen
+  den Klappen durch `VENT_SPEED`; ein echter Kanalverlauf brächte nichts,
+  was man auf der Karte sähe.
+- **Kein Hören im Schacht.** Das Monster nimmt während der Fahrt nichts
+  wahr, sein Gedächtnis läuft in der Zeit nicht ab (der Wahrnehmungsblock
+  wird übersprungen). Alternative: Gedächtnis weiterlaufen lassen — eine
+  Zeile vor dem `return` im Fahrt-Schritt.
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts` (siehe
+oben), `map/mapSnapshot.ts` (`ventLinks?`), `map/mapSource.ts`,
+`map/extract.ts` (je `ventLinks`), `map/mapView.ts` (Gitter für `vent`,
+zwei Farben), `HauntingWorld.ts` (Import, ein Aufruf in `buildHouse`).
+
 ### Stand je Etappe
+
+**B — fertig.** `vents/*.test.ts`: Datennetz gegen vier Samen, Fahrt
+Schritt für Schritt, 2D-Runde (Klappen und Graph im Snapshot, Techniker kann
+keine Klappe benutzen, Monster während der Fahrt für Techniker und
+Schalttafel unsichtbar und ohne Treffer, KI nimmt über vier Samen und 240 s
+mindestens eine Abkürzung).
 
 **A — fertig.** Typecheck, Lint, Prettier und alle Tests grün. Der Testlauf
 (`rules/botRound.test.ts`, Stand des Commits):

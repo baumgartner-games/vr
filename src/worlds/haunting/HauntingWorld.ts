@@ -100,6 +100,7 @@ import { StationUi } from './stationUi';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { RoundRules } from './rules/roundRules';
+import { buildVentFlaps } from './vents/ventArt';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
 import type { FlatStage } from './map/flatStage';
@@ -912,6 +913,7 @@ export class HauntingWorld extends GridWorld {
     this.lamps.clear();
     const art = buildShip(this.spec);
     this.stage.add(art);
+    this.stage.add(buildVentFlaps(this.spec));
     this.roomArt.clear();
     for (const group of art.children) {
       const id = group.userData.roomId as string | undefined;

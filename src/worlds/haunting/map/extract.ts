@@ -153,5 +153,6 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
     items: [...source.items()],
     power: true,
     ...(source.round ? { round: source.round() } : {}),
+    ...(source.ventLinks ? { ventLinks: source.ventLinks() } : {}),
   };
 }

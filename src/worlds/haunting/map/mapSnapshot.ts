@@ -196,6 +196,12 @@ export interface MapSnapshot {
   power: boolean;
   /** Die Rundenregeln, wenn die Quelle sie führt (Paket Rundenregeln). */
   round?: MapRound;
+  /**
+   * Der Vent-Graph (Paket Lüftungssystem): Paare von `MapItem`-Kennungen der
+   * Sorte `vent`, zwischen denen ein Schacht läuft. Die Klappen selbst stehen
+   * in `items`, mit Zustand `closed` oder `open` (jemand steigt ein oder aus).
+   */
+  ventLinks?: Array<{ a: string; b: string }>;
 }
 
 /** Ein Snapshot ohne Station — der Anfangswert jeder Ansicht. */

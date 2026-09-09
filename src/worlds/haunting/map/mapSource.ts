@@ -34,6 +34,8 @@ export interface MapSource {
   carriedLights(): readonly MapLight[];
   /** Der Stand der Rundenregeln (Paket Rundenregeln), wenn die Quelle sie führt. */
   round?(): MapRound;
+  /** Die Verbindungen des Lüftungsnetzes (Paket Lüftungssystem), wenn es eines gibt. */
+  ventLinks?(): MapSnapshot['ventLinks'];
 }
 
 /**
