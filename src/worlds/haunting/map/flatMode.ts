@@ -7,6 +7,7 @@ import { Joystick } from './joystick';
 import { MapView } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
+import { HauntingAudio } from '../audio';
 
 /**
  * **Die 2D-Welt** — die Station von oben, gespielt mit dem Daumen.
@@ -54,6 +55,8 @@ export class FlatMode {
   private seed: number;
   private readonly options_: FlatOptions;
   private readonly dice = new Rng(Date.now() >>> 0);
+  /** Schritte, Monster und Herzschlag auf dem Hörmodell der Karte (Paket Audio). */
+  private readonly audio = new HauntingAudio();
 
   constructor(
     seed: number,
@@ -144,6 +147,12 @@ export class FlatMode {
     const stick = this.stick.value;
     this.round.step(dt, { x: stick.x, z: stick.z, sprint: stick.sprint });
     for (const event of this.round.drain()) this.show(event);
+    this.audio.update(dt, {
+      snapshot: this.round.snapshot(),
+      listener: PLAYER_ID,
+      kind: this.monsterKind,
+      active: this.round.state().monsterOn,
+    });
     this.toastLeft = Math.max(0, this.toastLeft - dt);
     if (this.toastLeft <= 0 && this.toast.textContent) {
       this.toast.textContent = '';
@@ -302,6 +311,7 @@ export class FlatMode {
   }
 
   dispose(): void {
+    this.audio.dispose();
     this.stick.dispose();
     this.map.dispose();
     this.element.remove();

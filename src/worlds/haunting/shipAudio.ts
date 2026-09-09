@@ -42,6 +42,14 @@ export interface ShipAudioFrame {
    * sich bekommt. Spielwerte, nie eine gemessene Herzfrequenz.
    */
   chase?: number;
+  /**
+   * Das Hörmodell des Pakets Audio (`audio/hearing.ts`): effektive Entfernung
+   * und Herkunft einer Quelle — um Ecken, durch Wände gedämpft. Fehlt es,
+   * gilt die Luftlinie.
+   */
+  hearing?: (source: SignalPoint) => { distance: number; from: SignalPoint } | null;
+  /** `false`, wenn ein anderer Mixer die Schritte des Monsters spielt (`audio/`). */
+  footsteps?: boolean;
 }
 /** Länge, Abspielrate und Lautstärke je Geräusch — eine Tabelle statt einer Leiter aus Fragezeichen. */
 const DURATIONS: Partial<Record<ShipSound, number>> = {
@@ -82,16 +90,21 @@ interface Voice {
   volume: number;
 }
 
-/** Head-relative stereo with inverse-square falloff; no HRTF convolution on mobile. */
+/**
+ * Head-relative stereo with inverse-square falloff; no HRTF convolution on mobile.
+ * `heard` ersetzt die Luftlinie durch effektive Meter aus dem Hörmodell.
+ */
 export function spatialMix(
   listener: SignalPoint,
   forward: SignalPoint,
   source: SignalPoint,
   output: { pan: number; gain: number } = { pan: 0, gain: 0 },
+  heard?: number,
 ): { pan: number; gain: number } {
   const dx = source.x - listener.x,
     dz = source.z - listener.z;
-  const distance = Math.hypot(dx, dz),
+  const straight = Math.hypot(dx, dz),
+    distance = heard ?? straight,
     length = Math.hypot(forward.x, forward.z);
   if (!Number.isFinite(distance) || !Number.isFinite(length)) {
     output.pan = 0;
@@ -99,7 +112,7 @@ export function spatialMix(
     return output;
   }
   const pan =
-    distance > 0.01 && length > 0.01 ? (dx * -forward.z + dz * forward.x) / (distance * length) : 0;
+    straight > 0.01 && length > 0.01 ? (dx * -forward.z + dz * forward.x) / (straight * length) : 0;
   output.pan = Math.min(1, Math.max(-1, pan));
   output.gain = distance > 28 ? 0 : 1 / (1 + (distance / 3.5) ** 2);
   return output;
@@ -123,6 +136,7 @@ export class ShipAudio {
   private heartClock = 0;
   private ventBefore = false;
   private pending: { kind: ShipSound; at: number; scale: number } | null = null;
+  private hearing: ShipAudioFrame['hearing'] = undefined;
 
   get activeVoices(): number {
     let count = 0;
@@ -143,9 +157,10 @@ export class ShipAudio {
     this.listener.z = frame.listener.z;
     this.forward.x = frame.forward.x;
     this.forward.z = frame.forward.z;
+    this.hearing = frame.hearing;
     for (const voice of this.voices)
       if (voice.source) {
-        const mix = spatialMix(this.listener, this.forward, voice.at, this.mix);
+        const mix = this.mixFor(voice.at);
         voice.pan.pan.setTargetAtTime(mix.pan, ctx.currentTime, 0.03);
         voice.gain.gain.setTargetAtTime(voice.volume * mix.gain, ctx.currentTime, 0.03);
       }
@@ -206,7 +221,7 @@ export class ShipAudio {
     const hostile = frame.active && !frame.test && frame.monster;
     if (hostile && frame.venting && !this.ventBefore) this.play('vent', frame.monster!, frame.kind);
     this.ventBefore = frame.venting;
-    if (hostile && !frame.venting && this.stepClock <= 0) {
+    if (hostile && !frame.venting && frame.footsteps !== false && this.stepClock <= 0) {
       this.stepClock = ENTITY_PROFILES[frame.kind].cadence;
       this.play('step', frame.monster!, frame.kind);
     }
@@ -221,7 +236,7 @@ export class ShipAudio {
         voice = slot;
         break;
       }
-    const mix = spatialMix(this.listener, this.forward, at, this.mix);
+    const mix = this.mixFor(at);
     // Drop a distant or ninth simultaneous event; never let a spark burst allocate unbounded nodes.
     if (!voice || mix.gain < 0.015) return;
     const noisy =
@@ -281,6 +296,12 @@ export class ShipAudio {
     };
     source.start();
     source.stop(ctx.currentTime + duration + 0.02);
+  }
+
+  /** Die Luftlinie — oder, mit Hörmodell, der Weg um die Ecke aus der letzten Tür. */
+  private mixFor(at: SignalPoint): { pan: number; gain: number } {
+    const heard = this.hearing?.(at);
+    return spatialMix(this.listener, this.forward, heard?.from ?? at, this.mix, heard?.distance);
   }
 
   private ensure(): boolean {
