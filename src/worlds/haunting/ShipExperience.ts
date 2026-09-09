@@ -226,6 +226,7 @@ export class ShipExperience {
   private training: TrainingRun | null = null;
   private trainingNote = '';
   private trainingLine: HTMLElement | null = null;
+  private trainedAt = 0;
   private simulated: THREE.Object3D | null = null;
   private followBot = true;
   private readonly followEye = new THREE.Vector3();
@@ -1684,8 +1685,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   private stepTraining(): void {
     const run = this.training;
     if (!run) return;
-    // Zehn Millisekunden je Bild: Das Training kommt spürbar voran und die
-    // Runde daneben läuft weiter.
+    // Zehn Millisekunden **je echtem Bild** und nicht je gerechnetem: Im
+    // Zeitraffer läuft dieselbe Aktualisierung achtmal, und achtzig
+    // Millisekunden Training je Bild sind kein Training mehr, sondern ein
+    // Ruckeln.
+    const now = Date.now();
+    if (now - this.trainedAt < 14) return;
+    this.trainedAt = now;
     run.advance(10);
     const state = run.state;
     if (state.step > 0 || run.finished) this.host.retune?.(state.tuning);

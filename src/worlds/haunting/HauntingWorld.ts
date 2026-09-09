@@ -2192,6 +2192,9 @@ export class HauntingWorld extends GridWorld {
       lighting.ambient = deck.ambient;
       lighting.lamps = deck.lamps;
     }
+    // Notlicht ist eine halbe Lampe und keine andere: dieselben Leuchten,
+    // gedimmt. Ein eigener Lampensatz dafür wäre ein zweiter Satz Fehler.
+    const lampScale = deck?.emergency ? 0.42 : 1;
     if (this.testLight)
       this.testLight.intensity = THREE.MathUtils.damp(
         this.testLight.intensity,
@@ -2216,7 +2219,7 @@ export class HauntingWorld extends GridWorld {
         const glow = !bright && id === this.spook.room ? flickerLevel(this.spook.since) : 1;
         light.position.copy(lamp.at);
         light.color.setHex(lamp.color);
-        light.intensity = LAMP_ON * glow;
+        light.intensity = LAMP_ON * glow * lampScale;
       }
     }
     for (const [id, lamp] of this.lamps)
