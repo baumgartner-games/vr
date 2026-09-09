@@ -1,4 +1,11 @@
-import type { MapPoint, MapSnapshot } from './mapSnapshot';
+import { lineOfSight as sightOver, rayHit, doorLeaf } from './geometry';
+import {
+  pointInPolygon,
+  type MapEntity,
+  type MapLight,
+  type MapPoint,
+  type MapSnapshot,
+} from './mapSnapshot';
 
 /**
  * **Das Sichtbarkeitsmodell** — was auf der Karte zu sehen ist und was nicht.
@@ -15,11 +22,26 @@ import type { MapPoint, MapSnapshot } from './mapSnapshot';
  *   Helligkeit; dunkle Bereiche nur leicht grau statt schwarz.
  * - `realistic` („Realitätsnah"): nur Kartenlicht und Taschenlampe; ohne
  *   jedes Licht bleibt der Radius der Eigenwahrnehmung (`SELF_RADIUS`).
+ *
+ * **Licht ist eine Fläche, die man ausrechnen kann.** Jede Lichtquelle wirft
+ * Strahlen bis an die nächste Wand (`litPolygon`); was zwischen den Strahlen
+ * liegt, ist das Polygon, das die Karte hell malt. Fenster lassen Licht
+ * durch, Wände und geschlossene Türblätter nicht. Das ist grob — ein Strahl
+ * je fünf Grad —, aber es ist dieselbe Grobheit für alle, und sie ist billig
+ * genug für dreißig Bilder je Sekunde auf einem Telefon.
  */
 export type VisibilityMode = 'omniscient' | 'realistic';
 
 /** Was man im Dunkeln ohne jedes Licht noch von sich selbst weiß, in Metern. */
 export const SELF_RADIUS = 1.5;
+
+/** Wie weit man beim Rennen zu hören ist, in Metern — für die Zeichnung. */
+export const NOISE_SPRINT = 12;
+/** Und beim Gehen. */
+export const NOISE_WALK = 5;
+
+/** Strahlen je voller Kreis. */
+const RAYS = 72;
 
 /** Ein Sichtkegel: wer schaut, wohin, wie breit, wie weit. */
 export interface VisionCone {
@@ -30,6 +52,8 @@ export interface VisionCone {
   /** Öffnungswinkel in Bogenmaß, ganz (nicht halb). */
   fov: number;
   range: number;
+  /** Der Kegel gegen Wände beschnitten — das, was gezeichnet wird. */
+  polygon: MapPoint[];
 }
 
 /** Ein Geräuschradius: wer gerade wie weit zu hören ist. */
@@ -37,7 +61,7 @@ export interface NoiseRadius {
   entityId: string;
   at: MapPoint;
   radius: number;
-  /** Was ihn erzeugt — Rennen, Gehen, eine geöffnete Fracht. */
+  /** Was ihn erzeugt — Rennen, Gehen, eine geöffnete Fracht, das Gehör des Monsters. */
   cause: 'sprint' | 'walk' | 'interact' | 'monster';
 }
 
@@ -49,11 +73,9 @@ export interface LitRegion {
   /** Nur bei Kegeln (Taschenlampe, Drohne). */
   yaw?: number;
   fov?: number;
-  /**
-   * Die sichtbare Fläche als Polygon, gegen Wände beschnitten — das ist es,
-   * was gezeichnet wird. Leer, wenn noch nicht berechnet.
-   */
+  /** Die sichtbare Fläche als Polygon, gegen Wände beschnitten. */
   polygon: MapPoint[];
+  color?: string;
 }
 
 /** Was in das Modell hineingeht. */
@@ -93,9 +115,10 @@ export interface VisibilityField {
  * Türblätter auch nicht.
  */
 export type LineOfSight = (snapshot: MapSnapshot, from: MapPoint, to: MapPoint) => boolean;
+export const lineOfSight: LineOfSight = sightOver;
 
 /** Ob ein Punkt in einem Kegel liegt — Winkel und Reichweite, ohne Wände. */
-export function inCone(cone: VisionCone, at: MapPoint): boolean {
+export function inCone(cone: Omit<VisionCone, 'polygon'>, at: MapPoint): boolean {
   const dx = at.x - cone.at.x,
     dz = at.z - cone.at.z;
   const distance = Math.hypot(dx, dz);
@@ -105,15 +128,241 @@ export function inCone(cone: VisionCone, at: MapPoint): boolean {
   const hx = -Math.sin(cone.yaw),
     hz = -Math.cos(cone.yaw);
   const cos = (dx * hx + dz * hz) / distance;
-  return cos >= Math.cos(cone.fov / 2);
+  return cos >= Math.cos(cone.fov / 2) - 1e-9;
 }
 
 /**
- * Das Modell selbst. **Phase 1 (`feat/map-core`).** Die Signatur steht; bis
- * dahin ist das Feld leer und im Modus `omniscient` sind alle Wesen sichtbar.
+ * Die Fläche, die eine Lichtquelle (oder ein Auge) von `at` aus erreicht:
+ * ein Kreis oder ein Kegel, an Wänden und geschlossenen Türen abgeschnitten.
  */
-export type ComputeVisibility = (input: VisibilityInput) => VisibilityField;
+export function litPolygon(
+  snapshot: MapSnapshot,
+  at: MapPoint,
+  radius: number,
+  yaw?: number,
+  fov?: number,
+): MapPoint[] {
+  return castPolygon(blockersOf(snapshot), at, radius, yaw, fov);
+}
+
+/** Ein Wandstück mit seinem Kasten, damit ferne Wände gar nicht erst geprüft werden. */
+interface Blocker {
+  a: MapPoint;
+  b: MapPoint;
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+}
+
+function blocker(a: MapPoint, b: MapPoint): Blocker {
+  return {
+    a,
+    b,
+    minX: Math.min(a.x, b.x),
+    minZ: Math.min(a.z, b.z),
+    maxX: Math.max(a.x, b.x),
+    maxZ: Math.max(a.z, b.z),
+  };
+}
+
+/** Alles, was Licht aufhält: Wände und geschlossene Türblätter. */
+function blockersOf(snapshot: MapSnapshot): Blocker[] {
+  const out: Blocker[] = [];
+  for (const wall of snapshot.walls) if (wall.kind === 'wall') out.push(blocker(wall.a, wall.b));
+  for (const door of snapshot.doors)
+    if (!door.open) {
+      const [a, b] = doorLeaf(door.at, door.axis, door.width);
+      out.push(blocker(a, b));
+    }
+  return out;
+}
+
+function castPolygon(
+  all: readonly Blocker[],
+  at: MapPoint,
+  radius: number,
+  yaw?: number,
+  fov?: number,
+): MapPoint[] {
+  const blockers = all.filter(
+    (b) =>
+      b.maxX >= at.x - radius &&
+      b.minX <= at.x + radius &&
+      b.maxZ >= at.z - radius &&
+      b.minZ <= at.z + radius,
+  );
+  const cone = yaw !== undefined && fov !== undefined && fov < Math.PI * 2;
+  const points: MapPoint[] = [];
+  if (cone) points.push({ x: at.x, z: at.z });
+  const count = cone ? Math.max(8, Math.round((RAYS * fov!) / (Math.PI * 2))) : RAYS;
+  // Bogenmaß vom Blick aus; ein voller Kreis fängt bei 0 an.
+  const centre = cone ? yaw! : 0;
+  const span = cone ? fov! : Math.PI * 2;
+  for (let i = 0; i <= count; i++) {
+    if (!cone && i === count) break;
+    const angle = centre - span / 2 + (span * i) / count;
+    // Winkel ist ein yaw: 0 → -z, positiv → -x.
+    const to = { x: at.x - Math.sin(angle) * radius, z: at.z - Math.cos(angle) * radius };
+    let nearest = 1;
+    for (const b of blockers) {
+      const t = rayHit(at, to, b.a, b.b);
+      if (t < nearest) nearest = t;
+    }
+    points.push({ x: at.x + (to.x - at.x) * nearest, z: at.z + (to.z - at.z) * nearest });
+  }
+  return points;
+}
+
+/**
+ * **Was sich nicht bewegt, wird nicht neu gerechnet.** Die Flächen der
+ * Deckenlampen hängen nur an den Türen; solange keine auf- oder zugeht,
+ * bleibt das Polygon dasselbe. Der Cache gehört dem Aufrufer (die 2D-Welt
+ * hält einen je Runde), damit zwei Ansichten sich nicht in die Quere kommen.
+ */
+export class LitCache {
+  private key = '';
+  private readonly regions = new Map<string, LitRegion>();
+
+  take(doorsKey: string, light: MapLight): LitRegion | null {
+    if (doorsKey !== this.key) {
+      this.key = doorsKey;
+      this.regions.clear();
+      return null;
+    }
+    const known = this.regions.get(light.id);
+    return known && known.at.x === light.at.x && known.at.z === light.at.z ? known : null;
+  }
+
+  keep(region: LitRegion): void {
+    this.regions.set(region.lightId, region);
+  }
+}
+
+/** Ob ein Punkt in irgendeiner hellen Fläche liegt. */
+export function litAt(field: Pick<VisibilityField, 'lit' | 'self'>, at: MapPoint): boolean {
+  for (const region of field.lit) if (pointInPolygon(at, region.polygon)) return true;
+  return !!field.self && pointInPolygon(at, field.self.polygon);
+}
+
+export type ComputeVisibility = (input: VisibilityInput, cache?: LitCache) => VisibilityField;
 
 export function emptyField(mode: VisibilityMode): VisibilityField {
   return { mode, lit: [], self: null, cones: [], noise: [], visibleEntities: [], litRooms: [] };
 }
+
+/** Das Modell selbst. */
+export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId }, cache) => {
+  const field = emptyField(mode);
+  const viewer = viewerId ? (snapshot.entities.find((e) => e.id === viewerId) ?? null) : null;
+  const blockers = blockersOf(snapshot);
+  const doorsKey = snapshot.doors.map((d) => (d.open ? 'o' : 'c')).join('');
+
+  for (const light of snapshot.lights) {
+    if (!light.on) continue;
+    if (light.kind === 'lamp' && !snapshot.power) continue;
+    const still = light.kind === 'lamp' || light.kind === 'command' || light.kind === 'beacon';
+    const known = still && cache ? cache.take(doorsKey, light) : null;
+    if (known) {
+      field.lit.push(known);
+      continue;
+    }
+    const region: LitRegion = {
+      lightId: light.id,
+      at: light.at,
+      radius: light.radius,
+      yaw: light.yaw,
+      fov: light.fov,
+      color: light.color,
+      polygon: castPolygon(blockers, light.at, light.radius, light.yaw, light.fov),
+    };
+    if (still && cache) cache.keep(region);
+    field.lit.push(region);
+  }
+  if (viewer && !viewer.concealed) {
+    field.self = {
+      lightId: `self:${viewer.id}`,
+      at: viewer.at,
+      radius: SELF_RADIUS,
+      polygon: castPolygon(blockers, viewer.at, SELF_RADIUS),
+    };
+  }
+
+  const litRooms = new Set<string>();
+  for (const room of snapshot.rooms) {
+    if (room.safe || room.lit) litRooms.add(room.id);
+    for (const region of field.lit)
+      if (pointInPolygon(region.at, room.polygon)) litRooms.add(room.id);
+  }
+  field.litRooms = [...litRooms];
+
+  const conesFor = (entity: MapEntity): void => {
+    if (!entity.sense || entity.concealed) return;
+    field.cones.push({
+      entityId: entity.id,
+      at: entity.at,
+      yaw: entity.yaw,
+      fov: entity.sense.fov,
+      range: entity.sense.range,
+      polygon: castPolygon(blockers, entity.at, entity.sense.range, entity.yaw, entity.sense.fov),
+    });
+  };
+
+  if (mode === 'omniscient') {
+    for (const entity of snapshot.entities) {
+      conesFor(entity);
+      if (entity.concealed) continue;
+      if (entity.kind === 'monster' && entity.sense)
+        field.noise.push({
+          entityId: entity.id,
+          at: entity.at,
+          radius: entity.sense.hearing,
+          cause: 'monster',
+        });
+      else if (entity.moving && entity.kind !== 'drone')
+        field.noise.push({
+          entityId: entity.id,
+          at: entity.at,
+          radius: entity.sprinting ? NOISE_SPRINT : NOISE_WALK,
+          cause: entity.sprinting ? 'sprint' : 'walk',
+        });
+    }
+    field.visibleEntities = snapshot.entities.map((entity) => entity.id);
+    return field;
+  }
+
+  // Realitätsnah: nur der eigene Kegel, und nur, was im Licht steht und
+  // nicht hinter einer Wand.
+  if (viewer) conesFor(viewer);
+  for (const entity of snapshot.entities) {
+    if (viewer && entity.id === viewer.id) {
+      field.visibleEntities.push(entity.id);
+      continue;
+    }
+    if (entity.concealed) continue;
+    if (!viewer) {
+      // Keine Person, nur Licht: sichtbar ist, was im Hellen steht.
+      if (litAt(field, entity.at)) field.visibleEntities.push(entity.id);
+      continue;
+    }
+    if (viewer.concealed) continue;
+    const gap = Math.hypot(entity.at.x - viewer.at.x, entity.at.z - viewer.at.z);
+    const inSelf = gap <= SELF_RADIUS;
+    const inLight = litAt(field, entity.at);
+    const inOwnCone = viewer.sense
+      ? inCone(
+          {
+            entityId: viewer.id,
+            at: viewer.at,
+            yaw: viewer.yaw,
+            fov: viewer.sense.fov,
+            range: viewer.sense.range,
+          },
+          entity.at,
+        )
+      : true;
+    if ((inSelf || (inLight && inOwnCone)) && lineOfSight(snapshot, viewer.at, entity.at))
+      field.visibleEntities.push(entity.id);
+  }
+  return field;
+};

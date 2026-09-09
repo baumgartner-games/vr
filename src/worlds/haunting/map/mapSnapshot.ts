@@ -131,6 +131,11 @@ export interface MapEntity {
    * `flashlight`, `radar`, `xray`, `medkit`) oder `''`.
    */
   held: string;
+  /**
+   * Womit es wahrnimmt, wenn es wahrnimmt: Sichtkegel (ganz, Bogenmaß),
+   * Sichtweite und Hörweite in Metern. Fehlt bei Drohne und Mitspielern.
+   */
+  sense?: { fov: number; range: number; hearing: number };
 }
 
 export type MapItemKind =
