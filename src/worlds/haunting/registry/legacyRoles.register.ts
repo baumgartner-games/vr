@@ -1,51 +1,29 @@
-import { STATIONS } from '../stations';
-import { registerRole, type RoleHost, type RoleView } from './roles';
+import { stationFacts } from '../stations';
+import { registerRole } from './roles';
 
 /**
- * **Die vier Altrollen, angemeldet wie neue.**
+ * **Der Fernseher, angemeldet wie die anderen.**
  *
- * Damit die Registry vom ersten Tag an vollständig ist und eine Rollenwahl
- * daraus gebaut werden kann. Ihr `mount` bleibt vorerst bei `stationUi.ts`
- * (Grenzfall-Datei des Pakets Rollenansichten); was hier steht, ist ein
- * Platzhalter, der die Rolle als **noch in der alten Oberfläche** ausweist.
- * Das Paket Rollenansichten ersetzt ihn, indem es diese Datei umschreibt —
- * sie gehört ihm (`BOUNDARIES.md`).
+ * Von den vier Altrollen ist das die eine, deren Ansicht noch in
+ * `stationUi.ts` steht: Sie ist kein Gerät, sondern das ganze Haus von schräg
+ * oben, gezeichnet von der 3D-Welt (`HauntingWorld.render`) — dafür gibt es
+ * keine Karte zu bauen. Die drei Geräte (Archiv, Schalttafel, Späher) melden
+ * sich aus `views/` an, jede aus ihrer eigenen Datei; die Drohne ist
+ * gestrichen.
  */
-const SURFACES: Record<string, 'dom' | 'map' | '3d'> = {
-  archive: '3d',
-  scout: 'map',
-  drone: '3d',
-  watch: '3d',
-};
+const watch = stationFacts('watch');
 
-function legacy(): (host: RoleHost) => RoleView {
-  return () => {
+registerRole({
+  id: watch.id,
+  order: 90,
+  label: watch.label,
+  tagline: watch.tagline,
+  sees: watch.sees,
+  shared: watch.shared,
+  surface: '3d',
+  mount: () => {
     const element = document.createElement('div');
     element.className = 'role--legacy';
     return { element, update: () => {}, dispose: () => element.remove() };
-  };
-}
-
-STATIONS.forEach((station, index) =>
-  registerRole({
-    id: station.id,
-    order: index,
-    label: station.label,
-    tagline: station.tagline,
-    sees: station.sees,
-    shared: station.shared,
-    surface: SURFACES[station.id] ?? 'dom',
-    mount: legacy(),
-  }),
-);
-
-registerRole({
-  id: 'hack',
-  order: 99,
-  label: 'Einsatzkontrolle',
-  tagline: 'Altname der Einsatzkontrolle',
-  sees: 'wie scout',
-  surface: 'map',
-  hidden: true,
-  mount: legacy(),
+  },
 });

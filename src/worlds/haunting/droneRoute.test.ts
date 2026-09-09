@@ -10,44 +10,35 @@ import {
 } from './house';
 import { housePlan, DRONE_PROFILE } from './plan';
 import {
-  droneFov,
-  lampAfter,
-  lampRefill,
-  lampSeconds,
   routeLength,
   routeTo,
   shortestTurn,
   stepAlong,
   tileAt,
   wrapAngle,
-  DRONE_CAP,
-  DRONE_HFOV,
-  DRONE_ROOF,
-  DRONE_Y,
-  LAMP_FILL,
-  LAMP_HOME,
-  LAMP_LIFE,
   type DronePose,
 } from './droneRoute';
-import { PLAN_DOOR_H } from '../editor/levelPlan';
 import { wallState } from '../nav/navGraph';
 import { powerOf } from '../nav/navProfile';
 import { DIRS, TILE, neighbour, tileCentreX, tileCentreZ } from '../nav/navTile';
 import type { NavGraph } from '../nav/navGraph';
 
 /**
- * **Die Drohne fliegt nicht die Luftlinie.**
+ * **Der Weg geht nicht die Luftlinie.**
  *
- * Das ist die Regel, an der in dieser Welt drei Rollen hängen: Die Drohne
- * macht keine Tür auf, also hängt ihre Reichweite daran, was der VR-Spieler
- * und der Hacker offen gelassen haben. Eine Drohne, die stattdessen einfach
- * auf das angetippte Zimmer zuhält, fliegt durch die Wand — und dann ist die
- * geschlossene Tür Kulisse und der Hacker Deko.
+ * Das ist die Regel, an der in dieser Welt der Bot und das Monster hängen:
+ * Wer keine Tür aufmacht, kommt nur dorthin, was der VR-Spieler und die
+ * Schalttafel offen gelassen haben. Wer stattdessen einfach auf das Ziel
+ * zuhält, geht durch die Wand — und dann ist die geschlossene Tür Kulisse.
  *
  * Nachgerechnet wird deshalb nicht der Aufruf von `findPath`, sondern der
- * **Flug**: Ein Weg wird ganz abgeflogen, und dabei darf die Bahn nie eine
+ * **Gang**: Ein Weg wird ganz abgelaufen, und dabei darf die Bahn nie eine
  * Wand kreuzen. Ein Test, der nur prüft, dass eine Wegsuche stattfindet,
- * überlebt jeden Umbau; einer, der die Bahn nachfliegt, nicht.
+ * überlebt jeden Umbau; einer, der die Bahn nachläuft, nicht.
+ *
+ * Die Bahnen kamen mit der Drohne ins Spiel (`DRONE_HOME`, der Ring auf dem
+ * Vorplatz); der Vorplatz ist seitdem Teil des Gitters, und das prüfen die
+ * Tests unten weiter — ohne Drohne, mit einem Flieger als Profil.
  */
 
 const SEED = 31337;
@@ -68,7 +59,7 @@ function roomAt(x: number, z: number): HouseRoom | null {
   );
 }
 
-/** Ob zwischen zwei Punkten in Metern eine Wand steht, die die Drohne aufhält. */
+/** Ob zwischen zwei Punkten in Metern eine Wand steht, die einen Flieger aufhält. */
 function crossesWall(graph: NavGraph, ax: number, az: number, bx: number, bz: number): boolean {
   const from = tileAt(ax, az);
   const to = tileAt(bx, bz);
@@ -82,7 +73,7 @@ function crossesWall(graph: NavGraph, ax: number, az: number, bx: number, bz: nu
   return true;
 }
 
-/** Einen Weg wirklich abfliegen und dabei jeden Kachelwechsel mitschreiben. */
+/** Einen Weg wirklich ablaufen und dabei jeden Kachelwechsel mitschreiben. */
 function fly(
   graph: NavGraph,
   pose: DronePose,
@@ -121,7 +112,7 @@ function goalOf(room: HouseRoom): number {
   return tileAt((at.x + 0.5) * TILE, (at.z + 0.5) * TILE);
 }
 
-describe('Die Drohne navigiert im Graphen', () => {
+describe('Der Weg im Graphen', () => {
   const plan = housePlan(spec);
   const entry = roomOf(spec, spec.entryRoom) ?? spec.rooms[0]!;
 
@@ -272,32 +263,6 @@ describe('Wie sie sich dreht', () => {
 });
 
 /**
- * **Wie hoch sie fliegt — und dass sie damit durch eine Tür passt.**
- *
- * Sie hing auf 2,15 m, und der Türsturz sitzt auf 2,10 m: Im Bild des Piloten
- * schob sich bei jeder Tür ein Balken von oben herein, und im Haus flog eine
- * Drohne durch den Rahmen statt hindurch. Die Zahl ist deshalb keine mehr,
- * sondern folgt der Tür — und ein Test hält das fest, weil man einer Zahl
- * nicht ansieht, dass sie fünf Zentimeter im Sturz steckt. Man sieht es erst
- * in der Brille, und dann sucht man den Fehler bei der Decke.
- */
-describe('Die Flughöhe der Drohne', () => {
-  it('passt mit Kuppel und allem unter jeden Türsturz', () => {
-    expect(DRONE_Y + DRONE_CAP).toBeLessThan(PLAN_DOOR_H);
-  });
-
-  it('bleibt trotzdem deutlich über Augenhöhe', () => {
-    // Der Grund, aus dem sie überhaupt hoch fliegt: Auf Augenhöhe steht im
-    // Bild eine Stuhllehne vor dem halben Zimmer.
-    expect(DRONE_Y).toBeGreaterThan(1.75);
-  });
-
-  it('bleibt unter der Decke', () => {
-    expect(DRONE_Y + DRONE_CAP).toBeLessThan(DRONE_ROOF);
-  });
-});
-
-/**
  * **Der Van ist ein Ziel und keine Sonderregel.**
  *
  * Die Drohne startet vor ihm, draußen, mit dem Haus im Bild — und kommt von
@@ -346,121 +311,5 @@ describe('Der Hangar vor dem Van', () => {
     const entry = roomOf(spec, spec.entryRoom) ?? spec.rooms[0]!;
     const route = routeTo(locked.graph, poseAt(entry), home);
     expect(route.complete).toBe(false);
-  });
-});
-
-/**
- * **Der Scheinwerfer erholt sich, der Akku tat es nicht.**
- *
- * Vorher lief eine einzige Ladung durch und war nach vier Minuten weg; danach
- * lag die Drohne im Haus und die Rolle war für den Rest der Runde vorbei.
- * Nachgerechnet wird deshalb nicht, dass es eine Zahl gibt, sondern die drei
- * Zusagen, an denen die neue Regel hängt: Sie **kommt zurück**, sie kommt
- * **langsamer zurück, als sie geht**, und sie tut beides unabhängig davon, wie
- * viele Bilder je Sekunde das Telefon gerade schafft.
- */
-describe('Die Ladung des Scheinwerfers', () => {
-  it('leert sich beim Brennen und füllt sich wieder auf', () => {
-    expect(lampAfter(1, LAMP_LIFE, true)).toBeCloseTo(0, 6);
-    expect(lampAfter(0, LAMP_FILL, false)).toBeCloseTo(1, 6);
-  });
-
-  /**
-   * **Am Van hängt sie am Kabel** — und das ist der einzige Grund, aus dem ein
-   * Pilot freiwillig zurückfliegt, statt mit halber Ladung weiterzustochern.
-   * Ohne den Unterschied wäre „zurück zum Van" ein Knopf, den niemand drückt.
-   */
-  it('zehrt am Van auch mit brennendem Scheinwerfer nicht', () => {
-    expect(lampAfter(0.5, 10, true, true)).toBeGreaterThan(0.5);
-    expect(lampAfter(1, LAMP_LIFE, true, true)).toBeCloseTo(1, 6);
-  });
-
-  it('lädt am Van schneller als im Haus', () => {
-    expect(LAMP_HOME).toBeLessThan(LAMP_FILL);
-    expect(lampAfter(0, LAMP_HOME, false, true)).toBeCloseTo(1, 6);
-    expect(lampAfter(0, LAMP_HOME, false, false)).toBeLessThan(1);
-  });
-
-  it('sagt die Wartezeit am Van im Schnellgang an', () => {
-    expect(lampRefill(0, true)).toBeCloseTo(LAMP_HOME, 6);
-    expect(lampRefill(0)).toBeCloseTo(LAMP_FILL, 6);
-  });
-
-  it('bleibt zwischen leer und voll', () => {
-    expect(lampAfter(0.1, 999, true)).toBe(0);
-    expect(lampAfter(0.9, 999, false)).toBe(1);
-  });
-
-  /**
-   * Andersherum wäre der Knopf keine Entscheidung mehr: Was sich schneller
-   * füllt, als es sich leert, ist immer an.
-   */
-  it('füllt sich langsamer, als sie sich leert', () => {
-    expect(LAMP_FILL).toBeGreaterThan(LAMP_LIFE);
-    const burnt = 1 - lampAfter(1, 10, true);
-    const gained = lampAfter(0, 10, false);
-    expect(gained).toBeLessThan(burnt);
-  });
-
-  /**
-   * **Sechzig kleine Schritte enden, wo ein großer endet.** Sonst hinge die
-   * Brenndauer daran, wie flüssig das Bild läuft — und der Pilot auf dem alten
-   * Telefon hätte länger Licht als der auf dem neuen.
-   */
-  it('rechnet unabhängig von der Bildrate', () => {
-    let charge = 1;
-    for (let i = 0; i < 60; i++) charge = lampAfter(charge, 1 / 60, true);
-    expect(charge).toBeCloseTo(lampAfter(1, 1, true), 6);
-  });
-
-  it('sagt die Sekunden an, die noch drinstecken', () => {
-    expect(lampSeconds(1)).toBeCloseTo(LAMP_LIFE, 6);
-    expect(lampSeconds(0)).toBe(0);
-    expect(lampRefill(1)).toBe(0);
-    expect(lampRefill(0)).toBeCloseTo(LAMP_FILL, 6);
-  });
-});
-
-/**
- * **Der Ausblick hängt an der Form des Bildes** — und `three` rechnet in der
- * senkrechten Achse.
- *
- * Der Pilot zieht sein Bild vom Kinostreifen aufs Vollbild und zurück. Bliebe
- * dabei der senkrechte Winkel stehen, wäre derselbe Wert einmal Weitwinkel und
- * einmal Fernrohr — und er merkte nur, dass er auf einmal nichts mehr findet.
- * Festgehalten wird deshalb der **waagerechte** Winkel; nachgerechnet wird
- * genau das.
- */
-describe('Der Öffnungswinkel der Drohnenkamera', () => {
-  /** Wie weit die Kamera bei diesem senkrechten Winkel zur Seite schaut. */
-  function across(fov: number, aspect: number): number {
-    return (Math.atan(Math.tan((fov * Math.PI) / 360) * aspect) * 360) / Math.PI;
-  }
-
-  it('hält den waagerechten Ausblick über alle Bildformen', () => {
-    // Vom Kinostreifen (21:9) bis zum querliegenden Vollbild (3:2).
-    for (const aspect of [21 / 9, 2, 16 / 9, 1.5]) {
-      expect(across(droneFov(aspect), aspect)).toBeCloseTo(DRONE_HFOV, 4);
-    }
-  });
-
-  /**
-   * Hochkant geht das nicht mehr auf: 118° waagerecht wären senkrecht weit
-   * über 140°, und ein so gebogenes Bild ist keine Hilfe mehr. Die Grenze
-   * fängt das ab — und muss es auch sichtbar tun.
-   */
-  it('biegt das hochkante Vollbild nicht auf', () => {
-    const tall = droneFov(0.46);
-    expect(tall).toBeLessThanOrEqual(104);
-    expect(across(tall, 0.46)).toBeLessThan(DRONE_HFOV);
-  });
-
-  it('bleibt auch im Kinostreifen weiter als die alten 70°', () => {
-    expect(droneFov(21 / 9)).toBeGreaterThan(70);
-  });
-
-  it('hält auch einen unsinnigen Wert im Rahmen', () => {
-    expect(droneFov(0)).toBeLessThanOrEqual(104);
-    expect(droneFov(99)).toBeGreaterThanOrEqual(66);
   });
 });

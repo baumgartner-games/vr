@@ -2,19 +2,19 @@ import type { PlayerRole } from '../../../core/types';
 import { Registry, type Registered } from './registry';
 
 /**
- * **Die Rollen im Van** — Archiv, Einsatzkontrolle, Drohne, Zuschauer und
+ * **Die Rollen im Van** — Archiv, Schalttafel, Späher, Zuschauer und
  * was die Nacht noch bringt.
  *
- * Bis heute stand diese Liste als `StationId`-Union plus `STATIONS`-Array in
- * `stations.ts` und wurde in `stationUi.ts` per `if (station === …)`
- * verteilt. Beides bleibt für die Altrollen bestehen (Grenzfall-Dateien,
- * `BOUNDARIES.md`); **neue** Rollen kommen hierher, aus einer eigenen
- * `*.register.ts`-Datei, und brauchen weder die Union noch den Switch.
+ * Die Sitzplätze (`StationId`, `STATIONS` in `stations.ts`) bleiben die
+ * Liste, die über die Leitung geht; **was eine Rolle zeigt**, kommt aus
+ * dieser Registry, je Rolle aus einer eigenen `*.register.ts`-Datei
+ * (`views/`). `stationUi.ts` holt sich das `mount` zur Kennung des Platzes
+ * und braucht keinen Switch mehr.
  *
  * Eine Rolle ist Fakten plus ein `mount`, das ihre Ansicht baut. Das `mount`
  * bekommt einen `RoleHost` — dieselbe Handvoll Getter und Aktionen, die
- * `StationHost` in `stationUi.ts` heute anbietet, nur ohne die Drohnen- und
- * Archivspezialitäten. Wer die braucht, holt sie sich über `host.extra`.
+ * `StationHost` in `stationUi.ts` anbietet, ohne die Archivspezialitäten.
+ * Wer die braucht, holt sie sich über `host.extra`.
  */
 export interface RoleFacts extends Registered {
   readonly id: string;
@@ -48,7 +48,6 @@ export interface RoleHost {
   nameOf(peer: string): string;
   /** Die Aktionen, die eine Rolle auslösen darf. */
   flip(switchId: string, on: boolean): void;
-  flyTo(roomId: string): void;
   notify(message: string): void;
   /**
    * Was `StationHost` darüber hinaus kann. Bewusst untypisiert an dieser

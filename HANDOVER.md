@@ -3,6 +3,163 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Paket views — Rollenansichten
+
+Branch `feat/role-views` (Harness-Branch `claude/non-vr-role-views-qien4q`).
+Alles Neue liegt in `src/worlds/haunting/views/**`.
+
+### Was drin ist
+
+- **Drei Geräte auf einer Karte.** Archiv, Schalttafel und Späher sind
+  `RoleDefinition`s (`archive.register.ts`, `panel.register.ts`,
+  `scout.register.ts`), jede aus ihrer eigenen Datei, und zeichnen mit
+  `MapView` aus `map/` — nichts davon nachgebaut. Was eine Rolle darüber
+  hinaus zeigt, malt sie auf eine zweite Leinwand über der Karte
+  (`mapOverlay.ts`, `pointer-events: none`, rechnet mit `map.toScreen`).
+- **Schalttafel** (`panel.ts`, Kennung `hack`): `PANEL_LAYERS` plus
+  Raumnamen, keine Wesen. Tür antippen sperrt/gibt frei, Lampe antippen
+  schaltet; beides über `host.flip(switchId, on)` mit dem Schalter aus
+  `spec.switches`. Radios haben keine Form auf der Karte: Ein Tipp auf ein
+  Zimmer mit Radio schaltet es, ein ♪-Schildchen sagt, ob es läuft.
+- **Späher** (`scout.ts`): Karte ohne Items/Wesen, darüber grüne Punkte
+  (Techniker, Bot, Mitspieler) und ein roter (Monster). Neue Peilung alle
+  `SCOUT_PERIOD` = 3,5 s; dazwischen bleibt der Punkt stehen und verblasst
+  von 1 auf `SCOUT_FLOOR` = 0,2 (nicht auf null — die letzte Stelle bleibt
+  lesbar). Keine Interpolation. Radar, Puls und die Reiter sind weg.
+- **Archivar** (`archive.ts`): ganze Karte mit Fracht, Konsolen, Türen,
+  Lichtern, ohne Wesen. Von jeder liegenden Fracht eine gestrichelte Linie
+  (`MapViewOptions.routes`) zur Konsole, an der sie gebraucht wird, plus
+  Schildchen „Teil → Zielraum"; trägt der Techniker das Teil, steht am Ziel
+  „Teil hierher". Tipp auf Raum oder Item schlägt die **Akte** auf: Codes
+  groß (Schutzschrank, Freigabefolge/Zielfrequenzen, Kabelplan), darunter
+  die Fakten, oben das Zimmer — in der 3D-Welt das Loch für die Welt
+  (`viewport()`, Zoom/Wisch/Zange/Rad/Tasten an `archiveZoom/Pan/Home`
+  weitergereicht, wie vorher in `stationUi.ts`), in der 2D-Welt eine zweite
+  `MapView`, aufs Zimmer eingepasst. Die Missionsliste („Aufträge") ist weg.
+- **Rollenwechsel im Testmodus** (`testRoles.ts`): `RoleSwitcher` legt einen
+  Streifen (Techniker · Archiv · Schalttafel · Späher) über die 2D-Welt.
+  Eine Rolle blendet `flat.element` nur aus (`hidden`); `FlatMode.update`
+  läuft weiter, die `FlatRound` bleibt dieselbe, der Techniker steht, wo er
+  stand. `roundHost(round)` ist der `RoleHost` über der Runde; die
+  Schalttafel schaltet mit `applySwitch` (`switchState.ts`, dieselbe Regel
+  wie `HauntingWorld.applyFlip`) direkt im Stand — kein Gastgeber, kein Netz.
+- **`StationUi`** kennt keine Rollenseiten mehr: Van, Fernseher, Rahmen, und
+  ein Slot, in den `roles.get(station).mount(host)` gebaut wird. Solange
+  `views/` noch lädt, steht ein Platzhalter; der nächste `refresh` baut nach.
+  `selected` setzt jetzt die Archivansicht (`ViewExtras.showRoom`), die Welt
+  liest es wie vorher (`aimArchive`, `markDoors`).
+- **Drohne gestrichen**: Rolle (`stations.ts`), Seite, Cockpit, Blickstock,
+  Körper, Kamera, Scheinwerfer, Flug, Hangar-Ring, Netznachricht
+  (`readDrone`/`droneMessage`), CSS. `STATION_PROTOCOL` bleibt 5; alte
+  `drone`-Nachrichten fallen durch die Leser.
+
+### Fremde Dateien, die ich angefasst habe
+
+- `HauntingWorld.ts` (gemeinsam): der Drohnen-Code (Felder, `buildDrone`,
+  `parkDrone`, `flyDrone`, `stepDrone`, Blick, Licht, `droneStatus`,
+  `buildPad`, `receive`-Zweig, Kamera in `buildStationViews`/`render`) ist
+  **gestrichen** — das ist mehr als „ein Import, ein Feld, ein Aufruf", und
+  es ist so gewollt („keine Karteileiche"). Neu: `snapshot`/`notify` im
+  `StationHost`, `void import('./views')` in `init`, ein Feld `roleSwitch`,
+  je ein Aufruf in `tick`, `toggleFlat`, `dispose`. `worldMapSource` bekommt
+  `drone: () => null`. Flips werden nur noch vom Platz `hack` angenommen
+  (vorher `hack` **und** `scout`). Van-Monitore: blau statt grün für die
+  Tafel. Nichts verschoben oder umbenannt.
+- `stations.ts` (Grenzfall): `StationId` ohne `drone`; `hack` ist die
+  Schalttafel, `scout` der Späher, mit neuen Sätzen. `stationFacts('hack')`
+  liefert nicht mehr die Einsatzkontrolle.
+- `stationUi.ts`, `stationUi.test.ts`, `stations.test.ts`, `haunting.css`,
+  `stationDashboard.css` (Grenzfall): wie oben; die alten Regeln für Radar,
+  Cockpit, Zimmerliste, Reiter und Schalter sind raus, `haunt__sheet`/`fact`
+  bleiben (die Akte nutzt sie). Neu `.haunt.is-role` (durchsichtiger Grund,
+  damit das Loch der Akte auf die Leinwand sieht).
+- `net.ts` (nur nach Absprache): `readDrone` und `droneMessage` gestrichen.
+  `DroneState` bleibt als leere Form, weil `map/mapSource.ts` und
+  `map/worldSource.ts` den Typ im Vertrag führen — Paket map: `drone()` aus
+  `MapSource`/`WorldHandles` streichen, dann kann der Typ mit. Ebenso die
+  Zeile in `netReplay.test.ts`.
+- `registry/roles.ts` (Paket map): `RoleHost.flyTo` gestrichen (Drohne).
+- `registry/legacyRoles.register.ts` (meins): meldet nur noch `watch` an.
+- `droneRoute.ts`, `droneRoute.test.ts` (Paket nav, Grenzfall): die
+  Drohnen-Sachen (Ladung, Sperre, Öffnungswinkel, `DroneStatus`,
+  `DRONE_ROOF`) sind raus; Wegtypen und Gang (`DronePose`, `DroneRoute`,
+  `stepAlong`, `routeLength`, `routeTo`, `wrapAngle`) bleiben — Bot,
+  Monsternavigator, `stationNavigation` und `ShipExperience` laufen darauf.
+  `DRONE_Y`/`DRONE_CAP` bleiben, weil `stationNavigation.test.ts` damit
+  eine Flughöhe prüft. Der Dateiname und die Typnamen sind eine Umbenennung
+  in vier nav-Dateien wert (`routeWalk.ts`, `RoutePose`) — Paket nav.
+- `HauntingWorld.replay.test.ts`: zwei `parkDrone`-Zeilen raus.
+- `AGENTS.md`, `README.md`: die Absätze zu Rollen, Handyansichten und Drohne
+  umgeschrieben; `.prettierignore`: `views/views.css`.
+- **Nicht angefasst, obwohl drohnenhaft**: `house.ts` (`DRONE_HOME`, Vertrag
+  für alle), `plan.ts` (`DRONE_PROFILE`, Flieger-Profil der Wegsuche, von
+  `house.test.ts` geprüft), `map/**` (Entity-Art `drone`, `drone()`-Getter).
+
+### Entscheidungen und Alternativen
+
+- **Punkte verblassen auf 0,2, nicht auf 0.** „Verblassen, bis die nächste
+  Position sie neu aufleuchten lässt" hätte auch „bis unsichtbar" heißen
+  können; ein Punkt, der kurz vor der Peilung weg ist, sieht auf dem Telefon
+  aus wie ein Ausfall. Alternative: `SCOUT_FLOOR = 0`.
+- **Späher-Punkte auf einer Overlay-Leinwand statt über `MapView.markers`.**
+  Die Drossel der Karte (`{ hz }`) hält die Stelle, kennt aber kein
+  Aufleuchten und zeichnet Dreiecke in Cyan. Statt `map/**` zu ändern, liegt
+  eine zweite Leinwand darüber. Alternative: `MarkerPolicy` um `fade`
+  erweitern — Paket map.
+- **Radios über den Raum-Tipp.** Die Vorgabe sagt „Türen und Lichter"; die
+  Schallköder hätten sonst keinen Knopf mehr. Alternative: Radios ganz aus
+  der Tafel nehmen.
+- **Archiv-Zielräume auf der Karte, keine Liste darunter.** Linie und
+  Schildchen statt einer Textzeile je Teil — eine Zeile je Teil wäre die
+  Missionsliste durch die Hintertür. Die Zeile unter der Karte zählt nur.
+- **Zoom/Wisch der 3D-Raumakte behalten.** „So wie der Archivar sie heute
+  schon sieht" — die Gesten sind aus `stationUi.ts` nach `views/archive.ts`
+  gezogen. Alternative: nur Knöpfe.
+- **`hack` bleibt die Kennung der Schalttafel.** Sie geht über die Leitung
+  (`claim`), und `STATION_PROTOCOL` soll bei 5 bleiben.
+- **`views/` wird lazy geladen** wie die 2D-Welt (`init`, `toggleFlat`):
+  `views/index.ts` importiert CSS, und ein statischer Import aus
+  `HauntingWorld`/`stationUi` bräche die Jest-Suite der Welt. Tests
+  importieren die `*.register.ts` einzeln.
+- **Rollen importieren `map/mapView` und `map/mapSnapshot` direkt** statt
+  `map/index.ts`: Der Index zieht `flatMode.ts` samt CSS mit. Beide Dateien
+  sind über den Index exportiert, also Vertrag.
+- **Die 2D-Raumakte zoomt eine zweite `MapView`** aufs Zimmer, statt in der
+  2D-Welt ein leeres Loch zu zeigen.
+
+### Bekannte Lücken
+
+- Die 3D-Raumakte wurde nicht im Browser geprüft (Auftrag: 3D nicht testen).
+  Das Loch liegt im Fluss der Seite; Zoom/Wisch gehen an dieselben
+  Weltmethoden wie vorher. `.haunt.is-role` macht `.haunt` und `.haunt__body`
+  durchsichtig, damit die Leinwand durchscheint — ob der Auftragsstreifen
+  darüber das Bild anschneidet, sieht nur ein Telefon.
+- `ScoutRole` zählt Mitspieler mit VR-Pose als grüne Punkte; ohne Pose
+  (Zuschauer am Laptop) gibt es keinen Punkt — wie beim alten Radar.
+- Der Rollenstreifen im Testmodus sitzt links unter dem HUD der 2D-Welt
+  (`top: safe + 112px`); ob er auf sehr niedrigen Querformaten dem Stock in
+  die Quere kommt, ist ungeprüft.
+- Browser-Smoke (`npm run test:browser`) kennt die neuen Ansichten nicht.
+
+### Offene Fragen an dich
+
+- Soll der Späher zusätzlich den **Puls** (die alte ECG-Zeile) behalten? Die
+  Vorgabe nannte nur die Karte; er ist raus. Zurückholen kostet eine Zeile
+  in `scout.ts`.
+- Sollen `droneRoute.ts`/`DronePose` jetzt umbenannt werden (Paket nav)?
+- `plan.ts`/`DRONE_PROFILE` und `house.ts`/`DRONE_HOME`: streichen, wenn
+  `house.test.ts` sein Flieger-Profil anders bekommt?
+
+### Tests
+
+`views/roles.test.ts` (Schalttafel: Tür, Lampe, Radio per Tipp; Späher:
+Peilung alle 3,5 s, Verblassen, keine Zwischenposition; Archivar: Linien
+und Zielschilder, Akte mit Codes, 3D-Loch mit Zoom/Wisch),
+`views/testRoles.test.ts` (Rollenwechsel bei laufender Runde: dieselbe
+`HauntState`, Uhr läuft weiter, Techniker bleibt, Schalter wirken;
+`applySwitch`), `stationUi.test.ts` (Van über einer `FlatRound`: Rollen aus
+der Registry, Platzhalter, Fernseher), `stations.test.ts`.
+
 ## Paket map — 2D-Kern + Sichtbarkeit
 
 Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und

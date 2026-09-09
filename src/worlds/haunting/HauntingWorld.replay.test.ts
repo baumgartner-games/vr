@@ -23,7 +23,6 @@ interface ReplayWorld {
   automaticDoors: AutomaticDoors;
   travelPlan: StationTravelPlan;
   buildHouse: jest.Mock;
-  parkDrone: jest.Mock;
   blob: THREE.Object3D | null;
   live: THREE.Group;
   hostId: string;
@@ -69,7 +68,6 @@ function replay(): ReplayWorld {
     automaticDoors: new AutomaticDoors(),
     travelPlan: new StationTravelPlan(),
     buildHouse: jest.fn(),
-    parkDrone: jest.fn(),
     live: new THREE.Group(),
     blob: null,
     hostId: 'remote',

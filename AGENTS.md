@@ -99,15 +99,19 @@ ist ihre eigene Umkehrung), die **Flugmathematik der Drohne**
 Vorzeichen, die im Headset sonst die halbe Welt verdrehen, und das Tuning aus
 Tempo und Drehrate), die **Drohnen-Einstellungen**
 (`src/worlds/portal/tools/droneSettings.ts` — Rasten, Grenzen und der Fall,
-dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die **Bahn der
-Haunting-Drohne** (`src/worlds/haunting/droneRoute.ts` — und zwar nicht der
-Aufruf der Wegsuche, sondern der **Flug**: Ein Weg wird ganz abgeflogen, und
+dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die **Bahnen
+in der Haunting-Station** (`src/worlds/haunting/droneRoute.ts`, benannt nach
+der gestrichenen Drohne, gelaufen von Bot und Monster — und zwar nicht der
+Aufruf der Wegsuche, sondern der **Gang**: Ein Weg wird ganz abgelaufen, und
 dabei darf die Bahn nie eine Wand kreuzen; dazu die Gegenprobe, dass es
 überhaupt ein Zimmer gibt, für das die Luftlinie durch eine Wand ginge — sonst
-wäre der Test auch für eine Drohne grün, die einfach geradeaus fliegt; dazu
-ihre **Flughöhe**, die mit Kuppel und allem unter den Türsturz passen muss und
-trotzdem über Augenhöhe bleibt, und der **Blickwinkel**, der ganz herumgeht
-und dabei im Kreis läuft statt weiterzuwachsen), die **Fenster des
+wäre der Test auch für einen Weg grün, der einfach geradeaus geht), die
+**drei Geräte im Van** (`src/worlds/haunting/views/` — headless über der
+2D-Runde: die Schalttafel schaltet Türen und Lampen per Tipp auf die Karte,
+der Späher lässt seine Punkte nur alle 3,5 s springen und dazwischen
+verblassen, der Archivar führt von jeder Fracht zu ihrem Zielraum und schlägt
+auf Tipp die Akte mit den Codes auf; dazu der **Rollenwechsel im Testmodus**,
+der die laufende Runde nicht anhält), die **Fenster des
 Haunting-Hauses** (`src/worlds/haunting/house.ts` — dass jedes in einer
 Außenwand sitzt und keines in einer Tür oder hinter einem Möbel, und dass es
 im Graphen aufhält wie eine Wand: durch ein Fenster geht niemand nach
@@ -7637,8 +7641,6 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   in engen Ecken schrumpft der Kurvenradius, nötigenfalls bleibt die Ecke.
   `stepAlong` verbraucht die ganze Framezeit über mehrere Wegpunkte, mit
   Beschleunigung und Abbremsen. Navigation wird bei Sperränderungen ungültig.
-- Drohnen-Netzpositionen werden interpoliert statt je Paket gesetzt.
-  Sanfte Neigung und begrenztes Schweben bleiben unter dem Türsturz.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
   `movePlayerTo`. `haunt.sealsOff` schützt Erreichbarkeit aller `spacesOf`.
   Schächte verbinden ausschließlich echte gemeinsame Wände, auch zu Gängen.
@@ -7705,8 +7707,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Gesperrte Routen warten statt zu teleportieren. Das ist keine simulierte
   menschliche Kommunikation und keine vollständige autonome Dreiercrew.
   Raumwechsel erzeugen lokale Funkmeldungen Techniker → Zentrale.
-  `NavigationOverlay` liest echte Route-Cursor von Bot, Monster und Drohne;
-  Cyan/Rot/Gelb und Zielringe sind nur in der Simulation sichtbar. Sichtflächen
+  `NavigationOverlay` liest echte Route-Cursor von Bot und Monster;
+  Cyan/Rot und Zielringe sind nur in der Simulation sichtbar. Sichtflächen
   werden gegen feste Collider (inklusive Türblätter/Einrichtung) beschnitten;
   Orange zeigt das maximale akustische Feld für Sprintgeräusche. Legende und
   KI-Absichten erklären Grenzen. Gehen/Stillstand erzeugen weniger/keinen Schall.
@@ -7757,20 +7759,31 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 
 **Telefone und Netzwerk**
 
-- Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer.
-  Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
-- Archiv hat **Räume & Codes** und **Aufträge**, nur Raumnamen auswählbar.
-  Ein Raum zeigt echte orthografische 3D-Geometrie ohne Decke als 2D-Draufsicht,
-  dazu Sci-Fi-Farbton, Codes, Fundorte und Reparaturhinweise. **Keine Gesamtkarte,
-  keine Live-Kreaturen und kein Journal.** `viewport()` ist nur im Raumreiter
-  aktiv, `headroom()`=0. Masken grenzen Nachbarräume aus. `archiveMap.ts` bleibt
-  ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
-- Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
-  die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
+- Stationen (`stations.ts`): Archiv (`archive`), Schalttafel (`hack`, die
+  Kennung des alten Hackers), Späher (`scout`), Zuschauer (`watch`). Die
+  Drohne ist gestrichen. Sichtbarer Header für Rollenwechsel; keine Navigation
+  über die FPS-Anzeige. Was ein Gerät zeigt, kommt aus der Rollen-Registry
+  (`registry/roles.ts`), je Rolle aus einer eigenen `views/*.register.ts`;
+  `stationUi.ts` kennt nur noch Plätze, Fernseher und Rahmen.
+- **Alle drei Geräte zeigen dieselbe 2D-Karte** (`map/mapView.ts`) mit
+  eigenen Layern (`views/`): Das Archiv sieht Fracht und Zielräume (Linie von
+  der Fracht zur Konsole, „hierher" beim getragenen Teil) und schlägt auf
+  Tipp die **Raumakte** auf — Codes groß, darunter die Fakten, das Zimmer als
+  orthografische 3D-Draufsicht ohne Decke im Loch (`viewport()`), in der
+  2D-Welt als herangezoomte Karte. **Keine Missionsliste, keine
+  Live-Kreaturen.** `archiveMap.ts` bleibt ein unbenutztes Altmodul und darf
+  nicht wieder in die Archiv-UI eingebaut werden. Die Schalttafel sieht Türen
+  und Lichter ohne Wesen und schaltet beides per Tipp (Radio: Tipp aufs
+  Zimmer). Der Späher sieht Techniker (grün) und Monster (rot) als Punkte, die
+  nur alle 3,5 s springen, hell aufleuchten und dann verblassen — keine
+  Interpolation.
+- **Rollenwechsel im 2D-Testmodus** (`views/testRoles.ts`): ein Streifen über
+  der 2D-Welt; die Rollen lesen dieselbe laufende `FlatRound`, die Schalttafel
+  schaltet direkt in ihrem Stand. Reine Ansichtsumschaltung, kein Neuaufbau.
 - **STATION_PROTOCOL=5**, weil der gleiche Seed nun eine andere Karte erzeugt.
   Alte Clients werden abgewiesen; nach Update alle Geräte neu laden.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
-  Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
+  Schalter nur von der Schalttafel; `drone`-Nachrichten werden ignoriert.
 - Spielhost: VR-Techniker, sonst ältester Peer. Desktop-Techniker meldet sich
   im Haunt-Channel. `?net=local` ist BroadcastChannel zwischen Tabs; WLAN/
   Internet verwenden öffentliche Signalisierung/STUN, kein garantierter TURN.

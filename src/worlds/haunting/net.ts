@@ -10,14 +10,15 @@ import { isStation, type Claim, type StationId } from './stations';
  * oben. Übrig bleiben ein paar Dutzend Bytes je Sekunde — Same, Monster,
  * Türen, Licht, Aufgaben.
  *
- * **Vier Sorten Nachricht, und jede hat genau einen Absender:**
+ * **Drei Sorten Nachricht, und jede hat genau einen Absender:**
  *
  * - `state` — der Gastgeber an alle. Er rechnet das Monster und hält den
  *   Stand; alle anderen lesen. Wer rechnet, entscheidet `pickGameHost`.
  * - `claim` — jeder über sich: an welchem Gerät er sitzt und seit wann.
- * - `drone` — der Pilot über die Drohne. Wer sie fliegt, besitzt sie; das ist
- *   dieselbe Regel wie „wer anfasst, besitzt" bei den Kisten im Portal Labor.
- * - `flip` — der Hacker an den Gastgeber: leg diesen Schalter um.
+ * - `flip` — die Schalttafel an den Gastgeber: leg diesen Schalter um.
+ *
+ * Eine vierte (`drone`) gab es, solange es die Drohne gab; alte Clients, die
+ * sie noch schicken, werden ignoriert. `STATION_PROTOCOL` bleibt deshalb 5.
  *
  * **Alles, was hereinkommt, ist fremder Text.** Jede Nachricht geht deshalb
  * durch einen Leser, der `null` zurückgibt, statt einem halb gefüllten Objekt
@@ -54,54 +55,22 @@ export interface HauntState {
   done: string[];
 }
 
+/**
+ * **Die Drohne, die es nicht mehr gibt** — nur noch als Form.
+ *
+ * Die Rolle ist gestrichen; das Paket `map` liest den Typ aber noch in seinem
+ * Vertrag (`MapSource.drone()`, `WorldHandles.drone()`), und der liefert
+ * heute überall `null`. Sobald `map/**` den Getter streicht, kann diese Form
+ * mit ihm gehen.
+ */
 export interface DroneState {
   x: number;
   z: number;
-  /**
-   * **Wohin ihr Rumpf zeigt** — und warum das über die Leitung geht.
-   *
-   * Eine Weile wurde der Winkel bei den Zuschauern aus dem Weg zwischen zwei
-   * Ansagen gerechnet, und solange sie nur flog, stimmte er auch. Sobald der
-   * Pilot aber im Stehen wischt, bewegt sich nichts, aus dem sich eine Drehung
-   * ableiten ließe: Sein Bild schwenkte, der Scheinwerfer im Haus blieb stur
-   * geradeaus stehen — und genau der ist das Einzige, was der Pilot dem
-   * VR-Spieler wirklich geben kann. Also steht der Winkel jetzt in der
-   * Nachricht; das Ruckeln bei zehn Ansagen je Sekunde nimmt ihm der weiche
-   * Nachlauf beim Empfänger (`HauntingWorld.turnDroneBody`).
-   */
   yaw: number;
-  /**
-   * **Und wie weit ihr Kopf dabei nach oben oder unten sieht**, in Bogenmaß,
-   * positiv nach oben.
-   *
-   * Aus demselben Grund in der Nachricht wie der Gierwinkel: Der Kegel des
-   * Scheinwerfers hängt daran, und ein Licht, das beim Piloten an die Decke
-   * zeigt und im Haus auf den Boden, ist keine Hilfe, sondern ein zweiter
-   * Streit am Tisch.
-   */
   pitch: number;
-  /** Wohin sie gerade fliegt — die Zimmerkennung, oder `''`. */
   target: string;
-  /**
-   * **Wie viele Sekunden noch kein Zimmerwechsel geht.**
-   *
-   * Geht mit über die Leitung, obwohl nur der Pilot sie herunterzählt — sonst
-   * wäre der Platzwechsel am Gerät ein Schlupfloch: Wer die Sperre abwarten
-   * müsste, steht auf, jemand anders setzt sich hin und fliegt sofort weiter.
-   * Eine Regel, die man durch Stühlerücken umgeht, ist keine.
-   */
   hop: number;
-  /** Was in der Ladung des Scheinwerfers noch steckt, von 1 bis 0. */
   lamp: number;
-  /**
-   * **Ob ihr Scheinwerfer an ist** — und warum das über die Leitung geht.
-   *
-   * Das Licht der Drohne ist das Einzige, was der Pilot im *Haus* anrichten
-   * kann: Es leuchtet nicht nur sein eigenes Kamerabild aus, sondern auch das
-   * Zimmer, in dem der VR-Spieler steht. Ein Licht, das nur der Pilot sähe,
-   * wäre eine Helligkeitseinstellung; eines, das alle sehen, ist eine Hilfe,
-   * die man sich zurufen muss — und ein Verräter, wenn das Monster kommt.
-   */
   light: boolean;
 }
 
@@ -191,21 +160,6 @@ export function readClaim(data: unknown, from: string): Claim | null {
   return { id: from, station: it['station'], seniority: Math.max(0, num(it['seniority'])) };
 }
 
-export function readDrone(data: unknown): DroneState | null {
-  const it = bag(data);
-  if (!it || it['kind'] !== 'drone') return null;
-  return {
-    x: num(it['x']),
-    z: num(it['z']),
-    yaw: num(it['yaw']),
-    pitch: num(it['pitch']),
-    target: typeof it['target'] === 'string' ? it['target'].slice(0, 16) : '',
-    hop: Math.min(600, Math.max(0, num(it['hop']))),
-    lamp: Math.min(1, Math.max(0, num(it['lamp'], 1))),
-    light: it['light'] === true,
-  };
-}
-
 export function readFlip(data: unknown): { id: string; on: boolean } | null {
   const it = bag(data);
   if (!it || it['kind'] !== 'flip' || typeof it['id'] !== 'string') return null;
@@ -220,10 +174,6 @@ export function stateMessage(state: HauntState): unknown {
 
 export function claimMessage(station: StationId, seniority: number): unknown {
   return { kind: 'claim', station, seniority };
-}
-
-export function droneMessage(drone: DroneState): unknown {
-  return { kind: 'drone', ...drone };
 }
 
 export function flipMessage(id: string, on: boolean): unknown {

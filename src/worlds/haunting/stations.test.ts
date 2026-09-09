@@ -31,8 +31,8 @@ describe('Wer im Van an welchem Gerät sitzt', () => {
    * keinen Server.
    */
   it('schubst den weg, der später gekommen ist', () => {
-    const claims = [claim('a', 'drone', 30), claim('b', 'drone', 2)];
-    expect(ownerOf(claims, 'drone')).toBe('a');
+    const claims = [claim('a', 'scout', 30), claim('b', 'scout', 2)];
+    expect(ownerOf(claims, 'scout')).toBe('a');
     expect(seatOf(claims, 'b')).toBeNull();
     expect(shoved(claims, 'b')).toBe(true);
     expect(shoved(claims, 'a')).toBe(false);
@@ -68,14 +68,14 @@ describe('Wer im Van an welchem Gerät sitzt', () => {
   });
 
   it('zählt an den einzelnen Geräten trotzdem nur einen als Besitzer', () => {
-    const claims = [claim('a', 'drone', 30), claim('b', 'drone', 2)];
+    const claims = [claim('a', 'hack', 30), claim('b', 'hack', 2)];
     // Zwei greifen danach — gesessen wird von einem, und die Kachel sagt es.
-    expect(crowdAt(claims, 'drone')).toBe(2);
-    expect(ownerOf(claims, 'drone')).toBe('a');
+    expect(crowdAt(claims, 'hack')).toBe(2);
+    expect(ownerOf(claims, 'hack')).toBe('a');
     expect(crowdAt(claims, 'watch')).toBe(0);
   });
 
-  it('lässt vier Leute gleichzeitig an vier Geräten arbeiten', () => {
+  it('lässt vier Leute gleichzeitig an vier Plätzen arbeiten', () => {
     const claims = STATIONS.map((station, index) => claim(`p${index}`, station.id, 10 - index));
     const seats = seating(claims);
     expect(seats.size).toBe(STATIONS.length);
@@ -89,19 +89,20 @@ describe('Wer im Van an welchem Gerät sitzt', () => {
   });
 });
 
-describe('Three-person crew devices', () => {
-  it('offers one combined control role while recognizing old switchboard announcements', () => {
-    expect(STATIONS.map((station) => station.id)).toEqual(['archive', 'scout', 'drone', 'watch']);
+describe('Die drei Geräte und der Fernseher', () => {
+  it('bietet Archiv, Schalttafel und Späher an — und keine Drohne mehr', () => {
+    expect(STATIONS.map((station) => station.id)).toEqual(['archive', 'hack', 'scout', 'watch']);
     expect(isStation('hack')).toBe(true);
-    expect(stationFacts('hack').label).toBe('Einsatzkontrolle');
+    expect(stationFacts('hack').label).toBe('Schalttafel');
+    expect(stationFacts('scout').label).toBe('Späher');
+    expect(isStation('drone')).toBe(false);
     expect(isStation('unknown')).toBe(false);
   });
 
-  it('uses geometry for the isolated archive room and keeps control as a 2D instrument', () => {
+  it('braucht die 3D-Welt nur für die Raumakte des Archivs und den Fernseher', () => {
     expect(stationFacts('archive').view).toBe(true);
-    expect(stationFacts('archive').sees).toContain('ein ausgewählter Raum');
+    expect(stationFacts('hack').view).toBe(false);
     expect(stationFacts('scout').view).toBe(false);
-    expect(stationFacts('drone').view).toBe(true);
     expect(stationFacts('watch').view).toBe(true);
   });
 });

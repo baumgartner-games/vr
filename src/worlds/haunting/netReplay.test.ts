@@ -1,6 +1,6 @@
 import { generateHouse, spacesOf } from './house';
 import { freshCrew, ROOM_COUNTS, stationOptions } from './mission';
-import { readDrone, readState, stateMessage, type HauntState } from './net';
+import { readState, stateMessage, type HauntState } from './net';
 import { TRAINING_DOOR } from './trainingLayout';
 
 test.each(ROOM_COUNTS)(
@@ -43,9 +43,6 @@ test.each(ROOM_COUNTS)(
       expect(replay.crew.hidden).toBe(crew.hidden);
       expect(replay.monster).toEqual(state.monster);
       expect(generateHouse(replay.seed, replay.crew.options.rooms)).toEqual(spec);
-      for (const space of spacesOf(spec)) {
-        expect(readDrone({ kind: 'drone', target: space.id })?.target).toBe(space.id);
-      }
     }
   },
 );

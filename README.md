@@ -66,17 +66,18 @@ gebaut.
 
 ### Haunting / Orbital — eine Quest, zwei Handys
 
-Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
-Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
-Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es nicht. Die **Einsatzkontrolle** verfolgt
-das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
-Schiebetüren und Geräuschköder. Drohne und Zuschauer sind weitere optionale
-Plätze; die Schalttafel gehört zur Einsatzkontrolle.
+Eine beschädigte Raumstation, eine Crew und drei ausgefallene Systeme.
+Der **Außentechniker** erkundet die Station in VR. Die drei Handys zeigen
+dieselbe Karte der Station von oben, jedes mit anderen Schichten: Das
+**Archiv** sieht die Fracht, wohin sie muss, und je Raum die Codes. Die
+**Schalttafel** sieht Türen und Lichter und schaltet beides direkt auf der
+Karte. Der **Späher** sieht Techniker und Monster als Punkte, die nur alle
+paar Sekunden springen. Der Zuschauer ist ein Fenster für den Fernseher.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
 im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
-**In der Zentrale mitspielen** wählen, dann Archiv beziehungsweise
-Einsatzkontrolle besetzen. Für eine eigene Gruppe auf allen Geräten denselben
+**In der Zentrale mitspielen** wählen, dann Archiv, Schalttafel oder Späher
+besetzen. Für eine eigene Gruppe auf allen Geräten denselben
 Link mit `?room=euer-gruppenname#haunting` öffnen; ohne Parameter ist der Raum
 `haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
 Update alle Geräte neu laden, damit sie dieselbe Protokollversion verwenden.
@@ -103,13 +104,14 @@ passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
 Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
 zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
 
-**Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
-Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
+**Die Handyansichten:** Das Archiv tippt auf der Karte ein Zimmer an und
+sieht dessen Akte: Schutzcode und Freigabecodes groß, Kennzeichen, Fracht- und
 Reparaturhinweise sowie eine orthografische Draufsicht des tatsächlichen Raums
-mit abgenommener Decke. Ein kühler Sci-Fi-Look ersetzt Sepia. Es gibt keinen
-Gesamtgrundriss und keine Live-Positionen in dieser Ansicht. **Aufträge** führt
-zu den passenden Raumakten. Die Einsatzkontrolle hat **Radar & Anzug** und
-**Schalttafel**. Der Kopfbereich bietet einen sichtbaren Rollenwechsel.
+mit abgenommener Decke. Keine Live-Positionen, keine Missionsliste. Die
+Schalttafel schaltet Türen und Lampen per Tipp auf die Karte; der Späher sieht
+zwei Punkte, die alle paar Sekunden aufleuchten und verblassen. Der
+Kopfbereich bietet einen sichtbaren Rollenwechsel; in der 2D-Welt wechselt
+ein Streifen über der Karte die Rolle, ohne die Runde anzuhalten.
 
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
 Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
@@ -221,7 +223,7 @@ als Regler, dazu drei Knöpfe: *Monster trainieren*, *Techniker trainieren*,
 *beide*. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte,
 mit denen der Techniker im Schnitt 60–70 % der Runden gewinnt; es rechnet
 zwischen den Bildern weiter und friert den Tab nicht ein.
-Cyan zeigt den Technikerweg, Rot den Monsterweg und Gelb die Drohnenroute.
+Cyan zeigt den Technikerweg und Rot den Monsterweg.
 Zielringe markieren die jeweiligen Ziele. Cyan/rote Flächen zeigen die an echten
 Wänden und Einrichtungen abgeschnittenen Blickfelder. Orange zeigt den maximalen
 Hörbereich für Sprintgeräusche: Schall folgt Stationsboden, wird durch Türen und
@@ -235,8 +237,7 @@ zunächst dem Bot; **Freie Kamera** gibt `WASD`, `Space` und `Ctrl` zum Erkunden
 frei, bis 120 Meter Höhe. **Kartenübersicht** zeigt die Station direkt von oben.
 **Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
 Blicknachführung. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
-wählen. Die Drohne folgt geprüften Kurven mit Beschleunigung, sanftem Abbremsen
-und leichter Neigung; ihre Kameradaten werden zwischen Netzpaketen geglättet.
+wählen.
 
 Die Station verwendet vermessene Einrichtungsmodelle mit reservierten Tür- und
 Laufwegen, abgerundeten Gehäusen, Rohren und raumspezifischen Aggregaten.
