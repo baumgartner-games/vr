@@ -7615,6 +7615,19 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 - `stationVisibility.ts` kann alle Räume **und Gänge** berücksichtigen.
   Standard-Grid-Hülle und Collider bleiben bestehen; Detailgruppen sind
   raumweise sichtbar. Emissive Schilder brauchen keinen eigenen PointLight.
+- **Draußen ist Geometrie, keine Löschfarbe** (`world3d/spaceBackdrop.ts`):
+  eine Kugel von innen plus Sterne mit fester Pixelgröße. `App.enterVR`
+  fragt zuerst `immersive-ar` an, und in einer `alpha-blend`-Sitzung löscht
+  three.js den Puffer immer durchsichtig — `scene.background` als Farbe wird
+  dort übergangen. Wer draußen nur die Farbe hat, sieht durch die
+  Hüllenfenster das eigene Zimmer. **Wegweiser** (`world3d/signposts.ts`)
+  hängen über jeder Öffnung auf beiden Seiten und nennen, was dahinter liegt
+  — bei einem Gang auch die Räume an ihm; Türen zwischen zwei Gängen fallen
+  zu einem Kreuzungsschild zusammen. Namen kommen aus `map/extract.roomsOf`,
+  denselben wie auf der 2D-Karte. Alle Texte liegen in einem Atlas, ein Mesh
+  je Raum (`signMesh.ts`) in dessen Hüllengruppe. Die Raumschilder
+  (`room-identification`) hängen deshalb auf der türfreien Kachel nächst der
+  Wandmitte (`shipArt.closedTileX`), nie über einer Tür.
 
 **Türen und Navigation**
 
