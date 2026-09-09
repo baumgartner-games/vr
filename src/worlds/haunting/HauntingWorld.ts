@@ -1003,6 +1003,8 @@ export class HauntingWorld extends GridWorld {
         }
       },
       carried: (hand) => this.carriedTool(hand),
+      mapSnapshot: () => this.mapSnapshot(),
+      monsterPace: () => this.decision?.pace ?? 'still',
       floatingTorch: () => this.stationTorch,
       takeFloatingTorch: () => {
         if (this.stationTorch) {

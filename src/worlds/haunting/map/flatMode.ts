@@ -2,13 +2,21 @@ import './flat.css';
 import { MONSTERS, type MonsterKind } from '../mission';
 import { viewModesFor, type ViewMode } from '../registry/viewModes';
 import './mapModes.register';
-import { FlatRound, PLAYER_ID, TOOL_LABELS, type FlatEvent, type FlatOptions } from './flatRound';
+import {
+  FlatRound,
+  MONSTER_ID,
+  PLAYER_ID,
+  TOOL_LABELS,
+  type FlatEvent,
+  type FlatOptions,
+} from './flatRound';
 import { Joystick } from './joystick';
 import { MapView } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
 import { MonsterSession } from '../monster/monsterSession';
+import { HauntingAudio } from '../audio';
 
 /**
  * **Die 2D-Welt** — die Station von oben, gespielt mit dem Daumen.
@@ -58,6 +66,8 @@ export class FlatMode {
   private seed: number;
   private readonly options_: FlatOptions;
   private readonly dice = new Rng(Date.now() >>> 0);
+  /** Schritte, Monster und Herzschlag auf dem Hörmodell der Karte (Paket Audio). */
+  private readonly audio = new HauntingAudio();
 
   constructor(
     seed: number,
@@ -175,6 +185,13 @@ export class FlatMode {
       this.round.step(dt, { x: stick.x, z: stick.z, sprint: stick.sprint });
     }
     for (const event of this.round.drain()) this.show(event);
+    this.audio.update(dt, {
+      snapshot: this.round.snapshot(),
+      // Wer das Monster spielt, hört mit dessen Ohren.
+      listener: this.session ? MONSTER_ID : PLAYER_ID,
+      kind: this.monsterKind,
+      active: this.round.state().monsterOn,
+    });
     this.toastLeft = Math.max(0, this.toastLeft - dt);
     if (this.toastLeft <= 0 && this.toast.textContent) {
       this.toast.textContent = '';
@@ -366,6 +383,7 @@ export class FlatMode {
 
   dispose(): void {
     this.session?.dispose();
+    this.audio.dispose();
     this.stick.dispose();
     this.map.dispose();
     this.element.remove();
