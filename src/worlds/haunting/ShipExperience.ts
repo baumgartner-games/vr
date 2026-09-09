@@ -11,7 +11,15 @@ import { ShipEffects } from './ShipEffects';
 import { CONDENSATION_FRAGMENT } from './helmetCondensation';
 import { PLAN_DOOR_H, PLAN_DOOR_W } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
-import { APRON, MARKS, roomAt, roomCode, type HouseRoom, type HouseSpec } from './house';
+import {
+  APRON,
+  COMMAND_LIFT,
+  MARKS,
+  roomAt,
+  roomCode,
+  type HouseRoom,
+  type HouseSpec,
+} from './house';
 import { HauntingDesktopControls } from './desktopControls';
 import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
@@ -792,7 +800,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       1.8,
       0.65,
     );
-    lift.position.set(3.1 * TILE, 1.55, APRON.z * TILE + 0.35);
+    lift.position.set((COMMAND_LIFT.x + 0.5) * TILE, 1.55, COMMAND_LIFT.z * TILE + 0.35);
     this.root.add(lift);
     this.bind(lift, () => this.visitLab('safe'));
   }

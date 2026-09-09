@@ -40,6 +40,17 @@ export const STATION_WALL_CLEARANCE = 0.22;
 const WALL_INSET = PLAN_WALL_T / 2 + STATION_WALL_CLEARANCE;
 const MODULE_GAP = 0.12;
 const APPROACH_GAP = STATION_PLAYER_RADIUS + 0.13;
+/**
+ * **Die Gasse zu einem Bedienplatz** — breiter als der Spieler selbst.
+ *
+ * Der Aufschlag auf den Radius ist der Grund für diese Zeile: Die Wegsuche
+ * rastert in Vierteldezimetern und muss zusätzlich um Ecken kommen. Eine
+ * Gasse, durch die der Spielerzylinder gerade eben noch passt, war schon der
+ * Frachtschrank, vor dem der Techniker eine ganze Runde lang „Weg blockiert"
+ * meldete: Zwischen zwei Modulen blieben acht Zentimeter, und acht Zentimeter
+ * sind auf dem Papier ein Weg und im Raster keiner.
+ */
+const LANE = STATION_PLAYER_RADIUS + 0.13;
 const cache = new WeakMap<HouseSpec, readonly StationPlacement[]>();
 
 export function roomBounds(room: HouseRoom): FloorBounds {
@@ -340,8 +351,8 @@ function packRoom(
         placed.some(
           (other) =>
             footprintsOverlap(p.bounds, other.bounds, MODULE_GAP) ||
-            routeBlocked(centre, p.approach, other.bounds) ||
-            routeBlocked(centre, other.approach, p.bounds),
+            routeBlocked(centre, p.approach, other.bounds, LANE) ||
+            routeBlocked(centre, other.approach, p.bounds, LANE),
         )
       )
         continue;
@@ -378,8 +389,8 @@ function packRoom(
         !placed.some(
           (other) =>
             footprintsOverlap(p.bounds, other.bounds, MODULE_GAP) ||
-            routeBlocked(centre, p.approach, other.bounds) ||
-            routeBlocked(centre, other.approach, p.bounds),
+            routeBlocked(centre, p.approach, other.bounds, LANE) ||
+            routeBlocked(centre, other.approach, p.bounds, LANE),
         ),
     );
     if (candidate) placed.push(candidate);

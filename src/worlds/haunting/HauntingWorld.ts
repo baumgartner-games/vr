@@ -28,7 +28,8 @@ import {
   stationBounds,
   tilesOf,
   DRONE_HOME,
-  APRON,
+  APRON_INNER,
+  APRON_OUTER,
   VAN_ID,
   type HouseDoor,
   type HouseRoom,
@@ -674,7 +675,7 @@ export class HauntingWorld extends GridWorld {
       if (!this.stationTorch) {
         const torch = this.placeTool(
           'flashlight',
-          new THREE.Vector3(0.6, 1.1, (APRON.z + 1.4) * TILE),
+          new THREE.Vector3(0.6, 1.1, (APRON_INNER + 0.6) * TILE),
           undefined,
           true,
         );
@@ -943,7 +944,9 @@ export class HauntingWorld extends GridWorld {
   /** Der Van vor der Haustür: der Ablagetisch und die Monitore. */
   private buildVan(): void {
     const x = -5;
-    const z = (APRON.z + 0.95) * TILE;
+    // Die Reihe an der Kantinenfront: Wer hier sitzt, schaut durch die
+    // Scheibe in den Raum, den die Drohne gleich abfliegt.
+    const z = (APRON_INNER + 0.05) * TILE;
     const metal = new THREE.MeshStandardMaterial({
       color: 0x39414f,
       roughness: 0.5,
@@ -1045,8 +1048,8 @@ export class HauntingWorld extends GridWorld {
     // Aus Südwesten und von oben: Von genau oben glänzt nur der Boden, von der
     // Seite bekommt auch die Hauswand etwas ab — und die ist das, worauf der
     // Pilot in seinem ersten Bild schaut.
-    sun.position.set(-2.2, 2.7, (APRON.z + 1.1) * TILE);
-    sun.target.position.set(-1.5, 0, (APRON.z + 1.1) * TILE);
+    sun.position.set(-2.2, 2.7, (APRON_OUTER + 0.9) * TILE);
+    sun.target.position.set(-1.5, 0, (APRON_OUTER + 0.9) * TILE);
     this.vanRig.add(sun);
     this.vanRig.add(sun.target);
     this.commandLight = sun;

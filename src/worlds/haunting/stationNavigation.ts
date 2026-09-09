@@ -15,7 +15,7 @@ import {
   type TileKey,
 } from '../nav/navTile';
 import type { DronePose, DroneRoute } from './droneRoute';
-import { APRON, stationBounds, type HouseSpec } from './house';
+import { missionExtent, type HouseSpec } from './house';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
 
 /** Quarter-metre samples resolve the tight turn after a 1.2m doorway. */
@@ -247,14 +247,14 @@ function buildGrid(
 ): RouteGrid | null {
   // Test rooms are reached by teleport. Their remote floors must never enlarge
   // the mission movement raster or make an off-map actor seem routable.
-  const bounds = stationBounds(spec);
+  const bounds = missionExtent(spec);
   const tiles = [...graph.tileKeys()].filter(
     (key) =>
       keyLevel(key) === 0 &&
       keyX(key) >= bounds.x &&
       keyX(key) < bounds.x + bounds.w &&
       keyZ(key) >= bounds.z &&
-      keyZ(key) < APRON.z + APRON.d,
+      keyZ(key) < bounds.z + bounds.d,
   );
   if (!tiles.length) return null;
   let minX = Infinity,
@@ -292,7 +292,7 @@ function buildGrid(
       x < bounds.x * TILE ||
       x > (bounds.x + bounds.w) * TILE ||
       z < bounds.z * TILE ||
-      z > (APRON.z + APRON.d) * TILE
+      z > (bounds.z + bounds.d) * TILE
     )
       continue;
     const horizontal = dirZ(dir) !== 0;

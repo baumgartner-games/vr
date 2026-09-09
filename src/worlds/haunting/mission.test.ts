@@ -1,4 +1,4 @@
-import { generateHouse, roomCentre, roomOf } from './house';
+import { COMMAND_LIFT, generateHouse, roomCentre, roomOf } from './house';
 import { housePlan } from './plan';
 import {
   freshCrew,
@@ -139,8 +139,9 @@ describe('Orbital missions', () => {
       }
       expect(ventPairs(spec).length).toBeGreaterThan(0);
       const plan = housePlan(spec, new Set(), true);
-      expect(plan.graph.wall(tileKey(2, 4), DIRS[3]!)?.open).toBe(true);
-      expect(housePlan(spec).graph.wall(tileKey(2, 4), DIRS[3]!)?.open).toBe(false);
+      const lift = tileKey(COMMAND_LIFT.x, COMMAND_LIFT.z);
+      expect(plan.graph.wall(lift, DIRS[3]!)?.open).toBe(true);
+      expect(housePlan(spec).graph.wall(lift, DIRS[3]!)?.open).toBe(false);
     },
   );
 

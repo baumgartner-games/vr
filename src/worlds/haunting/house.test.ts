@@ -10,6 +10,7 @@ import {
   roomOf,
   tilesOf,
   APRON,
+  COMMAND_LIFT,
   HOUSE,
   MARKS,
   TASK_COUNT,
@@ -363,7 +364,7 @@ describe('Der Grundriss als Kachelgitter', () => {
   });
 
   it('öffnet den Zugang zum Testdeck ausschließlich im Testmodus', () => {
-    const door = tileKey(2, 4, 0);
+    const door = tileKey(COMMAND_LIFT.x, COMMAND_LIFT.z, 0);
     expect(housePlan(spec).graph.wall(door, DIR_W)?.open).toBe(false);
     expect(housePlan(spec, new Set(), true).graph.wall(door, DIR_W)?.open).toBe(true);
   });

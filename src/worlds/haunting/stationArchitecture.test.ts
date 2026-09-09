@@ -4,6 +4,7 @@ import { TILE, dirX, dirZ, tileKey } from '../nav/navTile';
 import {
   APRON,
   generateHouse,
+  onApron,
   roomAt,
   roomCentre,
   roomOf,
@@ -23,14 +24,18 @@ describe('separated orbital ship modules', () => {
       const plan = housePlan(spec);
       expect(spec.rooms).toHaveLength(count);
       expect(spec.passages!.length).toBeGreaterThanOrEqual(3);
-      expect(roomOf(spec, spec.entryRoom)!.name).toBe('Andockkorridor');
-      expect(roomOf(spec, spec.entryRoom)!.circulation).toBe(true);
+      // Die Einsatzzentrale grenzt an die Cafeteria: Wer hereinkommt, steht
+      // im größten Raum der Station und nicht in einer leeren Röhre.
+      expect(roomOf(spec, spec.entryRoom)!.name).toBe('Cafeteria');
+      expect(roomOf(spec, spec.entryRoom)!.circulation).toBeUndefined();
       for (const room of spec.rooms) {
         expect(room.rect.w).toBeGreaterThanOrEqual(4);
         expect(room.rect.d).toBeGreaterThanOrEqual(4);
         const doors = spec.doors.filter((d) => d.a === room.id || d.b === room.id);
         expect(doors.length).toBeGreaterThanOrEqual(1);
         for (const door of doors) {
+          // Die Schleuse der Einsatzzentrale hat kein zweites Zimmer.
+          if (door.id === spec.frontDoor) continue;
           const other = roomOf(spec, door.a === room.id ? door.b! : door.a)!;
           expect(other.circulation).toBe(true);
         }
@@ -61,8 +66,19 @@ describe('separated orbital ship modules', () => {
       for (const corridor of spec.passages!)
         expect(stationLayout(spec).filter((item) => item.roomId === corridor.id)).toHaveLength(0);
       const entrance = spec.doors.find((d) => d.id === spec.frontDoor)!;
-      expect(entrance.z + dirZ(entrance.dir)).toBe(APRON.z);
-      expect(roomAt(spec, entrance.x, entrance.z)!.circulation).toBe(true);
+      expect(onApron(entrance.x + dirX(entrance.dir), entrance.z + dirZ(entrance.dir))).toBe(true);
+      expect(roomAt(spec, entrance.x, entrance.z)!.id).toBe(spec.entryRoom);
+      // Der Rest derselben Wand ist Glas: die Fensterfront in die Kantine.
+      const front = spec.windows.filter(
+        (w) => w.roomId === spec.entryRoom && w.z === entrance.z && w.dir === entrance.dir,
+      );
+      expect(front.length).toBeGreaterThanOrEqual(5);
+      for (const window of front)
+        expect(onApron(window.x + dirX(window.dir), window.z + dirZ(window.dir))).toBe(true);
+      // Jeder Gang trägt einen eigenen, aussprechbaren Namen.
+      const names = spec.passages!.map((p) => p.name);
+      expect(new Set(names).size).toBe(names.length);
+      for (const name of names) expect(name).toMatch(/gang/);
       for (const window of spec.windows) {
         expect(roomAt(spec, window.x + dirX(window.dir), window.z + dirZ(window.dir))).toBeNull();
         expect(plan.graph.wall(tileKey(window.x, window.z), window.dir)?.kind).toBe('window');
