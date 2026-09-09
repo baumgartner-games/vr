@@ -171,7 +171,100 @@ oben), `map/mapSnapshot.ts` (`ventLinks?`), `map/mapSource.ts`,
 `map/extract.ts` (je `ventLinks`), `map/mapView.ts` (Gitter für `vent`,
 zwei Farben), `HauntingWorld.ts` (Import, ein Aufruf in `buildHouse`).
 
+### Etappe C — Monster-Rolle (`monster/`)
+
+**Was drin ist.**
+
+- `monster/monster.register.ts`: die Rolle `monster` (`surface: 'map'`,
+  nicht `shared`) über `registerRole` aus der eigenen Datei, dazu der
+  Ansichtsmodus `monster:senses` für das Publikum `monster`. Keine zentrale
+  Liste angefasst; `registry/discover.ts` findet die Datei per Glob. Die
+  Datei lädt auch `monster.css` — deshalb importiert sie **nur** Vite.
+- `monster/monsterDriver.ts`: die zwei Schnittstellen. `MonsterDriver` ist
+  die Seite der Simulation (`active()`, `decide(dt): RoutineOutput` — dieselbe
+  Form wie die Routine, damit Kabinenangriff, Treffer, Bewegung und Snapshot
+  nicht wissen müssen, wer entschieden hat). `MonsterPort` ist die Seite der
+  Ansicht (Stock, `attack`/`interact`, Schachtziel wählen, Stand);
+  `monsterPortOf(host)` holt ihn geprüft aus `host.extra`.
+- `monster/flatMonsterControl.ts`: beides für die 2D-Runde. Hängt sich als
+  `round.driver` ein. Ziel einen Meter voraus, Tempo aus dem Sprintring,
+  **Angreifen** trifft nur in Reichweite (Techniker im Freien: die Runde
+  prüft den Abstand; Kabine: zwei Meter), **Interagieren** ist einsteigen,
+  aussteigen, abbrechen oder eine verriegelte Holztür aufbrechen (Stahl
+  hält).
+- `monster/monsterView.ts`: die Ansicht. `MapView` im Modus `realistic` aus
+  Sicht des Monsters (`computeVisibility` mit `viewerId: 'monster'`, also
+  eigener Kegel, Licht, Sichtlinie — dasselbe Modell, mit dem die Runde
+  entscheidet, ob es den Techniker sieht) **plus Hören**: Wer sich in
+  Hörweite bewegt und nicht zu sehen ist, wird als Geräuschring gezeichnet,
+  nicht als Marker. Stock links, rechts Angreifen und Interagieren, darüber
+  die Zielwahl, wenn eine Klappe zwei Ziele hat. Ohne Port ist die Ansicht
+  ein Zuschauerfenster in die Wahrnehmung des Monsters.
+- `monster/monsterSession.ts`: das Bündel für die 2D-Welt — Steuer, Bot als
+  Techniker (`rules/technicianBot.ts`) und Ansicht über einen `RoleHost`,
+  dessen `snapshot()` aus der laufenden Runde kommt und dessen `extra.monster`
+  das Steuer ist. `FlatMode` bietet im Optionsmenü „Als Monster spielen" an;
+  die nächste Runde tauscht dann Stock und drei Knöpfe gegen die
+  Monster-Ansicht, und die Endkarte spricht aus Sicht des Monsters.
+- 2D-Runde (`map/flatRound.ts`): ein Feld `driver`; im Monsterblock
+  `piloted` = Spieler am Steuer → Entscheidung vom Steuer statt von der
+  Routine, Bewegung direkt über `stepMonster` (kein Türrouting, kein Lotse),
+  Treffer nur mit `strike`; die Fahrt steigt bei einem Spieler nicht von
+  selbst aus. `FlatOptions.role` (nur `FlatMode` liest es).
+
+**Der Wechsel bricht keine Runde.** Der Zustand der Fahrt liegt in
+`VentTravel` (Runde), nicht im Steuer. Verlässt der Spieler die Rolle
+mitten im Schacht, steigt die KI drüben aus und macht weiter; setzt sich ein
+Spieler, während die KI fährt, wartet die Fahrt drüben auf seinen Knopf.
+Beides steht in `monsterRole.test.ts`. Die Routine wird währenddessen nicht
+gerechnet und macht danach an ihrem alten Ziel weiter; das Gedächtnis des
+Monsters (gesehen, gehört) läuft in beiden Fällen mit.
+
+**Entscheidungen und Alternativen.**
+
+- **Hören in der Ansicht ist Luftlinie mal Lärm** (Sprint 1, Gehen 0,45 der
+  Hörweite aus `sense.hearing`), die Runde selbst rechnet über `earshot` der
+  Raumkarte (Wände dämpfen). Die Ansicht hat nur den Snapshot; wer es genau
+  will, reicht `earshot` über den Snapshot mit — oder das Paket Audio bringt
+  sein Feld. So hört der Spieler eher etwas mehr als die KI, nie weniger.
+- **Ein Spieler trifft nur mit dem Knopf**, die KI durch Berührung. Ein
+  Monster, das beim Vorbeilaufen automatisch zuschlägt, nimmt dem Spieler
+  die einzige Entscheidung, die er hat.
+- **Netzspiel fehlt.** Der Port ist lokal (2D-Welt). Für den Van müsste die
+  Eingabe des Monsterspielers über `net.ts` zum Gastgeber, der das Monster
+  rechnet — eine neue Nachricht, also `STATION_PROTOCOL` (nur nach
+  Absprache). Der `MonsterDriver` in `HauntingWorld` wäre dann ein
+  Netzempfänger mit derselben `decide`-Form; die Ansicht bleibt dieselbe.
+- **`Joystick` ist nicht im Contract** (`map/index.ts` exportiert ihn
+  nicht); die Ansicht importiert `map/joystick.ts` direkt und nutzt dessen
+  CSS-Klassen für Basis und Knopf. Vorschlag an Paket map: `Joystick` in den
+  Index aufnehmen.
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts`
+(`driver`, `piloted`-Zweige, `FlatOptions.role`), `map/flatMode.ts`
+(`session`, `playRole`, Menüpunkt, Endkarte, `restart`, `dispose`).
+
+### Offene Fragen an dich
+
+- **3D-Monster auf den Vent-Graphen umstellen?** Netz, Fahrt und Klappen
+  sind fertig; offen ist nur der Umbau von `npcTarget`/`stepMonster`/
+  `monsterVent` in `HauntingWorld` (Grenzfall, ~60 Zeilen). Bis dahin
+  springt das 3D-Monster weiter über die alten Wandpaare.
+- **Uhr bei reparierter Lebenserhaltung anhalten?** Heute nein (sonst wäre
+  die Schleife wieder möglich); wenn doch, eine Zeile in `oxygenLeft`.
+- **Monster-Rolle im Van übers Netz** — braucht eine Nachricht in `net.ts`
+  (Protokoll 5 → 6) und einen Netz-`MonsterDriver` in `HauntingWorld`.
+- **Bot der 3D-Runde und VR-Spieler bei zerstörten Kabinen** — je eine
+  Zeile in `missionBot.ts`/`ShipExperience.ts`, sobald das Paket
+  Rollenansichten dort ohnehin arbeitet.
+
 ### Stand je Etappe
+
+**C — fertig.** `monster/monsterRole.test.ts` (Registry, Steuer ersetzt
+die KI und gibt sie zurück, Treffer nur mit Knopf, Schachtfahrt mit Zielwahl
+und Warten auf den Ausstieg, Wechsel mitten in der Fahrt in beide Richtungen,
+Holztür, Karte aus Monstersicht mit Hören) und `monster/monsterMode.test.ts`
+(2D-Welt als Monster, Rollenwechsel im Menü, Endkarte).
 
 **B — fertig.** `vents/*.test.ts`: Datennetz gegen vier Samen, Fahrt
 Schritt für Schritt, 2D-Runde (Klappen und Graph im Snapshot, Techniker kann

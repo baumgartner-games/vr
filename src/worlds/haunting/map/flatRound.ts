@@ -28,6 +28,7 @@ import { RoundRules } from '../rules/roundRules';
 import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
+import type { MonsterDriver } from '../monster/monsterDriver';
 import { doorCentre, nextThroughDoor, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
@@ -117,6 +118,8 @@ export interface FlatOptions {
   test?: boolean;
   roll?: number;
   mode?: VisibilityMode;
+  /** Wen der Spieler in der 2D-Welt spielt (nur `FlatMode`; die Runde selbst ist neutral). */
+  role?: 'technician' | 'monster';
 }
 
 interface Actor {
@@ -160,6 +163,8 @@ export class FlatRound implements MapSource {
   readonly vents: VentNet;
   readonly ventRide: VentTravel;
   private readonly ventPilot: VentPilot;
+  /** Ein Spieler am Steuer des Monsters (`monster/`); `null` oder inaktiv heißt: die Routine. */
+  driver: MonsterDriver | null = null;
   /** Welche Werkzeuge man hat, in Reihenfolge des Durchschaltens. */
   readonly tools: string[] = ['flashlight'];
   active = 0;
@@ -538,8 +543,9 @@ export class FlatRound implements MapSource {
     if (!this.haunt.monsterOn) return;
 
     // --- Im Schacht: nichts hören, nichts sehen, nur fahren (`vents/ventTravel.ts`).
+    const piloted = this.driver?.active() === true;
     if (this.ventRide.busy) {
-      this.ventRide.step(dt, this.monster, true);
+      this.ventRide.step(dt, this.monster, !piloted);
       this.haunt.monster = { x: this.monster.x, z: this.monster.z };
       return;
     }
@@ -575,16 +581,18 @@ export class FlatRound implements MapSource {
       this.caught = crew.hidden;
     if (!hidden) this.caught = '';
 
-    const decision = this.routine.step(this.graph, {
-      dt,
-      at: this.monster,
-      here: this.monster.space,
-      signal: this.memory.target,
-      seen,
-      quarry: this.player.space,
-      caught: this.caught,
-      rng: () => this.rng.next(),
-    });
+    const decision = piloted
+      ? this.driver!.decide(dt)
+      : this.routine.step(this.graph, {
+          dt,
+          at: this.monster,
+          here: this.monster.space,
+          signal: this.memory.target,
+          seen,
+          quarry: this.player.space,
+          caught: this.caught,
+          rng: () => this.rng.next(),
+        });
     this.decision = decision;
     if (decision.strike && hidden) {
       this.caught = '';
@@ -599,18 +607,22 @@ export class FlatRound implements MapSource {
     )
       this.caught = crew.hidden;
     if (decision.cue === 'scream') this.events.push({ kind: 'bad', text: 'Ein Schrei.' });
-    // Der Lotse biegt das Ziel auf eine Klappe um, wenn der Schacht lohnt (`vents/ventPilot.ts`).
-    const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.graph);
-    if (!this.ventRide.busy)
-      this.moveMonster(
-        steered,
-        dt,
-        paceSpeed(monsterBase(crew.options.monster), this.tuning.monster, steered.pace),
-      );
+    const base = monsterBase(crew.options.monster);
+    if (piloted) {
+      // Ein Spieler steuert direkt: kein Türrouting, kein Lotse — nur Gleiten an Wänden.
+      if (decision.goal)
+        this.stepMonster(decision.goal, paceSpeed(base, this.tuning.monster, decision.pace), dt);
+    } else {
+      // Der Lotse biegt das Ziel auf eine Klappe um, wenn der Schacht lohnt (`vents/ventPilot.ts`).
+      const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.graph);
+      if (!this.ventRide.busy)
+        this.moveMonster(steered, dt, paceSpeed(base, this.tuning.monster, steered.pace));
+    }
     this.haunt.monster = { x: this.monster.x, z: this.monster.z };
 
-    if (gap < CONTACT && !hidden && !decision.strike && takeCrewHit(crew, true))
-      this.hit('Treffer.');
+    // Die KI trifft durch Berührung, ein Spieler nur mit dem Knopf.
+    const wantsHit = piloted ? decision.strike : !decision.strike;
+    if (gap < CONTACT && !hidden && wantsHit && takeCrewHit(crew, true)) this.hit('Treffer.');
   }
 
   private hit(text: string): void {
