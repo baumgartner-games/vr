@@ -180,3 +180,31 @@ Quest-Abnahme. Ein echter Quest-Test mit Controllern, Handtracking und Haptik so
 Mehrgerätetest mit Quest und zwei Telefonen über WebRTC stehen aus. Eine
 Bildrate auf Quest 3 wurde hier nicht gemessen. Produktionsreife erfordert
 zusätzlich diese Hardwareabnahme und weitere Spieltests mit einer echten Crew.
+
+## Feste Skeld-Karte und Bot-Beobachtung (2026-09-09)
+
+- 14 feste Raumidentitäten und unveränderte Tür-/Ganggeometrie über Seeds und
+  alte Raumzahl-Einstellungen; kompakte Grid-Rechtecke, noch keine schrägen
+  Außenwände. Trainingsräume liegen außerhalb der erweiterten Stationsbounds.
+- Echte Bot-Reparaturrunden, erreichbare Räume, freie Möbel-/Türzugänge und
+  Rapier-Monsternavigation werden durch die bestehenden Tests auf der neuen
+  Karte geprüft. Der Kurventest führt jetzt zum Reactor: Die alte Strecke zur
+  Cafeteria ist auf dem neuen Grundriss gerade.
+- Die sichere Bot-Runde enthält eine Monsterpatrouille. Regression prüft,
+  dass die Beobachterkamera nicht als Spieler wahrgenommen wird und der
+  Anzug 3/3 behält. Weglinien lesen die tatsächlichen Navigationsrouten;
+  Zielringe, zusätzliche Beobachtungsbeleuchtung und Raumnamen sind nur in
+  der Simulation sichtbar.
+- Funkmeldungen des Technikers bleiben außerhalb eingeklappter Menüs sichtbar.
+  Dies ist ein lokales Demo-Protokoll, keine autonome Dreiercrew.
+- Chromium-Produktions-Smoke: `.artifacts/browser-smoke/skeld-final/report.json`.
+  Echte Bot- und Monsterbewegung über 15 Sekunden, Monsterroute, HP=3,
+  sichtbare Weganzeige und Freiflug oberhalb 90m erfolgreich geprüft; kein
+  Browser-/Konsolenfehler und kein Kontextverlust. Kein Quest-Benchmark.
+- Freiflug bis 120m und direkter Überblick auf 90m; XR-Kopfblick bleibt unter
+  Kontrolle des Nutzers. Der automatisierte Test prüft die Kameragrenze.
+
+Finale lokale Prüfung: 185 Testsuiten / 2673 Tests bestanden; Typecheck, ESLint,
+Prettier-Prüfung und Produktionsbuild erfolgreich.
+
+Geprüfte Draufsicht: [Skeld-Übersicht](orbital/skeld-overview.png).

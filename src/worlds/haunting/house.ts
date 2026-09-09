@@ -287,9 +287,9 @@ export const TASK_COUNT = 3;
  */
 export function generateHouse(seed: number, roomCount?: number): HouseSpec {
   const rng = new Rng(seed);
-  const station = roomCount === undefined ? null : stationRooms(roomCount);
-  const rects = station?.rooms ?? splitRooms(rng, HOUSE);
-  const rooms = nameRooms(rng, rects);
+  const station = roomCount === undefined ? null : stationRooms();
+  const rects = station?.rooms.map((room) => room.rect) ?? splitRooms(rng, HOUSE);
+  const rooms = station?.rooms ?? nameRooms(rng, rects);
   const passages = station?.passages;
   const spaces = [...rooms, ...(passages ?? [])];
   const { doors, entryRoom, frontDoor } = passages
@@ -320,60 +320,78 @@ export function generateHouse(seed: number, roomCount?: number): HouseSpec {
   };
 }
 
-/**
- * Connected ship modules around broad transit galleries. Empty one-tile service
- * cavities separate neighbouring rooms; there is no invisible floor in the void.
- * The eastern spine offers a route around every occupied module. The airlock
- * always arrives in its own docking gallery, one transit space before any room.
- */
-function stationRooms(count: number): { rooms: Rect[]; passages: HouseRoom[]; bounds: Rect } {
-  const rowCounts: Record<number, readonly number[]> = {
-    6: [3, 3],
-    8: [4, 4],
-    10: [3, 4, 3],
-    12: [4, 4, 4],
-  };
-  const rows = rowCounts[count] ?? rowCounts[8]!;
-  const roomDepth = 6;
-  const totalDepth = rows.length * (roomDepth + 2);
-  const bounds = { x: -15, z: APRON.z - totalDepth, w: 23, d: totalDepth };
-  const rooms: Rect[] = [];
-  const passages: HouseRoom[] = [];
-  const passage = (id: string, name: string, rect: Rect): HouseRoom => ({
-    id,
+/** Fixed Skeld topology, expressed entirely in existing grid rectangles. */
+function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Rect } {
+  const definitions: Array<[string, RoomKind, MarkId, number, number, number, number]> = [
+    ['Cafeteria', 'kueche', 'ofen', -3, -21, 8, 7],
+    ['Upper Engine', 'werkstatt', 'werkbank', -15, -19, 4, 4],
+    ['Reactor', 'wohnzimmer', 'kamin', -20, -13, 4, 6],
+    ['Security', 'bibliothek', 'buecher', -13, -12, 4, 4],
+    ['MedBay', 'bad', 'wanne', -8, -13, 4, 4],
+    ['Lower Engine', 'werkstatt', 'werkbank', -15, -5, 4, 4],
+    ['Electrical', 'kammer', 'kiste', -8, -6, 4, 5],
+    ['Storage', 'kammer', 'kiste', -2, -3, 6, 5],
+    ['Weapons', 'werkstatt', 'werkbank', 8, -19, 4, 4],
+    ['O2', 'esszimmer', 'standuhr', 7, -13, 4, 4],
+    ['Navigation', 'musikzimmer', 'sessel', 16, -12, 4, 4],
+    ['Admin', 'bibliothek', 'buecher', 5, -8, 4, 4],
+    ['Shields', 'werkstatt', 'werkbank', 11, -4, 4, 4],
+    ['Communications', 'musikzimmer', 'klavier', 5, -1, 4, 4],
+  ];
+  const rooms = definitions.map(([name, kind, signature, x, z, w, d], i): HouseRoom => ({
+    id: `r${i}`,
     name,
-    rect,
-    kind: 'kammer',
-    signature: 'kiste',
+    kind,
+    signature,
+    rect: { x, z, w, d },
     marks: [],
     lamp: true,
-    circulation: true,
-  });
-  rows.forEach((columns, row) => {
-    const widths = columns === 3 ? [5, 6, 6] : [4, 4, 4, 4];
-    const z = bounds.z + row * (roomDepth + 2);
-    let x = -13;
-    widths.forEach((width, column) => {
-      const depth =
-        column === 0 || column === widths.length - 1 ? 6 : (row + column) % 2 === 0 ? 5 : 4;
-      rooms.push({ x, z: z + roomDepth - depth, w: width, d: depth });
-      x += width + 1;
-    });
-    passages.push(
-      passage(
-        `p${row}`,
-        row === rows.length - 1 ? 'Andockkorridor' : row === 0 ? 'Nordgalerie' : 'Technikgalerie',
-        { x: -13, z: z + roomDepth, w: 19, d: 2 },
-      ),
-    );
-  });
-  passages.push(
-    passage('p-spine', 'Steuerbord-Passage', { x: 6, z: bounds.z, w: 2, d: totalDepth }),
-  );
-  passages.push(
-    passage('p-port', 'Backbord-Passage', { x: -15, z: bounds.z, w: 2, d: totalDepth }),
-  );
-  return { rooms, passages, bounds };
+  }));
+  // Corridor strips are unioned, then merged into rectangles: no overlapping
+  // floors, and no furniture in circulation spaces. Two tiles = five metres.
+  const strips: Rect[] = [
+    { x: -11, z: -17, w: 8, d: 2 },
+    { x: -7, z: -15, w: 2, d: 2 },
+    { x: -16, z: -15, w: 3, d: 10 },
+    { x: -11, z: -3, w: 2, d: 2 },
+    { x: -10, z: -1, w: 8, d: 2 },
+    { x: 0, z: -14, w: 2, d: 11 },
+    { x: 2, z: -7, w: 3, d: 2 },
+    { x: 5, z: -17, w: 3, d: 2 },
+    { x: 10, z: -15, w: 4, d: 2 },
+    { x: 12, z: -13, w: 2, d: 9 },
+    { x: 11, z: -11, w: 5, d: 2 },
+    { x: 4, z: -3, w: 7, d: 2 },
+    { x: -2, z: 2, w: 6, d: 1 },
+  ];
+  const cells = new Set<string>();
+  for (const strip of strips)
+    for (const cell of tilesOf(strip)) {
+      if (!rooms.some((r) => inside(r.rect, cell.x, cell.z))) cells.add(`${cell.x},${cell.z}`);
+    }
+  const passages: HouseRoom[] = [];
+  for (let z = -21; z < 3; z++)
+    for (let x = -20; x < 20; x++) {
+      if (!cells.has(`${x},${z}`)) continue;
+      let w = 1;
+      while (cells.has(`${x + w},${z}`)) w++;
+      let d = 1;
+      while (Array.from({ length: w }, (_, i) => cells.has(`${x + i},${z + d}`)).every(Boolean))
+        d++;
+      for (let dz = 0; dz < d; dz++)
+        for (let dx = 0; dx < w; dx++) cells.delete(`${x + dx},${z + dz}`);
+      passages.push({
+        id: `p${passages.length}`,
+        name: z === 2 ? 'Andockkorridor' : 'Verbindungsgang',
+        kind: 'kammer',
+        signature: 'kiste',
+        rect: { x, z, w, d },
+        marks: [],
+        lamp: true,
+        circulation: true,
+      });
+    }
+  return { rooms, passages, bounds: { x: -20, z: -21, w: 40, d: 24 } };
 }
 
 function connectStation(
@@ -401,11 +419,10 @@ function connectStation(
       } else add(room, p, spots[Math.floor(spots.length / 2)]!);
     }
   }
-  for (const spine of passages.filter((p) => p.id === 'p-spine' || p.id === 'p-port'))
-    for (const gallery of passages.filter((p) => /^p[0-9]+$/.test(p.id))) {
-      const spots = shared(gallery.rect, spine.rect);
-      for (const spot of spots) add(gallery, spine, spot);
-    }
+  for (let i = 0; i < passages.length; i++)
+    for (let j = i + 1; j < passages.length; j++)
+      for (const spot of shared(passages[i]!.rect, passages[j]!.rect))
+        add(passages[i]!, passages[j]!, spot);
   const entry = passages.find((p) => p.name === 'Andockkorridor')!;
   add(entry, null, { x: 0, z: APRON.z - 1, dir: DIR_S });
   return { doors, entryRoom: entry.id, frontDoor: doors[doors.length - 1]!.id };

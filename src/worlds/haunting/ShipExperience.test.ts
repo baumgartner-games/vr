@@ -752,3 +752,23 @@ test.each(['lost', 'hidden'])(
     else expect(state.crew.hidden).toBe('');
   },
 );
+
+test('overview frames the whole station and free flight can rise beyond the old 14m ceiling', () => {
+  experience.startBotRound();
+  frame(0.13);
+  button('Kartenübersicht').click();
+  frame(0.05);
+  expect(rig.getHeadPosition(new THREE.Vector3()).y).toBeCloseTo(90);
+  key('Space');
+  for (let i = 0; i < 20; i++) frame(0.05);
+  key('Space', 'keyup');
+  expect(rig.getHeadPosition(new THREE.Vector3()).y).toBeGreaterThan(90);
+});
+
+test('bot radio remains visible when mission and test menus are collapsed', () => {
+  experience.startBotRound();
+  frame(0.13);
+  const log = document.querySelector('[aria-label="Simulierter Funkverkehr"]')!;
+  expect(log.closest('details')).toBeNull();
+  expect(log.textContent).toContain('Techniker → Zentrale');
+});

@@ -19,7 +19,7 @@ export interface TrainingBounds {
 /** Metres: the return point stays a full metre inside the command floor. */
 export const COMMAND_HOME = { x: 0, z: (APRON.z + 1.6) * TILE } as const;
 
-const EAST = HOUSE.x + HOUSE.w + 6;
+const EAST = HOUSE.x + HOUSE.w + 18;
 const NORTH = HOUSE.z;
 
 /**

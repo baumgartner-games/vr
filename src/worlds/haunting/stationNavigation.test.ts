@@ -43,29 +43,29 @@ function clearPath(
   return true;
 }
 
-test.each([6, 8, 10, 12])(
-  'walking routes in %i-room stations clear models and real door frames',
-  (count) => {
-    for (const seed of [2, 9, 1009]) {
-      const spec = generateHouse(seed, count);
-      const plan = housePlan(spec);
-      const from = poseFor(spec, spec.entryRoom);
-      const boxes = [...stationLayout(spec).map((p) => p.bounds), ...walls(spec)];
-      for (const room of spec.rooms) {
-        const route = stationRoute(spec, plan.graph, from, goalFor(spec, room.id));
-        expect({ seed, goal: room.id, complete: route.complete, grounded: route.grounded }).toEqual(
-          { seed, goal: room.id, complete: true, grounded: true },
-        );
-        expect(clearPath(from, route.points!, boxes, 0.45)).toBe(true);
-      }
+test.each([14])('walking routes in %i-room stations clear models and real door frames', (count) => {
+  for (const seed of [2, 9, 1009]) {
+    const spec = generateHouse(seed, count);
+    const plan = housePlan(spec);
+    const from = poseFor(spec, spec.entryRoom);
+    const boxes = [...stationLayout(spec).map((p) => p.bounds), ...walls(spec)];
+    for (const room of spec.rooms) {
+      const route = stationRoute(spec, plan.graph, from, goalFor(spec, room.id));
+      expect({ seed, goal: room.id, complete: route.complete, grounded: route.grounded }).toEqual({
+        seed,
+        goal: room.id,
+        complete: true,
+        grounded: true,
+      });
+      expect(clearPath(from, route.points!, boxes, 0.45)).toBe(true);
     }
-  },
-);
+  }
+});
 
 test('a flying route rounds corners with short, collision-clear curve samples', () => {
   const spec = generateHouse(2, 8);
   const from = poseFor(spec, spec.entryRoom);
-  const target = poseFor(spec, 'r0');
+  const target = poseFor(spec, 'r2');
   const route = stationRoute(spec, housePlan(spec).graph, from, target, 0.22, DRONE_Y - DRONE_CAP);
   expect(route.complete).toBe(true);
   expect(route.points!.at(-1)).toEqual({ x: target.x, z: target.z });

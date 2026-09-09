@@ -1,5 +1,6 @@
 import { stepAlong, type DronePose, type DroneRoute } from './droneRoute';
-import type { HouseSpec } from './house';
+import { roomAt, type HouseSpec } from './house';
+import { TILE } from '../nav/navTile';
 import { puzzleFor, puzzleSolved, repairsFor, type Repair } from './mission';
 import type { HauntState } from './net';
 import { stationLayout, type FloorPoint } from './stationLayout';
@@ -27,6 +28,12 @@ export class MissionBot {
   private readonly layout;
   private blocked = false;
   private routeRevision = -1;
+  private reportedRoom = '';
+  private destination: FloorPoint | null = null;
+
+  get navigation() {
+    return { at: this.pose, points: this.path?.points ?? [], goal: this.destination };
+  }
 
   constructor(private readonly host: MissionBotHost) {
     this.repairs = repairsFor(host.spec);
@@ -42,6 +49,18 @@ export class MissionBot {
 
   update(dt: number): void {
     if (!Number.isFinite(dt) || dt <= 0 || this.completed) return;
+    const room = roomAt(
+      this.host.spec,
+      Math.floor(this.pose.x / TILE),
+      Math.floor(this.pose.z / TILE),
+    );
+    const here = room?.id ?? 'command';
+    if (here !== this.reportedRoom) {
+      this.reportedRoom = here;
+      this.host.say(
+        `FUNK · Techniker → Zentrale: Standort ${room?.name ?? 'Zentrale'}. Auftrag: ${{ cargo: 'Ersatzteil suchen', 'open-cargo': 'Fracht öffnen', 'take-cargo': 'Ersatzteil aufnehmen', console: 'zum Reparaturterminal', repair: 'System reparieren', return: 'Rückkehr zur Zentrale', complete: 'abgeschlossen' }[this.stage]}.`,
+      );
+    }
     const step = Math.min(0.1, dt);
     this.timer -= step;
     if (this.timer > 0) return;
@@ -108,6 +127,7 @@ export class MissionBot {
 
   /** Missing routes pause the demonstration. They never fabricate an arrival or repair. */
   private walk(target: FloorPoint, dt: number): boolean {
+    this.destination = target;
     const revision = this.host.revision?.() ?? 0;
     if (revision !== this.routeRevision) {
       this.path = null;

@@ -126,6 +126,6 @@ describe('Archive 2D chart', () => {
       ]);
     }
     expect(labels).toContain('EINSATZZENTRALE');
-    expect(labels.join(' ')).toContain('Maschinenraum');
+    expect(labels.join(' ')).toContain('Upper Engine');
   });
 });

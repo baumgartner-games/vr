@@ -160,7 +160,7 @@ describe('station module placement', () => {
     },
   );
 
-  test('medical bays mix equipment and can place a treatment bed inside the room', () => {
+  test('compact MedBay keeps varied equipment and a reachable treatment bed clear of walls', () => {
     const spec = generateHouse(42, 8);
     const room = spec.rooms.find((candidate) => candidate.kind === 'bad')!;
     const fixtures = stationLayout(spec).filter(
@@ -176,7 +176,7 @@ describe('station module placement', () => {
         bed.bounds.minZ - room.rect.z * TILE,
         (room.rect.z + room.rect.d) * TILE - bed.bounds.maxZ,
       ),
-    ).toBeGreaterThan(1);
+    ).toBeGreaterThan(PLAN_WALL_T / 2 + 0.22 - 1e-6);
     checkWalkingLine(
       safeRoomSpawn(spec, room.id),
       bed.approach,

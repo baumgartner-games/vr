@@ -23,6 +23,14 @@ export class StationNpcNavigator {
     private readonly graph: () => NavGraph | null,
   ) {}
 
+  get navigation() {
+    return {
+      at: { x: this.lastX, z: this.lastZ },
+      points: this.route?.points?.slice(this.cursor) ?? [],
+      goal: Number.isFinite(this.goalX) ? { x: this.goalX, z: this.goalZ } : null,
+    };
+  }
+
   step(input: NpcNavigationInput): Point | null {
     const graph = this.graph();
     const spec = this.spec();

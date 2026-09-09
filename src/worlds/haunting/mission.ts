@@ -2,8 +2,8 @@ import { MARKS, roomCentre, roomOf, spacesOf, type HouseSpec } from './house';
 import { Rng } from './rng';
 import { freshThreat, readThreat, type ThreatState } from './threat';
 
-export const STATION_PROTOCOL = 4;
-export const ROOM_COUNTS = [6, 8, 10, 12] as const;
+export const STATION_PROTOCOL = 5;
+export const ROOM_COUNTS = [14] as const;
 export type MonsterKind = 'stalker' | 'crawler' | 'sentinel';
 export const MONSTERS: ReadonlyArray<{
   id: MonsterKind;
@@ -75,11 +75,7 @@ export interface CrewState {
 
 export function stationOptions(value: unknown): StationOptions {
   const v = record(value);
-  const n = typeof v.rooms === 'number' && Number.isFinite(v.rooms) ? v.rooms : 8;
-  const rooms = ROOM_COUNTS.reduce(
-    (best, count) => (Math.abs(count - n) < Math.abs(best - n) ? count : best),
-    8 as number,
-  );
+  const rooms = 14;
   return {
     rooms,
     monster: v.monster === 'crawler' || v.monster === 'sentinel' ? v.monster : 'stalker',

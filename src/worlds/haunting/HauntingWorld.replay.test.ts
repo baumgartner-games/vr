@@ -33,6 +33,8 @@ interface ReplayWorld {
   menu(): MenuEntry[];
   flatTechnician: boolean;
   pendingBotRound: boolean;
+  stepCrew(dt: number, ctx: unknown): void;
+  npcTarget(target: THREE.Vector3): THREE.Vector3 | null;
   monster: unknown;
   monsterArt: THREE.Object3D | null;
   director: { clear: jest.Mock; spawn: jest.Mock };
@@ -225,4 +227,20 @@ test('returning to the station menu cancels a queued solo bot round', () => {
   world.menu().find((entry) => entry.id === 'haunt:roles')!.run!(null);
   expect(world.pendingBotRound).toBe(false);
   expect(world.flatTechnician).toBe(false);
+});
+
+test('safe bot rounds spawn a real patrol without reading the observer camera or damaging the suit', () => {
+  const world = replay();
+  world.state.crew.options.test = true;
+  world.state.crew.simulation = true;
+  world.state.crew.hp = 1;
+  Object.assign(world, { patrolIndex: 0, patrolChangedAt: 0 });
+  // Deliberately no rig: the free camera must never become the demo's perceived player.
+  world.stepCrew(0.1, { role: 'vr' });
+  expect(world.director.spawn).toHaveBeenCalledTimes(1);
+  expect(world.state.monsterOn).toBe(true);
+  expect(world.state.crew.hp).toBe(3);
+  expect(world.npcTarget(new THREE.Vector3())).not.toBeNull();
+  world.state.crew.simulation = false;
+  expect(world.npcTarget(new THREE.Vector3())).toBeNull();
 });

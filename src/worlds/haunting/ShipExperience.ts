@@ -895,7 +895,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (index === 2) this.host.test();
     if (index === 3) {
       options.rooms =
-        ROOM_COUNTS[(ROOM_COUNTS.indexOf(options.rooms as 6) + 1) % ROOM_COUNTS.length]!;
+        ROOM_COUNTS[(ROOM_COUNTS.indexOf(options.rooms as 14) + 1) % ROOM_COUNTS.length]!;
       this.host.configure(options);
     }
     if (index === 4) {
@@ -1091,7 +1091,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       'HAUNTING / ORBITAL · 1 VR + 2 HANDYS',
       'MISSION STARTEN',
       'TEST / OHNE MONSTER',
-      `STATION: ${crew.options.rooms} RÄUME · ANTIPPEN`,
+      `SKELD · FESTE KARTE · ${crew.options.rooms} RÄUME`,
       `GEGNER: ${MONSTERS.find((m) => m.id === crew.options.monster)!.name}`,
       crew.options.test
         ? `TESTLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
@@ -1337,7 +1337,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.dom.querySelector<HTMLDetailsElement>('details[data-tests]')?.open ?? false;
     this.dom.replaceChildren();
     const title = document.createElement('strong');
-    title.textContent = `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
+    title.textContent = `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.simulation ? 'TEST / SICHERE BOT-RUNDE / MONSTER' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
     this.dom.append(title);
     if (this.host.stations) {
       const roles = document.createElement('button');
@@ -1350,6 +1350,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       camera.textContent = this.followBot ? 'Freie Kamera' : 'Bot folgen';
       camera.dataset.action = 'follow-bot';
       this.dom.append(camera);
+      const overview = document.createElement('button');
+      overview.textContent = 'Kartenübersicht';
+      overview.dataset.action = 'overview';
+      this.dom.append(overview);
+      const legend = document.createElement('div');
+      legend.textContent =
+        'KI-Wege: Cyan = Techniker · Rot = Monster · Gelb = Drohne · Ring = Ziel · FUNK = Standort / Archiv';
+      this.dom.append(legend);
     }
     if (state.phase === 'lost' || state.phase === 'won') {
       const result = document.createElement('div');
@@ -1399,7 +1407,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if ((!near.room && !crew.simulation) || crew.hp === 0) {
       button('Mission starten', 'start');
       button('Test ohne Monster', 'test');
-      button(`${crew.options.rooms} Räume`, 'rooms');
+      button(`Skeld · ${crew.options.rooms} Räume`, 'rooms');
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
     button('Missionsmenü', 'menu');
@@ -1470,9 +1478,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       if (crew.simulation) {
         button('Höher fliegen', 'up', details);
         button('Tiefer fliegen', 'down', details);
-        const log = document.createElement('p');
-        log.textContent = this.messages.join(' · ');
-        details.append(log);
+        const log = document.createElement('div');
+        log.className = 'orbital-radio';
+        log.setAttribute('role', 'log');
+        log.setAttribute('aria-label', 'Simulierter Funkverkehr');
+        for (const message of this.messages) {
+          const row = document.createElement('div');
+          row.textContent = message;
+          log.append(row);
+        }
+        this.dom.append(log);
       }
     }
   }
@@ -1486,7 +1501,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (kind === 'start') this.host.start();
     else if (kind === 'test') this.host.test();
     else if (kind === 'stations') this.host.stations?.();
-    else if (kind === 'follow-bot') this.followBot = !this.followBot;
+    else if (kind === 'overview') {
+      this.followBot = false;
+      if (!this.host.ctx.renderer.xr.isPresenting) {
+        this.host.ctx.rig.setHeadWorldPosition(new THREE.Vector3(0, 90, -22));
+        this.host.ctx.camera.lookAt(0, 0, -22);
+        this.host.ctx.rig.updateMatrixWorld(true);
+      }
+    } else if (kind === 'follow-bot') this.followBot = !this.followBot;
     else if (kind === 'rooms') this.commandAction(3);
     else if (kind === 'monster') this.commandAction(4);
     else if (kind === 'light') this.commandAction(5);
@@ -1617,6 +1639,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z));
   }
 
+  get botNavigation() {
+    return this.missionBot?.navigation ?? null;
+  }
+
   get botPosition(): THREE.Vector3 | null {
     return this.crew.simulation ? (this.simulated?.position ?? null) : null;
   }
@@ -1688,9 +1714,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       ctx.rig.position.addScaledVector(_direction, -(left?.y ?? 0) * dt * 4);
       ctx.rig.position.x += -_direction.z * (left?.x ?? 0) * dt * 4;
       ctx.rig.position.z += _direction.x * (left?.x ?? 0) * dt * 4;
-      ctx.rig.position.y += (-(right?.y ?? 0) + this.flatFlight) * dt * 3;
+      ctx.rig.position.y += (-(right?.y ?? 0) + this.flatFlight) * dt * 12;
       this.flatFlight *= Math.max(0, 1 - dt * 2);
-      ctx.rig.position.y = Math.max(0, Math.min(14, ctx.rig.position.y));
+      ctx.rig.position.y = Math.max(0, Math.min(120, ctx.rig.position.y));
       ctx.rig.updateMatrixWorld(true);
     }
     const beforeX = this.simulated.position.x,

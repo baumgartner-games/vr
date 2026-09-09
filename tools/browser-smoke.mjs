@@ -217,6 +217,8 @@ for (const name of browserNames) {
           .filter({ hasText: /beenden/ })
           .waitFor({ state: 'attached' });
         await page.waitForFunction(() => window.bgvr.world?.state.crew.simulation);
+        await page.waitForFunction(() => window.bgvr.world?.state.monsterOn && window.bgvr.world?.state.monster);
+        result.monsterStart = await page.evaluate(() => ({...window.bgvr.world.state.monster}));
         await shot('bot-start');
         result.botStart = await page.evaluate(() => {
           const bot = window.bgvr.world.experience.botPosition;
@@ -248,6 +250,29 @@ for (const name of browserNames) {
               ) > 0.5,
             'The bot actually travels through the station',
           );
+        result.simulation = await page.evaluate(() => {
+          const world = window.bgvr.world;
+          return { monster: world.state.monster, hp: world.state.crew.hp,
+            monsterPath: world.monsterNavigator?.navigation.points.length ?? 0,
+            botPath: world.experience.botNavigation?.points.length ?? 0,
+            overlay: world.navigationOverlay.root.visible };
+        });
+        assert.equal(result.simulation.hp, 3, 'Monster rehearsal remains harmless');
+        assert(result.simulation.overlay, 'Actual actor routes are displayed');
+        if (botSeconds >= 10) {
+          assert(result.simulation.monster && Math.hypot(
+            result.simulation.monster.x - result.monsterStart.x,
+            result.simulation.monster.z - result.monsterStart.z) > 0.5, 'Monster patrol actually moves');
+          assert(result.simulation.monsterPath > 0, 'Monster has a visible real route');
+        }
+        await page.getByRole('button', {name: 'Kartenübersicht', exact: true}).click();
+        await page.waitForTimeout(250);
+        await shot('skeld-overview');
+        await page.keyboard.down('Space');
+        await page.waitForTimeout(500);
+        await page.keyboard.up('Space');
+        assert(await page.evaluate(() => window.bgvr.world.context.rig.position.y > 90),
+          'Free camera rises above overview height');
         result.botText = await page.locator('.orbital-player').innerText();
         result.webgl = await page.locator('#scene').evaluate((canvas) => {
           const gl = canvas.getContext('webgl2');

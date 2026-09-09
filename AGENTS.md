@@ -7575,17 +7575,15 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
 **Karte, Geometrie und Art**
 
-- `generateHouse(seed, roomCount)` baut dieselbe Station für alle Geräte:
-  exakt 6/8/10/12 Missionsräume in `spec.rooms`, separate freie Transitmodule
-  in `spec.passages`. `spacesOf(spec)` liefert beides; `roomAt`/`roomOf` finden
-  auch Gänge. Nur Missionsräume erhalten Fracht, Schutzschränke und Aufträge.
-  Für geometrische Bounds **`stationBounds(spec)` verwenden, nicht `HOUSE`**.
-  Der historische Aufruf `generateHouse(seed)` bleibt für alte Welttests erhalten.
-- Der Stationsgrundriss hat mindestens 4×4 Kacheln große Räume, abgestufte
-  Außenwände, zwei umlaufende Seitengänge und breite Galerien. TILE=2,5m.
-  Der Eintritt geht in den Andockkorridor, nicht direkt in die Kantine.
-  `housePlan` baut nur belegte Flächen. Dazwischen bleiben echte leere Hohlräume;
-  Haunting überschreibt `horizonColor()` mit null. Das Sternenfeld ist fogfrei.
+- `generateHouse(seed, roomCount)` baut für Stationsaufrufe immer die feste
+  Skeld-Anordnung mit 14 Räumen; alte Raumzahlen werden auf 14 normalisiert.
+  Namen, Raumtypen, Rechtecke und Türen bleiben über Seeds gleich. Seeds
+  verändern Aufgaben/Einrichtung. Der historische Aufruf ohne Raumzahl bleibt
+  für alte Haustests erhalten. Separate `spec.passages` werden aus Gangstreifen
+  ohne Überlappung erzeugt. Manche Räume haben wie in der Vorlage nur einen
+  Eingang. `stationBounds(spec)` statt `HOUSE` für Stationsbounds verwenden.
+  Die Kontur nutzt rechtwinklige Gridmodule, noch keine 45°-Wände.
+  Die Lehrzimmer liegen jetzt bei x≥26 Rasterfeldern außerhalb der Karte.
 - `fixtureDimensions.ts` ist der Maßkatalog. `stationLayout.ts` reserviert
   Wandabstand, Türlandungen, Bedienpunkte, Raumdurchquerung und Schachtzugänge.
   Keine separat geratenen Positionen in Art-/Interaktionscode einführen.
@@ -7660,11 +7658,15 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 - `desktopControls.ts`: E/Klick benutzt denselben Interaktionspfad;
   1 wechselt Radar/Xray/frei, 2 Lampe/Medkit/frei. Ctrl duckt. Im Simulationsflug
   WASD/Space/Ctrl. Menüs, Texteingaben und Fokusverlust sperren gehaltene Tasten.
-- `MissionBot` führt eine echte, gegnerfreie Runde aus: zu Fracht gehen,
+- `MissionBot` führt eine echte, schadensfreie Runde mit Monsterpatrouille aus: zu Fracht gehen,
   öffnen, nehmen, zu Terminal gehen, Puzzle schrittweise lösen, nach drei
   Aufträgen in die Zentrale zurückkehren. Nutzt reale Zustände und Wege.
   Gesperrte Routen warten statt zu teleportieren. Das ist keine simulierte
   menschliche Kommunikation und keine vollständige autonome Dreiercrew.
+  Raumwechsel erzeugen lokale Funkmeldungen Techniker → Zentrale.
+  `NavigationOverlay` liest echte Route-Cursor von Bot, Monster und Drohne;
+  Cyan/Rot/Gelb und Zielringe sind nur in der Simulation sichtbar.
+  Freiflug reicht bis 120m, Kartenübersicht setzt den Desktopblick auf 90m.
   Desktop-Demos starten mit nachgeführter Botkamera; **Freie Kamera** / **Bot
   folgen** wechselt die Bedienung. `followBotCamera` läuft niemals im XR-Headset;
   dort behält der Spieler seine Blickrichtung.
@@ -7684,7 +7686,7 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
-- **STATION_PROTOCOL=4**, weil der gleiche Seed nun eine andere Karte erzeugt.
+- **STATION_PROTOCOL=5**, weil der gleiche Seed nun eine andere Karte erzeugt.
   Alte Clients werden abgewiesen; nach Update alle Geräte neu laden.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.

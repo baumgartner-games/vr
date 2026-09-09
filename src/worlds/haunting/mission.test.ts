@@ -48,7 +48,7 @@ describe('Orbital missions', () => {
         for (const r of spec.rooms)
           expect(
             spec.doors.filter((d) => d.a === r.id || d.b === r.id).length,
-          ).toBeGreaterThanOrEqual(2);
+          ).toBeGreaterThanOrEqual(1);
         const plan = housePlan(spec);
         for (const r of spec.rooms) {
           const c = roomCentre(r);
@@ -169,7 +169,7 @@ describe('Orbital missions', () => {
     expect(roundTrip.crew.hp).toBe(2);
     expect(roundTrip.crew.inventory).toEqual(c.inventory);
     expect(roundTrip.crew.puzzles.engine!.links).toEqual([2, 3]);
-    expect(roundTrip.crew.options.rooms).toBe(12);
+    expect(roundTrip.crew.options.rooms).toBe(14);
     expect(readState({ kind: 'state', ...state })).toBeNull();
     expect(
       readState({ ...state, kind: 'state', version: STATION_PROTOCOL, seed: Infinity }),
@@ -192,7 +192,7 @@ describe('Orbital missions', () => {
     expect(c.exertion).toBe(0);
     expect(c.inventory.length).toBeLessThanOrEqual(32);
     expect(c.puzzles.engine!.links).toEqual([-1, -1, 3, 4]);
-    expect(stationOptions({ rooms: 10000 }).rooms).toBe(12);
+    expect(stationOptions({ rooms: 10000 }).rooms).toBe(14);
     expect(lockerCode(31, 'r1')).toMatch(/^[1-4]{3}$/);
     expect(lockerCode(31, 'r1')).toBe(lockerCode(31, 'r1'));
   });

@@ -1,3 +1,4 @@
+import { NavigationOverlay } from './navigationOverlay';
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
 import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
@@ -289,6 +290,8 @@ export class HauntingWorld extends GridWorld {
   private readonly cullRotation = new THREE.Quaternion();
   private cullTimer = 0;
   private culledDoors = '';
+  private readonly navigationOverlay = new NavigationOverlay();
+  private monsterNavigator: StationNpcNavigator | null = null;
   private monsterArt: THREE.Object3D | null = null;
   private previousFeet: THREE.Vector3 | null = null;
   private ventClock = 0;
@@ -573,7 +576,11 @@ export class HauntingWorld extends GridWorld {
    * Grund, warum ein Schalter mit der Aufschrift `X` etwas wert sein kann.
    */
   protected override npcTarget(target: THREE.Vector3): THREE.Vector3 | null {
-    if (this.state.phase !== 'running' || this.state.crew.options.test || this.state.crew.hp === 0)
+    if (
+      this.state.phase !== 'running' ||
+      (this.state.crew.options.test && !this.state.crew.simulation) ||
+      this.state.crew.hp === 0
+    )
       return null;
     if (this.ventExit) return null;
     if (
@@ -626,6 +633,8 @@ export class HauntingWorld extends GridWorld {
     this.root.getObjectByName('lighting')?.removeFromParent();
     super.buildEnvironment();
     this.roof = PLAN_WALL_H;
+    this.navigationOverlay.setRooms(this.spec);
+    this.root.add(this.navigationOverlay.root);
     this.root.add(this.stage);
     this.root.add(this.live);
     this.root.add(this.vanRig);
@@ -729,6 +738,7 @@ export class HauntingWorld extends GridWorld {
   }
 
   override dispose(ctx: WorldContext): void {
+    this.navigationOverlay.dispose();
     ctx.net.off(HAUNT_CHANNEL);
     ctx.scene.fog = null;
     // Die Leinwand gehört der ganzen Seite und nicht dieser Welt: Was hier an
@@ -1434,6 +1444,15 @@ export class HauntingWorld extends GridWorld {
       animateCreature(this.monsterArt, this.state.time);
     }
     this.flyDrone(dt);
+    this.navigationOverlay.update(this.state.crew.simulation, [
+      this.experience?.botNavigation ?? null,
+      this.monsterNavigator?.navigation ?? null,
+      {
+        at: this.dronePose,
+        points: this.droneRoute.points ?? [],
+        goal: this.droneRoute.points?.at(-1) ?? null,
+      },
+    ]);
 
     this.sendTimer -= dt;
     if (this.sendTimer <= 0) {
@@ -1661,6 +1680,14 @@ export class HauntingWorld extends GridWorld {
 
   private stepCrew(dt: number, ctx: WorldContext): void {
     if (ctx.role !== 'vr') return;
+    if (this.state.crew.options.test && this.state.crew.simulation) {
+      this.state.crew.hp = 3;
+      if (!this.monster && this.state.phase === 'running') {
+        this.state.monsterOn = true;
+        this.spawnMonster(safeRoomSpawn(this.spec, this.spec.rooms[2]!.id));
+      }
+      return;
+    }
     ctx.rig.getHeadPosition(_head);
     const speed =
       this.previousFeet && dt > 0
@@ -2782,11 +2809,14 @@ export class HauntingWorld extends GridWorld {
       entry(
         'haunt:rooms',
         `Station: ${this.state.crew.options.rooms} Räume`,
-        '6 / 8 / 10 / 12 · neue Station',
+        'Feste Skeld-Karte · neue Aufgaben',
         () =>
           this.configureStation({
             ...this.state.crew.options,
-            rooms: ROOM_COUNTS[(ROOM_COUNTS.indexOf(this.state.crew.options.rooms as 6) + 1) % 4]!,
+            rooms:
+              ROOM_COUNTS[
+                (ROOM_COUNTS.indexOf(this.state.crew.options.rooms as 14) + 1) % ROOM_COUNTS.length
+              ]!,
           }),
       ),
       entry(
@@ -2836,6 +2866,7 @@ export class HauntingWorld extends GridWorld {
       this.monsterArt = null;
     }
     this.director?.clear();
+    this.monsterNavigator = null;
     this.monster = null;
     this.ventExit = null;
     this.ventClock = 0;
@@ -2878,6 +2909,7 @@ export class HauntingWorld extends GridWorld {
         () => this.spec,
         () => this.travelGraph(),
       );
+      this.monsterNavigator = navigator;
       this.monster.setNavigator((input) => navigator.step(input));
       this.monster.model.visible = false;
       this.monsterArt = buildCreature(this.state.crew.options.monster);

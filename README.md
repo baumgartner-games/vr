@@ -87,13 +87,15 @@ Peers; restriktives NAT oder gesperrte öffentliche Dienste können ohne TURN
 eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
 desselben Browsers, keine getrennten Geräte im WLAN.
 
-**Die Mission:** In der sicheren Einsatzzentrale 6, 8, 10 oder 12 Räume und
-einen Gegner auswählen, dann **Mission starten**. Die Räume sind mindestens
-4 × 4 Rasterfelder groß; bei 2,5 Metern pro Feld sind das mindestens 10 × 10
-Meter. Abgestufte Raummodule, breite Galerien und zwei umlaufende Seitengänge
-geben der Station eine an *The Skeld* orientierte Raumschiffstruktur. Zwischen
-den Modulen liegen echte Hohlräume; von der Zentrale geht es zuerst in den
-Andockkorridor. Modelle und Raumgestaltung sind eigenständig und prozedural.
+**Die Mission:** In der sicheren Einsatzzentrale einen Gegner auswählen und
+**Mission starten**. Die feste Skeld-Karte enthält 14 benannte Räume in der
+Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
+Weapons/O2/Navigation rechts, Storage unten und die dazwischenliegenden
+Nebenräume. Die meisten Räume messen 4 × 4 Rasterfelder (10 × 10 Meter);
+Cafeteria und Storage sind größer. Gänge verbinden die Module über echte
+Rasterböden. Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
+Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
+Modelle und Raumgestaltung verwenden eigene Assets.
 Antrieb, Lebenserhaltung und Notsignal müssen repariert werden. Das
 Archiv ermittelt den Fundort des benötigten Werkzeugs oder Bauteils. Der
 Techniker öffnet den Frachtschrank, nimmt den Gegenstand und entriegelt den
@@ -191,11 +193,16 @@ verwenden freie Ankunftsplätze. **Bot-Runde anschauen** ist in der Zentrale und
 im Testmenü erreichbar: Ein Techniker läuft durch die echte Station, öffnet
 Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
 Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
-halten ihn auf, bis eine Route wieder möglich ist. Die Demo bleibt gegnerfrei;
-sie simuliert keine menschliche Kommunikation oder vollständige Dreiercrew.
+halten ihn auf, bis eine Route wieder möglich ist. Ein echtes Monster patrouilliert; der Test bleibt ohne Schaden.
+Cyan zeigt den Technikerweg, Rot den Monsterweg und Gelb die Drohnenroute.
+Zielringe markieren die jeweiligen Ziele. Die Linien lesen die tatsächlich
+verwendeten Navigationswege. Das lokale Funkprotokoll zeigt Raumwechsel des
+Technikers an die Zentrale sowie die Archivhinweise. Es ist keine autonome
+Dreiercrew und kein zusätzlicher Sprachchat.
 **Simulation / Flugmodus** hebt die Decke ab. Am Desktop folgt die Kamera
 zunächst dem Bot; **Freie Kamera** gibt `WASD`, `Space` und `Ctrl` zum Erkunden
-frei. **Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
+frei, bis 120 Meter Höhe. **Kartenübersicht** zeigt die Station direkt von oben.
+**Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
 Blicknachführung. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
 wählen. Die Drohne folgt geprüften Kurven mit Beschleunigung, sanftem Abbremsen
 und leichter Neigung; ihre Kameradaten werden zwischen Netzpaketen geglättet.

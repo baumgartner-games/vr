@@ -862,3 +862,10 @@ body.haunt-on .touch { display: none; }
 .orbital-result button:hover { background: #b3f6ec; }
 .orbital-result button:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 @media (max-height: 500px) { .orbital-result { top: 17%; padding: 18px; } }
+
+
+/* Always-visible, local demonstration radio, outside collapsed mission menus. */
+.orbital-radio { position: fixed; top: 82px; right: 16px; width: 280px; max-height: 35vh; overflow: auto; padding: 12px; border: 1px solid #496978; border-radius: 10px; background: #07151ef2; color: #d8f8ff; font-size: 12px; line-height: 1.5; text-align: left; }
+.orbital-radio::before { content: 'FUNK · TECHNIKER / ZENTRALE / ARCHIV'; display: block; color: #77e4f2; font-weight: 700; margin-bottom: 8px; }
+.orbital-radio > div + div { border-top: 1px solid #29424d; margin-top: 8px; padding-top: 8px; }
+@media (max-width: 800px) { .orbital-radio { position: static; width: auto; max-height: 140px; margin-top: 8px; } }
