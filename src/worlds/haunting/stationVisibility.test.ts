@@ -1,4 +1,4 @@
-import { generateHouse } from './house';
+import { generateHouse, spacesOf } from './house';
 import { safeRoomSpawn } from './stationLayout';
 import { visibleStationRooms } from './stationVisibility';
 
@@ -12,7 +12,9 @@ describe('room visibility', () => {
   });
 
   it('can retain every connected room without incorrectly hiding an open sightline', () => {
-    expect(visibleStationRooms(spec, viewer, [], () => true)?.size).toBe(spec.rooms.length);
+    expect(visibleStationRooms(spec, viewer, [], () => true)).toEqual(
+      new Set(spacesOf(spec).map((room) => room.id)),
+    );
   });
 
   it('does not render rooms behind closed doors', () => {

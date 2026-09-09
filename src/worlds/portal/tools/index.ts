@@ -28,6 +28,7 @@ import { TransformTool } from './TransformTool';
 import { TranslateGloveTool } from './TranslateGloveTool';
 import { WelderTool } from './WelderTool';
 import { WingsTool } from './WingsTool';
+import { RadarTool } from './RadarTool';
 import { XrayTool } from './XrayTool';
 import { createPortalGunTool } from './PortalGunTool';
 import { applyStoredPose } from './poseStore';
@@ -67,6 +68,7 @@ export const TOOL_IDS = [
   'superman-glove',
   'welder',
   'xray',
+  'radar',
   // Der Handspiegel: derselbe Rahmen wie der Scanner, nur mit Glas darin —
   // deshalb steht er direkt daneben. Der große Standspiegel ist kein Werkzeug,
   // sondern ein Ding aus dem Beutel (`standingMirror.ts`).
@@ -148,6 +150,8 @@ function buildTool(id: string): Tool | null {
       return new SupermanGloveTool();
     case 'welder':
       return new WelderTool();
+    case 'radar':
+      return new RadarTool();
     case 'xray':
       return new XrayTool();
     case 'mirror':
@@ -199,6 +203,7 @@ export {
   MapTool,
   MirrorTool,
   PistolTool,
+  RadarTool,
   KnifeTool,
   SignTool,
   StopwatchTool,

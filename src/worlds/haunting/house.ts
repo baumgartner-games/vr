@@ -172,7 +172,7 @@ interface RoomKindFacts {
 }
 
 const ROOM_KINDS: readonly RoomKindFacts[] = [
-  { id: 'kueche', label: 'Kombüse', signature: 'ofen', extras: ['spuele', 'esstisch'] },
+  { id: 'kueche', label: 'Kantine', signature: 'ofen', extras: ['spuele', 'esstisch'] },
   { id: 'bad', label: 'Medizin / Quarantäne', signature: 'wanne', twin: 'dusche', extras: [] },
   { id: 'wohnzimmer', label: 'Reaktorkammer', signature: 'kamin', extras: ['sessel', 'standuhr'] },
   { id: 'musikzimmer', label: 'Kommunikation', signature: 'klavier', extras: ['sessel'] },
@@ -203,6 +203,8 @@ export interface HouseRoom {
   marks: MarkAt[];
   /** Ob eine Lampe unter der Decke hängt. Ein Zimmer im Haus hat keine. */
   lamp: boolean;
+  /** Transit spaces have architecture/light but no mission furniture or archive dossier. */
+  circulation?: boolean;
 }
 
 export interface HouseDoor {
@@ -253,6 +255,9 @@ export interface HouseWindow {
 export interface HouseSpec {
   seed: number;
   rooms: HouseRoom[];
+  /** Separate transit modules preserve the selected number of actual mission rooms. */
+  passages?: HouseRoom[];
+  bounds?: Rect;
   doors: HouseDoor[];
   /** Die Fenster in den Außenwänden — je Zimmer eines oder zwei. */
   windows: HouseWindow[];
@@ -282,40 +287,167 @@ export const TASK_COUNT = 3;
  */
 export function generateHouse(seed: number, roomCount?: number): HouseSpec {
   const rng = new Rng(seed);
-  const rects = roomCount === undefined ? splitRooms(rng, HOUSE) : stationRooms(rng, roomCount);
+  const station = roomCount === undefined ? null : stationRooms(roomCount);
+  const rects = station?.rooms ?? splitRooms(rng, HOUSE);
   const rooms = nameRooms(rng, rects);
-  const { doors, entryRoom, frontDoor } = connect(rng, rooms);
+  const passages = station?.passages;
+  const spaces = [...rooms, ...(passages ?? [])];
+  const { doors, entryRoom, frontDoor } = passages
+    ? connectStation(rooms, passages)
+    : connect(rng, rooms);
   placeMarks(rng, rooms, doorTiles(doors));
   // **Nach den Möbeln und nicht davor**: Ein Fenster hinter dem Bücherregal
   // ist von innen nichts und von außen ein Rätsel, und welche Kachel ein Regal
   // trägt, steht erst jetzt fest.
-  const windows = placeWindows(rng, rooms, doors);
-  const fuse = placeFuse(rng, rooms, entryRoom);
+  const windows = station
+    ? stationWindows(rng, rooms, spaces, doors)
+    : placeWindows(rng, rooms, doors);
+  const fuse = placeFuse(rng, spaces, entryRoom, rooms);
   const tasks = placeTasks(rng, rooms, entryRoom);
   darkenOne(rng, rooms, entryRoom);
-  const switches = buildPanel(rng, rooms, doors);
-  return { seed, rooms, doors, windows, entryRoom, frontDoor, fuse, tasks, switches };
+  const switches = buildPanel(rng, spaces, doors);
+  return {
+    seed,
+    rooms,
+    doors,
+    windows,
+    entryRoom,
+    frontDoor,
+    fuse,
+    tasks,
+    switches,
+    ...(station ? { passages, bounds: station.bounds } : {}),
+  };
 }
 
-/** Exact station sizes; rectangular modules retain two escape routes. */
-function stationRooms(rng: Rng, count: number): Rect[] {
-  const counts: Record<number, number[]> = {
-    6: [2, 2, 2],
-    8: [3, 2, 3],
+/**
+ * Connected ship modules around broad transit galleries. Empty one-tile service
+ * cavities separate neighbouring rooms; there is no invisible floor in the void.
+ * The eastern spine offers a route around every occupied module. The airlock
+ * always arrives in its own docking gallery, one transit space before any room.
+ */
+function stationRooms(count: number): { rooms: Rect[]; passages: HouseRoom[]; bounds: Rect } {
+  const rowCounts: Record<number, readonly number[]> = {
+    6: [3, 3],
+    8: [4, 4],
     10: [3, 4, 3],
     12: [4, 4, 4],
   };
-  const rows = rng.shuffle(counts[count] ?? counts[8]!);
-  const out: Rect[] = [];
-  rows.forEach((columns, row) => {
-    const widths = rng.shuffle(columns === 2 ? [8, 8] : columns === 3 ? [5, 5, 6] : [4, 4, 4, 4]);
-    let x = HOUSE.x;
-    for (const w of widths) {
-      out.push({ x, z: HOUSE.z + row * 4, w, d: 4 });
-      x += w;
-    }
+  const rows = rowCounts[count] ?? rowCounts[8]!;
+  const roomDepth = 6;
+  const totalDepth = rows.length * (roomDepth + 2);
+  const bounds = { x: -15, z: APRON.z - totalDepth, w: 23, d: totalDepth };
+  const rooms: Rect[] = [];
+  const passages: HouseRoom[] = [];
+  const passage = (id: string, name: string, rect: Rect): HouseRoom => ({
+    id,
+    name,
+    rect,
+    kind: 'kammer',
+    signature: 'kiste',
+    marks: [],
+    lamp: true,
+    circulation: true,
   });
-  return out;
+  rows.forEach((columns, row) => {
+    const widths = columns === 3 ? [5, 6, 6] : [4, 4, 4, 4];
+    const z = bounds.z + row * (roomDepth + 2);
+    let x = -13;
+    widths.forEach((width, column) => {
+      const depth =
+        column === 0 || column === widths.length - 1 ? 6 : (row + column) % 2 === 0 ? 5 : 4;
+      rooms.push({ x, z: z + roomDepth - depth, w: width, d: depth });
+      x += width + 1;
+    });
+    passages.push(
+      passage(
+        `p${row}`,
+        row === rows.length - 1 ? 'Andockkorridor' : row === 0 ? 'Nordgalerie' : 'Technikgalerie',
+        { x: -13, z: z + roomDepth, w: 19, d: 2 },
+      ),
+    );
+  });
+  passages.push(
+    passage('p-spine', 'Steuerbord-Passage', { x: 6, z: bounds.z, w: 2, d: totalDepth }),
+  );
+  passages.push(
+    passage('p-port', 'Backbord-Passage', { x: -15, z: bounds.z, w: 2, d: totalDepth }),
+  );
+  return { rooms, passages, bounds };
+}
+
+function connectStation(
+  rooms: readonly HouseRoom[],
+  passages: readonly HouseRoom[],
+): { doors: HouseDoor[]; entryRoom: string; frontDoor: string } {
+  const doors: HouseDoor[] = [];
+  const add = (
+    a: HouseRoom,
+    b: HouseRoom | null,
+    spot: { x: number; z: number; dir: Dir },
+  ): void => {
+    doors.push({ id: `d${doors.length}`, a: a.id, b: b?.id ?? null, ...spot, material: 'metal' });
+  };
+  // A room is entered from the gallery above/below. Keep the middle of each
+  // wall free for the approach; no random corner doorway can pinch the capsule.
+  for (const room of rooms) {
+    const links = passages
+      .map((p) => ({ p, spots: shared(room.rect, p.rect) }))
+      .filter(({ spots }) => spots.length > 0);
+    for (const { p, spots } of links) {
+      if (links.length === 1 && spots.length >= 4) {
+        add(room, p, spots[1]!);
+        add(room, p, spots[spots.length - 2]!);
+      } else add(room, p, spots[Math.floor(spots.length / 2)]!);
+    }
+  }
+  for (const spine of passages.filter((p) => p.id === 'p-spine' || p.id === 'p-port'))
+    for (const gallery of passages.filter((p) => /^p[0-9]+$/.test(p.id))) {
+      const spots = shared(gallery.rect, spine.rect);
+      for (const spot of spots) add(gallery, spine, spot);
+    }
+  const entry = passages.find((p) => p.name === 'Andockkorridor')!;
+  add(entry, null, { x: 0, z: APRON.z - 1, dir: DIR_S });
+  return { doors, entryRoom: entry.id, frontDoor: doors[doors.length - 1]!.id };
+}
+
+function stationWindows(
+  rng: Rng,
+  rooms: readonly HouseRoom[],
+  spaces: readonly HouseRoom[],
+  doors: readonly HouseDoor[],
+): HouseWindow[] {
+  const taken = new Set(doors.map((door) => edgeKey(door.x, door.z, door.dir)));
+  const windows: HouseWindow[] = [];
+  for (const room of rooms) {
+    const candidates = tilesOf(room.rect)
+      .flatMap((tile) => ([DIR_N, DIR_E, DIR_S, DIR_W] as const).map((dir) => ({ ...tile, dir })))
+      .filter((edge) => {
+        const x = edge.x + (edge.dir === DIR_E ? 1 : edge.dir === DIR_W ? -1 : 0);
+        const z = edge.z + (edge.dir === DIR_S ? 1 : edge.dir === DIR_N ? -1 : 0);
+        return (
+          !spaces.some((space) => inside(space.rect, x, z)) &&
+          !taken.has(edgeKey(edge.x, edge.z, edge.dir))
+        );
+      });
+    for (const edge of rng.shuffle(candidates).slice(0, 2))
+      windows.push({ id: `w${windows.length}`, roomId: room.id, ...edge });
+  }
+  return windows;
+}
+
+/** Shared mission extent; historical house tests keep their original footprint. */
+export function stationBounds(spec: HouseSpec): Rect {
+  return spec.bounds ?? HOUSE;
+}
+
+/** Mission rooms plus transit modules. Archive selection deliberately uses rooms only. */
+export function spacesOf(spec: HouseSpec): readonly HouseRoom[] {
+  return spec.passages ? [...spec.rooms, ...spec.passages] : spec.rooms;
+}
+
+function inside(rect: Rect, x: number, z: number): boolean {
+  return x >= rect.x && x < rect.x + rect.w && z >= rect.z && z < rect.z + rect.d;
 }
 
 // --- Grundriss --------------------------------------------------------------
@@ -800,9 +932,14 @@ export function outerEdges(rect: Rect): Array<{ x: number; z: number; dir: Dir }
 // --- Was sonst noch im Haus liegt ------------------------------------------
 
 /** Der Sicherungskasten hängt so weit von der Haustür weg wie möglich. */
-function placeFuse(rng: Rng, rooms: readonly HouseRoom[], entryRoom: string): HouseSpec['fuse'] {
+function placeFuse(
+  rng: Rng,
+  rooms: readonly HouseRoom[],
+  entryRoom: string,
+  candidates = rooms,
+): HouseSpec['fuse'] {
   const entry = rooms.find((room) => room.id === entryRoom)!;
-  const far = [...rooms]
+  const far = [...candidates]
     .filter((room) => room.id !== entryRoom)
     .sort((a, b) => distance(entry.rect, b.rect) - distance(entry.rect, a.rect));
   const room = far[0] ?? entry;
@@ -871,7 +1008,7 @@ function darkenOne(rng: Rng, rooms: HouseRoom[], entryRoom: string): void {
 /** In welchem Zimmer diese Kachel liegt — `null` heißt: außerhalb des Hauses. */
 export function roomAt(spec: HouseSpec, x: number, z: number): HouseRoom | null {
   return (
-    spec.rooms.find(
+    spacesOf(spec).find(
       (room) =>
         x >= room.rect.x &&
         x < room.rect.x + room.rect.w &&
@@ -882,7 +1019,13 @@ export function roomAt(spec: HouseSpec, x: number, z: number): HouseRoom | null 
 }
 
 export function roomOf(spec: HouseSpec, id: string): HouseRoom | null {
-  return spec.rooms.find((room) => room.id === id) ?? null;
+  return spacesOf(spec).find((room) => room.id === id) ?? null;
+}
+
+/** Human room numbering matches the archive; internal zero-based IDs stay stable. */
+export function roomCode(id: string): string {
+  const match = /^r(\d+)$/.exec(id);
+  return match ? `R${String(Number(match[1]) + 1).padStart(2, '0')}` : id.toUpperCase();
 }
 
 /** Die Mitte eines Zimmers in Kacheln — wohin die Drohne fliegt. */

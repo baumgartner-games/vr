@@ -18,68 +18,42 @@ export interface ThreatInput {
   flashlight: boolean;
   lineOfSight: boolean;
   insideStation: boolean;
-  /** Optional local opt-in microphone amplitude; never recorded or sent over the game channel. */
-  noise?: number;
 }
-interface EntityEvidence {
+interface EntityProfile {
   label: string;
-  clues: readonly string[];
   hearing: number;
   vision: number;
   memory: number;
-  emf: number;
-  temperatureDelta: number;
   sound: number;
   cadence: number;
   stepFrequency: number;
 }
 
-/** Evidence is tied to real mechanics: each entity hears, sees and sounds differently. */
-export const ENTITY_EVIDENCE: Readonly<Record<MonsterKind, EntityEvidence>> = {
+/** Movement, visibility and footsteps give each creature its own behaviour. */
+export const ENTITY_PROFILES: Readonly<Record<MonsterKind, EntityProfile>> = {
   stalker: {
     label: 'Der Verlorene',
-    clues: [
-      'Starker Temperaturabfall',
-      'Pulsierende elektromagnetische Störung',
-      'Langsame, schleifende Schritte',
-    ],
     hearing: 19,
     vision: 13,
     memory: 9,
-    emf: 4,
-    temperatureDelta: -24,
     sound: 0.6,
     cadence: 0.92,
     stepFrequency: 62,
   },
   crawler: {
     label: 'Schachtläufer',
-    clues: [
-      'Deutliche Wärmespur',
-      'Schwaches elektromagnetisches Signal',
-      'Rasch aufeinanderfolgendes Kratzen',
-    ],
     hearing: 14,
     vision: 10,
     memory: 6,
-    emf: 2,
-    temperatureDelta: 20,
     sound: 0.7,
     cadence: 0.38,
     stepFrequency: 190,
   },
   sentinel: {
     label: 'Wächter',
-    clues: [
-      'Geringe Erwärmung',
-      'Sehr starke elektromagnetische Störung',
-      'Schwere metallische Schritte',
-    ],
     hearing: 10,
     vision: 20,
     memory: 12,
-    emf: 5,
-    temperatureDelta: 5,
     sound: 1,
     cadence: 1.02,
     stepFrequency: 88,
@@ -123,12 +97,11 @@ export function stepThreat(crew: CrewState, dt: number, input: ThreatInput): voi
   }
   const step = finite(dt, 0, 0.1);
   if (!step) return;
-  const profile = ENTITY_EVIDENCE[crew.options.monster];
+  const profile = ENTITY_PROFILES[crew.options.monster];
   const distance = Math.hypot(input.player.x - input.monster.x, input.player.z - input.monster.z);
   const speed = finite(input.speed, 0, 8);
-  // Movement is always available; optional microphone input is an already gated local scalar.
   const movement = speed < 0.1 ? 0 : Math.min(1, speed / 4.2) * (input.crouched ? 0.23 : 1);
-  const hearingRange = profile.hearing * Math.max(movement, finite(input.noise, 0, 1) * 0.85);
+  const hearingRange = profile.hearing * movement;
   const heard = hearingRange > 0 && distance < hearingRange;
   const visibility = input.flashlight ? 1 : input.crouched ? 0.2 : 0.4;
   const seen = input.lineOfSight && distance < profile.vision * visibility;
@@ -156,64 +129,6 @@ export function threatTarget(crew: CrewState): SignalPoint | null {
     crew.threat.memory <= 0
     ? null
     : crew.threat.target;
-}
-
-export interface EntityReadings {
-  active: boolean;
-  radar: { distance: number; bearing: number } | null;
-  emf: number;
-  temperature: number;
-  sound: number;
-  evidence: readonly string[];
-}
-export interface EvidenceInput {
-  observer: SignalPoint;
-  monster: SignalPoint | null;
-  time: number;
-  roomPowered?: boolean;
-}
-
-/** All readings describe this game only. Power can make a harmless level-one baseline. */
-export function entityReadings(crew: CrewState, input: EvidenceInput): EntityReadings {
-  const baseline = input.roomPowered ? 1 : 0;
-  const empty: EntityReadings = {
-    active: false,
-    radar: null,
-    emf: baseline,
-    temperature: 19,
-    sound: 0,
-    evidence: [],
-  };
-  if (crew.options.test || crew.simulation || crew.hp <= 0 || !input.monster || crew.venting > 0)
-    return empty;
-  const dx = input.monster.x - input.observer.x,
-    dz = input.monster.z - input.observer.z;
-  const distance = Math.hypot(dx, dz);
-  if (!Number.isFinite(distance) || distance > 24) return empty;
-  const profile = ENTITY_EVIDENCE[crew.options.monster];
-  const proximity = Math.max(0, 1 - distance / 14);
-  const phase = Math.sin(
-    finite(input.time, 0, 1e8) * (crew.options.monster === 'stalker' ? 4 : 1.4),
-  );
-  const emf = Math.max(
-    baseline,
-    Math.min(5, Math.round(profile.emf * proximity + Math.max(0, phase) * proximity * 0.4)),
-  );
-  const temperature =
-    Math.round((19 + profile.temperatureDelta * Math.max(0, 1 - distance / 11)) * 10) / 10;
-  const sound = Math.min(1, profile.sound / (1 + (distance / 4) ** 2));
-  const evidence: string[] = [];
-  if (Math.abs(temperature - 19) > 2.5) evidence.push(profile.clues[0]!);
-  if (emf >= 2) evidence.push(profile.clues[1]!);
-  if (sound > 0.16) evidence.push(profile.clues[2]!);
-  return {
-    active: true,
-    radar: distance <= 18 ? { distance, bearing: Math.atan2(dx, dz) } : null,
-    emf,
-    temperature,
-    sound,
-    evidence,
-  };
 }
 
 function finite(value: unknown, min: number, max: number): number {

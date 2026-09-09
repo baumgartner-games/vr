@@ -52,8 +52,8 @@ für den anderen eine Wand, und wer den Sturz nicht überlebt, bleibt oben
 stehen — und durch ein **Portal** fallen sie wie jede Kiste: halb hier, halb
 drüben, und aus einem Sturz ins Bodenportal wird der Schwung aus der Wand) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
-räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Jede Welt
-steht auf einer Fläche bis zum Horizont, die Schwerkraft steht im Menü, und
+räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Die meisten Testwelten
+stehen auf einer Fläche bis zum Horizont; Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
 Unter **Menü → Grafik** steht ein experimenteller Schalter, der
@@ -67,8 +67,8 @@ gebaut.
 ### Haunting / Orbital — eine Quest, zwei Handys
 
 Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
-Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt den
-Grundriss, Aufträge, Fundorte und Schutzcodes. Die **Einsatzkontrolle** verfolgt
+Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
+Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es nicht. Die **Einsatzkontrolle** verfolgt
 das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
 Schiebetüren und Geräuschköder. Drohne und Zuschauer sind weitere optionale
 Plätze; die Schalttafel gehört zur Einsatzkontrolle.
@@ -90,42 +90,60 @@ desselben Browsers, keine getrennten Geräte im WLAN.
 **Die Mission:** In der sicheren Einsatzzentrale 6, 8, 10 oder 12 Räume und
 einen Gegner auswählen, dann **Mission starten**. Die Räume sind mindestens
 4 × 4 Rasterfelder groß; bei 2,5 Metern pro Feld sind das mindestens 10 × 10
-Meter. Antrieb, Lebenserhaltung und Notsignal müssen repariert werden. Das
+Meter. Abgestufte Raummodule, breite Galerien und zwei umlaufende Seitengänge
+geben der Station eine an *The Skeld* orientierte Raumschiffstruktur. Zwischen
+den Modulen liegen echte Hohlräume; von der Zentrale geht es zuerst in den
+Andockkorridor. Modelle und Raumgestaltung sind eigenständig und prozedural.
+Antrieb, Lebenserhaltung und Notsignal müssen repariert werden. Das
 Archiv ermittelt den Fundort des benötigten Werkzeugs oder Bauteils. Der
 Techniker öffnet den Frachtschrank, nimmt den Gegenstand und entriegelt den
 passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
 Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
 zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
 
-**Die Handyansichten:** Das Archiv startet mit einer Karten-Vorschau und dem
-Knopf **Karte vergrößern**. Die 2D-Karte lässt sich ziehen, mit zwei Fingern
-oder dem Mausrad zoomen und über **Gesamtplan** zurücksetzen. Ein Raum kann
-angetippt und unter **Räume & Codes** nachgeschlagen werden. Die Reiter
-**Aufträge**, **Karte**, **Räume & Codes** und **Anomalien** trennen die Aufgaben;
-Fund- und Reparaturorte lassen sich direkt auf der Karte anzeigen. In der
-Einsatzkontrolle wechselt man zwischen **Radar & Anzug** und **Schalttafel**.
+**Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
+Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
+Reparaturhinweise sowie eine orthografische Draufsicht des tatsächlichen Raums
+mit abgenommener Decke. Ein kühler Sci-Fi-Look ersetzt Sepia. Es gibt keinen
+Gesamtgrundriss und keine Live-Positionen in dieser Ansicht. **Aufträge** führt
+zu den passenden Raumakten. Die Einsatzkontrolle hat **Radar & Anzug** und
+**Schalttafel**. Der Kopfbereich bietet einen sichtbaren Rollenwechsel.
 
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
 Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
-Treffer. Der sichtbare Raumanzug zeigt Verletzungen, beim längeren Sprint
-beschlägt der Visier-Rand. Ein Schutzschrank lässt sich mit dem Code aus dem
-Archiv öffnen und betreten; darin ist der Techniker vor Treffern geschützt.
-Radar, Röntgenscanner, EMF-Scanner, Thermosensor und Audio-Logger liegen in
-Frachtschränken. Röntgen zeigt nahe verborgene Fracht, die Messgeräte liefern
-Spielwerte zu Anomalien. Das Archiv kann angesagte Beobachtungen im Journal
-ankreuzen und eine Vermutung vormerken; das löst keine Spielaktion aus.
+Treffer. Tod und Sieg zeigen eine klare Meldung mit **Neu starten**, auch im
+Headset. Ein Schutzschrank lässt sich mit dem Code aus dem Archiv öffnen und
+betreten. Ein beleuchteter Knopf im Inneren führt wieder hinaus; am Desktop
+funktioniert auch `E`. Die Bedienung setzt voraus, dass man sich im Raum des
+Schranks befindet; durch eine Nachbarwand lässt er sich nicht benutzen.
 
-Die drei Gegner unterscheiden sich auch beim Erkennen und Suchen: Bewegung
-macht Geräusche, Ducken hilft, und eine eingeschaltete Taschenlampe macht den
-Techniker sichtbarer. Nach verlorenem Sichtkontakt wird die zuletzt bemerkte
-Position abgesucht. Lüftungsschächte verbinden nur benachbarte Stationsräume.
-Temperatur, elektromagnetische Störung und Schrittklang liefern unterschiedliche
-Hinweise auf den Gegnertyp. Die Sensoren und der angezeigte Puls sind simuliert;
-der Audio-Logger nimmt kein Mikrofon auf. Optional kann der Techniker
-**Mikrofon-Gegnerreaktion** ausdrücklich einschalten und den Browserzugriff
-erlauben. Dann kann lautes Sprechen den Gegner anlocken. Dabei wird nur der
-lokale Lautstärkepegel ausgewertet, nichts aufgenommen oder übertragen. Die
-Option startet ausgeschaltet und lässt sich jederzeit wieder abschalten.
+Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
+schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
+aufgenommen werden. **Radar** und **Röntgengerät** sind echte greifbare
+Werkzeuge mit demselben Scannergehäuse und seitlicher Gürtelablage. Radar zeigt
+nahe Bewegung, Röntgen verborgene Fracht. Anzeigen erscheinen auf dem benutzten
+Gerät; ein dauerhaftes Radar-/Sensor-HUD im VR-Blick gibt es nicht.
+
+Über jedem Schott zeigen Leuchten auf beiden Seiten seinen Zustand: **grün**
+bedeutet betriebsbereit und öffnet beim Annähern, **rot** bedeutet gesperrt.
+Ein belegter Durchgang bleibt offen, bis er frei ist. Die Tür zum Übungsdeck
+startet oder ersetzt keine Mission; Tests werden am Terminal gestartet.
+
+Schon nach etwa einer Sekunde Rennen beginnt der Atem am unteren Visier zu
+kondensieren: weiche Wolken im Atemtakt und feine Tropfen auf dem Glas. Nach
+vier Sekunden ist die Anstrengung voll aufgebaut, nach etwa fünf Sekunden
+Gehen/Stehen wieder abgebaut. Das verändert den Visier-Effekt, nicht die
+maximale Sprintdauer. Als Vergleich für kurze Belastungsintervalle dient
+[Phasmophobias Exposition-Update von 2021](https://store.steampowered.com/news/posts/?appids=739630&enddate=1631960314&feed=steam_community_announcements)
+mit drei Sekunden Sprint und fünf Sekunden Erholung.
+
+Die Gegner unterscheiden sich weiterhin in Bewegung, Wahrnehmung und
+Schachtverhalten. Schritte und eine eingeschaltete Taschenlampe können den
+Techniker verraten; nach verlorenem Sichtkontakt wird die letzte bemerkte
+Position abgesucht. **Die Mikrofon-Gegnerreaktion kommt nicht ins Spiel und
+wurde entfernt.** Sprache beeinflusst das Monster nicht. Der davon unabhängige
+optionale Sprachchat bleibt erhalten. **Gegneridentifikation über EMF,
+Temperatur, Audio-Logger und ein Anomalienjournal ist vorerst gestrichen.**
 
 **Am Desktop testen:** In der Geräteübersicht **Als Techniker am Desktop
 testen** wählen. Zum Umsehen ins Bild klicken; `Esc` gibt den Mauszeiger frei.
@@ -135,7 +153,7 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | --- | --- |
 | Laufen und umsehen | `WASD` und Maus; `Shift` zum Rennen |
 | Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick |
-| Linke Hand wechseln | `1`: gefundene Sensoren durchschalten, einschließlich freie Hand |
+| Linke Hand wechseln | `1`: Radar, Röntgengerät und freie Hand durchschalten |
 | Rechte Hand wechseln | `2`: Taschenlampe, gefundenes Medkit, freie Hand |
 | Medkit verwenden | Rechts auswählen und `E` drücken |
 | Ducken | `Ctrl` halten |
@@ -150,7 +168,9 @@ Diese Einstellungen bleiben lokal auf dem Gerät.
 **Ohne Angst ausprobieren:** **Test ohne Monster** startet eine unverwundbare
 Runde ohne aktiven Gegner. Das bleibt bei **Testlicht aus** so: Die Station
 wird dunkel, Raum- und Umgebungslicht gehen aus, und die Taschenlampe wird
-benötigt. Die einzelnen Übungsräume haben ihr eigenes lokales Licht.
+benötigt. Im normalen Betrieb erhalten eingeschaltete Decks etwas indirektes
+Licht, damit Gehäuse und Wege erkennbar bleiben; stromlose Räume bleiben dunkel.
+Die einzelnen Übungsräume haben ihr eigenes lokales Licht.
 
 Der Testschrank enthält die Ausrüstung und Missionsgegenstände. Über den
 Testdeck-Aufzug oder **Testdeck: einzelne Übungsräume** erreicht man vier
@@ -167,12 +187,18 @@ separate Räume abseits der Missionskarte:
   Gegnerattrappen, Spiegel, Schacht und Funken-/Rauch-/Feuerprüfung.
 
 Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräumen
-verwenden freie Ankunftsplätze. **Simulation / Flugmodus** hebt die Decke ab;
-in VR bewegt der linke Stick, der rechte hebt und senkt den Blick. Ein harmloser
-Modelltechniker läuft auf dem Raster zu Räumen, begleitet von lokalen
-Textmeldungen. Das ist ein beobachtbarer Rundgang, keine vollständige simulierte
-Dreiercrew. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
-wählen.
+verwenden freie Ankunftsplätze. **Bot-Runde anschauen** ist in der Zentrale und
+im Testmenü erreichbar: Ein Techniker läuft durch die echte Station, öffnet
+Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
+Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
+halten ihn auf, bis eine Route wieder möglich ist. Die Demo bleibt gegnerfrei;
+sie simuliert keine menschliche Kommunikation oder vollständige Dreiercrew.
+**Simulation / Flugmodus** hebt die Decke ab. Am Desktop folgt die Kamera
+zunächst dem Bot; **Freie Kamera** gibt `WASD`, `Space` und `Ctrl` zum Erkunden
+frei. **Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
+Blicknachführung. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
+wählen. Die Drohne folgt geprüften Kurven mit Beschleunigung, sanftem Abbremsen
+und leichter Neigung; ihre Kameradaten werden zwischen Netzpaketen geglättet.
 
 Die Station verwendet vermessene Einrichtungsmodelle mit reservierten Tür- und
 Laufwegen, abgerundeten Gehäusen, Rohren und raumspezifischen Aggregaten.
@@ -183,9 +209,16 @@ andere Testwelten bleiben erhalten.
 
 90–120 Hz auf Quest 3 sind ein Leistungsziel, keine hier gemessene Zusage.
 Automatisierte Logik-, Physik- und DOM-Tests ersetzen weder die Prüfung der
-Grafik auf dem Headset noch einen P2P-Test mit drei echten Geräten. In der
-verwendeten Browser-Testumgebung war WebGL deaktiviert; eine vollständige
-interaktive 3D-Prüfung konnte dort nicht stattfinden.
+Grafik auf dem Headset noch einen P2P-Test mit drei echten Geräten. Der reproduzierbare
+Browser-Test unter `npm run test:browser` prüft zusätzlich die echte Web-App
+in Chromium und Firefox und speichert Screenshots sowie Fehlerberichte.
+Vier Produktions-Browserläufe — je zwei in Chromium und Firefox — haben Rollen,
+Raumakten, E-Lampenaufnahme, Verlustanzeige/Neustart und Botbewegung erfolgreich
+geprüft. Ergebnisse und Grenzen stehen in [docs/orbital-qa.md](docs/orbital-qa.md),
+die Einzelresultate im [Browserreport](docs/orbital/browser-report.json).
+Screenshots: [Archiv](docs/orbital/archive-desktop.png),
+[Botbeobachtung](docs/orbital/bot-observation.png),
+[Firefox bei Telefonbreite](docs/orbital/archive-mobile-firefox.png).
 
 > **Hinweis für Agenten:** Entwickelt und gepusht wird **direkt auf `main`** —
 > kein Feature-Branch, kein Pull Request, solange nichts anderes im Auftrag
@@ -207,9 +240,34 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 
 ## Tests
 
-Die Haunting-Handyoberflächen werden zusätzlich mit jsdom geprüft: Karten- und
-Reiterbedienung, Eingabefokus und Anomalienjournal. Das prüft DOM-Verhalten,
-keine gerenderten 3D-Bilder.
+Die Haunting-Handyoberflächen werden mit jsdom geprüft: Raumakten, Codes,
+Rollenwechsel, Reiterbedienung und Eingabefokus. Automatische Türen und
+vollständige Botrunden haben eigene Navigationstests. Für die echte 3D-App:
+
+```bash
+npm run test:browser:install     # einmalig Chromium + Firefox
+npm run dev                     # in einem Terminal laufen lassen
+npm run test:browser            # Screenshots/Report unter .artifacts/browser-smoke
+```
+
+Der Browserloop öffnet standardmäßig Chromium und Firefox als sichtbare Fenster
+mit normaler Grafik-Konfiguration. `--browser=chromium` oder `--browser=firefox`
+begrenzt die Auswahl; `--loops=2 --bot-seconds=30` wiederholt den Durchlauf und
+beobachtet die Bot-Demo länger. `--headless` ist für Läufe ohne Fenster gedacht
+(in CI automatisch aktiv). Nur bei Bedarf erzwingt `--software` für Chromium
+SwiftShader; dessen Bildrate ist kein Vergleichswert für native Grafik.
+
+Screenshots und `report.json` dokumentieren Ansichten, Browserfehler,
+WebGL-Renderer, Botbewegung und ein kurzes Frame-Timing. Der Loop prüft auch,
+dass der Archivar nur einen Raum sieht und das mobile Layout nicht überläuft.
+Ein kurzer Botlauf ersetzt weder den Integrationstest einer vollständigen Mission
+noch eine Quest-Abnahme mit echten VR-Controllern und mehreren Mobilgeräten.
+Details und noch offene Hardwaretests: [Orbital-QA](docs/orbital-qa.md).
+
+Der Workflow [Browser smoke](.github/workflows/browser.yml) prüft den gebauten
+Stand zusätzlich mit Chromium in CI. Screenshots und Report bleiben dort
+14 Tage als Artefakt **orbital-browser-review** verfügbar, auch bei einem
+fehlgeschlagenen Lauf. Die Softwaregrafik dieses CI-Tests ist kein FPS-Benchmark.
 
 Jest testet überwiegend Rechen-Logik ohne Browser — Ferngreifen, Achsenzuordnung,
 Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,

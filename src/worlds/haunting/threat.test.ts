@@ -1,5 +1,5 @@
-import { freshCrew, MONSTERS, readCrew, stationOptions, type CrewState } from './mission';
-import { entityReadings, readThreat, stepThreat, threatTarget, type ThreatInput } from './threat';
+import { freshCrew, readCrew, type CrewState } from './mission';
+import { readThreat, stepThreat, threatTarget, type ThreatInput } from './threat';
 
 const stimulus: ThreatInput = {
   player: { x: 8, z: 0 },
@@ -14,21 +14,12 @@ function advance(crew: CrewState, input: ThreatInput, seconds: number): void {
   for (let i = 0; i < seconds * 20; i++) stepThreat(crew, 0.05, input);
 }
 
-describe('entity perception and evidence', () => {
-  test('optional local microphone amplitude can attract a stationary entity, with bounded input and safe-mode guards', () => {
-    const audible = freshCrew(),
-      silent = freshCrew();
-    advance(audible, { ...stimulus, noise: 0.8 }, 3);
-    advance(silent, { ...stimulus, noise: NaN }, 3);
-    expect(threatTarget(audible)).toEqual(stimulus.player);
-    expect(threatTarget(silent)).toBeNull();
-    audible.options.test = true;
-    advance(audible, { ...stimulus, noise: 900 }, 3);
-    expect(threatTarget(audible)).toBeNull();
-    audible.options.test = false;
-    audible.hidden = 'r1';
-    advance(audible, { ...stimulus, noise: 900 }, 3);
-    expect(threatTarget(audible)).toBeNull();
+describe('entity perception', () => {
+  test('a stationary unseen technician makes no movement noise', () => {
+    const crew = freshCrew();
+    advance(crew, stimulus, 3);
+    expect(threatTarget(crew)).toBeNull();
+    expect(crew.threat.awareness).toBe(0);
   });
   test('running creates a remembered search position; crouched movement avoids distant detection', () => {
     const runner = freshCrew(),
@@ -73,53 +64,6 @@ describe('entity perception and evidence', () => {
       expect(threatTarget(crew)).toBeNull();
     },
   );
-
-  test('all three entities produce distinguishable readings and ordered evidence as distance closes', () => {
-    const rows = MONSTERS.map((monster) => {
-      const crew = freshCrew(stationOptions({ monster: monster.id }));
-      const close = entityReadings(crew, {
-        observer: { x: 0, z: 0 },
-        monster: { x: 1, z: 0 },
-        time: 0,
-      });
-      const far = entityReadings(crew, {
-        observer: { x: 0, z: 0 },
-        monster: { x: 17, z: 0 },
-        time: 0,
-      });
-      expect(close.sound).toBeGreaterThan(far.sound);
-      expect(close.emf).toBeGreaterThan(far.emf);
-      expect(close.radar?.bearing).toBeCloseTo(Math.PI / 2);
-      expect(close.evidence.length).toBeGreaterThan(far.evidence.length);
-      return close;
-    });
-    expect(rows[0]!.temperature).toBeLessThan(0);
-    expect(rows[1]!.temperature).toBeGreaterThan(30);
-    expect(rows[2]!.emf).toBe(5);
-    expect(new Set(rows.map((row) => `${row.emf}/${row.temperature}/${row.sound}`)).size).toBe(3);
-  });
-
-  test('test mode and vent transit yield no false monster signals even with a stale monster position', () => {
-    const crew = freshCrew(stationOptions({ test: true }));
-    const input = {
-      observer: { x: 0, z: 0 },
-      monster: { x: 0, z: 0 },
-      time: 99,
-      roomPowered: true,
-    };
-    const baseline = {
-      active: false,
-      radar: null,
-      emf: 1,
-      temperature: 19,
-      sound: 0,
-      evidence: [],
-    };
-    expect(entityReadings(crew, input)).toEqual(baseline);
-    crew.options.test = false;
-    crew.venting = 1;
-    expect(entityReadings(crew, input)).toEqual(baseline);
-  });
 
   test('late joins bound threat snapshots and erase hostile test states', () => {
     const raw = { awareness: Infinity, memory: 900, mode: 'bad', target: { x: NaN, z: 1 } };

@@ -13,11 +13,17 @@ describe('station darkness', () => {
     expect(crew.options.test).toBe(true);
   });
 
-  it('uses zero ambient for a real mission and lighting for the observer', () => {
+  it('leaves unpowered rooms dark while keeping powered decks readable', () => {
     const crew = freshCrew();
     expect(stationLighting(crew, false).ambient).toBe(0);
+    expect(stationLighting(crew, false, true).ambient).toBeGreaterThan(0);
     crew.simulation = true;
     expect(stationLighting(crew, false).ambient).toBeGreaterThan(0);
+  });
+
+  it('keeps the explicit darkness test dark even on a powered deck', () => {
+    const crew = freshCrew(stationOptions({ test: true, bright: false }));
+    expect(stationLighting(crew, false, true).ambient).toBe(0);
   });
 
   it('does not illuminate the whole station just because a remote laboratory is bright', () => {

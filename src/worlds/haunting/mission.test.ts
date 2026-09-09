@@ -1,4 +1,4 @@
-import { generateHouse, roomCentre } from './house';
+import { generateHouse, roomCentre, roomOf } from './house';
 import { housePlan } from './plan';
 import {
   freshCrew,
@@ -44,7 +44,7 @@ describe('Orbital missions', () => {
               seen.add(d.b);
             }
         }
-        expect(seen.size).toBe(rooms);
+        expect(seen.size).toBe(rooms + (spec.passages?.length ?? 0));
         for (const r of spec.rooms)
           expect(
             spec.doors.filter((d) => d.a === r.id || d.b === r.id).length,
@@ -130,8 +130,8 @@ describe('Orbital missions', () => {
     (rooms) => {
       const spec = generateHouse(937, rooms);
       for (const v of ventPairs(spec)) {
-        const a = spec.rooms.find((r) => r.id === v.a)!.rect;
-        const b = spec.rooms.find((r) => r.id === v.b)!.rect;
+        const a = roomOf(spec, v.a)!.rect;
+        const b = roomOf(spec, v.b)!.rect;
         expect(v.a).not.toBe(v.b);
         expect(v.dir === 1 ? a.x + a.w === b.x : a.z + a.d === b.z).toBe(true);
         expect(v.a).not.toBe('van');

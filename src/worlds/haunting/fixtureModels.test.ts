@@ -30,6 +30,10 @@ describe('station fixture placement contract', () => {
     expectInsideDeclaredSize(buildFixture(id), FIXTURE_CATALOG[id]);
   });
 
+  test('canteen tables and benches fit the same collision footprint as other supply islands', () => {
+    expectInsideDeclaredSize(buildFixture('esstisch', 'canteen'), FIXTURE_CATALOG.esstisch);
+  });
+
   test.each([buildCargoCabinet, buildSafetyLocker])(
     'cabinet fits while closed; only its door moves',
     (build) => {

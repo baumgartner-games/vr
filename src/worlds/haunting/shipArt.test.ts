@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H } from '../editor/levelPlan';
+import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
-import { APRON, generateHouse } from './house';
-import { buildShip } from './shipArt';
+import { APRON, generateHouse, spacesOf } from './house';
+import { buildCrewmate, buildShip } from './shipArt';
 
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
 
@@ -39,13 +39,27 @@ function boxesIn(group: THREE.Object3D): THREE.Box3[] {
   return boxes;
 }
 
+test('the simulation technician has its own friendly suit, visor and animated limbs', () => {
+  const crew = buildCrewmate();
+  expect(crew.userData.actorRole).toBe('crew');
+  expect(crew.getObjectByName('crew-helmet')).toBeDefined();
+  expect(crew.getObjectByName('crew-visor')).toBeDefined();
+  expect(crew.getObjectByName('crew-backpack')).toBeDefined();
+  expect(crew.children.filter((child) => child.name === 'arm')).toHaveLength(2);
+  expect(crew.children.filter((child) => child.name === 'leg')).toHaveLength(2);
+  const bounds = new THREE.Box3().setFromObject(crew);
+  expect(bounds.min.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.max.y).toBeLessThan(1.9);
+  expect(bounds.max.x - bounds.min.x).toBeLessThan(0.9);
+});
+
 describe('station hull geometry', () => {
   test.each([6, 8, 10, 12])(
     '%i rooms keep all fixtures and hull details inside their own rooms',
     (count) => {
       const spec = generateHouse(410 + count, count);
       const ship = buildShip(spec);
-      for (const room of spec.rooms) {
+      for (const room of spacesOf(spec)) {
         const interior = ship.getObjectByName(`station-room-${room.id}`)!;
         const bounds = new THREE.Box3().setFromObject(interior);
         expect(bounds.min.x).toBeGreaterThanOrEqual(room.rect.x * TILE - 0.001);
@@ -56,12 +70,14 @@ describe('station hull geometry', () => {
         expect(bounds.max.y).toBeLessThanOrEqual(PLAN_WALL_H + 0.001);
         let draws = 0;
         interior.traverse((object) => {
-          expect(object).not.toBeInstanceOf(THREE.Light);
+          if (object instanceof THREE.Light)
+            throw new Error(`${count} rooms: ${room.id}/${object.name} adds a room light`);
           if (!(object instanceof THREE.Mesh)) return;
-          expect(object.frustumCulled).toBe(true);
+          if (object.frustumCulled !== true)
+            throw new Error(`${count} rooms: ${room.id}/${object.name} disables frustum culling`);
           draws++;
         });
-        expect(draws).toBeLessThanOrEqual(16);
+        expect(draws).toBeLessThanOrEqual(20);
       }
       const command = new THREE.Box3().setFromObject(ship.getObjectByName('station-command-hull')!);
       expect(command.min.x).toBeGreaterThanOrEqual(APRON.x * TILE);
@@ -71,26 +87,83 @@ describe('station hull geometry', () => {
     },
   );
 
+  test('room signs are full-bright and physically in front of every wall panel', () => {
+    const spec = generateHouse(83, 12);
+    const ship = buildShip(spec);
+    for (const room of spacesOf(spec)) {
+      const group = ship.getObjectByName(`station-room-${room.id}`)!;
+      const signs = group.children.filter((child) => child.name === 'room-identification');
+      expect(signs).toHaveLength(2);
+      for (const sign of signs) {
+        const mesh = sign as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+        expect(mesh.material.color.getHex()).toBe(0xffffff);
+        expect(mesh.material.depthTest).toBe(true);
+        expect(mesh.geometry.parameters.width).toBeGreaterThanOrEqual(2);
+        const north = room.rect.z * TILE;
+        const south = (room.rect.z + room.rect.d) * TILE;
+        expect(
+          Math.min(Math.abs(sign.position.z - north), Math.abs(sign.position.z - south)),
+        ).toBeGreaterThan(PLAN_WALL_T / 2 + 0.2);
+      }
+    }
+  });
+
+  test('visible deck plates are smaller than the navigation grid and rooms have department stencils', () => {
+    const spec = generateHouse(42, 8),
+      ship = buildShip(spec);
+    for (const room of spec.rooms) {
+      const group = ship.getObjectByName(`station-room-${room.id}`)!;
+      const plates = boxesIn(group).filter((box) => {
+        const size = box.getSize(new THREE.Vector3());
+        return (
+          box.min.y > 0.025 &&
+          box.max.y < 0.045 &&
+          size.x > 0.8 &&
+          size.x < 0.84 &&
+          size.z > 0.8 &&
+          size.z < 0.84
+        );
+      });
+      expect(plates).toHaveLength(room.rect.w * room.rect.d * 9);
+      expect(group.getObjectByName('department-floor-stencil')).toBeDefined();
+    }
+  });
+
   test('wall decoration leaves every real door opening clear', () => {
     const spec = generateHouse(83, 12);
     const ship = buildShip(spec);
+    const minY = 0.08;
+    const maxY = PLAN_DOOR_H - 0.01;
+    // Each room participates in multiple doors. Calculate its instance bounds
+    // once. Y-overlap is necessary for intersection, so floor plates completely
+    // below the opening cannot obstruct it. Equality stays included, matching
+    // Box3.intersectsBox's inclusive boundary semantics.
+    const doorHeightBoxes = new Map<string, THREE.Box3[]>();
+    for (const room of spacesOf(spec)) {
+      const interior = ship.getObjectByName(`station-room-${room.id}`);
+      if (interior)
+        doorHeightBoxes.set(
+          room.id,
+          boxesIn(interior).filter((box) => !(box.max.y < minY || box.min.y > maxY)),
+        );
+    }
     for (const door of spec.doors) {
       const x = (door.x + 0.5 + dirX(door.dir) / 2) * TILE;
       const z = (door.z + 0.5 + dirZ(door.dir) / 2) * TILE;
       const alongX = dirX(door.dir) === 0;
       const half = PLAN_DOOR_W / 2 - 0.015;
       const passage = new THREE.Box3(
-        new THREE.Vector3(x - (alongX ? half : 0.31), 0.08, z - (alongX ? 0.31 : half)),
-        new THREE.Vector3(
-          x + (alongX ? half : 0.31),
-          PLAN_DOOR_H - 0.01,
-          z + (alongX ? 0.31 : half),
-        ),
+        new THREE.Vector3(x - (alongX ? half : 0.31), minY, z - (alongX ? 0.31 : half)),
+        new THREE.Vector3(x + (alongX ? half : 0.31), maxY, z + (alongX ? 0.31 : half)),
       );
       for (const roomId of [door.a, door.b]) {
-        const interior = ship.getObjectByName(`station-room-${roomId}`);
-        if (!interior) continue;
-        for (const box of boxesIn(interior)) expect(box.intersectsBox(passage)).toBe(false);
+        if (roomId === null) continue;
+        for (const box of doorHeightBoxes.get(roomId) ?? []) {
+          if (box.intersectsBox(passage))
+            throw new Error(
+              `Seed 83: room ${roomId} obstructs door ${door.id}: detail ${JSON.stringify(box)}, opening ${JSON.stringify(passage)}`,
+            );
+        }
       }
     }
   });

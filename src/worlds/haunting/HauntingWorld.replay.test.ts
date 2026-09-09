@@ -1,0 +1,228 @@
+/** @jest-environment jsdom */
+import * as THREE from 'three';
+import { HauntingWorld } from './HauntingWorld';
+import { generateHouse, type HouseSpec } from './house';
+import { freshCrew, stationOptions } from './mission';
+import { AutomaticDoors } from './automaticDoors';
+import { StationTravelPlan } from './stationTravelPlan';
+import type { HauntState } from './net';
+import type { GridPlan } from '../grid/gridPlan';
+import type { MenuEntry } from '../../ui/menu';
+
+jest.mock('../grid/GridWorld', () => ({ GridWorld: class {} }));
+jest.mock('./haunting.css', () => ({}));
+jest.mock('./stationDashboard.css', () => ({}));
+
+interface ReplayWorld {
+  spec: HouseSpec;
+  state: HauntState;
+  grid: { replaceWith: jest.Mock<void, [GridPlan]> };
+  automaticDoors: AutomaticDoors;
+  travelPlan: StationTravelPlan;
+  buildHouse: jest.Mock;
+  parkDrone: jest.Mock;
+  blob: THREE.Object3D | null;
+  live: THREE.Group;
+  hostId: string;
+  context: unknown;
+  adopt(state: HauntState): void;
+  applyBlob(): void;
+  refreshHost(ctx: unknown): void;
+  receive(data: unknown, from: string): void;
+  requestBotRound(ctx: unknown): void;
+  menu(): MenuEntry[];
+  flatTechnician: boolean;
+  pendingBotRound: boolean;
+  monster: unknown;
+  monsterArt: THREE.Object3D | null;
+  director: { clear: jest.Mock; spawn: jest.Mock };
+}
+
+function snapshot(seed = 391): HauntState {
+  return {
+    crew: freshCrew(stationOptions({ rooms: 8 })),
+    seed,
+    phase: 'running',
+    time: 0,
+    monsterOn: true,
+    monster: { x: 1, z: 2 },
+    shut: [],
+    lit: [],
+    loud: [],
+    fuse: false,
+    taken: [],
+    done: [],
+  };
+}
+
+function replay(): ReplayWorld {
+  const world = Object.create(HauntingWorld.prototype) as ReplayWorld;
+  Object.assign(world, {
+    spec: generateHouse(391, 8),
+    state: snapshot(),
+    grid: { replaceWith: jest.fn() },
+    automaticDoors: new AutomaticDoors(),
+    travelPlan: new StationTravelPlan(),
+    buildHouse: jest.fn(),
+    parkDrone: jest.fn(),
+    live: new THREE.Group(),
+    blob: null,
+    hostId: 'remote',
+    context: { net: { localId: 'local' } },
+    technicians: new Map(),
+    director: { clear: jest.fn(), spawn: jest.fn(() => null) },
+    monster: null,
+    monsterArt: null,
+    flatTechnician: false,
+    pendingBotRound: false,
+  });
+  return world;
+}
+
+test('a same-seed replay changing test mode rebuilds the deck, interactions and automatic-door state', () => {
+  const world = replay();
+  world.automaticDoors.step('d0', { x: 0, z: 0, alongX: true }, false, [{ x: 0, z: 1 }], 0.1);
+  const next = snapshot();
+  next.crew.options.test = true;
+  world.adopt(next);
+  expect(world.state).toBe(next);
+  expect(world.grid.replaceWith).toHaveBeenCalledTimes(1);
+  expect(world.buildHouse).toHaveBeenCalledTimes(1);
+  expect(world.automaticDoors.isOpen('d0')).toBe(false);
+  const normal = snapshot();
+  world.adopt(normal);
+  expect(world.grid.replaceWith).toHaveBeenCalledTimes(2);
+  expect(world.buildHouse).toHaveBeenCalledTimes(2);
+});
+
+test('ordinary damage and inventory snapshots retain the existing scene', () => {
+  const world = replay();
+  const next = snapshot();
+  next.crew.hp = 2;
+  next.crew.inventory.push('radar');
+  world.adopt(next);
+  expect(world.state).toBe(next);
+  expect(world.grid.replaceWith).not.toHaveBeenCalled();
+  expect(world.buildHouse).not.toHaveBeenCalled();
+});
+
+test('a spectator replaces its old monster model when the host changes creature type', () => {
+  const world = replay();
+  world.applyBlob();
+  const old = world.blob!;
+  expect(old.name).toBe('creature-stalker');
+  const next = snapshot();
+  next.crew.options.monster = 'sentinel';
+  world.adopt(next);
+  world.applyBlob();
+  expect(world.blob?.uuid).not.toBe(old.uuid);
+  expect(world.blob?.name).toBe('creature-sentinel');
+  expect(old.parent).toBeNull();
+});
+
+function election(role: 'vr' | 'desktop', remote = false) {
+  return {
+    role,
+    net: {
+      localId: 'local',
+      localSeniority: 4,
+      world: 'haunting',
+      peers: new Map(remote ? [['remote', { id: 'remote', world: 'haunting', role: 'vr' }]] : []),
+      seniorityOf: () => 5,
+    },
+  };
+}
+
+test('handing the host role to another technician stops the old local NPC without deleting the round snapshot', () => {
+  const world = replay();
+  world.hostId = 'local';
+  world.monster = {};
+  world.monsterArt = new THREE.Group();
+  const geometry = new THREE.BoxGeometry();
+  const disposed = jest.fn();
+  geometry.addEventListener('dispose', disposed);
+  world.monsterArt.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+  world.live.add(world.monsterArt);
+  const model = world.monsterArt;
+  const at = world.state.monster;
+  const ctx = election('desktop', true);
+  world.context = ctx;
+  world.refreshHost(ctx);
+  expect(world.hostId).toBe('remote');
+  expect(world.director.clear).toHaveBeenCalledTimes(1);
+  expect(world.monster).toBeNull();
+  expect(model.parent).toBeNull();
+  expect(disposed).toHaveBeenCalledTimes(1);
+  expect(world.state.monster).toBe(at);
+  expect(world.state.monsterOn).toBe(true);
+});
+
+test('taking over an abandoned running mission recreates its monster at the last shared position', () => {
+  const world = replay();
+  const ctx = election('vr');
+  world.context = ctx;
+  world.refreshHost(ctx);
+  expect(world.hostId).toBe('local');
+  expect(world.director.spawn).toHaveBeenCalledWith(
+    expect.objectContaining({ at: new THREE.Vector3(1, 0, 2) }),
+  );
+});
+
+test('a former desktop technician gives up its host priority as soon as it returns to a station', () => {
+  const world = replay();
+  const ctx = election('desktop', true);
+  const peer = ctx.net.peers.get('remote')!;
+  peer.role = 'desktop';
+  ctx.net.localSeniority = 10;
+  world.context = ctx;
+  world.receive({ kind: 'technician', active: true }, 'remote');
+  world.refreshHost(ctx);
+  expect(world.hostId).toBe('remote');
+  world.receive({ kind: 'technician', active: false }, 'remote');
+  world.refreshHost(ctx);
+  expect(world.hostId).toBe('local');
+});
+
+test('a new host hides its obsolete spectator model even when no monster remains', () => {
+  const world = replay();
+  world.applyBlob();
+  world.hostId = 'local';
+  world.state.monster = null;
+  world.applyBlob();
+  expect(world.blob?.visible).toBe(false);
+});
+
+test.each(['vr', 'desktop'])(
+  'a bot request cannot queue a later reset behind an active %s technician',
+  (role) => {
+    const world = replay();
+    const ctx = { ...election('desktop', true), notify: jest.fn(), menu: { toggle: jest.fn() } };
+    ctx.net.peers.get('remote')!.role = role;
+    if (role === 'desktop') world.receive({ kind: 'technician', active: true }, 'remote');
+    world.requestBotRound(ctx);
+    expect(world.pendingBotRound).toBe(false);
+    expect(world.flatTechnician).toBe(false);
+    expect(ctx.notify).toHaveBeenCalledTimes(1);
+    ctx.net.peers.clear();
+    world.context = ctx;
+    world.refreshHost(ctx);
+    expect(world.pendingBotRound).toBe(false);
+  },
+);
+
+test('returning to the station menu cancels a queued solo bot round', () => {
+  const world = replay();
+  const ctx = {
+    ...election('vr'),
+    notify: jest.fn(),
+    menu: { toggle: jest.fn() },
+    renderer: { xr: { isPresenting: false } },
+  };
+  world.context = ctx;
+  world.requestBotRound(ctx);
+  expect(world.pendingBotRound).toBe(true);
+  expect(world.flatTechnician).toBe(true);
+  world.menu().find((entry) => entry.id === 'haunt:roles')!.run!(null);
+  expect(world.pendingBotRound).toBe(false);
+  expect(world.flatTechnician).toBe(false);
+});

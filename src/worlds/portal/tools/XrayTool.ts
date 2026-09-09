@@ -2,11 +2,8 @@ import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { XrayScope } from './XrayScope';
 import { playTone } from '../../../core/Audio';
+import { scannerFrame, SCANNER_HEIGHT, SCANNER_WIDTH } from './scannerModel';
 import type { ControllerState } from '../../../core/XRInput';
-
-/** Opening of the frame. */
-const FRAME_W = 0.26;
-const FRAME_H = 0.19;
 
 const _eye = new THREE.Vector3();
 
@@ -22,19 +19,28 @@ export class XrayTool extends Tool {
   override readonly toolId = 'xray';
   override readonly label = 'Röntgen-Scanner';
 
-  private readonly scope = new XrayScope(FRAME_W, FRAME_H);
-  /**
-   * Der Rahmen als eigener Knoten, **über** der Faust.
-   *
-   * Vorher lag die Öffnung auf dem Nullpunkt des Werkzeugs, also mitten in der
-   * Hand — solange dort nur ein unsichtbarer Griffpunkt war, fiel das nicht
-   * auf. Mit dem Standardgriff stünde jetzt ein Zylinder im Bild, und durch
-   * einen Griff sieht man schlecht. Also hängt der Rahmen eine Handbreit
-   * darüber, und der Scanbereich rechnet gegen **diesen** Knoten statt gegen
-   * das Werkzeug: `XrayScope` liest nur eine Weltmatrix, und das ist seine.
-   */
-  private readonly frame = new THREE.Group();
+  private readonly scope = new XrayScope(SCANNER_WIDTH, SCANNER_HEIGHT);
+  readonly frame = scannerFrame();
   private scanning = true;
+  private stationSubjects: (() => readonly { object: THREE.Object3D }[]) | null = null;
+
+  setSubjects(subjects: () => readonly { object: THREE.Object3D }[]): void {
+    this.stationSubjects = subjects;
+  }
+
+  get active(): boolean {
+    return this.scanning;
+  }
+
+  /** Also used by the desktop hand: the glass clips the scan to this physical frame. */
+  updateView(root: THREE.Object3D, eye: THREE.Vector3, active = true): void {
+    if (!active || !this.scanning) {
+      this.scope.hide();
+      return;
+    }
+    this.scope.attach(root);
+    this.scope.update(this.frame, eye, this.stationSubjects?.() ?? []);
+  }
 
   constructor() {
     super();
@@ -43,32 +49,8 @@ export class XrayTool extends Tool {
     this.accent = 0x7ff0ff;
     this.hint = 'Vors Gesicht halten · Trigger schaltet den Scan';
 
-    const shell = new THREE.MeshStandardMaterial({
-      color: 0x2b3346,
-      roughness: 0.55,
-      metalness: 0.35,
-    });
-
-    // The frame: four bars around the opening.
-    const bar = 0.018;
-    for (const [w, h, x, y] of [
-      [FRAME_W + bar * 2, bar, 0, FRAME_H / 2 + bar / 2],
-      [FRAME_W + bar * 2, bar, 0, -FRAME_H / 2 - bar / 2],
-      [bar, FRAME_H, -FRAME_W / 2 - bar / 2, 0],
-      [bar, FRAME_H, FRAME_W / 2 + bar / 2, 0],
-    ] as const) {
-      const piece = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.014), shell);
-      piece.position.set(x, y, 0);
-      this.frame.add(piece);
-    }
     this.frame.name = 'xray-frame';
-    this.frame.position.y = FRAME_H / 2 + 0.075;
     this.add(this.frame);
-
-    // Der Griff war ein Kasten unter dem Rahmen, von Hand hingesetzt. Jetzt
-    // der Standardgriff, an der Stelle, an der er in der Faust landet — der
-    // Rahmen steht damit dort, wo ein gehaltener Rahmen steht, und die Faust
-    // ist dieselbe wie an allem anderen.
     this.mountGrip({ length: 0.09 });
 
     this.frame.add(this.scope.glass);
@@ -102,7 +84,7 @@ export class XrayTool extends Tool {
       return;
     }
     host.ctx.rig.getHeadPosition(_eye);
-    this.scope.update(this.frame, _eye, host.props());
+    this.scope.update(this.frame, _eye, this.stationSubjects?.() ?? host.props());
   }
 
   override disposeTool(): void {

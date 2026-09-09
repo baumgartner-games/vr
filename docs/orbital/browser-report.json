@@ -1,0 +1,398 @@
+{
+  "base": "http://127.0.0.1:4173/",
+  "output": ".artifacts/browser-smoke/acceptance",
+  "results": [
+    {
+      "browser": "chromium",
+      "loop": 1,
+      "passed": true,
+      "steps": [
+        {
+          "label": "roles",
+          "screenshot": "chromium-1-roles.png"
+        },
+        {
+          "label": "archive-desktop",
+          "screenshot": "chromium-1-archive-desktop.png"
+        },
+        {
+          "label": "orders-desktop",
+          "screenshot": "chromium-1-orders-desktop.png"
+        },
+        {
+          "label": "archive-mobile",
+          "screenshot": "chromium-1-archive-mobile.png"
+        },
+        {
+          "label": "control-switches-mobile",
+          "screenshot": "chromium-1-control-switches-mobile.png"
+        },
+        {
+          "label": "control-radar-mobile",
+          "screenshot": "chromium-1-control-radar-mobile.png"
+        },
+        {
+          "label": "drone",
+          "screenshot": "chromium-1-drone.png"
+        },
+        {
+          "label": "technician-lamp-picked-up",
+          "screenshot": "chromium-1-technician-lamp-picked-up.png"
+        },
+        {
+          "label": "lost-restart",
+          "screenshot": "chromium-1-lost-restart.png"
+        },
+        {
+          "label": "bot-start",
+          "screenshot": "chromium-1-bot-start.png"
+        },
+        {
+          "label": "bot-observation",
+          "screenshot": "chromium-1-bot-observation.png"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "mobileLayout": {
+        "view": {
+          "x": 0,
+          "y": 202,
+          "width": 390,
+          "height": 270.078125
+        },
+        "body": {
+          "x": 0,
+          "y": 472.078125,
+          "width": 390,
+          "height": 371.921875
+        },
+        "overflow": false
+      },
+      "botStart": {
+        "x": 0.1542885061857291,
+        "z": 11.105707150858692
+      },
+      "botEnd": {
+        "position": {
+          "x": 11.125,
+          "z": -2.588762484572287
+        },
+        "repairs": 0,
+        "messages": [
+          "BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück.",
+          "Techniker: Wartungsschlüssel gefunden. Frachtschrank wird geöffnet.",
+          "Archiv → Techniker: Wartungsschlüssel zur Reparatur „Antrieb wiederherstellen“ bringen."
+        ]
+      },
+      "botText": "ORBITAL · TEST / KEIN MONSTER · ANZUG 3/3 · 0/3 SYSTEME\nRolle wechselnFreie Kamera\nKamera folgt dem Bot · Freie Kamera zum Erkunden wählen\nMission, Ausrüstung & Testdeck",
+      "webgl": {
+        "lost": false,
+        "width": 1440,
+        "height": 900,
+        "renderer": "WebKit WebGL",
+        "device": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 5500M, Unspecified Version)"
+      },
+      "frameTiming": {
+        "seconds": 5.032499999991058,
+        "frames": 137,
+        "fps": 27.22305017391822,
+        "p95Ms": 50.599999999998545
+      }
+    },
+    {
+      "browser": "chromium",
+      "loop": 2,
+      "passed": true,
+      "steps": [
+        {
+          "label": "roles",
+          "screenshot": "chromium-2-roles.png"
+        },
+        {
+          "label": "archive-desktop",
+          "screenshot": "chromium-2-archive-desktop.png"
+        },
+        {
+          "label": "orders-desktop",
+          "screenshot": "chromium-2-orders-desktop.png"
+        },
+        {
+          "label": "archive-mobile",
+          "screenshot": "chromium-2-archive-mobile.png"
+        },
+        {
+          "label": "control-switches-mobile",
+          "screenshot": "chromium-2-control-switches-mobile.png"
+        },
+        {
+          "label": "control-radar-mobile",
+          "screenshot": "chromium-2-control-radar-mobile.png"
+        },
+        {
+          "label": "drone",
+          "screenshot": "chromium-2-drone.png"
+        },
+        {
+          "label": "technician-lamp-picked-up",
+          "screenshot": "chromium-2-technician-lamp-picked-up.png"
+        },
+        {
+          "label": "lost-restart",
+          "screenshot": "chromium-2-lost-restart.png"
+        },
+        {
+          "label": "bot-start",
+          "screenshot": "chromium-2-bot-start.png"
+        },
+        {
+          "label": "bot-observation",
+          "screenshot": "chromium-2-bot-observation.png"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "mobileLayout": {
+        "view": {
+          "x": 0,
+          "y": 202,
+          "width": 390,
+          "height": 270.078125
+        },
+        "body": {
+          "x": 0,
+          "y": 472.078125,
+          "width": 390,
+          "height": 371.921875
+        },
+        "overflow": false
+      },
+      "botStart": {
+        "x": 0.13609020229797833,
+        "z": 11.15221392746072
+      },
+      "botEnd": {
+        "position": {
+          "x": -26.43860481852198,
+          "z": -22.365720963704398
+        },
+        "repairs": 0,
+        "messages": [
+          "BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück.",
+          "Techniker: Wartungsschlüssel gefunden. Frachtschrank wird geöffnet.",
+          "Archiv → Techniker: Wartungsschlüssel zur Reparatur „Antrieb wiederherstellen“ bringen."
+        ]
+      },
+      "botText": "ORBITAL · TEST / KEIN MONSTER · ANZUG 3/3 · 0/3 SYSTEME\nRolle wechselnFreie Kamera\nKamera folgt dem Bot · Freie Kamera zum Erkunden wählen\nMission, Ausrüstung & Testdeck",
+      "webgl": {
+        "lost": false,
+        "width": 1440,
+        "height": 900,
+        "renderer": "WebKit WebGL",
+        "device": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 5500M, Unspecified Version)"
+      },
+      "frameTiming": {
+        "seconds": 5.006200000011923,
+        "frames": 233,
+        "fps": 46.542287563310516,
+        "p95Ms": 34.299999999995634
+      }
+    },
+    {
+      "browser": "firefox",
+      "loop": 1,
+      "passed": true,
+      "steps": [
+        {
+          "label": "roles",
+          "screenshot": "firefox-1-roles.png"
+        },
+        {
+          "label": "archive-desktop",
+          "screenshot": "firefox-1-archive-desktop.png"
+        },
+        {
+          "label": "orders-desktop",
+          "screenshot": "firefox-1-orders-desktop.png"
+        },
+        {
+          "label": "archive-mobile",
+          "screenshot": "firefox-1-archive-mobile.png"
+        },
+        {
+          "label": "control-switches-mobile",
+          "screenshot": "firefox-1-control-switches-mobile.png"
+        },
+        {
+          "label": "control-radar-mobile",
+          "screenshot": "firefox-1-control-radar-mobile.png"
+        },
+        {
+          "label": "drone",
+          "screenshot": "firefox-1-drone.png"
+        },
+        {
+          "label": "technician-lamp-picked-up",
+          "screenshot": "firefox-1-technician-lamp-picked-up.png"
+        },
+        {
+          "label": "lost-restart",
+          "screenshot": "firefox-1-lost-restart.png"
+        },
+        {
+          "label": "bot-start",
+          "screenshot": "firefox-1-bot-start.png"
+        },
+        {
+          "label": "bot-observation",
+          "screenshot": "firefox-1-bot-observation.png"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "mobileLayout": {
+        "view": {
+          "x": 0,
+          "y": 202.5,
+          "width": 390,
+          "height": 270.066650390625
+        },
+        "body": {
+          "x": 0,
+          "y": 472.566650390625,
+          "width": 390,
+          "height": 371.433349609375
+        },
+        "overflow": false
+      },
+      "botStart": {
+        "x": 0.14602504037794062,
+        "z": 11.126824896811929
+      },
+      "botEnd": {
+        "position": {
+          "x": -10.757457249779975,
+          "z": -15.875
+        },
+        "repairs": 0,
+        "messages": [
+          "BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück.",
+          "Techniker: Wartungsschlüssel gefunden. Frachtschrank wird geöffnet.",
+          "Archiv → Techniker: Wartungsschlüssel zur Reparatur „Antrieb wiederherstellen“ bringen."
+        ]
+      },
+      "botText": "ORBITAL · TEST / KEIN MONSTER · ANZUG 3/3 · 0/3 SYSTEME\nRolle wechselnFreie Kamera\nKamera folgt dem Bot · Freie Kamera zum Erkunden wählen\nMission, Ausrüstung & Testdeck",
+      "webgl": {
+        "lost": false,
+        "width": 1440,
+        "height": 900,
+        "renderer": "Radeon HD 3200 Graphics, or similar",
+        "device": "Radeon HD 3200 Graphics, or similar"
+      },
+      "frameTiming": {
+        "seconds": 5.015399999999994,
+        "frames": 187,
+        "fps": 37.28516170195801,
+        "p95Ms": 35.200000000004366
+      }
+    },
+    {
+      "browser": "firefox",
+      "loop": 2,
+      "passed": true,
+      "steps": [
+        {
+          "label": "roles",
+          "screenshot": "firefox-2-roles.png"
+        },
+        {
+          "label": "archive-desktop",
+          "screenshot": "firefox-2-archive-desktop.png"
+        },
+        {
+          "label": "orders-desktop",
+          "screenshot": "firefox-2-orders-desktop.png"
+        },
+        {
+          "label": "archive-mobile",
+          "screenshot": "firefox-2-archive-mobile.png"
+        },
+        {
+          "label": "control-switches-mobile",
+          "screenshot": "firefox-2-control-switches-mobile.png"
+        },
+        {
+          "label": "control-radar-mobile",
+          "screenshot": "firefox-2-control-radar-mobile.png"
+        },
+        {
+          "label": "drone",
+          "screenshot": "firefox-2-drone.png"
+        },
+        {
+          "label": "technician-lamp-picked-up",
+          "screenshot": "firefox-2-technician-lamp-picked-up.png"
+        },
+        {
+          "label": "lost-restart",
+          "screenshot": "firefox-2-lost-restart.png"
+        },
+        {
+          "label": "bot-start",
+          "screenshot": "firefox-2-bot-start.png"
+        },
+        {
+          "label": "bot-observation",
+          "screenshot": "firefox-2-bot-observation.png"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "mobileLayout": {
+        "view": {
+          "x": 0,
+          "y": 202.5,
+          "width": 390,
+          "height": 270.066650390625
+        },
+        "body": {
+          "x": 0,
+          "y": 472.566650390625,
+          "width": 390,
+          "height": 371.433349609375
+        },
+        "overflow": false
+      },
+      "botStart": {
+        "x": 0.2421982967049417,
+        "z": 10.905513271724237
+      },
+      "botEnd": {
+        "position": {
+          "x": -5.675776595776287,
+          "z": -16.375
+        },
+        "repairs": 0,
+        "messages": [
+          "BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück.",
+          "Techniker: Filterpatrone gefunden. Frachtschrank wird geöffnet.",
+          "Archiv → Techniker: Filterpatrone zur Reparatur „Antrieb wiederherstellen“ bringen."
+        ]
+      },
+      "botText": "ORBITAL · TEST / KEIN MONSTER · ANZUG 3/3 · 0/3 SYSTEME\nRolle wechselnFreie Kamera\nKamera folgt dem Bot · Freie Kamera zum Erkunden wählen\nMission, Ausrüstung & Testdeck",
+      "webgl": {
+        "lost": false,
+        "width": 1440,
+        "height": 900,
+        "renderer": "Radeon HD 3200 Graphics, or similar",
+        "device": "Radeon HD 3200 Graphics, or similar"
+      },
+      "frameTiming": {
+        "seconds": 5.045679999999993,
+        "frames": 197,
+        "fps": 39.043300407477346,
+        "p95Ms": 49.07999999999447
+      }
+    }
+  ]
+}

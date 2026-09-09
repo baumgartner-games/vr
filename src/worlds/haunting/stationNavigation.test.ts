@@ -62,6 +62,40 @@ test.each([6, 8, 10, 12])(
   },
 );
 
+test('a flying route rounds corners with short, collision-clear curve samples', () => {
+  const spec = generateHouse(2, 8);
+  const from = poseFor(spec, spec.entryRoom);
+  const target = poseFor(spec, 'r0');
+  const route = stationRoute(spec, housePlan(spec).graph, from, target, 0.22, DRONE_Y - DRONE_CAP);
+  expect(route.complete).toBe(true);
+  expect(route.points!.at(-1)).toEqual({ x: target.x, z: target.z });
+  const boxes = [
+    ...stationLayout(spec)
+      .filter((p) => p.height > DRONE_Y - DRONE_CAP)
+      .map((p) => p.bounds),
+    ...walls(spec),
+  ];
+  expect(clearPath(from, route.points!, boxes, 0.22)).toBe(true);
+  let curvedSamples = 0;
+  const points = [from, ...route.points!];
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = points[i - 1]!,
+      b = points[i]!,
+      c = points[i + 1]!;
+    const dx = b.x - a.x,
+      dz = b.z - a.z;
+    const ex = c.x - b.x,
+      ez = c.z - b.z;
+    if (Math.hypot(dx, dz) > 0.13 || Math.hypot(ex, ez) > 0.13) continue;
+    if (Math.abs(dx * ez - dz * ex) < 1e-7) continue;
+    curvedSamples++;
+    // A hard architectural right angle is now several smaller heading changes.
+    const cosine = (dx * ex + dz * ez) / (Math.hypot(dx, dz) * Math.hypot(ex, ez));
+    expect(Math.acos(Math.max(-1, Math.min(1, cosine)))).toBeLessThan(Math.PI / 3);
+  }
+  expect(curvedSamples).toBeGreaterThanOrEqual(3);
+});
+
 test('the seed2 route avoids the tall locker crossed by the old tile-centre route', () => {
   const spec = generateHouse(2, 8);
   const plan = housePlan(spec);

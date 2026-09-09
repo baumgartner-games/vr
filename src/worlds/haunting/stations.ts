@@ -57,8 +57,8 @@ export const STATIONS: readonly StationFacts[] = [
     id: 'archive',
     label: 'Archiv',
     tagline: 'Aufträge, Fundorte und Freigabecodes',
-    sees: '2D-Stationsplan, Aufträge, Fundorte und Codes — keine Live-Positionen',
-    view: false,
+    sees: 'ein ausgewählter Raum von oben, Fundhinweise und Codes — keine Gesamtkarte oder Live-Positionen',
+    view: true,
   },
   {
     id: 'scout',

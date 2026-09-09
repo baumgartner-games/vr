@@ -15,7 +15,7 @@ import {
   type TileKey,
 } from '../nav/navTile';
 import type { DronePose, DroneRoute } from './droneRoute';
-import { APRON, HOUSE, type HouseSpec } from './house';
+import { APRON, stationBounds, type HouseSpec } from './house';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
 
 /** Quarter-metre samples resolve the tight turn after a 1.2m doorway. */
@@ -36,6 +36,7 @@ interface RouteGrid {
   depth: number;
   valid: Uint8Array;
   edges: Uint8Array;
+  wallCosts: Uint8Array;
   obstacles: FloorBounds[];
   costs: Float64Array;
   parents: Int32Array;
@@ -142,7 +143,7 @@ export function stationRoute(
       if (!(edges & (1 << dir))) continue;
       const next = current + DIR_Z[dir]! * grid.width + DIR_X[dir]!;
       if (grid.closed[next] === stamp) continue;
-      const cost = grid.costs[current]! + 1;
+      const cost = grid.costs[current]! + 1 + grid.wallCosts[next]! * 0.12;
       if (grid.seen[next] === stamp && cost >= grid.costs[next]!) continue;
       grid.seen[next] = stamp;
       grid.costs[next] = cost;
@@ -167,7 +168,75 @@ export function stationRoute(
   // the nearest sample. Only skip it when the new segment is physically clear.
   while (points.length > 1 && segmentClear(grid, graph, from, points[1]!)) points.shift();
   if (points[0] && Math.hypot(points[0].x - from.x, points[0].z - from.z) < 0.001) points.shift();
-  return { tiles: [], points, grounded: true, complete };
+  return { tiles: [], points: softenCorners(grid, graph, from, points), grounded: true, complete };
+}
+
+/**
+ * Round an architectural corner only when the full swept capsule fits the curve.
+ * Sampling a quadratic gives the controller a continuous flight tangent; tight
+ * door jambs reduce the bend until safe instead of clipping through their frame.
+ * Straight legs and the exact requested destination remain unchanged.
+ */
+function softenCorners(
+  grid: RouteGrid,
+  graph: NavGraph,
+  from: FloorPoint,
+  points: readonly FloorPoint[],
+): FloorPoint[] {
+  const result: FloorPoint[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const corner = points[i]!;
+    const before = i === 0 ? from : points[i - 1]!;
+    const after = points[i + 1];
+    if (!after) {
+      result.push(corner);
+      continue;
+    }
+    const inX = corner.x - before.x,
+      inZ = corner.z - before.z;
+    const outX = after.x - corner.x,
+      outZ = after.z - corner.z;
+    const inLength = Math.hypot(inX, inZ),
+      outLength = Math.hypot(outX, outZ);
+    if (inLength < 0.08 || outLength < 0.08 || Math.abs(inX * outZ - inZ * outX) < 1e-5) {
+      result.push(corner);
+      continue;
+    }
+    let accepted: FloorPoint[] | null = null;
+    for (let bend = Math.min(1.2, inLength * 0.44, outLength * 0.44); bend >= 0.04; bend *= 0.5) {
+      const start = {
+        x: corner.x - (inX / inLength) * bend,
+        z: corner.z - (inZ / inLength) * bend,
+      };
+      const end = {
+        x: corner.x + (outX / outLength) * bend,
+        z: corner.z + (outZ / outLength) * bend,
+      };
+      const samples = [start];
+      const steps = Math.max(3, Math.ceil((bend * 2) / 0.12));
+      for (let step = 1; step <= steps; step++) {
+        const t = step / steps,
+          u = 1 - t;
+        samples.push({
+          x: u * u * start.x + 2 * u * t * corner.x + t * t * end.x,
+          z: u * u * start.z + 2 * u * t * corner.z + t * t * end.z,
+        });
+      }
+      let previous = result[result.length - 1] ?? from;
+      const safe =
+        samples.every((sample) => {
+          const clear = segmentClear(grid, graph, previous, sample);
+          previous = sample;
+          return clear;
+        }) && segmentClear(grid, graph, end, after);
+      if (safe) {
+        accepted = samples;
+        break;
+      }
+    }
+    result.push(...(accepted ?? [corner]));
+  }
+  return result;
 }
 
 function buildGrid(
@@ -178,12 +247,13 @@ function buildGrid(
 ): RouteGrid | null {
   // Test rooms are reached by teleport. Their remote floors must never enlarge
   // the mission movement raster or make an off-map actor seem routable.
+  const bounds = stationBounds(spec);
   const tiles = [...graph.tileKeys()].filter(
     (key) =>
       keyLevel(key) === 0 &&
-      keyX(key) >= HOUSE.x &&
-      keyX(key) < HOUSE.x + HOUSE.w &&
-      keyZ(key) >= HOUSE.z &&
+      keyX(key) >= bounds.x &&
+      keyX(key) < bounds.x + bounds.w &&
+      keyZ(key) >= bounds.z &&
       keyZ(key) < APRON.z + APRON.d,
   );
   if (!tiles.length) return null;
@@ -219,9 +289,9 @@ function buildGrid(
     const x = (keyX(tile) + 0.5 + dirX(dir) * 0.5) * TILE;
     const z = (keyZ(tile) + 0.5 + dirZ(dir) * 0.5) * TILE;
     if (
-      x < HOUSE.x * TILE ||
-      x > (HOUSE.x + HOUSE.w) * TILE ||
-      z < HOUSE.z * TILE ||
+      x < bounds.x * TILE ||
+      x > (bounds.x + bounds.w) * TILE ||
+      z < bounds.z * TILE ||
       z > (APRON.z + APRON.d) * TILE
     )
       continue;
@@ -257,10 +327,21 @@ function buildGrid(
     for (let x = 0; x < width; x++)
       if (raster[(z * 2 + 1) * rasterWidth + x * 2 + 1]) valid[z * width + x] = 0;
   const edges = new Uint8Array(size);
+  const wallCosts = new Uint8Array(size);
   for (let z = 0; z < depth; z++)
     for (let x = 0; x < width; x++) {
       const at = z * width + x;
       if (!valid[at]) continue;
+      // Prefer the open middle of a passage when several routes are equally
+      // short. A route grazing every obstacle leaves no room for a safe curve.
+      // This is a cost preference, so narrow but passable doors remain usable.
+      for (let reach = 1; reach <= 2; reach++)
+        for (let direction = 0; direction < 4; direction++) {
+          const nx = x + DIR_X[direction]! * reach,
+            nz = z + DIR_Z[direction]! * reach;
+          if (nx < 0 || nx >= width || nz < 0 || nz >= depth || !valid[nz * width + nx])
+            wallCosts[at]! += reach === 1 ? 4 : 1;
+        }
       for (let dir = 0; dir < 4; dir++) {
         const nx = x + DIR_X[dir]!,
           nz = z + DIR_Z[dir]!;
@@ -280,6 +361,7 @@ function buildGrid(
     depth,
     valid,
     edges,
+    wallCosts,
     obstacles,
     costs: new Float64Array(size),
     parents: new Int32Array(size),

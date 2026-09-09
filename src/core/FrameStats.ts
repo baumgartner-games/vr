@@ -57,12 +57,11 @@ export class FrameSampler {
   }
 }
 
-/** Compact web diagnostics, automatically shown in Haunting; F3 toggles anywhere. */
+/** Optional web diagnostics; F3 toggles them without covering gameplay by default. */
 export class FrameStats {
   private readonly element = document.createElement('div');
   private readonly sampler = new FrameSampler();
-  private requested: boolean | null = null;
-  private haunting = false;
+  private requested = false;
   private immersive = false;
 
   constructor() {
@@ -76,8 +75,7 @@ export class FrameStats {
     window.addEventListener('keydown', this.onKeyDown);
   }
 
-  setWorld(id: string): void {
-    this.haunting = id === 'haunting';
+  setWorld(_id: string): void {
     this.refresh();
   }
 
@@ -102,7 +100,7 @@ export class FrameStats {
   }
 
   private refresh(): void {
-    this.element.hidden = this.immersive || !(this.requested ?? this.haunting);
+    this.element.hidden = this.immersive || !this.requested;
     this.element.textContent = 'FPS wird gemessen … · F3';
     this.sampler.reset();
   }
@@ -110,7 +108,7 @@ export class FrameStats {
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (event.code !== 'F3' || event.repeat) return;
     event.preventDefault();
-    this.requested = !(this.requested ?? this.haunting);
+    this.requested = !this.requested;
     this.refresh();
   };
 }

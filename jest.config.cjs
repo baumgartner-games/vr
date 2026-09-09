@@ -18,6 +18,9 @@
  * Rechnung.
  */
 module.exports = {
+  // The suite does not need a system Watchman service; sandboxed macOS runs
+  // must not fail before collecting tests because Watchman's socket is private.
+  watchman: false,
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/*.test.ts'],

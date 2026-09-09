@@ -8,13 +8,16 @@ import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { MirrorSurface } from '../shared/Mirror';
 import { ShipEffects } from './ShipEffects';
+import { CONDENSATION_FRAGMENT } from './helmetCondensation';
 import { PLAN_DOOR_H, PLAN_DOOR_W } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
-import { APRON, MARKS, roomAt, type HouseRoom, type HouseSpec } from './house';
+import { APRON, MARKS, roomAt, roomCode, type HouseRoom, type HouseSpec } from './house';
 import { HauntingDesktopControls } from './desktopControls';
 import { HauntingComfort } from './HauntingComfort';
-import { HauntingMicrophone } from './HauntingMicrophone';
-import { entityReadings } from './threat';
+import { FlashlightTool } from '../portal/tools/FlashlightTool';
+import { XrayTool } from '../portal/tools/XrayTool';
+import { RadarTool } from '../portal/tools/RadarTool';
+import type { Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import { buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
 import {
@@ -37,9 +40,10 @@ import {
   type PuzzleState,
   type StationOptions,
 } from './mission';
-import { SHIP, animateCreature, buildCreature, label } from './shipArt';
+import { SHIP, animateCreature, buildCrewmate, label } from './shipArt';
 import type { HauntState } from './net';
-import { stepAlong, type DronePose, type DroneRoute } from './droneRoute';
+import type { DronePose, DroneRoute } from './droneRoute';
+import { MissionBot } from './missionBot';
 
 interface ShipHost {
   ctx: WorldContext;
@@ -49,9 +53,18 @@ interface ShipHost {
   configure(options: StationOptions): void;
   start(): void;
   test(): void;
+  stations?(): void;
   door(id: string): void;
+  doorOpen?(id: string): boolean;
+  doorLocked?(id: string): boolean;
   travel(at: THREE.Vector3): void;
   route(from: DronePose, room: HouseRoom): DroneRoute | null;
+  routeTo?(from: DronePose, target: { x: number; z: number }): DroneRoute | null;
+  routeVersion?(): number;
+  equip?(id: 'flashlight' | 'xray' | 'radar' | 'off', hand: Handedness): void;
+  carried?(hand: Handedness): Tool | null;
+  floatingTorch?(): FlashlightTool | null;
+  takeFloatingTorch?(): void;
 }
 interface Screen {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -67,6 +80,7 @@ interface Cabinet {
   loot: string;
   lootMesh: THREE.Object3D;
   scanner: THREE.Object3D;
+  scanSubject: { object: THREE.Object3D };
   at: THREE.Vector3;
   leafY: number;
   leafHeight: number;
@@ -86,6 +100,7 @@ interface Door {
   amount: number;
   at: THREE.Vector3;
   panel: Screen;
+  light: THREE.MeshBasicMaterial;
 }
 interface Console {
   repair: Repair;
@@ -99,8 +114,14 @@ interface Console {
 const _head = new THREE.Vector3(),
   _pos = new THREE.Vector3(),
   _direction = new THREE.Vector3();
-const _rotation = new THREE.Quaternion();
 const PANEL_RANGE = 3.5;
+const HAND_LABEL = {
+  off: 'frei',
+  flashlight: 'Taschenlampe',
+  radar: 'Radar',
+  xray: 'Röntgengerät',
+  medkit: 'Medkit',
+} as const;
 
 /** Station-only interactions. All game state belongs to the VR host snapshot. */
 export class ShipExperience {
@@ -113,11 +134,14 @@ export class ShipExperience {
   private readonly lockers: Locker[] = [];
   private readonly desktop: HauntingDesktopControls;
   private readonly comfort: HauntingComfort | null;
-  private readonly microphone: HauntingMicrophone;
   private readonly torch = new THREE.Group();
-  private readonly heldLamp = new THREE.Group();
+  private readonly heldLamp = new FlashlightTool();
+  private readonly handheldRadar = new RadarTool();
+  private readonly handheldXray = new XrayTool();
+  private readonly scanner = new THREE.Group();
+  private floatingTorch: FlashlightTool | null = null;
+  private interactionCooldown = 0;
   private readonly heldMedkit = new THREE.Group();
-  private readonly torchLight = new THREE.SpotLight(0xffeed2, 0, 16, Math.PI / 7, 0.45, 1.5);
   private rightItem: 'flashlight' | 'medkit' | 'off' = 'flashlight';
   private labMirror: MirrorSurface | null = null;
   private visibleRooms: ReadonlySet<string> | null = null;
@@ -133,10 +157,10 @@ export class ShipExperience {
     new THREE.MeshBasicMaterial({ color: 0x942e35, transparent: true, opacity: 0.88 }),
   );
   private readonly visor: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
-  private readonly wrist: Screen;
+  private readonly status: Screen;
   private readonly command: Screen;
   private readonly dom = document.createElement('section');
-  private sensorMode: 'off' | 'radar' | 'xray' | 'emf' | 'thermal' | 'audio' = 'off';
+  private sensorMode: 'off' | 'radar' | 'xray' = 'off';
   private audioOn = true;
   private readonly audio = new ShipAudio();
   private readonly audioFrame: ShipAudioFrame = {
@@ -157,28 +181,21 @@ export class ShipExperience {
   private stamp = '';
   private hiddenWas = false;
   private savedRigFrozen = false;
-  private nextSimulationRoom = 0;
-  private simulationTimer = 0;
-  private simulationRoute: DroneRoute | null = null;
-  private simulationGoal: HouseRoom | null = null;
-  private readonly simulationPose: DronePose = { ...COMMAND_HOME, yaw: 0 };
+  private missionBot: MissionBot | null = null;
   private simulated: THREE.Object3D | null = null;
+  private followBot = true;
+  private readonly followEye = new THREE.Vector3();
+  private readonly followTarget = new THREE.Vector3();
   private readonly messages: string[] = [];
   private flatFlight = 0;
   private disposed = false;
   private readonly bayLight = new THREE.PointLight(0xddefff, 0, 6, 2);
   private readonly suitColors = new Map<THREE.MeshStandardMaterial, THREE.Color>();
+  private suitImmersive: boolean | null = null;
   private readonly lockerHome = new THREE.Vector3();
 
   constructor(private readonly host: ShipHost) {
     this.root.name = 'orbital-interactions';
-    this.microphone = new HauntingMicrophone({
-      changed: () => {
-        host.ctx.refreshWorldMenu();
-        this.stamp = '';
-      },
-      say: (text) => host.say(text),
-    });
     this.comfort = this.player
       ? new HauntingComfort({
           rig: host.ctx.rig,
@@ -201,21 +218,27 @@ export class ShipExperience {
     this.buildConsoles();
     this.buildDoors();
     this.buildBay();
-    this.wrist = this.screen(0.23, 0.23, 384);
-    this.wrist.mesh.name = 'mission-wrist-scanner';
-    this.root.add(this.wrist.mesh);
-    this.bind(this.wrist.mesh, () => this.cycleSensor(), true);
+    this.status = this.screen(1.1, 0.62, 768);
+    this.status.mesh.name = 'mission-status-panel';
+    this.status.mesh.position.set(0, 0, -1.2);
+    this.status.mesh.visible = false;
+    this.status.mesh.material.depthTest = false;
+    this.status.mesh.renderOrder = 999;
+    host.ctx.camera.add(this.status.mesh);
+    this.bind(this.status.mesh, () => {
+      if (this.crew.hidden) this.leaveLocker();
+      else if (['lost', 'won'].includes(this.host.state().phase)) this.host.start();
+    });
     this.visor = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 1.25),
       new THREE.ShaderMaterial({
         transparent: true,
         depthWrite: false,
         depthTest: false,
-        uniforms: { fogAmount: { value: 0 }, damage: { value: 0 } },
+        uniforms: { fogAmount: { value: 0 }, damage: { value: 0 }, time: { value: 0 } },
         vertexShader:
           'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-        fragmentShader:
-          'varying vec2 vUv; uniform float fogAmount; uniform float damage; void main(){vec2 p=(vUv-.5)*2.;float rim=smoothstep(.4,1.,length(p));float droplets=.6+.4*sin(vUv.x*83.)*sin(vUv.y*97.);vec3 c=mix(vec3(.68,.82,.85),vec3(.55,.08,.09),damage);float a=rim*(fogAmount*.34*droplets+damage*.18);gl_FragColor=vec4(c,a);}',
+        fragmentShader: CONDENSATION_FRAGMENT,
       }),
     );
     this.visor.name = 'helmet-condensation';
@@ -240,10 +263,15 @@ export class ShipExperience {
       pointer: host.ctx.pointer,
       enabled: () => this.player && !host.ctx.menu.isOpen,
       presenting: () => host.ctx.renderer.xr.isPresenting,
-      simulation: () => this.crew.simulation,
-      canMove: () => !this.crew.hidden && this.crew.hp > 0,
+      simulation: () => this.crew.simulation && !this.followBot,
+      canMove: () =>
+        !this.crew.hidden && this.crew.hp > 0 && (!this.crew.simulation || !this.followBot),
       cycleHand: (hand) => (hand === 'left' ? this.cycleSensor() : this.cycleRight()),
       interact: () => {
+        if (['lost', 'won'].includes(this.host.state().phase)) {
+          this.host.start();
+          return true;
+        }
         if (this.crew.hidden) {
           this.leaveLocker();
           return true;
@@ -319,7 +347,17 @@ export class ShipExperience {
       onSelect: (hit) => {
         this.host.ctx.rig.getHeadPosition(_head);
         object.getWorldPosition(_pos);
-        if (_head.distanceTo(_pos) > PANEL_RANGE || (this.crew.simulation && !wearable)) return;
+        if (
+          this.interactionCooldown > 0 ||
+          _head.distanceTo(_pos) > PANEL_RANGE ||
+          (this.crew.simulation && !wearable)
+        )
+          return;
+        if (this.crew.hidden) {
+          this.leaveLocker();
+          this.paint();
+          return;
+        }
         this.lastSoundAt.copy(hit.point);
         this.actionHand = hit.hand;
         action(hit.uv);
@@ -349,7 +387,7 @@ export class ShipExperience {
     let extraIndex = 0;
     for (const room of spec.rooms) {
       const task = spec.tasks.find((t) => t.roomId === room.id);
-      const loot = task ? task.id : ['radar', 'xray', 'survey-kit', 'medkit'][extraIndex++ % 4]!;
+      const loot = task ? task.id : ['radar', 'xray', 'medkit', 'medkit'][extraIndex++ % 4]!;
       const at = layout.find((p) => p.id === `cargo-${room.id}`)!;
       this.cabinet(at.id, room.id, new THREE.Vector3(at.x, 0, at.z), loot, at.yaw);
       const safe = layout.find((p) => p.id === `locker-${room.id}`)!;
@@ -394,6 +432,7 @@ export class ShipExperience {
       loot,
       lootMesh,
       scanner,
+      scanSubject: { object: lootMesh },
       at,
       leafY: leaf.position.y,
       leafHeight: 1.15,
@@ -423,18 +462,19 @@ export class ShipExperience {
       return;
     if (c.loot === 'test-kit') {
       if (!this.crew.options.test) return;
-      for (const item of ['radar', 'xray', 'emf', 'thermal', 'audio', 'medkit'])
+      for (const item of ['radar', 'xray', 'medkit'])
         if (!this.crew.inventory.includes(item)) this.crew.inventory.push(item);
       this.host.state().taken = this.host.spec().tasks.map((t) => t.id);
-    } else if (c.loot === 'survey-kit') {
-      for (const item of ['emf', 'thermal', 'audio', 'medkit'])
-        if (!this.crew.inventory.includes(item)) this.crew.inventory.push(item);
     } else if (this.host.spec().tasks.some((t) => t.id === c.loot)) {
       if (!this.host.state().taken.includes(c.loot)) this.host.state().taken.push(c.loot);
     } else this.crew.inventory.push(c.loot);
     this.crew.inventory.push(id);
+    if (this.host.ctx.renderer.xr.isPresenting) {
+      if (c.loot === 'radar' || c.loot === 'xray') this.host.equip?.(c.loot, 'left');
+      else if (c.loot === 'test-kit') this.host.equip?.('radar', 'left');
+    }
     this.host.say(
-      `${lootLabel(this.host.spec(), c.loot)} aufgenommen · 1: Sensor wechseln · 2: rechte Hand.`,
+      `${lootLabel(this.host.spec(), c.loot)} aufgenommen · Werkzeuge greifen und seitlich am Gürtel ablegen. Web: 1 / 2 wechseln.`,
     );
     this.sound('success');
     this.host.ctx.refreshWorldMenu();
@@ -480,6 +520,7 @@ export class ShipExperience {
       this.leaveLocker();
       return;
     }
+    if (!this.inLockerRoom(id)) return;
     const locker = this.lockers.find((l) => l.id === id);
     if (!locker) return;
     if (locker.open) {
@@ -500,15 +541,33 @@ export class ShipExperience {
     this.sound('door');
   }
   private enterLocker(locker: Locker): void {
+    if (this.crew.hidden) {
+      this.leaveLocker();
+      return;
+    }
+    if (!this.inLockerRoom(locker.id)) return;
     this.host.ctx.rig.getHeadPosition(this.lockerHome);
     this.lockerHome.y = 0;
     this.host.travel(locker.group.position.clone());
     this.crew.hidden = locker.id;
     locker.open = false;
-    this.host.say('Versteckt. E oder Missionsmenü → Schutzschrank verlassen.');
+    this.host.say('Geschützt. AUSGANG vor dir antippen oder E drücken, um herauszutreten.');
     this.sound('door');
   }
+  private inLockerRoom(id: string): boolean {
+    this.host.ctx.rig.getHeadPosition(_head);
+    if (id.startsWith('training-'))
+      return (
+        this.crew.options.test &&
+        trainingRoomAt(_head.x, _head.z)?.id === id.slice('training-'.length)
+      );
+    return (
+      roomAt(this.host.spec(), Math.floor(_head.x / TILE), Math.floor(_head.z / TILE))?.id === id
+    );
+  }
   private leaveLocker(): void {
+    if (!this.crew.hidden) return;
+    this.interactionCooldown = 0.2;
     if (this.crew.hidden) {
       this.host.ctx.rig.frozen = false;
       this.host.travel(this.lockerHome);
@@ -625,6 +684,7 @@ export class ShipExperience {
   }
 
   private buildDoors(): void {
+    const occupied = new Set<string>();
     for (const d of [
       ...this.host.spec().doors,
       { id: 'test-bay', x: 2, z: 4, dir: 3 as const },
@@ -637,6 +697,21 @@ export class ShipExperience {
         (d.z + 0.5 + dirZ(d.dir) * 0.5) * TILE,
       );
       g.rotation.y = dirX(d.dir) === 0 ? 0 : Math.PI / 2;
+      const boundary = `${g.position.x}:${g.position.z}:${g.rotation.y}`;
+      if (occupied.has(boundary)) continue;
+      occupied.add(boundary);
+      const light = new THREE.MeshBasicMaterial({ color: 0x91ffd0, toneMapped: false });
+      const housing = this.mesh([PLAN_DOOR_W + 0.2, 0.15, 0.2], SHIP.dark, g, [
+        0,
+        PLAN_DOOR_H + 0.12,
+        0,
+      ]);
+      housing.name = `door-status-${d.id}`;
+      for (const side of [-1, 1]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(PLAN_DOOR_W * 0.67, 0.065, 0.015), light);
+        bar.position.set(0, 0, side * 0.109);
+        housing.add(bar);
+      }
       const leaves = [-1, 1].map((side) => {
         const m = this.mesh([PLAN_DOOR_W / 2, PLAN_DOOR_H - 0.04, 0.14], 0x617781, g, [
           (side * PLAN_DOOR_W) / 4,
@@ -666,10 +741,15 @@ export class ShipExperience {
         amount: this.host.state().shut.includes(d.id) ? 0 : 1,
         at,
         panel,
+        light,
       });
       const action = (): void => {
-        if (d.id === 'test-bay') {
-          this.host.test();
+        if (d.id === 'test-bay' || d.id === TRAINING_DOOR.id) {
+          this.host.say(
+            this.crew.options.test
+              ? 'Übungsdeck bereit. Die Tür öffnet beim Näherkommen.'
+              : 'Übungsdeck gesperrt. Test am Terminal in der Zentrale starten.',
+          );
           return;
         }
         if (!this.active) return;
@@ -712,28 +792,20 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   private buildTorch(): void {
     if (!this.player) return;
     this.torch.name = 'desktop-held-tool';
-    const casing = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.065, 0.05, 0.25, 10),
-      new THREE.MeshStandardMaterial({ color: SHIP.trim, metalness: 0.55, roughness: 0.45 }),
-    );
-    casing.rotation.x = Math.PI / 2;
-    this.heldLamp.add(casing);
-    const lens = new THREE.Mesh(
-      new THREE.CircleGeometry(0.05, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffefcf }),
-    );
-    lens.rotation.y = Math.PI;
-    lens.position.z = -0.128;
-    this.heldLamp.add(lens);
-    this.torchLight.position.set(0, 0, -0.15);
-    this.torchLight.target.position.set(0, 0, -5);
-    this.torch.add(this.torchLight, this.torchLight.target);
+    this.heldLamp.name = 'desktop-flashlight';
+    this.heldLamp.setBeamGuide(false);
+    this.heldLamp.setLit(true);
     this.mesh([0.15, 0.2, 0.07], 0xcad8c9, this.heldMedkit, [0, 0, 0]);
     this.mesh([0.035, 0.105, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.041]);
     this.mesh([0.095, 0.033, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.047]);
     this.torch.add(this.heldLamp, this.heldMedkit);
     this.host.ctx.camera.add(this.torch);
-    this.torch.position.set(0.24, -0.22, -0.4);
+    this.torch.position.set(0.24, -0.24, -0.4);
+    this.scanner.name = 'desktop-held-scanner';
+    this.scanner.position.set(-0.3, -0.26, -0.52);
+    this.scanner.add(this.handheldRadar, this.handheldXray);
+    this.host.ctx.camera.add(this.scanner);
+    this.handheldXray.setSubjects(() => this.scanSubjects);
   }
   setVisibleRooms(ids: ReadonlySet<string> | null): void {
     this.visibleRooms = ids;
@@ -742,14 +814,17 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       if (roomId && !roomId.startsWith('training')) object.visible = !ids || ids.has(roomId);
     }
   }
-  get microphoneLevel(): number {
-    return this.player && !this.crew.options.test && !this.crew.simulation
-      ? this.microphone.level
-      : 0;
-  }
   get flashlightActive(): boolean {
     return (
-      this.player && this.rightItem === 'flashlight' && !this.crew.hidden && !this.crew.simulation
+      this.player &&
+      (this.host.ctx.renderer.xr.isPresenting
+        ? ['left', 'right'].some((hand) => {
+            const tool = this.host.carried?.(hand as Handedness);
+            return tool instanceof FlashlightTool && tool.lit;
+          })
+        : this.rightItem === 'flashlight' && this.heldLamp.lit) &&
+      !this.crew.hidden &&
+      !this.crew.simulation
     );
   }
   private cycleRight(): void {
@@ -766,13 +841,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           ? 'Medkit gewählt. E zum Heilen.'
           : 'Taschenlampe eingeschaltet.',
     );
+    if (this.host.ctx.renderer.xr.isPresenting)
+      this.host.equip?.(this.rightItem === 'flashlight' ? 'flashlight' : 'off', 'right');
     this.stamp = '';
     this.paint();
   }
   private buildSuit(): void {
     const avatar = this.host.ctx.avatar;
     avatar.traverse((object) => {
-      object.layers.enable(0);
       const material = (object as THREE.Mesh).material;
       if (
         material &&
@@ -785,7 +861,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         material.color.setHex(0xc6d5d5);
       }
     });
-    avatar.head.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
     this.suit.name = 'astronaut-chest-rig';
     avatar.add(this.suit);
     this.mesh([0.32, 0.24, 0.075], 0xd3dcd7, this.suit, [0, 0, -0.15]);
@@ -799,6 +874,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.wound.position.set(0.03, -0.2, -0.185);
     this.wound.rotation.y = Math.PI;
     this.suit.add(this.wound);
+    this.updateSuitVisibility();
+  }
+  private updateSuitVisibility(): void {
+    const immersive = this.host.ctx.renderer.xr.isPresenting;
+    if (this.suitImmersive === immersive) return;
+    this.suitImmersive = immersive;
+    const avatar = this.host.ctx.avatar;
+    avatar.traverse((object) => {
+      object.layers.set(LAYER_SELF_ONLY);
+      if (immersive) object.layers.enable(0);
+    });
+    avatar.head.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
   }
 
   private commandAction(index: number): void {
@@ -826,26 +913,75 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   }
 
   private cycleSensor(): void {
-    const modes = [
-      'off',
-      ...(this.crew.inventory.includes('radar') ? ['radar'] : []),
-      ...(this.crew.inventory.includes('xray') ? ['xray'] : []),
-      ...(this.crew.inventory.includes('emf') ? ['emf'] : []),
-      ...(this.crew.inventory.includes('thermal') ? ['thermal'] : []),
-      ...(this.crew.inventory.includes('audio') ? ['audio'] : []),
-    ] as Array<typeof this.sensorMode>;
+    const modes: Array<typeof this.sensorMode> = ['off'];
+    if (this.crew.inventory.includes('radar')) modes.push('radar');
+    if (this.crew.inventory.includes('xray')) modes.push('xray');
     this.sensorMode = modes[(modes.indexOf(this.sensorMode) + 1) % modes.length]!;
+    if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.(this.sensorMode, 'left');
     this.host.ctx.refreshWorldMenu();
     this.host.say(
       {
-        off: 'Linke Hand frei. Sensoren liegen in Frachtcontainern.',
-        radar: 'Bewegungsradar · 18 Meter Reichweite.',
-        xray: 'Röntgen aktiv · Fracht in Blickrichtung, bis sechs Meter.',
-        emf: 'EMF-Scanner · Feldstärke 0 bis 5. Werte dem Archiv durchgeben.',
-        thermal: 'Thermosensor · Temperatur in deiner Umgebung.',
-        audio: 'Audio-Logger · Anomaliepegel, keine Mikrofonaufnahme.',
+        off: 'Linke Hand frei. Radar und Röntgengerät liegen in der Fracht.',
+        radar: 'Bewegungsradar in der Hand · am Gürtel seitlich ablegbar.',
+        xray: 'Röntgengerät in der Hand · durch den Rahmen nach Fracht suchen.',
       }[this.sensorMode],
     );
+  }
+
+  private get scanSubjects(): readonly { object: THREE.Object3D }[] {
+    return this.cabinets
+      .filter((cabinet) => !this.crew.inventory.includes(cabinet.id))
+      .map((cabinet) => cabinet.scanSubject);
+  }
+
+  private updateTools(dt: number): void {
+    const ctx = this.host.ctx;
+    const immersive = ctx.renderer.xr.isPresenting;
+    const available = this.player && !this.crew.simulation && !this.crew.hidden && this.crew.hp > 0;
+    this.torch.visible = available && !immersive && this.rightItem !== 'off';
+    this.heldLamp.visible = this.rightItem === 'flashlight';
+    this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight');
+    this.heldMedkit.visible = this.rightItem === 'medkit';
+    this.scanner.visible = available && !immersive && this.sensorMode !== 'off';
+    this.handheldRadar.visible = this.sensorMode === 'radar';
+    this.handheldXray.visible = this.sensorMode === 'xray';
+    ctx.camera.getWorldDirection(_direction);
+    this.handheldRadar.setContact(this.crew.options.test ? null : this.host.state().monster);
+    if (this.scanner.visible && this.sensorMode === 'radar')
+      this.handheldRadar.updateDisplay(dt, _head, _direction);
+    this.handheldXray.updateView(
+      this.root,
+      _head,
+      this.scanner.visible && this.sensorMode === 'xray',
+    );
+    if (immersive)
+      for (const hand of ['left', 'right'] as const) {
+        const tool = this.host.carried?.(hand);
+        if (tool instanceof FlashlightTool) tool.setBeamGuide(false);
+        if (tool instanceof RadarTool)
+          tool.setContact(this.crew.options.test ? null : this.host.state().monster);
+        if (tool instanceof XrayTool) tool.setSubjects(() => this.scanSubjects);
+      }
+    const floating = this.host.floatingTorch?.();
+    if (floating?.visible && floating !== this.floatingTorch) {
+      this.floatingTorch = floating;
+      floating.userData.interactionLabel = 'E: Taschenlampe aufnehmen';
+      this.bind(floating, () => {
+        if (ctx.renderer.xr.isPresenting) {
+          this.host.say('Taschenlampe mit dem Griff greifen.');
+          return;
+        }
+        this.host.ctx.pointer.remove(floating);
+        if (this.focusedTarget === floating) {
+          this.focusedTarget = null;
+          this.crosshair.dataset.label = '';
+        }
+        this.host.takeFloatingTorch?.();
+        this.floatingTorch = null;
+        this.rightItem = 'flashlight';
+        this.host.say('Taschenlampe aufgenommen. 2 legt sie weg und nimmt sie wieder zur Hand.');
+      });
+    }
   }
 
   private heal(): void {
@@ -869,6 +1005,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const state = this.host.state();
     const crew = this.crew;
     ctx.rig.getHeadPosition(_head);
+    this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
+    this.updateTools(dt);
     const lab = crew.options.test ? trainingRoomAt(_head.x, _head.z) : null;
     this.bay.visible = crew.options.test;
     this.bayLight.intensity = this.player && lab ? 34 : 0;
@@ -876,15 +1014,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (this.labMirror)
       this.labMirror.visible =
         this.player && lab?.id === 'models' && _head.distanceTo(this.labMirror.position) < 8;
-    this.torch.visible =
-      this.player && !ctx.renderer.xr.isPresenting && this.rightItem !== 'off' && !crew.simulation;
-    this.heldLamp.visible = this.rightItem === 'flashlight';
-    this.heldMedkit.visible = this.rightItem === 'medkit';
-    this.torchLight.intensity = this.torch.visible && this.flashlightActive ? 25 : 0;
     this.command.mesh.visible = true;
     for (const door of this.doors) {
-      const goal =
-        door.id === 'test-bay' ? Number(crew.options.test) : state.shut.includes(door.id) ? 0 : 1;
+      const locked =
+        this.host.doorLocked?.(door.id) ??
+        (door.id === 'test-bay' || door.id === TRAINING_DOOR.id
+          ? !crew.options.test
+          : state.shut.includes(door.id));
+      const goal = Number(this.host.doorOpen?.(door.id) ?? !locked);
+      door.light.color.setHex(locked ? 0xff5267 : 0x78ffd0);
       const before = door.amount;
       door.amount += Math.sign(goal - before) * Math.min(Math.abs(goal - before), dt * 2.5);
       door.leaves.forEach(
@@ -901,14 +1039,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       cabinet.group.visible =
         (cabinet.id !== 'test-supply' || crew.options.test) &&
         (!cabinet.room || !this.visibleRooms || this.visibleRooms.has(cabinet.room));
-      ctx.camera.getWorldDirection(_direction);
-      _pos.copy(cabinet.at).sub(_head);
-      cabinet.scanner.visible =
-        this.player &&
-        this.sensorMode === 'xray' &&
-        _pos.length() < 6 &&
-        _pos.normalize().dot(_direction) > 0.65 &&
-        !crew.inventory.includes(cabinet.id);
+      cabinet.scanner.visible = false;
     }
     for (const locker of this.lockers) {
       const amount = THREE.MathUtils.damp(locker.leaf.scale.y, locker.open ? 0.025 : 1, 8, dt);
@@ -917,25 +1048,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     }
     this.effects.update(dt);
     if (this.player) {
-      const left = ctx.input.get('left');
-      if (left?.tracked) {
-        const anchor = left.grip.visible ? left.grip : left.targetRay;
-        anchor.getWorldPosition(this.wrist.mesh.position);
-        anchor.getWorldQuaternion(this.wrist.mesh.quaternion);
-        this.wrist.mesh.rotateX(-0.8);
-        this.wrist.mesh.translateY(0.08);
-        this.wrist.mesh.translateZ(0.1);
-      } else {
-        ctx.camera.getWorldPosition(this.wrist.mesh.position);
-        ctx.camera.getWorldQuaternion(this.wrist.mesh.quaternion);
-        this.wrist.mesh.translateX(-0.4);
-        this.wrist.mesh.translateY(-0.3);
-        this.wrist.mesh.translateZ(-0.75);
-      }
-      this.wrist.mesh.visible =
-        !crew.simulation && (ctx.renderer.xr.isPresenting || this.sensorMode !== 'off');
-      this.visor.visible = !crew.simulation;
+      this.updateSuitVisibility();
+      this.status.mesh.visible = !!crew.hidden || state.phase === 'lost' || state.phase === 'won';
+      this.visor.visible =
+        !crew.simulation && (crew.exertion > 0.005 || crew.hp < 3 || !!crew.hidden);
       this.visor.material.uniforms.fogAmount!.value = crew.exertion;
+      this.visor.material.uniforms.time!.value += dt;
       this.visor.material.uniforms.damage!.value = Math.max(
         crew.hidden ? 0.2 : 0,
         (3 - crew.hp) / 3,
@@ -957,8 +1075,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.stepSimulation(dt);
       this.desktop.update(dt);
       this.comfort?.update(dt);
-      this.microphone.update(dt);
-    } else this.wrist.mesh.visible = false;
+    } else this.status.mesh.visible = false;
     this.paintTimer -= dt;
     if (this.paintTimer <= 0) {
       this.paintTimer = 0.12;
@@ -980,8 +1097,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         ? `TESTLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
         : 'TESTLABOR: MIT TEST ÖFFNEN',
     ]);
-    for (const door of this.doors)
-      this.rows(door.panel, [state.shut.includes(door.id) ? 'ZU' : 'OFFEN', 'TÜR', 'ANTIPPEN']);
+    for (const door of this.doors) {
+      const locked =
+        this.host.doorLocked?.(door.id) ??
+        (door.id === 'test-bay' || door.id === TRAINING_DOOR.id
+          ? !crew.options.test
+          : state.shut.includes(door.id));
+      this.rows(door.panel, [
+        locked ? 'GESPERRT' : 'BEREIT',
+        door.id === 'test-bay' || door.id === TRAINING_DOOR.id ? 'ÜBUNGSDECK' : 'SCHOTT',
+        locked ? 'ANTIPPEN' : 'AUTOMATIK',
+      ]);
+    }
     for (const screen of this.screens)
       if (screen.mesh.userData.locker) {
         const id = screen.mesh.userData.locker as string;
@@ -990,7 +1117,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         else this.gridScreen(screen, this.lockerEntries.get(id) || 'CODE?', ['1', '2', '3', '4']);
       }
     for (const console of this.consoles) this.paintRepair(console);
-    this.paintWrist();
+    this.paintStatus();
     this.paintDom();
   }
   private base(screen: Screen, title: string): CanvasRenderingContext2D {
@@ -1103,83 +1230,41 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     }
     screen.texture.needsUpdate = true;
   }
-  private paintWrist(): void {
-    const s = this.wrist;
-    const c = this.base(
-      s,
-      this.crew.hidden ? 'SCHUTZSCHRANK' : `ANZUG ${this.crew.hp}/3 · ${this.crew.pulse} BPM`,
-    );
-    const w = s.canvas.width,
-      h = s.canvas.height;
-    c.font = '27px system-ui';
-    c.fillStyle = '#a7bbc7';
+  private paintStatus(): void {
+    const hidden = !!this.crew.hidden;
+    const phase = this.host.state().phase;
+    if (!hidden && phase !== 'won' && phase !== 'lost') return;
+    const title = hidden
+      ? 'SCHUTZSCHRANK / GESCHÜTZT'
+      : phase === 'won'
+        ? 'MISSION ERFÜLLT'
+        : 'MISSION GESCHEITERT';
+    const c = this.base(this.status, title);
+    const w = this.status.canvas.width,
+      h = this.status.canvas.height;
+    c.fillStyle = '#d8e7ec';
+    c.font = '29px system-ui';
     c.fillText(
-      this.crew.options.test
-        ? 'TEST · KEIN MONSTER'
-        : `${this.host.state().done.length}/3 SYSTEME · ${this.sensorMode.toUpperCase()}`,
+      hidden
+        ? 'Du bist sicher. Der Ausgang ist jederzeit offen.'
+        : phase === 'won'
+          ? 'Alle Systeme repariert. Die Crew ist gerettet.'
+          : 'Dein Anzug wurde beschädigt. Die Runde ist vorbei.',
       w / 2,
-      h * 0.25,
+      h * 0.4,
+      w - 36,
     );
-    const cx = w / 2,
-      cy = h * 0.6,
-      r = w * 0.27;
-    c.strokeStyle = '#2a5a5f';
-    c.lineWidth = 2;
-    for (let i = 1; i <= 3; i++) {
-      c.beginPath();
-      c.arc(cx, cy, (r * i) / 3, 0, Math.PI * 2);
-      c.stroke();
-    }
-    const angle = performance.now() / 900;
-    c.strokeStyle = '#7ee8c6';
-    c.beginPath();
-    c.moveTo(cx, cy);
-    c.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
-    c.stroke();
-    if (this.sensorMode === 'radar') {
-      const monster = this.host.state().monster;
-      if (monster) {
-        this.host.ctx.rig.getHeadPosition(_head);
-        _pos.set(monster.x - _head.x, 0, monster.z - _head.z);
-        if (_pos.length() < 18) {
-          this.host.ctx.camera.getWorldQuaternion(_rotation);
-          _pos.applyQuaternion(_rotation.invert());
-          c.fillStyle = '#fa907b';
-          c.beginPath();
-          c.arc(cx + (_pos.x / 18) * r, cy + (_pos.z / 18) * r, 12, 0, Math.PI * 2);
-          c.fill();
-        }
-      }
-    }
-    if (['emf', 'thermal', 'audio'].includes(this.sensorMode)) {
-      this.host.ctx.rig.getHeadPosition(_head);
-      const readings = entityReadings(this.crew, {
-        observer: _head,
-        monster: this.host.state().monster,
-        time: performance.now() / 1000,
-      });
-      c.fillStyle = '#081823';
-      c.fillRect(10, h * 0.32, w - 20, h * 0.56);
-      c.fillStyle = '#84dfcf';
-      c.font = `${w * 0.11}px monospace`;
-      const text =
-        this.sensorMode === 'emf'
-          ? `EMF ${readings.emf} / 5`
-          : this.sensorMode === 'thermal'
-            ? `${readings.temperature.toFixed(1)} °C`
-            : `AUDIO ${Math.round(readings.sound * 100)} %`;
-      c.fillText(text, w / 2, h * 0.56);
-      c.font = `${w * 0.045}px system-ui`;
-      c.fillText(
-        readings.active ? 'MESSUNG AKTIV · ARCHIV INFORMIEREN' : 'KEIN ANOMALIESIGNAL',
-        w / 2,
-        h * 0.72,
-        w - 25,
-      );
-    }
-    c.fillStyle = '#d6eeed';
-    c.fillText('ANTIPPEN: SENSORMODUS', w / 2, h * 0.94);
-    s.texture.needsUpdate = true;
+    c.fillStyle = '#16494f';
+    c.fillRect(22, h * 0.58, w - 44, h * 0.32);
+    c.fillStyle = '#adffe8';
+    c.font = 'bold 42px system-ui';
+    c.fillText(
+      hidden ? 'AUSGANG · ANTIPPEN / E' : 'NEU STARTEN · ANTIPPEN / E',
+      w / 2,
+      h * 0.78,
+      w - 44,
+    );
+    this.status.texture.needsUpdate = true;
   }
 
   private nearby(): {
@@ -1207,7 +1292,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       ),
       room,
       locker: this.lockers.find(
-        (l) => _head.distanceTo(_pos.copy(l.group.position).setY(1.4)) < PANEL_RANGE,
+        (l) =>
+          this.inLockerRoom(l.id) &&
+          _head.distanceTo(_pos.copy(l.group.position).setY(1.4)) < PANEL_RANGE,
       ),
       door: this.doors.find((d) => _head.distanceTo(_pos.copy(d.at).setY(1)) < 2.8),
     };
@@ -1225,9 +1312,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       crew.opened,
       crew.puzzles,
       crew.simulation,
+      this.followBot,
       this.sensorMode,
       this.rightItem,
-      this.microphone.status,
       state.phase,
       state.done,
       near.cabinet?.id,
@@ -1250,13 +1337,48 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.dom.querySelector<HTMLDetailsElement>('details[data-tests]')?.open ?? false;
     this.dom.replaceChildren();
     const title = document.createElement('strong');
-    title.textContent = `ORBITAL · ${crew.options.test ? 'TEST / KEIN MONSTER' : state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
+    title.textContent = `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
     this.dom.append(title);
+    if (this.host.stations) {
+      const roles = document.createElement('button');
+      roles.textContent = 'Rolle wechseln';
+      roles.dataset.action = 'stations';
+      this.dom.append(roles);
+    }
+    if (crew.simulation) {
+      const camera = document.createElement('button');
+      camera.textContent = this.followBot ? 'Freie Kamera' : 'Bot folgen';
+      camera.dataset.action = 'follow-bot';
+      this.dom.append(camera);
+    }
+    if (state.phase === 'lost' || state.phase === 'won') {
+      const result = document.createElement('div');
+      result.className = 'orbital-result';
+      result.setAttribute('role', 'alert');
+      const message = document.createElement('p');
+      message.textContent =
+        state.phase === 'lost'
+          ? 'Dein Anzug wurde zerstört. Die Runde ist vorbei.'
+          : 'Alle Reparaturen abgeschlossen. Die Crew ist gerettet.';
+      const restart = document.createElement('button');
+      restart.textContent = 'Runde neu starten';
+      restart.dataset.action = 'start';
+      result.append(message, restart);
+      this.dom.append(result);
+    }
+    if (crew.hidden) {
+      const exit = document.createElement('button');
+      exit.textContent = 'Schutzschrank verlassen';
+      exit.dataset.action = 'leave';
+      this.dom.append(exit);
+    }
     const hint = document.createElement('div');
     hint.className = 'orbital-player__keys';
     hint.textContent = crew.simulation
-      ? 'WASD fliegen · Leertaste ↑ · Strg ↓ · Umschalt schneller'
-      : `WASD · Strg ducken · E benutzen · 1: ${this.sensorMode === 'off' ? 'Hand frei' : this.sensorMode} · 2: ${this.rightItem === 'off' ? 'Hand frei' : this.rightItem === 'flashlight' ? 'Lampe' : 'Medkit'}`;
+      ? this.followBot
+        ? 'Kamera folgt dem Bot · Freie Kamera zum Erkunden wählen'
+        : 'Freie Kamera · WASD fliegen · Leertaste ↑ · Strg ↓ · Umschalt schneller'
+      : `WASD · Strg ducken · E benutzen · 1: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · 2: ${this.rightItem === 'off' ? 'Hand frei' : HAND_LABEL[this.rightItem]}`;
     this.dom.append(hint);
     const panel = document.createElement('details');
     panel.dataset.main = '';
@@ -1281,13 +1403,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
     button('Missionsmenü', 'menu');
-    button(`Linke Hand: ${this.sensorMode}`, 'sensor');
-    button(`Rechte Hand: ${this.rightItem}`, 'right');
+    button(`Linke Hand: ${HAND_LABEL[this.sensorMode]}`, 'sensor');
+    button(`Rechte Hand: ${HAND_LABEL[this.rightItem]}`, 'right');
     button('Medkit', 'heal');
-    button(
-      `Mikrofon-Gegnerreaktion: ${this.microphone.enabled ? 'an' : this.microphone.pending ? 'abbrechen' : 'aus'}`,
-      'microphone',
-    );
     if (crew.hidden) button('Schutzschrank verlassen', 'leave');
     if (near.cabinet && !crew.hidden) {
       button('Fracht öffnen / schließen', `open:${near.cabinet.id}`);
@@ -1338,21 +1456,17 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (crew.options.test) {
       const details = document.createElement('details');
       details.dataset.tests = '';
-      details.open = testsExpanded || crew.simulation;
+      details.open = testsExpanded;
       const summary = document.createElement('summary');
       summary.textContent = 'Test / Räume / Simulation';
       details.append(summary);
       panel.append(details);
       button(crew.options.bright ? 'Testlicht aus' : 'Testlicht an', 'light', details);
-      button(
-        crew.simulation ? 'Simulation beenden' : 'Simulation / Flugmodus',
-        'simulate',
-        details,
-      );
+      button(crew.simulation ? 'Bot-Runde beenden' : 'Bot-Runde anschauen', 'simulate', details);
       button('Zur Zentrale', 'home', details);
       for (const lab of TRAINING_ROOMS) button(lab.name, `lab:${lab.id}`, details);
       for (const room of this.host.spec().rooms)
-        button(`Testbesuch: ${room.name} / ${room.id}`, `visit:${room.id}`, details);
+        button(`Testbesuch: ${room.name} / ${roomCode(room.id)}`, `visit:${room.id}`, details);
       if (crew.simulation) {
         button('Höher fliegen', 'up', details);
         button('Tiefer fliegen', 'down', details);
@@ -1371,12 +1485,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const [kind, id, a, b] = action.split(':');
     if (kind === 'start') this.host.start();
     else if (kind === 'test') this.host.test();
+    else if (kind === 'stations') this.host.stations?.();
+    else if (kind === 'follow-bot') this.followBot = !this.followBot;
     else if (kind === 'rooms') this.commandAction(3);
     else if (kind === 'monster') this.commandAction(4);
     else if (kind === 'light') this.commandAction(5);
     else if (kind === 'sensor') this.cycleSensor();
     else if (kind === 'right') this.cycleRight();
-    else if (kind === 'microphone') void this.microphone.toggle();
     else if (kind === 'heal') this.heal();
     else if (kind === 'leave') this.leaveLocker();
     else if (kind === 'menu') this.host.ctx.menu.toggle();
@@ -1407,15 +1522,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const rows = [
       ...(this.comfort?.menu() ?? []),
       row(
-        'microphone',
-        `Mikrofon-Gegnerreaktion: ${this.microphone.enabled ? 'an' : this.microphone.pending ? 'Anfrage abbrechen' : 'aus'}`,
-        'Optional · laute Stimmen locken Gegner an · lokal, keine Aufnahme',
-        () => {
-          void this.microphone.toggle();
-        },
-      ),
-      row('sensor', `Sensor: ${this.sensorMode}`, 'Handgelenk · Radar / Röntgen / aus', () =>
-        this.cycleSensor(),
+        'sensor',
+        `Linke Hand: ${HAND_LABEL[this.sensorMode]}`,
+        'Greifbares Gerät · Radar / Röntgen / leere Hand',
+        () => this.cycleSensor(),
       ),
       row('heal', `Medkit · Anzug ${this.crew.hp}/3`, 'Ein Medkit heilt einen Treffer', () =>
         this.heal(),
@@ -1436,6 +1546,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         },
       ),
     ];
+    if (['won', 'lost'].includes(this.host.state().phase))
+      rows.unshift(
+        row('restart', 'Runde neu starten', 'Neue Mission mit denselben Einstellungen', () =>
+          this.host.start(),
+        ),
+      );
     if (this.crew.options.test) {
       rows.push({
         id: 'orbital:labs',
@@ -1450,8 +1566,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       rows.push(
         row(
           'simulation',
-          this.crew.simulation ? 'Simulation beenden' : 'Simulation / Flugmodus',
-          'Linker Stick fliegt · rechter Stick hoch/runter · keine Gegner',
+          this.crew.simulation ? 'Bot-Runde beenden' : 'Bot-Runde anschauen',
+          'Techniker sammelt Ersatzteile, repariert Systeme und kehrt heim · freie Flugkamera',
           () => this.toggleSimulation(),
         ),
       );
@@ -1464,7 +1580,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         children: this.host
           .spec()
           .rooms.map((r) =>
-            row(`visit:${r.id}`, `${r.name} / ${r.id}`, MARKS[r.signature], () => this.visit(r.id)),
+            row(`visit:${r.id}`, `${r.name} / ${roomCode(r.id)}`, MARKS[r.signature], () =>
+              this.visit(r.id),
+            ),
           ),
       });
     }
@@ -1499,73 +1617,113 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z));
   }
 
+  get botPosition(): THREE.Vector3 | null {
+    return this.crew.simulation ? (this.simulated?.position ?? null) : null;
+  }
+
+  /** Begins a complete, repeatable mission demonstration on the safe test deck. */
+  startBotRound(): void {
+    if (!this.crew.options.test) return;
+    this.leaveLocker();
+    const state = this.host.state();
+    state.phase = 'running';
+    state.time = 0;
+    state.done = [];
+    state.taken = [];
+    state.lit = [];
+    state.shut = [];
+    state.fuse = false;
+    this.crew.hp = 3;
+    this.crew.opened = [];
+    this.crew.inventory = [];
+    this.crew.puzzles = {};
+    this.crew.simulation = true;
+    this.followBot = true;
+    for (const panel of this.dom.querySelectorAll('details')) panel.open = false;
+    this.host.ctx.rig.frozen = true;
+    this.hiddenWas = false;
+    if (!this.simulated) {
+      this.simulated = buildCrewmate();
+      this.simulated.name = 'simulated-astronaut';
+    }
+    this.root.add(this.simulated);
+    this.messages.length = 0;
+    this.missionBot = new MissionBot({
+      spec: this.host.spec(),
+      state,
+      route: (from, target) => this.host.routeTo?.(from, target) ?? null,
+      revision: () => this.host.routeVersion?.() ?? 0,
+      say: (text) => this.log(text),
+    });
+    this.simulated.position.set(this.missionBot.pose.x, 0, this.missionBot.pose.z);
+    if (this.host.ctx.renderer.xr.isPresenting)
+      this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 6, COMMAND_HOME.z + 5));
+    else this.followBotCamera(0, true);
+    this.host.ctx.refreshWorldMenu();
+    this.stamp = '';
+  }
+
   private toggleSimulation(): void {
     if (!this.crew.options.test) return;
-    if (this.crew.hidden) this.leaveLocker();
-    this.crew.simulation = !this.crew.simulation;
-    this.host.ctx.refreshWorldMenu();
-    this.host.ctx.rig.frozen = this.crew.simulation;
     if (!this.crew.simulation) {
-      this.simulated?.removeFromParent();
-      this.home();
+      this.startBotRound();
       return;
     }
-    if (!this.simulated) {
-      this.simulated = buildCreature('stalker');
-      this.simulated.name = 'simulated-astronaut';
-      this.root.add(this.simulated);
-    } else this.root.add(this.simulated);
-    this.nextSimulationRoom = 0;
-    this.simulationTimer = 0;
-    this.simulationGoal = null;
-    this.simulationRoute = null;
-    const start = safeRoomSpawn(this.host.spec(), this.host.spec().rooms[0]!.id);
-    Object.assign(this.simulationPose, { ...start, yaw: 0 });
-    this.simulated.position.set(start.x, 0, start.z);
-    this.host.travel(new THREE.Vector3(0, 6, 2));
-    this.log('SIMULATION: Techniker startet. Niemand wird angegriffen.');
+    this.crew.simulation = false;
+    this.missionBot = null;
+    this.simulated?.removeFromParent();
+    this.host.ctx.rig.frozen = false;
+    this.host.ctx.refreshWorldMenu();
+    this.home();
   }
   private stepSimulation(dt: number): void {
     if (!this.crew.simulation || !this.simulated) return;
     const ctx = this.host.ctx;
-    const left = ctx.input.get('left')?.thumbstick,
-      right = ctx.input.get('right')?.thumbstick;
-    ctx.camera.getWorldDirection(_direction);
-    _direction.y = 0;
-    _direction.normalize();
-    ctx.rig.position.addScaledVector(_direction, -(left?.y ?? 0) * dt * 4);
-    ctx.rig.position.x += -_direction.z * (left?.x ?? 0) * dt * 4;
-    ctx.rig.position.z += _direction.x * (left?.x ?? 0) * dt * 4;
-    ctx.rig.position.y += (-(right?.y ?? 0) + this.flatFlight) * dt * 3;
-    this.flatFlight *= Math.max(0, 1 - dt * 2);
-    ctx.rig.position.y = Math.max(0, Math.min(14, ctx.rig.position.y));
+    if (ctx.renderer.xr.isPresenting || !this.followBot) {
+      const left = ctx.input.get('left')?.thumbstick,
+        right = ctx.input.get('right')?.thumbstick;
+      ctx.camera.getWorldDirection(_direction);
+      _direction.y = 0;
+      _direction.normalize();
+      ctx.rig.position.addScaledVector(_direction, -(left?.y ?? 0) * dt * 4);
+      ctx.rig.position.x += -_direction.z * (left?.x ?? 0) * dt * 4;
+      ctx.rig.position.z += _direction.x * (left?.x ?? 0) * dt * 4;
+      ctx.rig.position.y += (-(right?.y ?? 0) + this.flatFlight) * dt * 3;
+      this.flatFlight *= Math.max(0, 1 - dt * 2);
+      ctx.rig.position.y = Math.max(0, Math.min(14, ctx.rig.position.y));
+      ctx.rig.updateMatrixWorld(true);
+    }
+    const beforeX = this.simulated.position.x,
+      beforeZ = this.simulated.position.z;
+    this.missionBot?.update(dt);
+    if (this.missionBot) {
+      this.simulated.position.set(this.missionBot.pose.x, 0, this.missionBot.pose.z);
+      this.simulated.rotation.y = this.missionBot.pose.yaw + Math.PI;
+    }
+    if (
+      Math.hypot(this.simulated.position.x - beforeX, this.simulated.position.z - beforeZ) > 0.001
+    )
+      animateCreature(this.simulated, performance.now() / 1000);
+    else
+      for (const limb of this.simulated.children) {
+        if (limb.name === 'arm' || limb.name === 'leg')
+          limb.rotation.x = THREE.MathUtils.damp(limb.rotation.x, 0, 10, dt);
+      }
+    this.followBotCamera(dt);
+  }
+  private followBotCamera(dt: number, immediately = false): void {
+    const ctx = this.host.ctx;
+    if (!this.followBot || !this.simulated || ctx.renderer.xr.isPresenting) return;
+    this.followTarget.copy(this.simulated.position);
+    this.followTarget.x += 8;
+    this.followTarget.y += 12;
+    this.followTarget.z += 10;
+    ctx.rig.getHeadPosition(this.followEye);
+    this.followEye.lerp(this.followTarget, immediately ? 1 : 1 - Math.exp(-3 * Math.max(0, dt)));
+    ctx.rig.setHeadWorldPosition(this.followEye);
+    this.followTarget.copy(this.simulated.position).y += 1;
+    ctx.camera.lookAt(this.followTarget);
     ctx.rig.updateMatrixWorld(true);
-    this.simulationTimer -= dt;
-    if (this.simulationTimer <= 0) {
-      this.simulationTimer = 0.5;
-      if (!this.simulationGoal) {
-        this.simulationGoal =
-          this.host.spec().rooms[this.nextSimulationRoom++ % this.host.spec().rooms.length]!;
-        this.log(
-          `Archiv → Techniker: ${this.simulationGoal.name} prüfen. Schutzcode ${lockerCode(this.host.spec().seed, this.simulationGoal.id)}.`,
-        );
-      }
-      this.simulationRoute = this.host.route(this.simulationPose, this.simulationGoal);
-    }
-    if (this.simulationRoute && this.simulationGoal) {
-      const moving = stepAlong(this.simulationPose, this.simulationRoute, dt, 1.6);
-      this.simulated.position.set(this.simulationPose.x, 0, this.simulationPose.z);
-      this.simulated.rotation.y = this.simulationPose.yaw;
-      if (!moving && this.simulationRoute.complete) {
-        this.log(
-          `Techniker → Zentrale: ${MARKS[this.simulationGoal.signature]} erreicht. System prüfen.`,
-        );
-        this.simulationGoal = null;
-        this.simulationRoute = null;
-        this.simulationTimer = 3;
-      }
-    }
-    animateCreature(this.simulated, performance.now() / 1000);
   }
   private log(text: string): void {
     this.messages.push(text);
@@ -1634,13 +1792,24 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     });
   }
   dispose(): void {
+    // The view owns the shelter return position and demo navigator. A role
+    // change must release both before their state outlives those controllers.
+    if (this.player) {
+      this.leaveLocker();
+      if (this.missionBot && this.crew.simulation) this.toggleSimulation();
+    }
     this.disposed = true;
     this.desktop.dispose();
     this.comfort?.dispose();
-    this.microphone.dispose();
     this.crosshair.remove();
     this.torch.removeFromParent();
-    disposeObject(this.torch);
+    this.heldLamp.disposeTool();
+    this.scanner.removeFromParent();
+    this.handheldXray.disposeTool();
+    this.handheldRadar.disposeTool();
+    disposeObject(this.heldMedkit);
+    this.status.mesh.removeFromParent();
+    disposeObject(this.status.mesh);
     this.dom.remove();
     this.dom.removeEventListener('click', this.domClick);
     for (const target of this.targets) this.host.ctx.pointer.remove(target);
@@ -1668,11 +1837,7 @@ function lootLabel(spec: HouseSpec, id: string): string {
       radar: 'Bewegungsradar',
       xray: 'Röntgenscanner',
       medkit: 'Medkit',
-      emf: 'EMF-Scanner',
-      thermal: 'Thermosensor',
-      audio: 'Audio-Logger',
       'test-kit': 'Alle Werkzeuge + Medkit',
-      'survey-kit': 'Analysekit + Medkit',
     }[id] ??
     id
   );

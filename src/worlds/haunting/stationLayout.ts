@@ -1,6 +1,6 @@
 import { PLAN_DOOR_W, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
-import type { HouseRoom, HouseSpec, MarkId } from './house';
+import { roomOf, type HouseRoom, type HouseSpec, type MarkId } from './house';
 import {
   CARGO_SIZE,
   CONSOLE_SIZE,
@@ -80,6 +80,31 @@ export function doorClearances(spec: HouseSpec, roomId: string): readonly FloorB
             maxX: x + width,
             minZ: Math.min(z, z + nz * depth),
             maxZ: Math.max(z, z + nz * depth),
+          };
+    });
+}
+
+/** Panoramic ports remain visible instead of disappearing behind a tall cabinet. */
+function windowClearances(spec: HouseSpec, roomId: string): FloorBounds[] {
+  return spec.windows
+    .filter((window) => window.roomId === roomId)
+    .map((window) => {
+      const dx = dirX(window.dir),
+        dz = dirZ(window.dir);
+      const x = (window.x + 0.5 + dx * 0.5) * TILE;
+      const z = (window.z + 0.5 + dz * 0.5) * TILE;
+      return dx
+        ? {
+            minX: Math.min(x, x - dx * 0.95),
+            maxX: Math.max(x, x - dx * 0.95),
+            minZ: z - 0.88,
+            maxZ: z + 0.88,
+          }
+        : {
+            minX: x - 0.88,
+            maxX: x + 0.88,
+            minZ: Math.min(z, z - dz * 0.95),
+            maxZ: Math.max(z, z - dz * 0.95),
           };
     });
 }
@@ -221,13 +246,81 @@ function wallCandidates(room: HouseRoom, request: Request): StationPlacement[] {
   );
 }
 
+/** A small number of functional islands may occupy the otherwise empty quadrants. */
+function islandCandidates(room: HouseRoom, request: Request): StationPlacement[] {
+  const b = roomBounds(room),
+    centre = roomMiddle(room);
+  const candidates: StationPlacement[] = [];
+  for (const fx of [0.2, 0.3, 0.4, 0.6, 0.7, 0.8])
+    for (const fz of [0.2, 0.3, 0.4, 0.6, 0.7, 0.8]) {
+      const x = b.minX + (b.maxX - b.minX) * fx;
+      const z = b.minZ + (b.maxZ - b.minZ) * fz;
+      const dx = centre.x - x,
+        dz = centre.z - z;
+      const yaw =
+        Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? Math.PI / 2 : -Math.PI / 2) : dz > 0 ? 0 : Math.PI;
+      const rotated = Math.abs(Math.sin(yaw)) > 0.5;
+      const halfX = (rotated ? request.depth : request.width) / 2;
+      const halfZ = (rotated ? request.width : request.depth) / 2;
+      const bounds = { minX: x - halfX, maxX: x + halfX, minZ: z - halfZ, maxZ: z + halfZ };
+      if (
+        bounds.minX < b.minX + WALL_INSET ||
+        bounds.maxX > b.maxX - WALL_INSET ||
+        bounds.minZ < b.minZ + WALL_INSET ||
+        bounds.maxZ > b.maxZ - WALL_INSET
+      )
+        continue;
+      candidates.push({
+        ...request,
+        x,
+        z,
+        yaw,
+        bounds,
+        approach: {
+          x: x + Math.sin(yaw) * (request.depth / 2 + APPROACH_GAP),
+          z: z + Math.cos(yaw) * (request.depth / 2 + APPROACH_GAP),
+        },
+      });
+    }
+  return candidates;
+}
+
+function roomDressing(room: HouseRoom): MarkId[] {
+  switch (room.kind) {
+    case 'bad':
+      return ['bett', 'spuele', 'klavier', room.signature];
+    case 'kueche':
+      return ['esstisch', 'spuele', 'esstisch', 'standuhr'];
+    case 'bibliothek':
+      return ['buecher', 'klavier', 'sessel'];
+    case 'schlafzimmer':
+      return ['bett', 'sessel', 'kiste'];
+    case 'kammer':
+      return ['kiste', 'standuhr', 'kiste'];
+    case 'werkstatt':
+      return ['standuhr', 'buecher', 'kiste'];
+    case 'wohnzimmer':
+      return ['standuhr', 'klavier', 'werkbank'];
+    case 'musikzimmer':
+      return ['buecher', 'sessel', 'klavier'];
+    case 'kinderzimmer':
+      return ['spuele', 'buecher', 'kiste'];
+    case 'esszimmer':
+      return ['esstisch', 'spuele', 'standuhr'];
+  }
+}
+
 function packRoom(
   spec: HouseSpec,
   room: HouseRoom,
   requests: readonly Request[],
 ): StationPlacement[] {
   const centre = roomMiddle(room),
-    clearances = [...doorClearances(spec, room.id), ...ventClearances(spec, room.id)],
+    clearances = [
+      ...doorClearances(spec, room.id),
+      ...ventClearances(spec, room.id),
+      ...(spec.passages ? windowClearances(spec, room.id) : []),
+    ],
     routes = [...roomDoorRoutes(spec, room), ...ventApproaches(spec, room.id)];
   const candidates = requests.map((request) => ({
     request,
@@ -262,16 +355,22 @@ function packRoom(
     throw new Error(`No safe station furniture layout: seed ${spec.seed}, room ${room.id}`);
   // Secondary room dressing is optional. It may never displace a required control,
   // reduce the player's access, or make a previously safe navigation route narrower.
-  const extras = room.marks.filter((mark) => mark.id !== room.signature);
-  extras.forEach((mark, index) => {
+  const extras = spec.passages
+    ? roomDressing(room)
+    : room.marks.filter((mark) => mark.id !== room.signature).map((mark) => mark.id);
+  extras.forEach((markId, index) => {
     const request: Request = {
       id: `fixture-${room.id}-extra-${index}`,
       roomId: room.id,
       kind: 'fixture',
-      markId: mark.id,
-      ...FIXTURE_CATALOG[mark.id],
+      markId,
+      ...FIXTURE_CATALOG[markId],
     };
-    const candidate = wallCandidates(room, request).find(
+    const island = spec.passages && ['bett', 'esstisch', 'werkbank'].includes(markId);
+    const candidate = [
+      ...(island ? islandCandidates(room, request) : []),
+      ...wallCandidates(room, request),
+    ].find(
       (p) =>
         !clearances.some((clear) => footprintsOverlap(p.bounds, clear)) &&
         !routes.some((door) => routeBlocked(door, centre, p.bounds)) &&
@@ -323,7 +422,7 @@ export function stationLayout(spec: HouseSpec): readonly StationPlacement[] {
 
 /** The continuous room centre is reserved before modules are placed, even in 2×2 rooms. */
 export function safeRoomSpawn(spec: HouseSpec, roomId: string): FloorPoint {
-  const room = spec.rooms.find((r) => r.id === roomId);
+  const room = roomOf(spec, roomId);
   if (!room) throw new Error(`Unknown station room: ${roomId}`);
   stationLayout(spec);
   return roomMiddle(room);

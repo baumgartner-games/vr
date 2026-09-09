@@ -1,0 +1,206 @@
+{
+  "base": "http://127.0.0.1:4173/",
+  "output": ".artifacts/browser-smoke/release",
+  "results": [
+    {
+      "browser": "chromium",
+      "loop": 1,
+      "passed": true,
+      "steps": [
+        {
+          "label": "roles",
+          "screenshot": "chromium-1-roles.png"
+        },
+        {
+          "label": "archive-desktop",
+          "screenshot": "chromium-1-archive-desktop.png"
+        },
+        {
+          "label": "orders-desktop",
+          "screenshot": "chromium-1-orders-desktop.png"
+        },
+        {
+          "label": "archive-mobile",
+          "screenshot": "chromium-1-archive-mobile.png"
+        },
+        {
+          "label": "control-switches-mobile",
+          "screenshot": "chromium-1-control-switches-mobile.png"
+        },
+        {
+          "label": "control-radar-mobile",
+          "screenshot": "chromium-1-control-radar-mobile.png"
+        },
+        {
+          "label": "drone",
+          "screenshot": "chromium-1-drone.png"
+        },
+        {
+          "label": "technician-lamp-picked-up",
+          "screenshot": "chromium-1-technician-lamp-picked-up.png"
+        },
+        {
+          "label": "lost-restart",
+          "screenshot": "chromium-1-lost-restart.png"
+        },
+        {
+          "label": "technician-room",
+          "screenshot": "chromium-1-technician-room.png"
+        },
+        {
+          "label": "bot-start",
+          "screenshot": "chromium-1-bot-start.png"
+        },
+        {
+          "label": "bot-observation",
+          "screenshot": "chromium-1-bot-observation.png"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "mobileLayout": {
+        "view": {
+          "x": 0,
+          "y": 202,
+          "width": 390,
+          "height": 270.078125
+        },
+        "body": {
+          "x": 0,
+          "y": 472.078125,
+          "width": 390,
+          "height": 371.921875
+        },
+        "overflow": false
+      },
+      "botStart": {
+        "x": 0.12915964098241317,
+        "z": 11.16992536193383
+      },
+      "botEnd": {
+        "position": {
+          "x": -25.086462145290767,
+          "z": 3.625
+        },
+        "repairs": 0,
+        "messages": [
+          "BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück."
+        ]
+      },
+      "botText": "ORBITAL · TEST / KEIN MONSTER · ANZUG 3/3 · 0/3 SYSTEME\nRolle wechselnFreie Kamera\nKamera folgt dem Bot · Freie Kamera zum Erkunden wählen\nMission, Ausrüstung & Testdeck",
+      "webgl": {
+        "lost": false,
+        "width": 1440,
+        "height": 900,
+        "renderer": "WebKit WebGL",
+        "device": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 5500M, Unspecified Version)"
+      },
+      "frameTiming": {
+        "seconds": 5.006599999991057,
+        "frames": 257,
+        "fps": 51.33224144138918,
+        "p95Ms": 33.69999999999709
+      }
+    },
+    {
+      "browser": "firefox",
+      "loop": 1,
+      "passed": true,
+      "steps": [
+        {
+          "label": "roles",
+          "screenshot": "firefox-1-roles.png"
+        },
+        {
+          "label": "archive-desktop",
+          "screenshot": "firefox-1-archive-desktop.png"
+        },
+        {
+          "label": "orders-desktop",
+          "screenshot": "firefox-1-orders-desktop.png"
+        },
+        {
+          "label": "archive-mobile",
+          "screenshot": "firefox-1-archive-mobile.png"
+        },
+        {
+          "label": "control-switches-mobile",
+          "screenshot": "firefox-1-control-switches-mobile.png"
+        },
+        {
+          "label": "control-radar-mobile",
+          "screenshot": "firefox-1-control-radar-mobile.png"
+        },
+        {
+          "label": "drone",
+          "screenshot": "firefox-1-drone.png"
+        },
+        {
+          "label": "technician-lamp-picked-up",
+          "screenshot": "firefox-1-technician-lamp-picked-up.png"
+        },
+        {
+          "label": "lost-restart",
+          "screenshot": "firefox-1-lost-restart.png"
+        },
+        {
+          "label": "technician-room",
+          "screenshot": "firefox-1-technician-room.png"
+        },
+        {
+          "label": "bot-start",
+          "screenshot": "firefox-1-bot-start.png"
+        },
+        {
+          "label": "bot-observation",
+          "screenshot": "firefox-1-bot-observation.png"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "mobileLayout": {
+        "view": {
+          "x": 0,
+          "y": 202.5,
+          "width": 390,
+          "height": 270.066650390625
+        },
+        "body": {
+          "x": 0,
+          "y": 472.566650390625,
+          "width": 390,
+          "height": 371.433349609375
+        },
+        "overflow": false
+      },
+      "botStart": {
+        "x": 0.09867678988496999,
+        "z": 11.247825981405077
+      },
+      "botEnd": {
+        "position": {
+          "x": 11.125,
+          "z": -11.913354846751515
+        },
+        "repairs": 0,
+        "messages": [
+          "BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück."
+        ]
+      },
+      "botText": "ORBITAL · TEST / KEIN MONSTER · ANZUG 3/3 · 0/3 SYSTEME\nRolle wechselnFreie Kamera\nKamera folgt dem Bot · Freie Kamera zum Erkunden wählen\nMission, Ausrüstung & Testdeck",
+      "webgl": {
+        "lost": false,
+        "width": 1440,
+        "height": 900,
+        "renderer": "Radeon HD 3200 Graphics, or similar",
+        "device": "Radeon HD 3200 Graphics, or similar"
+      },
+      "frameTiming": {
+        "seconds": 5.006379999999997,
+        "frames": 229,
+        "fps": 45.74163367543017,
+        "p95Ms": 33.87999999999738
+      }
+    }
+  ]
+}

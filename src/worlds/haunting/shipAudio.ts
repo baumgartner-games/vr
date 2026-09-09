@@ -1,6 +1,6 @@
 import { sharedAudio } from '../../core/Audio';
 import type { MonsterKind } from './mission';
-import { ENTITY_EVIDENCE, type SignalPoint } from './threat';
+import { ENTITY_PROFILES, type SignalPoint } from './threat';
 
 export const SHIP_AUDIO_VOICES = 8;
 export type ShipSound = 'door' | 'spark' | 'vent' | 'step' | 'pickup' | 'crew-step' | 'breath';
@@ -134,7 +134,7 @@ export class ShipAudio {
     if (hostile && frame.venting && !this.ventBefore) this.play('vent', frame.monster!, frame.kind);
     this.ventBefore = frame.venting;
     if (hostile && !frame.venting && this.stepClock <= 0) {
-      this.stepClock = ENTITY_EVIDENCE[frame.kind].cadence;
+      this.stepClock = ENTITY_PROFILES[frame.kind].cadence;
       this.play('step', frame.monster!, frame.kind);
     }
   }
@@ -181,7 +181,7 @@ export class ShipAudio {
           ? 580
           : kind === 'crew-step'
             ? 105
-            : ENTITY_EVIDENCE[monster].stepFrequency;
+            : ENTITY_PROFILES[monster].stepFrequency;
       source.frequency.setValueAtTime(frequency, ctx.currentTime);
       source.frequency.exponentialRampToValueAtTime(
         kind === 'pickup' ? 840 : frequency * 0.35,
@@ -201,7 +201,7 @@ export class ShipAudio {
     voice.at.z = at.z;
     voice.volume =
       kind === 'step'
-        ? 0.14 * ENTITY_EVIDENCE[monster].sound
+        ? 0.14 * ENTITY_PROFILES[monster].sound
         : kind === 'spark'
           ? 0.06
           : kind === 'crew-step'

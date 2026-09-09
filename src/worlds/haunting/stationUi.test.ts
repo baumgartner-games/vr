@@ -1,10 +1,8 @@
 /** @jest-environment jsdom */
 import { StationUi, type StationHost } from './stationUi';
 import { homeView } from './archiveView';
-import { archiveProjection } from './archiveMap';
 import { generateHouse } from './house';
-import { freshCrew, lockerCode } from './mission';
-import { ENTITY_EVIDENCE } from './threat';
+import { freshCrew, lockerCode, repairsFor } from './mission';
 import type { HauntState } from './net';
 import type { StationId } from './stations';
 
@@ -52,7 +50,7 @@ beforeEach(() => {
     createRadialGradient: () => ({ addColorStop() {} }),
   } as unknown as CanvasRenderingContext2D;
   jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => canvas);
-  jest.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+  jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
     x: 0,
     y: 0,
     left: 0,
@@ -70,7 +68,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function crew(station: StationId = 'archive') {
+function crew(station: StationId = 'archive', remoteTechnician = true) {
   let spec = generateHouse(947, 10);
   const state: HauntState = {
     seed: spec.seed,
@@ -88,6 +86,12 @@ function crew(station: StationId = 'archive') {
   };
   let seat: StationId | null = null;
   const flip = jest.fn();
+  const menu = jest.fn();
+  const botRound = jest.fn();
+  const restart = jest.fn();
+  const archiveHome = jest.fn();
+  const archiveZoom = jest.fn();
+  const archivePan = jest.fn();
   const host: StationHost = {
     spec: () => spec,
     state: () => state,
@@ -95,8 +99,11 @@ function crew(station: StationId = 'archive') {
     claims: () => (seat ? [{ id: 'me', station: seat, seniority: 10 }] : []),
     me: () => 'me',
     nameOf: () => 'Mein Gerät',
-    link: () => ({ peers: 2, vr: true, room: 'test-crew' }),
+    link: () => ({ peers: 2, vr: remoteTechnician, room: 'test-crew' }),
     technician() {},
+    menu,
+    botRound,
+    restart,
     seat: () => seat,
     wanted: () => seat,
     arriving: () => 0,
@@ -114,9 +121,9 @@ function crew(station: StationId = 'archive') {
     droneTilt() {},
     droneFace() {},
     archiveView: homeView,
-    archiveZoom() {},
-    archivePan() {},
-    archiveHome() {},
+    archiveZoom,
+    archivePan,
+    archiveHome,
   };
   const ui = new StationUi(host);
   views.push(ui);
@@ -126,6 +133,12 @@ function crew(station: StationId = 'archive') {
     ui,
     state,
     flip,
+    menu,
+    botRound,
+    restart,
+    archiveHome,
+    archiveZoom,
+    archivePan,
     get spec() {
       return spec;
     },
@@ -156,77 +169,118 @@ function pointer(node: HTMLElement, type: string, id: number, x: number, y: numb
 }
 
 describe('Phone dashboard DOM and Canvas interaction', () => {
-  it('opens a visible chart preview, zooms without requesting a 3D viewport, and returns to orders', () => {
-    const { ui } = crew();
-    expect(document.querySelector('nav[aria-label="Archivbereiche"]')).not.toBeNull();
-    expect(document.querySelector('button[aria-label="Karte vergrößern"] canvas')).not.toBeNull();
-    expect(button('[data-archive-tab="orders"]').getAttribute('aria-pressed')).toBe('true');
-    expect(ui.viewport()).toBeNull();
-    button('button[aria-label="Karte vergrößern"]').click();
-    expect(button('[data-archive-tab="map"]').getAttribute('aria-pressed')).toBe('true');
-    expect(document.querySelector('.haunt__archive-chart')).not.toBeNull();
-    expect(document.querySelector('.haunt__mini-chart')).toBeNull();
-    painted.mockClear();
-    ui.refresh();
-    expect(painted).not.toHaveBeenCalled();
-    button('[aria-label="Karte heranzoomen"]').click();
-    expect(painted).toHaveBeenCalled();
-    expect(ui.viewport()).toBeNull();
-    button('.haunt__chart-tools [data-archive-tab]').click();
-    expect(button('[data-archive-tab="orders"]').getAttribute('aria-pressed')).toBe('true');
-    expect(document.querySelector('.haunt__tasks')).not.toBeNull();
-  });
+  it.each([390, 1440])(
+    'opens only an isolated room viewport at %i px and keeps role/menu access visible',
+    (width) => {
+      Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+      size = width < 600 ? { width: 390, height: 250 } : { width: 940, height: 700 };
+      const game = crew();
+      expect(document.querySelector('nav[aria-label="Archivbereiche"]')).not.toBeNull();
+      expect(button('[data-archive-tab="rooms"]').getAttribute('aria-pressed')).toBe('true');
+      expect(document.querySelector('[data-archive-tab="map"]')).toBeNull();
+      expect(document.querySelector('[data-archive-tab="anomalies"]')).toBeNull();
+      expect(
+        document.querySelector('.haunt__archive-chart, .haunt__mini-chart, [data-identify]'),
+      ).toBeNull();
+      expect(game.ui.viewport()).toEqual({ x: 0, y: 0, w: size.width, h: size.height });
+      expect(game.ui.headroom()).toBe(0);
+      expect(game.ui.veiled).toBe(false);
+      expect(document.querySelector('.haunt__view')?.getAttribute('aria-label')).toContain(
+        'Decke entfernt',
+      );
+      expect(button('[aria-label="Rolle wechseln"]').textContent).toContain('Menü / Rollen');
+      expect(document.querySelector('[aria-label="Spielmenü öffnen"]')).toBeNull();
+      button('[aria-label="Rolle wechseln"]').click();
+      expect(button('[data-sit="scout"]')).not.toBeNull();
+      button('[data-sit="scout"]').click();
+      expect(game.ui.station).toBe('scout');
+    },
+  );
 
-  it('selects a room from the 2D chart and shows its actual locker code with an accessible room selector', () => {
+  it('selects names and shows real protection codes and repair clues without exposing a whole station map', () => {
     const game = crew();
-    button('[data-archive-tab="map"]').click();
-    const room = game.spec.rooms.at(-1)!;
-    const chart = document.querySelector<HTMLCanvasElement>('.haunt__archive-chart')!;
-    const p = archiveProjection(game.spec, size.width, size.height, homeView());
-    const x = p.x + (room.rect.x + room.rect.w / 2) * p.scale;
-    const y = p.z + (room.rect.z + room.rect.d / 2) * p.scale;
-    pointer(chart, 'pointerdown', 1, x, y);
-    pointer(chart, 'pointerup', 1, x, y);
-    expect(game.ui.selected).toBe(room.id);
-    button('.haunt__chart-detail').click();
+    const repair = repairsFor(game.spec).find((one) => one.puzzle === 'sequence')!;
     const select = document.querySelector<HTMLSelectElement>('select[data-room-select]')!;
+    expect(select.options).toHaveLength(game.spec.rooms.length);
     expect(select.closest('label')?.textContent).toContain(
       'Welchen Raum beschreibt der Techniker?',
     );
-    expect(select.value).toBe(room.id);
-    expect(document.querySelector('.haunt__sheet')?.textContent).toContain(
-      lockerCode(game.spec.seed, room.id),
-    );
     select.focus();
-    select.value = game.spec.rooms[0]!.id;
+    select.value = repair.roomId;
     select.dispatchEvent(new Event('change', { bubbles: true }));
-    expect((document.activeElement as HTMLSelectElement).value).toBe(game.spec.rooms[0]!.id);
-    expect(game.ui.selected).toBe(game.spec.rooms[0]!.id);
+    expect(game.ui.selected).toBe(repair.roomId);
+    expect((document.activeElement as HTMLSelectElement).value).toBe(repair.roomId);
+    const text = document.querySelector('.haunt__sheet')?.textContent;
+    expect(text).toContain(lockerCode(game.spec.seed, repair.roomId));
+    expect(text).toContain(repair.code);
+    expect(text).toContain(repair.hint);
+    expect(game.archiveHome).toHaveBeenCalledTimes(2);
+    button('[data-archive-tab="orders"]').click();
+    expect(game.ui.viewport()).toBeNull();
+    expect(document.querySelector('.haunt__tasks')?.textContent).toContain(repair.code);
+    button(`[data-dossier-room="${repair.roomId}"]`).click();
+    expect(button('[data-archive-tab="rooms"]').getAttribute('aria-pressed')).toBe('true');
+    expect(game.ui.selected).toBe(repair.roomId);
   });
 
-  it('treats drag and pinch as map gestures instead of accidental room selections', () => {
+  it('shows the actual cargo clue on its source room sheet', () => {
     const game = crew();
-    button('[data-archive-tab="map"]').click();
-    button('[data-map-action="in"]').click();
-    const chart = document.querySelector<HTMLCanvasElement>('.haunt__archive-chart')!;
+    const task = game.spec.tasks[0]!;
+    const select = document.querySelector<HTMLSelectElement>('select[data-room-select]')!;
+    select.value = task.roomId;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const text = document.querySelector('.haunt__sheet')?.textContent;
+    expect(text).toContain(task.label);
+    expect(text).toContain(task.hint);
+  });
+
+  it('pans and zooms a room with touch, wheel and keyboard without selecting another room', () => {
+    const game = crew();
+    const view = document.querySelector<HTMLElement>('.haunt__view')!;
     const selected = game.ui.selected;
-    painted.mockClear();
-    pointer(chart, 'pointerdown', 1, 140, 170);
-    pointer(chart, 'pointermove', 1, 190, 205);
-    pointer(chart, 'pointerup', 1, 190, 205);
-    expect(painted).toHaveBeenCalled();
+    pointer(view, 'pointerdown', 1, 140, 170);
+    pointer(view, 'pointermove', 1, 190, 205);
+    pointer(view, 'pointerup', 1, 190, 205);
+    expect(game.archivePan).toHaveBeenCalled();
+    pointer(view, 'pointerdown', 2, 80, 100);
+    pointer(view, 'pointerdown', 3, 200, 100);
+    pointer(view, 'pointermove', 3, 250, 100);
+    pointer(view, 'pointerup', 3, 250, 100);
+    pointer(view, 'pointerup', 2, 80, 100);
+    expect(game.archiveZoom).toHaveBeenCalled();
     expect(game.ui.selected).toBe(selected);
-    painted.mockClear();
-    pointer(chart, 'pointerdown', 2, 80, 100);
-    pointer(chart, 'pointerdown', 3, 200, 100);
-    pointer(chart, 'pointermove', 3, 250, 100);
-    pointer(chart, 'pointerup', 3, 250, 100);
-    pointer(chart, 'pointerup', 2, 80, 100);
-    expect(painted).toHaveBeenCalled();
-    expect(game.ui.selected).toBe(selected);
+    const wheel = new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true });
+    view.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
     const reset = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true });
-    chart.dispatchEvent(reset);
+    view.dispatchEvent(reset);
     expect(reset.defaultPrevented).toBe(true);
+    expect(game.archiveHome).toHaveBeenCalledTimes(2);
+    button('[aria-label="Raumansicht vergrößern"]').click();
+    expect(game.archiveZoom).toHaveBeenLastCalledWith(1.4);
+  });
+
+  it('exposes a bot round on the role screen and a restart action after a lost round', () => {
+    const game = crew('archive', false);
+    button('[aria-label="Rolle wechseln"]').click();
+    button('[data-bot-round]').click();
+    expect(game.botRound).toHaveBeenCalledTimes(1);
+    game.state.phase = 'lost';
+    game.state.crew.hp = 0;
+    game.ui.refresh();
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('Runde ist beendet');
+    button('[data-restart]').click();
+    expect(game.restart).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables bot demos while another technician is playing and explains why', () => {
+    const game = crew('archive', true);
+    button('[aria-label="Rolle wechseln"]').click();
+    const bot = button('[data-bot-round]');
+    expect(bot.disabled).toBe(true);
+    expect(bot.textContent).toContain('Ein Techniker spielt bereits');
+    bot.click();
+    expect(game.botRound).not.toHaveBeenCalled();
   });
 
   it('keeps system switches and radar on separate labelled tabs and sends switch actions once', () => {
@@ -248,30 +302,5 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
       'Simulierter Puls',
     );
     expect(ui.viewport()).toBeNull();
-  });
-
-  it('derives a journal hypothesis from checked observations, never from the actual configured entity', () => {
-    const game = crew();
-    game.state.crew.options.monster = 'crawler';
-    button('[data-archive-tab="anomalies"]').click();
-    expect(document.querySelectorAll('.haunt__evidence-checklist fieldset')).toHaveLength(3);
-    const findCold = () =>
-      [...document.querySelectorAll<HTMLInputElement>('[data-evidence]')].find(
-        (input) => input.dataset['evidence'] === ENTITY_EVIDENCE.stalker.clues[0],
-      )!;
-    findCold().focus();
-    findCold().click();
-    expect(findCold().checked).toBe(true);
-    expect(document.activeElement).toBe(findCold());
-    expect(document.querySelector('[role="status"]')?.textContent).toContain('Der Verlorene');
-    expect(document.querySelector('[role="status"]')?.textContent).not.toContain('Schachtläufer');
-    button('[data-identify="stalker"]').click();
-    expect(button('[data-identify="stalker"]').getAttribute('aria-pressed')).toBe('true');
-    button('[data-archive-tab="orders"]').click();
-    button('[data-archive-tab="anomalies"]').click();
-    expect(findCold().checked).toBe(true);
-    game.nextRound();
-    expect(findCold().checked).toBe(false);
-    expect(button('[data-identify="stalker"]').getAttribute('aria-pressed')).toBe('false');
   });
 });

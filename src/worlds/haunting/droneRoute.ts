@@ -224,6 +224,8 @@ export interface DronePose {
   z: number;
   /** Blickrichtung als `three`-Gierwinkel: `atan2(dx, dz)`. */
   yaw: number;
+  /** Continuous flight speed survives a route replan. */
+  velocity?: number;
 }
 
 /**
@@ -291,23 +293,15 @@ export function stepAlong(
   dt: number,
   speed = DRONE_SPEED,
 ): boolean {
-  const point = route.points?.[0];
+  if (route.points) return stepCurve(pose, route.points, dt, speed);
   const next = route.tiles[0];
-  if (route.points ? !point : next === undefined) return false;
-
-  const gx = point ? point.x : tileCentreX(next!);
-  const gz = point ? point.z : tileCentreZ(next!);
+  if (next === undefined) return false;
+  const gx = tileCentreX(next);
+  const gz = tileCentreZ(next);
   const dx = gx - pose.x;
   const dz = gz - pose.z;
   const far = Math.hypot(dx, dz);
-  if (far < (point ? 0.015 : WAYPOINT)) {
-    if (point) {
-      // Reach corners exactly: the old tile tolerance can cut through a frame.
-      pose.x = gx;
-      pose.z = gz;
-      route.points!.shift();
-      return route.points!.length > 0;
-    }
+  if (far < WAYPOINT) {
     route.tiles.shift();
     return route.tiles.length > 0;
   }
@@ -322,6 +316,56 @@ export function stepAlong(
   pose.x += (dx / far) * step;
   pose.z += (dz / far) * step;
   return true;
+}
+
+/** Spend the whole frame across curve samples: no dropped frame at a waypoint. */
+function stepCurve(
+  pose: DronePose,
+  points: Array<{ x: number; z: number }>,
+  dt: number,
+  speed: number,
+): boolean {
+  if (!points.length) {
+    pose.velocity = 0;
+    return false;
+  }
+  if (!Number.isFinite(dt + speed) || dt <= 0 || speed <= 0) return true;
+  const time = Math.min(0.1, dt);
+  const end = points[points.length - 1]!;
+  const braking =
+    points.length < 12 ? Math.sqrt(5 * Math.hypot(end.x - pose.x, end.z - pose.z)) : speed;
+  const target = Math.min(speed, Math.max(0.15, braking));
+  const previous = pose.velocity ?? 0;
+  const next =
+    previous + Math.sign(target - previous) * Math.min(Math.abs(target - previous), 2.5 * time);
+  pose.velocity = next;
+  let travel = (previous + next) * 0.5 * time;
+  let turnBudget = DRONE_TURN * time;
+  while (points.length && travel > 0) {
+    const point = points[0]!;
+    const dx = point.x - pose.x,
+      dz = point.z - pose.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance < 1e-7) {
+      points.shift();
+      continue;
+    }
+    const portion = Math.min(distance, travel);
+    const want = Math.atan2(dx, dz);
+    const turn = Math.min(turnBudget, Math.abs(shortestTurn(pose.yaw, want)));
+    pose.yaw = turnTowards(pose.yaw, want, turn);
+    turnBudget -= turn;
+    pose.x += (dx / distance) * portion;
+    pose.z += (dz / distance) * portion;
+    travel -= portion;
+    if (portion === distance) {
+      pose.x = point.x;
+      pose.z = point.z;
+      points.shift();
+    }
+  }
+  if (!points.length) pose.velocity = 0;
+  return points.length > 0;
 }
 
 /** Die Drehung um höchstens `most` Bogenmaß auf `want` zu — den kürzeren Weg. */

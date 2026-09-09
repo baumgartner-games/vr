@@ -1,7 +1,7 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H } from '../editor/levelPlan';
 import { DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
-import { APRON, HOUSE, roomAt, tilesOf, type HouseSpec, type MarkId } from './house';
+import { APRON, HOUSE, roomAt, spacesOf, tilesOf, type HouseSpec, type MarkId } from './house';
 import { FLYER_PROFILE } from '../nav/navProfile';
 import type { BlockKind } from '../grid/blocks';
 import type { PlanSolid } from '../grid/solids';
@@ -46,7 +46,9 @@ export function housePlan(
   test = false,
 ): GridPlan {
   const plan = new StationPlan([0]);
-  plan.room(HOUSE, { walls: true, ceiling: PLAN_WALL_H });
+  if (spec.passages) {
+    for (const room of spacesOf(spec)) plan.room(room.rect, { walls: true, ceiling: PLAN_WALL_H });
+  } else plan.room(HOUSE, { walls: true, ceiling: PLAN_WALL_H });
   // Die geschlossene Einsatzzentrale bleibt Teil des Missionsgraphen, damit
   // die Drohne durch dieselbe Tür zurückkehrt wie der Techniker.
   plan.room(APRON, { walls: true, ceiling: PLAN_WALL_H });
@@ -65,7 +67,7 @@ export function housePlan(
   }
   if (test)
     plan.door(TRAINING_DOOR.x, TRAINING_DOOR.z, TRAINING_DOOR.dir, 0, !shut.has(TRAINING_DOOR.id));
-  innerWalls(plan, spec);
+  if (!spec.passages) innerWalls(plan, spec);
 
   for (const door of spec.doors) {
     plan.door(door.x, door.z, door.dir, 0, !shut.has(door.id));

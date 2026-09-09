@@ -1,8 +1,8 @@
-import { MARKS, roomCentre, type HouseSpec } from './house';
+import { MARKS, roomCentre, roomOf, spacesOf, type HouseSpec } from './house';
 import { Rng } from './rng';
 import { freshThreat, readThreat, type ThreatState } from './threat';
 
-export const STATION_PROTOCOL = 3;
+export const STATION_PROTOCOL = 4;
 export const ROOM_COUNTS = [6, 8, 10, 12] as const;
 export type MonsterKind = 'stalker' | 'crawler' | 'sentinel';
 export const MONSTERS: ReadonlyArray<{
@@ -16,15 +16,14 @@ export const MONSTERS: ReadonlyArray<{
     id: 'stalker',
     name: 'Der Verlorene',
     detail:
-      'Ein verlassener EVA-Anzug. Hört weite Laufgeräusche; hinterlässt Kälte und EMF-Störungen.',
+      'Ein verlassener EVA-Anzug. Hört Schritte über weite Strecken und sucht die letzte bekannte Position ab.',
     speed: 1.3,
     vent: 28,
   },
   {
     id: 'crawler',
     name: 'Schachtläufer',
-    detail:
-      'Niedrig, schnell, wärmestrahlend. Rasches Kratzen verrät seine Wartungsschachtwechsel.',
+    detail: 'Niedrig und schnell. Rasches Kratzen verrät seine häufigen Wartungsschachtwechsel.',
     speed: 1.8,
     vent: 16,
   },
@@ -32,7 +31,7 @@ export const MONSTERS: ReadonlyArray<{
     id: 'sentinel',
     name: 'Wächter',
     detail:
-      'Defekter Sicherheitsroboter. Erkennt Licht weit; starke EMF-Signatur und schwere Schritte.',
+      'Defekter Sicherheitsroboter. Erkennt Licht aus großer Entfernung und ist an schweren Metalltritten zu hören.',
     speed: 1.05,
     vent: 38,
   },
@@ -210,7 +209,9 @@ export function stepVitals(
   const step = bounded(dt, 0, 0.1, 0);
   crew.invulnerable = Math.max(0, crew.invulnerable - step);
   crew.venting = Math.max(0, crew.venting - step);
-  crew.exertion = Math.max(0, Math.min(1, crew.exertion + (speed > 3.6 ? 0.12 : -0.16) * step));
+  // A short sprint should be felt immediately: visible breath after ~1 second,
+  // saturated exertion after 4 seconds; the visor clears over 5 seconds walking.
+  crew.exertion = Math.max(0, Math.min(1, crew.exertion + (speed > 3.6 ? 0.25 : -0.2) * step));
   const danger =
     crew.options.test || !Number.isFinite(monsterDistance)
       ? 0
@@ -230,10 +231,11 @@ export function ventPairs(
   const cached = ventsCache.get(spec);
   if (cached) return cached;
   const pairs: Array<{ a: string; b: string; x: number; z: number; dir: number }> = [];
-  for (let i = 0; i < spec.rooms.length; i++)
-    for (let j = i + 1; j < spec.rooms.length; j++) {
-      const a = spec.rooms[i]!;
-      const b = spec.rooms[j]!;
+  const spaces = spacesOf(spec);
+  for (let i = 0; i < spaces.length; i++)
+    for (let j = i + 1; j < spaces.length; j++) {
+      const a = spaces[i]!;
+      const b = spaces[j]!;
       for (const [one, two] of [
         [a, b],
         [b, a],
@@ -254,12 +256,12 @@ export function ventDestination(spec: HouseSpec, from: string, target: string): 
   const neighbours = ventPairs(spec).flatMap((p) =>
     p.a === from ? [p.b] : p.b === from ? [p.a] : [],
   );
-  const goal = spec.rooms.find((r) => r.id === target);
+  const goal = roomOf(spec, target);
   if (!goal || neighbours.length === 0) return null;
   const g = roomCentre(goal);
   return neighbours.sort((a, b) => {
-    const p = roomCentre(spec.rooms.find((r) => r.id === a)!);
-    const q = roomCentre(spec.rooms.find((r) => r.id === b)!);
+    const p = roomCentre(roomOf(spec, a)!);
+    const q = roomCentre(roomOf(spec, b)!);
     return Math.hypot(p.x - g.x, p.z - g.z) - Math.hypot(q.x - g.x, q.z - g.z);
   })[0]!;
 }

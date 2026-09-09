@@ -585,6 +585,7 @@ export const STANDARD_GRIP_TOOLS: ReadonlySet<string> = new Set([
   'tape',
   'eraser',
   'xray',
+  'radar',
   // Der Handspiegel: derselbe Rahmen über derselben Faust wie der Scanner.
   'mirror',
   // Der Lötkolben trägt den Griff quer unter sich, wie eine Lötpistole. Die

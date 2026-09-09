@@ -31,7 +31,7 @@ html, body {
   touch-action: none;
 }
 
-.frame-stats { position: fixed; top: calc(env(safe-area-inset-top) + 58px); right: max(10px, env(safe-area-inset-right)); z-index: 9; padding: 6px 9px; border: 1px solid #65808e; border-radius: 6px; background: #061016e6; color: #c7f4df; font: 12px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; }
+.frame-stats { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); right: max(10px, env(safe-area-inset-right)); z-index: 9; padding: 6px 9px; border: 1px solid #65808e; border-radius: 6px; background: #061016e6; color: #c7f4df; font: 12px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; }
 .frame-stats[hidden] { display: none; }
 
 /* ---------- Landing ---------- */

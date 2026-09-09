@@ -68,6 +68,7 @@ export class FlashlightTool extends Tool {
   /** Half angle of the cone, in degrees. */
   private angle = DEFAULT_BEAM_ANGLE;
   private on = false;
+  private beamGuide = true;
   /** What it was doing before it went onto a hip — a dropped one stays lit. */
   private wasOn = false;
 
@@ -218,6 +219,13 @@ export class FlashlightTool extends Tool {
     return this.on;
   }
 
+  /** Training worlds can show the beam volume; interiors use the real spot light alone. */
+  setBeamGuide(visible: boolean): void {
+    if (this.beamGuide === visible) return;
+    this.beamGuide = visible;
+    this.applyBeam();
+  }
+
   /** Switches the torch on or off without anybody pressing anything. */
   setLit(on: boolean): void {
     if (this.on === on) return;
@@ -337,7 +345,7 @@ export class FlashlightTool extends Tool {
     this.cone.scale.set(radius, CONE_LENGTH, radius);
     // A narrow beam is a brighter shaft of dust; a wide one barely shows.
     this.cone.material.opacity = this.on ? 0.035 + (1 - angle / 90) * 0.05 : 0;
-    this.cone.visible = this.on;
+    this.cone.visible = this.on && this.beamGuide;
   }
 
   /** The ring glows while the free hand is on the lens. */

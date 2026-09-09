@@ -1,5 +1,5 @@
 import { DIR_E, DIR_N, DIR_S, TILE, type Dir } from '../nav/navTile';
-import { roomAt, type HouseDoor, type HouseSpec } from './house';
+import { roomAt, spacesOf, type HouseDoor, type HouseSpec } from './house';
 
 /**
  * **Was das Monster mit dem Haus macht, während es darin herumläuft.**
@@ -216,7 +216,7 @@ function sealsOff(spec: HouseSpec, shut: ReadonlySet<string>, closing: string): 
       queue.push(next);
     }
   }
-  return seen.size < spec.rooms.length;
+  return spacesOf(spec).some((room) => !seen.has(room.id));
 }
 
 /**

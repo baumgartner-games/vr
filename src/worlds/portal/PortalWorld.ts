@@ -5380,6 +5380,16 @@ export class PortalWorld implements World {
     ctx.notify(tool.label);
   }
 
+  /** Station inventory uses the same held objects and hip storage as grabbing. */
+  protected carriedTool(hand: Handedness): Tool | null {
+    return this.held.get(hand) ?? null;
+  }
+
+  protected stowCarriedTool(hand: Handedness): void {
+    const tool = this.held.get(hand);
+    if (tool) this.stowTool(tool, hand);
+  }
+
   /** The gun in a hand that can place this portal, if there is one. */
   private heldGunFor(key: PortalKey): PortalGunTool | null {
     for (const tool of this.held.values()) {

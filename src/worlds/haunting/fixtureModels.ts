@@ -9,14 +9,14 @@ type Vec = [number, number, number];
 type Finish = 'shell' | 'dark' | 'metal' | 'rubber' | 'glass' | 'amber' | 'cyan' | 'green';
 
 const FINISHES: Record<Finish, { color: number; emissive?: number }> = {
-  shell: { color: 0x9b9c8e },
-  dark: { color: 0x252e30 },
-  metal: { color: 0x626b69 },
-  rubber: { color: 0x343b39 },
-  glass: { color: 0x102b30 },
-  amber: { color: 0xc99043, emissive: 0xa85215 },
-  cyan: { color: 0x64b5ad, emissive: 0x235853 },
-  green: { color: 0x4f7048 },
+  shell: { color: 0xc0d4df },
+  dark: { color: 0x172a3a },
+  metal: { color: 0x668499 },
+  rubber: { color: 0x334756 },
+  glass: { color: 0x153e57 },
+  amber: { color: 0xffc358, emissive: 0xb86617 },
+  cyan: { color: 0x69e6ef, emissive: 0x2c868f },
+  green: { color: 0x61b77a },
 };
 
 /**
@@ -59,7 +59,7 @@ class FixtureBuilder {
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: d - r * 2,
       bevelEnabled: r > 0,
-      bevelSegments: 1,
+      bevelSegments: Math.min(w, h, d) > 0.08 ? 2 : 1,
       steps: 1,
       bevelSize: r,
       bevelThickness: r,
@@ -77,7 +77,7 @@ class FixtureBuilder {
     axis: 'x' | 'y' | 'z' = 'y',
   ): void {
     this.add(
-      new THREE.CylinderGeometry(radius, radius, height, 12),
+      new THREE.CylinderGeometry(radius, radius, height, 16),
       finish,
       at,
       axis === 'x' ? [0, 0, Math.PI / 2] : axis === 'z' ? [Math.PI / 2, 0, 0] : [0, 0, 0],
@@ -85,7 +85,7 @@ class FixtureBuilder {
   }
 
   capsule(size: Vec, at: Vec, finish: Finish, horizontal = false): void {
-    const geometry = new THREE.CapsuleGeometry(1, 1, 3, 12);
+    const geometry = new THREE.CapsuleGeometry(1, 1, 4, 16);
     if (horizontal) geometry.rotateZ(Math.PI / 2);
     geometry.computeBoundingBox();
     const bounds = geometry.boundingBox!.getSize(new THREE.Vector3());
@@ -95,7 +95,7 @@ class FixtureBuilder {
 
   ring(radius: number, tube: number, at: Vec, finish: Finish, axis: 'x' | 'y' | 'z' = 'z'): void {
     this.add(
-      new THREE.TorusGeometry(radius, tube, 4, 12),
+      new THREE.TorusGeometry(radius, tube, 5, 16),
       finish,
       at,
       axis === 'x' ? [0, Math.PI / 2, 0] : axis === 'y' ? [Math.PI / 2, 0, 0] : [0, 0, 0],
@@ -167,8 +167,8 @@ class FixtureBuilder {
       const definition = FINISHES[finish];
       const material = new THREE.MeshStandardMaterial({
         color: definition.color,
-        roughness: finish === 'glass' ? 0.39 : 0.77,
-        metalness: finish === 'metal' ? 0.48 : 0.12,
+        roughness: finish === 'glass' ? 0.24 : finish === 'rubber' ? 0.88 : 0.57,
+        metalness: finish === 'metal' ? 0.58 : finish === 'glass' ? 0.35 : 0.16,
         emissive: definition.emissive ?? 0,
         emissiveIntensity: 0.35,
       });
@@ -183,7 +183,7 @@ class FixtureBuilder {
 }
 
 /** Low-poly industrial fittings, floor at Y=0, front at +Z. */
-export function buildFixture(id: MarkId): THREE.Group {
+export function buildFixture(id: MarkId, style: 'default' | 'canteen' = 'default'): THREE.Group {
   const b = new FixtureBuilder();
   switch (id) {
     case 'wanne': {
@@ -368,6 +368,21 @@ export function buildFixture(id: MarkId): THREE.Group {
       break;
     }
     case 'esstisch': {
+      if (style === 'canteen') {
+        b.cylinder(0.22, 0.075, [0, 0.038, 0], 'metal');
+        b.cylinder(0.09, 0.69, [0, 0.4, 0], 'dark');
+        b.capsule([1.2, 0.095, 1.0], [0, 0.81, 0], 'shell', true);
+        b.capsule([1.08, 0.024, 0.87], [0, 0.864, 0], 'cyan', true);
+        for (const x of [-0.76, 0.76]) {
+          b.box([0.12, 0.5, 0.54], [x, 0.26, 0], 'metal', 0.02);
+          b.capsule([0.29, 0.105, 0.84], [x, 0.56, 0], 'rubber');
+        }
+        for (const x of [-0.23, 0.23]) {
+          b.cylinder(0.11, 0.014, [x, 0.885, 0.12], 'metal');
+          b.cylinder(0.038, 0.09, [x, 0.926, -0.15], 'shell');
+        }
+        break;
+      }
       for (const x of [-0.73, 0.73]) {
         b.box([0.12, 0.86, 0.77], [x, 0.43, 0], 'metal', 0.03);
         b.cylinder(0.035, 0.66, [x, 1.24, -0.37], 'metal');

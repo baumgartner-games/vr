@@ -826,3 +826,39 @@ body.haunt-on .touch { display: none; }
 .orbital-crosshair[hidden] { display: none; }
 
 .orbital-crosshair::after { content: attr(data-label); position: absolute; top: 22px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #e3eee8; font: 12px system-ui,sans-serif; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
+
+/* An ended round needs an explicit state and a large, reachable next action. */
+.orbital-result {
+  position: fixed;
+  left: 50%;
+  top: 26%;
+  transform: translateX(-50%);
+  z-index: 5;
+  box-sizing: border-box;
+  width: min(460px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid #a4e4e8;
+  border-radius: 16px;
+  background: linear-gradient(150deg, #142f40f5, #0a1724f5);
+  color: #eefaff;
+  font: 600 17px/1.6 system-ui, sans-serif;
+  text-align: center;
+  box-shadow: 0 16px 60px #0009, inset 0 1px #c5faff24;
+}
+.orbital-result[hidden] { display: none; }
+.orbital-result p { margin: 0 0 18px; }
+.orbital-result button {
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 18px;
+  border: 1px solid #a2e8e7;
+  border-radius: 9px;
+  background: #8ae2dc;
+  color: #08212a;
+  font: 700 16px system-ui, sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.orbital-result button:hover { background: #b3f6ec; }
+.orbital-result button:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+@media (max-height: 500px) { .orbital-result { top: 17%; padding: 18px; } }

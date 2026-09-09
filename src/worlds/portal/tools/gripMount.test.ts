@@ -36,6 +36,7 @@ import { TapeTool } from './TapeTool';
 import { TeleportTool } from './TeleportTool';
 import { TransformTool } from './TransformTool';
 import { WelderTool } from './WelderTool';
+import { RadarTool } from './RadarTool';
 import { XrayTool } from './XrayTool';
 import { GRIP_HOLD_POSITION, gripDeviation } from './gripFit';
 import { STANDARD_GRIP_TOOLS } from '../../../core/handPose';
@@ -83,6 +84,7 @@ const BUILDERS: Record<string, () => Tool> = {
   tape: () => new TapeTool(),
   eraser: () => new EraserTool(),
   xray: () => new XrayTool(),
+  radar: () => new RadarTool(),
   mirror: () => new MirrorTool(),
   knife: () => new KnifeTool(),
   stopwatch: () => new StopwatchTool(),

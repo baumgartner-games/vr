@@ -14,7 +14,7 @@ import {
   tileKey,
   type Dir,
 } from '../nav/navTile';
-import { FlashlightTool } from '../portal/tools';
+import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { pickHost } from '../../net/host';
 import {
@@ -23,10 +23,11 @@ import {
   roomAt,
   roomCentre,
   roomOf,
+  spacesOf,
+  stationBounds,
   tilesOf,
   DRONE_HOME,
   APRON,
-  HOUSE,
   VAN_ID,
   type HouseDoor,
   type HouseRoom,
@@ -60,6 +61,8 @@ import { stepThreat, threatTarget } from './threat';
 import { visibleStationRooms } from './stationVisibility';
 import { stationRoute } from './stationNavigation';
 import { StationNpcNavigator } from './stationNpcNavigator';
+import { AutomaticDoors } from './automaticDoors';
+import { StationTravelPlan } from './stationTravelPlan';
 import {
   freshCrew,
   MONSTERS,
@@ -161,16 +164,11 @@ const TILT_MOST = Math.PI * 0.45;
 const VEIL_RATIO = 0.1;
 
 /**
- * **Wie tief das Blatt des Archivars aufgeschnitten wird.**
- *
- * Knapp **unter dem Türsturz** und nicht knapp unter der Decke. Über jeder Tür
- * steht ein Sturz von der Türhöhe bis an die Decke (`levelBuild.doorParts`) —
- * eine Wandscheibe, die von oben aussieht wie Wand. Wer nur die Decke abnimmt,
- * legt ein Haus frei, in dem jede Tür zugemauert ist; genau das war der Grund,
- * aus dem der Archivar seine Türen nicht fand. Ein Fingerbreit tiefer, und aus
- * jeder Tür wird die Lücke, die sie ist.
+ * Der Raumscan nimmt nur die Decke ab. Ein Schnitt unter Türhöhe würde hohe
+ * Server, Reaktoren und Schutzschränke ebenfalls abschneiden. Wandkanten und
+ * Türzustände werden knapp unter diesem Schnitt als Scanmarkierungen ergänzt.
  */
-const PAPER_CUT = PLAN_DOOR_H - 0.05;
+const PAPER_CUT = PLAN_WALL_H - 0.08;
 
 /**
  * Auf welcher Höhe die Türzeichen liegen: knapp unter dem Schnitt, und damit
@@ -180,11 +178,9 @@ const PAPER_CUT = PLAN_DOOR_H - 0.05;
 const PAPER_MARK_Y = PAPER_CUT - 0.01;
 
 /**
- * Womit auf dem Blatt gezeichnet wird — **hell**, denn Sepia frisst die Farbe
- * und lässt nur die Helligkeit übrig. Wände und Türbögen kommen aus derselben
- * Dose: Was gezeichnet ist, gehört zusammen.
+ * Helle cyanfarbene Scanlinien für Wandkanten und Türzeichen.
  */
-const PAPER_INK = 0xf6e6c4;
+const PAPER_INK = 0xadebff;
 
 /**
  * Und der eine dunkle Strich: **das Blatt einer geschlossenen Tür.**
@@ -194,7 +190,7 @@ const PAPER_INK = 0xf6e6c4;
  * einer hellen Wand ist dagegen genau das, was es sein soll: etwas, das den
  * Durchgang zumacht.
  */
-const PAPER_SHUT = 0x1b1610;
+const PAPER_SHUT = 0x142d42;
 
 /**
  * **Wie schräg der Fernseher auf das Haus schaut**, in Bogenmaß.
@@ -222,12 +218,12 @@ const SHOW_FOV = 42;
 const SHOW_CUT = PLAN_WALL_H - 0.4;
 
 /** Der Himmel über dem Zuschauer: heller Tag, nicht die Nacht der anderen. */
-const SHOW_SKY = 0x9dc0e4;
+const SHOW_SKY = 0x020711;
 
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 
 /** Wie hell eine brennende Zimmerlampe ist, wenn niemand an ihr rüttelt. */
-const LAMP_ON = 18;
+const LAMP_ON = 48;
 
 /** Die Lampe eines Zimmers: das Licht und das Glas, das zeigt, dass es an ist. */
 interface Lamp {
@@ -266,6 +262,10 @@ export class HauntingWorld extends GridWorld {
   private experience: ShipExperience | null = null;
   private mountedRole = '';
   private flatTechnician = false;
+  private pendingBotRound = false;
+  private pendingRestart = false;
+  private readonly automaticDoors = new AutomaticDoors();
+  private readonly travelPlan = new StationTravelPlan();
   private readonly technicians = new Map<string, number>();
   private lampPool: THREE.PointLight[] = [];
   private testLight: THREE.AmbientLight | null = null;
@@ -351,9 +351,8 @@ export class HauntingWorld extends GridWorld {
    *
    * Ein Grundriss zeichnet Türen, er fotografiert sie nicht: eine offene als
    * Schwelle mit dem Bogen, den das Blatt schlägt, eine geschlossene als
-   * ausgefüllte Lücke. Ohne die Zeichen bleibt von einer Tür auch nach dem
-   * tieferen Schnitt nur ein Stück dunkler Boden zwischen zwei Wandstücken —
-   * auf einem Telefon, durch einen Sepiafilter, in einem braunen Zimmer.
+   * ausgefüllte Lücke. So bleiben Durchgänge auch im kleinen Raumbild auf
+   * einem Telefon erkennbar.
    *
    * Sie hängen im Blatt und nicht in der Welt: Der VR-Spieler sieht echte
    * Türen und braucht keine Symbole, und ein Kreidestrich, der im Haus
@@ -436,6 +435,8 @@ export class HauntingWorld extends GridWorld {
   /** Der Weg, den sie gerade abfliegt, und wie oft er neu gesucht wird. */
   private droneRoute: DroneRoute = { tiles: [], complete: true, grounded: true };
   private droneThink = 0;
+  private droneGraphVersion = -1;
+  private droneVisualYaw = Math.PI;
   /** Ob ich sie gerade selbst fliege — der Wechsel darauf ist die Übergabe. */
   private piloting = false;
   /** Woran erkannt wird, dass der Scheinwerfer wirklich umgelegt wurde. */
@@ -522,6 +523,10 @@ export class HauntingWorld extends GridWorld {
     return 0x020711;
   }
 
+  protected override horizonColor(): number | null {
+    return null;
+  }
+
   /** Fast nichts — aber nicht *ganz* nichts: die eigenen Hände muss man sehen. */
   protected override lightIntensity(): number {
     return 0;
@@ -545,7 +550,7 @@ export class HauntingWorld extends GridWorld {
 
   /** Eine Hand bleibt frei — in diesem Haus will man eine Lampe halten. */
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
-    return [];
+    return [['flashlight', 'right']];
   }
 
   protected override welcome(): string {
@@ -636,7 +641,7 @@ export class HauntingWorld extends GridWorld {
     // Etwas dünner als vorher, damit vom Van aus überhaupt ein Haus zu sehen
     // ist — drinnen ändert das nichts, dort ist auf zwölf Meter ohnehin eine
     // Wand.
-    ctx.scene.fog = new THREE.FogExp2(0x000104, 0.032);
+    ctx.scene.fog = new THREE.FogExp2(0x020711, 0.008);
     ctx.net.on(HAUNT_CHANNEL, (data, from) => this.receive(data, from));
     this.joinTable(ctx);
 
@@ -651,6 +656,7 @@ export class HauntingWorld extends GridWorld {
     this.clearStationViews();
     this.wanted = null;
     this.claims.delete(ctx.net.localId);
+    ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician', active: ctx.role === 'vr' });
     if (ctx.role === 'vr') {
       // Nur in der Brille schwebt eine eingeschaltete Taschenlampe im Van —
       // man muss sie im Dunkeln ja finden können.
@@ -664,8 +670,10 @@ export class HauntingWorld extends GridWorld {
         if (torch instanceof FlashlightTool) this.stationTorch = torch;
       }
       this.torchImmersive = ctx.renderer.xr.isPresenting;
-      this.stationTorch?.setLit(this.torchImmersive);
+      this.stationTorch?.setBeamGuide(false);
+      this.stationTorch?.setLit(true);
     } else {
+      this.pendingBotRound = false;
       this.stationTorch?.setLit(false);
       this.buildStationViews();
       this.ui = new StationUi({
@@ -676,6 +684,14 @@ export class HauntingWorld extends GridWorld {
         me: () => ctx.net.localId,
         technician: () => {
           this.flatTechnician = true;
+        },
+        menu: () => ctx.menu.toggle(),
+        botRound: () => this.requestBotRound(ctx),
+        restart: () => {
+          if (this.isHost) {
+            this.flatTechnician = true;
+            this.pendingRestart = true;
+          }
         },
         link: () => ({
           peers: [...ctx.net.peers.values()].filter((p) => p.world === 'haunting').length,
@@ -726,6 +742,7 @@ export class HauntingWorld extends GridWorld {
     this.ui = null;
     this.experience?.dispose();
     this.experience = null;
+    this.releaseMonster();
     this.dropFixtures();
     this.fixtureMaterial.dispose();
     this.roomArt.clear();
@@ -738,7 +755,17 @@ export class HauntingWorld extends GridWorld {
     this.roomWalls.clear();
     this.lamps.clear();
     this.monster = null;
+    this.monsterArt = null;
     this.blob = null;
+    this.stationTorch = null;
+    this.automaticDoors.clear();
+    this.travelPlan.clear();
+    this.technicians.clear();
+    this.hostId = '';
+    this.mountedRole = '';
+    this.flatTechnician = false;
+    this.pendingBotRound = false;
+    this.pendingRestart = false;
     this.droneBody = null;
     this.droneHead = null;
     this.droneCam = null;
@@ -771,14 +798,14 @@ export class HauntingWorld extends GridWorld {
     this.culledHead.set(Infinity, Infinity, Infinity);
     this.buildFixtureColliders();
     this.lampPool = Array.from({ length: 2 }, () => {
-      const light = new THREE.PointLight(0xcce8e6, 0, 6.5, 2);
+      const light = new THREE.PointLight(0xcce8e6, 0, 15, 2);
       this.stage.add(light);
       return light;
     });
     this.testLight = new THREE.AmbientLight(0xd5e9f3, 0);
     this.testLight.userData.dynamicIntensity = true;
     this.stage.add(this.testLight);
-    for (const room of this.spec.rooms) this.buildLamp(room.id, roomCentre(room));
+    for (const room of spacesOf(this.spec)) this.buildLamp(room.id, roomCentre(room));
     if (this.context) this.mountExperience(this.context);
     if (this.ui) this.buildDoorMarks();
     this.nextPhoneRender = 0;
@@ -808,6 +835,10 @@ export class HauntingWorld extends GridWorld {
     this.fixtureSlabs.length = 0;
   }
 
+  private travelGraph() {
+    return this.travelPlan.graph(this.spec, this.state.shut, this.state.crew.options.test);
+  }
+
   private mountExperience(ctx: WorldContext): void {
     this.experience?.dispose();
     this.experience = new ShipExperience({
@@ -818,13 +849,41 @@ export class HauntingWorld extends GridWorld {
       configure: (options) => this.configureStation(options),
       start: () => this.startMission(),
       test: () => this.testMission(),
+      stations: () => {
+        this.flatTechnician = false;
+        this.pendingBotRound = false;
+        ctx.menu.toggle(false);
+      },
       door: (id) => this.manualDoor(id),
+      doorOpen: (id) =>
+        id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id),
+      doorLocked: (id) =>
+        id === 'test-bay' ? !this.state.crew.options.test : this.state.shut.includes(id),
       travel: (at) => this.movePlayerTo(ctx, at),
+      equip: (id, hand) => {
+        if (id === 'off') this.stowCarriedTool(hand);
+        else {
+          if (this.carriedTool(hand)?.toolId !== id) this.equipTool(ctx, hand, id);
+          const tool = this.carriedTool(hand);
+          // An inventory choice uses the trigger, not the grip. Keep the gift
+          // in the hand until its first deliberate grip/release gesture.
+          if (tool) tool.regrip = !ctx.input.get(hand)?.squeeze.pressed;
+        }
+      },
+      carried: (hand) => this.carriedTool(hand),
+      floatingTorch: () => this.stationTorch,
+      takeFloatingTorch: () => {
+        if (this.stationTorch) {
+          const entry = this.props.find((prop) => prop.object === this.stationTorch);
+          if (entry) this.removeProp(entry, false);
+          this.stationTorch = null;
+        }
+      },
+      routeVersion: () => this.travelGraph().version,
+      routeTo: (from, target) => stationRoute(this.spec, this.travelGraph(), from, target),
       route: (from, room) => {
         const c = roomCentre(room);
-        return this.grid
-          ? stationRoute(this.spec, this.grid.graph, from, tileKey(c.x, c.z, 0))
-          : null;
+        return stationRoute(this.spec, this.travelGraph(), from, tileKey(c.x, c.z, 0));
       },
     });
     this.stage.add(this.experience.root);
@@ -841,7 +900,9 @@ export class HauntingWorld extends GridWorld {
     this.lamps.set(roomId, {
       glass,
       at: glass.position.clone(),
-      color: roomAccent(roomOf(this.spec, roomId)?.kind ?? ''),
+      color: new THREE.Color(0xd9edff)
+        .lerp(new THREE.Color(roomAccent(roomOf(this.spec, roomId)?.kind ?? '')), 0.22)
+        .getHex(),
     });
   }
 
@@ -1038,9 +1099,18 @@ export class HauntingWorld extends GridWorld {
     this.droneHead?.add(droneCam);
     this.droneCam = droneCam;
 
-    const dark = new THREE.MeshBasicMaterial({ color: 0x0a0d14, toneMapped: false });
+    // Draw the dossier border last, including over transparent trim above the
+    // camera cut. No geometry from neighbouring rooms may reveal the layout.
+    const dark = new THREE.MeshBasicMaterial({
+      color: 0x0a0d14,
+      toneMapped: false,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    });
     for (let i = 0; i < 4; i++) {
       const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), dark);
+      quad.renderOrder = 10000;
       quad.rotation.x = -Math.PI / 2;
       this.paperMask.add(quad);
     }
@@ -1051,7 +1121,7 @@ export class HauntingWorld extends GridWorld {
     this.root.add(this.paperDoors);
     this.buildDoorMarks();
 
-    const paper = new THREE.AmbientLight(0xfff0dc, 0);
+    const paper = new THREE.AmbientLight(0xc7ecff, 0);
     this.root.add(paper);
     this.paperLight = paper;
     const sun = new THREE.DirectionalLight(0xffffff, 0);
@@ -1126,8 +1196,7 @@ export class HauntingWorld extends GridWorld {
    *
    * Die Zeichen sind die aus einem Grundriss: **offen** ein schmaler Strich in
    * der Öffnung und der Viertelbogen, den das Blatt schlägt; **zu** die
-   * ausgefüllte Lücke. Beide in Papierfarbe — hell genug, dass sie durch den
-   * Sepiafilter kommen, und die Form sagt die Auskunft, nicht die Farbe.
+   * ausgefüllte Lücke. Zusätzlich zur Farbe macht die Form den Zustand lesbar.
    */
   private buildDoorMarks(): void {
     dispose(this.paperDoors);
@@ -1144,7 +1213,7 @@ export class HauntingWorld extends GridWorld {
       side: THREE.DoubleSide,
     });
 
-    for (const room of this.spec.rooms) {
+    for (const room of spacesOf(this.spec)) {
       const walls = this.wallsOf(room, ink);
       walls.visible = false;
       this.paperDoors.add(walls);
@@ -1223,7 +1292,6 @@ export class HauntingWorld extends GridWorld {
         // (`plan.innerWalls` und die Außenmauer): zwischen zwei verschiedenen
         // Zimmern und am Rand des Hauses. Eine Kachel ohne Zimmer *im* Haus
         // wäre eine Lücke im Bauplan und bekommt auch dort keine Wand.
-        if (!next && inside(HOUSE, nx, nz)) continue;
         const edge = edgeCentre(tile.x, tile.z, dir);
         const door = this.doorAt(tile.x, tile.z, dir);
         const parts: Array<[number, number]> = door
@@ -1331,9 +1399,18 @@ export class HauntingWorld extends GridWorld {
     super.update(dt, ctx);
     if (this.stationTorch && this.torchImmersive !== ctx.renderer.xr.isPresenting) {
       this.torchImmersive = ctx.renderer.xr.isPresenting;
-      this.stationTorch.setLit(this.torchImmersive);
+      if (this.stationTorch.visible) this.stationTorch.setLit(true);
     }
     this.refreshHost(ctx);
+    if (this.pendingRestart && this.isHost && ctx.role === 'vr') {
+      this.pendingRestart = false;
+      this.startMission();
+    }
+    if (this.pendingBotRound && this.isHost && ctx.role === 'vr') {
+      this.pendingBotRound = false;
+      this.testMission();
+      this.experience?.startBotRound();
+    }
 
     if (this.isHost) {
       this.state.time += dt;
@@ -1343,11 +1420,11 @@ export class HauntingWorld extends GridWorld {
     }
 
     this.stepSpook(dt);
-    this.applyDoors();
+    this.applyDoors(dt);
     // **Das Licht wird je Bild gesetzt und nicht je Änderung**, seit es
     // flackert: Eine Lampe, die nur beim Umlegen eines Schalters angefasst
     // wird, zuckt nicht. Sieben Lampen je Bild kosten nichts.
-    this.applyLights();
+    this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
     this.applyBlob();
     this.experience?.update(dt);
@@ -1394,12 +1471,27 @@ export class HauntingWorld extends GridWorld {
       })),
     ];
     const next = pickGameHost(candidates) || pickHost(candidates);
-    if (next !== this.hostId) this.hostId = next;
+    if (next === this.hostId) return;
+    const wasHost = this.hostId === ctx.net.localId;
+    this.hostId = next;
+    if (wasHost) this.releaseMonster();
+    if (
+      next === ctx.net.localId &&
+      this.state.phase === 'running' &&
+      this.state.monsterOn &&
+      this.state.monster &&
+      !this.state.crew.options.test &&
+      !this.state.crew.simulation
+    ) {
+      if (this.blob) this.blob.visible = false;
+      this.spawnMonster(this.state.monster);
+    }
   }
 
   private receive(data: unknown, from: string): void {
     if (typeof data === 'object' && data !== null && 'kind' in data && data.kind === 'technician') {
-      this.technicians.set(from, clock());
+      if ('active' in data && data.active === false) this.technicians.delete(from);
+      else this.technicians.set(from, clock());
       return;
     }
     const state = readState(data);
@@ -1422,7 +1514,7 @@ export class HauntingWorld extends GridWorld {
       // der Nachricht (`net.DroneState.yaw`), weil eine Drohne, die im Stehen
       // schwenkt, keinen Weg hinterlässt, aus dem er sich ableiten ließe — und
       // ein gesetzter Winkel bei zehn Ansagen je Sekunde sichtbar ruckelt.
-      this.droneBody?.position.set(drone.x, DRONE_Y, drone.z);
+      // Remote positions are interpolated in turnDroneBody, never snapped per packet.
       this.drone = drone;
       this.applyDroneLight();
       return;
@@ -1460,12 +1552,17 @@ export class HauntingWorld extends GridWorld {
 
   /** Den Stand des Gastgebers übernehmen — samt Haus, wenn es ein anderes ist. */
   private adopt(next: HauntState): void {
-    if (next.seed !== this.spec.seed || next.crew.options.rooms !== this.spec.rooms.length) {
+    if (
+      next.seed !== this.spec.seed ||
+      next.crew.options.rooms !== this.spec.rooms.length ||
+      next.crew.options.test !== this.state.crew.options.test
+    ) {
       this.spec = generateHouse(next.seed, next.crew.options.rooms);
       this.state = next;
       this.spook = freshSpook();
+      this.automaticDoors.clear();
       this.grid?.replaceWith(housePlan(this.spec, new Set(next.shut), next.crew.options.test));
-      this.builtDoors = next.shut.join(',');
+      this.builtDoors = '?';
       this.buildHouse();
       this.parkDrone();
       return;
@@ -1488,11 +1585,19 @@ export class HauntingWorld extends GridWorld {
 
   /** Bei allen anderen steht an dieser Stelle ein Klotz — mehr braucht es nicht. */
   private applyBlob(): void {
-    if (this.isHost) return;
+    if (this.isHost) {
+      if (this.blob) this.blob.visible = false;
+      return;
+    }
     const at = this.state.monster;
     if (!at) {
       if (this.blob) this.blob.visible = false;
       return;
+    }
+    if (this.blob && this.blob.name !== `creature-${this.state.crew.options.monster}`) {
+      this.blob.removeFromParent();
+      dispose(this.blob);
+      this.blob = null;
     }
     if (!this.blob) {
       const blob = buildCreature(this.state.crew.options.monster);
@@ -1576,10 +1681,7 @@ export class HauntingWorld extends GridWorld {
       monster,
       speed,
       crouched: ctx.rig.crouch > 0.15,
-      noise: this.experience?.microphoneLevel ?? 0,
-      flashlight: ctx.renderer.xr.isPresenting
-        ? !!this.stationTorch?.lit && this.stationTorch.heldBy !== null
-        : (this.experience?.flashlightActive ?? false),
+      flashlight: this.experience?.flashlightActive ?? false,
       lineOfSight: this.monsterSeesPlayer,
       insideStation: !!roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)),
     });
@@ -1696,23 +1798,34 @@ export class HauntingWorld extends GridWorld {
    * Sliding doors change only their collider and navigation wall. The station
    * hull stays allocated; unchanged snapshots do not trigger graph updates.
    */
-  private applyDoors(): void {
+  private applyDoors(dt: number): void {
     const now = this.state.shut.join(',') + `/test:${this.state.crew.options.test}`;
-    if (now === this.builtDoors) return;
     const before = this.builtDoors;
     this.builtDoors = now;
     const shut = new Set(this.state.shut);
-    for (const door of this.spec.doors) {
-      this.setSlidingGridDoor(door.x, door.z, door.dir, !shut.has(door.id));
+    const doors = this.state.crew.options.test
+      ? [...this.spec.doors, TRAINING_DOOR]
+      : this.spec.doors;
+    const occupants: Array<{ x: number; y?: number; z: number }> = [];
+    if (this.context?.role === 'vr') occupants.push(this.context.rig.getHeadPosition(_head));
+    if (this.state.monster) occupants.push(this.state.monster);
+    occupants.push(this.drone);
+    const bot = this.experience?.botPosition;
+    if (bot) occupants.push(bot);
+    for (const peer of this.context?.net.peers.values() ?? []) {
+      if (
+        peer.world === 'haunting' &&
+        peer.pose &&
+        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000)
+      )
+        occupants.push({ x: peer.pose.head[0], y: peer.pose.head[1], z: peer.pose.head[2] });
     }
-    if (this.state.crew.options.test)
-      this.setSlidingGridDoor(
-        TRAINING_DOOR.x,
-        TRAINING_DOOR.z,
-        TRAINING_DOOR.dir,
-        !shut.has(TRAINING_DOOR.id),
-      );
-    this.hearSlam(before, shut);
+    for (const door of doors) {
+      const at = doorEdge(door);
+      const open = this.automaticDoors.step(door.id, at, shut.has(door.id), occupants, dt);
+      this.setSlidingGridDoor(door.x, door.z, door.dir, open);
+    }
+    if (now !== before) this.hearSlam(before, shut);
   }
 
   /**
@@ -1781,14 +1894,28 @@ export class HauntingWorld extends GridWorld {
    * wie ein Fehler in der Beleuchtung und nicht wie eine Lampe, die gleich
    * ausgeht.
    */
-  private applyLights(): void {
+  private applyLights(dt = 1): void {
     const bright = this.state.crew.options.test && this.state.crew.options.bright;
     this.context?.rig.getHeadPosition(_head);
     if (this.ui?.station === 'drone' && this.droneBody) _head.copy(this.droneBody.position);
-    const lighting = stationLighting(this.state.crew, !!trainingRoomAt(_head.x, _head.z));
-    if (this.testLight) this.testLight.intensity = lighting.ambient;
+    const tileX = Math.floor(_head.x / TILE);
+    const tileZ = Math.floor(_head.z / TILE);
+    const viewRoom = roomAt(this.spec, tileX, tileZ);
+    const poweredDeck =
+      onApron(tileX, tileZ) || (!!viewRoom && this.state.lit.includes(viewRoom.id));
+    const lighting = stationLighting(
+      this.state.crew,
+      !!trainingRoomAt(_head.x, _head.z),
+      poweredDeck,
+    );
+    if (this.testLight)
+      this.testLight.intensity = THREE.MathUtils.damp(
+        this.testLight.intensity,
+        lighting.ambient,
+        8,
+        dt,
+      );
     if (this.commandLight) this.commandLight.intensity = lighting.command;
-    const viewRoom = roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE));
     const active = [...this.lamps.entries()].filter(
       ([id]) =>
         lighting.lamps &&
@@ -2013,7 +2140,10 @@ export class HauntingWorld extends GridWorld {
   private turnDroneBody(dt: number): void {
     const body = this.droneBody;
     if (!body) return;
-    const step = Math.min(1, dt * DRONE_TURN);
+    const step = 1 - Math.exp(-Math.max(0, dt) * DRONE_TURN);
+    body.position.x += (this.drone.x - body.position.x) * step;
+    body.position.z += (this.drone.z - body.position.z) * step;
+    body.position.y = DRONE_Y - Math.abs(Math.sin(this.state.time * 1.7)) * 0.025;
     const gap = Math.atan2(
       Math.sin(this.drone.yaw - body.rotation.y),
       Math.cos(this.drone.yaw - body.rotation.y),
@@ -2094,6 +2224,15 @@ export class HauntingWorld extends GridWorld {
     // Erst die Bahn, dann der Blick darauf: `faceDrone` rechnet beides
     // zusammen und schreibt den Winkel in die Ansage.
     this.faceDrone();
+    const yawRate = wrapAngle(this.dronePose.yaw - this.droneVisualYaw) / Math.max(dt, 0.001);
+    this.droneVisualYaw = this.dronePose.yaw;
+    body.rotation.z = THREE.MathUtils.damp(
+      body.rotation.z,
+      Math.max(-0.09, Math.min(0.09, -yawRate * 0.035)),
+      5,
+      dt,
+    );
+    body.position.y = DRONE_Y - Math.abs(Math.sin(this.state.time * 1.7)) * 0.025;
     this.noteDroneRoom();
 
     this.droneTimer -= dt;
@@ -2133,13 +2272,14 @@ export class HauntingWorld extends GridWorld {
   }
 
   private stepDrone(dt: number): void {
-    const graph = this.grid?.graph;
+    const graph = this.travelGraph();
     const goal = this.droneGoal();
     if (!graph || !goal) return;
 
     this.droneThink -= dt;
-    if (this.droneThink <= 0) {
-      this.droneThink = 0.5;
+    if (this.droneThink <= 0 || this.droneGraphVersion !== graph.version) {
+      this.droneThink = this.droneRoute.complete ? 30 : 0.5;
+      this.droneGraphVersion = graph.version;
       this.droneRoute = stationRoute(
         this.spec,
         graph,
@@ -2303,7 +2443,9 @@ export class HauntingWorld extends GridWorld {
     // **Der Zuschauer sieht Tag.** Der Nebel gehört zum Grusel derer, die
     // drinstecken; über dem Puppenhaus wäre er nur eine Milchglasscheibe.
     const fog = ctx.scene.fog;
-    if (show) ctx.scene.fog = null;
+    if (show || archive) ctx.scene.fog = null;
+    const creatureVisible = this.monster?.holder.visible;
+    if (archive && this.monster) this.monster.holder.visible = false;
     if (this.showLight) this.showLight.intensity = show ? 3.4 : 0;
     if (this.showSun) this.showSun.intensity = show ? 2.2 : 0;
 
@@ -2324,6 +2466,8 @@ export class HauntingWorld extends GridWorld {
       camera.updateProjectionMatrix();
     }
     renderer.render(ctx.scene, camera);
+    if (this.monster && creatureVisible !== undefined)
+      this.monster.holder.visible = creatureVisible;
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, _size.x, _size.y);
     this.live.visible = true;
@@ -2366,16 +2510,17 @@ export class HauntingWorld extends GridWorld {
   private aimShow(aspect: number, head: number): void {
     const camera = this.showCam;
     if (!camera) return;
-    const cx = (HOUSE.x + HOUSE.w / 2) * TILE;
-    const cz = (HOUSE.z + HOUSE.d / 2) * TILE;
+    const bounds = stationBounds(this.spec);
+    const cx = (bounds.x + bounds.w / 2) * TILE;
+    const cz = (bounds.z + bounds.d / 2) * TILE;
     // Ein Kachelrand ringsum: Das Haus soll im Bild stehen und nicht daran
     // kleben — und im Süden liegt der Vorplatz mit dem Van, den man gern
     // mitsieht, wenn die Drohne heimkommt.
-    const wide = (HOUSE.w + 1) * TILE;
+    const wide = (bounds.w + 1) * TILE;
     // Nach Süden ein Stück mehr: Dort liegen der Vorplatz und der Van, und wer
     // zusieht, will sehen, wie die Drohne heimkommt und was auf dem Tisch
     // landet. Und oben der Streifen für die Zeilen, die über dem Bild liegen.
-    const deep = ((HOUSE.d + 3.4) * TILE) / Math.max(0.2, 1 - head);
+    const deep = ((bounds.d + 3.4) * TILE) / Math.max(0.2, 1 - head);
     const rise = Math.tan(((SHOW_FOV / 2) * Math.PI) / 180);
     const far = Math.max(deep / (2 * rise), wide / (2 * rise * aspect));
     const look = cz + 1.2 * TILE - (head / 2) * deep;
@@ -2415,19 +2560,14 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Der Papierton.**
-   *
-   * Ein Sepiafilter auf der Leinwand statt eines zweiten Materialsatzes in der
-   * Szene: Während das Archiv offen ist, steht auf der Leinwand ohnehin nichts
-   * anderes, und ein Filter im CSS kostet nichts, wo ein eigener
-   * Render-Durchgang jedes Material doppelt hielte. Gesetzt wird er nur bei
-   * Wechsel — ein `style.filter` je Bild ist ein Umbruch je Bild.
+   * Kühler Raumscan mit etwas mehr Kontrast. Der Filter sitzt auf der Leinwand
+   * und wird nur beim Rollenwechsel umgeschaltet.
    */
   private paperTint(on: boolean): void {
     if (on === this.tinted) return;
     this.tinted = on;
     const canvas = this.context?.renderer.domElement;
-    if (canvas) canvas.style.filter = on ? 'sepia(0.72) contrast(1.12) brightness(1.06)' : '';
+    if (canvas) canvas.style.filter = on ? 'saturate(0.6) contrast(1.16) brightness(1.12)' : '';
   }
 
   /**
@@ -2487,10 +2627,7 @@ export class HauntingWorld extends GridWorld {
     camera.right = hw;
     camera.top = hh;
     camera.bottom = -hh;
-    // **Unter dem Türsturz und nicht unter der Decke** (`PAPER_CUT`): Über jeder
-    // Tür steht eine Wandscheibe bis an die Decke, und von oben sieht sie aus
-    // wie Wand. Wer nur den Deckel abnimmt, legt ein Haus frei, in dem jede
-    // Tür zugemauert ist.
+    // Die Decke ausblenden, hohe Einrichtungsgegenstände vollständig zeigen.
     camera.near = above - PAPER_CUT;
     camera.far = above + 2;
     camera.updateProjectionMatrix();
@@ -2599,6 +2736,28 @@ export class HauntingWorld extends GridWorld {
       run,
     });
     return [
+      ...(!this.context?.renderer.xr.isPresenting
+        ? [
+            entry(
+              'haunt:roles',
+              'Zur Zentrale / Rolle wechseln',
+              'Archiv, Einsatzkontrolle, Drohne oder Zuschauer',
+              () => {
+                this.flatTechnician = false;
+                this.pendingBotRound = false;
+                this.context?.menu.toggle(false);
+              },
+            ),
+          ]
+        : []),
+      entry(
+        'haunt:bot-round',
+        'Bot-Runde anschauen',
+        'Eine vollständige Reparaturrunde automatisch beobachten',
+        () => {
+          if (this.context) this.requestBotRound(this.context);
+        },
+      ),
       entry(
         'haunt:start',
         'Mission starten',
@@ -2653,7 +2812,24 @@ export class HauntingWorld extends GridWorld {
       ctx.join(new URLSearchParams(location.search).get('room') || HAUNT_ROOM);
   }
 
-  private removeMonster(): void {
+  private requestBotRound(ctx: WorldContext): void {
+    const occupied = [...ctx.net.peers.values()].some(
+      (peer) =>
+        peer.world === ctx.net.world &&
+        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
+    );
+    if (occupied) {
+      this.pendingBotRound = false;
+      ctx.notify('Bot-Test nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      return;
+    }
+    this.flatTechnician = true;
+    this.pendingBotRound = true;
+    ctx.menu.toggle(false);
+  }
+
+  /** Stop local authority without erasing the snapshot another host continues. */
+  private releaseMonster(): void {
     if (this.monsterArt) {
       this.monsterArt.removeFromParent();
       dispose(this.monsterArt);
@@ -2661,10 +2837,14 @@ export class HauntingWorld extends GridWorld {
     }
     this.director?.clear();
     this.monster = null;
-    this.state.monster = null;
-    this.state.monsterOn = false;
     this.ventExit = null;
     this.ventClock = 0;
+  }
+
+  private removeMonster(): void {
+    this.releaseMonster();
+    this.state.monster = null;
+    this.state.monsterOn = false;
     this.state.crew.venting = 0;
   }
 
@@ -2676,7 +2856,15 @@ export class HauntingWorld extends GridWorld {
     this.state.monsterOn = true;
     const far = roomOf(this.spec, this.spec.fuse.roomId) ?? this.spec.rooms[0]!;
     const at = safeRoomSpawn(this.spec, far.id);
-    const kind = MONSTERS.find((m) => m.id === options.monster)!;
+    this.spawnMonster(at);
+    this.state.lit = spacesOf(this.spec).map((room) => room.id);
+    this.announce(
+      'Mission läuft. Archiv: Aufträge und Codes. Einsatzkontrolle: Radar, Puls, Licht und Türen. Nach drei Reparaturen zurück zur Zentrale.',
+    );
+  }
+
+  private spawnMonster(at: { x: number; z: number }): void {
+    const kind = MONSTERS.find((m) => m.id === this.state.crew.options.monster)!;
     this.monster =
       this.director?.spawn({
         kind: 'zombie',
@@ -2688,18 +2876,14 @@ export class HauntingWorld extends GridWorld {
     if (this.monster) {
       const navigator = new StationNpcNavigator(
         () => this.spec,
-        () => this.grid?.graph ?? null,
+        () => this.travelGraph(),
       );
       this.monster.setNavigator((input) => navigator.step(input));
       this.monster.model.visible = false;
-      this.monsterArt = buildCreature(options.monster);
+      this.monsterArt = buildCreature(this.state.crew.options.monster);
       this.monsterArt.position.y = -this.monster.skin.height / 2;
       this.monster.holder.add(this.monsterArt);
     }
-    this.state.lit = [this.spec.entryRoom];
-    this.announce(
-      'Mission läuft. Archiv: Aufträge und Codes. Einsatzkontrolle: Radar, Puls, Licht und Türen. Nach drei Reparaturen zurück zur Zentrale.',
-    );
   }
 
   private testMission(): void {
@@ -2724,6 +2908,7 @@ export class HauntingWorld extends GridWorld {
     if (!this.isHost) return;
     this.removeMonster();
     this.spook = freshSpook();
+    this.automaticDoors.clear();
     this.spec = generateHouse(rollSeed(), options.rooms);
     this.state = freshState(this.spec.seed, options);
     this.previousFeet = null;
@@ -2840,9 +3025,4 @@ function edgeCentre(x: number, z: number, dir: Dir): { x: number; z: number; alo
  */
 function framed(size: number): number {
   return size / 2 + Math.max(TILE * 0.25, size * 0.06);
-}
-
-/** Ob eine Kachel in einem Rechteck liegt — für „ist das noch das Haus?". */
-function inside(rect: Rect, x: number, z: number): boolean {
-  return x >= rect.x && x < rect.x + rect.w && z >= rect.z && z < rect.z + rect.d;
 }

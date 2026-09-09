@@ -97,8 +97,9 @@ describe('Three-person crew devices', () => {
     expect(isStation('unknown')).toBe(false);
   });
 
-  it('does not request a 3D render for archive or control phone screens', () => {
-    expect(stationFacts('archive').view).toBe(false);
+  it('uses geometry for the isolated archive room and keeps control as a 2D instrument', () => {
+    expect(stationFacts('archive').view).toBe(true);
+    expect(stationFacts('archive').sees).toContain('ein ausgewählter Raum');
     expect(stationFacts('scout').view).toBe(false);
     expect(stationFacts('drone').view).toBe(true);
     expect(stationFacts('watch').view).toBe(true);

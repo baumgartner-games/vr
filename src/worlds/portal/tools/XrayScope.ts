@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PhysicsBody } from '../../../physics/PhysicsWorld';
+type ScanSubject = { object: THREE.Object3D };
 
 const _corner = new THREE.Vector3();
 const _next = new THREE.Vector3();
@@ -27,7 +27,7 @@ export class XrayScope {
   /** The faint pane in the opening; the owner adds it to its own frame. */
   readonly glass: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 
-  private readonly ghosts = new Map<PhysicsBody, THREE.Mesh>();
+  private readonly ghosts = new Map<ScanSubject, THREE.Mesh>();
   private readonly planes = [
     new THREE.Plane(),
     new THREE.Plane(),
@@ -97,7 +97,7 @@ export class XrayScope {
    * @param frame the object the opening belongs to, already in world space
    * @param eye   where the player is looking from
    */
-  update(frame: THREE.Object3D, eye: THREE.Vector3, props: readonly PhysicsBody[]): void {
+  update(frame: THREE.Object3D, eye: THREE.Vector3, props: readonly ScanSubject[]): void {
     this.overlays.visible = true;
     this.glass.material.opacity = 0.08;
     this.updatePlanes(frame, eye);
@@ -138,13 +138,14 @@ export class XrayScope {
   }
 
   /** One see-through copy per prop in range, reused frame after frame. */
-  private updateGhosts(props: readonly PhysicsBody[], eye: THREE.Vector3): void {
-    const alive = new Set<PhysicsBody>();
+  private updateGhosts(props: readonly ScanSubject[], eye: THREE.Vector3): void {
+    const alive = new Set<ScanSubject>();
 
     for (const entry of props) {
       const source = entry.object as THREE.Mesh;
       if (!source.geometry) continue;
-      if (source.position.distanceTo(eye) > this.range) continue;
+      source.getWorldPosition(_probe);
+      if (!source.visible || _probe.distanceTo(eye) > this.range) continue;
       alive.add(entry);
 
       let mesh = this.ghosts.get(entry);
