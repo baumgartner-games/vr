@@ -15,6 +15,10 @@ import {
 import { ventPairs, type MonsterKind } from './mission';
 import { buildFixture } from './fixtureModels';
 import { stationLayout, type StationPlacement } from './stationLayout';
+import { COMMAND } from './roomGraph';
+import { buildSpaceBackdrop } from './world3d/spaceBackdrop';
+import { wayfindingSigns, type Signpost } from './world3d/signposts';
+import { buildSignMeshes } from './world3d/signMesh';
 
 export const SHIP = {
   hull: 0xb1c5d4,
@@ -118,6 +122,7 @@ export function buildShip(spec: HouseSpec): THREE.Group {
   const group = new THREE.Group();
   group.name = 'station-hull-details';
   const layout = stationLayout(spec);
+  const interiors = new Map<string, THREE.Group>();
   for (const room of spacesOf(spec)) {
     const interior = buildRoomHull(spec, room);
     addRoomFixtures(
@@ -126,26 +131,24 @@ export function buildShip(spec: HouseSpec): THREE.Group {
       room.kind,
     );
     group.add(interior);
+    interiors.set(room.id, interior);
   }
-  group.add(buildCommandHull());
-  const positions = new Float32Array(960 * 3);
-  for (let i = 0; i < 960; i++) {
-    const angle = i * 2.399963,
-      y = 1 - (i / 959) * 2,
-      r = Math.sqrt(1 - y * y);
-    positions[i * 3] = Math.cos(angle) * r * 100;
-    positions[i * 3 + 1] = y * 100;
-    positions[i * 3 + 2] = Math.sin(angle) * r * 100;
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const stars = new THREE.Points(
-    geometry,
-    new THREE.PointsMaterial({ color: 0xc5e1ff, size: 0.16, fog: false, sizeAttenuation: true }),
-  );
-  stars.name = 'station-starfield';
-  group.add(stars);
+  const command = buildCommandHull();
+  group.add(command);
+  // Die Wegweiser hängen in der Gruppe des Raums, in dem man sie liest —
+  // so schaltet der Raum-Culler sie mit dem Raum ab (`world3d/signposts.ts`).
+  for (const [spaceId, mesh] of buildSignMeshes(wayfindingSigns(spec), signAccent))
+    (spaceId === COMMAND ? command : interiors.get(spaceId))?.add(mesh);
+  // Der Weltraum ist Geometrie und keine Löschfarbe: In einer AR-Sitzung
+  // löscht three.js auf durchsichtig (`world3d/spaceBackdrop.ts`).
+  group.add(buildSpaceBackdrop(spec));
   return group;
+}
+
+/** Die Farbe eines Wegweisers ist die seines Ziels — Gang, Raum oder Zentrale. */
+function signAccent(sign: Signpost): number {
+  if (sign.circulation) return SHIP.cyan;
+  return sign.kind ? roomAccent(sign.kind) : SHIP.amber;
 }
 
 function floor(batch: ShipBatch, rect: Rect, accent = SHIP.cyan, circulation = false): void {
@@ -371,10 +374,15 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
     : `${room.name.toUpperCase()}\n${MARKS[room.signature]}`;
   // Both signs sit in front of the deepest wall trim and pipes. A real offset,
   // not disabled depth testing, preserves occlusion through neighbouring rooms.
+  // Über einer Öffnung hängt seit den Wegweisern etwas anderes: Das Raumschild
+  // nimmt die türfreie Kachel, die der Wandmitte am nächsten liegt — und auf
+  // einer Wand, die ganz offen ist (Kreuzung), entfällt es.
   for (const side of [0, 1]) {
+    const tileX = closedTileX(spec, room, side ? 2 : 0);
+    if (tileX === null) continue;
     const sign = label(signText, 2.25, 0.42, accent);
     sign.position.set(
-      (room.rect.x + room.rect.w / 2) * TILE,
+      (tileX + 0.5) * TILE,
       2.39,
       (room.rect.z + (side ? room.rect.d : 0)) * TILE + (side ? -1 : 1) * (PLAN_WALL_T / 2 + 0.24),
     );
@@ -385,6 +393,29 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
   }
   group.add(batch.build());
   return group;
+}
+
+/**
+ * Die Kachel der Nord- (`dir` 0) oder Südwand (`dir` 2) ohne Tür und Fenster,
+ * die der Wandmitte am nächsten liegt — `null`, wenn die ganze Wand offen ist.
+ */
+export function closedTileX(spec: HouseSpec, room: HouseRoom, dir: 0 | 2): number | null {
+  const z = dir === 0 ? room.rect.z : room.rect.z + room.rect.d - 1;
+  const centre = room.rect.x + room.rect.w / 2 - 0.5;
+  let best: number | null = null;
+  for (let x = room.rect.x; x < room.rect.x + room.rect.w; x++) {
+    const open =
+      spec.doors.some(
+        (door) =>
+          (door.x === x && door.z === z && door.dir === dir) ||
+          (door.x + dirX(door.dir) === x &&
+            door.z + dirZ(door.dir) === z &&
+            (door.dir + 2) % 4 === dir),
+      ) || spec.windows.some((window) => window.x === x && window.z === z && window.dir === dir);
+    if (open) continue;
+    if (best === null || Math.abs(x - centre) < Math.abs(best - centre)) best = x;
+  }
+  return best;
 }
 
 /** One mesh per finish per room even when several models use dozens of pieces. */

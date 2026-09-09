@@ -201,6 +201,110 @@ die Ecke, zweiter Durchgang, Abstandsrechnung, Snapshot-Prüfung) und
 beiden Geometrien, Türkreuzungen, Drohne, geschlossene Tür). Die bestehende
 `stationNavigation.test.ts` läuft unverändert.
 
+## Paket world3d — 3D-Welt / Kleinkram
+
+Branch `feat/world-3d` — in dieser Session vom Harness als
+`claude/world-3d-passthrough-signs-24ycry` vergeben. Alles Neue liegt in
+`src/worlds/haunting/world3d/**`.
+
+### Was drin ist
+
+- **Weltraum statt Passthrough** (`world3d/spaceBackdrop.ts`). Ursache des
+  Fehlers: `App.enterVR` fragt für jede Welt **zuerst** `immersive-ar` an
+  (damit der AR-Knopf im Schießgang funktioniert). Auf der Quest meldet
+  diese Sitzung `environmentBlendMode: 'alpha-blend'`, und three.js
+  (`WebGLBackground.render`) löscht dann **grundsätzlich auf durchsichtig**
+  — eine `scene.background`-Farbe wird ausdrücklich übergangen, damit das
+  Kamerabild durchkommt. Haunting hatte draußen aber nur diese Farbe
+  (`skyColor`) und 960 Punkte à 16 cm in 100 m Entfernung, kleiner als ein
+  Pixel. Durch jedes Hüllenfenster war deshalb das Wohnzimmer zu sehen.
+  Behoben, indem der Weltraum **Geometrie** ist: eine Kugel von innen
+  (`BackSide`, undurchsichtig, dieselbe Farbe wie `skyColor`) und 1400
+  Sterne als `Points` mit fester Pixelgröße, beide mit `renderOrder` nach
+  der Hülle, damit der Tiefentest verdeckte Fragmente verwirft. Zwei
+  Draw-Calls, in VR, AR und am Schreibtisch dasselbe Bild.
+- **Wegweiser** (`world3d/signposts.ts`, reine Rechnung; `world3d/signMesh.ts`,
+  three.js). Über **jeder Öffnung** zwischen zwei Räumen hängt auf beiden
+  Seiten ein Schild mit dem Namen dessen, was dahinter liegt. Öffnungen sind
+  die Türen aus `spec.doors`; Türen zwischen zwei Gängen (der Generator legt
+  an einer Kreuzung eine je Kachel) fallen zu **einem** Kreuzungsstück mit
+  einem breiteren Schild zusammen. Führt die Öffnung in einen Gang, steht
+  darunter, wohin er führt: die Räume mit Tür an diesem Gang (Räume vor
+  Gängen, höchstens vier, dann `+n`), ohne den Raum, in dem man steht. Die
+  Namen kommen aus `map/extract.roomsOf` — exakt die der 2D-Karte, samt
+  „Einsatzzentrale" für den Vorplatz.
+- **Budget**: alle Texte in **einem** Canvas-Atlas (512×80 je Schild, vier
+  Spalten), **ein** Material, **ein** Mesh je Raum (`wayfinding-signs`), das
+  in der Raumgruppe der Hülle hängt und mit ihr vom Raum-Culler abgeschaltet
+  wird. Auf der Station sind das 68 Schilder in 28 Meshes; sichtbar sind
+  meist zwei bis vier. Das Schild der Zentrale hängt in `station-command-hull`.
+- **Platzierung**: Band 2,40–2,74 m über dem Türkopf (Statusleuchte der
+  Schiebetür bis 2,30 m, Rohr bei 2,38 m bleiben frei), 0,365 m vor der
+  Wandmitte wie die bestehenden Raumschilder. Die Höhe folgt der Breite (1,7 m
+  über einer Tür, bis 2,4 m über einer Kreuzung).
+- **Registry**: `world3d/world3d.register.ts` meldet den Weltraum als
+  `model`-Asset an. Eingebaut wird er trotzdem direkt in `shipArt.buildShip`,
+  weil noch niemand Modelle aus der Registry abholt.
+
+### Fremde Dateien, die ich angefasst habe
+
+- `src/worlds/haunting/shipArt.ts` (Grenzfall world3d): drei Imports, die
+  Punktwolke durch `buildSpaceBackdrop(spec)` ersetzt, die Schilder-Meshes in
+  die Raumgruppen gehängt (`signAccent` dazu), und die beiden
+  **Raumschilder** (`room-identification`) rücken auf die türfreie Kachel,
+  die der Wandmitte am nächsten liegt (`closedTileX`) — vorher standen sie
+  auf der Wandmitte, also oft genau über einer Tür, wo jetzt der Wegweiser
+  hängt (und wo sie schon vorher die Statusleuchte der Tür verdeckten). Auf
+  einer ganz offenen Wand (Kreuzung) entfällt das Raumschild.
+- `src/worlds/haunting/shipArt.test.ts`: der Raumschild-Test erwartet jetzt
+  ein Schild je geschlossener Nord-/Südwand und prüft, dass keines über einer
+  Tür oder einem Fenster hängt.
+- `AGENTS.md`: ein Absatz im Haunting-Abschnitt (Weltraum, Wegweiser).
+- `HauntingWorld.ts`, `house.ts`, `map/**`: **nicht** angefasst.
+
+### Entscheidungen und Alternativen
+
+- **Geometrie statt Sitzungswahl.** Die Alternative wäre, in `App.enterVR`
+  (`src/core/**`, nicht mein Abschnitt) `immersive-vr` zu verlangen, sobald
+  eine Welt keinen Passthrough will. Das ginge nur beim Start der Sitzung,
+  nicht beim Weltwechsel durch ein Portal, und es nähme dem Schießgang seinen
+  AR-Knopf. Eine Welt, die einen Himmel hat, zeichnet ihn — dann ist die
+  Sitzungsart egal.
+- **Schilder nur an Öffnungen, nicht frei im Gang.** „Kreuzung" ist im
+  Grundriss immer die Stelle, an der zwei Gangrechtecke aneinanderstoßen
+  (`spec.passages` überlappen nicht); dort hängt das Schild über der
+  offenen Wand. Ein hängender Wegweiser mitten im Gang hätte eigene
+  Aufhängung, Kollision mit der Drohne und eine zweite Datenquelle gebraucht.
+- **Eine Zeile je Ziel, keine Pfeile.** Das Schild hängt über dem Durchgang,
+  den es meint; ein Pfeil sagte nichts, was die Position nicht schon sagt.
+  Pfeilglyphen in `system-ui` wären auf der Quest außerdem nicht garantiert.
+- **`roomsOf` aus `map/extract` statt aus `map/index`.** `map/index.ts`
+  reexportiert `FlatMode`, das CSS importiert — ein statischer Import bricht
+  Jest (`HANDOVER` des Pakets map sagt das selbst). `HauntingWorld` macht es
+  genauso. Sobald der Index CSS-frei ist, kann der Import wandern.
+
+### Offene Fragen an dich
+
+- Die **Raumschilder** liegen jetzt neben der Tür statt auf der Wandmitte.
+  Wenn das Bild dadurch unruhig wirkt, ist die Alternative, sie an die
+  Ost-/Westwand zu hängen (dort gibt es keine) statt sie zu verschieben.
+- Der Weltraum ist eine einfarbige Kugel plus Sterne. Ein Planet oder Nebel
+  (eine Textur auf der Kugel, weiterhin ein Draw-Call) ist ein kleiner Schritt,
+  aber Geschmack — bitte sagen, ob gewünscht.
+- Nicht auf der Brille gemessen: Ich hatte keine Quest. Zwei zusätzliche
+  Draw-Calls und ein 2048×1360-Atlas sollten die 72 Hz nicht berühren; die
+  Zahl gehört trotzdem in `docs/orbital-qa.md`, sobald jemand misst.
+
+### Tests
+
+`src/worlds/haunting/world3d/*.test.ts` — Ableitung der Wegweiser (jede
+Öffnung zwei Schilder, Namen gleich denen der Karte, im eigenen Raum vor der
+richtigen Wand, nie überlappend, Ziel-Liste ohne den eigenen Raum, Kreuzungen
+zusammengefasst; Station mit zwei Samen und das alte Haus), das Mesh (ein
+Material und ein Atlas für alle, ein Mesh je Raum, Band über dem Türkopf,
+Vorderseite in den Raum) und der Weltraum (undurchsichtig, von innen, nach
+der Hülle gezeichnet, Sterne in Pixeln, gleichverteilt, deterministisch).
+
 ## Paket map — 2D-Kern + Sichtbarkeit
 
 Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und

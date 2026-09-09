@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { APRON, generateHouse, spacesOf } from './house';
-import { animateCreature, buildCrewmate, buildShip } from './shipArt';
+import { animateCreature, buildCrewmate, buildShip, closedTileX } from './shipArt';
 
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
 
@@ -93,8 +93,23 @@ describe('station hull geometry', () => {
     for (const room of spacesOf(spec)) {
       const group = ship.getObjectByName(`station-room-${room.id}`)!;
       const signs = group.children.filter((child) => child.name === 'room-identification');
-      expect(signs).toHaveLength(2);
+      // Eines je Nord- und Südwand — außer die Wand ist ganz offen (Kreuzung).
+      const walls = ([0, 2] as const).filter((dir) => closedTileX(spec, room, dir) !== null);
+      expect(signs).toHaveLength(walls.length);
       for (const sign of signs) {
+        // Nie über einer Tür oder einem Fenster: dort hängt jetzt der Wegweiser.
+        const tileX = Math.floor(sign.position.x / TILE);
+        const onNorthWall = Math.abs(sign.position.z - room.rect.z * TILE) < 1;
+        const tileZ = onNorthWall ? room.rect.z : room.rect.z + room.rect.d - 1;
+        const dir = onNorthWall ? 0 : 2;
+        const blocked = [...spec.doors, ...spec.windows].some(
+          (edge) =>
+            (edge.x === tileX && edge.z === tileZ && edge.dir === dir) ||
+            (edge.x + dirX(edge.dir) === tileX &&
+              edge.z + dirZ(edge.dir) === tileZ &&
+              (edge.dir + 2) % 4 === dir),
+        );
+        expect(blocked).toBe(false);
         const mesh = sign as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
         expect(mesh.material.color.getHex()).toBe(0xffffff);
         expect(mesh.material.depthTest).toBe(true);
