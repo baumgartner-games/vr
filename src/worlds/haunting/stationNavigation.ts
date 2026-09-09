@@ -16,6 +16,7 @@ import {
 } from '../nav/navTile';
 import type { DronePose, DroneRoute } from './droneRoute';
 import { missionExtent, type HouseSpec } from './house';
+import { SMOOTH_MARGIN, pullString } from './navmesh';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
 
 /** Quarter-metre samples resolve the tight turn after a 1.2m doorway. */
@@ -60,6 +61,12 @@ const cache = new WeakMap<NavGraph, RouteGrid[]>();
  * Search arrays are reused; geometry is rebuilt only when graph.version or
  * the generated station changes. Missing floor and blocked destinations
  * produce a safe partial route, never a teleport or a straight-line fallback.
+ *
+ * `smooth` pulls the raster path straight (`navmesh/pathSmoothing.ts`): first
+ * wherever a swept capsule with an extra `SMOOTH_MARGIN` fits, then through the
+ * remaining raster chains (door runs, aisles) with the plain radius the raster
+ * itself was validated with. `false` keeps the raw raster corners and exists
+ * for measuring the difference.
  */
 export function stationRoute(
   spec: HouseSpec,
@@ -68,6 +75,7 @@ export function stationRoute(
   goal: TileKey | FloorPoint,
   clearance = 0.45,
   height = 0,
+  smooth = true,
 ): DroneRoute {
   const empty = (grounded: boolean): DroneRoute => ({
     tiles: [],
@@ -168,7 +176,12 @@ export function stationRoute(
   // the nearest sample. Only skip it when the new segment is physically clear.
   while (points.length > 1 && segmentClear(grid, graph, from, points[1]!)) points.shift();
   if (points[0] && Math.hypot(points[0].x - from.x, points[0].z - from.z) < 0.001) points.shift();
-  return { tiles: [], points: softenCorners(grid, graph, from, points), grounded: true, complete };
+  const pulled = smooth
+    ? pullString(from, points, (a, b) => segmentClear(grid, graph, a, b, radius + SMOOTH_MARGIN), {
+        tight: (a, b) => segmentClear(grid, graph, a, b),
+      })
+    : points;
+  return { tiles: [], points: softenCorners(grid, graph, from, pulled), grounded: true, complete };
 }
 
 /**
@@ -402,8 +415,14 @@ function nearestStart(grid: RouteGrid, graph: NavGraph, from: FloorPoint): numbe
   return best;
 }
 
-function segmentClear(grid: RouteGrid, graph: NavGraph, from: FloorPoint, to: FloorPoint): boolean {
-  if (grid.obstacles.some((box) => routeBlocked(from, to, box, grid.radius))) return false;
+function segmentClear(
+  grid: RouteGrid,
+  graph: NavGraph,
+  from: FloorPoint,
+  to: FloorPoint,
+  radius = grid.radius,
+): boolean {
+  if (grid.obstacles.some((box) => routeBlocked(from, to, box, radius))) return false;
   const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / HALF));
   for (let i = 0; i <= steps; i++) {
     const x = from.x + ((to.x - from.x) * i) / steps;
