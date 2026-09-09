@@ -45,11 +45,16 @@ Vertrag nach außen (`map/index.ts`):
 | `MapView`, `MapLayers`, `MarkerPolicy`, `MapViewState`, `ALL_LAYERS`, `PANEL_LAYERS` | Das Karten-Bauteil mit Layern, Pan/Pinch, Klick-Handlern. |
 | `VisibilityMode`, `VisibilityInput`, `VisibilityField`, `VisionCone`, `NoiseRadius`, `LitRegion`, `SELF_RADIUS`, `inCone` | Das Sichtbarkeitsmodell. |
 
-Was in Phase 0 nur Signatur ist und in Phase 1 (`feat/map-core`) gefüllt
-wird: `MapView.draw`/Gesten, `ExtractMapSnapshot`, `ComputeVisibility`,
-`LineOfSight`. Wer heute Nacht dagegen baut, mockt in Tests den Snapshot
-(`emptySnapshot()` plus eigene Räume) und ruft die `MapView`-Methoden ruhig
-auf — sie sind leer, nicht kaputt.
+Seit Phase 1 (`feat/map-core`) sind `MapView.draw`/Gesten,
+`extractMapSnapshot`, `computeVisibility` und `lineOfSight` gefüllt. Dazu
+kamen: `MapViewOptions.routes` (Polylinien für Paket Navmesh),
+`FlatRound`/`FlatMode` (die 2D-Welt), `worldMapSource` (der Adapter der
+3D-Welt) und `HauntingWorld.mapSnapshot()` — dort holen Rollenansichten den
+Stand ab. Wer in Tests keinen `FlatRound` will, baut den Snapshot mit
+`emptySnapshot()` plus eigenen Räumen. `map/flatMode.ts` importiert CSS und
+`registry/discover.ts` nutzt `import.meta.glob`: beides wird von
+`HauntingWorld` **lazy** geladen — wer eines davon statisch importiert,
+bricht die Jest-Suite der Welt.
 
 ### 2. Rollenansichten (Paket `views`)
 
