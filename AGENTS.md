@@ -7573,6 +7573,16 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+**Die Einsatzzentrale (`APRON`) liegt nördlich an der Cafeteria**, nicht mehr
+am Südrand hinter einem eigenen Andockkorridor. Die Schleuse
+(`commandDoorTile`) geht mitten in die Kantinenwand, der Rest derselben Wand
+ist Glas (`commandWindows`), und `spec.entryRoom` ist damit ein echter
+Missionsraum statt eines Ganges. `APRON_INNER` ist die Reihe an der
+Fensterfront (Van, Terminal, Rückkehrpunkt), `APRON_OUTER` die Reihe mit den
+Hüllenfenstern (Drohnenring, Abendlicht, Aufzug `COMMAND_LIFT`). Wer eine
+Position auf dem Vorplatz braucht, rechnet sie aus diesen beiden Konstanten
+und nicht aus `APRON.z` plus einer geratenen Zahl.
+
 **Karte, Geometrie und Art**
 
 - `generateHouse(seed, roomCount)` baut für Stationsaufrufe immer die feste
@@ -7580,13 +7590,23 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Namen, Raumtypen, Rechtecke und Türen bleiben über Seeds gleich. Seeds
   verändern Aufgaben/Einrichtung. Der historische Aufruf ohne Raumzahl bleibt
   für alte Haustests erhalten. Separate `spec.passages` werden aus Gangstreifen
-  ohne Überlappung erzeugt. Manche Räume haben wie in der Vorlage nur einen
-  Eingang. `stationBounds(spec)` statt `HOUSE` für Stationsbounds verwenden.
+  ohne Überlappung erzeugt und tragen **eigene Namen** (`namePassages`: der
+  Raum mit der längsten gemeinsamen Wand plus Himmelsrichtung, etwa
+  „Cafeteria-Südgang"); der Name steht auch auf dem Gangboden
+  (`shipArt.addCorridorName`). Manche Räume haben wie in der Vorlage nur einen
+  Eingang. `stationBounds(spec)` statt `HOUSE` für Stationsbounds verwenden,
+  `missionExtent(spec)` dort, wo die Einsatzzentrale dazugehört (Wegsuche).
   Die Kontur nutzt rechtwinklige Gridmodule, noch keine 45°-Wände.
   Die Lehrzimmer liegen jetzt bei x≥26 Rasterfeldern außerhalb der Karte.
 - `fixtureDimensions.ts` ist der Maßkatalog. `stationLayout.ts` reserviert
   Wandabstand, Türlandungen, Bedienpunkte, Raumdurchquerung und Schachtzugänge.
   Keine separat geratenen Positionen in Art-/Interaktionscode einführen.
+  **Die Gasse zu einem Bedienplatz ist breiter als der Spieler** (`LANE`):
+  Zwischen zwei Modulen blieben einmal acht Zentimeter — auf dem Papier ein
+  Weg, im Raster der Wegsuche keiner, und der Techniker meldete eine ganze
+  Runde lang „Weg blockiert". `roomDressing` füllt die Räume darüber hinaus:
+  drei Tische, Kantinenausgabe und Wasseraufbereitung in der Kantine, in fast
+  jedem anderen Raum eine Insel in der Mitte.
 - `fixtureModels.ts` baut abgerundete Geräte, Tanks, Leitungen, Regale, Kojen,
   Fracht und Konsolen. Geometrie wird je Material zusammengefasst; technische
   Grenzmaße bleiben testbar. `shipArt.ts` zeichnet helle Marine-Paneele,
@@ -7673,11 +7693,15 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   `survival` unterbricht Missionsschritte für Flucht/Versteck. Erreichbare
   Schutzschrankzugänge werden nach Deckung, Weglänge und Abstand zur zuletzt
   wahrgenommenen Gefahr gewählt; Wege direkt durch die Gefahr werden verworfen.
-  Sprint 4,4m/s, erschöpft 2,7m/s; nach ruhiger Phase Mission fortsetzen.
+  Tempo, Puste, Vorsicht, Versteckneigung, Handgriffe und Wartezeit kommen aus
+  `botTuning.ts` (`TechnicianTuning`) und werden bei jedem Zugriff neu gelesen —
+  ein Regler in der Schalttafel wirkt in der laufenden Runde. Ohne Puste trabt
+  er (`sprint × 0,72`) statt auf Arbeitstempo zurückzufallen: Ein Monster geht
+  schneller, als er arbeitet. Nach ruhiger Phase Mission fortsetzen.
   Unterbrochene Interaktionen erfordern erneute Ankunft am Fracht-/Reparaturziel.
   Verstecke des Bots sperren die freie Beobachterkamera nicht.
-  Monster bekommen während Jagd kurze Temposchübe, Schächte benötigen freie
-  Zugänge/Ausgänge und führen bei Verfolgung in Richtung des letzten Signals.
+  Schächte benötigen freie Zugänge/Ausgänge und führen bei Verfolgung in
+  Richtung des letzten Signals.
   Gesperrte Routen warten statt zu teleportieren. Das ist keine simulierte
   menschliche Kommunikation und keine vollständige autonome Dreiercrew.
   Raumwechsel erzeugen lokale Funkmeldungen Techniker → Zentrale.
@@ -7692,6 +7716,41 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Desktop-Demos starten mit nachgeführter Botkamera; **Freie Kamera** / **Bot
   folgen** wechselt die Bedienung. `followBotCamera` läuft niemals im XR-Headset;
   dort behält der Spieler seine Blickrichtung.
+- **Die Routine des Monsters** steht in `monsterRoutine.ts` und nirgends sonst:
+  vier Grundhaltungen (`patrol`, `reposition`, `stakeout`, `search`) plus
+  `hunt` und die Kabinenkette `announce` → `breach` → `savour`. Sie ist rein —
+  herein gehen Räume, Nachbarn und eine Wahrnehmung, heraus gehen Ziel, Tempo
+  (`paceSpeed`) und höchstens ein Geräusch. Deshalb steuert dieselbe Datei das
+  Monster im Headset **und** die Trainingssimulation. Nach Sichtverlust rät sie
+  den Nachbarraum (`guess`), sucht ihn leise ab (Klacken, manchmal der
+  Schutzschrank), geht manchmal gleich weiter (`wander`) oder lauert auf
+  (`stakeout`). Ein Rückzug in einen Schrank löst Schrei und Aufreißen nur aus,
+  wenn er **gesehen** wurde (`HauntingWorld.watchedLocker`); die Kette danach
+  läuft von selbst zu Ende, auch wenn die Meldung längst zurückgenommen ist.
+- **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
+  `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
+  ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
+  `botTuning.test.ts` rechnen beide Enden nach, auch an den Reglergrenzen.
+- **Gewichte, Simulation, Training** — die drei Dateien hängen zusammen:
+  `botTuning.ts` hält alle Zahlen beider Bots mit Grenzen, Namen und
+  Browser-Speicher; die Verhaltensfelder dürfen nicht auf null, sonst trainiert
+  sich das Monster zurück in „läuft im Kreis". `roundSim.ts` spielt eine ganze
+  Runde ohne three.js/Rapier auf der Raumkarte (`roomGraph.ts`, inklusive
+  gedämpfter Hörweite `earshot`) in Millisekunden aus. `botTraining.ts`
+  bergsteigt darauf gegen das Ziel „Techniker gewinnt 60–70 %" — feste
+  Stichprobe je Schritt (sonst klettert es auf Rauschen), Fortschritt als
+  Gleichstandsbrecher mit Vorzeichen, wachsende Schrittweite in Sackgassen.
+  `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
+  den Tab nicht einfriert. `DEFAULT_TUNING` ist das Ergebnis dieses Trainings;
+  `botTraining.test.ts` misst 800 Runden nach.
+- **Zeitraffer** (`simulationSpeed.ts`): ×1/×2/×4/×8 über die **Anzahl** der
+  Bilder (`HauntingWorld.update` → `tick`), nie über die Länge eines Schritts;
+  nur der letzte Durchgang sendet und frischt die Anzeigen auf. Lange echte
+  Bilder nehmen die Stufe selbsttätig zurück.
+- **Beleuchtung der Bot-Runde** (`botLighting.ts`): vier Stellungen, dazu
+  Drehleuchten in den Gängen (`shipArt.buildCorridorBeacons`,
+  `HauntingWorld.applyBeacons`). Winkel und Puls laufen im Kreis statt
+  weiterzuwachsen; die Leuchten sind `MeshBasicMaterial` und keine Lichtquellen.
 - `trainingLayout`/`trainingDeck` bieten getrennte Lehrzimmer. Übungspuzzles
   haben eigene Zustände; erneutes Drücken setzt nur das jeweilige Beispiel
   zurück. Dunkler Test bleibt sicher; Lampen sind tatsächlich nötig.
