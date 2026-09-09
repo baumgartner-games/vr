@@ -7716,6 +7716,16 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Chromium-Fallback. Diese Läufe nicht als native Leistungsmessung ausgeben.
   Browser einmalig via `npm run test:browser:install` installieren; Playwright
   und Browserrevision müssen zusammenpassen.
+- Browser-Smoke-Screenshots pausieren nur für die Aufnahme die WebGL-
+  Animationsschleife und setzen sie in `finally` fort. So kann SwiftShader die
+  ein frisches Einzelbild abarbeiten, ohne ständig neue Frames zu erhalten. Bewegung
+  und Frame-Samples laufen danach regulär weiter. Pflicht-Screenshots bleiben
+  harte Fehler (30s); das Fehlerbild hat 10s Budget. Reports nennen den aktiven
+  Schritt, die Aufnahmedauer und Fehler beim zusätzlichen Diagnosebild.
+  Bewegungsprüfungen warten bei niedriger Software-Framerate bis zu 90s auf
+  echte >0,5m Bewegung beider Akteure; die Distanzanforderung bleibt erhalten.
+  Der Freiflugtest vergleicht Rig-Höhen vor/nach dem Tastendruck, nicht
+  Rig-Höhe mit Augenhöhe und nicht nach pauschalen 500ms.
 - `.artifacts/browser-smoke` enthält Screenshots und JSON-Reports. Entscheidend
   sind `passed`/`failure`, nicht das Vorhandensein von Bildern. `botStart`/
   `botEnd` erfassen Positionsänderung und Reparaturstand, `botText` das Protokoll;

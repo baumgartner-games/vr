@@ -208,3 +208,26 @@ Finale lokale Prüfung: 185 Testsuiten / 2673 Tests bestanden; Typecheck, ESLint
 Prettier-Prüfung und Produktionsbuild erfolgreich.
 
 Geprüfte Draufsicht: [Skeld-Übersicht](orbital/skeld-overview.png).
+
+## Software-Renderer im Browser-Smoke (2026-09-09)
+
+Der Linux-CI-Lauf `34329593461` scheiterte nach der Lampenaufnahme beim
+Screenshot, obwohl die Schriftarten geladen waren und keine Browserfehler
+vorlagen. Der Smoke-Test pausiert deshalb die WebGL-Animationsschleife für
+die Aufnahme, zeichnet ein frisches Einzelbild und lässt den Compositor
+arbeiten. `finally` setzt die reguläre Schleife auch nach Aufnahmefehlern
+fort. Pflichtbilder bleiben erforderlich; der Report protokolliert aktiven
+Schritt, Aufnahmedauer und gegebenenfalls Fehler beim Diagnosebild.
+
+Der lokale Gegenlauf mit Headless-Chromium und SwiftShader deckte zusätzlich
+zwei Annahmen über schnelle Frames auf: 15 Sekunden Echtzeit garantieren bei
+der begrenzten Engine-Schrittweite keine bestimmte Simulationsdauer; und
+90 Meter Augenhöhe sind 88,35 Meter Rig-Höhe. Der Smoke wartet nun begrenzt auf
+die unveränderten >0,5m Bewegung beider Akteure und prüft den Kameraflug gegen
+die tatsächlich gemessene Ausgangshöhe. Ein feststehender Akteur oder eine
+nicht reagierende Kamera lässt den Test weiterhin scheitern.
+
+Lokale Abnahme: `.artifacts/browser-smoke/software-final/report.json` — alle
+13 Pflichtbilder erfolgreich, keine Browser-/Konsolenfehler, echte Bewegung
+beider Akteure, HP=3 und positiver Kameraanstieg nach Tastendruck. Dies ist eine
+Funktionsprüfung mit Software-Rendering, kein Hardware-Performancevergleich.
