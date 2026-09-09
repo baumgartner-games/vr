@@ -684,9 +684,12 @@ export function buildCreature(kind: MonsterKind): THREE.Group {
 }
 
 export function animateCreature(root: THREE.Object3D, time: number): void {
-  let index = 0;
   for (const child of root.children)
     if (child.name === 'arm' || child.name === 'leg') {
-      child.rotation.x = Math.sin(time * 4.4 + index++ * Math.PI) * 0.2;
+      child.rotation.x =
+        Math.sin(time * 4.4) *
+        (child.position.x < 0 ? -1 : 1) *
+        (child.name === 'arm' ? -1 : 1) *
+        0.35;
     }
 }

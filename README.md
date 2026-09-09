@@ -193,9 +193,18 @@ verwenden freie Ankunftsplätze. **Bot-Runde anschauen** ist in der Zentrale und
 im Testmenü erreichbar: Ein Techniker läuft durch die echte Station, öffnet
 Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
 Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
-halten ihn auf, bis eine Route wieder möglich ist. Ein echtes Monster patrouilliert; der Test bleibt ohne Schaden.
+halten ihn auf, bis eine Route wieder möglich ist. Das Monster sieht und hört den Bot, untersucht Geräusche, verfolgt ihn und
+sucht nach Sichtverlust die letzte bekannte Position ab. Der Techniker priorisiert
+Überleben: Er unterbricht Arbeit, sprintet mit Erholung zu erreichbarer Deckung,
+versteckt sich ungesehen in einem Schutzschrank und setzt anschließend die Mission fort.
+Monster können zeitweise schneller laufen und erreichbare Schächte durch gemeinsame
+Wände benutzen; der sichere Test bleibt ohne Schaden.
 Cyan zeigt den Technikerweg, Rot den Monsterweg und Gelb die Drohnenroute.
-Zielringe markieren die jeweiligen Ziele. Die Linien lesen die tatsächlich
+Zielringe markieren die jeweiligen Ziele. Cyan/rote Flächen zeigen die an echten
+Wänden und Einrichtungen abgeschnittenen Blickfelder. Orange zeigt den maximalen
+Hörbereich für Sprintgeräusche: Schall folgt Stationsboden, wird durch Türen und
+angrenzende Wände gedämpft und überquert keine leeren Raumlücken. Langsames Gehen
+und Ducken sind leiser. Aktuelle KI-Absichten stehen unter der Legende. Die Linien lesen die tatsächlich
 verwendeten Navigationswege. Das lokale Funkprotokoll zeigt Raumwechsel des
 Technikers an die Zentrale sowie die Archivhinweise. Es ist keine autonome
 Dreiercrew und kein zusätzlicher Sprachchat.

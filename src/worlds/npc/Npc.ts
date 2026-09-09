@@ -217,6 +217,11 @@ export class Npc {
     this.agent?.clear();
   }
 
+  setSpeed(speed: number): void {
+    this.tuning.speed = speed;
+    if (this.navigatorTuning) this.navigatorTuning.speed = speed;
+  }
+
   /** Ob er noch steht. Ein Gefallener rechnet nicht mehr mit. */
   get alive(): boolean {
     return this.dying === null;

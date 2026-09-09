@@ -37,3 +37,16 @@ test('test-deck transitions and disposal discard the old cached navigation graph
   expect(reopened).not.toBe(testDeck);
   expect(reopened.wall(key, door.dir)?.open).toBe(true);
 });
+
+test('a newly locked occupied threshold stays navigable until its leaf can close', () => {
+  const spec = generateHouse(2972633991, 14);
+  const travel = new StationTravelPlan();
+  const door = spec.doors.find((d) => d.id === 'd4')!;
+  const at = tileKey(door.x, door.z);
+  const locks = [door.id];
+  const graph = travel.graph(spec, locks, true, locks);
+  expect(graph.wall(at, door.dir)?.open).toBe(true);
+  travel.graph(spec, locks, true, []);
+  expect(graph.wall(at, door.dir)?.open).toBe(false);
+  expect(locks).toEqual([door.id]);
+});

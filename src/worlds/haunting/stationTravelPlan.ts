@@ -22,7 +22,15 @@ export class StationTravelPlan {
     this.locks = '';
   }
 
-  graph(spec: HouseSpec, locked: readonly string[], test: boolean): NavGraph {
+  graph(
+    spec: HouseSpec,
+    locked: readonly string[],
+    test: boolean,
+    occupiedOpen: readonly string[] = [],
+  ): NavGraph {
+    // An occupied threshold holds its leaf open even after a logical lock.
+    // Keep that escape edge until the proximity system can physically close it.
+    locked = locked.filter((id) => !occupiedOpen.includes(id));
     const stamp = locked.join('|');
     if (this.spec !== spec || this.testing !== test || !this.plan) {
       this.spec = spec;

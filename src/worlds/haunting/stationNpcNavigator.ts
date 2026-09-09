@@ -54,6 +54,16 @@ export class StationNpcNavigator {
         { x: input.target.x, z: input.target.z },
         input.radius + 0.1,
       );
+      // A door/body contact can push the capsule into our optional comfort margin.
+      // Recover with its real radius, never with a path through solid geometry.
+      if (!this.route.grounded)
+        this.route = stationRoute(
+          spec,
+          graph,
+          { x: input.at.x, z: input.at.z, yaw: 0 },
+          { x: input.target.x, z: input.target.z },
+          input.radius + 0.01,
+        );
       this.cursor = 0;
       this.timer = 0.55;
       this.version = graph.version;

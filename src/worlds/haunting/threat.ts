@@ -18,6 +18,8 @@ export interface ThreatInput {
   flashlight: boolean;
   lineOfSight: boolean;
   insideStation: boolean;
+  hearingDistance?: number;
+  inView?: boolean;
 }
 interface EntityProfile {
   label: string;
@@ -85,10 +87,8 @@ export function readThreat(value: unknown): ThreatState {
 export function stepThreat(crew: CrewState, dt: number, input: ThreatInput): void {
   const state = crew.threat;
   if (
-    crew.options.test ||
-    crew.simulation ||
+    (crew.options.test && !crew.simulation) ||
     crew.hp <= 0 ||
-    crew.hidden ||
     !input.insideStation ||
     !input.monster
   ) {
@@ -102,11 +102,13 @@ export function stepThreat(crew: CrewState, dt: number, input: ThreatInput): voi
   const speed = finite(input.speed, 0, 8);
   const movement = speed < 0.1 ? 0 : Math.min(1, speed / 4.2) * (input.crouched ? 0.23 : 1);
   const hearingRange = profile.hearing * movement;
-  const heard = hearingRange > 0 && distance < hearingRange;
+  const heard = hearingRange > 0 && (input.hearingDistance ?? distance) < hearingRange;
   const visibility = input.flashlight ? 1 : input.crouched ? 0.2 : 0.4;
-  const seen = input.lineOfSight && distance < profile.vision * visibility;
+  const seen =
+    input.lineOfSight && input.inView !== false && distance < profile.vision * visibility;
   const contact = input.lineOfSight && distance < 1.8;
-  const sensing = crew.venting <= 0 && (heard || seen || contact) && Number.isFinite(distance);
+  const sensing =
+    !crew.hidden && crew.venting <= 0 && (heard || seen || contact) && Number.isFinite(distance);
   if (sensing) {
     state.target = { ...input.player };
     state.memory = profile.memory;
@@ -122,11 +124,7 @@ export function stepThreat(crew: CrewState, dt: number, input: ThreatInput): voi
 }
 
 export function threatTarget(crew: CrewState): SignalPoint | null {
-  return crew.options.test ||
-    crew.simulation ||
-    crew.hidden ||
-    crew.hp <= 0 ||
-    crew.threat.memory <= 0
+  return (crew.options.test && !crew.simulation) || crew.hp <= 0 || crew.threat.memory <= 0
     ? null
     : crew.threat.target;
 }

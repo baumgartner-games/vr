@@ -11,6 +11,8 @@ export interface MissionBotHost {
   state: HauntState;
   route(from: DronePose, target: FloorPoint): DroneRoute | null;
   revision?(): number;
+  danger?(pose: DronePose): FloorPoint | null;
+  visible?(from: FloorPoint, to: FloorPoint): boolean;
   say(message: string): void;
 }
 export type BotStage =
@@ -20,6 +22,13 @@ export type BotStage =
 export class MissionBot {
   readonly pose: DronePose = { ...COMMAND_HOME, yaw: 0 };
   stage: BotStage = 'cargo';
+  survival: 'mission' | 'flee' | 'hide' = 'mission';
+  private dangerMemory: FloorPoint | null = null;
+  private calm = 0;
+  private escape: { point: FloorPoint; room: string } | null = null;
+  private rethink = 0;
+  private attackCooldown = 0;
+  private sprint = 0;
   private index = 0;
   private path: DroneRoute | null = null;
   private timer = 0;
@@ -49,6 +58,7 @@ export class MissionBot {
 
   update(dt: number): void {
     if (!Number.isFinite(dt) || dt <= 0 || this.completed) return;
+    if (this.survive(Math.min(0.1, dt))) return;
     const room = roomAt(
       this.host.spec,
       Math.floor(this.pose.x / TILE),
@@ -125,8 +135,123 @@ export class MissionBot {
     }
   }
 
+  /** Survival interrupts work without granting inventory or completing an off-site puzzle. */
+  private survive(dt: number): boolean {
+    const danger = this.host.danger?.(this.pose) ?? null;
+    this.attackCooldown -= dt;
+    this.rethink -= dt;
+    this.sprint = Math.max(
+      0,
+      Math.min(1, this.sprint + (this.survival === 'flee' ? dt / 5 : -dt / 4)),
+    );
+    if (danger) {
+      this.dangerMemory = { ...danger };
+      this.calm = 0;
+      if (
+        Math.hypot(danger.x - this.pose.x, danger.z - this.pose.z) < 1.65 &&
+        this.attackCooldown <= 0 &&
+        this.survival !== 'hide' &&
+        this.host.visible?.(this.pose, danger) !== false
+      ) {
+        this.attackCooldown = 3;
+        this.host.say(
+          'TEST · Monster greift Techniker an — Treffer, Anzug bleibt im sicheren Test unbeschädigt.',
+        );
+      }
+    } else this.calm += dt;
+    if (this.survival === 'hide') {
+      if (this.calm < 5) return true;
+      this.host.state.crew.hidden = '';
+      this.resume();
+      return false;
+    }
+    if (!danger && (this.survival === 'mission' || this.calm > 7)) {
+      if (this.survival !== 'mission') this.resume();
+      return false;
+    }
+    if (!this.dangerMemory) return false;
+    if (this.survival === 'mission') {
+      this.survival = 'flee';
+      this.path = null;
+      this.rethink = 0;
+      this.host.say(
+        'FUNK · Techniker → Zentrale: Monster wahrgenommen! Überleben zuerst — fliehe zu Deckung.',
+      );
+    }
+    if (this.rethink <= 0 || !this.escape) {
+      this.rethink = 2;
+      const threat = this.dangerMemory;
+      let best = -Infinity;
+      for (const locker of this.layout.filter((item) => item.kind === 'locker')) {
+        const point = locker.approach;
+        const distance = Math.hypot(point.x - threat.x, point.z - threat.z);
+        if (distance < 7) continue;
+        const route = this.host.route(this.pose, point);
+        const end = route?.points?.at(-1);
+        if (!end || Math.hypot(end.x - point.x, end.z - point.z) > 0.5) continue;
+        if (
+          route!.points!.some(
+            (p) =>
+              Math.hypot(p.x - threat.x, p.z - threat.z) <
+              Math.min(2.5, Math.hypot(this.pose.x - threat.x, this.pose.z - threat.z) - 0.2),
+          )
+        )
+          continue;
+        let length = 0,
+          previous: FloorPoint = this.pose;
+        for (const p of route!.points!) {
+          length += Math.hypot(p.x - previous.x, p.z - previous.z);
+          previous = p;
+        }
+        const cover = this.host.visible?.(threat, point) === false ? 12 : 0;
+        const score = Math.min(distance, 20) + cover - length * 0.7;
+        if (score > best) {
+          best = score;
+          this.escape = { point, room: locker.roomId };
+        }
+      }
+      this.path = null;
+    }
+    if (this.escape && this.walk(this.escape.point, dt, this.sprint < 0.85 ? 4.4 : 2.7)) {
+      // A watched entry gives away the hiding place: keep seeking another escape.
+      if (!danger) {
+        this.survival = 'hide';
+        this.host.state.crew.hidden = this.escape.room;
+        this.path = null;
+        this.calm = 0;
+        this.host.say(
+          'FUNK · Techniker → Zentrale: Im Schutzschrank. Warte leise, bis die Gefahr vorbei ist.',
+        );
+      } else {
+        this.escape = null;
+        this.rethink = 0;
+      }
+    }
+    return true;
+  }
+
+  private resume(): void {
+    this.survival = 'mission';
+    this.escape = null;
+    this.dangerMemory = null;
+    this.path = null;
+    this.timer = 0;
+    if (this.stage === 'open-cargo' || this.stage === 'take-cargo') this.stage = 'cargo';
+    if (this.stage === 'repair') {
+      const repair = this.repairs[this.index]!;
+      delete this.host.state.crew.puzzles[repair.id];
+      this.stage = 'console';
+    }
+    this.host.say('FUNK · Techniker → Zentrale: Gefahr abgeschüttelt. Setze den Auftrag fort.');
+  }
+
   /** Missing routes pause the demonstration. They never fabricate an arrival or repair. */
-  private walk(target: FloorPoint, dt: number): boolean {
+  private walk(target: FloorPoint, dt: number, speed = 2.15): boolean {
+    if (
+      this.destination &&
+      Math.hypot(target.x - this.destination.x, target.z - this.destination.z) > 0.1
+    )
+      this.path = null;
     this.destination = target;
     const revision = this.host.revision?.() ?? 0;
     if (revision !== this.routeRevision) {
@@ -150,7 +275,7 @@ export class MissionBot {
       return false;
     }
     this.blocked = false;
-    const moving = stepAlong(this.pose, this.path, dt, 2.15);
+    const moving = stepAlong(this.pose, this.path, dt, speed);
     if (!moving) this.path = null;
     return false;
   }

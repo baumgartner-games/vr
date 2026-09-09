@@ -134,3 +134,37 @@ test.each([6, 12])(
     expect(bot.completed).toBe(true);
   },
 );
+
+test('a perceived monster interrupts work, the bot escapes into cover, then completes its mission', () => {
+  const spec = generateHouse(20260909, 14);
+  const game = state(spec.seed, 14);
+  const graph = housePlan(spec).graph;
+  let danger: { x: number; z: number } | null = null;
+  const messages: string[] = [];
+  const bot = new MissionBot({
+    spec,
+    state: game,
+    route: (from, target) => stationRoute(spec, graph, from, target),
+    danger: () => danger,
+    visible: () => false,
+    say: (message) => messages.push(message),
+  });
+  for (let i = 0; i < 250; i++) bot.update(0.1);
+  const before = { ...bot.pose };
+  danger = { x: bot.pose.x + 4, z: bot.pose.z };
+  bot.update(0.1);
+  expect(bot.survival).toBe('flee');
+  for (let i = 0; i < 30; i++) bot.update(0.1);
+  expect(Math.hypot(bot.pose.x - before.x, bot.pose.z - before.z)).toBeGreaterThan(1);
+  danger = null;
+  const shelter = bot.navigation.goal;
+  expect(shelter).not.toBeNull();
+  Object.assign(bot.pose, shelter);
+  bot.update(0.1);
+  expect(bot.survival).toBe('hide');
+  expect(game.crew.hidden).not.toBe('');
+  for (let i = 0; i < 15000 && !bot.completed; i++) bot.update(0.1);
+  expect(bot.completed).toBe(true);
+  expect(game.crew.hidden).toBe('');
+  expect(messages.some((m) => m.includes('Setze den Auftrag fort'))).toBe(true);
+});

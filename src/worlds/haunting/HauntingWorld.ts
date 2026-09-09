@@ -58,7 +58,8 @@ import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
 import { stationLighting } from './stationLighting';
-import { stepThreat, threatTarget } from './threat';
+import { stepThreat, threatTarget, ENTITY_PROFILES } from './threat';
+import { acousticField, pointKey, inView, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
 import { visibleStationRooms } from './stationVisibility';
 import { stationRoute } from './stationNavigation';
 import { StationNpcNavigator } from './stationNpcNavigator';
@@ -266,6 +267,8 @@ export class HauntingWorld extends GridWorld {
   private pendingBotRound = false;
   private pendingRestart = false;
   private readonly automaticDoors = new AutomaticDoors();
+  private hearing = new Map<number, number>();
+  private perceptionClock = 0;
   private readonly travelPlan = new StationTravelPlan();
   private readonly technicians = new Map<string, number>();
   private lampPool: THREE.PointLight[] = [];
@@ -589,8 +592,7 @@ export class HauntingWorld extends GridWorld {
     ) {
       const at = this.monster.feet(_feet);
       const current = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
-      const vent =
-        current && ventPairs(this.spec).find((v) => v.a === current.id || v.b === current.id);
+      const vent = current && this.monsterVent(current.id);
       if (vent) {
         const sign = vent.a === current?.id ? -1 : 1;
         return target.set(
@@ -846,7 +848,12 @@ export class HauntingWorld extends GridWorld {
   }
 
   private travelGraph() {
-    return this.travelPlan.graph(this.spec, this.state.shut, this.state.crew.options.test);
+    return this.travelPlan.graph(
+      this.spec,
+      this.state.shut,
+      this.state.crew.options.test,
+      this.state.shut.filter((id) => this.automaticDoors.isOpen(id)),
+    );
   }
 
   private mountExperience(ctx: WorldContext): void {
@@ -890,6 +897,23 @@ export class HauntingWorld extends GridWorld {
         }
       },
       routeVersion: () => this.travelGraph().version,
+      visible: (from, to) => this.clearSight(from, to),
+      danger: (pose) => {
+        const monster = this.state.monster;
+        if (!monster || this.state.crew.venting > 0) return null;
+        const seen =
+          inView(pose, pose.yaw + Math.PI, monster, BOT_VISION, BOT_FOV) &&
+          this.clearSight(
+            { ...pose, y: 1.65 },
+            { ...monster, y: this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5 },
+          );
+        const velocity = this.monster?.entry.body.linvel();
+        const heard =
+          !!velocity &&
+          Math.hypot(velocity.x, velocity.z) > 0.1 &&
+          (this.hearing.get(pointKey(pose)) ?? Infinity) < 8;
+        return seen || heard ? monster : null;
+      },
       routeTo: (from, target) => stationRoute(this.spec, this.travelGraph(), from, target),
       route: (from, room) => {
         const c = roomCentre(room);
@@ -1454,6 +1478,39 @@ export class HauntingWorld extends GridWorld {
       },
     ]);
 
+    this.perceptionClock -= dt;
+    if (this.state.crew.simulation && this.perceptionClock <= 0) {
+      this.perceptionClock = 0.15;
+      const bot = this.experience?.botPose;
+      const monster = this.state.monster;
+      this.navigationOverlay.perception(
+        bot
+          ? {
+              ...bot,
+              y: 1.65,
+              targetY: this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5,
+              yaw: bot.yaw + Math.PI,
+              range: BOT_VISION,
+              fov: BOT_FOV,
+            }
+          : null,
+        monster && this.state.crew.venting <= 0
+          ? {
+              ...monster,
+              y: this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5,
+              yaw: this.monster?.model.rotation.y ?? 0,
+              range: ENTITY_PROFILES[this.state.crew.options.monster].vision,
+              fov: MONSTER_FOV,
+            }
+          : null,
+        new Map(
+          [...this.hearing].filter(
+            ([, distance]) => distance < ENTITY_PROFILES[this.state.crew.options.monster].hearing,
+          ),
+        ),
+        (from, to) => this.clearSight(from, to),
+      );
+    }
     this.sendTimer -= dt;
     if (this.sendTimer <= 0) {
       this.sendTimer = STATE_RATE;
@@ -1686,9 +1743,11 @@ export class HauntingWorld extends GridWorld {
         this.state.monsterOn = true;
         this.spawnMonster(safeRoomSpawn(this.spec, this.spec.rooms[2]!.id));
       }
-      return;
     }
-    ctx.rig.getHeadPosition(_head);
+    const bot = this.state.crew.simulation ? this.experience?.botPose : null;
+    if (this.state.crew.simulation && !bot) return;
+    if (bot) _head.set(bot.x, 1.65, bot.z);
+    else ctx.rig.getHeadPosition(_head);
     const speed =
       this.previousFeet && dt > 0
         ? Math.min(6, Math.hypot(_head.x - this.previousFeet.x, _head.z - this.previousFeet.z) / dt)
@@ -1702,17 +1761,21 @@ export class HauntingWorld extends GridWorld {
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.1;
       this.monsterSeesPlayer = distance < 24 && this.monsterLineOfSight();
+      this.hearing = monster && this.nav ? acousticField(this.nav, monster, 24) : new Map();
     }
     stepThreat(this.state.crew, dt, {
       player: { x: _head.x, z: _head.z },
       monster,
       speed,
-      crouched: ctx.rig.crouch > 0.15,
-      flashlight: this.experience?.flashlightActive ?? false,
+      crouched: !bot && ctx.rig.crouch > 0.15,
+      flashlight: bot ? !this.state.crew.hidden : (this.experience?.flashlightActive ?? false),
+      hearingDistance: this.hearing.get(pointKey(_head)) ?? Infinity,
+      inView:
+        !!monster && inView(monster, this.monster?.model.rotation.y ?? 0, _head, 24, MONSTER_FOV),
       lineOfSight: this.monsterSeesPlayer,
       insideStation: !!roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)),
     });
-    if (this.state.crew.options.test) {
+    if (this.state.crew.options.test && !this.state.crew.simulation) {
       this.state.monsterOn = false;
       this.state.monster = null;
       this.state.crew.hp = 3;
@@ -1720,6 +1783,13 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     if (!this.monster || !this.state.monsterOn || this.state.phase !== 'running') return;
+    const baseSpeed = MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.speed;
+    // Confirmed hunts alternate short bursts with recovery speed.
+    this.monster.setSpeed(
+      this.state.crew.threat.mode === 'hunt' && this.state.time % 9 < 3
+        ? Math.max(3.6, baseSpeed * 1.45)
+        : baseSpeed,
+    );
     this.ventClock += dt;
     if (this.ventExit) {
       if (this.state.crew.venting > 0) return;
@@ -1737,7 +1807,7 @@ export class HauntingWorld extends GridWorld {
     if (this.ventClock < interval) return;
     const at = this.monster.feet(_feet);
     const room = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
-    const vent = room && ventPairs(this.spec).find((v) => v.a === room.id || v.b === room.id);
+    const vent = room && this.monsterVent(room.id);
     if (!vent) {
       this.ventClock = 0;
       return;
@@ -1759,13 +1829,66 @@ export class HauntingWorld extends GridWorld {
     if (distance < 12) playSlam();
   }
 
+  /** During pursuit only take a shared-wall shaft that advances toward the remembered signal. */
+  private monsterVent(room: string) {
+    const target = threatTarget(this.state.crew);
+    const at = this.state.monster;
+    if (!at) return undefined;
+    return ventPairs(this.spec).find((vent) => {
+      if (vent.a !== room && vent.b !== room) return false;
+      const sign = vent.a === room ? -1 : 1;
+      const x = vent.x * TILE,
+        z = vent.z * TILE;
+      const dx = vent.dir === 1 ? (sign * TILE) / 2 : 0;
+      const dz = vent.dir === 2 ? (sign * TILE) / 2 : 0;
+      if (
+        target &&
+        Math.hypot(target.x - x + dx, target.z - z + dz) + 0.5 >=
+          Math.hypot(target.x - x - dx, target.z - z - dz)
+      )
+        return false;
+      const entrance = { x: x + dx, z: z + dz };
+      const exit = { x: x - dx, z: z - dz };
+      const graph = this.travelGraph();
+      const radius = (this.monster?.skin.radius ?? 0.29) + 0.01;
+      const approach = stationRoute(this.spec, graph, { ...at, yaw: 0 }, entrance, radius);
+      const landing = stationRoute(this.spec, graph, { ...exit, yaw: 0 }, exit, radius);
+      return approach.complete && landing.grounded && landing.complete;
+    });
+  }
+
+  private clearSight(
+    from: { x: number; z: number; y?: number },
+    to: { x: number; z: number; y?: number },
+  ): boolean {
+    const physics = this.physics;
+    if (!physics) return false;
+    const dx = to.x - from.x,
+      dz = to.z - from.z;
+    const dy = (to.y ?? 1.5) - (from.y ?? 1.5);
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance < 0.04) return true;
+    const ray = new physics.rapier.Ray(
+      { x: from.x, y: from.y ?? 1.5, z: from.z },
+      { x: dx / distance, y: dy / distance, z: dz / distance },
+    );
+    return !physics.world.castRay(
+      ray,
+      distance - 0.03,
+      true,
+      physics.rapier.QueryFilterFlags.ONLY_FIXED,
+    );
+  }
+
   /** Fixed-collider ray: doors, walls and tall modules hide the player. */
   private monsterLineOfSight(): boolean {
     const physics = this.physics;
     const monster = this.monster;
     const ctx = this.context;
     if (!physics || !monster || !ctx) return false;
-    ctx.rig.getHeadPosition(_head);
+    const bot = this.state.crew.simulation ? this.experience?.botPose : null;
+    if (bot) _head.set(bot.x, 1.65, bot.z);
+    else ctx.rig.getHeadPosition(_head);
     monster.feet(_feet);
     const eye = this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5;
     const dx = _head.x - _feet.x;

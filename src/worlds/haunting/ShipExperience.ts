@@ -61,6 +61,8 @@ interface ShipHost {
   route(from: DronePose, room: HouseRoom): DroneRoute | null;
   routeTo?(from: DronePose, target: { x: number; z: number }): DroneRoute | null;
   routeVersion?(): number;
+  danger?(pose: DronePose): { x: number; z: number } | null;
+  visible?(from: { x: number; z: number }, to: { x: number; z: number }): boolean;
   equip?(id: 'flashlight' | 'xray' | 'radar' | 'off', hand: Handedness): void;
   carried?(hand: Handedness): Tool | null;
   floatingTorch?(): FlashlightTool | null;
@@ -265,14 +267,16 @@ export class ShipExperience {
       presenting: () => host.ctx.renderer.xr.isPresenting,
       simulation: () => this.crew.simulation && !this.followBot,
       canMove: () =>
-        !this.crew.hidden && this.crew.hp > 0 && (!this.crew.simulation || !this.followBot),
+        (this.crew.simulation || !this.crew.hidden) &&
+        this.crew.hp > 0 &&
+        (!this.crew.simulation || !this.followBot),
       cycleHand: (hand) => (hand === 'left' ? this.cycleSensor() : this.cycleRight()),
       interact: () => {
         if (['lost', 'won'].includes(this.host.state().phase)) {
           this.host.start();
           return true;
         }
-        if (this.crew.hidden) {
+        if (this.crew.hidden && !this.crew.simulation) {
           this.leaveLocker();
           return true;
         }
@@ -353,7 +357,7 @@ export class ShipExperience {
           (this.crew.simulation && !wearable)
         )
           return;
-        if (this.crew.hidden) {
+        if (this.crew.hidden && !this.crew.simulation) {
           this.leaveLocker();
           this.paint();
           return;
@@ -567,6 +571,10 @@ export class ShipExperience {
   }
   private leaveLocker(): void {
     if (!this.crew.hidden) return;
+    if (this.crew.simulation) {
+      this.crew.hidden = '';
+      return;
+    }
     this.interactionCooldown = 0.2;
     if (this.crew.hidden) {
       this.host.ctx.rig.frozen = false;
@@ -1049,7 +1057,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.effects.update(dt);
     if (this.player) {
       this.updateSuitVisibility();
-      this.status.mesh.visible = !!crew.hidden || state.phase === 'lost' || state.phase === 'won';
+      this.status.mesh.visible =
+        (!crew.simulation && !!crew.hidden) || state.phase === 'lost' || state.phase === 'won';
       this.visor.visible =
         !crew.simulation && (crew.exertion > 0.005 || crew.hp < 3 || !!crew.hidden);
       this.visor.material.uniforms.fogAmount!.value = crew.exertion;
@@ -1063,7 +1072,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.suit.position.set(_pos.x, _pos.y - 0.62, _pos.z);
       this.suit.rotation.y = ctx.avatar.bodyYaw;
       this.wound.visible = crew.hp < 3;
-      const hidden = !!crew.hidden || crew.hp === 0;
+      const hidden = (!crew.simulation && !!crew.hidden) || crew.hp === 0;
       if (hidden !== this.hiddenWas) {
         if (hidden) this.savedRigFrozen = ctx.rig.frozen;
         ctx.rig.frozen = hidden || this.savedRigFrozen;
@@ -1329,6 +1338,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       near.locker ? this.lockerEntries.get(near.locker.id) : null,
       this.messages,
     ]);
+    const intentText = `Techniker: ${{ mission: 'Mission erfüllen', flee: 'Flucht vor Gefahr', hide: 'Leise im Schutzschrank' }[this.missionBot?.survival ?? 'mission']} · Monster: ${{ patrol: 'Patrouille', investigate: 'Geräusch untersuchen', hunt: 'Verfolgung', search: 'Letzte Position absuchen' }[crew.threat.mode]}`;
+    const currentIntent = this.dom.querySelector('[data-ai-intent]');
+    if (currentIntent) currentIntent.textContent = intentText;
     if (signature === this.stamp) return;
     this.stamp = signature;
     const expanded =
@@ -1356,8 +1368,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.dom.append(overview);
       const legend = document.createElement('div');
       legend.textContent =
-        'KI-Wege: Cyan = Techniker · Rot = Monster · Gelb = Drohne · Ring = Ziel · FUNK = Standort / Archiv';
+        'KI-Wege: Cyan = Techniker · Rot = Monster · Gelb = Drohne · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag';
       this.dom.append(legend);
+      const intent = document.createElement('div');
+      intent.dataset.aiIntent = '';
+      intent.textContent = intentText;
+      this.dom.append(intent);
     }
     if (state.phase === 'lost' || state.phase === 'won') {
       const result = document.createElement('div');
@@ -1639,6 +1655,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z));
   }
 
+  get botPose() {
+    return this.missionBot?.pose ?? null;
+  }
+
   get botNavigation() {
     return this.missionBot?.navigation ?? null;
   }
@@ -1679,6 +1699,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       state,
       route: (from, target) => this.host.routeTo?.(from, target) ?? null,
       revision: () => this.host.routeVersion?.() ?? 0,
+      danger: (pose) => this.host.danger?.(pose) ?? null,
+      visible: (from, to) => this.host.visible?.(from, to) ?? false,
       say: (text) => this.log(text),
     });
     this.simulated.position.set(this.missionBot.pose.x, 0, this.missionBot.pose.z);
@@ -1695,6 +1717,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.startBotRound();
       return;
     }
+    this.crew.hidden = '';
     this.crew.simulation = false;
     this.missionBot = null;
     this.simulated?.removeFromParent();
@@ -1722,6 +1745,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const beforeX = this.simulated.position.x,
       beforeZ = this.simulated.position.z;
     this.missionBot?.update(dt);
+    this.simulated.visible = !this.crew.hidden;
     if (this.missionBot) {
       this.simulated.position.set(this.missionBot.pose.x, 0, this.missionBot.pose.z);
       this.simulated.rotation.y = this.missionBot.pose.yaw + Math.PI;

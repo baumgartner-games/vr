@@ -244,3 +244,24 @@ test('safe bot rounds spawn a real patrol without reading the observer camera or
   world.state.crew.simulation = false;
   expect(world.npcTarget(new THREE.Vector3())).toBeNull();
 });
+
+test('simulation perception reads the bot position and ignores the observer rig', () => {
+  const world = replay();
+  const bot = { x: 0, z: -40, yaw: 0 };
+  world.state.crew.options.test = true;
+  world.state.crew.simulation = true;
+  world.state.monster = { x: 0, z: -37 };
+  Object.assign(world, {
+    experience: { botPose: bot },
+    hearing: new Map(),
+    sightTimer: 1,
+    monsterSeesPlayer: true,
+  });
+  const getHeadPosition = jest.fn(() => {
+    throw new Error('Observer is not the player');
+  });
+  world.stepCrew(0.1, { role: 'vr', rig: { getHeadPosition } });
+  expect(getHeadPosition).not.toHaveBeenCalled();
+  expect(world.state.crew.threat.target).toEqual({ x: bot.x, z: bot.z });
+  expect(world.state.crew.hp).toBe(3);
+});

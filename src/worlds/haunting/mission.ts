@@ -126,8 +126,10 @@ export function readCrew(value: unknown): CrewState {
   }
   if (c.options.test) {
     c.hp = 3;
-    c.hidden = '';
-    c.threat = freshThreat();
+    if (!c.simulation) {
+      c.hidden = '';
+      c.threat = freshThreat();
+    }
   }
   return c;
 }
@@ -209,7 +211,7 @@ export function stepVitals(
   // saturated exertion after 4 seconds; the visor clears over 5 seconds walking.
   crew.exertion = Math.max(0, Math.min(1, crew.exertion + (speed > 3.6 ? 0.25 : -0.2) * step));
   const danger =
-    crew.options.test || !Number.isFinite(monsterDistance)
+    (crew.options.test && !crew.simulation) || !Number.isFinite(monsterDistance)
       ? 0
       : Math.max(0, 1 - monsterDistance / 15);
   // This is game telemetry, never a real-world heart-rate reading.

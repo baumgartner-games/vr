@@ -128,3 +128,17 @@ test('the actual body waits at a closed door and continues after that door opens
     world.dispose();
   }
 }, 60000);
+
+test('reactor patrol reaches cafeteria through the upper engine corner', async () => {
+  const world = await stage();
+  try {
+    const start = safeRoomSpawn(world.spec, world.spec.rooms[2]!.id);
+    world.npc.entry.body.setTranslation({ x: start.x, y: 0.95, z: start.z }, true);
+    world.navigate();
+    const goal = safeRoomSpawn(world.spec, world.spec.rooms[0]!.id);
+    const arrived = world.run(goal, 140);
+    expect(Math.hypot(arrived.x - goal.x, arrived.z - goal.z)).toBeLessThan(1.2);
+  } finally {
+    world.dispose();
+  }
+});

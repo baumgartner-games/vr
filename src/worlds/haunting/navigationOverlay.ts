@@ -1,9 +1,17 @@
 import * as THREE from 'three';
-import { TILE } from '../nav/navTile';
+import { TILE, tileCentreX, tileCentreZ } from '../nav/navTile';
 import type { HouseSpec } from './house';
 import { label } from './shipArt';
 
+interface View extends Point {
+  yaw: number;
+  range: number;
+  fov: number;
+  targetY?: number;
+}
+
 interface Point {
+  y?: number;
   x: number;
   z: number;
 }
@@ -39,8 +47,44 @@ export class NavigationOverlay {
     return { line, ring };
   });
 
+  private readonly views = [0x42e8ff, 0xff5064].map((color) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(48 * 9), 3));
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        depthTest: false,
+      }),
+    );
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 98;
+    this.root.add(mesh);
+    return mesh;
+  });
+  private readonly sound = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(TILE * 0.94, TILE * 0.94),
+    new THREE.MeshBasicMaterial({
+      color: 0xffb347,
+      transparent: true,
+      opacity: 0.2,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+    1024,
+  );
+
   constructor() {
     this.root.name = 'ai-navigation-goals';
+    this.sound.count = 0;
+    this.sound.renderOrder = 97;
+    this.sound.frustumCulled = false;
+    this.root.add(this.sound);
     this.root.visible = false;
     this.root.add(new THREE.HemisphereLight(0xffffff, 0x8198af, 2.5));
   }
@@ -78,8 +122,61 @@ export class NavigationOverlay {
     });
   }
 
+  /** The same fixed-collider sight test as the actors clips cones at real walls. */
+  perception(
+    bot: View | null,
+    monster: View | null,
+    hearing: ReadonlyMap<number, number>,
+    visible: (a: Point, b: Point) => boolean,
+  ): void {
+    [bot, monster].forEach((view, i) => {
+      const mesh = this.views[i]!;
+      mesh.visible = !!view;
+      if (!view) return;
+      const positions = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const edge = (angle: number): Point => {
+        let low = 0,
+          high = view.range;
+        const point = (distance: number) => ({
+          x: view.x - Math.sin(angle) * distance,
+          z: view.z - Math.cos(angle) * distance,
+          y: view.targetY ?? 1.65,
+        });
+        if (visible(view, point(high))) return point(high);
+        for (let n = 0; n < 8; n++) {
+          const mid = (low + high) / 2;
+          if (visible(view, point(mid))) low = mid;
+          else high = mid;
+        }
+        return point(low);
+      };
+      let previous = edge(view.yaw - view.fov / 2);
+      for (let n = 0; n < 48; n++) {
+        const next = edge(view.yaw - view.fov / 2 + (view.fov * (n + 1)) / 48);
+        positions.setXYZ(n * 3, view.x, 0.12, view.z);
+        positions.setXYZ(n * 3 + 1, previous.x, 0.12, previous.z);
+        positions.setXYZ(n * 3 + 2, next.x, 0.12, next.z);
+        previous = next;
+      }
+      positions.needsUpdate = true;
+    });
+    const matrix = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+    let count = 0;
+    for (const [key] of hearing) {
+      if (count >= 1024) break;
+      matrix.setPosition(tileCentreX(key), 0.07, tileCentreZ(key));
+      this.sound.setMatrixAt(count++, matrix);
+    }
+    this.sound.count = monster ? count : 0;
+    this.sound.instanceMatrix.needsUpdate = true;
+  }
+
   dispose(): void {
     this.root.removeFromParent();
+    for (const mesh of [...this.views, this.sound]) {
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
     for (const sign of this.labels) {
       sign.geometry.dispose();
       sign.material.map?.dispose();

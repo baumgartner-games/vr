@@ -47,15 +47,13 @@ describe('entity perception', () => {
     expect(blocked.threat.mode).toBe('patrol');
   });
 
-  test.each(['test', 'simulation', 'hidden', 'dead', 'outside', 'absent'] as const)(
+  test.each(['test', 'dead', 'outside', 'absent'] as const)(
     '%s suppresses hostile perception',
     (protection) => {
       const crew = freshCrew();
       advance(crew, { ...stimulus, speed: 5 }, 3);
       const input = { ...stimulus, speed: 5 };
       if (protection === 'test') crew.options.test = true;
-      if (protection === 'simulation') crew.simulation = true;
-      if (protection === 'hidden') crew.hidden = 'r0';
       if (protection === 'dead') crew.hp = 0;
       if (protection === 'outside') input.insideStation = false;
       if (protection === 'absent') input.monster = null;
@@ -75,4 +73,39 @@ describe('entity perception', () => {
     expect(readCrew(crew).threat.target).toBeNull();
     expect(readCrew(crew).threat.awareness).toBe(0);
   });
+});
+
+test('safe simulation hunts the bot but retains damage protection', () => {
+  const crew = freshCrew();
+  crew.options.test = true;
+  crew.simulation = true;
+  advance(crew, { ...stimulus, speed: 5 }, 3);
+  expect(crew.threat.mode).toBe('hunt');
+  expect(threatTarget(crew)).toEqual(stimulus.player);
+  expect(readCrew(crew).threat.target).toEqual(stimulus.player);
+  expect(crew.hp).toBe(3);
+});
+
+test('facing and acoustic distance gate detection; a locker leaves a stale search position', () => {
+  const crew = freshCrew();
+  advance(
+    crew,
+    {
+      ...stimulus,
+      speed: 5,
+      hearingDistance: Infinity,
+      flashlight: true,
+      lineOfSight: true,
+      inView: false,
+    },
+    2,
+  );
+  expect(threatTarget(crew)).toBeNull();
+  advance(crew, { ...stimulus, flashlight: true, lineOfSight: true, inView: true }, 2);
+  crew.hidden = 'r0';
+  advance(crew, { ...stimulus, player: { x: 9, z: 1 }, speed: 5 }, 1);
+  expect(crew.threat.mode).toBe('search');
+  expect(threatTarget(crew)).toEqual(stimulus.player);
+  advance(crew, stimulus, 15);
+  expect(threatTarget(crew)).toBeNull();
 });

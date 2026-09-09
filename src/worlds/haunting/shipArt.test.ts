@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { APRON, generateHouse, spacesOf } from './house';
-import { buildCrewmate, buildShip } from './shipArt';
+import { animateCreature, buildCrewmate, buildShip } from './shipArt';
 
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
 
@@ -167,4 +167,18 @@ describe('station hull geometry', () => {
       }
     }
   });
+});
+
+test('technician steps alternate legs and counter-swing each arm', () => {
+  const crew = buildCrewmate();
+  animateCreature(crew, 0.25);
+  const legs = crew.children.filter((c) => c.name === 'leg');
+  expect(legs[0]!.rotation.x).not.toBe(0);
+  expect(legs[0]!.rotation.x).toBeCloseTo(-legs[1]!.rotation.x);
+  for (const leg of legs) {
+    const arm = crew.children.find(
+      (c) => c.name === 'arm' && Math.sign(c.position.x) === Math.sign(leg.position.x),
+    )!;
+    expect(arm.rotation.x).toBeCloseTo(-leg.rotation.x);
+  }
 });

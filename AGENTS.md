@@ -7608,7 +7608,9 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 - `GridWorld.setSlidingGridDoor` verändert nur Türcollider und physische
   Navkante, nicht den ganzen Level. **Wege benutzen `StationTravelPlan`:**
   funktionale automatische Türen sind dort schon vor Annäherung passierbar,
-  gesperrte Türen bleiben blockiert. Ohne diese Trennung endet eine partielle
+  gesperrte Türen bleiben blockiert. Ausnahme: Eine durch Belegung noch physisch
+  offen gehaltene Sperrtür bleibt bis zum Verlassen der Schwelle navigierbar
+  (`occupiedOpen`); sonst sperrt das Monster beim Spuken seine eigene Startposition ein. Ohne diese Trennung endet eine partielle
   Route vor einer beliebigen Wand, und die Tür bekommt nie ein Nahsignal.
 - `stationNavigation.ts` verwendet dieselben Maße wie Collider und Modelle.
   Quadratische Kurven werden mit ca.12cm Schritten und `segmentClear` geprüft;
@@ -7647,7 +7649,14 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Sprachchat in `net/Voice.ts` bleibt unabhängig. **Gegneridentifikation ist
   vorerst entfernt:** kein EMF/Thermosensor/Audio-Logger/Anomalienjournal.
   `ENTITY_PROFILES` enthält nur verbleibende KI-/Schrittklangwerte.
-- `threat.ts` prüft Bewegung, Ducken, Taschenlampe und echte Sichtlinie.
+- `threat.ts` prüft Bewegung, Ducken, Taschenlampe, Blickrichtung und echte Sichtlinie.
+  `perception.ts` berechnet ein begrenztes akustisches Kostenfeld auf dem realen
+  NavGraph: offene Kante 2,5m, geschlossene Tür zusätzlich 4m, gemeinsame Wand 9m.
+  Keine Übertragung über fehlende Bodenfelder. Aktualisierung 10Hz; kein Mikrofon.
+  Monster-FOV 129,6°, Techniker-FOV 111,6°/16m. Die Bot-Runde nutzt dieselbe
+  Monsterwahrnehmung mit dem Bot als Signalquelle, niemals der Beobachterkamera.
+  Schutzschränke unterbrechen Wahrnehmung, löschen aber nicht sofort die letzte
+  Suchposition. Simulations-Snapshots bewahren Versteck und Bedrohung.
   Erinnerung verfolgt die zuletzt wahrgenommene Position, keine Hellsicht.
 - Anstrengung steigt beim Sprint in 4s von 0 auf 1 und fällt in 5s ab.
   `helmetCondensation.ts` lässt unten im Visier Atemwolken und Tropfen
@@ -7658,14 +7667,27 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 - `desktopControls.ts`: E/Klick benutzt denselben Interaktionspfad;
   1 wechselt Radar/Xray/frei, 2 Lampe/Medkit/frei. Ctrl duckt. Im Simulationsflug
   WASD/Space/Ctrl. Menüs, Texteingaben und Fokusverlust sperren gehaltene Tasten.
-- `MissionBot` führt eine echte, schadensfreie Runde mit Monsterpatrouille aus: zu Fracht gehen,
+- `MissionBot` führt eine echte, schadensfreie Runde mit aktiver Monster-KI aus: zu Fracht gehen,
   öffnen, nehmen, zu Terminal gehen, Puzzle schrittweise lösen, nach drei
   Aufträgen in die Zentrale zurückkehren. Nutzt reale Zustände und Wege.
+  `survival` unterbricht Missionsschritte für Flucht/Versteck. Erreichbare
+  Schutzschrankzugänge werden nach Deckung, Weglänge und Abstand zur zuletzt
+  wahrgenommenen Gefahr gewählt; Wege direkt durch die Gefahr werden verworfen.
+  Sprint 4,4m/s, erschöpft 2,7m/s; nach ruhiger Phase Mission fortsetzen.
+  Unterbrochene Interaktionen erfordern erneute Ankunft am Fracht-/Reparaturziel.
+  Verstecke des Bots sperren die freie Beobachterkamera nicht.
+  Monster bekommen während Jagd kurze Temposchübe, Schächte benötigen freie
+  Zugänge/Ausgänge und führen bei Verfolgung in Richtung des letzten Signals.
   Gesperrte Routen warten statt zu teleportieren. Das ist keine simulierte
   menschliche Kommunikation und keine vollständige autonome Dreiercrew.
   Raumwechsel erzeugen lokale Funkmeldungen Techniker → Zentrale.
   `NavigationOverlay` liest echte Route-Cursor von Bot, Monster und Drohne;
-  Cyan/Rot/Gelb und Zielringe sind nur in der Simulation sichtbar.
+  Cyan/Rot/Gelb und Zielringe sind nur in der Simulation sichtbar. Sichtflächen
+  werden gegen feste Collider (inklusive Türblätter/Einrichtung) beschnitten;
+  Orange zeigt das maximale akustische Feld für Sprintgeräusche. Legende und
+  KI-Absichten erklären Grenzen. Gehen/Stillstand erzeugen weniger/keinen Schall.
+  Schrittanimation basiert auf Körperseite und Gliedmaßtyp statt Child-Reihenfolge:
+  linkes/rechtes Bein gegensinnig, gleichseitiger Arm jeweils entgegengesetzt.
   Freiflug reicht bis 120m, Kartenübersicht setzt den Desktopblick auf 90m.
   Desktop-Demos starten mit nachgeführter Botkamera; **Freie Kamera** / **Bot
   folgen** wechselt die Bedienung. `followBotCamera` läuft niemals im XR-Headset;

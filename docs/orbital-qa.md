@@ -242,3 +242,58 @@ JSON-Report und alle erreichten Schritte. Lokal bleiben Screenshots Standard.
 Abnahme ohne Bilder: `.artifacts/browser-smoke/no-screenshots/report.json`
 meldet `passed: true`, `screenshots: false` und 13 erreichte Schritte mit
 `screenshot: null`. Im Ausgabeordner liegt keine PNG-Datei.
+
+## KI-Begegnungen und Überlebensverhalten (2026-09-09)
+
+Die sichere Bot-Runde besitzt jetzt aktive Monsterwahrnehmung. Das Testflag
+verhindert Schaden, unterdrückt aber in der Simulation keine Verfolgung mehr.
+Der Beobachter ist nie die Signalquelle. Der Techniker unterbricht Aufgaben,
+flieht mit begrenztem Sprint zu erreichbarer Deckung, wartet ungesehen im
+Schutzschrank und setzt seine reale Mission fort. Unterbrochene Reparaturen
+werden erst nach erneuter Ankunft am Terminal fortgesetzt.
+
+Die Sichtfelder beider Akteure sind richtungsabhängig und werden gegen die
+festen Collider einschließlich Türen und Einrichtung abgeschnitten. Das
+Hörfeld folgt vorhandenen Nav-Bodenfeldern mit zusätzlichen Kosten an Türen
+und gemeinsamen Wänden. Es überquert keine fehlenden Felder zwischen Räumen.
+Orange zeigt maximale Wahrnehmbarkeit von Sprintgeräuschen; Gehen und Ducken
+reduzieren die tatsächliche Wahrnehmung. Kein Mikrofoneingang.
+
+Ein im Browser entdeckter Stillstand war eine selbst verriegelte Tür: Das
+physische Blatt blieb wegen der belegten Schwelle offen, der Reisegraph hatte
+sie bereits geschlossen. `occupiedOpen` hält dieselbe Kante navigierbar,
+bis die Tür wirklich schließen darf. Schächte werden nur mit erreichbarem
+Zugang und freiem Ausgang gewählt; Jagd-Abkürzungen führen zum letzten Signal.
+Beine wechseln jetzt die Phase nach Körperseite, Arme schwingen dagegen.
+
+Lokaler Chromium-Produktionslauf, Seed **924542998**: reale Weltupdates inklusive
+Rapier mit 50ms Schritten, während die Render-Animationsschleife für den
+beschleunigten Funktionstest pausiert war. Nach **925,25s simulierter Spielzeit**
+standen `phase=won`, drei Reparaturen und die Rückkehr in die Zentrale fest.
+Durchlaufen wurden alle Monster-Modi (`patrol`, `investigate`, `hunt`, `search`)
+und alle Techniker-Modi (`mission`, `flee`, `hide`); 880 Schritte befanden sich
+in Schachtpassagen. Keine Browser-JavaScriptfehler. Das belegt Spielverhalten,
+keine Echtzeit-Framerate und keine garantierte Gewinnzeit für andere Seeds.
+
+Regressionen prüfen Sichtwinkel, Schall um Ecken und an gemeinsamen Wänden,
+fehlenden Schallweg über Raumlücken, Erinnerung nach Verstecken, aktive
+Simulationswahrnehmung ohne Beobachterkamera, Flucht/Versteck/Missionsfortsetzung,
+belegte Sperrtüren, physische Monsterwege und gegensinnige Gliedmaßen.
+CI behält `--no-screenshots`; die Funktionsprüfungen und der JSON-Report bleiben.
+
+Abschlussprüfung: **186 Testsuites / 2.681 Tests bestanden**, Typecheck, ESLint,
+Prettier und Produktionsbuild erfolgreich. Der normale Chromium-Smoke wird
+weiter ohne CI-Screenshots ausgeführt; der beschleunigte KI-Lauf ersetzt dessen
+UI- und Rollenprüfungen nicht.
+
+Der abschließende reguläre Chromium-Smoke (`--no-screenshots`, normale Grafik,
+15s Botbeobachtung) bestand **alle 13 Schritte**, inklusive Rollen/Mobilansichten,
+Lampenaufnahme, Tod/Neustart, Bot- und Monsterbewegung sowie Kameraübersicht.
+Der lokale erzwungene Softwarelauf wurde nach einem UI-Timeout und einem sehr
+langsamen Wiederholungslauf durch diese isolierte native Abnahme ersetzt.
+KI-Absichtstexte werden separat aktualisiert, statt bei jedem Moduswechsel das
+Bedienfeld neu zu bauen. Der CI-Runner behält seine eigene Softwareprüfung.
+
+Aktuelle Übersicht mit Blickfeldern, akustischen Bodenfeldern und KI-Absichten:
+[KI-Wahrnehmung](orbital/ai-perception.png). Die orange Überlagerung liegt nur auf
+vorhandenen Stationsfeldern; die schwarzen Lücken bleiben frei.
