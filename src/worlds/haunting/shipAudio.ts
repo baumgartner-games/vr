@@ -3,7 +3,22 @@ import type { MonsterKind } from './mission';
 import { ENTITY_PROFILES, type SignalPoint } from './threat';
 
 export const SHIP_AUDIO_VOICES = 8;
-export type ShipSound = 'door' | 'spark' | 'vent' | 'step' | 'pickup' | 'crew-step' | 'breath';
+export type ShipSound =
+  | 'door'
+  | 'spark'
+  | 'vent'
+  | 'step'
+  | 'pickup'
+  | 'crew-step'
+  | 'breath'
+  /** Das Klacken, mit dem das Monster einen Raum absucht. */
+  | 'klack'
+  /** Die Ankündigung vor der Kabine. */
+  | 'scream'
+  /** Die aufgerissene Kabine. */
+  | 'breach'
+  /** Der eigene Herzschlag bei einer Verfolgung. */
+  | 'heartbeat';
 export interface ShipAudioFrame {
   listener: SignalPoint;
   forward: SignalPoint;
@@ -18,7 +33,46 @@ export interface ShipAudioFrame {
   playerSpeed?: number;
   /** In-game exertion 0..1; never microphone or breathing-tracker input. */
   exertion?: number;
+  /**
+   * Wie nah eine laufende Verfolgung ist (0…1) — daraus wird der Herzschlag.
+   *
+   * Er ist **kein** Geräusch der Welt, sondern eines im Kopf: Er sitzt am
+   * Ohr des Zuhörers, wird schneller und lauter, je näher das Monster kommt,
+   * und ist die einzige Auskunft, die man im Dunkeln über den Abstand hinter
+   * sich bekommt. Spielwerte, nie eine gemessene Herzfrequenz.
+   */
+  chase?: number;
 }
+/** Länge, Abspielrate und Lautstärke je Geräusch — eine Tabelle statt einer Leiter aus Fragezeichen. */
+const DURATIONS: Partial<Record<ShipSound, number>> = {
+  door: 0.46,
+  vent: 0.55,
+  spark: 0.13,
+  breath: 0.72,
+  'crew-step': 0.12,
+  klack: 0.11,
+  scream: 0.95,
+  breach: 0.52,
+  heartbeat: 0.16,
+};
+const RATES: Partial<Record<ShipSound, number>> = {
+  door: 0.45,
+  vent: 0.7,
+  breath: 0.32,
+  klack: 1.9,
+  scream: 0.28,
+  breach: 0.6,
+};
+const VOLUMES: Partial<Record<ShipSound, number>> = {
+  spark: 0.06,
+  'crew-step': 0.038,
+  breath: 0.045,
+  klack: 0.055,
+  scream: 0.19,
+  breach: 0.16,
+  heartbeat: 0.13,
+};
+
 interface Voice {
   gain: GainNode;
   pan: StereoPannerNode;
@@ -66,7 +120,9 @@ export class ShipAudio {
   private stepClock = 0;
   private playerStepClock = 0;
   private breathClock = 0;
+  private heartClock = 0;
   private ventBefore = false;
+  private pending: { kind: ShipSound; at: number; scale: number } | null = null;
 
   get activeVoices(): number {
     let count = 0;
@@ -130,6 +186,23 @@ export class ShipAudio {
       this.breathClock = 2.5 - exertion * 1.2;
       this.play('breath', this.listener);
     }
+    const chase = Number.isFinite(frame.chase) ? Math.max(0, Math.min(1, frame.chase!)) : 0;
+    this.heartClock -= elapsed;
+    if (chase > 0.05 && this.heartClock <= 0) {
+      // Von einem Schlag je Sekunde herunter auf gut zwei — und der zweite
+      // Schlag eines Paares kommt gleich hinterher, sonst klingt es wie ein
+      // Klopfen und nicht wie ein Herz.
+      this.heartClock = 1.05 - chase * 0.62;
+      this.play('heartbeat', this.listener, frame.kind, 0.35 + chase * 0.65);
+      this.pending = { kind: 'heartbeat', at: 0.17, scale: 0.22 + chase * 0.4 };
+    }
+    if (this.pending) {
+      this.pending.at -= elapsed;
+      if (this.pending.at <= 0) {
+        this.play('heartbeat', this.listener, frame.kind, this.pending.scale);
+        this.pending = null;
+      }
+    }
     const hostile = frame.active && !frame.test && frame.monster;
     if (hostile && frame.venting && !this.ventBefore) this.play('vent', frame.monster!, frame.kind);
     this.ventBefore = frame.venting;
@@ -139,7 +212,7 @@ export class ShipAudio {
     }
   }
 
-  play(kind: ShipSound, at: SignalPoint, monster: MonsterKind = 'stalker'): void {
+  play(kind: ShipSound, at: SignalPoint, monster: MonsterKind = 'stalker', scale = 1): void {
     if (this.disposed || !this.enabled || !this.ensure()) return;
     const ctx = this.context!;
     let voice: Voice | undefined;
@@ -156,24 +229,15 @@ export class ShipAudio {
       kind === 'vent' ||
       kind === 'door' ||
       kind === 'breath' ||
+      kind === 'klack' ||
+      kind === 'scream' ||
+      kind === 'breach' ||
       (kind === 'step' && monster === 'crawler');
-    const duration =
-      kind === 'door'
-        ? 0.46
-        : kind === 'vent'
-          ? 0.55
-          : kind === 'spark'
-            ? 0.13
-            : kind === 'breath'
-              ? 0.72
-              : kind === 'crew-step'
-                ? 0.12
-                : 0.2;
+    const duration = DURATIONS[kind] ?? 0.2;
     const source = noisy ? ctx.createBufferSource() : ctx.createOscillator();
     if ('buffer' in source) {
       source.buffer = this.noise;
-      source.playbackRate.value =
-        kind === 'door' ? 0.45 : kind === 'vent' ? 0.7 : kind === 'breath' ? 0.32 : 1.2;
+      source.playbackRate.value = RATES[kind] ?? 1.2;
     } else {
       source.type = kind === 'pickup' ? 'sine' : monster === 'sentinel' ? 'triangle' : 'sine';
       const frequency =
@@ -181,7 +245,9 @@ export class ShipAudio {
           ? 580
           : kind === 'crew-step'
             ? 105
-            : ENTITY_PROFILES[monster].stepFrequency;
+            : kind === 'heartbeat'
+              ? 58
+              : ENTITY_PROFILES[monster].stepFrequency;
       source.frequency.setValueAtTime(frequency, ctx.currentTime);
       source.frequency.exponentialRampToValueAtTime(
         kind === 'pickup' ? 840 : frequency * 0.35,
@@ -200,15 +266,8 @@ export class ShipAudio {
     voice.at.x = at.x;
     voice.at.z = at.z;
     voice.volume =
-      kind === 'step'
-        ? 0.14 * ENTITY_PROFILES[monster].sound
-        : kind === 'spark'
-          ? 0.06
-          : kind === 'crew-step'
-            ? 0.038
-            : kind === 'breath'
-              ? 0.045
-              : 0.08;
+      (kind === 'step' ? 0.14 * ENTITY_PROFILES[monster].sound : (VOLUMES[kind] ?? 0.08)) *
+      Math.max(0, Math.min(2, scale));
     voice.gain.gain.setValueAtTime(voice.volume * mix.gain, ctx.currentTime);
     voice.pan.pan.setValueAtTime(mix.pan, ctx.currentTime);
     source.connect(envelope).connect(voice.gain);

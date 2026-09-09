@@ -40,6 +40,17 @@ export const STATION_WALL_CLEARANCE = 0.22;
 const WALL_INSET = PLAN_WALL_T / 2 + STATION_WALL_CLEARANCE;
 const MODULE_GAP = 0.12;
 const APPROACH_GAP = STATION_PLAYER_RADIUS + 0.13;
+/**
+ * **Die Gasse zu einem Bedienplatz** — breiter als der Spieler selbst.
+ *
+ * Der Aufschlag auf den Radius ist der Grund für diese Zeile: Die Wegsuche
+ * rastert in Vierteldezimetern und muss zusätzlich um Ecken kommen. Eine
+ * Gasse, durch die der Spielerzylinder gerade eben noch passt, war schon der
+ * Frachtschrank, vor dem der Techniker eine ganze Runde lang „Weg blockiert"
+ * meldete: Zwischen zwei Modulen blieben acht Zentimeter, und acht Zentimeter
+ * sind auf dem Papier ein Weg und im Raster keiner.
+ */
+const LANE = STATION_PLAYER_RADIUS + 0.13;
 const cache = new WeakMap<HouseSpec, readonly StationPlacement[]>();
 
 export function roomBounds(room: HouseRoom): FloorBounds {
@@ -285,28 +296,43 @@ function islandCandidates(room: HouseRoom, request: Request): StationPlacement[]
   return candidates;
 }
 
+/**
+ * **Was außer den Pflichtmodulen noch im Raum steht.**
+ *
+ * Die Liste ist ein Wunsch und keine Zusage: Was nicht mehr sicher passt,
+ * fällt weg (`packRoom`). Deshalb steht das Wichtigste vorn.
+ *
+ * **Die Kantine hat drei Tische, eine Ausgabe und eine Wasseraufbereitung.**
+ * Sie war der größte Raum der Station und der leerste — zwei Möbel auf
+ * zwanzig mal siebzehn Metern, und ein Monster, das hindurchläuft, hat nichts,
+ * hinter dem es verschwinden könnte. **Und in fast jedem anderen Raum steht
+ * jetzt etwas in der Mitte**: ein Tisch, eine Werkbank, eine Kiste. Ein Raum
+ * mit lauter Möbeln an den Wänden ist eine Turnhalle; erst die Insel in der
+ * Mitte macht daraus einen Ort, um den man herumlaufen und hinter dem man
+ * stehen bleiben kann.
+ */
 function roomDressing(room: HouseRoom): MarkId[] {
   switch (room.kind) {
     case 'bad':
       return ['bett', 'spuele', 'klavier', room.signature];
     case 'kueche':
-      return ['esstisch', 'spuele', 'esstisch', 'standuhr'];
+      return ['esstisch', 'esstisch', 'ausgabe', 'esstisch', 'spuele', 'standuhr'];
     case 'bibliothek':
-      return ['buecher', 'klavier', 'sessel'];
+      return ['esstisch', 'buecher', 'klavier', 'sessel'];
     case 'schlafzimmer':
-      return ['bett', 'sessel', 'kiste'];
+      return ['esstisch', 'bett', 'sessel', 'kiste'];
     case 'kammer':
-      return ['kiste', 'standuhr', 'kiste'];
+      return ['kiste', 'esstisch', 'standuhr', 'kiste'];
     case 'werkstatt':
-      return ['standuhr', 'buecher', 'kiste'];
+      return ['werkbank', 'standuhr', 'buecher', 'kiste'];
     case 'wohnzimmer':
-      return ['standuhr', 'klavier', 'werkbank'];
+      return ['werkbank', 'standuhr', 'klavier'];
     case 'musikzimmer':
-      return ['buecher', 'sessel', 'klavier'];
+      return ['esstisch', 'buecher', 'sessel', 'klavier'];
     case 'kinderzimmer':
-      return ['spuele', 'buecher', 'kiste'];
+      return ['bett', 'spuele', 'buecher', 'kiste'];
     case 'esszimmer':
-      return ['esstisch', 'spuele', 'standuhr'];
+      return ['esstisch', 'esstisch', 'spuele', 'standuhr'];
   }
 }
 
@@ -340,8 +366,8 @@ function packRoom(
         placed.some(
           (other) =>
             footprintsOverlap(p.bounds, other.bounds, MODULE_GAP) ||
-            routeBlocked(centre, p.approach, other.bounds) ||
-            routeBlocked(centre, other.approach, p.bounds),
+            routeBlocked(centre, p.approach, other.bounds, LANE) ||
+            routeBlocked(centre, other.approach, p.bounds, LANE),
         )
       )
         continue;
@@ -366,7 +392,7 @@ function packRoom(
       markId,
       ...FIXTURE_CATALOG[markId],
     };
-    const island = spec.passages && ['bett', 'esstisch', 'werkbank'].includes(markId);
+    const island = spec.passages && ['bett', 'esstisch', 'werkbank', 'kiste'].includes(markId);
     const candidate = [
       ...(island ? islandCandidates(room, request) : []),
       ...wallCandidates(room, request),
@@ -378,8 +404,8 @@ function packRoom(
         !placed.some(
           (other) =>
             footprintsOverlap(p.bounds, other.bounds, MODULE_GAP) ||
-            routeBlocked(centre, p.approach, other.bounds) ||
-            routeBlocked(centre, other.approach, p.bounds),
+            routeBlocked(centre, p.approach, other.bounds, LANE) ||
+            routeBlocked(centre, other.approach, p.bounds, LANE),
         ),
     );
     if (candidate) placed.push(candidate);

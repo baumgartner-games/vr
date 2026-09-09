@@ -35,6 +35,7 @@ const MARK_COLORS: Readonly<Record<MarkId, number>> = {
   kiste: 0xa8874f,
   schaukelpferd: 0xd88a6a,
   esstisch: 0xb08a5a,
+  ausgabe: 0xd6c08a,
 };
 
 /**
@@ -125,6 +126,11 @@ function parts(id: MarkId): Part[] {
       ];
     case 'kiste':
       return [{ x: 0, y: 0.08, z: 0, w: 0.9, h: 0.16, d: 0.9 }];
+    case 'ausgabe':
+      return [
+        { x: 0, y: 0.05, z: 0.1, w: 1.9, h: 0.1, d: 0.4 },
+        { x: 0, y: 0.42, z: -0.2, w: 1.9, h: 0.08, d: 0.1 },
+      ];
     case 'schaukelpferd':
       return [
         { x: 0, y: 0.3, z: 0, w: 0.8, h: 0.3, d: 0.25 },

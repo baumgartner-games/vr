@@ -193,12 +193,34 @@ verwenden freie Ankunftsplätze. **Bot-Runde anschauen** ist in der Zentrale und
 im Testmenü erreichbar: Ein Techniker läuft durch die echte Station, öffnet
 Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
 Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
-halten ihn auf, bis eine Route wieder möglich ist. Das Monster sieht und hört den Bot, untersucht Geräusche, verfolgt ihn und
-sucht nach Sichtverlust die letzte bekannte Position ab. Der Techniker priorisiert
+halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert
 Überleben: Er unterbricht Arbeit, sprintet mit Erholung zu erreichbarer Deckung,
 versteckt sich ungesehen in einem Schutzschrank und setzt anschließend die Mission fort.
-Monster können zeitweise schneller laufen und erreichbare Schächte durch gemeinsame
-Wände benutzen; der sichere Test bleibt ohne Schaden.
+Der sichere Test bleibt dabei ohne Schaden.
+
+**Das Monster hat vier Grundhaltungen** und darüber die Verfolgung:
+*Patrouille* (zügig von Raum zu Raum), *Seitenwechsel* (nach mehreren
+erfolglosen Zielen quer über die Karte), *Auflauern* (stehen bleiben und
+warten) und *Absuchen*. Beim Absuchen **rät** es, in welchen angrenzenden Raum
+sein Gegenüber verschwunden ist, geht leise hinein, macht dort Klack-Geräusche,
+öffnet manchmal den Schutzschrank — oder lässt den Raum stehen und geht gleich
+weiter. Hat es jemanden in eine Kabine flüchten **sehen**, geht es hin,
+**schreit davor** als Ankündigung, reißt sie mit Rauch und Funken auf und
+bleibt danach kurz stehen, um Vorsprung zu gewähren. Bei einer Verfolgung hört
+man den eigenen Herzschlag, schneller und lauter, je näher es kommt. Ein
+Monster **geht schneller als ein Spieler geht** und **rennt langsamer, als ein
+Spieler rennt** — wer nur spaziert, wird eingeholt; wer rennt, kommt davon.
+Schächte durch gemeinsame Wände benutzt es weiterhin.
+
+**Zeitraffer, Regler und Training.** In der Bot-Runde laufen ×2, ×4 und ×8
+(beschleunigt wird über die Zahl der Bilder, nicht über ihre Länge). Die
+Beleuchtung schaltet zwischen voller Beleuchtung, Wachbetrieb,
+Alarmbeleuchtung und Notstrom — im Alarm drehen sich rote Leuchten in den
+Gängen. Unter **Bots justieren & trainieren** stehen alle Gewichte beider Bots
+als Regler, dazu drei Knöpfe: *Monster trainieren*, *Techniker trainieren*,
+*beide*. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte,
+mit denen der Techniker im Schnitt 60–70 % der Runden gewinnt; es rechnet
+zwischen den Bildern weiter und friert den Tab nicht ein.
 Cyan zeigt den Technikerweg, Rot den Monsterweg und Gelb die Drohnenroute.
 Zielringe markieren die jeweiligen Ziele. Cyan/rote Flächen zeigen die an echten
 Wänden und Einrichtungen abgeschnittenen Blickfelder. Orange zeigt den maximalen

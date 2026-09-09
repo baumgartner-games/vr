@@ -114,6 +114,47 @@ describe('station spatial audio', () => {
     audio.dispose();
   });
 
+  /**
+   * Der Herzschlag ist die einzige Auskunft über den Abstand nach hinten:
+   * schneller und lauter, je näher es kommt — und ein Doppelschlag, sonst
+   * klingt es wie ein Klopfen an der Wand.
+   */
+  test('a chase drives a doubled heartbeat that quickens as the monster closes in', () => {
+    const beats = (chase: number): number => {
+      const { context, scheduled } = fakeAudio();
+      (sharedAudio as jest.Mock).mockReturnValue(context);
+      const audio = new ShipAudio();
+      // Freigespielte Stimmen sofort zurückgeben, damit die acht Slots nicht
+      // die Zählung begrenzen.
+      for (let i = 0; i < 120; i++) {
+        audio.update(0.05, {
+          listener: { x: 0, z: 0 },
+          forward: { x: 0, z: -1 },
+          monster: null,
+          kind: 'stalker',
+          active: false,
+          test: true,
+          venting: false,
+          chase,
+        });
+        for (const source of scheduled) source.onended?.();
+      }
+      audio.dispose();
+      // Eine Quelle ist der dauerhafte Maschinen-Oszillator.
+      return scheduled.length - 1;
+    };
+    const quiet = beats(0);
+    const distant = beats(0.2);
+    const close = beats(0.95);
+    expect(quiet).toBe(0);
+    expect(distant).toBeGreaterThan(0);
+    expect(close).toBeGreaterThan(distant);
+    // Doppelschlag: In sechs Sekunden schlägt es bei fast anliegendem
+    // Monster öfter als zweimal je Sekunde — das schafft ein einzelner
+    // Schlag je Takt nicht.
+    expect(close).toBeGreaterThan(12);
+  });
+
   test('the technician can hear quiet walking and exertion in training without any monster', () => {
     const { context, scheduled } = fakeAudio();
     (sharedAudio as jest.Mock).mockReturnValue(context);

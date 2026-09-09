@@ -869,3 +869,17 @@ body.haunt-on .touch { display: none; }
 .orbital-radio::before { content: 'FUNK · TECHNIKER / ZENTRALE / ARCHIV'; display: block; color: #77e4f2; font-weight: 700; margin-bottom: 8px; }
 .orbital-radio > div + div { border-top: 1px solid #29424d; margin-top: 8px; padding-top: 8px; }
 @media (max-width: 800px) { .orbital-radio { position: static; width: auto; max-height: 140px; margin-top: 8px; } }
+
+/* Die Justage- und Trainingstafel der Bot-Runde. Sie steht in derselben
+   Klappliste wie die übrigen Testschalter und soll dort nicht auffallen —
+   bis jemand sie aufklappt und zwanzig Regler vor sich hat. */
+.orbital-tuning { margin: 0.4rem 0 0; border-top: 1px solid rgba(120, 210, 255, 0.22); padding-top: 0.35rem; }
+.orbital-tuning > summary { cursor: pointer; font-weight: 600; letter-spacing: 0.04em; }
+.orbital-tuning > p { margin: 0.25rem 0 0.4rem; opacity: 0.72; font-size: 0.78em; line-height: 1.35; }
+.orbital-tuning__group { margin-bottom: 0.5rem; }
+.orbital-tuning__group h4 { margin: 0.3rem 0 0.2rem; font-size: 0.82em; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.orbital-tuning__row { display: grid; grid-template-columns: 11rem 1fr 4.4rem; align-items: center; gap: 0.4rem; font-size: 0.78em; padding: 0.05rem 0; }
+.orbital-tuning__row input[type='range'] { width: 100%; accent-color: #6ce6f2; }
+.orbital-tuning__row output { text-align: right; font-variant-numeric: tabular-nums; opacity: 0.9; }
+.orbital-tuning__status { margin-top: 0.3rem; font-size: 0.78em; min-height: 1.1em; color: #9fe9c6; }
+@media (max-width: 640px) { .orbital-tuning__row { grid-template-columns: 8rem 1fr 3.6rem; } }

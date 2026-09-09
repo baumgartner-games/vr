@@ -5,6 +5,7 @@ import { puzzleFor, puzzleSolved, repairsFor, type Repair } from './mission';
 import type { HauntState } from './net';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { COMMAND_HOME } from './trainingLayout';
+import { DEFAULT_TUNING, type TechnicianTuning } from './botTuning';
 
 export interface MissionBotHost {
   spec: HouseSpec;
@@ -13,6 +14,8 @@ export interface MissionBotHost {
   revision?(): number;
   danger?(pose: DronePose): FloorPoint | null;
   visible?(from: FloorPoint, to: FloorPoint): boolean;
+  /** Die Gewichte des Technikers (`botTuning.ts`); ohne sie die Auslieferung. */
+  tuning?(): TechnicianTuning;
   say(message: string): void;
 }
 export type BotStage =
@@ -39,6 +42,17 @@ export class MissionBot {
   private routeRevision = -1;
   private reportedRoom = '';
   private destination: FloorPoint | null = null;
+
+  /**
+   * Die Zahlen, nach denen er arbeitet und flieht.
+   *
+   * Sie werden **bei jedem Zugriff** neu gelesen und nicht im Konstruktor
+   * eingefroren: Wer in der Schalttafel am Fluchttempo dreht, will es an der
+   * laufenden Runde sehen und nicht an der nächsten.
+   */
+  private get bot(): TechnicianTuning {
+    return this.host.tuning?.() ?? DEFAULT_TUNING.technician;
+  }
 
   get navigation() {
     return { at: this.pose, points: this.path?.points ?? [], goal: this.destination };
@@ -94,13 +108,13 @@ export class MissionBot {
       if (!cargo || !this.walk(cargo.approach, step)) return;
       this.host.say(`Techniker: ${repair.item} gefunden. Frachtschrank wird geöffnet.`);
       this.stage = 'open-cargo';
-      this.timer = 0.7;
+      this.timer = 0.7 * this.bot.work;
     } else if (this.stage === 'open-cargo') {
       const cargoRoom = this.host.spec.tasks.find((task) => task.id === repair.itemId)?.roomId;
       const id = `cargo-${cargoRoom}`;
       if (!state.crew.opened.includes(id)) state.crew.opened.push(id);
       this.stage = 'take-cargo';
-      this.timer = 0.9;
+      this.timer = 0.9 * this.bot.work;
     } else if (this.stage === 'take-cargo') {
       const cargoRoom = this.host.spec.tasks.find((task) => task.id === repair.itemId)?.roomId;
       const id = `cargo-${cargoRoom}`;
@@ -115,7 +129,7 @@ export class MissionBot {
       puzzleFor(state.crew, repair.id).open = true;
       this.stage = 'repair';
       this.input = 0;
-      this.timer = 1.2;
+      this.timer = 1.2 * this.bot.work;
       this.host.say(`Archiv → Techniker: ${repair.title}. ${repair.hint}`);
     } else if (this.stage === 'repair') {
       const puzzle = puzzleFor(state.crew, repair.id);
@@ -123,7 +137,7 @@ export class MissionBot {
       else if (repair.puzzle === 'sequence') puzzle.links.push(Number(repair.code[this.input]));
       else puzzle.digits[this.input] = Number(repair.code[this.input]);
       this.input++;
-      this.timer = 0.65;
+      this.timer = 0.65 * this.bot.work;
       if (!puzzleSolved(repair, puzzle)) return;
       if (!state.done.includes(repair.id)) state.done.push(repair.id);
       if (!state.lit.includes(repair.roomId)) state.lit.push(repair.roomId);
@@ -131,7 +145,7 @@ export class MissionBot {
       this.host.say(`Techniker: ${repair.title} repariert (${state.done.length}/3).`);
       this.index++;
       this.stage = this.index === this.repairs.length ? 'return' : 'cargo';
-      this.timer = 1.1;
+      this.timer = 1.1 * this.bot.work;
     }
   }
 
@@ -140,9 +154,10 @@ export class MissionBot {
     const danger = this.host.danger?.(this.pose) ?? null;
     this.attackCooldown -= dt;
     this.rethink -= dt;
+    const bot = this.bot;
     this.sprint = Math.max(
       0,
-      Math.min(1, this.sprint + (this.survival === 'flee' ? dt / 5 : -dt / 4)),
+      Math.min(1, this.sprint + (this.survival === 'flee' ? dt / bot.stamina : -dt / 4)),
     );
     if (danger) {
       this.dangerMemory = { ...danger };
@@ -160,12 +175,12 @@ export class MissionBot {
       }
     } else this.calm += dt;
     if (this.survival === 'hide') {
-      if (this.calm < 5) return true;
+      if (this.calm < bot.nerve * 0.7) return true;
       this.host.state.crew.hidden = '';
       this.resume();
       return false;
     }
-    if (!danger && (this.survival === 'mission' || this.calm > 7)) {
+    if (!danger && (this.survival === 'mission' || this.calm > bot.nerve)) {
       if (this.survival !== 'mission') this.resume();
       return false;
     }
@@ -185,7 +200,7 @@ export class MissionBot {
       for (const locker of this.layout.filter((item) => item.kind === 'locker')) {
         const point = locker.approach;
         const distance = Math.hypot(point.x - threat.x, point.z - threat.z);
-        if (distance < 7) continue;
+        if (distance < bot.caution * 0.78) continue;
         const route = this.host.route(this.pose, point);
         const end = route?.points?.at(-1);
         if (!end || Math.hypot(end.x - point.x, end.z - point.z) > 0.5) continue;
@@ -204,7 +219,7 @@ export class MissionBot {
           previous = p;
         }
         const cover = this.host.visible?.(threat, point) === false ? 12 : 0;
-        const score = Math.min(distance, 20) + cover - length * 0.7;
+        const score = Math.min(distance, 20) + cover * (0.5 + bot.hide) - length * 0.7;
         if (score > best) {
           best = score;
           this.escape = { point, room: locker.roomId };
@@ -212,7 +227,11 @@ export class MissionBot {
       }
       this.path = null;
     }
-    if (this.escape && this.walk(this.escape.point, dt, this.sprint < 0.85 ? 4.4 : 2.7)) {
+    // Mit Puste das Fluchttempo, ohne Puste ein Trab — nicht Arbeitstempo:
+    // Ein Techniker, der nach fünf Sekunden spazieren geht, wird von einem
+    // Monster eingeholt, das schneller **geht** als er (`mission.ts`).
+    const flight = this.sprint < 0.85 ? bot.sprint : Math.max(bot.walk, bot.sprint * 0.72);
+    if (this.escape && this.walk(this.escape.point, dt, flight)) {
       // A watched entry gives away the hiding place: keep seeking another escape.
       if (!danger) {
         this.survival = 'hide';
@@ -246,7 +265,7 @@ export class MissionBot {
   }
 
   /** Missing routes pause the demonstration. They never fabricate an arrival or repair. */
-  private walk(target: FloorPoint, dt: number, speed = 2.15): boolean {
+  private walk(target: FloorPoint, dt: number, speed = this.bot.walk): boolean {
     if (
       this.destination &&
       Math.hypot(target.x - this.destination.x, target.z - this.destination.z) > 0.1

@@ -367,6 +367,24 @@ export function buildFixture(id: MarkId, style: 'default' | 'canteen' = 'default
       b.screen(0.49, 0.2, [0, 0.49, 0.355]);
       break;
     }
+    case 'ausgabe': {
+      // Eine Kantinenausgabe: Unterschrank, Tablettschiene, drei
+      // Wärmebecken und ein Spuckschutz darüber. Sie steht an der Wand und
+      // schaut in den Raum — das lange Ding, an dem man sich anstellt.
+      b.feet(1.9, 0.6, 0.12);
+      b.box([2.24, 1.02, 0.86], [0, 0.62, -0.02], 'shell', 0.06);
+      b.box([2.1, 0.09, 0.78], [0, 1.17, -0.02], 'metal', 0.03);
+      for (const x of [-0.68, 0, 0.68]) {
+        b.box([0.56, 0.07, 0.5], [x, 1.14, -0.04], 'dark', 0.02);
+        b.box([0.48, 0.02, 0.42], [x, 1.185, -0.04], 'amber', 0.008);
+      }
+      b.cylinder(0.032, 2.06, [0, 1.28, 0.36], 'metal', 'x');
+      b.box([2.16, 0.03, 0.05], [0, 1.66, 0.12], 'glass', 0.01);
+      for (const x of [-1.02, 1.02]) b.box([0.05, 0.5, 0.08], [x, 1.42, 0.12], 'metal', 0.015);
+      b.screen(0.5, 0.22, [0.66, 0.86, 0.425]);
+      b.vents(0.9, 3, [-0.5, 0.34, 0.42]);
+      break;
+    }
     case 'esstisch': {
       if (style === 'canteen') {
         b.cylinder(0.22, 0.075, [0, 0.038, 0], 'metal');

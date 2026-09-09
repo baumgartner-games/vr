@@ -145,7 +145,8 @@ test('closing the front door invalidates the cached path; reopening restores it'
   const closed = stationRoute(spec, plan.graph, from, goal);
   expect(closed.grounded).toBe(true);
   expect(closed.complete).toBe(false);
-  expect(closed.points!.every((p) => p.z > (door.z + 1) * TILE)).toBe(true);
+  // Die Zentrale liegt nördlich der Schleuse: Der Teilweg bleibt davor.
+  expect(closed.points!.every((p) => p.z < door.z * TILE)).toBe(true);
   plan.door(door.x, door.z, door.dir, 0, true);
   expect(stationRoute(spec, plan.graph, from, goal).complete).toBe(true);
 });

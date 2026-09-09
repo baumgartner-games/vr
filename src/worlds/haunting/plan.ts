@@ -1,7 +1,17 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H } from '../editor/levelPlan';
 import { DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
-import { APRON, HOUSE, roomAt, spacesOf, tilesOf, type HouseSpec, type MarkId } from './house';
+import {
+  APRON,
+  APRON_OUTER,
+  COMMAND_LIFT,
+  HOUSE,
+  roomAt,
+  spacesOf,
+  tilesOf,
+  type HouseSpec,
+  type MarkId,
+} from './house';
 import { FLYER_PROFILE } from '../nav/navProfile';
 import type { BlockKind } from '../grid/blocks';
 import type { PlanSolid } from '../grid/solids';
@@ -54,12 +64,14 @@ export function housePlan(
   plan.room(APRON, { walls: true, ceiling: PLAN_WALL_H });
   // Der Testdeck-Aufzug liegt in der Zentrale; die Lehrzimmer selbst liegen
   // mit eigenen Böden, Wänden und Decken weit außerhalb der Missionskarte.
-  for (const x of [-3, -2, -1, 0, 1]) plan.window(x, 4, DIR_S);
+  // Die Hüllenfenster sitzen in der äußeren Reihe: dort ist Weltraum, in der
+  // inneren steht die Fensterfront zur Kantine.
+  for (let x = APRON.x + 1; x < COMMAND_LIFT.x; x++) plan.window(x, APRON_OUTER, DIR_N);
   // Ein einzelner Aufzugsschacht, keine Trennwand quer durch die Zentrale:
-  // Die zufällige Missionstür kann auch östlich dieses Aufzugs liegen.
-  plan.wall(2, 4, DIR_N);
-  plan.wall(2, 4, DIR_E);
-  plan.door(2, 4, DIR_W, 0, test);
+  // Die zufällige Missionstür kann auch westlich dieses Aufzugs liegen.
+  plan.wall(COMMAND_LIFT.x, COMMAND_LIFT.z, DIR_S);
+  plan.wall(COMMAND_LIFT.x, COMMAND_LIFT.z, DIR_E);
+  plan.door(COMMAND_LIFT.x, COMMAND_LIFT.z, DIR_W, 0, test);
   if (test) {
     for (const room of TRAINING_ROOMS) {
       plan.room(room, { walls: true, ceiling: PLAN_WALL_H });
@@ -114,6 +126,7 @@ export function blockFor(mark: MarkId): BlockKind {
     case 'ofen':
     case 'spuele':
     case 'kamin':
+    case 'ausgabe':
       return 'counter';
     case 'werkbank':
     case 'klavier':

@@ -4,6 +4,9 @@ import { HauntingWorld } from './HauntingWorld';
 import { generateHouse, type HouseSpec } from './house';
 import { freshCrew, stationOptions } from './mission';
 import { AutomaticDoors } from './automaticDoors';
+import { DEFAULT_TUNING } from './botTuning';
+import { DEFAULT_LIGHTING } from './botLighting';
+import { Rng } from './rng';
 import { StationTravelPlan } from './stationTravelPlan';
 import type { HauntState } from './net';
 import type { GridPlan } from '../grid/gridPlan';
@@ -73,6 +76,12 @@ function replay(): ReplayWorld {
     context: { net: { localId: 'local' } },
     technicians: new Map(),
     director: { clear: jest.fn(), spawn: jest.fn(() => null) },
+    // Felder, die sonst der Konstruktor setzt — der Prototyp-Nachbau hat keinen.
+    tuning: DEFAULT_TUNING,
+    routineDice: new Rng(0x4d4f4e53),
+    beacons: [],
+    botLighting: { ...DEFAULT_LIGHTING },
+    simulationSpeed: 1,
     monster: null,
     monsterArt: null,
     flatTechnician: false,
@@ -234,7 +243,6 @@ test('safe bot rounds spawn a real patrol without reading the observer camera or
   world.state.crew.options.test = true;
   world.state.crew.simulation = true;
   world.state.crew.hp = 1;
-  Object.assign(world, { patrolIndex: 0, patrolChangedAt: 0 });
   // Deliberately no rig: the free camera must never become the demo's perceived player.
   world.stepCrew(0.1, { role: 'vr' });
   expect(world.director.spawn).toHaveBeenCalledTimes(1);

@@ -77,7 +77,8 @@ async function stage(seed = 2) {
 test('the actual Rapier monster crosses fitted rooms and door frames to a distant patrol goal', async () => {
   const world = await stage();
   try {
-    const goal = safeRoomSpawn(world.spec, 'r0');
+    // Von der Kantine (Eingang) bis in die Kommunikation ganz im Süden.
+    const goal = safeRoomSpawn(world.spec, 'r13');
     expect(Math.hypot(goal.x - world.spawn.x, goal.z - world.spawn.z)).toBeGreaterThan(22);
     // Without the opt-in, the shared chase brain retains its old22m sense limit.
     const ordinary = world.run(goal, 0.5);
@@ -116,8 +117,10 @@ test('the actual body waits at a closed door and continues after that door opens
     const entry = world.addBox(leaf.x, leaf.y, leaf.z, leaf.w, leaf.h, leaf.d);
     world.navigate();
     const before = world.run(COMMAND_HOME, 14);
-    expect(before.z).toBeLessThan((door.z + 1) * TILE);
-    expect(Math.hypot(before.x - COMMAND_HOME.x, before.z - COMMAND_HOME.z)).toBeGreaterThan(2);
+    // Die zugefallene Schleuse hält ihn auf der Stationsseite fest — er ist
+    // losgelaufen, aber die Kachelkante der Tür hat er nicht überschritten.
+    expect(before.z).toBeGreaterThan(door.z * TILE);
+    expect(Math.hypot(before.x - world.spawn.x, before.z - world.spawn.z)).toBeGreaterThan(2);
     world.plan.door(door.x, door.z, door.dir, 0, true);
     world.physics.remove(entry);
     const after = world.run(COMMAND_HOME, 35);

@@ -38,20 +38,31 @@ export interface Rect {
   d: number;
 }
 
-/** Wo das Haus auf dem Gitter steht — dieselbe Ecke wie beim Dunkelhaus. */
-export const HOUSE: Rect = { x: -8, z: -9, w: 16, d: 12 };
-/** Die Kachelreihe südlich des Hauses, in der der Van steht. */
-export const VAN_Z = HOUSE.z + HOUSE.d + 1;
+/**
+ * Wo das gewürfelte Haus auf dem Gitter steht — **südlich der Zentrale**, mit
+ * seiner Südwand an deren Vorplatz. Nur der alte Zufallsgrundriss benutzt es;
+ * die Station bringt ihre eigenen Rechtecke mit.
+ */
+export const HOUSE: Rect = { x: -8, z: -35, w: 16, d: 12 };
 /** Wie breit der Van ist, in Kacheln. */
 export const VAN_W = 4;
 
 /**
- * **Der Vorplatz** — die zwei Kachelreihen zwischen Haustür und Van.
+ * **Der Vorplatz** — die zwei Kachelreihen der Einsatzzentrale, und seit
+ * dieser Runde liegen sie **an der Kantine** statt am anderen Ende der
+ * Station.
  *
  * Er gehört zum Gitter, und das ist keine Kulisse: Ohne Kacheln davor gäbe es
  * für die Wegsuche keinen Van, die Drohne müsste im Haus starten und käme nie
  * wieder heraus. Mit ihm ist „zurück zum Van" derselbe Flug wie jeder andere —
  * eine Wegsuche durch die Haustür, die zu ist, wenn jemand sie zugemacht hat.
+ *
+ * **Warum an der Kantine.** Die Zentrale lag früher ganz im Süden, hinter
+ * einem Andockkorridor, den sonst niemand betrat: Wer die Runde anfing, sah
+ * eine leere Röhre und danach eine Tür. Jetzt grenzt sie mit einer
+ * **Fensterfront** (`commandWindows`) an die Cafeteria — der größte Raum der
+ * Station liegt im ersten Bild, man sieht hinein, bevor man hineingeht, und
+ * wer im Van sitzt, sieht das Monster durch die Scheibe darin herumlaufen.
  *
  * Dass das Monster ihn **nicht** benutzt, steht nicht hier, sondern als eine
  * Zeile bei seinem Ziel (`HauntingWorld.npcTarget`): Der Van ist die Stelle,
@@ -59,6 +70,15 @@ export const VAN_W = 4;
  * Belagerung.
  */
 export const APRON: Rect = { x: HOUSE.x, z: HOUSE.z + HOUSE.d, w: HOUSE.w, d: 2 };
+
+/** Die Vorplatzreihe an der Fensterfront: Van, Terminal, Rückkehrpunkt. */
+export const APRON_INNER = APRON.z + APRON.d - 1;
+/** Die äußere Reihe mit Hüllenfenstern: Drohnenring und Abendlicht. */
+export const APRON_OUTER = APRON.z;
+/** Der Aufzugsschacht zum Testdeck, in Kacheln. */
+export const COMMAND_LIFT = { x: APRON.x + APRON.w - 2, z: APRON_OUTER } as const;
+/** Die Kachelreihe, in der der Van steht. */
+export const VAN_Z = APRON_INNER;
 
 /** Die Kennung, unter der die Drohne „zurück zum Van" fliegt. */
 export const VAN_ID = 'van';
@@ -73,8 +93,8 @@ export const VAN_ID = 'van';
  * erste Ansage, die im Van fällt.
  *
  * Und die **hintere** der beiden Vorplatzreihen, nicht die vordere: Aus der
- * vorderen steht die Hauswand anderthalb Meter vor der Linse, und ein Bild
- * ohne Tiefe ist dasselbe wie kein Bild.
+ * vorderen steht die Kantinenfront anderthalb Meter vor der Linse, und ein
+ * Bild ohne Tiefe ist dasselbe wie kein Bild.
  *
  * **Neben dem Tisch und nicht darüber.** Auf der Kachel daneben schwebte sie
  * dem Tisch und seinen vier Monitoren direkt vor der Linse, und die füllten im
@@ -82,7 +102,7 @@ export const VAN_ID = 'van';
  * des Hauses, auf das er schauen soll. Eine Kachel weiter östlich steht der Van dort, wo er
  * hingehört: am Rand des Bildes, als das, was hinter einem liegt.
  */
-export const DRONE_HOME = { x: 1, z: VAN_Z };
+export const DRONE_HOME = { x: 1, z: APRON_OUTER };
 
 /** Ob eine Kachel auf dem Vorplatz liegt — dort lädt der Scheinwerfer. */
 export function onApron(x: number, z: number): boolean {
@@ -113,7 +133,8 @@ export type MarkId =
   | 'sessel'
   | 'kiste'
   | 'schaukelpferd'
-  | 'esstisch';
+  | 'esstisch'
+  | 'ausgabe';
 
 /** Wie ein Merkmal heißt — im Dossier und im Satz, den jemand sagt. */
 export const MARKS: Readonly<Record<MarkId, string>> = {
@@ -131,6 +152,7 @@ export const MARKS: Readonly<Record<MarkId, string>> = {
   kiste: 'Frachtcontainer',
   schaukelpferd: 'Probenkammer',
   esstisch: 'Hydroponikbeet',
+  ausgabe: 'Kantinenausgabe',
 };
 
 /** Ein Merkmal, wie es im Zimmer steht. */
@@ -172,7 +194,7 @@ interface RoomKindFacts {
 }
 
 const ROOM_KINDS: readonly RoomKindFacts[] = [
-  { id: 'kueche', label: 'Kantine', signature: 'ofen', extras: ['spuele', 'esstisch'] },
+  { id: 'kueche', label: 'Kantine', signature: 'ofen', extras: ['spuele', 'esstisch', 'ausgabe'] },
   { id: 'bad', label: 'Medizin / Quarantäne', signature: 'wanne', twin: 'dusche', extras: [] },
   { id: 'wohnzimmer', label: 'Reaktorkammer', signature: 'kamin', extras: ['sessel', 'standuhr'] },
   { id: 'musikzimmer', label: 'Kommunikation', signature: 'klavier', extras: ['sessel'] },
@@ -300,7 +322,7 @@ export function generateHouse(seed: number, roomCount?: number): HouseSpec {
   // ist von innen nichts und von außen ein Rätsel, und welche Kachel ein Regal
   // trägt, steht erst jetzt fest.
   const windows = station
-    ? stationWindows(rng, rooms, spaces, doors)
+    ? stationWindows(rng, rooms, spaces, doors, entryRoom)
     : placeWindows(rng, rooms, doors);
   const fuse = placeFuse(rng, spaces, entryRoom, rooms);
   const tasks = placeTasks(rng, rooms, entryRoom);
@@ -362,7 +384,6 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
     { x: 12, z: -13, w: 2, d: 9 },
     { x: 11, z: -11, w: 5, d: 2 },
     { x: 4, z: -3, w: 7, d: 2 },
-    { x: -2, z: 2, w: 6, d: 1 },
   ];
   const cells = new Set<string>();
   for (const strip of strips)
@@ -382,7 +403,7 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
         for (let dx = 0; dx < w; dx++) cells.delete(`${x + dx},${z + dz}`);
       passages.push({
         id: `p${passages.length}`,
-        name: z === 2 ? 'Andockkorridor' : 'Verbindungsgang',
+        name: '',
         kind: 'kammer',
         signature: 'kiste',
         rect: { x, z, w, d },
@@ -391,7 +412,51 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
         circulation: true,
       });
     }
+  namePassages(rooms, passages);
   return { rooms, passages, bounds: { x: -20, z: -21, w: 40, d: 24 } };
+}
+
+/**
+ * **Ein Gang braucht einen Namen**, sonst kann ihn niemand ansagen.
+ *
+ * „Ich bin im Verbindungsgang" war vierzehnmal wahr und einmal nützlich. Der
+ * Name kommt deshalb aus der Nachbarschaft und nicht aus einer Liste: Jeder
+ * Gang heißt nach dem Raum, mit dem er die **längste Wand** teilt, plus der
+ * Himmelsrichtung, in der er von dessen Mitte aus liegt — „Cafeteria-Südgang".
+ * Das ist etwas, das man über Funk sagen und auf dem Grundriss wiederfinden
+ * kann, und es bleibt bei festem Grundriss von Runde zu Runde dasselbe.
+ *
+ * Gänge ohne anliegenden Raum (reine Kreuzungsstücke) heißen nach ihrer Lage
+ * auf der Karte; doppelte Namen bekommen eine römische Nummer, damit zwei
+ * Ansagen nie dasselbe Wort meinen.
+ */
+export function namePassages(rooms: readonly HouseRoom[], passages: HouseRoom[]): void {
+  const used = new Map<string, number>();
+  for (const passage of passages) {
+    let best: { room: HouseRoom; length: number } | null = null;
+    for (const room of rooms) {
+      const length = shared(passage.rect, room.rect).length;
+      if (
+        length > 0 &&
+        (!best || length > best.length || (length === best.length && room.id < best.room.id))
+      )
+        best = { room, length };
+    }
+    const base = best
+      ? `${best.room.name}-${compass(best.room.rect, passage.rect)}gang`
+      : `${compass({ x: -20, z: -21, w: 40, d: 24 }, passage.rect)}gang`;
+    const seen = (used.get(base) ?? 0) + 1;
+    used.set(base, seen);
+    passage.name = seen === 1 ? base : `${base} ${'ⅠⅡⅢⅣⅤⅥⅦⅧⅨ'[seen - 1] ?? seen}`;
+  }
+}
+
+/** In welcher Himmelsrichtung `b` von der Mitte von `a` aus liegt. */
+function compass(a: Rect, b: Rect): string {
+  const dx = b.x + b.w / 2 - (a.x + a.w / 2);
+  const dz = b.z + b.d / 2 - (a.z + a.d / 2);
+  if (Math.abs(dx) > Math.abs(dz)) return dx > 0 ? 'Ost' : 'West';
+  return dz > 0 ? 'Süd' : 'Nord';
 }
 
 function connectStation(
@@ -423,9 +488,35 @@ function connectStation(
     for (let j = i + 1; j < passages.length; j++)
       for (const spot of shared(passages[i]!.rect, passages[j]!.rect))
         add(passages[i]!, passages[j]!, spot);
-  const entry = passages.find((p) => p.name === 'Andockkorridor')!;
-  add(entry, null, { x: 0, z: APRON.z - 1, dir: DIR_S });
+  // Die Schleuse geht **in die Kantine** und nicht mehr in eine leere Röhre:
+  // Die Einsatzzentrale liegt nördlich davon, mit der Fensterfront dazwischen.
+  const entry = rooms.find((room) => room.name === 'Cafeteria') ?? rooms[0]!;
+  add(entry, null, commandDoorTile(entry.rect));
   return { doors, entryRoom: entry.id, frontDoor: doors[doors.length - 1]!.id };
+}
+
+/** Die Kachel der Schleuse: Mitte der Wand, an der die Zentrale anliegt. */
+function commandDoorTile(rect: Rect): { x: number; z: number; dir: Dir } {
+  return { x: rect.x + Math.floor(rect.w / 2) - 1, z: rect.z, dir: DIR_N };
+}
+
+/**
+ * **Die Fensterfront zur Kantine** — die ganze gemeinsame Wand außer der
+ * Schleuse.
+ *
+ * Sie ist kein Schmuck: Wer in der Zentrale steht, sieht damit den Raum, den
+ * er gleich betritt, und im Dunkeln sieht er darin das, was sich darin bewegt.
+ * Eine Scheibe hält auf wie eine Wand (`plan.window`) — hindurch geht es nur
+ * durch die Schleuse.
+ */
+export function commandWindows(rect: Rect, door: { x: number; z: number }): HouseWindow[] {
+  const out: HouseWindow[] = [];
+  for (let x = rect.x; x < rect.x + rect.w; x++) {
+    if (x === door.x) continue;
+    if (x < APRON.x || x >= APRON.x + APRON.w) continue;
+    out.push({ id: `wc${out.length}`, roomId: '', x, z: rect.z, dir: DIR_N });
+  }
+  return out;
 }
 
 function stationWindows(
@@ -433,9 +524,18 @@ function stationWindows(
   rooms: readonly HouseRoom[],
   spaces: readonly HouseRoom[],
   doors: readonly HouseDoor[],
+  entryRoom: string,
 ): HouseWindow[] {
   const taken = new Set(doors.map((door) => edgeKey(door.x, door.z, door.dir)));
   const windows: HouseWindow[] = [];
+  const entry = rooms.find((room) => room.id === entryRoom);
+  const front = entry
+    ? commandWindows(entry.rect, commandDoorTile(entry.rect)).map((window) => ({
+        ...window,
+        roomId: entry.id,
+      }))
+    : [];
+  for (const window of front) taken.add(edgeKey(window.x, window.z, window.dir));
   for (const room of rooms) {
     const candidates = tilesOf(room.rect)
       .flatMap((tile) => ([DIR_N, DIR_E, DIR_S, DIR_W] as const).map((dir) => ({ ...tile, dir })))
@@ -444,18 +544,36 @@ function stationWindows(
         const z = edge.z + (edge.dir === DIR_S ? 1 : edge.dir === DIR_N ? -1 : 0);
         return (
           !spaces.some((space) => inside(space.rect, x, z)) &&
+          !onApron(x, z) &&
           !taken.has(edgeKey(edge.x, edge.z, edge.dir))
         );
       });
     for (const edge of rng.shuffle(candidates).slice(0, 2))
       windows.push({ id: `w${windows.length}`, roomId: room.id, ...edge });
   }
-  return windows;
+  return [...windows, ...front];
 }
 
 /** Shared mission extent; historical house tests keep their original footprint. */
 export function stationBounds(spec: HouseSpec): Rect {
   return spec.bounds ?? HOUSE;
+}
+
+/**
+ * Missionsfläche **plus Einsatzzentrale** — das Rechteck, das jeder
+ * Wegsucher abtasten darf.
+ *
+ * Es gibt es, seit die Zentrale nicht mehr südlich unter der Karte klebt: Wer
+ * die Grenze weiter aus „Bauplan für x, Vorplatz für z" zusammensetzt, sperrt
+ * beim ersten verschobenen Deck die halbe Station aus.
+ */
+export function missionExtent(spec: HouseSpec): Rect {
+  const bounds = stationBounds(spec);
+  const minX = Math.min(bounds.x, APRON.x);
+  const minZ = Math.min(bounds.z, APRON.z);
+  const maxX = Math.max(bounds.x + bounds.w, APRON.x + APRON.w);
+  const maxZ = Math.max(bounds.z + bounds.d, APRON.z + APRON.d);
+  return { x: minX, z: minZ, w: maxX - minX, d: maxZ - minZ };
 }
 
 /** Mission rooms plus transit modules. Archive selection deliberately uses rooms only. */
