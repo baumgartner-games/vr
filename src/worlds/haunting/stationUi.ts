@@ -40,6 +40,9 @@ export interface StationHost {
   menu?(): void;
   /** Einen sicheren Durchlauf mit einem Modelltechniker ansehen. */
   botRound?(): void;
+  /** Die 2D-Welt an- oder ausschalten (`map/flatMode.ts`); `flatActive` sagt, ob sie läuft. */
+  flatMode?(): void;
+  flatActive?(): boolean;
   /** Eine beendete Runde über die autorisierte Weltaktion neu beginnen. */
   restart?(): void;
   nameOf(peer: string): string;
@@ -630,6 +633,24 @@ export class StationUi {
       );
       bot.toggleAttribute('disabled', link.vr);
       out.push(bot);
+    }
+    if (this.host.flatMode) {
+      // Die Checkbox neben der Bot-Runde: 2D-Welt statt 3D (`map/flatMode.ts`).
+      const flat = el('label', 'haunt__tile haunt__tile--flat');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.dataset['flatMode'] = '';
+      box.checked = this.host.flatActive?.() ?? false;
+      flat.append(
+        box,
+        el('strong', '', ' 2D-Welt von oben'),
+        el(
+          'span',
+          'haunt__tag',
+          'Karte statt 3D · Stock links, drei Knöpfe rechts · nur 2D gerechnet',
+        ),
+      );
+      out.push(flat);
     }
     if (!link.vr) {
       const test = el('button', 'haunt__tile', 'Als Techniker am Desktop testen');
@@ -1358,7 +1379,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-bot-round],[data-restart]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-bot-round],[data-flat-mode],[data-restart]',
     );
     if (!hit) return;
 
@@ -1367,6 +1388,9 @@ export class StationUi {
       return;
     } else if (hit.dataset['botRound'] !== undefined) {
       if (!this.host.link().vr) this.host.botRound?.();
+      return;
+    } else if (hit.dataset['flatMode'] !== undefined) {
+      this.host.flatMode?.();
       return;
     } else if (hit.dataset['restart'] !== undefined) {
       this.host.restart?.();

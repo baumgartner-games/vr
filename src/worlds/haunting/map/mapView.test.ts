@@ -1,0 +1,166 @@
+/** @jest-environment jsdom */
+import { MapView, PANEL_LAYERS } from './mapView';
+import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
+
+function fakeContext(): CanvasRenderingContext2D {
+  const calls: string[] = [];
+  const ctx = new Proxy({} as Record<string, unknown>, {
+    get: (target, key: string) => {
+      if (key === 'calls') return calls;
+      if (key in target) return target[key];
+      return (..._args: unknown[]) => {
+        calls.push(key);
+      };
+    },
+    set: (target, key: string, value) => {
+      target[key] = value;
+      return true;
+    },
+  });
+  return ctx as unknown as CanvasRenderingContext2D;
+}
+
+let ctx: CanvasRenderingContext2D;
+beforeEach(() => {
+  ctx = fakeContext();
+  HTMLCanvasElement.prototype.getContext = jest.fn(() => ctx) as never;
+  HTMLCanvasElement.prototype.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, width: 400, height: 300, right: 400, bottom: 300, x: 0, y: 0 }) as DOMRect;
+});
+
+function pointer(view: MapView, type: string, id: number, x: number, y: number): void {
+  const event = new Event(type, { bubbles: true }) as PointerEvent;
+  Object.assign(event, { pointerId: id, clientX: x, clientY: y });
+  view.canvas.dispatchEvent(event);
+}
+
+describe('MapView', () => {
+  it('passt die Station beim ersten Bild ins Fenster und rechnet hin und zurück', () => {
+    const round = new FlatRound(5, { test: true });
+    const view = new MapView();
+    view.setSnapshot(round.snapshot());
+    view.setVisibility(round.field);
+    view.draw();
+    const state = view.getView();
+    const b = round.snapshot().bounds;
+    expect(state.centreX).toBeCloseTo((b.minX + b.maxX) / 2);
+    const corner = view.toScreen(b.minX, b.minZ);
+    expect(corner.x).toBeGreaterThanOrEqual(0);
+    expect(corner.y).toBeGreaterThanOrEqual(0);
+    const back = view.toWorld(corner.x, corner.y);
+    expect(back.x).toBeCloseTo(b.minX);
+    expect(back.z).toBeCloseTo(b.minZ);
+    expect(view.stats.rooms).toBe(round.snapshot().rooms.length);
+    expect(view.stats.entities).toBe(1);
+  });
+
+  it('zeichnet für die Schalttafel keine Marker und keine Items', () => {
+    const round = new FlatRound(5);
+    const view = new MapView({ layers: PANEL_LAYERS });
+    view.setSnapshot(round.snapshot());
+    view.draw();
+    expect(view.stats.entities).toBe(0);
+    expect(view.stats.items).toBe(0);
+    expect(view.stats.rooms).toBeGreaterThan(0);
+  });
+
+  it('drosselt Marker auf die gewünschte Rate', () => {
+    const round = new FlatRound(5);
+    round.setMode('omniscient');
+    round.step(1 / 30, { x: 0, z: 0, sprint: false });
+    let clock = 0;
+    const view = new MapView({
+      markers: { hz: 2 },
+      now: () => clock,
+      layers: { visibility: false },
+    });
+    view.setSnapshot(round.snapshot());
+    view.draw();
+    const first = round.monster.x;
+    for (let i = 0; i < 30; i++) round.step(1 / 30, { x: 0, z: 0, sprint: false });
+    view.setSnapshot(round.snapshot());
+    clock = 200;
+    view.draw();
+    const seen = () => view.current.snapshot.entities.find((e) => e.id === MONSTER_ID)!.at.x;
+    // Der Snapshot ist neu, aber der gezeichnete Marker noch der alte.
+    expect(seen()).not.toBe(first);
+    clock = 600;
+    view.draw();
+    expect(view.stats.entities).toBe(2);
+    expect(view.current.markers).toEqual({ hz: 2 });
+  });
+
+  it('folgt dem Spieler, bis der Nutzer zieht', () => {
+    const round = new FlatRound(5, { test: true });
+    const view = new MapView();
+    view.setSnapshot(round.snapshot());
+    view.follow(PLAYER_ID);
+    view.draw();
+    expect(view.getView().centreX).toBeCloseTo(round.player.x);
+    pointer(view, 'pointerdown', 1, 100, 100);
+    pointer(view, 'pointermove', 1, 140, 100);
+    pointer(view, 'pointerup', 1, 140, 100);
+    expect(view.current.following).toBeNull();
+    expect(view.getView().centreX).toBeLessThan(round.player.x);
+  });
+
+  it('zoomt mit zwei Fingern um die Mitte und meldet es', () => {
+    const view = new MapView({ view: { centreX: 0, centreZ: 0, scale: 10 } });
+    const changes: number[] = [];
+    const listening = new MapView({
+      view: { centreX: 0, centreZ: 0, scale: 10 },
+      onViewChange: (v) => changes.push(v.scale),
+    });
+    for (const one of [view, listening]) {
+      pointer(one, 'pointerdown', 1, 150, 150);
+      pointer(one, 'pointerdown', 2, 250, 150);
+      pointer(one, 'pointermove', 1, 100, 150);
+      pointer(one, 'pointermove', 2, 300, 150);
+      pointer(one, 'pointerup', 1, 100, 150);
+      pointer(one, 'pointerup', 2, 300, 150);
+    }
+    expect(view.getView().scale).toBeCloseTo(20);
+    expect(changes.at(-1)).toBeCloseTo(20);
+  });
+
+  it('meldet einen Tipp auf ein Wesen, ein Item, eine Tür oder einen Raum', () => {
+    const round = new FlatRound(5, { test: true });
+    round.setMode('omniscient');
+    round.step(1 / 30, { x: 0, z: 0, sprint: false });
+    const hits: string[] = [];
+    const view = new MapView({
+      view: { centreX: round.player.x, centreZ: round.player.z, scale: 30 },
+      onEntityClick: (id) => hits.push(`entity:${id}`),
+      onItemClick: (id) => hits.push(`item:${id}`),
+      onDoorClick: (id) => hits.push(`door:${id}`),
+      onRoomClick: (id) => hits.push(`room:${id}`),
+      onGroundClick: () => hits.push('ground'),
+    });
+    view.setSnapshot(round.snapshot());
+    view.setVisibility(round.field);
+    view.draw();
+    const me = view.toScreen(round.player.x, round.player.z);
+    view.tap(me.x, me.y);
+    const item = round.snapshot().items.find((i) => i.kind === 'cargo')!;
+    view.setView({ centreX: item.at.x, centreZ: item.at.z, scale: 30 });
+    const at = view.toScreen(item.at.x, item.at.z);
+    view.tap(at.x + 3, at.y + 3);
+    const door = round.snapshot().doors[0]!;
+    view.setView({ centreX: door.at.x, centreZ: door.at.z, scale: 30 });
+    const d = view.toScreen(door.at.x, door.at.z);
+    view.tap(d.x, d.y);
+    const room = round.snapshot().rooms[0]!;
+    view.setView({ centreX: room.centre.x, centreZ: room.centre.z, scale: 30 });
+    const r = view.toScreen(room.centre.x, room.centre.z);
+    view.tap(r.x, r.y);
+    view.setView({ centreX: -500, centreZ: -500, scale: 30 });
+    view.tap(10, 10);
+    expect(hits).toEqual([
+      `entity:${PLAYER_ID}`,
+      `item:${item.id}`,
+      `door:${door.id}`,
+      `room:${room.id}`,
+      'ground',
+    ]);
+  });
+});

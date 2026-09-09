@@ -97,6 +97,11 @@ import {
 } from './mission';
 import { Rng, rollSeed } from './rng';
 import { StationUi } from './stationUi';
+import { extractMapSnapshot } from './map/extract';
+import { worldMapSource } from './map/worldSource';
+import type { MapSnapshot } from './map/mapSnapshot';
+import type { FlatMode } from './map/flatMode';
+import type { FlatStage } from './map/flatStage';
 import { MOVE_TIME, seatOf, type Claim, type StationId } from './stations';
 import {
   claimMessage,
@@ -509,6 +514,10 @@ export class HauntingWorld extends GridWorld {
   private archiveFit = { half: 5, sheet: 5, tall: 5 };
 
   private ui: StationUi | null = null;
+  /** Die 2D-Welt, solange die Checkbox im Van gesetzt ist (`map/flatMode.ts`). */
+  private flat: FlatMode | null = null;
+  private flatStage: FlatStage | null = null;
+  private flatLoading = false;
   /**
    * Wer wo sitzt — und **wann das hier ankam**.
    *
@@ -790,6 +799,8 @@ export class HauntingWorld extends GridWorld {
         },
         menu: () => ctx.menu.toggle(),
         botRound: () => this.requestBotRound(ctx),
+        flatMode: () => this.toggleFlat(ctx),
+        flatActive: () => !!this.flat,
         restart: () => {
           if (this.isHost) {
             this.flatTechnician = true;
@@ -842,6 +853,10 @@ export class HauntingWorld extends GridWorld {
     // Die Schnittebene gehört dem Renderer und nicht dieser Welt: Wer sie
     // stehen ließe, schnitte der nächsten Welt die Decke ab.
     this.liftLid(false);
+    this.flat?.dispose();
+    this.flat = null;
+    this.flatStage?.dispose();
+    this.flatStage = null;
     this.ui?.dispose();
     this.ui = null;
     this.experience?.dispose();
@@ -1554,6 +1569,12 @@ export class HauntingWorld extends GridWorld {
   }
 
   private tick(dt: number, ctx: WorldContext, last = true): void {
+    if (this.flat) {
+      // Die 2D-Welt rechnet sich selbst; der 3D-Pfad steht still.
+      this.context = ctx;
+      this.flat.update(dt);
+      return;
+    }
     if (this.flatTechnician) ctx = { ...ctx, role: 'vr' };
     if (this.mountedRole !== ctx.role) {
       this.context = ctx;
@@ -2698,6 +2719,15 @@ export class HauntingWorld extends GridWorld {
    * nicht der Kompromiss, sondern der Ton, den man haben will.
    */
   override render(ctx: WorldContext): boolean {
+    if (this.flat) {
+      const renderer = ctx.renderer;
+      renderer.setScissorTest(false);
+      renderer.setClearColor(0x070a10, 1);
+      renderer.clear();
+      const rect = this.flat.viewport();
+      if (rect) this.flatStage?.render(renderer, this.flat.activeTool, rect, 1 / 60);
+      return true;
+    }
     const ui = this.ui;
     if (!ui) {
       this.nextPhoneRender = 0;
@@ -3121,6 +3151,105 @@ export class HauntingWorld extends GridWorld {
   private joinTable(ctx: WorldContext): void {
     if (!ctx.net.connected)
       ctx.join(new URLSearchParams(location.search).get('room') || HAUNT_ROOM);
+  }
+
+  /**
+   * **Die 2D-Welt an oder aus** — die Checkbox neben der Bot-Runde.
+   *
+   * Solange sie läuft, rechnet `FlatMode` die Runde selbst (`map/flatRound.ts`)
+   * und `tick`/`render` fassen die 3D-Welt nicht an. Sie ist eine lokale
+   * Runde wie die Bot-Runde: kein Netz, kein Host, kein Monster im Haus.
+   */
+  private toggleFlat(ctx: WorldContext): void {
+    if (this.flat) {
+      this.flat.dispose();
+      this.flat = null;
+      this.ui?.refresh();
+      return;
+    }
+    if (this.flatLoading) return;
+    this.flatLoading = true;
+    // Die 2D-Welt (samt CSS und der Registry-Discovery mit `import.meta.glob`)
+    // kommt erst, wenn jemand sie will: So bleibt sie aus dem 3D-Pfad und
+    // aus den Tests der Welt heraus.
+    void Promise.all([
+      import('./map/flatMode'),
+      import('./map/flatStage'),
+      import('./registry/discover'),
+    ])
+      .then(([mode, stage, discover]) => {
+        this.flatLoading = false;
+        if (this.flat || this.mountedRole === 'vr') return;
+        if (discover.REGISTERED_FILES.length === 0)
+          console.warn('Haunting: keine *.register.ts gefunden');
+        const options = this.state.crew.options;
+        this.flat = new mode.FlatMode(
+          rollSeed(),
+          { monster: options.monster, tuning: this.tuning, test: options.test },
+          {
+            exit: () => this.toggleFlat(ctx),
+            notify: (text) => ctx.notify(text),
+          },
+        );
+        this.flatStage ??= new stage.FlatStage();
+        document.body.append(this.flat.element);
+        ctx.menu.toggle(false);
+        this.ui?.refresh();
+      })
+      .catch((error: unknown) => {
+        this.flatLoading = false;
+        console.error('Haunting: 2D-Welt konnte nicht geladen werden', error);
+      });
+  }
+
+  /** Der Stand der Station als Karte — reiner Lesezugriff (`map/extract.ts`). */
+  mapSnapshot(): MapSnapshot {
+    if (this.flat) return this.flat.round.snapshot();
+    return extractMapSnapshot(
+      worldMapSource({
+        spec: () => this.spec,
+        state: () => this.state,
+        drone: () => this.drone,
+        lamps: () =>
+          [...this.lamps.entries()].map(([id, lamp]) => ({
+            id,
+            x: lamp.at.x,
+            z: lamp.at.z,
+            color: `#${lamp.color.toString(16).padStart(6, '0')}`,
+            intensity: 1,
+          })),
+        doorOpen: (id) => this.automaticDoors.isOpen(id),
+        player: () => {
+          const ctx = this.context;
+          if (!ctx || (ctx.role !== 'vr' && !this.flatTechnician)) return null;
+          ctx.rig.getHeadPosition(_head);
+          ctx.camera.getWorldDirection(_feet);
+          return {
+            x: _head.x,
+            z: _head.z,
+            yaw: Math.atan2(-_feet.x, -_feet.z),
+            moving: false,
+            sprinting: this.state.crew.exertion > 0.3,
+          };
+        },
+        torch: () => ({
+          lit: !!this.stationTorch?.visible && this.experience?.flashlightActive === true,
+          held: this.experience?.flashlightActive ? 'flashlight' : '',
+        }),
+        bot: () => this.experience?.botPose ?? null,
+        monsterYaw: () => this.monster?.model.rotation.y ?? 0,
+        peers: () =>
+          [...(this.context?.net.peers.values() ?? [])]
+            .filter((peer) => peer.world === 'haunting' && peer.role === 'vr' && peer.pose)
+            .map((peer) => ({
+              id: peer.id,
+              name: peer.name,
+              x: peer.pose!.head[0]!,
+              z: peer.pose!.head[2]!,
+              yaw: 0,
+            })),
+      }),
+    );
   }
 
   private requestBotRound(ctx: WorldContext): void {
