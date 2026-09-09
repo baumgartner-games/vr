@@ -3,6 +3,170 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Paket audio — Geräusche und Hörmodell
+
+Branch: im Auftrag `feat/audio`; die Session lief auf dem zugewiesenen
+Branch `claude/audio-horror-vr-v6stx1` (Claude Code im Browser). Alles Neue
+liegt in `src/worlds/haunting/audio/**`; die eine Tür ist `audio/index.ts`.
+
+### Was drin ist
+
+- **Hörmodell** (`audio/hearing.ts`): rechnet auf dem `MapSnapshot`
+  (Räume, Türen, Wände) den Weg des Schalls von einer Quelle zum Zuhörer in
+  **effektiven Metern**. Zwei Wege, der kürzere zählt: die **Luftlinie** mit
+  Dämpfung je gekreuzter Wand (`WALL_LOSS` 9 m), Fenster/Glas (`GLASS_LOSS`
+  6 m) und geschlossenem Türblatt (`DOOR_LOSS` 4 m) — und der Weg **über die
+  Türen** der Räume (Dijkstra, zwei Zustände je Tür), der um Ecken führt.
+  Wände dämpfen, sie schneiden nicht ab. Zurück kommt neben der Entfernung
+  auch die **Herkunft**: die Quelle selbst oder die letzte Tür, aus der es
+  kommt — daran hängt die Balance im Ohr. Die Zahlen sind dieselben wie im
+  akustischen Feld des Monsters (`perception.acousticField`).
+- **Hörweiten**: `PLAYER_HEARING` = 9 m für ein Geräusch der Lautstärke 1.
+  Jedes Monster hört weiter (`ENTITY_PROFILES[kind].hearing`: 10/14/19 m);
+  ein Test hält diese Ungleichung fest. Reichweite = Lautstärke × Hörweite,
+  Lautstärke aus `AUDIO_CUES` (Gehen 1, Rennen 1,6, Ruf 3,2). Darüber hinaus
+  Stille, darunter `hearingGain` = (1 − d/Reichweite)².
+- **Cues** (`audio/cues.ts`, `audio/cues.register.ts`): fünf Geräusche —
+  eigener Schritt, Monster geht, Monster rennt, Ruf bei der Verfolgung,
+  Herzschlag — als Tabelle mit Lautstärke, Zieldatei und
+  **Platzhalter-Klang** (Oszillator/Rauschen). Jeder Cue ist per
+  `registerAsset({ kind: 'audio', owner: 'audio' })` angemeldet.
+- **Regie** (`audio/soundscape.ts`): liest den Snapshot (`moving`,
+  `sprinting`, `concealed`, Türen `open`) und gibt je Schritt fertige
+  `SoundEvent`s zurück — ohne Web Audio, deshalb headless prüfbar. Eigene
+  Schritte im Takt `max(0,28 s, 1,45/Tempo)`; Monster-Schritte im Takt
+  `ENTITY_PROFILES[kind].cadence`, beim Rennen ×0,55 mit eigenem Cue; Ruf
+  alle 3–6 s während der Verfolgung (erster nach 0,4 s); Herzschlag als
+  Doppelschlag aus `max(Verfolgung, Nähe)` — Verfolgung = 1 − d/18 beim
+  Rennen (oder Hinweis der 3D-Welt), Nähe = (1 − d/8) × 0,7.
+- **Mixer** (`audio/mixer.ts`): sechs wiederverwendete Stimmen (Hüllkurve →
+  Gain → StereoPanner → Master) auf dem gemeinsamen Kontext aus
+  `core/Audio.ts`. `prime()` holt beim Bau alle Cues aus der Registry
+  (Platzhalter sofort, ein versprochener `AudioBuffer` wird abgewartet und
+  ersetzt den Platzhalter, sobald er da ist). Kein Aufruf blockiert, nichts
+  wird mitten in der Runde nachgeladen; ohne laufenden Kontext (vor der
+  ersten Geste) ist alles still.
+- **Andockklasse** (`audio/hauntingAudio.ts`): `HauntingAudio.update(dt,
+  input)` je Bild; die Regie rechnet in 20-Hz-Schritten, klingende Stimmen
+  werden mit dem Zuhörer nachgeführt (durch dieselbe Tür). `lookup()` gibt
+  das Hörmodell an fremde Mixer weiter.
+
+### Wo es angeschlossen ist
+
+- **2D-Welt** (`map/flatMode.ts`): ein `HauntingAudio`, gefüttert mit dem
+  Snapshot der Runde und der Kennung des Spielers. Erstmals Hören in 2D.
+- **Headset** (`ShipExperience.stepSound`, 20 Hz): Snapshot aus
+  `HauntingWorld.mapSnapshot()`, Zuhörer ausdrücklich (Kopf, Blick,
+  gemessenes Tempo), Gang des Monsters aus der Routine, Verfolgung aus
+  `threat.mode === 'hunt'` wie bisher. `ShipAudio` behält Türen, Funken,
+  Schacht, Atem, Klacken, Schrei vor der Kabine, Aufreißen und Maschine —
+  bekommt aber das Hörmodell (`frame.hearing`) für deren Entfernung und
+  Richtung, und gibt Monster-Schritte, eigene Schritte und Herzschlag ab
+  (`frame.footsteps = false`, `playerSpeed`/`chase` = 0).
+
+### Fremde Dateien, die ich angefasst habe (Minimaländerungen)
+
+- `shipAudio.ts` (Grenzfall Audio): zwei optionale Felder in
+  `ShipAudioFrame` (`hearing`, `footsteps`), ein fünfter optionaler
+  Parameter `heard` an `spatialMix` (effektive Meter statt Luftlinie für die
+  Lautstärke; die Richtung bleibt aus der Quelle), eine private Methode
+  `mixFor`, zwei Aufrufe darauf umgestellt, eine Bedingung erweitert.
+  `shipAudio.test.ts`: ein Test dazu.
+- `ShipExperience.ts` (gemeinsam): zwei Imports, zwei optionale Felder in
+  `ShipHost` (`mapSnapshot`, `monsterPace`), ein Feld `hearingAudio`, ein
+  Block in `stepSound` vor `this.audio.update`, je eine Zeile in `dispose`
+  und im Ton-Schalter. Nichts verschoben oder umbenannt.
+- `HauntingWorld.ts` (gemeinsam): zwei Host-Callbacks in `mountExperience`
+  (`mapSnapshot: () => this.mapSnapshot()`, `monsterPace`).
+- `map/flatMode.ts` (Paket map): ein Import, ein Feld, ein Aufruf in
+  `update`, eine Zeile in `dispose`.
+
+### Entscheidungen, Abweichungen
+
+- **Imports aus `map/mapSnapshot` und `map/flatRound` statt `map/index`.**
+  `map/index.ts` re-exportiert `FlatMode`, das `flat.css` importiert — Jest
+  bricht damit (das steht so auch im HANDOVER von `map`). Beides sind
+  Vertragsinhalte, nur der Pfad ist ein anderer. Vorschlag an Paket `map`:
+  `FlatMode` aus `index.ts` herausnehmen oder das CSS lazy laden.
+- **Zwei Mixer im Headset.** `ShipAudio` (8 Stimmen) bleibt, `Mixer` (6)
+  kommt dazu — zusammen 14 mögliche Knotenpaare, mehr als die „acht
+  Audio-Kanäle" in AGENTS.md. Grund: `ShipAudio` ist Grenzfall, und die
+  Schritte samt Hörmodell dorthin zu ziehen wäre ein Refactor gewesen.
+  Praktisch klingen selten mehr als vier Stimmen zugleich. Alternative
+  später: die übrigen `ShipAudio`-Geräusche als Cues in die Registry und
+  `ShipAudio` auflösen — dann ein Budget.
+- **Platzhalter statt Dateien.** Bewusst, wie im Rest des Spiels („kein
+  Asset, ein Download"); die Zieldateien stehen in `AUDIO_CUES[*].file`.
+- **Das Monster hört weiter im Modell, nicht anders im Spiel.** Das
+  Hörmodell bietet `hearingGain(reachOf(loudness, hearing))` für beide
+  Seiten an, aber die **Wahrnehmung des Monsters** rechnet weiter in
+  `threat.ts`/`perception.ts` (`roundSim.ts` über `earshot`). Wer beide auf
+  `hearing.ts` vereinigen will, entscheidet über Balance — nicht ich.
+- **Der Snapshot der 3D-Welt kennt das Tempo nicht** (`worldSource.player()`
+  liefert `moving: false`, Monster `sprinting: false`). Deshalb bekommt die
+  Regie im Headset Tempo und Gang ausdrücklich (`Listener.speed`,
+  `MonsterHints.pace`); in 2D kommt beides aus dem Snapshot.
+- **Kosten** (Jest, ts-jest, ohne Optimierung): ein Hörweg zwischen zwei
+  beliebigen Räumen 0,14 ms, `extractMapSnapshot` 0,2 ms. Die Regie läuft
+  mit 20 Hz; Quellen jenseits der Reichweite (Luftlinie ≥ Reichweite)
+  kosten keine Suche. Im Headset also ≲ 0,5 ms je Regie-Schritt, alle 3–4
+  Bilder, nie im Audio-Thread.
+
+### Sounddateien, die fehlen — und wo die Platzhalter stecken
+
+Alle fünf Cues sind heute **Platzhalter** aus `AUDIO_CUES[*].placeholder`
+(`audio/cues.ts`); keine Datei liegt im Repository:
+
+| Cue            | Zieldatei                          | Platzhalter heute                       |
+| -------------- | ---------------------------------- | --------------------------------------- |
+| `player-step`  | `audio/haunting/player-step.ogg`   | Sinus 105→38 Hz, 0,11 s                 |
+| `monster-walk` | `audio/haunting/monster-walk.ogg`  | Sinus 62→24 Hz, 0,24 s                  |
+| `monster-run`  | `audio/haunting/monster-run.ogg`   | gefärbtes Rauschen, Rate 1,6→0,9, 0,14 s |
+| `monster-call` | `audio/haunting/monster-call.ogg`  | Sägezahn 160→420 Hz, 1,1 s              |
+| `heartbeat`    | `audio/haunting/heartbeat.ogg`     | Sinus 58→22 Hz, 0,16 s, Doppelschlag    |
+
+Ersetzen: in `cues.register.ts` `load()` ein `Promise<AudioBuffer>` liefern
+lassen (Fetch + `decodeAudioData` auf `sharedAudio()`), der Mixer nimmt es
+beim `prime()` an; die Schritt-Sorten des Monsters (Stalker/Crawler/Sentinel)
+könnten dann eigene Dateien bekommen — heute unterscheiden sie sich nur im
+Takt.
+
+### Bekannte Lücken
+
+- In der 2D-Welt klingen nur die fünf Cues; Türen, Klacken und der Schrei
+  vor der Kabine (`FlatRound` meldet „Ein Schrei." nur als Text) haben in 2D
+  keinen Ton.
+- Mitspieler und Bot machen keine Schrittgeräusche — nur Monster und man
+  selbst.
+- Die Occlusion kennt nur Wände, Fenster und Türblätter des Snapshots, keine
+  Einrichtung; Schächte sind akustisch nicht verbunden.
+- Der Browser-Smoke prüft keinen Ton.
+
+### Offene Fragen an dich
+
+- Soll die Wahrnehmung des Monsters (`threat.ts`, `perception.ts`,
+  `roomGraph.earshot`) auf dasselbe Hörmodell umgestellt werden? Dann hört
+  es genau so um Ecken wie der Spieler, nur weiter.
+- Ist 9 m Hörweite für den Spieler richtig, oder soll sie je Monster-Sorte
+  relativ zur dessen Hörweite liegen?
+- Sollen die übrigen `ShipAudio`-Geräusche als Cues in die Registry ziehen,
+  damit es ein Budget und einen Mixer gibt?
+
+### Tests
+
+`src/worlds/haunting/audio/*.test.ts`: Hörmodell auf der echten Station
+(Luftlinie im Raum, um die Ecke durch die offene Tür mit drei Samen,
+geschlossene Tür +4 m, Wand ohne Tür endlich gedämpft, geteilte Wand nur
+einmal gezählt, Spieler hört kürzer als jedes Monster, monotoner Abfall,
+jedes Raumpaar endlich); Regie auf zwei synthetischen Zimmern (Takte von
+Gehen/Sprint/Stand, Kennung statt Zuhörer, Monster geht/rennt/ruft, nur in
+Reichweite, durch die Wand leiser und bei geschlossener Tür noch leiser,
+Herzschlag bei Nähe und Verfolgung, Stille im Test, Hinweise der 3D-Welt,
+Nachführen klingender Stimmen); Registry-Anmeldung; Mixer mit gefälschtem
+`AudioContext` (prime mit Platzhaltern, versprochener Aufnahme und Fehler,
+Stimmenbegrenzung, Freigabe, Entsorgung, aus/an, Nachführen);
+`HauntingAudio` in 20-Hz-Schritten. Dazu ein Test in `shipAudio.test.ts`.
+
 ## Paket map — 2D-Kern + Sichtbarkeit
 
 Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und
