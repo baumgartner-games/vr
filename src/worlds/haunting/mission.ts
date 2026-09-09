@@ -3,6 +3,27 @@ import { Rng } from './rng';
 import { freshThreat, readThreat, type ThreatState } from './threat';
 
 export const STATION_PROTOCOL = 5;
+
+/**
+ * **Wie schnell die beiden Seiten sind** — und warum genau in dieser
+ * Reihenfolge.
+ *
+ * Ein Monster, das langsamer geht als der Spieler, ist kein Monster, sondern
+ * ein Wegweiser: Man dreht sich um, geht weiter und arbeitet in Ruhe. Also
+ * **geht es schneller, als der Spieler geht** — wer nur spaziert, wird
+ * eingeholt. Und **es rennt langsamer, als der Spieler rennt** — wer die
+ * Verfolgung bemerkt und Puste hat, kommt davon. Zwischen diesen beiden
+ * Zahlen liegt die ganze Spannung dieser Welt, und deshalb stehen sie hier
+ * nebeneinander und nicht in drei Dateien verteilt.
+ *
+ * Die Spielerzahlen kommen aus `core/PlayerRig.ts` (`moveSpeed`,
+ * `sprintFactor`). Wer den Sprintfaktor im Menü heruntersetzt, verzichtet
+ * freiwillig auf diesen Vorsprung.
+ */
+export const PLAYER_WALK_SPEED = 2.6;
+export const PLAYER_SPRINT_SPEED = 4.94;
+/** Kein Monster wird je so schnell wie ein rennender Spieler. */
+export const MONSTER_TOP_SPEED = 4.55;
 export const ROOM_COUNTS = [14] as const;
 export type MonsterKind = 'stalker' | 'crawler' | 'sentinel';
 export const MONSTERS: ReadonlyArray<{
@@ -17,14 +38,14 @@ export const MONSTERS: ReadonlyArray<{
     name: 'Der Verlorene',
     detail:
       'Ein verlassener EVA-Anzug. Hört Schritte über weite Strecken und sucht die letzte bekannte Position ab.',
-    speed: 1.3,
+    speed: 2.95,
     vent: 28,
   },
   {
     id: 'crawler',
     name: 'Schachtläufer',
     detail: 'Niedrig und schnell. Rasches Kratzen verrät seine häufigen Wartungsschachtwechsel.',
-    speed: 1.8,
+    speed: 3.2,
     vent: 16,
   },
   {
@@ -32,7 +53,7 @@ export const MONSTERS: ReadonlyArray<{
     name: 'Wächter',
     detail:
       'Defekter Sicherheitsroboter. Erkennt Licht aus großer Entfernung und ist an schweren Metalltritten zu hören.',
-    speed: 1.05,
+    speed: 2.8,
     vent: 38,
   },
 ];
