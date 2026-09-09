@@ -161,78 +161,146 @@ export function inBand(rate: number, options: TrainingOptions = TRAINING_DEFAULT
   return centreScore(rate, options) <= options.band + 1e-9;
 }
 
-export function beginTraining(
-  tuning: BotTuning,
-  side: TrainingSide = 'both',
-  options: TrainingOptions = TRAINING_DEFAULTS,
-  seed = 0x5eed,
-): TrainingState {
-  // Die Stationen einmal bauen, bevor die Uhr läuft: Sonst misst der erste
-  // Schritt den Generator und nicht die Gewichte.
-  for (const station of options.seeds) simulationSpec(station);
-  const start = clampTuning(tuning);
-  const { rate, progress } = measure(start, options, 0);
-  return {
-    side,
-    tuning: start,
-    rate,
-    score: centreScore(rate, options),
-    progress,
-    step: 0,
-    improved: 0,
-    spread: 0.35,
-    stale: 0,
-    seed,
-    history: [rate],
-  };
-}
+/**
+ * **Das Training als Lauf, den man anhalten kann.**
+ *
+ * Im Browser darf es nicht am Stück rechnen: Ein `for`, das dreißig Sekunden
+ * lang Runden ausspielt, ist ein eingefrorener Tab. Also gibt es hier einen
+ * Lauf mit einer Zeitscheibe — `advance(12)` rechnet zwölf Millisekunden
+ * weiter, das Bild wird gezeichnet, und im nächsten Bild geht es weiter.
+ * Gerechnet wird dabei **Runde für Runde**, nicht Schritt für Schritt: Ein
+ * ganzer Schritt sind vierundsechzig Runden, und die dauern zu lange für ein
+ * Bild.
+ */
+export class TrainingRun {
+  private candidate: BotTuning;
+  private index = 0;
+  private won = 0;
+  private reached = 0;
+  private best: TrainingState;
+  private first = true;
 
-/** Ein Schritt: verwackeln, ausspielen, behalten oder verwerfen. */
-export function trainStep(
-  state: TrainingState,
-  options: TrainingOptions = TRAINING_DEFAULTS,
-): TrainingState {
-  const rng = new Rng((state.seed + state.step * 0x9e3779b9) >>> 0);
-  const candidate = mutate(state.tuning, state.side, state.spread, rng);
-  const step = state.step + 1;
-  const pass = options.resample ? step : 0;
-  const { rate, progress } = measure(candidate, options, pass);
-  const score = centreScore(rate, options);
-  // Der bisherige Beste wird auf denselben Runden nachgemessen: Ein Sieg über
-  // einen Wert, der auf anderen Runden zustande kam, ist keiner.
-  const incumbent = options.resample
-    ? measure(state.tuning, options, pass)
-    : { rate: state.rate, progress: state.progress };
-  const reference = centreScore(incumbent.rate, options);
-  // Erst die Quote, und bei Gleichstand der Fortschritt — **in der Richtung,
-  // in der das Ziel liegt**: Steht der Techniker unter dem Band, ist weiter
-  // gekommen besser; steht er darüber, ist es schlechter. Ohne dieses
-  // Vorzeichen schiebt der Gleichstandsbrecher ein übermächtiges Gespann noch
-  // weiter nach oben.
-  const wanted = incumbent.rate < options.target ? 1 : -1;
-  const better =
-    score < reference || (score === reference && progress * wanted > incumbent.progress * wanted);
-  const stuck = !better && state.stale >= 8;
-  const next: TrainingState = {
-    ...state,
-    tuning: better ? candidate : state.tuning,
-    rate: better ? rate : state.rate,
-    score: better ? score : state.score,
-    progress: better ? progress : state.progress,
-    step,
-    improved: state.improved + (better ? 1 : 0),
-    // Enger werden, solange es vorangeht — und wieder **weiter**, wenn acht
-    // Schritte nacheinander nichts gebracht haben. Ohne diesen Rückwärtsgang
-    // schrumpft die Schrittweite in einer Sackgasse so weit, dass das
-    // Training dort für immer stehen bleibt: aus einer aussichtslosen Lage
-    // führt kein Zentimeterschritt heraus, nur ein Sprung.
-    spread: stuck
-      ? Math.min(0.5, state.spread * 1.6)
-      : Math.max(0.05, state.spread * (better ? 0.92 : 0.97)),
-    stale: better || stuck ? 0 : state.stale + 1,
-    history: [...state.history.slice(-63), better ? rate : state.rate],
-  };
-  return next;
+  constructor(
+    tuning: BotTuning,
+    side: TrainingSide = 'both',
+    readonly iterations = 40,
+    private readonly options: TrainingOptions = TRAINING_DEFAULTS,
+    seed = 0x5eed,
+  ) {
+    // Die Stationen einmal bauen, bevor die Uhr läuft: Sonst misst die erste
+    // Runde den Generator und nicht die Gewichte.
+    for (const station of this.options.seeds) simulationSpec(station);
+    this.candidate = clampTuning(tuning);
+    this.best = {
+      side,
+      tuning: this.candidate,
+      rate: 0,
+      score: Infinity,
+      progress: 0,
+      step: 0,
+      improved: 0,
+      spread: 0.35,
+      stale: 0,
+      seed,
+      history: [],
+    };
+  }
+
+  get state(): TrainingState {
+    return this.best;
+  }
+
+  get finished(): boolean {
+    return this.best.step >= this.iterations || this.best.score <= this.enough;
+  }
+
+  /** Wie weit der ganze Lauf ist, von 0 bis 1. */
+  get fraction(): number {
+    if (this.finished) return 1;
+    const rounds = Math.max(1, this.options.rounds);
+    return Math.min(1, (this.best.step + this.index / rounds) / Math.max(1, this.iterations));
+  }
+
+  private get enough(): number {
+    // Eine Runde mehr oder weniger ist die kleinste messbare Änderung;
+    // darunter gibt es nichts mehr zu suchen.
+    return 0.5 / Math.max(1, this.options.rounds);
+  }
+
+  /** Rechnet höchstens `budget` Millisekunden weiter. */
+  advance(budget = 12): void {
+    const until = Date.now() + Math.max(0, budget);
+    do {
+      if (this.finished) return;
+      this.round();
+    } while (Date.now() < until);
+  }
+
+  /** Einen ganzen Schritt zu Ende rechnen — für Tests und Kommandozeile. */
+  advanceStep(): void {
+    const step = this.best.step;
+    while (!this.finished && this.best.step === step) this.round();
+  }
+
+  private round(): void {
+    const seeds = this.options.seeds.length ? this.options.seeds : TRAINING_SEEDS;
+    const pass = this.options.resample ? this.best.step : 0;
+    const seed = seeds[(this.index + pass) % seeds.length]!;
+    const result = simulateRound(seed, {
+      tuning: this.candidate,
+      roll: this.index + pass * 101,
+    });
+    if (result.won) this.won++;
+    this.reached += (result.repairs + (result.won ? 1 : 0)) / 4;
+    this.index++;
+    if (this.index < this.options.rounds) return;
+    this.close();
+  }
+
+  /** Ein Vorschlag ist ausgespielt: behalten oder verwerfen, dann der nächste. */
+  private close(): void {
+    const rounds = Math.max(1, this.options.rounds);
+    const rate = this.won / rounds;
+    const progress = this.reached / rounds;
+    const score = centreScore(rate, this.options);
+    // Erst die Quote, und bei Gleichstand der Fortschritt — **in der
+    // Richtung, in der das Ziel liegt**: Steht der Techniker unter dem Band,
+    // ist weiter gekommen besser; steht er darüber, ist es schlechter. Ohne
+    // dieses Vorzeichen schiebt der Gleichstandsbrecher ein übermächtiges
+    // Gespann noch weiter nach oben.
+    const wanted = this.best.rate < this.options.target ? 1 : -1;
+    const better =
+      this.first ||
+      score < this.best.score ||
+      (score === this.best.score && progress * wanted > this.best.progress * wanted);
+    const stuck = !better && this.best.stale >= 8;
+    const step = this.best.step + (this.first ? 0 : 1);
+    this.best = {
+      ...this.best,
+      tuning: better ? this.candidate : this.best.tuning,
+      rate: better ? rate : this.best.rate,
+      score: better ? score : this.best.score,
+      progress: better ? progress : this.best.progress,
+      step,
+      improved: this.best.improved + (better && !this.first ? 1 : 0),
+      // Enger werden, solange es vorangeht — und wieder **weiter**, wenn acht
+      // Schritte nacheinander nichts gebracht haben. Ohne diesen Rückwärtsgang
+      // schrumpft die Schrittweite in einer Sackgasse so weit, dass das
+      // Training dort für immer stehen bleibt: aus einer aussichtslosen Lage
+      // führt kein Zentimeterschritt heraus, nur ein Sprung.
+      spread: stuck
+        ? Math.min(0.5, this.best.spread * 1.6)
+        : Math.max(0.05, this.best.spread * (better ? 0.92 : 0.97)),
+      stale: better || stuck ? 0 : this.best.stale + 1,
+      history: [...this.best.history.slice(-63), better ? rate : this.best.rate],
+    };
+    this.first = false;
+    this.index = 0;
+    this.won = 0;
+    this.reached = 0;
+    const rng = new Rng((this.best.seed + this.best.step * 0x9e3779b9) >>> 0);
+    this.candidate = mutate(this.best.tuning, this.best.side, this.best.spread, rng);
+  }
 }
 
 /** Mehrere Schritte am Stück — für Tests und für die Kommandozeile. */
@@ -243,12 +311,9 @@ export function trainBots(
   options: TrainingOptions = TRAINING_DEFAULTS,
   seed = 0x5eed,
 ): TrainingState {
-  let state = beginTraining(tuning, side, options, seed);
-  // Eine Runde mehr oder weniger ist die kleinste messbare Änderung; darunter
-  // gibt es nichts mehr zu suchen.
-  const enough = 0.5 / Math.max(1, options.rounds);
-  for (let i = 0; i < iterations && state.score > enough; i++) state = trainStep(state, options);
-  return state;
+  const run = new TrainingRun(tuning, side, iterations, options, seed);
+  while (!run.finished) run.advanceStep();
+  return run.state;
 }
 
 function mutate(tuning: BotTuning, side: TrainingSide, spread: number, rng: Rng): BotTuning {

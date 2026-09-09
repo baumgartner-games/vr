@@ -126,6 +126,7 @@ export function blockFor(mark: MarkId): BlockKind {
     case 'ofen':
     case 'spuele':
     case 'kamin':
+    case 'ausgabe':
       return 'counter';
     case 'werkbank':
     case 'klavier':

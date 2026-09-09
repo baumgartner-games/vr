@@ -54,7 +54,14 @@ import {
 } from './droneRoute';
 import { flickerLevel, freshSpook, stepHaunt, type Spook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
-import { buildShip, buildCreature, animateCreature, roomAccent } from './shipArt';
+import {
+  buildShip,
+  buildCorridorBeacons,
+  buildCreature,
+  animateCreature,
+  roomAccent,
+  type StationBeacon,
+} from './shipArt';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
@@ -64,6 +71,18 @@ import { acousticField, pointKey, inView, BOT_FOV, BOT_VISION, MONSTER_FOV } fro
 import { visibleStationRooms } from './stationVisibility';
 import { stationRoute } from './stationNavigation';
 import { StationNpcNavigator } from './stationNpcNavigator';
+import { loadTuning, saveTuning, clampTuning, type BotTuning } from './botTuning';
+import {
+  DEFAULT_LIGHTING,
+  alarmPulse,
+  beaconAngle,
+  clampLighting,
+  nextLighting,
+  type BotLighting,
+} from './botLighting';
+import { MonsterRoutine, paceSpeed, type RoutineOutput } from './monsterRoutine';
+import { stationGraph } from './roomGraph';
+import { nextSimulationSpeed, simulationRepeats, type SimulationSpeed } from './simulationSpeed';
 import { AutomaticDoors } from './automaticDoors';
 import { StationTravelPlan } from './stationTravelPlan';
 import {
@@ -76,7 +95,7 @@ import {
   ventPairs,
   type StationOptions,
 } from './mission';
-import { rollSeed } from './rng';
+import { Rng, rollSeed } from './rng';
 import { StationUi } from './stationUi';
 import { MOVE_TIME, seatOf, type Claim, type StationId } from './stations';
 import {
@@ -236,6 +255,8 @@ interface Lamp {
 }
 
 const _lampOff = new THREE.Color(0x010203);
+const _beaconOff = new THREE.Color(0x2b0d10);
+const _beaconOn = new THREE.Color(0xff4d55);
 const _lampOn = new THREE.Color(0xfff0cf);
 const _head = new THREE.Vector3();
 const _feet = new THREE.Vector3();
@@ -281,8 +302,6 @@ export class HauntingWorld extends GridWorld {
   private phoneRenderView = '';
   private sightTimer = 0;
   private monsterSeesPlayer = false;
-  private patrolIndex = 0;
-  private patrolChangedAt = 0;
   private stationTorch: FlashlightTool | null = null;
   private torchImmersive = false;
   private readonly roomArt = new Map<string, THREE.Object3D>();
@@ -297,6 +316,24 @@ export class HauntingWorld extends GridWorld {
   private readonly navigationOverlay = new NavigationOverlay();
   private monsterNavigator: StationNpcNavigator | null = null;
   private monsterArt: THREE.Object3D | null = null;
+  /** Die Drehleuchten der Gänge — sichtbar nur bei Alarmbeleuchtung. */
+  private beacons: StationBeacon[] = [];
+  /** Die Gewichte beider Bots — aus dem Browser-Speicher, veränderbar im Test. */
+  private tuning: BotTuning = loadTuning();
+  /** Was das Monster gerade vorhat (`monsterRoutine.ts`). */
+  private routine: MonsterRoutine | null = null;
+  private decision: RoutineOutput | null = null;
+  private readonly routineDice = new Rng(0x4d4f4e53);
+  /**
+   * Der Schrank, in den das Monster jemanden hat **flüchten sehen** — leer,
+   * solange das Verstecken unbeobachtet blieb. Nur er löst Schrei und
+   * Aufreißen aus; ein unbemerktes Versteck bleibt ein Versteck.
+   */
+  private watchedLocker = '';
+  private sawPlayerAt = -Infinity;
+  private simulationSpeed: SimulationSpeed = 1;
+  /** Wie das Deck in der Bot-Runde ausgeleuchtet ist (`botLighting.ts`). */
+  private botLighting: BotLighting = { ...DEFAULT_LIGHTING };
   private previousFeet: THREE.Vector3 | null = null;
   private ventClock = 0;
   private ventExit: THREE.Vector3 | null = null;
@@ -611,23 +648,77 @@ export class HauntingWorld extends GridWorld {
         return target.set(at.x, 0, at.z);
       }
     }
-    const remembered = threatTarget(this.state.crew);
-    if (remembered) return target.set(remembered.x, 0, remembered.z);
-    // No omniscient chase: without a perceived signal it walks a patrol,
-    // excluding an occupied hiding locker. The protected command deck is never a goal.
-    const rooms = this.spec.rooms.filter((r) => r.id !== this.state.crew.hidden);
-    if (!rooms.length) return null;
-    let at = safeRoomSpawn(this.spec, rooms[this.patrolIndex % rooms.length]!.id);
-    const feet = this.monster?.feet(_feet);
-    if (
-      (feet && Math.hypot(feet.x - at.x, feet.z - at.z) < 1.1) ||
-      this.state.time - this.patrolChangedAt > 45
-    ) {
-      this.patrolIndex = (this.patrolIndex + 1) % rooms.length;
-      this.patrolChangedAt = this.state.time;
-      at = safeRoomSpawn(this.spec, rooms[this.patrolIndex]!.id);
-    }
-    return target.set(at.x, 0, at.z);
+    // Alles andere entscheidet die Routine (`monsterRoutine.ts`): Verfolgung,
+    // Absuchen, Patrouille, Seitenwechsel, Auflauern — und der Weg zu einer
+    // Kabine, in die es jemanden hat flüchten sehen. Kein allwissendes
+    // Nachlaufen: Ohne Wahrnehmung steht dort ein geratener Raum und nicht
+    // die Stelle, an der der Spieler wirklich ist.
+    const goal = this.decision?.goal;
+    if (!goal) return null;
+    return target.set(goal.x, 0, goal.z);
+  }
+
+  /**
+   * **Ein Bild aus dem Kopf des Monsters** — beim Gastgeber gerechnet.
+   *
+   * Herein geht, was es wahrnehmen darf: die erinnerte Stelle aus
+   * `threat.ts`, ob es gerade wirklich hinsieht, in welchem Raum sein
+   * Gegenüber steht (nur für den Riecher, mit dem es den Nachbarraum errät)
+   * und ob es jemanden in einen Schrank hat steigen sehen. Heraus kommt ein
+   * Ziel, ein Tempo und höchstens ein Geräusch.
+   */
+  private stepRoutine(dt: number, head: THREE.Vector3): void {
+    const crew = this.state.crew;
+    if (!this.monster || !this.routine) return;
+    const at = this.monster.feet(_feet);
+    const here = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
+    const quarry = roomAt(this.spec, Math.floor(head.x / TILE), Math.floor(head.z / TILE));
+    if (this.monsterSeesPlayer) this.sawPlayerAt = this.state.time;
+    // Ein Rückzug in den Schrank ist nur dann verraten, wenn eben noch
+    // jemand hingesehen hat.
+    if (crew.hidden && this.state.time - this.sawPlayerAt < 1.5) this.watchedLocker = crew.hidden;
+    if (!crew.hidden) this.watchedLocker = '';
+    const decision = this.routine.step(stationGraph(this.spec), {
+      dt,
+      at: { x: at.x, z: at.z },
+      here: here?.id ?? '',
+      signal: threatTarget(crew),
+      seen: this.monsterSeesPlayer,
+      quarry: quarry?.id ?? null,
+      caught: this.watchedLocker,
+      rng: () => this.routineDice.next(),
+    });
+    this.decision = decision;
+    const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
+    this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace));
+    // Ein durchsuchter Schrank im richtigen Raum ist das Ende des Versteckens.
+    if (decision.cue === 'sniff' && crew.hidden && this.routine.suspect === crew.hidden)
+      this.watchedLocker = crew.hidden;
+    if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
+    if (decision.strike) this.breakLocker(decision.goal ?? { x: at.x, z: at.z });
+  }
+
+  /**
+   * **Die aufgerissene Kabine**: Rauch, Funken, ein Treffer — und danach
+   * steht das Monster kurz still (`savour`), damit aus einem Treffer im
+   * Schrank nicht gleich der nächste wird.
+   */
+  private breakLocker(at: { x: number; z: number }): void {
+    const crew = this.state.crew;
+    const room = crew.hidden;
+    crew.hidden = '';
+    this.watchedLocker = '';
+    this.experience?.burst('smoke', new THREE.Vector3(at.x, 1.1, at.z));
+    this.experience?.burst('sparks', new THREE.Vector3(at.x, 1.5, at.z));
+    if (!room) return;
+    if (takeCrewHit(crew, this.state.phase === 'running')) {
+      if (crew.hp === 0) {
+        this.state.phase = 'lost';
+        this.removeMonster();
+        this.announce('MISSION GESCHEITERT · Im Schutzschrank gestellt.');
+      } else this.announce(`Der Schutzschrank ist aufgerissen · Anzug ${crew.hp}/3. Weglaufen!`);
+    } else if (crew.options.test)
+      this.announce('TEST · Das Monster reißt den Schutzschrank auf — im Test ohne Schaden.');
   }
 
   protected override buildEnvironment(): void {
@@ -819,6 +910,8 @@ export class HauntingWorld extends GridWorld {
     this.testLight.userData.dynamicIntensity = true;
     this.stage.add(this.testLight);
     for (const room of spacesOf(this.spec)) this.buildLamp(room.id, roomCentre(room));
+    this.beacons = buildCorridorBeacons(this.spec);
+    for (const beacon of this.beacons) this.stage.add(beacon.root);
     if (this.context) this.mountExperience(this.context);
     if (this.ui) this.buildDoorMarks();
     this.nextPhoneRender = 0;
@@ -896,6 +989,26 @@ export class HauntingWorld extends GridWorld {
           if (entry) this.removeProp(entry, false);
           this.stationTorch = null;
         }
+      },
+      tuning: () => this.tuning,
+      retune: (tuning) => {
+        this.tuning = clampTuning(tuning);
+        saveTuning(this.tuning);
+        this.routine?.retune(this.tuning.monster);
+      },
+      simulationSpeed: () => this.simulationSpeed,
+      cycleSimulationSpeed: () => {
+        this.simulationSpeed = nextSimulationSpeed(this.simulationSpeed);
+        return this.simulationSpeed;
+      },
+      lighting: () => this.botLighting,
+      setLighting: (lighting) => {
+        // Ohne Angabe geht es eine Stellung weiter — das ist der Knopf in der
+        // Tafel; mit Angabe setzt jemand einzelne Werte.
+        this.botLighting = Object.keys(lighting).length
+          ? clampLighting({ ...this.botLighting, ...lighting })
+          : nextLighting(this.botLighting);
+        this.applyLights();
       },
       routeVersion: () => this.travelGraph().version,
       visible: (from, to) => this.clearSight(from, to),
@@ -1425,7 +1538,22 @@ export class HauntingWorld extends GridWorld {
     return this.hostId !== '' && this.hostId === this.context?.net.localId;
   }
 
+  /**
+   * **Ein Bild — oder bei Zeitraffer mehrere hintereinander.**
+   *
+   * Die Bot-Runde lässt sich beschleunigen (`simulationSpeed.ts`), und das
+   * geschieht hier und nirgends sonst: Statt einen Zeitschritt zu strecken —
+   * womit der Techniker beim ersten ×8 durch eine Wand stünde — rechnet die
+   * Welt in einem echten Bild mehrere ganz normale. Nur der letzte Durchgang
+   * schickt Netzpakete und frischt die Anzeigen auf; alles andere wäre acht
+   * gleiche Nachrichten je Bild.
+   */
   override update(dt: number, ctx: WorldContext): void {
+    const repeats = this.state.crew.simulation ? simulationRepeats(this.simulationSpeed, dt) : 1;
+    for (let i = 0; i < repeats; i++) this.tick(dt, ctx, i === repeats - 1);
+  }
+
+  private tick(dt: number, ctx: WorldContext, last = true): void {
     if (this.flatTechnician) ctx = { ...ctx, role: 'vr' };
     if (this.mountedRole !== ctx.role) {
       this.context = ctx;
@@ -1514,6 +1642,7 @@ export class HauntingWorld extends GridWorld {
         (from, to) => this.clearSight(from, to),
       );
     }
+    if (!last) return;
     this.sendTimer -= dt;
     if (this.sendTimer <= 0) {
       this.sendTimer = STATE_RATE;
@@ -1786,13 +1915,7 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     if (!this.monster || !this.state.monsterOn || this.state.phase !== 'running') return;
-    const baseSpeed = MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.speed;
-    // Confirmed hunts alternate short bursts with recovery speed.
-    this.monster.setSpeed(
-      this.state.crew.threat.mode === 'hunt' && this.state.time % 9 < 3
-        ? Math.max(3.6, baseSpeed * 1.45)
-        : baseSpeed,
-    );
+    this.stepRoutine(dt, _head);
     this.ventClock += dt;
     if (this.ventExit) {
       if (this.state.crew.venting > 0) return;
@@ -2061,6 +2184,14 @@ export class HauntingWorld extends GridWorld {
       !!trainingRoomAt(_head.x, _head.z),
       poweredDeck,
     );
+    // In der Bot-Runde entscheidet die Schalttafel und nicht die Runde: Wer
+    // zuschaut, will dieselbe Szene einmal hell und einmal im Alarmlicht
+    // sehen (`botLighting.ts`).
+    const deck = this.state.crew.simulation ? this.botLighting : null;
+    if (deck) {
+      lighting.ambient = deck.ambient;
+      lighting.lamps = deck.lamps;
+    }
     if (this.testLight)
       this.testLight.intensity = THREE.MathUtils.damp(
         this.testLight.intensity,
@@ -2092,8 +2223,29 @@ export class HauntingWorld extends GridWorld {
       lamp.glass.material.color.lerpColors(
         _lampOff,
         _lampOn,
-        !lighting.dark && (bright || this.state.lit.includes(id)) ? 1 : 0,
+        !lighting.dark && (deck ? deck.lamps : bright || this.state.lit.includes(id)) ? 1 : 0,
       );
+    this.applyBeacons(deck?.alarm ?? this.state.phase === 'lost');
+  }
+
+  /**
+   * **Die roten Drehleuchten in den Gängen.**
+   *
+   * Jede hat ihren eigenen Versatz — zwölf Spiegel, die im Gleichtakt drehen,
+   * sehen aus wie eine Animation und nicht wie eine Station. Die Rechnung
+   * dahinter steht in `botLighting.ts`, damit sie geprüft ist: Ein Winkel,
+   * der immer weiterwächst, bleibt nach einer Stunde stehen.
+   */
+  private applyBeacons(alarm: boolean): void {
+    if (!this.beacons.length) return;
+    for (const beacon of this.beacons) {
+      beacon.root.visible = alarm;
+      if (!alarm) continue;
+      beacon.mirror.rotation.y = beaconAngle(this.state.time, beacon.offset);
+      const glow = 0.35 + alarmPulse(this.state.time, beacon.offset) * 0.65;
+      beacon.lamp.material.color.copy(_beaconOff).lerp(_beaconOn, glow);
+      beacon.mirror.material.color.copy(_beaconOff).lerp(_beaconOn, glow);
+    }
   }
 
   /** Hide detail meshes in rooms that no open doorway can currently reveal. */
@@ -2993,6 +3145,9 @@ export class HauntingWorld extends GridWorld {
     }
     this.director?.clear();
     this.monsterNavigator = null;
+    this.routine = null;
+    this.decision = null;
+    this.watchedLocker = '';
     this.monster = null;
     this.ventExit = null;
     this.ventClock = 0;
@@ -3030,6 +3185,22 @@ export class HauntingWorld extends GridWorld {
         health: 10000,
         at: new THREE.Vector3(at.x, 0, at.z),
       }) ?? null;
+    this.routine = new MonsterRoutine(this.tuning.monster);
+    this.watchedLocker = '';
+    // Ein erster Beschluss noch vor dem ersten Bild: Sonst stünde das Monster
+    // genau so lange ohne Ziel herum, wie es dauert, bis die Wahrnehmung das
+    // erste Mal läuft — und in einer Bot-Runde ohne Techniker wäre das für
+    // immer.
+    this.decision = this.routine.step(stationGraph(this.spec), {
+      dt: 0,
+      at,
+      here: roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE))?.id ?? '',
+      signal: null,
+      seen: false,
+      quarry: null,
+      caught: '',
+      rng: () => this.routineDice.next(),
+    });
     if (this.monster) {
       const navigator = new StationNpcNavigator(
         () => this.spec,
@@ -3072,8 +3243,6 @@ export class HauntingWorld extends GridWorld {
     this.previousFeet = null;
     this.sightTimer = 0;
     this.monsterSeesPlayer = false;
-    this.patrolIndex = 0;
-    this.patrolChangedAt = 0;
     this.grid?.replaceWith(housePlan(this.spec, new Set(), options.test));
     this.builtDoors = '?';
     if (this.blob) {

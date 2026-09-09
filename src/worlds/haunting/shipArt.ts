@@ -451,6 +451,67 @@ function buildCommandHull(): THREE.Group {
   return group;
 }
 
+/** Eine Drehleuchte, wie die Welt sie in einem Gang aufhängt. */
+export interface StationBeacon {
+  root: THREE.Group;
+  /** Der drehende Spiegel; sein Gierwinkel kommt aus `botLighting.beaconAngle`. */
+  mirror: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  /** Die Haube, die dabei pulst. */
+  lamp: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  /** Der Versatz dieser Leuchte, damit nicht alle im Gleichtakt drehen. */
+  offset: number;
+}
+
+/**
+ * **Rote Drehleuchten in den Gängen.**
+ *
+ * Sie hängen dort, wo man ohnehin entlangläuft, und nur dort: In einem Raum
+ * wäre eine Alarmleuchte eine Lampe mehr, im Gang ist sie das, was den Gang
+ * zu einem Gang macht. Eine je zweiter Kachel eines Ganges, höchstens zwei
+ * je Gang — mehr sieht aus wie eine Lichterkette.
+ *
+ * Sie leuchten **selbst** und beleuchten nichts: kein `PointLight`, sondern
+ * eine Haube mit `MeshBasicMaterial`. Zwölf zusätzliche Lichtquellen wären
+ * auf einer Brille zwölf zusätzliche Durchgänge je Bild.
+ */
+export function buildCorridorBeacons(spec: HouseSpec): StationBeacon[] {
+  const beacons: StationBeacon[] = [];
+  const halls = (spec.passages ?? []).filter((room) => room.circulation);
+  halls.forEach((hall, index) => {
+    const tiles = tilesOf(hall.rect);
+    const spots = tiles.filter((_, at) => at % 3 === 1).slice(0, 2);
+    for (const tile of spots.length ? spots : tiles.slice(0, 1)) {
+      const root = new THREE.Group();
+      root.name = `corridor-beacon-${hall.id}`;
+      root.position.set((tile.x + 0.5) * TILE, PLAN_WALL_H - 0.42, (tile.z + 0.5) * TILE);
+      const bracket = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055, 0.055, 0.18, 6),
+        new THREE.MeshStandardMaterial({ color: SHIP.trim, roughness: 0.6 }),
+      );
+      bracket.position.y = 0.14;
+      const lamp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.13, 10, 8),
+        new THREE.MeshBasicMaterial({ color: SHIP.red, transparent: true, opacity: 0.72 }),
+      );
+      const mirror = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 0.11, 0.035),
+        new THREE.MeshBasicMaterial({ color: SHIP.red }),
+      );
+      root.add(bracket, lamp, mirror);
+      root.visible = false;
+      beacons.push({
+        root,
+        mirror: mirror as StationBeacon['mirror'],
+        lamp: lamp as StationBeacon['lamp'],
+        // Goldener Winkel: Nachbarn stehen nie im Gleichtakt und wiederholen
+        // sich auch nach zwanzig Leuchten nicht.
+        offset: ((index * 2 + beacons.length) * 0.618034) % 1,
+      });
+    }
+  });
+  return beacons;
+}
+
 export function label(
   text: string,
   width: number,

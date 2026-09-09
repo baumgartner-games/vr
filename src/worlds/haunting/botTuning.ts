@@ -189,7 +189,7 @@ export function copyTuning(tuning: BotTuning): BotTuning {
 }
 
 /** Der Wert eines Feldes als Text für die Schalttafel. */
-export function fieldText<T>(field: TuningField<T>, value: number): string {
+export function fieldText(field: Pick<TuningField<never>, 'unit'>, value: number): string {
   if (field.unit === '%') return `${Math.round(value * 100)} %`;
   if (field.unit === '') return String(Math.round(value));
   return `${value.toFixed(2)} ${field.unit}`;

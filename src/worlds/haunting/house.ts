@@ -133,7 +133,8 @@ export type MarkId =
   | 'sessel'
   | 'kiste'
   | 'schaukelpferd'
-  | 'esstisch';
+  | 'esstisch'
+  | 'ausgabe';
 
 /** Wie ein Merkmal heißt — im Dossier und im Satz, den jemand sagt. */
 export const MARKS: Readonly<Record<MarkId, string>> = {
@@ -151,6 +152,7 @@ export const MARKS: Readonly<Record<MarkId, string>> = {
   kiste: 'Frachtcontainer',
   schaukelpferd: 'Probenkammer',
   esstisch: 'Hydroponikbeet',
+  ausgabe: 'Kantinenausgabe',
 };
 
 /** Ein Merkmal, wie es im Zimmer steht. */
@@ -192,7 +194,7 @@ interface RoomKindFacts {
 }
 
 const ROOM_KINDS: readonly RoomKindFacts[] = [
-  { id: 'kueche', label: 'Kantine', signature: 'ofen', extras: ['spuele', 'esstisch'] },
+  { id: 'kueche', label: 'Kantine', signature: 'ofen', extras: ['spuele', 'esstisch', 'ausgabe'] },
   { id: 'bad', label: 'Medizin / Quarantäne', signature: 'wanne', twin: 'dusche', extras: [] },
   { id: 'wohnzimmer', label: 'Reaktorkammer', signature: 'kamin', extras: ['sessel', 'standuhr'] },
   { id: 'musikzimmer', label: 'Kommunikation', signature: 'klavier', extras: ['sessel'] },

@@ -23,6 +23,7 @@ export const FIXTURE_CATALOG: Readonly<Record<MarkId, FixtureSize>> = {
   kiste: { width: 1.5, height: 1.15, depth: 1.0 },
   schaukelpferd: { width: 1.3, height: 1.8, depth: 0.85 },
   esstisch: { width: 1.85, height: 1.6, depth: 1.05 },
+  ausgabe: { width: 2.3, height: 1.85, depth: 0.95 },
 };
 
 export const CARGO_SIZE: FixtureSize = { width: 0.9, height: 1.4, depth: 0.65 };

@@ -3,11 +3,10 @@ import {
   TRAINING_BAND,
   TRAINING_DEFAULTS,
   TRAINING_TARGET,
-  beginTraining,
+  TrainingRun,
   centreScore,
   inBand,
   trainBots,
-  trainStep,
   winRate,
 } from './botTraining';
 
@@ -114,23 +113,54 @@ describe('Das Training selbst', () => {
   }, 120000);
 
   it('rührt nur die Seite an, die trainiert wird', () => {
-    let state = beginTraining(DEFAULT_TUNING, 'monster', options, 7);
-    for (let i = 0; i < 6; i++) state = trainStep(state, options);
-    expect(state.tuning.technician).toEqual(DEFAULT_TUNING.technician);
-    let other = beginTraining(DEFAULT_TUNING, 'technician', options, 7);
-    for (let i = 0; i < 6; i++) other = trainStep(other, options);
-    expect(other.tuning.monster).toEqual(DEFAULT_TUNING.monster);
+    const monster = new TrainingRun(DEFAULT_TUNING, 'monster', 6, options, 7);
+    while (!monster.finished) monster.advanceStep();
+    expect(monster.state.tuning.technician).toEqual(DEFAULT_TUNING.technician);
+    const technician = new TrainingRun(DEFAULT_TUNING, 'technician', 6, options, 7);
+    while (!technician.finished) technician.advanceStep();
+    expect(technician.state.tuning.monster).toEqual(DEFAULT_TUNING.monster);
   }, 60000);
 
-  it('bleibt in den Grenzen jedes Feldes und wird dabei genauer', () => {
-    let state = beginTraining(DEFAULT_TUNING, 'both', options, 99);
-    const first = state.spread;
-    for (let i = 0; i < 8; i++) state = trainStep(state, options);
-    expect(state.spread).toBeLessThan(first);
-    expect(state.tuning).toEqual(clampTuning(state.tuning));
-    expect(state.step).toBe(8);
-    expect(state.history).toHaveLength(9);
+  it('bleibt in den Grenzen jedes Feldes und zählt seine Schritte mit', () => {
+    // Bewusst nicht von den ausgelieferten Gewichten aus: Die stehen schon am
+    // Ziel, und ein Lauf, der nichts mehr zu suchen hat, hört sofort auf.
+    const off = clampTuning({
+      ...DEFAULT_TUNING,
+      monster: { ...DEFAULT_TUNING.monster, speed: 0.6, hearing: 0.4, vision: 0.4 },
+    });
+    const run = new TrainingRun(off, 'both', 8, options, 99);
+    run.advanceStep();
+    const first = run.state.spread;
+    while (!run.finished) run.advanceStep();
+    expect(run.state.spread).toBeLessThanOrEqual(first);
+    expect(run.state.tuning).toEqual(clampTuning(run.state.tuning));
+    expect(run.state.step).toBeGreaterThan(0);
+    expect(run.state.history).toHaveLength(run.state.step + 1);
+    expect(run.fraction).toBe(1);
   }, 60000);
+
+  it('hört auf, sobald es am Ziel steht', () => {
+    const run = new TrainingRun(DEFAULT_TUNING, 'both', 40, options, 99);
+    run.advanceStep();
+    expect(run.finished).toBe(true);
+    expect(run.state.step).toBe(0);
+  }, 60000);
+
+  /**
+   * Der Grund für die Zeitscheibe: Im Browser läuft das Training zwischen
+   * zwei Bildern. Ein Lauf in Häppchen muss dasselbe herausbekommen wie einer
+   * am Stück — sonst hängt das Ergebnis an der Bildrate.
+   */
+  it('rechnet in Häppchen dasselbe wie am Stück', () => {
+    const whole = new TrainingRun(DEFAULT_TUNING, 'both', 6, options, 2024);
+    while (!whole.finished) whole.advanceStep();
+    const sliced = new TrainingRun(DEFAULT_TUNING, 'both', 6, options, 2024);
+    let guard = 0;
+    while (!sliced.finished && guard++ < 20000) sliced.advance(0);
+    expect(sliced.state.tuning).toEqual(whole.state.tuning);
+    expect(sliced.state.rate).toBe(whole.state.rate);
+    expect(sliced.fraction).toBe(1);
+  }, 120000);
 
   it('läuft aus demselben Samen zweimal gleich', () => {
     const a = trainBots(DEFAULT_TUNING, 'both', 4, options, 4711);

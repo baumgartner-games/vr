@@ -157,10 +157,13 @@ test('a perceived monster interrupts work, the bot escapes into cover, then comp
   for (let i = 0; i < 30; i++) bot.update(0.1);
   expect(Math.hypot(bot.pose.x - before.x, bot.pose.z - before.z)).toBeGreaterThan(1);
   danger = null;
-  const shelter = bot.navigation.goal;
-  expect(shelter).not.toBeNull();
-  Object.assign(bot.pose, shelter);
-  bot.update(0.1);
+  expect(bot.navigation.goal).not.toBeNull();
+  // Er sucht sich sein Versteck neu, solange er unterwegs ist. Also wird ihm
+  // seine jeweils aktuelle Deckung untergeschoben, bis er darin steht.
+  for (let i = 0; i < 4 && bot.survival !== 'hide'; i++) {
+    Object.assign(bot.pose, bot.navigation.goal);
+    bot.update(0.1);
+  }
   expect(bot.survival).toBe('hide');
   expect(game.crew.hidden).not.toBe('');
   for (let i = 0; i < 15000 && !bot.completed; i++) bot.update(0.1);

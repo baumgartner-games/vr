@@ -11,6 +11,18 @@ import { ShipEffects } from './ShipEffects';
 import { CONDENSATION_FRAGMENT } from './helmetCondensation';
 import { PLAN_DOOR_H, PLAN_DOOR_W } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
+import { DEFAULT_LIGHTING, lightingPreset, type BotLighting } from './botLighting';
+import {
+  MONSTER_FIELDS,
+  TECHNICIAN_FIELDS,
+  clampTuning,
+  copyTuning,
+  fieldText,
+  type BotTuning,
+} from './botTuning';
+import { TrainingRun, TRAINING_DEFAULTS, inBand, type TrainingSide } from './botTraining';
+import { simulationSpeedLabel } from './simulationSpeed';
+import type { MonsterCue } from './monsterRoutine';
 import {
   APRON,
   COMMAND_LIFT,
@@ -71,6 +83,14 @@ interface ShipHost {
   routeVersion?(): number;
   danger?(pose: DronePose): { x: number; z: number } | null;
   visible?(from: { x: number; z: number }, to: { x: number; z: number }): boolean;
+  /** Die Gewichte beider Bots und ihr Zeitraffer — nur in der Bot-Runde. */
+  tuning?(): BotTuning;
+  retune?(tuning: BotTuning): void;
+  simulationSpeed?(): number;
+  cycleSimulationSpeed?(): number;
+  /** Wie das Deck in der Bot-Runde ausgeleuchtet ist. */
+  lighting?(): BotLighting;
+  setLighting?(lighting: Partial<BotLighting>): void;
   equip?(id: 'flashlight' | 'xray' | 'radar' | 'off', hand: Handedness): void;
   carried?(hand: Handedness): Tool | null;
   floatingTorch?(): FlashlightTool | null;
@@ -192,6 +212,20 @@ export class ShipExperience {
   private hiddenWas = false;
   private savedRigFrozen = false;
   private missionBot: MissionBot | null = null;
+  /**
+   * Die Justage-Tafel wird **einmal** gebaut und danach nur noch umgehängt.
+   *
+   * Der Rest der Anzeige entsteht bei jeder Änderung neu, und das ist dort
+   * richtig. Hier wäre es falsch: Ein Schieberegler, der beim Ziehen dreißigmal
+   * je Sekunde durch einen neuen ersetzt wird, lässt sich nicht ziehen.
+   */
+  private readonly tunePanel = document.createElement('details');
+  private tunePanelReady = false;
+  private readonly tuneLabels = new Map<string, HTMLElement>();
+  private readonly tuneInputs = new Map<string, HTMLInputElement>();
+  private training: TrainingRun | null = null;
+  private trainingNote = '';
+  private trainingLine: HTMLElement | null = null;
   private simulated: THREE.Object3D | null = null;
   private followBot = true;
   private readonly followEye = new THREE.Vector3();
@@ -1020,6 +1054,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const ctx = this.host.ctx;
     const state = this.host.state();
     const crew = this.crew;
+    this.stepTraining();
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
     this.updateTools(dt);
@@ -1495,7 +1530,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       panel.append(details);
       button(crew.options.bright ? 'Testlicht aus' : 'Testlicht an', 'light', details);
       button(crew.simulation ? 'Bot-Runde beenden' : 'Bot-Runde anschauen', 'simulate', details);
+      if (crew.simulation) {
+        button(simulationSpeedLabel(this.host.simulationSpeed?.() ?? 1), 'tempo', details);
+        button(
+          `Licht: ${lightingPreset(this.host.lighting?.() ?? DEFAULT_LIGHTING).label}`,
+          'deck-light',
+          details,
+        );
+      }
       button('Zur Zentrale', 'home', details);
+      details.append(this.buildTunePanel());
       for (const lab of TRAINING_ROOMS) button(lab.name, `lab:${lab.id}`, details);
       for (const room of this.host.spec().rooms)
         button(`Testbesuch: ${room.name} / ${roomCode(room.id)}`, `visit:${room.id}`, details);
@@ -1515,6 +1559,183 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
     }
   }
+  /**
+   * **Die Justage- und Trainingstafel der Bot-Runde.**
+   *
+   * Links die Zahlen des Monsters, rechts die des Technikers — dieselben, mit
+   * denen die Runde wirklich gespielt wird (`botTuning.ts`). Darunter die drei
+   * Knöpfe, die eine Suche anwerfen: Das Training spielt hunderte Runden
+   * ohne Bild aus (`roundSim.ts`) und schiebt die Gewichte auf „der Techniker
+   * gewinnt 60–70 %" zu. Es rechnet **zwischen den Bildern** weiter, sonst
+   * stünde hier ein eingefrorener Tab.
+   */
+  private tuning(): BotTuning {
+    return clampTuning(this.host.tuning?.() ?? null);
+  }
+
+  private applyTuning(tuning: BotTuning): void {
+    this.host.retune?.(clampTuning(tuning));
+    this.refreshTuneLabels();
+  }
+
+  private buildTunePanel(): HTMLElement {
+    if (this.tunePanelReady) return this.tunePanel;
+    this.tunePanelReady = true;
+    const panel = this.tunePanel;
+    panel.className = 'orbital-tuning';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Bots justieren & trainieren';
+    panel.append(summary);
+    const hint = document.createElement('p');
+    hint.textContent =
+      'Dieselben Zahlen, mit denen die Runde läuft. Das Training sucht Gewichte, ' +
+      'mit denen der Techniker im Schnitt 60–70 % der Runden gewinnt.';
+    panel.append(hint);
+
+    const group = (
+      title: string,
+      fields: ReadonlyArray<{
+        id: string;
+        label: string;
+        unit: string;
+        min: number;
+        max: number;
+        step: number;
+      }>,
+      side: 'monster' | 'technician',
+    ): void => {
+      const box = document.createElement('div');
+      box.className = 'orbital-tuning__group';
+      const heading = document.createElement('h4');
+      heading.textContent = title;
+      box.append(heading);
+      for (const field of fields) {
+        const key = `${side}:${field.id}`;
+        const row = document.createElement('label');
+        row.className = 'orbital-tuning__row';
+        const name = document.createElement('span');
+        name.textContent = field.label;
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = String(field.min);
+        input.max = String(field.max);
+        input.step = String(field.step);
+        input.dataset.tune = key;
+        const value = document.createElement('output');
+        input.addEventListener('input', () => {
+          const tuning = copyTuning(this.tuning());
+          (tuning[side] as unknown as Record<string, number>)[field.id] = Number(input.value);
+          this.applyTuning(tuning);
+        });
+        row.append(name, input, value);
+        box.append(row);
+        this.tuneLabels.set(key, value);
+        this.tuneInputs.set(key, input);
+      }
+      panel.append(box);
+    };
+    group('Monster', MONSTER_FIELDS, 'monster');
+    group('Techniker', TECHNICIAN_FIELDS, 'technician');
+
+    const actions = document.createElement('div');
+    actions.className = 'orbital-player__actions';
+    const button = (text: string, run: () => void): void => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.textContent = text;
+      element.addEventListener('click', run);
+      actions.append(element);
+    };
+    button('Monster trainieren', () => this.startTraining('monster'));
+    button('Techniker trainieren', () => this.startTraining('technician'));
+    button('Beide trainieren', () => this.startTraining('both'));
+    button('Training abbrechen', () => {
+      this.training = null;
+      this.trainingNote = 'Training abgebrochen.';
+      this.refreshTuneLabels();
+    });
+    button('Auf Auslieferung zurück', () => {
+      this.training = null;
+      this.trainingNote = 'Ausgelieferte Gewichte wiederhergestellt.';
+      this.applyTuning(clampTuning(null));
+    });
+    panel.append(actions);
+    const line = document.createElement('div');
+    line.className = 'orbital-tuning__status';
+    line.setAttribute('role', 'status');
+    this.trainingLine = line;
+    panel.append(line);
+    this.refreshTuneLabels();
+    return panel;
+  }
+
+  private startTraining(side: TrainingSide): void {
+    this.training = new TrainingRun(
+      this.tuning(),
+      side,
+      40,
+      TRAINING_DEFAULTS,
+      Date.now() & 0xffff || 1,
+    );
+    this.trainingNote = 'Training läuft …';
+    this.refreshTuneLabels();
+  }
+
+  private stepTraining(): void {
+    const run = this.training;
+    if (!run) return;
+    // Zehn Millisekunden je Bild: Das Training kommt spürbar voran und die
+    // Runde daneben läuft weiter.
+    run.advance(10);
+    const state = run.state;
+    if (state.step > 0 || run.finished) this.host.retune?.(state.tuning);
+    if (run.finished) {
+      this.training = null;
+      this.trainingNote = `Training fertig: Techniker gewinnt ${Math.round(state.rate * 100)} % (${
+        inBand(state.rate) ? 'im Zielband' : 'noch neben dem Zielband'
+      }), ${state.step} Schritte.`;
+      this.log(`BOT-TRAINING: ${this.trainingNote}`);
+    } else
+      this.trainingNote = `Training ${Math.round(run.fraction * 100)} % · beste Quote ${Math.round(
+        state.rate * 100,
+      )} %`;
+    this.refreshTuneLabels();
+  }
+
+  private refreshTuneLabels(): void {
+    if (!this.tunePanelReady) return;
+    const tuning = this.tuning();
+    for (const [key, label] of this.tuneLabels) {
+      const [side, id] = key.split(':') as ['monster' | 'technician', string];
+      const fields = side === 'monster' ? MONSTER_FIELDS : TECHNICIAN_FIELDS;
+      const field = fields.find((one) => one.id === id);
+      if (!field) continue;
+      const value = (tuning[side] as unknown as Record<string, number>)[id]!;
+      label.textContent = fieldText(field, value);
+      const input = this.tuneInputs.get(key);
+      if (input && document.activeElement !== input) input.value = String(value);
+    }
+    if (this.trainingLine) this.trainingLine.textContent = this.trainingNote;
+  }
+
+  /**
+   * **Ein Geräusch des Monsters** — genau in dem Bild, in dem es seinen
+   * Anlass hat (`monsterRoutine.ts`).
+   */
+  monsterCue(cue: MonsterCue, at: { x: number; z: number }): void {
+    if (!cue) return;
+    if (cue === 'breach') {
+      this.burst('smoke', _pos.set(at.x, 1.1, at.z));
+      this.burst('sparks', _pos.set(at.x, 1.45, at.z));
+      this.log('Das Monster reißt die Kabine auf — Rauch und Funken.');
+    }
+    if (cue === 'scream') this.log('Das Monster schreit vor der Kabine.');
+    if (!this.audioOn) return;
+    // Ein geöffneter Schrank ist ein lauteres Klacken und kein eigenes Geräusch.
+    const kind = cue === 'sniff' ? 'klack' : cue;
+    this.audio.play(kind, at, this.crew.options.monster, cue === 'sniff' ? 1.6 : 1);
+  }
+
   private readonly domClick = (event: Event): void => {
     const action = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]')
       ?.dataset.action;
@@ -1547,6 +1768,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else if (kind === 'locker') this.lockerDigit(id!, Number(a));
     else if (kind === 'door') this.host.door(id!);
     else if (kind === 'simulate') this.toggleSimulation();
+    else if (kind === 'tempo') this.host.cycleSimulationSpeed?.();
+    else if (kind === 'deck-light') this.host.setLighting?.({});
     else if (kind === 'up') this.flatFlight = 1;
     else if (kind === 'down') this.flatFlight = -1;
     else if (kind === 'visit' && this.crew.options.test) this.visit(id!);
@@ -1709,6 +1932,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       revision: () => this.host.routeVersion?.() ?? 0,
       danger: (pose) => this.host.danger?.(pose) ?? null,
       visible: (from, to) => this.host.visible?.(from, to) ?? false,
+      tuning: () => this.tuning().technician,
       say: (text) => this.log(text),
     });
     this.simulated.position.set(this.missionBot.pose.x, 0, this.missionBot.pose.z);
@@ -1818,6 +2042,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       frame.monster = state.monster;
       frame.kind = this.crew.options.monster;
       frame.active = state.monsterOn && !this.crew.simulation;
+      // Der Herzschlag ist das Einzige, was bei einer Verfolgung über den
+      // Abstand nach hinten Auskunft gibt: je näher, desto schneller.
+      const chased =
+        state.monster && this.crew.threat.mode === 'hunt' && !this.crew.hidden
+          ? Math.max(0, 1 - Math.hypot(state.monster.x - head.x, state.monster.z - head.z) / 18)
+          : 0;
+      frame.chase = this.crew.options.test && !this.crew.simulation ? 0 : chased;
       frame.test = this.crew.options.test;
       frame.venting = this.crew.venting > 0;
       const engine = stationLayout(this.host.spec()).find((p) => p.id === 'console-engine');
