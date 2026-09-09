@@ -24,6 +24,11 @@ export interface BotLighting {
   ambient: number;
 }
 
+/**
+ * Die Voreinstellung ist **eine der benannten Stellungen** und keine eigene:
+ * Sonst steht beim ersten Aufmachen „Eigene Beleuchtung" auf dem Knopf, und
+ * niemand weiß, wovon der Knopf ausgeht.
+ */
 export const DEFAULT_LIGHTING: BotLighting = {
   lamps: true,
   alarm: false,
@@ -47,7 +52,7 @@ export const LIGHTING_PRESETS: readonly LightingPreset[] = [
   {
     id: 'watch',
     label: 'Wachbetrieb',
-    lighting: { lamps: true, alarm: false, emergency: false, ambient: 0.4 },
+    lighting: { lamps: true, alarm: false, emergency: false, ambient: 0.55 },
   },
   {
     id: 'alarm',

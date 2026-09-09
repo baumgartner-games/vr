@@ -183,6 +183,32 @@ function floor(batch: ShipBatch, rect: Rect, accent = SHIP.cyan, circulation = f
   }
 }
 
+/**
+ * **Der Name eines Ganges, auf seinen Boden geschrieben.**
+ *
+ * „Ich bin im Verbindungsgang" war vierzehnmal wahr; „ich bin im
+ * Cafeteria-Südgang" ist eine Ansage. Damit sie etwas nützt, muss der Name
+ * aber **im Gang stehen** und nicht nur in der Akte: Wer dort läuft, liest
+ * ihn vom Boden ab, so wie in einem Parkhaus.
+ *
+ * Er liegt längs der langen Seite — quer gelesen wäre er in einem zwei
+ * Kacheln breiten Gang abgeschnitten.
+ */
+function addCorridorName(group: THREE.Group, room: HouseRoom, accent: number): void {
+  const alongX = room.rect.w >= room.rect.d;
+  const length = Math.min(6, (alongX ? room.rect.w : room.rect.d) * TILE - 1.2);
+  if (length < 1.6) return;
+  const stencil = label(room.name.toUpperCase(), length, 0.42, accent);
+  stencil.name = 'corridor-floor-name';
+  stencil.position.set(
+    (room.rect.x + room.rect.w / 2) * TILE,
+    0.063,
+    (room.rect.z + room.rect.d / 2) * TILE,
+  );
+  stencil.rotation.set(-Math.PI / 2, 0, alongX ? 0 : Math.PI / 2);
+  group.add(stencil);
+}
+
 /** Painted navigation-scale insignia makes empty walking space feel intentional. */
 function addDepartmentMark(
   group: THREE.Group,
@@ -251,7 +277,8 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
   const batch = new ShipBatch(),
     accent = room.circulation ? SHIP.cyan : roomAccent(room.kind);
   floor(batch, room.rect, accent, room.circulation);
-  if (!room.circulation) addDepartmentMark(group, batch, room, accent);
+  if (room.circulation) addCorridorName(group, room, accent);
+  else addDepartmentMark(group, batch, room, accent);
   for (const tile of tilesOf(room.rect))
     for (const dir of DIRS) {
       if (roomAt(spec, tile.x + dirX(dir), tile.z + dirZ(dir))?.id === room.id) continue;
@@ -340,7 +367,7 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
       ]);
   }
   const signText = room.circulation
-    ? `${room.name.toUpperCase()}\nTRANSIT · ZENTRALE / SYSTEME`
+    ? `${room.name.toUpperCase()}\nTRANSIT`
     : `${room.name.toUpperCase()}\n${MARKS[room.signature]}`;
   // Both signs sit in front of the deepest wall trim and pipes. A real offset,
   // not disabled depth testing, preserves occlusion through neighbouring rooms.

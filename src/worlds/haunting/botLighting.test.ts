@@ -19,6 +19,10 @@ describe('Die Beleuchtung der Bot-Runde', () => {
     expect(clampLighting({ lamps: false }).lamps).toBe(false);
   });
 
+  it('geht von einer benannten Stellung aus und nicht von einer eigenen', () => {
+    expect(lightingPreset(DEFAULT_LIGHTING).id).not.toBe('custom');
+  });
+
   it('erkennt jede angebotene Stellung an ihren Werten wieder', () => {
     for (const preset of LIGHTING_PRESETS)
       expect(lightingPreset(preset.lighting).id).toBe(preset.id);
