@@ -99,6 +99,8 @@ import { Rng, rollSeed } from './rng';
 import { StationUi } from './stationUi';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
+import { RoundRules } from './rules/roundRules';
+import { buildVentFlaps } from './vents/ventArt';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
 import type { FlatStage } from './map/flatStage';
@@ -325,6 +327,8 @@ export class HauntingWorld extends GridWorld {
   private beacons: StationBeacon[] = [];
   /** Die Gewichte beider Bots — aus dem Browser-Speicher, veränderbar im Test. */
   private tuning: BotTuning = loadTuning();
+  /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
+  private readonly rules = new RoundRules();
   /** Was das Monster gerade vorhat (`monsterRoutine.ts`). */
   private routine: MonsterRoutine | null = null;
   private decision: RoutineOutput | null = null;
@@ -715,6 +719,7 @@ export class HauntingWorld extends GridWorld {
   private breakLocker(at: { x: number; z: number }): void {
     const crew = this.state.crew;
     const room = crew.hidden;
+    this.rules.destroyCabin(room);
     crew.hidden = '';
     this.watchedLocker = '';
     this.experience?.burst('smoke', new THREE.Vector3(at.x, 1.1, at.z));
@@ -908,6 +913,7 @@ export class HauntingWorld extends GridWorld {
     this.lamps.clear();
     const art = buildShip(this.spec);
     this.stage.add(art);
+    this.stage.add(buildVentFlaps(this.spec));
     this.roomArt.clear();
     for (const group of art.children) {
       const id = group.userData.roomId as string | undefined;
@@ -1602,6 +1608,11 @@ export class HauntingWorld extends GridWorld {
 
     if (this.isHost) {
       this.state.time += dt;
+      const oxygen = this.rules.step(this.state);
+      if (oxygen) {
+        this.removeMonster();
+        this.announce(oxygen.text);
+      }
       this.trackMonster();
       this.checkItems(ctx);
       this.stepCrew(dt, ctx);
@@ -3240,6 +3251,7 @@ export class HauntingWorld extends GridWorld {
         }),
         bot: () => this.experience?.botPose ?? null,
         monsterYaw: () => this.monster?.model.rotation.y ?? 0,
+        round: () => this.rules.status(this.state),
         peers: () =>
           [...(this.context?.net.peers.values() ?? [])]
             .filter((peer) => peer.world === 'haunting' && peer.role === 'vr' && peer.pose)
@@ -3370,6 +3382,7 @@ export class HauntingWorld extends GridWorld {
   private newRound(options: StationOptions = this.state.crew.options): void {
     if (!this.isHost) return;
     this.removeMonster();
+    this.rules.reset();
     this.spook = freshSpook();
     this.automaticDoors.clear();
     this.spec = generateHouse(rollSeed(), options.rooms);

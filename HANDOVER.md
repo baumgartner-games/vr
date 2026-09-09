@@ -3,6 +3,290 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Paket gameplay — Rundenregeln, Lüftungssystem, Monster-Rolle
+
+Branch `feat/monster-gameplay` (in der Browser-Session als
+`claude/monster-gameplay-ant41n`). Drei Etappen, drei Commits; der Stand je
+Etappe steht am Ende dieses Abschnitts. Neuer Code liegt in
+`src/worlds/haunting/rules/**`, `vents/**` und `monster/**`; `BOUNDARIES.md`
+hat dafür einen Abschnitt 6 bekommen, weil es vorher keinen gab.
+
+### Etappe A — Rundenregeln (`rules/`)
+
+**Das Problem.** Techniker in die Kabine, Monster reißt sie auf, Techniker in
+die nächste Kabine — und die erste stand danach wieder da wie neu. In der
+3D-Bot-Runde (sicherer Test) verlor der Anzug dabei nicht einmal ein Leben.
+Nichts an der Runde konnte sie beenden.
+
+**Was drin ist.**
+
+- `rules/roundRules.ts`: `RoundRules` hält die zerstörten Kabinen und rechnet
+  den Rest aus `HauntState`. `cabinStrike(crew)` macht die Kabine kaputt,
+  stellt den Techniker in den Raum und kostet ein Leben — **auch wenn er
+  gerade unverwundbar war**; sonst wäre die Kabine wieder ein Ausweg. Im
+  sicheren Test bleibt der Anzug ganz, die Kabine ist trotzdem hin.
+  `step(state)` beendet die Runde, wenn `ROUND_SECONDS - time` bei null ist.
+  Anzug-Leben **sind** `crew.hp` (drei, `mission.ts`), kein zweiter Zähler;
+  Sauerstoff und Rundenlimit sind **eine** Uhr (`HauntState.time`).
+- Contract: `MapSnapshot.round` (`MapRound`: `phase`, `oxygen`, `limit`,
+  `suit`, `suitMax`, `cabinsDestroyed`, `ending`), Schrank-Zustand
+  `destroyed` mit `interactive: false`. `MapSource.round?()` und
+  `WorldHandles.round?()` sind optional, damit Quellen ohne Regeln
+  weiterlaufen.
+- 2D-Runde (`map/flatRound.ts`): Sauerstoff-Ende, Kabinenangriff über
+  `rules.cabinStrike`, zerstörte Kabinen weder als Ziel des Knopfs noch als
+  Versteck; `round()` als `MapSource`. HUD zeigt `O₂ m:ss`, die Endkarte den
+  Grund (`map/flatMode.ts`).
+- 3D-Welt (`HauntingWorld.ts`): ein Import, ein Feld, `rules.step` nach der
+  Uhr (Runde verloren, Monster weg, Ansage), `rules.destroyCabin` in
+  `breakLocker`, `rules.reset` in `newRound`, `round` im `mapSnapshot`.
+- `rules/technicianBot.ts` + `rules/botRound.ts`: ein Techniker aus Zahlen
+  für die 2D-Runde (Aufträge, Flucht, Kabine — wie `roundSim.ts`, aber gegen
+  die echte `FlatRound` mit demselben Stock und denselben Knöpfen) und
+  `simulateFlatRound(seed)`, der eine ganze Runde headless ausspielt.
+
+**Der Beleg** (`rules/botRound.test.ts`): fünf Bot-Runden auf fünf Stationen,
+die Hälfte mit einem Techniker, der die Kabine dem freien Feld immer vorzieht
+(`hide: 1`). Jede endet von selbst — Sauerstoff, Anzug oder Flucht —, nie
+durch die Reißleine eine Minute hinter dem Limit. Das Protokoll steht im Test
+als `console.info`; beim Schreiben dieses Abschnitts: siehe unten
+„Stand je Etappe".
+
+**Entscheidungen und Alternativen.**
+
+- **Die Uhr läuft weiter, auch wenn „Lebenserhaltung stabilisieren" repariert
+  ist.** Sonst wäre nach der zweiten Reparatur wieder eine Runde ohne Ende
+  möglich. „Sauerstoffversorgung wiederherstellen" heißt: alle drei Systeme
+  und zurück in die Zentrale. Alternative: die Uhr bei reparierter
+  Lebenserhaltung anhalten — eine Zeile in `RoundRules.oxygenLeft`.
+- **Kabinenangriff schlägt Unverwundbarkeit.** `takeCrewHit` lehnt einen
+  Treffer binnen drei Sekunden nach dem letzten ab; für den Kabinenangriff
+  wird die Frist vorher auf null gesetzt und danach neu gewährt (`mission.ts`
+  unverändert).
+- **Nur eine Klappe je Raum.** Räume sind hier klein (vier mal vier
+  Kacheln); zwei Klappen im selben Raum wären Deko. Wer die Cafeteria
+  zweifach anschließen will, fügt eine Zeile in `ventNet.data.ts` ein.
+- **Der Bot der 2D-Runde erkennt Gefahr wie `roundSim.ts`** (Abstand und
+  Raumkarte), nicht über das Sichtbarkeitsfeld. Ein Bot, der das Monster erst
+  im Licht sieht, würde die Schleife nie erreichen, die ein Mensch mit Ohren
+  erreicht. Er gewinnt gegen das 2D-Monster selten — die Balance der 2D-Runde
+  ist nicht Gegenstand dieser Etappe.
+- **Zwei Messstellen im Sichtbarkeitsmodell** (`map/visibility.ts`, Paket
+  map): `litAt` prüft erst den Radius, dann das Polygon; `LitCache` merkt sich
+  je Lampe nur den Stand der Türen in ihrer Reichweite statt aller Türen.
+  Vorher warf jede automatische Tür irgendwo in der Station alle Lampenflächen
+  weg — eine Bot-Runde brauchte 20 s statt 7 s, und ein Telefon rechnet
+  dasselbe. Verhalten unverändert (`visibility.test.ts` grün).
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts` (Import,
+Feld, fünf kleine Hooks), `map/flatMode.ts` (HUD-Zeile, Endkarte),
+`map/mapSnapshot.ts` (`MapRound`, `round?`, Doku des Schrank-Zustands),
+`map/mapSource.ts`, `map/extract.ts`, `map/worldSource.ts` (je das optionale
+`round`), `map/visibility.ts` (die zwei Messstellen), `map/index.ts`
+(`MapRound` exportiert), `HauntingWorld.ts` (siehe oben), `BOUNDARIES.md`
+(Abschnitt 6).
+
+**Offen / nicht gemacht.**
+
+- Die **3D-Bot-Runde** kennt jetzt die Uhr und zerstörte Kabinen, aber der
+  Modelltechniker (`missionBot.ts`, über `ShipExperience`) wählt seine Kabine
+  noch aus allen — dafür bräuchte `MissionBotHost` ein `cabinUsable`, das
+  durch `ShipExperience` durchgereicht wird (zwei Grenzfall-Dateien). Ebenso
+  kann der VR-Spieler in 3D eine zerstörte Kabine noch betreten
+  (`ShipExperience.hide`). Beides endet spätestens am Sauerstoff.
+- Die Schalttafel im Van zeigt `MapSnapshot.round` noch nicht (Paket
+  Rollenansichten): Timer, Anzug und Kabinen liegen im Contract bereit.
+- `map/index.ts` ist aus Jest nicht importierbar (zieht `flatMode.ts` mit CSS
+  nach sich); `rules/` und `monster/` importieren deshalb `map/flatRound`,
+  `map/flatWalk` und `map/mapSnapshot` direkt. Vorschlag an Paket map: den
+  Index in einen headless Teil und einen DOM-Teil trennen.
+
+### Etappe B — Lüftungssystem (`vents/`)
+
+**Was drin ist.**
+
+- `vents/ventNet.data.ts`: **das Netz als Daten** — vierzehn Klappen (eine
+  je Raum, an Innenwänden zu Gängen, nie in einer Türöffnung) und neun
+  Verbindungen in vier getrennten Netzen (Reaktor–Triebwerke,
+  Sicherheit–MedBay–Elektrik, Cafeteria–Admin, Lager–Kommunikation,
+  Waffen–O2–Navigation–Schilde). Wer das Netz ändert, ändert diese Datei.
+- `vents/ventGraph.ts`: `VentNet` baut aus Daten und Bauplan die Klappen in
+  Metern (`at` an der Wand, `approach` davor) und **prüft die Daten** beim
+  Bauen (Kachel im Raum, Wand am Rand, keine Türöffnung, bekannte Klappen in
+  jeder Verbindung). `ventGraph.test.ts` prüft das gegen vier Samen.
+- `vents/ventTravel.ts`: `VentTravel`, die Fahrt als Zustandsmaschine —
+  einsteigen (1,2 s, sichtbar, Klappe offen), fahren (Länge des Schachts
+  durch 3,5 m/s, mindestens 2,5 s, **unsichtbar**: `concealed`), ankommen,
+  aussteigen (0,9 s, Klappe drüben offen). Die KI steigt sofort aus
+  (`autoExit`), ein Spieler muss den Knopf drücken. Der Zustand liegt in der
+  Maschine und nicht beim Steuernden — deshalb übersteht er einen Wechsel
+  der Steuerung (Etappe C).
+- `vents/ventPilot.ts`: **wie die KI fährt.** Die Routine kennt keine
+  Schächte und bleibt unangetastet; der Lotse liest ihr Ziel und biegt es auf
+  eine Klappe um, wenn Umweg, Ein-/Aussteigen und Fahrt zusammen mindestens
+  sechs Meter Weg sparen. Pause zwischen Fahrten aus `MONSTERS[].vent`.
+- `vents/ventArt.ts`: die Klappen in 3D — Rahmen, vier Lamellen, ein
+  Leuchtstreifen, alles in einer `ShipBatch` (zwei Draw-Calls für die ganze
+  Station). `vents/vents.register.ts` meldet Modell und Netz als Assets an.
+- Contract: Klappen als `MapItem` der Sorte `vent` (`closed`/`open`, nie
+  `interactive`), `MapSnapshot.ventLinks` als Graph, `MapSource.ventLinks?()`.
+  Das Monster im Schacht ist `concealed` — das Sichtbarkeitsmodell nimmt es
+  damit in beiden Modi aus `visibleEntities`; im Modus „Alles sehen" bleibt
+  der blasse Marker an der Einstiegsklappe stehen, was für die Prüfansicht
+  gewollt ist. `MapView` zeichnet eine Klappe als Gitter (kleine Ergänzung
+  im `items`-Zweig).
+- 2D-Runde (`map/flatRound.ts`): drei Felder, vier Zeilen im Konstruktor,
+  der Fahrt-Schritt am Anfang des Monsterblocks (im Schacht wird weder
+  wahrgenommen noch gelaufen noch getroffen), der Lotse vor `moveMonster`,
+  Klappen in `items()`, `ventLinks()`, `concealed` am Monster, und die
+  automatischen Türen ignorieren ein Monster im Schacht.
+- 3D-Welt (`HauntingWorld.buildHouse`): ein Import, ein `stage.add`.
+
+**Entscheidungen und Alternativen.**
+
+- **Die alte Schacht-Logik der 3D-Welt bleibt, wie sie ist.** `HauntingWorld`
+  lässt das Monster weiter über `mission.ventPairs` (jede gemeinsame Wand)
+  mit Rauch und zwei Sekunden Unsichtbarkeit springen. Sie auf den neuen
+  Graphen umzustellen hieße, `npcTarget`, `stepMonster`-Schachtteil und
+  `monsterVent` umzuschreiben (~60 Zeilen der gemeinsamen Grenzfall-Datei)
+  und die Fahrt mit dem NPC-Körper zu verheiraten. Das ist der nächste
+  Schritt, nicht dieser: Die neuen Klappen stehen in 3D sichtbar an den
+  Wänden, das Netz und die Fahrt sind headless fertig und getestet, und die
+  Umstellung ist damit ein Austausch von drei Methoden. Bis dahin gibt es
+  in 3D zwei Sorten Gitter: die alten hoch an den Wänden (`shipArt`) und die
+  neuen Klappen unten.
+- **Klappenwahl bei zwei Zielen:** `enter(rider, choice)` nimmt die
+  Datenreihenfolge; die KI rechnet die bessere aus, die Monster-Rolle zeigt
+  die Ziele als Knöpfe (Etappe C).
+- **Der Schacht ist Luftlinie.** Die Fahrtdauer ist die Luftlinie zwischen
+  den Klappen durch `VENT_SPEED`; ein echter Kanalverlauf brächte nichts,
+  was man auf der Karte sähe.
+- **Kein Hören im Schacht.** Das Monster nimmt während der Fahrt nichts
+  wahr, sein Gedächtnis läuft in der Zeit nicht ab (der Wahrnehmungsblock
+  wird übersprungen). Alternative: Gedächtnis weiterlaufen lassen — eine
+  Zeile vor dem `return` im Fahrt-Schritt.
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts` (siehe
+oben), `map/mapSnapshot.ts` (`ventLinks?`), `map/mapSource.ts`,
+`map/extract.ts` (je `ventLinks`), `map/mapView.ts` (Gitter für `vent`,
+zwei Farben), `HauntingWorld.ts` (Import, ein Aufruf in `buildHouse`).
+
+### Etappe C — Monster-Rolle (`monster/`)
+
+**Was drin ist.**
+
+- `monster/monster.register.ts`: die Rolle `monster` (`surface: 'map'`,
+  nicht `shared`) über `registerRole` aus der eigenen Datei, dazu der
+  Ansichtsmodus `monster:senses` für das Publikum `monster`. Keine zentrale
+  Liste angefasst; `registry/discover.ts` findet die Datei per Glob. Die
+  Datei lädt auch `monster.css` — deshalb importiert sie **nur** Vite.
+- `monster/monsterDriver.ts`: die zwei Schnittstellen. `MonsterDriver` ist
+  die Seite der Simulation (`active()`, `decide(dt): RoutineOutput` — dieselbe
+  Form wie die Routine, damit Kabinenangriff, Treffer, Bewegung und Snapshot
+  nicht wissen müssen, wer entschieden hat). `MonsterPort` ist die Seite der
+  Ansicht (Stock, `attack`/`interact`, Schachtziel wählen, Stand);
+  `monsterPortOf(host)` holt ihn geprüft aus `host.extra`.
+- `monster/flatMonsterControl.ts`: beides für die 2D-Runde. Hängt sich als
+  `round.driver` ein. Ziel einen Meter voraus, Tempo aus dem Sprintring,
+  **Angreifen** trifft nur in Reichweite (Techniker im Freien: die Runde
+  prüft den Abstand; Kabine: zwei Meter), **Interagieren** ist einsteigen,
+  aussteigen, abbrechen oder eine verriegelte Holztür aufbrechen (Stahl
+  hält).
+- `monster/monsterView.ts`: die Ansicht. `MapView` im Modus `realistic` aus
+  Sicht des Monsters (`computeVisibility` mit `viewerId: 'monster'`, also
+  eigener Kegel, Licht, Sichtlinie — dasselbe Modell, mit dem die Runde
+  entscheidet, ob es den Techniker sieht) **plus Hören**: Wer sich in
+  Hörweite bewegt und nicht zu sehen ist, wird als Geräuschring gezeichnet,
+  nicht als Marker. Stock links, rechts Angreifen und Interagieren, darüber
+  die Zielwahl, wenn eine Klappe zwei Ziele hat. Ohne Port ist die Ansicht
+  ein Zuschauerfenster in die Wahrnehmung des Monsters.
+- `monster/monsterSession.ts`: das Bündel für die 2D-Welt — Steuer, Bot als
+  Techniker (`rules/technicianBot.ts`) und Ansicht über einen `RoleHost`,
+  dessen `snapshot()` aus der laufenden Runde kommt und dessen `extra.monster`
+  das Steuer ist. `FlatMode` bietet im Optionsmenü „Als Monster spielen" an;
+  die nächste Runde tauscht dann Stock und drei Knöpfe gegen die
+  Monster-Ansicht, und die Endkarte spricht aus Sicht des Monsters.
+- 2D-Runde (`map/flatRound.ts`): ein Feld `driver`; im Monsterblock
+  `piloted` = Spieler am Steuer → Entscheidung vom Steuer statt von der
+  Routine, Bewegung direkt über `stepMonster` (kein Türrouting, kein Lotse),
+  Treffer nur mit `strike`; die Fahrt steigt bei einem Spieler nicht von
+  selbst aus. `FlatOptions.role` (nur `FlatMode` liest es).
+
+**Der Wechsel bricht keine Runde.** Der Zustand der Fahrt liegt in
+`VentTravel` (Runde), nicht im Steuer. Verlässt der Spieler die Rolle
+mitten im Schacht, steigt die KI drüben aus und macht weiter; setzt sich ein
+Spieler, während die KI fährt, wartet die Fahrt drüben auf seinen Knopf.
+Beides steht in `monsterRole.test.ts`. Die Routine wird währenddessen nicht
+gerechnet und macht danach an ihrem alten Ziel weiter; das Gedächtnis des
+Monsters (gesehen, gehört) läuft in beiden Fällen mit.
+
+**Entscheidungen und Alternativen.**
+
+- **Hören in der Ansicht ist Luftlinie mal Lärm** (Sprint 1, Gehen 0,45 der
+  Hörweite aus `sense.hearing`), die Runde selbst rechnet über `earshot` der
+  Raumkarte (Wände dämpfen). Die Ansicht hat nur den Snapshot; wer es genau
+  will, reicht `earshot` über den Snapshot mit — oder das Paket Audio bringt
+  sein Feld. So hört der Spieler eher etwas mehr als die KI, nie weniger.
+- **Ein Spieler trifft nur mit dem Knopf**, die KI durch Berührung. Ein
+  Monster, das beim Vorbeilaufen automatisch zuschlägt, nimmt dem Spieler
+  die einzige Entscheidung, die er hat.
+- **Netzspiel fehlt.** Der Port ist lokal (2D-Welt). Für den Van müsste die
+  Eingabe des Monsterspielers über `net.ts` zum Gastgeber, der das Monster
+  rechnet — eine neue Nachricht, also `STATION_PROTOCOL` (nur nach
+  Absprache). Der `MonsterDriver` in `HauntingWorld` wäre dann ein
+  Netzempfänger mit derselben `decide`-Form; die Ansicht bleibt dieselbe.
+- **`Joystick` ist nicht im Contract** (`map/index.ts` exportiert ihn
+  nicht); die Ansicht importiert `map/joystick.ts` direkt und nutzt dessen
+  CSS-Klassen für Basis und Knopf. Vorschlag an Paket map: `Joystick` in den
+  Index aufnehmen.
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts`
+(`driver`, `piloted`-Zweige, `FlatOptions.role`), `map/flatMode.ts`
+(`session`, `playRole`, Menüpunkt, Endkarte, `restart`, `dispose`).
+
+### Offene Fragen an dich
+
+- **3D-Monster auf den Vent-Graphen umstellen?** Netz, Fahrt und Klappen
+  sind fertig; offen ist nur der Umbau von `npcTarget`/`stepMonster`/
+  `monsterVent` in `HauntingWorld` (Grenzfall, ~60 Zeilen). Bis dahin
+  springt das 3D-Monster weiter über die alten Wandpaare.
+- **Uhr bei reparierter Lebenserhaltung anhalten?** Heute nein (sonst wäre
+  die Schleife wieder möglich); wenn doch, eine Zeile in `oxygenLeft`.
+- **Monster-Rolle im Van übers Netz** — braucht eine Nachricht in `net.ts`
+  (Protokoll 5 → 6) und einen Netz-`MonsterDriver` in `HauntingWorld`.
+- **Bot der 3D-Runde und VR-Spieler bei zerstörten Kabinen** — je eine
+  Zeile in `missionBot.ts`/`ShipExperience.ts`, sobald das Paket
+  Rollenansichten dort ohnehin arbeitet.
+
+### Stand je Etappe
+
+**C — fertig.** `monster/monsterRole.test.ts` (Registry, Steuer ersetzt
+die KI und gibt sie zurück, Treffer nur mit Knopf, Schachtfahrt mit Zielwahl
+und Warten auf den Ausstieg, Wechsel mitten in der Fahrt in beide Richtungen,
+Holztür, Karte aus Monstersicht mit Hören) und `monster/monsterMode.test.ts`
+(2D-Welt als Monster, Rollenwechsel im Menü, Endkarte).
+
+**B — fertig.** `vents/*.test.ts`: Datennetz gegen vier Samen, Fahrt
+Schritt für Schritt, 2D-Runde (Klappen und Graph im Snapshot, Techniker kann
+keine Klappe benutzen, Monster während der Fahrt für Techniker und
+Schalttafel unsichtbar und ohne Treffer, KI nimmt über vier Samen und 240 s
+mindestens eine Abkürzung).
+
+**A — fertig.** Typecheck, Lint, Prettier und alle Tests grün. Der Testlauf
+(`rules/botRound.test.ts`, Stand des Commits):
+
+```
+Seed 1: suit nach 66 s · Anzug 0/3 · 0 Kabinen zerstört · 0× versteckt · 0/3 repariert
+Seed 2: escaped nach 368 s · Anzug 3/3 · 0 Kabinen zerstört · 2× versteckt · 3/3 repariert
+Seed 3: oxygen nach 600 s · Anzug 1/3 · 0 Kabinen zerstört · 4× versteckt · 0/3 repariert
+Seed 4: oxygen nach 600 s · Anzug 3/3 · 0 Kabinen zerstört · 10× versteckt · 2/3 repariert
+Seed 5: oxygen nach 600 s · Anzug 2/3 · 1 Kabinen zerstört · 131× versteckt · 0/3 repariert
+```
+
+Seed 5 ist die alte Schleife — 131-mal versteckt, das Monster kommt nicht
+heran —, und sie endet jetzt am Sauerstoff. Seed 1 endet am Anzug, Seed 2
+mit der Flucht in die Zentrale.
+
 ## Paket audio — Geräusche und Hörmodell
 
 Branch: im Auftrag `feat/audio`; die Session lief auf dem zugewiesenen

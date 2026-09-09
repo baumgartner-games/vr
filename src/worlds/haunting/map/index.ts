@@ -18,6 +18,7 @@ export {
   type MapLight,
   type MapPoint,
   type MapRoom,
+  type MapRound,
   type MapSegment,
   type MapSnapshot,
 } from './mapSnapshot';

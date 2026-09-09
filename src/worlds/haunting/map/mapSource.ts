@@ -1,6 +1,6 @@
 import type { HouseSpec } from '../house';
 import type { HauntState, DroneState } from '../net';
-import type { MapEntity, MapItem, MapLight, MapSnapshot } from './mapSnapshot';
+import type { MapEntity, MapItem, MapLight, MapRound, MapSnapshot } from './mapSnapshot';
 
 /**
  * **Was die Extraktion von der 3D-Seite liest** — und sonst nichts.
@@ -32,6 +32,10 @@ export interface MapSource {
   items(): readonly MapItem[];
   /** Gerichtete Lichter, die nicht an einem Raum hängen: Taschenlampe, Drohne. */
   carriedLights(): readonly MapLight[];
+  /** Der Stand der Rundenregeln (Paket Rundenregeln), wenn die Quelle sie führt. */
+  round?(): MapRound;
+  /** Die Verbindungen des Lüftungsnetzes (Paket Lüftungssystem), wenn es eines gibt. */
+  ventLinks?(): MapSnapshot['ventLinks'];
 }
 
 /**

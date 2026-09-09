@@ -150,11 +150,31 @@ export interface MapItem {
   /**
    * Der Zustand in einem Wort, damit Ansichten nicht raten:
    * Fracht `closed`/`open`/`taken`, Konsole `broken`/`solved`, Schrank
-   * `locked`/`open`, Aufgabe `waiting`/`carried`/`done`, Schacht `''`.
+   * `locked`/`open`/`destroyed` (Paket Rundenregeln), Aufgabe
+   * `waiting`/`carried`/`done`, Schacht `''`.
    */
   state: string;
   /** Ob man damit etwas tun kann, wenn man davorsteht. */
   interactive: boolean;
+}
+
+/**
+ * **Der Stand der Runde nach den Rundenregeln** (`rules/roundRules.ts`):
+ * Sauerstoff, Anzug, Kabinen. Sauerstoff und Rundenlimit sind eine Uhr.
+ */
+export interface MapRound {
+  phase: 'briefing' | 'running' | 'won' | 'lost';
+  /** Sekunden Sauerstoff, die noch bleiben — bei 0 ist die Runde verloren. */
+  oxygen: number;
+  /** Womit die Runde anfing, in Sekunden. */
+  limit: number;
+  /** Leben des Anzugs, und wie viele es höchstens sind. */
+  suit: number;
+  suitMax: number;
+  /** Die Räume, deren Kabine für den Rest der Runde hin ist. */
+  cabinsDestroyed: string[];
+  /** Woran die Runde geendet hat; `''`, solange sie läuft. */
+  ending: '' | 'oxygen' | 'suit' | 'escaped';
 }
 
 export interface MapSnapshot {
@@ -174,6 +194,14 @@ export interface MapSnapshot {
   items: MapItem[];
   /** Ob Strom auf dem Deck ist (`HauntState.fuse` umgelegt heißt: keiner). */
   power: boolean;
+  /** Die Rundenregeln, wenn die Quelle sie führt (Paket Rundenregeln). */
+  round?: MapRound;
+  /**
+   * Der Vent-Graph (Paket Lüftungssystem): Paare von `MapItem`-Kennungen der
+   * Sorte `vent`, zwischen denen ein Schacht läuft. Die Klappen selbst stehen
+   * in `items`, mit Zustand `closed` oder `open` (jemand steigt ein oder aus).
+   */
+  ventLinks?: Array<{ a: string; b: string }>;
 }
 
 /** Ein Snapshot ohne Station — der Anfangswert jeder Ansicht. */
