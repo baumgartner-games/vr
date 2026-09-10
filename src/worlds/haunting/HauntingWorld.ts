@@ -103,6 +103,7 @@ import { RoundRules } from './rules/roundRules';
 import { buildVentFlaps } from './vents/ventArt';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
+import type { FlatOptions } from './map/flatRound';
 import type { FlatStage } from './map/flatStage';
 import { MOVE_TIME, seatOf, type Claim, type StationId } from './stations';
 import {
@@ -272,6 +273,18 @@ const _size = new THREE.Vector2();
 const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
 const _noLid: THREE.Plane[] = [];
 const _lidOn = [_lid];
+
+/** Wo die Checkbox „2D-Welt von oben" ihren Stand aufhebt. */
+const FLAT_STORAGE = 'bgvr.haunting.flat.v1';
+
+function readFlatWanted(): boolean {
+  try {
+    return localStorage.getItem(FLAT_STORAGE) === '1';
+  } catch {
+    // Kein Speicher (privates Fenster, jsdom ohne Origin): dann eben 3D.
+    return false;
+  }
+}
 
 export class HauntingWorld extends GridWorld {
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
@@ -518,10 +531,18 @@ export class HauntingWorld extends GridWorld {
   private archiveFit = { half: 5, sheet: 5, tall: 5 };
 
   private ui: StationUi | null = null;
-  /** Die 2D-Welt, solange die Checkbox im Van gesetzt ist (`map/flatMode.ts`). */
+  /** Die laufende 2D-Runde (`map/flatMode.ts`), von „Bot-Runde", „Mission" oder „Test" gestartet. */
   private flat: FlatMode | null = null;
   private flatStage: FlatStage | null = null;
   private flatLoading = false;
+  /**
+   * **„2D-Welt von oben"** — die Checkbox im Van und der Menüeintrag. Eine
+   * Einstellung und kein Start: Sie sagt, wie die *nächste* Runde aussieht,
+   * die danach wie jede andere gewählt wird — Bot-Runde, Mission oder Test.
+   * Sie überlebt das Neuladen: Wer am Telefon spielt, setzt sie nicht jedes
+   * Mal neu.
+   */
+  private flatWanted = readFlatWanted();
   /**
    * Wer wo sitzt — und **wann das hier ankam**.
    *
@@ -803,9 +824,11 @@ export class HauntingWorld extends GridWorld {
           this.flatTechnician = true;
         },
         menu: () => ctx.menu.toggle(),
-        botRound: () => this.requestBotRound(ctx),
-        flatMode: () => this.toggleFlat(ctx),
-        flatActive: () => !!this.flat,
+        botRound: () => this.startRound('bot', ctx),
+        mission: () => this.startRound('mission', ctx),
+        test: () => this.startRound('test', ctx),
+        flatMode: () => this.toggleFlatWanted(),
+        flatWanted: () => this.flatWanted,
         restart: () => {
           if (this.isHost) {
             this.flatTechnician = true;
@@ -3065,19 +3088,6 @@ export class HauntingWorld extends GridWorld {
   // --- das Menü in der Brille ------------------------------------------------
 
   override menu(): MenuEntry[] {
-    if (this.context?.role !== 'vr')
-      return [
-        {
-          id: 'haunt:technician',
-          label: 'Als Techniker am Desktop testen',
-          sub: 'Übernimmt die VR-Rolle ohne Headset · WASD und Maus',
-          icon: 'cube',
-          accent: 0x65dce5,
-          run: () => {
-            this.flatTechnician = true;
-          },
-        },
-      ];
     const entry = (id: string, label: string, sub: string, run: () => void): MenuEntry => ({
       id,
       label,
@@ -3086,6 +3096,26 @@ export class HauntingWorld extends GridWorld {
       accent: 0x65dce5,
       run,
     });
+    // Dieselbe Einstellung wie die Checkbox im Van — hier für den, der schon
+    // Techniker am Desktop ist und die Runde aus dem Menü startet.
+    const flat = entry(
+      'haunt:flat',
+      `2D-Welt von oben: ${this.flatWanted ? 'an' : 'aus'}`,
+      'Karte statt 3D für Bot-Runde, Mission und Test · Stock und drei Knöpfe',
+      () => this.toggleFlatWanted(),
+    );
+    if (this.context?.role !== 'vr')
+      return [
+        entry(
+          'haunt:technician',
+          'Als Techniker am Desktop testen',
+          'Übernimmt die VR-Rolle ohne Headset · WASD und Maus',
+          () => {
+            this.flatTechnician = true;
+          },
+        ),
+        flat,
+      ];
     return [
       ...(!this.context?.renderer.xr.isPresenting
         ? [
@@ -3099,6 +3129,7 @@ export class HauntingWorld extends GridWorld {
                 this.context?.menu.toggle(false);
               },
             ),
+            flat,
           ]
         : []),
       entry(
@@ -3106,20 +3137,24 @@ export class HauntingWorld extends GridWorld {
         'Bot-Runde anschauen',
         'Eine vollständige Reparaturrunde automatisch beobachten',
         () => {
-          if (this.context) this.requestBotRound(this.context);
+          if (this.context) this.startRound('bot', this.context);
         },
       ),
       entry(
         'haunt:start',
         'Mission starten',
         'Drei Systeme reparieren und zur Zentrale zurückkehren',
-        () => this.startMission(),
+        () => {
+          if (this.context) this.startRound('mission', this.context);
+        },
       ),
       entry(
         'haunt:test',
         'TEST / ohne Monster',
         'Sicher üben · Ausrüstung und beleuchtetes Testlabor',
-        () => this.testMission(),
+        () => {
+          if (this.context) this.startRound('test', this.context);
+        },
       ),
       entry(
         'haunt:light',
@@ -3166,19 +3201,52 @@ export class HauntingWorld extends GridWorld {
       ctx.join(new URLSearchParams(location.search).get('room') || HAUNT_ROOM);
   }
 
+  /** Die Checkbox „2D-Welt von oben" umlegen — nur die Einstellung, keine Runde. */
+  private toggleFlatWanted(): void {
+    this.flatWanted = !this.flatWanted;
+    try {
+      localStorage.setItem(FLAT_STORAGE, this.flatWanted ? '1' : '0');
+    } catch {
+      // Ein privates Fenster ohne Speicher darf die Wahl nicht verhindern.
+    }
+    this.ui?.refresh();
+    this.context?.refreshWorldMenu();
+  }
+
   /**
-   * **Die 2D-Welt an oder aus** — die Checkbox neben der Bot-Runde.
-   *
-   * Solange sie läuft, rechnet `FlatMode` die Runde selbst (`map/flatRound.ts`)
-   * und `tick`/`render` fassen die 3D-Welt nicht an. Sie ist eine lokale
-   * Runde wie die Bot-Runde: kein Netz, kein Host, kein Monster im Haus.
+   * **Eine Runde starten — in 2D oder 3D, je nach Einstellung.** Die drei
+   * Arten sind dieselben wie im Menü der Brille: Bot-Runde (zusehen),
+   * Mission (mit Monster) und Test (ohne). Steht „2D-Welt von oben", läuft
+   * jede davon als `FlatMode`; sonst wie bisher im Schiff.
    */
-  private toggleFlat(ctx: WorldContext): void {
+  private startRound(kind: 'bot' | 'mission' | 'test', ctx: WorldContext): void {
+    if (this.flatWanted) {
+      const options = this.state.crew.options;
+      this.openFlat(ctx, {
+        monster: options.monster,
+        tuning: this.tuning,
+        test: kind === 'test',
+        role: kind === 'bot' ? 'bot' : 'technician',
+        // Wer zusieht, will alles sehen; wer spielt, sieht, was der Techniker sieht.
+        mode: kind === 'bot' ? 'omniscient' : 'realistic',
+      });
+      return;
+    }
+    if (kind === 'bot') this.requestBotRound(ctx);
+    else if (kind === 'mission') this.startMission();
+    else this.testMission();
+  }
+
+  /**
+   * **Die 2D-Welt öffnen.** Solange sie läuft, rechnet `FlatMode` die Runde
+   * selbst (`map/flatRound.ts`) und `tick`/`render` fassen die 3D-Welt nicht
+   * an. Sie ist eine lokale Runde wie die Bot-Runde: kein Netz, kein Host,
+   * kein Monster im Haus. Eine laufende 2D-Runde wird durch die neue ersetzt.
+   */
+  private openFlat(ctx: WorldContext, options: FlatOptions): void {
     if (this.flat) {
       this.flat.dispose();
       this.flat = null;
-      this.ui?.refresh();
-      return;
     }
     if (this.flatLoading) return;
     this.flatLoading = true;
@@ -3192,18 +3260,14 @@ export class HauntingWorld extends GridWorld {
     ])
       .then(([mode, stage, discover]) => {
         this.flatLoading = false;
-        if (this.flat || this.mountedRole === 'vr') return;
+        // Im Headset gibt es keine Karte von oben — dort bleibt die Brille.
+        if (this.flat || ctx.renderer.xr.isPresenting) return;
         if (discover.REGISTERED_FILES.length === 0)
           console.warn('Haunting: keine *.register.ts gefunden');
-        const options = this.state.crew.options;
-        this.flat = new mode.FlatMode(
-          rollSeed(),
-          { monster: options.monster, tuning: this.tuning, test: options.test },
-          {
-            exit: () => this.toggleFlat(ctx),
-            notify: (text) => ctx.notify(text),
-          },
-        );
+        this.flat = new mode.FlatMode(rollSeed(), options, {
+          exit: () => this.closeFlat(),
+          notify: (text) => ctx.notify(text),
+        });
         this.flatStage ??= new stage.FlatStage();
         document.body.append(this.flat.element);
         ctx.menu.toggle(false);
@@ -3213,6 +3277,14 @@ export class HauntingWorld extends GridWorld {
         this.flatLoading = false;
         console.error('Haunting: 2D-Welt konnte nicht geladen werden', error);
       });
+  }
+
+  /** Die 2D-Welt verlassen — zurück dorthin, wo sie gestartet wurde (Van oder Techniker). */
+  private closeFlat(): void {
+    this.flat?.dispose();
+    this.flat = null;
+    this.ui?.refresh();
+    this.context?.refreshWorldMenu();
   }
 
   /** Der Stand der Station als Karte — reiner Lesezugriff (`map/extract.ts`). */

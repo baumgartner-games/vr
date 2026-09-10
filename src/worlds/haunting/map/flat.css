@@ -2,32 +2,45 @@
  * Die 2D-Welt: Karte im Hintergrund, Stock links, drei Knöpfe rechts.
  *
  * Fürs Handy gedacht, Querformat wie Hochformat: Alles Bedienbare sitzt in
- * den unteren Ecken, wo die Daumen sind. Handgesetzt wie `haunting.css`,
- * deshalb in `.prettierignore`.
+ * den unteren Ecken, wo die Daumen sind. Handgesetzt wie `haunting.css`.
+ *
+ * Oben schwebt das HUD der Seite (Menü, Verbindung, VR, `style.css`) mit
+ * z-index 5 über allem hier; `--flat-top` ist die Kante darunter, an der
+ * HUD, Meldung und Eckknöpfe der 2D-Welt beginnen.
+ *
+ * `[hidden]` gewinnt gegen jedes `display` hier drin: Ein Panel mit
+ * `display: flex` und dem Attribut `hidden` stand sonst als leerer Balken
+ * mitten auf der Karte — genau über dem Spieler.
  */
-.flat { position: fixed; inset: 0; z-index: 4; background: #070a10; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.flat { position: fixed; inset: 0; z-index: 4; background: #070a10; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px); --flat-bottom: max(14px, env(safe-area-inset-bottom)); }
+.flat [hidden] { display: none !important; }
 .flat__map { position: absolute; inset: 0; }
 .flat__map .mapview__canvas { width: 100%; height: 100%; display: block; }
-.flat__hud { position: absolute; left: 12px; top: max(10px, env(safe-area-inset-top)); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 10px; background: rgba(10, 16, 28, 0.78); border: 1px solid rgba(140, 170, 230, 0.25); pointer-events: none; max-width: 60vw; }
+.flat__hud { position: absolute; left: 12px; top: var(--flat-top); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 10px; background: rgba(10, 16, 28, 0.78); border: 1px solid rgba(140, 170, 230, 0.25); pointer-events: none; max-width: calc(100vw - 210px); }
 .flat__hud strong { font-size: 14px; letter-spacing: .04em; color: #7ff0ff; }
 .flat__hud span { font-size: 12px; color: #97a3bd; }
-.flat__toast { position: absolute; left: 50%; top: max(64px, calc(env(safe-area-inset-top) + 56px)); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(10, 16, 28, 0.85); border: 1px solid rgba(140, 170, 230, 0.3); font-size: 13px; pointer-events: none; max-width: 86vw; text-align: center; transition: opacity .2s; }
+.flat__toast { position: absolute; left: 50%; top: calc(var(--flat-top) + 64px); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(10, 16, 28, 0.85); border: 1px solid rgba(140, 170, 230, 0.3); font-size: 13px; pointer-events: none; max-width: 86vw; text-align: center; transition: opacity .2s; }
 .flat__toast:empty { opacity: 0; }
 .flat__toast.is-good { border-color: #8ff0b0; color: #c8ffd9; }
 .flat__toast.is-bad { border-color: #ff5a5f; color: #ffd0d2; }
 .flat__toast.is-warn { border-color: #f0b64a; color: #ffe8bd; }
+/* Der Stock: In Ruhe sitzt er sichtbar unten links, wo der Daumen ohnehin
+   liegt; aufgesetzt springt er unter den Daumen (`joystick.ts`) und kehrt
+   losgelassen zurück. Ein Stock, den man erst durch Tippen findet, ist auf
+   dem Telefon keiner. */
 .flat__stick { position: absolute; left: 0; bottom: 0; width: 46vw; height: 46vh; max-height: 340px; touch-action: none; }
-.flat__stick-base { position: absolute; width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%; border: 2px solid rgba(140, 170, 230, 0.45); background: rgba(20, 30, 50, 0.45); pointer-events: none; }
+.flat__stick-base { position: absolute; left: calc(max(24px, env(safe-area-inset-left)) + 64px); top: calc(100% - var(--flat-bottom, 14px) - 78px); width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%; border: 2px solid rgba(140, 170, 230, 0.45); background: rgba(20, 30, 50, 0.45); pointer-events: none; opacity: .72; transition: opacity .15s; }
+.flat__stick-base.is-live { opacity: 1; }
 .flat__stick-base.is-sprint { border-color: #f0b64a; }
 .flat__stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(127, 240, 255, 0.85); box-shadow: 0 0 12px rgba(127, 240, 255, 0.5); }
-.flat__buttons { position: absolute; right: 12px; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; width: min(44vw, 190px); }
+.flat__buttons { position: absolute; right: 12px; bottom: var(--flat-bottom); display: flex; flex-direction: column; gap: 10px; width: min(44vw, 190px); }
 .flat__key { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 58px; padding: 8px 14px; border-radius: 14px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; text-align: left; touch-action: manipulation; }
 .flat__key small { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #6b7690; }
 .flat__key strong { font-size: 14px; }
 .flat__key:disabled { opacity: .45; }
 .flat__key--act.is-ready { border-color: #8ff0b0; box-shadow: 0 0 0 1px rgba(143, 240, 176, 0.35) inset; }
-.flat__item { position: absolute; right: 12px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 214px); width: min(44vw, 190px); height: 110px; border-radius: 14px; border: 1px solid rgba(140, 170, 230, 0.25); background: transparent; pointer-events: none; }
-.flat__corner { position: absolute; top: max(10px, env(safe-area-inset-top)); padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; }
+.flat__item { position: absolute; right: 12px; bottom: calc(var(--flat-bottom) + 214px); width: min(44vw, 190px); height: 110px; border-radius: 14px; border: 1px solid rgba(140, 170, 230, 0.25); background: transparent; pointer-events: none; }
+.flat__corner { position: absolute; top: var(--flat-top); padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; }
 .flat__options { right: 12px; }
 .flat__centre { right: 104px; }
 .flat__panel, .flat__ending { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(92vw, 380px); max-height: 86vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); z-index: 3; }

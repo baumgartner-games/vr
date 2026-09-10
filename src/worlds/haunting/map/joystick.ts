@@ -1,11 +1,13 @@
 /**
  * **Der Stock unter dem linken Daumen.**
  *
- * Reine Rechnung (`stickValue`) und ein kleines DOM-Bauteil darum. Der Stock
- * erscheint dort, wo der Daumen aufsetzt, und nicht an einer festen Stelle —
- * ein Telefon hält man nie zweimal gleich. Die Totzone verhindert, dass ein
- * aufliegender Daumen den Spieler kriechen lässt; jenseits des Sprintrings
- * rennt er.
+ * Reine Rechnung (`stickValue`) und ein kleines DOM-Bauteil darum. In Ruhe
+ * steht der Stock sichtbar unten links (die Stelle setzt das CSS) — ein
+ * Stock, den man erst durch Tippen ins Leere findet, ist auf dem Telefon
+ * keiner. Aufgesetzt springt er dorthin, wo der Daumen liegt, und nicht an
+ * die feste Stelle — ein Telefon hält man nie zweimal gleich; losgelassen
+ * kehrt er zurück. Die Totzone verhindert, dass ein aufliegender Daumen den
+ * Spieler kriechen lässt; jenseits des Sprintrings rennt er.
  */
 export interface StickValue {
   /** Nach Osten, in [-1, 1]. */
@@ -54,14 +56,13 @@ export class Joystick {
     this.knob.className = 'flat__stick-knob';
     this.base.append(this.knob);
     this.element.append(this.base);
-    this.base.hidden = true;
     this.element.style.touchAction = 'none';
     this.element.addEventListener('pointerdown', (event) => {
       if (this.pointer !== null) return;
       this.pointer = event.pointerId;
       const rect = this.element.getBoundingClientRect();
       this.origin = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      this.base.hidden = false;
+      this.base.classList.add('is-live');
       this.base.style.left = `${this.origin.x}px`;
       this.base.style.top = `${this.origin.y}px`;
       this.move(0, 0);
@@ -83,7 +84,11 @@ export class Joystick {
       if (event.pointerId !== this.pointer) return;
       this.pointer = null;
       this.value = IDLE;
-      this.base.hidden = true;
+      // Zurück an die Ruhestelle aus dem CSS, Knopf in die Mitte.
+      this.base.classList.remove('is-live', 'is-sprint');
+      this.base.style.left = '';
+      this.base.style.top = '';
+      this.knob.style.transform = '';
     };
     this.element.addEventListener('pointerup', release);
     this.element.addEventListener('pointercancel', release);
