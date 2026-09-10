@@ -21,6 +21,11 @@ import { TORCH_FOV, TORCH_RANGE } from './flatRound';
  */
 export interface WorldHandles {
   spec(): HouseSpec;
+  /**
+   * Der ganze Stand der Runde — darin reisen auch die Ghost-Marker mit
+   * (`HauntState.ghosts`, `rules/ghosts.ts`). Sie brauchen deshalb keinen
+   * eigenen Getter: `map/extract.ts` reicht sie von hier in den Snapshot.
+   */
   state(): HauntState;
   drone(): DroneState | null;
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;

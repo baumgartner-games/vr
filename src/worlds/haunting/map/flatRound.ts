@@ -49,6 +49,7 @@ import {
   toggleLock,
   type DoorLocks,
 } from '../rules/doorLocks';
+import { freshGhosts, markGhost } from '../rules/ghosts';
 import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
@@ -317,6 +318,7 @@ export class FlatRound implements MapSource {
       destroyed: [],
       technician: null,
       ride: 'out',
+      ghosts: freshGhosts(),
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
@@ -754,6 +756,30 @@ export class FlatRound implements MapSource {
     else if (!seen && alertBefore < 3 && this.memory.alert >= 3 && this.memory.mode === 'hunt')
       this.events.push({ kind: 'bad', text: 'Es hat dich gehört.' });
     this.seen = seen;
+    // --- Was die beiden voneinander behalten (`rules/ghosts.ts`): die
+    // zuletzt gesehene Stelle. Sie hängt an genau derselben Prüfung wie die
+    // Alarmleiter — ein zweiter, eigener Sichttest wäre eine zweite Wahrheit,
+    // und dann zeigte der Marker woandershin als das Verhalten des Monsters.
+    const ghosts = this.haunt.ghosts;
+    ghosts.technician = markGhost(
+      ghosts.technician,
+      seen,
+      this.player,
+      this.player.yaw,
+      this.haunt.time,
+    );
+    // Und andersherum: Der Techniker merkt sich das Monster genau dann, wenn
+    // seine eigene Sicht es zeigt — Kegel, Licht und freie Linie stecken schon
+    // im Sichtfeld der Karte (`map/visibility.ts`), das jeder Schritt ohnehin
+    // rechnet. In „Alles sehen" zeigt dieses Feld alles; dann läuft der Marker
+    // mit dem Monster mit, und genau das sollen Zuschauer sehen.
+    ghosts.monster = markGhost(
+      ghosts.monster,
+      this.field.visibleEntities.includes(MONSTER_ID),
+      this.monster,
+      this.monster.yaw,
+      this.haunt.time,
+    );
     if (hidden && (seen || this.monster.space === this.player.space) && this.caught !== crew.hidden)
       this.caught = crew.hidden;
     if (!hidden) this.caught = '';

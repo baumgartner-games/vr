@@ -11,6 +11,7 @@ import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
 import type { HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
 
@@ -63,6 +64,7 @@ function snapshot(seed = 391): HauntState {
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
 }
 

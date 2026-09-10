@@ -4,6 +4,7 @@ import { homeView } from './archiveView';
 import { generateHouse } from './house';
 import { freshCrew, lockerCode, repairsFor } from './mission';
 import type { HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
 import type { StationId } from './stations';
 import { emptySnapshot, type MapRound } from './map/mapSnapshot';
 import type { MonsterPort } from './monster/monsterDriver';
@@ -99,6 +100,7 @@ function crew(
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
   let seat: StationId | null = null;
   let round: MapRound | null = null;

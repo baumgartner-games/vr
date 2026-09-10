@@ -14,6 +14,7 @@ import {
   takeCrewHit,
 } from './mission';
 import { readState, stateMessage, type HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
 import { DIRS, tileKey } from '../nav/navTile';
 
 describe('Orbital missions', () => {
@@ -160,6 +161,7 @@ describe('Orbital missions', () => {
       destroyed: ['r2', 'r5'],
       technician: null,
       ride: 'out',
+      ghosts: freshGhosts(),
     };
     const roundTrip = readState(stateMessage(state))!;
     // Die zerstörten Kabinen gehen mit — und ein Client der Version 5 wird abgewiesen.

@@ -9,10 +9,14 @@ import { freshThreat, readThreat, type ThreatState } from './threat';
  * 7, seit die Monster-Station übers Netz spielt (`net.ts`: Nachricht
  * `monster`, Felder `technician` und `ride` im Stand): Ein Gastgeber der
  * Version 6 würde die Eingaben des Monsterspielers stumm verwerfen, und ein
- * Telefon der Version 6 sähe den 2D-Techniker nie. Alte Clients werden
- * abgewiesen; nach dem Update alle Geräte neu laden.
+ * Telefon der Version 6 sähe den 2D-Techniker nie. 8, seit beide Seiten die
+ * zuletzt gesehene Stelle des anderen mitführen (`ghosts`,
+ * `rules/ghosts.ts`): Ein Gastgeber der Version 7 verlöre sie bei jedem
+ * Stand, und ein Gerät der Version 7 zeichnete einen Marker, den es nie
+ * bekommt. Alte Clients werden abgewiesen; nach dem Update alle Geräte neu
+ * laden.
  */
-export const STATION_PROTOCOL = 7;
+export const STATION_PROTOCOL = 8;
 
 /**
  * **Wie schnell die beiden Seiten sind** — und warum genau in dieser

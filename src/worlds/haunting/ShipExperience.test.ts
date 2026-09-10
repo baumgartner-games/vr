@@ -14,6 +14,7 @@ import { generateHouse, roomAt } from './house';
 import { TILE } from '../nav/navTile';
 import { freshCrew, stationOptions, type PuzzleState, type Repair } from './mission';
 import type { HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -113,6 +114,7 @@ beforeEach(() => {
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
   const canvas = document.createElement('canvas');
   document.body.append(canvas);

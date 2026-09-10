@@ -197,5 +197,9 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
     ...(source.ventLinks ? { ventLinks: source.ventLinks() } : {}),
     fixtures: fixturesOf(spec),
     ...(source.noises ? { noises: source.noises() } : {}),
+    // Die Ghost-Marker reisen im Stand mit (`rules/ghosts.ts`) — jede Quelle
+    // führt sie, ob 3D-Welt oder 2D-Runde, also braucht es dafür keinen
+    // eigenen Getter in `MapSource`.
+    ghosts: state.ghosts,
   };
 }
