@@ -10,10 +10,12 @@ import type {
 import {
   interact,
   monsterLabel,
+  nearestTarget,
   prompt,
   steer,
   ventTargets,
   type MonsterArena,
+  type MonsterTarget,
 } from './monsterHelm';
 
 /**
@@ -25,11 +27,10 @@ import {
  * (`netMonsterControl.ts`) dieselbe braucht. Was daraus wird — Kabine hin,
  * Treffer, Bewegung mit Gleiten an Wänden —, bleibt Sache der Runde.
  *
- * **Angreifen** trifft nur, was in Reichweite ist: den Techniker im Freien
- * (die Runde prüft den Abstand) oder die Kabine, in der er steckt.
- * **Interagieren** ist die Klappe: einsteigen, wenn eine davor ist,
- * aussteigen, wenn die Fahrt angekommen ist, abbrechen, solange man noch
- * nicht losgefahren ist — und sonst eine verriegelte Holztür aufbrechen.
+ * **Zuschlagen** ist kein Knopf: Wer in Reichweite steht, wird getroffen —
+ * die Runde prüft den Abstand. **Interagieren** gilt immer dem *nächsten*
+ * Ding (`nearestTarget`): Klappe, Kabine oder gesperrte Tür, und nur eines
+ * davon auf einmal.
  *
  * Solange `claimed()` falsch ist, tut die Klasse nichts, und die Runde
  * rechnet die KI. Ein `release` mitten in der Fahrt ist harmlos: Die Fahrt
@@ -38,7 +39,8 @@ import {
 export class FlatMonsterControl implements MonsterDriver, MonsterPort {
   private held = false;
   private stick: MonsterInput = { x: 0, z: 0, sprint: false };
-  private attack = false;
+  /** Die Kabine, die dieses Bild aufgerissen wird — aus dem Knopf, nicht aus dem Stock. */
+  private cabin = '';
   private ventChoice = 0;
   private readonly arena: MonsterArena;
 
@@ -49,6 +51,9 @@ export class FlatMonsterControl implements MonsterDriver, MonsterPort {
       state: () => round.haunt,
       rider: () => round.monster,
       ride: () => round.ventRide,
+      locks: () => round.locks,
+      time: () => round.haunt.time,
+      roll: () => round.roll(),
     };
   }
 
@@ -65,9 +70,14 @@ export class FlatMonsterControl implements MonsterDriver, MonsterPort {
   }
 
   decide(_dt: number): RoutineOutput {
-    const decision = steer(this.stick, this.attack, this.arena);
-    this.attack = false;
+    const decision = steer(this.stick, this.cabin, this.arena);
+    this.cabin = '';
     return decision;
+  }
+
+  /** Das nächste Ding, mit dem sich etwas anfangen lässt — die Ansicht hebt es hervor. */
+  target(): MonsterTarget | null {
+    return this.held ? nearestTarget(this.arena) : null;
   }
 
   // --- MonsterPort -----------------------------------------------------------
@@ -82,7 +92,7 @@ export class FlatMonsterControl implements MonsterDriver, MonsterPort {
   release(): void {
     this.held = false;
     this.stick = { x: 0, z: 0, sprint: false };
-    this.attack = false;
+    this.cabin = '';
   }
 
   claimed(): boolean {
@@ -94,15 +104,11 @@ export class FlatMonsterControl implements MonsterDriver, MonsterPort {
   }
 
   act(action: MonsterAction): string {
-    if (!this.held || this.round.phase !== 'running') return '';
-    if (action === 'attack') {
-      if (this.round.ventRide.busy) return 'Im Schacht kann man nichts anrichten.';
-      this.attack = true;
-      return '';
-    }
+    if (!this.held || this.round.phase !== 'running' || action !== 'interact') return '';
     const answer = interact(this.arena, this.ventChoice);
-    if (answer.startsWith('Einsteigen')) this.ventChoice = 0;
-    return answer;
+    if (answer.boarded) this.ventChoice = 0;
+    if (answer.cabin) this.cabin = answer.cabin;
+    return answer.text;
   }
 
   ventTargets(): ReadonlyArray<{ index: number; label: string }> {

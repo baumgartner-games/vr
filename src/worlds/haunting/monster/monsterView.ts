@@ -30,11 +30,15 @@ import { monsterPortOf, type MonsterPort } from './monsterDriver';
  * gezeichnet, nicht als Marker — man weiß, *dass* dort jemand geht, nicht
  * genau, wo.
  *
- * Gesteuert wird wie in der 2D-Welt: Stock links, rechts zwei Knöpfe —
- * **Angreifen** und **Interagieren** (Klappe, Tür). Steht das Monster vor
- * einer Klappe mit zwei Zielen, erscheint eine Reihe Knöpfe mit den
- * Raumnamen. Der Port dazu kommt aus `host.extra` (`monsterDriver.ts`); ohne
- * Port ist die Ansicht ein Zuschauerfenster in die Wahrnehmung des Monsters.
+ * Gesteuert wird wie in der 2D-Welt: Stock links, rechts **ein** Knopf —
+ * „Interagieren". Zuschlagen ist keiner: Wer in Reichweite steht, wird
+ * getroffen (`monsterHelm.ts`). Der Knopf gilt immer dem **nächsten** Ding —
+ * Klappe, Kabine oder gesperrte Tür —, und genau dieses hebt die Karte als
+ * pulsierenden Ring hervor, damit man weiß, was er tut, bevor man ihn
+ * drückt. Steht das Monster vor einer Klappe mit zwei Zielen, erscheint eine
+ * Reihe Knöpfe mit den Raumnamen. Der Port dazu kommt aus `host.extra`
+ * (`monsterDriver.ts`); ohne Port ist die Ansicht ein Zuschauerfenster in die
+ * Wahrnehmung des Monsters.
  */
 export interface MonsterRoleView extends RoleView {
   /** Was die Karte gerade zeigt — für Tests. */
@@ -53,7 +57,6 @@ class MonsterView implements MonsterRoleView {
   private readonly stick = new Joystick();
   private readonly hud = el('div', 'monster__hud');
   private readonly buttons = el('div', 'monster__buttons');
-  private readonly attackKey = el('button', 'monster__key monster__key--attack');
   private readonly actKey = el('button', 'monster__key monster__key--act');
   private readonly ventKeys = el('div', 'monster__vents');
   private readonly toast = el('div', 'monster__toast');
@@ -74,20 +77,24 @@ class MonsterView implements MonsterRoleView {
       viewerId: MONSTER_ID,
       minScale: 6,
       maxScale: 60,
+      // Das nächste Ding in Reichweite als pulsierender Ring — Klappe,
+      // Kabine oder Tür, immer nur eines (`monsterHelm.nearestTarget`).
+      highlight: () => {
+        const target = this.port?.target?.() ?? null;
+        return target && target.kind !== 'ride' ? { at: target.at, label: target.label } : null;
+      },
       onRoomClick: (id) =>
         this.say(host.snapshot().rooms.find((room) => room.id === id)?.name ?? id),
     });
     this.map.element.classList.add('monster__map');
     this.map.setView({ scale: 22 });
     this.map.follow(MONSTER_ID);
-    this.attackKey.dataset['action'] = 'attack';
     this.actKey.dataset['action'] = 'interact';
-    this.buttons.append(this.attackKey, this.actKey);
+    this.buttons.append(this.actKey);
     this.buttons.addEventListener('click', (event) => {
       const key = (event.target as HTMLElement | null)?.closest('button');
-      const action = key?.dataset['action'];
-      if (action !== 'attack' && action !== 'interact') return;
-      const answer = this.port?.act(action) ?? '';
+      if (key?.dataset['action'] !== 'interact') return;
+      const answer = this.port?.act('interact') ?? '';
       if (answer) this.say(answer);
       this.refreshKeys();
     });
@@ -202,9 +209,6 @@ class MonsterView implements MonsterRoleView {
   private refreshKeys(): void {
     const status = this.port?.status();
     const prompt = status?.prompt ?? '';
-    this.attackKey.textContent = '';
-    this.attackKey.append(el('small', '', 'Angreifen'), el('strong', '', 'Zuschlagen'));
-    this.attackKey.disabled = !this.port || status?.ride !== 'out';
     this.actKey.textContent = '';
     this.actKey.append(el('small', '', 'Interagieren'), el('strong', '', prompt || '—'));
     this.actKey.disabled = !this.port || !prompt;

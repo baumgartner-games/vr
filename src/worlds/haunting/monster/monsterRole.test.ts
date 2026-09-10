@@ -105,7 +105,9 @@ describe('Die Monster-Rolle in der Registry', () => {
     const view = mountMonsterView(bare);
     expect(view.element.dataset['control']).toBe('watch');
     view.update(DT);
-    expect(key(view, '.monster__key--attack').disabled).toBe(true);
+    // Ohne Port gibt es nichts zu tun — und zuschlagen ist ohnehin kein Knopf.
+    expect(view.element.querySelector('.monster__key--attack')).toBeNull();
+    expect(key(view, '.monster__key--act').disabled).toBe(true);
     view.dispose();
   });
 });
@@ -140,17 +142,14 @@ describe('Das Steuer des Monsters', () => {
     expect(Math.hypot(round.monster.x - held.x, round.monster.z - held.z)).toBeGreaterThan(3);
   });
 
-  it('trifft nur mit dem Knopf — im Freien und in der Kabine', () => {
+  it('schlägt um sich, ohne Knopf — und reißt Kabinen mit „Interagieren" auf', () => {
     const { round, view, step } = seat(3);
     round.mode = 'omniscient';
-    // Der Techniker steht neben dem Monster; ohne Knopf passiert nichts.
+    // Der Techniker steht neben dem Monster: getroffen, ohne dass jemand tippt.
     round.place({ x: round.monster.x + 1, z: round.monster.z });
-    step(90);
-    expect(round.state().crew.hp).toBe(SUIT_LIVES);
-    key(view, '.monster__key--attack').click();
-    step(2);
+    step(4);
     expect(round.state().crew.hp).toBe(SUIT_LIVES - 1);
-    // In die Kabine des Raums; das Monster davor; Angreifen reißt sie auf.
+    // In die Kabine des Raums; das Monster davor; „Interagieren" reißt sie auf.
     const locker = round
       .items()
       .find((i) => i.kind === 'locker' && i.roomId === round.monster.space);
@@ -162,7 +161,9 @@ describe('Das Steuer des Monsters', () => {
     Object.assign(round.monster, { x: cabin.at.x + 0.6, z: cabin.at.z, space: cabin.roomId });
     round.state().crew.invulnerable = 0;
     step(1);
-    key(view, '.monster__key--attack').click();
+    // Der Knopf sagt, was er tut, und die Karte hebt genau das hervor.
+    expect(key(view, '.monster__key--act').textContent).toContain('Kabine aufreißen');
+    key(view, '.monster__key--act').click();
     step(2);
     expect(round.state().crew.hidden).toBe('');
     expect(round.state().crew.hp).toBe(SUIT_LIVES - 2);
@@ -185,7 +186,7 @@ describe('Das Steuer des Monsters', () => {
     expect(round.ventRide.to?.id).toBe('vent-lower-engine');
     step(Math.ceil((VENT_ENTER_SECONDS + 0.2) / DT));
     expect(round.ventRide.phase).toBe('riding');
-    expect(key(view, '.monster__key--attack').disabled).toBe(true);
+    expect(key(view, '.monster__key--act').disabled).toBe(true);
     expect(view.element.querySelector('.monster__hud')?.textContent).toContain('Im Schacht');
     step(Math.ceil(20 / DT));
     // Ein Spieler bleibt sitzen, bis er aussteigt.

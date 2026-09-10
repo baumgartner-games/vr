@@ -36,7 +36,11 @@ import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
 import {
+  HOLD_RANGE,
+  SLAM_HOLD,
   freshLocks,
+  holdUntil,
+  pryLock,
   releaseLock,
   slamDoor,
   stepLocks,
@@ -380,6 +384,15 @@ export class FlatRound implements MapSource {
       if (Math.hypot(actor.x - at.x, actor.z - at.z) < 2.2) return true;
     }
     return false;
+  }
+
+  /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`). */
+  doorHold(id: string): { left: number; total: number } | null {
+    if (!this.haunt.shut.includes(id)) return null;
+    const until = holdUntil(this.locks, id);
+    if (until === null) return null;
+    const total = this.locks.chosen === id ? HOLD_RANGE[1] : SLAM_HOLD;
+    return { left: Math.max(0, until - this.haunt.time), total };
   }
 
   entities(): readonly MapEntity[] {
@@ -758,9 +771,11 @@ export class FlatRound implements MapSource {
       }
     } else this.monsterPulse = 0;
 
-    // Die KI trifft durch Berührung, ein Spieler nur mit dem Knopf.
-    const wantsHit = piloted ? decision.strike : !decision.strike;
-    if (gap < CONTACT && !hidden && wantsHit && takeCrewHit(crew, true)) this.hit('Treffer.');
+    // **Das Monster schlägt um sich.** Wer in Reichweite steht, wird
+    // getroffen — von der KI wie von einem Spieler am Steuer. Ein eigener
+    // Angriffsknopf verlangte, im Moment der Berührung zu tippen, und in
+    // diesem Moment schaut niemand auf seine Knöpfe (`monster/monsterHelm.ts`).
+    if (gap < CONTACT && !hidden && takeCrewHit(crew, true)) this.hit('Treffer.');
   }
 
   /** Ein Geräusch des Spielers für die Ohren des Monsters (`audio/cues.ts`, `NOISE`) — und als Welle auf die Karte. */
@@ -779,6 +794,11 @@ export class FlatRound implements MapSource {
       cause,
       since: this.haunt.time,
     });
+  }
+
+  /** Der Würfel der Runde — damit ein Steuer denselben Zufall nimmt wie sie. */
+  roll(): number {
+    return this.rng.next();
   }
 
   /** Der Alarm des Monsters — für Anzeigen und Tests. */
@@ -857,6 +877,21 @@ export class FlatRound implements MapSource {
         this.events.push({ kind: 'warn', text: 'Holz splittert.' });
         this.wave(MONSTER_ID, doorCentre(door), NOISE.slam, 'slam');
         this.blocked = null;
+      } else if (door.material !== 'wood') {
+        // **Stahl hält nicht mehr für immer.** Die KI zieht am Riegel wie ein
+        // Spieler am Knopf, mit denselben Zahlen (`rules/doorLocks.ts`): nie
+        // beim ersten Zug, danach mit wachsender Aussicht. Der Takt steckt in
+        // `pryLock`; jedes Bild zu fragen kostet deshalb nichts.
+        const out = pryLock(this.locks, this.haunt.shut, door.id, this.haunt.time, () =>
+          this.rng.next(),
+        );
+        this.haunt.shut = out.shut;
+        if (out.tries) this.wave(MONSTER_ID, doorCentre(door), NOISE.monsterWalk, 'door');
+        if (out.opened) {
+          this.events.push({ kind: 'warn', text: 'Ein Riegel gibt nach.' });
+          this.wave(MONSTER_ID, doorCentre(door), NOISE.slam, 'slam');
+          this.blocked = null;
+        }
       }
     } else this.blocked = null;
     // Der ganze Zeitschritt wird verbraucht, auch über mehrere Wegpunkte hinweg —
@@ -1114,7 +1149,7 @@ export class FlatRound implements MapSource {
     const door = this.house.doors.find((d) => d.id === id);
     if (!door || this.haunt.phase !== 'running') return '';
     const before = this.locks.chosen;
-    const out = toggleLock(this.locks, this.haunt.shut, id);
+    const out = toggleLock(this.locks, this.haunt.shut, id, this.haunt.time, () => this.rng.next());
     this.haunt.shut = out.shut;
     if (!out.locked) return 'Tür entriegelt.';
     return before && before !== id

@@ -104,52 +104,45 @@ describe('Das Steuer übers Netz beim Gastgeber', () => {
   });
 
   it('führt die Differenz der Zähler genau einmal aus', () => {
-    const { round, control, step } = host();
+    const { round, control } = host();
     round.mode = 'omniscient';
-    round.place({ x: round.monster.x + 1, z: round.monster.z });
-    step(2);
+    // Das Monster vor eine Kabine stellen — dann meint „Interagieren" sie.
+    const cabin = round.items().find((i) => i.kind === 'locker')!;
+    Object.assign(round.monster, { x: cabin.at.x + 0.6, z: cabin.at.z, space: cabin.roomId });
+    round.step(DT, IDLE);
     // Drei Nachrichten mit demselben Stand sind ein Druck.
-    control.accept(says({ attack: 1 }));
-    control.accept(says({ attack: 1 }));
-    control.accept(says({ attack: 1 }));
-    const strikes = [
-      control.decide(DT).strike,
-      control.decide(DT).strike,
-      control.decide(DT).strike,
-    ];
-    expect(strikes).toEqual([true, false, false]);
-    // Von eins auf drei sind zwei Drücke.
-    control.accept(says({ attack: 3 }));
-    expect([
-      control.decide(DT).strike,
-      control.decide(DT).strike,
-      control.decide(DT).strike,
-    ]).toEqual([true, true, false]);
+    control.accept(says({ interact: 1 }));
+    control.accept(says({ interact: 1 }));
+    control.accept(says({ interact: 1 }));
+    expect([control.decide(DT).cabin, control.decide(DT).cabin, control.decide(DT).cabin]).toEqual([
+      cabin.roomId,
+      '',
+      '',
+    ]);
     // Ein Zähler, der zurückspringt (neues Telefon), holt nichts nach.
-    control.accept(says({ attack: 1 }));
-    expect(control.decide(DT).strike).toBe(false);
-    control.accept(says({ attack: 2 }));
-    expect(control.decide(DT).strike).toBe(true);
+    control.accept(says({ interact: 1 }));
+    expect(control.decide(DT).cabin).toBe('');
+    control.accept(says({ interact: 2 }));
+    expect(control.decide(DT).cabin).toBe(cabin.roomId);
   });
 
-  it('trifft mit dem Knopf nur in Reichweite — im Freien und in der Kabine', () => {
-    const { round, say, step } = host();
+  it('schlägt von selbst zu, wer in Reichweite steht — ohne Knopf', () => {
+    const { round, step } = host();
     round.mode = 'omniscient';
-    // Weit weg: Der Druck verpufft.
+    // Weit weg: nichts passiert, so lange man will.
     const far = round.graph.centre(round.player.space);
     expect(round.place(far)).toBe(true);
-    step(2);
-    say({ attack: 1 });
-    step(2);
-    expect(round.haunt.crew.hp).toBe(SUIT_LIVES);
-    // Daneben, ohne Knopf: nichts. Mit Knopf: ein Leben.
-    round.place({ x: round.monster.x + 1, z: round.monster.z });
     step(60);
     expect(round.haunt.crew.hp).toBe(SUIT_LIVES);
-    say({ attack: 2 });
-    step(2);
+    // Daneben: getroffen, ohne dass jemand tippt.
+    round.place({ x: round.monster.x + 1, z: round.monster.z });
+    step(4);
     expect(round.haunt.crew.hp).toBe(SUIT_LIVES - 1);
-    // In die Kabine; das Monster davor; Angreifen reißt sie auf.
+  });
+
+  it('reißt mit „Interagieren" die Kabine auf, vor der es steht — und keine andere', () => {
+    const { round, say, step } = host();
+    round.mode = 'omniscient';
     const cabin =
       round.items().find((i) => i.kind === 'locker' && i.roomId === round.monster.space) ??
       round.items().find((i) => i.kind === 'locker')!;
@@ -157,18 +150,17 @@ describe('Das Steuer übers Netz beim Gastgeber', () => {
     step(1);
     round.act('interact');
     expect(round.haunt.crew.hidden).toBe(cabin.roomId);
-    // Zu weit von der Kabine: Der Knopf gilt nicht.
+    // Zu weit von der Kabine: Der Knopf gilt ihr nicht.
     Object.assign(round.monster, { x: cabin.at.x + 4, z: cabin.at.z, space: cabin.roomId });
     round.haunt.crew.invulnerable = 0;
-    say({ attack: 3 });
+    say({ interact: 1 });
     step(2);
     expect(round.haunt.crew.hidden).toBe(cabin.roomId);
     expect(round.rules.cabinUsable(cabin.roomId)).toBe(true);
     Object.assign(round.monster, { x: cabin.at.x + 0.6, z: cabin.at.z, space: cabin.roomId });
-    say({ attack: 4 });
+    say({ interact: 2 });
     step(2);
     expect(round.haunt.crew.hidden).toBe('');
-    expect(round.haunt.crew.hp).toBe(SUIT_LIVES - 2);
     expect(round.rules.cabinUsable(cabin.roomId)).toBe(false);
   });
 
@@ -258,7 +250,9 @@ describe('Das Steuer übers Netz beim Gastgeber', () => {
     expect(round.haunt.crew.hidden).toBe(cabin.roomId);
     Object.assign(round.monster, { x: cabin.at.x + 0.6, z: cabin.at.z, space: cabin.roomId });
     step(1);
-    expect(port.act('attack')).toBe('');
+    // Das Telefon weiß aus dem Snapshot, dass die Kabine das nächste Ziel ist.
+    expect(port.target()?.kind).toBe('cabin');
+    expect(port.act('interact')).toBe('Die Kabine wird aufgerissen.');
     // Zehn Ansagen je Sekunde: Der Druck kommt mehrfach an, wirkt aber einmal.
     wire();
     wire();

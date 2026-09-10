@@ -25,6 +25,8 @@ export interface WorldHandles {
   drone(): DroneState | null;
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;
   doorOpen(id: string): boolean;
+  /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`). */
+  doorHold?(id: string): { left: number; total: number } | null;
   /** Der eigene Kopf — nur in der Technikerrolle; sonst `null`. */
   player(): { x: number; z: number; yaw: number; sprinting: boolean; moving: boolean } | null;
   /** Ob die Taschenlampe brennt und welches Werkzeug gehalten wird. */
@@ -52,6 +54,7 @@ export function worldMapSource(world: WorldHandles): MapSource {
     drone: () => world.drone(),
     lamps: () => world.lamps(),
     doorOpen: (id) => world.doorOpen(id),
+    doorHold: world.doorHold ? (id) => world.doorHold!(id) : undefined,
     round: world.round ? () => world.round!() : undefined,
     ventLinks: world.vents ? () => world.vents!().links : undefined,
     entities: () => {

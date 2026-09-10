@@ -12,7 +12,7 @@ import type { VentPhase } from '../vents/ventTravel';
  * Bewegung, Snapshot) nicht wissen muss, wer entschieden hat. Sitzt niemand
  * am Steuer, rechnet die KI weiter, ohne dass jemand etwas umschalten müsste.
  *
- * `MonsterPort` ist die Seite der **Ansicht**: Stock, zwei Knöpfe, die Wahl
+ * `MonsterPort` ist die Seite der **Ansicht**: Stock, ein Knopf, die Wahl
  * unter mehreren Schachtzielen und ein Stand für die Anzeige. Die Ansicht
  * findet ihren Port über `host.extra` (`monsterPortOf`) — der `RoleHost` des
  * 2D-Kerns kennt keine Monstersteuerung, und die Registry soll sie nicht
@@ -32,7 +32,26 @@ export interface MonsterInput {
   sprint: boolean;
 }
 
-export type MonsterAction = 'attack' | 'interact';
+/**
+ * Der eine Knopf. **Zuschlagen ist keiner**: Wer in Reichweite steht, wird
+ * getroffen, ohne dass jemand tippen muss (`monsterHelm.ts`).
+ */
+export type MonsterAction = 'interact';
+
+export type MonsterTargetKind = 'vent' | 'cabin' | 'door' | 'ride';
+
+/**
+ * **Woran das Monster gerade etwas tun kann** — genau eines, das nächste.
+ * Die Ansicht hebt es auf der Karte hervor, der Knopf meint es.
+ */
+export interface MonsterTarget {
+  kind: MonsterTargetKind;
+  /** Klappe: die Klappe. Kabine: der Raum. Tür: die Tür. Fahrt: leer. */
+  id: string;
+  at: { x: number; z: number };
+  /** Was der Knopf sagt. */
+  label: string;
+}
 
 export interface MonsterStatus {
   /** Wo das Monster in der Fahrt steht, und wie weit die Phase ist. */
@@ -53,6 +72,8 @@ export interface MonsterPort {
   input(stick: MonsterInput): void;
   /** Ein Knopf; die Antwort ist eine Zeile für den Spieler oder leer. */
   act(action: MonsterAction): string;
+  /** Das nächste Ding in Reichweite, das der Knopf meint — für die Hervorhebung. */
+  target?(): MonsterTarget | null;
   /** Wohin der Schacht vor dem Monster führt, als Knöpfe; leer ohne Klappe. */
   ventTargets(): ReadonlyArray<{ index: number; label: string }>;
   /** Welches der Ziele die nächste Fahrt nimmt. */

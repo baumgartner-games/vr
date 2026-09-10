@@ -113,6 +113,12 @@ export interface MapRoute {
 }
 
 /** Ein Ziel des Technikers — Fracht, Konsole, die Zentrale. */
+/** Was gerade hervorgehoben wird: wo, und was der Knopf damit täte. */
+export interface MapHighlight {
+  at: MapPoint;
+  label: string;
+}
+
 export interface MapGoal {
   id: string;
   at: MapPoint;
@@ -142,6 +148,14 @@ export interface MapViewOptions {
   routes?: () => readonly MapRoute[];
   /** Die Ziele, je Bild abgefragt (Layer `objectives`). */
   objectives?: () => readonly MapGoal[];
+  /**
+   * **Das eine Ding, mit dem der Betrachter gerade etwas tun kann** — je Bild
+   * abgefragt und als pulsierender Ring darüber gezeichnet. Das Monster
+   * bekommt so seine Klappe, seine Kabine oder seine Tür gezeigt, und zwar
+   * immer nur die **nächste** (`monster/monsterHelm.ts`): Zwei hervorgehobene
+   * Dinge sind eine Frage, und die Antwort steht in keinem Knopf.
+   */
+  highlight?: () => MapHighlight | null;
   /** Wie weit die Randdreiecke vom Rand wegbleiben, in Punkten — unter dem HUD. */
   edge?: { top?: number; right?: number; bottom?: number; left?: number };
   /** Zum Schluss: was die Ansicht selbst noch malt (Peilung des Spähers). */
@@ -220,6 +234,8 @@ export const INK = {
   noiseOwn: '#5cc8ff',
   noiseOther: '#ff8a3d',
   noiseMonster: '#ff3b47',
+  reach: '#ffb14a',
+  reachGlow: 'rgba(255, 177, 74, 0.18)',
   goal: '#ffd84a',
   goalDim: 'rgba(255, 216, 74, 0.55)',
 };
@@ -576,6 +592,7 @@ export class MapView {
     }
 
     // --- Ziele -----------------------------------------------------------------
+    if (this.options.highlight) this.drawHighlight(ctx);
     if (this.layers.objectives && this.options.objectives) this.drawGoals(ctx, w, h);
 
     this.options.overlay?.(ctx, this);
@@ -901,6 +918,20 @@ export class MapView {
     // Die Pfosten.
     ctx.fillStyle = INK.frame;
     for (const p of [pa, pb]) ctx.fillRect(p.x - post / 2, p.y - post / 2, post, post);
+    // Der Balken über der Tür: wie lange die Sperre noch hält
+    // (`rules/doorLocks.ts`). Keine Sperre hält ewig, und wer eine gesetzt
+    // hat, will wissen, wie lange er sich noch darauf verlassen darf.
+    if (door.locked && door.hold && door.hold.total > 0 && scale >= 8) {
+      const left = Math.max(0, Math.min(1, door.hold.left / door.hold.total));
+      const w = Math.max(12, door.width * scale * 0.9);
+      const h = Math.max(3, scale * 0.12);
+      const bx = (pa.x + pb.x) / 2 - w / 2;
+      const by = (pa.y + pb.y) / 2 - Math.max(9, scale * 0.55);
+      ctx.fillStyle = INK.frame;
+      ctx.fillRect(bx - 1, by - 1, w + 2, h + 2);
+      ctx.fillStyle = INK.doorLocked;
+      ctx.fillRect(bx, by, w * left, h);
+    }
     // Das Schloss.
     if (door.locked && scale >= 8) {
       const mx = (pa.x + pb.x) / 2,
@@ -1198,6 +1229,38 @@ export class MapView {
   }
 
   /** Die Ziele: Ring am Ort, wenn er im Bild ist; sonst ein Dreieck am Rand, das dorthin zeigt. */
+  /**
+   * **Was in Reichweite ist**, als pulsierender Ring mit Beschriftung — über
+   * allem, damit man es auch im Dunkeln sieht. Es gibt immer höchstens eines.
+   */
+  private drawHighlight(ctx: CanvasRenderingContext2D): void {
+    const mark = this.options.highlight!();
+    if (!mark) return;
+    const p = this.toScreen(mark.at.x, mark.at.z);
+    const pulse = 1 + 0.12 * Math.sin((this.now() / 1000) * 5);
+    const r = Math.max(9, this.state.scale * 0.6) * pulse;
+    ctx.save();
+    ctx.strokeStyle = INK.reach;
+    ctx.fillStyle = INK.reachGlow;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (mark.label) {
+      ctx.font = '600 12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.lineWidth = 3;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = INK.frame;
+      ctx.strokeText(mark.label, p.x, p.y - r - 4);
+      ctx.fillStyle = INK.reach;
+      ctx.fillText(mark.label, p.x, p.y - r - 4);
+    }
+    ctx.restore();
+  }
+
   private drawGoals(ctx: CanvasRenderingContext2D, w: number, h: number): void {
     const goals = this.options.objectives!();
     const edge = this.options.edge ?? {};

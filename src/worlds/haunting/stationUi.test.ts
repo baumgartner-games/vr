@@ -226,13 +226,19 @@ function fakePort(): MonsterPort & { calls: string[]; held: boolean } {
     input() {
       port.calls.push('input');
     },
-    act(action: 'attack' | 'interact') {
+    act(action: 'interact') {
       port.calls.push(action);
       return '';
     },
     ventTargets: () => [],
     chooseVent() {},
-    status: () => ({ ride: 'out' as const, progress: 1, prompt: '', label: 'Stalker' }),
+    // Ein Ziel in Reichweite: sonst ist der Knopf aus und nichts zu klicken.
+    status: () => ({
+      ride: 'out' as const,
+      progress: 1,
+      prompt: 'Kabine aufreißen',
+      label: 'Stalker',
+    }),
   };
   return port;
 }
@@ -290,9 +296,9 @@ describe('Die Station Monster in der Einsatzzentrale', () => {
     jest.spyOn(performance, 'now').mockReturnValue(performance.now() + 1000);
     game.ui.refresh();
     expect(port.calls.filter((call) => call === 'input').length).toBeGreaterThan(reads);
-    // Die Knöpfe gehen an den Port.
-    view?.querySelector<HTMLButtonElement>('.monster__key--attack')?.click();
-    expect(port.calls).toContain('attack');
+    // Der Knopf geht an den Port — zuschlagen ist keiner mehr (`monsterHelm.ts`).
+    view?.querySelector<HTMLButtonElement>('.monster__key--act')?.click();
+    expect(port.calls).toContain('interact');
     // Zurück in die Übersicht: Das Steuer wird freigegeben.
     button('[aria-label="Rolle wechseln"]').click();
     expect(game.ui.station).toBeNull();

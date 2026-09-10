@@ -750,6 +750,7 @@ export class FlatScene {
     ctx.strokeStyle = ART.ink;
     ctx.lineWidth = Math.max(1, u * 0.03);
     ctx.strokeRect(left, topY, right - left, baseY - topY);
+    this.drawHoldBar(ctx, door, (left + right) / 2, topY, right - left);
   }
 
   /** Das geschlossene Blatt in einer Wand entlang z: ein senkrechter Streifen mit Stirnseite. */
@@ -772,6 +773,33 @@ export class FlatScene {
     ctx.strokeStyle = ART.ink;
     ctx.lineWidth = Math.max(1, u * 0.03);
     ctx.strokeRect(left, topY, right - left, baseY - topY);
+    this.drawHoldBar(ctx, door, (left + right) / 2, topY, door.width * u);
+  }
+
+  /**
+   * **Der Balken über einer gesperrten Tür**: wie lange die Sperre noch hält
+   * (`rules/doorLocks.ts`). Keine Sperre hält ewig — weder die von Hand
+   * gesetzte noch die zugefallene —, und wer sich darauf verlässt, soll sehen,
+   * wie lange noch.
+   */
+  private drawHoldBar(
+    ctx: CanvasRenderingContext2D,
+    door: MapDoor,
+    cx: number,
+    topY: number,
+    width: number,
+  ): void {
+    if (!door.locked || !door.hold || door.hold.total <= 0) return;
+    const u = this.state.scale;
+    const left = Math.max(0, Math.min(1, door.hold.left / door.hold.total));
+    const w = Math.max(14, width * 0.9);
+    const h = Math.max(3, u * 0.055);
+    const x = cx - w / 2,
+      y = topY - h - Math.max(3, u * 0.06);
+    ctx.fillStyle = ART.ink;
+    ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+    ctx.fillStyle = INK.lampRed;
+    ctx.fillRect(x, y, w * left, h);
   }
 
   /** Eine Figur je Sorte: Crewmate, Monster, Drohne. */
