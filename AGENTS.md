@@ -7829,6 +7829,27 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   drin ist oder nicht (`RoutineOutput.cabin`; ohne Schrei und ohne Vorsprung,
   die bleiben dem gesehenen Rückzug). Ein leerer Schrank ist danach trotzdem
   ein Versteck weniger. Kein Wissen darüber, ob der Schrank besetzt ist.
+- **Prognose und Abfangen** liegen daneben in `monster/monsterIntercept.ts` —
+  gerechnet, aber **noch nicht angeschlossen**: `monsterRoutine.ts` fragt das
+  Modul bis auf Weiteres nicht, die Haltungen `intercept` und `ambush` gibt es
+  dort noch nicht. Was darin steht: `predictPlayer` verlängert die letzten
+  Sichtungen geradeaus (Richtung und Tempo aus der Spur, Tempo notfalls
+  `PLAYER_SPRINT_SPEED`/`PLAYER_WALK_SPEED`, Puste eingerechnet) zu einer
+  Polyline über **zwei** Türen — die erste nach dem Winkel zum Kurs, die zweite
+  nach dem Zufluss im Glaubensbild — mit einer Ankunftszeit je Tür. `plan`
+  stellt dieser Zeit die des Monsters gegenüber (`Estimator`, heute
+  `graphEstimator` über `roomGraph.distance`) und entscheidet: **abfangen**, wo
+  das Monster mit `SLACK` 0,8 s Luft früher an der Tür ist (der Kandidat, an
+  dem es selbst am schnellsten ist); **verfolgen**, wenn schlichtes Aufholen
+  schneller geht oder keine Tür passt und es überhaupt schneller ist;
+  **lauern** ohne Sichtkontakt bei `certainty() ≥ 0,6` in einem Raum mit
+  höchstens zwei Türen, gedeckelt auf `AMBUSH_MAX` 12 s; sonst **suchen** im
+  wahrscheinlichsten Raum — nicht mehr im gewürfelten Nachbarraum. Dafür nennt
+  `roomGraph.ts` jetzt auch Türen: `doorsOf(raum)` und `doorPoint(tür)` (die
+  Türmitte auf der Kachel**kante**, in Metern). Das Gedächtnis, gegen das
+  gerechnet wird, steht dort als Form (`TrackLike`, `MemoryLike`) und nicht als
+  Import — `monster/monsterMemory.ts` entsteht parallel, das Zusammenhängen
+  beider ist das nächste Paket.
 - **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
   `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
   ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
