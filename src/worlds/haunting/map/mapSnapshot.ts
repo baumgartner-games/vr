@@ -1,4 +1,5 @@
 import type { RoomKind } from '../house';
+import type { Ghosts } from '../rules/ghosts';
 
 /**
  * **Der Grundriss als Daten** — der Vertrag zwischen der 3D-Welt und allem,
@@ -254,6 +255,14 @@ export interface MapSnapshot {
   fixtures?: MapFixture[];
   /** Die Geräusche der letzten Sekunden, als Wellen über den Boden. */
   noises?: MapNoise[];
+  /**
+   * **Wo jede Seite die andere zuletzt gesehen hat** (`rules/ghosts.ts`,
+   * `HauntState.ghosts`). Steht neben `entities` und nicht darin: Ein Ghost
+   * ist kein Wesen, sondern eine Erinnerung — er bewegt sich nicht, macht
+   * keinen Lärm, und das Sichtbarkeitsmodell darf ihn nicht wegschneiden,
+   * denn genau das, was man *nicht* mehr sieht, ist er ja.
+   */
+  ghosts?: Ghosts;
 }
 
 /** Ein Snapshot ohne Station — der Anfangswert jeder Ansicht. */

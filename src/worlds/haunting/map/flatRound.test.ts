@@ -4,6 +4,7 @@ import { puzzleFor } from '../mission';
 import { doorWaypoint, spaceAtMetres } from './geometry';
 import { FlatWalker } from './flatWalk';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
+import { cargoOf } from '../rules/cargo';
 import type { FloorPoint } from '../stationLayout';
 
 const DT = 1 / 30;
@@ -72,9 +73,11 @@ describe('Eine Runde in der 2D-Welt', () => {
 
   it('steckt Werkzeuge aus der Fracht ein und schaltet sie durch', () => {
     const round = new FlatRound(3, { test: true });
-    const jobIds = new Set(round.jobs().map((j) => j.id));
-    const extra = round.items().find((i) => i.kind === 'cargo' && !jobIds.has(i.id))!;
-    expect(walkTo(round, extra.at)).toBe(true);
+    // Nicht mehr „irgendeine Kiste, die kein Auftrag ist": Seit in jedem Raum
+    // zwei bis drei stehen, ist die erste beste meistens leer.
+    const box = cargoOf(round.house).find((slot) => slot.loot.kind === 'tool')!;
+    const item = round.items().find((i) => i.id === box.id)!;
+    expect(walkTo(round, item.at)).toBe(true);
     round.act('interact');
     round.act('interact');
     expect(round.tools.length).toBe(2);
@@ -82,6 +85,25 @@ describe('Eine Runde in der 2D-Welt', () => {
     expect(round.activeTool).toBe(round.tools[1]);
     round.act('use');
     expect(round.drain().length).toBeGreaterThan(0);
+  });
+
+  it('gibt aus einer leeren Kiste nichts her — und meldet das beim zweiten Griff', () => {
+    const round = new FlatRound(3, { test: true });
+    const box = cargoOf(round.house).find((slot) => slot.loot.kind === 'empty')!;
+    const item = round.items().find((i) => i.id === box.id)!;
+    expect(walkTo(round, item.at)).toBe(true);
+    const before = [...round.tools];
+    round.act('interact');
+    expect(round.state().crew.opened).toContain(box.id);
+    expect(round.items().find((i) => i.id === box.id)?.state).toBe('open');
+    round.act('interact');
+    expect(round.drain().at(-1)?.text).toBe('Leer.');
+    expect(round.tools).toEqual(before);
+    expect(round.state().crew.inventory).not.toContain('');
+    // Danach ist die Kiste erledigt und lädt niemanden mehr zum Nachsehen ein.
+    const after = round.items().find((i) => i.id === box.id)!;
+    expect(after.state).toBe('taken');
+    expect(after.interactive).toBe(false);
   });
 
   it('versteckt sich im Schrank und kommt wieder heraus', () => {
@@ -165,6 +187,41 @@ describe('Das Monster in der 2D-Welt', () => {
     expect(round.field.visibleEntities).toEqual([PLAYER_ID, MONSTER_ID]);
     expect(round.field.cones.length).toBe(2);
     expect(round.field.noise.some((n) => n.cause === 'monster')).toBe(true);
+  });
+
+  /**
+   * **Der Ghost-Marker ist eine Erinnerung, keine Verfolgung** (`rules/ghosts.ts`).
+   * Er wird bei Sichtkontakt gesetzt und bleibt danach stehen, wo er stand —
+   * auch wenn das Monster längst zwei Räume weiter ist. Genau darauf baut der
+   * Bluff: Wer weiß, dass der andere einen alten Punkt hat, läuft woandershin.
+   */
+  it('merkt sich das Monster beim Sichtkontakt und lässt den Punkt danach stehen', () => {
+    const round = new FlatRound(4);
+    round.torch = false;
+    expect(round.haunt.ghosts).toEqual({ monster: null, technician: null });
+    // „Alles sehen" ist der eine Fall, in dem der Techniker das Monster
+    // sicher sieht, ohne dass es erst um die Ecke kommen muss.
+    round.setMode('omniscient');
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.haunt.ghosts.monster).not.toBeNull();
+    // Licht aus, Sicht realitätsnah: Von jetzt an sieht der Techniker nichts
+    // mehr — und der Marker altert an seiner Stelle. Der erste Schritt danach
+    // rechnet noch mit dem Sichtfeld des vorigen Bildes, setzt den Punkt also
+    // ein letztes Mal; ab dann steht er.
+    round.setMode('realistic');
+    round.haunt.lit.length = 0;
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    const mark = { ...round.haunt.ghosts.monster! };
+    // Gesetzt wird mitten im Schritt, gemessen danach: ein Zehntelmeter Weg
+    // liegt dazwischen, mehr nicht.
+    expect(Math.hypot(mark.x - round.monster.x, mark.z - round.monster.z)).toBeLessThan(0.2);
+    expect(mark.since).toBeCloseTo(round.haunt.time, 6);
+    for (let t = 0; t < 8; t += DT) round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.field.visibleEntities).toEqual([PLAYER_ID]);
+    expect(round.haunt.ghosts.monster).toEqual(mark);
+    // Und das Monster ist inzwischen woanders — der Punkt ist eine Erinnerung.
+    expect(Math.hypot(round.monster.x - mark.x, round.monster.z - mark.z)).toBeGreaterThan(1);
   });
 });
 

@@ -6,7 +6,7 @@ import { HauntingAudio, NOISE, levelLabel } from './audio';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import type { MapGoal } from './map/mapView';
 import { ObjectiveCompass } from './objectiveCompass';
-import { roundHud } from './rules/roundHud';
+import { hudTasks, roundHud, taskPips, type HudTask } from './rules/roundHud';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
@@ -34,6 +34,7 @@ import {
   MARKS,
   roomAt,
   roomCode,
+  roomOf,
   type HouseRoom,
   type HouseSpec,
 } from './house';
@@ -46,6 +47,7 @@ import type { Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
 import { CabinWreck } from './rules/cabinWreck';
+import { cargoKey, cargoLabel, cargoOf } from './rules/cargo';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -125,10 +127,15 @@ interface Cabinet {
   room: string;
   group: THREE.Group;
   leaf: THREE.Mesh;
+  /** Was drinliegt — bei einer leeren Kiste nichts, und dann fehlt auch das Modell. */
   loot: string;
-  lootMesh: THREE.Object3D;
+  /** Was von außen draufsteht: „Kiste 2 · blau". */
+  mark: string;
+  /** Woran hängt, ob die Kiste erledigt ist (`cargoKey`). */
+  key: string;
+  lootMesh: THREE.Object3D | null;
   scanner: THREE.Object3D;
-  scanSubject: { object: THREE.Object3D };
+  scanSubject: { object: THREE.Object3D } | null;
   at: THREE.Vector3;
   leafY: number;
   leafHeight: number;
@@ -316,13 +323,19 @@ export class ShipExperience {
       if (this.crew.hidden) this.leaveLocker();
       else if (['lost', 'won'].includes(this.host.state().phase)) this.host.start();
     });
-    // **Der Streifen in der Brille**: Das DOM ist dort unsichtbar, und der
-    // Statusschirm kommt nur im Versteck und am Ende. Sauerstoff und Anzug
-    // müssen aber die ganze Runde da sein — klein, unten im Blickfeld, an der
-    // Kamera wie `status`, ohne Tiefentest, damit keine Wand ihn verdeckt.
-    this.hud = this.screen(0.34, 0.085, 512);
+    // **Der Streifen im Blickfeld**: In der Brille ist das DOM unsichtbar, und
+    // der Statusschirm kommt nur im Versteck und am Ende. Sauerstoff, Anzug und
+    // die drei Aufträge müssen aber die ganze Runde da sein — klein, unten im
+    // Blickfeld, an der Kamera wie `status`, ohne Tiefentest, damit keine Wand
+    // ihn verdeckt.
+    //
+    // **Er hängt auch am Desktop dort.** Vorher gab es ihn nur im Headset, und
+    // wer die Station am Bildschirm spielte, las seinen Sauerstoff aus einer
+    // Zeile im Menü und seine Aufträge aus gar nichts. Zwei Zeilen wie in der
+    // 2D-Welt (`map/flatMode.ts`), aus derselben Rechnung (`rules/roundHud.ts`).
+    this.hud = this.screen(0.42, 0.15, 640);
     this.hud.mesh.name = 'mission-hud-strip';
-    this.hud.mesh.position.set(0, -0.36, -1);
+    this.hud.mesh.position.set(0, -0.34, -1);
     this.hud.mesh.visible = false;
     this.hud.mesh.material.depthTest = false;
     this.hud.mesh.material.transparent = true;
@@ -570,12 +583,22 @@ export class ShipExperience {
   private buildCabinets(): void {
     const spec = this.host.spec();
     const layout = stationLayout(spec);
-    let extraIndex = 0;
+    // Was in welcher Kiste liegt, würfelt das Schiff nicht mehr selbst: Es
+    // liest dieselbe Liste wie Karte, Netz und Archiv (`rules/cargo.ts`).
+    for (const slot of cargoOf(spec)) {
+      const at = layout.find((p) => p.id === slot.id);
+      if (!at) continue;
+      this.cabinet(
+        slot.id,
+        slot.roomId,
+        new THREE.Vector3(at.x, 0, at.z),
+        slot.loot.kind === 'empty' ? '' : cargoKey(slot),
+        at.yaw,
+        cargoLabel(slot),
+        cargoKey(slot),
+      );
+    }
     for (const room of spec.rooms) {
-      const task = spec.tasks.find((t) => t.roomId === room.id);
-      const loot = task ? task.id : ['radar', 'xray', 'medkit', 'medkit'][extraIndex++ % 4]!;
-      const at = layout.find((p) => p.id === `cargo-${room.id}`)!;
-      this.cabinet(at.id, room.id, new THREE.Vector3(at.x, 0, at.z), loot, at.yaw);
       const safe = layout.find((p) => p.id === `locker-${room.id}`)!;
       this.locker(
         room.id,
@@ -586,23 +609,42 @@ export class ShipExperience {
     }
     this.cabinet('test-supply', '', new THREE.Vector3(2.8, 0, APRON.z * TILE + 0.7), 'test-kit');
   }
-  private cabinet(id: string, room: string, at: THREE.Vector3, loot: string, yaw = 0): void {
+  private cabinet(
+    id: string,
+    room: string,
+    at: THREE.Vector3,
+    loot: string,
+    yaw = 0,
+    mark = 'Fracht',
+    key = loot || id,
+  ): void {
     const { root: g, door: leaf, lootMount, screenMount } = buildCargoCabinet();
     g.position.copy(at);
     g.rotation.y = yaw;
     g.name = id;
-    const badge = label(loot === 'test-kit' ? 'TESTAUSRÜSTUNG' : 'FRACHT / ÖFFNEN', 0.65, 0.13);
+    // Das Kennzeichen steht außen auf dem Blatt: Wer „Kiste 2, blaues Band"
+    // zugerufen bekommt, muss es an der Kiste wiederfinden können.
+    const badge = label(loot === 'test-kit' ? 'TESTAUSRÜSTUNG' : mark.toUpperCase(), 0.65, 0.13);
     badge.position.copy(screenMount).sub(leaf.position);
     leaf.add(badge);
-    const lootMesh = this.mesh([0.28, 0.16, 0.22], loot === 'medkit' ? 0xc9ddcb : SHIP.amber, g, [
-      lootMount.x,
-      lootMount.y,
-      lootMount.z,
-    ]);
-    const lootTag = label(lootLabel(this.host.spec(), loot), 0.66, 0.16, SHIP.amber);
-    lootTag.position.set(0, 0.84, 0.08);
-    g.add(lootTag);
-    const scanner = label(lootLabel(this.host.spec(), loot), 0.7, 0.16, SHIP.cyan);
+    // **Eine leere Kiste bekommt kein Modell und kein Schild.** Sie ist von
+    // außen keine andere Kiste als die volle — das ist der ganze Sinn —, und
+    // wer sie aufmacht, sieht nichts, statt ein leeres Regal mit Beschriftung.
+    const lootMesh = loot
+      ? this.mesh([0.28, 0.16, 0.22], loot === 'medkit' ? 0xc9ddcb : SHIP.amber, g, [
+          lootMount.x,
+          lootMount.y,
+          lootMount.z,
+        ])
+      : null;
+    const lootTag = lootMesh
+      ? label(lootLabel(this.host.spec(), loot), 0.66, 0.16, SHIP.amber)
+      : null;
+    if (lootTag) {
+      lootTag.position.set(0, 0.84, 0.08);
+      g.add(lootTag);
+    }
+    const scanner = label(lootLabel(this.host.spec(), loot) || mark, 0.7, 0.16, SHIP.cyan);
     scanner.material.depthTest = false;
     scanner.material.transparent = true;
     scanner.material.opacity = 0.85;
@@ -616,9 +658,11 @@ export class ShipExperience {
       group: g,
       leaf,
       loot,
+      mark,
+      key,
       lootMesh,
       scanner,
-      scanSubject: { object: lootMesh },
+      scanSubject: lootMesh ? { object: lootMesh } : null,
       at,
       leafY: leaf.position.y,
       leafHeight: 1.15,
@@ -626,11 +670,15 @@ export class ShipExperience {
     g.userData.roomId = room;
     this.root.add(g);
     leaf.userData.interactionLabel = 'E: Frachtschrank öffnen / schließen';
-    lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
-    lootTag.userData.interactionLabel = lootMesh.userData.interactionLabel;
     this.bind(leaf, () => this.openCabinet(id));
-    this.bind(lootMesh, () => this.takeLoot(id));
-    this.bind(lootTag, () => this.takeLoot(id));
+    if (lootMesh) {
+      lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
+      this.bind(lootMesh, () => this.takeLoot(id));
+    }
+    if (lootTag) {
+      lootTag.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
+      this.bind(lootTag, () => this.takeLoot(id));
+    }
   }
   private openCabinet(id: string): void {
     if (!this.active) return;
@@ -638,8 +686,17 @@ export class ShipExperience {
       this.host.say('Testschrank: zuerst TEST / OHNE MONSTER drücken.');
       return;
     }
+    const box = this.cabinets.find((c) => c.id === id);
     if (!this.crew.opened.includes(id)) this.crew.opened.push(id);
-    else this.crew.opened = this.crew.opened.filter((x) => x !== id);
+    else if (box && !box.loot && !this.crew.inventory.includes(box.key)) {
+      // **Die leere Kiste kostet zwei Griffe.** Aufmachen macht Geräusch,
+      // Hineinsehen kostet den zweiten Moment — und erst danach ist sie
+      // erledigt und leuchtet nirgends mehr als Ziel.
+      this.crew.inventory.push(box.key);
+      this.host.say('Leer.');
+      this.sound('door');
+      return;
+    } else this.crew.opened = this.crew.opened.filter((x) => x !== id);
     this.sound('door');
   }
   private takeLoot(id: string): void {
@@ -903,7 +960,11 @@ export class ShipExperience {
       }
       this.host.state().done.push(id);
       this.host.state().fuse = true;
-      if (!this.host.state().lit.includes(repair.roomId)) this.host.state().lit.push(repair.roomId);
+      // **Hier geht kein Licht mehr von selbst an.** Eine reparierte Konsole
+      // machte früher die Lampe ihres Raums an, und weil das an der Tafel
+      // vorbeiging, brannten am Ende der Runde drei Lampen, die niemand
+      // geschaltet hatte. Licht macht die Einsatzkontrolle, höchstens zwei
+      // Räume, und nur solange sie es sich leistet (`rules/lamps.ts`).
       this.host.say(
         `${repair.title}: fertig. ${this.host.state().done.length === 3 ? 'Zur Einsatzzentrale zurückkehren!' : 'Nächsten Auftrag beim Archiv erfragen.'}`,
       );
@@ -1159,8 +1220,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
 
   private get scanSubjects(): readonly { object: THREE.Object3D }[] {
     return this.cabinets
-      .filter((cabinet) => !this.crew.inventory.includes(cabinet.id))
-      .map((cabinet) => cabinet.scanSubject);
+      .filter((cabinet) => !!cabinet.scanSubject && !this.crew.inventory.includes(cabinet.id))
+      .map((cabinet) => cabinet.scanSubject!);
   }
 
   private updateTools(dt: number): void {
@@ -1265,7 +1326,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       const amount = THREE.MathUtils.damp(cabinet.leaf.scale.y, opened ? 0.025 : 1, 8, dt);
       cabinet.leaf.scale.y = amount;
       cabinet.leaf.position.y = cabinet.leafY + ((1 - amount) * cabinet.leafHeight) / 2;
-      cabinet.lootMesh.visible = !crew.inventory.includes(cabinet.id);
+      if (cabinet.lootMesh) cabinet.lootMesh.visible = !crew.inventory.includes(cabinet.id);
       cabinet.group.visible =
         (cabinet.id !== 'test-supply' || crew.options.test) &&
         (!cabinet.room || !this.visibleRooms || this.visibleRooms.has(cabinet.room));
@@ -1315,16 +1376,19 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.stepStick();
       this.dom.classList.toggle('is-keys', !this.controls?.hidden);
       this.stepCompass(ctx, state.phase === 'running' && !crew.simulation);
-      // Nur in der Brille, nur solange die Mission läuft, nie in der Bot-Runde:
-      // Am Desktop steht dasselbe im DOM-Titel, und ohne Runde gibt es nichts zu zählen.
+      // Solange die Mission läuft, nie in der Bot-Runde und nie im Menü: Ohne
+      // Runde gibt es nichts zu zählen, und wer einer Bot-Runde zusieht, hat
+      // weder Sauerstoff noch Aufträge. In der Brille **und** am Desktop —
+      // beide spielen dieselbe Station und brauchen dieselbe Anzeige.
       const round =
-        ctx.renderer.xr.isPresenting && state.phase === 'running' && !crew.simulation
-          ? (this.host.round?.() ?? null)
-          : null;
+        state.phase === 'running' && !crew.simulation ? (this.host.round?.() ?? null) : null;
       this.hud.mesh.visible = !!round;
       this.hudTimer -= dt;
       if (round && this.hudTimer <= 0) {
-        this.hudTimer = 1;
+        // Viermal je Sekunde nachsehen, aber nur malen, wenn sich der Text
+        // geändert hat: Die Uhr springt einmal je Sekunde, ein erledigter
+        // Auftrag soll aber nicht bis zur nächsten vollen Sekunde warten.
+        this.hudTimer = 0.25;
         this.paintHud(round);
       }
       this.stepSound(dt, _head);
@@ -1538,18 +1602,45 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.status.texture.needsUpdate = true;
   }
   /**
-   * Der Streifen in der Brille: links die Uhr, rechts die drei Leben. Was
-   * dort steht und wann es rot wird, rechnet `rules/roundHud.ts` — dieselbe
-   * Regel wie auf den Telefonen. Gemalt wird nur, wenn sich etwas geändert
-   * hat; die Uhr tut das einmal je Sekunde.
+   * **Die Aufträge des Technikers**, wie der Streifen sie zeigt — dieselbe
+   * Rechnung wie das 2D-HUD (`rules/roundHud.ts`), damit beide Anzeigen
+   * dasselbe zählen. Die Raumnamen kommen aus dem Bauplan.
+   */
+  private hudTasks(): HudTask[] {
+    const spec = this.host.spec();
+    const state = this.host.state();
+    return hudTasks({
+      repairs: repairsFor(spec),
+      roomName: (id) => roomOf(spec, id)?.name ?? id,
+      done: state.done,
+      taken: state.taken,
+      inventory: this.crew.inventory,
+    });
+  }
+
+  /**
+   * Der Streifen im Blickfeld, zwei Zeilen: oben links die Uhr, oben rechts
+   * die Anzug-Leben, darunter die drei Aufträge — voll, halb, leer, und
+   * daneben der nächste im Klartext. Was dort steht und wann es rot wird,
+   * rechnet `rules/roundHud.ts` — dieselbe Regel wie auf den Telefonen und in
+   * der 2D-Welt. Gemalt wird nur, wenn sich etwas geändert hat; die Uhr tut
+   * das einmal je Sekunde.
    */
   private paintHud(round: MapRound): void {
     const hud = roundHud(round);
-    const key = `${hud.oxygen}|${hud.suit}|${hud.color}`;
+    const tasks = this.hudTasks();
+    const pips = taskPips(tasks);
+    // Der nächste offene Auftrag ist der, der zählt; sind alle fertig, geht es
+    // zurück in die Einsatzzentrale, und genau das steht dann dort.
+    const next = tasks.find((task) => task.step < 2);
+    const line = next ? `${next.room}: ${next.title}` : 'Zurück zur Einsatzzentrale';
+    const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${pips}|${line}`;
     if (this.hud.mesh.userData.paint === key) return;
     this.hud.mesh.userData.paint = key;
     const c = this.hud.ctx;
     const { width: w, height: h } = this.hud.canvas;
+    const top = h * 0.5;
+    const pad = h * 0.16;
     c.clearRect(0, 0, w, h);
     c.fillStyle = 'rgba(8, 24, 35, 0.78)';
     c.fillRect(0, 0, w, h);
@@ -1559,12 +1650,27 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     c.textBaseline = 'middle';
     c.fillStyle = hud.color;
     c.textAlign = 'left';
-    c.font = `bold ${Math.round(h * 0.56)}px system-ui`;
-    c.fillText(hud.oxygen, h * 0.5, h / 2, w * 0.55);
+    c.font = `bold ${Math.round(top * 0.56)}px system-ui`;
+    c.fillText(hud.oxygen, pad, top / 2, w * 0.55);
     c.textAlign = 'right';
-    c.font = `${Math.round(h * 0.5)}px system-ui`;
+    c.font = `${Math.round(top * 0.5)}px system-ui`;
     c.fillStyle = round.suit > 0 ? '#adffe8' : hud.color;
-    c.fillText(hud.suit, w - h * 0.5, h / 2, w * 0.4);
+    c.fillText(hud.suit, w - pad, top / 2, w * 0.4);
+    // Die Trennlinie macht aus zwei Zeilen zwei Zeilen und nicht einen Absatz.
+    c.strokeStyle = '#1e3a4a';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(pad, top);
+    c.lineTo(w - pad, top);
+    c.stroke();
+    c.textAlign = 'left';
+    c.fillStyle = next ? '#7de9ec' : '#adffe8';
+    c.font = `${Math.round(top * 0.52)}px system-ui`;
+    c.fillText(pips, pad, top + (h - top) / 2);
+    const pipsWidth = c.measureText(pips).width;
+    c.fillStyle = '#d8e7ec';
+    c.font = `${Math.round(top * 0.42)}px system-ui`;
+    c.fillText(line, pad + pipsWidth + pad * 0.7, top + (h - top) / 2, w - pipsWidth - pad * 3);
     this.hud.texture.needsUpdate = true;
   }
 
@@ -1737,8 +1843,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     button('Medkit', 'heal');
     if (crew.hidden) button('Schutzschrank verlassen', 'leave');
     if (near.cabinet && !crew.hidden) {
-      button('Fracht öffnen / schließen', `open:${near.cabinet.id}`);
-      if (crew.opened.includes(near.cabinet.id))
+      button(`${near.cabinet.mark} öffnen / schließen`, `open:${near.cabinet.id}`);
+      if (crew.opened.includes(near.cabinet.id) && near.cabinet.loot)
         button(
           `Nehmen: ${lootLabel(this.host.spec(), near.cabinet.loot)}`,
           `loot:${near.cabinet.id}`,
@@ -2010,6 +2116,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // Ein geöffneter Schrank ist ein lauteres Klacken und kein eigenes Geräusch.
     const kind = cue === 'sniff' ? 'klack' : cue;
     this.audio.play(kind, at, this.crew.options.monster, cue === 'sniff' ? 1.6 : 1);
+  }
+
+  /**
+   * **Eine Lampe flackert oder geht aus** (`rules/lamps.ts`) — das Sirren dort,
+   * wo sie hängt. Es kommt zweimal: einmal, wenn die letzten Sekunden
+   * anbrechen, und einmal, wenn es dunkel wird. Die erste Warnung ist der
+   * Grund, warum es das Geräusch gibt: Man steht selten unter der Lampe, die
+   * gleich ausgeht.
+   */
+  lampCue(at: { x: number; z: number }): void {
+    if (!this.audioOn) return;
+    this.audio.play('lamp', at);
   }
 
   private readonly domClick = (event: Event): void => {

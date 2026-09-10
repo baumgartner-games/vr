@@ -4,6 +4,7 @@ import { TILE } from '../nav/navTile';
 import { puzzleFor, puzzleSolved, repairsFor, type Repair } from './mission';
 import type { HauntState } from './net';
 import { stationLayout, type FloorPoint } from './stationLayout';
+import { taskCargo } from './rules/cargo';
 import { COMMAND_HOME } from './trainingLayout';
 import { DEFAULT_TUNING, type TechnicianTuning } from './botTuning';
 
@@ -103,21 +104,20 @@ export class MissionBot {
     }
     if (!repair) return;
     if (this.stage === 'cargo') {
-      const cargoRoom = this.host.spec.tasks.find((task) => task.id === repair.itemId)?.roomId;
-      const cargo = this.layout.find((placement) => placement.id === `cargo-${cargoRoom}`);
+      const cargo = this.layout.find(
+        (placement) => placement.id === taskCargo(this.host.spec, repair.itemId).id,
+      );
       if (!cargo || !this.walk(cargo.approach, step)) return;
       this.host.say(`Techniker: ${repair.item} gefunden. Frachtschrank wird geöffnet.`);
       this.stage = 'open-cargo';
       this.timer = 0.7 * this.bot.work;
     } else if (this.stage === 'open-cargo') {
-      const cargoRoom = this.host.spec.tasks.find((task) => task.id === repair.itemId)?.roomId;
-      const id = `cargo-${cargoRoom}`;
+      const id = taskCargo(this.host.spec, repair.itemId).id;
       if (!state.crew.opened.includes(id)) state.crew.opened.push(id);
       this.stage = 'take-cargo';
       this.timer = 0.9 * this.bot.work;
     } else if (this.stage === 'take-cargo') {
-      const cargoRoom = this.host.spec.tasks.find((task) => task.id === repair.itemId)?.roomId;
-      const id = `cargo-${cargoRoom}`;
+      const id = taskCargo(this.host.spec, repair.itemId).id;
       if (!state.taken.includes(repair.itemId)) state.taken.push(repair.itemId);
       if (!state.crew.inventory.includes(id)) state.crew.inventory.push(id);
       this.host.say(`Archiv → Techniker: ${repair.item} zur Reparatur „${repair.title}“ bringen.`);

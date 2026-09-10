@@ -9,6 +9,7 @@ import {
   type FixtureSize,
 } from './fixtureDimensions';
 import { repairsFor } from './mission';
+import { CARGO_PER_ROOM, cargoCounts } from './rules/cargo';
 import { STATION_VENTS } from './vents/ventNet.data';
 import { APPROACH_DEPTH, FLAP_WIDTH, flapApproach, flapWall } from './vents/ventPlacement';
 
@@ -419,10 +420,17 @@ function roomDressing(room: HouseRoom): MarkId[] {
   }
 }
 
+/**
+ * @param requests Pflichtmodule — passt eines nicht, ist die Stellung ungültig.
+ * @param spares Module, die vor der Deko drankommen, aber wie sie wegfallen
+ *   dürfen: die dritte Kiste eines Raums. Eine Kiste ist kein Grund, einen
+ *   Grundriss für unbaubar zu erklären.
+ */
 function packRoom(
   spec: HouseSpec,
   room: HouseRoom,
   requests: readonly Request[],
+  spares: readonly Request[] = [],
 ): StationPlacement[] {
   const centre = roomMiddle(room),
     clearances = [
@@ -472,15 +480,20 @@ function packRoom(
   const extras = spec.passages
     ? roomDressing(room)
     : room.marks.filter((mark) => mark.id !== room.signature).map((mark) => mark.id);
-  extras.forEach((markId, index) => {
-    const request: Request = {
+  const optional: Request[] = [
+    ...spares,
+    ...extras.map((markId, index) => ({
       id: `fixture-${room.id}-extra-${index}`,
       roomId: room.id,
-      kind: 'fixture',
+      kind: 'fixture' as const,
       markId,
       ...FIXTURE_CATALOG[markId],
-    };
-    const island = spec.passages && ['bett', 'esstisch', 'werkbank', 'kiste'].includes(markId);
+    })),
+  ];
+  optional.forEach((request) => {
+    const markId = request.markId;
+    const island =
+      spec.passages && !!markId && ['bett', 'esstisch', 'werkbank', 'kiste'].includes(markId);
     const candidate = [
       ...(island ? islandCandidates(room, request) : []),
       ...wallCandidates(room, request),
@@ -506,8 +519,19 @@ export function stationLayout(spec: HouseSpec): readonly StationPlacement[] {
   const known = cache.get(spec);
   if (known) return known;
   const repairs = repairsFor(spec),
+    counts = cargoCounts(spec),
     placements: StationPlacement[] = [];
   for (const room of spec.rooms) {
+    // **Zwei Kisten je Raum sind Pflicht, die dritte ist ein Wunsch.** Suchen
+    // soll sich lohnen, und dafür braucht es mehr Kisten als Inhalte — aber
+    // ein Raum, dessen Grundriss nur für zwei reicht, ist kein Fehler im Haus.
+    const cargo = (n: number): Request => ({
+      id: `cargo-${room.id}-${n}`,
+      roomId: room.id,
+      kind: 'cargo',
+      ...CARGO_SIZE,
+    });
+    const wanted = counts.get(room.id) ?? CARGO_PER_ROOM[0];
     const requests: Request[] = [
       {
         id: `fixture-${room.id}`,
@@ -516,9 +540,12 @@ export function stationLayout(spec: HouseSpec): readonly StationPlacement[] {
         markId: room.signature,
         ...FIXTURE_CATALOG[room.signature],
       },
-      { id: `cargo-${room.id}`, roomId: room.id, kind: 'cargo', ...CARGO_SIZE },
+      ...Array.from({ length: CARGO_PER_ROOM[0] }, (_, i) => cargo(i + 1)),
       { id: `locker-${room.id}`, roomId: room.id, kind: 'locker', ...LOCKER_SIZE },
     ];
+    const spares = Array.from({ length: Math.max(0, wanted - CARGO_PER_ROOM[0]) }, (_, i) =>
+      cargo(CARGO_PER_ROOM[0] + i + 1),
+    );
     const repair = repairs.find((r) => r.roomId === room.id);
     if (repair)
       requests.push({
@@ -528,7 +555,7 @@ export function stationLayout(spec: HouseSpec): readonly StationPlacement[] {
         repairId: repair.id,
         ...CONSOLE_SIZE,
       });
-    placements.push(...packRoom(spec, room, requests));
+    placements.push(...packRoom(spec, room, requests, spares));
   }
   cache.set(spec, placements);
   return placements;

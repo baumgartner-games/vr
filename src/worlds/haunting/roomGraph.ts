@@ -1,5 +1,5 @@
 import { onApron, spacesOf, type HouseSpec } from './house';
-import { TILE } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, TILE, type Dir } from '../nav/navTile';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { COMMAND_HOME } from './trainingLayout';
 import type { RoutineWorld } from './monsterRoutine';
@@ -45,6 +45,25 @@ export interface StationGraph extends RoutineWorld {
   earshot(a: string, b: string): number;
   /** Der nächste Schritt von `a` in Richtung `b` — `a` selbst am Ziel. */
   next(a: string, b: string): string;
+  /**
+   * **Die Türen dieses Knotens**, in der Reihenfolge des Bauplans.
+   *
+   * `neighbours` sagt, *wohin* es weitergeht; das reicht für die Wegsuche und
+   * nicht für die Frage, an welcher Stelle jemand hinausgeht. Wer abfangen
+   * oder lauern will, braucht die Tür selbst und nicht den Raum dahinter
+   * (`monster/monsterIntercept.ts`). Die Haustür zählt zur Zentrale, wie
+   * überall in dieser Karte.
+   */
+  doorsOf(id: string): readonly string[];
+  /**
+   * **Die Mitte einer Tür in Metern** — `null`, wenn es die Tür nicht gibt.
+   *
+   * Auf der Kante und nicht auf der Kachel: Der Bauplan sagt „an dieser
+   * Kachel, in dieser Richtung", die Tür sitzt aber auf der Kante dazwischen.
+   * Eine halbe Kachel ist gut ein Meter — und um so viel danebengerechnet
+   * wartet ein Abfangender in der Wand neben der Tür.
+   */
+  doorPoint(id: string): FloorPoint | null;
   /** In welchem Knoten dieser Punkt liegt; leer außerhalb der Station. */
   spaceAt(point: FloorPoint): string;
 }
@@ -72,7 +91,15 @@ export function stationGraph(spec: HouseSpec): StationGraph {
     if (!links.get(a)?.includes(b)) links.get(a)?.push(b);
     if (!links.get(b)?.includes(a)) links.get(b)?.push(a);
   };
-  for (const door of spec.doors) join(door.a, door.b ?? COMMAND);
+  const doorsBySpace = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const doorPoints = new Map<string, FloorPoint>();
+  for (const door of spec.doors) {
+    const behind = door.b ?? COMMAND;
+    join(door.a, behind);
+    doorsBySpace.get(door.a)?.push(door.id);
+    doorsBySpace.get(behind)?.push(door.id);
+    doorPoints.set(door.id, doorCentre(door));
+  }
   const lockers = new Map<string, FloorPoint>();
   for (const placement of stationLayout(spec))
     if (placement.kind === 'locker') lockers.set(placement.roomId, placement.approach);
@@ -128,6 +155,8 @@ export function stationGraph(spec: HouseSpec): StationGraph {
         j = index.get(b);
       return i === undefined || j === undefined ? Infinity : muffle[i * size + j]!;
     },
+    doorsOf: (id) => doorsBySpace.get(id) ?? [],
+    doorPoint: (id) => doorPoints.get(id) ?? null,
     next: (a, b) => {
       const i = index.get(a),
         j = index.get(b);
@@ -151,4 +180,19 @@ export function stationGraph(spec: HouseSpec): StationGraph {
   };
   cache.set(spec, graph);
   return graph;
+}
+
+/**
+ * Die Mitte einer Türkante, in Metern.
+ *
+ * Dieselbe Rechnung wie in `haunt.ts` und `HauntingWorld.edgeCentre`, nur
+ * gleich in Metern: Nach Norden und Süden liegt die Kante quer zur Kachel,
+ * nach Osten und Westen längs.
+ */
+function doorCentre(door: { x: number; z: number; dir: Dir }): FloorPoint {
+  const alongX = door.dir === DIR_N || door.dir === DIR_S;
+  return {
+    x: (door.x + (alongX ? 0.5 : door.dir === DIR_E ? 1 : 0)) * TILE,
+    z: (door.z + (alongX ? (door.dir === DIR_S ? 1 : 0) : 0.5)) * TILE,
+  };
 }

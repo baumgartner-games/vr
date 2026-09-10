@@ -35,6 +35,7 @@ import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
+import { cargoKey, cargoLabel, cargoOf, type CargoSlot } from '../rules/cargo';
 import { CREW_SIZE, askSeal, dueSeal, freshSeal, type DoorSeal } from '../rules/doorSeal';
 import {
   HOLD_RANGE,
@@ -49,6 +50,7 @@ import {
   toggleLock,
   type DoorLocks,
 } from '../rules/doorLocks';
+import { freshGhosts, markGhost } from '../rules/ghosts';
 import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
@@ -197,8 +199,18 @@ interface Cargo {
   id: string;
   roomId: string;
   at: FloorPoint;
+  /** Was herauskommt — bei einer leeren Kiste nichts. */
   loot: string;
+  /** Wie der Inhalt heißt; bei einer leeren Kiste ihr eigenes Kennzeichen. */
   label: string;
+  /** Was außen draufsteht: „Kiste 2 · blau". Das sieht man vor dem Öffnen. */
+  mark: string;
+  /**
+   * Woran hängt, ob diese Kiste schon geleert ist: der Inhalt, und bei einer
+   * leeren die Kiste selbst (`cargoKey`).
+   */
+  key: string;
+  empty: boolean;
 }
 
 interface Console {
@@ -317,6 +329,7 @@ export class FlatRound implements MapSource {
       destroyed: [],
       technician: null,
       ride: 'out',
+      ghosts: freshGhosts(),
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
@@ -336,20 +349,24 @@ export class FlatRound implements MapSource {
     if (this.haunt.monsterOn) this.haunt.monster = { x: centre.x, z: centre.z };
 
     const layout = stationLayout(this.house);
-    let extra = 0;
+    // Inhalt und Kennzeichen kommen aus `rules/cargo.ts` — dieselbe Liste, aus
+    // der auch das Schiff seine Frachtschränke baut. Früher würfelte jede Welt
+    // für sich, und das ging genau so lange gut, wie jeder Raum eine Kiste hatte.
+    for (const slot of cargoOf(this.house)) {
+      const cargo = layout.find((p) => p.id === slot.id);
+      if (!cargo) continue;
+      this.cargo.push({
+        id: slot.id,
+        roomId: slot.roomId,
+        at: cargo.approach,
+        loot: slot.loot.kind === 'empty' ? '' : cargoKey(slot),
+        label: lootName(this.house, slot),
+        mark: cargoLabel(slot),
+        key: cargoKey(slot),
+        empty: slot.loot.kind === 'empty',
+      });
+    }
     for (const room of this.house.rooms) {
-      const task = this.house.tasks.find((t) => t.roomId === room.id);
-      const cargo = layout.find((p) => p.id === `cargo-${room.id}`);
-      if (cargo) {
-        const loot = task ? task.id : ['radar', 'xray', 'medkit', 'medkit'][extra++ % 4]!;
-        this.cargo.push({
-          id: cargo.id,
-          roomId: room.id,
-          at: cargo.approach,
-          loot,
-          label: task ? task.label : (TOOL_LABELS[loot] ?? loot),
-        });
-      }
       const locker = layout.find((p) => p.id === `locker-${room.id}`);
       if (locker) this.lockers.push({ id: room.id, roomId: room.id, at: locker.approach });
     }
@@ -486,7 +503,7 @@ export class FlatRound implements MapSource {
     const crew = this.haunt.crew;
     const out: MapItem[] = [];
     for (const cargo of this.cargo) {
-      const taken = crew.inventory.includes(cargo.loot) || this.haunt.done.includes(cargo.loot);
+      const taken = crew.inventory.includes(cargo.key) || this.haunt.done.includes(cargo.key);
       out.push({
         id: cargo.id,
         kind: 'cargo',
@@ -754,6 +771,30 @@ export class FlatRound implements MapSource {
     else if (!seen && alertBefore < 3 && this.memory.alert >= 3 && this.memory.mode === 'hunt')
       this.events.push({ kind: 'bad', text: 'Es hat dich gehört.' });
     this.seen = seen;
+    // --- Was die beiden voneinander behalten (`rules/ghosts.ts`): die
+    // zuletzt gesehene Stelle. Sie hängt an genau derselben Prüfung wie die
+    // Alarmleiter — ein zweiter, eigener Sichttest wäre eine zweite Wahrheit,
+    // und dann zeigte der Marker woandershin als das Verhalten des Monsters.
+    const ghosts = this.haunt.ghosts;
+    ghosts.technician = markGhost(
+      ghosts.technician,
+      seen,
+      this.player,
+      this.player.yaw,
+      this.haunt.time,
+    );
+    // Und andersherum: Der Techniker merkt sich das Monster genau dann, wenn
+    // seine eigene Sicht es zeigt — Kegel, Licht und freie Linie stecken schon
+    // im Sichtfeld der Karte (`map/visibility.ts`), das jeder Schritt ohnehin
+    // rechnet. In „Alles sehen" zeigt dieses Feld alles; dann läuft der Marker
+    // mit dem Monster mit, und genau das sollen Zuschauer sehen.
+    ghosts.monster = markGhost(
+      ghosts.monster,
+      this.field.visibleEntities.includes(MONSTER_ID),
+      this.monster,
+      this.monster.yaw,
+      this.haunt.time,
+    );
     if (hidden && (seen || this.monster.space === this.player.space) && this.caught !== crew.hidden)
       this.caught = crew.hidden;
     if (!hidden) this.caught = '';
@@ -1078,8 +1119,9 @@ export class FlatRound implements MapSource {
         text: `Radar: Kontakt ${Math.round(Math.hypot(dx, dz))} m ${compass(dx, dz)}.`,
       });
     } else if (tool === 'xray') {
+      // Das Röntgengerät zeigt Inhalte, keine Kisten: Leere meldet es nicht.
       const open = this.cargo.filter(
-        (c) => !crew.inventory.includes(c.loot) && !this.haunt.done.includes(c.loot),
+        (c) => !c.empty && !crew.inventory.includes(c.key) && !this.haunt.done.includes(c.key),
       );
       const near = open
         .map((c) => ({ c, d: Math.hypot(c.at.x - this.player.x, c.at.z - this.player.z) }))
@@ -1124,11 +1166,15 @@ export class FlatRound implements MapSource {
       at: FloorPoint;
     }> = [];
     for (const cargo of this.cargo) {
-      if (crew.inventory.includes(cargo.loot) || this.haunt.done.includes(cargo.loot)) continue;
+      if (crew.inventory.includes(cargo.key) || this.haunt.done.includes(cargo.key)) continue;
       candidates.push({
         kind: 'cargo',
         id: cargo.id,
-        label: crew.opened.includes(cargo.id) ? `${cargo.label} nehmen` : 'Fracht öffnen',
+        label: !crew.opened.includes(cargo.id)
+          ? `${cargo.mark} öffnen`
+          : cargo.empty
+            ? `${cargo.mark} durchsuchen`
+            : `${cargo.label} nehmen`,
         at: cargo.at,
       });
     }
@@ -1214,7 +1260,15 @@ export class FlatRound implements MapSource {
       const cargo = this.cargo.find((c) => c.id === near.id)!;
       if (!crew.opened.includes(cargo.id)) {
         crew.opened.push(cargo.id);
-        this.events.push({ kind: 'info', text: `Fracht geöffnet: ${cargo.label}.` });
+        this.events.push({ kind: 'info', text: `${cargo.mark} geöffnet.` });
+        return;
+      }
+      // **Die leere Kiste kostet zwei Griffe**, nicht einen: aufmachen,
+      // hineinsehen. Erst danach ist sie erledigt und steht dem Techniker
+      // nicht mehr als Ziel im Weg.
+      if (cargo.empty) {
+        crew.inventory.push(cargo.key);
+        this.events.push({ kind: 'info', text: 'Leer.' });
         return;
       }
       crew.inventory.push(cargo.loot);
@@ -1401,6 +1455,19 @@ function farthest(graph: StationGraph, from: FloorPoint): string {
 
 function roomName(spec: HouseSpec, id: string): string {
   return spacesOf(spec).find((room) => room.id === id)?.name ?? id;
+}
+
+/**
+ * Wie der Inhalt einer Kiste heißt — und bei einer leeren die Kiste selbst:
+ * „Leer" ist kein Name, „Kiste 2 · blau" schon, und auf der Karte steht ein
+ * Name.
+ */
+function lootName(house: HouseSpec, slot: CargoSlot): string {
+  const loot = slot.loot;
+  if (loot.kind === 'part')
+    return house.tasks.find((t) => t.id === loot.taskId)?.label ?? loot.taskId;
+  if (loot.kind === 'tool') return TOOL_LABELS[loot.tool] ?? loot.tool;
+  return cargoLabel(slot);
 }
 
 function compass(dx: number, dz: number): string {

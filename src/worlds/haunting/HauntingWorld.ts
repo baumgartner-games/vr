@@ -109,6 +109,7 @@ import { Rng, rollSeed } from './rng';
 import { StationUi } from './stationUi';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
+import { taskCargo } from './rules/cargo';
 import { RoundRules } from './rules/roundRules';
 import {
   HOLD_RANGE,
@@ -123,6 +124,8 @@ import {
   toggleLock,
   type DoorLocks,
 } from './rules/doorLocks';
+import { freshGhosts, markGhost } from './rules/ghosts';
+import { freshLamps, lampGlow, lampOut, stepLamps, switchLamp, type Lamps } from './rules/lamps';
 import {
   cycleMonster,
   cycleWho,
@@ -135,6 +138,17 @@ import {
   WHO_LABELS,
   type RoundSetup,
 } from './rules/roundSetup';
+import { loadLobby, saveLobby, type LobbyChoice } from './rules/lobby';
+import {
+  HOST_BUSY,
+  opensFlat,
+  ROOM_BUSY,
+  startBlocker,
+  startedRound,
+  startEntries,
+  type RoundKind,
+  type WorldMenuState,
+} from './rules/worldMenu';
 import type { MapGoal } from './map/mapView';
 import { VentFlapArt } from './vents/ventArt';
 import { VentNet } from './vents/ventGraph';
@@ -319,18 +333,6 @@ const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
 const _noLid: THREE.Plane[] = [];
 const _lidOn = [_lid];
 
-/** Wo die Checkbox „2D-Welt von oben" ihren Stand aufhebt. */
-const FLAT_STORAGE = 'bgvr.haunting.flat.v1';
-
-function readFlatWanted(): boolean {
-  try {
-    return localStorage.getItem(FLAT_STORAGE) === '1';
-  } catch {
-    // Kein Speicher (privates Fenster, jsdom ohne Origin): dann eben 3D.
-    return false;
-  }
-}
-
 export class HauntingWorld extends GridWorld {
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
   private spec: HouseSpec = generateHouse(rollSeed(), 8);
@@ -462,6 +464,8 @@ export class HauntingWorld extends GridWorld {
   private spook: Spook = freshSpook();
   /** Wer welche Tür gesperrt hat, und wie lange zugefallene halten (`rules/doorLocks.ts`) — beim Gastgeber. */
   private locks: DoorLocks = freshLocks();
+  /** Welche Lampen die Tafel angemacht hat und wie lange sie noch brennen (`rules/lamps.ts`) — beim Gastgeber. */
+  private lampBook: Lamps = freshLamps();
   /** Die Verteilung der nächsten Runde: Techniker, Monster, Plätze (`rules/roundSetup.ts`). */
   private setup: RoundSetup = loadSetup();
   /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
@@ -635,13 +639,20 @@ export class HauntingWorld extends GridWorld {
   private flatIcons: ToolIcons | null = null;
   private flatLoading = false;
   /**
-   * **„2D-Welt von oben"** — die Checkbox im Van und der Menüeintrag. Eine
+   * **Was ich vorhabe und wie ich es sehen will** — die Wahl der Lobby
+   * (`rules/lobby.ts`), gemerkt im Browser: Wer am Telefon spielt, setzt sie
+   * nicht jedes Mal neu. Der alte Schalter „2D-Welt von oben" wird dabei
+   * einmal mitgelesen und danach vergessen.
+   */
+  private lobbyChoice: LobbyChoice = loadLobby();
+  /**
+   * **„2D-Welt von oben"** — nur noch die Ansicht dieser Wahl. Eine
    * Einstellung und kein Start: Sie sagt, wie die *nächste* Runde aussieht,
    * die danach wie jede andere gewählt wird — Bot-Runde, Mission oder Test.
-   * Sie überlebt das Neuladen: Wer am Telefon spielt, setzt sie nicht jedes
-   * Mal neu.
    */
-  private flatWanted = readFlatWanted();
+  private get flatWanted(): boolean {
+    return this.lobbyChoice.view === '2d';
+  }
   /**
    * Wer wo sitzt — und **wann das hier ankam**.
    *
@@ -943,6 +954,8 @@ export class HauntingWorld extends GridWorld {
         test: () => this.startRound('test', ctx),
         flatMode: () => this.toggleFlatWanted(),
         flatWanted: () => this.flatWanted,
+        lobby: () => this.lobbyChoice,
+        setLobby: (choice) => this.setLobby(choice),
         setup: () => this.setup,
         setSetup: (setup) => this.applySetup(setup),
         startSetup: () => this.startRound(roundKindOf(this.setup), ctx),
@@ -1767,6 +1780,14 @@ export class HauntingWorld extends GridWorld {
       // Zugefallene Türen gehen von selbst wieder auf (`rules/doorLocks.ts`).
       const locks = stepLocks(this.locks, this.state.shut, this.state.time);
       if (locks.opened.length) this.state.shut = locks.shut;
+      // Und die Lampen gehen von selbst wieder aus — erst das Flackern, dann
+      // das Geräusch, dann dunkel (`rules/lamps.ts`).
+      const lamps = stepLamps(this.lampBook, this.state.lit, this.state.time);
+      for (const room of lamps.flicker) this.lampSound(room);
+      if (lamps.out.length) {
+        this.state.lit = lamps.lit;
+        for (const room of lamps.out) this.lampSound(room);
+      }
       const oxygen = this.rules.step(this.state);
       if (oxygen) {
         this.removeMonster();
@@ -2163,6 +2184,44 @@ export class HauntingWorld extends GridWorld {
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.1;
       this.monsterSeesPlayer = distance < 24 && this.monsterLineOfSight();
+      // --- Die zuletzt gesehene Stelle, beide Richtungen (`rules/ghosts.ts`).
+      // Sie hängt an denselben Prüfungen wie Alarmleiter und Bot-Furcht: Ein
+      // eigener Sichttest daneben wäre eine zweite Wahrheit, und der Marker
+      // zeigte woandershin als das, was das Monster tut. Der Blick des
+      // Technikers kommt aus der Kamera (im Modelltechniker aus seiner Pose,
+      // deren Winkel wie bei der Drohne um π gedreht steht).
+      let facing = bot ? bot.yaw + Math.PI : 0;
+      if (!bot) {
+        ctx.camera.getWorldDirection(_feet);
+        facing = Math.atan2(-_feet.x, -_feet.z);
+      }
+      const ghosts = this.state.ghosts;
+      ghosts.technician = markGhost(
+        ghosts.technician,
+        this.monsterSeesPlayer,
+        { x: _head.x, z: _head.z },
+        facing,
+        this.state.time,
+      );
+      // Andersherum sieht der Techniker das Monster, wenn es in seinem Kegel
+      // steht und keine Wand dazwischen ist — dieselbe Rechnung, mit der der
+      // Modelltechniker vor ihm flieht (`danger`). Im Schacht sieht ihn
+      // niemand.
+      const sighted =
+        !!monster &&
+        this.state.crew.venting === 0 &&
+        inView(_head, facing, monster, BOT_VISION, BOT_FOV) &&
+        this.clearSight(
+          { x: _head.x, z: _head.z, y: _head.y },
+          { ...monster, y: this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5 },
+        );
+      ghosts.monster = markGhost(
+        ghosts.monster,
+        sighted,
+        monster ?? { x: 0, z: 0 },
+        this.monster?.model.rotation.y ?? 0,
+        this.state.time,
+      );
       this.hearing = monster && this.nav ? acousticField(this.nav, monster, 24) : new Map();
       // Was das Monster hört, rechnet das Hörmodell der Karte (`audio/hearing.ts`):
       // die eigenen Schritte nach Tempo, dazu das Hantieren aus `ShipExperience`.
@@ -2276,10 +2335,18 @@ export class HauntingWorld extends GridWorld {
     const entry = this.spec.switches.find((one) => one.id === id);
     if (!entry) return;
 
-    const list =
-      entry.kind === 'light' ? this.state.lit : entry.kind === 'radio' ? this.state.loud : null;
+    // Licht: höchstens zwei Räume gleichzeitig, und die dritte Lampe macht die
+    // älteste aus — derselbe Handel wie bei dem einen Riegel (`rules/lamps.ts`).
+    if (entry.kind === 'light') {
+      if (on === this.state.lit.includes(entry.target)) return;
+      const out = switchLamp(this.lampBook, this.state.lit, entry.target, this.state.time);
+      this.state.lit = out.lit;
+      if (out.dropped) this.lampSound(out.dropped);
+      return;
+    }
 
-    if (list) {
+    if (entry.kind === 'radio') {
+      const list = this.state.loud;
       const at = list.indexOf(entry.target);
       if (on && at < 0) list.push(entry.target);
       if (!on && at >= 0) list.splice(at, 1);
@@ -2383,10 +2450,24 @@ export class HauntingWorld extends GridWorld {
     this.spook = out.spook;
     if (!this.isHost) return;
 
-    const lit = this.state.lit.indexOf(out.lightOut);
-    if (out.lightOut && lit >= 0) this.state.lit.splice(lit, 1);
+    // Auch der Spuk geht durch die Buchführung: Eine Lampe, die das Monster
+    // ausmacht, ist danach keine der zwei geschalteten mehr (`rules/lamps.ts`).
+    if (out.lightOut && this.state.lit.includes(out.lightOut))
+      this.state.lit = lampOut(this.lampBook, this.state.lit, out.lightOut);
     if (out.doorShut && !this.state.shut.includes(out.doorShut))
       this.state.shut = slamDoor(this.locks, this.state.shut, out.doorShut, this.state.time);
+  }
+
+  /**
+   * **Das Sirren einer Lampe**, die flackert oder gerade ausgegangen ist —
+   * dort, wo sie hängt, und nicht am Ohr (`rules/lamps.ts`). Die 2D-Geräte
+   * hören es über den Stand: Für sie ist ein Raum, der dunkel wird, ein Raum,
+   * der dunkel wird.
+   */
+  private lampSound(roomId: string): void {
+    const lamp = this.lamps.get(roomId);
+    if (!lamp) return;
+    this.experience?.lampCue({ x: lamp.at.x, z: lamp.at.z });
   }
 
   /**
@@ -2431,11 +2512,14 @@ export class HauntingWorld extends GridWorld {
         dt,
       );
     if (this.commandLight) this.commandLight.intensity = lighting.command;
+    // **Im Test und in der Bot-Runde ist alles hell**, und weil es nur zwei
+    // Punktleuchten gibt, brennt dort nur die des eigenen Raums. In der Mission
+    // ist das nicht mehr nötig: Dort brennen ohnehin höchstens zwei Lampen
+    // (`rules/lamps.ts`), und dass eine davon zwei Türen weiter leuchtet, ist
+    // genau die Auskunft, für die der Hacker sie angemacht hat.
+    const wideOpen = bright || this.state.crew.simulation;
     const active = [...this.lamps.entries()].filter(
-      ([id]) =>
-        lighting.lamps &&
-        (bright || this.state.crew.simulation || this.state.lit.includes(id)) &&
-        (bright || this.state.crew.simulation || id === viewRoom?.id),
+      ([id]) => lighting.lamps && (wideOpen ? id === viewRoom?.id : this.state.lit.includes(id)),
     );
     active.sort((a, b) => a[1].at.distanceToSquared(_head) - b[1].at.distanceToSquared(_head));
     for (let i = 0; i < this.lampPool.length; i++) {
@@ -2444,7 +2528,10 @@ export class HauntingWorld extends GridWorld {
       light.intensity = 0;
       if (entry) {
         const [id, lamp] = entry;
-        const glow = !bright && id === this.spook.room ? flickerLevel(this.spook.since) : 1;
+        // Zwei Arten zu zucken, und die dunklere gewinnt: das Monster im Raum
+        // (`haunt.ts`) und die Lampe, deren Zeit abläuft (`rules/lamps.ts`).
+        const haunted = !bright && id === this.spook.room ? flickerLevel(this.spook.since) : 1;
+        const glow = Math.min(haunted, lampGlow(this.lampBook, id, this.state.time));
         light.position.copy(lamp.at);
         light.color.setHex(lamp.color);
         light.intensity = LAMP_ON * glow * lampScale;
@@ -2454,7 +2541,9 @@ export class HauntingWorld extends GridWorld {
       lamp.glass.material.color.lerpColors(
         _lampOff,
         _lampOn,
-        !lighting.dark && (deck ? deck.lamps : bright || this.state.lit.includes(id)) ? 1 : 0,
+        !lighting.dark && (deck ? deck.lamps : bright || this.state.lit.includes(id))
+          ? lampGlow(this.lampBook, id, this.state.time)
+          : 0,
       );
     this.applyBeacons(deck?.alarm ?? this.state.phase === 'lost');
   }
@@ -3303,37 +3392,31 @@ export class HauntingWorld extends GridWorld {
             flat,
           ]
         : []),
-      entry(
-        'haunt:bot-round',
-        'Bot-Runde anschauen',
-        'Eine vollständige Reparaturrunde automatisch beobachten',
-        () => {
-          if (this.context) this.startRound('bot', this.context);
-        },
-      ),
-      entry(
-        'haunt:start',
-        'Mission starten',
-        'Drei Systeme reparieren und zur Zentrale zurückkehren',
-        () => {
-          if (this.context) this.startRound('mission', this.context);
-        },
-      ),
-      entry(
-        'haunt:test',
-        'TEST / ohne Monster',
-        'Sicher üben · Ausrüstung und beleuchtetes Testlabor',
-        () => {
-          if (this.context) this.startRound('test', this.context);
-        },
+      // Die drei Starts kommen aus einer Rechnung, die ein Test nachrechnet
+      // (`rules/worldMenu.ts`): welche Runde losgeht, in welcher Reihenfolge
+      // die Einträge stehen — und welcher Satz an die Stelle einer Runde
+      // tritt, die gerade nicht möglich ist. Vorher stand dort ein Eintrag,
+      // der nichts tat und nichts sagte.
+      ...startEntries(this.startState()).map((row) =>
+        entry(row.id, row.label, row.sub, () => {
+          if (row.starts && this.context) this.startRound(row.starts, this.context);
+          else if (row.blocked) this.context?.notify(row.blocked);
+        }),
       ),
       entry(
         'haunt:light',
         `Testlicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
-        'Auch im Dunkeln ohne Monster testen',
+        // Der Schalter gehört zum Test und tat in einer Mission nichts, ohne
+        // ein Wort dazu — dieselbe Falle wie bei den Starts.
+        this.state.crew.options.test
+          ? 'Auch im Dunkeln ohne Monster testen'
+          : 'Nur im Test · in der Mission bleibt es dunkel',
         () => {
-          if (this.state.crew.options.test)
-            this.state.crew.options.bright = !this.state.crew.options.bright;
+          if (!this.state.crew.options.test) {
+            this.context?.notify('Das Testlicht gehört zum Test — erst „TEST / ohne Monster".');
+            return;
+          }
+          this.state.crew.options.bright = !this.state.crew.options.bright;
         },
       ),
       entry(
@@ -3385,6 +3468,41 @@ export class HauntingWorld extends GridWorld {
     ];
   }
 
+  /**
+   * **Der Stand, aus dem die Start-Einträge gerechnet werden**
+   * (`rules/worldMenu.ts`).
+   *
+   * Dieselbe Rechnung läuft zweimal: einmal beim Bauen des Menüs, damit die
+   * Zeile schon sagt, ob und warum nicht — und einmal beim Druck, denn
+   * zwischen Aufschlagen und Drücken kann ein zweiter Techniker den Raum
+   * betreten haben.
+   */
+  private startState(): WorldMenuState {
+    const ctx = this.context;
+    return {
+      role: ctx?.role ?? 'desktop',
+      immersive: ctx?.renderer.xr.isPresenting ?? false,
+      hostId: this.hostId,
+      me: ctx?.net.localId ?? '',
+      phase: this.state.phase,
+      flatWanted: this.flatWanted,
+      occupied: ctx ? this.roomOccupied(ctx) : false,
+    };
+  }
+
+  /**
+   * Ob in diesem Raum schon jemand anders den Techniker spielt — im Headset
+   * oder als Techniker am Desktop, der sich seit weniger als drei Sekunden
+   * gemeldet hat (`receive`, `kind: 'technician'`).
+   */
+  private roomOccupied(ctx: WorldContext): boolean {
+    return [...ctx.net.peers.values()].some(
+      (peer) =>
+        peer.world === ctx.net.world &&
+        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
+    );
+  }
+
   /** Die Plätze der Zentrale im Menü der Brille: alle Bot → alle Mensch → keine → alle Bot. */
   private cycleSeats(): void {
     const seats = this.setup.seats;
@@ -3402,14 +3520,19 @@ export class HauntingWorld extends GridWorld {
       ctx.join(new URLSearchParams(location.search).get('room') || HAUNT_ROOM);
   }
 
-  /** Die Checkbox „2D-Welt von oben" umlegen — nur die Einstellung, keine Runde. */
+  /** Die Ansicht umlegen — nur die Einstellung, keine Runde. */
   private toggleFlatWanted(): void {
-    this.flatWanted = !this.flatWanted;
-    try {
-      localStorage.setItem(FLAT_STORAGE, this.flatWanted ? '1' : '0');
-    } catch {
-      // Ein privates Fenster ohne Speicher darf die Wahl nicht verhindern.
-    }
+    this.setLobby({ ...this.lobbyChoice, view: this.flatWanted ? '3d' : '2d' });
+  }
+
+  /**
+   * Die Wahl der Lobby übernehmen: merken und die Anzeigen nachziehen. Van,
+   * Brillenmenü und 2D-Optionsmenü zeigen dieselbe Wahl — wer sie an einer
+   * Stelle umstellt, soll sie nicht an der nächsten noch alt vorfinden.
+   */
+  private setLobby(choice: LobbyChoice): void {
+    this.lobbyChoice = choice;
+    saveLobby(choice);
     this.ui?.refresh();
     this.context?.refreshWorldMenu();
   }
@@ -3418,14 +3541,20 @@ export class HauntingWorld extends GridWorld {
    * **Eine Runde starten — in 2D oder 3D, je nach Einstellung.** Die drei
    * Arten sind dieselben wie im Menü der Brille: Bot-Runde (zusehen),
    * Mission (mit Monster) und Test (ohne). Steht „2D-Welt von oben", läuft
-   * jede davon als `FlatMode`; sonst wie bisher im Schiff.
+   * jede davon als `FlatMode`; sonst wie bisher im Schiff. **In der Brille
+   * immer im Schiff** — die Karte von oben gibt es dort nicht (`opensFlat`).
    */
-  private startRound(kind: 'bot' | 'mission' | 'test', ctx: WorldContext): void {
+  private startRound(kind: RoundKind, ctx: WorldContext): void {
     // Die drei Kacheln schreiben Techniker und Monster auf die Tafel; die
     // Plätze der Zentrale bleiben, wie sie verteilt sind (`rules/roundSetup.ts`).
     this.applySetup(presetFor(kind, this.setup));
     const setup = this.setup;
-    if (this.flatWanted) {
+    // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
+    // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
+    // später die Brille aufsetzte, landete hier in `openFlat` — und das steigt
+    // in einer XR-Sitzung wortlos wieder aus. Der Druck auf „Mission starten"
+    // tat dann gar nichts. In der Brille gibt es das Schiff.
+    if (opensFlat(this.startState())) {
       const options = this.state.crew.options;
       const role = flatRoleOf(setup);
       this.openFlat(ctx, {
@@ -3443,9 +3572,17 @@ export class HauntingWorld extends GridWorld {
     // Im Schiff steuert nur der Techniker aus Fleisch; ein Monster aus Fleisch
     // gibt es dort (noch) nicht — es rechnet die Routine.
     const inShip = roundKindOf(setup);
-    if (inShip === 'bot') this.requestBotRound(ctx);
-    else if (inShip === 'mission') this.startMission();
-    else this.testMission();
+    // **Das Panel klappt zu — aber nur, wenn wirklich etwas losgeht.** Sonst
+    // stand es mitten in der Runde, die gerade angefangen hat, und sah aus, als
+    // wäre nichts passiert. Umgekehrt darf es bei einer Absage gerade *nicht*
+    // zugehen: Die Meldung steht in der Statuszeile des Panels und wäre mit ihm
+    // weg (`App.notify`). `requestBotRound` und `openFlat` machen es genauso.
+    if (inShip === 'bot') {
+      this.requestBotRound(ctx);
+      return;
+    }
+    const started = inShip === 'mission' ? this.startMission() : this.testMission();
+    if (started) ctx.menu.toggle(false);
   }
 
   /** Die Tafel schreiben — und allen Anzeigen sagen, dass sie sich geändert hat. */
@@ -3470,7 +3607,11 @@ export class HauntingWorld extends GridWorld {
       if (state.done.includes(repair.itemId)) continue;
       const task = this.spec.tasks.find((t) => t.id === repair.itemId);
       const carried = state.crew.inventory.includes(repair.itemId);
-      const cargo = task ? layout.find((p) => p.id === `cargo-${task.roomId}`) : null;
+      // Seit jeder Raum zwei bis drei Kisten hat, heißt die richtige nicht mehr
+      // `cargo-<raum>`, sondern steht in der einen Liste (`rules/cargo.ts`).
+      // Vorher fand `find` hier nichts, und der Kompass zeigte für ein noch
+      // gar nicht geholtes Teil schon auf die Konsole.
+      const cargo = task ? layout.find((p) => p.id === taskCargo(this.spec, task.id).id) : null;
       const console = layout.find((p) => p.id === `console-${repair.id}`);
       if (!carried && cargo)
         out.push({
@@ -3651,14 +3792,12 @@ export class HauntingWorld extends GridWorld {
   }
 
   private requestBotRound(ctx: WorldContext): void {
-    const occupied = [...ctx.net.peers.values()].some(
-      (peer) =>
-        peer.world === ctx.net.world &&
-        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
-    );
-    if (occupied) {
+    // Hier zählt **nur** der belegte Raum und nicht die Rolle: Die Bot-Runde
+    // ist gerade das, was auch ein Zuschauer am Desktop anwirft — sie macht
+    // ihn dafür selbst zum Techniker (`flatTechnician`).
+    if (this.roomOccupied(ctx)) {
       this.pendingBotRound = false;
-      ctx.notify('Bot-Test nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      ctx.notify(ROOM_BUSY);
       return;
     }
     this.flatTechnician = true;
@@ -3691,19 +3830,35 @@ export class HauntingWorld extends GridWorld {
     this.state.crew.venting = 0;
   }
 
-  private startMission(): void {
-    if (!this.isHost || this.context?.role !== 'vr') return;
-    const options = { ...this.state.crew.options, test: false, bright: false };
+  /** @returns ob die Mission wirklich losgegangen ist. */
+  private startMission(): boolean {
+    // Früher stand hier ein stummes `return`: kein Gastgeber oder nicht der
+    // Techniker, und der Knopf tat nichts, ohne ein Wort dazu. Jetzt sagt er,
+    // was fehlt (`rules/worldMenu.ts`).
+    const blocked = startBlocker(this.startState(), 'mission') ?? (this.isHost ? null : HOST_BUSY);
+    if (blocked) {
+      this.context?.notify(blocked);
+      return false;
+    }
+    const start = startedRound('mission');
+    const options = { ...this.state.crew.options, test: start.test, bright: start.bright };
     this.newRound(options);
-    this.state.phase = 'running';
-    this.state.monsterOn = true;
+    this.state.phase = start.phase;
+    this.state.monsterOn = start.monsterOn;
     const far = roomOf(this.spec, this.spec.fuse.roomId) ?? this.spec.rooms[0]!;
     const at = safeRoomSpawn(this.spec, far.id);
     this.spawnMonster(at);
-    this.state.lit = spacesOf(this.spec).map((room) => room.id);
+    // **Die Station beginnt dunkel**, und sie bleibt es, wenn niemand schaltet.
+    // Vorher gingen hier alle vierzehn Lampen an, und weil `applyLights` nur
+    // die des eigenen Raums brennen ließ, sah es aus, als ginge beim Betreten
+    // von selbst das Licht an — ein Automatismus, den niemand gebaut hatte und
+    // der der Taschenlampe die Aufgabe wegnahm. Licht macht jetzt die Tafel,
+    // höchstens zwei Räume gleichzeitig, und nicht für immer (`rules/lamps.ts`).
+    this.state.lit = [];
     this.announce(
-      'Mission läuft. Archiv: Aufträge und Codes. Einsatzkontrolle: Radar, Puls, Licht und Türen. Nach drei Reparaturen zurück zur Zentrale.',
+      'Mission läuft. Die Station ist dunkel: Taschenlampe an, Licht macht die Einsatzkontrolle. Archiv: Aufträge und Codes. Nach drei Reparaturen zurück zur Zentrale.',
     );
+    return true;
   }
 
   private spawnMonster(at: { x: number; z: number }): void {
@@ -3790,18 +3945,32 @@ export class HauntingWorld extends GridWorld {
     };
   }
 
-  private testMission(): void {
-    if (!this.isHost || this.context?.role !== 'vr') return;
-    this.newRound({ ...this.state.crew.options, test: true, bright: true });
-    this.state.phase = 'running';
+  /** @returns ob der Test wirklich losgegangen ist. */
+  private testMission(): boolean {
+    const blocked = startBlocker(this.startState(), 'test') ?? (this.isHost ? null : HOST_BUSY);
+    if (blocked) {
+      this.context?.notify(blocked);
+      return false;
+    }
+    const start = startedRound('test');
+    this.newRound({ ...this.state.crew.options, test: start.test, bright: start.bright });
+    this.state.phase = start.phase;
     this.state.crew.opened = ['test-supply'];
     this.announce(
       'TEST AKTIV · Kein Monster, kein Schaden. Testschrank rechts ist bestückt; Labor geöffnet. Testlicht lässt sich abschalten.',
     );
+    return true;
   }
 
   private configureStation(options: StationOptions): void {
-    if (!this.isHost || this.context?.role !== 'vr') return;
+    // Eine neue Station ist eine neue Runde und braucht denselben Gastgeber
+    // wie sie — und sagt es genauso, statt den Menüeintrag ins Leere laufen
+    // zu lassen.
+    const blocked = startBlocker(this.startState(), 'mission') ?? (this.isHost ? null : HOST_BUSY);
+    if (blocked) {
+      this.context?.notify(blocked);
+      return;
+    }
     this.newRound(stationOptions(options));
     this.announce(
       `Neue Station: ${this.spec.rooms.length} Räume. Mission oder sicheren Test wählen.`,
@@ -3814,6 +3983,7 @@ export class HauntingWorld extends GridWorld {
     this.rules.reset();
     this.spook = freshSpook();
     this.locks = freshLocks();
+    this.lampBook = freshLamps();
     this.automaticDoors.clear();
     this.spec = generateHouse(rollSeed(), options.rooms);
     this.state = freshState(this.spec.seed, options);
@@ -3880,6 +4050,7 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
 }
 

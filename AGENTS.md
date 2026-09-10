@@ -7674,9 +7674,43 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`FlatRound.moveMonster`) ziehen mit denselben Zahlen. Holz splittert
   weiterhin auf einen Schlag und geht über `releaseLock`, damit die
   Buchführung stimmt.
+- **Licht ist knapp, und es ist eine Entscheidung** (`rules/lamps.ts`, `Lamps`
+  beim Gastgeber, nichts davon auf der Leitung). Die 3D-Mission **beginnt
+  dunkel**: `startMission` setzt `state.lit = []`, und es geht nirgends von
+  selbst Licht an — auch nicht beim Betreten eines Raums und nicht mehr bei
+  einer gelösten Konsole. Wer Licht will, bittet die Einsatzkontrolle, und
+  die schaltet es an ihrer Tafel (`applyFlip`, `kind === 'light'`, über
+  `switchLamp`). Es gelten dieselben drei Regeln wie bei den Türen nebenan:
+  **höchstens `LAMP_BUDGET` = 2 Lampen brennen gleichzeitig** — die dritte
+  macht die älteste aus; **keine Lampe brennt ewig** (`LAMP_RANGE` = 40–60 s,
+  leicht gewürfelt), und die letzten `LAMP_FLICKER` = 3 s davon **flackert**
+  sie (`lampGlow`, dieselbe Kurve wie das Zucken des Spuks) und sirrt dabei
+  (`ShipAudio` `'lamp'`, am Ort der Lampe — zweimal: beim Flackern und beim
+  Ausgehen); und **was das Monster auslöscht, zählt genauso** (`lampOut`, aus
+  `stepSpook`), damit für den Hacker beides gleich aussieht. `stepLamps` lässt
+  die Uhr laufen. Alles, was schon hell war, ohne dass jemand geschaltet hat —
+  der helle Test, die Bot-Runde, die gezeichnete 2D-Station —, lässt die
+  Buchführung in Ruhe. Das Grundlicht der Station ist entsprechend klein
+  (`stationLighting.ROOM_BOUNCE` = 0,12, und nur in einem Raum, in dem
+  wirklich eine Lampe brennt): Die Taschenlampe des VR-Spielers ist nur dann
+  etwas wert, wenn es ohne sie nichts zu sehen gibt.
+  **Was noch fehlt:** Die Frist einer Lampe steht nicht auf der Leitung, also
+  sieht nur der Gastgeber das Flackern; alle anderen sehen den Raum einfach
+  dunkel werden, sobald der nächste Stand kommt. Anders als beim Spuk lässt es
+  sich nicht aus der Monsterposition nachrechnen — dafür müsste `HauntState`
+  die Fristen tragen, und das wäre ein Protokollsprung.
 - `ShipExperience` liest `doorOpen` für die bewegten Blätter und `doorLocked`
   für beidseitige rote/grüne Leuchten oberhalb der Tür. Die Übungsdeck-Tür
   darf niemals `host.test()` oder einen Rundenreset auslösen.
+- **Das HUD des Technikers in 3D** hängt an der Kamera (`ShipExperience`,
+  `mission-hud-strip`) und ist jetzt **zwei Zeilen** — dieselben zwei wie in
+  der 2D-Welt: oben Sauerstoff und Anzug-Leben, darunter drei Kreise für die
+  Aufträge (voll, halb, leer) und der nächste offene im Klartext. Es gibt ihn
+  **in der Brille und am Desktop**; vorher gab es ihn nur im Headset und nur
+  mit der Uhr. Gerechnet wird beides in `rules/roundHud.ts` (`roundHud` für
+  Uhr und Anzug, `hudTasks`/`taskPips` für die Aufträge) — dieselbe Rechnung
+  wie im 2D-HUD und auf den Telefonen, damit drei Anzeigen nicht drei
+  verschiedene Stände zeigen. Gemalt wird nur, wenn sich der Text ändert.
 - `GridWorld.setSlidingGridDoor` verändert nur Türcollider und physische
   Navkante, nicht den ganzen Level. **Wege benutzen `StationTravelPlan`:**
   funktionale automatische Türen sind dort schon vor Annäherung passierbar,
@@ -7731,6 +7765,26 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`fixtureModels.buildBrokenLocker`), funkt alle drei bis sechs Sekunden
   (`rules/cabinWreck.ts`), lässt niemanden mehr hinein und wird vom
   Modelltechniker gemieden.
+- **Die Kisten stehen an einer Stelle** (`rules/cargo.ts`): `cargoOf(spec)`
+  ist die eine Liste aller Frachtkisten einer Runde, und 2D, 3D, Netz-Snapshot
+  und Archiv lesen sie, statt jeweils selbst zu würfeln. Vorher stand je Raum
+  **eine** Kiste, und `ShipExperience` und `map/flatRound.ts` verteilten den
+  Inhalt zweimal nach derselben Regel — was gut ging, solange „die Kiste des
+  Raums" eine Kiste meinte. Jetzt stellt `stationLayout` **zwei bis drei**
+  (`CARGO_PER_ROOM`, Ids `cargo-<raum>-<n>`; zwei sind Pflicht, die dritte
+  fällt weg, wo der Grundriss sie nicht trägt), jede mit einem Kennzeichen aus
+  Farbband und Nummer, je Raum eindeutig (`cargoLabel`: „Kiste 2 · blau"). Drin
+  liegen drei Aufgabenteile — je eines im Raum aus `spec.tasks`, `taskCargo` —,
+  vier Werkzeuge (radar, xray, medkit, medkit) und sonst nichts: **die leere
+  Kiste ist der Preis fürs Suchen.** Sie kostet zwei Griffe, öffnen (Geräusch)
+  und hineinsehen („Leer."), und gilt danach als erledigt. Gewürfelt wird aus
+  **eigenen Strömen** aus `spec.seed`, nie aus dem des Hauses: Die
+  Wurfreihenfolge von `generateHouse` ist Vertrag. Der Archivar liest deshalb
+  nicht mehr das Möbel vor („bei dem Frachtcontainer"), sondern die Kiste —
+  `CargoSlot.clue`, „Kiste 2, blaues Band · Nordwand". `HouseTask.hint` bleibt
+  stehen — er nennt das Merkmal des Raums („bei der Werkbank") und hängt am
+  Reparaturhinweis (`mission.ts`) und an der 2D-Raumakte (`map/flatMode.ts`),
+  die beide noch auf ihn zeigen.
 - Das vorhandene `FlashlightTool` ist Startausrüstung am rechten Gürtel.
   Webhände verwenden dieselbe Toolklasse. Die schwebende Ersatzlampe ist
   im Web anvisierbar; Aufnehmen entfernt ihren echten Physikkörper.
@@ -7739,9 +7793,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Avatar ist im Web unsichtbar; nur in XR wird sein Körper ohne Kopf eingeblendet.
 - `RadarTool` und `XrayTool` sind reguläre Tools mit identischem
   `scannerModel.ts`, Standardgriff und Gürtelablage. Radar zeigt Kontakte,
-  Xray nahe verborgene Fracht. Kein dauerhaftes VR-Sensor-HUD. Nach Inventar-
-  auswahl in VR bleibt ein Tool bis zur ersten bewussten Griffaktion gehalten;
-  andernfalls fällt es im nächsten PortalWorld-Update sofort herunter.
+  Xray nahe verborgene Fracht — **Inhalte, keine Kisten**: Was leer ist, meldet
+  er nicht, sonst wäre er die Antwort auf jede Suche. Kein dauerhaftes
+  VR-Sensor-HUD. Nach Inventarauswahl in VR bleibt ein Tool bis zur ersten
+  bewussten Griffaktion gehalten; andernfalls fällt es im nächsten
+  PortalWorld-Update sofort herunter.
 - **Mikrofon-Gegnerreaktion ist endgültig aus dem Spiel entfernt.** Kein
   `HauntingMicrophone`, kein Audioeingang für Gegnerwahrnehmung. Optionaler
   Sprachchat in `net/Voice.ts` bleibt unabhängig. **Gegneridentifikation ist
@@ -7829,6 +7885,45 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   drin ist oder nicht (`RoutineOutput.cabin`; ohne Schrei und ohne Vorsprung,
   die bleiben dem gesehenen Rückzug). Ein leerer Schrank ist danach trotzdem
   ein Versteck weniger. Kein Wissen darüber, ob der Schrank besetzt ist.
+  **Was es weiß, steht daneben** — `monster/monsterMemory.ts`, und es ist noch
+  **nicht angeschlossen**: ein Glaubensbild über die Räume (je Raum eine
+  Wahrscheinlichkeit, zusammen immer 1), je Raum ein Notizzettel (wann
+  besucht, abgesucht, gesehen, gehört) und eine Spur der letzten sechs
+  Sichtungen, aus der `track.velocity()` Richtung und Tempo schätzt. Eine
+  Sichtung setzt die ganze Masse in einen Raum; ein Geräusch multipliziert die
+  Likelihood aus der gedämpften Hörweite dazu (`StationGraph.earshot`, sonst
+  selbst gerechnet); ein abgesuchter Raum fällt auf `FLOOR` 0,01 statt auf
+  null, damit das Monster nicht an einem Spieler vorbeiläuft, der hinter ihm
+  wieder hineingegangen ist; mit der Zeit gleicht sich das Bild über die Türen
+  aus (`DRIFT` 0,15/s je Tür, gesperrte Türen halten es auf), und nach
+  `FORGET` 45 s ohne Sichtung oder Geräusch ist wieder alles gleich
+  wahrscheinlich. Abfragen: `mostLikely`, `expected`, `certainty`, `exits`
+  (die Türen eines Raums mit dem Anteil des Zuflusses dahinter),
+  `leastRecentlyVisited` (Patrouille und Seitenwechsel), `snapshot` (für die
+  Zuschauer, ab 2 %). Rein und deterministisch, ohne three.js und ohne Zufall
+  — die Routine liest davon bislang nichts, das Verdrahten kommt mit der
+  Abfangrechnung.
+- **Prognose und Abfangen** liegen daneben in `monster/monsterIntercept.ts` —
+  gerechnet, aber **noch nicht angeschlossen**: `monsterRoutine.ts` fragt das
+  Modul bis auf Weiteres nicht, die Haltungen `intercept` und `ambush` gibt es
+  dort noch nicht. Was darin steht: `predictPlayer` verlängert die letzten
+  Sichtungen geradeaus (Richtung und Tempo aus der Spur, Tempo notfalls
+  `PLAYER_SPRINT_SPEED`/`PLAYER_WALK_SPEED`, Puste eingerechnet) zu einer
+  Polyline über **zwei** Türen — die erste nach dem Winkel zum Kurs, die zweite
+  nach dem Zufluss im Glaubensbild — mit einer Ankunftszeit je Tür. `plan`
+  stellt dieser Zeit die des Monsters gegenüber (`Estimator`, heute
+  `graphEstimator` über `roomGraph.distance`) und entscheidet: **abfangen**, wo
+  das Monster mit `SLACK` 0,8 s Luft früher an der Tür ist (der Kandidat, an
+  dem es selbst am schnellsten ist); **verfolgen**, wenn schlichtes Aufholen
+  schneller geht oder keine Tür passt und es überhaupt schneller ist;
+  **lauern** ohne Sichtkontakt bei `certainty() ≥ 0,6` in einem Raum mit
+  höchstens zwei Türen, gedeckelt auf `AMBUSH_MAX` 12 s; sonst **suchen** im
+  wahrscheinlichsten Raum — nicht mehr im gewürfelten Nachbarraum. Dafür nennt
+  `roomGraph.ts` jetzt auch Türen: `doorsOf(raum)` und `doorPoint(tür)` (die
+  Türmitte auf der Kachel**kante**, in Metern). Das Gedächtnis, gegen das
+  gerechnet wird, steht dort als Form (`TrackLike`, `MemoryLike`) und nicht als
+  Import — `monster/monsterMemory.ts` entsteht parallel, das Zusammenhängen
+  beider ist das nächste Paket.
 - **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
   `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
   ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
@@ -7853,6 +7948,35 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
   den Tab nicht einfriert. `DEFAULT_TUNING` ist das Ergebnis dieses Trainings;
   `botTraining.test.ts` misst 1600 Runden nach.
+  **Die zwei bis drei Kisten je Raum kosten den Bot etwas, und das steht so
+  im Test.** Nicht, weil er die Kisten durchwühlte — `missionBot` und
+  `roundSim` gehen über `taskCargo` **direkt** an die richtige —, sondern weil
+  jede zusätzliche Kiste ein weiteres Wandmodul ist: Der Packer stellt
+  daraufhin jedes Zimmer anders, und die Wege werden länger. Ein Mensch kürzt
+  ab, der Bot läuft die Strecke, die dasteht. Gemessen (1600 Runden, vier
+  Reihen) fällt er dadurch von 0,52 / 0,34 auf **0,44 / 0,25**.
+  Deshalb misst `botTraining.test.ts` seit K1 die **Messung** und nicht mehr
+  die Zusage: `BOT_RATES` hält fest, wo der Bot steht, `TRAINING_TARGETS`
+  bleibt, was das Spiel verspricht, und der Abstand zwischen beiden wird
+  ausdrücklich mitgeprüft, damit er nicht stillschweigend wächst. Ein
+  Trainingslauf **kann** ihn zurück ins Band ziehen — nur allein am Techniker
+  gerechnet kam er auf 0,4975 / 0,3525 —, aber über Zahlen, die man einem Bot
+  ansieht (Puste 2 s, Vorsicht 6 m), und dann kippt in `roundSim.test.ts` die
+  Richtung „schneller arbeiten schafft mehr". Über beide Seiten gerechnet
+  drückte er sogar das Grundtempo des Monsters auf 0,65× und damit unter das
+  Gehtempo des Spielers — gegen die Ungleichung darunter. Der Abstand gehört
+  also zugemacht, indem der Bot **klüger** wird, nicht indem seine Gewichte
+  verbogen werden; das ist die Arbeit des Monster-Pakets, das `botTuning.ts`
+  ohnehin neu schreibt. `DEFAULT_TUNING` ist deshalb unverändert.
+  **Zwei Vorrichtungen im Test mussten dabei nachgezogen werden, und beide
+  sagen etwas über das Spiel.** Der historische „chancenlose" Startsatz
+  gewinnt mit den Kisten gemessene 0,375 und ist keiner mehr — der Test fängt
+  jetzt bei einem Techniker an, der wirklich keine Chance hat (das Monster
+  daneben ist unverändert das von damals). Und der „übermächtige" Techniker,
+  der vorher über 0,70 gewann, kommt gegen ein maximal ausgebremstes Monster
+  nur noch auf 0,50: **So viel kostet das Suchen.** Seine Zahlen stehen jetzt
+  ausgeschrieben statt aus `DEFAULT_TUNING` geerbt, damit ein späterer
+  Trainingslauf ihm nicht wieder den Boden wegzieht.
 - **Die Tür hinter dem Techniker** (`rules/doorSeal.ts`) ist der Grund, warum
   aus derselben Einstellung zwei Quoten werden. Er hat gegen das Monster nur
   eines in der Hand, und das ist **eine Tür**: Wer verfolgt hindurchgeht,
@@ -8013,7 +8137,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`bgvr.haunting.setup.v1`) und wird an drei Stellen bedient: die Tafel im
   Van (`roundSetupPanel.ts`, `SetupPanel`, Kachel „Verteilung der nächsten
   Runde" mit „Runde starten"), das Optionsmenü der 2D-Welt (dieselbe Tafel)
-  und das Menü in der Brille (drei Einträge). Die drei alten Kacheln sind
+  und das Menü in der Brille (drei Zykler unter den drei Runden). Die drei alten Kacheln sind
   Voreinstellungen (`presetFor`): Bot-Runde heißt Techniker aus Zahlen, Test
   heißt Monster aus. `flatRoleOf` sagt, wen der Spieler in 2D spielt (ein
   Mensch als Techniker gewinnt gegen ein Mensch als Monster — ein Stock, ein
@@ -8034,7 +8158,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   die Szene kennt keine Tür-Tipps; `FlatRound.lockDoor`, `switchLight`),
   Archivar heißt die Akte per Tipp aufs Zimmer, in Szene wie Karte
   (`FlatMode.openSheet`: Kennzeichen, Schrankcode, Türen, Licht, Fracht mit
-  Fundhinweis, Konsole mit Code oder Kabelplan, Schacht mit Ziel). Ein Mensch
+  Fundhinweis — seit `rules/cargo.ts` das Kistenkennzeichen und die Wand —,
+  Konsole mit Code oder Kabelplan, Schacht mit Ziel). Ein Mensch
   am Platz nimmt sie ihm wieder ab. „Zielpfade" im Optionsmenü legt den Weg
   des Technikers zum nächsten Ziel (`FlatRound.playerRoute`, ein eigener
   `FlatNavigator` mit `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`,
@@ -8057,14 +8182,63 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   liegt klebt am Rand. `compassMarks` ist reine Rechnung mit Test; in der
   Brille gibt es ihn noch nicht (DOM ist dort unsichtbar) — ein Streifen an
   der Kamera wie `ShipExperience.status` wäre der nächste Schritt.
-- **„2D-Welt von oben" ist eine Einstellung, kein Start** (Checkbox im Van,
-  Menüeintrag beim Desktop-Techniker; `HauntingWorld.flatWanted`, in
-  `localStorage` unter `bgvr.haunting.flat.v1`). Gestartet wird danach wie
-  in 3D: **Bot-Runde** (Techniker aus Zahlen, `rules/technicianBot.ts`,
-  Karte folgt ihm, Modus „Alles sehen"), **Mission** (mit Monster) oder
-  **Test** (ohne) — `HauntingWorld.startRound` entscheidet anhand der
-  Einstellung, ob `FlatMode` oder das Schiff. Die 2D-**Bot-Runde** ist lokal
-  und sperrt keinen Techniker im Schiff; deshalb bleibt sie auch dann wählbar,
+- **Eine Runde in der Brille starten** (`HauntingWorld.menu()`,
+  `rules/worldMenu.ts`): Handgelenk-Knopf drücken, im Panel unter den fünf
+  Einträgen der Engine (Welten, Verbindung, Bewegung, Aussehen, Grafik) stehen
+  **zuerst** die drei Runden — _Mission starten_, _TEST / ohne Monster_,
+  _Bot-Runde anschauen_ —, dann die Einstellungen (Testlicht, Station, Gegner,
+  Verteilung). Ein Druck genügt, es gibt kein Untermenü, und das Panel klappt
+  zu — **nur wenn wirklich etwas losgeht**: Eine Absage muss offen bleiben,
+  weil `App.notify` in der Brille die Statuszeile *des Panels* schreibt und die
+  Meldung mit ihm verschwände. Danach läuft die Runde
+  (`phase === 'running'`); bei der Mission ist das Monster an, Bot-Runde und
+  Test sind der sichere Stand mit Testlicht (`startedRound`).
+  **Was dabei schiefgeht, sagt der Eintrag jetzt selbst.** Die Rechnung
+  darüber, welcher Eintrag dasteht, was er startet und welcher Satz an die
+  Stelle einer Runde tritt, die nicht losgeht, liegt ohne three.js in
+  `rules/worldMenu.ts` und wird von `worldMenu.test.ts` nachgerechnet — drei
+  Hürden waren es, und jede endete vorher in einem Eintrag, der nichts tat und
+  nichts sagte:
+  1. **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht** (`opensFlat`).
+     Sie steht im `localStorage` des ganzen Browsers; wer sie irgendwann im Van
+     angehakt hatte, wurde in der Brille nach `openFlat` geschickt — und das
+     steigt in einer XR-Sitzung wortlos wieder aus („Im Headset gibt es keine
+     Karte von oben"). Im Panel war die Checkbox dabei gar nicht zu sehen, sie
+     steht nur im Fenstermodus darin. In der Brille gibt es deshalb immer das
+     Schiff.
+  2. **Ein fremder Gastgeber** (`mayCompute`, `HOST_BUSY`): Rechnet ein anderes
+     Gerät die Runde — ein zweites Fenster, das noch als Techniker im Raum
+     steht, reicht —, dann sagt der Eintrag das, statt still zu bleiben.
+     Dieselbe Meldung kommt beim Druck.
+  3. **Die falsche Rolle** (`NOT_TECHNICIAN`) und **ein belegter Raum**
+     (`ROOM_BUSY`, nur für die Bot-Runde: sie setzt den Stand zurück). Auch die
+     Kacheln im Van laufen durch dieselbe Prüfung; „Mission spielen" ohne
+     2D-Haken sagt jetzt, dass das dem Techniker gehört, statt gar nichts zu
+     tun.
+- **Die Lobby ist zwei Achsen, kein Schalter** (`rules/lobby.ts`,
+  `LobbyChoice`, in `localStorage` unter `bgvr.haunting.lobby.v1`). Die
+  **Absicht** (`Intent`) sagt, *was* passiert — **Spielen** (Mission mit
+  Monster), **Zuschauen** (der Runde im Raum folgen, sonst Bot gegen Bot,
+  `rules/technicianBot.ts`, Modus „Alles sehen") oder **Trainieren** (ohne
+  Monster, früher „Test"). Die **Ansicht** (`View`) sagt nur, *wie* man
+  dabei zusieht: **2D von oben** oder **3D Schiff** — auf dem Telefon ist 2D
+  voreingestellt (`defaultLobby`), in der Brille bleibt 3D — dort ist die
+  Ansicht **wirkungslos**, siehe den Absatz darüber. Beide sind
+  unabhängig; die alte Checkbox „2D-Welt von oben" war eine Ansicht, die
+  aussah wie ein Start, und deutete die Kacheln unter sich um.
+  Die Absicht ist keine zweite Wahrheit neben der Verteilung: `applyIntent`
+  schreibt sie in die `RoundSetup` (die Plätze der Zentrale bleiben dabei
+  stehen), `intentOf` liest sie wieder heraus, und `startLabel` beschriftet
+  daraus den **einen** Startknopf („Mission starten (2D)", „Zuschauen",
+  „Training starten (3D)"). `HauntingWorld.flatWanted` ist nur noch
+  `lobby.view === '2d'` und entscheidet in `startRound`, ob `FlatMode` oder
+  das Schiff; der alte Schlüssel `bgvr.haunting.flat.v1` wird beim ersten
+  Laden noch einmal gelesen (`'1'` → 2D) und danach nie wieder geschrieben.
+  Die Oberflächen ziehen nach: Van, Brillenmenü und 2D-Optionsmenü zeigen
+  vorerst noch die Checkbox und die drei Kacheln, lesen die Ansicht aber
+  schon aus derselben Wahl.
+  Die 2D-**Bot-Runde** ist lokal und sperrt keinen Techniker im Schiff;
+  deshalb bleibt sie auch dann wählbar,
   wenn im Raum schon jemand spielt. 2D-**Mission** und 2D-**Test** sind
   dagegen die gemeinsame Runde übers Netz (siehe unten) — wer sie spielt, ist
   der Techniker, und ein zweiter Techniker im Raum sperrt sie.
@@ -8101,10 +8275,20 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
-- **STATION_PROTOCOL=7**: der Stand trägt jetzt die zerstörten Kabinen
+- **STATION_PROTOCOL=8**: der Stand trägt jetzt die zerstörten Kabinen
   (`destroyed`, seit 6), die Fahrtphase des Monsters (`ride`) und den
-  2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`.
-  Alte Clients werden abgewiesen; nach Update alle Geräte neu laden.
+  2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`. **Seit 8
+  auch die Ghost-Marker** (`ghosts`, `rules/ghosts.ts`): wo jede Seite die
+  andere zuletzt gesehen hat — Stelle, Blick und Zeitpunkt, gesetzt beim
+  Sichtkontakt und danach stehenbleibend, bis der nächste ihn versetzt. Sie
+  stehen im Stand und nicht bei dem, der gerade hinsieht, weil jedes Gerät sie
+  braucht: der Techniker den des Monsters, das Monster-Telefon den des
+  Technikers, der Zuschauer beide. Ein Stand ohne `ghosts` wird als „noch
+  niemand hat jemanden gesehen" gelesen, nicht als Fehler; die Deckkraft
+  rechnet für alle Darstellungen dieselbe Formel (`ghostAlpha`, voll bis
+  `GHOST_TTL` − `GHOST_FADE`, dann linear aus, ab `GHOST_TTL` = 25 s weg).
+  Alte Clients werden abgewiesen; nach Update **alle Geräte neu laden** —
+  ein Telefon der Version 7 sieht sonst gar nichts mehr.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
 - Spielhost: VR-Techniker, sonst ältester Peer. Desktop-Techniker meldet sich

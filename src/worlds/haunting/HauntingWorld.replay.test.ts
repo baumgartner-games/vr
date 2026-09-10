@@ -7,10 +7,13 @@ import { AutomaticDoors } from './automaticDoors';
 import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
 import { Rng } from './rng';
+import { defaultLobby, type LobbyChoice } from './rules/lobby';
 import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
 import type { HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
+import { HOST_BUSY } from './rules/worldMenu';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
 
@@ -37,6 +40,7 @@ interface ReplayWorld {
   receive(data: unknown, from: string): void;
   requestBotRound(ctx: unknown): void;
   menu(): MenuEntry[];
+  lobbyChoice: LobbyChoice;
   flatTechnician: boolean;
   pendingBotRound: boolean;
   stepCrew(dt: number, ctx: unknown): void;
@@ -63,6 +67,7 @@ function snapshot(seed = 391): HauntState {
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
 }
 
@@ -98,6 +103,9 @@ function replay(): ReplayWorld {
     npcRide: null,
     ventArt: null,
     monsterDriver: null,
+    // Die Wahl der Lobby (`rules/lobby.ts`) — ohne sie hat der Nachbau keine
+    // Ansicht, und `flatWanted` liest sie aus.
+    lobbyChoice: defaultLobby('desktop'),
   });
   return world;
 }
@@ -232,6 +240,31 @@ test.each(['vr', 'desktop'])(
     expect(world.pendingBotRound).toBe(false);
   },
 );
+
+test('the headset menu leads with the mission and says why a start is refused', () => {
+  const world = replay();
+  const ctx = {
+    ...election('vr'),
+    notify: jest.fn(),
+    menu: { toggle: jest.fn() },
+    renderer: { xr: { isPresenting: true } },
+  };
+  world.context = ctx;
+  // Die Ansicht „2D von oben" darf in der Brille nichts umleiten, und ein
+  // fremder Gastgeber darf den Eintrag nicht stumm machen (`rules/worldMenu.ts`).
+  world.lobbyChoice = { intent: 'play', view: '2d' };
+  world.hostId = 'remote';
+  const rounds = world.menu().filter((row) => row.id.startsWith('haunt:'));
+  expect(rounds.slice(0, 3).map((row) => row.id)).toEqual([
+    'haunt:start',
+    'haunt:test',
+    'haunt:bot-round',
+  ]);
+  expect(rounds[0]!.sub).toBe(HOST_BUSY);
+  rounds[0]!.run!(null);
+  expect(ctx.notify).toHaveBeenCalledWith(HOST_BUSY);
+  expect(ctx.menu.toggle).not.toHaveBeenCalled();
+});
 
 test('returning to the station menu cancels a queued solo bot round', () => {
   const world = replay();

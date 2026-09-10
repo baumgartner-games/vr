@@ -3,7 +3,9 @@ import { StationUi, type StationHost } from './stationUi';
 import { homeView } from './archiveView';
 import { generateHouse } from './house';
 import { freshCrew, lockerCode, repairsFor } from './mission';
+import { taskCargo } from './rules/cargo';
 import type { HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
 import type { StationId } from './stations';
 import { emptySnapshot, type MapRound } from './map/mapSnapshot';
 import type { MonsterPort } from './monster/monsterDriver';
@@ -99,6 +101,7 @@ function crew(
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
   let seat: StationId | null = null;
   let round: MapRound | null = null;
@@ -378,7 +381,9 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     select.dispatchEvent(new Event('change', { bubbles: true }));
     const text = document.querySelector('.haunt__sheet')?.textContent;
     expect(text).toContain(task.label);
-    expect(text).toContain(task.hint);
+    // Seit `rules/cargo.ts` steht auf dem Blatt die Kiste und nicht das Möbel:
+    // Bei zwei bis drei Kisten je Raum hilft „bei der Werkbank" niemandem mehr.
+    expect(text).toContain(taskCargo(game.spec, task.id).clue);
   });
 
   it('pans and zooms a room with touch, wheel and keyboard without selecting another room', () => {

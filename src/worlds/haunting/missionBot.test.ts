@@ -2,6 +2,7 @@ import { generateHouse } from './house';
 import { freshCrew, puzzleSolved, repairsFor, stationOptions } from './mission';
 import { MissionBot } from './missionBot';
 import type { HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
 import { housePlan } from './plan';
 import { stationRoute } from './stationNavigation';
 import { COMMAND_HOME } from './trainingLayout';
@@ -25,6 +26,7 @@ function state(seed: number, rooms: number): HauntState {
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
     crew: freshCrew(stationOptions({ test: true, bright: true, rooms })),
   };
 }

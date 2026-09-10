@@ -70,7 +70,11 @@ Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
 Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
 Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es nicht. Die **Einsatzkontrolle** verfolgt
 das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
-Schiebetüren und Geräuschköder. Drohne und Zuschauer sind weitere optionale
+Schiebetüren und Geräuschköder. **Die Station ist dunkel**, und sie bleibt es,
+wenn niemand schaltet: Es geht nirgends von selbst Licht an. Die
+Einsatzkontrolle kann höchstens **zwei Lampen gleichzeitig** brennen lassen —
+die dritte macht die älteste aus —, und keine hält länger als etwa eine Minute:
+Sie flackert, sirrt und geht aus. Wer im Dunkeln steht, hat die Taschenlampe. Drohne und Zuschauer sind weitere optionale
 Plätze; die Schalttafel gehört zur Einsatzkontrolle.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
@@ -93,7 +97,11 @@ eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
 desselben Browsers, keine getrennten Geräte im WLAN.
 
 **Die Mission:** In der sicheren Einsatzzentrale einen Gegner auswählen und
-**Mission starten**. Die feste Skeld-Karte enthält 14 benannte Räume in der
+**Mission starten**. In der Brille geht das über den Knopf am Handgelenk: Im
+Menü stehen ganz oben _Mission starten_, _TEST / ohne Monster_ und _Bot-Runde
+anschauen_ — ein Druck, kein Untermenü, das Panel klappt dabei zu. Geht gerade
+keine Runde los, weil ein anderes Gerät sie rechnet oder schon jemand als
+Techniker spielt, steht das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
 Weapons/O2/Navigation rechts, Storage unten und die dazwischenliegenden
 Nebenräume. Die meisten Räume messen 4 × 4 Rasterfelder (10 × 10 Meter);
@@ -101,10 +109,14 @@ Cafeteria und Storage sind größer. Gänge verbinden die Module über echte
 Rasterböden. Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
 Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
-Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. Das
-Archiv ermittelt den Fundort des benötigten Werkzeugs oder Bauteils. Der
-Techniker öffnet den Frachtschrank, nimmt den Gegenstand und entriegelt den
-passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
+Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. In jedem
+Raum stehen **zwei bis drei Frachtkisten**, jede mit Farbband und Nummer
+beschriftet („Kiste 2 · blau"); die drei Ersatzteile liegen in dreien davon,
+vier weitere halten Werkzeug, und der Rest ist leer. Das Archiv weiß als
+Einziges, welche es ist, und sagt es an: „Kiste 2, blaues Band · Nordwand".
+Wer ohne diese Ansage sucht, öffnet Kisten — und jede offene Kiste macht
+Geräusch. Der Techniker öffnet die Kiste, nimmt den Gegenstand und entriegelt
+den passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
 Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
 zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
 
@@ -155,14 +167,16 @@ Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
 funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
 Der Sauerstoff reicht zehn Minuten und läuft gleichmäßig ab; keine Reparatur
 füllt ihn auf. Uhr und Anzug-Leben stehen bei allen Mitspielern in der Leiste
-und beim Techniker im Blickfeld.
+und beim Techniker im Blickfeld — dort in zwei Zeilen, wie in der 2D-Welt:
+oben Sauerstoff und Anzug, darunter drei Kreise für die Aufträge und der
+nächste offene im Klartext. In der Brille und am Desktop dasselbe.
 
 Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
 aufgenommen werden. **Radar** und **Röntgengerät** sind echte greifbare
 Werkzeuge mit demselben Scannergehäuse und seitlicher Gürtelablage. Radar zeigt
-nahe Bewegung, Röntgen verborgene Fracht. Anzeigen erscheinen auf dem benutzten
-Gerät; ein dauerhaftes Radar-/Sensor-HUD im VR-Blick gibt es nicht.
+nahe Bewegung, Röntgen den Inhalt naher Kisten — leere meldet es nicht.
+Anzeigen erscheinen auf dem benutzten Gerät; ein dauerhaftes Radar-/Sensor-HUD im VR-Blick gibt es nicht.
 
 Über jedem Schott zeigen Leuchten auf beiden Seiten seinen Zustand: **grün**
 bedeutet betriebsbereit und öffnet beim Annähern, **rot** bedeutet gesperrt.

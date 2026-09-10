@@ -18,7 +18,14 @@ export type ShipSound =
   /** Die aufgerissene Kabine. */
   | 'breach'
   /** Der eigene Herzschlag bei einer Verfolgung. */
-  | 'heartbeat';
+  | 'heartbeat'
+  /**
+   * **Eine Lampe am Ende ihrer Zeit** — das Sirren und das Klacken, mit dem
+   * sie ausgeht (`rules/lamps.ts`). Es hat einen Ort: Wer im Nebenraum steht,
+   * hört, wo es gleich dunkel wird, und wer es hört, weiß auch, dass jemand
+   * dort Licht gemacht hat.
+   */
+  | 'lamp';
 export interface ShipAudioFrame {
   listener: SignalPoint;
   forward: SignalPoint;
@@ -62,6 +69,7 @@ const DURATIONS: Partial<Record<ShipSound, number>> = {
   scream: 0.95,
   breach: 0.52,
   heartbeat: 0.16,
+  lamp: 0.34,
 };
 const RATES: Partial<Record<ShipSound, number>> = {
   door: 0.45,
@@ -70,6 +78,7 @@ const RATES: Partial<Record<ShipSound, number>> = {
   klack: 1.9,
   scream: 0.28,
   breach: 0.6,
+  lamp: 2.4,
 };
 const VOLUMES: Partial<Record<ShipSound, number>> = {
   spark: 0.06,
@@ -79,6 +88,7 @@ const VOLUMES: Partial<Record<ShipSound, number>> = {
   scream: 0.19,
   breach: 0.16,
   heartbeat: 0.13,
+  lamp: 0.07,
 };
 
 interface Voice {
@@ -247,6 +257,7 @@ export class ShipAudio {
       kind === 'klack' ||
       kind === 'scream' ||
       kind === 'breach' ||
+      kind === 'lamp' ||
       (kind === 'step' && monster === 'crawler');
     const duration = DURATIONS[kind] ?? 0.2;
     const source = noisy ? ctx.createBufferSource() : ctx.createOscillator();
