@@ -1,11 +1,16 @@
 import { generateHouse, type HouseSpec } from './house';
-import { ENTITY_PROFILES, type ThreatState } from './threat';
+import { ENTITY_PROFILES, freshThreat, hearNoises, stepAwareness, takeAlert } from './threat';
 import { MONSTERS, repairsFor, type MonsterKind } from './mission';
 import { MonsterRoutine, paceSpeed, type MonsterMode } from './monsterRoutine';
 import { Rng } from './rng';
 import { stationGraph, COMMAND, type StationGraph } from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { DEFAULT_TUNING, type BotTuning } from './botTuning';
+import { Hearing, type HearingWorld } from './audio/hearing';
+import { NOISE } from './audio/cues';
+import { roomsOf, wallsOf } from './map/extract';
+import { DOOR_WIDTH, doorAxis, doorCentre } from './map/geometry';
+import { VentNet } from './vents/ventGraph';
 
 /**
  * **Eine ganze Runde in einer Millisekunde** — ohne Bild, ohne Physik, ohne
@@ -60,7 +65,43 @@ export interface RoundOptions {
 const DT = 0.25;
 const CONTACT = 1.7;
 const ARRIVED = 1.2;
+/** Eine automatische Tür steht offen, sobald jemand so nah ist (wie in der 2D-Runde). */
+const DOOR_TRIGGER = 2.2;
 const specs = new Map<number, HouseSpec>();
+const worlds = new Map<number, HearingWorld>();
+const hearing = new Hearing();
+
+/**
+ * Die Station als Hörwelt (`audio/hearing.ts`): Räume, Wände, Türen und
+ * Klappen einmal je Samen; der Zustand der Türen wird je Schritt gesetzt.
+ */
+export function hearingWorld(seed: number): HearingWorld {
+  let world = worlds.get(seed);
+  if (!world) {
+    const spec = simulationSpec(seed);
+    const vents = new VentNet(spec);
+    world = {
+      seed: spec.seed,
+      rooms: roomsOf(spec, []),
+      walls: wallsOf(spec),
+      doors: spec.doors.map((door) => ({
+        id: door.id,
+        a: door.a,
+        b: door.b ?? COMMAND,
+        at: doorCentre(door),
+        axis: doorAxis(door.dir),
+        width: DOOR_WIDTH,
+        open: false,
+        locked: false,
+        material: door.material,
+      })),
+      items: vents.items(),
+      ventLinks: vents.mapLinks(),
+    };
+    worlds.set(seed, world);
+  }
+  return world;
+}
 
 /** Stationen sind teuer und deterministisch — also einmal bauen und behalten. */
 export function simulationSpec(seed: number): HouseSpec {
@@ -136,40 +177,64 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   let calm = 0;
   let fleeing = false;
   let escape: { at: FloorPoint; space: string; locker: boolean } | null = null;
-  const memory: ThreatState = { awareness: 0, mode: 'patrol', memory: 0, target: null };
+  let working = false;
+  const memory = freshThreat();
+  const world = hearingWorld(seed);
   let time = 0;
 
   for (; time < limit; time += DT) {
     invulnerable = Math.max(0, invulnerable - DT);
     const gap = Math.hypot(technician.x - monster.x, technician.z - monster.z);
 
-    // --- Wahrnehmung des Monsters -----------------------------------------
-    const moving = hidden ? 0 : fleeing ? 1 : 0.45;
+    // --- Wahrnehmung des Monsters: dasselbe Hörmodell und dieselbe
+    // Alarmleiter wie im Headset und in der 2D-Runde (`threat.ts`).
+    for (const door of world.doors)
+      door.open =
+        Math.hypot(door.at.x - technician.x, door.at.z - technician.z) < DOOR_TRIGGER ||
+        Math.hypot(door.at.x - monster.x, door.at.z - monster.z) < DOOR_TRIGGER;
+    const loudness = hidden ? 0 : fleeing ? NOISE.sprint : working ? NOISE.interact : NOISE.walk;
     const heard =
-      !hidden &&
-      moving > 0 &&
-      graph.earshot(monster.space, technician.space) + gap * 0.15 <
-        profile.hearing * tuning.monster.hearing * moving;
+      loudness > 0
+        ? hearNoises(
+            hearing,
+            world,
+            monster,
+            [{ at: technician, loudness }],
+            tuning.monster.hearing,
+          )
+        : [];
     const seen =
       !hidden &&
       monster.space === technician.space &&
       gap < profile.vision * tuning.monster.vision * 0.5;
-    if (seen || heard) {
-      memory.target = { x: technician.x, z: technician.z };
-      memory.memory = profile.memory * tuning.monster.memory;
-      contacts++;
-    } else memory.memory = Math.max(0, memory.memory - DT);
-    if (memory.memory <= 0) memory.target = null;
+    const before = memory.mode;
+    stepAwareness(
+      memory,
+      DT,
+      {
+        player: technician,
+        monster,
+        noises: heard,
+        flashlight: true,
+        lineOfSight: monster.space === technician.space,
+        insideStation: true,
+        seen,
+      },
+      { vision: profile.vision, memory: profile.memory * tuning.monster.memory },
+      !hidden,
+    );
+    if (memory.mode === 'hunt' && before !== 'hunt') contacts++;
 
     const decision = routine.step(graph, {
       dt: DT,
       at: monster,
       here: monster.space,
-      signal: memory.target,
+      signal: memory.memory > 0 ? memory.target : null,
       seen,
       quarry: technician.space,
       caught,
       rng: roll,
+      ...takeAlert(memory),
     });
     modes[decision.mode] += DT;
     if (decision.strike && hidden) {
@@ -259,6 +324,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     const there =
       technician.space === target.space &&
       Math.hypot(technician.x - target.at.x, technician.z - target.at.z) < ARRIVED;
+    working = there;
     if (!there) {
       move(technician, target.at, graph, tuning.technician.walk);
       // Nach der Flucht kommt die Puste zurück, aber langsam.

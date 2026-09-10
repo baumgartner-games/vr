@@ -19,7 +19,17 @@ import { COMMAND, stationGraph, type StationGraph } from '../roomGraph';
 import { stationLayout, type FloorPoint } from '../stationLayout';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from '../monsterRoutine';
 import { DEFAULT_TUNING, type BotTuning } from '../botTuning';
-import { ENTITY_PROFILES, type ThreatState } from '../threat';
+import {
+  ENTITY_PROFILES,
+  freshThreat,
+  hearNoises,
+  stepAwareness,
+  takeAlert,
+  type NoiseSource,
+  type ThreatState,
+} from '../threat';
+import { Hearing } from '../audio/hearing';
+import { NOISE, stepLoudness } from '../audio/cues';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
@@ -180,7 +190,11 @@ export class FlatRound implements MapSource {
   private readonly lockers: Locker[] = [];
   private readonly routine: MonsterRoutine;
   private decision: RoutineOutput | null = null;
-  private readonly memory: ThreatState = { awareness: 0, mode: 'patrol', memory: 0, target: null };
+  /** Was das Monster wahrnimmt — dieselbe Leiter wie im Headset (`threat.ts`). */
+  private readonly memory: ThreatState = freshThreat();
+  /** Das Hörmodell (`audio/hearing.ts`) und die Geräusche des Spielers seit dem letzten Schritt. */
+  private readonly hearing = new Hearing();
+  private noises: NoiseSource[] = [];
   private readonly rng: Rng;
   private readonly tuning: BotTuning;
   private spook: Spook = freshSpook();
@@ -550,15 +564,20 @@ export class FlatRound implements MapSource {
       return;
     }
 
-    // --- Wahrnehmung des Monsters --------------------------------------------
+    // --- Wahrnehmung des Monsters: Sehen über die Karte, Hören über das
+    // Hörmodell, die Alarmleiter aus `threat.ts` — dieselbe wie im Headset.
     const profile = ENTITY_PROFILES[crew.options.monster];
     const hidden = !!crew.hidden;
-    const noise = hidden ? 0 : this.sprinting ? 1 : this.moving ? 0.45 : 0;
-    const heard =
-      noise > 0 &&
-      this.graph.earshot(this.monster.space, this.player.space) + gap * 0.15 <
-        profile.hearing * this.tuning.monster.hearing * noise;
     const snapshot = this.snapshot();
+    if (this.moving && !hidden)
+      this.noises.push({
+        at: { x: this.player.x, z: this.player.z },
+        loudness: stepLoudness(speed),
+      });
+    const heard = hidden
+      ? []
+      : hearNoises(this.hearing, snapshot, this.monster, this.noises, this.tuning.monster.hearing);
+    this.noises.length = 0;
     const cone = {
       entityId: MONSTER_ID,
       at: { x: this.monster.x, z: this.monster.z },
@@ -566,17 +585,31 @@ export class FlatRound implements MapSource {
       fov: MONSTER_FOV,
       range: profile.vision * this.tuning.monster.vision,
     };
+    const lineOfSight = gap < 2.5 || lineOfSightOn(snapshot, this.monster, this.player);
     const visible = !hidden && (gap < 2.5 || litAt(this.lightOnly(), this.player));
-    const seen =
-      visible && inConeOf(cone, this.player) && lineOfSightOn(snapshot, this.monster, this.player);
-    if ((seen || heard) && !this.seen && seen)
-      this.events.push({ kind: 'bad', text: 'Es hat dich gesehen.' });
+    const seen = visible && inConeOf(cone, this.player) && lineOfSight;
+    const alertBefore = this.memory.alert;
+    stepAwareness(
+      this.memory,
+      dt,
+      {
+        player: this.player,
+        monster: this.monster,
+        noises: heard,
+        flashlight: this.torch,
+        lineOfSight,
+        insideStation: true,
+        seen,
+      },
+      { vision: profile.vision, memory: profile.memory * this.tuning.monster.memory },
+      !hidden,
+    );
+    if (seen && !this.seen) this.events.push({ kind: 'bad', text: 'Es hat dich gesehen.' });
+    else if (!seen && alertBefore < 2 && this.memory.alert >= 2)
+      this.events.push({ kind: 'warn', text: 'Etwas horcht.' });
+    else if (!seen && alertBefore < 3 && this.memory.alert >= 3 && this.memory.mode === 'hunt')
+      this.events.push({ kind: 'bad', text: 'Es hat dich gehört.' });
     this.seen = seen;
-    if (seen || heard) {
-      this.memory.target = { x: this.player.x, z: this.player.z };
-      this.memory.memory = profile.memory * this.tuning.monster.memory;
-    } else this.memory.memory = Math.max(0, this.memory.memory - dt);
-    if (this.memory.memory <= 0) this.memory.target = null;
     if (hidden && (seen || this.monster.space === this.player.space) && this.caught !== crew.hidden)
       this.caught = crew.hidden;
     if (!hidden) this.caught = '';
@@ -587,11 +620,12 @@ export class FlatRound implements MapSource {
           dt,
           at: this.monster,
           here: this.monster.space,
-          signal: this.memory.target,
+          signal: this.memory.memory > 0 ? this.memory.target : null,
           seen,
           quarry: this.player.space,
           caught: this.caught,
           rng: () => this.rng.next(),
+          ...takeAlert(this.memory),
         });
     this.decision = decision;
     if (decision.strike && hidden) {
@@ -617,12 +651,28 @@ export class FlatRound implements MapSource {
       const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.graph);
       if (!this.ventRide.busy)
         this.moveMonster(steered, dt, paceSpeed(base, this.tuning.monster, steered.pace));
+      // Wer steht und horcht, dreht sich zur Richtung des Geräuschs.
+      if (decision.face && decision.pace === 'still')
+        this.monster.yaw = Math.atan2(
+          -(decision.face.x - this.monster.x),
+          -(decision.face.z - this.monster.z),
+        );
     }
     this.haunt.monster = { x: this.monster.x, z: this.monster.z };
 
     // Die KI trifft durch Berührung, ein Spieler nur mit dem Knopf.
     const wantsHit = piloted ? decision.strike : !decision.strike;
     if (gap < CONTACT && !hidden && wantsHit && takeCrewHit(crew, true)) this.hit('Treffer.');
+  }
+
+  /** Ein Geräusch des Spielers für die Ohren des Monsters (`audio/cues.ts`, `NOISE`). */
+  private noise(at: FloorPoint, loudness: number): void {
+    this.noises.push({ at: { x: at.x, z: at.z }, loudness });
+  }
+
+  /** Der Alarm des Monsters — für Anzeigen und Tests. */
+  get threat(): Readonly<ThreatState> {
+    return this.memory;
   }
 
   private hit(text: string): void {
@@ -722,6 +772,7 @@ export class FlatRound implements MapSource {
   private use(): void {
     const crew = this.haunt.crew;
     const tool = this.activeTool;
+    if (tool) this.noise(this.player, tool === 'flashlight' ? NOISE.light : NOISE.click);
     if (tool === 'flashlight') {
       this.torch = !this.torch;
       this.events.push({ kind: 'info', text: this.torch ? 'Lampe an.' : 'Lampe aus.' });
@@ -860,6 +911,11 @@ export class FlatRound implements MapSource {
       this.events.push({ kind: 'info', text: 'Hier ist nichts.' });
       return;
     }
+    // Hantieren macht Lärm — eine Tür mehr als ein Schalter (`audio/cues.ts`).
+    this.noise(
+      near.at,
+      near.kind === 'door' ? NOISE.door : near.kind === 'light' ? NOISE.light : NOISE.interact,
+    );
     if (near.kind === 'locker') {
       if (crew.hidden) {
         crew.hidden = '';
@@ -925,6 +981,7 @@ export class FlatRound implements MapSource {
     if (!repair) return { solved: false, wrong: true };
     const puzzle = puzzleFor(this.haunt.crew, repair.id);
     const outcome = applyPuzzle(repair, puzzle, action);
+    this.noise(this.player, NOISE.click);
     if (outcome.solved && puzzleSolved(repair, puzzle)) {
       this.haunt.done.push(repair.itemId);
       const held = this.haunt.crew.inventory.indexOf(repair.itemId);

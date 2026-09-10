@@ -16,7 +16,7 @@ import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
 import { MonsterSession } from '../monster/monsterSession';
-import { HauntingAudio } from '../audio';
+import { HauntingAudio, levelLabel } from '../audio';
 
 /**
  * **Die 2D-Welt** — die Station von oben, gespielt mit dem Daumen.
@@ -291,6 +291,27 @@ export class FlatMode {
       ),
       el('small', '', 'Gilt für die nächste Runde; der Techniker wird dann vom Bot gespielt'),
     );
+    // Ton: zwei Regler mit drei Stufen (Paket Audio, `audio/settings.ts`).
+    parts.push(el('strong', '', 'Ton'));
+    for (const which of ['effects', 'ambient'] as const) {
+      const key = el('button', 'flat__option');
+      key.dataset['audio'] = which;
+      key.append(
+        el(
+          'strong',
+          '',
+          `${which === 'effects' ? 'Effekte' : 'Ambiente'}: ${levelLabel(this.audio.levels[which])}`,
+        ),
+        el(
+          'small',
+          '',
+          which === 'effects'
+            ? 'Schritte, Monster, Herzschlag'
+            : 'Brummen der Station, Dunkelheit, Knarren',
+        ),
+      );
+      parts.push(key);
+    }
     const leave = el('button', 'flat__option flat__option--leave', '2D-Welt verlassen');
     leave.dataset['leave'] = '';
     const close = el('button', 'flat__option', 'Zurück');
@@ -348,6 +369,9 @@ export class FlatMode {
       this.renderOptions();
     } else if (data['leave'] !== undefined) {
       this.host.exit();
+    } else if (data['audio'] === 'effects' || data['audio'] === 'ambient') {
+      this.audio.cycle(data['audio']);
+      this.renderOptions();
     } else if (data['closeOptions'] !== undefined) {
       this.options.hidden = true;
     }

@@ -11,6 +11,10 @@ import {
   type VisibilityField,
 } from '../map/visibility';
 import { clockText } from '../rules/roundRules';
+import { Hearing } from '../audio/hearing';
+import { stepLoudness } from '../audio/cues';
+import { hearNoises } from '../threat';
+import { PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED } from '../mission';
 import { monsterPortOf, type MonsterPort } from './monsterDriver';
 
 /**
@@ -41,12 +45,11 @@ export function mountMonsterView(host: RoleHost): MonsterRoleView {
   return new MonsterView(host);
 }
 
-/** Wie viel leiser Gehen ist als Rennen — wie in `map/flatRound.ts`. */
-const WALK_NOISE = 0.45;
-
 class MonsterView implements MonsterRoleView {
   readonly element = el('div', 'monster');
   private readonly map: MapView;
+  /** Dasselbe Hörmodell, mit dem die Runde das Monster hören lässt (`audio/hearing.ts`). */
+  private readonly hearing = new Hearing();
   private readonly stick = new Joystick();
   private readonly hud = el('div', 'monster__hud');
   private readonly buttons = el('div', 'monster__buttons');
@@ -130,7 +133,8 @@ class MonsterView implements MonsterRoleView {
   /**
    * Das Sichtbarkeitsfeld aus der Sicht des Monsters, plus das Hören: Wer
    * sich in Hörweite bewegt und nicht schon zu sehen ist, bekommt einen
-   * Geräuschring an seiner Stelle.
+   * Geräuschring — dort, woher es zu kommen scheint (die Tür, die Klappe),
+   * gerechnet mit demselben Hörmodell wie die Runde (`audio/hearing.ts`).
    */
   perceive(snapshot: MapSnapshot): VisibilityField {
     const field = computeVisibility(
@@ -142,12 +146,12 @@ class MonsterView implements MonsterRoleView {
     for (const entity of snapshot.entities) {
       if (entity.id === me.id || entity.concealed || !entity.moving) continue;
       if (field.visibleEntities.includes(entity.id)) continue;
-      const gap = Math.hypot(entity.at.x - me.at.x, entity.at.z - me.at.z);
-      const reach = me.sense.hearing * (entity.sprinting ? 1 : WALK_NOISE);
-      if (gap > reach) continue;
+      const loudness = stepLoudness(entity.sprinting ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED);
+      const [noise] = hearNoises(this.hearing, snapshot, me.at, [{ at: entity.at, loudness }]);
+      if (!noise) continue;
       field.noise.push({
         entityId: entity.id,
-        at: { ...entity.at },
+        at: { ...noise.from },
         radius: entity.sprinting ? NOISE_SPRINT : NOISE_WALK,
         cause: entity.sprinting ? 'sprint' : 'walk',
       });

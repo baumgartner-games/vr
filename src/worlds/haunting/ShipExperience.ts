@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './haunting.css';
 import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
-import { HauntingAudio } from './audio';
+import { HauntingAudio, NOISE, levelLabel } from './audio';
 import type { MapSnapshot } from './map/mapSnapshot';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { WorldContext } from '../../core/types';
@@ -100,6 +100,8 @@ interface ShipHost {
   /** Der Stand als Karte und der Gang des Monsters — für das Hörmodell (`audio/`). */
   mapSnapshot?(): MapSnapshot;
   monsterPace?(): MonsterPace;
+  /** Ein Geräusch des Spielers für die Ohren des Monsters (`audio/cues.ts`, `NOISE`). */
+  noise?(at: { x: number; z: number }, loudness: number): void;
 }
 interface Screen {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -1827,6 +1829,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           this.hearingAudio.setEnabled(this.audioOn);
         },
       ),
+      row(
+        'ambient',
+        `Ambiente: ${levelLabel(this.hearingAudio.levels.ambient)}`,
+        'Brummen der Station, Dunkelheit, Knarren — aus, leise oder normal',
+        () => {
+          this.hearingAudio.cycle('ambient');
+        },
+      ),
     ];
     if (['won', 'lost'].includes(this.host.state().phase))
       rows.unshift(
@@ -2098,6 +2108,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     }
   }
   private sound(kind: 'door' | 'click' | 'success' | 'error' | 'step', gain = 0.035): void {
+    // Das Monster hört das Hantieren auch bei stummgeschaltetem Ton.
+    this.host.noise?.(
+      this.lastSoundAt,
+      kind === 'door' ? NOISE.door : kind === 'click' ? NOISE.click : NOISE.interact,
+    );
     if (!this.audioOn) return;
     if (kind === 'door') {
       this.audio.play('door', this.lastSoundAt);

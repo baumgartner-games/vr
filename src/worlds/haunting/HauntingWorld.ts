@@ -66,7 +66,17 @@ import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
 import { stationLighting } from './stationLighting';
-import { stepThreat, threatTarget, ENTITY_PROFILES } from './threat';
+import {
+  stepThreat,
+  threatTarget,
+  threatAlert,
+  hearNoises,
+  ENTITY_PROFILES,
+  type HeardNoise,
+  type NoiseSource,
+} from './threat';
+import { Hearing } from './audio/hearing';
+import { stepLoudness } from './audio/cues';
 import { acousticField, pointKey, inView, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
 import { visibleStationRooms } from './stationVisibility';
 import { stationRoute } from './stationNavigation';
@@ -297,6 +307,12 @@ export class HauntingWorld extends GridWorld {
   private pendingRestart = false;
   private readonly automaticDoors = new AutomaticDoors();
   private hearing = new Map<number, number>();
+  /** Das Hörmodell des Pakets Audio, die Geräusche des Spielers seit dem letzten Horchen und was davon ankam. */
+  private readonly hearingModel = new Hearing();
+  private readonly noiseQueue: NoiseSource[] = [];
+  private heard: HeardNoise[] = [];
+  /** Wohin das Monster schaut, wenn es steht und horcht (`monsterRoutine.ts`, `face`). */
+  private monsterFace: { x: number; z: number } | null = null;
   private perceptionClock = 0;
   private readonly travelPlan = new StationTravelPlan();
   private readonly technicians = new Map<string, number>();
@@ -700,8 +716,10 @@ export class HauntingWorld extends GridWorld {
       quarry: quarry?.id ?? null,
       caught: this.watchedLocker,
       rng: () => this.routineDice.next(),
+      ...threatAlert(crew),
     });
     this.decision = decision;
+    this.monsterFace = decision.face;
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
     this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace));
     // Ein durchsuchter Schrank im richtigen Raum ist das Ende des Versteckens.
@@ -1005,6 +1023,9 @@ export class HauntingWorld extends GridWorld {
       carried: (hand) => this.carriedTool(hand),
       mapSnapshot: () => this.mapSnapshot(),
       monsterPace: () => this.decision?.pace ?? 'still',
+      noise: (at, loudness) => {
+        this.noiseQueue.push({ at: { x: at.x, z: at.z }, loudness });
+      },
       floatingTorch: () => this.stationTorch,
       takeFloatingTorch: () => {
         if (this.stationTorch) {
@@ -1628,6 +1649,12 @@ export class HauntingWorld extends GridWorld {
     this.applyBlob();
     this.experience?.update(dt);
     if (this.monsterArt && this.monster) {
+      // Wer steht und horcht, dreht sich zur Richtung des Geräuschs.
+      if (this.monsterFace && this.state.monster)
+        this.monster.model.rotation.y = Math.atan2(
+          -(this.monsterFace.x - this.state.monster.x),
+          -(this.monsterFace.z - this.state.monster.z),
+        );
       this.monsterArt.rotation.y = this.monster.model.rotation.y;
       this.monsterArt.visible = this.state.crew.venting <= 0;
       animateCreature(this.monsterArt, this.state.time);
@@ -1928,14 +1955,28 @@ export class HauntingWorld extends GridWorld {
       this.sightTimer = 0.1;
       this.monsterSeesPlayer = distance < 24 && this.monsterLineOfSight();
       this.hearing = monster && this.nav ? acousticField(this.nav, monster, 24) : new Map();
+      // Was das Monster hört, rechnet das Hörmodell der Karte (`audio/hearing.ts`):
+      // die eigenen Schritte nach Tempo, dazu das Hantieren aus `ShipExperience`.
+      const sources = this.noiseQueue.splice(0);
+      const loudness = stepLoudness(speed, !bot && ctx.rig.crouch > 0.15);
+      if (loudness > 0) sources.push({ at: { x: _head.x, z: _head.z }, loudness });
+      this.heard =
+        monster && sources.length
+          ? hearNoises(
+              this.hearingModel,
+              this.mapSnapshot(),
+              monster,
+              sources,
+              this.tuning.monster.hearing,
+            )
+          : [];
     }
     stepThreat(this.state.crew, dt, {
       player: { x: _head.x, z: _head.z },
       monster,
-      speed,
+      noises: this.heard,
       crouched: !bot && ctx.rig.crouch > 0.15,
       flashlight: bot ? !this.state.crew.hidden : (this.experience?.flashlightActive ?? false),
-      hearingDistance: this.hearing.get(pointKey(_head)) ?? Infinity,
       inView:
         !!monster && inView(monster, this.monster?.model.rotation.y ?? 0, _head, 24, MONSTER_FOV),
       lineOfSight: this.monsterSeesPlayer,

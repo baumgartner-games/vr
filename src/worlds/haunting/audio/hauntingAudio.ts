@@ -3,6 +3,13 @@ import type { MapPoint } from '../map/mapSnapshot';
 import { AUDIO_CUES } from './cues';
 import type { HearingWorld } from './hearing';
 import { Mixer } from './mixer';
+import {
+  loadAudioLevels,
+  nextLevel,
+  saveAudioLevels,
+  type AudioLevels,
+  type Level,
+} from './settings';
 import { Soundscape, type SoundscapeInput } from './soundscape';
 
 /**
@@ -13,20 +20,26 @@ import { Soundscape, type SoundscapeInput } from './soundscape';
  * dem Audio-Thread. Nichts hier wartet, nichts lädt im Bild: Die Cues sind
  * beim Bau schon angefordert (`Mixer.prime`).
  *
- * Die 2D-Welt gibt den Snapshot ihrer Runde und die Kennung des Spielers;
+ * Die 2D-Welt gibt den Snapshot ihrer Runde und die Kennung des Zuhörers;
  * das Headset gibt denselben Snapshot (`HauntingWorld.mapSnapshot()`) und
  * den Zuhörer ausdrücklich — Kopf, Blick, gemessenes Tempo —, weil der
  * Snapshot der 3D-Welt das Tempo nicht kennt.
+ *
+ * Die zwei Regler (`settings.ts`) liest sie beim Bau aus dem Browser und
+ * schreibt sie bei jeder Änderung zurück.
  */
 export const AUDIO_HZ = 20;
 
 export class HauntingAudio {
   readonly soundscape = new Soundscape();
   private readonly mixer = new Mixer();
+  private levels_: AudioLevels;
   private budget = 0;
   private last: SoundscapeInput | null = null;
 
-  constructor() {
+  constructor(levels: AudioLevels = loadAudioLevels()) {
+    this.levels_ = { ...levels };
+    this.mixer.setLevels(this.levels_);
     void this.mixer.prime();
   }
 
@@ -39,8 +52,26 @@ export class HauntingAudio {
     return this.mixer.activeVoices;
   }
 
+  get levels(): Readonly<AudioLevels> {
+    return this.levels_;
+  }
+
   setEnabled(value: boolean): void {
     this.mixer.setEnabled(value);
+  }
+
+  /** Beide Regler setzen und merken. */
+  setLevels(levels: AudioLevels): void {
+    this.levels_ = { ...levels };
+    this.mixer.setLevels(this.levels_);
+    saveAudioLevels(this.levels_);
+  }
+
+  /** Einen Regler eine Stufe weiterdrehen: aus → leise → normal → aus. */
+  cycle(which: keyof AudioLevels): Level {
+    const next = nextLevel(this.levels_[which]);
+    this.setLevels({ ...this.levels_, [which]: next });
+    return next;
   }
 
   update(dt: number, input: SoundscapeInput): void {
@@ -50,6 +81,8 @@ export class HauntingAudio {
     this.budget = 0;
     this.last = input;
     for (const event of this.soundscape.tick(step, input)) this.mixer.play(event);
+    for (const [cue, level] of Object.entries(this.soundscape.ambience))
+      this.mixer.loop(cue as keyof typeof this.soundscape.ambience, level);
     // Stimmen, die noch klingen, ziehen mit dem Zuhörer mit — durch dieselbe Tür.
     this.mixer.remix((voice) =>
       AUDIO_CUES[voice.cue].loudness > 0 ? this.soundscape.mix(input, voice.cue, voice.at) : null,

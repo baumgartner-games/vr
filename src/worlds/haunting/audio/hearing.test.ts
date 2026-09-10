@@ -1,7 +1,14 @@
 import { FlatRound } from '../map/flatRound';
-import { pointInPolygon, type MapDoor, type MapPoint, type MapSnapshot } from '../map/mapSnapshot';
+import {
+  emptySnapshot,
+  pointInPolygon,
+  type MapDoor,
+  type MapPoint,
+  type MapSnapshot,
+} from '../map/mapSnapshot';
 import { ENTITY_PROFILES } from '../threat';
-import { DOOR_LOSS, Hearing, hearingGain, PLAYER_HEARING, reachOf, WALL_LOSS } from './hearing';
+import { NOISE } from './cues';
+import { DOOR_LOSS, HEARING, Hearing, hearingGain, reachOf, VENT_LOSS, WALL_LOSS } from './hearing';
 
 /**
  * Das Hörmodell auf der echten Station: ein `FlatRound` im Test-Modus (ohne
@@ -59,6 +66,53 @@ function fresh(round: FlatRound): MapSnapshot {
   return round.snapshot();
 }
 
+/**
+ * Zwei Zimmer, die nicht aneinandergrenzen und keine Tür haben — nur einen
+ * Schacht zwischen zwei Klappen. Ohne ihn geht der Schall durch zwei Wände.
+ */
+function ventedRooms(): MapSnapshot {
+  const snapshot = emptySnapshot();
+  snapshot.seed = 11;
+  const room = (id: string, x0: number, x1: number) => ({
+    id,
+    name: id,
+    polygon: [
+      { x: x0, z: 0 },
+      { x: x0, z: 10 },
+      { x: x1, z: 10 },
+      { x: x1, z: 0 },
+    ],
+    centre: { x: (x0 + x1) / 2, z: 5 },
+    circulation: false,
+    lit: true,
+    safe: false,
+  });
+  snapshot.rooms.push(room('a', 0, 10), room('b', 20, 30));
+  for (const [id, x0, x1] of [
+    ['a', 0, 10],
+    ['b', 20, 30],
+  ] as const) {
+    const wall = (ax: number, az: number, bx: number, bz: number) =>
+      snapshot.walls.push({ a: { x: ax, z: az }, b: { x: bx, z: bz }, roomId: id, kind: 'wall' });
+    wall(x0, 0, x1, 0);
+    wall(x0, 10, x1, 10);
+    wall(x0, 0, x0, 10);
+    wall(x1, 0, x1, 10);
+  }
+  const flap = (id: string, roomId: string, x: number) => ({
+    id,
+    kind: 'vent' as const,
+    label: 'Lüftungsklappe',
+    roomId,
+    at: { x, z: 5 },
+    state: 'closed',
+    interactive: false,
+  });
+  snapshot.items.push(flap('vent-a', 'a', 9.8), flap('vent-b', 'b', 20.2));
+  snapshot.ventLinks = [{ a: 'vent-a', b: 'vent-b' }];
+  return snapshot;
+}
+
 describe('Das Hörmodell', () => {
   it('rechnet im selben Raum die Luftlinie, ohne Dämpfung', () => {
     const round = new FlatRound(1, { test: true });
@@ -71,6 +125,7 @@ describe('Das Hörmodell', () => {
     expect(path.distance).toBeCloseTo(Math.hypot(1, 0.5), 6);
     expect(path.direct).toBe(path.distance);
     expect(path.occluded).toBe(false);
+    expect(path.via).toBe('air');
     expect(path.from).toEqual(from);
     expect(path.route).toEqual([from, to]);
   });
@@ -87,6 +142,7 @@ describe('Das Hörmodell', () => {
       // Um die Ecke ist länger als die Luftlinie, aber deutlich kürzer als
       // durch die Wand — und es kommt aus der Tür.
       expect(path.occluded).toBe(true);
+      expect(path.via).toBe('door');
       expect(path.distance).toBeGreaterThan(direct);
       expect(path.distance).toBeLessThan(direct + WALL_LOSS);
       expect(path.from).toEqual(door.at);
@@ -174,15 +230,51 @@ describe('Das Hörmodell', () => {
     throw new Error('keine Stelle an der Wand gefunden');
   });
 
-  it('gibt dem Spieler die kürzere Hörweite — jedes Monster hört weiter', () => {
-    for (const profile of Object.values(ENTITY_PROFILES))
-      expect(profile.hearing).toBeGreaterThan(PLAYER_HEARING);
-    // Ein Schritt der Lautstärke 1 in zwölf Metern: Das Monster hört ihn, der Spieler nicht.
-    expect(hearingGain(12, reachOf(1, PLAYER_HEARING))).toBe(0);
-    expect(hearingGain(12, reachOf(1, ENTITY_PROFILES.stalker.hearing))).toBeGreaterThan(0);
-    expect(hearingGain(12, reachOf(1, ENTITY_PROFILES.sentinel.hearing))).toBe(0);
-    // Ein Ruf trägt weiter als ein Schritt.
-    expect(hearingGain(20, reachOf(3.2, PLAYER_HEARING))).toBeGreaterThan(0);
+  it('leitet Schall durch den Schacht, in beide Richtungen, aus der Klappe heraus', () => {
+    const snapshot = ventedRooms();
+    const hearing = new Hearing();
+    const source = { x: 2, z: 5 },
+      listener = { x: 28, z: 5 };
+    const path = hearing.path(snapshot, source, listener);
+    // Durch zwei Wände wären es 26 + 18 m; durch den Schacht 7,8 + 10,4 + 3 + 7,8.
+    const viaVent = 7.8 + 10.4 + VENT_LOSS + 7.8;
+    expect(path.via).toBe('vent');
+    expect(path.distance).toBeCloseTo(viaVent, 6);
+    expect(path.distance).toBeLessThan(path.direct + 2 * WALL_LOSS);
+    expect(path.from).toEqual({ x: 20.2, z: 5 });
+    expect(path.route).toEqual([source, { x: 9.8, z: 5 }, { x: 20.2, z: 5 }, listener]);
+    const back = hearing.path(snapshot, listener, source);
+    expect(back.distance).toBeCloseTo(path.distance, 6);
+    expect(back.from).toEqual({ x: 9.8, z: 5 });
+    // Ohne die Verbindung bleibt nur die Wand.
+    snapshot.ventLinks = [];
+    expect(new Hearing().path(snapshot, source, listener).via).toBe('wall');
+  });
+
+  it('kennt die Schächte der echten Station', () => {
+    const round = new FlatRound(1, { test: true });
+    const snapshot = round.snapshot();
+    const cafeteria = snapshot.items.find((i) => i.id === 'vent-cafeteria')!;
+    const admin = snapshot.items.find((i) => i.id === 'vent-admin')!;
+    const path = new Hearing().path(snapshot, cafeteria.at, admin.at);
+    // Klappe zu Klappe: höchstens die Länge des Schachts plus Dämpfung.
+    expect(path.distance).toBeLessThanOrEqual(path.direct + VENT_LOSS + 1e-6);
+  });
+
+  it('gibt allen dieselben Ohren — lauter trägt weiter, nicht besser gehört', () => {
+    for (const profile of Object.values(ENTITY_PROFILES)) expect(profile.hearing).toBe(HEARING);
+    // Ein gehender Spieler ist 6 m weit zu hören, ein gehendes Monster 14,4 m,
+    // ein rennendes 24 m, ein Ruf 42 m.
+    expect(reachOf(NOISE.walk)).toBe(6);
+    expect(reachOf(NOISE.monsterWalk)).toBeCloseTo(14.4, 9);
+    expect(reachOf(NOISE.monsterRun)).toBe(24);
+    expect(reachOf(NOISE.monsterCall)).toBe(42);
+    expect(hearingGain(7, reachOf(NOISE.walk))).toBe(0);
+    expect(hearingGain(7, reachOf(NOISE.monsterWalk))).toBeGreaterThan(0);
+    // In jeder Gangart ist das Monster lauter als der Spieler in seiner.
+    expect(NOISE.monsterStalk).toBeGreaterThan(NOISE.sneak);
+    expect(NOISE.monsterWalk).toBeGreaterThan(NOISE.walk);
+    expect(NOISE.monsterRun).toBeGreaterThan(NOISE.sprint);
   });
 
   it('fällt mit der Entfernung stetig ab und ist jenseits der Reichweite still', () => {
