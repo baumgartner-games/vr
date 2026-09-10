@@ -1,0 +1,370 @@
+import type { RoutineWorld } from '../monsterRoutine';
+import type { FloorPoint } from '../stationLayout';
+import { DRIFT, FLOOR, FORGET, MonsterMemory, TRACK_LENGTH, doorKey } from './monsterMemory';
+
+/**
+ * Vier Zimmer in einer Reihe und eine Kammer an der Seite:
+ *
+ * ```
+ * a — b — c — d
+ *         |
+ *         e
+ * ```
+ *
+ * Klein genug, dass jede Erwartung unten nachzurechnen ist, und mit genau
+ * einer Verzweigung: `d` hängt nur an `c`, deshalb sperrt eine einzige Tür
+ * (`c|d`) den Raum vollständig ab.
+ */
+const CENTRES: Record<string, FloorPoint> = {
+  a: { x: 0, z: 0 },
+  b: { x: 10, z: 0 },
+  c: { x: 20, z: 0 },
+  d: { x: 30, z: 0 },
+  e: { x: 20, z: 10 },
+};
+const LINKS: Record<string, string[]> = {
+  a: ['b'],
+  b: ['a', 'c'],
+  c: ['b', 'd', 'e'],
+  d: ['c'],
+  e: ['c'],
+};
+const SPACES = ['a', 'b', 'c', 'd', 'e'];
+
+/** Ein Punkt gehört dem Raum, dessen Mitte am nächsten liegt. */
+function nearest(point: FloorPoint): string {
+  let best = '';
+  let gap = Infinity;
+  for (const id of SPACES) {
+    const c = CENTRES[id]!;
+    const d = Math.hypot(c.x - point.x, c.z - point.z);
+    if (d < gap) {
+      gap = d;
+      best = id;
+    }
+  }
+  return best;
+}
+
+const world: RoutineWorld = {
+  spaces: SPACES,
+  neighbours: (id) => LINKS[id] ?? [],
+  centre: (id) => CENTRES[id] ?? { x: 0, z: 0 },
+  locker: () => null,
+  spaceAt: (point) => nearest(point),
+};
+
+/** Dieselbe Station, aber mit fertiger Hörweite — so bringt der `StationGraph` sie mit. */
+const heardWorld: RoutineWorld & { earshot(a: string, b: string): number } = {
+  ...world,
+  earshot: (a, b) => (a === b ? 0 : 1000),
+};
+
+function total(memory: MonsterMemory): number {
+  return SPACES.reduce((sum, id) => sum + memory.belief(id), 0);
+}
+
+/** `seconds` Sekunden in Zehntelschritten — so ruft die Runde `step` auch auf. */
+function run(memory: MonsterMemory, seconds: number, here = '', from = 0): number {
+  let time = from;
+  for (let i = 0; i < Math.round(seconds * 10); i++) {
+    time += 0.1;
+    memory.step(0.1, here, time);
+  }
+  return time;
+}
+
+describe('MonsterMemory', () => {
+  it('fängt ohne Wissen an: jeder Raum gleich wahrscheinlich', () => {
+    const memory = new MonsterMemory(world);
+    for (const id of SPACES) expect(memory.belief(id)).toBeCloseTo(1 / SPACES.length, 12);
+    expect(memory.certainty()).toBeCloseTo(0, 12);
+    expect(total(memory)).toBeCloseTo(1, 12);
+    expect(memory.track.velocity()).toBeNull();
+  });
+
+  it('rechnet zweimal dasselbe: gleiche Eingabe, gleiches Bild', () => {
+    const script = (memory: MonsterMemory): void => {
+      memory.seen('c', { x: 20, z: 0 }, 1);
+      run(memory, 3, 'a', 1);
+      memory.heard({ x: 30, z: 0 }, 0.8, 4);
+      memory.visited('a', 4.5);
+      run(memory, 2, 'b', 4.5);
+      memory.seen('d', { x: 31, z: 1 }, 7);
+    };
+    const one = new MonsterMemory(world);
+    const two = new MonsterMemory(world);
+    script(one);
+    script(two);
+    expect(two.snapshot()).toEqual(one.snapshot());
+    expect(two.expected()).toEqual(one.expected());
+    expect(two.certainty()).toBe(one.certainty());
+    expect(two.mostLikely()).toBe(one.mostLikely());
+    expect(two.leastRecentlyVisited(5)).toEqual(one.leastRecentlyVisited(5));
+    expect(two.track.velocity()).toEqual(one.track.velocity());
+  });
+
+  it('nach einer Sichtung ist der Raum sicher', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', { x: 20, z: 0 }, 5);
+    expect(memory.belief('c')).toBe(1);
+    expect(memory.belief('b')).toBe(0);
+    expect(memory.certainty()).toBe(1);
+    expect(memory.mostLikely()).toBe('c');
+    expect(memory.expected()).toEqual({ x: 20, z: 0 });
+    expect(memory.snapshot()).toEqual([{ roomId: 'c', p: 1 }]);
+    expect(memory.note('c').seen).toBe(5);
+    expect(memory.note('b').seen).toBe(-Infinity);
+  });
+
+  it('die Spur behält höchstens sechs Sichtungen, die jüngste zuletzt', () => {
+    const memory = new MonsterMemory(world);
+    for (let i = 0; i < 9; i++) memory.seen('a', { x: i, z: 0 }, i);
+    expect(memory.track.sightings).toHaveLength(TRACK_LENGTH);
+    expect(memory.track.sightings[0]!.time).toBe(3);
+    expect(memory.track.sightings[TRACK_LENGTH - 1]!.time).toBe(8);
+  });
+
+  it('nach zehn Sekunden liegt Masse in den Nachbarn', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    run(memory, 10, '', 0);
+    expect(memory.belief('c')).toBeLessThan(1);
+    for (const id of ['b', 'd', 'e']) expect(memory.belief(id)).toBeGreaterThan(0.05);
+    // Der Raum zwei Türen weiter bekommt etwas ab, aber deutlich weniger.
+    expect(memory.belief('a')).toBeGreaterThan(0);
+    expect(memory.belief('a')).toBeLessThan(memory.belief('b'));
+    expect(memory.belief('b')).toBeLessThan(memory.belief('c'));
+    // Die beiden Sackgassen sind gleich dran — und nach zehn Sekunden sogar
+    // etwas besser als `c` selbst: Der Verteilerraum gibt weiter nach `b` ab,
+    // die Kammern haben niemanden, an den sie abgeben könnten.
+    expect(memory.belief('d')).toBeCloseTo(memory.belief('e'), 12);
+    expect(memory.belief('c')).toBeGreaterThan(1 / SPACES.length);
+    expect(total(memory)).toBeCloseTo(1, 12);
+    expect(memory.certainty()).toBeGreaterThan(0);
+    expect(memory.certainty()).toBeLessThan(1);
+  });
+
+  it('hinter eine gesperrte Tür fließt nichts', () => {
+    const memory = new MonsterMemory(world, () => ['c|d']);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    run(memory, 10, '', 0);
+    expect(memory.belief('d')).toBe(0);
+    expect(memory.belief('e')).toBeGreaterThan(0);
+    expect(total(memory)).toBeCloseTo(1, 12);
+    // Auch andersherum geschrieben ist die Tür zu.
+    const reverse = new MonsterMemory(world, () => ['d|c']);
+    reverse.seen('c', { x: 20, z: 0 }, 0);
+    run(reverse, 10, '', 0);
+    expect(reverse.belief('d')).toBe(0);
+  });
+
+  it('eine Kante trägt DRIFT je Sekunde hinüber', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('d', { x: 30, z: 0 }, 0);
+    memory.step(1, '', 1);
+    // `d` hat genau eine Tür; ein Schritt wird auf MAX_STEP gekappt.
+    expect(memory.belief('c')).toBeCloseTo(DRIFT * 0.25, 12);
+    expect(memory.belief('d')).toBeCloseTo(1 - DRIFT * 0.25, 12);
+  });
+
+  it('ein abgesuchter Raum ist leer, aber nicht ausgeschlossen', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    run(memory, 10, '', 0);
+    const before = memory.belief('c');
+    memory.visited('c', 10);
+    expect(memory.belief('c')).toBeLessThan(before);
+    expect(memory.belief('c')).toBeCloseTo(FLOOR / (1 - before + FLOOR), 12);
+    expect(memory.belief('c')).toBeGreaterThan(0);
+    expect(memory.mostLikely()).not.toBe('c');
+    expect(total(memory)).toBeCloseTo(1, 12);
+    expect(memory.note('c').searched).toBe(10);
+    expect(memory.note('c').visited).toBe(10);
+  });
+
+  it('war die ganze Masse im abgesuchten Raum, fängt das Bild bei den anderen an', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    memory.visited('c', 1);
+    expect(memory.belief('c')).toBeCloseTo(FLOOR, 12);
+    for (const id of ['a', 'b', 'd', 'e'])
+      expect(memory.belief(id)).toBeCloseTo((1 - FLOOR) / 4, 12);
+    expect(total(memory)).toBeCloseTo(1, 12);
+  });
+
+  it('wo das Monster steht, schwindet der Glaube von selbst', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    run(memory, 5, 'c', 0);
+    const standing = memory.belief('c');
+    const other = new MonsterMemory(world);
+    other.seen('c', { x: 20, z: 0 }, 0);
+    run(other, 5, '', 0);
+    expect(standing).toBeLessThan(other.belief('c'));
+    expect(memory.note('c').visited).toBeCloseTo(5, 9);
+    // Nur nachgesehen ist noch nicht abgesucht.
+    expect(memory.note('c').searched).toBe(-Infinity);
+  });
+
+  it('Lärm verschiebt die Masse dorthin, wo es geknallt hat', () => {
+    const memory = new MonsterMemory(world);
+    memory.heard({ x: 0, z: 0 }, 1, 2);
+    expect(memory.mostLikely()).toBe('a');
+    expect(memory.belief('a')).toBeGreaterThan(memory.belief('b'));
+    expect(memory.belief('b')).toBeGreaterThan(memory.belief('c'));
+    expect(memory.belief('d')).toBeGreaterThan(0);
+    expect(total(memory)).toBeCloseTo(1, 12);
+    expect(memory.note('a').heard).toBe(2);
+  });
+
+  it('ein leiser Laut sagt weniger als ein lauter', () => {
+    const loud = new MonsterMemory(world);
+    const faint = new MonsterMemory(world);
+    loud.heard({ x: 0, z: 0 }, 1, 1);
+    faint.heard({ x: 0, z: 0 }, 0.1, 1);
+    expect(faint.belief('a')).toBeGreaterThan(0.2);
+    expect(faint.belief('a')).toBeLessThan(loud.belief('a'));
+    expect(faint.certainty()).toBeLessThan(loud.certainty());
+  });
+
+  it('bringt die Welt eine Hörweite mit, rechnet das Gedächtnis nicht selbst', () => {
+    const memory = new MonsterMemory(heardWorld);
+    memory.heard({ x: 20, z: 10 }, 1, 3);
+    // 1000 gedämpfte Meter in jeden anderen Raum: Es kann nur `e` gewesen
+    // sein — bis auf den Rest, den kein Geräusch je ganz wegnimmt.
+    expect(memory.belief('e')).toBeGreaterThan(0.9);
+    expect(memory.belief('a')).toBeGreaterThan(0);
+    expect(total(memory)).toBeCloseTo(1, 12);
+  });
+
+  it('Lärm von außerhalb der Station lässt das Bild in Ruhe', () => {
+    const blind: RoutineWorld = { ...world, spaceAt: () => '' };
+    const memory = new MonsterMemory(blind);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    memory.heard({ x: 999, z: 999 }, 1, 1);
+    expect(memory.belief('c')).toBe(1);
+  });
+
+  it('nach FORGET Sekunden ohne Spur weiß es wieder nichts', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    const time = run(memory, FORGET - 1, '', 0);
+    expect(memory.certainty()).toBeGreaterThan(0);
+    run(memory, 2, '', time);
+    for (const id of SPACES) expect(memory.belief(id)).toBeCloseTo(1 / SPACES.length, 12);
+    expect(memory.certainty()).toBeCloseTo(0, 12);
+  });
+
+  it('Richtung und Tempo aus zwei Sichtungen', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('a', { x: 0, z: 0 }, 1);
+    expect(memory.track.velocity()).toBeNull();
+    memory.seen('b', { x: 10, z: 0 }, 3.5);
+    const v = memory.track.velocity()!;
+    expect(v.dir.x).toBeCloseTo(1, 12);
+    expect(v.dir.z).toBeCloseTo(0, 12);
+    expect(v.speed).toBeCloseTo(4, 12);
+  });
+
+  it('ältere Sichtungen wiegen weniger als die jüngste', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('a', { x: 0, z: 0 }, 0);
+    memory.seen('a', { x: 0, z: 2 }, 1);
+    memory.seen('b', { x: 2, z: 2 }, 2);
+    const v = memory.track.velocity()!;
+    // Zuletzt nach +x (2 m/s), davor nach +z (2 m/s), halb gewichtet.
+    expect(v.dir.x).toBeGreaterThan(v.dir.z);
+    expect(v.dir.x).toBeCloseTo(2 / Math.sqrt(5), 12);
+    expect(v.speed).toBeCloseTo((2 * Math.sqrt(5)) / 3, 12);
+  });
+
+  it('zwei Sichtungen zur selben Zeit ergeben kein Tempo', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('a', { x: 0, z: 0 }, 4);
+    memory.seen('b', { x: 10, z: 0 }, 4);
+    expect(memory.track.velocity()).toBeNull();
+  });
+
+  it('die Türen eines Raums tragen den Zufluss dahinter', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('a', { x: 0, z: 0 }, 0);
+    const exits = memory.exits('c');
+    expect(exits[0]).toEqual({ door: doorKey('c', 'b'), share: 1 });
+    expect(exits.map(({ door }) => door)).toEqual(['b|c', 'c|d', 'c|e']);
+    expect(exits.reduce((sum, exit) => sum + exit.share, 0)).toBeCloseTo(1, 12);
+    // `a` liegt hinter `b`, wird also der Tür nach `b` zugerechnet.
+    memory.seen('e', { x: 20, z: 10 }, 1);
+    expect(memory.exits('c')[0]!.door).toBe(doorKey('c', 'e'));
+  });
+
+  it('gesperrte Türen stehen nicht in der Ausgangsliste', () => {
+    const memory = new MonsterMemory(world, () => ['c|d']);
+    const doors = memory.exits('c').map(({ door }) => door);
+    expect(doors).toEqual(['b|c', 'c|e']);
+    expect(memory.exits('kombüse')).toEqual([]);
+  });
+
+  it('ohne Wissen teilen sich die Türen den Zufluss zu gleichen Teilen', () => {
+    const memory = new MonsterMemory(world);
+    memory.visited('a', 0);
+    memory.visited('b', 0);
+    memory.visited('d', 0);
+    memory.visited('e', 0);
+    memory.seen('c', { x: 20, z: 0 }, 0);
+    // Hinter keiner Tür von `c` liegt Masse — dann ist keine Tür besser.
+    for (const exit of memory.exits('c')) expect(exit.share).toBeCloseTo(1 / 3, 12);
+  });
+
+  it('leastRecentlyVisited ordnet nach dem letzten Besuch', () => {
+    const memory = new MonsterMemory(world);
+    memory.visited('c', 3);
+    memory.visited('a', 1);
+    memory.visited('e', 7);
+    expect(memory.leastRecentlyVisited(3)).toEqual(['b', 'd', 'a']);
+    expect(memory.leastRecentlyVisited(5)).toEqual(['b', 'd', 'a', 'c', 'e']);
+    expect(memory.leastRecentlyVisited(0)).toEqual([]);
+    expect(memory.leastRecentlyVisited(99)).toHaveLength(SPACES.length);
+  });
+
+  it('der Notizzettel gehört dem Gedächtnis', () => {
+    const memory = new MonsterMemory(world);
+    memory.visited('a', 2);
+    const note = memory.note('a');
+    note.visited = 999;
+    expect(memory.note('a').visited).toBe(2);
+    expect(memory.note('kombüse')).toEqual({
+      visited: -Infinity,
+      searched: -Infinity,
+      seen: -Infinity,
+      heard: -Infinity,
+    });
+  });
+
+  it('der Glaube summiert sich immer zu eins', () => {
+    const memory = new MonsterMemory(world, () => ['b|c']);
+    let time = 0;
+    const check = (): void => expect(total(memory)).toBeCloseTo(1, 12);
+    memory.seen('a', { x: 0, z: 0 }, time);
+    check();
+    time = run(memory, 4, 'a', time);
+    check();
+    memory.visited('a', time);
+    check();
+    memory.heard({ x: 30, z: 0 }, 0.5, time);
+    check();
+    time = run(memory, FORGET + 5, 'b', time);
+    check();
+    memory.seen('e', { x: 20, z: 10 }, time);
+    memory.visited('e', time);
+    check();
+    time = run(memory, 20, 'e', time);
+    check();
+    for (const id of SPACES) expect(memory.belief(id)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('eine Tür heißt nach ihren beiden Räumen, sortiert', () => {
+    expect(doorKey('c', 'b')).toBe('b|c');
+    expect(doorKey('b', 'c')).toBe('b|c');
+  });
+});
