@@ -1,12 +1,19 @@
 import { generateHouse, type HouseSpec } from './house';
-import { ENTITY_PROFILES, freshThreat, hearNoises, stepAwareness, takeAlert } from './threat';
+import {
+  ENTITY_PROFILES,
+  freshThreat,
+  hearNoises,
+  stepAwareness,
+  takeAlert,
+  type HeardNoise,
+} from './threat';
 import { MONSTERS, repairsFor, type MonsterKind } from './mission';
 import { MonsterRoutine, paceSpeed, type MonsterMode } from './monsterRoutine';
 import { Rng } from './rng';
 import { stationGraph, COMMAND, type StationGraph } from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { DEFAULT_TUNING, type BotTuning } from './botTuning';
-import { Hearing, type HearingWorld } from './audio/hearing';
+import { HEARING, Hearing, reachOf, type HearingWorld } from './audio/hearing';
 import { NOISE } from './audio/cues';
 import { roomsOf, wallsOf } from './map/extract';
 import { DOOR_WIDTH, doorAxis, doorCentre } from './map/geometry';
@@ -187,22 +194,29 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     const gap = Math.hypot(technician.x - monster.x, technician.z - monster.z);
 
     // --- Wahrnehmung des Monsters: dasselbe Hörmodell und dieselbe
-    // Alarmleiter wie im Headset und in der 2D-Runde (`threat.ts`).
-    for (const door of world.doors)
-      door.open =
-        Math.hypot(door.at.x - technician.x, door.at.z - technician.z) < DOOR_TRIGGER ||
-        Math.hypot(door.at.x - monster.x, door.at.z - monster.z) < DOOR_TRIGGER;
+    // Alarmleiter wie im Headset und in der 2D-Runde (`threat.ts`). Kein Weg
+    // ist kürzer als die Luftlinie: Ist die schon zu weit, spart sich der
+    // Schritt Türen und Hörmodell — das ist der Unterschied zwischen sechzig
+    // Runden in einer Sekunde und in zwanzig.
     const loudness = hidden ? 0 : fleeing ? NOISE.sprint : working ? NOISE.interact : NOISE.walk;
-    const heard =
-      loudness > 0
-        ? hearNoises(
-            hearing,
-            world,
-            monster,
-            [{ at: technician, loudness }],
-            tuning.monster.hearing,
-          )
-        : [];
+    let heard: HeardNoise[] = [];
+    if (loudness > 0 && gap < reachOf(loudness, HEARING * tuning.monster.hearing)) {
+      const trigger = DOOR_TRIGGER * DOOR_TRIGGER;
+      for (const door of world.doors) {
+        const tx = door.at.x - technician.x,
+          tz = door.at.z - technician.z,
+          mx = door.at.x - monster.x,
+          mz = door.at.z - monster.z;
+        door.open = tx * tx + tz * tz < trigger || mx * mx + mz * mz < trigger;
+      }
+      heard = hearNoises(
+        hearing,
+        world,
+        monster,
+        [{ at: technician, loudness }],
+        tuning.monster.hearing,
+      );
+    }
     const seen =
       !hidden &&
       monster.space === technician.space &&

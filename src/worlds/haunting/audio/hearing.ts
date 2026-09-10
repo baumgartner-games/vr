@@ -122,10 +122,19 @@ export class Hearing {
   private seed = Number.NaN;
   private doorCount = -1;
   private ventCount = -1;
+  private wallCount = -1;
   private portals: Portal[] = [];
   private portalsOf = new Map<string, number[]>();
   /** Beste Kosten je Durchgangsseite — einmal angelegt, je Anfrage gelöscht. */
   private best = new Float64Array(0);
+  /**
+   * Umrisse der Wände (minX, minZ, maxX, maxZ je Wand) und der Räume, damit
+   * ein Strahl nicht gegen jede der paar hundert Kanten der Station rechnet,
+   * sondern nur gegen die, die er überhaupt erreichen kann. Die Simulation
+   * fragt das Modell zehntausende Male je Runde.
+   */
+  private wallBounds = new Float64Array(0);
+  private roomBounds = new Float64Array(0);
 
   /**
    * Der Weg des Schalls von `from` nach `to`. Beide in Metern auf dem Boden;
@@ -133,7 +142,7 @@ export class Hearing {
    */
   path(world: HearingWorld, from: MapPoint, to: MapPoint): HearingPath {
     this.prepare(world);
-    const direct = Math.hypot(to.x - from.x, to.z - from.z);
+    const direct = distance(from, to);
     const straightLoss = this.straightLoss(world, from, to);
     const result: HearingPath = {
       distance: direct + straightLoss,
@@ -147,8 +156,8 @@ export class Hearing {
       via: straightLoss > 0 ? 'wall' : 'air',
     };
     if (straightLoss === 0) return result;
-    const roomFrom = roomIdAt(world, from);
-    const roomTo = roomIdAt(world, to);
+    const roomFrom = this.roomAt(world, from);
+    const roomTo = this.roomAt(world, to);
     if (!roomFrom || !roomTo || roomFrom === roomTo) return result;
 
     // Dijkstra über Durchgänge: Ein Knoten ist „durch diesen Durchgang in
@@ -233,12 +242,35 @@ export class Hearing {
     if (
       world.seed === this.seed &&
       world.doors.length === this.doorCount &&
+      world.walls.length === this.wallCount &&
       vents === this.ventCount
     )
       return;
     this.seed = world.seed;
     this.doorCount = world.doors.length;
+    this.wallCount = world.walls.length;
     this.ventCount = vents;
+    this.wallBounds = new Float64Array(world.walls.length * 4);
+    world.walls.forEach((wall, index) => {
+      this.wallBounds[index * 4] = Math.min(wall.a.x, wall.b.x);
+      this.wallBounds[index * 4 + 1] = Math.min(wall.a.z, wall.b.z);
+      this.wallBounds[index * 4 + 2] = Math.max(wall.a.x, wall.b.x);
+      this.wallBounds[index * 4 + 3] = Math.max(wall.a.z, wall.b.z);
+    });
+    this.roomBounds = new Float64Array(world.rooms.length * 4);
+    world.rooms.forEach((room, index) => {
+      let minX = Infinity,
+        minZ = Infinity,
+        maxX = -Infinity,
+        maxZ = -Infinity;
+      for (const p of room.polygon) {
+        minX = Math.min(minX, p.x);
+        minZ = Math.min(minZ, p.z);
+        maxX = Math.max(maxX, p.x);
+        maxZ = Math.max(maxZ, p.z);
+      }
+      this.roomBounds.set([minX, minZ, maxX, maxZ], index * 4);
+    });
     this.portals = world.doors.map((door, index) => ({
       a: door.a,
       b: door.b ?? '',
@@ -288,7 +320,21 @@ export class Hearing {
    */
   private straightLoss(world: HearingWorld, from: MapPoint, to: MapPoint): number {
     const crossings: Crossing[] = [];
-    for (const wall of world.walls) {
+    const minX = Math.min(from.x, to.x),
+      minZ = Math.min(from.z, to.z),
+      maxX = Math.max(from.x, to.x),
+      maxZ = Math.max(from.z, to.z);
+    const bounds = this.wallBounds;
+    for (let index = 0; index < world.walls.length; index++) {
+      const at = index * 4;
+      if (
+        bounds[at + 2]! < minX ||
+        bounds[at]! > maxX ||
+        bounds[at + 3]! < minZ ||
+        bounds[at + 1]! > maxZ
+      )
+        continue;
+      const wall = world.walls[index]!;
       const t = rayParameter(from, to, wall.a, wall.b);
       if (t === null) continue;
       crossings.push({ t, loss: wall.kind === 'wall' ? WALL_LOSS : GLASS_LOSS });
@@ -299,6 +345,7 @@ export class Hearing {
       const t = rayParameter(from, to, a, b);
       if (t !== null) crossings.push({ t, loss: DOOR_LOSS });
     }
+    if (crossings.length === 0) return 0;
     crossings.sort((p, q) => p.t - q.t);
     let loss = 0;
     let last = -Infinity;
@@ -308,6 +355,24 @@ export class Hearing {
       loss += crossing.loss;
     }
     return loss;
+  }
+
+  /** Wie `roomIdAt`, aber erst der Umriss, dann das Polygon. */
+  private roomAt(world: HearingWorld, at: MapPoint): string {
+    const bounds = this.roomBounds;
+    for (let index = 0; index < world.rooms.length; index++) {
+      const b = index * 4;
+      if (
+        at.x < bounds[b]! ||
+        at.x > bounds[b + 2]! ||
+        at.z < bounds[b + 1]! ||
+        at.z > bounds[b + 3]!
+      )
+        continue;
+      const room = world.rooms[index]!;
+      if (pointInPolygon(at, room.polygon)) return room.id;
+    }
+    return '';
   }
 }
 
@@ -330,8 +395,11 @@ function copy(p: MapPoint): MapPoint {
   return { x: p.x, z: p.z };
 }
 
+/** `Math.sqrt` statt `Math.hypot`: gleich genau für zwei Achsen, ein Vielfaches schneller. */
 function distance(a: MapPoint, b: MapPoint): number {
-  return Math.hypot(a.x - b.x, a.z - b.z);
+  const dx = a.x - b.x,
+    dz = a.z - b.z;
+  return Math.sqrt(dx * dx + dz * dz);
 }
 
 /** Das Türblatt als Strecke quer über die Öffnung — wie `map/geometry.doorLeaf`, das kein Vertrag ist. */

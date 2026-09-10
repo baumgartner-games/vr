@@ -486,8 +486,18 @@ Auftraggebers („Wahrnehmung auf dasselbe Modell"):
   Egress-Proxys); GitHub ist erreichbar. Deshalb ein Sparse-Clone eines
   CC0-Sammel-Repositorys.
 - **Kosten**: ein Hörweg 0,14 ms in Jest; Quellen jenseits der Reichweite
-  kosten keine Suche. Headset: 10 Hz Wahrnehmung, 20 Hz Regie.
-  `roundSim.test.ts` („60 Runden unter 4 s") bleibt grün.
+  kosten keine Suche. Headset: 10 Hz Wahrnehmung, 20 Hz Regie. Die
+  Simulation hat das Modell zuerst **dreizehnfach** langsamer gemacht (60
+  Runden 1,9 s statt 0,14 s; auf dem CI-Läufer 4,1 s und damit über dem
+  Limit von `roundSim.test.ts`) — Ursache waren die Türschleife und 260
+  Wandstrahlen je Schritt, auch wenn der Techniker weit weg war. Jetzt
+  prüft `roundSim.ts` erst die Luftlinie gegen die größtmögliche
+  Reichweite und setzt Türen und Hörmodell nur an, wenn sie darunter
+  liegt; `Hearing` filtert Wände und Räume über vorberechnete Umrisse
+  (`wallBounds`, `roomBounds`) und rechnet `Math.sqrt` statt `Math.hypot`.
+  60 Runden ≈ 0,5 s, die Rundenergebnisse sind bitgleich zu vorher (die
+  Gewichte gelten weiter). Wer weiter sparen will: `routeBlocked` in
+  `stationLayout.ts` und `stepAwareness` sind die nächsten Posten.
 
 ### Bekannte Lücken
 
