@@ -82,6 +82,8 @@ export class FlatMonsterControl implements MonsterDriver, MonsterPort {
       pace: !moving ? 'still' : this.stick.sprint ? 'hunt' : 'walk',
       cue: '',
       strike,
+      // Vor der Kabine, in der der Techniker steckt, gilt der Knopf ihr.
+      cabin: strike && crew.hidden ? crew.hidden : '',
       label: 'Spieler',
     };
   }

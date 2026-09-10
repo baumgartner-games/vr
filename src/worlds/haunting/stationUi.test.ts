@@ -83,6 +83,7 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
   };
   let seat: StationId | null = null;
   const flip = jest.fn();

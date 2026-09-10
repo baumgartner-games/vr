@@ -31,6 +31,7 @@ test.each(ROOM_COUNTS)(
         fuse: false,
         taken: spec.tasks.map((task) => task.id),
         done: spec.tasks.map((task) => task.id),
+        destroyed: spec.rooms.slice(0, 2).map((room) => room.id),
       };
       const replay = readState(JSON.parse(JSON.stringify(stateMessage(state))))!;
       expect(replay.shut).toEqual(state.shut);
@@ -38,6 +39,7 @@ test.each(ROOM_COUNTS)(
       expect(replay.loud).toEqual(state.loud);
       expect(replay.taken).toEqual(state.taken);
       expect(replay.done).toEqual(state.done);
+      expect(replay.destroyed).toEqual(state.destroyed);
       expect(replay.crew.inventory).toEqual(crew.inventory);
       expect(replay.crew.opened).toEqual(crew.opened);
       expect(replay.crew.hidden).toBe(crew.hidden);

@@ -41,7 +41,8 @@ import { XrayTool } from '../portal/tools/XrayTool';
 import { RadarTool } from '../portal/tools/RadarTool';
 import type { Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
-import { buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
+import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
+import { CabinWreck } from './rules/cabinWreck';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -128,6 +129,10 @@ interface Locker {
   leafHeight: number;
   code: string;
   open: boolean;
+  /** Die Teile des heilen Modells — unsichtbar, solange die Kabine ein Wrack ist. */
+  parts: THREE.Object3D[];
+  /** Das Wrack-Modell (`buildBrokenLocker`), solange die Kabine zerstört ist. */
+  wreck: THREE.Group | null;
 }
 interface Door {
   id: string;
@@ -186,6 +191,8 @@ export class ShipExperience {
   private readonly audioHead = new THREE.Vector3();
   private hasAudioHead = false;
   private readonly lockerEntries = new Map<string, string>();
+  /** Wann welches Wrack Funken wirft (`rules/cabinWreck.ts`). */
+  private readonly wreckClock = new CabinWreck();
   private readonly suit = new THREE.Group();
   private readonly wound = new THREE.Mesh(
     new THREE.PlaneGeometry(0.22, 0.13),
@@ -535,6 +542,7 @@ export class ShipExperience {
 
   private locker(id: string, at: THREE.Vector3, yaw: number, code: string): void {
     const { root: group, door: leaf } = buildSafetyLocker();
+    const parts = [...group.children];
     group.position.copy(at);
     group.rotation.y = yaw;
     const title = label('SCHUTZSCHRANK', 0.75, 0.14);
@@ -555,6 +563,8 @@ export class ShipExperience {
       leafHeight: 1.95,
       code,
       open: false,
+      parts,
+      wreck: null,
     });
     this.bind(keypad.mesh, (uv) => {
       if (!uv || !this.active) return;
@@ -576,6 +586,10 @@ export class ShipExperience {
     if (!this.inLockerRoom(id)) return;
     const locker = this.lockers.find((l) => l.id === id);
     if (!locker) return;
+    if (this.wrecked(id)) {
+      this.refuseWreck();
+      return;
+    }
     if (locker.open) {
       this.enterLocker(locker);
       return;
@@ -599,6 +613,10 @@ export class ShipExperience {
       return;
     }
     if (!this.inLockerRoom(locker.id)) return;
+    if (this.wrecked(locker.id)) {
+      this.refuseWreck();
+      return;
+    }
     this.host.ctx.rig.getHeadPosition(this.lockerHome);
     this.lockerHome.y = 0;
     this.host.travel(locker.group.position.clone());
@@ -606,6 +624,34 @@ export class ShipExperience {
     locker.open = false;
     this.host.say('Geschützt. AUSGANG vor dir antippen oder E drücken, um herauszutreten.');
     this.sound('door');
+  }
+  /** Ob diese Kabine ein Wrack ist — die Liste steht im Stand (`HauntState.destroyed`). */
+  private wrecked(id: string): boolean {
+    return this.host.state().destroyed.includes(id);
+  }
+  private refuseWreck(): void {
+    this.host.say('Die Kabine ist zerstört — sie schützt niemanden mehr. Eine andere suchen.');
+    this.sound('error');
+  }
+  /**
+   * **Das Modell tauschen**, sobald die Kabine als zerstört gilt — oder
+   * zurück, wenn eine neue Runde die Liste leert. Das heile Modell bleibt
+   * unsichtbar im Baum, weil Schild und Tastenfeld daran hängen und weil ein
+   * Wrack in derselben Runde nie wieder heil wird; das Wrack kommt dazu und
+   * geht mit seinen Ressourcen wieder weg.
+   */
+  private setWrecked(locker: Locker, wrecked: boolean): void {
+    for (const part of locker.parts) part.visible = !wrecked;
+    if (wrecked && !locker.wreck) {
+      locker.wreck = buildBrokenLocker().root;
+      locker.group.add(locker.wreck);
+    } else if (!wrecked && locker.wreck) {
+      locker.group.remove(locker.wreck);
+      disposeObject(locker.wreck);
+      locker.wreck = null;
+    }
+    locker.open = false;
+    this.lockerEntries.set(locker.id, '');
   }
   private inLockerRoom(id: string): boolean {
     this.host.ctx.rig.getHeadPosition(_head);
@@ -1100,9 +1146,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       cabinet.scanner.visible = false;
     }
     for (const locker of this.lockers) {
+      // Zerstört ist, was im Stand steht — auch bei einer Runde, die man mit
+      // schon aufgerissenen Kabinen betritt, und zurück auf heil beim Reset.
+      const wrecked = this.wrecked(locker.id);
+      if (wrecked !== !!locker.wreck) this.setWrecked(locker, wrecked);
+      if (wrecked) continue;
       const amount = THREE.MathUtils.damp(locker.leaf.scale.y, locker.open ? 0.025 : 1, 8, dt);
       locker.leaf.scale.y = amount;
       locker.leaf.position.y = locker.leafY + ((1 - amount) * locker.leafHeight) / 2;
+    }
+    for (const id of this.wreckClock.step(dt, state.destroyed)) {
+      const locker = this.lockers.find((l) => l.id === id);
+      if (locker) this.burst('sparks', _pos.copy(locker.group.position).setY(1.5));
     }
     this.effects.update(dt);
     if (this.player) {
@@ -1172,7 +1227,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       if (screen.mesh.userData.locker) {
         const id = screen.mesh.userData.locker as string;
         const locker = this.lockers.find((l) => l.id === id);
-        if (locker?.open) this.rows(screen, ['OFFEN', 'ANTIPPEN: VERSTECKEN']);
+        if (this.wrecked(id)) this.rows(screen, ['ZERSTÖRT', 'KEIN SCHUTZ']);
+        else if (locker?.open) this.rows(screen, ['OFFEN', 'ANTIPPEN: VERSTECKEN']);
         else this.gridScreen(screen, this.lockerEntries.get(id) || 'CODE?', ['1', '2', '3', '4']);
       }
     for (const console of this.consoles) this.paintRepair(console);
@@ -1386,6 +1442,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       near.locker?.id,
       near.locker?.open,
       near.locker ? this.lockerEntries.get(near.locker.id) : null,
+      state.destroyed,
       this.messages,
     ]);
     const intentText = `Techniker: ${{ mission: 'Mission erfüllen', flee: 'Flucht vor Gefahr', hide: 'Leise im Schutzschrank' }[this.missionBot?.survival ?? 'mission']} · Monster: ${{ patrol: 'Patrouille', investigate: 'Geräusch untersuchen', hunt: 'Verfolgung', search: 'Letzte Position absuchen' }[crew.threat.mode]}`;
@@ -1520,11 +1577,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       const box = document.createElement('div');
       panel.append(box);
       const caption = document.createElement('span');
-      caption.textContent = near.locker.open
-        ? 'Schrank offen. '
-        : `Schutzcode: ${this.lockerEntries.get(near.locker.id) ?? ''} `;
+      const wrecked = this.wrecked(near.locker.id);
+      caption.textContent = wrecked
+        ? 'Kabine zerstört — kein Schutz mehr. '
+        : near.locker.open
+          ? 'Schrank offen. '
+          : `Schutzcode: ${this.lockerEntries.get(near.locker.id) ?? ''} `;
       box.append(caption);
-      if (near.locker.open) button('Verstecken', `locker:${near.locker.id}:1`, box);
+      if (wrecked) {
+        // Keine Knöpfe: Ein Wrack nimmt keinen Code und keinen Gast.
+      } else if (near.locker.open) button('Verstecken', `locker:${near.locker.id}:1`, box);
       else for (let i = 1; i <= 4; i++) button(String(i), `locker:${near.locker.id}:${i}`, box);
     }
     if (crew.options.test) {
@@ -1923,6 +1985,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     state.lit = [];
     state.shut = [];
     state.fuse = false;
+    // Eine neue Bot-Runde beginnt mit heilen Kabinen (`rules/roundRules.ts`).
+    state.destroyed = [];
     this.crew.hp = 3;
     this.crew.opened = [];
     this.crew.inventory = [];

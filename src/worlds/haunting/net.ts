@@ -52,6 +52,16 @@ export interface HauntState {
   taken: string[];
   /** Und die, die im Van liegen. */
   done: string[];
+  /**
+   * **Die Kabinen, die das Monster aufgerissen hat** — Raum-Ids, in der
+   * Reihenfolge der Zerstörung (`rules/roundRules.ts`).
+   *
+   * Steht im Stand und nicht nur beim Gastgeber, weil jedes Gerät sie
+   * braucht: Die Karte in der Einsatzzentrale zeichnet sie als Wrack, der
+   * Mitspieler im Haus darf sie nicht mehr betreten, und der Zuschauer soll
+   * sehen, dass ein Ausweg weniger übrig ist. Seit `STATION_PROTOCOL` 6.
+   */
+  destroyed: string[];
 }
 
 export interface DroneState {
@@ -182,6 +192,7 @@ export function readState(data: unknown): HauntState | null {
     fuse: it['fuse'] === true,
     taken: ids(it['taken']),
     done: ids(it['done']),
+    destroyed: ids(it['destroyed']),
   };
 }
 

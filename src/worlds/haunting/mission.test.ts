@@ -165,8 +165,15 @@ describe('Orbital missions', () => {
       fuse: false,
       taken: ['t0'],
       done: [],
+      destroyed: ['r2', 'r5'],
     };
     const roundTrip = readState(stateMessage(state))!;
+    // Die zerstörten Kabinen gehen mit — und ein Client der Version 5 wird abgewiesen.
+    expect(roundTrip.destroyed).toEqual(['r2', 'r5']);
+    expect(readState({ ...state, kind: 'state', version: 5 })).toBeNull();
+    expect(
+      readState({ ...(stateMessage(state) as object), destroyed: [3, 'r1'] })!.destroyed,
+    ).toEqual(['r1']);
     expect(roundTrip.crew.hp).toBe(2);
     expect(roundTrip.crew.inventory).toEqual(c.inventory);
     expect(roundTrip.crew.puzzles.engine!.links).toEqual([2, 3]);
