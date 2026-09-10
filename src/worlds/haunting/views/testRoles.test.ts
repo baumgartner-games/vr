@@ -10,6 +10,7 @@ import { PanelRole } from './panel';
 import { ScoutRole } from './scout';
 import { applySwitch } from './switchState';
 import { PLAY_ID, RoleSwitcher, roundHost } from './testRoles';
+import { registerRole } from '../registry/roles';
 
 function fakeContext(): CanvasRenderingContext2D {
   const store: Record<string, unknown> = {};
@@ -123,14 +124,30 @@ describe('Rollenwechsel im Testmodus', () => {
     expect(switcher.element.isConnected).toBe(false);
   });
 
-  it('bietet eine unbekannte Rolle nicht an und lässt den Techniker stehen', () => {
+  it('bietet weder eine unbekannte Rolle noch eine Spielrolle an', () => {
+    // Eine Spielrolle mit Karte (wie das Monster) gehört der 2D-Welt selbst,
+    // nicht dem Streifen: Sie ist kein Sitzplatz im Van.
+    registerRole({
+      id: 'player-role',
+      label: 'Spielrolle',
+      tagline: '',
+      sees: '',
+      surface: 'map',
+      mount: () => ({ element: document.createElement('div'), update() {}, dispose() {} }),
+    });
     const round = new FlatRound(7, { test: true });
     const play = document.createElement('div');
     const switcher = new RoleSwitcher(roundHost(round), { play });
+    const offered = [...switcher.element.querySelectorAll<HTMLElement>('[data-role]')].map(
+      (chip) => chip.dataset['role'],
+    );
+    expect(offered).toEqual([PLAY_ID, 'archive', 'hack', 'scout']);
     switcher.select('drone');
+    switcher.select('player-role');
     expect(switcher.current).toBe(PLAY_ID);
     expect(play.hidden).toBe(false);
     switcher.dispose();
+    roles.unregister('player-role');
   });
 });
 

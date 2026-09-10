@@ -1,0 +1,252 @@
+import { DEFAULT_TUNING, type TechnicianTuning } from '../botTuning';
+import { PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED, puzzleFor } from '../mission';
+import type { StationGraph } from '../roomGraph';
+import type { FloorPoint } from '../stationLayout';
+import { FlatWalker } from '../map/flatWalk';
+import { FlatRound, type FlatInput } from '../map/flatRound';
+
+/**
+ * **Ein Techniker aus Zahlen für die 2D-Runde** — der Prüfstand der
+ * Rundenregeln.
+ *
+ * Er tut, was der Modelltechniker der 3D-Welt tut (`missionBot.ts`) und was
+ * die Trainingsrunde vereinfacht nachspielt (`roundSim.ts`): Ersatzteil
+ * holen, Konsole reparieren, dreimal, dann heim — und sobald das Monster
+ * nahe kommt, die Arbeit abbrechen und in Deckung gehen, am liebsten in eine
+ * Kabine. Genau dieses Verhalten hat die Runde in die Schleife getrieben:
+ * Kabine, Angriff, nächste Kabine, Angriff, ohne Ende. Hier läuft es gegen
+ * die **echte** 2D-Runde (`map/flatRound.ts`) mit den echten Rundenregeln
+ * (`roundRules.ts`), damit ein Test zeigen kann, dass die Schleife weg ist.
+ *
+ * Er spielt mit demselben Stock und denselben drei Knöpfen wie ein Mensch —
+ * `FlatRound.step` und `FlatRound.act` —, und er liest von der Runde nur, was
+ * auch auf der Karte steht. Die einzige Ausnahme ist die Gefahr: Ob das
+ * Monster nahe ist, weiß er wie der Techniker der Trainingsrunde aus dem
+ * Abstand und der Raumkarte, nicht aus dem Sichtbarkeitsfeld. Ein Bot, der
+ * das Monster erst sieht, wenn es im Licht steht, würde dieselbe Schleife
+ * nie erreichen, die ein Mensch mit Ohren erreicht.
+ */
+
+type Job =
+  | { kind: 'cargo'; id: string; at: FloorPoint; space: string }
+  | { kind: 'console'; id: string; at: FloorPoint; space: string }
+  | { kind: 'home'; id: string; at: FloorPoint; space: string };
+
+interface Cover {
+  at: FloorPoint;
+  space: string;
+  locker: boolean;
+}
+
+const IDLE: FlatInput = { x: 0, z: 0, sprint: false };
+/** Wie lange die Handgriffe an Fracht und Konsole dauern, in Sekunden (wie `roundSim.ts`). */
+const CARGO_SECONDS = 2.6;
+const CONSOLE_SECONDS = 6.4;
+
+export class TechnicianBot {
+  private readonly walker: FlatWalker;
+  private readonly jobs: Job[];
+  private job = 0;
+  private work = 0;
+  private survival: 'mission' | 'flee' | 'hide' = 'mission';
+  private calm = 0;
+  private stamina: number;
+  private escape: Cover | null = null;
+  private readonly roll: () => number;
+  /** Wie oft er sich in eine Kabine gerettet hat. */
+  hides = 0;
+  /** Wie oft ihn das Monster wahrgenommen hat — hier: wie oft Gefahr aufkam. */
+  alarms = 0;
+
+  constructor(
+    private readonly round: FlatRound,
+    private readonly tuning: TechnicianTuning = DEFAULT_TUNING.technician,
+    roll: () => number = Math.random,
+  ) {
+    this.walker = new FlatWalker(round);
+    this.roll = roll;
+    this.stamina = tuning.stamina;
+    this.jobs = round
+      .jobs()
+      .map((job): Job => ({ kind: job.kind, id: job.id, at: job.at, space: job.roomId }));
+    const home = round.graph.centre('command');
+    this.jobs.push({ kind: 'home', id: 'van', at: home, space: 'command' });
+  }
+
+  get stage(): string {
+    return this.survival === 'mission' ? (this.jobs[this.job]?.kind ?? 'done') : this.survival;
+  }
+
+  /**
+   * Der Stock zum Ziel — und kurz davor **weniger** ausgelenkt: Die Runde
+   * geht so schnell, wie der Stock steht, und wer bei großen Zeitschritten
+   * mit vollem Stock ankommt, schießt über das Ziel hinaus und pendelt.
+   */
+  private toward(goal: FloorPoint, dt: number, sprint = false): FlatInput | null {
+    const input = this.walker.input(goal, dt, sprint);
+    if (!input) return null;
+    const round = this.round;
+    if (round.graph.spaceAt(goal) !== round.player.space) return input;
+    const distance = Math.hypot(goal.x - round.player.x, goal.z - round.player.z);
+    const reach = (sprint ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED) * Math.max(dt, 1 / 30);
+    const scale = Math.min(1, Math.max(0.15, distance / reach));
+    return { x: input.x * scale, z: input.z * scale, sprint: input.sprint };
+  }
+
+  /** Ein Zeitschritt: Stock lesen, Knöpfe drücken, Runde rechnen. */
+  step(dt: number): void {
+    const round = this.round;
+    if (round.phase !== 'running') return;
+    const state = round.state();
+    const crew = state.crew;
+    const graph = round.graph;
+    const hidden = !!crew.hidden;
+    const gap = state.monsterOn
+      ? Math.hypot(round.player.x - round.monster.x, round.player.z - round.monster.z)
+      : Infinity;
+    const danger =
+      state.monsterOn &&
+      !hidden &&
+      (gap < this.tuning.caution || round.monster.space === round.player.space) &&
+      graph.distance(round.monster.space, round.player.space) < this.tuning.caution * 1.5;
+    this.calm = danger ? 0 : this.calm + dt;
+
+    // Versteckt: still bleiben, bis lange genug Ruhe war.
+    if (hidden) {
+      if (this.calm > this.tuning.nerve) {
+        round.act('interact');
+        this.survival = 'mission';
+        this.escape = null;
+        this.stamina = this.tuning.stamina;
+      }
+      round.step(dt, IDLE);
+      return;
+    }
+    if (this.survival === 'hide') this.survival = 'flee';
+
+    if (danger && this.survival === 'mission') {
+      this.survival = 'flee';
+      this.escape = null;
+      this.alarms++;
+      if (round.puzzle) round.closePuzzle();
+      this.work = 0;
+    }
+    if (this.survival === 'flee' && this.calm > this.tuning.nerve) {
+      this.survival = 'mission';
+      this.escape = null;
+      this.stamina = this.tuning.stamina;
+    }
+
+    if (this.survival === 'flee') {
+      this.stamina = Math.max(0, this.stamina - dt);
+      this.escape ??= this.chooseCover(graph, gap);
+      const input = this.toward(this.escape.at, dt, this.stamina > 0);
+      if (input) {
+        round.step(dt, input);
+        return;
+      }
+      if (this.escape.locker && round.target?.kind === 'locker') {
+        round.act('interact');
+        if (round.state().crew.hidden) {
+          this.hides++;
+          this.survival = 'hide';
+          this.calm = 0;
+        }
+      }
+      // Wer nur weggelaufen ist, sucht am Ziel gleich den nächsten Sprung.
+      this.escape = null;
+      round.step(dt, IDLE);
+      return;
+    }
+
+    // --- Der Auftrag ---------------------------------------------------------
+    const target = this.jobs[this.job];
+    if (!target) {
+      round.step(dt, IDLE);
+      return;
+    }
+    const input = this.toward(target.at, dt);
+    if (input) {
+      round.step(dt, input);
+      this.stamina = Math.min(this.tuning.stamina, this.stamina + dt * 0.4);
+      return;
+    }
+    if (target.kind === 'home') {
+      round.step(dt, IDLE);
+      return;
+    }
+    if (round.target?.id !== target.id) {
+      // Angekommen, aber der Knopf zeigt auf etwas anderes: näher heran.
+      const dx = target.at.x - round.player.x,
+        dz = target.at.z - round.player.z;
+      const d = Math.hypot(dx, dz) || 1;
+      round.step(dt, { x: dx / d, z: dz / d, sprint: false });
+      return;
+    }
+    round.step(dt, IDLE);
+    this.work += dt;
+    const needed = (target.kind === 'cargo' ? CARGO_SECONDS : CONSOLE_SECONDS) * this.tuning.work;
+    if (this.work < needed) return;
+    this.work = 0;
+    if (target.kind === 'cargo') {
+      round.act('interact');
+      round.act('interact');
+      this.job++;
+      return;
+    }
+    round.act('interact');
+    if (!round.puzzle) return;
+    this.solvePuzzle();
+    if (!round.puzzle) this.job++;
+  }
+
+  private solvePuzzle(): void {
+    const round = this.round;
+    const repair = round.puzzle;
+    if (!repair) return;
+    const puzzle = puzzleFor(round.state().crew, repair.id);
+    if (repair.puzzle === 'wires')
+      for (let plug = 0; plug < 4; plug++)
+        round.solve({ kind: 'wire', plug, socket: repair.order.indexOf(plug) });
+    else if (repair.puzzle === 'sequence') {
+      puzzle.links = [];
+      for (const digit of repair.code) round.solve({ kind: 'digit', digit: Number(digit) });
+    } else {
+      for (let column = 0; column < 3; column++)
+        while (puzzle.digits[column] !== Number(repair.code[column]))
+          round.solve({ kind: 'turn', column });
+      round.solve({ kind: 'send' });
+    }
+  }
+
+  /**
+   * **Wohin er flieht** — wie in `roundSim.chooseCover`: die Kabine ist die
+   * sichere Bank, solange niemand zusieht; das freie Feld der Ausweg, wenn
+   * jemand zusieht. Eine zerstörte Kabine steht auf der Karte als solche und
+   * kommt nicht mehr in Frage.
+   */
+  private chooseCover(graph: StationGraph, gap: number): Cover {
+    const round = this.round;
+    const here = round.player.space;
+    const watched = round.monster.space === here && gap < 8;
+    const wantsLocker = !watched && this.roll() < this.tuning.hide;
+    let best: Cover | null = null;
+    let score = -Infinity;
+    for (const space of [here, ...graph.neighbours(here)]) {
+      if (space === round.monster.space) continue;
+      const away = graph.distance(space, round.monster.space);
+      const cost = graph.distance(here, space);
+      const locker = wantsLocker && round.rules.cabinUsable(space) ? graph.locker(space) : null;
+      const options: Cover[] = [{ at: graph.centre(space), space, locker: false }];
+      if (locker) options.push({ at: locker, space, locker: true });
+      for (const candidate of options) {
+        const value = away - cost * 0.6 + (candidate.locker ? 9 : 0);
+        if (value > score) {
+          score = value;
+          best = candidate;
+        }
+      }
+    }
+    return best ?? { at: graph.centre(here), space: here, locker: false };
+  }
+}

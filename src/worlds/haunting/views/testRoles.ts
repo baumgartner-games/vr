@@ -2,6 +2,7 @@ import type { HouseSpec } from '../house';
 import type { HauntState } from '../net';
 import type { MapSnapshot } from '../map/mapSnapshot';
 import { listRoles, type RoleDefinition, type RoleHost, type RoleView } from '../registry/roles';
+import { isStation } from '../stations';
 import { el, key } from './dom';
 import type { ViewExtras } from './extras';
 import { applySwitch } from './switchState';
@@ -13,10 +14,11 @@ import { applySwitch } from './switchState';
  * Die 2D-Welt (`map/flatMode.ts`) rechnet ihre Runde selbst und bleibt dabei
  * am Leben: Der Techniker steht weiter auf seiner Karte, das Monster geht
  * weiter, die Uhr läuft. Was hier wechselt, ist nur, **wer hinschaut**: Ein
- * Streifen mit vier Knöpfen — Techniker, Archiv, Schalttafel, Späher —, und
+ * Streifen mit vier Knöpfen — Spielen, Archiv, Schalttafel, Späher —, und
  * jeder Knopf außer dem ersten legt eine Rollenansicht über die Welt und
- * blendet den Stock aus. Zurück zum Techniker heißt: Ansicht weg, Welt wieder
- * sichtbar, an derselben Stelle, in derselben Sekunde.
+ * blendet den Stock aus. Zurück zum Spielen heißt: Ansicht weg, Welt wieder
+ * sichtbar, an derselben Stelle, in derselben Sekunde — ob dort der
+ * Techniker oder das Monster gespielt wird, entscheidet die 2D-Welt.
  *
  * Die Rollen lesen den Stand der Runde über denselben `RoleHost` wie im Van
  * (`roundHost`); die Schalttafel schaltet direkt im Stand der Runde, weil es
@@ -55,7 +57,11 @@ export function roundHost(round: RunningRound, options: RoundHostOptions = {}): 
 export interface RoleSwitcherOptions {
   /** Die 2D-Welt — wird ausgeblendet, solange eine Rolle darüberliegt. */
   play: HTMLElement;
-  /** Welche Rollen angeboten werden; sonst alle mit `surface: 'map'`. */
+  /**
+   * Welche Rollen angeboten werden; sonst die Sitzplätze des Vans
+   * (`stations.ts`) mit `surface: 'map'`. Spielrollen wie das Monster
+   * (`monster/`) wechselt die 2D-Welt selbst in ihrem Optionsmenü.
+   */
   roles?: readonly RoleDefinition[];
 }
 
@@ -71,9 +77,10 @@ export class RoleSwitcher {
     private readonly host: RoleHost,
     private readonly options: RoleSwitcherOptions,
   ) {
-    this.roles = options.roles ?? listRoles().filter((role) => role.surface === 'map');
+    this.roles =
+      options.roles ?? listRoles().filter((role) => role.surface === 'map' && isStation(role.id));
     this.strip.setAttribute('aria-label', 'Rolle im Testmodus');
-    this.strip.append(key('roles__chip', 'Techniker', { role: PLAY_ID }));
+    this.strip.append(key('roles__chip', 'Spielen', { role: PLAY_ID }));
     for (const role of this.roles)
       this.strip.append(key('roles__chip', role.label, { role: role.id }));
     this.strip.addEventListener('click', (event) => {
@@ -85,7 +92,7 @@ export class RoleSwitcher {
     this.mark();
   }
 
-  /** Welche Rolle gerade schaut — `play` ist der Techniker mit dem Stock. */
+  /** Welche Rolle gerade schaut — `play` ist die 2D-Welt mit dem Stock. */
   get current(): string {
     return this.active;
   }

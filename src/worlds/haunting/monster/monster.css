@@ -1,0 +1,27 @@
+/*
+ * Die Monster-Rolle: Karte aus Monstersicht, Stock links, zwei Knöpfe rechts.
+ * Dieselbe Handschrift wie `map/flat.css`, damit der Wechsel zwischen den
+ * Rollen auf dem Telefon nicht wie ein Wechsel der App aussieht.
+ * Handgesetzt, einzeilig — CSS steht nicht unter Prettier.
+ */
+.monster { position: absolute; inset: 0; background: #070a10; color: #ffd0d2; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.monster__map { position: absolute; inset: 0; }
+.monster__map .mapview__canvas { width: 100%; height: 100%; display: block; }
+.monster__hud { position: absolute; left: 12px; top: max(10px, env(safe-area-inset-top)); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 10px; background: rgba(28, 10, 14, 0.8); border: 1px solid rgba(255, 77, 85, 0.35); pointer-events: none; max-width: 60vw; }
+.monster__hud strong { font-size: 14px; letter-spacing: .04em; color: #ff4d55; }
+.monster__hud span { font-size: 12px; color: #c9a0a4; }
+.monster__toast { position: absolute; left: 50%; top: max(64px, calc(env(safe-area-inset-top) + 56px)); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(28, 10, 14, 0.85); border: 1px solid rgba(255, 77, 85, 0.3); font-size: 13px; pointer-events: none; max-width: 86vw; text-align: center; transition: opacity .2s; }
+.monster__toast:empty { opacity: 0; }
+.monster__stick { position: absolute; left: 0; bottom: 0; width: 46vw; height: 46vh; max-height: 340px; touch-action: none; }
+.monster__stick .flat__stick-base { position: absolute; width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%; border: 2px solid rgba(255, 77, 85, 0.45); background: rgba(50, 20, 24, 0.45); pointer-events: none; }
+.monster__stick .flat__stick-base.is-sprint { border-color: #ffb14a; }
+.monster__stick .flat__stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255, 77, 85, 0.85); box-shadow: 0 0 12px rgba(255, 77, 85, 0.5); }
+.monster__buttons { position: absolute; right: 12px; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; width: min(44vw, 190px); }
+.monster__key { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 58px; padding: 8px 14px; border-radius: 14px; border: 1px solid rgba(255, 77, 85, 0.35); background: rgba(40, 18, 24, 0.92); color: #ffe4e6; font: inherit; text-align: left; touch-action: manipulation; }
+.monster__key small { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #a67a80; }
+.monster__key strong { font-size: 14px; }
+.monster__key:disabled { opacity: .45; }
+.monster__key--act.is-ready { border-color: #ffb14a; box-shadow: 0 0 0 1px rgba(255, 177, 74, 0.35) inset; }
+.monster__vents { position: absolute; right: 12px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 150px); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: min(44vw, 190px); }
+.monster__vents small { flex-basis: 100%; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #a67a80; }
+.monster__vent { padding: 8px 10px; border-radius: 999px; border: 1px solid rgba(255, 177, 74, 0.5); background: rgba(40, 18, 24, 0.92); color: #ffe4e6; font: inherit; font-size: 12px; }

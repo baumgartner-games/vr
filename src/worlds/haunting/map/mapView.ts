@@ -148,6 +148,8 @@ const INK = {
   console: '#8ff0b0',
   locker: '#8fa0ff',
   van: '#7ff0ff',
+  vent: '#9aa8b8',
+  ventOpen: '#ffb14a',
 };
 
 export class MapView {
@@ -455,6 +457,16 @@ export class MapView {
         } else if (item.kind === 'van') {
           ctx.strokeStyle = INK.van;
           ctx.strokeRect(p.x - r * 1.4, p.y - r * 0.8, r * 2.8, r * 1.6);
+        } else if (item.kind === 'vent') {
+          // Ein Gitter: Rahmen und drei Lamellen (Paket Lüftungssystem).
+          ctx.strokeStyle = item.state === 'open' ? INK.ventOpen : INK.vent;
+          ctx.strokeRect(p.x - r, p.y - r * 0.6, r * 2, r * 1.2);
+          ctx.beginPath();
+          for (let i = -1; i <= 1; i++) {
+            ctx.moveTo(p.x - r * 0.7, p.y + i * r * 0.35);
+            ctx.lineTo(p.x + r * 0.7, p.y + i * r * 0.35);
+          }
+          ctx.stroke();
         } else {
           ctx.fillStyle = INK.label;
           ctx.beginPath();

@@ -24,6 +24,11 @@ import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
+import { RoundRules } from '../rules/roundRules';
+import { VentNet } from '../vents/ventGraph';
+import { VentTravel } from '../vents/ventTravel';
+import { VentPilot } from '../vents/ventPilot';
+import type { MonsterDriver } from '../monster/monsterDriver';
 import { doorCentre, nextThroughDoor, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
@@ -32,6 +37,7 @@ import {
   type MapEntity,
   type MapItem,
   type MapLight,
+  type MapRound,
   type MapSnapshot,
 } from './mapSnapshot';
 import { applyPuzzle, type PuzzleAction } from './flatPuzzles';
@@ -112,6 +118,8 @@ export interface FlatOptions {
   test?: boolean;
   roll?: number;
   mode?: VisibilityMode;
+  /** Wen der Spieler in der 2D-Welt spielt (nur `FlatMode`; die Runde selbst ist neutral). */
+  role?: 'technician' | 'monster';
 }
 
 interface Actor {
@@ -149,6 +157,14 @@ export class FlatRound implements MapSource {
   readonly graph: StationGraph;
   readonly player: Actor;
   readonly monster: Actor;
+  /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
+  readonly rules = new RoundRules();
+  /** Das Lüftungsnetz, die Fahrt des Monsters darin und der Lotse der KI (`vents/`). */
+  readonly vents: VentNet;
+  readonly ventRide: VentTravel;
+  private readonly ventPilot: VentPilot;
+  /** Ein Spieler am Steuer des Monsters (`monster/`); `null` oder inaktiv heißt: die Routine. */
+  driver: MonsterDriver | null = null;
   /** Welche Werkzeuge man hat, in Reihenfolge des Durchschaltens. */
   readonly tools: string[] = ['flashlight'];
   active = 0;
@@ -206,6 +222,14 @@ export class FlatRound implements MapSource {
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
+    this.vents = new VentNet(this.house);
+    this.ventRide = new VentTravel(this.vents);
+    this.ventPilot = new VentPilot(
+      this.vents,
+      this.ventRide,
+      MONSTERS.find((m) => m.id === crewOptions.monster)?.vent ?? 28,
+      monsterBase(crewOptions.monster) * this.tuning.monster.speed,
+    );
     this.player = { x: COMMAND_HOME.x, z: COMMAND_HOME.z, yaw: 0, space: COMMAND };
     const start = farthest(this.graph, this.player);
     const centre = this.graph.centre(start);
@@ -287,7 +311,7 @@ export class FlatRound implements MapSource {
     if (!door) return false;
     const at = doorCentre(door);
     for (const actor of [this.player, this.monster]) {
-      if (actor === this.monster && !this.haunt.monsterOn) continue;
+      if (actor === this.monster && (!this.haunt.monsterOn || this.ventRide.concealed)) continue;
       if (Math.hypot(actor.x - at.x, actor.z - at.z) < 2.2) return true;
     }
     return false;
@@ -319,8 +343,8 @@ export class FlatRound implements MapSource {
         at: { x: this.monster.x, z: this.monster.z },
         yaw: this.monster.yaw,
         roomId: this.monster.space,
-        concealed: false,
-        moving: (this.decision?.pace ?? 'still') !== 'still',
+        concealed: this.ventRide.concealed,
+        moving: !this.ventRide.busy && (this.decision?.pace ?? 'still') !== 'still',
         sprinting: this.decision?.pace === 'hunt',
         held: '',
         sense: {
@@ -366,8 +390,12 @@ export class FlatRound implements MapSource {
         label: 'Schutzschrank',
         roomId: locker.roomId,
         at: { ...locker.at },
-        state: crew.hidden === locker.id ? 'open' : 'locked',
-        interactive: true,
+        state: !this.rules.cabinUsable(locker.id)
+          ? 'destroyed'
+          : crew.hidden === locker.id
+            ? 'open'
+            : 'locked',
+        interactive: this.rules.cabinUsable(locker.id),
       });
     out.push({
       id: 'van',
@@ -378,7 +406,13 @@ export class FlatRound implements MapSource {
       state: this.haunt.done.length >= 3 ? 'ready' : '',
       interactive: false,
     });
+    const open = this.ventRide.openFlap;
+    out.push(...this.vents.items(open ? [open.id] : []));
     return out;
+  }
+
+  ventLinks(): MapSnapshot['ventLinks'] {
+    return this.vents.mapLinks();
   }
 
   carriedLights(): readonly MapLight[] {
@@ -406,6 +440,10 @@ export class FlatRound implements MapSource {
     return this.haunt;
   }
 
+  round(): MapRound {
+    return this.rules.status(this.haunt);
+  }
+
   /** Der Snapshot dieses Bildes — einmal je Schritt gerechnet. */
   snapshot(): MapSnapshot {
     if (!this.snapshotCache) this.snapshotCache = extractMapSnapshot(this, 'flat');
@@ -431,6 +469,11 @@ export class FlatRound implements MapSource {
   private tick(dt: number, input: FlatInput): void {
     if (this.haunt.phase !== 'running') return;
     this.haunt.time += dt;
+    const out = this.rules.step(this.haunt);
+    if (out) {
+      this.events.push(out);
+      return;
+    }
     this.radarPing = Math.max(0, this.radarPing - dt);
     const crew = this.haunt.crew;
 
@@ -499,6 +542,14 @@ export class FlatRound implements MapSource {
 
     if (!this.haunt.monsterOn) return;
 
+    // --- Im Schacht: nichts hören, nichts sehen, nur fahren (`vents/ventTravel.ts`).
+    const piloted = this.driver?.active() === true;
+    if (this.ventRide.busy) {
+      this.ventRide.step(dt, this.monster, !piloted);
+      this.haunt.monster = { x: this.monster.x, z: this.monster.z };
+      return;
+    }
+
     // --- Wahrnehmung des Monsters --------------------------------------------
     const profile = ENTITY_PROFILES[crew.options.monster];
     const hidden = !!crew.hidden;
@@ -530,22 +581,23 @@ export class FlatRound implements MapSource {
       this.caught = crew.hidden;
     if (!hidden) this.caught = '';
 
-    const decision = this.routine.step(this.graph, {
-      dt,
-      at: this.monster,
-      here: this.monster.space,
-      signal: this.memory.target,
-      seen,
-      quarry: this.player.space,
-      caught: this.caught,
-      rng: () => this.rng.next(),
-    });
+    const decision = piloted
+      ? this.driver!.decide(dt)
+      : this.routine.step(this.graph, {
+          dt,
+          at: this.monster,
+          here: this.monster.space,
+          signal: this.memory.target,
+          seen,
+          quarry: this.player.space,
+          caught: this.caught,
+          rng: () => this.rng.next(),
+        });
     this.decision = decision;
     if (decision.strike && hidden) {
-      crew.hidden = '';
       this.caught = '';
-      if (takeCrewHit(crew, true)) this.hit('Der Schrank wird aufgerissen.');
-      crew.invulnerable = 3;
+      // Die Kabine ist danach hin (`rules/roundRules.ts`).
+      if (this.rules.cabinStrike(crew)) this.hit('Die Kabine wird aufgerissen.');
     }
     if (
       decision.mode === 'search' &&
@@ -555,22 +607,29 @@ export class FlatRound implements MapSource {
     )
       this.caught = crew.hidden;
     if (decision.cue === 'scream') this.events.push({ kind: 'bad', text: 'Ein Schrei.' });
-    this.moveMonster(
-      decision,
-      dt,
-      paceSpeed(monsterBase(crew.options.monster), this.tuning.monster, decision.pace),
-    );
+    const base = monsterBase(crew.options.monster);
+    if (piloted) {
+      // Ein Spieler steuert direkt: kein Türrouting, kein Lotse — nur Gleiten an Wänden.
+      if (decision.goal)
+        this.stepMonster(decision.goal, paceSpeed(base, this.tuning.monster, decision.pace), dt);
+    } else {
+      // Der Lotse biegt das Ziel auf eine Klappe um, wenn der Schacht lohnt (`vents/ventPilot.ts`).
+      const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.graph);
+      if (!this.ventRide.busy)
+        this.moveMonster(steered, dt, paceSpeed(base, this.tuning.monster, steered.pace));
+    }
     this.haunt.monster = { x: this.monster.x, z: this.monster.z };
 
-    if (gap < CONTACT && !hidden && !decision.strike && takeCrewHit(crew, true))
-      this.hit('Treffer.');
+    // Die KI trifft durch Berührung, ein Spieler nur mit dem Knopf.
+    const wantsHit = piloted ? decision.strike : !decision.strike;
+    if (gap < CONTACT && !hidden && wantsHit && takeCrewHit(crew, true)) this.hit('Treffer.');
   }
 
   private hit(text: string): void {
     const crew = this.haunt.crew;
     if (crew.hp <= 0) {
       this.haunt.phase = 'lost';
-      this.events.push({ kind: 'bad', text: 'MISSION GESCHEITERT · Drei Treffer.' });
+      this.events.push({ kind: 'bad', text: 'MISSION GESCHEITERT · Anzug zerstört.' });
     } else this.events.push({ kind: 'bad', text: `${text} Anzug ${crew.hp}/3.` });
   }
 
@@ -750,12 +809,13 @@ export class FlatRound implements MapSource {
           at: console.at,
         });
     for (const locker of this.lockers)
-      candidates.push({
-        kind: 'locker',
-        id: locker.id,
-        label: 'Im Schrank verstecken',
-        at: locker.at,
-      });
+      if (this.rules.cabinUsable(locker.id))
+        candidates.push({
+          kind: 'locker',
+          id: locker.id,
+          label: 'Im Schrank verstecken',
+          at: locker.at,
+        });
     for (const door of this.house.doors) {
       const locked = this.haunt.shut.includes(door.id);
       candidates.push({
