@@ -7829,6 +7829,24 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   drin ist oder nicht (`RoutineOutput.cabin`; ohne Schrei und ohne Vorsprung,
   die bleiben dem gesehenen Rückzug). Ein leerer Schrank ist danach trotzdem
   ein Versteck weniger. Kein Wissen darüber, ob der Schrank besetzt ist.
+  **Was es weiß, steht daneben** — `monster/monsterMemory.ts`, und es ist noch
+  **nicht angeschlossen**: ein Glaubensbild über die Räume (je Raum eine
+  Wahrscheinlichkeit, zusammen immer 1), je Raum ein Notizzettel (wann
+  besucht, abgesucht, gesehen, gehört) und eine Spur der letzten sechs
+  Sichtungen, aus der `track.velocity()` Richtung und Tempo schätzt. Eine
+  Sichtung setzt die ganze Masse in einen Raum; ein Geräusch multipliziert die
+  Likelihood aus der gedämpften Hörweite dazu (`StationGraph.earshot`, sonst
+  selbst gerechnet); ein abgesuchter Raum fällt auf `FLOOR` 0,01 statt auf
+  null, damit das Monster nicht an einem Spieler vorbeiläuft, der hinter ihm
+  wieder hineingegangen ist; mit der Zeit gleicht sich das Bild über die Türen
+  aus (`DRIFT` 0,15/s je Tür, gesperrte Türen halten es auf), und nach
+  `FORGET` 45 s ohne Sichtung oder Geräusch ist wieder alles gleich
+  wahrscheinlich. Abfragen: `mostLikely`, `expected`, `certainty`, `exits`
+  (die Türen eines Raums mit dem Anteil des Zuflusses dahinter),
+  `leastRecentlyVisited` (Patrouille und Seitenwechsel), `snapshot` (für die
+  Zuschauer, ab 2 %). Rein und deterministisch, ohne three.js und ohne Zufall
+  — die Routine liest davon bislang nichts, das Verdrahten kommt mit der
+  Abfangrechnung.
 - **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
   `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
   ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
