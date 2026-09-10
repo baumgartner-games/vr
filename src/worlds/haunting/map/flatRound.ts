@@ -33,13 +33,15 @@ import { NOISE, stepLoudness } from '../audio/cues';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
+import { StationNpcNavigator } from '../stationNpcNavigator';
+import { StationTravelPlan } from '../stationTravelPlan';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
 import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
 import type { MonsterDriver } from '../monster/monsterDriver';
-import { doorCentre, nextThroughDoor, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
+import { doorCentre, doorPath, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
 import {
@@ -84,6 +86,13 @@ export const REACH = 1.6;
 export const PLAYER_RADIUS = 0.35;
 /** Und der des Monsters. */
 const MONSTER_RADIUS = 0.4;
+/**
+ * Was die Wegsuche des Monsters auf seinen Radius aufschlägt. In 3D ist das
+ * ein Zehntel für die Physikkapsel; hier rückt `walkable` die Räume schon um
+ * `MONSTER_RADIUS` ein, und mit 0,45 m liegt jeder Rasterpunkt sicher darin —
+ * 0,5 m ließen keine Tür mehr durch (`navmesh/flatWalk.test.ts`).
+ */
+const ROUTE_COMFORT = 0.05;
 /** Ab hier trifft das Monster. */
 const CONTACT = 1.7;
 /** Wie lange Holz einen Verfolger aufhält, in Sekunden. */
@@ -121,6 +130,8 @@ export interface FlatEvent {
   text: string;
 }
 
+export type FlatRole = 'technician' | 'monster' | 'bot';
+
 export interface FlatOptions {
   monster?: MonsterKind;
   tuning?: BotTuning;
@@ -128,8 +139,12 @@ export interface FlatOptions {
   test?: boolean;
   roll?: number;
   mode?: VisibilityMode;
-  /** Wen der Spieler in der 2D-Welt spielt (nur `FlatMode`; die Runde selbst ist neutral). */
-  role?: 'technician' | 'monster';
+  /**
+   * Wen der Spieler in der 2D-Welt spielt (nur `FlatMode`; die Runde selbst
+   * ist neutral): den Techniker, das Monster — oder niemanden (`bot`), dann
+   * spielt der Techniker aus Zahlen (`rules/technicianBot.ts`) und man sieht zu.
+   */
+  role?: FlatRole;
 }
 
 interface Actor {
@@ -208,6 +223,13 @@ export class FlatRound implements MapSource {
   /** Wo das Monster zuletzt vorankam — steht es länger, nimmt es einen Umweg über die Raummitte. */
   private stall = { x: 0, z: 0, since: 0 };
   private detourUntil = 0;
+  /** Dieselbe Wegsuche wie in 3D (Paket nav): Raster, Schnurzug, gesperrte Türen als Wand. */
+  private readonly travel = new StationTravelPlan();
+  private readonly navigator = new StationNpcNavigator(
+    () => this.house,
+    () => this.travel.graph(this.house, this.haunt.shut, false),
+    ROUTE_COMFORT,
+  );
   private readonly litCache = new LitCache();
   private events: FlatEvent[] = [];
 
@@ -689,16 +711,18 @@ export class FlatRound implements MapSource {
   }
 
   /**
-   * Das Monster geht Raum für Raum: Im Zielraum geradeaus, sonst zur Tür in
-   * den nächsten Raum der Karte. Eine gesperrte Holztür hält es kurz auf,
-   * Stahl für immer — dann wählt die Routine irgendwann ein anderes Ziel.
+   * Das Monster läuft denselben Weg wie in 3D: `stationRoute` über das Raster
+   * mit Schnurzug (Paket nav), gesperrte Türen als Wand. Welche Tür es auf dem
+   * Weg zum Ziel nimmt, sagt weiterhin die Raumkarte — ist die gesperrt, geht
+   * es bis davor und wartet: Eine Holztür hält es kurz auf, Stahl für immer,
+   * dann wählt die Routine irgendwann ein anderes Ziel.
    */
   private moveMonster(decision: RoutineOutput, dt: number, speed: number): void {
     const goal = decision.goal;
     if (!goal || speed <= 0) return;
     const goalSpace = this.graph.spaceAt(goal) || this.monster.space;
-    // Wer sich in einer Türnische an der Wand festläuft, geht erst zurück in
-    // die Mitte seines Raums und von dort noch einmal los.
+    // Wer sich doch einmal an der Wand festläuft, geht erst zurück in die
+    // Mitte seines Raums und von dort noch einmal los.
     if (Math.hypot(this.monster.x - this.stall.x, this.monster.z - this.stall.z) > 0.05) {
       this.stall = { x: this.monster.x, z: this.monster.z, since: this.haunt.time };
     } else if (this.haunt.time - this.stall.since > 0.6 && this.haunt.time > this.detourUntil) {
@@ -710,7 +734,7 @@ export class FlatRound implements MapSource {
       this.stepMonster(centre, speed, dt);
       return;
     }
-    let step: FloorPoint = goal;
+    let target: FloorPoint = goal;
     let door: (typeof this.house.doors)[number] | null = null;
     if (goalSpace !== this.monster.space) {
       const nextSpace = this.graph.next(this.monster.space, goalSpace);
@@ -720,7 +744,10 @@ export class FlatRound implements MapSource {
             (d.a === this.monster.space && (d.b ?? COMMAND) === nextSpace) ||
             ((d.b ?? COMMAND) === this.monster.space && d.a === nextSpace),
         ) ?? null;
-      if (door) step = nextThroughDoor(door, this.monster, this.graph.centre(nextSpace));
+      // Vor eine gesperrte Tür führt die Wegsuche nicht; das Ziel ist dann
+      // der Punkt davor, auf der eigenen Seite.
+      if (door && this.haunt.shut.includes(door.id))
+        target = doorPath(door, this.graph.centre(nextSpace))[0];
     }
     if (door && this.haunt.shut.includes(door.id)) {
       const at = doorCentre(door);
@@ -734,7 +761,16 @@ export class FlatRound implements MapSource {
         }
       }
     } else this.blocked = null;
-    this.stepMonster(step, speed, dt);
+    const step = this.navigator.step({
+      at: { x: this.monster.x, y: 0, z: this.monster.z },
+      target: { x: target.x, y: 0, z: target.z },
+      dt,
+      now: this.haunt.time,
+      radius: MONSTER_RADIUS,
+    });
+    // Kein Weg (mehr): angekommen, oder das Ziel liegt hinter einer Sperre.
+    // Dann steht es, statt geradeaus in eine Wand zu laufen.
+    if (step) this.stepMonster(step, speed, dt);
   }
 
   private stepMonster(step: FloorPoint, speed: number, dt: number): void {

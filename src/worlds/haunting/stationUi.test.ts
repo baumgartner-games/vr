@@ -68,8 +68,13 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function crew(station: StationId = 'archive', remoteTechnician = true) {
+function crew(station: StationId = 'archive', remoteTechnician = true, flat?: boolean) {
   let spec = generateHouse(947, 10);
+  // Die Checkbox „2D-Welt von oben" gibt es nur, wenn die Welt sie anbietet
+  // (`flat` gesetzt); `undefined` ist der Van ohne sie, wie in den alten Tests.
+  let flatWanted = flat ?? false;
+  const mission = jest.fn();
+  const test = jest.fn();
   const state: HauntState = {
     seed: spec.seed,
     crew: freshCrew(),
@@ -104,6 +109,17 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     menu,
     botRound,
     restart,
+    ...(flat === undefined
+      ? {}
+      : {
+          flatMode() {
+            flatWanted = !flatWanted;
+            ui.refresh();
+          },
+          flatWanted: () => flatWanted,
+          mission,
+          test,
+        }),
     seat: () => seat,
     wanted: () => seat,
     arriving: () => 0,
@@ -135,10 +151,15 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     flip,
     menu,
     botRound,
+    mission,
+    test,
     restart,
     archiveHome,
     archiveZoom,
     archivePan,
+    get flatWanted() {
+      return flatWanted;
+    },
     get spec() {
       return spec;
     },
@@ -281,6 +302,40 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(bot.textContent).toContain('Ein Techniker spielt bereits');
     bot.click();
     expect(game.botRound).not.toHaveBeenCalled();
+  });
+
+  it('treats "2D-Welt von oben" as a setting: no round starts until a tile below is chosen', () => {
+    const game = crew('archive', false, false);
+    button('[aria-label="Rolle wechseln"]').click();
+    const box = document.querySelector<HTMLInputElement>('[data-flat-mode]')!;
+    expect(box.checked).toBe(false);
+    // Ohne 2D: die alten Kacheln — Bot-Runde und der Techniker am Desktop.
+    expect(document.querySelector('[data-technician]')).not.toBeNull();
+    expect(document.querySelector('[data-mission]')).toBeNull();
+    box.click();
+    expect(game.flatWanted).toBe(true);
+    expect(game.botRound).not.toHaveBeenCalled();
+    expect(game.mission).not.toHaveBeenCalled();
+    expect(game.test).not.toHaveBeenCalled();
+    // Mit 2D: Bot-Runde, Mission und Test als drei Kacheln; der
+    // Desktop-Techniker gehört zur 3D-Welt und ist weg.
+    expect(document.querySelector<HTMLInputElement>('[data-flat-mode]')!.checked).toBe(true);
+    expect(document.querySelector('[data-technician]')).toBeNull();
+    button('[data-mission]').click();
+    expect(game.mission).toHaveBeenCalledTimes(1);
+    button('[data-test]').click();
+    expect(game.test).toHaveBeenCalledTimes(1);
+    button('[data-bot-round]').click();
+    expect(game.botRound).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the 2D bot round available while a technician plays in the ship', () => {
+    const game = crew('archive', true, true);
+    button('[aria-label="Rolle wechseln"]').click();
+    const bot = button('[data-bot-round]');
+    expect(bot.disabled).toBe(false);
+    bot.click();
+    expect(game.botRound).toHaveBeenCalledTimes(1);
   });
 
   it('keeps system switches and radar on separate labelled tabs and sends switch actions once', () => {
