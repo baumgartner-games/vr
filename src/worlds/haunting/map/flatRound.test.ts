@@ -166,6 +166,41 @@ describe('Das Monster in der 2D-Welt', () => {
     expect(round.field.cones.length).toBe(2);
     expect(round.field.noise.some((n) => n.cause === 'monster')).toBe(true);
   });
+
+  /**
+   * **Der Ghost-Marker ist eine Erinnerung, keine Verfolgung** (`rules/ghosts.ts`).
+   * Er wird bei Sichtkontakt gesetzt und bleibt danach stehen, wo er stand —
+   * auch wenn das Monster längst zwei Räume weiter ist. Genau darauf baut der
+   * Bluff: Wer weiß, dass der andere einen alten Punkt hat, läuft woandershin.
+   */
+  it('merkt sich das Monster beim Sichtkontakt und lässt den Punkt danach stehen', () => {
+    const round = new FlatRound(4);
+    round.torch = false;
+    expect(round.haunt.ghosts).toEqual({ monster: null, technician: null });
+    // „Alles sehen" ist der eine Fall, in dem der Techniker das Monster
+    // sicher sieht, ohne dass es erst um die Ecke kommen muss.
+    round.setMode('omniscient');
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.haunt.ghosts.monster).not.toBeNull();
+    // Licht aus, Sicht realitätsnah: Von jetzt an sieht der Techniker nichts
+    // mehr — und der Marker altert an seiner Stelle. Der erste Schritt danach
+    // rechnet noch mit dem Sichtfeld des vorigen Bildes, setzt den Punkt also
+    // ein letztes Mal; ab dann steht er.
+    round.setMode('realistic');
+    round.haunt.lit.length = 0;
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    const mark = { ...round.haunt.ghosts.monster! };
+    // Gesetzt wird mitten im Schritt, gemessen danach: ein Zehntelmeter Weg
+    // liegt dazwischen, mehr nicht.
+    expect(Math.hypot(mark.x - round.monster.x, mark.z - round.monster.z)).toBeLessThan(0.2);
+    expect(mark.since).toBeCloseTo(round.haunt.time, 6);
+    for (let t = 0; t < 8; t += DT) round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.field.visibleEntities).toEqual([PLAYER_ID]);
+    expect(round.haunt.ghosts.monster).toEqual(mark);
+    // Und das Monster ist inzwischen woanders — der Punkt ist eine Erinnerung.
+    expect(Math.hypot(round.monster.x - mark.x, round.monster.z - mark.z)).toBeGreaterThan(1);
+  });
 });
 
 describe('Der Snapshot der 2D-Welt', () => {

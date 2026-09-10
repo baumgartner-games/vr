@@ -123,6 +123,7 @@ import {
   toggleLock,
   type DoorLocks,
 } from './rules/doorLocks';
+import { freshGhosts, markGhost } from './rules/ghosts';
 import { freshLamps, lampGlow, lampOut, stepLamps, switchLamp, type Lamps } from './rules/lamps';
 import {
   cycleMonster,
@@ -2174,6 +2175,44 @@ export class HauntingWorld extends GridWorld {
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.1;
       this.monsterSeesPlayer = distance < 24 && this.monsterLineOfSight();
+      // --- Die zuletzt gesehene Stelle, beide Richtungen (`rules/ghosts.ts`).
+      // Sie hängt an denselben Prüfungen wie Alarmleiter und Bot-Furcht: Ein
+      // eigener Sichttest daneben wäre eine zweite Wahrheit, und der Marker
+      // zeigte woandershin als das, was das Monster tut. Der Blick des
+      // Technikers kommt aus der Kamera (im Modelltechniker aus seiner Pose,
+      // deren Winkel wie bei der Drohne um π gedreht steht).
+      let facing = bot ? bot.yaw + Math.PI : 0;
+      if (!bot) {
+        ctx.camera.getWorldDirection(_feet);
+        facing = Math.atan2(-_feet.x, -_feet.z);
+      }
+      const ghosts = this.state.ghosts;
+      ghosts.technician = markGhost(
+        ghosts.technician,
+        this.monsterSeesPlayer,
+        { x: _head.x, z: _head.z },
+        facing,
+        this.state.time,
+      );
+      // Andersherum sieht der Techniker das Monster, wenn es in seinem Kegel
+      // steht und keine Wand dazwischen ist — dieselbe Rechnung, mit der der
+      // Modelltechniker vor ihm flieht (`danger`). Im Schacht sieht ihn
+      // niemand.
+      const sighted =
+        !!monster &&
+        this.state.crew.venting === 0 &&
+        inView(_head, facing, monster, BOT_VISION, BOT_FOV) &&
+        this.clearSight(
+          { x: _head.x, z: _head.z, y: _head.y },
+          { ...monster, y: this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5 },
+        );
+      ghosts.monster = markGhost(
+        ghosts.monster,
+        sighted,
+        monster ?? { x: 0, z: 0 },
+        this.monster?.model.rotation.y ?? 0,
+        this.state.time,
+      );
       this.hearing = monster && this.nav ? acousticField(this.nav, monster, 24) : new Map();
       // Was das Monster hört, rechnet das Hörmodell der Karte (`audio/hearing.ts`):
       // die eigenen Schritte nach Tempo, dazu das Hantieren aus `ShipExperience`.
@@ -3928,6 +3967,7 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
 }
 

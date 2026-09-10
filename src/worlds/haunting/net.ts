@@ -1,4 +1,5 @@
 import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission';
+import { freshGhosts, type Ghost, type Ghosts } from './rules/ghosts';
 import { isStation, type Claim, type StationId } from './stations';
 import type { VentPhase } from './vents/ventTravel';
 
@@ -89,6 +90,18 @@ export interface HauntState {
    * `STATION_PROTOCOL` 7.
    */
   ride: VentPhase;
+  /**
+   * **Wo jede Seite die andere zuletzt gesehen hat** (`rules/ghosts.ts`).
+   *
+   * Steht im Stand und nicht bei dem, der gerade hinsieht, weil beide Marker
+   * überall gebraucht werden: Der Techniker zeichnet den des Monsters in
+   * seine 2D-Szene und in die Brille, das Telefon an der Monster-Station den
+   * des Technikers auf seine Karte, und der Zuschauer sieht beide blass neben
+   * den echten Figuren. Gerechnet werden sie dort, wo der Sichtkontakt
+   * ohnehin schon feststeht — beim Gastgeber, aus derselben Prüfung, aus der
+   * auch die Alarmleiter kommt. Seit `STATION_PROTOCOL` 8.
+   */
+  ghosts: Ghosts;
 }
 
 /**
@@ -218,6 +231,17 @@ function metres(value: unknown): number {
   return Math.max(-1000, Math.min(1000, num(value)));
 }
 
+/**
+ * **Ein Ghost-Marker vom Netz** (`rules/ghosts.ts`): Meter, ein Winkel, eine
+ * Zeit — oder `null`. Ein halb gefüllter Marker wäre schlimmer als keiner:
+ * Er stünde in der Station herum und behauptete, jemand sei dort gewesen.
+ */
+function ghost(value: unknown): Ghost | null {
+  const it = bag(value);
+  if (!it) return null;
+  return { x: metres(it['x']), z: metres(it['z']), yaw: num(it['yaw']), since: num(it['since']) };
+}
+
 function ids(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   // Nach oben begrenzt: Eine Liste mit hunderttausend Einträgen ist keine
@@ -239,6 +263,7 @@ export function readState(data: unknown): HauntState | null {
   const monster = bag(it['monster']);
   const technician = bag(it['technician']);
   const ride = it['ride'];
+  const ghosts = bag(it['ghosts']);
   return {
     seed: it['seed'] >>> 0,
     crew: it['crew'] ? readCrew(it['crew']) : freshCrew(),
@@ -265,6 +290,11 @@ export function readState(data: unknown): HauntState | null {
         }
       : null,
     ride: RIDE_PHASES.find((one) => one === ride) ?? 'out',
+    // Ein Stand ohne Marker ist ein Stand, in dem sich noch niemand gesehen
+    // hat — nicht einer, dem etwas fehlt.
+    ghosts: ghosts
+      ? { monster: ghost(ghosts['monster']), technician: ghost(ghosts['technician']) }
+      : freshGhosts(),
   };
 }
 
@@ -312,6 +342,13 @@ export function readMonsterInput(data: unknown): MonsterNetInput | null {
 
 // --- Schreiben --------------------------------------------------------------
 
+/**
+ * **Der ganze Stand als Nachricht.** Die Felder gehen ausgebreitet mit, damit
+ * ein neues Feld im `HauntState` nicht an zwei Stellen nachgetragen werden
+ * muss — dafür ist die **Version** die Absprache: Wer ein Feld hinzufügt, von
+ * dem die Gegenseite abhängt (zuletzt `ghosts`), zählt `STATION_PROTOCOL`
+ * hoch, sonst läse ein altes Gerät die Nachricht und übersähe die Hälfte.
+ */
 export function stateMessage(state: HauntState): unknown {
   return { kind: 'state', version: STATION_PROTOCOL, ...state };
 }

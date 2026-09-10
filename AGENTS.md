@@ -8156,10 +8156,20 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
-- **STATION_PROTOCOL=7**: der Stand trägt jetzt die zerstörten Kabinen
+- **STATION_PROTOCOL=8**: der Stand trägt jetzt die zerstörten Kabinen
   (`destroyed`, seit 6), die Fahrtphase des Monsters (`ride`) und den
-  2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`.
-  Alte Clients werden abgewiesen; nach Update alle Geräte neu laden.
+  2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`. **Seit 8
+  auch die Ghost-Marker** (`ghosts`, `rules/ghosts.ts`): wo jede Seite die
+  andere zuletzt gesehen hat — Stelle, Blick und Zeitpunkt, gesetzt beim
+  Sichtkontakt und danach stehenbleibend, bis der nächste ihn versetzt. Sie
+  stehen im Stand und nicht bei dem, der gerade hinsieht, weil jedes Gerät sie
+  braucht: der Techniker den des Monsters, das Monster-Telefon den des
+  Technikers, der Zuschauer beide. Ein Stand ohne `ghosts` wird als „noch
+  niemand hat jemanden gesehen" gelesen, nicht als Fehler; die Deckkraft
+  rechnet für alle Darstellungen dieselbe Formel (`ghostAlpha`, voll bis
+  `GHOST_TTL` − `GHOST_FADE`, dann linear aus, ab `GHOST_TTL` = 25 s weg).
+  Alte Clients werden abgewiesen; nach Update **alle Geräte neu laden** —
+  ein Telefon der Version 7 sieht sonst gar nichts mehr.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
 - Spielhost: VR-Techniker, sonst ältester Peer. Desktop-Techniker meldet sich

@@ -1,5 +1,6 @@
 import { generateHouse } from './house';
 import { freshCrew, STATION_PROTOCOL } from './mission';
+import { freshGhosts } from './rules/ghosts';
 import {
   monsterMessage,
   readMonsterInput,
@@ -82,6 +83,10 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
       destroyed: ['r3'],
       technician: { x: 2.5, z: -17.5, yaw: 0.7, moving: true },
       ride: 'riding',
+      ghosts: {
+        monster: { x: -8, z: 3.5, yaw: 1.1, since: 4 },
+        technician: { x: 12, z: -30, yaw: -2, since: 9 },
+      },
     };
   }
 
@@ -111,6 +116,33 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
   });
 
   it('weist alte Protokolle ab', () => {
+    expect(readState(wireOf())).not.toBeNull();
     expect(readState({ ...wireOf(), version: STATION_PROTOCOL - 1 })).toBeNull();
+  });
+
+  /**
+   * Die Ghost-Marker (`rules/ghosts.ts`) sind das, woran beide Seiten sich
+   * erinnern — sie müssen den Weg über die Leitung genau so überstehen, wie
+   * sie gesetzt wurden, sonst zeigt jedes Gerät auf eine andere Stelle.
+   */
+  it('trägt die zuletzt gesehenen Stellen unverändert mit', () => {
+    const replay = readState(JSON.parse(JSON.stringify(stateMessage(state()))))!;
+    expect(replay.ghosts).toEqual(state().ghosts);
+  });
+
+  it('macht aus einem Stand ohne Marker einen leeren, nicht einen kaputten', () => {
+    const { ghosts, ...without } = wireOf();
+    expect(ghosts).toBeDefined();
+    expect(readState(without)!.ghosts).toEqual(freshGhosts());
+    expect(readState({ ...wireOf(), ghosts: 'keine' })!.ghosts).toEqual(freshGhosts());
+    // Eine Seite kann fehlen, ohne die andere mitzureißen.
+    const half = readState({ ...wireOf(), ghosts: { technician: null } })!;
+    expect(half).toMatchObject({ ghosts: { monster: null, technician: null } });
+    // Und Unsinn im Marker wird auf Meter und Zahlen zurechtgestutzt.
+    const odd = readState({
+      ...wireOf(),
+      ghosts: { monster: { x: 1e9, z: 'weit', yaw: NaN, since: '4' }, technician: null },
+    })!;
+    expect(odd.ghosts.monster).toEqual({ x: 1000, z: 0, yaw: 0, since: 0 });
   });
 });

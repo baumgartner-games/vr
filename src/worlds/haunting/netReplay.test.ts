@@ -1,6 +1,7 @@
 import { generateHouse, spacesOf } from './house';
 import { freshCrew, ROOM_COUNTS, stationOptions } from './mission';
 import { readDrone, readState, stateMessage, type HauntState } from './net';
+import { freshGhosts } from './rules/ghosts';
 import { TRAINING_DOOR } from './trainingLayout';
 
 test.each(ROOM_COUNTS)(
@@ -34,6 +35,7 @@ test.each(ROOM_COUNTS)(
         destroyed: spec.rooms.slice(0, 2).map((room) => room.id),
         technician: { x: 3.5, z: -12.25, yaw: 1.2, moving: true },
         ride: 'arrived',
+        ghosts: freshGhosts(),
       };
       const replay = readState(JSON.parse(JSON.stringify(stateMessage(state))))!;
       expect(replay.shut).toEqual(state.shut);

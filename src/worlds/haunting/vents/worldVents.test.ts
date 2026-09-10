@@ -3,6 +3,7 @@ import { extractMapSnapshot } from '../map/extract';
 import { worldMapSource, type WorldHandles } from '../map/worldSource';
 import { freshCrew, stationOptions } from '../mission';
 import type { HauntState } from '../net';
+import { freshGhosts } from '../rules/ghosts';
 import { VentNet } from './ventGraph';
 import { STATION_VENTS } from './ventNet.data';
 
@@ -25,6 +26,7 @@ function handles(vents?: WorldHandles['vents']): WorldHandles {
     destroyed: [],
     technician: null,
     ride: 'out',
+    ghosts: freshGhosts(),
   };
   return {
     spec: () => spec,
