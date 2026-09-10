@@ -6,9 +6,30 @@ import {
   HUD_COLOR_LOW,
   LOW_OXYGEN_SECONDS,
   lowOxygen,
+  hudTasks,
   roundHud,
   suitPips,
+  taskPips,
 } from './roundHud';
+
+const REPAIRS = [
+  { itemId: 'part-engine', title: 'Antrieb wiederherstellen', roomId: 'r1' },
+  { itemId: 'part-oxygen', title: 'Nahrungsversorgung sichern', roomId: 'r2' },
+  { itemId: 'part-uplink', title: 'Notsignal senden', roomId: 'r3' },
+];
+
+const NAMES: Record<string, string> = { r1: 'Werkstatt', r2: 'Kantine', r3: 'Funkraum' };
+
+function tasks(over: Partial<Parameters<typeof hudTasks>[0]> = {}) {
+  return hudTasks({
+    repairs: REPAIRS,
+    roomName: (id) => NAMES[id] ?? id,
+    done: [],
+    taken: [],
+    inventory: [],
+    ...over,
+  });
+}
 
 function round(over: Partial<MapRound> = {}): MapRound {
   return {
@@ -63,5 +84,29 @@ describe('Die Anzeige der laufenden Runde', () => {
     expect(endingText('suit')).toContain('Anzug');
     expect(endingText('escaped')).toContain('Einsatzzentrale');
     expect(endingText('')).toBe('');
+  });
+
+  it('zählt jeden Auftrag in zwei Schritten: das Teil, dann die Konsole', () => {
+    expect(tasks().map((task) => task.step)).toEqual([0, 0, 0]);
+    expect(tasks()[0]!.text).toBe('Werkstatt: Antrieb wiederherstellen (0/2)');
+    const carried = tasks({ inventory: ['part-engine'] });
+    expect(carried[0]!.step).toBe(1);
+    expect(carried[0]!.text).toContain('(1/2)');
+    // Aus der Fracht genommen zählt genauso wie in der Hand: Wer das Teil
+    // abgelegt hat, hat den ersten Schritt trotzdem hinter sich.
+    expect(tasks({ taken: ['part-oxygen'] })[1]!.step).toBe(1);
+    const finished = tasks({ done: ['part-uplink'], inventory: ['part-uplink'] });
+    expect(finished[2]!.step).toBe(2);
+    expect(finished[2]!.text).toContain('(2/2)');
+  });
+
+  it('macht aus den Aufträgen drei Kreise: voll, halb, leer', () => {
+    expect(taskPips(tasks())).toBe('○○○');
+    expect(taskPips(tasks({ done: ['part-engine'], inventory: ['part-oxygen'] }))).toBe('●◐○');
+  });
+
+  it('nennt den Raum auch einzeln, für Anzeigen ohne Platz', () => {
+    expect(tasks()[1]!.room).toBe('Kantine');
+    expect(tasks()[1]!.title).toBe('Nahrungsversorgung sichern');
   });
 });

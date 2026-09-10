@@ -7674,9 +7674,43 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`FlatRound.moveMonster`) ziehen mit denselben Zahlen. Holz splittert
   weiterhin auf einen Schlag und geht über `releaseLock`, damit die
   Buchführung stimmt.
+- **Licht ist knapp, und es ist eine Entscheidung** (`rules/lamps.ts`, `Lamps`
+  beim Gastgeber, nichts davon auf der Leitung). Die 3D-Mission **beginnt
+  dunkel**: `startMission` setzt `state.lit = []`, und es geht nirgends von
+  selbst Licht an — auch nicht beim Betreten eines Raums und nicht mehr bei
+  einer gelösten Konsole. Wer Licht will, bittet die Einsatzkontrolle, und
+  die schaltet es an ihrer Tafel (`applyFlip`, `kind === 'light'`, über
+  `switchLamp`). Es gelten dieselben drei Regeln wie bei den Türen nebenan:
+  **höchstens `LAMP_BUDGET` = 2 Lampen brennen gleichzeitig** — die dritte
+  macht die älteste aus; **keine Lampe brennt ewig** (`LAMP_RANGE` = 40–60 s,
+  leicht gewürfelt), und die letzten `LAMP_FLICKER` = 3 s davon **flackert**
+  sie (`lampGlow`, dieselbe Kurve wie das Zucken des Spuks) und sirrt dabei
+  (`ShipAudio` `'lamp'`, am Ort der Lampe — zweimal: beim Flackern und beim
+  Ausgehen); und **was das Monster auslöscht, zählt genauso** (`lampOut`, aus
+  `stepSpook`), damit für den Hacker beides gleich aussieht. `stepLamps` lässt
+  die Uhr laufen. Alles, was schon hell war, ohne dass jemand geschaltet hat —
+  der helle Test, die Bot-Runde, die gezeichnete 2D-Station —, lässt die
+  Buchführung in Ruhe. Das Grundlicht der Station ist entsprechend klein
+  (`stationLighting.ROOM_BOUNCE` = 0,12, und nur in einem Raum, in dem
+  wirklich eine Lampe brennt): Die Taschenlampe des VR-Spielers ist nur dann
+  etwas wert, wenn es ohne sie nichts zu sehen gibt.
+  **Was noch fehlt:** Die Frist einer Lampe steht nicht auf der Leitung, also
+  sieht nur der Gastgeber das Flackern; alle anderen sehen den Raum einfach
+  dunkel werden, sobald der nächste Stand kommt. Anders als beim Spuk lässt es
+  sich nicht aus der Monsterposition nachrechnen — dafür müsste `HauntState`
+  die Fristen tragen, und das wäre ein Protokollsprung.
 - `ShipExperience` liest `doorOpen` für die bewegten Blätter und `doorLocked`
   für beidseitige rote/grüne Leuchten oberhalb der Tür. Die Übungsdeck-Tür
   darf niemals `host.test()` oder einen Rundenreset auslösen.
+- **Das HUD des Technikers in 3D** hängt an der Kamera (`ShipExperience`,
+  `mission-hud-strip`) und ist jetzt **zwei Zeilen** — dieselben zwei wie in
+  der 2D-Welt: oben Sauerstoff und Anzug-Leben, darunter drei Kreise für die
+  Aufträge (voll, halb, leer) und der nächste offene im Klartext. Es gibt ihn
+  **in der Brille und am Desktop**; vorher gab es ihn nur im Headset und nur
+  mit der Uhr. Gerechnet wird beides in `rules/roundHud.ts` (`roundHud` für
+  Uhr und Anzug, `hudTasks`/`taskPips` für die Aufträge) — dieselbe Rechnung
+  wie im 2D-HUD und auf den Telefonen, damit drei Anzeigen nicht drei
+  verschiedene Stände zeigen. Gemalt wird nur, wenn sich der Text ändert.
 - `GridWorld.setSlidingGridDoor` verändert nur Türcollider und physische
   Navkante, nicht den ganzen Level. **Wege benutzen `StationTravelPlan`:**
   funktionale automatische Türen sind dort schon vor Annäherung passierbar,

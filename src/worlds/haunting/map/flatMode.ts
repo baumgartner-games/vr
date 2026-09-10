@@ -18,6 +18,7 @@ import { INK, MapView, type MapGoal, type MapRoute } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
+import { hudTasks } from '../rules/roundHud';
 import {
   defaultSetup,
   flatRoleOf,
@@ -816,16 +817,14 @@ export class FlatMode {
     // zweimal raten; ein Herz sagt von selbst, dass es ums Leben geht.
     const hp = '♥'.repeat(round.suit) + '♡'.repeat(Math.max(0, round.suitMax - round.suit));
     const rooms = this.round.snapshot().rooms;
-    const lines = repairsFor(this.round.house).map((repair) => {
-      const done = state.done.includes(repair.itemId);
-      const carried =
-        done || crew.inventory.includes(repair.itemId) || state.taken.includes(repair.itemId);
-      const room = rooms.find((r) => r.id === repair.roomId)?.name ?? repair.roomId;
-      return {
-        text: `${room}: ${repair.title} (${done ? 2 : carried ? 1 : 0}/2)`,
-        done,
-        partial: carried && !done,
-      };
+    // Wie weit die Aufträge sind, rechnet `rules/roundHud.ts` — dieselbe
+    // Rechnung wie im Streifen der Brille, damit beide dasselbe zählen.
+    const lines = hudTasks({
+      repairs: repairsFor(this.round.house),
+      roomName: (id) => rooms.find((room) => room.id === id)?.name ?? id,
+      done: state.done,
+      taken: state.taken,
+      inventory: crew.inventory,
     });
     const key = [hp, clockText(round.oxygen), ...lines.map((l) => l.text)].join('|');
     if (this.hud.dataset['text'] === key) return;
@@ -838,8 +837,8 @@ export class FlatMode {
     this.tasks.replaceChildren(
       ...lines.map((l) => {
         const node = el('div', 'flat__task', l.text);
-        node.classList.toggle('is-done', l.done);
-        node.classList.toggle('is-partial', l.partial);
+        node.classList.toggle('is-done', l.step === 2);
+        node.classList.toggle('is-partial', l.step === 1);
         return node;
       }),
     );
@@ -848,14 +847,14 @@ export class FlatMode {
     this.pips.replaceChildren(
       ...lines.map((l) => {
         const pip = el('i', 'flat__pip');
-        pip.classList.toggle('is-done', l.done);
-        pip.classList.toggle('is-partial', l.partial);
+        pip.classList.toggle('is-done', l.step === 2);
+        pip.classList.toggle('is-partial', l.step === 1);
         return pip;
       }),
     );
     this.tab.setAttribute(
       'aria-label',
-      `Aufgaben · ${lines.filter((l) => l.done).length} von ${lines.length} erledigt`,
+      `Aufgaben · ${lines.filter((l) => l.step === 2).length} von ${lines.length} erledigt`,
     );
   }
 

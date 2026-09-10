@@ -70,7 +70,11 @@ Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
 Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
 Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es nicht. Die **Einsatzkontrolle** verfolgt
 das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
-Schiebetüren und Geräuschköder. Drohne und Zuschauer sind weitere optionale
+Schiebetüren und Geräuschköder. **Die Station ist dunkel**, und sie bleibt es,
+wenn niemand schaltet: Es geht nirgends von selbst Licht an. Die
+Einsatzkontrolle kann höchstens **zwei Lampen gleichzeitig** brennen lassen —
+die dritte macht die älteste aus —, und keine hält länger als etwa eine Minute:
+Sie flackert, sirrt und geht aus. Wer im Dunkeln steht, hat die Taschenlampe. Drohne und Zuschauer sind weitere optionale
 Plätze; die Schalttafel gehört zur Einsatzkontrolle.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
@@ -155,7 +159,9 @@ Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
 funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
 Der Sauerstoff reicht zehn Minuten und läuft gleichmäßig ab; keine Reparatur
 füllt ihn auf. Uhr und Anzug-Leben stehen bei allen Mitspielern in der Leiste
-und beim Techniker im Blickfeld.
+und beim Techniker im Blickfeld — dort in zwei Zeilen, wie in der 2D-Welt:
+oben Sauerstoff und Anzug, darunter drei Kreise für die Aufträge und der
+nächste offene im Klartext. In der Brille und am Desktop dasselbe.
 
 Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick

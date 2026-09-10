@@ -123,6 +123,7 @@ import {
   toggleLock,
   type DoorLocks,
 } from './rules/doorLocks';
+import { freshLamps, lampGlow, lampOut, stepLamps, switchLamp, type Lamps } from './rules/lamps';
 import {
   cycleMonster,
   cycleWho,
@@ -462,6 +463,8 @@ export class HauntingWorld extends GridWorld {
   private spook: Spook = freshSpook();
   /** Wer welche Tür gesperrt hat, und wie lange zugefallene halten (`rules/doorLocks.ts`) — beim Gastgeber. */
   private locks: DoorLocks = freshLocks();
+  /** Welche Lampen die Tafel angemacht hat und wie lange sie noch brennen (`rules/lamps.ts`) — beim Gastgeber. */
+  private lampBook: Lamps = freshLamps();
   /** Die Verteilung der nächsten Runde: Techniker, Monster, Plätze (`rules/roundSetup.ts`). */
   private setup: RoundSetup = loadSetup();
   /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
@@ -1767,6 +1770,14 @@ export class HauntingWorld extends GridWorld {
       // Zugefallene Türen gehen von selbst wieder auf (`rules/doorLocks.ts`).
       const locks = stepLocks(this.locks, this.state.shut, this.state.time);
       if (locks.opened.length) this.state.shut = locks.shut;
+      // Und die Lampen gehen von selbst wieder aus — erst das Flackern, dann
+      // das Geräusch, dann dunkel (`rules/lamps.ts`).
+      const lamps = stepLamps(this.lampBook, this.state.lit, this.state.time);
+      for (const room of lamps.flicker) this.lampSound(room);
+      if (lamps.out.length) {
+        this.state.lit = lamps.lit;
+        for (const room of lamps.out) this.lampSound(room);
+      }
       const oxygen = this.rules.step(this.state);
       if (oxygen) {
         this.removeMonster();
@@ -2276,10 +2287,18 @@ export class HauntingWorld extends GridWorld {
     const entry = this.spec.switches.find((one) => one.id === id);
     if (!entry) return;
 
-    const list =
-      entry.kind === 'light' ? this.state.lit : entry.kind === 'radio' ? this.state.loud : null;
+    // Licht: höchstens zwei Räume gleichzeitig, und die dritte Lampe macht die
+    // älteste aus — derselbe Handel wie bei dem einen Riegel (`rules/lamps.ts`).
+    if (entry.kind === 'light') {
+      if (on === this.state.lit.includes(entry.target)) return;
+      const out = switchLamp(this.lampBook, this.state.lit, entry.target, this.state.time);
+      this.state.lit = out.lit;
+      if (out.dropped) this.lampSound(out.dropped);
+      return;
+    }
 
-    if (list) {
+    if (entry.kind === 'radio') {
+      const list = this.state.loud;
       const at = list.indexOf(entry.target);
       if (on && at < 0) list.push(entry.target);
       if (!on && at >= 0) list.splice(at, 1);
@@ -2383,10 +2402,24 @@ export class HauntingWorld extends GridWorld {
     this.spook = out.spook;
     if (!this.isHost) return;
 
-    const lit = this.state.lit.indexOf(out.lightOut);
-    if (out.lightOut && lit >= 0) this.state.lit.splice(lit, 1);
+    // Auch der Spuk geht durch die Buchführung: Eine Lampe, die das Monster
+    // ausmacht, ist danach keine der zwei geschalteten mehr (`rules/lamps.ts`).
+    if (out.lightOut && this.state.lit.includes(out.lightOut))
+      this.state.lit = lampOut(this.lampBook, this.state.lit, out.lightOut);
     if (out.doorShut && !this.state.shut.includes(out.doorShut))
       this.state.shut = slamDoor(this.locks, this.state.shut, out.doorShut, this.state.time);
+  }
+
+  /**
+   * **Das Sirren einer Lampe**, die flackert oder gerade ausgegangen ist —
+   * dort, wo sie hängt, und nicht am Ohr (`rules/lamps.ts`). Die 2D-Geräte
+   * hören es über den Stand: Für sie ist ein Raum, der dunkel wird, ein Raum,
+   * der dunkel wird.
+   */
+  private lampSound(roomId: string): void {
+    const lamp = this.lamps.get(roomId);
+    if (!lamp) return;
+    this.experience?.lampCue({ x: lamp.at.x, z: lamp.at.z });
   }
 
   /**
@@ -2431,11 +2464,14 @@ export class HauntingWorld extends GridWorld {
         dt,
       );
     if (this.commandLight) this.commandLight.intensity = lighting.command;
+    // **Im Test und in der Bot-Runde ist alles hell**, und weil es nur zwei
+    // Punktleuchten gibt, brennt dort nur die des eigenen Raums. In der Mission
+    // ist das nicht mehr nötig: Dort brennen ohnehin höchstens zwei Lampen
+    // (`rules/lamps.ts`), und dass eine davon zwei Türen weiter leuchtet, ist
+    // genau die Auskunft, für die der Hacker sie angemacht hat.
+    const wideOpen = bright || this.state.crew.simulation;
     const active = [...this.lamps.entries()].filter(
-      ([id]) =>
-        lighting.lamps &&
-        (bright || this.state.crew.simulation || this.state.lit.includes(id)) &&
-        (bright || this.state.crew.simulation || id === viewRoom?.id),
+      ([id]) => lighting.lamps && (wideOpen ? id === viewRoom?.id : this.state.lit.includes(id)),
     );
     active.sort((a, b) => a[1].at.distanceToSquared(_head) - b[1].at.distanceToSquared(_head));
     for (let i = 0; i < this.lampPool.length; i++) {
@@ -2444,7 +2480,10 @@ export class HauntingWorld extends GridWorld {
       light.intensity = 0;
       if (entry) {
         const [id, lamp] = entry;
-        const glow = !bright && id === this.spook.room ? flickerLevel(this.spook.since) : 1;
+        // Zwei Arten zu zucken, und die dunklere gewinnt: das Monster im Raum
+        // (`haunt.ts`) und die Lampe, deren Zeit abläuft (`rules/lamps.ts`).
+        const haunted = !bright && id === this.spook.room ? flickerLevel(this.spook.since) : 1;
+        const glow = Math.min(haunted, lampGlow(this.lampBook, id, this.state.time));
         light.position.copy(lamp.at);
         light.color.setHex(lamp.color);
         light.intensity = LAMP_ON * glow * lampScale;
@@ -2454,7 +2493,9 @@ export class HauntingWorld extends GridWorld {
       lamp.glass.material.color.lerpColors(
         _lampOff,
         _lampOn,
-        !lighting.dark && (deck ? deck.lamps : bright || this.state.lit.includes(id)) ? 1 : 0,
+        !lighting.dark && (deck ? deck.lamps : bright || this.state.lit.includes(id))
+          ? lampGlow(this.lampBook, id, this.state.time)
+          : 0,
       );
     this.applyBeacons(deck?.alarm ?? this.state.phase === 'lost');
   }
@@ -3700,9 +3741,15 @@ export class HauntingWorld extends GridWorld {
     const far = roomOf(this.spec, this.spec.fuse.roomId) ?? this.spec.rooms[0]!;
     const at = safeRoomSpawn(this.spec, far.id);
     this.spawnMonster(at);
-    this.state.lit = spacesOf(this.spec).map((room) => room.id);
+    // **Die Station beginnt dunkel**, und sie bleibt es, wenn niemand schaltet.
+    // Vorher gingen hier alle vierzehn Lampen an, und weil `applyLights` nur
+    // die des eigenen Raums brennen ließ, sah es aus, als ginge beim Betreten
+    // von selbst das Licht an — ein Automatismus, den niemand gebaut hatte und
+    // der der Taschenlampe die Aufgabe wegnahm. Licht macht jetzt die Tafel,
+    // höchstens zwei Räume gleichzeitig, und nicht für immer (`rules/lamps.ts`).
+    this.state.lit = [];
     this.announce(
-      'Mission läuft. Archiv: Aufträge und Codes. Einsatzkontrolle: Radar, Puls, Licht und Türen. Nach drei Reparaturen zurück zur Zentrale.',
+      'Mission läuft. Die Station ist dunkel: Taschenlampe an, Licht macht die Einsatzkontrolle. Archiv: Aufträge und Codes. Nach drei Reparaturen zurück zur Zentrale.',
     );
   }
 
@@ -3814,6 +3861,7 @@ export class HauntingWorld extends GridWorld {
     this.rules.reset();
     this.spook = freshSpook();
     this.locks = freshLocks();
+    this.lampBook = freshLamps();
     this.automaticDoors.clear();
     this.spec = generateHouse(rollSeed(), options.rooms);
     this.state = freshState(this.spec.seed, options);

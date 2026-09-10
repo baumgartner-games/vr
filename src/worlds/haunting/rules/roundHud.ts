@@ -70,6 +70,62 @@ export function roundHud(round: MapRound): RoundHud {
   };
 }
 
+/**
+ * **Wie weit ein Auftrag ist**: `0` noch gar nicht, `1` das Ersatzteil ist
+ * geholt, `2` die Konsole ist gelöst. Jede Reparatur hat zwei Schritte, und
+ * eine Anzeige, die nur „offen / erledigt" kennt, verschweigt die Hälfte der
+ * Runde.
+ */
+export type TaskStep = 0 | 1 | 2;
+
+export interface HudTask {
+  /** Der Auftrag, wie er in der Liste steht: „Labor: Antrieb wiederherstellen (1/2)". */
+  text: string;
+  /** Der Raum allein — für Anzeigen, denen die ganze Zeile zu lang ist. */
+  room: string;
+  title: string;
+  step: TaskStep;
+}
+
+export interface HudTaskInput {
+  /** Die Reparaturen der Runde (`mission.ts`, `repairsFor`). */
+  repairs: readonly { itemId: string; title: string; roomId: string }[];
+  /** Wie ein Raum heißt — die 2D-Welt nimmt den Namen aus dem Schnappschuss, das Schiff aus dem Bauplan. */
+  roomName: (roomId: string) => string;
+  /** Was fertig ist (`HauntState.done`). */
+  done: readonly string[];
+  /** Was schon aus der Fracht heraus ist (`HauntState.taken`). */
+  taken: readonly string[];
+  /** Und was der Techniker gerade trägt (`CrewState.inventory`). */
+  inventory: readonly string[];
+}
+
+/**
+ * **Die Aufträge, wie eine Anzeige sie zeigt** — einmal gerechnet, in der
+ * 2D-Welt und im Schiff dieselbe Liste in derselben Reihenfolge.
+ *
+ * Vorher rechnete das 2D-HUD das für sich, und die Brille zeigte gar keine
+ * Aufträge: Der Spieler im Headset sah seinen Auftrag nur, wenn er zufällig
+ * vor einer Konsole stand. Zwei Anzeigen, die dasselbe zählen, zählen es nach
+ * der ersten Änderung verschieden — deshalb steht die Rechnung hier und nicht
+ * dort.
+ */
+export function hudTasks(input: HudTaskInput): HudTask[] {
+  return input.repairs.map((repair) => {
+    const done = input.done.includes(repair.itemId);
+    const carried =
+      done || input.inventory.includes(repair.itemId) || input.taken.includes(repair.itemId);
+    const step: TaskStep = done ? 2 : carried ? 1 : 0;
+    const room = input.roomName(repair.roomId);
+    return { text: `${room}: ${repair.title} (${step}/2)`, room, title: repair.title, step };
+  });
+}
+
+/** Die Aufträge als Kreise: voll, halb, leer — so viel, wie man im Vorbeigehen liest. */
+export function taskPips(tasks: readonly HudTask[]): string {
+  return tasks.map((task) => (task.step === 2 ? '●' : task.step === 1 ? '◐' : '○')).join('');
+}
+
 /** „1 Kabine zerstört" / „3 Kabinen zerstört". */
 export function cabinsText(count: number): string {
   return `${count} ${count === 1 ? 'Kabine' : 'Kabinen'} zerstört`;
