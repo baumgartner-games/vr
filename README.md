@@ -118,6 +118,11 @@ Headset. Ein Schutzschrank lässt sich mit dem Code aus dem Archiv öffnen und
 betreten. Ein beleuchteter Knopf im Inneren führt wieder hinaus; am Desktop
 funktioniert auch `E`. Die Bedienung setzt voraus, dass man sich im Raum des
 Schranks befindet; durch eine Nachbarwand lässt er sich nicht benutzen.
+Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
+funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
+Der Sauerstoff reicht zehn Minuten und läuft gleichmäßig ab; keine Reparatur
+füllt ihn auf. Uhr und Anzug-Leben stehen bei allen Mitspielern in der Leiste
+und beim Techniker im Blickfeld.
 
 Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
@@ -203,8 +208,9 @@ Der sichere Test bleibt dabei ohne Schaden.
 erfolglosen Zielen quer über die Karte), *Auflauern* (stehen bleiben und
 warten) und *Absuchen*. Beim Absuchen **rät** es, in welchen angrenzenden Raum
 sein Gegenüber verschwunden ist, geht leise hinein, macht dort Klack-Geräusche,
-öffnet manchmal den Schutzschrank — oder lässt den Raum stehen und geht gleich
-weiter. Hat es jemanden in eine Kabine flüchten **sehen**, geht es hin,
+öffnet manchmal den Schutzschrank und reißt ihn dann auf, weil es dort
+jemanden vermutet — ob jemand drin ist oder nicht — oder lässt den Raum stehen
+und geht gleich weiter. Hat es jemanden in eine Kabine flüchten **sehen**, geht es hin,
 **schreit davor** als Ankündigung, reißt sie mit Rauch und Funken auf und
 bleibt danach kurz stehen, um Vorsprung zu gewähren. Bei einer Verfolgung hört
 man den eigenen Herzschlag, schneller und lauter, je näher es kommt. Ein

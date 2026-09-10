@@ -7654,7 +7654,13 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Sanfte Neigung und begrenztes Schweben bleiben unter dem Türsturz.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
   `movePlayerTo`. `haunt.sealsOff` schützt Erreichbarkeit aller `spacesOf`.
-  Schächte verbinden ausschließlich echte gemeinsame Wände, auch zu Gängen.
+  **Schächte sind das Lüftungsnetz** (`vents/ventNet.data.ts`: vierzehn
+  Klappen, eine je Raum, neun Verbindungen in getrennten Netzen; `VentNet`,
+  `VentTravel`, `VentPilot`). In 3D fährt das Monster damit wie in 2D
+  (`vents/npcVentRide.ts`): einsteigen, fahren (verborgen, `crew.venting > 0`),
+  aussteigen — kein Teleport über Wandpaare mehr, `ventPairs` gibt es nicht
+  mehr. Die Klappen (`vents/ventArt.ts`) kippen ihre Lamellen, solange jemand
+  ein- oder aussteigt. Wer das Netz ändert, ändert die Datendatei.
   `ShipExperience.inLockerRoom` prüft Raumzugehörigkeit vor Codeeingabe,
   Eintritt und Nahbereichsauswahl: kein Schutzschrankzugriff durch Nachbarwände.
   Übungsschränke setzen den passenden Trainingsraum und aktiven Test voraus.
@@ -7666,6 +7672,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `lost`, drei Reparaturen und Rückkehr `won`. Test, Schutzschrank und
   Schachtpassage verhindern Treffer; Medkit heilt einen. Sichtbare Ergebnis-
   Panels bieten Neustart im DOM und im Headset, auch per Zeiger-Trigger.
+  **Die Runde hat eine Uhr** (`rules/roundRules.ts`): der Sauerstoff, zehn
+  Minuten, läuft gleichmäßig durch und wird von keiner Reparatur angehalten
+  oder aufgefüllt — deshalb heißt der Auftrag `oxygen` „Nahrungsversorgung
+  sichern" und nicht mehr „Lebenserhaltung". Uhr und Anzug-Leben sehen alle:
+  die Telefone in der Leiste über jeder Station (`stationUi.writeQuest`, rot
+  unter einer Minute), der Techniker am Desktop im Titel und in der Brille
+  auf einem schmalen Streifen an der Kamera (`ShipExperience`, `rules/roundHud.ts`).
+  **Kabinen gehen kaputt** (`HauntState.destroyed`, Kennung = Raum-Id, geht
+  über das Netz): Eine aufgerissene Kabine wird in 3D zum Wrack
+  (`fixtureModels.buildBrokenLocker`), funkt alle drei bis sechs Sekunden
+  (`rules/cabinWreck.ts`), lässt niemanden mehr hinein und wird vom
+  Modelltechniker gemieden.
 - Das vorhandene `FlashlightTool` ist Startausrüstung am rechten Gürtel.
   Webhände verwenden dieselbe Toolklasse. Die schwebende Ersatzlampe ist
   im Web anvisierbar; Aufnehmen entfernt ihren echten Physikkörper.
@@ -7740,6 +7758,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`stakeout`). Ein Rückzug in einen Schrank löst Schrei und Aufreißen nur aus,
   wenn er **gesehen** wurde (`HauntingWorld.watchedLocker`); die Kette danach
   läuft von selbst zu Ende, auch wenn die Meldung längst zurückgenommen ist.
+  **Das Monster reißt Kabinen nur auf, in denen es jemanden vermutet**: beim
+  Schnüffeln am Schrank eines verdächtigen Raums reißt es ihn auf — ob jemand
+  drin ist oder nicht (`RoutineOutput.cabin`; ohne Schrei und ohne Vorsprung,
+  die bleiben dem gesehenen Rückzug). Ein leerer Schrank ist danach trotzdem
+  ein Versteck weniger. Kein Wissen darüber, ob der Schrank besetzt ist.
 - **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
   `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
   ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
@@ -7780,7 +7803,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
-- **STATION_PROTOCOL=5**, weil der gleiche Seed nun eine andere Karte erzeugt.
+- **STATION_PROTOCOL=6**: der Stand trägt jetzt die zerstörten Kabinen
+  (`destroyed`), die Fahrtphase des Monsters und den 2D-Techniker.
   Alte Clients werden abgewiesen; nach Update alle Geräte neu laden.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
