@@ -7909,11 +7909,19 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Sichtungen, aus der `track.velocity()` Richtung und Tempo schätzt. Eine
   Sichtung setzt die ganze Masse in einen Raum; ein Geräusch multipliziert die
   Likelihood aus der gedämpften Hörweite dazu (`StationGraph.earshot`, sonst
-  selbst gerechnet); ein abgesuchter Raum fällt auf `FLOOR` 0,01 statt auf
-  null, damit das Monster nicht an einem Spieler vorbeiläuft, der hinter ihm
-  wieder hineingegangen ist; mit der Zeit gleicht sich das Bild über die Türen
-  aus (`DRIFT` 0,15/s je Tür, gesperrte Türen halten es auf), und nach
-  `FORGET` 45 s ohne Sichtung oder Geräusch ist wieder alles gleich
+  selbst gerechnet). **`earshot` hört auch durch Wände**: Es rechnet nicht nur
+  über die Türen (`DOOR_LOSS` 4 m je Türblatt), sondern auch über die
+  **Wandnachbarn** aus dem Bauplan — Räume, deren Rechtecke aneinanderstoßen,
+  zu `WALL_LOSS` 9 m. Vorher waren zwei Zimmer Wand an Wand ohne Tür für das
+  Monster so weit auseinander wie der Umweg über den halben Gang (im
+  gewürfelten Haus mit Samen 3: 100 m für 10 m Luftlinie, also taub); jetzt
+  sind es 19 m. **Für die Wegsuche ändert das nichts**: `neighbours()`,
+  `distance()` und `next()` bleiben Türwege, denn durch eine Wand geht
+  niemand — sie dämpft nur (`roomGraph.test.ts`); ein abgesuchter Raum fällt
+  auf `FLOOR` 0,01 statt auf null, damit das Monster nicht an einem Spieler
+  vorbeiläuft, der hinter ihm wieder hineingegangen ist; mit der Zeit gleicht
+  sich das Bild über die Türen aus (`DRIFT` 0,15/s je Tür, gesperrte Türen
+  halten es auf), und nach `FORGET` 45 s ohne Sichtung oder Geräusch ist wieder alles gleich
   wahrscheinlich. Abfragen: `mostLikely`, `expected`, `certainty`, `exits`
   (die Türen eines Raums mit dem Anteil des Zuflusses dahinter),
   `leastRecentlyVisited` (Patrouille und Seitenwechsel), `snapshot` (für die
@@ -8130,14 +8138,24 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   orange — **die Urheberfarbe aber nur im Modus „Alles sehen"**; wer mitspielt,
   bekommt für alles Fremde dieselbe Farbe — die 2D-Runde führt sie fünf Sekunden
   (`FlatRound.wave`: Schritte als Pulse, Türen, Zufallen, Splittern, Schrei,
-  Schacht). Sie laufen über die **freien Felder** und nicht über die Luftlinie
-  (`map/noiseSpread.ts`): Kachel für Kachel, durch eine Tür nur, wenn sie
-  offen steht, nie durch eine Wand, nie über den leeren Weltraum neben der
-  Station — und durch die **Schächte**, in beide Richtungen. Dasselbe, was
-  `audio/hearing.ts` rechnet, nur sichtbar. Gezeichnet werden sie **ganz
-  hinten**, direkt auf den Böden: Eine Welle über Möbeln und Figuren nähme
-  genau das Bild weg, für das sie da ist. **Wer das Monster spielt, sieht
-  seine eigenen Wellen nicht** — man hört sich nicht selbst zu, weder auf der
+  Schacht). Sie laufen über die **Felder** und nicht über die Luftlinie
+  (`map/noiseSpread.ts`): Kachel für Kachel, nie über den leeren Weltraum
+  neben der Station — und durch die **Schächte**, in beide Richtungen.
+  **Wände dämpfen, sie schneiden nicht ab**: Ein Schritt durch eine Wand
+  kostet `WALL_LOSS` 9 m, durch Glas `GLASS_LOSS` 6 m, durch ein
+  geschlossenes Türblatt `DOOR_LOSS` 4 m, durch einen Schacht seine Länge
+  plus `VENT_LOSS` 3 m — die Zahlen stehen **einmal**, in `audio/hearing.ts`,
+  und `noiseSpread`, `perception.acousticField` und `roomGraph.earshot`
+  holen sie sich dort. Was `spreadNoise` je Kachel zurückgibt, sind deshalb
+  **effektive** Meter (Weg plus Dämpfung), und die Front braucht für eine
+  Wand bei `WAVE_SPEED` eine knappe Sekunde länger und kommt blasser drüben
+  an. Bis Herbst 2026 war das anders: Die Welle hörte an jeder Wand hart auf
+  und eine geschlossene Tür sperrte sie ganz — der Spieler sah sein Geräusch
+  im Zimmer bleiben, während das Monster es nebenan längst hörte. Jetzt
+  zeigt das Bild dasselbe, was `audio/hearing.ts` rechnet. Gezeichnet werden
+  sie **ganz hinten**, direkt auf den Böden: Eine Welle über Möbeln und
+  Figuren nähme genau das Bild weg, für das sie da ist. **Wer das Monster
+  spielt, sieht seine eigenen Wellen nicht** — man hört sich nicht selbst zu, weder auf der
   Karte noch auf den Ohren (`audio/soundscape.selfMonster`). Über einer
   gesperrten Tür steht ein **Balken**, wie lange die Sperre noch hält
   (`MapDoor.hold`). **Ziele** (`MapViewOptions.objectives`, `FlatRound.objectives`:

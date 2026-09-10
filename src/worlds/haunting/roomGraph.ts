@@ -1,4 +1,5 @@
-import { onApron, spacesOf, type HouseSpec } from './house';
+import { DOOR_LOSS, WALL_LOSS } from './audio/hearing';
+import { APRON, onApron, spacesOf, type HouseSpec, type Rect } from './house';
 import { DIR_E, DIR_N, DIR_S, TILE, type Dir } from '../nav/navTile';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { COMMAND_HOME } from './trainingLayout';
@@ -23,9 +24,6 @@ import type { RoutineWorld } from './monsterRoutine';
  */
 export const COMMAND = 'command';
 
-/** Was eine geschlossene Schiebetür an Schritten schluckt, in Metern Hörweite. */
-const DOOR_LOSS = 9;
-
 export interface StationGraph extends RoutineWorld {
   /** Alle Knoten: Räume, Gänge und die Zentrale. */
   readonly spaces: readonly string[];
@@ -37,10 +35,22 @@ export interface StationGraph extends RoutineWorld {
   /** Kürzeste Weglänge über Türen, in Metern; `Infinity` ohne Verbindung. */
   distance(a: string, b: string): number;
   /**
-   * Dasselbe, aber **gedämpft**: Jede Wand mit einer Tür darin schluckt
-   * Schritte. Ohne diesen Aufschlag hört ein Monster einen Rennenden quer
-   * durch die halbe Station, und es gibt kein Entkommen mehr, sondern nur
-   * noch ein Hinauszögern (vgl. `perception.acousticField`).
+   * Dasselbe, aber **gedämpft** — und ausdrücklich **nicht** auf die Türen
+   * beschränkt.
+   *
+   * Jeder Durchgang schluckt Schritte: ein Türblatt `DOOR_LOSS`, eine Wand
+   * ohne Tür `WALL_LOSS` (`audio/hearing.ts`, dieselben Zahlen). Ohne diesen
+   * Aufschlag hört ein Monster einen Rennenden quer durch die halbe Station,
+   * und es gibt kein Entkommen mehr, sondern nur noch ein Hinauszögern.
+   *
+   * **Wandnachbarn zählen mit, Wegnachbarn sind sie deshalb nicht.** Lange
+   * rechnete diese Zahl nur über `neighbours()`, und das sind Türnachbarn:
+   * Zwei Räume Wand an Wand ohne Tür dazwischen lagen für das Monster
+   * (`monsterMemory.heard`) so weit auseinander wie der Umweg über den halben
+   * Gang — im gewürfelten Haus mit Samen 3 sind das 100 m für zehn Meter
+   * Luftlinie, also taub. Schall geht durch die Wand, gedämpft; **niemand**
+   * geht dort hindurch, und `neighbours()` weiß von diesen Kanten deshalb
+   * nichts.
    */
   earshot(a: string, b: string): number;
   /** Der nächste Schritt von `a` in Richtung `b` — `a` selbst am Ziel. */
@@ -100,6 +110,21 @@ export function stationGraph(spec: HouseSpec): StationGraph {
     doorsBySpace.get(behind)?.push(door.id);
     doorPoints.set(door.id, doorCentre(door));
   }
+  // **Wandnachbarn**: Räume, deren Rechtecke aneinanderstoßen. Für den Schall
+  // ist das eine Kante, für die Wegsuche nicht — sie steht deshalb nur in der
+  // gedämpften Matrix und nicht in `links`. Die Zentrale bringt ihr eigenes
+  // Rechteck mit (den Vorplatz), sonst wäre die Fensterfront zur Kantine für
+  // das Gehör eine Wand ohne Ende.
+  const rects = new Map<string, Rect>(spaces.map((room) => [room.id, room.rect]));
+  rects.set(COMMAND, APRON);
+  const walls: Array<[string, string]> = [];
+  for (let i = 0; i < ids.length; i++)
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = rects.get(ids[i]!),
+        b = rects.get(ids[j]!);
+      if (a && b && touching(a, b)) walls.push([ids[i]!, ids[j]!]);
+    }
+
   const lockers = new Map<string, FloorPoint>();
   for (const placement of stationLayout(spec))
     if (placement.kind === 'locker') lockers.set(placement.roomId, placement.approach);
@@ -125,17 +150,33 @@ export function stationGraph(spec: HouseSpec): StationGraph {
       muffle[i * size + j] = cost[i * size + j]! + DOOR_LOSS;
       via[i * size + j] = j;
     }
+  for (const [id, other] of walls) {
+    const i = index.get(id)!,
+      j = index.get(other)!;
+    const a = centres.get(id)!,
+      b = centres.get(other)!;
+    // Die Tür in derselben Wand gewinnt: Sie schluckt weniger als das
+    // Mauerwerk daneben, und die Strecke ist dieselbe.
+    const through = Math.hypot(a.x - b.x, a.z - b.z) + WALL_LOSS;
+    if (through < muffle[i * size + j]!) {
+      muffle[i * size + j] = through;
+      muffle[j * size + i] = through;
+    }
+  }
   for (let k = 0; k < size; k++)
     for (let i = 0; i < size; i++) {
       const ik = cost[i * size + k]!;
-      if (!Number.isFinite(ik)) continue;
+      const quietIk = muffle[i * size + k]!;
+      if (!Number.isFinite(ik) && !Number.isFinite(quietIk)) continue;
       for (let j = 0; j < size; j++) {
-        const total = ik + cost[k * size + j]!;
-        if (total < cost[i * size + j]!) {
-          cost[i * size + j] = total;
-          via[i * size + j] = via[i * size + k]!;
+        if (Number.isFinite(ik)) {
+          const total = ik + cost[k * size + j]!;
+          if (total < cost[i * size + j]!) {
+            cost[i * size + j] = total;
+            via[i * size + j] = via[i * size + k]!;
+          }
         }
-        const quiet = muffle[i * size + k]! + muffle[k * size + j]!;
+        const quiet = quietIk + muffle[k * size + j]!;
         if (quiet < muffle[i * size + j]!) muffle[i * size + j] = quiet;
       }
     }
@@ -180,6 +221,19 @@ export function stationGraph(spec: HouseSpec): StationGraph {
   };
   cache.set(spec, graph);
   return graph;
+}
+
+/**
+ * Ob zwei Rechtecke eine Wand teilen — sie müssen sich auf einer Seite
+ * berühren und dabei ein Stück von mehr als null Kacheln gemeinsam haben. Eine
+ * Ecke, die eine andere Ecke berührt, ist keine Wand.
+ */
+function touching(a: Rect, b: Rect): boolean {
+  const alongX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const alongZ = Math.min(a.z + a.d, b.z + b.d) - Math.max(a.z, b.z);
+  if (a.x + a.w === b.x || b.x + b.w === a.x) return alongZ > 0;
+  if (a.z + a.d === b.z || b.z + b.d === a.z) return alongX > 0;
+  return false;
 }
 
 /**

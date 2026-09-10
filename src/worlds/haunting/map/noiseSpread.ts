@@ -1,4 +1,4 @@
-import { VENT_LOSS } from '../audio/hearing';
+import { DOOR_LOSS, GLASS_LOSS, VENT_LOSS, WALL_LOSS } from '../audio/hearing';
 import { pointInPolygon, type MapPoint, type MapSnapshot } from './mapSnapshot';
 
 /**
@@ -10,9 +10,18 @@ import { pointInPolygon, type MapPoint, type MapSnapshot } from './mapSnapshot';
  * Luftlinienabstand zählte. Das ist nicht, was das Hörmodell rechnet
  * (`audio/hearing.ts`, Satz 1: „Schall folgt begehbaren Wegen"), und es ist
  * auch nicht, was man sehen will. Hier läuft die Welle deshalb als **Fluten
- * über die freien Felder**: von Kachel zu Kachel, nur wo Boden ist, nie durch
- * eine Wand, durch eine Tür nur, wenn sie offen steht — und für das Monster
- * zusätzlich durch die Schächte, weil Blech gut leitet.
+ * über die freien Felder**: von Kachel zu Kachel, nur wo Boden ist — und für
+ * das Monster zusätzlich durch die Schächte, weil Blech gut leitet.
+ *
+ * **Wände dämpfen, sie schneiden nicht ab** (Satz 3 des Hörmodells). Eine
+ * Weile taten sie hier das Gegenteil: Ein Schritt, dessen Weg eine Wand
+ * kreuzte, gab es nicht, und eine geschlossene Tür war ein Riegel. Auf dem
+ * Bild blieb ein Geräusch damit in dem Raum, in dem es entstand, während das
+ * Monster es nebenan längst hörte — der Spieler sah also gerade das nicht,
+ * wofür die Welle da ist. Jetzt kostet jeder Schritt durch eine Wand
+ * `WALL_LOSS`, durch Glas `GLASS_LOSS` und durch ein geschlossenes Türblatt
+ * `DOOR_LOSS` zusätzliche Meter — dieselben Zahlen wie in `audio/hearing.ts`,
+ * damit Bild und Gehör eine Wahrheit sind und nicht zwei.
  *
  * Zwei Teile, mit Absicht getrennt:
  *
@@ -21,8 +30,8 @@ import { pointInPolygon, type MapPoint, type MapSnapshot } from './mapSnapshot';
  *   Station steht; nur ob ein Türblatt offen ist, ändert sich, und das steht
  *   nicht im Feld, sondern wird bei jeder Frage gelesen.
  * - `spreadNoise` flutet von einer Quelle aus, bis die Reichweite erschöpft
- *   ist, und gibt je Kachel die **Weglänge in Metern** zurück. Eine Kachel,
- *   die es nicht in die Liste schafft, hört nichts.
+ *   ist, und gibt je Kachel die **effektiven Meter** zurück: Weglänge plus
+ *   Dämpfung. Eine Kachel, die es nicht in die Liste schafft, hört nichts.
  *
  * Kein Canvas, kein three.js: reine Rechnung auf dem Snapshot.
  */
@@ -30,11 +39,17 @@ import { pointInPolygon, type MapPoint, type MapSnapshot } from './mapSnapshot';
 /** Die Kantenlänge einer Kachel der Welle, in Metern (`mapView.FLOOR_TILE`). */
 export const NOISE_TILE = 1.25;
 
-/** Ein Nachbar einer Kachel — durch eine Tür nur, wenn diese offen ist. */
+/** Ein Nachbar einer Kachel — frei, durch eine Wand oder durch eine Tür. */
 export interface TileLink {
   to: string;
   /** Die Länge des Schritts in Metern. */
   cost: number;
+  /**
+   * Was die Sperren zwischen den beiden Kacheln schlucken, in Metern —
+   * `0` für freie Nachbarschaft. Das Türblatt steht **nicht** darin: ob es
+   * offen ist, entscheidet sich erst bei der Frage (`spreadNoise`).
+   */
+  loss: number;
   /** Die Tür, durch die es geht; `''` für freie Nachbarschaft. */
   doorId: string;
 }
@@ -100,7 +115,7 @@ export function tileGrid(snapshot: MapSnapshot, size = NOISE_TILE): TileGrid {
   // Wände und Türöffnungen in Fächer je Kachel, damit ein Schritt nicht die
   // ganze Station abklappern muss — eine Station hat mehrere hundert Wände.
   const walls = bucket(
-    snapshot.walls.map((wall) => ({ a: wall.a, b: wall.b, id: '' })),
+    snapshot.walls.map((wall) => ({ a: wall.a, b: wall.b, id: '', kind: wall.kind })),
     size,
   );
   const doors = bucket(
@@ -119,13 +134,29 @@ export function tileGrid(snapshot: MapSnapshot, size = NOISE_TILE): TileGrid {
   );
 
   const links = new Map<string, TileLink[]>();
-  const step = (from: string, fromAt: MapPoint, to: string, toAt: MapPoint): TileLink | null => {
-    for (const wall of candidates(walls, from, to))
-      if (crosses(fromAt, toAt, wall.a, wall.b)) return null;
+  const step = (from: string, fromAt: MapPoint, to: string, toAt: MapPoint): TileLink => {
+    // Eine geteilte Wand steht im Snapshot zweimal, je Raum eine Kante. Wer
+    // stumpf aufaddiert, verlangt für dieselbe Wand zweimal `WALL_LOSS` —
+    // deshalb zählt jede Stelle des Schritts nur einmal, genau wie in
+    // `hearing.straightLoss`.
+    const hits: Array<{ t: number; loss: number }> = [];
+    for (const wall of candidates(walls, from, to)) {
+      const t = crossAt(fromAt, toAt, wall.a, wall.b);
+      if (t === null) continue;
+      const glass = wall.kind === 'window' || wall.kind === 'glass';
+      hits.push({ t, loss: glass ? GLASS_LOSS : WALL_LOSS });
+    }
+    let loss = 0;
+    let last = -Infinity;
+    for (const hit of hits.sort((p, q) => p.t - q.t)) {
+      if (hit.t - last < 1e-6) continue;
+      last = hit.t;
+      loss += hit.loss;
+    }
     let doorId = '';
     for (const door of candidates(doors, from, to))
       if (crosses(fromAt, toAt, door.a, door.b)) doorId = door.id;
-    return { to, cost: Math.hypot(toAt.x - fromAt.x, toAt.z - fromAt.z), doorId };
+    return { to, cost: Math.hypot(toAt.x - fromAt.x, toAt.z - fromAt.z), loss, doorId };
   };
 
   for (const [key, at] of tiles) {
@@ -141,8 +172,11 @@ export function tileGrid(snapshot: MapSnapshot, size = NOISE_TILE): TileGrid {
         if (!open.has(`${tx + dx},${tz}`) || !open.has(`${tx},${tz + dz}`)) continue;
       }
       const link = step(key, at, next, to);
-      if (!link) continue;
-      if (!dx || !dz) open.add(next);
+      // **Durch eine Wand geht es nur geradeaus.** Eine Wand schräg zu
+      // durchqueren hieße, sie an einer Ecke zu treffen, an der zwei Wände
+      // stoßen — der Weg um die Ecke steht daneben und ist ehrlicher.
+      if (dx && dz && link.loss > 0) continue;
+      if ((!dx || !dz) && link.loss === 0) open.add(next);
       list.push(link);
     }
     links.set(key, list);
@@ -167,9 +201,9 @@ function ventLinks(
     const keyA = tileKeyOf(a, size),
       keyB = tileKeyOf(b, size);
     if (!tiles.has(keyA) || !tiles.has(keyB) || keyA === keyB) continue;
-    const cost = Math.hypot(b.x - a.x, b.z - a.z) + VENT_LOSS;
-    push(out, keyA, { to: keyB, cost, doorId: '' });
-    push(out, keyB, { to: keyA, cost, doorId: '' });
+    const cost = Math.hypot(b.x - a.x, b.z - a.z);
+    push(out, keyA, { to: keyB, cost, loss: VENT_LOSS, doorId: '' });
+    push(out, keyB, { to: keyA, cost, loss: VENT_LOSS, doorId: '' });
   }
   return out;
 }
@@ -188,10 +222,11 @@ export interface SpreadOptions {
 }
 
 /**
- * **Die Welle fluten lassen.** Dijkstra über die freien Felder, abgebrochen
- * bei `radius` Metern Weglänge. Was herauskommt, ist je Kachel die Länge des
- * kürzesten begehbaren Wegs dorthin — die Zahl, aus der die Karte Helligkeit
- * und Front macht.
+ * **Die Welle fluten lassen.** Dijkstra über die Felder, abgebrochen bei
+ * `radius` **effektiven** Metern. Was herauskommt, ist je Kachel die Länge
+ * des kürzesten Wegs dorthin **plus** dem, was die Wände und Türblätter
+ * unterwegs geschluckt haben — dieselbe Zahl, die `audio/hearing.ts`
+ * ausrechnet, und die, aus der die Karte Helligkeit und Front macht.
  */
 export function spreadNoise(
   grid: TileGrid,
@@ -216,8 +251,10 @@ export function spreadNoise(
     const links = grid.links.get(here.key) ?? EMPTY;
     const through = options.vents ? [...links, ...(grid.vents.get(here.key) ?? EMPTY)] : links;
     for (const link of through) {
-      if (link.doorId && open && !open.has(link.doorId)) continue;
-      const cost = here.cost + link.cost;
+      // Ein geschlossenes Türblatt dämpft, es sperrt nicht: Wer nebenan die
+      // Tür zuwirft, macht den Schritt leiser und nicht lautlos.
+      const shut = link.doorId !== '' && open !== undefined && !open.has(link.doorId);
+      const cost = here.cost + link.cost + link.loss + (shut ? DOOR_LOSS : 0);
       if (cost > radius) continue;
       if (cost >= (reached.get(link.to) ?? Infinity)) continue;
       reached.set(link.to, cost);
@@ -231,6 +268,8 @@ interface Bar {
   a: MapPoint;
   b: MapPoint;
   id: string;
+  /** Nur bei Wänden gesetzt: Glas schluckt weniger als Mauerwerk. */
+  kind?: 'wall' | 'window' | 'glass';
 }
 
 /** Sperren in Fächer je Kachel legen; jede liegt in allen Fächern, die sie berührt. */
@@ -274,6 +313,24 @@ export function crosses(p: MapPoint, q: MapPoint, a: MapPoint, b: MapPoint): boo
   if (d3 === 0 && between(p, q, a)) return true;
   if (d4 === 0 && between(p, q, b)) return true;
   return false;
+}
+
+/**
+ * **Wo** sich `p→q` und `a→b` schneiden, als Anteil des Schritts — `null`,
+ * wenn gar nicht. Gebraucht wird die Stelle nur zum Aussortieren: Eine
+ * geteilte Wand steht im Snapshot zweimal, und beide Kanten liegen an
+ * derselben Stelle des Schritts.
+ */
+function crossAt(p: MapPoint, q: MapPoint, a: MapPoint, b: MapPoint): number | null {
+  if (!crosses(p, q, a, b)) return null;
+  const rx = q.x - p.x,
+    rz = q.z - p.z;
+  const sx = b.x - a.x,
+    sz = b.z - a.z;
+  const denominator = rx * sz - rz * sx;
+  // Deckungsgleich: Es gibt keine einzelne Stelle — dann ist es dieselbe.
+  if (Math.abs(denominator) < 1e-12) return 0;
+  return ((a.x - p.x) * sz - (a.z - p.z) * sx) / denominator;
 }
 
 function side(a: MapPoint, b: MapPoint, p: MapPoint): number {
