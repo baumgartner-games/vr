@@ -1,4 +1,4 @@
-import { MARKS, roomCentre, roomOf, spacesOf, type HouseSpec } from './house';
+import { MARKS, type HouseSpec } from './house';
 import { Rng } from './rng';
 import { freshThreat, readThreat, type ThreatState } from './threat';
 
@@ -237,52 +237,6 @@ export function stepVitals(
       : Math.max(0, 1 - monsterDistance / 15);
   // This is game telemetry, never a real-world heart-rate reading.
   crew.pulse = Math.round(72 + crew.exertion * 38 + danger * 58 + (3 - crew.hp) * 5);
-}
-
-/** Real shared walls only; no shortcut can reach the protected command deck. */
-const ventsCache = new WeakMap<
-  HouseSpec,
-  Array<{ a: string; b: string; x: number; z: number; dir: number }>
->();
-export function ventPairs(
-  spec: HouseSpec,
-): Array<{ a: string; b: string; x: number; z: number; dir: number }> {
-  const cached = ventsCache.get(spec);
-  if (cached) return cached;
-  const pairs: Array<{ a: string; b: string; x: number; z: number; dir: number }> = [];
-  const spaces = spacesOf(spec);
-  for (let i = 0; i < spaces.length; i++)
-    for (let j = i + 1; j < spaces.length; j++) {
-      const a = spaces[i]!;
-      const b = spaces[j]!;
-      for (const [one, two] of [
-        [a, b],
-        [b, a],
-      ] as const) {
-        const r = one.rect;
-        const s = two.rect;
-        if (r.x + r.w === s.x && Math.max(r.z, s.z) < Math.min(r.z + r.d, s.z + s.d))
-          pairs.push({ a: one.id, b: two.id, x: s.x, z: Math.max(r.z, s.z) + 0.5, dir: 1 });
-        if (r.z + r.d === s.z && Math.max(r.x, s.x) < Math.min(r.x + r.w, s.x + s.w))
-          pairs.push({ a: one.id, b: two.id, x: Math.max(r.x, s.x) + 0.5, z: s.z, dir: 2 });
-      }
-    }
-  ventsCache.set(spec, pairs);
-  return pairs;
-}
-
-export function ventDestination(spec: HouseSpec, from: string, target: string): string | null {
-  const neighbours = ventPairs(spec).flatMap((p) =>
-    p.a === from ? [p.b] : p.b === from ? [p.a] : [],
-  );
-  const goal = roomOf(spec, target);
-  if (!goal || neighbours.length === 0) return null;
-  const g = roomCentre(goal);
-  return neighbours.sort((a, b) => {
-    const p = roomCentre(roomOf(spec, a)!);
-    const q = roomCentre(roomOf(spec, b)!);
-    return Math.hypot(p.x - g.x, p.z - g.z) - Math.hypot(q.x - g.x, q.z - g.z);
-  })[0]!;
 }
 
 function record(v: unknown): Record<string, unknown> {
