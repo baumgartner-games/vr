@@ -113,7 +113,64 @@ function ventedRooms(): MapSnapshot {
   return snapshot;
 }
 
+/**
+ * Zwei Zimmer von je 10 × 10 m, eine gemeinsame Wand bei x = 10, **keine
+ * Tür**. Derselbe Grundriss, an dem `map/noiseSpread.test.ts` und
+ * `perception.test.ts` messen — vier Stellen rechnen Schall, und an dieser
+ * einen Form muss bei allen vieren dasselbe herauskommen.
+ */
+function wandAnWand(): MapSnapshot {
+  const snapshot = emptySnapshot();
+  snapshot.seed = 23;
+  const box = (id: string, x0: number, x1: number) => {
+    snapshot.rooms.push({
+      id,
+      name: id,
+      polygon: [
+        { x: x0, z: 0 },
+        { x: x0, z: 10 },
+        { x: x1, z: 10 },
+        { x: x1, z: 0 },
+      ],
+      centre: { x: (x0 + x1) / 2, z: 5 },
+      circulation: false,
+      lit: true,
+      safe: false,
+    });
+  };
+  box('west', 0, 10);
+  box('east', 10, 20);
+  // Die geteilte Wand steht zweimal darin, je Raum eine Kante — genau so
+  // liefert `extract.ts` sie.
+  snapshot.walls.push(
+    { a: { x: 10, z: 0 }, b: { x: 10, z: 10 }, roomId: 'west', kind: 'wall' },
+    { a: { x: 10, z: 0 }, b: { x: 10, z: 10 }, roomId: 'east', kind: 'wall' },
+    { a: { x: 0, z: 0 }, b: { x: 20, z: 0 }, kind: 'wall' },
+    { a: { x: 0, z: 10 }, b: { x: 20, z: 10 }, kind: 'wall' },
+    { a: { x: 0, z: 0 }, b: { x: 0, z: 10 }, kind: 'wall' },
+    { a: { x: 20, z: 0 }, b: { x: 20, z: 10 }, kind: 'wall' },
+  );
+  return snapshot;
+}
+
 describe('Das Hörmodell', () => {
+  /**
+   * **Das Versprechen aus dem Doc-Kommentar, nachgemessen** (Satz 3: „Wände
+   * dämpfen, sie schneiden nicht ab"). Zwei Räume, eine Wand, keine Tür — und
+   * es kommt eine endliche Zahl heraus, nicht `Infinity` und nicht die
+   * Luftlinie.
+   */
+  it('hört durch eine Wand ohne Tür: Luftlinie plus WALL_LOSS, einmal', () => {
+    const snapshot = wandAnWand();
+    const path = new Hearing().path(snapshot, { x: 5, z: 5 }, { x: 15, z: 5 });
+    expect(path.direct).toBeCloseTo(10, 6);
+    expect(path.distance).toBeCloseTo(10 + WALL_LOSS, 6);
+    expect(path.occluded).toBe(true);
+    expect(path.via).toBe('wall');
+    // Gedämpft heißt: leiser, aber nicht still. Ein Ruf trägt 42 m weit.
+    expect(hearingGain(path.distance, reachOf(NOISE.monsterCall))).toBeGreaterThan(0);
+  });
+
   it('rechnet im selben Raum die Luftlinie, ohne Dämpfung', () => {
     const round = new FlatRound(1, { test: true });
     const snapshot = round.snapshot();

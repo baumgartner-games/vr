@@ -1,3 +1,4 @@
+import { DOOR_LOSS, GLASS_LOSS, WALL_LOSS } from './audio/hearing';
 import type { NavGraph } from '../nav/navGraph';
 import { DIRS, TILE, neighbour, tileKey, type TileKey } from '../nav/navTile';
 import type { SignalPoint } from './threat';
@@ -8,7 +9,7 @@ export const BOT_VISION = 16;
 export const pointKey = (p: SignalPoint): TileKey =>
   tileKey(Math.floor(p.x / TILE), Math.floor(p.z / TILE));
 
-/** Yaw follows the rendered actor: forward is local -Z. */
+/** Der Blickwinkel folgt der gezeichneten Figur: vorn ist lokal -Z. */
 export function inView(
   from: SignalPoint,
   yaw: number,
@@ -25,7 +26,28 @@ export function inView(
   );
 }
 
-/** Sound follows occupied floor cells. Shared walls attenuate; vacuum has no edge. */
+/** Was zwischen zwei Kacheln steht, in Metern Hörweite — nichts kostet nichts. */
+function lossOf(wall: ReturnType<NavGraph['wall']>): number {
+  if (!wall) return 0;
+  if (wall.kind === 'door') return wall.open ? 0 : DOOR_LOSS;
+  return wall.kind === 'window' ? GLASS_LOSS : WALL_LOSS;
+}
+
+/**
+ * **Das akustische Feld** — was von einem Geräusch an welcher Kachel ankommt,
+ * geflutet über den Weltgraphen.
+ *
+ * Schall folgt dem Boden: Wo keine Kachel ist, ist auch keine Kante, und über
+ * das Vakuum neben der Station geht nichts. Eine **Wand dämpft, sie schneidet
+ * nicht ab** — der Schritt in die Nachbarkachel hinter der Wand kostet
+ * zusätzlich `WALL_LOSS`, hinter Glas `GLASS_LOSS`, hinter einem
+ * geschlossenen Türblatt `DOOR_LOSS`; offen steht sie umsonst. Die Zahlen
+ * stehen in `audio/hearing.ts` und nicht hier: Ein Geräusch, das der Spieler
+ * hört und das Monster nicht, ist ein Fehler in einer Datei.
+ *
+ * Zurück kommen **effektive Meter** je Kachel — Weglänge plus Dämpfung. Was
+ * jenseits von `range` liegt, steht gar nicht erst in der Karte.
+ */
 export function acousticField(
   graph: NavGraph,
   source: SignalPoint,
@@ -44,8 +66,7 @@ export function acousticField(
       const next = neighbour(key, dir);
       if (!graph.has(next)) continue;
       const wall = graph.wall(key, dir);
-      const loss = !wall || (wall.kind === 'door' && wall.open) ? 0 : wall.kind === 'door' ? 4 : 9;
-      const total = cost + TILE + loss;
+      const total = cost + TILE + lossOf(wall);
       if (total > range || total >= (costs.get(next) ?? Infinity)) continue;
       costs.set(next, total);
       queue.push({ key: next, cost: total });

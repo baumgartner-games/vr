@@ -136,8 +136,10 @@ zwanzig Sekunden von selbst wieder auf oder vorher durch die Schalttafel.
 Kacheln, dicke Wände, Türen als Blätter mit Schloss, die Möbel aus dem Schiff
 als Klötze, kleine Astronauten mit Händen, das Monster als Klumpen mit Augen.
 Geräusche laufen als Wellen über die Kacheln — die eigenen blau, die des
-Monsters rot, Türen und Fracht orange. Gelbe Dreiecke am Bildrand zeigen zum
-nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
+Monsters rot, Türen und Fracht orange. Eine Wand hält eine Welle nicht auf,
+sie dämpft sie: Was nebenan ankommt, kommt später und blasser an, und eine
+zugeworfene Tür macht einen Schritt leiser und nicht lautlos. Gelbe Dreiecke
+am Bildrand zeigen zum nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
 „Zielpfade" im Optionsmenü legt die Wege von Techniker und Monster auf die
 Karte, und im Modus „Alles sehen" führen Bögen von Klappe zu Klappe mit dem
 Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
