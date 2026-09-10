@@ -5,10 +5,12 @@ import { generateHouse } from './house';
 import { freshCrew, lockerCode, repairsFor } from './mission';
 import type { HauntState } from './net';
 import type { StationId } from './stations';
-import type { MapRound } from './map/mapSnapshot';
+import { emptySnapshot, type MapRound } from './map/mapSnapshot';
+import type { MonsterPort } from './monster/monsterDriver';
 
 jest.mock('./haunting.css', () => ({}));
 jest.mock('./stationDashboard.css', () => ({}));
+jest.mock('./monster/monster.css', () => ({}));
 
 const views: StationUi[] = [];
 let canvas: CanvasRenderingContext2D;
@@ -69,7 +71,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function crew(station: StationId = 'archive', remoteTechnician = true) {
+function crew(station: StationId = 'archive', remoteTechnician = true, monster?: MonsterPort) {
   let spec = generateHouse(947, 10);
   const state: HauntState = {
     seed: spec.seed,
@@ -85,6 +87,8 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     taken: [],
     done: [],
     destroyed: [],
+    technician: null,
+    ride: 'out',
   };
   let seat: StationId | null = null;
   let round: MapRound | null = null;
@@ -108,6 +112,9 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     botRound,
     restart,
     round: () => round,
+    snapshot: () => ({ ...emptySnapshot(), seed: spec.seed }),
+    monsterPort: () => monster ?? null,
+    notify: () => {},
     seat: () => seat,
     wanted: () => seat,
     arriving: () => 0,
@@ -175,6 +182,35 @@ function button(selector: string): HTMLButtonElement {
   return hit!;
 }
 
+/** Ein Port, der mitschreibt — die Ansicht der Monster-Station hängt an ihm. */
+function fakePort(): MonsterPort & { calls: string[]; held: boolean } {
+  const port = {
+    calls: [] as string[],
+    held: false,
+    claim() {
+      port.calls.push('claim');
+      port.held = true;
+      return true;
+    },
+    release() {
+      port.calls.push('release');
+      port.held = false;
+    },
+    claimed: () => port.held,
+    input() {
+      port.calls.push('input');
+    },
+    act(action: 'attack' | 'interact') {
+      port.calls.push(action);
+      return '';
+    },
+    ventTargets: () => [],
+    chooseVent() {},
+    status: () => ({ ride: 'out' as const, progress: 1, prompt: '', label: 'Stalker' }),
+  };
+  return port;
+}
+
 function pointer(node: HTMLElement, type: string, id: number, x: number, y: number): void {
   const event = new MouseEvent(type, {
     bubbles: true,
@@ -186,6 +222,66 @@ function pointer(node: HTMLElement, type: string, id: number, x: number, y: numb
   Object.defineProperty(event, 'pointerId', { value: id });
   node.dispatchEvent(event);
 }
+
+describe('Die Station Monster in der Einsatzzentrale', () => {
+  /**
+   * Die fünfte Kachel baut die Rollenansicht aus `monster/` — mit dem Port
+   * der Welt am Steuer. Sie überlebt ein Neuschreiben der Seite (Stock in
+   * der Hand) und gibt das Steuer erst frei, wenn man die Station verlässt.
+   */
+  it('baut die Ansicht aus der Registry, hält sie über Neuschriften und gibt sie beim Verlassen frei', () => {
+    // Die Karte braucht mehr vom Canvas als der Späherschirm: alles erlaubt.
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () =>
+        new Proxy({} as Record<string, unknown>, {
+          get: (target, key: string) => (key in target ? target[key] : () => {}),
+          set: (target, key: string, value) => {
+            target[key] = value;
+            return true;
+          },
+        }) as unknown as CanvasRenderingContext2D,
+    );
+    const port = fakePort();
+    const game = crew('monster', true, port);
+    expect(game.ui.station).toBe('monster');
+    expect(document.querySelector('.haunt')?.getAttribute('data-station')).toBe('monster');
+    const view = document.querySelector<HTMLElement>('.haunt__body .monster');
+    expect(view).not.toBeNull();
+    expect(view?.dataset['control']).toBe('player');
+    // Beim Hinsetzen wird das Steuer genommen und einmal gelesen.
+    expect(port.calls[0]).toBe('claim');
+    expect(port.calls).toContain('input');
+    // Kein Bild der Welt: Die Station ist eine Karte, kein Kamerabild.
+    expect(game.ui.viewport()).toBeNull();
+    // Ein Schalter irgendwo schreibt die Seite neu — dieselbe Ansicht bleibt,
+    // und das Steuer wird nicht noch einmal genommen.
+    game.state.lit.push('r1');
+    game.ui.refresh();
+    expect(document.querySelector('.haunt__body .monster')).toBe(view);
+    expect(port.calls.filter((call) => call === 'claim')).toHaveLength(1);
+    // Der Takt der Welt: Die Ansicht liest den Stock erneut und zeichnet.
+    const reads = port.calls.filter((call) => call === 'input').length;
+    jest.spyOn(performance, 'now').mockReturnValue(performance.now() + 1000);
+    game.ui.refresh();
+    expect(port.calls.filter((call) => call === 'input').length).toBeGreaterThan(reads);
+    // Die Knöpfe gehen an den Port.
+    view?.querySelector<HTMLButtonElement>('.monster__key--attack')?.click();
+    expect(port.calls).toContain('attack');
+    // Zurück in die Übersicht: Das Steuer wird freigegeben.
+    button('[aria-label="Rolle wechseln"]').click();
+    expect(game.ui.station).toBeNull();
+    expect(port.calls.at(-1)).toBe('release');
+    expect(document.querySelector('.monster')).toBeNull();
+  });
+
+  it('zeigt ohne Karte eine Erklärung statt einer Ansicht', () => {
+    const game = crew('monster');
+    (game.ui as unknown as { host: { snapshot?: unknown } }).host.snapshot = undefined;
+    game.state.lit.push('r1');
+    game.ui.refresh();
+    expect(document.querySelector('.haunt__body')?.textContent).toContain('Keine Karte');
+  });
+});
 
 describe('Phone dashboard DOM and Canvas interaction', () => {
   it.each([390, 1440])(

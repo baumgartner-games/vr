@@ -158,6 +158,8 @@ describe('Orbital missions', () => {
       taken: ['t0'],
       done: [],
       destroyed: ['r2', 'r5'],
+      technician: null,
+      ride: 'out',
     };
     const roundTrip = readState(stateMessage(state))!;
     // Die zerstörten Kabinen gehen mit — und ein Client der Version 5 wird abgewiesen.

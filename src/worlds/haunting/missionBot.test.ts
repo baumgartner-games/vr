@@ -23,6 +23,8 @@ function state(seed: number, rooms: number): HauntState {
     taken: [],
     done: [],
     destroyed: [],
+    technician: null,
+    ride: 'out',
     crew: freshCrew(stationOptions({ test: true, bright: true, rooms })),
   };
 }

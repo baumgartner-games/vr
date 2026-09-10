@@ -102,12 +102,14 @@ import { RoundRules } from './rules/roundRules';
 import { VentFlapArt } from './vents/ventArt';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel, type VentRider } from './vents/ventTravel';
-import { NpcVentRide } from './vents/npcVentRide';
+import { NpcVentRide, VENTING_CEILING, VENTING_FLOOR } from './vents/npcVentRide';
 import type { MonsterDriver } from './monster/monsterDriver';
+import { NetMonsterControl } from './monster/netMonsterControl';
+import { NetMonsterPort } from './monster/netMonsterPort';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
 import type { FlatStage } from './map/flatStage';
-import { MOVE_TIME, seatOf, type Claim, type StationId } from './stations';
+import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
 import {
   claimMessage,
   droneMessage,
@@ -118,6 +120,7 @@ import {
   readClaim,
   readDrone,
   readFlip,
+  readMonsterInput,
   readState,
   stateMessage,
   type DroneState,
@@ -270,6 +273,8 @@ const _beaconOn = new THREE.Color(0xff4d55);
 const _lampOn = new THREE.Color(0xfff0cf);
 const _head = new THREE.Vector3();
 const _feet = new THREE.Vector3();
+/** Der Schlag eines Spielers am Steuer hat keine Richtung — `takeHit` liest keine. */
+const _strike = new THREE.Vector3();
 const _size = new THREE.Vector2();
 /** Die Schnittebene, die dem Zuschauer die Decke abnimmt — einmal gebaut. */
 const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
@@ -361,11 +366,27 @@ export class HauntingWorld extends GridWorld {
   /** Die Klappen in 3D, von denen eine offen stehen kann. */
   private ventArt: VentFlapArt | null = null;
   /**
-   * Ein Spieler am Steuer des Monsters (`monster/monsterDriver.ts`); `null`
-   * oder inaktiv heißt: die Routine. Der Port übers Netz kommt später — die
-   * Welt fragt nur, wessen Entscheidung sie ausführt.
+   * **Das Steuer der Station `monster` übers Netz** (`monster/netMonsterControl.ts`):
+   * führt beim Gastgeber aus, was das Telefon sagt — in 3D über `stepRoutine`,
+   * in der 2D-Welt als `round.driver`. Es sieht immer die Runde, die gerade
+   * läuft: die 2D-Runde, solange `flat` steht, sonst das NPC-Monster.
    */
-  monsterDriver: MonsterDriver | null = null;
+  private readonly netMonster = new NetMonsterControl({
+    house: () => this.flat?.round.house ?? this.spec,
+    state: () => this.state,
+    rider: () => this.flat?.round.monster ?? this.monsterRider(),
+    ride: () => this.flat?.round.ventRide ?? this.ventRide,
+    occupied: () => ownerOf(this.currentClaims(), 'monster') !== '',
+  });
+  /**
+   * Ein Spieler am Steuer des Monsters (`monster/monsterDriver.ts`); `null`
+   * oder inaktiv heißt: die Routine. Die Welt fragt nur, wessen Entscheidung
+   * sie ausführt — heute ist das immer das Steuer übers Netz.
+   */
+  monsterDriver: MonsterDriver | null = this.netMonster;
+  /** Und die andere Seite: das Steuer auf diesem Telefon, wenn es an der Station sitzt. */
+  private netPort: NetMonsterPort | null = null;
+  private monsterTimer = 0;
 
   /** Das Monster, solange es eines gibt — nur beim Gastgeber ein echter NPC. */
   private monster: Npc | null = null;
@@ -721,7 +742,11 @@ export class HauntingWorld extends GridWorld {
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
     this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace));
     if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
-    if (decision.strike) this.breakLocker(decision.goal ?? { x: at.x, z: at.z }, decision.cabin);
+    // Ein Spieler am Steuer trifft den Techniker im Freien mit dem Knopf —
+    // `takeHit` prüft Abstand und Sichtlinie wie bei einem Schlag des NPC.
+    if (decision.strike && piloted && !decision.cabin) this.takeHit(_strike, 1);
+    else if (decision.strike)
+      this.breakLocker(decision.goal ?? { x: at.x, z: at.z }, decision.cabin);
   }
 
   /** Das Monster als Reiter der Fahrt: Füße, Blick, Raum — `null` ohne Monster. */
@@ -814,6 +839,11 @@ export class HauntingWorld extends GridWorld {
       this.pendingBotRound = false;
       this.stationTorch?.setLit(false);
       this.buildStationViews();
+      this.netPort = new NetMonsterPort({
+        snapshot: () => this.mapSnapshot(),
+        state: () => this.state,
+        owned: () => seatOf(this.currentClaims(), ctx.net.localId) === 'monster',
+      });
       this.ui = new StationUi({
         spec: () => this.spec,
         state: () => this.state,
@@ -827,6 +857,9 @@ export class HauntingWorld extends GridWorld {
         botRound: () => this.requestBotRound(ctx),
         flatMode: () => this.toggleFlat(ctx),
         flatActive: () => !!this.flat,
+        snapshot: () => this.mapSnapshot(),
+        monsterPort: () => this.netPort,
+        notify: (text) => ctx.notify(text),
         round: () => this.rules.status(this.state),
         restart: () => {
           if (this.isHost) {
@@ -886,6 +919,7 @@ export class HauntingWorld extends GridWorld {
     this.flatStage = null;
     this.ui?.dispose();
     this.ui = null;
+    this.netPort = null;
     this.experience?.dispose();
     this.experience = null;
     this.releaseMonster();
@@ -1602,9 +1636,11 @@ export class HauntingWorld extends GridWorld {
 
   private tick(dt: number, ctx: WorldContext, last = true): void {
     if (this.flat) {
-      // Die 2D-Welt rechnet sich selbst; der 3D-Pfad steht still.
+      // Die 2D-Welt rechnet sich selbst; der 3D-Pfad steht still. Das Netz
+      // läuft weiter: Wer 2D spielt, ist der Techniker der gemeinsamen Runde.
       this.context = ctx;
-      this.flat.update(dt);
+      this.stepFlat(dt, ctx);
+      this.tickNet(dt, ctx, last);
       return;
     }
     if (this.flatTechnician) ctx = { ...ctx, role: 'vr' };
@@ -1640,6 +1676,7 @@ export class HauntingWorld extends GridWorld {
       this.trackMonster();
       this.checkItems(ctx);
       this.stepCrew(dt, ctx);
+      this.state.ride = this.ventRide.phase;
     }
 
     this.stepSpook(dt);
@@ -1700,13 +1737,65 @@ export class HauntingWorld extends GridWorld {
         (from, to) => this.clearSight(from, to),
       );
     }
+    this.tickNet(dt, ctx, last);
+  }
+
+  /**
+   * **Ein Bild der 2D-Welt als gemeinsame Runde.** Die Runde rechnet sich
+   * selbst (`map/flatMode.ts`); hier wird ihr Stand zum Stand der Welt — die
+   * Übernahme ist dieselbe wie bei einem fremden Gastgeber (`adopt`), samt
+   * neuem Haus, wenn die 2D-Welt eine neue Runde würfelt. Dazu kommt, was
+   * die 2D-Runde nicht selbst führt: die Stelle des Technikers (er hat kein
+   * Rig), die Phase der Schachtfahrt und das Signal `venting`, an dem alle
+   * anderen Geräte das verborgene Monster erkennen. Das Steuer der
+   * Monster-Station hängt sich als `driver` ein, sobald die Runde keins hat.
+   */
+  private stepFlat(dt: number, ctx: WorldContext): void {
+    const flat = this.flat!;
+    if (!flat.round.driver) flat.round.driver = this.netMonster;
+    flat.update(dt);
+    const round = flat.round;
+    this.adopt(round.haunt);
+    const player = round.player;
+    round.haunt.technician = {
+      x: player.x,
+      z: player.z,
+      yaw: player.yaw,
+      moving: round.entities().find((entity) => entity.id === 'player')?.moving ?? false,
+    };
+    round.haunt.ride = round.ventRide.phase;
+    round.haunt.crew.venting = round.ventRide.concealed
+      ? Math.min(VENTING_CEILING, Math.max(VENTING_FLOOR, round.ventRide.timer))
+      : 0;
+    this.refreshHost(ctx);
+  }
+
+  /**
+   * **Der Netzteil eines Bildes** — Herzschlag, Stand, Platz, Monster-Steuer.
+   * Aus `tick` herausgelöst, weil er auch läuft, wenn die 2D-Welt den
+   * 3D-Pfad stillstellt: Die Telefone sähen sonst eine Runde, die niemand
+   * mehr ansagt.
+   */
+  private tickNet(dt: number, ctx: WorldContext, last: boolean): void {
     if (!last) return;
     this.sendTimer -= dt;
     if (this.sendTimer <= 0) {
       this.sendTimer = STATE_RATE;
-      if (ctx.role === 'vr') ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician' });
+      // Der 2D-Spieler ist ein Techniker wie der im Headset (`refreshHost`).
+      if (ctx.role === 'vr' || this.flat) ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician' });
       if (this.isHost) ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
       if (this.wanted) ctx.net.emit(HAUNT_CHANNEL, claimMessage(this.wanted, this.seated));
+    }
+    // Das Steuer der Monster-Station, im Takt der Drohne — nur solange man
+    // die Station besitzt; der Gastgeber hört nur auf den Besitzer (`receive`).
+    this.monsterTimer -= dt;
+    if (this.monsterTimer <= 0) {
+      this.monsterTimer = DRONE_RATE;
+      const input = this.netPort?.message();
+      if (input) {
+        if (this.isHost) this.receive(input, ctx.net.localId);
+        else ctx.net.emit(HAUNT_CHANNEL, input);
+      }
     }
     if (this.wanted) {
       // **Die eigene Sitzdauer steht auch in der eigenen Liste.** Nur die
@@ -1729,7 +1818,12 @@ export class HauntingWorld extends GridWorld {
   private refreshHost(ctx: WorldContext): void {
     const here = [...ctx.net.peers.values()].filter((peer) => peer.world === ctx.net.world);
     const candidates = [
-      { id: ctx.net.localId, seniority: ctx.net.localSeniority, vr: ctx.role === 'vr' },
+      // Wer die 2D-Welt spielt, ist der Techniker dieser Runde — und rechnet sie.
+      {
+        id: ctx.net.localId,
+        seniority: ctx.net.localSeniority,
+        vr: ctx.role === 'vr' || !!this.flat,
+      },
       ...here.map((peer) => ({
         id: peer.id,
         seniority: ctx.net.seniorityOf(peer),
@@ -1743,6 +1837,7 @@ export class HauntingWorld extends GridWorld {
     if (wasHost) this.releaseMonster();
     if (
       next === ctx.net.localId &&
+      !this.flat &&
       this.state.phase === 'running' &&
       this.state.monsterOn &&
       this.state.monster &&
@@ -1762,7 +1857,8 @@ export class HauntingWorld extends GridWorld {
     }
     const state = readState(data);
     if (state && from !== this.context?.net.localId && from === this.hostId) {
-      this.adopt(state);
+      // In der 2D-Welt ist der eigene Stand der Stand (`stepFlat`).
+      if (!this.flat) this.adopt(state);
       return;
     }
     const claim = readClaim(data, from);
@@ -1788,6 +1884,10 @@ export class HauntingWorld extends GridWorld {
     const flip = readFlip(data);
     if (flip && this.isHost && ['hack', 'scout'].includes(seatOf(this.currentClaims(), from) ?? ''))
       this.applyFlip(flip.id, flip.on);
+    // Stock und Knöpfe der Monster-Station — nur vom Besitzer, wie der Schalter.
+    const input = readMonsterInput(data);
+    if (input && this.isHost && seatOf(this.currentClaims(), from) === 'monster')
+      this.netMonster.accept(input);
   }
 
   /**
@@ -1901,6 +2001,9 @@ export class HauntingWorld extends GridWorld {
   protected override takeHit(_direction: THREE.Vector3, _strength: number): void {
     const ctx = this.context;
     if (!ctx || !this.monster) return;
+    // Ein Spieler am Steuer trifft nur mit dem Knopf, nicht durch Berührung
+    // (`monster/monsterHelm.ts`); `stepRoutine` ruft dann selbst hierher.
+    if (this.monsterDriver?.active() && !this.decision?.strike) return;
     ctx.rig.getHeadPosition(_head);
     const at = this.monster.feet(_feet);
     if (
@@ -3170,11 +3273,29 @@ export class HauntingWorld extends GridWorld {
     if (this.flat) {
       this.flat.dispose();
       this.flat = null;
+      // Die Runde ist vorbei, sobald ihr Techniker die 2D-Welt verlässt: ein
+      // frischer Stand auf demselben Haus, wie `newRound` ihn baut — und
+      // angesagt, damit die Telefone nicht auf einer verwaisten Runde sitzen.
+      this.state = freshState(this.spec.seed, this.state.crew.options);
+      this.rules.reset();
+      this.netMonster.reset();
+      if (this.isHost) ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
       this.ui?.refresh();
       ctx.refreshWorldMenu();
       return;
     }
     if (this.flatLoading) return;
+    // Ein Techniker je Raum — dieselbe Regel wie bei der Bot-Runde: Wer 2D
+    // spielt, wird Gastgeber der gemeinsamen Runde, und zwei davon gäbe es nicht.
+    const occupied = [...ctx.net.peers.values()].some(
+      (peer) =>
+        peer.world === ctx.net.world &&
+        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
+    );
+    if (occupied) {
+      ctx.notify('2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      return;
+    }
     this.flatLoading = true;
     let leaveXr: Promise<void> = Promise.resolve();
     if (ctx.renderer.xr.isPresenting) {
@@ -3196,8 +3317,10 @@ export class HauntingWorld extends GridWorld {
         if (discover.REGISTERED_FILES.length === 0)
           console.warn('Haunting: keine *.register.ts gefunden');
         const options = this.state.crew.options;
+        // Derselbe Same wie das Haus der Telefone: Die 2D-Runde ist die
+        // gemeinsame Runde, und ein anderer Same wäre eine andere Karte.
         this.flat = new mode.FlatMode(
-          rollSeed(),
+          this.spec.seed,
           { monster: options.monster, tuning: this.tuning, test: options.test },
           {
             exit: () => this.toggleFlat(ctx),
@@ -3234,6 +3357,10 @@ export class HauntingWorld extends GridWorld {
           })),
         doorOpen: (id) => this.automaticDoors.isOpen(id),
         player: () => {
+          // Der Techniker in der 2D-Welt eines anderen Geräts hat kein Rig:
+          // Seine Stelle kommt aus dem Stand (`HauntState.technician`).
+          const technician = this.state.technician;
+          if (technician) return { ...technician, sprinting: this.state.crew.exertion > 0.3 };
           const ctx = this.context;
           if (!ctx || (ctx.role !== 'vr' && !this.flatTechnician)) return null;
           ctx.rig.getHeadPosition(_head);
@@ -3359,7 +3486,14 @@ export class HauntingWorld extends GridWorld {
         () => this.travelGraph(),
       );
       this.monsterNavigator = navigator;
-      this.monster.setNavigator((input) => navigator.step(input));
+      // Ein Spieler am Steuer bekommt keinen Weg gesucht: Sein Ziel liegt
+      // einen Meter voraus und wandert mit ihm — eine Rasterwegsuche je Bild
+      // wäre Arbeit für nichts. Er läuft geradeaus, Rapier hält ihn an Wänden.
+      this.monster.setNavigator((input) =>
+        this.monsterDriver?.active()
+          ? { x: input.target.x, z: input.target.z }
+          : navigator.step(input),
+      );
       this.monster.model.visible = false;
       this.monsterArt = buildCreature(this.state.crew.options.monster);
       this.monsterArt.position.y = -this.monster.skin.height / 2;
@@ -3491,6 +3625,8 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     taken: [],
     done: [],
     destroyed: [],
+    technician: null,
+    ride: 'out',
   };
 }
 

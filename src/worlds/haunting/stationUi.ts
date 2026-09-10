@@ -1,6 +1,11 @@
 import { lockerCode, repairsFor } from './mission';
 import './haunting.css';
 import './stationDashboard.css';
+// Die Station `monster` ist eine Rollenansicht aus der Registry
+// (`monster/monsterView.ts`); ihr CSS kommt hier mit, weil die Seite in der
+// Einsatzzentrale auch ohne die 2D-Welt gebraucht wird (`monster.register.ts`
+// lädt es sonst nur, wenn `registry/discover.ts` läuft).
+import './monster/monster.css';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   MARKS,
@@ -25,8 +30,11 @@ import {
 import { lampRefill, lampSeconds, HOP_TIME, LAMP_MIN, type DroneStatus } from './droneRoute';
 import { atHome, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
-import type { MapRound } from './map/mapSnapshot';
+import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
+import type { RoleView } from './registry/roles';
+import type { MonsterPort } from './monster/monsterDriver';
+import { mountMonsterView } from './monster/monsterView';
 
 /** Phone dashboards for a three-person crew: isolated room dossiers and codes
  * in the archive, live radar and ship systems in control. */
@@ -53,6 +61,15 @@ export interface StationHost {
    * beim Gastgeber; ohne ihn zeigt die Leiste nur die Systeme und den Anzug.
    */
   round?(): MapRound | null;
+  /**
+   * Der Stand als Karte (`HauntingWorld.mapSnapshot`) — für die Station
+   * `monster`, deren Ansicht aus der Registry kommt und nur Snapshots liest.
+   */
+  snapshot?(): MapSnapshot;
+  /** Das Steuer der Station `monster` übers Netz (`monster/netMonsterPort.ts`). */
+  monsterPort?(): MonsterPort | null;
+  /** Eine Zeile an den Spieler — was die Monster-Ansicht dem Telefon sagt. */
+  notify?(text: string): void;
   nameOf(peer: string): string;
   /** An welchem Gerät ich wirklich sitze — `null`, wenn weggeschubst. */
   seat(): StationId | null;
@@ -207,6 +224,14 @@ export class StationUi {
   private readonly touches = new Map<number, { x: number; y: number }>();
   /** Wie weit die zwei Finger beim letzten Mal auseinanderlagen, in Punkten. */
   private span = 0;
+  /**
+   * Die Ansicht der Station `monster`, solange man dort sitzt. Sie überlebt
+   * ein `write()` (das die Seite neu baut), weil ihr Port beim Wegwerfen die
+   * Station freigäbe — und weil eine Karte, die sich bei jedem Schalter neu
+   * aufbaut, den Daumen vom Stock nimmt.
+   */
+  private monsterView: RoleView | null = null;
+  private monsterAt = 0;
 
   constructor(private readonly host: StationHost) {
     this.root.className = 'haunt';
@@ -272,6 +297,8 @@ export class StationUi {
   }
 
   dispose(): void {
+    this.monsterView?.dispose();
+    this.monsterView = null;
     this.root.remove();
     document.body.classList.remove('haunt-on');
   }
@@ -402,6 +429,20 @@ export class StationUi {
       this.lastRadar = performance.now();
       this.drawScout();
       this.drawEcg();
+    }
+    // Die Monster-Ansicht zeichnet sich selbst (`RoleView.update`) — Stock
+    // lesen, Karte nachführen —, gedrosselt wie der Späherschirm. Wer die
+    // Station verlässt, gibt sie frei: Ihr Port hält sonst das Steuer.
+    if (station === 'monster' && this.monsterView) {
+      const now = performance.now();
+      if (now - this.monsterAt > 50) {
+        const dt = this.monsterAt ? (now - this.monsterAt) / 1000 : 0;
+        this.monsterAt = now;
+        this.monsterView.update(dt);
+      }
+    } else if (this.monsterView) {
+      this.monsterView.dispose();
+      this.monsterView = null;
     }
     this.view.hidden = !this.hasView;
   }
@@ -632,7 +673,30 @@ export class StationUi {
     if (station === 'scout' || station === 'hack') return this.scoutPage();
     if (station === 'drone') return this.dronePage();
     if (station === 'watch') return this.watchPage();
+    if (station === 'monster') return this.monsterPage();
     return [];
+  }
+
+  /**
+   * **Die Station aus Monstersicht** — die Rollenansicht aus `monster/`,
+   * gebaut über denselben `RoleHost` wie in der 2D-Welt. Ihr Port ist das
+   * Steuer übers Netz; ohne Port (eine Welt ohne Karte) ist sie ein
+   * Zuschauerfenster in die Wahrnehmung des Monsters.
+   */
+  private monsterPage(): HTMLElement[] {
+    const host = this.host;
+    if (!host.snapshot)
+      return [note('warn', 'Keine Karte', 'Diese Welt liefert der Monster-Station keinen Stand.')];
+    this.monsterView ??= mountMonsterView({
+      snapshot: () => host.snapshot!(),
+      me: () => this.host.me(),
+      nameOf: (peer) => this.host.nameOf(peer),
+      flip: (id, on) => this.host.flip(id, on),
+      flyTo: (roomId) => this.host.flyTo(roomId),
+      notify: (text) => this.host.notify?.(text),
+      extra: { monster: this.host.monsterPort?.() ?? null },
+    });
+    return [this.monsterView.element];
   }
 
   /**

@@ -220,6 +220,8 @@ export class FlatRound implements MapSource {
       taken: [],
       done: [],
       destroyed: [],
+      technician: null,
+      ride: 'out',
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);

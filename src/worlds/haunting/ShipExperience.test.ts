@@ -111,6 +111,8 @@ beforeEach(() => {
     taken: [],
     done: [],
     destroyed: [],
+    technician: null,
+    ride: 'out',
   };
   const canvas = document.createElement('canvas');
   document.body.append(canvas);

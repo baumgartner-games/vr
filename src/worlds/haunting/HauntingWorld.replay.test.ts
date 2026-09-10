@@ -17,6 +17,7 @@ import type { MenuEntry } from '../../ui/menu';
 jest.mock('../grid/GridWorld', () => ({ GridWorld: class {} }));
 jest.mock('./haunting.css', () => ({}));
 jest.mock('./stationDashboard.css', () => ({}));
+jest.mock('./monster/monster.css', () => ({}));
 
 interface ReplayWorld {
   spec: HouseSpec;
@@ -60,6 +61,8 @@ function snapshot(seed = 391): HauntState {
     taken: [],
     done: [],
     destroyed: [],
+    technician: null,
+    ride: 'out',
   };
 }
 

@@ -6,9 +6,13 @@ import { freshThreat, readThreat, type ThreatState } from './threat';
  * Die Versionsnummer, die jede `state`-Nachricht trägt. 6, seit die
  * zerstörten Kabinen im `HauntState` stehen (`destroyed`): Ein Client der
  * Version 5 wüsste nichts von ihnen und ließe Spieler in ein Wrack steigen.
- * Alte Clients werden abgewiesen; nach dem Update alle Geräte neu laden.
+ * 7, seit die Monster-Station übers Netz spielt (`net.ts`: Nachricht
+ * `monster`, Felder `technician` und `ride` im Stand): Ein Gastgeber der
+ * Version 6 würde die Eingaben des Monsterspielers stumm verwerfen, und ein
+ * Telefon der Version 6 sähe den 2D-Techniker nie. Alte Clients werden
+ * abgewiesen; nach dem Update alle Geräte neu laden.
  */
-export const STATION_PROTOCOL = 6;
+export const STATION_PROTOCOL = 7;
 
 /**
  * **Wie schnell die beiden Seiten sind** — und warum genau in dieser
