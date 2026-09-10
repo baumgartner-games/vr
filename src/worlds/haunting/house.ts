@@ -44,7 +44,7 @@ export interface Rect {
  * die Station bringt ihre eigenen Rechtecke mit.
  */
 export const HOUSE: Rect = { x: -8, z: -35, w: 16, d: 12 };
-/** Wie breit der Van ist, in Kacheln. */
+/** Wie breit der Tisch der Einsatzzentrale ist, in Kacheln. */
 export const VAN_W = 4;
 
 /**
@@ -53,8 +53,8 @@ export const VAN_W = 4;
  * Station.
  *
  * Er gehört zum Gitter, und das ist keine Kulisse: Ohne Kacheln davor gäbe es
- * für die Wegsuche keinen Van, die Drohne müsste im Haus starten und käme nie
- * wieder heraus. Mit ihm ist „zurück zum Van" derselbe Flug wie jeder andere —
+ * für die Wegsuche keine Einsatzzentrale, die Drohne müsste im Haus starten und käme nie
+ * wieder heraus. Mit ihm ist „zurück zur Einsatzzentrale" derselbe Flug wie jeder andere —
  * eine Wegsuche durch die Haustür, die zu ist, wenn jemand sie zugemacht hat.
  *
  * **Warum an der Kantine.** Die Zentrale lag früher ganz im Süden, hinter
@@ -62,35 +62,35 @@ export const VAN_W = 4;
  * eine leere Röhre und danach eine Tür. Jetzt grenzt sie mit einer
  * **Fensterfront** (`commandWindows`) an die Cafeteria — der größte Raum der
  * Station liegt im ersten Bild, man sieht hinein, bevor man hineingeht, und
- * wer im Van sitzt, sieht das Monster durch die Scheibe darin herumlaufen.
+ * wer in der Einsatzzentrale sitzt, sieht das Monster durch die Scheibe darin herumlaufen.
  *
  * Dass das Monster ihn **nicht** benutzt, steht nicht hier, sondern als eine
- * Zeile bei seinem Ziel (`HauntingWorld.npcTarget`): Der Van ist die Stelle,
+ * Zeile bei seinem Ziel (`HauntingWorld.npcTarget`): Die Einsatzzentrale ist die Stelle,
  * an der abgelegt wird, und was dort steht, macht aus einer Runde eine
  * Belagerung.
  */
 export const APRON: Rect = { x: HOUSE.x, z: HOUSE.z + HOUSE.d, w: HOUSE.w, d: 2 };
 
-/** Die Vorplatzreihe an der Fensterfront: Van, Terminal, Rückkehrpunkt. */
+/** Die Vorplatzreihe an der Fensterfront: Tisch der Einsatzzentrale, Terminal, Rückkehrpunkt. */
 export const APRON_INNER = APRON.z + APRON.d - 1;
 /** Die äußere Reihe mit Hüllenfenstern: Drohnenring und Abendlicht. */
 export const APRON_OUTER = APRON.z;
 /** Der Aufzugsschacht zum Testdeck, in Kacheln. */
 export const COMMAND_LIFT = { x: APRON.x + APRON.w - 2, z: APRON_OUTER } as const;
-/** Die Kachelreihe, in der der Van steht. */
+/** Die Kachelreihe, in der die Einsatzzentrale steht. */
 export const VAN_Z = APRON_INNER;
 
-/** Die Kennung, unter der die Drohne „zurück zum Van" fliegt. */
+/** Die Kennung, unter der die Drohne „zurück zur Einsatzzentrale" fliegt. */
 export const VAN_ID = 'van';
 
 /**
- * **Wo die Drohne steht, wenn die Runde anfängt**: über dem Van, mit dem Haus
+ * **Wo die Drohne steht, wenn die Runde anfängt**: über der Einsatzzentrale, mit dem Haus
  * im Bild.
  *
  * Nicht im Zimmer hinter der Haustür, wo sie eine Weile parkte: Dort sah der
  * Pilot beim Hinsetzen ein dunkles Zimmer und wusste weder, wo er ist, noch
  * wohin. Hier sieht er den Vorplatz, die Hauswand und die Tür darin — die
- * erste Ansage, die im Van fällt.
+ * erste Ansage, die in der Einsatzzentrale fällt.
  *
  * Und die **hintere** der beiden Vorplatzreihen, nicht die vordere: Aus der
  * vorderen steht die Kantinenfront anderthalb Meter vor der Linse, und ein
@@ -99,7 +99,7 @@ export const VAN_ID = 'van';
  * **Neben dem Tisch und nicht darüber.** Auf der Kachel daneben schwebte sie
  * dem Tisch und seinen vier Monitoren direkt vor der Linse, und die füllten im
  * ersten Bild des Piloten die halbe untere Hälfte — vier bunte Scheiben statt
- * des Hauses, auf das er schauen soll. Eine Kachel weiter östlich steht der Van dort, wo er
+ * des Hauses, auf das er schauen soll. Eine Kachel weiter östlich steht der Tisch dort, wo er
  * hingehört: am Rand des Bildes, als das, was hinter einem liegt.
  */
 export const DRONE_HOME = { x: 1, z: APRON_OUTER };
@@ -1002,8 +1002,8 @@ const SECOND_WINDOW = 0.45;
  *
  * Von innen ist ein Fenster der einzige Fleck, an dem in diesem Haus etwas
  * anderes steht als Schwarz: das Abendlicht über dem Vorplatz, die Silhouette
- * des Vans, der Himmel. Das ist mehr als Kulisse, es ist eine **Sprache mehr
- * für den, der im Haus steht** — er kann sagen „ich sehe den Van", und der
+ * der Einsatzzentrale, der Himmel. Das ist mehr als Kulisse, es ist eine **Sprache mehr
+ * für den, der im Haus steht** — er kann sagen „ich sehe die Einsatzzentrale", und der
  * Späher weiß, an welcher Wand er klebt. Nach innen gäbe es das nicht: Zwei
  * Zimmer mit Sichtverbindung wären ein Grundriss, den weder der Archivar noch
  * der Späher noch beschreiben könnten.

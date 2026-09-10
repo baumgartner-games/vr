@@ -3,6 +3,11 @@ import './haunting.css';
 import './stationDashboard.css';
 import { describeSetup, type RoundSetup } from './rules/roundSetup';
 import { SetupPanel } from './roundSetupPanel';
+// Die Station `monster` ist eine Rollenansicht aus der Registry
+// (`monster/monsterView.ts`); ihr CSS kommt hier mit, weil die Seite in der
+// Einsatzzentrale auch ohne die 2D-Welt gebraucht wird (`monster.register.ts`
+// lädt es sonst nur, wenn `registry/discover.ts` läuft).
+import './monster/monster.css';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   MARKS,
@@ -27,6 +32,11 @@ import {
 import { lampRefill, lampSeconds, HOP_TIME, LAMP_MIN, type DroneStatus } from './droneRoute';
 import { atHome, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
+import type { MapRound, MapSnapshot } from './map/mapSnapshot';
+import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
+import type { RoleView } from './registry/roles';
+import type { MonsterPort } from './monster/monsterDriver';
+import { mountMonsterView } from './monster/monsterView';
 
 /** Phone dashboards for a three-person crew: isolated room dossiers and codes
  * in the archive, live radar and ship systems in control. */
@@ -62,6 +72,21 @@ export interface StationHost {
   startSetup?(): void;
   /** Eine beendete Runde über die autorisierte Weltaktion neu beginnen. */
   restart?(): void;
+  /**
+   * Der Stand der Runde — Sauerstoff, Anzug, Kabinen, Ende (`rules/`). Er
+   * wird aus dem `HauntState` gerechnet, also auf jedem Telefon und nicht nur
+   * beim Gastgeber; ohne ihn zeigt die Leiste nur die Systeme und den Anzug.
+   */
+  round?(): MapRound | null;
+  /**
+   * Der Stand als Karte (`HauntingWorld.mapSnapshot`) — für die Station
+   * `monster`, deren Ansicht aus der Registry kommt und nur Snapshots liest.
+   */
+  snapshot?(): MapSnapshot;
+  /** Das Steuer der Station `monster` übers Netz (`monster/netMonsterPort.ts`). */
+  monsterPort?(): MonsterPort | null;
+  /** Eine Zeile an den Spieler — was die Monster-Ansicht dem Telefon sagt. */
+  notify?(text: string): void;
   nameOf(peer: string): string;
   /** An welchem Gerät ich wirklich sitze — `null`, wenn weggeschubst. */
   seat(): StationId | null;
@@ -218,6 +243,14 @@ export class StationUi {
   private readonly touches = new Map<number, { x: number; y: number }>();
   /** Wie weit die zwei Finger beim letzten Mal auseinanderlagen, in Punkten. */
   private span = 0;
+  /**
+   * Die Ansicht der Station `monster`, solange man dort sitzt. Sie überlebt
+   * ein `write()` (das die Seite neu baut), weil ihr Port beim Wegwerfen die
+   * Station freigäbe — und weil eine Karte, die sich bei jedem Schalter neu
+   * aufbaut, den Daumen vom Stock nimmt.
+   */
+  private monsterView: RoleView | null = null;
+  private monsterAt = 0;
 
   constructor(private readonly host: StationHost) {
     this.root.className = 'haunt';
@@ -283,6 +316,8 @@ export class StationUi {
   }
 
   dispose(): void {
+    this.monsterView?.dispose();
+    this.monsterView = null;
     this.root.remove();
     document.body.classList.remove('haunt-on');
   }
@@ -343,9 +378,14 @@ export class StationUi {
     const station = this.station;
     const drone = this.host.drone();
     const status = this.host.droneStatus();
+    const round = this.host.round?.() ?? null;
     const sign = [
       spec.seed,
       station ?? 'van',
+      // Von der Runde nur, was selten kippt: Leben, Kabinen, die Warnschwelle,
+      // das Ende. Die Uhr selbst läuft unten in die Anzeige, ohne Neuschrift.
+      round ? `${round.suit}/${round.cabinsDestroyed.length}/${lowOxygen(round.oxygen)}` : '',
+      round?.ending ?? '',
       this.selected,
       this.archiveTab,
       this.controlTab,
@@ -392,6 +432,15 @@ export class StationUi {
       this.drawn = sign;
       this.write();
     }
+    // Die Sauerstoff-Uhr springt jede Sekunde — und eine Seite, die deshalb
+    // jede Sekunde neu geschrieben wird, nähme dem Daumen den Schalter weg.
+    // Also nur der Text, in der Leiste und auf „Radar & Anzug".
+    if (round) {
+      const { oxygen } = roundHud(round);
+      for (const clock of [this.quest, this.body])
+        for (const slot of clock.querySelectorAll('[data-oxygen]'))
+          if (slot.textContent !== oxygen) slot.textContent = oxygen;
+    }
     // Der Punkt des Spähers wandert zwischen zwei Neuschriften weiter — er ist
     // das Einzige, was sich ohne Knopfdruck ändert.
     if (
@@ -402,6 +451,24 @@ export class StationUi {
       this.lastRadar = performance.now();
       this.drawScout();
       this.drawEcg();
+    }
+    // Die Monster-Ansicht zeichnet sich selbst (`RoleView.update`) — Stock
+    // lesen, Karte nachführen —, gedrosselt wie der Späherschirm. Wer die
+    // Station verlässt, gibt sie frei: Ihr Port hält sonst das Steuer.
+    if (station === 'monster' && this.monsterView) {
+      const now = performance.now();
+      // Das erste Bild sofort — `performance.now()` kann kurz nach dem Start
+      // der Seite noch unter der Drossel liegen, und eine Ansicht ohne erstes
+      // Bild hätte weder Stock gelesen noch Karte gezeichnet.
+      const first = this.monsterAt === 0;
+      if (first || now - this.monsterAt > 50) {
+        const dt = first ? 0 : (now - this.monsterAt) / 1000;
+        this.monsterAt = Math.max(now, Number.MIN_VALUE);
+        this.monsterView.update(dt);
+      }
+    } else if (this.monsterView) {
+      this.monsterView.dispose();
+      this.monsterView = null;
     }
     this.view.hidden = !this.hasView;
   }
@@ -593,14 +660,36 @@ export class StationUi {
       pip.title = repair.title;
       strip.append(pip);
     }
-    this.quest.replaceChildren(
+    // **Der Anzug sind Leben, keine Zahl.** Drei Punkte wie bei den Systemen —
+    // wer auf einen Blick sieht, dass einer fehlt, ruft es dem Techniker zu,
+    // ohne erst „2/3" lesen zu müssen. Der Sauerstoff daneben ist die eine Uhr
+    // der Runde (`rules/roundRules.ts`); sie läuft auf jedem Telefon mit.
+    const round = this.host.round?.() ?? null;
+    const suit = round ? round.suit : state.crew.hp;
+    const suitMax = round ? round.suitMax : 3;
+    const lives = el('span', 'haunt__pips haunt__pips--suit');
+    for (let i = 0; i < suitMax; i++)
+      lives.append(el('i', `haunt__pip haunt__pip--suit${i < suit ? ' is-alive' : ''}`));
+    const hud = round ? roundHud(round) : null;
+    const parts: HTMLElement[] = [
       el('span', 'haunt__quest-label', 'SYSTEME'),
       strip,
-      el('span', 'haunt__quest-count', `${state.done.length}/3 · ANZUG ${state.crew.hp}/3`),
-    );
+      el('span', 'haunt__quest-label', 'ANZUG'),
+      lives,
+    ];
+    if (hud) {
+      const oxygen = el('span', 'haunt__quest-oxygen', hud.oxygen);
+      oxygen.dataset['oxygen'] = '';
+      parts.push(oxygen);
+      if (hud.cabins > 0) parts.push(el('span', 'haunt__quest-cabins', cabinsText(hud.cabins)));
+    }
+    parts.push(el('span', 'haunt__quest-count', `${state.done.length}/3`));
+    this.quest.replaceChildren(...parts);
+    this.quest.classList.toggle('is-low', !!hud?.low);
     this.quest.setAttribute(
       'aria-label',
-      `${state.done.length} von 3 Systemen repariert; Anzug ${state.crew.hp} von 3`,
+      `${state.done.length} von 3 Systemen repariert; ` +
+        (hud ? hud.label : `Anzug ${suit} von ${suitMax}`),
     );
   }
 
@@ -610,7 +699,30 @@ export class StationUi {
     if (station === 'scout' || station === 'hack') return this.scoutPage();
     if (station === 'drone') return this.dronePage();
     if (station === 'watch') return this.watchPage();
+    if (station === 'monster') return this.monsterPage();
     return [];
+  }
+
+  /**
+   * **Die Station aus Monstersicht** — die Rollenansicht aus `monster/`,
+   * gebaut über denselben `RoleHost` wie in der 2D-Welt. Ihr Port ist das
+   * Steuer übers Netz; ohne Port (eine Welt ohne Karte) ist sie ein
+   * Zuschauerfenster in die Wahrnehmung des Monsters.
+   */
+  private monsterPage(): HTMLElement[] {
+    const host = this.host;
+    if (!host.snapshot)
+      return [note('warn', 'Keine Karte', 'Diese Welt liefert der Monster-Station keinen Stand.')];
+    this.monsterView ??= mountMonsterView({
+      snapshot: () => host.snapshot!(),
+      me: () => this.host.me(),
+      nameOf: (peer) => this.host.nameOf(peer),
+      flip: (id, on) => this.host.flip(id, on),
+      flyTo: (roomId) => this.host.flyTo(roomId),
+      notify: (text) => this.host.notify?.(text),
+      extra: { monster: this.host.monsterPort?.() ?? null },
+    });
+    return [this.monsterView.element];
   }
 
   /**
@@ -829,23 +941,34 @@ export class StationUi {
   }
 
   private roundResult(): HTMLElement[] {
-    const phase = this.host.state().phase;
+    const state = this.host.state();
+    const phase = state.phase;
     if (phase !== 'lost' && phase !== 'won') return [];
+    // Der Grund kommt aus den Rundenregeln (`MapRound.ending`); ohne sie bleibt
+    // die alte Lesart: Ein Anzug ohne Leben ist zerstört, sonst war es die Uhr.
+    const ending =
+      this.host.round?.()?.ending ||
+      (phase === 'won' ? 'escaped' : state.crew.hp <= 0 ? 'suit' : 'oxygen');
     const box = el('section', `haunt__round-result${phase === 'lost' ? ' is-lost' : ''}`);
     box.setAttribute('role', 'status');
     box.setAttribute('aria-live', 'polite');
+    box.dataset['ending'] = ending;
     box.append(
       el(
         'strong',
         '',
-        phase === 'lost' ? 'Verbindung zum Techniker verloren' : 'Mission erfolgreich',
+        phase === 'lost'
+          ? ending === 'oxygen'
+            ? 'Sauerstoff aufgebraucht'
+            : 'Verbindung zum Techniker verloren'
+          : 'Mission erfüllt',
       ),
       el(
         'p',
         '',
         phase === 'lost'
-          ? 'Der Anzug ist ausgefallen. Die Runde ist beendet. Ihr könnt einen neuen Einsatz starten.'
-          : 'Alle Systeme sind repariert und der Techniker ist zurück in der Zentrale.',
+          ? `${endingText(ending)} Die Runde ist beendet. Ihr könnt einen neuen Einsatz starten.`
+          : endingText(ending),
       ),
     );
     if (this.host.restart) {
@@ -1002,6 +1125,21 @@ export class StationUi {
       this.ecg,
       el('small', '', 'Spielwert · steigt bei Rennen, Verletzung und Monsternähe'),
     );
+    const round = this.host.round?.() ?? null;
+    if (round) {
+      // Sauerstoff und Kabinen noch einmal groß: Die Leiste oben ist klein,
+      // und die Einsatzkontrolle ist die Rolle, die den Rückweg ansagt.
+      const hud = roundHud(round);
+      const line = el('p', `haunt__round-line${hud.low ? ' is-low' : ''}`);
+      line.dataset['roundLine'] = '';
+      const clock = el('strong', '', hud.oxygen);
+      clock.dataset['oxygen'] = '';
+      line.append(
+        clock,
+        el('span', '', hud.cabins ? cabinsText(hud.cabins) : 'Alle Kabinen intakt'),
+      );
+      monitor.append(line);
+    }
     return [
       this.tabs('control'),
       head('Bewegungsradar'),
@@ -1145,7 +1283,7 @@ export class StationUi {
       head('Wohin?', free ? 'noch einmal antippen bricht ab' : `frei in ${Math.ceil(drone.hop)} s`),
     );
 
-    // **Der Van steht über der Zimmerliste und nicht darin.** Er ist kein
+    // **Die Einsatzzentrale steht über der Zimmerliste und nicht darin.** Sie ist kein
     // Zimmer, sondern die Stelle, an der sie lädt — und ein Ziel, das man
     // *immer* ansteuern kann, gehört nicht zwischen sieben, die je nach Tür
     // gehen oder nicht.
@@ -1217,7 +1355,7 @@ export class StationUi {
    *
    * Sie meldet sich nur, wenn etwas nicht geht. `blocked` ist die Zeile, auf
    * die es ankommt: die Stelle, an der aus einer Wegsuche eine Ansage an den
-   * Rest des Vans wird — *irgendwo dazwischen ist zu, macht auf*. Dass sie
+   * Rest der Einsatzzentrale wird — *irgendwo dazwischen ist zu, macht auf*. Dass sie
    * fliegt und wie weit noch, steht an ihrer Zielkachel.
    */
   private droneNote(status: DroneStatus, drone: DroneState): HTMLElement | null {
@@ -1748,7 +1886,7 @@ function fact(label: string, value: string, warn = false): HTMLElement {
  * die Regel.
  */
 function lampWords(drone: DroneState, home: boolean): string {
-  // Am Van gibt es keine Restlaufzeit, weil nichts abläuft — und ein Zähler,
+  // An der Einsatzzentrale gibt es keine Restlaufzeit, weil nichts abläuft — und ein Zähler,
   // der eine Zahl nennt, die nicht zählt, ist eine Lüge mit Nachkommastelle.
   if (home && drone.lamp >= 1) return 'Am Kabel. Leuchte, so lange du willst.';
   if (home) return `Am Kabel · voll in ${Math.round(lampRefill(drone.lamp, true))} s`;
@@ -1759,7 +1897,7 @@ function lampWords(drone: DroneState, home: boolean): string {
 }
 
 /**
- * Wie ein Ort heißt, den die Drohne ansteuert — Zimmer oder Van.
+ * Wie ein Ort heißt, den die Drohne ansteuert — Zimmer oder Einsatzzentrale.
  *
  * `null`, wenn es keiner ist: Zwischen zwei Kacheln steht sie nirgends, und
  * ein Satz, der „sie steht in " sagt, hat dort besser gar keinen Namen.

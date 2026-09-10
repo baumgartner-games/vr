@@ -231,7 +231,7 @@ describe('Der Grundriss als Kachelgitter', () => {
   /**
    * Haus **und** Vorplatz — und keine Kachel mehr.
    *
-   * Der Vorplatz kam dazu, als die Drohne einen Hangar am Van bekam; ohne ihn
+   * Der Vorplatz kam dazu, als die Drohne einen Hangar an der Einsatzzentrale bekam; ohne ihn
    * gäbe es für die Wegsuche kein Draußen. Die Zahl steht trotzdem noch hier,
    * und zwar genau deshalb: Ein Gitter, das unbemerkt weiterwächst, ist ein
    * Haus, in dem irgendwann jemand über den Rand hinausläuft.

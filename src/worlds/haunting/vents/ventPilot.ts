@@ -39,6 +39,14 @@ export class VentPilot {
     private readonly walkSpeed: number,
     /** Ab so vielen Metern Ersparnis lohnt sich der Schacht. */
     private readonly margin = 6,
+    /**
+     * Wie nah der Reiter am Standplatz sein muss, damit er einsteigt. Die
+     * 2D-Figur kommt bis auf den Zentimeter heran; der Rapier-Körper der
+     * 3D-Welt bleibt eine Körperlänge vor seinem Ziel stehen (`npcBrain`,
+     * `reach`) und braucht deshalb mehr Spiel — unter `VENT_REACH`, sonst
+     * findet `enter` die Klappe nicht mehr.
+     */
+    private readonly reach = VENT_REACH * 0.6,
   ) {}
 
   /** Die Entscheidung der Routine, gegebenenfalls auf eine Klappe umgebogen. */
@@ -71,7 +79,7 @@ export class VentPilot {
     }
     const flap = this.plan.flap;
     const gap = Math.hypot(flap.approach.x - monster.x, flap.approach.z - monster.z);
-    if (gap < VENT_REACH * 0.6) {
+    if (gap < this.reach) {
       const choice = this.plan.choice;
       this.plan = null;
       if (this.ride.enter(monster, choice)) {

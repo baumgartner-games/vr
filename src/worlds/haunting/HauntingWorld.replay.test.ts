@@ -8,6 +8,8 @@ import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
 import { Rng } from './rng';
 import { StationTravelPlan } from './stationTravelPlan';
+import { VentNet } from './vents/ventGraph';
+import { VentTravel } from './vents/ventTravel';
 import type { HauntState } from './net';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
@@ -15,6 +17,7 @@ import type { MenuEntry } from '../../ui/menu';
 jest.mock('../grid/GridWorld', () => ({ GridWorld: class {} }));
 jest.mock('./haunting.css', () => ({}));
 jest.mock('./stationDashboard.css', () => ({}));
+jest.mock('./monster/monster.css', () => ({}));
 
 interface ReplayWorld {
   spec: HouseSpec;
@@ -57,11 +60,15 @@ function snapshot(seed = 391): HauntState {
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
+    technician: null,
+    ride: 'out',
   };
 }
 
 function replay(): ReplayWorld {
   const world = Object.create(HauntingWorld.prototype) as ReplayWorld;
+  const vents = new VentNet(generateHouse(391, 8));
   Object.assign(world, {
     spec: generateHouse(391, 8),
     state: snapshot(),
@@ -86,6 +93,11 @@ function replay(): ReplayWorld {
     monsterArt: null,
     flatTechnician: false,
     pendingBotRound: false,
+    vents: vents,
+    ventRide: new VentTravel(vents),
+    npcRide: null,
+    ventArt: null,
+    monsterDriver: null,
   });
   return world;
 }

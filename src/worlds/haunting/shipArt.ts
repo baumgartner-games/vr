@@ -12,7 +12,7 @@ import {
   type HouseSpec,
   type Rect,
 } from './house';
-import { ventPairs, type MonsterKind } from './mission';
+import type { MonsterKind } from './mission';
 import { buildFixture } from './fixtureModels';
 import { stationLayout, type StationPlacement } from './stationLayout';
 import { COMMAND } from './roomGraph';
@@ -353,22 +353,6 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
         );
       }
     }
-  for (const vent of ventPairs(spec)) {
-    if (vent.a !== room.id && vent.b !== room.id) continue;
-    const inward = vent.a === room.id ? -1 : 1,
-      dx = vent.dir === 1 ? inward : 0,
-      dz = vent.dir === 2 ? inward : 0;
-    const alongX = dx === 0,
-      x = vent.x * TILE + dx * (PLAN_WALL_T / 2 + 0.063),
-      z = vent.z * TILE + dz * (PLAN_WALL_T / 2 + 0.063);
-    batch.box(SHIP.dark, alongX ? [0.69, 0.35, 0.045] : [0.045, 0.35, 0.69], [x, 2.38, z]);
-    for (let i = 0; i < 5; i++)
-      batch.box(SHIP.trim, alongX ? [0.6, 0.018, 0.017] : [0.017, 0.018, 0.6], [
-        x + dx * 0.034,
-        2.255 + i * 0.059,
-        z + dz * 0.034,
-      ]);
-  }
   const signText = room.circulation
     ? `${room.name.toUpperCase()}\nTRANSIT`
     : `${room.name.toUpperCase()}\n${MARKS[room.signature]}`;

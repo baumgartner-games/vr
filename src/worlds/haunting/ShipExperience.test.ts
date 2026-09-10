@@ -47,7 +47,14 @@ interface ExhibitLocator {
     practice?: PuzzleState;
     solved?: boolean;
   }>;
-  lockers: Array<{ id: string; group: THREE.Group; open: boolean; code: string }>;
+  lockers: Array<{
+    id: string;
+    group: THREE.Group;
+    open: boolean;
+    code: string;
+    parts: THREE.Object3D[];
+    wreck: THREE.Group | null;
+  }>;
   lockerEntries: Map<string, string>;
 }
 
@@ -103,6 +110,9 @@ beforeEach(() => {
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
+    technician: null,
+    ride: 'out',
   };
   const canvas = document.createElement('canvas');
   document.body.append(canvas);
@@ -438,6 +448,60 @@ test('the teaching safe accepts its displayed code, hides the player, and E leav
   expect(rig.position.z).toBeCloseTo(approach.z);
   expect(locker.open).toBe(true);
   key('KeyE', 'keyup');
+});
+
+/**
+ * **Die zerstörte Kabine in 3D.** Sobald sie im Stand steht
+ * (`HauntState.destroyed`), zeigt sie das Wrack, nimmt weder Code noch Gast,
+ * sagt es einmal, funkt alle paar Sekunden — und wird mit der neuen Runde
+ * wieder heil.
+ */
+test('a wrecked locker swaps its model, refuses code and entry, sparks now and then, and heals with the round', () => {
+  menu('orbital:lab:safe');
+  const locker = exhibits.lockers.find((l) => l.id === 'training-safe')!;
+  const keypad = locker.group.children.find(
+    (o) => o.userData.locker === 'training-safe',
+  )! as THREE.Mesh;
+  expect(locker.wreck).toBeNull();
+  state.destroyed = ['training-safe'];
+  frame();
+  expect(locker.wreck?.name).toBe('broken-locker');
+  expect(locker.wreck!.parent).toBe(locker.group);
+  expect(locker.parts.every((part) => !part.visible)).toBe(true);
+  expect(keypad.visible).toBe(true);
+  // Code: abgelehnt, und es wird gesagt.
+  say.mockClear();
+  const index = Number(locker.code[0]) - 1;
+  aim(keypad, (index % 2) * 0.5 + 0.25, 0.75 - Math.floor(index / 2) * 0.5);
+  tap('KeyE');
+  expect(locker.open).toBe(false);
+  expect(state.crew.hidden).toBe('');
+  expect(exhibits.lockerEntries.get('training-safe') ?? '').toBe('');
+  expect(say.mock.calls.filter(([text]: [string]) => /zerstört/.test(text))).toHaveLength(1);
+  // Auch ein Schrank, der offen war, nimmt niemanden mehr auf.
+  locker.open = true;
+  tap('KeyE');
+  expect(state.crew.hidden).toBe('');
+  expect(rig.frozen).toBe(false);
+  // Die Tafel am Bildschirm: Hinweis statt Ziffern.
+  expect(document.querySelector('[data-action^="locker:training-safe:"]')).toBeNull();
+  expect(document.body.textContent).toContain('Kabine zerstört');
+  // Funken in unregelmäßigem Takt — in sieben Sekunden mindestens einmal, höchstens dreimal.
+  const sparks: THREE.Vector3[] = [];
+  const burst = jest.spyOn(experience, 'burst').mockImplementation((kind, at) => {
+    if (kind === 'sparks') sparks.push(at.clone());
+  });
+  for (let i = 0; i < 60 * 7; i++) frame();
+  expect(sparks.length).toBeGreaterThanOrEqual(1);
+  expect(sparks.length).toBeLessThanOrEqual(3);
+  expect(sparks[0]!.x).toBeCloseTo(locker.group.position.x);
+  expect(sparks[0]!.z).toBeCloseTo(locker.group.position.z);
+  burst.mockRestore();
+  // Neue Runde: Liste leer, Modell wieder heil.
+  state.destroyed = [];
+  frame();
+  expect(locker.wreck).toBeNull();
+  expect(locker.parts.every((part) => part.visible)).toBe(true);
 });
 
 test('a locker cannot be entered or coded from the adjacent passage behind its wall', () => {

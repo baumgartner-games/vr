@@ -33,8 +33,6 @@ import { NOISE, stepLoudness } from '../audio/cues';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
-import { StationNpcNavigator } from '../stationNpcNavigator';
-import { StationTravelPlan } from '../stationTravelPlan';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
 import {
@@ -45,12 +43,12 @@ import {
   toggleLock,
   type DoorLocks,
 } from '../rules/doorLocks';
-import { stationRoute } from '../stationNavigation';
 import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
 import type { MonsterDriver } from '../monster/monsterDriver';
-import { doorCentre, doorPath, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
+import { FlatNavigator } from '../navmesh';
+import { doorCentre, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
 import {
@@ -84,8 +82,10 @@ import {
  * Konsolen, Schränke, Türen und Lampen auf dem Grundriss, in Metern. Die
  * Regeln kommen, wo es sie schon gibt, aus denselben Dateien wie im Headset:
  * das Monster aus `monsterRoutine.ts` auf der Raumkarte (`roomGraph.ts`),
- * Treffer und Puls aus `mission.ts`, der Spuk aus `haunt.ts`, die drei
- * Reparaturen aus `repairsFor`. Was hier neu ist, ist nur die **Bewegung**
+ * seine Wege aus derselben Rasterwegsuche wie in 3D (`stationNavigation.ts`
+ * über `navmesh/flatNavigator.ts`), Treffer und Puls aus `mission.ts`, der
+ * Spuk aus `haunt.ts`, die drei Reparaturen aus `repairsFor`. Was hier neu
+ * ist, ist nur die **Bewegung**
  * — Gleiten an Wänden statt Rapier — und die **Wahrnehmung** auf dem
  * Sichtbarkeitsmodell der Karte (`visibility.ts`), damit der Spieler auf der
  * Karte genau das sieht, was das Monster von ihm sieht.
@@ -98,15 +98,8 @@ import {
 export const REACH = 1.6;
 /** Der Radius des Spielers auf der Karte. */
 export const PLAYER_RADIUS = 0.35;
-/** Und der des Monsters. */
-const MONSTER_RADIUS = 0.4;
-/**
- * Was die Wegsuche des Monsters auf seinen Radius aufschlägt. In 3D ist das
- * ein Zehntel für die Physikkapsel; hier rückt `walkable` die Räume schon um
- * `MONSTER_RADIUS` ein, und mit 0,45 m liegt jeder Rasterpunkt sicher darin —
- * 0,5 m ließen keine Tür mehr durch (`navmesh/flatWalk.test.ts`).
- */
-const ROUTE_COMFORT = 0.05;
+/** Und der des Monsters — auch der Radius seiner Wegsuche. */
+export const MONSTER_RADIUS = 0.4;
 /** Ab hier trifft das Monster. */
 const CONTACT = 1.7;
 /** Wie lange Holz einen Verfolger aufhält, in Sekunden. */
@@ -123,8 +116,6 @@ const NOISE_MEMORY = 5;
 /** Wie oft ein Schritt als Welle auf die Karte kommt, in Sekunden — gehend und rennend. */
 const STEP_PULSE = 0.55;
 const SPRINT_PULSE = 0.35;
-/** Wie oft der Weg des Spielers zum nächsten Ziel neu gerechnet wird, in Sekunden. */
-const ROUTE_REFRESH = 0.8;
 
 export const PLAYER_ID = 'player';
 export const MONSTER_ID = 'monster';
@@ -213,7 +204,7 @@ export class FlatRound implements MapSource {
   readonly player: Actor;
   readonly monster: Actor;
   /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
-  readonly rules = new RoundRules();
+  readonly rules = new RoundRules(() => this.haunt);
   /** Das Lüftungsnetz, die Fahrt des Monsters darin und der Lotse der KI (`vents/`). */
   readonly vents: VentNet;
   readonly ventRide: VentTravel;
@@ -234,6 +225,8 @@ export class FlatRound implements MapSource {
   private readonly consoles: Console[] = [];
   private readonly lockers: Locker[] = [];
   private readonly routine: MonsterRoutine;
+  /** Die Rasterwegsuche der 3D-Welt, mit Cursor auf der Route des Monsters (`navmesh/flatNavigator.ts`). */
+  readonly navigator: FlatNavigator;
   private decision: RoutineOutput | null = null;
   /** Was das Monster wahrnimmt — dieselbe Leiter wie im Headset (`threat.ts`). */
   private readonly memory: ThreatState = freshThreat();
@@ -247,8 +240,8 @@ export class FlatRound implements MapSource {
   private monsterPulse = 0;
   /** Wer welche Tür gesperrt hat, und wie lange zugefallene halten (`rules/doorLocks.ts`). */
   readonly locks: DoorLocks = freshLocks();
-  /** Der Weg des Spielers zum nächsten Ziel — nur gerechnet, wenn jemand ihn sehen will. */
-  private playerPath: { goal: string; at: number; points: MapPoint[] } | null = null;
+  /** Die Wegsuche des Spielers zum nächsten Ziel — nur, wenn jemand den Weg sehen will. */
+  private playerNav: FlatNavigator | null = null;
   private readonly rng: Rng;
   private readonly tuning: BotTuning;
   private spook: Spook = freshSpook();
@@ -262,13 +255,6 @@ export class FlatRound implements MapSource {
   /** Wo das Monster zuletzt vorankam — steht es länger, nimmt es einen Umweg über die Raummitte. */
   private stall = { x: 0, z: 0, since: 0 };
   private detourUntil = 0;
-  /** Dieselbe Wegsuche wie in 3D (Paket nav): Raster, Schnurzug, gesperrte Türen als Wand. */
-  private readonly travel = new StationTravelPlan();
-  private readonly navigator = new StationNpcNavigator(
-    () => this.house,
-    () => this.travel.graph(this.house, this.haunt.shut, false),
-    ROUTE_COMFORT,
-  );
   private readonly litCache = new LitCache();
   private events: FlatEvent[] = [];
 
@@ -294,9 +280,13 @@ export class FlatRound implements MapSource {
       fuse: false,
       taken: [],
       done: [],
+      destroyed: [],
+      technician: null,
+      ride: 'out',
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
+    this.navigator = new FlatNavigator(this.house, this.graph, MONSTER_RADIUS);
     this.vents = new VentNet(this.house);
     this.ventRide = new VentTravel(this.vents);
     this.ventPilot = new VentPilot(
@@ -475,7 +465,7 @@ export class FlatRound implements MapSource {
     out.push({
       id: 'van',
       kind: 'van',
-      label: 'Van',
+      label: 'Einsatzzentrale',
       roomId: COMMAND,
       at: { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
       state: this.haunt.done.length >= 3 ? 'ready' : '',
@@ -718,18 +708,15 @@ export class FlatRound implements MapSource {
           ...takeAlert(this.memory),
         });
     this.decision = decision;
-    if (decision.strike && hidden) {
-      this.caught = '';
-      // Die Kabine ist danach hin (`rules/roundRules.ts`).
-      if (this.rules.cabinStrike(crew)) this.hit('Die Kabine wird aufgerissen.');
+    if (decision.strike && decision.cabin) {
+      // Die Kabine ist danach hin (`rules/roundRules.ts`) — getroffen wird
+      // nur, wer genau darin steckt; eine leere Kabine ist ein Ausweg weniger.
+      this.rules.destroyCabin(decision.cabin);
+      if (crew.hidden === decision.cabin) {
+        this.caught = '';
+        if (this.rules.cabinStrike(crew)) this.hit('Die Kabine wird aufgerissen.');
+      } else this.events.push({ kind: 'warn', text: 'Irgendwo wird eine Kabine aufgerissen.' });
     }
-    if (
-      decision.mode === 'search' &&
-      hidden &&
-      decision.cue === 'sniff' &&
-      this.routine.suspect === crew.hidden
-    )
-      this.caught = crew.hidden;
     if (decision.cue === 'scream') {
       this.events.push({ kind: 'bad', text: 'Ein Schrei.' });
       this.wave(MONSTER_ID, this.monster, NOISE.monsterCall, 'call');
@@ -813,67 +800,78 @@ export class FlatRound implements MapSource {
   }
 
   /**
-   * Das Monster läuft denselben Weg wie in 3D: `stationRoute` über das Raster
-   * mit Schnurzug (Paket nav), gesperrte Türen als Wand. Welche Tür es auf dem
-   * Weg zum Ziel nimmt, sagt weiterhin die Raumkarte — ist die gesperrt, geht
-   * es bis davor und wartet: Eine Holztür hält es kurz auf, Stahl für immer,
-   * dann wählt die Routine irgendwann ein anderes Ziel.
+   * Das Monster geht den Rasterweg der 3D-Welt (`navmesh/flatNavigator.ts`):
+   * Wegpunkt für Wegpunkt, mit dem ganzen Zeitschritt über mehrere Punkte
+   * hinweg, gleitend an Wänden. Eine gesperrte Tür umgeht es, wenn es einen
+   * Umweg gibt; gibt es keinen, führt die Route bis vor die Tür — Holz hält
+   * es dort kurz auf, Stahl für immer, dann wählt die Routine irgendwann ein
+   * anderes Ziel.
    */
   private moveMonster(decision: RoutineOutput, dt: number, speed: number): void {
     const goal = decision.goal;
     if (!goal || speed <= 0) return;
-    const goalSpace = this.graph.spaceAt(goal) || this.monster.space;
-    // Wer sich doch einmal an der Wand festläuft, geht erst zurück in die
-    // Mitte seines Raums und von dort noch einmal los.
+    // Wer sich festläuft, rechnet erst neu; hilft das nicht, geht er zurück in
+    // die Mitte seines Raums und von dort noch einmal los. Wer vor einer
+    // gesperrten Tür wartet, steht mit Absicht.
     if (Math.hypot(this.monster.x - this.stall.x, this.monster.z - this.stall.z) > 0.05) {
       this.stall = { x: this.monster.x, z: this.monster.z, since: this.haunt.time };
-    } else if (this.haunt.time - this.stall.since > 0.6 && this.haunt.time > this.detourUntil) {
+    } else if (
+      !this.blocked &&
+      this.haunt.time - this.stall.since > 0.6 &&
+      this.haunt.time > this.detourUntil
+    ) {
       this.detourUntil = this.haunt.time + 1.2;
       this.stall.since = this.haunt.time;
+      this.navigator.invalidate();
     }
     if (this.haunt.time < this.detourUntil) {
       const centre = this.graph.centre(this.monster.space);
       this.stepMonster(centre, speed, dt);
       return;
     }
-    let target: FloorPoint = goal;
-    let door: (typeof this.house.doors)[number] | null = null;
-    if (goalSpace !== this.monster.space) {
-      const nextSpace = this.graph.next(this.monster.space, goalSpace);
-      door =
-        this.house.doors.find(
-          (d) =>
-            (d.a === this.monster.space && (d.b ?? COMMAND) === nextSpace) ||
-            ((d.b ?? COMMAND) === this.monster.space && d.a === nextSpace),
-        ) ?? null;
-      // Vor eine gesperrte Tür führt die Wegsuche nicht; das Ziel ist dann
-      // der Punkt davor, auf der eigenen Seite.
-      if (door && this.haunt.shut.includes(door.id))
-        target = doorPath(door, this.graph.centre(nextSpace))[0];
-    }
-    if (door && this.haunt.shut.includes(door.id)) {
-      const at = doorCentre(door);
-      if (Math.hypot(at.x - this.monster.x, at.z - this.monster.z) < 1.6) {
-        if (!this.blocked || this.blocked.id !== door.id)
-          this.blocked = { id: door.id, since: this.haunt.time };
-        if (door.material === 'wood' && this.haunt.time - this.blocked.since > WOOD_DELAY) {
-          this.haunt.shut = releaseLock(this.locks, this.haunt.shut, door.id);
-          this.events.push({ kind: 'warn', text: 'Holz splittert.' });
-          this.wave(MONSTER_ID, at, NOISE.slam, 'slam');
-          this.blocked = null;
-        }
+    const leg = this.navigator.aim(this.monster, goal, this.haunt.shut, this.haunt.time);
+    // **Wer vor der Tür steht, arbeitet an ihr.** Der Zähler hängt an der
+    // Tür, nicht am Ziel des Moments: Die Alarmleiter (`threat.ts`) lässt die
+    // Routine zwischen dem Geräusch hinter der Tür und dem eigenen Raum
+    // pendeln, und ein Zähler, der bei jedem Wechsel neu anfinge, ließe
+    // Holz nie splittern. Er endet erst, wenn das Monster die Tür verlässt
+    // oder sie nicht mehr gesperrt ist.
+    const near = (d: (typeof this.house.doors)[number]): boolean => {
+      const at = doorCentre(d);
+      return Math.hypot(at.x - this.monster.x, at.z - this.monster.z) < 1.6;
+    };
+    const held = this.blocked
+      ? (this.house.doors.find((d) => d.id === this.blocked!.id) ?? null)
+      : null;
+    const door =
+      leg.door && this.haunt.shut.includes(leg.door.id) && near(leg.door)
+        ? leg.door
+        : held && this.haunt.shut.includes(held.id) && near(held)
+          ? held
+          : null;
+    if (door) {
+      if (!this.blocked || this.blocked.id !== door.id)
+        this.blocked = { id: door.id, since: this.haunt.time };
+      if (door.material === 'wood' && this.haunt.time - this.blocked.since > WOOD_DELAY) {
+        this.haunt.shut = releaseLock(this.locks, this.haunt.shut, door.id);
+        this.events.push({ kind: 'warn', text: 'Holz splittert.' });
+        this.wave(MONSTER_ID, doorCentre(door), NOISE.slam, 'slam');
+        this.blocked = null;
       }
     } else this.blocked = null;
-    const step = this.navigator.step({
-      at: { x: this.monster.x, y: 0, z: this.monster.z },
-      target: { x: target.x, y: 0, z: target.z },
-      dt,
-      now: this.haunt.time,
-      radius: MONSTER_RADIUS,
-    });
-    // Kein Weg (mehr): angekommen, oder das Ziel liegt hinter einer Sperre.
-    // Dann steht es, statt geradeaus in eine Wand zu laufen.
-    if (step) this.stepMonster(step, speed, dt);
+    // Der ganze Zeitschritt wird verbraucht, auch über mehrere Wegpunkte hinweg —
+    // die Bogenstützen des Kurvenschleifers liegen enger als ein Schritt.
+    let budget = speed * dt;
+    for (let hops = 0; hops < 16 && budget > 1e-3; hops++) {
+      const step = this.navigator.next(this.monster);
+      if (!step) break;
+      const fromX = this.monster.x,
+        fromZ = this.monster.z;
+      this.stepMonster(step, budget / dt, dt);
+      const moved = Math.hypot(this.monster.x - fromX, this.monster.z - fromZ);
+      if (moved < 1e-4) break;
+      budget -= moved;
+    }
   }
 
   private stepMonster(step: FloorPoint, speed: number, dt: number): void {
@@ -1164,32 +1162,23 @@ export class FlatRound implements MapSource {
   /** Der Weg, den das Monster gerade geht — leer, wenn ein Spieler es steuert oder es steht. */
   monsterRoute(): MapPoint[] {
     if (!this.haunt.monsterOn || this.driver?.active() || this.ventRide.busy) return [];
-    const points = this.navigator.navigation.points;
+    const points = this.navigator.remaining;
     if (!points.length) return [];
     return [{ x: this.monster.x, z: this.monster.z }, ...points.map((p) => ({ x: p.x, z: p.z }))];
   }
 
   /**
    * Der Weg des Spielers zum nächsten Ziel — dieselbe Wegsuche wie die des
-   * Monsters, aber nur alle `ROUTE_REFRESH` Sekunden, weil sie nur eine
-   * Anzeige ist und keine Steuerung.
+   * Monsters (`navmesh/flatNavigator.ts`), mit dem Radius des Spielers; nur
+   * gerechnet, wenn jemand ihn sehen will, und nur so oft, wie der Navigator
+   * selbst neu plant.
    */
   playerRoute(): MapPoint[] {
     const goal = this.objectives()[0];
     if (!goal || this.haunt.crew.hidden) return [];
-    const known = this.playerPath;
-    if (known && known.goal === goal.id && this.haunt.time - known.at < ROUTE_REFRESH)
-      return [{ x: this.player.x, z: this.player.z }, ...known.points];
-    const graph = this.travel.graph(this.house, this.haunt.shut, false);
-    const route = stationRoute(
-      this.house,
-      graph,
-      { x: this.player.x, z: this.player.z, yaw: this.player.yaw },
-      goal.at,
-      PLAYER_RADIUS + ROUTE_COMFORT,
-    );
-    const points = (route.points ?? []).map((p) => ({ x: p.x, z: p.z }));
-    this.playerPath = { goal: goal.id, at: this.haunt.time, points };
+    this.playerNav ??= new FlatNavigator(this.house, this.graph, PLAYER_RADIUS);
+    this.playerNav.aim(this.player, goal.at, this.haunt.shut, this.haunt.time);
+    const points = this.playerNav.remaining.map((p) => ({ x: p.x, z: p.z }));
     return [{ x: this.player.x, z: this.player.z }, ...points];
   }
 

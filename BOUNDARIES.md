@@ -38,12 +38,12 @@ Gehört ihm:
 
 Vertrag nach außen (`map/index.ts`):
 
-| Export | Was es ist |
-| --- | --- |
-| `MapSnapshot` und Teile (`MapRoom`, `MapDoor`, `MapLight`, `MapEntity`, `MapItem`, `MapSegment`) | Serialisierbarer Top-Down-Zustand, Meter, Norden = `-z`. |
-| `MapSource`, `ExtractMapSnapshot` | Was die Extraktion von der 3D-Seite liest — nur Getter. |
-| `MapView`, `MapLayers`, `MarkerPolicy`, `MapViewState`, `ALL_LAYERS`, `PANEL_LAYERS` | Das Karten-Bauteil mit Layern, Pan/Pinch, Klick-Handlern. |
-| `VisibilityMode`, `VisibilityInput`, `VisibilityField`, `VisionCone`, `NoiseRadius`, `LitRegion`, `SELF_RADIUS`, `inCone` | Das Sichtbarkeitsmodell. |
+| Export                                                                                                                    | Was es ist                                                |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `MapSnapshot` und Teile (`MapRoom`, `MapDoor`, `MapLight`, `MapEntity`, `MapItem`, `MapSegment`)                          | Serialisierbarer Top-Down-Zustand, Meter, Norden = `-z`.  |
+| `MapSource`, `ExtractMapSnapshot`                                                                                         | Was die Extraktion von der 3D-Seite liest — nur Getter.   |
+| `MapView`, `MapLayers`, `MarkerPolicy`, `MapViewState`, `ALL_LAYERS`, `PANEL_LAYERS`                                      | Das Karten-Bauteil mit Layern, Pan/Pinch, Klick-Handlern. |
+| `VisibilityMode`, `VisibilityInput`, `VisibilityField`, `VisionCone`, `NoiseRadius`, `LitRegion`, `SELF_RADIUS`, `inCone` | Das Sichtbarkeitsmodell.                                  |
 
 Seit Phase 1 (`feat/map-core`) sind `MapView.draw`/Gesten,
 `extractMapSnapshot`, `computeVisibility` und `lineOfSight` gefüllt. Dazu
@@ -164,7 +164,14 @@ Klappen als `MapItem` der Sorte `vent` und `MapSnapshot.ventLinks`.
   liest dort (Getter für Fracht/Konsolen/Schränke), Paket `world3d` baut
   dort Modelle um.
 - `src/worlds/haunting/mission.ts`, `net.ts`, `house.ts` — Regeln,
-  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` bleibt 5.
+  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` ist 7:
+  6, seit die zerstörten Kabinen im `HauntState` stehen (`destroyed`); 7,
+  seit die Monster-Station übers Netz spielt — Nachricht `monster` (Stock,
+  Knöpfe als Zähler, Klappenziel) und die Felder `technician` (der
+  2D-Techniker ohne Rig) und `ride` (Phase der Schachtfahrt) im Stand.
+  Leser und Schreiber dafür stehen in `net.ts`; das Steuer dahinter in
+  `monster/netMonsterPort.ts` (Telefon) und `monster/netMonsterControl.ts`
+  (Gastgeber).
 - `src/worlds/index.ts`, `src/core/**`, `package.json`, `AGENTS.md`,
   `README.md` — nur, wenn es gar nicht anders geht; jede Zeile in HANDOVER.
 

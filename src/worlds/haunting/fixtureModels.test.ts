@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import type { MarkId } from './house';
 import { FIXTURE_CATALOG, type FixtureSize } from './fixtureDimensions';
-import { buildCargoCabinet, buildFixture, buildSafetyLocker } from './fixtureModels';
+import {
+  buildBrokenLocker,
+  buildCargoCabinet,
+  buildFixture,
+  buildSafetyLocker,
+} from './fixtureModels';
 
 function expectInsideDeclaredSize(model: THREE.Group, size: FixtureSize): void {
   const bounds = new THREE.Box3().setFromObject(model);
@@ -49,6 +54,20 @@ describe('station fixture placement contract', () => {
       expect(new THREE.Box3().setFromObject(cabinet.door).max.x).toBeLessThan(0);
     },
   );
+
+  test('the wrecked locker fills the same footprint as the intact one, glows and has no door to move', () => {
+    const wreck = buildBrokenLocker();
+    expectInsideDeclaredSize(wreck.root, wreck.size);
+    expect(wreck.size).toEqual(buildSafetyLocker().size);
+    const finishes = wreck.root.children.map((child) => child.userData.fixtureFinish as string);
+    expect(finishes).toContain('amber');
+    expect(wreck.root.getObjectByName('cabinet-door')).toBeUndefined();
+    // Sichtbar ein anderes Modell: Es ragt weiter in die Kabine hinein als das
+    // geschlossene Blatt, weil der Rest der Tür nach innen hängt.
+    const bounds = new THREE.Box3().setFromObject(wreck.root);
+    expect(bounds.max.y).toBeGreaterThan(wreck.size.height - 0.1);
+    expect(bounds.min.y).toBeLessThan(0.01);
+  });
 
   test('instances own their disposable GPU resources', () => {
     const first = buildFixture('wanne');

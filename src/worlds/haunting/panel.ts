@@ -20,7 +20,7 @@ import type { HouseDoor, HouseRoom } from './house';
  *
  * **Die Hälfte der Tafel ist tot, bis jemand den Sicherungskasten findet.**
  * Vorher hat der Hacker vier Schalter und langweilt sich fast; danach hat er
- * zwölf und ist der wichtigste Mensch im Van. Der Weg dorthin führt über den
+ * zwölf und ist der wichtigste Mensch in der Einsatzzentrale. Der Weg dorthin führt über den
  * Archivar (er weiß, in welchem Zimmer der Kasten hängt) und über den
  * VR-Spieler (nur er kann ihn umlegen) — es ist die eine Stelle, an der drei
  * Rollen zwingend nacheinander dran sind.

@@ -93,7 +93,7 @@ export const WAYPOINT = 0.25;
  *   denen kein neuer Wechsel geht. Damit ist die Drohne kein Suchscheinwerfer
  *   mehr, der das Haus in einer Minute abklappert — wer sie irgendwohin
  *   schickt, hat sich für dieses Zimmer entschieden und wartet, bis das
- *   nächste dran ist. Genau das ist die Frage, die der Van sich zurufen soll:
+ *   nächste dran ist. Genau das ist die Frage, die die Einsatzzentrale sich zurufen soll:
  *   *welches Zimmer als Nächstes?*
  * - **Das Licht.** Der Scheinwerfer zehrt an einer eigenen Ladung, und die
  *   **füllt sich wieder auf**, sobald er aus ist. Er bleibt damit eine
@@ -128,12 +128,12 @@ export const LAMP_FILL = 75;
 export const LAMP_MIN = 0.08;
 
 /**
- * Und wie lange dasselbe **am Van** dauert — dreimal so schnell, und dort
+ * Und wie lange dasselbe **an der Einsatzzentrale** dauert — dreimal so schnell, und dort
  * zehrt der Scheinwerfer überhaupt nicht.
  *
  * Der Vorplatz ist damit kein Abstellgleis, sondern eine Entscheidung: Wer
  * zurückfliegt, ist zwei Zimmerwechsel lang nicht im Haus und kommt dafür mit
- * voller Ladung wieder. Ohne diesen Unterschied wäre „zurück zum Van" ein
+ * voller Ladung wieder. Ohne diesen Unterschied wäre „zurück zur Einsatzzentrale" ein
  * Knopf, den niemand je drückt.
  */
 export const LAMP_HOME = 25;
@@ -147,7 +147,7 @@ export const LAMP_HOME = 25;
  * nicht gibt.
  */
 export function lampAfter(charge: number, dt: number, on: boolean, home = false): number {
-  // **Am Van hängt sie am Kabel.** Sie zehrt dort nicht, egal ob der
+  // **An der Einsatzzentrale hängt sie am Kabel.** Sie zehrt dort nicht, egal ob der
   // Scheinwerfer brennt, und sie füllt sich schneller als im Haus. Das ist die
   // Erholung, die es sonst nirgends gibt — und damit der eine Grund, aus dem
   // ein Pilot freiwillig zurückfliegt, statt mit halber Ladung
@@ -208,7 +208,7 @@ const SLOW = 0.35;
 export interface DroneStatus {
   /**
    * `blocked` ist die Zeile, auf die es ankommt: Sie ist die Stelle, an der
-   * aus einer Wegsuche eine Ansage an den Rest des Vans wird — *irgendwo
+   * aus einer Wegsuche eine Ansage an den Rest der Einsatzzentrale wird — *irgendwo
    * dazwischen ist zu, macht auf*.
    */
   kind: 'idle' | 'flying' | 'blocked';

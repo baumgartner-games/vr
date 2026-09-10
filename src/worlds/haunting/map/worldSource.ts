@@ -7,7 +7,7 @@ import { stationLayout } from '../stationLayout';
 import { spaceAtMetres } from './geometry';
 import { COMMAND } from '../roomGraph';
 import type { MapSource } from './mapSource';
-import type { MapEntity, MapItem, MapLight, MapRound } from './mapSnapshot';
+import type { MapEntity, MapItem, MapLight, MapRound, MapSnapshot } from './mapSnapshot';
 import { TORCH_FOV, TORCH_RANGE } from './flatRound';
 
 /**
@@ -37,6 +37,8 @@ export interface WorldHandles {
   peers(): ReadonlyArray<{ id: string; name: string; x: number; z: number; yaw: number }>;
   /** Der Stand der Rundenregeln (Paket Rundenregeln), wenn die Welt sie führt. */
   round?(): MapRound;
+  /** Die Klappen des Lüftungsnetzes als Items und seine Verbindungen (Paket Lüftungssystem). */
+  vents?(): { flaps: readonly MapItem[]; links: MapSnapshot['ventLinks'] };
 }
 
 export function worldMapSource(world: WorldHandles): MapSource {
@@ -51,6 +53,7 @@ export function worldMapSource(world: WorldHandles): MapSource {
     lamps: () => world.lamps(),
     doorOpen: (id) => world.doorOpen(id),
     round: world.round ? () => world.round!() : undefined,
+    ventLinks: world.vents ? () => world.vents!().links : undefined,
     entities: () => {
       const spec = world.spec();
       const state = world.state();
@@ -161,12 +164,12 @@ export function worldMapSource(world: WorldHandles): MapSource {
             label: 'Schutzschrank',
             roomId: placement.roomId,
             at: { x: placement.approach.x, z: placement.approach.z },
-            state: world.round?.().cabinsDestroyed.includes(placement.roomId)
+            state: state.destroyed.includes(placement.roomId)
               ? 'destroyed'
               : crew.hidden === placement.roomId
                 ? 'open'
                 : 'locked',
-            interactive: !world.round?.().cabinsDestroyed.includes(placement.roomId),
+            interactive: !state.destroyed.includes(placement.roomId),
           });
         } else if (placement.kind === 'console' && placement.repairId) {
           const repair = repairs.find((r) => r.id === placement.repairId);
@@ -191,6 +194,7 @@ export function worldMapSource(world: WorldHandles): MapSource {
         state: state.fuse ? 'open' : 'closed',
         interactive: true,
       });
+      if (world.vents) out.push(...world.vents().flaps);
       return out;
     },
     carriedLights: () => {
