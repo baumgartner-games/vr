@@ -34,6 +34,7 @@ import { atHome, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
+import type { LobbyChoice } from './rules/lobby';
 import type { RoleView } from './registry/roles';
 import type { MonsterPort } from './monster/monsterDriver';
 import { mountMonsterView } from './monster/monsterView';
@@ -60,6 +61,14 @@ export interface StationHost {
    */
   flatMode?(): void;
   flatWanted?(): boolean;
+  /**
+   * Die Wahl der Lobby (`rules/lobby.ts`): die Absicht — spielen, zusehen,
+   * trainieren — und die Ansicht, aus der `flatWanted` nur noch abgelesen
+   * wird. Beides zusammen ersetzt nach und nach die Checkbox und die drei
+   * Startkacheln.
+   */
+  lobby?(): LobbyChoice;
+  setLobby?(choice: LobbyChoice): void;
   /** Mission (mit Monster) und Test (ohne) — die Kacheln neben der Bot-Runde, wenn 2D steht. */
   mission?(): void;
   test?(): void;
