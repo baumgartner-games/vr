@@ -48,6 +48,7 @@ export const STILL: RoutineOutput = {
   goal: null,
   pace: 'still',
   cue: '',
+  face: null,
   strike: false,
   cabin: '',
   label: 'Spieler',
@@ -73,6 +74,7 @@ export function steer(stick: MonsterInput, attack: boolean, arena: MonsterArena)
     goal,
     pace: !moving ? 'still' : stick.sprint ? 'hunt' : 'walk',
     cue: '',
+    face: null,
     strike,
     // Vor der Kabine, in der der Techniker steckt, gilt der Knopf ihr.
     cabin: strike && hidden ? hidden : '',

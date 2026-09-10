@@ -40,6 +40,7 @@ function fakeBody(): VentBody & {
 function patrolTo(goal: { x: number; z: number }): RoutineOutput {
   return {
     mode: 'patrol',
+    face: null,
     goal,
     pace: 'walk',
     cue: '',

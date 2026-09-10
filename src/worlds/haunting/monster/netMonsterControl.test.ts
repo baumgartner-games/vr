@@ -96,11 +96,11 @@ describe('Das Steuer übers Netz beim Gastgeber', () => {
     say({ x: 0, z: 0 });
     step(10);
     expect(round.monster.x - start.x).toBe(walked);
-    // Rennen ist schneller.
+    // Rennen ist schneller — um den Jagdfaktor der Gewichte (`tuning.monster.hunt`).
     Object.assign(round.monster, start);
     say({ x: 1, z: 0, sprint: true });
     step(30);
-    expect(round.monster.x - start.x).toBeGreaterThan(walked * 1.2);
+    expect(round.monster.x - start.x).toBeGreaterThan(walked * 1.05);
   });
 
   it('führt die Differenz der Zähler genau einmal aus', () => {

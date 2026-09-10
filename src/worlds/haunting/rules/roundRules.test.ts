@@ -182,6 +182,7 @@ describe('Die Rundenregeln in der 2D-Runde', () => {
       decide: () => ({
         mode: 'breach',
         goal: null,
+        face: null,
         pace: 'still',
         cue: 'breach',
         strike: true,

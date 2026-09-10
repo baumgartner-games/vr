@@ -445,9 +445,13 @@ export class StationUi {
     // Station verlässt, gibt sie frei: Ihr Port hält sonst das Steuer.
     if (station === 'monster' && this.monsterView) {
       const now = performance.now();
-      if (now - this.monsterAt > 50) {
-        const dt = this.monsterAt ? (now - this.monsterAt) / 1000 : 0;
-        this.monsterAt = now;
+      // Das erste Bild sofort — `performance.now()` kann kurz nach dem Start
+      // der Seite noch unter der Drossel liegen, und eine Ansicht ohne erstes
+      // Bild hätte weder Stock gelesen noch Karte gezeichnet.
+      const first = this.monsterAt === 0;
+      if (first || now - this.monsterAt > 50) {
+        const dt = first ? 0 : (now - this.monsterAt) / 1000;
+        this.monsterAt = Math.max(now, Number.MIN_VALUE);
         this.monsterView.update(dt);
       }
     } else if (this.monsterView) {
