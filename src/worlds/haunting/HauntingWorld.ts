@@ -138,6 +138,16 @@ import {
   type RoundSetup,
 } from './rules/roundSetup';
 import { loadLobby, saveLobby, type LobbyChoice } from './rules/lobby';
+import {
+  HOST_BUSY,
+  opensFlat,
+  ROOM_BUSY,
+  startBlocker,
+  startedRound,
+  startEntries,
+  type RoundKind,
+  type WorldMenuState,
+} from './rules/worldMenu';
 import type { MapGoal } from './map/mapView';
 import { VentFlapArt } from './vents/ventArt';
 import { VentNet } from './vents/ventGraph';
@@ -3381,37 +3391,31 @@ export class HauntingWorld extends GridWorld {
             flat,
           ]
         : []),
-      entry(
-        'haunt:bot-round',
-        'Bot-Runde anschauen',
-        'Eine vollständige Reparaturrunde automatisch beobachten',
-        () => {
-          if (this.context) this.startRound('bot', this.context);
-        },
-      ),
-      entry(
-        'haunt:start',
-        'Mission starten',
-        'Drei Systeme reparieren und zur Zentrale zurückkehren',
-        () => {
-          if (this.context) this.startRound('mission', this.context);
-        },
-      ),
-      entry(
-        'haunt:test',
-        'TEST / ohne Monster',
-        'Sicher üben · Ausrüstung und beleuchtetes Testlabor',
-        () => {
-          if (this.context) this.startRound('test', this.context);
-        },
+      // Die drei Starts kommen aus einer Rechnung, die ein Test nachrechnet
+      // (`rules/worldMenu.ts`): welche Runde losgeht, in welcher Reihenfolge
+      // die Einträge stehen — und welcher Satz an die Stelle einer Runde
+      // tritt, die gerade nicht möglich ist. Vorher stand dort ein Eintrag,
+      // der nichts tat und nichts sagte.
+      ...startEntries(this.startState()).map((row) =>
+        entry(row.id, row.label, row.sub, () => {
+          if (row.starts && this.context) this.startRound(row.starts, this.context);
+          else if (row.blocked) this.context?.notify(row.blocked);
+        }),
       ),
       entry(
         'haunt:light',
         `Testlicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
-        'Auch im Dunkeln ohne Monster testen',
+        // Der Schalter gehört zum Test und tat in einer Mission nichts, ohne
+        // ein Wort dazu — dieselbe Falle wie bei den Starts.
+        this.state.crew.options.test
+          ? 'Auch im Dunkeln ohne Monster testen'
+          : 'Nur im Test · in der Mission bleibt es dunkel',
         () => {
-          if (this.state.crew.options.test)
-            this.state.crew.options.bright = !this.state.crew.options.bright;
+          if (!this.state.crew.options.test) {
+            this.context?.notify('Das Testlicht gehört zum Test — erst „TEST / ohne Monster".');
+            return;
+          }
+          this.state.crew.options.bright = !this.state.crew.options.bright;
         },
       ),
       entry(
@@ -3463,6 +3467,41 @@ export class HauntingWorld extends GridWorld {
     ];
   }
 
+  /**
+   * **Der Stand, aus dem die Start-Einträge gerechnet werden**
+   * (`rules/worldMenu.ts`).
+   *
+   * Dieselbe Rechnung läuft zweimal: einmal beim Bauen des Menüs, damit die
+   * Zeile schon sagt, ob und warum nicht — und einmal beim Druck, denn
+   * zwischen Aufschlagen und Drücken kann ein zweiter Techniker den Raum
+   * betreten haben.
+   */
+  private startState(): WorldMenuState {
+    const ctx = this.context;
+    return {
+      role: ctx?.role ?? 'desktop',
+      immersive: ctx?.renderer.xr.isPresenting ?? false,
+      hostId: this.hostId,
+      me: ctx?.net.localId ?? '',
+      phase: this.state.phase,
+      flatWanted: this.flatWanted,
+      occupied: ctx ? this.roomOccupied(ctx) : false,
+    };
+  }
+
+  /**
+   * Ob in diesem Raum schon jemand anders den Techniker spielt — im Headset
+   * oder als Techniker am Desktop, der sich seit weniger als drei Sekunden
+   * gemeldet hat (`receive`, `kind: 'technician'`).
+   */
+  private roomOccupied(ctx: WorldContext): boolean {
+    return [...ctx.net.peers.values()].some(
+      (peer) =>
+        peer.world === ctx.net.world &&
+        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
+    );
+  }
+
   /** Die Plätze der Zentrale im Menü der Brille: alle Bot → alle Mensch → keine → alle Bot. */
   private cycleSeats(): void {
     const seats = this.setup.seats;
@@ -3501,14 +3540,20 @@ export class HauntingWorld extends GridWorld {
    * **Eine Runde starten — in 2D oder 3D, je nach Einstellung.** Die drei
    * Arten sind dieselben wie im Menü der Brille: Bot-Runde (zusehen),
    * Mission (mit Monster) und Test (ohne). Steht „2D-Welt von oben", läuft
-   * jede davon als `FlatMode`; sonst wie bisher im Schiff.
+   * jede davon als `FlatMode`; sonst wie bisher im Schiff. **In der Brille
+   * immer im Schiff** — die Karte von oben gibt es dort nicht (`opensFlat`).
    */
-  private startRound(kind: 'bot' | 'mission' | 'test', ctx: WorldContext): void {
+  private startRound(kind: RoundKind, ctx: WorldContext): void {
     // Die drei Kacheln schreiben Techniker und Monster auf die Tafel; die
     // Plätze der Zentrale bleiben, wie sie verteilt sind (`rules/roundSetup.ts`).
     this.applySetup(presetFor(kind, this.setup));
     const setup = this.setup;
-    if (this.flatWanted) {
+    // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
+    // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
+    // später die Brille aufsetzte, landete hier in `openFlat` — und das steigt
+    // in einer XR-Sitzung wortlos wieder aus. Der Druck auf „Mission starten"
+    // tat dann gar nichts. In der Brille gibt es das Schiff.
+    if (opensFlat(this.startState())) {
       const options = this.state.crew.options;
       const role = flatRoleOf(setup);
       this.openFlat(ctx, {
@@ -3526,9 +3571,17 @@ export class HauntingWorld extends GridWorld {
     // Im Schiff steuert nur der Techniker aus Fleisch; ein Monster aus Fleisch
     // gibt es dort (noch) nicht — es rechnet die Routine.
     const inShip = roundKindOf(setup);
-    if (inShip === 'bot') this.requestBotRound(ctx);
-    else if (inShip === 'mission') this.startMission();
-    else this.testMission();
+    // **Das Panel klappt zu — aber nur, wenn wirklich etwas losgeht.** Sonst
+    // stand es mitten in der Runde, die gerade angefangen hat, und sah aus, als
+    // wäre nichts passiert. Umgekehrt darf es bei einer Absage gerade *nicht*
+    // zugehen: Die Meldung steht in der Statuszeile des Panels und wäre mit ihm
+    // weg (`App.notify`). `requestBotRound` und `openFlat` machen es genauso.
+    if (inShip === 'bot') {
+      this.requestBotRound(ctx);
+      return;
+    }
+    const started = inShip === 'mission' ? this.startMission() : this.testMission();
+    if (started) ctx.menu.toggle(false);
   }
 
   /** Die Tafel schreiben — und allen Anzeigen sagen, dass sie sich geändert hat. */
@@ -3734,14 +3787,12 @@ export class HauntingWorld extends GridWorld {
   }
 
   private requestBotRound(ctx: WorldContext): void {
-    const occupied = [...ctx.net.peers.values()].some(
-      (peer) =>
-        peer.world === ctx.net.world &&
-        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
-    );
-    if (occupied) {
+    // Hier zählt **nur** der belegte Raum und nicht die Rolle: Die Bot-Runde
+    // ist gerade das, was auch ein Zuschauer am Desktop anwirft — sie macht
+    // ihn dafür selbst zum Techniker (`flatTechnician`).
+    if (this.roomOccupied(ctx)) {
       this.pendingBotRound = false;
-      ctx.notify('Bot-Test nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      ctx.notify(ROOM_BUSY);
       return;
     }
     this.flatTechnician = true;
@@ -3774,12 +3825,21 @@ export class HauntingWorld extends GridWorld {
     this.state.crew.venting = 0;
   }
 
-  private startMission(): void {
-    if (!this.isHost || this.context?.role !== 'vr') return;
-    const options = { ...this.state.crew.options, test: false, bright: false };
+  /** @returns ob die Mission wirklich losgegangen ist. */
+  private startMission(): boolean {
+    // Früher stand hier ein stummes `return`: kein Gastgeber oder nicht der
+    // Techniker, und der Knopf tat nichts, ohne ein Wort dazu. Jetzt sagt er,
+    // was fehlt (`rules/worldMenu.ts`).
+    const blocked = startBlocker(this.startState(), 'mission') ?? (this.isHost ? null : HOST_BUSY);
+    if (blocked) {
+      this.context?.notify(blocked);
+      return false;
+    }
+    const start = startedRound('mission');
+    const options = { ...this.state.crew.options, test: start.test, bright: start.bright };
     this.newRound(options);
-    this.state.phase = 'running';
-    this.state.monsterOn = true;
+    this.state.phase = start.phase;
+    this.state.monsterOn = start.monsterOn;
     const far = roomOf(this.spec, this.spec.fuse.roomId) ?? this.spec.rooms[0]!;
     const at = safeRoomSpawn(this.spec, far.id);
     this.spawnMonster(at);
@@ -3793,6 +3853,7 @@ export class HauntingWorld extends GridWorld {
     this.announce(
       'Mission läuft. Die Station ist dunkel: Taschenlampe an, Licht macht die Einsatzkontrolle. Archiv: Aufträge und Codes. Nach drei Reparaturen zurück zur Zentrale.',
     );
+    return true;
   }
 
   private spawnMonster(at: { x: number; z: number }): void {
@@ -3879,18 +3940,32 @@ export class HauntingWorld extends GridWorld {
     };
   }
 
-  private testMission(): void {
-    if (!this.isHost || this.context?.role !== 'vr') return;
-    this.newRound({ ...this.state.crew.options, test: true, bright: true });
-    this.state.phase = 'running';
+  /** @returns ob der Test wirklich losgegangen ist. */
+  private testMission(): boolean {
+    const blocked = startBlocker(this.startState(), 'test') ?? (this.isHost ? null : HOST_BUSY);
+    if (blocked) {
+      this.context?.notify(blocked);
+      return false;
+    }
+    const start = startedRound('test');
+    this.newRound({ ...this.state.crew.options, test: start.test, bright: start.bright });
+    this.state.phase = start.phase;
     this.state.crew.opened = ['test-supply'];
     this.announce(
       'TEST AKTIV · Kein Monster, kein Schaden. Testschrank rechts ist bestückt; Labor geöffnet. Testlicht lässt sich abschalten.',
     );
+    return true;
   }
 
   private configureStation(options: StationOptions): void {
-    if (!this.isHost || this.context?.role !== 'vr') return;
+    // Eine neue Station ist eine neue Runde und braucht denselben Gastgeber
+    // wie sie — und sagt es genauso, statt den Menüeintrag ins Leere laufen
+    // zu lassen.
+    const blocked = startBlocker(this.startState(), 'mission') ?? (this.isHost ? null : HOST_BUSY);
+    if (blocked) {
+      this.context?.notify(blocked);
+      return;
+    }
     this.newRound(stationOptions(options));
     this.announce(
       `Neue Station: ${this.spec.rooms.length} Räume. Mission oder sicheren Test wählen.`,

@@ -8086,7 +8086,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`bgvr.haunting.setup.v1`) und wird an drei Stellen bedient: die Tafel im
   Van (`roundSetupPanel.ts`, `SetupPanel`, Kachel „Verteilung der nächsten
   Runde" mit „Runde starten"), das Optionsmenü der 2D-Welt (dieselbe Tafel)
-  und das Menü in der Brille (drei Einträge). Die drei alten Kacheln sind
+  und das Menü in der Brille (drei Zykler unter den drei Runden). Die drei alten Kacheln sind
   Voreinstellungen (`presetFor`): Bot-Runde heißt Techniker aus Zahlen, Test
   heißt Monster aus. `flatRoleOf` sagt, wen der Spieler in 2D spielt (ein
   Mensch als Techniker gewinnt gegen ein Mensch als Monster — ein Stock, ein
@@ -8130,6 +8130,39 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   liegt klebt am Rand. `compassMarks` ist reine Rechnung mit Test; in der
   Brille gibt es ihn noch nicht (DOM ist dort unsichtbar) — ein Streifen an
   der Kamera wie `ShipExperience.status` wäre der nächste Schritt.
+- **Eine Runde in der Brille starten** (`HauntingWorld.menu()`,
+  `rules/worldMenu.ts`): Handgelenk-Knopf drücken, im Panel unter den fünf
+  Einträgen der Engine (Welten, Verbindung, Bewegung, Aussehen, Grafik) stehen
+  **zuerst** die drei Runden — _Mission starten_, _TEST / ohne Monster_,
+  _Bot-Runde anschauen_ —, dann die Einstellungen (Testlicht, Station, Gegner,
+  Verteilung). Ein Druck genügt, es gibt kein Untermenü, und das Panel klappt
+  zu — **nur wenn wirklich etwas losgeht**: Eine Absage muss offen bleiben,
+  weil `App.notify` in der Brille die Statuszeile *des Panels* schreibt und die
+  Meldung mit ihm verschwände. Danach läuft die Runde
+  (`phase === 'running'`); bei der Mission ist das Monster an, Bot-Runde und
+  Test sind der sichere Stand mit Testlicht (`startedRound`).
+  **Was dabei schiefgeht, sagt der Eintrag jetzt selbst.** Die Rechnung
+  darüber, welcher Eintrag dasteht, was er startet und welcher Satz an die
+  Stelle einer Runde tritt, die nicht losgeht, liegt ohne three.js in
+  `rules/worldMenu.ts` und wird von `worldMenu.test.ts` nachgerechnet — drei
+  Hürden waren es, und jede endete vorher in einem Eintrag, der nichts tat und
+  nichts sagte:
+  1. **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht** (`opensFlat`).
+     Sie steht im `localStorage` des ganzen Browsers; wer sie irgendwann im Van
+     angehakt hatte, wurde in der Brille nach `openFlat` geschickt — und das
+     steigt in einer XR-Sitzung wortlos wieder aus („Im Headset gibt es keine
+     Karte von oben"). Im Panel war die Checkbox dabei gar nicht zu sehen, sie
+     steht nur im Fenstermodus darin. In der Brille gibt es deshalb immer das
+     Schiff.
+  2. **Ein fremder Gastgeber** (`mayCompute`, `HOST_BUSY`): Rechnet ein anderes
+     Gerät die Runde — ein zweites Fenster, das noch als Techniker im Raum
+     steht, reicht —, dann sagt der Eintrag das, statt still zu bleiben.
+     Dieselbe Meldung kommt beim Druck.
+  3. **Die falsche Rolle** (`NOT_TECHNICIAN`) und **ein belegter Raum**
+     (`ROOM_BUSY`, nur für die Bot-Runde: sie setzt den Stand zurück). Auch die
+     Kacheln im Van laufen durch dieselbe Prüfung; „Mission spielen" ohne
+     2D-Haken sagt jetzt, dass das dem Techniker gehört, statt gar nichts zu
+     tun.
 - **Die Lobby ist zwei Achsen, kein Schalter** (`rules/lobby.ts`,
   `LobbyChoice`, in `localStorage` unter `bgvr.haunting.lobby.v1`). Die
   **Absicht** (`Intent`) sagt, *was* passiert — **Spielen** (Mission mit
@@ -8137,7 +8170,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `rules/technicianBot.ts`, Modus „Alles sehen") oder **Trainieren** (ohne
   Monster, früher „Test"). Die **Ansicht** (`View`) sagt nur, *wie* man
   dabei zusieht: **2D von oben** oder **3D Schiff** — auf dem Telefon ist 2D
-  voreingestellt (`defaultLobby`), in der Brille bleibt 3D. Beide sind
+  voreingestellt (`defaultLobby`), in der Brille bleibt 3D — dort ist die
+  Ansicht **wirkungslos**, siehe den Absatz darüber. Beide sind
   unabhängig; die alte Checkbox „2D-Welt von oben" war eine Ansicht, die
   aussah wie ein Start, und deutete die Kacheln unter sich um.
   Die Absicht ist keine zweite Wahrheit neben der Verteilung: `applyIntent`
