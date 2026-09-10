@@ -7809,8 +7809,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   HUD der Seite (Menü, Verbindung, VR; `z-index` 5 in `style.css`), und was
   bedienbar sein soll, ist ohne Tippen ins Leere sichtbar. Desktop und
   Querformat sind Nebenfälle, nicht der Maßstab.
-- **Die 2D-Welt** (`map/flatMode.ts`, `map/flat.css`): Karte im Hintergrund,
-  Stock links, drei Knöpfe rechts. Der Stock hat eine **sichtbare
+- **Die 2D-Welt** (`map/flatMode.ts`, `map/flat.css`) ist **eine gezeichnete
+  Szene, keine Karte** — der Auftraggeber hat Among Us als Vorlage gegeben:
+  `map/flatScene.ts` zeichnet Böden mit Plattenraster, Wände als Band mit
+  Oberkante und sichtbarer Vorderseite nach Süden (`WALL_H` 0,6 m bei 1,2 m
+  Figurhöhe), Raumnamen blass-rot auf dem Boden, Türen mit Schiebeblatt und
+  Leuchte, Requisiten und Figuren als Vektorzeichnungen (`map/flatArt.ts`:
+  Crewmate-Bohne mit Visier, Rucksack und Gehanimation, Monster-Silhouette je
+  Sorte, Fracht, Konsole, Spind samt Wrack, Klappe), alles gemeinsam nach z
+  sortiert, damit eine Figur vor einer Wand vor ihr steht und dahinter
+  dahinter. Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
+  der die Flächen des `VisibilityField` mit weichem Rand ausgeschnitten sind;
+  „Alles sehen" dunkelt nur ab. HUD wie die Vorlage: oben links der Kasten mit
+  Fortschrittsbalken, O₂-Uhr, Anzug-Pips und Aufgabenliste, oben rechts Karte
+  (das alte `MapView` als Overlay) und Zahnrad, unten rechts der große Knopf
+  „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
   Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
   (`map/joystick.ts`); HUD, Meldung und Eckknöpfe beginnen unter dem HUD der
   Seite (`--flat-top`). `.flat [hidden] { display: none !important }` ist

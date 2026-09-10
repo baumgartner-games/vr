@@ -1,25 +1,39 @@
 /*
- * Die 2D-Welt: Karte im Hintergrund, Stock links, drei Knöpfe rechts.
+ * Die 2D-Welt: die gezeichnete Szene im Hintergrund, Stock links, Knöpfe
+ * rechts unten, der Aufgabenkasten oben links — angelehnt an die Vorlage.
  *
- * Fürs Handy gedacht, Querformat wie Hochformat: Alles Bedienbare sitzt in
- * den unteren Ecken, wo die Daumen sind. Handgesetzt wie `haunting.css`.
+ * Fürs Handy gedacht, Hochformat zuerst: Alles Bedienbare sitzt in den
+ * unteren Ecken, wo die Daumen sind; oben stehen nur Anzeigen und zwei
+ * runde Knöpfe (Zahnrad, Karte). Handgesetzt wie `haunting.css`.
  *
  * Oben schwebt das HUD der Seite (Menü, Verbindung, VR, `style.css`) mit
  * z-index 5 über allem hier; `--flat-top` ist die Kante darunter, an der
- * HUD, Meldung und Eckknöpfe der 2D-Welt beginnen.
+ * Kasten und Eckknöpfe der 2D-Welt beginnen.
  *
  * `[hidden]` gewinnt gegen jedes `display` hier drin: Ein Panel mit
  * `display: flex` und dem Attribut `hidden` stand sonst als leerer Balken
  * mitten auf der Karte — genau über dem Spieler.
  */
-.flat { position: fixed; inset: 0; z-index: 4; background: #070a10; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px); --flat-bottom: max(14px, env(safe-area-inset-bottom)); }
+.flat { position: fixed; inset: 0; z-index: 4; background: #000; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px); --flat-bottom: max(14px, env(safe-area-inset-bottom)); --flat-key: 72px; --flat-act: 104px; }
 .flat [hidden] { display: none !important; }
-.flat__map { position: absolute; inset: 0; }
-.flat__map .mapview__canvas { width: 100%; height: 100%; display: block; }
-.flat__hud { position: absolute; left: 12px; top: var(--flat-top); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 10px; background: rgba(10, 16, 28, 0.78); border: 1px solid rgba(140, 170, 230, 0.25); pointer-events: none; max-width: calc(100vw - 210px); }
-.flat__hud strong { font-size: 14px; letter-spacing: .04em; color: #7ff0ff; }
-.flat__hud span { font-size: 12px; color: #97a3bd; }
-.flat__toast { position: absolute; left: 50%; top: calc(var(--flat-top) + 64px); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(10, 16, 28, 0.85); border: 1px solid rgba(140, 170, 230, 0.3); font-size: 13px; pointer-events: none; max-width: 86vw; text-align: center; transition: opacity .2s; }
+.flat__scene { position: absolute; inset: 0; }
+.flat__scene .flatscene__canvas { width: 100%; height: 100%; display: block; }
+/* Der Aufgabenkasten: dunkler Kasten mit hellem Rahmen, grüner Balken, Uhr und Anzug, Liste. */
+.flat__hud { position: absolute; left: 12px; top: var(--flat-top); width: min(58vw, 300px); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; border-radius: 6px; background: rgba(28, 32, 38, 0.86); border: 2px solid #6c7480; pointer-events: none; }
+.flat__bar { position: relative; height: 24px; border: 2px solid #4b525b; border-radius: 3px; background: #1a1d22 repeating-linear-gradient(90deg, transparent 0 calc(33.333% - 2px), #4b525b calc(33.333% - 2px) 33.333%); overflow: hidden; }
+.flat__bar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #3ed13c; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.18); transition: width .3s; }
+.flat__bar-label { position: absolute; left: 8px; top: 0; line-height: 20px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+.flat__vitals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: #d3dae6; text-shadow: 0 1px 2px #000; }
+.flat__vitals strong { font-size: 14px; color: #fff; font-variant-numeric: tabular-nums; }
+.flat__vitals.is-low .flat__oxygen { color: #ff5a5f; }
+.flat__vitals span { flex-basis: 100%; font-size: 11px; color: #9aa6ba; }
+.flat__tasks { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+.flat__task.is-partial { color: #f0d541; }
+.flat__task.is-done { color: #5cf05c; }
+.flat__hud.is-collapsed .flat__tasks { display: none; }
+/* Das senkrechte Reiterchen „Aufgaben" am rechten Rand des Kastens. */
+.flat__tab { position: absolute; left: calc(100% + 2px); top: -2px; writing-mode: vertical-rl; padding: 12px 5px; border-radius: 0 6px 6px 0; border: 2px solid #6c7480; border-left: 0; background: rgba(80, 86, 94, 0.92); color: #fff; font: inherit; font-size: 13px; pointer-events: auto; touch-action: manipulation; }
+.flat__toast { position: absolute; left: 50%; bottom: calc(var(--flat-bottom) + 190px); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(10, 16, 28, 0.85); border: 1px solid rgba(140, 170, 230, 0.3); font-size: 13px; pointer-events: none; max-width: 86vw; text-align: center; transition: opacity .2s; }
 .flat__toast:empty { opacity: 0; }
 .flat__toast.is-good { border-color: #8ff0b0; color: #c8ffd9; }
 .flat__toast.is-bad { border-color: #ff5a5f; color: #ffd0d2; }
@@ -29,20 +43,37 @@
    losgelassen zurück. Ein Stock, den man erst durch Tippen findet, ist auf
    dem Telefon keiner. */
 .flat__stick { position: absolute; left: 0; bottom: 0; width: 46vw; height: 46vh; max-height: 340px; touch-action: none; }
-.flat__stick-base { position: absolute; left: calc(max(24px, env(safe-area-inset-left)) + 64px); top: calc(100% - var(--flat-bottom, 14px) - 78px); width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%; border: 2px solid rgba(140, 170, 230, 0.45); background: rgba(20, 30, 50, 0.45); pointer-events: none; opacity: .72; transition: opacity .15s; }
+.flat__stick-base { position: absolute; left: calc(max(24px, env(safe-area-inset-left)) + 64px); top: calc(100% - var(--flat-bottom, 14px) - 78px); width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%; border: 3px solid rgba(220, 226, 234, 0.45); background: rgba(40, 46, 54, 0.5); pointer-events: none; opacity: .72; transition: opacity .15s; }
 .flat__stick-base.is-live { opacity: 1; }
 .flat__stick-base.is-sprint { border-color: #f0b64a; }
-.flat__stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(127, 240, 255, 0.85); box-shadow: 0 0 12px rgba(127, 240, 255, 0.5); }
-.flat__buttons { position: absolute; right: 12px; bottom: var(--flat-bottom); display: flex; flex-direction: column; gap: 10px; width: min(44vw, 190px); }
-.flat__key { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 58px; padding: 8px 14px; border-radius: 14px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; text-align: left; touch-action: manipulation; }
-.flat__key small { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #6b7690; }
-.flat__key strong { font-size: 14px; }
+.flat__stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(220, 226, 234, 0.85); box-shadow: 0 0 12px rgba(0, 0, 0, 0.5); }
+/* Die Knöpfe rechts unten: zwei kleine runde oben (Wechseln mit dem Werkzeugbild, Werkzeug),
+   darunter der große „Benutzen" — hell, sobald etwas in Reichweite ist. */
+.flat__buttons { position: absolute; right: 14px; bottom: var(--flat-bottom); display: grid; grid-template-columns: var(--flat-key) var(--flat-key); grid-template-areas: "cycle use" "act act"; gap: 10px; justify-items: end; align-items: end; }
+.flat__key { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: var(--flat-key); height: var(--flat-key); padding: 4px; border-radius: 50%; border: 3px solid #1d2126; background: rgba(66, 72, 80, 0.94); color: #fff; font: inherit; text-align: center; touch-action: manipulation; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
+.flat__key small { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: #cfd6e0; line-height: 1.1; }
+.flat__key strong { font-size: 9px; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flat__key:disabled { opacity: .45; }
-.flat__key--act.is-ready { border-color: #8ff0b0; box-shadow: 0 0 0 1px rgba(143, 240, 176, 0.35) inset; }
-.flat__item { position: absolute; right: 12px; bottom: calc(var(--flat-bottom) + 214px); width: min(44vw, 190px); height: 110px; border-radius: 14px; border: 1px solid rgba(140, 170, 230, 0.25); background: transparent; pointer-events: none; }
-.flat__corner { position: absolute; top: var(--flat-top); padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; }
+.flat__key--cycle { grid-area: cycle; justify-content: flex-end; }
+.flat__key--use { grid-area: use; }
+.flat__key--act { grid-area: act; width: var(--flat-act); height: var(--flat-act); opacity: .6; background: rgba(90, 96, 104, 0.9); }
+.flat__key--act strong { font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+.flat__key--act small { font-size: 10px; text-transform: none; letter-spacing: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flat__key--act.is-ready { opacity: 1; background: #ffd54a; color: #1d2126; border-color: #7a5a00; box-shadow: 0 0 0 4px rgba(255, 213, 74, 0.25), 0 2px 0 rgba(0, 0, 0, 0.4); }
+.flat__key--act.is-ready small { color: #4a3a00; }
+/* Das Loch für das 3D-Bild des Werkzeugs (`flatStage.ts`) sitzt im Wechseln-Knopf. */
+.flat__item { position: absolute; right: calc(14px + var(--flat-key) + 10px); bottom: calc(var(--flat-bottom) + var(--flat-act) + 10px + 18px); width: var(--flat-key); height: calc(var(--flat-key) - 18px); border-radius: 50% 50% 0 0; background: transparent; pointer-events: none; }
+/* Oben rechts: zwei runde Knöpfe (Zahnrad, Karte), darunter „Zum Spieler". */
+.flat__corner { position: absolute; top: var(--flat-top); width: 52px; height: 52px; border-radius: 50%; border: 3px solid #2d3238; background: #d8dde3; color: #2a2e34; font: inherit; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; touch-action: manipulation; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
 .flat__options { right: 12px; }
-.flat__centre { right: 104px; }
+.flat__mapkey { right: 74px; }
+.flat__mapkey.is-active { background: #ffd54a; }
+.flat__centre { right: 12px; top: calc(var(--flat-top) + 62px); width: auto; height: auto; padding: 6px 12px; border-radius: 999px; font-size: 12px; background: rgba(66, 72, 80, 0.94); color: #fff; border-color: #1d2126; }
+/* Die Kartenübersicht: die alte Karte als Overlay über der Szene. */
+.flat__map { position: absolute; inset: calc(var(--flat-top) + 4px) 12px calc(var(--flat-bottom) + 4px); border-radius: 12px; background: rgba(7, 10, 16, 0.96); border: 2px solid #6c7480; overflow: hidden; z-index: 2; }
+.flat__map .mapview { position: absolute; inset: 0; }
+.flat__map .mapview__canvas { width: 100%; height: 100%; display: block; }
+.flat__map-close { position: absolute; right: 10px; top: 10px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; }
 .flat__panel, .flat__ending { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(92vw, 380px); max-height: 86vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); z-index: 3; }
 .flat__panel > strong, .flat__ending > strong { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6b7690; margin-top: 6px; }
 .flat__ending > strong { font-size: 18px; color: #7ff0ff; }
@@ -59,7 +90,7 @@
 .flat__hint { margin: 0; font-size: 12px; color: #97a3bd; }
 .flat__wires { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .flat__column { display: flex; flex-direction: column; gap: 8px; }
-.flat__plug, .flat__socket, .flat__puzzle .flat__key, .flat__send { min-height: 46px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.7); color: #e8ecf7; font: inherit; display: flex; flex-direction: column; align-items: flex-start; }
+.flat__plug, .flat__socket, .flat__puzzle .flat__key, .flat__send { min-height: 46px; width: auto; height: auto; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.7); color: #e8ecf7; font: inherit; display: flex; flex-direction: column; align-items: flex-start; opacity: 1; box-shadow: none; }
 .flat__plug.is-selected { border-color: #f0b64a; }
 .flat__plug small { color: #8ff0b0; font-size: 11px; }
 .flat__socket:disabled { opacity: .5; }

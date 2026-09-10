@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { FlatMode } from './flatMode';
-import { puzzleFor } from '../mission';
+import { puzzleFor, repairsFor } from '../mission';
 import { FlatWalker } from './flatWalk';
 
 jest.mock('./flat.css', () => ({}));
@@ -55,11 +55,16 @@ describe('Die 2D-Welt', () => {
     for (let i = 0; i < 10; i++) flat.update(DT);
     expect(flat.round.player.z).toBe(z);
     const keys = [...flat.element.querySelectorAll<HTMLButtonElement>('.flat__buttons .flat__key')];
+    // Zwei kleine Knöpfe oben (Wechseln, Werkzeug), der große „Benutzen" darunter.
     expect(keys.map((k) => k.querySelector('small')?.textContent)).toEqual([
       'Wechseln',
-      'Benutzen',
-      'Interagieren',
+      'Werkzeug',
+      // Der große Knopf nennt klein, was in Reichweite liegt — oder nichts.
+      flat.round.target?.label ?? '',
     ]);
+    expect(keys[2]!.querySelector('strong')?.textContent).toBe('Benutzen');
+    expect(keys[2]!.classList.contains('is-ready')).toBe(!!flat.round.target);
+    expect(keys[2]!.classList.contains('flat__key--act')).toBe(true);
     expect(keys[0]!.disabled).toBe(true);
     keys[1]!.click();
     expect(flat.round.torch).toBe(false);
@@ -76,6 +81,65 @@ describe('Die 2D-Welt', () => {
         y: 100,
       }) as DOMRect;
     expect(flat.viewport()).toEqual({ x: 200, y: 100, w: 150, h: 90 });
+    flat.dispose();
+  });
+
+  it('zeigt oben links Balken, Uhr, Anzug und die Aufgabenliste wie in der Vorlage', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.update(DT);
+    const hud = flat.element.querySelector<HTMLElement>('.flat__hud')!;
+    const fill = hud.querySelector<HTMLElement>('.flat__bar-fill')!;
+    expect(fill.style.width).toBe('0%');
+    expect(hud.querySelector('.flat__bar-label')?.textContent).toBe('Aufgaben erledigt');
+    expect(hud.querySelector('.flat__oxygen')?.textContent).toMatch(/^O₂ \d+:\d\d$/);
+    expect(hud.querySelector('.flat__suit')?.textContent).toBe('●●●');
+    const tasks = [...hud.querySelectorAll<HTMLElement>('.flat__task')];
+    const repairs = repairsFor(flat.round.house);
+    expect(tasks).toHaveLength(3);
+    tasks.forEach((task, i) => {
+      expect(task.textContent).toContain(repairs[i]!.title);
+      expect(task.textContent).toMatch(/\(0\/2\)$/);
+      expect(task.classList.contains('is-done')).toBe(false);
+    });
+    // Eine Reparatur erledigt: Balken auf ein Drittel, Zeile grün mit (2/2).
+    flat.round.state().done.push(repairs[0]!.itemId);
+    flat.update(DT);
+    expect(fill.style.width).toBe('33%');
+    const first = hud.querySelector<HTMLElement>('.flat__task')!;
+    expect(first.classList.contains('is-done')).toBe(true);
+    expect(first.textContent).toMatch(/\(2\/2\)$/);
+    // Das Teil in der Hand: halb geschafft, gelb.
+    flat.round.state().crew.inventory.push(repairs[1]!.itemId);
+    flat.update(DT);
+    const second = hud.querySelectorAll<HTMLElement>('.flat__task')[1]!;
+    expect(second.classList.contains('is-partial')).toBe(true);
+    expect(second.textContent).toMatch(/\(1\/2\)$/);
+    // Das Reiterchen klappt die Liste ein.
+    hud.querySelector<HTMLButtonElement>('.flat__tab')!.click();
+    expect(hud.classList.contains('is-collapsed')).toBe(true);
+    flat.dispose();
+  });
+
+  it('öffnet die Kartenübersicht als Overlay und schließt sie wieder', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    const overlay = flat.element.querySelector<HTMLElement>('.flat__map')!;
+    expect(overlay.hidden).toBe(true);
+    expect(flat.mapOpen).toBe(false);
+    flat.element.querySelector<HTMLButtonElement>('.flat__mapkey')!.click();
+    expect(overlay.hidden).toBe(false);
+    expect(flat.mapOpen).toBe(true);
+    // Die alte Karte zeichnet im Modus der Runde, mit dem Spieler drauf.
+    flat.update(DT);
+    expect(flat.map.current.field.mode).toBe('realistic');
+    expect(flat.map.stats.rooms).toBe(flat.round.snapshot().rooms.length);
+    expect(flat.map.stats.entities).toBe(1);
+    overlay.querySelector<HTMLButtonElement>('.flat__map-close')!.click();
+    expect(overlay.hidden).toBe(true);
+    // Die Szene hat die ganze Zeit gezeichnet.
+    expect(flat.scene.stats.rooms).toBeGreaterThan(0);
+    expect(flat.scene.current.following).toBe('player');
     flat.dispose();
   });
 
@@ -135,12 +199,15 @@ describe('Die 2D-Welt', () => {
     modes[0]!.click();
     expect(flat.visibilityMode).toBe('omniscient');
     flat.update(DT);
-    expect(flat.map.current.field.mode).toBe('omniscient');
-    expect(flat.map.stats.entities).toBe(2);
+    expect(flat.scene.current.field.mode).toBe('omniscient');
+    expect(flat.scene.current.field.visibleEntities).toHaveLength(2);
+    // Ohne Dunkelheit: nichts ausgeschnitten, nur unbeleuchtete Räume abgedunkelt.
+    expect(flat.scene.stats.cuts).toBe(0);
     // Das Menü baut sich nach jedem Klick neu — also frisch nachschlagen.
     flat.element.querySelectorAll<HTMLButtonElement>('[data-mode]')[1]!.click();
     flat.update(DT);
-    expect(flat.map.current.field.mode).toBe('realistic');
+    expect(flat.scene.current.field.mode).toBe('realistic');
+    expect(flat.scene.stats.cuts).toBeGreaterThan(0);
     flat.element.querySelector<HTMLButtonElement>('[data-leave]')!.click();
     expect(exit).toHaveBeenCalled();
     flat.dispose();
@@ -153,9 +220,10 @@ describe('Die 2D-Welt', () => {
     expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
     expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
     expect(flat.element.querySelector<HTMLElement>('.flat__item')!.hidden).toBe(true);
-    // Die Karte bleibt, samt dem Knopf, der sie zum Techniker zurückholt.
-    expect(flat.element.querySelector<HTMLElement>('.flat__map')!.hidden).toBe(false);
+    // Die Szene bleibt, samt dem Knopf, der sie zum Techniker zurückholt.
+    expect(flat.element.querySelector<HTMLElement>('.flat__scene')!.hidden).toBe(false);
     expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
+    expect(flat.element.querySelector<HTMLElement>('.flat__mapkey')!.hidden).toBe(false);
     // Das Werkzeugbild hat ohne Loch keinen Platz.
     expect(flat.viewport()).toBeNull();
     const start = { ...flat.round.player };
@@ -163,6 +231,8 @@ describe('Die 2D-Welt', () => {
     const moved = Math.hypot(flat.round.player.x - start.x, flat.round.player.z - start.z);
     expect(moved).toBeGreaterThan(1);
     expect(flat.element.querySelector('.flat__hud')?.textContent).toContain('Bot-Runde');
+    // Die Kamera hängt am Techniker.
+    expect(flat.scene.getView().centreX).toBeCloseTo(flat.round.player.x);
     // Im Optionsmenü schaltet die Rolle durch alle drei.
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
     const roleKey = () => flat.element.querySelector<HTMLButtonElement>('[data-role]')!;
