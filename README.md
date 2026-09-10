@@ -76,7 +76,10 @@ Plätze; die Schalttafel gehört zur Einsatzkontrolle.
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
 im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
 **In der Zentrale mitspielen** wählen, dann Archiv beziehungsweise
-Einsatzkontrolle besetzen. Für eine eigene Gruppe auf allen Geräten denselben
+Einsatzkontrolle besetzen. Ein weiteres Telefon kann das **Monster** spielen:
+Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
+zwei Knöpfen — auch dann, wenn der Techniker die Station in der 2D-Welt von
+oben spielt. Für eine eigene Gruppe auf allen Geräten denselben
 Link mit `?room=euer-gruppenname#haunting` öffnen; ohne Parameter ist der Raum
 `haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
 Update alle Geräte neu laden, damit sie dieselbe Protokollversion verwenden.

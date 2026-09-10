@@ -80,7 +80,7 @@ Standplatz jeder Klappe.
 `RoundRules` hält keine eigene mehr, sondern bekommt einen Getter auf den
 Stand — damit geht sie ohne Abgleich über `stateMessage`, `adopt(next)` hat
 sie automatisch, `worldSource`/`rules.status` stimmen auf Nicht-Gastgebern.
-`STATION_PROTOCOL` ist 6. `fixtureModels.buildBrokenLocker()` ist das Wrack
+`STATION_PROTOCOL` wurde 6 (jetzt 7, Abschnitt 5). `fixtureModels.buildBrokenLocker()` ist das Wrack
 (Blatt hängt schief, Pfosten geknickt, Beulen, Brandfleck, bernstein
 glimmender Rahmen; `LOCKER_SIZE`, fünf Draw-Calls); `ShipExperience` tauscht
 je Bild nach `state.destroyed`, funkt über `rules/cabinWreck.ts` (3–6 s,
@@ -182,6 +182,66 @@ nicht.
 **Tests.** `navmesh/flatNavigation.test.ts` (Route ist Suffix der
 `stationRoute`-Route über drei Samen, nie durch eine Wand, Holztür/Stahltür,
 Umweg, Techniker erreicht sechs Ziele).
+
+### 5. Netz: Monster-Rolle und 2D-Welt (`monster/`, `net.ts`, `stations.ts`, `HauntingWorld`)
+
+**Was drin ist.** `STATION_PROTOCOL` ist **7**. Neue Nachricht
+`{ kind: 'monster', x, z, sprint, attack, interact, vent }` — Stock auf
+[-1, 1] begrenzt, `attack`/`interact` ganzzahlige **Zähler**, `vent` 0–15;
+Sender ist der Besitzer der neuen Station `monster` (`stations.ts`, fünfte
+Kachel, `view: false`), im Drohnentakt, nur solange die Ansicht das Steuer
+hält; Empfänger ist der Gastgeber, nur vom Besitzer (wie `flip`).
+`HauntState.technician: { x, z, yaw, moving } | null` (der 2D-Techniker;
+`moving`, damit das Monster-Telefon ihn hören kann) und `HauntState.ride:
+VentPhase`. Drei headless Dateien in `monster/`: `monsterHelm.ts` (die
+gemeinsame Übersetzung von Stock und Knöpfen — `FlatMonsterControl`
+delegiert jetzt dorthin), `netMonsterPort.ts` (`MonsterPort` fürs Telefon:
+Zähler, `message()`, Klappenziele/Tür/Status aus Snapshot und Stand) und
+`netMonsterControl.ts` (`MonsterDriver` beim Gastgeber: `accept`, `active`,
+`decide`, `NET_MONSTER_STALE` 3 s). `stationUi.page('monster')` baut die
+Ansicht über `mountMonsterView` (`StationHost.snapshot?/monsterPort?/notify?`),
+hält sie über Neuschriften und gibt sie beim Verlassen frei;
+`registry/legacyRoles.register.ts` überspringt `monster` (schon selbst
+angemeldet). `HauntingWorld`: `netMonster` ist der `monsterDriver`; der
+Navigator gibt bei aktivem Steuer das Ziel direkt zurück; Treffer nur per
+Knopf (`takeHit` sperrt Berührungsschläge, solange das Steuer aktiv ist).
+**2D-Welt übers Netz:** `tick` ist in `stepFlat` + `tickNet` geteilt;
+`stepFlat` übernimmt `flat.round.haunt` per `adopt` (Hausneubau bei
+Seedwechsel), füllt `technician`, `ride`, `venting`, hängt den Netz-Fahrer als
+`round.driver` ein; `refreshHost` zählt den 2D-Spieler als `vr`; `toggleFlat`
+lehnt ab, wenn ein anderer Techniker spielt, startet mit `this.spec.seed`
+und stellt beim Verlassen einen frischen Stand her. `mapSnapshot().player()`
+kommt aus `state.technician`.
+
+**Entscheidungen.**
+
+- **Zähler statt Tastenzustände**, das erste Paket ist nur Abgleich, und
+  zurückspringende Zähler (neues Telefon) holen nichts nach — sonst würde
+  nach Gastgeberwechsel ein alter Stand als Salve Schläge ausgeführt.
+  Ausstehende Schläge sind auf 3 gedeckelt.
+- **Interagieren wirkt beim Empfang, Angreifen in `decide`:** Während der
+  Schachtfahrt fragt keine Welt `decide` — „Aussteigen" muss trotzdem
+  ankommen.
+- **`active()` hat eine Frische-Frist:** besetzt, Runde läuft, Nachricht
+  jünger als 3 s. Telefon in der Tasche → KI übernimmt. Alternative wäre reine
+  Besetzung, dann stünde das Monster still.
+- `flip` braucht in der 2D-Welt keine Änderung: `applyFlip` arbeitet auf
+  `this.state`, das im Flat dieselbe Referenz wie `flat.round.haunt` ist.
+- `monster.css` wird in `stationUi.ts` importiert; Tests mocken es.
+
+**Offen / nur mit Geräten prüfbar.** Monster-Telefon gegen 3D-Techniker
+(der Rapier-Körper friert ein, wenn der Techniker näher als 1,15 m steht —
+Eigenschaft von `npcBrain.reach`); 2D-Gastgeber mit Telefonen; Latenz bei
+10 Hz; CSS der Monster-Ansicht in `.haunt__body` auf echten Telefonen; der
+Fortschrittsbalken der Fahrt ist aus `crew.venting` geschätzt. Kommt ein
+VR-Spieler in einen Raum, in dem schon jemand 2D spielt, entscheidet
+Seniorität — nicht getestet. Spielt der 2D-Spieler lokal „Als Monster", hat
+`FlatMonsterControl` Vorrang. Kein Browser-Smoke für die neue Station.
+
+**Tests.** `net.test.ts` (neu), `monster/netMonsterPort.test.ts`,
+`monster/netMonsterControl.test.ts` (samt ganzer Sequenz Telefon-Port → JSON
+→ Fahrer → `FlatRound` reißt die Kabine auf), `stations.test.ts`,
+`stationUi.test.ts`, `netReplay.test.ts`.
 
 ## Paket gameplay — Rundenregeln, Lüftungssystem, Monster-Rolle
 
@@ -410,7 +470,7 @@ Monsters (gesehen, gehört) läuft in beiden Fällen mit.
 - **Ein Spieler trifft nur mit dem Knopf**, die KI durch Berührung. Ein
   Monster, das beim Vorbeilaufen automatisch zuschlägt, nimmt dem Spieler
   die einzige Entscheidung, die er hat.
-- **Netzspiel fehlt.** Der Port ist lokal (2D-Welt). Für den Van müsste die
+- → erledigt (Abschnitt 5 oben). **Netzspiel fehlt.** Der Port ist lokal (2D-Welt). Für den Van müsste die
   Eingabe des Monsterspielers über `net.ts` zum Gastgeber, der das Monster
   rechnet — eine neue Nachricht, also `STATION_PROTOCOL` (nur nach
   Absprache). Der `MonsterDriver` in `HauntingWorld` wäre dann ein
@@ -433,7 +493,7 @@ Monsters (gesehen, gehört) läuft in beiden Fällen mit.
 - → entschieden: nein, die Uhr läuft durch; die Reparatur heißt jetzt
   „Nahrungsversorgung sichern" (Abschnitt 3 oben). **Uhr bei reparierter Lebenserhaltung anhalten?** Heute nein (sonst wäre
   die Schleife wieder möglich); wenn doch, eine Zeile in `oxygenLeft`.
-- **Monster-Rolle im Van übers Netz** — braucht eine Nachricht in `net.ts`
+- → erledigt (Abschnitt 5 oben). **Monster-Rolle im Van übers Netz** — braucht eine Nachricht in `net.ts`
   (Protokoll 5 → 6) und einen Netz-`MonsterDriver` in `HauntingWorld`.
 - → erledigt (Abschnitt 2 oben). **Bot der 3D-Runde und VR-Spieler bei zerstörten Kabinen** — je eine
   Zeile in `missionBot.ts`/`ShipExperience.ts`, sobald das Paket
@@ -1025,7 +1085,7 @@ Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und
 
 ### Offene Fragen an dich
 
-- Soll die 2D-Welt später **netzfähig** sein (Host rechnet, Telefone zeigen)?
+- → erledigt (Abschnitt 5 oben). Soll die 2D-Welt später **netzfähig** sein (Host rechnet, Telefone zeigen)?
   Dann müsste `FlatRound` seinen `HauntState` über `net.ts` senden; der Typ
   passt schon, `STATION_PROTOCOL` bliebe bei 5.
 - → erledigt: Eintrag im Weltmenü des Technikers (Abschnitt 3 oben). Soll die Checkbox auch dem VR-Spieler angeboten werden (Handmenü), oder

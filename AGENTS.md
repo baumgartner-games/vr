@@ -7801,7 +7801,20 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 
 **Telefone und Netzwerk**
 
-- Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer.
+- Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer
+  — und **Monster** (`stations.ts`, `monster/`): ein Telefon spielt das
+  Monster, egal ob der Techniker in 3D oder in der 2D-Welt spielt. Die Ansicht
+  ist `monster/monsterView.ts` (Karte aus Monstersicht, Stock, zwei Knöpfe);
+  das Telefon schickt `{kind:'monster'}` (Stock, Zähler für Angreifen und
+  Interagieren, Klappenziel) im Drohnentakt an den Gastgeber
+  (`monster/netMonsterPort.ts`), der sie über `monster/netMonsterControl.ts`
+  als `MonsterDriver` in derselben `decide`-Form wie die Routine ausführt —
+  in 3D über `HauntingWorld.monsterDriver` (der NPC läuft dann geradeaus auf
+  das Ziel, kein Rasterweg je Bild), in 2D als `FlatRound.driver`. Zähler
+  statt Tastenzustände, damit bei 10 Hz kein Druck verloren geht oder doppelt
+  wirkt; das erste Paket ist nur Abgleich, ausstehende Schläge ≤ 3; ohne
+  Nachricht seit 3 s übernimmt die KI. Die gemeinsame Übersetzung von Stock
+  und Knöpfen liegt in `monster/monsterHelm.ts`.
   Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
 - Archiv hat **Räume & Codes** und **Aufträge**, nur Raumnamen auswählbar.
   Ein Raum zeigt echte orthografische 3D-Geometrie ohne Decke als 2D-Draufsicht,
@@ -7811,14 +7824,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
-- **STATION_PROTOCOL=6**: der Stand trägt jetzt die zerstörten Kabinen
-  (`destroyed`), die Fahrtphase des Monsters und den 2D-Techniker.
+- **STATION_PROTOCOL=7**: der Stand trägt jetzt die zerstörten Kabinen
+  (`destroyed`, seit 6), die Fahrtphase des Monsters (`ride`) und den
+  2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`.
   Alte Clients werden abgewiesen; nach Update alle Geräte neu laden.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
 - Spielhost: VR-Techniker, sonst ältester Peer. Desktop-Techniker meldet sich
   im Haunt-Channel. `?net=local` ist BroadcastChannel zwischen Tabs; WLAN/
   Internet verwenden öffentliche Signalisierung/STUN, kein garantierter TURN.
+- **Die 2D-Welt ist netzfähig:** Wer sie spielt (Checkbox in der
+  Einsatzzentrale oder Eintrag im Weltmenü des Technikers), ist der Techniker
+  der gemeinsamen Runde und wird Gastgeber (Herzschlag wie der
+  Desktop-Techniker). `HauntingWorld.stepFlat` übernimmt je Bild
+  `flat.round.haunt` als Stand (`adopt`, derselbe Pfad wie bei einem fremden
+  Gastgeber, samt Hausneubau bei Seedwechsel), füllt `technician`, `ride` und
+  `venting`, und `tickNet` sendet und empfängt weiter — Schalter der
+  Einsatzkontrolle wirken in der 2D-Runde, das Monster-Telefon steuert sie.
+  Spielt schon ein anderer Techniker im Raum, lehnt `toggleFlat` ab. Bot-Runde
+  und Test bleiben lokal.
 
 **Budget und Prüfung**
 
