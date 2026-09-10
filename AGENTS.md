@@ -7665,6 +7665,23 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `MapDoor.hold` (über `MapSource.doorHold`) und der **Balken über der Tür**
   auf Karte und 2D-Szene. Eine Sperre, die für immer hielte, wäre keine
   Entscheidung mehr, sondern eine Wand.
+  **Eine Tür, die gerade frei geworden ist, bleibt eine Weile frei**
+  (`LOCK_COOLDOWN` = 12 s, `mayLock`/`coolingUntil`): Jeder Weg aus einer Sperre
+  heraus — abgelaufen, von der Tafel freigegeben, vom Monster aufgezogen, Holz
+  gesplittert — kühlt die Tür ab, und solange sie warm ist, lässt sie sich
+  weder wählen (`chooseLock`) noch zuschlagen (`slamDoor`). Ohne diese Regel
+  war der Rest eine Einladung: Der Riegel fällt, die Tafel legt ihn im selben
+  Bild wieder um, oder der Spuk trifft dieselbe Tür ein zweites Mal — und für
+  den, der davor wartet, ging sie nie wieder auf. Freigeben darf man jederzeit;
+  `toggleLock` meldet `blocked`, damit der Schalter sagen kann, dass der Riegel
+  noch warm ist, statt wortlos nichts zu tun.
+  **Und niemandem fällt die Tür auf den Kopf** (`haunt.slammable` mit
+  `HauntSight.occupants`, `DOORWAY_CLEAR` = 0,75 Kacheln): Der Spuk sucht sich
+  die nächstgelegene Tür, und das war mit Vorliebe die, durch die das Monster
+  gerade selbst ging — danach steckte es darin. Wer im Durchgang steht, wird
+  nicht eingeklemmt; die Liste ist dieselbe, mit der `AutomaticDoors` einen
+  belegten Durchgang offen hält (`HauntingWorld.doorOccupants`), damit nicht
+  die eine aufhält, was die andere zuschlägt.
   **Das Monster kann an einem Riegel ziehen** (`pryLock`): Der erste Zug geht
   **nie** auf, jeder weitere steht besser (`pryChance`: 0,3 und dann +0,15),
   im Takt von `PRY_COOLDOWN` = 1,1 s. Im Mittel sind das gut drei Züge und

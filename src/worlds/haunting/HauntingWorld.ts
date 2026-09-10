@@ -2327,7 +2327,12 @@ export class HauntingWorld extends GridWorld {
     const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
     if (!door && !trainingDoor) return;
     // Gewollt gesperrt ist immer nur eine Tür — auch vor Ort (`rules/doorLocks.ts`).
-    this.state.shut = toggleLock(this.locks, this.state.shut, id, this.state.time).shut;
+    const out = toggleLock(this.locks, this.state.shut, id, this.state.time);
+    this.state.shut = out.shut;
+    // Eine Tür, die gerade erst frei geworden ist, lässt sich nicht sofort
+    // wieder sperren. Wortlos wäre das ein kaputter Riegel — also sagen wir es.
+    if (out.blocked)
+      this.announce('Der Riegel ist noch warm. Diese Tür bleibt einen Moment offen.');
   }
 
   /** Ein Schalter der Tafel, angewendet beim Gastgeber. */
@@ -2356,7 +2361,7 @@ export class HauntingWorld extends GridWorld {
     // gesperrt ist immer nur eine — die vorherige geht dabei auf; eine
     // zugefallene darf die Tafel jederzeit freigeben (`rules/doorLocks.ts`).
     this.state.shut = on
-      ? releaseLock(this.locks, this.state.shut, entry.target)
+      ? releaseLock(this.locks, this.state.shut, entry.target, this.state.time)
       : chooseLock(this.locks, this.state.shut, entry.target, this.state.time);
   }
 
@@ -2370,14 +2375,17 @@ export class HauntingWorld extends GridWorld {
    * Sliding doors change only their collider and navigation wall. The station
    * hull stays allocated; unchanged snapshots do not trigger graph updates.
    */
-  private applyDoors(dt: number): void {
-    const now = this.state.shut.join(',') + `/test:${this.state.crew.options.test}`;
-    const before = this.builtDoors;
-    this.builtDoors = now;
-    const shut = new Set(this.state.shut);
-    const doors = this.state.crew.options.test
-      ? [...this.spec.doors, TRAINING_DOOR]
-      : this.spec.doors;
+  /**
+   * **Wer gerade in einem Durchgang stehen könnte** — Techniker, Monster,
+   * Drohne, der Modelltechniker und die Mitspieler übers Netz, in Metern.
+   *
+   * Zwei Stellen brauchen dieselbe Liste, und sie müssen sich einig sein: Die
+   * Schiebetür hält den Durchgang auf, solange jemand darin steht
+   * (`AutomaticDoors`), und der Spuk sucht sich eine Tür, in der niemand steht
+   * (`haunt.slammable`). Eine Liste — sonst hält die eine auf, was die andere
+   * zuschlägt.
+   */
+  private doorOccupants(): Array<{ x: number; y?: number; z: number }> {
     const occupants: Array<{ x: number; y?: number; z: number }> = [];
     if (this.context?.role === 'vr') occupants.push(this.context.rig.getHeadPosition(_head));
     if (this.state.monster) occupants.push(this.state.monster);
@@ -2392,6 +2400,18 @@ export class HauntingWorld extends GridWorld {
       )
         occupants.push({ x: peer.pose.head[0], y: peer.pose.head[1], z: peer.pose.head[2] });
     }
+    return occupants;
+  }
+
+  private applyDoors(dt: number): void {
+    const now = this.state.shut.join(',') + `/test:${this.state.crew.options.test}`;
+    const before = this.builtDoors;
+    this.builtDoors = now;
+    const shut = new Set(this.state.shut);
+    const doors = this.state.crew.options.test
+      ? [...this.spec.doors, TRAINING_DOOR]
+      : this.spec.doors;
+    const occupants = this.doorOccupants();
     for (const door of doors) {
       const at = doorEdge(door);
       const open = this.automaticDoors.step(door.id, at, shut.has(door.id), occupants, dt);
@@ -2444,6 +2464,7 @@ export class HauntingWorld extends GridWorld {
         monster: this.state.monsterOn ? this.state.monster : null,
         lit: this.state.lit,
         shut: this.state.shut,
+        occupants: this.doorOccupants(),
       },
       dt,
     );

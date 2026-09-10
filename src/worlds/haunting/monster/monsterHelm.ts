@@ -237,7 +237,8 @@ function pryDoor(arena: MonsterArena, id: string): string {
   if (!door) return 'Hier ist nichts.';
   const locks = arena.locks?.();
   if (door.material === 'wood') {
-    if (locks) replaceShut(state.shut, releaseLock(locks, state.shut, door.id));
+    if (locks)
+      replaceShut(state.shut, releaseLock(locks, state.shut, door.id, arena.time?.() ?? 0));
     else {
       const at = state.shut.indexOf(door.id);
       if (at >= 0) state.shut.splice(at, 1);

@@ -690,6 +690,12 @@ export class FlatRound implements MapSource {
         monster: this.haunt.monsterOn ? this.haunt.monster : null,
         lit: this.haunt.lit,
         shut: this.haunt.shut,
+        // Keine Tür auf den Kopf: Wer im Durchgang steht, wird nicht
+        // eingeklemmt (`haunt.slammable`).
+        occupants:
+          this.haunt.monsterOn && this.haunt.monster
+            ? [this.player, this.haunt.monster]
+            : [this.player],
       },
       dt,
     );
@@ -1022,7 +1028,7 @@ export class FlatRound implements MapSource {
       if (!this.blocked || this.blocked.id !== door.id)
         this.blocked = { id: door.id, since: this.haunt.time };
       if (door.material === 'wood' && this.haunt.time - this.blocked.since > WOOD_DELAY) {
-        this.haunt.shut = releaseLock(this.locks, this.haunt.shut, door.id);
+        this.haunt.shut = releaseLock(this.locks, this.haunt.shut, door.id, this.haunt.time);
         this.events.push({ kind: 'warn', text: 'Holz splittert.' });
         this.wave(MONSTER_ID, doorCentre(door), NOISE.slam, 'slam');
         this.blocked = null;
@@ -1314,6 +1320,9 @@ export class FlatRound implements MapSource {
     const before = this.locks.chosen;
     const out = toggleLock(this.locks, this.haunt.shut, id, this.haunt.time, () => this.rng.next());
     this.haunt.shut = out.shut;
+    // Eine eben freigewordene Tür bleibt einen Moment frei (`LOCK_COOLDOWN`),
+    // sonst kommt niemand mehr hindurch, der davor steht.
+    if (out.blocked) return 'Der Riegel ist noch warm.';
     if (!out.locked) return 'Tür entriegelt.';
     return before && before !== id
       ? 'Tür verriegelt · die vorherige ist wieder offen.'

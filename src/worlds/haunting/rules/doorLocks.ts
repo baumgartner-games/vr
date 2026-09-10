@@ -18,6 +18,14 @@
  *   Eine Tür, die für immer zu bleibt, ist keine Entscheidung, sondern eine
  *   Wand; und wer sie gesperrt hat, will wissen, wie lange noch, deshalb
  *   sagt `holdUntil` es für den Balken über der Tür.
+ * - **Eine Tür, die gerade frei geworden ist, bleibt eine Weile frei**
+ *   (`LOCK_COOLDOWN`). Ohne diese vierte Regel war der Rest eine Einladung:
+ *   Der Riegel fällt, die Tafel legt ihn sofort wieder um — oder der Spuk
+ *   schlägt dieselbe Tür ein zweites Mal zu, während noch jemand darin steht
+ *   —, und für den, der davor wartet, geht sie nie wieder auf. Wer sich
+ *   durchgezogen hat, soll auch hindurchkommen; deshalb ist eine eben
+ *   entriegelte Tür für `LOCK_COOLDOWN` Sekunden weder wählbar noch
+ *   zuschlagbar. Freigeben darf man sie natürlich jederzeit.
  * - **Das Monster kann eine Sperre aufbrechen** (`pryLock`), und es lohnt
  *   sich: Der erste Versuch geht **nie** auf — ein Riegel gibt nicht beim
  *   ersten Zug nach —, danach steigt die Aussicht mit jedem weiteren
@@ -40,6 +48,12 @@ export const PRY_COOLDOWN = 1.1;
 export const PRY_GAIN = 0.15;
 /** Womit der zweite Versuch anfängt — der erste geht nie auf. */
 export const PRY_BASE = 0.3;
+/**
+ * Wie lange eine Tür nach dem Ende einer Sperre frei bleibt, in Sekunden —
+ * lang genug, dass jemand hindurchgeht, kurz genug, dass die Tafel im Notfall
+ * bald wieder etwas zu entscheiden hat.
+ */
+export const LOCK_COOLDOWN = 12;
 
 export interface DoorLocks {
   /** Die eine gewollt gesperrte Tür — `''`, wenn keine. */
@@ -50,10 +64,12 @@ export interface DoorLocks {
   slams: Array<{ id: string; until: number }>;
   /** Wie oft an einer Tür schon gezogen wurde, und wann zuletzt. */
   pries: Array<{ id: string; tries: number; last: number }>;
+  /** Türen, die gerade frei geworden sind, und wann sie wieder sperrbar sind. */
+  cooling: Array<{ id: string; until: number }>;
 }
 
 export function freshLocks(): DoorLocks {
-  return { chosen: '', until: 0, slams: [], pries: [] };
+  return { chosen: '', until: 0, slams: [], pries: [], cooling: [] };
 }
 
 /** Ob diese Tür die gewollt gesperrte ist. */
@@ -77,6 +93,33 @@ export function holdUntil(locks: DoorLocks, id: string): number | null {
 }
 
 /**
+ * **Wann diese Tür wieder gesperrt werden darf** — `null`, wenn sofort. Für
+ * die Tafel ist das die Zahl, die erklärt, warum ihr Schalter gerade nichts
+ * tut: nicht kaputt, sondern noch warm.
+ */
+export function coolingUntil(locks: DoorLocks, id: string): number | null {
+  return locks.cooling.find((one) => one.id === id)?.until ?? null;
+}
+
+/** Ob diese Tür jetzt gesperrt werden darf — von Hand, von der Tafel oder vom Spuk. */
+export function mayLock(locks: DoorLocks, id: string, time: number): boolean {
+  const until = coolingUntil(locks, id);
+  return until === null || until <= time;
+}
+
+/**
+ * **Merken, dass diese Tür gerade frei geworden ist.** Jeder Weg aus einer
+ * Sperre heraus geht hier durch — abgelaufen, freigegeben, aufgezogen —,
+ * damit es keine Hintertür gibt, durch die eine Tür sofort wieder zufällt.
+ */
+function cool(locks: DoorLocks, id: string, time: number): void {
+  const until = time + LOCK_COOLDOWN;
+  const entry = locks.cooling.find((one) => one.id === id);
+  if (entry) entry.until = Math.max(entry.until, until);
+  else locks.cooling.push({ id, until });
+}
+
+/**
  * **Eine Tür gewollt sperren.** Die vorher gewählte geht dabei auf; war die
  * Tür nur zugefallen, wird sie zur gewählten und bekommt die Frist der Hand.
  *
@@ -89,6 +132,9 @@ export function chooseLock(
   time = 0,
   roll: () => number = Math.random,
 ): string[] {
+  // Eine eben freigewordene Tür bleibt frei (`LOCK_COOLDOWN`) — sonst steht
+  // der, der gerade hindurchwollte, vor demselben Riegel wie zuvor.
+  if (!mayLock(locks, id, time)) return [...shut];
   const next = shut.filter((one) => one !== locks.chosen && one !== id);
   next.push(id);
   locks.chosen = id;
@@ -98,13 +144,19 @@ export function chooseLock(
 }
 
 /** **Eine Tür freigeben** — gewollt oder zugefallen, für die Tafel ist das dasselbe. */
-export function releaseLock(locks: DoorLocks, shut: readonly string[], id: string): string[] {
+export function releaseLock(
+  locks: DoorLocks,
+  shut: readonly string[],
+  id: string,
+  time = 0,
+): string[] {
   if (locks.chosen === id) {
     locks.chosen = '';
     locks.until = 0;
   }
   locks.slams = locks.slams.filter((slam) => slam.id !== id);
   locks.pries = locks.pries.filter((pry) => pry.id !== id);
+  if (shut.includes(id)) cool(locks, id, time);
   return shut.filter((one) => one !== id);
 }
 
@@ -118,9 +170,14 @@ export function toggleLock(
   id: string,
   time = 0,
   roll: () => number = Math.random,
-): { shut: string[]; locked: boolean } {
-  if (shut.includes(id)) return { shut: releaseLock(locks, shut, id), locked: false };
-  return { shut: chooseLock(locks, shut, id, time, roll), locked: true };
+): { shut: string[]; locked: boolean; blocked: boolean } {
+  if (shut.includes(id))
+    return { shut: releaseLock(locks, shut, id, time), locked: false, blocked: false };
+  // Ein Schalter, der wortlos nichts tut, gilt als kaputter Schalter. Deshalb
+  // sagt der Rückgabewert, dass die Tür noch warm ist, und die Oberfläche sagt
+  // es weiter.
+  if (!mayLock(locks, id, time)) return { shut: [...shut], locked: false, blocked: true };
+  return { shut: chooseLock(locks, shut, id, time, roll), locked: true, blocked: false };
 }
 
 /** **Eine Tür fällt zu** (der Spuk): sie hält `SLAM_HOLD` Sekunden ab `time`. */
@@ -131,6 +188,9 @@ export function slamDoor(
   time: number,
 ): string[] {
   if (shut.includes(id)) return [...shut];
+  // Auch der Spuk darf dieselbe Tür nicht sofort wieder zuschlagen: Zweimal
+  // hintereinander dieselbe Tür ist keine Bedrohung mehr, sondern eine Wand.
+  if (!mayLock(locks, id, time)) return [...shut];
   locks.slams = [...locks.slams.filter((slam) => slam.id !== id), { id, until: time + SLAM_HOLD }];
   return [...shut, id];
 }
@@ -187,7 +247,7 @@ export function pryLock(
     pry.last = time;
   } else locks.pries.push({ id, tries, last: time });
   if (roll() >= pryChance(tries)) return { shut: [...shut], opened: false, tries };
-  return { shut: releaseLock(locks, shut, id), opened: true, tries };
+  return { shut: releaseLock(locks, shut, id, time), opened: true, tries };
 }
 
 /**
@@ -222,5 +282,7 @@ export function stepLocks(
   }
   const left = shut.filter((id) => !opened.includes(id));
   locks.pries = locks.pries.filter((pry) => left.includes(pry.id));
+  for (const id of opened) cool(locks, id, time);
+  locks.cooling = locks.cooling.filter((one) => one.until > time);
   return { shut: left, opened };
 }
