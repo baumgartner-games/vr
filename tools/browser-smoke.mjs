@@ -150,14 +150,35 @@ for (const name of browserNames) {
           'Archive is a map with a dossier, not a list of tabs',
         );
         await shot('archive-desktop');
-        // Ein Tipp in die Mitte der Station schlägt eine Raumakte auf.
-        await page.locator('.role--archive .mapview__canvas').click();
-        await page.locator('.role__sheet .role__code').waitFor();
-        const dossier = await page.locator('.role__sheet').innerText();
+        // Ein Tipp auf ein Zimmer schlägt die Raumakte auf. Wo die Zimmer
+        // liegen, entscheidet der Same, und ein Gang hat keinen Code: Also
+        // wird ein Raster über die Karte getippt, bis eine Akte mit Codes
+        // aufgeht — und nicht auf die Mitte gehofft.
+        const chart = page.locator('.role--archive .mapview__canvas');
+        const chartBox = await chart.boundingBox();
+        const openSheet = page.locator('.role__sheet:not([hidden])');
+        let dossier = '';
+        for (const [fx, fy] of [
+          [0.5, 0.5], [0.42, 0.46], [0.58, 0.46], [0.42, 0.56], [0.58, 0.56],
+          [0.34, 0.5], [0.66, 0.5], [0.5, 0.38], [0.5, 0.62], [0.28, 0.42],
+          [0.72, 0.58], [0.24, 0.56], [0.76, 0.44], [0.5, 0.3], [0.5, 0.7],
+        ]) {
+          await chart.click({
+            position: { x: chartBox.width * fx, y: chartBox.height * fy },
+          });
+          await page.waitForTimeout(150);
+          if (await openSheet.locator('.role__code').count()) {
+            dossier = await openSheet.innerText();
+            break;
+          }
+          const close = openSheet.locator('[data-close]');
+          if (await close.count()) await close.click();
+        }
+        assert(dossier, 'A room dossier with codes opens from the archive map');
         assert.match(dossier, /Schutzschrank-Code/);
         assert.match(dossier, /[1-4]{3,}/);
         await shot('archive-dossier');
-        await page.locator('.role__sheet [data-close]').click();
+        await openSheet.locator('[data-close]').click();
 
         await page.setViewportSize({ width: 390, height: 844 });
         const layout = await page.evaluate(() => {
