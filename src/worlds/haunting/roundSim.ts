@@ -12,6 +12,7 @@ import { MonsterRoutine, paceSpeed, type MonsterMode } from './monsterRoutine';
 import { Rng } from './rng';
 import { stationGraph, COMMAND, type StationGraph } from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
+import { taskCargo } from './rules/cargo';
 import { DEFAULT_TUNING, type BotTuning } from './botTuning';
 import { HEARING, Hearing, reachOf, type HearingWorld } from './audio/hearing';
 import { NOISE } from './audio/cues';
@@ -447,8 +448,7 @@ function plan(
 ): Job[] {
   const jobs: Job[] = [];
   for (const repair of repairsFor(spec)) {
-    const cargoRoom = spec.tasks.find((task) => task.id === repair.itemId)?.roomId;
-    const cargo = layout.find((item) => item.id === `cargo-${cargoRoom}`);
+    const cargo = layout.find((item) => item.id === taskCargo(spec, repair.itemId).id);
     const console = layout.find((item) => item.id === `console-${repair.id}`);
     if (cargo)
       jobs.push({

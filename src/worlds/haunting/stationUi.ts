@@ -34,6 +34,7 @@ import { atHome, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
+import { taskCargo } from './rules/cargo';
 import type { LobbyChoice } from './rules/lobby';
 import type { RoleView } from './registry/roles';
 import type { MonsterPort } from './monster/monsterDriver';
@@ -1085,7 +1086,13 @@ export class StationUi {
       const tasks = spec.tasks.filter((task) => task.roomId === room.id);
       for (const task of tasks) {
         const repair = repairsFor(spec).find((one) => one.itemId === task.id);
-        sheet.append(fact('Fracht / Fundhinweis', `${task.label} · ${task.hint}`, true));
+        // **Der Hinweis nennt die Kiste und nicht das Möbel.** Solange in
+        // jedem Raum eine Kiste stand, reichte „bei dem Frachtcontainer";
+        // jetzt stehen zwei bis drei nebeneinander, und der Archivar hat als
+        // Einziger, was sie unterscheidet: Nummer, Farbband und Wand.
+        sheet.append(
+          fact('Fracht / Fundhinweis', `${task.label} · ${taskCargo(spec, task.id).clue}`, true),
+        );
         if (repair) sheet.append(fact('Benötigt für', repair.title));
       }
       for (const repair of repairsFor(spec).filter((one) => one.roomId === room.id)) {

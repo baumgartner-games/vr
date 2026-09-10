@@ -3,6 +3,7 @@ import { TILE, dirX, dirZ } from '../nav/navTile';
 import { FIXTURE_CATALOG } from './fixtureDimensions';
 import { generateHouse, type HouseRoom } from './house';
 import { repairsFor, ROOM_COUNTS } from './mission';
+import { CARGO_PER_ROOM, taskCargo } from './rules/cargo';
 import { VentNet } from './vents/ventGraph';
 import {
   safeRoomSpawn,
@@ -88,11 +89,19 @@ describe('station module placement', () => {
           for (const room of spec.rooms) {
             const modules = layout.filter((p) => p.roomId === room.id),
               spawn = safeRoomSpawn(spec, room.id);
-            for (const kind of ['cargo', 'locker']) {
-              const matches = modules.filter((p) => p.kind === kind).length;
-              if (matches !== 1)
-                throw new Error(`Room ${room.id} needs exactly one ${kind}; found ${matches}`);
-            }
+            const lockers = modules.filter((p) => p.kind === 'locker').length;
+            if (lockers !== 1)
+              throw new Error(`Room ${room.id} needs exactly one locker; found ${lockers}`);
+            // **Zwei bis drei Kisten je Raum** (`CARGO_PER_ROOM`): Erst mehr
+            // Kisten als Inhalte machen aus dem Zugreifen ein Suchen. Zwei
+            // sind Pflicht, die dritte fällt weg, wo der Grundriss sie nicht
+            // trägt — mehr als drei darf es nie werden.
+            const boxes = modules.filter((p) => p.kind === 'cargo');
+            if (boxes.length < CARGO_PER_ROOM[0] || boxes.length > CARGO_PER_ROOM[1])
+              throw new Error(`Room ${room.id} has ${boxes.length} cargo modules`);
+            for (const box of boxes)
+              if (!new RegExp(`^cargo-${room.id}-[1-9]\\d*$`).test(box.id))
+                throw new Error(`Cargo id ${box.id} does not belong to room ${room.id}`);
             const fixture = modules.find(
               (p) => p.kind === 'fixture' && p.markId === room.signature,
             );
@@ -154,6 +163,15 @@ describe('station module placement', () => {
                 );
               }
             }
+          }
+          // Die Aufgabenkiste steht in dem Raum, den `spec.tasks` nennt —
+          // sonst schickt der Archivar den Techniker in den falschen.
+          for (const task of spec.tasks) {
+            const slot = taskCargo(spec, task.id);
+            if (slot.roomId !== task.roomId)
+              throw new Error(`Task ${task.id} sits in ${slot.roomId}, not in ${task.roomId}`);
+            if (!layout.some((p) => p.id === slot.id && p.kind === 'cargo'))
+              throw new Error(`Task cargo ${slot.id} is not placed`);
           }
         } catch (error) {
           throw new Error(`${count} rooms, seed ${seed}: ${String(error)}`);

@@ -35,6 +35,10 @@ const SLOW = [
   'worlds/haunting/shipArt.test.ts',
   'worlds/navlab/labSim.test.ts',
   'worlds/haunting/missionBot.test.ts',
+  // Die Kisten prüfen hundert Häuser, und jedes davon muss erst gestellt
+  // werden (`stationLayout`, gut eine fünftel Sekunde je Haus): rund
+  // dreiviertel Minute, die in der schnellen Runde nichts zu suchen hat.
+  'worlds/haunting/rules/cargo.test.ts',
 ];
 
 const slowOnly = process.env.JEST_SLOW === '1';

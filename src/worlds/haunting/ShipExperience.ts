@@ -47,6 +47,7 @@ import type { Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
 import { CabinWreck } from './rules/cabinWreck';
+import { cargoKey, cargoLabel, cargoOf } from './rules/cargo';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -126,10 +127,15 @@ interface Cabinet {
   room: string;
   group: THREE.Group;
   leaf: THREE.Mesh;
+  /** Was drinliegt — bei einer leeren Kiste nichts, und dann fehlt auch das Modell. */
   loot: string;
-  lootMesh: THREE.Object3D;
+  /** Was von außen draufsteht: „Kiste 2 · blau". */
+  mark: string;
+  /** Woran hängt, ob die Kiste erledigt ist (`cargoKey`). */
+  key: string;
+  lootMesh: THREE.Object3D | null;
   scanner: THREE.Object3D;
-  scanSubject: { object: THREE.Object3D };
+  scanSubject: { object: THREE.Object3D } | null;
   at: THREE.Vector3;
   leafY: number;
   leafHeight: number;
@@ -577,12 +583,22 @@ export class ShipExperience {
   private buildCabinets(): void {
     const spec = this.host.spec();
     const layout = stationLayout(spec);
-    let extraIndex = 0;
+    // Was in welcher Kiste liegt, würfelt das Schiff nicht mehr selbst: Es
+    // liest dieselbe Liste wie Karte, Netz und Archiv (`rules/cargo.ts`).
+    for (const slot of cargoOf(spec)) {
+      const at = layout.find((p) => p.id === slot.id);
+      if (!at) continue;
+      this.cabinet(
+        slot.id,
+        slot.roomId,
+        new THREE.Vector3(at.x, 0, at.z),
+        slot.loot.kind === 'empty' ? '' : cargoKey(slot),
+        at.yaw,
+        cargoLabel(slot),
+        cargoKey(slot),
+      );
+    }
     for (const room of spec.rooms) {
-      const task = spec.tasks.find((t) => t.roomId === room.id);
-      const loot = task ? task.id : ['radar', 'xray', 'medkit', 'medkit'][extraIndex++ % 4]!;
-      const at = layout.find((p) => p.id === `cargo-${room.id}`)!;
-      this.cabinet(at.id, room.id, new THREE.Vector3(at.x, 0, at.z), loot, at.yaw);
       const safe = layout.find((p) => p.id === `locker-${room.id}`)!;
       this.locker(
         room.id,
@@ -593,23 +609,42 @@ export class ShipExperience {
     }
     this.cabinet('test-supply', '', new THREE.Vector3(2.8, 0, APRON.z * TILE + 0.7), 'test-kit');
   }
-  private cabinet(id: string, room: string, at: THREE.Vector3, loot: string, yaw = 0): void {
+  private cabinet(
+    id: string,
+    room: string,
+    at: THREE.Vector3,
+    loot: string,
+    yaw = 0,
+    mark = 'Fracht',
+    key = loot || id,
+  ): void {
     const { root: g, door: leaf, lootMount, screenMount } = buildCargoCabinet();
     g.position.copy(at);
     g.rotation.y = yaw;
     g.name = id;
-    const badge = label(loot === 'test-kit' ? 'TESTAUSRÜSTUNG' : 'FRACHT / ÖFFNEN', 0.65, 0.13);
+    // Das Kennzeichen steht außen auf dem Blatt: Wer „Kiste 2, blaues Band"
+    // zugerufen bekommt, muss es an der Kiste wiederfinden können.
+    const badge = label(loot === 'test-kit' ? 'TESTAUSRÜSTUNG' : mark.toUpperCase(), 0.65, 0.13);
     badge.position.copy(screenMount).sub(leaf.position);
     leaf.add(badge);
-    const lootMesh = this.mesh([0.28, 0.16, 0.22], loot === 'medkit' ? 0xc9ddcb : SHIP.amber, g, [
-      lootMount.x,
-      lootMount.y,
-      lootMount.z,
-    ]);
-    const lootTag = label(lootLabel(this.host.spec(), loot), 0.66, 0.16, SHIP.amber);
-    lootTag.position.set(0, 0.84, 0.08);
-    g.add(lootTag);
-    const scanner = label(lootLabel(this.host.spec(), loot), 0.7, 0.16, SHIP.cyan);
+    // **Eine leere Kiste bekommt kein Modell und kein Schild.** Sie ist von
+    // außen keine andere Kiste als die volle — das ist der ganze Sinn —, und
+    // wer sie aufmacht, sieht nichts, statt ein leeres Regal mit Beschriftung.
+    const lootMesh = loot
+      ? this.mesh([0.28, 0.16, 0.22], loot === 'medkit' ? 0xc9ddcb : SHIP.amber, g, [
+          lootMount.x,
+          lootMount.y,
+          lootMount.z,
+        ])
+      : null;
+    const lootTag = lootMesh
+      ? label(lootLabel(this.host.spec(), loot), 0.66, 0.16, SHIP.amber)
+      : null;
+    if (lootTag) {
+      lootTag.position.set(0, 0.84, 0.08);
+      g.add(lootTag);
+    }
+    const scanner = label(lootLabel(this.host.spec(), loot) || mark, 0.7, 0.16, SHIP.cyan);
     scanner.material.depthTest = false;
     scanner.material.transparent = true;
     scanner.material.opacity = 0.85;
@@ -623,9 +658,11 @@ export class ShipExperience {
       group: g,
       leaf,
       loot,
+      mark,
+      key,
       lootMesh,
       scanner,
-      scanSubject: { object: lootMesh },
+      scanSubject: lootMesh ? { object: lootMesh } : null,
       at,
       leafY: leaf.position.y,
       leafHeight: 1.15,
@@ -633,11 +670,15 @@ export class ShipExperience {
     g.userData.roomId = room;
     this.root.add(g);
     leaf.userData.interactionLabel = 'E: Frachtschrank öffnen / schließen';
-    lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
-    lootTag.userData.interactionLabel = lootMesh.userData.interactionLabel;
     this.bind(leaf, () => this.openCabinet(id));
-    this.bind(lootMesh, () => this.takeLoot(id));
-    this.bind(lootTag, () => this.takeLoot(id));
+    if (lootMesh) {
+      lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
+      this.bind(lootMesh, () => this.takeLoot(id));
+    }
+    if (lootTag) {
+      lootTag.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
+      this.bind(lootTag, () => this.takeLoot(id));
+    }
   }
   private openCabinet(id: string): void {
     if (!this.active) return;
@@ -645,8 +686,17 @@ export class ShipExperience {
       this.host.say('Testschrank: zuerst TEST / OHNE MONSTER drücken.');
       return;
     }
+    const box = this.cabinets.find((c) => c.id === id);
     if (!this.crew.opened.includes(id)) this.crew.opened.push(id);
-    else this.crew.opened = this.crew.opened.filter((x) => x !== id);
+    else if (box && !box.loot && !this.crew.inventory.includes(box.key)) {
+      // **Die leere Kiste kostet zwei Griffe.** Aufmachen macht Geräusch,
+      // Hineinsehen kostet den zweiten Moment — und erst danach ist sie
+      // erledigt und leuchtet nirgends mehr als Ziel.
+      this.crew.inventory.push(box.key);
+      this.host.say('Leer.');
+      this.sound('door');
+      return;
+    } else this.crew.opened = this.crew.opened.filter((x) => x !== id);
     this.sound('door');
   }
   private takeLoot(id: string): void {
@@ -1170,8 +1220,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
 
   private get scanSubjects(): readonly { object: THREE.Object3D }[] {
     return this.cabinets
-      .filter((cabinet) => !this.crew.inventory.includes(cabinet.id))
-      .map((cabinet) => cabinet.scanSubject);
+      .filter((cabinet) => !!cabinet.scanSubject && !this.crew.inventory.includes(cabinet.id))
+      .map((cabinet) => cabinet.scanSubject!);
   }
 
   private updateTools(dt: number): void {
@@ -1276,7 +1326,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       const amount = THREE.MathUtils.damp(cabinet.leaf.scale.y, opened ? 0.025 : 1, 8, dt);
       cabinet.leaf.scale.y = amount;
       cabinet.leaf.position.y = cabinet.leafY + ((1 - amount) * cabinet.leafHeight) / 2;
-      cabinet.lootMesh.visible = !crew.inventory.includes(cabinet.id);
+      if (cabinet.lootMesh) cabinet.lootMesh.visible = !crew.inventory.includes(cabinet.id);
       cabinet.group.visible =
         (cabinet.id !== 'test-supply' || crew.options.test) &&
         (!cabinet.room || !this.visibleRooms || this.visibleRooms.has(cabinet.room));
@@ -1793,8 +1843,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     button('Medkit', 'heal');
     if (crew.hidden) button('Schutzschrank verlassen', 'leave');
     if (near.cabinet && !crew.hidden) {
-      button('Fracht öffnen / schließen', `open:${near.cabinet.id}`);
-      if (crew.opened.includes(near.cabinet.id))
+      button(`${near.cabinet.mark} öffnen / schließen`, `open:${near.cabinet.id}`);
+      if (crew.opened.includes(near.cabinet.id) && near.cabinet.loot)
         button(
           `Nehmen: ${lootLabel(this.host.spec(), near.cabinet.loot)}`,
           `loot:${near.cabinet.id}`,
