@@ -5,7 +5,13 @@ import type { DroneRoute } from './droneRoute';
 import type { HouseSpec } from './house';
 import { stationRoute } from './stationNavigation';
 
-/** Per-monster route cursor. Shared geometry/search storage lives in stationRoute. */
+/**
+ * Per-monster route cursor. Shared geometry/search storage lives in stationRoute.
+ *
+ * `comfort` is the extra clearance added to the body radius when routing: the
+ * physical capsule in 3D gets a tenth of a metre; the 2D world, whose
+ * `walkable` already insets rooms by its own radius, passes a smaller one.
+ */
 export class StationNpcNavigator {
   private route: DroneRoute | null = null;
   private cursor = 0;
@@ -21,6 +27,7 @@ export class StationNpcNavigator {
   constructor(
     private readonly spec: () => HouseSpec,
     private readonly graph: () => NavGraph | null,
+    private readonly comfort = 0.1,
   ) {}
 
   get navigation() {
@@ -52,7 +59,7 @@ export class StationNpcNavigator {
         graph,
         { x: input.at.x, z: input.at.z, yaw: 0 },
         { x: input.target.x, z: input.target.z },
-        input.radius + 0.1,
+        input.radius + this.comfort,
       );
       // A door/body contact can push the capsule into our optional comfort margin.
       // Recover with its real radius, never with a path through solid geometry.
