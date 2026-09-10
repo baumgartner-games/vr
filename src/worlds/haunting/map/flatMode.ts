@@ -18,6 +18,7 @@ import { INK, MapView, type MapGoal, type MapRoute } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
+import { taskCargo } from '../rules/cargo';
 import { hudTasks } from '../rules/roundHud';
 import {
   defaultSetup,
@@ -689,7 +690,9 @@ export class FlatMode {
           'Fracht',
           `${item.label} · ${item.state === 'taken' ? 'mitgenommen' : item.state === 'open' ? 'geöffnet' : 'verschlossen'}`,
         );
-        if (task && item.state !== 'taken') line('Fundhinweis', task.hint);
+        // Der Hinweis des Archivars nennt die Kiste und ihre Wand
+        // (`rules/cargo.ts`), nicht mehr das Möbel daneben.
+        if (task && item.state !== 'taken') line('Fundhinweis', taskCargo(spec, task.id).clue);
       } else if (item.kind === 'console') {
         const repair = repairsFor(spec).find((r) => r.title === item.label);
         line('Konsole', `${item.label} · ${item.state === 'solved' ? 'repariert' : 'defekt'}`);

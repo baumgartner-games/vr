@@ -109,6 +109,7 @@ import { Rng, rollSeed } from './rng';
 import { StationUi } from './stationUi';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
+import { taskCargo } from './rules/cargo';
 import { RoundRules } from './rules/roundRules';
 import {
   HOLD_RANGE,
@@ -3606,7 +3607,11 @@ export class HauntingWorld extends GridWorld {
       if (state.done.includes(repair.itemId)) continue;
       const task = this.spec.tasks.find((t) => t.id === repair.itemId);
       const carried = state.crew.inventory.includes(repair.itemId);
-      const cargo = task ? layout.find((p) => p.id === `cargo-${task.roomId}`) : null;
+      // Seit jeder Raum zwei bis drei Kisten hat, heißt die richtige nicht mehr
+      // `cargo-<raum>`, sondern steht in der einen Liste (`rules/cargo.ts`).
+      // Vorher fand `find` hier nichts, und der Kompass zeigte für ein noch
+      // gar nicht geholtes Teil schon auf die Konsole.
+      const cargo = task ? layout.find((p) => p.id === taskCargo(this.spec, task.id).id) : null;
       const console = layout.find((p) => p.id === `console-${repair.id}`);
       if (!carried && cargo)
         out.push({
