@@ -1,12 +1,16 @@
 /** @jest-environment jsdom */
+import { FIXTURE_CATALOG, LOCKER_SIZE, markHeight } from '../fixtureDimensions';
 import {
   CREW_COLORS,
   crewColor,
   drawCrewmate,
+  drawFixture,
   drawMonster,
   drawName,
   drawProp,
   facingOf,
+  fixtureHeight,
+  hull,
   legLift,
   linearGradient,
   monsterHeight,
@@ -165,5 +169,61 @@ describe('Monster und Requisiten', () => {
         [1, '#000000'],
       ]),
     ).toBe('#123456');
+  });
+  it('nimmt für ein Möbel die Höhe seines Bausteins, nicht die Hülle der Aufstellung', () => {
+    // `FIXTURE_CATALOG` sagt, wie viel Platz ein Möbel beim Stellen braucht —
+    // samt Griffen und Luft darüber. Auf dem Bild ist das die falsche Zahl:
+    // Ein Esstisch von 1,6 m sähe aus wie ein Schrank. Gezeichnet wird die
+    // Höhe des Klotzes, aus dem auch das 3D-Modell gebaut wird.
+    const table = markHeight('esstisch');
+    expect(table).toBeLessThan(FIXTURE_CATALOG.esstisch.height);
+    expect(fixtureHeight({ kind: 'fixture', mark: 'esstisch' })).toBe(table);
+    // Ein Regal steht höher als ein Tisch, eine Bank niedriger.
+    expect(markHeight('buecher')).toBeGreaterThan(table);
+    expect(markHeight('bett')).toBeLessThan(table);
+    // Module bringen ihre eigene Höhe mit — die ist beim Modul die richtige.
+    expect(fixtureHeight({ kind: 'locker' })).toBe(LOCKER_SIZE.height);
+    // Und ein Möbel ohne Sorte fällt auf einen Meter zurück statt auf NaN.
+    expect(fixtureHeight({ kind: 'fixture' })).toBe(1);
+  });
+
+  it('zeichnet ein Möbel als Klotz mit Umriss und Deckfläche', () => {
+    const { ctx, calls } = fakeContext();
+    drawFixture(ctx, 40, 60, 50, {
+      kind: 'fixture',
+      mark: 'esstisch',
+      yaw: 0,
+      width: 1.8,
+      depth: 1,
+    });
+    // Schatten, Körper und Deckel: drei geschlossene Pfade.
+    expect(named(calls, 'closePath').length).toBe(3);
+    expect(named(calls, 'fill').length).toBe(3);
+    expect(named(calls, 'stroke').length).toBe(2);
+    // Der Körper reicht um die Höhe des Tisches nach Norden über die Grundfläche.
+    const ys = named(calls, 'lineTo')
+      .concat(named(calls, 'moveTo'))
+      .map((call) => call.args[1] as number);
+    expect(Math.min(...ys)).toBeCloseTo(-(markHeight('esstisch') * 50) - (1 * 50) / 2, 5);
+    expect(Math.max(...ys)).toBeCloseTo((1 * 50) / 2, 5);
+  });
+
+  it('legt die Hülle eines gedrehten Klotzes gegen den Uhrzeigersinn', () => {
+    // Acht Punkte, vier davon innen: Der Umriss ist die konvexe Hülle aus
+    // Grundfläche und verschobener Deckfläche.
+    const square = hull([
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+      [0.5, 0.5],
+    ]);
+    expect(square).toHaveLength(4);
+    expect(square).toEqual(
+      expect.arrayContaining([
+        [0, 0],
+        [1, 1],
+      ]),
+    );
   });
 });

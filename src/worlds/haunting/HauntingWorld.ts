@@ -111,8 +111,12 @@ import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { RoundRules } from './rules/roundRules';
 import {
+  HOLD_RANGE,
+  SLAM_HOLD,
   chooseLock,
   freshLocks,
+  holdUntil,
+  isChosen,
   releaseLock,
   slamDoor,
   stepLocks,
@@ -142,7 +146,7 @@ import { NetMonsterPort } from './monster/netMonsterPort';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
 import type { FlatOptions } from './map/flatRound';
-import type { FlatStage } from './map/flatStage';
+import type { ToolIcons } from './map/toolIcons';
 import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
 import {
   claimMessage,
@@ -428,6 +432,10 @@ export class HauntingWorld extends GridWorld {
     state: () => this.state,
     rider: () => (this.flatShared ? this.flat!.round.monster : this.monsterRider()),
     ride: () => (this.flatShared ? this.flat!.round.ventRide : this.ventRide),
+    // Die Buchführung der Sperren und die Uhr: Ohne sie kann das Monster
+    // keine Stahltür aufziehen (`rules/doorLocks.ts`).
+    locks: () => (this.flatShared ? this.flat!.round.locks : this.locks),
+    time: () => this.state.time,
     occupied: () => ownerOf(this.currentClaims(), 'monster') !== '',
   });
   /**
@@ -623,7 +631,8 @@ export class HauntingWorld extends GridWorld {
    * Stand für andere, wie die 3D-Bot-Runde).
    */
   private flatShared = false;
-  private flatStage: FlatStage | null = null;
+  /** Die gepufferten Werkzeugbilder der 2D-Welt (`map/toolIcons.ts`). */
+  private flatIcons: ToolIcons | null = null;
   private flatLoading = false;
   /**
    * **„2D-Welt von oben"** — die Checkbox im Van und der Menüeintrag. Eine
@@ -991,8 +1000,7 @@ export class HauntingWorld extends GridWorld {
     this.flat?.dispose();
     this.flat = null;
     this.flatShared = false;
-    this.flatStage?.dispose();
-    this.flatStage = null;
+    this.flatIcons = null;
     this.ui?.dispose();
     this.ui = null;
     this.netPort = null;
@@ -2254,7 +2262,7 @@ export class HauntingWorld extends GridWorld {
     const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
     if (!door && !trainingDoor) return;
     // Gewollt gesperrt ist immer nur eine Tür — auch vor Ort (`rules/doorLocks.ts`).
-    this.state.shut = toggleLock(this.locks, this.state.shut, id).shut;
+    this.state.shut = toggleLock(this.locks, this.state.shut, id, this.state.time).shut;
   }
 
   /** Ein Schalter der Tafel, angewendet beim Gastgeber. */
@@ -2276,7 +2284,7 @@ export class HauntingWorld extends GridWorld {
     // zugefallene darf die Tafel jederzeit freigeben (`rules/doorLocks.ts`).
     this.state.shut = on
       ? releaseLock(this.locks, this.state.shut, entry.target)
-      : chooseLock(this.locks, this.state.shut, entry.target);
+      : chooseLock(this.locks, this.state.shut, entry.target, this.state.time);
   }
 
   /** Vom Hacker aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */
@@ -2917,8 +2925,6 @@ export class HauntingWorld extends GridWorld {
       renderer.setScissorTest(false);
       renderer.setClearColor(0x070a10, 1);
       renderer.clear();
-      const rect = this.flat.viewport();
-      if (rect) this.flatStage?.render(renderer, this.flat.activeTool, rect, 1 / 60);
       return true;
     }
     const ui = this.ui;
@@ -3516,10 +3522,10 @@ export class HauntingWorld extends GridWorld {
     // aus den Tests der Welt heraus.
     void Promise.all([
       import('./map/flatMode'),
-      import('./map/flatStage'),
+      import('./map/toolIcons'),
       import('./registry/discover'),
     ])
-      .then(([mode, stage, discover]) => {
+      .then(([mode, icons, discover]) => {
         this.flatLoading = false;
         // Im Headset gibt es keine Karte von oben — dort bleibt die Brille.
         if (this.flat || ctx.renderer.xr.isPresenting) return;
@@ -3533,7 +3539,10 @@ export class HauntingWorld extends GridWorld {
           exit: () => this.closeFlat(),
           notify: (text) => ctx.notify(text),
         });
-        this.flatStage ??= new stage.FlatStage();
+        // Die Werkzeuge einmal aus ihren 3D-Modellen rendern und puffern;
+        // die 2D-Welt hängt die fertigen Bilder in ihren Knopf (`toolIcons.ts`).
+        this.flatIcons ??= new icons.ToolIcons();
+        this.flat.setToolIcons(this.flatIcons);
         document.body.append(this.flat.element);
         ctx.menu.toggle(false);
         this.ui?.refresh();
@@ -3584,6 +3593,15 @@ export class HauntingWorld extends GridWorld {
             intensity: 1,
           })),
         doorOpen: (id) => this.automaticDoors.isOpen(id),
+        // Wie lange die Sperre noch hält — der Balken über der Tür
+        // (`rules/doorLocks.ts`, `map/mapView.ts`).
+        doorHold: (id) => {
+          if (!this.state.shut.includes(id)) return null;
+          const until = holdUntil(this.locks, id);
+          if (until === null) return null;
+          const total = isChosen(this.locks, id) ? HOLD_RANGE[1] : SLAM_HOLD;
+          return { left: Math.max(0, until - this.state.time), total };
+        },
         player: () => {
           // Der Techniker in der 2D-Welt eines anderen Geräts hat kein Rig:
           // Seine Stelle kommt aus dem Stand (`HauntState.technician`).

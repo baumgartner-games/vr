@@ -4,6 +4,8 @@ import type { StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { FlatWalker } from '../map/flatWalk';
 import { FlatRound, type FlatInput } from '../map/flatRound';
+import type { RouteAvoid } from '../stationNavigation';
+import { SUIT_LIVES } from './roundRules';
 
 /**
  * **Ein Techniker aus Zahlen für die 2D-Runde** — der Prüfstand der
@@ -25,6 +27,19 @@ import { FlatRound, type FlatInput } from '../map/flatRound';
  * Abstand und der Raumkarte, nicht aus dem Sichtbarkeitsfeld. Ein Bot, der
  * das Monster erst sieht, wenn es im Licht steht, würde dieselbe Schleife
  * nie erreichen, die ein Mensch mit Ohren erreicht.
+ *
+ * **Wer das Monster gesehen hat, geht ihm aus dem Weg.** Nicht als Verbot,
+ * sondern als **Preis**: Solange er weiß, wo es steht, kostet jeder Schritt
+ * in seiner Nähe einen Aufschlag auf die Wegsuche (`stationNavigation.ts`,
+ * `RouteAvoid`) — der Umweg wird billiger als der Vorbeigang, aber der
+ * Vorbeigang bleibt möglich. Das ist wichtig: Unendliche Kosten wären eine
+ * Wand, und eine Wand, die sich bewegt, sperrt ihn irgendwann in einer Ecke
+ * ein, in der er dann stehen bleibt und stirbt.
+ *
+ * **Und der Preis steigt, je weniger Leben er hat.** Mit drei Leben geht er
+ * knapp am Monster vorbei, wenn der Umweg lang ist; mit einem läuft er
+ * lieber die halbe Station herum. Das ist dieselbe Rechnung, die ein Mensch
+ * macht: Was ein Streifschuss war, ist beim letzten Leben der Tod.
  */
 
 type Job =
@@ -42,6 +57,24 @@ const IDLE: FlatInput = { x: 0, z: 0, sprint: false };
 /** Wie lange die Handgriffe an Fracht und Konsole dauern, in Sekunden (wie `roundSim.ts`). */
 const CARGO_SECONDS = 2.6;
 const CONSOLE_SECONDS = 6.4;
+/**
+ * **Wie weit die Scheu vor dem Monster reicht**, in Metern — gut ein Zimmer.
+ * Weiter wäre keine Scheu mehr, sondern eine zweite Karte.
+ */
+const DREAD_RANGE = 7;
+/**
+ * Der Aufschlag je Rasterschritt (0,25 m) unmittelbar am Monster, bei vollem
+ * Anzug. Ein Schritt kostet sonst 1: `4` heißt, dass ein Meter direkt am
+ * Monster so teuer ist wie vier Meter Umweg.
+ */
+const DREAD_WEIGHT = 4;
+/** Und um so viel mehr beim letzten Leben — das Risiko des Todes ist dann höher. */
+const DREAD_HURT = 2.5;
+/**
+ * Wie lange er das Monster im Kopf behält, nachdem er es zuletzt bemerkt hat,
+ * in Sekunden. Danach hat er keinen Grund mehr, einen Umweg zu gehen.
+ */
+const DREAD_MEMORY = 6;
 
 export class TechnicianBot {
   private readonly walker: FlatWalker;
@@ -52,6 +85,8 @@ export class TechnicianBot {
   private calm = 0;
   private stamina: number;
   private escape: Cover | null = null;
+  /** Wo er das Monster zuletzt bemerkt hat, und bis wann er es im Kopf behält. */
+  private dread: { at: FloorPoint; until: number } | null = null;
   private readonly roll: () => number;
   /** Wie oft er sich in eine Kabine gerettet hat. */
   hides = 0;
@@ -83,7 +118,7 @@ export class TechnicianBot {
    * mit vollem Stock ankommt, schießt über das Ziel hinaus und pendelt.
    */
   private toward(goal: FloorPoint, dt: number, sprint = false): FlatInput | null {
-    const input = this.walker.input(goal, dt, sprint);
+    const input = this.walker.input(goal, dt, sprint, this.avoid());
     if (!input) return null;
     const round = this.round;
     if (round.graph.spaceAt(goal) !== round.player.space) return input;
@@ -91,6 +126,29 @@ export class TechnicianBot {
     const reach = (sprint ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED) * Math.max(dt, 1 / 30);
     const scale = Math.min(1, Math.max(0.15, distance / reach));
     return { x: input.x * scale, z: input.z * scale, sprint: input.sprint };
+  }
+
+  /**
+   * **Was er meiden will** — die Stelle, an der er das Monster zuletzt wusste,
+   * mit dem Gewicht seiner Angst. `null`, solange er nichts weiß: Dann ist
+   * der kürzeste Weg der richtige.
+   */
+  private avoid(): RouteAvoid | null {
+    const dread = this.dread;
+    if (!dread || this.round.state().time > dread.until) return null;
+    const hp = Math.max(0, Math.min(SUIT_LIVES, this.round.state().crew.hp));
+    // Voll: `DREAD_WEIGHT`. Beim letzten Leben: um `DREAD_HURT` mehr.
+    const hurt = 1 - hp / SUIT_LIVES;
+    return {
+      at: dread.at,
+      radius: DREAD_RANGE,
+      weight: DREAD_WEIGHT * (1 + hurt * DREAD_HURT),
+    };
+  }
+
+  /** Was er gerade meidet — für Anzeigen und Tests. */
+  get dreaded(): RouteAvoid | null {
+    return this.avoid();
   }
 
   /** Ein Zeitschritt: Stock lesen, Knöpfe drücken, Runde rechnen. */
@@ -110,6 +168,13 @@ export class TechnicianBot {
       (gap < this.tuning.caution || round.monster.space === round.player.space) &&
       graph.distance(round.monster.space, round.player.space) < this.tuning.caution * 1.5;
     this.calm = danger ? 0 : this.calm + dt;
+    // Solange es nah ist, weiß er, wo es steht; danach verblasst es.
+    if (danger)
+      this.dread = {
+        at: { x: round.monster.x, z: round.monster.z },
+        until: state.time + DREAD_MEMORY,
+      };
+    else if (this.dread && state.time > this.dread.until) this.dread = null;
 
     // Versteckt: still bleiben, bis lange genug Ruhe war.
     if (hidden) {
@@ -220,19 +285,33 @@ export class TechnicianBot {
   }
 
   /**
-   * **Wohin er flieht** — wie in `roundSim.chooseCover`: die Kabine ist die
-   * sichere Bank, solange niemand zusieht; das freie Feld der Ausweg, wenn
-   * jemand zusieht. Eine zerstörte Kabine steht auf der Karte als solche und
-   * kommt nicht mehr in Frage.
+   * **Wohin er flieht** — das Zwischenziel, mit dem er dem Monster entkommt:
+   * weit weg, oder in eine Kabine. Die Kabine ist die sichere Bank, solange
+   * niemand zusieht; das freie Feld der Ausweg, wenn jemand zusieht. Eine
+   * zerstörte Kabine steht auf der Karte als solche und kommt nicht mehr in
+   * Frage.
+   *
+   * Gesucht wird **zwei Zimmer weit**, nicht nur eines: Ein Sprung ins
+   * Nachbarzimmer ist kein Entkommen, wenn das Monster dieselbe Tür nimmt.
+   * Und je weniger Leben er hat, desto mehr zählt der Abstand und desto
+   * weniger der Weg dorthin — beim letzten Leben rennt er lieber weit.
    */
   private chooseCover(graph: StationGraph, gap: number): Cover {
     const round = this.round;
     const here = round.player.space;
     const watched = round.monster.space === here && gap < 8;
     const wantsLocker = !watched && this.roll() < this.tuning.hide;
+    const hurt = 1 - Math.max(0, Math.min(SUIT_LIVES, round.state().crew.hp)) / SUIT_LIVES;
+    // Angeschlagen wiegt der Abstand schwerer als der Weg dorthin.
+    const toll = 0.6 * (1 - hurt * 0.5);
+    const spaces = new Set<string>([here]);
+    for (const near of graph.neighbours(here)) {
+      spaces.add(near);
+      for (const far of graph.neighbours(near)) spaces.add(far);
+    }
     let best: Cover | null = null;
     let score = -Infinity;
-    for (const space of [here, ...graph.neighbours(here)]) {
+    for (const space of spaces) {
       if (space === round.monster.space) continue;
       const away = graph.distance(space, round.monster.space);
       const cost = graph.distance(here, space);
@@ -240,7 +319,7 @@ export class TechnicianBot {
       const options: Cover[] = [{ at: graph.centre(space), space, locker: false }];
       if (locker) options.push({ at: locker, space, locker: true });
       for (const candidate of options) {
-        const value = away - cost * 0.6 + (candidate.locker ? 9 : 0);
+        const value = away - cost * toll + (candidate.locker ? 9 : 0);
         if (value > score) {
           score = value;
           best = candidate;

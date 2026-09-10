@@ -3,6 +3,100 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Auftrag „Werkzeug-Icons, Möbel in 2D, Schall, Monster-Mechanik"
+
+Branch `claude/3d-tool-rendering-mechanics-1t62ab` (Claude Code im Browser).
+Sechs Punkte aus einer Nachricht; einer davon (die Strahlenschatten hinter
+Fensterpfosten) blieb ausdrücklich beim Auftraggeber.
+
+### Was drin ist
+
+- **Werkzeug-Icons aus den 3D-Modellen** (`map/toolIcons.ts`). Das kleine
+  3D-Bild im Loch war nie sichtbar — `.flat` liegt opak über dem
+  WebGL-Canvas. Statt das Loch freizustellen wird jedes Modell
+  (`buildToolModel`, aus `flatStage.ts` hierher gezogen) **einmal** in einen
+  eigenen, winzigen Renderer gezeichnet, posterisiert und mit dunkler Kontur
+  versehen (`comicPixels`, reine `ImageData`-Rechnung, ohne WebGL prüfbar),
+  das Bild gepuffert, der GL-Kontext danach weggeworfen. `HauntingWorld`
+  reicht den Puffer mit `FlatMode.setToolIcons` herein; die 2D-Welt hängt ein
+  gewöhnliches Canvas in den Wechseln-Knopf und kennt weiterhin kein three.js.
+  `map/flatStage.ts` und `FlatMode.viewport()` sind weg.
+- **Möbel in der 2D-Szene** (`flatArt.drawFixture`, `flatScene`). Tische,
+  Werkbänke und Inseln standen längst im Snapshot (`fixtures` aus
+  `stationLayout`) — die Karte zeichnete sie, das Spielbild nicht. Jetzt malt
+  die Szene sie in ihrer eigenen Handschrift: Grundfläche gedreht wie im
+  Schiff, Körper nach Norden, hellere Deckfläche, konvexe Hülle als Umriss.
+  Die Farben sind aus `marks.ts` nach `fixtureDimensions.MARK_COLORS`
+  gewandert und `blockFor` aus `plan.ts` dazu — dieselbe Zahl für 3D-Klotz,
+  Karte, Szene und Archiv, in einer Datei, die kein three.js kennt. Die Höhe
+  kommt über `markHeight` aus der **Bausteinhöhe** (`grid/blocks.ts`), nicht
+  aus `FIXTURE_CATALOG`: Das ist die Hülle für die Aufstellung, und ein
+  Esstisch stünde damit 1,6 m hoch im Bild.
+- **Schall über die freien Felder** (`map/noiseSpread.ts`). Die Wellen der
+  Karte liefen als Kreis: ein Schritt durch drei Wände und über den leeren
+  Weltraum. Jetzt flutet `spreadNoise` über die Bodenkacheln — Wand nein, Tür
+  nur offen, Schächte leiten in beide Richtungen wie im Hörmodell —, und
+  `tileGrid` baut das Feld einer Station einmal (Nachbarschaft mit
+  Türkennung, Wände in Fächern je Kachel). `MapView` puffert die geflutete
+  Welle je Geräusch, solange sie klingt. Gezeichnet wird sie jetzt **ganz
+  hinten**, direkt auf den Böden — und wer das Monster spielt, sieht seine
+  eigenen Wellen gar nicht.
+- **Das Monster hört sich nicht mehr selbst** (`audio/soundscape.ts`,
+  `selfMonster`): Wer es spielt, bekam seine eigenen Schritte, seinen Ruf und
+  einen Herzschlag vor sich selbst auf die Ohren.
+- **Zuschlagen ist kein Knopf mehr.** Wer in Reichweite steht, wird getroffen
+  — von der KI wie von einem Spieler am Steuer (`FlatRound.tick`). Der
+  verbliebene Knopf gilt immer dem **nächsten** Ding
+  (`monsterHelm.nearestTarget`): Klappe, Kabine oder gesperrte Tür, nur eines
+  auf einmal, hervorgehoben als pulsierender Ring auf der Karte
+  (`MapViewOptions.highlight`). Kabinen darf das Monster überall aufreißen.
+- **Keine Sperre hält ewig** (`rules/doorLocks.ts`): von Hand gesperrt
+  `HOLD_RANGE` 8–10 s (gewürfelt), zugefallen `SLAM_HOLD` 20 s; darüber ein
+  Balken auf Karte und Szene (`MapDoor.hold` über `MapSource.doorHold`). Und
+  das Monster kann **am Riegel ziehen** (`pryLock`): der erste Zug nie, danach
+  `pryChance` 0,3 und je Zug +0,15, im Takt `PRY_COOLDOWN` 1,1 s. Im Mittel
+  gut drei Züge — weniger, als das Warten kostet. Auch die KI zieht so, statt
+  vor Stahl für immer zu stehen.
+- **Der Techniker geht dem Monster aus dem Weg** (`stationNavigation.ts`,
+  `RouteAvoid`): eine Stelle, deren Umkreis je Rasterschritt Aufschlag kostet
+  — teuer, nicht verboten, denn eine bewegliche Wand sperrt ihn irgendwann in
+  einer Ecke ein. `FlatNavigator.aim` und `FlatWalker.input` reichen sie
+  durch; der `TechnicianBot` setzt sie, solange er weiß, wo es steht
+  (`DREAD_MEMORY`), **mit steigendem Gewicht, je weniger Leben er hat**. Sein
+  Zwischenziel sucht er zwei Zimmer weit statt eines.
+
+### Entscheidungen
+
+- **Icons puffern statt das Loch freizustellen.** Ein freigestelltes Loch
+  hätte die ganze 2D-Oberfläche durchsichtig machen müssen und wäre bei jedem
+  neuen Panel wieder kaputtgegangen; ein von Hand gemaltes 2D-Icon wäre eine
+  zweite Quelle für dasselbe Werkzeug. Der Puffer kostet einen GL-Kontext für
+  die Dauer eines Bildes und danach nichts mehr.
+- **Wellen über Kacheln statt über das Hörmodell.** `audio/hearing.ts`
+  rechnet Wege über Türen und Schächte und gibt effektive Meter zurück — gut
+  für Lautstärke, nutzlos für eine Fläche. `noiseSpread` flutet stattdessen
+  und liefert je Kachel eine Weglänge; beide Modelle sagen dasselbe, nur in
+  verschiedener Form.
+- **Der Netzzähler `attack` bleibt im Protokoll** (`net.ts`), damit ein alter
+  Gastgeber die `monster`-Nachricht noch versteht. Er wird nur nicht mehr
+  hochgezählt.
+
+### Offen
+
+- Die **Strahlenschatten** hinter Fensterpfosten und Türblättern
+  (`visibility.ts`, 5°-Strahlen) sind unverändert — der Auftraggeber will sie
+  sich selbst ansehen.
+- Der Snapshot der 3D-Welt führt weiterhin keine `noises()`; die Wellen
+  laufen nur in der 2D-Runde. `MapDoor.hold` liefert die 3D-Welt dagegen jetzt
+  (`HauntingWorld` über `worldSource.doorHold`).
+- Die Icons werden beim ersten Zugriff gebacken, also im ersten Bild der
+  2D-Welt. Auf einem langsamen Telefon ist das ein sichtbarer Ruckler; ein
+  Backen beim Laden der Welt wäre der nächste Schritt.
+- `NetMonsterPort.target()` rät aus dem Snapshot, was der Gastgeber
+  entscheidet (Klappenreichweite über die Klappe statt über den Standplatz
+  davor). Bei 10 Hz reicht das für die Beschriftung; ein Feld im Stand wäre
+  genauer.
+
 ## Auftrag „Verteilung, Türsperre, 2D-Karte, Kompass"
 
 Branch `claude/game-mechanics-2d-graphics-fxjdkh` (Claude Code im Browser).
@@ -46,8 +140,9 @@ am Telefon und Techniker am Stock eine Buchführung der Riegel
 - Der Snapshot der 3D-Welt (`worldSource.ts`) führt Möbel, aber keine
   Geräuschwellen — die Telefone sehen sie erst, wenn `HauntingWorld` ein
   `noises()` liefert.
-- Die Wellen sind nicht gegen Wände beschnitten (nur auf Boden); für den
-  Blick reicht das, für ein Hörmodell wäre `hearing.ts` der Ort.
+- ~~Die Wellen sind nicht gegen Wände beschnitten (nur auf Boden).~~
+  Erledigt: `map/noiseSpread.ts` flutet über die freien Felder, durch Türen
+  nur offen, für das Monster auch durch die Schächte.
 - PR #79 (Rollenansichten `views/`) berührt `stationUi.ts` und
   `HauntingWorld.ts` an denselben Stellen wie dieser Auftrag (Van-Seite,
   StationHost); wer ihn mergt, nimmt die Kachel „Verteilung" und die drei
@@ -355,16 +450,18 @@ in `docs/orbital-qa.md`.
 
 **Offen.**
 
-- Das 3D-Werkzeugbild im Loch (`flatStage`) war schon vorher nicht sichtbar:
-  `.flat` liegt opak über dem WebGL-Canvas. Entweder das Loch im
-  Szenen-Canvas freistellen oder das Werkzeug als 2D-Icon zeichnen.
+- ~~Das 3D-Werkzeugbild im Loch (`flatStage`) war schon vorher nicht
+  sichtbar.~~ Erledigt: gepufferte Comic-Icons aus den 3D-Modellen
+  (`map/toolIcons.ts`), siehe Auftrag „Werkzeug-Icons, Möbel in 2D, Schall,
+  Monster-Mechanik".
 - Die Schatten aus `visibility.ts` (5°-Strahlen) erscheinen als schwarze
   Keile hinter Fensterpfosten und Türblättern — im Szenenstil auffälliger als
   auf der Karte.
 - Der Kasten oben links überdeckt in der Einsatzzentrale den Raumnamen;
   Gangnamen sind lang und stehen nur in breiten Gängen. Gehanimation und
-  Pinch-Zoom nur per Test geprüft, nicht am Gerät. Requisiten der 3D-Welt
-  (`roomDressing`: Tische, Inseln) sind nicht im Snapshot und fehlen in 2D.
+  Pinch-Zoom nur per Test geprüft, nicht am Gerät. ~~Requisiten der 3D-Welt
+  (Tische, Inseln) fehlen in 2D.~~ Erledigt: `flatArt.drawFixture` zeichnet
+  `MapSnapshot.fixtures` auch in der Szene.
 
 **Tests.** `map/flatScene.test.ts`, `map/flatArt.test.ts`,
 `map/flatMode.test.ts` (erweitert).
@@ -1308,8 +1405,9 @@ Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und
   ver-/entriegeln, Lampen schalten, Monster aus `monsterRoutine.ts` auf der
   Raumkarte, Spuk aus `haunt.ts`, Treffer und Puls aus `mission.ts`.
   Optionsmenü mit genau den zwei Modi aus `viewModesFor('flat')`.
-  Das aktive Werkzeug wird als kleines 3D-Bild in ein Loch der Oberfläche
-  gezeichnet (`map/flatStage.ts`) — der einzige WebGL-Aufruf im 2D-Modus.
+  Das aktive Werkzeug steht als gepuffertes Comic-Icon im Wechseln-Knopf
+  (`map/toolIcons.ts`), einmal aus dem 3D-Modell gerendert — im 2D-Modus
+  läuft danach kein WebGL mehr.
 - **Umschaltung**: Checkbox „2D-Welt von oben" über den Kacheln im Van
   (`stationUi.vanPage`). Sie ist seit dem UI-Fix nur noch eine Einstellung:
   Gestartet wird mit „Bot-Runde ansehen", „Mission spielen" oder „Test ohne
@@ -1323,7 +1421,7 @@ Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und
   Felder in `StationHost` (`flatMode`, `flatActive`), die Checkbox-Kachel in
   `vanPage`, ein `else if` in `onClick`. Kein Refactor.
 - `src/worlds/haunting/HauntingWorld.ts` (gemeinsam): Imports, zwei Felder
-  (`flat`, `flatStage`), zwei Host-Callbacks, ein Kurzschluss am Anfang von
+  (`flat`, seit den Werkzeug-Icons `flatIcons`), zwei Host-Callbacks, ein Kurzschluss am Anfang von
   `tick` und von `render`, zwei Zeilen in `dispose`, und zwei neue Methoden
   (`toggleFlat`, `mapSnapshot`). Nichts Bestehendes verschoben oder umbenannt.
 

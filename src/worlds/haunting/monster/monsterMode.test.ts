@@ -29,7 +29,6 @@ describe('Als Monster in der 2D-Welt', () => {
     expect(flat.element.querySelector('.monster')).not.toBeNull();
     expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
     expect(flat.element.querySelector<HTMLElement>('.flat__map')!.hidden).toBe(true);
-    expect(flat.viewport()).toBeNull();
     expect(flat.round.driver?.active()).toBe(true);
     const start = { ...flat.round.player };
     const monster = { ...flat.round.monster };

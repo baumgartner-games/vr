@@ -87,6 +87,12 @@ export interface MapDoor {
   open: boolean;
   /** Ob sie gesperrt ist (`HauntState.shut`) — offen und gesperrt schließt sich gerade. */
   locked: boolean;
+  /**
+   * Wie lange die Sperre noch hält, in Sekunden, und wie lange sie insgesamt
+   * hielt — daraus wird der Balken über der Tür (`rules/doorLocks.ts`). Keine
+   * Sperre hält ewig; fehlt die Angabe, führt die Quelle keine Uhr.
+   */
+  hold?: { left: number; total: number };
   material: 'wood' | 'metal';
 }
 

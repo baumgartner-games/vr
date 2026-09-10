@@ -44,6 +44,8 @@ Vertrag nach außen (`map/index.ts`):
 | `MapSource`, `ExtractMapSnapshot`                                                                                         | Was die Extraktion von der 3D-Seite liest — nur Getter.   |
 | `MapView`, `MapLayers`, `MarkerPolicy`, `MapViewState`, `ALL_LAYERS`, `PANEL_LAYERS`                                      | Das Karten-Bauteil mit Layern, Pan/Pinch, Klick-Handlern. |
 | `VisibilityMode`, `VisibilityInput`, `VisibilityField`, `VisionCone`, `NoiseRadius`, `LitRegion`, `SELF_RADIUS`, `inCone` | Das Sichtbarkeitsmodell.                                  |
+| `tileGrid`, `spreadNoise`, `tileKeyOf`, `TileGrid`, `TileLink`, `SpreadOptions`, `NOISE_TILE`                            | Wie ein Geräusch über die freien Felder läuft.            |
+| `ToolIconSource`                                                                                                          | Der Puffer der Werkzeugbilder, den `FlatMode` annimmt.    |
 
 Seit Phase 1 (`feat/map-core`) sind `MapView.draw`/Gesten,
 `extractMapSnapshot`, `computeVisibility` und `lineOfSight` gefüllt. Dazu
@@ -54,7 +56,10 @@ Stand ab. Wer in Tests keinen `FlatRound` will, baut den Snapshot mit
 `emptySnapshot()` plus eigenen Räumen. `map/flatMode.ts` importiert CSS und
 `registry/discover.ts` nutzt `import.meta.glob`: beides wird von
 `HauntingWorld` **lazy** geladen — wer eines davon statisch importiert,
-bricht die Jest-Suite der Welt.
+bricht die Jest-Suite der Welt. Dasselbe gilt für `map/toolIcons.ts`, die
+einzige Datei des Pakets mit three.js: Sie steht mit Absicht **nicht** in
+`map/index.ts` (nur ihr Vertrag `ToolIconSource` steht dort) und wird
+dynamisch neben `flatMode` geladen.
 
 ### 2. Rollenansichten (Paket `views`)
 
@@ -142,7 +147,7 @@ Gehört ihm:
   aussteigen) und die 3D-Klappen.
 - `src/worlds/haunting/monster/**` — **Monster-Rolle**: `monster.register.ts`
   meldet die Rolle an, die Ansicht ist die Karte aus der Wahrnehmung des
-  Monsters, gesteuert mit Stock und zwei Knöpfen.
+  Monsters, gesteuert mit Stock und einem Knopf.
 - Grenzfall (Minimaländerung, HANDOVER-Pflicht): `map/flatRound.ts`
   (Andockzeilen für Regeln, Vents und Monstersteuerung), `map/flatMode.ts`
   (Anzeige), `map/mapSnapshot.ts`, `map/mapSource.ts`, `map/extract.ts`,

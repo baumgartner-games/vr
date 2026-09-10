@@ -44,27 +44,24 @@ describe('Das Steuer auf dem Telefon', () => {
     const { port } = stage();
     port.claim();
     port.input({ x: 0.5, z: -2, sprint: true });
-    port.act('attack');
-    port.act('attack');
     port.act('interact');
-    expect(port.counters).toEqual({ attack: 2, interact: 1 });
+    port.act('interact');
+    expect(port.counters).toEqual({ attack: 0, interact: 2 });
     const read = readMonsterInput(JSON.parse(JSON.stringify(port.message())))!;
-    expect(read).toEqual({ x: 0.5, z: -1, sprint: true, attack: 2, interact: 1, vent: 0 });
+    // Der Zähler `attack` steht noch im Protokoll, wird aber nicht mehr gedrückt:
+    // Zuschlagen ist Reichweite, kein Knopf (`monster/monsterHelm.ts`).
+    expect(read).toEqual({ x: 0.5, z: -1, sprint: true, attack: 0, interact: 2, vent: 0 });
     // Die Nachricht trägt den Stand, nicht die Flanke: dreimal dieselbe ist dieselbe.
     expect(readMonsterInput(port.message())).toEqual(read);
-    port.act('attack');
-    expect(readMonsterInput(port.message())!.attack).toBe(3);
+    port.act('interact');
+    expect(readMonsterInput(port.message())!.interact).toBe(3);
   });
 
-  it('zählt nicht, wenn niemand sitzt, die Runde vorbei oder das Monster im Schacht ist', () => {
+  it('zählt nicht, wenn niemand sitzt oder die Runde vorbei ist', () => {
     const { round, port } = stage();
-    expect(port.act('attack')).toBe('');
-    expect(port.counters.attack).toBe(0);
+    expect(port.act('interact')).toBe('');
+    expect(port.counters.interact).toBe(0);
     port.claim();
-    round.haunt.ride = 'riding';
-    expect(port.act('attack')).toMatch(/Schacht/);
-    expect(port.counters.attack).toBe(0);
-    round.haunt.ride = 'out';
     round.haunt.phase = 'lost';
     expect(port.act('interact')).toBe('');
     expect(port.counters.interact).toBe(0);
@@ -110,8 +107,9 @@ describe('Das Steuer auf dem Telefon', () => {
     round.haunt.shut.push(door.id);
     Object.assign(round.monster, { x: at.x, z: at.z });
     round.step(DT, IDLE);
-    expect(port.status().prompt).toBe('Stahltür');
-    expect(port.act('interact')).toBe('Stahl. Das hält.');
+    // Stahl hält nicht mehr für immer: Am Riegel wird gezogen (`rules/doorLocks.ts`).
+    expect(port.status().prompt).toBe('Tür aufziehen');
+    expect(port.act('interact')).toBe('Am Riegel ziehen …');
     expect(port.status().label).toBe(MONSTERS.find((m) => m.id === 'stalker')!.name);
   });
 });

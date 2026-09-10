@@ -129,6 +129,12 @@ export function fixturesOf(spec: HouseSpec): MapFixture[] {
   return fixtures;
 }
 
+/** Die Restzeit einer Sperre, wenn die Quelle eine Uhr führt. */
+function holdOf(source: MapSource, id: string): { hold?: { left: number; total: number } } {
+  const hold = source.doorHold?.(id);
+  return hold ? { hold } : {};
+}
+
 export function boundsOf(rooms: readonly MapRoom[]): MapBounds {
   const bounds: MapBounds = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity };
   for (const room of rooms)
@@ -180,6 +186,7 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
       open: source.doorOpen(door.id),
       locked: state.shut.includes(door.id),
       material: door.material,
+      ...holdOf(source, door.id),
     })),
     walls: wallsOf(spec),
     lights: [...lights, ...source.carriedLights()],

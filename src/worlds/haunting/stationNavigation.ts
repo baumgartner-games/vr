@@ -85,12 +85,32 @@ const BUCKET_PAD = 0.75;
  * the generated station changes. Missing floor and blocked destinations
  * produce a safe partial route, never a teleport or a straight-line fallback.
  *
+ * `avoid` macht eine Stelle **teuer, aber nicht unpassierbar**: Jeder
+ * Rasterschritt in ihrem Umkreis kostet einen Aufschlag, der zur Mitte hin
+ * wächst. Damit läuft ein Techniker, der das Monster gesehen hat, lieber den
+ * Umweg als an ihm vorbei — und wenn es gar nicht anders geht, eben doch
+ * vorbei (`rules/technicianBot.ts`). Unendliche Kosten wären eine Wand, und
+ * eine Wand, die sich bewegt, sperrt irgendwann jemanden ein.
+ *
  * `smooth` pulls the raster path straight (`navmesh/pathSmoothing.ts`): first
  * wherever a swept capsule with an extra `SMOOTH_MARGIN` fits, then through the
  * remaining raster chains (door runs, aisles) with the plain radius the raster
  * itself was validated with. `false` keeps the raw raster corners and exists
  * for measuring the difference.
  */
+/**
+ * **Eine Stelle, die man meiden möchte** — teuer, nicht verboten. Der
+ * Aufschlag je Rasterschritt ist `weight` in der Mitte und fällt zum Rand des
+ * `radius` linear auf null. Ein Schritt kostet sonst 1, ein Meter also vier:
+ * `weight = 4` heißt „ein Meter neben der Gefahr ist so teuer wie ein Meter
+ * Umweg".
+ */
+export interface RouteAvoid {
+  at: FloorPoint;
+  radius: number;
+  weight: number;
+}
+
 export function stationRoute(
   spec: HouseSpec,
   graph: NavGraph,
@@ -99,6 +119,7 @@ export function stationRoute(
   clearance = 0.45,
   height = 0,
   smooth = true,
+  avoid: RouteAvoid | null = null,
 ): DroneRoute {
   const empty = (grounded: boolean): DroneRoute => ({
     tiles: [],
@@ -171,7 +192,8 @@ export function stationRoute(
       if (!(edges & (1 << dir))) continue;
       const next = current + DIR_Z[dir]! * grid.width + DIR_X[dir]!;
       if (grid.closed[next] === stamp) continue;
-      const cost = grid.costs[current]! + 1 + grid.wallCosts[next]! * 0.12;
+      const cost =
+        grid.costs[current]! + 1 + grid.wallCosts[next]! * 0.12 + dread(grid, avoid, next);
       if (grid.seen[next] === stamp && cost >= grid.costs[next]!) continue;
       grid.seen[next] = stamp;
       grid.costs[next] = cost;
@@ -424,6 +446,15 @@ function buildGrid(
     heap: [],
     priorities: [],
   };
+}
+
+/** Der Aufschlag eines Rasterfelds, das in der Nähe der gemiedenen Stelle liegt. */
+function dread(grid: RouteGrid, avoid: RouteAvoid | null, index: number): number {
+  if (!avoid || !(avoid.radius > 0) || !(avoid.weight > 0)) return 0;
+  const at = pointAt(grid, index);
+  const d = Math.hypot(at.x - avoid.at.x, at.z - avoid.at.z);
+  if (d >= avoid.radius) return 0;
+  return avoid.weight * (1 - d / avoid.radius);
 }
 
 function pointAt(grid: RouteGrid, index: number): FloorPoint {

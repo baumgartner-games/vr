@@ -1,3 +1,4 @@
+import { BLOCKS, type BlockKind } from '../grid/blocks';
 import type { MarkId } from './house';
 
 /** Metres, including every handle, pipe and closed door. Front is local +Z. */
@@ -26,6 +27,73 @@ export const FIXTURE_CATALOG: Readonly<Record<MarkId, FixtureSize>> = {
   ausgabe: { width: 2.3, height: 1.85, depth: 0.95 },
 };
 
+/**
+ * **Die Farbe, an der ein Merkmal kenntlich ist** — in 3D die Farbe seines
+ * Klotzes (`marks.ts`), in 2D die Farbe desselben Möbels auf dem Bild
+ * (`map/flatArt.ts`) und im Archiv (`archiveMap.ts`). Eine Zahl, ein Möbel:
+ * Wer hier ein Klavier umlackiert, lackiert es in allen drei Ansichten um.
+ *
+ * Sie steht hier und nicht bei den Modellen, weil hier auch die Maße stehen —
+ * und weil diese Datei kein three.js kennt: Die 2D-Welt darf sie lesen, ohne
+ * einen Renderer mitzuschleppen.
+ */
+export const MARK_COLORS: Readonly<Record<MarkId, number>> = {
+  wanne: 0xf2f5f8,
+  dusche: 0xa8d8e8,
+  ofen: 0x2c313c,
+  spuele: 0xc9ced8,
+  bett: 0xd8c7a8,
+  buecher: 0x9c5a3c,
+  werkbank: 0x7a6a52,
+  klavier: 0x14161c,
+  kamin: 0xb0463a,
+  standuhr: 0x8a6440,
+  sessel: 0x5a6a8a,
+  kiste: 0xa8874f,
+  schaukelpferd: 0xd88a6a,
+  esstisch: 0xb08a5a,
+  ausgabe: 0xd6c08a,
+};
+
 export const CARGO_SIZE: FixtureSize = { width: 0.9, height: 1.4, depth: 0.65 };
 export const LOCKER_SIZE: FixtureSize = { width: 1.15, height: 2.2, depth: 0.8 };
 export const CONSOLE_SIZE: FixtureSize = { width: 1.2, height: 1.65, depth: 0.55 };
+
+/**
+ * Historische Zuordnung für Werkzeuge, die alte Hausmerkmale darstellen.
+ * Der Raumstationsplan erzeugt diese Bausteine nicht mehr.
+ */
+export function blockFor(mark: MarkId): BlockKind {
+  switch (mark) {
+    case 'buecher':
+      return 'shelf';
+    case 'dusche':
+    case 'standuhr':
+      return 'pillar';
+    case 'ofen':
+    case 'spuele':
+    case 'kamin':
+    case 'ausgabe':
+      return 'counter';
+    case 'werkbank':
+    case 'klavier':
+    case 'esstisch':
+      return 'table';
+    case 'kiste':
+      return 'crate';
+    default:
+      // Wanne, Bett, Sessel, Schaukelpferd: alles, was niedrig ist.
+      return 'bench';
+  }
+}
+
+/**
+ * **Wie hoch ein Möbel wirklich steht**, in Metern — die Höhe seines
+ * Bausteins (`grid/blocks.ts`), aus der auch das 3D-Modell gebaut wird
+ * (`marks.ts`). Nicht `FIXTURE_CATALOG.height`: Das ist die Hülle für die
+ * Aufstellung samt Griffen und Luft darüber, und ein Esstisch von 1,6 m sähe
+ * auf dem Bild aus wie ein Schrank.
+ */
+export function markHeight(mark: MarkId): number {
+  return BLOCKS[blockFor(mark)].height;
+}

@@ -1,4 +1,12 @@
-import type { MapEntityKind, MapItem } from './mapSnapshot';
+import {
+  CARGO_SIZE,
+  CONSOLE_SIZE,
+  LOCKER_SIZE,
+  MARK_COLORS,
+  markHeight,
+} from '../fixtureDimensions';
+import type { MarkId } from '../house';
+import type { MapEntityKind, MapFixture, MapItem } from './mapSnapshot';
 
 /**
  * **Die gezeichneten Figuren und Requisiten der 2D-Welt** — Vektorbilder in
@@ -314,6 +322,141 @@ export function drawMonster(
     ctx.fill();
   }
   ctx.restore();
+}
+
+/**
+ * **Die Möbel der Station, in derselben Handschrift** — Tische, Werkbänke,
+ * Kryokapseln, Kisten: was in 3D im Raum steht (`stationLayout.ts`), steht
+ * hier auch.
+ *
+ * Es gibt genau **eine** Spielwelt, und die 2D-Ansicht ist eine Ansicht davon
+ * und keine zweite Möblierung: Maß, Platz, Drehung und Farbe kommen aus dem
+ * Snapshot und aus `fixtureDimensions.ts` — derselben Datei, aus der die
+ * 3D-Klötze ihre Farbe nehmen. Wer in 3D einen Tisch verrückt, verrückt ihn
+ * hier mit.
+ *
+ * Gezeichnet wird wie alles Aufrechte der Szene: die Grundfläche liegt auf
+ * dem Boden, der Körper wächst auf dem Bild nach **oben** (nach Norden), und
+ * obendrauf liegt die hellere Deckfläche. `x`/`y` ist die Mitte der
+ * Grundfläche in Bildpunkten, `scale` sind Bildpunkte je Meter.
+ */
+export function drawFixture(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  scale: number,
+  fixture: Pick<MapFixture, 'kind' | 'mark' | 'yaw' | 'width' | 'depth'>,
+): void {
+  const u = scale;
+  const height = fixtureHeight(fixture) * u;
+  const [fill, top] = fixtureColors(fixture);
+  // Die vier Ecken der Grundfläche, gedreht wie im Schiff. `yaw` dreht wie in
+  // three.js gegen den Uhrzeigersinn von oben — auf dem Bild also so.
+  const cos = Math.cos(-fixture.yaw),
+    sin = Math.sin(-fixture.yaw);
+  const hw = (fixture.width * u) / 2,
+    hd = (fixture.depth * u) / 2;
+  const foot: Array<[number, number]> = [
+    [-hw, -hd],
+    [hw, -hd],
+    [hw, hd],
+    [-hw, hd],
+  ].map(([lx, lz]) => [lx * cos - lz * sin, lx * sin + lz * cos]);
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineWidth = Math.max(1.2, u * 0.035);
+  ctx.strokeStyle = ART.ink;
+  ctx.lineJoin = 'round';
+
+  // Der Schatten auf dem Boden, damit der Klotz nicht schwebt.
+  ctx.fillStyle = ART.shadow;
+  polygon(ctx, foot);
+  ctx.fill();
+
+  // Der Körper: die Silhouette aus Grundfläche und der um `height` nach Norden
+  // geschobenen Deckfläche — ihre konvexe Hülle ist genau der Umriss.
+  const lid = foot.map(([px, pz]): [number, number] => [px, pz - height]);
+  ctx.fillStyle = fill;
+  polygon(ctx, hull([...foot, ...lid]));
+  ctx.fill();
+  ctx.stroke();
+
+  // Die Deckfläche darüber, heller — daran sieht man die Höhe.
+  ctx.fillStyle = top;
+  polygon(ctx, lid);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Wie hoch ein Möbel ist, in Metern — **die Höhe seines Bausteins**, also
+ * genau die des 3D-Klotzes (`fixtureDimensions.markHeight`). Die Maße aus
+ * `FIXTURE_CATALOG` sind die Hülle für die Aufstellung, nicht das Möbel: Ein
+ * Esstisch stünde damit 1,6 m hoch auf dem Bild und sähe aus wie ein Schrank.
+ */
+export function fixtureHeight(fixture: Pick<MapFixture, 'kind' | 'mark'>): number {
+  if (fixture.kind === 'cargo') return CARGO_SIZE.height;
+  if (fixture.kind === 'locker') return LOCKER_SIZE.height;
+  if (fixture.kind === 'console') return CONSOLE_SIZE.height;
+  const mark = fixture.mark as MarkId | undefined;
+  return mark ? markHeight(mark) : 1;
+}
+
+/** Vorderseite und Deckfläche eines Möbels als CSS-Farben. */
+function fixtureColors(fixture: Pick<MapFixture, 'kind' | 'mark'>): [string, string] {
+  const base =
+    fixture.kind === 'cargo'
+      ? 0xb9803a
+      : fixture.kind === 'locker'
+        ? 0x53628f
+        : fixture.kind === 'console'
+          ? 0x3a6f5e
+          : (MARK_COLORS[fixture.mark as MarkId] ?? 0x5c6773);
+  return [shade(base, 0.72), shade(base, 1.08)];
+}
+
+/** Eine Farbe heller oder dunkler, als `#rrggbb`. */
+function shade(color: number, factor: number): string {
+  const part = (shift: number): number =>
+    Math.max(0, Math.min(255, Math.round(((color >> shift) & 0xff) * factor)));
+  return `#${((part(16) << 16) | (part(8) << 8) | part(0)).toString(16).padStart(6, '0')}`;
+}
+
+/** Einen Pfad aus Punkten legen — ohne zu zeichnen. */
+function polygon(
+  ctx: CanvasRenderingContext2D,
+  points: ReadonlyArray<readonly [number, number]>,
+): void {
+  ctx.beginPath();
+  points.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+  ctx.closePath();
+}
+
+/**
+ * Die konvexe Hülle nach Andrew — acht Punkte, kein Grund für mehr Aufwand.
+ * Sie ist der Umriss des Klotzes: Grundfläche plus verschobene Deckfläche.
+ */
+export function hull(points: ReadonlyArray<readonly [number, number]>): Array<[number, number]> {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (sorted.length < 3) return sorted.map(([px, py]) => [px, py]);
+  const cross = (
+    o: readonly [number, number],
+    a: readonly [number, number],
+    b: readonly [number, number],
+  ): number => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const build = (list: ReadonlyArray<readonly [number, number]>): Array<[number, number]> => {
+    const out: Array<[number, number]> = [];
+    for (const point of list) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, point) <= 0)
+        out.pop();
+      out.push([point[0], point[1]]);
+    }
+    out.pop();
+    return out;
+  };
+  return [...build(sorted), ...build([...sorted].reverse())];
 }
 
 /** Die Grundfläche einer Requisite für das Tippen, in Metern: Breite und Höhe auf dem Bild. */

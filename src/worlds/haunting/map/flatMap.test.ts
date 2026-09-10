@@ -4,7 +4,7 @@ import { FlatRound, PLAYER_ID } from './flatRound';
 import { MapView } from './mapView';
 import { doorCentre } from './geometry';
 import { lockerCode } from '../mission';
-import { SLAM_HOLD, slamDoor } from '../rules/doorLocks';
+import { HOLD_RANGE, SLAM_HOLD, slamDoor } from '../rules/doorLocks';
 import { defaultSetup } from '../rules/roundSetup';
 
 jest.mock('./flat.css', () => ({}));
@@ -58,6 +58,25 @@ describe('Türen in der 2D-Runde', () => {
     for (let t = 0; t < 2; t += 0.5) round.step(0.5, { x: 0, z: 0, sprint: false });
     expect(round.haunt.shut).toEqual([]);
     expect(round.drain().some((e) => /wieder auf/.test(e.text))).toBe(true);
+  });
+
+  it('lässt auch die von Hand gesperrte Tür ablaufen — mit Balken über der Tür', () => {
+    const round = new FlatRound(7, { test: true });
+    const door = round.house.doors.find((d) => d.b !== null)!;
+    round.lockDoor(door.id);
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    const shown = () => round.snapshot().doors.find((d) => d.id === door.id)!;
+    expect(shown().locked).toBe(true);
+    // Der Balken: wie lange noch, und wie lange sie insgesamt hielt.
+    const hold = shown().hold!;
+    expect(hold.total).toBe(HOLD_RANGE[1]);
+    expect(hold.left).toBeGreaterThan(0);
+    expect(hold.left).toBeLessThanOrEqual(HOLD_RANGE[1]);
+    // Nach spätestens zehn Sekunden ist sie von selbst wieder offen: Eine
+    // Sperre, die ewig hält, ist keine Entscheidung, sondern eine Wand.
+    for (let t = 0; t < HOLD_RANGE[1] + 1; t += 0.5) round.step(0.5, { x: 0, z: 0, sprint: false });
+    expect(round.haunt.shut).toEqual([]);
+    expect(shown().hold).toBeUndefined();
   });
 
   it('gibt eine zugefallene Tür frei, wenn die Tafel sie antippt', () => {

@@ -4,7 +4,7 @@ import type { DroneRoute } from '../droneRoute';
 import type { HouseDoor, HouseSpec } from '../house';
 import { COMMAND, type StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
-import { stationRoute } from '../stationNavigation';
+import { stationRoute, type RouteAvoid } from '../stationNavigation';
 import { StationTravelPlan } from '../stationTravelPlan';
 import { pointSegmentDistance } from './snapshotClearance';
 
@@ -34,6 +34,9 @@ import { pointSegmentDistance } from './snapshotClearance';
  * auch tat (`map/flatRound.ts`). Der Radius ist der des Läufers, so wie ihn
  * auch `geometry.slide` benutzt.
  */
+
+/** So weit darf die gemiedene Stelle wandern, bevor eine neue Route fällig ist, in Metern. */
+export const AVOID_TOLERANCE = 1.5;
 
 /** Ab so vielen Metern Wanderung des Ziels lohnt sich eine neue Route. */
 export const GOAL_TOLERANCE = 0.75;
@@ -74,6 +77,8 @@ export class FlatNavigator {
   private wanted: FloorPoint = { x: Infinity, z: Infinity };
   /** Wohin die Route gerechnet wurde: das Ziel oder der Wartepunkt vor der Tür. */
   private goal: FloorPoint | null = null;
+  /** Die zuletzt gemiedene Stelle — wandert sie, wird neu gerechnet. */
+  private avoid: RouteAvoid | null = null;
   private version = -1;
   private plannedAt = -Infinity;
   private complete = false;
@@ -106,16 +111,24 @@ export class FlatNavigator {
    * Sorgt dafür, dass eine Route von `at` zu `goal` da ist — die alte, wenn
    * sie noch taugt, sonst eine neue — und sagt, wohin sie führt.
    */
-  aim(at: FloorPoint, goal: FloorPoint, shut: readonly string[], time: number): FlatLeg {
+  aim(
+    at: FloorPoint,
+    goal: FloorPoint,
+    shut: readonly string[],
+    time: number,
+    avoid: RouteAvoid | null = null,
+  ): FlatLeg {
     const graph = this.travel.graph(this.spec, shut, false);
     const wandered = Math.hypot(goal.x - this.wanted.x, goal.z - this.wanted.z);
     const stale =
       !this.route ||
       graph.version !== this.version ||
       (wandered > GOAL_TOLERANCE && time - this.plannedAt >= HOLD) ||
+      this.dreadMoved(avoid, time) ||
       this.strayed(at);
     if (!stale) return this.leg(false);
 
+    this.avoid = avoid ? { at: { ...avoid.at }, radius: avoid.radius, weight: avoid.weight } : null;
     this.wanted = { x: goal.x, z: goal.z };
     this.version = graph.version;
     this.plannedAt = time;
@@ -153,8 +166,33 @@ export class FlatNavigator {
     return null;
   }
 
+  /**
+   * Ob die gemiedene Stelle so weit gewandert ist, dass die alte Route nichts
+   * mehr taugt — oder ob es gerade erst eine gibt (oder keine mehr). Dieselbe
+   * Sparsamkeit wie beim Ziel: frühestens nach `HOLD`.
+   */
+  private dreadMoved(avoid: RouteAvoid | null, time: number): boolean {
+    const had = this.avoid;
+    if (!had && !avoid) return false;
+    if (!had || !avoid) return true;
+    if (time - this.plannedAt < HOLD) return false;
+    return (
+      Math.hypot(avoid.at.x - had.at.x, avoid.at.z - had.at.z) > AVOID_TOLERANCE ||
+      Math.abs(avoid.weight - had.weight) > 0.5
+    );
+  }
+
   private plan(graph: NavGraph, at: FloorPoint, goal: FloorPoint): void {
-    this.route = stationRoute(this.spec, graph, { x: at.x, z: at.z, yaw: 0 }, goal, this.radius);
+    this.route = stationRoute(
+      this.spec,
+      graph,
+      { x: at.x, z: at.z, yaw: 0 },
+      goal,
+      this.radius,
+      0,
+      true,
+      this.avoid,
+    );
     this.cursor = 0;
     this.origin = { x: at.x, z: at.z };
     this.goal = { x: goal.x, z: goal.z };

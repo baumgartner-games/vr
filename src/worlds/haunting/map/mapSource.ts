@@ -26,6 +26,8 @@ export interface MapSource {
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;
   /** Ob das Türblatt gerade offen steht — getrennt von der Sperre in `state().shut`. */
   doorOpen(id: string): boolean;
+  /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`); fehlt sie, gibt es keine Uhr. */
+  doorHold?(id: string): { left: number; total: number } | null;
   /** Die Wesen, die die Welt kennt — Spieler, Bot, Monster, Mitspieler. */
   entities(): readonly MapEntity[];
   /** Fracht, Konsolen, Schränke, Werkzeuge — mit ihrem Zustand. */

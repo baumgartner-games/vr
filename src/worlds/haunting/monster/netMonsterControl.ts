@@ -16,16 +16,18 @@ import { interact, steer, type MonsterArena } from './monsterHelm';
  *
  * **Knöpfe sind Zähler.** Das Telefon zählt jeden Druck hoch und schickt den
  * Stand; hier steht der zuletzt gesehene, und jede Differenz wird genau
- * einmal ausgeführt — drei Nachrichten mit `attack: 1` sind ein Schlag,
- * `attack: 3` nach `1` sind zwei. Springt ein Zähler zurück (ein anderes
+ * einmal ausgeführt — drei Nachrichten mit `interact: 1` sind ein Druck,
+ * `interact: 3` nach `1` sind zwei. Springt ein Zähler zurück (ein anderes
  * Telefon hat sich hingesetzt, oder dasselbe hat die Seite neu geladen),
- * wird nur der Stand übernommen und nichts nachgeholt.
+ * wird nur der Stand übernommen und nichts nachgeholt. Der alte Zähler
+ * `attack` wird noch gelesen und nicht mehr gebraucht: Zuschlagen ist kein
+ * Knopf mehr, sondern Reichweite (`monsterHelm.ts`).
  *
  * **Interagieren wirkt sofort beim Empfang**, nicht erst in `decide`: Während
  * der Schachtfahrt fragt keine Welt nach einer Entscheidung (im Schacht wird
- * nicht gelaufen), und genau dann muss „Aussteigen" ankommen. **Angreifen**
- * wirkt in `decide`, weil ein Schlag eine Entscheidung dieses Bildes ist —
- * die Runde prüft daran den Abstand und reißt die Kabine auf.
+ * nicht gelaufen), und genau dann muss „Aussteigen" ankommen. Nur die
+ * aufgerissene **Kabine** reicht ins nächste Bild hinein, weil die Runde sie
+ * aus der Entscheidung liest.
  *
  * `active()` heißt: Die Station ist besetzt, die Runde läuft, und die letzte
  * Nachricht ist keine drei Sekunden alt. Ohne die Frist stünde das Monster
@@ -45,7 +47,8 @@ export class NetMonsterControl implements MonsterDriver {
   private ventChoice = 0;
   /** Die Zählerstände, wie sie zuletzt ankamen — `null`, bevor die erste Nachricht da war. */
   private seen: { attack: number; interact: number } | null = null;
-  private attacks = 0;
+  /** Die Kabine, die im nächsten Bild aufgerissen wird — aus „Interagieren". */
+  private cabin = '';
   private heardAt = -Infinity;
   /** Die letzten Antworten auf „Interagieren" — für Ansagen und Tests. */
   readonly notes: string[] = [];
@@ -63,16 +66,15 @@ export class NetMonsterControl implements MonsterDriver {
     const seen = this.seen;
     this.seen = { attack: input.attack, interact: input.interact };
     if (!seen) return;
-    const attacks = input.attack >= seen.attack ? input.attack - seen.attack : 0;
     const interacts = input.interact >= seen.interact ? input.interact - seen.interact : 0;
     if (!this.active()) return;
-    // Mehr als ein paar Schläge auf einmal sind kein Spielzug, sondern ein
+    // Mehr als ein paar Drücke auf einmal sind kein Spielzug, sondern ein
     // hängender Knopf: Der Rest verfällt.
-    this.attacks = Math.min(3, this.attacks + attacks);
-    for (let i = 0; i < interacts; i++) {
+    for (let i = 0; i < Math.min(3, interacts); i++) {
       const answer = interact(this.arena, this.ventChoice);
-      if (answer.startsWith('Einsteigen')) this.ventChoice = 0;
-      if (answer) this.notes.push(answer);
+      if (answer.boarded) this.ventChoice = 0;
+      if (answer.cabin) this.cabin = answer.cabin;
+      if (answer.text) this.notes.push(answer.text);
     }
   }
 
@@ -80,7 +82,7 @@ export class NetMonsterControl implements MonsterDriver {
   reset(): void {
     this.stick = { x: 0, z: 0, sprint: false };
     this.seen = null;
-    this.attacks = 0;
+    this.cabin = '';
     this.heardAt = -Infinity;
     this.notes.length = 0;
   }
@@ -98,11 +100,8 @@ export class NetMonsterControl implements MonsterDriver {
   }
 
   decide(_dt: number): RoutineOutput {
-    let attack = false;
-    if (this.attacks > 0) {
-      this.attacks--;
-      attack = !this.arena.ride().busy;
-    }
-    return steer(this.stick, attack, this.arena);
+    const cabin = this.arena.ride().busy ? '' : this.cabin;
+    this.cabin = '';
+    return steer(this.stick, cabin, this.arena);
   }
 }

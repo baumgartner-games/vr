@@ -32,6 +32,7 @@ import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
 import { HauntingAudio, levelLabel } from '../audio';
 import type { MapPoint } from './mapSnapshot';
+import type { ToolIconSource } from './toolIcons';
 
 /**
  * **Die 2D-Welt** — die Station als gezeichnete Szene, gespielt mit dem Daumen.
@@ -61,8 +62,12 @@ import type { MapPoint } from './mapSnapshot';
  * oder niemand. Ziele stehen als gelbe Dreiecke am Rand der Szene, und
  * „Zielpfade" legt die Wege von Techniker und Monster darüber.
  *
- * Kein three.js hier drin: Das aktive Werkzeug als 3D-Bild zeichnet die Welt
- * in das Loch, das `viewport()` beschreibt (`flatStage.ts`). Deshalb läuft
+ * Kein three.js hier drin — auch nicht mehr für das Werkzeug in der Hand:
+ * Dessen Bild ist ein **gepuffertes Icon**, das einmal aus dem 3D-Modell
+ * gerendert wurde (`toolIcons.ts`) und der Ansicht als fertiges Canvas
+ * gereicht wird (`setToolIcons`). Vorher schnitt die 2D-Welt dafür ein Loch
+ * in ihre Oberfläche, durch das die 3D-Welt rendern sollte — und das war
+ * unsichtbar, weil die 2D-Welt über dem WebGL-Canvas liegt. Deshalb läuft
  * dieses Bauteil headless in jsdom, und deshalb kann es die Runde auch
  * dann rechnen, wenn gar kein WebGL da ist.
  */
@@ -126,7 +131,10 @@ export class FlatMode {
   private readonly options = el('div', 'flat__panel');
   private readonly sheet = el('div', 'flat__panel flat__sheet');
   private readonly ending = el('div', 'flat__ending');
-  private readonly hole = el('div', 'flat__item');
+  /** Das gepufferte Comic-Bild des aktiven Werkzeugs (`toolIcons.ts`). */
+  private readonly icon = el('canvas', 'flat__icon');
+  private icons: ToolIconSource | null = null;
+  private iconTool = '\u0000';
   private puzzle: PuzzleOverlay;
   /** Wenn der Spieler das Monster spielt: Steuer, Techniker-Bot und Ansicht (`monster/`). */
   private session: MonsterSession | null = null;
@@ -236,14 +244,13 @@ export class FlatMode {
     this.sheet.addEventListener('click', (event) => this.optionClick(event));
     this.ending.hidden = true;
     this.ending.addEventListener('click', (event) => this.optionClick(event));
-    this.hole.className = 'flat__item';
+    this.icon.hidden = true;
     this.element.append(
       this.scene.element,
       this.hud,
       this.toast,
       this.stick.element,
       this.buttons,
-      this.hole,
       this.centreKey,
       this.mapKey,
       this.optionsKey,
@@ -284,8 +291,7 @@ export class FlatMode {
     for (const node of [this.scene.element, this.centreKey, this.mapKey])
       node.hidden = role === 'monster';
     if (role === 'monster') this.showMap(false);
-    for (const node of [this.stick.element, this.buttons, this.hole])
-      node.hidden = role !== 'technician';
+    for (const node of [this.stick.element, this.buttons]) node.hidden = role !== 'technician';
     this.element.dataset['role'] = role;
     this.ping = null;
     this.pingClock = 0;
@@ -315,12 +321,35 @@ export class FlatMode {
     return this.routes;
   }
 
-  /** Wo das 3D-Bild des Werkzeugs hingehört, in CSS-Punkten vom linken oberen Rand. */
-  viewport(): { x: number; y: number; w: number; h: number } | null {
-    if (this.round.phase !== 'running' || !this.round.activeTool || this.hole.hidden) return null;
-    const rect = this.hole.getBoundingClientRect();
-    if (rect.width < 4 || rect.height < 4) return null;
-    return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+  /**
+   * **Die gepufferten Werkzeugbilder nachreichen.** Die 2D-Welt selbst lädt
+   * kein three.js; wer sie öffnet (`HauntingWorld`), rendert die Modelle
+   * einmal und gibt den Puffer hier herein. Ohne Puffer bleibt der Knopf beim
+   * Namen des Werkzeugs — kein zweites, von Hand gemaltes Bild.
+   */
+  setToolIcons(icons: ToolIconSource | null): void {
+    this.icons = icons;
+    this.iconTool = '\u0000';
+    this.refreshIcon();
+  }
+
+  /** Das Icon im Wechseln-Knopf nachziehen, wenn sich das Werkzeug geändert hat. */
+  private refreshIcon(): void {
+    const tool = this.round.activeTool;
+    if (tool === this.iconTool) return;
+    this.iconTool = tool;
+    const image = tool ? (this.icons?.icon(tool) ?? null) : null;
+    const ctx = image ? this.icon.getContext('2d') : null;
+    if (!image || !ctx) {
+      this.icon.hidden = true;
+      return;
+    }
+    const size = Number((image as HTMLCanvasElement).width) || 64;
+    this.icon.width = size;
+    this.icon.height = size;
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(image, 0, 0, size, size);
+    this.icon.hidden = false;
   }
 
   /** Ein Bild: Stock lesen, Runde rechnen, Karte und Anzeigen nachführen. */
@@ -685,9 +714,13 @@ export class FlatMode {
 
   private refreshKeys(): void {
     const tool = this.round.activeTool;
-    this.cycleKey.textContent = '';
-    this.cycleKey.append(el('small', '', 'Wechseln'), el('strong', '', TOOL_LABELS[tool] ?? tool));
+    this.cycleKey.replaceChildren(
+      el('small', '', 'Wechseln'),
+      this.icon,
+      el('strong', '', TOOL_LABELS[tool] ?? tool),
+    );
     this.cycleKey.disabled = this.round.tools.length < 2;
+    this.refreshIcon();
     this.useKey.textContent = '';
     const use =
       tool === 'flashlight'

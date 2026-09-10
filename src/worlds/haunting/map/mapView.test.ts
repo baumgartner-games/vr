@@ -163,4 +163,39 @@ describe('MapView', () => {
       'ground',
     ]);
   });
+  it('zeichnet Geräuschwellen — aber nicht die eigenen, wenn man das Monster ist', () => {
+    const round = new FlatRound(5, { roll: 1 });
+    round.mode = 'omniscient';
+    // Ein paar Schritte des Spielers: das sind Wellen auf der Karte.
+    for (let i = 0; i < 30; i++) round.step(1 / 30, { x: 0, z: 1, sprint: false });
+    const snapshot = round.snapshot();
+    expect((snapshot.noises ?? []).some((noise) => noise.by === PLAYER_ID)).toBe(true);
+
+    const seen = (viewerId: string) => {
+      const view = new MapView({ viewerId, mode: 'omniscient' });
+      document.body.append(view.element);
+      view.setSnapshot(snapshot);
+      view.setVisibility(round.field);
+      view.setView({ centreX: round.player.x, centreZ: round.player.z, scale: 20 });
+      view.draw();
+      const count = view.stats.noises;
+      view.dispose();
+      return count;
+    };
+    // Der Techniker sieht seine eigenen Schritte (blau: „das war ich").
+    expect(seen(PLAYER_ID)).toBeGreaterThan(0);
+    // Das Monster sieht die des Technikers …
+    expect(seen(MONSTER_ID)).toBeGreaterThan(0);
+    // … aber nicht seine eigenen: Man hört sich nicht selbst zu.
+    const own = round.snapshot();
+    own.noises = (own.noises ?? []).map((noise) => ({ ...noise, by: MONSTER_ID }));
+    const view = new MapView({ viewerId: MONSTER_ID, mode: 'omniscient' });
+    document.body.append(view.element);
+    view.setSnapshot(own);
+    view.setVisibility(round.field);
+    view.setView({ centreX: round.player.x, centreZ: round.player.z, scale: 20 });
+    view.draw();
+    expect(view.stats.noises).toBe(0);
+    view.dispose();
+  });
 });

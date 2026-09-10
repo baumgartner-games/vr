@@ -1,7 +1,13 @@
 import {
+  HOLD_RANGE,
+  PRY_COOLDOWN,
   SLAM_HOLD,
   chooseLock,
   freshLocks,
+  holdUntil,
+  pryChance,
+  pryLock,
+  pryTries,
   releaseLock,
   slamDoor,
   slamUntil,
@@ -40,15 +46,79 @@ describe('doorLocks', () => {
     expect(slamUntil(locks, 'a')).toBeNull();
   });
 
-  test('eine gewählte Tür läuft nie ab; wird eine zugefallene gewählt, auch nicht mehr', () => {
+  test('eine von Hand gesperrte Tür hält acht bis zehn Sekunden und geht dann auf', () => {
     const locks = freshLocks();
-    let shut = chooseLock(locks, [], 'a');
-    expect(stepLocks(locks, shut, 1e6).shut).toEqual(['a']);
-    shut = slamDoor(locks, shut, 'b', 0);
-    shut = chooseLock(locks, shut, 'b');
+    // Der Würfel bestimmt nur, wo in der Spanne die Frist liegt.
+    for (const roll of [0, 0.5, 1]) {
+      const fresh = freshLocks();
+      chooseLock(fresh, [], 'a', 100, () => roll);
+      expect(holdUntil(fresh, 'a')).toBeCloseTo(
+        100 + HOLD_RANGE[0] + roll * (HOLD_RANGE[1] - HOLD_RANGE[0]),
+      );
+    }
+    let shut = chooseLock(locks, [], 'a', 0, () => 0);
+    expect(stepLocks(locks, shut, HOLD_RANGE[0] - 0.1).opened).toEqual([]);
+    const step = stepLocks(locks, shut, HOLD_RANGE[0]);
+    expect(step).toEqual({ shut: [], opened: ['a'] });
+    // Eine zugefallene Tür, die dann gewählt wird, bekommt die Frist der Hand.
+    shut = slamDoor(locks, [], 'b', 0);
+    shut = chooseLock(locks, shut, 'b', 0, () => 0);
     expect(shut).toEqual(['b']);
     expect(slamUntil(locks, 'b')).toBeNull();
-    expect(stepLocks(locks, shut, 1e6).shut).toEqual(['b']);
+    expect(holdUntil(locks, 'b')).toBe(HOLD_RANGE[0]);
+  });
+
+  test('der erste Zug an einer Sperre geht nie auf, danach steigt die Aussicht', () => {
+    expect(pryChance(1)).toBe(0);
+    expect(pryChance(2)).toBeGreaterThan(0);
+    for (let tries = 2; tries < 8; tries++)
+      expect(pryChance(tries + 1)).toBeGreaterThanOrEqual(pryChance(tries));
+    expect(pryChance(20)).toBe(1);
+
+    const locks = freshLocks();
+    let shut = chooseLock(locks, [], 'a', 0, () => 0);
+    // Auch mit dem besten Wurf: der erste Zug bleibt ein Zug.
+    let out = pryLock(locks, shut, 'a', 0, () => 0);
+    expect(out).toEqual({ shut: ['a'], opened: false, tries: 1 });
+    // Zu früh: gar kein Versuch, der Takt hält.
+    out = pryLock(locks, out.shut, 'a', PRY_COOLDOWN / 2, () => 0);
+    expect(out.tries).toBe(0);
+    expect(pryTries(locks, 'a')).toBe(1);
+    // Der zweite darf gelingen.
+    out = pryLock(locks, out.shut, 'a', PRY_COOLDOWN, () => 0);
+    expect(out).toEqual({ shut: [], opened: true, tries: 2 });
+    expect(locks.chosen).toBe('');
+    shut = out.shut;
+    expect(shut).toEqual([]);
+  });
+
+  test('Ziehen lohnt sich: im Mittel schneller als das Warten', () => {
+    // Der Handel des Monsters — sonst wäre Warten immer richtig und der Knopf
+    // an der Tür nur Deko.
+    let attempts = 0;
+    let runs = 0;
+    let seed = 12345;
+    const roll = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    for (let round = 0; round < 400; round++) {
+      const locks = freshLocks();
+      let shut = chooseLock(locks, [], 'a', 0, () => 0.5);
+      let time = 0;
+      for (let tries = 1; tries <= 20; tries++) {
+        const out = pryLock(locks, shut, 'a', time, roll);
+        shut = out.shut;
+        time += PRY_COOLDOWN;
+        attempts++;
+        if (out.opened) break;
+      }
+      runs++;
+    }
+    const seconds = (attempts / runs) * PRY_COOLDOWN;
+    expect(seconds).toBeLessThan(HOLD_RANGE[0]);
+    // Und mindestens zwei Versuche sind es immer.
+    expect(attempts / runs).toBeGreaterThanOrEqual(2);
   });
 
   test('die Tafel darf eine zugefallene Tür vorher freigeben', () => {
@@ -69,7 +139,7 @@ describe('doorLocks', () => {
 
   test('Buchführung räumt auf, was anderswo geöffnet wurde', () => {
     const locks = freshLocks();
-    let shut = chooseLock(locks, [], 'a');
+    let shut = chooseLock(locks, [], 'a', 0, () => 0);
     shut = slamDoor(locks, shut, 'b', 0);
     // Holz splittert: jemand hat beide ohne die Buchführung geöffnet.
     const step = stepLocks(locks, [], 1);

@@ -5,11 +5,13 @@ import {
   crewColor,
   drawCrewmate,
   drawDrone,
+  drawFixture,
   drawLamp,
   drawMonster,
   drawName,
   drawProp,
   facingOf,
+  fixtureHeight,
   linearGradient,
   monsterHeight,
   propFootprint,
@@ -22,6 +24,7 @@ import {
   pointInPolygon,
   type MapDoor,
   type MapEntity,
+  type MapFixture,
   type MapPoint,
   type MapRoom,
   type MapSegment,
@@ -174,7 +177,7 @@ export class FlatScene {
   private readonly minScale: number;
   private readonly maxScale: number;
   /** Was das letzte Bild gezeichnet hat — für Tests. */
-  stats = { rooms: 0, walls: 0, items: 0, entities: 0, names: 0, cuts: 0, dimmed: 0 };
+  stats = { rooms: 0, walls: 0, items: 0, fixtures: 0, entities: 0, names: 0, cuts: 0, dimmed: 0 };
 
   constructor(private readonly options: FlatSceneOptions = {}) {
     this.field = emptyField(options.mode ?? 'realistic');
@@ -276,7 +279,16 @@ export class FlatScene {
     const f = this.field;
     const omniscient = f.mode === 'omniscient';
     const u = this.state.scale;
-    this.stats = { rooms: 0, walls: 0, items: 0, entities: 0, names: 0, cuts: 0, dimmed: 0 };
+    this.stats = {
+      rooms: 0,
+      walls: 0,
+      items: 0,
+      fixtures: 0,
+      entities: 0,
+      names: 0,
+      cuts: 0,
+      dimmed: 0,
+    };
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = omniscient ? INK.spaceLit : INK.space;
@@ -343,7 +355,33 @@ export class FlatScene {
       else this.drawDoorLeafZ(ctx, door);
     }
 
-    // --- Requisiten, Lampen, Figuren — sortiert nach z ----------------------------
+    // --- Möbel, Requisiten, Lampen, Figuren — sortiert nach z ---------------------
+    // Fracht, Schrank und Konsole stehen zweimal im Snapshot: als Möbelklotz
+    // und als Requisite mit Zustand. Gezeichnet wird die Requisite, denn nur
+    // die weiß, ob sie offen, gelöst oder hin ist.
+    for (const fixture of s.fixtures ?? []) {
+      if (fixture.kind !== 'fixture') continue;
+      const reach = Math.max(fixture.width, fixture.depth) / 2 + 0.2;
+      const high = fixtureHeight(fixture);
+      if (
+        !inView(
+          fixture.at.x - reach,
+          fixture.at.z - reach - high,
+          fixture.at.x + reach,
+          fixture.at.z + reach,
+        )
+      )
+        continue;
+      const p = this.toScreen(fixture.at.x, fixture.at.z);
+      layer.push({
+        z: fixture.at.z,
+        order: 1,
+        draw: () => {
+          drawFixture(ctx, p.x, p.y, u, fixture);
+          this.stats.fixtures++;
+        },
+      });
+    }
     for (const item of s.items) {
       if (!inView(item.at.x - 1, item.at.z - 2, item.at.x + 1, item.at.z + 1)) continue;
       const p = this.toScreen(item.at.x, item.at.z);
@@ -712,6 +750,7 @@ export class FlatScene {
     ctx.strokeStyle = ART.ink;
     ctx.lineWidth = Math.max(1, u * 0.03);
     ctx.strokeRect(left, topY, right - left, baseY - topY);
+    this.drawHoldBar(ctx, door, (left + right) / 2, topY, right - left);
   }
 
   /** Das geschlossene Blatt in einer Wand entlang z: ein senkrechter Streifen mit Stirnseite. */
@@ -734,6 +773,33 @@ export class FlatScene {
     ctx.strokeStyle = ART.ink;
     ctx.lineWidth = Math.max(1, u * 0.03);
     ctx.strokeRect(left, topY, right - left, baseY - topY);
+    this.drawHoldBar(ctx, door, (left + right) / 2, topY, door.width * u);
+  }
+
+  /**
+   * **Der Balken über einer gesperrten Tür**: wie lange die Sperre noch hält
+   * (`rules/doorLocks.ts`). Keine Sperre hält ewig — weder die von Hand
+   * gesetzte noch die zugefallene —, und wer sich darauf verlässt, soll sehen,
+   * wie lange noch.
+   */
+  private drawHoldBar(
+    ctx: CanvasRenderingContext2D,
+    door: MapDoor,
+    cx: number,
+    topY: number,
+    width: number,
+  ): void {
+    if (!door.locked || !door.hold || door.hold.total <= 0) return;
+    const u = this.state.scale;
+    const left = Math.max(0, Math.min(1, door.hold.left / door.hold.total));
+    const w = Math.max(14, width * 0.9);
+    const h = Math.max(3, u * 0.055);
+    const x = cx - w / 2,
+      y = topY - h - Math.max(3, u * 0.06);
+    ctx.fillStyle = ART.ink;
+    ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+    ctx.fillStyle = INK.lampRed;
+    ctx.fillRect(x, y, w * left, h);
   }
 
   /** Eine Figur je Sorte: Crewmate, Monster, Drohne. */
@@ -972,6 +1038,14 @@ export class FlatScene {
         }
       }
     const at = this.toWorld(px, py);
+    if (this.options.onRoomClick && fixtureAt(s.fixtures ?? [], at)) {
+      // Ein Tipp auf ein Möbel ist ein Tipp auf sein Zimmer: Möbel selbst tun nichts.
+      const room = s.rooms.find((one) => pointInPolygon(at, one.polygon));
+      if (room) {
+        this.options.onRoomClick(room.id, at);
+        return;
+      }
+    }
     if (this.options.onRoomClick)
       for (const room of s.rooms)
         if (pointInPolygon(at, room.polygon)) {
@@ -1000,6 +1074,25 @@ export class FlatScene {
       gestures: this.gestures,
     };
   }
+}
+
+/**
+ * Ob ein Punkt auf der Grundfläche eines Möbels liegt — die Fläche gedreht wie
+ * im Schiff, nicht ihr umschließendes Rechteck: Ein schräg stehender Tisch
+ * fängt sonst Tipps, die neben ihm liegen.
+ */
+export function fixtureAt(fixtures: readonly MapFixture[], at: MapPoint): MapFixture | null {
+  for (const fixture of fixtures) {
+    const dx = at.x - fixture.at.x,
+      dz = at.z - fixture.at.z;
+    const cos = Math.cos(fixture.yaw),
+      sin = Math.sin(fixture.yaw);
+    // Zurück in die lokalen Achsen des Möbels drehen.
+    const lx = dx * cos - dz * sin,
+      lz = dx * sin + dz * cos;
+    if (Math.abs(lx) <= fixture.width / 2 && Math.abs(lz) <= fixture.depth / 2) return fixture;
+  }
+  return null;
 }
 
 /** Welcher Maßstab zu einer Bildschirmbreite passt — Telefone etwas kleiner. */

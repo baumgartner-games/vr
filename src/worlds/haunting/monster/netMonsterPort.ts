@@ -3,8 +3,14 @@ import { MONSTER_ID } from '../map/flatRound';
 import { monsterMessage, type HauntState } from '../net';
 import { VENT_REACH } from '../vents/ventGraph';
 import { VENTING_CEILING } from '../vents/npcVentRide';
-import type { MonsterAction, MonsterInput, MonsterPort, MonsterStatus } from './monsterDriver';
-import { monsterLabel } from './monsterHelm';
+import type {
+  MonsterAction,
+  MonsterInput,
+  MonsterPort,
+  MonsterStatus,
+  MonsterTarget,
+} from './monsterDriver';
+import { CABIN_REACH, DOOR_REACH, monsterLabel } from './monsterHelm';
 
 /**
  * **Das Steuer auf dem Telefon** — die Seite der Monster-Rolle, die nichts
@@ -42,7 +48,6 @@ const FLAP_HINT_REACH = VENT_REACH + 0.85;
 export class NetMonsterPort implements MonsterPort {
   private held = false;
   private stick: MonsterInput = { x: 0, z: 0, sprint: false };
-  private attack = 0;
   private interact = 0;
   private vent = 0;
 
@@ -72,28 +77,69 @@ export class NetMonsterPort implements MonsterPort {
   }
 
   act(action: MonsterAction): string {
-    if (!this.claimed() || this.host.state().phase !== 'running') return '';
-    const ride = this.host.state().ride;
-    if (action === 'attack') {
-      if (ride !== 'out') return 'Im Schacht kann man nichts anrichten.';
-      this.attack++;
+    if (action !== 'interact' || !this.claimed() || this.host.state().phase !== 'running')
       return '';
-    }
     this.interact++;
     // Die Antwort ist die Absicht, nicht das Ergebnis — das kennt nur der
     // Gastgeber. Dieselben Zeilen wie am lokalen Steuer (`monsterHelm.ts`).
-    const what = this.prompt();
-    if (what === 'Aussteigen') return 'Aussteigen …';
-    if (what === 'Abbrechen') return 'Doch nicht.';
-    if (what === 'Einsteigen') {
+    const target = this.target();
+    if (!target) return 'Hier ist nichts.';
+    if (target.kind === 'ride')
+      return target.label === 'Aussteigen' ? 'Aussteigen …' : 'Doch nicht.';
+    if (target.kind === 'vent') {
       const targets = this.targets();
-      const target = targets[Math.min(this.vent, targets.length - 1)];
+      const to = targets[Math.min(this.vent, targets.length - 1)];
       this.vent = 0;
-      return target ? `Einsteigen · nach ${target.label}.` : 'Einsteigen …';
+      return to ? `Einsteigen · nach ${to.label}.` : 'Einsteigen …';
     }
-    if (what === 'Tür aufbrechen') return 'Holz splittert.';
-    if (what === 'Stahltür') return 'Stahl. Das hält.';
-    return 'Hier ist nichts.';
+    if (target.kind === 'cabin') return 'Die Kabine wird aufgerissen.';
+    return target.label === 'Tür aufbrechen' ? 'Holz splittert.' : 'Am Riegel ziehen …';
+  }
+
+  /**
+   * **Das nächste Ding in Reichweite**, aus dem Snapshot geschätzt — dieselbe
+   * Reihenfolge wie beim Gastgeber (`monsterHelm.nearestTarget`), nur mit den
+   * Daten, die über die Leitung kommen. Es kann sich irren; entschieden wird
+   * drüben, hier steht nur, was die Ansicht hervorhebt.
+   */
+  target(): MonsterTarget | null {
+    const state = this.host.state();
+    const me = this.me();
+    if (!me || state.phase !== 'running') return null;
+    if (state.ride === 'arrived') return { kind: 'ride', id: '', at: me, label: 'Aussteigen' };
+    if (state.ride === 'entering') return { kind: 'ride', id: '', at: me, label: 'Abbrechen' };
+    if (state.ride !== 'out') return null;
+    const near: Array<MonsterTarget & { gap: number }> = [];
+    const flap = this.targets().length ? this.flap() : null;
+    if (flap)
+      near.push({
+        kind: 'vent',
+        id: flap.id,
+        at: flap.at,
+        label: 'Einsteigen',
+        gap: Math.hypot(flap.at.x - me.x, flap.at.z - me.z),
+      });
+    for (const item of this.host.snapshot().items) {
+      if (item.kind !== 'locker' || item.state === 'destroyed') continue;
+      const gap = Math.hypot(item.at.x - me.x, item.at.z - me.z);
+      if (gap < CABIN_REACH)
+        near.push({ kind: 'cabin', id: item.roomId, at: item.at, label: 'Kabine aufreißen', gap });
+    }
+    for (const door of this.host.snapshot().doors) {
+      if (!state.shut.includes(door.id)) continue;
+      const gap = Math.hypot(door.at.x - me.x, door.at.z - me.z);
+      if (gap < DOOR_REACH)
+        near.push({
+          kind: 'door',
+          id: door.id,
+          at: door.at,
+          label: door.material === 'wood' ? 'Tür aufbrechen' : 'Tür aufziehen',
+          gap,
+        });
+    }
+    near.sort((a, b) => a.gap - b.gap);
+    const best = near[0];
+    return best ? { kind: best.kind, id: best.id, at: best.at, label: best.label } : null;
   }
 
   ventTargets(): ReadonlyArray<{ index: number; label: string }> {
@@ -127,7 +173,9 @@ export class NetMonsterPort implements MonsterPort {
       x: this.stick.x,
       z: this.stick.z,
       sprint: this.stick.sprint,
-      attack: this.attack,
+      // Der Zähler bleibt im Protokoll, damit ein alter Gastgeber die
+      // Nachricht noch versteht; gedrückt wird er nicht mehr.
+      attack: 0,
       interact: this.interact,
       vent: this.vent,
     });
@@ -135,7 +183,7 @@ export class NetMonsterPort implements MonsterPort {
 
   /** Die Zähler, wie sie in der nächsten Nachricht stehen — für Tests. */
   get counters(): { attack: number; interact: number } {
-    return { attack: this.attack, interact: this.interact };
+    return { attack: 0, interact: this.interact };
   }
 
   // --- aus dem Snapshot ------------------------------------------------------
@@ -185,32 +233,6 @@ export class NetMonsterPort implements MonsterPort {
   }
 
   private prompt(): string {
-    const state = this.host.state();
-    const ride = state.ride;
-    if (ride === 'arrived') return 'Aussteigen';
-    if (ride === 'entering') return 'Abbrechen';
-    if (ride !== 'out') return '';
-    if (this.targets().length) return 'Einsteigen';
-    const door = this.lockedDoorNearby();
-    if (door) return door.material === 'wood' ? 'Tür aufbrechen' : 'Stahltür';
-    return '';
-  }
-
-  /** Die verriegelte Tür vor dem Monster — aus den Türen des Snapshots. */
-  private lockedDoorNearby(): { material: string } | null {
-    const me = this.me();
-    if (!me) return null;
-    const shut = this.host.state().shut;
-    let best: { material: string } | null = null;
-    let near = 1.6;
-    for (const door of this.host.snapshot().doors) {
-      if (!shut.includes(door.id)) continue;
-      const d = Math.hypot(door.at.x - me.x, door.at.z - me.z);
-      if (d < near) {
-        near = d;
-        best = { material: door.material };
-      }
-    }
-    return best;
+    return this.target()?.label ?? '';
   }
 }

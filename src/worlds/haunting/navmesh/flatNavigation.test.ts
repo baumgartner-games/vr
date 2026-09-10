@@ -5,6 +5,7 @@ import type { MapSnapshot } from '../map/mapSnapshot';
 import type { HouseDoor } from '../house';
 import { housePlan } from '../plan';
 import { COMMAND } from '../roomGraph';
+import { PRY_COOLDOWN, pryTries } from '../rules/doorLocks';
 import type { FloorPoint } from '../stationLayout';
 import { stationRoute } from '../stationNavigation';
 import { pointSegmentDistance, snapshotSegmentClear } from './index';
@@ -176,20 +177,28 @@ describe('Gesperrte Türen bleiben Spielregel', () => {
     expect(round.navigator.target).not.toBeNull();
   });
 
-  it('bleibt vor einer Stahltür stehen', () => {
+  it('zieht an einer Stahltür, bis der Riegel nachgibt — nie beim ersten Zug', () => {
+    // Stahl splittert nicht, aber der Riegel gibt irgendwann nach
+    // (`rules/doorLocks.ts`): mindestens zwei Züge, dann mit wachsender
+    // Aussicht. Ein Monster, das vor einer Stahltür für immer stünde, machte
+    // die Tafel zur Wand.
     const { round, door } = penned('metal');
     const at = doorCentre(door);
-    const here = round.monster.space;
-    let waited = 0;
-    for (let t = 0; t < 20 && round.phase === 'running'; t += DT) {
+    let arrived = -1;
+    let opened = -1;
+    for (let t = 0; t < 30 && opened < 0 && round.phase === 'running'; t += DT) {
       round.step(DT, pushing(round, door));
-      if (Math.hypot(round.monster.x - at.x, round.monster.z - at.z) < 1.6) waited += DT;
-      expect(round.drain().some((e) => e.text === 'Holz splittert.')).toBe(false);
+      if (arrived < 0 && Math.hypot(round.monster.x - at.x, round.monster.z - at.z) < 1.6)
+        arrived = round.haunt.time;
+      const events = round.drain();
+      expect(events.some((e) => e.text === 'Holz splittert.')).toBe(false);
+      if (!round.haunt.shut.includes(door.id)) opened = round.haunt.time;
     }
-    expect(round.haunt.shut).toContain(door.id);
-    expect(round.monster.space).toBe(here);
-    expect(waited).toBeGreaterThan(5);
-    expect(round.state().crew.hp).toBe(3);
+    expect(arrived).toBeGreaterThan(0);
+    expect(opened).toBeGreaterThan(0);
+    // Zwei Züge im Takt von `PRY_COOLDOWN` sind die kürzeste Möglichkeit.
+    expect(opened - arrived).toBeGreaterThan(PRY_COOLDOWN);
+    expect(pryTries(round.locks, door.id)).toBe(0);
   });
 
   it('nimmt den Umweg, wenn es einen gibt', () => {

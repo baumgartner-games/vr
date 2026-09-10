@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { TILE, type Dir } from '../nav/navTile';
-import { blockFor } from './plan';
 import { BLOCKS } from '../grid/blocks';
 import type { MarkAt, MarkId } from './house';
+import { MARK_COLORS, blockFor } from './fixtureDimensions';
 
 /**
  * **Woran man ein Klavier von einer Werkbank unterscheidet.**
@@ -18,25 +18,6 @@ import type { MarkAt, MarkId } from './house';
  * hier ein Modell baut, baut vierzehn Modelle, und dann sieht das Haus beim
  * fünften noch immer nicht fertig aus.
  */
-
-/** Die Farbe, an der ein Merkmal auch von oben und im Dunkeln kenntlich ist. */
-const MARK_COLORS: Readonly<Record<MarkId, number>> = {
-  wanne: 0xf2f5f8,
-  dusche: 0xa8d8e8,
-  ofen: 0x2c313c,
-  spuele: 0xc9ced8,
-  bett: 0xd8c7a8,
-  buecher: 0x9c5a3c,
-  werkbank: 0x7a6a52,
-  klavier: 0x14161c,
-  kamin: 0xb0463a,
-  standuhr: 0x8a6440,
-  sessel: 0x5a6a8a,
-  kiste: 0xa8874f,
-  schaukelpferd: 0xd88a6a,
-  esstisch: 0xb08a5a,
-  ausgabe: 0xd6c08a,
-};
 
 /**
  * Das Kennzeichen eines Merkmals, fertig an seinem Platz.

@@ -280,4 +280,37 @@ describe('FlatScene', () => {
     expect(MONSTER_ID).toBe('monster');
     scene.dispose();
   });
+  it('stellt die Möbel der 3D-Räume auch in die 2D-Szene', () => {
+    const round = new FlatRound(5, { test: true });
+    round.setMode('omniscient');
+    round.step(1 / 30, { x: 0, z: 0, sprint: false });
+    const snapshot = round.snapshot();
+    const fixtures = (snapshot.fixtures ?? []).filter((one) => one.kind === 'fixture');
+    // Der Bauplan stellt Tische, Werkbänke und Inseln in die Räume …
+    expect(fixtures.length).toBeGreaterThan(5);
+    const table = fixtures.find((one) => one.mark === 'esstisch') ?? fixtures[0]!;
+    const scene = new FlatScene({
+      view: { centreX: table.at.x, centreZ: table.at.z, scale: 60 },
+    });
+    scene.setSnapshot(snapshot);
+    scene.setVisibility(omniscient());
+    scene.draw();
+    // … und die Szene zeichnet sie, nicht nur die Karte.
+    expect(scene.stats.fixtures).toBeGreaterThan(0);
+    // Ein Tipp auf den Tisch ist ein Tipp auf sein Zimmer, nicht ins Leere.
+    const hits: string[] = [];
+    const clickable = new FlatScene({
+      view: { centreX: table.at.x, centreZ: table.at.z, scale: 60 },
+      onRoomClick: (id) => hits.push(`room:${id}`),
+      onGroundClick: () => hits.push('ground'),
+    });
+    clickable.setSnapshot(snapshot);
+    clickable.setVisibility(omniscient());
+    clickable.draw();
+    const p = clickable.toScreen(table.at.x, table.at.z);
+    clickable.tap(p.x, p.y);
+    expect(hits).toEqual([`room:${table.roomId}`]);
+    scene.dispose();
+    clickable.dispose();
+  });
 });

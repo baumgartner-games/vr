@@ -61,8 +61,10 @@
 .flat__key--act small { font-size: 10px; text-transform: none; letter-spacing: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flat__key--act.is-ready { opacity: 1; background: #ffd54a; color: #1d2126; border-color: #7a5a00; box-shadow: 0 0 0 4px rgba(255, 213, 74, 0.25), 0 2px 0 rgba(0, 0, 0, 0.4); }
 .flat__key--act.is-ready small { color: #4a3a00; }
-/* Das Loch für das 3D-Bild des Werkzeugs (`flatStage.ts`) sitzt im Wechseln-Knopf. */
-.flat__item { position: absolute; right: calc(14px + var(--flat-key) + 10px); bottom: calc(var(--flat-bottom) + var(--flat-act) + 10px + 18px); width: var(--flat-key); height: calc(var(--flat-key) - 18px); border-radius: 50% 50% 0 0; background: transparent; pointer-events: none; }
+/* Das gepufferte Comic-Bild des Werkzeugs (`toolIcons.ts`) sitzt im Wechseln-Knopf:
+   einmal aus dem 3D-Modell gerendert, danach ein ganz gewöhnliches Bild. Ein Loch
+   für WebGL war es vorher — und unsichtbar, weil die 2D-Welt darüber liegt. */
+.flat__icon { display: block; width: 34px; height: 34px; margin: -2px 0; object-fit: contain; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55)); }
 /* Oben rechts: zwei runde Knöpfe (Zahnrad, Karte), darunter „Zum Spieler". */
 .flat__corner { position: absolute; top: var(--flat-top); width: 52px; height: 52px; border-radius: 50%; border: 3px solid #2d3238; background: #d8dde3; color: #2a2e34; font: inherit; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; touch-action: manipulation; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
 .flat__options { right: 12px; }
