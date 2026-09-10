@@ -3,6 +3,186 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Auftrag „offene Handover-Punkte" — was aus den Fragen der Pakete wurde
+
+Branch `claude/offene-handover-probleme-xhocfk` (Claude Code im Browser, PR
+#83). Der Auftraggeber hat die offenen Fragen der Abschnitte unten
+entschieden; hier steht je Entscheidung, was gebaut wurde, was dabei
+entschieden wurde und was offen blieb. Die alten Abschnitte bleiben als
+Geschichte stehen; erledigte Punkte sind dort mit „→ erledigt" markiert.
+
+### Entscheidungen des Auftraggebers
+
+- `ventPairs` nicht mehr nutzen, dafür `VentNet` — auch in 3D.
+- Zustand `destroyed` in 3D: neues Modell, Funken alle paar Sekunden, nicht
+  betretbar; der Bot meidet zerstörte Kabinen.
+- Das Monster reißt nur Kabinen auf, in denen es den Spieler vermutet oder
+  hineingehen sah.
+- Timer (Sauerstoff) für alle Mitspieler, Anzug-Leben für den Anzug-Spieler
+  und die Anzeigetafel.
+- Die Uhr wird **nicht** angehalten; „Lebenserhaltung" heißt um, weil der
+  Sauerstoff keine Reparatur ist.
+- „Van" heißt überall „Einsatzzentrale".
+- 2D-Welt auch im VR-/Weltmenü; 2D- und 3D-Welt beide netzfähig; die
+  Monster-Rolle netzfähig.
+- 2D-Monster mit Wegsuche — **eine** Navigation für beide Welten auf dem
+  Kachelgitter.
+- Raumschilder bleiben neben/über der Tür; Deckenhöhe geprüft, nicht geändert
+  (siehe unten).
+
+### 1. Lüftungsnetz in 3D (`vents/`, `HauntingWorld`)
+
+**Was drin ist.** `vents/npcVentRide.ts` (`NpcVentRide`) bündelt Netz,
+Fahrt (`VentTravel`) und Lotse (`VentPilot`) für einen Rapier-Körper: drei
+Handgriffe (`hold`, `place`, `effect`), `step(dt, rider, autoExit)`,
+`venting()` liefert das Signal für alle bestehenden Leser von
+`crew.venting` (0,5…3 s, solange verborgen; sonst 0), `steer(...)` reicht an
+den Lotsen durch. `HauntingWorld` hat `readonly vents`, `readonly ventRide`,
+`npcRide` (je Spawn, weil Intervall und Tempo von der Monstersorte hängen),
+`monsterDriver: MonsterDriver | null`, `monsterRider()`. Während der Fahrt
+steht der Körper an der Einstiegsklappe (Geschwindigkeit null je Bild,
+unsichtbar über `venting`), bei `arrived`/`exited` an `to.approach`.
+`vents/ventArt.ts` bekam `VentFlapArt.setOpen(id)`: Lamellen kippen, der
+Leuchtstreifen wird zum Balken — weiterhin zwei Draw-Calls. Der Snapshot der
+3D-Welt liefert jetzt Klappen-Items (`open`) und `ventLinks`
+(`WorldHandles.vents?()`). Die alten Wandgitter in `shipArt` und
+`ventPairs`/`ventDestination` in `mission.ts` sind weg.
+
+**Entscheidungen.**
+
+- **Das Layout bleibt byte-identisch.** Die alten Reservierungen an jeder
+  gemeinsamen Wand hatten alle Layouts geprägt; ohne sie ändern sich 2362
+  Platzierungen und die Balance-Tests (800 Runden) fallen. Sie bleiben
+  deshalb als Layoutregel (`stationLayout.ts`, `sharedWalls`), dazu je Klappe
+  Standplatz-Gasse und Freiraum. Nur `vent-communications` rückte von `x: 8`
+  nach `x: 5` (dieselbe Nordwand), weil dort in allen 100 Seeds die Wandkachel
+  frei ist. Ergebnis: 0 abweichende Platzierungen.
+- `ventPilot` bekam ein optionales `reach`: Der Rapier-Körper hält 1,15 m vor
+  seinem Ziel (`npcBrain.reach`), mit dem alten 0,9 m wäre die KI in 3D nie
+  eingestiegen (`NPC_VENT_REACH` 1,395 m).
+- `vents/ventPlacement.ts` rechnet Klappenmaße ohne `map/geometry`, weil
+  `stationLayout → ventGraph → geometry → roomGraph → stationLayout` ein
+  Importkreis wäre.
+- Wahrnehmung beim Ein-/Aussteigen (sichtbar, ~2 s) bleibt in 3D wie üblich
+  über `threat.ts`; die 2D-Runde sperrt für die ganze Fahrt. Nicht angeglichen
+  (kein Eingriff in `threat.ts`).
+
+**Offen.** Klappenzustand für Mitspieler über das Netz (heute nur beim
+Gastgeber sichtbar). Kein Hardware-Test des Einstiegs mit echtem Körper.
+
+**Tests.** `vents/npcVentRide.test.ts`, `vents/ventArt.test.ts`,
+`vents/worldVents.test.ts`; `stationLayout.test.ts` prüft über 100 Seeds den
+Standplatz jeder Klappe.
+
+### 2. Zerstörte Kabinen in 3D und der Verdachts-Angriff (`rules/`, `ShipExperience`, `monsterRoutine`)
+
+**Was drin ist.** `HauntState.destroyed: string[]` ist die Liste (Raum-Ids),
+`RoundRules` hält keine eigene mehr, sondern bekommt einen Getter auf den
+Stand — damit geht sie ohne Abgleich über `stateMessage`, `adopt(next)` hat
+sie automatisch, `worldSource`/`rules.status` stimmen auf Nicht-Gastgebern.
+`STATION_PROTOCOL` ist 6. `fixtureModels.buildBrokenLocker()` ist das Wrack
+(Blatt hängt schief, Pfosten geknickt, Beulen, Brandfleck, bernstein
+glimmender Rahmen; `LOCKER_SIZE`, fünf Draw-Calls); `ShipExperience` tauscht
+je Bild nach `state.destroyed`, funkt über `rules/cabinWreck.ts` (3–6 s,
+eigener Takt je Wrack), lehnt Code und Eintritt ab (`ZERSTÖRT / KEIN
+SCHUTZ`). `missionBot` überspringt Wracks; wird seine Kabine aufgerissen,
+flieht er mit Funkspruch. **Routine:** `RoutineOutput.cabin` nennt die Kabine;
+beim Schnüffeln am Schrank des verdächtigen Raums wechselt sie in `breach`
+(0,5 s), reißt auf und kehrt in die Suche zurück — ohne Schrei, ohne
+`savour`; die gesehene Kette bleibt. `breakLocker(at, room)` zerstört `room`,
+Treffer nur bei `crew.hidden === room`; `flatRound` und `roundSim` analog.
+Der alte Betrug (Schnüffeln wird nur bei besetztem Schrank zu `caught`) ist
+raus.
+
+**Balance.** Gemessen wie `botTraining.test.ts` (4×200 Runden): vorher
+64,0 %, jetzt 63,5 %. `DEFAULT_TUNING` unangetastet.
+
+**Offen.** `roundSim.ts` führt keine Wrack-Liste (Balance-Datei) — der
+Sim-Techniker kann sich in einer aufgerissenen Kabine erneut verstecken. Das
+Monster schnüffelt und reißt auch an bereits zerstörten Kabinen erneut
+(0,5 s Verlust); ein `usable(id)` in `RoutineWorld` wäre der nächste Schritt.
+Sichtprüfung des Wracks im Browser steht aus.
+
+**Tests.** `rules/cabinWreck.test.ts`, `monsterRoutine.test.ts` (+2),
+`rules/roundRules.test.ts` (+2), `missionBot.test.ts` (+2),
+`fixtureModels.test.ts` (+1), `ShipExperience.test.ts` (+1),
+`mission.test.ts`/`netReplay.test.ts` (Version 5 wird abgewiesen).
+
+### 3. Uhr und Anzug für alle, Umbenennungen, 2D-Welt im Weltmenü
+
+**Was drin ist.** `rules/roundHud.ts` (headless: Uhr `O₂ m:ss`, Pips,
+Kabinenzeile, Warnung unter 60 s, Farben, Endtexte). `stationUi.writeQuest`
+zeigt jedem Mitspieler Sauerstoff, Anzug-Leben als drei Pips und zerstörte
+Kabinen; Klasse `is-low` unter einer Minute; „Radar & Anzug" hat eine
+Zeile dazu; die Endkarte nennt den Grund (`MapRound.ending`). Die Uhr wird
+per `[data-oxygen]` in-place geschrieben, damit die Seite nicht jede Sekunde
+neu gebaut wird (das nähme dem Daumen den Schalter weg). `ShipExperience`:
+Desktop-Titel mit Uhr; in der Brille ein schmaler Streifen an der Kamera
+(0,34 × 0,085 m, einmal je Sekunde gemalt, nur bei laufender Mission).
+`StationHost.round?()`/`ShipHost.round?()` liefern `rules.status(state)`.
+`mission.ts`: „Nahrungsversorgung sichern" (Id `oxygen` bleibt).
+„Van" → „Einsatzzentrale" in allen Texten und Kommentaren; Bezeichner
+(`vanPage`, `buildVan`, `data-van`, Item-Id `van`) bleiben.
+`HauntingWorld.menu()` hat „2D-Welt von oben" (Rolle `vr`); `toggleFlat`
+beendet bei `xr.isPresenting` erst die XR-Sitzung und setzt
+`flatTechnician`, weil `App.onSessionEnd` die Rolle sonst auf `desktop`
+zurücksetzt.
+
+**Deckenhöhe (nichts geändert).** `PLAN_WALL_H` 2,80 m, Wegweiser-Band
+2,40–2,74 m: Türschild 2,437–2,703 m, Kreuzungsschild füllt das Band —
+6 bis 10 cm Luft zur Decke, keine Kollision. Raumschilder bei 2,39 m ± 0,21
+auf der türfreien Kachel. Eine höhere Decke nähme Wegweiser, Hüllenkasten
+und Rohr mit (relativ zu `PLAN_WALL_H`), die Raumschilder, die Türleuchte
+(`PLAN_DOOR_H + 0,18`) aber nicht — sie müssten dann auf `PLAN_WALL_H − 0,41`
+umgehängt werden. Gewinn wäre nur Luft; geometrisch reicht es heute.
+
+**Offen.** Streifen und XR-Ende sind nur mit Headset prüfbar. Der
+Browser-Smoke kennt Checkbox und Menüeintrag nicht.
+
+**Tests.** `rules/roundHud.test.ts`; `stationUi.test.ts` (+2).
+
+### 4. Eine Navigation für beide Welten (`navmesh/flatNavigator.ts`)
+
+**Was drin ist.** `FlatNavigator`: Route aus `stationRoute` auf dem
+`NavGraph` von `StationTravelPlan.graph(spec, shut, false)` (also `housePlan`
+mit inkrementellen Türupdates), Cursor, Neuplanung nur wenn das Ziel mehr
+als 0,75 m gewandert, das Monster 0,75 m von der Route weg oder eine Sperre
+geändert ist (13–15 Routen in 240 s Spielzeit). `flatRound.moveMonster`
+fährt die Wegpunkte mit dem vorhandenen `stepMonster` ab; Warten vor einer
+gesperrten Tür ohne Umweg (`FlatLeg.door`, 0,9 m davor) und „Holz splittert."
+nach 2,5 s bleiben; Stahl hält. Der Techniker aus Zahlen (`flatWalk.ts`)
+läuft über einen eigenen `FlatNavigator` mit `PLAYER_RADIUS`. Lotse,
+Schachtfahrt und der `driver`-Pfad (Spieler am Steuer läuft direkt) sind
+unverändert.
+
+**Entscheidungen.**
+
+- Eigener Adapter statt `StationNpcNavigator`: Der Headset-Navigator plant
+  per Timer alle 0,55 s neu und kennt weder `route.complete` noch das Ziel;
+  für eine 600-s-Runde headless wären das ~1000 Routen. Dieselbe Wegsuche,
+  dieselbe Glättung, derselbe Graph — nur sparsamer geplant.
+- **Fächerindex in `stationNavigation.segmentClear`** (kachelweise über die
+  Wandquader statt `obstacles.some(...)`): ein Weg kostete 88 ms, davon 80 in
+  `softenCorners`/`pullString`; jetzt ≈ 14 ms. Über 6272 Start-Ziel-Paare
+  byteidentisch verglichen. Kommt 3D-Monster, Bot und Drohne genauso zugute.
+- Kein Umbau von `slide`/`walkable`: Die 2D-Kollision bleibt die
+  Raumgeometrie, die Route hält von sich aus ≥ 0,1 m mehr Abstand.
+
+**Laufzeit.** `botRound flatVents monsterRole flatRound`: 64,9 s vorher,
+62,5 s nachher (105 s ohne Fächerindex). Neue Suite ≈ 42 s.
+
+**Offen.** Vorplatzhülle (`extract.apronWalls`, siehe Paket nav unten)
+unverändert; die Wandtests prüfen `wallSegments(spec)` plus Türblätter. Die
+Route wird noch nicht auf der Karte gezeichnet (`round.navigator.remaining`
+liegt für `MapViewOptions.routes` bereit). Bot-Runden enden anders (Seed 1
+nach 91 s statt 146 s), die Tests prüfen nur Enden und Determinismus. In 2D
+gibt es weiter keine Modulkollision: Die Route umgeht Schränke, `slide`
+nicht.
+
+**Tests.** `navmesh/flatNavigation.test.ts` (Route ist Suffix der
+`stationRoute`-Route über drei Samen, nie durch eine Wand, Holztür/Stahltür,
+Umweg, Techniker erreicht sechs Ziele).
+
 ## Paket gameplay — Rundenregeln, Lüftungssystem, Monster-Rolle
 
 Branch `feat/monster-gameplay` (in der Browser-Session als
@@ -88,13 +268,13 @@ Feld, fünf kleine Hooks), `map/flatMode.ts` (HUD-Zeile, Endkarte),
 
 **Offen / nicht gemacht.**
 
-- Die **3D-Bot-Runde** kennt jetzt die Uhr und zerstörte Kabinen, aber der
+- → erledigt (Abschnitt 2 oben). Die **3D-Bot-Runde** kennt jetzt die Uhr und zerstörte Kabinen, aber der
   Modelltechniker (`missionBot.ts`, über `ShipExperience`) wählt seine Kabine
   noch aus allen — dafür bräuchte `MissionBotHost` ein `cabinUsable`, das
   durch `ShipExperience` durchgereicht wird (zwei Grenzfall-Dateien). Ebenso
   kann der VR-Spieler in 3D eine zerstörte Kabine noch betreten
   (`ShipExperience.hide`). Beides endet spätestens am Sauerstoff.
-- Die Schalttafel im Van zeigt `MapSnapshot.round` noch nicht (Paket
+- → erledigt (Abschnitt 3 oben). Die Schalttafel in der Einsatzzentrale zeigt `MapSnapshot.round` noch nicht (Paket
   Rollenansichten): Timer, Anzug und Kabinen liegen im Contract bereit.
 - `map/index.ts` ist aus Jest nicht importierbar (zieht `flatMode.ts` mit CSS
   nach sich); `rules/` und `monster/` importieren deshalb `map/flatRound`,
@@ -246,15 +426,16 @@ Monsters (gesehen, gehört) läuft in beiden Fällen mit.
 
 ### Offene Fragen an dich
 
-- **3D-Monster auf den Vent-Graphen umstellen?** Netz, Fahrt und Klappen
+- → erledigt (Abschnitt 1 oben). **3D-Monster auf den Vent-Graphen umstellen?** Netz, Fahrt und Klappen
   sind fertig; offen ist nur der Umbau von `npcTarget`/`stepMonster`/
   `monsterVent` in `HauntingWorld` (Grenzfall, ~60 Zeilen). Bis dahin
   springt das 3D-Monster weiter über die alten Wandpaare.
-- **Uhr bei reparierter Lebenserhaltung anhalten?** Heute nein (sonst wäre
+- → entschieden: nein, die Uhr läuft durch; die Reparatur heißt jetzt
+  „Nahrungsversorgung sichern" (Abschnitt 3 oben). **Uhr bei reparierter Lebenserhaltung anhalten?** Heute nein (sonst wäre
   die Schleife wieder möglich); wenn doch, eine Zeile in `oxygenLeft`.
 - **Monster-Rolle im Van übers Netz** — braucht eine Nachricht in `net.ts`
   (Protokoll 5 → 6) und einen Netz-`MonsterDriver` in `HauntingWorld`.
-- **Bot der 3D-Runde und VR-Spieler bei zerstörten Kabinen** — je eine
+- → erledigt (Abschnitt 2 oben). **Bot der 3D-Runde und VR-Spieler bei zerstörten Kabinen** — je eine
   Zeile in `missionBot.ts`/`ShipExperience.ts`, sobald das Paket
   Rollenansichten dort ohnehin arbeitet.
 
@@ -634,7 +815,7 @@ dieselbe Glättung und bleibt frei.
   „Fenster" — vorher wie nachher, also nichts, was die Glättung verursacht.
   Ich habe die Vorplatzhülle deshalb aus der Kartenprüfung gelassen und
   nichts am Paket `map` geändert. Gehört ans Paket `map`.
-- **Soll das Monster der 2D-Welt** denselben Weg bekommen wie in 3D
+- → erledigt (Abschnitt 4 oben). **Soll das Monster der 2D-Welt** denselben Weg bekommen wie in 3D
   (`stationRoute` + Schnurzug statt Raum für Raum)? Dann lässt sich die
   Glättung auch in der 2D-Welt *sehen*, nicht nur messen.
 - **Punkte je Ecke.** Wenn 20 Stützpunkte je Bogen für das Monster zu viel
@@ -733,7 +914,7 @@ Branch `feat/world-3d` — in dieser Session vom Harness als
 
 ### Offene Fragen an dich
 
-- Die **Raumschilder** liegen jetzt neben der Tür statt auf der Wandmitte.
+- → entschieden: bleiben so; Deckenhöhe geprüft und nicht geändert (Abschnitt 3 oben). Die **Raumschilder** liegen jetzt neben der Tür statt auf der Wandmitte.
   Wenn das Bild dadurch unruhig wirkt, ist die Alternative, sie an die
   Ost-/Westwand zu hängen (dort gibt es keine) statt sie zu verschieben.
 - Der Weltraum ist eine einfarbige Kugel plus Sterne. Ein Planet oder Nebel
@@ -847,9 +1028,9 @@ Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und
 - Soll die 2D-Welt später **netzfähig** sein (Host rechnet, Telefone zeigen)?
   Dann müsste `FlatRound` seinen `HauntState` über `net.ts` senden; der Typ
   passt schon, `STATION_PROTOCOL` bliebe bei 5.
-- Soll die Checkbox auch dem VR-Spieler angeboten werden (Handmenü), oder
-  bleibt sie im Van?
-- `claude/vr-map-view-g13344` auf `origin` (6. 9.) ist ein unmerged Branch
+- → erledigt: Eintrag im Weltmenü des Technikers (Abschnitt 3 oben). Soll die Checkbox auch dem VR-Spieler angeboten werden (Handmenü), oder
+  bleibt sie in der Einsatzzentrale?
+- (Der Branch existiert auf `origin` nicht mehr.) `claude/vr-map-view-g13344` auf `origin` (6. 9.) ist ein unmerged Branch
   mit einer allgemeinen Karte für alle Welten (`shared/mapScene.ts`). Nicht
   berührt; sie überschneidet sich thematisch, aber nicht im Code.
 
