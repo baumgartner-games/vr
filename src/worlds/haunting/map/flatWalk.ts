@@ -1,3 +1,4 @@
+import type { HouseDoor } from '../house';
 import { COMMAND } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { FlatNavigator } from '../navmesh';
@@ -11,12 +12,17 @@ import { PLAYER_RADIUS, type FlatInput, type FlatRound } from './flatRound';
  * hängen bleibt, rechnet neu und geht kurz zur Raummitte zurück. Ein Stock,
  * der weiß, wo der nächste Wegpunkt ist. Die Tests spielen damit ganze
  * Runden; die Bot-Vorschau der 2D-Welt darf es auch benutzen.
+ *
+ * **Eine gesperrte Tür ohne Umweg meldet er weiter** (`blocked`): Die Route
+ * führt dann bis davor, und wer den Stock hält, muss entscheiden, ob er
+ * wartet oder den Riegel aufmacht (`rules/technicianBot.ts`).
  */
 export class FlatWalker {
   private readonly navigator: FlatNavigator;
   private stall = { x: NaN, z: NaN, since: 0 };
   private detour = -1;
   private time = 0;
+  private shutDoor: HouseDoor | null = null;
 
   constructor(private readonly round: FlatRound) {
     this.navigator = new FlatNavigator(round.house, round.graph, PLAYER_RADIUS);
@@ -49,17 +55,34 @@ export class FlatWalker {
       this.stall.since = this.time;
       this.navigator.invalidate();
     }
-    if (here === goalSpace && Math.hypot(goal.x - round.player.x, goal.z - round.player.z) < 0.6)
+    if (here === goalSpace && Math.hypot(goal.x - round.player.x, goal.z - round.player.z) < 0.6) {
+      // Angekommen: Was auf dem Weg hierher im Weg stand, steht es nicht mehr.
+      this.shutDoor = null;
       return null;
+    }
     if (this.time < this.detour) step = graph.centre(here);
     else {
-      this.navigator.aim(round.player, goal, round.haunt.shut, this.time, avoid);
+      this.shutDoor = this.navigator.aim(
+        round.player,
+        goal,
+        round.haunt.shut,
+        this.time,
+        avoid,
+      ).door;
       step = this.navigator.next(round.player) ?? goal;
     }
     const dx = step.x - round.player.x,
       dz = step.z - round.player.z;
     const d = Math.hypot(dx, dz);
     return { x: dx / (d || 1), z: dz / (d || 1), sprint };
+  }
+
+  /**
+   * **Die gesperrte Tür, vor der der Weg endet** — `null`, solange die Route
+   * ans Ziel führt oder ein Umweg da ist.
+   */
+  get blocked(): HouseDoor | null {
+    return this.shutDoor;
   }
 
   /** Für Spuren: wohin der Stock gerade will. */

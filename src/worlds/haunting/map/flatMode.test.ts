@@ -81,17 +81,22 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
-  it('zeigt oben links Balken, Uhr, Anzug und die Aufgabenliste wie in der Vorlage', () => {
+  it('zeigt oben links nur zwei Zeilen: Uhr mit Anzug und die Aufgabenkreise', () => {
     const flat = new FlatMode(3, { test: true }, { exit: () => {} });
     document.body.append(flat.element);
     flat.update(DT);
     const hud = flat.element.querySelector<HTMLElement>('.flat__hud')!;
-    const fill = hud.querySelector<HTMLElement>('.flat__bar-fill')!;
-    expect(fill.style.width).toBe('0%');
-    expect(hud.querySelector('.flat__bar-label')?.textContent).toBe('Aufgaben erledigt');
+    // Der Balken „Aufgaben erledigt" ist weg — die Kreise zählen dasselbe.
+    expect(hud.querySelector('.flat__bar')).toBeNull();
     expect(hud.querySelector('.flat__oxygen')?.textContent).toMatch(/^O₂ \d+:\d\d$/);
     // Der Anzug als Herzen: was gemeint ist, steht dann im Zeichen selbst.
     expect(hud.querySelector('.flat__suit')?.textContent).toBe('♥♥♥');
+    // Die erste Zeile ist genau das: Uhr und Anzug, sonst nichts.
+    const vitals = hud.querySelector<HTMLElement>('.flat__vitals')!;
+    expect([...vitals.children].map((node) => node.className)).toEqual([
+      'flat__oxygen',
+      'flat__suit',
+    ]);
     const tasks = [...hud.querySelectorAll<HTMLElement>('.flat__task')];
     const repairs = repairsFor(flat.round.house);
     expect(tasks).toHaveLength(3);
@@ -100,10 +105,9 @@ describe('Die 2D-Welt', () => {
       expect(task.textContent).toMatch(/\(0\/2\)$/);
       expect(task.classList.contains('is-done')).toBe(false);
     });
-    // Eine Reparatur erledigt: Balken auf ein Drittel, Zeile grün mit (2/2).
+    // Eine Reparatur erledigt: Zeile grün mit (2/2).
     flat.round.state().done.push(repairs[0]!.itemId);
     flat.update(DT);
-    expect(fill.style.width).toBe('33%');
     const first = hud.querySelector<HTMLElement>('.flat__task')!;
     expect(first.classList.contains('is-done')).toBe(true);
     expect(first.textContent).toMatch(/\(2\/2\)$/);
@@ -117,7 +121,7 @@ describe('Die 2D-Welt', () => {
     // klappt die Liste auf, der nächste wieder zu.
     const tab = hud.querySelector<HTMLButtonElement>('.flat__tab')!;
     expect(hud.classList.contains('is-collapsed')).toBe(true);
-    expect(tab.querySelector('.flat__tab-label')?.textContent).toBe('Aufgaben');
+    expect(tab.querySelector('.flat__tab-label')?.textContent).toBe('Aufgaben:');
     const pips = [...hud.querySelectorAll<HTMLElement>('.flat__pip')];
     expect(pips).toHaveLength(3);
     expect(pips[0]!.classList.contains('is-done')).toBe(true);
@@ -236,7 +240,8 @@ describe('Die 2D-Welt', () => {
     for (let i = 0; i < 90; i++) flat.update(DT);
     const moved = Math.hypot(flat.round.player.x - start.x, flat.round.player.z - start.z);
     expect(moved).toBeGreaterThan(1);
-    expect(flat.element.querySelector('.flat__hud')?.textContent).toContain('Bot-Runde');
+    // Wer spielt, steht im Optionsmenü und nicht mehr am oberen Bildschirmrand.
+    expect(flat.element.querySelector('.flat__hud')?.textContent).not.toContain('Bot-Runde');
     // Die Kamera hängt am Techniker.
     expect(flat.scene.getView().centreX).toBeCloseTo(flat.round.player.x);
     // Im Optionsmenü schaltet die Rolle durch alle drei.

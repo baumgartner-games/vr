@@ -1,6 +1,6 @@
 import './flat.css';
 import { MARKS, type HouseRoom } from '../house';
-import { MONSTERS, lockerCode, repairsFor, type MonsterKind } from '../mission';
+import { lockerCode, repairsFor, type MonsterKind } from '../mission';
 import { viewModesFor, type ViewMode } from '../registry/viewModes';
 import './mapModes.register';
 import {
@@ -40,9 +40,9 @@ import type { ToolIconSource } from './toolIcons';
  * Links der Stock, rechts unten ein großer Knopf „Benutzen" und darüber zwei
  * kleine: Werkzeug benutzen, Werkzeug wechseln. Die Szene (`flatScene.ts`)
  * folgt dem Spieler, lässt sich ziehen und mit zwei Fingern zoomen; ein
- * Knopf holt sie zurück. Oben links der Kasten mit dem Balken „Aufgaben
- * erledigt", der Aufgabenliste, Sauerstoffuhr und Anzug-Leben; oben rechts
- * Zahnrad und Karte. Die Karte ist die alte `MapView` als Overlay — die
+ * Knopf holt sie zurück. Oben links der Kasten mit zwei Zeilen —
+ * Sauerstoffuhr mit Anzug-Leben, darunter „Aufgaben" mit einem Kreis je
+ * Auftrag —, oben rechts Zahnrad und Karte. Die Karte ist die alte `MapView` als Overlay — die
  * Übersicht bleibt erreichbar, sie ist nur nicht mehr das Spielbild. Rätsel
  * liegen als Overlay über der Szene; das Optionsmenü hat genau zwei Modi
  * (`registry/viewModes.ts`, Publikum `flat`).
@@ -114,10 +114,9 @@ export class FlatMode {
   private readonly mapOverlay = el('div', 'flat__map');
   private readonly stick = new Joystick();
   private readonly hud = el('div', 'flat__hud');
-  private readonly barFill = el('div', 'flat__bar-fill');
   private readonly vitals = el('div', 'flat__vitals');
   private readonly tasks = el('div', 'flat__tasks');
-  /** Der Reiter „Aufgaben": waagerecht, mit einem Kreis je Auftrag, und ein Knopf. */
+  /** Der Reiter „Aufgaben:": waagerecht, mit einem Kreis je Auftrag, und ein Knopf. */
   private readonly tab = el('button', 'flat__tab');
   private readonly pips = el('span', 'flat__pips');
   private readonly toast = el('div', 'flat__toast');
@@ -219,18 +218,16 @@ export class FlatMode {
     this.mapKey.addEventListener('click', () => this.showMap(this.mapOverlay.hidden));
     this.mapKey.setAttribute('aria-label', 'Karte');
     this.optionsKey.setAttribute('aria-label', 'Optionen');
-    // Der Kasten oben links: Balken, Uhr und Anzug, Aufgabenliste, Reiter zum Einklappen.
-    const bar = el('div', 'flat__bar');
-    bar.append(this.barFill, el('span', 'flat__bar-label', 'Aufgaben erledigt'));
+    // Der Kasten oben links: Uhr und Anzug, darunter der Reiter mit den Kreisen.
     this.tab.append(
-      el('span', 'flat__tab-label', 'Aufgaben'),
+      el('span', 'flat__tab-label', 'Aufgaben:'),
       this.pips,
       el('b', 'flat__caret', ''),
     );
     // Eingeklappt ist der Anfang: Die Liste nahm den halben oberen Rand ein,
     // und wer sie braucht, tippt einmal auf den Reiter.
     this.hud.classList.add('is-collapsed');
-    this.hud.append(bar, this.vitals, this.tab, this.tasks);
+    this.hud.append(this.vitals, this.tab, this.tasks);
     this.tab.addEventListener('click', () => {
       const open = this.hud.classList.toggle('is-collapsed');
       this.tab.setAttribute('aria-expanded', open ? 'false' : 'true');
@@ -795,34 +792,29 @@ export class FlatMode {
   }
 
   /**
-   * Der Kasten oben links, wie in der Vorlage: der grüne Balken zählt die
-   * erledigten Reparaturen, darunter Uhr und Anzug, darunter die Aufgaben —
-   * erledigte grün, mit `(n/2)`, weil jede Reparatur zwei Schritte hat:
-   * das Teil aus der Fracht holen, dann die Konsole lösen. Gebaut wird nur,
-   * wenn sich der Text ändert; die Uhr allein schreibt keine neue Liste.
+   * **Der Kasten oben links: zwei Zeilen, mehr nicht.** Oben die Uhr und die
+   * Anzug-Leben, darunter der Reiter „Aufgaben:" mit einem Kreis je Auftrag;
+   * ein Tipp klappt die Liste auf — erledigte grün, mit `(n/2)`, weil jede
+   * Reparatur zwei Schritte hat: das Teil aus der Fracht holen, dann die
+   * Konsole lösen.
+   *
+   * **Was hier nicht mehr steht, steht woanders**: Welches Monster mitspielt,
+   * wer welchen Platz besetzt und welcher Sichtmodus läuft, ändert sich
+   * während der Runde nicht — das gehört ins Optionsmenü und nicht an den
+   * oberen Bildschirmrand. Der Rand gehört dem, was sich ändert; ein Balken,
+   * der dasselbe zählt wie die drei Kreise darunter, gehört gar nicht dorthin.
+   *
+   * Gebaut wird nur, wenn sich der Text ändert; die Uhr allein schreibt keine
+   * neue Liste.
    */
   private renderHud(): void {
     const state = this.round.state();
     const crew = state.crew;
-    const monster = MONSTERS.find((m) => m.id === crew.options.monster)?.name ?? '';
     const round = this.round.round();
     // **Herzen statt Pips.** Zwei Reihen Punkte nebeneinander — der Balken
     // und der Anzug — hießen auf dem Telefon zweimal dasselbe Zeichen und
     // zweimal raten; ein Herz sagt von selbst, dass es ums Leben geht.
     const hp = '♥'.repeat(round.suit) + '♡'.repeat(Math.max(0, round.suitMax - round.suit));
-    const who = this.bot ? 'Bot-Runde · ' : '';
-    const cabins = round.cabinsDestroyed.length
-      ? ` · ${round.cabinsDestroyed.length} Kabinen hin`
-      : '';
-    const powers = [
-      this.powers.scout ? 'Späher' : '',
-      this.powers.panel ? 'Tafel' : '',
-      this.powers.archive ? 'Archiv' : '',
-    ].filter(Boolean);
-    const line = `${who}${state.monsterOn ? monster : 'Test ohne Monster'} · ${this.mode.label}${cabins}${powers.length && !this.session ? ` · ${powers.join('+')}` : ''}`;
-    const status = crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : '';
-    const next = this.session ? null : this.round.objectives()[0];
-    const goal = next ? `Ziel: ${next.label}` : '';
     const rooms = this.round.snapshot().rooms;
     const lines = repairsFor(this.round.house).map((repair) => {
       const done = state.done.includes(repair.itemId);
@@ -835,17 +827,12 @@ export class FlatMode {
         partial: carried && !done,
       };
     });
-    const key = [hp, clockText(round.oxygen), status, line, goal, ...lines.map((l) => l.text)].join(
-      '|',
-    );
+    const key = [hp, clockText(round.oxygen), ...lines.map((l) => l.text)].join('|');
     if (this.hud.dataset['text'] === key) return;
     this.hud.dataset['text'] = key;
-    this.barFill.style.width = `${Math.round((Math.min(3, state.done.length) / 3) * 100)}%`;
     this.vitals.replaceChildren(
       el('strong', 'flat__oxygen', `O₂ ${clockText(round.oxygen)}`),
       el('strong', 'flat__suit', hp),
-      el('span', '', [status, line].filter(Boolean).join(' · ')),
-      ...(goal ? [el('em', 'flat__goal', goal)] : []),
     );
     this.vitals.classList.toggle('is-low', round.oxygen < 60);
     this.tasks.replaceChildren(

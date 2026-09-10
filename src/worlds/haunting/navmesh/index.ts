@@ -24,5 +24,6 @@ export {
   OFF_ROUTE,
   PASSED,
   REACHED,
+  lockedDoorsBetween,
   type FlatLeg,
 } from './flatNavigator';

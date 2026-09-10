@@ -7869,6 +7869,19 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Riegel umsonst. Dieselbe Reibung verzögert in `roundSim.ts` auch, wann die
   Flucht überhaupt anläuft. Mehr Leute heißt hier nicht mehr Sicherheit,
   sondern mehr Reibung; die Zentrale zahlt sie mit Wissen zurück.
+- **Ein Riegel im Fluchtweg ist für den Bot ein Preis, keine Wand**
+  (`rules/technicianBot.ts`, `doorToll`). Auf der Flucht fällt hinter ihm eine
+  Tür zu und das Monster schlägt welche zu — steht dann eine gesperrte Tür
+  zwischen ihm und seiner Deckung, wartet er nicht davor, sondern **zieht sie
+  auf**: derselbe Knopf, den ein Mensch dort drückt (`FlatWalker.blocked`
+  meldet die Tür, vor der die Route endet; `FlatRound.lockDoor` macht sie
+  auf). Bezahlt wird das bei der **Wahl der Deckung**: Jede gesperrte Tür auf
+  dem Weg zählt als `DOOR_TOLL` = 6 m Umweg mit, und bis zu `1 + DOOR_HURRY`
+  mal so viel, je näher das Monster schon steht — am Riegel steht er still,
+  und wer hinter ihm herkommt, holt in dieser Zeit auf. Deckung ohne Tür
+  dazwischen gewinnt damit von selbst; ist ringsum alles zu, geht er trotzdem.
+  Unendliche Kosten wären dieselbe Ecke, in der er sonst stehen bleibt und
+  stirbt — dieselbe Regel wie bei der Scheu vor dem Monster (`RouteAvoid`).
 - **Zeitraffer** (`simulationSpeed.ts`): ×1/×2/×4/×8 über die **Anzahl** der
   Bilder (`HauntingWorld.update` → `tick`), nie über die Länge eines Schritts;
   nur der letzte Durchgang sendet und frischt die Anzeigen auf. Lange echte
@@ -7932,8 +7945,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   auf dem Boden und endet an der Wand, gezeichnet wächst dieselbe Wand aber
   nach Norden aus ihrer Linie heraus — wer vor seiner Nordwand stand, sah den
   Boden bis an sie heran und die Wand selbst nicht.
-  HUD wie die Vorlage: oben links der Kasten mit
-  Fortschrittsbalken, O₂-Uhr, Anzug-Pips und Aufgabenliste, oben rechts Karte
+  **Das HUD ist zwei Zeilen breit und keine Akte**: oben links der Kasten mit
+  `O₂ m:ss` und den Anzug-Herzen, darunter der Reiter „Aufgaben:" mit einem
+  Kreis je Auftrag — ein Tipp klappt die Liste auf. Was sich während der Runde
+  **nicht** ändert, steht dort nicht mehr: welches Monster mitspielt, wer
+  welchen Platz besetzt, welcher Sichtmodus läuft und ob eine Bot-Runde läuft,
+  steht im Optionsmenü; der Fortschrittsbalken „Aufgaben erledigt" zählte
+  dasselbe wie die drei Kreise darunter und ist weg. Der obere Bildschirmrand
+  gehört dem, was sich ändert. Oben rechts Karte
   (das alte `MapView` als Overlay) und Zahnrad, unten rechts der große Knopf
   „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
   Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
