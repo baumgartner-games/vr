@@ -7762,6 +7762,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 - `HauntingComfort` bietet lokale Snap-/Smooth-Drehung, Bewegungsrand und
   Haptik; reale Kopfbewegung löst keinen Rand aus. Dispose restauriert die
   gemeinsamen Rig-Einstellungen und räumt Pointer/Audio/GPU-Ressourcen auf.
+- **Die Steuerung der 2D-Welt gilt auch im Schiff**
+  (`world3d/shipControls.ts`): Stock links unten, drei Knöpfe rechts unten,
+  dieselbe Klasse und dasselbe CSS wie in 2D (`map/joystick.ts`,
+  `map/flat.css`) — nur ohne den schwarzen Grund und nur dort bedienbar, wo
+  Stock und Knöpfe liegen; dazwischen geht jeder Finger an die Leinwand
+  durch, sonst ließe sich nicht mehr umsehen. Neu ist an den Knöpfen nur der
+  Inhalt: Im Schiff hat man **zwei Hände**, also stehen auf den beiden
+  kleinen „Linke Hand" (Radar/Röntgen/frei) und „Rechte Hand"
+  (Lampe/Medkit/frei) — dieselben zwei Reihen wie auf `1` und `2` —, und der
+  große trägt den Namen dessen, worauf man gerade zielt, wie am Desktop das
+  `E`. Der Stock schiebt das Rig mit `PLAYER_WALK_SPEED` und jenseits des
+  Sprintrings mit `PLAYER_SPRINT_SPEED` — nur solange der Daumen liegt, sonst
+  nähme er der Tastatur jedes Bild ihren Wunsch weg. Nicht in der Brille
+  (dort ist DOM unsichtbar), nicht in der Simulation, nicht bei offenem Menü.
+  Damit die Tafel des Technikers nicht darunter liegt, rückt sie hoch
+  (`.orbital-player.is-keys`). **Den Bordstock der Seite** (`index.html`,
+  `#touch`) schaltet die Welt dafür ab: `WorldContext.touchStick(false)` beim
+  Betreten, `true` beim Verlassen — zwei Stöcke übereinander wären einer zu
+  viel.
 - `desktopControls.ts`: E/Klick benutzt denselben Interaktionspfad;
   1 wechselt Radar/Xray/frei, 2 Lampe/Medkit/frei. Ctrl duckt. Im Simulationsflug
   WASD/Space/Ctrl. Menüs, Texteingaben und Fokusverlust sperren gehaltene Tasten.

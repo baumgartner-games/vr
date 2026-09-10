@@ -885,6 +885,11 @@ export class HauntingWorld extends GridWorld {
     // Wand.
     ctx.scene.fog = new THREE.FogExp2(0x020711, 0.008);
     ctx.net.on(HAUNT_CHANNEL, (data, from) => this.receive(data, from));
+    // Der Bordstock der Seite bleibt hier aus: Diese Welt bringt ihren eigenen
+    // mit — in 2D den der gezeichneten Szene, im Schiff denselben über der
+    // 3D-Ansicht (`world3d/shipControls.ts`). Zwei Stöcke übereinander wären
+    // einer zu viel.
+    ctx.touchStick(false);
     this.joinTable(ctx);
 
     this.setupRole(ctx);
@@ -989,6 +994,7 @@ export class HauntingWorld extends GridWorld {
   override dispose(ctx: WorldContext): void {
     this.navigationOverlay.dispose();
     ctx.net.off(HAUNT_CHANNEL);
+    ctx.touchStick(true);
     ctx.scene.fog = null;
     // Die Leinwand gehört der ganzen Seite und nicht dieser Welt: Was hier an
     // ihr verstellt wurde, geht hier auch wieder ab.

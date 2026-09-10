@@ -59,6 +59,12 @@ export interface AppHooks {
   onWorldChanged?(id: string, title: string): void;
   onSessionChanged?(presenting: boolean): void;
   onNotify?(message: string): void;
+  /**
+   * Eine Welt möchte den Bordstock der Seite loswerden oder wiederhaben
+   * (`WorldContext.touchStick`). Was daraus folgt, entscheidet die Seite:
+   * `true` heißt „entscheide wieder selbst", nicht „zeig ihn".
+   */
+  onTouchStick?(on: boolean): void;
   /** Connection state or the peer list changed — repaint the network panel. */
   onNetChanged?(): void;
   /**
@@ -307,6 +313,7 @@ export class App {
       elapsed: this.elapsed,
       goTo: (id: string) => void this.goTo(id),
       join: (room: string) => void this.joinRoom(room),
+      touchStick: (on: boolean) => this.hooks.onTouchStick?.(on),
       notify: (message: string) => this.notify(message),
       refreshWorldMenu: () => {
         this.worldMenu = this.world?.menu?.() ?? [];

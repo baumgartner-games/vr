@@ -195,6 +195,15 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | Simulationsflug | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller |
 | Leistungsanzeige | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus |
 
+**Am Bildschirm liegt dieselbe Steuerung wie in der 2D-Welt**: der Stock links
+unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —
+**Linke Hand** (Radar, Röntgengerät, frei) und **Rechte Hand** (Taschenlampe,
+Medkit, frei), dieselben Reihen wie `1` und `2`. Der große trägt den Namen
+dessen, worauf man gerade zielt, und tut dasselbe wie `E`. Über den Stock geht
+es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. Tastatur und
+Maus bleiben daneben, wie sie waren; in der Brille sind die Knöpfe weg, dort
+gibt es Zeiger und Trigger.
+
 In VR werden dieselben Objekte mit dem Zeiger und Trigger bedient. Unter
 **VR-Komfort** lassen sich schrittweises oder fließendes Drehen, ein optionaler
 Komfortrand bei künstlicher Bewegung und Controller-Vibration einstellen.
