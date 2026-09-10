@@ -133,14 +133,22 @@ import {
   goalPrecision,
   loadSetup,
   powersOf,
-  presetFor,
   roundKindOf,
   saveSetup,
   WHO_LABELS,
   type RoundSetup,
 } from './rules/roundSetup';
-import { loadLobby, saveLobby, type LobbyChoice } from './rules/lobby';
 import {
+  applyIntent,
+  intentOf,
+  loadLobby,
+  saveLobby,
+  VIEW_LABELS,
+  type Intent,
+  type LobbyChoice,
+} from './rules/lobby';
+import {
+  asIntent,
   HOST_BUSY,
   opensFlat,
   ROOM_BUSY,
@@ -959,7 +967,7 @@ export class HauntingWorld extends GridWorld {
         setLobby: (choice) => this.setLobby(choice),
         setup: () => this.setup,
         setSetup: (setup) => this.applySetup(setup),
-        startSetup: () => this.startRound(roundKindOf(this.setup), ctx),
+        startSetup: () => this.startRound(intentOf(this.setup), ctx),
         snapshot: () => this.mapSnapshot(),
         monsterPort: () => this.netPort,
         notify: (text) => ctx.notify(text),
@@ -3378,13 +3386,23 @@ export class HauntingWorld extends GridWorld {
       accent: 0x65dce5,
       run,
     });
-    // Dieselbe Einstellung wie die Checkbox im Van — hier für den, der schon
-    // Techniker am Desktop ist und die Runde aus dem Menü startet.
-    const flat = entry(
-      'haunt:flat',
-      `2D-Welt von oben: ${this.flatWanted ? 'an' : 'aus'}`,
-      'Karte statt 3D für Bot-Runde, Mission und Test · Stock und drei Knöpfe',
-      () => this.toggleFlatWanted(),
+    // **Die Ansicht — dieselbe Wahl wie das Segment „2D | 3D" im Van.** Sie
+    // heißt hier nicht mehr „2D-Welt von oben: an/aus": Ein Kästchen, das
+    // aussieht, als starte es etwas, war der Befund; ein Segment mit zwei
+    // Namen sagt, worin man gleich steht. In der Brille steht es fest — die
+    // Karte von oben macht in einer XR-Sitzung nicht auf (`opensFlat`).
+    const immersive = this.context?.renderer.xr.isPresenting ?? false;
+    const view = entry(
+      'haunt:view',
+      `Ansicht: ${VIEW_LABELS[immersive ? '3d' : this.lobbyChoice.view]}`,
+      immersive
+        ? 'In der Brille immer das Schiff · die Karte von oben gibt es nur am Fenster'
+        : 'Antippen wechselt · gilt für Spielen, Zuschauen und Trainieren',
+      () => {
+        if (immersive)
+          this.context?.notify('In der Brille gibt es nur das Schiff — die Karte von oben nicht.');
+        else this.toggleFlatWanted();
+      },
     );
     if (this.context?.role !== 'vr')
       return [
@@ -3396,10 +3414,23 @@ export class HauntingWorld extends GridWorld {
             this.flatTechnician = true;
           },
         ),
-        flat,
+        view,
       ];
     return [
-      ...(!this.context?.renderer.xr.isPresenting
+      // **Was? — dieselben drei Kacheln wie im Van und im Optionsmenü der
+      // 2D-Welt** (`rules/lobby.ts`, gerechnet in `rules/worldMenu.ts`):
+      // Spielen · Zuschauen · Trainieren, in derselben Reihenfolge und mit
+      // denselben Worten. Die aktive ist markiert, und wo gerade keine Runde
+      // losgehen kann, steht der Grund als ganzer Satz an der Stelle, an der
+      // sonst die Erklärung steht — vorher stand dort ein Eintrag, der nichts
+      // tat und nichts sagte.
+      ...startEntries(this.startState()).map((row) =>
+        entry(row.id, `${row.active ? '● ' : ''}${row.label}`, row.sub, () => {
+          if (row.starts && this.context) this.startRound(row.starts, this.context);
+          else if (row.blocked) this.context?.notify(row.blocked);
+        }),
+      ),
+      ...(!immersive
         ? [
             entry(
               'haunt:roles',
@@ -3411,20 +3442,9 @@ export class HauntingWorld extends GridWorld {
                 this.context?.menu.toggle(false);
               },
             ),
-            flat,
           ]
         : []),
-      // Die drei Starts kommen aus einer Rechnung, die ein Test nachrechnet
-      // (`rules/worldMenu.ts`): welche Runde losgeht, in welcher Reihenfolge
-      // die Einträge stehen — und welcher Satz an die Stelle einer Runde
-      // tritt, die gerade nicht möglich ist. Vorher stand dort ein Eintrag,
-      // der nichts tat und nichts sagte.
-      ...startEntries(this.startState()).map((row) =>
-        entry(row.id, row.label, row.sub, () => {
-          if (row.starts && this.context) this.startRound(row.starts, this.context);
-          else if (row.blocked) this.context?.notify(row.blocked);
-        }),
-      ),
+      view,
       entry(
         'haunt:light',
         `Testlicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
@@ -3508,6 +3528,7 @@ export class HauntingWorld extends GridWorld {
       me: ctx?.net.localId ?? '',
       phase: this.state.phase,
       flatWanted: this.flatWanted,
+      intent: intentOf(this.setup ?? loadSetup()),
       occupied: ctx ? this.roomOccupied(ctx) : false,
     };
   }
@@ -3560,16 +3581,32 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Eine Runde starten — in 2D oder 3D, je nach Einstellung.** Die drei
-   * Arten sind dieselben wie im Menü der Brille: Bot-Runde (zusehen),
-   * Mission (mit Monster) und Test (ohne). Steht „2D-Welt von oben", läuft
-   * jede davon als `FlatMode`; sonst wie bisher im Schiff. **In der Brille
-   * immer im Schiff** — die Karte von oben gibt es dort nicht (`opensFlat`).
+   * **Welchen der beiden Plätze dieses Gerät hat** — für `applyIntent`. Wer
+   * in der Zentrale an der Station „Monster" sitzt, ist das Monster; alle
+   * anderen sind der Techniker, wie überall sonst in diesem Spiel.
    */
-  private startRound(kind: RoundKind, ctx: WorldContext): void {
-    // Die drei Kacheln schreiben Techniker und Monster auf die Tafel; die
-    // Plätze der Zentrale bleiben, wie sie verteilt sind (`rules/roundSetup.ts`).
-    this.applySetup(presetFor(kind, this.setup));
+  private myPlace(): 'technician' | 'monster' {
+    const ctx = this.context;
+    return ctx && seatOf(this.currentClaims(), ctx.net.localId) === 'monster'
+      ? 'monster'
+      : 'technician';
+  }
+
+  /**
+   * **Eine Runde starten — in 2D oder 3D, je nach Ansicht.** Herein kommt die
+   * Absicht der Lobby (Spielen · Zuschauen · Trainieren); die alten drei
+   * Namen (`mission`, `test`, `bot`) gehen ebenso, solange sie noch irgendwo
+   * stehen (`asIntent`). Steht die Ansicht auf „2D von oben", läuft jede
+   * davon als `FlatMode`; sonst wie bisher im Schiff. **In der Brille immer
+   * im Schiff** — die Karte von oben gibt es dort nicht (`opensFlat`).
+   */
+  private startRound(what: Intent | RoundKind, ctx: WorldContext): void {
+    // Die Absicht schreibt Techniker und Monster auf die Tafel; die Plätze der
+    // Zentrale bleiben, wie sie verteilt sind (`rules/lobby.applyIntent`).
+    // **Wer selbst am Monster sitzt, bleibt das Monster**: „Zuschauen" darf
+    // ihm die Runde nicht wegnehmen, und „Spielen" heißt für ihn, dass der
+    // Techniker den Zahlen gehört.
+    this.applySetup(applyIntent(this.setup, asIntent(what), this.myPlace()));
     const setup = this.setup;
     // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
     // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
@@ -3587,7 +3624,7 @@ export class HauntingWorld extends GridWorld {
         setup,
         powers: powersOf(setup),
         // Wer zusieht, will alles sehen; wer spielt, sieht, was der Techniker sieht.
-        mode: role === 'bot' ? 'omniscient' : 'realistic',
+        mode: role === 'watch' ? 'omniscient' : 'realistic',
       });
       return;
     }
@@ -3696,7 +3733,7 @@ export class HauntingWorld extends GridWorld {
   private openFlat(ctx: WorldContext, options: FlatOptions): void {
     if (this.flat) this.closeFlat();
     if (this.flatLoading) return;
-    const shared = options.role !== 'bot';
+    const shared = options.role !== 'watch';
     // Ein Techniker je Raum — dieselbe Regel wie bei der Bot-Runde: Wer 2D
     // spielt, wird Gastgeber der gemeinsamen Runde, und zwei davon gäbe es nicht.
     const occupied = [...ctx.net.peers.values()].some(

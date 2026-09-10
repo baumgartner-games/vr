@@ -96,12 +96,23 @@ Peers; restriktives NAT oder gesperrte öffentliche Dienste können ohne TURN
 eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
 desselben Browsers, keine getrennten Geräte im WLAN.
 
-**Die Mission:** In der sicheren Einsatzzentrale einen Gegner auswählen und
-**Mission starten**. In der Brille geht das über den Knopf am Handgelenk: Im
-Menü stehen ganz oben _Mission starten_, _TEST / ohne Monster_ und _Bot-Runde
-anschauen_ — ein Druck, kein Untermenü, das Panel klappt dabei zu. Geht gerade
-keine Runde los, weil ein anderes Gerät sie rechnet oder schon jemand als
-Techniker spielt, steht das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
+**Die Mission:** Jede Runde fängt in der **Lobby** an, und sie sieht auf dem
+Handy, in der Brille und am Bildschirm gleich aus — drei Fragen und ein Knopf:
+
+1. **Was?** _Spielen_ (die Mission mit Monster), _Zuschauen_ (der Runde im Raum
+   folgen; sonst spielt Bot gegen Bot) oder _Trainieren_ (ohne Monster, sicher
+   üben). Eine der drei Kacheln leuchtet — gestartet wird damit noch nichts.
+2. **Wer?** Techniker, Monster und die Plätze der Einsatzzentrale, jeder mit
+   einem Menschen oder einem Bot. Ein Tipp auf **Ich** macht einen Platz zu
+   deinem und setzt dein Telefon zugleich an das Gerät, das dazugehört.
+3. **Wie?** _2D von oben_ oder _3D Schiff_. Am Telefon ist 2D voreingestellt,
+   in der Brille gibt es immer das Schiff.
+
+Darunter steht **ein** Knopf, und auf ihm steht, was gleich passiert:
+„Mission starten (2D)", „Zuschauen", „Training starten (3D)". In der Brille
+geht dasselbe über den Knopf am Handgelenk. Geht gerade keine Runde los, weil
+ein anderes Gerät sie rechnet oder schon jemand als Techniker spielt, steht
+das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
 Weapons/O2/Navigation rechts, Storage unten und die dazwischenliegenden
 Nebenräume. Die meisten Räume messen 4 × 4 Rasterfelder (10 × 10 Meter);
@@ -126,11 +137,11 @@ Kabel nach Symbolen verbunden, eine Schaltfolge eingegeben oder drei Frequenzen
 eingestellt. Anschließend geht es zum nächsten Auftrag. Nach allen drei
 Reparaturen zur Zentrale zurückkehren.
 
-**Wer spielt mit:** Vor jeder Runde, in 2D wie in 3D, steht die
-**Verteilung** — im Van, im Optionsmenü der 2D-Welt und im Menü der Brille:
-Techniker (Mensch oder Bot), Monster (Mensch, Bot oder aus) und beliebig
-viele Plätze der Einsatzzentrale (Archivar, Schalttafel, Späher), jeder mit
-einem Menschen am Telefon oder einem Bot. **Ein Bot auf einem Platz gibt dem
+**Wer spielt mit:** Das „Wer?" der Lobby, in 2D wie in 3D — Techniker (Mensch
+oder Bot), Monster (Mensch, Bot oder aus) und beliebig viele Plätze der
+Einsatzzentrale (Archivar am Archiv, Schalttafel und Späher an der
+Einsatzkontrolle), jeder mit einem Menschen am Telefon oder einem Bot. Unter
+jedem Platz steht, wer wirklich dort sitzt. **Ein Bot auf einem Platz gibt dem
 Techniker die Auskunft selbst:** Wer allein in der 2D-Welt spielt, sieht die
 Peilung des Monsters alle paar Sekunden, sperrt Türen und schaltet Lampen per
 Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
@@ -153,8 +164,13 @@ Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
 Oben links stehen zwei Zeilen und sonst nichts: **O₂** mit der Restzeit und den
 Anzug-Herzen, darunter **Aufgaben:** mit einem Kreis je Auftrag — voll
 erledigt, halb angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste
-mit den Namen auf, ein zweiter wieder zu; wer mitspielt und welches Monster
-umgeht, steht im Optionsmenü.
+mit den Namen auf, ein zweiter wieder zu. Das **Zahnrad** zeigt nur noch, was
+sich mitten in der Runde ändert — Ansicht, Zielpfade, Ton und **Zurück zur
+Lobby**; wer mitspielt und was die nächste Runde wird, steht dort. **Wer
+zuschaut**, hat keinen Stock, dafür zwei Knöpfe rechts: _Zum Techniker_ und
+_Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Einsatzkontrolle
+oder Drohne wählt man in der Lobby unter „Plätze und Geräte" — auch während
+eine Runde läuft.
 
 **Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
 Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
@@ -262,8 +278,8 @@ separate Räume abseits der Missionskarte:
   Gegnerattrappen, Spiegel, Schacht und Funken-/Rauch-/Feuerprüfung.
 
 Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräumen
-verwenden freie Ankunftsplätze. **Bot-Runde anschauen** ist in der Zentrale und
-im Testmenü erreichbar: Ein Techniker läuft durch die echte Station, öffnet
+verwenden freie Ankunftsplätze. **Zuschauen** (in der Lobby, in jeder der drei
+Oberflächen) heißt ohne Mitspieler: Ein Techniker aus Zahlen läuft durch die echte Station, öffnet
 Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
 Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
 halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert

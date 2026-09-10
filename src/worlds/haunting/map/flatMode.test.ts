@@ -198,9 +198,9 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
-  it('bietet im Optionsmenü genau die zwei Modi an und wechselt', () => {
+  it('bietet dem Zuschauer im Optionsmenü genau die zwei Modi an und wechselt', () => {
     const exit = jest.fn();
-    const flat = new FlatMode(3, {}, { exit });
+    const flat = new FlatMode(3, { role: 'watch' }, { exit });
     document.body.append(flat.element);
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
     const modes = [...flat.element.querySelectorAll<HTMLButtonElement>('[data-mode]')];
@@ -226,10 +226,43 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
-  it('lässt in der Bot-Runde den Techniker aus Zahlen spielen — ohne Stock und Knöpfe', () => {
-    const flat = new FlatMode(3, { role: 'bot', mode: 'omniscient' }, { exit: () => {} });
+  /**
+   * **Das Zahnrad zeigt nur noch, was sich mitten in der Runde ändert.** Alles,
+   * was die *nächste* Runde betrifft — neue Runde, mit oder ohne Monster, wer
+   * welche Rolle spielt, die ganze Verteilung —, steht in der Lobby.
+   */
+  it('lässt aus dem Optionsmenü Rolle, Monster und Verteilung weg', () => {
+    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {} });
     document.body.append(flat.element);
-    expect(flat.role).toBe('bot');
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(panel.querySelector('[data-role]')).toBeNull();
+    expect(panel.querySelector('[data-monster]')).toBeNull();
+    expect(panel.querySelector('[data-restart]')).toBeNull();
+    expect(panel.querySelector('.setup')).toBeNull();
+    // Was bleibt: Ansicht, Zielpfade, Ton — und der Weg zurück in die Lobby.
+    expect(panel.querySelector('[data-routes]')).not.toBeNull();
+    expect(panel.querySelector('[data-audio="effects"]')).not.toBeNull();
+    expect(panel.querySelector('[data-leave]')?.textContent).toContain('Zurück zur Lobby');
+    flat.dispose();
+  });
+
+  /** Wer mitspielt, darf nicht durch Wände sehen — „Alles sehen" ist Zuschauersache. */
+  it('gibt dem Techniker die Ansicht als Zeile statt als Knopf', () => {
+    const flat = new FlatMode(3, {}, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(panel.querySelectorAll('[data-mode]')).toHaveLength(0);
+    expect(panel.textContent).toContain('Realitätsnah');
+    expect(panel.textContent).toContain('Du spielst den Techniker');
+    flat.dispose();
+  });
+
+  it('lässt beim Zuschauen den Techniker aus Zahlen spielen — ohne Stock und Knöpfe', () => {
+    const flat = new FlatMode(3, { role: 'watch', mode: 'omniscient' }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(flat.role).toBe('watch');
     expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
     expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
     // Die Szene bleibt, samt dem Knopf, der sie zum Techniker zurückholt.
@@ -244,15 +277,26 @@ describe('Die 2D-Welt', () => {
     expect(flat.element.querySelector('.flat__hud')?.textContent).not.toContain('Bot-Runde');
     // Die Kamera hängt am Techniker.
     expect(flat.scene.getView().centreX).toBeCloseTo(flat.round.player.x);
-    // Im Optionsmenü schaltet die Rolle durch alle drei.
+    // Das Optionsmenü sagt, wessen Sicht sich wie wechseln lässt — gewechselt
+    // wird mit den Sprungknöpfen und in der Lobby, nicht mit einem Zykler.
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
-    const roleKey = () => flat.element.querySelector<HTMLButtonElement>('[data-role]')!;
-    expect(roleKey().textContent).toContain('Bot-Runde zusehen');
-    roleKey().click();
-    expect(roleKey().textContent).toContain('Als Techniker spielen');
-    flat.element.querySelector<HTMLButtonElement>('[data-restart]')!.click();
-    expect(flat.role).toBe('technician');
-    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(false);
+    const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(panel.textContent).toContain('Du siehst zu');
+    expect(panel.textContent).toContain('Wessen Sicht?');
+    expect(panel.querySelector('[data-role]')).toBeNull();
+    flat.dispose();
+  });
+
+  /** Die Rolle `watch` hat keinen Stock — auch nicht, wenn die Runde neu anfängt. */
+  it('behält beim Zuschauen die Rolle über eine neue Runde hinweg', () => {
+    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.round.state().crew.hp = 0;
+    flat.round.haunt.phase = 'lost';
+    flat.update(DT);
+    flat.element.querySelector<HTMLButtonElement>('.flat__ending [data-restart]')!.click();
+    expect(flat.role).toBe('watch');
+    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
     flat.dispose();
   });
 
@@ -296,12 +340,12 @@ describe('Die Sprungknöpfe rechts', () => {
 
   /** Wer zusieht, hat keinen eigenen Spieler — für ihn stehen beide immer da. */
   it('gibt dem Zuschauer beide Knöpfe, auch während die Kamera folgt', () => {
-    const flat = new FlatMode(3, { role: 'bot' }, { exit: () => {} });
+    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {} });
     document.body.append(flat.element);
     flat.update(DT);
     const centre = flat.element.querySelector<HTMLElement>('.flat__centre')!;
     const monster = flat.element.querySelector<HTMLElement>('.flat__centre--monster')!;
-    expect(flat.role).toBe('bot');
+    expect(flat.role).toBe('watch');
     expect(centre.hidden).toBe(false);
     expect(monster.hidden).toBe(false);
     monster.click();

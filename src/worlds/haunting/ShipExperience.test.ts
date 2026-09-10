@@ -209,6 +209,50 @@ test('the desktop technician can return to station roles without opening the 3D 
   expect(testMission).not.toHaveBeenCalled();
 });
 
+/**
+ * **Das Menü des Technikers am Desktop zeigt dieselben drei Absichten wie der
+ * Van und die Brille** (`rules/lobby.ts`). Vorher standen hier „Mission
+ * starten" und „Test ohne Monster", im Van hießen dieselben Dinge „Mission
+ * spielen (2D)" und „Test ohne Monster (2D)", in der Brille „TEST / ohne
+ * Monster" — dreimal dasselbe, dreimal anders benannt.
+ */
+test('das Panel des Desktop-Technikers zeigt Spielen, Zuschauen und Trainieren', () => {
+  const panel = document.querySelector<HTMLElement>('.orbital-player')!;
+  const intents = [...panel.querySelectorAll<HTMLButtonElement>('[data-action^="intent:"]')];
+  expect(intents.map((key) => key.dataset.action)).toEqual([
+    'intent:play',
+    'intent:watch',
+    'intent:train',
+  ]);
+  expect(intents[0]!.textContent).toContain('Spielen');
+  expect(intents[1]!.textContent).toContain('Zuschauen');
+  expect(intents[2]!.textContent).toContain('Trainieren');
+  // Darunter die Zeile, die sagt, wie die Runde gerade verteilt ist.
+  expect(panel.querySelector('.orbital-player__setup')?.textContent).toContain('Techniker:');
+  // Nach jedem Druck baut sich das Panel neu — also frisch nachschlagen.
+  const key = (intent: string): HTMLButtonElement =>
+    document.querySelector<HTMLButtonElement>(`[data-action="intent:${intent}"]`)!;
+  key('play').click();
+  expect(restart).toHaveBeenCalledTimes(1);
+  key('train').click();
+  expect(testMission).toHaveBeenCalledTimes(1);
+});
+
+/**
+ * **Panel und Weltmenü teilen sich die linke Bildhälfte** — und lagen deshalb
+ * auf 1280×800 übereinander. Wer das Menü aufmacht, will das Menü.
+ */
+test('das Panel weicht dem offenen Weltmenü', () => {
+  const panel = document.querySelector<HTMLElement>('.orbital-player')!;
+  expect(panel.hidden).toBe(false);
+  (ctx.menu as { isOpen: boolean }).isOpen = true;
+  frame();
+  expect(panel.hidden).toBe(true);
+  (ctx.menu as { isOpen: boolean }).isOpen = false;
+  frame();
+  expect(panel.hidden).toBe(false);
+});
+
 test('leaving the technician view ends its local demo and restores a safe standing position', () => {
   experience.startBotRound();
   expect(state.crew.simulation).toBe(true);

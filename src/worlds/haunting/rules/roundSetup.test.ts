@@ -34,8 +34,10 @@ describe('roundSetup', () => {
       'technician',
     );
     expect(flatRoleOf({ ...defaultSetup(), technician: 'bot', monster: 'human' })).toBe('monster');
-    expect(flatRoleOf({ ...defaultSetup(), technician: 'bot', monster: 'bot' })).toBe('bot');
-    expect(flatRoleOf({ ...defaultSetup(), technician: 'bot', monster: 'off' })).toBe('bot');
+    // Der dritte Fall hieß einmal `bot` — der Techniker aus Zahlen läuft dann
+    // zwar, aber der Mensch davor sieht zu, und genau das steht jetzt dran.
+    expect(flatRoleOf({ ...defaultSetup(), technician: 'bot', monster: 'bot' })).toBe('watch');
+    expect(flatRoleOf({ ...defaultSetup(), technician: 'bot', monster: 'off' })).toBe('watch');
   });
 
   test('die drei Rundenarten der 3D-Welt', () => {

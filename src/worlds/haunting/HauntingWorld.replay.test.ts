@@ -255,11 +255,18 @@ test('the headset menu leads with the mission and says why a start is refused', 
   world.lobbyChoice = { intent: 'play', view: '2d' };
   world.hostId = 'remote';
   const rounds = world.menu().filter((row) => row.id.startsWith('haunt:'));
+  // Dieselben drei Absichten wie im Van und im Optionsmenü der 2D-Welt
+  // (`rules/lobby.ts`), in derselben Reihenfolge.
   expect(rounds.slice(0, 3).map((row) => row.id)).toEqual([
-    'haunt:start',
-    'haunt:test',
-    'haunt:bot-round',
+    'haunt:play',
+    'haunt:watch',
+    'haunt:train',
   ]);
+  // Die Ansicht steht als eigener Eintrag daneben und heißt nicht mehr
+  // „2D-Welt von oben: an/aus"; in der Brille ist sie fest.
+  const view = world.menu().find((row: { id: string }) => row.id === 'haunt:view')!;
+  expect(view.label).toContain('3D Schiff');
+  expect(world.menu().some((row: { id: string }) => row.id === 'haunt:flat')).toBe(false);
   expect(rounds[0]!.sub).toBe(HOST_BUSY);
   rounds[0]!.run!(null);
   expect(ctx.notify).toHaveBeenCalledWith(HOST_BUSY);
