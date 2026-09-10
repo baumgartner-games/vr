@@ -65,6 +65,8 @@ export interface RoutineWorld {
   centre(id: string): FloorPoint;
   /** Wo der Schutzschrank steht — `null`, wenn der Raum keinen hat. */
   locker(id: string): FloorPoint | null;
+  /** In welchem Raum ein Punkt liegt — für laute Geräusche; fehlt es, gilt der eigene Raum. */
+  spaceAt?(point: FloorPoint): string;
 }
 
 export interface RoutineInput {
@@ -86,12 +88,24 @@ export interface RoutineInput {
   caught: string;
   /** Gleichverteilt in [0,1). Der Aufrufer besitzt den Zufall. */
   rng: () => number;
+  /**
+   * Die Alarmleiter aus `threat.ts`: 0 ruhig, 1 aufmerksam (es wird
+   * langsamer), 2 lauernd (es dreht sich zur Richtung und wartet), 3 sicher
+   * (dann kommt die Stelle als `signal`).
+   */
+  alert?: number;
+  /** Woher das letzte Geräusch kam. */
+  facing?: FloorPoint | null;
+  /** Ein lautes Geräusch, das es in diesem Bild gehört hat — Ort bekannt, Täter nicht. */
+  loud?: FloorPoint | null;
 }
 
 export interface RoutineOutput {
   mode: MonsterMode;
   /** Wohin es will — `null` heißt stehen bleiben. */
   goal: FloorPoint | null;
+  /** Wohin es schaut, wenn es steht und horcht; sonst `null`. */
+  face: FloorPoint | null;
   pace: MonsterPace;
   /** Genau ein Geräusch je Bild, und nur im Bild seines Anlasses. */
   cue: MonsterCue;
@@ -111,10 +125,15 @@ export function paceSpeed(base: number, tuning: MonsterTuning, pace: MonsterPace
 
 const ARRIVED = 1.6;
 const KLACK_INTERVAL = 1.4;
+/** Wie lange es nach dem zweiten Geräusch horchend stehen bleibt, in Sekunden. */
+export const LURK = 4;
 
 export class MonsterRoutine {
   private mode: MonsterMode = 'patrol';
   private goal: FloorPoint | null = null;
+  private face: FloorPoint | null = null;
+  private alert = 0;
+  private lastAlert = 0;
   private goalRoom = '';
   /** Wie lange die laufende Haltung noch dauert, in Sekunden. */
   private timer = 0;
@@ -193,12 +212,39 @@ export class MonsterRoutine {
       this.enter('hunt', this.trail?.point ?? null, this.trail?.room ?? '', 0);
     }
 
-    // 2. Wahrnehmung: gesehen wird gejagt, gehört wird angegangen.
+    // 2. Die Alarmleiter (`threat.ts`). Ein lautes Geräusch: Es weiß, dass
+    // dort etwas ist — hingehen und absuchen, oder stehen bleiben und
+    // auflauern. Das zweite leise Geräusch: sich hindrehen und horchen.
+    // Das erste: nur langsamer werden (siehe `out`).
+    this.alert = input.alert ?? 0;
+    if (this.mode !== 'hunt') {
+      if (input.loud) {
+        const room = world.spaceAt?.(input.loud) || input.here;
+        this.lastAlert = this.alert;
+        if (input.rng() < this.tuning.stakeout) {
+          this.enter('stakeout', null, input.here, LURK);
+          this.face = { ...input.loud };
+          return this.out('', false, 'still');
+        }
+        this.lockerRoom = input.rng() < this.tuning.locker ? room : '';
+        this.enter('search', { ...input.loud }, room, this.tuning.search);
+        this.klack = 0;
+        return this.out('', false, 'walk');
+      }
+      if (this.alert >= 2 && this.lastAlert < 2 && input.facing) {
+        this.enter('stakeout', null, input.here, LURK);
+        this.face = { ...input.facing };
+      }
+    }
+    this.lastAlert = this.alert;
+
+    // 3. Wahrnehmung: gesehen wird gejagt, gehört wird angegangen.
     if (input.signal) {
       this.trail = { point: { ...input.signal }, room: input.quarry ?? this.trail?.room ?? '' };
       this.misses = 0;
       this.enter('hunt', { ...input.signal }, this.trail.room, 0);
-      return this.out('', false, input.seen ? 'hunt' : 'walk');
+      // Gesehen oder sicher gehört: rennen. Nur erinnert: gehen.
+      return this.out('', false, input.seen || this.alert >= 3 ? 'hunt' : 'walk');
     }
 
     // 3. Spur verloren: raten, in welchen Nachbarraum er verschwunden ist.
@@ -306,13 +352,18 @@ export class MonsterRoutine {
     this.goal = goal;
     this.goalRoom = room;
     this.timer = timer;
+    this.face = null;
   }
 
   private out(cue: MonsterCue, strike: boolean, pace: MonsterPace): RoutineOutput {
+    let chosen: MonsterPace = this.goal || pace === 'still' ? pace : 'walk';
+    // Aufmerksam heißt langsamer: Wer etwas gehört hat, geht nicht mehr zügig.
+    if (this.alert >= 1 && chosen === 'walk') chosen = 'stalk';
     return {
       mode: this.mode,
       goal: this.goal,
-      pace: this.goal || pace === 'still' ? pace : 'walk',
+      face: chosen === 'still' ? this.face : null,
+      pace: chosen,
       cue,
       strike,
       label: MODE_LABELS[this.mode],

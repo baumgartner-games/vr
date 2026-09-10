@@ -6,10 +6,13 @@ import {
 } from '../map/mapSnapshot';
 import { ENTITY_PROFILES } from '../threat';
 import { PLAYER_WALK_SPEED, PLAYER_SPRINT_SPEED } from '../mission';
-import { DOOR_LOSS, PLAYER_HEARING } from './hearing';
+import { NOISE } from './cues';
+import { DOOR_LOSS, HEARING, VENT_LOSS, reachOf } from './hearing';
 import {
+  AMBIENT_GAP,
   CHASE_RANGE,
   RUN_CADENCE,
+  STALK_CADENCE,
   Soundscape,
   type SoundEvent,
   type SoundscapeInput,
@@ -69,6 +72,27 @@ function twoRooms(open: boolean): MapSnapshot {
   return snapshot;
 }
 
+/** Ein einzelner Saal, 40 m lang, ohne Wände — für Reichweiten. */
+function hall(): MapSnapshot {
+  const snapshot = emptySnapshot();
+  snapshot.seed = 8;
+  snapshot.rooms.push({
+    id: 'hall',
+    name: 'hall',
+    polygon: [
+      { x: 0, z: 0 },
+      { x: 0, z: 10 },
+      { x: 40, z: 10 },
+      { x: 40, z: 0 },
+    ],
+    centre: { x: 20, z: 5 },
+    circulation: false,
+    lit: true,
+    safe: false,
+  });
+  return snapshot;
+}
+
 function player(x: number, z: number, moving = false, sprinting = false): MapEntity {
   return {
     id: 'player',
@@ -102,12 +126,17 @@ function monster(x: number, z: number, moving = true, sprinting = false): MapEnt
 /** Fünf Sekunden Regie in 20-Hz-Schritten; heraus kommen alle Ereignisse. */
 function run(input: SoundscapeInput, seconds = 5, scape = new Soundscape()): SoundEvent[] {
   const out: SoundEvent[] = [];
-  for (let t = 0; t < seconds; t += 0.05) out.push(...scape.tick(0.05, input));
+  const rng = input.rng ?? (() => 0.5);
+  for (let t = 0; t < seconds; t += 0.05) out.push(...scape.tick(0.05, { ...input, rng }));
   return out;
 }
 
 const count = (events: SoundEvent[], cue: SoundEvent['cue']) =>
   events.filter((e) => e.cue === cue).length;
+
+/** Nur die Geräusche des Monsters, ohne Ambiente und Herz. */
+const ofMonster = (events: SoundEvent[]) =>
+  events.filter((e) => e.cue.startsWith('monster-') || e.cue === 'heartbeat');
 
 describe('Die Regie: eigene Schritte', () => {
   it('hört den eigenen Schritt im Gehtakt, schneller beim Sprint, gar nicht im Stand', () => {
@@ -127,13 +156,15 @@ describe('Die Regie: eigene Schritte', () => {
     expect(count(walking, 'player-step')).toBeCloseTo(5 / (1.45 / PLAYER_WALK_SPEED), -1);
     expect(count(sprinting, 'player-step')).toBeGreaterThan(count(walking, 'player-step') * 1.5);
     expect(count(standing, 'player-step')).toBe(0);
-    for (const step of walking) {
+    for (const step of walking.filter((e) => e.cue === 'player-step')) {
       expect(step.distance).toBe(0);
       expect(step.pan).toBe(0);
       expect(step.gain).toBeGreaterThan(0);
     }
     // Sprint ist lauter als Gehen.
-    expect(sprinting[0]!.gain).toBeGreaterThan(walking[0]!.gain);
+    expect(sprinting.find((e) => e.cue === 'player-step')!.gain).toBeGreaterThan(
+      walking.find((e) => e.cue === 'player-step')!.gain,
+    );
   });
 
   it('nimmt Tempo und Versteck aus dem Snapshot, wenn der Zuhörer nur eine Kennung ist', () => {
@@ -148,21 +179,25 @@ describe('Die Regie: eigene Schritte', () => {
 });
 
 describe('Die Regie: das Monster', () => {
-  it('geht im Takt seiner Sorte und rennt mit einem anderen Cue in kürzerem Takt', () => {
+  it('geht im Takt seiner Sorte, schleicht leiser und langsamer, rennt lauter und schneller', () => {
     const snapshot = twoRooms(true);
     snapshot.entities.push(monster(5, 8));
     const listener = { at: { x: 5, z: 4 }, forward: { x: 0, z: -1 }, speed: 0 };
     const walking = run({ snapshot, listener, kind: 'stalker' });
-    expect(count(walking, 'monster-walk')).toBeCloseTo(5 / ENTITY_PROFILES.stalker.cadence, -1);
+    const cadence = ENTITY_PROFILES.stalker.cadence;
+    expect(count(walking, 'monster-walk')).toBeCloseTo(5 / cadence, -1);
     expect(count(walking, 'monster-run')).toBe(0);
     expect(count(walking, 'monster-call')).toBe(0);
+    const stalking = run({ snapshot, listener, kind: 'stalker', monster: { pace: 'stalk' } });
+    expect(count(stalking, 'monster-walk')).toBeCloseTo(5 / (cadence * STALK_CADENCE), -1);
+    expect(count(stalking, 'monster-walk')).toBeLessThan(count(walking, 'monster-walk'));
+    expect(stalking.find((e) => e.cue === 'monster-walk')!.gain).toBeLessThan(
+      walking.find((e) => e.cue === 'monster-walk')!.gain,
+    );
     snapshot.entities[0]!.sprinting = true;
     const running = run({ snapshot, listener, kind: 'stalker', rng: () => 0.5 });
     expect(count(running, 'monster-walk')).toBe(0);
-    expect(count(running, 'monster-run')).toBeCloseTo(
-      5 / (ENTITY_PROFILES.stalker.cadence * RUN_CADENCE),
-      -1,
-    );
+    expect(count(running, 'monster-run')).toBeCloseTo(5 / (cadence * RUN_CADENCE), -1);
     // Rennen heißt verfolgen: Es ruft, und zwar mehr als einmal in fünf Sekunden.
     expect(count(running, 'monster-call')).toBeGreaterThanOrEqual(1);
     // Ein Schachtläufer trippelt schneller als der Verlorene.
@@ -170,24 +205,25 @@ describe('Die Regie: das Monster', () => {
     expect(count(crawler, 'monster-run')).toBeGreaterThan(count(running, 'monster-run'));
   });
 
-  it('hört das Monster nur in Reichweite — und rennend weiter als gehend', () => {
-    const snapshot = twoRooms(true);
+  it('hört das Monster nur in Reichweite — gehend 14,4 m, rennend 24 m, den Ruf 42 m', () => {
+    const snapshot = hall();
     const listener = { at: { x: 1, z: 5 }, forward: { x: 0, z: -1 }, speed: 0 };
-    // 11 m weit weg im selben Raum: Gehen (Reichweite 9 m) ist still, Rennen (14,4 m) nicht.
-    snapshot.entities.push(monster(12, 5));
-    snapshot.rooms[0]!.polygon[2]!.x = 20;
-    snapshot.rooms[0]!.polygon[3]!.x = 20;
-    snapshot.walls.length = 0;
-    snapshot.doors.length = 0;
-    snapshot.rooms.length = 1;
+    expect(reachOf(NOISE.monsterWalk)).toBeCloseTo(14.4, 9);
+    snapshot.entities.push(monster(17, 5));
     expect(count(run({ snapshot, listener, kind: 'stalker' }), 'monster-walk')).toBe(0);
     snapshot.entities[0]!.sprinting = true;
     const running = run({ snapshot, listener, kind: 'stalker', rng: () => 0 });
     expect(count(running, 'monster-run')).toBeGreaterThan(0);
     for (const step of running.filter((e) => e.cue === 'monster-run')) {
-      expect(step.distance).toBeCloseTo(11, 6);
+      expect(step.distance).toBeCloseTo(16, 6);
       expect(step.pan).toBe(1); // rechts vom Blick nach Norden
     }
+    // Der Ruf trägt über den ganzen Saal.
+    snapshot.entities[0]!.at.x = 38;
+    const far = run({ snapshot, listener, kind: 'stalker', rng: () => 0 });
+    expect(count(far, 'monster-run')).toBe(0);
+    expect(count(far, 'monster-call')).toBeGreaterThan(0);
+    expect(far.find((e) => e.cue === 'monster-call')!.distance).toBeCloseTo(37, 6);
   });
 
   it('hört durch die Wand leiser als im Freien und noch leiser bei geschlossener Tür', () => {
@@ -216,20 +252,45 @@ describe('Die Regie: das Monster', () => {
 
     const shut = twoRooms(false);
     shut.entities.push(monster(12, 4));
-    const heardShut = run({ snapshot: shut, listener, kind: 'stalker' });
-    // 5,66 + 4 = 9,66 m effektiv: jenseits der neun Meter für Gehen — still.
-    expect(count(heardShut, 'monster-walk')).toBe(0);
-    shut.entities[0]!.sprinting = true;
-    const running = run({ snapshot: shut, listener, kind: 'stalker', rng: () => 0 }).filter(
-      (e) => e.cue === 'monster-run',
+    const heardShut = run({ snapshot: shut, listener, kind: 'stalker' }).filter(
+      (e) => e.cue === 'monster-walk',
     );
-    expect(running.length).toBeGreaterThan(0);
-    expect(running[0]!.distance).toBeCloseTo(viaDoor + DOOR_LOSS, 6);
-    expect(running[0]!.gain).toBeLessThan(
-      run({ snapshot: open, listener, kind: 'stalker', rng: () => 0 }).find(
-        (e) => e.cue === 'monster-run',
-      )?.gain ?? Infinity,
-    );
+    // 5,66 + 4 = 9,66 m effektiv: leiser als durch die offene Tür, aber noch da.
+    expect(heardShut.length).toBeGreaterThan(0);
+    expect(heardShut[0]!.distance).toBeCloseTo(viaDoor + DOOR_LOSS, 6);
+    expect(heardShut[0]!.gain).toBeLessThan(heardOpen[0]!.gain);
+  });
+
+  it('hört das Kratzen im Schacht aus der nächsten Klappe', () => {
+    const snapshot = twoRooms(true);
+    // Zwei Klappen mit Schacht: eine in a bei (3,8), eine in b bei (17,8).
+    for (const [id, roomId, x] of [
+      ['vent-a', 'a', 3],
+      ['vent-b', 'b', 17],
+    ] as const)
+      snapshot.items.push({
+        id,
+        kind: 'vent',
+        label: 'Lüftungsklappe',
+        roomId,
+        at: { x, z: 8 },
+        state: 'closed',
+        interactive: false,
+      });
+    snapshot.ventLinks = [{ a: 'vent-a', b: 'vent-b' }];
+    // Das Monster ist im Schacht, gemeldet an der Einstiegsklappe in b.
+    snapshot.entities.push({ ...monster(17, 8, false), concealed: true });
+    const listener = { at: { x: 2, z: 8 }, forward: { x: 0, z: -1 }, speed: 0 };
+    const events = run({ snapshot, listener, kind: 'stalker' });
+    const scrapes = events.filter((e) => e.cue === 'monster-vent');
+    expect(scrapes.length).toBeGreaterThan(3);
+    // Es kommt aus der Klappe im eigenen Raum, durch den Schacht: 14 m + 3 m + 1 m —
+    // statt 15 m Luftlinie durch die Wand (+ 9 m).
+    expect(scrapes[0]!.from).toEqual({ x: 3, z: 8 });
+    expect(scrapes[0]!.distance).toBeCloseTo(14 + VENT_LOSS + 1, 6);
+    // Kein Schritt, kein Herz: Im Schacht ist es weder zu Fuß noch nah.
+    expect(count(events, 'monster-walk')).toBe(0);
+    expect(count(events, 'heartbeat')).toBe(0);
   });
 
   it('lässt das Herz bei Nähe und Verfolgung schlagen, sonst nicht', () => {
@@ -272,7 +333,7 @@ describe('Die Regie: das Monster', () => {
     const listener = { at: { x: 5, z: 5 }, forward: { x: 0, z: -1 }, speed: 0 };
     const off = new Soundscape();
     const quiet = run({ snapshot, listener, kind: 'stalker', active: false }, 5, off);
-    expect(quiet).toHaveLength(0);
+    expect(ofMonster(quiet)).toHaveLength(0);
     expect(off.heartbeat).toBe(0);
     // Der Snapshot der 3D-Welt sagt „bewegt sich", die Routine sagt „steht": Die Routine gewinnt.
     const still = run({
@@ -316,6 +377,39 @@ describe('Die Regie: das Monster', () => {
       { x: 8, z: 4 },
     );
     expect(ear).toMatchObject({ gain: 1, pan: 0, distance: 0 });
-    expect(PLAYER_HEARING).toBeLessThan(ENTITY_PROFILES.crawler.hearing);
+    expect(HEARING).toBe(ENTITY_PROFILES.crawler.hearing);
+  });
+});
+
+describe('Die Regie: Ambiente', () => {
+  it('brummt mit Strom, wird dunkel ohne Strom oder Licht, und knarrt alle paar Sekunden irgendwo', () => {
+    const snapshot = twoRooms(true);
+    const listener = { at: { x: 4, z: 4 }, forward: { x: 0, z: -1 }, speed: 0 };
+    const scape = new Soundscape();
+    let roll = 0;
+    const rng = () => {
+      roll = (roll + 0.37) % 1;
+      return roll;
+    };
+    const events = run({ snapshot, listener, kind: 'stalker', rng }, 90, scape);
+    expect(scape.ambience['ambient-hum']).toBe(1);
+    expect(scape.ambience['ambient-dark']).toBe(0);
+    const alarms = events.filter((e) => e.cue === 'creak' || e.cue === 'metal');
+    expect(alarms.length).toBeGreaterThanOrEqual(Math.floor(90 / AMBIENT_GAP[1]) - 1);
+    expect(alarms.length).toBeLessThanOrEqual(Math.ceil(90 / AMBIENT_GAP[0]) + 1);
+    // Jeder Fehlalarm hat einen Ort und kommt durch dieselben Türen.
+    for (const alarm of alarms) {
+      expect(alarm.gain).toBeGreaterThan(0);
+      expect(alarm.distance).toBeGreaterThan(0);
+    }
+    // Ohne Licht im eigenen Raum wird es dunkel, ohne Strom ganz.
+    snapshot.rooms[0]!.lit = false;
+    scape.tick(0.05, { snapshot, listener, kind: 'stalker', rng });
+    expect(scape.ambience['ambient-dark']).toBeGreaterThan(0);
+    expect(scape.ambience['ambient-dark']).toBeLessThan(1);
+    snapshot.power = false;
+    scape.tick(0.05, { snapshot, listener, kind: 'stalker', rng });
+    expect(scape.ambience['ambient-dark']).toBe(1);
+    expect(scape.ambience['ambient-hum']).toBeLessThan(1);
   });
 });

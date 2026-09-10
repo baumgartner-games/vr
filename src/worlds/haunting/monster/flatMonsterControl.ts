@@ -79,6 +79,7 @@ export class FlatMonsterControl implements MonsterDriver, MonsterPort {
     return {
       mode: this.stick.sprint && moving ? 'hunt' : 'patrol',
       goal,
+      face: null,
       pace: !moving ? 'still' : this.stick.sprint ? 'hunt' : 'walk',
       cue: '',
       strike,
