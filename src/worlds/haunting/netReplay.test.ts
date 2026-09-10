@@ -32,6 +32,8 @@ test.each(ROOM_COUNTS)(
         taken: spec.tasks.map((task) => task.id),
         done: spec.tasks.map((task) => task.id),
         destroyed: spec.rooms.slice(0, 2).map((room) => room.id),
+        technician: { x: 3.5, z: -12.25, yaw: 1.2, moving: true },
+        ride: 'arrived',
       };
       const replay = readState(JSON.parse(JSON.stringify(stateMessage(state))))!;
       expect(replay.shut).toEqual(state.shut);
@@ -40,6 +42,8 @@ test.each(ROOM_COUNTS)(
       expect(replay.taken).toEqual(state.taken);
       expect(replay.done).toEqual(state.done);
       expect(replay.destroyed).toEqual(state.destroyed);
+      expect(replay.technician).toEqual(state.technician);
+      expect(replay.ride).toBe('arrived');
       expect(replay.crew.inventory).toEqual(crew.inventory);
       expect(replay.crew.opened).toEqual(crew.opened);
       expect(replay.crew.hidden).toBe(crew.hidden);

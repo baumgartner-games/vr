@@ -23,6 +23,8 @@ function handles(vents?: WorldHandles['vents']): WorldHandles {
     taken: [],
     done: [],
     destroyed: [],
+    technician: null,
+    ride: 'out',
   };
   return {
     spec: () => spec,

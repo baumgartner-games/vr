@@ -29,8 +29,15 @@ import { pickHost, type HostCandidate } from '../../net/host';
  * zusehen, während vier andere sich anschreien. Deshalb ist er der einzige
  * Platz, an dem **mehrere gleichzeitig** sitzen dürfen (`shared`): Wer nichts
  * bedient, nimmt niemandem etwas weg.
+ *
+ * **Und die fünfte Station ist die Gegenseite** (`monster`). Wer hier sitzt,
+ * spielt nicht mit der Crew, sondern gegen sie: Stock und zwei Knöpfe, die
+ * Karte nur aus dem, was das Monster sieht und hört (`monster/`). Die
+ * Eingaben gehen über die Leitung zum Gastgeber, der das Monster weiter
+ * rechnet (`net.ts`, `monster/netMonsterControl.ts`). Ein Gerät, nicht
+ * `shared` — ein Monster, nicht mehrere.
  */
-export type StationId = 'archive' | 'scout' | 'drone' | 'hack' | 'watch';
+export type StationId = 'archive' | 'scout' | 'drone' | 'hack' | 'watch' | 'monster';
 
 export interface StationFacts {
   id: StationId;
@@ -81,6 +88,13 @@ export const STATIONS: readonly StationFacts[] = [
     sees: 'alles — und darf deshalb nichts sagen',
     view: true,
     shared: true,
+  },
+  {
+    id: 'monster',
+    label: 'Monster',
+    tagline: 'Die Station aus Monstersicht',
+    sees: 'nur, was das Monster sieht und hört — keinen Techniker, der im Dunkeln steht',
+    view: false,
   },
 ];
 

@@ -91,7 +91,13 @@ describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
 
 describe('Three-person crew devices', () => {
   it('offers one combined control role while recognizing old switchboard announcements', () => {
-    expect(STATIONS.map((station) => station.id)).toEqual(['archive', 'scout', 'drone', 'watch']);
+    expect(STATIONS.map((station) => station.id)).toEqual([
+      'archive',
+      'scout',
+      'drone',
+      'watch',
+      'monster',
+    ]);
     expect(isStation('hack')).toBe(true);
     expect(stationFacts('hack').label).toBe('Einsatzkontrolle');
     expect(isStation('unknown')).toBe(false);
@@ -103,5 +109,24 @@ describe('Three-person crew devices', () => {
     expect(stationFacts('scout').view).toBe(false);
     expect(stationFacts('drone').view).toBe(true);
     expect(stationFacts('watch').view).toBe(true);
+  });
+
+  /**
+   * **Die fünfte Station ist die Gegenseite.** Sie ist ein Gerät wie die
+   * anderen — einer sitzt, der Rest wird weggeschubst —, nur dass ihr Besitzer
+   * gegen die Crew spielt. Der Gastgeber nimmt Stock und Knöpfe nur von dem
+   * an, der wirklich sitzt (`HauntingWorld.receive`, wie beim Schalter).
+   */
+  it('seats one monster player and shoves the second like at any device', () => {
+    expect(isStation('monster')).toBe(true);
+    expect(stationFacts('monster').view).toBe(false);
+    expect(stationFacts('monster').shared).toBeFalsy();
+    const claims = [claim('a', 'monster', 8), claim('b', 'monster', 1), claim('c', 'scout', 3)];
+    expect(ownerOf(claims, 'monster')).toBe('a');
+    expect(seatOf(claims, 'a')).toBe('monster');
+    expect(seatOf(claims, 'b')).toBeNull();
+    expect(shoved(claims, 'b')).toBe(true);
+    expect(seating(claims).get('monster')).toBe('a');
+    expect(crowdAt(claims, 'monster')).toBe(2);
   });
 });

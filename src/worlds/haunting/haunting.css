@@ -59,6 +59,10 @@
 .haunt[data-station="drone"] { --haunt-accent: #5ee0a0; }
 .haunt[data-station="hack"] { --haunt-accent: #4aa8ff; }
 .haunt[data-station="watch"] { --haunt-accent: #b98cff; }
+/* Die Gegenseite: dasselbe Rot wie die Monster-Ansicht selbst (`monster/monster.css`). */
+.haunt[data-station="monster"], .haunt [data-accent="monster"] { --haunt-accent: #ff4d55; }
+/* Die Monster-Ansicht füllt die Seite: kein Rand, kein Rollen — der Stock liegt am Rand. */
+.haunt[data-station="monster"] .haunt__body { position: relative; padding: 0; overflow: hidden; }
 
 .haunt [data-accent="archive"] { --haunt-accent: #ffc857; }
 .haunt [data-accent="scout"] { --haunt-accent: #ff6b6b; }

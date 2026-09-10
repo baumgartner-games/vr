@@ -18,6 +18,15 @@ const SURFACES: Record<string, 'dom' | 'map' | '3d'> = {
   watch: '3d',
 };
 
+/**
+ * Stationen, die **keine** Altrollen sind: Sie stehen in `STATIONS`, weil die
+ * Sitzordnung der Einsatzzentrale (`stations.ts`) sie kennen muss, melden
+ * ihre Rolle aber aus ihrer eigenen Datei an — `monster` aus
+ * `monster/monster.register.ts`. Eine zweite Anmeldung derselben Kennung
+ * ersetzt die erste und warnt (`registry.ts`); die eigene Datei soll gewinnen.
+ */
+const SELF_REGISTERED = new Set<string>(['monster']);
+
 function legacy(): (host: RoleHost) => RoleView {
   return () => {
     const element = document.createElement('div');
@@ -26,7 +35,7 @@ function legacy(): (host: RoleHost) => RoleView {
   };
 }
 
-STATIONS.forEach((station, index) =>
+STATIONS.filter((station) => !SELF_REGISTERED.has(station.id)).forEach((station, index) =>
   registerRole({
     id: station.id,
     order: index,
