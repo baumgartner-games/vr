@@ -38,7 +38,15 @@ function fakeBody(): VentBody & {
 }
 
 function patrolTo(goal: { x: number; z: number }): RoutineOutput {
-  return { mode: 'patrol', goal, pace: 'walk', cue: '', strike: false, label: 'Patrouille' };
+  return {
+    mode: 'patrol',
+    goal,
+    pace: 'walk',
+    cue: '',
+    strike: false,
+    cabin: '',
+    label: 'Patrouille',
+  };
 }
 
 function seat(kind: 'stalker' | 'crawler' = 'crawler') {

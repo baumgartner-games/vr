@@ -22,6 +22,7 @@ function handles(vents?: WorldHandles['vents']): WorldHandles {
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
   };
   return {
     spec: () => spec,
