@@ -10,10 +10,8 @@ import {
   spacesOf,
   tilesOf,
   type HouseSpec,
-  type MarkId,
 } from './house';
 import { FLYER_PROFILE } from '../nav/navProfile';
-import type { BlockKind } from '../grid/blocks';
 import type { PlanSolid } from '../grid/solids';
 import { TRAINING_DOOR, TRAINING_ROOMS } from './trainingLayout';
 
@@ -112,33 +110,9 @@ function innerWalls(plan: GridPlan, spec: HouseSpec): void {
   }
 }
 
-/**
- * Historische Zuordnung für Werkzeuge, die alte Hausmerkmale darstellen.
- * Der Raumstationsplan erzeugt diese Bausteine nicht mehr.
- */
-export function blockFor(mark: MarkId): BlockKind {
-  switch (mark) {
-    case 'buecher':
-      return 'shelf';
-    case 'dusche':
-    case 'standuhr':
-      return 'pillar';
-    case 'ofen':
-    case 'spuele':
-    case 'kamin':
-    case 'ausgabe':
-      return 'counter';
-    case 'werkbank':
-    case 'klavier':
-    case 'esstisch':
-      return 'table';
-    case 'kiste':
-      return 'crate';
-    default:
-      // Wanne, Bett, Sessel, Schaukelpferd: alles, was niedrig ist.
-      return 'bench';
-  }
-}
+// **`blockFor` steht bei den Maßen**, nicht hier: Die 2D-Szene braucht die
+// Höhe eines Möbels und darf dafür nicht den halben Bauplan mitladen.
+export { blockFor } from './fixtureDimensions';
 
 /**
  * **Wie eine Drohne durch das Haus kommt.**

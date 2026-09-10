@@ -27,8 +27,11 @@ Fensterpfosten) blieb ausdrücklich beim Auftraggeber.
   die Szene sie in ihrer eigenen Handschrift: Grundfläche gedreht wie im
   Schiff, Körper nach Norden, hellere Deckfläche, konvexe Hülle als Umriss.
   Die Farben sind aus `marks.ts` nach `fixtureDimensions.MARK_COLORS`
-  gewandert — dieselbe Zahl für 3D-Klotz, Karte, Szene und Archiv, in einer
-  Datei, die kein three.js kennt.
+  gewandert und `blockFor` aus `plan.ts` dazu — dieselbe Zahl für 3D-Klotz,
+  Karte, Szene und Archiv, in einer Datei, die kein three.js kennt. Die Höhe
+  kommt über `markHeight` aus der **Bausteinhöhe** (`grid/blocks.ts`), nicht
+  aus `FIXTURE_CATALOG`: Das ist die Hülle für die Aufstellung, und ein
+  Esstisch stünde damit 1,6 m hoch im Bild.
 - **Schall über die freien Felder** (`map/noiseSpread.ts`). Die Wellen der
   Karte liefen als Kreis: ein Schritt durch drei Wände und über den leeren
   Weltraum. Jetzt flutet `spreadNoise` über die Bodenkacheln — Wand nein, Tür

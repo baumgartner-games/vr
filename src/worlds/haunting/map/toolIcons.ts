@@ -26,7 +26,7 @@ import { scannerFrame } from '../../portal/tools/scannerModel';
  */
 
 /** Kantenlänge eines Icons in Bildpunkten — quadratisch, mit Alpha. */
-export const ICON_SIZE = 128;
+export const ICON_SIZE = 160;
 /** Auf so viele Stufen je Farbkanal wird gerastert. */
 export const COMIC_STEPS = 4;
 /** Wie dick die Kontur ist, in Bildpunkten. */
@@ -39,6 +39,9 @@ export const COMIC_INK: readonly [number, number, number] = [14, 17, 22];
 /** Die Werkzeuge der 2D-Runde, in der Reihenfolge, in der sie gepuffert werden. */
 export const ICON_TOOLS: readonly string[] = ['flashlight', 'radar', 'xray', 'medkit'];
 
+/** Ab diesem Anteil frisst die Kontur die Fläche und wird dünner gezogen. */
+export const COMIC_INK_LIMIT = 0.7;
+
 /**
  * **Posterisieren und Kontur** — auf den Pixeln selbst, an Ort und Stelle.
  *
@@ -47,6 +50,12 @@ export const ICON_TOOLS: readonly string[] = ['flashlight', 'radar', 'xray', 'me
  * den Comic. Dann bekommt jedes Flächenpixel, das innerhalb von `outline`
  * Bildpunkten an Luft grenzt, die Tinte — die Kontur wird **nach innen**
  * gelegt, damit das Icon nicht wächst und in seinem Knopf bleibt.
+ *
+ * **Eine Kontur, die die ganze Fläche frisst, ist keine Kontur.** Der Rahmen
+ * des Scanners ist nur ein paar Bildpunkte dick; mit drei Punkten Kontur wäre
+ * er eine schwarze Scheibe, und Radar und Röntgen sähen gleich aus. Deshalb
+ * wird die Kontur dünner gezogen, solange sie mehr als `COMIC_INK_LIMIT` der
+ * Fläche einfärbt — bis zu einem Punkt, und dann gar nicht.
  */
 export function comicPixels(
   pixels: Uint8ClampedArray,
@@ -70,15 +79,25 @@ export function comicPixels(
     for (let c = 0; c < 3; c++) pixels[i * 4 + c] = quantize(pixels[i * 4 + c]!, steps);
   }
   if (!outline) return;
-  for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++) {
-      const i = y * width + x;
-      if (!solid[i]) continue;
-      if (!nearAir(solid, width, height, x, y, outline)) continue;
+  let area = 0;
+  for (const one of solid) area += one;
+  if (!area) return;
+  for (let reach = outline; reach >= 1; reach--) {
+    const edge: number[] = [];
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        if (solid[i] && nearAir(solid, width, height, x, y, reach)) edge.push(i);
+      }
+    if (edge.length > area * COMIC_INK_LIMIT && reach > 1) continue;
+    if (edge.length > area * COMIC_INK_LIMIT) return;
+    for (const i of edge) {
       pixels[i * 4] = COMIC_INK[0];
       pixels[i * 4 + 1] = COMIC_INK[1];
       pixels[i * 4 + 2] = COMIC_INK[2];
     }
+    return;
+  }
 }
 
 /** Eine Farbe auf `steps` Stufen rasten, mit voller Aussteuerung von Schwarz bis Weiß. */
@@ -189,7 +208,7 @@ export class ToolIcons implements ToolIconSource {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
     ctx.drawImage(renderer.domElement, 0, 0, size, size);
     const image = ctx.getImageData(0, 0, size, size);
@@ -204,7 +223,7 @@ function frame(camera: THREE.PerspectiveCamera, model: THREE.Object3D): void {
   const box = new THREE.Box3().setFromObject(model);
   const centre = box.getCenter(new THREE.Vector3());
   const radius = Math.max(0.04, box.getSize(new THREE.Vector3()).length() / 2);
-  const distance = (radius * 1.35) / Math.tan((camera.fov * Math.PI) / 360);
+  const distance = (radius * 1.12) / Math.tan((camera.fov * Math.PI) / 360);
   camera.position.set(centre.x + distance * 0.42, centre.y + distance * 0.34, centre.z + distance);
   camera.lookAt(centre);
   camera.updateProjectionMatrix();

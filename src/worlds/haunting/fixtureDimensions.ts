@@ -1,3 +1,4 @@
+import { BLOCKS, type BlockKind } from '../grid/blocks';
 import type { MarkId } from './house';
 
 /** Metres, including every handle, pipe and closed door. Front is local +Z. */
@@ -57,3 +58,42 @@ export const MARK_COLORS: Readonly<Record<MarkId, number>> = {
 export const CARGO_SIZE: FixtureSize = { width: 0.9, height: 1.4, depth: 0.65 };
 export const LOCKER_SIZE: FixtureSize = { width: 1.15, height: 2.2, depth: 0.8 };
 export const CONSOLE_SIZE: FixtureSize = { width: 1.2, height: 1.65, depth: 0.55 };
+
+/**
+ * Historische Zuordnung für Werkzeuge, die alte Hausmerkmale darstellen.
+ * Der Raumstationsplan erzeugt diese Bausteine nicht mehr.
+ */
+export function blockFor(mark: MarkId): BlockKind {
+  switch (mark) {
+    case 'buecher':
+      return 'shelf';
+    case 'dusche':
+    case 'standuhr':
+      return 'pillar';
+    case 'ofen':
+    case 'spuele':
+    case 'kamin':
+    case 'ausgabe':
+      return 'counter';
+    case 'werkbank':
+    case 'klavier':
+    case 'esstisch':
+      return 'table';
+    case 'kiste':
+      return 'crate';
+    default:
+      // Wanne, Bett, Sessel, Schaukelpferd: alles, was niedrig ist.
+      return 'bench';
+  }
+}
+
+/**
+ * **Wie hoch ein Möbel wirklich steht**, in Metern — die Höhe seines
+ * Bausteins (`grid/blocks.ts`), aus der auch das 3D-Modell gebaut wird
+ * (`marks.ts`). Nicht `FIXTURE_CATALOG.height`: Das ist die Hülle für die
+ * Aufstellung samt Griffen und Luft darüber, und ein Esstisch von 1,6 m sähe
+ * auf dem Bild aus wie ein Schrank.
+ */
+export function markHeight(mark: MarkId): number {
+  return BLOCKS[blockFor(mark)].height;
+}

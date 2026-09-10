@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { TILE, type Dir } from '../nav/navTile';
-import { blockFor } from './plan';
 import { BLOCKS } from '../grid/blocks';
 import type { MarkAt, MarkId } from './house';
-import { MARK_COLORS } from './fixtureDimensions';
+import { MARK_COLORS, blockFor } from './fixtureDimensions';
 
 /**
  * **Woran man ein Klavier von einer Werkbank unterscheidet.**

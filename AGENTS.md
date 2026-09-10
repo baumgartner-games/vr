@@ -7858,8 +7858,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Sorte, Fracht, Konsole, Spind samt Wrack, Klappe) **und die Möbel derselben
   Räume** (`drawFixture` über `MapSnapshot.fixtures`: Grundfläche gedreht wie
   im Schiff, Körper nach Norden, hellere Deckfläche; Farben aus
-  `fixtureDimensions.MARK_COLORS` — derselben Zahl, aus der auch der 3D-Klotz
-  und das Archiv malen), alles gemeinsam nach z
+  `fixtureDimensions.MARK_COLORS` und Höhen aus `markHeight` — derselben Zahl
+  und derselben Bausteinhöhe, aus der auch der 3D-Klotz gebaut wird und das
+  Archiv malt. **Nicht** `FIXTURE_CATALOG.height`: Das ist die Hülle für die
+  Aufstellung samt Griffen, und ein Esstisch von 1,6 m sähe auf dem Bild aus
+  wie ein Schrank), alles gemeinsam nach z
   sortiert, damit eine Figur vor einer Wand vor ihr steht und dahinter
   dahinter. **Es gibt eine Spielwelt, zwei Darstellungen:** Was in 3D im Raum
   steht, steht auch in 2D — Fracht, Schrank und Konsole zeichnet dabei die

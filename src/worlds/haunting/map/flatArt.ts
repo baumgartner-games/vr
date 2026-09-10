@@ -1,9 +1,9 @@
 import {
   CARGO_SIZE,
   CONSOLE_SIZE,
-  FIXTURE_CATALOG,
   LOCKER_SIZE,
   MARK_COLORS,
+  markHeight,
 } from '../fixtureDimensions';
 import type { MarkId } from '../house';
 import type { MapEntityKind, MapFixture, MapItem } from './mapSnapshot';
@@ -390,12 +390,18 @@ export function drawFixture(
   ctx.restore();
 }
 
-/** Wie hoch ein Möbel ist, in Metern — aus demselben Katalog wie die 3D-Klötze. */
+/**
+ * Wie hoch ein Möbel ist, in Metern — **die Höhe seines Bausteins**, also
+ * genau die des 3D-Klotzes (`fixtureDimensions.markHeight`). Die Maße aus
+ * `FIXTURE_CATALOG` sind die Hülle für die Aufstellung, nicht das Möbel: Ein
+ * Esstisch stünde damit 1,6 m hoch auf dem Bild und sähe aus wie ein Schrank.
+ */
 export function fixtureHeight(fixture: Pick<MapFixture, 'kind' | 'mark'>): number {
   if (fixture.kind === 'cargo') return CARGO_SIZE.height;
   if (fixture.kind === 'locker') return LOCKER_SIZE.height;
   if (fixture.kind === 'console') return CONSOLE_SIZE.height;
-  return FIXTURE_CATALOG[fixture.mark as MarkId]?.height ?? 1;
+  const mark = fixture.mark as MarkId | undefined;
+  return mark ? markHeight(mark) : 1;
 }
 
 /** Vorderseite und Deckfläche eines Möbels als CSS-Farben. */
