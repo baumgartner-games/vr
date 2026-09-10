@@ -297,3 +297,16 @@ Bedienfeld neu zu bauen. Der CI-Runner behält seine eigene Softwareprüfung.
 Aktuelle Übersicht mit Blickfeldern, akustischen Bodenfeldern und KI-Absichten:
 [KI-Wahrnehmung](orbital/ai-perception.png). Die orange Überlagerung liegt nur auf
 vorhandenen Stationsfeldern; die schwarzen Lücken bleiben frei.
+
+## 2D-Welt als gezeichnete Szene (2026-09-10)
+
+Die Spielansicht der 2D-Welt (`map/flatScene.ts`) zeichnet die Station nicht
+mehr als Karte, sondern als Szene im Stil der Vorlage: Metallplatten mit Fugen,
+Wände mit sichtbarer Südseite, Raumnamen auf dem Boden, Crewmates mit Namen,
+Requisiten als Vektorbilder, Schwärze außerhalb der Sichtflächen, HUD mit
+Aufgabenbalken und großem „Benutzen"-Knopf. Aufgenommen mit Playwright/Chromium
+(SwiftShader, 430 × 860 Punkte bei doppelter Pixeldichte) nach dem Start von
+„Mission spielen (2D)" und ein paar Schritten in die Cafeteria:
+[2D-Szene am Telefon](orbital/flat-scene.png) — Techniker vor der Schleuse zur
+Einsatzzentrale, geschlossenes Türblatt mit Leuchte, Schatten des Blatts im Licht
+der Zentrale, Aufgabenkasten oben links, Zahnrad und Karte oben rechts.

@@ -170,7 +170,8 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     const flat = new FlatMode(7, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     expect(flat.soloPowers).toEqual({ scout: true, panel: true, archive: true });
-    // Die Tafel: ein Tipp auf eine Tür sperrt sie.
+    // Die Tafel: ein Tipp auf eine Tür in der Kartenübersicht sperrt sie.
+    flat.showMap(true);
     flat.update(DT);
     const door = flat.round.house.doors.find((d) => d.b !== null)!;
     const at = doorCentre(door);
@@ -202,6 +203,7 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     const flat = new FlatMode(7, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     expect(flat.soloPowers).toEqual({ scout: false, panel: false, archive: false });
+    flat.showMap(true);
     flat.update(DT);
     const door = flat.round.house.doors.find((d) => d.b !== null)!;
     const at = doorCentre(door);

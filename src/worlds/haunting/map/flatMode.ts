@@ -13,7 +13,8 @@ import {
   type FlatRole,
 } from './flatRound';
 import { Joystick } from './joystick';
-import { INK, MapView, type MapRoute } from './mapView';
+import { FlatScene, scaleForWidth } from './flatScene';
+import { INK, MapView, type MapGoal, type MapRoute } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
@@ -33,13 +34,17 @@ import { HauntingAudio, levelLabel } from '../audio';
 import type { MapPoint } from './mapSnapshot';
 
 /**
- * **Die 2D-Welt** — die Station von oben, gespielt mit dem Daumen.
+ * **Die 2D-Welt** — die Station als gezeichnete Szene, gespielt mit dem Daumen.
  *
- * Links der Stock, rechts drei Knöpfe: Werkzeug wechseln, Werkzeug benutzen,
- * mit dem interagieren, was vor einem liegt. Die Karte in der Mitte lässt
- * sich frei ziehen und mit zwei Fingern zoomen; ein Knopf holt sie wieder
- * zum Spieler zurück. Rätsel liegen als Overlay über der Karte; das
- * Optionsmenü hat genau zwei Modi (`registry/viewModes.ts`, Publikum `flat`).
+ * Links der Stock, rechts unten ein großer Knopf „Benutzen" und darüber zwei
+ * kleine: Werkzeug benutzen, Werkzeug wechseln. Die Szene (`flatScene.ts`)
+ * folgt dem Spieler, lässt sich ziehen und mit zwei Fingern zoomen; ein
+ * Knopf holt sie zurück. Oben links der Kasten mit dem Balken „Aufgaben
+ * erledigt", der Aufgabenliste, Sauerstoffuhr und Anzug-Leben; oben rechts
+ * Zahnrad und Karte. Die Karte ist die alte `MapView` als Overlay — die
+ * Übersicht bleibt erreichbar, sie ist nur nicht mehr das Spielbild. Rätsel
+ * liegen als Overlay über der Szene; das Optionsmenü hat genau zwei Modi
+ * (`registry/viewModes.ts`, Publikum `flat`).
  *
  * Drei Rollen (`FlatRole`): der Techniker am Stock, das Monster
  * (`monster/monsterSession.ts`) — und die **Bot-Runde**, in der niemand
@@ -49,10 +54,12 @@ import type { MapPoint } from './mapSnapshot';
  *
  * **Wer allein spielt, bekommt die Zentrale dazu** (`rules/roundSetup.ts`):
  * Jeder Platz, an dem ein Bot sitzt, gibt dem Techniker die Auskunft dieses
- * Platzes auf seine eigene Karte — die Peilung des Spähers als roter Punkt
- * alle paar Sekunden, die Schalttafel als Tipp auf Tür oder Lampe, die Akte
- * des Archivars als Tipp auf ein Zimmer. Ein Mensch am Platz nimmt sie ihm
- * wieder ab; dann sagt es ihm der Mitspieler, oder niemand.
+ * Platzes auf sein eigenes Bild — die Peilung des Spähers als roter Punkt
+ * alle paar Sekunden, die Schalttafel als Tipp auf Tür oder Lampe in der
+ * Kartenübersicht, die Akte des Archivars als Tipp auf ein Zimmer. Ein
+ * Mensch am Platz nimmt sie ihm wieder ab; dann sagt es ihm der Mitspieler,
+ * oder niemand. Ziele stehen als gelbe Dreiecke am Rand der Szene, und
+ * „Zielpfade" legt die Wege von Techniker und Monster darüber.
  *
  * Kein three.js hier drin: Das aktive Werkzeug als 3D-Bild zeichnet die Welt
  * in das Loch, das `viewport()` beschreibt (`flatStage.ts`). Deshalb läuft
@@ -75,14 +82,14 @@ const SCOUT_FLOOR = 0.25;
 /** Wie viele Punkte unter dem HUD der Seite die Randdreiecke bleiben. */
 const EDGE_TOP = 118;
 
+const NO_POWERS: SoloPowers = { scout: false, panel: false, archive: false };
+
 /** Die drei Rollen im Optionsmenü, in der Reihenfolge des Durchschaltens. */
 const ROLE_LABELS: Record<FlatRole, string> = {
   technician: 'Als Techniker spielen',
   monster: 'Als Monster spielen (Techniker: Bot)',
   bot: 'Bot-Runde zusehen',
 };
-
-const NO_POWERS: SoloPowers = { scout: false, panel: false, archive: false };
 
 /** Ohne Tafel: die Verteilung, die Rolle und Test der alten Optionen meinen. */
 function setupFromOptions(options: FlatOptions): RoundSetup {
@@ -97,16 +104,25 @@ function setupFromOptions(options: FlatOptions): RoundSetup {
 export class FlatMode {
   readonly element = el('div', 'flat');
   round: FlatRound;
+  /** Das Spielbild: die gezeichnete Szene. */
+  readonly scene: FlatScene;
+  /** Die Kartenübersicht im Overlay — die alte Karte, auf Knopfdruck. */
   readonly map: MapView;
+  private readonly mapOverlay = el('div', 'flat__map');
   private readonly stick = new Joystick();
   private readonly hud = el('div', 'flat__hud');
+  private readonly barFill = el('div', 'flat__bar-fill');
+  private readonly vitals = el('div', 'flat__vitals');
+  private readonly tasks = el('div', 'flat__tasks');
+  private readonly tab = el('button', 'flat__tab', 'Aufgaben');
   private readonly toast = el('div', 'flat__toast');
   private readonly buttons = el('div', 'flat__buttons');
   private readonly cycleKey = el('button', 'flat__key flat__key--cycle');
   private readonly useKey = el('button', 'flat__key flat__key--use');
   private readonly actKey = el('button', 'flat__key flat__key--act');
   private readonly centreKey = el('button', 'flat__corner flat__centre', 'Zum Spieler');
-  private readonly optionsKey = el('button', 'flat__corner flat__options', 'Optionen');
+  private readonly optionsKey = el('button', 'flat__corner flat__options', '⚙');
+  private readonly mapKey = el('button', 'flat__corner flat__mapkey', '🗺');
   private readonly options = el('div', 'flat__panel');
   private readonly sheet = el('div', 'flat__panel flat__sheet');
   private readonly ending = el('div', 'flat__ending');
@@ -146,6 +162,20 @@ export class FlatMode {
     this.mode = modes.find((m) => m.visibility === (options.mode ?? 'realistic')) ?? modes[0]!;
     this.round = new FlatRound(seed, { ...options, mode: this.mode.visibility });
     this.puzzle = new PuzzleOverlay(this.round);
+    const onRoomClick = (id: string): void => this.tapRoom(id);
+    const onEntityClick = (id: string): void =>
+      this.say(this.round.entities().find((e) => e.id === id)?.label ?? id);
+    const onItemClick = (id: string): void => this.tapItem(id);
+    this.scene = new FlatScene({
+      mode: this.mode.visibility,
+      onRoomClick,
+      onEntityClick,
+      onItemClick,
+      overlay: (ctx) => this.drawSceneOverlay(ctx),
+    });
+    this.scene.element.classList.add('flat__scene');
+    this.scene.setScale(scaleForWidth(typeof window === 'undefined' ? 1024 : window.innerWidth));
+    this.scene.follow(PLAYER_ID);
     this.map = new MapView({
       layers: this.mode.layers,
       markers: this.mode.markers,
@@ -153,20 +183,31 @@ export class FlatMode {
       viewerId: PLAYER_ID,
       minScale: 6,
       maxScale: 60,
-      edge: { top: EDGE_TOP, bottom: 90, left: 18, right: 18 },
+      edge: { top: 24, bottom: 24, left: 18, right: 18 },
       routes: () => this.routeLines(),
       objectives: () => (this.session ? [] : this.round.objectives()),
-      overlay: (ctx) => this.drawPing(ctx),
-      onRoomClick: (id) => this.tapRoom(id),
-      onEntityClick: (id) => this.say(this.round.entities().find((e) => e.id === id)?.label ?? id),
-      onItemClick: (id) => this.tapItem(id),
+      overlay: (ctx) => this.drawPing(ctx, this.map),
+      onRoomClick,
+      onEntityClick,
+      onItemClick,
       onDoorClick: (id) => this.tapDoor(id),
       onLightClick: (id) => this.tapLight(id),
     });
-    this.map.element.classList.add('flat__map');
     this.map.follow(PLAYER_ID);
     this.map.setView({ scale: 22 });
     this.map.follow(PLAYER_ID);
+    const mapClose = el('button', 'flat__map-close', 'Schließen');
+    mapClose.addEventListener('click', () => this.showMap(false));
+    this.mapOverlay.append(this.map.element, mapClose);
+    this.mapOverlay.hidden = true;
+    this.mapKey.addEventListener('click', () => this.showMap(this.mapOverlay.hidden));
+    this.mapKey.setAttribute('aria-label', 'Karte');
+    this.optionsKey.setAttribute('aria-label', 'Optionen');
+    // Der Kasten oben links: Balken, Uhr und Anzug, Aufgabenliste, Reiter zum Einklappen.
+    const bar = el('div', 'flat__bar');
+    bar.append(this.barFill, el('span', 'flat__bar-label', 'Aufgaben erledigt'));
+    this.hud.append(bar, this.vitals, this.tasks, this.tab);
+    this.tab.addEventListener('click', () => this.hud.classList.toggle('is-collapsed'));
 
     this.cycleKey.dataset['action'] = 'cycle';
     this.useKey.dataset['action'] = 'use';
@@ -180,7 +221,10 @@ export class FlatMode {
         this.refreshKeys();
       }
     });
-    this.centreKey.addEventListener('click', () => this.map.follow(PLAYER_ID));
+    this.centreKey.addEventListener('click', () => {
+      this.scene.follow(PLAYER_ID);
+      this.map.follow(PLAYER_ID);
+    });
     this.optionsKey.addEventListener('click', () => {
       this.options.hidden = !this.options.hidden;
       this.sheet.hidden = true;
@@ -194,14 +238,16 @@ export class FlatMode {
     this.ending.addEventListener('click', (event) => this.optionClick(event));
     this.hole.className = 'flat__item';
     this.element.append(
-      this.map.element,
+      this.scene.element,
       this.hud,
       this.toast,
       this.stick.element,
       this.buttons,
       this.hole,
       this.centreKey,
+      this.mapKey,
       this.optionsKey,
+      this.mapOverlay,
       this.puzzle.element,
       this.sheet,
       this.options,
@@ -216,7 +262,7 @@ export class FlatMode {
 
   /**
    * Techniker, Monster oder Bot: Wer das Monster spielt, bekommt dessen
-   * Ansicht statt Stock und Knöpfen; wer dem Bot zusieht, behält die Karte
+   * Ansicht statt Stock und Knöpfen; wer dem Bot zusieht, behält die Szene
    * und den Knopf, der sie zurück zum Techniker holt.
    */
   private playRole(role: FlatRole): void {
@@ -235,7 +281,9 @@ export class FlatMode {
         this.dice.next(),
       );
     }
-    for (const node of [this.map.element, this.centreKey]) node.hidden = role === 'monster';
+    for (const node of [this.scene.element, this.centreKey, this.mapKey])
+      node.hidden = role === 'monster';
+    if (role === 'monster') this.showMap(false);
     for (const node of [this.stick.element, this.buttons, this.hole])
       node.hidden = role !== 'technician';
     this.element.dataset['role'] = role;
@@ -262,7 +310,7 @@ export class FlatMode {
     return this.powers;
   }
 
-  /** Ob die Wege auf der Karte liegen. */
+  /** Ob die Wege auf Szene und Karte liegen. */
   get routesShown(): boolean {
     return this.routes;
   }
@@ -298,10 +346,15 @@ export class FlatMode {
     }
     if (!this.session) {
       this.stepPing(dt);
-      this.map.setSnapshot(this.round.snapshot());
-      this.map.setVisibility(this.round.field);
-      this.map.draw();
-      // Ein offenes Rätsel liegt über allem: Das Optionsmenü geht dabei zu.
+      this.scene.setSnapshot(this.round.snapshot());
+      this.scene.setVisibility(this.round.field);
+      this.scene.draw();
+      if (!this.mapOverlay.hidden) {
+        this.map.setSnapshot(this.round.snapshot());
+        this.map.setVisibility(this.round.field);
+        this.map.draw();
+      }
+      // Ein offenes Rätsel liegt über allem: Optionsmenü und Akte gehen dabei zu.
       if (this.round.puzzle && !this.options.hidden) this.options.hidden = true;
       if (this.round.puzzle && !this.sheet.hidden) this.sheet.hidden = true;
       this.puzzle.sync();
@@ -311,7 +364,24 @@ export class FlatMode {
     if (this.round.phase !== 'running' && this.ending.hidden) this.renderEnding();
   }
 
-  // --- Die Zentrale auf der eigenen Karte -----------------------------------------
+  /** Die Kartenübersicht ein- oder ausblenden — sie zeichnet nur, solange sie offen ist. */
+  showMap(open: boolean): void {
+    this.mapOverlay.hidden = !open;
+    this.mapKey.classList.toggle('is-active', open);
+    if (open) {
+      this.map.fit();
+      this.map.setSnapshot(this.round.snapshot());
+      this.map.setVisibility(this.round.field);
+      this.map.draw();
+    }
+  }
+
+  /** Nur für Tests: ob die Kartenübersicht offen ist. */
+  get mapOpen(): boolean {
+    return !this.mapOverlay.hidden;
+  }
+
+  // --- Die Zentrale auf dem eigenen Bild -----------------------------------------
 
   /**
    * **Die Peilung des Spähers**: alle `SCOUT_PERIOD` Sekunden die Stelle des
@@ -336,14 +406,18 @@ export class FlatMode {
     return this.ping;
   }
 
-  private drawPing(ctx: CanvasRenderingContext2D): void {
+  /** Die Peilung als roter Punkt, der bis zur nächsten verblasst — auf Szene und Karte. */
+  private drawPing(
+    ctx: CanvasRenderingContext2D,
+    view: { toScreen(x: number, z: number): { x: number; y: number } },
+  ): void {
     if (!this.ping || this.session) return;
-    // Im Modus „Alles sehen" läuft das Monster ohnehin über die Karte.
+    // Im Modus „Alles sehen" läuft das Monster ohnehin über das Bild.
     if (this.mode.visibility === 'omniscient') return;
     const age = this.round.state().time - this.ping.time;
     const fade = Math.max(SCOUT_FLOOR, 1 - age / SCOUT_PERIOD);
-    const p = this.map.toScreen(this.ping.at.x, this.ping.at.z);
-    const r = Math.max(6, this.map.getView().scale * 0.4);
+    const p = view.toScreen(this.ping.at.x, this.ping.at.z);
+    const r = 9;
     ctx.save();
     ctx.globalAlpha = fade;
     ctx.fillStyle = INK.monster;
@@ -361,6 +435,109 @@ export class FlatMode {
     ctx.textBaseline = 'middle';
     ctx.fillText('PEILUNG', p.x, p.y - r * 2.1 - 6);
     ctx.restore();
+  }
+
+  /**
+   * Was über der Szene liegt: die Wege (wenn gewollt), die Ziele als Ring
+   * am Ort und gelbes Dreieck am Rand des Bildes, und die Peilung.
+   */
+  private drawSceneOverlay(ctx: CanvasRenderingContext2D): void {
+    if (this.session) return;
+    const scene = this.scene;
+    const { width: w, height: h } = scene.canvas.getBoundingClientRect();
+    const width = w || 320,
+      height = h || 320;
+    for (const route of this.routeLines()) {
+      ctx.strokeStyle = route.color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      route.points.forEach((point, i) => {
+        const p = scene.toScreen(point.x, point.z);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const inset = { top: EDGE_TOP, right: 18, bottom: 130, left: 18 };
+    const t = Date.now() / 1000;
+    for (const goal of this.round.objectives())
+      this.drawGoal(ctx, scene, goal, width, height, inset, t);
+    this.drawPing(ctx, scene);
+  }
+
+  private drawGoal(
+    ctx: CanvasRenderingContext2D,
+    scene: FlatScene,
+    goal: MapGoal,
+    w: number,
+    h: number,
+    inset: { top: number; right: number; bottom: number; left: number },
+    t: number,
+  ): void {
+    const p = scene.toScreen(goal.at.x, goal.at.z);
+    const inside =
+      p.x >= inset.left && p.x <= w - inset.right && p.y >= inset.top && p.y <= h - inset.bottom;
+    ctx.fillStyle = goal.next ? INK.goal : INK.goalDim;
+    ctx.strokeStyle = goal.next ? INK.goal : INK.goalDim;
+    if (inside) {
+      const pulse = goal.next ? 1 + 0.15 * Math.sin(t * 4) : 1;
+      const r = 14 * pulse;
+      ctx.lineWidth = goal.next ? 3 : 1.5;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, r * 1.3, r * 0.7, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      if (goal.next) {
+        const y = p.y - 44 - 4 * Math.sin(t * 4);
+        ctx.beginPath();
+        ctx.moveTo(p.x, y + 14);
+        ctx.lineTo(p.x - 9, y);
+        ctx.lineTo(p.x + 9, y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      return;
+    }
+    const cx = (inset.left + w - inset.right) / 2,
+      cy = (inset.top + h - inset.bottom) / 2;
+    const dx = p.x - cx,
+      dy = p.y - cy;
+    const hw = (w - inset.left - inset.right) / 2,
+      hh = (h - inset.top - inset.bottom) / 2;
+    const k = Math.min(hw / Math.max(1e-6, Math.abs(dx)), hh / Math.max(1e-6, Math.abs(dy)));
+    const ex = cx + dx * k,
+      ey = cy + dy * k;
+    const angle = Math.atan2(dy, dx);
+    const size = goal.next ? 14 : 10;
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(size, 0);
+    ctx.lineTo(-size * 0.7, -size * 0.7);
+    ctx.lineTo(-size * 0.35, 0);
+    ctx.lineTo(-size * 0.7, size * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#1d2126';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    if (goal.next) {
+      const metres = Math.round(
+        Math.hypot(goal.at.x - this.round.player.x, goal.at.z - this.round.player.z),
+      );
+      const lx = ex - Math.cos(angle) * 26,
+        ly = ey - Math.sin(angle) * 26;
+      ctx.font = '700 11px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillText(`${metres} m`, lx + 1, ly + 1);
+      ctx.fillStyle = INK.goal;
+      ctx.fillText(`${metres} m`, lx, ly);
+    }
   }
 
   /** Die Wege, wenn sie gewollt sind: das Monster rot, der Techniker cyan. */
@@ -415,7 +592,7 @@ export class FlatMode {
    * **Die Akte des Archivars**, aufgeschlagen für ein Zimmer: was darin
    * steht, der Schutzschrank-Code, die Fracht und die Konsole mit dem, was
    * ihr Rätsel braucht — dieselben Fakten wie am Telefon des Archivars
-   * (`stationUi.ts`), nur eben auf der eigenen Karte.
+   * (`stationUi.ts`), nur eben auf dem eigenen Bild.
    */
   openSheet(roomId: string): void {
     const spec = this.round.house;
@@ -487,7 +664,7 @@ export class FlatMode {
         'Archivscan · nur dieser Raum · keine Personen oder Live-Positionen',
       ),
     );
-    const close = el('button', 'flat__option', 'Zurück zur Karte');
+    const close = el('button', 'flat__option', 'Zurück');
     close.dataset['closeSheet'] = '';
     parts.push(close);
     this.sheet.replaceChildren(...parts);
@@ -524,47 +701,72 @@ export class FlatMode {
             : tool === 'xray'
               ? 'Durchleuchten'
               : 'Benutzen';
-    this.useKey.append(el('small', '', 'Benutzen'), el('strong', '', use));
+    this.useKey.append(el('small', '', 'Werkzeug'), el('strong', '', use));
     const target = this.round.target;
     this.actKey.textContent = '';
-    this.actKey.append(el('small', '', 'Interagieren'), el('strong', '', target?.label ?? '—'));
+    this.actKey.append(el('strong', '', 'Benutzen'), el('small', '', target?.label ?? ''));
     this.actKey.classList.toggle('is-ready', !!target);
   }
 
+  /**
+   * Der Kasten oben links, wie in der Vorlage: der grüne Balken zählt die
+   * erledigten Reparaturen, darunter Uhr und Anzug, darunter die Aufgaben —
+   * erledigte grün, mit `(n/2)`, weil jede Reparatur zwei Schritte hat:
+   * das Teil aus der Fracht holen, dann die Konsole lösen. Gebaut wird nur,
+   * wenn sich der Text ändert; die Uhr allein schreibt keine neue Liste.
+   */
   private renderHud(): void {
     const state = this.round.state();
     const crew = state.crew;
     const monster = MONSTERS.find((m) => m.id === crew.options.monster)?.name ?? '';
     const round = this.round.round();
     const hp = '●'.repeat(round.suit) + '○'.repeat(Math.max(0, round.suitMax - round.suit));
-    const next = this.session ? null : this.round.objectives()[0];
-    const text = [
-      hp,
-      `O₂ ${clockText(round.oxygen)}`,
-      `Reparaturen ${state.done.length}/3`,
-      crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : '',
-    ]
-      .filter(Boolean)
-      .join('  ·  ');
+    const who = this.bot ? 'Bot-Runde · ' : '';
     const cabins = round.cabinsDestroyed.length
       ? ` · ${round.cabinsDestroyed.length} Kabinen hin`
       : '';
-    const who = this.bot ? 'Bot-Runde · ' : '';
     const powers = [
       this.powers.scout ? 'Späher' : '',
       this.powers.panel ? 'Tafel' : '',
       this.powers.archive ? 'Archiv' : '',
     ].filter(Boolean);
     const line = `${who}${state.monsterOn ? monster : 'Test ohne Monster'} · ${this.mode.label}${cabins}${powers.length && !this.session ? ` · ${powers.join('+')}` : ''}`;
+    const status = crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : '';
+    const next = this.session ? null : this.round.objectives()[0];
     const goal = next ? `Ziel: ${next.label}` : '';
-    if (this.hud.dataset['text'] !== text + line + goal) {
-      this.hud.dataset['text'] = text + line + goal;
-      this.hud.replaceChildren(
-        el('strong', '', text.trim()),
-        el('span', '', line),
-        ...(goal ? [el('em', '', goal)] : []),
-      );
-    }
+    const rooms = this.round.snapshot().rooms;
+    const lines = repairsFor(this.round.house).map((repair) => {
+      const done = state.done.includes(repair.itemId);
+      const carried =
+        done || crew.inventory.includes(repair.itemId) || state.taken.includes(repair.itemId);
+      const room = rooms.find((r) => r.id === repair.roomId)?.name ?? repair.roomId;
+      return {
+        text: `${room}: ${repair.title} (${done ? 2 : carried ? 1 : 0}/2)`,
+        done,
+        partial: carried && !done,
+      };
+    });
+    const key = [hp, clockText(round.oxygen), status, line, goal, ...lines.map((l) => l.text)].join(
+      '|',
+    );
+    if (this.hud.dataset['text'] === key) return;
+    this.hud.dataset['text'] = key;
+    this.barFill.style.width = `${Math.round((Math.min(3, state.done.length) / 3) * 100)}%`;
+    this.vitals.replaceChildren(
+      el('strong', 'flat__oxygen', `O₂ ${clockText(round.oxygen)}`),
+      el('strong', 'flat__suit', hp),
+      el('span', '', [status, line].filter(Boolean).join(' · ')),
+      ...(goal ? [el('em', 'flat__goal', goal)] : []),
+    );
+    this.vitals.classList.toggle('is-low', round.oxygen < 60);
+    this.tasks.replaceChildren(
+      ...lines.map((l) => {
+        const node = el('div', 'flat__task', l.text);
+        node.classList.toggle('is-done', l.done);
+        node.classList.toggle('is-partial', l.partial);
+        return node;
+      }),
+    );
   }
 
   private renderOptions(): void {
@@ -690,10 +892,7 @@ export class FlatMode {
     } else if (data['restart'] !== undefined) {
       this.restart();
     } else if (data['monster'] !== undefined) {
-      this.setup = {
-        ...this.setup,
-        monster: this.setup.monster === 'off' ? 'bot' : 'off',
-      };
+      this.setup = { ...this.setup, monster: this.setup.monster === 'off' ? 'bot' : 'off' };
       saveSetup(this.setup);
       this.renderOptions();
     } else if (data['role'] !== undefined) {
@@ -762,6 +961,8 @@ export class FlatMode {
     this.ending.hidden = true;
     this.options.hidden = true;
     this.sheet.hidden = true;
+    this.showMap(false);
+    this.scene.follow(PLAYER_ID);
     this.map.fit();
     this.map.follow(PLAYER_ID);
     this.playRole(next.role ?? 'technician');
@@ -783,6 +984,7 @@ export class FlatMode {
     this.session?.dispose();
     this.audio.dispose();
     this.stick.dispose();
+    this.scene.dispose();
     this.map.dispose();
     this.element.remove();
   }

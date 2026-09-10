@@ -309,6 +309,66 @@ Seniorität — nicht getestet. Spielt der 2D-Spieler lokal „Als Monster", hat
 → Fahrer → `FlatRound` reißt die Kabine auf), `stations.test.ts`,
 `stationUi.test.ts`, `netReplay.test.ts`.
 
+### 6. Die 2D-Welt als gezeichnete Szene (`map/flatScene.ts`, `map/flatArt.ts`)
+
+Nachtrag des Auftraggebers mit einem Screenshot aus Among Us: „so meinte ich
+die 2D-Grafik". Die Spielansicht der 2D-Welt (Rollen Techniker und Bot) ist
+seitdem eine gezeichnete Szene; `MapView` bleibt für die Telefone der
+Einsatzzentrale, die Monster-Rolle und als Kartenoverlay in der 2D-Welt.
+
+**Was drin ist.** `FlatScene` mit derselben Andockform wie `MapView`
+(`setSnapshot`, `setVisibility`, `follow`, Zoom/Pan, `tap`, `toScreen`/
+`toWorld`). Böden mit 1,25-m-Plattenraster (Gänge heller mit Rillen),
+Raumnamen blass-rot mit Linie, Wände als Band mit Oberkante um `WALL_H` = 0,6 m
+nach Norden und Vorderseite mit Grat und Paneelfugen, Türen mit Schwelle,
+Pfosten, Schiebeblatt und grüner/roter Leuchte, Fenster als Scheiben.
+Zeichenreihenfolge: Böden → Namen → z-Wände → gemeinsam nach z sortierte
+Liste aus x-Wänden, Türblättern, Requisiten, Lampen und Figuren → Dunkelheit
+→ Namen der sichtbaren Figuren. Dunkelheit: ein einmal angelegtes
+Offscreen-Canvas, schwarz, `destination-out` mit radialem Verlauf (1 m weicher
+Rand) je `lit`-Region, `self` und eigenem Kegel; `omniscient` dunkelt
+unbeleuchtete Räume nur ab. Kamera folgt der Figur, 84 px/m am Desktop und
+64 px/m unter 480 px Breite (Figur ≈ 100/77 px), Zoom 28–140. `flatArt.ts`:
+`drawCrewmate` (Spiegelung je Blickrichtung, Beine wechseln beim Gehen),
+`drawMonster` je Sorte mit atmenden Glutaugen, `drawProp` für Fracht, Konsole,
+Spind (offen, zerstört mit Glut und Funken), Klappe, Sicherungskasten,
+Schleuse, Kiste, `drawLamp`, `drawDrone`, `drawName`; `crewColor` (Spieler
+grün, andere per Hash stabil). HUD in `flatMode.ts`/`flat.css` nach der
+Vorlage: Balken „Aufgaben erledigt", O₂-Uhr, Anzug-Pips, Aufgabenliste mit
+`(n/2)` (1 = Teil in der Hand, 2 = abgeliefert), Reiter „Aufgaben", oben
+rechts Karte und Zahnrad, unten rechts „Benutzen" groß (hell bei Ziel),
+„Werkzeug", „Wechseln". Screenshot: `docs/orbital/flat-scene.png`, Abschnitt
+in `docs/orbital-qa.md`.
+
+**Entscheidungen.**
+
+- Türlücken werden in `FlatScene.wallPieces` noch einmal aus allen
+  Wandstücken geschnitten: Die Fensterfront der Einsatzzentrale aus
+  `extract.ts` läuft ungeteilt über die Schleuse (siehe Vorplatzhülle im
+  Paket nav), sonst liefen Figuren sichtbar durch die Scheibe. `extract.ts`
+  bewusst nicht angefasst.
+- Figuren nur, wenn sie in `field.visibleEntities` stehen — dasselbe Modell
+  wie die Karte und die Rollenansichten.
+- Gesten sind in `FlatScene` dupliziert statt aus `MapView` herausgezogen,
+  um `MapView` nicht anzufassen. Die Monstersorte wird aus dem `label`
+  erraten; ein Feld im Snapshot wäre sauberer.
+
+**Offen.**
+
+- Das 3D-Werkzeugbild im Loch (`flatStage`) war schon vorher nicht sichtbar:
+  `.flat` liegt opak über dem WebGL-Canvas. Entweder das Loch im
+  Szenen-Canvas freistellen oder das Werkzeug als 2D-Icon zeichnen.
+- Die Schatten aus `visibility.ts` (5°-Strahlen) erscheinen als schwarze
+  Keile hinter Fensterpfosten und Türblättern — im Szenenstil auffälliger als
+  auf der Karte.
+- Der Kasten oben links überdeckt in der Einsatzzentrale den Raumnamen;
+  Gangnamen sind lang und stehen nur in breiten Gängen. Gehanimation und
+  Pinch-Zoom nur per Test geprüft, nicht am Gerät. Requisiten der 3D-Welt
+  (`roomDressing`: Tische, Inseln) sind nicht im Snapshot und fehlen in 2D.
+
+**Tests.** `map/flatScene.test.ts`, `map/flatArt.test.ts`,
+`map/flatMode.test.ts` (erweitert).
+
 ## Paket gameplay — Rundenregeln, Lüftungssystem, Monster-Rolle
 
 Branch `feat/monster-gameplay` (in der Browser-Session als

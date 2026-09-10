@@ -7836,8 +7836,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   HUD der Seite (Menü, Verbindung, VR; `z-index` 5 in `style.css`), und was
   bedienbar sein soll, ist ohne Tippen ins Leere sichtbar. Desktop und
   Querformat sind Nebenfälle, nicht der Maßstab.
-- **Die 2D-Welt** (`map/flatMode.ts`, `map/flat.css`): Karte im Hintergrund,
-  Stock links, drei Knöpfe rechts. Der Stock hat eine **sichtbare
+- **Die 2D-Welt** (`map/flatMode.ts`, `map/flat.css`) ist **eine gezeichnete
+  Szene, keine Karte** — der Auftraggeber hat Among Us als Vorlage gegeben:
+  `map/flatScene.ts` zeichnet Böden mit Plattenraster, Wände als Band mit
+  Oberkante und sichtbarer Vorderseite nach Süden (`WALL_H` 0,6 m bei 1,2 m
+  Figurhöhe), Raumnamen blass-rot auf dem Boden, Türen mit Schiebeblatt und
+  Leuchte, Requisiten und Figuren als Vektorzeichnungen (`map/flatArt.ts`:
+  Crewmate-Bohne mit Visier, Rucksack und Gehanimation, Monster-Silhouette je
+  Sorte, Fracht, Konsole, Spind samt Wrack, Klappe), alles gemeinsam nach z
+  sortiert, damit eine Figur vor einer Wand vor ihr steht und dahinter
+  dahinter. Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
+  der die Flächen des `VisibilityField` mit weichem Rand ausgeschnitten sind;
+  „Alles sehen" dunkelt nur ab. HUD wie die Vorlage: oben links der Kasten mit
+  Fortschrittsbalken, O₂-Uhr, Anzug-Pips und Aufgabenliste, oben rechts Karte
+  (das alte `MapView` als Overlay) und Zahnrad, unten rechts der große Knopf
+  „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
   Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
   (`map/joystick.ts`); HUD, Meldung und Eckknöpfe beginnen unter dem HUD der
   Seite (`--flat-top`). `.flat [hidden] { display: none !important }` ist
@@ -7877,15 +7890,19 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   immer die Routine). **Ein Bot auf einem Platz gibt dem Techniker die
   Fähigkeit selbst** (`powersOf`, `SoloPowers`): Späher heißt Peilung des
   Monsters alle `SCOUT_PERIOD` = 3,5 s als verblassender roter Punkt
-  (`FlatMode.stepPing`, nur im Modus „Realitätsnah" gezeichnet), Schalttafel
-  heißt Tür oder Lampe per Tipp auf die Karte (`FlatRound.lockDoor`,
-  `switchLight`), Archivar heißt die Akte per Tipp aufs Zimmer
+  (`FlatMode.stepPing`, nur im Modus „Realitätsnah", auf Szene und Karte),
+  Schalttafel heißt Tür oder Lampe per Tipp in der **Kartenübersicht** (🗺;
+  die Szene kennt keine Tür-Tipps; `FlatRound.lockDoor`, `switchLight`),
+  Archivar heißt die Akte per Tipp aufs Zimmer, in Szene wie Karte
   (`FlatMode.openSheet`: Kennzeichen, Schrankcode, Türen, Licht, Fracht mit
   Fundhinweis, Konsole mit Code oder Kabelplan, Schacht mit Ziel). Ein Mensch
   am Platz nimmt sie ihm wieder ab. „Zielpfade" im Optionsmenü legt den Weg
-  des Technikers zum nächsten Ziel (`FlatRound.playerRoute`, dieselbe
-  `stationRoute`, alle 0,8 s) und den des Monsters (`monsterRoute`, aus dem
-  Navigator; nur mit Späher oder „Alles sehen") auf die Karte.
+  des Technikers zum nächsten Ziel (`FlatRound.playerRoute`, ein eigener
+  `FlatNavigator` mit `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`,
+  `navigator.remaining`; nur mit Späher oder „Alles sehen") auf Szene und
+  Karte. Über der Szene malt `FlatMode.drawSceneOverlay` (Haken
+  `FlatSceneOptions.overlay`) Wege, Ziele als Ring und Randdreieck und die
+  Peilung; die Szene selbst weiß davon nichts.
 - **Das Kabelrätsel zeigt Symbole** (`map/puzzleOverlay.ts`, `WIRE_SYMBOLS`,
   `WIRE_COLORS` wie an der Konsole im Schiff): Stecker `i` gehört in die
   Buchse mit demselben Symbol, richtig Verbundenes leuchtet grün. Ohne die
