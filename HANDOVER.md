@@ -102,6 +102,13 @@ Alles Neue liegt in `src/worlds/haunting/views/**`.
   `stations.ts` an (`isStation`), das Monster wechselt die 2D-Welt selbst in
   ihrem Optionsmenü. Der erste Knopf heißt darum „Spielen" statt
   „Techniker".
+- `tools/browser-smoke.mjs` (CI `browser.yml`): Die Schritte für Archiv,
+  Einsatzkontrolle und Drohne klickten die alte Oberfläche (Raumauswahl,
+  Reiter, Schalterliste, Cockpit). Jetzt: Archiv-Karte, Akte über
+  `world.ui.roleView.open(roomId)` (derselbe Weg wie ein Tipp), Codes und
+  Zoom/Rad/Home, mobiles Layout aus Scan und Codes, Schalttafel per
+  `map.tap` auf eine Tür, Späher-Karte, kein Drohnen-Sitz. Lokal mit dem
+  Chromium des Containers grün (alle Schritte bis Bot-Runde und Übersicht).
 
 ### Entscheidungen und Alternativen
 

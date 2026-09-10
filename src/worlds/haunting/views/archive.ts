@@ -104,11 +104,11 @@ export class ArchiveRole implements RoleView {
     head.append(key('role__key', '← Karte', { back: '' }), this.title);
     this.scan.tabIndex = 0;
     this.scan.setAttribute('aria-label', 'Raumansicht von oben');
-    this.scanTools.append(
-      key('role__key role__key--icon', '−', { zoom: 'out' }),
-      key('role__key role__key--icon', '+', { zoom: 'in' }),
-      this.homeKey,
-    );
+    const zoomOut = key('role__key role__key--icon', '−', { zoom: 'out' });
+    zoomOut.setAttribute('aria-label', 'Raumansicht verkleinern');
+    const zoomIn = key('role__key role__key--icon', '+', { zoom: 'in' });
+    zoomIn.setAttribute('aria-label', 'Raumansicht vergrößern');
+    this.scanTools.append(zoomOut, zoomIn, this.homeKey);
     this.homeKey.setAttribute('aria-label', 'Wieder das ganze Zimmer zeigen');
     this.scan.append(this.scanTools);
     this.roomPage.append(head, this.scan, this.codes, this.sheet);

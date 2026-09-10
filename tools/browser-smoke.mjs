@@ -143,64 +143,90 @@ for (const name of browserNames) {
         await role('archive');
         assert.equal(
           await page
-            .locator(
-              '[data-archive-tab="map"], .haunt__archive-chart, .haunt__mini-chart, [data-archive-tab="anomalies"]',
-            )
+            .locator('[data-archive-tab], [data-room-select], .haunt__tasks, [data-dossier-room]')
             .count(),
           0,
-          'Archive must not expose a whole map or entity journal',
+          'Archive shows the map — no tabs, room list or mission list',
         );
-        const roomSelect = page.locator('[data-room-select]');
-        const choices = await roomSelect.locator('option').allTextContents();
-        assert(choices.length >= 6, 'Room names are available');
-        await roomSelect.selectOption({ index: Math.min(2, choices.length - 1) });
-        await page.locator('.haunt__sheet').waitFor();
-        const dossier = await page.locator('.haunt__sheet').innerText();
-        assert.match(dossier, /Schutzschrank-Code/);
+        await page.locator('.role--archive .mapview__canvas').waitFor();
+        // Die Akte eines Zimmers aufschlagen: derselbe Weg wie ein Tipp auf die Karte.
+        const roomId = await page.evaluate(() => {
+          const world = window.bgvr.world;
+          const view = world.ui.roleView;
+          const room = view.map.current.snapshot.rooms.find((one) =>
+            world.spec.rooms.some((known) => known.id === one.id),
+          );
+          view.open(room.id);
+          return room.id;
+        });
+        await page.locator('.role-archive__codes').waitFor();
+        const dossier = await page.locator('.role-archive__room').innerText();
+        assert.match(dossier, /Schutzschrank/i);
         assert.match(dossier, /[1-4]{3,}/);
+        assert.equal(
+          await page.evaluate(() => window.bgvr.world.ui.selected),
+          roomId,
+          'The world knows which room to draw into the dossier',
+        );
         await shot('archive-desktop');
         await page.getByRole('button', { name: 'Raumansicht vergrößern', exact: true }).click();
-        await page.locator('.haunt__view').hover();
+        await page.locator('.role-archive__scan').hover();
         await page.mouse.wheel(0, -80);
-        await page.locator('.haunt__view').focus();
+        await page.locator('.role-archive__scan').focus();
         await page.keyboard.press('Home');
-        await page.locator('[data-archive-tab="orders"]').click();
-        assert.equal(await page.locator('.haunt__task-row').count(), 3);
-        await shot('orders-desktop');
-        await page.locator('[data-dossier-room]').first().click();
 
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.locator('[data-room-select]').selectOption({ index: 0 });
         const layout = await page.evaluate(() => {
           const rect = (selector) => {
             const r = document.querySelector(selector).getBoundingClientRect();
             return { x: r.x, y: r.y, width: r.width, height: r.height };
           };
           return {
-            view: rect('.haunt__view'),
-            body: rect('.haunt__body'),
+            view: rect('.role-archive__scan'),
+            body: rect('.role-archive__codes'),
             overflow: document.documentElement.scrollWidth > innerWidth,
           };
         });
         assert(!layout.overflow, 'Mobile page fits the viewport');
         assert(
-          layout.view.height > 120 && layout.body.height > 120,
-          'Scan and dossier both remain visible',
+          layout.view.height > 120 && layout.body.height > 40,
+          'Scan and codes both remain visible',
         );
         result.mobileLayout = layout;
         await shot('archive-mobile');
+        await page.locator('[data-back]').click();
+        await page.locator('.role--archive .role__page:not([hidden]) .mapview__canvas').waitFor();
+
+        await role('hack');
+        await page.locator('.role--panel .mapview__canvas').waitFor();
+        assert.equal(
+          await page.locator('[data-flip], [data-control-tab]').count(),
+          0,
+          'The switchboard is the map, not a list of switches',
+        );
+        // Eine Tür auf der Karte antippen: derselbe Weg wie ein Finger auf dem Canvas.
+        const locked = await page.evaluate(() => {
+          const world = window.bgvr.world;
+          const view = world.ui.roleView;
+          const door = view.map.current.snapshot.doors[0];
+          view.map.setView({ centreX: door.at.x, centreZ: door.at.z, scale: 30 });
+          const at = view.map.toScreen(door.at.x, door.at.z);
+          view.map.tap(at.x, at.y);
+          return world.isHost ? world.state.shut.includes(door.id) : true;
+        });
+        assert(locked, 'A tap on a door locks it');
+        await shot('panel-mobile');
         await role('scout');
-        await page.locator('[data-control-tab="switches"]').click();
-        await page.locator('[data-flip]').first().click();
-        await shot('control-switches-mobile');
-        await page.locator('[data-control-tab="radar"]').click();
-        await shot('control-radar-mobile');
+        await page.locator('.role--scout .mapview__canvas').waitFor();
+        assert.equal(
+          await page.locator('.haunt__scout, .haunt__ecg, [data-control-tab]').count(),
+          0,
+          'The scout has the map, not radar tabs',
+        );
+        await shot('scout-mobile');
 
         await page.setViewportSize({ width: 1440, height: 900 });
-        await role('drone');
-        await page.locator('[data-panel]').click();
-        await page.locator('[data-fly]').last().click();
-        await shot('drone');
+        assert.equal(await page.locator('[data-sit="drone"]').count(), 0, 'No drone seat');
         await page.getByRole('button', { name: 'Rolle wechseln', exact: true }).click();
 
         await page.locator('[data-technician]').click();
