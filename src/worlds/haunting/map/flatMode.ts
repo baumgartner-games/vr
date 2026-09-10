@@ -1,5 +1,5 @@
 import './flat.css';
-import { MONSTERS, type MonsterKind } from '../mission';
+import { MONSTERS, repairsFor, type MonsterKind } from '../mission';
 import { viewModesFor, type ViewMode } from '../registry/viewModes';
 import './mapModes.register';
 import {
@@ -12,6 +12,7 @@ import {
   type FlatRole,
 } from './flatRound';
 import { Joystick } from './joystick';
+import { FlatScene, scaleForWidth } from './flatScene';
 import { MapView } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
@@ -21,13 +22,17 @@ import { MonsterSession } from '../monster/monsterSession';
 import { HauntingAudio, levelLabel } from '../audio';
 
 /**
- * **Die 2D-Welt** — die Station von oben, gespielt mit dem Daumen.
+ * **Die 2D-Welt** — die Station als gezeichnete Szene, gespielt mit dem Daumen.
  *
- * Links der Stock, rechts drei Knöpfe: Werkzeug wechseln, Werkzeug benutzen,
- * mit dem interagieren, was vor einem liegt. Die Karte in der Mitte lässt
- * sich frei ziehen und mit zwei Fingern zoomen; ein Knopf holt sie wieder
- * zum Spieler zurück. Rätsel liegen als Overlay über der Karte; das
- * Optionsmenü hat genau zwei Modi (`registry/viewModes.ts`, Publikum `flat`).
+ * Links der Stock, rechts unten ein großer Knopf „Benutzen" und darüber zwei
+ * kleine: Werkzeug benutzen, Werkzeug wechseln. Die Szene (`flatScene.ts`)
+ * folgt dem Spieler, lässt sich ziehen und mit zwei Fingern zoomen; ein
+ * Knopf holt sie zurück. Oben links der Kasten mit dem Balken „Aufgaben
+ * erledigt", der Aufgabenliste, Sauerstoffuhr und Anzug-Leben; oben rechts
+ * Zahnrad und Karte. Die Karte ist die alte `MapView` als Overlay — die
+ * Übersicht bleibt erreichbar, sie ist nur nicht mehr das Spielbild. Rätsel
+ * liegen als Overlay über der Szene; das Optionsmenü hat genau zwei Modi
+ * (`registry/viewModes.ts`, Publikum `flat`).
  *
  * Drei Rollen (`FlatRole`): der Techniker am Stock, das Monster
  * (`monster/monsterSession.ts`) — und die **Bot-Runde**, in der niemand
@@ -60,16 +65,25 @@ const ROLE_LABELS: Record<FlatRole, string> = {
 export class FlatMode {
   readonly element = el('div', 'flat');
   round: FlatRound;
+  /** Das Spielbild: die gezeichnete Szene. */
+  readonly scene: FlatScene;
+  /** Die Kartenübersicht im Overlay — die alte Karte, auf Knopfdruck. */
   readonly map: MapView;
+  private readonly mapOverlay = el('div', 'flat__map');
   private readonly stick = new Joystick();
   private readonly hud = el('div', 'flat__hud');
+  private readonly barFill = el('div', 'flat__bar-fill');
+  private readonly vitals = el('div', 'flat__vitals');
+  private readonly tasks = el('div', 'flat__tasks');
+  private readonly tab = el('button', 'flat__tab', 'Aufgaben');
   private readonly toast = el('div', 'flat__toast');
   private readonly buttons = el('div', 'flat__buttons');
   private readonly cycleKey = el('button', 'flat__key flat__key--cycle');
   private readonly useKey = el('button', 'flat__key flat__key--use');
   private readonly actKey = el('button', 'flat__key flat__key--act');
   private readonly centreKey = el('button', 'flat__corner flat__centre', 'Zum Spieler');
-  private readonly optionsKey = el('button', 'flat__corner flat__options', 'Optionen');
+  private readonly optionsKey = el('button', 'flat__corner flat__options', '⚙');
+  private readonly mapKey = el('button', 'flat__corner flat__mapkey', '🗺');
   private readonly options = el('div', 'flat__panel');
   private readonly ending = el('div', 'flat__ending');
   private readonly hole = el('div', 'flat__item');
@@ -97,21 +111,46 @@ export class FlatMode {
     this.mode = modes.find((m) => m.visibility === (options.mode ?? 'realistic')) ?? modes[0]!;
     this.round = new FlatRound(seed, { ...options, mode: this.mode.visibility });
     this.puzzle = new PuzzleOverlay(this.round);
+    const onRoomClick = (id: string): void =>
+      this.say(`${this.round.snapshot().rooms.find((r) => r.id === id)?.name ?? id}`);
+    const onEntityClick = (id: string): void =>
+      this.say(this.round.entities().find((e) => e.id === id)?.label ?? id);
+    const onItemClick = (id: string): void =>
+      this.say(this.round.items().find((i) => i.id === id)?.label ?? id);
+    this.scene = new FlatScene({
+      mode: this.mode.visibility,
+      onRoomClick,
+      onEntityClick,
+      onItemClick,
+    });
+    this.scene.element.classList.add('flat__scene');
+    this.scene.setScale(scaleForWidth(typeof window === 'undefined' ? 1024 : window.innerWidth));
+    this.scene.follow(PLAYER_ID);
     this.map = new MapView({
       layers: this.mode.layers,
       markers: this.mode.markers,
       mode: this.mode.visibility,
       minScale: 6,
       maxScale: 60,
-      onRoomClick: (id) =>
-        this.say(`${this.round.snapshot().rooms.find((r) => r.id === id)?.name ?? id}`),
-      onEntityClick: (id) => this.say(this.round.entities().find((e) => e.id === id)?.label ?? id),
-      onItemClick: (id) => this.say(this.round.items().find((i) => i.id === id)?.label ?? id),
+      onRoomClick,
+      onEntityClick,
+      onItemClick,
     });
-    this.map.element.classList.add('flat__map');
     this.map.follow(PLAYER_ID);
     this.map.setView({ scale: 22 });
     this.map.follow(PLAYER_ID);
+    const mapClose = el('button', 'flat__map-close', 'Schließen');
+    mapClose.addEventListener('click', () => this.showMap(false));
+    this.mapOverlay.append(this.map.element, mapClose);
+    this.mapOverlay.hidden = true;
+    this.mapKey.addEventListener('click', () => this.showMap(this.mapOverlay.hidden));
+    this.mapKey.setAttribute('aria-label', 'Karte');
+    this.optionsKey.setAttribute('aria-label', 'Optionen');
+    // Der Kasten oben links: Balken, Uhr und Anzug, Aufgabenliste, Reiter zum Einklappen.
+    const bar = el('div', 'flat__bar');
+    bar.append(this.barFill, el('span', 'flat__bar-label', 'Aufgaben erledigt'));
+    this.hud.append(bar, this.vitals, this.tasks, this.tab);
+    this.tab.addEventListener('click', () => this.hud.classList.toggle('is-collapsed'));
 
     this.cycleKey.dataset['action'] = 'cycle';
     this.useKey.dataset['action'] = 'use';
@@ -125,7 +164,10 @@ export class FlatMode {
         this.refreshKeys();
       }
     });
-    this.centreKey.addEventListener('click', () => this.map.follow(PLAYER_ID));
+    this.centreKey.addEventListener('click', () => {
+      this.scene.follow(PLAYER_ID);
+      this.map.follow(PLAYER_ID);
+    });
     this.optionsKey.addEventListener('click', () => {
       this.options.hidden = !this.options.hidden;
       if (!this.options.hidden) this.renderOptions();
@@ -136,14 +178,16 @@ export class FlatMode {
     this.ending.addEventListener('click', (event) => this.optionClick(event));
     this.hole.className = 'flat__item';
     this.element.append(
-      this.map.element,
+      this.scene.element,
       this.hud,
       this.toast,
       this.stick.element,
       this.buttons,
       this.hole,
       this.centreKey,
+      this.mapKey,
       this.optionsKey,
+      this.mapOverlay,
       this.puzzle.element,
       this.options,
       this.ending,
@@ -156,7 +200,7 @@ export class FlatMode {
 
   /**
    * Techniker, Monster oder Bot: Wer das Monster spielt, bekommt dessen
-   * Ansicht statt Stock und Knöpfen; wer dem Bot zusieht, behält die Karte
+   * Ansicht statt Stock und Knöpfen; wer dem Bot zusieht, behält die Szene
    * und den Knopf, der sie zurück zum Techniker holt.
    */
   private playRole(role: FlatRole): void {
@@ -175,7 +219,9 @@ export class FlatMode {
         this.dice.next(),
       );
     }
-    for (const node of [this.map.element, this.centreKey]) node.hidden = role === 'monster';
+    for (const node of [this.scene.element, this.centreKey, this.mapKey])
+      node.hidden = role === 'monster';
+    if (role === 'monster') this.showMap(false);
     for (const node of [this.stick.element, this.buttons, this.hole])
       node.hidden = role !== 'technician';
     this.element.dataset['role'] = role;
@@ -225,14 +271,36 @@ export class FlatMode {
       this.toast.className = 'flat__toast';
     }
     if (!this.session) {
-      this.map.setSnapshot(this.round.snapshot());
-      this.map.setVisibility(this.round.field);
-      this.map.draw();
+      this.scene.setSnapshot(this.round.snapshot());
+      this.scene.setVisibility(this.round.field);
+      this.scene.draw();
+      if (!this.mapOverlay.hidden) {
+        this.map.setSnapshot(this.round.snapshot());
+        this.map.setVisibility(this.round.field);
+        this.map.draw();
+      }
       this.puzzle.sync();
       this.refreshKeys();
     }
     this.renderHud();
     if (this.round.phase !== 'running' && this.ending.hidden) this.renderEnding();
+  }
+
+  /** Die Kartenübersicht ein- oder ausblenden — sie zeichnet nur, solange sie offen ist. */
+  showMap(open: boolean): void {
+    this.mapOverlay.hidden = !open;
+    this.mapKey.classList.toggle('is-active', open);
+    if (open) {
+      this.map.fit();
+      this.map.setSnapshot(this.round.snapshot());
+      this.map.setVisibility(this.round.field);
+      this.map.draw();
+    }
+  }
+
+  /** Nur für Tests: ob die Kartenübersicht offen ist. */
+  get mapOpen(): boolean {
+    return !this.mapOverlay.hidden;
   }
 
   private say(text: string): void {
@@ -264,36 +332,62 @@ export class FlatMode {
             : tool === 'xray'
               ? 'Durchleuchten'
               : 'Benutzen';
-    this.useKey.append(el('small', '', 'Benutzen'), el('strong', '', use));
+    this.useKey.append(el('small', '', 'Werkzeug'), el('strong', '', use));
     const target = this.round.target;
     this.actKey.textContent = '';
-    this.actKey.append(el('small', '', 'Interagieren'), el('strong', '', target?.label ?? '—'));
+    this.actKey.append(el('strong', '', 'Benutzen'), el('small', '', target?.label ?? ''));
     this.actKey.classList.toggle('is-ready', !!target);
   }
 
+  /**
+   * Der Kasten oben links, wie in der Vorlage: der grüne Balken zählt die
+   * erledigten Reparaturen, darunter Uhr und Anzug, darunter die Aufgaben —
+   * erledigte grün, mit `(n/2)`, weil jede Reparatur zwei Schritte hat:
+   * das Teil aus der Fracht holen, dann die Konsole lösen. Gebaut wird nur,
+   * wenn sich der Text ändert; die Uhr allein schreibt keine neue Liste.
+   */
   private renderHud(): void {
     const state = this.round.state();
     const crew = state.crew;
     const monster = MONSTERS.find((m) => m.id === crew.options.monster)?.name ?? '';
     const round = this.round.round();
     const hp = '●'.repeat(round.suit) + '○'.repeat(Math.max(0, round.suitMax - round.suit));
-    const text = [
-      hp,
-      `O₂ ${clockText(round.oxygen)}`,
-      `Reparaturen ${state.done.length}/3`,
-      crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : '',
-    ]
-      .filter(Boolean)
-      .join('  ·  ');
+    const who = this.bot ? 'Bot-Runde · ' : '';
     const cabins = round.cabinsDestroyed.length
       ? ` · ${round.cabinsDestroyed.length} Kabinen hin`
       : '';
-    const who = this.bot ? 'Bot-Runde · ' : '';
     const line = `${who}${state.monsterOn ? monster : 'Test ohne Monster'} · ${this.mode.label}${cabins}`;
-    if (this.hud.dataset['text'] !== text + line) {
-      this.hud.dataset['text'] = text + line;
-      this.hud.replaceChildren(el('strong', '', text.trim()), el('span', '', line));
-    }
+    const status = crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : '';
+    const rooms = this.round.snapshot().rooms;
+    const lines = repairsFor(this.round.house).map((repair) => {
+      const done = state.done.includes(repair.itemId);
+      const carried =
+        done || crew.inventory.includes(repair.itemId) || state.taken.includes(repair.itemId);
+      const room = rooms.find((r) => r.id === repair.roomId)?.name ?? repair.roomId;
+      return {
+        text: `${room}: ${repair.title} (${done ? 2 : carried ? 1 : 0}/2)`,
+        done,
+        partial: carried && !done,
+      };
+    });
+    const key = [hp, clockText(round.oxygen), status, line, ...lines.map((l) => l.text)].join('|');
+    if (this.hud.dataset['text'] === key) return;
+    this.hud.dataset['text'] = key;
+    this.barFill.style.width = `${Math.round((Math.min(3, state.done.length) / 3) * 100)}%`;
+    this.vitals.replaceChildren(
+      el('strong', 'flat__oxygen', `O₂ ${clockText(round.oxygen)}`),
+      el('strong', 'flat__suit', hp),
+      el('span', '', [status, line].filter(Boolean).join(' · ')),
+    );
+    this.vitals.classList.toggle('is-low', round.oxygen < 60);
+    this.tasks.replaceChildren(
+      ...lines.map((l) => {
+        const node = el('div', 'flat__task', l.text);
+        node.classList.toggle('is-done', l.done);
+        node.classList.toggle('is-partial', l.partial);
+        return node;
+      }),
+    );
   }
 
   private renderOptions(): void {
@@ -429,6 +523,8 @@ export class FlatMode {
     this.element.insertBefore(this.puzzle.element, this.options);
     this.ending.hidden = true;
     this.options.hidden = true;
+    this.showMap(false);
+    this.scene.follow(PLAYER_ID);
     this.map.fit();
     this.map.follow(PLAYER_ID);
     this.playRole(options.role ?? 'technician');
@@ -444,6 +540,7 @@ export class FlatMode {
     this.session?.dispose();
     this.audio.dispose();
     this.stick.dispose();
+    this.scene.dispose();
     this.map.dispose();
     this.element.remove();
   }
