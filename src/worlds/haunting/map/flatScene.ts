@@ -25,11 +25,13 @@ import {
   type MapDoor,
   type MapEntity,
   type MapFixture,
+  type MapNoise,
   type MapPoint,
   type MapRoom,
   type MapSegment,
   type MapSnapshot,
 } from './mapSnapshot';
+import { NoiseWaves, type NoiseInk } from './noiseWaves';
 import {
   emptyField,
   type LitRegion,
@@ -70,6 +72,13 @@ export const PLATE = 1.25;
 const SOFT_EDGE = 1;
 /** Wie dick eine Wand gezeichnet wird: die halbe Dicke je Raum, also beide Seiten zusammen. */
 const BAND = WALL_T * 2;
+/**
+ * In welchen Stufen der Schnitt in der Dunkelheit nach Norden gezogen wird,
+ * als Anteil der Wandhöhe: Null ist der Boden selbst, Eins die Oberkante der
+ * Wand, die darauf steht. Die Stufen dazwischen schließen die Lücke, die
+ * zwei getrennte Umrisse bei einem schmalen Zipfel ließen.
+ */
+export const WALL_LIFTS: readonly number[] = [0, 0.35, 0.7, 1];
 
 /** Bildpunkte je Meter, mit denen die Szene anfängt — eine Figur ist dann rund 100 Punkte hoch. */
 export const DEFAULT_SCALE = 84;
@@ -98,6 +107,15 @@ export interface FlatSceneOptions {
   onGroundClick?: (at: MapPoint) => void;
   /** Der Nutzer hat gezogen oder gezoomt; `follow` ist damit aus. */
   onViewChange?: (view: FlatSceneView) => void;
+  /**
+   * **Welche Geräusche auf dem Boden zu sehen sind und in welcher Farbe**
+   * (`noiseWaves.ts`) — `null` je Welle heißt: diese nicht. Ohne diese
+   * Auskunft bleibt der Boden still: Wessen Ohren die Szene gehören, weiß
+   * die Ansicht (`flatMode.ts`), nicht das Bild.
+   */
+  noiseInk?: NoiseInk;
+  /** Welche Geräusche überhaupt in Frage kommen — voreingestellt die des Snapshots. */
+  noises?: () => readonly MapNoise[];
   /**
    * Zum Schluss: was die Ansicht selbst noch über die Szene malt — Ziele
    * am Bildrand, Wege, die Peilung (`flatMode.ts`). In CSS-Punkten, mit
@@ -176,8 +194,20 @@ export class FlatScene {
   private dragged = false;
   private readonly minScale: number;
   private readonly maxScale: number;
+  /** Kachelfeld und geflutete Wellen, dieselben wie auf der Karte (`noiseWaves.ts`). */
+  private readonly waves = new NoiseWaves();
   /** Was das letzte Bild gezeichnet hat — für Tests. */
-  stats = { rooms: 0, walls: 0, items: 0, fixtures: 0, entities: 0, names: 0, cuts: 0, dimmed: 0 };
+  stats = {
+    rooms: 0,
+    walls: 0,
+    items: 0,
+    fixtures: 0,
+    entities: 0,
+    names: 0,
+    cuts: 0,
+    dimmed: 0,
+    noises: 0,
+  };
 
   constructor(private readonly options: FlatSceneOptions = {}) {
     this.field = emptyField(options.mode ?? 'realistic');
@@ -288,6 +318,7 @@ export class FlatScene {
       names: 0,
       cuts: 0,
       dimmed: 0,
+      noises: 0,
     };
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -328,6 +359,11 @@ export class FlatScene {
       this.drawFloor(ctx, room, b);
       this.stats.rooms++;
     }
+    // --- Geräusche als Wellen, direkt auf den Böden ------------------------------
+    // Ganz hinten: Wände, Möbel und vor allem die Figuren liegen darüber. Eine
+    // Welle, die den Spieler überdeckt, nimmt ihm genau das Bild, für das sie
+    // da ist (`noiseWaves.ts`).
+    this.drawNoise(ctx);
     for (const { room, b } of rooms) this.drawRoomName(ctx, room, b);
 
     // --- Wände: entdoppeln, Türen kennen, nach Achse trennen -----------------------
@@ -455,6 +491,36 @@ export class FlatScene {
       this.stats.names++;
     }
     this.options.overlay?.(ctx, this);
+  }
+
+  /**
+   * **Die Geräusche auf dem Boden.** Dieselbe Flut wie auf der Karte, nur
+   * eben dort, wo man spielt: Wer hört, dass etwas war, sieht auch, wo.
+   * Welche Welle und welche Farbe, sagt die Ansicht (`noiseInk`); ohne diese
+   * Auskunft bleibt der Boden still.
+   */
+  private drawNoise(ctx: CanvasRenderingContext2D): void {
+    const ink = this.options.noiseInk;
+    if (!ink) return;
+    const { w, h } = this.size();
+    const topLeft = this.toWorld(0, 0),
+      bottomRight = this.toWorld(w, h);
+    this.stats.noises = this.waves.paint(ctx, {
+      bounds: {
+        minX: topLeft.x,
+        minZ: topLeft.z,
+        maxX: bottomRight.x,
+        maxZ: bottomRight.z,
+      },
+      snapshot: this.snapshot,
+      noises: this.options.noises?.() ?? this.snapshot.noises ?? [],
+      ink,
+      toScreen: (x, z) => this.toScreen(x, z),
+      scale: this.state.scale,
+      // Auf dem gespielten Bild darf eine Welle den Boden tönen, nicht ihn
+      // ersetzen: Hier steht man darauf, auf der Karte schaut man darauf.
+      alphaMax: 0.55,
+    });
   }
 
   /** Der Boden eines Raums: Platten mit Fugen, in Gängen Rillen. */
@@ -844,6 +910,16 @@ export class FlatScene {
    * Die schwarze Decke: alles schwarz, dann die Sichtflächen mit weichem Rand
    * herausgeschnitten. Lichtflächen, die Eigenwahrnehmung und der eigene
    * Sichtkegel — was `visibility.ts` liefert, sonst nichts.
+   *
+   * **Und je Fläche einmal mehr, `WALL_H` weiter nördlich.** Das
+   * Sichtbarkeitsmodell rechnet auf dem **Boden**, und dort endet die Fläche
+   * an der Wand; gezeichnet wächst dieselbe Wand aber nach Norden aus ihrer
+   * Linie heraus (`drawWallAlongX`, `drawWallAlongZ`, Pseudo-3D). Wer vor der
+   * Nordwand seines Zimmers stand, sah deshalb den Boden bis an sie heran und
+   * die Wand selbst nicht — sie lag im Schwarzen. Der Schnitt wird deshalb um
+   * die Wandhöhe nach oben **gezogen**, in Stufen, damit auch schmale Zipfel
+   * einer Sichtfläche keine Lücke lassen. Freigelegt wird dabei genau das
+   * Band, in dem die Wand steht.
    */
   private drawDarkness(ctx: CanvasRenderingContext2D, w: number, h: number, dpr: number): void {
     const dark = this.dark;
@@ -861,16 +937,19 @@ export class FlatScene {
     const f = this.field;
     const cut = (region: Pick<LitRegion, 'at' | 'radius' | 'polygon'>): void => {
       if (region.polygon.length < 3) return;
-      const c = this.toScreen(region.at.x, region.at.z);
       const r = Math.max(0.1, region.radius) * this.state.scale;
       const soft = Math.min(0.95, Math.max(0, 1 - SOFT_EDGE / Math.max(SOFT_EDGE, region.radius)));
-      d.fillStyle = radialGradient(d, c.x, c.y, r, [
-        [0, 'rgba(0, 0, 0, 1)'],
-        [soft, 'rgba(0, 0, 0, 1)'],
-        [1, 'rgba(0, 0, 0, 0)'],
-      ]);
-      this.path(d, region.polygon);
-      d.fill();
+      for (const lift of WALL_LIFTS) {
+        const dz = -WALL_H * lift;
+        const c = this.toScreen(region.at.x, region.at.z + dz);
+        d.fillStyle = radialGradient(d, c.x, c.y, r, [
+          [0, 'rgba(0, 0, 0, 1)'],
+          [soft, 'rgba(0, 0, 0, 1)'],
+          [1, 'rgba(0, 0, 0, 0)'],
+        ]);
+        this.path(d, region.polygon, dz);
+        d.fill();
+      }
       this.stats.cuts++;
     };
     for (const region of f.lit) cut(region);
@@ -883,10 +962,11 @@ export class FlatScene {
     ctx.restore();
   }
 
-  private path(ctx: CanvasRenderingContext2D, polygon: readonly MapPoint[]): void {
+  /** Ein Polygon als Pfad, wahlweise um `dz` Meter nach Norden versetzt. */
+  private path(ctx: CanvasRenderingContext2D, polygon: readonly MapPoint[], dz = 0): void {
     ctx.beginPath();
     polygon.forEach((point, i) => {
-      const p = this.toScreen(point.x, point.z);
+      const p = this.toScreen(point.x, point.z + dz);
       if (i === 0) ctx.moveTo(p.x, p.y);
       else ctx.lineTo(p.x, p.y);
     });

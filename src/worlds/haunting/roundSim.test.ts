@@ -1,9 +1,9 @@
-import { DEFAULT_TUNING, clampTuning } from './botTuning';
-import { simulateRound, simulationSpec } from './roundSim';
+import { DEFAULT_TUNING, clampTuning, type BotTuning } from './botTuning';
+import { simulateRound, simulationSpec, type RoundResult } from './roundSim';
 import { stationGraph, COMMAND } from './roomGraph';
 import { spacesOf } from './house';
 
-const SEEDS = [1000, 8919, 16838, 24757];
+const SEEDS = [1000, 8919, 16838, 24757, 32676, 40595, 48514, 56433];
 
 describe('Die ausgespielte Runde ohne Bild', () => {
   it('kommt aus denselben Zahlen zweimal gleich heraus', () => {
@@ -64,27 +64,28 @@ describe('Die ausgespielte Runde ohne Bild', () => {
   });
 
   /**
-   * Vierundzwanzig Runden statt zwölf: Seit der Techniker beim Arbeiten Lärm
-   * macht (Paket Audio, `NOISE.interact`), liegen langsam und schnell auf
-   * einer Station in zwölf Runden auch mal gleichauf — die Richtung stimmt,
-   * nur die Stichprobe war zu klein, um sie zu sehen.
+   * **Acht Stationen statt einer.** Ob es hilft, schneller zu arbeiten, hängt
+   * am Zuschnitt: Auf einer Station, deren Räume eng beieinander liegen, ist
+   * Stehenbleiben sicherer als Laufen, und dort gewinnt der langsame
+   * Techniker sogar öfter. Über acht Stationen mittelt sich das weg und die
+   * Richtung bleibt — deshalb misst dieser Test die Reihe und nicht den
+   * Einzelfall, und deshalb zählt er die **Reparaturen** mit: Die sagen
+   * unmittelbarer als der Ausgang, wer mehr geschafft hat.
    */
   it('nutzt dieselben Gewichte, die die Schalttafel anbietet', () => {
-    const slow = clampTuning({
-      ...DEFAULT_TUNING,
-      technician: { ...DEFAULT_TUNING.technician, work: 2 },
-    });
-    const fast = clampTuning({
-      ...DEFAULT_TUNING,
-      technician: { ...DEFAULT_TUNING.technician, work: 0.5 },
-    });
-    const slower = Array.from({ length: 24 }, (_, i) =>
-      simulateRound(1000, { roll: i, tuning: slow }),
-    );
-    const faster = Array.from({ length: 24 }, (_, i) =>
-      simulateRound(1000, { roll: i, tuning: fast }),
-    );
-    const won = (list: typeof slower): number => list.filter((r) => r.won).length;
+    const with_ = (work: number): BotTuning =>
+      clampTuning({ ...DEFAULT_TUNING, technician: { ...DEFAULT_TUNING.technician, work } });
+    const series = (work: number): RoundResult[] =>
+      Array.from({ length: 48 }, (_, i) =>
+        // Zu zweit, damit nur das Arbeitstempo den Unterschied macht und nicht
+        // auch noch der Zuruf an die Zentrale (`rules/doorSeal.ts`).
+        simulateRound(SEEDS[i % SEEDS.length]!, { roll: i, tuning: with_(work), players: 2 }),
+      );
+    const slower = series(2);
+    const faster = series(0.5);
+    const repairs = (list: RoundResult[]): number => list.reduce((sum, r) => sum + r.repairs, 0);
+    const won = (list: RoundResult[]): number => list.filter((r) => r.won).length;
+    expect(repairs(faster)).toBeGreaterThan(repairs(slower));
     expect(won(faster)).toBeGreaterThan(won(slower));
   });
 });

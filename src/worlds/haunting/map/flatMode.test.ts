@@ -90,7 +90,8 @@ describe('Die 2D-Welt', () => {
     expect(fill.style.width).toBe('0%');
     expect(hud.querySelector('.flat__bar-label')?.textContent).toBe('Aufgaben erledigt');
     expect(hud.querySelector('.flat__oxygen')?.textContent).toMatch(/^O₂ \d+:\d\d$/);
-    expect(hud.querySelector('.flat__suit')?.textContent).toBe('●●●');
+    // Der Anzug als Herzen: was gemeint ist, steht dann im Zeichen selbst.
+    expect(hud.querySelector('.flat__suit')?.textContent).toBe('♥♥♥');
     const tasks = [...hud.querySelectorAll<HTMLElement>('.flat__task')];
     const repairs = repairsFor(flat.round.house);
     expect(tasks).toHaveLength(3);
@@ -112,8 +113,19 @@ describe('Die 2D-Welt', () => {
     const second = hud.querySelectorAll<HTMLElement>('.flat__task')[1]!;
     expect(second.classList.contains('is-partial')).toBe(true);
     expect(second.textContent).toMatch(/\(1\/2\)$/);
-    // Das Reiterchen klappt die Liste ein.
-    hud.querySelector<HTMLButtonElement>('.flat__tab')!.click();
+    // Der Reiter fängt eingeklappt an und zeigt dann nur die Kreise; ein Tipp
+    // klappt die Liste auf, der nächste wieder zu.
+    const tab = hud.querySelector<HTMLButtonElement>('.flat__tab')!;
+    expect(hud.classList.contains('is-collapsed')).toBe(true);
+    expect(tab.querySelector('.flat__tab-label')?.textContent).toBe('Aufgaben');
+    const pips = [...hud.querySelectorAll<HTMLElement>('.flat__pip')];
+    expect(pips).toHaveLength(3);
+    expect(pips[0]!.classList.contains('is-done')).toBe(true);
+    expect(pips[1]!.classList.contains('is-partial')).toBe(true);
+    expect(pips[2]!.classList.contains('is-done')).toBe(false);
+    tab.click();
+    expect(hud.classList.contains('is-collapsed')).toBe(false);
+    tab.click();
     expect(hud.classList.contains('is-collapsed')).toBe(true);
     flat.dispose();
   });
@@ -249,6 +261,48 @@ describe('Die 2D-Welt', () => {
     ending.querySelector<HTMLButtonElement>('[data-restart]')!.click();
     expect(flat.round.phase).toBe('running');
     expect(ending.hidden).toBe(true);
+    flat.dispose();
+  });
+});
+
+describe('Die Sprungknöpfe rechts', () => {
+  /**
+   * **Ein Knopf, der nichts tut, gehört weg.** Wer die Kamera ohnehin am
+   * Spieler hat, braucht keinen Knopf, der sie dorthin holt — er nimmt nur
+   * Platz vor der Szene weg. Sobald man wegzieht, ist er wieder da.
+   */
+  it('zeigt „Zum Spieler" erst, wenn die Kamera nicht mehr folgt', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.update(DT);
+    const centre = flat.element.querySelector<HTMLElement>('.flat__centre')!;
+    const monster = flat.element.querySelector<HTMLElement>('.flat__centre--monster')!;
+    expect(centre.hidden).toBe(true);
+    expect(monster.hidden).toBe(true);
+    flat.scene.panBy(90, 0);
+    flat.update(DT);
+    expect(centre.hidden).toBe(false);
+    centre.click();
+    flat.update(DT);
+    expect(flat.scene.current.following).toBe('player');
+    expect(centre.hidden).toBe(true);
+    flat.dispose();
+  });
+
+  /** Wer zusieht, hat keinen eigenen Spieler — für ihn stehen beide immer da. */
+  it('gibt dem Zuschauer beide Knöpfe, auch während die Kamera folgt', () => {
+    const flat = new FlatMode(3, { role: 'bot' }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.update(DT);
+    const centre = flat.element.querySelector<HTMLElement>('.flat__centre')!;
+    const monster = flat.element.querySelector<HTMLElement>('.flat__centre--monster')!;
+    expect(flat.role).toBe('bot');
+    expect(centre.hidden).toBe(false);
+    expect(monster.hidden).toBe(false);
+    monster.click();
+    flat.update(DT);
+    expect(flat.scene.current.following).toBe('monster');
+    expect(centre.hidden).toBe(false);
     flat.dispose();
   });
 });

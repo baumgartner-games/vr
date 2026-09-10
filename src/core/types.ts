@@ -48,6 +48,16 @@ export interface WorldContext {
    * kein Zwang — wer schon in einem Raum steht, bleibt dort.
    */
   join(room: string): void;
+  /**
+   * **Den Bordstock der Seite ab- oder wieder anschalten** (`index.html`,
+   * `#touch`).
+   *
+   * Die Seite blendet ihn selbst ein, wo sie ein Telefon vermutet. Eine Welt,
+   * die eine **eigene** Steuerung mitbringt, hätte dann zwei Stöcke
+   * übereinander — Haunting bringt die der 2D-Welt mit. `false` heißt: nicht
+   * jetzt; `true` gibt die Entscheidung der Seite zurück.
+   */
+  touchStick(on: boolean): void;
   /** Short message shown on the wrist menu / HUD. */
   notify(message: string): void;
   /** Rebuild world-specific entries after a role or round changes. */

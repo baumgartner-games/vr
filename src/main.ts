@@ -51,6 +51,11 @@ const app = (() => {
           hideLanding();
         }
       },
+      // Eine Welt mit eigener Steuerung nimmt den Bordstock weg; `true` heißt,
+      // dass wieder die Seite entscheidet (`WorldContext.touchStick`).
+      onTouchStick: (on) => {
+        touch.hidden = !on || detectFlatRole() !== 'handheld';
+      },
       onNetChanged: () => netPanel?.refresh(),
       onWorldFailed: (id, error) => recoverFromStaleBuild(id, error),
     });

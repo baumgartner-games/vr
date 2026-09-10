@@ -2,48 +2,68 @@ import { DEFAULT_TUNING, clampTuning } from './botTuning';
 import {
   TRAINING_BAND,
   TRAINING_DEFAULTS,
-  TRAINING_TARGET,
+  TRAINING_TARGETS,
   TrainingRun,
   centreScore,
   inBand,
+  measure,
   trainBots,
   winRate,
 } from './botTraining';
 
-/** Vier unabhängige Messreihen à 200 Runden — Standardfehler rund drei Punkte. */
+/** Vier unabhängige Messreihen à 400 Runden — je Besetzung 200, Standardfehler rund drei Punkte. */
 const PASSES = [0, 777, 4242, 31337];
-const MEASURE = { ...TRAINING_DEFAULTS, rounds: 200 };
+const MEASURE = { ...TRAINING_DEFAULTS, rounds: 400 };
 
-describe('Das Trainingsziel: 60–70 % für den Techniker', () => {
+describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das Monster im Team', () => {
   /**
    * **Die Zusage dieses ganzen Zweigs**, und deshalb steht sie als erster
-   * Test: Mit den ausgelieferten Gewichten gewinnt der Techniker im Schnitt
-   * zwischen 60 und 70 Prozent der Bot-Runden. Wer an einer Zahl in
-   * `DEFAULT_TUNING` dreht, an einem Tempo, an der Routine des Monsters oder
-   * an der Karte, bekommt es hier gesagt — und nicht erst, wenn jemand
-   * zwanzig Runden zuschaut und findet, das sei jetzt aber unfair.
+   * Test: Mit den ausgelieferten Gewichten geht ein Duell zwischen Techniker
+   * und Monster **halbe-halbe** aus, und sobald eine Zentrale dabei ist,
+   * gewinnt das **Monster zwei von drei** Runden — die Reibung des Redens
+   * (`rules/doorSeal.ts`) kostet den Techniker genau diese Differenz. Wer an
+   * einer Zahl in `DEFAULT_TUNING` dreht, an einem Tempo, an der Routine des
+   * Monsters oder an der Karte, bekommt es hier gesagt — und nicht erst, wenn
+   * jemand zwanzig Runden zuschaut und findet, das sei jetzt aber unfair.
    */
-  it('erfüllen die ausgelieferten Gewichte im Schnitt', () => {
-    const rates = PASSES.map((pass) => winRate(DEFAULT_TUNING, MEASURE, pass));
-    const mean = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
-    expect({ mean: mean >= 0.6 && mean <= 0.7, rates }).toEqual({ mean: true, rates });
+  it('erfüllen die ausgelieferten Gewichte beide im Schnitt', () => {
+    const rates = PASSES.map((pass) => measure(DEFAULT_TUNING, MEASURE, pass));
+    const mean = (pick: (m: (typeof rates)[number]) => number): number =>
+      rates.reduce((sum, one) => sum + pick(one), 0) / rates.length;
+    const duo = mean((m) => m.duo);
+    const crew = mean((m) => m.crew);
+    expect({
+      duo: Math.abs(duo - TRAINING_TARGETS.duo) <= TRAINING_BAND,
+      crew: Math.abs(crew - TRAINING_TARGETS.crew) <= TRAINING_BAND,
+      rates,
+    }).toEqual({ duo: true, crew: true, rates });
     // Auch die einzelne Messreihe darf nicht davonlaufen: Ein Mittelwert aus
     // 30 % und 100 % wäre rechnerisch in der Mitte und im Spiel Unsinn.
-    for (const rate of rates) expect(Math.abs(rate - TRAINING_TARGET)).toBeLessThan(0.12);
-  }, 60000);
+    for (const one of rates) {
+      expect(Math.abs(one.duo - TRAINING_TARGETS.duo)).toBeLessThan(0.14);
+      expect(Math.abs(one.crew - TRAINING_TARGETS.crew)).toBeLessThan(0.14);
+    }
+    // Und die Richtung stimmt: Im Team hat es der Techniker schwerer.
+    expect(crew).toBeLessThan(duo);
+  }, 120000);
 
   it('misst dieselben Gewichte zweimal gleich', () => {
-    expect(winRate(DEFAULT_TUNING, { ...TRAINING_DEFAULTS, rounds: 24 }, 5)).toBe(
+    expect(winRate(DEFAULT_TUNING, { ...TRAINING_DEFAULTS, rounds: 24 }, 5)).toEqual(
       winRate(DEFAULT_TUNING, { ...TRAINING_DEFAULTS, rounds: 24 }, 5),
     );
   });
 
-  it('rechnet den Abstand zum Band von beiden Seiten', () => {
-    expect(centreScore(TRAINING_TARGET)).toBe(0);
-    expect(centreScore(TRAINING_TARGET + 0.2)).toBeCloseTo(0.2);
-    expect(inBand(TRAINING_TARGET + TRAINING_BAND)).toBe(true);
-    expect(inBand(TRAINING_TARGET + TRAINING_BAND + 0.01)).toBe(false);
-    expect(inBand(TRAINING_TARGET - TRAINING_BAND - 0.01)).toBe(false);
+  it('rechnet den Abstand zu beiden Bändern von beiden Seiten', () => {
+    expect(centreScore(TRAINING_TARGETS)).toBe(0);
+    expect(
+      centreScore({ duo: TRAINING_TARGETS.duo + 0.2, crew: TRAINING_TARGETS.crew }),
+    ).toBeCloseTo(0.1);
+    expect(inBand({ ...TRAINING_TARGETS, duo: TRAINING_TARGETS.duo + TRAINING_BAND })).toBe(true);
+    expect(inBand({ ...TRAINING_TARGETS, duo: TRAINING_TARGETS.duo + TRAINING_BAND + 0.01 })).toBe(
+      false,
+    );
+    // Ein Band allein reicht nicht: Wer nur das Duell trifft, ist nicht fertig.
+    expect(inBand({ ...TRAINING_TARGETS, crew: TRAINING_TARGETS.crew - 0.2 })).toBe(false);
   });
 });
 
@@ -85,10 +105,10 @@ describe('Das Training selbst', () => {
       },
     });
     const before = winRate(guessed, options, 0);
-    expect(before).toBeLessThan(0.3);
+    expect(before.crew).toBeLessThan(0.2);
     const trained = trainBots(guessed, 'both', 40, options, 0xc0ffee);
-    expect(trained.rate).toBeGreaterThan(before + 0.25);
-    expect(centreScore(trained.rate)).toBeLessThan(centreScore(before));
+    expect(trained.rate).toBeGreaterThan(before.crew + 0.1);
+    expect(centreScore({ duo: trained.duo, crew: trained.rate })).toBeLessThan(centreScore(before));
     expect(trained.improved).toBeGreaterThan(0);
     expect(trained.history.at(-1)).toBe(trained.rate);
   }, 120000);
@@ -106,10 +126,10 @@ describe('Das Training selbst', () => {
       technician: { ...DEFAULT_TUNING.technician, walk: 2.6, sprint: 4.94, caution: 18 },
     });
     const before = winRate(easy, options, 0);
-    expect(before).toBeGreaterThan(0.75);
+    expect(before.crew).toBeGreaterThan(0.7);
     const trained = trainBots(easy, 'monster', 40, options, 0xc0ffee);
-    expect(trained.rate).toBeLessThan(before - 0.1);
-    expect(centreScore(trained.rate)).toBeLessThan(centreScore(before));
+    expect(trained.rate).toBeLessThan(before.crew - 0.1);
+    expect(centreScore({ duo: trained.duo, crew: trained.rate })).toBeLessThan(centreScore(before));
   }, 120000);
 
   it('rührt nur die Seite an, die trainiert wird', () => {
@@ -139,11 +159,21 @@ describe('Das Training selbst', () => {
     expect(run.fraction).toBe(1);
   }, 60000);
 
-  it('hört auf, sobald es am Ziel steht', () => {
-    const run = new TrainingRun(DEFAULT_TUNING, 'both', 40, options, 99);
+  /**
+   * **Die ausgelieferten Gewichte stehen schon da, wo sie hingehören.** Ein
+   * Lauf, der von ihnen ausgeht, fängt im Band an und läuft nicht wieder
+   * heraus — mehr ist von einer Suche mit zwei Zielen nicht zu verlangen:
+   * Zwei Quoten auf je sechzehn Runden treffen ihre Mitte nie auf die Runde
+   * genau, und ein Abbruch bei „exakt getroffen" wäre dann ein Abbruch bei
+   * einem Glücksfall.
+   */
+  it('fängt bei den ausgelieferten Gewichten im Band an und bleibt darin', () => {
+    const run = new TrainingRun(DEFAULT_TUNING, 'both', 6, options, 99);
     run.advanceStep();
-    expect(run.finished).toBe(true);
-    expect(run.state.step).toBe(0);
+    const first = run.state.score;
+    expect(first).toBeLessThan(TRAINING_BAND);
+    while (!run.finished) run.advanceStep();
+    expect(run.state.score).toBeLessThanOrEqual(first);
   }, 60000);
 
   /**

@@ -1,5 +1,12 @@
 /** @jest-environment jsdom */
-import { FlatScene, WALL_H, scaleForWidth, DEFAULT_SCALE, PHONE_SCALE } from './flatScene';
+import {
+  FlatScene,
+  WALL_H,
+  WALL_LIFTS,
+  scaleForWidth,
+  DEFAULT_SCALE,
+  PHONE_SCALE,
+} from './flatScene';
 import { SPRITE_H } from './flatArt';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
 import { emptySnapshot, type MapEntity, type MapSnapshot } from './mapSnapshot';
@@ -195,7 +202,14 @@ describe('FlatScene', () => {
       'destination-out',
       'source-over',
     ]);
-    expect(named('createRadialGradient')).toHaveLength(2);
+    // Jede Fläche wird mehrfach geschnitten: einmal auf dem Boden und dann
+    // stufenweise um die Wandhöhe nach Norden, damit die Wand, vor der man
+    // steht, nicht im Schwarzen bleibt.
+    expect(named('createRadialGradient').length).toBe(2 * WALL_LIFTS.length);
+    // Und der Schnitt zieht wirklich nach oben: derselbe Mittelpunkt, kleinere y.
+    const lamp = named('createRadialGradient').slice(0, WALL_LIFTS.length);
+    expect(lamp.every((call) => call.args[0] === lamp[0]!.args[0])).toBe(true);
+    expect(Number(lamp.at(-1)!.args[1])).toBeLessThan(Number(lamp[0]!.args[1]));
     expect(named('drawImage')).toHaveLength(1);
     // Alles sehen: keine Decke, ein unbeleuchteter Raum wird nur abgedunkelt.
     calls = [];
@@ -312,5 +326,50 @@ describe('FlatScene', () => {
     expect(hits).toEqual([`room:${table.roomId}`]);
     scene.dispose();
     clickable.dispose();
+  });
+});
+
+describe('Geräusche auf dem Boden der Szene', () => {
+  /**
+   * **Was man hört, sieht man auch** — dieselben Wellen wie auf der Karte,
+   * nur dort, wo gespielt wird. Und die Ansicht entscheidet, welche: Die
+   * eigenen Schritte bleiben weg, alles andere kommt in einer Farbe.
+   */
+  it('malt die Wellen der Runde, aber nur die, die die Ansicht durchlässt', () => {
+    const snapshot = room();
+    snapshot.time = 1;
+    snapshot.noises = [
+      { id: 'n0', by: PLAYER_ID, at: { x: 5, z: 2 }, radius: 6, cause: 'walk', since: 0.9 },
+      { id: 'n1', by: MONSTER_ID, at: { x: 5, z: 3 }, radius: 6, cause: 'monster', since: 0.9 },
+      { id: 'n2', by: '', at: { x: 5, z: 4 }, radius: 6, cause: 'door', since: 0.9 },
+    ];
+    // Ohne Auskunft über die Farben bleibt der Boden still.
+    const quiet = new FlatScene({ view: { centreX: 5, centreZ: 5, scale: 20 } });
+    quiet.setSnapshot(snapshot);
+    quiet.setVisibility(omniscient());
+    quiet.draw();
+    expect(quiet.stats.noises).toBe(0);
+    // Der Spieler: eigener Schritt weg, die anderen beiden in derselben Farbe.
+    const seen: string[] = [];
+    const scene = new FlatScene({
+      view: { centreX: 5, centreZ: 5, scale: 20 },
+      noiseInk: (noise) => {
+        if (noise.by === PLAYER_ID && noise.cause === 'walk') return null;
+        seen.push(noise.id);
+        return '#ff8a3d';
+      },
+    });
+    scene.setSnapshot(snapshot);
+    scene.setVisibility(omniscient());
+    scene.draw();
+    expect(seen).toEqual(['n1', 'n2']);
+    expect(scene.stats.noises).toBe(2);
+    // Und sie liegen ganz hinten: vor den Figuren, direkt auf den Böden.
+    const first = calls.findIndex((c) => c.name === 'set:globalAlpha');
+    const crew = calls.findIndex((c) => c.name === 'set:fillStyle' && c.args[0] === '#3ec7ff');
+    expect(first).toBeGreaterThan(0);
+    if (crew >= 0) expect(first).toBeLessThan(crew);
+    quiet.dispose();
+    scene.dispose();
   });
 });

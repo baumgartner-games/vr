@@ -1,5 +1,5 @@
 import { TILE } from '../../nav/navTile';
-import { generateHouse, onApron, spacesOf, type HouseSpec } from '../house';
+import { generateHouse, onApron, spacesOf, type HouseDoor, type HouseSpec } from '../house';
 import {
   freshCrew,
   MONSTERS,
@@ -16,7 +16,7 @@ import {
 } from '../mission';
 import type { HauntState } from '../net';
 import { COMMAND, stationGraph, type StationGraph } from '../roomGraph';
-import { stationLayout, type FloorPoint } from '../stationLayout';
+import { stationLayout, type FloorBounds, type FloorPoint } from '../stationLayout';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from '../monsterRoutine';
 import { DEFAULT_TUNING, type BotTuning } from '../botTuning';
 import {
@@ -35,9 +35,11 @@ import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
+import { CREW_SIZE, askSeal, dueSeal, freshSeal, type DoorSeal } from '../rules/doorSeal';
 import {
   HOLD_RANGE,
   SLAM_HOLD,
+  chooseLock,
   freshLocks,
   holdUntil,
   pryLock,
@@ -52,7 +54,7 @@ import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
 import type { MonsterDriver } from '../monster/monsterDriver';
 import { FlatNavigator } from '../navmesh';
-import { doorCentre, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
+import { doorCentre, fixtureBlocks, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
 import {
@@ -67,7 +69,7 @@ import {
   type MapSnapshot,
 } from './mapSnapshot';
 import type { MapGoal } from './mapView';
-import type { RoundSetup, SoloPowers } from '../rules/roundSetup';
+import { crewSize, type RoundSetup, type SoloPowers } from '../rules/roundSetup';
 import { applyPuzzle, type PuzzleAction } from './flatPuzzles';
 import {
   computeVisibility,
@@ -117,6 +119,12 @@ const SPACE_MARGIN = WALL_T / 2 + PLAYER_RADIUS - 0.01;
 const MAX_STEP = 1 / 30;
 /** Wie lange ein Geräusch für die Karte aufgehoben wird, in Sekunden. */
 const NOISE_MEMORY = 5;
+/** Bis zu diesem Abstand gilt der Techniker als verfolgt — dann fällt die Tür zu. */
+const SEAL_RANGE = 10;
+/** So nah muss jemand einer automatischen Tür kommen, damit sie auffährt, in Metern. */
+const DOOR_TRIGGER = 2.2;
+/** Und so weit darf er sich entfernen, bevor sie wieder zugeht — der Nachlauf. */
+const DOOR_HOLD = 2.6;
 /** Wie oft ein Schritt als Welle auf die Karte kommt, in Sekunden — gehend und rennend. */
 const STEP_PULSE = 0.55;
 const SPRINT_PULSE = 0.35;
@@ -170,6 +178,12 @@ export interface FlatOptions {
   routes?: boolean;
   /** Die ganze Verteilung, aus der `role`, `test` und `powers` kommen — für die Tafel im Optionsmenü. */
   setup?: RoundSetup;
+  /**
+   * Wie viele mitspielen (`rules/roundSetup.crewSize`) — entscheidet, ob die
+   * Tür hinter dem Techniker sofort zufällt oder erst, nachdem er es der
+   * Zentrale gesagt hat (`rules/doorSeal.ts`). Ohne Angabe aus `setup`.
+   */
+  players?: number;
 }
 
 interface Actor {
@@ -244,6 +258,20 @@ export class FlatRound implements MapSource {
   private monsterPulse = 0;
   /** Wer welche Tür gesperrt hat, und wie lange zugefallene halten (`rules/doorLocks.ts`). */
   readonly locks: DoorLocks = freshLocks();
+  /** Welche automatischen Türen gerade aufgefahren sind (`stepDoors`). */
+  private readonly openDoors = new Set<string>();
+  /** Die Tür, die hinter dem fliehenden Techniker zufällt (`rules/doorSeal.ts`). */
+  private readonly seal: DoorSeal = freshSeal();
+  /** In welchem Raum er im letzten Bild stand — daran hängt „ist er durch eine Tür?". */
+  private wasSpace = COMMAND;
+  /** Wie viele mitspielen: entscheidet über die Wartezeit bis zum Riegel. */
+  private readonly players: number;
+  /**
+   * **Die Grundflächen der Möbel** (`geometry.fixtureBlocks`): Was in 3D im
+   * Weg steht, steht auch hier im Weg — durch einen Tank läuft niemand mehr.
+   * Die Wegsuche kannte diese Kästen längst; jetzt kennt sie auch der Schritt.
+   */
+  private readonly blocks: readonly FloorBounds[];
   /** Die Wegsuche des Spielers zum nächsten Ziel — nur, wenn jemand den Weg sehen will. */
   private playerNav: FlatNavigator | null = null;
   private readonly rng: Rng;
@@ -265,6 +293,8 @@ export class FlatRound implements MapSource {
   constructor(seed: number, options: FlatOptions = {}) {
     this.house = generateHouse(seed, 14);
     this.graph = stationGraph(this.house);
+    this.blocks = fixtureBlocks(this.house);
+    this.players = options.players ?? (options.setup ? crewSize(options.setup) : CREW_SIZE);
     this.tuning = options.tuning ?? DEFAULT_TUNING;
     this.mode = options.mode ?? 'realistic';
     const crewOptions = stationOptions({
@@ -374,16 +404,34 @@ export class FlatRound implements MapSource {
   }
 
   doorOpen(id: string): boolean {
-    if (this.haunt.shut.includes(id)) return false;
-    // Automatische Türen: offen, sobald jemand davorsteht.
-    const door = this.house.doors.find((d) => d.id === id);
-    if (!door) return false;
-    const at = doorCentre(door);
-    for (const actor of [this.player, this.monster]) {
-      if (actor === this.monster && (!this.haunt.monsterOn || this.ventRide.concealed)) continue;
-      if (Math.hypot(actor.x - at.x, actor.z - at.z) < 2.2) return true;
+    return this.openDoors.has(id);
+  }
+
+  /**
+   * **Die automatischen Türen, einmal je Bild** — und mit Nachlauf: Wer genau
+   * auf der Auslöseweite steht, ließe ein Blatt sonst je Bild auf- und
+   * zufahren, und jedes davon wäre ein Geräusch.
+   *
+   * **Ein Blatt, das fährt, ist zu hören** (`MapNoiseCause` `door`): Für den,
+   * der es sieht, sagt die Welle nur, dass da eine Tür ging — nicht, wer
+   * hindurchging. Genau darum geht es: Ein Geräusch ist ein Geräusch.
+   */
+  private stepDoors(): void {
+    for (const door of this.house.doors) {
+      const at = doorCentre(door);
+      const was = this.openDoors.has(door.id);
+      const reach = was ? DOOR_HOLD : DOOR_TRIGGER;
+      let near = false;
+      for (const actor of [this.player, this.monster]) {
+        if (actor === this.monster && (!this.haunt.monsterOn || this.ventRide.concealed)) continue;
+        if (Math.hypot(actor.x - at.x, actor.z - at.z) < reach) near = true;
+      }
+      const open = near && !this.haunt.shut.includes(door.id);
+      if (open === was) continue;
+      if (open) this.openDoors.add(door.id);
+      else this.openDoors.delete(door.id);
+      this.wave('', at, NOISE.door, 'door');
     }
-    return false;
   }
 
   /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`). */
@@ -567,6 +615,7 @@ export class FlatRound implements MapSource {
       this.haunt.shut = locks.shut;
       this.events.push({ kind: 'info', text: 'Eine Tür geht wieder auf.' });
     }
+    this.stepDoors();
 
     // --- Spieler ------------------------------------------------------------
     const length = Math.hypot(input.x, input.z);
@@ -587,6 +636,7 @@ export class FlatRound implements MapSource {
         nx * speed * dt,
         nz * speed * dt,
         PLAYER_RADIUS,
+        this.blocks,
       );
       this.player.x = to.x;
       this.player.z = to.z;
@@ -603,6 +653,7 @@ export class FlatRound implements MapSource {
     const gap = this.haunt.monsterOn
       ? Math.hypot(this.player.x - this.monster.x, this.player.z - this.monster.z)
       : Infinity;
+    this.stepSeal(gap);
     stepVitals(crew, dt, speed, gap);
 
     if (
@@ -778,6 +829,63 @@ export class FlatRound implements MapSource {
     if (gap < CONTACT && !hidden && takeCrewHit(crew, true)) this.hit('Treffer.');
   }
 
+  /**
+   * **Die Tür, die hinter dem Techniker zufällt** (`rules/doorSeal.ts`).
+   *
+   * Er hat gegen das Monster nur eines in der Hand, und das ist eine Tür.
+   * Also fällt sie zu, wenn er verfolgt durch sie hindurchgeht — allein macht
+   * er das selbst und sofort, mit einer Zentrale im Rücken muss er es
+   * **sagen**, und bis das gehört und gedrückt ist, vergehen ein bis zwei
+   * Sekunden. Steht das Monster dann schon mit im Raum, war es umsonst: Ein
+   * Riegel hinter dem Verfolger ist keiner.
+   *
+   * Verriegelt wird über denselben einen Riegel wie überall (`chooseLock`):
+   * Die vorher gewählte Tür geht dabei auf, und diese hier hält acht bis zehn
+   * Sekunden, wenn das Monster sie nicht vorher aufzieht.
+   */
+  private stepSeal(gap: number): void {
+    const here = this.player.space;
+    if (here !== this.wasSpace) {
+      const hunted = this.haunt.monsterOn && (this.memory.mode === 'hunt' || gap < SEAL_RANGE);
+      const door = hunted ? this.doorBetween(this.wasSpace, here) : null;
+      if (door) askSeal(this.seal, door.id, this.haunt.time, this.players, () => this.rng.next());
+      this.wasSpace = here;
+    }
+    const relayed = this.seal.relayed;
+    const due = dueSeal(this.seal, this.haunt.time);
+    if (!due || this.haunt.shut.includes(due)) return;
+    const door = this.house.doors.find((one) => one.id === due);
+    // Zu spät ist zu spät: Wer schon durch ist, wird nicht mehr ausgesperrt.
+    if (!door || this.monster.space === this.player.space) return;
+    this.haunt.shut = chooseLock(this.locks, this.haunt.shut, due, this.haunt.time, () =>
+      this.rng.next(),
+    );
+    this.wave('', doorCentre(door), NOISE.door, 'door');
+    this.events.push({
+      kind: 'good',
+      text: relayed
+        ? 'Die Zentrale verriegelt die Tür hinter dir.'
+        : 'Die Tür fällt hinter dir zu.',
+    });
+  }
+
+  /** Die Tür zwischen zwei Räumen, die dem Spieler am nächsten liegt. */
+  private doorBetween(a: string, b: string): HouseDoor | null {
+    let best: HouseDoor | null = null;
+    let near = Infinity;
+    for (const door of this.house.doors) {
+      const far = door.b ?? COMMAND;
+      if (!((door.a === a && far === b) || (door.a === b && far === a))) continue;
+      const at = doorCentre(door);
+      const d = Math.hypot(at.x - this.player.x, at.z - this.player.z);
+      if (d < near) {
+        near = d;
+        best = door;
+      }
+    }
+    return best;
+  }
+
   /** Ein Geräusch des Spielers für die Ohren des Monsters (`audio/cues.ts`, `NOISE`) — und als Welle auf die Karte. */
   private noise(at: FloorPoint, loudness: number, cause: MapNoiseCause = 'interact'): void {
     this.pendingNoises.push({ at: { x: at.x, z: at.z }, loudness });
@@ -923,6 +1031,7 @@ export class FlatRound implements MapSource {
       (dx / distance) * travel,
       (dz / distance) * travel,
       MONSTER_RADIUS,
+      this.blocks,
     );
     this.monster.x = to.x;
     this.monster.z = to.z;
@@ -1248,7 +1357,7 @@ export class FlatRound implements MapSource {
 
   /** Nur für Tests: den Spieler irgendwohin stellen, wo man stehen darf. */
   place(at: FloorPoint): boolean {
-    if (!walkable(this.house, this.haunt.shut, at, PLAYER_RADIUS)) return false;
+    if (!walkable(this.house, this.haunt.shut, at, PLAYER_RADIUS, this.blocks)) return false;
     this.player.x = at.x;
     this.player.z = at.z;
     const space = spaceAtMetres(this.house, at);

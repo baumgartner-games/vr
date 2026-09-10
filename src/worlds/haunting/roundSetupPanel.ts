@@ -80,7 +80,7 @@ export class SetupPanel {
       parts.push(line);
     });
     const granted = [
-      powers.scout ? 'Peilung des Monsters' : '',
+      powers.scout ? 'Horchbild der Station' : '',
       powers.panel ? 'Türen und Lampen per Tipp' : '',
       powers.archive ? 'Raumakte mit Codes' : '',
     ].filter(Boolean);

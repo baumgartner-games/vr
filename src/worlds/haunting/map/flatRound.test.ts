@@ -1,4 +1,5 @@
 import { COMMAND } from '../roomGraph';
+import { COMMAND_DELAY } from '../rules/doorSeal';
 import { puzzleFor } from '../mission';
 import { doorWaypoint, spaceAtMetres } from './geometry';
 import { FlatWalker } from './flatWalk';
@@ -182,5 +183,70 @@ describe('Der Snapshot der 2D-Welt', () => {
     round.haunt.lit = round.haunt.lit.filter((id) => id !== before.roomId);
     round.step(DT, { x: 0, z: 0, sprint: false });
     expect(round.snapshot().lights.find((l) => l.id === before.id)!.on).toBe(false);
+  });
+});
+
+describe('Die Tür hinter dem Techniker', () => {
+  /**
+   * **Der eine Vorteil des Technikers.** Wer verfolgt durch eine Tür geht,
+   * hinter dem fällt sie zu — allein sofort, im Team erst nach dem Zuruf
+   * (`rules/doorSeal.ts`). Geprüft wird beides an derselben Tür und mit
+   * demselben Schritt: Nur die Besetzung der Runde ist anders.
+   */
+  function runThrough(players: number): { waited: number; text: string } {
+    const round = new FlatRound(4, { players });
+    const door = round.house.doors.find((d) => d.b !== null)!;
+    const near = doorWaypoint(door, round.graph.centre(door.a));
+    const far = doorWaypoint(door, round.graph.centre(door.b!));
+    expect(round.place(near)).toBe(true);
+    // Das Monster steht dicht hinter ihm — das ist die Verfolgung. Es bleibt
+    // stehen (kein Ziel), damit nur die Ansage über den Zeitpunkt entscheidet.
+    round.monster.x = near.x;
+    round.monster.z = near.z;
+    round.monster.space = door.a;
+    round.state().monster = { x: near.x, z: near.z };
+    expect(walkTo(round, far, 20)).toBe(true);
+    const crossed = round.state().time;
+    const texts: string[] = [];
+    let waited = Infinity;
+    for (let t = 0; t < 4; t += DT) {
+      round.step(DT, { x: 0, z: 0, sprint: false });
+      for (const event of round.drain()) texts.push(event.text);
+      if (round.state().shut.includes(door.id)) {
+        waited = round.state().time - crossed;
+        break;
+      }
+    }
+    return { waited, text: texts.join(' | ') };
+  }
+
+  it('fällt allein sofort zu', () => {
+    const alone = runThrough(2);
+    expect(alone.waited).toBeLessThan(0.5);
+    expect(alone.text).toMatch(/Tür fällt hinter dir zu/);
+  });
+
+  it('braucht im Team erst den Zuruf — dieselbe Tür, eine Sekunde später', () => {
+    const crew = runThrough(5);
+    expect(crew.waited).toBeGreaterThanOrEqual(COMMAND_DELAY[0]);
+    expect(crew.waited).toBeLessThanOrEqual(COMMAND_DELAY[1] + 0.5);
+    expect(crew.text).toMatch(/Zentrale verriegelt/);
+  });
+});
+
+describe('Türen machen Geräusche', () => {
+  /**
+   * **Ein Blatt, das fährt, ist zu hören.** Für den, der es sieht, sagt die
+   * Welle nur, dass da eine Tür ging — nicht, wer hindurchging.
+   */
+  it('legt eine Welle auf die Karte, wenn eine automatische Tür auffährt', () => {
+    const round = new FlatRound(4, { test: true });
+    const door = round.house.doors.find((d) => d.b !== null)!;
+    expect(round.place(doorWaypoint(door, round.graph.centre(door.a)))).toBe(true);
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    const opened = round.noises().filter((n) => n.cause === 'door');
+    expect(opened.length).toBeGreaterThan(0);
+    expect(opened[0]!.by).toBe('');
+    expect(round.snapshot().doors.find((d) => d.id === door.id)?.open).toBe(true);
   });
 });

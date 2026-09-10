@@ -1,6 +1,14 @@
 import { generateHouse, spacesOf } from '../house';
 import { DIR_E, DIR_N, DIR_S, DIR_W, dirX, dirZ, opposite, TILE } from '../../nav/navTile';
-import { doorCentre, lineOfSight, rectCentre, slide, walkable, wallSegments } from './geometry';
+import {
+  doorCentre,
+  fixtureBlocks,
+  lineOfSight,
+  rectCentre,
+  slide,
+  walkable,
+  wallSegments,
+} from './geometry';
 import { extractMapSnapshot, wallsOf } from './extract';
 import { FlatRound } from './flatRound';
 
@@ -81,5 +89,30 @@ describe('Wo man stehen darf', () => {
     // Die Querbewegung ging weiter, obwohl die Wand die Längsbewegung stoppte.
     const lateral = dirX(solid) ? at.z - centre.z : at.x - centre.x;
     expect(Math.abs(lateral)).toBeGreaterThan(1);
+  });
+});
+
+describe('Möbel stehen im Weg', () => {
+  /**
+   * **Es gibt eine Spielwelt und zwei Darstellungen.** In 3D steht der
+   * Techniker vor dem Tank; in 2D lief er hindurch, weil die Bewegung nur
+   * Räume und Türen kannte. Die Wegsuche wich denselben Kästen schon aus
+   * (`stationNavigation.buildGrid`) — jetzt tut es auch der Schritt.
+   */
+  it('lässt niemanden in einer Grundfläche stehen und gleitet daran entlang', () => {
+    const blocks = fixtureBlocks(spec);
+    expect(blocks.length).toBeGreaterThan(10);
+    const box = blocks[0]!;
+    const middle = { x: (box.minX + box.maxX) / 2, z: (box.minZ + box.maxZ) / 2 };
+    expect(walkable(spec, [], middle, 0.35)).toBe(true);
+    expect(walkable(spec, [], middle, 0.35, blocks)).toBe(false);
+    // Die Raummitte bleibt frei — dort spawnt und dreht die Wegsuche.
+    for (const room of spec.rooms)
+      expect(walkable(spec, [], rectCentre(room.rect), 0.35, blocks)).toBe(true);
+    // Ein Schritt mitten in den Kasten hinein endet davor statt darin.
+    const outside = { x: box.minX - 1, z: middle.z };
+    const step = slide(spec, [], outside, 1.4, 0, 0.35, blocks);
+    expect(step.x).toBeLessThan(box.minX);
+    expect(walkable(spec, [], step, 0.35, blocks)).toBe(true);
   });
 });

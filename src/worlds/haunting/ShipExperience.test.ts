@@ -836,3 +836,77 @@ test('bot radio remains visible when mission and test menus are collapsed', () =
   expect(log.closest('details')).toBeNull();
   expect(log.textContent).toContain('Techniker → Zentrale');
 });
+
+/**
+ * **Dieselbe Steuerung wie in der 2D-Welt, im Schiff.** Wer die Station von
+ * oben gespielt hat, findet dieselben drei Knöpfe und denselben Stock wieder,
+ * wenn er sie von innen läuft — die zwei kleinen sind hier die zwei Hände,
+ * der große ist das, was am Desktop das `E` tut.
+ */
+describe('Die Steuerung der 2D-Welt über der 3D-Szene', () => {
+  function stickTo(dx: number, dy: number): void {
+    const zone = document.querySelector<HTMLElement>('.flat.ship3d .flat__stick')!;
+    const at = (type: string, x: number, y: number): void => {
+      zone.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }));
+    };
+    at('pointerdown', 100, 100);
+    at('pointermove', 100 + dx, 100 + dy);
+  }
+
+  test('hängt Stock und drei Knöpfe über die Station', () => {
+    frame(0.13);
+    const keys = [...document.querySelectorAll<HTMLElement>('.flat.ship3d .flat__key')];
+    expect(keys).toHaveLength(3);
+    expect(keys[0]!.textContent).toContain('Linke Hand');
+    expect(keys[1]!.textContent).toContain('Rechte Hand');
+    expect(keys[2]!.textContent).toContain('Benutzen');
+    // Die Tafel des Technikers rückt darüber, statt darunter zu liegen.
+    expect(document.querySelector('.orbital-player')?.classList.contains('is-keys')).toBe(true);
+  });
+
+  test('schaltet mit den kleinen Knöpfen dieselben Hände wie 1 und 2', () => {
+    frame(0.13);
+    const keys = [...document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key')];
+    const right = keys[1]!;
+    expect(right.textContent).toContain('Taschenlampe');
+    right.click();
+    frame();
+    expect(right.textContent).toContain('frei');
+    expect(say).toHaveBeenCalledWith('Rechte Hand frei.');
+  });
+
+  test('schiebt den Spieler mit dem Stock — waagerecht und nach vorn', () => {
+    frame(0.13);
+    // Ohne Daumen bewegt sich waagerecht nichts; die Höhe gehört der Schwerkraft.
+    const start = rig.position.clone();
+    for (let i = 0; i < 6; i++) frame();
+    const idle = Math.hypot(rig.position.x - start.x, rig.position.z - start.z);
+    expect(idle).toBeLessThan(0.05);
+    const before = rig.position.clone();
+    stickTo(0, -60);
+    for (let i = 0; i < 6; i++) frame();
+    const walked = Math.hypot(rig.position.x - before.x, rig.position.z - before.z);
+    expect(walked).toBeGreaterThan(0.2);
+    // Nach vorn heißt: in die Richtung, in die der Kopf schaut.
+    const look = rig.getHeadForward(new THREE.Vector3());
+    const moved = new THREE.Vector3(
+      rig.position.x - before.x,
+      0,
+      rig.position.z - before.z,
+    ).normalize();
+    expect(moved.dot(look.setY(0).normalize())).toBeGreaterThan(0.7);
+  });
+
+  /** In der Brille gibt es Controller; ein Knopf im DOM ist dort unsichtbar. */
+  test('bleibt in der Brille weg', () => {
+    frame(0.13);
+    const root = document.querySelector<HTMLElement>('.flat.ship3d')!;
+    expect(root.hidden).toBe(false);
+    (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = true;
+    frame();
+    expect(root.hidden).toBe(true);
+    (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = false;
+    frame();
+    expect(root.hidden).toBe(false);
+  });
+});

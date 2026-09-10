@@ -195,6 +195,15 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | Simulationsflug | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller |
 | Leistungsanzeige | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus |
 
+**Am Bildschirm liegt dieselbe Steuerung wie in der 2D-Welt**: der Stock links
+unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —
+**Linke Hand** (Radar, Röntgengerät, frei) und **Rechte Hand** (Taschenlampe,
+Medkit, frei), dieselben Reihen wie `1` und `2`. Der große trägt den Namen
+dessen, worauf man gerade zielt, und tut dasselbe wie `E`. Über den Stock geht
+es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. Tastatur und
+Maus bleiben daneben, wie sie waren; in der Brille sind die Knöpfe weg, dort
+gibt es Zeiger und Trigger.
+
 In VR werden dieselben Objekte mit dem Zeiger und Trigger bedient. Unter
 **VR-Komfort** lassen sich schrittweises oder fließendes Drehen, ein optionaler
 Komfortrand bei künstlicher Bewegung und Controller-Vibration einstellen.
@@ -252,9 +261,13 @@ Beleuchtung schaltet zwischen voller Beleuchtung, Wachbetrieb,
 Alarmbeleuchtung und Notstrom — im Alarm drehen sich rote Leuchten in den
 Gängen. Unter **Bots justieren & trainieren** stehen alle Gewichte beider Bots
 als Regler, dazu drei Knöpfe: *Monster trainieren*, *Techniker trainieren*,
-*beide*. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte,
-mit denen der Techniker im Schnitt 60–70 % der Runden gewinnt; es rechnet
-zwischen den Bildern weiter und friert den Tab nicht ein.
+*beide*. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte, mit
+denen eine Runde so ausgeht, wie sie ausgehen soll: **zu zweit** (Techniker
+gegen Monster) halbe-halbe, **ab drei Spielern** zwei von drei Runden für das
+Monster. Den Unterschied macht die Tür hinter dem Techniker — allein schlägt
+er sie selbst zu, im Team muss er es der Schalttafel sagen, und der Zuruf
+braucht ein bis zwei Sekunden. Das Training rechnet zwischen den Bildern
+weiter und friert den Tab nicht ein.
 Cyan zeigt den Technikerweg, Rot den Monsterweg und Gelb die Drohnenroute.
 Zielringe markieren die jeweiligen Ziele. Cyan/rote Flächen zeigen die an echten
 Wänden und Einrichtungen abgeschnittenen Blickfelder. Orange zeigt den maximalen

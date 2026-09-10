@@ -57,6 +57,8 @@ import {
 import { buildTrainingDeck } from './trainingDeck';
 import {
   MONSTERS,
+  PLAYER_SPRINT_SPEED,
+  PLAYER_WALK_SPEED,
   ROOM_COUNTS,
   lockerCode,
   puzzleFor,
@@ -70,6 +72,7 @@ import { SHIP, animateCreature, buildCrewmate, label } from './shipArt';
 import type { HauntState } from './net';
 import type { DronePose, DroneRoute } from './droneRoute';
 import { MissionBot } from './missionBot';
+import { ShipControls } from './world3d/shipControls';
 
 interface ShipHost {
   ctx: WorldContext;
@@ -162,7 +165,11 @@ interface Console {
 }
 const _head = new THREE.Vector3(),
   _pos = new THREE.Vector3(),
-  _direction = new THREE.Vector3();
+  _direction = new THREE.Vector3(),
+  _walk = new THREE.Vector3(),
+  _side = new THREE.Vector3(),
+  _wish = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 const PANEL_RANGE = 3.5;
 const HAND_LABEL = {
   off: 'frei',
@@ -213,6 +220,13 @@ export class ShipExperience {
   private readonly hud: Screen;
   private readonly command: Screen;
   private readonly dom = document.createElement('section');
+  /**
+   * **Der Stock und die drei Knöpfe der 2D-Welt** über der 3D-Szene
+   * (`world3d/shipControls.ts`) — dieselbe Steuerung, ob man die Station von
+   * oben oder von innen spielt. Nur im Browser: In der Brille hat man
+   * Controller, und ein Knopf im DOM ist dort unsichtbar.
+   */
+  private controls: ShipControls | null = null;
   /** Der Kompass am oberen Bildrand — nur am Desktop; in der Brille gibt es ihn (noch) nicht. */
   private compass: ObjectiveCompass | null = null;
   private sensorMode: 'off' | 'radar' | 'xray' = 'off';
@@ -374,7 +388,88 @@ export class ShipExperience {
         return false;
       },
     });
+    // Die Steuerung der 2D-Welt, hier über der Szene: nur für den, der wirklich
+    // läuft, und nur im Browser (`world3d/shipControls.ts`).
+    if (this.player)
+      this.controls = new ShipControls({
+        interact: () => this.pressUse(),
+        cycleLeft: () => this.cycleSensor(),
+        cycleRight: () => this.cycleRight(),
+      });
     this.paint();
+  }
+
+  /**
+   * **Der große Knopf.** Er tut genau das, was am Desktop das `E` tut: erst
+   * die Sonderfälle (eine zu Ende gespielte Runde, ein Schutzschrank, ein
+   * Medkit in der Hand), sonst löst er das aus, worauf man zielt — über
+   * denselben Zeiger, auf dem auch der Trigger der Brille sitzt. Ein zweiter
+   * Weg dorthin wäre ein zweiter Weg, der irgendwann anders aussieht.
+   */
+  private pressUse(): void {
+    if (['lost', 'won'].includes(this.host.state().phase)) {
+      this.host.start();
+      return;
+    }
+    if (this.crew.hidden && !this.crew.simulation) {
+      this.leaveLocker();
+      this.paint();
+      return;
+    }
+    if (this.rightItem === 'medkit') {
+      this.heal();
+      return;
+    }
+    const pointer = this.host.ctx.pointer;
+    pointer.setKeyboardTrigger(true);
+    pointer.setKeyboardTrigger(false);
+  }
+
+  /**
+   * **Der Stock bewegt das Rig.** Dieselbe Rechnung wie in `FlatControls`:
+   * Blickrichtung flach, quer dazu die Seite, beides mit dem Stock gewichtet.
+   * Gesetzt wird nur, solange der Daumen liegt — sonst nähme dieser Stock der
+   * Tastatur jedes Bild wieder den Wunsch weg, den sie gerade gesetzt hat.
+   *
+   * Getempo wie überall in dieser Runde (`mission.ts`): Arbeitstempo, und
+   * jenseits des Sprintrings das Fluchttempo. Wer die 2D-Welt gespielt hat,
+   * läuft hier genauso schnell.
+   */
+  private stepStick(): void {
+    const controls = this.controls;
+    if (!controls || controls.hidden) return;
+    const stick = controls.move;
+    if (stick.magnitude <= 0) return;
+    const crew = this.crew;
+    if (crew.hp <= 0 || (!!crew.hidden && !crew.simulation) || crew.simulation) return;
+    const rig = this.host.ctx.rig;
+    rig.getHeadForward(_walk);
+    _side.copy(_walk).cross(UP).normalize();
+    _wish.set(0, 0, 0).addScaledVector(_walk, -stick.z).addScaledVector(_side, stick.x);
+    if (_wish.lengthSq() > 1) _wish.normalize();
+    rig.setIntent(
+      _wish.multiplyScalar(stick.sprint ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED),
+      false,
+    );
+  }
+
+  /** Was auf den drei Knöpfen steht — Hände und das Ding vor einem. */
+  private paintControls(): void {
+    const controls = this.controls;
+    if (!controls) return;
+    const ctx = this.host.ctx;
+    const crew = this.crew;
+    controls.hidden =
+      ctx.renderer.xr.isPresenting || ctx.menu.isOpen || crew.simulation || crew.hp <= 0;
+    if (controls.hidden) return;
+    const label = this.crosshair.dataset.label ?? '';
+    controls.setLabels({
+      left: HAND_LABEL[this.sensorMode],
+      right: HAND_LABEL[this.rightItem],
+      // „E: Benutzen" ist die Beschriftung des Fadenkreuzes; auf dem Knopf
+      // steht das `E` nicht, denn dort drückt man mit dem Daumen.
+      target: this.focusedTarget ? label.replace(/^E:\s*/, '') : '',
+    });
   }
 
   private get crew() {
@@ -1216,6 +1311,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
       this.dom.hidden = ctx.renderer.xr.isPresenting;
       this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
+      this.paintControls();
+      this.stepStick();
+      this.dom.classList.toggle('is-keys', !this.controls?.hidden);
       this.stepCompass(ctx, state.phase === 'running' && !crew.simulation);
       // Nur in der Brille, nur solange die Mission läuft, nie in der Bot-Runde:
       // Am Desktop steht dasselbe im DOM-Titel, und ohne Runde gibt es nichts zu zählen.
@@ -1865,14 +1963,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (state.step > 0 || run.finished) this.host.retune?.(state.tuning);
     if (run.finished) {
       this.training = null;
-      this.trainingNote = `Training fertig: Techniker gewinnt ${Math.round(state.rate * 100)} % (${
-        inBand(state.rate) ? 'im Zielband' : 'noch neben dem Zielband'
+      this.trainingNote = `Training fertig: Techniker gewinnt ${Math.round(
+        state.duo * 100,
+      )} % zu zweit und ${Math.round(state.rate * 100)} % mit Zentrale (${
+        inBand({ duo: state.duo, crew: state.rate })
+          ? 'in beiden Zielbändern'
+          : 'noch neben einem Zielband'
       }), ${state.step} Schritte.`;
       this.log(`BOT-TRAINING: ${this.trainingNote}`);
     } else
-      this.trainingNote = `Training ${Math.round(run.fraction * 100)} % · beste Quote ${Math.round(
-        state.rate * 100,
-      )} %`;
+      this.trainingNote = `Training ${Math.round(run.fraction * 100)} % · beste Quoten ${Math.round(
+        state.duo * 100,
+      )} % / ${Math.round(state.rate * 100)} %`;
     this.refreshTuneLabels();
   }
 
@@ -2315,6 +2417,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     disposeObject(this.hud.mesh);
     this.dom.remove();
     this.dom.removeEventListener('click', this.domClick);
+    this.controls?.dispose();
+    this.controls = null;
     this.compass?.dispose();
     this.compass = null;
     for (const target of this.targets) this.host.ctx.pointer.remove(target);

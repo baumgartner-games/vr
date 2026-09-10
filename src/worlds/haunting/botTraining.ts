@@ -7,13 +7,15 @@ import {
   type TuningField,
 } from './botTuning';
 import { Rng } from './rng';
+import { CREW_SIZE } from './rules/doorSeal';
 import { simulateRound, simulationSpec } from './roundSim';
 
 /**
  * **Ein kleines Training, das die Gewichte selbst sucht.**
  *
- * Die Frage war: „Findet einen Satz Parameter, mit dem der Techniker im
- * Schnitt 60–70 % der Runden gewinnt." Das ist keine Rechnung, sondern eine
+ * Die Frage war: „Findet einen Satz Parameter, mit dem eine Runde so ausgeht,
+ * wie sie ausgehen soll" — zu zweit halbe-halbe, mit Zentrale zwei Drittel
+ * für das Monster (`TRAINING_TARGETS`). Das ist keine Rechnung, sondern eine
  * Suche — und zwar eine, die keine Ableitung hat: Ob eine halbe Sekunde mehr
  * Absuchdauer den Techniker rettet oder ihn umbringt, weiß man erst, wenn man
  * fünfzig Runden gespielt hat.
@@ -42,9 +44,7 @@ export interface TrainingOptions {
   rounds: number;
   /** Die Stationen, gegen die gespielt wird. */
   seeds: readonly number[];
-  /** Die angestrebte Gewinnquote des Technikers. */
-  target: number;
-  /** Wie weit sie davon abweichen darf, ohne dass es zählt. */
+  /** Wie weit eine Quote von ihrem Ziel abweichen darf, ohne dass es zählt. */
   band: number;
   /**
    * Ob jeder Schritt andere Runden sieht.
@@ -58,7 +58,27 @@ export interface TrainingOptions {
   resample: boolean;
 }
 
-export const TRAINING_TARGET = 0.65;
+/**
+ * **Zwei Zielbänder, denn es sind zwei Spiele.**
+ *
+ * Zu zweit steht ein Techniker einem Monster gegenüber, sonst niemand. Er hat
+ * die Tür in der Hand und macht sie selbst zu (`rules/doorSeal.ts`); das ist
+ * ein faires Duell, und ein faires Duell geht **zur Hälfte** aus.
+ *
+ * Ab drei Spielern kommt die Zentrale dazu — und mit ihr die Reibung: Jede
+ * Reaktion muss gesagt, gehört und gedrückt werden, und das kostet ein bis
+ * zwei Sekunden. Ein jagendes Monster ist in dieser Zeit fünf Meter weiter.
+ * Dafür weiß eine Zentrale Dinge, die ein Einzelner nicht weiß. Die Runde
+ * soll dann **dem Monster** gehören: Es gewinnt zwei von drei Malen, der
+ * Techniker also ein Drittel.
+ *
+ * Beide Zahlen gelten für **dieselben** Gewichte: Was sich unterscheidet, ist
+ * die Besetzung der Runde und nicht die Einstellung der Bots. Deshalb misst
+ * das Training beides und bewertet den Abstand zu beiden Bändern zusammen.
+ */
+export const TRAINING_TARGETS = { duo: 0.5, crew: 1 - 0.66 } as const;
+/** Wie viele Spieler die beiden gemessenen Besetzungen haben. */
+export const TRAINING_PLAYERS = { duo: 2, crew: CREW_SIZE } as const;
 export const TRAINING_BAND = 0.05;
 
 /** Acht Stationen: genug Vielfalt, wenig genug für einen warmen Zwischenspeicher. */
@@ -67,7 +87,6 @@ export const TRAINING_SEEDS = [1000, 8919, 16838, 24757, 32676, 40595, 48514, 56
 export const TRAINING_DEFAULTS: TrainingOptions = {
   rounds: 64,
   seeds: TRAINING_SEEDS,
-  target: TRAINING_TARGET,
   band: TRAINING_BAND,
   resample: false,
 };
@@ -76,9 +95,11 @@ export interface TrainingState {
   side: TrainingSide;
   /** Der beste bisher gefundene Satz. */
   tuning: BotTuning;
-  /** Seine gemessene Gewinnquote des Technikers. */
+  /** Seine gemessene Gewinnquote des Technikers mit Zentrale — die Regelrunde. */
   rate: number;
-  /** Abstand zur Mitte des Zielbands. */
+  /** Und dieselbe zu zweit, Techniker gegen Monster. */
+  duo: number;
+  /** Abstand zur Mitte beider Zielbänder. */
   score: number;
   /** Der Gleichstandsbrecher: wie weit der Techniker im Schnitt kam. */
   progress: number;
@@ -96,7 +117,7 @@ export interface TrainingState {
 }
 
 /**
- * Die Gewinnquote des Technikers über `rounds` Runden.
+ * Die Gewinnquoten des Technikers über `rounds` Runden — beide Besetzungen.
  *
  * Der Versatz `pass` verschiebt Station und Zufall gegeneinander: Zwei
  * Bewertungen desselben Satzes mit demselben Versatz sind gleich (sonst
@@ -107,13 +128,15 @@ export function winRate(
   tuning: BotTuning,
   options: TrainingOptions = TRAINING_DEFAULTS,
   pass = 0,
-): number {
-  return measure(tuning, options, pass).rate;
+): Measurement {
+  return measure(tuning, options, pass);
 }
 
 export interface Measurement {
-  /** Anteil gewonnener Runden. */
-  rate: number;
+  /** Anteil gewonnener Runden zu zweit — Techniker gegen Monster. */
+  duo: number;
+  /** Und mit Zentrale. */
+  crew: number;
   /**
    * Wie weit der Techniker im Schnitt gekommen ist (0…1).
    *
@@ -126,39 +149,68 @@ export interface Measurement {
   progress: number;
 }
 
+/**
+ * **Die Runden werden geteilt, nicht verdoppelt.** Jede zweite Runde einer
+ * Messung ist ein Duell, jede andere eine Runde mit Zentrale — dieselben
+ * Stationen, dieselben Würfel. So kostet die zweite Zusage keine zweite
+ * Rechenzeit, und beide Quoten stehen auf gleich vielen Runden.
+ */
 export function measure(
   tuning: BotTuning,
   options: TrainingOptions = TRAINING_DEFAULTS,
   pass = 0,
 ): Measurement {
   const seeds = options.seeds.length ? options.seeds : TRAINING_SEEDS;
-  let won = 0;
+  const won = { duo: 0, crew: 0 };
+  const played = { duo: 0, crew: 0 };
   let progress = 0;
   for (let i = 0; i < options.rounds; i++) {
     const seed = seeds[(i + pass) % seeds.length]!;
-    const round = simulateRound(seed, { tuning, roll: i + pass * 101 });
-    if (round.won) won++;
+    const side = sideOf(i);
+    const round = simulateRound(seed, {
+      tuning,
+      roll: i + pass * 101,
+      players: TRAINING_PLAYERS[side],
+    });
+    played[side]++;
+    if (round.won) won[side]++;
     progress += (round.repairs + (round.won ? 1 : 0)) / 4;
   }
-  const rounds = Math.max(1, options.rounds);
-  return { rate: won / rounds, progress: progress / rounds };
+  return {
+    duo: won.duo / Math.max(1, played.duo),
+    crew: won.crew / Math.max(1, played.crew),
+    progress: progress / Math.max(1, options.rounds),
+  };
+}
+
+/** Welche Besetzung die `i`-te Runde einer Messung spielt. */
+export function sideOf(i: number): 'duo' | 'crew' {
+  return i % 2 === 0 ? 'duo' : 'crew';
 }
 
 /**
- * Der Abstand zur **Mitte** des Zielbands.
+ * Der Abstand zur **Mitte** der beiden Zielbänder, gemittelt.
  *
- * Nicht zum Rand: Ein Training, das aufhört, sobald es das Band von außen
+ * Nicht zum Rand: Ein Training, das aufhört, sobald es ein Band von außen
  * berührt, liefert eine Einstellung, die bei der nächsten Messung wieder
  * daneben liegt. Es soll in die Mitte zielen und dort stehen bleiben; ob es
  * drin ist, sagt `inBand`.
  */
-export function centreScore(rate: number, options: TrainingOptions = TRAINING_DEFAULTS): number {
-  return Math.abs(rate - options.target);
+export function centreScore(rates: Pick<Measurement, 'duo' | 'crew'>): number {
+  return (
+    (Math.abs(rates.duo - TRAINING_TARGETS.duo) + Math.abs(rates.crew - TRAINING_TARGETS.crew)) / 2
+  );
 }
 
-/** Ob diese Quote das Ziel „60–70 %" erfüllt. */
-export function inBand(rate: number, options: TrainingOptions = TRAINING_DEFAULTS): boolean {
-  return centreScore(rate, options) <= options.band + 1e-9;
+/** Ob beide Quoten ihr Band treffen — eine allein reicht nicht. */
+export function inBand(
+  rates: Pick<Measurement, 'duo' | 'crew'>,
+  options: TrainingOptions = TRAINING_DEFAULTS,
+): boolean {
+  return (
+    Math.abs(rates.duo - TRAINING_TARGETS.duo) <= options.band + 1e-9 &&
+    Math.abs(rates.crew - TRAINING_TARGETS.crew) <= options.band + 1e-9
+  );
 }
 
 /**
@@ -175,7 +227,8 @@ export function inBand(rate: number, options: TrainingOptions = TRAINING_DEFAULT
 export class TrainingRun {
   private candidate: BotTuning;
   private index = 0;
-  private won = 0;
+  private readonly won = { duo: 0, crew: 0 };
+  private readonly played = { duo: 0, crew: 0 };
   private reached = 0;
   private best: TrainingState;
   private first = true;
@@ -195,6 +248,7 @@ export class TrainingRun {
       side,
       tuning: this.candidate,
       rate: 0,
+      duo: 0,
       score: Infinity,
       progress: 0,
       step: 0,
@@ -222,9 +276,11 @@ export class TrainingRun {
   }
 
   private get enough(): number {
-    // Eine Runde mehr oder weniger ist die kleinste messbare Änderung;
-    // darunter gibt es nichts mehr zu suchen.
-    return 0.5 / Math.max(1, this.options.rounds);
+    // Zwei Quoten auf je der Hälfte der Runden: Eine Runde mehr oder weniger
+    // verschiebt eine der beiden um `2/rounds` und den bewerteten Mittelwert
+    // damit um `1/rounds`. Darunter gibt es nichts mehr zu messen — und was
+    // man nicht messen kann, kann man auch nicht suchen.
+    return 1 / Math.max(1, this.options.rounds);
   }
 
   /** Rechnet höchstens `budget` Millisekunden weiter. */
@@ -246,11 +302,14 @@ export class TrainingRun {
     const seeds = this.options.seeds.length ? this.options.seeds : TRAINING_SEEDS;
     const pass = this.options.resample ? this.best.step : 0;
     const seed = seeds[(this.index + pass) % seeds.length]!;
+    const side = sideOf(this.index);
     const result = simulateRound(seed, {
       tuning: this.candidate,
       roll: this.index + pass * 101,
+      players: TRAINING_PLAYERS[side],
     });
-    if (result.won) this.won++;
+    this.played[side]++;
+    if (result.won) this.won[side]++;
     this.reached += (result.repairs + (result.won ? 1 : 0)) / 4;
     this.index++;
     if (this.index < this.options.rounds) return;
@@ -260,15 +319,16 @@ export class TrainingRun {
   /** Ein Vorschlag ist ausgespielt: behalten oder verwerfen, dann der nächste. */
   private close(): void {
     const rounds = Math.max(1, this.options.rounds);
-    const rate = this.won / rounds;
+    const duo = this.won.duo / Math.max(1, this.played.duo);
+    const rate = this.won.crew / Math.max(1, this.played.crew);
     const progress = this.reached / rounds;
-    const score = centreScore(rate, this.options);
+    const score = centreScore({ duo, crew: rate });
     // Erst die Quote, und bei Gleichstand der Fortschritt — **in der
     // Richtung, in der das Ziel liegt**: Steht der Techniker unter dem Band,
     // ist weiter gekommen besser; steht er darüber, ist es schlechter. Ohne
     // dieses Vorzeichen schiebt der Gleichstandsbrecher ein übermächtiges
     // Gespann noch weiter nach oben.
-    const wanted = this.best.rate < this.options.target ? 1 : -1;
+    const wanted = this.best.rate < TRAINING_TARGETS.crew ? 1 : -1;
     const better =
       this.first ||
       score < this.best.score ||
@@ -279,6 +339,7 @@ export class TrainingRun {
       ...this.best,
       tuning: better ? this.candidate : this.best.tuning,
       rate: better ? rate : this.best.rate,
+      duo: better ? duo : this.best.duo,
       score: better ? score : this.best.score,
       progress: better ? progress : this.best.progress,
       step,
@@ -296,7 +357,10 @@ export class TrainingRun {
     };
     this.first = false;
     this.index = 0;
-    this.won = 0;
+    this.won.duo = 0;
+    this.won.crew = 0;
+    this.played.duo = 0;
+    this.played.crew = 0;
     this.reached = 0;
     const rng = new Rng((this.best.seed + this.best.step * 0x9e3779b9) >>> 0);
     this.candidate = mutate(this.best.tuning, this.best.side, this.best.spread, rng);

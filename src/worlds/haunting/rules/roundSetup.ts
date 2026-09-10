@@ -37,7 +37,11 @@ export interface RoundSetup {
 
 /** Welche Fähigkeiten der Techniker aus den Bot-Plätzen bekommt. */
 export interface SoloPowers {
-  /** Späher: Das Monster ist auf der Karte zu sehen, als Peilung alle paar Sekunden. */
+  /**
+   * Späher: das **Horchbild** der Station auf der Karte — die Geräusche der
+   * letzten Sekunden, als Probe alle paar Sekunden. Nicht die Stelle, an der
+   * das Monster steht: Wer die kennt, dem kann sich niemand mehr auflauern.
+   */
   scout: boolean;
   /** Schalttafel: Türen und Lampen per Tipp auf die Karte. */
   panel: boolean;
@@ -58,7 +62,7 @@ export const SEAT_LABELS: Readonly<Record<SeatRole, string>> = {
 export const SEAT_HINTS: Readonly<Record<SeatRole, string>> = {
   archive: 'Räume, Fundorte und Codes',
   panel: 'Türen und Lampen schalten',
-  scout: 'Peilung des Monsters',
+  scout: 'Horchbild der Station',
 };
 
 export const WHO_LABELS: Readonly<Record<MonsterWho, string>> = {
@@ -147,6 +151,18 @@ export function flatRoleOf(setup: RoundSetup): FlatRole {
   if (setup.technician === 'human') return 'technician';
   if (setup.monster === 'human') return 'monster';
   return 'bot';
+}
+
+/**
+ * **Wie viele in einer Runde mitspielen** — der Techniker, das Monster (wenn
+ * es eines gibt) und jeder Platz der Zentrale, ob dort ein Mensch oder ein Bot
+ * sitzt. Zwei heißt: Techniker gegen Monster, sonst niemand. Ab drei läuft
+ * jede Reaktion über eine Absprache, und die kostet Zeit
+ * (`rules/doorSeal.ts`) — genau daran hängen die zwei Zielbänder des
+ * Trainings (`botTraining.TRAINING_TARGETS`).
+ */
+export function crewSize(setup: RoundSetup): number {
+  return 1 + (setup.monster === 'off' ? 0 : 1) + setup.seats.length;
 }
 
 /** Die drei Rundenarten der 3D-Welt — dort steuert nur der Techniker aus Fleisch. */
