@@ -1,4 +1,4 @@
-import { stepAlong, type DronePose, type DroneRoute } from './droneRoute';
+import { stepAlong, type RoutePath, type RoutePose } from './navmesh/route';
 import { roomAt, type HouseSpec } from './house';
 import { TILE } from '../nav/navTile';
 import { puzzleFor, puzzleSolved, repairsFor, type Repair } from './mission';
@@ -11,9 +11,9 @@ import { DEFAULT_TUNING, type TechnicianTuning } from './botTuning';
 export interface MissionBotHost {
   spec: HouseSpec;
   state: HauntState;
-  route(from: DronePose, target: FloorPoint): DroneRoute | null;
+  route(from: RoutePose, target: FloorPoint): RoutePath | null;
   revision?(): number;
-  danger?(pose: DronePose): FloorPoint | null;
+  danger?(pose: RoutePose): FloorPoint | null;
   visible?(from: FloorPoint, to: FloorPoint): boolean;
   /** Die Gewichte des Technikers (`botTuning.ts`); ohne sie die Auslieferung. */
   tuning?(): TechnicianTuning;
@@ -24,7 +24,7 @@ export type BotStage =
 
 /** A visible rehearsal uses the actual inventory, terminals and win condition. */
 export class MissionBot {
-  readonly pose: DronePose = { ...COMMAND_HOME, yaw: 0 };
+  readonly pose: RoutePose = { ...COMMAND_HOME, yaw: 0 };
   stage: BotStage = 'cargo';
   survival: 'mission' | 'flee' | 'hide' = 'mission';
   private dangerMemory: FloorPoint | null = null;
@@ -34,7 +34,7 @@ export class MissionBot {
   private attackCooldown = 0;
   private sprint = 0;
   private index = 0;
-  private path: DroneRoute | null = null;
+  private path: RoutePath | null = null;
   private timer = 0;
   private input = 0;
   private readonly repairs: readonly Repair[];
@@ -301,9 +301,7 @@ export class MissionBot {
     this.path ??= this.host.route(this.pose, target);
     if (!this.path?.points?.length) {
       if (!this.blocked)
-        this.host.say(
-          'Techniker wartet: Der Weg ist blockiert. Tür in der Einsatzkontrolle freigeben.',
-        );
+        this.host.say('Techniker wartet: Der Weg ist blockiert. Tür an der Schalttafel freigeben.');
       this.blocked = true;
       this.path = null;
       this.timer = 1;

@@ -36,7 +36,6 @@ function route(
     { x: from.x, z: from.z, yaw: 0 },
     to,
     RADIUS,
-    0,
     true,
     avoid,
   );

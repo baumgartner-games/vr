@@ -72,7 +72,7 @@ import {
 } from './mission';
 import { SHIP, animateCreature, buildCrewmate, label } from './shipArt';
 import type { HauntState } from './net';
-import type { DronePose, DroneRoute } from './droneRoute';
+import type { RoutePath, RoutePose } from './navmesh/route';
 import { MissionBot } from './missionBot';
 import { ShipControls } from './world3d/shipControls';
 
@@ -89,10 +89,10 @@ interface ShipHost {
   doorOpen?(id: string): boolean;
   doorLocked?(id: string): boolean;
   travel(at: THREE.Vector3): void;
-  route(from: DronePose, room: HouseRoom): DroneRoute | null;
-  routeTo?(from: DronePose, target: { x: number; z: number }): DroneRoute | null;
+  route(from: RoutePose, room: HouseRoom): RoutePath | null;
+  routeTo?(from: RoutePose, target: { x: number; z: number }): RoutePath | null;
   routeVersion?(): number;
-  danger?(pose: DronePose): { x: number; z: number } | null;
+  danger?(pose: RoutePose): { x: number; z: number } | null;
   visible?(from: { x: number; z: number }, to: { x: number; z: number }): boolean;
   /** Die Gewichte beider Bots und ihr Zeitraffer — nur in der Bot-Runde. */
   tuning?(): BotTuning;
@@ -963,7 +963,7 @@ export class ShipExperience {
       // **Hier geht kein Licht mehr von selbst an.** Eine reparierte Konsole
       // machte früher die Lampe ihres Raums an, und weil das an der Tafel
       // vorbeiging, brannten am Ende der Runde drei Lampen, die niemand
-      // geschaltet hatte. Licht macht die Einsatzkontrolle, höchstens zwei
+      // geschaltet hatte. Licht macht die Schalttafel, höchstens zwei
       // Räume, und nur solange sie es sich leistet (`rules/lamps.ts`).
       this.host.say(
         `${repair.title}: fertig. ${this.host.state().done.length === 3 ? 'Zur Einsatzzentrale zurückkehren!' : 'Nächsten Auftrag beim Archiv erfragen.'}`,

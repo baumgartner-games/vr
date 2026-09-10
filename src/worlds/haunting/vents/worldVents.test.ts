@@ -31,7 +31,6 @@ function handles(vents?: WorldHandles['vents']): WorldHandles {
   return {
     spec: () => spec,
     state: () => state,
-    drone: () => null,
     lamps: () => [],
     doorOpen: () => false,
     player: () => null,

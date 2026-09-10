@@ -33,10 +33,12 @@ export class MonsterSession {
     this.bot = new TechnicianBot(round, tuning, () => dice.next());
     const host: RoleHost = {
       snapshot: () => round.snapshot(),
+      spec: () => round.house,
       me: () => 'local',
       nameOf: () => 'Techniker',
-      flip: () => {},
-      flyTo: () => {},
+      door: (id) => round.lockDoor(id),
+      light: (id) => round.switchLight(id),
+      lure: (id) => round.lure(id),
       notify,
       extra: { monster: this.control },
     };

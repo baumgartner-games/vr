@@ -47,7 +47,7 @@ export interface MapLayers {
   lights: boolean;
   /** Fracht, Konsolen, Schränke, Aufgaben. */
   items: boolean;
-  /** Spieler, Bot, Monster, Drohne, Mitspieler — als Ganzes. */
+  /** Spieler, Bot, Monster, Mitspieler — als Ganzes. */
   entities: boolean;
   /** Das Sichtbarkeitsfeld darüber: Licht, Dunkel, Kegel, Geräusch. */
   visibility: boolean;
@@ -231,7 +231,6 @@ export const INK = {
   player: '#3ec7ff',
   bot: '#6fe39a',
   peer: '#c3a5ff',
-  drone: '#ffd85a',
   monster: '#d8232e',
   monsterDark: '#5a0b12',
   visor: '#bfe9ff',
@@ -250,7 +249,6 @@ const ENTITY_COLOR: Record<MapEntity['kind'], string> = {
   player: INK.player,
   bot: INK.bot,
   peer: INK.peer,
-  drone: INK.drone,
   monster: INK.monster,
 };
 
@@ -519,7 +517,7 @@ export class MapView {
     // --- Lichter ---------------------------------------------------------------
     if (this.layers.lights) {
       for (const light of s.lights) {
-        if (light.kind === 'torch' || light.kind === 'drone' || light.kind === 'command') continue;
+        if (light.kind === 'torch' || light.kind === 'command') continue;
         const p = this.toScreen(light.at.x, light.at.z);
         const r = Math.max(3, scale * 0.22);
         ctx.beginPath();
@@ -1580,7 +1578,7 @@ export class MapView {
         }
     if (this.layers.lights && this.options.onLightClick)
       for (const light of s.lights)
-        if (light.kind !== 'torch' && light.kind !== 'drone' && near(light.at)) {
+        if (light.kind !== 'torch' && near(light.at)) {
           this.options.onLightClick(light.id);
           return;
         }

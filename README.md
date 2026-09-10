@@ -67,20 +67,30 @@ gebaut.
 ### Haunting / Orbital — eine Quest, zwei Handys
 
 Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
-Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
-Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es nicht. Die **Einsatzkontrolle** verfolgt
-das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
-Schiebetüren und Geräuschköder. **Die Station ist dunkel**, und sie bleibt es,
-wenn niemand schaltet: Es geht nirgends von selbst Licht an. Die
-Einsatzkontrolle kann höchstens **zwei Lampen gleichzeitig** brennen lassen —
-die dritte macht die älteste aus —, und keine hält länger als etwa eine Minute:
-Sie flackert, sirrt und geht aus. Wer im Dunkeln steht, hat die Taschenlampe. Drohne und Zuschauer sind weitere optionale
-Plätze; die Schalttafel gehört zur Einsatzkontrolle.
+Der **Außentechniker** erkundet die Station in VR. Die drei Plätze in der
+Zentrale sehen dieselbe Karte, jeder mit anderen Schichten darauf — und was
+darauf fehlt, ist bei jedem die halbe Rolle. Das **Archiv** sieht die ganze
+Station mit der Fracht, einer Linie von jeder Kiste zu ihrer Konsole und einer
+Raumakte je Zimmer (Codes groß) — aber **niemanden, der sich bewegt**. Die
+**Schalttafel** sieht die Station als Grundriss und schaltet darauf: Tür
+antippen sperrt oder gibt frei, Lampe antippen schaltet Licht, ein Tipp auf
+ein Zimmer wirft den Geräuschköder an — **Wesen zeigt sie keine**, wer eine
+Tür zuwirft, weiß also nicht, wen er einsperrt. Der **Späher** bekommt alle
+dreieinhalb Sekunden **eine Peilung**: einen grünen Punkt für den Techniker,
+einen roten für das Monster, genau dort, wo sie in dem Moment waren —
+dazwischen verblassen sie, und niemand weiß, was inzwischen passiert.
+**Die Station ist dunkel**, und sie bleibt es, wenn niemand schaltet: Es geht
+nirgends von selbst Licht an. Die Schalttafel kann höchstens **zwei Lampen
+gleichzeitig** brennen lassen — die dritte macht die älteste aus —, und keine
+hält länger als etwa eine Minute: Sie flackert, sirrt und geht aus. Wer im
+Dunkeln steht, hat die Taschenlampe. Der **Zuschauer** ist der einzige Platz
+ohne Karte: Er sieht die Station in 3D, von schräg oben, ohne Decke — und
+sagt dafür nichts.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
 im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
 **In der Zentrale mitspielen** wählen, dann Archiv beziehungsweise
-Einsatzkontrolle besetzen. Ein weiteres Telefon kann das **Monster** spielen:
+Schalttafel besetzen. Ein weiteres Telefon kann das **Monster** spielen:
 Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
 einem Knopf — zugeschlagen wird von selbst, wer in Reichweite steht; der Knopf
 gilt dem nächsten Ding, das die Karte hervorhebt (Klappe, Kabine, gesperrte
@@ -148,13 +158,19 @@ erledigt, halb angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste
 mit den Namen auf, ein zweiter wieder zu; wer mitspielt und welches Monster
 umgeht, steht im Optionsmenü.
 
-**Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
-Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
-Reparaturhinweise sowie eine orthografische Draufsicht des tatsächlichen Raums
-mit abgenommener Decke. Ein kühler Sci-Fi-Look ersetzt Sepia. Es gibt keinen
-Gesamtgrundriss und keine Live-Positionen in dieser Ansicht. **Aufträge** führt
-zu den passenden Raumakten. Die Einsatzkontrolle hat **Radar & Anzug** und
-**Schalttafel**. Der Kopfbereich bietet einen sichtbaren Rollenwechsel.
+**Die Handyansichten:** Alle drei zeichnen dieselbe Karte wie die 2D-Welt,
+jede mit eigenen Schichten. Beim **Archiv** liegt die ganze Station darauf,
+mit Fracht, Konsolen und einer gestrichelten Linie von jeder Kiste zu der
+Konsole, in die ihr Teil gehört; trägt der Techniker das Teil schon, steht am
+Ziel „hierher". Ein Tipp auf ein Zimmer schlägt die **Raumakte** auf: Codes
+groß, Fundhinweise, Türen, Licht — und ein Bild des Raums, in 3D die
+Draufsicht der wirklichen Welt mit Zoom und Wisch, in der 2D-Welt eine
+herangezoomte Karte. Live-Positionen zeigt es keine. Die **Schalttafel** zeigt
+den Grundriss ohne Wesen und schaltet Türen, Lampen und Köder per Tipp; der
+**Späher** zeigt zwei Punkte und sonst nichts. Der Kopfbereich bietet einen
+sichtbaren Rollenwechsel. In der 2D-Welt liegt derselbe Wechsel als Streifen
+über der Szene: Wer dort eine Rolle aufschlägt, sieht **dieselbe laufende
+Runde** aus ihrer Sicht, ohne dass etwas neu gestartet wird.
 
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
 Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
@@ -287,7 +303,7 @@ Monster. Den Unterschied macht die Tür hinter dem Techniker — allein schlägt
 er sie selbst zu, im Team muss er es der Schalttafel sagen, und der Zuruf
 braucht ein bis zwei Sekunden. Das Training rechnet zwischen den Bildern
 weiter und friert den Tab nicht ein.
-Cyan zeigt den Technikerweg, Rot den Monsterweg und Gelb die Drohnenroute.
+Cyan zeigt den Technikerweg und Rot den Monsterweg.
 Zielringe markieren die jeweiligen Ziele. Cyan/rote Flächen zeigen die an echten
 Wänden und Einrichtungen abgeschnittenen Blickfelder. Orange zeigt den maximalen
 Hörbereich für Sprintgeräusche: Schall folgt Stationsboden, wird durch Türen und
@@ -301,8 +317,8 @@ zunächst dem Bot; **Freie Kamera** gibt `WASD`, `Space` und `Ctrl` zum Erkunden
 frei, bis 120 Meter Höhe. **Kartenübersicht** zeigt die Station direkt von oben.
 **Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
 Blicknachführung. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
-wählen. Die Drohne folgt geprüften Kurven mit Beschleunigung, sanftem Abbremsen
-und leichter Neigung; ihre Kameradaten werden zwischen Netzpaketen geglättet.
+wählen. Techniker-Bot und Monster folgen geprüften Kurven mit Beschleunigung
+und sanftem Abbremsen (`navmesh/route.ts`).
 
 Die Station verwendet vermessene Einrichtungsmodelle mit reservierten Tür- und
 Laufwegen, abgerundeten Gehäusen, Rohren und raumspezifischen Aggregaten.

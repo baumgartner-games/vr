@@ -49,6 +49,9 @@ module.exports = {
   watchman: false,
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
+  // CSS-Importe gehören zu Vite und nicht zu Jest: Was eine Datei an Stil
+  // mitbringt, ist für einen Test nichts (`tools/cssStub.cjs`).
+  moduleNameMapper: { '\\.css$': '<rootDir>/tools/cssStub.cjs' },
   testMatch: slowOnly ? SLOW.map((file) => `<rootDir>/src/${file}`) : ['**/*.test.ts'],
   testPathIgnorePatterns: slowOnly ? ['/node_modules/'] : ['/node_modules/', ...SLOW],
   transform: {

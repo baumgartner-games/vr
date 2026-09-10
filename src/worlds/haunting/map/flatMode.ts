@@ -32,8 +32,13 @@ import {
 import { SetupPanel } from '../roundSetupPanel';
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
+import { RoleStrip } from '../views/roleStrip';
+import '../views/archive.register';
+import '../views/panel.register';
+import '../views/scout.register';
 import { HauntingAudio, levelLabel } from '../audio';
 import type { MapNoise } from './mapSnapshot';
+import type { RoleHost } from '../registry/roles';
 import type { ToolIconSource } from './toolIcons';
 
 /**
@@ -136,6 +141,12 @@ export class FlatMode {
   );
   private readonly optionsKey = el('button', 'flat__corner flat__options', '⚙');
   private readonly mapKey = el('button', 'flat__corner flat__mapkey', '🗺');
+  /**
+   * **Der Rollenstreifen über der Szene** (`views/roleStrip.ts`): Archiv,
+   * Schalttafel, Späher — jede liest dieselbe laufende Runde, und nichts wird
+   * dafür neu aufgebaut.
+   */
+  private readonly strip: RoleStrip;
   private readonly options = el('div', 'flat__panel');
   private readonly sheet = el('div', 'flat__panel flat__sheet');
   private readonly ending = el('div', 'flat__ending');
@@ -271,6 +282,11 @@ export class FlatMode {
     this.ending.hidden = true;
     this.ending.addEventListener('click', (event) => this.optionClick(event));
     this.icon.hidden = true;
+    this.strip = new RoleStrip({
+      roleHost: () => this.roleHost(),
+      homeLabel: () => 'Station',
+      onChange: () => this.applyVisibility(),
+    });
     this.element.append(
       this.scene.element,
       this.hud,
@@ -281,6 +297,8 @@ export class FlatMode {
       this.mapKey,
       this.optionsKey,
       this.mapOverlay,
+      this.strip.stage,
+      this.strip.element,
       this.puzzle.element,
       this.sheet,
       this.options,
@@ -314,14 +332,54 @@ export class FlatMode {
         this.dice.next(),
       );
     }
-    for (const node of [this.scene.element, this.jump, this.mapKey])
-      node.hidden = role === 'monster';
-    if (role === 'monster') this.showMap(false);
-    for (const node of [this.stick.element, this.buttons]) node.hidden = role !== 'technician';
     this.element.dataset['role'] = role;
     this.heard = [];
     this.scoutClock = 0;
+    this.applyVisibility();
     this.refreshCorners();
+  }
+
+  /**
+   * **Wer die Szene sieht und wer den Daumen darauf hat.** Zwei Sachen
+   * entscheiden das, und eine allein reichte nie: die Rolle in der Runde
+   * (Techniker, Monster, Zusehen) und die Rolle **über** der Runde, die der
+   * Streifen aufgeschlagen hat. Beides hier an einer Stelle, damit sich die
+   * zwei nicht gegenseitig überschreiben.
+   */
+  private applyVisibility(): void {
+    const guest = !!this.strip.active;
+    const role = this.role;
+    for (const node of [this.scene.element, this.jump, this.mapKey])
+      node.hidden = role === 'monster' || guest;
+    for (const node of [this.stick.element, this.buttons])
+      node.hidden = role !== 'technician' || guest;
+    this.hud.hidden = guest;
+    // Ein offenes Rätsel liegt über allem — auch über einer Rolle. Wer die
+    // Schalttafel aufschlägt, während der Techniker an einer Konsole steht,
+    // sähe sonst das Rätsel und nicht die Karte. Nur **zu**machen und nie
+    // auf: Ob eines offen ist, weiß die Überlagerung selbst (`puzzle.sync`),
+    // und ein `hidden = false` von hier hinge sonst als leerer Kasten im Bild.
+    if (guest) this.puzzle.element.hidden = true;
+    if (this.session) this.session.element.hidden = guest;
+    if (guest || role === 'monster') this.showMap(false);
+  }
+
+  /**
+   * **Was eine aufgeschlagene Rolle von der Runde bekommt.** Nur Getter und
+   * die drei Griffe der Schalttafel; gestartet oder verworfen wird nichts —
+   * die Runde läuft weiter, während jemand ihr beim Archiv zusieht.
+   */
+  private roleHost(): RoleHost {
+    return {
+      snapshot: () => this.round.snapshot(),
+      spec: () => this.round.house,
+      me: () => PLAYER_ID,
+      nameOf: (peer) => peer,
+      door: (id) => this.round.lockDoor(id),
+      light: (id) => this.round.switchLight(id),
+      lure: (id) => this.round.lure(id),
+      notify: (text) => this.say(text),
+    };
   }
 
   /** Wer gerade spielt — für Tests und die Anzeige. */
@@ -400,7 +458,8 @@ export class FlatMode {
       this.toast.textContent = '';
       this.toast.className = 'flat__toast';
     }
-    if (!this.session) {
+    this.strip.update(dt);
+    if (!this.session && !this.strip.active) {
       this.stepScout(dt);
       this.scene.setSnapshot(this.round.snapshot());
       this.scene.setVisibility(this.round.field);
@@ -1054,6 +1113,7 @@ export class FlatMode {
     this.options.hidden = true;
     this.sheet.hidden = true;
     this.showMap(false);
+    this.strip.show('');
     this.scene.follow(PLAYER_ID);
     this.map.fit();
     this.map.follow(PLAYER_ID);
@@ -1073,6 +1133,7 @@ export class FlatMode {
   }
 
   dispose(): void {
+    this.strip.dispose();
     this.session?.dispose();
     this.audio.dispose();
     this.stick.dispose();

@@ -26,7 +26,7 @@ describe('Die Nachricht der Monster-Station', () => {
   it('gibt bei Unsinn null zurück', () => {
     expect(readMonsterInput(null)).toBeNull();
     expect(readMonsterInput('monster')).toBeNull();
-    expect(readMonsterInput({ kind: 'drone', x: 1 })).toBeNull();
+    expect(readMonsterInput({ kind: 'flip', x: 1 })).toBeNull();
     expect(readMonsterInput({ x: 1, z: 1, attack: 1 })).toBeNull();
   });
 

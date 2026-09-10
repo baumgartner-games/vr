@@ -104,19 +104,19 @@ export interface MapLight {
   on: boolean;
   /** Wie weit sie leuchtet, in Metern, wenn sie an ist. */
   radius: number;
-  /** Was für eine Leuchte: Deckenlampe, Drehleuchte im Gang, Scheinwerfer der Drohne, Taschenlampe. */
-  kind: 'lamp' | 'beacon' | 'drone' | 'torch' | 'command';
+  /** Was für eine Leuchte: Deckenlampe, Drehleuchte im Gang, Taschenlampe. */
+  kind: 'lamp' | 'beacon' | 'torch' | 'command';
   /** Farbe als `#rrggbb`, sonst warmweiß. */
   color?: string;
   /**
-   * Nur bei gerichtetem Licht (Taschenlampe, Drohne): wohin es zeigt und wie
-   * breit der Kegel ist, in Bogenmaß.
+   * Nur bei gerichtetem Licht (Taschenlampe): wohin es zeigt und wie breit
+   * der Kegel ist, in Bogenmaß.
    */
   yaw?: number;
   fov?: number;
 }
 
-export type MapEntityKind = 'player' | 'bot' | 'monster' | 'drone' | 'peer';
+export type MapEntityKind = 'player' | 'bot' | 'monster' | 'peer';
 
 export interface MapEntity {
   id: string;
@@ -140,7 +140,7 @@ export interface MapEntity {
   held: string;
   /**
    * Womit es wahrnimmt, wenn es wahrnimmt: Sichtkegel (ganz, Bogenmaß),
-   * Sichtweite und Hörweite in Metern. Fehlt bei Drohne und Mitspielern.
+   * Sichtweite und Hörweite in Metern. Fehlt bei Mitspielern.
    */
   sense?: { fov: number; range: number; hearing: number };
 }

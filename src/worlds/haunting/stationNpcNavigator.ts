@@ -1,7 +1,7 @@
 import type { NavGraph } from '../nav/navGraph';
 import type { NpcNavigationInput } from '../npc/Npc';
 import type { Point } from '../npc/npcBrain';
-import type { DroneRoute } from './droneRoute';
+import type { RoutePath } from './navmesh/route';
 import type { HouseSpec } from './house';
 import { stationRoute } from './stationNavigation';
 
@@ -13,7 +13,7 @@ import { stationRoute } from './stationNavigation';
  * `walkable` already insets rooms by its own radius, passes a smaller one.
  */
 export class StationNpcNavigator {
-  private route: DroneRoute | null = null;
+  private route: RoutePath | null = null;
   private cursor = 0;
   private timer = 0;
   private version = -1;

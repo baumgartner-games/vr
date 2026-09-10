@@ -1,5 +1,5 @@
 import type { HouseSpec } from '../house';
-import type { HauntState, DroneState } from '../net';
+import type { HauntState } from '../net';
 import type { MapEntity, MapItem, MapLight, MapRound, MapSnapshot } from './mapSnapshot';
 
 /**
@@ -13,12 +13,11 @@ import type { MapEntity, MapItem, MapLight, MapRound, MapSnapshot } from './mapS
  *
  * Alles hier ist **lesend**. Die Karte schreibt nie in die 3D-Welt zurück;
  * was der Spieler auf ihr tut, geht über die Handler der `MapView` an die
- * Rollenansicht, und die ruft dieselben Aktionen wie bisher (`flip`, `flyTo`).
+ * Rollenansicht, und die ruft dieselben Aktionen wie bisher (`flip`).
  */
 export interface MapSource {
   spec(): HouseSpec;
   state(): HauntState;
-  drone(): DroneState | null;
   /**
    * Die Lampen der Räume, wie sie gebaut wurden: Kennung ist die Raum-Id,
    * Position in Metern. Ob eine an ist, steht in `state().lit` und im Flackern.
@@ -32,7 +31,7 @@ export interface MapSource {
   entities(): readonly MapEntity[];
   /** Fracht, Konsolen, Schränke, Werkzeuge — mit ihrem Zustand. */
   items(): readonly MapItem[];
-  /** Gerichtete Lichter, die nicht an einem Raum hängen: Taschenlampe, Drohne. */
+  /** Gerichtete Lichter, die nicht an einem Raum hängen: die Taschenlampe. */
   carriedLights(): readonly MapLight[];
   /** Der Stand der Rundenregeln (Paket Rundenregeln), wenn die Quelle sie führt. */
   round?(): MapRound;
