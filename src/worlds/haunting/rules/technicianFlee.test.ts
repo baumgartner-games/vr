@@ -1,6 +1,7 @@
 import { DEFAULT_TUNING } from '../botTuning';
 import { FlatRound } from '../map/flatRound';
-import { TechnicianBot } from './technicianBot';
+import { COMMAND } from '../roomGraph';
+import { TechnicianBot, doorToll } from './technicianBot';
 import { SUIT_LIVES } from './roundRules';
 
 /**
@@ -11,6 +12,11 @@ import { SUIT_LIVES } from './roundRules';
  * sich in einer Ecke ein, in der er dann stehen bleibt und erstickt. Was hier
  * geprüft wird, ist der Preis: dass es ihn gibt, dass er verblasst, wenn
  * lange nichts war, und dass er steigt, je weniger Leben der Anzug noch hat.
+ *
+ * **Dieselbe Rechnung gilt für eine gesperrte Tür im Fluchtweg.** Sie ist
+ * kein Verbot, sondern ein Aufschlag (`doorToll`), der mit der Nähe des
+ * Monsters wächst — und wenn ringsum alles zu ist, zieht er eben den Riegel
+ * auf, statt davor stehen zu bleiben und zu warten.
  */
 
 const DT = 1 / 30;
@@ -95,5 +101,43 @@ describe('Die Scheu des Technikers', () => {
     expect(gap).toBeGreaterThan(start + 2);
     expect(closest).toBeGreaterThan(2);
     expect(bot.stage === 'flee' || bot.stage === 'hide' || bot.stage === 'mission').toBe(true);
+  });
+
+  it('macht den Weg durch eine gesperrte Tür teurer, je näher das Monster steht', () => {
+    const caution = DEFAULT_TUNING.technician.caution;
+    const far = doorToll(caution * 2, caution);
+    const half = doorToll(caution / 2, caution);
+    const neck = doorToll(0, caution);
+    expect(far).toBeGreaterThan(0);
+    expect(half).toBeGreaterThan(far);
+    expect(neck).toBeGreaterThan(half);
+    // Ein Preis, keine Wand: Auch im Nacken bleibt der Aufschlag endlich und
+    // klein gegen die Station — sonst stünde er wieder in der Ecke.
+    expect(neck).toBeLessThan(30);
+  });
+
+  it('zieht auf der Flucht den Riegel auf, statt vor der Tür stehen zu bleiben', () => {
+    const round = new FlatRound(4, { roll: 4 });
+    const bot = new TechnicianBot(round, DEFAULT_TUNING.technician, () => 0.5);
+    // Mitten in einen Raum mit vier Türen, das Monster daneben — und alle
+    // vier zu: Wohin er auch flieht, es liegt ein Riegel dazwischen.
+    const room = 'r0';
+    const centre = round.graph.centre(room);
+    Object.assign(round.player, { x: centre.x, z: centre.z, space: room });
+    Object.assign(round.monster, { x: centre.x + NEAR, z: centre.z, space: room });
+    const doors = round.house.doors.filter((d) => d.a === room || (d.b ?? COMMAND) === room);
+    expect(doors.length).toBeGreaterThan(1);
+    round.state().shut = doors.map((door) => door.id);
+
+    const monster = { x: round.monster.x, z: round.monster.z, space: room };
+    for (let i = 0; i < 900 && bot.unlocks === 0; i++) {
+      bot.step(DT);
+      // Das Monster bleibt, wo es ist: Der Bot ist am Zug, nicht die Jagd.
+      Object.assign(round.monster, monster);
+    }
+    // Er ist zur Tür gelaufen und hat sie aufgezogen — genau eine, nicht alle.
+    expect(bot.unlocks).toBe(1);
+    expect(round.state().shut).toHaveLength(doors.length - 1);
+    expect(Math.hypot(round.player.x - centre.x, round.player.z - centre.z)).toBeGreaterThan(2);
   });
 });

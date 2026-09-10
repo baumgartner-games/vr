@@ -224,18 +224,40 @@ export class FlatNavigator {
     goalSpace: string,
     shut: readonly string[],
   ): HouseDoor | null {
-    let here = this.rooms.spaceAt(at);
-    if (!here || !goalSpace) return null;
-    for (let hops = 0; here !== goalSpace && hops < this.rooms.spaces.length; hops++) {
-      const next = this.rooms.next(here, goalSpace);
-      if (next === here) return null;
-      const door = this.spec.doors.find((d) => connects(d, here, next));
-      if (!door) return null;
-      if (shut.includes(door.id)) return door;
-      here = next;
-    }
-    return null;
+    return (
+      lockedDoorsBetween(this.spec, this.rooms, this.rooms.spaceAt(at), goalSpace, shut)[0] ?? null
+    );
   }
+}
+
+/**
+ * **Die gesperrten Türen auf dem Raumweg** von `from` nach `to`, in der
+ * Reihenfolge, in der man sie trifft; leer, wenn keine im Weg steht.
+ *
+ * Der Navigator nimmt die erste davon als Wartepunkt. Der Techniker der
+ * Bot-Runde rechnet damit den **Preis** eines Fluchtwegs: Eine gesperrte Tür
+ * ist für ihn keine Wand, sondern ein Riegel, an dem er ziehen muss, während
+ * das Monster näher kommt (`rules/technicianBot.ts`).
+ */
+export function lockedDoorsBetween(
+  spec: HouseSpec,
+  rooms: StationGraph,
+  from: string,
+  to: string,
+  shut: readonly string[],
+): HouseDoor[] {
+  const out: HouseDoor[] = [];
+  if (!from || !to) return out;
+  let here = from;
+  for (let hops = 0; here !== to && hops < rooms.spaces.length; hops++) {
+    const next = rooms.next(here, to);
+    if (next === here) break;
+    const door = spec.doors.find((d) => connects(d, here, next));
+    if (!door) break;
+    if (shut.includes(door.id)) out.push(door);
+    here = next;
+  }
+  return out;
 }
 
 function connects(door: HouseDoor, a: string, b: string): boolean {

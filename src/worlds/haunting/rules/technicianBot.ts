@@ -4,6 +4,7 @@ import type { StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { FlatWalker } from '../map/flatWalk';
 import { FlatRound, type FlatInput } from '../map/flatRound';
+import { lockedDoorsBetween } from '../navmesh';
 import type { RouteAvoid } from '../stationNavigation';
 import { SUIT_LIVES } from './roundRules';
 
@@ -40,6 +41,15 @@ import { SUIT_LIVES } from './roundRules';
  * knapp am Monster vorbei, wenn der Umweg lang ist; mit einem läuft er
  * lieber die halbe Station herum. Das ist dieselbe Rechnung, die ein Mensch
  * macht: Was ein Streifschuss war, ist beim letzten Leben der Tod.
+ *
+ * **Eine gesperrte Tür auf dem Fluchtweg ist auch nur ein Preis.** Auf der
+ * Flucht fällt hinter ihm eine Tür zu (`stepSeal`) und das Monster schlägt
+ * welche zu (`haunt.ts`); wer davor stehen bleibt und wartet, stirbt dort.
+ * Also **zieht er den Riegel auf** — nur kostet der Weg dahinter mehr als
+ * einer durch eine offene Tür (`doorToll`), und zwar umso mehr, je näher das
+ * Monster schon ist: Am Riegel steht er still, und wer hinter ihm herkommt,
+ * holt in dieser Zeit auf. Deckung ohne Tür dazwischen gewinnt damit von
+ * selbst — aber wenn ringsum alles zu ist, geht er trotzdem.
  */
 
 type Job =
@@ -75,6 +85,27 @@ const DREAD_HURT = 2.5;
  * in Sekunden. Danach hat er keinen Grund mehr, einen Umweg zu gehen.
  */
 const DREAD_MEMORY = 6;
+/**
+ * **Was eine gesperrte Tür auf dem Fluchtweg kostet**, in Metern Umweg, wenn
+ * das Monster noch weit ist: Hingehen, ziehen, weiterlaufen — ungefähr ein
+ * Zimmer weit. Keine Wand: Die wäre wieder die Ecke, in der er stehen bleibt.
+ */
+const DOOR_TOLL = 6;
+/**
+ * Und um diesen Faktor teurer, wenn es ihm direkt im Nacken sitzt. Am Riegel
+ * steht er still; was er dort verliert, gewinnt der Verfolger.
+ */
+const DOOR_HURRY = 1.5;
+
+/**
+ * **Der Aufschlag für eine gesperrte Tür auf dem Fluchtweg**, in Metern
+ * Umweg: `DOOR_TOLL`, solange das Monster weiter weg ist als seine Vorsicht
+ * reicht, und bis zu `1 + DOOR_HURRY` mal so viel, je näher es steht.
+ */
+export function doorToll(gap: number, caution: number): number {
+  const hurry = Math.max(0, Math.min(1, 1 - gap / Math.max(1, caution)));
+  return DOOR_TOLL * (1 + DOOR_HURRY * hurry);
+}
 
 export class TechnicianBot {
   private readonly walker: FlatWalker;
@@ -90,6 +121,8 @@ export class TechnicianBot {
   private readonly roll: () => number;
   /** Wie oft er sich in eine Kabine gerettet hat. */
   hides = 0;
+  /** Wie oft er auf der Flucht einen Riegel aufgezogen hat. */
+  unlocks = 0;
   /** Wie oft ihn das Monster wahrgenommen hat — hier: wie oft Gefahr aufkam. */
   alarms = 0;
 
@@ -206,6 +239,7 @@ export class TechnicianBot {
       this.stamina = Math.max(0, this.stamina - dt);
       this.escape ??= this.chooseCover(graph, gap);
       const input = this.toward(this.escape.at, dt, this.stamina > 0);
+      this.unlockAhead();
       if (input) {
         round.step(dt, input);
         return;
@@ -265,6 +299,25 @@ export class TechnicianBot {
     if (!round.puzzle) this.job++;
   }
 
+  /**
+   * **Der Riegel im Fluchtweg.** Endet die Route vor einer gesperrten Tür,
+   * weil es keinen Umweg gibt (`FlatWalker.blocked`), zieht er sie auf,
+   * sobald sie in Reichweite ist — mit demselben Knopf, den ein Mensch dort
+   * drückt. Bezahlt hat er das schon bei der Wahl der Deckung (`doorToll`).
+   *
+   * @returns ob er gerade an einem Riegel gezogen hat.
+   */
+  private unlockAhead(): boolean {
+    const round = this.round;
+    const bolt = this.walker.blocked;
+    if (!bolt || !round.state().shut.includes(bolt.id)) return false;
+    const target = round.target;
+    if (target?.kind !== 'door' || target.id !== bolt.id) return false;
+    round.act('interact');
+    this.unlocks++;
+    return true;
+  }
+
   private solvePuzzle(): void {
     const round = this.round;
     const repair = round.puzzle;
@@ -295,6 +348,10 @@ export class TechnicianBot {
    * Nachbarzimmer ist kein Entkommen, wenn das Monster dieselbe Tür nimmt.
    * Und je weniger Leben er hat, desto mehr zählt der Abstand und desto
    * weniger der Weg dorthin — beim letzten Leben rennt er lieber weit.
+   *
+   * **Gesperrte Türen zählen als Umweg mit** (`doorToll`): Der Raum dahinter
+   * ist nicht verboten, er ist teurer — und je näher das Monster steht, desto
+   * teurer, weil er am Riegel stillsteht, während es aufholt.
    */
   private chooseCover(graph: StationGraph, gap: number): Cover {
     const round = this.round;
@@ -311,10 +368,13 @@ export class TechnicianBot {
     }
     let best: Cover | null = null;
     let score = -Infinity;
+    const shut = round.state().shut;
+    const perBolt = doorToll(gap, this.tuning.caution);
     for (const space of spaces) {
       if (space === round.monster.space) continue;
       const away = graph.distance(space, round.monster.space);
-      const cost = graph.distance(here, space);
+      const bolts = lockedDoorsBetween(round.house, graph, here, space, shut).length;
+      const cost = graph.distance(here, space) + bolts * perBolt;
       const locker = wantsLocker && round.rules.cabinUsable(space) ? graph.locker(space) : null;
       const options: Cover[] = [{ at: graph.centre(space), space, locker: false }];
       if (locker) options.push({ at: locker, space, locker: true });

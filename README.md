@@ -130,6 +130,11 @@ nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
 Karte, und im Modus „Alles sehen" führen Bögen von Klappe zu Klappe mit dem
 Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
 **Interagieren** in eine Klappe und wählt darunter den Zielraum.
+Oben links stehen zwei Zeilen und sonst nichts: **O₂** mit der Restzeit und den
+Anzug-Herzen, darunter **Aufgaben:** mit einem Kreis je Auftrag — voll
+erledigt, halb angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste
+mit den Namen auf, ein zweiter wieder zu; wer mitspielt und welches Monster
+umgeht, steht im Optionsmenü.
 
 **Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
 Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
