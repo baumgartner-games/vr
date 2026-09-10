@@ -251,7 +251,11 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       ...takeAlert(memory),
     });
     modes[decision.mode] += DT;
-    if (decision.strike && hidden) {
+    // Getroffen wird nur, wer in **dieser** Kabine steckt: Das Monster reißt
+    // auch leere Kabinen auf (Verdachts-Angriff), und die Simulation führt
+    // keine Liste der Wracks — der Techniker darf hier wieder hinein, was
+    // ihn etwas besser stellt als im Spiel. Bewusst so gelassen: Balance.
+    if (decision.strike && hidden && decision.cabin === hidden) {
       // Die Kabine geht kaputt: ein Treffer, und danach steht er wieder im
       // Raum — mit dem Vorsprung, den ihm `savour` gewährt.
       hp--;
@@ -262,10 +266,6 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       fleeing = true;
       escape = null;
       stamina = tuning.technician.stamina;
-    }
-    if (decision.mode === 'search' && hidden && decision.cue === 'sniff') {
-      // Ein geöffneter Schrank im richtigen Raum ist das Ende des Versteckens.
-      if (routine.suspect === hidden) caught = hidden;
     }
     move(monster, decision.goal, graph, paceSpeed(base, tuning.monster, decision.pace));
 

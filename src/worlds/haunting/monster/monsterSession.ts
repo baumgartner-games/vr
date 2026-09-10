@@ -14,7 +14,7 @@ import { mountMonsterView } from './monsterView';
  * sich als `driver` in die Runde), der Techniker aus Zahlen
  * (`rules/technicianBot.ts`, spielt die andere Seite mit Stock und Knöpfen)
  * und die Rollenansicht (`monsterView.ts`), gebaut über denselben `RoleHost`
- * wie im Van — nur dass `snapshot()` hier aus der laufenden 2D-Runde kommt
+ * wie in der Einsatzzentrale — nur dass `snapshot()` hier aus der laufenden 2D-Runde kommt
  * und `extra.monster` das Steuer ist.
  */
 export class MonsterSession {

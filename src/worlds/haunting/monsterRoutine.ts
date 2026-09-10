@@ -21,9 +21,10 @@ import type { FloorPoint } from './stationLayout';
  *   ist so unangenehm wie einer, der gerade *nicht* zu hören ist.
  * - **Absuchen** — es hat jemanden verloren und **rät**, in welchen
  *   Nachbarraum er verschwunden ist (`guess`). Dort geht es leise umher,
- *   macht Klack-Geräusche, macht vielleicht den Schutzschrank auf
- *   (`locker`) — oder lässt den Raum stehen und geht gleich weiter, weil der
- *   andere ja weitergelaufen sein könnte (`wander`).
+ *   macht Klack-Geräusche, schnüffelt vielleicht am Schutzschrank (`locker`)
+ *   — und **reißt ihn dann auf, ob jemand drin ist oder nicht** — oder lässt
+ *   den Raum stehen und geht gleich weiter, weil der andere ja
+ *   weitergelaufen sein könnte (`wander`).
  *
  * Und darüber liegt die **Verfolgung**: gesehen heißt hinterher, mit dem
  * Tempo aus `hunt`. Hat es den Spieler in eine Kabine flüchten *sehen*, geht
@@ -31,6 +32,21 @@ import type { FloorPoint } from './stationLayout';
  * gibt, in der ihm klar wird, was gleich passiert), reißt sie auf und bleibt
  * danach kurz stehen (`savour`) — der Vorsprung, ohne den ein Treffer im
  * Schrank gleich der nächste wäre.
+ *
+ * **Zwei Gründe, eine Kabine aufzureißen — und nur diese zwei.** Entweder
+ * hat es den Rückzug gesehen (`caught`, die ganze Kette mit Schrei und
+ * Vorsprung), oder es **vermutet** jemanden darin: Beim Absuchen eines
+ * verdächtigen Raums schnüffelt es am Schrank und reißt ihn danach auf. Ob
+ * wirklich jemand drin steckt, weiß die Routine nicht und soll es nicht
+ * wissen — vorher wurde aus dem Schnüffeln nur dann ein Angriff, wenn der
+ * Spieler wirklich drin war, und das war ein kleiner Betrug: Ein Monster,
+ * das am leeren Schrank weitergeht und am vollen zuschlägt, hat
+ * hineingesehen. Jetzt geht die Kabine in beiden Fällen kaputt (ein Ausweg
+ * weniger, `rules/roundRules.ts`); war sie leer, hat das Monster nur die
+ * halbe Sekunde des Aufreißens verloren — ohne Schrei, ohne Vorsprung, damit
+ * sein Zeitverbrauch gegenüber vorher fast gleich bleibt. Der Aufrufer
+ * erfährt in `cabin`, welche Kabine hin ist, und trifft die Crew nur, wenn
+ * sie genau dort steckt.
  *
  * **Hier steht keine Physik und kein three.js.** Herein gehen Räume,
  * Nachbarn und eine Wahrnehmung, heraus geht ein Ziel, ein Tempo und
@@ -111,6 +127,12 @@ export interface RoutineOutput {
   cue: MonsterCue;
   /** Ob es in diesem Bild die Kabine aufreißt. */
   strike: boolean;
+  /**
+   * Die Kabine, die es dabei aufreißt — die Raum-Id —, sonst `''`. Der
+   * Aufrufer macht sie kaputt und trifft die Crew nur, wenn sie genau darin
+   * steckt (`crew.hidden === cabin`).
+   */
+  cabin: string;
   label: string;
 }
 
@@ -125,6 +147,8 @@ export function paceSpeed(base: number, tuning: MonsterTuning, pace: MonsterPace
 
 const ARRIVED = 1.6;
 const KLACK_INTERVAL = 1.4;
+/** Wie lange das Aufreißen dauert, in Sekunden — in beiden Ketten dieselbe. */
+const BREACH_SECONDS = 0.5;
 /** Wie lange es nach dem zweiten Geräusch horchend stehen bleibt, in Sekunden. */
 export const LURK = 4;
 
@@ -144,6 +168,15 @@ export class MonsterRoutine {
   private trail: { point: FloorPoint; room: string } | null = null;
   private lockerRoom = '';
   private screamed = false;
+  /**
+   * Ob das laufende Aufreißen ein **Verdachts-Angriff** ist: aus dem
+   * Absuchen heraus, ohne Schrei davor und ohne Vorsprung danach. `resume`
+   * ist die Suchzeit, die beim Schnüffeln noch übrig war — danach geht die
+   * Suche genau dort weiter, damit der Angriff die Runde nicht verkürzt.
+   */
+  private suspicion = false;
+  private resume = 0;
+  private torn = false;
 
   constructor(private tuning: MonsterTuning) {}
 
@@ -167,6 +200,7 @@ export class MonsterRoutine {
     this.klack -= dt;
     let cue: MonsterCue = '';
     let strike = false;
+    let cabin = '';
 
     // 1. Ein gesehener Rückzug in eine Kabine schlägt alles andere. Der
     // Ablauf danach — Schrei, Aufreißen, Vorsprung — läuft **von selbst zu
@@ -182,6 +216,7 @@ export class MonsterRoutine {
         0,
       );
       this.screamed = false;
+      this.suspicion = false;
     }
     if (this.mode === 'announce' || this.mode === 'breach') {
       const at = this.goal ?? world.centre(this.goalRoom);
@@ -195,20 +230,39 @@ export class MonsterRoutine {
           cue = 'scream';
         }
         if (this.screamed && this.timer <= 0) {
-          this.enter('breach', at, this.goalRoom, 0.5);
+          this.enter('breach', at, this.goalRoom, BREACH_SECONDS);
           cue = 'breach';
           strike = true;
+          cabin = this.goalRoom;
         }
-        return this.out(cue, strike, near && this.screamed ? 'still' : 'hunt');
+        return this.out(cue, strike, cabin, near && this.screamed ? 'still' : 'hunt');
       }
       if (this.timer <= 0) {
-        this.trail = { point: at, room: this.goalRoom };
-        this.enter('savour', null, '', this.tuning.savour);
+        if (!this.suspicion) {
+          this.trail = { point: at, room: this.goalRoom };
+          this.enter('savour', null, '', this.tuning.savour);
+        } else if (!this.torn) {
+          // Der Verdachts-Angriff: geschnüffelt, gewartet, aufgerissen. Ob
+          // jemand drin war, erfährt die Routine nie — der Aufrufer sieht es
+          // an `cabin` und `crew.hidden`.
+          this.torn = true;
+          cue = 'breach';
+          strike = true;
+          cabin = this.goalRoom;
+        } else {
+          // Kein Vorsprung: Die Suche geht weiter, wo sie stand — nur der
+          // Schrank ist erledigt.
+          const room = this.goalRoom;
+          this.suspicion = false;
+          this.lockerRoom = '';
+          this.enter('search', world.centre(room), room, this.resume);
+          return this.out('', false, '', 'stalk');
+        }
       }
-      return this.out(cue, strike, 'still');
+      return this.out(cue, strike, cabin, 'still');
     }
     if (this.mode === 'savour') {
-      if (this.timer > 0) return this.out('', false, 'still');
+      if (this.timer > 0) return this.out('', false, '', 'still');
       this.enter('hunt', this.trail?.point ?? null, this.trail?.room ?? '', 0);
     }
 
@@ -224,12 +278,12 @@ export class MonsterRoutine {
         if (input.rng() < this.tuning.stakeout) {
           this.enter('stakeout', null, input.here, LURK);
           this.face = { ...input.loud };
-          return this.out('', false, 'still');
+          return this.out('', false, '', 'still');
         }
         this.lockerRoom = input.rng() < this.tuning.locker ? room : '';
         this.enter('search', { ...input.loud }, room, this.tuning.search);
         this.klack = 0;
-        return this.out('', false, 'walk');
+        return this.out('', false, '', 'walk');
       }
       if (this.alert >= 2 && this.lastAlert < 2 && input.facing) {
         this.enter('stakeout', null, input.here, LURK);
@@ -244,24 +298,24 @@ export class MonsterRoutine {
       this.misses = 0;
       this.enter('hunt', { ...input.signal }, this.trail.room, 0);
       // Gesehen oder sicher gehört: rennen. Nur erinnert: gehen.
-      return this.out('', false, input.seen || this.alert >= 3 ? 'hunt' : 'walk');
+      return this.out('', false, '', input.seen || this.alert >= 3 ? 'hunt' : 'walk');
     }
 
     // 3. Spur verloren: raten, in welchen Nachbarraum er verschwunden ist.
     if (this.mode === 'hunt') {
       this.beginSearch(world, input);
-      return this.out('', false, 'stalk');
+      return this.out('', false, '', 'stalk');
     }
 
     // 4. Einen verdächtigen Raum absuchen — leise, mit Klacken.
     if (this.mode === 'search' || this.mode === 'stakeout') {
       const goal = this.goal;
       const there = !goal || distance(input.at, goal) < ARRIVED;
-      if (!there) return this.out('', false, this.mode === 'stakeout' ? 'walk' : 'stalk');
+      if (!there) return this.out('', false, '', this.mode === 'stakeout' ? 'walk' : 'stalk');
       if (this.mode === 'stakeout') {
-        if (this.timer > 0) return this.out('', false, 'still');
+        if (this.timer > 0) return this.out('', false, '', 'still');
         this.beginPatrol(world, input);
-        return this.out('', false, 'walk');
+        return this.out('', false, '', 'walk');
       }
       if (this.timer > 0) {
         if (this.klack <= 0) {
@@ -269,29 +323,37 @@ export class MonsterRoutine {
           cue = 'klack';
         }
         // Der Schrank ist der zweite Blick und nicht der erste: erst durch
-        // den Raum, dann die Tür auf.
+        // den Raum, dann die Tür auf. Angekommen wird geschnüffelt — und
+        // eine halbe Sekunde später aufgerissen, egal ob jemand drin ist.
         if (this.lockerRoom === this.goalRoom && this.timer < this.tuning.search * 0.45) {
           const locker = world.locker(this.goalRoom);
           if (locker) {
             this.goal = locker;
-            if (distance(input.at, locker) < ARRIVED && cue === 'klack') cue = 'sniff';
+            if (distance(input.at, locker) < ARRIVED && cue === 'klack') {
+              cue = 'sniff';
+              this.resume = this.timer;
+              this.suspicion = true;
+              this.torn = false;
+              this.enter('breach', locker, this.goalRoom, BREACH_SECONDS);
+              return this.out(cue, false, '', 'still');
+            }
           }
         }
-        return this.out(cue, false, 'stalk');
+        return this.out(cue, false, '', 'stalk');
       }
       // Fertig. Weitergehen oder aufgeben.
       if (input.rng() < this.tuning.wander) this.stepOn(world, input);
       else this.beginPatrol(world, input);
-      return this.out(cue, false, 'walk');
+      return this.out(cue, false, '', 'walk');
     }
 
     // 5. Patrouille und Seitenwechsel.
     const goal = this.goal;
-    if (goal && distance(input.at, goal) >= ARRIVED) return this.out('', false, 'walk');
+    if (goal && distance(input.at, goal) >= ARRIVED) return this.out('', false, '', 'walk');
     this.misses++;
     if (this.misses >= this.tuning.reposition) this.beginReposition(world, input);
     else this.beginPatrol(world, input);
-    return this.out('', false, 'walk');
+    return this.out('', false, '', 'walk');
   }
 
   /** Der Raum, in den der Verfolgte wohl verschwunden ist. */
@@ -355,7 +417,7 @@ export class MonsterRoutine {
     this.face = null;
   }
 
-  private out(cue: MonsterCue, strike: boolean, pace: MonsterPace): RoutineOutput {
+  private out(cue: MonsterCue, strike: boolean, cabin: string, pace: MonsterPace): RoutineOutput {
     let chosen: MonsterPace = this.goal || pace === 'still' ? pace : 'walk';
     // Aufmerksam heißt langsamer: Wer etwas gehört hat, geht nicht mehr zügig.
     if (this.alert >= 1 && chosen === 'walk') chosen = 'stalk';
@@ -366,6 +428,7 @@ export class MonsterRoutine {
       pace: chosen,
       cue,
       strike,
+      cabin,
       label: MODE_LABELS[this.mode],
     };
   }

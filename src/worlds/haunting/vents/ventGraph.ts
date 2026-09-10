@@ -1,8 +1,9 @@
 import { dirX, dirZ, type Dir } from '../../nav/navTile';
 import { spacesOf, type HouseSpec } from '../house';
-import { DOOR_WIDTH, doorCentre, WALL_T } from '../map/geometry';
+import { DOOR_WIDTH, doorCentre } from '../map/geometry';
 import type { MapItem, MapPoint } from '../map/mapSnapshot';
 import { STATION_VENTS, type VentNetData } from './ventNet.data';
+import { FLAP_INSET, flapApproach, flapWall } from './ventPlacement';
 
 /**
  * **Der Vent-Graph** — Klappen in Metern und wer mit wem verbunden ist.
@@ -30,9 +31,6 @@ export interface VentFlap {
 
 /** Wie nah man an eine Klappe heran muss, in Metern. */
 export const VENT_REACH = 1.5;
-/** Wie weit die Klappe vor der Wand liegt und wie weit der Standplatz davor. */
-const FLAP_INSET = WALL_T / 2 + 0.08;
-const APPROACH_DEPTH = 0.85;
 
 export class VentNet {
   readonly flaps: readonly VentFlap[];
@@ -55,7 +53,9 @@ export class VentNet {
         beyondZ = flap.z + nz;
       const onEdge = beyondX < r.x || beyondX >= r.x + r.w || beyondZ < r.z || beyondZ >= r.z + r.d;
       if (!onEdge) throw new Error(`Vent ${flap.id}: Wand liegt nicht am Rand von ${flap.roomId}`);
-      const wall = doorCentre(flap);
+      // Dieselbe Rechnung wie für das Layout (`ventPlacement.ts`) — Klappe
+      // und freigehaltener Platz davor müssen dieselbe Stelle meinen.
+      const wall = flapWall(flap);
       for (const door of spec.doors) {
         const centre = doorCentre(door);
         if (Math.hypot(centre.x - wall.x, centre.z - wall.z) < DOOR_WIDTH)
@@ -66,7 +66,7 @@ export class VentNet {
         id: flap.id,
         roomId: flap.roomId,
         at: { x: wall.x - nx * FLAP_INSET, z: wall.z - nz * FLAP_INSET },
-        approach: { x: wall.x - nx * APPROACH_DEPTH, z: wall.z - nz * APPROACH_DEPTH },
+        approach: flapApproach(flap),
         dir: flap.dir,
         yaw: Math.atan2(-nx, -nz),
       };

@@ -175,6 +175,20 @@ export class MissionBot {
       }
     } else this.calm += dt;
     if (this.survival === 'hide') {
+      if (!this.host.state.crew.hidden) {
+        // Die Kabine ist aufgerissen worden (`HauntingWorld.breakLocker`
+        // hat `crew.hidden` geleert): Wer jetzt still im Zustand „versteckt"
+        // bliebe, stünde reglos vor dem Monster. Also raus — und weg von der
+        // Stelle, an der es gerade steht: der Kabine selbst.
+        this.survival = 'flee';
+        this.dangerMemory = danger ?? this.escape?.point ?? { ...this.pose };
+        this.escape = null;
+        this.path = null;
+        this.rethink = 0;
+        this.calm = 0;
+        this.host.say('FUNK · Techniker → Zentrale: Die Kabine ist aufgerissen! Fliehe.');
+        return true;
+      }
       if (this.calm < bot.nerve * 0.7) return true;
       this.host.state.crew.hidden = '';
       this.resume();
@@ -198,6 +212,8 @@ export class MissionBot {
       const threat = this.dangerMemory;
       let best = -Infinity;
       for (const locker of this.layout.filter((item) => item.kind === 'locker')) {
+        // Ein Wrack ist kein Versteck (`HauntState.destroyed`).
+        if (this.host.state.destroyed.includes(locker.roomId)) continue;
         const point = locker.approach;
         const distance = Math.hypot(point.x - threat.x, point.z - threat.z);
         if (distance < bot.caution * 0.78) continue;

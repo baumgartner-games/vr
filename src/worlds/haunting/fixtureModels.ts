@@ -492,3 +492,67 @@ function cabinet(safety: boolean): CabinetModel {
     lootMount: new THREE.Vector3(0, safety ? 0.75 : 0.5, -0.025),
   };
 }
+
+export interface WreckModel {
+  root: THREE.Group;
+  size: FixtureSize;
+}
+
+/**
+ * **Die aufgerissene Kabine** — was von einem Schutzschrank bleibt, nachdem
+ * das Monster ihn hatte (`rules/roundRules.ts`).
+ *
+ * Man soll ihr von der Tür aus ansehen, dass sie nichts mehr taugt: Das Blatt
+ * ist heraus — ein Rest hängt schief am oberen Scharnier nach innen, der
+ * untere Teil liegt verbogen auf dem Boden der Kabine —, der rechte Pfosten
+ * ist eingedrückt, an den Wänden sitzen Beulen und Brandflecken, und aus dem
+ * Rahmen glimmt die herausgerissene Elektrik bernsteinfarben. Die Funken
+ * dazu wirft `ShipEffects` in unregelmäßigem Takt (`rules/cabinWreck.ts`).
+ *
+ * Alles bleibt **innerhalb von `LOCKER_SIZE`**, damit das Wrack dieselbe
+ * Kachel belegt wie der heile Schrank: weder Collider noch Wegsuche noch
+ * Bedienpunkt (`stationLayout`) müssen davon wissen. Ein Blatt, das nach
+ * außen in den Raum schwänge, stünde in der Gasse, die `LANE` frei hält.
+ */
+export function buildBrokenLocker(): WreckModel {
+  const size = LOCKER_SIZE;
+  const { width: w, height: h, depth: d } = size;
+  const body = new FixtureBuilder();
+  // Boden, Deckel, Rückwand wie beim heilen Schrank — nur die Rückwand hat
+  // einen Brandfleck und einen Riss aus hellem Blech.
+  body.box([w - 0.02, 0.12, d - 0.02], [0, 0.06, 0], 'dark', 0.025);
+  body.box([w - 0.02, 0.11, d - 0.02], [0, h - 0.055, 0], 'shell', 0.025);
+  body.box([w - 0.13, h - 0.2, 0.065], [0, h / 2, -d / 2 + 0.035], 'dark', 0.015);
+  body.box([0.42, 0.7, 0.012], [0.12, 1.25, -d / 2 + 0.075], 'rubber', 0.01, [0, 0, 0.3]);
+  body.box([0.05, 0.62, 0.014], [-0.18, 1.5, -d / 2 + 0.076], 'metal', 0.004, [0, 0, 0.18]);
+  // Linker Pfosten heil, rechter eingedrückt: unten steht er, oben knickt er
+  // nach innen — und bleibt dabei innerhalb der Breite des Schranks.
+  body.box([0.11, h - 0.17, d - 0.03], [-w / 2 + 0.055, h / 2, 0], 'shell', 0.025);
+  body.box([0.11, 0.95, d - 0.03], [w / 2 - 0.055, 0.56, 0], 'shell', 0.025);
+  body.box([0.11, 0.98, d - 0.05], [w / 2 - 0.15, 1.58, 0], 'shell', 0.025, [0, 0, 0.12]);
+  // Beulen: kleine Platten, die aus den Pfosten nach innen stehen.
+  body.box([0.08, 0.16, 0.2], [-w / 2 + 0.12, 0.95, 0.08], 'metal', 0.01, [0.3, 0, 0.25]);
+  body.box([0.09, 0.14, 0.18], [w / 2 - 0.19, 0.78, -0.1], 'metal', 0.01, [0, 0.4, 0.2]);
+  // Der Sitz ist noch da, die Ablage ist schief.
+  body.box([w - 0.19, 0.045, d - 0.14], [0, 0.21, -0.02], 'metal', 0.012, [0, 0, 0.07]);
+  body.box([0.54, 0.09, 0.46], [0, 0.64, -0.06], 'rubber', 0.025);
+  body.box([0.08, 0.5, 0.3], [0, 0.36, -0.13], 'metal', 0.02);
+  // Das Blatt: ein Rest hängt am oberen Scharnier schief nach innen …
+  body.box([0.52, 0.86, 0.06], [-0.23, 1.62, 0.15], 'shell', 0.025, [-0.42, 0, 0.1]);
+  // … und der untere Teil liegt verbogen auf der Ablage.
+  body.box([0.6, 0.05, 0.4], [0.08, 0.27, -0.04], 'shell', 0.02, [0.1, 0.5, 0]);
+  // Herausgerissene Kabel vom Deckel her.
+  body.cylinder(0.012, 0.42, [0.28, 1.86, 0.22], 'rubber');
+  body.cylinder(0.012, 0.36, [0.36, 1.85, 0.12], 'rubber', 'y');
+  body.box([0.018, 0.3, 0.018], [0.2, 1.7, 0.28], 'rubber', 0.004, [0.4, 0, 0.5]);
+  // Und aus dem Rahmen glimmt, was einmal die Verriegelung war.
+  const rim = d / 2 - 0.05;
+  body.box([0.02, h - 0.45, 0.02], [-(w - 0.23) / 2 + 0.01, h / 2, rim], 'amber', 0.004);
+  body.box([0.02, h - 0.55, 0.02], [(w - 0.23) / 2 - 0.05, h / 2 - 0.08, rim], 'amber', 0.004);
+  body.box([w - 0.3, 0.02, 0.02], [0, h - 0.13, rim], 'amber', 0.004);
+  body.box([0.05, 0.05, 0.03], [0.34, 1.4, rim - 0.02], 'amber', 0.006, [0, 0, 0.6]);
+  body.box([0.04, 0.04, 0.03], [-0.38, 0.9, rim - 0.02], 'amber', 0.006, [0, 0, 0.3]);
+  const root = body.build('broken-locker');
+  root.userData.fixtureSize = size;
+  return { root, size };
+}

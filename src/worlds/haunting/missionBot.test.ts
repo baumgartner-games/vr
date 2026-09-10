@@ -22,6 +22,9 @@ function state(seed: number, rooms: number): HauntState {
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
+    technician: null,
+    ride: 'out',
     crew: freshCrew(stationOptions({ test: true, bright: true, rooms })),
   };
 }
@@ -170,4 +173,94 @@ test('a perceived monster interrupts work, the bot escapes into cover, then comp
   expect(bot.completed).toBe(true);
   expect(game.crew.hidden).toBe('');
   expect(messages.some((m) => m.includes('Setze den Auftrag fort'))).toBe(true);
+});
+
+/** Ein Techniker, der vor einer Gefahr vier Meter neben sich flieht — bis er im Schrank steht. */
+function fleeIntoCover(spec: ReturnType<typeof generateHouse>, game: HauntState): MissionBot {
+  const graph = housePlan(spec).graph;
+  let danger: { x: number; z: number } | null = null;
+  const bot = new MissionBot({
+    spec,
+    state: game,
+    route: (from, target) => stationRoute(spec, graph, from, target),
+    danger: () => danger,
+    visible: () => false,
+    say: () => {},
+  });
+  for (let i = 0; i < 250; i++) bot.update(0.1);
+  danger = { x: bot.pose.x + 4, z: bot.pose.z };
+  bot.update(0.1);
+  for (let i = 0; i < 30; i++) bot.update(0.1);
+  danger = null;
+  for (let i = 0; i < 6 && bot.survival !== 'hide' && bot.navigation.goal; i++) {
+    Object.assign(bot.pose, bot.navigation.goal);
+    bot.update(0.1);
+  }
+  return bot;
+}
+
+describe('Zerstörte Kabinen und der Modelltechniker', () => {
+  it('wählt keine zerstörte Kabine als Versteck', () => {
+    const spec = generateHouse(20260909, 14);
+    // Erst herausfinden, wohin er ohne Wracks flüchtet …
+    const plain = state(spec.seed, 14);
+    const first = fleeIntoCover(spec, plain);
+    expect(first.survival).toBe('hide');
+    const favourite = plain.crew.hidden;
+    expect(favourite).not.toBe('');
+    // … dann genau diese Kabine kaputt machen: Er nimmt eine andere.
+    const game = state(spec.seed, 14);
+    game.destroyed = [favourite];
+    const second = fleeIntoCover(spec, game);
+    expect(second.survival).toBe('hide');
+    expect(game.crew.hidden).not.toBe('');
+    expect(game.crew.hidden).not.toBe(favourite);
+    // Sind alle hin, versteckt er sich gar nicht.
+    const none = state(spec.seed, 14);
+    none.destroyed = spec.rooms.map((room) => room.id);
+    const third = fleeIntoCover(spec, none);
+    expect(third.survival).not.toBe('hide');
+    expect(none.crew.hidden).toBe('');
+  });
+
+  it('merkt, wenn seine Kabine aufgerissen wird, und flieht statt still zu bleiben', () => {
+    const spec = generateHouse(20260909, 14);
+    const game = state(spec.seed, 14);
+    const graph = housePlan(spec).graph;
+    let danger: { x: number; z: number } | null = null;
+    const messages: string[] = [];
+    const bot = new MissionBot({
+      spec,
+      state: game,
+      route: (from, target) => stationRoute(spec, graph, from, target),
+      danger: () => danger,
+      visible: () => false,
+      say: (message) => messages.push(message),
+    });
+    for (let i = 0; i < 250; i++) bot.update(0.1);
+    danger = { x: bot.pose.x + 4, z: bot.pose.z };
+    bot.update(0.1);
+    for (let i = 0; i < 30; i++) bot.update(0.1);
+    danger = null;
+    for (let i = 0; i < 6 && bot.survival !== 'hide'; i++) {
+      Object.assign(bot.pose, bot.navigation.goal);
+      bot.update(0.1);
+    }
+    expect(bot.survival).toBe('hide');
+    const cabin = game.crew.hidden;
+    expect(cabin).not.toBe('');
+    // Das Monster reißt die Kabine auf (`HauntingWorld.breakLocker`): Kabine
+    // hin, `hidden` leer — und das Monster steht genau davor.
+    game.destroyed = [cabin];
+    game.crew.hidden = '';
+    danger = { x: bot.pose.x + 0.8, z: bot.pose.z };
+    const before = { ...bot.pose };
+    bot.update(0.1);
+    expect(bot.survival).toBe('flee');
+    expect(messages.at(-1)).toContain('aufgerissen');
+    for (let i = 0; i < 40; i++) bot.update(0.1);
+    expect(Math.hypot(bot.pose.x - before.x, bot.pose.z - before.z)).toBeGreaterThan(1);
+    // Und zurück in dieselbe Kabine geht er nicht.
+    expect(game.crew.hidden).not.toBe(cabin);
+  });
 });

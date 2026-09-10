@@ -1,8 +1,9 @@
 import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission';
 import { isStation, type Claim, type StationId } from './stations';
+import type { VentPhase } from './vents/ventTravel';
 
 /**
- * **Was zwischen Van und Haus über die Leitung geht** — und wie wenig das ist.
+ * **Was zwischen Einsatzzentrale und Haus über die Leitung geht** — und wie wenig das ist.
  *
  * Weil jeder Client das Haus aus demselben Samen selbst baut, muss weder
  * Geometrie noch Bild fließen: Die Drohnenkamera ist eine Kamera in der
@@ -10,7 +11,7 @@ import { isStation, type Claim, type StationId } from './stations';
  * oben. Übrig bleiben ein paar Dutzend Bytes je Sekunde — Same, Monster,
  * Türen, Licht, Aufgaben.
  *
- * **Vier Sorten Nachricht, und jede hat genau einen Absender:**
+ * **Fünf Sorten Nachricht, und jede hat genau einen Absender:**
  *
  * - `state` — der Gastgeber an alle. Er rechnet das Monster und hält den
  *   Stand; alle anderen lesen. Wer rechnet, entscheidet `pickGameHost`.
@@ -18,6 +19,12 @@ import { isStation, type Claim, type StationId } from './stations';
  * - `drone` — der Pilot über die Drohne. Wer sie fliegt, besitzt sie; das ist
  *   dieselbe Regel wie „wer anfasst, besitzt" bei den Kisten im Portal Labor.
  * - `flip` — der Hacker an den Gastgeber: leg diesen Schalter um.
+ * - `monster` — wer an der Station `monster` sitzt, an den Gastgeber: Stock
+ *   und Knöpfe. Der Gastgeber rechnet weiter das Monster; er führt nur aus,
+ *   was das Telefon will (`monster/netMonsterControl.ts`). Die Knöpfe gehen
+ *   als **Zähler** über die Leitung und nicht als Flanke: Bei zehn Ansagen
+ *   je Sekunde ginge ein einzelnes `true` verloren oder käme doppelt an —
+ *   eine Differenz im Zähler ist genau ein Druck, egal wie oft er ankommt.
  *
  * **Alles, was hereinkommt, ist fremder Text.** Jede Nachricht geht deshalb
  * durch einen Leser, der `null` zurückgibt, statt einem halb gefüllten Objekt
@@ -50,9 +57,58 @@ export interface HauntState {
   fuse: boolean;
   /** Aufgaben, die der VR-Spieler schon aufgesammelt hat. */
   taken: string[];
-  /** Und die, die im Van liegen. */
+  /** Und die, die in der Einsatzzentrale liegen. */
   done: string[];
+  /**
+   * **Die Kabinen, die das Monster aufgerissen hat** — Raum-Ids, in der
+   * Reihenfolge der Zerstörung (`rules/roundRules.ts`).
+   *
+   * Steht im Stand und nicht nur beim Gastgeber, weil jedes Gerät sie
+   * braucht: Die Karte in der Einsatzzentrale zeichnet sie als Wrack, der
+   * Mitspieler im Haus darf sie nicht mehr betreten, und der Zuschauer soll
+   * sehen, dass ein Ausweg weniger übrig ist. Seit `STATION_PROTOCOL` 6.
+   */
+  destroyed: string[];
+  /**
+   * **Wo der Techniker steht, wenn er die 2D-Welt spielt** — in Metern, mit
+   * Blick und ob er gerade geht. `null`, wenn der Techniker im Headset oder
+   * am Desktop spielt: Dann kommt seine Pose wie bisher über das Rig.
+   *
+   * Ein 2D-Spieler hat kein Rig und keine Pose; ohne dieses Feld sähe die
+   * Monster-Station einen Techniker, der nie irgendwo steht. `moving` steht
+   * dabei, weil das Monster ihn sonst nie **hören** könnte — die Ansicht
+   * zeichnet Geräuschringe nur um Wesen, die sich bewegen. Seit
+   * `STATION_PROTOCOL` 7.
+   */
+  technician: { x: number; z: number; yaw: number; moving: boolean } | null;
+  /**
+   * **Wo das Monster in seiner Schachtfahrt steht** (`vents/ventTravel.ts`).
+   * `crew.venting` sagt den anderen Geräten nur, *dass* es verborgen ist;
+   * die Monster-Station braucht die Phase, damit ihr Knopf „Aussteigen"
+   * genau dann erscheint, wenn die Fahrt angekommen ist. Seit
+   * `STATION_PROTOCOL` 7.
+   */
+  ride: VentPhase;
 }
+
+/**
+ * **Was das Telefon an der Station `monster` sagt** — der Stock in [-1, 1],
+ * ob es rennt, zwei Zähler für die Knöpfe und die gewählte Klappen-Zielnummer.
+ */
+export interface MonsterNetInput {
+  x: number;
+  z: number;
+  sprint: boolean;
+  /** Wie oft „Angreifen" seit dem Hinsetzen gedrückt wurde. */
+  attack: number;
+  /** Und „Interagieren". */
+  interact: number;
+  /** Welches Ziel die nächste Fahrt nimmt, wenn eine Klappe mehrere hat. */
+  vent: number;
+}
+
+/** Die fünf Phasen der Fahrt — als Liste, damit der Leser fremden Text prüfen kann. */
+const RIDE_PHASES: readonly VentPhase[] = ['out', 'entering', 'riding', 'arrived', 'exiting'];
 
 export interface DroneState {
   x: number;
@@ -147,6 +203,21 @@ function num(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+/** Ein Stockwert: begrenzt auf [-1, 1]. */
+function unit(value: unknown): number {
+  return Math.max(-1, Math.min(1, num(value)));
+}
+
+/** Ein Zähler: ganzzahlig, nie negativ, und nach oben so begrenzt, dass er ganz bleibt. */
+function count(value: unknown, ceiling = 1e9): number {
+  return Math.min(ceiling, Math.max(0, Math.floor(num(value))));
+}
+
+/** Ein Maß in Metern — die Station ist keine hundert Meter groß. */
+function metres(value: unknown): number {
+  return Math.max(-1000, Math.min(1000, num(value)));
+}
+
 function ids(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   // Nach oben begrenzt: Eine Liste mit hunderttausend Einträgen ist keine
@@ -166,6 +237,8 @@ export function readState(data: unknown): HauntState | null {
     return null;
   const phase = it['phase'];
   const monster = bag(it['monster']);
+  const technician = bag(it['technician']);
+  const ride = it['ride'];
   return {
     seed: it['seed'] >>> 0,
     crew: it['crew'] ? readCrew(it['crew']) : freshCrew(),
@@ -182,6 +255,16 @@ export function readState(data: unknown): HauntState | null {
     fuse: it['fuse'] === true,
     taken: ids(it['taken']),
     done: ids(it['done']),
+    destroyed: ids(it['destroyed']),
+    technician: technician
+      ? {
+          x: metres(technician['x']),
+          z: metres(technician['z']),
+          yaw: num(technician['yaw']),
+          moving: technician['moving'] === true,
+        }
+      : null,
+    ride: RIDE_PHASES.find((one) => one === ride) ?? 'out',
   };
 }
 
@@ -212,6 +295,21 @@ export function readFlip(data: unknown): { id: string; on: boolean } | null {
   return { id: it['id'].slice(0, 40), on: it['on'] === true };
 }
 
+export function readMonsterInput(data: unknown): MonsterNetInput | null {
+  const it = bag(data);
+  if (!it || it['kind'] !== 'monster') return null;
+  return {
+    x: unit(it['x']),
+    z: unit(it['z']),
+    sprint: it['sprint'] === true,
+    attack: count(it['attack']),
+    interact: count(it['interact']),
+    // Mehr Ziele hat keine Klappe (`vents/ventNet.data.ts`); der Gastgeber
+    // schneidet ohnehin auf die Liste zu (`VentTravel.enter`).
+    vent: count(it['vent'], 15),
+  };
+}
+
 // --- Schreiben --------------------------------------------------------------
 
 export function stateMessage(state: HauntState): unknown {
@@ -228,4 +326,8 @@ export function droneMessage(drone: DroneState): unknown {
 
 export function flipMessage(id: string, on: boolean): unknown {
   return { kind: 'flip', id, on };
+}
+
+export function monsterMessage(input: MonsterNetInput): unknown {
+  return { kind: 'monster', ...input };
 }

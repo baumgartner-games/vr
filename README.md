@@ -76,7 +76,10 @@ Plätze; die Schalttafel gehört zur Einsatzkontrolle.
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
 im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
 **In der Zentrale mitspielen** wählen, dann Archiv beziehungsweise
-Einsatzkontrolle besetzen. Für eine eigene Gruppe auf allen Geräten denselben
+Einsatzkontrolle besetzen. Ein weiteres Telefon kann das **Monster** spielen:
+Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
+zwei Knöpfen — auch dann, wenn der Techniker die Station in der 2D-Welt von
+oben spielt. Für eine eigene Gruppe auf allen Geräten denselben
 Link mit `?room=euer-gruppenname#haunting` öffnen; ohne Parameter ist der Raum
 `haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
 Update alle Geräte neu laden, damit sie dieselbe Protokollversion verwenden.
@@ -96,7 +99,7 @@ Cafeteria und Storage sind größer. Gänge verbinden die Module über echte
 Rasterböden. Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
 Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
-Antrieb, Lebenserhaltung und Notsignal müssen repariert werden. Das
+Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. Das
 Archiv ermittelt den Fundort des benötigten Werkzeugs oder Bauteils. Der
 Techniker öffnet den Frachtschrank, nimmt den Gegenstand und entriegelt den
 passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
@@ -118,6 +121,11 @@ Headset. Ein Schutzschrank lässt sich mit dem Code aus dem Archiv öffnen und
 betreten. Ein beleuchteter Knopf im Inneren führt wieder hinaus; am Desktop
 funktioniert auch `E`. Die Bedienung setzt voraus, dass man sich im Raum des
 Schranks befindet; durch eine Nachbarwand lässt er sich nicht benutzen.
+Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
+funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
+Der Sauerstoff reicht zehn Minuten und läuft gleichmäßig ab; keine Reparatur
+füllt ihn auf. Uhr und Anzug-Leben stehen bei allen Mitspielern in der Leiste
+und beim Techniker im Blickfeld.
 
 Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
@@ -203,8 +211,9 @@ Der sichere Test bleibt dabei ohne Schaden.
 erfolglosen Zielen quer über die Karte), *Auflauern* (stehen bleiben und
 warten) und *Absuchen*. Beim Absuchen **rät** es, in welchen angrenzenden Raum
 sein Gegenüber verschwunden ist, geht leise hinein, macht dort Klack-Geräusche,
-öffnet manchmal den Schutzschrank — oder lässt den Raum stehen und geht gleich
-weiter. Hat es jemanden in eine Kabine flüchten **sehen**, geht es hin,
+öffnet manchmal den Schutzschrank und reißt ihn dann auf, weil es dort
+jemanden vermutet — ob jemand drin ist oder nicht — oder lässt den Raum stehen
+und geht gleich weiter. Hat es jemanden in eine Kabine flüchten **sehen**, geht es hin,
 **schreit davor** als Ankündigung, reißt sie mit Rauch und Funken auf und
 bleibt danach kurz stehen, um Vorsprung zu gewähren. Bei einer Verfolgung hört
 man den eigenen Herzschlag, schneller und lauter, je näher es kommt. Ein

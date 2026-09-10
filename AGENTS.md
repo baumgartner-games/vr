@@ -7578,7 +7578,7 @@ am Südrand hinter einem eigenen Andockkorridor. Die Schleuse
 (`commandDoorTile`) geht mitten in die Kantinenwand, der Rest derselben Wand
 ist Glas (`commandWindows`), und `spec.entryRoom` ist damit ein echter
 Missionsraum statt eines Ganges. `APRON_INNER` ist die Reihe an der
-Fensterfront (Van, Terminal, Rückkehrpunkt), `APRON_OUTER` die Reihe mit den
+Fensterfront (Tisch der Einsatzzentrale, Terminal, Rückkehrpunkt), `APRON_OUTER` die Reihe mit den
 Hüllenfenstern (Drohnenring, Abendlicht, Aufzug `COMMAND_LIFT`). Wer eine
 Position auf dem Vorplatz braucht, rechnet sie aus diesen beiden Konstanten
 und nicht aus `APRON.z` plus einer geratenen Zahl.
@@ -7650,11 +7650,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   in engen Ecken schrumpft der Kurvenradius, nötigenfalls bleibt die Ecke.
   `stepAlong` verbraucht die ganze Framezeit über mehrere Wegpunkte, mit
   Beschleunigung und Abbremsen. Navigation wird bei Sperränderungen ungültig.
+  **Eine Navigation für beide Welten**: Auch das Monster und der Techniker der
+  2D-Welt laufen auf demselben Rasterweg (`navmesh/flatNavigator.ts` über
+  `stationRoute` auf dem `housePlan`-Graphen mit denselben Sperren), nicht mehr
+  Raum für Raum über Türwegpunkte. Der 2D-Adapter plant sparsam neu (Ziel
+  weiter als 0,75 m gewandert, von der Route abgekommen, Sperre geändert), wartet
+  vor einer gesperrten Tür ohne Umweg 0,9 m davor und splittert Holz nach
+  2,5 s; die Fächerindizierung der Wandquader in `segmentClear` hat dabei jeden
+  Weg von ≈ 88 auf ≈ 14 ms gebracht — für 3D-Monster, Bot und Drohne genauso.
 - Drohnen-Netzpositionen werden interpoliert statt je Paket gesetzt.
   Sanfte Neigung und begrenztes Schweben bleiben unter dem Türsturz.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
   `movePlayerTo`. `haunt.sealsOff` schützt Erreichbarkeit aller `spacesOf`.
-  Schächte verbinden ausschließlich echte gemeinsame Wände, auch zu Gängen.
+  **Schächte sind das Lüftungsnetz** (`vents/ventNet.data.ts`: vierzehn
+  Klappen, eine je Raum, neun Verbindungen in getrennten Netzen; `VentNet`,
+  `VentTravel`, `VentPilot`). In 3D fährt das Monster damit wie in 2D
+  (`vents/npcVentRide.ts`): einsteigen, fahren (verborgen, `crew.venting > 0`),
+  aussteigen — kein Teleport über Wandpaare mehr, `ventPairs` gibt es nicht
+  mehr. Die Klappen (`vents/ventArt.ts`) kippen ihre Lamellen, solange jemand
+  ein- oder aussteigt. Wer das Netz ändert, ändert die Datendatei.
   `ShipExperience.inLockerRoom` prüft Raumzugehörigkeit vor Codeeingabe,
   Eintritt und Nahbereichsauswahl: kein Schutzschrankzugriff durch Nachbarwände.
   Übungsschränke setzen den passenden Trainingsraum und aktiven Test voraus.
@@ -7666,6 +7680,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `lost`, drei Reparaturen und Rückkehr `won`. Test, Schutzschrank und
   Schachtpassage verhindern Treffer; Medkit heilt einen. Sichtbare Ergebnis-
   Panels bieten Neustart im DOM und im Headset, auch per Zeiger-Trigger.
+  **Die Runde hat eine Uhr** (`rules/roundRules.ts`): der Sauerstoff, zehn
+  Minuten, läuft gleichmäßig durch und wird von keiner Reparatur angehalten
+  oder aufgefüllt — deshalb heißt der Auftrag `oxygen` „Nahrungsversorgung
+  sichern" und nicht mehr „Lebenserhaltung". Uhr und Anzug-Leben sehen alle:
+  die Telefone in der Leiste über jeder Station (`stationUi.writeQuest`, rot
+  unter einer Minute), der Techniker am Desktop im Titel und in der Brille
+  auf einem schmalen Streifen an der Kamera (`ShipExperience`, `rules/roundHud.ts`).
+  **Kabinen gehen kaputt** (`HauntState.destroyed`, Kennung = Raum-Id, geht
+  über das Netz): Eine aufgerissene Kabine wird in 3D zum Wrack
+  (`fixtureModels.buildBrokenLocker`), funkt alle drei bis sechs Sekunden
+  (`rules/cabinWreck.ts`), lässt niemanden mehr hinein und wird vom
+  Modelltechniker gemieden.
 - Das vorhandene `FlashlightTool` ist Startausrüstung am rechten Gürtel.
   Webhände verwenden dieselbe Toolklasse. Die schwebende Ersatzlampe ist
   im Web anvisierbar; Aufnehmen entfernt ihren echten Physikkörper.
@@ -7740,6 +7766,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`stakeout`). Ein Rückzug in einen Schrank löst Schrei und Aufreißen nur aus,
   wenn er **gesehen** wurde (`HauntingWorld.watchedLocker`); die Kette danach
   läuft von selbst zu Ende, auch wenn die Meldung längst zurückgenommen ist.
+  **Das Monster reißt Kabinen nur auf, in denen es jemanden vermutet**: beim
+  Schnüffeln am Schrank eines verdächtigen Raums reißt es ihn auf — ob jemand
+  drin ist oder nicht (`RoutineOutput.cabin`; ohne Schrei und ohne Vorsprung,
+  die bleiben dem gesehenen Rückzug). Ein leerer Schrank ist danach trotzdem
+  ein Versteck weniger. Kein Wissen darüber, ob der Schrank besetzt ist.
 - **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
   `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
   ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
@@ -7791,10 +7822,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   in 3D: **Bot-Runde** (Techniker aus Zahlen, `rules/technicianBot.ts`,
   Karte folgt ihm, Modus „Alles sehen"), **Mission** (mit Monster) oder
   **Test** (ohne) — `HauntingWorld.startRound` entscheidet anhand der
-  Einstellung, ob `FlatMode` oder das Schiff. Eine 2D-Runde ist lokal und
-  sperrt keinen Techniker im Schiff; deshalb bleibt die 2D-Bot-Runde auch
-  dann wählbar, wenn im Raum schon jemand spielt.
-- Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer.
+  Einstellung, ob `FlatMode` oder das Schiff. Die 2D-**Bot-Runde** ist lokal
+  und sperrt keinen Techniker im Schiff; deshalb bleibt sie auch dann wählbar,
+  wenn im Raum schon jemand spielt. 2D-**Mission** und 2D-**Test** sind
+  dagegen die gemeinsame Runde übers Netz (siehe unten) — wer sie spielt, ist
+  der Techniker, und ein zweiter Techniker im Raum sperrt sie.
+- Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer
+  — und **Monster** (`stations.ts`, `monster/`): ein Telefon spielt das
+  Monster, egal ob der Techniker in 3D oder in der 2D-Welt spielt. Die Ansicht
+  ist `monster/monsterView.ts` (Karte aus Monstersicht, Stock, zwei Knöpfe);
+  das Telefon schickt `{kind:'monster'}` (Stock, Zähler für Angreifen und
+  Interagieren, Klappenziel) im Drohnentakt an den Gastgeber
+  (`monster/netMonsterPort.ts`), der sie über `monster/netMonsterControl.ts`
+  als `MonsterDriver` in derselben `decide`-Form wie die Routine ausführt —
+  in 3D über `HauntingWorld.monsterDriver` (der NPC läuft dann geradeaus auf
+  das Ziel, kein Rasterweg je Bild), in 2D als `FlatRound.driver`. Zähler
+  statt Tastenzustände, damit bei 10 Hz kein Druck verloren geht oder doppelt
+  wirkt; das erste Paket ist nur Abgleich, ausstehende Schläge ≤ 3; ohne
+  Nachricht seit 3 s übernimmt die KI. Die gemeinsame Übersetzung von Stock
+  und Knöpfen liegt in `monster/monsterHelm.ts`.
   Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
 - Archiv hat **Räume & Codes** und **Aufträge**, nur Raumnamen auswählbar.
   Ein Raum zeigt echte orthografische 3D-Geometrie ohne Decke als 2D-Draufsicht,
@@ -7804,13 +7850,26 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
-- **STATION_PROTOCOL=5**, weil der gleiche Seed nun eine andere Karte erzeugt.
+- **STATION_PROTOCOL=7**: der Stand trägt jetzt die zerstörten Kabinen
+  (`destroyed`, seit 6), die Fahrtphase des Monsters (`ride`) und den
+  2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`.
   Alte Clients werden abgewiesen; nach Update alle Geräte neu laden.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
 - Spielhost: VR-Techniker, sonst ältester Peer. Desktop-Techniker meldet sich
   im Haunt-Channel. `?net=local` ist BroadcastChannel zwischen Tabs; WLAN/
   Internet verwenden öffentliche Signalisierung/STUN, kein garantierter TURN.
+- **Die 2D-Welt ist netzfähig:** Wer dort Mission oder Test spielt
+  (Einstellung „2D-Welt von oben", dann die Kachel oder der Menüeintrag), ist
+  der Techniker der gemeinsamen Runde und wird Gastgeber (Herzschlag wie der
+  Desktop-Techniker; `HauntingWorld.flatShared`). `HauntingWorld.stepFlat` übernimmt je Bild
+  `flat.round.haunt` als Stand (`adopt`, derselbe Pfad wie bei einem fremden
+  Gastgeber, samt Hausneubau bei Seedwechsel), füllt `technician`, `ride` und
+  `venting`, und `tickNet` sendet und empfängt weiter — Schalter der
+  Einsatzkontrolle wirken in der 2D-Runde, das Monster-Telefon steuert sie.
+  Spielt schon ein anderer Techniker im Raum, lehnt `openFlat` ab; beim
+  Verlassen stellt `closeFlat` einen frischen Stand her und sagt ihn an. Die
+  2D-Bot-Runde bleibt lokal.
 
 **Budget und Prüfung**
 

@@ -54,6 +54,27 @@ describe('Die Rundenregeln für sich', () => {
     rules.reset();
     expect(rules.cabinUsable('r1')).toBe(true);
   });
+
+  /**
+   * **Die Liste steht im Stand.** So geht sie mit `stateMessage` über die
+   * Leitung, ohne dass der Gastgeber vor jedem Senden abgleicht — und wer
+   * den Stand des Gastgebers übernimmt (`adopt`), hat sie damit schon.
+   */
+  it('führt die zerstörten Kabinen im Stand, den der Getter liefert — auch nach einem Tausch', () => {
+    let state = { destroyed: [] as string[] };
+    const rules = new RoundRules(() => state);
+    rules.destroyCabin('r2');
+    rules.destroyCabin('r2');
+    expect(state.destroyed).toEqual(['r2']);
+    expect(rules.cabinUsable('r2')).toBe(false);
+    // Übernahme vom Gastgeber: ein neues Objekt, eine andere Liste.
+    state = { destroyed: ['r7', 'r1'] };
+    expect(rules.destroyedCabins()).toEqual(['r7', 'r1']);
+    expect(rules.cabinUsable('r2')).toBe(true);
+    expect(rules.cabinUsable('r7')).toBe(false);
+    rules.reset();
+    expect(state.destroyed).toEqual([]);
+  });
 });
 
 describe('Die Rundenregeln in der 2D-Runde', () => {
@@ -137,5 +158,50 @@ describe('Die Rundenregeln in der 2D-Runde', () => {
     expect(round.rules.cabinUsable(target.roomId)).toBe(false);
     expect(round.snapshot().round!.suit).toBe(SUIT_LIVES - 1);
     expect(round.snapshot().entities.map((e) => e.id)).toEqual([PLAYER_ID, MONSTER_ID]);
+  });
+
+  /**
+   * **Getroffen wird nur, wer in genau dieser Kabine steckt.** Das Monster
+   * reißt auch leere Kabinen auf (`monsterRoutine.ts`, Verdachts-Angriff);
+   * die gehen kaputt, aber der Techniker in einer anderen bleibt heil.
+   */
+  it('macht beim Aufreißen einer fremden Kabine nur die Kabine kaputt, nicht den Anzug', () => {
+    const round = new FlatRound(2, { roll: 2 });
+    round.mode = 'omniscient';
+    const lockers = round.items().filter((i) => i.kind === 'locker');
+    const mine = lockers[0]!;
+    const other = lockers[1]!;
+    expect(round.place(mine.at)).toBe(true);
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    round.act('interact');
+    expect(round.state().crew.hidden).toBe(mine.roomId);
+    // Ein Fahrer, der die Entscheidung der Routine ersetzt (`monster/monsterDriver.ts`).
+    let cabin = other.roomId;
+    round.driver = {
+      active: () => true,
+      decide: () => ({
+        mode: 'breach',
+        goal: null,
+        face: null,
+        pace: 'still',
+        cue: 'breach',
+        strike: true,
+        cabin,
+        label: 'Test',
+      }),
+    };
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.rules.cabinUsable(other.roomId)).toBe(false);
+    expect(round.state().crew.hidden).toBe(mine.roomId);
+    expect(round.state().crew.hp).toBe(SUIT_LIVES);
+    expect(round.state().destroyed).toEqual([other.roomId]);
+    expect(round.drain().some((e) => /Kabine aufgerissen/.test(e.text))).toBe(true);
+    // Die eigene: Kabine hin, ein Leben weniger, Techniker steht im Raum.
+    cabin = mine.roomId;
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.state().crew.hidden).toBe('');
+    expect(round.state().crew.hp).toBe(SUIT_LIVES - 1);
+    expect(round.state().destroyed).toEqual([other.roomId, mine.roomId]);
+    expect(round.snapshot().round!.cabinsDestroyed).toEqual([other.roomId, mine.roomId]);
   });
 });

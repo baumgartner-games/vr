@@ -5772,7 +5772,7 @@ export class PortalWorld implements World {
    * Antwort darf nie eine andere sein als die Wahrheit. Diese Frage hier ist
    * „wonach geht ein Verfolger", und die darf eine Welt beugen: In Haunting
    * zieht ein laufendes Radio das Monster an, und das ist der einzige Hebel,
-   * den der Hacker im Van überhaupt auf es hat.
+   * den der Hacker in der Einsatzzentrale überhaupt auf es hat.
    */
   protected npcTarget(target: THREE.Vector3): THREE.Vector3 | null {
     return this.playerFeet(target);

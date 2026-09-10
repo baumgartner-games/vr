@@ -1,4 +1,4 @@
-import { COMMAND_LIFT, generateHouse, roomCentre, roomOf } from './house';
+import { COMMAND_LIFT, generateHouse, roomCentre } from './house';
 import { housePlan } from './plan';
 import {
   freshCrew,
@@ -12,7 +12,6 @@ import {
   stationOptions,
   stepVitals,
   takeCrewHit,
-  ventPairs,
 } from './mission';
 import { readState, stateMessage, type HauntState } from './net';
 import { DIRS, tileKey } from '../nav/navTile';
@@ -125,19 +124,12 @@ describe('Orbital missions', () => {
     expect(Number.isFinite(c.pulse)).toBe(true);
   });
 
+  // Die Schächte sind seit dem Lüftungsnetz Daten (`vents/ventNet.data.ts`)
+  // und werden in `vents/ventGraph.test.ts` gegen den Grundriss geprüft.
   test.each(ROOM_COUNTS)(
-    'vents only connect physically adjacent rooms on a %i-room station',
+    'the command lift is only open in the rehearsal on a %i-room station',
     (rooms) => {
       const spec = generateHouse(937, rooms);
-      for (const v of ventPairs(spec)) {
-        const a = roomOf(spec, v.a)!.rect;
-        const b = roomOf(spec, v.b)!.rect;
-        expect(v.a).not.toBe(v.b);
-        expect(v.dir === 1 ? a.x + a.w === b.x : a.z + a.d === b.z).toBe(true);
-        expect(v.a).not.toBe('van');
-        expect(v.b).not.toBe('van');
-      }
-      expect(ventPairs(spec).length).toBeGreaterThan(0);
       const plan = housePlan(spec, new Set(), true);
       const lift = tileKey(COMMAND_LIFT.x, COMMAND_LIFT.z);
       expect(plan.graph.wall(lift, DIRS[3]!)?.open).toBe(true);
@@ -165,8 +157,17 @@ describe('Orbital missions', () => {
       fuse: false,
       taken: ['t0'],
       done: [],
+      destroyed: ['r2', 'r5'],
+      technician: null,
+      ride: 'out',
     };
     const roundTrip = readState(stateMessage(state))!;
+    // Die zerstörten Kabinen gehen mit — und ein Client der Version 5 wird abgewiesen.
+    expect(roundTrip.destroyed).toEqual(['r2', 'r5']);
+    expect(readState({ ...state, kind: 'state', version: 5 })).toBeNull();
+    expect(
+      readState({ ...(stateMessage(state) as object), destroyed: [3, 'r1'] })!.destroyed,
+    ).toEqual(['r1']);
     expect(roundTrip.crew.hp).toBe(2);
     expect(roundTrip.crew.inventory).toEqual(c.inventory);
     expect(roundTrip.crew.puzzles.engine!.links).toEqual([2, 3]);

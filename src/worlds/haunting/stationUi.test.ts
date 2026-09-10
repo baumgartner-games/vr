@@ -5,9 +5,12 @@ import { generateHouse } from './house';
 import { freshCrew, lockerCode, repairsFor } from './mission';
 import type { HauntState } from './net';
 import type { StationId } from './stations';
+import { emptySnapshot, type MapRound } from './map/mapSnapshot';
+import type { MonsterPort } from './monster/monsterDriver';
 
 jest.mock('./haunting.css', () => ({}));
 jest.mock('./stationDashboard.css', () => ({}));
+jest.mock('./monster/monster.css', () => ({}));
 
 const views: StationUi[] = [];
 let canvas: CanvasRenderingContext2D;
@@ -68,7 +71,12 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function crew(station: StationId = 'archive', remoteTechnician = true, flat?: boolean) {
+function crew(
+  station: StationId = 'archive',
+  remoteTechnician = true,
+  monster?: MonsterPort,
+  flat?: boolean,
+) {
   let spec = generateHouse(947, 10);
   // Die Checkbox „2D-Welt von oben" gibt es nur, wenn die Welt sie anbietet
   // (`flat` gesetzt); `undefined` ist der Van ohne sie, wie in den alten Tests.
@@ -88,8 +96,12 @@ function crew(station: StationId = 'archive', remoteTechnician = true, flat?: bo
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
+    technician: null,
+    ride: 'out',
   };
   let seat: StationId | null = null;
+  let round: MapRound | null = null;
   const flip = jest.fn();
   const menu = jest.fn();
   const botRound = jest.fn();
@@ -109,6 +121,10 @@ function crew(station: StationId = 'archive', remoteTechnician = true, flat?: bo
     menu,
     botRound,
     restart,
+    round: () => round,
+    snapshot: () => ({ ...emptySnapshot(), seed: spec.seed }),
+    monsterPort: () => monster ?? null,
+    notify: () => {},
     ...(flat === undefined
       ? {}
       : {
@@ -163,6 +179,21 @@ function crew(station: StationId = 'archive', remoteTechnician = true, flat?: bo
     get spec() {
       return spec;
     },
+    /** Der Stand der Rundenregeln, wie `HauntingWorld` ihn liefert — `null` heißt: keine Regeln. */
+    setRound(value: Partial<MapRound> | null) {
+      round = value
+        ? {
+            phase: 'running',
+            oxygen: 600,
+            limit: 600,
+            suit: 3,
+            suitMax: 3,
+            cabinsDestroyed: [],
+            ending: '',
+            ...value,
+          }
+        : null;
+    },
     nextRound() {
       spec = generateHouse(spec.seed + 1, 10);
       state.seed = spec.seed;
@@ -177,6 +208,35 @@ function button(selector: string): HTMLButtonElement {
   return hit!;
 }
 
+/** Ein Port, der mitschreibt — die Ansicht der Monster-Station hängt an ihm. */
+function fakePort(): MonsterPort & { calls: string[]; held: boolean } {
+  const port = {
+    calls: [] as string[],
+    held: false,
+    claim() {
+      port.calls.push('claim');
+      port.held = true;
+      return true;
+    },
+    release() {
+      port.calls.push('release');
+      port.held = false;
+    },
+    claimed: () => port.held,
+    input() {
+      port.calls.push('input');
+    },
+    act(action: 'attack' | 'interact') {
+      port.calls.push(action);
+      return '';
+    },
+    ventTargets: () => [],
+    chooseVent() {},
+    status: () => ({ ride: 'out' as const, progress: 1, prompt: '', label: 'Stalker' }),
+  };
+  return port;
+}
+
 function pointer(node: HTMLElement, type: string, id: number, x: number, y: number): void {
   const event = new MouseEvent(type, {
     bubbles: true,
@@ -188,6 +248,66 @@ function pointer(node: HTMLElement, type: string, id: number, x: number, y: numb
   Object.defineProperty(event, 'pointerId', { value: id });
   node.dispatchEvent(event);
 }
+
+describe('Die Station Monster in der Einsatzzentrale', () => {
+  /**
+   * Die fünfte Kachel baut die Rollenansicht aus `monster/` — mit dem Port
+   * der Welt am Steuer. Sie überlebt ein Neuschreiben der Seite (Stock in
+   * der Hand) und gibt das Steuer erst frei, wenn man die Station verlässt.
+   */
+  it('baut die Ansicht aus der Registry, hält sie über Neuschriften und gibt sie beim Verlassen frei', () => {
+    // Die Karte braucht mehr vom Canvas als der Späherschirm: alles erlaubt.
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () =>
+        new Proxy({} as Record<string, unknown>, {
+          get: (target, key: string) => (key in target ? target[key] : () => {}),
+          set: (target, key: string, value) => {
+            target[key] = value;
+            return true;
+          },
+        }) as unknown as CanvasRenderingContext2D,
+    );
+    const port = fakePort();
+    const game = crew('monster', true, port);
+    expect(game.ui.station).toBe('monster');
+    expect(document.querySelector('.haunt')?.getAttribute('data-station')).toBe('monster');
+    const view = document.querySelector<HTMLElement>('.haunt__body .monster');
+    expect(view).not.toBeNull();
+    expect(view?.dataset['control']).toBe('player');
+    // Beim Hinsetzen wird das Steuer genommen und einmal gelesen.
+    expect(port.calls[0]).toBe('claim');
+    expect(port.calls).toContain('input');
+    // Kein Bild der Welt: Die Station ist eine Karte, kein Kamerabild.
+    expect(game.ui.viewport()).toBeNull();
+    // Ein Schalter irgendwo schreibt die Seite neu — dieselbe Ansicht bleibt,
+    // und das Steuer wird nicht noch einmal genommen.
+    game.state.lit.push('r1');
+    game.ui.refresh();
+    expect(document.querySelector('.haunt__body .monster')).toBe(view);
+    expect(port.calls.filter((call) => call === 'claim')).toHaveLength(1);
+    // Der Takt der Welt: Die Ansicht liest den Stock erneut und zeichnet.
+    const reads = port.calls.filter((call) => call === 'input').length;
+    jest.spyOn(performance, 'now').mockReturnValue(performance.now() + 1000);
+    game.ui.refresh();
+    expect(port.calls.filter((call) => call === 'input').length).toBeGreaterThan(reads);
+    // Die Knöpfe gehen an den Port.
+    view?.querySelector<HTMLButtonElement>('.monster__key--attack')?.click();
+    expect(port.calls).toContain('attack');
+    // Zurück in die Übersicht: Das Steuer wird freigegeben.
+    button('[aria-label="Rolle wechseln"]').click();
+    expect(game.ui.station).toBeNull();
+    expect(port.calls.at(-1)).toBe('release');
+    expect(document.querySelector('.monster')).toBeNull();
+  });
+
+  it('zeigt ohne Karte eine Erklärung statt einer Ansicht', () => {
+    const game = crew('monster');
+    (game.ui as unknown as { host: { snapshot?: unknown } }).host.snapshot = undefined;
+    game.state.lit.push('r1');
+    game.ui.refresh();
+    expect(document.querySelector('.haunt__body')?.textContent).toContain('Keine Karte');
+  });
+});
 
 describe('Phone dashboard DOM and Canvas interaction', () => {
   it.each([390, 1440])(
@@ -294,6 +414,75 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(game.restart).toHaveBeenCalledTimes(1);
   });
 
+  it('zeigt jedem Mitspieler Sauerstoff, Anzug-Leben und Kabinen und warnt unter einer Minute', () => {
+    const game = crew('scout');
+    const quest = document.querySelector('.haunt__quest')!;
+    // Ohne Rundenregeln: Systeme und Anzug wie bisher, keine Uhr.
+    expect(quest.textContent).not.toContain('O₂');
+    expect(quest.querySelectorAll('.haunt__pip--suit.is-alive')).toHaveLength(3);
+    expect(document.querySelector('[data-round-line]')).toBeNull();
+
+    game.setRound({ oxygen: 581, suit: 2, cabinsDestroyed: ['r3'] });
+    game.ui.refresh();
+    expect(quest.textContent).toContain('O₂ 9:41');
+    expect(quest.textContent).toContain('1 Kabine zerstört');
+    expect(quest.querySelectorAll('.haunt__pip--suit.is-alive')).toHaveLength(2);
+    expect(quest.querySelectorAll('.haunt__pip--suit')).toHaveLength(3);
+    expect(quest.classList.contains('is-low')).toBe(false);
+    expect(quest.getAttribute('aria-label')).toContain('Sauerstoff 9 Minuten 41 Sekunden');
+    // Die Seite „Radar & Anzug" sagt es noch einmal groß.
+    const line = document.querySelector('[data-round-line]');
+    expect(line?.textContent).toContain('O₂ 9:41');
+    expect(line?.textContent).toContain('1 Kabine zerstört');
+    expect(line?.classList.contains('is-low')).toBe(false);
+
+    // Die Uhr springt, ohne dass die Seite neu geschrieben wird: dieselben
+    // Elemente, neuer Text — ein Daumen auf einem Schalter bleibt darauf.
+    game.setRound({ oxygen: 580, suit: 2, cabinsDestroyed: ['r3'] });
+    game.ui.refresh();
+    expect(document.querySelector('[data-round-line]')).toBe(line);
+    expect(quest.textContent).toContain('O₂ 9:40');
+    expect(line?.textContent).toContain('O₂ 9:40');
+
+    game.setRound({ oxygen: 42 });
+    game.ui.refresh();
+    expect(quest.classList.contains('is-low')).toBe(true);
+    expect(quest.textContent).toContain('O₂ 0:42');
+    expect(quest.textContent).not.toContain('Kabine');
+    expect(quest.getAttribute('aria-label')).toContain('knapp');
+    const low = document.querySelector('[data-round-line]');
+    expect(low?.classList.contains('is-low')).toBe(true);
+    expect(low?.textContent).toContain('Alle Kabinen intakt');
+  });
+
+  it('nennt an der Endkarte, woran die Runde geendet hat', () => {
+    const game = crew('archive');
+    game.state.phase = 'lost';
+    game.setRound({ phase: 'lost', oxygen: 0, suit: 2, ending: 'oxygen' });
+    game.ui.refresh();
+    let box = document.querySelector<HTMLElement>('[role="status"]');
+    expect(box?.dataset['ending']).toBe('oxygen');
+    expect(box?.textContent).toContain('Sauerstoff');
+    expect(box?.textContent).toContain('Runde ist beendet');
+    expect(box?.textContent).not.toContain('Anzug');
+
+    game.state.crew.hp = 0;
+    game.setRound({ phase: 'lost', oxygen: 300, suit: 0, ending: 'suit' });
+    game.ui.refresh();
+    box = document.querySelector<HTMLElement>('[role="status"]');
+    expect(box?.dataset['ending']).toBe('suit');
+    expect(box?.textContent).toContain('Anzug ist zerstört');
+
+    game.state.phase = 'won';
+    game.setRound({ phase: 'won', oxygen: 300, suit: 3, ending: 'escaped' });
+    game.ui.refresh();
+    box = document.querySelector<HTMLElement>('[role="status"]');
+    expect(box?.dataset['ending']).toBe('escaped');
+    expect(box?.textContent).toContain('Mission erfüllt');
+    expect(box?.textContent).toContain('Einsatzzentrale');
+    expect(document.querySelector('[data-round-line]')).toBeNull();
+  });
+
   it('disables bot demos while another technician is playing and explains why', () => {
     const game = crew('archive', true);
     button('[aria-label="Rolle wechseln"]').click();
@@ -305,7 +494,7 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
   });
 
   it('treats "2D-Welt von oben" as a setting: no round starts until a tile below is chosen', () => {
-    const game = crew('archive', false, false);
+    const game = crew('archive', false, undefined, false);
     button('[aria-label="Rolle wechseln"]').click();
     const box = document.querySelector<HTMLInputElement>('[data-flat-mode]')!;
     expect(box.checked).toBe(false);
@@ -330,7 +519,7 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
   });
 
   it('keeps the 2D bot round available while a technician plays in the ship', () => {
-    const game = crew('archive', true, true);
+    const game = crew('archive', true, undefined, true);
     button('[aria-label="Rolle wechseln"]').click();
     const bot = button('[data-bot-round]');
     expect(bot.disabled).toBe(false);
