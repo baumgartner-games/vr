@@ -92,7 +92,6 @@ import {
   stationOptions,
   takeCrewHit,
   stepVitals,
-  ventPairs,
   type StationOptions,
 } from './mission';
 import { Rng, rollSeed } from './rng';
@@ -100,7 +99,11 @@ import { StationUi } from './stationUi';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { RoundRules } from './rules/roundRules';
-import { buildVentFlaps } from './vents/ventArt';
+import { VentFlapArt } from './vents/ventArt';
+import { VentNet } from './vents/ventGraph';
+import { VentTravel, type VentRider } from './vents/ventTravel';
+import { NpcVentRide } from './vents/npcVentRide';
+import type { MonsterDriver } from './monster/monsterDriver';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
 import type { FlatStage } from './map/flatStage';
@@ -344,9 +347,25 @@ export class HauntingWorld extends GridWorld {
   /** Wie das Deck in der Bot-Runde ausgeleuchtet ist (`botLighting.ts`). */
   private botLighting: BotLighting = { ...DEFAULT_LIGHTING };
   private previousFeet: THREE.Vector3 | null = null;
-  private ventClock = 0;
-  private ventExit: THREE.Vector3 | null = null;
-  private readonly ventGoal = new THREE.Vector3();
+  /**
+   * **Das Lüftungsnetz und die Fahrt des Monsters darin** (`vents/`). Beide
+   * von außen lesbar, damit ein Steuer übers Netz `ventRide.enter`, `exit`
+   * und `cancel` rufen kann. Das Netz wird einmal gebaut: Der Grundriss ist
+   * über alle Seeds derselbe (`house.ts`), und `ventGraph.test.ts` prüft die
+   * Daten gegen mehrere davon.
+   */
+  readonly vents: VentNet = new VentNet(this.spec);
+  readonly ventRide: VentTravel = new VentTravel(this.vents);
+  /** Fahrt, Lotse und Körper-Handgriffe des NPC-Monsters — nur solange es eines gibt. */
+  private npcRide: NpcVentRide | null = null;
+  /** Die Klappen in 3D, von denen eine offen stehen kann. */
+  private ventArt: VentFlapArt | null = null;
+  /**
+   * Ein Spieler am Steuer des Monsters (`monster/monsterDriver.ts`); `null`
+   * oder inaktiv heißt: die Routine. Der Port übers Netz kommt später — die
+   * Welt fragt nur, wessen Entscheidung sie ausführt.
+   */
+  monsterDriver: MonsterDriver | null = null;
 
   /** Das Monster, solange es eines gibt — nur beim Gastgeber ein echter NPC. */
   private monster: Npc | null = null;
@@ -639,23 +658,8 @@ export class HauntingWorld extends GridWorld {
       this.state.crew.hp === 0
     )
       return null;
-    if (this.ventExit) return null;
-    if (
-      this.monster &&
-      this.ventClock > (MONSTERS.find((m) => m.id === this.state.crew.options.monster)?.vent ?? 28)
-    ) {
-      const at = this.monster.feet(_feet);
-      const current = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
-      const vent = current && this.monsterVent(current.id);
-      if (vent) {
-        const sign = vent.a === current?.id ? -1 : 1;
-        return target.set(
-          vent.x * TILE + (vent.dir === 1 ? (sign * TILE) / 2 : 0),
-          0,
-          vent.z * TILE + (vent.dir === 2 ? (sign * TILE) / 2 : 0),
-        );
-      }
-    }
+    // Im Schacht wird nicht gelaufen: kein Ziel, der Körper steht (`vents/npcVentRide.ts`).
+    if (this.ventRide.busy) return null;
     const room = this.state.loud[0];
     if (room) {
       const found = roomOf(this.spec, room);
@@ -694,21 +698,38 @@ export class HauntingWorld extends GridWorld {
     // jemand hingesehen hat.
     if (crew.hidden && this.state.time - this.sawPlayerAt < 1.5) this.watchedLocker = crew.hidden;
     if (!crew.hidden) this.watchedLocker = '';
-    const decision = this.routine.step(stationGraph(this.spec), {
-      dt,
-      at: { x: at.x, z: at.z },
-      here: here?.id ?? '',
-      signal: threatTarget(crew),
-      seen: this.monsterSeesPlayer,
-      quarry: quarry?.id ?? null,
-      caught: this.watchedLocker,
-      rng: () => this.routineDice.next(),
-    });
-    this.decision = decision;
+    const piloted = this.monsterDriver?.active() === true;
+    const decision = piloted
+      ? this.monsterDriver!.decide(dt)
+      : this.routine.step(stationGraph(this.spec), {
+          dt,
+          at: { x: at.x, z: at.z },
+          here: here?.id ?? '',
+          signal: threatTarget(crew),
+          seen: this.monsterSeesPlayer,
+          quarry: quarry?.id ?? null,
+          caught: this.watchedLocker,
+          rng: () => this.routineDice.next(),
+        });
+    // Der Lotse biegt das Ziel der Routine auf eine Klappe um, wenn der
+    // Schacht lohnt (`vents/ventPilot.ts`); ein Spieler am Steuer fährt selbst.
+    const rider = this.monsterRider();
+    this.decision =
+      piloted || !this.npcRide || !rider
+        ? decision
+        : this.npcRide.steer(decision, rider, this.state.time, stationGraph(this.spec));
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
     this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace));
     if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
     if (decision.strike) this.breakLocker(decision.goal ?? { x: at.x, z: at.z }, decision.cabin);
+  }
+
+  /** Das Monster als Reiter der Fahrt: Füße, Blick, Raum — `null` ohne Monster. */
+  monsterRider(): VentRider | null {
+    if (!this.monster) return null;
+    const at = this.monster.feet(_feet);
+    const here = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
+    return { x: at.x, z: at.z, yaw: this.monster.model.rotation.y, space: here?.id ?? '' };
   }
 
   /**
@@ -914,7 +935,8 @@ export class HauntingWorld extends GridWorld {
     this.lamps.clear();
     const art = buildShip(this.spec);
     this.stage.add(art);
-    this.stage.add(buildVentFlaps(this.spec));
+    this.ventArt = new VentFlapArt(this.spec, this.vents);
+    this.stage.add(this.ventArt.group);
     this.roomArt.clear();
     for (const group of art.children) {
       const id = group.userData.roomId as string | undefined;
@@ -1882,6 +1904,7 @@ export class HauntingWorld extends GridWorld {
     ctx.rig.getHeadPosition(_head);
     const at = this.monster.feet(_feet);
     if (
+      this.ventRide.busy ||
       !roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)) ||
       Math.hypot(at.x - _head.x, at.z - _head.z) > 1.65 ||
       !this.monsterLineOfSight()
@@ -1951,72 +1974,16 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     if (!this.monster || !this.state.monsterOn || this.state.phase !== 'running') return;
-    this.stepRoutine(dt, _head);
-    this.ventClock += dt;
-    if (this.ventExit) {
-      if (this.state.crew.venting > 0) return;
-      const exit = this.ventExit;
-      this.ventExit = null;
-      const body = this.monster.entry.body;
-      body.setTranslation({ x: exit.x, y: this.monster.skin.height / 2 + 0.06, z: exit.z }, true);
-      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      this.monster.holder.position.set(exit.x, this.monster.skin.height / 2, exit.z);
-      this.physics?.syncColliders();
-      this.ventClock = 0;
-      return;
-    }
-    const interval = MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.vent;
-    if (this.ventClock < interval) return;
-    const at = this.monster.feet(_feet);
-    const room = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
-    const vent = room && this.monsterVent(room.id);
-    if (!vent) {
-      this.ventClock = 0;
-      return;
-    }
-    const sign = vent.a === room?.id ? -1 : 1;
-    this.ventGoal.set(
-      vent.x * TILE + (vent.dir === 1 ? (sign * TILE) / 2 : 0),
-      0,
-      vent.z * TILE + (vent.dir === 2 ? (sign * TILE) / 2 : 0),
-    );
-    if (Math.hypot(at.x - this.ventGoal.x, at.z - this.ventGoal.z) > 1.5) return;
-    this.ventExit = new THREE.Vector3(
-      vent.x * TILE - (vent.dir === 1 ? (sign * TILE) / 2 : 0),
-      0,
-      vent.z * TILE - (vent.dir === 2 ? (sign * TILE) / 2 : 0),
-    );
-    this.state.crew.venting = 2;
-    this.experience?.burst('smoke', new THREE.Vector3(vent.x * TILE, 2.6, vent.z * TILE));
-    if (distance < 12) playSlam();
-  }
-
-  /** During pursuit only take a shared-wall shaft that advances toward the remembered signal. */
-  private monsterVent(room: string) {
-    const target = threatTarget(this.state.crew);
-    const at = this.state.monster;
-    if (!at) return undefined;
-    return ventPairs(this.spec).find((vent) => {
-      if (vent.a !== room && vent.b !== room) return false;
-      const sign = vent.a === room ? -1 : 1;
-      const x = vent.x * TILE,
-        z = vent.z * TILE;
-      const dx = vent.dir === 1 ? (sign * TILE) / 2 : 0;
-      const dz = vent.dir === 2 ? (sign * TILE) / 2 : 0;
-      if (
-        target &&
-        Math.hypot(target.x - x + dx, target.z - z + dz) + 0.5 >=
-          Math.hypot(target.x - x - dx, target.z - z - dz)
-      )
-        return false;
-      const entrance = { x: x + dx, z: z + dz };
-      const exit = { x: x - dx, z: z - dz };
-      const graph = this.travelGraph();
-      const radius = (this.monster?.skin.radius ?? 0.29) + 0.01;
-      const approach = stationRoute(this.spec, graph, { ...at, yaw: 0 }, entrance, radius);
-      const landing = stationRoute(this.spec, graph, { ...exit, yaw: 0 }, exit, radius);
-      return approach.complete && landing.grounded && landing.complete;
-    });
+    // Im Schacht: nichts hören, nicht laufen, nicht treffen — nur fahren
+    // (`vents/npcVentRide.ts`). Ein Spieler am Steuer steigt selbst aus.
+    const rider = this.monsterRider();
+    if (this.ventRide.busy && this.npcRide && rider)
+      this.npcRide.step(dt, rider, this.monsterDriver?.active() !== true);
+    else this.stepRoutine(dt, _head);
+    // Das Signal für alle Leser von `venting`: Modell, Klotz, Bot-Wahrnehmung,
+    // Karte, Treffer — gesetzt nach `stepVitals`, das jedes Bild `dt` abzieht.
+    this.state.crew.venting = this.npcRide?.venting() ?? 0;
+    this.ventArt?.setOpen(this.ventRide.openFlap?.id ?? null);
   }
 
   private clearSight(
@@ -3286,6 +3253,10 @@ export class HauntingWorld extends GridWorld {
         bot: () => this.experience?.botPose ?? null,
         monsterYaw: () => this.monster?.model.rotation.y ?? 0,
         round: () => this.rules.status(this.state),
+        vents: () => {
+          const open = this.ventRide.openFlap;
+          return { flaps: this.vents.items(open ? [open.id] : []), links: this.vents.mapLinks() };
+        },
         peers: () =>
           [...(this.context?.net.peers.values() ?? [])]
             .filter((peer) => peer.world === 'haunting' && peer.role === 'vr' && peer.pose)
@@ -3329,8 +3300,9 @@ export class HauntingWorld extends GridWorld {
     this.decision = null;
     this.watchedLocker = '';
     this.monster = null;
-    this.ventExit = null;
-    this.ventClock = 0;
+    this.npcRide?.reset();
+    this.npcRide = null;
+    this.ventArt?.setOpen(null);
   }
 
   private removeMonster(): void {
@@ -3392,7 +3364,44 @@ export class HauntingWorld extends GridWorld {
       this.monsterArt = buildCreature(this.state.crew.options.monster);
       this.monsterArt.position.y = -this.monster.skin.height / 2;
       this.monster.holder.add(this.monsterArt);
+      this.npcRide = new NpcVentRide(
+        this.vents,
+        this.ventRide,
+        this.ventBody(),
+        kind.id,
+        kind.speed * this.tuning.monster.speed,
+      );
     }
+  }
+
+  /**
+   * **Die drei Handgriffe am Rapier-Körper**, die die Fahrt braucht
+   * (`vents/npcVentRide.ts`). Während der Fahrt bleibt der Körper an der
+   * Einstiegsklappe stehen — unsichtbar, ohne Ziel, Geschwindigkeit null;
+   * ihn unter den Boden zu setzen hieße, ihn fallen zu lassen (`Npc.land`).
+   * Drüben wird er versetzt wie ein Portal es täte (`Npc.warp`): Position,
+   * vorige Position für die Zwischenbilder, und die Collider nachgezogen.
+   */
+  private ventBody() {
+    return {
+      hold: () => this.monster?.entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true),
+      place: (at: { x: number; z: number }) => {
+        const monster = this.monster;
+        if (!monster) return;
+        const body = monster.entry.body;
+        const y = monster.skin.height / 2 + 0.06;
+        body.setTranslation({ x: at.x, y, z: at.z }, true);
+        body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        monster.holder.position.set(at.x, monster.skin.height / 2, at.z);
+        monster.entry.previousPosition.set(at.x, y, at.z);
+        this.physics?.syncColliders();
+      },
+      effect: (flap: { id: string; at: { x: number; z: number } }) => {
+        this.experience?.burst('smoke', new THREE.Vector3(flap.at.x, 0.45, flap.at.z));
+        const head = this.previousFeet;
+        if (head && Math.hypot(head.x - flap.at.x, head.z - flap.at.z) < 12) playSlam();
+      },
+    };
   }
 
   private testMission(): void {

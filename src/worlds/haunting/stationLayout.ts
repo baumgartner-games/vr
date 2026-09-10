@@ -1,6 +1,6 @@
 import { PLAN_DOOR_W, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
-import { roomOf, type HouseRoom, type HouseSpec, type MarkId } from './house';
+import { roomOf, spacesOf, type HouseRoom, type HouseSpec, type MarkId } from './house';
 import {
   CARGO_SIZE,
   CONSOLE_SIZE,
@@ -8,7 +8,9 @@ import {
   LOCKER_SIZE,
   type FixtureSize,
 } from './fixtureDimensions';
-import { repairsFor, ventPairs } from './mission';
+import { repairsFor } from './mission';
+import { STATION_VENTS } from './vents/ventNet.data';
+import { APPROACH_DEPTH, FLAP_WIDTH, flapApproach, flapWall } from './vents/ventPlacement';
 
 export interface FloorPoint {
   readonly x: number;
@@ -130,9 +132,50 @@ export function roomDoorRoutes(spec: HouseSpec, room: HouseRoom): readonly Floor
     }));
 }
 
-/** Exact entry/exit positions used by the creature's ventilation traversal. */
-export function ventApproaches(spec: HouseSpec, roomId: string): readonly FloorPoint[] {
-  return ventPairs(spec)
+/**
+ * **An jeder gemeinsamen Innenwand bleibt ein Streifen frei** — ein Erbe
+ * der alten Wandschächte (`mission.ventPairs`), das das Layout weiter
+ * braucht: Diese Freiräume haben über hundert Seeds mitentschieden, wo
+ * Regale, Tanks und Konsolen stehen, und darauf sind Wege (`stationNavigation`)
+ * und die Gewichte der Bots (`botTraining`, 800 Runden) gemessen. Wer sie
+ * streicht, baut jedes Zimmer um. Die Gitter oben an der Wand gibt es nicht
+ * mehr; die Regel „vor einer gemeinsamen Wand steht nichts" ist geblieben.
+ */
+interface SharedWall {
+  a: string;
+  b: string;
+  x: number;
+  z: number;
+  dir: number;
+}
+const sharedWallsCache = new WeakMap<HouseSpec, SharedWall[]>();
+function sharedWalls(spec: HouseSpec): SharedWall[] {
+  const cached = sharedWallsCache.get(spec);
+  if (cached) return cached;
+  const walls: SharedWall[] = [];
+  const spaces = spacesOf(spec);
+  for (let i = 0; i < spaces.length; i++)
+    for (let j = i + 1; j < spaces.length; j++) {
+      const a = spaces[i]!;
+      const b = spaces[j]!;
+      for (const [one, two] of [
+        [a, b],
+        [b, a],
+      ] as const) {
+        const r = one.rect;
+        const s = two.rect;
+        if (r.x + r.w === s.x && Math.max(r.z, s.z) < Math.min(r.z + r.d, s.z + s.d))
+          walls.push({ a: one.id, b: two.id, x: s.x, z: Math.max(r.z, s.z) + 0.5, dir: 1 });
+        if (r.z + r.d === s.z && Math.max(r.x, s.x) < Math.min(r.x + r.w, s.x + s.w))
+          walls.push({ a: one.id, b: two.id, x: Math.max(r.x, s.x) + 0.5, z: s.z, dir: 2 });
+      }
+    }
+  sharedWallsCache.set(spec, walls);
+  return walls;
+}
+
+function sharedWallLandings(spec: HouseSpec, roomId: string): readonly FloorPoint[] {
+  return sharedWalls(spec)
     .filter((v) => v.a === roomId || v.b === roomId)
     .map((v) => {
       const sign = v.a === roomId ? -1 : 1;
@@ -143,8 +186,8 @@ export function ventApproaches(spec: HouseSpec, roomId: string): readonly FloorP
     });
 }
 
-function ventClearances(spec: HouseSpec, roomId: string): FloorBounds[] {
-  return ventPairs(spec)
+function sharedWallClearances(spec: HouseSpec, roomId: string): FloorBounds[] {
+  return sharedWalls(spec)
     .filter((v) => v.a === roomId || v.b === roomId)
     .map((v) => {
       const sign = v.a === roomId ? -1 : 1,
@@ -162,6 +205,46 @@ function ventClearances(spec: HouseSpec, roomId: string): FloorBounds[] {
             maxX: x + 0.85,
             minZ: Math.min(z, z + sign * 1.8),
             maxZ: Math.max(z, z + sign * 1.8),
+          };
+    });
+}
+
+/**
+ * Die Standplätze vor den Lüftungsklappen des Raums (`vents/ventNet.data.ts`):
+ * Von dort steigt das Monster ein, dort kommt es heraus — die Gasse zur
+ * Raummitte bleibt frei wie die einer Tür. Das Netz ist Daten und hängt
+ * nicht am Seed; deshalb braucht es hier keinen Bauplan.
+ */
+export function ventApproaches(roomId: string): readonly FloorPoint[] {
+  return STATION_VENTS.flaps.filter((flap) => flap.roomId === roomId).map(flapApproach);
+}
+
+/**
+ * Vor einer Klappe steht nichts: so tief wie der Standplatz plus der
+ * Spielerhalbmesser, und je einen halben Meter neben die Klappe. Knapp
+ * gehalten, damit die Regel möglichst wenige Zimmer umbaut (siehe oben).
+ */
+function ventClearances(roomId: string): FloorBounds[] {
+  const depth = APPROACH_DEPTH + STATION_PLAYER_RADIUS + 0.05;
+  const half = FLAP_WIDTH / 2 + 0.1;
+  return STATION_VENTS.flaps
+    .filter((flap) => flap.roomId === roomId)
+    .map((flap) => {
+      const wall = flapWall(flap);
+      const nx = dirX(flap.dir),
+        nz = dirZ(flap.dir);
+      return nx !== 0
+        ? {
+            minX: Math.min(wall.x, wall.x - nx * depth),
+            maxX: Math.max(wall.x, wall.x - nx * depth),
+            minZ: wall.z - half,
+            maxZ: wall.z + half,
+          }
+        : {
+            minX: wall.x - half,
+            maxX: wall.x + half,
+            minZ: Math.min(wall.z, wall.z - nz * depth),
+            maxZ: Math.max(wall.z, wall.z - nz * depth),
           };
     });
 }
@@ -344,10 +427,15 @@ function packRoom(
   const centre = roomMiddle(room),
     clearances = [
       ...doorClearances(spec, room.id),
-      ...ventClearances(spec, room.id),
+      ...sharedWallClearances(spec, room.id),
+      ...ventClearances(room.id),
       ...(spec.passages ? windowClearances(spec, room.id) : []),
     ],
-    routes = [...roomDoorRoutes(spec, room), ...ventApproaches(spec, room.id)];
+    routes = [
+      ...roomDoorRoutes(spec, room),
+      ...sharedWallLandings(spec, room.id),
+      ...ventApproaches(room.id),
+    ];
   const candidates = requests.map((request) => ({
     request,
     positions: wallCandidates(room, request).filter(

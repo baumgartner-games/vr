@@ -2,7 +2,8 @@ import { PLAN_DOOR_W, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { FIXTURE_CATALOG } from './fixtureDimensions';
 import { generateHouse, type HouseRoom } from './house';
-import { repairsFor, ROOM_COUNTS, ventPairs } from './mission';
+import { repairsFor, ROOM_COUNTS } from './mission';
+import { VentNet } from './vents/ventGraph';
 import {
   safeRoomSpawn,
   stationLayout,
@@ -70,7 +71,8 @@ describe('station module placement', () => {
       for (let seed = 1; seed <= 100; seed++) {
         try {
           const spec = generateHouse(seed, count),
-            layout = stationLayout(spec);
+            layout = stationLayout(spec),
+            vents = new VentNet(spec);
           expect(stationLayout(spec)).toBe(layout);
           expect(new Set(layout.map((p) => p.id)).size).toBe(layout.length);
           expect(
@@ -98,13 +100,13 @@ describe('station module placement', () => {
             if (fixture.width !== FIXTURE_CATALOG[room.signature].width)
               throw new Error(`Room ${room.id} signature ${fixture.id} has width ${fixture.width}`);
             checkWalkingLine(spawn, spawn, modules);
-            for (const vent of ventPairs(spec).filter((v) => v.a === room.id || v.b === room.id)) {
-              const sign = vent.a === room.id ? -1 : 1;
-              const exit = {
-                x: vent.x * TILE + (vent.dir === 1 ? (sign * TILE) / 2 : 0),
-                z: vent.z * TILE + (vent.dir === 2 ? (sign * TILE) / 2 : 0),
-              };
-              checkWalkingLine(exit, spawn, modules);
+            // Vor jeder Klappe bleibt der Standplatz frei, und von dort führt
+            // eine Gasse zur Raummitte — sonst käme das Monster nicht heraus.
+            for (const flap of vents.inRoom(room.id)) {
+              checkWalkingLine(flap.approach, spawn, modules);
+              for (const p of modules)
+                if (!(distanceToFootprint(flap.approach, p) >= 0.45))
+                  throw new Error(`${p.id} steht vor der Klappe ${flap.id}`);
             }
             for (const p of modules) {
               checkInside(room, p);
