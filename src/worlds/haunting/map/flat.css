@@ -69,6 +69,10 @@
    schob sich auf einem Telefon die Kopfzeile des Rätsels unter die Leiste der Seite
    (z-index 5), und „Schließen" war nicht mehr zu treffen. Das Rätsel liegt über dem
    Optionsmenü — wer an der Konsole steht, will das Rätsel und kein Menü darüber. */
+/* Eine Zeile im Optionsmenü, die nur Auskunft gibt und kein Knopf ist —
+   „Realitätsnah" für den, der mitspielt, und der Hinweis auf die Sprungknöpfe
+   für den, der zusieht. */
+.flat__note { color: #9aa6c0; font-size: 12px; line-height: 1.45; }
 .flat__panel, .flat__ending { position: absolute; left: 50%; top: calc(var(--flat-top) + 60px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100vh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); max-height: calc(100dvh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); z-index: 3; }
 .flat__sheet { z-index: 4; }
 .flat__fact { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(140, 170, 230, 0.15); font-size: 13px; }

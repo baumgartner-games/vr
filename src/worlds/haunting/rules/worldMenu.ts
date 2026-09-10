@@ -24,11 +24,37 @@
  * Stelle steht, wenn gerade keiner starten kann. Ohne three.js und ohne DOM,
  * damit ein Test das nachrechnet, statt dass es jemand mit der Brille auf
  * herausfindet.
+ *
+ * **Seit der Lobby** (`rules/lobby.ts`) stehen hier nicht mehr drei eigene
+ * Rundenarten, sondern dieselben drei Absichten wie im Van und im
+ * Optionsmenü der 2D-Welt: Spielen · Zuschauen · Trainieren, in derselben
+ * Reihenfolge und mit denselben Worten. Drei Oberflächen, die dieselbe
+ * Entscheidung verschieden nennen, waren der eigentliche Befund.
  */
+import { INTENT_HINTS, INTENT_LABELS, INTENTS, type Intent } from './lobby';
 import type { RoundPhase } from '../net';
 
-/** Die drei Rundenarten, die das Menü anbietet — dieselben wie im Van. */
+/**
+ * **Die drei Rundenarten der Maschine** — was am Ende wirklich losgeht. Sie
+ * sind nicht mehr das, was jemand *wählt*: Gewählt wird die Absicht
+ * (`rules/lobby.ts`, Spielen · Zuschauen · Trainieren), und die Verteilung
+ * rechnet sie in diese drei um (`roundSetup.roundKindOf`). Die Namen bleiben,
+ * weil der Rest der Welt sie kennt (`startedRound`).
+ */
 export type RoundKind = 'bot' | 'mission' | 'test';
+
+/**
+ * Beides geht herein, eine Absicht kommt heraus — so lange, bis die letzten
+ * Aufrufer der alten Namen (`startMission`, `testMission`) umgestellt sind.
+ * Ein zweiter Satz Namen, den nur die Hälfte des Hauses kennt, wäre genau die
+ * Doppelung, gegen die die Lobby gebaut wurde.
+ */
+export function asIntent(what: Intent | RoundKind): Intent {
+  if (what === 'mission') return 'play';
+  if (what === 'test') return 'train';
+  if (what === 'bot') return 'watch';
+  return what;
+}
 
 /** Der Stand, aus dem sich die Start-Einträge ergeben. */
 export interface WorldMenuState {
@@ -42,8 +68,13 @@ export interface WorldMenuState {
   me: string;
   /** Wo die Runde gerade steht. */
   phase: RoundPhase;
-  /** Ob die Checkbox „2D-Welt von oben" angehakt ist. */
+  /** Ob die Ansicht der Lobby auf „2D von oben" steht (`rules/lobby.View`). */
   flatWanted: boolean;
+  /**
+   * Welche der drei Kacheln gerade leuchtet — gerechnet aus der Verteilung
+   * (`lobby.intentOf`), nicht aus einem zweiten Merker daneben.
+   */
+  intent: Intent;
   /** Ob im Raum schon jemand anders den Techniker dieser Runde spielt. */
   occupied: boolean;
 }
@@ -54,10 +85,12 @@ export interface WorldMenuEntry {
   label: string;
   /** Die Zeile unter der Beschriftung. Ist etwas im Weg, steht der Grund darin. */
   sub: string;
-  /** Die Runde, die dieser Eintrag startet — `null`, wenn er es gerade nicht kann. */
-  starts: RoundKind | null;
+  /** Die Absicht, die dieser Eintrag startet — `null`, wenn er es gerade nicht kann. */
+  starts: Intent | null;
   /** Warum nicht, als ganzer Satz; `null`, wenn nichts im Weg ist. */
   blocked: string | null;
+  /** Ob das die Absicht ist, die gerade auf der Tafel steht. */
+  active: boolean;
 }
 
 /** Was ein Start am Rundenstand ändert. */
@@ -107,60 +140,52 @@ export const NOT_TECHNICIAN =
 export const HOST_BUSY =
   'Ein anderer Techniker rechnet diese Runde gerade — eine zweite lässt sich hier nicht starten.';
 export const ROOM_BUSY =
-  'Bot-Test nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.';
+  'Zuschauen aus dem Schiff geht nicht, solange ein anderer Techniker in diesem Raum spielt — nimm die Karte von oben oder den Fernseher in der Zentrale.';
 
 /**
  * **Was einem Start im Weg steht** — als Satz, den man einem Spieler zeigen
  * kann, oder `null`, wenn nichts im Weg ist.
  */
-export function startBlocker(state: WorldMenuState, kind: RoundKind): string | null {
+export function startBlocker(state: WorldMenuState, what: Intent | RoundKind): string | null {
   if (state.role !== 'vr') return NOT_TECHNICIAN;
   if (!mayCompute(state)) return HOST_BUSY;
-  // Die Bot-Runde ist eine Vorführung für einen: Sie setzt den Stand zurück,
-  // und das mitten in der Runde eines anderen wäre ein Spielabbruch mit Ansage.
-  if (kind === 'bot' && state.occupied) return ROOM_BUSY;
+  // Zuschauen ist im Schiff eine Vorführung für einen: Sie setzt den Stand
+  // zurück, und das mitten in der Runde eines anderen wäre ein Spielabbruch
+  // mit Ansage. (In 2D ist es eine eigene Karte und stört niemanden.)
+  if (asIntent(what) === 'watch' && state.occupied) return ROOM_BUSY;
   return null;
 }
 
-/** Die Beschriftung je Art — die Mission sagt dazu, wenn sie eine laufende ablöst. */
-const LABELS: Readonly<Record<RoundKind, string>> = {
-  mission: 'Mission starten',
-  test: 'TEST / ohne Monster',
-  bot: 'Bot-Runde anschauen',
-};
-
-const HINTS: Readonly<Record<RoundKind, string>> = {
-  mission: 'Drei Systeme reparieren und zur Zentrale zurückkehren',
-  test: 'Sicher üben · Ausrüstung und beleuchtetes Testlabor',
-  bot: 'Eine vollständige Reparaturrunde automatisch beobachten',
-};
-
-/** In dieser Reihenfolge: Wer die Brille aufsetzt, will die Mission, nicht die Vorführung. */
-export const ROUND_ORDER: readonly RoundKind[] = ['mission', 'test', 'bot'];
-
 /**
- * **Die Start-Einträge des Brillenmenüs**, in der Reihenfolge, in der sie
- * dastehen — die Mission zuerst, damit sie auf der ersten Seite des Panels
- * landet und niemand für eine Runde erst blättern muss.
+ * **Die drei Start-Einträge des Brillenmenüs** — dieselben drei Absichten, in
+ * derselben Reihenfolge und mit denselben Worten wie die Kacheln im Van
+ * (`rules/lobby.INTENTS`). Genau das war vorher nicht so: Die Brille bot
+ * „Mission starten / TEST / Bot-Runde anschauen" an, der Van „Bot-Runde
+ * ansehen / Runde starten / Mission spielen (2D)", und niemand konnte dem
+ * anderen über den Tisch zurufen, was er drücken soll.
  *
- * Genau **einer** davon startet die Mission; ein Untermenü gibt es hier nicht.
  * Die Einstellungen darunter (Station, Gegner, Verteilung) baut `menu()`
  * weiterhin selbst — sie ändern nichts an der Frage, ob eine Runde losgeht.
  */
 export function startEntries(state: WorldMenuState): WorldMenuEntry[] {
-  return ROUND_ORDER.map((kind) => {
-    const blocked = startBlocker(state, kind);
-    const running = state.phase === 'running';
+  const running = state.phase === 'running';
+  return INTENTS.map((intent) => {
+    const blocked = startBlocker(state, intent);
     const notes: string[] = [];
     if (opensFlat(state)) notes.push('Als 2D-Karte von oben');
     if (running) notes.push('Die laufende Runde endet damit');
-    notes.push(HINTS[kind]);
+    notes.push(INTENT_HINTS[intent]);
     return {
-      id: `haunt:${kind === 'mission' ? 'start' : kind === 'test' ? 'test' : 'bot-round'}`,
-      label: kind === 'mission' && running ? 'Mission neu starten' : LABELS[kind],
+      id: `haunt:${intent}`,
+      // **Ein Wort, überall dasselbe** (`INTENT_LABELS`). Vorher hieß dieselbe
+      // Sache in der Brille „Mission starten", im Van „Runde starten" und im
+      // Optionsmenü „Als Techniker spielen"; dass eine laufende Runde damit
+      // endet, steht in der Zeile darunter und nicht im Namen.
+      label: INTENT_LABELS[intent],
       sub: blocked ?? notes.join(' · '),
-      starts: blocked ? null : kind,
+      starts: blocked ? null : intent,
       blocked,
+      active: state.intent === intent,
     };
   });
 }

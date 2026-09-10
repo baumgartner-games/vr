@@ -146,11 +146,17 @@ export function powersOf(setup: RoundSetup): SoloPowers {
  * Wen der Spieler in der 2D-Welt spielt. Die 2D-Welt ist ein Gerät und ein
  * Mensch: Ein Techniker aus Fleisch gewinnt gegen ein Monster aus Fleisch,
  * weil der Stock nur einem gehören kann.
+ *
+ * Der dritte Fall hieß einmal `bot`, und das war die Sicht der Maschine: Ja,
+ * der Techniker aus Zahlen läuft dann die Runde — aber der Mensch davor
+ * **sieht zu**, und genau das steht jetzt auch dran (`watch`). Der Bot bleibt
+ * innen drin (`rules/technicianBot.ts`), er ist nur keine Rolle mehr, die
+ * jemand wählt.
  */
 export function flatRoleOf(setup: RoundSetup): FlatRole {
   if (setup.technician === 'human') return 'technician';
   if (setup.monster === 'human') return 'monster';
-  return 'bot';
+  return 'watch';
 }
 
 /**

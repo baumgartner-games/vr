@@ -156,7 +156,13 @@ export interface FlatEvent {
   text: string;
 }
 
-export type FlatRole = 'technician' | 'monster' | 'bot';
+/**
+ * Wen der Mensch vor dem Gerät spielt. `watch` hieß einmal `bot` — der
+ * Techniker aus Zahlen läuft dort zwar die Runde, aber gewählt wird nicht
+ * „Bot", sondern „Zuschauen": kein Stock, keine Knöpfe, dafür beide
+ * Sprungknöpfe und die Karte, die allem folgen darf.
+ */
+export type FlatRole = 'technician' | 'monster' | 'watch';
 
 export interface FlatOptions {
   monster?: MonsterKind;
@@ -167,7 +173,7 @@ export interface FlatOptions {
   mode?: VisibilityMode;
   /**
    * Wen der Spieler in der 2D-Welt spielt (nur `FlatMode`; die Runde selbst
-   * ist neutral): den Techniker, das Monster — oder niemanden (`bot`), dann
+   * ist neutral): den Techniker, das Monster — oder niemanden (`watch`), dann
    * spielt der Techniker aus Zahlen (`rules/technicianBot.ts`) und man sieht zu.
    */
   role?: FlatRole;

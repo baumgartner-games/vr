@@ -237,10 +237,18 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     expect(flat.round.haunt.shut).toEqual([]);
     for (let i = 0; i < 40; i++) flat.update(DT);
     expect(flat.scoutNoises).toEqual([]);
-    // Die Tafel im Optionsmenü verteilt die nächste Runde neu.
-    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
-    flat.element.querySelector<HTMLButtonElement>('[data-setup-seat-who="0"]')!.click();
-    flat.element.querySelector<HTMLButtonElement>('[data-restart]')!.click();
+    // **Die Tafel steht jetzt in der Lobby und nicht mehr im Zahnrad**
+    // (`stationUi.vanPage`): Sie schreibt die Verteilung, und die nächste
+    // Runde fängt damit an. Das Optionsmenü zeigt nur noch, was sich *in* der
+    // Runde ändert.
+    flat.restart({
+      setup: {
+        ...setup,
+        seats: setup.seats.map((seat) =>
+          seat.role === 'archive' ? { ...seat, who: 'bot' as const } : seat,
+        ),
+      },
+    });
     expect(flat.soloPowers.archive).toBe(true);
     flat.dispose();
   });

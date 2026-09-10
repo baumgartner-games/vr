@@ -27,6 +27,8 @@ import {
 } from './botTuning';
 import { TrainingRun, TRAINING_DEFAULTS, inBand, type TrainingSide } from './botTraining';
 import { simulationSpeedLabel } from './simulationSpeed';
+import { describeSetup, loadSetup } from './rules/roundSetup';
+import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
 import {
   APRON,
@@ -1370,7 +1372,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         ctx.rig.frozen = hidden || this.savedRigFrozen;
         this.hiddenWas = hidden;
       }
-      this.dom.hidden = ctx.renderer.xr.isPresenting;
+      // **Das Panel und das Weltmenü teilen sich die linke Bildhälfte** — und
+      // lagen deshalb auf 1280×800 übereinander (Befund: y ≈ 460–590). Wer
+      // das Menü aufmacht, will das Menü; das Panel kommt zurück, sobald es
+      // zu ist. Dieselbe Regel wie beim Fadenkreuz eine Zeile weiter.
+      this.dom.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.paintControls();
       this.stepStick();
@@ -1832,8 +1838,24 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       into.append(b);
     };
     if ((!near.room && !crew.simulation) || crew.hp === 0) {
-      button('Mission starten', 'start');
-      button('Test ohne Monster', 'test');
+      // **Dieselben drei Absichten wie im Van und in der Brille**
+      // (`rules/lobby.ts`). Vorher standen hier „Mission starten" und „Test
+      // ohne Monster", daneben in der Brille „TEST / ohne Monster" und im Van
+      // „Test ohne Monster (2D)" — dreimal dasselbe, dreimal anders benannt.
+      // Die Verteilung kommt aus dem Speicher (`loadSetup`), weil sie dort
+      // ohnehin bei jeder Änderung landet: So sagt die Zeile darunter
+      // dasselbe wie die Tafel im Van, ohne einen zweiten Draht dorthin.
+      const setup = loadSetup();
+      const active = intentOf(setup);
+      for (const intent of INTENTS)
+        button(
+          `${intent === active ? '● ' : ''}${INTENT_LABELS[intent]} — ${INTENT_HINTS[intent]}`,
+          `intent:${intent}`,
+        );
+      const line = document.createElement('div');
+      line.className = 'orbital-player__setup';
+      line.textContent = describeSetup(setup);
+      row.append(line);
       button(`Skeld · ${crew.options.rooms} Räume`, 'rooms');
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
@@ -2139,7 +2161,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const [kind, id, a, b] = action.split(':');
     if (kind === 'start') this.host.start();
     else if (kind === 'test') this.host.test();
-    else if (kind === 'stations') this.host.stations?.();
+    // Die drei Kacheln der Lobby, hier als Knöpfe: Spielen ist die Mission,
+    // Trainieren der sichere Test, Zuschauen die Bot-Runde.
+    else if (kind === 'intent') {
+      if (id === 'watch') this.toggleSimulation();
+      else if (id === 'train') this.host.test();
+      else this.host.start();
+    } else if (kind === 'stations') this.host.stations?.();
     else if (kind === 'overview') {
       this.followBot = false;
       if (!this.host.ctx.renderer.xr.isPresenting) {

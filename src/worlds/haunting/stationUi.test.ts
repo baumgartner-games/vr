@@ -9,6 +9,8 @@ import { freshGhosts } from './rules/ghosts';
 import type { StationId } from './stations';
 import { emptySnapshot, type MapRound } from './map/mapSnapshot';
 import type { MonsterPort } from './monster/monsterDriver';
+import type { LobbyChoice } from './rules/lobby';
+import { defaultSetup, type RoundSetup } from './rules/roundSetup';
 
 jest.mock('./haunting.css', () => ({}));
 jest.mock('./stationDashboard.css', () => ({}));
@@ -80,11 +82,15 @@ function crew(
   flat?: boolean,
 ) {
   let spec = generateHouse(947, 10);
-  // Die Checkbox „2D-Welt von oben" gibt es nur, wenn die Welt sie anbietet
-  // (`flat` gesetzt); `undefined` ist der Van ohne sie, wie in den alten Tests.
-  let flatWanted = flat ?? false;
+  // Die Lobby gibt es nur, wenn die Welt sie anbietet (`flat` gesetzt);
+  // `undefined` ist der Van ohne sie, wie in den alten Tests. `flat` sagt,
+  // womit die Ansicht anfängt: `true` heißt „2D von oben".
+  let lobby: LobbyChoice = { intent: 'play', view: flat ? '2d' : '3d' };
+  let setup = defaultSetup();
   const mission = jest.fn();
   const test = jest.fn();
+  const startSetup = jest.fn();
+  const technician = jest.fn();
   const state: HauntState = {
     seed: spec.seed,
     crew: freshCrew(),
@@ -120,7 +126,7 @@ function crew(
     me: () => 'me',
     nameOf: () => 'Mein Gerät',
     link: () => ({ peers: 2, vr: remoteTechnician, room: 'test-crew' }),
-    technician() {},
+    technician,
     menu,
     botRound,
     restart,
@@ -131,11 +137,18 @@ function crew(
     ...(flat === undefined
       ? {}
       : {
-          flatMode() {
-            flatWanted = !flatWanted;
+          flatWanted: () => lobby.view === '2d',
+          lobby: () => lobby,
+          setLobby(choice: LobbyChoice) {
+            lobby = choice;
             ui.refresh();
           },
-          flatWanted: () => flatWanted,
+          setup: () => setup,
+          setSetup(next: RoundSetup) {
+            setup = next;
+            ui.refresh();
+          },
+          startSetup,
           mission,
           test,
         }),
@@ -173,11 +186,20 @@ function crew(
     mission,
     test,
     restart,
+    startSetup,
+    technician,
     archiveHome,
     archiveZoom,
     archivePan,
-    get flatWanted() {
-      return flatWanted;
+    get lobby() {
+      return lobby;
+    },
+    /** An welchem Gerät dieses Telefon wirklich sitzt (`StationHost.sit`). */
+    get seat() {
+      return seat;
+    },
+    get setup() {
+      return setup;
     },
     get spec() {
       return spec;
@@ -278,7 +300,7 @@ describe('Die Station Monster in der Einsatzzentrale', () => {
     );
     const port = fakePort();
     const game = crew('monster', true, port);
-    expect(game.ui.station).toBe('monster');
+    expect(game.seat).toBe('monster');
     expect(document.querySelector('.haunt')?.getAttribute('data-station')).toBe('monster');
     const view = document.querySelector<HTMLElement>('.haunt__body .monster');
     expect(view).not.toBeNull();
@@ -412,11 +434,12 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(game.archiveZoom).toHaveBeenLastCalledWith(1.4);
   });
 
-  it('exposes a bot round on the role screen and a restart action after a lost round', () => {
-    const game = crew('archive', false);
+  it('startet aus der Lobby und bietet nach einer verlorenen Runde den Neustart an', () => {
+    const game = crew('archive', false, undefined, true);
     button('[aria-label="Rolle wechseln"]').click();
-    button('[data-bot-round]').click();
-    expect(game.botRound).toHaveBeenCalledTimes(1);
+    button('[data-intent="watch"]').click();
+    button('[data-start-setup]').click();
+    expect(game.startSetup).toHaveBeenCalledTimes(1);
     game.state.phase = 'lost';
     game.state.crew.hp = 0;
     game.ui.refresh();
@@ -494,48 +517,101 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(document.querySelector('[data-round-line]')).toBeNull();
   });
 
-  it('disables bot demos while another technician is playing and explains why', () => {
-    const game = crew('archive', true);
+  /**
+   * **Die Lobby stellt die Runde ein, sie startet sie nicht.** Genau das war
+   * der Befund: „Bot-Runde ansehen" stand als Kachel über der Verteilung,
+   * obwohl es nur eine Voreinstellung davon war, und die Checkbox „2D-Welt
+   * von oben" deutete die Kacheln darunter um.
+   */
+  it('zeigt die drei Absichten als Kacheln und startet erst mit dem einen Knopf', () => {
+    const game = crew('archive', false, undefined, true);
     button('[aria-label="Rolle wechseln"]').click();
-    const bot = button('[data-bot-round]');
-    expect(bot.disabled).toBe(true);
-    expect(bot.textContent).toContain('Ein Techniker spielt bereits');
-    bot.click();
-    expect(game.botRound).not.toHaveBeenCalled();
+    expect(
+      [...document.querySelectorAll<HTMLElement>('[data-intent]')].map((k) => k.dataset['intent']),
+    ).toEqual(['play', 'watch', 'train']);
+    // Die alten Kacheln und die Checkbox gibt es nicht mehr.
+    for (const gone of ['[data-flat-mode]', '[data-mission]', '[data-test]', '[data-bot-round]'])
+      expect(document.querySelector(gone)).toBeNull();
+
+    // Spielen ist der Anfang, und keine Kachel startet etwas.
+    expect(button('[data-intent="play"]').getAttribute('aria-pressed')).toBe('true');
+    button('[data-intent="train"]').click();
+    expect(game.setup.monster).toBe('off');
+    expect(game.startSetup).not.toHaveBeenCalled();
+    expect(button('[data-intent="train"]').getAttribute('aria-pressed')).toBe('true');
+    expect(button('[data-intent="play"]').getAttribute('aria-pressed')).toBe('false');
+    button('[data-start-setup]').click();
+    expect(game.startSetup).toHaveBeenCalledTimes(1);
   });
 
-  it('treats "2D-Welt von oben" as a setting: no round starts until a tile below is chosen', () => {
-    const game = crew('archive', false, undefined, false);
+  /** Was auf dem Startknopf steht, kommt aus der Verteilung — nicht aus der Kachel. */
+  it('beschriftet den einen Startknopf nach Absicht und Ansicht', () => {
+    const game = crew('archive', false, undefined, true);
     button('[aria-label="Rolle wechseln"]').click();
-    const box = document.querySelector<HTMLInputElement>('[data-flat-mode]')!;
-    expect(box.checked).toBe(false);
-    // Ohne 2D: die alten Kacheln — Bot-Runde und der Techniker am Desktop.
-    expect(document.querySelector('[data-technician]')).not.toBeNull();
-    expect(document.querySelector('[data-mission]')).toBeNull();
-    box.click();
-    expect(game.flatWanted).toBe(true);
-    expect(game.botRound).not.toHaveBeenCalled();
-    expect(game.mission).not.toHaveBeenCalled();
-    expect(game.test).not.toHaveBeenCalled();
-    // Mit 2D: Bot-Runde, Mission und Test als drei Kacheln; der
-    // Desktop-Techniker gehört zur 3D-Welt und ist weg.
-    expect(document.querySelector<HTMLInputElement>('[data-flat-mode]')!.checked).toBe(true);
-    expect(document.querySelector('[data-technician]')).toBeNull();
-    button('[data-mission]').click();
-    expect(game.mission).toHaveBeenCalledTimes(1);
-    button('[data-test]').click();
-    expect(game.test).toHaveBeenCalledTimes(1);
-    button('[data-bot-round]').click();
-    expect(game.botRound).toHaveBeenCalledTimes(1);
+    const label = () => button('[data-start-setup]').querySelector('strong')!.textContent;
+    expect(label()).toBe('Mission starten (2D)');
+    button('[data-view="3d"]').click();
+    expect(game.lobby.view).toBe('3d');
+    expect(label()).toBe('Mission starten (3D)');
+    button('[data-intent="train"]').click();
+    expect(label()).toBe('Training starten (3D)');
+    // Beim Zuschauen verspricht die Ansicht nichts, also steht sie nicht dabei.
+    button('[data-intent="watch"]').click();
+    expect(label()).toBe('Zuschauen');
+    button('[data-view="2d"]').click();
+    expect(label()).toBe('Zuschauen');
   });
 
-  it('keeps the 2D bot round available while a technician plays in the ship', () => {
-    const game = crew('archive', true, undefined, true);
+  /**
+   * **„Ich" gibt es genau einmal, und es setzt einen wirklich hin.** Vorher
+   * führte der Van zwei Listen über dieselben Plätze: Wer sich ans Archiv
+   * setzte, blieb in der Verteilung ein Bot.
+   */
+  it('setzt „Ich" auf genau einen Platz und dieses Gerät an dessen Station', () => {
+    const game = crew('archive', false, undefined, true);
     button('[aria-label="Rolle wechseln"]').click();
-    const bot = button('[data-bot-round]');
-    expect(bot.disabled).toBe(false);
-    bot.click();
-    expect(game.botRound).toHaveBeenCalledTimes(1);
+    const me = (slot: string) => button(`[data-setup-me="${slot}"]`);
+    expect(me('technician').getAttribute('aria-pressed')).toBe('false');
+
+    me('seat:0').click();
+    expect(game.setup.seats[0]!.who).toBe('human');
+    expect(game.seat).toBe('archive');
+    expect(document.querySelectorAll('[data-setup-me][aria-pressed="true"]')).toHaveLength(1);
+
+    // Umsetzen nimmt „Ich" am alten Platz weg — und gibt ihn den Zahlen zurück.
+    me('monster').click();
+    expect(game.setup.seats[0]!.who).toBe('bot');
+    expect(game.setup.monster).toBe('human');
+    expect(game.seat).toBe('monster');
+    expect(document.querySelectorAll('[data-setup-me][aria-pressed="true"]')).toHaveLength(1);
+    expect(me('monster').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('holt den Techniker am Desktop nur, wenn die Ansicht im Schiff steht', () => {
+    const game = crew('archive', false, undefined, true);
+    button('[aria-label="Rolle wechseln"]').click();
+    button('[data-setup-me="technician"]').click();
+    expect(game.setup.technician).toBe('human');
+    // In 2D gibt es keinen Desktop-Techniker: Die Karte ist das Gerät.
+    expect(game.technician).not.toHaveBeenCalled();
+    button('[data-view="3d"]').click();
+    button('[data-setup-me="technician"]').click();
+    expect(game.technician).toHaveBeenCalledTimes(1);
+  });
+
+  it('sperrt den Start im Schiff, solange ein anderer Techniker spielt — in 2D nicht', () => {
+    const game = crew('archive', true, undefined, false);
+    button('[aria-label="Rolle wechseln"]').click();
+    const start = () => button('[data-start-setup]');
+    expect(start().disabled).toBe(true);
+    expect(start().textContent).toContain('Ein Techniker spielt bereits');
+    start().click();
+    expect(game.startSetup).not.toHaveBeenCalled();
+    // **Eine 2D-Runde ist lokal** und stört keinen Techniker im Schiff.
+    button('[data-view="2d"]').click();
+    expect(start().disabled).toBe(false);
+    start().click();
+    expect(game.startSetup).toHaveBeenCalledTimes(1);
   });
 
   it('keeps system switches and radar on separate labelled tabs and sends switch actions once', () => {

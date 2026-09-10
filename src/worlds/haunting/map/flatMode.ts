@@ -24,12 +24,9 @@ import {
   defaultSetup,
   flatRoleOf,
   powersOf,
-  presetFor,
-  saveSetup,
   type RoundSetup,
   type SoloPowers,
 } from '../rules/roundSetup';
-import { SetupPanel } from '../roundSetupPanel';
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
 import { HauntingAudio, levelLabel } from '../audio';
@@ -89,11 +86,16 @@ const EDGE_TOP = 118;
 
 const NO_POWERS: SoloPowers = { scout: false, panel: false, archive: false };
 
-/** Die drei Rollen im Optionsmenü, in der Reihenfolge des Durchschaltens. */
+/**
+ * Wie die eigene Rolle im Optionsmenü heißt. Sie steht dort nur noch **als
+ * Auskunft**: Gewechselt wird sie in der Lobby und nicht mitten in der Runde
+ * über einen Knopf, der dreistufig weiterzählt, ohne zu zeigen, was als
+ * Nächstes kommt.
+ */
 const ROLE_LABELS: Record<FlatRole, string> = {
-  technician: 'Als Techniker spielen',
-  monster: 'Als Monster spielen (Techniker: Bot)',
-  bot: 'Bot-Runde zusehen',
+  technician: 'Du spielst den Techniker',
+  monster: 'Du spielst das Monster',
+  watch: 'Du siehst zu',
 };
 
 /** Ohne Tafel: die Verteilung, die Rolle und Test der alten Optionen meinen. */
@@ -159,7 +161,6 @@ export class FlatMode {
   private setup: RoundSetup;
   private powers: SoloPowers;
   private routes: boolean;
-  private setupPanel: SetupPanel | null = null;
   /** Das letzte Horchbild des Spähers: die Geräusche einer Probe, neu gestempelt. */
   private heard: MapNoise[] = [];
   private scoutClock = 0;
@@ -309,7 +310,7 @@ export class FlatMode {
         this.options_.tuning?.technician,
       );
       this.element.insertBefore(this.session.element, this.hud);
-    } else if (role === 'bot') {
+    } else if (role === 'watch') {
       this.bot = new TechnicianBot(this.round, this.options_.tuning?.technician, () =>
         this.dice.next(),
       );
@@ -326,7 +327,7 @@ export class FlatMode {
 
   /** Wer gerade spielt — für Tests und die Anzeige. */
   get role(): FlatRole {
-    return this.session ? 'monster' : this.bot ? 'bot' : 'technician';
+    return this.session ? 'monster' : this.bot ? 'watch' : 'technician';
   }
 
   /** Der Modus, den die Karte gerade zeigt. */
@@ -861,15 +862,42 @@ export class FlatMode {
     );
   }
 
+  /**
+   * **Das Zahnrad zeigt nur noch, was sich mitten in der Runde ändert.**
+   *
+   * Vorher stand hier alles auf einmal: Ansicht, „Neue Runde", „Mit Monster",
+   * ein Rollenknopf, der dreistufig weiterzählte, und die ganze Verteilung —
+   * eine 1200 Punkte lange Rolle, in der die zwei Schalter untergingen, die
+   * man wirklich noch braucht. Wer die *Runde* anders haben will, geht zurück
+   * in die Lobby; hier bleiben Ansicht, Zielpfade und Ton.
+   *
+   * **Die Ansicht ist keine Wahl für den, der mitspielt.** „Alles sehen" ist
+   * die Sicht des Zuschauers; ein Techniker, der sie anschaltet, sieht das
+   * Monster durch Wände und spielt ein anderes Spiel. Er bekommt sie deshalb
+   * als Zeile und nicht als Knopf.
+   */
   private renderOptions(): void {
-    const parts: HTMLElement[] = [el('strong', '', 'Ansicht')];
-    for (const mode of viewModesFor('flat')) {
-      const key = el('button', 'flat__option');
-      key.dataset['mode'] = mode.id;
-      key.classList.toggle('is-active', mode.id === this.mode.id);
-      key.append(el('strong', '', mode.label), el('small', '', mode.description));
-      parts.push(key);
-    }
+    const watching = this.role === 'watch';
+    const parts: HTMLElement[] = [
+      el('strong', '', ROLE_LABELS[this.role]),
+      el('strong', '', 'Ansicht'),
+    ];
+    if (watching)
+      for (const mode of viewModesFor('flat')) {
+        const key = el('button', 'flat__option');
+        key.dataset['mode'] = mode.id;
+        key.classList.toggle('is-active', mode.id === this.mode.id);
+        key.append(el('strong', '', mode.label), el('small', '', mode.description));
+        parts.push(key);
+      }
+    else
+      parts.push(
+        el(
+          'small',
+          'flat__note',
+          `${this.mode.label} · wer mitspielt, sieht so viel wie sein Anzug hergibt`,
+        ),
+      );
     const routes = el('button', 'flat__option');
     routes.dataset['routes'] = '';
     routes.classList.toggle('is-active', this.routes);
@@ -878,34 +906,20 @@ export class FlatMode {
       el('small', '', 'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot'),
     );
     parts.push(routes);
-    parts.push(el('strong', '', 'Runde'));
-    const restart = el('button', 'flat__option', 'Neue Runde');
-    restart.dataset['restart'] = '';
-    const monster = el('button', 'flat__option');
-    monster.dataset['monster'] = '';
-    monster.append(
-      el('strong', '', this.setup.monster !== 'off' ? 'Mit Monster' : 'Ohne Monster (Test)'),
-      el('small', '', 'Gilt für die nächste Runde'),
-    );
-    const role = el('button', 'flat__option');
-    role.dataset['role'] = '';
-    role.append(
-      el('strong', '', ROLE_LABELS[flatRoleOf(this.setup)]),
-      el('small', '', 'Gilt für die nächste Runde · antippen wechselt'),
-    );
-    parts.push(restart, monster, role);
-    // Die Tafel: Techniker, Monster, Plätze — dieselbe wie im Van.
-    parts.push(el('strong', '', 'Verteilung der nächsten Runde'));
-    this.setupPanel ??= new SetupPanel({
-      setup: () => this.setup,
-      onChange: (setup) => {
-        this.setup = setup;
-        this.renderOptions();
-      },
-      humanMonster: true,
-    });
-    this.setupPanel.render();
-    parts.push(this.setupPanel.element);
+    // **Wessen Sicht?** Techniker und Monster hängen an den zwei Sprungknöpfen
+    // rechts — die sind während der Runde da und brauchen kein Menü. Die
+    // Plätze der Zentrale haben eigene Ansichten (Archiv, Einsatzkontrolle,
+    // Drohne), und dorthin führt die Lobby.
+    if (watching)
+      parts.push(
+        el('strong', '', 'Wessen Sicht?'),
+        el(
+          'small',
+          'flat__note',
+          'Techniker und Monster: die zwei Sprungknöpfe rechts, mitten in der Runde. ' +
+            'Archiv, Schalttafel, Späher und Drohne haben eigene Ansichten — die wählst du in der Lobby.',
+        ),
+      );
     // Ton: zwei Regler mit drei Stufen (Paket Audio, `audio/settings.ts`).
     parts.push(el('strong', '', 'Ton'));
     for (const which of ['effects', 'ambient'] as const) {
@@ -927,9 +941,16 @@ export class FlatMode {
       );
       parts.push(key);
     }
-    const leave = el('button', 'flat__option flat__option--leave', '2D-Welt verlassen');
+    // Zurück zur Lobby: Dort steht, was eine *neue* Runde wird — Was, Wer,
+    // Wie. Genau die drei Knöpfe, die hier standen und jedes Mal eine halbe
+    // Lobby nachbauten.
+    const leave = el('button', 'flat__option flat__option--leave');
     leave.dataset['leave'] = '';
-    const close = el('button', 'flat__option', 'Zurück');
+    leave.append(
+      el('strong', '', 'Zurück zur Lobby'),
+      el('small', '', 'Beendet die Runde · dort stehen Spielen, Zuschauen und Trainieren'),
+    );
+    const close = el('button', 'flat__option', 'Weiterspielen');
     close.dataset['closeOptions'] = '';
     parts.push(leave, close);
     this.options.replaceChildren(...parts);
@@ -982,26 +1003,9 @@ export class FlatMode {
       this.routes = !this.routes;
       this.renderOptions();
     } else if (data['restart'] !== undefined) {
+      // Nur noch der Knopf im Endbildschirm („Noch einmal?"). Im Optionsmenü
+      // steht keine neue Runde mehr — die wird in der Lobby verteilt.
       this.restart();
-    } else if (data['monster'] !== undefined) {
-      this.setup = { ...this.setup, monster: this.setup.monster === 'off' ? 'bot' : 'off' };
-      saveSetup(this.setup);
-      this.renderOptions();
-    } else if (data['role'] !== undefined) {
-      const roles = Object.keys(ROLE_LABELS) as FlatRole[];
-      const next = roles[(roles.indexOf(flatRoleOf(this.setup)) + 1) % roles.length]!;
-      this.setup = {
-        ...this.setup,
-        technician: next === 'technician' ? 'human' : 'bot',
-        monster:
-          next === 'monster'
-            ? 'human'
-            : this.setup.monster === 'human'
-              ? 'bot'
-              : this.setup.monster,
-      };
-      saveSetup(this.setup);
-      this.renderOptions();
     } else if (data['leave'] !== undefined) {
       this.host.exit();
     } else if (data['audio'] === 'effects' || data['audio'] === 'ambient') {
@@ -1059,12 +1063,6 @@ export class FlatMode {
     this.map.follow(PLAYER_ID);
     this.playRole(next.role ?? 'technician');
     this.refreshKeys();
-  }
-
-  /** Die drei Kacheln aus dem Van, hier als Voreinstellung für die nächste Runde. */
-  preset(kind: 'bot' | 'mission' | 'test'): void {
-    this.setup = presetFor(kind, this.setup);
-    saveSetup(this.setup);
   }
 
   /** Nur für Tests: die Erscheinung des Monsters der laufenden Runde. */
