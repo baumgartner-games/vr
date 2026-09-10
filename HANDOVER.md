@@ -415,10 +415,20 @@ ein Regler des Trainings (Voreinstellung siehe „Balance").
 
 ### Balance
 
-Die Wahrnehmung des Monsters ist umgestellt, also wurde nachgemessen
-(`botTraining.test.ts`, vier Messreihen à 200 Runden): siehe die Zeile
-„Balance-Messung" am Ende dieses Abschnitts. `DEFAULT_TUNING` ist
-unverändert geblieben, sofern dort nichts anderes steht.
+Die Wahrnehmung des Monsters ist umgestellt, also wurden die Gewichte
+**neu trainiert** (`trainBots` von den alten Gewichten aus, acht Läufe mit
+den Samen 1–8, je vierzig Schritte à 64 Runden) und nachgemessen
+(`botTraining.test.ts`, vier Messreihen à 200 Runden). Mit den alten
+Gewichten gewann der Techniker im Mittel 66 % (im Band), aber der
+Stopp-Test des Trainings (32 Runden, Same 0) stand daneben; mit gleichen
+Ohren (`hearing` 1,0) 72 %. Genommen ist Lauf 1: Techniker 65,5 / 69 / 66,5
+/ 67 % (Mittel 67 %), Stopp-Test genau am Ziel. `DEFAULT_TUNING` steht
+jetzt auf diesen Zahlen; auffällig gegenüber vorher: Monster langsamer
+(0,75) mit kürzerem Gedächtnis (0,4) und mehr Auflauern (0,3), Techniker
+vorsichtiger erst bei 8 m, dafür mit längerer Wartezeit (11 s). `hearing`
+blieb bei 1,2 — das Training hält das Monster gern etwas hellhöriger; wer
+strikt gleiche Ohren will, setzt 1,0 und trainiert nach (dann liegt der
+Techniker bei etwa 72 %).
 
 ### Fremde Dateien, die ich angefasst habe
 
@@ -433,6 +443,11 @@ Auftraggebers („Wahrnehmung auf dasselbe Modell"):
 - `monsterRoutine.ts` (Balance): siehe oben; drei neue Eingaben, eine neue
   Ausgabe, `LURK`. Bestehende Tests unverändert grün.
 - `roundSim.ts` (Balance): Wahrnehmungsblock ersetzt, `hearingWorld(seed)`.
+  `roundSim.test.ts`: der Vergleich langsamer/schneller Techniker misst 24
+  statt 12 Runden — mit Arbeitslärm lagen beide in zwölf Runden auf Same
+  1000 gleichauf (6:6), in 24 Runden 16:12, in 96 Runden 67:61.
+- `botTuning.ts` (Balance): `DEFAULT_TUNING` neu aus dem Training (siehe
+  „Balance").
 - `map/flatRound.ts` (Paket map): Wahrnehmungsblock ersetzt, `noise()`,
   `threat`-Getter, Meldungen, `face`.
 - `HauntingWorld.ts` (gemeinsam): Imports, vier Felder, der Hörblock im

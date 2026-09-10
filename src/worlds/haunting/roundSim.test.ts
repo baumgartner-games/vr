@@ -63,6 +63,12 @@ describe('Die ausgespielte Runde ohne Bild', () => {
     expect(Number.isFinite(result.time)).toBe(true);
   });
 
+  /**
+   * Vierundzwanzig Runden statt zwölf: Seit der Techniker beim Arbeiten Lärm
+   * macht (Paket Audio, `NOISE.interact`), liegen langsam und schnell auf
+   * einer Station in zwölf Runden auch mal gleichauf — die Richtung stimmt,
+   * nur die Stichprobe war zu klein, um sie zu sehen.
+   */
   it('nutzt dieselben Gewichte, die die Schalttafel anbietet', () => {
     const slow = clampTuning({
       ...DEFAULT_TUNING,
@@ -72,10 +78,10 @@ describe('Die ausgespielte Runde ohne Bild', () => {
       ...DEFAULT_TUNING,
       technician: { ...DEFAULT_TUNING.technician, work: 0.5 },
     });
-    const slower = Array.from({ length: 12 }, (_, i) =>
+    const slower = Array.from({ length: 24 }, (_, i) =>
       simulateRound(1000, { roll: i, tuning: slow }),
     );
-    const faster = Array.from({ length: 12 }, (_, i) =>
+    const faster = Array.from({ length: 24 }, (_, i) =>
       simulateRound(1000, { roll: i, tuning: fast }),
     );
     const won = (list: typeof slower): number => list.filter((r) => r.won).length;
