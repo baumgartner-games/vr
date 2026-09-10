@@ -34,6 +34,7 @@ export {
   MapView,
   WAVE_SPEED,
   type MapGoal,
+  type MapHighlight,
   type MapLayers,
   type MapOverlay,
   type MapRoute,
@@ -87,3 +88,19 @@ export {
 export { FlatWalker } from './flatWalk';
 export { FlatMode, type FlatModeHost } from './flatMode';
 export { applyPuzzle, type PuzzleAction } from './flatPuzzles';
+export {
+  NOISE_TILE,
+  spreadNoise,
+  tileGrid,
+  tileKeyOf,
+  type SpreadOptions,
+  type TileGrid,
+  type TileLink,
+} from './noiseSpread';
+// **`toolIcons.ts` steht mit Absicht nicht hier.** Es ist die einzige Datei
+// des Pakets, die three.js braucht, und `HauntingWorld` lädt sie dynamisch
+// neben `flatMode` (`import('./map/toolIcons')`). Stünde sie in dieser Tür,
+// zöge jeder Wert-Import aus `map/` den Renderer mit herein — und die 2D-Welt
+// ist genau deshalb headless prüfbar, weil sie das nicht tut. Nur der Vertrag,
+// den die Ansicht dafür braucht, gehört hierher:
+export type { ToolIconSource } from './toolIcons';

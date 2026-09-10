@@ -7653,15 +7653,27 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   die tatsächliche Näherungsöffnung: von beiden Seiten, für Techniker,
   Mitspieler, Monster, Drohne und Demo-Bot. Nachlauf verhindert Flattern;
   ein belegter Durchgang schließt nicht um eine Kapsel herum.
-- **Wer sperrt, und wie lange** (`rules/doorLocks.ts`, `DoorLocks` beim
-  Gastgeber, nichts davon auf der Leitung): **Gewollt gesperrt ist immer nur
-  eine Tür** — Schalttafel (`applyFlip`), Techniker vor Ort (`manualDoor`) und
-  die 2D-Runde (`FlatRound.lockDoor`) teilen sich diesen einen Riegel; die
-  zweite Wahl gibt die erste frei. **Zugefallene Türen** (der Spuk,
-  `slamDoor`) halten `SLAM_HOLD` = 20 s und gehen dann von selbst wieder auf
-  (`stepLocks` je Bild beim Gastgeber); die Tafel darf sie vorher freigeben,
-  und wählt sie eine zugefallene Tür gewollt, läuft die nicht mehr ab. Holz,
-  das splittert, geht über `releaseLock`, damit die Buchführung stimmt.
+- **Wer sperrt, wie lange, und wie man es aufbekommt** (`rules/doorLocks.ts`,
+  `DoorLocks` beim Gastgeber, nichts davon auf der Leitung): **Gewollt
+  gesperrt ist immer nur eine Tür** — Schalttafel (`applyFlip`), Techniker vor
+  Ort (`manualDoor`) und die 2D-Runde (`FlatRound.lockDoor`) teilen sich
+  diesen einen Riegel; die zweite Wahl gibt die erste frei. **Keine Sperre
+  hält ewig:** Zugefallene Türen (der Spuk, `slamDoor`) halten `SLAM_HOLD` =
+  20 s, von Hand gesperrte `HOLD_RANGE` = 8–10 s, leicht gewürfelt, damit
+  niemand mitzählen kann; `stepLocks` lässt beides je Bild ablaufen, die Tafel
+  darf vorher freigeben. `holdUntil` sagt, wie lange noch — daraus wird
+  `MapDoor.hold` (über `MapSource.doorHold`) und der **Balken über der Tür**
+  auf Karte und 2D-Szene. Eine Sperre, die für immer hielte, wäre keine
+  Entscheidung mehr, sondern eine Wand.
+  **Das Monster kann an einem Riegel ziehen** (`pryLock`): Der erste Zug geht
+  **nie** auf, jeder weitere steht besser (`pryChance`: 0,3 und dann +0,15),
+  im Takt von `PRY_COOLDOWN` = 1,1 s. Im Mittel sind das gut drei Züge und
+  knapp vier Sekunden — **weniger, als das Warten kostet**, und genau das ist
+  die Absicht: Wer wartet, verliert Zeit; wer zieht, macht Lärm. Sowohl der
+  Spieler am Steuer (`monster/monsterHelm.interact`) als auch die KI
+  (`FlatRound.moveMonster`) ziehen mit denselben Zahlen. Holz splittert
+  weiterhin auf einen Schlag und geht über `releaseLock`, damit die
+  Buchführung stimmt.
 - `ShipExperience` liest `doorOpen` für die bewegten Blätter und `doorLocked`
   für beidseitige rote/grüne Leuchten oberhalb der Tür. Die Übungsdeck-Tür
   darf niemals `host.test()` oder einen Rundenreset auslösen.
@@ -7843,9 +7855,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Figurhöhe), Raumnamen blass-rot auf dem Boden, Türen mit Schiebeblatt und
   Leuchte, Requisiten und Figuren als Vektorzeichnungen (`map/flatArt.ts`:
   Crewmate-Bohne mit Visier, Rucksack und Gehanimation, Monster-Silhouette je
-  Sorte, Fracht, Konsole, Spind samt Wrack, Klappe), alles gemeinsam nach z
+  Sorte, Fracht, Konsole, Spind samt Wrack, Klappe) **und die Möbel derselben
+  Räume** (`drawFixture` über `MapSnapshot.fixtures`: Grundfläche gedreht wie
+  im Schiff, Körper nach Norden, hellere Deckfläche; Farben aus
+  `fixtureDimensions.MARK_COLORS` — derselben Zahl, aus der auch der 3D-Klotz
+  und das Archiv malen), alles gemeinsam nach z
   sortiert, damit eine Figur vor einer Wand vor ihr steht und dahinter
-  dahinter. Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
+  dahinter. **Es gibt eine Spielwelt, zwei Darstellungen:** Was in 3D im Raum
+  steht, steht auch in 2D — Fracht, Schrank und Konsole zeichnet dabei die
+  Requisite mit ihrem Zustand, nicht der Möbelklotz. Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
   der die Flächen des `VisibilityField` mit weichem Rand ausgeschnitten sind;
   „Alles sehen" dunkelt nur ab. HUD wie die Vorlage: oben links der Kasten mit
   Fortschrittsbalken, O₂-Uhr, Anzug-Pips und Aufgabenliste, oben rechts Karte
@@ -7868,7 +7886,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Urheber, Reichweite `reachOf`, Zeit; `WAVE_SPEED` 9 m/s): eigene blau, die
   des Monsters rot, alles andere orange — die 2D-Runde führt sie fünf Sekunden
   (`FlatRound.wave`: Schritte als Pulse, Türen, Zufallen, Splittern, Schrei,
-  Schacht). **Ziele** (`MapViewOptions.objectives`, `FlatRound.objectives`:
+  Schacht). Sie laufen über die **freien Felder** und nicht über die Luftlinie
+  (`map/noiseSpread.ts`): Kachel für Kachel, durch eine Tür nur, wenn sie
+  offen steht, nie durch eine Wand, nie über den leeren Weltraum neben der
+  Station — und für das Monster zusätzlich durch die Schächte. Dasselbe, was
+  `audio/hearing.ts` rechnet, nur sichtbar. Gezeichnet werden sie **ganz
+  hinten**, direkt auf den Böden: Eine Welle über Möbeln und Figuren nähme
+  genau das Bild weg, für das sie da ist. Über einer gesperrten Tür steht ein
+  **Balken**, wie lange die Sperre noch hält (`MapDoor.hold`). **Ziele** (`MapViewOptions.objectives`, `FlatRound.objectives`:
   erst Ersatzteil, dann Konsole, zuletzt Zentrale) als Ring am Ort und gelbes
   Dreieck am Bildrand mit Entfernung; **Schächte** (`layers.vents`) als Bögen
   zwischen verbundenen Klappen mit dem Zielraum daran — in der 2D-Welt im
@@ -7932,17 +7957,27 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 - Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer
   — und **Monster** (`stations.ts`, `monster/`): ein Telefon spielt das
   Monster, egal ob der Techniker in 3D oder in der 2D-Welt spielt. Die Ansicht
-  ist `monster/monsterView.ts` (Karte aus Monstersicht, Stock, zwei Knöpfe);
-  das Telefon schickt `{kind:'monster'}` (Stock, Zähler für Angreifen und
-  Interagieren, Klappenziel) im Drohnentakt an den Gastgeber
+  ist `monster/monsterView.ts` (Karte aus Monstersicht, Stock, **ein** Knopf);
+  das Telefon schickt `{kind:'monster'}` (Stock, Zähler für Interagieren,
+  Klappenziel; das Feld `attack` steht nur noch für alte Gastgeber im
+  Protokoll) im Drohnentakt an den Gastgeber
   (`monster/netMonsterPort.ts`), der sie über `monster/netMonsterControl.ts`
   als `MonsterDriver` in derselben `decide`-Form wie die Routine ausführt —
   in 3D über `HauntingWorld.monsterDriver` (der NPC läuft dann geradeaus auf
   das Ziel, kein Rasterweg je Bild), in 2D als `FlatRound.driver`. Zähler
   statt Tastenzustände, damit bei 10 Hz kein Druck verloren geht oder doppelt
-  wirkt; das erste Paket ist nur Abgleich, ausstehende Schläge ≤ 3; ohne
+  wirkt; das erste Paket ist nur Abgleich, ausstehende Drücke ≤ 3; ohne
   Nachricht seit 3 s übernimmt die KI. Die gemeinsame Übersetzung von Stock
-  und Knöpfen liegt in `monster/monsterHelm.ts`.
+  und Knopf liegt in `monster/monsterHelm.ts`.
+  **Zuschlagen ist kein Knopf.** Wer in Reichweite steht, wird getroffen — von
+  der KI wie von einem Spieler am Steuer (`FlatRound.tick`, `CONTACT`). Der
+  Knopf davor verlangte, im Moment der Berührung zu tippen, und in diesem
+  Moment schaut niemand auf seine Knöpfe. **Der eine verbliebene Knopf gilt
+  immer dem nächsten Ding** (`monsterHelm.nearestTarget`): Klappe, Kabine oder
+  gesperrte Tür, nur eines auf einmal — und genau dieses hebt die Karte als
+  pulsierenden Ring hervor (`MapViewOptions.highlight`), damit man weiß, was
+  der Knopf tut, bevor man ihn drückt. Kabinen darf das Monster überall
+  aufreißen, nicht nur die, in der der Techniker steckt.
   Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
 - Archiv hat **Räume & Codes** und **Aufträge**, nur Raumnamen auswählbar.
   Ein Raum zeigt echte orthografische 3D-Geometrie ohne Decke als 2D-Draufsicht,
