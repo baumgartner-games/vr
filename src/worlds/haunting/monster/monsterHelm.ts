@@ -78,6 +78,9 @@ export const STILL: RoutineOutput = {
   strike: false,
   cabin: '',
   label: 'Spieler',
+  // Kein Blutrausch am Steuer: Der Aufschlag ist ein Zugeständnis an eine KI,
+  // die sonst niemanden mehr einholt. Wer selbst fährt, hat den Stock.
+  boost: 0,
 };
 
 /**
@@ -102,6 +105,7 @@ export function steer(stick: MonsterInput, cabin: string, arena: MonsterArena): 
     strike: !!cabin,
     cabin,
     label: 'Spieler',
+    boost: 0,
   };
 }
 

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { HauntingWorld } from './HauntingWorld';
 import { generateHouse, type HouseSpec } from './house';
-import { freshCrew, stationOptions } from './mission';
+import { freshCrew, freshStamina, stationOptions } from './mission';
 import { AutomaticDoors } from './automaticDoors';
 import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
@@ -90,6 +90,10 @@ function replay(): ReplayWorld {
     director: { clear: jest.fn(), spawn: jest.fn(() => null) },
     // Felder, die sonst der Konstruktor setzt — der Prototyp-Nachbau hat keinen.
     tuning: DEFAULT_TUNING,
+    // Die Puste des Technikers (`mission.ts`): `stepCrew` rechnet sie in jedem
+    // Bild weiter und setzt daraus `PlayerRig.sprintScale`.
+    stamina: freshStamina(),
+    repaired: 0,
     routineDice: new Rng(0x4d4f4e53),
     beacons: [],
     botLighting: { ...DEFAULT_LIGHTING },

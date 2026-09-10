@@ -1,6 +1,14 @@
 import type { RoutineWorld } from '../monsterRoutine';
 import type { FloorPoint } from '../stationLayout';
-import { DRIFT, FLOOR, FORGET, MonsterMemory, TRACK_LENGTH, doorKey } from './monsterMemory';
+import {
+  DRIFT,
+  FLOOR,
+  FORGET,
+  MonsterMemory,
+  TRACK_LENGTH,
+  doorKey,
+  shutPairs,
+} from './monsterMemory';
 
 /**
  * Vier Zimmer in einer Reihe und eine Kammer an der Seite:
@@ -366,5 +374,75 @@ describe('MonsterMemory', () => {
   it('eine Tür heißt nach ihren beiden Räumen, sortiert', () => {
     expect(doorKey('c', 'b')).toBe('b|c');
     expect(doorKey('b', 'c')).toBe('b|c');
+  });
+});
+
+/**
+ * **Der Aufruhr** — das Ereignis, das die Station selbst macht.
+ *
+ * Eine fertige Reparatur ist kein stiller Haken auf einer Liste: Die Konsole
+ * fährt hoch, die Sicherung fällt, im Modul flackert das Licht. Dass das
+ * Monster daraufhin weiß, wo eben jemand stand, ist kein Hellsehen. Dass es
+ * daraus eine **Laufrichtung** ableitete, wäre eines — deshalb steht der
+ * Aufruhr nicht in der Spur.
+ */
+describe('Eine erledigte Reparatur ist ein Ereignis', () => {
+  it('legt die ganze Masse in den Raum, ohne eine Sichtung zu erfinden', () => {
+    const memory = new MonsterMemory(world);
+    memory.disturbed('d', CENTRES.d!, 12);
+    expect(memory.belief('d')).toBeCloseTo(1, 12);
+    expect(memory.mostLikely()).toBe('d');
+    expect(memory.certainty()).toBeCloseTo(1, 12);
+    // Gemerkt, nicht gesehen: Die Spur bleibt leer, also gibt es keine
+    // Richtung und keine erfundene Prognose.
+    expect(memory.track.sightings).toHaveLength(0);
+    expect(memory.track.velocity()).toBeNull();
+    expect(memory.note('d').seen).toBe(-Infinity);
+    expect(memory.note('d').heard).toBe(12);
+  });
+
+  it('hält das Vergessen auf wie eine Sichtung', () => {
+    const memory = new MonsterMemory(world);
+    memory.disturbed('e', CENTRES.e!, 0);
+    memory.step(1, 'a', 1);
+    expect(memory.belief('e')).toBeGreaterThan(0.8);
+    memory.step(1, 'a', FORGET + 2);
+    expect(memory.certainty()).toBeLessThan(0.01);
+  });
+
+  it('rettet einen fremd benannten Raum über den Punkt', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', CENTRES.c!, 0);
+    // Der Aufrufer nennt den Raum anders, als die Karte ihn kennt — dann
+    // entscheidet die Stelle, genau wie bei einer Sichtung.
+    memory.disturbed('kombüse', { x: 21, z: 9 }, 5);
+    expect(memory.mostLikely()).toBe('e');
+  });
+});
+
+describe('Aus Türkennungen Raumpaare machen', () => {
+  const doors = [
+    { id: 'd0', a: 'a', b: 'b' },
+    { id: 'd1', a: 'c', b: 'd' },
+    { id: 'd2', a: 'a', b: null },
+  ];
+
+  it('übersetzt gesperrte Türen in die Namen des Gedächtnisses', () => {
+    expect(shutPairs(doors, ['d1'])).toEqual([doorKey('c', 'd')]);
+    expect(shutPairs(doors, [])).toEqual([]);
+    expect(shutPairs(doors, ['gibtesnicht'])).toEqual([]);
+  });
+
+  it('hängt die Haustür an die Einsatzzentrale', () => {
+    expect(shutPairs(doors, ['d2'])).toEqual([doorKey('a', 'command')]);
+    expect(shutPairs(doors, ['d2'], 'draußen')).toEqual([doorKey('a', 'draußen')]);
+  });
+
+  it('sperrt über die Übersetzung wirklich eine Tür', () => {
+    const closed: string[] = [];
+    const memory = new MonsterMemory(world, () => closed);
+    expect(memory.exits('c').map(({ door }) => door)).toContain(doorKey('c', 'd'));
+    closed.push(...shutPairs(doors, ['d1']));
+    expect(memory.exits('c').map(({ door }) => door)).not.toContain(doorKey('c', 'd'));
   });
 });

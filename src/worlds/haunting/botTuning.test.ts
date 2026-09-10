@@ -8,8 +8,14 @@ import {
   loadTuning,
   saveTuning,
 } from './botTuning';
-import { MONSTERS, MONSTER_TOP_SPEED, PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED } from './mission';
-import { paceSpeed } from './monsterRoutine';
+import {
+  MONSTERS,
+  MONSTER_TOP_SPEED,
+  PLAYER_SPRINT_SPEED,
+  PLAYER_TROT_SPEED,
+  PLAYER_WALK_SPEED,
+} from './mission';
+import { RAGE_MAX, RUSH_BOOST, paceSpeed } from './monsterRoutine';
 
 describe('Die Gewichte der beiden Bots', () => {
   it('hält jede Zahl in ihren Grenzen und rastet sie ein', () => {
@@ -111,6 +117,40 @@ describe('Tempo von Monster und Spieler', () => {
         };
         expect(paceSpeed(monster.speed, extreme, 'hunt')).toBeLessThan(PLAYER_SPRINT_SPEED);
       }
+  });
+
+  /**
+   * **Die Ungleichung muss auch *getunt* gelten**, und genau daran hat sie
+   * jahrelang gescheitert: Geprüft wurde das Grundtempo der Sorte (2,95 m/s),
+   * gelaufen wurde `Grundtempo × speed`, und weil das Training `speed` bis auf
+   * 0,75 heruntergedreht hatte, ging das Monster in Wahrheit mit 2,21 m/s —
+   * langsamer als ein spazierender Spieler. Die Untergrenze des Feldes ist
+   * deshalb Teil der Zusage und keine Vorsichtsmaßnahme.
+   */
+  it('geht auch mit den langsamsten Gewichten schneller als der Spieler geht', () => {
+    const slowest = { ...DEFAULT_TUNING.monster, speed: MONSTER_FIELDS[0]!.min };
+    for (const monster of MONSTERS)
+      expect(paceSpeed(monster.speed, slowest, 'walk')).toBeGreaterThan(PLAYER_WALK_SPEED);
+    expect(paceSpeed(MONSTERS[0]!.speed, DEFAULT_TUNING.monster, 'walk')).toBeGreaterThan(
+      PLAYER_WALK_SPEED,
+    );
+  });
+
+  it('jagt auch im Blutrausch und mit Schub langsamer als der Spieler rennt', () => {
+    const fastest = {
+      ...DEFAULT_TUNING.monster,
+      speed: MONSTER_FIELDS[0]!.max,
+      hunt: MONSTER_FIELDS[1]!.max,
+    };
+    for (const monster of MONSTERS)
+      expect(paceSpeed(monster.speed, fastest, 'hunt', RAGE_MAX + RUSH_BOOST)).toBeLessThan(
+        PLAYER_SPRINT_SPEED,
+      );
+    // Und die andere Hälfte der Puste: Wer nicht mehr sprintet, sondern trabt,
+    // wird eingeholt — sonst endete keine Jagd.
+    expect(paceSpeed(MONSTERS[0]!.speed, DEFAULT_TUNING.monster, 'hunt')).toBeGreaterThan(
+      PLAYER_TROT_SPEED,
+    );
   });
 
   it('schleicht langsamer, als es geht, und steht auf der Stelle still', () => {

@@ -2,6 +2,8 @@ import { TILE } from '../../nav/navTile';
 import { generateHouse, onApron, spacesOf, type HouseDoor, type HouseSpec } from '../house';
 import {
   freshCrew,
+  freshStamina,
+  grantBurst,
   MONSTERS,
   PLAYER_SPRINT_SPEED,
   PLAYER_WALK_SPEED,
@@ -9,8 +11,10 @@ import {
   puzzleSolved,
   repairsFor,
   stationOptions,
+  stepStamina,
   stepVitals,
   takeCrewHit,
+  TROT,
   type MonsterKind,
   type Repair,
 } from '../mission';
@@ -18,6 +22,8 @@ import type { HauntState } from '../net';
 import { COMMAND, stationGraph, type StationGraph } from '../roomGraph';
 import { stationLayout, type FloorBounds, type FloorPoint } from '../stationLayout';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from '../monsterRoutine';
+import { MonsterMemory, shutPairs } from '../monster/monsterMemory';
+import { graphEstimator } from '../monster/monsterIntercept';
 import { DEFAULT_TUNING, type BotTuning } from '../botTuning';
 import {
   ENTITY_PROFILES,
@@ -269,6 +275,21 @@ export class FlatRound implements MapSource {
   private readonly consoles: Console[] = [];
   private readonly lockers: Locker[] = [];
   private readonly routine: MonsterRoutine;
+  /**
+   * **Das Gedächtnis des Monsters** (`monster/monsterMemory.ts`) — dasselbe
+   * Stück wie im Headset, damit die 2D-Runde und die Station kein
+   * unterschiedlich kluges Vieh haben. Geschrieben wird es in der Routine;
+   * von hier kommt nur, was die Routine nicht sehen kann.
+   */
+  private readonly brain: MonsterMemory;
+  /** Die Reisezeitauskunft für die Abfangrechnung — einmal je Runde gebaut. */
+  private readonly estimator: ReturnType<typeof graphEstimator>;
+  /**
+   * **Die Puste des Technikers** (`mission.ts`). Ohne sie war der Sprint hier
+   * unbegrenzt, und damit war jede Jagd in dem Moment vorbei, in dem er
+   * losrannte.
+   */
+  private readonly stamina = freshStamina();
   /** Die Rasterwegsuche der 3D-Welt, mit Cursor auf der Route des Monsters (`navmesh/flatNavigator.ts`). */
   readonly navigator: FlatNavigator;
   private decision: RoutineOutput | null = null;
@@ -359,6 +380,10 @@ export class FlatRound implements MapSource {
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
+    this.brain = new MonsterMemory(this.graph, () =>
+      shutPairs(this.house.doors, this.haunt.shut, COMMAND),
+    );
+    this.estimator = graphEstimator(this.graph);
     this.navigator = new FlatNavigator(this.house, this.graph, MONSTER_RADIUS);
     this.vents = new VentNet(this.house);
     this.ventRide = new VentTravel(this.vents);
@@ -674,10 +699,15 @@ export class FlatRound implements MapSource {
     const wants = length > 0.05 && !crew.hidden && !this.puzzle;
     this.moving = wants;
     this.sprinting = wants && input.sprint;
+    // **Die Puste** (`mission.ts`): fünf Sekunden Sprint, danach Trab, beim
+    // Gehen füllt sie sich wieder auf. Sie läuft auch mit, wenn niemand sich
+    // bewegt — sonst hinge die Erholung daran, ob der Stock genau in der Mitte
+    // steht.
+    const dash = stepStamina(this.stamina, dt, this.sprinting);
     let speed = 0;
     if (wants) {
       const scale = Math.min(1, length);
-      speed = (input.sprint ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED) * scale;
+      speed = (input.sprint ? PLAYER_SPRINT_SPEED * dash : PLAYER_WALK_SPEED) * scale;
       const nx = input.x / length,
         nz = input.z / length;
       this.player.yaw = Math.atan2(-nx, -nz);
@@ -851,6 +881,12 @@ export class FlatRound implements MapSource {
           quarry: this.player.space,
           caught: this.caught,
           rng: () => this.rng.next(),
+          memory: this.brain,
+          estimator: this.estimator,
+          base: monsterBase(crew.options.monster),
+          time: this.haunt.time,
+          sprinting: this.sprinting,
+          stamina: { left: this.stamina.left, trot: PLAYER_SPRINT_SPEED * TROT },
           ...takeAlert(this.memory),
         });
     this.decision = decision;
@@ -871,12 +907,20 @@ export class FlatRound implements MapSource {
     if (piloted) {
       // Ein Spieler steuert direkt: kein Türrouting, kein Lotse — nur Gleiten an Wänden.
       if (decision.goal)
-        this.stepMonster(decision.goal, paceSpeed(base, this.tuning.monster, decision.pace), dt);
+        this.stepMonster(
+          decision.goal,
+          paceSpeed(base, this.tuning.monster, decision.pace, decision.boost),
+          dt,
+        );
     } else {
       // Der Lotse biegt das Ziel auf eine Klappe um, wenn der Schacht lohnt (`vents/ventPilot.ts`).
       const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.graph);
       if (!this.ventRide.busy)
-        this.moveMonster(steered, dt, paceSpeed(base, this.tuning.monster, steered.pace));
+        this.moveMonster(
+          steered,
+          dt,
+          paceSpeed(base, this.tuning.monster, steered.pace, steered.boost),
+        );
       // Wer steht und horcht, dreht sich zur Richtung des Geräuschs.
       if (decision.face && decision.pace === 'still')
         this.monster.yaw = Math.atan2(
@@ -996,8 +1040,24 @@ export class FlatRound implements MapSource {
     return this.memory;
   }
 
+  /**
+   * **Der letzte Beschluss des Monsters** — Haltung, Ziel, Tempo und, wenn ein
+   * Gedächtnis dabei ist, sein `insight` (`monsterRoutine.ts`). Für Anzeigen
+   * und für Tests, die den Unterschied zwischen „steht absichtlich" und
+   * „hängt an einer Wand" brauchen; von außen nur zu lesen.
+   */
+  get decided(): Readonly<RoutineOutput> | null {
+    return this.decision;
+  }
+
   private hit(text: string): void {
     const crew = this.haunt.crew;
+    // **Der Schub nach dem Treffer** (`mission.HIT_BURST`). Wer getroffen
+    // wird, steht sonst genau dort, wo ihn der nächste Schlag trifft: Die drei
+    // Sekunden Unverwundbarkeit nützen nichts, wenn man sie im Griff des
+    // Monsters absteht. Anderthalb Sekunden Sprint, die keine Puste kosten —
+    // gerade genug für eine Tür.
+    grantBurst(this.stamina);
     if (crew.hp <= 0) {
       this.haunt.phase = 'lost';
       this.events.push({ kind: 'bad', text: 'MISSION GESCHEITERT · Anzug zerstört.' });
@@ -1476,6 +1536,13 @@ export class FlatRound implements MapSource {
     this.noise(this.player, NOISE.click);
     if (outcome.solved && puzzleSolved(repair, puzzle)) {
       this.haunt.done.push(repair.itemId);
+      // **Eine fertige Reparatur ist ein Ereignis der Station**, kein stiller
+      // Haken: Die Konsole fährt hoch, die Sicherung fällt, im Modul flackert
+      // es. Das Monster weiß danach, wo eben jemand stand — das steht im
+      // Gedächtnis als Aufruhr und nicht als Sichtung (`disturbed`) — und legt
+      // für `MonsterTuning.rush` Sekunden los.
+      this.brain.disturbed(repair.roomId, this.graph.centre(repair.roomId), this.haunt.time);
+      this.routine.hurry(this.tuning.monster.rush);
       const held = this.haunt.crew.inventory.indexOf(repair.itemId);
       if (held >= 0) this.haunt.crew.inventory.splice(held, 1);
       this.puzzle = null;

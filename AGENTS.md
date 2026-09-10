@@ -7910,11 +7910,58 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   folgen** wechselt die Bedienung. `followBotCamera` läuft niemals im XR-Headset;
   dort behält der Spieler seine Blickrichtung.
 - **Die Routine des Monsters** steht in `monsterRoutine.ts` und nirgends sonst:
-  vier Grundhaltungen (`patrol`, `reposition`, `stakeout`, `search`) plus
-  `hunt` und die Kabinenkette `announce` → `breach` → `savour`. Sie ist rein —
-  herein gehen Räume, Nachbarn und eine Wahrnehmung, heraus gehen Ziel, Tempo
-  (`paceSpeed`) und höchstens ein Geräusch. Deshalb steuert dieselbe Datei das
-  Monster im Headset **und** die Trainingssimulation. Nach Sichtverlust rät sie
+  vier Grundhaltungen (`patrol`, `reposition`, `stakeout`, `search`), `hunt`,
+  seit M2 dazu `intercept` („Abfangen") und `ambush` („An der Tür lauern"), und
+  die Kabinenkette `announce` → `breach` → `savour`. Sie ist rein — herein gehen
+  Räume, Nachbarn und eine Wahrnehmung, heraus gehen Ziel, Tempo (`paceSpeed`)
+  und höchstens ein Geräusch. Deshalb steuert dieselbe Datei das Monster im
+  Headset **und** die Trainingssimulation.
+  **Mit Gedächtnis denkt sie, ohne würfelt sie.** Bekommt `RoutineInput` ein
+  `memory` (`monster/monsterMemory.ts`), einen `estimator`, das Grundtempo
+  `base` und die Rundenzeit `time` — und ist die hereingereichte Welt die ganze
+  Karte (`StationGraph`, erkannt an `doorsOf`/`doorPoint`) —, dann entscheidet
+  nach jedem Sichtverlust `monsterIntercept.plan()`: verfolgen, abfangen,
+  lauern oder absuchen, höchstens alle `REPLAN` = 1,5 s neu gerechnet. Gesucht
+  wird dann im **wahrscheinlichsten** Raum statt im gewürfelten Nachbarn,
+  patrouilliert wird zu den drei Räumen, in denen es am längsten nicht war
+  (`leastRecentlyVisited`), der Seitenwechsel geht in den entferntesten davon,
+  und `stakeout` steht an einer **Tür** statt in der Raummitte. Reicht die
+  Gewissheit nicht (`FAINT` 0,15), wird gar nicht erst abgesucht — ein Monster,
+  das denselben Raum dreimal durchsucht, ist das dumme Vieh von früher. Ohne
+  Gedächtnis bleibt das alte Würfelverhalten stehen; das ist kein Notbehelf,
+  sondern die Fassung, die ein Test aus fünf Zimmern in einer Reihe noch
+  nachrechnen kann.
+  **Gefüttert wird das Gedächtnis in der Routine selbst** und nicht in den
+  Welten (Abweichung von Plan M2): Sichtung, Geräusch und der eigene Raum
+  gehen ohnehin durch `step`, und ein Gedächtnis, das 3D, 2D und Simulation
+  jede für sich beschreiben, ist nach der ersten Änderung drei verschiedene
+  Gedächtnisse. Als Sichtung zählt dabei auch Alarmstufe 3 („sicher gehört"):
+  Ohne sie stand die Spur bei einer Jagd, die nur aus Geräuschen kam, still —
+  und ohne Spur gibt es keine Richtung, keine Prognose und kein Abfangen. Die
+  Welt besitzt das Gedächtnis, meldet ihm, was die Routine nicht sehen kann
+  (`disturbed`), und liest es aus.
+  **Blutrausch und Schub.** Je zehn Sekunden ununterbrochener Jagd steigt der
+  Verfolgungsfaktor um `RAGE_STEP` 0,05, gedeckelt bei `RAGE_MAX` 0,2 und
+  ohnehin bei `MONSTER_TOP_SPEED`; ein Sichtverlust setzt zurück. Dazu kommt
+  `RUSH_BOOST` 0,25 für `MonsterTuning.rush` Sekunden, wenn eine Reparatur
+  fertig geworden ist. Beides steht als `RoutineOutput.boost` heraus und geht
+  als vierter Wert in `paceSpeed` — nur auf die Jagd, nie auf die Patrouille.
+  **Was es denkt, steht als `RoutineOutput.insight`** (`MonsterInsight` in
+  `map/mapSnapshot.ts`, Vertrag 4.7): Haltung, Ziel, Glaubensbild, vermuteter
+  Weg und Abfangtür mit beiden Ankunftszeiten. Gezeichnet wird das noch nicht;
+  `FlatRound.decided` gibt den ganzen Beschluss nach außen.
+  **Wo welche Haltung wirklich vorkommt** — gemessen, damit niemand nach dem
+  falschen Beleg sucht: In der **2D-Runde** mit echten Wänden ist `intercept`
+  häufig (acht Bot-Runden: 293 s Abfangen gegen 201 s Verfolgen), in der
+  **Trainingssimulation** dagegen fast nie (64 Runden: 98 s). Das ist kein
+  Fehler, sondern die Grenze der groben Karte: Auf einem reinen Raumgraphen
+  nehmen Verfolger und Verfolgter denselben kürzesten Weg, und wer denselben
+  Weg nimmt, kürzt nichts ab. `ambush` bleibt überall selten (17 s auf
+  64 Runden) — es verlangt ein sehr sicheres Glaubensbild in einem Raum mit
+  höchstens zwei Türen, und ob eine Station so einen Raum an der richtigen
+  Stelle hat, entscheidet der Bauplan. `rules/botRound.test.ts` prüft deshalb
+  `intercept` über vier ganze Bot-Runden und `ambush` gar nicht.
+  Nach Sichtverlust ohne Gedächtnis rät sie weiterhin
   den Nachbarraum (`guess`), sucht ihn leise ab (Klacken, manchmal der
   Schutzschrank), geht manchmal gleich weiter (`wander`) oder lauert auf
   (`stakeout`). Ein Rückzug in einen Schrank löst Schrei und Aufreißen nur aus,
@@ -7925,8 +7972,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   drin ist oder nicht (`RoutineOutput.cabin`; ohne Schrei und ohne Vorsprung,
   die bleiben dem gesehenen Rückzug). Ein leerer Schrank ist danach trotzdem
   ein Versteck weniger. Kein Wissen darüber, ob der Schrank besetzt ist.
-  **Was es weiß, steht daneben** — `monster/monsterMemory.ts`, und es ist noch
-  **nicht angeschlossen**: ein Glaubensbild über die Räume (je Raum eine
+  **Was es weiß, steht daneben** — `monster/monsterMemory.ts`, seit M2
+  angeschlossen: ein Glaubensbild über die Räume (je Raum eine
   Wahrscheinlichkeit, zusammen immer 1), je Raum ein Notizzettel (wann
   besucht, abgesucht, gesehen, gehört) und eine Spur der letzten sechs
   Sichtungen, aus der `track.velocity()` Richtung und Tempo schätzt. Eine
@@ -7948,13 +7995,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   wahrscheinlich. Abfragen: `mostLikely`, `expected`, `certainty`, `exits`
   (die Türen eines Raums mit dem Anteil des Zuflusses dahinter),
   `leastRecentlyVisited` (Patrouille und Seitenwechsel), `snapshot` (für die
-  Zuschauer, ab 2 %). Rein und deterministisch, ohne three.js und ohne Zufall
-  — die Routine liest davon bislang nichts, das Verdrahten kommt mit der
-  Abfangrechnung.
-- **Prognose und Abfangen** liegen daneben in `monster/monsterIntercept.ts` —
-  gerechnet, aber **noch nicht angeschlossen**: `monsterRoutine.ts` fragt das
-  Modul bis auf Weiteres nicht, die Haltungen `intercept` und `ambush` gibt es
-  dort noch nicht. Was darin steht: `predictPlayer` verlängert die letzten
+  Zuschauer, ab 2 %). Rein und deterministisch, ohne three.js und ohne Zufall.
+  Dazu seit M2 `disturbed(raum, punkt, zeit)`: **ein Ereignis der Station**,
+  keine Sichtung. Eine fertige Reparatur ist laut und sichtbar — die Konsole
+  fährt hoch, die Sicherung fällt, im Modul flackert das Licht —, also legt sie
+  die ganze Masse in diesen Raum, schreibt aber **nichts in die Spur**: Über
+  die Laufrichtung sagt sie nichts, und als `seen` gebucht hätte sie der
+  Prognose eine Fahrtrichtung untergeschoben, die es nie gab. Im Notizzettel
+  steht sie unter `heard`. `shutPairs(spec.doors, state.shut)` übersetzt die
+  Türkennungen des Bauplans (`d7`) in die Raumpaare, die der Konstruktor
+  erwartet; die Haustür hängt dabei an `COMMAND`.
+- **Prognose und Abfangen** liegen daneben in `monster/monsterIntercept.ts` und
+  hängen seit M2 an der Routine. Was darin steht: `predictPlayer` verlängert die letzten
   Sichtungen geradeaus (Richtung und Tempo aus der Spur, Tempo notfalls
   `PLAYER_SPRINT_SPEED`/`PLAYER_WALK_SPEED`, Puste eingerechnet) zu einer
   Polyline über **zwei** Türen — die erste nach dem Winkel zum Kurs, die zweite
@@ -7970,12 +8022,42 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `roomGraph.ts` jetzt auch Türen: `doorsOf(raum)` und `doorPoint(tür)` (die
   Türmitte auf der Kachel**kante**, in Metern). Das Gedächtnis, gegen das
   gerechnet wird, steht dort als Form (`TrackLike`, `MemoryLike`) und nicht als
-  Import — `monster/monsterMemory.ts` entsteht parallel, das Zusammenhängen
-  beider ist das nächste Paket.
+  Import — so bleibt das Modul für sich prüfbar; die echte `MonsterMemory`
+  erfüllt beide Formen.
+  **Eine Tür hat zwei Namen, und daran ist die Rechnung erst einmal
+  gescheitert.** Das Gedächtnis nennt sie nach den Räumen, die sie verbindet
+  (`doorKey`, „flur|kombüse"), die Karte nach dem Bauplan (`d7`). Verglichen
+  wurden die Zeichenketten — und damit fand `likelyDoor` **nie** eine Tür:
+  Gelauert wurde immer an der ersten Tür des Raums, und die Prognose lief
+  hinter der ersten statt hinter der wahrscheinlichsten weiter. M2 übersetzt
+  jetzt (Raumpaar → Nachbarraum → gemeinsame Tür); `likelyExit(graph, memory,
+  raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
+  Lauerposten damit an dieselbe Tür wie `plan()`.
 - **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
   `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
   ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
   `botTuning.test.ts` rechnen beide Enden nach, auch an den Reglergrenzen.
+  **Und sie gilt seit M2 auch *getunt*** — daran war sie vorher gescheitert:
+  Geprüft wurde das Grundtempo der Sorte, gelaufen wurde `Grundtempo × speed`,
+  und weil das Training `speed` auf 0,75 heruntergedreht hatte, ging das
+  Monster in Wahrheit mit 2,21 m/s, also langsamer als ein spazierender
+  Spieler. Die Untergrenzen der Regler sind deshalb Teil der Zusage:
+  `speed` ≥ 0,95 (Gehen ab 2,66 m/s), `hunt` 1,3…1,55 (Jagd rund 4,4 m/s,
+  Deckel 4,55 auch mit Blutrausch und Schub).
+  **Die andere Hälfte ist die Puste** (`PLAYER_STAMINA` 5 s Sprint, dann Trab
+  `TROT` 0,72× = 3,56 m/s, Erholung `STAMINA_REGEN` 8 s beim Gehen, nach einem
+  Treffer `HIT_BURST` 1,5 s Schub, der nichts kostet). Ohne sie war jede Jagd
+  in dem Moment entschieden, in dem der Spieler den Stock nach vorn drückte:
+  Wer geradeaus lief, kam immer davon, und es gab keinen Grund, eine Tür
+  zuzuziehen oder eine Ecke zu brechen. Gerechnet wird sie in
+  `mission.stepStamina` (rein, ohne Zustand außerhalb), angewandt in der
+  2D-Runde (`map/flatRound.tick`) und in 3D über `core/PlayerRig.sprintScale`,
+  das `HauntingWorld.stepCrew` je Bild setzt. Nachrechnung: Abstand 8 m,
+  fünf Sekunden Sprint bringen 2,7 m Vorsprung, danach holt das Monster
+  0,85 m/s auf — Kontakt nach etwa 18 s gerader Flucht, mit einem Riegel
+  dazwischen etwa 22 s, mit einem Sichtabriss gar nicht.
+  **Der Modelltechniker hat seine eigene Puste** (`TechnicianTuning.stamina`,
+  Trab über denselben `TROT`), damit das Training sie verstellen darf.
 - **Gewichte, Simulation, Training** — die drei Dateien hängen zusammen:
   `botTuning.ts` hält alle Zahlen beider Bots mit Grenzen, Namen und
   Browser-Speicher; die Verhaltensfelder dürfen nicht auf null, sonst trainiert
@@ -7996,35 +8078,41 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
   den Tab nicht einfriert. `DEFAULT_TUNING` ist das Ergebnis dieses Trainings;
   `botTraining.test.ts` misst 1600 Runden nach.
-  **Die zwei bis drei Kisten je Raum kosten den Bot etwas, und das steht so
-  im Test.** Nicht, weil er die Kisten durchwühlte — `missionBot` und
-  `roundSim` gehen über `taskCargo` **direkt** an die richtige —, sondern weil
-  jede zusätzliche Kiste ein weiteres Wandmodul ist: Der Packer stellt
-  daraufhin jedes Zimmer anders, und die Wege werden länger. Ein Mensch kürzt
-  ab, der Bot läuft die Strecke, die dasteht. Gemessen (1600 Runden, vier
-  Reihen) fällt er dadurch von 0,52 / 0,34 auf **0,44 / 0,25**.
-  Deshalb misst `botTraining.test.ts` seit K1 die **Messung** und nicht mehr
-  die Zusage: `BOT_RATES` hält fest, wo der Bot steht, `TRAINING_TARGETS`
-  bleibt, was das Spiel verspricht, und der Abstand zwischen beiden wird
-  ausdrücklich mitgeprüft, damit er nicht stillschweigend wächst. Ein
-  Trainingslauf **kann** ihn zurück ins Band ziehen — nur allein am Techniker
-  gerechnet kam er auf 0,4975 / 0,3525 —, aber über Zahlen, die man einem Bot
-  ansieht (Puste 2 s, Vorsicht 6 m), und dann kippt in `roundSim.test.ts` die
-  Richtung „schneller arbeiten schafft mehr". Über beide Seiten gerechnet
-  drückte er sogar das Grundtempo des Monsters auf 0,65× und damit unter das
-  Gehtempo des Spielers — gegen die Ungleichung darunter. Der Abstand gehört
-  also zugemacht, indem der Bot **klüger** wird, nicht indem seine Gewichte
-  verbogen werden; das ist die Arbeit des Monster-Pakets, das `botTuning.ts`
-  ohnehin neu schreibt. `DEFAULT_TUNING` ist deshalb unverändert.
-  **Zwei Vorrichtungen im Test mussten dabei nachgezogen werden, und beide
-  sagen etwas über das Spiel.** Der historische „chancenlose" Startsatz
-  gewinnt mit den Kisten gemessene 0,375 und ist keiner mehr — der Test fängt
-  jetzt bei einem Techniker an, der wirklich keine Chance hat (das Monster
-  daneben ist unverändert das von damals). Und der „übermächtige" Techniker,
-  der vorher über 0,70 gewann, kommt gegen ein maximal ausgebremstes Monster
-  nur noch auf 0,50: **So viel kostet das Suchen.** Seine Zahlen stehen jetzt
+  **Der Abstand zwischen Messung und Zusage ist mit M2 zu.** Die
+  Vorgeschichte: Seit jeder Raum zwei bis drei Kisten hat (`rules/cargo.ts`),
+  sind die Wege länger — nicht, weil der Bot die Kisten durchwühlte
+  (`missionBot` und `roundSim` gehen über `taskCargo` **direkt** an die
+  richtige), sondern weil jede Kiste ein weiteres Wandmodul ist und der Packer
+  daraufhin jedes Zimmer anders stellt. Gemessen fiel er dadurch von
+  0,52 / 0,34 auf 0,44 / 0,25, und ein Trainingslauf, der ihn mit Gewalt ins
+  Band zurückzog, tat es über Puste 2 s und Vorsicht 6 m — Zahlen, die man
+  einem Bot ansieht; über beide Seiten gerechnet drückte er sogar das
+  Grundtempo des Monsters unter das Gehtempo des Spielers und damit gegen die
+  Ungleichung. Der Abstand gehörte also zugemacht, indem das **Spiel** besser
+  wird, und genau das ist M2: Das Monster geht schneller, jagt knapp unter dem
+  Sprint, sucht statt zu würfeln — und der Sprint hat eine Puste. Danach neu
+  gelernt (45 Schritte à 128 Runden, `trainBots(…, 'both')`) und über
+  1600 Runden nachgemessen steht `DEFAULT_TUNING` bei **0,54 / 0,315**, also
+  **beide Quoten im Band**. `botTraining.test.ts` prüft weiter die Messung
+  (`BOT_RATES`) *und* jetzt zusätzlich, dass `inBand` für sie gilt — eine
+  abgelesene Zahl fällt auf, wenn sie sich verschiebt, ein gerade noch
+  getroffenes Band nicht.
+  **Zwei Vorrichtungen im Test mussten dafür nachgezogen werden, und beide
+  sagen etwas über das Spiel.** Der historische „chancenlose" Startsatz gewinnt
+  mit den Kisten gemessene 0,375 und ist keiner mehr — der Test fängt bei einem
+  Techniker an, der wirklich keine Chance hat. Und der „übermächtige"
+  Techniker ist seit M2 nur noch **zu zweit** übermächtig: Weil die
+  Untergrenzen der Tempo-Regler Teil der Ungleichung sind (`speed` ≥ 0,95,
+  `hunt` ≥ 1,3), lässt sich das Monster gar nicht mehr so weit ausbremsen, dass
+  es im Team chancenlos wäre — dort gewinnt selbst dieser Techniker nur 0,375.
+  Im Duell räumt er mit 0,81 ab, und genau diesen Überschuss holt die Suche
+  wieder herunter; das prüft der Test jetzt. Beide Vorrichtungen stehen
   ausgeschrieben statt aus `DEFAULT_TUNING` geerbt, damit ein späterer
-  Trainingslauf ihm nicht wieder den Boden wegzieht.
+  Trainingslauf ihnen nicht den Boden wegzieht.
+  **Und eine Zusage braucht genug Runden, um überhaupt messbar zu sein**: Das
+  Band ist 0,05 breit, auf 32 Runden verschiebt eine einzige Runde den
+  bewerteten Mittelwert um 0,031. Der Test, der den Start im Band prüft, fährt
+  deshalb 64 Runden je Schritt.
 - **Die Tür hinter dem Techniker** (`rules/doorSeal.ts`) ist der Grund, warum
   aus derselben Einstellung zwei Quoten werden. Er hat gegen das Monster nur
   eines in der Hand, und das ist **eine Tür**: Wer verfolgt hindurchgeht,

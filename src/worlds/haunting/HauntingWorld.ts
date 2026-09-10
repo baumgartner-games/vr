@@ -91,18 +91,26 @@ import {
   type BotLighting,
 } from './botLighting';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from './monsterRoutine';
+import { MonsterMemory, shutPairs } from './monster/monsterMemory';
+import { graphEstimator, type Estimator } from './monster/monsterIntercept';
 import { stationGraph } from './roomGraph';
 import { nextSimulationSpeed, simulationRepeats, type SimulationSpeed } from './simulationSpeed';
 import { AutomaticDoors } from './automaticDoors';
 import { StationTravelPlan } from './stationTravelPlan';
 import {
   freshCrew,
+  freshStamina,
+  grantBurst,
   MONSTERS,
+  PLAYER_SPRINT_SPEED,
   ROOM_COUNTS,
+  repairRoom,
   repairsFor,
   stationOptions,
+  stepStamina,
   takeCrewHit,
   stepVitals,
+  TROT,
   type StationOptions,
 } from './mission';
 import { Rng, rollSeed } from './rng';
@@ -406,6 +414,18 @@ export class HauntingWorld extends GridWorld {
   private readonly rules = new RoundRules(() => this.state);
   /** Was das Monster gerade vorhat (`monsterRoutine.ts`). */
   private routine: MonsterRoutine | null = null;
+  /**
+   * **Das Gedächtnis des Monsters** (`monster/monsterMemory.ts`) — dasselbe
+   * Stück wie in der 2D-Runde und in der Trainingssimulation. Geschrieben wird
+   * es in der Routine; von hier kommt nur, was die Routine nicht sehen kann:
+   * eine fertig gewordene Reparatur.
+   */
+  private brain: MonsterMemory | null = null;
+  private estimator: Estimator | null = null;
+  /** Wie viele Reparaturen zuletzt fertig waren — daran hängt der Schub. */
+  private repaired = 0;
+  /** Die Puste des Technikers (`mission.ts`) — in 3D wie in 2D. */
+  private readonly stamina = freshStamina();
   private decision: RoutineOutput | null = null;
   private readonly routineDice = new Rng(0x4d4f4e53);
   /**
@@ -828,6 +848,15 @@ export class HauntingWorld extends GridWorld {
           quarry: quarry?.id ?? null,
           caught: this.watchedLocker,
           rng: () => this.routineDice.next(),
+          memory: this.brain ?? undefined,
+          estimator: this.estimator ?? undefined,
+          base: MONSTERS.find((m) => m.id === crew.options.monster)!.speed,
+          time: this.state.time,
+          // Ob der Techniker rennt, steht schon in der Anstrengung: Der Visier
+          // beschlägt nach einer Sekunde Sprint (`stepVitals`), und genau das
+          // ist die Zahl, die auch übers Netz geht.
+          sprinting: crew.exertion > 0.3,
+          stamina: { left: this.stamina.left, trot: PLAYER_SPRINT_SPEED * TROT },
           ...threatAlert(crew),
         });
     // Der Lotse biegt das Ziel der Routine auf eine Klappe um, wenn der
@@ -839,7 +868,7 @@ export class HauntingWorld extends GridWorld {
         : this.npcRide.steer(decision, rider, this.state.time, stationGraph(this.spec));
     this.monsterFace = decision.face;
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
-    this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace));
+    this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace, decision.boost));
     if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
     // Ein Spieler am Steuer trifft den Techniker im Freien mit dem Knopf —
     // `takeHit` prüft Abstand und Sichtlinie wie bei einem Schlag des NPC.
@@ -871,6 +900,7 @@ export class HauntingWorld extends GridWorld {
     crew.hidden = '';
     this.watchedLocker = '';
     if (takeCrewHit(crew, this.state.phase === 'running')) {
+      grantBurst(this.stamina);
       if (crew.hp === 0) {
         this.state.phase = 'lost';
         this.removeMonster();
@@ -1803,6 +1833,7 @@ export class HauntingWorld extends GridWorld {
         this.announce(oxygen.text);
       }
       this.trackMonster();
+      this.noticeRepairs();
       this.checkItems(ctx);
       this.stepCrew(dt, ctx);
       this.state.ride = this.ventRide.phase;
@@ -2087,6 +2118,36 @@ export class HauntingWorld extends GridWorld {
     this.state.monster = { x: at.x, z: at.z };
   }
 
+  /**
+   * **Eine fertige Reparatur ist ein Ereignis der Station** — und das Monster
+   * merkt es.
+   *
+   * Die Konsole fährt hoch, die Sicherung fällt (`HauntState.fuse`), im Modul
+   * flackert das Licht. Wer das hört und sieht, weiß, dass dort eben jemand
+   * gestanden hat; das ist kein Hellsehen, sondern der Schluss, den jedes Tier
+   * zieht. Also: eine Aufruhr-Notiz auf diesen Raum (`MonsterMemory.disturbed`
+   * — ausdrücklich **keine** Sichtung, denn über die Laufrichtung sagt sie
+   * nichts) und ein Schub aufs Tempo für `MonsterTuning.rush` Sekunden.
+   *
+   * Gelesen wird `state.done`, nicht der Rätselcode: Der wächst im Schiff
+   * (`ShipExperience`), in der 2D-Runde und beim Modelltechniker an drei
+   * verschiedenen Stellen, und alle drei laufen hier zusammen.
+   */
+  private noticeRepairs(): void {
+    const done = this.state.done;
+    if (done.length <= this.repaired) {
+      this.repaired = done.length;
+      return;
+    }
+    for (const entry of done.slice(this.repaired)) {
+      const room = repairRoom(this.spec, entry);
+      if (!room) continue;
+      this.brain?.disturbed(room, stationGraph(this.spec).centre(room), this.state.time);
+      this.routine?.hurry(this.tuning.monster.rush);
+    }
+    this.repaired = done.length;
+  }
+
   /** Bei allen anderen steht an dieser Stelle ein Klotz — mehr braucht es nicht. */
   private applyBlob(): void {
     if (this.isHost) {
@@ -2152,6 +2213,10 @@ export class HauntingWorld extends GridWorld {
     )
       return;
     if (!this.isHost || !takeCrewHit(this.state.crew, this.state.phase === 'running')) return;
+    // Der kurze Schub nach dem Treffer (`mission.HIT_BURST`): Drei Sekunden
+    // Unverwundbarkeit nützen nichts, wenn man sie im Griff des Monsters
+    // absteht.
+    grantBurst(this.stamina);
     for (const hand of ['left', 'right'] as const) this.context?.input.get(hand)?.pulse(0.65, 120);
     playSwitch(false);
     if (this.state.crew.hp === 0) {
@@ -2189,6 +2254,15 @@ export class HauntingWorld extends GridWorld {
     const monster = this.state.monster;
     const distance = monster ? Math.hypot(monster.x - _head.x, monster.z - _head.z) : Infinity;
     stepVitals(this.state.crew, dt, speed, distance);
+    // **Die Puste** (`mission.ts`, `core/PlayerRig.sprintScale`). Bis eben galt
+    // der Sprint hier unbegrenzt, und damit war jede Verfolgung entschieden,
+    // sobald der Spieler den Stock nach vorn drückte. Jetzt sind es fünf
+    // Sekunden, danach Trab — und eine Flucht braucht eine Tür, eine Ecke oder
+    // einen Schacht statt einer geraden Linie. Der Modelltechniker der
+    // Bot-Runde hat seine eigene Puste (`rules/technicianBot.ts`), deshalb
+    // hängt das hier am echten Gestell und nicht an ihm.
+    const dash = stepStamina(this.stamina, dt, !bot && ctx.rig.sprinting && speed > 0.1);
+    if (!bot) ctx.rig.sprintScale = dash;
     this.sightTimer -= dt;
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.1;
@@ -2248,17 +2322,27 @@ export class HauntingWorld extends GridWorld {
             )
           : [];
     }
-    stepThreat(this.state.crew, dt, {
-      player: { x: _head.x, z: _head.z },
-      monster,
-      noises: this.heard,
-      crouched: !bot && ctx.rig.crouch > 0.15,
-      flashlight: bot ? !this.state.crew.hidden : (this.experience?.flashlightActive ?? false),
-      inView:
-        !!monster && inView(monster, this.monster?.model.rotation.y ?? 0, _head, 24, MONSTER_FOV),
-      lineOfSight: this.monsterSeesPlayer,
-      insideStation: !!roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)),
-    });
+    stepThreat(
+      this.state.crew,
+      dt,
+      {
+        player: { x: _head.x, z: _head.z },
+        monster,
+        noises: this.heard,
+        crouched: !bot && ctx.rig.crouch > 0.15,
+        flashlight: bot ? !this.state.crew.hidden : (this.experience?.flashlightActive ?? false),
+        inView:
+          !!monster && inView(monster, this.monster?.model.rotation.y ?? 0, _head, 24, MONSTER_FOV),
+        lineOfSight: this.monsterSeesPlayer,
+        insideStation: !!roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)),
+      },
+      // **Die Gewichte gehören auch hierher.** Ohne sie rechnete das Headset
+      // mit dem rohen Kreaturprofil, während 2D und Training mit
+      // `profil × tuning` rechneten — dasselbe Monster hatte in der Brille ein
+      // zweieinhalbmal längeres Gedächtnis als das, gegen das es abgestimmt
+      // wurde (`threat.stepThreat`).
+      { vision: this.tuning.monster.vision, memory: this.tuning.monster.memory },
+    );
     if (this.state.crew.options.test && !this.state.crew.simulation) {
       this.state.monsterOn = false;
       this.state.monster = null;
@@ -3897,6 +3981,8 @@ export class HauntingWorld extends GridWorld {
     this.director?.clear();
     this.monsterNavigator = null;
     this.routine = null;
+    this.brain = null;
+    this.estimator = null;
     this.decision = null;
     this.watchedLocker = '';
     this.monster = null;
@@ -3954,6 +4040,11 @@ export class HauntingWorld extends GridWorld {
         at: new THREE.Vector3(at.x, 0, at.z),
       }) ?? null;
     this.routine = new MonsterRoutine(this.tuning.monster);
+    this.brain = new MonsterMemory(stationGraph(this.spec), () =>
+      shutPairs(this.spec.doors, this.state.shut),
+    );
+    this.estimator = graphEstimator(stationGraph(this.spec));
+    this.repaired = this.state.done.length;
     this.watchedLocker = '';
     // Ein erster Beschluss noch vor dem ersten Bild: Sonst stünde das Monster
     // genau so lange ohne Ziel herum, wie es dauert, bis die Wahrnehmung das

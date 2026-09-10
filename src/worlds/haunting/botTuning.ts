@@ -48,6 +48,28 @@ export interface MonsterTuning {
   reposition: number;
   /** Wie lange es nach einem Kabinenangriff stehen bleibt, in Sekunden. */
   savour: number;
+  /**
+   * Wie gern es an einer Tür lauert, statt weiterzusuchen (0…1). Die Zahl
+   * streckt die Lauerfrist bis höchstens `AMBUSH_MAX`
+   * (`monster/monsterIntercept.ts`); bei 0 wird gar nicht gelauert.
+   */
+  ambush: number;
+  /**
+   * Wie weit es seiner eigenen Prognose traut (0…1). Wer wenig traut,
+   * verlangt an der Abfangtür mehr Vorsprung und verfolgt lieber direkt.
+   */
+  predict: number;
+  /**
+   * **Der Schub nach einer erledigten Reparatur**, in Sekunden.
+   *
+   * Eine fertige Reparatur ist an dieser Station kein stiller Haken auf einer
+   * Liste: Die Konsole fährt hoch, die Sicherung fällt, im ganzen Modul
+   * flackert es. Das ist zu hören und zu sehen — und deshalb ist es kein
+   * Hellsehen, wenn das Monster daraufhin weiß, dass dort eben jemand war,
+   * und für ein paar Sekunden loslegt. Wie lange dieses „Loslegen" dauert,
+   * steht hier; wie schnell es dabei ist, in `monsterRoutine.RUSH_BOOST`.
+   */
+  rush: number;
 }
 
 export interface TechnicianTuning {
@@ -98,8 +120,8 @@ export interface TuningField<T> {
  * anschaut, soll sehen können, was ihm selbst möglich wäre.
  */
 export const MONSTER_FIELDS: ReadonlyArray<TuningField<MonsterTuning>> = [
-  { id: 'speed', label: 'Grundtempo', unit: '×', min: 0.6, max: 1.5, step: 0.05 },
-  { id: 'hunt', label: 'Verfolgungstempo', unit: '×', min: 1, max: 1.7, step: 0.05 },
+  { id: 'speed', label: 'Grundtempo', unit: '×', min: 0.95, max: 1.5, step: 0.05 },
+  { id: 'hunt', label: 'Verfolgungstempo', unit: '×', min: 1.3, max: 1.55, step: 0.05 },
   { id: 'stalk', label: 'Schleichtempo', unit: '×', min: 0.25, max: 1, step: 0.05 },
   { id: 'hearing', label: 'Gehör', unit: '×', min: 0.4, max: 2, step: 0.05 },
   { id: 'vision', label: 'Sicht', unit: '×', min: 0.4, max: 2, step: 0.05 },
@@ -111,6 +133,9 @@ export const MONSTER_FIELDS: ReadonlyArray<TuningField<MonsterTuning>> = [
   { id: 'stakeout', label: 'Auflauern', unit: '%', min: 0.05, max: 0.6, step: 0.05 },
   { id: 'reposition', label: 'Ziele bis Seitenwechsel', unit: '', min: 1, max: 8, step: 1 },
   { id: 'savour', label: 'Vorsprung nach dem Angriff', unit: 's', min: 1, max: 6, step: 0.25 },
+  { id: 'ambush', label: 'Lauern an der Tür', unit: '%', min: 0.15, max: 1, step: 0.05 },
+  { id: 'predict', label: 'Vertrauen in die Prognose', unit: '%', min: 0.2, max: 1, step: 0.05 },
+  { id: 'rush', label: 'Schub nach einer Reparatur', unit: 's', min: 2, max: 12, step: 0.5 },
 ];
 
 export const TECHNICIAN_FIELDS: ReadonlyArray<TuningField<TechnicianTuning>> = [
@@ -133,28 +158,31 @@ export const TECHNICIAN_FIELDS: ReadonlyArray<TuningField<TechnicianTuning>> = [
  */
 export const DEFAULT_TUNING: BotTuning = {
   monster: {
-    speed: 0.75,
-    hunt: 1.15,
-    stalk: 0.75,
-    hearing: 1.2,
-    vision: 1.15,
-    memory: 0.4,
-    search: 7.5,
+    speed: 1.15,
+    hunt: 1.55,
+    stalk: 0.8,
+    hearing: 1,
+    vision: 1.25,
+    memory: 0.9,
+    search: 9.5,
     locker: 0.5,
     guess: 0.25,
-    wander: 0.25,
-    stakeout: 0.15,
-    reposition: 1,
-    savour: 1.5,
+    wander: 0.2,
+    stakeout: 0.05,
+    reposition: 2,
+    savour: 2.5,
+    ambush: 0.55,
+    predict: 1,
+    rush: 5.5,
   },
   technician: {
     walk: 2.6,
-    sprint: 4.45,
-    stamina: 5.75,
-    caution: 8,
-    hide: 0.35,
+    sprint: 4.94,
+    stamina: 9.5,
+    caution: 7,
+    hide: 0.4,
     work: 1.15,
-    nerve: 11,
+    nerve: 10,
   },
 };
 

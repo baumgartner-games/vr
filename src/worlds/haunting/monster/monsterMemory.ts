@@ -46,9 +46,12 @@ import type { FloorPoint } from '../stationLayout';
  * kann das Training (`roundSim.ts`) es hunderte Runden lang mitlaufen lassen,
  * und deshalb kann ein Test es nachrechnen.
  *
- * **Noch nicht angeschlossen.** Die Routine kennt dieses Gedächtnis bisher
- * nicht; das Verdrahten (und die Abfangrechnung darauf) ist ein eigenes
- * Arbeitspaket.
+ * **Angeschlossen ist es in `monsterRoutine.ts`** (Paket M2). Dort wird es
+ * auch gefüttert: Die Routine sieht Sichtung, Geräusch und den eigenen Raum
+ * ohnehin, und ein Gedächtnis, das in 3D, 2D und Simulation von drei
+ * verschiedenen Stellen beschrieben wird, ist nach der ersten Änderung drei
+ * verschiedene Gedächtnisse. Die Welt besitzt es, meldet ihm, was die Routine
+ * nicht sehen kann (`disturbed`), und liest es aus.
  */
 
 /**
@@ -135,6 +138,28 @@ export function doorKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
+/**
+ * **Aus Türkennungen Raumpaare machen** — die Übersetzung, die der Konstruktor
+ * für `shut` verlangt.
+ *
+ * `HauntState.shut` führt die Türen so, wie der Bauplan sie nennt (`d7`); das
+ * Gedächtnis kennt eine Tür nur als das Paar der Räume, die sie verbindet.
+ * Die Haustür hat keinen zweiten Raum — dahinter liegt die Einsatzzentrale,
+ * und die heißt in der Karte `command` (`roomGraph.COMMAND`, hier als
+ * Vorgabe, damit dieses Modul die Karte nicht importieren muss).
+ */
+export function shutPairs(
+  doors: ReadonlyArray<{ id: string; a: string; b: string | null }>,
+  shut: readonly string[],
+  outside = 'command',
+): string[] {
+  if (!shut.length) return [];
+  const closed = new Set(shut);
+  return doors
+    .filter((door) => closed.has(door.id))
+    .map((door) => doorKey(door.a, door.b ?? outside));
+}
+
 /** Die gedämpfte Hörweite, wie der `StationGraph` sie mitbringt. */
 interface Muffled {
   earshot(a: string, b: string): number;
@@ -189,6 +214,35 @@ export class MonsterMemory {
     const note = this.notes.get(where);
     if (note) note.seen = time;
     if (!this.mass.has(where)) return;
+    for (const id of this.spaces) this.mass.set(id, id === where ? 1 : 0);
+  }
+
+  /**
+   * **Da drüben ist gerade etwas passiert.** Die ganze Masse in diesen Raum —
+   * wie bei einer Sichtung, aber ohne Eintrag in der Spur.
+   *
+   * Gemeint ist ein Ereignis, das die Station selbst macht und nicht der
+   * Körper des Technikers: eine fertige Reparatur. Die Konsole fährt hoch, die
+   * Sicherung fällt, im Modul flackert das Licht — das ist über die halbe
+   * Station zu hören und zu sehen, und dass jemand daneben gestanden haben
+   * muss, ist keine Hellsichtigkeit, sondern ein Schluss, den jedes Tier zieht.
+   *
+   * **Warum nicht einfach `seen`.** Weil eine Sichtung zwei Dinge behauptet:
+   * *wo* jemand ist und *wohin* er läuft. Das Zweite steckt in der Spur
+   * (`track`), aus der die Abfangrechnung Richtung und Tempo zieht
+   * (`monster/monsterIntercept.ts`). Ein Aufruhr sagt über die Richtung
+   * nichts. Als `seen` gebucht, hätte er eine erfundene Sichtung an einen Ort
+   * gesetzt, an dem der Techniker im nächsten Moment schon nicht mehr steht —
+   * und die Prognose hätte daraus eine Fahrtrichtung gerechnet, die es nie
+   * gab. Deshalb steht das Ereignis im Notizzettel unter `heard`, wo die
+   * Wahrheit steht: gemerkt, nicht gesehen.
+   */
+  disturbed(room: string, at: FloorPoint, time: number): void {
+    const where = this.mass.has(room) ? room : (this.world.spaceAt?.(at) ?? '');
+    if (!this.mass.has(where)) return;
+    this.trace = time;
+    const note = this.notes.get(where);
+    if (note) note.heard = time;
     for (const id of this.spaces) this.mass.set(id, id === where ? 1 : 0);
   }
 

@@ -31,6 +31,17 @@ export class PlayerRig extends THREE.Group {
   /** How much faster sprinting is than walking. */
   sprintFactor = 1.9;
   /**
+   * Wie viel vom Sprint gerade wirklich übrig ist, 0…1 — die **Puste**.
+   *
+   * Der Sprint war bis eben unbegrenzt, und in einer Welt mit einem Verfolger
+   * ist das keine Fähigkeit, sondern das Ende jeder Verfolgung: Wer geradeaus
+   * läuft, kommt immer davon. Wie viel Puste jemand hat und wie schnell sie
+   * zurückkommt, entscheidet die Welt und nicht das Gestell — hier steht nur
+   * die eine Zahl, mit der sie es sagt (`haunting/mission.ts`,
+   * `stepStamina`). 1 heißt: unbegrenzt, wie in jeder anderen Welt.
+   */
+  sprintScale = 1;
+  /**
    * Sprint is held down by default (left stick pressed in). Switched over in
    * the settings it toggles instead — for anybody who does not want to keep a
    * stick pressed while crossing the whole map.
@@ -229,6 +240,7 @@ export class PlayerRig extends THREE.Group {
   /** Stands back up, e.g. when a world is left. */
   standUp(): void {
     this.locked = false;
+    this.sprintScale = 1;
     this.position.y -= this.crouchOffset - this.seatLift;
     this.crouchOffset = 0;
     this.seatLift = 0;
@@ -366,7 +378,10 @@ export class PlayerRig extends THREE.Group {
 
   /** Walking speed right now — sprinting is a factor on top of it. */
   private speedNow(): number {
-    return this.moveSpeed * (this.sprintWanted ? this.sprintFactor : 1);
+    // Nie unter Gehtempo: Wer den Sprintfaktor im Menü heruntergedreht hat,
+    // soll durch eine leere Puste nicht **langsamer** werden als im Schritt.
+    const sprint = Math.max(1, this.sprintFactor * Math.max(0, Math.min(1, this.sprintScale)));
+    return this.moveSpeed * (this.sprintWanted ? sprint : 1);
   }
 
   /**
