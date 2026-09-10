@@ -16,7 +16,7 @@ import {
   TASK_COUNT,
   type Rect,
 } from './house';
-import { DRONE_PROFILE, housePlan } from './plan';
+import { housePlan } from './plan';
 import { TRAINING_ROOMS, trainingSpawn } from './trainingLayout';
 
 /** Zwanzig Häuser, damit ein Fehler nicht vom Samen abhängt. */
@@ -231,8 +231,8 @@ describe('Der Grundriss als Kachelgitter', () => {
   /**
    * Haus **und** Vorplatz — und keine Kachel mehr.
    *
-   * Der Vorplatz kam dazu, als die Drohne einen Hangar an der Einsatzzentrale bekam; ohne ihn
-   * gäbe es für die Wegsuche kein Draußen. Die Zahl steht trotzdem noch hier,
+   * Der Vorplatz ist das Draußen der Wegsuche — ohne ihn endete die Station
+   * an ihrer Schleuse. Die Zahl steht trotzdem noch hier,
    * und zwar genau deshalb: Ein Gitter, das unbemerkt weiterwächst, ist ein
    * Haus, in dem irgendwann jemand über den Rand hinausläuft.
    */
@@ -269,7 +269,7 @@ describe('Der Grundriss als Kachelgitter', () => {
    * sich von einer Tür.
    *
    * Man sieht hindurch und hört mehr als durch die Wand daneben, aber niemand
-   * geht hindurch, und die Drohne fliegt nicht hindurch. Ohne diese Zusage
+   * geht hindurch. Ohne diese Zusage
    * wäre die Außenwand des Hauses ein Sieb, und „die Haustür ist zu" hieße
    * nichts mehr.
    */
@@ -280,12 +280,10 @@ describe('Der Grundriss als Kachelgitter', () => {
       const facts = plan.graph.wall(key, win.dir);
       expect(facts?.kind).toBe('window');
       const outside = neighbour(key, win.dir);
-      for (const profile of [HUMAN_PROFILE, DRONE_PROFILE]) {
-        const path = findPath(plan.graph, key, outside, { profile });
-        // Hinaus geht es nur durch die Haustür: Der Weg nach draußen ist
-        // länger als eine Kante, oder es gibt gar keinen.
-        expect(path.tiles.length === 2 && path.complete).toBe(false);
-      }
+      const path = findPath(plan.graph, key, outside, { profile: HUMAN_PROFILE });
+      // Hinaus geht es nur durch die Haustür: Der Weg nach draußen ist
+      // länger als eine Kante, oder es gibt gar keinen.
+      expect(path.tiles.length === 2 && path.complete).toBe(false);
     }
   });
 
@@ -367,40 +365,6 @@ describe('Der Grundriss als Kachelgitter', () => {
     const door = tileKey(COMMAND_LIFT.x, COMMAND_LIFT.z, 0);
     expect(housePlan(spec).graph.wall(door, DIR_W)?.open).toBe(false);
     expect(housePlan(spec, new Set(), true).graph.wall(door, DIR_W)?.open).toBe(true);
-  });
-});
-
-describe('Wie weit die Drohne kommt', () => {
-  const spec = generateHouse(31337);
-  const inner = spec.doors.find((door) => door.b !== null)!;
-  const from = tileKey(inner.x, inner.z, 0);
-  const to = neighbour(from, inner.dir);
-
-  it('fliegt durch eine offene Tür', () => {
-    const plan = housePlan(spec);
-    expect(findPath(plan.graph, from, to, { profile: DRONE_PROFILE }).complete).toBe(true);
-  });
-
-  /**
-   * **Die Spielregel, an der die halbe Rollenverzahnung hängt.**
-   *
-   * Die Drohne hat keine Hände. Wo sie hinkommt, hängt daran, was der
-   * VR-Spieler und der Hacker offen gelassen haben — und wo ein Mensch noch
-   * durchkommt, steht sie davor. Stünde das nur in der Oberfläche
-   * („Sie macht keine Tür auf"), wäre es beim nächsten Umbau am Profil eine
-   * Behauptung.
-   *
-   * Gefragt wird nach **dieser Kante** und nicht danach, ob sie am Ziel
-   * ankommt: Seit jedes Zimmer zwei Türen hat, gibt es fast immer einen Umweg,
-   * und der ist gewollt. Die Zusage ist „nicht hier hindurch" — ein einziger
-   * Schritt über die geschlossene Tür, den der Mensch macht und sie nicht.
-   */
-  it('kommt durch eine geschlossene nicht, wo ein Mensch noch durchkommt', () => {
-    const plan = housePlan(spec, new Set([inner.id]));
-    const flight = findPath(plan.graph, from, to, { profile: DRONE_PROFILE });
-    expect(flight.tiles.length === 2 && flight.complete).toBe(false);
-    const walk = findPath(plan.graph, from, to, { profile: HUMAN_PROFILE });
-    expect(walk.tiles.length === 2 && walk.complete).toBe(true);
   });
 });
 

@@ -1,6 +1,5 @@
 import { PLAN_DOOR_H, PLAN_DOOR_W } from '../../editor/levelPlan';
 import { TILE } from '../../nav/navTile';
-import { DRONE_CAP, DRONE_Y, type DronePose, type DroneRoute } from '../droneRoute';
 import { generateHouse, roomCentre, roomOf, type HouseSpec } from '../house';
 import { WALL_T, doorAxis, doorCentre, wallSegments } from '../map/geometry';
 import { emptySnapshot } from '../map/mapSnapshot';
@@ -8,7 +7,13 @@ import { housePlan } from '../plan';
 import { stationRoute } from '../stationNavigation';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from '../stationLayout';
 import { COMMAND_HOME } from '../trainingLayout';
-import { pathLength, snapshotSegmentClear, totalTurn } from './index';
+import {
+  pathLength,
+  snapshotSegmentClear,
+  totalTurn,
+  type RoutePath,
+  type RoutePose,
+} from './index';
 
 /**
  * Die Glättung, gemessen an ganzen Stationen — headless, ohne three.js.
@@ -27,7 +32,7 @@ const SEEDS = [2, 9, 1009];
 const ROOMS = 14;
 const RADIUS = 0.45;
 
-function poseFor(spec: HouseSpec, id: string): DronePose {
+function poseFor(spec: HouseSpec, id: string): RoutePose {
   const centre = roomCentre(roomOf(spec, id)!);
   return { x: (centre.x + 0.5) * TILE, z: (centre.z + 0.5) * TILE, yaw: 0 };
 }
@@ -82,7 +87,7 @@ interface Pair {
   seed: number;
   from: string;
   to: string;
-  start: DronePose;
+  start: RoutePose;
   goal: FloorPoint;
 }
 
@@ -139,7 +144,7 @@ interface Metric {
   turn: number;
 }
 
-function measure(from: FloorPoint, route: DroneRoute): Metric {
+function measure(from: FloorPoint, route: RoutePath): Metric {
   const points = route.points!;
   return {
     length: pathLength(from, points),
@@ -161,8 +166,8 @@ describe('Geglättete Wege durch die Station', () => {
     let after: Metric = { length: 0, points: 0, turn: 0 };
     for (const { spec, pair } of cases) {
       const graph = housePlan(spec).graph;
-      const raw = stationRoute(spec, graph, pair.start, pair.goal, RADIUS, 0, false);
-      const smooth = stationRoute(spec, graph, pair.start, pair.goal, RADIUS, 0, true);
+      const raw = stationRoute(spec, graph, pair.start, pair.goal, RADIUS, false);
+      const smooth = stationRoute(spec, graph, pair.start, pair.goal, RADIUS, true);
       expect({ ...pair, complete: smooth.complete }).toEqual({ ...pair, complete: true });
       expect(smooth.points!.at(-1)).toEqual(raw.points!.at(-1));
       const a = measure(pair.start, raw),
@@ -257,24 +262,19 @@ describe('Geglättete Wege durch die Station', () => {
     }
   });
 
-  it('gelten auch für den Flug der Drohne über niedrige Module hinweg', () => {
+  it('gelten für jeden Raum der Station, nicht nur für die gemessenen Paare', () => {
     const spec = generateHouse(2, 8);
     const from = poseFor(spec, spec.entryRoom);
     const graph = housePlan(spec).graph;
     for (const room of spec.rooms) {
       if (room.id === spec.entryRoom) continue;
       const goal = poseFor(spec, room.id);
-      const raw = stationRoute(spec, graph, from, goal, 0.22, DRONE_Y - DRONE_CAP, false);
-      const route = stationRoute(spec, graph, from, goal, 0.22, DRONE_Y - DRONE_CAP);
+      const raw = stationRoute(spec, graph, from, goal, RADIUS, false);
+      const route = stationRoute(spec, graph, from, goal, RADIUS);
       expect(route.complete).toBe(true);
       expect(route.points!.at(-1)).toEqual({ x: goal.x, z: goal.z });
-      const boxes = [
-        ...stationLayout(spec)
-          .filter((p) => p.height > DRONE_Y - DRONE_CAP)
-          .map((p) => p.bounds),
-        ...walls(spec),
-      ];
-      expect(clearOfBoxes(from, route.points!, boxes, 0.22)).toBe(true);
+      const boxes = [...stationLayout(spec).map((p) => p.bounds), ...walls(spec)];
+      expect(clearOfBoxes(from, route.points!, boxes, RADIUS)).toBe(true);
       expect(pathLength(from, route.points!)).toBeLessThanOrEqual(
         pathLength(from, raw.points!) + 1e-6,
       );

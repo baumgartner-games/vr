@@ -130,6 +130,8 @@ const DOOR_HOLD = 2.6;
 /** Wie oft ein Schritt als Welle auf die Karte kommt, in Sekunden — gehend und rennend. */
 const STEP_PULSE = 0.55;
 const SPRINT_PULSE = 0.35;
+/** Und wie oft ein laufender Schallköder ruft, in Sekunden (`lure`). */
+const LURE_PULSE = 1.4;
 
 export const PLAYER_ID = 'player';
 export const MONSTER_ID = 'monster';
@@ -263,6 +265,8 @@ export class FlatRound implements MapSource {
   /** Das Hörmodell (`audio/hearing.ts`) und die Geräusche des Spielers seit dem letzten Schritt. */
   private readonly hearing = new Hearing();
   private pendingNoises: NoiseSource[] = [];
+  /** Wann der nächste Ruf eines laufenden Schallköders fällig ist, in Sekunden. */
+  private lureClock = 0;
   /** Die Geräusche der letzten Sekunden, für die Karte (`MapNoise`). */
   private readonly noiseLog: MapNoise[] = [];
   private noiseSerial = 0;
@@ -408,10 +412,6 @@ export class FlatRound implements MapSource {
   }
 
   // --- MapSource ------------------------------------------------------------
-
-  drone(): null {
-    return null;
-  }
 
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; intensity: number }> {
     return spacesOf(this.house).map((room) => {
@@ -717,6 +717,20 @@ export class FlatRound implements MapSource {
         this.wave(MONSTER_ID, this.monster, NOISE.monsterVent, 'vent');
       this.haunt.monster = { x: this.monster.x, z: this.monster.z };
       return;
+    }
+
+    // **Der Schallköder ruft, solange er läuft** (`views/panelRole.ts`): Er
+    // ist kein Schalter mit Anzeige, sondern ein Geräusch — und deshalb geht
+    // er durch dasselbe Ohr wie alles andere, statt das Monster per Sonderweg
+    // umzuleiten.
+    this.lureClock -= dt;
+    if (this.lureClock <= 0) {
+      this.lureClock = LURE_PULSE;
+      for (const id of this.haunt.loud) {
+        const at = this.graph.centre(id);
+        this.pendingNoises.push({ at: { x: at.x, z: at.z }, loudness: NOISE.slam });
+        this.wave('', at, NOISE.slam, 'call');
+      }
     }
 
     // --- Wahrnehmung des Monsters: Sehen über die Karte, Hören über das
@@ -1318,6 +1332,25 @@ export class FlatRound implements MapSource {
     return before && before !== id
       ? 'Tür verriegelt · die vorherige ist wieder offen.'
       : 'Tür verriegelt.';
+  }
+
+  /**
+   * **Den Schallköder eines Raums an- oder ausschalten** — der dritte Griff
+   * der Schalttafel (`views/panelRole.ts`).
+   *
+   * Er ist ein Lautsprecher und kein Licht: Was er tut, tut er über das
+   * Hörmodell (`tick`, `LURE_PULSE`), und das Monster geht darauf zu, weil es
+   * etwas hört — nicht, weil eine Regel es dorthin schickt.
+   */
+  lure(roomId: string): string {
+    if (this.haunt.phase !== 'running' || !this.graph.spaces.includes(roomId)) return '';
+    const on = this.haunt.loud.includes(roomId);
+    if (on) this.haunt.loud = this.haunt.loud.filter((id) => id !== roomId);
+    else {
+      this.haunt.loud.push(roomId);
+      this.lureClock = 0;
+    }
+    return on ? 'Schallköder aus.' : 'Schallköder an — das Monster hört ihn.';
   }
 
   /** **Das Licht eines Raums umlegen** — vor Ort oder von der Schalttafel aus. */

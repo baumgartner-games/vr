@@ -7,19 +7,16 @@ import type { VentPhase } from './vents/ventTravel';
  * **Was zwischen Einsatzzentrale und Haus über die Leitung geht** — und wie wenig das ist.
  *
  * Weil jeder Client das Haus aus demselben Samen selbst baut, muss weder
- * Geometrie noch Bild fließen: Die Drohnenkamera ist eine Kamera in der
- * *eigenen* Kopie der Welt, und die Karte des Archivars ist dieselbe Kopie von
- * oben. Übrig bleiben ein paar Dutzend Bytes je Sekunde — Same, Monster,
- * Türen, Licht, Aufgaben.
+ * Geometrie noch Bild fließen: Die Karte jeder Rolle ist die *eigene* Kopie
+ * der Welt von oben. Übrig bleiben ein paar Dutzend Bytes je Sekunde — Same,
+ * Monster, Türen, Licht, Aufgaben.
  *
- * **Fünf Sorten Nachricht, und jede hat genau einen Absender:**
+ * **Vier Sorten Nachricht, und jede hat genau einen Absender:**
  *
  * - `state` — der Gastgeber an alle. Er rechnet das Monster und hält den
  *   Stand; alle anderen lesen. Wer rechnet, entscheidet `pickGameHost`.
  * - `claim` — jeder über sich: an welchem Gerät er sitzt und seit wann.
- * - `drone` — der Pilot über die Drohne. Wer sie fliegt, besitzt sie; das ist
- *   dieselbe Regel wie „wer anfasst, besitzt" bei den Kisten im Portal Labor.
- * - `flip` — der Hacker an den Gastgeber: leg diesen Schalter um.
+ * - `flip` — die Schalttafel an den Gastgeber: leg diesen Schalter um.
  * - `monster` — wer an der Station `monster` sitzt, an den Gastgeber: Stock
  *   und Knöpfe. Der Gastgeber rechnet weiter das Monster; er führt nur aus,
  *   was das Telefon will (`monster/netMonsterControl.ts`). Die Knöpfe gehen
@@ -122,57 +119,6 @@ export interface MonsterNetInput {
 
 /** Die fünf Phasen der Fahrt — als Liste, damit der Leser fremden Text prüfen kann. */
 const RIDE_PHASES: readonly VentPhase[] = ['out', 'entering', 'riding', 'arrived', 'exiting'];
-
-export interface DroneState {
-  x: number;
-  z: number;
-  /**
-   * **Wohin ihr Rumpf zeigt** — und warum das über die Leitung geht.
-   *
-   * Eine Weile wurde der Winkel bei den Zuschauern aus dem Weg zwischen zwei
-   * Ansagen gerechnet, und solange sie nur flog, stimmte er auch. Sobald der
-   * Pilot aber im Stehen wischt, bewegt sich nichts, aus dem sich eine Drehung
-   * ableiten ließe: Sein Bild schwenkte, der Scheinwerfer im Haus blieb stur
-   * geradeaus stehen — und genau der ist das Einzige, was der Pilot dem
-   * VR-Spieler wirklich geben kann. Also steht der Winkel jetzt in der
-   * Nachricht; das Ruckeln bei zehn Ansagen je Sekunde nimmt ihm der weiche
-   * Nachlauf beim Empfänger (`HauntingWorld.turnDroneBody`).
-   */
-  yaw: number;
-  /**
-   * **Und wie weit ihr Kopf dabei nach oben oder unten sieht**, in Bogenmaß,
-   * positiv nach oben.
-   *
-   * Aus demselben Grund in der Nachricht wie der Gierwinkel: Der Kegel des
-   * Scheinwerfers hängt daran, und ein Licht, das beim Piloten an die Decke
-   * zeigt und im Haus auf den Boden, ist keine Hilfe, sondern ein zweiter
-   * Streit am Tisch.
-   */
-  pitch: number;
-  /** Wohin sie gerade fliegt — die Zimmerkennung, oder `''`. */
-  target: string;
-  /**
-   * **Wie viele Sekunden noch kein Zimmerwechsel geht.**
-   *
-   * Geht mit über die Leitung, obwohl nur der Pilot sie herunterzählt — sonst
-   * wäre der Platzwechsel am Gerät ein Schlupfloch: Wer die Sperre abwarten
-   * müsste, steht auf, jemand anders setzt sich hin und fliegt sofort weiter.
-   * Eine Regel, die man durch Stühlerücken umgeht, ist keine.
-   */
-  hop: number;
-  /** Was in der Ladung des Scheinwerfers noch steckt, von 1 bis 0. */
-  lamp: number;
-  /**
-   * **Ob ihr Scheinwerfer an ist** — und warum das über die Leitung geht.
-   *
-   * Das Licht der Drohne ist das Einzige, was der Pilot im *Haus* anrichten
-   * kann: Es leuchtet nicht nur sein eigenes Kamerabild aus, sondern auch das
-   * Zimmer, in dem der VR-Spieler steht. Ein Licht, das nur der Pilot sähe,
-   * wäre eine Helligkeitseinstellung; eines, das alle sehen, ist eine Hilfe,
-   * die man sich zurufen muss — und ein Verräter, wenn das Monster kommt.
-   */
-  light: boolean;
-}
 
 /**
  * Wer die Runde rechnet: **der VR-Spieler**, und erst wenn keiner da ist, der
@@ -304,21 +250,6 @@ export function readClaim(data: unknown, from: string): Claim | null {
   return { id: from, station: it['station'], seniority: Math.max(0, num(it['seniority'])) };
 }
 
-export function readDrone(data: unknown): DroneState | null {
-  const it = bag(data);
-  if (!it || it['kind'] !== 'drone') return null;
-  return {
-    x: num(it['x']),
-    z: num(it['z']),
-    yaw: num(it['yaw']),
-    pitch: num(it['pitch']),
-    target: typeof it['target'] === 'string' ? it['target'].slice(0, 16) : '',
-    hop: Math.min(600, Math.max(0, num(it['hop']))),
-    lamp: Math.min(1, Math.max(0, num(it['lamp'], 1))),
-    light: it['light'] === true,
-  };
-}
-
 export function readFlip(data: unknown): { id: string; on: boolean } | null {
   const it = bag(data);
   if (!it || it['kind'] !== 'flip' || typeof it['id'] !== 'string') return null;
@@ -355,10 +286,6 @@ export function stateMessage(state: HauntState): unknown {
 
 export function claimMessage(station: StationId, seniority: number): unknown {
   return { kind: 'claim', station, seniority };
-}
-
-export function droneMessage(drone: DroneState): unknown {
-  return { kind: 'drone', ...drone };
 }
 
 export function flipMessage(id: string, on: boolean): unknown {

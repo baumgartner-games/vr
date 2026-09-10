@@ -11,11 +11,11 @@
  * Einsatzzentrale — am Tisch wird zugerufen und nicht gelesen, und „ich hab den grünen"
  * ist eine Ansage.
  *
- * `.haunt__view` ist mit Absicht **durchsichtig**: Dort zeichnet die Welt ihr
- * Bild direkt in die Leinwand darunter (`HauntingWorld.render`). Was hier
- * steht, ist nur das Loch. Beide Stationen mit Bild haben dieselbe Form
- * (`.is-view`): Das Bild liegt fest im Hintergrund über dem ganzen Schirm, und
- * die Bedienung kommt auf Zuruf darüber (`.is-panel`).
+ * **Die Rollen bringen ihre eigene Oberfläche mit** (`views/views.css`,
+ * `monster/monster.css`): Was hier steht, ist der Rahmen — Kopfzeile,
+ * Auftragsstreifen, Geräteübersicht. Eine Rolle mit Karte bekommt den ganzen
+ * Platz darunter (`.is-view`), eine ohne (der Fernseher) eine rollende Liste
+ * wie die Übersicht selbst.
  *
  * Handgesetzt wie `style.css` und `tools.css`, deshalb in `.prettierignore`.
  */
@@ -54,22 +54,29 @@
 
 .haunt > * { pointer-events: auto; }
 
-/* Vier Stationen, vier Töne — dieselben wie auf den Monitoren in der Einsatzzentrale. Der
-   Fernseher hat einen fünften: Er ist kein Gerät, aber er steht in derselben
-   Liste, und eine Kachel ohne eigene Farbe sieht aus wie ein Fehler. */
+/* Eine Farbe je Station — dieselben wie auf den Monitoren in der
+   Einsatzzentrale. Der Fernseher hat auch eine: Er ist kein Gerät, aber er
+   steht in derselben Liste, und eine Kachel ohne eigene Farbe sieht aus wie
+   ein Fehler. */
 .haunt[data-station="archive"] { --haunt-accent: #ffc857; }
 .haunt[data-station="scout"] { --haunt-accent: #ff6b6b; }
-.haunt[data-station="drone"] { --haunt-accent: #5ee0a0; }
 .haunt[data-station="hack"] { --haunt-accent: #4aa8ff; }
 .haunt[data-station="watch"] { --haunt-accent: #b98cff; }
 /* Die Gegenseite: dasselbe Rot wie die Monster-Ansicht selbst (`monster/monster.css`). */
 .haunt[data-station="monster"], .haunt [data-accent="monster"] { --haunt-accent: #ff4d55; }
-/* Die Monster-Ansicht füllt die Seite: kein Rand, kein Rollen — der Stock liegt am Rand. */
-.haunt[data-station="monster"] .haunt__body { position: relative; padding: 0; overflow: hidden; }
+/* Eine Rolle mit Karte füllt die Seite: kein Rand, kein Rollen — Stock,
+   Knöpfe und Anzeigen liegen am Rand ihrer eigenen Fläche. Der Zuschauer
+   bekommt dieselbe Fläche, nur ohne Grund: Dort zeichnet die 3D-Welt. */
+.haunt.is-view .haunt__body,
+.haunt[data-station="watch"] .haunt__body { position: relative; padding: 0; overflow: hidden; }
+.haunt[data-station="watch"] .haunt__body { background: none; }
+/* Die Endkarte liegt darüber und nicht darunter: Sie steht im Fluss, die
+   Karte füllt die Fläche absolut — ohne diese Zeile läge das Ergebnis der
+   Runde hinter dem Grundriss. */
+.haunt.is-view .haunt__round-result { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 5; width: min(92vw, 400px); box-sizing: border-box; }
 
 .haunt [data-accent="archive"] { --haunt-accent: #ffc857; }
 .haunt [data-accent="scout"] { --haunt-accent: #ff6b6b; }
-.haunt [data-accent="drone"] { --haunt-accent: #5ee0a0; }
 .haunt [data-accent="hack"] { --haunt-accent: #4aa8ff; }
 .haunt [data-accent="watch"] { --haunt-accent: #b98cff; }
 
@@ -238,169 +245,6 @@ body.haunt-on .touch { display: none; }
   50% { opacity: 0.45; }
 }
 
-/*
- * **Das Loch, durch das die Welt zu sehen ist** — und es ist der ganze Schirm.
- *
- * Es liegt **fest im Hintergrund**, unter Kopfzeile und Bedienung. Vorher war
- * es beim Archivar ein Kinostreifen über einer Kachelwand, den man erst
- * antippen musste, damit er groß wird — zwei Größen bei ihm, eine beim
- * Piloten, und wer das Gerät wechselte, suchte die Bedienung von vorn. Jetzt
- * haben beide dieselbe: Bild ganz, Bedienung auf Zuruf darüber.
- *
- * Die Welt zeichnet in genau das Rechteck, das dieses Element einnimmt
- * (`HauntingWorld.render` über `StationUi.viewport`); der Öffnungswinkel der
- * Drohnenkamera rechnet sich aus dessen Form (`droneRoute.droneFov`), und der
- * Ausschnitt des Archivars ebenso (`HauntingWorld.aimArchive`).
- */
-.haunt__view {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  /* Der Finger über dem Bild dreht die Drohne oder schiebt das Blatt des
-     Archivars und zieht nicht die Seite: Ohne das nimmt der Browser die erste
-     Fingerbewegung für sich — und die Zange nimmt er sich ganz. */
-  touch-action: none;
-}
-
-/*
- * **Die Ecke oben rechts über dem Bild**: Menü und Licht.
- *
- * Eine Zeile im Fluss und keine absolut gesetzte Ecke *im* Bild. Das Bild
- * liegt im Cockpit fest im Hintergrund und damit unter der Kopfzeile; eine
- * Ecke darin läge unter ihr begraben, und eine mit ausgerechnetem Abstand von
- * oben wäre eine Zahl, die bei jeder Schriftgröße neu falsch ist. So steht sie
- * von selbst genau unter dem, was über ihr steht.
- */
-.haunt__vtools {
-  position: relative;
-  z-index: 2;
-  flex: none;
-  align-self: flex-end;
-  display: flex;
-  /* Rechtsbündig auch dort, wo die Zeile die ganze Breite bekommt: Quer
-     gehalten ist sie ein Gitterfeld und dehnt sich, und `align-self` schiebt
-     dann nichts mehr nach rechts. */
-  justify-content: flex-end;
-  gap: 6px;
-  margin: 8px 12px 0;
-}
-
-.haunt__vtools[hidden] { display: none; }
-
-.haunt__vbtn {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  font-size: 17px;
-  line-height: 1;
-  border-radius: 10px;
-  border: 1px solid var(--haunt-line-strong);
-  /* Auf einem hellen Bild muss ein Knopf dunkel sein und andersherum — der
-     Hintergrund hier ist ein Kamerabild und keine Fläche, die man kennt. */
-  background: rgba(6, 9, 16, 0.72);
-  backdrop-filter: blur(6px);
-}
-
-.haunt__vbtn[hidden] { display: none; }
-
-/* Der Blickstock sitzt **im** Bild, unten rechts, wo der Daumen der haltenden
-   Hand ohnehin liegt — und nicht in der Zeile mit Menü und Licht: Dort oben
-   wäre er beim Umsehen genau der Weg quer über das Bild, den er ersparen
-   soll. */
-.haunt__vbtn--look {
-  position: absolute;
-  right: 12px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 2;
-  color: var(--haunt-accent);
-  touch-action: none;
-}
-
-/* Brennt der Scheinwerfer, sieht man es dem Knopf an — er ist im Cockpit die
-   einzige Anzeige dafür, solange die Schalttafel zu ist. */
-.haunt__vbtn--lamp.is-on {
-  color: #23180a;
-  background: #ffe6a8;
-  border-color: #ffe6a8;
-  box-shadow: 0 0 16px rgba(255, 224, 150, 0.45);
-}
-
-/* Steht der Blick neben der Flugrichtung, sagt der Stock das — sonst sucht der
-   Pilot ein Zimmer, das hinter ihm liegt, und hält die Drohne für kaputt. */
-.haunt__vbtn--look.is-off {
-  border-color: var(--haunt-accent);
-  box-shadow: 0 0 14px rgba(94, 224, 160, 0.35);
-}
-
-/*
- * **Über dem Bild liegt nur, was gerade gebraucht wird.**
- *
- * Kopfzeile, Auftragsstreifen und die Knopfecke stehen im Fluss darüber; die
- * Bedienung kommt erst, wenn der Menüknopf sie holt. Vorher klebten dieselben
- * Kacheln dauerhaft unten am Rand: auf einem Telefon zwei Drittel des Bildes
- * für Knöpfe, die man dreimal in der Minute drückt, auf dem Laptop ein Bild,
- * das zum Streifen zusammenschrumpfte. Wer fliegt, sieht; wer liest, liest.
- */
-.haunt.is-view .haunt__bar,
-.haunt.is-view .haunt__quest,
-.haunt.is-view .haunt__body {
-  position: relative;
-  z-index: 1;
-}
-
-.haunt.is-view .haunt__bar { background: rgba(9, 13, 24, 0.82); backdrop-filter: blur(8px); }
-.haunt.is-view .haunt__quest { background: rgba(12, 17, 30, 0.82); backdrop-filter: blur(8px); }
-
-/* Zu heißt weg und nicht abgebaut: Ein Panel, das beim Wiedereinblenden neu
-   entsteht, kommt oben statt dort zurück, wo man war. */
-.haunt.is-view .haunt__body { display: none; }
-
-/*
- * **Die Bedienung liegt auf durchsichtigem Grund.** Kein Kasten, keine Kante:
- * Die Kacheln bringen ihren eigenen Grund mit, und dazwischen läuft das Bild
- * weiter. Damit es die Knöpfe nicht überstrahlt, rastert die Welt es für diese
- * Zeit grob (`HauntingWorld.veilView`) — sichtbar bleibt, dass die Drohne
- * fliegt und dass unter der Akte ein Zimmer liegt, lesbar bleibt nur die
- * Bedienung.
- */
-.haunt.is-view.is-panel .haunt__body {
-  display: flex;
-  flex: 1 1 auto;
-  margin-top: 0;
-  max-height: none;
-  min-height: 0;
-  background: transparent;
-  backdrop-filter: none;
-  border-top: none;
-}
-
-/*
- * **Auf durchsichtigem Grund braucht auch eine Überschrift einen.** „Wohin?"
- * stand sonst als graue Schrift direkt auf einem Zimmer voller Möbel und war
- * je nach Blickrichtung da oder nicht. Ein Schildchen, das sich um seinen Text
- * legt und nicht über die ganze Zeile — es ist eine Beschriftung und keine
- * Leiste.
- */
-.haunt.is-view.is-panel .haunt__h {
-  align-self: flex-start;
-  max-width: 100%;
-  gap: 10px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  border: 1px solid var(--haunt-line);
-  background: rgba(6, 9, 16, 0.88);
-  color: var(--haunt-dim);
-}
-
-/* Dasselbe für die zwei freien Zeilen, die sonst nackt im Bild stünden. */
-.haunt.is-view.is-panel .haunt__blind {
-  align-self: flex-start;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: rgba(6, 9, 16, 0.88);
-}
-
 .haunt__body {
   flex: 1;
   overflow-y: auto;
@@ -429,26 +273,6 @@ body.haunt-on .touch { display: none; }
  */
 .haunt__body > * { flex: none; }
 
-.haunt__h {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 10px 0 0;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--haunt-faint);
-}
-
-.haunt__h-aside {
-  margin-left: auto;
-  letter-spacing: 0;
-  text-transform: none;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--haunt-faint);
-}
-
 /* --- Hinweiskacheln: drei Töne, nicht fünf --- */
 
 .haunt__note {
@@ -472,20 +296,6 @@ body.haunt-on .touch { display: none; }
 
 .haunt__tag { font-size: 11px; color: var(--haunt-dim); line-height: 1.4; }
 .haunt__blind { font-size: 11px; color: var(--haunt-faint); line-height: 1.4; }
-
-.haunt__chip {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--haunt-faint);
-  border: 1px solid var(--haunt-line);
-  border-radius: 999px;
-  padding: 2px 7px;
-  white-space: nowrap;
-}
-
-.haunt__chip--here { color: #0b1a14; background: var(--haunt-accent); border-color: transparent; }
-.haunt__chip--go { color: var(--haunt-accent); border-color: var(--haunt-accent); }
 
 /* Ein Balken, der sich füllt — Anmarsch, Akku, was auch immer. */
 .haunt__rail {
@@ -537,286 +347,19 @@ body.haunt-on .touch { display: none; }
 .haunt__seat.is-mine { color: #06121b; background: var(--haunt-accent); border-color: transparent; }
 .haunt__seat.is-taken { color: var(--haunt-dim); }
 
-/* --- Archiv --- */
-
-.haunt__tasks {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--haunt-line);
-  background: var(--haunt-card);
-}
-
-.haunt__task-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 13px;
-  color: #b9c3da;
-}
-
-.haunt__task-row strong { color: var(--haunt-ink); }
-.haunt__task-row span:nth-child(2) { flex: 1; min-width: 0; }
-.haunt__task-row.is-done { color: var(--haunt-faint); }
-.haunt__task-row.is-done strong { color: #5ee0a0; text-decoration: line-through; }
-.haunt__task-row.is-held strong { color: var(--haunt-warn); }
-
-.haunt__rooms { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.haunt__room {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-height: 44px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--haunt-line);
-  background: var(--haunt-card);
-  font-size: 13px;
-}
-
-.haunt__room.is-open {
-  border-color: var(--haunt-accent);
-  color: #ffe1a3;
-  background: var(--haunt-card-hi);
-}
-
-.haunt__twin { font-size: 10px; color: var(--haunt-warn); }
-
-.haunt__sheet {
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  border: 1px solid var(--haunt-line);
-  background: var(--haunt-card);
-  overflow: hidden;
-}
-
-.haunt__fact {
-  display: flex;
-  gap: 12px;
-  padding: 9px 12px;
-  font-size: 13px;
-  border-top: 1px solid rgba(140, 170, 230, 0.1);
-}
-
-.haunt__fact:first-child { border-top: none; }
-.haunt__fact.is-warn { color: var(--haunt-warn); }
-.haunt__fact-key { flex: none; width: 84px; color: var(--haunt-faint); font-size: 12px; }
-.haunt__fact-value { flex: 1; color: #cbd4e6; }
-.haunt__fact.is-warn .haunt__fact-value { color: var(--haunt-warn); }
-
-/* --- Späher --- */
-
-.haunt__radar {
-  position: relative;
-  align-self: center;
-  width: 100%;
-  max-width: 340px;
-}
-
-.haunt__scout {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 12px;
-  border: 1px solid var(--haunt-line);
-  background: #070a10;
-}
-
-.haunt__radar-empty {
-  position: absolute;
-  inset: auto 0 12px;
-  text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--haunt-faint);
-}
-
-/* --- Drohne --- */
-
-/*
- * Akku und Scheinwerfer stehen nebeneinander und nicht untereinander: Der
- * Pilot hat auf einem Telefon oben ein Kamerabild und unten die Zimmerliste,
- * und alles dazwischen ist Weg, den er scrollen muss, bevor er fliegen kann.
- */
-.haunt__cockpit { display: grid; gap: 8px; }
-
-.haunt__gauge {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 4px 10px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--haunt-line);
-  background: var(--haunt-card);
-}
-
-.haunt__gauge-num { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.haunt__gauge .haunt__tag { grid-column: 1 / -1; }
-/* Gesperrt ist gelb wie alles, was wartet — und nicht rot: Es geht nichts
-   kaputt, es ist nur noch nicht so weit. */
-.haunt__gauge.is-wait { --haunt-accent: var(--haunt-warn); }
-
-.haunt__lamp {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  align-items: center;
-  gap: 5px 11px;
-  text-align: left;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--haunt-line-strong);
-  background: var(--haunt-card);
-  font-size: 13px;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-
-/* Über alle drei Zeilen des Knopfes: Text, Ladungsbalken, Beisage. Und zwar
-   als `span` und nicht als `1 / -1` — ohne ausdrückliche Zeilen im Gitter zeigt
-   `-1` auf dieselbe Linie wie `1`, die Lampe stünde wieder nur in der ersten
-   Zeile, und der Ladungsbalken rutschte unter sie in die Knopfspalte. */
-.haunt__lamp-bulb {
-  grid-row: 1 / span 3;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid var(--haunt-line-strong);
-  font-size: 15px;
-  color: var(--haunt-dim);
-}
-
-.haunt__lamp-text { font-size: 14px; font-weight: 600; }
-
-/* Brennt sie, färbt sich auch ihr Ladungsbalken warm: Ein grüner Balken in
-   einem gelb leuchtenden Knopf sieht aus wie eine zweite Anzeige. */
-.haunt__lamp.is-on {
-  --haunt-accent: #ffe6a8;
-  border-color: #ffe6a8;
-  background: rgba(60, 50, 22, 0.9);
-  box-shadow: 0 0 22px rgba(255, 224, 150, 0.16);
-}
-
-.haunt__lamp.is-on .haunt__lamp-bulb {
-  color: #23180a;
-  background: #ffe6a8;
-  border-color: #ffe6a8;
-  box-shadow: 0 0 16px rgba(255, 224, 150, 0.55);
-}
-
-.haunt__lamp.is-on .haunt__lamp-text { color: #ffe6a8; }
-
-/* Am Kabel: Der Knopf bekommt den Rand der Station, weil er dort nichts mehr
-   verbraucht — eine Ladung, die nicht sinkt, sieht man dem Balken sonst erst
-   nach einer Minute an. */
-.haunt__lamp.is-home { border-color: var(--haunt-accent); }
-
-/*
- * **Zurück zur Einsatzzentrale** — die eine Kachel über der Zimmerliste.
- *
- * Sie steht dort und nicht *in* der Liste: Die Einsatzzentrale ist kein Zimmer, sondern
- * die Stelle, an der sie lädt, und ein Ziel, das immer geht, gehört nicht
- * zwischen sieben, die je nach Tür gehen oder nicht.
- */
-.haunt__cell--van { border-left: 4px solid var(--haunt-accent); }
-
-.haunt__map { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-
-.haunt__cell {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 11px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--haunt-line);
-  background: var(--haunt-card);
-  font-size: 13px;
-  text-align: left;
-  min-height: 62px;
-}
-
-.haunt__cell-head { display: flex; align-items: center; gap: 6px; }
-.haunt__cell-head span:first-child { flex: 1; min-width: 0; }
-.haunt__cell.is-target { border-color: var(--haunt-accent); }
-.haunt__cell.is-here { background: rgba(24, 58, 44, 0.92); border-color: rgba(94, 224, 160, 0.5); }
-
-/* --- Schalttafel --- */
-
-.haunt__switches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-
-.haunt__switch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--haunt-line);
-  background: var(--haunt-card);
-  font-size: 14px;
-  text-align: left;
-  min-height: 56px;
-}
-
-.haunt__switch-label { flex: 1; min-width: 0; }
-
-/* Ein Kippschalter statt der Wörter „an" und „aus": Auf einer Tafel mit zwölf
-   Schaltern liest man den Zustand, statt ihn zu lesen. */
-.haunt__knob {
-  flex: none;
-  width: 38px;
-  height: 22px;
-  border-radius: 999px;
-  border: 1px solid var(--haunt-line-strong);
-  background: rgba(10, 14, 24, 0.9);
-  position: relative;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.haunt__knob i {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--haunt-faint);
-  transition: transform 0.15s, background 0.15s;
-}
-
-.haunt__switch.is-on { border-color: var(--haunt-warn); background: rgba(58, 46, 20, 0.9); }
-.haunt__switch.is-on .haunt__knob { background: rgba(120, 92, 24, 0.9); border-color: var(--haunt-warn); }
-.haunt__switch.is-on .haunt__knob i { transform: translateX(16px); background: var(--haunt-warn); }
-
 /* --- breiter --- */
 
 @media (min-width: 760px) {
   .haunt__body { padding: 16px 24px calc(32px + env(safe-area-inset-bottom)); gap: 10px; }
-  .haunt__map, .haunt__switches { grid-template-columns: repeat(4, 1fr); }
-  .haunt__cockpit { grid-template-columns: 1fr 1fr; align-items: start; }
-  .haunt__rooms { gap: 8px; }
   .haunt__quest { padding: 8px 24px; }
   .haunt__bar { padding-left: 24px; padding-right: 24px; }
 }
 
 /*
- * **Quer gehaltenes Telefon.**
- *
- * Nebeneinandergestellt wird hier nichts mehr: Das Bild liegt bei beiden
- * Stationen über dem ganzen Schirm, und die Bedienung darüber — quer wie
- * hochkant dieselbe Form. Vorher standen sie in zwei Spalten, weil unter einem
- * Kinostreifen quer nichts mehr übrig blieb; der Streifen ist weg, und mit ihm
- * das Gitter.
- *
- * Was bleibt, ist die Kopfzeile: Quer ist der Schirm halb so hoch, und ein
- * Rand für die Kamera-Insel, der hochkant richtig sitzt, frisst hier die halbe
- * Seite.
+ * **Quer gehaltenes Telefon.** Nebeneinandergestellt wird nichts: Jede Rolle
+ * füllt die Fläche unter der Leiste selbst. Was bleibt, ist die Kopfzeile —
+ * quer ist der Schirm halb so hoch, und ein Rand für die Kamera-Insel, der
+ * hochkant richtig sitzt, frisst hier die halbe Seite.
  */
 @media (orientation: landscape) and (max-height: 560px) {
   .haunt__bar { padding-top: calc(8px + max(40px, env(safe-area-inset-top))); }
@@ -829,12 +372,6 @@ body.haunt-on .touch { display: none; }
 .haunt button { touch-action: manipulation; min-height: 44px; }
 .haunt__where small { max-width: 58vw; overflow-wrap: anywhere; }
 .haunt__tile { border-radius: 10px; border-left: 3px solid var(--haunt-accent); }
-.haunt__task-row { display: flex; flex-direction: column; gap: .55rem; line-height: 1.5; padding-block: 1rem; }
-.haunt__telemetry { border: 1px solid #28515a; border-radius: 12px; padding: 14px; background: #071b22; }
-.haunt__telemetry strong { color: #81e6bd; font: 600 11px ui-monospace, monospace; letter-spacing: .13em; }
-.haunt__telemetry small { color: #8eacb5; display: block; font-size: 11px; }
-.haunt__ecg { display: block; width: 100%; height: auto; aspect-ratio: 600 / 140; }
-.haunt__radar { max-width: 420px; width: 100%; margin-inline: auto; }
 .haunt__body { scrollbar-width: thin; scrollbar-color: #375c6b #081823; }
 /* Die Steuerung der 2D-Welt über der 3D-Szene (`world3d/shipControls.ts`):
    dieselben Klassen wie dort, nur ohne den schwarzen Grund — hier liegt die

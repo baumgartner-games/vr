@@ -14,7 +14,7 @@ import {
   dirZ,
   type TileKey,
 } from '../nav/navTile';
-import type { DronePose, DroneRoute } from './droneRoute';
+import type { RoutePath, RoutePose } from './navmesh/route';
 import { missionExtent, type HouseSpec } from './house';
 import { SMOOTH_MARGIN, pullString } from './navmesh';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
@@ -30,7 +30,6 @@ interface RouteGrid {
   spec: HouseSpec;
   version: number;
   radius: number;
-  height: number;
   minX: number;
   minZ: number;
   width: number;
@@ -62,7 +61,7 @@ interface RouteGrid {
   priorities: number[];
 }
 
-/** Two cached profiles cover the walking simulation and the flying camera. */
+/** Zwei zwischengespeicherte Raster decken die Radien ab, die im Spiel laufen. */
 const cache = new WeakMap<NavGraph, RouteGrid[]>();
 
 /** Fachgröße des Quaderindexes in Metern — eine Kachel. */
@@ -78,8 +77,7 @@ const BUCKET_PAD = 0.75;
  * Collision-aware station navigation. It retains the coarse architectural
  * graph and samples only movement at 0.25m resolution. Door frames, closed
  * doors and fitted module footprints use the same metre dimensions as art
- * and physics. `height` is the bottom of the travelling body: drones may
- * pass over low benches, while a walking simulation passes zero.
+ * and physics.
  *
  * Search arrays are reused; geometry is rebuilt only when graph.version or
  * the generated station changes. Missing floor and blocked destinations
@@ -114,30 +112,24 @@ export interface RouteAvoid {
 export function stationRoute(
   spec: HouseSpec,
   graph: NavGraph,
-  from: DronePose,
+  from: RoutePose,
   goal: TileKey | FloorPoint,
   clearance = 0.45,
-  height = 0,
   smooth = true,
   avoid: RouteAvoid | null = null,
-): DroneRoute {
-  const empty = (grounded: boolean): DroneRoute => ({
-    tiles: [],
-    points: [],
-    complete: false,
-    grounded,
-  });
+): RoutePath {
+  const empty = (grounded: boolean): RoutePath => ({ points: [], complete: false, grounded });
   if (
-    !Number.isFinite(from.x + from.z + clearance + height) ||
+    !Number.isFinite(from.x + from.z + clearance) ||
     (typeof goal === 'number' ? keyLevel(goal) !== 0 : !Number.isFinite(goal.x + goal.z))
   )
     return empty(false);
   const radius = Math.max(0.08, Math.min(0.5, clearance));
   let grids = cache.get(graph);
   if (!grids) cache.set(graph, (grids = []));
-  let grid = grids.find((g) => g.radius === radius && g.height === height);
+  let grid = grids.find((g) => g.radius === radius);
   if (!grid || grid.version !== graph.version || grid.spec !== spec) {
-    const built = buildGrid(spec, graph, radius, height);
+    const built = buildGrid(spec, graph, radius);
     if (!built) return empty(false);
     if (grid) grids.splice(grids.indexOf(grid), 1);
     if (grids.length >= 2) grids.shift();
@@ -223,7 +215,7 @@ export function stationRoute(
         tight: (a, b) => segmentClear(grid, graph, a, b),
       })
     : points;
-  return { tiles: [], points: softenCorners(grid, graph, from, pulled), grounded: true, complete };
+  return { points: softenCorners(grid, graph, from, pulled), grounded: true, complete };
 }
 
 /**
@@ -294,12 +286,7 @@ function softenCorners(
   return result;
 }
 
-function buildGrid(
-  spec: HouseSpec,
-  graph: NavGraph,
-  radius: number,
-  height: number,
-): RouteGrid | null {
+function buildGrid(spec: HouseSpec, graph: NavGraph, radius: number): RouteGrid | null {
   // Test rooms are reached by teleport. Their remote floors must never enlarge
   // the mission movement raster or make an off-map actor seem routable.
   const bounds = missionExtent(spec);
@@ -334,9 +321,7 @@ function buildGrid(
         valid[
           (keyZ(tile) * SUBDIVISIONS + z - minZ) * width + keyX(tile) * SUBDIVISIONS + x - minX
         ] = 1;
-  const obstacles: FloorBounds[] = stationLayout(spec)
-    .filter((p) => p.height > height)
-    .map((p) => ({ ...p.bounds }));
+  const obstacles: FloorBounds[] = stationLayout(spec).map((p) => ({ ...p.bounds }));
   for (const [key, wall] of graph.wallEntries()) {
     const tile = wallTile(key);
     if (keyLevel(tile) !== 0) continue;
@@ -422,7 +407,6 @@ function buildGrid(
     spec,
     version: graph.version,
     radius,
-    height,
     minX,
     minZ,
     width,

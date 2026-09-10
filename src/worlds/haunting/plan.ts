@@ -11,7 +11,6 @@ import {
   tilesOf,
   type HouseSpec,
 } from './house';
-import { FLYER_PROFILE } from '../nav/navProfile';
 import type { PlanSolid } from '../grid/solids';
 import { TRAINING_DOOR, TRAINING_ROOMS } from './trainingLayout';
 
@@ -57,8 +56,8 @@ export function housePlan(
   if (spec.passages) {
     for (const room of spacesOf(spec)) plan.room(room.rect, { walls: true, ceiling: PLAN_WALL_H });
   } else plan.room(HOUSE, { walls: true, ceiling: PLAN_WALL_H });
-  // Die geschlossene Einsatzzentrale bleibt Teil des Missionsgraphen, damit
-  // die Drohne durch dieselbe Tür zurückkehrt wie der Techniker.
+  // Die geschlossene Einsatzzentrale bleibt Teil des Missionsgraphen: Der
+  // Techniker geht durch dieselbe Schleuse hinaus und wieder herein.
   plan.room(APRON, { walls: true, ceiling: PLAN_WALL_H });
   // Der Testdeck-Aufzug liegt in der Zentrale; die Lehrzimmer selbst liegen
   // mit eigenen Böden, Wänden und Decken weit außerhalb der Missionskarte.
@@ -85,7 +84,7 @@ export function housePlan(
 
   // **Die Fenster kommen nach den Wänden.** Sie ersetzen eine Kante, die schon
   // steht — wer sie vorher setzte, bekäme sie von `plan.room(…, { walls: true })`
-  // wieder zugemauert. Sie halten auf wie eine Wand (auch die Drohne), lassen
+  // wieder zugemauert. Sie halten auf wie eine Wand, lassen
   // aber Sicht und Geräusch durch, und genau daran hängt, wozu sie hier gut
   // sind: Wer im dunklen Haus steht, sieht darin das Abendlicht über dem
   // Vorplatz und weiß, an welcher Seite des Hauses er klebt.
@@ -113,19 +112,3 @@ function innerWalls(plan: GridPlan, spec: HouseSpec): void {
 // **`blockFor` steht bei den Maßen**, nicht hier: Die 2D-Szene braucht die
 // Höhe eines Möbels und darf dafür nicht den halben Bauplan mitladen.
 export { blockFor } from './fixtureDimensions';
-
-/**
- * **Wie eine Drohne durch das Haus kommt.**
- *
- * Der Flieger aus `nav/navProfile.ts`, mit einer einzigen Änderung:
- * `opens: false`. Sie fliegt über jedes Möbel und jede Stufe hinweg — aber sie
- * hat keine Hände und macht keine Tür auf. Damit hängt ihre Reichweite an dem,
- * was der VR-Spieler und der Hacker offen gelassen haben, und das ist eine
- * Abhängigkeit in beide Richtungen, für die es keine einzige Sonderregel
- * braucht.
- *
- * Steht hier und nicht in der Welt, damit ein Test sie ohne three.js
- * nachrechnen kann: Dass eine geschlossene Tür die Drohne wirklich aufhält,
- * ist eine Spielregel und keine Kulisse.
- */
-export const DRONE_PROFILE = { ...FLYER_PROFILE, id: 'drone', label: 'Drohne', opens: false };

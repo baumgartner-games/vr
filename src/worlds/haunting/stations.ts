@@ -4,11 +4,11 @@ import { pickHost, type HostCandidate } from '../../net/host';
  * **Die Einsatzzentrale: mehr Stationen als Spieler.**
  *
  * Das ist keine Sparmaßnahme, sondern die Spannungsquelle des ganzen
- * Web-Teils. Es gibt vier Geräte und meistens zwei oder drei Leute davor; die
+ * Web-Teils. Es gibt mehr Geräte als Leute davor; die
  * eigentliche Entscheidung des Abends ist deshalb nie „was tue ich", sondern
  * **„was lassen wir gerade unbeobachtet"**. Eine unbesetzte Station läuft
- * weiter — das Monster wandert weiter über den Späherschirm, nur sieht
- * niemand hin.
+ * weiter — die Peilung des Spähers kommt weiter alle dreieinhalb Sekunden,
+ * nur sieht niemand hin.
  *
  * **Wem ein Gerät gehört, entscheidet die Sitzdauer** — dieselbe Regel, mit
  * der die Welt ihren Gastgeber wählt (`net/host.ts`), und aus demselben Grund:
@@ -21,37 +21,41 @@ import { pickHost, type HostCandidate } from '../../net/host';
  * Griff nach demselben Gerät ein Rennen, das der mit dem schnelleren Handy
  * gewinnt — unsichtbar und ärgerlich. Mit ihr wird daraus eine Verhandlung:
  * Zwei sehen sich auf dasselbe Terminal zulaufen, und einer ruft „geh du, ich
- * nehm den Hacker". Genau dieses Zurufen ist das Spiel.
+ * nehm die Schalttafel". Genau dieses Zurufen ist das Spiel.
  *
- * **Und dann ist da noch der Fernseher** (`watch`). Er ist kein fünftes Gerät,
+ * **Und dann ist da noch der Fernseher** (`watch`). Er ist kein weiteres Gerät,
  * sondern ein Fenster: das ganze Haus von schräg oben, bei Tag, mit allem
  * darin. Er gehört nicht ins Spiel, sondern in den Raum — für die, die
- * zusehen, während vier andere sich anschreien. Deshalb ist er der einzige
+ * zusehen, während die anderen sich anschreien. Deshalb ist er der einzige
  * Platz, an dem **mehrere gleichzeitig** sitzen dürfen (`shared`): Wer nichts
  * bedient, nimmt niemandem etwas weg.
  *
- * **Und die fünfte Station ist die Gegenseite** (`monster`). Wer hier sitzt,
+ * **Und die letzte Station ist die Gegenseite** (`monster`). Wer hier sitzt,
  * spielt nicht mit der Crew, sondern gegen sie: Stock und zwei Knöpfe, die
  * Karte nur aus dem, was das Monster sieht und hört (`monster/`). Die
  * Eingaben gehen über die Leitung zum Gastgeber, der das Monster weiter
  * rechnet (`net.ts`, `monster/netMonsterControl.ts`). Ein Gerät, nicht
  * `shared` — ein Monster, nicht mehrere.
  */
-export type StationId = 'archive' | 'scout' | 'drone' | 'hack' | 'watch' | 'monster';
+export type StationId = 'archive' | 'scout' | 'hack' | 'watch' | 'monster';
 
+/**
+ * **Was die Sitzordnung von einem Gerät wissen muss** — und mehr steht hier
+ * nicht.
+ *
+ * Wie eine Rolle heißt, was sie tut und was sie ausdrücklich *nicht* sieht,
+ * steht bei der Rolle selbst (`registry/roles.ts`, angemeldet aus
+ * `views/*.register.ts` und `monster/monster.register.ts`). Diese Datei kennt
+ * nur die Stühle: welche es gibt, wem einer gehört und wie lange der Weg zum
+ * nächsten dauert. Zwei Listen mit denselben Beschriftungen wären zwei Listen,
+ * von denen eine irgendwann falsch ist.
+ */
 export interface StationFacts {
   id: StationId;
-  label: string;
-  /** Eine Zeile, die sagt, was man hier tut. */
-  tagline: string;
-  /** Was diese Station sieht — und was ausdrücklich nicht. */
-  sees: string;
-  /** Ob dafür die Welt gezeichnet werden muss (der Hacker sieht kein Bild). */
-  view: boolean;
   /**
    * **Ob mehrere gleichzeitig daran dürfen.**
    *
-   * Die vier Geräte sind mit Absicht einzeln: Der Streit darum ist das Spiel.
+   * Die Geräte sind mit Absicht einzeln: Der Streit darum ist das Spiel.
    * Der Fernseher ist kein Gerät, sondern ein Fenster — wer davorsteht,
    * nimmt niemandem etwas weg, und ein Schubser zwischen zwei Zuschauern wäre
    * eine Regel ohne Sache dahinter.
@@ -60,51 +64,19 @@ export interface StationFacts {
 }
 
 export const STATIONS: readonly StationFacts[] = [
-  {
-    id: 'archive',
-    label: 'Archiv',
-    tagline: 'Aufträge, Fundorte und Freigabecodes',
-    sees: 'ein ausgewählter Raum von oben, Fundhinweise und Codes — keine Gesamtkarte oder Live-Positionen',
-    view: true,
-  },
-  {
-    id: 'scout',
-    label: 'Einsatzkontrolle',
-    tagline: 'Radar, Puls, Licht und Türen',
-    sees: 'Bewegungsradar, Anzugtelemetrie und Systemschalter — keine Fundorte',
-    view: false,
-  },
-  {
-    id: 'drone',
-    label: 'Drohne',
-    tagline: 'Ein Zimmer, jetzt, vollständig',
-    sees: 'alles im Zimmer, in dem sie steht — sonst nichts',
-    view: true,
-  },
-  {
-    id: 'watch',
-    label: 'Zuschauer',
-    tagline: 'Die ganze Station, beleuchtet',
-    sees: 'alles — und darf deshalb nichts sagen',
-    view: true,
-    shared: true,
-  },
-  {
-    id: 'monster',
-    label: 'Monster',
-    tagline: 'Die Station aus Monstersicht',
-    sees: 'nur, was das Monster sieht und hört — keinen Techniker, der im Dunkeln steht',
-    view: false,
-  },
+  { id: 'archive' },
+  { id: 'scout' },
+  { id: 'hack' },
+  { id: 'watch', shared: true },
+  { id: 'monster' },
 ];
 
 export function stationFacts(id: StationId): StationFacts {
-  // Old peers can still announce `hack`; all current menus use Einsatzkontrolle.
-  return STATIONS.find((one) => one.id === (id === 'hack' ? 'scout' : id)) ?? STATIONS[0]!;
+  return STATIONS.find((one) => one.id === id) ?? STATIONS[0]!;
 }
 
 export function isStation(value: unknown): value is StationId {
-  return value === 'hack' || STATIONS.some((one) => one.id === value);
+  return STATIONS.some((one) => one.id === value);
 }
 
 /** Wie lange man von einem Gerät zum nächsten braucht, in Sekunden. */
@@ -152,8 +124,9 @@ export function shoved(claims: readonly Claim[], peer: string): boolean {
 /**
  * Wie viele gerade an einem Gerät sitzen.
  *
- * Für die Kachel in der Einsatzzentrale: Bei den vier einzelnen ist die Zahl immer null oder
- * eins und die Kachel sagt einen Namen; vor dem Fernseher sagt sie „zu dritt".
+ * Für die Kachel in der Einsatzzentrale: Bei den einzelnen Geräten ist die
+ * Zahl immer null oder eins und die Kachel sagt einen Namen; vor dem
+ * Fernseher sagt sie „zu dritt".
  */
 export function crowdAt(claims: readonly Claim[], station: StationId): number {
   return claims.filter((claim) => claim.station === station).length;
@@ -162,9 +135,10 @@ export function crowdAt(claims: readonly Claim[], station: StationId): number {
 /** Wer wo sitzt — für die Kachelübersicht in der Einsatzzentrale. */
 export function seating(claims: readonly Claim[]): Map<StationId, string> {
   const out = new Map<StationId, string>();
-  for (const station of STATIONS) {
-    const owner = ownerOf(claims, station.id);
-    if (owner) out.set(station.id, owner);
+  for (const claim of claims) {
+    if (out.has(claim.station)) continue;
+    const owner = ownerOf(claims, claim.station);
+    if (owner) out.set(claim.station, owner);
   }
   return out;
 }

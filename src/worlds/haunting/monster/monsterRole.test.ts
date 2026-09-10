@@ -49,10 +49,12 @@ function seat(seed = 2): {
   const notes: string[] = [];
   const host: RoleHost = {
     snapshot: () => round.snapshot(),
+    spec: () => round.house,
     me: () => 'me',
     nameOf: () => '',
-    flip: () => {},
-    flyTo: () => {},
+    door: () => '',
+    light: () => '',
+    lure: () => '',
     notify: (text) => notes.push(text),
     extra: { monster: control },
   };
@@ -92,12 +94,15 @@ describe('Die Monster-Rolle in der Registry', () => {
   });
 
   it('findet ihren Port nur, wenn der Host einen mitbringt', () => {
+    const idle = new FlatRound(1, { test: true });
     const bare: RoleHost = {
-      snapshot: () => new FlatRound(1, { test: true }).snapshot(),
+      snapshot: () => idle.snapshot(),
+      spec: () => idle.house,
       me: () => '',
       nameOf: () => '',
-      flip: () => {},
-      flyTo: () => {},
+      door: () => '',
+      light: () => '',
+      lure: () => '',
       notify: () => {},
     };
     expect(monsterPortOf(bare)).toBeNull();
@@ -227,10 +232,12 @@ describe('Das Steuer des Monsters', () => {
     const control = new FlatMonsterControl(round);
     const host: RoleHost = {
       snapshot: () => round.snapshot(),
+      spec: () => round.house,
       me: () => 'me',
       nameOf: () => '',
-      flip: () => {},
-      flyTo: () => {},
+      door: () => '',
+      light: () => '',
+      lure: () => '',
       notify: () => {},
       extra: { monster: control },
     };
