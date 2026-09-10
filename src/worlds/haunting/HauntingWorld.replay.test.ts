@@ -7,7 +7,7 @@ import { AutomaticDoors } from './automaticDoors';
 import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
 import { Rng } from './rng';
-import { defaultLobby } from './rules/lobby';
+import { defaultLobby, type LobbyChoice } from './rules/lobby';
 import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
@@ -40,7 +40,7 @@ interface ReplayWorld {
   receive(data: unknown, from: string): void;
   requestBotRound(ctx: unknown): void;
   menu(): MenuEntry[];
-  flatWanted: boolean;
+  lobbyChoice: LobbyChoice;
   flatTechnician: boolean;
   pendingBotRound: boolean;
   stepCrew(dt: number, ctx: unknown): void;
@@ -96,7 +96,6 @@ function replay(): ReplayWorld {
     simulationSpeed: 1,
     monster: null,
     monsterArt: null,
-    flatWanted: false,
     flatTechnician: false,
     pendingBotRound: false,
     vents: vents,
@@ -251,9 +250,9 @@ test('the headset menu leads with the mission and says why a start is refused', 
     renderer: { xr: { isPresenting: true } },
   };
   world.context = ctx;
-  // Die Checkbox „2D-Welt von oben" darf in der Brille nichts umleiten, und ein
+  // Die Ansicht „2D von oben" darf in der Brille nichts umleiten, und ein
   // fremder Gastgeber darf den Eintrag nicht stumm machen (`rules/worldMenu.ts`).
-  world.flatWanted = true;
+  world.lobbyChoice = { intent: 'play', view: '2d' };
   world.hostId = 'remote';
   const rounds = world.menu().filter((row) => row.id.startsWith('haunt:'));
   expect(rounds.slice(0, 3).map((row) => row.id)).toEqual([
