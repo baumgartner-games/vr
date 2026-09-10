@@ -43,14 +43,24 @@
 .flat__corner { position: absolute; top: var(--flat-top); padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; }
 .flat__options { right: 12px; }
 .flat__centre { right: 104px; }
-.flat__panel, .flat__ending { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(92vw, 380px); max-height: 86vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); z-index: 3; }
+/* Panels und Rätsel hängen unter dem HUD der Seite, nicht in der Bildmitte: Zentriert
+   schob sich auf einem Telefon die Kopfzeile des Rätsels unter die Leiste der Seite
+   (z-index 5), und „Schließen" war nicht mehr zu treffen. Das Rätsel liegt über dem
+   Optionsmenü — wer an der Konsole steht, will das Rätsel und kein Menü darüber. */
+.flat__panel, .flat__ending { position: absolute; left: 50%; top: calc(var(--flat-top) + 44px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100vh - var(--flat-top) - 44px - var(--flat-bottom) - 8px); max-height: calc(100dvh - var(--flat-top) - 44px - var(--flat-bottom) - 8px); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); z-index: 3; }
+.flat__sheet { z-index: 4; }
+.flat__fact { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(140, 170, 230, 0.15); font-size: 13px; }
+.flat__fact span { color: #97a3bd; }
+.flat__fact b { text-align: right; color: #e8ecf7; font-weight: 600; }
+.flat__fact.is-warn b { color: #ffe8bd; }
+.flat__hud em { font-style: normal; font-size: 12px; color: #ffd84a; }
 .flat__panel > strong, .flat__ending > strong { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6b7690; margin-top: 6px; }
 .flat__ending > strong { font-size: 18px; color: #7ff0ff; }
 .flat__option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.25); background: rgba(28, 38, 62, 0.6); color: #e8ecf7; font: inherit; text-align: left; }
 .flat__option.is-active { border-color: #7ff0ff; }
 .flat__option small { color: #97a3bd; font-size: 12px; }
 .flat__option--leave { border-color: rgba(255, 90, 95, 0.5); }
-.flat__puzzle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(94vw, 420px); max-height: 88vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(143, 240, 176, 0.45); z-index: 2; }
+.flat__puzzle { position: absolute; left: 50%; top: calc(var(--flat-top) + 44px); transform: translateX(-50%); width: min(94vw, 420px); max-height: calc(100vh - var(--flat-top) - 44px - var(--flat-bottom) - 8px); max-height: calc(100dvh - var(--flat-top) - 44px - var(--flat-bottom) - 8px); overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(143, 240, 176, 0.45); z-index: 6; }
 .flat__puzzle.is-wrong { border-color: #ff5a5f; }
 .flat__puzzle-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .flat__puzzle-head strong { font-size: 15px; color: #8ff0b0; }
@@ -60,8 +70,11 @@
 .flat__wires { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .flat__column { display: flex; flex-direction: column; gap: 8px; }
 .flat__plug, .flat__socket, .flat__puzzle .flat__key, .flat__send { min-height: 46px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.7); color: #e8ecf7; font: inherit; display: flex; flex-direction: column; align-items: flex-start; }
-.flat__plug.is-selected { border-color: #f0b64a; }
-.flat__plug small { color: #8ff0b0; font-size: 11px; }
+.flat__plug, .flat__socket { border-left: 4px solid var(--wire, rgba(140, 170, 230, 0.35)); }
+.flat__plug.is-selected { border-color: #f0b64a; border-left-color: var(--wire); box-shadow: 0 0 0 1px #f0b64a inset; }
+.flat__plug.is-right, .flat__socket.is-right { background: rgba(143, 240, 176, 0.18); }
+.flat__plug small, .flat__socket small { color: #8ff0b0; font-size: 11px; }
+.flat__wire-symbol { font-size: 18px; line-height: 1; color: var(--wire); }
 .flat__socket:disabled { opacity: .5; }
 .flat__display { font: 600 26px ui-monospace, monospace; letter-spacing: .3em; text-align: center; padding: 8px; border-radius: 10px; background: #070a10; color: #8ff0b0; }
 .flat__keys { display: flex; gap: 8px; }

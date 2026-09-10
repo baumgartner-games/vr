@@ -28,7 +28,7 @@ import {
   type NoiseSource,
   type ThreatState,
 } from '../threat';
-import { Hearing } from '../audio/hearing';
+import { Hearing, reachOf } from '../audio/hearing';
 import { NOISE, stepLoudness } from '../audio/cues';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
@@ -37,6 +37,15 @@ import { StationNpcNavigator } from '../stationNpcNavigator';
 import { StationTravelPlan } from '../stationTravelPlan';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
+import {
+  freshLocks,
+  releaseLock,
+  slamDoor,
+  stepLocks,
+  toggleLock,
+  type DoorLocks,
+} from '../rules/doorLocks';
+import { stationRoute } from '../stationNavigation';
 import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
@@ -49,9 +58,14 @@ import {
   type MapEntity,
   type MapItem,
   type MapLight,
+  type MapNoise,
+  type MapNoiseCause,
+  type MapPoint,
   type MapRound,
   type MapSnapshot,
 } from './mapSnapshot';
+import type { MapGoal } from './mapView';
+import type { RoundSetup, SoloPowers } from '../rules/roundSetup';
 import { applyPuzzle, type PuzzleAction } from './flatPuzzles';
 import {
   computeVisibility,
@@ -104,6 +118,13 @@ export const TORCH_FOV = (52 * Math.PI) / 180;
 const SPACE_MARGIN = WALL_T / 2 + PLAYER_RADIUS - 0.01;
 /** Der längste Zeitschritt, den die Runde rechnet — längere werden geteilt. */
 const MAX_STEP = 1 / 30;
+/** Wie lange ein Geräusch für die Karte aufgehoben wird, in Sekunden. */
+const NOISE_MEMORY = 5;
+/** Wie oft ein Schritt als Welle auf die Karte kommt, in Sekunden — gehend und rennend. */
+const STEP_PULSE = 0.55;
+const SPRINT_PULSE = 0.35;
+/** Wie oft der Weg des Spielers zum nächsten Ziel neu gerechnet wird, in Sekunden. */
+const ROUTE_REFRESH = 0.8;
 
 export const PLAYER_ID = 'player';
 export const MONSTER_ID = 'monster';
@@ -145,6 +166,15 @@ export interface FlatOptions {
    * spielt der Techniker aus Zahlen (`rules/technicianBot.ts`) und man sieht zu.
    */
   role?: FlatRole;
+  /**
+   * Was der Techniker aus den Bot-Plätzen der Zentrale selbst bekommt
+   * (`rules/roundSetup.ts`): Peilung, Schalttafel, Akte. Nur `FlatMode`.
+   */
+  powers?: SoloPowers;
+  /** Ob die Wege von Monster und Techniker auf der Karte liegen. Nur `FlatMode`. */
+  routes?: boolean;
+  /** Die ganze Verteilung, aus der `role`, `test` und `powers` kommen — für die Tafel im Optionsmenü. */
+  setup?: RoundSetup;
 }
 
 interface Actor {
@@ -209,7 +239,16 @@ export class FlatRound implements MapSource {
   private readonly memory: ThreatState = freshThreat();
   /** Das Hörmodell (`audio/hearing.ts`) und die Geräusche des Spielers seit dem letzten Schritt. */
   private readonly hearing = new Hearing();
-  private noises: NoiseSource[] = [];
+  private pendingNoises: NoiseSource[] = [];
+  /** Die Geräusche der letzten Sekunden, für die Karte (`MapNoise`). */
+  private readonly noiseLog: MapNoise[] = [];
+  private noiseSerial = 0;
+  private stepPulse = 0;
+  private monsterPulse = 0;
+  /** Wer welche Tür gesperrt hat, und wie lange zugefallene halten (`rules/doorLocks.ts`). */
+  readonly locks: DoorLocks = freshLocks();
+  /** Der Weg des Spielers zum nächsten Ziel — nur gerechnet, wenn jemand ihn sehen will. */
+  private playerPath: { goal: string; at: number; points: MapPoint[] } | null = null;
   private readonly rng: Rng;
   private readonly tuning: BotTuning;
   private spook: Spook = freshSpook();
@@ -451,6 +490,11 @@ export class FlatRound implements MapSource {
     return this.vents.mapLinks();
   }
 
+  /** Die Geräusche der letzten Sekunden — als Wellen für die Karte. */
+  noises(): MapNoise[] {
+    return this.noiseLog;
+  }
+
   carriedLights(): readonly MapLight[] {
     if (!this.torch || this.activeTool !== 'flashlight' || this.haunt.crew.hidden) return [];
     return [
@@ -495,6 +539,8 @@ export class FlatRound implements MapSource {
       left -= slice;
       this.tick(slice, input);
     }
+    while (this.noiseLog.length && this.haunt.time - this.noiseLog[0]!.since > NOISE_MEMORY)
+      this.noiseLog.shift();
     this.snapshotCache = null;
     this.field = computeVisibility(
       { snapshot: this.snapshot(), mode: this.mode, viewerId: PLAYER_ID },
@@ -512,6 +558,12 @@ export class FlatRound implements MapSource {
     }
     this.radarPing = Math.max(0, this.radarPing - dt);
     const crew = this.haunt.crew;
+    // Zugefallene Türen gehen von selbst wieder auf (`rules/doorLocks.ts`).
+    const locks = stepLocks(this.locks, this.haunt.shut, this.haunt.time);
+    if (locks.opened.length) {
+      this.haunt.shut = locks.shut;
+      this.events.push({ kind: 'info', text: 'Eine Tür geht wieder auf.' });
+    }
 
     // --- Spieler ------------------------------------------------------------
     const length = Math.hypot(input.x, input.z);
@@ -538,7 +590,13 @@ export class FlatRound implements MapSource {
       const space = spaceAtMetres(this.house, this.player, this.player.space, SPACE_MARGIN);
       this.player.space =
         space === null ? this.player.space : space === COMMAND ? COMMAND : space.id;
-    }
+      // Jeder Schritt eine Welle auf der Karte — rennend öfter und weiter.
+      this.stepPulse -= dt;
+      if (this.stepPulse <= 0) {
+        this.stepPulse = input.sprint ? SPRINT_PULSE : STEP_PULSE;
+        this.wave(PLAYER_ID, this.player, stepLoudness(speed), input.sprint ? 'sprint' : 'walk');
+      }
+    } else this.stepPulse = 0;
     const gap = this.haunt.monsterOn
       ? Math.hypot(this.player.x - this.monster.x, this.player.z - this.monster.z)
       : Infinity;
@@ -572,8 +630,10 @@ export class FlatRound implements MapSource {
         this.events.push({ kind: 'warn', text: 'Das Licht geht aus.' });
     }
     if (spooked.doorShut && !this.haunt.shut.includes(spooked.doorShut)) {
-      this.haunt.shut.push(spooked.doorShut);
+      this.haunt.shut = slamDoor(this.locks, this.haunt.shut, spooked.doorShut, this.haunt.time);
       this.events.push({ kind: 'warn', text: 'Irgendwo fällt eine Tür zu.' });
+      const door = this.house.doors.find((d) => d.id === spooked.doorShut);
+      if (door) this.wave('', doorCentre(door), NOISE.slam, 'slam');
     }
 
     if (!this.haunt.monsterOn) return;
@@ -581,7 +641,9 @@ export class FlatRound implements MapSource {
     // --- Im Schacht: nichts hören, nichts sehen, nur fahren (`vents/ventTravel.ts`).
     const piloted = this.driver?.active() === true;
     if (this.ventRide.busy) {
-      this.ventRide.step(dt, this.monster, !piloted);
+      const event = this.ventRide.step(dt, this.monster, !piloted);
+      if (event === 'entered' || event === 'exited')
+        this.wave(MONSTER_ID, this.monster, NOISE.monsterVent, 'vent');
       this.haunt.monster = { x: this.monster.x, z: this.monster.z };
       return;
     }
@@ -592,14 +654,20 @@ export class FlatRound implements MapSource {
     const hidden = !!crew.hidden;
     const snapshot = this.snapshot();
     if (this.moving && !hidden)
-      this.noises.push({
+      this.pendingNoises.push({
         at: { x: this.player.x, z: this.player.z },
         loudness: stepLoudness(speed),
       });
     const heard = hidden
       ? []
-      : hearNoises(this.hearing, snapshot, this.monster, this.noises, this.tuning.monster.hearing);
-    this.noises.length = 0;
+      : hearNoises(
+          this.hearing,
+          snapshot,
+          this.monster,
+          this.pendingNoises,
+          this.tuning.monster.hearing,
+        );
+    this.pendingNoises.length = 0;
     const cone = {
       entityId: MONSTER_ID,
       at: { x: this.monster.x, z: this.monster.z },
@@ -662,7 +730,10 @@ export class FlatRound implements MapSource {
       this.routine.suspect === crew.hidden
     )
       this.caught = crew.hidden;
-    if (decision.cue === 'scream') this.events.push({ kind: 'bad', text: 'Ein Schrei.' });
+    if (decision.cue === 'scream') {
+      this.events.push({ kind: 'bad', text: 'Ein Schrei.' });
+      this.wave(MONSTER_ID, this.monster, NOISE.monsterCall, 'call');
+    }
     const base = monsterBase(crew.options.monster);
     if (piloted) {
       // Ein Spieler steuert direkt: kein Türrouting, kein Lotse — nur Gleiten an Wänden.
@@ -681,15 +752,46 @@ export class FlatRound implements MapSource {
         );
     }
     this.haunt.monster = { x: this.monster.x, z: this.monster.z };
+    // Die Schritte des Monsters als Wellen: leise beim Schleichen, weit beim Rennen.
+    if (decision.pace !== 'still') {
+      this.monsterPulse -= dt;
+      if (this.monsterPulse <= 0) {
+        const hunting = decision.pace === 'hunt';
+        this.monsterPulse = hunting ? SPRINT_PULSE : STEP_PULSE;
+        this.wave(
+          MONSTER_ID,
+          this.monster,
+          hunting
+            ? NOISE.monsterRun
+            : decision.mode === 'search'
+              ? NOISE.monsterStalk
+              : NOISE.monsterWalk,
+          'monster',
+        );
+      }
+    } else this.monsterPulse = 0;
 
     // Die KI trifft durch Berührung, ein Spieler nur mit dem Knopf.
     const wantsHit = piloted ? decision.strike : !decision.strike;
     if (gap < CONTACT && !hidden && wantsHit && takeCrewHit(crew, true)) this.hit('Treffer.');
   }
 
-  /** Ein Geräusch des Spielers für die Ohren des Monsters (`audio/cues.ts`, `NOISE`). */
-  private noise(at: FloorPoint, loudness: number): void {
-    this.noises.push({ at: { x: at.x, z: at.z }, loudness });
+  /** Ein Geräusch des Spielers für die Ohren des Monsters (`audio/cues.ts`, `NOISE`) — und als Welle auf die Karte. */
+  private noise(at: FloorPoint, loudness: number, cause: MapNoiseCause = 'interact'): void {
+    this.pendingNoises.push({ at: { x: at.x, z: at.z }, loudness });
+    this.wave(PLAYER_ID, at, loudness, cause);
+  }
+
+  /** Eine Welle auf der Karte: wer, wo, wie weit (`reachOf`), wann. */
+  private wave(by: string, at: FloorPoint, loudness: number, cause: MapNoiseCause): void {
+    this.noiseLog.push({
+      id: `n${this.noiseSerial++}`,
+      by,
+      at: { x: at.x, z: at.z },
+      radius: reachOf(loudness),
+      cause,
+      since: this.haunt.time,
+    });
   }
 
   /** Der Alarm des Monsters — für Anzeigen und Tests. */
@@ -755,8 +857,9 @@ export class FlatRound implements MapSource {
         if (!this.blocked || this.blocked.id !== door.id)
           this.blocked = { id: door.id, since: this.haunt.time };
         if (door.material === 'wood' && this.haunt.time - this.blocked.since > WOOD_DELAY) {
-          this.haunt.shut = this.haunt.shut.filter((id) => id !== door.id);
+          this.haunt.shut = releaseLock(this.locks, this.haunt.shut, door.id);
           this.events.push({ kind: 'warn', text: 'Holz splittert.' });
+          this.wave(MONSTER_ID, at, NOISE.slam, 'slam');
           this.blocked = null;
         }
       }
@@ -951,6 +1054,7 @@ export class FlatRound implements MapSource {
     this.noise(
       near.at,
       near.kind === 'door' ? NOISE.door : near.kind === 'light' ? NOISE.light : NOISE.interact,
+      near.kind === 'door' ? 'door' : 'interact',
     );
     if (near.kind === 'locker') {
       if (crew.hidden) {
@@ -995,18 +1099,98 @@ export class FlatRound implements MapSource {
       return;
     }
     if (near.kind === 'door') {
-      const locked = this.haunt.shut.includes(near.id);
-      if (locked) this.haunt.shut = this.haunt.shut.filter((id) => id !== near.id);
-      else this.haunt.shut.push(near.id);
-      this.events.push({ kind: 'info', text: locked ? 'Tür entriegelt.' : 'Tür verriegelt.' });
+      this.events.push({ kind: 'info', text: this.lockDoor(near.id) });
       return;
     }
-    if (near.kind === 'light') {
-      const on = this.haunt.lit.includes(near.id);
-      if (on) this.haunt.lit = this.haunt.lit.filter((id) => id !== near.id);
-      else this.haunt.lit.push(near.id);
-      this.events.push({ kind: 'info', text: on ? 'Licht aus.' : 'Licht an.' });
+    if (near.kind === 'light') this.events.push({ kind: 'info', text: this.switchLight(near.id) });
+  }
+
+  /**
+   * **Eine Tür gewollt sperren oder freigeben** — vor Ort oder von der
+   * Schalttafel aus: Gewollt gesperrt ist immer nur eine; die vorherige geht
+   * dabei auf (`rules/doorLocks.ts`). Zugefallene darf man jederzeit freigeben.
+   *
+   * @returns die Zeile für den Spieler.
+   */
+  lockDoor(id: string): string {
+    const door = this.house.doors.find((d) => d.id === id);
+    if (!door || this.haunt.phase !== 'running') return '';
+    const before = this.locks.chosen;
+    const out = toggleLock(this.locks, this.haunt.shut, id);
+    this.haunt.shut = out.shut;
+    if (!out.locked) return 'Tür entriegelt.';
+    return before && before !== id
+      ? 'Tür verriegelt · die vorherige ist wieder offen.'
+      : 'Tür verriegelt.';
+  }
+
+  /** **Das Licht eines Raums umlegen** — vor Ort oder von der Schalttafel aus. */
+  switchLight(roomId: string): string {
+    if (this.haunt.phase !== 'running') return '';
+    const on = this.haunt.lit.includes(roomId);
+    if (on) this.haunt.lit = this.haunt.lit.filter((id) => id !== roomId);
+    else this.haunt.lit.push(roomId);
+    return on ? 'Licht aus.' : 'Licht an.';
+  }
+
+  /**
+   * **Die Ziele des Technikers, in Reihenfolge**: je Reparatur erst das
+   * Ersatzteil, dann die Konsole; sind alle drei erledigt, die Zentrale.
+   * Das erste ist das nächste — das mit dem Dreieck am Bildrand.
+   */
+  objectives(): MapGoal[] {
+    const crew = this.haunt.crew;
+    const out: MapGoal[] = [];
+    for (const repair of repairsFor(this.house)) {
+      if (this.haunt.done.includes(repair.itemId)) continue;
+      const cargo = this.cargo.find((c) => c.loot === repair.itemId);
+      const console = this.consoles.find((c) => c.repair.id === repair.id);
+      if (cargo && !crew.inventory.includes(repair.itemId))
+        out.push({ id: cargo.id, at: { ...cargo.at }, label: cargo.label, next: false });
+      else if (console)
+        out.push({ id: console.id, at: { ...console.at }, label: repair.title, next: false });
     }
+    if (!out.length)
+      out.push({
+        id: 'van',
+        at: { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
+        label: 'Zurück zur Zentrale',
+        next: false,
+      });
+    out[0]!.next = true;
+    return out;
+  }
+
+  /** Der Weg, den das Monster gerade geht — leer, wenn ein Spieler es steuert oder es steht. */
+  monsterRoute(): MapPoint[] {
+    if (!this.haunt.monsterOn || this.driver?.active() || this.ventRide.busy) return [];
+    const points = this.navigator.navigation.points;
+    if (!points.length) return [];
+    return [{ x: this.monster.x, z: this.monster.z }, ...points.map((p) => ({ x: p.x, z: p.z }))];
+  }
+
+  /**
+   * Der Weg des Spielers zum nächsten Ziel — dieselbe Wegsuche wie die des
+   * Monsters, aber nur alle `ROUTE_REFRESH` Sekunden, weil sie nur eine
+   * Anzeige ist und keine Steuerung.
+   */
+  playerRoute(): MapPoint[] {
+    const goal = this.objectives()[0];
+    if (!goal || this.haunt.crew.hidden) return [];
+    const known = this.playerPath;
+    if (known && known.goal === goal.id && this.haunt.time - known.at < ROUTE_REFRESH)
+      return [{ x: this.player.x, z: this.player.z }, ...known.points];
+    const graph = this.travel.graph(this.house, this.haunt.shut, false);
+    const route = stationRoute(
+      this.house,
+      graph,
+      { x: this.player.x, z: this.player.z, yaw: this.player.yaw },
+      goal.at,
+      PLAYER_RADIUS + ROUTE_COMFORT,
+    );
+    const points = (route.points ?? []).map((p) => ({ x: p.x, z: p.z }));
+    this.playerPath = { goal: goal.id, at: this.haunt.time, points };
+    return [{ x: this.player.x, z: this.player.z }, ...points];
   }
 
   // --- Rätsel --------------------------------------------------------------

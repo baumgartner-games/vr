@@ -40,7 +40,8 @@ jobs:
 
       # Die Tests laufen hier und nicht nur auf dem Rechner dessen, der gerade
       # committet: AGENTS.md verlangt sie vor jedem Push, und eine Regel, an die
-      # sich nur erinnert wird, ist keine.
+      # sich nur erinnert wird, ist keine. Die langsamen Rundensimulationen
+      # laufen im Job `slow-tests` daneben (jest.config.cjs, `SLOW`).
       - name: Test
         run: npm test
 
@@ -72,3 +73,24 @@ jobs:
           git push --force \
             "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             gh-pages
+
+  # Die Rundensimulationen (Bot-Runden, Training, Schächte, Glättung) dauern
+  # Minuten; sie laufen neben dem Build, damit ein Push nicht an einer Uhr
+  # scheitert, sondern nur an einem Fehler.
+  slow-tests:
+    name: Slow tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Slow tests
+        run: npm run test:slow

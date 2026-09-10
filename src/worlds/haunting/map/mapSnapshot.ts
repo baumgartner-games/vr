@@ -177,6 +177,48 @@ export interface MapRound {
   ending: '' | 'oxygen' | 'suit' | 'escaped';
 }
 
+/**
+ * **Ein Möbel auf dem Boden** — Kryokapsel, Tisch, Werkbank, aber auch der
+ * Kasten der Fracht, der Schutzschrank und die Konsole als Klotz. Was in der
+ * 3D-Welt steht, steht auch hier (`stationLayout.ts`): dieselben Maße,
+ * derselbe Platz. Die Karte zeichnet ihn als Möbel; was man damit tun kann,
+ * steht getrennt davon in `items`.
+ */
+export interface MapFixture {
+  id: string;
+  kind: 'fixture' | 'cargo' | 'locker' | 'console';
+  /** Die Sorte aus `marks.ts` (`bett`, `esstisch`, …) — nur bei `fixture`. */
+  mark?: string;
+  roomId: string;
+  /** Die Mitte, in Metern. */
+  at: MapPoint;
+  /** Drehung um die Hochachse wie `yaw`; Breite und Tiefe sind lokale Maße. */
+  yaw: number;
+  width: number;
+  depth: number;
+}
+
+export type MapNoiseCause =
+  'walk' | 'sprint' | 'interact' | 'door' | 'slam' | 'vent' | 'monster' | 'call';
+
+/**
+ * **Ein Geräusch, das gerade eben war** — als Welle, die über den Boden
+ * läuft. Wer es gemacht hat, wo, wie weit es trägt, und wann: Die Karte
+ * zeichnet daraus einen Ring, der über die Kacheln nach außen wandert und
+ * verblasst. Die Quelle führt die Liste ein paar Sekunden und räumt sie dann.
+ */
+export interface MapNoise {
+  id: string;
+  /** Wer es gemacht hat — die Kennung des `MapEntity`, oder `''` für das Haus (eine Tür fällt zu). */
+  by: string;
+  at: MapPoint;
+  /** Wie weit es zu hören ist, in Metern. */
+  radius: number;
+  cause: MapNoiseCause;
+  /** Wann es war, in Sekunden Rundenzeit (`MapSnapshot.time`). */
+  since: number;
+}
+
 export interface MapSnapshot {
   /** Der Same der Station — dieselbe Zahl, dieselben Räume. */
   seed: number;
@@ -202,6 +244,10 @@ export interface MapSnapshot {
    * in `items`, mit Zustand `closed` oder `open` (jemand steigt ein oder aus).
    */
   ventLinks?: Array<{ a: string; b: string }>;
+  /** Die Möbel — was im Raum steht, mit Maß und Drehung. */
+  fixtures?: MapFixture[];
+  /** Die Geräusche der letzten Sekunden, als Wellen über den Boden. */
+  noises?: MapNoise[];
 }
 
 /** Ein Snapshot ohne Station — der Anfangswert jeder Ansicht. */

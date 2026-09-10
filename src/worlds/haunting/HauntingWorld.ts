@@ -99,6 +99,7 @@ import {
   freshCrew,
   MONSTERS,
   ROOM_COUNTS,
+  repairsFor,
   stationOptions,
   takeCrewHit,
   stepVitals,
@@ -110,6 +111,28 @@ import { StationUi } from './stationUi';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { RoundRules } from './rules/roundRules';
+import {
+  chooseLock,
+  freshLocks,
+  releaseLock,
+  slamDoor,
+  stepLocks,
+  toggleLock,
+  type DoorLocks,
+} from './rules/doorLocks';
+import {
+  cycleMonster,
+  cycleWho,
+  flatRoleOf,
+  loadSetup,
+  powersOf,
+  presetFor,
+  roundKindOf,
+  saveSetup,
+  WHO_LABELS,
+  type RoundSetup,
+} from './rules/roundSetup';
+import type { MapGoal } from './map/mapView';
 import { buildVentFlaps } from './vents/ventArt';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
@@ -389,6 +412,10 @@ export class HauntingWorld extends GridWorld {
    * Stand kommt eine Viertelsekunde später ohnehin über die Leitung.
    */
   private spook: Spook = freshSpook();
+  /** Wer welche Tür gesperrt hat, und wie lange zugefallene halten (`rules/doorLocks.ts`) — beim Gastgeber. */
+  private locks: DoorLocks = freshLocks();
+  /** Die Verteilung der nächsten Runde: Techniker, Monster, Plätze (`rules/roundSetup.ts`). */
+  private setup: RoundSetup = loadSetup();
   /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
   private blob: THREE.Object3D | null = null;
 
@@ -847,6 +874,9 @@ export class HauntingWorld extends GridWorld {
         test: () => this.startRound('test', ctx),
         flatMode: () => this.toggleFlatWanted(),
         flatWanted: () => this.flatWanted,
+        setup: () => this.setup,
+        setSetup: (setup) => this.applySetup(setup),
+        startSetup: () => this.startRound(roundKindOf(this.setup), ctx),
         restart: () => {
           if (this.isHost) {
             this.flatTechnician = true;
@@ -1045,6 +1075,7 @@ export class HauntingWorld extends GridWorld {
       },
       carried: (hand) => this.carriedTool(hand),
       mapSnapshot: () => this.mapSnapshot(),
+      objectives: () => this.objectives(),
       monsterPace: () => this.decision?.pace ?? 'still',
       noise: (at, loudness) => {
         this.noiseQueue.push({ at: { x: at.x, z: at.z }, loudness });
@@ -1652,6 +1683,9 @@ export class HauntingWorld extends GridWorld {
 
     if (this.isHost) {
       this.state.time += dt;
+      // Zugefallene Türen gehen von selbst wieder auf (`rules/doorLocks.ts`).
+      const locks = stepLocks(this.locks, this.state.shut, this.state.time);
+      if (locks.opened.length) this.state.shut = locks.shut;
       const oxygen = this.rules.step(this.state);
       if (oxygen) {
         this.removeMonster();
@@ -2137,9 +2171,8 @@ export class HauntingWorld extends GridWorld {
     const door = this.spec.doors.find((d) => d.id === id);
     const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
     if (!door && !trainingDoor) return;
-    const shut = this.state.shut.indexOf(id);
-    if (shut >= 0) this.state.shut.splice(shut, 1);
-    else this.state.shut.push(id);
+    // Gewollt gesperrt ist immer nur eine Tür — auch vor Ort (`rules/doorLocks.ts`).
+    this.state.shut = toggleLock(this.locks, this.state.shut, id).shut;
   }
 
   /** Ein Schalter der Tafel, angewendet beim Gastgeber. */
@@ -2156,10 +2189,12 @@ export class HauntingWorld extends GridWorld {
       if (!on && at >= 0) list.splice(at, 1);
       return;
     }
-    // Türen: `on` heißt offen, und die Liste führt die geschlossenen.
-    const shut = this.state.shut.indexOf(entry.target);
-    if (!on && shut < 0) this.state.shut.push(entry.target);
-    if (on && shut >= 0) this.state.shut.splice(shut, 1);
+    // Türen: `on` heißt offen, und die Liste führt die geschlossenen. Gewollt
+    // gesperrt ist immer nur eine — die vorherige geht dabei auf; eine
+    // zugefallene darf die Tafel jederzeit freigeben (`rules/doorLocks.ts`).
+    this.state.shut = on
+      ? releaseLock(this.locks, this.state.shut, entry.target)
+      : chooseLock(this.locks, this.state.shut, entry.target);
   }
 
   /** Vom Hacker aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */
@@ -2254,9 +2289,8 @@ export class HauntingWorld extends GridWorld {
 
     const lit = this.state.lit.indexOf(out.lightOut);
     if (out.lightOut && lit >= 0) this.state.lit.splice(lit, 1);
-    if (out.doorShut && !this.state.shut.includes(out.doorShut)) {
-      this.state.shut.push(out.doorShut);
-    }
+    if (out.doorShut && !this.state.shut.includes(out.doorShut))
+      this.state.shut = slamDoor(this.locks, this.state.shut, out.doorShut, this.state.time);
   }
 
   /**
@@ -3129,6 +3163,8 @@ export class HauntingWorld extends GridWorld {
   // --- das Menü in der Brille ------------------------------------------------
 
   override menu(): MenuEntry[] {
+    // Ein nachgebautes Weltobjekt (Replay-Tests) hat die Tafel nicht; dann gilt der Anfang.
+    const setup = (this.setup ??= loadSetup());
     const entry = (id: string, label: string, sub: string, run: () => void): MenuEntry => ({
       id,
       label,
@@ -3220,6 +3256,24 @@ export class HauntingWorld extends GridWorld {
           }),
       ),
       entry(
+        'haunt:setup-technician',
+        `Techniker: ${WHO_LABELS[setup.technician]}`,
+        'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen',
+        () => this.applySetup({ ...setup, technician: cycleWho(setup.technician) }),
+      ),
+      entry(
+        'haunt:setup-monster',
+        `Monster: ${WHO_LABELS[setup.monster]}`,
+        'Aus Zahlen, am Stock (nur 2D) oder aus — der sichere Test',
+        () => this.applySetup({ ...setup, monster: cycleMonster(setup.monster) }),
+      ),
+      entry(
+        'haunt:setup-seats',
+        `Zentrale: ${setup.seats.length ? setup.seats.map((seat) => WHO_LABELS[seat.who]).join('/') : 'keine Plätze'}`,
+        'Archivar, Schalttafel, Späher · Bot-Plätze geben dem Techniker die Auskunft selbst',
+        () => this.cycleSeats(),
+      ),
+      entry(
         'haunt:monster-kind',
         `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
         'Drei Erscheinungen mit anderem Tempo und Schachtverhalten',
@@ -3235,6 +3289,18 @@ export class HauntingWorld extends GridWorld {
       ),
       ...(this.experience?.menu() ?? []),
     ];
+  }
+
+  /** Die Plätze der Zentrale im Menü der Brille: alle Bot → alle Mensch → keine → alle Bot. */
+  private cycleSeats(): void {
+    const seats = this.setup.seats;
+    const allBot = seats.length > 0 && seats.every((seat) => seat.who === 'bot');
+    const next: RoundSetup['seats'] = allBot
+      ? seats.map((seat) => ({ ...seat, who: 'human' }))
+      : seats.length
+        ? []
+        : (['archive', 'panel', 'scout'] as const).map((role) => ({ role, who: 'bot' }));
+    this.applySetup({ ...this.setup, seats: next });
   }
 
   private joinTable(ctx: WorldContext): void {
@@ -3261,21 +3327,81 @@ export class HauntingWorld extends GridWorld {
    * jede davon als `FlatMode`; sonst wie bisher im Schiff.
    */
   private startRound(kind: 'bot' | 'mission' | 'test', ctx: WorldContext): void {
+    // Die drei Kacheln schreiben Techniker und Monster auf die Tafel; die
+    // Plätze der Zentrale bleiben, wie sie verteilt sind (`rules/roundSetup.ts`).
+    this.applySetup(presetFor(kind, this.setup));
+    const setup = this.setup;
     if (this.flatWanted) {
       const options = this.state.crew.options;
+      const role = flatRoleOf(setup);
       this.openFlat(ctx, {
         monster: options.monster,
         tuning: this.tuning,
-        test: kind === 'test',
-        role: kind === 'bot' ? 'bot' : 'technician',
+        test: setup.monster === 'off',
+        role,
+        setup,
+        powers: powersOf(setup),
         // Wer zusieht, will alles sehen; wer spielt, sieht, was der Techniker sieht.
-        mode: kind === 'bot' ? 'omniscient' : 'realistic',
+        mode: role === 'bot' ? 'omniscient' : 'realistic',
       });
       return;
     }
-    if (kind === 'bot') this.requestBotRound(ctx);
-    else if (kind === 'mission') this.startMission();
+    // Im Schiff steuert nur der Techniker aus Fleisch; ein Monster aus Fleisch
+    // gibt es dort (noch) nicht — es rechnet die Routine.
+    const inShip = roundKindOf(setup);
+    if (inShip === 'bot') this.requestBotRound(ctx);
+    else if (inShip === 'mission') this.startMission();
     else this.testMission();
+  }
+
+  /** Die Tafel schreiben — und allen Anzeigen sagen, dass sie sich geändert hat. */
+  private applySetup(setup: RoundSetup): void {
+    this.setup = setup;
+    saveSetup(setup);
+    this.ui?.refresh();
+    this.context?.refreshWorldMenu();
+  }
+
+  /**
+   * **Die Ziele des Technikers, in Reihenfolge** — für den Kompass am oberen
+   * Bildrand: je Reparatur erst das Ersatzteil, dann die Konsole; sind alle
+   * drei erledigt, die Zentrale. Dieselbe Regel wie in der 2D-Welt
+   * (`FlatRound.objectives`).
+   */
+  objectives(): MapGoal[] {
+    const state = this.state;
+    const layout = stationLayout(this.spec);
+    const out: MapGoal[] = [];
+    for (const repair of repairsFor(this.spec)) {
+      if (state.done.includes(repair.itemId)) continue;
+      const task = this.spec.tasks.find((t) => t.id === repair.itemId);
+      const carried = state.crew.inventory.includes(repair.itemId);
+      const cargo = task ? layout.find((p) => p.id === `cargo-${task.roomId}`) : null;
+      const console = layout.find((p) => p.id === `console-${repair.id}`);
+      if (!carried && cargo)
+        out.push({
+          id: cargo.id,
+          at: { x: cargo.approach.x, z: cargo.approach.z },
+          label: task?.label ?? repair.item,
+          next: false,
+        });
+      else if (console)
+        out.push({
+          id: console.id,
+          at: { x: console.approach.x, z: console.approach.z },
+          label: repair.title,
+          next: false,
+        });
+    }
+    if (!out.length)
+      out.push({
+        id: 'van',
+        at: { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
+        label: 'Zurück zur Zentrale',
+        next: false,
+      });
+    out[0]!.next = true;
+    return out;
   }
 
   /**
@@ -3497,6 +3623,7 @@ export class HauntingWorld extends GridWorld {
     this.removeMonster();
     this.rules.reset();
     this.spook = freshSpook();
+    this.locks = freshLocks();
     this.automaticDoors.clear();
     this.spec = generateHouse(rollSeed(), options.rooms);
     this.state = freshState(this.spec.seed, options);

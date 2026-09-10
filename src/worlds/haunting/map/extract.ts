@@ -9,8 +9,16 @@ import {
   rectPolygon,
   wallSegments,
 } from './geometry';
+import { stationLayout } from '../stationLayout';
 import type { MapSource } from './mapSource';
-import type { MapBounds, MapLight, MapRoom, MapSegment, MapSnapshot } from './mapSnapshot';
+import type {
+  MapBounds,
+  MapFixture,
+  MapLight,
+  MapRoom,
+  MapSegment,
+  MapSnapshot,
+} from './mapSnapshot';
 
 /**
  * **Vom laufenden Spiel zum Snapshot** — reiner Lesezugriff.
@@ -95,6 +103,32 @@ export function roomsOf(spec: HouseSpec, lit: readonly string[]): MapRoom[] {
   return rooms;
 }
 
+const fixtureCache = new WeakMap<HouseSpec, MapFixture[]>();
+
+/**
+ * **Die Möbel der Station**, wie `stationLayout` sie stellt — einmal je
+ * Bauplan gerechnet. Kryokapsel, Tische und Kisten sind auf der Karte reine
+ * Deko; Fracht, Schrank und Konsole stehen hier als Klotz *und* in `items`
+ * mit ihrem Zustand.
+ */
+export function fixturesOf(spec: HouseSpec): MapFixture[] {
+  let fixtures = fixtureCache.get(spec);
+  if (!fixtures) {
+    fixtures = stationLayout(spec).map((placement) => ({
+      id: placement.id,
+      kind: placement.kind,
+      ...(placement.markId ? { mark: placement.markId } : {}),
+      roomId: placement.roomId,
+      at: { x: placement.x, z: placement.z },
+      yaw: placement.yaw,
+      width: placement.width,
+      depth: placement.depth,
+    }));
+    fixtureCache.set(spec, fixtures);
+  }
+  return fixtures;
+}
+
 export function boundsOf(rooms: readonly MapRoom[]): MapBounds {
   const bounds: MapBounds = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity };
   for (const room of rooms)
@@ -154,5 +188,7 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
     power: true,
     ...(source.round ? { round: source.round() } : {}),
     ...(source.ventLinks ? { ventLinks: source.ventLinks() } : {}),
+    fixtures: fixturesOf(spec),
+    ...(source.noises ? { noises: source.noises() } : {}),
   };
 }

@@ -1,6 +1,8 @@
 import { lockerCode, repairsFor } from './mission';
 import './haunting.css';
 import './stationDashboard.css';
+import { describeSetup, type RoundSetup } from './rules/roundSetup';
+import { SetupPanel } from './roundSetupPanel';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   MARKS,
@@ -51,6 +53,13 @@ export interface StationHost {
   /** Mission (mit Monster) und Test (ohne) — die Kacheln neben der Bot-Runde, wenn 2D steht. */
   mission?(): void;
   test?(): void;
+  /**
+   * Die Verteilung der nächsten Runde (`rules/roundSetup.ts`): Techniker,
+   * Monster, Plätze der Zentrale. `startSetup` startet genau damit.
+   */
+  setup?(): RoundSetup;
+  setSetup?(setup: RoundSetup): void;
+  startSetup?(): void;
   /** Eine beendete Runde über die autorisierte Weltaktion neu beginnen. */
   restart?(): void;
   nameOf(peer: string): string;
@@ -160,6 +169,8 @@ export class StationUi {
 
   /** Ob gerade die Geräteübersicht offen ist statt der eigenen Station. */
   private vanOpen = true;
+  /** Die Tafel der Verteilung — eine für die Lebensdauer der Seite, neu gefüllt bei jedem Schreiben. */
+  private setupPanel: SetupPanel | null = null;
   /**
    * **Ob die Bedienung gerade über dem Bild liegt.**
    *
@@ -365,6 +376,7 @@ export class StationUi {
       this.panel,
       // Die Checkbox „2D-Welt von oben" tauscht die Kacheln darunter aus.
       this.host.flatWanted?.() ?? false,
+      this.host.setup ? describeSetup(this.host.setup()) : '',
       // Der Zurück-Knopf im Bild kommt und geht mit dem Ausschnitt des
       // Archivars — mehr braucht die Seite von ihm nicht zu wissen.
       atHome(this.host.archiveView()),
@@ -669,6 +681,34 @@ export class StationUi {
       );
       bot.toggleAttribute('disabled', busy);
       out.push(bot);
+    }
+    // **Die Verteilung**: Techniker, Monster und die Plätze der Zentrale,
+    // jeder Mensch oder Bot — gilt für die nächste Runde in 2D wie in 3D.
+    if (this.host.setup && this.host.setSetup) {
+      this.setupPanel ??= new SetupPanel({
+        setup: () => this.host.setup!(),
+        onChange: (setup) => this.host.setSetup!(setup),
+        humanMonster: flat,
+      });
+      this.setupPanel.render();
+      const tile = el('div', 'haunt__tile haunt__tile--setup');
+      tile.append(el('strong', '', 'Verteilung der nächsten Runde'), this.setupPanel.element);
+      if (this.host.startSetup) {
+        const start = el('button', 'haunt__tile haunt__tile--simulation');
+        start.dataset['startSetup'] = '';
+        const busy = link.vr && !flat;
+        start.append(
+          el('strong', '', flat ? 'Runde starten (2D)' : 'Runde starten'),
+          el(
+            'span',
+            'haunt__tag',
+            busy ? 'Ein Techniker spielt bereits.' : describeSetup(this.host.setup()),
+          ),
+        );
+        start.toggleAttribute('disabled', busy);
+        tile.append(start);
+      }
+      out.push(tile);
     }
     if (flat) {
       const mission = el('button', 'haunt__tile haunt__tile--simulation');
@@ -1411,7 +1451,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-bot-round],[data-mission],[data-test],[data-flat-mode],[data-restart]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-bot-round],[data-mission],[data-test],[data-flat-mode],[data-restart],[data-start-setup]',
     );
     if (!hit) return;
 
@@ -1426,6 +1466,9 @@ export class StationUi {
       return;
     } else if (hit.dataset['test'] !== undefined) {
       this.host.test?.();
+      return;
+    } else if (hit.dataset['startSetup'] !== undefined) {
+      if (!this.host.link().vr || this.host.flatWanted?.()) this.host.startSetup?.();
       return;
     } else if (hit.dataset['flatMode'] !== undefined) {
       this.host.flatMode?.();
