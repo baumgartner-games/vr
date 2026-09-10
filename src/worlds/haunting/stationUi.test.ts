@@ -84,6 +84,7 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
   };
   let seat: StationId | null = null;
   let round: MapRound | null = null;

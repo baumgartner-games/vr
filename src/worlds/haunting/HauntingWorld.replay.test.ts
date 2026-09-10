@@ -57,6 +57,7 @@ function snapshot(seed = 391): HauntState {
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
   };
 }
 

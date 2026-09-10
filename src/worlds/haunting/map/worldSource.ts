@@ -161,12 +161,12 @@ export function worldMapSource(world: WorldHandles): MapSource {
             label: 'Schutzschrank',
             roomId: placement.roomId,
             at: { x: placement.approach.x, z: placement.approach.z },
-            state: world.round?.().cabinsDestroyed.includes(placement.roomId)
+            state: state.destroyed.includes(placement.roomId)
               ? 'destroyed'
               : crew.hidden === placement.roomId
                 ? 'open'
                 : 'locked',
-            interactive: !world.round?.().cabinsDestroyed.includes(placement.roomId),
+            interactive: !state.destroyed.includes(placement.roomId),
           });
         } else if (placement.kind === 'console' && placement.repairId) {
           const repair = repairs.find((r) => r.id === placement.repairId);

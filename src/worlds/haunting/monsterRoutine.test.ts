@@ -183,6 +183,51 @@ describe('Die verlorene Spur', () => {
     expect(frames.every((f) => f.pace === 'stalk' || f.mode !== 'search')).toBe(true);
   });
 
+  /**
+   * **Der Verdachts-Angriff.** Geschnüffelt wird nicht mehr nur geguckt: Eine
+   * halbe Sekunde später ist die Kabine hin — ohne dass die Routine weiß, ob
+   * jemand drin war, ohne Schrei und ohne Vorsprung. Danach geht die Suche
+   * weiter, als wäre nichts gewesen.
+   */
+  it('reißt beim Schnüffeln die Kabine des verdächtigen Raums auf — ohne Schrei, ohne Vorsprung', () => {
+    const routine = new MonsterRoutine(tuned({ guess: 0.9, stakeout: 0, locker: 1, search: 6 }));
+    const at = { x: 10, z: 0 };
+    run(routine, 0.25, { at, here: 'b', signal: { x: 10, z: 0 }, seen: true, quarry: 'b' });
+    run(routine, 0.25, { at, here: 'b', quarry: 'c', rng: rolls([0.05, 0.5]) });
+    Object.assign(at, CENTRES.c);
+    const frames = run(routine, 6, { at, here: 'c', rng: () => 0.5, follow: true });
+    const sniff = frames.findIndex((f) => f.cue === 'sniff');
+    expect(sniff).toBeGreaterThan(0);
+    const breach = frames.findIndex((f) => f.strike);
+    expect(breach).toBeGreaterThan(sniff);
+    // Zwischen Schnüffeln und Aufreißen steht es still an der Kabine.
+    for (const frame of frames.slice(sniff + 1, breach + 1)) {
+      expect(frame.mode).toBe('breach');
+      expect(frame.pace).toBe('still');
+      expect(frame.goal).toEqual(world.locker('c'));
+    }
+    const strike = frames[breach]!;
+    expect(strike.cue).toBe('breach');
+    expect(strike.cabin).toBe('c');
+    expect((breach - sniff) * 0.25).toBeLessThanOrEqual(0.75);
+    // Genau einmal, und danach wieder Absuchen — kein Schrei, kein Vorsprung.
+    expect(frames.filter((f) => f.strike)).toHaveLength(1);
+    expect(frames.some((f) => f.cue === 'scream')).toBe(false);
+    expect(frames.some((f) => f.mode === 'savour' || f.mode === 'announce')).toBe(false);
+    expect(frames[breach + 1]!.mode).toBe('search');
+    expect(frames[breach + 1]!.cabin).toBe('');
+    // Ohne Schrank im Raum gibt es nichts aufzureißen.
+    expect(frames.filter((f) => f.cue === 'sniff')).toHaveLength(1);
+  });
+
+  it('nennt die Kabine nur im Bild des Aufreißens und sonst nie', () => {
+    const routine = new MonsterRoutine(tuned({ locker: 0, stakeout: 0 }));
+    const at = { x: 10, z: 0 };
+    run(routine, 0.25, { at, here: 'b', signal: { x: 10, z: 0 }, seen: true, quarry: 'b' });
+    const frames = run(routine, 12, { at, here: 'b', quarry: 'c', follow: true });
+    expect(frames.every((f) => f.cabin === '' && !f.strike)).toBe(true);
+  });
+
   it('lässt den leeren Raum auch mal stehen und geht gleich weiter', () => {
     const routine = new MonsterRoutine(tuned({ guess: 0.9, stakeout: 0, wander: 1, search: 1 }));
     const at = { x: 10, z: 0 };
@@ -228,6 +273,7 @@ describe('Die Kabine, in die jemand geflüchtet ist', () => {
     const breach = frames.find((f) => f.strike)!;
     expect(breach).toBeDefined();
     expect(breach.cue).toBe('breach');
+    expect(breach.cabin).toBe('c');
     expect(frames.filter((f) => f.strike)).toHaveLength(1);
 
     // Danach steht es und lässt laufen — auch ohne weitere Meldung von außen.

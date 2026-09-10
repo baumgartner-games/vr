@@ -328,7 +328,7 @@ export class HauntingWorld extends GridWorld {
   /** Die Gewichte beider Bots — aus dem Browser-Speicher, veränderbar im Test. */
   private tuning: BotTuning = loadTuning();
   /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
-  private readonly rules = new RoundRules();
+  private readonly rules = new RoundRules(() => this.state);
   /** Was das Monster gerade vorhat (`monsterRoutine.ts`). */
   private routine: MonsterRoutine | null = null;
   private decision: RoutineOutput | null = null;
@@ -707,27 +707,24 @@ export class HauntingWorld extends GridWorld {
     this.decision = decision;
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
     this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace));
-    // Ein durchsuchter Schrank im richtigen Raum ist das Ende des Versteckens.
-    if (decision.cue === 'sniff' && crew.hidden && this.routine.suspect === crew.hidden)
-      this.watchedLocker = crew.hidden;
     if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
-    if (decision.strike) this.breakLocker(decision.goal ?? { x: at.x, z: at.z });
+    if (decision.strike) this.breakLocker(decision.goal ?? { x: at.x, z: at.z }, decision.cabin);
   }
 
   /**
-   * **Die aufgerissene Kabine**: Rauch, Funken, ein Treffer — und danach
-   * steht das Monster kurz still (`savour`), damit aus einem Treffer im
-   * Schrank nicht gleich der nächste wird.
+   * **Die aufgerissene Kabine**: Rauch, Funken, die Kabine ist für den Rest
+   * der Runde hin (`HauntState.destroyed`) — und ein Treffer nur, wenn die
+   * Crew genau in dieser Kabine steckt. Das Monster reißt auch leere Kabinen
+   * auf, wenn es jemanden darin vermutet (`monsterRoutine.ts`).
    */
-  private breakLocker(at: { x: number; z: number }): void {
+  private breakLocker(at: { x: number; z: number }, room: string): void {
     const crew = this.state.crew;
-    const room = crew.hidden;
     this.rules.destroyCabin(room);
-    crew.hidden = '';
-    this.watchedLocker = '';
     this.experience?.burst('smoke', new THREE.Vector3(at.x, 1.1, at.z));
     this.experience?.burst('sparks', new THREE.Vector3(at.x, 1.5, at.z));
-    if (!room) return;
+    if (!room || crew.hidden !== room) return;
+    crew.hidden = '';
+    this.watchedLocker = '';
     if (takeCrewHit(crew, this.state.phase === 'running')) {
       if (crew.hp === 0) {
         this.state.phase = 'lost';
@@ -3484,6 +3481,7 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     fuse: false,
     taken: [],
     done: [],
+    destroyed: [],
   };
 }
 

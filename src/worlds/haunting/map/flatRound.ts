@@ -158,7 +158,7 @@ export class FlatRound implements MapSource {
   readonly player: Actor;
   readonly monster: Actor;
   /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
-  readonly rules = new RoundRules();
+  readonly rules = new RoundRules(() => this.haunt);
   /** Das Lüftungsnetz, die Fahrt des Monsters darin und der Lotse der KI (`vents/`). */
   readonly vents: VentNet;
   readonly ventRide: VentTravel;
@@ -219,6 +219,7 @@ export class FlatRound implements MapSource {
       fuse: false,
       taken: [],
       done: [],
+      destroyed: [],
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
@@ -594,18 +595,15 @@ export class FlatRound implements MapSource {
           rng: () => this.rng.next(),
         });
     this.decision = decision;
-    if (decision.strike && hidden) {
-      this.caught = '';
-      // Die Kabine ist danach hin (`rules/roundRules.ts`).
-      if (this.rules.cabinStrike(crew)) this.hit('Die Kabine wird aufgerissen.');
+    if (decision.strike && decision.cabin) {
+      // Die Kabine ist danach hin (`rules/roundRules.ts`) — getroffen wird
+      // nur, wer genau darin steckt; eine leere Kabine ist ein Ausweg weniger.
+      this.rules.destroyCabin(decision.cabin);
+      if (crew.hidden === decision.cabin) {
+        this.caught = '';
+        if (this.rules.cabinStrike(crew)) this.hit('Die Kabine wird aufgerissen.');
+      } else this.events.push({ kind: 'warn', text: 'Irgendwo wird eine Kabine aufgerissen.' });
     }
-    if (
-      decision.mode === 'search' &&
-      hidden &&
-      decision.cue === 'sniff' &&
-      this.routine.suspect === crew.hidden
-    )
-      this.caught = crew.hidden;
     if (decision.cue === 'scream') this.events.push({ kind: 'bad', text: 'Ein Schrei.' });
     const base = monsterBase(crew.options.monster);
     if (piloted) {

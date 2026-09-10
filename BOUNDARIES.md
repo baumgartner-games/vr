@@ -164,7 +164,8 @@ Klappen als `MapItem` der Sorte `vent` und `MapSnapshot.ventLinks`.
   liest dort (Getter für Fracht/Konsolen/Schränke), Paket `world3d` baut
   dort Modelle um.
 - `src/worlds/haunting/mission.ts`, `net.ts`, `house.ts` — Regeln,
-  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` bleibt 5.
+  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` ist 6,
+  seit die zerstörten Kabinen im `HauntState` stehen (`destroyed`).
 - `src/worlds/index.ts`, `src/core/**`, `package.json`, `AGENTS.md`,
   `README.md` — nur, wenn es gar nicht anders geht; jede Zeile in HANDOVER.
 

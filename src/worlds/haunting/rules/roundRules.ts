@@ -36,9 +36,17 @@ import type { MapRound } from '../map/mapSnapshot';
  * in die Zentrale. Wer die Uhr an eine Reparatur koppeln will, tut das in
  * `oxygenLeft` — und baut damit die Schleife wieder ein.
  *
- * Kein three.js, kein Netz: Die Klasse hält nur die Liste der zerstörten
- * Kabinen und rechnet den Rest aus `HauntState`. Die 2D-Runde
- * (`map/flatRound.ts`) und die 3D-Welt halten je eine Instanz je Runde.
+ * Kein three.js, kein Netz: Die Klasse rechnet alles aus `HauntState` — auch
+ * die Liste der zerstörten Kabinen **liegt im Stand** (`HauntState.destroyed`)
+ * und nicht in einem eigenen Feld. Das ist die kleinste Lösung, die alle
+ * Geräte auf denselben Stand bringt: `stateMessage` spreizt den Stand ohnehin
+ * über die Leitung, und wer beim Gastgeber `adopt(next)` macht, hat die Liste
+ * damit schon, ohne dass irgendwo ein zweiter Abgleich vergessen werden kann.
+ * Die Klasse bekommt deshalb einen **Getter** auf den Stand, keinen Stand:
+ * Die 3D-Welt tauscht ihr `state`-Objekt bei jeder Runde und bei jeder
+ * Übernahme aus, und die Regeln sollen immer das aktuelle sehen. Wer keinen
+ * Stand hat (Tests der Regeln für sich), bekommt einen leeren Beutel.
+ * Die 2D-Runde (`map/flatRound.ts`) und die 3D-Welt halten je eine Instanz.
  */
 
 /** Wie lange der Sauerstoff reicht, in Sekunden — das Rundenlimit. */
@@ -48,8 +56,21 @@ export const SUIT_LIVES = 3;
 /** Wie lange der Techniker nach einem Kabinenangriff unverwundbar ist, in Sekunden. */
 const STRIKE_GRACE = 3;
 
+/** Der Teil des Stands, den die Regeln beschreiben. */
+type WreckState = Pick<HauntState, 'destroyed'>;
+
 export class RoundRules {
-  private readonly destroyed = new Set<string>();
+  private readonly state: () => WreckState;
+
+  constructor(state?: () => WreckState) {
+    const own: WreckState = { destroyed: [] };
+    this.state = state ?? (() => own);
+  }
+
+  /** Die Liste im Stand — Reihenfolge der Zerstörung, keine Doppelten. */
+  private get wrecks(): string[] {
+    return this.state().destroyed;
+  }
 
   /** Wie viel Sauerstoff noch bleibt, in Sekunden — nie unter null. */
   oxygenLeft(state: Pick<HauntState, 'time'>): number {
@@ -58,17 +79,22 @@ export class RoundRules {
 
   /** Ob diese Kabine noch benutzbar ist. Kennung ist die Raum-Id (`stationLayout`). */
   cabinUsable(roomId: string): boolean {
-    return !this.destroyed.has(roomId);
+    return !this.wrecks.includes(roomId);
   }
 
   /** Die zerstörten Kabinen, in Reihenfolge der Zerstörung. */
   destroyedCabins(): string[] {
-    return [...this.destroyed];
+    return [...this.wrecks];
   }
 
-  /** Eine Kabine dauerhaft unbrauchbar machen — ohne Treffer, für die 3D-Welt. */
+  /**
+   * Eine Kabine dauerhaft unbrauchbar machen — ohne Treffer. Das Monster
+   * reißt auch Kabinen auf, in denen niemand steckt (`monsterRoutine.ts`,
+   * Verdachts-Angriff); ob dabei jemand getroffen wird, entscheidet der
+   * Aufrufer über `cabinStrike`, und nur, wenn `crew.hidden` diese Kabine ist.
+   */
   destroyCabin(roomId: string): void {
-    if (roomId) this.destroyed.add(roomId);
+    if (roomId && !this.wrecks.includes(roomId)) this.wrecks.push(roomId);
   }
 
   /**
@@ -84,7 +110,7 @@ export class RoundRules {
   cabinStrike(crew: CrewState): boolean {
     const room = crew.hidden;
     if (!room) return false;
-    this.destroyed.add(room);
+    this.destroyCabin(room);
     crew.hidden = '';
     crew.invulnerable = 0;
     const hit = takeCrewHit(crew, true);
@@ -123,9 +149,9 @@ export class RoundRules {
     };
   }
 
-  /** Eine neue Runde: alle Kabinen wieder heil. */
+  /** Eine neue Runde: alle Kabinen wieder heil — im Stand, den es gerade gibt. */
   reset(): void {
-    this.destroyed.clear();
+    this.wrecks.length = 0;
   }
 }
 

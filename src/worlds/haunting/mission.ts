@@ -2,7 +2,13 @@ import { MARKS, roomCentre, roomOf, spacesOf, type HouseSpec } from './house';
 import { Rng } from './rng';
 import { freshThreat, readThreat, type ThreatState } from './threat';
 
-export const STATION_PROTOCOL = 5;
+/**
+ * Die Versionsnummer, die jede `state`-Nachricht trägt. 6, seit die
+ * zerstörten Kabinen im `HauntState` stehen (`destroyed`): Ein Client der
+ * Version 5 wüsste nichts von ihnen und ließe Spieler in ein Wrack steigen.
+ * Alte Clients werden abgewiesen; nach dem Update alle Geräte neu laden.
+ */
+export const STATION_PROTOCOL = 6;
 
 /**
  * **Wie schnell die beiden Seiten sind** — und warum genau in dieser
