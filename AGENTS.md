@@ -7578,7 +7578,7 @@ am Südrand hinter einem eigenen Andockkorridor. Die Schleuse
 (`commandDoorTile`) geht mitten in die Kantinenwand, der Rest derselben Wand
 ist Glas (`commandWindows`), und `spec.entryRoom` ist damit ein echter
 Missionsraum statt eines Ganges. `APRON_INNER` ist die Reihe an der
-Fensterfront (Van, Terminal, Rückkehrpunkt), `APRON_OUTER` die Reihe mit den
+Fensterfront (Tisch der Einsatzzentrale, Terminal, Rückkehrpunkt), `APRON_OUTER` die Reihe mit den
 Hüllenfenstern (Drohnenring, Abendlicht, Aufzug `COMMAND_LIFT`). Wer eine
 Position auf dem Vorplatz braucht, rechnet sie aus diesen beiden Konstanten
 und nicht aus `APRON.z` plus einer geratenen Zahl.

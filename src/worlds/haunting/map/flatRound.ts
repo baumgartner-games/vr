@@ -400,7 +400,7 @@ export class FlatRound implements MapSource {
     out.push({
       id: 'van',
       kind: 'van',
-      label: 'Van',
+      label: 'Einsatzzentrale',
       roomId: COMMAND,
       at: { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
       state: this.haunt.done.length >= 3 ? 'ready' : '',

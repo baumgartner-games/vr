@@ -298,9 +298,9 @@ describe('Die Flughöhe der Drohne', () => {
 });
 
 /**
- * **Der Van ist ein Ziel und keine Sonderregel.**
+ * **Die Einsatzzentrale ist ein Ziel und keine Sonderregel.**
  *
- * Die Drohne startet vor ihm, draußen, mit dem Haus im Bild — und kommt von
+ * Die Drohne startet vor ihr, draußen, mit dem Haus im Bild — und kommt von
  * dort in jedes Zimmer und wieder zurück. Das ist keine Kosmetik, sondern die
  * Probe darauf, dass der Vorplatz wirklich am Gitter hängt: Ohne ihn stünde
  * sie beim ersten Bild auf keiner Kachel und behauptete, sie käme nirgends
@@ -308,7 +308,7 @@ describe('Die Flughöhe der Drohne', () => {
  * unerreichbar. Wer beides hat, hat bewiesen, dass der Weg nach draußen durch
  * die Tür geht und nicht durch die Wand.
  */
-describe('Der Hangar vor dem Van', () => {
+describe('Der Hangar vor der Einsatzzentrale', () => {
   const plan = housePlan(spec);
   const home = tileAt((DRONE_HOME.x + 0.5) * TILE, (DRONE_HOME.z + 0.5) * TILE);
 
@@ -366,22 +366,22 @@ describe('Die Ladung des Scheinwerfers', () => {
   });
 
   /**
-   * **Am Van hängt sie am Kabel** — und das ist der einzige Grund, aus dem ein
+   * **An der Einsatzzentrale hängt sie am Kabel** — und das ist der einzige Grund, aus dem ein
    * Pilot freiwillig zurückfliegt, statt mit halber Ladung weiterzustochern.
-   * Ohne den Unterschied wäre „zurück zum Van" ein Knopf, den niemand drückt.
+   * Ohne den Unterschied wäre „zurück zur Einsatzzentrale" ein Knopf, den niemand drückt.
    */
-  it('zehrt am Van auch mit brennendem Scheinwerfer nicht', () => {
+  it('zehrt an der Einsatzzentrale auch mit brennendem Scheinwerfer nicht', () => {
     expect(lampAfter(0.5, 10, true, true)).toBeGreaterThan(0.5);
     expect(lampAfter(1, LAMP_LIFE, true, true)).toBeCloseTo(1, 6);
   });
 
-  it('lädt am Van schneller als im Haus', () => {
+  it('lädt an der Einsatzzentrale schneller als im Haus', () => {
     expect(LAMP_HOME).toBeLessThan(LAMP_FILL);
     expect(lampAfter(0, LAMP_HOME, false, true)).toBeCloseTo(1, 6);
     expect(lampAfter(0, LAMP_HOME, false, false)).toBeLessThan(1);
   });
 
-  it('sagt die Wartezeit am Van im Schnellgang an', () => {
+  it('sagt die Wartezeit an der Einsatzzentrale im Schnellgang an', () => {
     expect(lampRefill(0, true)).toBeCloseTo(LAMP_HOME, 6);
     expect(lampRefill(0)).toBeCloseTo(LAMP_FILL, 6);
   });

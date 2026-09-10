@@ -5,6 +5,7 @@ import { generateHouse } from './house';
 import { freshCrew, lockerCode, repairsFor } from './mission';
 import type { HauntState } from './net';
 import type { StationId } from './stations';
+import type { MapRound } from './map/mapSnapshot';
 
 jest.mock('./haunting.css', () => ({}));
 jest.mock('./stationDashboard.css', () => ({}));
@@ -85,6 +86,7 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     done: [],
   };
   let seat: StationId | null = null;
+  let round: MapRound | null = null;
   const flip = jest.fn();
   const menu = jest.fn();
   const botRound = jest.fn();
@@ -104,6 +106,7 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     menu,
     botRound,
     restart,
+    round: () => round,
     seat: () => seat,
     wanted: () => seat,
     arriving: () => 0,
@@ -141,6 +144,21 @@ function crew(station: StationId = 'archive', remoteTechnician = true) {
     archivePan,
     get spec() {
       return spec;
+    },
+    /** Der Stand der Rundenregeln, wie `HauntingWorld` ihn liefert — `null` heißt: keine Regeln. */
+    setRound(value: Partial<MapRound> | null) {
+      round = value
+        ? {
+            phase: 'running',
+            oxygen: 600,
+            limit: 600,
+            suit: 3,
+            suitMax: 3,
+            cabinsDestroyed: [],
+            ending: '',
+            ...value,
+          }
+        : null;
     },
     nextRound() {
       spec = generateHouse(spec.seed + 1, 10);
@@ -271,6 +289,75 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(document.querySelector('[role="status"]')?.textContent).toContain('Runde ist beendet');
     button('[data-restart]').click();
     expect(game.restart).toHaveBeenCalledTimes(1);
+  });
+
+  it('zeigt jedem Mitspieler Sauerstoff, Anzug-Leben und Kabinen und warnt unter einer Minute', () => {
+    const game = crew('scout');
+    const quest = document.querySelector('.haunt__quest')!;
+    // Ohne Rundenregeln: Systeme und Anzug wie bisher, keine Uhr.
+    expect(quest.textContent).not.toContain('O₂');
+    expect(quest.querySelectorAll('.haunt__pip--suit.is-alive')).toHaveLength(3);
+    expect(document.querySelector('[data-round-line]')).toBeNull();
+
+    game.setRound({ oxygen: 581, suit: 2, cabinsDestroyed: ['r3'] });
+    game.ui.refresh();
+    expect(quest.textContent).toContain('O₂ 9:41');
+    expect(quest.textContent).toContain('1 Kabine zerstört');
+    expect(quest.querySelectorAll('.haunt__pip--suit.is-alive')).toHaveLength(2);
+    expect(quest.querySelectorAll('.haunt__pip--suit')).toHaveLength(3);
+    expect(quest.classList.contains('is-low')).toBe(false);
+    expect(quest.getAttribute('aria-label')).toContain('Sauerstoff 9 Minuten 41 Sekunden');
+    // Die Seite „Radar & Anzug" sagt es noch einmal groß.
+    const line = document.querySelector('[data-round-line]');
+    expect(line?.textContent).toContain('O₂ 9:41');
+    expect(line?.textContent).toContain('1 Kabine zerstört');
+    expect(line?.classList.contains('is-low')).toBe(false);
+
+    // Die Uhr springt, ohne dass die Seite neu geschrieben wird: dieselben
+    // Elemente, neuer Text — ein Daumen auf einem Schalter bleibt darauf.
+    game.setRound({ oxygen: 580, suit: 2, cabinsDestroyed: ['r3'] });
+    game.ui.refresh();
+    expect(document.querySelector('[data-round-line]')).toBe(line);
+    expect(quest.textContent).toContain('O₂ 9:40');
+    expect(line?.textContent).toContain('O₂ 9:40');
+
+    game.setRound({ oxygen: 42 });
+    game.ui.refresh();
+    expect(quest.classList.contains('is-low')).toBe(true);
+    expect(quest.textContent).toContain('O₂ 0:42');
+    expect(quest.textContent).not.toContain('Kabine');
+    expect(quest.getAttribute('aria-label')).toContain('knapp');
+    const low = document.querySelector('[data-round-line]');
+    expect(low?.classList.contains('is-low')).toBe(true);
+    expect(low?.textContent).toContain('Alle Kabinen intakt');
+  });
+
+  it('nennt an der Endkarte, woran die Runde geendet hat', () => {
+    const game = crew('archive');
+    game.state.phase = 'lost';
+    game.setRound({ phase: 'lost', oxygen: 0, suit: 2, ending: 'oxygen' });
+    game.ui.refresh();
+    let box = document.querySelector<HTMLElement>('[role="status"]');
+    expect(box?.dataset['ending']).toBe('oxygen');
+    expect(box?.textContent).toContain('Sauerstoff');
+    expect(box?.textContent).toContain('Runde ist beendet');
+    expect(box?.textContent).not.toContain('Anzug');
+
+    game.state.crew.hp = 0;
+    game.setRound({ phase: 'lost', oxygen: 300, suit: 0, ending: 'suit' });
+    game.ui.refresh();
+    box = document.querySelector<HTMLElement>('[role="status"]');
+    expect(box?.dataset['ending']).toBe('suit');
+    expect(box?.textContent).toContain('Anzug ist zerstört');
+
+    game.state.phase = 'won';
+    game.setRound({ phase: 'won', oxygen: 300, suit: 3, ending: 'escaped' });
+    game.ui.refresh();
+    box = document.querySelector<HTMLElement>('[role="status"]');
+    expect(box?.dataset['ending']).toBe('escaped');
+    expect(box?.textContent).toContain('Mission erfüllt');
+    expect(box?.textContent).toContain('Einsatzzentrale');
+    expect(document.querySelector('[data-round-line]')).toBeNull();
   });
 
   it('disables bot demos while another technician is playing and explains why', () => {

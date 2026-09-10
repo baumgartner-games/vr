@@ -1,5 +1,5 @@
 /*
- * Der Van — die Oberfläche der Web-Spieler in Haunting.
+ * Die Einsatzzentrale — die Oberfläche der Web-Spieler in Haunting.
  *
  * **Zuerst fürs Handy**, danach auf dem Laptop breiter gezogen: eine Spalte,
  * daumengroße Flächen, nichts zum Zielen. Andersherum wird es nie gut, weil
@@ -7,8 +7,8 @@
  * zusammengeschobenes Laptop-Layout bleibt.
  *
  * **Eine Farbe je Station** (`--haunt-accent`, gesetzt über `data-station` am
- * Wurzelelement). Dieselben vier Töne leuchten im Haus auf den Monitoren des
- * Vans — am Tisch wird zugerufen und nicht gelesen, und „ich hab den grünen"
+ * Wurzelelement). Dieselben vier Töne leuchten im Haus auf den Monitoren der
+ * Einsatzzentrale — am Tisch wird zugerufen und nicht gelesen, und „ich hab den grünen"
  * ist eine Ansage.
  *
  * `.haunt__view` ist mit Absicht **durchsichtig**: Dort zeichnet die Welt ihr
@@ -51,7 +51,7 @@
 
 .haunt > * { pointer-events: auto; }
 
-/* Vier Stationen, vier Töne — dieselben wie auf den Monitoren im Van. Der
+/* Vier Stationen, vier Töne — dieselben wie auf den Monitoren in der Einsatzzentrale. Der
    Fernseher hat einen fünften: Er ist kein Gerät, aber er steht in derselben
    Liste, und eine Kachel ohne eigene Farbe sieht aus wie ein Fehler. */
 .haunt[data-station="archive"] { --haunt-accent: #ffc857; }
@@ -66,7 +66,7 @@
 .haunt [data-accent="hack"] { --haunt-accent: #4aa8ff; }
 .haunt [data-accent="watch"] { --haunt-accent: #b98cff; }
 
-/* Im Van wird nicht gelaufen: Der Touch-Stick des Handys hätte hier nichts zu
+/* In der Einsatzzentrale wird nicht gelaufen: Der Touch-Stick des Handys hätte hier nichts zu
    steuern und läge quer über der Schalttafel. */
 body.haunt-on .touch { display: none; }
 
@@ -203,6 +203,33 @@ body.haunt-on .touch { display: none; }
 /* In der Hand des VR-Spielers: unterwegs, aber noch nicht angekommen. */
 .haunt__pip.is-held { background: var(--haunt-warn); opacity: 0.75; }
 .haunt__pip.is-done { background: #5ee0a0; }
+
+/*
+ * **Die Anzug-Leben** — drei Punkte, die ausgehen. Rund und nicht als Balken,
+ * damit sie neben den Systemen als etwas anderes zu lesen sind: Systeme
+ * kommen dazu, Leben gehen weg.
+ */
+.haunt__pips--suit { flex: 0 0 auto; max-width: none; gap: 5px; }
+.haunt__pip--suit { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.haunt__pip--suit.is-alive { background: #81e6bd; box-shadow: 0 0 6px rgba(129, 230, 189, 0.5); }
+
+/*
+ * **Der Sauerstoff ist die eine Uhr der Runde**, und sie läuft auf jedem
+ * Telefon. Unter einer Minute wird sie rot und pulst — die Leiste steht über
+ * jeder Station, also sieht es jeder, egal an welchem Gerät.
+ */
+.haunt__quest-oxygen { font: 600 12px ui-monospace, monospace; color: var(--haunt-ink); letter-spacing: 0.04em; }
+.haunt__quest-cabins { color: var(--haunt-warn); }
+.haunt__quest.is-low .haunt__quest-oxygen { color: #ff7a8a; animation: haunt-low-oxygen 1s ease-in-out infinite; }
+.haunt__quest.is-low { border-bottom-color: rgba(255, 82, 103, 0.6); }
+.haunt__round-line { display: flex; gap: 12px; align-items: baseline; margin: 10px 0 0; color: #8eacb5; font-size: 12px; }
+.haunt__round-line strong { font-size: 18px; letter-spacing: 0.08em; }
+.haunt__round-line.is-low strong { color: #ff7a8a; animation: haunt-low-oxygen 1s ease-in-out infinite; }
+
+@keyframes haunt-low-oxygen {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
 
 /*
  * **Das Loch, durch das die Welt zu sehen ist** — und es ist der ganze Schirm.
@@ -469,7 +496,7 @@ body.haunt-on .touch { display: none; }
   transition: width 0.18s linear;
 }
 
-/* --- die Geräte im Van --- */
+/* --- die Geräte in der Einsatzzentrale --- */
 
 .haunt__tile {
   display: flex;
@@ -685,9 +712,9 @@ body.haunt-on .touch { display: none; }
 .haunt__lamp.is-home { border-color: var(--haunt-accent); }
 
 /*
- * **Zurück zum Van** — die eine Kachel über der Zimmerliste.
+ * **Zurück zur Einsatzzentrale** — die eine Kachel über der Zimmerliste.
  *
- * Sie steht dort und nicht *in* der Liste: Der Van ist kein Zimmer, sondern
+ * Sie steht dort und nicht *in* der Liste: Die Einsatzzentrale ist kein Zimmer, sondern
  * die Stelle, an der sie lädt, und ein Ziel, das immer geht, gehört nicht
  * zwischen sieben, die je nach Tür gehen oder nicht.
  */

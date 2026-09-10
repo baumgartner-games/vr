@@ -5,7 +5,7 @@ import { roomAt, spacesOf, type HouseDoor, type HouseSpec } from './house';
  * **Was das Monster mit dem Haus macht, während es darin herumläuft.**
  *
  * Bis hierher war es ein Verfolger und sonst nichts: Es lief einem hinterher,
- * und das Haus stand still darum herum. Damit hatte der Hacker im Van vier
+ * und das Haus stand still darum herum. Damit hatte der Hacker in der Einsatzzentrale vier
  * Schalter und niemanden, der etwas kaputt macht — er legte einmal Licht an,
  * einmal eine Tür zu, und danach war seine Tafel ein Zustand und kein Spiel.
  *
@@ -20,7 +20,7 @@ import { roomAt, spacesOf, type HouseDoor, type HouseSpec } from './house';
  *
  * - **Das Flackern ist ehrlich.** Eine Lampe zuckt genau dann, wenn das
  *   Monster in ihrem Zimmer steht — für den VR-Spieler die eine Warnung, die
- *   er ohne Van bekommt, und für den Hacker das, was er *nicht* sieht und sich
+ *   er ohne Einsatzzentrale bekommt, und für den Hacker das, was er *nicht* sieht und sich
  *   zurufen lassen muss. Weil sie nur an der Monsterposition hängt, rechnet
  *   sie jedes Gerät selbst; über die Leitung geht dafür kein einziges Byte.
  * - **Niemand wird eingesperrt.** Eine Tür fällt nur zu, wenn danach noch

@@ -128,7 +128,7 @@ import type { Handedness } from '../../core/XRInput';
 import type { Npc } from '../npc/Npc';
 
 /**
- * **Haunting** — einer im Haus, die anderen im Van.
+ * **Haunting** — einer im Haus, die anderen in der Einsatzzentrale.
  *
  * Ein Spiel, in dem vier Leute dasselbe Haus kennen und keiner es in
  * derselben Sprache beschreiben kann. Der **Archivar** kennt Namen
@@ -136,7 +136,7 @@ import type { Npc } from '../npc/Npc';
  * **Drohnenpilot** kennt ein Zimmer *jetzt*, der **Hacker** kennt Schalter
  * ohne Ort — und der VR-Spieler kennt nur, was in seinem Lichtkegel steht,
  * ist dafür aber der Einzige mit Händen. Die Aufgabe ist simpel: drei Sachen
- * finden und in den Van bringen. Schwer ist sie, weil niemand dem anderen eine
+ * finden und in die Einsatzzentrale bringen. Schwer ist sie, weil niemand dem anderen eine
  * Koordinate sagen kann.
  *
  * **Eine Quelle, viele Projektionen.** Über die Leitung geht der *Same* und
@@ -283,8 +283,8 @@ export class HauntingWorld extends GridWorld {
   /** Und alles, was sich bewegt — für die Sichten, die das nicht sehen dürfen. */
   private readonly live = new THREE.Group();
   /**
-   * Der Van steht in einer eigenen Gruppe, weil er ein neues Haus **überlebt**:
-   * `buildHouse` räumt seine Gruppe leer, und ein Van, der beim zweiten
+   * Die Einsatzzentrale steht in einer eigenen Gruppe, weil sie ein neues Haus **überlebt**:
+   * `buildHouse` räumt seine Gruppe leer, und eine Einsatzzentrale, die beim zweiten
    * Grundriss verschwindet, ist ein Spielabbruch mit Ansage.
    */
   private readonly vanRig = new THREE.Group();
@@ -449,7 +449,7 @@ export class HauntingWorld extends GridWorld {
     hop: 0,
     lamp: 1,
     // **Sie fängt mit brennendem Scheinwerfer an**, und das ist keine
-    // Bequemlichkeit: Sie steht am Van, dort zehrt der Kegel nichts, und ohne
+    // Bequemlichkeit: Sie steht an der Einsatzzentrale, dort zehrt der Kegel nichts, und ohne
     // ihn schaut der Pilot in seinem ersten Bild in eine schwarze Nacht und
     // hält das Gerät für kaputt. Was er stattdessen sieht, ist die Hauswand
     // mit der Tür darin — und nebenbei, wozu der Knopf oben rechts gut ist.
@@ -518,7 +518,10 @@ export class HauntingWorld extends GridWorld {
   private archiveFit = { half: 5, sheet: 5, tall: 5 };
 
   private ui: StationUi | null = null;
-  /** Die 2D-Welt, solange die Checkbox im Van gesetzt ist (`map/flatMode.ts`). */
+  /**
+   * Die 2D-Welt, solange der Schalter gesetzt ist — die Checkbox in der
+   * Einsatzzentrale oder der Eintrag im Weltmenü (`map/flatMode.ts`).
+   */
   private flat: FlatMode | null = null;
   private flatStage: FlatStage | null = null;
   private flatLoading = false;
@@ -614,7 +617,7 @@ export class HauntingWorld extends GridWorld {
     return 'HAUNTING / ORBITAL · Sichere Einsatzzentrale. Mission oder Test am Terminal wählen. Archiv + Einsatzkontrolle auf zwei Handys.';
   }
 
-  /** Man fängt **draußen** an, am Van, mit dem Haus vor sich. */
+  /** Man fängt **draußen** an, an der Einsatzzentrale, mit dem Haus vor sich. */
   protected override spawnPoint(): THREE.Vector3 {
     return new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z);
   }
@@ -755,7 +758,7 @@ export class HauntingWorld extends GridWorld {
     await super.init(ctx);
     // Der Nebel hat die Farbe des Himmels und nicht die der Nacht: Was in ihm
     // verschwindet, soll in die Dämmerung verschwinden und nicht in ein Loch.
-    // Etwas dünner als vorher, damit vom Van aus überhaupt ein Haus zu sehen
+    // Etwas dünner als vorher, damit von der Einsatzzentrale aus überhaupt ein Haus zu sehen
     // ist — drinnen ändert das nichts, dort ist auf zwölf Meter ohnehin eine
     // Wand.
     ctx.scene.fog = new THREE.FogExp2(0x020711, 0.008);
@@ -775,7 +778,7 @@ export class HauntingWorld extends GridWorld {
     this.claims.delete(ctx.net.localId);
     ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician', active: ctx.role === 'vr' });
     if (ctx.role === 'vr') {
-      // Nur in der Brille schwebt eine eingeschaltete Taschenlampe im Van —
+      // Nur in der Brille schwebt eine eingeschaltete Taschenlampe in der Einsatzzentrale —
       // man muss sie im Dunkeln ja finden können.
       if (!this.stationTorch) {
         const torch = this.placeTool(
@@ -806,6 +809,7 @@ export class HauntingWorld extends GridWorld {
         botRound: () => this.requestBotRound(ctx),
         flatMode: () => this.toggleFlat(ctx),
         flatActive: () => !!this.flat,
+        round: () => this.rules.status(this.state),
         restart: () => {
           if (this.isHost) {
             this.flatTechnician = true;
@@ -987,6 +991,7 @@ export class HauntingWorld extends GridWorld {
         ctx.menu.toggle(false);
       },
       door: (id) => this.manualDoor(id),
+      round: () => this.rules.status(this.state),
       doorOpen: (id) =>
         id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id),
       doorLocked: (id) =>
@@ -1077,7 +1082,7 @@ export class HauntingWorld extends GridWorld {
     });
   }
 
-  /** Der Van vor der Haustür: der Ablagetisch und die Monitore. */
+  /** Die Einsatzzentrale vor der Haustür: der Ablagetisch und die Monitore. */
   private buildVan(): void {
     const x = -5;
     // Die Reihe an der Kantinenfront: Wer hier sitzt, schaut durch die
@@ -1142,8 +1147,8 @@ export class HauntingWorld extends GridWorld {
    * **Der Hangar der Drohne** — ein Ring auf dem Vorplatz, dort, wo sie steht.
    *
    * Ohne ihn ist `DRONE_HOME` eine Zahl in einer Datei: Die Drohne schwebt
-   * über einer Stelle, die genauso aussieht wie jede andere, und „zurück zum
-   * Van" heißt für den, der im Haus steht, nichts. Mit ihm ist es ein Ort, auf
+   * über einer Stelle, die genauso aussieht wie jede andere, und „zurück zur
+   * Einsatzzentrale" heißt für den, der im Haus steht, nichts. Mit ihr ist es ein Ort, auf
    * den man zeigen kann.
    */
   private buildPad(): void {
@@ -2141,7 +2146,7 @@ export class HauntingWorld extends GridWorld {
   /**
    * **Eine Tür, die zufällt, macht ein Geräusch — aber nur im Haus.**
    *
-   * Im Van bleibt es still, und das ist keine Sparsamkeit: Der Hacker legt
+   * In der Einsatzzentrale bleibt es still, und das ist keine Sparsamkeit: Der Hacker legt
    * seine Schalter blind um, und ein Schlag im Lautsprecher sagte ihm, dass
    * gerade *irgendwo* eine Tür zugefallen ist — geschenkt und ohne Zuruf.
    * Genau das ist die Sorte Auskunft, die diese Welt keiner Station umsonst
@@ -2340,15 +2345,15 @@ export class HauntingWorld extends GridWorld {
    * Eine Weile parkte sie im Zimmer hinter der Haustür, weil es vor dem Haus
    * keine Kacheln gab und die Wegsuche mit einem Startpunkt außerhalb des
    * Graphen nichts anfängt. Seit der Vorplatz zum Gitter gehört (`house.APRON`)
-   * ist das andersherum richtig: Der Pilot setzt sich hin und sieht den Van,
-   * den Vorplatz und die Hauswand mit der Tür darin — die erste Ansage, die im
-   * Van fällt. Vorher sah er ein dunkles Zimmer und wusste weder, wo er ist,
+   * ist das andersherum richtig: Der Pilot setzt sich hin und sieht die Einsatzzentrale,
+   * den Vorplatz und die Hauswand mit der Tür darin — die erste Ansage, die in der
+   * Einsatzzentrale fällt. Vorher sah er ein dunkles Zimmer und wusste weder, wo er ist,
    * noch wohin.
    */
   private parkDrone(): void {
     const body = this.droneBody;
     if (!body) return;
-    // **Mit dem Rücken zum Van und dem Haus im Bild.** Der Gierwinkel ist
+    // **Mit dem Rücken zur Einsatzzentrale und dem Haus im Bild.** Der Gierwinkel ist
     // `atan2(dx, dz)`, und nach Norden ist das π — wer hier eine Null
     // hinschreibt, setzt den Piloten in seinem ersten Bild vor eine
     // Tischplatte.
@@ -2602,8 +2607,8 @@ export class HauntingWorld extends GridWorld {
   /**
    * **Die Kachel, auf die sie gerade zufliegt** — Zimmermitte oder Hangar.
    *
-   * Der Van ist hier ein Ziel wie jedes andere und kein Sonderfall im Flug:
-   * Was ihn unterscheidet, ist nur, dass seine Kachel nicht aus der
+   * Die Einsatzzentrale ist hier ein Ziel wie jedes andere und kein Sonderfall im Flug:
+   * Was sie unterscheidet, ist nur, dass ihre Kachel nicht aus der
    * Zimmerliste kommt. Die Wegsuche dahinter ist dieselbe — samt der Haustür,
    * die zu sein kann.
    */
@@ -2650,7 +2655,7 @@ export class HauntingWorld extends GridWorld {
    * **Wenn die Ladung alle ist, geht das Licht von selbst aus** — und zwar
    * beim Piloten, damit es alle mitbekommen.
    *
-   * Heruntergezählt hat `flyDrone` schon, bei jedem im Van. Hier steht nur der
+   * Heruntergezählt hat `flyDrone` schon, bei jedem in der Einsatzzentrale. Hier steht nur der
    * Schluss daraus: Eine Lampe, die bei null einfach weiterbrennt, wäre eine
    * Anzeige und keine Ladung — und der Pilot, der sie danach ausschaltet,
    * bekäme einen Knopf, der nichts tut.
@@ -2670,8 +2675,8 @@ export class HauntingWorld extends GridWorld {
     const z = keyZ(tile);
     const room = roomAt(this.spec, x, z);
     if (room) return room.id;
-    // Der Vorplatz ist für den Piloten ein Ort wie ein Zimmer: Dort steht der
-    // Van, dort lädt sie, und dorthin schickt er sie zurück.
+    // Der Vorplatz ist für den Piloten ein Ort wie ein Zimmer: Dort steht die
+    // Einsatzzentrale, dort lädt sie, und dorthin schickt er sie zurück.
     return onApron(x, z) ? VAN_ID : '';
   }
 
@@ -2687,7 +2692,7 @@ export class HauntingWorld extends GridWorld {
    * zu fliegen hat und ob sie überhaupt hinkommt. Kein Grundriss und keine
    * Abzweigung — die gehören dem Archivar. Die eine Zeile, auf die es
    * ankommt, ist `blocked`: Sie ist die Stelle, an der aus einer Wegsuche eine
-   * Ansage an den Rest des Vans wird — „irgendwo dazwischen ist zu, macht
+   * Ansage an den Rest der Einsatzzentrale wird — „irgendwo dazwischen ist zu, macht
    * auf".
    */
   private droneStatus(): DroneStatus {
@@ -2698,7 +2703,7 @@ export class HauntingWorld extends GridWorld {
     return { kind: 'flying', here, metres };
   }
 
-  // --- der Van --------------------------------------------------------------
+  // --- die Einsatzzentrale ---------------------------------------------------
 
   /** Sich an ein Gerät setzen. Wer schon länger dort sitzt, bleibt sitzen. */
   private sit(station: StationId): void {
@@ -2865,10 +2870,10 @@ export class HauntingWorld extends GridWorld {
     const cx = (bounds.x + bounds.w / 2) * TILE;
     const cz = (bounds.z + bounds.d / 2) * TILE;
     // Ein Kachelrand ringsum: Das Haus soll im Bild stehen und nicht daran
-    // kleben — und im Süden liegt der Vorplatz mit dem Van, den man gern
+    // kleben — und im Süden liegt der Vorplatz mit der Einsatzzentrale, die man gern
     // mitsieht, wenn die Drohne heimkommt.
     const wide = (bounds.w + 1) * TILE;
-    // Nach Süden ein Stück mehr: Dort liegen der Vorplatz und der Van, und wer
+    // Nach Süden ein Stück mehr: Dort liegen der Vorplatz und die Einsatzzentrale, und wer
     // zusieht, will sehen, wie die Drohne heimkommt und was auf dem Tisch
     // landet. Und oben der Streifen für die Zeilen, die über dem Bild liegen.
     const deep = ((bounds.d + 3.4) * TILE) / Math.max(0.2, 1 - head);
@@ -3109,6 +3114,22 @@ export class HauntingWorld extends GridWorld {
           if (this.context) this.requestBotRound(this.context);
         },
       ),
+      {
+        // Derselbe Schalter wie die Checkbox in der Einsatzzentrale — nur dass
+        // die 2D-Welt ein DOM ist und in der Brille niemand ein DOM sieht:
+        // `toggleFlat` beendet die XR-Sitzung vorher, und das steht hier dran.
+        ...entry(
+          'haunt:flat',
+          '2D-Welt von oben',
+          this.context?.renderer.xr.isPresenting
+            ? 'Karte statt 3D · beendet die VR-Sitzung'
+            : 'Karte statt 3D · Stock links, drei Knöpfe rechts',
+          () => {
+            if (this.context) this.toggleFlat(this.context);
+          },
+        ),
+        selected: !!this.flat,
+      },
       entry(
         'haunt:start',
         'Mission starten',
@@ -3167,32 +3188,47 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Die 2D-Welt an oder aus** — die Checkbox neben der Bot-Runde.
+   * **Die 2D-Welt an oder aus** — die Checkbox neben der Bot-Runde und der
+   * Eintrag im Weltmenü des Technikers.
    *
    * Solange sie läuft, rechnet `FlatMode` die Runde selbst (`map/flatRound.ts`)
    * und `tick`/`render` fassen die 3D-Welt nicht an. Sie ist eine lokale
    * Runde wie die Bot-Runde: kein Netz, kein Host, kein Monster im Haus.
+   *
+   * Steckt der Spieler in der Brille, wird zuerst die XR-Sitzung beendet: Die
+   * 2D-Welt ist ein DOM, und das ist in der Brille unsichtbar. Das Ende der
+   * Sitzung setzt die Rolle der App auf Desktop zurück (`App.onSessionEnd`);
+   * damit der Techniker nach dem Verlassen der 2D-Welt wieder in seiner
+   * 3D-Rolle steht und nicht in der Einsatzzentrale, bleibt er per
+   * `flatTechnician` Techniker — derselbe Weg wie „Als Techniker am Desktop".
    */
   private toggleFlat(ctx: WorldContext): void {
     if (this.flat) {
       this.flat.dispose();
       this.flat = null;
       this.ui?.refresh();
+      ctx.refreshWorldMenu();
       return;
     }
     if (this.flatLoading) return;
     this.flatLoading = true;
+    let leaveXr: Promise<void> = Promise.resolve();
+    if (ctx.renderer.xr.isPresenting) {
+      if (this.mountedRole === 'vr') this.flatTechnician = true;
+      leaveXr = ctx.renderer.xr.getSession()?.end() ?? Promise.resolve();
+    }
     // Die 2D-Welt (samt CSS und der Registry-Discovery mit `import.meta.glob`)
     // kommt erst, wenn jemand sie will: So bleibt sie aus dem 3D-Pfad und
     // aus den Tests der Welt heraus.
     void Promise.all([
+      leaveXr,
       import('./map/flatMode'),
       import('./map/flatStage'),
       import('./registry/discover'),
     ])
-      .then(([mode, stage, discover]) => {
+      .then(([, mode, stage, discover]) => {
         this.flatLoading = false;
-        if (this.flat || this.mountedRole === 'vr') return;
+        if (this.flat) return;
         if (discover.REGISTERED_FILES.length === 0)
           console.warn('Haunting: keine *.register.ts gefunden');
         const options = this.state.crew.options;
@@ -3208,6 +3244,7 @@ export class HauntingWorld extends GridWorld {
         document.body.append(this.flat.element);
         ctx.menu.toggle(false);
         this.ui?.refresh();
+        ctx.refreshWorldMenu();
       })
       .catch((error: unknown) => {
         this.flatLoading = false;

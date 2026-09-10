@@ -26,6 +26,16 @@ import type { MapRound } from '../map/mapSnapshot';
  *    Versorgung wiederherzustellen — drei Reparaturen und zurück in die
  *    Zentrale — bevor die Uhr steht.
  *
+ * **Die Uhr läuft gleichmäßig durch, und keine Reparatur hält sie an oder
+ * füllt sie auf.** Das ist entschieden, nicht vergessen: Eine Reparatur, die
+ * Sauerstoff nachfüllt, machte nach der zweiten Reparatur wieder eine Runde
+ * ohne Ende möglich — genau die Schleife, gegen die diese Datei da ist. Der
+ * Auftrag mit der Id `oxygen` heißt deshalb „Nahrungsversorgung sichern"
+ * (`mission.ts`) und nicht mehr „Lebenserhaltung stabilisieren": Der alte
+ * Name klang, als rettete er den Sauerstoff, und den rettet nur der Rückweg
+ * in die Zentrale. Wer die Uhr an eine Reparatur koppeln will, tut das in
+ * `oxygenLeft` — und baut damit die Schleife wieder ein.
+ *
  * Kein three.js, kein Netz: Die Klasse hält nur die Liste der zerstörten
  * Kabinen und rechnet den Rest aus `HauntState`. Die 2D-Runde
  * (`map/flatRound.ts`) und die 3D-Welt halten je eine Instanz je Runde.

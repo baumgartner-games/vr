@@ -16,7 +16,7 @@ const claim = (id: string, station: Claim['station'], seniority: number): Claim 
   seniority,
 });
 
-describe('Wer im Van an welchem Gerät sitzt', () => {
+describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
   it('gibt ein freies Gerät dem, der sich anmeldet', () => {
     const claims = [claim('a', 'archive', 3)];
     expect(ownerOf(claims, 'archive')).toBe('a');
@@ -46,7 +46,7 @@ describe('Wer im Van an welchem Gerät sitzt', () => {
     expect(ownerOf([...claims].reverse(), 'hack')).toBe('a');
   });
 
-  it('lässt jemanden ohne Anmeldung einfach im Van stehen', () => {
+  it('lässt jemanden ohne Anmeldung einfach in der Einsatzzentrale stehen', () => {
     expect(seatOf([], 'a')).toBeNull();
     // Nirgends angemeldet ist nicht dasselbe wie weggeschubst: Nur das zweite
     // kostet Zeit, und beide sähen in der Oberfläche sonst gleich aus.

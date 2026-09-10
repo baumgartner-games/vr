@@ -3,7 +3,8 @@ import './haunting.css';
 import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
 import { HauntingAudio } from './audio';
-import type { MapSnapshot } from './map/mapSnapshot';
+import type { MapRound, MapSnapshot } from './map/mapSnapshot';
+import { roundHud } from './rules/roundHud';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
@@ -100,6 +101,8 @@ interface ShipHost {
   /** Der Stand als Karte und der Gang des Monsters — für das Hörmodell (`audio/`). */
   mapSnapshot?(): MapSnapshot;
   monsterPace?(): MonsterPace;
+  /** Sauerstoff, Anzug-Leben und Kabinen der laufenden Runde (`rules/`). */
+  round?(): MapRound | null;
 }
 interface Screen {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -193,6 +196,8 @@ export class ShipExperience {
   );
   private readonly visor: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   private readonly status: Screen;
+  /** Sauerstoff und Anzug-Leben, nur in der Brille (`paintHud`). */
+  private readonly hud: Screen;
   private readonly command: Screen;
   private readonly dom = document.createElement('section');
   private sensorMode: 'off' | 'radar' | 'xray' = 'off';
@@ -213,6 +218,8 @@ export class ShipExperience {
   private focusedTarget: THREE.Object3D | null = null;
   private audioTimer = 0;
   private paintTimer = 0;
+  /** Der Streifen in der Brille wird einmal je Sekunde gemalt — öfter springt die Uhr nicht. */
+  private hudTimer = 0;
   private effectTimer = 0;
   private stamp = '';
   private hiddenWas = false;
@@ -280,6 +287,18 @@ export class ShipExperience {
       if (this.crew.hidden) this.leaveLocker();
       else if (['lost', 'won'].includes(this.host.state().phase)) this.host.start();
     });
+    // **Der Streifen in der Brille**: Das DOM ist dort unsichtbar, und der
+    // Statusschirm kommt nur im Versteck und am Ende. Sauerstoff und Anzug
+    // müssen aber die ganze Runde da sein — klein, unten im Blickfeld, an der
+    // Kamera wie `status`, ohne Tiefentest, damit keine Wand ihn verdeckt.
+    this.hud = this.screen(0.34, 0.085, 512);
+    this.hud.mesh.name = 'mission-hud-strip';
+    this.hud.mesh.position.set(0, -0.36, -1);
+    this.hud.mesh.visible = false;
+    this.hud.mesh.material.depthTest = false;
+    this.hud.mesh.material.transparent = true;
+    this.hud.mesh.renderOrder = 999;
+    host.ctx.camera.add(this.hud.mesh);
     this.visor = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 1.25),
       new THREE.ShaderMaterial({
@@ -1130,11 +1149,26 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
       this.dom.hidden = ctx.renderer.xr.isPresenting;
       this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
+      // Nur in der Brille, nur solange die Mission läuft, nie in der Bot-Runde:
+      // Am Desktop steht dasselbe im DOM-Titel, und ohne Runde gibt es nichts zu zählen.
+      const round =
+        ctx.renderer.xr.isPresenting && state.phase === 'running' && !crew.simulation
+          ? (this.host.round?.() ?? null)
+          : null;
+      this.hud.mesh.visible = !!round;
+      this.hudTimer -= dt;
+      if (round && this.hudTimer <= 0) {
+        this.hudTimer = 1;
+        this.paintHud(round);
+      }
       this.stepSound(dt, _head);
       this.stepSimulation(dt);
       this.desktop.update(dt);
       this.comfort?.update(dt);
-    } else this.status.mesh.visible = false;
+    } else {
+      this.status.mesh.visible = false;
+      this.hud.mesh.visible = false;
+    }
     this.paintTimer -= dt;
     if (this.paintTimer <= 0) {
       this.paintTimer = 0.12;
@@ -1325,6 +1359,36 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     );
     this.status.texture.needsUpdate = true;
   }
+  /**
+   * Der Streifen in der Brille: links die Uhr, rechts die drei Leben. Was
+   * dort steht und wann es rot wird, rechnet `rules/roundHud.ts` — dieselbe
+   * Regel wie auf den Telefonen. Gemalt wird nur, wenn sich etwas geändert
+   * hat; die Uhr tut das einmal je Sekunde.
+   */
+  private paintHud(round: MapRound): void {
+    const hud = roundHud(round);
+    const key = `${hud.oxygen}|${hud.suit}|${hud.color}`;
+    if (this.hud.mesh.userData.paint === key) return;
+    this.hud.mesh.userData.paint = key;
+    const c = this.hud.ctx;
+    const { width: w, height: h } = this.hud.canvas;
+    c.clearRect(0, 0, w, h);
+    c.fillStyle = 'rgba(8, 24, 35, 0.78)';
+    c.fillRect(0, 0, w, h);
+    c.strokeStyle = hud.low ? hud.color : '#33556a';
+    c.lineWidth = 4;
+    c.strokeRect(2, 2, w - 4, h - 4);
+    c.textBaseline = 'middle';
+    c.fillStyle = hud.color;
+    c.textAlign = 'left';
+    c.font = `bold ${Math.round(h * 0.56)}px system-ui`;
+    c.fillText(hud.oxygen, h * 0.5, h / 2, w * 0.55);
+    c.textAlign = 'right';
+    c.font = `${Math.round(h * 0.5)}px system-ui`;
+    c.fillStyle = round.suit > 0 ? '#adffe8' : hud.color;
+    c.fillText(hud.suit, w - h * 0.5, h / 2, w * 0.4);
+    this.hud.texture.needsUpdate = true;
+  }
 
   private nearby(): {
     cabinet?: Cabinet;
@@ -1391,6 +1455,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const intentText = `Techniker: ${{ mission: 'Mission erfüllen', flee: 'Flucht vor Gefahr', hide: 'Leise im Schutzschrank' }[this.missionBot?.survival ?? 'mission']} · Monster: ${{ patrol: 'Patrouille', investigate: 'Geräusch untersuchen', hunt: 'Verfolgung', search: 'Letzte Position absuchen' }[crew.threat.mode]}`;
     const currentIntent = this.dom.querySelector('[data-ai-intent]');
     if (currentIntent) currentIntent.textContent = intentText;
+    // Die Uhr läuft außerhalb der Signatur: Sie ändert sich jede Sekunde, und
+    // ein Titel, der deshalb jede Sekunde neu gebaut wird, nähme dem Spieler
+    // die Knöpfe unter dem Finger weg. Also nur der eine Text.
+    const round = state.phase === 'running' ? (this.host.round?.() ?? null) : null;
+    const oxygenText = round ? ` · ${roundHud(round).oxygen}` : '';
+    const currentOxygen = this.dom.querySelector('[data-oxygen]');
+    if (currentOxygen && currentOxygen.textContent !== oxygenText)
+      currentOxygen.textContent = oxygenText;
     if (signature === this.stamp) return;
     this.stamp = signature;
     const expanded =
@@ -1400,6 +1472,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.dom.replaceChildren();
     const title = document.createElement('strong');
     title.textContent = `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.simulation ? 'TEST / SICHERE BOT-RUNDE / MONSTER' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
+    const oxygen = document.createElement('span');
+    oxygen.dataset['oxygen'] = '';
+    oxygen.textContent = oxygenText;
+    title.append(oxygen);
     this.dom.append(title);
     if (this.host.stations) {
       const roles = document.createElement('button');
@@ -2134,6 +2210,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     disposeObject(this.heldMedkit);
     this.status.mesh.removeFromParent();
     disposeObject(this.status.mesh);
+    this.hud.mesh.removeFromParent();
+    disposeObject(this.hud.mesh);
     this.dom.remove();
     this.dom.removeEventListener('click', this.domClick);
     for (const target of this.targets) this.host.ctx.pointer.remove(target);

@@ -258,7 +258,7 @@ export function doorLeaf(at: MapPoint, axis: 'x' | 'z', width: number): [MapPoin
       ];
 }
 
-/** Die Zentrale als Rechteck in Metern — der Vorplatz mit dem Van. */
+/** Die Zentrale als Rechteck in Metern — der Vorplatz mit der Einsatzzentrale. */
 export function commandRect(): Rect {
   return APRON;
 }

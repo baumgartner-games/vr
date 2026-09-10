@@ -2,7 +2,7 @@ import type { PlayerRole } from '../../../core/types';
 import { Registry, type Registered } from './registry';
 
 /**
- * **Die Rollen im Van** — Archiv, Einsatzkontrolle, Drohne, Zuschauer und
+ * **Die Rollen in der Einsatzzentrale** — Archiv, Einsatzkontrolle, Drohne, Zuschauer und
  * was die Nacht noch bringt.
  *
  * Bis heute stand diese Liste als `StationId`-Union plus `STATIONS`-Array in

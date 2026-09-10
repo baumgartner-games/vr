@@ -161,7 +161,7 @@ export function repairsFor(spec: HouseSpec): Repair[] {
   if (cached) return cached;
   const rng = new Rng(spec.seed ^ 0x53484950);
   const kinds = ['werkstatt', 'bad', 'musikzimmer'];
-  const names = ['Antrieb wiederherstellen', 'Lebenserhaltung stabilisieren', 'Notsignal senden'];
+  const names = ['Antrieb wiederherstellen', 'Nahrungsversorgung sichern', 'Notsignal senden'];
   const used = new Set<string>();
   const repairs = ['engine', 'oxygen', 'uplink'].map((id, i) => {
     const task = spec.tasks[i]!;

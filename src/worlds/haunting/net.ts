@@ -2,7 +2,7 @@ import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission
 import { isStation, type Claim, type StationId } from './stations';
 
 /**
- * **Was zwischen Van und Haus über die Leitung geht** — und wie wenig das ist.
+ * **Was zwischen Einsatzzentrale und Haus über die Leitung geht** — und wie wenig das ist.
  *
  * Weil jeder Client das Haus aus demselben Samen selbst baut, muss weder
  * Geometrie noch Bild fließen: Die Drohnenkamera ist eine Kamera in der
@@ -50,7 +50,7 @@ export interface HauntState {
   fuse: boolean;
   /** Aufgaben, die der VR-Spieler schon aufgesammelt hat. */
   taken: string[];
-  /** Und die, die im Van liegen. */
+  /** Und die, die in der Einsatzzentrale liegen. */
   done: string[];
 }
 

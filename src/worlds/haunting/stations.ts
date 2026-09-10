@@ -1,7 +1,7 @@
 import { pickHost, type HostCandidate } from '../../net/host';
 
 /**
- * **Der Van: mehr Stationen als Spieler.**
+ * **Die Einsatzzentrale: mehr Stationen als Spieler.**
  *
  * Das ist keine Sparmaßnahme, sondern die Spannungsquelle des ganzen
  * Web-Teils. Es gibt vier Geräte und meistens zwei oder drei Leute davor; die
@@ -138,14 +138,14 @@ export function shoved(claims: readonly Claim[], peer: string): boolean {
 /**
  * Wie viele gerade an einem Gerät sitzen.
  *
- * Für die Kachel im Van: Bei den vier einzelnen ist die Zahl immer null oder
+ * Für die Kachel in der Einsatzzentrale: Bei den vier einzelnen ist die Zahl immer null oder
  * eins und die Kachel sagt einen Namen; vor dem Fernseher sagt sie „zu dritt".
  */
 export function crowdAt(claims: readonly Claim[], station: StationId): number {
   return claims.filter((claim) => claim.station === station).length;
 }
 
-/** Wer wo sitzt — für die Kachelübersicht im Van. */
+/** Wer wo sitzt — für die Kachelübersicht in der Einsatzzentrale. */
 export function seating(claims: readonly Claim[]): Map<StationId, string> {
   const out = new Map<StationId, string>();
   for (const station of STATIONS) {

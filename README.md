@@ -96,7 +96,7 @@ Cafeteria und Storage sind größer. Gänge verbinden die Module über echte
 Rasterböden. Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
 Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
-Antrieb, Lebenserhaltung und Notsignal müssen repariert werden. Das
+Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. Das
 Archiv ermittelt den Fundort des benötigten Werkzeugs oder Bauteils. Der
 Techniker öffnet den Frachtschrank, nimmt den Gegenstand und entriegelt den
 passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
