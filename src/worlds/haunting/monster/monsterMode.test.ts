@@ -40,14 +40,15 @@ describe('Als Monster in der 2D-Welt', () => {
     ).toBeGreaterThan(2);
     expect(flat.round.monster.x).toBe(monster.x);
     expect(flat.element.querySelector('.flat__hud')?.textContent).toContain('O₂');
-    // Das Optionsmenü kennt die Rolle und schaltet sie für die nächste Runde um.
+    // Das Optionsmenü kennt die Rolle und schaltet sie für die nächste Runde
+    // um — Techniker, Monster, Bot-Runde, im Kreis.
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
-    const role = flat.element.querySelector<HTMLButtonElement>('[data-role]')!;
-    expect(role.textContent).toContain('Als Monster spielen');
-    role.click();
-    expect(flat.element.querySelector<HTMLButtonElement>('[data-role]')!.textContent).toContain(
-      'Als Techniker spielen',
-    );
+    const role = () => flat.element.querySelector<HTMLButtonElement>('[data-role]')!;
+    expect(role().textContent).toContain('Als Monster spielen');
+    role().click();
+    expect(role().textContent).toContain('Bot-Runde zusehen');
+    role().click();
+    expect(role().textContent).toContain('Als Techniker spielen');
     flat.element.querySelector<HTMLButtonElement>('[data-restart]')!.click();
     expect(flat.element.dataset['role']).toBe('technician');
     expect(flat.element.querySelector('.monster')).toBeNull();

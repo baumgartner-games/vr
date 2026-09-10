@@ -7770,6 +7770,30 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 
 **Telefone und Netzwerk**
 
+- **Das Telefon ist das Hauptgerät der Einsatzzentrale — und der 2D-Welt.**
+  Die Stationen im Van werden von den Spielern am Handy bedient, und die
+  2D-Karte von oben wird ebenfalls am Handy gespielt. Jede UI-Entscheidung in
+  diesen beiden Teilen wird zuerst für ein Telefon im Hochformat getroffen:
+  Daumenzonen unten, nichts Wichtiges in der Bildmitte, nichts unter dem
+  HUD der Seite (Menü, Verbindung, VR; `z-index` 5 in `style.css`), und was
+  bedienbar sein soll, ist ohne Tippen ins Leere sichtbar. Desktop und
+  Querformat sind Nebenfälle, nicht der Maßstab.
+- **Die 2D-Welt** (`map/flatMode.ts`, `map/flat.css`): Karte im Hintergrund,
+  Stock links, drei Knöpfe rechts. Der Stock hat eine **sichtbare
+  Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
+  (`map/joystick.ts`); HUD, Meldung und Eckknöpfe beginnen unter dem HUD der
+  Seite (`--flat-top`). `.flat [hidden] { display: none !important }` ist
+  Pflicht: Panels mit `display: flex` und `hidden` standen sonst als leerer
+  Balken mitten auf der Karte — über dem Spieler.
+- **„2D-Welt von oben" ist eine Einstellung, kein Start** (Checkbox im Van,
+  Menüeintrag beim Desktop-Techniker; `HauntingWorld.flatWanted`, in
+  `localStorage` unter `bgvr.haunting.flat.v1`). Gestartet wird danach wie
+  in 3D: **Bot-Runde** (Techniker aus Zahlen, `rules/technicianBot.ts`,
+  Karte folgt ihm, Modus „Alles sehen"), **Mission** (mit Monster) oder
+  **Test** (ohne) — `HauntingWorld.startRound` entscheidet anhand der
+  Einstellung, ob `FlatMode` oder das Schiff. Eine 2D-Runde ist lokal und
+  sperrt keinen Techniker im Schiff; deshalb bleibt die 2D-Bot-Runde auch
+  dann wählbar, wenn im Raum schon jemand spielt.
 - Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer.
   Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
 - Archiv hat **Räume & Codes** und **Aufträge**, nur Raumnamen auswählbar.

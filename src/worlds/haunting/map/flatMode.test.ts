@@ -146,6 +146,35 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
+  it('lässt in der Bot-Runde den Techniker aus Zahlen spielen — ohne Stock und Knöpfe', () => {
+    const flat = new FlatMode(3, { role: 'bot', mode: 'omniscient' }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(flat.role).toBe('bot');
+    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
+    expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
+    expect(flat.element.querySelector<HTMLElement>('.flat__item')!.hidden).toBe(true);
+    // Die Karte bleibt, samt dem Knopf, der sie zum Techniker zurückholt.
+    expect(flat.element.querySelector<HTMLElement>('.flat__map')!.hidden).toBe(false);
+    expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
+    // Das Werkzeugbild hat ohne Loch keinen Platz.
+    expect(flat.viewport()).toBeNull();
+    const start = { ...flat.round.player };
+    for (let i = 0; i < 90; i++) flat.update(DT);
+    const moved = Math.hypot(flat.round.player.x - start.x, flat.round.player.z - start.z);
+    expect(moved).toBeGreaterThan(1);
+    expect(flat.element.querySelector('.flat__hud')?.textContent).toContain('Bot-Runde');
+    // Im Optionsmenü schaltet die Rolle durch alle drei.
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    const roleKey = () => flat.element.querySelector<HTMLButtonElement>('[data-role]')!;
+    expect(roleKey().textContent).toContain('Bot-Runde zusehen');
+    roleKey().click();
+    expect(roleKey().textContent).toContain('Als Techniker spielen');
+    flat.element.querySelector<HTMLButtonElement>('[data-restart]')!.click();
+    expect(flat.role).toBe('technician');
+    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(false);
+    flat.dispose();
+  });
+
   it('zeigt das Ende und fängt neu an', () => {
     const flat = new FlatMode(3, { test: true }, { exit: () => {} });
     flat.round.state().crew.hp = 0;

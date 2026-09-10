@@ -857,9 +857,12 @@ Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und
   Optionsmenü mit genau den zwei Modi aus `viewModesFor('flat')`.
   Das aktive Werkzeug wird als kleines 3D-Bild in ein Loch der Oberfläche
   gezeichnet (`map/flatStage.ts`) — der einzige WebGL-Aufruf im 2D-Modus.
-- **Umschaltung**: Checkbox „2D-Welt von oben" neben der Kachel „Bot-Runde
-  ansehen" im Van (`stationUi.vanPage`). Aktiv heißt: `HauntingWorld.tick`
-  und `render` fassen die 3D-Welt nicht an.
+- **Umschaltung**: Checkbox „2D-Welt von oben" über den Kacheln im Van
+  (`stationUi.vanPage`). Sie ist seit dem UI-Fix nur noch eine Einstellung:
+  Gestartet wird mit „Bot-Runde ansehen", „Mission spielen" oder „Test ohne
+  Monster" (`HauntingWorld.startRound`), und läuft die 2D-Runde, fassen
+  `HauntingWorld.tick` und `render` die 3D-Welt nicht an. Die dritte Rolle
+  `bot` in `FlatOptions.role` lässt den Techniker aus Zahlen spielen.
 
 ### Fremde Dateien, die ich angefasst habe (Minimaländerungen)
 
