@@ -188,6 +188,8 @@ const WHEEL_RATE = 0.0016;
 const HIT = 16;
 /** Die Kachel des Bodens, in Metern — eine halbe Rasterkachel. */
 const FLOOR_TILE = NOISE_TILE;
+/** Rand um das Haus, wenn es ganz ins Bild soll, in Metern je Seite. */
+const FIT_MARGIN = 2;
 export { WAVE_SPEED, WAVE_LINGER };
 
 export const INK = {
@@ -347,8 +349,40 @@ export class MapView {
     this.fitted = false;
   }
 
+  /**
+   * **Ganz heraus geht immer bis zum ganzen Haus.** Die feste Untergrenze
+   * (`minScale`, 6 Punkte je Meter in der 2D-Welt) reicht auf einem Telefon
+   * nicht: hundert Meter Station sind dann 600 Punkte, und das Bild ist 390
+   * breit. Die Untergrenze reicht deshalb immer bis zu dem Maßstab, bei dem
+   * das Haus mit Rand ins Bild passt — sonst passte auch `fit()` nicht.
+   */
   private clampScale(scale: number): number {
-    return Math.min(this.maxScale, Math.max(this.minScale, scale));
+    const floor = Math.min(this.minScale, this.fitScale());
+    return Math.min(this.maxScale, Math.max(floor, scale));
+  }
+
+  /** Der Maßstab, bei dem das ganze Haus mit Rand ins Bild passt. */
+  fitScale(): number {
+    const b = this.snapshot.bounds;
+    const { w, h } = this.size();
+    const spanX = Math.max(1, b.maxX - b.minX + 2 * FIT_MARGIN);
+    const spanZ = Math.max(1, b.maxZ - b.minZ + 2 * FIT_MARGIN);
+    return Math.min(w / spanX, h / spanZ);
+  }
+
+  /**
+   * **Was ganz ins Bild passt, steht in der Mitte** — auch wenn die Karte
+   * einer Figur folgt: Sonst schöbe die Figur in der Mitte die halbe Karte
+   * aus dem Bild, die man beim Herauszoomen gerade sehen wollte. Je Achse,
+   * und nur ungedreht; gedreht wird die Karte nirgends.
+   */
+  private settle(): void {
+    const b = this.snapshot.bounds;
+    if (this.state.rotation !== 0 || b.maxX <= b.minX || b.maxZ <= b.minZ) return;
+    const { w, h } = this.size();
+    const u = this.state.scale;
+    if ((b.maxX - b.minX + 2 * FIT_MARGIN) * u <= w) this.state.centreX = (b.minX + b.maxX) / 2;
+    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) this.state.centreZ = (b.minZ + b.maxZ) / 2;
   }
 
   private size(): { w: number; h: number } {
@@ -358,13 +392,10 @@ export class MapView {
 
   private fitNow(): void {
     const b = this.snapshot.bounds;
-    const { w, h } = this.size();
-    const spanX = Math.max(1, b.maxX - b.minX + 4);
-    const spanZ = Math.max(1, b.maxZ - b.minZ + 4);
     this.state = {
       centreX: (b.minX + b.maxX) / 2,
       centreZ: (b.minZ + b.maxZ) / 2,
-      scale: this.clampScale(Math.min(w / spanX, h / spanZ)),
+      scale: this.clampScale(this.fitScale()),
       rotation: 0,
     };
     this.fitted = true;
@@ -393,6 +424,7 @@ export class MapView {
         this.state.centreZ = target.at.z;
       }
     }
+    this.settle();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = INK.ground;
     ctx.fillRect(0, 0, w, h);

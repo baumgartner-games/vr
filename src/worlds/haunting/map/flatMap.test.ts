@@ -192,8 +192,15 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     // Die Tafel: ein Tipp auf eine Tür in der Kartenübersicht sperrt sie.
     flat.showMap(true);
     flat.update(DT);
+    // Geöffnet steht das ganze Haus im Bild, auch auf 400 mal 300 Punkten —
+    // und da liegt neben jeder Tür ein Item im Tippradius. Wer eine Tür
+    // sperren will, zoomt vorher heran; genau das tut auch dieser Test.
+    const b = flat.round.snapshot().bounds;
+    expect(flat.map.toScreen(b.minX, b.minZ).x).toBeGreaterThanOrEqual(0);
+    expect(flat.map.toScreen(b.maxX, b.maxZ).x).toBeLessThanOrEqual(400);
     const door = flat.round.house.doors.find((d) => d.b !== null)!;
     const at = doorCentre(door);
+    flat.map.setView({ centreX: at.x, centreZ: at.z, scale: 22 });
     const p = flat.map.toScreen(at.x, at.z);
     flat.map.tap(p.x, p.y);
     expect(flat.round.haunt.shut).toEqual([door.id]);
@@ -224,6 +231,7 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     flat.update(DT);
     const door = flat.round.house.doors.find((d) => d.b !== null)!;
     const at = doorCentre(door);
+    flat.map.setView({ centreX: at.x, centreZ: at.z, scale: 22 });
     const p = flat.map.toScreen(at.x, at.z);
     flat.map.tap(p.x, p.y);
     expect(flat.round.haunt.shut).toEqual([]);
