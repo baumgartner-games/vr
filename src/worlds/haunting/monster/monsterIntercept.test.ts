@@ -5,6 +5,7 @@ import type { FloorPoint } from '../stationLayout';
 import {
   AMBUSH_MAX,
   graphEstimator,
+  likelyExit,
   plan,
   predictPlayer,
   type MemoryLike,
@@ -413,5 +414,63 @@ describe('Die Türen auf der echten Raumkarte', () => {
       const point = graph.doorPoint(door.id)!;
       expect(estimator.time(graph.centre(COMMAND), point, 3)).toBeLessThan(Infinity);
     }
+  });
+});
+
+/**
+ * **Zwei Namen für dieselbe Tür.**
+ *
+ * Das Gedächtnis nennt eine Tür nach den Räumen, die sie verbindet
+ * (`monsterMemory.doorKey`, „east|dead"); die Karte nennt sie so, wie der
+ * Bauplan sie nennt (`dDead`). Verglichen wurden bis eben die Zeichenketten,
+ * und damit fand der Vergleich **nie** eine Tür: Gelauert wurde immer an der
+ * ersten Tür des Raums, und die Prognose lief hinter der ersten Tür weiter
+ * statt hinter der wahrscheinlichsten. Die Attrappen oben sprechen
+ * Kartennamen, das echte Gedächtnis spricht Raumpaare — hier wird beides
+ * geprüft.
+ */
+describe('Die Tür, wie das Gedächtnis sie nennt', () => {
+  it('findet die wahrscheinlichste Tür unter beiden Schreibweisen', () => {
+    const graph = testGraph();
+    const pairs = testMemory({
+      likely: 'east',
+      certainty: 1,
+      exits: {
+        east: [
+          { door: 'dead|east', share: 0.9 },
+          { door: 'east|hall', share: 0.1 },
+        ],
+      },
+    });
+    expect(likelyExit(graph, pairs, 'east')).toBe('dDead');
+    // Wer schon Kartennamen liefert, kommt unverändert durch.
+    expect(likelyExit(graph, testMemory({ exits: EXITS }), 'east')).toBe('dDead');
+    // Ein Raum ohne Tür hat auch keine wahrscheinlichste.
+    expect(likelyExit(graph, testMemory({}), 'void')).toBeNull();
+    // Und ohne jedes Wissen bleibt die erste Tür der Karte.
+    expect(likelyExit(graph, testMemory({}), 'hall')).toBe('dNorth');
+  });
+
+  it('lauert an der Tür, die das Raumpaar nennt', () => {
+    const graph = testGraph();
+    const memory = testMemory({
+      likely: 'dead',
+      certainty: 1,
+      exits: { dead: [{ door: 'dead|east', share: 1 }] },
+    });
+    const decision = plan({
+      monsterAt: { x: 10, z: 5 },
+      huntSpeed: 4.4,
+      playerAt: null,
+      prediction: null,
+      memory,
+      estimator: graphEstimator(graph),
+      graph,
+      now: 0,
+      rng: () => 0,
+      tuning: TUNING,
+    });
+    expect(decision.kind).toBe('ambush');
+    expect((decision as Extract<Plan, { kind: 'ambush' }>).door).toBe('dDead');
   });
 });

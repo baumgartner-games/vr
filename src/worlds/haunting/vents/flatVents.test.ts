@@ -82,6 +82,14 @@ describe('Die Schächte in der 2D-Runde', () => {
       const round = new FlatRound(seed, { roll: seed });
       let wasBusy = false;
       for (let t = 0; t < 240 && round.phase === 'running'; t += 0.25) {
+        // **Der Techniker sitzt im Schutzschrank**, damit die vier Minuten
+        // wirklich vergehen: Seit das Monster schneller geht als ein Spieler
+        // geht (Paket M2), findet es einen reglosen Techniker in der Zentrale
+        // nach einer Viertelminute, und dann ist die Runde vorbei, bevor
+        // überhaupt eine Abkürzung infrage kam. Versteckt macht er keinen
+        // Lärm, und das Monster tut, was hier interessiert: die Station
+        // ablaufen und dabei den kürzeren Weg suchen.
+        round.state().crew.hidden = round.player.space;
         round.step(0.25, IDLE);
         const busy = round.ventRide.busy;
         if (busy && !wasBusy) rides++;

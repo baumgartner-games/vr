@@ -188,6 +188,7 @@ describe('Die Rundenregeln in der 2D-Runde', () => {
         strike: true,
         cabin,
         label: 'Test',
+        boost: 0,
       }),
     };
     round.step(DT, { x: 0, z: 0, sprint: false });

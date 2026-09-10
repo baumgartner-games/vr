@@ -186,7 +186,22 @@ export function hearNoises(
 }
 
 /** Host-only perception. A remembered coordinate never follows a player through a wall. */
-export function stepThreat(crew: CrewState, dt: number, input: ThreatInput): void {
+/**
+ * `weights` sind die Gewichte des Monsters (`botTuning.MonsterTuning`), soweit
+ * sie die Wahrnehmung betreffen. Sie waren hier lange nicht dabei, und das war
+ * ein stiller Fehler: Die 2D-Runde und die Trainingssimulation rechneten mit
+ * `profile.memory × tuning.memory` (bei den ausgelieferten Gewichten 9 s × 0,4
+ * = 3,6 s), das Headset mit den rohen 9 s. Dasselbe Monster hatte in der
+ * Brille also ein zweieinhalbmal längeres Gedächtnis als im Training, gegen
+ * das es abgestimmt wurde. Ohne `weights` bleibt es beim rohen Profil — für
+ * Tests, die nichts von Gewichten wissen wollen.
+ */
+export function stepThreat(
+  crew: CrewState,
+  dt: number,
+  input: ThreatInput,
+  weights?: { vision: number; memory: number },
+): void {
   const state = crew.threat;
   if (
     (crew.options.test && !crew.simulation) ||
@@ -199,7 +214,15 @@ export function stepThreat(crew: CrewState, dt: number, input: ThreatInput): voi
   }
   const profile = ENTITY_PROFILES[crew.options.monster];
   const senses = !crew.hidden && crew.venting <= 0;
-  stepAwareness(state, dt, input, profile, senses);
+  stepAwareness(
+    state,
+    dt,
+    input,
+    weights
+      ? { vision: profile.vision * weights.vision, memory: profile.memory * weights.memory }
+      : profile,
+    senses,
+  );
 }
 
 /**

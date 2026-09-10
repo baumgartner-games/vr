@@ -1,9 +1,10 @@
 import { COMMAND } from '../roomGraph';
 import { COMMAND_DELAY } from '../rules/doorSeal';
-import { puzzleFor } from '../mission';
+import { freshStamina, PLAYER_STAMINA, puzzleFor, stepStamina } from '../mission';
 import { doorWaypoint, spaceAtMetres } from './geometry';
 import { FlatWalker } from './flatWalk';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
+import { STILL } from '../monster/monsterHelm';
 import { cargoOf } from '../rules/cargo';
 import type { FloorPoint } from '../stationLayout';
 
@@ -250,14 +251,18 @@ describe('Die Tür hinter dem Techniker', () => {
    * (`rules/doorSeal.ts`). Geprüft wird beides an derselben Tür und mit
    * demselben Schritt: Nur die Besetzung der Runde ist anders.
    */
-  function runThrough(players: number): { waited: number; text: string } {
+  function runThrough(players: number, chasing = false): { waited: number; text: string } {
     const round = new FlatRound(4, { players });
     const door = round.house.doors.find((d) => d.b !== null)!;
     const near = doorWaypoint(door, round.graph.centre(door.a));
     const far = doorWaypoint(door, round.graph.centre(door.b!));
     expect(round.place(near)).toBe(true);
-    // Das Monster steht dicht hinter ihm — das ist die Verfolgung. Es bleibt
-    // stehen (kein Ziel), damit nur die Ansage über den Zeitpunkt entscheidet.
+    // Das Monster steht dicht hinter ihm — das ist die Verfolgung. Solange es
+    // **steht**, entscheidet allein die Ansage über den Zeitpunkt; dafür sitzt
+    // ein Steuer daran, das nichts tut (`monster/monsterDriver.ts`). Vorher
+    // stand hier nur ein Kommentar, es bleibe stehen — und seit das Monster
+    // schneller **geht** als der Techniker (Paket M2), tat es das nicht mehr.
+    if (!chasing) round.driver = { active: () => true, decide: () => STILL };
     round.monster.x = near.x;
     round.monster.z = near.z;
     round.monster.space = door.a;
@@ -289,6 +294,23 @@ describe('Die Tür hinter dem Techniker', () => {
     expect(crew.waited).toBeLessThanOrEqual(COMMAND_DELAY[1] + 0.5);
     expect(crew.text).toMatch(/Zentrale verriegelt/);
   });
+
+  /**
+   * **Und genau das kostet die Zentrale ihre Sekunden.**
+   *
+   * Seit das Monster schneller geht, als der Techniker geht, und knapp unter
+   * seinem Sprint jagt (Paket M2, `mission.ts`), ist ein Verfolger in der
+   * Zeit, die ein Zuruf braucht, durch die Tür — und dann ist der Riegel
+   * umsonst („zu spät ist zu spät", `stepSeal`). Allein macht der Techniker
+   * sie selbst zu und ist davon nicht betroffen; das ist der ganze
+   * Unterschied zwischen den beiden Besetzungen und der Grund, warum die
+   * Trainingsziele zwei verschiedene Zahlen sind.
+   */
+  it('verliert die Tür, wenn das Monster dem Zuruf davonläuft', () => {
+    const chased = runThrough(5, true);
+    expect(chased.waited).toBe(Infinity);
+    expect(chased.text).not.toMatch(/Zentrale verriegelt/);
+  });
 });
 
 describe('Türen machen Geräusche', () => {
@@ -305,5 +327,40 @@ describe('Türen machen Geräusche', () => {
     expect(opened.length).toBeGreaterThan(0);
     expect(opened[0]!.by).toBe('');
     expect(round.snapshot().doors.find((d) => d.id === door.id)?.open).toBe(true);
+  });
+});
+
+/**
+ * **Die Puste, in der Runde gemessen** (`mission.ts`).
+ *
+ * Der Sprint galt hier unbegrenzt, und damit war jede Verfolgung in dem
+ * Augenblick entschieden, in dem der Techniker den Stock nach vorn drückte.
+ * Was der Test nachrechnet, ist genau das: Nach `PLAYER_STAMINA` Sekunden
+ * kommt in derselben Zeit weniger Weg heraus als davor.
+ */
+describe('Die Puste des Technikers in der 2D-Runde', () => {
+  /** Nach Osten rennen und messen, wie weit es in `seconds` Sekunden geht. */
+  function sprint(round: FlatRound, seconds: number): number {
+    const from = { x: round.player.x, z: round.player.z };
+    for (let t = 0; t < seconds - 1e-9; t += DT) round.step(DT, { x: 1, z: 0, sprint: true });
+    return Math.hypot(round.player.x - from.x, round.player.z - from.z);
+  }
+
+  it('läuft die ersten Sekunden schneller als die danach', () => {
+    const round = new FlatRound(7, { test: true });
+    // Die Zentrale ist lang genug für eine gerade Strecke; im Zweifel bremst
+    // eine Wand beide Hälften gleichermaßen, deshalb wird nur verglichen.
+    const first = sprint(round, PLAYER_STAMINA);
+    const second = sprint(round, PLAYER_STAMINA);
+    expect(second).toBeLessThan(first);
+  });
+
+  it('gibt dem Sprint genau die Sekunden, die in `mission.ts` stehen', () => {
+    // Mit 1/30 s je Bild geht die letzte Scheibe nicht glatt auf; verlangt
+    // wird deshalb „auf ein Bild genau" und keine Punktlandung.
+    const stamina = freshStamina();
+    let steps = 0;
+    while (stepStamina(stamina, DT, true) === 1 && steps < 10000) steps++;
+    expect(Math.abs(steps * DT - PLAYER_STAMINA)).toBeLessThanOrEqual(DT);
   });
 });

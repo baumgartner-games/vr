@@ -186,8 +186,16 @@ startet oder ersetzt keine Mission; Tests werden am Terminal gestartet.
 Schon nach etwa einer Sekunde Rennen beginnt der Atem am unteren Visier zu
 kondensieren: weiche Wolken im Atemtakt und feine Tropfen auf dem Glas. Nach
 vier Sekunden ist die Anstrengung voll aufgebaut, nach etwa fünf Sekunden
-Gehen/Stehen wieder abgebaut. Das verändert den Visier-Effekt, nicht die
-maximale Sprintdauer. Als Vergleich für kurze Belastungsintervalle dient
+Gehen/Stehen wieder abgebaut.
+
+**Und die Puste ist jetzt eine echte Grenze.** Der Sprint hält **fünf
+Sekunden**; danach fällt das Tempo auf einen Trab, der immer noch schneller ist
+als Gehen, aber langsamer als ein jagendes Monster. Beim Gehen füllt sich die
+Puste in etwa acht Sekunden wieder auf. Wer getroffen wird, bekommt
+anderthalb Sekunden Sprint geschenkt, die nichts kosten — gerade genug für eine
+Tür. Eine gerade Flucht endet damit nach ungefähr zwanzig Sekunden; wer
+entkommen will, braucht einen Riegel, eine Ecke, einen Schutzschrank oder einen
+Wartungsschacht. Als Vergleich für kurze Belastungsintervalle dient
 [Phasmophobias Exposition-Update von 2021](https://store.steampowered.com/news/posts/?appids=739630&enddate=1631960314&feed=steam_community_announcements)
 mit drei Sekunden Sprint und fünf Sekunden Erholung.
 
@@ -259,20 +267,35 @@ halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert
 versteckt sich ungesehen in einem Schutzschrank und setzt anschließend die Mission fort.
 Der sichere Test bleibt dabei ohne Schaden.
 
-**Das Monster hat vier Grundhaltungen** und darüber die Verfolgung:
-*Patrouille* (zügig von Raum zu Raum), *Seitenwechsel* (nach mehreren
-erfolglosen Zielen quer über die Karte), *Auflauern* (stehen bleiben und
-warten) und *Absuchen*. Beim Absuchen **rät** es, in welchen angrenzenden Raum
-sein Gegenüber verschwunden ist, geht leise hinein, macht dort Klack-Geräusche,
+**Das Monster hat sechs Haltungen** und darüber die Verfolgung: *Patrouille*
+(zügig von Raum zu Raum — und zwar dorthin, wo es am längsten nicht war),
+*Seitenwechsel* (nach mehreren erfolglosen Zielen quer über die Karte),
+*Auflauern* (stehen bleiben und warten, an einer **Tür** statt mitten im
+Raum), *Absuchen*, *Abfangen* und *An der Tür lauern*. Es **rät nicht mehr**,
+wohin sein Gegenüber verschwunden ist: Es führt ein Bild davon, wo es ihn
+vermutet, streicht die Räume heraus, die es selbst abgesucht hat, rechnet
+Geräusche ein und sucht dort, wo es am wahrscheinlichsten ist. Aus den letzten
+Sichtungen schätzt es Richtung und Tempo und rechnet für die Türen vor ihm aus,
+wer zuerst dort ist — passt es, läuft es nicht hinterher, sondern **kürzt ab**
+und steht in der Tür. Glaubt es, sein Gegenüber sitze in einem Raum mit nur
+einem Ausgang, stellt es sich davor und wartet, aber nie länger als ein paar
+Sekunden. Beim Absuchen geht es leise hinein, macht dort Klack-Geräusche,
 öffnet manchmal den Schutzschrank und reißt ihn dann auf, weil es dort
 jemanden vermutet — ob jemand drin ist oder nicht — oder lässt den Raum stehen
 und geht gleich weiter. Hat es jemanden in eine Kabine flüchten **sehen**, geht es hin,
 **schreit davor** als Ankündigung, reißt sie mit Rauch und Funken auf und
 bleibt danach kurz stehen, um Vorsprung zu gewähren. Bei einer Verfolgung hört
-man den eigenen Herzschlag, schneller und lauter, je näher es kommt. Ein
+man den eigenen Herzschlag, schneller und lauter, je näher es kommt; je länger
+die Jagd ohne Sichtabriss läuft, desto näher kommt es seinem Höchsttempo. Ein
 Monster **geht schneller als ein Spieler geht** und **rennt langsamer, als ein
-Spieler rennt** — wer nur spaziert, wird eingeholt; wer rennt, kommt davon.
-Schächte durch gemeinsame Wände benutzt es weiterhin.
+Spieler rennt** — wer nur spaziert, wird eingeholt; wer rennt, kommt davon,
+solange die Puste reicht.
+
+**Eine fertige Reparatur bleibt nicht unbemerkt.** Die Konsole fährt hoch, die
+Sicherung fällt, im Modul flackert das Licht — das Monster weiß danach, in
+welchem Raum eben jemand gearbeitet hat, und legt für ein paar Sekunden
+merklich zu. Es sieht nicht durch Wände; es hat nur gehört, was die halbe
+Station gehört hat. Schächte durch gemeinsame Wände benutzt es weiterhin.
 
 **Zeitraffer, Regler und Training.** In der Bot-Runde laufen ×2, ×4 und ×8
 (beschleunigt wird über die Zahl der Bilder, nicht über ihre Länge). Die

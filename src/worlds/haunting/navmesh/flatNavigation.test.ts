@@ -75,6 +75,14 @@ describe('Das Monster der 2D-Runde geht den Rasterweg der 3D-Welt', () => {
       let plans = 0;
       let followed = 0;
       for (let t = 0; t < 45 && round.phase === 'running'; t += DT) {
+        // **Der Techniker sitzt die ganze Zeit im Schutzschrank.** Geprüft
+        // wird hier die Wegsuche über volle 45 Sekunden, und seit das Monster
+        // schneller geht als ein Spieler geht (Paket M2), findet es einen
+        // reglosen Techniker in der Zentrale nach einer Viertelminute und
+        // steht danach auf ihm: ein Ziel, das sich nicht bewegt, ist genau
+        // eine Route. Versteckt macht er kein Geräusch, wird nicht gesehen und
+        // das Monster tut, was hier interessiert — es läuft die Station ab.
+        round.state().crew.hidden = round.player.space;
         const before = { x: round.monster.x, z: round.monster.z };
         const shutBefore = [...round.haunt.shut];
         const busyBefore = round.ventRide.busy;

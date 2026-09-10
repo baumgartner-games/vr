@@ -1,4 +1,5 @@
 import type { RoomKind } from '../house';
+import type { MonsterMode } from '../monsterRoutine';
 import type { Ghosts } from '../rules/ghosts';
 
 /**
@@ -224,6 +225,38 @@ export interface MapNoise {
   cause: MapNoiseCause;
   /** Wann es war, in Sekunden Rundenzeit (`MapSnapshot.time`). */
   since: number;
+}
+
+/**
+ * **Was das Monster gerade denkt** — die Zuschauersicht auf seinen Kopf
+ * (Vertrag 4.7).
+ *
+ * Bisher konnte man einem Monster nur ansehen, *wohin* es läuft, und daraus
+ * ist nie hervorgegangen, ob es einen Plan hatte oder gerade würfelte. Genau
+ * das ist der Unterschied zwischen einem Gegner, den man lesen lernt, und
+ * einem, der einfach passiert: Wer zusieht — im Späherblick, in „Alles sehen",
+ * in der Bot-Runde —, soll das Glaubensbild sehen, den vermuteten Weg des
+ * Technikers und die Tür, an der es ihn abfangen will.
+ *
+ * **Nur Zahlen, keine Klassen.** Das Ding geht denselben Weg wie der Rest des
+ * Snapshots: durch `structuredClone`, durch `JSON.stringify`, über die
+ * Leitung.
+ *
+ * Gefüllt wird es von `monsterRoutine.ts` (`RoutineOutput.insight`);
+ * **gezeichnet** wird es noch nicht — das ist ein eigenes Paket.
+ */
+export interface MonsterInsight {
+  mode: MonsterMode;
+  /** Wie die Haltung heißt (`MODE_LABELS`). */
+  label: string;
+  /** Wohin es gerade will — `null`, wenn es steht. */
+  goal: MapPoint | null;
+  /** Das Glaubensbild über die Räume, absteigend, nur nennenswerte Anteile. */
+  belief: Array<{ roomId: string; p: number }>;
+  /** Der vermutete Weg des Technikers mit Ankunftszeiten in Sekunden. */
+  prediction: { path: MapPoint[]; eta: number[] } | null;
+  /** Die Tür, an der es ihn abfangen will, mit beiden Ankunftszeiten. */
+  intercept: { door: string; at: MapPoint; etaMonster: number; etaPlayer: number } | null;
 }
 
 export interface MapSnapshot {

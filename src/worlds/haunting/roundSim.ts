@@ -7,8 +7,10 @@ import {
   takeAlert,
   type HeardNoise,
 } from './threat';
-import { MONSTERS, repairsFor, type MonsterKind } from './mission';
+import { MONSTERS, STAMINA_REGEN, TROT, repairsFor, type MonsterKind } from './mission';
 import { MonsterRoutine, paceSpeed, type MonsterMode } from './monsterRoutine';
+import { MonsterMemory } from './monster/monsterMemory';
+import { graphEstimator } from './monster/monsterIntercept';
 import { Rng } from './rng';
 import { stationGraph, COMMAND, type StationGraph } from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
@@ -166,6 +168,12 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   const start = farthest(graph, home);
   const monster: Actor = { ...graph.centre(start), space: start };
   const routine = new MonsterRoutine(tuning.monster);
+  // **Dasselbe Gedächtnis wie im Headset.** Die Routine schreibt selbst
+  // hinein; die Simulation liefert nur, was sie allein weiß: welche Tür
+  // gerade zu ist (`sealed`) und wann eine Reparatur fertig wurde.
+  let sealedPair = '';
+  const brain = new MonsterMemory(graph, () => (sealedPair ? [sealedPair] : []));
+  const estimator = graphEstimator(graph);
 
   const modes = Object.fromEntries(
     (
@@ -175,6 +183,8 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
         'stakeout',
         'search',
         'hunt',
+        'intercept',
+        'ambush',
         'announce',
         'breach',
         'savour',
@@ -192,6 +202,8 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   let caught = '';
   let invulnerable = 0;
   let stamina = tuning.technician.stamina;
+  /** Was dem Techniker bleibt, wenn die Puste weg ist — derselbe Anteil wie beim Menschen. */
+  const trotSpeed = Math.max(tuning.technician.walk, tuning.technician.sprint * TROT);
   let calm = 0;
   let fleeing = false;
   let escape: { at: FloorPoint; space: string; locker: boolean } | null = null;
@@ -235,6 +247,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     }
     if (sealed && sealed.until <= time) sealed = null;
     const barred = sealed;
+    sealedPair = barred?.pair ?? '';
 
     // --- Wahrnehmung des Monsters: dasselbe Hörmodell und dieselbe
     // Alarmleiter wie im Headset und in der 2D-Runde (`threat.ts`). Kein Weg
@@ -291,6 +304,15 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       quarry: technician.space,
       caught,
       rng: roll,
+      memory: brain,
+      estimator,
+      base,
+      time,
+      sprinting: fleeing,
+      // Was das Monster über die Puste des Technikers annimmt: seine eigene
+      // Rechnung, mit denselben Zahlen, mit denen der Techniker unten wirklich
+      // läuft. Es rät nicht — es sieht, ob jemand noch sprintet oder schon trabt.
+      stamina: { left: stamina, trot: trotSpeed },
       ...takeAlert(memory),
     });
     modes[decision.mode] += DT;
@@ -314,7 +336,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       monster,
       decision.goal,
       graph,
-      paceSpeed(base, tuning.monster, decision.pace),
+      paceSpeed(base, tuning.monster, decision.pace, decision.boost),
       barred ? (from, to) => barred.pair === pairKey(from, to) : null,
     );
 
@@ -369,10 +391,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       // Techniker, der nach fünf Sekunden auf Arbeitstempo zurückfällt, wird
       // von einem Monster eingeholt, das schneller **geht** als er, und dann
       // entscheidet nicht mehr das Verhalten, sondern eine Stoppuhr.
-      const speed =
-        stamina > 0
-          ? tuning.technician.sprint
-          : Math.max(tuning.technician.walk, tuning.technician.sprint * 0.72);
+      const speed = stamina > 0 ? tuning.technician.sprint : trotSpeed;
       move(technician, escape.at, graph, speed);
       const reached =
         technician.space === escape.space &&
@@ -401,13 +420,25 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     working = there;
     if (!there) {
       move(technician, target.at, graph, tuning.technician.walk);
-      // Nach der Flucht kommt die Puste zurück, aber langsam.
-      stamina = Math.min(tuning.technician.stamina, stamina + DT * 0.4);
+      // Nach der Flucht kommt die Puste zurück, aber langsam — in
+      // `STAMINA_REGEN` Sekunden von leer auf voll, wie beim Menschen.
+      stamina = Math.min(
+        tuning.technician.stamina,
+        stamina + (DT * tuning.technician.stamina) / STAMINA_REGEN,
+      );
       continue;
     }
     work += DT;
     if (work < target.seconds) continue;
     work = 0;
+    // **Eine fertige Reparatur ist laut.** Die Konsole fährt hoch, die
+    // Sicherung fällt, im Modul flackert es — das Monster weiß danach, wo
+    // eben jemand stand, und legt für ein paar Sekunden los
+    // (`MonsterTuning.rush`). Kein Hellsehen: ein Ereignis der Station.
+    if (target.kind === 'console') {
+      brain.disturbed(target.space, target.at, time);
+      routine.hurry(tuning.monster.rush);
+    }
     job++;
     if (job >= jobs.length)
       return done(true, 'repaired', time, hits, job, contacts, hides, modes, jobs.length);
