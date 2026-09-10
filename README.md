@@ -252,9 +252,13 @@ Beleuchtung schaltet zwischen voller Beleuchtung, Wachbetrieb,
 Alarmbeleuchtung und Notstrom — im Alarm drehen sich rote Leuchten in den
 Gängen. Unter **Bots justieren & trainieren** stehen alle Gewichte beider Bots
 als Regler, dazu drei Knöpfe: *Monster trainieren*, *Techniker trainieren*,
-*beide*. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte,
-mit denen der Techniker im Schnitt 60–70 % der Runden gewinnt; es rechnet
-zwischen den Bildern weiter und friert den Tab nicht ein.
+*beide*. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte, mit
+denen eine Runde so ausgeht, wie sie ausgehen soll: **zu zweit** (Techniker
+gegen Monster) halbe-halbe, **ab drei Spielern** zwei von drei Runden für das
+Monster. Den Unterschied macht die Tür hinter dem Techniker — allein schlägt
+er sie selbst zu, im Team muss er es der Schalttafel sagen, und der Zuruf
+braucht ein bis zwei Sekunden. Das Training rechnet zwischen den Bildern
+weiter und friert den Tab nicht ein.
 Cyan zeigt den Technikerweg, Rot den Monsterweg und Gelb die Drohnenroute.
 Zielringe markieren die jeweiligen Ziele. Cyan/rote Flächen zeigen die an echten
 Wänden und Einrichtungen abgeschnittenen Blickfelder. Orange zeigt den maximalen

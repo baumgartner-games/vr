@@ -1865,14 +1865,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (state.step > 0 || run.finished) this.host.retune?.(state.tuning);
     if (run.finished) {
       this.training = null;
-      this.trainingNote = `Training fertig: Techniker gewinnt ${Math.round(state.rate * 100)} % (${
-        inBand(state.rate) ? 'im Zielband' : 'noch neben dem Zielband'
+      this.trainingNote = `Training fertig: Techniker gewinnt ${Math.round(
+        state.duo * 100,
+      )} % zu zweit und ${Math.round(state.rate * 100)} % mit Zentrale (${
+        inBand({ duo: state.duo, crew: state.rate })
+          ? 'in beiden Zielbändern'
+          : 'noch neben einem Zielband'
       }), ${state.step} Schritte.`;
       this.log(`BOT-TRAINING: ${this.trainingNote}`);
     } else
-      this.trainingNote = `Training ${Math.round(run.fraction * 100)} % · beste Quote ${Math.round(
-        state.rate * 100,
-      )} %`;
+      this.trainingNote = `Training ${Math.round(run.fraction * 100)} % · beste Quoten ${Math.round(
+        state.duo * 100,
+      )} % / ${Math.round(state.rate * 100)} %`;
     this.refreshTuneLabels();
   }
 

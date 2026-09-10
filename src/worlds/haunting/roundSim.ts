@@ -18,6 +18,7 @@ import { NOISE } from './audio/cues';
 import { roomsOf, wallsOf } from './map/extract';
 import { DOOR_WIDTH, doorAxis, doorCentre } from './map/geometry';
 import { VentNet } from './vents/ventGraph';
+import { CREW_SIZE, SEAL_HOLD, askSeal, commandLag, dueSeal, freshSeal } from './rules/doorSeal';
 
 /**
  * **Eine ganze Runde in einer Millisekunde** — ohne Bild, ohne Physik, ohne
@@ -67,6 +68,14 @@ export interface RoundOptions {
   roll?: number;
   /** Nach so vielen Sekunden ohne Ergebnis gilt die Runde als verloren. */
   limit?: number;
+  /**
+   * **Wie viele mitspielen** — Techniker, Monster und die Plätze der Zentrale
+   * (`rules/roundSetup.crewSize`). Zwei heißt: Der Techniker macht die Tür
+   * hinter sich selbst zu. Drei und mehr heißt: Er muss es sagen, und das
+   * kostet eine bis zwei Sekunden (`rules/doorSeal.ts`). Voreingestellt ist
+   * die Runde mit Zentrale, denn das ist die verteilte Voreinstellung.
+   */
+  players?: number;
 }
 
 const DT = 0.25;
@@ -146,6 +155,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   const rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
   const roll = (): number => rng.next();
   const layout = stationLayout(spec);
+  const players = options.players ?? CREW_SIZE;
 
   const jobs = plan(spec, graph, layout, tuning.technician.work);
   const home = graph.centre(COMMAND);
@@ -187,11 +197,43 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   let working = false;
   const memory = freshThreat();
   const world = hearingWorld(seed);
+  // **Die Tür hinter dem Techniker** (`rules/doorSeal.ts`): Wer flieht,
+  // schlägt sie zu — selbst, oder über einen Zuruf an die Zentrale, der eine
+  // bis zwei Sekunden braucht. Für das Monster ist sie so lange keine Kante
+  // mehr, wie es im Mittel dauert, sie aufzuziehen.
+  const seal = freshSeal();
+  let sealed: { pair: string; until: number } | null = null;
+  /** Wann die Flucht anläuft — sofort allein, um `commandLag` später im Team. */
+  let alarm = Infinity;
+  let wasSpace = technician.space;
   let time = 0;
 
   for (; time < limit; time += DT) {
     invulnerable = Math.max(0, invulnerable - DT);
     const gap = Math.hypot(technician.x - monster.x, technician.z - monster.z);
+    if (technician.space !== wasSpace) {
+      if (fleeing) askSeal(seal, pairKey(wasSpace, technician.space), time, players, roll);
+      wasSpace = technician.space;
+    }
+    const due = dueSeal(seal, time);
+    // **Eine Tür hilft nur, solange das Monster noch dahinter ist.** Wer sie
+    // erst zumachen lässt, wenn es längst mit im Raum steht, hat einen Riegel
+    // gesetzt und nichts gewonnen — und genau daran scheitert der Zuruf an die
+    // Zentrale: In eineinhalb Sekunden ist ein jagendes Monster durch.
+    if (due && monster.space !== technician.space) {
+      sealed = { pair: due, until: time + SEAL_HOLD };
+      // **Eine Tür reißt die Spur ab.** Das ist der eigentliche Gewinn und
+      // nicht die Wartezeit: Wer verfolgt wird und eine Tür zwischen sich und
+      // den Verfolger bringt, ist für ihn weg — kein Blick, ein gedämpftes
+      // Geräusch, und die Jagd wird wieder zur Suche. Im Headset fällt das von
+      // selbst so aus (Sichtlinie und Hörmodell rechnen mit dem Blatt); die
+      // Simulation kennt nur Räume, also steht es hier ausdrücklich.
+      memory.memory = 0;
+      memory.target = null;
+      memory.alert = Math.min(memory.alert, 1);
+    }
+    if (sealed && sealed.until <= time) sealed = null;
+    const barred = sealed;
 
     // --- Wahrnehmung des Monsters: dasselbe Hörmodell und dieselbe
     // Alarmleiter wie im Headset und in der 2D-Runde (`threat.ts`). Kein Weg
@@ -267,7 +309,13 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       escape = null;
       stamina = tuning.technician.stamina;
     }
-    move(monster, decision.goal, graph, paceSpeed(base, tuning.monster, decision.pace));
+    move(
+      monster,
+      decision.goal,
+      graph,
+      paceSpeed(base, tuning.monster, decision.pace),
+      barred ? (from, to) => barred.pair === pairKey(from, to) : null,
+    );
 
     // --- Der Techniker ------------------------------------------------------
     const danger =
@@ -275,9 +323,20 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       (gap < tuning.technician.caution || monster.space === technician.space) &&
       graph.distance(monster.space, technician.space) < tuning.technician.caution * 1.5;
     calm = danger ? 0 : calm + DT;
-    if (danger && !fleeing) {
-      fleeing = true;
-      escape = null;
+    // **Die Reibung des Teams.** Allein merkt der Techniker die Gefahr und
+    // rennt. Mit einer Zentrale im Rücken hängt er über seiner Arbeit und
+    // bekommt es **gesagt** — und bis das gesagt, gehört und begriffen ist,
+    // vergehen ein bis zwei Sekunden (`rules/doorSeal.commandLag`). Genau die
+    // Sekunden sind der Preis dafür, zu dritt zu spielen; zurück bekommt die
+    // Zentrale sie mit Wissen, das der Einzelne nicht hat.
+    if (!danger) alarm = Infinity;
+    else if (!fleeing) {
+      if (alarm === Infinity) alarm = time + commandLag(players, roll);
+      if (time >= alarm) {
+        fleeing = true;
+        escape = null;
+        alarm = Infinity;
+      }
     }
     if (fleeing && calm > tuning.technician.nerve) {
       fleeing = false;
@@ -461,10 +520,27 @@ function chooseCover(
   return best ?? { at: graph.centre(technician.space), space: technician.space, locker: false };
 }
 
-/** Einen Schritt auf ein Ziel zu — über die Nachbarräume, nie durch Wände. */
-function move(actor: Actor, goal: FloorPoint | null, graph: StationGraph, speed: number): void {
+/** Ein Türpaar als Schlüssel — die Tür zwischen zwei Räumen, richtungslos. */
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/**
+ * Einen Schritt auf ein Ziel zu — über die Nachbarräume, nie durch Wände.
+ * `barred` sperrt einen Übergang: Davor bleibt der Läufer stehen und zieht
+ * am Riegel, statt einen Umweg zu suchen (`rules/doorSeal.ts`).
+ */
+function move(
+  actor: Actor,
+  goal: FloorPoint | null,
+  graph: StationGraph,
+  speed: number,
+  barred: ((from: string, to: string) => boolean) | null = null,
+): void {
   if (!goal || speed <= 0) return;
   const goalSpace = graph.spaceAt(goal) || actor.space;
+  if (goalSpace !== actor.space && barred?.(actor.space, graph.next(actor.space, goalSpace)))
+    return;
   const step = goalSpace === actor.space ? goal : graph.centre(graph.next(actor.space, goalSpace));
   const dx = step.x - actor.x,
     dz = step.z - actor.z;

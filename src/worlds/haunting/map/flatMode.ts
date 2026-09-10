@@ -31,7 +31,7 @@ import { SetupPanel } from '../roundSetupPanel';
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
 import { HauntingAudio, levelLabel } from '../audio';
-import type { MapPoint } from './mapSnapshot';
+import type { MapNoise } from './mapSnapshot';
 import type { ToolIconSource } from './toolIcons';
 
 /**
@@ -80,10 +80,8 @@ export interface FlatModeHost {
 
 /** Wie lange eine Meldung stehen bleibt, in Sekunden. */
 const TOAST_SECONDS = 3.2;
-/** Wie oft der Späher eine neue Peilung des Monsters bekommt, in Sekunden. */
+/** Wie oft der Späher ein neues Horchbild bekommt, in Sekunden. */
 export const SCOUT_PERIOD = 3.5;
-/** Wie blass die alte Peilung wird, bevor die nächste kommt. */
-const SCOUT_FLOOR = 0.25;
 /** Wie viele Punkte unter dem HUD der Seite die Randdreiecke bleiben. */
 const EDGE_TOP = 118;
 
@@ -119,13 +117,22 @@ export class FlatMode {
   private readonly barFill = el('div', 'flat__bar-fill');
   private readonly vitals = el('div', 'flat__vitals');
   private readonly tasks = el('div', 'flat__tasks');
-  private readonly tab = el('button', 'flat__tab', 'Aufgaben');
+  /** Der Reiter „Aufgaben": waagerecht, mit einem Kreis je Auftrag, und ein Knopf. */
+  private readonly tab = el('button', 'flat__tab');
+  private readonly pips = el('span', 'flat__pips');
   private readonly toast = el('div', 'flat__toast');
   private readonly buttons = el('div', 'flat__buttons');
   private readonly cycleKey = el('button', 'flat__key flat__key--cycle');
   private readonly useKey = el('button', 'flat__key flat__key--use');
   private readonly actKey = el('button', 'flat__key flat__key--act');
+  /** Die zwei Sprungknöpfe rechts: zum Spieler, und für Zuschauer zum Monster. */
+  private readonly jump = el('div', 'flat__jump');
   private readonly centreKey = el('button', 'flat__corner flat__centre', 'Zum Spieler');
+  private readonly monsterKey = el(
+    'button',
+    'flat__corner flat__centre flat__centre--monster',
+    'Zum Monster',
+  );
   private readonly optionsKey = el('button', 'flat__corner flat__options', '⚙');
   private readonly mapKey = el('button', 'flat__corner flat__mapkey', '🗺');
   private readonly options = el('div', 'flat__panel');
@@ -152,9 +159,9 @@ export class FlatMode {
   private powers: SoloPowers;
   private routes: boolean;
   private setupPanel: SetupPanel | null = null;
-  /** Die letzte Peilung des Spähers: wo, wann — und ob sie überhaupt gilt. */
-  private ping: { at: MapPoint; time: number } | null = null;
-  private pingClock = 0;
+  /** Das letzte Horchbild des Spähers: die Geräusche einer Probe, neu gestempelt. */
+  private heard: MapNoise[] = [];
+  private scoutClock = 0;
 
   constructor(
     seed: number,
@@ -179,6 +186,7 @@ export class FlatMode {
       onRoomClick,
       onEntityClick,
       onItemClick,
+      noiseInk: (noise) => this.sceneNoiseInk(noise),
       overlay: (ctx) => this.drawSceneOverlay(ctx),
     });
     this.scene.element.classList.add('flat__scene');
@@ -194,7 +202,7 @@ export class FlatMode {
       edge: { top: 24, bottom: 24, left: 18, right: 18 },
       routes: () => this.routeLines(),
       objectives: () => (this.session ? [] : this.round.objectives()),
-      overlay: (ctx) => this.drawPing(ctx, this.map),
+      noises: () => this.mapNoises(),
       onRoomClick,
       onEntityClick,
       onItemClick,
@@ -214,8 +222,20 @@ export class FlatMode {
     // Der Kasten oben links: Balken, Uhr und Anzug, Aufgabenliste, Reiter zum Einklappen.
     const bar = el('div', 'flat__bar');
     bar.append(this.barFill, el('span', 'flat__bar-label', 'Aufgaben erledigt'));
-    this.hud.append(bar, this.vitals, this.tasks, this.tab);
-    this.tab.addEventListener('click', () => this.hud.classList.toggle('is-collapsed'));
+    this.tab.append(
+      el('span', 'flat__tab-label', 'Aufgaben'),
+      this.pips,
+      el('b', 'flat__caret', ''),
+    );
+    // Eingeklappt ist der Anfang: Die Liste nahm den halben oberen Rand ein,
+    // und wer sie braucht, tippt einmal auf den Reiter.
+    this.hud.classList.add('is-collapsed');
+    this.hud.append(bar, this.vitals, this.tab, this.tasks);
+    this.tab.addEventListener('click', () => {
+      const open = this.hud.classList.toggle('is-collapsed');
+      this.tab.setAttribute('aria-expanded', open ? 'false' : 'true');
+    });
+    this.tab.setAttribute('aria-expanded', 'false');
 
     this.cycleKey.dataset['action'] = 'cycle';
     this.useKey.dataset['action'] = 'use';
@@ -232,7 +252,14 @@ export class FlatMode {
     this.centreKey.addEventListener('click', () => {
       this.scene.follow(PLAYER_ID);
       this.map.follow(PLAYER_ID);
+      this.refreshCorners();
     });
+    this.monsterKey.addEventListener('click', () => {
+      this.scene.follow(MONSTER_ID);
+      this.map.follow(MONSTER_ID);
+      this.refreshCorners();
+    });
+    this.jump.append(this.centreKey, this.monsterKey);
     this.optionsKey.addEventListener('click', () => {
       this.options.hidden = !this.options.hidden;
       this.sheet.hidden = true;
@@ -251,7 +278,7 @@ export class FlatMode {
       this.toast,
       this.stick.element,
       this.buttons,
-      this.centreKey,
+      this.jump,
       this.mapKey,
       this.optionsKey,
       this.mapOverlay,
@@ -288,13 +315,14 @@ export class FlatMode {
         this.dice.next(),
       );
     }
-    for (const node of [this.scene.element, this.centreKey, this.mapKey])
+    for (const node of [this.scene.element, this.jump, this.mapKey])
       node.hidden = role === 'monster';
     if (role === 'monster') this.showMap(false);
     for (const node of [this.stick.element, this.buttons]) node.hidden = role !== 'technician';
     this.element.dataset['role'] = role;
-    this.ping = null;
-    this.pingClock = 0;
+    this.heard = [];
+    this.scoutClock = 0;
+    this.refreshCorners();
   }
 
   /** Wer gerade spielt — für Tests und die Anzeige. */
@@ -374,7 +402,7 @@ export class FlatMode {
       this.toast.className = 'flat__toast';
     }
     if (!this.session) {
-      this.stepPing(dt);
+      this.stepScout(dt);
       this.scene.setSnapshot(this.round.snapshot());
       this.scene.setVisibility(this.round.field);
       this.scene.draw();
@@ -388,6 +416,7 @@ export class FlatMode {
       if (this.round.puzzle && !this.sheet.hidden) this.sheet.hidden = true;
       this.puzzle.sync();
       this.refreshKeys();
+      this.refreshCorners();
     }
     this.renderHud();
     if (this.round.phase !== 'running' && this.ending.hidden) this.renderEnding();
@@ -413,62 +442,71 @@ export class FlatMode {
   // --- Die Zentrale auf dem eigenen Bild -----------------------------------------
 
   /**
-   * **Die Peilung des Spähers**: alle `SCOUT_PERIOD` Sekunden die Stelle des
-   * Monsters, dazwischen verblasst der Punkt — keine Bewegung dazwischen, das
-   * wäre Hellsicht. Nur mit der Fähigkeit, und nur, wenn ein Monster da ist.
+   * **Das Horchbild des Spähers.** Der Späher sieht das Monster nicht mehr —
+   * eine Peilung, die alle drei Sekunden sagt, wo es steht, nimmt ihm jede
+   * Möglichkeit, sich zu verstecken oder aufzulauern, und ein Schacht ist
+   * dann nur noch ein schnellerer Weg. Was er bekommt, ist, was ein Ohr an
+   * der Wand bekäme: **Geräusche**, und die auch nur als Probe alle
+   * `SCOUT_PERIOD` Sekunden. Wer still steht, kommt darin nicht vor.
+   *
+   * Die Probe wird dabei **neu gestempelt**: Die Wellen laufen vom Moment der
+   * Probe an los, klingen aus, und bis zur nächsten bleibt die Karte still.
    */
-  private stepPing(dt: number): void {
-    if (!this.powers.scout || !this.round.state().monsterOn) {
-      this.ping = null;
+  private stepScout(dt: number): void {
+    if (!this.powers.scout || this.mode.visibility === 'omniscient') {
+      this.heard = [];
       return;
     }
-    this.pingClock -= dt;
-    if (this.pingClock <= 0) {
-      this.pingClock = SCOUT_PERIOD;
-      const monster = this.round.monster;
-      this.ping = { at: { x: monster.x, z: monster.z }, time: this.round.state().time };
-    }
+    this.scoutClock -= dt;
+    if (this.scoutClock > 0) return;
+    this.scoutClock = SCOUT_PERIOD;
+    const now = this.round.state().time;
+    this.heard = this.round
+      .noises()
+      .filter((noise) => noise.by !== PLAYER_ID && now - noise.since <= SCOUT_PERIOD)
+      .map((noise) => ({ ...noise, by: '', cause: 'interact' as const, since: now }));
   }
 
-  /** Die letzte Peilung — für Tests. */
-  get scoutPing(): Readonly<{ at: MapPoint; time: number }> | null {
-    return this.ping;
-  }
-
-  /** Die Peilung als roter Punkt, der bis zur nächsten verblasst — auf Szene und Karte. */
-  private drawPing(
-    ctx: CanvasRenderingContext2D,
-    view: { toScreen(x: number, z: number): { x: number; y: number } },
-  ): void {
-    if (!this.ping || this.session) return;
-    // Im Modus „Alles sehen" läuft das Monster ohnehin über das Bild.
-    if (this.mode.visibility === 'omniscient') return;
-    const age = this.round.state().time - this.ping.time;
-    const fade = Math.max(SCOUT_FLOOR, 1 - age / SCOUT_PERIOD);
-    const p = view.toScreen(this.ping.at.x, this.ping.at.z);
-    const r = 9;
-    ctx.save();
-    ctx.globalAlpha = fade;
-    ctx.fillStyle = INK.monster;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = INK.monster;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r * (1.6 + (1 - fade) * 1.2), 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '600 10px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('PEILUNG', p.x, p.y - r * 2.1 - 6);
-    ctx.restore();
+  /** Das letzte Horchbild — für Tests. */
+  get scoutNoises(): readonly MapNoise[] {
+    return this.heard;
   }
 
   /**
-   * Was über der Szene liegt: die Wege (wenn gewollt), die Ziele als Ring
-   * am Ort und gelbes Dreieck am Rand des Bildes, und die Peilung.
+   * **Was die Kartenübersicht an Geräuschen zeigt.** Im Modus „Alles sehen"
+   * alles, wie eh und je. Realitätsnah ist die Karte das Bild der Zentrale
+   * und nicht das eigene Ohr: Dort steht nur, was der Späher zuletzt gehört
+   * hat — und ohne Späher steht dort nichts. Was der Techniker selbst
+   * wahrnimmt, sieht er auf dem Boden der Szene.
+   */
+  private mapNoises(): readonly MapNoise[] {
+    if (this.mode.visibility === 'omniscient') return this.round.noises();
+    return this.powers.scout ? this.heard : [];
+  }
+
+  /**
+   * **Die Farben der Wellen auf dem Boden.** Wer zusieht, darf sie
+   * auseinanderhalten: eigene blau, die des Monsters rot, alles andere
+   * orange. **Wer mitspielt, darf das nicht** — für ihn ist ein Geräusch ein
+   * Geräusch, ob es aus einer Tür, einem Mitspieler oder dem Monster kam;
+   * sonst wäre der Boden ein Ortungsgerät. Und die **eigenen Schritte** bleiben
+   * ganz weg: Man sieht sich nicht selbst zu.
+   */
+  private sceneNoiseInk(noise: MapNoise): string | null {
+    if (this.bot || this.mode.visibility === 'omniscient')
+      return noise.cause === 'monster' || noise.by === MONSTER_ID
+        ? INK.noiseMonster
+        : noise.by === PLAYER_ID
+          ? INK.noiseOwn
+          : INK.noiseOther;
+    if (noise.by === PLAYER_ID)
+      return noise.cause === 'walk' || noise.cause === 'sprint' ? null : INK.noiseOwn;
+    return INK.noiseOther;
+  }
+
+  /**
+   * Was über der Szene liegt: die Wege (wenn gewollt) und die Ziele — als
+   * Ring am Ort und gelbes Dreieck am Rand des Bildes.
    */
   private drawSceneOverlay(ctx: CanvasRenderingContext2D): void {
     if (this.session) return;
@@ -493,7 +531,6 @@ export class FlatMode {
     const t = Date.now() / 1000;
     for (const goal of this.round.objectives())
       this.drawGoal(ctx, scene, goal, width, height, inset, t);
-    this.drawPing(ctx, scene);
   }
 
   private drawGoal(
@@ -742,6 +779,22 @@ export class FlatMode {
   }
 
   /**
+   * **Die zwei Sprungknöpfe.** Wer die Kamera ohnehin am Spieler hat, braucht
+   * keinen Knopf, der sie dorthin holt — er nimmt nur Platz vor der Szene
+   * weg. **Wer zusieht**, hat keinen eigenen Spieler und beide Seiten zu
+   * verfolgen: Für ihn stehen beide Knöpfe immer da, auch der zum Monster.
+   */
+  private refreshCorners(): void {
+    const watching = !!this.bot;
+    const following = this.scene.current.following;
+    this.centreKey.hidden = !watching && following === PLAYER_ID;
+    this.centreKey.classList.toggle('is-active', following === PLAYER_ID);
+    this.monsterKey.hidden = !watching || !this.round.state().monsterOn;
+    this.monsterKey.classList.toggle('is-active', following === MONSTER_ID);
+    this.jump.classList.toggle('is-empty', this.centreKey.hidden && this.monsterKey.hidden);
+  }
+
+  /**
    * Der Kasten oben links, wie in der Vorlage: der grüne Balken zählt die
    * erledigten Reparaturen, darunter Uhr und Anzug, darunter die Aufgaben —
    * erledigte grün, mit `(n/2)`, weil jede Reparatur zwei Schritte hat:
@@ -753,7 +806,10 @@ export class FlatMode {
     const crew = state.crew;
     const monster = MONSTERS.find((m) => m.id === crew.options.monster)?.name ?? '';
     const round = this.round.round();
-    const hp = '●'.repeat(round.suit) + '○'.repeat(Math.max(0, round.suitMax - round.suit));
+    // **Herzen statt Pips.** Zwei Reihen Punkte nebeneinander — der Balken
+    // und der Anzug — hießen auf dem Telefon zweimal dasselbe Zeichen und
+    // zweimal raten; ein Herz sagt von selbst, dass es ums Leben geht.
+    const hp = '♥'.repeat(round.suit) + '♡'.repeat(Math.max(0, round.suitMax - round.suit));
     const who = this.bot ? 'Bot-Runde · ' : '';
     const cabins = round.cabinsDestroyed.length
       ? ` · ${round.cabinsDestroyed.length} Kabinen hin`
@@ -799,6 +855,20 @@ export class FlatMode {
         node.classList.toggle('is-partial', l.partial);
         return node;
       }),
+    );
+    // Eingeklappt bleibt genau so viel stehen, wie man im Vorbeigehen liest:
+    // ein Kreis je Auftrag — voll, halb, leer.
+    this.pips.replaceChildren(
+      ...lines.map((l) => {
+        const pip = el('i', 'flat__pip');
+        pip.classList.toggle('is-done', l.done);
+        pip.classList.toggle('is-partial', l.partial);
+        return pip;
+      }),
+    );
+    this.tab.setAttribute(
+      'aria-label',
+      `Aufgaben · ${lines.filter((l) => l.done).length} von ${lines.length} erledigt`,
     );
   }
 

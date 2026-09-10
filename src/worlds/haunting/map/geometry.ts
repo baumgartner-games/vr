@@ -8,6 +8,7 @@ import {
   type Rect,
 } from '../house';
 import { COMMAND } from '../roomGraph';
+import { stationLayout, type FloorBounds } from '../stationLayout';
 import type { MapPoint, MapSegment, MapSnapshot } from './mapSnapshot';
 
 /**
@@ -306,9 +307,48 @@ export function insideRect(rect: Rect, at: MapPoint, inset = 0): boolean {
   );
 }
 
+const blockCache = new WeakMap<HouseSpec, readonly FloorBounds[]>();
+
+/**
+ * **Die Grundflächen der Möbel** — Schränke, Tanks, Konsolen, Kisten — als
+ * Hindernisse in Metern (`stationLayout.ts`, dieselben `bounds`, mit denen
+ * schon die Wegsuche rechnet, `stationNavigation.buildGrid`).
+ *
+ * In 3D steht der Techniker vor einem Tank; in 2D lief er hindurch, weil die
+ * Bewegung nur Räume und Türen kannte. **Es gibt eine Spielwelt und zwei
+ * Darstellungen** — also steht der Tank auch hier im Weg. Die Wegsuche wich
+ * ihm ohnehin schon aus; erst mit dieser Liste tut es der Schritt auch.
+ */
+export function fixtureBlocks(spec: HouseSpec): readonly FloorBounds[] {
+  let blocks = blockCache.get(spec);
+  if (!blocks) {
+    blocks = stationLayout(spec).map((placement) => placement.bounds);
+    blockCache.set(spec, blocks);
+  }
+  return blocks;
+}
+
+/** Ob ein Punkt mit `radius` Körper in einer dieser Grundflächen steckt. */
+export function insideBlocks(
+  blocks: readonly FloorBounds[],
+  at: MapPoint,
+  radius: number,
+): boolean {
+  for (const box of blocks)
+    if (
+      at.x > box.minX - radius &&
+      at.x < box.maxX + radius &&
+      at.z > box.minZ - radius &&
+      at.z < box.maxZ + radius
+    )
+      return true;
+  return false;
+}
+
 /**
  * **Ob man hier stehen darf** — innerhalb eines Raums mit Abstand zur Wand,
- * oder in einer Türöffnung, die nicht gesperrt ist.
+ * oder in einer Türöffnung, die nicht gesperrt ist, und in keinem Fall
+ * mitten in einem Möbel (`blocks`, aus `fixtureBlocks`).
  *
  * Die Türöffnung ist ein kleines Rechteck quer über die Wand, so lang wie die
  * Wand dick ist plus der Abstand, den der Raum sonst verlangt: Wer in der
@@ -320,7 +360,9 @@ export function walkable(
   shut: readonly string[],
   at: MapPoint,
   radius: number,
+  blocks: readonly FloorBounds[] = [],
 ): boolean {
+  if (insideBlocks(blocks, at, radius)) return false;
   const inset = WALL_T / 2 + radius;
   for (const room of spacesOf(spec)) if (insideRect(room.rect, at, inset)) return true;
   if (insideRect(APRON, at, inset)) return true;
@@ -338,8 +380,9 @@ export function walkable(
 }
 
 /**
- * Einen Schritt gehen, mit Gleiten an Wänden: erst beide Achsen, dann jede
- * für sich. Was nicht geht, wird verworfen — es gibt kein Durchdrücken.
+ * Einen Schritt gehen, mit Gleiten an Wänden **und an Möbeln**: erst beide
+ * Achsen, dann jede für sich. Was nicht geht, wird verworfen — es gibt kein
+ * Durchdrücken.
  */
 export function slide(
   spec: HouseSpec,
@@ -348,12 +391,13 @@ export function slide(
   dx: number,
   dz: number,
   radius: number,
+  blocks: readonly FloorBounds[] = [],
 ): MapPoint {
   const tries: MapPoint[] = [
     { x: from.x + dx, z: from.z + dz },
     { x: from.x + dx, z: from.z },
     { x: from.x, z: from.z + dz },
   ];
-  for (const to of tries) if (walkable(spec, shut, to, radius)) return to;
+  for (const to of tries) if (walkable(spec, shut, to, radius, blocks)) return to;
   return from;
 }

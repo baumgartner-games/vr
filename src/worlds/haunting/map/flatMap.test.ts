@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { FlatMode } from './flatMode';
+import { FlatMode, SCOUT_PERIOD } from './flatMode';
 import { FlatRound, PLAYER_ID } from './flatRound';
 import { MapView } from './mapView';
 import { doorCentre } from './geometry';
@@ -206,13 +206,11 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     expect(sheet.textContent).toContain(lockerCode(flat.round.house.seed, room.id));
     sheet.querySelector<HTMLButtonElement>('[data-close-sheet]')!.click();
     expect(sheet.hidden).toBe(true);
-    // Die Peilung: nach dem ersten Bild steht sie beim Monster.
-    for (let i = 0; i < 3; i++) flat.update(DT);
-    expect(flat.scoutPing).not.toBeNull();
-    const ping = flat.scoutPing!.at;
-    expect(Math.hypot(ping.x - flat.round.monster.x, ping.z - flat.round.monster.z)).toBeLessThan(
-      1,
-    );
+    // Das Horchbild: eine Probe der Geräusche, und **nicht** die Stelle des
+    // Monsters — wer die kennt, dem lauert niemand mehr auf.
+    for (let i = 0; i < 40; i++) flat.update(DT);
+    expect(flat.round.noises().length).toBeGreaterThan(0);
+    expect(flat.scoutNoises.every((noise) => noise.by === '')).toBe(true);
     flat.dispose();
   });
 
@@ -229,8 +227,8 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     const p = flat.map.toScreen(at.x, at.z);
     flat.map.tap(p.x, p.y);
     expect(flat.round.haunt.shut).toEqual([]);
-    for (let i = 0; i < 3; i++) flat.update(DT);
-    expect(flat.scoutPing).toBeNull();
+    for (let i = 0; i < 40; i++) flat.update(DT);
+    expect(flat.scoutNoises).toEqual([]);
     // Die Tafel im Optionsmenü verteilt die nächste Runde neu.
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
     flat.element.querySelector<HTMLButtonElement>('[data-setup-seat-who="0"]')!.click();
@@ -248,6 +246,47 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     expect(flat.routesShown).toBe(true);
     flat.update(DT);
     expect(flat.round.playerRoute().length).toBeGreaterThan(1);
+    flat.dispose();
+  });
+});
+
+describe('Das Horchbild auf der Kartenübersicht', () => {
+  /**
+   * **Der Späher sieht keine Position mehr.** Eine Peilung alle drei Sekunden
+   * nahm dem Monster jede Möglichkeit, sich zu verstecken oder aufzulauern,
+   * und ein Schacht war damit nur noch ein schnellerer Weg. Was er bekommt,
+   * ist eine **Probe der Geräusche** — und wer still steht, kommt darin nicht
+   * vor. Ohne Späher steht auf der Karte gar nichts: Sie ist das Bild der
+   * Zentrale, nicht das eigene Ohr.
+   */
+  function noisesOnMap(seats: 'bot' | 'human'): { sampled: number; drawn: number } {
+    const setup = defaultSetup();
+    setup.seats = setup.seats.map((seat) => ({ ...seat, who: seats }));
+    const flat = new FlatMode(9, { setup, role: 'technician' }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.showMap(true);
+    for (let i = 0; i < 60; i++) flat.update(DT);
+    const out = { sampled: flat.scoutNoises.length, drawn: flat.map.stats.noises };
+    flat.dispose();
+    return out;
+  }
+
+  it('zeigt die Geräusche nur mit Späher — und dann als Probe', () => {
+    expect(noisesOnMap('human')).toEqual({ sampled: 0, drawn: 0 });
+    const scout = noisesOnMap('bot');
+    expect(scout.sampled).toBeGreaterThan(0);
+  });
+
+  it('stempelt die Probe neu, damit die Wellen von der Probe an laufen', () => {
+    const flat = new FlatMode(9, { setup: defaultSetup(), role: 'technician' }, { exit: () => {} });
+    document.body.append(flat.element);
+    for (let i = 0; i < 60; i++) flat.update(DT);
+    const now = flat.round.state().time;
+    for (const noise of flat.scoutNoises) {
+      expect(noise.by).toBe('');
+      expect(noise.since).toBeLessThanOrEqual(now);
+      expect(now - noise.since).toBeLessThanOrEqual(SCOUT_PERIOD + 1e-6);
+    }
     flat.dispose();
   });
 });

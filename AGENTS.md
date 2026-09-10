@@ -100,7 +100,7 @@ durch; `npm run test:slow` fährt genau diese Liste; die CI macht beides in
 getrennten Jobs (`Build` und `Slow tests`), damit ein Push nicht an einer Uhr
 scheitert, sondern nur an einem Fehler. Die langsamen Suiten sind gewollt
 langsam: Sie sind der Beleg, dass eine Runde von selbst endet und die Balance
-hält (`botTraining.test.ts` misst 800 Runden nach) — Rechnung, keine
+hält (`botTraining.test.ts` misst 1600 Runden nach) — Rechnung, keine
 Browser-Smokes, und darum gehören sie in Jest und nicht in Playwright. Wer
 eine neue Suite schreibt, die mehr als zehn Sekunden braucht, trägt sie in
 `SLOW` ein.
@@ -7820,12 +7820,36 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   sich das Monster zurück in „läuft im Kreis". `roundSim.ts` spielt eine ganze
   Runde ohne three.js/Rapier auf der Raumkarte (`roomGraph.ts`, inklusive
   gedämpfter Hörweite `earshot`) in Millisekunden aus. `botTraining.ts`
-  bergsteigt darauf gegen das Ziel „Techniker gewinnt 60–70 %" — feste
-  Stichprobe je Schritt (sonst klettert es auf Rauschen), Fortschritt als
+  bergsteigt darauf gegen **zwei** Ziele auf einmal (`TRAINING_TARGETS`):
+  **zu zweit** (Techniker gegen Monster, sonst niemand) geht die Runde
+  halbe-halbe aus, **ab drei Spielern** gewinnt das Monster zwei von drei
+  Malen. Beide Zahlen gelten für **dieselben** Gewichte — was sich
+  unterscheidet, ist die Besetzung und nicht die Einstellung der Bots
+  (`rules/roundSetup.crewSize` zählt Techniker, Monster und Plätze).
+  `measure` teilt die Runden einer Messung deshalb auf beide Besetzungen auf
+  statt sie zu verdoppeln, und `centreScore` bewertet den Abstand zu beiden
+  Bändern zusammen; `inBand` verlangt beide. Dazu wie bisher: feste Stichprobe
+  je Schritt (sonst klettert es auf Rauschen), Fortschritt als
   Gleichstandsbrecher mit Vorzeichen, wachsende Schrittweite in Sackgassen.
   `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
   den Tab nicht einfriert. `DEFAULT_TUNING` ist das Ergebnis dieses Trainings;
-  `botTraining.test.ts` misst 800 Runden nach.
+  `botTraining.test.ts` misst 1600 Runden nach.
+- **Die Tür hinter dem Techniker** (`rules/doorSeal.ts`) ist der Grund, warum
+  aus derselben Einstellung zwei Quoten werden. Er hat gegen das Monster nur
+  eines in der Hand, und das ist **eine Tür**: Wer verfolgt hindurchgeht,
+  hinter dem fällt sie zu — nicht als Knopf, den man im Moment der Berührung
+  findet. Verriegelt wird über denselben einen Riegel wie überall
+  (`doorLocks.chooseLock`), und der Gewinn ist `SEAL_HOLD`: die **ausgerechnete**
+  mittlere Zeit, die das Monster zum Aufziehen braucht (aus `pryChance`, nicht
+  geraten). Der eigentliche Gewinn ist aber, dass eine Tür die **Spur abreißt**
+  — kein Blick, ein gedämpftes Geräusch, und die Jagd wird wieder zur Suche.
+  **Allein** macht der Techniker sie selbst zu, sofort. **Im Team** gehört sie
+  der Schalttafel: Er muss es sagen, der andere muss hören und drücken, und
+  das kostet `COMMAND_DELAY` = 1–2 s (`commandLag`). In der Zeit ist ein
+  jagendes Monster fünf Meter weiter und manchmal schon durch — dann war der
+  Riegel umsonst. Dieselbe Reibung verzögert in `roundSim.ts` auch, wann die
+  Flucht überhaupt anläuft. Mehr Leute heißt hier nicht mehr Sicherheit,
+  sondern mehr Reibung; die Zentrale zahlt sie mit Wissen zurück.
 - **Zeitraffer** (`simulationSpeed.ts`): ×1/×2/×4/×8 über die **Anzahl** der
   Bilder (`HauntingWorld.update` → `tick`), nie über die Länge eines Schritts;
   nur der letzte Durchgang sendet und frischt die Anzeigen auf. Lange echte
@@ -7866,9 +7890,30 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   sortiert, damit eine Figur vor einer Wand vor ihr steht und dahinter
   dahinter. **Es gibt eine Spielwelt, zwei Darstellungen:** Was in 3D im Raum
   steht, steht auch in 2D — Fracht, Schrank und Konsole zeichnet dabei die
-  Requisite mit ihrem Zustand, nicht der Möbelklotz. Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
+  Requisite mit ihrem Zustand, nicht der Möbelklotz. **Und was dort im Weg
+  steht, steht auch hier im Weg** (`geometry.fixtureBlocks`, `walkable`/`slide`
+  mit den `bounds` aus `stationLayout`): dieselben Kästen, denen die Wegsuche
+  schon auswich (`stationNavigation.buildGrid`) — durch einen Tank läuft
+  niemand mehr. Die Raummitte bleibt frei, dafür sorgt der Packer.
+  **Geräusche laufen auch über den Boden der Szene** und nicht nur über die
+  Karte (`noiseWaves.ts`, geteilt mit `mapView.ts`): Wer spielt, soll sehen,
+  was er hört, ohne erst die Übersicht aufzuklappen. Welche Welle in welcher
+  Farbe, entscheidet die Ansicht (`FlatSceneOptions.noiseInk`): **Die eigenen
+  Schritte bleiben weg** — man sieht sich nicht selbst zu —, und für alle, die
+  **mitspielen**, ist ein Geräusch ein Geräusch: eine Farbe, ob es aus einer
+  Tür, einem Mitspieler oder dem Monster kam. Nur **wer zusieht** (Bot-Runde,
+  „Alles sehen") darf sie auseinanderhalten. **Auch eine Tür, die auf- oder
+  zufährt, macht eine Welle** (`FlatRound.stepDoors`, `MapNoiseCause` `door`);
+  dieselbe Stelle gibt den automatischen Türen einen **Nachlauf**, damit ein
+  Blatt an der Auslöseweite nicht je Bild auf- und zufährt.
+  Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
   der die Flächen des `VisibilityField` mit weichem Rand ausgeschnitten sind;
-  „Alles sehen" dunkelt nur ab. HUD wie die Vorlage: oben links der Kasten mit
+  „Alles sehen" dunkelt nur ab. **Der Schnitt wird dabei um `WALL_H` nach
+  Norden gezogen** (`WALL_LIFTS`, in Stufen): Das Sichtbarkeitsmodell rechnet
+  auf dem Boden und endet an der Wand, gezeichnet wächst dieselbe Wand aber
+  nach Norden aus ihrer Linie heraus — wer vor seiner Nordwand stand, sah den
+  Boden bis an sie heran und die Wand selbst nicht.
+  HUD wie die Vorlage: oben links der Kasten mit
   Fortschrittsbalken, O₂-Uhr, Anzug-Pips und Aufgabenliste, oben rechts Karte
   (das alte `MapView` als Overlay) und Zahnrad, unten rechts der große Knopf
   „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
@@ -7885,9 +7930,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `stationLayout`, `extract.fixturesOf`, mit Kennzeichen je `MarkId`), Figuren
   als kleine Astronauten mit Visier, Rucksack, Händen und Beinen, die beim
   Gehen schwingen, das Monster als Klumpen mit Augen und Klauen. **Geräusche
-  sind Wellen über die Kacheln** (`MapSnapshot.noises`, `MapNoise` mit
-  Urheber, Reichweite `reachOf`, Zeit; `WAVE_SPEED` 9 m/s): eigene blau, die
-  des Monsters rot, alles andere orange — die 2D-Runde führt sie fünf Sekunden
+  sind Wellen über die Kacheln** (`map/noiseWaves.ts`, geteilt mit der
+  2D-Szene; `MapSnapshot.noises`, `MapNoise` mit Urheber, Reichweite `reachOf`,
+  Zeit; `WAVE_SPEED` 9 m/s): eigene blau, die des Monsters rot, alles andere
+  orange — **die Urheberfarbe aber nur im Modus „Alles sehen"**; wer mitspielt,
+  bekommt für alles Fremde dieselbe Farbe — die 2D-Runde führt sie fünf Sekunden
   (`FlatRound.wave`: Schritte als Pulse, Türen, Zufallen, Splittern, Schrei,
   Schacht). Sie laufen über die **freien Felder** und nicht über die Luftlinie
   (`map/noiseSpread.ts`): Kachel für Kachel, durch eine Tür nur, wenn sie
@@ -7904,7 +7951,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Dreieck am Bildrand mit Entfernung; **Schächte** (`layers.vents`) als Bögen
   zwischen verbundenen Klappen mit dem Zielraum daran — in der 2D-Welt im
   Modus „Alles sehen", in der Monster-Ansicht immer. `overlay` malt zuletzt,
-  was eine Ansicht selbst noch braucht (die Peilung). Im Modus „Realitätsnah"
+  was eine Ansicht selbst noch braucht. Im Modus „Realitätsnah"
   bleiben Möbel und Items im Dunkeln weg (`seen`).
 - **Wer allein spielt, bekommt die Zentrale dazu** (`rules/roundSetup.ts`):
   Die Verteilung einer Runde — Techniker (Mensch/Bot), Monster
@@ -7919,9 +7966,17 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Mensch als Techniker gewinnt gegen ein Mensch als Monster — ein Stock, ein
   Spieler); `roundKindOf` die Rundenart im Schiff (dort rechnet das Monster
   immer die Routine). **Ein Bot auf einem Platz gibt dem Techniker die
-  Fähigkeit selbst** (`powersOf`, `SoloPowers`): Späher heißt Peilung des
-  Monsters alle `SCOUT_PERIOD` = 3,5 s als verblassender roter Punkt
-  (`FlatMode.stepPing`, nur im Modus „Realitätsnah", auf Szene und Karte),
+  Fähigkeit selbst** (`powersOf`, `SoloPowers`): Späher heißt **Horchbild** der
+  Station alle `SCOUT_PERIOD` = 3,5 s (`FlatMode.stepScout`, nur im Modus
+  „Realitätsnah", nur auf der **Kartenübersicht**, über `MapViewOptions.noises`)
+  — eine Probe der Geräusche der letzten Sekunden, neu gestempelt, damit die
+  Wellen vom Moment der Probe an loslaufen und es bis zur nächsten still ist.
+  **Nicht** mehr die Stelle des Monsters: Eine Peilung alle drei Sekunden nahm
+  ihm jede Möglichkeit, sich zu verstecken oder aufzulauern, und ein Schacht
+  war damit nur ein schnellerer Weg. Ohne Späher zeigt die Karte im Modus
+  „Realitätsnah" **gar keine** Geräusche — sie ist das Bild der Zentrale und
+  nicht das eigene Ohr; was der Techniker selbst wahrnimmt, sieht er auf dem
+  Boden der Szene. Weiter:
   Schalttafel heißt Tür oder Lampe per Tipp in der **Kartenübersicht** (🗺;
   die Szene kennt keine Tür-Tipps; `FlatRound.lockDoor`, `switchLight`),
   Archivar heißt die Akte per Tipp aufs Zimmer, in Szene wie Karte
@@ -7932,8 +7987,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `FlatNavigator` mit `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`,
   `navigator.remaining`; nur mit Späher oder „Alles sehen") auf Szene und
   Karte. Über der Szene malt `FlatMode.drawSceneOverlay` (Haken
-  `FlatSceneOptions.overlay`) Wege, Ziele als Ring und Randdreieck und die
-  Peilung; die Szene selbst weiß davon nichts.
+  `FlatSceneOptions.overlay`) Wege sowie Ziele als Ring und Randdreieck; die
+  Szene selbst weiß davon nichts.
 - **Das Kabelrätsel zeigt Symbole** (`map/puzzleOverlay.ts`, `WIRE_SYMBOLS`,
   `WIRE_COLORS` wie an der Konsole im Schiff): Stecker `i` gehört in die
   Buchse mit demselben Symbol, richtig Verbundenes leuchtet grün. Ohne die

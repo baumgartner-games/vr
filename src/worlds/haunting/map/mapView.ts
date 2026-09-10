@@ -9,7 +9,8 @@ import {
   type MapSnapshot,
 } from './mapSnapshot';
 import { emptyField, type VisibilityField, type VisibilityMode } from './visibility';
-import { spreadNoise, tileGrid, type TileGrid } from './noiseSpread';
+import { NOISE_TILE } from './noiseSpread';
+import { NoiseWaves, WAVE_LINGER, WAVE_SPEED, type NoiseInk } from './noiseWaves';
 
 /**
  * **Die Karte als Bauteil** — ein Canvas im DOM, das einen `MapSnapshot`
@@ -149,6 +150,12 @@ export interface MapViewOptions {
   /** Die Ziele, je Bild abgefragt (Layer `objectives`). */
   objectives?: () => readonly MapGoal[];
   /**
+   * **Welche Geräusche diese Karte zeigt** — voreingestellt die des
+   * Snapshots. Der Späher reicht hier sein Horchbild herein: eine Probe alle
+   * paar Sekunden statt eines fortlaufenden Bandes (`map/flatMode.ts`).
+   */
+  noises?: () => readonly MapNoise[];
+  /**
    * **Das eine Ding, mit dem der Betrachter gerade etwas tun kann** — je Bild
    * abgefragt und als pulsierender Ring darüber gezeichnet. Das Monster
    * bekommt so seine Klappe, seine Kabine oder seine Tür gezeigt, und zwar
@@ -180,11 +187,8 @@ const WHEEL_RATE = 0.0016;
 /** Wie nah ein Tipp an einem Marker sein muss, in Punkten. */
 const HIT = 16;
 /** Die Kachel des Bodens, in Metern — eine halbe Rasterkachel. */
-const FLOOR_TILE = 1.25;
-/** Wie schnell eine Geräuschwelle über den Boden läuft, in Metern je Sekunde. */
-export const WAVE_SPEED = 9;
-/** Wie lange eine Welle nach dem Ankommen noch nachklingt, in Sekunden. */
-export const WAVE_LINGER = 0.7;
+const FLOOR_TILE = NOISE_TILE;
+export { WAVE_SPEED, WAVE_LINGER };
 
 export const INK = {
   ground: '#0b1220',
@@ -274,14 +278,8 @@ export class MapView {
   private readonly maxScale: number;
   /** Wohin jede Figur zuletzt schaute (links oder rechts) — damit sie beim Gehen nach oben nicht flackert. */
   private readonly facing = new Map<string, number>();
-  /** Das Kachelfeld der Station, einmal gerechnet: Böden und ihre Nachbarschaft (`noiseSpread.ts`). */
-  private floor: { seed: number; grid: TileGrid | null } = { seed: NaN, grid: null };
-  /**
-   * Die geflutete Welle je Geräusch, einmal gerechnet und dann gehalten: Ein
-   * Geräusch wandert nicht, seine Front wächst nur — die Weglängen bleiben
-   * dieselben, Bild für Bild.
-   */
-  private readonly waves = new Map<string, Map<string, number>>();
+  /** Kachelfeld und geflutete Wellen, gemeinsam mit der Szene (`noiseWaves.ts`). */
+  private readonly waves = new NoiseWaves();
   /** Was das letzte Bild gezeichnet hat — für Tests. */
   stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
 
@@ -612,16 +610,6 @@ export class MapView {
     return !!f.self && pointInPolygon(at, f.self.polygon);
   }
 
-  /** Das Kachelfeld der Station — Böden, Nachbarn, Türen, Schächte (`noiseSpread.ts`). */
-  private tileField(): TileGrid {
-    const s = this.snapshot;
-    if (this.floor.seed === s.seed && this.floor.grid) return this.floor.grid;
-    const grid = tileGrid(s, FLOOR_TILE);
-    this.floor = { seed: s.seed, grid };
-    this.waves.clear();
-    return grid;
-  }
-
   private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
     const a = this.toWorld(0, 0),
       b = this.toWorld(w, h);
@@ -678,80 +666,68 @@ export class MapView {
    */
   private drawNoise(ctx: CanvasRenderingContext2D): void {
     const s = this.snapshot;
-    const scale = this.state.scale;
+    const { w, h } = this.size();
+    // Alle vier Ecken, nicht zwei: Die Karte darf gedreht sein, und dann ist
+    // das Bild im Weltraster kein achsenparalleles Rechteck mehr.
+    const corners = [
+      this.toWorld(0, 0),
+      this.toWorld(w, 0),
+      this.toWorld(0, h),
+      this.toWorld(w, h),
+    ];
+    this.stats.noises += this.waves.paint(ctx, {
+      bounds: {
+        minX: Math.min(...corners.map((c) => c.x)),
+        minZ: Math.min(...corners.map((c) => c.z)),
+        maxX: Math.max(...corners.map((c) => c.x)),
+        maxZ: Math.max(...corners.map((c) => c.z)),
+      },
+      snapshot: s,
+      noises: this.options.noises?.() ?? s.noises ?? [],
+      // Der Gang der Wesen ohne Ereignis: die leise Fläche um jeden, der geht
+      // (nur im Modus „Alles sehen").
+      steady: this.field.noise.filter((n) => n.cause !== 'monster'),
+      ink: this.noiseInk(),
+      steadyInk: (noise) => {
+        const viewer = this.options.viewerId ?? '';
+        if (this.deafToSelf() && noise.entityId === viewer) return null;
+        return noise.entityId === viewer ? INK.noiseOwn : INK.noiseOther;
+      },
+      toScreen: (x, z) => this.toScreen(x, z),
+      scale: this.state.scale,
+    });
+  }
+
+  /**
+   * **Wer das Monster spielt, hört sich nicht selbst.** Für alle anderen ist
+   * die eigene Welle eine Auskunft — wie weit der eigene Schritt getragen hat
+   * —, für das Monster wäre sie ein blauer Teppich um die eigenen Füße, der
+   * alles überdeckt, wofür die Karte da ist (`audio/soundscape.ts`).
+   */
+  private deafToSelf(): boolean {
     const viewer = this.options.viewerId ?? '';
-    // **Wer das Monster spielt, hört sich nicht selbst.** Für alle anderen ist
-    // die eigene Welle eine Auskunft — wie weit der eigene Schritt getragen
-    // hat —, für das Monster wäre sie ein blauer Teppich um die eigenen Füße,
-    // der alles überdeckt, wofür die Karte da ist (`audio/soundscape.ts`).
-    const deaf = s.entities.find((entity) => entity.id === viewer)?.kind === 'monster';
-    const cell = FLOOR_TILE * scale;
-    const waves: Array<{ noise: MapNoise; front: number; fade: number }> = [];
-    for (const noise of s.noises ?? []) {
-      if (deaf && noise.by === viewer) continue;
-      const age = s.time - noise.since;
-      if (age < 0) continue;
-      const arrival = noise.radius / WAVE_SPEED;
-      if (age > arrival + WAVE_LINGER) continue;
-      const front = Math.min(noise.radius, age * WAVE_SPEED);
-      const fade = age <= arrival ? 1 : 1 - (age - arrival) / WAVE_LINGER;
-      waves.push({ noise, front, fade });
-    }
-    // Der Gang der Wesen ohne Ereignis: die leise Fläche um jeden, der geht (nur im Modus „Alles sehen").
-    const steady = this.field.noise.filter(
-      (n) => n.cause !== 'monster' && !(deaf && n.entityId === viewer),
-    );
-    if (!waves.length && !steady.length) return;
-    const grid = this.tileField();
-    // Was noch klingt, bleibt gespeichert; alles andere räumt sich weg. Der
-    // Schlüssel trägt Ort und Reichweite mit: Eine neue Runde fängt ihre
-    // Kennungen wieder bei `n0` an, und eine alte Flut an einer anderen Stelle
-    // wäre dann ein Geräusch aus dem letzten Spiel.
-    const alive = new Set(waves.map(({ noise }) => waveKey(noise)));
-    for (const id of [...this.waves.keys()]) if (!alive.has(id)) this.waves.delete(id);
-    const open = new Set(
-      s.doors.filter((door) => door.open && !door.locked).map((door) => door.id),
-    );
-    // **Schächte leiten**, für jeden — dasselbe, was das Hörmodell rechnet
-    // (`audio/hearing.ts`, Satz 2). Was das Monster im Schacht anstellt, ist
-    // zwei Räume weiter zu hören, und in die andere Richtung ebenso.
-    ctx.save();
-    const paint = (key: string, color: string, alpha: number): void => {
-      const [tx, tz] = key.split(',').map(Number) as [number, number];
-      ctx.globalAlpha = Math.min(0.8, alpha);
-      ctx.fillStyle = color;
-      const p = this.toScreen(tx * FLOOR_TILE, tz * FLOOR_TILE);
-      ctx.fillRect(p.x + 0.5, p.y + 0.5, Math.max(1, cell - 1), Math.max(1, cell - 1));
+    return this.snapshot.entities.find((entity) => entity.id === viewer)?.kind === 'monster';
+  }
+
+  /**
+   * Die Farben der Wellen. Im Modus „Alles sehen" (Zuschauer, Bot-Runde) sagt
+   * die Farbe, wer es war: die eigenen blau, die des Monsters rot, alles
+   * andere orange. **Wer mitspielt, hört diesen Unterschied nicht** — ein
+   * Geräusch ist ein Geräusch, und ob es vom Mitspieler oder vom Monster kam,
+   * steht nicht dran. Sonst wäre die Karte ein Ortungsgerät.
+   */
+  private noiseInk(): NoiseInk {
+    const viewer = this.options.viewerId ?? '';
+    const deaf = this.deafToSelf();
+    const knowing = this.field.mode === 'omniscient' || !this.layers.visibility;
+    return (noise) => {
+      if (deaf && noise.by === viewer) return null;
+      if (noise.by && noise.by === viewer) return INK.noiseOwn;
+      if (!knowing) return INK.noiseOther;
+      return noise.cause === 'monster' || noise.by === 'monster'
+        ? INK.noiseMonster
+        : INK.noiseOther;
     };
-    for (const { noise, front, fade } of waves) {
-      const color =
-        noise.by && noise.by === viewer
-          ? INK.noiseOwn
-          : noise.cause === 'monster' || noise.by === 'monster'
-            ? INK.noiseMonster
-            : INK.noiseOther;
-      const key = waveKey(noise);
-      let reached = this.waves.get(key);
-      if (!reached) {
-        reached = spreadNoise(grid, noise.at, noise.radius, { open, vents: true });
-        this.waves.set(key, reached);
-      }
-      for (const [key, d] of reached) {
-        if (d > front) continue;
-        // Die Front ist am hellsten; dahinter klingt es aus.
-        const ring = Math.max(0, 1 - (front - d) / 2.2);
-        const alpha = (0.1 + 0.55 * ring * ring) * fade * (1 - (d / noise.radius) * 0.5);
-        if (alpha <= 0.02) continue;
-        paint(key, color, alpha);
-      }
-      this.stats.noises++;
-    }
-    for (const noise of steady) {
-      const color = noise.entityId === viewer ? INK.noiseOwn : INK.noiseOther;
-      const reached = spreadNoise(grid, noise.at, noise.radius, { open, vents: true });
-      for (const [key, d] of reached) paint(key, color, 0.12 * (1 - d / noise.radius));
-    }
-    ctx.restore();
   }
 
   /** Ein Möbel: ein Klotz mit Kante und Deckel, gedreht wie im Schiff, mit einem kleinen Kennzeichen darauf. */
@@ -1609,9 +1585,4 @@ export class MapView {
       gestures: this.gestures,
     };
   }
-}
-
-/** Der Schlüssel einer gefluteten Welle: Kennung, Ort und Reichweite. */
-function waveKey(noise: MapNoise): string {
-  return `${noise.id}@${noise.at.x.toFixed(2)},${noise.at.z.toFixed(2)},${noise.radius.toFixed(2)}`;
 }
