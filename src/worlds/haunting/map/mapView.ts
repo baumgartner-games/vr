@@ -8,6 +8,7 @@ import {
   type MapPoint,
   type MapSnapshot,
 } from './mapSnapshot';
+import { CARGO_BAND_COLORS } from '../fixtureDimensions';
 import { emptyField, type VisibilityField, type VisibilityMode } from './visibility';
 import { NOISE_TILE } from './noiseSpread';
 import { NoiseWaves, WAVE_LINGER, WAVE_SPEED, type NoiseInk } from './noiseWaves';
@@ -113,19 +114,36 @@ export interface MapRoute {
   goal?: boolean;
 }
 
-/** Ein Ziel des Technikers — Fracht, Konsole, die Zentrale. */
 /** Was gerade hervorgehoben wird: wo, und was der Knopf damit täte. */
 export interface MapHighlight {
   at: MapPoint;
   label: string;
 }
 
+/**
+ * **Ein Ziel des Technikers** — eine Kiste, ein Raum, eine Konsole, die
+ * Zentrale.
+ *
+ * `kind` und `precision` sagen, **was** dort steht und **wie genau** es
+ * benannt werden darf (`rules/roundSetup.goalPrecision`). Ein Ziel mit
+ * `precision: 'room'` ist genau das, was ein Mensch am Archiv übrig lässt: der
+ * Raum und sonst nichts — `at` ist dann die Raummitte und `label` sein Name.
+ * Wer zeichnet, richtet sich danach: die Kiste selbst leuchtet, oder der
+ * Raumboden. Kompass, Randdreieck und Weg zeigen unverändert auf `at`.
+ */
 export interface MapGoal {
   id: string;
   at: MapPoint;
   label: string;
   /** Ob es das nächste ist — das pulsiert und bekommt das größte Dreieck. */
   next: boolean;
+  kind: 'crate' | 'room' | 'console' | 'van';
+  precision: 'exact' | 'room';
+}
+
+/** Die Raumkennung eines Raumziels — sonst `null`. Die Id ist `room:<raum>`. */
+export function goalRoomId(goal: MapGoal | undefined): string | null {
+  return goal && goal.kind === 'room' ? goal.id.slice('room:'.length) : null;
 }
 
 /** Was eine Ansicht nach allem anderen selbst noch zeichnen darf. */
@@ -1031,14 +1049,21 @@ export class MapView {
     const r = Math.max(4, scale * 0.3);
     ctx.lineWidth = Math.max(1.5, scale * 0.07);
     if (item.kind === 'cargo') {
-      // Ein Paket mit Band; genommen bleibt der leere Umriss.
+      // Ein Paket mit Band; genommen bleibt der leere Umriss. **Das Band hat
+      // die Farbe des Kennzeichens** (`MapItem.mark`): Der Archivar sagt „die
+      // blaue", und auf der Karte ist sie blau — auch dann, wenn niemand ihr
+      // ansieht, ob etwas darin liegt.
       ctx.fillStyle = item.state === 'taken' ? INK.cargoTaken : INK.cargo;
       this.roundRect(ctx, p.x - r, p.y - r * 0.8, r * 2, r * 1.6, r * 0.2);
       ctx.fill();
       ctx.strokeStyle = INK.frame;
       ctx.stroke();
       if (item.state !== 'taken') {
-        ctx.strokeStyle = item.state === 'open' ? INK.frame : 'rgba(0,0,0,0.35)';
+        ctx.strokeStyle = item.mark
+          ? `#${CARGO_BAND_COLORS[item.mark.colour].toString(16).padStart(6, '0')}`
+          : item.state === 'open'
+            ? INK.frame
+            : 'rgba(0,0,0,0.35)';
         ctx.beginPath();
         ctx.moveTo(p.x, p.y - r * 0.8);
         ctx.lineTo(p.x, p.y + r * 0.8);
@@ -1305,9 +1330,28 @@ export class MapView {
         const pulse = goal.next ? 1 + 0.15 * Math.sin(t * 4) : 1;
         const r = Math.max(7, scale * 0.55) * pulse;
         ctx.lineWidth = goal.next ? 2.5 : 1.5;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.stroke();
+        // **Was das Ziel ist, wird selbst hervorgehoben** — die Kiste als
+        // Kasten, der Raum als Umriss. Ein Ring daneben war eine zweite Marke
+        // neben der Sache; er bleibt nur dort, wo es nichts zu umranden gibt
+        // (Konsole, Zentrale).
+        if (goal.kind === 'crate') {
+          this.roundRect(ctx, p.x - r * 0.9, p.y - r * 0.75, r * 1.8, r * 1.5, r * 0.25);
+          ctx.stroke();
+        } else if (goal.kind === 'room') {
+          const room = this.snapshot.rooms.find((one) => one.id === goalRoomId(goal));
+          if (room) {
+            this.path(ctx, room.polygon);
+            ctx.stroke();
+          } else {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        } else {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         if (goal.next) {
           ctx.beginPath();
           ctx.moveTo(p.x, p.y - r * 1.9);

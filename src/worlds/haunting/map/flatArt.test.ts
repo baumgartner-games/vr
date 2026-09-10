@@ -1,6 +1,8 @@
 /** @jest-environment jsdom */
-import { FIXTURE_CATALOG, LOCKER_SIZE, markHeight } from '../fixtureDimensions';
+import { CARGO_BAND_COLORS, FIXTURE_CATALOG, LOCKER_SIZE, markHeight } from '../fixtureDimensions';
+import type { MapItem } from './mapSnapshot';
 import {
+  ART,
   CREW_COLORS,
   crewColor,
   drawCrewmate,
@@ -225,5 +227,64 @@ describe('Monster und Requisiten', () => {
         [1, 1],
       ]),
     );
+  });
+});
+
+/** Wie `fakeContext`, aber er merkt sich auch gesetzte Farben und Schriften. */
+function paintingContext(): { ctx: CanvasRenderingContext2D; calls: Call[] } {
+  const calls: Call[] = [];
+  const ctx = new Proxy({} as Record<string, unknown>, {
+    get: (target, key: string) => {
+      if (key in target) return target[key];
+      return (...args: unknown[]) => {
+        calls.push({ name: key, args });
+      };
+    },
+    set: (target, key: string, value) => {
+      target[key] = value;
+      calls.push({ name: `set:${key}`, args: [value] });
+      return true;
+    },
+  });
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+}
+
+describe('Frachtkiste', () => {
+  const crate = (
+    extra: Partial<MapItem>,
+  ): Pick<MapItem, 'kind' | 'state' | 'interactive' | 'mark' | 'goal'> => ({
+    kind: 'cargo',
+    state: 'closed',
+    interactive: true,
+    mark: { colour: 'blau', number: 2 },
+    ...extra,
+  });
+
+  it('trägt ihr Kennzeichen auch ohne Ziel — Farbband aus mark, Nummer als Schrift', () => {
+    const { ctx, calls } = paintingContext();
+    drawProp(ctx, 0, 0, 80, crate({}), 0.5);
+    const band = `#${CARGO_BAND_COLORS.blau.toString(16).padStart(6, '0')}`;
+    expect(named(calls, 'set:fillStyle').map((c) => c.args[0])).toContain(band);
+    expect(named(calls, 'fillText')[0]?.args[0]).toBe('2');
+    // Eine andere Farbe ist ein anderes Band.
+    const other = paintingContext();
+    drawProp(other.ctx, 0, 0, 80, crate({ mark: { colour: 'rot', number: 1 } }), 0.5);
+    expect(named(other.calls, 'set:fillStyle').map((c) => c.args[0])).not.toContain(band);
+  });
+
+  it('leuchtet als Ziel selbst — mehr Zeichnung als dieselbe Kiste ohne Ziel', () => {
+    const plain = paintingContext();
+    drawProp(plain.ctx, 0, 0, 80, crate({}), 0.5);
+    const lit = paintingContext();
+    drawProp(lit.ctx, 0, 0, 80, crate({ goal: true }), 0.5);
+    expect(lit.calls.length).toBeGreaterThan(plain.calls.length);
+    // Schein darunter, Umriss darum: der Verlauf und das Gelb des Kompasses.
+    expect(named(lit.calls, 'createRadialGradient').length).toBe(1);
+    expect(named(lit.calls, 'set:strokeStyle').map((c) => c.args[0])).toContain(ART.goal);
+    expect(named(plain.calls, 'set:strokeStyle').map((c) => c.args[0])).not.toContain(ART.goal);
+    // Eine geleerte Kiste leuchtet nicht mehr, auch wenn jemand sie noch meldet.
+    const done = paintingContext();
+    drawProp(done.ctx, 0, 0, 80, crate({ state: 'taken', goal: true }), 0.5);
+    expect(named(done.calls, 'set:strokeStyle').map((c) => c.args[0])).not.toContain(ART.goal);
   });
 });

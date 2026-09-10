@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 import { MapView, PANEL_LAYERS } from './mapView';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
+import { defaultSetup, type RoundSetup } from '../rules/roundSetup';
 
 function fakeContext(): CanvasRenderingContext2D {
   const calls: string[] = [];
@@ -35,6 +36,33 @@ function pointer(view: MapView, type: string, id: number, x: number, y: number):
 }
 
 describe('MapView', () => {
+  it('umrandet bei Kistengenauigkeit die Kiste und bei Raumgenauigkeit den Raum — nie einen Ring', () => {
+    const view = (round: FlatRound): { view: MapView; calls: string[] } => {
+      const one = new MapView({ objectives: () => round.objectives() });
+      one.setSnapshot(round.snapshot());
+      one.setVisibility(round.field);
+      one.setView({ centreX: round.objectives()[0]!.at.x, centreZ: round.objectives()[0]!.at.z });
+      (ctx as unknown as { calls: string[] }).calls.length = 0;
+      one.draw();
+      return { view: one, calls: [...(ctx as unknown as { calls: string[] }).calls] };
+    };
+    const solo = view(new FlatRound(7, { test: true, setup: defaultSetup() }));
+    expect(solo.view.stats.goals).toBe(3);
+    const human: RoundSetup = { ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] };
+    const crew = view(new FlatRound(7, { test: true, setup: human }));
+    expect(crew.view.stats.goals).toBe(3);
+    // Beide zeichnen dieselbe Zahl Ziele, aber nicht dasselbe Bild: Der
+    // Kistenkasten ist ein abgerundetes Rechteck, der Raum sein Umriss.
+    expect(solo.calls.filter((c) => c === 'quadraticCurveTo').length).toBeGreaterThan(
+      crew.calls.filter((c) => c === 'quadraticCurveTo').length,
+    );
+    // Und keiner der beiden legt dafür einen Ring an: gleich viele Kreise in
+    // beiden Bildern, obwohl das eine drei Kisten und das andere drei Räume
+    // hervorhebt.
+    const rings = (calls: string[]): number => calls.filter((c) => c === 'arc').length;
+    expect(rings(solo.calls)).toBe(rings(crew.calls));
+  });
+
   it('passt die Station beim ersten Bild ins Fenster und rechnet hin und zurück', () => {
     const round = new FlatRound(5, { test: true });
     const view = new MapView();

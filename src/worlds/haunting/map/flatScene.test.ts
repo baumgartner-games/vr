@@ -90,6 +90,29 @@ function omniscient(): VisibilityField {
 }
 
 describe('FlatScene', () => {
+  it('tönt den Boden des Zielraums — aber nur, wenn ein Raum das Ziel ist', () => {
+    const round = new FlatRound(5, { test: true });
+    const roomId = round.snapshot().rooms.find((one) => !one.circulation)!.id;
+    let goal: string | null = null;
+    const scene = new FlatScene({ mode: 'omniscient', goalRoom: () => goal });
+    scene.setSnapshot(round.snapshot());
+    scene.setVisibility(round.field);
+    scene.setView({ centreX: round.player.x, centreZ: round.player.z });
+    scene.draw();
+    expect(scene.stats.goalRooms).toBe(0);
+    const quiet = calls.length;
+    goal = roomId;
+    calls.length = 0;
+    scene.draw();
+    expect(scene.stats.goalRooms).toBe(1);
+    // Der getönte Boden ist mehr Zeichnung als derselbe Raum ohne Ziel.
+    expect(calls.length).toBeGreaterThan(quiet);
+    expect(calls.filter((c) => c.name === 'set:fillStyle').map((c) => c.args[0])).toContain(
+      'rgba(255, 216, 74, 0.10)',
+    );
+    scene.dispose();
+  });
+
   it('folgt dem Spieler und rechnet Bild und Welt hin und zurück', () => {
     const round = new FlatRound(5, { test: true });
     const scene = new FlatScene();

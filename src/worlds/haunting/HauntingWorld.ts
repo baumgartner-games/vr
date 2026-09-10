@@ -130,6 +130,7 @@ import {
   cycleMonster,
   cycleWho,
   flatRoleOf,
+  goalPrecision,
   loadSetup,
   powersOf,
   presetFor,
@@ -3602,6 +3603,11 @@ export class HauntingWorld extends GridWorld {
   objectives(): MapGoal[] {
     const state = this.state;
     const layout = stationLayout(this.spec);
+    // **Wie genau ein Ziel benannt werden darf, entscheidet die Verteilung**
+    // (`rules/roundSetup.goalPrecision`): Sitzt ein Mensch am Archiv, bekommt
+    // der Techniker den Raum und nicht die Kiste — sonst läse der Archivar ihm
+    // vor, was er ohnehin vor sich leuchten sieht.
+    const precision = goalPrecision(this.setup);
     const out: MapGoal[] = [];
     for (const repair of repairsFor(this.spec)) {
       if (state.done.includes(repair.itemId)) continue;
@@ -3613,19 +3619,35 @@ export class HauntingWorld extends GridWorld {
       // gar nicht geholtes Teil schon auf die Konsole.
       const cargo = task ? layout.find((p) => p.id === taskCargo(this.spec, task.id).id) : null;
       const console = layout.find((p) => p.id === `console-${repair.id}`);
-      if (!carried && cargo)
-        out.push({
-          id: cargo.id,
-          at: { x: cargo.approach.x, z: cargo.approach.z },
-          label: task?.label ?? repair.item,
-          next: false,
-        });
-      else if (console)
+      if (!carried && cargo) {
+        if (precision === 'crate')
+          out.push({
+            id: cargo.id,
+            at: { x: cargo.approach.x, z: cargo.approach.z },
+            label: task?.label ?? repair.item,
+            next: false,
+            kind: 'crate',
+            precision: 'exact',
+          });
+        else {
+          const centre = stationGraph(this.spec).centre(cargo.roomId);
+          out.push({
+            id: `room:${cargo.roomId}`,
+            at: { x: centre.x, z: centre.z },
+            label: roomOf(this.spec, cargo.roomId)?.name ?? cargo.roomId,
+            next: false,
+            kind: 'room',
+            precision: 'room',
+          });
+        }
+      } else if (console)
         out.push({
           id: console.id,
           at: { x: console.approach.x, z: console.approach.z },
           label: repair.title,
           next: false,
+          kind: 'console',
+          precision: 'exact',
         });
     }
     if (!out.length)
@@ -3634,6 +3656,8 @@ export class HauntingWorld extends GridWorld {
         at: { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
         label: 'Zurück zur Zentrale',
         next: false,
+        kind: 'van',
+        precision: 'exact',
       });
     out[0]!.next = true;
     return out;

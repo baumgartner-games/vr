@@ -42,12 +42,13 @@ import { HauntingDesktopControls } from './desktopControls';
 import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { XrayTool } from '../portal/tools/XrayTool';
+import { addOutline, removeOutline, type OutlineLook } from '../../core/outlineShell';
 import { RadarTool } from '../portal/tools/RadarTool';
 import type { Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
 import { CabinWreck } from './rules/cabinWreck';
-import { cargoKey, cargoLabel, cargoOf } from './rules/cargo';
+import { cargoKey, cargoLabel, cargoOf, type CargoMark } from './rules/cargo';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -177,6 +178,21 @@ const _head = new THREE.Vector3(),
   _side = new THREE.Vector3(),
   _wish = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+/**
+ * **Der Saum um die Zielkiste** (`core/outlineShell.ts`) — dasselbe Gelb wie
+ * das Randdreieck auf der Karte und der Kompass, damit „das da vorn" und „das
+ * am Bildrand" erkennbar dieselbe Sache sind. Schmal gehalten: Ein breiter
+ * Saum macht aus einer Kiste auf zehn Metern einen gelben Klotz.
+ */
+const GOAL_SEAM: OutlineLook = { width: 0.014, maxGrow: 0.05, color: 0xffd84a };
+/**
+ * Wie weit das Röntgengerät die Kennzeichen einblendet, in Metern.
+ *
+ * Es ist ein Gerät für den Raum, in dem man steht, und keine Stationskarte:
+ * Wer damit von der Tür aus alle vierzig Kisten lesen könnte, bräuchte weder
+ * Archivar noch Suche. Acht Meter sind die lange Seite eines Raums.
+ */
+const XRAY_LABEL_RANGE = 8;
 const PANEL_RANGE = 3.5;
 const HAND_LABEL = {
   off: 'frei',
@@ -193,6 +209,15 @@ export class ShipExperience {
   private readonly targets: THREE.Object3D[] = [];
   private readonly screens: Screen[] = [];
   private readonly cabinets: Cabinet[] = [];
+  /**
+   * **Die Kiste, die gerade den Saum trägt**, und die Netze, an denen er hängt
+   * (`core/outlineShell.ts`). Gemerkt wird beides, weil der Durchlauf über die
+   * Szene (`core/graphicsScene.ts`) jede Sekunde seine eigene, schwarze Kontur
+   * darüberlegt: Sie jedes Bild neu einzustellen ist billig, sie jedes Bild an
+   * allen vierzig Kisten abzuräumen wäre es nicht.
+   */
+  private seamOn = '';
+  private readonly seams: THREE.Mesh[] = [];
   private readonly doors: Door[] = [];
   private readonly lockers: Locker[] = [];
   private readonly desktop: HauntingDesktopControls;
@@ -596,6 +621,7 @@ export class ShipExperience {
         at.yaw,
         cargoLabel(slot),
         cargoKey(slot),
+        slot.mark,
       );
     }
     for (const room of spec.rooms) {
@@ -617,13 +643,16 @@ export class ShipExperience {
     yaw = 0,
     mark = 'Fracht',
     key = loot || id,
+    badgeMark?: CargoMark,
   ): void {
-    const { root: g, door: leaf, lootMount, screenMount } = buildCargoCabinet();
+    const { root: g, door: leaf, lootMount, screenMount } = buildCargoCabinet(badgeMark);
     g.position.copy(at);
     g.rotation.y = yaw;
     g.name = id;
-    // Das Kennzeichen steht außen auf dem Blatt: Wer „Kiste 2, blaues Band"
-    // zugerufen bekommt, muss es an der Kiste wiederfinden können.
+    // Das Kennzeichen steht außen auf dem Blatt — als Farbband und Nummer am
+    // Modell (`fixtureModels.buildCargoCabinet`) und hier noch einmal in
+    // Schrift: Wer „Kiste 2, blaues Band" zugerufen bekommt, muss beides an
+    // der Kiste wiederfinden können, im Licht wie im Kegel der Lampe.
     const badge = label(loot === 'test-kit' ? 'TESTAUSRÜSTUNG' : mark.toUpperCase(), 0.65, 0.13);
     badge.position.copy(screenMount).sub(leaf.position);
     leaf.add(badge);
@@ -637,14 +666,13 @@ export class ShipExperience {
           lootMount.z,
         ])
       : null;
-    const lootTag = lootMesh
-      ? label(lootLabel(this.host.spec(), loot), 0.66, 0.16, SHIP.amber)
-      : null;
-    if (lootTag) {
-      lootTag.position.set(0, 0.84, 0.08);
-      g.add(lootTag);
-    }
-    const scanner = label(lootLabel(this.host.spec(), loot) || mark, 0.7, 0.16, SHIP.cyan);
+    // **Hier hing einmal ein amberfarbenes Schild mit dem Inhalt am Schrank**,
+    // dauerhaft sichtbar, quer durch den halben Raum lesbar. Es war das
+    // größte Leck: Solange es hing, war jede Frage an den Archivar überflüssig
+    // — und bei einem Menschen am Archiv wäre es sein ganzer Platz gewesen.
+    // Was drin liegt, sagt jetzt das Röntgengerät (`scanner`) oder die offene
+    // Kiste selbst.
+    const scanner = label(mark, 0.7, 0.16, SHIP.cyan);
     scanner.material.depthTest = false;
     scanner.material.transparent = true;
     scanner.material.opacity = 0.85;
@@ -674,10 +702,6 @@ export class ShipExperience {
     if (lootMesh) {
       lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
       this.bind(lootMesh, () => this.takeLoot(id));
-    }
-    if (lootTag) {
-      lootTag.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
-      this.bind(lootTag, () => this.takeLoot(id));
     }
   }
   private openCabinet(id: string): void {
@@ -1218,6 +1242,26 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     );
   }
 
+  /**
+   * **Den Saum auf eine Kiste setzen und von der vorigen abnehmen.**
+   *
+   * Er hängt an den Netzen des Kastens selbst und nicht an einem eigenen Ring
+   * daneben: Wer die Kiste sieht, sieht das Ziel, und wer um die Ecke schaut,
+   * sieht beides nicht. Jedes Bild neu eingestellt, weil der Durchlauf über die
+   * Szene die Kontur sonst binnen einer Sekunde wieder schwarz färbt.
+   */
+  private seam(id: string): void {
+    if (id !== this.seamOn) {
+      for (const mesh of this.seams) removeOutline(mesh);
+      this.seams.length = 0;
+      this.seamOn = id;
+      const cabinet = id ? this.cabinets.find((one) => one.id === id) : undefined;
+      for (const child of cabinet?.group.children ?? [])
+        if ((child as THREE.Mesh).isMesh) this.seams.push(child as THREE.Mesh);
+    }
+    for (const mesh of this.seams) addOutline(mesh, GOAL_SEAM);
+  }
+
   private get scanSubjects(): readonly { object: THREE.Object3D }[] {
     return this.cabinets
       .filter((cabinet) => !!cabinet.scanSubject && !this.crew.inventory.includes(cabinet.id))
@@ -1321,6 +1365,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           (leaf.position.x = (i ? 1 : -1) * (PLAN_DOOR_W / 4 + (door.amount * PLAN_DOOR_W) / 2)),
       );
     }
+    // **Der Saum sitzt auf der Zielkiste** — aber nur, wenn die Kiste
+    // überhaupt verraten werden darf: Bei einem Menschen am Archiv nennt
+    // `objectives()` den Raum (`rules/roundSetup.goalPrecision`), und dann
+    // leuchtet hier nichts.
+    const goal = this.host.objectives?.()[0];
+    this.seam(goal?.kind === 'crate' ? goal.id : '');
+    // Das Röntgengerät blendet die Kennzeichen der noch vollen Kisten ein —
+    // sein Schild hing hier jahrelang unbenutzt herum, während stattdessen ein
+    // Inhaltsschild dauerhaft am Schrank klebte.
+    const scanning = this.sensorMode === 'xray' && !crew.hidden && crew.hp > 0;
     for (const cabinet of this.cabinets) {
       const opened = crew.opened.includes(cabinet.id);
       const amount = THREE.MathUtils.damp(cabinet.leaf.scale.y, opened ? 0.025 : 1, 8, dt);
@@ -1330,7 +1384,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       cabinet.group.visible =
         (cabinet.id !== 'test-supply' || crew.options.test) &&
         (!cabinet.room || !this.visibleRooms || this.visibleRooms.has(cabinet.room));
-      cabinet.scanner.visible = false;
+      cabinet.scanner.visible =
+        scanning &&
+        cabinet.group.visible &&
+        !!cabinet.scanSubject &&
+        !crew.inventory.includes(cabinet.id) &&
+        cabinet.at.distanceToSquared(_head) < XRAY_LABEL_RANGE * XRAY_LABEL_RANGE;
     }
     for (const locker of this.lockers) {
       // Zerstört ist, was im Stand steht — auch bei einer Runde, die man mit

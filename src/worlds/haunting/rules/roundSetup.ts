@@ -143,6 +143,24 @@ export function powersOf(setup: RoundSetup): SoloPowers {
 }
 
 /**
+ * **Wie genau der Techniker sein Ziel sieht** — die eine Frage, an der der
+ * Platz des Archivars hängt.
+ *
+ * Solange die richtige Kiste immer hervorgehoben wurde, war der Archivar ein
+ * Mensch, der vorliest, was der andere ohnehin sieht. Sitzt dort ein **Bot**,
+ * gibt es niemanden zum Zurufen — dann darf die Kiste selbst leuchten
+ * (`'crate'`). Sitzt dort ein **Mensch**, sieht der Techniker nur noch den
+ * **Raum** (`'room'`); welche der zwei bis drei Kisten darin die richtige ist,
+ * steht allein auf dessen Blatt, und er muss es sagen. Der technische Ausweg
+ * bleibt das Röntgengerät.
+ */
+export type GoalPrecision = 'crate' | 'room';
+
+export function goalPrecision(setup: RoundSetup): GoalPrecision {
+  return powersOf(setup).archive ? 'crate' : 'room';
+}
+
+/**
  * Wen der Spieler in der 2D-Welt spielt. Die 2D-Welt ist ein Gerät und ein
  * Mensch: Ein Techniker aus Fleisch gewinnt gegen ein Monster aus Fleisch,
  * weil der Stock nur einem gehören kann.

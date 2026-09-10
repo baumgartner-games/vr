@@ -1,4 +1,5 @@
 import {
+  CARGO_BAND_COLORS,
   CARGO_SIZE,
   CONSOLE_SIZE,
   LOCKER_SIZE,
@@ -66,6 +67,9 @@ export const ART = {
   monster: '#160b12',
   monsterEdge: '#3a1a28',
   eye: '#ff3b3b',
+  /** Dasselbe Gelb wie das Randdreieck und der Kompass (`map/mapView.INK.goal`). */
+  goal: '#ffd84a',
+  bandInk: '#141a20',
 };
 
 /** Eine Farbstufe eines Verlaufs: Position in [0, 1] und Farbe. */
@@ -487,7 +491,7 @@ export function drawProp(
   x: number,
   y: number,
   scale: number,
-  item: Pick<MapItem, 'kind' | 'state' | 'interactive'>,
+  item: Pick<MapItem, 'kind' | 'state' | 'interactive' | 'mark' | 'goal'>,
   time = 0,
 ): void {
   const u = scale;
@@ -498,7 +502,7 @@ export function drawProp(
   ctx.lineJoin = 'round';
   switch (item.kind) {
     case 'cargo':
-      drawCargo(ctx, u, item.state);
+      drawCargo(ctx, u, item, time);
       break;
     case 'console':
       drawConsole(ctx, u, item.state, item.interactive, time);
@@ -521,9 +525,50 @@ export function drawProp(
   ctx.restore();
 }
 
-/** Frachtschrank: ein Kasten mit Deckel; offen steht der Deckel hoch, geleert bleibt er grau. */
-function drawCargo(ctx: CanvasRenderingContext2D, u: number, state: string): void {
+/**
+ * **Frachtkiste: Kasten, Deckel, Kennzeichen — und wenn sie das Ziel ist,
+ * leuchtet sie selbst.**
+ *
+ * Das **Kennzeichen** (Farbband und Nummer) steht immer daran, auch ohne Ziel:
+ * Der Archivar sagt „Kiste 2, blaues Band", und wer das hört, muss es auf dem
+ * Bild wiederfinden können. Früher stand hier stattdessen der Inhalt — und
+ * damit hatte der Archivar nichts mehr zu sagen.
+ *
+ * **Das Ziel ist die Kiste und kein Ring daneben.** Ein Ring am Ort war eine
+ * zweite Marke neben der Sache, um die es geht; hier ist es dieselbe: ein
+ * Schein darunter (Muster `drawLamp`), ein Umriss darum und ein Puls
+ * (Muster `drawConsole`). Steht ein Mensch am Archiv, kommt `goal` nie an —
+ * dann leuchtet keine Kiste, und der Raum ist die ganze Auskunft
+ * (`map/flatScene.ts`).
+ */
+function drawCargo(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  item: Pick<MapItem, 'state' | 'mark' | 'goal'>,
+  time: number,
+): void {
+  const state = item.state;
   const taken = state === 'taken';
+  // Der Umriss der ganzen Kiste, aus Fuß und Deckel — dieselben Ecken, die
+  // unten gezeichnet werden, damit Saum und Kasten zueinander passen.
+  const foot: Array<[number, number]> = [
+    [-u * 0.5, u * 0.06],
+    [u * 0.5, u * 0.06],
+  ];
+  const lid: Array<[number, number]> = [
+    [-u * 0.56, -u * 0.78],
+    [u * 0.56, -u * 0.78],
+  ];
+  if (item.goal && !taken) {
+    const pulse = 0.75 + 0.25 * Math.sin(time * 9);
+    ctx.fillStyle = radialGradient(ctx, 0, -u * 0.35, u * 1.2, [
+      [0, `rgba(255, 216, 74, ${(0.34 * pulse).toFixed(3)})`],
+      [1, 'rgba(255, 216, 74, 0)'],
+    ]);
+    ctx.beginPath();
+    ctx.arc(0, -u * 0.35, u * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.fillStyle = ART.shadow;
   ctx.beginPath();
   ctx.ellipse(0, u * 0.04, u * 0.55, u * 0.14, 0, 0, Math.PI * 2);
@@ -553,6 +598,47 @@ function drawCargo(ctx: CanvasRenderingContext2D, u: number, state: string): voi
     ctx.fillStyle = '#1a1410';
     ctx.fillRect(-u * 0.42, -u * 0.66, u * 0.84, u * 0.1);
   }
+  drawCargoMark(ctx, u, item.mark, taken);
+  if (item.goal && !taken) {
+    const pulse = 0.75 + 0.25 * Math.sin(time * 9);
+    const shape = hull([...foot, ...lid]);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = ART.goal;
+    ctx.lineWidth = Math.max(2, u * 0.07);
+    ctx.beginPath();
+    shape.forEach(([px, py], index) => (index ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = ART.ink;
+  }
+}
+
+/** Farbband und Nummer, quer über die Kiste — das, worüber gesprochen wird. */
+function drawCargoMark(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  mark: MapItem['mark'],
+  taken: boolean,
+): void {
+  if (!mark) return;
+  const colour = `#${CARGO_BAND_COLORS[mark.colour].toString(16).padStart(6, '0')}`;
+  ctx.save();
+  // Eine geleerte Kiste bleibt kenntlich, tritt aber zurück: Sie ist erledigt,
+  // und ein leuchtendes Band an ihr wäre eine Einladung, noch einmal hinzugehen.
+  ctx.globalAlpha = taken ? 0.45 : 1;
+  ctx.fillStyle = colour;
+  ctx.fillRect(-u * 0.48, -u * 0.44, u * 0.96, u * 0.16);
+  ctx.strokeStyle = ART.ink;
+  ctx.lineWidth = Math.max(1, u * 0.02);
+  ctx.strokeRect(-u * 0.48, -u * 0.44, u * 0.96, u * 0.16);
+  ctx.fillStyle = ART.bandInk;
+  ctx.font = `700 ${Math.max(7, u * 0.16).toFixed(1)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(mark.number), 0, -u * 0.35);
+  ctx.restore();
 }
 
 /** Konsole: ein Pult mit schrägem Bildschirm — leuchtet, solange sie etwas will. */

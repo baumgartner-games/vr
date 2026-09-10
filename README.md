@@ -111,14 +111,20 @@ Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
 Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. In jedem
 Raum stehen **zwei bis drei Frachtkisten**, jede mit Farbband und Nummer
-beschriftet („Kiste 2 · blau"); die drei Ersatzteile liegen in dreien davon,
-vier weitere halten Werkzeug, und der Rest ist leer. Das Archiv weiß als
-Einziges, welche es ist, und sagt es an: „Kiste 2, blaues Band · Nordwand".
-Wer ohne diese Ansage sucht, öffnet Kisten — und jede offene Kiste macht
-Geräusch. Der Techniker öffnet die Kiste, nimmt den Gegenstand und entriegelt
-den passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
-Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
-zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
+beschriftet („Kiste 2 · blau") — am Modell wie auf der Karte, immer lesbar.
+Die drei Ersatzteile liegen in dreien davon, vier weitere halten Werkzeug, und
+der Rest ist leer. **Wer weiß, welche die richtige ist, hängt daran, wer am
+Archiv sitzt:** Ist es ein Bot, leuchtet die richtige Kiste selbst — im Schiff
+mit einem gelben Saum, in der 2D-Welt mit Schein, Umriss und Puls. Sitzt dort
+ein **Mensch**, sieht der Techniker nur noch den **Raum** leuchten; welche
+Kiste darin es ist, weiß das Archiv als Einziges und sagt es an: „Kiste 2,
+blaues Band · Nordwand". Wer ohne diese Ansage sucht, öffnet Kisten — oder
+nimmt das Röntgengerät, das Kennzeichen und Raum der nächsten vollen Kiste
+nennt — und jede offene Kiste macht Geräusch. Der Techniker öffnet die Kiste,
+nimmt den Gegenstand und entriegelt den passenden Wartungskasten. Dort werden
+Kabel nach Symbolen verbunden, eine Schaltfolge eingegeben oder drei Frequenzen
+eingestellt. Anschließend geht es zum nächsten Auftrag. Nach allen drei
+Reparaturen zur Zentrale zurückkehren.
 
 **Wer spielt mit:** Vor jeder Runde, in 2D wie in 3D, steht die
 **Verteilung** — im Van, im Optionsmenü der 2D-Welt und im Menü der Brille:
@@ -150,10 +156,13 @@ umgeht, steht im Optionsmenü.
 
 **Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
 Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
-Reparaturhinweise sowie eine orthografische Draufsicht des tatsächlichen Raums
-mit abgenommener Decke. Ein kühler Sci-Fi-Look ersetzt Sepia. Es gibt keinen
-Gesamtgrundriss und keine Live-Positionen in dieser Ansicht. **Aufträge** führt
-zu den passenden Raumakten. Die Einsatzkontrolle hat **Radar & Anzug** und
+Reparaturhinweise, **alle Kisten des Raums mit ihrem Kennzeichen und die
+richtige markiert** (was in den anderen liegt, steht dort nicht) sowie eine
+orthografische Draufsicht des tatsächlichen Raums mit abgenommener Decke. Ein
+kühler Sci-Fi-Look ersetzt Sepia. Es gibt keinen Gesamtgrundriss und keine
+Live-Positionen in dieser Ansicht. **Aufträge** führt zu den passenden
+Raumakten und nennt je Auftrag den Fundort in einer Zeile: Raum, Kennzeichen,
+Wand. Die Einsatzkontrolle hat **Radar & Anzug** und
 **Schalttafel**. Der Kopfbereich bietet einen sichtbaren Rollenwechsel.
 
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
@@ -175,7 +184,8 @@ Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
 aufgenommen werden. **Radar** und **Röntgengerät** sind echte greifbare
 Werkzeuge mit demselben Scannergehäuse und seitlicher Gürtelablage. Radar zeigt
-nahe Bewegung, Röntgen den Inhalt naher Kisten — leere meldet es nicht.
+nahe Bewegung, Röntgen die vollen Kisten in der Nähe — es blendet ihr
+Kennzeichen ein und nennt nie den Inhalt; leere meldet es gar nicht.
 Anzeigen erscheinen auf dem benutzten Gerät; ein dauerhaftes Radar-/Sensor-HUD im VR-Blick gibt es nicht.
 
 Über jedem Schott zeigen Leuchten auf beiden Seiten seinen Zustand: **grün**
