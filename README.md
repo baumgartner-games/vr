@@ -93,7 +93,11 @@ eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
 desselben Browsers, keine getrennten Geräte im WLAN.
 
 **Die Mission:** In der sicheren Einsatzzentrale einen Gegner auswählen und
-**Mission starten**. Die feste Skeld-Karte enthält 14 benannte Räume in der
+**Mission starten**. In der Brille geht das über den Knopf am Handgelenk: Im
+Menü stehen ganz oben _Mission starten_, _TEST / ohne Monster_ und _Bot-Runde
+anschauen_ — ein Druck, kein Untermenü, das Panel klappt dabei zu. Geht gerade
+keine Runde los, weil ein anderes Gerät sie rechnet oder schon jemand als
+Techniker spielt, steht das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
 Weapons/O2/Navigation rechts, Storage unten und die dazwischenliegenden
 Nebenräume. Die meisten Räume messen 4 × 4 Rasterfelder (10 × 10 Meter);
