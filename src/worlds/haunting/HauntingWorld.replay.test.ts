@@ -7,6 +7,7 @@ import { AutomaticDoors } from './automaticDoors';
 import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
 import { Rng } from './rng';
+import { defaultLobby } from './rules/lobby';
 import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
@@ -98,6 +99,9 @@ function replay(): ReplayWorld {
     npcRide: null,
     ventArt: null,
     monsterDriver: null,
+    // Die Wahl der Lobby (`rules/lobby.ts`) — ohne sie hat der Nachbau keine
+    // Ansicht, und `flatWanted` liest sie aus.
+    lobbyChoice: defaultLobby('desktop'),
   });
   return world;
 }

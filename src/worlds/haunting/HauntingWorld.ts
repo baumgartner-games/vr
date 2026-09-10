@@ -135,6 +135,7 @@ import {
   WHO_LABELS,
   type RoundSetup,
 } from './rules/roundSetup';
+import { loadLobby, saveLobby, type LobbyChoice } from './rules/lobby';
 import type { MapGoal } from './map/mapView';
 import { VentFlapArt } from './vents/ventArt';
 import { VentNet } from './vents/ventGraph';
@@ -318,18 +319,6 @@ const _size = new THREE.Vector2();
 const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
 const _noLid: THREE.Plane[] = [];
 const _lidOn = [_lid];
-
-/** Wo die Checkbox „2D-Welt von oben" ihren Stand aufhebt. */
-const FLAT_STORAGE = 'bgvr.haunting.flat.v1';
-
-function readFlatWanted(): boolean {
-  try {
-    return localStorage.getItem(FLAT_STORAGE) === '1';
-  } catch {
-    // Kein Speicher (privates Fenster, jsdom ohne Origin): dann eben 3D.
-    return false;
-  }
-}
 
 export class HauntingWorld extends GridWorld {
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
@@ -635,13 +624,20 @@ export class HauntingWorld extends GridWorld {
   private flatIcons: ToolIcons | null = null;
   private flatLoading = false;
   /**
-   * **„2D-Welt von oben"** — die Checkbox im Van und der Menüeintrag. Eine
+   * **Was ich vorhabe und wie ich es sehen will** — die Wahl der Lobby
+   * (`rules/lobby.ts`), gemerkt im Browser: Wer am Telefon spielt, setzt sie
+   * nicht jedes Mal neu. Der alte Schalter „2D-Welt von oben" wird dabei
+   * einmal mitgelesen und danach vergessen.
+   */
+  private lobbyChoice: LobbyChoice = loadLobby();
+  /**
+   * **„2D-Welt von oben"** — nur noch die Ansicht dieser Wahl. Eine
    * Einstellung und kein Start: Sie sagt, wie die *nächste* Runde aussieht,
    * die danach wie jede andere gewählt wird — Bot-Runde, Mission oder Test.
-   * Sie überlebt das Neuladen: Wer am Telefon spielt, setzt sie nicht jedes
-   * Mal neu.
    */
-  private flatWanted = readFlatWanted();
+  private get flatWanted(): boolean {
+    return this.lobbyChoice.view === '2d';
+  }
   /**
    * Wer wo sitzt — und **wann das hier ankam**.
    *
@@ -943,6 +939,8 @@ export class HauntingWorld extends GridWorld {
         test: () => this.startRound('test', ctx),
         flatMode: () => this.toggleFlatWanted(),
         flatWanted: () => this.flatWanted,
+        lobby: () => this.lobbyChoice,
+        setLobby: (choice) => this.setLobby(choice),
         setup: () => this.setup,
         setSetup: (setup) => this.applySetup(setup),
         startSetup: () => this.startRound(roundKindOf(this.setup), ctx),
@@ -3402,14 +3400,19 @@ export class HauntingWorld extends GridWorld {
       ctx.join(new URLSearchParams(location.search).get('room') || HAUNT_ROOM);
   }
 
-  /** Die Checkbox „2D-Welt von oben" umlegen — nur die Einstellung, keine Runde. */
+  /** Die Ansicht umlegen — nur die Einstellung, keine Runde. */
   private toggleFlatWanted(): void {
-    this.flatWanted = !this.flatWanted;
-    try {
-      localStorage.setItem(FLAT_STORAGE, this.flatWanted ? '1' : '0');
-    } catch {
-      // Ein privates Fenster ohne Speicher darf die Wahl nicht verhindern.
-    }
+    this.setLobby({ ...this.lobbyChoice, view: this.flatWanted ? '3d' : '2d' });
+  }
+
+  /**
+   * Die Wahl der Lobby übernehmen: merken und die Anzeigen nachziehen. Van,
+   * Brillenmenü und 2D-Optionsmenü zeigen dieselbe Wahl — wer sie an einer
+   * Stelle umstellt, soll sie nicht an der nächsten noch alt vorfinden.
+   */
+  private setLobby(choice: LobbyChoice): void {
+    this.lobbyChoice = choice;
+    saveLobby(choice);
     this.ui?.refresh();
     this.context?.refreshWorldMenu();
   }

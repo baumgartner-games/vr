@@ -8057,14 +8057,29 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   liegt klebt am Rand. `compassMarks` ist reine Rechnung mit Test; in der
   Brille gibt es ihn noch nicht (DOM ist dort unsichtbar) — ein Streifen an
   der Kamera wie `ShipExperience.status` wäre der nächste Schritt.
-- **„2D-Welt von oben" ist eine Einstellung, kein Start** (Checkbox im Van,
-  Menüeintrag beim Desktop-Techniker; `HauntingWorld.flatWanted`, in
-  `localStorage` unter `bgvr.haunting.flat.v1`). Gestartet wird danach wie
-  in 3D: **Bot-Runde** (Techniker aus Zahlen, `rules/technicianBot.ts`,
-  Karte folgt ihm, Modus „Alles sehen"), **Mission** (mit Monster) oder
-  **Test** (ohne) — `HauntingWorld.startRound` entscheidet anhand der
-  Einstellung, ob `FlatMode` oder das Schiff. Die 2D-**Bot-Runde** ist lokal
-  und sperrt keinen Techniker im Schiff; deshalb bleibt sie auch dann wählbar,
+- **Die Lobby ist zwei Achsen, kein Schalter** (`rules/lobby.ts`,
+  `LobbyChoice`, in `localStorage` unter `bgvr.haunting.lobby.v1`). Die
+  **Absicht** (`Intent`) sagt, *was* passiert — **Spielen** (Mission mit
+  Monster), **Zuschauen** (der Runde im Raum folgen, sonst Bot gegen Bot,
+  `rules/technicianBot.ts`, Modus „Alles sehen") oder **Trainieren** (ohne
+  Monster, früher „Test"). Die **Ansicht** (`View`) sagt nur, *wie* man
+  dabei zusieht: **2D von oben** oder **3D Schiff** — auf dem Telefon ist 2D
+  voreingestellt (`defaultLobby`), in der Brille bleibt 3D. Beide sind
+  unabhängig; die alte Checkbox „2D-Welt von oben" war eine Ansicht, die
+  aussah wie ein Start, und deutete die Kacheln unter sich um.
+  Die Absicht ist keine zweite Wahrheit neben der Verteilung: `applyIntent`
+  schreibt sie in die `RoundSetup` (die Plätze der Zentrale bleiben dabei
+  stehen), `intentOf` liest sie wieder heraus, und `startLabel` beschriftet
+  daraus den **einen** Startknopf („Mission starten (2D)", „Zuschauen",
+  „Training starten (3D)"). `HauntingWorld.flatWanted` ist nur noch
+  `lobby.view === '2d'` und entscheidet in `startRound`, ob `FlatMode` oder
+  das Schiff; der alte Schlüssel `bgvr.haunting.flat.v1` wird beim ersten
+  Laden noch einmal gelesen (`'1'` → 2D) und danach nie wieder geschrieben.
+  Die Oberflächen ziehen nach: Van, Brillenmenü und 2D-Optionsmenü zeigen
+  vorerst noch die Checkbox und die drei Kacheln, lesen die Ansicht aber
+  schon aus derselben Wahl.
+  Die 2D-**Bot-Runde** ist lokal und sperrt keinen Techniker im Schiff;
+  deshalb bleibt sie auch dann wählbar,
   wenn im Raum schon jemand spielt. 2D-**Mission** und 2D-**Test** sind
   dagegen die gemeinsame Runde übers Netz (siehe unten) — wer sie spielt, ist
   der Techniker, und ein zweiter Techniker im Raum sperrt sie.
