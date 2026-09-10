@@ -29,7 +29,8 @@ import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
 import type { MonsterDriver } from '../monster/monsterDriver';
-import { doorCentre, nextThroughDoor, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
+import { FlatNavigator } from '../navmesh';
+import { doorCentre, slide, spaceAtMetres, walkable, WALL_T } from './geometry';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
 import {
@@ -58,8 +59,10 @@ import {
  * Konsolen, Schränke, Türen und Lampen auf dem Grundriss, in Metern. Die
  * Regeln kommen, wo es sie schon gibt, aus denselben Dateien wie im Headset:
  * das Monster aus `monsterRoutine.ts` auf der Raumkarte (`roomGraph.ts`),
- * Treffer und Puls aus `mission.ts`, der Spuk aus `haunt.ts`, die drei
- * Reparaturen aus `repairsFor`. Was hier neu ist, ist nur die **Bewegung**
+ * seine Wege aus derselben Rasterwegsuche wie in 3D (`stationNavigation.ts`
+ * über `navmesh/flatNavigator.ts`), Treffer und Puls aus `mission.ts`, der
+ * Spuk aus `haunt.ts`, die drei Reparaturen aus `repairsFor`. Was hier neu
+ * ist, ist nur die **Bewegung**
  * — Gleiten an Wänden statt Rapier — und die **Wahrnehmung** auf dem
  * Sichtbarkeitsmodell der Karte (`visibility.ts`), damit der Spieler auf der
  * Karte genau das sieht, was das Monster von ihm sieht.
@@ -72,8 +75,8 @@ import {
 export const REACH = 1.6;
 /** Der Radius des Spielers auf der Karte. */
 export const PLAYER_RADIUS = 0.35;
-/** Und der des Monsters. */
-const MONSTER_RADIUS = 0.4;
+/** Und der des Monsters — auch der Radius seiner Wegsuche. */
+export const MONSTER_RADIUS = 0.4;
 /** Ab hier trifft das Monster. */
 const CONTACT = 1.7;
 /** Wie lange Holz einen Verfolger aufhält, in Sekunden. */
@@ -179,6 +182,8 @@ export class FlatRound implements MapSource {
   private readonly consoles: Console[] = [];
   private readonly lockers: Locker[] = [];
   private readonly routine: MonsterRoutine;
+  /** Die Rasterwegsuche der 3D-Welt, mit Cursor auf der Route des Monsters (`navmesh/flatNavigator.ts`). */
+  readonly navigator: FlatNavigator;
   private decision: RoutineOutput | null = null;
   private readonly memory: ThreatState = { awareness: 0, mode: 'patrol', memory: 0, target: null };
   private readonly rng: Rng;
@@ -223,6 +228,7 @@ export class FlatRound implements MapSource {
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
+    this.navigator = new FlatNavigator(this.house, this.graph, MONSTER_RADIUS);
     this.vents = new VentNet(this.house);
     this.ventRide = new VentTravel(this.vents);
     this.ventPilot = new VentPilot(
@@ -637,39 +643,37 @@ export class FlatRound implements MapSource {
   }
 
   /**
-   * Das Monster geht Raum für Raum: Im Zielraum geradeaus, sonst zur Tür in
-   * den nächsten Raum der Karte. Eine gesperrte Holztür hält es kurz auf,
-   * Stahl für immer — dann wählt die Routine irgendwann ein anderes Ziel.
+   * Das Monster geht den Rasterweg der 3D-Welt (`navmesh/flatNavigator.ts`):
+   * Wegpunkt für Wegpunkt, mit dem ganzen Zeitschritt über mehrere Punkte
+   * hinweg, gleitend an Wänden. Eine gesperrte Tür umgeht es, wenn es einen
+   * Umweg gibt; gibt es keinen, führt die Route bis vor die Tür — Holz hält
+   * es dort kurz auf, Stahl für immer, dann wählt die Routine irgendwann ein
+   * anderes Ziel.
    */
   private moveMonster(decision: RoutineOutput, dt: number, speed: number): void {
     const goal = decision.goal;
     if (!goal || speed <= 0) return;
-    const goalSpace = this.graph.spaceAt(goal) || this.monster.space;
-    // Wer sich in einer Türnische an der Wand festläuft, geht erst zurück in
-    // die Mitte seines Raums und von dort noch einmal los.
+    // Wer sich festläuft, rechnet erst neu; hilft das nicht, geht er zurück in
+    // die Mitte seines Raums und von dort noch einmal los. Wer vor einer
+    // gesperrten Tür wartet, steht mit Absicht.
     if (Math.hypot(this.monster.x - this.stall.x, this.monster.z - this.stall.z) > 0.05) {
       this.stall = { x: this.monster.x, z: this.monster.z, since: this.haunt.time };
-    } else if (this.haunt.time - this.stall.since > 0.6 && this.haunt.time > this.detourUntil) {
+    } else if (
+      !this.blocked &&
+      this.haunt.time - this.stall.since > 0.6 &&
+      this.haunt.time > this.detourUntil
+    ) {
       this.detourUntil = this.haunt.time + 1.2;
       this.stall.since = this.haunt.time;
+      this.navigator.invalidate();
     }
     if (this.haunt.time < this.detourUntil) {
       const centre = this.graph.centre(this.monster.space);
       this.stepMonster(centre, speed, dt);
       return;
     }
-    let step: FloorPoint = goal;
-    let door: (typeof this.house.doors)[number] | null = null;
-    if (goalSpace !== this.monster.space) {
-      const nextSpace = this.graph.next(this.monster.space, goalSpace);
-      door =
-        this.house.doors.find(
-          (d) =>
-            (d.a === this.monster.space && (d.b ?? COMMAND) === nextSpace) ||
-            ((d.b ?? COMMAND) === this.monster.space && d.a === nextSpace),
-        ) ?? null;
-      if (door) step = nextThroughDoor(door, this.monster, this.graph.centre(nextSpace));
-    }
+    const leg = this.navigator.aim(this.monster, goal, this.haunt.shut, this.haunt.time);
+    const door = leg.door;
     if (door && this.haunt.shut.includes(door.id)) {
       const at = doorCentre(door);
       if (Math.hypot(at.x - this.monster.x, at.z - this.monster.z) < 1.6) {
@@ -682,7 +686,19 @@ export class FlatRound implements MapSource {
         }
       }
     } else this.blocked = null;
-    this.stepMonster(step, speed, dt);
+    // Der ganze Zeitschritt wird verbraucht, auch über mehrere Wegpunkte hinweg —
+    // die Bogenstützen des Kurvenschleifers liegen enger als ein Schritt.
+    let budget = speed * dt;
+    for (let hops = 0; hops < 16 && budget > 1e-3; hops++) {
+      const step = this.navigator.next(this.monster);
+      if (!step) break;
+      const fromX = this.monster.x,
+        fromZ = this.monster.z;
+      this.stepMonster(step, budget / dt, dt);
+      const moved = Math.hypot(this.monster.x - fromX, this.monster.z - fromZ);
+      if (moved < 1e-4) break;
+      budget -= moved;
+    }
   }
 
   private stepMonster(step: FloorPoint, speed: number, dt: number): void {

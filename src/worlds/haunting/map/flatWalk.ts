@@ -1,21 +1,25 @@
 import { COMMAND } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
-import { nextThroughDoor } from './geometry';
-import type { FlatRound, FlatInput } from './flatRound';
+import { FlatNavigator } from '../navmesh';
+import { PLAYER_RADIUS, type FlatInput, type FlatRound } from './flatRound';
 
 /**
- * **Wie ein Mensch mit der Karte läuft**: Raum für Raum über die Türen,
- * senkrecht durch jede Öffnung, und wer an einer Wand hängen bleibt, geht
- * kurz zur Raummitte zurück. Kein Navmesh — ein Stock, der weiß, wo die
- * nächste Tür ist. Die Tests spielen damit ganze Runden; die Bot-Vorschau
- * der 2D-Welt darf es auch benutzen.
+ * **Wie ein Mensch mit der Karte läuft**: auf demselben Rasterweg, den auch
+ * das Monster und der Techniker der 3D-Welt gehen (`navmesh/flatNavigator.ts`
+ * über `stationNavigation.ts`), Wegpunkt für Wegpunkt; wer an einer Wand
+ * hängen bleibt, rechnet neu und geht kurz zur Raummitte zurück. Ein Stock,
+ * der weiß, wo der nächste Wegpunkt ist. Die Tests spielen damit ganze
+ * Runden; die Bot-Vorschau der 2D-Welt darf es auch benutzen.
  */
 export class FlatWalker {
+  private readonly navigator: FlatNavigator;
   private stall = { x: NaN, z: NaN, since: 0 };
   private detour = -1;
   private time = 0;
 
-  constructor(private readonly round: FlatRound) {}
+  constructor(private readonly round: FlatRound) {
+    this.navigator = new FlatNavigator(round.house, round.graph, PLAYER_RADIUS);
+  }
 
   /** Der Stock für diesen Schritt, oder `null`, wenn angekommen. */
   input(goal: FloorPoint, dt: number, sprint = false): FlatInput | null {
@@ -33,21 +37,18 @@ export class FlatWalker {
     else if (this.time - this.stall.since > 0.6 && this.time > this.detour) {
       this.detour = this.time + 1.2;
       this.stall.since = this.time;
+      this.navigator.invalidate();
     }
+    if (here === goalSpace && Math.hypot(goal.x - round.player.x, goal.z - round.player.z) < 0.6)
+      return null;
     if (this.time < this.detour) step = graph.centre(here);
-    else if (here !== goalSpace) {
-      const next = graph.next(here, goalSpace);
-      const door = round.house.doors.find(
-        (d) =>
-          (d.a === here && (d.b ?? COMMAND) === next) ||
-          ((d.b ?? COMMAND) === here && d.a === next),
-      );
-      if (door) step = nextThroughDoor(door, round.player, graph.centre(next));
+    else {
+      this.navigator.aim(round.player, goal, round.haunt.shut, this.time);
+      step = this.navigator.next(round.player) ?? goal;
     }
     const dx = step.x - round.player.x,
       dz = step.z - round.player.z;
     const d = Math.hypot(dx, dz);
-    if (here === goalSpace && d < 0.6) return null;
     return { x: dx / (d || 1), z: dz / (d || 1), sprint };
   }
 

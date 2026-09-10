@@ -39,6 +39,20 @@ interface RouteGrid {
   edges: Uint8Array;
   wallCosts: Uint8Array;
   obstacles: FloorBounds[];
+  /**
+   * Die Quader kachelweise in Fächern (`BUCKET` breit), jeder um `BUCKET_PAD`
+   * verbreitert: `segmentClear` fragt nur die Fächer, die eine Strecke berührt,
+   * statt bei jeder Prüfung alle paar hundert Wände der Station abzuklappern —
+   * der Kurvenschleifer und der Schnurzug prüfen je Weg tausende Strecken.
+   */
+  buckets: number[][];
+  bucketMinX: number;
+  bucketMinZ: number;
+  bucketWidth: number;
+  bucketDepth: number;
+  /** Je Quader ein Stempel, damit eine Strecke über mehrere Fächer ihn nur einmal prüft. */
+  checked: Uint32Array;
+  check: number;
   costs: Float64Array;
   parents: Int32Array;
   seen: Uint32Array;
@@ -50,6 +64,15 @@ interface RouteGrid {
 
 /** Two cached profiles cover the walking simulation and the flying camera. */
 const cache = new WeakMap<NavGraph, RouteGrid[]>();
+
+/** Fachgröße des Quaderindexes in Metern — eine Kachel. */
+const BUCKET = TILE;
+/**
+ * Um so viel wird jeder Quader beim Einsortieren verbreitert: mehr als der
+ * größte Radius (0,5) plus die Luft des Schnurzugs (`SMOOTH_MARGIN`), damit
+ * eine Strecke ihre Fächer ohne eigenen Aufschlag abfragen kann.
+ */
+const BUCKET_PAD = 0.75;
 
 /**
  * Collision-aware station navigation. It retains the coarse architectural
@@ -138,10 +161,7 @@ export function stationRoute(
       bestDistance = distance;
       best = current;
     }
-    if (
-      current === targetIndex &&
-      !grid.obstacles.some((box) => routeBlocked(pointAt(grid!, current), target, box, radius))
-    ) {
+    if (current === targetIndex && !obstructed(grid, pointAt(grid, current), target, radius)) {
       best = current;
       complete = true;
       break;
@@ -363,6 +383,19 @@ function buildGrid(
           edges[at]! |= 1 << dir;
       }
     }
+  const bucketMinX = Math.floor((minX * STEP) / BUCKET) - 1;
+  const bucketMinZ = Math.floor((minZ * STEP) / BUCKET) - 1;
+  const bucketWidth = Math.ceil(((minX + width) * STEP) / BUCKET) + 2 - bucketMinX;
+  const bucketDepth = Math.ceil(((minZ + depth) * STEP) / BUCKET) + 2 - bucketMinZ;
+  const buckets: number[][] = Array.from({ length: bucketWidth * bucketDepth }, () => []);
+  obstacles.forEach((box, index) => {
+    const x0 = Math.max(0, Math.floor((box.minX - BUCKET_PAD) / BUCKET) - bucketMinX);
+    const x1 = Math.min(bucketWidth - 1, Math.floor((box.maxX + BUCKET_PAD) / BUCKET) - bucketMinX);
+    const z0 = Math.max(0, Math.floor((box.minZ - BUCKET_PAD) / BUCKET) - bucketMinZ);
+    const z1 = Math.min(bucketDepth - 1, Math.floor((box.maxZ + BUCKET_PAD) / BUCKET) - bucketMinZ);
+    for (let z = z0; z <= z1; z++)
+      for (let x = x0; x <= x1; x++) buckets[z * bucketWidth + x]!.push(index);
+  });
   return {
     spec,
     version: graph.version,
@@ -376,6 +409,13 @@ function buildGrid(
     edges,
     wallCosts,
     obstacles,
+    buckets,
+    bucketMinX,
+    bucketMinZ,
+    bucketWidth,
+    bucketDepth,
+    checked: new Uint32Array(obstacles.length),
+    check: 0,
     costs: new Float64Array(size),
     parents: new Int32Array(size),
     seen: new Uint32Array(size),
@@ -422,7 +462,7 @@ function segmentClear(
   to: FloorPoint,
   radius = grid.radius,
 ): boolean {
-  if (grid.obstacles.some((box) => routeBlocked(from, to, box, radius))) return false;
+  if (obstructed(grid, from, to, radius)) return false;
   const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / HALF));
   for (let i = 0; i <= steps; i++) {
     const x = from.x + ((to.x - from.x) * i) / steps;
@@ -430,6 +470,33 @@ function segmentClear(
     if (!graph.has(tileKey(Math.floor(x / TILE), Math.floor(z / TILE), 0))) return false;
   }
   return true;
+}
+
+/** Ob ein Quader die Strecke sperrt — geprüft werden nur die Fächer, die sie berührt. */
+function obstructed(grid: RouteGrid, from: FloorPoint, to: FloorPoint, radius: number): boolean {
+  const x0 = Math.max(0, Math.floor(Math.min(from.x, to.x) / BUCKET) - grid.bucketMinX);
+  const x1 = Math.min(
+    grid.bucketWidth - 1,
+    Math.floor(Math.max(from.x, to.x) / BUCKET) - grid.bucketMinX,
+  );
+  const z0 = Math.max(0, Math.floor(Math.min(from.z, to.z) / BUCKET) - grid.bucketMinZ);
+  const z1 = Math.min(
+    grid.bucketDepth - 1,
+    Math.floor(Math.max(from.z, to.z) / BUCKET) - grid.bucketMinZ,
+  );
+  if (++grid.check >= 0xffffffff) {
+    grid.checked.fill(0);
+    grid.check = 1;
+  }
+  const stamp = grid.check;
+  for (let z = z0; z <= z1; z++)
+    for (let x = x0; x <= x1; x++)
+      for (const index of grid.buckets[z * grid.bucketWidth + x]!) {
+        if (grid.checked[index] === stamp) continue;
+        grid.checked[index] = stamp;
+        if (routeBlocked(from, to, grid.obstacles[index]!, radius)) return true;
+      }
+  return false;
 }
 
 function push(grid: RouteGrid, node: number, priority: number): void {
