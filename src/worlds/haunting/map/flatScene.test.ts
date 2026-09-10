@@ -138,6 +138,39 @@ describe('FlatScene', () => {
     scene.dispose();
   });
 
+  it('lässt ganz herauszoomen, bis die ganze Station im Bild steht', () => {
+    const round = new FlatRound(5, { test: true });
+    const scene = new FlatScene();
+    scene.setSnapshot(round.snapshot());
+    scene.follow(PLAYER_ID);
+    scene.draw();
+    // Hundert Meter Station auf 400 Punkten: weit unter der festen Untergrenze von 28.
+    scene.zoomAt(0.001, 200, 150);
+    const fit = scene.fitScale();
+    expect(fit).toBeLessThan(28);
+    expect(scene.getView().scale).toBeCloseTo(fit);
+    // Und weiter als das Ganze geht es nicht.
+    scene.zoomAt(0.5, 200, 150);
+    expect(scene.getView().scale).toBeCloseTo(fit);
+    // Die Kamera folgt weiter dem Spieler — aber was ganz hineinpasst, steht in der Mitte.
+    expect(scene.current.following).toBe(PLAYER_ID);
+    scene.draw();
+    const b = round.snapshot().bounds;
+    expect(scene.getView().centreX).toBeCloseTo((b.minX + b.maxX) / 2);
+    expect(scene.getView().centreZ).toBeCloseTo((b.minZ + b.maxZ) / 2);
+    const tl = scene.toScreen(b.minX, b.minZ),
+      br = scene.toScreen(b.maxX, b.maxZ);
+    expect(tl.x).toBeGreaterThanOrEqual(0);
+    expect(tl.y).toBeGreaterThanOrEqual(0);
+    expect(br.x).toBeLessThanOrEqual(400);
+    expect(br.y).toBeLessThanOrEqual(300);
+    // Wieder herangezoomt hängt die Kamera wieder an der Figur.
+    scene.zoomAt(100, 200, 150);
+    scene.draw();
+    expect(scene.getView().centreX).toBeCloseTo(round.player.x);
+    scene.dispose();
+  });
+
   it('zeichnet eine Figur hinter der Wand vor ihr und eine davor nach ihr', () => {
     const order = (z: number): { wall: number; figure: number } => {
       calls = [];

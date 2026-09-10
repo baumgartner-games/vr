@@ -7941,6 +7941,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Seite (`--flat-top`). `.flat [hidden] { display: none !important }` ist
   Pflicht: Panels mit `display: flex` und `hidden` standen sonst als leerer
   Balken mitten auf der Karte — über dem Spieler.
+- **Ganz heraus geht immer bis zur ganzen Station** — in der Szene wie auf
+  der Karte (`FlatScene.fitScale`, `MapView.fitScale`). Beide haben eine
+  feste Zoom-Untergrenze (`minScale`: 28 Punkte je Meter in der Szene, 6 auf
+  der Karte der 2D-Welt), und die ist fürs Spielen gedacht: Näher als ein
+  paar Räume braucht der Daumen nicht zu sehen. Die Station misst aber
+  hundert mal fünfundsechzig Meter, und bei 28 Punkten je Meter passt sie auf
+  keinen Bildschirm, bei 6 auf kein Telefon — wer einer Bot-Runde zusah,
+  konnte nie das Ganze sehen, und `fit()` der Karte blieb am selben Riegel
+  hängen. Die Untergrenze reicht deshalb immer bis zu dem Maßstab, bei dem
+  die Station mit Rand ins Bild passt (`FIT_MARGIN`), wie klein der auch ist.
+  **Und was ganz ins Bild passt, steht in der Mitte** (`settle`, je Achse):
+  Eine Kamera, die der Figur folgt, hielte sie in der Mitte und schöbe die
+  halbe Station aus dem Bild — genau die Hälfte, die man beim Herauszoomen
+  sehen wollte. Das Folgen bleibt dabei an; sobald wieder herangezoomt wird,
+  hängt die Kamera wieder an der Figur.
 - **Die Karte hat die Handschrift eines Brettspiels** (`map/mapView.ts`,
   `INK`): helle Böden mit Kachelfugen (`FLOOR_TILE` 1,25 m), Wände als dunkler
   Kern mit heller Kante, **Türen als Blätter in Pfosten** — zu ist ein Blatt

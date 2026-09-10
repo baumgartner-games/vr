@@ -54,6 +54,44 @@ describe('MapView', () => {
     expect(view.stats.entities).toBe(1);
   });
 
+  it('passt das Haus auch auf ein schmales Telefon, unter der festen Untergrenze', () => {
+    HTMLCanvasElement.prototype.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 360,
+        height: 640,
+        right: 360,
+        bottom: 640,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    const round = new FlatRound(5, { test: true });
+    const view = new MapView({ minScale: 6, maxScale: 60 });
+    view.setSnapshot(round.snapshot());
+    view.follow(PLAYER_ID);
+    view.setView({ scale: 22 });
+    view.follow(PLAYER_ID);
+    view.draw();
+    // Hundert Meter Haus bei 6 Punkten je Meter wären 600 Punkte auf 360.
+    view.zoomAt(0.01, 180, 320);
+    const fit = view.fitScale();
+    expect(fit).toBeLessThan(6);
+    expect(view.getView().scale).toBeCloseTo(fit);
+    view.draw();
+    const b = round.snapshot().bounds;
+    const tl = view.toScreen(b.minX, b.minZ),
+      br = view.toScreen(b.maxX, b.maxZ);
+    expect(tl.x).toBeGreaterThanOrEqual(0);
+    expect(tl.y).toBeGreaterThanOrEqual(0);
+    expect(br.x).toBeLessThanOrEqual(360);
+    expect(br.y).toBeLessThanOrEqual(640);
+    // `fit()` kommt auf denselben Maßstab.
+    view.fit();
+    view.draw();
+    expect(view.getView().scale).toBeCloseTo(fit);
+  });
+
   it('zeichnet für die Schalttafel keine Marker und keine Items', () => {
     const round = new FlatRound(5);
     const view = new MapView({ layers: PANEL_LAYERS });

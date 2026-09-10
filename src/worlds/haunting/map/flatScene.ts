@@ -128,6 +128,8 @@ export interface FlatSceneOptions {
 const TAP_SLOP = 8;
 /** Wie stark das Mausrad zoomt, je Punkt Raddrehung. */
 const WHEEL_RATE = 0.0016;
+/** Rand um die Station, wenn sie ganz ins Bild soll, in Metern je Seite. */
+const FIT_MARGIN = 4;
 
 const INK = {
   space: '#000000',
@@ -253,8 +255,44 @@ export class FlatScene {
     this.following = entityId;
   }
 
+  /**
+   * **Ganz heraus geht immer bis zur ganzen Station.** Die feste Untergrenze
+   * (`minScale`) ist für eine Szene gedacht, in der man spielt: näher als
+   * ein paar Räume braucht der Daumen nicht zu sehen. Wer zusieht, will aber
+   * das ganze Haus auf einmal — und das sind hundert Meter, die bei 28
+   * Punkten je Meter auf keinen Bildschirm passen. Deshalb reicht die
+   * Untergrenze immer bis zu dem Maßstab, bei dem die Station mit Rand ins
+   * Bild passt, wie klein der auch ist.
+   */
   private clampScale(scale: number): number {
-    return Math.min(this.maxScale, Math.max(this.minScale, scale));
+    const floor = Math.min(this.minScale, this.fitScale());
+    return Math.min(this.maxScale, Math.max(floor, scale));
+  }
+
+  /** Der Maßstab, bei dem die ganze Station mit Rand ins Bild passt. */
+  fitScale(): number {
+    const b = this.snapshot.bounds;
+    const { w, h } = this.size();
+    const spanX = Math.max(1, b.maxX - b.minX + 2 * FIT_MARGIN);
+    const spanZ = Math.max(1, b.maxZ - b.minZ + 2 * FIT_MARGIN);
+    return Math.min(w / spanX, h / spanZ);
+  }
+
+  /**
+   * **Was ganz ins Bild passt, steht in der Mitte.** Eine Kamera, die der
+   * Figur folgt, hielte die Figur in der Mitte und schöbe die halbe Station
+   * aus dem Bild — genau die Hälfte, die man beim Herauszoomen sehen wollte.
+   * Passt die Station auf einer Achse ganz hinein, gilt auf dieser Achse
+   * deshalb ihre Mitte, und die Figur läuft darin herum; auf der anderen
+   * folgt die Kamera weiter.
+   */
+  private settle(): void {
+    const b = this.snapshot.bounds;
+    if (b.maxX <= b.minX || b.maxZ <= b.minZ) return;
+    const { w, h } = this.size();
+    const u = this.state.scale;
+    if ((b.maxX - b.minX + 2 * FIT_MARGIN) * u <= w) this.state.centreX = (b.minX + b.maxX) / 2;
+    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) this.state.centreZ = (b.minZ + b.maxZ) / 2;
   }
 
   private size(): { w: number; h: number } {
@@ -305,6 +343,7 @@ export class FlatScene {
         this.state.centreZ = target.at.z - SPRITE_H * 0.4;
       }
     }
+    this.settle();
     const s = this.snapshot;
     const f = this.field;
     const omniscient = f.mode === 'omniscient';
