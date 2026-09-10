@@ -703,8 +703,11 @@ export class MapView {
     );
     if (!waves.length && !steady.length) return;
     const grid = this.tileField();
-    // Was noch klingt, bleibt gespeichert; alles andere räumt sich weg.
-    const alive = new Set(waves.map(({ noise }) => noise.id));
+    // Was noch klingt, bleibt gespeichert; alles andere räumt sich weg. Der
+    // Schlüssel trägt Ort und Reichweite mit: Eine neue Runde fängt ihre
+    // Kennungen wieder bei `n0` an, und eine alte Flut an einer anderen Stelle
+    // wäre dann ein Geräusch aus dem letzten Spiel.
+    const alive = new Set(waves.map(({ noise }) => waveKey(noise)));
     for (const id of [...this.waves.keys()]) if (!alive.has(id)) this.waves.delete(id);
     const open = new Set(
       s.doors.filter((door) => door.open && !door.locked).map((door) => door.id),
@@ -727,10 +730,11 @@ export class MapView {
           : noise.cause === 'monster' || noise.by === 'monster'
             ? INK.noiseMonster
             : INK.noiseOther;
-      let reached = this.waves.get(noise.id);
+      const key = waveKey(noise);
+      let reached = this.waves.get(key);
       if (!reached) {
         reached = spreadNoise(grid, noise.at, noise.radius, { open, vents: true });
-        this.waves.set(noise.id, reached);
+        this.waves.set(key, reached);
       }
       for (const [key, d] of reached) {
         if (d > front) continue;
@@ -1605,4 +1609,9 @@ export class MapView {
       gestures: this.gestures,
     };
   }
+}
+
+/** Der Schlüssel einer gefluteten Welle: Kennung, Ort und Reichweite. */
+function waveKey(noise: MapNoise): string {
+  return `${noise.id}@${noise.at.x.toFixed(2)},${noise.at.z.toFixed(2)},${noise.radius.toFixed(2)}`;
 }

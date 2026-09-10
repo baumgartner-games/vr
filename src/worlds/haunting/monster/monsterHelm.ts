@@ -3,7 +3,7 @@ import { MONSTERS } from '../mission';
 import type { RoutineOutput } from '../monsterRoutine';
 import type { HauntState } from '../net';
 import { stationGraph } from '../roomGraph';
-import { pryLock, pryTries, type DoorLocks } from '../rules/doorLocks';
+import { pryLock, pryTries, releaseLock, type DoorLocks } from '../rules/doorLocks';
 import { ENTITY_PROFILES } from '../threat';
 import { doorCentre } from '../map/geometry';
 import type { VentRider, VentTravel } from '../vents/ventTravel';
@@ -237,14 +237,10 @@ function pryDoor(arena: MonsterArena, id: string): string {
   if (!door) return 'Hier ist nichts.';
   const locks = arena.locks?.();
   if (door.material === 'wood') {
-    // In der Liste statt einer neuen Liste: Die 3D-Welt und die 2D-Runde
-    // halten sich beide an genau dieses Array.
-    const at = state.shut.indexOf(door.id);
-    if (at >= 0) state.shut.splice(at, 1);
-    if (locks) {
-      locks.chosen = locks.chosen === door.id ? '' : locks.chosen;
-      locks.slams = locks.slams.filter((slam) => slam.id !== door.id);
-      locks.pries = locks.pries.filter((pry) => pry.id !== door.id);
+    if (locks) replaceShut(state.shut, releaseLock(locks, state.shut, door.id));
+    else {
+      const at = state.shut.indexOf(door.id);
+      if (at >= 0) state.shut.splice(at, 1);
     }
     return 'Holz splittert.';
   }
@@ -253,10 +249,19 @@ function pryDoor(arena: MonsterArena, id: string): string {
   const roll = arena.roll ? () => arena.roll!() : undefined;
   const out = pryLock(locks, state.shut, door.id, arena.time?.() ?? 0, roll);
   if (!out.tries) return '';
-  state.shut.length = 0;
-  state.shut.push(...out.shut);
+  replaceShut(state.shut, out.shut);
   if (out.opened) return 'Der Riegel gibt nach.';
   return out.tries < 2 ? 'Der Riegel hält — noch.' : 'Es knirscht. Weiter.';
+}
+
+/**
+ * Die Liste der Sperren **in ihrem Array** ersetzen: Die 3D-Welt und die
+ * 2D-Runde halten sich beide an genau dieses eine Array (`HauntState.shut`);
+ * ein neues an seine Stelle zu setzen ginge an beiden vorbei.
+ */
+function replaceShut(shut: string[], next: readonly string[]): void {
+  shut.length = 0;
+  shut.push(...next);
 }
 
 /** Was „Interagieren" jetzt täte — für die Beschriftung des Knopfs. */
