@@ -7650,6 +7650,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   in engen Ecken schrumpft der Kurvenradius, nötigenfalls bleibt die Ecke.
   `stepAlong` verbraucht die ganze Framezeit über mehrere Wegpunkte, mit
   Beschleunigung und Abbremsen. Navigation wird bei Sperränderungen ungültig.
+  **Eine Navigation für beide Welten**: Auch das Monster und der Techniker der
+  2D-Welt laufen auf demselben Rasterweg (`navmesh/flatNavigator.ts` über
+  `stationRoute` auf dem `housePlan`-Graphen mit denselben Sperren), nicht mehr
+  Raum für Raum über Türwegpunkte. Der 2D-Adapter plant sparsam neu (Ziel
+  weiter als 0,75 m gewandert, von der Route abgekommen, Sperre geändert), wartet
+  vor einer gesperrten Tür ohne Umweg 0,9 m davor und splittert Holz nach
+  2,5 s; die Fächerindizierung der Wandquader in `segmentClear` hat dabei jeden
+  Weg von ≈ 88 auf ≈ 14 ms gebracht — für 3D-Monster, Bot und Drohne genauso.
 - Drohnen-Netzpositionen werden interpoliert statt je Paket gesetzt.
   Sanfte Neigung und begrenztes Schweben bleiben unter dem Türsturz.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
