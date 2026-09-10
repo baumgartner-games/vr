@@ -114,6 +114,8 @@ export interface FlatEvent {
   text: string;
 }
 
+export type FlatRole = 'technician' | 'monster' | 'bot';
+
 export interface FlatOptions {
   monster?: MonsterKind;
   tuning?: BotTuning;
@@ -121,8 +123,12 @@ export interface FlatOptions {
   test?: boolean;
   roll?: number;
   mode?: VisibilityMode;
-  /** Wen der Spieler in der 2D-Welt spielt (nur `FlatMode`; die Runde selbst ist neutral). */
-  role?: 'technician' | 'monster';
+  /**
+   * Wen der Spieler in der 2D-Welt spielt (nur `FlatMode`; die Runde selbst
+   * ist neutral): den Techniker, das Monster — oder niemanden (`bot`), dann
+   * spielt der Techniker aus Zahlen (`rules/technicianBot.ts`) und man sieht zu.
+   */
+  role?: FlatRole;
 }
 
 interface Actor {

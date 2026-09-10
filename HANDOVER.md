@@ -123,10 +123,13 @@ Desktop-Titel mit Uhr; in der Brille ein schmaler Streifen an der Kamera
 `mission.ts`: „Nahrungsversorgung sichern" (Id `oxygen` bleibt).
 „Van" → „Einsatzzentrale" in allen Texten und Kommentaren; Bezeichner
 (`vanPage`, `buildVan`, `data-van`, Item-Id `van`) bleiben.
-`HauntingWorld.menu()` hat „2D-Welt von oben" (Rolle `vr`); `toggleFlat`
-beendet bei `xr.isPresenting` erst die XR-Sitzung und setzt
-`flatTechnician`, weil `App.onSessionEnd` die Rolle sonst auf `desktop`
-zurücksetzt.
+`HauntingWorld.menu()` hat „2D-Welt von oben" auch für die Rolle `vr`. Beim
+Zusammenführen mit `main` (#82, „Checkbox als Einstellung") wurde der
+Umschalter durch die Einstellung `flatWanted` ersetzt: Der Eintrag legt sie
+um, gestartet wird mit Bot-Runde, Mission oder Test (`startRound`); in der
+Brille gibt es keine Karte von oben, der Eintrag steht dort nur außerhalb
+einer XR-Sitzung. Das Beenden der XR-Sitzung aus dem Menü heraus ist damit
+entfallen.
 
 **Deckenhöhe (nichts geändert).** `PLAN_WALL_H` 2,80 m, Wegweiser-Band
 2,40–2,74 m: Türschild 2,437–2,703 m, Kreuzungsschild füllt das Band —
@@ -208,10 +211,13 @@ Knopf (`takeHit` sperrt Berührungsschläge, solange das Steuer aktiv ist).
 **2D-Welt übers Netz:** `tick` ist in `stepFlat` + `tickNet` geteilt;
 `stepFlat` übernimmt `flat.round.haunt` per `adopt` (Hausneubau bei
 Seedwechsel), füllt `technician`, `ride`, `venting`, hängt den Netz-Fahrer als
-`round.driver` ein; `refreshHost` zählt den 2D-Spieler als `vr`; `toggleFlat`
-lehnt ab, wenn ein anderer Techniker spielt, startet mit `this.spec.seed`
-und stellt beim Verlassen einen frischen Stand her. `mapSnapshot().player()`
-kommt aus `state.technician`.
+`round.driver` ein; `refreshHost` zählt den 2D-Spieler als `vr`. Nach dem
+Merge mit #82 hängt das an `openFlat`/`closeFlat`: **Mission und Test** in 2D
+sind die gemeinsame Runde (`flatShared`) — `openFlat` lehnt ab, wenn ein
+anderer Techniker spielt, startet auf `this.spec.seed`, `closeFlat` stellt
+einen frischen Stand her und sagt ihn an; die 2D-**Bot-Runde** bleibt eine
+lokale Vorführung ohne Herzschlag und ohne Stand für andere (wie die
+3D-Bot-Runde). `mapSnapshot().player()` kommt aus `state.technician`.
 
 **Entscheidungen.**
 
@@ -708,8 +714,9 @@ einen Raum ist dort eine Treppe aus Viertelmetern; der Kurvenschleifer
 Eingang ins Zimmer `r2` (Seed 2, 14 Räume) kamen so 243 Wegpunkte auf 61,65 m
 mit 4 585° Richtungswechsel heraus. Diesen Weg laufen das Monster in 3D
 (`StationNpcNavigator`), der Bot (`missionBot`) und die Drohne. Das Monster
-der **2D-Welt** (`FlatRound.moveMonster`) benutzt ihn heute nicht — es geht
-Raum für Raum über Türwegpunkte und hat das Problem nicht.
+der **2D-Welt** (`FlatRound.moveMonster`) ging bis zur zweiten Runde Raum für
+Raum über Türwegpunkte; seit der zweiten Runde läuft es denselben Weg wie in
+3D (siehe „Zweite Runde").
 
 ### Was drin ist
 
@@ -733,6 +740,61 @@ Raum für Raum über Türwegpunkte und hat das Problem nicht.
 - **Andockung** in `stationRoute`: Der Schnurzug läuft **vor** dem
   Kurvenschleifer, der dann nur noch echte Ecken rundet. Der Vertrag des
   Pakets steht in `navmesh/index.ts`.
+
+### Zweite Runde — das 2D-Monster läuft denselben Weg, und der Weg ist gehbar
+
+Die Rückfrage war: 2D und 3D nutzen dieselbe Wegsuche und Glättung, aber ist
+damit sichergestellt, dass man den Weg dort auch **gehen** kann? Bis dahin
+war nur die Geometrie geprüft (Quader der Wegsuche, Wände des Snapshots),
+nicht das Bewegungsmodell. Das ist in der 2D-Welt eine eigene Rechnung:
+`walkable` rückt jeden Raum um halbe Wanddicke plus Körperradius ein und
+lässt Türen nur als kleine Insel zu, `slide` verwirft jeden Schritt, der
+hinausführt. Zwei Dinge sind dazugekommen:
+
+- **`FlatRound.moveMonster` läuft jetzt über `stationRoute`** — derselbe
+  `StationNpcNavigator` wie in 3D (Raster, Schnurzug, Kurvenschleifer,
+  gesperrte Türen als Wand, Neuplanung alle 0,55 s oder wenn Ziel oder
+  Standort springen). Welche Tür es auf dem Weg nimmt, sagt weiterhin die
+  Raumkarte: Ist sie gesperrt, ist das Ziel der Punkt **davor** auf der
+  eigenen Seite (`doorPath`), dort wartet es wie bisher — Holz splittert nach
+  2,5 s, Stahl hält, bis die Routine ein anderes Ziel wählt. Der Umweg über
+  die Raummitte bei Stillstand bleibt als Sicherheitsnetz. Gibt es keinen
+  Weg (mehr), steht das Monster, statt in eine Wand zu laufen.
+- **`navmesh/flatWalk.test.ts` geht den Weg wirklich.** Für die 45 Paare
+  läuft ein Körper mit `MONSTER_RADIUS` (0,4 m) den geglätteten Weg in
+  7-cm-Schritten mit `slide` ab, wie es `stepMonster` tut. Jeder Schritt muss
+  ganz ankommen — kein Gleiten, kein Verwerfen —, jeder Wegpunkt muss
+  `walkable` sein, und am Ende steht der Körper auf 5 cm am Ziel. Dazu: Der
+  Teilweg vor einer gesperrten Tür wird ebenso ohne verworfenen Schritt
+  gegangen und endet diesseits des Blatts; und in zwei ganzen 2D-Runden kommt
+  das Monster durch mindestens drei Räume, ohne je länger als fünf Sekunden
+  auf der Stelle zu stehen. Die bestehenden 2D-Tests (bleibt in der Station,
+  trifft den Spieler durch Türen hindurch, sieht nur im Licht) laufen mit der
+  neuen Bewegung unverändert durch.
+
+Warum die Zahlen zusammenpassen: Die Wegsuche hält mit 0,45 m Abstand zur
+Wand**fläche** (Wand 0,25 m dick), also 0,575 m zur Mittellinie; `walkable`
+verlangt 0,125 + 0,4 = 0,525 m. Der nächste gültige Rasterpunkt liegt 0,5 m
+vor der Fläche, eine Abkürzung streift die Fläche frühestens mit dem Radius.
+In der Tür (1,2 m) liegt die Rasterspur 0,475 m vom Pfosten, die Türinsel
+der 2D-Welt erlaubt 0,6 m. Mit 0,5 m Abstand (dem 3D-Aufschlag von 0,1 auf
+0,4) käme dagegen **keine** Tür mehr durch — deshalb bekommt der Navigator
+einen `comfort`-Parameter (Vorgabe 0,1 wie bisher; die 2D-Welt gibt 0,05).
+
+**Was das für 3D heißt.** Dort ist das Bewegungsmodell die Physikkapsel,
+und die ist headless nicht zu prüfen (Auftrag: 3D muss nicht getestet
+werden). Die Sicherung dort ist dieselbe wie vor der Glättung: Das Raster
+ist aus denselben Metermaßen gebaut wie Kunst und Physik (`stationNavigation.ts`,
+„same metre dimensions as art and physics"), der Weg hält den Körperradius
+plus 0,1 m, und jede Abkürzung ist mit demselben Kapseltest geprüft wie
+vorher jeder Rasterpunkt. Was sich für 3D geändert hat, ist nur, **welche**
+Punkte übrig bleiben — nicht, wogegen sie geprüft sind.
+
+**Kosten.** Eine Wegsuche kostet in Jest 60–120 ms (der A* über bis zu
+96 000 Rasterzellen, unverändert seit vor der Glättung). Die Monster-Tests
+in `flatRound.test.ts` brauchen damit 48 s statt 20 s, die ganze Suite
+121 s statt 68 s. Im Browser rechnet dieselbe Wegsuche seit jeher für das
+3D-Monster; die 2D-Welt hat jetzt dieselbe Last, alle 0,55 s ein Weg.
 
 ### Messung — dieselben Start-Ziel-Paare vorher und nachher
 
@@ -849,6 +911,16 @@ dieselbe Glättung und bleibt frei.
   Import, ein optionaler siebter Parameter `smooth`, ein `radius`-Parameter
   mit Vorgabe an `segmentClear`, ein Aufruf von `pullString` vor
   `softenCorners`. Kein Refactor.
+- `src/worlds/haunting/stationNpcNavigator.ts` (Grenzfall Paket nav): ein
+  optionaler dritter Konstruktorparameter `comfort` (Vorgabe 0,1 — die 3D-Welt
+  merkt nichts).
+- `src/worlds/haunting/map/flatRound.ts` (Paket map; dessen HANDOVER hatte
+  die Stelle ausdrücklich angeboten: „Das Paket Navmesh kann
+  `FlatRound.moveMonster` später mit einer echten Wegsuche füttern"): zwei
+  Imports, eine Konstante `ROUTE_COMFORT`, zwei Felder (`travel`,
+  `navigator`), und der Rumpf von `moveMonster` — die Türwahl und das Warten
+  an gesperrten Türen sind unverändert, nur der Schritt kommt jetzt aus dem
+  Navigator statt aus `nextThroughDoor`. Sonst nichts angefasst.
 - `HANDOVER.md`: dieser Abschnitt.
 
 ### Abweichungen
@@ -861,10 +933,9 @@ dieselbe Glättung und bleibt frei.
   `map/mapSnapshot`) statt über `map/index.ts`: Der Index zieht `flatMode.ts`
   und damit CSS, und das bricht Jest (steht so in BOUNDARIES.md). Der Code
   selbst importiert von `map/index.ts` nur Typen.
-- **2D-Monster unverändert.** `FlatRound.moveMonster` (Paket map) nutzt
-  keine Wegsuche, sondern Raumkarte und Türwegpunkte; die Glättung greift
-  dort nicht, und der Auftrag verlangte keine Andockung. `snapshotSegmentClear`
-  liegt bereit, falls das Monster der 2D-Welt einmal `stationRoute` bekommt.
+- **2D-Monster nachgezogen** (zweite Runde, auf Zuruf): `FlatRound.moveMonster`
+  (Paket map) läuft jetzt über `stationRoute`, siehe oben. Vorher ging es
+  Raum für Raum und war von der Glättung nicht betroffen.
 
 ### Offene Fragen an dich
 
@@ -875,9 +946,18 @@ dieselbe Glättung und bleibt frei.
   „Fenster" — vorher wie nachher, also nichts, was die Glättung verursacht.
   Ich habe die Vorplatzhülle deshalb aus der Kartenprüfung gelassen und
   nichts am Paket `map` geändert. Gehört ans Paket `map`.
-- → erledigt (Abschnitt 4 oben). **Soll das Monster der 2D-Welt** denselben Weg bekommen wie in 3D
+- → erledigt (Abschnitt 4 oben; die Umsetzung aus #81 über
+  `StationNpcNavigator` wurde beim Zusammenführen durch `navmesh/flatNavigator.ts`
+  ersetzt — gleiche Wegsuche, sparsamere Neuplanung, Umweg statt Warten, wenn
+  es einen gibt, Techniker aus Zahlen auf demselben Weg). **Soll das Monster der 2D-Welt** denselben Weg bekommen wie in 3D
   (`stationRoute` + Schnurzug statt Raum für Raum)? Dann lässt sich die
   Glättung auch in der 2D-Welt *sehen*, nicht nur messen.
+- **Türwahl in 2D** (#81): dort wartete das Monster vor einer gesperrten Tür
+  der Raumkarte, auch wenn das Raster einen Umweg fände. Mit
+  `FlatNavigator` nimmt es den Umweg, wenn es einen gibt — wie in 3D; die
+  Balance-Dateien blieben unangetastet, `botRound.test.ts` bleibt grün.
+- **Testzeit** (#81: 121 s Suite): mit dem Fächerindex in `segmentClear`
+  (Abschnitt 4 oben) ist die Suite bei ≈ 90 s.
 - **Punkte je Ecke.** Wenn 20 Stützpunkte je Bogen für das Monster zu viel
   sind (die Drohne braucht sie), wäre ein eigener Schleifer mit weiterem
   Abstand der nächste Schritt — nicht in diesem Auftrag.
@@ -887,8 +967,10 @@ dieselbe Glättung und bleibt frei.
 `src/worlds/haunting/navmesh/pathSmoothing.test.ts` (Schnurzug, Blick über
 die Ecke, zweiter Durchgang, Abstandsrechnung, Snapshot-Prüfung) und
 `stationSmoothing.test.ts` (45 Paare: vollständig, nie länger, frei nach
-beiden Geometrien, Türkreuzungen, Drohne, geschlossene Tür). Die bestehende
-`stationNavigation.test.ts` läuft unverändert.
+beiden Geometrien, Türkreuzungen, Drohne, geschlossene Tür) und
+`flatWalk.test.ts` (45 Paare mit `slide` abgelaufen, gesperrte Tür, zwei
+ganze 2D-Runden). Die bestehenden `stationNavigation.test.ts`,
+`stationNpcNavigator.test.ts` und `map/flatRound.test.ts` laufen unverändert.
 
 ## Paket world3d — 3D-Welt / Kleinkram
 
@@ -1024,9 +1106,12 @@ Branches: `feat/map-contract` (Phase 0, Contract + BOUNDARIES.md) und
   Optionsmenü mit genau den zwei Modi aus `viewModesFor('flat')`.
   Das aktive Werkzeug wird als kleines 3D-Bild in ein Loch der Oberfläche
   gezeichnet (`map/flatStage.ts`) — der einzige WebGL-Aufruf im 2D-Modus.
-- **Umschaltung**: Checkbox „2D-Welt von oben" neben der Kachel „Bot-Runde
-  ansehen" im Van (`stationUi.vanPage`). Aktiv heißt: `HauntingWorld.tick`
-  und `render` fassen die 3D-Welt nicht an.
+- **Umschaltung**: Checkbox „2D-Welt von oben" über den Kacheln im Van
+  (`stationUi.vanPage`). Sie ist seit dem UI-Fix nur noch eine Einstellung:
+  Gestartet wird mit „Bot-Runde ansehen", „Mission spielen" oder „Test ohne
+  Monster" (`HauntingWorld.startRound`), und läuft die 2D-Runde, fassen
+  `HauntingWorld.tick` und `render` die 3D-Welt nicht an. Die dritte Rolle
+  `bot` in `FlatOptions.role` lässt den Techniker aus Zahlen spielen.
 
 ### Fremde Dateien, die ich angefasst habe (Minimaländerungen)
 

@@ -9,12 +9,14 @@ import {
   TOOL_LABELS,
   type FlatEvent,
   type FlatOptions,
+  type FlatRole,
 } from './flatRound';
 import { Joystick } from './joystick';
 import { MapView } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
+import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
 import { HauntingAudio } from '../audio';
 
@@ -26,6 +28,12 @@ import { HauntingAudio } from '../audio';
  * sich frei ziehen und mit zwei Fingern zoomen; ein Knopf holt sie wieder
  * zum Spieler zurück. Rätsel liegen als Overlay über der Karte; das
  * Optionsmenü hat genau zwei Modi (`registry/viewModes.ts`, Publikum `flat`).
+ *
+ * Drei Rollen (`FlatRole`): der Techniker am Stock, das Monster
+ * (`monster/monsterSession.ts`) — und die **Bot-Runde**, in der niemand
+ * spielt: Der Techniker aus Zahlen (`rules/technicianBot.ts`) läuft seine
+ * Runde gegen das Monster, die Karte folgt ihm, Stock und Knöpfe sind weg.
+ * Das ist das 2D-Gegenstück zu „Bot-Runde ansehen" im Van.
  *
  * Kein three.js hier drin: Das aktive Werkzeug als 3D-Bild zeichnet die Welt
  * in das Loch, das `viewport()` beschreibt (`flatStage.ts`). Deshalb läuft
@@ -41,6 +49,13 @@ export interface FlatModeHost {
 
 /** Wie lange eine Meldung stehen bleibt, in Sekunden. */
 const TOAST_SECONDS = 3.2;
+
+/** Die drei Rollen im Optionsmenü, in der Reihenfolge des Durchschaltens. */
+const ROLE_LABELS: Record<FlatRole, string> = {
+  technician: 'Als Techniker spielen',
+  monster: 'Als Monster spielen (Techniker: Bot)',
+  bot: 'Bot-Runde zusehen',
+};
 
 export class FlatMode {
   readonly element = el('div', 'flat');
@@ -61,6 +76,8 @@ export class FlatMode {
   private puzzle: PuzzleOverlay;
   /** Wenn der Spieler das Monster spielt: Steuer, Techniker-Bot und Ansicht (`monster/`). */
   private session: MonsterSession | null = null;
+  /** In der Bot-Runde: der Techniker aus Zahlen am Stock statt des Spielers. */
+  private bot: TechnicianBot | null = null;
   private toastLeft = 0;
   private mode: ViewMode;
   private seed: number;
@@ -137,10 +154,15 @@ export class FlatMode {
     this.renderHud();
   }
 
-  /** Techniker oder Monster: Wer das Monster spielt, bekommt dessen Ansicht statt Stock und Knöpfen. */
-  private playRole(role: 'technician' | 'monster'): void {
+  /**
+   * Techniker, Monster oder Bot: Wer das Monster spielt, bekommt dessen
+   * Ansicht statt Stock und Knöpfen; wer dem Bot zusieht, behält die Karte
+   * und den Knopf, der sie zurück zum Techniker holt.
+   */
+  private playRole(role: FlatRole): void {
     this.session?.dispose();
     this.session = null;
+    this.bot = null;
     if (role === 'monster') {
       this.session = new MonsterSession(
         this.round,
@@ -148,16 +170,20 @@ export class FlatMode {
         this.options_.tuning?.technician,
       );
       this.element.insertBefore(this.session.element, this.hud);
+    } else if (role === 'bot') {
+      this.bot = new TechnicianBot(this.round, this.options_.tuning?.technician, () =>
+        this.dice.next(),
+      );
     }
-    for (const node of [
-      this.map.element,
-      this.stick.element,
-      this.buttons,
-      this.hole,
-      this.centreKey,
-    ])
-      node.hidden = role === 'monster';
+    for (const node of [this.map.element, this.centreKey]) node.hidden = role === 'monster';
+    for (const node of [this.stick.element, this.buttons, this.hole])
+      node.hidden = role !== 'technician';
     this.element.dataset['role'] = role;
+  }
+
+  /** Wer gerade spielt — für Tests und die Anzeige. */
+  get role(): FlatRole {
+    return this.session ? 'monster' : this.bot ? 'bot' : 'technician';
   }
 
   /** Der Modus, den die Karte gerade zeigt. */
@@ -171,7 +197,7 @@ export class FlatMode {
 
   /** Wo das 3D-Bild des Werkzeugs hingehört, in CSS-Punkten vom linken oberen Rand. */
   viewport(): { x: number; y: number; w: number; h: number } | null {
-    if (this.round.phase !== 'running' || !this.round.activeTool) return null;
+    if (this.round.phase !== 'running' || !this.round.activeTool || this.hole.hidden) return null;
     const rect = this.hole.getBoundingClientRect();
     if (rect.width < 4 || rect.height < 4) return null;
     return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
@@ -180,6 +206,7 @@ export class FlatMode {
   /** Ein Bild: Stock lesen, Runde rechnen, Karte und Anzeigen nachführen. */
   update(dt: number): void {
     if (this.session) this.session.update(dt);
+    else if (this.bot) this.bot.step(dt);
     else {
       const stick = this.stick.value;
       this.round.step(dt, { x: stick.x, z: stick.z, sprint: stick.sprint });
@@ -250,13 +277,19 @@ export class FlatMode {
     const monster = MONSTERS.find((m) => m.id === crew.options.monster)?.name ?? '';
     const round = this.round.round();
     const hp = '●'.repeat(round.suit) + '○'.repeat(Math.max(0, round.suitMax - round.suit));
-    const text = `${hp}  ·  O₂ ${clockText(round.oxygen)}  ·  Reparaturen ${state.done.length}/3  ·  ${
-      crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : ''
-    }`;
+    const text = [
+      hp,
+      `O₂ ${clockText(round.oxygen)}`,
+      `Reparaturen ${state.done.length}/3`,
+      crew.hidden ? 'versteckt' : this.round.radarActive ? 'Radar' : '',
+    ]
+      .filter(Boolean)
+      .join('  ·  ');
     const cabins = round.cabinsDestroyed.length
       ? ` · ${round.cabinsDestroyed.length} Kabinen hin`
       : '';
-    const line = `${state.monsterOn ? monster : 'Test ohne Monster'} · ${this.mode.label}${cabins}`;
+    const who = this.bot ? 'Bot-Runde · ' : '';
+    const line = `${who}${state.monsterOn ? monster : 'Test ohne Monster'} · ${this.mode.label}${cabins}`;
     if (this.hud.dataset['text'] !== text + line) {
       this.hud.dataset['text'] = text + line;
       this.hud.replaceChildren(el('strong', '', text.trim()), el('span', '', line));
@@ -284,12 +317,8 @@ export class FlatMode {
     const role = el('button', 'flat__option');
     role.dataset['role'] = '';
     role.append(
-      el(
-        'strong',
-        '',
-        this.options_.role === 'monster' ? 'Als Monster spielen' : 'Als Techniker spielen',
-      ),
-      el('small', '', 'Gilt für die nächste Runde; der Techniker wird dann vom Bot gespielt'),
+      el('strong', '', ROLE_LABELS[this.options_.role ?? 'technician']),
+      el('small', '', 'Gilt für die nächste Runde · antippen wechselt'),
     );
     const leave = el('button', 'flat__option flat__option--leave', '2D-Welt verlassen');
     leave.dataset['leave'] = '';
@@ -311,9 +340,13 @@ export class FlatMode {
       ? won
         ? 'DER TECHNIKER ENTKOMMT'
         : 'DAS MONSTER GEWINNT'
-      : won
-        ? 'MISSION ERFÜLLT'
-        : 'MISSION GESCHEITERT';
+      : this.bot
+        ? won
+          ? 'BOT-RUNDE: DER TECHNIKER GEWINNT'
+          : 'BOT-RUNDE: DAS MONSTER GEWINNT'
+        : won
+          ? 'MISSION ERFÜLLT'
+          : 'MISSION GESCHEITERT';
     this.ending.replaceChildren(
       el('strong', '', headline),
       el(
@@ -344,7 +377,9 @@ export class FlatMode {
       this.options_.test = this.round.state().monsterOn;
       this.renderOptions();
     } else if (data['role'] !== undefined) {
-      this.options_.role = this.options_.role === 'monster' ? 'technician' : 'monster';
+      const roles = Object.keys(ROLE_LABELS) as FlatRole[];
+      this.options_.role =
+        roles[(roles.indexOf(this.options_.role ?? 'technician') + 1) % roles.length]!;
       this.renderOptions();
     } else if (data['leave'] !== undefined) {
       this.host.exit();

@@ -50,9 +50,17 @@ export interface StationHost {
   menu?(): void;
   /** Einen sicheren Durchlauf mit einem Modelltechniker ansehen. */
   botRound?(): void;
-  /** Die 2D-Welt an- oder ausschalten (`map/flatMode.ts`); `flatActive` sagt, ob sie läuft. */
+  /**
+   * Die Einstellung „2D-Welt von oben" umlegen (`map/flatMode.ts`);
+   * `flatWanted` sagt, ob sie steht. Sie startet nichts: Gestartet wird
+   * danach mit `botRound`, `mission` oder `test`, und die Welt entscheidet,
+   * ob das in 2D oder 3D passiert.
+   */
   flatMode?(): void;
-  flatActive?(): boolean;
+  flatWanted?(): boolean;
+  /** Mission (mit Monster) und Test (ohne) — die Kacheln neben der Bot-Runde, wenn 2D steht. */
+  mission?(): void;
+  test?(): void;
   /** Eine beendete Runde über die autorisierte Weltaktion neu beginnen. */
   restart?(): void;
   /**
@@ -395,6 +403,8 @@ export class StationUi {
       station === 'drone' ? drone.target : '',
       station === 'drone' ? drone.light : '',
       this.panel,
+      // Die Checkbox „2D-Welt von oben" tauscht die Kacheln darunter aus.
+      this.host.flatWanted?.() ?? false,
       // Der Zurück-Knopf im Bild kommt und geht mit dem Ausschnitt des
       // Archivars — mehr braucht die Seite von ihm nicht zu wissen.
       atHome(this.host.archiveView()),
@@ -726,41 +736,63 @@ export class StationUi {
         'Quest: Außentechniker. Handy 1: Archiv mit Aufträgen und Codes. Handy 2: Einsatzkontrolle mit Radar, Puls und Schaltern. Drohne und Zuschauer sind optionale Geräte.',
       ),
     ];
-    if (this.host.botRound) {
-      const bot = el('button', 'haunt__tile haunt__tile--simulation');
-      bot.dataset['botRound'] = '';
-      bot.append(
-        el('strong', '', 'Bot-Runde ansehen'),
-        el(
-          'span',
-          'haunt__tag',
-          link.vr
-            ? 'Ein Techniker spielt bereits. Die Bot-Demo ist verfügbar, sobald er die Rolle verlässt.'
-            : 'Sicherer Test · Station von oben · Techniker auf automatischer Route',
-        ),
-      );
-      bot.toggleAttribute('disabled', link.vr);
-      out.push(bot);
-    }
+    // **Erst die Einstellung, dann die Runde.** Die Checkbox „2D-Welt von
+    // oben" sagt nur, wie gespielt wird; gestartet wird mit den Kacheln
+    // darunter — Bot-Runde, Mission, Test —, und jede davon hält sich an
+    // die Checkbox. Eine 2D-Runde ist lokal: Sie stört keinen Techniker im
+    // Schiff, deshalb sperrt ein spielender Techniker sie auch nicht.
+    const flat = !!this.host.flatMode && (this.host.flatWanted?.() ?? false);
     if (this.host.flatMode) {
-      // Die Checkbox neben der Bot-Runde: 2D-Welt statt 3D (`map/flatMode.ts`).
-      const flat = el('label', 'haunt__tile haunt__tile--flat');
+      const tile = el('label', 'haunt__tile haunt__tile--flat');
       const box = document.createElement('input');
       box.type = 'checkbox';
       box.dataset['flatMode'] = '';
-      box.checked = this.host.flatActive?.() ?? false;
-      flat.append(
+      box.checked = flat;
+      tile.append(
         box,
         el('strong', '', ' 2D-Welt von oben'),
         el(
           'span',
           'haunt__tag',
-          'Karte statt 3D · Stock links, drei Knöpfe rechts · nur 2D gerechnet',
+          'Karte statt 3D für Bot-Runde, Mission und Test · Stock links, drei Knöpfe rechts',
         ),
       );
-      out.push(flat);
+      out.push(tile);
     }
-    if (!link.vr) {
+    if (this.host.botRound) {
+      const bot = el('button', 'haunt__tile haunt__tile--simulation');
+      bot.dataset['botRound'] = '';
+      const busy = link.vr && !flat;
+      bot.append(
+        el('strong', '', 'Bot-Runde ansehen'),
+        el(
+          'span',
+          'haunt__tag',
+          busy
+            ? 'Ein Techniker spielt bereits. Die Bot-Demo ist verfügbar, sobald er die Rolle verlässt.'
+            : flat
+              ? 'Station von oben · Techniker aus Zahlen gegen das Monster · alles sichtbar'
+              : 'Sicherer Test · Station von oben · Techniker auf automatischer Route',
+        ),
+      );
+      bot.toggleAttribute('disabled', busy);
+      out.push(bot);
+    }
+    if (flat) {
+      const mission = el('button', 'haunt__tile haunt__tile--simulation');
+      mission.dataset['mission'] = '';
+      mission.append(
+        el('strong', '', 'Mission spielen (2D)'),
+        el('span', 'haunt__tag', 'Mit Monster · drei Reparaturen, dann zurück zur Zentrale'),
+      );
+      const test = el('button', 'haunt__tile haunt__tile--simulation');
+      test.dataset['test'] = '';
+      test.append(
+        el('strong', '', 'Test ohne Monster (2D)'),
+        el('span', 'haunt__tag', 'Sicher üben · Stock, Werkzeuge und Rätsel kennenlernen'),
+      );
+      out.push(mission, test);
+    } else if (!link.vr) {
       const test = el('button', 'haunt__tile', 'Als Techniker am Desktop testen');
       test.dataset['technician'] = '';
       out.push(test);
@@ -1513,7 +1545,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-bot-round],[data-flat-mode],[data-restart]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-bot-round],[data-mission],[data-test],[data-flat-mode],[data-restart]',
     );
     if (!hit) return;
 
@@ -1521,7 +1553,13 @@ export class StationUi {
       this.host.menu?.();
       return;
     } else if (hit.dataset['botRound'] !== undefined) {
-      if (!this.host.link().vr) this.host.botRound?.();
+      if (!this.host.link().vr || this.host.flatWanted?.()) this.host.botRound?.();
+      return;
+    } else if (hit.dataset['mission'] !== undefined) {
+      this.host.mission?.();
+      return;
+    } else if (hit.dataset['test'] !== undefined) {
+      this.host.test?.();
       return;
     } else if (hit.dataset['flatMode'] !== undefined) {
       this.host.flatMode?.();
