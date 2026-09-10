@@ -839,11 +839,23 @@ body.haunt-on .touch { display: none; }
 /* Die Steuerung der 2D-Welt über der 3D-Szene (`world3d/shipControls.ts`):
    dieselben Klassen wie dort, nur ohne den schwarzen Grund — hier liegt die
    Station darunter. Bedienbar sind allein Stock und Knöpfe; dazwischen geht
-   jeder Finger an die Leinwand durch, sonst ließe sich nicht mehr umsehen. */
-.flat.ship3d { pointer-events: none; }
+   jeder Finger an die Leinwand durch, sonst ließe sich nicht mehr umsehen.
+
+   **Die Tafel des Technikers steht unten links — genau dort, wo in 2D der
+   Stock liegt.** Beide zugleich geht nur, wenn sie sich nicht berühren, und
+   „nicht berühren" heißt hier eine Zahl: 200 Punkte, so hoch wie der Block
+   der Knöpfe (104 + 10 + 72 + Rand). So hoch ist die Fläche des Stocks, und
+   darüber fängt die Tafel an. Ohne das lag die Fläche des Stocks über der
+   unteren Kante der Tafel und verschluckte jeden Klick, der dort hinging —
+   im Browser-Smoke war es der Knopf „Rolle wechseln".
+
+   Dazu der Gürtel und die Hosenträger: Die Steuerung liegt eine Stufe unter
+   der Tafel. Sollte je wieder etwas überlappen, gewinnt die Tafel den Klick
+   und nicht der Stock. */
+.flat.ship3d { pointer-events: none; z-index: 3; }
 .flat.ship3d .flat__stick, .flat.ship3d .flat__buttons { pointer-events: auto; }
-/* Und die Tafel des Technikers rückt über die Knöpfe, statt unter ihnen zu liegen. */
-.orbital-player.is-keys { bottom: calc(16px + 128px); max-height: 32vh; }
+.flat.ship3d .flat__stick { width: min(44vw, 240px); height: 200px; }
+.orbital-player.is-keys { bottom: 212px; max-height: 32vh; }
 .orbital-player { position: fixed; bottom: 16px; left: 16px; z-index: 4; width: min(670px, calc(100vw - 32px)); max-height: 44vh; overflow-y: auto; box-sizing: border-box; border: 1px solid #365565; border-radius: 12px; padding: 14px; background: rgba(7,22,32,.96); color: #e0eff0; font: 12px system-ui, sans-serif; box-shadow: 0 8px 25px #0004; }
 .orbital-player[hidden] { display: none; }
 .orbital-player strong { display: block; letter-spacing: .045em; padding-bottom: 8px; color: #96eddb; }
@@ -854,7 +866,7 @@ body.haunt-on .touch { display: none; }
 .orbital-player details { padding-top: 8px; }
 .orbital-player summary { cursor: pointer; padding-block: 7px; color: #96eddb; }
 @media (min-width: 760px) { .haunt[data-station="scout"] .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }
-@media (max-width: 480px) { .haunt__where strong { font-size: 14px; } .haunt__state { font-size: 10px; } .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } .orbital-player.is-keys { bottom: calc(8px + 120px); max-height: 26vh; } }
+@media (max-width: 480px) { .haunt__where strong { font-size: 14px; } .haunt__state { font-size: 10px; } .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } .orbital-player.is-keys { bottom: 212px; max-height: 26vh; } }
 @media (prefers-reduced-motion: reduce) { .haunt *, .orbital-player * { animation: none !important; transition: none !important; } }
 
 /* Compact desktop controls; VR uses only the wrist and physical displays. */
