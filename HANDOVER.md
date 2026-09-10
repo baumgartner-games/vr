@@ -3,6 +3,454 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Paket gameplay — Rundenregeln, Lüftungssystem, Monster-Rolle
+
+Branch `feat/monster-gameplay` (in der Browser-Session als
+`claude/monster-gameplay-ant41n`). Drei Etappen, drei Commits; der Stand je
+Etappe steht am Ende dieses Abschnitts. Neuer Code liegt in
+`src/worlds/haunting/rules/**`, `vents/**` und `monster/**`; `BOUNDARIES.md`
+hat dafür einen Abschnitt 6 bekommen, weil es vorher keinen gab.
+
+### Etappe A — Rundenregeln (`rules/`)
+
+**Das Problem.** Techniker in die Kabine, Monster reißt sie auf, Techniker in
+die nächste Kabine — und die erste stand danach wieder da wie neu. In der
+3D-Bot-Runde (sicherer Test) verlor der Anzug dabei nicht einmal ein Leben.
+Nichts an der Runde konnte sie beenden.
+
+**Was drin ist.**
+
+- `rules/roundRules.ts`: `RoundRules` hält die zerstörten Kabinen und rechnet
+  den Rest aus `HauntState`. `cabinStrike(crew)` macht die Kabine kaputt,
+  stellt den Techniker in den Raum und kostet ein Leben — **auch wenn er
+  gerade unverwundbar war**; sonst wäre die Kabine wieder ein Ausweg. Im
+  sicheren Test bleibt der Anzug ganz, die Kabine ist trotzdem hin.
+  `step(state)` beendet die Runde, wenn `ROUND_SECONDS - time` bei null ist.
+  Anzug-Leben **sind** `crew.hp` (drei, `mission.ts`), kein zweiter Zähler;
+  Sauerstoff und Rundenlimit sind **eine** Uhr (`HauntState.time`).
+- Contract: `MapSnapshot.round` (`MapRound`: `phase`, `oxygen`, `limit`,
+  `suit`, `suitMax`, `cabinsDestroyed`, `ending`), Schrank-Zustand
+  `destroyed` mit `interactive: false`. `MapSource.round?()` und
+  `WorldHandles.round?()` sind optional, damit Quellen ohne Regeln
+  weiterlaufen.
+- 2D-Runde (`map/flatRound.ts`): Sauerstoff-Ende, Kabinenangriff über
+  `rules.cabinStrike`, zerstörte Kabinen weder als Ziel des Knopfs noch als
+  Versteck; `round()` als `MapSource`. HUD zeigt `O₂ m:ss`, die Endkarte den
+  Grund (`map/flatMode.ts`).
+- 3D-Welt (`HauntingWorld.ts`): ein Import, ein Feld, `rules.step` nach der
+  Uhr (Runde verloren, Monster weg, Ansage), `rules.destroyCabin` in
+  `breakLocker`, `rules.reset` in `newRound`, `round` im `mapSnapshot`.
+- `rules/technicianBot.ts` + `rules/botRound.ts`: ein Techniker aus Zahlen
+  für die 2D-Runde (Aufträge, Flucht, Kabine — wie `roundSim.ts`, aber gegen
+  die echte `FlatRound` mit demselben Stock und denselben Knöpfen) und
+  `simulateFlatRound(seed)`, der eine ganze Runde headless ausspielt.
+
+**Der Beleg** (`rules/botRound.test.ts`): fünf Bot-Runden auf fünf Stationen,
+die Hälfte mit einem Techniker, der die Kabine dem freien Feld immer vorzieht
+(`hide: 1`). Jede endet von selbst — Sauerstoff, Anzug oder Flucht —, nie
+durch die Reißleine eine Minute hinter dem Limit. Das Protokoll steht im Test
+als `console.info`; beim Schreiben dieses Abschnitts: siehe unten
+„Stand je Etappe".
+
+**Entscheidungen und Alternativen.**
+
+- **Die Uhr läuft weiter, auch wenn „Lebenserhaltung stabilisieren" repariert
+  ist.** Sonst wäre nach der zweiten Reparatur wieder eine Runde ohne Ende
+  möglich. „Sauerstoffversorgung wiederherstellen" heißt: alle drei Systeme
+  und zurück in die Zentrale. Alternative: die Uhr bei reparierter
+  Lebenserhaltung anhalten — eine Zeile in `RoundRules.oxygenLeft`.
+- **Kabinenangriff schlägt Unverwundbarkeit.** `takeCrewHit` lehnt einen
+  Treffer binnen drei Sekunden nach dem letzten ab; für den Kabinenangriff
+  wird die Frist vorher auf null gesetzt und danach neu gewährt (`mission.ts`
+  unverändert).
+- **Nur eine Klappe je Raum.** Räume sind hier klein (vier mal vier
+  Kacheln); zwei Klappen im selben Raum wären Deko. Wer die Cafeteria
+  zweifach anschließen will, fügt eine Zeile in `ventNet.data.ts` ein.
+- **Der Bot der 2D-Runde erkennt Gefahr wie `roundSim.ts`** (Abstand und
+  Raumkarte), nicht über das Sichtbarkeitsfeld. Ein Bot, der das Monster erst
+  im Licht sieht, würde die Schleife nie erreichen, die ein Mensch mit Ohren
+  erreicht. Er gewinnt gegen das 2D-Monster selten — die Balance der 2D-Runde
+  ist nicht Gegenstand dieser Etappe.
+- **Zwei Messstellen im Sichtbarkeitsmodell** (`map/visibility.ts`, Paket
+  map): `litAt` prüft erst den Radius, dann das Polygon; `LitCache` merkt sich
+  je Lampe nur den Stand der Türen in ihrer Reichweite statt aller Türen.
+  Vorher warf jede automatische Tür irgendwo in der Station alle Lampenflächen
+  weg — eine Bot-Runde brauchte 20 s statt 7 s, und ein Telefon rechnet
+  dasselbe. Verhalten unverändert (`visibility.test.ts` grün).
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts` (Import,
+Feld, fünf kleine Hooks), `map/flatMode.ts` (HUD-Zeile, Endkarte),
+`map/mapSnapshot.ts` (`MapRound`, `round?`, Doku des Schrank-Zustands),
+`map/mapSource.ts`, `map/extract.ts`, `map/worldSource.ts` (je das optionale
+`round`), `map/visibility.ts` (die zwei Messstellen), `map/index.ts`
+(`MapRound` exportiert), `HauntingWorld.ts` (siehe oben), `BOUNDARIES.md`
+(Abschnitt 6).
+
+**Offen / nicht gemacht.**
+
+- Die **3D-Bot-Runde** kennt jetzt die Uhr und zerstörte Kabinen, aber der
+  Modelltechniker (`missionBot.ts`, über `ShipExperience`) wählt seine Kabine
+  noch aus allen — dafür bräuchte `MissionBotHost` ein `cabinUsable`, das
+  durch `ShipExperience` durchgereicht wird (zwei Grenzfall-Dateien). Ebenso
+  kann der VR-Spieler in 3D eine zerstörte Kabine noch betreten
+  (`ShipExperience.hide`). Beides endet spätestens am Sauerstoff.
+- Die Schalttafel im Van zeigt `MapSnapshot.round` noch nicht (Paket
+  Rollenansichten): Timer, Anzug und Kabinen liegen im Contract bereit.
+- `map/index.ts` ist aus Jest nicht importierbar (zieht `flatMode.ts` mit CSS
+  nach sich); `rules/` und `monster/` importieren deshalb `map/flatRound`,
+  `map/flatWalk` und `map/mapSnapshot` direkt. Vorschlag an Paket map: den
+  Index in einen headless Teil und einen DOM-Teil trennen.
+
+### Etappe B — Lüftungssystem (`vents/`)
+
+**Was drin ist.**
+
+- `vents/ventNet.data.ts`: **das Netz als Daten** — vierzehn Klappen (eine
+  je Raum, an Innenwänden zu Gängen, nie in einer Türöffnung) und neun
+  Verbindungen in vier getrennten Netzen (Reaktor–Triebwerke,
+  Sicherheit–MedBay–Elektrik, Cafeteria–Admin, Lager–Kommunikation,
+  Waffen–O2–Navigation–Schilde). Wer das Netz ändert, ändert diese Datei.
+- `vents/ventGraph.ts`: `VentNet` baut aus Daten und Bauplan die Klappen in
+  Metern (`at` an der Wand, `approach` davor) und **prüft die Daten** beim
+  Bauen (Kachel im Raum, Wand am Rand, keine Türöffnung, bekannte Klappen in
+  jeder Verbindung). `ventGraph.test.ts` prüft das gegen vier Samen.
+- `vents/ventTravel.ts`: `VentTravel`, die Fahrt als Zustandsmaschine —
+  einsteigen (1,2 s, sichtbar, Klappe offen), fahren (Länge des Schachts
+  durch 3,5 m/s, mindestens 2,5 s, **unsichtbar**: `concealed`), ankommen,
+  aussteigen (0,9 s, Klappe drüben offen). Die KI steigt sofort aus
+  (`autoExit`), ein Spieler muss den Knopf drücken. Der Zustand liegt in der
+  Maschine und nicht beim Steuernden — deshalb übersteht er einen Wechsel
+  der Steuerung (Etappe C).
+- `vents/ventPilot.ts`: **wie die KI fährt.** Die Routine kennt keine
+  Schächte und bleibt unangetastet; der Lotse liest ihr Ziel und biegt es auf
+  eine Klappe um, wenn Umweg, Ein-/Aussteigen und Fahrt zusammen mindestens
+  sechs Meter Weg sparen. Pause zwischen Fahrten aus `MONSTERS[].vent`.
+- `vents/ventArt.ts`: die Klappen in 3D — Rahmen, vier Lamellen, ein
+  Leuchtstreifen, alles in einer `ShipBatch` (zwei Draw-Calls für die ganze
+  Station). `vents/vents.register.ts` meldet Modell und Netz als Assets an.
+- Contract: Klappen als `MapItem` der Sorte `vent` (`closed`/`open`, nie
+  `interactive`), `MapSnapshot.ventLinks` als Graph, `MapSource.ventLinks?()`.
+  Das Monster im Schacht ist `concealed` — das Sichtbarkeitsmodell nimmt es
+  damit in beiden Modi aus `visibleEntities`; im Modus „Alles sehen" bleibt
+  der blasse Marker an der Einstiegsklappe stehen, was für die Prüfansicht
+  gewollt ist. `MapView` zeichnet eine Klappe als Gitter (kleine Ergänzung
+  im `items`-Zweig).
+- 2D-Runde (`map/flatRound.ts`): drei Felder, vier Zeilen im Konstruktor,
+  der Fahrt-Schritt am Anfang des Monsterblocks (im Schacht wird weder
+  wahrgenommen noch gelaufen noch getroffen), der Lotse vor `moveMonster`,
+  Klappen in `items()`, `ventLinks()`, `concealed` am Monster, und die
+  automatischen Türen ignorieren ein Monster im Schacht.
+- 3D-Welt (`HauntingWorld.buildHouse`): ein Import, ein `stage.add`.
+
+**Entscheidungen und Alternativen.**
+
+- **Die alte Schacht-Logik der 3D-Welt bleibt, wie sie ist.** `HauntingWorld`
+  lässt das Monster weiter über `mission.ventPairs` (jede gemeinsame Wand)
+  mit Rauch und zwei Sekunden Unsichtbarkeit springen. Sie auf den neuen
+  Graphen umzustellen hieße, `npcTarget`, `stepMonster`-Schachtteil und
+  `monsterVent` umzuschreiben (~60 Zeilen der gemeinsamen Grenzfall-Datei)
+  und die Fahrt mit dem NPC-Körper zu verheiraten. Das ist der nächste
+  Schritt, nicht dieser: Die neuen Klappen stehen in 3D sichtbar an den
+  Wänden, das Netz und die Fahrt sind headless fertig und getestet, und die
+  Umstellung ist damit ein Austausch von drei Methoden. Bis dahin gibt es
+  in 3D zwei Sorten Gitter: die alten hoch an den Wänden (`shipArt`) und die
+  neuen Klappen unten.
+- **Klappenwahl bei zwei Zielen:** `enter(rider, choice)` nimmt die
+  Datenreihenfolge; die KI rechnet die bessere aus, die Monster-Rolle zeigt
+  die Ziele als Knöpfe (Etappe C).
+- **Der Schacht ist Luftlinie.** Die Fahrtdauer ist die Luftlinie zwischen
+  den Klappen durch `VENT_SPEED`; ein echter Kanalverlauf brächte nichts,
+  was man auf der Karte sähe.
+- **Kein Hören im Schacht.** Das Monster nimmt während der Fahrt nichts
+  wahr, sein Gedächtnis läuft in der Zeit nicht ab (der Wahrnehmungsblock
+  wird übersprungen). Alternative: Gedächtnis weiterlaufen lassen — eine
+  Zeile vor dem `return` im Fahrt-Schritt.
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts` (siehe
+oben), `map/mapSnapshot.ts` (`ventLinks?`), `map/mapSource.ts`,
+`map/extract.ts` (je `ventLinks`), `map/mapView.ts` (Gitter für `vent`,
+zwei Farben), `HauntingWorld.ts` (Import, ein Aufruf in `buildHouse`).
+
+### Etappe C — Monster-Rolle (`monster/`)
+
+**Was drin ist.**
+
+- `monster/monster.register.ts`: die Rolle `monster` (`surface: 'map'`,
+  nicht `shared`) über `registerRole` aus der eigenen Datei, dazu der
+  Ansichtsmodus `monster:senses` für das Publikum `monster`. Keine zentrale
+  Liste angefasst; `registry/discover.ts` findet die Datei per Glob. Die
+  Datei lädt auch `monster.css` — deshalb importiert sie **nur** Vite.
+- `monster/monsterDriver.ts`: die zwei Schnittstellen. `MonsterDriver` ist
+  die Seite der Simulation (`active()`, `decide(dt): RoutineOutput` — dieselbe
+  Form wie die Routine, damit Kabinenangriff, Treffer, Bewegung und Snapshot
+  nicht wissen müssen, wer entschieden hat). `MonsterPort` ist die Seite der
+  Ansicht (Stock, `attack`/`interact`, Schachtziel wählen, Stand);
+  `monsterPortOf(host)` holt ihn geprüft aus `host.extra`.
+- `monster/flatMonsterControl.ts`: beides für die 2D-Runde. Hängt sich als
+  `round.driver` ein. Ziel einen Meter voraus, Tempo aus dem Sprintring,
+  **Angreifen** trifft nur in Reichweite (Techniker im Freien: die Runde
+  prüft den Abstand; Kabine: zwei Meter), **Interagieren** ist einsteigen,
+  aussteigen, abbrechen oder eine verriegelte Holztür aufbrechen (Stahl
+  hält).
+- `monster/monsterView.ts`: die Ansicht. `MapView` im Modus `realistic` aus
+  Sicht des Monsters (`computeVisibility` mit `viewerId: 'monster'`, also
+  eigener Kegel, Licht, Sichtlinie — dasselbe Modell, mit dem die Runde
+  entscheidet, ob es den Techniker sieht) **plus Hören**: Wer sich in
+  Hörweite bewegt und nicht zu sehen ist, wird als Geräuschring gezeichnet,
+  nicht als Marker. Stock links, rechts Angreifen und Interagieren, darüber
+  die Zielwahl, wenn eine Klappe zwei Ziele hat. Ohne Port ist die Ansicht
+  ein Zuschauerfenster in die Wahrnehmung des Monsters.
+- `monster/monsterSession.ts`: das Bündel für die 2D-Welt — Steuer, Bot als
+  Techniker (`rules/technicianBot.ts`) und Ansicht über einen `RoleHost`,
+  dessen `snapshot()` aus der laufenden Runde kommt und dessen `extra.monster`
+  das Steuer ist. `FlatMode` bietet im Optionsmenü „Als Monster spielen" an;
+  die nächste Runde tauscht dann Stock und drei Knöpfe gegen die
+  Monster-Ansicht, und die Endkarte spricht aus Sicht des Monsters.
+- 2D-Runde (`map/flatRound.ts`): ein Feld `driver`; im Monsterblock
+  `piloted` = Spieler am Steuer → Entscheidung vom Steuer statt von der
+  Routine, Bewegung direkt über `stepMonster` (kein Türrouting, kein Lotse),
+  Treffer nur mit `strike`; die Fahrt steigt bei einem Spieler nicht von
+  selbst aus. `FlatOptions.role` (nur `FlatMode` liest es).
+
+**Der Wechsel bricht keine Runde.** Der Zustand der Fahrt liegt in
+`VentTravel` (Runde), nicht im Steuer. Verlässt der Spieler die Rolle
+mitten im Schacht, steigt die KI drüben aus und macht weiter; setzt sich ein
+Spieler, während die KI fährt, wartet die Fahrt drüben auf seinen Knopf.
+Beides steht in `monsterRole.test.ts`. Die Routine wird währenddessen nicht
+gerechnet und macht danach an ihrem alten Ziel weiter; das Gedächtnis des
+Monsters (gesehen, gehört) läuft in beiden Fällen mit.
+
+**Entscheidungen und Alternativen.**
+
+- **Hören in der Ansicht ist Luftlinie mal Lärm** (Sprint 1, Gehen 0,45 der
+  Hörweite aus `sense.hearing`), die Runde selbst rechnet über `earshot` der
+  Raumkarte (Wände dämpfen). Die Ansicht hat nur den Snapshot; wer es genau
+  will, reicht `earshot` über den Snapshot mit — oder das Paket Audio bringt
+  sein Feld. So hört der Spieler eher etwas mehr als die KI, nie weniger.
+- **Ein Spieler trifft nur mit dem Knopf**, die KI durch Berührung. Ein
+  Monster, das beim Vorbeilaufen automatisch zuschlägt, nimmt dem Spieler
+  die einzige Entscheidung, die er hat.
+- **Netzspiel fehlt.** Der Port ist lokal (2D-Welt). Für den Van müsste die
+  Eingabe des Monsterspielers über `net.ts` zum Gastgeber, der das Monster
+  rechnet — eine neue Nachricht, also `STATION_PROTOCOL` (nur nach
+  Absprache). Der `MonsterDriver` in `HauntingWorld` wäre dann ein
+  Netzempfänger mit derselben `decide`-Form; die Ansicht bleibt dieselbe.
+- **`Joystick` ist nicht im Contract** (`map/index.ts` exportiert ihn
+  nicht); die Ansicht importiert `map/joystick.ts` direkt und nutzt dessen
+  CSS-Klassen für Basis und Knopf. Vorschlag an Paket map: `Joystick` in den
+  Index aufnehmen.
+
+**Fremde Dateien, die ich angefasst habe.** `map/flatRound.ts`
+(`driver`, `piloted`-Zweige, `FlatOptions.role`), `map/flatMode.ts`
+(`session`, `playRole`, Menüpunkt, Endkarte, `restart`, `dispose`).
+
+### Offene Fragen an dich
+
+- **3D-Monster auf den Vent-Graphen umstellen?** Netz, Fahrt und Klappen
+  sind fertig; offen ist nur der Umbau von `npcTarget`/`stepMonster`/
+  `monsterVent` in `HauntingWorld` (Grenzfall, ~60 Zeilen). Bis dahin
+  springt das 3D-Monster weiter über die alten Wandpaare.
+- **Uhr bei reparierter Lebenserhaltung anhalten?** Heute nein (sonst wäre
+  die Schleife wieder möglich); wenn doch, eine Zeile in `oxygenLeft`.
+- **Monster-Rolle im Van übers Netz** — braucht eine Nachricht in `net.ts`
+  (Protokoll 5 → 6) und einen Netz-`MonsterDriver` in `HauntingWorld`.
+- **Bot der 3D-Runde und VR-Spieler bei zerstörten Kabinen** — je eine
+  Zeile in `missionBot.ts`/`ShipExperience.ts`, sobald das Paket
+  Rollenansichten dort ohnehin arbeitet.
+
+### Stand je Etappe
+
+**C — fertig.** `monster/monsterRole.test.ts` (Registry, Steuer ersetzt
+die KI und gibt sie zurück, Treffer nur mit Knopf, Schachtfahrt mit Zielwahl
+und Warten auf den Ausstieg, Wechsel mitten in der Fahrt in beide Richtungen,
+Holztür, Karte aus Monstersicht mit Hören) und `monster/monsterMode.test.ts`
+(2D-Welt als Monster, Rollenwechsel im Menü, Endkarte).
+
+**B — fertig.** `vents/*.test.ts`: Datennetz gegen vier Samen, Fahrt
+Schritt für Schritt, 2D-Runde (Klappen und Graph im Snapshot, Techniker kann
+keine Klappe benutzen, Monster während der Fahrt für Techniker und
+Schalttafel unsichtbar und ohne Treffer, KI nimmt über vier Samen und 240 s
+mindestens eine Abkürzung).
+
+**A — fertig.** Typecheck, Lint, Prettier und alle Tests grün. Der Testlauf
+(`rules/botRound.test.ts`, Stand des Commits):
+
+```
+Seed 1: suit nach 66 s · Anzug 0/3 · 0 Kabinen zerstört · 0× versteckt · 0/3 repariert
+Seed 2: escaped nach 368 s · Anzug 3/3 · 0 Kabinen zerstört · 2× versteckt · 3/3 repariert
+Seed 3: oxygen nach 600 s · Anzug 1/3 · 0 Kabinen zerstört · 4× versteckt · 0/3 repariert
+Seed 4: oxygen nach 600 s · Anzug 3/3 · 0 Kabinen zerstört · 10× versteckt · 2/3 repariert
+Seed 5: oxygen nach 600 s · Anzug 2/3 · 1 Kabinen zerstört · 131× versteckt · 0/3 repariert
+```
+
+Seed 5 ist die alte Schleife — 131-mal versteckt, das Monster kommt nicht
+heran —, und sie endet jetzt am Sauerstoff. Seed 1 endet am Anzug, Seed 2
+mit der Flucht in die Zentrale.
+
+## Paket audio — Geräusche und Hörmodell
+
+Branch: im Auftrag `feat/audio`; die Session lief auf dem zugewiesenen
+Branch `claude/audio-horror-vr-v6stx1` (Claude Code im Browser). Alles Neue
+liegt in `src/worlds/haunting/audio/**`; die eine Tür ist `audio/index.ts`.
+
+### Was drin ist
+
+- **Hörmodell** (`audio/hearing.ts`): rechnet auf dem `MapSnapshot`
+  (Räume, Türen, Wände) den Weg des Schalls von einer Quelle zum Zuhörer in
+  **effektiven Metern**. Zwei Wege, der kürzere zählt: die **Luftlinie** mit
+  Dämpfung je gekreuzter Wand (`WALL_LOSS` 9 m), Fenster/Glas (`GLASS_LOSS`
+  6 m) und geschlossenem Türblatt (`DOOR_LOSS` 4 m) — und der Weg **über die
+  Türen** der Räume (Dijkstra, zwei Zustände je Tür), der um Ecken führt.
+  Wände dämpfen, sie schneiden nicht ab. Zurück kommt neben der Entfernung
+  auch die **Herkunft**: die Quelle selbst oder die letzte Tür, aus der es
+  kommt — daran hängt die Balance im Ohr. Die Zahlen sind dieselben wie im
+  akustischen Feld des Monsters (`perception.acousticField`).
+- **Hörweiten**: `PLAYER_HEARING` = 9 m für ein Geräusch der Lautstärke 1.
+  Jedes Monster hört weiter (`ENTITY_PROFILES[kind].hearing`: 10/14/19 m);
+  ein Test hält diese Ungleichung fest. Reichweite = Lautstärke × Hörweite,
+  Lautstärke aus `AUDIO_CUES` (Gehen 1, Rennen 1,6, Ruf 3,2). Darüber hinaus
+  Stille, darunter `hearingGain` = (1 − d/Reichweite)².
+- **Cues** (`audio/cues.ts`, `audio/cues.register.ts`): fünf Geräusche —
+  eigener Schritt, Monster geht, Monster rennt, Ruf bei der Verfolgung,
+  Herzschlag — als Tabelle mit Lautstärke, Zieldatei und
+  **Platzhalter-Klang** (Oszillator/Rauschen). Jeder Cue ist per
+  `registerAsset({ kind: 'audio', owner: 'audio' })` angemeldet.
+- **Regie** (`audio/soundscape.ts`): liest den Snapshot (`moving`,
+  `sprinting`, `concealed`, Türen `open`) und gibt je Schritt fertige
+  `SoundEvent`s zurück — ohne Web Audio, deshalb headless prüfbar. Eigene
+  Schritte im Takt `max(0,28 s, 1,45/Tempo)`; Monster-Schritte im Takt
+  `ENTITY_PROFILES[kind].cadence`, beim Rennen ×0,55 mit eigenem Cue; Ruf
+  alle 3–6 s während der Verfolgung (erster nach 0,4 s); Herzschlag als
+  Doppelschlag aus `max(Verfolgung, Nähe)` — Verfolgung = 1 − d/18 beim
+  Rennen (oder Hinweis der 3D-Welt), Nähe = (1 − d/8) × 0,7.
+- **Mixer** (`audio/mixer.ts`): sechs wiederverwendete Stimmen (Hüllkurve →
+  Gain → StereoPanner → Master) auf dem gemeinsamen Kontext aus
+  `core/Audio.ts`. `prime()` holt beim Bau alle Cues aus der Registry
+  (Platzhalter sofort, ein versprochener `AudioBuffer` wird abgewartet und
+  ersetzt den Platzhalter, sobald er da ist). Kein Aufruf blockiert, nichts
+  wird mitten in der Runde nachgeladen; ohne laufenden Kontext (vor der
+  ersten Geste) ist alles still.
+- **Andockklasse** (`audio/hauntingAudio.ts`): `HauntingAudio.update(dt,
+  input)` je Bild; die Regie rechnet in 20-Hz-Schritten, klingende Stimmen
+  werden mit dem Zuhörer nachgeführt (durch dieselbe Tür). `lookup()` gibt
+  das Hörmodell an fremde Mixer weiter.
+
+### Wo es angeschlossen ist
+
+- **2D-Welt** (`map/flatMode.ts`): ein `HauntingAudio`, gefüttert mit dem
+  Snapshot der Runde und der Kennung des Spielers. Erstmals Hören in 2D.
+- **Headset** (`ShipExperience.stepSound`, 20 Hz): Snapshot aus
+  `HauntingWorld.mapSnapshot()`, Zuhörer ausdrücklich (Kopf, Blick,
+  gemessenes Tempo), Gang des Monsters aus der Routine, Verfolgung aus
+  `threat.mode === 'hunt'` wie bisher. `ShipAudio` behält Türen, Funken,
+  Schacht, Atem, Klacken, Schrei vor der Kabine, Aufreißen und Maschine —
+  bekommt aber das Hörmodell (`frame.hearing`) für deren Entfernung und
+  Richtung, und gibt Monster-Schritte, eigene Schritte und Herzschlag ab
+  (`frame.footsteps = false`, `playerSpeed`/`chase` = 0).
+
+### Fremde Dateien, die ich angefasst habe (Minimaländerungen)
+
+- `shipAudio.ts` (Grenzfall Audio): zwei optionale Felder in
+  `ShipAudioFrame` (`hearing`, `footsteps`), ein fünfter optionaler
+  Parameter `heard` an `spatialMix` (effektive Meter statt Luftlinie für die
+  Lautstärke; die Richtung bleibt aus der Quelle), eine private Methode
+  `mixFor`, zwei Aufrufe darauf umgestellt, eine Bedingung erweitert.
+  `shipAudio.test.ts`: ein Test dazu.
+- `ShipExperience.ts` (gemeinsam): zwei Imports, zwei optionale Felder in
+  `ShipHost` (`mapSnapshot`, `monsterPace`), ein Feld `hearingAudio`, ein
+  Block in `stepSound` vor `this.audio.update`, je eine Zeile in `dispose`
+  und im Ton-Schalter. Nichts verschoben oder umbenannt.
+- `HauntingWorld.ts` (gemeinsam): zwei Host-Callbacks in `mountExperience`
+  (`mapSnapshot: () => this.mapSnapshot()`, `monsterPace`).
+- `map/flatMode.ts` (Paket map): ein Import, ein Feld, ein Aufruf in
+  `update`, eine Zeile in `dispose`.
+
+### Entscheidungen, Abweichungen
+
+- **Imports aus `map/mapSnapshot` und `map/flatRound` statt `map/index`.**
+  `map/index.ts` re-exportiert `FlatMode`, das `flat.css` importiert — Jest
+  bricht damit (das steht so auch im HANDOVER von `map`). Beides sind
+  Vertragsinhalte, nur der Pfad ist ein anderer. Vorschlag an Paket `map`:
+  `FlatMode` aus `index.ts` herausnehmen oder das CSS lazy laden.
+- **Zwei Mixer im Headset.** `ShipAudio` (8 Stimmen) bleibt, `Mixer` (6)
+  kommt dazu — zusammen 14 mögliche Knotenpaare, mehr als die „acht
+  Audio-Kanäle" in AGENTS.md. Grund: `ShipAudio` ist Grenzfall, und die
+  Schritte samt Hörmodell dorthin zu ziehen wäre ein Refactor gewesen.
+  Praktisch klingen selten mehr als vier Stimmen zugleich. Alternative
+  später: die übrigen `ShipAudio`-Geräusche als Cues in die Registry und
+  `ShipAudio` auflösen — dann ein Budget.
+- **Platzhalter statt Dateien.** Bewusst, wie im Rest des Spiels („kein
+  Asset, ein Download"); die Zieldateien stehen in `AUDIO_CUES[*].file`.
+- **Das Monster hört weiter im Modell, nicht anders im Spiel.** Das
+  Hörmodell bietet `hearingGain(reachOf(loudness, hearing))` für beide
+  Seiten an, aber die **Wahrnehmung des Monsters** rechnet weiter in
+  `threat.ts`/`perception.ts` (`roundSim.ts` über `earshot`). Wer beide auf
+  `hearing.ts` vereinigen will, entscheidet über Balance — nicht ich.
+- **Der Snapshot der 3D-Welt kennt das Tempo nicht** (`worldSource.player()`
+  liefert `moving: false`, Monster `sprinting: false`). Deshalb bekommt die
+  Regie im Headset Tempo und Gang ausdrücklich (`Listener.speed`,
+  `MonsterHints.pace`); in 2D kommt beides aus dem Snapshot.
+- **Kosten** (Jest, ts-jest, ohne Optimierung): ein Hörweg zwischen zwei
+  beliebigen Räumen 0,14 ms, `extractMapSnapshot` 0,2 ms. Die Regie läuft
+  mit 20 Hz; Quellen jenseits der Reichweite (Luftlinie ≥ Reichweite)
+  kosten keine Suche. Im Headset also ≲ 0,5 ms je Regie-Schritt, alle 3–4
+  Bilder, nie im Audio-Thread.
+
+### Sounddateien, die fehlen — und wo die Platzhalter stecken
+
+Alle fünf Cues sind heute **Platzhalter** aus `AUDIO_CUES[*].placeholder`
+(`audio/cues.ts`); keine Datei liegt im Repository:
+
+| Cue            | Zieldatei                          | Platzhalter heute                       |
+| -------------- | ---------------------------------- | --------------------------------------- |
+| `player-step`  | `audio/haunting/player-step.ogg`   | Sinus 105→38 Hz, 0,11 s                 |
+| `monster-walk` | `audio/haunting/monster-walk.ogg`  | Sinus 62→24 Hz, 0,24 s                  |
+| `monster-run`  | `audio/haunting/monster-run.ogg`   | gefärbtes Rauschen, Rate 1,6→0,9, 0,14 s |
+| `monster-call` | `audio/haunting/monster-call.ogg`  | Sägezahn 160→420 Hz, 1,1 s              |
+| `heartbeat`    | `audio/haunting/heartbeat.ogg`     | Sinus 58→22 Hz, 0,16 s, Doppelschlag    |
+
+Ersetzen: in `cues.register.ts` `load()` ein `Promise<AudioBuffer>` liefern
+lassen (Fetch + `decodeAudioData` auf `sharedAudio()`), der Mixer nimmt es
+beim `prime()` an; die Schritt-Sorten des Monsters (Stalker/Crawler/Sentinel)
+könnten dann eigene Dateien bekommen — heute unterscheiden sie sich nur im
+Takt.
+
+### Bekannte Lücken
+
+- In der 2D-Welt klingen nur die fünf Cues; Türen, Klacken und der Schrei
+  vor der Kabine (`FlatRound` meldet „Ein Schrei." nur als Text) haben in 2D
+  keinen Ton.
+- Mitspieler und Bot machen keine Schrittgeräusche — nur Monster und man
+  selbst.
+- Die Occlusion kennt nur Wände, Fenster und Türblätter des Snapshots, keine
+  Einrichtung; Schächte sind akustisch nicht verbunden.
+- Der Browser-Smoke prüft keinen Ton.
+
+### Offene Fragen an dich
+
+- Soll die Wahrnehmung des Monsters (`threat.ts`, `perception.ts`,
+  `roomGraph.earshot`) auf dasselbe Hörmodell umgestellt werden? Dann hört
+  es genau so um Ecken wie der Spieler, nur weiter.
+- Ist 9 m Hörweite für den Spieler richtig, oder soll sie je Monster-Sorte
+  relativ zur dessen Hörweite liegen?
+- Sollen die übrigen `ShipAudio`-Geräusche als Cues in die Registry ziehen,
+  damit es ein Budget und einen Mixer gibt?
+
+### Tests
+
+`src/worlds/haunting/audio/*.test.ts`: Hörmodell auf der echten Station
+(Luftlinie im Raum, um die Ecke durch die offene Tür mit drei Samen,
+geschlossene Tür +4 m, Wand ohne Tür endlich gedämpft, geteilte Wand nur
+einmal gezählt, Spieler hört kürzer als jedes Monster, monotoner Abfall,
+jedes Raumpaar endlich); Regie auf zwei synthetischen Zimmern (Takte von
+Gehen/Sprint/Stand, Kennung statt Zuhörer, Monster geht/rennt/ruft, nur in
+Reichweite, durch die Wand leiser und bei geschlossener Tür noch leiser,
+Herzschlag bei Nähe und Verfolgung, Stille im Test, Hinweise der 3D-Welt,
+Nachführen klingender Stimmen); Registry-Anmeldung; Mixer mit gefälschtem
+`AudioContext` (prime mit Platzhaltern, versprochener Aufnahme und Fehler,
+Stimmenbegrenzung, Freigabe, Entsorgung, aus/an, Nachführen);
+`HauntingAudio` in 20-Hz-Schritten. Dazu ein Test in `shipAudio.test.ts`.
+
 ## Paket nav — Navmesh / Pathfinding
 
 Branch: `claude/navmesh-path-smoothing-jhml50` (der Auftrag nannte

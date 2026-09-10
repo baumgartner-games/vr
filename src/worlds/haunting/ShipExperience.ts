@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import './haunting.css';
 import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
+import { HauntingAudio } from './audio';
+import type { MapSnapshot } from './map/mapSnapshot';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
@@ -22,7 +24,7 @@ import {
 } from './botTuning';
 import { TrainingRun, TRAINING_DEFAULTS, inBand, type TrainingSide } from './botTraining';
 import { simulationSpeedLabel } from './simulationSpeed';
-import type { MonsterCue } from './monsterRoutine';
+import type { MonsterCue, MonsterPace } from './monsterRoutine';
 import {
   APRON,
   COMMAND_LIFT,
@@ -95,6 +97,9 @@ interface ShipHost {
   carried?(hand: Handedness): Tool | null;
   floatingTorch?(): FlashlightTool | null;
   takeFloatingTorch?(): void;
+  /** Der Stand als Karte und der Gang des Monsters — für das Hörmodell (`audio/`). */
+  mapSnapshot?(): MapSnapshot;
+  monsterPace?(): MonsterPace;
 }
 interface Screen {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -193,6 +198,7 @@ export class ShipExperience {
   private sensorMode: 'off' | 'radar' | 'xray' = 'off';
   private audioOn = true;
   private readonly audio = new ShipAudio();
+  private readonly hearingAudio = new HauntingAudio();
   private readonly audioFrame: ShipAudioFrame = {
     listener: { x: 0, z: 0 },
     forward: { x: 0, z: -1 },
@@ -1818,6 +1824,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         () => {
           this.audioOn = !this.audioOn;
           this.audio.setEnabled(this.audioOn);
+          this.hearingAudio.setEnabled(this.audioOn);
         },
       ),
     ];
@@ -2060,6 +2067,28 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       const engine = stationLayout(this.host.spec()).find((p) => p.id === 'console-engine');
       frame.machine = engine;
       frame.engineRepaired = state.done.includes('engine');
+      // Schritte, Rufe und Herzschlag spielt das Paket Audio auf dem Hörmodell
+      // der Karte (um Ecken, durch Wände gedämpft); `ShipAudio` behält die
+      // übrigen Geräusche und bekommt dasselbe Modell für ihre Entfernung.
+      const snapshot = this.host.mapSnapshot?.();
+      frame.hearing = snapshot ? this.hearingAudio.lookup(snapshot, frame.listener) : undefined;
+      frame.footsteps = !snapshot;
+      if (snapshot) {
+        this.hearingAudio.update(step, {
+          snapshot,
+          listener: {
+            at: frame.listener,
+            forward: frame.forward,
+            speed: frame.playerSpeed,
+            concealed: !!this.crew.hidden,
+          },
+          kind: frame.kind,
+          active: frame.active,
+          monster: { pace: this.host.monsterPace?.(), chase: frame.chase },
+        });
+        frame.playerSpeed = 0;
+        frame.chase = 0;
+      }
       this.audio.update(step, frame);
     }
     if (room?.kind === 'werkstatt' && this.effectTimer <= 0 && !state.done.includes('engine')) {
@@ -2110,6 +2139,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     for (const target of this.targets) this.host.ctx.pointer.remove(target);
     this.effects.dispose();
     this.audio.dispose();
+    this.hearingAudio.dispose();
     for (const [material, color] of this.suitColors) material.color.copy(color);
     if (this.player) {
       this.host.ctx.wear(null);

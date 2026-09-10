@@ -124,6 +124,36 @@ Gehört ihm:
 - Nicht anfassen: `house.ts` (Grundriss = Vertrag für alle; Änderungen an
   Rechtecken/Türen brechen `MapSnapshot`, Tests und Netzprotokoll).
 
+### 6. Rundenregeln / Spielzustand, Lüftungssystem, Monster-Rolle (Paket `gameplay`)
+
+Drei Abschnitte eines Pakets, Branch `feat/monster-gameplay`. Es baut auf dem
+gemergten 2D-Kern auf und benutzt `MapView`, `MapSnapshot` und das
+Sichtbarkeitsmodell, wie sie in `main` stehen.
+
+Gehört ihm:
+
+- `src/worlds/haunting/rules/**` — **Rundenregeln/Spielzustand**: Kabinen,
+  die nach einem Angriff kaputt bleiben; die drei Leben des Anzugs; der
+  Sauerstoff als Rundenlimit (eine Uhr, zehn Minuten). Dazu der Techniker aus
+  Zahlen für die 2D-Runde (`technicianBot.ts`) und der Rundenläufer
+  (`botRound.ts`), mit denen Tests ganze Bot-Runden ausspielen.
+- `src/worlds/haunting/vents/**` — **Lüftungssystem**: Klappen als Daten
+  (`ventNet.data.ts`), der Graph darüber, die Fahrt (einsteigen, fahren,
+  aussteigen) und die 3D-Klappen.
+- `src/worlds/haunting/monster/**` — **Monster-Rolle**: `monster.register.ts`
+  meldet die Rolle an, die Ansicht ist die Karte aus der Wahrnehmung des
+  Monsters, gesteuert mit Stock und zwei Knöpfen.
+- Grenzfall (Minimaländerung, HANDOVER-Pflicht): `map/flatRound.ts`
+  (Andockzeilen für Regeln, Vents und Monstersteuerung), `map/flatMode.ts`
+  (Anzeige), `map/mapSnapshot.ts`, `map/mapSource.ts`, `map/extract.ts`,
+  `map/worldSource.ts` (je ein optionales Feld im Contract).
+- Nicht anfassen: `monsterRoutine.ts`, `roundSim.ts`, `botTuning.ts`
+  (Balance), `mission.ts`, `net.ts`, `house.ts`.
+
+Vertrag nach außen (über `map/index.ts`): `MapSnapshot.round` (`MapRound`:
+Sauerstoff, Anzug, zerstörte Kabinen, Ende), Schrank-Zustand `destroyed`,
+Klappen als `MapItem` der Sorte `vent` und `MapSnapshot.ventLinks`.
+
 ### Gemeinsame Grenzfall-Dateien (alle Pakete, Minimaländerung + HANDOVER)
 
 - `src/worlds/haunting/HauntingWorld.ts` — der Knoten, an dem alles hängt.

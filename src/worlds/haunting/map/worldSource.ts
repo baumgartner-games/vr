@@ -7,7 +7,7 @@ import { stationLayout } from '../stationLayout';
 import { spaceAtMetres } from './geometry';
 import { COMMAND } from '../roomGraph';
 import type { MapSource } from './mapSource';
-import type { MapEntity, MapItem, MapLight } from './mapSnapshot';
+import type { MapEntity, MapItem, MapLight, MapRound } from './mapSnapshot';
 import { TORCH_FOV, TORCH_RANGE } from './flatRound';
 
 /**
@@ -35,6 +35,8 @@ export interface WorldHandles {
   monsterYaw(): number;
   /** Mitspieler, die als Techniker im Haus stehen. */
   peers(): ReadonlyArray<{ id: string; name: string; x: number; z: number; yaw: number }>;
+  /** Der Stand der Rundenregeln (Paket Rundenregeln), wenn die Welt sie führt. */
+  round?(): MapRound;
 }
 
 export function worldMapSource(world: WorldHandles): MapSource {
@@ -48,6 +50,7 @@ export function worldMapSource(world: WorldHandles): MapSource {
     drone: () => world.drone(),
     lamps: () => world.lamps(),
     doorOpen: (id) => world.doorOpen(id),
+    round: world.round ? () => world.round!() : undefined,
     entities: () => {
       const spec = world.spec();
       const state = world.state();
@@ -158,8 +161,12 @@ export function worldMapSource(world: WorldHandles): MapSource {
             label: 'Schutzschrank',
             roomId: placement.roomId,
             at: { x: placement.approach.x, z: placement.approach.z },
-            state: crew.hidden === placement.roomId ? 'open' : 'locked',
-            interactive: true,
+            state: world.round?.().cabinsDestroyed.includes(placement.roomId)
+              ? 'destroyed'
+              : crew.hidden === placement.roomId
+                ? 'open'
+                : 'locked',
+            interactive: !world.round?.().cabinsDestroyed.includes(placement.roomId),
           });
         } else if (placement.kind === 'console' && placement.repairId) {
           const repair = repairs.find((r) => r.id === placement.repairId);

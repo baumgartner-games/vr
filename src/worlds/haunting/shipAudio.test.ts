@@ -155,6 +155,50 @@ describe('station spatial audio', () => {
     expect(close).toBeGreaterThan(12);
   });
 
+  /**
+   * Das Hörmodell des Pakets Audio (`audio/hearing.ts`) darf die Luftlinie
+   * ersetzen: Die Lautstärke folgt den effektiven Metern, die Richtung der
+   * Tür, aus der es kommt — und wer die Schritte des Monsters woanders
+   * spielt, schaltet sie hier ab.
+   */
+  test('a hearing lookup replaces the straight line, and footsteps can be handed to another mixer', () => {
+    const listener = { x: 0, z: 0 },
+      forward = { x: 0, z: -1 };
+    const straight = spatialMix(listener, forward, { x: 0, z: -4 }).gain;
+    const muffled = spatialMix(listener, forward, { x: 0, z: -4 }, { pan: 0, gain: 0 }, 13).gain;
+    expect(muffled).toBeLessThan(straight);
+    expect(muffled).toBeCloseTo(spatialMix(listener, forward, { x: 0, z: -13 }).gain, 9);
+    const { context, scheduled } = fakeAudio();
+    (sharedAudio as jest.Mock).mockReturnValue(context);
+    const audio = new ShipAudio();
+    const frame = {
+      listener,
+      forward,
+      monster: { x: 3, z: 0 },
+      kind: 'stalker' as const,
+      active: true,
+      test: false,
+      venting: false,
+      footsteps: false,
+      hearing: () => ({ distance: 40, from: { x: -3, z: 0 } }),
+    };
+    for (let i = 0; i < 30; i++) audio.update(0.1, frame);
+    expect(audio.activeVoices).toBe(0);
+    // Ohne den Schalter kommen die Schritte — und zwar mit der effektiven
+    // Entfernung aus dem Lookup: 40 m sind zu weit, also fällt der Schritt weg.
+    for (let i = 0; i < 30; i++) audio.update(0.1, { ...frame, footsteps: true });
+    expect(audio.activeVoices).toBe(0);
+    for (let i = 0; i < 30; i++)
+      audio.update(0.1, {
+        ...frame,
+        footsteps: true,
+        hearing: () => ({ distance: 5, from: { x: -3, z: 0 } }),
+      });
+    expect(audio.activeVoices).toBeGreaterThan(0);
+    expect(scheduled.length).toBeGreaterThan(1);
+    audio.dispose();
+  });
+
   test('the technician can hear quiet walking and exertion in training without any monster', () => {
     const { context, scheduled } = fakeAudio();
     (sharedAudio as jest.Mock).mockReturnValue(context);
