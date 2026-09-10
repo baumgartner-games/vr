@@ -1,4 +1,13 @@
-import { emptySnapshot, pointInPolygon, type MapPoint, type MapSnapshot } from './mapSnapshot';
+import {
+  emptySnapshot,
+  pointInPolygon,
+  type MapDoor,
+  type MapEntity,
+  type MapFixture,
+  type MapNoise,
+  type MapPoint,
+  type MapSnapshot,
+} from './mapSnapshot';
 import { emptyField, type VisibilityField, type VisibilityMode } from './visibility';
 
 /**
@@ -11,6 +20,13 @@ import { emptyField, type VisibilityField, type VisibilityMode } from './visibil
  * Späher eine mit gedrosselten Markern (`markers: { hz: 2 }`), die 2D-Welt
  * eine mit allem und dem Sichtbarkeitsfeld darüber. Dieselbe Klasse, drei
  * Einstellungen — nicht drei Klassen.
+ *
+ * **Die Handschrift ist die eines Brettspiels von oben**, nicht die eines
+ * Bauplans: helle Böden mit Kachelfugen, dicke dunkle Wände, Türen als
+ * Blätter, die in der Wand stecken, Möbel als Klötze, Figuren als kleine
+ * Astronauten mit Händen — und Geräusche als Wellen, die über die Kacheln
+ * laufen, statt als Kreis um den, der sie macht. Was man auf einem Telefon
+ * mit einem Blick erkennen muss, braucht Form und nicht Beschriftung.
  *
  * **Pan und Pinch-Zoom** sind eingebaut (`MapViewState`), nicht die Sache
  * der Rollenansicht. Wer die Kamera führen will (die 2D-Welt folgt dem
@@ -35,6 +51,12 @@ export interface MapLayers {
   visibility: boolean;
   /** Wegstrecken, wenn das Navmesh-Paket welche liefert (`MapViewOptions.routes`). */
   routes: boolean;
+  /** Die Möbel — Kryokapseln, Tische, Kisten, und die Klötze von Fracht, Schrank, Konsole. */
+  fixtures: boolean;
+  /** Die Schächte: Linien zwischen verbundenen Klappen, mit dem Ziel daran. */
+  vents: boolean;
+  /** Die Ziele des Technikers: Ring am Ort, Dreieck am Bildrand (`MapViewOptions.objectives`). */
+  objectives: boolean;
 }
 
 export const ALL_LAYERS: Readonly<MapLayers> = {
@@ -46,6 +68,9 @@ export const ALL_LAYERS: Readonly<MapLayers> = {
   entities: true,
   visibility: true,
   routes: true,
+  fixtures: true,
+  vents: false,
+  objectives: true,
 };
 
 /** Die Schalttafel: Räume, Türen, Lichter — niemand, der sich bewegt. */
@@ -55,6 +80,7 @@ export const PANEL_LAYERS: Readonly<MapLayers> = {
   entities: false,
   visibility: false,
   routes: false,
+  objectives: false,
 };
 
 /**
@@ -85,6 +111,18 @@ export interface MapRoute {
   goal?: boolean;
 }
 
+/** Ein Ziel des Technikers — Fracht, Konsole, die Zentrale. */
+export interface MapGoal {
+  id: string;
+  at: MapPoint;
+  label: string;
+  /** Ob es das nächste ist — das pulsiert und bekommt das größte Dreieck. */
+  next: boolean;
+}
+
+/** Was eine Ansicht nach allem anderen selbst noch zeichnen darf. */
+export type MapOverlay = (ctx: CanvasRenderingContext2D, view: MapView) => void;
+
 export interface MapViewOptions {
   layers?: Partial<MapLayers>;
   markers?: MarkerPolicy;
@@ -97,8 +135,16 @@ export interface MapViewOptions {
   view?: Partial<MapViewState>;
   /** Der Modus des Sichtbarkeitsfelds, wenn der Layer an ist. */
   mode?: VisibilityMode;
+  /** Wessen Karte das ist — dessen Geräusche bekommen die eigene Farbe. */
+  viewerId?: string;
   /** Wegstrecken, je Bild abgefragt (Layer `routes`). */
   routes?: () => readonly MapRoute[];
+  /** Die Ziele, je Bild abgefragt (Layer `objectives`). */
+  objectives?: () => readonly MapGoal[];
+  /** Wie weit die Randdreiecke vom Rand wegbleiben, in Punkten — unter dem HUD. */
+  edge?: { top?: number; right?: number; bottom?: number; left?: number };
+  /** Zum Schluss: was die Ansicht selbst noch malt (Peilung des Spähers). */
+  overlay?: MapOverlay;
   /** Die Uhr — für Tests austauschbar. */
   now?: () => number;
   onRoomClick?: (roomId: string, at: { x: number; z: number }) => void;
@@ -118,38 +164,71 @@ const TAP_SLOP = 8;
 const WHEEL_RATE = 0.0016;
 /** Wie nah ein Tipp an einem Marker sein muss, in Punkten. */
 const HIT = 16;
+/** Die Kachel des Bodens, in Metern — eine halbe Rasterkachel. */
+const FLOOR_TILE = 1.25;
+/** Wie schnell eine Geräuschwelle über den Boden läuft, in Metern je Sekunde. */
+export const WAVE_SPEED = 9;
+/** Wie lange eine Welle nach dem Ankommen noch nachklingt, in Sekunden. */
+export const WAVE_LINGER = 0.7;
 
-const INK = {
-  ground: '#070a10',
-  roomDark: '#0c1018',
-  roomGrey: '#262b36',
-  roomLit: '#3a4356',
-  wall: '#8ea0c0',
-  window: '#5fd6e0',
+export const INK = {
+  ground: '#0b1220',
+  roomDark: '#131a29',
+  roomGrey: '#2c3448',
+  roomLit: '#56668a',
+  corridorLit: '#4e5c7c',
+  grid: 'rgba(12, 18, 32, 0.22)',
+  wallDark: '#0d1220',
+  wallLight: '#8ea3c8',
+  window: '#6fe0ee',
   glass: '#3f8f98',
-  label: 'rgba(200, 214, 240, 0.75)',
+  label: 'rgba(230, 238, 255, 0.82)',
+  labelShadow: 'rgba(0, 0, 0, 0.6)',
   light: '#ffd27a',
-  lightOff: '#3a3a44',
-  torch: 'rgba(255, 226, 160, 0.28)',
-  lamp: 'rgba(255, 236, 200, 0.22)',
+  lightOff: '#3a3f4e',
+  torch: 'rgba(255, 226, 160, 0.26)',
+  lamp: 'rgba(255, 236, 200, 0.2)',
   self: 'rgba(160, 200, 255, 0.16)',
-  doorOpen: '#8fb7ff',
-  doorShut: '#7f8ba1',
-  doorLocked: '#ff5a5f',
-  player: '#7ff0ff',
-  bot: '#7ff0ff',
-  monster: '#ff4d55',
-  drone: '#ffd85a',
-  peer: '#b8c7ff',
-  cone: 'rgba(127, 240, 255, 0.35)',
-  monsterCone: 'rgba(255, 77, 85, 0.35)',
-  noise: 'rgba(255, 170, 60, 0.35)',
+  frame: '#0d1220',
+  doorOpen: '#7fe0ff',
+  doorSteel: '#aebfe0',
+  doorWood: '#c9a36b',
+  doorLocked: '#ff4d55',
+  doorLockedWood: '#e0745c',
+  fixture: '#3b4762',
+  fixtureEdge: '#1a2133',
+  fixtureTop: '#4d5a7a',
   cargo: '#f0b64a',
+  cargoTaken: '#4a4f5e',
   console: '#8ff0b0',
+  consoleBroken: '#ff5a5f',
   locker: '#8fa0ff',
   van: '#7ff0ff',
   vent: '#9aa8b8',
   ventOpen: '#ffb14a',
+  ventLink: 'rgba(255, 177, 74, 0.55)',
+  player: '#3ec7ff',
+  bot: '#6fe39a',
+  peer: '#c3a5ff',
+  drone: '#ffd85a',
+  monster: '#d8232e',
+  monsterDark: '#5a0b12',
+  visor: '#bfe9ff',
+  cone: 'rgba(127, 240, 255, 0.35)',
+  monsterCone: 'rgba(255, 77, 85, 0.35)',
+  noiseOwn: '#5cc8ff',
+  noiseOther: '#ff8a3d',
+  noiseMonster: '#ff3b47',
+  goal: '#ffd84a',
+  goalDim: 'rgba(255, 216, 74, 0.55)',
+};
+
+const ENTITY_COLOR: Record<MapEntity['kind'], string> = {
+  player: INK.player,
+  bot: INK.bot,
+  peer: INK.peer,
+  drone: INK.drone,
+  monster: INK.monster,
 };
 
 export class MapView {
@@ -176,8 +255,12 @@ export class MapView {
   private readonly now: () => number;
   private readonly minScale: number;
   private readonly maxScale: number;
+  /** Wohin jede Figur zuletzt schaute (links oder rechts) — damit sie beim Gehen nach oben nicht flackert. */
+  private readonly facing = new Map<string, number>();
+  /** Die Kacheln des Bodens je Station, einmal gerechnet: Schlüssel `x,z` in Kacheln. */
+  private floor: { seed: number; tiles: Set<string> } = { seed: NaN, tiles: new Set() };
   /** Was das letzte Bild gezeichnet hat — für Tests. */
-  stats = { entities: 0, items: 0, lit: 0, rooms: 0 };
+  stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
 
   constructor(private readonly options: MapViewOptions = {}) {
     this.layers = { ...ALL_LAYERS, ...options.layers };
@@ -292,20 +375,23 @@ export class MapView {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = INK.ground;
     ctx.fillRect(0, 0, w, h);
-    this.stats = { entities: 0, items: 0, lit: 0, rooms: 0 };
+    this.stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
 
     const s = this.snapshot;
     const f = this.field;
     const omniscient = f.mode === 'omniscient' || !this.layers.visibility;
     const litRooms = new Set(f.litRooms);
+    const scale = this.state.scale;
 
-    // --- Räume --------------------------------------------------------------
+    // --- Böden ----------------------------------------------------------------
     if (this.layers.rooms) {
       for (const room of s.rooms) {
         this.path(ctx, room.polygon);
         ctx.fillStyle = omniscient
           ? litRooms.has(room.id)
-            ? INK.roomLit
+            ? room.circulation
+              ? INK.corridorLit
+              : INK.roomLit
             : INK.roomGrey
           : INK.roomDark;
         ctx.fill();
@@ -329,74 +415,87 @@ export class MapView {
       }
     }
 
-    // --- Wände ----------------------------------------------------------------
+    // --- Kachelfugen ------------------------------------------------------------
+    if (this.layers.rooms && scale >= 7) this.drawGrid(ctx, w, h);
+
+    // --- Geräusche als Wellen über den Boden ----------------------------------------
+    if (this.layers.visibility) this.drawNoise(ctx);
+
+    // --- Möbel -------------------------------------------------------------------
+    if (this.layers.fixtures && s.fixtures) {
+      for (const fixture of s.fixtures) {
+        if (!omniscient && !this.seen(fixture.at)) continue;
+        this.drawFixture(ctx, fixture);
+        this.stats.fixtures++;
+      }
+    }
+
+    // --- Wände: erst der dunkle Kern, dann die helle Kante -------------------------
     if (this.layers.rooms) {
       ctx.lineCap = 'round';
-      for (const wall of s.walls) {
-        const a = this.toScreen(wall.a.x, wall.a.z),
-          b = this.toScreen(wall.b.x, wall.b.z);
-        ctx.strokeStyle =
-          wall.kind === 'wall' ? INK.wall : wall.kind === 'window' ? INK.window : INK.glass;
-        ctx.lineWidth = wall.kind === 'wall' ? Math.max(1.5, this.state.scale * 0.2) : 1.5;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
+      ctx.lineJoin = 'round';
+      for (const pass of [0, 1] as const) {
+        for (const wall of s.walls) {
+          const a = this.toScreen(wall.a.x, wall.a.z),
+            b = this.toScreen(wall.b.x, wall.b.z);
+          if (wall.kind === 'wall') {
+            ctx.strokeStyle = pass === 0 ? INK.wallDark : INK.wallLight;
+            ctx.lineWidth = pass === 0 ? Math.max(3, scale * 0.3) : Math.max(1, scale * 0.11);
+          } else {
+            if (pass === 1) continue;
+            ctx.strokeStyle = wall.kind === 'window' ? INK.window : INK.glass;
+            ctx.lineWidth = Math.max(1.5, scale * 0.12);
+          }
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
       }
     }
 
     // --- Türen ----------------------------------------------------------------
-    if (this.layers.doors) {
-      for (const door of s.doors) {
-        const half = door.width / 2;
-        const a =
-          door.axis === 'x'
-            ? { x: door.at.x - half, z: door.at.z }
-            : { x: door.at.x, z: door.at.z - half };
-        const b =
-          door.axis === 'x'
-            ? { x: door.at.x + half, z: door.at.z }
-            : { x: door.at.x, z: door.at.z + half };
-        const pa = this.toScreen(a.x, a.z),
-          pb = this.toScreen(b.x, b.z);
-        ctx.strokeStyle = door.locked ? INK.doorLocked : door.open ? INK.doorOpen : INK.doorShut;
-        ctx.lineWidth = door.open && !door.locked ? 1.5 : Math.max(2, this.state.scale * 0.16);
-        if (door.open && !door.locked) ctx.setLineDash([3, 4]);
-        ctx.beginPath();
-        ctx.moveTo(pa.x, pa.y);
-        ctx.lineTo(pb.x, pb.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-    }
+    if (this.layers.doors) for (const door of s.doors) this.drawDoor(ctx, door);
+
+    // --- Schächte -------------------------------------------------------------------
+    if (this.layers.vents) this.drawVents(ctx);
 
     // --- Lichter ---------------------------------------------------------------
     if (this.layers.lights) {
       for (const light of s.lights) {
-        if (light.kind === 'torch' || light.kind === 'drone') continue;
+        if (light.kind === 'torch' || light.kind === 'drone' || light.kind === 'command') continue;
         const p = this.toScreen(light.at.x, light.at.z);
+        const r = Math.max(3, scale * 0.22);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(3, this.state.scale * 0.22), 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
         ctx.fillStyle = light.on ? INK.light : INK.lightOff;
         ctx.fill();
-        if (light.on && omniscient) {
-          ctx.strokeStyle = 'rgba(255, 210, 122, 0.4)';
-          ctx.lineWidth = 1;
+        ctx.strokeStyle = INK.frame;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        if (light.on) {
+          ctx.strokeStyle = 'rgba(255, 210, 122, 0.45)';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r * 1.8, 0, Math.PI * 2);
           ctx.stroke();
         }
       }
     }
 
     // --- Beschriftung --------------------------------------------------------
-    if (this.layers.labels && this.state.scale >= 5) {
-      ctx.fillStyle = INK.label;
-      ctx.font = `${Math.max(10, Math.min(14, this.state.scale * 0.9))}px system-ui, sans-serif`;
+    if (this.layers.labels && scale >= 5) {
+      ctx.font = `600 ${Math.max(10, Math.min(15, scale * 0.9))}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const room of s.rooms) {
-        if (room.circulation && this.state.scale < 9) continue;
+        if (room.circulation && scale < 9) continue;
         const p = this.toScreen(room.centre.x, room.centre.z);
-        ctx.fillText(room.name, p.x, p.y);
+        // Unter dem Namen der Boden, nicht das Möbel: ein Stück höher als die Mitte.
+        const y = p.y - (room.circulation ? 0 : Math.max(8, scale * 1.2));
+        ctx.fillStyle = INK.labelShadow;
+        ctx.fillText(room.name, p.x + 1, y + 1);
+        ctx.fillStyle = INK.label;
+        ctx.fillText(room.name, p.x, y);
       }
     }
 
@@ -405,8 +504,8 @@ export class MapView {
       for (const route of this.options.routes()) {
         if (route.points.length < 2) continue;
         ctx.strokeStyle = route.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([7, 5]);
         ctx.beginPath();
         route.points.forEach((point, i) => {
           const p = this.toScreen(point.x, point.z);
@@ -428,56 +527,13 @@ export class MapView {
     // --- Items -----------------------------------------------------------------
     if (this.layers.items) {
       for (const item of s.items) {
-        const p = this.toScreen(item.at.x, item.at.z);
-        const r = Math.max(4, this.state.scale * 0.3);
-        ctx.lineWidth = 1.5;
-        if (item.kind === 'cargo') {
-          ctx.fillStyle = item.state === 'taken' ? INK.lightOff : INK.cargo;
-          ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
-          if (item.state === 'open') {
-            ctx.strokeStyle = INK.ground;
-            ctx.strokeRect(p.x - r * 0.5, p.y - r * 0.5, r, r);
-          }
-        } else if (item.kind === 'console') {
-          ctx.fillStyle = item.state === 'solved' ? INK.console : INK.doorLocked;
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y - r);
-          ctx.lineTo(p.x + r, p.y);
-          ctx.lineTo(p.x, p.y + r);
-          ctx.lineTo(p.x - r, p.y);
-          ctx.closePath();
-          ctx.fill();
-        } else if (item.kind === 'locker') {
-          ctx.strokeStyle = INK.locker;
-          ctx.strokeRect(p.x - r * 0.7, p.y - r, r * 1.4, r * 2);
-          if (item.state === 'open') {
-            ctx.fillStyle = INK.locker;
-            ctx.fillRect(p.x - r * 0.7, p.y - r, r * 1.4, r * 2);
-          }
-        } else if (item.kind === 'van') {
-          ctx.strokeStyle = INK.van;
-          ctx.strokeRect(p.x - r * 1.4, p.y - r * 0.8, r * 2.8, r * 1.6);
-        } else if (item.kind === 'vent') {
-          // Ein Gitter: Rahmen und drei Lamellen (Paket Lüftungssystem).
-          ctx.strokeStyle = item.state === 'open' ? INK.ventOpen : INK.vent;
-          ctx.strokeRect(p.x - r, p.y - r * 0.6, r * 2, r * 1.2);
-          ctx.beginPath();
-          for (let i = -1; i <= 1; i++) {
-            ctx.moveTo(p.x - r * 0.7, p.y + i * r * 0.35);
-            ctx.lineTo(p.x + r * 0.7, p.y + i * r * 0.35);
-          }
-          ctx.stroke();
-        } else {
-          ctx.fillStyle = INK.label;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, r * 0.6, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        if (!omniscient && item.kind !== 'van' && !this.seen(item.at)) continue;
+        this.drawItem(ctx, item);
         this.stats.items++;
       }
     }
 
-    // --- Sichtkegel und Geräusch -----------------------------------------------
+    // --- Sichtkegel und Hörweite -------------------------------------------------
     if (this.layers.visibility) {
       for (const cone of f.cones) {
         if (cone.polygon.length < 3) continue;
@@ -487,10 +543,11 @@ export class MapView {
         ctx.stroke();
       }
       for (const noise of f.noise) {
+        if (noise.cause !== 'monster') continue;
         const p = this.toScreen(noise.at.x, noise.at.z);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, noise.radius * this.state.scale, 0, Math.PI * 2);
-        ctx.strokeStyle = noise.cause === 'monster' ? INK.monsterCone : INK.noise;
+        ctx.arc(p.x, p.y, noise.radius * scale, 0, Math.PI * 2);
+        ctx.strokeStyle = INK.monsterCone;
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 6]);
         ctx.stroke();
@@ -503,36 +560,747 @@ export class MapView {
       const visible = new Set(f.visibleEntities);
       for (const entity of this.markerEntities()) {
         if (this.layers.visibility && !visible.has(entity.id)) continue;
-        const p = this.toScreen(entity.at.x, entity.at.z);
-        const r = Math.max(5, this.state.scale * 0.35);
-        const color =
-          entity.kind === 'monster'
-            ? INK.monster
-            : entity.kind === 'drone'
-              ? INK.drone
-              : entity.kind === 'peer'
-                ? INK.peer
-                : INK.player;
-        ctx.fillStyle = color;
-        if (entity.concealed) ctx.globalAlpha = 0.45;
-        if (entity.kind === 'monster') {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          // Ein Dreieck, das dorthin zeigt, wohin man schaut.
-          const a = this.screenAngle(entity.yaw);
-          ctx.beginPath();
-          ctx.moveTo(p.x + Math.cos(a) * r * 1.4, p.y + Math.sin(a) * r * 1.4);
-          ctx.lineTo(p.x + Math.cos(a + 2.5) * r, p.y + Math.sin(a + 2.5) * r);
-          ctx.lineTo(p.x + Math.cos(a - 2.5) * r, p.y + Math.sin(a - 2.5) * r);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
+        this.drawEntity(ctx, entity);
         this.stats.entities++;
       }
     }
+
+    // --- Ziele -----------------------------------------------------------------
+    if (this.layers.objectives && this.options.objectives) this.drawGoals(ctx, w, h);
+
+    this.options.overlay?.(ctx, this);
+  }
+
+  // --- Die Handschrift -----------------------------------------------------------
+
+  /** Ob ein Punkt im Hellen liegt — Möbel und Items im Dunkeln bleiben Dunkel. */
+  private seen(at: MapPoint): boolean {
+    const f = this.field;
+    for (const region of f.lit)
+      if (
+        Math.hypot(at.x - region.at.x, at.z - region.at.z) <= region.radius &&
+        pointInPolygon(at, region.polygon)
+      )
+        return true;
+    return !!f.self && pointInPolygon(at, f.self.polygon);
+  }
+
+  /** Die Kacheln des Bodens: jede Bodenkachel, deren Mitte in einem Raum liegt. */
+  private floorTiles(): Set<string> {
+    const s = this.snapshot;
+    if (this.floor.seed === s.seed && this.floor.tiles.size) return this.floor.tiles;
+    const tiles = new Set<string>();
+    for (const room of s.rooms) {
+      let minX = Infinity,
+        minZ = Infinity,
+        maxX = -Infinity,
+        maxZ = -Infinity;
+      for (const p of room.polygon) {
+        minX = Math.min(minX, p.x);
+        minZ = Math.min(minZ, p.z);
+        maxX = Math.max(maxX, p.x);
+        maxZ = Math.max(maxZ, p.z);
+      }
+      for (let tx = Math.floor(minX / FLOOR_TILE); tx * FLOOR_TILE < maxX; tx++)
+        for (let tz = Math.floor(minZ / FLOOR_TILE); tz * FLOOR_TILE < maxZ; tz++) {
+          const centre = { x: (tx + 0.5) * FLOOR_TILE, z: (tz + 0.5) * FLOOR_TILE };
+          if (pointInPolygon(centre, room.polygon)) tiles.add(`${tx},${tz}`);
+        }
+    }
+    this.floor = { seed: s.seed, tiles };
+    return tiles;
+  }
+
+  private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const a = this.toWorld(0, 0),
+      b = this.toWorld(w, h);
+    const minX = Math.min(a.x, b.x),
+      maxX = Math.max(a.x, b.x),
+      minZ = Math.min(a.z, b.z),
+      maxZ = Math.max(a.z, b.z);
+    ctx.save();
+    ctx.beginPath();
+    for (const room of this.snapshot.rooms) {
+      room.polygon.forEach((point, i) => {
+        const p = this.toScreen(point.x, point.z);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.closePath();
+    }
+    ctx.clip();
+    ctx.strokeStyle = INK.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = Math.floor(minX / FLOOR_TILE) * FLOOR_TILE; x <= maxX; x += FLOOR_TILE) {
+      const p = this.toScreen(x, minZ),
+        q = this.toScreen(x, maxZ);
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+    }
+    for (let z = Math.floor(minZ / FLOOR_TILE) * FLOOR_TILE; z <= maxZ; z += FLOOR_TILE) {
+      const p = this.toScreen(minX, z),
+        q = this.toScreen(maxX, z);
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * **Geräusche laufen über die Kacheln.** Jede Welle hat eine Front, die
+   * mit `WAVE_SPEED` nach außen geht, und dahinter einen Saum, der verblasst;
+   * gezeichnet wird Kachel für Kachel, nur auf Boden, und nur so weit, wie
+   * das Geräusch trägt. Die eigenen Geräusche sind blau, die des Monsters
+   * rot, alles andere (Türen, Fracht, Mitspieler) orange — damit man auf der
+   * Karte *sieht*, was man im Schiff nur hört, und weiß, ob man es selbst war.
+   */
+  private drawNoise(ctx: CanvasRenderingContext2D): void {
+    const s = this.snapshot;
+    const scale = this.state.scale;
+    const tiles = this.floorTiles();
+    const viewer = this.options.viewerId ?? '';
+    const cell = FLOOR_TILE * scale;
+    const waves: Array<{ noise: MapNoise; front: number; fade: number }> = [];
+    for (const noise of s.noises ?? []) {
+      const age = s.time - noise.since;
+      if (age < 0) continue;
+      const arrival = noise.radius / WAVE_SPEED;
+      if (age > arrival + WAVE_LINGER) continue;
+      const front = Math.min(noise.radius, age * WAVE_SPEED);
+      const fade = age <= arrival ? 1 : 1 - (age - arrival) / WAVE_LINGER;
+      waves.push({ noise, front, fade });
+    }
+    // Der Gang der Wesen ohne Ereignis: die leise Fläche um jeden, der geht (nur im Modus „Alles sehen").
+    const steady = this.field.noise.filter((n) => n.cause !== 'monster');
+    if (!waves.length && !steady.length) return;
+    ctx.save();
+    for (const { noise, front, fade } of waves) {
+      const color =
+        noise.by && noise.by === viewer
+          ? INK.noiseOwn
+          : noise.cause === 'monster' || noise.by === 'monster'
+            ? INK.noiseMonster
+            : INK.noiseOther;
+      const reach = Math.ceil(front / FLOOR_TILE) + 1;
+      const cx = Math.floor(noise.at.x / FLOOR_TILE),
+        cz = Math.floor(noise.at.z / FLOOR_TILE);
+      for (let tx = cx - reach; tx <= cx + reach; tx++)
+        for (let tz = cz - reach; tz <= cz + reach; tz++) {
+          if (!tiles.has(`${tx},${tz}`)) continue;
+          const mx = (tx + 0.5) * FLOOR_TILE,
+            mz = (tz + 0.5) * FLOOR_TILE;
+          const d = Math.hypot(mx - noise.at.x, mz - noise.at.z);
+          if (d > front) continue;
+          // Die Front ist am hellsten; dahinter klingt es aus.
+          const behind = front - d;
+          const ring = Math.max(0, 1 - behind / 2.2);
+          const alpha = (0.1 + 0.55 * ring * ring) * fade * (1 - (d / noise.radius) * 0.5);
+          if (alpha <= 0.02) continue;
+          ctx.globalAlpha = Math.min(0.8, alpha);
+          ctx.fillStyle = color;
+          const p = this.toScreen(tx * FLOOR_TILE, tz * FLOOR_TILE);
+          ctx.fillRect(p.x + 0.5, p.y + 0.5, Math.max(1, cell - 1), Math.max(1, cell - 1));
+        }
+      this.stats.noises++;
+    }
+    for (const noise of steady) {
+      const color = noise.entityId === viewer ? INK.noiseOwn : INK.noiseOther;
+      const reach = Math.ceil(noise.radius / FLOOR_TILE);
+      const cx = Math.floor(noise.at.x / FLOOR_TILE),
+        cz = Math.floor(noise.at.z / FLOOR_TILE);
+      for (let tx = cx - reach; tx <= cx + reach; tx++)
+        for (let tz = cz - reach; tz <= cz + reach; tz++) {
+          if (!tiles.has(`${tx},${tz}`)) continue;
+          const d = Math.hypot(
+            (tx + 0.5) * FLOOR_TILE - noise.at.x,
+            (tz + 0.5) * FLOOR_TILE - noise.at.z,
+          );
+          if (d > noise.radius) continue;
+          ctx.globalAlpha = 0.12 * (1 - d / noise.radius);
+          ctx.fillStyle = color;
+          const p = this.toScreen(tx * FLOOR_TILE, tz * FLOOR_TILE);
+          ctx.fillRect(p.x + 0.5, p.y + 0.5, Math.max(1, cell - 1), Math.max(1, cell - 1));
+        }
+    }
+    ctx.restore();
+  }
+
+  /** Ein Möbel: ein Klotz mit Kante und Deckel, gedreht wie im Schiff, mit einem kleinen Kennzeichen darauf. */
+  private drawFixture(ctx: CanvasRenderingContext2D, fixture: MapFixture): void {
+    const scale = this.state.scale;
+    const p = this.toScreen(fixture.at.x, fixture.at.z);
+    const w = fixture.width * scale,
+      d = fixture.depth * scale;
+    if (w < 2 || d < 2) return;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(-fixture.yaw - this.state.rotation);
+    const fill =
+      fixture.kind === 'cargo'
+        ? '#6b5527'
+        : fixture.kind === 'locker'
+          ? '#3f4a7a'
+          : fixture.kind === 'console'
+            ? '#2f5a4d'
+            : INK.fixture;
+    this.roundRect(ctx, -w / 2, -d / 2, w, d, Math.min(w, d) * 0.22);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = Math.max(1, scale * 0.06);
+    ctx.strokeStyle = INK.fixtureEdge;
+    ctx.stroke();
+    // Der Deckel: etwas kleiner und heller — so sieht ein Klotz von oben nach Höhe aus.
+    if (w > 8 && d > 8) {
+      const inset = Math.max(1.5, scale * 0.08);
+      this.roundRect(ctx, -w / 2 + inset, -d / 2 + inset, w - 2 * inset, d - 2 * inset, inset);
+      ctx.fillStyle = fixture.kind === 'fixture' ? INK.fixtureTop : 'rgba(255,255,255,0.08)';
+      ctx.fill();
+    }
+    if (fixture.kind === 'fixture' && scale >= 10) this.drawMark(ctx, fixture.mark ?? '', w, d);
+    ctx.restore();
+  }
+
+  /** Das Kennzeichen eines Möbels — nicht das Möbel selbst, nur der Wink, was es ist. */
+  private drawMark(ctx: CanvasRenderingContext2D, mark: string, w: number, d: number): void {
+    ctx.strokeStyle = 'rgba(220, 230, 255, 0.55)';
+    ctx.fillStyle = 'rgba(220, 230, 255, 0.35)';
+    ctx.lineWidth = 1.2;
+    const r = Math.min(w, d) * 0.28;
+    ctx.beginPath();
+    switch (mark) {
+      case 'bett':
+      case 'wanne':
+        // Kissen und Decke.
+        ctx.rect(-w * 0.38, -d * 0.3, w * 0.22, d * 0.6);
+        ctx.rect(-w * 0.1, -d * 0.3, w * 0.48, d * 0.6);
+        ctx.stroke();
+        return;
+      case 'esstisch':
+        ctx.ellipse(0, 0, w * 0.3, d * 0.3, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        return;
+      case 'kiste':
+        ctx.rect(-w * 0.3, -d * 0.3, w * 0.6, d * 0.6);
+        ctx.moveTo(-w * 0.3, 0);
+        ctx.lineTo(w * 0.3, 0);
+        ctx.stroke();
+        return;
+      case 'werkbank':
+        for (let i = -1; i <= 1; i++) {
+          ctx.moveTo(-w * 0.35, (i * d) / 4);
+          ctx.lineTo(w * 0.35, (i * d) / 4);
+        }
+        ctx.stroke();
+        return;
+      case 'buecher':
+        for (let i = -2; i <= 2; i++) {
+          ctx.moveTo((i * w) / 6, -d * 0.3);
+          ctx.lineTo((i * w) / 6, d * 0.3);
+        }
+        ctx.stroke();
+        return;
+      case 'sessel':
+        ctx.arc(0, d * 0.1, r, Math.PI, Math.PI * 2);
+        ctx.stroke();
+        return;
+      case 'standuhr':
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -r * 0.8);
+        ctx.stroke();
+        return;
+      case 'klavier':
+        ctx.rect(-w * 0.35, -d * 0.15, w * 0.7, d * 0.3);
+        ctx.stroke();
+        return;
+      case 'ofen':
+      case 'ausgabe':
+      case 'spuele':
+        ctx.arc(-w * 0.18, 0, r * 0.6, 0, Math.PI * 2);
+        ctx.moveTo(w * 0.18 + r * 0.6, 0);
+        ctx.arc(w * 0.18, 0, r * 0.6, 0, Math.PI * 2);
+        ctx.stroke();
+        return;
+      case 'dusche':
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      case 'kamin':
+        ctx.moveTo(-w * 0.3, d * 0.25);
+        ctx.lineTo(0, -d * 0.3);
+        ctx.lineTo(w * 0.3, d * 0.25);
+        ctx.stroke();
+        return;
+      case 'schaukelpferd':
+        ctx.arc(0, d * 0.2, r, Math.PI * 1.1, Math.PI * 1.9);
+        ctx.stroke();
+        return;
+      default:
+        return;
+    }
+  }
+
+  /**
+   * **Eine Tür, die man erkennt**: zwei Pfosten in der Wand, dazwischen das
+   * Blatt. Zu heißt: ein Blatt quer über die Öffnung, hell für Stahl, holzig
+   * für Holz. Offen heißt: das Blatt ist in die Pfosten zurückgefahren, nur
+   * die Stummel schauen heraus. Gesperrt heißt: rot, mit einem Schloss darauf.
+   */
+  private drawDoor(ctx: CanvasRenderingContext2D, door: MapDoor): void {
+    const scale = this.state.scale;
+    const half = door.width / 2;
+    const along = door.axis === 'x' ? { x: 1, z: 0 } : { x: 0, z: 1 };
+    const a = { x: door.at.x - along.x * half, z: door.at.z - along.z * half };
+    const b = { x: door.at.x + along.x * half, z: door.at.z + along.z * half };
+    const pa = this.toScreen(a.x, a.z),
+      pb = this.toScreen(b.x, b.z);
+    const thick = Math.max(4, scale * 0.34);
+    const post = Math.max(3, scale * 0.3);
+    // Die Öffnung selbst: Boden statt Wand, damit die Lücke lesbar ist.
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = door.open && !door.locked ? INK.roomLit : INK.roomGrey;
+    ctx.lineWidth = Math.max(3, scale * 0.3);
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
+    // Das Blatt.
+    const leaf = door.locked
+      ? door.material === 'wood'
+        ? INK.doorLockedWood
+        : INK.doorLocked
+      : door.material === 'wood'
+        ? INK.doorWood
+        : INK.doorSteel;
+    ctx.strokeStyle = door.open && !door.locked ? INK.doorOpen : leaf;
+    ctx.lineWidth = thick;
+    ctx.beginPath();
+    if (door.open && !door.locked) {
+      // Zurückgefahren: nur die Stummel an den Pfosten.
+      const stub = 0.18;
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pa.x + (pb.x - pa.x) * stub, pa.y + (pb.y - pa.y) * stub);
+      ctx.moveTo(pb.x, pb.y);
+      ctx.lineTo(pb.x - (pb.x - pa.x) * stub, pb.y - (pb.y - pa.y) * stub);
+    } else {
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+    }
+    ctx.stroke();
+    if (!door.open || door.locked) {
+      // Die Fuge in der Mitte: zwei Blätter, die sich treffen.
+      ctx.strokeStyle = INK.frame;
+      ctx.lineWidth = 1;
+      const mx = (pa.x + pb.x) / 2,
+        my = (pa.y + pb.y) / 2;
+      const nx = -(pb.y - pa.y),
+        ny = pb.x - pa.x;
+      const n = Math.hypot(nx, ny) || 1;
+      ctx.beginPath();
+      ctx.moveTo(mx - (nx / n) * thick * 0.5, my - (ny / n) * thick * 0.5);
+      ctx.lineTo(mx + (nx / n) * thick * 0.5, my + (ny / n) * thick * 0.5);
+      ctx.stroke();
+    }
+    // Die Pfosten.
+    ctx.fillStyle = INK.frame;
+    for (const p of [pa, pb]) ctx.fillRect(p.x - post / 2, p.y - post / 2, post, post);
+    // Das Schloss.
+    if (door.locked && scale >= 8) {
+      const mx = (pa.x + pb.x) / 2,
+        my = (pa.y + pb.y) / 2;
+      const r = Math.max(3, scale * 0.2);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(mx, my, r * 1.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = INK.doorLocked;
+      ctx.lineWidth = Math.max(1.2, r * 0.35);
+      ctx.beginPath();
+      ctx.arc(mx, my - r * 0.25, r * 0.5, Math.PI, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = INK.doorLocked;
+      ctx.fillRect(mx - r * 0.65, my - r * 0.2, r * 1.3, r * 0.95);
+    }
+  }
+
+  /** Die Schächte: eine Linie je Verbindung, und an jeder Klappe der Name dessen, was dahinter liegt. */
+  private drawVents(ctx: CanvasRenderingContext2D): void {
+    const s = this.snapshot;
+    if (!s.ventLinks?.length) return;
+    const flaps = new Map(s.items.filter((i) => i.kind === 'vent').map((i) => [i.id, i]));
+    const names = new Map(s.rooms.map((room) => [room.id, room.name]));
+    const scale = this.state.scale;
+    ctx.strokeStyle = INK.ventLink;
+    ctx.lineWidth = Math.max(1.5, scale * 0.08);
+    ctx.setLineDash([Math.max(3, scale * 0.25), Math.max(3, scale * 0.25)]);
+    ctx.beginPath();
+    for (const link of s.ventLinks) {
+      const a = flaps.get(link.a),
+        b = flaps.get(link.b);
+      if (!a || !b) continue;
+      const pa = this.toScreen(a.at.x, a.at.z),
+        pb = this.toScreen(b.at.x, b.at.z);
+      // Ein leichter Bogen, damit sich zwei Schächte nicht wie eine Wand lesen.
+      const mx = (pa.x + pb.x) / 2 - (pb.y - pa.y) * 0.12,
+        my = (pa.y + pb.y) / 2 + (pb.x - pa.x) * 0.12;
+      ctx.moveTo(pa.x, pa.y);
+      ctx.quadraticCurveTo(mx, my, pb.x, pb.y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (scale < 12) return;
+    // Wohin es geht: je Klappe die Namen der Räume am anderen Ende.
+    const targets = new Map<string, string[]>();
+    for (const link of s.ventLinks) {
+      const a = flaps.get(link.a),
+        b = flaps.get(link.b);
+      if (!a || !b) continue;
+      targets.set(a.id, [...(targets.get(a.id) ?? []), names.get(b.roomId) ?? b.roomId]);
+      targets.set(b.id, [...(targets.get(b.id) ?? []), names.get(a.roomId) ?? a.roomId]);
+    }
+    ctx.font = `${Math.max(9, Math.min(12, scale * 0.55))}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (const [id, list] of targets) {
+      const flap = flaps.get(id)!;
+      const p = this.toScreen(flap.at.x, flap.at.z);
+      const text = `→ ${list.join(' · ')}`;
+      const width = ctx.measureText(text).width + 8;
+      ctx.fillStyle = 'rgba(10, 14, 24, 0.75)';
+      this.roundRect(ctx, p.x - width / 2, p.y + scale * 0.45, width, 14, 4);
+      ctx.fill();
+      ctx.fillStyle = INK.ventOpen;
+      ctx.fillText(text, p.x, p.y + scale * 0.45 + 1);
+    }
+  }
+
+  private drawItem(ctx: CanvasRenderingContext2D, item: MapSnapshot['items'][number]): void {
+    const scale = this.state.scale;
+    const p = this.toScreen(item.at.x, item.at.z);
+    const r = Math.max(4, scale * 0.3);
+    ctx.lineWidth = Math.max(1.5, scale * 0.07);
+    if (item.kind === 'cargo') {
+      // Ein Paket mit Band; genommen bleibt der leere Umriss.
+      ctx.fillStyle = item.state === 'taken' ? INK.cargoTaken : INK.cargo;
+      this.roundRect(ctx, p.x - r, p.y - r * 0.8, r * 2, r * 1.6, r * 0.2);
+      ctx.fill();
+      ctx.strokeStyle = INK.frame;
+      ctx.stroke();
+      if (item.state !== 'taken') {
+        ctx.strokeStyle = item.state === 'open' ? INK.frame : 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - r * 0.8);
+        ctx.lineTo(p.x, p.y + r * 0.8);
+        ctx.stroke();
+        if (item.state === 'open') {
+          ctx.fillStyle = INK.frame;
+          ctx.fillRect(p.x - r * 0.9, p.y - r * 0.2, r * 1.8, r * 0.4);
+        }
+      }
+    } else if (item.kind === 'console') {
+      // Ein Bildschirm: rot, solange er kaputt ist.
+      ctx.fillStyle = item.state === 'solved' ? INK.console : INK.consoleBroken;
+      this.roundRect(ctx, p.x - r, p.y - r * 0.7, r * 2, r * 1.4, r * 0.25);
+      ctx.fill();
+      ctx.strokeStyle = INK.frame;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(p.x - r * 0.7, p.y - r * 0.4, r * 1.4, r * 0.6);
+      if (item.state !== 'solved') {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.max(8, r * 1.1)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', p.x, p.y - r * 0.1);
+      }
+    } else if (item.kind === 'locker') {
+      ctx.strokeStyle = item.state === 'destroyed' ? INK.consoleBroken : INK.locker;
+      ctx.fillStyle =
+        item.state === 'open'
+          ? INK.locker
+          : item.state === 'destroyed'
+            ? 'rgba(255, 90, 95, 0.25)'
+            : 'rgba(143, 160, 255, 0.18)';
+      this.roundRect(ctx, p.x - r * 0.7, p.y - r, r * 1.4, r * 2, r * 0.15);
+      ctx.fill();
+      ctx.stroke();
+      if (item.state === 'destroyed') {
+        ctx.beginPath();
+        ctx.moveTo(p.x - r * 0.6, p.y - r * 0.8);
+        ctx.lineTo(p.x + r * 0.6, p.y + r * 0.8);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - r * 0.8);
+        ctx.lineTo(p.x, p.y + r * 0.8);
+        ctx.stroke();
+      }
+    } else if (item.kind === 'van') {
+      ctx.strokeStyle = INK.van;
+      ctx.setLineDash([4, 3]);
+      this.roundRect(ctx, p.x - r * 1.6, p.y - r * 0.9, r * 3.2, r * 1.8, r * 0.3);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = INK.van;
+      ctx.font = `600 ${Math.max(8, r * 0.9)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.state === 'ready' ? 'ZIEL' : 'START', p.x, p.y);
+    } else if (item.kind === 'vent') {
+      // Ein Gitter: Rahmen und drei Lamellen (Paket Lüftungssystem).
+      ctx.fillStyle = INK.frame;
+      this.roundRect(ctx, p.x - r * 1.05, p.y - r * 0.65, r * 2.1, r * 1.3, r * 0.15);
+      ctx.fill();
+      ctx.strokeStyle = item.state === 'open' ? INK.ventOpen : INK.vent;
+      ctx.lineWidth = Math.max(1.5, scale * 0.07);
+      ctx.strokeRect(p.x - r, p.y - r * 0.6, r * 2, r * 1.2);
+      ctx.beginPath();
+      for (let i = -1; i <= 1; i++) {
+        ctx.moveTo(p.x - r * 0.7, p.y + i * r * 0.35);
+        ctx.lineTo(p.x + r * 0.7, p.y + i * r * 0.35);
+      }
+      ctx.stroke();
+    } else if (item.kind === 'fuse') {
+      ctx.fillStyle = item.state === 'open' ? INK.light : INK.lightOff;
+      this.roundRect(ctx, p.x - r * 0.7, p.y - r * 0.9, r * 1.4, r * 1.8, r * 0.15);
+      ctx.fill();
+      ctx.strokeStyle = INK.frame;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = INK.label;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /**
+   * **Eine Figur wie aus einem Brettspiel**: Rumpf, Visier, Rucksack, zwei
+   * Beine, zwei Hände. Sie schaut nach links oder rechts, je nachdem, wohin
+   * sie zuletzt gegangen ist, und beim Gehen schwingen Beine und Hände. Das
+   * Monster ist ein dunkler Klumpen mit Augen — kein Kreis mehr.
+   */
+  private drawEntity(ctx: CanvasRenderingContext2D, entity: MapEntity): void {
+    const scale = this.state.scale;
+    const p = this.toScreen(entity.at.x, entity.at.z);
+    const r = Math.max(5, scale * 0.36);
+    const t = this.now() / 1000;
+    const walk = entity.moving ? Math.sin(t * (entity.sprinting ? 16 : 11)) : 0;
+    // Blick nach links oder rechts: aus dem Ostanteil des Blicks, sonst wie zuletzt.
+    const east = -Math.sin(entity.yaw + this.state.rotation);
+    let side = this.facing.get(entity.id) ?? 1;
+    if (Math.abs(east) > 0.2) side = east > 0 ? 1 : -1;
+    this.facing.set(entity.id, side);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if (entity.concealed) ctx.globalAlpha = 0.45;
+    if (entity.kind === 'monster') {
+      const bob = entity.moving ? Math.abs(walk) * r * 0.15 : 0;
+      // Schatten, Klumpen, Zacken, Augen.
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(0, r * 0.95, r * 1.1, r * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = INK.monsterDark;
+      ctx.beginPath();
+      ctx.moveTo(-r * 1.1, r * 0.8 - bob);
+      ctx.lineTo(-r * 1.0, -r * 0.6 - bob);
+      ctx.lineTo(-r * 0.55, -r * 1.05 - bob);
+      ctx.lineTo(-r * 0.2, -r * 0.7 - bob);
+      ctx.lineTo(r * 0.15, -r * 1.25 - bob);
+      ctx.lineTo(r * 0.5, -r * 0.75 - bob);
+      ctx.lineTo(r * 1.05, -r * 0.95 - bob);
+      ctx.lineTo(r * 1.1, r * 0.8 - bob);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = INK.monster;
+      ctx.lineWidth = Math.max(1.5, r * 0.18);
+      ctx.stroke();
+      // Augen auf der Seite, in die es schaut.
+      ctx.fillStyle = '#fff6f6';
+      for (const dx of [0.15, 0.55]) {
+        ctx.beginPath();
+        ctx.arc(dx * side * r, -r * 0.25 - bob, r * 0.17, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = INK.monster;
+      for (const dx of [0.2, 0.6]) {
+        ctx.beginPath();
+        ctx.arc(dx * side * r, -r * 0.25 - bob, r * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Klauen, die beim Gehen greifen.
+      ctx.strokeStyle = INK.monster;
+      ctx.lineWidth = Math.max(1.2, r * 0.14);
+      for (const s of [-1, 1]) {
+        const swing = walk * r * 0.25 * s;
+        ctx.beginPath();
+        ctx.moveTo(s * r * 0.9, r * 0.1);
+        ctx.lineTo(s * r * 1.35, r * 0.45 + swing);
+        ctx.stroke();
+      }
+    } else {
+      const color = ENTITY_COLOR[entity.kind];
+      const bob = entity.moving ? Math.abs(walk) * r * 0.12 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(0, r * 1.05, r * 0.95, r * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Beine.
+      ctx.fillStyle = color;
+      ctx.strokeStyle = INK.frame;
+      ctx.lineWidth = Math.max(1, r * 0.12);
+      for (const s of [-1, 1]) {
+        const step = walk * r * 0.3 * s;
+        this.roundRect(
+          ctx,
+          s * r * 0.38 - r * 0.22 + step * 0.4,
+          r * 0.45,
+          r * 0.44,
+          r * 0.6,
+          r * 0.12,
+        );
+        ctx.fill();
+        ctx.stroke();
+      }
+      // Rucksack hinten.
+      this.roundRect(ctx, -side * r * 1.05 - r * 0.25, -r * 0.35 - bob, r * 0.5, r * 0.9, r * 0.15);
+      ctx.fill();
+      ctx.stroke();
+      // Hände, die mitschwingen.
+      for (const s of [-1, 1]) {
+        const swing = walk * r * 0.28 * s;
+        ctx.beginPath();
+        ctx.arc(s * r * 0.95, r * 0.15 + swing, r * 0.26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      // Rumpf.
+      this.roundRect(ctx, -r * 0.8, -r * 1.05 - bob, r * 1.6, r * 1.75, r * 0.7);
+      ctx.fill();
+      ctx.stroke();
+      // Visier vorn.
+      ctx.fillStyle = INK.visor;
+      ctx.beginPath();
+      ctx.ellipse(side * r * 0.32, -r * 0.5 - bob, r * 0.48, r * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath();
+      ctx.ellipse(side * r * 0.42, -r * 0.6 - bob, r * 0.18, r * 0.09, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Was in der Hand ist: die Lampe leuchtet vorn.
+      if (entity.held === 'flashlight') {
+        ctx.fillStyle = INK.light;
+        ctx.beginPath();
+        ctx.arc(side * r * 1.15, r * 0.15, r * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Die Ziele: Ring am Ort, wenn er im Bild ist; sonst ein Dreieck am Rand, das dorthin zeigt. */
+  private drawGoals(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const goals = this.options.objectives!();
+    const edge = this.options.edge ?? {};
+    const inset = {
+      top: edge.top ?? 18,
+      right: edge.right ?? 18,
+      bottom: edge.bottom ?? 18,
+      left: edge.left ?? 18,
+    };
+    const t = this.now() / 1000;
+    const scale = this.state.scale;
+    for (const goal of goals) {
+      const p = this.toScreen(goal.at.x, goal.at.z);
+      const inside =
+        p.x >= inset.left && p.x <= w - inset.right && p.y >= inset.top && p.y <= h - inset.bottom;
+      ctx.strokeStyle = goal.next ? INK.goal : INK.goalDim;
+      ctx.fillStyle = goal.next ? INK.goal : INK.goalDim;
+      if (inside) {
+        const pulse = goal.next ? 1 + 0.15 * Math.sin(t * 4) : 1;
+        const r = Math.max(7, scale * 0.55) * pulse;
+        ctx.lineWidth = goal.next ? 2.5 : 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+        if (goal.next) {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y - r * 1.9);
+          ctx.lineTo(p.x - r * 0.45, p.y - r * 1.25);
+          ctx.lineTo(p.x + r * 0.45, p.y - r * 1.25);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else {
+        // Vom Bildmittelpunkt aus in Richtung Ziel bis an den Rand.
+        const cx = (inset.left + w - inset.right) / 2,
+          cy = (inset.top + h - inset.bottom) / 2;
+        const dx = p.x - cx,
+          dy = p.y - cy;
+        const hw = (w - inset.left - inset.right) / 2,
+          hh = (h - inset.top - inset.bottom) / 2;
+        const k = Math.min(hw / Math.max(1e-6, Math.abs(dx)), hh / Math.max(1e-6, Math.abs(dy)));
+        const ex = cx + dx * k,
+          ey = cy + dy * k;
+        const angle = Math.atan2(dy, dx);
+        const size = goal.next ? 13 : 9;
+        ctx.save();
+        ctx.translate(ex, ey);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(size, 0);
+        ctx.lineTo(-size * 0.7, -size * 0.7);
+        ctx.lineTo(-size * 0.35, 0);
+        ctx.lineTo(-size * 0.7, size * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = INK.frame;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+        if (goal.next) {
+          ctx.font = '600 10px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const metres = Math.round(
+            Math.hypot(goal.at.x - this.state.centreX, goal.at.z - this.state.centreZ),
+          );
+          const lx = ex - Math.cos(angle) * 22,
+            ly = ey - Math.sin(angle) * 22;
+          ctx.fillStyle = INK.labelShadow;
+          ctx.fillText(`${metres} m`, lx + 1, ly + 1);
+          ctx.fillStyle = INK.goal;
+          ctx.fillText(`${metres} m`, lx, ly);
+        }
+      }
+      this.stats.goals++;
+    }
+  }
+
+  private roundRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+  ): void {
+    const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + w - radius, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+    ctx.lineTo(x + w, y + h - radius);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+    ctx.lineTo(x + radius, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
   }
 
   /** Die Marker, wie sie gezeichnet werden: live, gedrosselt oder gar nicht. */
@@ -546,11 +1314,6 @@ export class MapView {
       this.markerSnapshot = this.snapshot.entities.map((e) => ({ ...e, at: { ...e.at } }));
     }
     return this.markerSnapshot;
-  }
-
-  /** Ein Blickwinkel als Bildwinkel: yaw 0 ist Norden, also oben. */
-  private screenAngle(yaw: number): number {
-    return -Math.PI / 2 - yaw - this.state.rotation;
   }
 
   private path(ctx: CanvasRenderingContext2D, polygon: readonly MapPoint[]): void {

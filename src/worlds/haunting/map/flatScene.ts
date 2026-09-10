@@ -95,6 +95,12 @@ export interface FlatSceneOptions {
   onGroundClick?: (at: MapPoint) => void;
   /** Der Nutzer hat gezogen oder gezoomt; `follow` ist damit aus. */
   onViewChange?: (view: FlatSceneView) => void;
+  /**
+   * Zum Schluss: was die Ansicht selbst noch über die Szene malt — Ziele
+   * am Bildrand, Wege, die Peilung (`flatMode.ts`). In CSS-Punkten, mit
+   * `toScreen`; die Szene selbst weiß davon nichts.
+   */
+  overlay?: (ctx: CanvasRenderingContext2D, scene: FlatScene) => void;
 }
 
 /** Wie weit ein Finger wandern darf und trotzdem ein Tipp bleibt, in Punkten. */
@@ -410,6 +416,7 @@ export class FlatScene {
       );
       this.stats.names++;
     }
+    this.options.overlay?.(ctx, this);
   }
 
   /** Der Boden eines Raums: Platten mit Fugen, in Gängen Rillen. */

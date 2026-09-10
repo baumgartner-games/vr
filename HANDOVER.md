@@ -3,6 +3,56 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Auftrag „Verteilung, Türsperre, 2D-Karte, Kompass"
+
+Branch `claude/game-mechanics-2d-graphics-fxjdkh` (Claude Code im Browser).
+Zwölf Wünsche aus einer Nachricht; hier steht je Wunsch, was gebaut wurde
+und was offen blieb. Zusammengeführt mit `main` nach #83 (Lüftungsnetz,
+Netz-Monster, `FlatNavigator`) — die Wege der Karte lesen jetzt
+`FlatNavigator.remaining`, und in der gemeinsamen 2D-Runde teilen sich Tafel
+am Telefon und Techniker am Stock eine Buchführung der Riegel
+(`HauntingWorld.stepFlat`: `this.locks = round.locks`).
+
+### Was drin ist
+
+- **Türen** (`rules/doorLocks.ts`): gewollt gesperrt ist immer nur eine Tür
+  (Tafel, Techniker vor Ort, 2D-Runde teilen den einen Riegel), zugefallene
+  Türen halten `SLAM_HOLD` 20 s und gehen von selbst auf, die Tafel darf sie
+  vorher freigeben. Buchführung beim Gastgeber, nichts auf der Leitung.
+- **Verteilung** (`rules/roundSetup.ts`, `roundSetupPanel.ts`): Techniker,
+  Monster, Plätze der Zentrale (Archivar, Schalttafel, Späher; Mensch oder
+  Bot), im Van, im Optionsmenü der 2D-Welt und im Menü der Brille; die drei
+  Kacheln sind Voreinstellungen. Bot-Plätze geben dem Techniker in 2D
+  Peilung, Tafel-Tipp und Raumakte (`SoloPowers`, `FlatMode`).
+- **2D-Karte** (`map/mapView.ts`): Brettspiel-Handschrift, Türen als
+  Blätter mit Schloss, Möbel aus `stationLayout` (`MapSnapshot.fixtures`),
+  Astronauten mit Händen, Geräusche als Wellen über die Kacheln
+  (`MapSnapshot.noises`), Ziele mit Randdreiecken, Schachtbögen mit
+  Zielraum, Option „Zielpfade".
+- **Kabelrätsel in 2D**: Symbole wie an der Konsole; Overlay nur bei
+  Änderung neu gebaut (Taps gingen verloren, weil die Knöpfe je Bild aus
+  dem DOM fielen); Panels unter dem HUD der Seite.
+- **Kompass** (`objectiveCompass.ts`) am Desktop; Ziele aus
+  `HauntingWorld.objectives`.
+- **Jest** in zwei Geschwindigkeiten (`jest.config.cjs`, `SLOW`; CI-Job
+  `Slow tests`).
+
+### Offen
+
+- Der Kompass in der Brille: DOM ist dort unsichtbar; ein Streifen an der
+  Kamera wie `ShipExperience.hud` wäre der Weg.
+- Ein Monster aus Fleisch im Schiff (3D) gibt es über die Tafel nicht; die
+  Station `monster` am Telefon (#83) bleibt der Weg dahin.
+- Der Snapshot der 3D-Welt (`worldSource.ts`) führt Möbel, aber keine
+  Geräuschwellen — die Telefone sehen sie erst, wenn `HauntingWorld` ein
+  `noises()` liefert.
+- Die Wellen sind nicht gegen Wände beschnitten (nur auf Boden); für den
+  Blick reicht das, für ein Hörmodell wäre `hearing.ts` der Ort.
+- PR #79 (Rollenansichten `views/`) berührt `stationUi.ts` und
+  `HauntingWorld.ts` an denselben Stellen wie dieser Auftrag (Van-Seite,
+  StationHost); wer ihn mergt, nimmt die Kachel „Verteilung" und die drei
+  Host-Haken (`setup`, `setSetup`, `startSetup`) mit.
+
 ## Auftrag „offene Handover-Punkte" — was aus den Fragen der Pakete wurde
 
 Branch `claude/offene-handover-probleme-xhocfk` (Claude Code im Browser, PR

@@ -36,6 +36,8 @@ export interface MapSource {
   round?(): MapRound;
   /** Die Verbindungen des Lüftungsnetzes (Paket Lüftungssystem), wenn es eines gibt. */
   ventLinks?(): MapSnapshot['ventLinks'];
+  /** Die Geräusche der letzten Sekunden (`MapNoise`), wenn die Quelle sie führt. */
+  noises?(): MapSnapshot['noises'];
 }
 
 /**

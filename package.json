@@ -13,6 +13,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "jest",
+    "test:slow": "JEST_SLOW=1 jest",
     "config": "node --experimental-strip-types tools/config.ts",
     "test:browser": "node tools/browser-smoke.mjs",
     "test:browser:install": "playwright install chromium firefox"

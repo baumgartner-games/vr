@@ -4,6 +4,8 @@ import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
 import { HauntingAudio, NOISE, levelLabel } from './audio';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
+import type { MapGoal } from './map/mapView';
+import { ObjectiveCompass } from './objectiveCompass';
 import { roundHud } from './rules/roundHud';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { WorldContext } from '../../core/types';
@@ -101,6 +103,8 @@ interface ShipHost {
   takeFloatingTorch?(): void;
   /** Der Stand als Karte und der Gang des Monsters — für das Hörmodell (`audio/`). */
   mapSnapshot?(): MapSnapshot;
+  /** Die Ziele des Technikers, das nächste zuerst — für den Kompass am oberen Bildrand. */
+  objectives?(): MapGoal[];
   monsterPace?(): MonsterPace;
   /** Sauerstoff, Anzug-Leben und Kabinen der laufenden Runde (`rules/`). */
   round?(): MapRound | null;
@@ -209,6 +213,8 @@ export class ShipExperience {
   private readonly hud: Screen;
   private readonly command: Screen;
   private readonly dom = document.createElement('section');
+  /** Der Kompass am oberen Bildrand — nur am Desktop; in der Brille gibt es ihn (noch) nicht. */
+  private compass: ObjectiveCompass | null = null;
   private sensorMode: 'off' | 'radar' | 'xray' = 'off';
   private audioOn = true;
   private readonly audio = new ShipAudio();
@@ -333,6 +339,10 @@ export class ShipExperience {
       this.crosshair.className = 'orbital-crosshair';
       this.crosshair.setAttribute('aria-hidden', 'true');
       document.body.append(this.dom, this.crosshair);
+      if (host.objectives) {
+        this.compass = new ObjectiveCompass();
+        document.body.append(this.compass.element);
+      }
     }
     this.root.add(this.bay, this.effects.root);
     this.root.add(this.bayLight);
@@ -1206,6 +1216,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
       this.dom.hidden = ctx.renderer.xr.isPresenting;
       this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
+      this.stepCompass(ctx, state.phase === 'running' && !crew.simulation);
       // Nur in der Brille, nur solange die Mission läuft, nie in der Bot-Runde:
       // Am Desktop steht dasselbe im DOM-Titel, und ohne Runde gibt es nichts zu zählen.
       const round =
@@ -1231,6 +1242,17 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.paintTimer = 0.12;
       this.paint();
     }
+  }
+
+  /** Der Kompass folgt dem Blick: Himmelsrichtungen und die Ziele des Technikers. */
+  private stepCompass(ctx: WorldContext, running: boolean): void {
+    if (!this.compass) return;
+    const shown = running && !ctx.renderer.xr.isPresenting && !ctx.menu.isOpen;
+    this.compass.element.hidden = !shown;
+    if (!shown) return;
+    ctx.camera.getWorldDirection(_direction);
+    const yaw = Math.atan2(-_direction.x, -_direction.z);
+    this.compass.update(yaw, { x: _head.x, z: _head.z }, this.host.objectives?.() ?? []);
   }
 
   private paint(): void {
@@ -2293,6 +2315,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     disposeObject(this.hud.mesh);
     this.dom.remove();
     this.dom.removeEventListener('click', this.domClick);
+    this.compass?.dispose();
+    this.compass = null;
     for (const target of this.targets) this.host.ctx.pointer.remove(target);
     this.effects.dispose();
     this.audio.dispose();

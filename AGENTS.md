@@ -34,7 +34,10 @@ welchem Befehl er wegkommt.
 Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
-keine; deshalb prüft sie jetzt jeder Push nach.
+keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist die **schnelle**
+Suite (unter einer Minute); die Rundensimulationen laufen mit
+`npm run test:slow` (siehe [Tests](#tests)) — wer an Runde, Bots oder Wegsuche
+arbeitet, lässt sie vor dem Push selbst laufen, die CI tut es in jedem Fall.
 
 ### Sessions, die nicht auf `main` pushen dürfen
 
@@ -86,6 +89,21 @@ wirklich etwas steht; `require-await` beanstandet Methoden, die eine
 Schnittstelle als `async` vorschreibt.
 
 ### Tests
+
+**Zwei Geschwindigkeiten.** `jest.config.cjs` führt eine Liste `SLOW`: die
+Suiten, die ganze Runden ausspielen — Bot-Runden über die echte 2D-Runde
+(`rules/botRound.test.ts`, 150 s), die 2D-Runde selbst (`map/flatRound.test.ts`,
+90 s), Schächte, Glättung, Training, Modelltechniker, Navigationslabor,
+Schiffsart — zusammen gut sechs Minuten Rechenzeit, bei zwei CI-Kernen die
+Hälfte der Wartezeit. `npm test` lässt sie aus und ist in unter einer Minute
+durch; `npm run test:slow` fährt genau diese Liste; die CI macht beides in
+getrennten Jobs (`Build` und `Slow tests`), damit ein Push nicht an einer Uhr
+scheitert, sondern nur an einem Fehler. Die langsamen Suiten sind gewollt
+langsam: Sie sind der Beleg, dass eine Runde von selbst endet und die Balance
+hält (`botTraining.test.ts` misst 800 Runden nach) — Rechnung, keine
+Browser-Smokes, und darum gehören sie in Jest und nicht in Playwright. Wer
+eine neue Suite schreibt, die mehr als zehn Sekunden braucht, trägt sie in
+`SLOW` ein.
 
 Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
 Mathematik hinter dem Greifen (`src/worlds/portal/grabReach.ts` — Zielen,
@@ -7635,6 +7653,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   die tatsächliche Näherungsöffnung: von beiden Seiten, für Techniker,
   Mitspieler, Monster, Drohne und Demo-Bot. Nachlauf verhindert Flattern;
   ein belegter Durchgang schließt nicht um eine Kapsel herum.
+- **Wer sperrt, und wie lange** (`rules/doorLocks.ts`, `DoorLocks` beim
+  Gastgeber, nichts davon auf der Leitung): **Gewollt gesperrt ist immer nur
+  eine Tür** — Schalttafel (`applyFlip`), Techniker vor Ort (`manualDoor`) und
+  die 2D-Runde (`FlatRound.lockDoor`) teilen sich diesen einen Riegel; die
+  zweite Wahl gibt die erste frei. **Zugefallene Türen** (der Spuk,
+  `slamDoor`) halten `SLAM_HOLD` = 20 s und gehen dann von selbst wieder auf
+  (`stepLocks` je Bild beim Gastgeber); die Tafel darf sie vorher freigeben,
+  und wählt sie eine zugefallene Tür gewollt, läuft die nicht mehr ab. Holz,
+  das splittert, geht über `releaseLock`, damit die Buchführung stimmt.
 - `ShipExperience` liest `doorOpen` für die bewegten Blätter und `doorLocked`
   für beidseitige rote/grüne Leuchten oberhalb der Tür. Die Übungsdeck-Tür
   darf niemals `host.test()` oder einen Rundenreset auslösen.
@@ -7829,6 +7856,68 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Seite (`--flat-top`). `.flat [hidden] { display: none !important }` ist
   Pflicht: Panels mit `display: flex` und `hidden` standen sonst als leerer
   Balken mitten auf der Karte — über dem Spieler.
+- **Die Karte hat die Handschrift eines Brettspiels** (`map/mapView.ts`,
+  `INK`): helle Böden mit Kachelfugen (`FLOOR_TILE` 1,25 m), Wände als dunkler
+  Kern mit heller Kante, **Türen als Blätter in Pfosten** — zu ist ein Blatt
+  quer (Stahl hell, Holz holzig), offen sind nur die Stummel, gesperrt ist rot
+  mit Schloss —, **Möbel als Klötze** (`MapSnapshot.fixtures` aus
+  `stationLayout`, `extract.fixturesOf`, mit Kennzeichen je `MarkId`), Figuren
+  als kleine Astronauten mit Visier, Rucksack, Händen und Beinen, die beim
+  Gehen schwingen, das Monster als Klumpen mit Augen und Klauen. **Geräusche
+  sind Wellen über die Kacheln** (`MapSnapshot.noises`, `MapNoise` mit
+  Urheber, Reichweite `reachOf`, Zeit; `WAVE_SPEED` 9 m/s): eigene blau, die
+  des Monsters rot, alles andere orange — die 2D-Runde führt sie fünf Sekunden
+  (`FlatRound.wave`: Schritte als Pulse, Türen, Zufallen, Splittern, Schrei,
+  Schacht). **Ziele** (`MapViewOptions.objectives`, `FlatRound.objectives`:
+  erst Ersatzteil, dann Konsole, zuletzt Zentrale) als Ring am Ort und gelbes
+  Dreieck am Bildrand mit Entfernung; **Schächte** (`layers.vents`) als Bögen
+  zwischen verbundenen Klappen mit dem Zielraum daran — in der 2D-Welt im
+  Modus „Alles sehen", in der Monster-Ansicht immer. `overlay` malt zuletzt,
+  was eine Ansicht selbst noch braucht (die Peilung). Im Modus „Realitätsnah"
+  bleiben Möbel und Items im Dunkeln weg (`seen`).
+- **Wer allein spielt, bekommt die Zentrale dazu** (`rules/roundSetup.ts`):
+  Die Verteilung einer Runde — Techniker (Mensch/Bot), Monster
+  (Mensch/Bot/Aus), beliebig viele Plätze der Zentrale (Archivar,
+  Schalttafel, Späher; je Mensch oder Bot) — liegt in `localStorage`
+  (`bgvr.haunting.setup.v1`) und wird an drei Stellen bedient: die Tafel im
+  Van (`roundSetupPanel.ts`, `SetupPanel`, Kachel „Verteilung der nächsten
+  Runde" mit „Runde starten"), das Optionsmenü der 2D-Welt (dieselbe Tafel)
+  und das Menü in der Brille (drei Einträge). Die drei alten Kacheln sind
+  Voreinstellungen (`presetFor`): Bot-Runde heißt Techniker aus Zahlen, Test
+  heißt Monster aus. `flatRoleOf` sagt, wen der Spieler in 2D spielt (ein
+  Mensch als Techniker gewinnt gegen ein Mensch als Monster — ein Stock, ein
+  Spieler); `roundKindOf` die Rundenart im Schiff (dort rechnet das Monster
+  immer die Routine). **Ein Bot auf einem Platz gibt dem Techniker die
+  Fähigkeit selbst** (`powersOf`, `SoloPowers`): Späher heißt Peilung des
+  Monsters alle `SCOUT_PERIOD` = 3,5 s als verblassender roter Punkt
+  (`FlatMode.stepPing`, nur im Modus „Realitätsnah", auf Szene und Karte),
+  Schalttafel heißt Tür oder Lampe per Tipp in der **Kartenübersicht** (🗺;
+  die Szene kennt keine Tür-Tipps; `FlatRound.lockDoor`, `switchLight`),
+  Archivar heißt die Akte per Tipp aufs Zimmer, in Szene wie Karte
+  (`FlatMode.openSheet`: Kennzeichen, Schrankcode, Türen, Licht, Fracht mit
+  Fundhinweis, Konsole mit Code oder Kabelplan, Schacht mit Ziel). Ein Mensch
+  am Platz nimmt sie ihm wieder ab. „Zielpfade" im Optionsmenü legt den Weg
+  des Technikers zum nächsten Ziel (`FlatRound.playerRoute`, ein eigener
+  `FlatNavigator` mit `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`,
+  `navigator.remaining`; nur mit Späher oder „Alles sehen") auf Szene und
+  Karte. Über der Szene malt `FlatMode.drawSceneOverlay` (Haken
+  `FlatSceneOptions.overlay`) Wege, Ziele als Ring und Randdreieck und die
+  Peilung; die Szene selbst weiß davon nichts.
+- **Das Kabelrätsel zeigt Symbole** (`map/puzzleOverlay.ts`, `WIRE_SYMBOLS`,
+  `WIRE_COLORS` wie an der Konsole im Schiff): Stecker `i` gehört in die
+  Buchse mit demselben Symbol, richtig Verbundenes leuchtet grün. Ohne die
+  Symbole war das Rätsel ein Raten unter 24 Wegen. **Und das Overlay wird nur
+  neu gebaut, wenn sich der Rätselstand ändert** — ein Knopf, der zwischen
+  Aufsetzen und Abheben des Fingers aus dem DOM fällt, bekommt auf dem
+  Telefon keinen Klick; genau daran scheiterte das Lösen. Rätsel, Optionen
+  und Akte hängen unter dem HUD der Seite (`--flat-top`) statt in der
+  Bildmitte, und das Rätsel liegt über dem Optionsmenü (`z-index`).
+- **Der Kompass am oberen Bildrand** (`objectiveCompass.ts`) gehört dem
+  Desktop-Techniker: Himmelsrichtungen und die Ziele (`HauntingWorld.objectives`,
+  dieselbe Regel wie in 2D) als gelbe Dreiecke mit Entfernung, was hinten
+  liegt klebt am Rand. `compassMarks` ist reine Rechnung mit Test; in der
+  Brille gibt es ihn noch nicht (DOM ist dort unsichtbar) — ein Streifen an
+  der Kamera wie `ShipExperience.status` wäre der nächste Schritt.
 - **„2D-Welt von oben" ist eine Einstellung, kein Start** (Checkbox im Van,
   Menüeintrag beim Desktop-Techniker; `HauntingWorld.flatWanted`, in
   `localStorage` unter `bgvr.haunting.flat.v1`). Gestartet wird danach wie

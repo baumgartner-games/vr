@@ -2,6 +2,10 @@ import { puzzleFor, type Repair } from '../mission';
 import type { FlatRound } from './flatRound';
 import type { PuzzleAction } from './flatPuzzles';
 
+/** Die vier Symbole und Farben des Kabelrätsels — wie an der Konsole im Schiff. */
+export const WIRE_SYMBOLS = ['▲', '●', '■', '◆'] as const;
+export const WIRE_COLORS = ['#f5aa71', '#70def0', '#dcb5ff', '#b3d57b'] as const;
+
 /**
  * **Das Rätsel als Overlay über der Karte.** Dieselben drei Regeln wie an
  * der Konsole im Schiff (`flatPuzzles.ts`), als Knöpfe für den Daumen.
@@ -10,6 +14,8 @@ export class PuzzleOverlay {
   readonly element = document.createElement('div');
   private selected = -1;
   private shown: Repair | null = null;
+  /** Woraus das letzte Bild gebaut wurde — neu gebaut wird nur, wenn sich das ändert. */
+  private drawn = '';
 
   constructor(private readonly round: FlatRound) {
     this.element.className = 'flat__puzzle';
@@ -32,7 +38,16 @@ export class PuzzleOverlay {
       this.shown = repair;
       this.selected = -1;
       this.element.hidden = false;
+      this.drawn = '';
     }
+    // **Nicht jedes Bild neu bauen.** Ein Knopf, der zwischen Aufsetzen und
+    // Abheben des Fingers aus dem DOM fällt, bekommt auf dem Telefon keinen
+    // Klick — genau so ließ sich das Kabelrätsel nicht lösen. Gebaut wird nur,
+    // wenn sich Rätselstand oder Auswahl geändert haben.
+    const puzzle = puzzleFor(this.round.state().crew, repair.id);
+    const key = `${repair.id}|${puzzle.links.join(',')}|${puzzle.digits.join(',')}|${this.selected}`;
+    if (key === this.drawn) return;
+    this.drawn = key;
     this.render(repair);
   }
 
@@ -46,23 +61,47 @@ export class PuzzleOverlay {
     head.append(close);
     parts.push(head);
     if (repair.puzzle === 'wires') {
+      // Dieselben vier Symbole und Farben wie an der Konsole im Schiff
+      // (`ShipExperience`): Stecker `i` gehört in die Buchse mit demselben
+      // Symbol — ohne die Symbole wäre das Rätsel ein Raten unter 24 Wegen.
       const board = el('div', 'flat__wires');
       const plugs = el('div', 'flat__column');
       const sockets = el('div', 'flat__column');
       for (let i = 0; i < 4; i++) {
-        const plug = el('button', 'flat__plug', `Stecker ${i + 1}`);
+        const plug = el('button', 'flat__plug');
         plug.dataset['plug'] = String(i);
+        plug.style.setProperty('--wire', WIRE_COLORS[i]!);
         plug.classList.toggle('is-selected', this.selected === i);
+        plug.append(
+          el('span', 'flat__wire-symbol', WIRE_SYMBOLS[i]!),
+          el('span', '', `Stecker ${i + 1}`),
+        );
         const link = puzzle.links[i];
-        if (link !== undefined) plug.append(el('small', '', `→ Buchse ${link + 1}`));
+        if (link !== undefined) {
+          const symbol = WIRE_SYMBOLS[repair.order[link]!]!;
+          plug.append(el('small', '', `→ Buchse ${symbol}`));
+          plug.classList.toggle('is-right', repair.order[link] === i);
+        }
         plugs.append(plug);
-        const socket = el('button', 'flat__socket', `Buchse ${i + 1}`);
+        const socketSymbol = repair.order[i]!;
+        const socket = el('button', 'flat__socket');
         socket.dataset['socket'] = String(i);
+        socket.style.setProperty('--wire', WIRE_COLORS[socketSymbol]!);
+        socket.append(
+          el('span', 'flat__wire-symbol', WIRE_SYMBOLS[socketSymbol]!),
+          el('span', '', `Buchse ${i + 1}`),
+        );
+        const plugged = puzzle.links.indexOf(i);
+        if (plugged >= 0) socket.append(el('small', '', `← Stecker ${WIRE_SYMBOLS[plugged]}`));
+        socket.classList.toggle('is-right', plugged === socketSymbol);
         (socket as HTMLButtonElement).disabled = this.selected < 0;
         sockets.append(socket);
       }
       board.append(plugs, sockets);
-      parts.push(el('p', 'flat__hint', 'Stecker wählen, dann die Buchse.'), board);
+      parts.push(
+        el('p', 'flat__hint', 'Stecker wählen, dann die Buchse mit demselben Symbol.'),
+        board,
+      );
     } else if (repair.puzzle === 'sequence') {
       const display = el('div', 'flat__display', puzzle.links.map(String).join(' ') || '— — —');
       const keys = el('div', 'flat__keys');

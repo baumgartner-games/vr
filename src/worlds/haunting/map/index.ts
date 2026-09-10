@@ -13,9 +13,12 @@ export {
   type MapDoor,
   type MapEntity,
   type MapEntityKind,
+  type MapFixture,
   type MapItem,
   type MapItemKind,
   type MapLight,
+  type MapNoise,
+  type MapNoiseCause,
   type MapPoint,
   type MapRoom,
   type MapRound,
@@ -23,13 +26,16 @@ export {
   type MapSnapshot,
 } from './mapSnapshot';
 export type { MapSource, ExtractMapSnapshot } from './mapSource';
-export { extractMapSnapshot, wallsOf, roomsOf, boundsOf, LAMP_RADIUS } from './extract';
+export { extractMapSnapshot, wallsOf, roomsOf, boundsOf, fixturesOf, LAMP_RADIUS } from './extract';
 export { worldMapSource, type WorldHandles } from './worldSource';
 export {
   ALL_LAYERS,
   PANEL_LAYERS,
   MapView,
+  WAVE_SPEED,
+  type MapGoal,
   type MapLayers,
+  type MapOverlay,
   type MapRoute,
   type MapViewOptions,
   type MapViewState,

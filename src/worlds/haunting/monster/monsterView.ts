@@ -69,6 +69,9 @@ class MonsterView implements MonsterRoleView {
     this.map = new MapView({
       mode: 'realistic',
       markers: 'live',
+      // Das Monster kennt sein Netz: Bögen von Klappe zu Klappe mit dem Ziel daran.
+      layers: { vents: true },
+      viewerId: MONSTER_ID,
       minScale: 6,
       maxScale: 60,
       onRoomClick: (id) =>

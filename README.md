@@ -106,6 +106,29 @@ passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
 Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
 zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
 
+**Wer spielt mit:** Vor jeder Runde, in 2D wie in 3D, steht die
+**Verteilung** — im Van, im Optionsmenü der 2D-Welt und im Menü der Brille:
+Techniker (Mensch oder Bot), Monster (Mensch, Bot oder aus) und beliebig
+viele Plätze der Einsatzzentrale (Archivar, Schalttafel, Späher), jeder mit
+einem Menschen am Telefon oder einem Bot. **Ein Bot auf einem Platz gibt dem
+Techniker die Auskunft selbst:** Wer allein in der 2D-Welt spielt, sieht die
+Peilung des Monsters alle paar Sekunden, sperrt Türen und schaltet Lampen per
+Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
+Codes auf. **Gewollt gesperrt ist immer nur eine Tür** — wer eine zweite
+wählt, gibt die erste frei; Türen, die das Monster zuschlägt, gehen nach
+zwanzig Sekunden von selbst wieder auf oder vorher durch die Schalttafel.
+
+**Die 2D-Welt** sieht aus wie ein Brettspiel von oben: helle Böden mit
+Kacheln, dicke Wände, Türen als Blätter mit Schloss, die Möbel aus dem Schiff
+als Klötze, kleine Astronauten mit Händen, das Monster als Klumpen mit Augen.
+Geräusche laufen als Wellen über die Kacheln — die eigenen blau, die des
+Monsters rot, Türen und Fracht orange. Gelbe Dreiecke am Bildrand zeigen zum
+nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
+„Zielpfade" im Optionsmenü legt die Wege von Techniker und Monster auf die
+Karte, und im Modus „Alles sehen" führen Bögen von Klappe zu Klappe mit dem
+Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
+**Interagieren** in eine Klappe und wählt darunter den Zielraum.
+
 **Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
 Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
 Reparaturhinweise sowie eine orthografische Draufsicht des tatsächlichen Raums
@@ -279,7 +302,7 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # Typecheck + Produktionsbuild nach dist/
 npm run preview  # gebautes Ergebnis lokal servieren
-npm test         # Jest
+npm test         # Jest (schnell); npm run test:slow für die Rundensimulationen
 ```
 
 WebXR braucht einen sicheren Kontext; `localhost` reicht, für die Brille im
