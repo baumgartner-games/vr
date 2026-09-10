@@ -167,6 +167,23 @@ describe('Die Regie: eigene Schritte', () => {
     );
   });
 
+  it('lässt das Monster sich selbst nicht hören — kein Schritt, kein Ruf, kein Herz', () => {
+    const snapshot = twoRooms(true);
+    snapshot.entities.push(player(5, 5, true), monster(6, 5, true, true));
+    // Der Techniker hört sich und das Monster.
+    const heard = run({ snapshot, listener: 'player', kind: 'stalker' });
+    expect(count(heard, 'player-step')).toBeGreaterThan(0);
+    expect(ofMonster(heard).length).toBeGreaterThan(0);
+    // Wer das Monster spielt, hört von sich selbst nichts.
+    const own = new Soundscape();
+    const events = run({ snapshot, listener: 'monster', kind: 'stalker' }, 5, own);
+    expect(count(events, 'player-step')).toBe(0);
+    expect(ofMonster(events)).toEqual([]);
+    expect(own.heartbeat).toBe(0);
+    // Die Station brummt trotzdem weiter.
+    expect(own.ambience['ambient-hum']).toBeGreaterThan(0);
+  });
+
   it('nimmt Tempo und Versteck aus dem Snapshot, wenn der Zuhörer nur eine Kennung ist', () => {
     const snapshot = twoRooms(true);
     snapshot.entities.push(player(5, 5, true, true));

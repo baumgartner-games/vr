@@ -142,7 +142,7 @@ import { NetMonsterPort } from './monster/netMonsterPort';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
 import type { FlatOptions } from './map/flatRound';
-import type { FlatStage } from './map/flatStage';
+import type { ToolIcons } from './map/toolIcons';
 import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
 import {
   claimMessage,
@@ -623,7 +623,8 @@ export class HauntingWorld extends GridWorld {
    * Stand für andere, wie die 3D-Bot-Runde).
    */
   private flatShared = false;
-  private flatStage: FlatStage | null = null;
+  /** Die gepufferten Werkzeugbilder der 2D-Welt (`map/toolIcons.ts`). */
+  private flatIcons: ToolIcons | null = null;
   private flatLoading = false;
   /**
    * **„2D-Welt von oben"** — die Checkbox im Van und der Menüeintrag. Eine
@@ -991,8 +992,7 @@ export class HauntingWorld extends GridWorld {
     this.flat?.dispose();
     this.flat = null;
     this.flatShared = false;
-    this.flatStage?.dispose();
-    this.flatStage = null;
+    this.flatIcons = null;
     this.ui?.dispose();
     this.ui = null;
     this.netPort = null;
@@ -2917,8 +2917,6 @@ export class HauntingWorld extends GridWorld {
       renderer.setScissorTest(false);
       renderer.setClearColor(0x070a10, 1);
       renderer.clear();
-      const rect = this.flat.viewport();
-      if (rect) this.flatStage?.render(renderer, this.flat.activeTool, rect, 1 / 60);
       return true;
     }
     const ui = this.ui;
@@ -3516,10 +3514,10 @@ export class HauntingWorld extends GridWorld {
     // aus den Tests der Welt heraus.
     void Promise.all([
       import('./map/flatMode'),
-      import('./map/flatStage'),
+      import('./map/toolIcons'),
       import('./registry/discover'),
     ])
-      .then(([mode, stage, discover]) => {
+      .then(([mode, icons, discover]) => {
         this.flatLoading = false;
         // Im Headset gibt es keine Karte von oben — dort bleibt die Brille.
         if (this.flat || ctx.renderer.xr.isPresenting) return;
@@ -3533,7 +3531,10 @@ export class HauntingWorld extends GridWorld {
           exit: () => this.closeFlat(),
           notify: (text) => ctx.notify(text),
         });
-        this.flatStage ??= new stage.FlatStage();
+        // Die Werkzeuge einmal aus ihren 3D-Modellen rendern und puffern;
+        // die 2D-Welt hängt die fertigen Bilder in ihren Knopf (`toolIcons.ts`).
+        this.flatIcons ??= new icons.ToolIcons();
+        this.flat.setToolIcons(this.flatIcons);
         document.body.append(this.flat.element);
         ctx.menu.toggle(false);
         this.ui?.refresh();

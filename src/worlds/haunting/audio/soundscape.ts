@@ -23,7 +23,9 @@ import { Hearing, hearingGain, reachOf, roomIdAt, type HearingWorld } from './he
  *
  * Was klingt:
  *
- * - **Eigene Schritte** aus dem Tempo des Spielers, am Ohr.
+ * - **Eigene Schritte** aus dem Tempo des Spielers, am Ohr — außer, der
+ *   Zuhörer *ist* das Monster: Wer es spielt, hört sich nicht selbst
+ *   herankommen, weder als Schritt noch als Ruf noch als Herzschlag.
  * - **Monster schleicht, geht, rennt** — die Kadenz der Sorte
  *   (`ENTITY_PROFILES`), beim Schleichen länger, beim Rennen knapp die Hälfte,
  *   mit eigenem Cue. Alles durch das Hörmodell (`hearing.ts`).
@@ -132,9 +134,14 @@ export class Soundscape {
     const me = listenerOf(input);
     if (!me) return out;
     const rng = input.rng ?? Math.random;
+    // Wer das Monster **spielt**, ist selbst das Monster: Seine Schritte, sein
+    // Ruf und sein Kratzen im Schacht sind für ihn keine Geräusche, sondern
+    // seine eigene Bewegung. Ein Monster, das sich selbst hört, jagt sich
+    // selbst — und der Herzschlag der Angst gehört ohnehin der Beute.
+    const self = selfMonster(input);
 
     // --- Eigene Schritte -------------------------------------------------------
-    const speed = me.concealed ? 0 : (me.speed ?? 0);
+    const speed = self || me.concealed ? 0 : (me.speed ?? 0);
     this.stepClock -= step;
     if (speed > 0.25) {
       if (this.stepClock <= 0) {
@@ -148,7 +155,9 @@ export class Soundscape {
 
     // --- Das Monster -----------------------------------------------------------
     const monster =
-      input.active === false ? null : input.snapshot.entities.find((e) => e.kind === 'monster');
+      input.active === false || self
+        ? null
+        : input.snapshot.entities.find((e) => e.kind === 'monster');
     if (!monster) {
       this.chasing = false;
       this.heartbeat = 0;
@@ -289,6 +298,17 @@ export class Soundscape {
       delay: 0,
     });
   }
+}
+
+/**
+ * Ob der Zuhörer selbst das Monster ist — dann fällt alles weg, was das
+ * Monster von sich gibt. Nur eine Kennung kann das sein: Wer einen Zuhörer
+ * ausdrücklich hereinreicht, ist ein Ohr im Raum und kein Wesen der Runde.
+ */
+export function selfMonster(input: SoundscapeInput): boolean {
+  if (typeof input.listener !== 'string') return false;
+  const me = input.snapshot.entities.find((e) => e.id === input.listener);
+  return me?.kind === 'monster';
 }
 
 /** Der Zuhörer aus dem Snapshot, wenn er als Kennung kam. */

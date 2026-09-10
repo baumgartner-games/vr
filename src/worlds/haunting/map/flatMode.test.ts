@@ -68,19 +68,16 @@ describe('Die 2D-Welt', () => {
     expect(keys[0]!.disabled).toBe(true);
     keys[1]!.click();
     expect(flat.round.torch).toBe(false);
-    expect(flat.viewport()).toBeNull();
-    flat.element.querySelector<HTMLElement>('.flat__item')!.getBoundingClientRect = () =>
-      ({
-        left: 200,
-        top: 100,
-        width: 150,
-        height: 90,
-        right: 350,
-        bottom: 190,
-        x: 200,
-        y: 100,
-      }) as DOMRect;
-    expect(flat.viewport()).toEqual({ x: 200, y: 100, w: 150, h: 90 });
+    // Ohne gepufferte Bilder bleibt der Wechseln-Knopf beim Namen des Werkzeugs.
+    const icon = () => keys[0]!.querySelector<HTMLCanvasElement>('.flat__icon')!;
+    expect(icon().hidden).toBe(true);
+    // Mit Puffer hängt das Comic-Bild des aktiven Werkzeugs darin.
+    const stub = document.createElement('canvas');
+    stub.width = 64;
+    stub.height = 64;
+    flat.setToolIcons({ icon: (tool) => (tool === 'flashlight' ? stub : null) });
+    expect(icon().hidden).toBe(false);
+    expect(icon().width).toBe(64);
     flat.dispose();
   });
 
@@ -219,13 +216,10 @@ describe('Die 2D-Welt', () => {
     expect(flat.role).toBe('bot');
     expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
     expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
-    expect(flat.element.querySelector<HTMLElement>('.flat__item')!.hidden).toBe(true);
     // Die Szene bleibt, samt dem Knopf, der sie zum Techniker zurückholt.
     expect(flat.element.querySelector<HTMLElement>('.flat__scene')!.hidden).toBe(false);
     expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
     expect(flat.element.querySelector<HTMLElement>('.flat__mapkey')!.hidden).toBe(false);
-    // Das Werkzeugbild hat ohne Loch keinen Platz.
-    expect(flat.viewport()).toBeNull();
     const start = { ...flat.round.player };
     for (let i = 0; i < 90; i++) flat.update(DT);
     const moved = Math.hypot(flat.round.player.x - start.x, flat.round.player.z - start.z);

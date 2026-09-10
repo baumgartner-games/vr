@@ -9,6 +9,7 @@ import {
   type MapSnapshot,
 } from './mapSnapshot';
 import { emptyField, type VisibilityField, type VisibilityMode } from './visibility';
+import { spreadNoise, tileGrid, type TileGrid } from './noiseSpread';
 
 /**
  * **Die Karte als Bauteil** — ein Canvas im DOM, das einen `MapSnapshot`
@@ -257,8 +258,14 @@ export class MapView {
   private readonly maxScale: number;
   /** Wohin jede Figur zuletzt schaute (links oder rechts) — damit sie beim Gehen nach oben nicht flackert. */
   private readonly facing = new Map<string, number>();
-  /** Die Kacheln des Bodens je Station, einmal gerechnet: Schlüssel `x,z` in Kacheln. */
-  private floor: { seed: number; tiles: Set<string> } = { seed: NaN, tiles: new Set() };
+  /** Das Kachelfeld der Station, einmal gerechnet: Böden und ihre Nachbarschaft (`noiseSpread.ts`). */
+  private floor: { seed: number; grid: TileGrid | null } = { seed: NaN, grid: null };
+  /**
+   * Die geflutete Welle je Geräusch, einmal gerechnet und dann gehalten: Ein
+   * Geräusch wandert nicht, seine Front wächst nur — die Weglängen bleiben
+   * dieselben, Bild für Bild.
+   */
+  private readonly waves = new Map<string, Map<string, number>>();
   /** Was das letzte Bild gezeichnet hat — für Tests. */
   stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
 
@@ -399,6 +406,12 @@ export class MapView {
       }
     }
 
+    // --- Geräusche als Wellen über den Boden ----------------------------------------
+    // Ganz hinten, direkt auf den Böden: Licht, Möbel, Wände und vor allem die
+    // Figuren liegen darüber. Eine Welle, die den Spieler überdeckt, nimmt ihm
+    // genau das Bild, für das sie da ist.
+    if (this.layers.visibility) this.drawNoise(ctx);
+
     // --- Licht ----------------------------------------------------------------
     if (this.layers.visibility) {
       for (const region of f.lit) {
@@ -417,9 +430,6 @@ export class MapView {
 
     // --- Kachelfugen ------------------------------------------------------------
     if (this.layers.rooms && scale >= 7) this.drawGrid(ctx, w, h);
-
-    // --- Geräusche als Wellen über den Boden ----------------------------------------
-    if (this.layers.visibility) this.drawNoise(ctx);
 
     // --- Möbel -------------------------------------------------------------------
     if (this.layers.fixtures && s.fixtures) {
@@ -585,30 +595,14 @@ export class MapView {
     return !!f.self && pointInPolygon(at, f.self.polygon);
   }
 
-  /** Die Kacheln des Bodens: jede Bodenkachel, deren Mitte in einem Raum liegt. */
-  private floorTiles(): Set<string> {
+  /** Das Kachelfeld der Station — Böden, Nachbarn, Türen, Schächte (`noiseSpread.ts`). */
+  private tileField(): TileGrid {
     const s = this.snapshot;
-    if (this.floor.seed === s.seed && this.floor.tiles.size) return this.floor.tiles;
-    const tiles = new Set<string>();
-    for (const room of s.rooms) {
-      let minX = Infinity,
-        minZ = Infinity,
-        maxX = -Infinity,
-        maxZ = -Infinity;
-      for (const p of room.polygon) {
-        minX = Math.min(minX, p.x);
-        minZ = Math.min(minZ, p.z);
-        maxX = Math.max(maxX, p.x);
-        maxZ = Math.max(maxZ, p.z);
-      }
-      for (let tx = Math.floor(minX / FLOOR_TILE); tx * FLOOR_TILE < maxX; tx++)
-        for (let tz = Math.floor(minZ / FLOOR_TILE); tz * FLOOR_TILE < maxZ; tz++) {
-          const centre = { x: (tx + 0.5) * FLOOR_TILE, z: (tz + 0.5) * FLOOR_TILE };
-          if (pointInPolygon(centre, room.polygon)) tiles.add(`${tx},${tz}`);
-        }
-    }
-    this.floor = { seed: s.seed, tiles };
-    return tiles;
+    if (this.floor.seed === s.seed && this.floor.grid) return this.floor.grid;
+    const grid = tileGrid(s, FLOOR_TILE);
+    this.floor = { seed: s.seed, grid };
+    this.waves.clear();
+    return grid;
   }
 
   private drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -649,17 +643,24 @@ export class MapView {
   }
 
   /**
-   * **Geräusche laufen über die Kacheln.** Jede Welle hat eine Front, die
-   * mit `WAVE_SPEED` nach außen geht, und dahinter einen Saum, der verblasst;
-   * gezeichnet wird Kachel für Kachel, nur auf Boden, und nur so weit, wie
-   * das Geräusch trägt. Die eigenen Geräusche sind blau, die des Monsters
-   * rot, alles andere (Türen, Fracht, Mitspieler) orange — damit man auf der
-   * Karte *sieht*, was man im Schiff nur hört, und weiß, ob man es selbst war.
+   * **Geräusche laufen über die Kacheln** — und zwar nur über die **freien**.
+   * Jede Welle hat eine Front, die mit `WAVE_SPEED` nach außen geht, und
+   * dahinter einen Saum, der verblasst; was zählt, ist nicht die Luftlinie,
+   * sondern die Länge des begehbaren Wegs (`noiseSpread.ts`): durch die
+   * offene Tür, um die Ecke, nie durch eine Wand und nie über den leeren
+   * Weltraum neben der Station. Für das Monster leiten zusätzlich die
+   * Schächte — sein Ohr sitzt auch an jeder Klappe.
+   *
+   * Die eigenen Geräusche sind blau, die des Monsters rot, alles andere
+   * (Türen, Fracht, Mitspieler) orange — damit man auf der Karte *sieht*, was
+   * man im Schiff nur hört, und weiß, ob man es selbst war.
+   *
+   * **Ganz hinten gezeichnet**, direkt auf den Böden: Eine Welle, die über
+   * Figuren und Möbeln läge, nähme genau das Bild weg, für das sie da ist.
    */
   private drawNoise(ctx: CanvasRenderingContext2D): void {
     const s = this.snapshot;
     const scale = this.state.scale;
-    const tiles = this.floorTiles();
     const viewer = this.options.viewerId ?? '';
     const cell = FLOOR_TILE * scale;
     const waves: Array<{ noise: MapNoise; front: number; fade: number }> = [];
@@ -675,7 +676,22 @@ export class MapView {
     // Der Gang der Wesen ohne Ereignis: die leise Fläche um jeden, der geht (nur im Modus „Alles sehen").
     const steady = this.field.noise.filter((n) => n.cause !== 'monster');
     if (!waves.length && !steady.length) return;
+    const grid = this.tileField();
+    // Was noch klingt, bleibt gespeichert; alles andere räumt sich weg.
+    const alive = new Set(waves.map(({ noise }) => noise.id));
+    for (const id of [...this.waves.keys()]) if (!alive.has(id)) this.waves.delete(id);
+    const open = new Set(
+      s.doors.filter((door) => door.open && !door.locked).map((door) => door.id),
+    );
+    const vents = viewer === 'monster';
     ctx.save();
+    const paint = (key: string, color: string, alpha: number): void => {
+      const [tx, tz] = key.split(',').map(Number) as [number, number];
+      ctx.globalAlpha = Math.min(0.8, alpha);
+      ctx.fillStyle = color;
+      const p = this.toScreen(tx * FLOOR_TILE, tz * FLOOR_TILE);
+      ctx.fillRect(p.x + 0.5, p.y + 0.5, Math.max(1, cell - 1), Math.max(1, cell - 1));
+    };
     for (const { noise, front, fade } of waves) {
       const color =
         noise.by && noise.by === viewer
@@ -683,46 +699,25 @@ export class MapView {
           : noise.cause === 'monster' || noise.by === 'monster'
             ? INK.noiseMonster
             : INK.noiseOther;
-      const reach = Math.ceil(front / FLOOR_TILE) + 1;
-      const cx = Math.floor(noise.at.x / FLOOR_TILE),
-        cz = Math.floor(noise.at.z / FLOOR_TILE);
-      for (let tx = cx - reach; tx <= cx + reach; tx++)
-        for (let tz = cz - reach; tz <= cz + reach; tz++) {
-          if (!tiles.has(`${tx},${tz}`)) continue;
-          const mx = (tx + 0.5) * FLOOR_TILE,
-            mz = (tz + 0.5) * FLOOR_TILE;
-          const d = Math.hypot(mx - noise.at.x, mz - noise.at.z);
-          if (d > front) continue;
-          // Die Front ist am hellsten; dahinter klingt es aus.
-          const behind = front - d;
-          const ring = Math.max(0, 1 - behind / 2.2);
-          const alpha = (0.1 + 0.55 * ring * ring) * fade * (1 - (d / noise.radius) * 0.5);
-          if (alpha <= 0.02) continue;
-          ctx.globalAlpha = Math.min(0.8, alpha);
-          ctx.fillStyle = color;
-          const p = this.toScreen(tx * FLOOR_TILE, tz * FLOOR_TILE);
-          ctx.fillRect(p.x + 0.5, p.y + 0.5, Math.max(1, cell - 1), Math.max(1, cell - 1));
-        }
+      let reached = this.waves.get(noise.id);
+      if (!reached) {
+        reached = spreadNoise(grid, noise.at, noise.radius, { open, vents });
+        this.waves.set(noise.id, reached);
+      }
+      for (const [key, d] of reached) {
+        if (d > front) continue;
+        // Die Front ist am hellsten; dahinter klingt es aus.
+        const ring = Math.max(0, 1 - (front - d) / 2.2);
+        const alpha = (0.1 + 0.55 * ring * ring) * fade * (1 - (d / noise.radius) * 0.5);
+        if (alpha <= 0.02) continue;
+        paint(key, color, alpha);
+      }
       this.stats.noises++;
     }
     for (const noise of steady) {
       const color = noise.entityId === viewer ? INK.noiseOwn : INK.noiseOther;
-      const reach = Math.ceil(noise.radius / FLOOR_TILE);
-      const cx = Math.floor(noise.at.x / FLOOR_TILE),
-        cz = Math.floor(noise.at.z / FLOOR_TILE);
-      for (let tx = cx - reach; tx <= cx + reach; tx++)
-        for (let tz = cz - reach; tz <= cz + reach; tz++) {
-          if (!tiles.has(`${tx},${tz}`)) continue;
-          const d = Math.hypot(
-            (tx + 0.5) * FLOOR_TILE - noise.at.x,
-            (tz + 0.5) * FLOOR_TILE - noise.at.z,
-          );
-          if (d > noise.radius) continue;
-          ctx.globalAlpha = 0.12 * (1 - d / noise.radius);
-          ctx.fillStyle = color;
-          const p = this.toScreen(tx * FLOOR_TILE, tz * FLOOR_TILE);
-          ctx.fillRect(p.x + 0.5, p.y + 0.5, Math.max(1, cell - 1), Math.max(1, cell - 1));
-        }
+      const reached = spreadNoise(grid, noise.at, noise.radius, { open, vents });
+      for (const [key, d] of reached) paint(key, color, 0.12 * (1 - d / noise.radius));
     }
     ctx.restore();
   }
