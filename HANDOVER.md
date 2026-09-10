@@ -35,10 +35,12 @@ Fensterpfosten) blieb ausdrücklich beim Auftraggeber.
 - **Schall über die freien Felder** (`map/noiseSpread.ts`). Die Wellen der
   Karte liefen als Kreis: ein Schritt durch drei Wände und über den leeren
   Weltraum. Jetzt flutet `spreadNoise` über die Bodenkacheln — Wand nein, Tür
-  nur offen, Schacht nur für das Monster —, und `tileGrid` baut das Feld einer
-  Station einmal (Nachbarschaft mit Türkennung, Wände in Fächern je Kachel).
-  `MapView` puffert die geflutete Welle je Geräusch, solange sie klingt.
-  Gezeichnet wird sie jetzt **ganz hinten**, direkt auf den Böden.
+  nur offen, Schächte leiten in beide Richtungen wie im Hörmodell —, und
+  `tileGrid` baut das Feld einer Station einmal (Nachbarschaft mit
+  Türkennung, Wände in Fächern je Kachel). `MapView` puffert die geflutete
+  Welle je Geräusch, solange sie klingt. Gezeichnet wird sie jetzt **ganz
+  hinten**, direkt auf den Böden — und wer das Monster spielt, sieht seine
+  eigenen Wellen gar nicht.
 - **Das Monster hört sich nicht mehr selbst** (`audio/soundscape.ts`,
   `selfMonster`): Wer es spielt, bekam seine eigenen Schritte, seinen Ruf und
   einen Herzschlag vor sich selbst auf die Ohren.

@@ -7892,11 +7892,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Schacht). Sie laufen über die **freien Felder** und nicht über die Luftlinie
   (`map/noiseSpread.ts`): Kachel für Kachel, durch eine Tür nur, wenn sie
   offen steht, nie durch eine Wand, nie über den leeren Weltraum neben der
-  Station — und für das Monster zusätzlich durch die Schächte. Dasselbe, was
+  Station — und durch die **Schächte**, in beide Richtungen. Dasselbe, was
   `audio/hearing.ts` rechnet, nur sichtbar. Gezeichnet werden sie **ganz
   hinten**, direkt auf den Böden: Eine Welle über Möbeln und Figuren nähme
-  genau das Bild weg, für das sie da ist. Über einer gesperrten Tür steht ein
-  **Balken**, wie lange die Sperre noch hält (`MapDoor.hold`). **Ziele** (`MapViewOptions.objectives`, `FlatRound.objectives`:
+  genau das Bild weg, für das sie da ist. **Wer das Monster spielt, sieht
+  seine eigenen Wellen nicht** — man hört sich nicht selbst zu, weder auf der
+  Karte noch auf den Ohren (`audio/soundscape.selfMonster`). Über einer
+  gesperrten Tür steht ein **Balken**, wie lange die Sperre noch hält
+  (`MapDoor.hold`). **Ziele** (`MapViewOptions.objectives`, `FlatRound.objectives`:
   erst Ersatzteil, dann Konsole, zuletzt Zentrale) als Ring am Ort und gelbes
   Dreieck am Bildrand mit Entfernung; **Schächte** (`layers.vents`) als Bögen
   zwischen verbundenen Klappen mit dem Zielraum daran — in der 2D-Welt im

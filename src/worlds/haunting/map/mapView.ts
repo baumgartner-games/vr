@@ -665,8 +665,9 @@ export class MapView {
    * dahinter einen Saum, der verblasst; was zählt, ist nicht die Luftlinie,
    * sondern die Länge des begehbaren Wegs (`noiseSpread.ts`): durch die
    * offene Tür, um die Ecke, nie durch eine Wand und nie über den leeren
-   * Weltraum neben der Station. Für das Monster leiten zusätzlich die
-   * Schächte — sein Ohr sitzt auch an jeder Klappe.
+   * Weltraum neben der Station. **Die Schächte leiten** wie im Hörmodell —
+   * was das Monster darin anstellt, ist zwei Räume weiter zu hören, und in
+   * die andere Richtung ebenso.
    *
    * Die eigenen Geräusche sind blau, die des Monsters rot, alles andere
    * (Türen, Fracht, Mitspieler) orange — damit man auf der Karte *sieht*, was
@@ -679,9 +680,15 @@ export class MapView {
     const s = this.snapshot;
     const scale = this.state.scale;
     const viewer = this.options.viewerId ?? '';
+    // **Wer das Monster spielt, hört sich nicht selbst.** Für alle anderen ist
+    // die eigene Welle eine Auskunft — wie weit der eigene Schritt getragen
+    // hat —, für das Monster wäre sie ein blauer Teppich um die eigenen Füße,
+    // der alles überdeckt, wofür die Karte da ist (`audio/soundscape.ts`).
+    const deaf = s.entities.find((entity) => entity.id === viewer)?.kind === 'monster';
     const cell = FLOOR_TILE * scale;
     const waves: Array<{ noise: MapNoise; front: number; fade: number }> = [];
     for (const noise of s.noises ?? []) {
+      if (deaf && noise.by === viewer) continue;
       const age = s.time - noise.since;
       if (age < 0) continue;
       const arrival = noise.radius / WAVE_SPEED;
@@ -691,7 +698,9 @@ export class MapView {
       waves.push({ noise, front, fade });
     }
     // Der Gang der Wesen ohne Ereignis: die leise Fläche um jeden, der geht (nur im Modus „Alles sehen").
-    const steady = this.field.noise.filter((n) => n.cause !== 'monster');
+    const steady = this.field.noise.filter(
+      (n) => n.cause !== 'monster' && !(deaf && n.entityId === viewer),
+    );
     if (!waves.length && !steady.length) return;
     const grid = this.tileField();
     // Was noch klingt, bleibt gespeichert; alles andere räumt sich weg.
@@ -700,7 +709,9 @@ export class MapView {
     const open = new Set(
       s.doors.filter((door) => door.open && !door.locked).map((door) => door.id),
     );
-    const vents = viewer === 'monster';
+    // **Schächte leiten**, für jeden — dasselbe, was das Hörmodell rechnet
+    // (`audio/hearing.ts`, Satz 2). Was das Monster im Schacht anstellt, ist
+    // zwei Räume weiter zu hören, und in die andere Richtung ebenso.
     ctx.save();
     const paint = (key: string, color: string, alpha: number): void => {
       const [tx, tz] = key.split(',').map(Number) as [number, number];
@@ -718,7 +729,7 @@ export class MapView {
             : INK.noiseOther;
       let reached = this.waves.get(noise.id);
       if (!reached) {
-        reached = spreadNoise(grid, noise.at, noise.radius, { open, vents });
+        reached = spreadNoise(grid, noise.at, noise.radius, { open, vents: true });
         this.waves.set(noise.id, reached);
       }
       for (const [key, d] of reached) {
@@ -733,7 +744,7 @@ export class MapView {
     }
     for (const noise of steady) {
       const color = noise.entityId === viewer ? INK.noiseOwn : INK.noiseOther;
-      const reached = spreadNoise(grid, noise.at, noise.radius, { open, vents });
+      const reached = spreadNoise(grid, noise.at, noise.radius, { open, vents: true });
       for (const [key, d] of reached) paint(key, color, 0.12 * (1 - d / noise.radius));
     }
     ctx.restore();
