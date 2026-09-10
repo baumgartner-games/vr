@@ -4,6 +4,7 @@ import { ENTITY_PROFILES } from '../threat';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { MONSTERS, repairsFor, puzzleFor, puzzleSolved } from '../mission';
 import { stationLayout } from '../stationLayout';
+import { cargoKey, cargoLabel, cargoOf } from '../rules/cargo';
 import { spaceAtMetres } from './geometry';
 import { COMMAND } from '../roomGraph';
 import type { MapSource } from './mapSource';
@@ -145,16 +146,26 @@ export function worldMapSource(world: WorldHandles): MapSource {
       const layout = stationLayout(spec);
       const out: MapItem[] = [];
       const repairs = repairsFor(spec);
+      const slots = cargoOf(spec);
       for (const placement of layout) {
         if (placement.kind === 'cargo') {
-          const task = spec.tasks.find((t) => t.roomId === placement.roomId);
+          // Welche Kiste welches Teil hält, steht in `rules/cargo.ts` — hier
+          // wird nur nachgeschlagen. Ein zweites Mal zu würfeln hieße, dass
+          // Karte und Schiff auf verschiedene Kisten zeigen.
+          const slot = slots.find((one) => one.id === placement.id);
+          const task = slot?.loot.kind === 'part' ? slot.loot.taskId : '';
+          const key = slot ? cargoKey(slot) : placement.id;
           const taken = task
-            ? state.taken.includes(task.id) || state.done.includes(task.id)
-            : false;
+            ? state.taken.includes(task) || state.done.includes(task)
+            : crew.inventory.includes(key);
           out.push({
             id: placement.id,
             kind: 'cargo',
-            label: task ? task.label : 'Fracht',
+            label: task
+              ? (spec.tasks.find((t) => t.id === task)?.label ?? 'Fracht')
+              : slot
+                ? cargoLabel(slot)
+                : 'Fracht',
             roomId: placement.roomId,
             at: { x: placement.approach.x, z: placement.approach.z },
             state: taken ? 'taken' : crew.opened.includes(placement.id) ? 'open' : 'closed',

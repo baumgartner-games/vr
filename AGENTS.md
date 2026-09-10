@@ -7731,6 +7731,26 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`fixtureModels.buildBrokenLocker`), funkt alle drei bis sechs Sekunden
   (`rules/cabinWreck.ts`), lässt niemanden mehr hinein und wird vom
   Modelltechniker gemieden.
+- **Die Kisten stehen an einer Stelle** (`rules/cargo.ts`): `cargoOf(spec)`
+  ist die eine Liste aller Frachtkisten einer Runde, und 2D, 3D, Netz-Snapshot
+  und Archiv lesen sie, statt jeweils selbst zu würfeln. Vorher stand je Raum
+  **eine** Kiste, und `ShipExperience` und `map/flatRound.ts` verteilten den
+  Inhalt zweimal nach derselben Regel — was gut ging, solange „die Kiste des
+  Raums" eine Kiste meinte. Jetzt stellt `stationLayout` **zwei bis drei**
+  (`CARGO_PER_ROOM`, Ids `cargo-<raum>-<n>`; zwei sind Pflicht, die dritte
+  fällt weg, wo der Grundriss sie nicht trägt), jede mit einem Kennzeichen aus
+  Farbband und Nummer, je Raum eindeutig (`cargoLabel`: „Kiste 2 · blau"). Drin
+  liegen drei Aufgabenteile — je eines im Raum aus `spec.tasks`, `taskCargo` —,
+  vier Werkzeuge (radar, xray, medkit, medkit) und sonst nichts: **die leere
+  Kiste ist der Preis fürs Suchen.** Sie kostet zwei Griffe, öffnen (Geräusch)
+  und hineinsehen („Leer."), und gilt danach als erledigt. Gewürfelt wird aus
+  **eigenen Strömen** aus `spec.seed`, nie aus dem des Hauses: Die
+  Wurfreihenfolge von `generateHouse` ist Vertrag. Der Archivar liest deshalb
+  nicht mehr das Möbel vor („bei dem Frachtcontainer"), sondern die Kiste —
+  `CargoSlot.clue`, „Kiste 2, blaues Band · Nordwand". `HouseTask.hint` bleibt
+  stehen — er nennt das Merkmal des Raums („bei der Werkbank") und hängt am
+  Reparaturhinweis (`mission.ts`) und an der 2D-Raumakte (`map/flatMode.ts`),
+  die beide noch auf ihn zeigen.
 - Das vorhandene `FlashlightTool` ist Startausrüstung am rechten Gürtel.
   Webhände verwenden dieselbe Toolklasse. Die schwebende Ersatzlampe ist
   im Web anvisierbar; Aufnehmen entfernt ihren echten Physikkörper.
@@ -7739,9 +7759,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Avatar ist im Web unsichtbar; nur in XR wird sein Körper ohne Kopf eingeblendet.
 - `RadarTool` und `XrayTool` sind reguläre Tools mit identischem
   `scannerModel.ts`, Standardgriff und Gürtelablage. Radar zeigt Kontakte,
-  Xray nahe verborgene Fracht. Kein dauerhaftes VR-Sensor-HUD. Nach Inventar-
-  auswahl in VR bleibt ein Tool bis zur ersten bewussten Griffaktion gehalten;
-  andernfalls fällt es im nächsten PortalWorld-Update sofort herunter.
+  Xray nahe verborgene Fracht — **Inhalte, keine Kisten**: Was leer ist, meldet
+  er nicht, sonst wäre er die Antwort auf jede Suche. Kein dauerhaftes
+  VR-Sensor-HUD. Nach Inventarauswahl in VR bleibt ein Tool bis zur ersten
+  bewussten Griffaktion gehalten; andernfalls fällt es im nächsten
+  PortalWorld-Update sofort herunter.
 - **Mikrofon-Gegnerreaktion ist endgültig aus dem Spiel entfernt.** Kein
   `HauntingMicrophone`, kein Audioeingang für Gegnerwahrnehmung. Optionaler
   Sprachchat in `net/Voice.ts` bleibt unabhängig. **Gegneridentifikation ist
@@ -7853,6 +7875,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
   den Tab nicht einfriert. `DEFAULT_TUNING` ist das Ergebnis dieses Trainings;
   `botTraining.test.ts` misst 1600 Runden nach.
+  **Seit den zwei bis drei Kisten je Raum stimmen die ausgelieferten Gewichte
+  nicht mehr**: Jede zusätzliche Kiste ist ein weiteres Wandmodul, der Packer
+  stellt daraufhin jedes Zimmer anders, und die Wege werden länger. Gemessen
+  (1600 Runden, dieselben vier Reihen wie im Test): mit einer Kiste je Raum
+  0,52 / 0,34 — in beiden Bändern —, mit zwei bis drei 0,44 / 0,25. Zwei
+  Bergsteig-Läufe (60 × 128 und 80 × 160 Runden) kamen auf 0,56 / 0,29 und
+  damit nicht hinein; hier fehlt ein richtiger Trainingslauf, und der gehört
+  zum Monster-Paket, das `botTuning.ts` ohnehin umschreibt. Solange das nicht
+  passiert ist, sind die beiden Zusagen oben ein Ziel und keine Messung.
 - **Die Tür hinter dem Techniker** (`rules/doorSeal.ts`) ist der Grund, warum
   aus derselben Einstellung zwei Quoten werden. Er hat gegen das Monster nur
   eines in der Hand, und das ist **eine Tür**: Wer verfolgt hindurchgeht,
@@ -8034,7 +8065,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   die Szene kennt keine Tür-Tipps; `FlatRound.lockDoor`, `switchLight`),
   Archivar heißt die Akte per Tipp aufs Zimmer, in Szene wie Karte
   (`FlatMode.openSheet`: Kennzeichen, Schrankcode, Türen, Licht, Fracht mit
-  Fundhinweis, Konsole mit Code oder Kabelplan, Schacht mit Ziel). Ein Mensch
+  Fundhinweis — seit `rules/cargo.ts` das Kistenkennzeichen und die Wand —,
+  Konsole mit Code oder Kabelplan, Schacht mit Ziel). Ein Mensch
   am Platz nimmt sie ihm wieder ab. „Zielpfade" im Optionsmenü legt den Weg
   des Technikers zum nächsten Ziel (`FlatRound.playerRoute`, ein eigener
   `FlatNavigator` mit `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`,

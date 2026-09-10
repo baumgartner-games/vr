@@ -4,6 +4,7 @@ import { puzzleFor } from '../mission';
 import { doorWaypoint, spaceAtMetres } from './geometry';
 import { FlatWalker } from './flatWalk';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
+import { cargoOf } from '../rules/cargo';
 import type { FloorPoint } from '../stationLayout';
 
 const DT = 1 / 30;
@@ -72,9 +73,11 @@ describe('Eine Runde in der 2D-Welt', () => {
 
   it('steckt Werkzeuge aus der Fracht ein und schaltet sie durch', () => {
     const round = new FlatRound(3, { test: true });
-    const jobIds = new Set(round.jobs().map((j) => j.id));
-    const extra = round.items().find((i) => i.kind === 'cargo' && !jobIds.has(i.id))!;
-    expect(walkTo(round, extra.at)).toBe(true);
+    // Nicht mehr „irgendeine Kiste, die kein Auftrag ist": Seit in jedem Raum
+    // zwei bis drei stehen, ist die erste beste meistens leer.
+    const box = cargoOf(round.house).find((slot) => slot.loot.kind === 'tool')!;
+    const item = round.items().find((i) => i.id === box.id)!;
+    expect(walkTo(round, item.at)).toBe(true);
     round.act('interact');
     round.act('interact');
     expect(round.tools.length).toBe(2);
@@ -82,6 +85,25 @@ describe('Eine Runde in der 2D-Welt', () => {
     expect(round.activeTool).toBe(round.tools[1]);
     round.act('use');
     expect(round.drain().length).toBeGreaterThan(0);
+  });
+
+  it('gibt aus einer leeren Kiste nichts her — und meldet das beim zweiten Griff', () => {
+    const round = new FlatRound(3, { test: true });
+    const box = cargoOf(round.house).find((slot) => slot.loot.kind === 'empty')!;
+    const item = round.items().find((i) => i.id === box.id)!;
+    expect(walkTo(round, item.at)).toBe(true);
+    const before = [...round.tools];
+    round.act('interact');
+    expect(round.state().crew.opened).toContain(box.id);
+    expect(round.items().find((i) => i.id === box.id)?.state).toBe('open');
+    round.act('interact');
+    expect(round.drain().at(-1)?.text).toBe('Leer.');
+    expect(round.tools).toEqual(before);
+    expect(round.state().crew.inventory).not.toContain('');
+    // Danach ist die Kiste erledigt und lädt niemanden mehr zum Nachsehen ein.
+    const after = round.items().find((i) => i.id === box.id)!;
+    expect(after.state).toBe('taken');
+    expect(after.interactive).toBe(false);
   });
 
   it('versteckt sich im Schrank und kommt wieder heraus', () => {

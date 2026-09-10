@@ -101,10 +101,14 @@ Cafeteria und Storage sind größer. Gänge verbinden die Module über echte
 Rasterböden. Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
 Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
-Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. Das
-Archiv ermittelt den Fundort des benötigten Werkzeugs oder Bauteils. Der
-Techniker öffnet den Frachtschrank, nimmt den Gegenstand und entriegelt den
-passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
+Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. In jedem
+Raum stehen **zwei bis drei Frachtkisten**, jede mit Farbband und Nummer
+beschriftet („Kiste 2 · blau"); die drei Ersatzteile liegen in dreien davon,
+vier weitere halten Werkzeug, und der Rest ist leer. Das Archiv weiß als
+Einziges, welche es ist, und sagt es an: „Kiste 2, blaues Band · Nordwand".
+Wer ohne diese Ansage sucht, öffnet Kisten — und jede offene Kiste macht
+Geräusch. Der Techniker öffnet die Kiste, nimmt den Gegenstand und entriegelt
+den passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
 Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
 zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
 
@@ -161,8 +165,8 @@ Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
 aufgenommen werden. **Radar** und **Röntgengerät** sind echte greifbare
 Werkzeuge mit demselben Scannergehäuse und seitlicher Gürtelablage. Radar zeigt
-nahe Bewegung, Röntgen verborgene Fracht. Anzeigen erscheinen auf dem benutzten
-Gerät; ein dauerhaftes Radar-/Sensor-HUD im VR-Blick gibt es nicht.
+nahe Bewegung, Röntgen den Inhalt naher Kisten — leere meldet es nicht.
+Anzeigen erscheinen auf dem benutzten Gerät; ein dauerhaftes Radar-/Sensor-HUD im VR-Blick gibt es nicht.
 
 Über jedem Schott zeigen Leuchten auf beiden Seiten seinen Zustand: **grün**
 bedeutet betriebsbereit und öffnet beim Annähern, **rot** bedeutet gesperrt.
