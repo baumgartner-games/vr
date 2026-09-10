@@ -1,6 +1,7 @@
 import { COMMAND } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { FlatNavigator } from '../navmesh';
+import type { RouteAvoid } from '../stationNavigation';
 import { PLAYER_RADIUS, type FlatInput, type FlatRound } from './flatRound';
 
 /**
@@ -21,8 +22,17 @@ export class FlatWalker {
     this.navigator = new FlatNavigator(round.house, round.graph, PLAYER_RADIUS);
   }
 
-  /** Der Stock für diesen Schritt, oder `null`, wenn angekommen. */
-  input(goal: FloorPoint, dt: number, sprint = false): FlatInput | null {
+  /**
+   * Der Stock für diesen Schritt, oder `null`, wenn angekommen. `avoid` macht
+   * eine Stelle teuer, ohne sie zu sperren — damit geht der Techniker um das
+   * Monster herum statt an ihm vorbei (`stationNavigation.ts`).
+   */
+  input(
+    goal: FloorPoint,
+    dt: number,
+    sprint = false,
+    avoid: RouteAvoid | null = null,
+  ): FlatInput | null {
     const round = this.round;
     const graph = round.graph;
     this.time += dt;
@@ -43,7 +53,7 @@ export class FlatWalker {
       return null;
     if (this.time < this.detour) step = graph.centre(here);
     else {
-      this.navigator.aim(round.player, goal, round.haunt.shut, this.time);
+      this.navigator.aim(round.player, goal, round.haunt.shut, this.time, avoid);
       step = this.navigator.next(round.player) ?? goal;
     }
     const dx = step.x - round.player.x,
