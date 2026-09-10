@@ -45,8 +45,15 @@ describe('objectiveCompass', () => {
 
   test('compassMarks nennt Entfernung und das nächste Ziel', () => {
     const marks = compassMarks(0, { x: 0, z: 0 }, [
-      { id: 'a', at: { x: 3, z: -4 }, label: 'A', next: true },
-      { id: 'b', at: { x: 0, z: 10 }, label: 'B', next: false },
+      { id: 'a', at: { x: 3, z: -4 }, label: 'A', next: true, kind: 'crate', precision: 'exact' },
+      {
+        id: 'b',
+        at: { x: 0, z: 10 },
+        label: 'B',
+        next: false,
+        kind: 'console',
+        precision: 'exact',
+      },
     ]);
     expect(marks[0]).toMatchObject({ id: 'a', distance: 5, next: true, behind: false });
     expect(marks[1]).toMatchObject({ id: 'b', distance: 10, next: false, behind: true });

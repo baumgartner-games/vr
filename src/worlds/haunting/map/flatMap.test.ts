@@ -5,7 +5,7 @@ import { MapView } from './mapView';
 import { doorCentre } from './geometry';
 import { lockerCode } from '../mission';
 import { HOLD_RANGE, SLAM_HOLD, slamDoor } from '../rules/doorLocks';
-import { defaultSetup } from '../rules/roundSetup';
+import { defaultSetup, type RoundSetup } from '../rules/roundSetup';
 
 jest.mock('./flat.css', () => ({}));
 
@@ -133,6 +133,51 @@ describe('Ziele und Wege', () => {
     expect(round.objectives()[0]!.id).toMatch(/^console-/);
     round.haunt.done.push(...round.house.tasks.map((t) => t.id));
     expect(round.objectives()).toEqual([expect.objectContaining({ id: 'van', next: true })]);
+  });
+
+  it('verrät die Kiste nur, wenn ein Bot am Archiv sitzt — sonst den Raum', () => {
+    // Bot-Archivar: Es gibt niemanden zum Zurufen, also darf die Kiste selbst
+    // das Ziel sein.
+    const solo = new FlatRound(7, { test: true, setup: defaultSetup() });
+    expect(solo.precision).toBe('crate');
+    const crate = solo.objectives()[0]!;
+    expect(crate.id).toMatch(/^cargo-/);
+    expect(crate).toMatchObject({ kind: 'crate', precision: 'exact' });
+
+    // Mensch am Archiv: nur noch der Raum, mit seinem Namen als Beschriftung.
+    const shared: RoundSetup = { ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] };
+    const crew = new FlatRound(7, { test: true, setup: shared });
+    expect(crew.precision).toBe('room');
+    const goal = crew.objectives()[0]!;
+    const roomId = goal.id.replace('room:', '');
+    expect(goal.id).toMatch(/^room:/);
+    expect(goal).toMatchObject({ kind: 'room', precision: 'room' });
+    const room = crew.snapshot().rooms.find((one) => one.id === roomId)!;
+    expect(goal.label).toBe(room.name);
+    // Und es ist der Raum, in dem die richtige Kiste steht.
+    expect(solo.snapshot().items.find((i) => i.id === crate.id)!.roomId).toBe(roomId);
+  });
+
+  it('trägt bei Raumgenauigkeit keinen Teilenamen im Snapshot — und immer das Kennzeichen', () => {
+    const shared: RoundSetup = { ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] };
+    const round = new FlatRound(7, { test: true, setup: shared });
+    const snapshot = round.snapshot();
+    const names = round.house.tasks.map((task) => task.label);
+    expect(names.length).toBeGreaterThan(0);
+    for (const item of snapshot.items)
+      for (const name of names) expect(item.label).not.toContain(name);
+    // Kein Gegenstand ist als Ziel markiert — auch nicht über die Hintertür.
+    expect(snapshot.items.some((item) => item.goal)).toBe(false);
+    // Das Kennzeichen steht trotzdem an jeder Kiste: Der Archivar spricht darüber.
+    const crates = snapshot.items.filter((item) => item.kind === 'cargo');
+    expect(crates.length).toBeGreaterThan(10);
+    for (const crate of crates) {
+      expect(crate.mark).toBeDefined();
+      expect(crate.label).toContain(`Kiste ${crate.mark!.number}`);
+    }
+    // Mit Bot-Archivar trägt genau eine Kiste die Zielmarke.
+    const solo = new FlatRound(7, { test: true, setup: defaultSetup() });
+    expect(solo.snapshot().items.filter((item) => item.goal)).toHaveLength(1);
   });
 
   it('rechnet den Weg des Spielers zum nächsten Ziel und den des Monsters', () => {

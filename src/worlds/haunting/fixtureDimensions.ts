@@ -1,5 +1,6 @@
 import { BLOCKS, type BlockKind } from '../grid/blocks';
 import type { MarkId } from './house';
+import type { MarkColour } from './rules/cargo';
 
 /** Metres, including every handle, pipe and closed door. Front is local +Z. */
 export interface FixtureSize {
@@ -53,6 +54,22 @@ export const MARK_COLORS: Readonly<Record<MarkId, number>> = {
   schaukelpferd: 0xd88a6a,
   esstisch: 0xb08a5a,
   ausgabe: 0xd6c08a,
+};
+
+/**
+ * **Die vier Farben der Frachtbänder** — dieselbe Zahl im Schiff (`fixtureModels.ts`)
+ * wie auf dem Bild der 2D-Runde (`map/flatArt.ts`).
+ *
+ * Sie stehen neben `MARK_COLORS`, weil sie derselben Regel folgen: eine Zahl,
+ * ein Ding, alle Ansichten. Und sie sind kräftig gewählt, nicht hübsch: Wer im
+ * Dunkeln „das blaue Band" gesagt bekommt, hat drei Sekunden und eine
+ * Taschenlampe, um es von dem grünen zu unterscheiden.
+ */
+export const CARGO_BAND_COLORS: Readonly<Record<MarkColour, number>> = {
+  rot: 0xe2453f,
+  blau: 0x3b7ede,
+  gelb: 0xf2c53d,
+  grün: 0x4bb35a,
 };
 
 export const CARGO_SIZE: FixtureSize = { width: 0.9, height: 1.4, depth: 0.65 };

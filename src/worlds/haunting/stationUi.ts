@@ -34,7 +34,7 @@ import { atHome, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
-import { taskCargo } from './rules/cargo';
+import { cargoOf, taskCargo } from './rules/cargo';
 import type { LobbyChoice } from './rules/lobby';
 import type { RoleView } from './registry/roles';
 import type { MonsterPort } from './monster/monsterDriver';
@@ -1019,6 +1019,17 @@ export class StationUi {
       links.append(target);
       const task = spec.tasks.find((item) => item.id === repair.itemId);
       if (task) {
+        // **Der Fundort steht auf dem Auftrag, nicht nur im Raum.** Er ist
+        // seit den zwei bis drei Kisten je Raum die eigentliche Auskunft des
+        // Archivars: Raum, Kennzeichen, Wand — und der Techniker sieht selbst
+        // nur noch den Raum leuchten, wenn hier ein Mensch sitzt.
+        row.append(
+          el(
+            'span',
+            'haunt__chip',
+            `Fundort: ${roomOf(spec, task.roomId)?.name ?? task.roomId} · ${taskCargo(spec, task.id).clue}`,
+          ),
+        );
         const source = el('button', 'haunt__chart-key', 'Fundraum öffnen');
         source.dataset['dossierRoom'] = task.roomId;
         links.append(source);
@@ -1095,6 +1106,24 @@ export class StationUi {
         );
         if (repair) sheet.append(fact('Benötigt für', repair.title));
       }
+      // **Alle Kisten des Raums, die richtige markiert.** Der Techniker sieht
+      // nur ihre Kennzeichen; welche davon zählt, steht allein hier — und was
+      // in den anderen liegt, steht auch hier nicht: Ein Archivar, der „in der
+      // roten ist nur ein Medkit" vorliest, nimmt dem Suchen sein Risiko.
+      const crates = cargoOf(spec).filter((slot) => slot.roomId === room.id);
+      const wanted = new Set(
+        spec.tasks
+          .filter((task) => task.roomId === room.id)
+          .map((task) => taskCargo(spec, task.id).id),
+      );
+      for (const slot of crates)
+        sheet.append(
+          fact(
+            wanted.has(slot.id) ? 'Fundort' : 'Kiste',
+            `${slot.clue}${wanted.has(slot.id) ? ' · hier liegt das Ersatzteil' : ''}`,
+            wanted.has(slot.id),
+          ),
+        );
       for (const repair of repairsFor(spec).filter((one) => one.roomId === room.id)) {
         sheet.append(fact('Reparaturhinweis', repair.hint));
         sheet.append(

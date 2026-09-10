@@ -163,18 +163,19 @@ export function worldMapSource(world: WorldHandles): MapSource {
           const taken = task
             ? state.taken.includes(task) || state.done.includes(task)
             : crew.inventory.includes(key);
+          // **Auf der Kiste steht ihr Kennzeichen, nie der Teilename.** Hier
+          // stand einmal „Kühlmittelpumpe", und damit las jedes Telefon in der
+          // Runde aus dem Snapshot ab, was eigentlich der Archivar hätte sagen
+          // sollen.
           out.push({
             id: placement.id,
             kind: 'cargo',
-            label: task
-              ? (spec.tasks.find((t) => t.id === task)?.label ?? 'Fracht')
-              : slot
-                ? cargoLabel(slot)
-                : 'Fracht',
+            label: slot ? cargoLabel(slot) : 'Fracht',
             roomId: placement.roomId,
             at: { x: placement.approach.x, z: placement.approach.z },
             state: taken ? 'taken' : crew.opened.includes(placement.id) ? 'open' : 'closed',
             interactive: !taken,
+            ...(slot ? { mark: { colour: slot.mark.colour, number: slot.mark.number } } : {}),
           });
         } else if (placement.kind === 'locker') {
           out.push({

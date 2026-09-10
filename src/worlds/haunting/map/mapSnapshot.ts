@@ -1,4 +1,5 @@
 import type { RoomKind } from '../house';
+import type { MarkColour } from '../rules/cargo';
 import type { Ghosts } from '../rules/ghosts';
 
 /**
@@ -163,6 +164,21 @@ export interface MapItem {
   state: string;
   /** Ob man damit etwas tun kann, wenn man davorsteht. */
   interactive: boolean;
+  /**
+   * **Das Kennzeichen einer Kiste** (`rules/cargo.ts`): Farbband und Nummer,
+   * beides je Raum eindeutig. Es steht **immer** dabei, auch ohne Ziel — der
+   * Archivar sagt „Kiste 2, blaues Band", und wer das hört, muss es
+   * wiederfinden können. Nur Fracht hat eines.
+   */
+  mark?: { colour: MarkColour; number: number };
+  /**
+   * **Ob das gerade das Ziel des Technikers ist.** Gesetzt nur dort, wo die
+   * Kiste verraten werden darf (`rules/roundSetup.goalPrecision` ist
+   * `'crate'`). Sitzt ein Mensch am Archiv, trägt kein Gegenstand diese Marke
+   * — und keiner sein Label, denn ein Teilename im Snapshot wäre dasselbe
+   * Leck durch die Hintertür.
+   */
+  goal?: boolean;
 }
 
 /**

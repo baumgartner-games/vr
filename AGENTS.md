@@ -7802,6 +7802,26 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   stehen — er nennt das Merkmal des Raums („bei der Werkbank") und hängt am
   Reparaturhinweis (`mission.ts`) und an der 2D-Raumakte (`map/flatMode.ts`),
   die beide noch auf ihn zeigen.
+- **Wer wissen darf, welche Kiste die richtige ist** (`rules/roundSetup.ts`,
+  `goalPrecision`): Sitzt am Archiv ein **Bot**, gibt es niemanden zum
+  Zurufen — dann ist das Ziel die **Kiste** (`MapGoal.kind` `'crate'`,
+  `precision` `'exact'`). Sitzt dort ein **Mensch**, ist es der **Raum**
+  (`room:<raum>`, Raummitte, Label = Raumname, `precision` `'room'`), und
+  welche der zwei bis drei Kisten darin zählt, steht allein auf seinem Blatt.
+  Kompass, Randdreieck und Zielpfad zielen unverändert auf `MapGoal.at` und
+  brauchen nur das Label. **Hervorgehoben wird die Sache selbst und kein Ring
+  daneben:** in 2D die Kiste mit Schein, Umriss und Puls (`flatArt.drawCargo`)
+  oder der Raumboden mit pulsierender Kante (`map/flatScene.ts`,
+  `FlatSceneOptions.goalRoom`), in 3D ein gelber Saum auf der Zielkiste
+  (`core/outlineShell.ts`, `ShipExperience.seam`). **Das Kennzeichen ist immer
+  sichtbar** — `MapItem.mark`, Farbband und Nummer am Modell
+  (`fixtureModels.buildCargoCabinet(mark)`, Farben in
+  `fixtureDimensions.CARGO_BAND_COLORS`) —, denn der Archivar spricht ja
+  darüber. **Und der Snapshot trägt keinen Teilenamen mehr:** Auf einer Kiste
+  steht ihr Kennzeichen (`map/flatRound.items`, `map/worldSource.ts`), und
+  `MapItem.goal` wird nur bei Kistengenauigkeit gesetzt. Das dauerhafte
+  amberfarbene Inhaltsschild am Frachtschrank ist **weg** — es war das größte
+  Leck; was drin liegt, sagt das Röntgengerät oder die offene Kiste.
 - Das vorhandene `FlashlightTool` ist Startausrüstung am rechten Gürtel.
   Webhände verwenden dieselbe Toolklasse. Die schwebende Ersatzlampe ist
   im Web anvisierbar; Aufnehmen entfernt ihren echten Physikkörper.
@@ -7811,7 +7831,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 - `RadarTool` und `XrayTool` sind reguläre Tools mit identischem
   `scannerModel.ts`, Standardgriff und Gürtelablage. Radar zeigt Kontakte,
   Xray nahe verborgene Fracht — **Inhalte, keine Kisten**: Was leer ist, meldet
-  er nicht, sonst wäre er die Antwort auf jede Suche. Kein dauerhaftes
+  er nicht, sonst wäre er die Antwort auf jede Suche. Er nennt dabei das
+  **Kennzeichen** und den Raum, nie den Teilenamen (2D `FlatRound.useTool`, in
+  3D das Schild an der Kiste, `Cabinet.scanner`) — er ist der technische
+  Ausweg neben dem Archivar und nicht sein Ersatz. Kein dauerhaftes
   VR-Sensor-HUD. Nach Inventarauswahl in VR bleibt ein Tool bis zur ersten
   bewussten Griffaktion gehalten; andernfalls fällt es im nächsten
   PortalWorld-Update sofort herunter.
@@ -8159,9 +8182,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Karte noch auf den Ohren (`audio/soundscape.selfMonster`). Über einer
   gesperrten Tür steht ein **Balken**, wie lange die Sperre noch hält
   (`MapDoor.hold`). **Ziele** (`MapViewOptions.objectives`, `FlatRound.objectives`:
-  erst Ersatzteil, dann Konsole, zuletzt Zentrale) als Ring am Ort und gelbes
-  Dreieck am Bildrand mit Entfernung; **Schächte** (`layers.vents`) als Bögen
-  zwischen verbundenen Klappen mit dem Zielraum daran — in der 2D-Welt im
+  erst Ersatzteil, dann Konsole, zuletzt Zentrale) als gelbes Dreieck am
+  Bildrand mit Entfernung — und am Ort als das Ding selbst: der Kasten der
+  Kiste, der Umriss des Raums, ein Ring nur noch bei Konsole und Zentrale;
+  **Schächte** (`layers.vents`) als Bögen zwischen verbundenen Klappen mit dem
+  Zielraum daran — in der 2D-Welt im
   Modus „Alles sehen", in der Monster-Ansicht immer. `overlay` malt zuletzt,
   was eine Ansicht selbst noch braucht. Im Modus „Realitätsnah"
   bleiben Möbel und Items im Dunkeln weg (`seen`).
@@ -8193,15 +8218,17 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   die Szene kennt keine Tür-Tipps; `FlatRound.lockDoor`, `switchLight`),
   Archivar heißt die Akte per Tipp aufs Zimmer, in Szene wie Karte
   (`FlatMode.openSheet`: Kennzeichen, Schrankcode, Türen, Licht, Fracht mit
-  Fundhinweis — seit `rules/cargo.ts` das Kistenkennzeichen und die Wand —,
-  Konsole mit Code oder Kabelplan, Schacht mit Ziel). Ein Mensch
-  am Platz nimmt sie ihm wieder ab. „Zielpfade" im Optionsmenü legt den Weg
-  des Technikers zum nächsten Ziel (`FlatRound.playerRoute`, ein eigener
-  `FlatNavigator` mit `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`,
-  `navigator.remaining`; nur mit Späher oder „Alles sehen") auf Szene und
-  Karte. Über der Szene malt `FlatMode.drawSceneOverlay` (Haken
-  `FlatSceneOptions.overlay`) Wege sowie Ziele als Ring und Randdreieck; die
-  Szene selbst weiß davon nichts.
+  Fundhinweis — seit `rules/cargo.ts` das Kistenkennzeichen und die Wand, und
+  nur mit dem Platz —, Konsole mit Code oder Kabelplan, Schacht mit Ziel; die
+  Zuordnung läuft über die Id und nicht mehr über das Label, denn auf einer
+  Kiste steht ihr Kennzeichen). Ein Mensch am Platz nimmt sie ihm wieder ab —
+  und mit ihr die Kistengenauigkeit des Ziels (`goalPrecision`). „Zielpfade" im
+  Optionsmenü legt den Weg des Technikers zum nächsten Ziel
+  (`FlatRound.playerRoute`, ein eigener `FlatNavigator` mit `PLAYER_RADIUS`)
+  und den des Monsters (`monsterRoute`, `navigator.remaining`; nur mit Späher
+  oder „Alles sehen") auf Szene und Karte. Über der Szene malt
+  `FlatMode.drawSceneOverlay` (Haken `FlatSceneOptions.overlay`) Wege sowie das
+  Randdreieck der Ziele; die Szene selbst weiß davon nichts.
 - **Das Kabelrätsel zeigt Symbole** (`map/puzzleOverlay.ts`, `WIRE_SYMBOLS`,
   `WIRE_COLORS` wie an der Konsole im Schiff): Stecker `i` gehört in die
   Buchse mit demselben Symbol, richtig Verbundenes leuchtet grün. Ohne die
@@ -8304,10 +8331,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
 - Archiv hat **Räume & Codes** und **Aufträge**, nur Raumnamen auswählbar.
   Ein Raum zeigt echte orthografische 3D-Geometrie ohne Decke als 2D-Draufsicht,
-  dazu Sci-Fi-Farbton, Codes, Fundorte und Reparaturhinweise. **Keine Gesamtkarte,
-  keine Live-Kreaturen und kein Journal.** `viewport()` ist nur im Raumreiter
-  aktiv, `headroom()`=0. Masken grenzen Nachbarräume aus. `archiveMap.ts` bleibt
-  ein unbenutztes Altmodul und darf nicht wieder in die Archiv-UI eingebaut werden.
+  dazu Sci-Fi-Farbton, Codes, Fundorte und Reparaturhinweise. **Das Blatt
+  führt alle Kisten des Raums** mit Kennzeichen und Wand (`CargoSlot.clue`),
+  die richtige als „Fundort" markiert — den Inhalt der anderen nennt es
+  nicht, sonst hätte das Suchen kein Risiko mehr. Im Reiter **Aufträge** steht
+  der Fundort in einer Zeile (Raum · Kennzeichen · Wand): Sitzt hier ein
+  Mensch, sieht der Techniker nur den Raum leuchten (`goalPrecision`), und
+  diese Zeile ist das, was er ansagen muss. Das Kennzeichen ist auch in der
+  Draufsicht zu sehen — Farbband und Nummer stehen am Modell selbst.
+  **Keine Gesamtkarte, keine Live-Kreaturen und kein Journal.** `viewport()`
+  ist nur im Raumreiter aktiv, `headroom()`=0. Masken grenzen Nachbarräume aus.
+  `archiveMap.ts` bleibt ein unbenutztes Altmodul und darf nicht wieder in die
+  Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
 - **STATION_PROTOCOL=8**: der Stand trägt jetzt die zerstörten Kabinen

@@ -14,11 +14,11 @@ import {
 } from './flatRound';
 import { Joystick } from './joystick';
 import { FlatScene, scaleForWidth } from './flatScene';
-import { INK, MapView, type MapGoal, type MapRoute } from './mapView';
+import { goalRoomId, INK, MapView, type MapGoal, type MapRoute } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
-import { taskCargo } from '../rules/cargo';
+import { cargoLabel, cargoOf, taskCargo } from '../rules/cargo';
 import { hudTasks } from '../rules/roundHud';
 import {
   defaultSetup,
@@ -188,6 +188,7 @@ export class FlatMode {
       onEntityClick,
       onItemClick,
       noiseInk: (noise) => this.sceneNoiseInk(noise),
+      goalRoom: () => goalRoomId(this.round.objectives()[0]),
       overlay: (ctx) => this.drawSceneOverlay(ctx),
     });
     this.scene.element.classList.add('flat__scene');
@@ -550,9 +551,14 @@ export class FlatMode {
       const pulse = goal.next ? 1 + 0.15 * Math.sin(t * 4) : 1;
       const r = 14 * pulse;
       ctx.lineWidth = goal.next ? 3 : 1.5;
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, r * 1.3, r * 0.7, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      // **Kiste und Raum leuchten selbst** (`flatArt.drawCargo`,
+      // `flatScene`) — die Ellipse daneben war die zweite Marke für dieselbe
+      // Sache und ist es nur noch dort, wo nichts leuchtet: Konsole, Zentrale.
+      if (goal.kind !== 'crate' && goal.kind !== 'room') {
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, r * 1.3, r * 0.7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       if (goal.next) {
         const y = p.y - 44 - 4 * Math.sin(t * 4);
         ctx.beginPath();
@@ -685,14 +691,22 @@ export class FlatMode {
     line('Licht', room.lit ? 'an' : 'aus', !room.lit);
     for (const item of snapshot.items.filter((i) => i.roomId === roomId)) {
       if (item.kind === 'cargo') {
-        const task = spec.tasks.find((t) => t.label === item.label);
+        // **Über die Id, nicht über das Label.** Auf einer Kiste steht ihr
+        // Kennzeichen, seit der Snapshot keine Teilenamen mehr trägt; wer hier
+        // Labels mit Aufgabennamen verglich, fand nie wieder eine Kiste.
+        const slot = cargoOf(spec).find((one) => one.id === item.id);
+        const loot = slot?.loot;
+        const task =
+          loot && loot.kind === 'part' ? spec.tasks.find((t) => t.id === loot.taskId) : undefined;
         line(
           'Fracht',
-          `${item.label} · ${item.state === 'taken' ? 'mitgenommen' : item.state === 'open' ? 'geöffnet' : 'verschlossen'}`,
+          `${slot ? cargoLabel(slot) : item.label} · ${item.state === 'taken' ? 'mitgenommen' : item.state === 'open' ? 'geöffnet' : 'verschlossen'}`,
         );
-        // Der Hinweis des Archivars nennt die Kiste und ihre Wand
-        // (`rules/cargo.ts`), nicht mehr das Möbel daneben.
-        if (task && item.state !== 'taken') line('Fundhinweis', taskCargo(spec, task.id).clue);
+        // Der Fundhinweis ist die Auskunft des Archivars — die Kiste und ihre
+        // Wand (`rules/cargo.ts`), nicht mehr das Möbel daneben. Er steht nur
+        // auf dem Blatt dessen, der die Akte auch hat.
+        if (task && item.state !== 'taken' && this.powers.archive)
+          line('Fundhinweis', `${task.label} · ${taskCargo(spec, task.id).clue}`);
       } else if (item.kind === 'console') {
         const repair = repairsFor(spec).find((r) => r.title === item.label);
         line('Konsole', `${item.label} · ${item.state === 'solved' ? 'repariert' : 'defekt'}`);

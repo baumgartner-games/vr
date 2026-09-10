@@ -1,9 +1,9 @@
 /** @jest-environment jsdom */
 import { StationUi, type StationHost } from './stationUi';
 import { homeView } from './archiveView';
-import { generateHouse } from './house';
+import { generateHouse, roomOf } from './house';
 import { freshCrew, lockerCode, repairsFor } from './mission';
-import { taskCargo } from './rules/cargo';
+import { cargoOf, taskCargo } from './rules/cargo';
 import type { HauntState } from './net';
 import { freshGhosts } from './rules/ghosts';
 import type { StationId } from './stations';
@@ -371,6 +371,30 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     button(`[data-dossier-room="${repair.roomId}"]`).click();
     expect(button('[data-archive-tab="rooms"]').getAttribute('aria-pressed')).toBe('true');
     expect(game.ui.selected).toBe(repair.roomId);
+  });
+
+  it('nennt auf dem Auftrag den Fundort mit Kennzeichen und markiert die richtige Kiste im Raum', () => {
+    const game = crew();
+    const task = game.spec.tasks[0]!;
+    const slot = taskCargo(game.spec, task.id);
+    button('[data-archive-tab="orders"]').click();
+    const orders = document.querySelector('.haunt__tasks')?.textContent ?? '';
+    expect(orders).toContain(`Fundort: ${roomOf(game.spec, task.roomId)!.name} · ${slot.clue}`);
+
+    // Und im Raumblatt stehen alle Kisten des Raums — die richtige markiert,
+    // der Inhalt der anderen nicht.
+    button('[data-archive-tab="rooms"]').click();
+    const select = document.querySelector<HTMLSelectElement>('select[data-room-select]')!;
+    select.value = task.roomId;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const sheet = document.querySelector('.haunt__sheet')?.textContent ?? '';
+    const inRoom = cargoOf(game.spec).filter((one) => one.roomId === task.roomId);
+    expect(inRoom.length).toBeGreaterThan(1);
+    for (const one of inRoom) expect(sheet).toContain(one.clue);
+    expect(sheet).toContain(`${slot.clue} · hier liegt das Ersatzteil`);
+    for (const one of inRoom)
+      if (one.id !== slot.id && one.loot.kind === 'tool')
+        expect(sheet).not.toContain(one.loot.tool);
   });
 
   it('shows the actual cargo clue on its source room sheet', () => {

@@ -117,6 +117,14 @@ export interface FlatSceneOptions {
   /** Welche Geräusche überhaupt in Frage kommen — voreingestellt die des Snapshots. */
   noises?: () => readonly MapNoise[];
   /**
+   * **Welcher Raum das Ziel ist**, wenn nur der Raum verraten werden darf
+   * (`rules/roundSetup.goalPrecision` = `'room'`, also: ein Mensch sitzt am
+   * Archiv). Sein Boden bekommt einen Schimmer und eine pulsierende Kante —
+   * mehr nicht: Welche der Kisten darin es ist, sagt der Archivar. Ohne diese
+   * Auskunft leuchtet kein Boden.
+   */
+  goalRoom?: () => string | null;
+  /**
    * Zum Schluss: was die Ansicht selbst noch über die Szene malt — Ziele
    * am Bildrand, Wege, die Peilung (`flatMode.ts`). In CSS-Punkten, mit
    * `toScreen`; die Szene selbst weiß davon nichts.
@@ -152,6 +160,8 @@ const INK = {
   lampGreen: '#6cf58a',
   lampRed: '#ff5a5f',
   threshold: '#5b6774',
+  goalFloor: 'rgba(255, 216, 74, 0.10)',
+  goalEdge: '#ffd84a',
   roomName: 'rgba(235, 110, 110, 0.55)',
   roomLine: 'rgba(235, 90, 90, 0.5)',
   dim: 'rgba(0, 0, 0, 0.45)',
@@ -209,6 +219,8 @@ export class FlatScene {
     cuts: 0,
     dimmed: 0,
     noises: 0,
+    /** Ob der Zielraum getönt wurde — 0 oder 1. */
+    goalRooms: 0,
   };
 
   constructor(private readonly options: FlatSceneOptions = {}) {
@@ -358,6 +370,7 @@ export class FlatScene {
       cuts: 0,
       dimmed: 0,
       noises: 0,
+      goalRooms: 0,
     };
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -398,6 +411,28 @@ export class FlatScene {
       this.drawFloor(ctx, room, b);
       this.stats.rooms++;
     }
+    // --- Der Zielraum, wenn nur der Raum verraten werden darf ---------------------
+    const goalRoom = this.options.goalRoom?.() ?? null;
+    if (goalRoom) {
+      const found = rooms.find(({ room }) => room.id === goalRoom);
+      if (found) {
+        // Derselbe Puls wie an der Zielkiste (`flatArt.drawCargo`): Es ist
+        // dieselbe Auskunft, nur eine Stufe gröber.
+        const pulse = 0.75 + 0.25 * Math.sin(s.time * 9);
+        this.path(ctx, found.room.polygon);
+        ctx.fillStyle = INK.goalFloor;
+        ctx.fill();
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = INK.goalEdge;
+        ctx.lineWidth = Math.max(2, u * 0.08);
+        this.path(ctx, found.room.polygon);
+        ctx.stroke();
+        ctx.restore();
+        this.stats.goalRooms = 1;
+      }
+    }
+
     // --- Geräusche als Wellen, direkt auf den Böden ------------------------------
     // Ganz hinten: Wände, Möbel und vor allem die Figuren liegen darüber. Eine
     // Welle, die den Spieler überdeckt, nimmt ihm genau das Bild, für das sie

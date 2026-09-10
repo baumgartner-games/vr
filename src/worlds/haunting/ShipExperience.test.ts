@@ -7,6 +7,8 @@ import { ControllerState, type XRInput } from '../../core/XRInput';
 import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
 import { ShipExperience } from './ShipExperience';
+import type { MapGoal } from './map/mapView';
+import { outlineOf } from '../../core/outlineShell';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { RadarTool } from '../portal/tools/RadarTool';
 import { XrayTool } from '../portal/tools/XrayTool';
@@ -40,7 +42,13 @@ interface ExhibitLocator {
     light: THREE.MeshBasicMaterial;
     leaves: THREE.Mesh[];
   }>;
-  cabinets: Array<{ id: string; leaf: THREE.Mesh; lootMesh: THREE.Object3D }>;
+  cabinets: Array<{
+    id: string;
+    group: THREE.Group;
+    leaf: THREE.Mesh;
+    lootMesh: THREE.Object3D;
+    scanner: THREE.Object3D;
+  }>;
   consoles: Array<{
     repair: Repair;
     screen: { mesh: THREE.Mesh };
@@ -76,6 +84,8 @@ let testMission: jest.Mock;
 let stations: jest.Mock;
 let menuToggle: jest.Mock;
 let floating: FlashlightTool;
+/** Was der Kompass gerade ansagt — die Welt rechnet es sonst selbst (`HauntingWorld.objectives`). */
+let goals: MapGoal[];
 
 beforeAll(() => {
   const gradient = { addColorStop: () => {} };
@@ -152,6 +162,7 @@ beforeEach(() => {
   equip = jest.fn();
   testMission = jest.fn();
   stations = jest.fn();
+  goals = [];
   floating = new FlashlightTool();
   floating.position.set(COMMAND_HOME.x + 1, 1.4, COMMAND_HOME.z - 1);
   scene.add(floating);
@@ -169,6 +180,7 @@ beforeEach(() => {
       floating.setLit(false);
     },
     test: testMission,
+    objectives: () => goals,
     stations,
     door: jest.fn(),
     travel: (at) => rig.placeAt(at),
@@ -911,4 +923,82 @@ describe('Die Steuerung der 2D-Welt über der 3D-Szene', () => {
     frame();
     expect(root.hidden).toBe(false);
   });
+});
+
+test('die Zielkiste trägt den Saum, sonst keine — und das Inhaltsschild ist weg', () => {
+  const cabinet = exhibits.cabinets.find((c) => c.id.startsWith('cargo-'))!;
+  const body = cabinet.group.children.find(
+    (child) => child instanceof THREE.Mesh && child !== cabinet.leaf,
+  ) as THREE.Mesh;
+  // **Kein dauerhaftes Inhaltsschild mehr.** Am Schrank hängt außer dem Modell
+  // des Inhalts nur noch das Kennzeichen (auf dem Blatt) und das Schild des
+  // Röntgengeräts — und das ist aus.
+  expect(cabinet.scanner.visible).toBe(false);
+  const tags = cabinet.group.children.filter(
+    (child) => child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry,
+  );
+  expect(tags).toEqual([cabinet.scanner]);
+
+  expect(outlineOf(body)).toBeNull();
+  goals = [
+    {
+      id: cabinet.id,
+      at: { x: 0, z: 0 },
+      label: 'Kiste 2 · blau',
+      next: true,
+      kind: 'crate',
+      precision: 'exact',
+    },
+  ];
+  frame();
+  expect(outlineOf(body)).not.toBeNull();
+  const other = exhibits.cabinets.find((c) => c.id.startsWith('cargo-') && c.id !== cabinet.id)!;
+  const otherBody = other.group.children.find(
+    (child) => child instanceof THREE.Mesh && child !== other.leaf,
+  ) as THREE.Mesh;
+  expect(outlineOf(otherBody)).toBeNull();
+
+  // Sitzt ein Mensch am Archiv, ist das Ziel der Raum — dann leuchtet keine Kiste.
+  goals = [
+    {
+      id: 'room:r1',
+      at: { x: 0, z: 0 },
+      label: 'Frachtlager',
+      next: true,
+      kind: 'room',
+      precision: 'room',
+    },
+  ];
+  frame();
+  expect(outlineOf(body)).toBeNull();
+});
+
+test('das Röntgengerät schaltet die Kennzeichenschilder der vollen Kisten ein', () => {
+  const crates = exhibits.cabinets.filter((c) => c.id.startsWith('cargo-'));
+  // Eine volle und eine leere Kiste nebeneinander: Genau das ist der Fall, für
+  // den das Gerät da ist.
+  const pair = crates
+    .filter((one) => !!one.lootMesh)
+    .flatMap((one) =>
+      crates
+        .filter(
+          (other) => !other.lootMesh && other.group.position.distanceTo(one.group.position) < 8,
+        )
+        .map((other) => ({ full: one, empty: other })),
+    )[0];
+  expect(pair).toBeDefined();
+  const { full, empty } = pair!;
+  // Es ist ein Gerät für den Raum, in dem man steht: Der Techniker tritt davor.
+  rig.placeAt(new THREE.Vector3(full.group.position.x, 0, full.group.position.z + 1));
+  frame();
+  expect(full.scanner.visible).toBe(false);
+  state.crew.inventory.push('xray');
+  menu('orbital:sensor');
+  frame();
+  expect(full.scanner.visible).toBe(true);
+  // Leere Kisten meldet es nicht: Es zeigt Inhalte, keine Kisten.
+  expect(empty.scanner.visible).toBe(false);
+  menu('orbital:sensor');
+  frame();
+  expect(full.scanner.visible).toBe(false);
 });

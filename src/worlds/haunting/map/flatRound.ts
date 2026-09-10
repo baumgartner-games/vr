@@ -35,7 +35,7 @@ import { freshSpook, stepHaunt, type Spook } from '../haunt';
 import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
-import { cargoKey, cargoLabel, cargoOf, type CargoSlot } from '../rules/cargo';
+import { cargoKey, cargoLabel, cargoOf, type CargoMark, type CargoSlot } from '../rules/cargo';
 import { CREW_SIZE, askSeal, dueSeal, freshSeal, type DoorSeal } from '../rules/doorSeal';
 import {
   HOLD_RANGE,
@@ -71,7 +71,13 @@ import {
   type MapSnapshot,
 } from './mapSnapshot';
 import type { MapGoal } from './mapView';
-import { crewSize, type RoundSetup, type SoloPowers } from '../rules/roundSetup';
+import {
+  crewSize,
+  goalPrecision,
+  type GoalPrecision,
+  type RoundSetup,
+  type SoloPowers,
+} from '../rules/roundSetup';
 import { applyPuzzle, type PuzzleAction } from './flatPuzzles';
 import {
   computeVisibility,
@@ -205,6 +211,8 @@ interface Cargo {
   label: string;
   /** Was außen draufsteht: „Kiste 2 · blau". Das sieht man vor dem Öffnen. */
   mark: string;
+  /** Dasselbe als Farbband und Nummer, für alles, was zeichnet. */
+  badge: CargoMark;
   /**
    * Woran hängt, ob diese Kiste schon geleert ist: der Inhalt, und bei einer
    * leeren die Kiste selbst (`cargoKey`).
@@ -301,12 +309,24 @@ export class FlatRound implements MapSource {
   private detourUntil = 0;
   private readonly litCache = new LitCache();
   private events: FlatEvent[] = [];
+  /**
+   * **Wie genau der Techniker sein Ziel genannt bekommt**
+   * (`rules/roundSetup.goalPrecision`). Ohne jede Angabe ist es die Kiste: Wer
+   * eine Runde ohne Verteilung aufmacht — jeder Test, jede Vorführung —, spielt
+   * allein, und allein ruft einem niemand zu, welche der drei die richtige ist.
+   */
+  readonly precision: GoalPrecision;
 
   constructor(seed: number, options: FlatOptions = {}) {
     this.house = generateHouse(seed, 14);
     this.graph = stationGraph(this.house);
     this.blocks = fixtureBlocks(this.house);
     this.players = options.players ?? (options.setup ? crewSize(options.setup) : CREW_SIZE);
+    this.precision = options.setup
+      ? goalPrecision(options.setup)
+      : options.powers && !options.powers.archive
+        ? 'room'
+        : 'crate';
     this.tuning = options.tuning ?? DEFAULT_TUNING;
     this.mode = options.mode ?? 'realistic';
     const crewOptions = stationOptions({
@@ -362,6 +382,7 @@ export class FlatRound implements MapSource {
         loot: slot.loot.kind === 'empty' ? '' : cargoKey(slot),
         label: lootName(this.house, slot),
         mark: cargoLabel(slot),
+        badge: slot.mark,
         key: cargoKey(slot),
         empty: slot.loot.kind === 'empty',
       });
@@ -502,16 +523,24 @@ export class FlatRound implements MapSource {
   items(): readonly MapItem[] {
     const crew = this.haunt.crew;
     const out: MapItem[] = [];
+    // **Auf einer Kiste steht ihr Kennzeichen und nicht ihr Inhalt.** Das
+    // Label reiste bis hierher durch den Snapshot und damit übers Netz: Wer
+    // „Kühlmittelpumpe" daraufschrieb, verriet die richtige Kiste an jeden,
+    // der eine Karte offen hatte — auch dann, wenn ein Mensch am Archiv sitzt
+    // und genau das seine Auskunft gewesen wäre.
+    const goal = this.precision === 'crate' ? this.objectives()[0] : null;
     for (const cargo of this.cargo) {
       const taken = crew.inventory.includes(cargo.key) || this.haunt.done.includes(cargo.key);
       out.push({
         id: cargo.id,
         kind: 'cargo',
-        label: cargo.label,
+        label: cargo.mark,
         roomId: cargo.roomId,
         at: { ...cargo.at },
         state: taken ? 'taken' : crew.opened.includes(cargo.id) ? 'open' : 'closed',
         interactive: !taken,
+        mark: { colour: cargo.badge.colour, number: cargo.badge.number },
+        ...(goal?.id === cargo.id ? { goal: true } : {}),
       });
     }
     for (const console of this.consoles) {
@@ -1132,10 +1161,14 @@ export class FlatRound implements MapSource {
       const near = open
         .map((c) => ({ c, d: Math.hypot(c.at.x - this.player.x, c.at.z - this.player.z) }))
         .sort((p, q) => p.d - q.d)[0];
+      // **Das Röntgen nennt die Kiste, nie ihren Inhalt.** Es ist der
+      // technische Ausweg des Technikers, wenn niemand am Archiv sitzt oder
+      // der Archivar schweigt — und es soll ihm dieselbe Auskunft geben wie
+      // ein Mensch am Telefon: Kennzeichen und Raum.
       this.events.push({
         kind: 'info',
         text: near
-          ? `Röntgen: ${near.c.label} in ${Math.round(near.d)} m (${roomName(this.house, near.c.roomId)}).`
+          ? `Röntgen: ${near.c.mark} in ${Math.round(near.d)} m (${roomName(this.house, near.c.roomId)}).`
           : 'Röntgen: keine Fracht mehr.',
       });
     }
@@ -1351,9 +1384,27 @@ export class FlatRound implements MapSource {
       const cargo = this.cargo.find((c) => c.loot === repair.itemId);
       const console = this.consoles.find((c) => c.repair.id === repair.id);
       if (cargo && !crew.inventory.includes(repair.itemId))
-        out.push({ id: cargo.id, at: { ...cargo.at }, label: cargo.label, next: false });
+        out.push(
+          this.precision === 'crate'
+            ? {
+                id: cargo.id,
+                at: { ...cargo.at },
+                label: cargo.label,
+                next: false,
+                kind: 'crate',
+                precision: 'exact',
+              }
+            : this.roomGoal(cargo.roomId),
+        );
       else if (console)
-        out.push({ id: console.id, at: { ...console.at }, label: repair.title, next: false });
+        out.push({
+          id: console.id,
+          at: { ...console.at },
+          label: repair.title,
+          next: false,
+          kind: 'console',
+          precision: 'exact',
+        });
     }
     if (!out.length)
       out.push({
@@ -1361,9 +1412,28 @@ export class FlatRound implements MapSource {
         at: { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
         label: 'Zurück zur Zentrale',
         next: false,
+        kind: 'van',
+        precision: 'exact',
       });
     out[0]!.next = true;
     return out;
+  }
+
+  /**
+   * **Das Ziel, wenn nur der Raum verraten werden darf**: seine Mitte, sein
+   * Name, seine Kennung. Der Weg dorthin ist derselbe wie zu jeder Kiste darin
+   * — welche es ist, sagt der Archivar.
+   */
+  private roomGoal(roomId: string): MapGoal {
+    const centre = this.graph.centre(roomId);
+    return {
+      id: `room:${roomId}`,
+      at: { x: centre.x, z: centre.z },
+      label: roomName(this.house, roomId),
+      next: false,
+      kind: 'room',
+      precision: 'room',
+    };
   }
 
   /** Der Weg, den das Monster gerade geht — leer, wenn ein Spieler es steuert oder es steht. */
