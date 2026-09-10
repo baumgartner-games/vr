@@ -1,3 +1,4 @@
+import { DOOR_LOSS } from '../audio/hearing';
 import type { RoutineWorld } from '../monsterRoutine';
 import type { FloorPoint } from '../stationLayout';
 
@@ -91,12 +92,16 @@ const CARRY = 14;
 /** Die kleinste Likelihood eines Geräuschs — kein Raum fällt an einem Knall ganz aus. */
 const WHISPER = 0.02;
 /**
- * Was eine Tür im Ersatzrechner an Hörweite schluckt (`roomGraph.DOOR_LOSS`
- * ist dieselbe Zahl). Gebraucht wird sie nur, wenn die Welt keine `earshot`
- * mitbringt — der echte `StationGraph` tut es, ein Testaufbau aus fünf
- * Zimmern nicht.
+ * Was eine Tür im Ersatzrechner an Hörweite schluckt. Gebraucht wird die Zahl
+ * nur, wenn die Welt keine `earshot` mitbringt — der echte `StationGraph` tut
+ * es, ein Testaufbau aus fünf Zimmern nicht.
+ *
+ * Sie kommt aus dem Hörmodell (`audio/hearing.ts`) und nicht mehr aus einer
+ * eigenen Konstante: Es gab hier einmal eine 9, weil `roomGraph` damals eine
+ * eigene 9 führte — und die war in Wahrheit die Dämpfung einer **Wand**. Zwei
+ * Wahrheiten über dieselbe Tür sind eine zu viel.
  */
-const MUFFLE = 9;
+const MUFFLE = DOOR_LOSS;
 /** Wie stark eine ältere Sichtung in der geglätteten Geschwindigkeit nachwiegt. */
 const FADE = 0.5;
 
