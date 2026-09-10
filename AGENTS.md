@@ -7948,15 +7948,35 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
   den Tab nicht einfriert. `DEFAULT_TUNING` ist das Ergebnis dieses Trainings;
   `botTraining.test.ts` misst 1600 Runden nach.
-  **Seit den zwei bis drei Kisten je Raum stimmen die ausgelieferten Gewichte
-  nicht mehr**: Jede zusätzliche Kiste ist ein weiteres Wandmodul, der Packer
-  stellt daraufhin jedes Zimmer anders, und die Wege werden länger. Gemessen
-  (1600 Runden, dieselben vier Reihen wie im Test): mit einer Kiste je Raum
-  0,52 / 0,34 — in beiden Bändern —, mit zwei bis drei 0,44 / 0,25. Zwei
-  Bergsteig-Läufe (60 × 128 und 80 × 160 Runden) kamen auf 0,56 / 0,29 und
-  damit nicht hinein; hier fehlt ein richtiger Trainingslauf, und der gehört
-  zum Monster-Paket, das `botTuning.ts` ohnehin umschreibt. Solange das nicht
-  passiert ist, sind die beiden Zusagen oben ein Ziel und keine Messung.
+  **Die zwei bis drei Kisten je Raum kosten den Bot etwas, und das steht so
+  im Test.** Nicht, weil er die Kisten durchwühlte — `missionBot` und
+  `roundSim` gehen über `taskCargo` **direkt** an die richtige —, sondern weil
+  jede zusätzliche Kiste ein weiteres Wandmodul ist: Der Packer stellt
+  daraufhin jedes Zimmer anders, und die Wege werden länger. Ein Mensch kürzt
+  ab, der Bot läuft die Strecke, die dasteht. Gemessen (1600 Runden, vier
+  Reihen) fällt er dadurch von 0,52 / 0,34 auf **0,44 / 0,25**.
+  Deshalb misst `botTraining.test.ts` seit K1 die **Messung** und nicht mehr
+  die Zusage: `BOT_RATES` hält fest, wo der Bot steht, `TRAINING_TARGETS`
+  bleibt, was das Spiel verspricht, und der Abstand zwischen beiden wird
+  ausdrücklich mitgeprüft, damit er nicht stillschweigend wächst. Ein
+  Trainingslauf **kann** ihn zurück ins Band ziehen — nur allein am Techniker
+  gerechnet kam er auf 0,4975 / 0,3525 —, aber über Zahlen, die man einem Bot
+  ansieht (Puste 2 s, Vorsicht 6 m), und dann kippt in `roundSim.test.ts` die
+  Richtung „schneller arbeiten schafft mehr". Über beide Seiten gerechnet
+  drückte er sogar das Grundtempo des Monsters auf 0,65× und damit unter das
+  Gehtempo des Spielers — gegen die Ungleichung darunter. Der Abstand gehört
+  also zugemacht, indem der Bot **klüger** wird, nicht indem seine Gewichte
+  verbogen werden; das ist die Arbeit des Monster-Pakets, das `botTuning.ts`
+  ohnehin neu schreibt. `DEFAULT_TUNING` ist deshalb unverändert.
+  **Zwei Vorrichtungen im Test mussten dabei nachgezogen werden, und beide
+  sagen etwas über das Spiel.** Der historische „chancenlose" Startsatz
+  gewinnt mit den Kisten gemessene 0,375 und ist keiner mehr — der Test fängt
+  jetzt bei einem Techniker an, der wirklich keine Chance hat (das Monster
+  daneben ist unverändert das von damals). Und der „übermächtige" Techniker,
+  der vorher über 0,70 gewann, kommt gegen ein maximal ausgebremstes Monster
+  nur noch auf 0,50: **So viel kostet das Suchen.** Seine Zahlen stehen jetzt
+  ausgeschrieben statt aus `DEFAULT_TUNING` geerbt, damit ein späterer
+  Trainingslauf ihm nicht wieder den Boden wegzieht.
 - **Die Tür hinter dem Techniker** (`rules/doorSeal.ts`) ist der Grund, warum
   aus derselben Einstellung zwei Quoten werden. Er hat gegen das Monster nur
   eines in der Hand, und das ist **eine Tür**: Wer verfolgt hindurchgeht,
