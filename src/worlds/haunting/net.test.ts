@@ -119,6 +119,25 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
     expect(odd.technician).toEqual({ x: 1000, z: 0, yaw: 1, moving: false });
   });
 
+  /**
+   * **Die liegengelassenen Ersatzteile** (`rules/archiveGoals.ts`) sind ein
+   * *optionales* Feld: Ein Gerät, das sie nicht kennt, soll weiterspielen und
+   * nicht ausgesperrt werden — `STATION_PROTOCOL` bleibt deshalb 8.
+   */
+  it('trägt liegengelassene Ersatzteile mit und verzeiht einen Stand ohne sie', () => {
+    const lying = { ...state(), dropped: [{ id: 't1', x: 3.5, z: -12, since: 40 }] };
+    const replay = readState(JSON.parse(JSON.stringify(stateMessage(lying))))!;
+    expect(replay.dropped).toEqual(lying.dropped);
+    // Ohne das Feld liegt eben nichts.
+    expect(readState(wireOf())!.dropped).toEqual([]);
+    // Und Unsinn wird zurechtgestutzt oder fällt weg.
+    const odd = readState({
+      ...wireOf(),
+      dropped: ['t0', { x: 1, z: 2 }, { id: 't2', x: 1e9, z: 'weit', since: 'gleich' }],
+    })!;
+    expect(odd.dropped).toEqual([{ id: 't2', x: 1000, z: 0, since: 0 }]);
+  });
+
   it('weist alte Protokolle ab', () => {
     expect(readState(wireOf())).not.toBeNull();
     expect(readState({ ...wireOf(), version: STATION_PROTOCOL - 1 })).toBeNull();

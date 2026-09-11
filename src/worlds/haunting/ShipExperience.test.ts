@@ -8,15 +8,17 @@ import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
 import { ShipExperience } from './ShipExperience';
 import type { MapGoal } from './map/mapView';
+import type { MapRound } from './map/mapSnapshot';
 import { outlineOf } from '../../core/outlineShell';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { RadarTool } from '../portal/tools/RadarTool';
 import { XrayTool } from '../portal/tools/XrayTool';
-import { generateHouse, roomAt } from './house';
+import { generateHouse, roomAt, type HouseSpec } from './house';
 import { TILE } from '../nav/navTile';
-import { freshCrew, stationOptions, type PuzzleState, type Repair } from './mission';
+import { freshCrew, repairsFor, stationOptions, type PuzzleState, type Repair } from './mission';
 import type { HauntState } from './net';
 import { freshGhosts } from './rules/ghosts';
+import { defaultSetup, saveSetup } from './rules/roundSetup';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -46,6 +48,8 @@ interface ExhibitLocator {
     id: string;
     group: THREE.Group;
     leaf: THREE.Mesh;
+    /** Was drinliegt — bei einem Missionsteil die Kennung der Aufgabe. */
+    loot: string;
     lootMesh: THREE.Object3D;
     scanner: THREE.Object3D;
   }>;
@@ -65,6 +69,8 @@ interface ExhibitLocator {
     wreck: THREE.Group | null;
   }>;
   lockerEntries: Map<string, string>;
+  /** Der Streifen im Blickfeld — `userData.paint` ist der Text, der darauf steht. */
+  hud: { mesh: THREE.Mesh };
 }
 
 let experience: ShipExperience;
@@ -78,6 +84,9 @@ let say: jest.Mock;
 let refresh: jest.Mock;
 let mounted: boolean;
 let ctx: WorldContext;
+let spec: HouseSpec;
+/** Der Stand der Runde für den Streifen im Blickfeld — ohne ihn malt er nicht. */
+let round: MapRound | null;
 let restart: jest.Mock;
 let equip: jest.Mock;
 let testMission: jest.Mock;
@@ -107,7 +116,7 @@ beforeAll(() => {
 beforeEach(() => {
   document.body.replaceChildren();
   localStorage.clear();
-  const spec = generateHouse(20260909, 8);
+  spec = generateHouse(20260909, 8);
   state = {
     crew: freshCrew(stationOptions({ test: true, bright: true, rooms: 8 })),
     seed: spec.seed,
@@ -163,6 +172,7 @@ beforeEach(() => {
   testMission = jest.fn();
   stations = jest.fn();
   goals = [];
+  round = null;
   floating = new FlashlightTool();
   floating.position.set(COMMAND_HOME.x + 1, 1.4, COMMAND_HOME.z - 1);
   scene.add(floating);
@@ -181,6 +191,7 @@ beforeEach(() => {
     },
     test: testMission,
     objectives: () => goals,
+    round: () => round,
     stations,
     door: jest.fn(),
     travel: (at) => rig.placeAt(at),
@@ -349,7 +360,11 @@ test('E opens a physical cargo door once, then picks up its exposed kit without 
 
 test('1 and 2 cycle found hand items including genuinely empty hands', () => {
   state.crew.inventory.push('radar', 'xray', 'medkit');
-  for (let i = 0; i < 3; i++) tap('Digit1');
+  // **Vier Schritte links, nicht drei**: frei, Taschenlampe, Radar, Röntgen.
+  // Die Lampe hängt seit dem Ersatzteil in der rechten Hand an *beiden*
+  // Hüften (`HauntingWorld.beltLoadout`) und steht deshalb auch links im
+  // Kreis. „Frei" bleibt erreichbar — Dunkelheit ist eine Entscheidung.
+  for (let i = 0; i < 4; i++) tap('Digit1');
   tap('Digit2');
   tap('Digit2');
   frame(0.13);
@@ -686,6 +701,9 @@ test('disposing restores stance and removes input, HUD, targets and camera attac
 test('desktop and VR use real tools; there is no persistent scanner or status HUD in a living VR view', () => {
   expect(rig.camera.getObjectByName('desktop-flashlight')).toBeInstanceOf(FlashlightTool);
   state.crew.inventory.push('radar', 'xray');
+  // Der erste Schritt der linken Hand ist die zweite Taschenlampe.
+  tap('Digit1');
+  expect(rig.camera.getObjectByName('desktop-flashlight-left')?.visible).toBe(true);
   tap('Digit1');
   expect(rig.camera.getObjectByName('desktop-held-scanner')?.visible).toBe(true);
   expect(rig.camera.getObjectByName('tool-radar')).toBeInstanceOf(RadarTool);
@@ -697,6 +715,8 @@ test('desktop and VR use real tools; there is no persistent scanner or status HU
   expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(false);
   expect(rig.camera.getObjectByName('mission-status-panel')?.visible).toBe(false);
   expect(scene.getObjectByName('mission-wrist-scanner')).toBeUndefined();
+  // Aus dem Röntgengerät heraus ist die Hand wieder frei — vier Schritte, und
+  // die Brille bekommt jeden davon als `equip` gemeldet.
   menu('orbital:sensor');
   expect(equip).toHaveBeenCalledWith('off', 'left');
 });
@@ -1037,6 +1057,8 @@ test('das Röntgengerät schaltet die Kennzeichenschilder der vollen Kisten ein'
   frame();
   expect(full.scanner.visible).toBe(false);
   state.crew.inventory.push('xray');
+  // Zwei Schritte: erst die Taschenlampe, dann das Röntgengerät.
+  menu('orbital:sensor');
   menu('orbital:sensor');
   frame();
   expect(full.scanner.visible).toBe(true);
@@ -1045,4 +1067,90 @@ test('das Röntgengerät schaltet die Kennzeichenschilder der vollen Kisten ein'
   menu('orbital:sensor');
   frame();
   expect(full.scanner.visible).toBe(false);
+});
+
+/**
+ * **Eine Hand, ein Ersatzteil** (`rules/archiveGoals.ts`). Die zweite Kiste
+ * geht auf, das Teil darin bleibt liegen — sonst sammelte man in Ruhe alle
+ * drei ein und klapperte danach die Konsolen ab.
+ */
+test('der Techniker bekommt kein zweites Ersatzteil in die Hand', () => {
+  const parts = exhibits.cabinets.filter((one) => spec.tasks.some((t) => t.id === one.loot));
+  expect(parts.length).toBeGreaterThan(1);
+  const [first, second] = parts as [(typeof parts)[0], (typeof parts)[0]];
+  aim(first.leaf);
+  tap('KeyE');
+  aim(first.lootMesh as THREE.Mesh);
+  tap('KeyE');
+  expect(state.crew.inventory).toContain(first.loot);
+  expect(state.taken).toContain(first.loot);
+
+  aim(second.leaf);
+  tap('KeyE');
+  expect(state.crew.opened).toContain(second.id);
+  aim(second.lootMesh as THREE.Mesh);
+  tap('KeyE');
+  expect(state.crew.inventory).not.toContain(second.loot);
+  expect(state.taken).not.toContain(second.loot);
+  expect(say).toHaveBeenCalledWith(expect.stringContaining('Beide Hände voll'));
+  // Die Kiste bleibt offen und unerledigt: Wer zurückkommt, findet sie so vor.
+  expect(state.crew.inventory).not.toContain(second.id);
+});
+
+/**
+ * **G legt das Teil ab** — und wo es liegt, steht im Stand, damit der Archivar
+ * es melden kann (`HauntState.dropped`, sichtbar erst nach `DROPPED_SEEN`).
+ */
+test('G legt das Ersatzteil im Gang ab, und E nimmt es wieder auf', () => {
+  const crate = exhibits.cabinets.find((one) => spec.tasks.some((t) => t.id === one.loot))!;
+  aim(crate.leaf);
+  tap('KeyE');
+  aim(crate.lootMesh as THREE.Mesh);
+  tap('KeyE');
+  expect(state.crew.inventory).toContain(crate.loot);
+
+  state.time = 42;
+  tap('KeyG');
+  expect(state.crew.inventory).not.toContain(crate.loot);
+  expect(state.dropped).toEqual([
+    { id: crate.loot, x: expect.any(Number), z: expect.any(Number), since: 42 },
+  ]);
+  // Die Konsole bleibt jetzt zu: `taken` heißt „war einmal draußen", nicht
+  // „ist in der Hand".
+  expect(state.taken).toContain(crate.loot);
+
+  frame();
+  const lying = experience.root.getObjectByName(`dropped-${crate.loot}`) as THREE.Mesh;
+  expect(lying).toBeDefined();
+  aim(lying);
+  tap('KeyE');
+  expect(state.crew.inventory).toContain(crate.loot);
+  expect(state.dropped).toEqual([]);
+});
+
+/**
+ * **Die Auftragszeile im Blickfeld gibt es nur solo** (`hudTasksVisible`):
+ * Sitzt am Archiv ein Mensch, ist das Wissen dessen Platz, und der Techniker
+ * holt es sich am Funk.
+ */
+test('der Streifen zeigt die Aufträge nur, wenn am Archiv ein Bot sitzt', () => {
+  round = {
+    phase: 'running',
+    oxygen: 300,
+    limit: 600,
+    suit: 3,
+    suitMax: 3,
+    cabinsDestroyed: [],
+    ending: '',
+  };
+  frame(0.3);
+  const solo = String(exhibits.hud.mesh.userData.paint);
+  expect(solo).toContain('O₂');
+  expect(solo).toContain(repairsFor(spec)[0]!.title);
+
+  saveSetup({ ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] });
+  frame(0.3);
+  const shared = String(exhibits.hud.mesh.userData.paint);
+  expect(shared).toContain('O₂');
+  expect(shared).not.toContain(repairsFor(spec)[0]!.title);
 });

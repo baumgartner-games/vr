@@ -7,6 +7,7 @@ import {
   LOW_OXYGEN_SECONDS,
   lowOxygen,
   hudTasks,
+  hudTasksVisible,
   roundHud,
   suitPips,
   taskPips,
@@ -20,15 +21,18 @@ const REPAIRS = [
 
 const NAMES: Record<string, string> = { r1: 'Werkstatt', r2: 'Kantine', r3: 'Funkraum' };
 
-function tasks(over: Partial<Parameters<typeof hudTasks>[0]> = {}) {
-  return hudTasks({
+function tasksInput(): Parameters<typeof hudTasks>[0] {
+  return {
     repairs: REPAIRS,
     roomName: (id) => NAMES[id] ?? id,
     done: [],
     taken: [],
     inventory: [],
-    ...over,
-  });
+  };
+}
+
+function tasks(over: Partial<Parameters<typeof hudTasks>[0]> = {}) {
+  return hudTasks({ ...tasksInput(), ...over });
 }
 
 function round(over: Partial<MapRound> = {}): MapRound {
@@ -98,6 +102,21 @@ describe('Die Anzeige der laufenden Runde', () => {
     const finished = tasks({ done: ['part-uplink'], inventory: ['part-uplink'] });
     expect(finished[2]!.step).toBe(2);
     expect(finished[2]!.text).toContain('(2/2)');
+  });
+
+  it('liest beide Schreibweisen von `done` — Reparatur und Ersatzteil', () => {
+    // Das Schiff schreibt `engine` in `done`, die 2D-Runde `part-engine`.
+    // Ohne die erste blieb im Schiff jeder fertige Auftrag auf „1/2" stehen.
+    const repairs = REPAIRS.map((repair) => ({ ...repair, id: repair.itemId.slice(5) }));
+    expect(hudTasks({ ...tasksInput(), repairs, done: ['engine'] })[0]!.step).toBe(2);
+    expect(hudTasks({ ...tasksInput(), repairs, done: ['part-engine'] })[0]!.step).toBe(2);
+  });
+
+  it('zeigt die Auftragszeile nur, wenn am Archiv ein Bot sitzt', () => {
+    // Sitzt dort ein Mensch, ist das Wissen dessen Platz — der Techniker
+    // fragt ihn, statt es stumm im Blickfeld mitzulesen.
+    expect(hudTasksVisible({ archive: true })).toBe(true);
+    expect(hudTasksVisible({ archive: false })).toBe(false);
   });
 
   it('macht aus den Aufträgen drei Kreise: voll, halb, leer', () => {

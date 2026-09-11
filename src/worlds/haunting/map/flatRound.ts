@@ -56,6 +56,7 @@ import {
   toggleLock,
   type DoorLocks,
 } from '../rules/doorLocks';
+import { canCarryPart, fullHandsText } from '../rules/archiveGoals';
 import {
   freshTrail,
   sniff,
@@ -1419,8 +1420,17 @@ export class FlatRound implements MapSource {
         this.events.push({ kind: 'info', text: 'Leer.' });
         return;
       }
+      // **Eine Hand, ein Ersatzteil** (`rules/archiveGoals.ts`). Die Kiste
+      // bleibt offen und unerledigt: Wer zurückkommt, findet sie so vor, wie
+      // er sie verlassen hat — und wer alles einsammeln wollte, muss statt
+      // dessen laufen.
+      const part = this.house.tasks.some((t) => t.id === cargo.loot);
+      if (part && !canCarryPart(this.house, this.haunt)) {
+        this.events.push({ kind: 'warn', text: fullHandsText(this.house, this.haunt) });
+        return;
+      }
       crew.inventory.push(cargo.loot);
-      if (this.house.tasks.some((t) => t.id === cargo.loot)) {
+      if (part) {
         this.haunt.taken.push(cargo.loot);
         this.events.push({ kind: 'good', text: `${cargo.label} mitgenommen.` });
       } else {

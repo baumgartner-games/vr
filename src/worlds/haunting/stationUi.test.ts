@@ -4,6 +4,8 @@ import { homeView } from './archiveView';
 import { generateHouse, roomOf } from './house';
 import { freshCrew, lockerCode, repairsFor } from './mission';
 import { cargoOf, taskCargo } from './rules/cargo';
+import { DROPPED_SEEN } from './rules/archiveGoals';
+import { TILE } from '../nav/navTile';
 import type { HauntState } from './net';
 import { freshGhosts } from './rules/ghosts';
 import type { StationId } from './stations';
@@ -369,7 +371,7 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     },
   );
 
-  it('selects names and shows real protection codes and repair clues without exposing a whole station map', () => {
+  it('schlägt auf Zuruf die Raumakte auf — ganzseitig, ohne Karte dahinter', () => {
     const game = crew();
     const repair = repairsFor(game.spec).find((one) => one.puzzle === 'sequence')!;
     const select = document.querySelector<HTMLSelectElement>('select[data-room-select]')!;
@@ -377,46 +379,105 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(select.closest('label')?.textContent).toContain(
       'Welchen Raum beschreibt der Techniker?',
     );
-    select.focus();
+    // Auf der Karte gibt es ein Bild; in der Akte nicht mehr — genau das war
+    // der Befund: Unter dem Vollbild ließ sich die Akte nicht rollen.
+    expect(game.ui.viewport()).not.toBeNull();
     select.value = repair.roomId;
     select.dispatchEvent(new Event('change', { bubbles: true }));
     expect(game.ui.selected).toBe(repair.roomId);
-    expect((document.activeElement as HTMLSelectElement).value).toBe(repair.roomId);
+    expect(game.ui.viewport()).toBeNull();
+    expect(document.querySelector('select[data-room-select]')).toBeNull();
     const text = document.querySelector('.haunt__sheet')?.textContent;
     expect(text).toContain(lockerCode(game.spec.seed, repair.roomId));
-    expect(text).toContain(repair.code);
-    expect(text).toContain(repair.hint);
     expect(game.archiveHome).toHaveBeenCalledTimes(2);
-    button('[data-archive-tab="orders"]').click();
-    expect(game.ui.viewport()).toBeNull();
-    expect(document.querySelector('.haunt__tasks')?.textContent).toContain(repair.code);
-    button(`[data-dossier-room="${repair.roomId}"]`).click();
-    expect(button('[data-archive-tab="rooms"]').getAttribute('aria-pressed')).toBe('true');
-    expect(game.ui.selected).toBe(repair.roomId);
+    // Und zurück auf die Karte.
+    button('[data-archive-back]').click();
+    expect(game.ui.viewport()).not.toBeNull();
+    expect(document.querySelector('select[data-room-select]')).not.toBeNull();
   });
 
-  it('nennt auf dem Auftrag den Fundort mit Kennzeichen und markiert die richtige Kiste im Raum', () => {
+  it('nennt im Auftrag die Kiste sofort und die Konsole erst mit dem Teil in der Hand', () => {
+    const game = crew();
+    const repair = repairsFor(game.spec).find((one) => one.puzzle === 'sequence')!;
+    const task = game.spec.tasks.find((one) => one.id === repair.itemId)!;
+    const slot = taskCargo(game.spec, task.id);
+    button('[data-archive-tab="orders"]').click();
+    expect(game.ui.viewport()).toBeNull();
+    const before = document.querySelector('.haunt__tasks')?.textContent ?? '';
+    // Was zu holen ist, steht von Anfang an da …
+    expect(before).toContain(`Fundort: ${roomOf(game.spec, task.roomId)!.name} · ${slot.clue}`);
+    // … wohin damit, nicht: kein Reparaturraum, kein Code, kein Knopf dorthin.
+    expect(before).not.toContain(repair.code);
+    expect(before).toContain('Ziel und Code erst');
+    expect(document.querySelector(`[data-dossier-room="${repair.roomId}"]`)).toBeNull();
+
+    // Sobald der Techniker das Teil trägt, ist das Ziel die Auskunft des
+    // Archivars — und erst dann steht es auf seinem Blatt.
+    game.state.taken.push(repair.itemId);
+    game.state.crew.inventory.push(repair.itemId);
+    game.ui.refresh();
+    const after = document.querySelector('.haunt__tasks')?.textContent ?? '';
+    expect(after).toContain(`Ziel: ${roomOf(game.spec, repair.roomId)!.name}`);
+    expect(after).toContain(repair.code);
+    // Der Knopf führt in die Akte des Reparaturraums — ganzseitig, ohne Karte.
+    button(`[data-dossier-room="${repair.roomId}"]`).click();
+    expect(game.ui.selected).toBe(repair.roomId);
+    expect(game.ui.viewport()).toBeNull();
+    expect(document.querySelector('.haunt__sheet')?.textContent).toContain(repair.code);
+    button('[data-archive-back]').click();
+    expect(button('[data-archive-tab="rooms"]').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('zeigt in der Raumakte alle Kisten, die richtige markiert, und die Konsole erst später', () => {
     const game = crew();
     const task = game.spec.tasks[0]!;
+    const repair = repairsFor(game.spec).find((one) => one.itemId === task.id)!;
     const slot = taskCargo(game.spec, task.id);
     button('[data-archive-tab="orders"]').click();
     const orders = document.querySelector('.haunt__tasks')?.textContent ?? '';
     expect(orders).toContain(`Fundort: ${roomOf(game.spec, task.roomId)!.name} · ${slot.clue}`);
 
-    // Und im Raumblatt stehen alle Kisten des Raums — die richtige markiert,
-    // der Inhalt der anderen nicht.
     button('[data-archive-tab="rooms"]').click();
-    const select = document.querySelector<HTMLSelectElement>('select[data-room-select]')!;
-    select.value = task.roomId;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    // Auf der Karte steht schon, was gesammelt werden muss.
+    expect(document.querySelector('.haunt__sheet')?.textContent).toContain(task.label);
+    button(`[data-room="${task.roomId}"]`).click();
     const sheet = document.querySelector('.haunt__sheet')?.textContent ?? '';
     const inRoom = cargoOf(game.spec).filter((one) => one.roomId === task.roomId);
     expect(inRoom.length).toBeGreaterThan(1);
     for (const one of inRoom) expect(sheet).toContain(one.clue);
-    expect(sheet).toContain(`${slot.clue} · hier liegt das Ersatzteil`);
+    expect(sheet).toContain(`${slot.clue} · hier liegt ${task.label}`);
     for (const one of inRoom)
       if (one.id !== slot.id && one.loot.kind === 'tool')
         expect(sheet).not.toContain(one.loot.tool);
+    // Der Reparaturraum dieses Auftrags verrät seinen Code noch nicht.
+    button('[data-archive-back]').click();
+    button(`[data-room="${repair.roomId}"]`).click();
+    expect(document.querySelector('.haunt__sheet')?.textContent).not.toContain(repair.code);
+  });
+
+  it('zeigt ein abgelegtes Teil erst, wenn es lange genug liegt', () => {
+    const game = crew();
+    const task = game.spec.tasks[0]!;
+    const room = game.spec.rooms.find((one) => one.id !== task.roomId)!;
+    game.state.time = 100;
+    game.state.taken.push(task.id);
+    game.state.dropped = [
+      {
+        id: task.id,
+        x: (room.rect.x + 0.5) * TILE,
+        z: (room.rect.z + 0.5) * TILE,
+        since: 100 - (DROPPED_SEEN - 1),
+      },
+    ];
+    button('[data-archive-tab="orders"]').click();
+    expect(document.querySelector('.haunt__tasks')?.textContent).not.toContain('Liegt in');
+    game.state.time = 100 + DROPPED_SEEN;
+    game.ui.refresh();
+    expect(document.querySelector('.haunt__tasks')?.textContent).toContain(`Liegt in ${room.name}`);
+    // Und in der Akte des Raums, in dem es liegt.
+    button('[data-archive-tab="rooms"]').click();
+    button(`[data-room="${room.id}"]`).click();
+    expect(document.querySelector('.haunt__sheet')?.textContent).toContain('Liegt hier');
   });
 
   it('shows the actual cargo clue on its source room sheet', () => {

@@ -1,4 +1,5 @@
 import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission';
+import type { DroppedPart } from './rules/archiveGoals';
 import { readDrops, type Drop } from './rules/blood';
 import { freshGhosts, type Ghost, type Ghosts } from './rules/ghosts';
 import { isStation, type Claim, type StationId } from './stations';
@@ -123,6 +124,21 @@ export interface HauntState {
    * schickt eben eine leere Spur.
    */
   blood?: Drop[];
+  /**
+   * **Die Ersatzteile, die im Gang liegen** (`rules/archiveGoals.ts`).
+   *
+   * Der Techniker trägt höchstens eines und kann es fallen lassen; wo es dann
+   * liegt, ist die Auskunft, die der Archivar geben soll — aber **erst**,
+   * wenn es länger als `DROPPED_SEEN` dort liegt. Deshalb steht die Zeit
+   * dabei und nicht nur der Ort: Die Schwelle rechnet jedes Gerät selbst aus
+   * `state.time`, und alle kommen damit zur selben Sekunde zum selben Schluss.
+   *
+   * **Optional und ohne Protokollsprung** (`STATION_PROTOCOL` bleibt 8): Ein
+   * Stand ohne das Feld ist einer, in dem nichts liegt — das ist die
+   * Wahrheit, die ein älteres Gerät ohnehin annimmt, und kein Grund, es
+   * auszusperren.
+   */
+  dropped?: DroppedPart[];
 }
 
 /**
@@ -263,6 +279,25 @@ function ghost(value: unknown): Ghost | null {
   return { x: metres(it['x']), z: metres(it['z']), yaw: num(it['yaw']), since: num(it['since']) };
 }
 
+/**
+ * **Ein liegengelassenes Ersatzteil vom Netz**: eine Kennung, Meter, eine
+ * Zeit. Alles andere fällt weg — ein halber Eintrag wäre ein Teil, das
+ * nirgends liegt, und der Archivar schickte den Techniker dorthin.
+ */
+function droppedParts(value: unknown): DroppedPart[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((one) => bag(one))
+    .filter((it): it is Bag => !!it && typeof it['id'] === 'string')
+    .slice(0, 8)
+    .map((it) => ({
+      id: (it['id'] as string).slice(0, 16),
+      x: metres(it['x']),
+      z: metres(it['z']),
+      since: num(it['since']),
+    }));
+}
+
 function ids(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   // Nach oben begrenzt: Eine Liste mit hunderttausend Einträgen ist keine
@@ -318,6 +353,7 @@ export function readState(data: unknown): HauntState | null {
       : freshGhosts(),
     // Und die Tropfen (`rules/blood.ts`): fehlen sie, blutet eben niemand.
     blood: readDrops(it['blood']),
+    dropped: droppedParts(it['dropped']),
   };
 }
 
