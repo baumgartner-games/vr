@@ -124,13 +124,23 @@ for (const name of browserNames) {
         console.log(`[${prefix}] ${label}`);
         await summary();
       };
-      // Die Reiterzeile ganz oben ist die Rollenwahl: Die drei Fähigkeiten der
-      // Zentrale heissen `data-power`, die uebrigen Rollen `data-sit`.
-      const POWER_OF = { archive: 'archive', scout: 'scout', hack: 'panel' };
+      // Die Reiterzeile ganz oben ist die Rollenwahl (`[data-me]`): Die Stuehle
+      // heissen Farben (`stations.ts`), und welche Karte ein Stuhl aufschlaegt,
+      // sagt die Tafel im Aufbau (`rules/roundSetup.ts`) — die drei Faehigkeiten
+      // werden dort als Laempchen je Platz angeknipst, bevor jemand sich setzt.
+      const SEAT_OF = { archive: 'red', hack: 'yellow', scout: 'blue', watch: 'watch:all' };
+      const POWER_OF = { archive: 'archive', hack: 'panel', scout: 'scout' };
       const role = async (id) => {
-        const key = POWER_OF[id] ? `[data-power="${POWER_OF[id]}"]` : `[data-sit="${id}"]`;
-        await page.locator(key).click();
-        await page.locator(`.haunt[data-station="${id}"]`).waitFor();
+        const seat = SEAT_OF[id];
+        await page.locator(`[data-me="${seat}"]`).click();
+        await page.locator(`.haunt[data-station="${id === 'watch' ? 'watch' : seat}"]`).waitFor();
+      };
+      const assignPowers = async () => {
+        await page.locator('[data-tab="setup"]').click();
+        for (const [view, ability] of Object.entries(POWER_OF)) {
+          const lamp = page.locator(`[data-seat="${SEAT_OF[view]}"] [data-setup-power="${ability}"]`);
+          if ((await lamp.getAttribute('aria-pressed')) !== 'true') await lamp.click();
+        }
       };
       try {
         const url = new URL(base);
@@ -142,6 +152,7 @@ for (const name of browserNames) {
         await page.locator('.haunt').waitFor();
         await shot('roles');
 
+        await assignPowers();
         await role('archive');
         // Der Archivar ist heute eine Karte mit Raumakte darüber — kein
         // Raumwähler, keine Missionsliste, keine Reiter.
@@ -153,9 +164,10 @@ for (const name of browserNames) {
         );
         await shot('archive-desktop');
         // Ein Tipp auf ein Zimmer schlägt die Raumakte auf. Wo die Zimmer
-        // liegen, entscheidet der Same, und ein Gang hat keinen Code: Also
-        // wird ein Raster über die Karte getippt, bis eine Akte mit Codes
-        // aufgeht — und nicht auf die Mitte gehofft.
+        // liegen, entscheidet der Same, und ein Gang hat keine Akte: Also
+        // wird ein Raster über die Karte getippt, bis eine aufgeht — und
+        // nicht auf die Mitte gehofft. Einen Schutzschrank-Code steht darin
+        // nicht mehr: Den Schrank betritt man ohne einen.
         const chart = page.locator('.role--archive .mapview__canvas');
         const chartBox = await chart.boundingBox();
         const openSheet = page.locator('.role__sheet:not([hidden])');
@@ -169,16 +181,16 @@ for (const name of browserNames) {
             position: { x: chartBox.width * fx, y: chartBox.height * fy },
           });
           await page.waitForTimeout(150);
-          if (await openSheet.locator('.role__code').count()) {
+          if (await openSheet.locator('.role__sheet-head strong').count()) {
             dossier = await openSheet.innerText();
             break;
           }
           const close = openSheet.locator('[data-close]');
           if (await close.count()) await close.click();
         }
-        assert(dossier, 'A room dossier with codes opens from the archive map');
-        assert.match(dossier, /Schutzschrank-Code/);
-        assert.match(dossier, /[1-4]{3,}/);
+        assert(dossier, 'A room dossier opens from the archive map');
+        assert.doesNotMatch(dossier, /Schutzschrank-Code/);
+        assert.match(dossier, /Türen|Fracht|Darin steht/);
         await shot('archive-dossier');
         await openSheet.locator('[data-close]').click();
 
@@ -227,10 +239,9 @@ for (const name of browserNames) {
         await page.locator('.role--watch').waitFor();
         await shot('watch');
 
-        // „Ich bin der Techniker": im Aufbau, über die Spalte „Ich" der
-        // Verteilung — der eigene Kachel-Knopf dafür ist weg.
-        await page.locator('[data-tab="setup"]').click();
-        await page.locator('[data-setup-me="technician"]').click();
+        // „Ich bin der Techniker": der Reiter „Techniker" ganz oben — die
+        // Spalte „Ich" auf der Tafel ist weg, die Reiterzeile ist die Wahl.
+        await page.locator('[data-me="technician"]').click();
         await page.locator('.orbital-player').waitFor();
         await page.waitForFunction(() => window.bgvr.world?.stationTorch?.visible);
         // Set up a reachable eye pose, then use the real keyboard/pointer path.
