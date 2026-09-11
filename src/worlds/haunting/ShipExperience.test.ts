@@ -1148,7 +1148,8 @@ test('der Streifen zeigt die Aufträge nur, wenn am Archiv ein Bot sitzt', () =>
   expect(solo).toContain('O₂');
   expect(solo).toContain(repairsFor(spec)[0]!.title);
 
-  saveSetup({ ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] });
+  const base = defaultSetup();
+  saveSetup({ ...base, abilities: { ...base.abilities, archive: 'human' } });
   frame(0.3);
   const shared = String(exhibits.hud.mesh.userData.paint);
   expect(shared).toContain('O₂');

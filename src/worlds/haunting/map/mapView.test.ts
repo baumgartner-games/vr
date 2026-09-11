@@ -50,7 +50,10 @@ describe('MapView', () => {
     };
     const solo = view(new FlatRound(7, { test: true, setup: defaultSetup() }));
     expect(solo.view.stats.goals).toBe(3);
-    const human: RoundSetup = { ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] };
+    const human: RoundSetup = {
+      ...defaultSetup(),
+      abilities: { scout: 'off', panel: 'off', archive: 'human' },
+    };
     const crew = view(new FlatRound(7, { test: true, setup: human }));
     expect(crew.view.stats.goals).toBe(3);
     // Beide zeichnen dieselbe Zahl Ziele, aber nicht dasselbe Bild: Der

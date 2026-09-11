@@ -109,6 +109,12 @@ export interface FlatModeHost {
    * `null` und sehen die Runde eben ohne Kopf des Gegners.
    */
   insight?(): MonsterInsight | null;
+  /**
+   * **Mitten in der Runde die Ansicht wechseln** — 2D ↔ 3D. Der Knopf steht
+   * im Optionsmenü; was er auslöst, gehört der Welt
+   * (`HauntingWorld.switchView`), denn nur sie kennt das Schiff.
+   */
+  switchView?(view: '2d' | '3d'): void;
 }
 
 /** Wie lange eine Meldung stehen bleibt, in Sekunden. */
@@ -121,10 +127,9 @@ const EDGE_TOP = 118;
 const NO_POWERS: SoloPowers = { scout: false, panel: false, archive: false };
 
 /**
- * Wie die eigene Rolle im Optionsmenü heißt. Sie steht dort nur noch **als
- * Auskunft**: Gewechselt wird sie in der Lobby und nicht mitten in der Runde
- * über einen Knopf, der dreistufig weiterzählt, ohne zu zeigen, was als
- * Nächstes kommt.
+ * Wie die eigene Rolle im Optionsmenü heißt. Sie steht dort als Auskunft über
+ * dem Schalter „Zuschauen": Der dreistufige Zykler, der weiterzählte, ohne zu
+ * zeigen, was als Nächstes kommt, ist weg — zwei Zustände, ein Schalter.
  */
 const ROLE_LABELS: Record<FlatRole, string> = {
   technician: 'Du spielst den Techniker',
@@ -1047,8 +1052,10 @@ export class FlatMode {
    * Vorher stand hier alles auf einmal: Ansicht, „Neue Runde", „Mit Monster",
    * ein Rollenknopf, der dreistufig weiterzählte, und die ganze Verteilung —
    * eine 1200 Punkte lange Rolle, in der die zwei Schalter untergingen, die
-   * man wirklich noch braucht. Wer die *Runde* anders haben will, geht zurück
-   * in die Lobby; hier bleiben Ansicht, Zielpfade und Ton.
+   * man wirklich noch braucht. Wer die *nächste* Runde anders haben will, geht
+   * in den Aufbau; hier bleiben Ansicht, Zielpfade und Ton — und die drei
+   * Dinge, die mitten in einer Runde wirklich vorkommen: **Zuschauen** an und
+   * aus, **2D ↔ 3D** und **Runde verlassen**.
    *
    * **Die Ansicht ist keine Wahl für den, der mitspielt.** „Alles sehen" ist
    * die Sicht des Zuschauers; ein Techniker, der sie anschaltet, sieht das
@@ -1095,6 +1102,25 @@ export class FlatMode {
         el('small', '', 'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot'),
       );
       parts.push(routes);
+      // **Zuschauen ist keine Rundenart mehr, sondern ein Schalter.** Der
+      // Besitzer wollte es ausdrücklich hier haben und „immer" — deshalb steht
+      // er zwischen den zwei anderen Dingen, die man mitten in der Runde
+      // wirklich braucht, und nicht mehr als Kachel im Aufbau.
+      const watch = el('button', 'flat__option');
+      watch.dataset['watch'] = '';
+      watch.classList.toggle('is-active', watching);
+      watch.setAttribute('aria-pressed', watching ? 'true' : 'false');
+      watch.append(
+        el('strong', '', `Zuschauen: ${watching ? 'an' : 'aus'}`),
+        el(
+          'small',
+          '',
+          watching
+            ? 'Der Techniker aus Zahlen spielt weiter — antippen holt dich zurück an den Stock'
+            : 'Der Techniker aus Zahlen übernimmt, du siehst der Runde zu',
+        ),
+      );
+      parts.push(watch);
     }
     // **Wessen Sicht?** Techniker und Monster hängen an den zwei Sprungknöpfen
     // rechts — die sind während der Runde da und brauchen kein Menü. Die
@@ -1131,14 +1157,23 @@ export class FlatMode {
       );
       parts.push(key);
     }
-    // Zurück zur Lobby: Dort steht, was eine *neue* Runde wird — Was, Wer,
-    // Wie. Genau die drei Knöpfe, die hier standen und jedes Mal eine halbe
-    // Lobby nachbauten.
+    // **2D ↔ 3D**, mitten in der Runde. Der Knopf steht hier, weil die Frage
+    // „von oben oder im Schiff?" keine Frage des Aufbaus ist: Man merkt erst
+    // beim Spielen, dass man lieber das andere hätte.
+    const swap = el('button', 'flat__option');
+    swap.dataset['switchView'] = '';
+    swap.append(
+      el('strong', '', 'Ansicht: 3D Schiff'),
+      el('small', '', 'Von der Karte von oben ins Schiff wechseln'),
+    );
+    parts.push(swap);
+    // Und der Weg hinaus: Er beendet die Runde und stellt den Aufbau wieder
+    // hin — dort steht, was eine *neue* Runde wird.
     const leave = el('button', 'flat__option flat__option--leave');
     leave.dataset['leave'] = '';
     leave.append(
-      el('strong', '', 'Zurück zur Lobby'),
-      el('small', '', 'Beendet die Runde · dort stehen Spielen, Zuschauen und Trainieren'),
+      el('strong', '', 'Runde verlassen'),
+      el('small', '', 'Beendet die Runde · zurück zum Aufbau'),
     );
     const close = el('button', 'flat__option', 'Weiterspielen');
     close.dataset['closeOptions'] = '';
@@ -1201,8 +1236,17 @@ export class FlatMode {
       this.renderOptions();
     } else if (data['restart'] !== undefined) {
       // Nur noch der Knopf im Endbildschirm („Noch einmal?"). Im Optionsmenü
-      // steht keine neue Runde mehr — die wird in der Lobby verteilt.
+      // steht keine neue Runde mehr — die wird im Aufbau verteilt.
       this.restart();
+    } else if (data['watch'] !== undefined) {
+      // **Zuschauen an und wieder aus.** Wer zusieht, überlässt den Stock dem
+      // Techniker aus Zahlen (`rules/technicianBot.ts`); wer zurückkommt,
+      // nimmt ihn wieder — dieselbe Runde, dieselbe Karte, ein anderer Kopf.
+      this.playRole(this.role === 'watch' ? 'technician' : 'watch');
+      this.renderOptions();
+    } else if (data['switchView'] !== undefined) {
+      this.host.switchView?.('3d');
+      this.options.hidden = true;
     } else if (data['leave'] !== undefined) {
       this.host.exit();
     } else if (data['audio'] === 'effects' || data['audio'] === 'ambient') {

@@ -8181,7 +8181,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   halbe-halbe aus, **ab drei Spielern** gewinnt das Monster zwei von drei
   Malen. Beide Zahlen gelten für **dieselben** Gewichte — was sich
   unterscheidet, ist die Besetzung und nicht die Einstellung der Bots
-  (`rules/roundSetup.crewSize` zählt Techniker, Monster und Plätze).
+  (`rules/roundSetup.crewSize` zählt Techniker, Monster und jede Fähigkeit der
+  Zentrale, die nicht auf „Aus" steht).
   `measure` teilt die Runden einer Messung deshalb auf beide Besetzungen auf
   statt sie zu verdoppeln, und `centreScore` bewertet den Abstand zu beiden
   Bändern zusammen; `inBand` verlangt beide. Dazu wie bisher: feste Stichprobe
@@ -8391,20 +8392,35 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   was eine Ansicht selbst noch braucht. Im Modus „Realitätsnah"
   bleiben Möbel und Items im Dunkeln weg (`seen`).
 - **Wer allein spielt, bekommt die Zentrale dazu** (`rules/roundSetup.ts`):
-  Die Verteilung einer Runde — Techniker (Mensch/Bot), Monster
-  (Mensch/Bot/Aus), beliebig viele Plätze der Zentrale (Archivar,
-  Schalttafel, Späher; je Mensch oder Bot) — liegt in `localStorage`
-  (`bgvr.haunting.setup.v1`) und ist das **„Wer?" der Lobby**: dieselbe Tafel
-  (`roundSetupPanel.ts`, `SetupPanel`) im Van und dieselben drei Zykler im
-  Menü der Brille. **Die Spalte „Ich" verbindet Platz und Gerät**: Ein Tipp
-  darauf macht den Platz zum Menschen *und* setzt dieses Telefon an die
-  Station, die dazugehört (Archivar → Archiv, Schalttafel und Späher →
-  Einsatzkontrolle, Monster → Monster; `stationUi.claimSlot`,
-  `SEAT_STATIONS`). „Ich" gibt es genau einmal — wer es woanders hinsetzt,
-  gibt den alten Platz den Zahlen zurück. Vorher führte der Van zwei Listen
-  über dieselben Plätze, und wer sich ans Archiv setzte, blieb in der
-  Verteilung ein Bot. Unter jedem Platz steht, wer ihn wirklich hält (Name aus
-  dem Netz oder „Bot").
+  Die Verteilung einer Runde — Techniker (Mensch/Bot, **VR**, sobald jemand mit
+  der Brille im Raum ist), Monster (Mensch/Bot/Aus) und die **drei Fähigkeiten**
+  der Zentrale (`Ability`: Späher, Schalttafel, Archiv), jede für sich auf
+  **Bot / Mensch / Aus** — liegt in `localStorage`
+  (`bgvr.haunting.setup.v1`) und ist die Tafel des Aufbaus: dieselbe
+  (`roundSetupPanel.ts`, `SetupPanel`) im Van und dieselben Einträge im Menü
+  der Brille. **Fähigkeiten statt Plätze:** Vorher stand hier eine Liste mit
+  „+ Platz" — wer zwei Leute am Tisch hatte und drei Aufgaben, musste eine
+  wegwerfen, und wie die entstandene Mischung heißt, stand nirgends. Jetzt
+  stehen alle drei immer da, und ein Mensch hält davon so viele, wie er sich
+  über die Reiter nimmt. **Wie eine Mischung heißt, rechnet `roleName`:**
+  Späher / Schalttafel / Archiv einzeln; Späher + Schalttafel =
+  **Einsatzkontrolle**, Archiv + Späher = **Aufklärung**, Archiv + Schalttafel =
+  **Leitstand**, alle drei = **Zentrale**. `powersOf` gibt dem Techniker jede
+  Fähigkeit, an der ein **Bot** rechnet; „Aus" heißt: niemand hat sie, auch er
+  nicht. Alte `seats`-Einträge im Speicher werden beim Lesen übersetzt
+  (`readSetup`: Mensch schlägt Bot, was nicht vorkam, ist aus).
+  **Die Spalte „Ich" verbindet Platz und Gerät**: Ein Tipp darauf macht die
+  Zeile zum Menschen *und* setzt dieses Telefon an das Gerät, das dazugehört
+  (Archiv → Archiv, Schalttafel und Späher → Einsatzkontrolle, Monster →
+  Monster; `stationUi.claimSlot`, `ABILITY_STATIONS`) — ohne dabei die Seite zu
+  wechseln. Unter jeder Fähigkeit steht, wer sie wirklich hält (Name aus dem
+  Netz, „Bot" oder „niemand"). Über das Netz sagt ein Telefon weiterhin **ein
+  Gerät** an (`Claim.station`); die Fähigkeiten sind lokal — die feinere Ansage
+  gehört in `net.ts` und damit in ein eigenes Paket.
+  **Wer mitten in der Runde wechseln darf, rechnet `switchRights`:** in einer
+  Test-Runde jeder alles; sonst nur, wer in der Zentrale sitzt (am Telefon
+  also, und nicht als Monster), und den Techniker in der Brille rührt niemand
+  an (`lockTechnician`, `technicianLabel` → „VR", der Knopf ist dann gesperrt).
   Verteilt wird nicht mehr mit drei Kacheln, sondern mit der Absicht
   (`lobby.applyIntent`, siehe unten); `presetFor` bleibt als Rechnung für die
   alten Namen. `flatRoleOf` sagt, wen der Spieler in 2D spielt — ein
@@ -8459,7 +8475,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   **zuerst** die drei Absichten der Lobby — _Spielen_, _Zuschauen_,
   _Trainieren_, die aktive mit einem Punkt davor —, dann „Zur Zentrale /
   Rolle wechseln", die feste _Ansicht: 3D Schiff_ und die Einstellungen
-  (Testlicht, Station, Gegner, Verteilung). Ein Druck genügt, es gibt kein Untermenü, und das Panel klappt
+  (Testlicht, Station, Techniker, Monster, **je ein Eintrag für Späher,
+  Schalttafel und Archiv** mit Bot / Mensch / Aus, Gegner). Ein Druck genügt, es gibt kein Untermenü, und das Panel klappt
   zu — **nur wenn wirklich etwas losgeht**: Eine Absage muss offen bleiben,
   weil `App.notify` in der Brille die Statuszeile *des Panels* schreibt und die
   Meldung mit ihm verschwände. Danach läuft die Runde
@@ -8492,50 +8509,66 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   eine laufende Runde damit endet. Der alte Eintrag `haunt:flat` („2D-Welt von
   oben: an/aus") heißt `haunt:view` und zeigt die Ansicht als Namen
   (`VIEW_LABELS`); in der Brille steht sie fest und sagt das auch.
-- **Die Lobby ist zwei Achsen, kein Schalter** (`rules/lobby.ts`,
+- **Der Aufbau ist zwei Häkchen, eine Tafel und ein Knopf** (`rules/lobby.ts`,
   `LobbyChoice`, in `localStorage` unter `bgvr.haunting.lobby.v1`). Die
-  **Absicht** (`Intent`) sagt, *was* passiert — **Spielen** (Mission mit
-  Monster), **Zuschauen** (der Runde im Raum folgen, sonst Bot gegen Bot,
-  `rules/technicianBot.ts`, Modus „Alles sehen") oder **Trainieren** (ohne
-  Monster, früher „Test"). Die **Ansicht** (`View`) sagt nur, *wie* man
-  dabei zusieht: **2D von oben** oder **3D Schiff** — auf dem Telefon ist 2D
-  voreingestellt (`defaultLobby`), in der Brille bleibt 3D — dort ist die
-  Ansicht **wirkungslos**, siehe den Absatz darüber. Beide sind
-  unabhängig; die alte Checkbox „2D-Welt von oben" war eine Ansicht, die
-  aussah wie ein Start, und deutete die Kacheln unter sich um.
+  **Absicht** (`Intent`) sagt, *was* passiert, die **Ansicht** (`View`) nur,
+  *wie* man dabei zusieht — 2D von oben oder 3D im Schiff (auf dem Telefon ist
+  2D voreingestellt, `defaultLobby`; in der Brille ist die Ansicht
+  **wirkungslos**, siehe den Absatz darüber). Gewählt werden sie als **zwei
+  Häkchen**: „2D-Welt von oben" (die Ansicht) und „Testen" (die Absicht
+  `train` — ohne Monster, und **in einer Test-Runde darf jeder jederzeit jede
+  Rolle wechseln**). Die drei Kacheln _Spielen · Zuschauen · Trainieren_ sind
+  weg: „Zuschauen" baut man nicht auf, man schaltet es mitten in der Runde an
+  (2D-Optionsmenü); die Absicht `watch` bleibt als Datum und im Brillenmenü.
   Die Absicht ist keine zweite Wahrheit neben der Verteilung: `applyIntent`
-  schreibt sie in die `RoundSetup` (die Plätze der Zentrale bleiben dabei
-  stehen), `intentOf` liest sie wieder heraus, und `startLabel` beschriftet
-  daraus den **einen** Startknopf („Mission starten (2D)", „Zuschauen",
-  „Training starten (3D)"). `HauntingWorld.flatWanted` ist nur noch
-  `lobby.view === '2d'` und entscheidet in `startRound`, ob `FlatMode` oder
-  das Schiff; der alte Schlüssel `bgvr.haunting.flat.v1` wird beim ersten
+  schreibt sie in die `RoundSetup` (die Fähigkeiten bleiben dabei stehen),
+  `intentOf` liest sie wieder heraus, und `startLabel` beschriftet daraus den
+  **einen** Startknopf — „Mission starten", „Test starten", „Zuschauen",
+  **ohne Ansicht in Klammern**: Ein Knopf wiederholt keine Einstellung, die
+  zwei Zeilen darüber als Häkchen steht. `HauntingWorld.flatWanted` ist nur
+  noch `lobby.view === '2d'` und entscheidet in `startRound`, ob `FlatMode`
+  oder das Schiff; der alte Schlüssel `bgvr.haunting.flat.v1` wird beim ersten
   Laden noch einmal gelesen (`'1'` → 2D) und danach nie wieder geschrieben.
-  **Alle drei Oberflächen zeigen dieselbe Lobby**, in derselben Reihenfolge und
-  mit denselben Worten — das war der eigentliche Auftrag, denn dieselbe
-  Entscheidung hieß vorher an jedem Ort anders:
-  - **Van / Telefon** (`stationUi.vanPage`, Hochformat zuerst): ein Statuschip
-    („2 Gerät(e) · Raum haunting"), dann **Was?** — drei Kacheln `[data-intent]`,
-    die aktive mit Akzentrand —, dann **Wer?** — die Tafel mit der Spalte „Ich",
-    darunter die Geräte als eingeklappte Sitzplätze (`.lobby__seats`) —, dann
-    **Wie?** — das Segment `[data-view]` „2D von oben | 3D Schiff" statt der
-    Checkbox —, dann **der eine Startknopf** (`[data-start-setup]`,
-    beschriftet aus `startLabel`, darunter `describeSetup`), und ganz unten
-    „Hilfe" mit Verbindungs- und Crew-Notiz. Keine Kachel startet etwas: Sie
-    schreiben nur die Verteilung.
+  **Alle Oberflächen zeigen denselben Aufbau**, in derselben Reihenfolge und
+  mit denselben Worten:
+  - **Van / Telefon** (`stationUi.vanPage`, Hochformat zuerst): ganz oben die
+    **Reiterzeile als Rollenwahl** (`stationUi.writeBar`) — _Aufbau_, die drei
+    Fähigkeiten (`[data-power]`), dann Drohne, Fernseher, Monster
+    (`[data-sit]`) — und rechts daneben drei kleine Knöpfe für Spielmenü,
+    Verbindung und VR. Darunter, im Reiter _Aufbau_: ein Statuschip, die zwei
+    Häkchen (`[data-check="view"]`, `[data-check="test"]`), die Tafel mit der
+    Spalte „Ich" und **der eine Startknopf** (`[data-start-setup]`, beschriftet
+    aus `startLabel`, darunter `describeSetup`), zuletzt „Hilfe: Wer sieht
+    was?". Weg sind: der Titel „ORBITAL / EINSATZZENTRALE", der
+    Auftragsstreifen mit Uhr und Anzug (im Aufbau zeigt er nichts an, was
+    liefe), die Geräteliste `.lobby__seats`, das Segment 2D|3D, die
+    Absichts-Kacheln und die Hilfe „Eure Dreiercrew". Auch die **Kopfzeile der
+    Seite** (`index.html`, `#hud`) ist auf dem Telefon ausgeblendet
+    (`haunting.css`, `body.haunt-on #hud`) — nur versteckt, nicht abgebaut:
+    Die kleinen Knöpfe der Reiterzeile drücken ihre Knöpfe stellvertretend.
+  - **Rollenwechsel über die Reiter**: Ein Tipp auf eine Fähigkeit **nimmt**
+    sie (`stationUi.take`) — sie kommt zu den schon gehaltenen dazu, der Name
+    der Mischung steht in `StationUi.roleLabel`, und in der Verteilung wird sie
+    „Mensch". Mitten in der Runde entscheidet `switchRights`, ob das geht;
+    wer nicht darf, bekommt den Grund als Meldung. Wer nichts hält, liest
+    „Bitte wähle über den Tab oben deine Rolle aus." (`NO_ROLE_HINT`). Drohne,
+    Fernseher und Monster sind keine Fähigkeiten — wer dorthin geht, legt die
+    Zentrale ab.
   - **Brille** (`HauntingWorld.menu`): dieselben drei Absichten zuerst, dann
     „Zur Zentrale / Rolle wechseln", dann „Ansicht: 3D Schiff" (fest), dann die
-    Einstellungen (Testlicht, Räume, die drei Setup-Zykler, Gegner).
+    Einstellungen (Testlicht, Räume, Techniker, Monster, die drei
+    Fähigkeiten, Gegner).
   - **Techniker am Desktop** (`ShipExperience.paintDom`, `.orbital-player`):
     dieselben drei Absichten als Knöpfe (`data-action="intent:…"`), darunter
     `describeSetup`, dann Karte und Gegner. Das Panel sitzt oben links unter
-    `--flat-top` und weicht dem offenen Weltmenü (`dom.hidden`), statt sich mit
-    ihm zu überlagern.
+    `--flat-top` und weicht dem offenen Weltmenü (`dom.hidden`).
   - **2D-Optionsmenü** (`FlatMode.renderOptions`): nur noch, was sich *in* der
     Runde ändert — Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
-    bekommt „Realitätsnah" als Zeile), Zielpfade, Ton und **„Zurück zur
-    Lobby"**. Neue Runde, „Mit Monster", der dreistufige Rollenknopf und die
-    eingebettete Tafel sind dort weg.
+    bekommt „Realitätsnah" als Zeile), Zielpfade, **„Zuschauen: an/aus"**
+    (`[data-watch]`, immer möglich), Ton, **„Ansicht: 3D Schiff"**
+    (`[data-switch-view]` → `HauntingWorld.switchView`, heute ein Stumpf mit
+    Ansage) und **„Runde verlassen"**. Neue Runde, „Mit Monster", der
+    dreistufige Rollenknopf und die eingebettete Tafel sind dort weg.
   **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
   `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
   Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
@@ -8547,7 +8580,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   2D-Welt rechnet gar nichts mehr (kein Techniker aus Zahlen, keine Wege,
   keine neue Runde im Endbildschirm) und zeichnet nur noch. Ist der Raum
   leer, bleibt es bei der **lokalen Bot-Runde** mit dem Techniker aus Zahlen
-  (`rules/technicianBot.ts`) — er ist nur keine Rolle mehr, die jemand wählt.
+  (`rules/technicianBot.ts`) — er ist nur keine Rolle mehr, die jemand im
+  Aufbau wählt: Angeschaltet wird Zuschauen im Optionsmenü der Runde
+  („Zuschauen: an/aus"), und zwar immer. Wessen Sicht ein Zuschauer *sonst*
+  noch haben kann, steht in der Reiterzeile des Telefons: Archiv, Schalttafel,
+  Späher, Drohne und der Fernseher sind eigene Ansichten, also führt die Wahl
+  dorthin.
   Beides ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
   bleibt Zuschauen auch dann wählbar, wenn im Raum schon jemand spielt.
   2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers

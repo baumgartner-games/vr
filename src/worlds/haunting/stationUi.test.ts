@@ -89,8 +89,6 @@ function crew(
   // womit die Ansicht anfängt: `true` heißt „2D von oben".
   let lobby: LobbyChoice = { intent: 'play', view: flat ? '2d' : '3d' };
   let setup = defaultSetup();
-  const mission = jest.fn();
-  const test = jest.fn();
   const startSetup = jest.fn();
   const technician = jest.fn();
   const state: HauntState = {
@@ -115,7 +113,7 @@ function crew(
   let round: MapRound | null = null;
   const flip = jest.fn();
   const menu = jest.fn();
-  const botRound = jest.fn();
+  const notify = jest.fn();
   const restart = jest.fn();
   const archiveHome = jest.fn();
   const archiveZoom = jest.fn();
@@ -130,12 +128,12 @@ function crew(
     link: () => ({ peers: 2, vr: remoteTechnician, room: 'test-crew' }),
     technician,
     menu,
-    botRound,
     restart,
     round: () => round,
     snapshot: () => ({ ...emptySnapshot(), seed: spec.seed }),
     monsterPort: () => monster ?? null,
-    notify: () => {},
+    notify: (text: string) => notify(text),
+    vr: () => remoteTechnician,
     ...(flat === undefined
       ? {}
       : {
@@ -151,11 +149,8 @@ function crew(
             ui.refresh();
           },
           startSetup,
-          mission,
-          test,
         }),
     seat: () => seat,
-    wanted: () => seat,
     arriving: () => 0,
     sit(value) {
       seat = value;
@@ -178,15 +173,15 @@ function crew(
   const ui = new StationUi(host);
   views.push(ui);
   ui.refresh();
-  button(`[data-sit="${station}"]`).click();
+  // **Die Reiter oben sind die Rollenwahl**: Die drei Fähigkeiten der Zentrale
+  // heißen `data-power`, die übrigen Geräte weiterhin `data-sit`.
+  open(station);
   return {
     ui,
     state,
     flip,
     menu,
-    botRound,
-    mission,
-    test,
+    notify,
     restart,
     startSetup,
     technician,
@@ -227,6 +222,17 @@ function crew(
       ui.refresh();
     },
   };
+}
+
+/**
+ * Einen Reiter oben antippen — die Fähigkeiten der Zentrale über `data-power`,
+ * Drohne, Fernseher und Monster über `data-sit`. Die Station `scout` hat zwei
+ * Fähigkeiten (Radar und Schalttafel); gemeint ist hier das Radar.
+ */
+function open(station: StationId): void {
+  const powers: Partial<Record<StationId, string>> = { archive: 'archive', scout: 'scout' };
+  const power = powers[station];
+  button(power ? `[data-power="${power}"]` : `[data-sit="${station}"]`).click();
 }
 
 function button(selector: string): HTMLButtonElement {
@@ -326,8 +332,8 @@ describe('Die Station Monster in der Einsatzzentrale', () => {
     // Der Knopf geht an den Port — zuschlagen ist keiner mehr (`monsterHelm.ts`).
     view?.querySelector<HTMLButtonElement>('.monster__key--act')?.click();
     expect(port.calls).toContain('interact');
-    // Zurück in die Übersicht: Das Steuer wird freigegeben.
-    button('[aria-label="Rolle wechseln"]').click();
+    // Zurück in den Aufbau: Das Steuer wird freigegeben.
+    button('[data-tab="setup"]').click();
     expect(game.ui.station).toBeNull();
     expect(port.calls.at(-1)).toBe('release');
     expect(document.querySelector('.monster')).toBeNull();
@@ -362,12 +368,17 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
       expect(document.querySelector('.haunt__view')?.getAttribute('aria-label')).toContain(
         'Decke entfernt',
       );
-      expect(button('[aria-label="Rolle wechseln"]').textContent).toContain('Menü / Rollen');
-      expect(document.querySelector('[aria-label="Spielmenü öffnen"]')).toBeNull();
-      button('[aria-label="Rolle wechseln"]').click();
-      expect(button('[data-sit="scout"]')).not.toBeNull();
-      button('[data-sit="scout"]').click();
+      // Die Rollenwahl steht ganz oben und ist immer da — kein Umweg über
+      // eine eingeklappte Liste mehr. Menü, Verbindung und VR daneben, klein.
+      expect(button('[data-tab="setup"]').textContent).toBe('Aufbau');
+      expect(button('[aria-label="Spielmenü öffnen"]')).not.toBeNull();
+      expect(button('[aria-label="Verbindung der Seite öffnen"]')).not.toBeNull();
+      // Wer die Akte hält und sich die Schalttafel dazunimmt, sitzt im
+      // „Leitstand" (`roundSetup.roleName`) — das Gerät dahinter ist die
+      // Einsatzkontrolle.
+      button('[data-power="panel"]').click();
       expect(game.ui.station).toBe('scout');
+      expect(game.ui.roleLabel).toBe('Leitstand');
     },
   );
 
@@ -519,10 +530,9 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(game.archiveZoom).toHaveBeenLastCalledWith(1.4);
   });
 
-  it('startet aus der Lobby und bietet nach einer verlorenen Runde den Neustart an', () => {
+  it('startet aus dem Aufbau und bietet nach einer verlorenen Runde den Neustart an', () => {
     const game = crew('archive', false, undefined, true);
-    button('[aria-label="Rolle wechseln"]').click();
-    button('[data-intent="watch"]').click();
+    button('[data-tab="setup"]').click();
     button('[data-start-setup]').click();
     expect(game.startSetup).toHaveBeenCalledTimes(1);
     game.state.phase = 'lost';
@@ -603,48 +613,113 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
   });
 
   /**
-   * **Die Lobby stellt die Runde ein, sie startet sie nicht.** Genau das war
-   * der Befund: „Bot-Runde ansehen" stand als Kachel über der Verteilung,
-   * obwohl es nur eine Voreinstellung davon war, und die Checkbox „2D-Welt
-   * von oben" deutete die Kacheln darunter um.
+   * **Der Aufbau ist zwei Häkchen, eine Verteilung und ein Knopf.** Die drei
+   * Kacheln (Spielen · Zuschauen · Trainieren), das Segment 2D|3D, „Bot-Runde
+   * ansehen" und die Hilfe „Eure Dreiercrew" hat der Besitzer weghaben wollen
+   * — und keines der Häkchen startet etwas.
    */
-  it('zeigt die drei Absichten als Kacheln und startet erst mit dem einen Knopf', () => {
+  it('zeigt zwei Häkchen statt Kacheln und startet erst mit dem einen Knopf', () => {
     const game = crew('archive', false, undefined, true);
-    button('[aria-label="Rolle wechseln"]').click();
-    expect(
-      [...document.querySelectorAll<HTMLElement>('[data-intent]')].map((k) => k.dataset['intent']),
-    ).toEqual(['play', 'watch', 'train']);
-    // Die alten Kacheln und die Checkbox gibt es nicht mehr.
-    for (const gone of ['[data-flat-mode]', '[data-mission]', '[data-test]', '[data-bot-round]'])
+    button('[data-tab="setup"]').click();
+    const checks = [...document.querySelectorAll<HTMLElement>('[data-check]')];
+    expect(checks.map((k) => k.dataset['check'])).toEqual(['view', 'test']);
+    expect(checks[0]!.textContent).toContain('2D-Welt von oben');
+    expect(checks[1]!.textContent).toContain('Testen');
+    // Was weg ist, bleibt weg: Kacheln, Segment, alte Startknöpfe, Crew-Hilfe.
+    for (const gone of [
+      '[data-intent]',
+      '[data-view]',
+      '[data-flat-mode]',
+      '[data-mission]',
+      '[data-test]',
+      '[data-bot-round]',
+    ])
       expect(document.querySelector(gone)).toBeNull();
+    expect(document.querySelector('.haunt__body')?.textContent).not.toContain('Dreiercrew');
 
-    // Spielen ist der Anfang, und keine Kachel startet etwas.
-    expect(button('[data-intent="play"]').getAttribute('aria-pressed')).toBe('true');
-    button('[data-intent="train"]').click();
+    // **Keine Uhr und kein Anzug im Aufbau**: Der Auftragsstreifen gehört zur
+    // Runde, und im Menü läuft noch keine.
+    const quest = document.querySelector<HTMLElement>('.haunt__quest')!;
+    expect(quest.hidden).toBe(true);
+    button('[data-power="archive"]').click();
+    expect(quest.hidden).toBe(false);
+    button('[data-tab="setup"]').click();
+    expect(quest.hidden).toBe(true);
+
+    // Das Häkchen „2D-Welt" ist die Ansicht und sonst nichts.
+    expect(checks[0]!.getAttribute('aria-pressed')).toBe('true');
+    button('[data-check="view"]').click();
+    expect(game.lobby.view).toBe('3d');
+    // Und „Testen" ist die Absicht: kein Monster, gestartet wird trotzdem erst unten.
+    button('[data-check="test"]').click();
     expect(game.setup.monster).toBe('off');
     expect(game.startSetup).not.toHaveBeenCalled();
-    expect(button('[data-intent="train"]').getAttribute('aria-pressed')).toBe('true');
-    expect(button('[data-intent="play"]').getAttribute('aria-pressed')).toBe('false');
+    expect(button('[data-check="test"]').getAttribute('aria-pressed')).toBe('true');
+    button('[data-check="test"]').click();
+    expect(game.setup.monster).toBe('bot');
     button('[data-start-setup]').click();
     expect(game.startSetup).toHaveBeenCalledTimes(1);
   });
 
-  /** Was auf dem Startknopf steht, kommt aus der Verteilung — nicht aus der Kachel. */
-  it('beschriftet den einen Startknopf nach Absicht und Ansicht', () => {
+  /** Was auf dem Startknopf steht, kommt aus der Verteilung — ohne Ansicht dahinter. */
+  it('beschriftet den einen Startknopf ohne Ansicht in Klammern', () => {
     const game = crew('archive', false, undefined, true);
-    button('[aria-label="Rolle wechseln"]').click();
+    button('[data-tab="setup"]').click();
     const label = () => button('[data-start-setup]').querySelector('strong')!.textContent;
-    expect(label()).toBe('Mission starten (2D)');
-    button('[data-view="3d"]').click();
+    expect(label()).toBe('Mission starten');
+    button('[data-check="view"]').click();
     expect(game.lobby.view).toBe('3d');
-    expect(label()).toBe('Mission starten (3D)');
-    button('[data-intent="train"]').click();
-    expect(label()).toBe('Training starten (3D)');
-    // Beim Zuschauen verspricht die Ansicht nichts, also steht sie nicht dabei.
-    button('[data-intent="watch"]').click();
-    expect(label()).toBe('Zuschauen');
-    button('[data-view="2d"]').click();
-    expect(label()).toBe('Zuschauen');
+    expect(label()).toBe('Mission starten');
+    button('[data-check="test"]').click();
+    expect(label()).toBe('Test starten');
+  });
+
+  /**
+   * **Alle drei Fähigkeiten stehen immer da**, jede mit Bot / Mensch / Aus —
+   * „+ Platz" und die Liste, die wachsen konnte, sind weg. Und wer als Mensch
+   * mehrere hält, bekommt den Namen der Mischung zu lesen.
+   */
+  it('zeigt alle Fähigkeiten mit Bot/Mensch/Aus und nennt die Mischung beim Namen', () => {
+    const game = crew('archive', false, undefined, true);
+    button('[data-tab="setup"]').click();
+    expect(document.querySelector('[data-setup-add]')).toBeNull();
+    expect(
+      [...document.querySelectorAll<HTMLElement>('[data-setup-ability]')].map(
+        (k) => k.dataset['setupAbility'],
+      ),
+    ).toEqual(['scout', 'panel', 'archive']);
+    const key = () => button('[data-setup-ability="scout"]');
+    expect(key().textContent).toBe('Bot');
+    key().click();
+    expect(game.setup.abilities.scout).toBe('human');
+    expect(key().textContent).toBe('Mensch');
+    key().click();
+    expect(game.setup.abilities.scout).toBe('off');
+    expect(key().textContent).toBe('Aus');
+    key().click();
+    expect(game.setup.abilities.scout).toBe('bot');
+
+    // Zwei Fähigkeiten bei einem Menschen heißen „Einsatzkontrolle" — das
+    // Archiv hält in diesem Fenster niemand mehr (Mensch → Aus).
+    button('[data-setup-ability="archive"]').click();
+    button('[data-setup-ability="scout"]').click();
+    button('[data-setup-ability="panel"]').click();
+    expect(document.querySelector('.setup')?.textContent).toContain(
+      'Mensch in der Zentrale: Einsatzkontrolle',
+    );
+  });
+
+  /** Steht eine Brille im Raum, gehört ihr der Techniker — und niemand klickt ihn weg. */
+  it('schreibt „VR" in die Zeile des Technikers und lässt sie nicht drücken', () => {
+    const game = crew('archive', true, undefined, true);
+    button('[data-tab="setup"]').click();
+    const key = button('[data-setup-technician]');
+    expect(key.textContent).toBe('VR');
+    expect(key.disabled).toBe(true);
+    key.click();
+    expect(game.setup.technician).toBe('human');
+    // Ohne Brille ist dieselbe Zeile ein Knopf — siehe „zeigt alle
+    // Fähigkeiten …", wo sie „Mensch" heißt und sich drücken lässt.
   });
 
   /**
@@ -654,57 +729,96 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
    */
   it('setzt „Ich" auf genau einen Platz und dieses Gerät an dessen Station', () => {
     const game = crew('archive', false, undefined, true);
-    button('[aria-label="Rolle wechseln"]').click();
+    button('[data-tab="setup"]').click();
     const me = (slot: string) => button(`[data-setup-me="${slot}"]`);
     expect(me('technician').getAttribute('aria-pressed')).toBe('false');
 
-    me('seat:0').click();
-    expect(game.setup.seats[0]!.who).toBe('human');
+    me('power:archive').click();
+    expect(game.setup.abilities.archive).toBe('human');
     expect(game.seat).toBe('archive');
     expect(document.querySelectorAll('[data-setup-me][aria-pressed="true"]')).toHaveLength(1);
 
     // Umsetzen nimmt „Ich" am alten Platz weg — und gibt ihn den Zahlen zurück.
     me('monster').click();
-    expect(game.setup.seats[0]!.who).toBe('bot');
+    expect(game.setup.abilities.archive).toBe('bot');
     expect(game.setup.monster).toBe('human');
     expect(game.seat).toBe('monster');
     expect(document.querySelectorAll('[data-setup-me][aria-pressed="true"]')).toHaveLength(1);
     expect(me('monster').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('holt den Techniker am Desktop nur, wenn die Ansicht im Schiff steht', () => {
+  /**
+   * **Die Reiter sind die Rollenwahl** — und eine Fähigkeit, die man nimmt,
+   * steht danach in der Verteilung bei einem Menschen. Wer mehrere nimmt,
+   * behält sie: Das ist die Mischung, um die es dem Besitzer ging.
+   */
+  it('nimmt über die Reiter Fähigkeiten und mischt sie', () => {
     const game = crew('archive', false, undefined, true);
-    button('[aria-label="Rolle wechseln"]').click();
-    button('[data-setup-me="technician"]').click();
-    expect(game.setup.technician).toBe('human');
-    // In 2D gibt es keinen Desktop-Techniker: Die Karte ist das Gerät.
-    expect(game.technician).not.toHaveBeenCalled();
-    button('[data-view="3d"]').click();
-    button('[data-setup-me="technician"]').click();
-    expect(game.technician).toHaveBeenCalledTimes(1);
+    expect(game.ui.roleLabel).toBe('Archiv');
+    expect(game.setup.abilities.archive).toBe('human');
+    button('[data-power="scout"]').click();
+    expect(game.ui.roleLabel).toBe('Aufklärung');
+    expect(game.setup.abilities.scout).toBe('human');
+    expect(game.ui.station).toBe('scout');
+    // Der Reiter des Archivs leuchtet weiter als „meiner", auch wenn das
+    // Radar offen ist.
+    expect(button('[data-power="archive"]').className).toContain('is-mine');
+    // Ein Gerät, das keine Fähigkeit ist, legt die Zentrale ab.
+    button('[data-sit="watch"]').click();
+    expect(game.ui.roleLabel).toBe('');
+    expect(game.ui.station).toBe('watch');
+  });
+
+  /**
+   * **Ohne Rolle steht ein Satz da**, und er sagt, wo man sie herbekommt.
+   * Mitten in einer Nicht-Test-Runde darf sie außerdem nicht jeder wechseln —
+   * wer das Monster spielt, bleibt das Monster (`roundSetup.switchRights`).
+   */
+  it('schickt ohne Rolle zu den Reitern und lässt das Monster nicht ins Archiv', () => {
+    const game = crew('monster', false, undefined, true);
+    button('[data-tab="setup"]').click();
+    expect(document.querySelector('.haunt__body')?.textContent).toContain(
+      'Bitte wähle über den Tab oben deine Rolle aus.',
+    );
+    // Eine Mission läuft: Das Monster sitzt nicht in der Zentrale.
+    button('[data-power="archive"]').click();
+    expect(game.notify).toHaveBeenCalledWith(
+      'Mitten in der Runde wechselt nur die Rolle, wer in der Einsatzzentrale sitzt.',
+    );
+    expect(game.ui.roleLabel).toBe('');
+    // In einer Test-Runde darf jeder jede Rolle nehmen.
+    game.state.crew.options.test = true;
+    game.ui.refresh();
+    button('[data-power="archive"]').click();
+    expect(game.ui.roleLabel).toBe('Archiv');
   });
 
   it('sperrt den Start im Schiff, solange ein anderer Techniker spielt — in 2D nicht', () => {
     const game = crew('archive', true, undefined, false);
-    button('[aria-label="Rolle wechseln"]').click();
+    button('[data-tab="setup"]').click();
     const start = () => button('[data-start-setup]');
     expect(start().disabled).toBe(true);
     expect(start().textContent).toContain('Ein Techniker spielt bereits');
     start().click();
     expect(game.startSetup).not.toHaveBeenCalled();
     // **Eine 2D-Runde ist lokal** und stört keinen Techniker im Schiff.
-    button('[data-view="2d"]').click();
+    button('[data-check="view"]').click();
     expect(start().disabled).toBe(false);
     start().click();
     expect(game.startSetup).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps system switches and radar on separate labelled tabs and sends switch actions once', () => {
+  /**
+   * Radar und Schalttafel sind zwei **Fähigkeiten** und keine zwei Blätter:
+   * Sie hängen an den Reitern oben, nicht mehr an einer zweiten Reiterzeile
+   * darunter. Wer beide hält, wechselt zwischen ihnen wie zwischen Rollen.
+   */
+  it('trennt Radar und Schalttafel über die Reiter und sendet Schalter genau einmal', () => {
     const { ui, flip, state } = crew('scout');
     expect(document.querySelector('.haunt__scout')).not.toBeNull();
     expect(document.querySelector('[data-flip]')).toBeNull();
-    expect(button('[data-control-tab="radar"]').textContent).toBe('Radar & Anzug');
-    button('[data-control-tab="switches"]').click();
+    expect(document.querySelector('[data-control-tab]')).toBeNull();
+    button('[data-power="panel"]').click();
     expect(document.querySelector('.haunt__scout')).toBeNull();
     const key = button('[data-flip]');
     key.click();
@@ -712,8 +826,8 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(flip).toHaveBeenCalledWith(key.dataset['flip'], key.dataset['on'] !== '1');
     state.crew.hp = 2;
     ui.refresh();
-    expect(button('[data-control-tab="switches"]').getAttribute('aria-pressed')).toBe('true');
-    button('[data-control-tab="radar"]').click();
+    expect(button('[data-power="panel"]').getAttribute('aria-pressed')).toBe('true');
+    button('[data-power="scout"]').click();
     expect(document.querySelector('.haunt__ecg')?.getAttribute('aria-label')).toContain(
       'Simulierter Puls',
     );

@@ -229,11 +229,14 @@ describe('Die 2D-Welt', () => {
 
   /**
    * **Das Zahnrad zeigt nur noch, was sich mitten in der Runde ändert.** Alles,
-   * was die *nächste* Runde betrifft — neue Runde, mit oder ohne Monster, wer
-   * welche Rolle spielt, die ganze Verteilung —, steht in der Lobby.
+   * was die *nächste* Runde betrifft — neue Runde, mit oder ohne Monster, die
+   * ganze Verteilung —, steht im Aufbau. Dazugekommen sind die drei Dinge, die
+   * der Besitzer hier ausdrücklich haben wollte: Zuschauen, 2D ↔ 3D, Runde
+   * verlassen.
    */
-  it('lässt aus dem Optionsmenü Rolle, Monster und Verteilung weg', () => {
-    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {} });
+  it('lässt aus dem Optionsmenü Monster und Verteilung weg und bietet Zuschauen, 2D↔3D, Verlassen', () => {
+    const switchView = jest.fn();
+    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {}, switchView });
     document.body.append(flat.element);
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
     const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
@@ -241,10 +244,20 @@ describe('Die 2D-Welt', () => {
     expect(panel.querySelector('[data-monster]')).toBeNull();
     expect(panel.querySelector('[data-restart]')).toBeNull();
     expect(panel.querySelector('.setup')).toBeNull();
-    // Was bleibt: Ansicht, Zielpfade, Ton — und der Weg zurück in die Lobby.
+    // Was bleibt: Ansicht, Zielpfade, Ton — und die drei neuen Knöpfe.
     expect(panel.querySelector('[data-routes]')).not.toBeNull();
     expect(panel.querySelector('[data-audio="effects"]')).not.toBeNull();
-    expect(panel.querySelector('[data-leave]')?.textContent).toContain('Zurück zur Lobby');
+    expect(panel.querySelector('[data-watch]')?.textContent).toContain('Zuschauen: an');
+    expect(panel.querySelector('[data-switch-view]')?.textContent).toContain('3D Schiff');
+    expect(panel.querySelector('[data-leave]')?.textContent).toContain('Runde verlassen');
+    // **Zuschauen geht immer** — an und wieder aus, mitten in der Runde.
+    flat.element.querySelector<HTMLButtonElement>('[data-watch]')!.click();
+    expect(flat.role).toBe('technician');
+    flat.element.querySelector<HTMLButtonElement>('[data-watch]')!.click();
+    expect(flat.role).toBe('watch');
+    // Und der Wechsel der Ansicht geht an die Welt, die das Schiff kennt.
+    flat.element.querySelector<HTMLButtonElement>('[data-switch-view]')!.click();
+    expect(switchView).toHaveBeenCalledWith('3d');
     flat.dispose();
   });
 
@@ -278,12 +291,13 @@ describe('Die 2D-Welt', () => {
     expect(flat.element.querySelector('.flat__hud')?.textContent).not.toContain('Bot-Runde');
     // Die Kamera hängt am Techniker.
     expect(flat.scene.getView().centreX).toBeCloseTo(flat.round.player.x);
-    // Das Optionsmenü sagt, wessen Sicht sich wie wechseln lässt — gewechselt
-    // wird mit den Sprungknöpfen und in der Lobby, nicht mit einem Zykler.
+    // Das Optionsmenü sagt, wer gerade spielt — und hat statt des Absatzes
+    // „Wessen Sicht?" jetzt den Schalter, von dem er nur redete: Zuschauen
+    // an und aus. Der dreistufige Rollenzykler bleibt weg.
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
     const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
     expect(panel.textContent).toContain('Du siehst zu');
-    expect(panel.textContent).toContain('Wessen Sicht?');
+    expect(panel.querySelector('[data-watch]')?.getAttribute('aria-pressed')).toBe('true');
     expect(panel.querySelector('[data-role]')).toBeNull();
     flat.dispose();
   });

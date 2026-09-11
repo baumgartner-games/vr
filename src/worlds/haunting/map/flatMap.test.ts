@@ -145,7 +145,10 @@ describe('Ziele und Wege', () => {
     expect(crate).toMatchObject({ kind: 'crate', precision: 'exact' });
 
     // Mensch am Archiv: nur noch der Raum, mit seinem Namen als Beschriftung.
-    const shared: RoundSetup = { ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] };
+    const shared: RoundSetup = {
+      ...defaultSetup(),
+      abilities: { scout: 'off', panel: 'off', archive: 'human' },
+    };
     const crew = new FlatRound(7, { test: true, setup: shared });
     expect(crew.precision).toBe('room');
     const goal = crew.objectives()[0]!;
@@ -159,7 +162,10 @@ describe('Ziele und Wege', () => {
   });
 
   it('trägt bei Raumgenauigkeit keinen Teilenamen im Snapshot — und immer das Kennzeichen', () => {
-    const shared: RoundSetup = { ...defaultSetup(), seats: [{ role: 'archive', who: 'human' }] };
+    const shared: RoundSetup = {
+      ...defaultSetup(),
+      abilities: { scout: 'off', panel: 'off', archive: 'human' },
+    };
     const round = new FlatRound(7, { test: true, setup: shared });
     const snapshot = round.snapshot();
     const names = round.house.tasks.map((task) => task.label);
@@ -266,9 +272,9 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     flat.dispose();
   });
 
-  it('nimmt dem Techniker die Fähigkeiten, wenn Menschen auf den Plätzen sitzen', () => {
+  it('nimmt dem Techniker die Fähigkeiten, wenn Menschen sie halten', () => {
     const setup = defaultSetup();
-    setup.seats = setup.seats.map((seat) => ({ ...seat, who: 'human' }));
+    setup.abilities = { scout: 'human', panel: 'human', archive: 'human' };
     const flat = new FlatMode(7, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     expect(flat.soloPowers).toEqual({ scout: false, panel: false, archive: false });
@@ -287,12 +293,7 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     // Runde fängt damit an. Das Optionsmenü zeigt nur noch, was sich *in* der
     // Runde ändert.
     flat.restart({
-      setup: {
-        ...setup,
-        seats: setup.seats.map((seat) =>
-          seat.role === 'archive' ? { ...seat, who: 'bot' as const } : seat,
-        ),
-      },
+      setup: { ...setup, abilities: { ...setup.abilities, archive: 'bot' } },
     });
     expect(flat.soloPowers.archive).toBe(true);
     flat.dispose();
@@ -320,9 +321,9 @@ describe('Das Horchbild auf der Kartenübersicht', () => {
    * vor. Ohne Späher steht auf der Karte gar nichts: Sie ist das Bild der
    * Zentrale, nicht das eigene Ohr.
    */
-  function noisesOnMap(seats: 'bot' | 'human'): { sampled: number; drawn: number } {
+  function noisesOnMap(who: 'bot' | 'human'): { sampled: number; drawn: number } {
     const setup = defaultSetup();
-    setup.seats = setup.seats.map((seat) => ({ ...seat, who: seats }));
+    setup.abilities = { scout: who, panel: who, archive: who };
     const flat = new FlatMode(9, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     flat.showMap(true);
