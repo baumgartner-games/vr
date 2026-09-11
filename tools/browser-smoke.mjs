@@ -263,7 +263,9 @@ for (const name of browserNames) {
         const controls = page.locator('details[data-main]');
         if (!(await controls.evaluate((node) => node.open)))
           await controls.locator(':scope > summary').click();
-        await page.locator('[data-action="test"]').click();
+        // Die drei Absichten der Lobby stehen hier als Knöpfe (`rules/lobby.ts`):
+        // Trainieren ist der sichere Test ohne Monster.
+        await page.locator('[data-action="intent:train"]').click();
         await page.locator('.orbital-player strong').filter({ hasText: /TEST/ }).waitFor();
         // Starting a test rebuilds the controls with both disclosure panels closed.
         if (!(await controls.evaluate((node) => node.open)))
@@ -286,8 +288,13 @@ for (const name of browserNames) {
         });
         await page.waitForTimeout(750);
         await shot('technician-room');
-        await page.getByRole('button', { name: 'Rolle wechseln', exact: true }).click();
-        await page.locator('[data-bot-round]').click();
+        // „Bot-Runde ansehen" gibt es im Van nicht mehr; im Zimmer stehen auch
+        // die drei Absichten nicht. Was bleibt, ist das Testdeck des Technikers.
+        if (!(await controls.evaluate((node) => node.open)))
+          await controls.locator(':scope > summary').click();
+        if (!(await tests.evaluate((node) => node.open)))
+          await tests.locator(':scope > summary').click();
+        await page.locator('[data-action="simulate"]').click();
         await page.locator('.orbital-player').waitFor();
         await page.locator('.orbital-player strong').filter({ hasText: /TEST/ }).waitFor();
         await page

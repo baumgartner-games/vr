@@ -2116,7 +2116,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.dom.append(overview);
       const legend = document.createElement('div');
       legend.textContent =
-        'KI-Wege: Cyan = Techniker · Rot = Monster · Gelb = Drohne · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag';
+        'KI-Wege: Cyan = Techniker · Rot = Monster · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag';
       this.dom.append(legend);
       const intent = document.createElement('div');
       intent.dataset.aiIntent = '';
