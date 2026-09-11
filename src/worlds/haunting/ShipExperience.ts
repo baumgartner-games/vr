@@ -1,5 +1,13 @@
 import * as THREE from 'three';
 import './haunting.css';
+// **Das Optionsmenü trägt die Klassen der 2D-Welt** (`map/optionsMenu.ts`:
+// `.flat__panel`, `.flat__option`, `.flat__note`) — und deren Stil steht in
+// `map/flat.css`. Der kam bisher nur mit, wenn jemand vorher einmal die
+// 2D-Welt aufgemacht hatte; wer im Schiff anfing, bekam das Zahnrad als
+// nackte Liste. Seit die Kopfzeile der Seite hier aus ist, führt genau dieses
+// Menü zu Menü, Verbindung und VR — es darf nicht davon abhängen, wo man
+// vorher war.
+import './map/flat.css';
 import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
 import { HauntingAudio, NOISE, levelLabel } from './audio';
@@ -346,6 +354,19 @@ export class ShipExperience {
   private readonly optionsRoot = document.createElement('div');
   private readonly optionsPanel = document.createElement('div');
   private optionsOpen = false;
+  /**
+   * **Ob die Tafel zugeklappt ist.** Sie steht links über der Station, und
+   * links steht auch die Station: Wer zielt, will sehen, worauf. Zugeklappt
+   * bleibt die Titelzeile — Anzug, Systeme, Sauerstoff —, dazu die zwei
+   * Knöpfe, die wieder hinausführen: aufklappen und das Zahnrad. Der Stand
+   * überlebt jedes Neuzeichnen (`paintDom` baut den Inhalt bei jeder Änderung
+   * neu), nicht aber das Verlassen der Welt.
+   */
+  private folded = false;
+  /** Ob „Mission, Ausrüstung & Testdeck" offen stand, als zugeklappt wurde. */
+  private mainOpen = false;
+  /** Dasselbe für das Testdeck darin. */
+  private testsOpen = false;
   /** Der Kompass am oberen Bildrand — nur am Desktop; in der Brille gibt es ihn (noch) nicht. */
   private compass: ObjectiveCompass | null = null;
   private sensorMode: 'off' | 'flashlight' | 'radar' | 'xray' = 'off';
@@ -483,6 +504,15 @@ export class ShipExperience {
       this.optionsPanel.setAttribute('aria-label', 'Optionen');
       this.optionsPanel.addEventListener('click', (event) => this.optionsClick(event));
       this.optionsRoot.append(this.optionsPanel);
+      // **Die Kopfzeile der Seite geht aus, solange das Schiff läuft**
+      // (`haunting.css`, `body.orbital-on #hud`). Sie lag mit `z-index: 5`
+      // über dem oberen Rand, den diese Welt selbst braucht — Kompass und
+      // Tafel —, und sagte dort dasselbe dreimal: Menü, Verbindung und VR
+      // stehen im Zahnrad der Tafel (`shipOptions`). Eine Klasse und kein
+      // `hidden`, weil die Seite ihr `hidden` beim Verlassen der Brille selbst
+      // wieder setzt (`main.ts`, `onSessionChanged`) und den Streifen sonst
+      // mitten in der Runde zurückholte.
+      document.body.classList.add('orbital-on');
       document.body.append(this.dom, this.crosshair, this.optionsRoot);
       if (host.objectives) {
         this.compass = new ObjectiveCompass();
@@ -1927,6 +1957,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (!this.compass) return;
     const shown = running && !ctx.renderer.xr.isPresenting && !ctx.menu.isOpen;
     this.compass.element.hidden = !shown;
+    // Und die Tafel rückt unter ihn — oder an den oberen Rand, wenn er weg
+    // ist. Vorher blieben die 44 px seiner Zeile auch dann frei, wenn dort
+    // nichts stand (`haunting.css`, `--orbital-head`).
+    this.dom.classList.toggle('has-compass', shown);
     if (!shown) return;
     ctx.camera.getWorldDirection(_direction);
     const yaw = Math.atan2(-_direction.x, -_direction.z);
@@ -2300,10 +2334,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       currentOxygen.textContent = oxygenText;
     if (signature === this.stamp) return;
     this.stamp = signature;
+    // Welche Klappen offen standen, steht an ihnen selbst — und solange die
+    // Tafel zugeklappt ist, gibt es sie nicht. Deshalb wird beides gemerkt:
+    // Wer zuklappt und wieder aufklappt, findet sein „Mission, Ausrüstung &
+    // Testdeck" so vor, wie er es verlassen hat.
     const expanded =
-      this.dom.querySelector<HTMLDetailsElement>('details[data-main]')?.open ?? false;
+      this.dom.querySelector<HTMLDetailsElement>('details[data-main]')?.open ?? this.mainOpen;
     const testsExpanded =
-      this.dom.querySelector<HTMLDetailsElement>('details[data-tests]')?.open ?? false;
+      this.dom.querySelector<HTMLDetailsElement>('details[data-tests]')?.open ?? this.testsOpen;
+    this.mainOpen = expanded;
+    this.testsOpen = testsExpanded;
     this.dom.replaceChildren();
     const title = document.createElement('strong');
     title.textContent = `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.simulation ? 'TEST / SICHERE BOT-RUNDE / MONSTER' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
@@ -2312,14 +2352,27 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     oxygen.textContent = oxygenText;
     title.append(oxygen);
     this.dom.append(title);
+    // **Zuklappen.** Die Tafel steht über der Station, und auf dem Telefon
+    // ließ sie von ihr wenig übrig. Der Knopf davor räumt sie weg, bis auf die
+    // Titelzeile und diese zwei Knöpfe — wer sie wiederhaben will, drückt
+    // denselben Knopf. Er steht vor dem Zahnrad, weil er häufiger gebraucht
+    // wird als alles darunter.
+    const fold = document.createElement('button');
+    fold.textContent = this.folded ? '▾ Aufklappen' : '▴ Zuklappen';
+    fold.dataset.action = 'fold';
+    fold.setAttribute('aria-expanded', String(!this.folded));
+    this.dom.append(fold);
     // **Das Zahnrad der 2D-Welt** (`showOptions`): Zentrale, 2D von oben,
-    // Menü, Verbindung, Ton, Runde verlassen — dieselben Einträge mit
+    // Menü, Verbindung, VR, Ton, Runde verlassen — dieselben Einträge mit
     // denselben Worten wie dort, statt loser Knöpfe, die dasselbe anders
-    // nannten. Oben, weil es eine Ansicht ist und kein Handgriff.
+    // nannten. Oben, weil es eine Ansicht ist und kein Handgriff — und
+    // zugeklappt der einzige Weg nach draußen, deshalb bleibt es stehen.
     const options = document.createElement('button');
     options.textContent = '⚙ Optionen';
     options.dataset.action = 'options';
     this.dom.append(options);
+    this.dom.classList.toggle('is-folded', this.folded);
+    if (this.folded) return;
     if (crew.simulation) {
       const camera = document.createElement('button');
       camera.textContent = this.followBot ? 'Freie Kamera' : 'Bot folgen';
@@ -2738,6 +2791,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         'Das Weltmenü der Seite: Welt wechseln, VR, Einstellungen',
       ),
       key({ pagenet: '' }, SHARED.net, SHARED.netHint),
+      // **Und der Weg in die Brille.** Er hing bis hierher am Streifen der
+      // Seite (`index.html`, `#hud-vr`), und der ist in dieser Welt aus. Der
+      // Knopf ist nicht abgebaut, nur versteckt — dieser Eintrag drückt ihn
+      // stellvertretend, genau wie es das Telefon tut (`stationUi`).
+      key({ pagevr: '' }, 'VR', 'Mit der Brille weiterspielen — dieselbe Runde, dasselbe Schiff'),
       ...soundKeys({
         effects: this.audioOn ? levelLabel(this.hearingAudio.levels.effects) : 'aus',
         ambient: this.audioOn ? levelLabel(this.hearingAudio.levels.ambient) : 'aus',
@@ -2757,6 +2815,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else if (data['stations'] !== undefined) this.host.stations?.();
     else if (data['pagemenu'] !== undefined) this.host.ctx.menu.toggle();
     else if (data['pagenet'] !== undefined) pressPageButton('net');
+    else if (data['pagevr'] !== undefined) pressPageButton('vr');
     else if (data['audio'] === 'effects' || data['audio'] === 'ambient') {
       // Ein Regler, der auf „aus" steht, weil der ganze Ton aus ist, schaltet
       // ihn erst wieder an — sonst dreht man an etwas, das man nicht hört.
@@ -2791,6 +2850,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       else if (id === 'train') this.host.test();
       else this.host.start();
     } else if (kind === 'stations') this.host.stations?.();
+    else if (kind === 'fold') this.folded = !this.folded;
     else if (kind === 'options') this.showOptions(!this.optionsOpen);
     else if (kind === 'flat-view') this.host.switchView?.('2d');
     else if (kind === 'overview') {
@@ -3206,6 +3266,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     disposeObject(this.hud.mesh);
     this.dom.remove();
     this.dom.removeEventListener('click', this.domClick);
+    document.body.classList.remove('orbital-on');
     this.controls?.dispose();
     this.controls = null;
     this.optionsRoot.remove();

@@ -8458,8 +8458,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Streifen der Seite (Weltname, Menü, Verbindung, VR — `index.html`, `#hud`,
   `z-index: 5`) wird beim Betreten abgeschaltet (`core/pageHud.ts`) und beim
   Verlassen so wiederhergestellt, wie er war; `--flat-top` rückt dafür in
-  `.flat--world` um dessen Höhe nach oben (über der 3D-Szene, `.flat.ship3d`,
-  bleibt es beim alten Maß). **Oben steht eine Spalte, keine Sammlung von
+  `.flat--world` um dessen Höhe nach oben. **Im Schiff im Browser ist der
+  Streifen ebenfalls aus** — dort über eine Klasse am `body`
+  (`haunting.css`, `body.orbital-on #hud`, gesetzt von `ShipExperience`),
+  weil die Seite ihr `hidden` beim Verlassen der Brille selbst wieder setzt
+  (`main.ts`) und den Streifen sonst mitten in der Runde zurückholte; Kompass
+  und Tafel rücken dafür an den oberen Rand (`--orbital-top`). **Oben steht eine Spalte, keine Sammlung von
   Abständen** (`.flat__top`): erste Zeile die **Rollenknöpfe in einem Panel**
   (`views/roleStrip.ts` — Station, Archiv, Schalttafel, Späher, Monster,
   Zuschauer) und am Ende der Zeile das Zahnrad, zweite Zeile — links
@@ -8817,11 +8821,23 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Gegner).
   - **Techniker am Desktop** (`ShipExperience.paintDom`, `.orbital-player`):
     dieselben drei Absichten als Knöpfe (`data-action="intent:…"`), darunter
-    `describeSetup`, dann Karte und Gegner. Das Panel sitzt oben links unter
-    `--flat-top` und weicht dem offenen Weltmenü (`dom.hidden`). Oben im
-    Panel steht **⚙ Optionen** (`data-action="options"`,
-    `ShipExperience.showOptions`) und klappt **das Optionsmenü der 2D-Welt**
-    auf — nur im Browser, nie in der Brille.
+    `describeSetup`, dann Karte und Gegner. Das Panel sitzt oben links am
+    oberen Rand (`--orbital-top`), unter dem Kompass, solange es ihn gibt
+    (`.has-compass`, `--orbital-head`), und weicht dem offenen Weltmenü
+    (`dom.hidden`). **Es ist so hoch wie sein Inhalt**: Bis hierher stand dort
+    `bottom: 16px`, und der Kasten reichte auch mit drei Zeilen darin bis zum
+    unteren Bildrand — auf dem Telefon lag die halbe Station hinter dunklem
+    Glas. Jetzt begrenzt ihn `max-height` nach unten (`--orbital-gap`: 16 px,
+    212 px über Stock und Knöpfen). **Und er lässt sich zuklappen**
+    (`data-action="fold"`, `ShipExperience.folded`, `.is-folded`): Zu bleiben
+    die Titelzeile — Anzug, Systeme, Sauerstoff — und die zwei Knöpfe, die
+    wieder hinausführen; welche Klappen darin offen standen, merkt sich das
+    Panel (`mainOpen`, `testsOpen`). Oben im Panel steht **⚙ Optionen**
+    (`data-action="options"`, `ShipExperience.showOptions`) und klappt **das
+    Optionsmenü der 2D-Welt** auf — nur im Browser, nie in der Brille. Das
+    Schiff bindet dafür `map/flat.css` selbst ein: Das Menü trägt dessen
+    Klassen, und wer im Schiff anfing statt in der 2D-Welt, bekam es sonst als
+    nackte Liste.
   - **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Was ein
     Optionsmenü *ist* — Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel
     (`OptionItem`) — und wie es gezeichnet wird (`renderOptions`, die Klassen
@@ -8829,8 +8845,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     geteilten Namen in `SHARED` (`watchKey`, `switchViewKey`, `soundKeys`,
     `leaveKeys`). `FlatMode.renderOptions` baut daraus seine Liste, das
     Schiff (`ShipExperience.shipOptions`) seine: Ansicht, Zuschauen an/aus
-    (= Bot-Runde), Aufmachen (Zentrale, Menü, Verbindung), Ton, „Ansicht: 2D
-    ↔ 3D", Runde verlassen, Weiterspielen. Die losen Knöpfe „Rolle wechseln",
+    (= Bot-Runde), Aufmachen (Zentrale, Menü, Verbindung, **VR**), Ton,
+    „Ansicht: 2D ↔ 3D", Runde verlassen, Weiterspielen. Menü, Verbindung und
+    VR drücken die Knöpfe der ausgeblendeten Kopfzeile (`pressPageButton`) —
+    seit sie im Schiff aus ist, ist dieses Menü der einzige Weg dorthin. Die losen Knöpfe „Rolle wechseln",
     „2D von oben" und „Missionsmenü" sind darin aufgegangen.
   - **2D-Optionsmenü** (`FlatMode.renderOptions`): nur noch, was sich *in* der
     Runde ändert — Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,

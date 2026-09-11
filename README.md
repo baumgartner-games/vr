@@ -375,6 +375,15 @@ es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. Tastatur und
 Maus bleiben daneben, wie sie waren; in der Brille sind die Knöpfe weg, dort
 gibt es Zeiger und Trigger.
 
+**Der obere Rand gehört auch im Schiff dem Spiel.** Die Kopfzeile der Seite
+(Menü, Verbindung, VR) ist hier ausgeblendet wie in der 2D-Welt und kommt beim
+Verlassen zurück; oben stehen der Kompass und darunter die Tafel des
+Technikers. Die Tafel ist nur so hoch wie das, was darin steht, und
+**lässt sich zuklappen**: „Zuklappen" räumt sie weg bis auf die Titelzeile mit
+Anzug, Systemen und Sauerstoff — daneben bleibt das **⚙ Optionen** stehen, und
+darin führen **Menü**, **Verbindung** und **VR** dorthin, wo sonst die
+Kopfzeile hinführte.
+
 In VR werden dieselben Objekte mit dem Zeiger und Trigger bedient. Unter
 **VR-Komfort** lassen sich schrittweises oder fließendes Drehen, ein optionaler
 Komfortrand bei künstlicher Bewegung und Controller-Vibration einstellen.

@@ -269,6 +269,63 @@ test('das Panel weicht dem offenen Weltmenü', () => {
   expect(panel.hidden).toBe(false);
 });
 
+/**
+ * **Die Kopfzeile der Seite gehört nicht über diese Welt.** „Oben das Panel
+ * Menü/Verbindung/VR bitte entfernen" — sie lag mit `z-index: 5` über dem
+ * oberen Rand, den das Schiff selbst braucht (Kompass, Tafel). Ausgeblendet
+ * wird sie über eine Klasse am `body` (`haunting.css`, `body.orbital-on
+ * #hud`), abgebaut nicht: Ihre drei Knöpfe hängen an der Seite, und das
+ * Zahnrad der Tafel drückt sie stellvertretend.
+ */
+test('das Schiff blendet die Kopfzeile der Seite aus und holt sie beim Verlassen zurück', () => {
+  expect(document.body.classList.contains('orbital-on')).toBe(true);
+  const vr = document.createElement('button');
+  vr.id = 'hud-vr';
+  const pressed = jest.fn();
+  vr.addEventListener('click', pressed);
+  document.body.append(vr);
+  document.querySelector<HTMLButtonElement>('[data-action="options"]')!.click();
+  const options = document.querySelector<HTMLElement>('.orbital-options')!;
+  expect(options.querySelector('[data-pagemenu]')).not.toBeNull();
+  expect(options.querySelector('[data-pagenet]')).not.toBeNull();
+  options.querySelector<HTMLButtonElement>('[data-pagevr]')!.click();
+  expect(pressed).toHaveBeenCalledTimes(1);
+  experience.dispose();
+  mounted = false;
+  expect(document.body.classList.contains('orbital-on')).toBe(false);
+});
+
+/**
+ * **Zugeklappt bleibt die Titelzeile.** Die Tafel stand über der halben
+ * Station („ich will das Menü zuklappen können, da es aktuell über den ganzen
+ * Bildschirm ist"). Zu heißt: Anzug, Systeme und Sauerstoff bleiben lesbar,
+ * und die zwei Knöpfe, die wieder hinausführen, bleiben drückbar — alles
+ * andere ist weg und kommt so zurück, wie es war.
+ */
+test('die Tafel des Technikers lässt sich zuklappen und wieder auf', () => {
+  const panel = document.querySelector<HTMLElement>('.orbital-player')!;
+  const fold = (): HTMLButtonElement =>
+    panel.querySelector<HTMLButtonElement>('[data-action="fold"]')!;
+  panel.querySelector<HTMLDetailsElement>('details[data-main]')!.open = true;
+
+  fold().click();
+  expect(panel.classList.contains('is-folded')).toBe(true);
+  expect(panel.querySelector('details[data-main]')).toBeNull();
+  expect(panel.querySelector('[data-action="sensor"]')).toBeNull();
+  expect(panel.querySelector('strong')?.textContent).toContain('ORBITAL');
+  expect(panel.querySelector('[data-action="options"]')).not.toBeNull();
+  expect(fold().getAttribute('aria-expanded')).toBe('false');
+
+  // Ein neuer Stand zeichnet die Tafel neu — zugeklappt bleibt zugeklappt.
+  state.done = ['reactor'];
+  frame();
+  expect(panel.querySelector('details[data-main]')).toBeNull();
+
+  fold().click();
+  expect(panel.classList.contains('is-folded')).toBe(false);
+  expect(panel.querySelector<HTMLDetailsElement>('details[data-main]')?.open).toBe(true);
+});
+
 test('leaving the technician view ends its local demo and restores a safe standing position', () => {
   experience.startBotRound();
   expect(state.crew.simulation).toBe(true);
