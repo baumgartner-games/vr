@@ -25,9 +25,11 @@ import {
   defaultSetup,
   flatRoleOf,
   powersOf,
+  switchRights,
   type RoundSetup,
   type SoloPowers,
 } from '../rules/roundSetup';
+import { visibleSwitches } from '../panel';
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
 import { RoleStrip } from '../views/roleStrip';
@@ -413,6 +415,18 @@ export class FlatMode {
       roleHost: () => this.roleHost(),
       homeLabel: () => 'Station',
       onChange: () => this.applyOverlay(),
+      // **Wer hier sitzt, ist der Techniker** — und der wechselt mitten in
+      // einer Mission die Rolle nicht (`rules/roundSetup.switchRights`): Er
+      // steht im Anzug und kann nicht nebenbei ins Archiv greifen. In einer
+      // Test-Runde darf er alles; genau dafür ist das Häkchen „Testen" da.
+      rights: () => {
+        const allowed = switchRights({
+          test: this.round.state().crew.options.test,
+          inCentre: false,
+          vrTechnician: false,
+        });
+        return { allowed: allowed.abilities, why: allowed.why };
+      },
     });
     this.element.append(
       this.scene.element,
@@ -550,10 +564,14 @@ export class FlatMode {
     return {
       snapshot: () => this.round.snapshot(),
       spec: () => this.round.house,
+      ledger: () => this.round.state(),
       me: () => PLAYER_ID,
       nameOf: (peer) => peer,
       door: (id) => this.round.lockDoor(id),
       light: (id) => this.round.switchLight(id),
+      // Die halbe Tafel liegt hinter dem Sicherungskasten (`panel.ts`) — auch
+      // hier, wo der Techniker sie sich selbst aufschlägt.
+      switches: () => visibleSwitches(this.round.house.switches, this.round.state().fuse),
       notify: (text) => this.say(text),
     };
   }

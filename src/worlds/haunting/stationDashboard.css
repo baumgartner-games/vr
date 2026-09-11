@@ -30,33 +30,7 @@
   padding: 12px 16px max(28px, env(safe-area-inset-bottom));
   gap: 14px;
 }
-.haunt__tabs {
-  display: flex;
-  gap: 8px;
-  position: sticky;
-  top: -12px;
-  z-index: 2;
-  margin: 0 -2px;
-  padding: 6px 2px 10px;
-  background: #08151e;
-}
-.haunt .haunt__tab {
-  flex: 1;
-  min-height: 48px;
-  padding: 10px 12px;
-  border-radius: 9px;
-  border: 1px solid #3d5d6b;
-  background: #122b37;
-  font-size: 15px;
-  font-weight: 650;
-}
-.haunt .haunt__tab[aria-pressed="true"] {
-  color: #c5fbff;
-  border-color: var(--haunt-accent);
-  background: #1a3a46;
-  box-shadow: inset 0 -3px var(--haunt-accent);
-}
-.haunt__chart-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
 .haunt .haunt__chart-key {
   min-width: 48px;
   min-height: 48px;
@@ -67,81 +41,20 @@
   font-size: 14px;
   text-align: left;
 }
-.haunt__chart-help { margin: 0; font-size: 13px; line-height: 1.6; color: #a5c0ce; }
-.haunt__room-select { display: flex; flex-direction: column; gap: 8px; color: #b5c9d3; font-size: 14px; }
-.haunt__room-select select {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 52px;
-  padding: 12px;
-  border: 1px solid #5c8798;
-  border-radius: 9px;
-  color: #f1fbff;
-  background: #173743;
-  font: inherit;
-  font-size: 16px;
-}
-.haunt__room-select select:focus-visible { outline: 2px solid #78dfe7; outline-offset: 3px; }
-.haunt[data-station="archive"] .haunt__task-row { gap: 10px; padding: 18px; font-size: 15px; }
-.haunt[data-station="archive"] .haunt__task-row strong { font-size: 17px; }
-.haunt[data-station="archive"] .haunt__chip { font-size: 14px; padding: 7px 9px; }
-.haunt[data-station="archive"] .haunt__fact { gap: 14px; font-size: 14px; padding: 13px 14px; }
-.haunt[data-station="archive"] .haunt__fact-key { width: 100px; color: #a9c2cd; line-height: 1.55; }
-.haunt[data-station="archive"] .haunt__fact-value { min-width: 0; line-height: 1.6; overflow-wrap: anywhere; color: #edf7fc; }
-.haunt[data-station="archive"] .haunt__fact.is-warn { background: #1b3440; }
-.haunt[data-station="archive"] .haunt__fact.is-warn .haunt__fact-value { color: #98edf2; font-weight: 650; }
-/* Die Tafel: Daumen statt Zeigefinger. Sie war eine Reihe aus zwei Spalten mit
-   58 px hohen Knöpfen — auf einem hochkant gehaltenen Telefon ein Ziel von etwa
-   160 x 58 px, und wer im Dunkeln mit einer Hand tippt, trifft damit reihum den
-   Nachbarn: beim Licht ärgerlich, beim Riegel teuer. Jetzt steht je Schalter
-   eine ganze Zeile (doppelte Breite) und sie ist gut 70 px hoch — rund die
-   doppelte Fläche. Ab 620 px wieder zwei Spalten, die dann breit genug sind. */
-.haunt[data-station="scout"] .haunt__switches, .haunt[data-station="hack"] .haunt__switches { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-.haunt[data-station="scout"] .haunt__switch, .haunt[data-station="hack"] .haunt__switch { min-height: 72px; gap: 14px; padding: 14px 16px; }
-.haunt[data-station="scout"] .haunt__switch-label, .haunt[data-station="hack"] .haunt__switch-label { display: flex; flex-direction: column; gap: 3px; font-size: 17px; }
-.haunt[data-station="scout"] .haunt__switch-label small, .haunt[data-station="hack"] .haunt__switch-label small { color: #a5c0ce; font-size: 13px; font-weight: 500; }
-.haunt[data-station="scout"] .haunt__knob, .haunt[data-station="hack"] .haunt__knob { width: 62px; height: 34px; }
-.haunt[data-station="scout"] .haunt__knob i, .haunt[data-station="hack"] .haunt__knob i { top: 4px; left: 4px; width: 24px; height: 24px; }
-.haunt[data-station="scout"] .haunt__switch.is-on .haunt__knob i, .haunt[data-station="hack"] .haunt__switch.is-on .haunt__knob i { transform: translateX(28px); }
-/* Ein Schott, das gerade abkühlt (`rules/doorLocks.ts`): offen, grün und
-   vierzig Sekunden lang nicht zu bedienen. Grün heißt hier nicht „aus",
-   sondern „steht auf und bleibt es" — deshalb die eigene Farbe und nicht der
-   blasse Ton eines abgeschalteten Knopfs. */
-.haunt button.haunt__switch.is-warm, .haunt button.haunt__switch.is-warm[disabled] { border-color: #5ee0a0; background: rgba(20, 58, 44, 0.92); opacity: 1; cursor: default; }
-.haunt .haunt__switch.is-warm .haunt__switch-label small { color: #8ff0c2; }
-.haunt .haunt__switch.is-warm .haunt__knob { border-color: #5ee0a0; background: rgba(24, 78, 58, 0.9); }
-.haunt .haunt__switch.is-warm .haunt__knob i { background: #5ee0a0; }
-@media (min-width: 620px) {
-  .haunt[data-station="scout"] .haunt__switches, .haunt[data-station="hack"] .haunt__switches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+
 .haunt__round-result { padding: 18px; border: 1px solid #75d7bb; border-radius: 12px; background: #11362f; line-height: 1.55; }
 .haunt__round-result strong { font-size: 19px; color: #b7ffe9; }
 .haunt__round-result p { margin: 8px 0 14px; }
 .haunt__round-result.is-lost { border-color: #df8b8e; background: #3a232c; }
 .haunt__round-result.is-lost strong { color: #ffc7ca; }
-.haunt__tile--simulation { border-color: #728ed0; background: #15253e; }
-.haunt__tile--simulation strong { font-size: 17px; color: #c5d4ff; }
 
 @media (max-width: 580px) {
   .haunt .haunt__role { font-size: 12px; padding-inline: 10px; }
   .haunt__bar { padding-inline: 8px; }
-  .haunt[data-station="archive"] .haunt__fact-key { width: 88px; }
-  .haunt__state { display: none; }
-  .haunt__where small { max-width: 45vw; }
-  .haunt__where strong { font-size: 13px; }
-  .haunt__back { padding-inline: 10px; font-size: 13px; }
-  .haunt__bar { padding-inline: 12px; }
 }
-@media (min-width: 860px), (orientation: landscape) and (min-width: 620px) and (max-height: 600px) {
-  .haunt[data-station="archive"].is-view {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 410px);
-    grid-template-rows: auto auto auto minmax(0, 1fr);
-  }
-  .haunt[data-station="archive"].is-view .haunt__bar,
-  .haunt[data-station="archive"].is-view .haunt__quest { grid-column: 1 / -1; }
-  .haunt[data-station="archive"].is-view .haunt__vtools { grid-column: 1; grid-row: 3; }
-  .haunt[data-station="archive"].is-view .haunt__view { grid-column: 1; grid-row: 4; border-bottom: 0; }
-  .haunt[data-station="archive"].is-view .haunt__body { grid-column: 2; grid-row: 3 / 5; border-left: 1px solid #3a5968; }
-  .haunt[data-station="archive"][data-archive-page="orders"] .haunt__tasks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 14px; }
-  .haunt[data-station="archive"][data-archive-page="orders"] .haunt__tasks > p { grid-column: 1 / -1; }
-}
+
+/* **Die zweispaltige Archivseite ist weg.** Sie stammt aus der Zeit, als der
+   Archivar ein Bild *und* eine Liste hatte: links das Zimmer, rechts das
+   Blatt. Heute ist er eine Karte über die ganze Fläche, und seine Akte legt
+   sich ganzseitig darüber (`views/views.css`, `is-sheet`) — ein zweispaltiges
+   Gitter hätte nur noch eine leere Spalte zu verteilen. */

@@ -124,10 +124,12 @@ for (const name of browserNames) {
         console.log(`[${prefix}] ${label}`);
         await summary();
       };
+      // Die Reiterzeile ganz oben ist die Rollenwahl: Die drei Fähigkeiten der
+      // Zentrale heissen `data-power`, die uebrigen Rollen `data-sit`.
+      const POWER_OF = { archive: 'archive', scout: 'scout', hack: 'panel' };
       const role = async (id) => {
-        if (!(await page.locator(`[data-sit="${id}"]`).isVisible()))
-          await page.getByRole('button', { name: 'Rolle wechseln', exact: true }).click();
-        await page.locator(`[data-sit="${id}"]`).click();
+        const key = POWER_OF[id] ? `[data-power="${POWER_OF[id]}"]` : `[data-sit="${id}"]`;
+        await page.locator(key).click();
         await page.locator(`.haunt[data-station="${id}"]`).waitFor();
       };
       try {
@@ -205,6 +207,16 @@ for (const name of browserNames) {
           'The switchboard is a map of the station',
         );
         await shot('panel-mobile');
+        // Und dazu die Tafel: ein Blatt über der Karte, eine Zeile je
+        // Schalter. Vor dem Sicherungskasten ist nur die Hälfte da.
+        await page.locator('[data-panel-sheet]').click();
+        await page.locator('.role--panel.is-sheet').waitFor();
+        assert(
+          (await page.locator('.role--panel [data-switch]').count()) > 0,
+          'The switchboard sheet lists the switches that are live',
+        );
+        await shot('panel-switches');
+        await page.locator('.role--panel .role__sheet [data-close]').click();
 
         await role('scout');
         await page.locator('.role--scout .mapview__canvas').waitFor();
@@ -214,9 +226,11 @@ for (const name of browserNames) {
         await role('watch');
         await page.locator('.role--watch').waitFor();
         await shot('watch');
-        await page.getByRole('button', { name: 'Rolle wechseln', exact: true }).click();
 
-        await page.locator('[data-technician]').click();
+        // „Ich bin der Techniker": im Aufbau, über die Spalte „Ich" der
+        // Verteilung — der eigene Kachel-Knopf dafür ist weg.
+        await page.locator('[data-tab="setup"]').click();
+        await page.locator('[data-setup-me="technician"]').click();
         await page.locator('.orbital-player').waitFor();
         await page.waitForFunction(() => window.bgvr.world?.stationTorch?.visible);
         // Set up a reachable eye pose, then use the real keyboard/pointer path.

@@ -3,7 +3,7 @@ import { lockerCode, repairsFor } from '../mission';
 import type { MapItem, MapPoint, MapSnapshot } from '../map/mapSnapshot';
 import { ALL_LAYERS, INK, MapView, type MapRoute } from '../map/mapView';
 import type { RoleHost, RoleView } from '../registry/roles';
-import { taskCargo } from '../rules/cargo';
+import { archiveGoals, type ArchiveOrder } from '../rules/archiveGoals';
 import { archiveDeskOf, type ArchiveDesk } from './archiveDesk';
 import { Toast, code, el, fact } from './roleShell';
 
@@ -13,20 +13,41 @@ import { Toast, code, el, fact } from './roleShell';
  * Er hatte einen Raumwähler, ein Aktenblatt und eine Missionsliste. Die Liste
  * ist weg: Sie zählte auf, was die Karte zeigt, sobald sie eine ist — und drei
  * Zeilen „Teil aus X in Konsole Y" sind auf einem Telefon dasselbe wie drei
- * Striche auf einem Grundriss, nur ohne den Ort. Jetzt liegt beides
- * übereinander: **eine Linie von jeder Kiste zu der Konsole, in die ihr Teil
- * gehört**, und wo der Techniker das Teil schon trägt, steht am Zielraum
- * „hierher".
+ * Striche auf einem Grundriss, nur ohne den Ort.
+ *
+ * **Aber nicht beides von der ersten Sekunde an** (`rules/archiveGoals.ts`).
+ * Solange die Karte von jeder Kiste eine gestrichelte Linie zu ihrer Konsole
+ * zog, war der Archivar ein Vorleser: Er sagte die ganze Runde in einem Satz
+ * an, und danach rief ihn niemand mehr. Jetzt gilt die Regel, die der Besitzer
+ * gesetzt hat, und sie steht in `rules/archiveGoals.ts`, nicht hier:
+ *
+ * - **Die Kiste sieht er immer** — mit dem Namen des Teils daran, das darin
+ *   liegt. Das ist die Auskunft, für die es ihn gibt.
+ * - **Wohin damit, erst wenn der Techniker es trägt.** Erst dann gibt es die
+ *   Linie, das „hierher" an der Konsole, den Reparaturraum und den
+ *   Freigabecode in der Akte. Vorher steht dort nichts — nicht ausgegraut,
+ *   sondern gar nichts: Ein Feld, das man lesen kann, wenn man die Augen
+ *   zusammenkneift, ist kein verschwiegenes Feld.
+ * - **Ein abgelegtes Teil sieht er erst, wenn es liegen bleibt**
+ *   (`DROPPED_SEEN`, fünf Sekunden). Wer es im Laufen aus der Hand verliert
+ *   und wieder aufhebt, hat es nicht verloren.
  *
  * **Wesen sieht er nicht.** Kein Techniker, kein Monster, keine Live-Position —
  * das war die Rolle, als sie ein Aktenblatt war, und das bleibt sie mit einer
  * Karte. Er weiß, wo etwas **liegt**; wo jemand **ist**, weiß der Späher.
+ * **Und keine Lampen**: Ob es irgendwo hell ist, sieht der Techniker selbst,
+ * und ein Grundriss voller leuchtender Punkte ist genau die Live-Auskunft, die
+ * diese Rolle nicht hat.
  *
- * **Ein Tipp auf ein Zimmer schlägt die Raumakte auf**, mit den Codes so groß,
- * dass man sie durchs Zimmer ruft — und mit einem Bild des Raums: in der
- * 3D-Welt das Loch, durch das die Welt ihn zeichnet, mit Zoom und Wisch
- * (`archiveDesk.ts`); in der 2D-Welt eine herangezoomte Karte desselben
- * Zimmers. Zwei Bilder, eine Akte.
+ * **Ein Tipp auf ein Zimmer schlägt die Raumakte auf** — **ganzseitig, ohne
+ * Karte dahinter**: Der Befund des Besitzers war, dass sich die Akte über der
+ * Karte nicht rollen ließ und darunter ein Grundriss weiterleuchtete, auf den
+ * man beim Zielen traf. Jetzt ist die Karte weg, solange gelesen wird, und
+ * „Karte" bringt sie zurück. In der Akte stehen die Codes so groß, dass man
+ * sie durchs Zimmer ruft, dazu ein Bild des Raums: in der 3D-Welt das Loch,
+ * durch das die Welt ihn zeichnet, mit Zoom und Wisch (`archiveDesk.ts`); in
+ * der 2D-Welt eine herangezoomte Karte desselben Zimmers. Zwei Bilder, eine
+ * Akte.
  */
 export function mountArchiveView(host: RoleHost): ArchiveRoleView {
   return new ArchiveView(host);
@@ -37,6 +58,8 @@ export interface ArchiveRoleView extends RoleView {
   readonly opened: string;
   /** Die Karte selbst — für Tests. */
   readonly map: MapView;
+  /** Eine Raumakte aufschlagen — derselbe Weg wie ein Tipp auf das Zimmer. */
+  open(roomId: string): void;
   /** Das Loch für die 3D-Welt, solange eine Akte offen ist — sonst `null`. */
   viewport(): { x: number; y: number; w: number; h: number } | null;
 }
@@ -47,6 +70,15 @@ const TAP_SLOP = 8;
 const WHEEL_RATE = 0.0016;
 /** Wie weit zwei Finger mindestens auseinanderliegen müssen, damit gezoomt wird. */
 const PINCH_MIN = 12;
+
+/** Ein Auftrag samt den Punkten, an denen er auf der Karte hängt. */
+interface Job {
+  order: ArchiveOrder;
+  /** Wo das Teil liegt: in seiner Kiste — oder da, wo es fallen gelassen wurde. */
+  from: MapPoint | null;
+  /** Und wohin es gehört, sobald der Archivar das wissen darf. */
+  to: MapPoint | null;
+}
 
 class ArchiveView implements ArchiveRoleView {
   readonly element = el('div', 'role role--archive');
@@ -69,8 +101,14 @@ class ArchiveView implements ArchiveRoleView {
   constructor(private readonly host: RoleHost) {
     this.desk = archiveDeskOf(host);
     this.map = new MapView({
-      // Alles, was liegt — und nichts, was geht.
-      layers: { ...ALL_LAYERS, entities: false, visibility: false, objectives: false },
+      // Alles, was liegt — und nichts, was geht; und kein Licht.
+      layers: {
+        ...ALL_LAYERS,
+        entities: false,
+        visibility: false,
+        objectives: false,
+        lights: false,
+      },
       markers: 'none',
       mode: 'omniscient',
       minScale: 5,
@@ -94,10 +132,10 @@ class ArchiveView implements ArchiveRoleView {
   update(dt: number): void {
     const snapshot = this.host.snapshot();
     this.map.setSnapshot(snapshot);
-    // Solange das Loch offen ist, liegt die eigene Karte nicht nur unsichtbar
+    // Solange die Akte offen ist, liegt die Karte nicht nur unsichtbar
     // darunter — sie wird auch nicht gezeichnet: Eine Leinwand, die niemand
     // sieht, ist je Bild ein ganzer Grundriss umsonst.
-    if (!this.holeOpen) this.map.draw();
+    if (!this.room) this.map.draw();
     if (this.room) this.writeSheet(snapshot);
     if (this.closeUp) {
       this.closeUp.setSnapshot(snapshot);
@@ -135,18 +173,21 @@ class ArchiveView implements ArchiveRoleView {
   // --- die Karte -------------------------------------------------------------
 
   /**
-   * **Von der Kiste zur Konsole.** Je offener Reparatur eine gestrichelte
-   * Linie: Dort liegt das Teil, dorthin gehört es. Ist das Teil schon
-   * unterwegs, gibt es nichts mehr zu verbinden — dann bleibt nur das Ziel,
-   * und das bekommt seine Beschriftung in `paintTargets`.
+   * **Vom Teil zur Konsole — aber erst, wenn es jemand trägt.**
+   *
+   * Es ist genau eine Linie zur Zeit, nämlich die des Teils in der Hand des
+   * Technikers, und sie beginnt an dessen Kiste: „Das kam von dort und gehört
+   * dorthin." Drei Linien ab der ersten Sekunde wären der ganze Rundenplan auf
+   * einen Blick, und der Archivar hätte nach dem ersten Satz nichts mehr zu
+   * sagen (`rules/archiveGoals.ts`).
    */
   private supplyLines(): MapRoute[] {
     const out: MapRoute[] = [];
     for (const job of this.jobs()) {
-      if (!job.cargo || !job.console || job.solved || job.carried) continue;
+      if (job.order.step === 2 || !job.from || !job.to) continue;
       out.push({
-        id: job.id,
-        points: [{ ...job.cargo.at }, { ...job.console.at }],
+        id: job.order.id,
+        points: [{ ...job.from }, { ...job.to }],
         color: INK.goal,
         goal: true,
       });
@@ -155,10 +196,10 @@ class ArchiveView implements ArchiveRoleView {
   }
 
   /**
-   * Die Beschriftung an den Enden: der Name des Teils an der Kiste, „hierher"
-   * an der Konsole, sobald der Techniker es trägt. Selbst gemalt und nicht als
-   * `objectives`, weil dort ein Ring mit Entfernung stünde — und eine
-   * Entfernung wozu? Der Archivar steht nirgends.
+   * Die Beschriftung an den Enden: der Name des Teils an seiner Kiste (oder
+   * dort, wo es liegt), „hierher" an der Konsole, sobald der Techniker es
+   * trägt. Selbst gemalt und nicht als `objectives`, weil dort ein Ring mit
+   * Entfernung stünde — und eine Entfernung wozu? Der Archivar steht nirgends.
    */
   private paintTargets(ctx: CanvasRenderingContext2D, view: MapView): void {
     ctx.save();
@@ -168,9 +209,14 @@ class ArchiveView implements ArchiveRoleView {
     ctx.lineJoin = 'round';
     ctx.lineWidth = 3;
     for (const job of this.jobs()) {
-      if (job.solved) continue;
-      if (job.carried && job.console) label(job.console.at, 'hierher', INK.goal);
-      else if (job.cargo) label(job.cargo.at, job.cargo.label, INK.cargo);
+      if (job.order.step === 2) continue;
+      if (job.to) label(job.to, 'hierher', INK.goal);
+      // Die Kiste beschriftet er nur, solange das Teil noch darin liegt —
+      // eine leergeräumte Kiste mit dem Namen des Teils daran wäre eine
+      // Auskunft, die den Techniker zurückschickt.
+      if (job.order.dropped && job.from)
+        label(job.from, `${job.order.item} · liegt hier`, INK.cargo);
+      else if (job.order.step === 0 && job.from) label(job.from, job.order.item, INK.cargo);
     }
     ctx.restore();
 
@@ -184,40 +230,42 @@ class ArchiveView implements ArchiveRoleView {
   }
 
   /**
-   * Die offenen Reparaturen, jede mit ihrer Kiste und ihrer Konsole.
+   * Die offenen Aufträge, jeder mit dem Punkt, an dem das Teil liegt, und dem,
+   * an den es gehört.
    *
-   * Gepaart wird über den Grundriss (`repairsFor`, `spec.tasks`) und nicht
-   * über die Karte: Auf der Karte heißen beide nur, wie sie beschriftet sind,
-   * und welche Kiste zu welcher Konsole gehört, weiß genau diese Rolle.
+   * Was der Archivar wissen darf, rechnet `rules/archiveGoals.ts`; hier werden
+   * nur noch Punkte dazu gesucht. Gepaart wird dabei über die **Kennung** der
+   * Kiste (`rules/cargo.ts`) und nicht über ihre Beschriftung: Auf einer Kiste
+   * steht ihr Kennzeichen und nie der Teilename (`map/worldSource.ts`), und
+   * ein Vergleich über Namen fand hier in der 2D-Welt nie etwas.
    */
-  private jobs(): Array<{
-    id: string;
-    cargo: MapItem | null;
-    console: MapItem | null;
-    carried: boolean;
-    solved: boolean;
-  }> {
-    const spec = this.host.spec();
-    const items = this.host.snapshot().items;
-    return repairsFor(spec).map((repair) => {
-      const task = spec.tasks.find((one) => one.id === repair.itemId);
-      const cargo =
-        items.find((item) => item.kind === 'cargo' && item.label === task?.label) ?? null;
-      const console =
-        items.find((item) => item.kind === 'console' && item.label === repair.title) ?? null;
+  private jobs(): Job[] {
+    const snapshot = this.host.snapshot();
+    const items = snapshot.items;
+    const consoles = new Map(
+      repairsFor(this.host.spec()).map((repair) => [
+        repair.id,
+        items.find((item) => item.kind === 'console' && item.label === repair.title) ?? null,
+      ]),
+    );
+    return archiveGoals(this.host.spec(), this.host.ledger()).map((order) => {
+      const crate = items.find((item) => item.id === order.crate.id) ?? null;
+      const console = order.console ? (consoles.get(order.id) ?? null) : null;
       return {
-        id: repair.id,
-        cargo,
-        console,
-        carried: !!cargo && cargo.state === 'taken',
-        solved: console?.state === 'solved',
+        order,
+        // Ein abgelegtes Teil liegt da, wo es liegt, und nicht mehr in seiner
+        // Kiste. Getragen wird es nirgends gezeigt — der Archivar sieht keine
+        // Wesen, und ein Punkt am Techniker wäre genau das; für die Linie
+        // bleibt dann die Kiste, aus der es kam.
+        from: order.dropped ? { x: order.dropped.x, z: order.dropped.z } : pointOf(crate),
+        to: console ? { ...console.at } : null,
       };
     });
   }
 
   private renderHud(snapshot: MapSnapshot): void {
     const jobs = this.jobs();
-    const done = jobs.filter((job) => job.solved).length;
+    const done = jobs.filter((job) => job.order.step === 2).length;
     const text = `${done} von ${jobs.length} Systemen · ${snapshot.rooms.length} Räume`;
     if (text === this.hudText) return;
     this.hudText = text;
@@ -244,17 +292,27 @@ class ArchiveView implements ArchiveRoleView {
     this.desk?.home();
     if (!this.desk) this.zoomCloseUp();
     this.writeSheet(this.host.snapshot());
-    this.element.classList.toggle('is-hole', this.holeOpen);
+    this.markShape();
   }
 
   close(): void {
     this.room = '';
     this.sheet.hidden = true;
     this.sheetKey = '';
-    this.element.classList.remove('is-hole');
     this.desk?.open('');
     this.closeUp?.dispose();
     this.closeUp = null;
+    this.markShape();
+  }
+
+  /**
+   * **Akte auf heißt Karte weg.** Beides steht am Wurzelelement und nicht in
+   * einer Bedingung im Zeichnen: `is-sheet` nimmt die Karte aus dem Bild,
+   * `is-hole` zusätzlich den Grund — dort zeichnet die 3D-Welt hinein.
+   */
+  private markShape(): void {
+    this.element.classList.toggle('is-sheet', !!this.room);
+    this.element.classList.toggle('is-hole', this.holeOpen);
   }
 
   /**
@@ -267,7 +325,13 @@ class ArchiveView implements ArchiveRoleView {
     const snapshot = this.host.snapshot();
     const room = snapshot.rooms.find((one) => one.id === this.room);
     this.closeUp = new MapView({
-      layers: { ...ALL_LAYERS, entities: false, visibility: false, objectives: false },
+      layers: {
+        ...ALL_LAYERS,
+        entities: false,
+        visibility: false,
+        objectives: false,
+        lights: false,
+      },
       markers: 'none',
       mode: 'omniscient',
       gestures: false,
@@ -300,6 +364,7 @@ class ArchiveView implements ArchiveRoleView {
       this.close();
       return;
     }
+    const jobs = this.jobs();
     const items = snapshot.items.filter((item) => item.roomId === room.id);
     const doors = snapshot.doors.filter((door) => door.a === room.id || door.b === room.id);
     const locked = doors.filter((door) => door.locked).length;
@@ -311,6 +376,8 @@ class ArchiveView implements ArchiveRoleView {
       locked,
       doors.length,
       items.map((item) => `${item.id}:${item.state}`).join('|'),
+      jobs.map((job) => `${job.order.id}:${job.order.step}:${job.order.carried ? 1 : 0}`).join('|'),
+      jobs.filter((job) => job.order.dropped?.roomId === room.id).length,
       this.desk ? 'hole' : 'map',
     ].join('/');
     if (key === this.sheetKey) return;
@@ -328,35 +395,44 @@ class ArchiveView implements ArchiveRoleView {
     const parts: HTMLElement[] = [];
     const house = spec.rooms.find((one) => one.id === room.id);
     if (house) parts.push(code('Schutzschrank-Code', lockerCode(spec.seed, house.id)));
-    for (const repair of repairsFor(spec).filter((one) => one.roomId === room.id)) {
-      const console = items.find((item) => item.kind === 'console' && item.label === repair.title);
-      if (console?.state === 'solved') {
-        parts.push(fact(repair.title, 'repariert'));
+    for (const job of jobs) {
+      // **Was hier liegt**: die Kiste mit ihrem Kennzeichen und dem Teil darin.
+      if (job.order.crate.roomId === room.id && job.order.step === 0)
+        parts.push(fact(job.order.item, job.order.crate.clue));
+      // **Wo es liegt, wenn es liegen geblieben ist** (`DROPPED_SEEN`).
+      if (job.order.dropped?.roomId === room.id)
+        parts.push(
+          fact(job.order.item, `Liegt hier seit ${Math.round(job.order.dropped.seconds)} s`, true),
+        );
+      // **Und das Ziel — erst mit dem Teil in der Hand.** Vorher steht der
+      // Freigabecode dieses Raums nirgends, auch nicht klein am Rand.
+      const console = job.order.console;
+      if (!console || console.roomId !== room.id) continue;
+      if (job.order.step === 2) {
+        parts.push(fact(job.order.title, 'repariert'));
         continue;
       }
       parts.push(
         code(
-          repair.puzzle === 'wires'
+          console.puzzle === 'wires'
             ? 'Kabelplan'
-            : repair.puzzle === 'sequence'
+            : console.puzzle === 'sequence'
               ? 'Freigabefolge'
               : 'Zielfrequenzen',
-          repair.puzzle === 'wires' ? 'gleiches Symbol' : repair.code.split('').join(' '),
+          console.puzzle === 'wires' ? 'gleiches Symbol' : console.code.split('').join(' '),
         ),
-        fact('Benötigt', repair.item),
+        fact('Benötigt', job.order.item),
+        fact(job.order.title, console.hint),
       );
     }
     for (const item of items) {
       if (item.kind === 'cargo') {
-        const task = spec.tasks.find((one) => one.label === item.label);
         parts.push(
           fact(
             'Fracht',
-            `${item.label} · ${item.state === 'taken' ? 'mitgenommen' : item.state === 'open' ? 'geöffnet' : 'verschlossen'}`,
+            `${item.label} · ${item.state === 'taken' ? 'geleert' : item.state === 'open' ? 'geöffnet' : 'verschlossen'}`,
           ),
         );
-        if (task && item.state !== 'taken')
-          parts.push(fact('Fundhinweis', taskCargo(spec, task.id).clue));
       } else if (item.kind === 'locker')
         parts.push(
           fact(
@@ -373,11 +449,10 @@ class ArchiveView implements ArchiveRoleView {
         `${doors.length}${locked ? ` · ${locked} gesperrt` : ' · alle frei'}`,
         locked > 0,
       ),
-      fact('Licht', room.lit ? 'an' : 'aus', !room.lit),
       el(
         'small',
         'role__hint',
-        'Archivscan · nur dieser Raum · keine Personen oder Live-Positionen',
+        'Archivscan · nur dieser Raum · keine Personen, keine Live-Positionen, kein Licht',
       ),
     );
     const top = el('div', 'role__card');
@@ -504,4 +579,9 @@ class ArchiveView implements ArchiveRoleView {
     this.map.dispose();
     this.element.remove();
   }
+}
+
+/** Wo ein Gegenstand steht — `null`, wenn es ihn auf dieser Karte nicht gibt. */
+function pointOf(item: MapItem | null): MapPoint | null {
+  return item ? { ...item.at } : null;
 }

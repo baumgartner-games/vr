@@ -257,7 +257,6 @@ const HANDOVER_WAIT = 2;
 const NO_FLAT_IN_XR =
   'In der Brille gibt es keine Karte von oben — dort bleibt das Schiff. Am Fenster geht der Wechsel.';
 
-
 /** Und wie oft das Telefon am Monster seinen Stock ansagt. */
 const MONSTER_RATE = 1 / 10;
 /**
@@ -1054,7 +1053,6 @@ export class HauntingWorld extends GridWorld {
         sit: (station) => this.sit(station),
         door: (id) => this.panelSwitch('door', id),
         light: (id) => this.panelSwitch('light', id),
-        lure: (id) => this.panelSwitch('radio', id),
         archiveDesk: () => this.desk,
       });
     }
@@ -2615,8 +2613,8 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Die drei Griffe der Schalttafel**, über die Karte statt über eine Liste
-   * beschrifteter Kippschalter (`views/panelRole.ts`).
+   * **Die zwei Griffe der Schalttafel**, über die Karte und über die
+   * Schalterliste derselben Tafel (`views/panelRole.ts`).
    *
    * Geschaltet wird nach wie vor über die Tafel aus `panel.ts` und nicht an
    * ihr vorbei: Wer eine Tür antippt, für die es keinen Schalter gibt, bekommt
@@ -2624,25 +2622,25 @@ export class HauntingWorld extends GridWorld {
    * an der die halbe Rollenverzahnung hängt — nicht jede Tür der Station steht
    * auf dieser Tafel.
    *
+   * **Einen dritten Griff gab es einmal**: den Schallköder, ein Radio je zwei
+   * Zimmer. Er ist gestrichen (`panel.ts`) — wer den richtigen Knopf gefunden
+   * hatte, parkte das Monster in einer Ecke, und der Rest der Runde fand ohne
+   * es statt.
+   *
    * @returns die Zeile für den Spieler, oder `''`, wenn es dafür keinen
    *   Schalter gibt.
    */
-  private panelSwitch(kind: 'door' | 'light' | 'radio', target: string): string {
+  private panelSwitch(kind: 'door' | 'light', target: string): string {
     if (this.state.phase !== 'running') return '';
     const entry = visibleSwitches(this.spec.switches, this.state.fuse).find(
       (one) => one.kind === kind && one.target === target,
     );
     if (!entry) return '';
     const on =
-      kind === 'door'
-        ? !this.state.shut.includes(target)
-        : kind === 'light'
-          ? this.state.lit.includes(target)
-          : this.state.loud.includes(target);
+      kind === 'door' ? !this.state.shut.includes(target) : this.state.lit.includes(target);
     this.flip(entry.id, !on);
     if (kind === 'door') return on ? 'Schott gesperrt.' : 'Schott freigegeben.';
-    if (kind === 'light') return on ? 'Licht aus.' : 'Licht an.';
-    return on ? 'Schallköder aus.' : 'Schallköder an — das Monster hört ihn.';
+    return on ? 'Licht aus.' : 'Licht an.';
   }
 
   /** Von der Schalttafel aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */

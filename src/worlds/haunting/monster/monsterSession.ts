@@ -3,6 +3,7 @@ import type { FlatRound } from '../map/flatRound';
 import type { RoleHost, RoleView } from '../registry/roles';
 import { Rng } from '../rng';
 import { TechnicianBot } from '../rules/technicianBot';
+import { visibleSwitches } from '../panel';
 import { FlatMonsterControl } from './flatMonsterControl';
 import { mountMonsterView } from './monsterView';
 
@@ -34,11 +35,12 @@ export class MonsterSession {
     const host: RoleHost = {
       snapshot: () => round.snapshot(),
       spec: () => round.house,
+      ledger: () => round.state(),
       me: () => 'local',
       nameOf: () => 'Techniker',
       door: (id) => round.lockDoor(id),
       light: (id) => round.switchLight(id),
-      lure: (id) => round.lure(id),
+      switches: () => visibleSwitches(round.house.switches, round.state().fuse),
       notify,
       extra: { monster: this.control },
     };

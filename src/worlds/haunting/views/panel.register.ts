@@ -12,8 +12,8 @@ export const PANEL_ROLE = registerRole({
   id: 'hack',
   order: 20,
   label: 'Schalttafel',
-  tagline: 'Türen, Lampen und Schallköder',
-  sees: 'die Station als Grundriss — Türen, Lampen, Räume, aber niemanden, der sich darin bewegt',
+  tagline: 'Türen und Lampen — auf der Karte und auf der Tafel',
+  sees: 'die Station als Grundriss und alle freigegebenen Schalter mit ihrer Beschriftung — aber niemanden, der sich darin bewegt',
   surface: 'map',
   mount: (host) => mountPanelView(host),
 });

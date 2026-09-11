@@ -17,6 +17,15 @@ import { el } from './roleShell';
  * genau die drei Nicht-VR-Rollen und das Monster, sobald es angemeldet ist.
  * Der Fernseher steht nicht dabei: Sein Bild ist die 3D-Welt, und die gibt es
  * hier nicht.
+ *
+ * **Und nicht in jeder Runde.** Wer hier sitzt, ist der Techniker (oder das
+ * Monster) — und der wechselt mitten in einer Mission die Rolle nicht, so wie
+ * es niemand sonst tut, der nicht in der Einsatzzentrale sitzt
+ * (`rules/roundSetup.switchRights`). In einer **Test-Runde** darf er alles;
+ * dafür ist sie da. Die Knöpfe bleiben dabei stehen und werden nur
+ * abgeschaltet: Ein Streifen, der in der einen Runde da ist und in der
+ * nächsten fehlt, ist einer, den man sucht — und der Grund steht als Titel
+ * daran.
  */
 export interface RoleStripHost {
   /** Der Wirt, den eine aufgeschlagene Rolle bekommt. */
@@ -25,6 +34,12 @@ export interface RoleStripHost {
   homeLabel(): string;
   /** Eine Rolle liegt jetzt über der Szene — oder wieder keine. */
   onChange(id: string): void;
+  /**
+   * Ob hier gerade überhaupt gewechselt werden darf, und warum nicht
+   * (`rules/roundSetup.switchRights`). Fehlt die Auskunft, ist alles erlaubt —
+   * eine Ansicht ohne Runde (Tests) soll ihre Rollen zeigen dürfen.
+   */
+  rights?(): { allowed: boolean; why: string };
 }
 
 export class RoleStrip {
@@ -57,6 +72,11 @@ export class RoleStrip {
     return listRoles().filter((role) => role.surface === 'map');
   }
 
+  /** Ob der Streifen gerade etwas wechseln lässt — und warum nicht. */
+  get rights(): { allowed: boolean; why: string } {
+    return this.host.rights?.() ?? { allowed: true, why: '' };
+  }
+
   /**
    * Eine Rolle aufschlagen — oder mit `''` zurück zur Szene. Die alte Ansicht
    * wird abgebaut (ihr `dispose` gibt frei, was sie hält); die Runde merkt
@@ -64,6 +84,9 @@ export class RoleStrip {
    */
   show(id: string): void {
     if (id === this.open) return;
+    // Zurück zur Szene ist immer erlaubt: Wer eine Rolle offen hat, während
+    // die Runde die Rechte entzieht, säße sonst darin fest.
+    if (id && !this.rights.allowed) return;
     this.view?.dispose();
     this.view = null;
     this.open = '';
@@ -95,6 +118,11 @@ export class RoleStrip {
         const active = entry.id === this.open;
         key.classList.toggle('is-active', active);
         key.setAttribute('aria-pressed', String(active));
+        const rights = this.rights;
+        if (entry.id && !rights.allowed) {
+          key.disabled = true;
+          key.title = rights.why;
+        }
         return key;
       }),
     );

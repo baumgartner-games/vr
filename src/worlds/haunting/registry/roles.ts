@@ -12,7 +12,7 @@ import { Registry, type Registered } from './registry';
  * die Stühle, und `stationUi.ts` baut die Seite aus dieser Registry.
  *
  * Eine Rolle ist Fakten plus ein `mount`, das ihre Ansicht baut. Das `mount`
- * bekommt einen `RoleHost`: den Stand als Karte, den Grundriss, die drei
+ * bekommt einen `RoleHost`: den Stand als Karte, den Grundriss, die zwei
  * Griffe der Schalttafel — und sonst nichts. Wer mehr braucht (das Monster
  * sein Steuer, der Archivar sein Loch in die 3D-Welt), holt es über
  * `host.extra`.
@@ -50,17 +50,47 @@ export interface RoleHost {
    * Grund, aus dem es die Rolle gibt.
    */
   spec(): import('../house').HouseSpec;
+  /**
+   * **Die Buchführung der Runde** (`rules/archiveGoals.ArchiveState`): die
+   * Uhr, was aus den Kisten heraus ist, was erledigt ist, was der Techniker
+   * gerade trägt und was im Gang liegt.
+   *
+   * Sie steht **neben** dem Snapshot und nicht darin, und das ist kein
+   * Versehen: Der Snapshot ist das *Bild* der Station — was man sähe, stünde
+   * man davor —, und genau deshalb steht dort weder ein Teilename noch, was
+   * jemand in der Hand hält (`map/worldSource.ts`: „Auf der Kiste steht ihr
+   * Kennzeichen, nie der Teilename"). Der Archivar liest aber keine Station,
+   * er liest Papiere, und das hier sind seine Papiere: Ohne sie könnte er
+   * nicht unterscheiden, ob ein Teil getragen wird oder irgendwo liegt — und
+   * genau daran hängt, was er verraten darf (`rules/archiveGoals.ts`).
+   */
+  ledger(): import('../rules/archiveGoals').ArchiveState;
   /** Meine Peer-Id. */
   me(): string;
   nameOf(peer: string): string;
   /**
-   * **Die drei Griffe der Schalttafel**, jeder mit der Zeile, die er dem
+   * **Die zwei Griffe der Schalttafel**, jeder mit der Zeile, die er dem
    * Spieler sagt — `''` heißt: dafür gibt es keinen Schalter (die Hälfte der
    * Tafel liegt hinter dem Sicherungskasten, `panel.ts`).
+   *
+   * Es waren einmal drei: Der dritte war der Schallköder, ein Radio je zwei
+   * Zimmer, das das Monster anlockte. Er ist weg, und zwar überall — wer den
+   * richtigen Knopf gefunden hatte, parkte das Vieh in einer Ecke, und der
+   * Rest der Runde fand ohne es statt (`panel.ts`).
    */
   door(doorId: string): string;
   light(roomId: string): string;
-  lure(roomId: string): string;
+  /**
+   * **Die Tafel, so weit sie zu sehen ist** (`panel.visibleSwitches`) — keine
+   * Aktion, sondern die Auskunft, welche Schalter es überhaupt gibt und wie
+   * sie beschriftet sind.
+   *
+   * Sie steht hier und nicht im Grundriss, obwohl `spec().switches` alle
+   * kennt: Welche Hälfte davon vor dem Sicherungskasten sichtbar ist, weiß
+   * nur der Wirt (`HauntState.fuse`), und eine Rolle, die sich die Liste
+   * selbst zusammensuchte, verriete genau das, was der Kasten verbergen soll.
+   */
+  switches(): readonly import('../panel').PanelSwitch[];
   notify(message: string): void;
   /**
    * Was der Wirt darüber hinaus kann. Bewusst untypisiert an dieser Stelle:

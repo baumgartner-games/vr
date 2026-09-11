@@ -50,11 +50,12 @@ function seat(seed = 2): {
   const host: RoleHost = {
     snapshot: () => round.snapshot(),
     spec: () => round.house,
+    ledger: () => round.state(),
     me: () => 'me',
     nameOf: () => '',
     door: () => '',
     light: () => '',
-    lure: () => '',
+    switches: () => [],
     notify: (text) => notes.push(text),
     extra: { monster: control },
   };
@@ -98,11 +99,12 @@ describe('Die Monster-Rolle in der Registry', () => {
     const bare: RoleHost = {
       snapshot: () => idle.snapshot(),
       spec: () => idle.house,
+      ledger: () => idle.state(),
       me: () => '',
       nameOf: () => '',
       door: () => '',
       light: () => '',
-      lure: () => '',
+      switches: () => [],
       notify: () => {},
     };
     expect(monsterPortOf(bare)).toBeNull();
@@ -233,11 +235,12 @@ describe('Das Steuer des Monsters', () => {
     const host: RoleHost = {
       snapshot: () => round.snapshot(),
       spec: () => round.house,
+      ledger: () => round.state(),
       me: () => 'me',
       nameOf: () => '',
       door: () => '',
       light: () => '',
-      lure: () => '',
+      switches: () => [],
       notify: () => {},
       extra: { monster: control },
     };
