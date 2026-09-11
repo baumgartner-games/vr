@@ -25,7 +25,11 @@
  *   —, und für den, der davor wartet, geht sie nie wieder auf. Wer sich
  *   durchgezogen hat, soll auch hindurchkommen; deshalb ist eine eben
  *   entriegelte Tür für `LOCK_COOLDOWN` Sekunden weder wählbar noch
- *   zuschlagbar. Freigeben darf man sie natürlich jederzeit.
+ *   zuschlagbar. Freigeben darf man sie natürlich jederzeit. Und weil vierzig
+ *   Sekunden lang genug sind, dass man sie für einen kaputten Schalter hält,
+ *   **zeigt** die abkühlende Tür ihre Restzeit: offen und grün, auf der Tafel
+ *   (`stationUi.hackPage`), auf der Karte und in der 2D-Szene — derselbe
+ *   Balken wie beim Halten, nur in der anderen Farbe.
  * - **Das Monster kann eine Sperre aufbrechen** (`pryLock`), und es lohnt
  *   sich: Der erste Versuch geht **nie** auf — ein Riegel gibt nicht beim
  *   ersten Zug nach —, danach steigt die Aussicht mit jedem weiteren
@@ -49,11 +53,22 @@ export const PRY_GAIN = 0.15;
 /** Womit der zweite Versuch anfängt — der erste geht nie auf. */
 export const PRY_BASE = 0.3;
 /**
- * Wie lange eine Tür nach dem Ende einer Sperre frei bleibt, in Sekunden —
- * lang genug, dass jemand hindurchgeht, kurz genug, dass die Tafel im Notfall
- * bald wieder etwas zu entscheiden hat.
+ * Wie lange eine Tür nach dem Ende einer Sperre frei bleibt, in Sekunden.
+ *
+ * **Zwölf Sekunden waren zu wenig.** Sie reichten dem, der hindurchwollte,
+ * aber sie reichten auch dem, der die Tafel bedient: Riegel fällt, zwölf
+ * Sekunden warten, Riegel wieder setzen — und weil das Monster in dieser Zeit
+ * selten mehr als einen Raum weit kommt, stand es nach der dritten Runde
+ * immer noch vor derselben Tür. Genau das sollte die Abkühlung verhindern.
+ * Vierzig Sekunden sind lang genug, dass die Tür kein Riegel mehr ist,
+ * sondern ein Weg: Wer sie aufgezogen oder ausgesessen hat, kommt hindurch
+ * und ist weg, bevor sie wieder zufallen darf.
+ *
+ * Und weil vierzig Sekunden lang genug sind, um für einen kaputten Schalter
+ * gehalten zu werden, steht die Restzeit jetzt überall dort, wo die Tür zu
+ * sehen ist — auf der Tafel, auf der Karte, in der 2D-Szene: offen und grün.
  */
-export const LOCK_COOLDOWN = 12;
+export const LOCK_COOLDOWN = 40;
 
 export interface DoorLocks {
   /** Die eine gewollt gesperrte Tür — `''`, wenn keine. */

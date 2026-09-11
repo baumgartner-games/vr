@@ -95,7 +95,7 @@ import {
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from './monsterRoutine';
 import { MonsterMemory, shutPairs } from './monster/monsterMemory';
 import { graphEstimator, type Estimator } from './monster/monsterIntercept';
-import { stationGraph } from './roomGraph';
+import { monsterGraph, stationGraph } from './roomGraph';
 import { nextSimulationSpeed, simulationRepeats, type SimulationSpeed } from './simulationSpeed';
 import { AutomaticDoors } from './automaticDoors';
 import { StationTravelPlan } from './stationTravelPlan';
@@ -121,11 +121,13 @@ import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { taskCargo } from './rules/cargo';
 import { orderDone } from './rules/archiveGoals';
+import { freshGlitch, stepGlitch, type DoorGlitch } from './rules/doorGlitch';
 import { RoundRules } from './rules/roundRules';
 import {
   HOLD_RANGE,
   SLAM_HOLD,
   chooseLock,
+  LOCK_COOLDOWN,
   freshLocks,
   holdUntil,
   isChosen,
@@ -505,6 +507,10 @@ export class HauntingWorld extends GridWorld {
   private readonly stamina = freshStamina();
   private decision: RoutineOutput | null = null;
   private readonly routineDice = new Rng(0x4d4f4e53);
+  /** Der Würfel der Stationsfehler — eigener Strom, damit er das Monster nicht verschiebt. */
+  private readonly glitchDice = new Rng(0x53434854);
+  /** Welches Schott gerade grundlos offen steht (`rules/doorGlitch.ts`) — beim Gastgeber. */
+  private glitch: DoorGlitch = freshGlitch(() => this.glitchDice.next());
   /**
    * Der Schrank, in den das Monster jemanden hat **flüchten sehen** — leer,
    * solange das Verstecken unbeobachtet blieb. Nur er löst Schrei und
@@ -913,9 +919,11 @@ export class HauntingWorld extends GridWorld {
   /**
    * **Wohin ein Verfolger läuft.**
    *
-   * Nicht immer zum Spieler: Läuft irgendwo ein Radio, geht er dorthin. Das
-   * ist der einzige Hebel, den der Hacker auf das Monster hat — und der
-   * Grund, warum ein Schalter mit der Aufschrift `X` etwas wert sein kann.
+   * Das entscheidet allein die Routine (`monsterRoutine.ts`). Es gab hier
+   * einmal eine Abkürzung davor: Lief irgendwo ein Radio, ging das Monster
+   * dorthin — der Schallköder der Tafel. Er ist weg, und mit ihm der einzige
+   * Griff, mit dem der Hacker das Vieh in eine Ecke parken konnte. Was die
+   * Tafel jetzt auf das Monster ausrichtet, ist Licht und ein Riegel.
    */
   protected override npcTarget(target: THREE.Vector3): THREE.Vector3 | null {
     if (
@@ -926,15 +934,7 @@ export class HauntingWorld extends GridWorld {
       return null;
     // Im Schacht wird nicht gelaufen: kein Ziel, der Körper steht (`vents/npcVentRide.ts`).
     if (this.ventRide.busy) return null;
-    const room = this.state.loud[0];
-    if (room) {
-      const found = roomOf(this.spec, room);
-      if (found) {
-        const at = safeRoomSpawn(this.spec, found.id);
-        return target.set(at.x, 0, at.z);
-      }
-    }
-    // Alles andere entscheidet die Routine (`monsterRoutine.ts`): Verfolgung,
+    // Alles entscheidet die Routine (`monsterRoutine.ts`): Verfolgung,
     // Absuchen, Patrouille, Seitenwechsel, Auflauern — und der Weg zu einer
     // Kabine, in die es jemanden hat flüchten sehen. Kein allwissendes
     // Nachlaufen: Ohne Wahrnehmung steht dort ein geratener Raum und nicht
@@ -980,7 +980,7 @@ export class HauntingWorld extends GridWorld {
     }
     const decision = piloted
       ? this.monsterDriver!.decide(dt)
-      : this.routine.step(stationGraph(this.spec), {
+      : this.routine.step(monsterGraph(this.spec), {
           dt,
           at: { x: at.x, z: at.z },
           here: here?.id ?? '',
@@ -1007,7 +1007,7 @@ export class HauntingWorld extends GridWorld {
     this.decision =
       piloted || !this.npcRide || !rider
         ? decision
-        : this.npcRide.steer(decision, rider, this.state.time, stationGraph(this.spec));
+        : this.npcRide.steer(decision, rider, this.state.time, monsterGraph(this.spec));
     this.monsterFace = decision.face;
     // Die Absichten gehen mit dem Stand auf die Leitung (`HauntState.insight`),
     // damit ein Zuschauer sie sieht, der das Monster nicht selbst rechnet.
@@ -2866,13 +2866,6 @@ export class HauntingWorld extends GridWorld {
       return;
     }
 
-    if (entry.kind === 'radio') {
-      const list = this.state.loud;
-      const at = list.indexOf(entry.target);
-      if (on && at < 0) list.push(entry.target);
-      if (!on && at >= 0) list.splice(at, 1);
-      return;
-    }
     // Türen: `on` heißt offen, und die Liste führt die geschlossenen. Gewollt
     // gesperrt ist immer nur eine — die vorherige geht dabei auf; eine
     // zugefallene darf die Tafel jederzeit freigeben (`rules/doorLocks.ts`).
@@ -2927,10 +2920,28 @@ export class HauntingWorld extends GridWorld {
     const doors = this.state.crew.options.test
       ? [...this.spec.doors, TRAINING_DOOR]
       : this.spec.doors;
+    // **Die abkühlenden Riegel hinaus an alle** (`rules/doorLocks.ts`). Die
+    // Buchführung bleibt beim Gastgeber; diese eine Liste daraus muss über
+    // die Leitung, weil sonst der Hacker vierzig Sekunden lang einen Schalter
+    // vor sich hat, der nichts tut und nicht sagt warum.
+    if (this.isHost) this.state.cooling = this.locks.cooling;
+    // **Und ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`).
+    // Gerechnet beim Gastgeber, angewendet über dieselbe Mechanik wie jedes
+    // andere Auffahren: ein Bewohner, der keiner ist. Gesperrte Schotts sind
+    // nicht dabei — der Riegel ist die eine Entscheidung der Tafel.
+    const glitch = this.isHost
+      ? stepGlitch(
+          this.glitch,
+          doors.filter((door) => !shut.has(door.id)).map((door) => door.id),
+          this.state.time,
+          () => this.glitchDice.next(),
+        ).id
+      : '';
     const occupants = this.doorOccupants();
     for (const door of doors) {
       const at = doorEdge(door);
-      const open = this.automaticDoors.step(door.id, at, shut.has(door.id), occupants, dt);
+      const ghosts = door.id === glitch ? [...occupants, { x: at.x, z: at.z }] : occupants;
+      const open = this.automaticDoors.step(door.id, at, shut.has(door.id), ghosts, dt);
       this.setSlidingGridDoor(door.x, door.z, door.dir, open);
     }
     if (now !== before) this.hearSlam(before, shut);
@@ -4658,11 +4669,19 @@ export class HauntingWorld extends GridWorld {
         // Wie lange die Sperre noch hält — der Balken über der Tür
         // (`rules/doorLocks.ts`, `map/mapView.ts`).
         doorHold: (id) => {
-          if (!this.state.shut.includes(id)) return null;
-          const until = holdUntil(this.locks, id);
-          if (until === null) return null;
-          const total = isChosen(this.locks, id) ? HOLD_RANGE[1] : SLAM_HOLD;
-          return { left: Math.max(0, until - this.state.time), total };
+          if (this.state.shut.includes(id)) {
+            const until = holdUntil(this.locks, id);
+            if (until === null) return null;
+            const total = isChosen(this.locks, id) ? HOLD_RANGE[1] : SLAM_HOLD;
+            return { left: Math.max(0, until - this.state.time), total };
+          }
+          // Offen und trotzdem eine Uhr: Die Tür kühlt ab und darf so lange
+          // nicht wieder gesperrt werden (`rules/doorLocks.ts`). Gelesen wird
+          // sie aus dem Stand und nicht aus der eigenen Buchführung — die
+          // führt nur der Gastgeber, die Karte hängt aber an jedem Gerät.
+          const warm = this.state.cooling?.find((one) => one.id === id);
+          const left = warm ? warm.until - this.state.time : 0;
+          return left > 0 ? { left, total: LOCK_COOLDOWN, cooling: true } : null;
         },
         player: () => {
           // Der Techniker in der 2D-Welt eines anderen Geräts hat kein Rig:
@@ -4790,17 +4809,21 @@ export class HauntingWorld extends GridWorld {
         at: new THREE.Vector3(at.x, 0, at.z),
       }) ?? null;
     this.routine = new MonsterRoutine(this.tuning.monster);
-    this.brain = new MonsterMemory(stationGraph(this.spec), () =>
+    // **Die Karte des Monsters** (`roomGraph.monsterGraph`): dieselbe Station
+    // ohne die Einsatzzentrale. Gedächtnis, Reisezeiten und Routine hängen
+    // alle daran — ein Ort, den keine dieser drei kennt, ist ein Ort, an dem
+    // das Vieh weder sucht noch vermutet noch ankommt.
+    this.brain = new MonsterMemory(monsterGraph(this.spec), () =>
       shutPairs(this.spec.doors, this.state.shut),
     );
-    this.estimator = graphEstimator(stationGraph(this.spec));
+    this.estimator = graphEstimator(monsterGraph(this.spec));
     this.repaired = this.state.done.length;
     this.watchedLocker = '';
     // Ein erster Beschluss noch vor dem ersten Bild: Sonst stünde das Monster
     // genau so lange ohne Ziel herum, wie es dauert, bis die Wahrnehmung das
     // erste Mal läuft — und in einer Bot-Runde ohne Techniker wäre das für
     // immer.
-    this.decision = this.routine.step(stationGraph(this.spec), {
+    this.decision = this.routine.step(monsterGraph(this.spec), {
       dt: 0,
       at,
       here: roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE))?.id ?? '',
@@ -4814,6 +4837,11 @@ export class HauntingWorld extends GridWorld {
       const navigator = new StationNpcNavigator(
         () => this.spec,
         () => this.travelGraph(),
+        0.1,
+        // Die Einsatzzentrale ist für das Monster nicht begehbar: Sie steht
+        // nicht in seiner Karte (`roomGraph.monsterGraph`), und seine Wegsuche
+        // führt auch dann nicht dorthin, wenn sein Ziel dort läge.
+        true,
       );
       this.monsterNavigator = navigator;
       // Ein Spieler am Steuer bekommt keinen Weg gesucht: Sein Ziel liegt
@@ -4982,7 +5010,6 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     monster: null,
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],

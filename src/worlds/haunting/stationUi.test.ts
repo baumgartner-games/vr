@@ -100,7 +100,6 @@ function crew(
     monster: null,
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],
@@ -832,6 +831,37 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
       'Simulierter Puls',
     );
     expect(ui.viewport()).toBeNull();
+  });
+
+  /**
+   * **Ein Schott, das abkühlt, sagt es** (`rules/doorLocks.ts`,
+   * `HauntState.cooling`). Vierzig Sekunden, in denen ein Schalter wortlos
+   * nichts tut, sind für den Hacker ein kaputter Schalter — und ab da traut
+   * er der ganzen Tafel nicht mehr. Also steht die Restzeit darauf, er ist
+   * grün, und er lässt sich nicht drücken.
+   */
+  it('zeigt an einem abkühlenden Schott die Restzeit und lässt es nicht umlegen', () => {
+    const { ui, flip, state, spec } = crew('scout');
+    // Seit die Reiter oben die Fähigkeiten wählen, führt „Schalttafel" dorthin
+    // — die zweite Reiterzeile der Einsatzkontrolle gibt es nicht mehr.
+    button('[data-power="panel"]').click();
+    const door = spec.switches.find((one) => one.kind === 'door')!;
+    state.time = 10;
+    state.cooling = [{ id: door.target, until: 36.4 }];
+    ui.refresh();
+    const key = button(`[data-flip="${door.id}"]`);
+    expect(key.className).toContain('is-warm');
+    expect(key.textContent).toContain('noch warm · 27 s');
+    expect((key as HTMLButtonElement).disabled).toBe(true);
+    key.click();
+    expect(flip).not.toHaveBeenCalled();
+    // Und wenn sie kalt ist, ist es wieder ein gewöhnlicher Schalter.
+    state.time = 40;
+    ui.refresh();
+    const cold = button(`[data-flip="${door.id}"]`);
+    expect(cold.className).not.toContain('is-warm');
+    cold.click();
+    expect(flip).toHaveBeenCalledTimes(1);
   });
 });
 

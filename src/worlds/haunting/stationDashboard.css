@@ -89,8 +89,30 @@
 .haunt[data-station="archive"] .haunt__fact-value { min-width: 0; line-height: 1.6; overflow-wrap: anywhere; color: #edf7fc; }
 .haunt[data-station="archive"] .haunt__fact.is-warn { background: #1b3440; }
 .haunt[data-station="archive"] .haunt__fact.is-warn .haunt__fact-value { color: #98edf2; font-weight: 650; }
-.haunt[data-station="scout"] .haunt__switch, .haunt[data-station="hack"] .haunt__switch { min-height: 58px; }
-.haunt[data-station="scout"] .haunt__switch-label, .haunt[data-station="hack"] .haunt__switch-label { font-size: 15px; }
+/* Die Tafel: Daumen statt Zeigefinger. Sie war eine Reihe aus zwei Spalten mit
+   58 px hohen Knöpfen — auf einem hochkant gehaltenen Telefon ein Ziel von etwa
+   160 x 58 px, und wer im Dunkeln mit einer Hand tippt, trifft damit reihum den
+   Nachbarn: beim Licht ärgerlich, beim Riegel teuer. Jetzt steht je Schalter
+   eine ganze Zeile (doppelte Breite) und sie ist gut 70 px hoch — rund die
+   doppelte Fläche. Ab 620 px wieder zwei Spalten, die dann breit genug sind. */
+.haunt[data-station="scout"] .haunt__switches, .haunt[data-station="hack"] .haunt__switches { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.haunt[data-station="scout"] .haunt__switch, .haunt[data-station="hack"] .haunt__switch { min-height: 72px; gap: 14px; padding: 14px 16px; }
+.haunt[data-station="scout"] .haunt__switch-label, .haunt[data-station="hack"] .haunt__switch-label { display: flex; flex-direction: column; gap: 3px; font-size: 17px; }
+.haunt[data-station="scout"] .haunt__switch-label small, .haunt[data-station="hack"] .haunt__switch-label small { color: #a5c0ce; font-size: 13px; font-weight: 500; }
+.haunt[data-station="scout"] .haunt__knob, .haunt[data-station="hack"] .haunt__knob { width: 62px; height: 34px; }
+.haunt[data-station="scout"] .haunt__knob i, .haunt[data-station="hack"] .haunt__knob i { top: 4px; left: 4px; width: 24px; height: 24px; }
+.haunt[data-station="scout"] .haunt__switch.is-on .haunt__knob i, .haunt[data-station="hack"] .haunt__switch.is-on .haunt__knob i { transform: translateX(28px); }
+/* Ein Schott, das gerade abkühlt (`rules/doorLocks.ts`): offen, grün und
+   vierzig Sekunden lang nicht zu bedienen. Grün heißt hier nicht „aus",
+   sondern „steht auf und bleibt es" — deshalb die eigene Farbe und nicht der
+   blasse Ton eines abgeschalteten Knopfs. */
+.haunt button.haunt__switch.is-warm, .haunt button.haunt__switch.is-warm[disabled] { border-color: #5ee0a0; background: rgba(20, 58, 44, 0.92); opacity: 1; cursor: default; }
+.haunt .haunt__switch.is-warm .haunt__switch-label small { color: #8ff0c2; }
+.haunt .haunt__switch.is-warm .haunt__knob { border-color: #5ee0a0; background: rgba(24, 78, 58, 0.9); }
+.haunt .haunt__switch.is-warm .haunt__knob i { background: #5ee0a0; }
+@media (min-width: 620px) {
+  .haunt[data-station="scout"] .haunt__switches, .haunt[data-station="hack"] .haunt__switches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .haunt__round-result { padding: 18px; border: 1px solid #75d7bb; border-radius: 12px; background: #11362f; line-height: 1.55; }
 .haunt__round-result strong { font-size: 19px; color: #b7ffe9; }
 .haunt__round-result p { margin: 8px 0 14px; }

@@ -213,6 +213,29 @@ describe('Das Hörmodell', () => {
     },
   );
 
+  /**
+   * **Eine offene Tür kostet nichts.** `DOOR_LOSS` gilt für ein
+   * *geschlossenes* Blatt und für kein anderes; steht die Tür auf, ist sie für
+   * den Schall ein Loch in der Wand, und die Strecke ist die Strecke. Das ist
+   * die Zusage, an der die halbe Runde hängt: Wer eine Tür offen lässt, wird
+   * durch sie gehört — vom Monster wie vom Techniker, mit denselben Metern.
+   */
+  it('lässt Schall durch eine offene Tür ohne jeden Aufschlag', () => {
+    const { round, door, near, side } = corner(1);
+    const snapshot = fresh(round);
+    const open = snapshot.doors.find((d) => d.id === door.id)!;
+    expect(open.open).toBe(true);
+    const path = new Hearing().path(snapshot, side, near);
+    // Die reine Kette Quelle → Türmitte → Zuhörer, ohne einen Meter Aufschlag.
+    const geometry =
+      Math.hypot(side.x - door.at.x, side.z - door.at.z) +
+      Math.hypot(near.x - door.at.x, near.z - door.at.z);
+    expect(path.distance).toBeCloseTo(geometry, 6);
+    expect(path.via).toBe('door');
+    // Und dasselbe noch einmal von der anderen Seite: Schall ist symmetrisch.
+    expect(new Hearing().path(snapshot, near, side).distance).toBeCloseTo(geometry, 6);
+  });
+
   it('dämpft eine geschlossene Tür um DOOR_LOSS, schneidet sie aber nicht ab', () => {
     const { round, door, near, side } = corner(1);
     const open = new Hearing().path(fresh(round), side, near);

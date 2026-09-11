@@ -37,6 +37,19 @@ describe('lamps', () => {
     expect(isSwitched(lamps, 'a')).toBe(false);
   });
 
+  /**
+   * **„Lichter gehen nach ein paar Sekunden automatisch aus."** Eine halbe
+   * Minute ist die Lesart dieses Satzes: lang genug, um einen Raum zu
+   * durchqueren, kurz genug, dass niemand die Lampe stehen lässt und
+   * weitergeht. Die Zahl steht hier, damit niemand sie versehentlich wieder
+   * auf eine Minute schiebt.
+   */
+  test('brennt eine knappe halbe Minute und nie länger als 35 Sekunden', () => {
+    expect(LAMP_RANGE).toEqual([25, 35]);
+    // Und die Vorwarnung bleibt ein spürbarer Teil davon, ohne ihn zu fressen.
+    expect(LAMP_FLICKER).toBeLessThan(LAMP_RANGE[0] / 4);
+  });
+
   test('die Brenndauer liegt zwischen den beiden Grenzen', () => {
     const early = freshLamps();
     switchLamp(early, [], 'a', 10, fixed(0));

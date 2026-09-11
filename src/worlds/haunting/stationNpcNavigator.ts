@@ -1,8 +1,9 @@
+import { TILE } from '../nav/navTile';
 import type { NavGraph } from '../nav/navGraph';
 import type { NpcNavigationInput } from '../npc/Npc';
 import type { Point } from '../npc/npcBrain';
 import type { DroneRoute } from './droneRoute';
-import type { HouseSpec } from './house';
+import { onApron, type HouseSpec } from './house';
 import { stationRoute } from './stationNavigation';
 
 /**
@@ -11,6 +12,13 @@ import { stationRoute } from './stationNavigation';
  * `comfort` is the extra clearance added to the body radius when routing: the
  * physical capsule in 3D gets a tenth of a metre; the 2D world, whose
  * `walkable` already insets rooms by its own radius, passes a smaller one.
+ *
+ * **`indoors` sperrt die Einsatzzentrale aus.** Das Monster kennt sie nicht
+ * (`roomGraph.monsterGraph`), also darf auch seine Wegsuche nicht dorthin
+ * führen — und zwar auch dann nicht, wenn sein Ziel eine erinnerte Stelle ist,
+ * die dort liegt, weil der Techniker heimgelaufen ist. Ein Ziel auf dem
+ * Vorplatz ist für einen Läufer mit `indoors` kein Ziel, sondern nichts: Er
+ * bleibt stehen, und die Routine sucht sich im nächsten Beschluss ein anderes.
  */
 export class StationNpcNavigator {
   private route: DroneRoute | null = null;
@@ -28,6 +36,7 @@ export class StationNpcNavigator {
     private readonly spec: () => HouseSpec,
     private readonly graph: () => NavGraph | null,
     private readonly comfort = 0.1,
+    private readonly indoors = false,
   ) {}
 
   get navigation() {
@@ -42,6 +51,11 @@ export class StationNpcNavigator {
     const graph = this.graph();
     const spec = this.spec();
     if (!graph) return null;
+    if (
+      this.indoors &&
+      onApron(Math.floor(input.target.x / TILE), Math.floor(input.target.z / TILE))
+    )
+      return null;
     this.timer -= Math.max(0, input.dt);
     const moved = Math.hypot(input.at.x - this.lastX, input.at.z - this.lastZ);
     const goalMoved = Math.hypot(input.target.x - this.goalX, input.target.z - this.goalZ);

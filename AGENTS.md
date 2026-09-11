@@ -7654,6 +7654,20 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   die tatsächliche Näherungsöffnung: von beiden Seiten, für Techniker,
   Mitspieler, Monster, Drohne und Demo-Bot. Nachlauf verhindert Flattern;
   ein belegter Durchgang schließt nicht um eine Kapsel herum.
+- **Ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`): alle
+  `GLITCH_RANGE` = 35–70 s für `GLITCH_HOLD` = 1,8–3,2 s eine beliebige
+  **nicht gesperrte** Tür, gewürfelt. Der Grund ist nicht Kulisse, sondern
+  Auskunft: Ein fahrendes Blatt hieß bisher immer *jemand ist da*, und wer das
+  einmal begriffen hatte, las die halbe Station aus dem Augenwinkel ab — der
+  Techniker die Position des Monsters, das Monster die des Technikers.
+  Angewendet wird es über dieselbe Mechanik wie jedes andere Auffahren
+  (`HauntingWorld.applyDoors` reicht einen Scheinbewohner an `AutomaticDoors`,
+  `FlatRound.stepDoors` setzt `near`), damit zwei Regeln sicher gelten: Eine
+  **gesperrte** Tür ist nie dabei — die Rechnung bekommt nur die offenen zu
+  sehen und lässt eine laufende Störung fallen, sobald ihre Tür gesperrt wird
+  —, und beim Zufahren fällt niemandem das Blatt auf den Kopf, weil ein
+  belegter Durchgang offen bleibt (`occupants`). Die Störung **öffnet** nur;
+  geschlossen wird wie immer.
 - **Wer sperrt, wie lange, und wie man es aufbekommt** (`rules/doorLocks.ts`,
   `DoorLocks` beim Gastgeber, nichts davon auf der Leitung): **Gewollt
   gesperrt ist immer nur eine Tür** — Schalttafel (`applyFlip`), Techniker vor
@@ -7666,16 +7680,32 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `MapDoor.hold` (über `MapSource.doorHold`) und der **Balken über der Tür**
   auf Karte und 2D-Szene. Eine Sperre, die für immer hielte, wäre keine
   Entscheidung mehr, sondern eine Wand.
-  **Eine Tür, die gerade frei geworden ist, bleibt eine Weile frei**
-  (`LOCK_COOLDOWN` = 12 s, `mayLock`/`coolingUntil`): Jeder Weg aus einer Sperre
-  heraus — abgelaufen, von der Tafel freigegeben, vom Monster aufgezogen, Holz
-  gesplittert — kühlt die Tür ab, und solange sie warm ist, lässt sie sich
-  weder wählen (`chooseLock`) noch zuschlagen (`slamDoor`). Ohne diese Regel
-  war der Rest eine Einladung: Der Riegel fällt, die Tafel legt ihn im selben
-  Bild wieder um, oder der Spuk trifft dieselbe Tür ein zweites Mal — und für
-  den, der davor wartet, ging sie nie wieder auf. Freigeben darf man jederzeit;
-  `toggleLock` meldet `blocked`, damit der Schalter sagen kann, dass der Riegel
-  noch warm ist, statt wortlos nichts zu tun.
+  **Eine Tür, die gerade frei geworden ist, bleibt lange frei**
+  (`LOCK_COOLDOWN` = **40 s**, `mayLock`/`coolingUntil`): Jeder Weg aus einer
+  Sperre heraus — abgelaufen, von der Tafel freigegeben, vom Monster
+  aufgezogen, Holz gesplittert — kühlt die Tür ab, und solange sie warm ist,
+  lässt sie sich weder wählen (`chooseLock`) noch zuschlagen (`slamDoor`).
+  Ohne diese Regel war der Rest eine Einladung: Der Riegel fällt, die Tafel
+  legt ihn im selben Bild wieder um, oder der Spuk trifft dieselbe Tür ein
+  zweites Mal — und für den, der davor wartet, ging sie nie wieder auf. Zwölf
+  Sekunden waren dafür zu wenig: Sie reichten dem, der hindurch wollte, aber
+  sie reichten auch der Tafel, die den Riegel gleich wieder setzte, und das
+  Monster stand nach der dritten Runde immer noch vor derselben Tür.
+  Freigeben darf man jederzeit; `toggleLock` meldet `blocked`, damit der
+  Schalter sagen kann, dass der Riegel noch warm ist, statt wortlos nichts zu
+  tun.
+  **Und die Abkühlung ist sichtbar, in Grün.** Vierzig Sekunden hält man sonst
+  für einen kaputten Schalter. Die Liste der abkühlenden Türen geht deshalb im
+  Stand mit (`HauntState.cooling`, optional, `STATION_PROTOCOL` bleibt 8 — auf
+  der Empfängerseite hängt keine Regel daran, gesperrt wird beim Gastgeber);
+  `MapSource.doorHold` liefert sie mit `cooling: true`, daraus wird
+  `MapDoor.cooling` und derselbe Balken über der Tür wie beim Halten, nur grün
+  statt rot (`map/mapView.ts`, `map/flatScene.ts` — auch bei
+  zurückgefahrenem Blatt). Auf der Tafel (`stationUi.hackPage`) steht die
+  Restzeit unter der Beschriftung, der Schalter ist grün und abgeschaltet
+  („noch warm · 27 s"). In 3D brauchte es dafür nichts: `doorLocked` liest
+  `state.shut`, und eine abkühlende Tür steht dort nicht drin — ihre Leuchten
+  sind ohnehin grün.
   **Und niemandem fällt die Tür auf den Kopf** (`haunt.slammable` mit
   `HauntSight.occupants`, `DOORWAY_CLEAR` = 0,75 Kacheln): Der Spuk sucht sich
   die nächstgelegene Tür, und das war mit Vorliebe die, durch die das Monster
@@ -7692,23 +7722,42 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`FlatRound.moveMonster`) ziehen mit denselben Zahlen. Holz splittert
   weiterhin auf einen Schlag und geht über `releaseLock`, damit die
   Buchführung stimmt.
+  **Und es zieht jetzt lieber, als herumzulaufen.** Die Wegsuche umging eine
+  gesperrte Tür, solange es irgendeinen Umweg gab — daraus wurde das Spiel
+  „ich schließe immer die Tür vor dem Monster", und weil der Umweg oft eine
+  halbe Minute kostete, war das Vieh damit festgesetzt. `FlatNavigator.aim`
+  bekommt deshalb ein `detourLimit` in Metern (`FlatRound.PRY_DETOUR` = 4 s
+  mal Tempo): Kostet der Umweg um die gesperrte Tür mehr als das, führt die
+  Route **vor die Tür** und `FlatLeg.door` nennt sie. Verglichen wird auf der
+  Raumkarte (`StationGraph.distance` gegen einen Dijkstra ohne die gesperrten
+  Kanten) und nicht mit einem zweiten Rasterlauf. Zusammen mit den 40 s
+  Abkühlung ist das die Antwort auf das Einsperren: Nach dem Aufziehen bleibt
+  die Tür offen, und der nächste Riegel kostet eine neue Entscheidung.
+  **Warten ist kein Feststecken**: Wer vor einem Riegel steht, führt seine
+  Stilluhr mit (`FlatRound.hold`) — sonst ging das Monster nach dem
+  Aufziehen als Erstes den Notumweg über die Raummitte.
 - **Licht ist knapp, und es ist eine Entscheidung** (`rules/lamps.ts`, `Lamps`
-  beim Gastgeber, nichts davon auf der Leitung). Die 3D-Mission **beginnt
-  dunkel**: `startMission` setzt `state.lit = []`, und es geht nirgends von
-  selbst Licht an — auch nicht beim Betreten eines Raums und nicht mehr bei
-  einer gelösten Konsole. Wer Licht will, bittet die Einsatzkontrolle, und
-  die schaltet es an ihrer Tafel (`applyFlip`, `kind === 'light'`, über
-  `switchLamp`). Es gelten dieselben drei Regeln wie bei den Türen nebenan:
-  **höchstens `LAMP_BUDGET` = 2 Lampen brennen gleichzeitig** — die dritte
-  macht die älteste aus; **keine Lampe brennt ewig** (`LAMP_RANGE` = 40–60 s,
-  leicht gewürfelt), und die letzten `LAMP_FLICKER` = 3 s davon **flackert**
-  sie (`lampGlow`, dieselbe Kurve wie das Zucken des Spuks) und sirrt dabei
-  (`ShipAudio` `'lamp'`, am Ort der Lampe — zweimal: beim Flackern und beim
-  Ausgehen); und **was das Monster auslöscht, zählt genauso** (`lampOut`, aus
-  `stepSpook`), damit für den Hacker beides gleich aussieht. `stepLamps` lässt
-  die Uhr laufen. Alles, was schon hell war, ohne dass jemand geschaltet hat —
-  der helle Test, die Bot-Runde, die gezeichnete 2D-Station —, lässt die
-  Buchführung in Ruhe. Das Grundlicht der Station ist entsprechend klein
+  beim Gastgeber, nichts davon auf der Leitung). **Beide Welten beginnen
+  dunkel**: `startMission` setzt `state.lit = []`, und die 2D-Runde tut seit
+  diesem Paket dasselbe (`FlatRound`, vorher startete sie mit allen Räumen
+  hell). Es geht nirgends von selbst Licht an — auch nicht beim Betreten eines
+  Raums und nicht bei einer gelösten Konsole. Wer Licht will, bittet die
+  Einsatzkontrolle, und die schaltet es an ihrer Tafel (`applyFlip`,
+  `kind === 'light'`, über `switchLamp`); in 2D geht `FlatRound.switchLight`
+  durch **dieselbe** Buchführung, damit der Prüfstand nicht ein anderes Licht
+  hat als das Spiel. Es gelten dieselben drei Regeln wie bei den Türen
+  nebenan: **höchstens `LAMP_BUDGET` = 2 Lampen brennen gleichzeitig** — die
+  dritte macht die älteste aus; **keine Lampe brennt ewig** (`LAMP_RANGE` =
+  **25–35 s**, leicht gewürfelt: „ein paar Sekunden" ist kürzer als eine
+  Minute, aber ein Licht, das nach fünf Sekunden ausgeht, ist keines), und die
+  letzten `LAMP_FLICKER` = 3 s davon **flackert** sie (`lampGlow`, dieselbe
+  Kurve wie das Zucken des Spuks) und sirrt dabei (`ShipAudio` `'lamp'`, am Ort
+  der Lampe — zweimal: beim Flackern und beim Ausgehen); und **was das Monster
+  auslöscht, zählt genauso** (`lampOut`, aus `stepSpook` wie aus
+  `FlatRound.tick`), damit für den Hacker beides gleich aussieht. `stepLamps`
+  lässt die Uhr laufen. Alles, was schon hell war, ohne dass jemand geschaltet
+  hat — der helle Test, die gezeichnete Station —, lässt die Buchführung in
+  Ruhe. Das Grundlicht der Station ist entsprechend klein
   (`stationLighting.ROOM_BOUNCE` = 0,12, und nur in einem Raum, in dem
   wirklich eine Lampe brennt): Die Taschenlampe des VR-Spielers ist nur dann
   etwas wert, wenn es ohne sie nichts zu sehen gibt.
@@ -7756,6 +7805,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   vor einer gesperrten Tür ohne Umweg 0,9 m davor und splittert Holz nach
   2,5 s; die Fächerindizierung der Wandquader in `segmentClear` hat dabei jeden
   Weg von ≈ 88 auf ≈ 14 ms gebracht — für 3D-Monster, Bot und Drohne genauso.
+  **Das Monster wägt dabei ab** (`aim(..., detourLimit)`): Kostet der Umweg um
+  eine gesperrte Tür mehr als `FlatRound.PRY_DETOUR` = 4 s Laufzeit, führt die
+  Route vor die Tür, und dort wird gezogen statt gelaufen. Der Techniker gibt
+  keine Grenze mit und geht weiter jeden Umweg.
 - Drohnen-Netzpositionen werden interpoliert statt je Paket gesetzt.
   Sanfte Neigung und begrenztes Schweben bleiben unter dem Türsturz.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
@@ -7958,6 +8011,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Desktop-Demos starten mit nachgeführter Botkamera; **Freie Kamera** / **Bot
   folgen** wechselt die Bedienung. `followBotCamera` läuft niemals im XR-Headset;
   dort behält der Spieler seine Blickrichtung.
+- **Das Monster kennt die Einsatzzentrale nicht** (`roomGraph.monsterGraph`).
+  Es gibt die Raumkarte zweimal: die ganze (`stationGraph`, mit dem Knoten
+  `COMMAND` und der Schleuse) und die des Monsters, der beides fehlt. Alles,
+  was für das Monster entscheidet, fragt die zweite — Routine, Gedächtnis
+  (`MonsterMemory` legt seine Räume aus `world.spaces` an), Abfangrechnung,
+  Reisezeiten, `FlatRound.prowl` und sein `FlatNavigator`; in 3D
+  `HauntingWorld.spawnMonster`/`stepRoutine`, in der Simulation
+  `roundSim.prowl`. Damit ist „das Monster geht nie in die Zentrale" keine
+  Prüfung, die man an fünf Stellen vergessen kann, sondern ein Ort, den seine
+  Karte nicht enthält: keine Patrouille dorthin, keine Suche, keine Vermutung,
+  kein Weg — und `spaceAt` gibt für den Vorplatz `''` zurück, es kann also
+  nicht einmal benennen, wo der andere da steht. Dazu zwei Riegel gegen den
+  Restfall „erinnerte Stelle liegt auf dem Vorplatz": `FlatRound.moveMonster`
+  läuft kein Ziel an, das auf seiner Karte in keinem Raum liegt,
+  `FlatRound.stepMonster` setzt keinen Schritt auf den Vorplatz (`onApron`),
+  und `StationNpcNavigator` mit `indoors: true` rechnet dorthin keinen Weg.
+  Der Techniker läuft weiter hinein und hinaus; für ihn bleibt die Zentrale
+  ein Knoten wie jeder andere. Nachgezählt wird es in hundert ausgespielten
+  Runden (`RoundResult.atCommand`, `roundSim.test.ts`).
 - **Die Routine des Monsters** steht in `monsterRoutine.ts` und nirgends sonst:
   vier Grundhaltungen (`patrol`, `reposition`, `stakeout`, `search`), `hunt`,
   seit M2 dazu `intercept` („Abfangen") und `ambush` („An der Tür lauern"), und
@@ -8697,6 +8769,19 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
+  **Die Tafel kennt zwei Sorten Schalter: Licht und Schott** (`panel.ts`). Die
+  dritte — **Schallköder**, ein Radio je zwei Zimmer, das das Monster anlockte
+  — ist weg, samt `HauntState.loud` und allem, was es las. Sie war der einzige
+  direkte Griff der Tafel an das Monster und genau deshalb falsch: Wer den
+  richtigen Knopf gefunden hatte, parkte das Vieh in einer Ecke, und der Rest
+  der Runde fand ohne es statt. `STATION_PROTOCOL` bleibt trotzdem **8** — ein
+  altes Gerät, das `loud` noch mitschickt, wird gelesen wie eines, das es
+  weglässt: Der Leser kennt das Feld nicht mehr, und keine Regel hängt daran.
+  **Die Schalter sind doppelt so groß** (`stationDashboard.css`,
+  `.haunt__switch*`): eine ganze Zeile je Schalter statt zwei Spalten, ≥ 72 px
+  hoch, Kippschalter 62 × 34 px — das Maß ist ein hochkant gehaltenes Telefon
+  und ein Daumen, der im Dunkeln nicht den Nachbarn treffen soll. Ab 620 px
+  Breite wieder zwei Spalten.
 - **Der Zuschauer ist ein Platz und kein Fenster mehr** (`watchLens.ts`,
   `stationUi.watchPage`). Er war das ganze Deck von schräg oben und sonst
   nichts; jetzt stehen dort zwei Fragen und ein Schalter:

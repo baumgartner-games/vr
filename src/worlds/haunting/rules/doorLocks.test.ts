@@ -9,6 +9,7 @@ import {
   pryChance,
   pryLock,
   pryTries,
+  coolingUntil,
   mayLock,
   releaseLock,
   slamDoor,
@@ -224,6 +225,52 @@ describe('doorLocks', () => {
       const later = toggleLock(locks, shut, 'd1', HOLD_RANGE[0] + LOCK_COOLDOWN, () => 0);
       expect(later.locked).toBe(true);
       expect(later.blocked).toBe(false);
+    });
+
+    /**
+     * **Vierzig Sekunden, und nicht weniger.** Die Zahl ist der Kern der
+     * Antwort auf „der Spieler sperrt das Monster ein": Nach jedem Aufziehen
+     * und nach jeder abgelaufenen Sperre steht die Tür so lange offen, dass
+     * das Vieh wirklich hindurch ist, bevor der nächste Riegel fallen darf.
+     * Wer sie herunterdreht, dreht genau diese Regel zurück.
+     */
+    test('kühlt vierzig Sekunden ab, nach jedem Weg aus der Sperre heraus', () => {
+      expect(LOCK_COOLDOWN).toBe(40);
+      for (const [name, out] of [
+        [
+          'abgelaufen',
+          () => {
+            const locks = freshLocks();
+            const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+            stepLocks(locks, shut, HOLD_RANGE[1]);
+            return { locks, at: HOLD_RANGE[1] };
+          },
+        ],
+        [
+          'freigegeben',
+          () => {
+            const locks = freshLocks();
+            const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+            releaseLock(locks, shut, 'd1', 5);
+            return { locks, at: 5 };
+          },
+        ],
+        [
+          'aufgezogen',
+          () => {
+            const locks = freshLocks();
+            const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+            pryLock(locks, shut, 'd1', 0, () => 0);
+            pryLock(locks, shut, 'd1', PRY_COOLDOWN, () => 0);
+            return { locks, at: PRY_COOLDOWN };
+          },
+        ],
+      ] as const) {
+        const { locks, at } = out();
+        expect([name, coolingUntil(locks, 'd1')]).toEqual([name, at + LOCK_COOLDOWN]);
+        expect([name, mayLock(locks, 'd1', at + LOCK_COOLDOWN - 0.1)]).toEqual([name, false]);
+        expect([name, mayLock(locks, 'd1', at + LOCK_COOLDOWN)]).toEqual([name, true]);
+      }
     });
 
     test('entriegeln bleibt jederzeit erlaubt', () => {

@@ -565,8 +565,13 @@ export class StationUi {
       state.done.length,
       state.taken.length,
       state.lit.join('|'),
-      state.loud.join('|'),
       state.shut.join('|'),
+      // Die Restzeit der abkühlenden Riegel, auf die Sekunde gerundet
+      // (`rules/doorLocks.ts`): Die Tafel zeigt sie herunterzählen, also muss
+      // sie sich einmal je Sekunde neu zeichnen — und nur dann.
+      (state.cooling ?? [])
+        .map((one) => `${one.id}:${Math.ceil(one.until - state.time)}`)
+        .join('|'),
       Math.ceil(this.host.arriving()),
       this.host
         .claims()
@@ -1997,9 +2002,7 @@ export class StationUi {
       const on =
         entry.kind === 'door'
           ? !state.shut.includes(entry.target)
-          : entry.kind === 'light'
-            ? state.lit.includes(entry.target)
-            : state.loud.includes(entry.target);
+          : state.lit.includes(entry.target);
       list.append(fact(entry.label, on ? 'an' : 'aus', !on));
     }
     return list;
@@ -2032,7 +2035,7 @@ export class StationUi {
       note(
         'calm',
         'Stationssysteme',
-        'Lichter schalten, Schotts öffnen und Schallköder zur Ablenkung aktivieren. Der Techniker kann Schotts auch vor Ort öffnen.',
+        'Licht schalten und Schotts verriegeln — mehr hat diese Tafel nicht. Höchstens zwei Lampen brennen gleichzeitig, und keine lange; verriegelt ist immer nur ein Schott. Der Techniker kann Schotts auch vor Ort öffnen.',
       ),
     );
 
@@ -2060,16 +2063,27 @@ export class StationUi {
       const on =
         entry.kind === 'door'
           ? !state.shut.includes(entry.target)
-          : entry.kind === 'light'
-            ? state.lit.includes(entry.target)
-            : state.loud.includes(entry.target);
-      const key = el('button', `haunt__switch${on ? ' is-on' : ''}`);
+          : state.lit.includes(entry.target);
+      // **Ein Schott kühlt ab** (`rules/doorLocks.ts`): Es ist offen, es ist
+      // grün, und es lässt sich vierzig Sekunden lang nicht wieder
+      // verriegeln. Ein Schalter, der das wortlos täte, wäre für den Hacker
+      // ein kaputter Schalter — also steht die Restzeit darauf, und er ist
+      // abgeschaltet, statt ins Leere zu klicken.
+      const warm = entry.kind === 'door' ? coolingLeft(state, entry.target) : 0;
+      const key = el('button', `haunt__switch${on ? ' is-on' : ''}${warm > 0 ? ' is-warm' : ''}`);
       key.dataset['flip'] = entry.id;
       key.dataset['on'] = on ? '1' : '0';
       key.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (warm > 0) {
+        (key as HTMLButtonElement).disabled = true;
+        key.title = 'Der Riegel ist noch warm.';
+      }
       const knob = el('span', 'haunt__knob');
       knob.append(el('i', ''));
-      key.append(el('span', 'haunt__switch-label', entry.label), knob);
+      const label = el('span', 'haunt__switch-label');
+      label.append(el('strong', '', entry.label));
+      if (warm > 0) label.append(el('small', '', `noch warm · ${Math.ceil(warm)} s`));
+      key.append(label, knob);
       grid.append(key);
     }
     out.push(grid);
@@ -2078,6 +2092,11 @@ export class StationUi {
         'calm',
         'Die Beschriftungen lügen nie',
         'Sie sind nur unvollständig. „Tür 3" ist wirklich eine Tür — wo, sagt niemand.',
+      ),
+      note(
+        'calm',
+        'Ein Riegel, der eben gefallen ist, bleibt offen',
+        'Vierzig Sekunden lang: grün, aufgesperrt, und der Schalter zählt herunter. Wer sich durchgezogen hat, soll auch hindurchkommen — sonst stünde er vor derselben Tür wie zuvor.',
       ),
     );
     return out;
@@ -2536,6 +2555,20 @@ function note(tone: 'warn' | 'live' | 'calm', title: string, text: string): HTML
   const node = el('div', `haunt__note is-${tone}`);
   node.append(el('strong', '', title), el('span', '', text));
   return node;
+}
+
+/**
+ * **Wie lange dieses Schott noch warm ist**, in Sekunden — 0, wenn es sofort
+ * wieder verriegelt werden darf (`rules/doorLocks.ts`, `HauntState.cooling`).
+ *
+ * Die Buchführung der Riegel bleibt beim Gastgeber; über die Leitung kommt
+ * nur diese Liste, und sie kann fehlen (ältere Gegenstelle). Dann steht hier
+ * eine 0 und die Tafel zeigt keine Uhr — der Riegel greift trotzdem, er wird
+ * ja beim Gastgeber geprüft.
+ */
+function coolingLeft(state: HauntState, doorId: string): number {
+  const entry = state.cooling?.find((one) => one.id === doorId);
+  return entry ? Math.max(0, entry.until - state.time) : 0;
 }
 
 /** Eine Zeile im Aktenblatt: Begriff links, Auskunft rechts. */

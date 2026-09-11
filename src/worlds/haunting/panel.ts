@@ -29,24 +29,29 @@ export interface PanelSwitch {
   id: string;
   /** Was auf der Tafel steht. Wahr, aber vielleicht nicht genug. */
   label: string;
-  kind: 'light' | 'door' | 'radio';
+  kind: 'light' | 'door';
   /** Die Zimmer- oder Tür-Kennung, auf die der Schalter wirkt. */
   target: string;
   /** Ob er erst nach dem Sicherungskasten auftaucht. */
   hidden: boolean;
-  /** Der Anfangszustand: Licht aus, Türen offen, Radios aus. */
+  /** Der Anfangszustand: Licht aus, Türen offen. */
   on: boolean;
 }
-
-/** Wie viele Radios ein Haus bekommt — Lärm ist ein Köder, kein Möbelstück. */
-const RADIOS = 2;
 
 /**
  * Die Tafel zu einem Haus.
  *
- * Aufgebaut wird sie in einer festen Reihenfolge (Licht, Türen, Radios) und
- * danach **gemischt**: Stünden die Sorten in Blöcken, könnte man aus der
- * Position ablesen, was ein `X` ist, und die halbe Aufgabe wäre weg.
+ * Aufgebaut wird sie in einer festen Reihenfolge (Licht, Türen) und danach
+ * **gemischt**: Stünden die Sorten in Blöcken, könnte man aus der Position
+ * ablesen, was ein `X` ist, und die halbe Aufgabe wäre weg.
+ *
+ * **Die Schallköder sind weg.** Es gab einmal eine dritte Sorte Schalter —
+ * ein Radio je zwei Zimmer, das das Monster anlockte. Sie war der einzige
+ * direkte Griff der Tafel an das Monster und genau deshalb falsch: Wer den
+ * richtigen Knopf gefunden hatte, parkte das Vieh in einer Ecke der Station
+ * und der Rest der Runde fand ohne es statt. Was die Tafel auf das Monster
+ * ausrichten darf, ist Licht und ein Riegel — beides Auskunft und keine
+ * Fernsteuerung.
  */
 export function buildPanel(
   rng: Rng,
@@ -77,18 +82,6 @@ export function buildPanel(
       // Türen stehen zu Beginn offen: Ein Haus, das man erst aufschließen
       // muss, um es zu betreten, fängt mit Warten an.
       on: true,
-    });
-  }
-
-  const withRadio = rng.shuffle(rooms).slice(0, RADIOS);
-  for (const room of withRadio) {
-    out.push({
-      id: `s-radio-${room.id}`,
-      label: '',
-      kind: 'radio',
-      target: room.id,
-      hidden: false,
-      on: false,
     });
   }
 
@@ -140,7 +133,7 @@ function label(
 }
 
 function sortLabel(kind: PanelSwitch['kind']): string {
-  return kind === 'light' ? 'Licht' : kind === 'door' ? 'Tür' : 'Radio';
+  return kind === 'light' ? 'Licht' : 'Tür';
 }
 
 /**

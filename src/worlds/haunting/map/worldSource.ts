@@ -31,8 +31,8 @@ export interface WorldHandles {
   drone(): DroneState | null;
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;
   doorOpen(id: string): boolean;
-  /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`). */
-  doorHold?(id: string): { left: number; total: number } | null;
+  /** Die Uhr an dieser Tür (`rules/doorLocks.ts`): Sperre oder Abkühlung, siehe `MapSource.doorHold`. */
+  doorHold?(id: string): { left: number; total: number; cooling?: boolean } | null;
   /** Der eigene Kopf — nur in der Technikerrolle; sonst `null`. */
   player(): { x: number; z: number; yaw: number; sprinting: boolean; moving: boolean } | null;
   /** Ob die Taschenlampe brennt und welches Werkzeug gehalten wird. */

@@ -97,6 +97,18 @@ export interface MapDoor {
    * Sperre hält ewig; fehlt die Angabe, führt die Quelle keine Uhr.
    */
   hold?: { left: number; total: number };
+  /**
+   * **Und wie lange sie noch abkühlt** (`rules/doorLocks.ts`) — dasselbe Paar
+   * Zahlen, nur für den anderen Fall: Die Tür ist **offen**, und sie darf für
+   * diese Sekunden nicht wieder gesperrt werden.
+   *
+   * Zwei Felder und nicht eines mit einem Schalter daneben, weil es zwei
+   * verschiedene Auskünfte sind: `hold` sagt „verlass dich noch so lange
+   * darauf", `cooling` sagt „warte noch so lange". Gezeichnet werden sie als
+   * derselbe Balken über der Tür, rot das eine, grün das andere; beide sind
+   * nie gleichzeitig gesetzt.
+   */
+  cooling?: { left: number; total: number };
   material: 'wood' | 'metal';
 }
 

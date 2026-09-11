@@ -128,7 +128,6 @@ beforeEach(() => {
     monster: null,
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],

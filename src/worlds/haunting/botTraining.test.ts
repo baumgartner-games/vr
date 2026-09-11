@@ -18,13 +18,25 @@ const MEASURE = { ...TRAINING_DEFAULTS, rounds: 400 };
 /**
  * **Wo der Techniker-Bot mit den ausgelieferten Gewichten gemessen steht.**
  *
- * Seit M2 ist das dasselbe wie `TRAINING_TARGETS` — beide Quoten liegen im
+ * Seit M2 war das dasselbe wie `TRAINING_TARGETS` — beide Quoten lagen im
  * Band. Der Test prüft trotzdem weiter die **Messung** und nicht nur die
  * Zusage: Eine Zahl, die man abliest, fällt auf, wenn sie sich verschiebt;
  * ein Band, das gerade noch getroffen wird, sagt nichts darüber, ob man an
  * seinem Rand steht oder in seiner Mitte.
+ *
+ * **Und sie hat sich verschoben** (Paket „Schalttafel"): 0,5375 / 0,3075 vor
+ * dem Umbau, 0,565 / 0,380 danach, je vier Messreihen à 400 Runden. Der Grund
+ * ist eine einzige Regel, und sie kommt vom Besitzer: **Das Monster kann nie
+ * in die Einsatzzentrale gehen** (`roomGraph.monsterGraph`). Bis dahin folgte
+ * es dem Techniker auf den letzten Metern nach Hause und holte ihn dort —
+ * das war ein guter Teil der verlorenen Runden. Jetzt ist die Zentrale das,
+ * was sie sein soll: sicher. Die Zahlen hier sind nachgemessen und stehen
+ * ehrlich da; die **Gewichte** (`botTuning.DEFAULT_TUNING`) sind dafür noch
+ * nicht neu gelernt worden, und deshalb liegt `duo` jetzt 1,5 Punkte über
+ * seinem Band. Das gehört mit `trainBots` nachgezogen — nicht dadurch, dass
+ * hier ein Band aufgeht.
  */
-const BOT_RATES = { duo: 0.54, crew: 0.315 } as const;
+const BOT_RATES = { duo: 0.565, crew: 0.38 } as const;
 
 describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das Monster im Team', () => {
   /**
