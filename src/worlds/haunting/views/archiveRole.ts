@@ -49,8 +49,14 @@ import { Toast, code, el, fact } from './roleShell';
  * der 2D-Welt eine herangezoomte Karte desselben Zimmers. Zwei Bilder, eine
  * Akte.
  */
-export function mountArchiveView(host: RoleHost): ArchiveRoleView {
-  return new ArchiveView(host);
+/**
+ * @param shared eine Karte, die schon jemand hält (`seatRole.ts`): Dann baut
+ *   der Archivar keine eigene, zeichnet sie nicht und malt Linien und
+ *   Beschriftungen nur, wenn ihr Wirt ihn ruft (`supplyLines`,
+ *   `paintTargets`); Zimmer und Fracht reicht der Wirt herein.
+ */
+export function mountArchiveView(host: RoleHost, shared?: MapView): ArchiveRoleView {
+  return new ArchiveView(host, shared);
 }
 
 export interface ArchiveRoleView extends RoleView {
@@ -58,8 +64,16 @@ export interface ArchiveRoleView extends RoleView {
   readonly opened: string;
   /** Die Karte selbst — für Tests. */
   readonly map: MapView;
+  /** Eine Zeile für die gemeinsame Kopfzeile eines Stuhls. */
+  readonly status: string;
   /** Eine Raumakte aufschlagen — derselbe Weg wie ein Tipp auf das Zimmer. */
   open(roomId: string): void;
+  /** Ein Tipp auf Fracht oder Konsole: die Akte ihres Zimmers. */
+  openItem(itemId: string): void;
+  /** Die Linie vom getragenen Teil zu seiner Konsole (`MapViewOptions.routes`). */
+  supplyLines(): MapRoute[];
+  /** Teilenamen an Kisten, „hierher" an Konsolen (`MapViewOptions.overlay`). */
+  paintTargets(ctx: CanvasRenderingContext2D, view: MapView): void;
   /** Das Loch für die 3D-Welt, solange eine Akte offen ist — sonst `null`. */
   viewport(): { x: number; y: number; w: number; h: number } | null;
 }
@@ -98,44 +112,65 @@ class ArchiveView implements ArchiveRoleView {
   private span = 0;
   private drag: { id: number; x: number; y: number; far: number } | null = null;
 
-  constructor(private readonly host: RoleHost) {
+  /** Ob die Karte jemand anderem gehört — dann zeichnet er sie auch. */
+  private readonly shared: boolean;
+
+  constructor(
+    private readonly host: RoleHost,
+    shared?: MapView,
+  ) {
     this.desk = archiveDeskOf(host);
-    this.map = new MapView({
-      // Alles, was liegt — und nichts, was geht; und kein Licht.
-      layers: {
-        ...ALL_LAYERS,
-        entities: false,
-        visibility: false,
-        objectives: false,
-        lights: false,
-      },
-      markers: 'none',
-      mode: 'omniscient',
-      minScale: 5,
-      maxScale: 40,
-      routes: () => this.supplyLines(),
-      overlay: (ctx, view) => this.paintTargets(ctx, view),
-      onRoomClick: (id) => this.open(id),
-      onItemClick: (id) => this.openItem(id),
-    });
-    this.map.element.classList.add('role__map');
+    this.shared = !!shared;
+    this.map =
+      shared ??
+      new MapView({
+        // Alles, was liegt — und nichts, was geht; und kein Licht.
+        layers: {
+          ...ALL_LAYERS,
+          entities: false,
+          visibility: false,
+          objectives: false,
+          lights: false,
+        },
+        markers: 'none',
+        mode: 'omniscient',
+        minScale: 5,
+        maxScale: 40,
+        routes: () => this.supplyLines(),
+        overlay: (ctx, view) => this.paintTargets(ctx, view),
+        onRoomClick: (id) => this.open(id),
+        onItemClick: (id) => this.openItem(id),
+      });
+    if (!shared) {
+      this.map.element.classList.add('role__map');
+      this.element.append(this.map.element);
+    }
+    this.hud.hidden = this.shared;
     this.sheet.hidden = true;
     this.sheet.addEventListener('click', (event) => this.sheetClick(event));
     this.watchHole();
-    this.element.append(this.map.element, this.hud, this.toast.element, this.sheet);
+    this.element.append(this.hud, this.toast.element, this.sheet);
   }
 
   get opened(): string {
     return this.room;
   }
 
+  get status(): string {
+    const jobs = this.jobs();
+    const done = jobs.filter((job) => job.order.step === 2).length;
+    return `${done}/${jobs.length} Systeme`;
+  }
+
   update(dt: number): void {
     const snapshot = this.host.snapshot();
-    this.map.setSnapshot(snapshot);
-    // Solange die Akte offen ist, liegt die Karte nicht nur unsichtbar
-    // darunter — sie wird auch nicht gezeichnet: Eine Leinwand, die niemand
-    // sieht, ist je Bild ein ganzer Grundriss umsonst.
-    if (!this.room) this.map.draw();
+    if (!this.shared) {
+      this.map.setSnapshot(snapshot);
+      // Solange die Akte offen ist, liegt die Karte nicht nur unsichtbar
+      // darunter — sie wird auch nicht gezeichnet: Eine Leinwand, die niemand
+      // sieht, ist je Bild ein ganzer Grundriss umsonst.
+      if (!this.room) this.map.draw();
+    }
     if (this.room) this.writeSheet(snapshot);
     if (this.closeUp) {
       this.closeUp.setSnapshot(snapshot);
@@ -181,7 +216,7 @@ class ArchiveView implements ArchiveRoleView {
    * einen Blick, und der Archivar hätte nach dem ersten Satz nichts mehr zu
    * sagen (`rules/archiveGoals.ts`).
    */
-  private supplyLines(): MapRoute[] {
+  supplyLines(): MapRoute[] {
     const out: MapRoute[] = [];
     for (const job of this.jobs()) {
       if (job.order.step === 2 || !job.from || !job.to) continue;
@@ -201,7 +236,7 @@ class ArchiveView implements ArchiveRoleView {
    * trägt. Selbst gemalt und nicht als `objectives`, weil dort ein Ring mit
    * Entfernung stünde — und eine Entfernung wozu? Der Archivar steht nirgends.
    */
-  private paintTargets(ctx: CanvasRenderingContext2D, view: MapView): void {
+  paintTargets(ctx: CanvasRenderingContext2D, view: MapView): void {
     ctx.save();
     ctx.font = '600 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -278,7 +313,7 @@ class ArchiveView implements ArchiveRoleView {
 
   // --- die Raumakte ----------------------------------------------------------
 
-  private openItem(id: string): void {
+  openItem(id: string): void {
     const item = this.host.snapshot().items.find((one) => one.id === id);
     if (item?.roomId) this.open(item.roomId);
   }
@@ -573,7 +608,7 @@ class ArchiveView implements ArchiveRoleView {
     this.desk?.open('');
     this.closeUp?.dispose();
     this.closeUp = null;
-    this.map.dispose();
+    if (!this.shared) this.map.dispose();
     this.element.remove();
   }
 }

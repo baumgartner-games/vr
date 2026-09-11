@@ -2,7 +2,6 @@ import { repairsFor } from './mission';
 import './haunting.css';
 import './stationDashboard.css';
 import {
-  ABILITY_LABELS,
   COLOURS,
   describeSetup,
   isColour,
@@ -31,6 +30,7 @@ import './views/watch.register';
 import './monster/monster.register';
 import { listRoles, roles, type RoleHost, type RoleView } from './registry/roles';
 import type { WatchRoleView } from './views/watchRole';
+import { mountSeatView } from './views/seatRole';
 import { defaultLens, seatStation, type WatchLens } from './watchLens';
 import type { ArchiveDesk } from './views/archiveDesk';
 import type { HouseSpec } from './house';
@@ -221,7 +221,6 @@ export class StationUi {
    * kann zwei oder drei Fähigkeiten halten; dann blättert man zwischen ihren
    * Karten, und das hier merkt sich die Seite. `null` heißt: die erste.
    */
-  private sub: Ability | null = null;
   /** Die Tafel der Verteilung — eine für die Lebensdauer der Seite, neu gefüllt bei jedem Schreiben. */
   private setupPanel: SetupPanel | null = null;
   /** Woran erkannt wird, dass die Seite neu geschrieben werden muss. */
@@ -303,12 +302,14 @@ export class StationUi {
   }
 
   /**
-   * **Welche Karte auf meinem Farbplatz offen ist** — die gewählte, sonst die
-   * erste, die der Platz hält; `null` ohne Fähigkeit.
+   * **Welche Karte für die Welt zählt** — auf einem Farbplatz liegen alle
+   * Fähigkeiten auf einer Karte (`views/seatRole.ts`); die Welt fragt nur,
+   * ob ein Archiv dabei ist (sein Loch für die Raumakte), sonst die erste.
+   * `null` ohne Fähigkeit.
    */
-  private get subAbility(): Ability | null {
+  private get leadAbility(): Ability | null {
     const held = this.held;
-    if (this.sub && held.has(this.sub)) return this.sub;
+    if (held.has('archive')) return 'archive';
     return [...held][0] ?? null;
   }
 
@@ -337,7 +338,7 @@ export class StationUi {
     if (!station) return null;
     if (station === 'watch') return seatStation(this.watchLens.seat);
     if (station === 'monster') return 'monster';
-    const ability = this.subAbility;
+    const ability = this.leadAbility;
     return ability ? ABILITY_VIEWS[ability] : null;
   }
 
@@ -390,7 +391,6 @@ export class StationUi {
       this.tab,
       station ?? 'van',
       this.me,
-      this.sub ?? '',
       // Von der Runde nur, was selten kippt: Leben, Kabinen, die Warnschwelle,
       // das Ende. Die Uhr selbst läuft unten in die Anzeige, ohne Neuschrift.
       round ? `${round.suit}/${round.cabinsDestroyed.length}/${lowOxygen(round.oxygen)}` : '',
@@ -665,6 +665,18 @@ export class StationUi {
       this.dropView();
       return [note('warn', 'Keine Karte', 'Diese Welt liefert den Rollen keinen Stand.')];
     }
+    // **Ein Stuhl, eine Karte.** Was Rot hält, liegt zusammen auf einer
+    // Karte (`views/seatRole.ts`) — keine Zeile zum Blättern mehr: Der
+    // Besitzer wollte die Fähigkeiten nicht wechseln, sondern haben.
+    if (isColour(this.me)) {
+      const key = `seat:${[...this.held].sort().join('+')}`;
+      if (this.viewId !== key) {
+        this.dropView();
+        this.view = mountSeatView(this.roleHost(), this.held);
+        this.viewId = key;
+      }
+      return [this.view!.element];
+    }
     if (this.viewId !== role.id) {
       this.dropView();
       this.view = role.mount(this.roleHost());
@@ -679,21 +691,6 @@ export class StationUi {
             ? { seat: 'deck', follow: 'technician', eyes: true }
             : { seat: 'deck', follow: 'free', eyes: false },
         );
-    }
-    // **Mehr als eine Karte auf dem Stuhl: eine Zeile zum Blättern.** Sie
-    // steht nur, wenn es etwas zu blättern gibt — ein Streifen mit einem
-    // einzigen Knopf ist ein Knopf, der nichts tut.
-    const held = [...this.held];
-    if (held.length > 1) {
-      const strip = el('nav', 'haunt__subs');
-      strip.setAttribute('aria-label', 'Karte');
-      for (const ability of held) {
-        const key = el('button', 'haunt__sub', ABILITY_LABELS[ability]);
-        key.dataset['sub'] = ability;
-        key.setAttribute('aria-pressed', String(ability === this.subAbility));
-        strip.append(key);
-      }
-      return [strip, this.view!.element];
     }
     return [this.view!.element];
   }
@@ -894,7 +891,6 @@ export class StationUi {
       }
     }
     this.tab = me;
-    this.sub = null;
     const choice = this.host.lobby?.();
     if (choice && this.host.setLobby) this.host.setLobby({ ...choice, me });
     const setup = this.host.setup?.();
@@ -992,7 +988,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-tab],[data-me],[data-sub],[data-check],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],[data-restart],[data-start-setup]',
+      '[data-tab],[data-me],[data-check],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],[data-restart],[data-start-setup]',
     );
     if (!hit) return;
     // Der nächste Tipp löst die letzte Antwort ab: Ein Satz, der zu einem
@@ -1028,8 +1024,6 @@ export class StationUi {
       this.tab = 'setup';
     } else if (hit.dataset['me']) {
       this.choose(hit.dataset['me'] as MyRole);
-    } else if (hit.dataset['sub']) {
-      this.sub = hit.dataset['sub'] as Ability;
     }
     this.drawn = '';
     this.refresh();

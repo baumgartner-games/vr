@@ -159,7 +159,7 @@ for (const name of browserNames) {
         await role('archive');
         // Der Archivar ist heute eine Karte mit Raumakte darüber — kein
         // Raumwähler, keine Missionsliste, keine Reiter.
-        await page.locator('.role--archive .mapview__canvas').waitFor();
+        await page.locator('.role--seat .mapview__canvas').waitFor();
         assert.equal(
           await page.locator('[data-room-select], [data-archive-tab], .haunt__tabs').count(),
           0,
@@ -171,7 +171,7 @@ for (const name of browserNames) {
         // wird ein Raster über die Karte getippt, bis eine aufgeht — und
         // nicht auf die Mitte gehofft. Einen Schutzschrank-Code steht darin
         // nicht mehr: Den Schrank betritt man ohne einen.
-        const chart = page.locator('.role--archive .mapview__canvas');
+        const chart = page.locator('.role--seat .mapview__canvas');
         const chartBox = await chart.boundingBox();
         const openSheet = page.locator('.role__sheet:not([hidden])');
         let dossier = '';
@@ -204,7 +204,7 @@ for (const name of browserNames) {
             return { x: r.x, y: r.y, width: r.width, height: r.height };
           };
           return {
-            map: rect('.role--archive .mapview__canvas'),
+            map: rect('.role--seat .mapview__canvas'),
             body: rect('.haunt__body'),
             overflow: document.documentElement.scrollWidth > innerWidth,
           };
@@ -215,9 +215,11 @@ for (const name of browserNames) {
         await shot('archive-mobile');
 
         await role('hack');
-        await page.locator('.role--panel .mapview__canvas').waitFor();
+        // Ein Stuhl, eine Karte (`views/seatRole.ts`): Die Schalttafel liegt als
+        // Schicht über der einen Karte des Platzes.
+        await page.locator('.role--seat:has(.role--panel) .mapview__canvas').waitFor();
         assert.equal(
-          await page.locator('.role--panel .mapview__canvas').count(),
+          await page.locator('.role--seat .mapview__canvas').count(),
           1,
           'The switchboard is a map of the station',
         );
@@ -234,7 +236,7 @@ for (const name of browserNames) {
         await page.locator('.role--panel .role__sheet [data-close]').click();
 
         await role('scout');
-        await page.locator('.role--scout .mapview__canvas').waitFor();
+        await page.locator('.role--seat:has(.role--scout) .mapview__canvas').waitFor();
         await shot('scout-mobile');
 
         await page.setViewportSize({ width: 1440, height: 900 });

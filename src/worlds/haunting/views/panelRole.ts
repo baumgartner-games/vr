@@ -40,8 +40,13 @@ import { Toast, el } from './roleShell';
  * Hälfte davon liegt hinter der Sicherung. Ein Tipp auf etwas ohne Schalter
  * sagt genau das — er ist keine stille Fehlbedienung.
  */
-export function mountPanelView(host: RoleHost): PanelRoleView {
-  return new PanelView(host);
+/**
+ * @param shared eine Karte, die schon jemand hält (`seatRole.ts`): Dann baut
+ *   die Schalttafel keine eigene und zeichnet sie nicht; Türen und Lampen
+ *   reicht ihr Wirt herein (`tapDoor`, `tapLight`).
+ */
+export function mountPanelView(host: RoleHost, shared?: MapView): PanelRoleView {
+  return new PanelView(host, shared);
 }
 
 export interface PanelRoleView extends RoleView {
@@ -49,6 +54,11 @@ export interface PanelRoleView extends RoleView {
   readonly map: MapView;
   /** Ob gerade die Schalterliste über der Karte liegt. */
   readonly sheetOpen: boolean;
+  /** Eine Zeile für die gemeinsame Kopfzeile eines Stuhls. */
+  readonly status: string;
+  /** Ein Tipp auf eine Tür oder eine Lampe der Karte — dieselben zwei Griffe. */
+  tapDoor(doorId: string): void;
+  tapLight(roomId: string): void;
 }
 
 class PanelView implements PanelRoleView {
@@ -62,39 +72,68 @@ class PanelView implements PanelRoleView {
   private sheetSign = '';
   private open = false;
 
-  constructor(private readonly host: RoleHost) {
-    this.map = new MapView({
-      // Der Grundriss mit allem, was Strom hat — und nichts, was atmet.
-      layers: { ...PANEL_LAYERS, entities: false, items: false },
-      markers: 'none',
-      mode: 'omniscient',
-      minScale: 5,
-      maxScale: 40,
-      onDoorClick: (id) => this.act(this.host.door(id), 'Für diese Tür gibt es keinen Schalter.'),
-      onLightClick: (id) =>
-        this.act(this.host.light(id), 'Für diese Lampe gibt es keinen Schalter.'),
-    });
-    this.map.element.classList.add('role__map');
+  /** Ob die Karte jemand anderem gehört — dann zeichnet er sie auch. */
+  private readonly shared: boolean;
+
+  constructor(
+    private readonly host: RoleHost,
+    shared?: MapView,
+  ) {
+    this.shared = !!shared;
+    this.map =
+      shared ??
+      new MapView({
+        // Der Grundriss mit allem, was Strom hat — und nichts, was atmet.
+        layers: { ...PANEL_LAYERS, entities: false, items: false },
+        markers: 'none',
+        mode: 'omniscient',
+        minScale: 5,
+        maxScale: 40,
+        onDoorClick: (id) => this.tapDoor(id),
+        onLightClick: (id) => this.tapLight(id),
+      });
+    if (!shared) {
+      this.map.element.classList.add('role__map');
+      this.element.append(this.map.element);
+    }
+    this.hud.hidden = this.shared;
     this.sheet.hidden = true;
     this.sheetKey.dataset['panelSheet'] = '';
     this.sheetKey.addEventListener('click', () => this.toggleSheet());
     this.sheet.addEventListener('click', (event) => this.sheetClick(event));
-    this.element.append(this.map.element, this.hud, this.sheetKey, this.toast.element, this.sheet);
+    this.element.append(this.hud, this.sheetKey, this.toast.element, this.sheet);
   }
 
   get sheetOpen(): boolean {
     return this.open;
   }
 
+  get status(): string {
+    const snapshot = this.host.snapshot();
+    const shut = snapshot.doors.filter((door) => door.locked).length;
+    const lit = snapshot.rooms.filter((room) => room.lit).length;
+    return `${shut} gesperrt · ${lit} hell`;
+  }
+
   update(dt: number): void {
     const snapshot = this.host.snapshot();
-    this.map.setSnapshot(snapshot);
-    // Liegt das Blatt darüber, wird die Karte darunter nicht gezeichnet: eine
-    // Leinwand, die niemand sieht, ist je Bild ein ganzer Grundriss umsonst.
-    if (!this.open) this.map.draw();
+    if (!this.shared) {
+      this.map.setSnapshot(snapshot);
+      // Liegt das Blatt darüber, wird die Karte darunter nicht gezeichnet: eine
+      // Leinwand, die niemand sieht, ist je Bild ein ganzer Grundriss umsonst.
+      if (!this.open) this.map.draw();
+    }
     this.toast.step(dt);
     this.renderHud(snapshot);
     if (this.open) this.writeSheet(snapshot);
+  }
+
+  tapDoor(doorId: string): void {
+    this.act(this.host.door(doorId), 'Für diese Tür gibt es keinen Schalter.');
+  }
+
+  tapLight(roomId: string): void {
+    this.act(this.host.light(roomId), 'Für diese Lampe gibt es keinen Schalter.');
   }
 
   private act(text: string, missing: string): void {
@@ -237,7 +276,7 @@ class PanelView implements PanelRoleView {
   }
 
   dispose(): void {
-    this.map.dispose();
+    if (!this.shared) this.map.dispose();
     this.element.remove();
   }
 }

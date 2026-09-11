@@ -35,8 +35,13 @@ interface Ping {
   label: string;
 }
 
-export function mountScoutView(host: RoleHost): ScoutRoleView {
-  return new ScoutView(host);
+/**
+ * @param shared eine Karte, die schon jemand hält (`seatRole.ts`): Dann baut
+ *   der Späher keine eigene, zeichnet sie nicht und malt seine Peilung nur,
+ *   wenn ihr Wirt ihn ruft (`paint`).
+ */
+export function mountScoutView(host: RoleHost, shared?: MapView): ScoutRoleView {
+  return new ScoutView(host, shared);
 }
 
 export interface ScoutRoleView extends RoleView {
@@ -46,6 +51,10 @@ export interface ScoutRoleView extends RoleView {
   readonly pings: readonly { at: MapPoint; label: string }[];
   /** Wie viele Sekunden bis zur nächsten. */
   readonly nextPing: number;
+  /** Eine Zeile für die gemeinsame Kopfzeile eines Stuhls. */
+  readonly status: string;
+  /** Die Peilung auf eine fremde Karte malen (`MapViewOptions.overlay`). */
+  paint(ctx: CanvasRenderingContext2D, view: MapView): void;
 }
 
 class ScoutView implements ScoutRoleView {
@@ -58,21 +67,36 @@ class ScoutView implements ScoutRoleView {
   /** Wie lange die laufende Peilung schon steht, in Sekunden. */
   private age = PING_PERIOD;
 
-  constructor(private readonly host: RoleHost) {
-    this.map = new MapView({
-      // Konturen, Türen, Räume — und sonst nichts: keine Fracht, keine
-      // Konsolen, keine Möbel. Der Späher beschreibt Formen, nicht Inhalte.
-      layers: { ...PANEL_LAYERS, entities: false, items: false, fixtures: false, lights: false },
-      markers: 'none',
-      mode: 'omniscient',
-      minScale: 5,
-      maxScale: 40,
-      overlay: (ctx, view) => this.paint(ctx, view),
-      onRoomClick: (id) =>
-        this.toast.say(this.host.snapshot().rooms.find((room) => room.id === id)?.name ?? id),
-    });
-    this.map.element.classList.add('role__map');
-    this.element.append(this.map.element, this.hud, this.toast.element);
+  /** Ob die Karte jemand anderem gehört — dann zeichnet er sie auch. */
+  private readonly shared: boolean;
+
+  constructor(
+    private readonly host: RoleHost,
+    shared?: MapView,
+  ) {
+    this.shared = !!shared;
+    this.map =
+      shared ??
+      new MapView({
+        // Konturen, Türen, Räume — und sonst nichts: keine Fracht, keine
+        // Konsolen, keine Möbel. Der Späher beschreibt Formen, nicht Inhalte.
+        layers: { ...PANEL_LAYERS, entities: false, items: false, fixtures: false, lights: false },
+        markers: 'none',
+        mode: 'omniscient',
+        minScale: 5,
+        maxScale: 40,
+        overlay: (ctx, view) => this.paint(ctx, view),
+        onRoomClick: (id) =>
+          this.toast.say(this.host.snapshot().rooms.find((room) => room.id === id)?.name ?? id),
+      });
+    if (!shared) {
+      this.map.element.classList.add('role__map');
+      this.element.append(this.map.element);
+    }
+    // Auf einer geteilten Karte steht das Kästchen nicht: Dort sagt die eine
+    // Zeile des Stuhls, was der Späher meldet (`status`).
+    this.hud.hidden = this.shared;
+    this.element.append(this.hud, this.toast.element);
     this.take(this.host.snapshot());
     this.age = 0;
   }
@@ -85,6 +109,10 @@ class ScoutView implements ScoutRoleView {
     return Math.max(0, PING_PERIOD - this.age);
   }
 
+  get status(): string {
+    return this.sample.length ? `Peilung in ${Math.ceil(this.nextPing)} s` : 'Kein Signal';
+  }
+
   update(dt: number): void {
     const snapshot = this.host.snapshot();
     this.age += Math.max(0, dt);
@@ -92,8 +120,10 @@ class ScoutView implements ScoutRoleView {
       this.age = 0;
       this.take(snapshot);
     }
-    this.map.setSnapshot(snapshot);
-    this.map.draw();
+    if (!this.shared) {
+      this.map.setSnapshot(snapshot);
+      this.map.draw();
+    }
     this.toast.step(dt);
     this.renderHud();
   }
@@ -115,7 +145,7 @@ class ScoutView implements ScoutRoleView {
   }
 
   /** Zwei Punkte mit Hof, deren Deckkraft mit dem Alter der Peilung fällt. */
-  private paint(ctx: CanvasRenderingContext2D, view: MapView): void {
+  paint(ctx: CanvasRenderingContext2D, view: MapView): void {
     // Nie ganz weg: Der letzte Rest sagt „dort war er", und ein Bild ohne
     // jeden Punkt sähe aus wie ein Gerät ohne Empfang.
     const fade = Math.max(0.12, 1 - this.age / PING_PERIOD);
@@ -155,7 +185,7 @@ class ScoutView implements ScoutRoleView {
   }
 
   dispose(): void {
-    this.map.dispose();
+    if (!this.shared) this.map.dispose();
     this.element.remove();
   }
 }

@@ -526,15 +526,6 @@ body.orbital-on #hud { display: none; }
 .setup__seat--yellow .setup__label strong::before { background: #ffd84a; }
 .setup__seat--blue .setup__label strong::before { background: #6ea8ff; }
 /* Mehr als eine Karte auf dem Stuhl: die Zeile zum Blättern. */
-.haunt__subs { display: flex; gap: 6px; padding: 6px 10px 0; }
-/* **Die Blätterzeile liegt über der Karte, nicht darunter.** Eine Rolle mit Karte füllt die
-   Fläche absolut (`views.css`, `.role { inset: 0 }`), und die Zeile stand im Fluss darunter:
-   sichtbar, aber jeder Tipp traf die Leinwand — Rot mit drei Fähigkeiten sah nur den Späher.
-   Also bekommt sie eine Ebene, einen Grund, und die Karte fängt unter ihr an. */
-.haunt.is-view .haunt__subs { position: relative; z-index: 6; flex: none; padding: 6px 10px; background: rgba(7, 10, 16, 0.92); border-bottom: 1px solid rgba(140, 170, 230, 0.18); }
-.haunt.is-view .haunt__body:has(> .haunt__subs) .role { top: 57px; }
-.haunt__sub { padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(10, 15, 26, 0.9); color: #97a3bd; font: inherit; font-size: 12px; touch-action: manipulation; }
-.haunt__sub[aria-pressed='true'] { background: rgba(140, 170, 230, 0.18); border-color: rgba(140, 170, 230, 0.5); color: #e8ecf7; }
 .setup__holder { margin: -2px 0 2px 2px; font-size: 11px; color: #6b7690; }
 
 /* --- Der Aufbau: zwei Häkchen, die Verteilung, ein Startknopf (`stationUi.vanPage`) --- */

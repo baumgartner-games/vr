@@ -2792,7 +2792,11 @@ export class HauntingWorld extends GridWorld {
    *   Schalter gibt.
    */
   private panelSwitch(kind: 'door' | 'light', target: string): string {
-    if (this.state.phase !== 'running') return '';
+    // **Vor dem Start schaltet die Tafel nichts** — und sagt das, statt „kein
+    // Schalter": Wer in der Zentrale auf eine Tür tippt, während noch alle im
+    // Aufbau stehen, hielte die Karte sonst für kaputt.
+    if (this.state.phase !== 'running')
+      return 'Noch keine Runde — die Tafel schaltet erst mit dem Start.';
     const entry = visibleSwitches(this.spec.switches, this.state.fuse).find(
       (one) => one.kind === kind && one.target === target,
     );
