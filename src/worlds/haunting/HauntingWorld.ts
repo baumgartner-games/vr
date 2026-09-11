@@ -1154,6 +1154,7 @@ export class HauntingWorld extends GridWorld {
               (p.role === 'vr' || clock() - (this.technicians.get(p.id) ?? -Infinity) < 3000),
           ),
           room: ctx.net.room,
+          technician: this.suitName(ctx),
         }),
         nameOf: (peer) => ctx.net.peers.get(peer)?.name ?? 'jemand',
         seat: () => seatOf(this.currentClaims(), ctx.net.localId),
@@ -3818,6 +3819,17 @@ export class HauntingWorld extends GridWorld {
       peer.world === world &&
       (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000)
     );
+  }
+
+  /**
+   * **Der Name des Menschen im Anzug** — für die Tafel der Zentrale: ich
+   * selbst, wenn ich ihn trage, sonst der Mitspieler mit Brille oder frischem
+   * Herzschlag; `null`, wenn ihn niemand trägt.
+   */
+  private suitName(ctx: WorldContext): string | null {
+    if (ctx.role === 'vr' || this.flatTechnician) return ctx.net.name;
+    for (const peer of ctx.net.peers.values()) if (this.wearsSuit(peer)) return peer.name;
+    return null;
   }
 
   /** Der Mitspieler im Anzug mit bekannter Pose — für Augen und Karte der Zentrale. */

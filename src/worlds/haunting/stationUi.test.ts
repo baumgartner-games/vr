@@ -126,7 +126,12 @@ function crew(
     claims: () => (seat ? [{ id: 'me', station: seat, seniority: 10 }] : []),
     me: () => 'me',
     nameOf: () => 'Mein Gerät',
-    link: () => ({ peers: 2, vr: remoteTechnician, room: 'test-crew' }),
+    link: () => ({
+      peers: 2,
+      vr: remoteTechnician,
+      room: 'test-crew',
+      technician: remoteTechnician ? 'Nils (Brille)' : null,
+    }),
     technician,
     menu,
     restart,
@@ -509,14 +514,24 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(game.setup.seats.yellow.who).toBe('bot');
   });
 
-  it('schreibt „VR" in die Zeile des Technikers und lässt sie nicht drücken', () => {
+  /**
+   * **Der Anzug hat einen Namen.** Brille und „Web 3D" kommen als Techniker
+   * herein — die Zeile zeigt dann, wer es ist, und keine Knöpfe mehr: kein
+   * „Ich", kein „Mensch · Bot". Der Platz bleibt auf der Tafel ein Mensch.
+   */
+  it('schreibt den Namen des Menschen im Anzug in die Zeile des Technikers', () => {
     const game = crew('red', true);
     button('[data-tab="setup"]').click();
-    const key = button('[data-seat="technician"] [data-setup-who="human"]');
-    expect(key.textContent).toBe('VR');
-    expect(key.disabled).toBe(true);
-    key.click();
+    const row = document.querySelector<HTMLElement>('[data-seat="technician"]')!;
+    expect(row.querySelector('[data-setup-suit]')?.textContent).toContain('Nils (Brille)');
+    expect(row.querySelector('[data-setup-suit]')?.textContent).toContain('im Anzug');
+    expect(row.querySelectorAll('[data-setup-who]')).toHaveLength(0);
+    expect(row.querySelector('[data-setup-me]')).toBeNull();
+    // Die Lämpchen bleiben: Was der Techniker sieht und schaltet, stellt die Zentrale ein.
+    expect(row.querySelectorAll('[data-setup-power]')).toHaveLength(3);
     expect(game.setup.seats.technician.who).toBe('human');
+    // Ohne Menschen im Anzug stehen die Knöpfe wieder da.
+    expect(document.querySelectorAll('[data-seat="red"] [data-setup-who]')).toHaveLength(3);
   });
 
   /**

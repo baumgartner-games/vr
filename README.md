@@ -107,9 +107,10 @@ Techniker im Anzug), **Web 3D** (der Techniker am Bildschirm, im Schiff) und
 **2D Einsatzzentrale** (Handy oder Laptop: Archiv, Schalttafel, Späher,
 Zuschauer oder Monster — die Karte von oben). In der Zentrale dann Archiv
 beziehungsweise Schalttafel besetzen — auf der Tafel im Aufbau sagt ein
-**Ich** je Zeile, welcher Platz der eigene ist. Wer über **Web 3D** kommt,
-steht sofort im Anzug: Die Zentrale sieht ihn auf der Karte, und ihr
-„Mission starten" schickt den Start zu ihm. Wer in der Quest im Hub **Haunting /
+**Ich** je Zeile, welcher Platz der eigene ist. Wer über **Enter VR** oder
+**Web 3D** kommt, steht sofort im Anzug: Die Techniker-Zeile der Tafel zeigt
+seinen Namen, die Zentrale sieht ihn auf der Karte, und ihr „Mission starten"
+schickt den Start zu ihm. Wer in der Quest im Hub **Haunting /
 Orbital** wählt, kommt ebenfalls in den Raum der Adresse. Wer in der Brille
 im Boden steckt, holt sich am Handgelenk heraus: Menü → **Feststecken? Zurück
 auf den Boden** setzt einen mitten ins eigene Zimmer, draußen in die Zentrale.

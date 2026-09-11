@@ -8927,6 +8927,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     oben (`stationUi.choose`). Beim Techniker gesperrt, solange die Brille ihn
     trägt. Die alte Spalte „Ich" war gestrichen; der Besitzer wollte an der
     Stelle, an der man liest, wer wer ist, auch sagen können „das bin ich".
+    **Und der Anzug hat einen Namen** (`SetupPanelHost.technician`,
+    `[data-setup-suit]`, aus `HauntingWorld.suitName` über `link().technician`):
+    Brille und „Web 3D" kommen als Techniker herein, also zeigt die Zeile des
+    Technikers dann den Namen des Menschen im Anzug („du · im Anzug" bei sich
+    selbst) statt „Ich · Mensch · Bot" — nur die Lämpchen der Fähigkeiten
+    bleiben. Trägt ihn niemand, stehen die Knöpfe wie bei jedem Platz.
   - **Feststecken? Zurück auf den Boden** (`HauntingWorld.unstickPlayer`,
     Eintrag `haunt:rescue` in jeder Lage des Weltmenüs, Brille wie
     Bildschirm): misst, wo die Füße stehen — in einem Zimmer der Station geht

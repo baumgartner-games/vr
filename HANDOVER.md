@@ -56,7 +56,11 @@ der Brillenspieler sich am Handgelenk aus dem Boden holen können.
   Client 1 sofort am Stock und Gastgeber, Client 2 sieht „Techniker: Mensch"
   und Client 1 auf der Karte, der Start aus der Zentrale läuft bei Client 1
   ohne Bot, Client 2 wird Zuschauer der Netzrunde und sieht 3,2 m Bewegung von
-  Client 1. Dazu **„Ich" auf jeder Zeile der Tafel** (`[data-setup-me]`).
+  Client 1. Dazu **„Ich" auf jeder Zeile der Tafel** (`[data-setup-me]`) —
+  außer auf der des Technikers, sobald ihn jemand trägt: Dann steht dort
+  **der Name des Menschen im Anzug** (`[data-setup-suit]`, `suitName`)
+  statt Ich · Mensch · Bot, weil Brille und „Web 3D" direkt als Techniker
+  hereinkommen.
   Hinweis für Browser-Tests: Zwei SwiftShader-Szenen in einem Headless-Browser
   lassen die Hintergrundseite fast stehen (ein Bild je Sekunde, dt-Klammer
   50 ms) — der Herzschlag reißt dann ab. Der Test treibt `App.frame` deshalb
