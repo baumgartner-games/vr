@@ -34,19 +34,38 @@ import type { MapNoise, MapRound, MapSnapshot, MonsterInsight } from './mapSnaps
 import { computeVisibility, emptyField, LitCache, type VisibilityField } from './visibility';
 import { drawInsight } from './insightOverlay';
 import type { ToolIconSource } from './toolIcons';
+import { pageHudShown, pressPageButton, showPageHud } from '../../../core/pageHud';
 
 /**
  * **Die 2D-Welt** — die Station als gezeichnete Szene, gespielt mit dem Daumen.
  *
  * Links der Stock, rechts unten ein großer Knopf „Benutzen" und darüber zwei
  * kleine: Werkzeug benutzen, Werkzeug wechseln. Die Szene (`flatScene.ts`)
- * folgt dem Spieler, lässt sich ziehen und mit zwei Fingern zoomen; ein
- * Knopf holt sie zurück. Oben links der Kasten mit zwei Zeilen —
- * Sauerstoffuhr mit Anzug-Leben, darunter „Aufgaben" mit einem Kreis je
- * Auftrag —, oben rechts Zahnrad und Karte. Die Karte ist die alte `MapView` als Overlay — die
- * Übersicht bleibt erreichbar, sie ist nur nicht mehr das Spielbild. Rätsel
- * liegen als Overlay über der Szene; das Optionsmenü hat genau zwei Modi
- * (`registry/viewModes.ts`, Publikum `flat`).
+ * folgt dem Spieler, lässt sich ziehen und mit zwei Fingern zoomen — und
+ * springt von selbst zurück, sobald der Spieler einen Schritt tut:
+ * Verschieben ist ein Blick zur Seite, kein Zustand, den man wieder aufräumen
+ * muss.
+ *
+ * **Der obere Rand gehört dieser Welt allein.** Der Streifen der Seite
+ * (Weltname, Menü, Verbindung, VR — `index.html`, `#hud`) wird beim Betreten
+ * abgeschaltet (`core/pageHud.ts`) und beim Verlassen wieder so hergestellt,
+ * wie er war; `--flat-top` rückt dafür nach oben. Darunter steht, in dieser
+ * Reihenfolge und **nebeneinander statt übereinander**: der Kasten mit zwei
+ * Zeilen (Sauerstoffuhr mit Anzug-Leben, darunter der Reiter „Aufgaben" mit
+ * einem Kreis je Auftrag), rechts daneben das Zahnrad — und in der Zeile
+ * darunter die Sprungknöpfe. Vorher hingen die drei an festen Abständen vom
+ * oberen Rand und lagen damit reihum voreinander: „Zum Spieler" gab es, aber
+ * zu sehen war der Reiter davor.
+ *
+ * **Ein Overlay auf einmal** (`FlatOverlay`). Karte, Rätsel, Raumakte und
+ * Optionsmenü sind vier Bilder, die dieselbe Fläche wollen; solange eines
+ * davon offen ist, sind HUD, Reiter, Stock, Knöpfe **und die Szene** weg. Die
+ * Runde läuft dabei weiter — sie ist nur nicht zu sehen. Das steht an *einer*
+ * Stelle (`applyOverlay`), weil vier Stellen, die je ein `hidden` umlegen,
+ * sich genau dann widersprechen, wenn zwei davon gleichzeitig zutreffen.
+ * Die Karte ist dabei die alte `MapView` — erreichbar über das Zahnrad, seit
+ * der eigene 🗺-Knopf oben rechts weg ist; das Optionsmenü hat genau zwei
+ * Modi (`registry/viewModes.ts`, Publikum `flat`).
  *
  * Drei Rollen (`FlatRole`): der Techniker am Stock, das Monster
  * (`monster/monsterSession.ts`) — und **Zuschauen**, bei dem niemand spielt.
@@ -121,10 +140,36 @@ export interface FlatModeHost {
 const TOAST_SECONDS = 3.2;
 /** Wie oft der Späher ein neues Horchbild bekommt, in Sekunden. */
 export const SCOUT_PERIOD = 3.5;
-/** Wie viele Punkte unter dem HUD der Seite die Randdreiecke bleiben. */
+/**
+ * Wie viele Punkte vom oberen Rand die Randdreiecke wegbleiben — so hoch ist
+ * die Spalte oben (`.flat__top`: Kasten, Zahnrad, Sprungknöpfe).
+ */
 const EDGE_TOP = 118;
+/**
+ * **Ab wie viel Bewegung je Bild die Kamera von selbst zum Spieler
+ * zurückspringt**, in Metern.
+ *
+ * Ein Techniker, der die Szene zur Seite zieht, will dort etwas nachsehen —
+ * und danach weiterspielen. Vorher blieb die Kamera, wo er sie hingezogen
+ * hatte, und er lief aus dem eigenen Bild heraus, bis er den Knopf fand.
+ * Deshalb ist Verschieben nur so lange ein Blick zur Seite, wie er still
+ * steht: Der erste Schritt holt die Kamera zurück. Der Schwellwert ist klein
+ * genug für einen Schritt und groß genug, dass Rundungsreste eines
+ * stehenden Spielers ihn nicht auslösen.
+ */
+const CAMERA_RETURN = 0.01;
 
 const NO_POWERS: SoloPowers = { scout: false, panel: false, archive: false };
+
+/**
+ * **Was gerade über der Szene liegt** — genau eines davon, nie zwei.
+ *
+ * Die vier wollen dieselbe Fläche und dieselbe Aufmerksamkeit: Wer an der
+ * Konsole ein Rätsel löst, will keine Karte darunter sehen, und wer die Karte
+ * aufschlägt, will nicht raten, welcher der zwei Knöpfe am Rand jetzt noch
+ * zur Szene gehört. `'none'` ist das Spiel selbst.
+ */
+export type FlatOverlay = 'none' | 'map' | 'puzzle' | 'sheet' | 'options';
 
 /**
  * Wie die eigene Rolle im Optionsmenü heißt. Sie steht dort als Auskunft über
@@ -156,6 +201,13 @@ export class FlatMode {
   readonly map: MapView;
   private readonly mapOverlay = el('div', 'flat__map');
   private readonly stick = new Joystick();
+  /**
+   * **Der obere Rand als eine Spalte**, nicht als drei Dinge mit je einem
+   * Abstand von oben: erste Zeile HUD und Zahnrad, zweite Zeile die
+   * Sprungknöpfe. Wer untereinander steht, verdeckt sich nicht.
+   */
+  private readonly top = el('div', 'flat__top');
+  private readonly topRow = el('div', 'flat__top-row');
   private readonly hud = el('div', 'flat__hud');
   private readonly vitals = el('div', 'flat__vitals');
   private readonly tasks = el('div', 'flat__tasks');
@@ -176,7 +228,6 @@ export class FlatMode {
     'Zum Monster',
   );
   private readonly optionsKey = el('button', 'flat__corner flat__options', '⚙');
-  private readonly mapKey = el('button', 'flat__corner flat__mapkey', '🗺');
   private readonly options = el('div', 'flat__panel');
   private readonly sheet = el('div', 'flat__panel flat__sheet');
   private readonly ending = el('div', 'flat__ending');
@@ -222,6 +273,13 @@ export class FlatMode {
    * als alles andere in diesem Bauteil zusammen.
    */
   private readonly netLights = new LitCache();
+  /** Was gerade über der Szene liegt — genau eines (`FlatOverlay`). */
+  private overlay: FlatOverlay = 'none';
+  /**
+   * Wo der Spieler beim letzten Bild stand — daran hängt das Zurückspringen
+   * der Kamera (`CAMERA_RETURN`).
+   */
+  private lastAt = { x: 0, z: 0 };
 
   constructor(
     seed: number,
@@ -282,8 +340,6 @@ export class FlatMode {
     mapClose.addEventListener('click', () => this.showMap(false));
     this.mapOverlay.append(this.map.element, mapClose);
     this.mapOverlay.hidden = true;
-    this.mapKey.addEventListener('click', () => this.showMap(this.mapOverlay.hidden));
-    this.mapKey.setAttribute('aria-label', 'Karte');
     this.optionsKey.setAttribute('aria-label', 'Optionen');
     // Der Kasten oben links: Uhr und Anzug, darunter der Reiter mit den Kreisen.
     this.tab.append(
@@ -324,11 +380,9 @@ export class FlatMode {
       this.refreshCorners();
     });
     this.jump.append(this.centreKey, this.monsterKey);
-    this.optionsKey.addEventListener('click', () => {
-      this.options.hidden = !this.options.hidden;
-      this.sheet.hidden = true;
-      if (!this.options.hidden) this.renderOptions();
-    });
+    this.optionsKey.addEventListener('click', () =>
+      this.setOverlay(this.overlay === 'options' ? 'none' : 'options'),
+    );
     this.options.hidden = true;
     this.options.addEventListener('click', (event) => this.optionClick(event));
     this.sheet.hidden = true;
@@ -336,24 +390,33 @@ export class FlatMode {
     this.ending.hidden = true;
     this.ending.addEventListener('click', (event) => this.optionClick(event));
     this.icon.hidden = true;
+    // Der obere Rand als **eine** Spalte: erst HUD und Zahnrad nebeneinander,
+    // darunter die Sprungknöpfe. Sie stehen damit im DOM hinter dem HUD und
+    // liegen auf dem Bild darunter — nicht dahinter.
+    this.topRow.append(this.hud, this.optionsKey);
+    this.top.append(this.topRow, this.jump);
     this.element.append(
       this.scene.element,
-      this.hud,
+      this.top,
       this.toast,
       this.stick.element,
       this.buttons,
-      this.jump,
-      this.mapKey,
-      this.optionsKey,
       this.mapOverlay,
       this.puzzle.element,
       this.sheet,
       this.options,
       this.ending,
     );
+    // `flat--world` unterscheidet die gespielte 2D-Welt von denselben
+    // Knöpfen über der 3D-Szene (`world3d/shipControls.ts`, `.flat.ship3d`):
+    // Nur hier ist der Streifen der Seite weg, und nur hier rückt `--flat-top`
+    // deshalb nach oben.
+    this.element.classList.add('flat--world');
     this.element.dataset['mode'] = this.mode.visibility;
+    showPageHud(false);
     this.applyLayers();
     this.playRole(options.role ?? 'technician');
+    this.lastAt = { x: this.round.player.x, z: this.round.player.z };
     this.refreshKeys();
     this.renderHud();
   }
@@ -373,7 +436,7 @@ export class FlatMode {
         (text) => this.say(text),
         this.options_.tuning?.technician,
       );
-      this.element.insertBefore(this.session.element, this.hud);
+      this.element.insertBefore(this.session.element, this.top);
     } else if (role === 'watch' && !this.netWatch) {
       // Nur die **lokale** Vorführung braucht einen Techniker aus Zahlen. Wer
       // einer echten Runde im Netz zusieht, hätte sonst zwei Techniker: einen
@@ -382,14 +445,74 @@ export class FlatMode {
         this.dice.next(),
       );
     }
-    for (const node of [this.scene.element, this.jump, this.mapKey])
-      node.hidden = role === 'monster';
-    if (role === 'monster') this.showMap(false);
-    for (const node of [this.stick.element, this.buttons]) node.hidden = role !== 'technician';
     this.element.dataset['role'] = role;
+    // Die Rolle wechselt, was sichtbar ist — aber sie entscheidet es nicht
+    // selbst: Das tut `applyOverlay`, damit es genau eine Stelle bleibt.
+    if (role === 'monster' && this.overlay === 'map') this.overlay = 'none';
+    this.applyOverlay();
     this.heard = [];
     this.scoutClock = 0;
     this.refreshCorners();
+  }
+
+  // --- Ein Overlay auf einmal ----------------------------------------------------
+
+  /** Was gerade über der Szene liegt — für Tests und die Anzeige. */
+  get openOverlay(): FlatOverlay {
+    return this.overlay;
+  }
+
+  /** Umschalten und sofort anwenden. */
+  private setOverlay(next: FlatOverlay): void {
+    if (next === this.overlay) return;
+    this.overlay = next;
+    if (next === 'options') this.renderOptions();
+    this.applyOverlay();
+  }
+
+  /**
+   * **Die eine Stelle, an der Sichtbarkeit entschieden wird.**
+   *
+   * Zwei Fragen, mehr nicht: Liegt ein Overlay über der Szene? Und welche
+   * Rolle spielt der, der hier sitzt? Vorher legte jeder Knopf sein eigenes
+   * `hidden` um — das Rätsel schloss das Menü, das Menü schloss die Akte, die
+   * Akte wusste nichts von der Karte —, und übrig blieb ein Bild, in dem die
+   * Aufgabenliste über einem Kabelrätsel stand und der Stock darunter noch
+   * lief.
+   *
+   * Die **Szene** geht dabei mit weg. Sie rechnet weiter (die Runde läuft
+   * nicht langsamer, weil jemand eine Akte liest), aber sie ist nicht zu
+   * sehen: Ein Rätsel vor einer Station, auf der das Monster um die Ecke
+   * biegt, ist kein Rätsel mehr, sondern eine Ablenkung mit Hintergrund.
+   */
+  private applyOverlay(): void {
+    const open = this.overlay !== 'none';
+    const role = this.role;
+    this.element.dataset['overlay'] = this.overlay;
+    this.mapOverlay.hidden = this.overlay !== 'map';
+    this.sheet.hidden = this.overlay !== 'sheet';
+    this.options.hidden = this.overlay !== 'options';
+    // Der obere Rand mitsamt Zahnrad: Wer ein Overlay offen hat, schließt es
+    // über dessen eigenen Knopf und nicht über das Menü dahinter.
+    this.top.hidden = open;
+    this.hud.hidden = role === 'monster';
+    this.jump.hidden = role === 'monster';
+    this.scene.element.hidden = open || role === 'monster';
+    if (this.session) this.session.element.hidden = open;
+    for (const node of [this.stick.element, this.buttons])
+      node.hidden = open || role !== 'technician';
+  }
+
+  /**
+   * **Das Rätsel gehört der Runde, nicht einem Knopf** — es geht auf, wenn der
+   * Techniker an einer Konsole steht, und zu, wenn es gelöst ist. Deshalb wird
+   * der Overlay-Zustand danach nachgezogen und nicht umgekehrt; ein offenes
+   * Rätsel schiebt Karte, Akte und Menü beiseite.
+   */
+  private syncOverlay(): void {
+    if (this.round.puzzle) this.setOverlay('puzzle');
+    else if (this.overlay === 'puzzle') this.setOverlay('none');
+    else this.applyOverlay();
   }
 
   /** Wer gerade spielt — für Tests und die Anzeige. */
@@ -477,6 +600,7 @@ export class FlatMode {
     }
     if (!this.session) {
       this.stepScout(dt);
+      this.followPlayer();
       this.scene.setSnapshot(shown);
       this.scene.setVisibility(this.field());
       this.scene.draw();
@@ -485,13 +609,11 @@ export class FlatMode {
         this.map.setVisibility(this.field());
         this.map.draw();
       }
-      // Ein offenes Rätsel liegt über allem: Optionsmenü und Akte gehen dabei zu.
-      if (this.round.puzzle && !this.options.hidden) this.options.hidden = true;
-      if (this.round.puzzle && !this.sheet.hidden) this.sheet.hidden = true;
       this.puzzle.sync();
       this.refreshKeys();
       this.refreshCorners();
     }
+    this.syncOverlay();
     this.renderHud();
     if (this.phaseNow() !== 'running' && this.ending.hidden) this.renderEnding();
   }
@@ -568,8 +690,7 @@ export class FlatMode {
 
   /** Die Kartenübersicht ein- oder ausblenden — sie zeichnet nur, solange sie offen ist. */
   showMap(open: boolean): void {
-    this.mapOverlay.hidden = !open;
-    this.mapKey.classList.toggle('is-active', open);
+    this.setOverlay(open ? 'map' : this.overlay === 'map' ? 'none' : this.overlay);
     if (open) {
       this.map.fit();
       this.map.setSnapshot(this.round.snapshot());
@@ -904,8 +1025,7 @@ export class FlatMode {
     close.dataset['closeSheet'] = '';
     parts.push(close);
     this.sheet.replaceChildren(...parts);
-    this.sheet.hidden = false;
-    this.options.hidden = true;
+    this.setOverlay('sheet');
   }
 
   private say(text: string): void {
@@ -946,6 +1066,28 @@ export class FlatMode {
     this.actKey.textContent = '';
     this.actKey.append(el('strong', '', 'Benutzen'), el('small', '', target?.label ?? ''));
     this.actKey.classList.toggle('is-ready', !!target);
+  }
+
+  /**
+   * **Der erste Schritt holt die Kamera zurück** (`CAMERA_RETURN`).
+   *
+   * Der Techniker zieht die Szene zur Seite, um nachzusehen, was hinter der
+   * nächsten Wand liegt — und läuft dann weiter. Vorher blieb die Kamera
+   * liegen, wo er sie hingezogen hatte, und er lief aus dem eigenen Bild
+   * heraus; „Zum Spieler" war ein Zustand, den man selbst aufräumen musste.
+   * Jetzt ist Verschieben ein Blick zur Seite, der endet, sobald er sich
+   * bewegt — und der Knopf steht nur da, solange er wirklich etwas tut.
+   *
+   * **Nur für den, der spielt.** In der Vorführung und beim Zuschauen läuft
+   * der Techniker ununterbrochen; dieselbe Regel nähme dort jedes Verschieben
+   * schon im nächsten Bild wieder zurück.
+   */
+  private followPlayer(): void {
+    const at = this.round.player;
+    const moved = Math.hypot(at.x - this.lastAt.x, at.z - this.lastAt.z);
+    this.lastAt = { x: at.x, z: at.z };
+    if (this.bot || this.netWatch || moved < CAMERA_RETURN) return;
+    if (this.scene.current.following !== PLAYER_ID) this.scene.follow(PLAYER_ID);
   }
 
   /**
@@ -1136,6 +1278,42 @@ export class FlatMode {
             'Archiv, Schalttafel, Späher und Drohne haben eigene Ansichten — die wählst du in der Lobby.',
         ),
       );
+    // **Was vorher als Knopf am Rand hing.** Die Karte hatte oben rechts ein
+    // eigenes 🗺 neben dem Zahnrad — zwei runde Knöpfe, die sich mit den
+    // Sprungknöpfen um dieselbe Ecke stritten. Menü und Verbindung standen im
+    // Streifen der Seite, und der ist in der 2D-Welt abgeschaltet
+    // (`core/pageHud.ts`). Alle drei stehen deshalb hier, wo Platz für eine
+    // Zeile Erklärung ist.
+    parts.push(el('strong', '', 'Aufmachen'));
+    const map = el('button', 'flat__option');
+    map.dataset['map'] = '';
+    map.append(
+      el('strong', '', 'Karte'),
+      el('small', '', 'Die Übersicht der Station über der Szene'),
+    );
+    const menu = el('button', 'flat__option');
+    menu.dataset['pagemenu'] = '';
+    menu.append(
+      el('strong', '', 'Menü'),
+      el(
+        'small',
+        '',
+        // Das Menü der Seite ist ein Panel in der 3D-Szene und liegt damit
+        // **hinter** der 2D-Welt. Es allein aufzumachen hieße, auf ein
+        // schwarzes Bild zu tippen — deshalb kommt der Streifen der Seite
+        // dafür zurück, und der nächste Tipp nimmt ihn wieder weg.
+        pageHudShown()
+          ? 'Kopfzeile der Seite wieder ausblenden'
+          : 'Menü, Verbindung und VR am oberen Rand der Seite',
+      ),
+    );
+    const net = el('button', 'flat__option');
+    net.dataset['pagenet'] = '';
+    net.append(
+      el('strong', '', 'Verbindung'),
+      el('small', '', 'Raum-Code, Mitspieler, Sprache und Chat'),
+    );
+    parts.push(map, menu, net);
     // Ton: zwei Regler mit drei Stufen (Paket Audio, `audio/settings.ts`).
     parts.push(el('strong', '', 'Ton'));
     for (const which of ['effects', 'ambient'] as const) {
@@ -1252,10 +1430,27 @@ export class FlatMode {
     } else if (data['audio'] === 'effects' || data['audio'] === 'ambient') {
       this.audio.cycle(data['audio']);
       this.renderOptions();
-    } else if (data['closeOptions'] !== undefined) {
-      this.options.hidden = true;
-    } else if (data['closeSheet'] !== undefined) {
-      this.sheet.hidden = true;
+    } else if (data['map'] !== undefined) {
+      this.showMap(true);
+    } else if (data['pagemenu'] !== undefined) {
+      // Erst den Streifen der Seite zurückholen (oder wieder wegnehmen),
+      // dann drücken: Das Menü ist ein Panel in der 3D-Szene und läge sonst
+      // hinter der 2D-Welt.
+      const back = !pageHudShown();
+      showPageHud(back);
+      // Steht der Streifen wieder da, rückt der obere Rand der 2D-Welt unter
+      // ihn — sonst wäre er genau das, was er vorher war: ein fremder Knopf
+      // über dem Aufgabenkasten.
+      this.element.classList.toggle('is-paged', back);
+      pressPageButton('menu');
+      this.setOverlay('none');
+    } else if (data['pagenet'] !== undefined) {
+      // Das Verbindungs-Panel der Seite liegt mit `z-index: 6` über allem —
+      // dafür braucht es die Kopfzeile nicht.
+      pressPageButton('net');
+      this.setOverlay('none');
+    } else if (data['closeOptions'] !== undefined || data['closeSheet'] !== undefined) {
+      this.setOverlay('none');
     }
   }
 
@@ -1296,9 +1491,8 @@ export class FlatMode {
     this.puzzle = new PuzzleOverlay(this.round);
     this.element.insertBefore(this.puzzle.element, this.sheet);
     this.ending.hidden = true;
-    this.options.hidden = true;
-    this.sheet.hidden = true;
-    this.showMap(false);
+    this.setOverlay('none');
+    this.lastAt = { x: this.round.player.x, z: this.round.player.z };
     this.scene.follow(PLAYER_ID);
     this.map.fit();
     this.map.follow(PLAYER_ID);
@@ -1312,6 +1506,10 @@ export class FlatMode {
   }
 
   dispose(): void {
+    // Der Streifen der Seite kommt so zurück, wie er vor dem Betreten stand
+    // (`core/pageHud.ts`) — auch dann, wenn ihn zwischendurch jemand über das
+    // Zahnrad wieder hervorgeholt hat.
+    showPageHud(true);
     this.session?.dispose();
     this.audio.dispose();
     this.stick.dispose();

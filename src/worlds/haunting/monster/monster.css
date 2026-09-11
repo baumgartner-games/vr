@@ -8,11 +8,13 @@
 .monster [hidden] { display: none !important; }
 .monster__map { position: absolute; inset: 0; }
 .monster__map .mapview__canvas { width: 100%; height: 100%; display: block; }
-/* **Unter dem HUD der Seite, nicht darunter begraben.** Die Rolle läuft in der
-   2D-Welt (`map/flat.css`, `--flat-top`) und in der Einsatzzentrale; oben
-   schweben Menü, Verbindung und VR-Knopf. Vorher rechnete diese Zeile nur mit
-   dem Sicherheitsabstand des Geräts und stand deshalb halb unter ihnen —
-   „Nichts zu hören." war auf dem Telefon abgeschnitten. */
+/* **An derselben Kante wie alles andere oben: `--flat-top`.** Die Rolle läuft
+   in der 2D-Welt (`map/flat.css`) und in der Einsatzzentrale, und beide sagen
+   selbst, wo ihr oberer Rand anfängt — in der 2D-Welt ganz oben, seit der
+   Streifen der Seite dort abgeschaltet ist (`core/pageHud.ts`), in der
+   Zentrale unter deren Kopfzeile. Vorher rechnete diese Zeile nur mit dem
+   Sicherheitsabstand des Geräts und stand deshalb halb unter Menü, Verbindung
+   und VR-Knopf — „Nichts zu hören." war auf dem Telefon abgeschnitten. */
 .monster__hud { position: absolute; left: 12px; top: var(--flat-top, calc(max(10px, env(safe-area-inset-top)) + 58px)); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 10px; background: rgba(28, 10, 14, 0.8); border: 1px solid rgba(255, 77, 85, 0.35); pointer-events: none; max-width: 60vw; }
 .monster__hud strong { font-size: 14px; letter-spacing: .04em; color: #ff4d55; }
 .monster__hud span { font-size: 12px; color: #c9a0a4; }
