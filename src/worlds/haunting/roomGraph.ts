@@ -21,6 +21,16 @@ import type { RoutineWorld } from './monsterRoutine';
  * Bauplan (`spec.rooms`), aber der Techniker geht dorthin zurück, und ein
  * Ziel, das auf keiner Karte steht, kostet erfahrungsgemäß eine Stunde
  * Suche. Sie heißt `COMMAND` und hängt an der Schleuse.
+ *
+ * **Aber nicht auf jeder Karte.** Es gibt diese Karte zweimal: die ganze
+ * (`stationGraph`) und die des Monsters (`monsterGraph`), und der zweiten
+ * fehlt die Zentrale samt der Schleuse, die dorthin führt. Das ist keine
+ * Sparsamkeit, sondern die Regel: **Das Monster kennt die Einsatzzentrale
+ * nicht.** Es patrouilliert nicht dorthin, sucht nicht dort, rechnet keinen
+ * Weg dorthin und vermutet dort auch niemanden — sein Gedächtnis
+ * (`monster/monsterMemory.ts`) legt seine Räume aus `spaces` an, und was
+ * nicht darin steht, kann es nicht glauben. Der Techniker läuft weiter hinein
+ * und hinaus; für ihn ist und bleibt die Zentrale ein Raum wie jeder andere.
  */
 export const COMMAND = 'command';
 
@@ -79,12 +89,39 @@ export interface StationGraph extends RoutineWorld {
 }
 
 const cache = new WeakMap<HouseSpec, StationGraph>();
+const monsterCache = new WeakMap<HouseSpec, StationGraph>();
 
 export function stationGraph(spec: HouseSpec): StationGraph {
   const known = cache.get(spec);
   if (known) return known;
+  const built = buildGraph(spec, true);
+  cache.set(spec, built);
+  return built;
+}
+
+/**
+ * **Dieselbe Station, wie das Monster sie kennt** — ohne die Zentrale und
+ * ohne die Schleuse, die dorthin führt.
+ *
+ * Jede Stelle, die für das Monster entscheidet, fragt diese Karte: Routine
+ * (`monsterRoutine.ts`), Gedächtnis, Abfangrechnung, Reisezeiten und die
+ * Wegsuche seiner Navigatoren. Damit ist „das Monster geht nie in die
+ * Zentrale" keine Prüfung, die man an fünf Stellen vergessen kann, sondern
+ * eine Karte, auf der der Ort schlicht nicht vorkommt — und `spaceAt` gibt
+ * für den Vorplatz `''` zurück, weil das Monster nicht einmal benennen kann,
+ * wo der andere da gerade steht.
+ */
+export function monsterGraph(spec: HouseSpec): StationGraph {
+  const known = monsterCache.get(spec);
+  if (known) return known;
+  const built = buildGraph(spec, false);
+  monsterCache.set(spec, built);
+  return built;
+}
+
+function buildGraph(spec: HouseSpec, knowsCommand: boolean): StationGraph {
   const spaces = spacesOf(spec);
-  const ids = [...spaces.map((room) => room.id), COMMAND];
+  const ids = knowsCommand ? [...spaces.map((room) => room.id), COMMAND] : spaces.map((r) => r.id);
   const centres = new Map<string, FloorPoint>(
     spaces.map((room) => [
       room.id,
@@ -94,7 +131,7 @@ export function stationGraph(spec: HouseSpec): StationGraph {
       },
     ]),
   );
-  centres.set(COMMAND, { x: COMMAND_HOME.x, z: COMMAND_HOME.z });
+  if (knowsCommand) centres.set(COMMAND, { x: COMMAND_HOME.x, z: COMMAND_HOME.z });
   const links = new Map<string, string[]>(ids.map((id) => [id, []]));
   const join = (a: string, b: string): void => {
     if (a === b) return;
@@ -104,6 +141,9 @@ export function stationGraph(spec: HouseSpec): StationGraph {
   const doorsBySpace = new Map<string, string[]>(ids.map((id) => [id, []]));
   const doorPoints = new Map<string, FloorPoint>();
   for (const door of spec.doors) {
+    // Die Schleuse führt nach draußen, und draußen ist für das Monster nichts:
+    // keine Kante, kein Wartepunkt, kein Ausgang, den es bewachen könnte.
+    if (door.b === null && !knowsCommand) continue;
     const behind = door.b ?? COMMAND;
     join(door.a, behind);
     doorsBySpace.get(door.a)?.push(door.id);
@@ -116,7 +156,7 @@ export function stationGraph(spec: HouseSpec): StationGraph {
   // Rechteck mit (den Vorplatz), sonst wäre die Fensterfront zur Kantine für
   // das Gehör eine Wand ohne Ende.
   const rects = new Map<string, Rect>(spaces.map((room) => [room.id, room.rect]));
-  rects.set(COMMAND, APRON);
+  if (knowsCommand) rects.set(COMMAND, APRON);
   const walls: Array<[string, string]> = [];
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
@@ -216,10 +256,11 @@ export function stationGraph(spec: HouseSpec): StationGraph {
         )
           return room.id;
       }
-      return onApron(Math.floor(point.x / TILE), Math.floor(point.z / TILE)) ? COMMAND : '';
+      return knowsCommand && onApron(Math.floor(point.x / TILE), Math.floor(point.z / TILE))
+        ? COMMAND
+        : '';
     },
   };
-  cache.set(spec, graph);
   return graph;
 }
 

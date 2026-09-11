@@ -71,12 +71,16 @@ Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
 Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es
 nicht, und **wohin ein Ersatzteil muss, erfährt es erst, wenn der Techniker es
 in der Hand hat**. Die **Einsatzkontrolle** verfolgt
-das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
-Schiebetüren und Geräuschköder. **Die Station ist dunkel**, und sie bleibt es,
-wenn niemand schaltet: Es geht nirgends von selbst Licht an. Die
-Einsatzkontrolle kann höchstens **zwei Lampen gleichzeitig** brennen lassen —
-die dritte macht die älteste aus —, und keine hält länger als etwa eine Minute:
-Sie flackert, sirrt und geht aus. Wer im Dunkeln steht, hat die Taschenlampe. Drohne und Zuschauer sind weitere optionale
+das Monster auf dem Radar, sieht den simulierten Puls und bedient **Licht und
+Schiebetüren** — mehr nicht; Geräuschköder gibt es nicht mehr, sie haben das
+Monster in eine Ecke geparkt statt einen Zuruf wert zu sein. **Die Station ist
+dunkel**, und sie bleibt es, wenn niemand schaltet — in der Brille wie in der
+2D-Welt: Es geht nirgends von selbst Licht an. Die Einsatzkontrolle kann
+höchstens **zwei Lampen gleichzeitig** brennen lassen — die dritte macht die
+älteste aus —, und keine hält länger als eine halbe Minute: Sie flackert,
+sirrt und geht aus. Wer im Dunkeln steht, hat die Taschenlampe. Die Schalter
+für Licht und Schotts sind **doppelt so groß** wie früher, eine Zeile je
+Schalter: Man trifft sie im Dunkeln mit dem Daumen. Drohne und Zuschauer sind weitere optionale
 Plätze; die Schalttafel gehört zur Einsatzkontrolle. Der Zuschauerplatz kann
 dabei in jeden anderen hineinsehen, ohne ihn zu besetzen.
 
@@ -162,6 +166,26 @@ Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
 Codes auf. **Gewollt gesperrt ist immer nur eine Tür** — wer eine zweite
 wählt, gibt die erste frei; Türen, die das Monster zuschlägt, gehen nach
 zwanzig Sekunden von selbst wieder auf oder vorher durch die Schalttafel.
+
+**Ein Riegel, der gefallen ist, bleibt vierzig Sekunden offen.** Die Tür wird
+dabei **grün** und zählt herunter — auf der Schalttafel steht die Restzeit
+unter der Beschriftung („noch warm · 27 s"), auf der Karte und in der 2D-Szene
+läuft derselbe Balken wie beim Halten, nur grün statt rot. So lange lässt sie
+sich nicht wieder verriegeln, und das ist Absicht: Sonst wurde aus dem Riegel
+das Spiel „ich schließe immer die Tür vor dem Monster", und das Vieh stand
+fest. Dazu kommt, dass es lieber **zieht** als läuft: Steht ein Umweg von mehr
+als ein paar Sekunden gegen den Riegel, geht es an die Tür und reißt sie auf —
+und danach ist sie vierzig Sekunden lang keine Tür mehr, sondern ein Weg.
+
+**Und ab und zu fährt ein Schott von selbst auf**, für zwei, drei Sekunden,
+ohne dass jemand davorsteht — ein Stationsfehler. Ein Blatt, das sich bewegt,
+hieß sonst immer „da ist jemand", und daran hatten sich beide Seiten gewöhnt.
+Gesperrte Schotts sind nie dabei, und beim Zufahren bleibt das Blatt auf,
+solange jemand im Durchgang steht.
+
+**Die Einsatzzentrale ist sicher.** Das Monster kennt sie nicht — sie steht
+nicht auf seiner Karte: Es patrouilliert nicht dorthin, sucht dort nicht und
+folgt auch niemandem hinein. Der Techniker läuft weiter hinein und hinaus.
 
 **Die 2D-Welt** sieht aus wie ein Brettspiel von oben: helle Böden mit
 Kacheln, dicke Wände, Türen als Blätter mit Schloss, die Möbel aus dem Schiff

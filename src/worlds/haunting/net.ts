@@ -54,8 +54,6 @@ export interface HauntState {
   shut: string[];
   /** Die Zimmer, in denen Licht brennt. */
   lit: string[];
-  /** Die Zimmer, in denen ein Radio läuft. */
-  loud: string[];
   /** Ob der Sicherungskasten umgelegt ist. */
   fuse: boolean;
   /** Aufgaben, die der VR-Spieler schon aufgesammelt hat. */
@@ -124,6 +122,24 @@ export interface HauntState {
    * schickt eben eine leere Spur.
    */
   blood?: Drop[];
+  /**
+   * **Die Türen, die gerade abkühlen** (`rules/doorLocks.ts`) — Kennung und
+   * die Rundenzeit, ab der sie wieder gesperrt werden dürfen.
+   *
+   * Die Buchführung der Riegel (`DoorLocks`) bleibt beim Gastgeber, wie eh
+   * und je. Diese eine Liste daraus muss aber hinaus: Vierzig Sekunden sind
+   * lang, und ein Schalter, der vierzig Sekunden lang nichts tut und nicht
+   * sagt warum, ist für den Hacker ein kaputter Schalter. Er soll die
+   * Restzeit sehen — auf der Tafel, auf der Karte, in der Szene.
+   *
+   * **Optional und ohne Protokollsprung** (`STATION_PROTOCOL` bleibt 8), aus
+   * demselben Grund wie bei `blood` und `dropped`: Auf der Empfängerseite
+   * hängt daran **keine Regel**. Gesperrt wird beim Gastgeber, und der prüft
+   * die Abkühlung in seiner eigenen Buchführung (`mayLock`); wer die Liste
+   * nicht bekommt, sieht keine Uhr und drückt einmal umsonst — das ist eine
+   * fehlende Anzeige, kein Auseinanderlaufen.
+   */
+  cooling?: Array<{ id: string; until: number }>;
   /**
    * **Die Ersatzteile, die im Gang liegen** (`rules/archiveGoals.ts`).
    *
@@ -305,6 +321,21 @@ function ids(value: unknown): string[] {
   return value.filter((one): one is string => typeof one === 'string').slice(0, 64);
 }
 
+/**
+ * Die abkühlenden Türen aus fremdem Text — Kennung und Zeitstempel, nach oben
+ * begrenzt wie jede andere Liste hier.
+ */
+function coolings(value: unknown): Array<{ id: string; until: number }> {
+  if (!Array.isArray(value)) return [];
+  const out: Array<{ id: string; until: number }> = [];
+  for (const one of value.slice(0, 64)) {
+    const it = bag(one);
+    if (!it || typeof it['id'] !== 'string') continue;
+    out.push({ id: it['id'].slice(0, 16), until: num(it['until']) });
+  }
+  return out;
+}
+
 export function readState(data: unknown): HauntState | null {
   const it = bag(data);
   if (
@@ -332,7 +363,6 @@ export function readState(data: unknown): HauntState | null {
     monster: monster ? { x: num(monster['x']), z: num(monster['z']) } : null,
     shut: ids(it['shut']),
     lit: ids(it['lit']),
-    loud: ids(it['loud']),
     fuse: it['fuse'] === true,
     taken: ids(it['taken']),
     done: ids(it['done']),
@@ -351,6 +381,9 @@ export function readState(data: unknown): HauntState | null {
     ghosts: ghosts
       ? { monster: ghost(ghosts['monster']), technician: ghost(ghosts['technician']) }
       : freshGhosts(),
+    // Und die abkühlenden Türen (`rules/doorLocks.ts`): fehlen sie, zeigt die
+    // Tafel eben keine Uhr.
+    cooling: coolings(it['cooling']),
     // Und die Tropfen (`rules/blood.ts`): fehlen sie, blutet eben niemand.
     blood: readDrops(it['blood']),
     dropped: droppedParts(it['dropped']),

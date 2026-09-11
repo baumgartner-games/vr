@@ -19,7 +19,7 @@ import {
   type Repair,
 } from '../mission';
 import type { HauntState } from '../net';
-import { COMMAND, stationGraph, type StationGraph } from '../roomGraph';
+import { COMMAND, monsterGraph, stationGraph, type StationGraph } from '../roomGraph';
 import { stationLayout, type FloorBounds, type FloorPoint } from '../stationLayout';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from '../monsterRoutine';
 import { MonsterMemory, shutPairs } from '../monster/monsterMemory';
@@ -45,8 +45,10 @@ import { cargoKey, cargoLabel, cargoOf, type CargoMark, type CargoSlot } from '.
 import { CREW_SIZE, askSeal, dueSeal, freshSeal, type DoorSeal } from '../rules/doorSeal';
 import {
   HOLD_RANGE,
+  LOCK_COOLDOWN,
   SLAM_HOLD,
   chooseLock,
+  coolingUntil,
   freshLocks,
   holdUntil,
   pryLock,
@@ -56,6 +58,8 @@ import {
   toggleLock,
   type DoorLocks,
 } from '../rules/doorLocks';
+import { freshGlitch, stepGlitch, type DoorGlitch } from '../rules/doorGlitch';
+import { freshLamps, lampOut, stepLamps, switchLamp, type Lamps } from '../rules/lamps';
 import { canCarryPart, fullHandsText } from '../rules/archiveGoals';
 import {
   freshTrail,
@@ -134,6 +138,17 @@ export const MONSTER_RADIUS = 0.4;
 const CONTACT = 1.7;
 /** Wie lange Holz einen Verfolger aufhält, in Sekunden. */
 const WOOD_DELAY = 2.5;
+/**
+ * **Ab wann sich das Ziehen mehr lohnt als der Umweg**, in Sekunden Laufzeit.
+ *
+ * Am Riegel zu ziehen kostet im Mittel gut drei Versuche, also knapp vier
+ * Sekunden (`rules/doorLocks.pryChance`). Ein Umweg, der weniger kostet, ist
+ * der bessere Weg — dann geht das Monster eben herum. Alles darüber ist die
+ * Einladung, die der Besitzer abgeschafft haben wollte: Wer die Tür vor dem
+ * Monster schließt, soll dafür einen Riegel verbrauchen und vierzig Sekunden
+ * Abkühlung kassieren, nicht ein festgesetztes Vieh bekommen.
+ */
+const PRY_DETOUR = 4;
 /** Wie weit die Taschenlampe leuchtet und wie breit. */
 export const TORCH_RANGE = 11;
 export const TORCH_FOV = (52 * Math.PI) / 180;
@@ -261,6 +276,13 @@ export class FlatRound implements MapSource {
   readonly house: HouseSpec;
   readonly haunt: HauntState;
   readonly graph: StationGraph;
+  /**
+   * **Dieselbe Station, wie das Monster sie kennt** (`roomGraph.monsterGraph`)
+   * — ohne die Einsatzzentrale und ohne die Schleuse dorthin. Alles, was für
+   * das Monster entscheidet, fragt diese Karte; alles, was für den Techniker
+   * entscheidet, die andere.
+   */
+  readonly prowl: StationGraph;
   readonly player: Actor;
   readonly monster: Actor;
   /** Kabinen, Anzug, Sauerstoff — die Rundenregeln (`rules/roundRules.ts`). */
@@ -324,6 +346,19 @@ export class FlatRound implements MapSource {
   private monsterPulse = 0;
   /** Wer welche Tür gesperrt hat, und wie lange zugefallene halten (`rules/doorLocks.ts`). */
   readonly locks: DoorLocks = freshLocks();
+  /**
+   * **Welche Lampen die Tafel angemacht hat** (`rules/lamps.ts`) — höchstens
+   * zwei, und keine für immer.
+   *
+   * Die 2D-Runde führte diese Buchführung lange nicht, weil sie hell begann:
+   * Es gab keine geschaltete Lampe, nur vierzehn brennende. Seit sie dunkel
+   * beginnt, ist jedes Licht hier ein geschaltetes — und es gelten dieselben
+   * Regeln wie im Headset, aus derselben Datei. `switchLight` und der Spuk
+   * gehen beide hier hindurch.
+   */
+  private readonly lampBook: Lamps = freshLamps();
+  /** Welches Schott gerade grundlos offen steht (`rules/doorGlitch.ts`). */
+  private readonly glitch: DoorGlitch;
   /** Welche automatischen Türen gerade aufgefahren sind (`stepDoors`). */
   private readonly openDoors = new Set<string>();
   /** Die Tür, die hinter dem fliehenden Techniker zufällt (`rules/doorSeal.ts`). */
@@ -387,8 +422,14 @@ export class FlatRound implements MapSource {
       monsterOn: !options.test,
       monster: null,
       shut: [],
-      lit: spacesOf(this.house).map((room) => room.id),
-      loud: [],
+      // **Die Station beginnt dunkel** — wie die Mission im Headset
+      // (`HauntingWorld.startMission`). Eine 2D-Runde, die mit vierzehn
+      // brennenden Lampen anfing, hatte die Taschenlampe zur Zierde und die
+      // Tafel zum Lichtschalter gemacht: Es gab nichts einzuschalten, nur
+      // etwas auszuschalten. Licht macht jetzt auch hier, wer einen Schalter
+      // umlegt, höchstens zwei Räume gleichzeitig und nicht für immer
+      // (`rules/lamps.ts`).
+      lit: [],
       fuse: false,
       taken: [],
       done: [],
@@ -400,11 +441,17 @@ export class FlatRound implements MapSource {
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
-    this.brain = new MonsterMemory(this.graph, () =>
+    // **Die Karte des Monsters** (`roomGraph.monsterGraph`): dieselbe Station
+    // ohne die Einsatzzentrale. Gedächtnis, Reisezeiten, Routine und die
+    // Wegsuche des Monsters hängen daran; der Techniker behält `this.graph`
+    // und läuft weiter hinein und hinaus.
+    this.prowl = monsterGraph(this.house);
+    this.brain = new MonsterMemory(this.prowl, () =>
       shutPairs(this.house.doors, this.haunt.shut, COMMAND),
     );
-    this.estimator = graphEstimator(this.graph);
-    this.navigator = new FlatNavigator(this.house, this.graph, MONSTER_RADIUS);
+    this.estimator = graphEstimator(this.prowl);
+    this.navigator = new FlatNavigator(this.house, this.prowl, MONSTER_RADIUS);
+    this.glitch = freshGlitch(() => this.rng.next());
     this.vents = new VentNet(this.house);
     this.ventRide = new VentTravel(this.vents);
     this.ventPilot = new VentPilot(
@@ -506,11 +553,22 @@ export class FlatRound implements MapSource {
    * hindurchging. Genau darum geht es: Ein Geräusch ist ein Geräusch.
    */
   private stepDoors(): void {
+    // **Ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`) —
+    // ein Stationsfehler, damit ein fahrendes Blatt nicht länger heißt „da ist
+    // jemand". Gesperrte Schotts sind nicht dabei, und zufahren tut es wie
+    // jedes andere: erst, wenn niemand mehr davorsteht.
+    const faulty = stepGlitch(
+      this.glitch,
+      this.house.doors.filter((door) => !this.haunt.shut.includes(door.id)).map((door) => door.id),
+      this.haunt.time,
+      () => this.rng.next(),
+    );
+    if (faulty.opened) this.events.push({ kind: 'info', text: 'Irgendwo fährt ein Schott auf.' });
     for (const door of this.house.doors) {
       const at = doorCentre(door);
       const was = this.openDoors.has(door.id);
       const reach = was ? DOOR_HOLD : DOOR_TRIGGER;
-      let near = false;
+      let near = door.id === faulty.id;
       for (const actor of [this.player, this.monster]) {
         if (actor === this.monster && (!this.haunt.monsterOn || this.ventRide.concealed)) continue;
         if (Math.hypot(actor.x - at.x, actor.z - at.z) < reach) near = true;
@@ -523,13 +581,22 @@ export class FlatRound implements MapSource {
     }
   }
 
-  /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`). */
-  doorHold(id: string): { left: number; total: number } | null {
-    if (!this.haunt.shut.includes(id)) return null;
-    const until = holdUntil(this.locks, id);
-    if (until === null) return null;
-    const total = this.locks.chosen === id ? HOLD_RANGE[1] : SLAM_HOLD;
-    return { left: Math.max(0, until - this.haunt.time), total };
+  /**
+   * **Die Uhr an dieser Tür** (`rules/doorLocks.ts`): Solange sie gesperrt
+   * ist, wie lange die Sperre noch hält; danach, wie lange sie noch offen
+   * bleiben **muss**. Beides wird derselbe Balken über der Tür, rot das eine,
+   * grün das andere (`map/flatScene.ts`, `map/mapView.ts`).
+   */
+  doorHold(id: string): { left: number; total: number; cooling?: boolean } | null {
+    if (this.haunt.shut.includes(id)) {
+      const until = holdUntil(this.locks, id);
+      if (until === null) return null;
+      const total = this.locks.chosen === id ? HOLD_RANGE[1] : SLAM_HOLD;
+      return { left: Math.max(0, until - this.haunt.time), total };
+    }
+    const warm = coolingUntil(this.locks, id);
+    const left = warm === null ? 0 : warm - this.haunt.time;
+    return left > 0 ? { left, total: LOCK_COOLDOWN, cooling: true } : null;
   }
 
   entities(): readonly MapEntity[] {
@@ -712,6 +779,21 @@ export class FlatRound implements MapSource {
       this.haunt.shut = locks.shut;
       this.events.push({ kind: 'info', text: 'Eine Tür geht wieder auf.' });
     }
+    // Die abkühlenden Riegel stehen im Stand, damit die Tafel ihre Uhr zeigen
+    // kann (`HauntState.cooling`) — in 2D ist das derselbe Stand, den auch das
+    // Telefon liest.
+    this.haunt.cooling = this.locks.cooling;
+    // Und die Lampen gehen von selbst wieder aus (`rules/lamps.ts`): erst das
+    // Flackern als Vorwarnung, dann dunkel. Gemeldet wird nur, was im eigenen
+    // Raum passiert — anderswo sieht der Techniker es ja nicht.
+    const lamps = stepLamps(this.lampBook, this.haunt.lit, this.haunt.time);
+    if (lamps.flicker.includes(this.player.space))
+      this.events.push({ kind: 'warn', text: 'Die Lampe flackert.' });
+    if (lamps.out.length) {
+      this.haunt.lit = lamps.lit;
+      if (lamps.out.includes(this.player.space))
+        this.events.push({ kind: 'warn', text: 'Das Licht geht aus.' });
+    }
     this.stepDoors();
 
     // --- Spieler ------------------------------------------------------------
@@ -789,9 +871,10 @@ export class FlatRound implements MapSource {
       dt,
     );
     this.spook = spooked.spook;
-    const lit = this.haunt.lit.indexOf(spooked.lightOut);
-    if (spooked.lightOut && lit >= 0) {
-      this.haunt.lit.splice(lit, 1);
+    // Auch der Spuk geht durch die Buchführung: Eine Lampe, die das Monster
+    // ausmacht, ist danach keine der zwei geschalteten mehr (`rules/lamps.ts`).
+    if (spooked.lightOut && this.haunt.lit.includes(spooked.lightOut)) {
+      this.haunt.lit = lampOut(this.lampBook, this.haunt.lit, spooked.lightOut);
       if (spooked.lightOut === this.player.space)
         this.events.push({ kind: 'warn', text: 'Das Licht geht aus.' });
     }
@@ -907,12 +990,12 @@ export class FlatRound implements MapSource {
         this.blood,
         this.monster,
         this.haunt.time,
-        (drop) => this.graph.spaceAt(drop) === this.monster.space,
+        (drop) => this.prowl.spaceAt(drop) === this.monster.space,
       );
     }
     const decision = piloted
       ? this.driver!.decide(dt)
-      : this.routine.step(this.graph, {
+      : this.routine.step(this.prowl, {
           dt,
           at: this.monster,
           here: this.monster.space,
@@ -955,7 +1038,7 @@ export class FlatRound implements MapSource {
         );
     } else {
       // Der Lotse biegt das Ziel auf eine Klappe um, wenn der Schacht lohnt (`vents/ventPilot.ts`).
-      const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.graph);
+      const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.prowl);
       if (!this.ventRide.busy)
         this.moveMonster(
           steered,
@@ -1124,26 +1207,54 @@ export class FlatRound implements MapSource {
   private moveMonster(decision: RoutineOutput, dt: number, speed: number): void {
     const goal = decision.goal;
     if (!goal || speed <= 0) return;
+    // **Kein Ziel in der Einsatzzentrale.** Sie steht nicht in der Karte des
+    // Monsters (`roomGraph.monsterGraph`), also gibt `spaceAt` dort nichts
+    // zurück — und was keinen Raum hat, wird nicht angelaufen. Das trifft
+    // genau einen Fall: die erinnerte Stelle eines Technikers, der
+    // heimgelaufen ist.
+    if (!this.prowl.spaceAt(goal)) {
+      this.hold();
+      return;
+    }
     // Wer sich festläuft, rechnet erst neu; hilft das nicht, geht er zurück in
-    // die Mitte seines Raums und von dort noch einmal los. Wer vor einer
-    // gesperrten Tür wartet, steht mit Absicht.
+    // die Mitte seines Raums und von dort noch einmal los.
+    //
+    // **Wer vor einer gesperrten Tür wartet, steht mit Absicht** — und zwar
+    // auch noch in der Sekunde danach. Die Uhr wird deshalb während des
+    // Wartens mitgeführt (`hold`) und nicht nur beim Losgehen abgefragt: Sonst
+    // stand das Monster zehn Sekunden am Riegel, bekam die Tür auf und ging
+    // als Erstes den Umweg über die Raummitte, weil es sich für festgelaufen
+    // hielt. Aufgefallen ist das erst, seit es den Riegel dem Umweg vorzieht
+    // (`PRY_DETOUR`) — vorher wartete es kaum je lange genug.
     if (Math.hypot(this.monster.x - this.stall.x, this.monster.z - this.stall.z) > 0.05) {
       this.stall = { x: this.monster.x, z: this.monster.z, since: this.haunt.time };
-    } else if (
-      !this.blocked &&
-      this.haunt.time - this.stall.since > 0.6 &&
-      this.haunt.time > this.detourUntil
-    ) {
+    } else if (this.blocked) {
+      this.hold();
+    } else if (this.haunt.time - this.stall.since > 0.6 && this.haunt.time > this.detourUntil) {
       this.detourUntil = this.haunt.time + 1.2;
       this.stall.since = this.haunt.time;
       this.navigator.invalidate();
     }
     if (this.haunt.time < this.detourUntil) {
-      const centre = this.graph.centre(this.monster.space);
+      const centre = this.prowl.centre(this.monster.space);
       this.stepMonster(centre, speed, dt);
       return;
     }
-    const leg = this.navigator.aim(this.monster, goal, this.haunt.shut, this.haunt.time);
+    // **Lieber ziehen als laufen.** Die Wegsuche umgeht eine gesperrte Tür,
+    // wenn es einen Umweg gibt — und genau daraus wurde das Spiel, das der
+    // Besitzer abstellen wollte: Der Spieler schloss immer die Tür vor dem
+    // Monster, das Vieh drehte brav ab, und weil der Umweg oft eine halbe
+    // Minute kostete, war es damit festgesetzt. Jetzt vergleicht der Navigator
+    // Umweg und Riegel: Ist der Umweg länger als `PRY_DETOUR` Sekunden Laufen,
+    // stellt es sich vor die Tür und zieht (`navmesh/flatNavigator.ts`, unten).
+    const leg = this.navigator.aim(
+      this.monster,
+      goal,
+      this.haunt.shut,
+      this.haunt.time,
+      null,
+      speed * PRY_DETOUR,
+    );
     // **Wer vor der Tür steht, arbeitet an ihr.** Der Zähler hängt an der
     // Tür, nicht am Ziel des Moments: Die Alarmleiter (`threat.ts`) lässt die
     // Routine zwischen dem Geräusch hinter der Tür und dem eigenen Raum
@@ -1203,6 +1314,15 @@ export class FlatRound implements MapSource {
     }
   }
 
+  /**
+   * **Stehen bleiben, ohne als festgelaufen zu gelten.** Wer auf einen Riegel
+   * wartet oder kein erreichbares Ziel hat, steht mit Absicht; der Umweg über
+   * die Raummitte ist für den gedacht, der sich irgendwo verhakt hat.
+   */
+  private hold(): void {
+    this.stall = { x: this.monster.x, z: this.monster.z, since: this.haunt.time };
+  }
+
   private stepMonster(step: FloorPoint, speed: number, dt: number): void {
     const dx = step.x - this.monster.x,
       dz = step.z - this.monster.z;
@@ -1219,10 +1339,15 @@ export class FlatRound implements MapSource {
       MONSTER_RADIUS,
       this.blocks,
     );
+    // **Die Einsatzzentrale betritt es nie.** Die Wegsuche führt es nicht
+    // dorthin (seine Karte kennt den Ort nicht), aber ein Schritt, der an der
+    // Schleuse entlangschleift, käme trotzdem hinein — und ein Monster in der
+    // Zentrale beendet die Runde an dem einen Ort, an dem sie sicher sein soll.
+    if (onApron(Math.floor(to.x / TILE), Math.floor(to.z / TILE))) return;
     this.monster.x = to.x;
     this.monster.z = to.z;
     const space = spaceAtMetres(this.house, this.monster, this.monster.space, SPACE_MARGIN);
-    if (space) this.monster.space = space === COMMAND ? COMMAND : space.id;
+    if (space && space !== COMMAND) this.monster.space = space.id;
   }
 
   // --- Knöpfe ---------------------------------------------------------------
@@ -1481,13 +1606,23 @@ export class FlatRound implements MapSource {
       : 'Tür verriegelt.';
   }
 
-  /** **Das Licht eines Raums umlegen** — vor Ort oder von der Schalttafel aus. */
+  /**
+   * **Das Licht eines Raums umlegen** — vor Ort oder von der Schalttafel aus.
+   *
+   * Es geht durch dieselbe Buchführung wie im Headset (`rules/lamps.ts`):
+   * höchstens `LAMP_BUDGET` Lampen gleichzeitig, die dritte macht die älteste
+   * aus, und keine brennt länger als `LAMP_RANGE`. Vorher schrieb diese
+   * Methode nur in die Liste der hellen Räume, und die 2D-Runde hatte damit
+   * ein anderes Licht als das Spiel, für das sie der Prüfstand ist.
+   */
   switchLight(roomId: string): string {
     if (this.haunt.phase !== 'running') return '';
-    const on = this.haunt.lit.includes(roomId);
-    if (on) this.haunt.lit = this.haunt.lit.filter((id) => id !== roomId);
-    else this.haunt.lit.push(roomId);
-    return on ? 'Licht aus.' : 'Licht an.';
+    const out = switchLamp(this.lampBook, this.haunt.lit, roomId, this.haunt.time, () =>
+      this.rng.next(),
+    );
+    this.haunt.lit = out.lit;
+    if (!out.on) return 'Licht aus.';
+    return out.dropped ? 'Licht an · dafür geht ein anderes aus.' : 'Licht an.';
   }
 
   /**

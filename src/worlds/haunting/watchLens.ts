@@ -50,7 +50,7 @@ export const WATCH_SEATS: ReadonlyArray<{ id: WatchSeat; label: string; hint: st
     label: 'Archiv',
     hint: 'Der Grundriss eines Zimmers, wie der Archivar ihn hält',
   },
-  { id: 'control', label: 'Einsatzkontrolle', hint: 'Die Tafel: Lichter, Schotts, Köder' },
+  { id: 'control', label: 'Einsatzkontrolle', hint: 'Die Tafel: Lichter und Schotts' },
   { id: 'scout', label: 'Späher', hint: 'Wände und ein Punkt — mehr hat er nicht' },
   { id: 'drone', label: 'Drohne', hint: 'Das Bild aus dem Zimmer, in dem sie steht' },
   { id: 'monster', label: 'Monster', hint: 'Die Station aus Monstersicht, Karte und Ohren' },

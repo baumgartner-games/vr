@@ -236,6 +236,8 @@ export const INK = {
   doorWood: '#c9a36b',
   doorLocked: '#ff4d55',
   doorLockedWood: '#e0745c',
+  /** Der Balken einer Tür, die nach einer gefallenen Sperre abkühlt (`rules/doorLocks.ts`). */
+  doorCooling: '#5ee0a0',
   fixture: '#3b4762',
   fixtureEdge: '#1a2133',
   fixtureTop: '#4d5a7a',
@@ -1079,18 +1081,22 @@ export class MapView {
     // Die Pfosten.
     ctx.fillStyle = INK.frame;
     for (const p of [pa, pb]) ctx.fillRect(p.x - post / 2, p.y - post / 2, post, post);
-    // Der Balken über der Tür: wie lange die Sperre noch hält
-    // (`rules/doorLocks.ts`). Keine Sperre hält ewig, und wer eine gesetzt
-    // hat, will wissen, wie lange er sich noch darauf verlassen darf.
-    if (door.locked && door.hold && door.hold.total > 0 && scale >= 8) {
-      const left = Math.max(0, Math.min(1, door.hold.left / door.hold.total));
+    // **Der Balken über der Tür** — und er zählt zwei verschiedene Dinge
+    // herunter (`rules/doorLocks.ts`). Rot: wie lange die Sperre noch hält;
+    // wer eine gesetzt hat, will wissen, wie lange er sich darauf verlassen
+    // darf. Grün: wie lange die Tür nach einer gefallenen Sperre noch offen
+    // bleiben **muss**; wer sie sofort wieder zuwerfen will, soll sehen,
+    // warum sein Schalter nichts tut. Beides nie gleichzeitig.
+    const clock = door.locked ? door.hold : door.cooling;
+    if (clock && clock.total > 0 && scale >= 8) {
+      const left = Math.max(0, Math.min(1, clock.left / clock.total));
       const w = Math.max(12, door.width * scale * 0.9);
       const h = Math.max(3, scale * 0.12);
       const bx = (pa.x + pb.x) / 2 - w / 2;
       const by = (pa.y + pb.y) / 2 - Math.max(9, scale * 0.55);
       ctx.fillStyle = INK.frame;
       ctx.fillRect(bx - 1, by - 1, w + 2, h + 2);
-      ctx.fillStyle = INK.doorLocked;
+      ctx.fillStyle = door.locked ? INK.doorLocked : INK.doorCooling;
       ctx.fillRect(bx, by, w * left, h);
     }
     // Das Schloss.

@@ -76,7 +76,6 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
       monster: { x: 4, z: -20 },
       shut: ['d1'],
       lit: ['r1'],
-      loud: [],
       fuse: false,
       taken: [],
       done: [],

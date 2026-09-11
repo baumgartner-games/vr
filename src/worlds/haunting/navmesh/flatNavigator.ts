@@ -33,6 +33,18 @@ import { pointSegmentDistance } from './snapshotClearance';
  * dort wartet das Monster und splittert Holz, wie es das vor der Wegsuche
  * auch tat (`map/flatRound.ts`). Der Radius ist der des Läufers, so wie ihn
  * auch `geometry.slide` benutzt.
+ *
+ * **Und einen Umweg, der zu lang ist, geht es nicht.** Das war der Fehler,
+ * mit dem man das Monster einsperren konnte: Der Spieler schloss immer die
+ * Tür vor ihm, die Wegsuche fand brav einen Umweg über den halben Grundriss,
+ * und weil das jedes Mal wieder gelang, lief das Vieh eine Runde lang im
+ * Kreis, ohne je anzukommen. Wer `detourLimit` mitgibt (in Metern, also
+ * Laufzeit mal Tempo), bekommt jetzt die andere Antwort: Kostet der Umweg um
+ * die gesperrte Tür mehr als das, führt die Route **vor die Tür** und
+ * `FlatLeg.door` nennt sie — das Monster zieht am Riegel, statt zu laufen.
+ * Verglichen wird auf der Raumkarte und nicht mit einem zweiten Rasterlauf:
+ * ein Dijkstra über vierzig Knoten kostet nichts, ein A* über 50 000 Zellen
+ * neunzig Millisekunden.
  */
 
 /** So weit darf die gemiedene Stelle wandern, bevor eine neue Route fällig ist, in Metern. */
@@ -117,6 +129,7 @@ export class FlatNavigator {
     shut: readonly string[],
     time: number,
     avoid: RouteAvoid | null = null,
+    detourLimit = Infinity,
   ): FlatLeg {
     const graph = this.travel.graph(this.spec, shut, false);
     const wandered = Math.hypot(goal.x - this.wanted.x, goal.z - this.wanted.z);
@@ -133,10 +146,21 @@ export class FlatNavigator {
     this.version = graph.version;
     this.plannedAt = time;
     this.door = null;
+    const goalSpace = this.rooms.spaceAt(goal) || this.rooms.spaceAt(at);
+    // **Erst fragen, ob sich der Umweg überhaupt lohnt** — auf der Raumkarte,
+    // bevor ein einziger Rasterweg gerechnet ist. Lohnt er nicht, wird gleich
+    // der Wartepunkt vor der Tür angesteuert und nur ein Weg gerechnet.
+    const worth = Number.isFinite(detourLimit)
+      ? this.tooFarAround(at, goalSpace, shut, detourLimit)
+      : null;
+    if (worth) {
+      this.door = worth;
+      this.plan(graph, at, waitPoint(worth, at));
+      return this.leg(true);
+    }
     this.plan(graph, at, goal);
     // Kein Umweg: bis vor die erste gesperrte Tür auf dem Raumweg, und dort warten.
     if (!this.complete) {
-      const goalSpace = this.rooms.spaceAt(goal) || this.rooms.spaceAt(at);
       const end = this.end();
       const endSpace = end ? this.rooms.spaceAt(end) : '';
       const door = endSpace === goalSpace ? null : this.blockingDoor(at, goalSpace, shut);
@@ -228,6 +252,95 @@ export class FlatNavigator {
       lockedDoorsBetween(this.spec, this.rooms, this.rooms.spaceAt(at), goalSpace, shut)[0] ?? null
     );
   }
+
+  /**
+   * **Die gesperrte Tür, an der Ziehen billiger ist als Herumlaufen** —
+   * `null`, wenn keine im Weg steht oder der Umweg sein Geld wert ist.
+   *
+   * Gerechnet wird auf der Raumkarte: der Weg *durch* die Tür
+   * (`StationGraph.distance`, die kennt keine Riegel) gegen den Weg *um sie
+   * herum* (`aroundLocks`, derselbe Graph ohne die gesperrten Kanten). Was
+   * der Umweg mehr kostet, ist der Preis; ist er höher als `limit` Meter,
+   * lohnt der Riegel. Ein Umweg, den es gar nicht gibt, kostet unendlich viel
+   * — auch dann führt die Route vor die Tür, so wie bisher.
+   */
+  private tooFarAround(
+    at: FloorPoint,
+    goalSpace: string,
+    shut: readonly string[],
+    limit: number,
+  ): HouseDoor | null {
+    const from = this.rooms.spaceAt(at);
+    if (!from || !goalSpace || from === goalSpace) return null;
+    const door = lockedDoorsBetween(this.spec, this.rooms, from, goalSpace, shut)[0];
+    if (!door) return null;
+    const around = aroundLocks(this.spec, this.rooms, from, goalSpace, shut);
+    return around - this.rooms.distance(from, goalSpace) > limit ? door : null;
+  }
+}
+
+/**
+ * **Wie weit es von `from` nach `to` ist, wenn die gesperrten Türen keine
+ * Türen mehr sind** — in Metern, `Infinity` ohne Umweg.
+ *
+ * Ein Dijkstra über die paar Dutzend Knoten der Raumkarte. Die fertige Matrix
+ * des Graphen (`distance`) taugt dafür nicht: Die kennt die Riegel nicht, und
+ * genau darum geht es hier.
+ */
+function aroundLocks(
+  spec: HouseSpec,
+  rooms: StationGraph,
+  from: string,
+  to: string,
+  shut: readonly string[],
+): number {
+  const closed = new Set(shut);
+  // **Eine Kante ist erst dicht, wenn *jede* Tür darin gesperrt ist.** Zwei
+  // Räume können zwei Durchgänge teilen; wer die Kante schon beim ersten
+  // Riegel für zu hält, rechnet einen Umweg von unendlich aus und schickt das
+  // Monster an eine Tür, neben der eine offene steht.
+  const doors = new Map<string, { total: number; shut: number }>();
+  for (const door of spec.doors) {
+    const key = pairKey(door.a, door.b);
+    const count = doors.get(key) ?? { total: 0, shut: 0 };
+    count.total++;
+    if (closed.has(door.id)) count.shut++;
+    doors.set(key, count);
+  }
+  const blocked = new Set(
+    [...doors].filter(([, count]) => count.shut === count.total).map(([key]) => key),
+  );
+  const cost = new Map<string, number>([[from, 0]]);
+  const open = new Set<string>([from]);
+  while (open.size) {
+    let here = '';
+    let best = Infinity;
+    for (const id of open) {
+      const seen = cost.get(id) ?? Infinity;
+      if (seen < best) {
+        best = seen;
+        here = id;
+      }
+    }
+    if (!here) break;
+    open.delete(here);
+    if (here === to) return best;
+    const a = rooms.centre(here);
+    for (const next of rooms.neighbours(here)) {
+      if (blocked.has(pairKey(here, next))) continue;
+      const b = rooms.centre(next);
+      const step = best + Math.hypot(a.x - b.x, a.z - b.z);
+      if (step >= (cost.get(next) ?? Infinity)) continue;
+      cost.set(next, step);
+      open.add(next);
+    }
+  }
+  return cost.get(to) ?? Infinity;
+}
+
+function pairKey(a: string, b: string | null): string {
+  const far = b ?? COMMAND;
+  return a < far ? `${a}|${far}` : `${far}|${a}`;
 }
 
 /**

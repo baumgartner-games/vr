@@ -129,10 +129,19 @@ export function fixturesOf(spec: HouseSpec): MapFixture[] {
   return fixtures;
 }
 
-/** Die Restzeit einer Sperre, wenn die Quelle eine Uhr führt. */
-function holdOf(source: MapSource, id: string): { hold?: { left: number; total: number } } {
-  const hold = source.doorHold?.(id);
-  return hold ? { hold } : {};
+/**
+ * Die Restzeit an einer Tür, wenn die Quelle eine Uhr führt — als `hold`,
+ * solange die Sperre hält, und als `cooling`, solange die Tür nach einer
+ * gefallenen Sperre offen bleiben muss (`rules/doorLocks.ts`).
+ */
+function holdOf(
+  source: MapSource,
+  id: string,
+): { hold?: { left: number; total: number }; cooling?: { left: number; total: number } } {
+  const clock = source.doorHold?.(id);
+  if (!clock) return {};
+  const bar = { left: clock.left, total: clock.total };
+  return clock.cooling ? { cooling: bar } : { hold: bar };
 }
 
 export function boundsOf(rooms: readonly MapRoom[]): MapBounds {

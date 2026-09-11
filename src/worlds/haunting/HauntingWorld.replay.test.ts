@@ -70,7 +70,6 @@ function snapshot(seed = 391): HauntState {
     monster: { x: 1, z: 2 },
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],

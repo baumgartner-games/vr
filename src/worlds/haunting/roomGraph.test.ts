@@ -1,6 +1,7 @@
 import { DOOR_LOSS, WALL_LOSS } from './audio/hearing';
 import { generateHouse, spacesOf, type HouseSpec, type Rect } from './house';
-import { COMMAND, stationGraph, type StationGraph } from './roomGraph';
+import { COMMAND, monsterGraph, stationGraph, type StationGraph } from './roomGraph';
+import { COMMAND_HOME } from './trainingLayout';
 
 /**
  * **Was hier gemessen wird**: ob ein Geräusch durch eine Wand geht, an der
@@ -150,5 +151,72 @@ describe('Die Raumkarte hört durch Wände', () => {
       expect(graph.earshot(a, b)).toBeLessThanOrEqual(air + DOOR_LOSS + 1e-6);
     }
     expect(DOOR_LOSS).toBeLessThan(WALL_LOSS);
+  });
+});
+
+/**
+ * **Die Karte, auf der es die Einsatzzentrale nicht gibt.**
+ *
+ * Der Besitzer wollte zwei Dinge, und sie sind nicht dasselbe: Das Monster
+ * soll nicht dorthin gehen **können**, und es soll den Ort nicht **kennen**.
+ * Eine Prüfung „falls Ziel = Zentrale, dann nicht" erfüllt nur das erste und
+ * lässt das Vieh weiter dort suchen, lauern und vermuten. Deshalb fehlt der
+ * Knoten ganz — und mit ihm die Schleuse, die dorthin führt.
+ */
+describe('Die Karte des Monsters', () => {
+  const SEEDS = [1, 2, 3, 7, 1000];
+
+  it('kennt jeden Raum und jeden Gang, aber nicht die Zentrale', () => {
+    for (const seed of SEEDS) {
+      const spec = generateHouse(seed, 14);
+      const all = stationGraph(spec);
+      const prowl = monsterGraph(spec);
+      expect(all.spaces).toContain(COMMAND);
+      expect(prowl.spaces).not.toContain(COMMAND);
+      expect(prowl.spaces).toEqual(all.spaces.filter((id) => id !== COMMAND));
+      expect(prowl.rooms).toEqual(all.rooms);
+    }
+  });
+
+  it('kennt die Schleuse nicht — weder als Nachbar noch als Tür noch als Weg', () => {
+    for (const seed of SEEDS) {
+      const spec = generateHouse(seed, 14);
+      const prowl = monsterGraph(spec);
+      const airlocks = spec.doors.filter((door) => door.b === null);
+      expect(airlocks.length).toBeGreaterThan(0);
+      for (const door of airlocks) {
+        expect(prowl.doorsOf(door.a)).not.toContain(door.id);
+        expect(prowl.doorPoint(door.id)).toBeNull();
+      }
+      for (const id of prowl.spaces) {
+        expect(prowl.neighbours(id)).not.toContain(COMMAND);
+        expect(prowl.distance(id, COMMAND)).toBe(Infinity);
+        // `next` am unbekannten Ziel heißt: keinen Schritt in diese Richtung.
+        expect(prowl.next(id, COMMAND)).toBe(id);
+      }
+    }
+  });
+
+  /**
+   * Und es kann nicht einmal **benennen**, wo jemand da gerade steht: Der
+   * Vorplatz ist für diese Karte kein Raum. Genau daran hängen die
+   * Buchführungen, die aus einem Raum eine Vermutung machen
+   * (`monster/monsterMemory.ts` legt seine Räume aus `spaces` an).
+   */
+  it('gibt für den Vorplatz keinen Raum zurück, die ganze Karte schon', () => {
+    for (const seed of SEEDS) {
+      const spec = generateHouse(seed, 14);
+      const home = { x: COMMAND_HOME.x, z: COMMAND_HOME.z };
+      expect(stationGraph(spec).spaceAt(home)).toBe(COMMAND);
+      expect(monsterGraph(spec).spaceAt(home)).toBe('');
+    }
+  });
+
+  it('lässt die Karte des Technikers unangetastet', () => {
+    const spec = generateHouse(3, 14);
+    const all = stationGraph(spec);
+    expect(all.spaces).toContain(COMMAND);
+    expect(all.neighbours(COMMAND).length).toBeGreaterThan(0);
+    expect(Number.isFinite(all.distance(all.rooms[0]!, COMMAND))).toBe(true);
   });
 });

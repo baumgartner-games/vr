@@ -88,6 +88,24 @@ describe('Die ausgespielte Runde ohne Bild', () => {
     expect(repairs(faster)).toBeGreaterThan(repairs(slower));
     expect(won(faster)).toBeGreaterThan(won(slower));
   });
+
+  /**
+   * **„Das Monster kann nie in die Einsatzzentrale gehen."**
+   *
+   * Der Satz des Besitzers, hundertmal ausgespielt. Er hält nicht, weil eine
+   * Prüfung ihn abfängt, sondern weil der Ort auf der Karte des Monsters gar
+   * nicht vorkommt (`roomGraph.monsterGraph`): kein Knoten, keine Schleuse,
+   * kein `spaceAt`. Und weil der Techniker die Runde in der Zentrale beginnt
+   * und dort auch gewinnt, ist das keine theoretische Zusicherung — in jeder
+   * dieser hundert Runden gibt es einen Moment, in dem das Vieh ihn genau
+   * dorthin verfolgen würde, wenn es dürfte.
+   */
+  it('lässt das Monster in hundert Runden kein einziges Mal in die Zentrale', () => {
+    for (let roll = 0; roll < 100; roll++) {
+      const result = simulateRound(SEEDS[roll % SEEDS.length]!, { roll });
+      expect([roll, result.atCommand]).toEqual([roll, 0]);
+    }
+  });
 });
 
 describe('Die Raumkarte, auf der gespielt wird', () => {

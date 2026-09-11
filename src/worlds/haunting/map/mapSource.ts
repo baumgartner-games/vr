@@ -26,8 +26,16 @@ export interface MapSource {
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;
   /** Ob das Türblatt gerade offen steht — getrennt von der Sperre in `state().shut`. */
   doorOpen(id: string): boolean;
-  /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`); fehlt sie, gibt es keine Uhr. */
-  doorHold?(id: string): { left: number; total: number } | null;
+  /**
+   * **Die Uhr an dieser Tür** (`rules/doorLocks.ts`); fehlt der Getter, gibt
+   * es keine.
+   *
+   * Sie zählt zwei verschiedene Dinge herunter, und `cooling` sagt, welches:
+   * ohne das Merkmal, wie lange die **Sperre** noch hält; mit ihm, wie lange
+   * die Tür noch **offen bleiben muss**, bevor sie wieder gesperrt werden
+   * darf. Eine Tür hat immer höchstens eines von beidem.
+   */
+  doorHold?(id: string): { left: number; total: number; cooling?: boolean } | null;
   /** Die Wesen, die die Welt kennt — Spieler, Bot, Monster, Mitspieler. */
   entities(): readonly MapEntity[];
   /** Fracht, Konsolen, Schränke, Werkzeuge — mit ihrem Zustand. */

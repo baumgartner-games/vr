@@ -165,7 +165,6 @@ describe('Orbital missions', () => {
       monster: { x: 2, z: 3 },
       shut: ['d1'],
       lit: ['r1'],
-      loud: [],
       fuse: false,
       taken: ['t0'],
       done: [],

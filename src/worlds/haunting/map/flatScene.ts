@@ -474,7 +474,13 @@ export class FlatScene {
     for (const door of s.doors) {
       if (!inView(door.at.x - 2, door.at.z - 2, door.at.x + 2, door.at.z + 2)) continue;
       this.drawThreshold(ctx, door);
-      if (door.open && !door.locked) continue;
+      if (door.open && !door.locked) {
+        // Ein zurückgefahrenes Blatt zeigt sonst keinen Balken — und die
+        // abkühlende Tür braucht ihren ausgerechnet dann, wenn jemand in ihr
+        // steht und sie deshalb offen ist (`rules/doorLocks.ts`).
+        this.drawOpenClock(ctx, door);
+        continue;
+      }
       if (door.axis === 'x')
         layer.push({ z: door.at.z, order: 0, draw: () => this.drawDoorLeafX(ctx, door) });
       else this.drawDoorLeafZ(ctx, door);
@@ -993,10 +999,38 @@ export class FlatScene {
   }
 
   /**
-   * **Der Balken über einer gesperrten Tür**: wie lange die Sperre noch hält
-   * (`rules/doorLocks.ts`). Keine Sperre hält ewig — weder die von Hand
-   * gesetzte noch die zugefallene —, und wer sich darauf verlässt, soll sehen,
-   * wie lange noch.
+   * Der Balken über einer Tür, deren Blatt gerade zurückgefahren ist: Er
+   * gehört nur der Abkühlung, denn eine gesperrte Tür steht nie offen.
+   */
+  private drawOpenClock(ctx: CanvasRenderingContext2D, door: MapDoor): void {
+    if (!door.cooling) return;
+    const u = this.state.scale;
+    const half = door.width / 2;
+    if (door.axis === 'x') {
+      const left = this.toScreen(door.at.x - half, 0).x,
+        right = this.toScreen(door.at.x + half, 0).x;
+      const topY = this.toScreen(0, door.at.z).y - (WALL_H + BAND / 2) * u;
+      this.drawHoldBar(ctx, door, (left + right) / 2, topY, right - left);
+      return;
+    }
+    const left = this.toScreen(door.at.x - BAND / 2, 0).x,
+      right = this.toScreen(door.at.x + BAND / 2, 0).x;
+    const topY = this.toScreen(0, door.at.z - half - WALL_H).y;
+    this.drawHoldBar(ctx, door, (left + right) / 2, topY, door.width * u);
+  }
+
+  /**
+   * **Der Balken über der Tür**, und er zählt zwei Dinge herunter
+   * (`rules/doorLocks.ts`).
+   *
+   * **Rot**: wie lange die Sperre noch hält. Keine Sperre hält ewig — weder
+   * die von Hand gesetzte noch die zugefallene —, und wer sich darauf
+   * verlässt, soll sehen, wie lange noch.
+   *
+   * **Grün**: wie lange die Tür nach einer gefallenen Sperre noch offen
+   * bleiben muss. Vierzig Sekunden sind lang genug, dass man den Riegel für
+   * kaputt hält; derselbe Balken in der Farbe der offenen Tür sagt, dass er
+   * es nicht ist.
    */
   private drawHoldBar(
     ctx: CanvasRenderingContext2D,
@@ -1005,16 +1039,17 @@ export class FlatScene {
     topY: number,
     width: number,
   ): void {
-    if (!door.locked || !door.hold || door.hold.total <= 0) return;
+    const clock = door.locked ? door.hold : door.cooling;
+    if (!clock || clock.total <= 0) return;
     const u = this.state.scale;
-    const left = Math.max(0, Math.min(1, door.hold.left / door.hold.total));
+    const left = Math.max(0, Math.min(1, clock.left / clock.total));
     const w = Math.max(14, width * 0.9);
     const h = Math.max(3, u * 0.055);
     const x = cx - w / 2,
       y = topY - h - Math.max(3, u * 0.06);
     ctx.fillStyle = ART.ink;
     ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-    ctx.fillStyle = INK.lampRed;
+    ctx.fillStyle = door.locked ? INK.lampRed : INK.lampGreen;
     ctx.fillRect(x, y, w * left, h);
   }
 

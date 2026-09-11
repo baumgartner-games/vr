@@ -1,12 +1,14 @@
 import { COMMAND } from '../roomGraph';
 import { COMMAND_DELAY } from '../rules/doorSeal';
 import { freshStamina, PLAYER_STAMINA, puzzleFor, stepStamina } from '../mission';
-import { doorWaypoint, spaceAtMetres } from './geometry';
+import { doorCentre, doorWaypoint, spaceAtMetres } from './geometry';
 import { FlatWalker } from './flatWalk';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
 import { STILL } from '../monster/monsterHelm';
 import { cargoOf } from '../rules/cargo';
 import { DROP_SPACING } from '../rules/blood';
+import { LOCK_COOLDOWN } from '../rules/doorLocks';
+import { LAMP_RANGE } from '../rules/lamps';
 import type { FloorPoint } from '../stationLayout';
 
 const DT = 1 / 30;
@@ -310,8 +312,17 @@ describe('Der Snapshot der 2D-Welt', () => {
     expect(snapshot.items.filter((i) => i.kind === 'console')).toHaveLength(3);
     expect(snapshot.entities.map((e) => e.id)).toEqual([PLAYER_ID]);
     expect(snapshot.bounds.maxX).toBeGreaterThan(snapshot.bounds.minX);
-    const before = snapshot.lights.find((l) => l.kind === 'lamp' && l.on)!;
-    round.haunt.lit = round.haunt.lit.filter((id) => id !== before.roomId);
+    // **Die Runde beginnt dunkel** (seit dem Paket „Schalttafel"), also wird
+    // erst eine Lampe angemacht und dann geprüft, dass der Snapshot beides
+    // mitbekommt. Vorher stand hier „nimm irgendeine brennende" — die gibt es
+    // zu Rundenbeginn nicht mehr.
+    expect(snapshot.lights.filter((l) => l.kind === 'lamp' && l.on)).toEqual([]);
+    const room = round.house.rooms[0]!.id;
+    round.switchLight(room);
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    const before = round.snapshot().lights.find((l) => l.kind === 'lamp' && l.on)!;
+    expect(before.roomId).toBe(room);
+    round.switchLight(room);
     round.step(DT, { x: 0, z: 0, sprint: false });
     expect(round.snapshot().lights.find((l) => l.id === before.id)!.on).toBe(false);
   });
@@ -435,5 +446,117 @@ describe('Die Puste des Technikers in der 2D-Runde', () => {
     let steps = 0;
     while (stepStamina(stamina, DT, true) === 1 && steps < 10000) steps++;
     expect(Math.abs(steps * DT - PLAYER_STAMINA)).toBeLessThanOrEqual(DT);
+  });
+});
+
+/**
+ * **Die 2D-Runde beginnt dunkel** — wie die Mission im Headset.
+ *
+ * Sie startete einmal mit allen Räumen hell, und damit war sie für alles, was
+ * sie eigentlich prüfen soll, das falsche Spiel: Die Taschenlampe war Zierde,
+ * die Schalttafel ein Ausschalter, und das Monster sah den Techniker quer
+ * durch die beleuchtete Station. Seit diesem Paket geht Licht nur noch an,
+ * wenn jemand einen Schalter umlegt — und dann nach denselben Regeln wie in
+ * 3D (`rules/lamps.ts`), aus derselben Buchführung.
+ */
+describe('Licht in der 2D-Runde', () => {
+  it('fängt in jedem Raum aus an', () => {
+    for (const seed of [1, 2, 3]) {
+      const round = new FlatRound(seed, { test: true });
+      expect(round.state().lit).toEqual([]);
+      expect(round.snapshot().lights.filter((l) => l.kind === 'lamp' && l.on)).toEqual([]);
+    }
+  });
+
+  it('lässt höchstens zwei Lampen gleichzeitig brennen', () => {
+    const round = new FlatRound(1, { test: true });
+    const rooms = round.house.rooms.slice(0, 3).map((room) => room.id);
+    expect(round.switchLight(rooms[0]!)).toBe('Licht an.');
+    expect(round.switchLight(rooms[1]!)).toBe('Licht an.');
+    expect(round.state().lit.slice().sort()).toEqual(rooms.slice(0, 2).slice().sort());
+    // Die dritte macht die älteste aus — und sagt es.
+    expect(round.switchLight(rooms[2]!)).toBe('Licht an · dafür geht ein anderes aus.');
+    expect(round.state().lit).not.toContain(rooms[0]);
+    expect(round.state().lit).toHaveLength(2);
+  });
+
+  it('macht eine Lampe nach ihrer Zeit von selbst wieder aus', () => {
+    const round = new FlatRound(1, { test: true });
+    const room = round.house.rooms[0]!.id;
+    round.switchLight(room);
+    expect(round.state().lit).toContain(room);
+    // Länger als die längste Brenndauer, dann ist sie sicher durch.
+    for (let t = 0; t < LAMP_RANGE[1] + 1; t += DT) round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.state().lit).not.toContain(room);
+  });
+});
+
+/**
+ * **Was die Karte über eine Tür sagt, die abkühlt** (`rules/doorLocks.ts`):
+ * Sie ist offen, sie ist nicht gesperrt, und sie zählt vierzig Sekunden
+ * herunter. Daraus wird der grüne Balken über der Tür.
+ */
+describe('Die abkühlende Tür in der 2D-Runde', () => {
+  it('zeigt die Restzeit, solange sie nicht wieder gesperrt werden darf', () => {
+    const round = new FlatRound(1, { test: true });
+    const door = round.house.doors.find((one) => one.b)!;
+    expect(round.lockDoor(door.id)).toMatch(/verriegelt/);
+    // Gesperrt: der rote Balken, keine Abkühlung.
+    expect(round.doorHold(door.id)!.cooling).toBeUndefined();
+    expect(round.lockDoor(door.id)).toBe('Tür entriegelt.');
+    const warm = round.doorHold(door.id)!;
+    expect(warm.cooling).toBe(true);
+    expect(warm.total).toBe(LOCK_COOLDOWN);
+    expect(warm.left).toBeCloseTo(LOCK_COOLDOWN, 6);
+    // Und der Schalter sagt es, statt wortlos nichts zu tun.
+    expect(round.lockDoor(door.id)).toBe('Der Riegel ist noch warm.');
+    // Und die Karte zeichnet den grünen Balken: `MapDoor.cooling` statt `hold`.
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    const drawn = round.snapshot().doors.find((one) => one.id === door.id)!;
+    expect(drawn.locked).toBe(false);
+    expect(drawn.hold).toBeUndefined();
+    expect(drawn.cooling?.total).toBe(LOCK_COOLDOWN);
+    for (let t = 0; t < LOCK_COOLDOWN + 1; t += DT) round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.doorHold(door.id)).toBeNull();
+    expect(round.lockDoor(door.id)).toMatch(/verriegelt/);
+  });
+});
+
+/**
+ * **Und ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`) —
+ * ohne dass jemand davorsteht, und nie ein gesperrtes.
+ */
+describe('Der Stationsfehler an den Schotten', () => {
+  it('öffnet in einer Runde mehrmals eine Tür, an der niemand steht', () => {
+    const round = new FlatRound(2, { test: true });
+    const doors = round.house.doors.map((door) => door.id);
+    let ghosts = 0;
+    for (let t = 0; t < 300; t += DT) {
+      round.step(DT, { x: 0, z: 0, sprint: false });
+      for (const id of doors) {
+        if (!round.doorOpen(id)) continue;
+        const door = round.house.doors.find((one) => one.id === id)!;
+        const at = doorCentre(door);
+        // Der Techniker steht still in der Zentrale; ein Schott irgendwo im
+        // Schiff, das offen steht, hat niemanden vor sich.
+        if (Math.hypot(at.x - round.player.x, at.z - round.player.z) > 6) ghosts++;
+      }
+    }
+    expect(ghosts).toBeGreaterThan(0);
+  });
+
+  it('fährt nie ein gesperrtes Schott auf', () => {
+    const round = new FlatRound(3, { test: true });
+    const door = round.house.doors.find((one) => one.b)!;
+    round.lockDoor(door.id);
+    for (let t = 0; t < 300; t += DT) {
+      round.step(DT, { x: 0, z: 0, sprint: false });
+      if (!round.state().shut.includes(door.id)) {
+        // Die Sperre läuft von selbst ab; danach ist die Tür keine gesperrte mehr.
+        round.lockDoor(door.id);
+        continue;
+      }
+      expect(round.doorOpen(door.id)).toBe(false);
+    }
   });
 });

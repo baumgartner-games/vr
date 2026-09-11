@@ -1,4 +1,5 @@
-import { generateHouse, type HouseSpec } from './house';
+import { generateHouse, onApron, type HouseSpec } from './house';
+import { TILE } from '../nav/navTile';
 import {
   ENTITY_PROFILES,
   freshThreat,
@@ -12,7 +13,7 @@ import { MonsterRoutine, paceSpeed, type MonsterMode } from './monsterRoutine';
 import { MonsterMemory } from './monster/monsterMemory';
 import { graphEstimator } from './monster/monsterIntercept';
 import { Rng } from './rng';
-import { stationGraph, COMMAND, type StationGraph } from './roomGraph';
+import { monsterGraph, stationGraph, COMMAND, type StationGraph } from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { taskCargo } from './rules/cargo';
 import { freshTrail, sniff, stepTrail, wound, SNIFF_EVERY, type Scent } from './rules/blood';
@@ -63,6 +64,17 @@ export interface RoundResult {
   hides: number;
   /** Wie lange das Monster in welcher Haltung war, in Sekunden. */
   modes: Record<MonsterMode, number>;
+  /**
+   * **Wie lange das Monster in der Einsatzzentrale stand**, in Sekunden — und
+   * die Antwort ist immer 0.
+   *
+   * Die Zahl steht hier, damit ein Test sie über hundert Runden nachzählen
+   * kann. Sie ist die Zusicherung des Besitzers („Das Monster kann nie in die
+   * Einsatzzentrale gehen"), und eine Zusicherung, die niemand misst, ist eine
+   * Absichtserklärung: Die Zentrale steht nicht in seiner Karte
+   * (`roomGraph.monsterGraph`), und nichts hier darf sie ihm zurückgeben.
+   */
+  atCommand: number;
 }
 
 export interface RoundOptions {
@@ -151,6 +163,11 @@ type Job =
 export function simulateRound(seed: number, options: RoundOptions = {}): RoundResult {
   const spec = simulationSpec(seed);
   const graph = stationGraph(spec);
+  // **Die Karte des Monsters** (`roomGraph.monsterGraph`): dieselbe Station
+  // ohne die Einsatzzentrale. Routine, Gedächtnis, Reisezeiten und sein
+  // Schritt hängen alle daran — auf dieser Karte gibt es den Ort nicht, also
+  // gibt es auch keinen Weg dorthin und keine Vermutung darüber.
+  const prowl = monsterGraph(spec);
   const tuning = options.tuning ?? DEFAULT_TUNING;
   const kind = options.kind ?? 'stalker';
   const profile = ENTITY_PROFILES[kind];
@@ -173,8 +190,8 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   // hinein; die Simulation liefert nur, was sie allein weiß: welche Tür
   // gerade zu ist (`sealed`) und wann eine Reparatur fertig wurde.
   let sealedPair = '';
-  const brain = new MonsterMemory(graph, () => (sealedPair ? [sealedPair] : []));
-  const estimator = graphEstimator(graph);
+  const brain = new MonsterMemory(prowl, () => (sealedPair ? [sealedPair] : []));
+  const estimator = graphEstimator(prowl);
 
   const modes = Object.fromEntries(
     (
@@ -230,6 +247,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   /** Wann die Flucht anläuft — sofort allein, um `commandLag` später im Team. */
   let alarm = Infinity;
   let wasSpace = technician.space;
+  let atCommand = 0;
   let time = 0;
 
   for (; time < limit; time += DT) {
@@ -316,9 +334,9 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     let scent: Scent | null = null;
     if (!hidden && !signal && time - sniffed >= SNIFF_EVERY) {
       sniffed = time;
-      scent = sniff(trail, monster, time, (drop) => graph.spaceAt(drop) === monster.space);
+      scent = sniff(trail, monster, time, (drop) => prowl.spaceAt(drop) === monster.space);
     }
-    const decision = routine.step(graph, {
+    const decision = routine.step(prowl, {
       dt: DT,
       at: monster,
       here: monster.space,
@@ -340,6 +358,15 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       ...takeAlert(memory),
     });
     modes[decision.mode] += DT;
+    // Nachgezählt und nicht angenommen: Steht das Vieh in der Zentrale, sagt
+    // es das Ergebnis (`RoundResult.atCommand`). Gefragt wird der Vorplatz
+    // selbst (`onApron`, eine Rechteckprüfung) und nicht die Raumkarte — diese
+    // Zeile läuft sechstausendmal je Runde.
+    if (
+      monster.space === COMMAND ||
+      onApron(Math.floor(monster.x / TILE), Math.floor(monster.z / TILE))
+    )
+      atCommand += DT;
     // Getroffen wird nur, wer in **dieser** Kabine steckt: Das Monster reißt
     // auch leere Kabinen auf (Verdachts-Angriff), und die Simulation führt
     // keine Liste der Wracks — der Techniker darf hier wieder hinein, was
@@ -361,9 +388,14 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     move(
       monster,
       decision.goal,
-      graph,
+      prowl,
       paceSpeed(base, tuning.monster, decision.pace, decision.boost),
       barred ? (from, to) => barred.pair === pairKey(from, to) : null,
+      // **Kein Schritt auf einen Ort, den seine Karte nicht kennt.** Die
+      // Zentrale steht nicht in `monsterGraph`; eine erinnerte Stelle, die
+      // dort liegt (der Techniker ist heimgelaufen), ist für das Monster
+      // deshalb kein Ziel, sondern nichts.
+      true,
     );
 
     // --- Der Techniker ------------------------------------------------------
@@ -406,9 +438,21 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       wound(trail, time);
       invulnerable = 3;
       if (hp <= 0)
-        return done(false, 'killed', time, hits, job, contacts, hides, modes, jobs.length);
+        return done(
+          false,
+          'killed',
+          time,
+          hits,
+          job,
+          contacts,
+          hides,
+          modes,
+          jobs.length,
+          atCommand,
+        );
     }
-    if (hp <= 0) return done(false, 'killed', time, hits, job, contacts, hides, modes, jobs.length);
+    if (hp <= 0)
+      return done(false, 'killed', time, hits, job, contacts, hides, modes, jobs.length, atCommand);
 
     if (fleeing) {
       stamina = Math.max(0, stamina - DT);
@@ -440,7 +484,18 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
 
     const target = jobs[job];
     if (!target)
-      return done(true, 'repaired', time, hits, job, contacts, hides, modes, jobs.length);
+      return done(
+        true,
+        'repaired',
+        time,
+        hits,
+        job,
+        contacts,
+        hides,
+        modes,
+        jobs.length,
+        atCommand,
+      );
     const there =
       technician.space === target.space &&
       Math.hypot(technician.x - target.at.x, technician.z - target.at.z) < ARRIVED;
@@ -468,9 +523,20 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     }
     job++;
     if (job >= jobs.length)
-      return done(true, 'repaired', time, hits, job, contacts, hides, modes, jobs.length);
+      return done(
+        true,
+        'repaired',
+        time,
+        hits,
+        job,
+        contacts,
+        hides,
+        modes,
+        jobs.length,
+        atCommand,
+      );
   }
-  return done(false, 'timeout', limit, hits, job, contacts, hides, modes, jobs.length);
+  return done(false, 'timeout', limit, hits, job, contacts, hides, modes, jobs.length, atCommand);
 }
 
 function done(
@@ -483,6 +549,7 @@ function done(
   hides: number,
   modes: Record<MonsterMode, number>,
   total: number,
+  atCommand: number,
 ): RoundResult {
   return {
     won,
@@ -494,6 +561,7 @@ function done(
     contacts,
     hides,
     modes,
+    atCommand,
   };
 }
 
@@ -594,9 +662,13 @@ function move(
   graph: StationGraph,
   speed: number,
   barred: ((from: string, to: string) => boolean) | null = null,
+  /** Ob ein Ziel außerhalb jedes bekannten Raums verworfen wird statt geradeaus angelaufen. */
+  strict = false,
 ): void {
   if (!goal || speed <= 0) return;
-  const goalSpace = graph.spaceAt(goal) || actor.space;
+  const known = graph.spaceAt(goal);
+  if (!known && strict) return;
+  const goalSpace = known || actor.space;
   if (goalSpace !== actor.space && barred?.(actor.space, graph.next(actor.space, goalSpace)))
     return;
   const step = goalSpace === actor.space ? goal : graph.centre(graph.next(actor.space, goalSpace));
