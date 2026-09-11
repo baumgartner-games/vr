@@ -2,7 +2,18 @@ import { COMMAND_LIFT, generateHouse, roomCentre } from './house';
 import { housePlan } from './plan';
 import {
   freshCrew,
+  freshStamina,
+  grantBurst,
+  HIT_BURST,
   lockerCode,
+  PLAYER_SPRINT_SPEED,
+  PLAYER_STAMINA,
+  PLAYER_TROT_SPEED,
+  PLAYER_WALK_SPEED,
+  repairRoom,
+  STAMINA_REGEN,
+  stepStamina,
+  TROT,
   puzzleFor,
   puzzleSolved,
   readCrew,
@@ -154,7 +165,6 @@ describe('Orbital missions', () => {
       monster: { x: 2, z: 3 },
       shut: ['d1'],
       lit: ['r1'],
-      loud: [],
       fuse: false,
       taken: ['t0'],
       done: [],
@@ -199,5 +209,61 @@ describe('Orbital missions', () => {
     expect(stationOptions({ rooms: 10000 }).rooms).toBe(14);
     expect(lockerCode(31, 'r1')).toMatch(/^[1-4]{3}$/);
     expect(lockerCode(31, 'r1')).toBe(lockerCode(31, 'r1'));
+  });
+});
+
+/**
+ * **Die Puste** — das Gegenstück zur Ungleichung aus `botTuning.test.ts`.
+ *
+ * Dort steht, dass das Monster langsamer rennt als der Spieler. Damit eine
+ * Jagd trotzdem endet, hält der Spieler dieses Tempo nicht durch: fünf
+ * Sekunden, dann Trab. Wer eine dieser Zahlen verstellt, verstellt die Länge
+ * jeder Verfolgung im Spiel — deshalb wird sie hier nachgerechnet.
+ */
+describe('Die Puste des Technikers', () => {
+  it('trägt fünf Sekunden Sprint und fällt danach auf Trab', () => {
+    const stamina = freshStamina();
+    let steps = 0;
+    while (stepStamina(stamina, 0.25, true) === 1 && steps < 200) steps++;
+    expect(steps * 0.25).toBeCloseTo(PLAYER_STAMINA, 6);
+    expect(stepStamina(stamina, 0.25, true)).toBe(TROT);
+    expect(PLAYER_SPRINT_SPEED * TROT).toBeCloseTo(PLAYER_TROT_SPEED, 6);
+    // Der Trab ist schneller als Gehen und langsamer als die Jagd des
+    // Monsters — sonst wäre die Puste entweder wirkungslos oder tödlich.
+    expect(PLAYER_TROT_SPEED).toBeGreaterThan(PLAYER_WALK_SPEED);
+  });
+
+  it('kommt beim Gehen in acht Sekunden wieder ganz zurück', () => {
+    const stamina = freshStamina();
+    stamina.left = 0;
+    let seconds = 0;
+    while (stamina.left < PLAYER_STAMINA - 1e-9 && seconds < 60) {
+      stepStamina(stamina, 0.25, false);
+      seconds += 0.25;
+    }
+    expect(seconds).toBeCloseTo(STAMINA_REGEN, 6);
+    // Erholen dauert länger als Verbrauchen: Sonst wäre der Sprint nur ein
+    // Knopf, den man im Takt drückt, und die Jagd endete nie.
+    expect(STAMINA_REGEN).toBeGreaterThan(PLAYER_STAMINA);
+  });
+
+  it('schenkt nach einem Treffer einen Schub, der keine Puste kostet', () => {
+    const stamina = freshStamina();
+    stamina.left = 0;
+    grantBurst(stamina);
+    let steps = 0;
+    while (stepStamina(stamina, 0.25, true) === 1 && steps < 200) steps++;
+    expect(steps * 0.25).toBeCloseTo(HIT_BURST, 6);
+    // Der Schub kostet nichts: Die leere Puste ist danach genauso leer.
+    expect(stamina.left).toBe(0);
+  });
+
+  it('findet den Raum einer erledigten Reparatur unter beiden Schreibweisen', () => {
+    const spec = generateHouse(4711, 14);
+    for (const repair of repairsFor(spec)) {
+      expect(repairRoom(spec, repair.id)).toBe(repair.roomId);
+      expect(repairRoom(spec, repair.itemId)).toBe(repair.roomId);
+    }
+    expect(repairRoom(spec, 'gibtesnicht')).toBe('');
   });
 });

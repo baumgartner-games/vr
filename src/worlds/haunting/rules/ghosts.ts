@@ -41,6 +41,17 @@ export const GHOST_FADE = 12;
  */
 export const GHOST_TTL = 25;
 
+/**
+ * **Ab wann eine Erinnerung eine Erinnerung ist**, in Sekunden.
+ *
+ * Ein Marker, der gerade eben gesetzt wurde, steht auf demselben Fleck wie
+ * die Figur, die man ansieht — er ist keine Erinnerung, sondern ein zweiter,
+ * doppelt gezeichneter Gegner. Eine halbe Sekunde ist die Grenze: Die
+ * Sichtprüfung läuft in 3D nur zehnmal je Sekunde (`HauntingWorld.sightTimer`),
+ * also darf „gerade eben" nicht enger gefasst sein, als diese Uhr auflöst.
+ */
+export const GHOST_LIVE = 0.5;
+
 /** Eine gemerkte Stelle: wo, wohin er sah, und wann das war (Rundenzeit). */
 export interface Ghost {
   x: number;
@@ -103,4 +114,82 @@ export function ghostAlpha(ghost: Ghost, now: number): number {
   const start = GHOST_TTL - GHOST_FADE;
   if (age <= start) return 1;
   return (GHOST_TTL - age) / GHOST_FADE;
+}
+
+/** Wessen Marker das ist: der des Monsters oder der des Technikers. */
+export type GhostKind = 'monster' | 'technician';
+
+/** Ein Marker, wie eine Ansicht ihn zeichnet: welcher, wo, wie kräftig. */
+export interface DrawnGhost {
+  kind: GhostKind;
+  ghost: Ghost;
+  /** Die Deckkraft für diese Ansicht — `ghostAlpha`, beim Zuschauer gedämpft. */
+  alpha: number;
+}
+
+/**
+ * **Wie blass ein Marker beim Zuschauer steht.**
+ *
+ * „Alles sehen" zeigt beide Marker **neben** den echten Figuren. Stünden sie
+ * gleich kräftig da, hätte der Zuschauer vier Wesen auf der Karte und müsste
+ * raten, welche zwei davon es wirklich gibt. Ein Drittel Deckkraft macht den
+ * Unterschied auf einen Blick.
+ */
+export const GHOST_WATCH = 0.35;
+
+/**
+ * **Welche Marker eine Ansicht zeichnet** — die eine Stelle, an der die Regel
+ * aus dem Umbauplan steht, damit sie nicht in vier Zeichnern viermal
+ * verschieden ausfällt.
+ *
+ * - **Realitätsnah** heißt: Man sieht nur den Marker des **anderen**, und nur
+ *   solange man den anderen nicht wirklich sieht. Ein Marker neben der
+ *   leibhaftigen Figur ist keine Erinnerung, sondern ein zweiter Gegner —
+ *   und er verrät obendrein, wie alt die Sichtung ist, die man gerade selbst
+ *   hat.
+ * - **Alles sehen** heißt: beide, blass, neben den echten Figuren. Der
+ *   Zuschauer soll ja gerade sehen, *was die beiden voneinander glauben* —
+ *   das ist die halbe Spannung, und ohne beide Marker nebeneinander sieht man
+ *   sie nicht.
+ *
+ * Verfallene Marker (`ghostAlpha` 0) fallen heraus; wer nichts zurückbekommt,
+ * zeichnet nichts.
+ */
+export function ghostsToDraw(
+  ghosts: Ghosts | undefined,
+  now: number,
+  view: {
+    /** Ob die Ansicht alles zeigt („Alles sehen"). */
+    omniscient: boolean;
+    /** Wer hinsieht — beim Zuschauer egal. */
+    viewer: GhostKind;
+    /** Ob die Figur dieser Sorte gerade wirklich zu sehen ist. */
+    visible?: (kind: GhostKind) => boolean;
+  },
+): DrawnGhost[] {
+  if (!ghosts) return [];
+  const out: DrawnGhost[] = [];
+  const wanted: GhostKind[] = view.omniscient
+    ? ['monster', 'technician']
+    : [view.viewer === 'monster' ? 'technician' : 'monster'];
+  for (const kind of wanted) {
+    const ghost = ghosts[kind];
+    if (!ghost) continue;
+    if (!view.omniscient && view.visible?.(kind)) continue;
+    const alpha = ghostAlpha(ghost, now) * (view.omniscient ? GHOST_WATCH : 1);
+    if (alpha <= 0) continue;
+    out.push({ kind, ghost, alpha });
+  }
+  return out;
+}
+
+/**
+ * **„vor 6 s"** — wie alt eine Erinnerung im Funk und auf der Schalttafel
+ * heißt. Sekunden, solange es Sekunden sind; darüber Minuten, denn „vor 94 s"
+ * liest niemand mehr als Zeitangabe.
+ */
+export function ghostAgeText(ghost: Ghost, now: number): string {
+  const age = Math.round(ghostAge(ghost, now));
+  if (age < 60) return `vor ${age} s`;
+  return `vor ${Math.round(age / 60)} min`;
 }

@@ -1,6 +1,15 @@
 import type { RoutineWorld } from '../monsterRoutine';
 import type { FloorPoint } from '../stationLayout';
-import { DRIFT, FLOOR, FORGET, MonsterMemory, TRACK_LENGTH, doorKey } from './monsterMemory';
+import {
+  DRIFT,
+  FLOOR,
+  FORGET,
+  MonsterMemory,
+  SCENT_LEAD,
+  TRACK_LENGTH,
+  doorKey,
+  shutPairs,
+} from './monsterMemory';
 
 /**
  * Vier Zimmer in einer Reihe und eine Kammer an der Seite:
@@ -366,5 +375,144 @@ describe('MonsterMemory', () => {
   it('eine Tür heißt nach ihren beiden Räumen, sortiert', () => {
     expect(doorKey('c', 'b')).toBe('b|c');
     expect(doorKey('b', 'c')).toBe('b|c');
+  });
+});
+
+/**
+ * **Der Aufruhr** — das Ereignis, das die Station selbst macht.
+ *
+ * Eine fertige Reparatur ist kein stiller Haken auf einer Liste: Die Konsole
+ * fährt hoch, die Sicherung fällt, im Modul flackert das Licht. Dass das
+ * Monster daraufhin weiß, wo eben jemand stand, ist kein Hellsehen. Dass es
+ * daraus eine **Laufrichtung** ableitete, wäre eines — deshalb steht der
+ * Aufruhr nicht in der Spur.
+ */
+describe('Eine erledigte Reparatur ist ein Ereignis', () => {
+  it('legt die ganze Masse in den Raum, ohne eine Sichtung zu erfinden', () => {
+    const memory = new MonsterMemory(world);
+    memory.disturbed('d', CENTRES.d!, 12);
+    expect(memory.belief('d')).toBeCloseTo(1, 12);
+    expect(memory.mostLikely()).toBe('d');
+    expect(memory.certainty()).toBeCloseTo(1, 12);
+    // Gemerkt, nicht gesehen: Die Spur bleibt leer, also gibt es keine
+    // Richtung und keine erfundene Prognose.
+    expect(memory.track.sightings).toHaveLength(0);
+    expect(memory.track.velocity()).toBeNull();
+    expect(memory.note('d').seen).toBe(-Infinity);
+    expect(memory.note('d').heard).toBe(12);
+  });
+
+  it('hält das Vergessen auf wie eine Sichtung', () => {
+    const memory = new MonsterMemory(world);
+    memory.disturbed('e', CENTRES.e!, 0);
+    memory.step(1, 'a', 1);
+    expect(memory.belief('e')).toBeGreaterThan(0.8);
+    memory.step(1, 'a', FORGET + 2);
+    expect(memory.certainty()).toBeLessThan(0.01);
+  });
+
+  it('rettet einen fremd benannten Raum über den Punkt', () => {
+    const memory = new MonsterMemory(world);
+    memory.seen('c', CENTRES.c!, 0);
+    // Der Aufrufer nennt den Raum anders, als die Karte ihn kennt — dann
+    // entscheidet die Stelle, genau wie bei einer Sichtung.
+    memory.disturbed('kombüse', { x: 21, z: 9 }, 5);
+    expect(memory.mostLikely()).toBe('e');
+  });
+});
+
+describe('Aus Türkennungen Raumpaare machen', () => {
+  const doors = [
+    { id: 'd0', a: 'a', b: 'b' },
+    { id: 'd1', a: 'c', b: 'd' },
+    { id: 'd2', a: 'a', b: null },
+  ];
+
+  it('übersetzt gesperrte Türen in die Namen des Gedächtnisses', () => {
+    expect(shutPairs(doors, ['d1'])).toEqual([doorKey('c', 'd')]);
+    expect(shutPairs(doors, [])).toEqual([]);
+    expect(shutPairs(doors, ['gibtesnicht'])).toEqual([]);
+  });
+
+  it('hängt die Haustür an die Einsatzzentrale', () => {
+    expect(shutPairs(doors, ['d2'])).toEqual([doorKey('a', 'command')]);
+    expect(shutPairs(doors, ['d2'], 'draußen')).toEqual([doorKey('a', 'draußen')]);
+  });
+
+  it('sperrt über die Übersetzung wirklich eine Tür', () => {
+    const closed: string[] = [];
+    const memory = new MonsterMemory(world, () => closed);
+    expect(memory.exits('c').map(({ door }) => door)).toContain(doorKey('c', 'd'));
+    closed.push(...shutPairs(doors, ['d1']));
+    expect(memory.exits('c').map(({ door }) => door)).not.toContain(doorKey('c', 'd'));
+  });
+});
+
+describe('Eine Blutspur auf dem Boden', () => {
+  /** Ein Tropfen dicht an der Grenze zwischen `b` und `c`, damit `SCENT_LEAD` hinüberreicht. */
+  const drop = { x: 14, z: 0 };
+
+  it('glaubt den Verfolgten dort, wohin die Spur zeigt — nicht dort, wo sie liegt', () => {
+    const memory = new MonsterMemory(world);
+    expect(nearest(drop)).toBe('b');
+    expect(nearest({ x: drop.x + SCENT_LEAD, z: 0 })).toBe('c');
+    memory.tracked('b', drop, { x: 1, z: 0 }, 1, 10);
+    expect(memory.mostLikely()).toBe('c');
+    expect(memory.belief('c')).toBeCloseTo(1, 6);
+  });
+
+  it('bleibt ohne Richtung bei dem Raum, in dem der Tropfen liegt', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('b', drop, null, 1, 10);
+    expect(memory.mostLikely()).toBe('b');
+  });
+
+  /**
+   * Der eigentliche Unterschied zu einer Sichtung: Blut **schiebt** den
+   * Glauben, es ersetzt ihn nicht. Bei voller Gewissheit wäre ein Treffer der
+   * Anfang vom Ende der Runde.
+   */
+  it('mischt sich nach `trust` in das bisherige Bild', () => {
+    const memory = new MonsterMemory(world);
+    const before = memory.belief('c');
+    memory.tracked('b', drop, { x: 1, z: 0 }, 0.5, 10);
+    expect(memory.belief('c')).toBeCloseTo(0.5 + 0.5 * before, 6);
+    expect(memory.belief('a')).toBeCloseTo(0.5 * before, 6);
+  });
+
+  it('lässt bei `trust` 0 alles, wie es war', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('b', drop, { x: 1, z: 0 }, 0, 10);
+    expect(memory.belief('c')).toBeCloseTo(0.2, 6);
+  });
+
+  /** Ein Raumname, den das Gedächtnis nicht kennt, wird über den Ort gerettet — wie bei `seen`. */
+  it('rettet einen fremden Raumnamen über die Stelle', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('zimmer 3', drop, null, 1, 10);
+    expect(memory.mostLikely()).toBe('b');
+  });
+
+  /** Und eine Welt ohne Ortsauskunft lässt das Bild ganz in Ruhe. */
+  it('kommt ohne `spaceAt` gar nicht erst zum Zug', () => {
+    const blind: RoutineWorld = { ...world, spaceAt: undefined };
+    const memory = new MonsterMemory(blind);
+    memory.tracked('zimmer 3', drop, null, 1, 10);
+    expect(memory.belief('b')).toBeCloseTo(0.2, 6);
+  });
+
+  /**
+   * Eine Fährte ist keine Sichtung: Käme sie in die Spur, rechnete die
+   * Abfangrechnung aus einem dreißig Sekunden alten Tropfen eine
+   * Fahrtrichtung samt Tempo.
+   */
+  it('schreibt nichts in die Spur der Sichtungen', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('b', drop, { x: 1, z: 0 }, 1, 10);
+    expect(memory.track.sightings).toHaveLength(0);
+    expect(memory.track.velocity()).toBeNull();
+    // Notiert wird sie trotzdem — unter „gehört", wo die Wahrheit steht.
+    expect(memory.note('c').heard).toBe(10);
+    expect(memory.note('c').seen).toBe(-Infinity);
   });
 });

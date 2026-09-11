@@ -5,7 +5,7 @@ import { MapView } from './mapView';
 import { doorCentre } from './geometry';
 import { lockerCode } from '../mission';
 import { HOLD_RANGE, SLAM_HOLD, slamDoor } from '../rules/doorLocks';
-import { defaultSetup } from '../rules/roundSetup';
+import { defaultSetup, type RoundSetup } from '../rules/roundSetup';
 
 jest.mock('./flat.css', () => ({}));
 
@@ -135,6 +135,57 @@ describe('Ziele und Wege', () => {
     expect(round.objectives()).toEqual([expect.objectContaining({ id: 'van', next: true })]);
   });
 
+  it('verrät die Kiste nur, wenn ein Bot am Archiv sitzt — sonst den Raum', () => {
+    // Bot-Archivar: Es gibt niemanden zum Zurufen, also darf die Kiste selbst
+    // das Ziel sein.
+    const solo = new FlatRound(7, { test: true, setup: defaultSetup() });
+    expect(solo.precision).toBe('crate');
+    const crate = solo.objectives()[0]!;
+    expect(crate.id).toMatch(/^cargo-/);
+    expect(crate).toMatchObject({ kind: 'crate', precision: 'exact' });
+
+    // Mensch am Archiv: nur noch der Raum, mit seinem Namen als Beschriftung.
+    const shared: RoundSetup = {
+      ...defaultSetup(),
+      abilities: { scout: 'off', panel: 'off', archive: 'human' },
+    };
+    const crew = new FlatRound(7, { test: true, setup: shared });
+    expect(crew.precision).toBe('room');
+    const goal = crew.objectives()[0]!;
+    const roomId = goal.id.replace('room:', '');
+    expect(goal.id).toMatch(/^room:/);
+    expect(goal).toMatchObject({ kind: 'room', precision: 'room' });
+    const room = crew.snapshot().rooms.find((one) => one.id === roomId)!;
+    expect(goal.label).toBe(room.name);
+    // Und es ist der Raum, in dem die richtige Kiste steht.
+    expect(solo.snapshot().items.find((i) => i.id === crate.id)!.roomId).toBe(roomId);
+  });
+
+  it('trägt bei Raumgenauigkeit keinen Teilenamen im Snapshot — und immer das Kennzeichen', () => {
+    const shared: RoundSetup = {
+      ...defaultSetup(),
+      abilities: { scout: 'off', panel: 'off', archive: 'human' },
+    };
+    const round = new FlatRound(7, { test: true, setup: shared });
+    const snapshot = round.snapshot();
+    const names = round.house.tasks.map((task) => task.label);
+    expect(names.length).toBeGreaterThan(0);
+    for (const item of snapshot.items)
+      for (const name of names) expect(item.label).not.toContain(name);
+    // Kein Gegenstand ist als Ziel markiert — auch nicht über die Hintertür.
+    expect(snapshot.items.some((item) => item.goal)).toBe(false);
+    // Das Kennzeichen steht trotzdem an jeder Kiste: Der Archivar spricht darüber.
+    const crates = snapshot.items.filter((item) => item.kind === 'cargo');
+    expect(crates.length).toBeGreaterThan(10);
+    for (const crate of crates) {
+      expect(crate.mark).toBeDefined();
+      expect(crate.label).toContain(`Kiste ${crate.mark!.number}`);
+    }
+    // Mit Bot-Archivar trägt genau eine Kiste die Zielmarke.
+    const solo = new FlatRound(7, { test: true, setup: defaultSetup() });
+    expect(solo.snapshot().items.filter((item) => item.goal)).toHaveLength(1);
+  });
+
   it('rechnet den Weg des Spielers zum nächsten Ziel und den des Monsters', () => {
     const round = new FlatRound(7, {});
     const path = round.playerRoute();
@@ -221,9 +272,9 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     flat.dispose();
   });
 
-  it('nimmt dem Techniker die Fähigkeiten, wenn Menschen auf den Plätzen sitzen', () => {
+  it('nimmt dem Techniker die Fähigkeiten, wenn Menschen sie halten', () => {
     const setup = defaultSetup();
-    setup.seats = setup.seats.map((seat) => ({ ...seat, who: 'human' }));
+    setup.abilities = { scout: 'human', panel: 'human', archive: 'human' };
     const flat = new FlatMode(7, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     expect(flat.soloPowers).toEqual({ scout: false, panel: false, archive: false });
@@ -237,10 +288,13 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     expect(flat.round.haunt.shut).toEqual([]);
     for (let i = 0; i < 40; i++) flat.update(DT);
     expect(flat.scoutNoises).toEqual([]);
-    // Die Tafel im Optionsmenü verteilt die nächste Runde neu.
-    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
-    flat.element.querySelector<HTMLButtonElement>('[data-setup-seat-who="0"]')!.click();
-    flat.element.querySelector<HTMLButtonElement>('[data-restart]')!.click();
+    // **Die Tafel steht jetzt in der Lobby und nicht mehr im Zahnrad**
+    // (`stationUi.vanPage`): Sie schreibt die Verteilung, und die nächste
+    // Runde fängt damit an. Das Optionsmenü zeigt nur noch, was sich *in* der
+    // Runde ändert.
+    flat.restart({
+      setup: { ...setup, abilities: { ...setup.abilities, archive: 'bot' } },
+    });
     expect(flat.soloPowers.archive).toBe(true);
     flat.dispose();
   });
@@ -267,9 +321,9 @@ describe('Das Horchbild auf der Kartenübersicht', () => {
    * vor. Ohne Späher steht auf der Karte gar nichts: Sie ist das Bild der
    * Zentrale, nicht das eigene Ohr.
    */
-  function noisesOnMap(seats: 'bot' | 'human'): { sampled: number; drawn: number } {
+  function noisesOnMap(who: 'bot' | 'human'): { sampled: number; drawn: number } {
     const setup = defaultSetup();
-    setup.seats = setup.seats.map((seat) => ({ ...seat, who: seats }));
+    setup.abilities = { scout: who, panel: who, archive: who };
     const flat = new FlatMode(9, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     flat.showMap(true);

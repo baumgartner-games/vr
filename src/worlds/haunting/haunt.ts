@@ -62,6 +62,13 @@ export const HAUNT_REST = 7;
  */
 export const SLAM_REACH = 1.5;
 
+/**
+ * **Wie nah jemand einer Tür steht, damit sie ihn nicht mehr einklemmt** — in
+ * Kacheln. Etwas mehr als eine halbe Kachel: der Durchgang selbst und ein
+ * Schritt davor, denn wer im nächsten Bild darin steht, steckt genauso fest.
+ */
+export const DOORWAY_CLEAR = 0.75;
+
 /** Was das Monster gerade treibt — der ganze Zustand des Spuks. */
 export interface Spook {
   /** Das Zimmer, in dem es steht. `''`, solange es in keinem steht. */
@@ -90,6 +97,16 @@ export interface HauntSight {
   lit: readonly string[];
   /** Die Türen, die schon zu sind. */
   shut: readonly string[];
+  /**
+   * **Wer gerade irgendwo steht**, in Metern — Techniker, Monster, Mitspieler.
+   *
+   * Eine Tür, in deren Durchgang jemand steht, fällt nicht zu. Ohne diese
+   * Liste tat sie es doch, und zwar am liebsten genau dann: Das Monster steht
+   * neben der Tür, an der es gerade vorbeigeht, also fiel die Tür zu, durch
+   * die es gerade ging — und danach steckte es darin. Fehlt die Liste, bleibt
+   * es beim alten Verhalten.
+   */
+  occupants?: readonly { x: number; z: number }[];
 }
 
 /** Ein Haus ohne Spuk — der Anfang jeder Runde. */
@@ -183,6 +200,14 @@ function slammable(
     const edge = doorCentre(door);
     const gap = Math.hypot(edge.x - at.x / TILE, edge.z - at.z / TILE);
     if (gap > bestGap) continue;
+    // Niemandem die Tür auf den Kopf: Wer im Durchgang steht, wird nicht
+    // eingeklemmt — auch das Monster nicht, das sich sonst selbst einsperrt.
+    if (
+      sight.occupants?.some(
+        (who) => Math.hypot(edge.x - who.x / TILE, edge.z - who.z / TILE) < DOORWAY_CLEAR,
+      )
+    )
+      continue;
     if (sealsOff(sight.spec, shut, door.id)) continue;
     best = door;
     bestGap = gap;

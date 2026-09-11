@@ -1,4 +1,7 @@
 import type { RoomKind } from '../house';
+import type { MonsterMode } from '../monsterRoutine';
+import type { MarkColour } from '../rules/cargo';
+import type { Drop } from '../rules/blood';
 import type { Ghosts } from '../rules/ghosts';
 
 /**
@@ -94,6 +97,18 @@ export interface MapDoor {
    * Sperre hält ewig; fehlt die Angabe, führt die Quelle keine Uhr.
    */
   hold?: { left: number; total: number };
+  /**
+   * **Und wie lange sie noch abkühlt** (`rules/doorLocks.ts`) — dasselbe Paar
+   * Zahlen, nur für den anderen Fall: Die Tür ist **offen**, und sie darf für
+   * diese Sekunden nicht wieder gesperrt werden.
+   *
+   * Zwei Felder und nicht eines mit einem Schalter daneben, weil es zwei
+   * verschiedene Auskünfte sind: `hold` sagt „verlass dich noch so lange
+   * darauf", `cooling` sagt „warte noch so lange". Gezeichnet werden sie als
+   * derselbe Balken über der Tür, rot das eine, grün das andere; beide sind
+   * nie gleichzeitig gesetzt.
+   */
+  cooling?: { left: number; total: number };
   material: 'wood' | 'metal';
 }
 
@@ -163,6 +178,21 @@ export interface MapItem {
   state: string;
   /** Ob man damit etwas tun kann, wenn man davorsteht. */
   interactive: boolean;
+  /**
+   * **Das Kennzeichen einer Kiste** (`rules/cargo.ts`): Farbband und Nummer,
+   * beides je Raum eindeutig. Es steht **immer** dabei, auch ohne Ziel — der
+   * Archivar sagt „Kiste 2, blaues Band", und wer das hört, muss es
+   * wiederfinden können. Nur Fracht hat eines.
+   */
+  mark?: { colour: MarkColour; number: number };
+  /**
+   * **Ob das gerade das Ziel des Technikers ist.** Gesetzt nur dort, wo die
+   * Kiste verraten werden darf (`rules/roundSetup.goalPrecision` ist
+   * `'crate'`). Sitzt ein Mensch am Archiv, trägt kein Gegenstand diese Marke
+   * — und keiner sein Label, denn ein Teilename im Snapshot wäre dasselbe
+   * Leck durch die Hintertür.
+   */
+  goal?: boolean;
 }
 
 /**
@@ -226,6 +256,38 @@ export interface MapNoise {
   since: number;
 }
 
+/**
+ * **Was das Monster gerade denkt** — die Zuschauersicht auf seinen Kopf
+ * (Vertrag 4.7).
+ *
+ * Bisher konnte man einem Monster nur ansehen, *wohin* es läuft, und daraus
+ * ist nie hervorgegangen, ob es einen Plan hatte oder gerade würfelte. Genau
+ * das ist der Unterschied zwischen einem Gegner, den man lesen lernt, und
+ * einem, der einfach passiert: Wer zusieht — im Späherblick, in „Alles sehen",
+ * in der Bot-Runde —, soll das Glaubensbild sehen, den vermuteten Weg des
+ * Technikers und die Tür, an der es ihn abfangen will.
+ *
+ * **Nur Zahlen, keine Klassen.** Das Ding geht denselben Weg wie der Rest des
+ * Snapshots: durch `structuredClone`, durch `JSON.stringify`, über die
+ * Leitung.
+ *
+ * Gefüllt wird es von `monsterRoutine.ts` (`RoutineOutput.insight`);
+ * **gezeichnet** wird es noch nicht — das ist ein eigenes Paket.
+ */
+export interface MonsterInsight {
+  mode: MonsterMode;
+  /** Wie die Haltung heißt (`MODE_LABELS`). */
+  label: string;
+  /** Wohin es gerade will — `null`, wenn es steht. */
+  goal: MapPoint | null;
+  /** Das Glaubensbild über die Räume, absteigend, nur nennenswerte Anteile. */
+  belief: Array<{ roomId: string; p: number }>;
+  /** Der vermutete Weg des Technikers mit Ankunftszeiten in Sekunden. */
+  prediction: { path: MapPoint[]; eta: number[] } | null;
+  /** Die Tür, an der es ihn abfangen will, mit beiden Ankunftszeiten. */
+  intercept: { door: string; at: MapPoint; etaMonster: number; etaPlayer: number } | null;
+}
+
 export interface MapSnapshot {
   /** Der Same der Station — dieselbe Zahl, dieselben Räume. */
   seed: number;
@@ -263,6 +325,21 @@ export interface MapSnapshot {
    * denn genau das, was man *nicht* mehr sieht, ist er ja.
    */
   ghosts?: Ghosts;
+  /**
+   * **Die Blutspur des Technikers** (`rules/blood.ts`, `HauntState.blood`) —
+   * Tropfen mit Ort und Zeit. Wie die Ghost-Marker steht sie neben den
+   * `entities` und nicht darin: Ein Tropfen ist kein Wesen, er bewegt sich
+   * nicht und macht keinen Lärm. Und wie sie wird er vom Sichtbarkeitsmodell
+   * **nicht** weggeschnitten — was auf dem Boden liegt, liegt auch im Dunkeln
+   * da; ob eine Ansicht es zeigt, entscheidet sie selbst.
+   */
+  blood?: Drop[];
+  /**
+   * **Was das Monster glaubt und vorhat** (`HauntState.insight`) — für das
+   * Overlay des Zuschauers. Reist mit dem Stand, damit auch ein Gerät, das
+   * das Monster nicht rechnet, den Kopf des Gegners sehen kann.
+   */
+  insight?: MonsterInsight;
 }
 
 /** Ein Snapshot ohne Station — der Anfangswert jeder Ansicht. */

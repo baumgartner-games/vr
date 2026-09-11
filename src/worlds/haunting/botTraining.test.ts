@@ -16,17 +16,35 @@ const PASSES = [0, 777, 4242, 31337];
 const MEASURE = { ...TRAINING_DEFAULTS, rounds: 400 };
 
 /**
- * **Wo der Techniker-Bot mit den ausgelieferten Gewichten gemessen steht** —
- * nicht, wo er stehen soll (das ist `TRAINING_TARGETS`). Der Abstand zwischen
- * beiden ist die offene Arbeit und wird im ersten Test ausdrücklich mitgeprüft,
- * damit er nicht stillschweigend wächst.
+ * **Wo der Techniker-Bot mit den ausgelieferten Gewichten gemessen steht.**
+ *
+ * Seit M2 war das dasselbe wie `TRAINING_TARGETS` — beide Quoten lagen im
+ * Band. Der Test prüft trotzdem weiter die **Messung** und nicht nur die
+ * Zusage: Eine Zahl, die man abliest, fällt auf, wenn sie sich verschiebt;
+ * ein Band, das gerade noch getroffen wird, sagt nichts darüber, ob man an
+ * seinem Rand steht oder in seiner Mitte.
+ *
+ * **Und sie hat sich verschoben** (Paket „Schalttafel"): 0,5375 / 0,3075 vor
+ * dem Umbau, 0,565 / 0,380 danach, je vier Messreihen à 400 Runden. Der Grund
+ * ist eine einzige Regel, und sie kommt vom Besitzer: **Das Monster kann nie
+ * in die Einsatzzentrale gehen** (`roomGraph.monsterGraph`). Bis dahin folgte
+ * es dem Techniker auf den letzten Metern nach Hause und holte ihn dort —
+ * das war ein guter Teil der verlorenen Runden. Jetzt ist die Zentrale das,
+ * was sie sein soll: sicher. Daraufhin wurde die **Monsterseite neu gelernt**
+ * (`trainBots`, nur `'monster'`, ab den vorherigen Gewichten: 120 Schritte à
+ * 128 Runden mit Samen 0xbeef, dann 24 Schritte à 192 Runden zur Feinjustage)
+ * und gegen genau diese Zusagen gemessen: 0,491 / 0,321 — beide im Band. Der
+ * Techniker blieb, wie er war. Ein erster Satz, der beide Seiten neu lernte,
+ * traf die Bänder ebenfalls, ließ das Monster aber **nie mehr abfangen** —
+ * `rules/botRound.test.ts` hat ihn gefangen; deshalb zählt seither der
+ * Wächter dort zur Abnahme mit. Das Band ist dabei nicht aufgegangen.
  */
-const BOT_RATES = { duo: 0.44, crew: 0.25 } as const;
+const BOT_RATES = { duo: 0.49125, crew: 0.32125 } as const;
 
 describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das Monster im Team', () => {
   /**
-   * **Wo die ausgelieferten Gewichte wirklich stehen** — und das ist etwas
-   * anderes als das Ziel darüber.
+   * **Wo die ausgelieferten Gewichte wirklich stehen** — und seit M2 ist das
+   * dort, wo sie stehen sollen.
    *
    * `TRAINING_TARGETS` beschreibt das **Spiel**: halbe-halbe zu zweit, zwei
    * Drittel für das Monster, sobald eine Zentrale dabei ist — die Reibung des
@@ -35,22 +53,22 @@ describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das M
    * eine schlichte Zustandsmaschine (`rules/technicianBot.ts`): Er läuft die
    * Strecke, die dasteht, und kürzt nicht ab.
    *
-   * Seit jeder Raum zwei bis drei Kisten hat (`rules/cargo.ts`), ist das ein
-   * Unterschied. Nicht, weil er die Kisten durchwühlte — `missionBot` und
-   * `roundSim` gehen über `taskCargo` **direkt** an die richtige —, sondern
-   * weil jede zusätzliche Kiste ein weiteres Wandmodul ist: Der Packer stellt
-   * daraufhin jedes Zimmer anders, und die Wege werden länger. Ein Mensch
-   * kürzt ab, der Bot nicht. Gemessen fällt er dadurch von 0,52 / 0,34 auf
-   * `BOT_RATES` — und ein Trainingslauf, der ihn mit Gewalt wieder ins Band
-   * zog, tat es über Puste 2 s und Vorsicht 6 m, also über Zahlen, die man
-   * einem Bot ansieht. Solche Zahlen sind es nicht wert.
+   * **Die Vorgeschichte gehört dazu, weil sie erklärt, warum hier zwei Zahlen
+   * stehen und nicht eine.** Seit jeder Raum zwei bis drei Kisten hat
+   * (`rules/cargo.ts`), sind die Wege länger — nicht, weil der Bot die Kisten
+   * durchwühlte (`missionBot` und `roundSim` gehen über `taskCargo` direkt an
+   * die richtige), sondern weil jede Kiste ein weiteres Wandmodul ist und der
+   * Packer daraufhin jedes Zimmer anders stellt. Gemessen fiel er dadurch von
+   * 0,52 / 0,34 auf 0,44 / 0,25, und ein Trainingslauf, der ihn mit Gewalt
+   * ins Band zurückzog, tat es über Puste 2 s und Vorsicht 6 m — Zahlen, die
+   * man einem Bot ansieht. Der Abstand gehörte also zugemacht, indem das
+   * **Spiel** besser wird, nicht die Gewichte verbogen.
    *
-   * **Deshalb prüft dieser Test jetzt die Messung und nicht die Zusage**: dass
-   * der Bot dort bleibt, wo er gemessen steht (jede Abweichung fällt auf), und
-   * dass die **Richtung** stimmt — im Team hat er es schwerer. Der Abstand zum
-   * Ziel steht als Zahl daneben, damit niemand ihn übersieht. Ihn zu schließen
-   * heißt, den Bot klüger zu machen, nicht seine Gewichte zu verbiegen; das
-   * ist die Arbeit des Monster-Pakets, das `botTuning.ts` ohnehin neu schreibt.
+   * Genau das ist mit M2 passiert: Das Monster geht schneller als der Spieler
+   * geht, jagt knapp unter dem Sprint, und der Sprint hat jetzt eine Puste
+   * (`mission.ts`). Das neu gelernte `DEFAULT_TUNING` trifft daraufhin **beide
+   * Bänder** — was der Test unten ausdrücklich nachrechnet, damit es nicht
+   * unbemerkt wieder herausfällt.
    */
   it('bleibt da stehen, wo der Bot gemessen steht', () => {
     const rates = PASSES.map((pass) => measure(DEFAULT_TUNING, MEASURE, pass));
@@ -71,10 +89,11 @@ describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das M
     }
     // Und die Richtung stimmt: Im Team hat es der Techniker schwerer.
     expect(crew).toBeLessThan(duo);
-    // Der Abstand zum Ziel — kein Anspruch, sondern die Zahl, die die Arbeit
-    // benennt: So viel fehlt dem Bot auf das, was das Spiel verspricht.
-    expect(TRAINING_TARGETS.duo - BOT_RATES.duo).toBeCloseTo(0.06, 2);
-    expect(TRAINING_TARGETS.crew - BOT_RATES.crew).toBeCloseTo(0.09, 2);
+    // Und beide Quoten liegen in ihrem Band — seit M2 ist der Abstand zwischen
+    // Messung und Zusage zu. Fällt eine der beiden wieder heraus, sagt es der
+    // Test hier und nicht erst jemand nach zwanzig Minuten im Headset.
+    expect(inBand({ duo, crew })).toBe(true);
+    expect(inBand(BOT_RATES)).toBe(true);
   }, 120000);
 
   it('misst dieselben Gewichte zweimal gleich', () => {
@@ -153,21 +172,46 @@ describe('Das Training selbst', () => {
     expect(trained.history.at(-1)).toBe(trained.rate);
   }, 120000);
 
+  /**
+   * **Und andersherum: ein Techniker, der zu leicht gewinnt, wird
+   * heruntergedrückt** — nur steht „zu leicht" seit M2 woanders.
+   *
+   * Die Vorrichtung ist ausgeschrieben und nicht aus `DEFAULT_TUNING` geerbt:
+   * Sonst hinge sie an den ausgelieferten Gewichten, und wer die nachlernt,
+   * zöge dem Test unter der Hand den Boden weg. „Übermächtig" heißt hier
+   * ausdrücklich **jedes Feld am Anschlag** — der Techniker zu seinen Gunsten,
+   * das Monster zu seinen Ungunsten, bis hin zu den Verhaltensfeldern
+   * (sechzehn Sekunden Absuchen, ständiges Auflauern, acht Ziele bis zum
+   * Seitenwechsel).
+   *
+   * **Gemessen wird jetzt das Duell und nicht die Runde mit Zentrale**, und
+   * das ist eine Auskunft über das Spiel: Die Untergrenzen der Tempo-Regler
+   * sind seit M2 Teil der Ungleichung (`speed` ≥ 0,95, `hunt` ≥ 1,3), also
+   * lässt sich das Monster gar nicht mehr so weit ausbremsen, dass es im Team
+   * chancenlos wäre — dort gewinnt der Techniker auch so nur 0,375 und liegt
+   * damit schon fast am Ziel. Zu zweit dagegen räumt er ab (0,81), und genau
+   * diesen Überschuss holt die Suche wieder herunter.
+   */
   it('drückt einen übermächtigen Techniker wieder herunter', () => {
     const easy = clampTuning({
       monster: {
-        ...DEFAULT_TUNING.monster,
-        speed: 0.6,
-        hunt: 1,
+        speed: 0.95,
+        hunt: 1.3,
+        stalk: 0.25,
         hearing: 0.4,
         vision: 0.4,
         memory: 0.4,
+        search: 16,
+        locker: 0.15,
+        guess: 0.25,
+        wander: 0.7,
+        stakeout: 0.6,
+        reposition: 8,
+        savour: 6,
+        ambush: 0.15,
+        predict: 0.2,
+        rush: 2,
       },
-      // **Ausgeschrieben und nicht aus `DEFAULT_TUNING` geerbt.** Vorher stand
-      // hier ein Streuoperator, und damit hing die Vorrichtung an den
-      // ausgelieferten Gewichten: Wer die nachlernte, zog dem Test unter der
-      // Hand den Boden weg. „Übermächtig" heißt hier deshalb ausdrücklich
-      // jedes Feld zugunsten des Technikers am Anschlag.
       technician: {
         walk: 2.6,
         sprint: 4.94,
@@ -179,17 +223,11 @@ describe('Das Training selbst', () => {
       },
     });
     const before = winRate(easy, options, 0);
-    // **0,45 und nicht mehr 0,7**, und das ist eine Auskunft über das Spiel und
-    // nicht über den Test: Seit jeder Raum zwei bis drei Kisten hat
-    // (`rules/cargo.ts`), kommt selbst dieser Techniker gegen ein maximal
-    // ausgebremstes Monster nur noch auf gemessene 0,50 statt über 0,70. Das
-    // Suchen kostet so viel. Gegenüber dem Ziel von 0,34 ist er damit immer
-    // noch deutlich zu stark — und genau das prüft der Test danach.
-    expect(before.crew).toBeGreaterThan(0.45);
+    expect(before.duo).toBeGreaterThan(0.7);
     const trained = trainBots(easy, 'monster', 40, options, 0xc0ffee);
-    expect(trained.rate).toBeLessThan(before.crew - 0.1);
+    expect(trained.duo).toBeLessThan(before.duo - 0.1);
     expect(centreScore({ duo: trained.duo, crew: trained.rate })).toBeLessThan(centreScore(before));
-  }, 120000);
+  }, 180000);
 
   it('rührt nur die Seite an, die trainiert wird', () => {
     const monster = new TrainingRun(DEFAULT_TUNING, 'monster', 6, options, 7);
@@ -227,7 +265,12 @@ describe('Das Training selbst', () => {
    * einem Glücksfall.
    */
   it('fängt bei den ausgelieferten Gewichten im Band an und bleibt darin', () => {
-    const run = new TrainingRun(DEFAULT_TUNING, 'both', 6, options, 99);
+    // **Mehr Runden als die anderen Läufe hier, und das ist keine Willkür.**
+    // Das Band ist 0,05 breit; auf 32 Runden sind das 16 je Besetzung, und
+    // eine einzelne Runde verschiebt den bewerteten Mittelwert schon um
+    // 1/32 = 0,031. Eine Zusage, die feiner ist als die Auflösung ihrer
+    // Messung, prüft den Würfel und nicht die Gewichte.
+    const run = new TrainingRun(DEFAULT_TUNING, 'both', 6, { ...options, rounds: 64 }, 99);
     run.advanceStep();
     const first = run.state.score;
     expect(first).toBeLessThan(TRAINING_BAND);

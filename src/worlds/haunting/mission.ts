@@ -36,8 +36,108 @@ export const STATION_PROTOCOL = 8;
  */
 export const PLAYER_WALK_SPEED = 2.6;
 export const PLAYER_SPRINT_SPEED = 4.94;
+/**
+ * **Das Jagdtempo, das die Gewichte allein erreichen** — der Deckel *unter*
+ * dem Deckel.
+ *
+ * Ohne ihn frisst der obere Deckel den Blutrausch auf: Ein Trainingslauf
+ * schiebt `speed` und `hunt` so weit hoch, bis `Grundtempo × speed × hunt`
+ * über `MONSTER_TOP_SPEED` liegt — und ab da ist jeder Aufschlag wirkungslos,
+ * weil schon das gewöhnliche Jagen am Anschlag steht. Genau das ist beim
+ * ersten Training nach dem Umbau passiert (1,15 × 1,55 ≈ 5,3 m/s, gekappt auf
+ * 4,55), und der schöne neue Schub wäre eine Zahl ohne Wirkung gewesen.
+ * Also: Die Gewichte kommen bis hierher, der Aufschlag trägt bis
+ * `MONSTER_TOP_SPEED`.
+ */
+export const MONSTER_HUNT_SPEED = 4.4;
 /** Kein Monster wird je so schnell wie ein rennender Spieler. */
 export const MONSTER_TOP_SPEED = 4.55;
+
+/**
+ * **Die Puste** — der Grund, warum die Ungleichung oben überhaupt noch eine
+ * Spannung hat.
+ *
+ * Lange galt hier nur die halbe Wahrheit: Das Monster war langsamer als ein
+ * rennender Spieler, und rennen konnte man unbegrenzt. Damit war jede Jagd in
+ * dem Augenblick entschieden, in dem der Spieler den Stick nach vorn drückte —
+ * er lief einfach so lange geradeaus, bis das Vieh aufgab. Es gab keinen
+ * Grund, eine Tür zuzuziehen, um eine Ecke zu brechen oder in einen Schacht zu
+ * steigen, und deshalb tat es auch niemand.
+ *
+ * Jetzt hat der Sprint einen Boden: `PLAYER_STAMINA` Sekunden, danach fällt
+ * das Tempo auf den **Trab** (`TROT`), und der liegt unter dem, was ein
+ * jagendes Monster kann. Eine gerade Flucht endet damit; eine Flucht mit einem
+ * Riegel, einer Sichtlinienbrechung oder einem Schacht darin nicht. Genau das
+ * ist der Takt, den dieses Spiel haben soll.
+ *
+ * Nachgerechnet: Abstand 8 m, der Spieler sprintet 5 s und gewinnt dabei rund
+ * 2,7 m; danach trabt er mit 3,56 m/s, das Monster jagt mit rund 4,40 m/s und
+ * holt 0,85 m/s auf — Kontakt nach etwa 18 s gerader Flucht. Ein Riegel
+ * dazwischen kostet das Monster rund 4 s, ein Sichtabriss macht aus der Jagd
+ * wieder eine Suche.
+ */
+export const PLAYER_STAMINA = 5;
+/** Was vom Sprint übrig bleibt, wenn die Puste weg ist — derselbe Anteil wie beim Bot. */
+export const TROT = 0.72;
+/** Wie lange es dauert, die Puste beim Gehen wieder vollständig aufzufüllen, in Sekunden. */
+export const STAMINA_REGEN = 8;
+/**
+ * Der kurze Schub nach einem Treffer, in Sekunden (Dead by Daylight nennt es
+ * „Sprint Burst"). Ein Treffer ohne Vorsprung wäre gleich der nächste: Man
+ * steht benommen da, wo man getroffen wurde, und das Monster steht daneben.
+ * In dieser Zeit sprintet der Spieler, ohne Puste zu verbrauchen.
+ */
+export const HIT_BURST = 1.5;
+/** Das Tempo, das nach der Puste übrig bleibt, in m/s. */
+export const PLAYER_TROT_SPEED = PLAYER_SPRINT_SPEED * TROT;
+
+/**
+ * Der Zustand der Puste: verbleibende Sprintsekunden und der laufende Schub
+ * nach einem Treffer. Eine Zahl zu wenig, und man kann nicht unterscheiden,
+ * ob jemand am Ende ist oder gerade geschont wird.
+ */
+export interface Stamina {
+  /** Sekunden Sprint, die noch da sind. */
+  left: number;
+  /** Sekunden Schub, in denen der Sprint nichts kostet. */
+  burst: number;
+}
+
+export function freshStamina(): Stamina {
+  return { left: PLAYER_STAMINA, burst: 0 };
+}
+
+/** Nach einem Treffer: der Schub, unabhängig davon, wie leer die Puste war. */
+export function grantBurst(stamina: Stamina): void {
+  stamina.burst = HIT_BURST;
+}
+
+/**
+ * **Ein Zeitschritt der Puste** — und heraus kommt der Anteil des
+ * Sprinttempos, der gerade wirklich zur Verfügung steht: 1 solange Puste oder
+ * Schub da sind, sonst `TROT`.
+ *
+ * Wer nicht sprintet, füllt auf — in `STAMINA_REGEN` Sekunden von leer auf
+ * voll. Bewusst langsamer als das Leerlaufen: Sonst wäre der Sprint nur ein
+ * Knopf, den man im Takt drückt, und die Jagd endete nie.
+ */
+export function stepStamina(stamina: Stamina, dt: number, sprinting: boolean): number {
+  const step = Math.max(0, Math.min(0.25, dt));
+  // **Gefragt wird vor dem Abziehen und nicht danach.** Andersherum gälte die
+  // Sekunde, die die Puste gerade aufbraucht, schon als Trab, und aus fünf
+  // Sekunden Sprint würden je nach Bildrate 4,75 oder 4,98 — eine Zahl, die
+  // von der Grafikkarte abhinge.
+  const burst = stamina.burst > 0;
+  stamina.burst = Math.max(0, stamina.burst - step);
+  if (burst) return 1;
+  if (!sprinting) {
+    stamina.left = Math.min(PLAYER_STAMINA, stamina.left + (step * PLAYER_STAMINA) / STAMINA_REGEN);
+    return 1;
+  }
+  const left = stamina.left > 0;
+  stamina.left = Math.max(0, stamina.left - step);
+  return left ? 1 : TROT;
+}
 export const ROOM_COUNTS = [14] as const;
 export type MonsterKind = 'stalker' | 'crawler' | 'sentinel';
 export const MONSTERS: ReadonlyArray<{
@@ -197,6 +297,21 @@ export function repairsFor(spec: HouseSpec): Repair[] {
   });
   repairCache.set(spec, repairs);
   return repairs;
+}
+
+/**
+ * **In welchem Raum eine erledigte Reparatur erledigt wurde.**
+ *
+ * `HauntState.done` ist über die Jahre uneinheitlich befüllt worden: Das
+ * Schiff schreibt die Kennung der Reparatur hinein (`engine`), die 2D-Runde
+ * die des Ersatzteils (`itemId`), der Modelltechniker wieder die erste. Wer
+ * daraus einen Raum machen will — und das will seit M2 das Monster —, darf
+ * sich auf keine der beiden Schreibweisen verlassen; also nimmt diese Zeile
+ * beide. `''`, wenn der Eintrag zu keiner Reparatur gehört.
+ */
+export function repairRoom(spec: HouseSpec, entry: string): string {
+  const repair = repairsFor(spec).find((r) => r.id === entry || r.itemId === entry);
+  return repair?.roomId ?? '';
 }
 
 export function lockerCode(seed: number, room: string): string {

@@ -6,6 +6,7 @@ import {
   scaleForWidth,
   DEFAULT_SCALE,
   PHONE_SCALE,
+  PAN_HEADROOM,
 } from './flatScene';
 import { SPRITE_H } from './flatArt';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
@@ -90,6 +91,29 @@ function omniscient(): VisibilityField {
 }
 
 describe('FlatScene', () => {
+  it('tönt den Boden des Zielraums — aber nur, wenn ein Raum das Ziel ist', () => {
+    const round = new FlatRound(5, { test: true });
+    const roomId = round.snapshot().rooms.find((one) => !one.circulation)!.id;
+    let goal: string | null = null;
+    const scene = new FlatScene({ mode: 'omniscient', goalRoom: () => goal });
+    scene.setSnapshot(round.snapshot());
+    scene.setVisibility(round.field);
+    scene.setView({ centreX: round.player.x, centreZ: round.player.z });
+    scene.draw();
+    expect(scene.stats.goalRooms).toBe(0);
+    const quiet = calls.length;
+    goal = roomId;
+    calls.length = 0;
+    scene.draw();
+    expect(scene.stats.goalRooms).toBe(1);
+    // Der getönte Boden ist mehr Zeichnung als derselbe Raum ohne Ziel.
+    expect(calls.length).toBeGreaterThan(quiet);
+    expect(calls.filter((c) => c.name === 'set:fillStyle').map((c) => c.args[0])).toContain(
+      'rgba(255, 216, 74, 0.10)',
+    );
+    scene.dispose();
+  });
+
   it('folgt dem Spieler und rechnet Bild und Welt hin und zurück', () => {
     const round = new FlatRound(5, { test: true });
     const scene = new FlatScene();
@@ -168,6 +192,39 @@ describe('FlatScene', () => {
     scene.zoomAt(100, 200, 150);
     scene.draw();
     expect(scene.getView().centreX).toBeCloseTo(round.player.x);
+    scene.dispose();
+  });
+
+  /**
+   * **Ganz heraus heißt nicht festgenagelt** (`PAN_HEADROOM`). Die Station
+   * stand dann fest in der Mitte, und ihre obere Kante lag hinter
+   * Aufgabenkasten und Sprungknöpfen — genau dann, wenn man sie ganz sehen
+   * wollte. Wer selbst zieht, holt sie so weit nach unten, wie oben verdeckt
+   * ist; nach oben gibt der Anschlag nicht nach.
+   */
+  it('lässt die ganz herausgezoomte Station nach unten unter den oberen Rand ziehen', () => {
+    const round = new FlatRound(5, { test: true });
+    const scene = new FlatScene();
+    scene.setSnapshot(round.snapshot());
+    scene.follow(PLAYER_ID);
+    scene.zoomAt(0.001, 200, 150);
+    scene.draw();
+    const b = round.snapshot().bounds;
+    const middle = scene.toScreen(b.minX, b.minZ).y;
+    scene.panBy(0, 60);
+    scene.draw();
+    const down = scene.toScreen(b.minX, b.minZ).y;
+    expect(down).toBeGreaterThan(middle + 30);
+    // Der Anschlag hält die Station im Bild.
+    scene.panBy(0, 600);
+    scene.draw();
+    const limit = scene.toScreen(b.minX, b.minZ).y;
+    expect(limit).toBeGreaterThan(down);
+    expect(limit - middle).toBeLessThanOrEqual(PAN_HEADROOM + 1);
+    // Nach oben gar nicht: Dort ist nichts zu holen.
+    scene.panBy(0, -600);
+    scene.draw();
+    expect(scene.toScreen(b.minX, b.minZ).y).toBeCloseTo(middle);
     scene.dispose();
   });
 
@@ -404,5 +461,71 @@ describe('Geräusche auf dem Boden der Szene', () => {
     if (crew >= 0) expect(first).toBeLessThan(crew);
     quiet.dispose();
     scene.dispose();
+  });
+});
+
+describe('Spur und Erinnerung auf dem gespielten Bild', () => {
+  /** Ein Raum mit zwei Tropfen Blut und zwei Ghost-Markern darin. */
+  function marked(): MapSnapshot {
+    const s = room();
+    s.time = 10;
+    s.blood = [
+      { x: 4, z: 5, since: 8 },
+      { x: 5.5, z: 5, since: 9 },
+    ];
+    s.ghosts = {
+      monster: { x: 7, z: 6, yaw: 0, since: 9 },
+      technician: { x: 3, z: 4, yaw: 1, since: 9 },
+    };
+    return s;
+  }
+
+  it('malt die Tropfen auf den Boden und zählt sie', () => {
+    const scene = new FlatScene({ mode: 'omniscient' });
+    scene.setSnapshot(marked());
+    scene.setVisibility(omniscient());
+    scene.setView({ centreX: 5, centreZ: 5 });
+    scene.draw();
+    expect(scene.stats.drops).toBe(2);
+    // Verblasst ist verblasst: ein Snapshot eine Minute später zeigt nichts mehr.
+    const old = marked();
+    old.time = 200;
+    scene.setSnapshot(old);
+    scene.draw();
+    expect(scene.stats.drops).toBe(0);
+  });
+
+  /**
+   * Die Regel aus `rules/ghosts.ghostsToDraw`, hier am gespielten Bild: Der
+   * Techniker sieht in „Realitätsnah" nur den Marker des Monsters, der
+   * Zuschauer beide.
+   */
+  it('zeigt dem Techniker einen Marker und dem Zuschauer beide', () => {
+    const watch = new FlatScene({ mode: 'omniscient' });
+    watch.setSnapshot(marked());
+    watch.setVisibility(omniscient());
+    watch.setView({ centreX: 5, centreZ: 5 });
+    watch.draw();
+    expect(watch.stats.ghosts).toBe(2);
+
+    const own = new FlatScene({ mode: 'realistic' });
+    own.setSnapshot(marked());
+    own.setVisibility(emptyField('realistic'));
+    own.setView({ centreX: 5, centreZ: 5 });
+    own.draw();
+    expect(own.stats.ghosts).toBe(1);
+  });
+
+  it('lässt den Marker weg, solange das Monster wirklich zu sehen ist', () => {
+    const s = marked();
+    s.entities.push(entity(MONSTER_ID, 7, 6, 'monster'));
+    const field = emptyField('realistic');
+    field.visibleEntities = [MONSTER_ID];
+    const scene = new FlatScene({ mode: 'realistic' });
+    scene.setSnapshot(s);
+    scene.setVisibility(field);
+    scene.setView({ centreX: 5, centreZ: 5 });
+    scene.draw();
+    expect(scene.stats.ghosts).toBe(0);
   });
 });

@@ -19,7 +19,6 @@ function handles(vents?: WorldHandles['vents']): WorldHandles {
     monster: { x: 1, z: 2 },
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],

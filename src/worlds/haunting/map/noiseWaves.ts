@@ -15,10 +15,17 @@ import type { NoiseRadius } from './visibility';
  *
  * Jede Welle hat eine Front, die mit `WAVE_SPEED` nach außen läuft, und
  * dahinter einen Saum, der verblasst. Was zählt, ist nicht die Luftlinie,
- * sondern die Länge des begehbaren Wegs (`noiseSpread.ts`): durch die offene
- * Tür, um die Ecke, nie durch eine Wand, nie über den leeren Weltraum neben
- * der Station — und durch die Schächte, in beide Richtungen. Dasselbe, was
- * `audio/hearing.ts` rechnet, nur sichtbar.
+ * sondern die **effektive** Weglänge (`noiseSpread.ts`): durch die offene
+ * Tür, um die Ecke, nie über den leeren Weltraum neben der Station — und
+ * durch die Schächte, in beide Richtungen. Dasselbe, was `audio/hearing.ts`
+ * rechnet, nur sichtbar.
+ *
+ * **Wände hören die Welle nicht auf, sie halten sie auf.** Eine Wand kostet
+ * `WALL_LOSS` Meter, ein zugeworfenes Türblatt `DOOR_LOSS` — die Front
+ * braucht dafür bei `WAVE_SPEED` eine knappe Sekunde länger und kommt
+ * blasser drüben an. Vorher hörte das Bild an jeder Wand hart auf, während
+ * das Monster nebenan längst hörte: Wer spielte, sah sein eigenes Geräusch
+ * im Zimmer bleiben und hielt es für gedeckt.
  *
  * Gezeichnet wird **ganz hinten**, direkt auf den Böden: Eine Welle über
  * Möbeln und Figuren nähme genau das Bild weg, für das sie da ist.

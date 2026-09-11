@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import type { MarkId } from './house';
-import { CARGO_SIZE, FIXTURE_CATALOG, LOCKER_SIZE, type FixtureSize } from './fixtureDimensions';
+import {
+  CARGO_BAND_COLORS,
+  CARGO_SIZE,
+  FIXTURE_CATALOG,
+  LOCKER_SIZE,
+  type FixtureSize,
+} from './fixtureDimensions';
+import type { CargoMark } from './rules/cargo';
 
 export { CARGO_SIZE, CONSOLE_SIZE, FIXTURE_CATALOG, LOCKER_SIZE } from './fixtureDimensions';
 export type { FixtureSize } from './fixtureDimensions';
@@ -437,15 +444,32 @@ export interface CabinetModel {
   lootMount: THREE.Vector3;
 }
 
-export function buildCargoCabinet(): CabinetModel {
-  return cabinet(false);
+/**
+ * **Der Frachtschrank — mit Kennzeichen, wenn er eines hat.**
+ *
+ * Das Kennzeichen ist Farbband und Nummer (`rules/cargo.ts`), und es steht
+ * **immer** am Modell, nicht nur am Ziel: Der Archivar sagt „Kiste 2, blaues
+ * Band", und der Techniker muss sie daran wiederfinden — auch die zwei
+ * falschen daneben müssen also lesbar sein, sonst ist die Auskunft keine.
+ *
+ * Das Band läuft um den Kasten, die Nummer steht als Punkte auf einem dunklen
+ * Schild darunter: Ein Modell hier hat keine Schrift und keine Textur, aber
+ * einen bis drei Punkte zählt man auch aus fünf Metern im Halbdunkel.
+ */
+export function buildCargoCabinet(mark?: CargoMark): CabinetModel {
+  return cabinet(false, mark);
 }
 
 export function buildSafetyLocker(): CabinetModel {
   return cabinet(true);
 }
 
-function cabinet(safety: boolean): CabinetModel {
+/** Wie hoch das Farbband am Kasten sitzt, als Anteil seiner Höhe. */
+const BAND_AT = 0.66;
+/** Und wie breit es ist, in Metern. */
+const BAND_H = 0.1;
+
+function cabinet(safety: boolean, mark?: CargoMark): CabinetModel {
   const size = safety ? LOCKER_SIZE : CARGO_SIZE;
   const { width: w, height: h, depth: d } = size;
   const body = new FixtureBuilder();
@@ -459,6 +483,12 @@ function cabinet(safety: boolean): CabinetModel {
     body.box([0.54, 0.09, 0.46], [0, 0.64, -0.06], 'rubber', 0.025);
     body.box([0.08, 0.5, 0.3], [0, 0.36, -0.13], 'metal', 0.02);
   }
+  if (!safety && mark)
+    // Der Punktbalken der Nummer liegt auf einem dunklen Schild — es teilt
+    // sich seine Zeichnung mit dem Rest der dunklen Teile und kostet keinen
+    // zweiten Zeichenaufruf (`build` fasst je Finish zusammen). Deshalb steht
+    // es hier oben, vor `build`: Was danach kommt, baut niemand mehr.
+    body.box([w - 0.34, 0.14, 0.02], [0, h * BAND_AT - 0.15, d / 2 - 0.016], 'dark', 0.01);
   const root = body.build(safety ? 'safety-locker' : 'cargo-cabinet');
   root.userData.fixtureSize = size;
   const leaf = new FixtureBuilder();
@@ -484,6 +514,7 @@ function cabinet(safety: boolean): CabinetModel {
   door.position.set(0, h / 2, d / 2 - 0.07);
   door.add(details.build('door-hardware'));
   root.add(door);
+  if (!safety && mark) root.add(markBand(mark, w, h, d));
   return {
     root,
     door,
@@ -491,6 +522,35 @@ function cabinet(safety: boolean): CabinetModel {
     screenMount: new THREE.Vector3(0, h / 2 + (safety ? 0.12 : 0.14), d / 2 - 0.014),
     lootMount: new THREE.Vector3(0, safety ? 0.75 : 0.5, -0.025),
   };
+}
+
+/**
+ * Farbband und Nummernpunkte als **ein** Netz in der Farbe des Bandes.
+ *
+ * Es wird mit dem Finish `amber` gebaut und danach umgefärbt: Der Bauplan
+ * kennt vier feste Finishes, das Kennzeichen aber vier Farben, die aus der
+ * Runde kommen. `amber` ist dabei kein Zufall, sondern die einzige Vorlage mit
+ * einem Eigenleuchten — ein Band, das in einer dunklen Station gar nichts
+ * zurückwirft, kann niemand zurufen.
+ */
+function markBand(mark: CargoMark, w: number, h: number, d: number): THREE.Group {
+  const band = new FixtureBuilder();
+  band.box([w - 0.015, BAND_H, d - 0.028], [0, h * BAND_AT, 0], 'amber', 0.012);
+  for (let i = 0; i < mark.number; i++) {
+    const step = 0.075;
+    const x = (i - (mark.number - 1) / 2) * step;
+    band.box([0.045, 0.045, 0.014], [x, h * BAND_AT - 0.15, d / 2 - 0.008], 'amber', 0.006);
+  }
+  const group = band.build('cargo-mark');
+  const colour = CARGO_BAND_COLORS[mark.colour];
+  for (const child of group.children) {
+    const mesh = child as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    mesh.material.color.setHex(colour);
+    mesh.material.emissive.setHex(colour);
+    mesh.material.emissiveIntensity = 0.22;
+    mesh.userData.fixtureFinish = 'cargo-mark';
+  }
+  return group;
 }
 
 export interface WreckModel {

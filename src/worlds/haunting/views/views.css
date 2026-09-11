@@ -49,6 +49,44 @@
 .role__ptools { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; }
 .role__hint { color: #6b7690; font-size: 11px; }
 
+/* **Blatt auf heißt Karte weg.** Der Befund des Besitzers war, dass sich die
+   Raumakte über der Karte nicht rollen ließ und darunter ein Grundriss
+   weiterleuchtete, auf den man beim Zielen traf. Also nimmt `is-sheet` die
+   Karte aus dem Bild und gibt dem Blatt die ganze Fläche — dieselbe Form für
+   die Raumakte des Archivars und die Tafel der Schalttafel. */
+.role.is-sheet .role__map { visibility: hidden; }
+.role.is-sheet .role__sheet { left: 0; right: 0; bottom: 0; transform: none; width: auto; max-height: none; padding: 0 12px calc(12px + env(safe-area-inset-bottom)); }
+
+/* Der eine Knopf oben rechts, der das Blatt aufschlägt und wieder wegnimmt —
+   bei der Schalttafel die Tafel, beim Fernseher seine Linse. Er bleibt stehen,
+   solange das Blatt offen ist: Ein Menü, das sich nur über den Umweg
+   „irgendetwas in der Liste antippen" schließen lässt, ist eine Falle. */
+.role__corner { position: absolute; right: 10px; top: max(10px, env(safe-area-inset-top)); z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding: 7px 12px; border-radius: 12px; border: 1px solid rgba(140, 170, 230, 0.4); background: rgba(12, 18, 32, 0.92); color: #e8ecf7; font: inherit; touch-action: manipulation; }
+.role__corner strong { font-size: 13px; }
+.role__corner small { font-size: 11px; color: #97a3bd; }
+
+/* **Die Tafel** (`views/panelRole.ts`): eine Zeile je Schalter, und zwar eine
+   fette. Sie hing früher im Telefon-Gitter der Einsatzzentrale
+   (`stationDashboard.css`, `.haunt__switch`) und damit an einer Seite, die es
+   in der 2D-Welt gar nicht gibt; jetzt steht sie bei der Rolle, der sie
+   gehört. Eine Spalte und keine zwei: „Licht Kombüse" bricht sonst um, und ein
+   Kippschalter, den man mit dem Daumen trifft, braucht die Breite. */
+.role__switches { display: flex; flex-direction: column; gap: 8px; }
+.role__switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 64px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(18, 24, 40, 0.9); color: #e8ecf7; font: inherit; text-align: left; touch-action: manipulation; }
+.role__switch-label { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 16px; }
+.role__switch-label small { font-size: 13px; font-weight: 500; color: #8ff0c2; }
+.role__knob { flex: none; position: relative; width: 58px; height: 32px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.4); background: rgba(10, 15, 26, 0.9); }
+.role__knob i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #6b7690; transition: transform .15s, background .15s; }
+.role__switch.is-on { border-color: #ffb14a; background: rgba(58, 46, 20, 0.9); }
+.role__switch.is-on .role__knob { border-color: #ffb14a; background: rgba(120, 92, 24, 0.9); }
+.role__switch.is-on .role__knob i { transform: translateX(26px); background: #ffb14a; }
+/* Ein Schott, das abkühlt, steht grün und lässt sich nicht drücken
+   (`rules/doorLocks.ts`): Vierzig Sekunden wortlos nichts tun heißt für den
+   Hacker, dass der Schalter kaputt ist — und ab da traut er der Tafel nicht. */
+.role__switch.is-warm, .role__switch.is-warm[disabled] { border-color: #5ee0a0; background: rgba(20, 58, 44, 0.92); opacity: 1; cursor: default; }
+.role__switch.is-warm .role__knob { border-color: #5ee0a0; background: rgba(24, 78, 58, 0.9); }
+.role__switch.is-warm .role__knob i { background: #5ee0a0; }
+
 /* **Wenn die Akte ein Loch in die 3D-Welt hat**, muss alles darüber weg: die
    Karte der Rolle (eine deckende Leinwand), der Grund der Rolle und der
    Grund der Seite. Sonst zeichnet die Welt brav in das Rechteck und man
@@ -64,6 +102,19 @@
    dieser Stelle wäre ein schwarzes Rechteck statt eines Puppenhauses. */
 .role--watch { background: none; }
 .role--watch .role__hole--full { position: absolute; inset: 0; }
+/* Die fremde Rollenansicht liegt über dem Puppenhaus und deckt es zu: Zwei
+   Bilder übereinander wären beide unlesbar. */
+.role__stage { position: absolute; inset: 0; }
+.role--watch.is-guest { background: #070a10; }
+.role__h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 4px 0 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8fb7ff; }
+.role__h-aside { font-size: 11px; letter-spacing: 0; text-transform: none; color: #6b7690; }
+.role__watch-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.role__watch-key { display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(18, 24, 40, 0.86); color: #97a3bd; font: inherit; text-align: left; touch-action: manipulation; }
+.role__watch-key strong { font-size: 14px; color: #e8ecf7; }
+.role__watch-key small { font-size: 11.5px; color: #97a3bd; line-height: 1.35; }
+.role__watch-key--wide { grid-column: 1 / -1; }
+.role__watch-key.is-active { border-color: #7fe0ff; background: rgba(20, 44, 60, 0.92); }
+.role__watch-key.is-active strong { color: #7fe0ff; }
 .role__notes { position: absolute; left: 0; right: 0; bottom: 0; max-height: 55%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); }
 .role__note { background: rgba(10, 15, 26, 0.9); }
 .role__note { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: rgba(18, 24, 40, 0.8); border-left: 3px solid #4a5876; }
@@ -90,3 +141,5 @@
 .role-stage .role__hud { top: var(--flat-top); }
 .role-stage .role__toast { top: calc(var(--flat-top) + 118px); }
 .role-stage .role__sheet { top: calc(var(--flat-top) + 118px); max-height: calc(100dvh - var(--flat-top) - 130px); }
+.role-stage .role__corner { top: var(--flat-top); }
+.role-stage .role.is-sheet .role__sheet { max-height: none; }

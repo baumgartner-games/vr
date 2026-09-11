@@ -1,5 +1,6 @@
 import {
   HOLD_RANGE,
+  LOCK_COOLDOWN,
   PRY_COOLDOWN,
   SLAM_HOLD,
   chooseLock,
@@ -8,6 +9,8 @@ import {
   pryChance,
   pryLock,
   pryTries,
+  coolingUntil,
+  mayLock,
   releaseLock,
   slamDoor,
   slamUntil,
@@ -132,9 +135,9 @@ describe('doorLocks', () => {
   test('der Schalter: zu wenn offen, auf wenn zu', () => {
     const locks = freshLocks();
     const first = toggleLock(locks, [], 'a');
-    expect(first).toEqual({ shut: ['a'], locked: true });
+    expect(first).toEqual({ shut: ['a'], locked: true, blocked: false });
     const second = toggleLock(locks, first.shut, 'a');
-    expect(second).toEqual({ shut: [], locked: false });
+    expect(second).toEqual({ shut: [], locked: false, blocked: false });
   });
 
   test('Buchführung räumt auf, was anderswo geöffnet wurde', () => {
@@ -155,5 +158,126 @@ describe('doorLocks', () => {
     shut = slamDoor(locks, shut, 'a', 10);
     expect(shut).toEqual(['a']);
     expect(slamUntil(locks, 'a')).toBe(SLAM_HOLD);
+  });
+
+  describe('eine eben freigewordene Tür bleibt eine Weile frei', () => {
+    test('die Tafel bekommt sie nicht sofort wieder zu', () => {
+      const locks = freshLocks();
+      let shut = chooseLock(locks, [], 'd1', 0, () => 0);
+      // Die Zeit läuft ab, die Tür geht von selbst auf.
+      const step = stepLocks(locks, shut, HOLD_RANGE[0]);
+      shut = step.shut;
+      expect(step.opened).toEqual(['d1']);
+      expect(mayLock(locks, 'd1', HOLD_RANGE[0])).toBe(false);
+      // Sofort wieder wählen: passiert nichts.
+      expect(chooseLock(locks, shut, 'd1', HOLD_RANGE[0], () => 0)).toEqual([]);
+      expect(locks.chosen).toBe('');
+      // Eine andere Tür geht selbstverständlich weiter.
+      expect(chooseLock(locks, shut, 'd2', HOLD_RANGE[0], () => 0)).toEqual(['d2']);
+    });
+
+    test('nach LOCK_COOLDOWN Sekunden geht sie wieder', () => {
+      const locks = freshLocks();
+      let shut = chooseLock(locks, [], 'd1', 0, () => 0);
+      shut = stepLocks(locks, shut, HOLD_RANGE[0]).shut;
+      const free = HOLD_RANGE[0] + LOCK_COOLDOWN;
+      expect(mayLock(locks, 'd1', free - 0.1)).toBe(false);
+      expect(mayLock(locks, 'd1', free)).toBe(true);
+      expect(chooseLock(locks, shut, 'd1', free, () => 0)).toEqual(['d1']);
+    });
+
+    test('auch der Spuk schlägt dieselbe Tür nicht sofort noch einmal zu', () => {
+      const locks = freshLocks();
+      let shut = slamDoor(locks, [], 'd1', 0);
+      shut = stepLocks(locks, shut, SLAM_HOLD).shut;
+      expect(shut).toEqual([]);
+      expect(slamDoor(locks, shut, 'd1', SLAM_HOLD)).toEqual([]);
+      // Eine andere Tür darf er weiter zuwerfen.
+      expect(slamDoor(locks, shut, 'd2', SLAM_HOLD)).toEqual(['d2']);
+    });
+
+    test('freigeben kühlt genauso ab wie ablaufen', () => {
+      const locks = freshLocks();
+      const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+      const open = releaseLock(locks, shut, 'd1', 3);
+      expect(open).toEqual([]);
+      expect(mayLock(locks, 'd1', 3)).toBe(false);
+      expect(mayLock(locks, 'd1', 3 + LOCK_COOLDOWN)).toBe(true);
+    });
+
+    test('eine aufgezogene Sperre fällt nicht hinter dem Monster wieder zu', () => {
+      const locks = freshLocks();
+      let shut = chooseLock(locks, [], 'd1', 0, () => 0);
+      // Der erste Zug geht nie auf, der zweite hier schon.
+      pryLock(locks, shut, 'd1', 0, () => 0);
+      const out = pryLock(locks, shut, 'd1', PRY_COOLDOWN, () => 0);
+      expect(out.opened).toBe(true);
+      shut = out.shut;
+      expect(chooseLock(locks, shut, 'd1', PRY_COOLDOWN, () => 0)).toEqual([]);
+    });
+
+    test('der Schalter sagt, dass der Riegel noch warm ist', () => {
+      const locks = freshLocks();
+      let shut = chooseLock(locks, [], 'd1', 0, () => 0);
+      shut = stepLocks(locks, shut, HOLD_RANGE[0]).shut;
+      const blocked = toggleLock(locks, shut, 'd1', HOLD_RANGE[0], () => 0);
+      expect(blocked).toEqual({ shut: [], locked: false, blocked: true });
+      const later = toggleLock(locks, shut, 'd1', HOLD_RANGE[0] + LOCK_COOLDOWN, () => 0);
+      expect(later.locked).toBe(true);
+      expect(later.blocked).toBe(false);
+    });
+
+    /**
+     * **Vierzig Sekunden, und nicht weniger.** Die Zahl ist der Kern der
+     * Antwort auf „der Spieler sperrt das Monster ein": Nach jedem Aufziehen
+     * und nach jeder abgelaufenen Sperre steht die Tür so lange offen, dass
+     * das Vieh wirklich hindurch ist, bevor der nächste Riegel fallen darf.
+     * Wer sie herunterdreht, dreht genau diese Regel zurück.
+     */
+    test('kühlt vierzig Sekunden ab, nach jedem Weg aus der Sperre heraus', () => {
+      expect(LOCK_COOLDOWN).toBe(40);
+      for (const [name, out] of [
+        [
+          'abgelaufen',
+          () => {
+            const locks = freshLocks();
+            const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+            stepLocks(locks, shut, HOLD_RANGE[1]);
+            return { locks, at: HOLD_RANGE[1] };
+          },
+        ],
+        [
+          'freigegeben',
+          () => {
+            const locks = freshLocks();
+            const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+            releaseLock(locks, shut, 'd1', 5);
+            return { locks, at: 5 };
+          },
+        ],
+        [
+          'aufgezogen',
+          () => {
+            const locks = freshLocks();
+            const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+            pryLock(locks, shut, 'd1', 0, () => 0);
+            pryLock(locks, shut, 'd1', PRY_COOLDOWN, () => 0);
+            return { locks, at: PRY_COOLDOWN };
+          },
+        ],
+      ] as const) {
+        const { locks, at } = out();
+        expect([name, coolingUntil(locks, 'd1')]).toEqual([name, at + LOCK_COOLDOWN]);
+        expect([name, mayLock(locks, 'd1', at + LOCK_COOLDOWN - 0.1)]).toEqual([name, false]);
+        expect([name, mayLock(locks, 'd1', at + LOCK_COOLDOWN)]).toEqual([name, true]);
+      }
+    });
+
+    test('entriegeln bleibt jederzeit erlaubt', () => {
+      const locks = freshLocks();
+      const shut = chooseLock(locks, [], 'd1', 0, () => 0);
+      const out = toggleLock(locks, shut, 'd1', 1, () => 0);
+      expect(out).toEqual({ shut: [], locked: false, blocked: false });
+    });
   });
 });

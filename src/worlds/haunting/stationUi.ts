@@ -1,8 +1,17 @@
 import { repairsFor } from './mission';
 import './haunting.css';
 import './stationDashboard.css';
-import { describeSetup, type RoundSetup } from './rules/roundSetup';
-import { SetupPanel } from './roundSetupPanel';
+import {
+  ABILITIES,
+  ABILITY_LABELS,
+  describeSetup,
+  NO_ROLE_HINT,
+  roleName,
+  switchRights,
+  type Ability,
+  type RoundSetup,
+} from './rules/roundSetup';
+import { SetupPanel, abilityOf, slotOf, type SetupSlot } from './roundSetupPanel';
 // **Die Rollen melden sich selbst an**, jede aus ihrer eigenen Datei
 // (`BOUNDARIES.md`). Importiert werden sie hier und nicht über
 // `registry/discover.ts`: Der Glob dort ist Vite-eigen, und die Einsatzzentrale
@@ -13,32 +22,64 @@ import './views/scout.register';
 import './views/watch.register';
 import './monster/monster.register';
 import { listRoles, roles, type RoleHost, type RoleView } from './registry/roles';
+import type { WatchRoleView } from './views/watchRole';
+import { defaultLens, seatStation, type WatchLens } from './watchLens';
 import type { ArchiveDesk } from './views/archiveDesk';
 import type { HouseSpec } from './house';
-import { crowdAt, MOVE_TIME, seating, shoved, type Claim, type StationId } from './stations';
+import { visibleSwitches } from './panel';
+import { seating, shoved, type Claim, type StationId } from './stations';
 import type { HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
-import type { LobbyChoice } from './rules/lobby';
+import {
+  applyIntent,
+  FLAT_CHECK,
+  intentOf,
+  startLabel,
+  TEST_CHECK,
+  TEST_CHECK_HINT,
+  type LobbyChoice,
+  type View,
+} from './rules/lobby';
 import type { MonsterPort } from './monster/monsterDriver';
 
 /**
- * **Die Einsatzzentrale auf dem Telefon** — eine Kopfzeile, ein Auftragsstreifen
- * und darunter die Rolle, an der man gerade sitzt.
+ * **Die Einsatzzentrale auf dem Telefon** — eine Reiterzeile, ein
+ * Auftragsstreifen und darunter die Rolle, die man gerade hält.
  *
  * Diese Datei hat lange **jede** Rolle selbst gezeichnet: Radarschirm,
  * Aktenblatt, Schalterliste, Cockpit, jeweils in einer eigenen Methode, und
  * ein `if (station === …)` verteilte darauf. Das ist vorbei. Was hier steht,
- * ist der Rahmen: wer wo sitzt, was gestartet wird, wie die Runde ausgeht —
+ * ist der Rahmen: wer was hält, was gestartet wird, wie die Runde ausgeht —
  * und ein Platz, in den die Rolle aus der **Registry** gehängt wird
  * (`registry/roles.ts`). Eine neue Rolle braucht in dieser Datei keine Zeile
- * mehr; sie legt eine `*.register.ts` an, und die Kachel steht da.
+ * mehr; sie legt eine `*.register.ts` an, und der Reiter steht da.
+ *
+ * **Ganz oben sind die Reiter die Rollenwahl.** Vorher stand dort „ORBITAL /
+ * EINSATZZENTRALE", darunter der Auftragsstreifen mit Uhr und Anzug, und die
+ * Rollen lagen zwei Bildschirme tiefer in einer eingeklappten Liste. Der
+ * Besitzer wollte beides weghaben: den Titel, weil er auf jedem Telefon
+ * dasselbe sagt, und die Kopfzeile der Seite („Haunting · Menü · Verbindung ·
+ * VR"), weil zwei Kopfzeilen übereinander ein halber Bildschirm sind. Die
+ * Seiten-Kopfzeile blendet `haunting.css` aus (`body.haunt-on #hud`); ihre
+ * drei Knöpfe stehen hier klein wieder — **ausgeblendet, nicht abgebaut**,
+ * denn Verbindung und VR hängen an der Seite (`main.ts`) und nicht an dieser
+ * Welt, und das Telefon drückt sie stellvertretend.
+ *
+ * **Und die Zentrale besteht aus Fähigkeiten, nicht aus Plätzen**
+ * (`rules/roundSetup.ts`): Wer sich Späher *und* Schalttafel nimmt, sitzt in
+ * der Einsatzkontrolle; wer Akte und Radar hält, klärt auf. Bei drei Spielern
+ * sitzen manchmal nur zwei in der Zentrale, und dann hält einer eben zwei
+ * Reiter. Mitten in der Runde entscheidet `switchRights`, wer überhaupt
+ * wechseln darf.
  *
  * Die Rollen selbst zeichnen dieselbe `MapView` wie die 2D-Welt, jede mit
  * eigenen Schichten (`views/`): der Archivar alles, was liegt, die Schalttafel
- * die Station ohne Wesen, der Späher zwei Punkte alle dreieinhalb Sekunden.
- * Der Fernseher ist die Ausnahme — sein Bild ist die 3D-Welt, gezeichnet in
- * das Rechteck, das seine Ansicht meldet (`RoleView.viewport`).
+ * die Station ohne Wesen und dazu ihre Schalterliste, der Späher zwei Punkte
+ * alle dreieinhalb Sekunden. Der Fernseher ist die Ausnahme — sein Bild ist
+ * die 3D-Welt, gezeichnet in das Rechteck, das seine Ansicht meldet
+ * (`RoleView.viewport`), und auf Wunsch schlägt er die Ansicht eines
+ * Mitspielers auf (`watchLens.ts`).
  */
 export interface StationHost {
   spec(): HouseSpec;
@@ -46,32 +87,36 @@ export interface StationHost {
   claims(): Claim[];
   me(): string;
   link(): { peers: number; vr: boolean; room: string };
+  /** Diesen Desktop an den Stock des Technikers setzen. */
   technician(): void;
   /** Das globale Spielmenü bleibt aus jeder Telefonrolle erreichbar. */
   menu?(): void;
-  /** Einen sicheren Durchlauf mit einem Modelltechniker ansehen. */
-  botRound?(): void;
   /**
-   * Die Einstellung „2D-Welt von oben" umlegen (`map/flatMode.ts`);
-   * `flatWanted` sagt, ob sie steht. Sie startet nichts: Gestartet wird
-   * danach mit `botRound`, `mission` oder `test`, und die Welt entscheidet,
-   * ob das in 2D oder 3D passiert.
+   * Ob jemand mit der Brille im Raum ist. Dann ist der Techniker vergeben —
+   * die Tafel zeigt „VR" und lässt ihn nicht wegklicken
+   * (`rules/roundSetup.technicianLabel`).
    */
-  flatMode?(): void;
+  vr?(): boolean;
+  /**
+   * Ob die nächste Runde lokal in 2D läuft — dann darf sie auch dann starten,
+   * wenn im Schiff schon jemand Techniker ist (eine Karte von oben stört ihn
+   * nicht).
+   */
   flatWanted?(): boolean;
   /**
-   * Die Wahl der Lobby (`rules/lobby.ts`): die Absicht — spielen, zusehen,
-   * trainieren — und die Ansicht, aus der `flatWanted` nur noch abgelesen
-   * wird.
+   * Die Wahl des Aufbaus (`rules/lobby.ts`): die Absicht — sie steht als
+   * Häkchen „Testen" auf der Seite — und die Ansicht, 2D von oben oder 3D im
+   * Schiff, als Häkchen „2D-Welt".
    */
   lobby?(): LobbyChoice;
   setLobby?(choice: LobbyChoice): void;
-  /** Mission (mit Monster) und Test (ohne) — die Kacheln neben der Bot-Runde, wenn 2D steht. */
-  mission?(): void;
-  test?(): void;
+  /** **Mitten in der Runde die Ansicht wechseln** — 2D ↔ 3D (`HauntingWorld.switchView`). */
+  switchView?(view: View): void;
   /**
    * Die Verteilung der nächsten Runde (`rules/roundSetup.ts`): Techniker,
-   * Monster, Plätze der Zentrale. `startSetup` startet genau damit.
+   * Monster und die drei Fähigkeiten der Zentrale. `startSetup` startet genau
+   * damit — was dabei herauskommt, steht auf dem Startknopf
+   * (`lobby.startLabel`).
    */
   setup?(): RoundSetup;
   setSetup?(setup: RoundSetup): void;
@@ -99,22 +144,59 @@ export interface StationHost {
   nameOf(peer: string): string;
   /** An welchem Gerät ich wirklich sitze — `null`, wenn weggeschubst. */
   seat(): StationId | null;
-  /** Und wohin ich unterwegs bin. */
-  wanted(): StationId | null;
   /** Wie viele Sekunden das Hinlaufen noch dauert. */
   arriving(): number;
   sit(station: StationId): void;
   /**
-   * **Die drei Griffe der Schalttafel** (`views/panelRole.ts`), jeder mit der
+   * **Die zwei Griffe der Schalttafel** (`views/panelRole.ts`), jeder mit der
    * Zeile, die er dem Spieler sagt — `''` heißt: dafür gibt es keinen Schalter.
    */
   door(doorId: string): string;
   light(roomId: string): string;
-  lure(roomId: string): string;
 }
 
 /** Wie oft eine Rollenansicht nachgezogen wird, in Millisekunden. */
 const ROLE_TICK = 50;
+
+/**
+ * **Welche Rolle zu welcher Fähigkeit gehört.**
+ *
+ * Späher und Schalttafel waren bis vor Kurzem dasselbe Gerät mit zwei Reitern
+ * — die „Einsatzkontrolle" hieß so, weil sie Radar *und* Schalter hatte. Seit
+ * #93 sind es zwei angemeldete Rollen mit je einer eigenen Karte, und die
+ * Fähigkeit zeigt auf die Rolle, die sie zeichnet. Der Name der Mischung
+ * bleibt derselbe (`roundSetup.roleName`): Wer beide hält, sitzt weiterhin in
+ * der Einsatzkontrolle — nur blättert er jetzt zwischen zwei Karten statt
+ * zwischen zwei Reitern eines Geräts.
+ *
+ * **Über das Netz sagt ein Telefon weiterhin ein Gerät an** (`Claim.station`,
+ * `net.ts`) und nicht seine Fähigkeiten. Wer zwei hält, meldet die des zuletzt
+ * gewählten Reiters; wer eine nimmt, die ein anderer hält, schubst ihn dabei
+ * über dessen Gerät weg (`stations.ts`, Sitzdauer).
+ */
+const ABILITY_STATIONS: Readonly<Record<Ability, StationId>> = {
+  scout: 'scout',
+  panel: 'hack',
+  archive: 'archive',
+};
+
+/**
+ * **Die Reiter ganz oben**, in dieser Reihenfolge: der Aufbau, die drei
+ * Fähigkeiten der Zentrale, dann die Rollen, die keine Fähigkeit sind
+ * (Fernseher, Monster).
+ *
+ * Sie sind der Ort, an dem eine Rolle gewählt wird. Vorher lag das in einer
+ * eingeklappten Liste („Plätze und Geräte") unter der Verteilung, und in der
+ * Verteilung stand daneben noch einmal dasselbe als „Ich" — zwei Listen über
+ * dieselbe Frage. Ein Reiter ist beides in einem: Er sagt, was ich bin, und
+ * zeigt, was ich sehe.
+ */
+type PhoneTab = 'setup' | `power:${Ability}` | `sit:${StationId}`;
+
+/** Welche Fähigkeit diese Rolle zeichnet — `null`, wenn sie keine ist. */
+function abilityFor(id: string): Ability | null {
+  return ABILITIES.find((one) => ABILITY_STATIONS[one] === id) ?? null;
+}
 
 export class StationUi {
   private readonly root = document.createElement('div');
@@ -122,8 +204,17 @@ export class StationUi {
   private readonly quest = document.createElement('div');
   private readonly body = document.createElement('div');
 
-  /** Ob gerade die Geräteübersicht offen ist statt der eigenen Station. */
-  private vanOpen = true;
+  /** Welcher Reiter oben leuchtet — der Anfang ist der Aufbau. */
+  private tab: PhoneTab = 'setup';
+  /**
+   * **Welche Fähigkeiten dieses Telefon hält** — eine Menge, keine Rolle.
+   *
+   * Das ist die ganze Änderung an der Zentrale: Wer sich Radar *und*
+   * Schalttafel nimmt, sitzt in der Einsatzkontrolle; wer Akte und Radar
+   * nimmt, klärt auf (`roundSetup.roleName`). Leer heißt: noch keine Rolle,
+   * und dann steht der Satz da, der zu den Reitern schickt (`NO_ROLE_HINT`).
+   */
+  private readonly held = new Set<Ability>();
   /** Die Tafel der Verteilung — eine für die Lebensdauer der Seite, neu gefüllt bei jedem Schreiben. */
   private setupPanel: SetupPanel | null = null;
   /** Woran erkannt wird, dass die Seite neu geschrieben werden muss. */
@@ -164,11 +255,49 @@ export class StationUi {
     document.body.classList.remove('haunt-on');
   }
 
-  /** Welche Station gerade zu sehen ist — `null` heißt: die Übersicht in der Zentrale. */
+  /** Welche Station gerade zu sehen ist — `null` heißt: der Aufbau. */
   get station(): StationId | null {
-    if (this.vanOpen) return null;
-    const seat = this.host.seat();
+    const seat = this.tabStation;
     return seat && this.host.arriving() <= 0 ? seat : null;
+  }
+
+  /** Welche Rolle der offene Reiter meint — ohne die Frage, ob ich schon da bin. */
+  private get tabStation(): StationId | null {
+    if (this.tab === 'setup') return null;
+    if (this.tab.startsWith('power:')) {
+      const ability = this.tab.slice(6) as Ability;
+      return this.held.has(ability) ? ABILITY_STATIONS[ability] : null;
+    }
+    return this.tab.slice(4) as StationId;
+  }
+
+  /** Wie meine Rolle heißt — aus den Fähigkeiten gerechnet, sonst `''`. */
+  get roleLabel(): string {
+    return roleName(this.held);
+  }
+
+  /**
+   * **Was der Zuschauer gerade ansieht** — die Welt richtet ihre Kamera danach
+   * aus (`HauntingWorld.render`, `aimShow`) und blendet das KI-Overlay ein.
+   * Außerhalb der Station `watch` bedeutet er nichts.
+   *
+   * Die Linse gehört der Ansicht und nicht dieser Datei: Sie ist eine Wahl des
+   * Fernsehers, sie überlebt kein Neuladen, sie geht über kein Netz. Hier
+   * steht nur der Durchreicher, weil die Welt die Ansicht nicht kennt.
+   */
+  get watchLens(): Readonly<WatchLens> {
+    const view = this.view as Partial<WatchRoleView> | null;
+    return this.station === 'watch' && view?.lens ? view.lens : defaultLens();
+  }
+
+  /**
+   * Welche Rolle hinter dem Bild steckt, das gerade zu sehen ist. Für alle
+   * Stationen ihre eigene — und für den Zuschauer die, in deren Ansicht er
+   * gerade hineinsieht.
+   */
+  get shownStation(): StationId | null {
+    const station = this.station;
+    return station === 'watch' ? seatStation(this.watchLens.seat) : station;
   }
 
   /**
@@ -202,7 +331,9 @@ export class StationUi {
     const round = this.host.round?.() ?? null;
     const sign = [
       this.host.spec().seed,
+      this.tab,
       station ?? 'van',
+      [...this.held].sort().join('+'),
       // Von der Runde nur, was selten kippt: Leben, Kabinen, die Warnschwelle,
       // das Ende. Die Uhr selbst läuft unten in die Anzeige, ohne Neuschrift.
       round ? `${round.suit}/${round.cabinsDestroyed.length}/${lowOxygen(round.oxygen)}` : '',
@@ -222,8 +353,7 @@ export class StationUi {
         .map((claim) => `${claim.id}:${claim.station}`)
         .sort()
         .join('|'),
-      // Die Checkbox „2D-Welt von oben" tauscht die Kacheln darunter aus.
-      this.host.flatWanted?.() ?? false,
+      this.host.lobby?.().view ?? '',
       this.host.setup ? describeSetup(this.host.setup()) : '',
     ].join('/');
 
@@ -279,49 +409,74 @@ export class StationUi {
     // Fernseher bekommt eine rollende Liste, weil sein Bild darin steht.
     this.root.classList.toggle('is-view', role?.surface === 'map');
 
-    const back = el('button', 'haunt__back');
-    back.dataset['van'] = '';
-    back.append(
-      el('span', 'haunt__back-icon', this.vanOpen ? '←' : '☰'),
-      el('span', '', this.vanOpen && this.host.seat() ? 'Zurück' : 'Menü / Rollen'),
-    );
-    back.setAttribute('aria-label', this.vanOpen ? 'Zurück zur eigenen Station' : 'Rolle wechseln');
-    back.setAttribute('aria-expanded', String(this.vanOpen));
-
-    const where = el('span', 'haunt__where');
-    where.append(
-      el('strong', '', role ? role.label : 'ORBITAL / EINSATZZENTRALE'),
-      el('small', '', role ? role.tagline : 'Ein Außentechniker · zwei im Team'),
-    );
-
-    this.bar.replaceChildren(
-      where,
-      el(
-        'span',
-        `haunt__state${state.monsterOn ? ' is-hot' : ''}`,
-        state.crew.options.test
-          ? 'Sicherer Test'
-          : state.phase === 'won'
-            ? 'Mission erfüllt'
-            : state.phase === 'lost'
-              ? 'Mission gescheitert'
-              : state.monsterOn
-                ? 'Mission läuft'
-                : 'Bereit',
-      ),
-      back,
-    );
-
+    this.writeBar();
+    // **Uhr und Anzug gehören zur Runde, nicht zum Aufbau.** Im Menü sagen sie
+    // nichts — dort läuft noch nichts —, und der Besitzer wollte sie dort
+    // ausdrücklich nicht sehen.
+    this.quest.hidden = this.tab === 'setup';
     this.writeQuest(state);
 
     // **Der Scrollstand bleibt, solange dieselbe Seite bleibt.** Ein Knopf
     // schreibt die Seite neu, und eine neu geschriebene Liste fängt oben an —
     // wer unten auf einen Schalter tippt, stünde danach wieder oben.
-    const page = `${station ?? 'van'}/${this.vanOpen ? 'van' : 'seat'}`;
+    const page = this.tab;
     const keep = page === this.paged ? this.body.scrollTop : 0;
     this.paged = page;
     this.body.replaceChildren(...this.roundResult(), ...this.page(station));
     this.body.scrollTop = keep;
+  }
+
+  /**
+   * **Die Kopfzeile ist die Rollenwahl** — und sonst fast nichts: links die
+   * Reiter, rechts drei kleine Knöpfe für Spielmenü, Verbindung und VR.
+   *
+   * Wer eine Fähigkeit antippt, **nimmt** sie damit — mitten in der Runde
+   * allerdings nur, wenn er darf (`roundSetup.switchRights`). Die Rollen, die
+   * keine Fähigkeit sind, kommen aus der Registry und nicht aus einer Liste
+   * hier: Wer eine `*.register.ts` anlegt, bekommt seinen Reiter.
+   */
+  private writeBar(): void {
+    const setup = this.host.setup?.() ?? null;
+    const nav = el('nav', 'haunt__roles');
+    nav.setAttribute('aria-label', 'Rolle und Ansicht');
+    const tab = (id: PhoneTab, label: string, hint: string, mine: boolean): void => {
+      const key = el('button', `haunt__role${mine ? ' is-mine' : ''}`, label);
+      if (id === 'setup') key.dataset['tab'] = 'setup';
+      else if (id.startsWith('power:')) key.dataset['power'] = id.slice(6);
+      else key.dataset['sit'] = id.slice(4);
+      key.setAttribute('aria-pressed', String(this.tab === id));
+      key.title = hint;
+      nav.append(key);
+    };
+    tab('setup', 'Aufbau', 'Verteilung, Häkchen und der Startknopf', false);
+    for (const ability of ABILITIES) {
+      // Eine ausgeschaltete Fähigkeit steht trotzdem da — mit dem Hinweis, was
+      // sie wäre. Ein Reiter, der bei jeder Runde woanders sitzt, ist einer,
+      // den man jedes Mal sucht.
+      const off = setup?.abilities[ability] === 'off';
+      tab(
+        `power:${ability}`,
+        ABILITY_LABELS[ability],
+        off ? 'In dieser Runde aus' : 'Antippen übernimmt diese Fähigkeit',
+        this.held.has(ability),
+      );
+    }
+    for (const role of listRoles()) {
+      if (abilityFor(role.id)) continue;
+      tab(`sit:${role.id as StationId}`, role.label, role.tagline, this.host.seat() === role.id);
+    }
+
+    const tools = el('span', 'haunt__tools');
+    const tool = (key: string, label: string, title: string): void => {
+      const node = el('button', 'haunt__tool', label);
+      node.dataset[key] = '';
+      node.setAttribute('aria-label', title);
+      tools.append(node);
+    };
+    tool('gameMenu', '☰', 'Spielmenü öffnen');
+    tool('pageNet', '⇄', 'Verbindung der Seite öffnen');
+    tool('pageVr', 'VR', 'VR starten oder beenden');
+    this.bar.replaceChildren(nav, tools);
   }
 
   /**
@@ -371,21 +526,43 @@ export class StationUi {
   }
 
   /**
-   * **Die Seite unter der Leiste**: die Geräteübersicht — oder die Rolle aus
-   * der Registry, gebaut über einen `RoleHost`, den alle teilen.
+   * **Die Seite unter der Leiste**: der Aufbau — oder die Rolle aus der
+   * Registry, gebaut über einen `RoleHost`, den alle teilen.
    */
   private page(station: StationId | null): HTMLElement[] {
-    if (station === null) {
+    if (this.tab === 'setup') {
       this.dropView();
       return this.vanPage();
+    }
+    // **Unterwegs ist eine eigene Seite**, und zwar eine mit nur einem Satz:
+    // Wer den Reiter wechselt, läuft in der Zentrale erst einmal hinüber
+    // (`stations.MOVE_TIME`), und die alte Seite währenddessen stehen zu
+    // lassen hieße, ihm Auskünfte zu zeigen, an denen er nicht mehr sitzt.
+    const travel = this.host.arriving();
+    if (station === null && travel > 0) {
+      this.dropView();
+      return [
+        note(
+          'calm',
+          'Unterwegs …',
+          `Noch ${travel.toFixed(1)} s bis zum Gerät. Solange sieht das hier niemand.`,
+        ),
+      ];
+    }
+    // Eine Fähigkeit, die dieses Telefon nicht hält, zeigt es auch nicht.
+    if (station === null) {
+      this.dropView();
+      return [note('calm', 'Keine Rolle', NO_ROLE_HINT)];
     }
     const role = roles.get(station);
     if (!role) {
       this.dropView();
       return [note('warn', 'Unbekannte Rolle', `Für „${station}" ist keine Ansicht angemeldet.`)];
     }
-    if (!this.host.snapshot)
+    if (!this.host.snapshot) {
+      this.dropView();
       return [note('warn', 'Keine Karte', 'Diese Welt liefert den Rollen keinen Stand.')];
+    }
     if (this.viewId !== role.id) {
       this.dropView();
       this.view = role.mount(this.roleHost());
@@ -400,127 +577,108 @@ export class StationUi {
     return {
       snapshot: () => host.snapshot!(),
       spec: () => host.spec(),
+      ledger: () => host.state(),
       me: () => host.me(),
       nameOf: (peer) => host.nameOf(peer),
       door: (id) => host.door(id),
       light: (id) => host.light(id),
-      lure: (id) => host.lure(id),
+      // **Der Sicherungskasten entscheidet, was auf der Tafel steht**
+      // (`panel.ts`): Vor ihm ist die Hälfte der Schalter nicht da, und diese
+      // eine Zeile ist der ganze Grund, aus dem Archivar, Techniker und
+      // Schalttafel in dieser Reihenfolge dran sind.
+      switches: () => visibleSwitches(host.spec().switches, host.state().fuse),
       notify: (text) => host.notify?.(text),
       extra: { monster: host.monsterPort?.() ?? null, archive: host.archiveDesk?.() ?? null },
     };
   }
 
   /**
-   * **Die Geräteübersicht.** Wer wo sitzt, und was frei ist.
+   * **Der Aufbau** — eine Seite, zwei Häkchen, eine Verteilung, ein Startknopf.
    *
-   * Hier steht auch, was eine Rolle ausdrücklich *nicht* sieht. Das ist keine
-   * Hilfe für Anfänger, sondern die halbe Spielregel: Wer nicht weiß, was er
-   * nicht sieht, hält seine Lücke für die Wahrheit und meldet sie als solche.
-   * Die Zeilen kommen aus der Registry und nicht aus einer Liste hier — eine
-   * Rolle, die sich anmeldet, steht damit auch in der Übersicht.
+   * Vorher standen hier drei Kacheln (Spielen · Zuschauen · Trainieren), ein
+   * Segment 2D|3D, eine eingeklappte Geräteliste, ein Startknopf mit „(2D)"
+   * in Klammern und eine Hilfe, in der stand, wie eine Dreiercrew aufgeteilt
+   * wird. Der Besitzer hat sich das angesehen und gesagt: zu viel. Geblieben
+   * ist:
+   *
+   * - **Zwei Häkchen.** „2D-Welt von oben" ist die Ansicht (`LobbyChoice.view`)
+   *   und „Testen" die Absicht `train` — ohne Monster, und in einer Test-Runde
+   *   darf jeder jederzeit jede Rolle wechseln (`roundSetup.switchRights`).
+   * - **Die Verteilung** (`roundSetupPanel.ts`): Techniker (VR, wenn eine
+   *   Brille im Raum ist), Monster, und die drei Fähigkeiten mit Bot/Mensch/Aus.
+   * - **Ein Startknopf**, ohne Ansicht in Klammern (`lobby.startLabel`).
+   * - **Und die Hilfe, wer was sieht** — aus der Registry (`RoleFacts.sees`)
+   *   und nicht aus einer Liste hier: Was eine Rolle ausdrücklich *nicht*
+   *   sieht, ist die halbe Spielregel, und eine Rolle, die sich anmeldet,
+   *   bringt ihren Satz mit.
+   *
+   * „Zuschauen" wird hier nicht mehr gewählt: Es ist nichts, was man *aufbaut*,
+   * sondern etwas, das man mitten in der Runde anschaltet. Die Geräteliste ist
+   * weg, weil die Reiter oben dasselbe können und dabei zeigen, was man ist.
    */
   private vanPage(): HTMLElement[] {
     const claims = this.host.claims();
     const me = this.host.me();
-    const seats = seating(claims);
-    const wanted = this.host.wanted();
-    const travel = this.host.arriving();
     const link = this.host.link();
-    const out: HTMLElement[] = [
-      note(
-        link.vr ? 'live' : 'warn',
-        link.vr ? 'Crew verbunden' : 'Warte auf den VR-Spieler',
-        `${link.peers} Gegenstelle(n) · Raum: ${link.room || 'verbindet …'}. Alle Geräte müssen denselben Raum wählen.`,
-      ),
-      note(
-        'calm',
-        'Eure Dreiercrew',
-        'Quest: Außentechniker. Handy 1: Archiv mit Fracht, Zielräumen und Codes. Handy 2: Schalttafel mit Türen, Lampen und Ködern. Späher und Zuschauer sind weitere Plätze.',
-      ),
-    ];
-    // **Erst die Einstellung, dann die Runde.** Die Checkbox „2D-Welt von
-    // oben" sagt nur, wie gespielt wird; gestartet wird mit den Kacheln
-    // darunter — Bot-Runde, Mission, Test —, und jede davon hält sich an die
-    // Checkbox.
-    const flat = !!this.host.flatMode && (this.host.flatWanted?.() ?? false);
-    if (this.host.flatMode) {
-      const tile = el('label', 'haunt__tile haunt__tile--flat');
-      const box = document.createElement('input');
-      box.type = 'checkbox';
-      box.dataset['flatMode'] = '';
-      box.checked = flat;
-      tile.append(
-        box,
-        el('strong', '', ' 2D-Welt von oben'),
-        el(
-          'span',
-          'haunt__tag',
-          'Karte statt 3D für Bot-Runde, Mission und Test · Stock links, drei Knöpfe rechts',
-        ),
+    const setup = this.host.setup?.() ?? null;
+    const choice = this.host.lobby?.() ?? null;
+    // **Der Statuschip statt der Warnzeile.** „Warte auf den VR-Spieler" stand
+    // als roter Kasten über allem und war doch nur eine Zählung: Es gibt keinen
+    // Grund, auf jemanden zu warten — eine 2D-Runde geht auch allein los.
+    const chip = el(
+      'div',
+      `lobby__link${link.vr ? ' is-live' : ''}`,
+      `${link.peers} Gerät(e) · Raum ${link.room || 'verbindet …'}${link.vr ? ' · Techniker im Schiff' : ''}`,
+    );
+    const out: HTMLElement[] = [chip];
+
+    // **Wer noch nichts ist, liest es hier zuerst.** Der Satz steht auch auf
+    // jedem Reiter, den man ohne Fähigkeit öffnet — aber solange die Runde
+    // läuft und dieses Telefon nichts hält, gehört er ganz nach oben.
+    if (!this.held.size && this.host.state().phase === 'running')
+      out.push(note('warn', 'Keine Rolle', NO_ROLE_HINT));
+
+    if (setup && choice && this.host.setSetup && this.host.setLobby) {
+      const checks = el('div', 'lobby__checks');
+      checks.append(
+        check('view', FLAT_CHECK, 'Die Karte von oben statt des Schiffs', choice.view === '2d'),
+        check('test', TEST_CHECK, TEST_CHECK_HINT, intentOf(setup) === 'train'),
       );
-      out.push(tile);
-    }
-    if (this.host.botRound) {
-      const bot = el('button', 'haunt__tile haunt__tile--simulation');
-      bot.dataset['botRound'] = '';
-      const busy = link.vr && !flat;
-      bot.append(
-        el('strong', '', 'Bot-Runde ansehen'),
-        el(
-          'span',
-          'haunt__tag',
-          busy
-            ? 'Ein Techniker spielt bereits. Die Bot-Demo ist verfügbar, sobald er die Rolle verlässt.'
-            : flat
-              ? 'Station von oben · Techniker aus Zahlen gegen das Monster · alles sichtbar'
-              : 'Sicherer Test · Station von oben · Techniker auf automatischer Route',
-        ),
-      );
-      bot.toggleAttribute('disabled', busy);
-      out.push(bot);
-    }
-    // **Die Verteilung**: Techniker, Monster und die Plätze der Zentrale.
-    if (this.host.setup && this.host.setSetup) {
+      out.push(checks);
+
       this.setupPanel ??= new SetupPanel({
         setup: () => this.host.setup!(),
-        onChange: (setup) => this.host.setSetup!(setup),
-        humanMonster: flat,
+        onChange: (next) => this.host.setSetup!(next),
+        humanMonster: () => (this.host.lobby?.().view ?? '2d') === '2d',
+        vr: () => this.host.vr?.() ?? this.host.link().vr,
+        mine: () => this.mineSlot(),
+        claim: (slot) => this.claimSlot(slot),
+        holder: (slot) => this.holderOf(slot),
       });
       this.setupPanel.render();
-      const tile = el('div', 'haunt__tile haunt__tile--setup');
-      tile.append(el('strong', '', 'Verteilung der nächsten Runde'), this.setupPanel.element);
+      out.push(this.setupPanel.element);
+
       if (this.host.startSetup) {
-        const start = el('button', 'haunt__tile haunt__tile--simulation');
+        // **Eine 2D-Runde ist lokal**: Sie stört keinen Techniker im Schiff,
+        // deshalb sperrt ein spielender Techniker sie auch nicht. Im Schiff
+        // gibt es dagegen einen Techniker je Raum.
+        const busy = link.vr && choice.view === '3d';
+        const start = el('button', 'lobby__start');
         start.dataset['startSetup'] = '';
-        const busy = link.vr && !flat;
         start.append(
-          el('strong', '', flat ? 'Runde starten (2D)' : 'Runde starten'),
+          el('strong', '', startLabel(setup)),
           el(
             'span',
             'haunt__tag',
-            busy ? 'Ein Techniker spielt bereits.' : describeSetup(this.host.setup()),
+            busy ? 'Ein Techniker spielt bereits im Schiff.' : describeSetup(setup),
           ),
         );
         start.toggleAttribute('disabled', busy);
-        tile.append(start);
+        out.push(start);
       }
-      out.push(tile);
-    }
-    if (flat) {
-      const mission = el('button', 'haunt__tile haunt__tile--simulation');
-      mission.dataset['mission'] = '';
-      mission.append(
-        el('strong', '', 'Mission spielen (2D)'),
-        el('span', 'haunt__tag', 'Mit Monster · drei Reparaturen, dann zurück zur Zentrale'),
-      );
-      const test = el('button', 'haunt__tile haunt__tile--simulation');
-      test.dataset['test'] = '';
-      test.append(
-        el('strong', '', 'Test ohne Monster (2D)'),
-        el('span', 'haunt__tag', 'Sicher üben · Stock, Werkzeuge und Rätsel kennenlernen'),
-      );
-      out.push(mission, test);
     } else if (!link.vr) {
+      // Eine Welt ohne Aufbau-Anschluss (ältere Hosts, Tests): wenigstens der
+      // Weg an den Stock bleibt erreichbar.
       const test = el('button', 'haunt__tile', 'Als Techniker am Desktop testen');
       test.dataset['technician'] = '';
       out.push(test);
@@ -536,61 +694,159 @@ export class StationUi {
       );
     }
 
-    for (const role of listRoles()) {
-      const id = role.id as StationId;
-      const owner = seats.get(id);
-      const mine = owner === me;
-      const coming = wanted === id && travel > 0;
-      const tile = el('button', 'haunt__tile');
-      tile.dataset['sit'] = id;
-      tile.dataset['accent'] = id;
-      tile.setAttribute('aria-pressed', mine ? 'true' : 'false');
-      if (mine) tile.classList.add('is-mine');
-      else if (owner && !role.shared) tile.classList.add('is-taken');
-      if (coming) tile.classList.add('is-coming');
-
-      const head = el('span', 'haunt__tile-head');
-      // **Vor dem Fernseher ist immer Platz** — dort steht eine Zahl statt
-      // eines Namens: Ein einzelner Name wäre dort die Lüge, dass er besetzt
-      // sei, und „besetzt" ist die eine Auskunft, um die es bei den anderen
-      // Kacheln überhaupt geht.
-      const crowd = role.shared ? crowdAt(claims, id) : 0;
-      head.append(
-        el('strong', '', role.label),
-        el(
-          'span',
-          `haunt__seat${mine ? ' is-mine' : owner && !role.shared ? ' is-taken' : ''}`,
-          role.shared
-            ? mine
-              ? crowd > 1
-                ? `du und ${crowd - 1} andere`
-                : 'du siehst zu'
-              : crowd > 0
-                ? `${crowd} sehen zu`
-                : 'frei'
-            : mine
-              ? 'du sitzt hier'
-              : owner
-                ? this.host.nameOf(owner)
-                : 'frei',
-        ),
-      );
-      tile.append(head, el('span', 'haunt__tag', role.tagline));
-      // „Sieht:" und nicht „Sieht nicht:" — die Zeile sagt beides in einem
-      // Satz, und mit der Verneinung davor stand die halbe Auskunft auf dem Kopf.
-      tile.append(el('span', 'haunt__blind', `Sieht: ${role.sees}`));
-
-      if (coming) {
-        const rail = el('span', 'haunt__rail');
-        const fill = el('i', '');
-        // Von leer auf voll, damit man den Balken *ankommen* sieht.
-        fill.style.width = `${Math.round((1 - travel / MOVE_TIME) * 100)}%`;
-        rail.append(fill);
-        tile.append(rail, el('span', 'haunt__tag', `Unterwegs … ${travel.toFixed(1)} s`));
-      }
-      out.push(tile);
-    }
+    const help = el('details', 'lobby__help');
+    help.append(
+      el('summary', '', 'Hilfe: Wer sieht was?'),
+      note(
+        link.vr ? 'live' : 'calm',
+        link.vr ? 'Crew verbunden' : 'Noch kein Techniker im Schiff',
+        `${link.peers} Gegenstelle(n) · Raum: ${link.room || 'verbindet …'}. Alle Geräte müssen denselben Raum wählen.`,
+      ),
+      ...listRoles().map((role) => note('calm', role.label, `Sieht: ${role.sees}`)),
+    );
+    out.push(help);
     return out;
+  }
+
+  /**
+   * **„Ich" auf einen Platz setzen** — und nur auf einen.
+   *
+   * Der Tipp tut beides, was vorher zwei getrennte Listen taten: Er schreibt
+   * den Platz in der Verteilung auf „Mensch" **und** setzt dieses Gerät
+   * dorthin — bei einer Fähigkeit heißt das: sie halten und ihre Rolle
+   * aufschlagen (`ABILITY_STATIONS`). Der vorige Platz fällt an die Zahlen
+   * zurück: Ein Mensch, der nach dem Umsetzen an zwei Stellen als „Mensch"
+   * stünde, wäre eine Verteilung, die für drei Leute reicht und von einem
+   * gespielt wird.
+   */
+  private claimSlot(slot: SetupSlot): void {
+    const read = this.host.setup?.();
+    if (!read || !this.host.setSetup) return;
+    const next: RoundSetup = { ...read, abilities: { ...read.abilities } };
+    const put = (which: SetupSlot, who: 'human' | 'bot'): void => {
+      const ability = abilityOf(which);
+      if (ability) next.abilities[ability] = who;
+      else if (which === 'technician') next.technician = who;
+      else if (which === 'monster') next.monster = who;
+    };
+    const was = this.mineSlot();
+    if (was && was !== slot) put(was, 'bot');
+    put(slot, 'human');
+    this.host.setSetup(next);
+    // Und wirklich hinsetzen: Der Platz in der Verteilung ohne das Gerät
+    // darunter war genau die zweite Wahrheit, die hier verschwinden soll.
+    const ability = abilityOf(slot);
+    // **„Ich" wechselt den Platz, nicht die Seite** — deshalb `false`: Wer im
+    // Aufbau auf „Ich" tippt, will die Tafel schreiben und weiterlesen.
+    if (ability) this.take(ability, false);
+    else if (slot === 'monster') {
+      this.held.clear();
+      this.host.sit('monster');
+    } else if ((this.host.lobby?.().view ?? '2d') === '3d' && !this.host.link().vr) {
+      // Im Schiff heißt „Ich bin der Techniker": diesen Desktop an den Stock.
+      this.host.technician();
+    }
+  }
+
+  /**
+   * **Ein Reiter mit einer Fähigkeit darauf — darf ich den überhaupt drücken?**
+   *
+   * Vor der Runde: immer. Mitten in einer Runde entscheidet
+   * `roundSetup.switchRights`, und es sind drei Sätze: In einer Test-Runde
+   * darf jeder alles; sonst wechselt nur, wer in der Zentrale sitzt; und den
+   * Techniker in der Brille rührt niemand an. Wer nicht darf, bekommt den
+   * Grund gesagt — ein Reiter, der beim Tippen wortlos nichts tut, war die
+   * Krankheit, an der schon das Brillenmenü litt (`rules/worldMenu.ts`).
+   */
+  private choose(ability: Ability): void {
+    const running = this.host.state().phase === 'running';
+    if (running) {
+      const rights = switchRights({
+        test: this.host.state().crew.options.test,
+        // Am Telefon sitzt man in der Zentrale — außer man spielt gerade das
+        // Monster, und das ist die Gegenseite und kein Platz an der Wand.
+        inCentre: this.host.seat() !== 'monster',
+        vrTechnician: this.host.link().vr,
+      });
+      if (!rights.abilities) {
+        this.host.notify?.(rights.why);
+        return;
+      }
+    }
+    this.take(ability);
+    // Und in der Verteilung steht sie jetzt bei einem Menschen: Wer sie hält,
+    // nimmt sie dem Techniker ab (`roundSetup.powersOf`).
+    const setup = this.host.setup?.();
+    if (setup && setup.abilities[ability] !== 'human')
+      this.host.setSetup?.({
+        ...setup,
+        abilities: { ...setup.abilities, [ability]: 'human' },
+      });
+  }
+
+  /**
+   * **Die zwei Häkchen des Aufbaus.** „2D-Welt von oben" ist die Ansicht,
+   * „Testen" die Absicht — beide schreiben dorthin, wo sie hingehören
+   * (`rules/lobby.ts`), und keines von beiden startet etwas.
+   */
+  private toggleCheck(which: 'view' | 'test'): void {
+    const choice = this.host.lobby?.();
+    if (!choice) return;
+    if (which === 'view') {
+      this.host.setLobby?.({ ...choice, view: choice.view === '2d' ? '3d' : '2d' });
+      return;
+    }
+    const setup = this.host.setup?.();
+    if (!setup) return;
+    const off = intentOf(setup) === 'train';
+    this.host.setSetup?.(
+      applyIntent(
+        setup,
+        off ? 'play' : 'train',
+        this.host.seat() === 'monster' ? 'monster' : 'technician',
+      ),
+    );
+  }
+
+  /**
+   * **Eine Fähigkeit nehmen.** Sie kommt zu den anderen dazu — genau darum
+   * ging es dem Besitzer: Bei drei Spielern sitzen manchmal nur zwei in der
+   * Zentrale, und dann hält einer eben Radar *und* Schalttafel. Über das Netz
+   * wird die Rolle angesagt, die dazugehört; wer einem anderen die Fähigkeit
+   * wegnimmt, schubst ihn dabei von dessen Gerät (`stations.ts`).
+   */
+  private take(ability: Ability, show = true): void {
+    this.held.add(ability);
+    if (show) this.tab = `power:${ability}`;
+    const station = ABILITY_STATIONS[ability];
+    if (this.host.seat() !== station) this.host.sit(station);
+  }
+
+  /**
+   * **Welcher Platz „Ich" ist** — aus den Fähigkeiten, sonst aus dem Gerät.
+   *
+   * Der zweite Weg ist der wichtigere: Wer sich über einen Reiter ans Archiv
+   * setzt, ohne die Tafel anzufassen, soll dort trotzdem als „Ich" stehen.
+   * Vorher war genau das die zweite Wahrheit — der Reiter sagte „du sitzt
+   * hier", die Verteilung „Bot". Wer mehrere Fähigkeiten hält, steht bei der
+   * zuletzt genommenen: „Ich" ist eine Marke und keine Liste.
+   */
+  private mineSlot(): SetupSlot | null {
+    const ability = this.tab.startsWith('power:') ? (this.tab.slice(6) as Ability) : null;
+    if (ability && this.held.has(ability)) return slotOf(ability);
+    const first = ABILITIES.find((one) => this.held.has(one));
+    if (first) return slotOf(first);
+    return this.host.seat() === 'monster' ? 'monster' : null;
+  }
+
+  /** Wer die Rolle dieser Fähigkeit gerade über das Netz hält — als Name. */
+  private holderOf(slot: SetupSlot): string | null {
+    if (slot === 'technician') return null;
+    const ability = abilityOf(slot);
+    const station: StationId = ability ? ABILITY_STATIONS[ability] : 'monster';
+    const owner = seating(this.host.claims()).get(station);
+    if (!owner) return null;
+    return owner === this.host.me() ? 'du' : this.host.nameOf(owner);
   }
 
   private roundResult(): HTMLElement[] {
@@ -637,27 +893,22 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-van],[data-technician],[data-game-menu],[data-bot-round],[data-mission],[data-test],[data-flat-mode],[data-restart],[data-start-setup]',
+      '[data-tab],[data-power],[data-sit],[data-check],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],[data-restart],[data-start-setup]',
     );
     if (!hit) return;
 
     if (hit.dataset['gameMenu'] !== undefined) {
       this.host.menu?.();
       return;
-    } else if (hit.dataset['botRound'] !== undefined) {
-      if (!this.host.link().vr || this.host.flatWanted?.()) this.host.botRound?.();
-      return;
-    } else if (hit.dataset['mission'] !== undefined) {
-      this.host.mission?.();
-      return;
-    } else if (hit.dataset['test'] !== undefined) {
-      this.host.test?.();
+    } else if (hit.dataset['pageNet'] !== undefined || hit.dataset['pageVr'] !== undefined) {
+      // **Die Kopfzeile der Seite ist ausgeblendet, nicht abgebaut.**
+      // Verbindung und VR hängen an ihr (`main.ts`, `#hud`), nicht an dieser
+      // Welt; das Telefon drückt sie stellvertretend. Fehlt sie (Tests, eine
+      // eingebettete Seite), passiert nichts — und nichts ist hier richtig.
+      document.getElementById(hit.dataset['pageNet'] !== undefined ? 'hud-net' : 'hud-vr')?.click();
       return;
     } else if (hit.dataset['startSetup'] !== undefined) {
       if (!this.host.link().vr || this.host.flatWanted?.()) this.host.startSetup?.();
-      return;
-    } else if (hit.dataset['flatMode'] !== undefined) {
-      this.host.flatMode?.();
       return;
     } else if (hit.dataset['restart'] !== undefined) {
       this.host.restart?.();
@@ -665,11 +916,18 @@ export class StationUi {
     } else if (hit.dataset['technician'] !== undefined) {
       this.host.technician();
       return;
-    } else if (hit.dataset['van'] !== undefined) {
-      this.vanOpen = !this.vanOpen;
+    } else if (hit.dataset['check'] !== undefined) {
+      this.toggleCheck(hit.dataset['check'] as 'view' | 'test');
+    } else if (hit.dataset['tab'] !== undefined) {
+      this.tab = 'setup';
+    } else if (hit.dataset['power'] !== undefined) {
+      this.choose(hit.dataset['power'] as Ability);
     } else if (hit.dataset['sit']) {
+      // Fernseher und Monster sind keine Fähigkeiten der Zentrale: Wer dorthin
+      // geht, legt ab, was er in der Zentrale hielt.
+      this.held.clear();
+      this.tab = `sit:${hit.dataset['sit'] as StationId}`;
       this.host.sit(hit.dataset['sit'] as StationId);
-      this.vanOpen = false;
     }
     this.drawn = '';
     this.refresh();
@@ -685,6 +943,16 @@ function el(tag: string, className: string, text = ''): HTMLElement {
   // hat sich niemand ausgesucht.
   if (text) node.textContent = text;
   return node;
+}
+
+/** Ein Häkchen des Aufbaus: Kästchen links, Name und Zeile rechts. */
+function check(id: string, label: string, hint: string, on: boolean): HTMLElement {
+  const key = el('button', `lobby__check${on ? ' is-on' : ''}`);
+  key.dataset['check'] = id;
+  key.setAttribute('aria-pressed', on ? 'true' : 'false');
+  key.append(el('span', 'lobby__box', on ? '✓' : ''), el('span', 'lobby__check-text'));
+  key.lastElementChild?.append(el('strong', '', label), el('span', 'haunt__tag', hint));
+  return key;
 }
 
 /**

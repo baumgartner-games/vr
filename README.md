@@ -73,19 +73,27 @@ darauf fehlt, ist bei jedem die halbe Rolle. Das **Archiv** sieht die ganze
 Station mit der Fracht, einer Linie von jeder Kiste zu ihrer Konsole und einer
 Raumakte je Zimmer (Codes groß) — aber **niemanden, der sich bewegt**. Die
 **Schalttafel** sieht die Station als Grundriss und schaltet darauf: Tür
-antippen sperrt oder gibt frei, Lampe antippen schaltet Licht, ein Tipp auf
-ein Zimmer wirft den Geräuschköder an — **Wesen zeigt sie keine**, wer eine
-Tür zuwirft, weiß also nicht, wen er einsperrt. Der **Späher** bekommt alle
+antippen sperrt oder gibt frei, Lampe antippen schaltet Licht — **Wesen zeigt sie keine**, wer eine
+Tür zuwirft, weiß also nicht, wen er einsperrt. Dazu hat sie die **Tafel**:
+ein Blatt über der Karte mit einer Zeile je Schalter, so beschriftet, wie es
+an der Wand steht — „Licht Kombüse", „Tür 3", „X". Die Karte weiß, *wo* etwas
+ist; die Tafel weiß, *was* es überhaupt gibt. Der **Späher** bekommt alle
 dreieinhalb Sekunden **eine Peilung**: einen grünen Punkt für den Techniker,
 einen roten für das Monster, genau dort, wo sie in dem Moment waren —
 dazwischen verblassen sie, und niemand weiß, was inzwischen passiert.
 **Die Station ist dunkel**, und sie bleibt es, wenn niemand schaltet: Es geht
 nirgends von selbst Licht an. Die Schalttafel kann höchstens **zwei Lampen
 gleichzeitig** brennen lassen — die dritte macht die älteste aus —, und keine
-hält länger als etwa eine Minute: Sie flackert, sirrt und geht aus. Wer im
+hält länger als eine halbe Minute: Sie flackert, sirrt und geht aus. Geräuschköder
+gibt es nicht mehr; sie haben das Monster in eine Ecke geparkt statt einen Zuruf
+wert zu sein. Die Schalter für Licht und Schotts auf der Tafel sind **doppelt so
+groß** wie früher, eine Zeile je Schalter: Man trifft sie im Dunkeln mit dem
+Daumen. **Wohin ein Ersatzteil muss, erfährt das Archiv erst, wenn der
+Techniker es in der Hand hat.** Wer im
 Dunkeln steht, hat die Taschenlampe. Der **Zuschauer** ist der einzige Platz
 ohne Karte: Er sieht die Station in 3D, von schräg oben, ohne Decke — und
-sagt dafür nichts.
+sagt dafür nichts. Er kann dabei in jeden anderen Platz hineinsehen, ohne ihn
+zu besetzen.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
 im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
@@ -106,12 +114,29 @@ Peers; restriktives NAT oder gesperrte öffentliche Dienste können ohne TURN
 eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
 desselben Browsers, keine getrennten Geräte im WLAN.
 
-**Die Mission:** In der sicheren Einsatzzentrale einen Gegner auswählen und
-**Mission starten**. In der Brille geht das über den Knopf am Handgelenk: Im
-Menü stehen ganz oben _Mission starten_, _TEST / ohne Monster_ und _Bot-Runde
-anschauen_ — ein Druck, kein Untermenü, das Panel klappt dabei zu. Geht gerade
-keine Runde los, weil ein anderes Gerät sie rechnet oder schon jemand als
-Techniker spielt, steht das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
+**Die Mission:** Jede Runde fängt im **Aufbau** an — auf dem Handy der erste
+Reiter ganz oben, in der Brille der Knopf am Handgelenk. Er ist kurz:
+
+1. **Zwei Häkchen.** _2D-Welt von oben_ (sonst das Schiff; am Telefon ist 2D
+   voreingestellt, in der Brille gibt es immer das Schiff — **und diese eine
+   Frage darfst du dir mitten in der Runde anders beantworten**, siehe unten)
+   und _Testen_ (ohne
+   Monster — und in einer Test-Runde darf jeder jederzeit jede Rolle wechseln).
+2. **Die Verteilung.** Techniker, Monster und die drei Fähigkeiten der
+   Einsatzzentrale, jede auf Bot, Mensch oder Aus. Ein Tipp auf **Ich** macht
+   eine Zeile zu deiner und setzt dein Telefon zugleich an das Gerät dazu.
+3. **Ein Knopf**, und auf ihm steht, was gleich passiert: „Mission starten"
+   oder „Test starten" — ohne Ansicht in Klammern, die steht ja als Häkchen
+   darüber.
+
+**Die Rolle wählst du über die Reiter oben**: _Aufbau_, _Späher_,
+_Schalttafel_, _Archiv_, dann Zuschauer und Monster. Wer noch nichts
+gewählt hat, liest „Bitte wähle über den Tab oben deine Rolle aus."; wer eine
+Fähigkeit antippt, nimmt sie — auch mehrere, und dem, der sie hatte, wird sie
+abgenommen. Mitten in einer Runde darf das nur, wer in der Einsatzzentrale
+sitzt; der Techniker in der Brille behält seine Rolle immer. Geht gerade keine Runde los, weil
+ein anderes Gerät sie rechnet oder schon jemand als Techniker spielt, steht
+das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
 Weapons/O2/Navigation rechts, Storage unten und die dazwischenliegenden
 Nebenräume. Die meisten Räume messen 4 × 4 Rasterfelder (10 × 10 Meter);
@@ -121,56 +146,154 @@ Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
 Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. In jedem
 Raum stehen **zwei bis drei Frachtkisten**, jede mit Farbband und Nummer
-beschriftet („Kiste 2 · blau"); die drei Ersatzteile liegen in dreien davon,
-vier weitere halten Werkzeug, und der Rest ist leer. Das Archiv weiß als
-Einziges, welche es ist, und sagt es an: „Kiste 2, blaues Band · Nordwand".
-Wer ohne diese Ansage sucht, öffnet Kisten — und jede offene Kiste macht
-Geräusch. Der Techniker öffnet die Kiste, nimmt den Gegenstand und entriegelt
-den passenden Wartungskasten. Dort werden Kabel nach Symbolen verbunden, eine
-Schaltfolge eingegeben oder drei Frequenzen eingestellt. Anschließend geht es
-zum nächsten Auftrag. Nach allen drei Reparaturen zur Zentrale zurückkehren.
+beschriftet („Kiste 2 · blau") — am Modell wie auf der Karte, immer lesbar.
+Die drei Ersatzteile liegen in dreien davon, vier weitere halten Werkzeug, und
+der Rest ist leer. **Wer weiß, welche die richtige ist, hängt daran, wer am
+Archiv sitzt:** Ist es ein Bot, leuchtet die richtige Kiste selbst — im Schiff
+mit einem gelben Saum, in der 2D-Welt mit Schein, Umriss und Puls. Sitzt dort
+ein **Mensch**, sieht der Techniker nur noch den **Raum** leuchten; welche
+Kiste darin es ist, weiß das Archiv als Einziges und sagt es an: „Kiste 2,
+blaues Band · Nordwand". Wer ohne diese Ansage sucht, öffnet Kisten — oder
+nimmt das Röntgengerät, das Kennzeichen und Raum der nächsten vollen Kiste
+nennt — und jede offene Kiste macht Geräusch. Der Techniker öffnet die Kiste,
+nimmt den Gegenstand und entriegelt den passenden Wartungskasten. Dort werden
+Kabel nach Symbolen verbunden, eine Schaltfolge eingegeben oder drei Frequenzen
+eingestellt. Anschließend geht es zum nächsten Auftrag. Nach allen drei
+Reparaturen zur Zentrale zurückkehren.
 
-**Wer spielt mit:** Vor jeder Runde, in 2D wie in 3D, steht die
-**Verteilung** — im Van, im Optionsmenü der 2D-Welt und im Menü der Brille:
-Techniker (Mensch oder Bot), Monster (Mensch, Bot oder aus) und beliebig
-viele Plätze der Einsatzzentrale (Archivar, Schalttafel, Späher), jeder mit
-einem Menschen am Telefon oder einem Bot. **Ein Bot auf einem Platz gibt dem
-Techniker die Auskunft selbst:** Wer allein in der 2D-Welt spielt, sieht die
+**Ein Ersatzteil auf einmal.** Der Techniker trägt es in der Hand — in der
+Brille wirklich in der rechten —, und solange er es hat, geht keine zweite
+Kiste mit einem Teil heraus: erst abliefern oder ablegen. Ablegen geht
+jederzeit (`G` am Schirm, Knopf im Panel); das Teil bleibt liegen, wo er
+stand, und lässt sich mit `E` wieder aufnehmen. Ohne Teil in der Hand bleibt
+die Abdeckung des Wartungskastens zu. **Die Taschenlampe kann er nie
+verlieren:** Sie hängt von Anfang an in beiden Holstern und steht in beiden
+Handkreisen (`1` links, `2` rechts) — ausmachen darf er sie, das macht ihn
+schwerer sichtbar.
+
+**Wer spielt mit:** Die Tafel des Aufbaus, in 2D wie in 3D — Techniker (Mensch
+oder Bot; steht jemand mit der Brille im Raum, heißt die Zeile **VR** und
+gehört ihm), Monster (Mensch, Bot oder aus) und die **drei Fähigkeiten der
+Einsatzzentrale** — Späher, Schalttafel, Archiv —, jede auf **Bot, Mensch oder
+Aus**. Wer am Telefon sitzt, nimmt sich über die Reiter oben so viele davon,
+wie er mag; wie die Mischung heißt, steht daneben: Späher + Schalttafel ist die
+**Einsatzkontrolle**, Archiv + Späher die **Aufklärung**, Archiv + Schalttafel
+der **Leitstand**, alle drei die **Zentrale**. So passt die Runde auch zu
+dritt, wenn nur zwei in der Zentrale sitzen. Unter jeder Fähigkeit steht, wer
+sie wirklich hält. **Ein Bot auf einer Fähigkeit gibt sie dem Techniker
+selbst:** Wer allein in der 2D-Welt spielt, sieht die
 Peilung des Monsters alle paar Sekunden, sperrt Türen und schaltet Lampen per
 Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
 Codes auf. **Gewollt gesperrt ist immer nur eine Tür** — wer eine zweite
 wählt, gibt die erste frei; Türen, die das Monster zuschlägt, gehen nach
 zwanzig Sekunden von selbst wieder auf oder vorher durch die Schalttafel.
 
+**Ein Riegel, der gefallen ist, bleibt vierzig Sekunden offen.** Die Tür wird
+dabei **grün** und zählt herunter — auf der Schalttafel steht die Restzeit
+unter der Beschriftung („noch warm · 27 s"), auf der Karte und in der 2D-Szene
+läuft derselbe Balken wie beim Halten, nur grün statt rot. So lange lässt sie
+sich nicht wieder verriegeln, und das ist Absicht: Sonst wurde aus dem Riegel
+das Spiel „ich schließe immer die Tür vor dem Monster", und das Vieh stand
+fest. Dazu kommt, dass es lieber **zieht** als läuft: Steht ein Umweg von mehr
+als ein paar Sekunden gegen den Riegel, geht es an die Tür und reißt sie auf —
+und danach ist sie vierzig Sekunden lang keine Tür mehr, sondern ein Weg.
+
+**Und ab und zu fährt ein Schott von selbst auf**, für zwei, drei Sekunden,
+ohne dass jemand davorsteht — ein Stationsfehler. Ein Blatt, das sich bewegt,
+hieß sonst immer „da ist jemand", und daran hatten sich beide Seiten gewöhnt.
+Gesperrte Schotts sind nie dabei, und beim Zufahren bleibt das Blatt auf,
+solange jemand im Durchgang steht.
+
+**Die Einsatzzentrale ist sicher.** Das Monster kennt sie nicht — sie steht
+nicht auf seiner Karte: Es patrouilliert nicht dorthin, sucht dort nicht und
+folgt auch niemandem hinein. Der Techniker läuft weiter hinein und hinaus.
+
 **Die 2D-Welt** sieht aus wie ein Brettspiel von oben: helle Böden mit
 Kacheln, dicke Wände, Türen als Blätter mit Schloss, die Möbel aus dem Schiff
 als Klötze, kleine Astronauten mit Händen, das Monster als Klumpen mit Augen.
 Geräusche laufen als Wellen über die Kacheln — die eigenen blau, die des
-Monsters rot, Türen und Fracht orange. Gelbe Dreiecke am Bildrand zeigen zum
-nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
+Monsters rot, Türen und Fracht orange. Eine Wand hält eine Welle nicht auf,
+sie dämpft sie: Was nebenan ankommt, kommt später und blasser an, und eine
+zugeworfene Tür macht einen Schritt leiser und nicht lautlos. Gelbe Dreiecke
+am Bildrand zeigen zum nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
 „Zielpfade" im Optionsmenü legt die Wege von Techniker und Monster auf die
 Karte, und im Modus „Alles sehen" führen Bögen von Klappe zu Klappe mit dem
 Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
 **Interagieren** in eine Klappe und wählt darunter den Zielraum.
-Oben links stehen zwei Zeilen und sonst nichts: **O₂** mit der Restzeit und den
-Anzug-Herzen, darunter **Aufgaben:** mit einem Kreis je Auftrag — voll
-erledigt, halb angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste
-mit den Namen auf, ein zweiter wieder zu; wer mitspielt und welches Monster
-umgeht, steht im Optionsmenü.
+**Der obere Rand gehört in 2D dem Spiel.** Die Kopfzeile der Seite (Menü,
+Verbindung, VR) ist dort ausgeblendet und kommt beim Verlassen zurück; was
+oben steht, steht untereinander statt voreinander. Ganz oben links zwei
+Zeilen und sonst nichts: **O₂** mit der Restzeit und den Anzug-Herzen,
+darunter **Aufgaben:** mit einem Kreis je Auftrag — voll erledigt, halb
+angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste mit den Namen
+auf, ein zweiter wieder zu. Rechts daneben das **Zahnrad**, in der Zeile
+darunter die Sprungknöpfe — die sind damit nie verdeckt.
+
+Das **Zahnrad** zeigt, was sich mitten in der Runde ändert — Ansicht,
+Zielpfade, Ton, **Zuschauen: an/aus** (immer möglich), **Ansicht: 2D ↔ 3D**
+und **Runde verlassen** —, und darin unter **Aufmachen** die
+drei Wege nach draußen: **Karte** (die Übersicht der Station; den eigenen
+🗺-Knopf oben rechts gibt es nicht mehr), **Menü** und **Verbindung**, also
+das, was sonst in der Kopfzeile steht. Wer mitspielt und was die nächste Runde
+wird, steht in der Lobby. **Immer nur eines auf einmal:** Solange Karte,
+Rätsel, Raumakte oder Menü offen sind, ist der Rest weg — kein HUD, keine
+Reiter, keine Spielszene dahinter; ein Zurück bringt alles wieder, und die
+Runde ist unterdessen weitergelaufen.
+
+**2D ↔ 3D, mitten im Spiel.** Als Techniker musst du dich nicht vor der Runde
+entscheiden: Im Zahnrad der 2D-Welt steht **„Ansicht: 2D ↔ 3D"**, und im Panel
+des Technikers im Schiff steht der Knopf **„2D von oben"**. Beide schalten
+sofort um, und zwar **dieselbe Runde**: dieselbe Uhr und derselbe Sauerstoff,
+derselbe Anzug, dasselbe Ersatzteil in der Hand, dieselben gesperrten Türen und
+brennenden Lampen — und dasselbe Monster an derselben Stelle, das sich immer
+noch merkt, wo es dich zuletzt gesehen hat. Du stehst danach dort, wo du eben
+standest. Wer zusieht oder in der Zentrale sitzt, merkt von alledem nichts: Der
+Stand ist derselbe, nur das Bild ist ein anderes. **In der Brille gibt es keine
+Karte von oben** — dort bleibt es beim Schiff, und der Eintrag sagt es auch.
+Wandert die Technikerrolle mitten in der Runde zu jemand anderem, übergibt das
+alte Gerät dem neuen die ganze Runde, und zwar mitsamt allem, was sonst nur der
+eine Rechner wusste — Sperrfristen, Lampenrestzeiten und das Gedächtnis des
+Monsters.
+
+**Verschieben ist ein Blick zur Seite.** Die Szene lässt sich ziehen und mit
+zwei Fingern zoomen; dann steht oben **Zum Spieler**. Sobald du wieder einen
+Schritt gehst, springt die Kamera von selbst zurück. Ganz herausgezoomt passt
+die ganze Station ins Bild und lässt sich ein Stück nach unten ziehen, damit
+ihre obere Kante frei unter den Anzeigen steht. **Wer
+zuschaut**, hat keinen Stock, dafür zwei Knöpfe: _Zum Techniker_ und
+_Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Schalttafel
+oder Späher wählt man über die Reiter am Telefon — auch während eine Runde
+läuft.
 
 **Die Handyansichten:** Alle drei zeichnen dieselbe Karte wie die 2D-Welt,
 jede mit eigenen Schichten. Beim **Archiv** liegt die ganze Station darauf,
-mit Fracht, Konsolen und einer gestrichelten Linie von jeder Kiste zu der
-Konsole, in die ihr Teil gehört; trägt der Techniker das Teil schon, steht am
-Ziel „hierher". Ein Tipp auf ein Zimmer schlägt die **Raumakte** auf: Codes
-groß, Fundhinweise, Türen, Licht — und ein Bild des Raums, in 3D die
-Draufsicht der wirklichen Welt mit Zoom und Wisch, in der 2D-Welt eine
-herangezoomte Karte. Live-Positionen zeigt es keine. Die **Schalttafel** zeigt
-den Grundriss ohne Wesen und schaltet Türen, Lampen und Köder per Tipp; der
-**Späher** zeigt zwei Punkte und sonst nichts. Der Kopfbereich bietet einen
+mit Fracht und Konsolen. **Wohin das Teil muss, erfährt das Archiv erst, wenn
+der Techniker es in der Hand hat:** Dann führt eine gestrichelte Linie zur
+Konsole, und am Ziel steht „hierher". Legt er es irgendwo ab und lässt es länger
+als fünf Sekunden liegen, meldet das Archiv, in welchem Raum es liegt. Ein Tipp auf ein Zimmer schlägt die **Raumakte** auf — ganzseitig, die Karte
+ist so lange weg, und „Karte" bringt sie zurück: Codes groß, Fundhinweise,
+Türen — und ein Bild des Raums, in 3D die Draufsicht der wirklichen Welt mit
+Zoom und Wisch, in der 2D-Welt eine herangezoomte Karte. Live-Positionen zeigt
+es keine, Lampen auch nicht. Die **Schalttafel** zeigt
+den Grundriss ohne Wesen und schaltet Türen und Lampen per Tipp; „Tafel" oben
+rechts schlägt ihre Schalterliste darüber auf, und ein Schott, das gerade
+abkühlt, steht darin grün und zählt herunter. Der **Späher** zeigt zwei Punkte
+und sonst nichts. Der Kopfbereich bietet einen
 sichtbaren Rollenwechsel. In der 2D-Welt liegt derselbe Wechsel als Streifen
 über der Szene: Wer dort eine Rolle aufschlägt, sieht **dieselbe laufende
-Runde** aus ihrer Sicht, ohne dass etwas neu gestartet wird.
+Runde** aus ihrer Sicht, ohne dass etwas neu gestartet wird — allerdings nur
+in einer **Test-Runde**: Mitten in einer Mission ist man dort der Techniker
+und steht im Anzug.
+
+**Wer blutet, wird verfolgt.** Ein Treffer reißt eine Wunde, und die blutet
+zwei Minuten lang: Wer sich danach bewegt, hinterlässt alle anderthalb Meter
+einen dunkelroten Tropfen — in 2D auf dem Boden, in der Brille als flacher
+Fleck auf dem Blech. Nach gut einer halben Minute ist ein Tropfen verblasst,
+wer stehen bleibt, hinterlässt fast nichts. Das Monster **sieht nicht**, wo die
+Spur liegt; es findet sie nur, wenn es im selben Raum darüberläuft — dann
+allerdings liest es daraus, in welche Richtung es weitergehen muss, und sucht
+dort statt irgendwo. Nach einem Treffer lohnt sich also ein Umweg: Die Spur
+verrät nicht nur, dass man da war, sondern wohin man gelaufen ist.
 
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
 Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
@@ -183,15 +306,20 @@ Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
 funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
 Der Sauerstoff reicht zehn Minuten und läuft gleichmäßig ab; keine Reparatur
 füllt ihn auf. Uhr und Anzug-Leben stehen bei allen Mitspielern in der Leiste
-und beim Techniker im Blickfeld — dort in zwei Zeilen, wie in der 2D-Welt:
-oben Sauerstoff und Anzug, darunter drei Kreise für die Aufträge und der
-nächste offene im Klartext. In der Brille und am Desktop dasselbe.
+und beim Techniker im Blickfeld. **Die Aufträge stehen dort nur, wenn er
+allein spielt:** Sitzt am Archiv ein Mensch, sieht der Techniker im Blickfeld
+nur Uhr und Anzug — wohin er muss, sagt ihm der Archivar, und wo er ist, sagt
+er dem Archivar. Spielt niemand dort mit, übernimmt der Bot die Ansage, und
+dann steht unter der Uhr wieder die gewohnte Zeile: drei Kreise für die
+Aufträge und der nächste offene im Klartext.
 
-Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
+Die bestehende **Taschenlampe** hängt von Anfang an in **beiden** Holstern des
+Werkzeuggürtels und kann nicht verloren gehen. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
 aufgenommen werden. **Radar** und **Röntgengerät** sind echte greifbare
 Werkzeuge mit demselben Scannergehäuse und seitlicher Gürtelablage. Radar zeigt
-nahe Bewegung, Röntgen den Inhalt naher Kisten — leere meldet es nicht.
+nahe Bewegung, Röntgen die vollen Kisten in der Nähe — es blendet ihr
+Kennzeichen ein und nennt nie den Inhalt; leere meldet es gar nicht.
 Anzeigen erscheinen auf dem benutzten Gerät; ein dauerhaftes Radar-/Sensor-HUD im VR-Blick gibt es nicht.
 
 Über jedem Schott zeigen Leuchten auf beiden Seiten seinen Zustand: **grün**
@@ -202,8 +330,16 @@ startet oder ersetzt keine Mission; Tests werden am Terminal gestartet.
 Schon nach etwa einer Sekunde Rennen beginnt der Atem am unteren Visier zu
 kondensieren: weiche Wolken im Atemtakt und feine Tropfen auf dem Glas. Nach
 vier Sekunden ist die Anstrengung voll aufgebaut, nach etwa fünf Sekunden
-Gehen/Stehen wieder abgebaut. Das verändert den Visier-Effekt, nicht die
-maximale Sprintdauer. Als Vergleich für kurze Belastungsintervalle dient
+Gehen/Stehen wieder abgebaut.
+
+**Und die Puste ist jetzt eine echte Grenze.** Der Sprint hält **fünf
+Sekunden**; danach fällt das Tempo auf einen Trab, der immer noch schneller ist
+als Gehen, aber langsamer als ein jagendes Monster. Beim Gehen füllt sich die
+Puste in etwa acht Sekunden wieder auf. Wer getroffen wird, bekommt
+anderthalb Sekunden Sprint geschenkt, die nichts kosten — gerade genug für eine
+Tür. Eine gerade Flucht endet damit nach ungefähr zwanzig Sekunden; wer
+entkommen will, braucht einen Riegel, eine Ecke, einen Schutzschrank oder einen
+Wartungsschacht. Als Vergleich für kurze Belastungsintervalle dient
 [Phasmophobias Exposition-Update von 2021](https://store.steampowered.com/news/posts/?appids=739630&enddate=1631960314&feed=steam_community_announcements)
 mit drei Sekunden Sprint und fünf Sekunden Erholung.
 
@@ -266,8 +402,29 @@ separate Räume abseits der Missionskarte:
   Gegnerattrappen, Spiegel, Schacht und Funken-/Rauch-/Feuerprüfung.
 
 Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräumen
-verwenden freie Ankunftsplätze. **Bot-Runde anschauen** ist in der Zentrale und
-im Testmenü erreichbar: Ein Techniker läuft durch die echte Station, öffnet
+verwenden freie Ankunftsplätze.
+
+**Zuschauen** (im Optionsmenü der laufenden Runde, in der Brille auch im Menü —
+und zwar immer) heißt: der Runde folgen, die im Raum wirklich läuft. Spielt jemand — im Schiff oder von einem
+anderen Gerät aus in 2D —, siehst du **ihn**: dieselbe Station, dieselben
+Türen, dasselbe Monster, mit zwei Sprungknöpfen „Zum Techniker" und „Zum
+Monster" und dem Modus „Alles sehen". Eingaben hast du keine; ein Zuruf von
+dir beendet die Runde schneller als das Monster.
+
+Am **Zuschauerplatz der Zentrale** wählst du dazu, **wessen Platz** du gerade
+ansiehst — Deck (das ganze Schiff von schräg oben, ohne Decke), Archiv,
+Schalttafel, Späher oder Monster —, und das mitten in der Runde: Du siehst
+genau das Bild, das der andere vor sich hat — seine Karte, seine Akte, seine
+Tafel —, aber nie seine Knöpfe. Über dem Deck folgt die Kamera auf Wunsch
+dem **Techniker** oder dem **Monster** oder bleibt frei. Ein Schalter
+**„KI-Absichten"** legt offen, was das Monster denkt: die Zimmer, in denen es
+dich vermutet, eingefärbt nach seiner Sicherheit, der gestrichelte Weg, den es
+dich laufen sieht, und die Tür, an der es dich abfangen will — mit beiden
+Ankunftszeiten („M 3,2 s / T 4,0 s") und dem Namen seiner Haltung. Das gibt es
+**nur beim Zuschauen**; wer mitspielt, sieht davon nie etwas.
+
+Läuft im Raum gar keine Runde, springt „Zuschauen" wie bisher als Vorführung
+ein: Ein Techniker aus Zahlen läuft durch die echte Station, öffnet
 Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
 Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
 halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert
@@ -275,20 +432,47 @@ halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert
 versteckt sich ungesehen in einem Schutzschrank und setzt anschließend die Mission fort.
 Der sichere Test bleibt dabei ohne Schaden.
 
-**Das Monster hat vier Grundhaltungen** und darüber die Verfolgung:
-*Patrouille* (zügig von Raum zu Raum), *Seitenwechsel* (nach mehreren
-erfolglosen Zielen quer über die Karte), *Auflauern* (stehen bleiben und
-warten) und *Absuchen*. Beim Absuchen **rät** es, in welchen angrenzenden Raum
-sein Gegenüber verschwunden ist, geht leise hinein, macht dort Klack-Geräusche,
+**Das Monster hat sechs Haltungen** und darüber die Verfolgung: *Patrouille*
+(zügig von Raum zu Raum — und zwar dorthin, wo es am längsten nicht war),
+*Seitenwechsel* (nach mehreren erfolglosen Zielen quer über die Karte),
+*Auflauern* (stehen bleiben und warten, an einer **Tür** statt mitten im
+Raum), *Absuchen*, *Abfangen* und *An der Tür lauern*. Es **rät nicht mehr**,
+wohin sein Gegenüber verschwunden ist: Es führt ein Bild davon, wo es ihn
+vermutet, streicht die Räume heraus, die es selbst abgesucht hat, rechnet
+Geräusche ein und sucht dort, wo es am wahrscheinlichsten ist. Aus den letzten
+Sichtungen schätzt es Richtung und Tempo und rechnet für die Türen vor ihm aus,
+wer zuerst dort ist — passt es, läuft es nicht hinterher, sondern **kürzt ab**
+und steht in der Tür. Glaubt es, sein Gegenüber sitze in einem Raum mit nur
+einem Ausgang, stellt es sich davor und wartet, aber nie länger als ein paar
+Sekunden. Beim Absuchen geht es leise hinein, macht dort Klack-Geräusche,
 öffnet manchmal den Schutzschrank und reißt ihn dann auf, weil es dort
 jemanden vermutet — ob jemand drin ist oder nicht — oder lässt den Raum stehen
 und geht gleich weiter. Hat es jemanden in eine Kabine flüchten **sehen**, geht es hin,
 **schreit davor** als Ankündigung, reißt sie mit Rauch und Funken auf und
 bleibt danach kurz stehen, um Vorsprung zu gewähren. Bei einer Verfolgung hört
-man den eigenen Herzschlag, schneller und lauter, je näher es kommt. Ein
+man den eigenen Herzschlag, schneller und lauter, je näher es kommt; je länger
+die Jagd ohne Sichtabriss läuft, desto näher kommt es seinem Höchsttempo. Ein
 Monster **geht schneller als ein Spieler geht** und **rennt langsamer, als ein
-Spieler rennt** — wer nur spaziert, wird eingeholt; wer rennt, kommt davon.
-Schächte durch gemeinsame Wände benutzt es weiterhin.
+Spieler rennt** — wer nur spaziert, wird eingeholt; wer rennt, kommt davon,
+solange die Puste reicht.
+
+**„Zuletzt gesehen."** Beide Seiten spielen gegen jemanden, den sie fast nie
+sehen — deshalb merkt sich jede, wo sie den anderen zuletzt gesehen hat. Der
+Marker steht als **gestrichelte Silhouette** dort, wo der andere war, mit dem
+Blick, den er dabei hatte, und verblasst über eine knappe halbe Minute; in der
+Brille ist es eine halbdurchsichtige Kopie des Monsters, die wirklich im Raum
+steht. Er läuft **nicht mit**: Wer weiß, dass sein Verfolger einen alten Punkt
+hat, läuft woandershin. Man sieht immer nur den Marker des *anderen*, und nur
+solange man ihn nicht wirklich sieht; wer das Monster spielt, liest dazu auf
+der Karte „Zuletzt gesehen: Werkstatt · vor 6 s". Nur beim **Zuschauen**
+(„Alles sehen") stehen beide Marker blass neben den echten Figuren — dort will
+man ja gerade sehen, was die beiden voneinander glauben.
+
+**Eine fertige Reparatur bleibt nicht unbemerkt.** Die Konsole fährt hoch, die
+Sicherung fällt, im Modul flackert das Licht — das Monster weiß danach, in
+welchem Raum eben jemand gearbeitet hat, und legt für ein paar Sekunden
+merklich zu. Es sieht nicht durch Wände; es hat nur gehört, was die halbe
+Station gehört hat. Schächte durch gemeinsame Wände benutzt es weiterhin.
 
 **Zeitraffer, Regler und Training.** In der Bot-Runde laufen ×2, ×4 und ×8
 (beschleunigt wird über die Zahl der Bilder, nicht über ihre Länge). Die

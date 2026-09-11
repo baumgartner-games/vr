@@ -109,6 +109,28 @@ describe('Der Spuk in der Nähe des Monsters', () => {
     expect(dark.doorShut).not.toBe('');
   });
 
+  /**
+   * **Niemandem die Tür auf den Kopf.** Das Monster steht neben der Tür, an
+   * der es gerade vorbeigeht — also war die Tür, die es zuwarf, mit Vorliebe
+   * die, durch die es selbst ging. Danach steckte es darin fest, und der
+   * Techniker, der daneben stand, auch. Wer im Durchgang steht, wird nicht
+   * eingeklemmt; eine andere Tür desselben Zimmers darf es weiter erwischen.
+   */
+  it('wirft keine Tür zu, in deren Durchgang jemand steht', () => {
+    const at = besideDoor(spec, lampRoom.id);
+    const free = haunt({ spec, monster: at, lit: [], shut: [] });
+    expect(free.doorShut).not.toBe('');
+    const door = spec.doors.find((one) => one.id === free.doorShut)!;
+    // Mitten im Durchgang, in Metern — dieselbe Rechnung wie `besideDoor`,
+    // nur ohne den Schritt zur Seite.
+    const inDoorway = {
+      x: (door.x + 0.5 + dirX(door.dir) * 0.5) * TILE,
+      z: (door.z + 0.5 + dirZ(door.dir) * 0.5) * TILE,
+    };
+    const blocked = haunt({ spec, monster: at, lit: [], shut: [], occupants: [inDoorway] });
+    expect(blocked.doorShut).not.toBe(free.doorShut);
+  });
+
   it('wirft nur eine Tür des Zimmers zu, in dem es steht', () => {
     const dark = haunt({ spec, monster: besideDoor(spec, lampRoom.id), lit: [], shut: [] });
     const door = spec.doors.find((one) => one.id === dark.doorShut)!;

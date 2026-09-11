@@ -8,6 +8,9 @@ import {
   type MapPoint,
   type MapSnapshot,
 } from './mapSnapshot';
+import { CARGO_BAND_COLORS } from '../fixtureDimensions';
+import { dropAlpha } from '../rules/blood';
+import { ghostsToDraw, type GhostKind } from '../rules/ghosts';
 import { emptyField, type VisibilityField, type VisibilityMode } from './visibility';
 import { NOISE_TILE } from './noiseSpread';
 import { NoiseWaves, WAVE_LINGER, WAVE_SPEED, type NoiseInk } from './noiseWaves';
@@ -113,19 +116,36 @@ export interface MapRoute {
   goal?: boolean;
 }
 
-/** Ein Ziel des Technikers — Fracht, Konsole, die Zentrale. */
 /** Was gerade hervorgehoben wird: wo, und was der Knopf damit täte. */
 export interface MapHighlight {
   at: MapPoint;
   label: string;
 }
 
+/**
+ * **Ein Ziel des Technikers** — eine Kiste, ein Raum, eine Konsole, die
+ * Zentrale.
+ *
+ * `kind` und `precision` sagen, **was** dort steht und **wie genau** es
+ * benannt werden darf (`rules/roundSetup.goalPrecision`). Ein Ziel mit
+ * `precision: 'room'` ist genau das, was ein Mensch am Archiv übrig lässt: der
+ * Raum und sonst nichts — `at` ist dann die Raummitte und `label` sein Name.
+ * Wer zeichnet, richtet sich danach: die Kiste selbst leuchtet, oder der
+ * Raumboden. Kompass, Randdreieck und Weg zeigen unverändert auf `at`.
+ */
 export interface MapGoal {
   id: string;
   at: MapPoint;
   label: string;
   /** Ob es das nächste ist — das pulsiert und bekommt das größte Dreieck. */
   next: boolean;
+  kind: 'crate' | 'room' | 'console' | 'van';
+  precision: 'exact' | 'room';
+}
+
+/** Die Raumkennung eines Raumziels — sonst `null`. Die Id ist `room:<raum>`. */
+export function goalRoomId(goal: MapGoal | undefined): string | null {
+  return goal && goal.kind === 'room' ? goal.id.slice('room:'.length) : null;
 }
 
 /** Was eine Ansicht nach allem anderen selbst noch zeichnen darf. */
@@ -190,6 +210,15 @@ const HIT = 16;
 const FLOOR_TILE = NOISE_TILE;
 /** Rand um das Haus, wenn es ganz ins Bild soll, in Metern je Seite. */
 const FIT_MARGIN = 2;
+/**
+ * **Wie weit das ganz herausgezoomte Haus nach unten gezogen werden darf**, in
+ * Bildpunkten — dieselbe Nachgiebigkeit wie in der Szene
+ * (`flatScene.PAN_HEADROOM`) und aus demselben Grund: Ganz heraus passt das
+ * Haus ins Bild und stand deshalb fest in der Mitte, obere Kante hinter dem,
+ * was oben schwebt. Nach unten gibt der Anschlag so viel nach, wie oben
+ * verdeckt ist; nach oben nicht, und aus dem Bild heraus schon gar nicht.
+ */
+const PAN_HEADROOM = 150;
 export { WAVE_SPEED, WAVE_LINGER };
 
 export const INK = {
@@ -216,6 +245,8 @@ export const INK = {
   doorWood: '#c9a36b',
   doorLocked: '#ff4d55',
   doorLockedWood: '#e0745c',
+  /** Der Balken einer Tür, die nach einer gefallenen Sperre abkühlt (`rules/doorLocks.ts`). */
+  doorCooling: '#5ee0a0',
   fixture: '#3b4762',
   fixtureEdge: '#1a2133',
   fixtureTop: '#4d5a7a',
@@ -243,6 +274,12 @@ export const INK = {
   reachGlow: 'rgba(255, 177, 74, 0.18)',
   goal: '#ffd84a',
   goalDim: 'rgba(255, 216, 74, 0.55)',
+  /** Blut auf dem Boden (`rules/blood.ts`) — frisch und getrocknet. */
+  bloodFresh: '#8d1119',
+  bloodDry: '#4a0d13',
+  /** Und die gestrichelte Erinnerung (`rules/ghosts.ts`). */
+  ghostCrew: '#7fb6d8',
+  ghostMonster: '#ff6b6b',
 };
 
 const ENTITY_COLOR: Record<MapEntity['kind'], string> = {
@@ -281,7 +318,17 @@ export class MapView {
   /** Kachelfeld und geflutete Wellen, gemeinsam mit der Szene (`noiseWaves.ts`). */
   private readonly waves = new NoiseWaves();
   /** Was das letzte Bild gezeichnet hat — für Tests. */
-  stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
+  stats = {
+    entities: 0,
+    items: 0,
+    lit: 0,
+    rooms: 0,
+    fixtures: 0,
+    noises: 0,
+    goals: 0,
+    drops: 0,
+    ghosts: 0,
+  };
 
   constructor(private readonly options: MapViewOptions = {}) {
     this.layers = { ...ALL_LAYERS, ...options.layers };
@@ -373,6 +420,11 @@ export class MapView {
    * einer Figur folgt: Sonst schöbe die Figur in der Mitte die halbe Karte
    * aus dem Bild, die man beim Herauszoomen gerade sehen wollte. Je Achse,
    * und nur ungedreht; gedreht wird die Karte nirgends.
+   *
+   * **Nach unten gibt der Anschlag nach** (`PAN_HEADROOM`), und nur für den,
+   * der selbst gezogen hat: Über der Karte schweben Anzeigen, und das Haus
+   * ganz zu sehen heißt auch, seine obere Kante unter ihnen hervorzuholen.
+   * Solange die Karte einer Figur folgt, bleibt es bei der Mitte.
    */
   private settle(): void {
     const b = this.snapshot.bounds;
@@ -380,7 +432,13 @@ export class MapView {
     const { w, h } = this.size();
     const u = this.state.scale;
     if ((b.maxX - b.minX + 2 * FIT_MARGIN) * u <= w) this.state.centreX = (b.minX + b.maxX) / 2;
-    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) this.state.centreZ = (b.minZ + b.maxZ) / 2;
+    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) {
+      const middle = (b.minZ + b.maxZ) / 2;
+      this.state.centreZ =
+        this.following !== null
+          ? middle
+          : Math.min(middle, Math.max(middle - PAN_HEADROOM / u, this.state.centreZ));
+    }
   }
 
   private size(): { w: number; h: number } {
@@ -426,7 +484,17 @@ export class MapView {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = INK.ground;
     ctx.fillRect(0, 0, w, h);
-    this.stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
+    this.stats = {
+      entities: 0,
+      items: 0,
+      lit: 0,
+      rooms: 0,
+      fixtures: 0,
+      noises: 0,
+      goals: 0,
+      drops: 0,
+      ghosts: 0,
+    };
 
     const s = this.snapshot;
     const f = this.field;
@@ -455,6 +523,9 @@ export class MapView {
     // Figuren liegen darüber. Eine Welle, die den Spieler überdeckt, nimmt ihm
     // genau das Bild, für das sie da ist.
     if (this.layers.visibility) this.drawNoise(ctx);
+
+    // --- Die Blutspur, ebenfalls direkt auf dem Boden -------------------------------
+    this.drawBlood(ctx, omniscient);
 
     // --- Licht ----------------------------------------------------------------
     if (this.layers.visibility) {
@@ -617,6 +688,8 @@ export class MapView {
         this.drawEntity(ctx, entity);
         this.stats.entities++;
       }
+      // --- Und was von ihnen in Erinnerung geblieben ist (`rules/ghosts.ts`) ---
+      this.drawGhosts(ctx, omniscient, visible);
     }
 
     // --- Ziele -----------------------------------------------------------------
@@ -726,6 +799,93 @@ export class MapView {
       toScreen: (x, z) => this.toScreen(x, z),
       scale: this.state.scale,
     });
+  }
+
+  /**
+   * **Die Blutspur auf der Karte** (`rules/blood.ts`): dunkelrote Punkte, die
+   * mit `dropAlpha` verblassen.
+   *
+   * Wer mitspielt, sieht nur, was im Hellen liegt — dieselbe Regel wie für
+   * Möbel und Requisiten (`seen`). Die Spur ist kein Ortungsgerät: Ein
+   * Monster, das die Tropfen quer durch die dunkle Station sähe, bräuchte
+   * weder Augen noch Ohren.
+   */
+  private drawBlood(ctx: CanvasRenderingContext2D, omniscient: boolean): void {
+    const drops = this.snapshot.blood ?? [];
+    if (!drops.length) return;
+    const scale = this.state.scale;
+    const r = Math.max(1.5, scale * 0.12);
+    for (const drop of drops) {
+      const alpha = dropAlpha(drop, this.snapshot.time);
+      if (alpha <= 0) continue;
+      if (!omniscient && !this.seen(drop)) continue;
+      const p = this.toScreen(drop.x, drop.z);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = alpha > 0.6 ? INK.bloodFresh : INK.bloodDry;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      this.stats.drops++;
+    }
+  }
+
+  /**
+   * **Die zuletzt gesehene Stelle** (`rules/ghosts.ts`, Paket M3b) — ein
+   * gestrichelter Ring mit einem Strich in die Blickrichtung.
+   *
+   * Nicht die Figur noch einmal: Auf einer Karte, auf der jedes Wesen ein
+   * kleiner Astronaut ist, wäre ein zweiter Astronaut ein zweites Wesen. Ein
+   * Ring ist eine Markierung, und genau das ist er.
+   *
+   * Wer welchen Marker sehen darf, entscheidet `ghostsToDraw` — für alle vier
+   * Ansichten dieselbe Regel: „Realitätsnah" zeigt nur den des anderen und
+   * nur, solange man den anderen nicht wirklich sieht; „Alles sehen" zeigt
+   * beide blass.
+   */
+  private drawGhosts(
+    ctx: CanvasRenderingContext2D,
+    omniscient: boolean,
+    visible: ReadonlySet<string>,
+  ): void {
+    const s = this.snapshot;
+    const viewer = this.options.viewerId ?? '';
+    const me: GhostKind = this.deafToSelf() ? 'monster' : 'technician';
+    const scale = this.state.scale;
+    for (const one of ghostsToDraw(s.ghosts, s.time, {
+      omniscient,
+      viewer: me,
+      visible: (kind) =>
+        s.entities.some(
+          (entity) =>
+            entity.id !== viewer &&
+            !entity.concealed &&
+            (kind === 'monster' ? entity.kind === 'monster' : entity.kind !== 'monster') &&
+            visible.has(entity.id),
+        ),
+    })) {
+      const p = this.toScreen(one.ghost.x, one.ghost.z);
+      const r = Math.max(5, scale * 0.36);
+      ctx.save();
+      ctx.globalAlpha = one.alpha;
+      ctx.strokeStyle = one.kind === 'monster' ? INK.ghostMonster : INK.ghostCrew;
+      ctx.lineWidth = Math.max(1.5, r * 0.16);
+      ctx.setLineDash([Math.max(3, r * 0.5), Math.max(3, r * 0.4)]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      // Der Strich zeigt, wohin die Figur schaute, als man sie zuletzt sah —
+      // die halbe Auskunft des Markers steckt darin.
+      const heading = one.ghost.yaw + this.state.rotation;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - Math.sin(heading) * r * 1.5, p.y - Math.cos(heading) * r * 1.5);
+      ctx.stroke();
+      ctx.restore();
+      this.stats.ghosts++;
+    }
   }
 
   /**
@@ -939,18 +1099,22 @@ export class MapView {
     // Die Pfosten.
     ctx.fillStyle = INK.frame;
     for (const p of [pa, pb]) ctx.fillRect(p.x - post / 2, p.y - post / 2, post, post);
-    // Der Balken über der Tür: wie lange die Sperre noch hält
-    // (`rules/doorLocks.ts`). Keine Sperre hält ewig, und wer eine gesetzt
-    // hat, will wissen, wie lange er sich noch darauf verlassen darf.
-    if (door.locked && door.hold && door.hold.total > 0 && scale >= 8) {
-      const left = Math.max(0, Math.min(1, door.hold.left / door.hold.total));
+    // **Der Balken über der Tür** — und er zählt zwei verschiedene Dinge
+    // herunter (`rules/doorLocks.ts`). Rot: wie lange die Sperre noch hält;
+    // wer eine gesetzt hat, will wissen, wie lange er sich darauf verlassen
+    // darf. Grün: wie lange die Tür nach einer gefallenen Sperre noch offen
+    // bleiben **muss**; wer sie sofort wieder zuwerfen will, soll sehen,
+    // warum sein Schalter nichts tut. Beides nie gleichzeitig.
+    const clock = door.locked ? door.hold : door.cooling;
+    if (clock && clock.total > 0 && scale >= 8) {
+      const left = Math.max(0, Math.min(1, clock.left / clock.total));
       const w = Math.max(12, door.width * scale * 0.9);
       const h = Math.max(3, scale * 0.12);
       const bx = (pa.x + pb.x) / 2 - w / 2;
       const by = (pa.y + pb.y) / 2 - Math.max(9, scale * 0.55);
       ctx.fillStyle = INK.frame;
       ctx.fillRect(bx - 1, by - 1, w + 2, h + 2);
-      ctx.fillStyle = INK.doorLocked;
+      ctx.fillStyle = door.locked ? INK.doorLocked : INK.doorCooling;
       ctx.fillRect(bx, by, w * left, h);
     }
     // Das Schloss.
@@ -1029,14 +1193,21 @@ export class MapView {
     const r = Math.max(4, scale * 0.3);
     ctx.lineWidth = Math.max(1.5, scale * 0.07);
     if (item.kind === 'cargo') {
-      // Ein Paket mit Band; genommen bleibt der leere Umriss.
+      // Ein Paket mit Band; genommen bleibt der leere Umriss. **Das Band hat
+      // die Farbe des Kennzeichens** (`MapItem.mark`): Der Archivar sagt „die
+      // blaue", und auf der Karte ist sie blau — auch dann, wenn niemand ihr
+      // ansieht, ob etwas darin liegt.
       ctx.fillStyle = item.state === 'taken' ? INK.cargoTaken : INK.cargo;
       this.roundRect(ctx, p.x - r, p.y - r * 0.8, r * 2, r * 1.6, r * 0.2);
       ctx.fill();
       ctx.strokeStyle = INK.frame;
       ctx.stroke();
       if (item.state !== 'taken') {
-        ctx.strokeStyle = item.state === 'open' ? INK.frame : 'rgba(0,0,0,0.35)';
+        ctx.strokeStyle = item.mark
+          ? `#${CARGO_BAND_COLORS[item.mark.colour].toString(16).padStart(6, '0')}`
+          : item.state === 'open'
+            ? INK.frame
+            : 'rgba(0,0,0,0.35)';
         ctx.beginPath();
         ctx.moveTo(p.x, p.y - r * 0.8);
         ctx.lineTo(p.x, p.y + r * 0.8);
@@ -1303,9 +1474,28 @@ export class MapView {
         const pulse = goal.next ? 1 + 0.15 * Math.sin(t * 4) : 1;
         const r = Math.max(7, scale * 0.55) * pulse;
         ctx.lineWidth = goal.next ? 2.5 : 1.5;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.stroke();
+        // **Was das Ziel ist, wird selbst hervorgehoben** — die Kiste als
+        // Kasten, der Raum als Umriss. Ein Ring daneben war eine zweite Marke
+        // neben der Sache; er bleibt nur dort, wo es nichts zu umranden gibt
+        // (Konsole, Zentrale).
+        if (goal.kind === 'crate') {
+          this.roundRect(ctx, p.x - r * 0.9, p.y - r * 0.75, r * 1.8, r * 1.5, r * 0.25);
+          ctx.stroke();
+        } else if (goal.kind === 'room') {
+          const room = this.snapshot.rooms.find((one) => one.id === goalRoomId(goal));
+          if (room) {
+            this.path(ctx, room.polygon);
+            ctx.stroke();
+          } else {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        } else {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         if (goal.next) {
           ctx.beginPath();
           ctx.moveTo(p.x, p.y - r * 1.9);

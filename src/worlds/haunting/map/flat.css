@@ -4,12 +4,21 @@
  * Anzug-Leben, darunter „Aufgaben:" mit einem Kreis je Auftrag.
  *
  * Fürs Handy gedacht, Hochformat zuerst: Alles Bedienbare sitzt in den
- * unteren Ecken, wo die Daumen sind; oben stehen nur Anzeigen und zwei
- * runde Knöpfe (Zahnrad, Karte). Handgesetzt wie `haunting.css`.
+ * unteren Ecken, wo die Daumen sind; oben stehen nur Anzeigen und ein runder
+ * Knopf (das Zahnrad). Handgesetzt wie `haunting.css`.
  *
- * Oben schwebt das HUD der Seite (Menü, Verbindung, VR, `style.css`) mit
- * z-index 5 über allem hier; `--flat-top` ist die Kante darunter, an der
- * Kasten und Eckknöpfe der 2D-Welt beginnen.
+ * **Der obere Rand ist eine Spalte** (`.flat__top`) und keine Sammlung von
+ * Dingen mit je einem eigenen Abstand von oben: erste Zeile Aufgabenkasten
+ * und Zahnrad nebeneinander, zweite Zeile die Sprungknöpfe. Vorher hing
+ * jedes davon an `--flat-top` plus einer geratenen Zahl und lag damit reihum
+ * vor dem nächsten — „Zum Spieler" gab es, zu sehen war der Reiter davor.
+ *
+ * `--flat-top` ist die Kante, an der diese Spalte beginnt. In der gespielten
+ * 2D-Welt (`.flat--world`) ist der Streifen der Seite abgeschaltet
+ * (`core/pageHud.ts`), und die Kante rückt um dessen Höhe nach oben; über der
+ * 3D-Szene (`.flat.ship3d`) steht der Streifen weiter da, und dort bleibt es
+ * beim alten Maß. Holt ihn jemand über das Zahnrad zurück (`.is-paged`),
+ * rückt die Kante wieder unter ihn.
  *
  * `[hidden]` gewinnt gegen jedes `display` hier drin: Ein Panel mit
  * `display: flex` und dem Attribut `hidden` stand sonst als leerer Balken
@@ -18,13 +27,21 @@
 @import './controls.css';
 /* Der schwarze Grund gehört der gespielten 2D-Welt, nicht der Steuerung. */
 .flat { background: #000; }
+/* Ohne Streifen der Seite fängt der obere Rand gleich am Gerät an. */
+.flat--world { --flat-top: max(12px, env(safe-area-inset-top)); }
+.flat--world.is-paged { --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px); }
 .flat__scene { position: absolute; inset: 0; }
 .flat__scene .flatscene__canvas { width: 100%; height: 100%; display: block; }
 /* Der Aufgabenkasten: zwei Zeilen — Uhr mit Anzug, darunter der Reiter mit
    den Kreisen. Er ist so breit wie sein Inhalt (`max-content`) und wächst
    erst mit der aufgeklappten Liste; ein Kasten in fester Breite stand sonst
    halb leer über der Szene. */
-.flat__hud { position: absolute; left: 12px; top: var(--flat-top); width: max-content; max-width: min(58vw, 300px); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; border-radius: 6px; background: rgba(28, 32, 38, 0.86); border: 2px solid #6c7480; pointer-events: none; }
+/* Die Spalte am oberen Rand: HUD und Zahnrad in einer Zeile, die Sprungknöpfe
+   darunter. Sie fängt nichts ab, was sie nicht selbst bedient — sonst läge
+   über der halben Szene eine unsichtbare Platte, durch die kein Tipp geht. */
+.flat__top { position: absolute; left: 12px; right: 12px; top: var(--flat-top); display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 1; }
+.flat__top-row { display: flex; align-items: flex-start; gap: 10px; }
+.flat__hud { width: max-content; max-width: min(58vw, 300px); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; border-radius: 6px; background: rgba(28, 32, 38, 0.86); border: 2px solid #6c7480; pointer-events: none; }
 .flat__vitals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: #d3dae6; text-shadow: 0 1px 2px #000; }
 .flat__vitals strong { font-size: 14px; color: #fff; font-variant-numeric: tabular-nums; }
 .flat__vitals.is-low .flat__oxygen { color: #ff5a5f; }
@@ -49,15 +66,14 @@
 .flat__toast.is-good { border-color: #8ff0b0; color: #c8ffd9; }
 .flat__toast.is-bad { border-color: #ff5a5f; color: #ffd0d2; }
 .flat__toast.is-warn { border-color: #f0b64a; color: #ffe8bd; }
-/* Oben rechts: zwei runde Knöpfe (Zahnrad, Karte), darunter „Zum Spieler". */
-.flat__corner { position: absolute; top: var(--flat-top); width: 52px; height: 52px; border-radius: 50%; border: 3px solid #2d3238; background: #d8dde3; color: #2a2e34; font: inherit; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; touch-action: manipulation; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
-.flat__options { right: 12px; }
-.flat__mapkey { right: 74px; }
-.flat__mapkey.is-active { background: #ffd54a; }
-/* Die Sprungknöpfe unter dem Zahnrad: „Zum Spieler" verschwindet, sobald die
-   Kamera ohnehin dort steht; wer zusieht, behält beide. */
-.flat__jump { position: absolute; right: 12px; top: calc(var(--flat-top) + 62px); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.flat__centre { position: static; width: auto; height: auto; padding: 6px 12px; border-radius: 999px; font-size: 12px; background: rgba(66, 72, 80, 0.94); color: #fff; border-color: #1d2126; }
+/* Oben rechts das Zahnrad — der 🗺-Knopf daneben ist weg, die Karte steht als
+   Eintrag darin (`flatMode.renderOptions`). */
+.flat__corner { width: 52px; height: 52px; flex: none; border-radius: 50%; border: 3px solid #2d3238; background: #d8dde3; color: #2a2e34; font: inherit; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; touch-action: manipulation; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
+.flat__options { margin-left: auto; pointer-events: auto; }
+/* Die Sprungknöpfe in der Zeile unter dem HUD: „Zum Spieler" verschwindet,
+   sobald die Kamera ohnehin dort steht; wer zusieht, behält beide. */
+.flat__jump { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.flat__centre { width: auto; height: auto; padding: 6px 12px; border-radius: 999px; font-size: 12px; background: rgba(66, 72, 80, 0.94); color: #fff; border-color: #1d2126; pointer-events: auto; }
 .flat__centre.is-active { background: #ffd54a; color: #1d2126; }
 .flat__centre--monster.is-active { background: #ff5a5f; color: #fff; }
 /* Die Kartenübersicht: die alte Karte als Overlay über der Szene. */
@@ -69,6 +85,10 @@
    schob sich auf einem Telefon die Kopfzeile des Rätsels unter die Leiste der Seite
    (z-index 5), und „Schließen" war nicht mehr zu treffen. Das Rätsel liegt über dem
    Optionsmenü — wer an der Konsole steht, will das Rätsel und kein Menü darüber. */
+/* Eine Zeile im Optionsmenü, die nur Auskunft gibt und kein Knopf ist —
+   „Realitätsnah" für den, der mitspielt, und der Hinweis auf die Sprungknöpfe
+   für den, der zusieht. */
+.flat__note { color: #9aa6c0; font-size: 12px; line-height: 1.45; }
 .flat__panel, .flat__ending { position: absolute; left: 50%; top: calc(var(--flat-top) + 60px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100vh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); max-height: calc(100dvh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); z-index: 3; }
 .flat__sheet { z-index: 4; }
 .flat__fact { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(140, 170, 230, 0.15); font-size: 13px; }

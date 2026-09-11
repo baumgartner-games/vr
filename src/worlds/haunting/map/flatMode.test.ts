@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 import { FlatMode } from './flatMode';
+import { FlatRound } from './flatRound';
 import { puzzleFor, repairsFor } from '../mission';
 import { FlatWalker } from './flatWalk';
 
@@ -134,15 +135,19 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
-  it('öffnet die Kartenübersicht als Overlay und schließt sie wieder', () => {
+  it('öffnet die Kartenübersicht aus dem Zahnrad und schließt sie wieder', () => {
     const flat = new FlatMode(3, { test: true }, { exit: () => {} });
     document.body.append(flat.element);
     const overlay = flat.element.querySelector<HTMLElement>('.flat__map')!;
     expect(overlay.hidden).toBe(true);
     expect(flat.mapOpen).toBe(false);
-    flat.element.querySelector<HTMLButtonElement>('.flat__mapkey')!.click();
+    // Der eigene 🗺-Knopf oben rechts ist weg; die Karte steht im Zahnrad.
+    expect(flat.element.querySelector('.flat__mapkey')).toBeNull();
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    flat.element.querySelector<HTMLButtonElement>('[data-map]')!.click();
     expect(overlay.hidden).toBe(false);
     expect(flat.mapOpen).toBe(true);
+    expect(flat.openOverlay).toBe('map');
     // Die alte Karte zeichnet im Modus der Runde, mit dem Spieler drauf.
     flat.update(DT);
     expect(flat.map.current.field.mode).toBe('realistic');
@@ -198,9 +203,9 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
-  it('bietet im Optionsmenü genau die zwei Modi an und wechselt', () => {
+  it('bietet dem Zuschauer im Optionsmenü genau die zwei Modi an und wechselt', () => {
     const exit = jest.fn();
-    const flat = new FlatMode(3, {}, { exit });
+    const flat = new FlatMode(3, { role: 'watch' }, { exit });
     document.body.append(flat.element);
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
     const modes = [...flat.element.querySelectorAll<HTMLButtonElement>('[data-mode]')];
@@ -226,16 +231,61 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
-  it('lässt in der Bot-Runde den Techniker aus Zahlen spielen — ohne Stock und Knöpfe', () => {
-    const flat = new FlatMode(3, { role: 'bot', mode: 'omniscient' }, { exit: () => {} });
+  /**
+   * **Das Zahnrad zeigt nur noch, was sich mitten in der Runde ändert.** Alles,
+   * was die *nächste* Runde betrifft — neue Runde, mit oder ohne Monster, die
+   * ganze Verteilung —, steht im Aufbau. Dazugekommen sind die drei Dinge, die
+   * der Besitzer hier ausdrücklich haben wollte: Zuschauen, 2D ↔ 3D, Runde
+   * verlassen.
+   */
+  it('lässt aus dem Optionsmenü Monster und Verteilung weg und bietet Zuschauen, 2D↔3D, Verlassen', () => {
+    const switchView = jest.fn();
+    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {}, switchView });
     document.body.append(flat.element);
-    expect(flat.role).toBe('bot');
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(panel.querySelector('[data-role]')).toBeNull();
+    expect(panel.querySelector('[data-monster]')).toBeNull();
+    expect(panel.querySelector('[data-restart]')).toBeNull();
+    expect(panel.querySelector('.setup')).toBeNull();
+    // Was bleibt: Ansicht, Zielpfade, Ton — und die drei neuen Knöpfe.
+    expect(panel.querySelector('[data-routes]')).not.toBeNull();
+    expect(panel.querySelector('[data-audio="effects"]')).not.toBeNull();
+    expect(panel.querySelector('[data-watch]')?.textContent).toContain('Zuschauen: an');
+    expect(panel.querySelector('[data-switch-view]')?.textContent).toContain('3D Schiff');
+    expect(panel.querySelector('[data-leave]')?.textContent).toContain('Runde verlassen');
+    // **Zuschauen geht immer** — an und wieder aus, mitten in der Runde.
+    flat.element.querySelector<HTMLButtonElement>('[data-watch]')!.click();
+    expect(flat.role).toBe('technician');
+    flat.element.querySelector<HTMLButtonElement>('[data-watch]')!.click();
+    expect(flat.role).toBe('watch');
+    // Und der Wechsel der Ansicht geht an die Welt, die das Schiff kennt.
+    flat.element.querySelector<HTMLButtonElement>('[data-switch-view]')!.click();
+    expect(switchView).toHaveBeenCalledWith('3d');
+    flat.dispose();
+  });
+
+  /** Wer mitspielt, darf nicht durch Wände sehen — „Alles sehen" ist Zuschauersache. */
+  it('gibt dem Techniker die Ansicht als Zeile statt als Knopf', () => {
+    const flat = new FlatMode(3, {}, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(panel.querySelectorAll('[data-mode]')).toHaveLength(0);
+    expect(panel.textContent).toContain('Realitätsnah');
+    expect(panel.textContent).toContain('Du spielst den Techniker');
+    flat.dispose();
+  });
+
+  it('lässt beim Zuschauen den Techniker aus Zahlen spielen — ohne Stock und Knöpfe', () => {
+    const flat = new FlatMode(3, { role: 'watch', mode: 'omniscient' }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(flat.role).toBe('watch');
     expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
     expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
     // Die Szene bleibt, samt dem Knopf, der sie zum Techniker zurückholt.
     expect(flat.element.querySelector<HTMLElement>('.flat__scene')!.hidden).toBe(false);
     expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
-    expect(flat.element.querySelector<HTMLElement>('.flat__mapkey')!.hidden).toBe(false);
     const start = { ...flat.round.player };
     for (let i = 0; i < 90; i++) flat.update(DT);
     const moved = Math.hypot(flat.round.player.x - start.x, flat.round.player.z - start.z);
@@ -244,15 +294,27 @@ describe('Die 2D-Welt', () => {
     expect(flat.element.querySelector('.flat__hud')?.textContent).not.toContain('Bot-Runde');
     // Die Kamera hängt am Techniker.
     expect(flat.scene.getView().centreX).toBeCloseTo(flat.round.player.x);
-    // Im Optionsmenü schaltet die Rolle durch alle drei.
+    // Das Optionsmenü sagt, wer gerade spielt — und hat statt des Absatzes
+    // „Wessen Sicht?" jetzt den Schalter, von dem er nur redete: Zuschauen
+    // an und aus. Der dreistufige Rollenzykler bleibt weg.
     flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
-    const roleKey = () => flat.element.querySelector<HTMLButtonElement>('[data-role]')!;
-    expect(roleKey().textContent).toContain('Bot-Runde zusehen');
-    roleKey().click();
-    expect(roleKey().textContent).toContain('Als Techniker spielen');
-    flat.element.querySelector<HTMLButtonElement>('[data-restart]')!.click();
-    expect(flat.role).toBe('technician');
-    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(false);
+    const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(panel.textContent).toContain('Du siehst zu');
+    expect(panel.querySelector('[data-watch]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(panel.querySelector('[data-role]')).toBeNull();
+    flat.dispose();
+  });
+
+  /** Die Rolle `watch` hat keinen Stock — auch nicht, wenn die Runde neu anfängt. */
+  it('behält beim Zuschauen die Rolle über eine neue Runde hinweg', () => {
+    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.round.state().crew.hp = 0;
+    flat.round.haunt.phase = 'lost';
+    flat.update(DT);
+    flat.element.querySelector<HTMLButtonElement>('.flat__ending [data-restart]')!.click();
+    expect(flat.role).toBe('watch');
+    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
     flat.dispose();
   });
 
@@ -267,6 +329,94 @@ describe('Die 2D-Welt', () => {
     expect(flat.round.phase).toBe('running');
     expect(ending.hidden).toBe(true);
     flat.dispose();
+  });
+});
+
+/**
+ * **Ein Overlay auf einmal.** Karte, Rätsel, Raumakte und Optionsmenü wollen
+ * dieselbe Fläche; solange eines offen ist, sind HUD, Reiter, Stock, Knöpfe und
+ * die Szene weg — und zwar aus *einer* Stelle heraus (`applyOverlay`).
+ */
+describe('Ein Overlay auf einmal', () => {
+  /** Was die Spielansicht ausmacht — alles davon geht unter einem Overlay weg. */
+  function chrome(flat: FlatMode): Record<string, boolean> {
+    const at = (selector: string): boolean =>
+      !!flat.element.querySelector<HTMLElement>(selector)?.hidden;
+    return {
+      top: at('.flat__top'),
+      stick: at('.flat__stick'),
+      buttons: at('.flat__buttons'),
+      scene: at('.flat__scene'),
+    };
+  }
+
+  it('versteckt unter der Karte HUD, Reiter, Stock, Knöpfe und die Szene', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.update(DT);
+    expect(flat.openOverlay).toBe('none');
+    expect(chrome(flat)).toEqual({ top: false, stick: false, buttons: false, scene: false });
+    flat.showMap(true);
+    flat.update(DT);
+    expect(flat.openOverlay).toBe('map');
+    expect(chrome(flat)).toEqual({ top: true, stick: true, buttons: true, scene: true });
+    // Der Reiter „Aufgaben:" hängt im HUD und geht damit mit weg.
+    expect(
+      flat.element.querySelector<HTMLElement>('.flat__tab')!.closest('.flat__top'),
+    ).not.toBeNull();
+    // Die Runde läuft weiter — sie ist nur nicht zu sehen.
+    const time = flat.round.state().time;
+    flat.update(DT);
+    expect(flat.round.state().time).toBeGreaterThan(time);
+    flat.element.querySelector<HTMLButtonElement>('.flat__map-close')!.click();
+    flat.update(DT);
+    expect(flat.openOverlay).toBe('none');
+    expect(chrome(flat)).toEqual({ top: false, stick: false, buttons: false, scene: false });
+    flat.dispose();
+  });
+
+  it('lässt Karte, Akte und Optionsmenü einander ablösen statt sich zu stapeln', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    const map = flat.element.querySelector<HTMLElement>('.flat__map')!;
+    const sheet = flat.element.querySelector<HTMLElement>('.flat__sheet')!;
+    const options = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    const open = (): string[] =>
+      [
+        ['map', map],
+        ['sheet', sheet],
+        ['options', options],
+      ]
+        .filter(([, node]) => !(node as HTMLElement).hidden)
+        .map(([name]) => name as string);
+    flat.showMap(true);
+    expect(open()).toEqual(['map']);
+    flat.openSheet(flat.round.snapshot().rooms[0]!.id);
+    expect(open()).toEqual(['sheet']);
+    expect(flat.mapOpen).toBe(false);
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    expect(open()).toEqual(['options']);
+    flat.element.querySelector<HTMLButtonElement>('[data-close-options]')!.click();
+    expect(open()).toEqual([]);
+    expect(flat.openOverlay).toBe('none');
+    flat.dispose();
+  });
+
+  /**
+   * **Der Streifen der Seite gehört nicht über die 2D-Welt** (`core/pageHud.ts`):
+   * Er lag mit z-index 5 über Aufgabenkasten und Sprungknöpfen. Beim Verlassen
+   * kommt er zurück, wie er war.
+   */
+  it('schaltet die Kopfzeile der Seite ab und beim Verlassen wieder an', () => {
+    const hud = document.createElement('div');
+    hud.id = 'hud';
+    document.body.append(hud);
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(hud.hidden).toBe(true);
+    flat.dispose();
+    expect(hud.hidden).toBe(false);
+    hud.remove();
   });
 });
 
@@ -296,18 +446,240 @@ describe('Die Sprungknöpfe rechts', () => {
 
   /** Wer zusieht, hat keinen eigenen Spieler — für ihn stehen beide immer da. */
   it('gibt dem Zuschauer beide Knöpfe, auch während die Kamera folgt', () => {
-    const flat = new FlatMode(3, { role: 'bot' }, { exit: () => {} });
+    const flat = new FlatMode(3, { role: 'watch' }, { exit: () => {} });
     document.body.append(flat.element);
     flat.update(DT);
     const centre = flat.element.querySelector<HTMLElement>('.flat__centre')!;
     const monster = flat.element.querySelector<HTMLElement>('.flat__centre--monster')!;
-    expect(flat.role).toBe('bot');
+    expect(flat.role).toBe('watch');
     expect(centre.hidden).toBe(false);
     expect(monster.hidden).toBe(false);
     monster.click();
     flat.update(DT);
     expect(flat.scene.current.following).toBe('monster');
     expect(centre.hidden).toBe(false);
+    flat.dispose();
+  });
+
+  /**
+   * **Sie dürfen nie verdeckt sein.** Vorher hingen HUD, Zahnrad und
+   * Sprungknöpfe je an einem eigenen Abstand vom oberen Rand und lagen damit
+   * voreinander: „Zum Spieler" gab es, zu sehen war der Reiter davor. Jetzt
+   * steht alles in **einer** Spalte, und die Knöpfe stehen im DOM hinter dem
+   * HUD — also darunter.
+   */
+  it('stellt die Sprungknöpfe in der Spalte hinter das HUD', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    const top = flat.element.querySelector<HTMLElement>('.flat__top')!;
+    const rows = [...top.children].map((node) => node.classList[0]);
+    expect(rows).toEqual(['flat__top-row', 'flat__jump']);
+    // Erste Zeile: der Kasten, daneben das Zahnrad — und sonst nichts.
+    const row = top.querySelector<HTMLElement>('.flat__top-row')!;
+    expect([...row.children].map((node) => node.className)).toEqual([
+      'flat__hud is-collapsed',
+      'flat__corner flat__options',
+    ]);
+    // Verschoben steht „Zum Spieler" da, und die ganze Spalte ist sichtbar.
+    flat.scene.panBy(90, 0);
+    flat.update(DT);
+    expect(top.hidden).toBe(false);
+    expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
+    flat.dispose();
+  });
+
+  /**
+   * **Verschieben ist ein Blick zur Seite, kein Zustand.** Wer weitergeht,
+   * bekommt seine Kamera zurück, ohne einen Knopf zu suchen.
+   */
+  it('holt die Kamera beim ersten Schritt von selbst zum Spieler zurück', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.update(DT);
+    flat.scene.panBy(120, 0);
+    expect(flat.scene.current.following).toBeNull();
+    // Stillstehen ändert nichts — der Blick zur Seite bleibt.
+    flat.update(DT);
+    expect(flat.scene.current.following).toBeNull();
+    // Ein Schritt holt sie zurück.
+    for (let i = 0; i < 3; i++) flat.round.step(DT, { x: 1, z: 0, sprint: false });
+    flat.update(DT);
+    expect(flat.scene.current.following).toBe('player');
+    flat.dispose();
+  });
+});
+
+/**
+ * **Zuschauen übers Netz.** Läuft im Raum eine echte Runde, reicht der Wirt
+ * ihren Stand herein (`FlatModeHost.watchSnapshot`) — dann rechnet die 2D-Welt
+ * gar nichts mehr, sondern zeichnet, was der Gastgeber ansagt.
+ */
+describe('Der Zuschauer am Netz', () => {
+  /** Eine echte Runde als Quelle, ein paar Schritte weit gelaufen. */
+  function liveRound(): FlatRound {
+    const live = new FlatRound(11, { test: true });
+    for (let i = 0; i < 60; i++) live.step(DT, { x: 1, z: 0, sprint: false });
+    return live;
+  }
+
+  it('zeichnet die laufende Runde und lässt keinen Techniker aus Zahlen laufen', () => {
+    const live = liveRound();
+    const flat = new FlatMode(
+      11,
+      { role: 'watch', mode: 'omniscient' },
+      { exit: () => {}, watchSnapshot: () => live.snapshot() },
+    );
+    document.body.append(flat.element);
+    const own = { ...flat.round.player };
+    for (let i = 0; i < 10; i++) flat.update(DT);
+    expect(flat.role).toBe('watch');
+    // Die eigene Runde steht still — sie ist nur noch das Haus zum Snapshot.
+    expect(flat.round.player.x).toBeCloseTo(own.x);
+    expect(flat.round.state().time).toBe(0);
+    // Die Kamera hängt am Techniker **aus dem Netz**, nicht am eigenen.
+    expect(flat.scene.getView().centreX).toBeCloseTo(live.player.x);
+    expect(live.player.x).not.toBeCloseTo(own.x);
+    // Kein Stock, keine Knöpfe — und beide Sprungknöpfe stehen da.
+    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
+    expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
+    expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.textContent).toBe(
+      'Zum Techniker',
+    );
+    flat.dispose();
+  });
+
+  it('bietet am Netz keine neue Runde an, sondern nur den Rückweg', () => {
+    const live = liveRound();
+    live.haunt.phase = 'lost';
+    // Der Snapshot wird einmal je Schritt gerechnet — ohne diesen Schritt
+    // trüge er noch die laufende Runde.
+    live.step(DT, { x: 0, z: 0, sprint: false });
+    const flat = new FlatMode(
+      11,
+      { role: 'watch', mode: 'omniscient' },
+      { exit: () => {}, watchSnapshot: () => live.snapshot() },
+    );
+    document.body.append(flat.element);
+    flat.update(DT);
+    const ending = flat.element.querySelector<HTMLElement>('.flat__ending')!;
+    expect(ending.hidden).toBe(false);
+    expect(ending.querySelector('[data-restart]')).toBeNull();
+    expect(ending.querySelector('[data-leave]')).not.toBeNull();
+    flat.dispose();
+  });
+});
+
+/**
+ * **Das Overlay „KI-Absichten" ist Zuschauerwissen** (Paket M4): Wer mitspielt,
+ * darf das Glaubensbild des Monsters nie sehen — er wüsste sonst, welche Zimmer
+ * gerade sicher sind.
+ */
+describe('Die Absichten des Monsters in der 2D-Welt', () => {
+  const insight = {
+    mode: 'hunt' as const,
+    label: 'Jagd',
+    goal: { x: 6, z: 6 },
+    belief: [{ roomId: 'raum-0', p: 0.9 }],
+    prediction: {
+      path: [
+        { x: 1, z: 1 },
+        { x: 5, z: 4 },
+      ],
+      eta: [0, 2],
+    },
+    intercept: { door: 'd1', at: { x: 4, z: 4 }, etaMonster: 3.2, etaPlayer: 4 },
+  };
+
+  /** Der Kontext schreibt mit, statt zu malen — gezeichnet wird in jsdom nichts. */
+  function watching(mode: 'omniscient' | 'realistic'): {
+    flat: FlatMode;
+    written: () => unknown[];
+  } {
+    const calls: Array<[string, unknown[]]> = [];
+    HTMLCanvasElement.prototype.getContext = jest.fn(
+      () =>
+        new Proxy({} as Record<string, unknown>, {
+          get: (target, key: string) =>
+            key in target ? target[key] : (...args: unknown[]) => calls.push([key, args]),
+          set: (target, key: string, value) => {
+            target[key] = value;
+            return true;
+          },
+        }),
+    ) as never;
+    const flat = new FlatMode(
+      5,
+      { role: 'watch', mode },
+      { exit: () => {}, insight: () => insight },
+    );
+    document.body.append(flat.element);
+    return {
+      flat,
+      written: () => calls.filter(([name]) => name === 'fillText').map(([, args]) => args[0]),
+    };
+  }
+
+  it('schreibt die beiden Ankunftszeiten an die Abfangtür — im Modus „Alles sehen"', () => {
+    const { flat, written } = watching('omniscient');
+    flat.update(DT);
+    expect(written()).toContain('M 3,2 s / T 4,0 s');
+    expect(written()).toContain('Jagd');
+    flat.dispose();
+  });
+
+  /**
+   * Reicht niemand etwas herein, nimmt die 2D-Welt den letzten Beschluss ihrer
+   * **eigenen** Runde — in der Vorführung rechnet sie das Monster ja selbst.
+   */
+  it('nimmt die Absichten aus der eigenen Bot-Runde', () => {
+    const flat = new FlatMode(3, { role: 'watch', mode: 'omniscient' }, { exit: () => {} });
+    document.body.append(flat.element);
+    for (let i = 0; i < 120; i++) flat.update(DT);
+    expect(flat.round.decided?.insight?.label).toBeTruthy();
+    flat.dispose();
+  });
+
+  it('zeigt einem Spieler nichts davon', () => {
+    const { flat, written } = watching('realistic');
+    flat.update(DT);
+    expect(written()).not.toContain('M 3,2 s / T 4,0 s');
+    expect(written()).not.toContain('Jagd');
+    flat.dispose();
+  });
+});
+
+/**
+ * **Der Eintrag „2D ↔ 3D"** (`FlatModeHost.switchView`) — der Weg zurück ins
+ * Schiff, ohne die Runde zu beenden. Er steht im Optionsmenü und nicht bei
+ * „Zurück zur Lobby": Dort endet alles, hier endet nichts.
+ */
+describe('Der Wechsel der Ansicht im Optionsmenü', () => {
+  function openOptions(flat: FlatMode): HTMLElement {
+    document.body.append(flat.element);
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    // `.flat__panel` tragen zwei Kästen; gemeint ist das Optionsmenü.
+    return flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+  }
+
+  it('reicht den Wunsch an den Wirt weiter und klappt das Menü zu', () => {
+    const switchView = jest.fn();
+    const flat = new FlatMode(5, { test: true }, { exit: () => {}, switchView });
+    const panel = openOptions(flat);
+    const key = panel.querySelector<HTMLButtonElement>('[data-switch-view]')!;
+    expect(key.textContent).toContain('2D ↔ 3D');
+    key.click();
+    expect(switchView).toHaveBeenCalledWith('3d');
+    // Das Panel gehört zu einer Ansicht, die gleich verschwindet.
+    expect(panel.hidden).toBe(true);
+    flat.dispose();
+  });
+
+  it('fehlt, wenn der Wirt gar keinen Wechsel anbietet', () => {
+    // Wer zusieht, sieht der Runde eines anderen zu — ein Knopf, der sie ins
+    // Schiff holte, nähme sie ihm weg.
+    const flat = new FlatMode(5, { test: true }, { exit: () => {} });
+    const panel = openOptions(flat);
+    expect(panel.querySelector('[data-switch-view]')).toBeNull();
     flat.dispose();
   });
 });

@@ -12,11 +12,19 @@
  * - **Die Absicht** (`Intent`) — Spielen, Zuschauen, Trainieren. Sie sagt,
  *   *was* passiert, und sie ist keine eigene Wahrheit neben der Verteilung:
  *   `applyIntent` schreibt sie in die `RoundSetup`, `intentOf` liest sie
- *   wieder heraus. Die Plätze der Zentrale bleiben dabei unberührt — wer sich
- *   ans Archiv gesetzt hat, sitzt dort auch nach einem Tipp auf „Trainieren".
+ *   wieder heraus. Die Fähigkeiten der Zentrale bleiben dabei unberührt — wer
+ *   das Archiv hält, hält es auch nach einem Tipp auf „Testen".
  * - **Die Ansicht** (`View`) — 2D von oben oder 3D im Schiff. Sie sagt, *wie*
- *   man dabei zusieht, und sonst nichts. Genau das war der Fehler des alten
- *   Schalters: Er stand über den Kacheln und sah aus, als starte er etwas.
+ *   man dabei zusieht, und sonst nichts.
+ *
+ * **Aus den drei Kacheln sind zwei Kästchen geworden.** Der Besitzer wollte
+ * den Aufbau einfacher: „2D-Welt" und „Testen" sind Häkchen über der
+ * Verteilung, und gestartet wird mit dem einen Knopf darunter. „Zuschauen"
+ * wird im Aufbau gar nicht mehr gewählt — es ist keine Absicht für die
+ * *nächste* Runde, sondern etwas, das man mitten in der laufenden anschaltet
+ * (Optionsmenü der 2D-Welt). Die Absicht `watch` bleibt als Datum bestehen,
+ * weil die Verteilung sie weiterhin ausdrücken kann (Techniker aus Zahlen,
+ * Mensch sieht zu) — sie steht nur in keinem Aufbau-Menü mehr.
  *
  * Reine Daten, ohne DOM und ohne three.js: Die Lobby im Van, das Menü in der
  * Brille und das Optionsmenü der 2D-Welt lesen und schreiben dieselbe Wahl,
@@ -36,7 +44,11 @@ export interface LobbyChoice {
   view: View;
 }
 
-/** Die drei Kacheln, in der Reihenfolge, in der sie überall stehen. */
+/**
+ * Die drei Absichten, in der Reihenfolge, in der sie überall stehen. Gewählt
+ * werden im Aufbau nur noch zwei davon (über das Häkchen „Testen"); `watch`
+ * bleibt für das Brillenmenü und für die Verteilung, die von Hand entsteht.
+ */
 export const INTENTS: readonly Intent[] = ['play', 'watch', 'train'];
 
 export const LOBBY_STORAGE = 'bgvr.haunting.lobby.v1';
@@ -59,8 +71,19 @@ export const INTENT_LABELS: Readonly<Record<Intent, string>> = {
 export const INTENT_HINTS: Readonly<Record<Intent, string>> = {
   play: 'Die Mission, mit Monster',
   watch: 'Der Runde im Raum folgen — sonst Bot gegen Bot',
-  train: 'Ohne Monster, sicher üben',
+  train: 'Ohne Monster · jeder darf jede Rolle wechseln',
 };
+
+/**
+ * **Die zwei Häkchen des Aufbaus.** Sie stehen hier und nicht in der
+ * Oberfläche, weil dieselben zwei Worte im Van, im Brillenmenü und im
+ * Optionsmenü gebraucht werden — und drei Oberflächen, die dieselbe Sache
+ * verschieden nennen, waren der Befund, mit dem diese Datei angefangen hat.
+ */
+export const FLAT_CHECK = '2D-Welt von oben';
+export const TEST_CHECK = 'Testen';
+export const TEST_CHECK_HINT =
+  'Ohne Monster · in einer Test-Runde darf jeder jederzeit jede Rolle wechseln';
 
 export const VIEW_LABELS: Readonly<Record<View, string>> = {
   '2d': '2D von oben',
@@ -143,7 +166,7 @@ export function saveLobby(
  * der Techniker, wie überall sonst in diesem Spiel. Das ist der Grund, warum
  * „Zuschauen" nicht stumpf beide auf Bot stellt: Ein Mensch, der woanders am
  * Telefon sitzt und das Monster spielt, bleibt ein Mensch — sonst nähme ihm
- * mein Tipp auf „Zuschauen" die Runde weg. Die Plätze der Zentrale rührt
+ * mein Tipp auf „Zuschauen" die Runde weg. Die Fähigkeiten der Zentrale rührt
  * keine der drei Absichten an.
  */
 export function applyIntent(
@@ -189,13 +212,16 @@ export function intentOf(setup: RoundSetup): Intent {
 
 /**
  * Die Beschriftung des einen Startknopfes. Sie sagt, was gleich passiert —
- * und das steht in der Verteilung, nicht in der Kachel: Wer die Tafel von
- * Hand umstellt, hätte sonst „Spielen" leuchten und startete ein Training.
- * Die Ansicht kommt aus der Wahl und steht in Klammern dahinter; nur beim
- * Zuschauen nicht, denn dabei verspricht sie nichts.
+ * und das steht in der Verteilung, nicht im Häkchen: Wer die Tafel von Hand
+ * umstellt, hätte sonst „Mission" auf dem Knopf und startete einen Test.
+ *
+ * **Die Ansicht steht nicht mehr dabei.** „Mission starten (2D)" war eine
+ * Klammer, die dasselbe sagte wie das Häkchen zwei Zeilen darüber; der
+ * Besitzer hat sie ausdrücklich weghaben wollen, und er hat recht: Ein Knopf
+ * wiederholt keine Einstellung, er führt sie aus.
  */
-export function startLabel(choice: LobbyChoice, setup: RoundSetup): string {
+export function startLabel(setup: RoundSetup): string {
   const intent = intentOf(setup);
   if (intent === 'watch') return 'Zuschauen';
-  return `${intent === 'play' ? 'Mission' : 'Training'} starten (${choice.view === '2d' ? '2D' : '3D'})`;
+  return intent === 'play' ? 'Mission starten' : 'Test starten';
 }

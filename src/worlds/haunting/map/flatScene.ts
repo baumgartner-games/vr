@@ -1,10 +1,14 @@
+import { dropAlpha } from '../rules/blood';
+import { ghostsToDraw } from '../rules/ghosts';
 import {
   ART,
   SPRITE_H,
   SPRITE_W,
   crewColor,
+  drawBloodDrop,
   drawCrewmate,
   drawFixture,
+  drawGhost,
   drawLamp,
   drawMonster,
   drawName,
@@ -116,6 +120,14 @@ export interface FlatSceneOptions {
   /** Welche Geräusche überhaupt in Frage kommen — voreingestellt die des Snapshots. */
   noises?: () => readonly MapNoise[];
   /**
+   * **Welcher Raum das Ziel ist**, wenn nur der Raum verraten werden darf
+   * (`rules/roundSetup.goalPrecision` = `'room'`, also: ein Mensch sitzt am
+   * Archiv). Sein Boden bekommt einen Schimmer und eine pulsierende Kante —
+   * mehr nicht: Welche der Kisten darin es ist, sagt der Archivar. Ohne diese
+   * Auskunft leuchtet kein Boden.
+   */
+  goalRoom?: () => string | null;
+  /**
    * Zum Schluss: was die Ansicht selbst noch über die Szene malt — Ziele
    * am Bildrand, Wege, die Peilung (`flatMode.ts`). In CSS-Punkten, mit
    * `toScreen`; die Szene selbst weiß davon nichts.
@@ -129,6 +141,18 @@ const TAP_SLOP = 8;
 const WHEEL_RATE = 0.0016;
 /** Rand um die Station, wenn sie ganz ins Bild soll, in Metern je Seite. */
 const FIT_MARGIN = 4;
+/**
+ * **Wie weit die ganz herausgezoomte Station nach unten gezogen werden darf**,
+ * in Bildpunkten.
+ *
+ * Ganz heraus passt sie ins Bild und stand deshalb fest in der Mitte — und
+ * ihre obere Kante lag damit hinter Aufgabenkasten und Sprungknöpfen, genau
+ * in dem Moment, in dem man sie ganz sehen wollte. Nach unten gibt der
+ * Anschlag deshalb so viel nach, wie oben verdeckt ist; nach oben gar nicht,
+ * denn dorthin will niemand. Ein Anschlag bleibt es: Wer zieht, soll die
+ * Station nicht aus dem Bild schieben und sie danach suchen müssen.
+ */
+export const PAN_HEADROOM = 150;
 
 const INK = {
   space: '#000000',
@@ -151,6 +175,8 @@ const INK = {
   lampGreen: '#6cf58a',
   lampRed: '#ff5a5f',
   threshold: '#5b6774',
+  goalFloor: 'rgba(255, 216, 74, 0.10)',
+  goalEdge: '#ffd84a',
   roomName: 'rgba(235, 110, 110, 0.55)',
   roomLine: 'rgba(235, 90, 90, 0.5)',
   dim: 'rgba(0, 0, 0, 0.45)',
@@ -208,6 +234,12 @@ export class FlatScene {
     cuts: 0,
     dimmed: 0,
     noises: 0,
+    /** Ob der Zielraum getönt wurde — 0 oder 1. */
+    goalRooms: 0,
+    /** Wie viele Blutstropfen auf dem Boden lagen (`rules/blood.ts`). */
+    drops: 0,
+    /** Und wie viele gestrichelte Erinnerungen (`rules/ghosts.ts`). */
+    ghosts: 0,
   };
 
   constructor(private readonly options: FlatSceneOptions = {}) {
@@ -284,6 +316,12 @@ export class FlatScene {
    * Passt die Station auf einer Achse ganz hinein, gilt auf dieser Achse
    * deshalb ihre Mitte, und die Figur läuft darin herum; auf der anderen
    * folgt die Kamera weiter.
+   *
+   * **Mit einer Ausnahme, und zwar nach unten** (`PAN_HEADROOM`): Wer die
+   * Kamera selbst in die Hand genommen hat — gezogen, also `following` los —,
+   * darf die Station unter dem oberen Rand hervorziehen. Solange die Kamera
+   * einer Figur folgt, bleibt es bei der Mitte: Sonst hinge das Bild davon ab,
+   * wo die Figur gerade steht, und wackelte beim Gehen.
    */
   private settle(): void {
     const b = this.snapshot.bounds;
@@ -291,7 +329,13 @@ export class FlatScene {
     const { w, h } = this.size();
     const u = this.state.scale;
     if ((b.maxX - b.minX + 2 * FIT_MARGIN) * u <= w) this.state.centreX = (b.minX + b.maxX) / 2;
-    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) this.state.centreZ = (b.minZ + b.maxZ) / 2;
+    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) {
+      const middle = (b.minZ + b.maxZ) / 2;
+      this.state.centreZ =
+        this.following !== null
+          ? middle
+          : Math.min(middle, Math.max(middle - PAN_HEADROOM / u, this.state.centreZ));
+    }
   }
 
   private size(): { w: number; h: number } {
@@ -357,6 +401,9 @@ export class FlatScene {
       cuts: 0,
       dimmed: 0,
       noises: 0,
+      goalRooms: 0,
+      drops: 0,
+      ghosts: 0,
     };
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -397,11 +444,38 @@ export class FlatScene {
       this.drawFloor(ctx, room, b);
       this.stats.rooms++;
     }
+    // --- Der Zielraum, wenn nur der Raum verraten werden darf ---------------------
+    const goalRoom = this.options.goalRoom?.() ?? null;
+    if (goalRoom) {
+      const found = rooms.find(({ room }) => room.id === goalRoom);
+      if (found) {
+        // Derselbe Puls wie an der Zielkiste (`flatArt.drawCargo`): Es ist
+        // dieselbe Auskunft, nur eine Stufe gröber.
+        const pulse = 0.75 + 0.25 * Math.sin(s.time * 9);
+        this.path(ctx, found.room.polygon);
+        ctx.fillStyle = INK.goalFloor;
+        ctx.fill();
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = INK.goalEdge;
+        ctx.lineWidth = Math.max(2, u * 0.08);
+        this.path(ctx, found.room.polygon);
+        ctx.stroke();
+        ctx.restore();
+        this.stats.goalRooms = 1;
+      }
+    }
+
     // --- Geräusche als Wellen, direkt auf den Böden ------------------------------
     // Ganz hinten: Wände, Möbel und vor allem die Figuren liegen darüber. Eine
     // Welle, die den Spieler überdeckt, nimmt ihm genau das Bild, für das sie
     // da ist (`noiseWaves.ts`).
     this.drawNoise(ctx);
+    // --- Und das Blut, auf demselben Boden ---------------------------------------
+    // Vor der Dunkelheit gezeichnet, also **nur dort zu sehen, wo man
+    // hinsieht**: Eine Spur, die man quer durch die schwarze Station leuchten
+    // sähe, wäre ein Radar und keine Fährte.
+    this.drawBlood(ctx, inView);
     for (const { room, b } of rooms) this.drawRoomName(ctx, room, b);
 
     // --- Wände: entdoppeln, Türen kennen, nach Achse trennen -----------------------
@@ -423,7 +497,13 @@ export class FlatScene {
     for (const door of s.doors) {
       if (!inView(door.at.x - 2, door.at.z - 2, door.at.x + 2, door.at.z + 2)) continue;
       this.drawThreshold(ctx, door);
-      if (door.open && !door.locked) continue;
+      if (door.open && !door.locked) {
+        // Ein zurückgefahrenes Blatt zeigt sonst keinen Balken — und die
+        // abkühlende Tür braucht ihren ausgerechnet dann, wenn jemand in ihr
+        // steht und sie deshalb offen ist (`rules/doorLocks.ts`).
+        this.drawOpenClock(ctx, door);
+        continue;
+      }
       if (door.axis === 'x')
         layer.push({ z: door.at.z, order: 0, draw: () => this.drawDoorLeafX(ctx, door) });
       else this.drawDoorLeafZ(ctx, door);
@@ -496,6 +576,44 @@ export class FlatScene {
         },
       });
     }
+    // --- Die Erinnerungen, zwischen den Figuren --------------------------------
+    // Wer hinsieht, ist hier immer der Techniker — diese Szene ist sein Bild.
+    // Ob er den Ghost des Monsters überhaupt sehen darf, entscheidet die Regel
+    // an einer Stelle für alle vier Ansichten (`rules/ghosts.ghostsToDraw`).
+    const beast = s.entities.find((entity) => entity.kind === 'monster');
+    for (const one of ghostsToDraw(s.ghosts, s.time, {
+      omniscient,
+      viewer: 'technician',
+      visible: (kind) =>
+        s.entities.some(
+          (entity) =>
+            entity.kind === (kind === 'monster' ? 'monster' : 'player') &&
+            !entity.concealed &&
+            visible.has(entity.id),
+        ),
+    })) {
+      if (!inView(one.ghost.x - 1, one.ghost.z - 2, one.ghost.x + 1, one.ghost.z + 1)) continue;
+      const p = this.toScreen(one.ghost.x, one.ghost.z);
+      const kind =
+        one.kind === 'monster' && beast
+          ? this.monsterKind(beast)
+          : one.kind === 'monster'
+            ? 'stalker'
+            : 'crew';
+      layer.push({
+        z: one.ghost.z,
+        order: 2,
+        draw: () => {
+          drawGhost(ctx, p.x, p.y, {
+            scale: u,
+            kind,
+            facing: facingOf(one.ghost.yaw),
+            alpha: one.alpha,
+          });
+          this.stats.ghosts++;
+        },
+      });
+    }
     layer.sort((a, b) => a.z - b.z || a.order - b.order);
     for (const one of layer) one.draw();
 
@@ -529,6 +647,29 @@ export class FlatScene {
       this.stats.names++;
     }
     this.options.overlay?.(ctx, this);
+  }
+
+  /**
+   * **Die Blutspur auf dem Boden** (`rules/blood.ts`): dunkelrote Tropfen,
+   * die über `DROP_FADE` verblassen. Sie liegen flach auf der Platte und
+   * werden deshalb **vor** allem Aufrechten gezeichnet — ein Fleck, der über
+   * dem Stiefel liegt, der ihn hinterlassen hat, sieht aus wie ein Fehler.
+   */
+  private drawBlood(
+    ctx: CanvasRenderingContext2D,
+    inView: (minX: number, minZ: number, maxX: number, maxZ: number) => boolean,
+  ): void {
+    const drops = this.snapshot.blood ?? [];
+    if (!drops.length) return;
+    const u = this.state.scale;
+    for (const drop of drops) {
+      const alpha = dropAlpha(drop, this.snapshot.time);
+      if (alpha <= 0) continue;
+      if (!inView(drop.x - 0.4, drop.z - 0.4, drop.x + 0.4, drop.z + 0.4)) continue;
+      const p = this.toScreen(drop.x, drop.z);
+      drawBloodDrop(ctx, p.x, p.y, u, drop, alpha);
+      this.stats.drops++;
+    }
   }
 
   /**
@@ -881,10 +1022,38 @@ export class FlatScene {
   }
 
   /**
-   * **Der Balken über einer gesperrten Tür**: wie lange die Sperre noch hält
-   * (`rules/doorLocks.ts`). Keine Sperre hält ewig — weder die von Hand
-   * gesetzte noch die zugefallene —, und wer sich darauf verlässt, soll sehen,
-   * wie lange noch.
+   * Der Balken über einer Tür, deren Blatt gerade zurückgefahren ist: Er
+   * gehört nur der Abkühlung, denn eine gesperrte Tür steht nie offen.
+   */
+  private drawOpenClock(ctx: CanvasRenderingContext2D, door: MapDoor): void {
+    if (!door.cooling) return;
+    const u = this.state.scale;
+    const half = door.width / 2;
+    if (door.axis === 'x') {
+      const left = this.toScreen(door.at.x - half, 0).x,
+        right = this.toScreen(door.at.x + half, 0).x;
+      const topY = this.toScreen(0, door.at.z).y - (WALL_H + BAND / 2) * u;
+      this.drawHoldBar(ctx, door, (left + right) / 2, topY, right - left);
+      return;
+    }
+    const left = this.toScreen(door.at.x - BAND / 2, 0).x,
+      right = this.toScreen(door.at.x + BAND / 2, 0).x;
+    const topY = this.toScreen(0, door.at.z - half - WALL_H).y;
+    this.drawHoldBar(ctx, door, (left + right) / 2, topY, door.width * u);
+  }
+
+  /**
+   * **Der Balken über der Tür**, und er zählt zwei Dinge herunter
+   * (`rules/doorLocks.ts`).
+   *
+   * **Rot**: wie lange die Sperre noch hält. Keine Sperre hält ewig — weder
+   * die von Hand gesetzte noch die zugefallene —, und wer sich darauf
+   * verlässt, soll sehen, wie lange noch.
+   *
+   * **Grün**: wie lange die Tür nach einer gefallenen Sperre noch offen
+   * bleiben muss. Vierzig Sekunden sind lang genug, dass man den Riegel für
+   * kaputt hält; derselbe Balken in der Farbe der offenen Tür sagt, dass er
+   * es nicht ist.
    */
   private drawHoldBar(
     ctx: CanvasRenderingContext2D,
@@ -893,16 +1062,17 @@ export class FlatScene {
     topY: number,
     width: number,
   ): void {
-    if (!door.locked || !door.hold || door.hold.total <= 0) return;
+    const clock = door.locked ? door.hold : door.cooling;
+    if (!clock || clock.total <= 0) return;
     const u = this.state.scale;
-    const left = Math.max(0, Math.min(1, door.hold.left / door.hold.total));
+    const left = Math.max(0, Math.min(1, clock.left / clock.total));
     const w = Math.max(14, width * 0.9);
     const h = Math.max(3, u * 0.055);
     const x = cx - w / 2,
       y = topY - h - Math.max(3, u * 0.06);
     ctx.fillStyle = ART.ink;
     ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-    ctx.fillStyle = INK.lampRed;
+    ctx.fillStyle = door.locked ? INK.lampRed : INK.lampGreen;
     ctx.fillRect(x, y, w * left, h);
   }
 

@@ -30,10 +30,12 @@ import {
   buildShip,
   buildCorridorBeacons,
   buildCreature,
+  buildCrewmate,
   animateCreature,
   roomAccent,
   type StationBeacon,
 } from './shipArt';
+import type { WatchFollow, WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
@@ -63,18 +65,26 @@ import {
   type BotLighting,
 } from './botLighting';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from './monsterRoutine';
-import { stationGraph } from './roomGraph';
+import { MonsterMemory, shutPairs } from './monster/monsterMemory';
+import { graphEstimator, type Estimator } from './monster/monsterIntercept';
+import { monsterGraph, stationGraph } from './roomGraph';
 import { nextSimulationSpeed, simulationRepeats, type SimulationSpeed } from './simulationSpeed';
 import { AutomaticDoors } from './automaticDoors';
 import { StationTravelPlan } from './stationTravelPlan';
 import {
   freshCrew,
+  freshStamina,
+  grantBurst,
   MONSTERS,
+  PLAYER_SPRINT_SPEED,
   ROOM_COUNTS,
+  repairRoom,
   repairsFor,
   stationOptions,
+  stepStamina,
   takeCrewHit,
   stepVitals,
+  TROT,
   type StationOptions,
 } from './mission';
 import { Rng, rollSeed } from './rng';
@@ -83,11 +93,14 @@ import type { ArchiveDesk } from './views/archiveDesk';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { taskCargo } from './rules/cargo';
+import { orderDone } from './rules/archiveGoals';
+import { freshGlitch, stepGlitch, type DoorGlitch } from './rules/doorGlitch';
 import { RoundRules } from './rules/roundRules';
 import {
   HOLD_RANGE,
   SLAM_HOLD,
   chooseLock,
+  LOCK_COOLDOWN,
   freshLocks,
   holdUntil,
   isChosen,
@@ -97,23 +110,50 @@ import {
   toggleLock,
   type DoorLocks,
 } from './rules/doorLocks';
-import { freshGhosts, markGhost } from './rules/ghosts';
+import {
+  dropAlpha,
+  freshTrail,
+  sniff,
+  stepTrail,
+  wound,
+  SNIFF_EVERY,
+  type Scent,
+  type Trail,
+} from './rules/blood';
+import { freshGhosts, ghostAge, ghostAlpha, markGhost, GHOST_LIVE } from './rules/ghosts';
 import { freshLamps, lampGlow, lampOut, stepLamps, switchLamp, type Lamps } from './rules/lamps';
 import {
+  ABILITIES,
+  ABILITY_LABELS,
+  cycleAbility,
+  type Ability,
   cycleMonster,
   cycleWho,
   flatRoleOf,
+  goalPrecision,
   loadSetup,
+  lockTechnician,
   powersOf,
-  presetFor,
   roundKindOf,
   saveSetup,
+  technicianLabel,
   WHO_LABELS,
   type RoundSetup,
 } from './rules/roundSetup';
-import { loadLobby, saveLobby, type LobbyChoice } from './rules/lobby';
 import {
+  applyIntent,
+  intentOf,
+  loadLobby,
+  saveLobby,
+  VIEW_LABELS,
+  type Intent,
+  type LobbyChoice,
+  type View,
+} from './rules/lobby';
+import {
+  asIntent,
   HOST_BUSY,
+  NOT_TECHNICIAN,
   opensFlat,
   ROOM_BUSY,
   startBlocker,
@@ -138,15 +178,21 @@ import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './statio
 import {
   claimMessage,
   flipMessage,
+  handoverMessage,
   HAUNT_CHANNEL,
   HAUNT_ROOM,
+  loadMemory,
+  packMemory,
   pickGameHost,
   readClaim,
   readFlip,
+  readHandover,
   readMonsterInput,
   readState,
   stateMessage,
+  type HauntBooks,
   type HauntState,
+  type MonsterBook,
 } from './net';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
@@ -188,6 +234,28 @@ import type { Npc } from '../npc/Npc';
 
 /** Wie oft der Gastgeber den Stand verschickt, und jeder seinen Platz ansagt. */
 const STATE_RATE = 1 / 4;
+/**
+ * **Wie lange ein frischer Gastgeber auf die Übergabe des alten wartet**, in
+ * Sekunden.
+ *
+ * Solange er wartet, rechnet er nicht: Zwei, die gleichzeitig das Monster
+ * bewegen, ziehen es zwischen sich hin und her, und wer zusieht, sieht ein
+ * zuckendes Vieh. Zwei Sekunden sind acht Ansagen im Stand-Takt — reichlich
+ * Zeit für eine Nachricht, die schon unterwegs ist, und kurz genug, dass eine
+ * Runde nicht stehen bleibt, wenn der alte Gastgeber gar nicht mehr da ist
+ * (zugeklappter Laptop: dann kommt nie eine Übergabe, und die Runde muss
+ * trotzdem weitergehen).
+ */
+const HANDOVER_WAIT = 2;
+
+/**
+ * Was der Wechsel in die Karte von oben sagt, wenn die Brille auf ist. Sie ist
+ * ein Fenster-Ding (`rules/worldMenu.opensFlat`), und ein Eintrag, der in einer
+ * XR-Sitzung wortlos nichts tut, ist genau der Fehler, den die Startknöpfe
+ * schon einmal hatten.
+ */
+const NO_FLAT_IN_XR =
+  'In der Brille gibt es keine Karte von oben — dort bleibt das Schiff. Am Fenster geht der Wechsel.';
 
 /** Und wie oft das Telefon am Monster seinen Stock ansagt. */
 const MONSTER_RATE = 1 / 10;
@@ -235,6 +303,15 @@ const SHOW_PITCH = (Math.PI / 180) * 80;
 const SHOW_FOV = 42;
 
 /**
+ * Wie viele Meter im Bild stehen, wenn der Zuschauer jemandem folgt.
+ *
+ * Ein Zimmer ist zweieinhalb Kacheln breit; neun Meter zeigen den Verfolgten
+ * mit seinen Türen und dem, was gerade um die Ecke kommt — enger wäre ein
+ * Guckloch, weiter wäre wieder das ganze Deck, und dafür gibt es „Frei".
+ */
+const WATCH_FOLLOW_SPAN = 9;
+
+/**
  * **Und wo ihm die Decke abgenommen wird.**
  *
  * Dieselbe Antwort wie in der Vorschau des Werkzeugkastens (`tools/worldCut.ts`):
@@ -247,6 +324,9 @@ const SHOW_CUT = PLAN_WALL_H - 0.4;
 
 /** Der Himmel über dem Zuschauer: heller Tag, nicht die Nacht der anderen. */
 const SHOW_SKY = 0x020711;
+
+/** Wohin die Zuschauerkamera gerade gezogen wird — ein Vektor, kein Müll je Bild. */
+const _showTarget = new THREE.Vector3();
 
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 
@@ -330,6 +410,21 @@ export class HauntingWorld extends GridWorld {
   private readonly navigationOverlay = new NavigationOverlay();
   private monsterNavigator: StationNpcNavigator | null = null;
   private monsterArt: THREE.Object3D | null = null;
+  /**
+   * **Der Körper des Technikers, der in 2D spielt.**
+   *
+   * Seine Stelle steht seit `STATION_PROTOCOL` 7 im Stand
+   * (`HauntState.technician`) — die Karte des Monster-Telefons zeichnet ihn
+   * daraus längst, die 3D-Welt aber gar nicht: Wer am Fernseher zusah, sah
+   * eine leere Station, in der Türen von selbst aufgingen. Ein einfacher
+   * Crewmate (`shipArt.buildCrewmate`) reicht; er läuft nicht, er steht dort,
+   * wo der Stand ihn hinsetzt.
+   */
+  private technicianArt: THREE.Object3D | null = null;
+  /** Worauf die Kamera des Zuschauers gerade zielt, wenn sie jemandem folgt. */
+  private readonly showFocus = new THREE.Vector3();
+  /** Ob sie schon einmal gezielt hat — der erste Sprung darf hart sein. */
+  private showAimed = false;
   /** Die Drehleuchten der Gänge — sichtbar nur bei Alarmbeleuchtung. */
   private beacons: StationBeacon[] = [];
   /** Die Gewichte beider Bots — aus dem Browser-Speicher, veränderbar im Test. */
@@ -338,8 +433,24 @@ export class HauntingWorld extends GridWorld {
   private readonly rules = new RoundRules(() => this.state);
   /** Was das Monster gerade vorhat (`monsterRoutine.ts`). */
   private routine: MonsterRoutine | null = null;
+  /**
+   * **Das Gedächtnis des Monsters** (`monster/monsterMemory.ts`) — dasselbe
+   * Stück wie in der 2D-Runde und in der Trainingssimulation. Geschrieben wird
+   * es in der Routine; von hier kommt nur, was die Routine nicht sehen kann:
+   * eine fertig gewordene Reparatur.
+   */
+  private brain: MonsterMemory | null = null;
+  private estimator: Estimator | null = null;
+  /** Wie viele Reparaturen zuletzt fertig waren — daran hängt der Schub. */
+  private repaired = 0;
+  /** Die Puste des Technikers (`mission.ts`) — in 3D wie in 2D. */
+  private readonly stamina = freshStamina();
   private decision: RoutineOutput | null = null;
   private readonly routineDice = new Rng(0x4d4f4e53);
+  /** Der Würfel der Stationsfehler — eigener Strom, damit er das Monster nicht verschiebt. */
+  private readonly glitchDice = new Rng(0x53434854);
+  /** Welches Schott gerade grundlos offen steht (`rules/doorGlitch.ts`) — beim Gastgeber. */
+  private glitch: DoorGlitch = freshGlitch(() => this.glitchDice.next());
   /**
    * Der Schrank, in den das Monster jemanden hat **flüchten sehen** — leer,
    * solange das Verstecken unbeobachtet blieb. Nur er löst Schrei und
@@ -411,6 +522,28 @@ export class HauntingWorld extends GridWorld {
   private setup: RoundSetup = loadSetup();
   /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
   private blob: THREE.Object3D | null = null;
+  /**
+   * **Die Blutspur des Technikers** (`rules/blood.ts`) — gerechnet dort, wo
+   * sein Körper ist, also hier beim Spieler im Anzug. Ihre Tropfenliste *ist*
+   * `state.blood`, damit die Spur, über die das Monster läuft, dieselbe ist
+   * wie die, die auf dem Boden liegt.
+   */
+  private readonly blood: Trail = freshTrail();
+  /** Die flachen Flecken auf dem Boden — Weltgeometrie, damit sie in der Brille steht. */
+  private bloodArt: THREE.Group | null = null;
+  /**
+   * **Der Ghost des Monsters** (`rules/ghosts.ts`): eine halbdurchsichtige
+   * Kopie des Monstermodells an der zuletzt gesehenen Stelle. Auch das ist
+   * Weltgeometrie und kein Bildschirmzeichen — sonst gäbe es sie im Headset
+   * nicht, und ausgerechnet dort braucht man sie am meisten.
+   */
+  private ghostArt: THREE.Object3D | null = null;
+  /** Für welche Sorte die Kopie gebaut wurde — wechselt die Sorte, wird sie neu gebaut. */
+  private ghostKind = '';
+  /** Wann das Monster zuletzt an der Blutspur geschnüffelt hat (`rules/blood.ts`). */
+  private sniffed = -Infinity;
+  /** Die eine Scheibe, aus der alle Blutflecken gemacht sind. */
+  private bloodShape: THREE.CircleGeometry | null = null;
 
   /**
    * **Das Licht, unter dem der Archivar liest.**
@@ -517,6 +650,11 @@ export class HauntingWorld extends GridWorld {
   /** Die laufende 2D-Runde (`map/flatMode.ts`), von „Bot-Runde", „Mission" oder „Test" gestartet. */
   private flat: FlatMode | null = null;
   /**
+   * Ob diese 2D-Welt einer Runde im Netz **zusieht**, statt selbst eine zu
+   * rechnen. Dann kommt der Snapshot aus der 3D-Welt und nicht aus ihr.
+   */
+  private flatWatching = false;
+  /**
    * Ob die laufende 2D-Runde **die gemeinsame Runde** ist (Mission und Test:
    * wer sie spielt, ist der Techniker und rechnet sie für alle Telefone —
    * `stepFlat`) oder eine lokale Vorführung (Bot-Runde: kein Herzschlag, kein
@@ -563,6 +701,16 @@ export class HauntingWorld extends GridWorld {
    */
   private seatedAt = clock();
   private hostId = '';
+  /**
+   * **Bis wann auf die Übergabe des alten Gastgebers gewartet wird**, auf der
+   * Uhr dieses Geräts (`clock()`); `0` heißt: es wird nicht gewartet.
+   *
+   * Solange die Frist läuft, rechnet dieses Gerät die Runde **nicht** weiter,
+   * obwohl es schon Gastgeber ist. Das ist der Unterschied zwischen einem
+   * Wechsel und einem Riss: Ohne die Frist rechnen für einen Augenblick beide,
+   * der alte und der neue, und schieben sich zwei Monsterpositionen zu.
+   */
+  private handoverUntil = 0;
   private sendTimer = 0;
   /**
    * Woran erkannt wird, dass sich an den Türen etwas geändert hat — und das
@@ -623,9 +771,23 @@ export class HauntingWorld extends GridWorld {
     return true;
   }
 
-  /** Eine Hand bleibt frei — in diesem Haus will man eine Lampe halten. */
+  /**
+   * **An jeder Hüfte eine Taschenlampe** — und deshalb kann keine verloren
+   * gehen.
+   *
+   * Lange hing nur rechts eine, „damit eine Hand frei bleibt". Seit der
+   * Techniker in der rechten Hand ein Ersatzteil trägt, war genau das die
+   * Falle: Teil in der Hand, Lampe abgelegt, und der Weg zur Konsole ging
+   * durch ein dunkles Schiff. Zwei Lampen kosten nichts — eine Hüfte merkt
+   * sich ihre Bestückung und lässt nachwachsen, was von ihr kam
+   * (`PortalWorld.stowTool`), also ist auch eine hingeworfene Lampe nach dem
+   * nächsten Griff wieder da.
+   */
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
-    return [['flashlight', 'right']];
+    return [
+      ['flashlight', 'left'],
+      ['flashlight', 'right'],
+    ];
   }
 
   protected override welcome(): string {
@@ -643,9 +805,11 @@ export class HauntingWorld extends GridWorld {
   /**
    * **Wohin ein Verfolger läuft.**
    *
-   * Nicht immer zum Spieler: Läuft irgendwo ein Radio, geht er dorthin. Das
-   * ist der einzige Hebel, den der Hacker auf das Monster hat — und der
-   * Grund, warum ein Schalter mit der Aufschrift `X` etwas wert sein kann.
+   * Das entscheidet allein die Routine (`monsterRoutine.ts`). Es gab hier
+   * einmal eine Abkürzung davor: Lief irgendwo ein Radio, ging das Monster
+   * dorthin — der Schallköder der Tafel. Er ist weg, und mit ihm der einzige
+   * Griff, mit dem der Hacker das Vieh in eine Ecke parken konnte. Was die
+   * Tafel jetzt auf das Monster ausrichtet, ist Licht und ein Riegel.
    */
   protected override npcTarget(target: THREE.Vector3): THREE.Vector3 | null {
     if (
@@ -656,15 +820,7 @@ export class HauntingWorld extends GridWorld {
       return null;
     // Im Schacht wird nicht gelaufen: kein Ziel, der Körper steht (`vents/npcVentRide.ts`).
     if (this.ventRide.busy) return null;
-    const room = this.state.loud[0];
-    if (room) {
-      const found = roomOf(this.spec, room);
-      if (found) {
-        const at = safeRoomSpawn(this.spec, found.id);
-        return target.set(at.x, 0, at.z);
-      }
-    }
-    // Alles andere entscheidet die Routine (`monsterRoutine.ts`): Verfolgung,
+    // Alles entscheidet die Routine (`monsterRoutine.ts`): Verfolgung,
     // Absuchen, Patrouille, Seitenwechsel, Auflauern — und der Weg zu einer
     // Kabine, in die es jemanden hat flüchten sehen. Kein allwissendes
     // Nachlaufen: Ohne Wahrnehmung steht dort ein geratener Raum und nicht
@@ -695,9 +851,22 @@ export class HauntingWorld extends GridWorld {
     if (crew.hidden && this.state.time - this.sawPlayerAt < 1.5) this.watchedLocker = crew.hidden;
     if (!crew.hidden) this.watchedLocker = '';
     const piloted = this.monsterDriver?.active() === true;
+    // **Die Blutspur unter seinen Füßen** (`rules/blood.ts`) — nur Tropfen in
+    // seinem eigenen Raum und in Schnüffelweite, und nur zweimal je Sekunde.
+    // Quer über die Station riecht niemand etwas. Ein Mensch am Steuer
+    // schnüffelt nicht: Er sieht die Tropfen selbst auf seiner Karte.
+    let scent: Scent | null = null;
+    if (!piloted && this.state.time - this.sniffed >= SNIFF_EVERY) {
+      this.sniffed = this.state.time;
+      const room = here?.id ?? '';
+      scent = sniff(this.blood, { x: at.x, z: at.z }, this.state.time, (drop) => {
+        const where = roomAt(this.spec, Math.floor(drop.x / TILE), Math.floor(drop.z / TILE));
+        return !!room && where?.id === room;
+      });
+    }
     const decision = piloted
       ? this.monsterDriver!.decide(dt)
-      : this.routine.step(stationGraph(this.spec), {
+      : this.routine.step(monsterGraph(this.spec), {
           dt,
           at: { x: at.x, z: at.z },
           here: here?.id ?? '',
@@ -706,6 +875,16 @@ export class HauntingWorld extends GridWorld {
           quarry: quarry?.id ?? null,
           caught: this.watchedLocker,
           rng: () => this.routineDice.next(),
+          memory: this.brain ?? undefined,
+          scent,
+          estimator: this.estimator ?? undefined,
+          base: MONSTERS.find((m) => m.id === crew.options.monster)!.speed,
+          time: this.state.time,
+          // Ob der Techniker rennt, steht schon in der Anstrengung: Der Visier
+          // beschlägt nach einer Sekunde Sprint (`stepVitals`), und genau das
+          // ist die Zahl, die auch übers Netz geht.
+          sprinting: crew.exertion > 0.3,
+          stamina: { left: this.stamina.left, trot: PLAYER_SPRINT_SPEED * TROT },
           ...threatAlert(crew),
         });
     // Der Lotse biegt das Ziel der Routine auf eine Klappe um, wenn der
@@ -714,10 +893,13 @@ export class HauntingWorld extends GridWorld {
     this.decision =
       piloted || !this.npcRide || !rider
         ? decision
-        : this.npcRide.steer(decision, rider, this.state.time, stationGraph(this.spec));
+        : this.npcRide.steer(decision, rider, this.state.time, monsterGraph(this.spec));
     this.monsterFace = decision.face;
+    // Die Absichten gehen mit dem Stand auf die Leitung (`HauntState.insight`),
+    // damit ein Zuschauer sie sieht, der das Monster nicht selbst rechnet.
+    this.state.insight = this.decision.insight ?? undefined;
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
-    this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace));
+    this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace, decision.boost));
     if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
     // Ein Spieler am Steuer trifft den Techniker im Freien mit dem Knopf —
     // `takeHit` prüft Abstand und Sichtlinie wie bei einem Schlag des NPC.
@@ -749,6 +931,10 @@ export class HauntingWorld extends GridWorld {
     crew.hidden = '';
     this.watchedLocker = '';
     if (takeCrewHit(crew, this.state.phase === 'running')) {
+      grantBurst(this.stamina);
+      // Wer getroffen wird, blutet (`rules/blood.ts`) — auch der, den es im
+      // Schrank erwischt hat: Er steigt aus und zieht die Spur hinter sich her.
+      wound(this.blood, this.state.time);
       if (crew.hp === 0) {
         this.state.phase = 'lost';
         this.removeMonster();
@@ -834,16 +1020,14 @@ export class HauntingWorld extends GridWorld {
           this.flatTechnician = true;
         },
         menu: () => ctx.menu.toggle(),
-        botRound: () => this.startRound('bot', ctx),
-        mission: () => this.startRound('mission', ctx),
-        test: () => this.startRound('test', ctx),
-        flatMode: () => this.toggleFlatWanted(),
         flatWanted: () => this.flatWanted,
+        vr: () => this.roomHasVr(),
+        switchView: (view) => this.switchView(view),
         lobby: () => this.lobbyChoice,
         setLobby: (choice) => this.setLobby(choice),
         setup: () => this.setup,
         setSetup: (setup) => this.applySetup(setup),
-        startSetup: () => this.startRound(roundKindOf(this.setup), ctx),
+        startSetup: () => this.startRound(intentOf(this.setup), ctx),
         snapshot: () => this.mapSnapshot(),
         monsterPort: () => this.netPort,
         notify: (text) => ctx.notify(text),
@@ -865,12 +1049,10 @@ export class HauntingWorld extends GridWorld {
         }),
         nameOf: (peer) => ctx.net.peers.get(peer)?.name ?? 'jemand',
         seat: () => seatOf(this.currentClaims(), ctx.net.localId),
-        wanted: () => this.wanted,
         arriving: () => Math.max(0, MOVE_TIME - this.seated),
         sit: (station) => this.sit(station),
         door: (id) => this.panelSwitch('door', id),
         light: (id) => this.panelSwitch('light', id),
-        lure: (id) => this.panelSwitch('radio', id),
         archiveDesk: () => this.desk,
       });
     }
@@ -903,6 +1085,8 @@ export class HauntingWorld extends GridWorld {
     this.roomArt.clear();
     dispose(this.stage);
     dispose(this.live);
+    this.bloodShape?.dispose();
+    this.bloodShape = null;
     dispose(this.vanRig);
     dispose(this.paperMask);
     dispose(this.paperDoors);
@@ -1013,6 +1197,8 @@ export class HauntingWorld extends GridWorld {
         this.pendingBotRound = false;
         ctx.menu.toggle(false);
       },
+      // Der eine Knopf im Panel des Technikers: „2D von oben" (`switchView`).
+      switchView: (view) => this.switchView(view),
       door: (id) => this.manualDoor(id),
       round: () => this.rules.status(this.state),
       doorOpen: (id) =>
@@ -1489,6 +1675,15 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
+   * **Ob dieses Gerät gerade auf die Übergabe des Vorgängers wartet.** Es ist
+   * schon Gastgeber und rechnet trotzdem noch nicht — genau die Lücke, in der
+   * sonst zwei dieselbe Runde rechnen (`HANDOVER_WAIT`).
+   */
+  private get waitingHandover(): boolean {
+    return this.handoverUntil > clock();
+  }
+
+  /**
    * **Ein Bild — oder bei Zeitraffer mehrere hintereinander.**
    *
    * Die Bot-Runde lässt sich beschleunigen (`simulationSpeed.ts`), und das
@@ -1511,6 +1706,11 @@ export class HauntingWorld extends GridWorld {
       this.context = ctx;
       if (this.flatShared) this.stepFlat(dt, ctx);
       else this.flat.update(dt);
+      // **Der Zuschauer am Netz braucht die Türblätter.** Sein Bild kommt aus
+      // `worldSnapshot()`, und ob ein Blatt offen steht, weiß nur der
+      // Türautomat — der sonst im 3D-Pfad läuft, den die 2D-Welt stillstellt.
+      // Ohne diesen Schritt blieben für ihn alle Türen für immer zu.
+      if (this.flatWatching) this.applyDoors(dt);
       this.tickNet(dt, ctx, last);
       return;
     }
@@ -1537,7 +1737,7 @@ export class HauntingWorld extends GridWorld {
       this.experience?.startBotRound();
     }
 
-    if (this.isHost) {
+    if (this.isHost && !this.waitingHandover) {
       this.state.time += dt;
       // Zugefallene Türen gehen von selbst wieder auf (`rules/doorLocks.ts`).
       const locks = stepLocks(this.locks, this.state.shut, this.state.time);
@@ -1556,6 +1756,7 @@ export class HauntingWorld extends GridWorld {
         this.announce(oxygen.text);
       }
       this.trackMonster();
+      this.noticeRepairs();
       this.checkItems(ctx);
       this.stepCrew(dt, ctx);
       this.state.ride = this.ventRide.phase;
@@ -1569,6 +1770,8 @@ export class HauntingWorld extends GridWorld {
     this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
     this.applyBlob();
+    this.paintTrail();
+    this.paintGhost();
     this.experience?.update(dt);
     if (this.monsterArt && this.monster) {
       // Wer steht und horcht, dreht sich zur Richtung des Geräuschs.
@@ -1581,13 +1784,23 @@ export class HauntingWorld extends GridWorld {
       this.monsterArt.visible = this.state.crew.venting <= 0;
       animateCreature(this.monsterArt, this.state.time);
     }
-    this.navigationOverlay.update(this.state.crew.simulation, [
+    this.showTechnician();
+    // **Das Overlay läuft auch außerhalb der Simulation** (Paket U4/M4): Es
+    // war an die Bot-Runde gebunden, weil es dafür gebaut wurde — der
+    // Zuschauer braucht es aber gerade dann, wenn Menschen spielen.
+    const overlay = this.state.crew.simulation || this.insightWanted();
+    this.navigationOverlay.update(overlay, [
       this.experience?.botNavigation ?? null,
       this.monsterNavigator?.navigation ?? null,
     ]);
 
+    // Der Gastgeber hat die Absichten aus seinem Beschluss, alle anderen aus
+    // dem Stand, den er ansagt (`HauntState.insight`).
+    this.navigationOverlay.insight(
+      this.insightWanted() ? (this.state.insight ?? this.decision?.insight ?? null) : null,
+    );
     this.perceptionClock -= dt;
-    if (this.state.crew.simulation && this.perceptionClock <= 0) {
+    if (overlay && this.perceptionClock <= 0) {
       this.perceptionClock = 0.15;
       const bot = this.experience?.botPose;
       const monster = this.state.monster;
@@ -1699,7 +1912,18 @@ export class HauntingWorld extends GridWorld {
     this.ui?.refresh();
   }
 
-  /** Wer die Runde rechnet — der VR-Spieler, sonst der Älteste. */
+  /**
+   * **Gastgeber ist, wer Techniker ist** (`net.pickGameHost`) — in der Brille,
+   * am Desktop oder auf der Karte von oben, das ist dieselbe Rolle in drei
+   * Ansichten. Spielt niemand, rechnet der Älteste.
+   *
+   * **Und wechselt der Techniker, wird übergeben.** Der alte Gastgeber schickt
+   * dem neuen den ganzen Stand samt der Buchführung, die sonst nie über die
+   * Leitung geht (`net.handoverMessage`); der neue wartet `HANDOVER_WAIT`
+   * Sekunden darauf und rechnet solange nicht. Vorher erbte der Nachfolger
+   * eine Runde mit gesperrten Türen ohne Frist, Lampen ohne Restzeit und einem
+   * Monster, das den Techniker nie gesehen hatte.
+   */
   private refreshHost(ctx: WorldContext): void {
     const here = [...ctx.net.peers.values()].filter((peer) => peer.world === ctx.net.world);
     const candidates = [
@@ -1707,19 +1931,29 @@ export class HauntingWorld extends GridWorld {
       {
         id: ctx.net.localId,
         seniority: ctx.net.localSeniority,
-        vr: ctx.role === 'vr' || this.flatShared,
+        technician: ctx.role === 'vr' || this.flatTechnician || this.flatShared,
       },
       ...here.map((peer) => ({
         id: peer.id,
         seniority: ctx.net.seniorityOf(peer),
-        vr: peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000,
+        technician:
+          peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000,
       })),
     ];
     const next = pickGameHost(candidates) || pickHost(candidates);
     if (next === this.hostId) return;
     const wasHost = this.hostId === ctx.net.localId;
+    const before = this.hostId;
     this.hostId = next;
+    // **Erst übergeben, dann loslassen.** `releaseMonster` wirft das Gedächtnis
+    // weg; wer danach einpackt, schickt eine leere Buchführung.
+    if (wasHost && next !== '' && next !== ctx.net.localId) this.handOver(ctx, next);
     if (wasHost) this.releaseMonster();
+    // Wer einen Gastgeber ablöst, der eben noch da war, wartet auf dessen
+    // Übergabe. Beim ersten Gastgeber einer Runde (`before === ''`) gibt es
+    // nichts zu warten: Da war keiner, der etwas zu übergeben hätte.
+    if (next === ctx.net.localId && before !== '' && this.state.phase === 'running')
+      this.handoverUntil = clock() + HANDOVER_WAIT * 1000;
     if (
       next === ctx.net.localId &&
       !this.flatShared &&
@@ -1740,10 +1974,21 @@ export class HauntingWorld extends GridWorld {
       else this.technicians.set(from, clock());
       return;
     }
+    // **Die Übergabe** (`net.handoverMessage`) — nur an den, für den sie
+    // gedacht ist, nur wenn er die Runde inzwischen wirklich rechnet, und nur,
+    // solange dieses Gerät nicht selbst eine 2D-Runde spielt: Dort *ist* die
+    // eigene Runde der Stand, und ein fremder wäre eine zweite Station unter
+    // derselben Uhr.
+    const handover = readHandover(data);
+    if (handover) {
+      if (handover.to === this.context?.net.localId && this.isHost && !this.flatShared)
+        this.takeHandover(handover.state, handover.books);
+      return;
+    }
     const state = readState(data);
     if (state && from !== this.context?.net.localId && from === this.hostId) {
       // In der gemeinsamen 2D-Runde ist der eigene Stand der Stand (`stepFlat`).
-      if (!this.flatShared) this.adopt(state);
+      if (!this.flatShared && !this.stale(state)) this.adopt(state);
       return;
     }
     const claim = readClaim(data, from);
@@ -1805,6 +2050,98 @@ export class HauntingWorld extends GridWorld {
     this.state = next;
   }
 
+  /**
+   * **Ein Stand, der hinter dem eigenen zurückliegt, wird verworfen.**
+   *
+   * Beim Wechsel des Gastgebers überschneiden sich für einen Augenblick zwei
+   * Absender: Die letzte Ansage des alten ist noch unterwegs, während der neue
+   * schon rechnet. Wer sie annimmt, springt in der Zeit zurück — die Uhr läuft
+   * rückwärts, eine eben reparierte Konsole ist wieder offen. Also gilt: Auf
+   * demselben Haus und in derselben laufenden Runde zählt nur, was **neuer**
+   * ist als das, was schon dasteht.
+   *
+   * Für alles andere gilt die Regel nicht: Eine neue Runde fängt bei null an,
+   * und ein `briefing` nach einem `running` ist ein Abbruch und kein Nachzügler.
+   */
+  private stale(next: HauntState): boolean {
+    return (
+      next.seed === this.state.seed &&
+      next.phase === 'running' &&
+      this.state.phase === 'running' &&
+      next.time < this.state.time
+    );
+  }
+
+  /**
+   * **Die Buchführung, die nicht auf der Leitung liegt** (`net.HauntBooks`) —
+   * aus der Runde, die gerade wirklich läuft: der 2D-Runde, solange eine
+   * steht, sonst der eigenen im Schiff.
+   *
+   * Alles geht als **Abschrift** heraus. Wer eine Runde übergibt oder
+   * schließt, gibt keine Listen weiter, in die er selbst noch hineinschreibt.
+   */
+  private books(): HauntBooks {
+    const flat = this.flatShared ? (this.flat?.round.books() ?? null) : null;
+    const locks = flat?.locks ?? this.locks;
+    const graph = stationGraph(this.spec);
+    return {
+      locks: {
+        chosen: locks.chosen,
+        until: locks.until,
+        slams: locks.slams.map((one) => ({ ...one })),
+        pries: locks.pries.map((one) => ({ ...one })),
+        cooling: locks.cooling.map((one) => ({ ...one })),
+      },
+      // Das Lampenbudget führt immer dieser Wirt: Die 2D-Runde kennt es nicht,
+      // ihre Station ist gezeichnet und nicht geschaltet (`rules/lamps.ts`).
+      lamps: { on: this.lampBook.on.map((one) => ({ ...one })) },
+      spook: flat?.spook ?? { ...this.spook },
+      trail: flat?.trail ?? {
+        until: this.blood.until,
+        from: this.blood.from ? { ...this.blood.from } : null,
+        walked: this.blood.walked,
+      },
+      memory: flat?.memory ?? (this.brain ? packMemory(this.brain, graph.spaces) : emptyBook()),
+    };
+  }
+
+  /** Den ganzen Stand samt Buchführung an den neuen Gastgeber schicken. */
+  private handOver(ctx: WorldContext, to: string): void {
+    if (this.state.phase !== 'running') return;
+    ctx.net.emit(HAUNT_CHANNEL, handoverMessage(to, this.state, this.books()));
+  }
+
+  /**
+   * **Und die andere Seite: annehmen und ab jetzt rechnen.**
+   *
+   * Der Stand geht durch denselben Weg wie jeder fremde (`adopt`), damit ein
+   * Hauswechsel auch hier ein Hauswechsel bleibt; die Buchführung kommt
+   * danach, weil `adopt` bei einem neuen Haus den Spuk zurücksetzt.
+   */
+  private takeHandover(state: HauntState, books: HauntBooks): void {
+    if (!this.stale(state)) this.adopt(state);
+    this.loadBooks(books);
+    this.handoverUntil = 0;
+  }
+
+  /** Riegel, Lampen, Spuk, Wunde und Gedächtnis übernehmen. */
+  private loadBooks(books: HauntBooks): void {
+    this.locks = books.locks;
+    this.lampBook = books.lamps;
+    this.spook = books.spook;
+    this.blood.until = books.trail.until;
+    this.blood.from = books.trail.from;
+    this.blood.walked = books.trail.walked;
+    // **Eine Spur, nicht zwei** (wie in `FlatRound`): Die Tropfenliste der
+    // Buchführung *ist* die im Stand.
+    this.blood.drops = this.state.blood ?? [];
+    this.state.blood = this.blood.drops;
+    if (this.brain) {
+      const graph = stationGraph(this.spec);
+      loadMemory(this.brain, books.memory, (point) => graph.spaceAt(point));
+    }
+  }
+
   // --- was im Haus passiert -------------------------------------------------
 
   /** Der Gastgeber liest die Stelle des Monsters ab und sagt sie an. */
@@ -1816,6 +2153,36 @@ export class HauntingWorld extends GridWorld {
     if (!this.monster) return;
     const at = this.monster.feet(_feet);
     this.state.monster = { x: at.x, z: at.z };
+  }
+
+  /**
+   * **Eine fertige Reparatur ist ein Ereignis der Station** — und das Monster
+   * merkt es.
+   *
+   * Die Konsole fährt hoch, die Sicherung fällt (`HauntState.fuse`), im Modul
+   * flackert das Licht. Wer das hört und sieht, weiß, dass dort eben jemand
+   * gestanden hat; das ist kein Hellsehen, sondern der Schluss, den jedes Tier
+   * zieht. Also: eine Aufruhr-Notiz auf diesen Raum (`MonsterMemory.disturbed`
+   * — ausdrücklich **keine** Sichtung, denn über die Laufrichtung sagt sie
+   * nichts) und ein Schub aufs Tempo für `MonsterTuning.rush` Sekunden.
+   *
+   * Gelesen wird `state.done`, nicht der Rätselcode: Der wächst im Schiff
+   * (`ShipExperience`), in der 2D-Runde und beim Modelltechniker an drei
+   * verschiedenen Stellen, und alle drei laufen hier zusammen.
+   */
+  private noticeRepairs(): void {
+    const done = this.state.done;
+    if (done.length <= this.repaired) {
+      this.repaired = done.length;
+      return;
+    }
+    for (const entry of done.slice(this.repaired)) {
+      const room = repairRoom(this.spec, entry);
+      if (!room) continue;
+      this.brain?.disturbed(room, stationGraph(this.spec).centre(room), this.state.time);
+      this.routine?.hurry(this.tuning.monster.rush);
+    }
+    this.repaired = done.length;
   }
 
   /** Bei allen anderen steht an dieser Stelle ein Klotz — mehr braucht es nicht. */
@@ -1843,6 +2210,123 @@ export class HauntingWorld extends GridWorld {
     this.blob.position.set(at.x, 0, at.z);
     this.blob.visible = this.state.crew.venting <= 0;
     animateCreature(this.blob, this.state.time);
+  }
+
+  /**
+   * **Die Blutspur auf dem Boden** (`rules/blood.ts`) — flache Flecken als
+   * **Weltgeometrie** und nicht als Zeichen auf dem Bildschirm.
+   *
+   * Das ist der ganze Unterschied: Ein Bildschirmzeichen gibt es in der
+   * Brille nicht, weil dort zwei Augen zwei Bilder bekommen und niemand ein
+   * Overlay dazwischenlegt. Was auf dem Boden liegt, liegt für beide Augen
+   * dort, wo es liegt — dieselbe Überlegung wie bei der schwarzen Kante
+   * (`core/outlineShell.ts`), die aus demselben Grund keine Nachbearbeitung
+   * ist.
+   *
+   * Die Scheiben werden **einmal gebaut und wiederverwendet**: höchstens
+   * `blood.DROP_LIMIT` Stück, überzählige werden unsichtbar geschaltet statt
+   * weggeworfen. Ein Fleck, der bei jedem Tropfen neu entsteht und beim
+   * nächsten Bild wieder zerfällt, kostet mehr als die ganze Spur wert ist.
+   */
+  private paintTrail(): void {
+    const drops = this.state.blood ?? [];
+    if (!this.bloodArt) {
+      if (!drops.length) return;
+      this.bloodArt = new THREE.Group();
+      this.bloodArt.name = 'blood';
+      this.live.add(this.bloodArt);
+    }
+    const art = this.bloodArt;
+    while (art.children.length < drops.length) art.add(this.bloodSpot());
+    for (let i = 0; i < art.children.length; i++) {
+      const spot = art.children[i] as THREE.Mesh;
+      const drop = drops[i];
+      const alpha = drop ? dropAlpha(drop, this.state.time) : 0;
+      spot.visible = alpha > 0;
+      if (!drop || alpha <= 0) continue;
+      // Jeder Fleck ist ein bisschen anders groß — sonst liegt dort eine Reihe
+      // gestanzter Punkte und keine Spur. Die Größe kommt aus dem Zeitstempel
+      // und nicht aus dem Zufall, damit jedes Gerät dieselben Flecken malt.
+      const size = 0.1 + 0.09 * Math.abs(Math.sin(drop.since * 12.9898));
+      spot.position.set(drop.x, BLOOD_Y, drop.z);
+      spot.scale.set(size, size, size);
+      const material = spot.material as THREE.MeshBasicMaterial;
+      material.opacity = BLOOD_OPACITY * alpha;
+    }
+  }
+
+  /** Eine Scheibe Blut: flach auf dem Boden, ohne Tiefenschrift, ohne Licht. */
+  private bloodSpot(): THREE.Mesh {
+    this.bloodShape ??= new THREE.CircleGeometry(1, 10);
+    const spot = new THREE.Mesh(
+      this.bloodShape,
+      new THREE.MeshBasicMaterial({
+        color: BLOOD_COLOR,
+        transparent: true,
+        opacity: BLOOD_OPACITY,
+        depthWrite: false,
+      }),
+    );
+    spot.rotation.x = -Math.PI / 2;
+    spot.renderOrder = -1;
+    return spot;
+  }
+
+  /**
+   * **Der Ghost des Monsters** (`rules/ghosts.ts`, Paket M3c): eine
+   * halbdurchsichtige Kopie des Monstermodells an der Stelle, an der der
+   * Techniker es zuletzt gesehen hat.
+   *
+   * **Und nur, solange er das echte nicht sieht.** Ein Ghost neben dem
+   * leibhaftigen Vieh ist keine Erinnerung, sondern ein zweiter Gegner — und
+   * er verriete obendrein, wie alt die Sichtung ist, die man gerade selbst
+   * hat. Ob er es sieht, steht schon im Marker: `markGhost` versetzt ihn bei
+   * jedem Sichtkontakt, also heißt ein Alter unter `GHOST_LIVE` genau „es
+   * steht gerade im Blick". Ein zweiter Sichttest hier wäre eine zweite
+   * Wahrheit.
+   */
+  private paintGhost(): void {
+    const ghost = this.state.monsterOn ? this.state.ghosts.monster : null;
+    const now = this.state.time;
+    const alpha = ghost ? ghostAlpha(ghost, now) : 0;
+    const show = !!ghost && alpha > 0 && ghostAge(ghost, now) >= GHOST_LIVE;
+    const kind = this.state.crew.options.monster;
+    if (this.ghostArt && this.ghostKind !== kind) {
+      this.ghostArt.removeFromParent();
+      dispose(this.ghostArt);
+      this.ghostArt = null;
+    }
+    if (show && !this.ghostArt) {
+      const art = buildCreature(kind);
+      art.name = `ghost-${kind}`;
+      // Eigene Materialien, sonst wäre das echte Monster gleich mit
+      // durchsichtig; `depthWrite: false`, damit die Kopie sich nicht selbst
+      // in Streifen zerschneidet.
+      art.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const material = (mesh.material as THREE.Material).clone() as THREE.MeshStandardMaterial;
+        material.transparent = true;
+        material.depthWrite = false;
+        material.emissive = new THREE.Color(GHOST_GLOW);
+        material.emissiveIntensity = 0.6;
+        mesh.material = material;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+      });
+      this.ghostArt = art;
+      this.ghostKind = kind;
+      this.live.add(art);
+    }
+    if (!this.ghostArt) return;
+    this.ghostArt.visible = show;
+    if (!show || !ghost) return;
+    this.ghostArt.position.set(ghost.x, 0, ghost.z);
+    this.ghostArt.rotation.y = ghost.yaw;
+    this.ghostArt.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) (mesh.material as THREE.Material).opacity = GHOST_SOLID * alpha;
+    });
   }
 
   /**
@@ -1883,6 +2367,11 @@ export class HauntingWorld extends GridWorld {
     )
       return;
     if (!this.isHost || !takeCrewHit(this.state.crew, this.state.phase === 'running')) return;
+    // Der kurze Schub nach dem Treffer (`mission.HIT_BURST`): Drei Sekunden
+    // Unverwundbarkeit nützen nichts, wenn man sie im Griff des Monsters
+    // absteht.
+    grantBurst(this.stamina);
+    wound(this.blood, this.state.time);
     for (const hand of ['left', 'right'] as const) this.context?.input.get(hand)?.pulse(0.65, 120);
     playSwitch(false);
     if (this.state.crew.hp === 0) {
@@ -1920,6 +2409,21 @@ export class HauntingWorld extends GridWorld {
     const monster = this.state.monster;
     const distance = monster ? Math.hypot(monster.x - _head.x, monster.z - _head.z) : Infinity;
     stepVitals(this.state.crew, dt, speed, distance);
+    // **Die Puste** (`mission.ts`, `core/PlayerRig.sprintScale`). Bis eben galt
+    // der Sprint hier unbegrenzt, und damit war jede Verfolgung entschieden,
+    // sobald der Spieler den Stock nach vorn drückte. Jetzt sind es fünf
+    // Sekunden, danach Trab — und eine Flucht braucht eine Tür, eine Ecke oder
+    // einen Schacht statt einer geraden Linie. Der Modelltechniker der
+    // Bot-Runde hat seine eigene Puste (`rules/technicianBot.ts`), deshalb
+    // hängt das hier am echten Gestell und nicht an ihm.
+    const dash = stepStamina(this.stamina, dt, !bot && ctx.rig.sprinting && speed > 0.1);
+    if (!bot) ctx.rig.sprintScale = dash;
+    // **Die Blutspur** (`rules/blood.ts`): nach Strecke, nicht nach Zeit, und
+    // in jedem Bild — auch ohne offene Wunde, damit alte Tropfen verschwinden.
+    // Die Liste ist dieselbe wie im Stand, also reist sie von hier aus über
+    // die Leitung zu allen, die sie zeichnen.
+    stepTrail(this.blood, { x: _head.x, z: _head.z }, this.state.time);
+    this.state.blood = this.blood.drops;
     this.sightTimer -= dt;
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.1;
@@ -1979,17 +2483,27 @@ export class HauntingWorld extends GridWorld {
             )
           : [];
     }
-    stepThreat(this.state.crew, dt, {
-      player: { x: _head.x, z: _head.z },
-      monster,
-      noises: this.heard,
-      crouched: !bot && ctx.rig.crouch > 0.15,
-      flashlight: bot ? !this.state.crew.hidden : (this.experience?.flashlightActive ?? false),
-      inView:
-        !!monster && inView(monster, this.monster?.model.rotation.y ?? 0, _head, 24, MONSTER_FOV),
-      lineOfSight: this.monsterSeesPlayer,
-      insideStation: !!roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)),
-    });
+    stepThreat(
+      this.state.crew,
+      dt,
+      {
+        player: { x: _head.x, z: _head.z },
+        monster,
+        noises: this.heard,
+        crouched: !bot && ctx.rig.crouch > 0.15,
+        flashlight: bot ? !this.state.crew.hidden : (this.experience?.flashlightActive ?? false),
+        inView:
+          !!monster && inView(monster, this.monster?.model.rotation.y ?? 0, _head, 24, MONSTER_FOV),
+        lineOfSight: this.monsterSeesPlayer,
+        insideStation: !!roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)),
+      },
+      // **Die Gewichte gehören auch hierher.** Ohne sie rechnete das Headset
+      // mit dem rohen Kreaturprofil, während 2D und Training mit
+      // `profil × tuning` rechneten — dasselbe Monster hatte in der Brille ein
+      // zweieinhalbmal längeres Gedächtnis als das, gegen das es abgestimmt
+      // wurde (`threat.stepThreat`).
+      { vision: this.tuning.monster.vision, memory: this.tuning.monster.memory },
+    );
     if (this.state.crew.options.test && !this.state.crew.simulation) {
       this.state.monsterOn = false;
       this.state.monster = null;
@@ -2067,7 +2581,12 @@ export class HauntingWorld extends GridWorld {
     const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
     if (!door && !trainingDoor) return;
     // Gewollt gesperrt ist immer nur eine Tür — auch vor Ort (`rules/doorLocks.ts`).
-    this.state.shut = toggleLock(this.locks, this.state.shut, id, this.state.time).shut;
+    const out = toggleLock(this.locks, this.state.shut, id, this.state.time);
+    this.state.shut = out.shut;
+    // Eine Tür, die gerade erst frei geworden ist, lässt sich nicht sofort
+    // wieder sperren. Wortlos wäre das ein kaputter Riegel — also sagen wir es.
+    if (out.blocked)
+      this.announce('Der Riegel ist noch warm. Diese Tür bleibt einen Moment offen.');
   }
 
   /** Ein Schalter der Tafel, angewendet beim Gastgeber. */
@@ -2085,24 +2604,17 @@ export class HauntingWorld extends GridWorld {
       return;
     }
 
-    if (entry.kind === 'radio') {
-      const list = this.state.loud;
-      const at = list.indexOf(entry.target);
-      if (on && at < 0) list.push(entry.target);
-      if (!on && at >= 0) list.splice(at, 1);
-      return;
-    }
     // Türen: `on` heißt offen, und die Liste führt die geschlossenen. Gewollt
     // gesperrt ist immer nur eine — die vorherige geht dabei auf; eine
     // zugefallene darf die Tafel jederzeit freigeben (`rules/doorLocks.ts`).
     this.state.shut = on
-      ? releaseLock(this.locks, this.state.shut, entry.target)
+      ? releaseLock(this.locks, this.state.shut, entry.target, this.state.time)
       : chooseLock(this.locks, this.state.shut, entry.target, this.state.time);
   }
 
   /**
-   * **Die drei Griffe der Schalttafel**, über die Karte statt über eine Liste
-   * beschrifteter Kippschalter (`views/panelRole.ts`).
+   * **Die zwei Griffe der Schalttafel**, über die Karte und über die
+   * Schalterliste derselben Tafel (`views/panelRole.ts`).
    *
    * Geschaltet wird nach wie vor über die Tafel aus `panel.ts` und nicht an
    * ihr vorbei: Wer eine Tür antippt, für die es keinen Schalter gibt, bekommt
@@ -2110,25 +2622,25 @@ export class HauntingWorld extends GridWorld {
    * an der die halbe Rollenverzahnung hängt — nicht jede Tür der Station steht
    * auf dieser Tafel.
    *
+   * **Einen dritten Griff gab es einmal**: den Schallköder, ein Radio je zwei
+   * Zimmer. Er ist gestrichen (`panel.ts`) — wer den richtigen Knopf gefunden
+   * hatte, parkte das Monster in einer Ecke, und der Rest der Runde fand ohne
+   * es statt.
+   *
    * @returns die Zeile für den Spieler, oder `''`, wenn es dafür keinen
    *   Schalter gibt.
    */
-  private panelSwitch(kind: 'door' | 'light' | 'radio', target: string): string {
+  private panelSwitch(kind: 'door' | 'light', target: string): string {
     if (this.state.phase !== 'running') return '';
     const entry = visibleSwitches(this.spec.switches, this.state.fuse).find(
       (one) => one.kind === kind && one.target === target,
     );
     if (!entry) return '';
     const on =
-      kind === 'door'
-        ? !this.state.shut.includes(target)
-        : kind === 'light'
-          ? this.state.lit.includes(target)
-          : this.state.loud.includes(target);
+      kind === 'door' ? !this.state.shut.includes(target) : this.state.lit.includes(target);
     this.flip(entry.id, !on);
     if (kind === 'door') return on ? 'Schott gesperrt.' : 'Schott freigegeben.';
-    if (kind === 'light') return on ? 'Licht aus.' : 'Licht an.';
-    return on ? 'Schallköder aus.' : 'Schallköder an — das Monster hört ihn.';
+    return on ? 'Licht aus.' : 'Licht an.';
   }
 
   /** Von der Schalttafel aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */
@@ -2141,14 +2653,17 @@ export class HauntingWorld extends GridWorld {
    * Sliding doors change only their collider and navigation wall. The station
    * hull stays allocated; unchanged snapshots do not trigger graph updates.
    */
-  private applyDoors(dt: number): void {
-    const now = this.state.shut.join(',') + `/test:${this.state.crew.options.test}`;
-    const before = this.builtDoors;
-    this.builtDoors = now;
-    const shut = new Set(this.state.shut);
-    const doors = this.state.crew.options.test
-      ? [...this.spec.doors, TRAINING_DOOR]
-      : this.spec.doors;
+  /**
+   * **Wer gerade in einem Durchgang stehen könnte** — Techniker, Monster,
+   * Drohne, der Modelltechniker und die Mitspieler übers Netz, in Metern.
+   *
+   * Zwei Stellen brauchen dieselbe Liste, und sie müssen sich einig sein: Die
+   * Schiebetür hält den Durchgang auf, solange jemand darin steht
+   * (`AutomaticDoors`), und der Spuk sucht sich eine Tür, in der niemand steht
+   * (`haunt.slammable`). Eine Liste — sonst hält die eine auf, was die andere
+   * zuschlägt.
+   */
+  private doorOccupants(): Array<{ x: number; y?: number; z: number }> {
     const occupants: Array<{ x: number; y?: number; z: number }> = [];
     if (this.context?.role === 'vr') occupants.push(this.context.rig.getHeadPosition(_head));
     if (this.state.monster) occupants.push(this.state.monster);
@@ -2162,9 +2677,39 @@ export class HauntingWorld extends GridWorld {
       )
         occupants.push({ x: peer.pose.head[0], y: peer.pose.head[1], z: peer.pose.head[2] });
     }
+    return occupants;
+  }
+
+  private applyDoors(dt: number): void {
+    const now = this.state.shut.join(',') + `/test:${this.state.crew.options.test}`;
+    const before = this.builtDoors;
+    this.builtDoors = now;
+    const shut = new Set(this.state.shut);
+    const doors = this.state.crew.options.test
+      ? [...this.spec.doors, TRAINING_DOOR]
+      : this.spec.doors;
+    // **Die abkühlenden Riegel hinaus an alle** (`rules/doorLocks.ts`). Die
+    // Buchführung bleibt beim Gastgeber; diese eine Liste daraus muss über
+    // die Leitung, weil sonst der Hacker vierzig Sekunden lang einen Schalter
+    // vor sich hat, der nichts tut und nicht sagt warum.
+    if (this.isHost) this.state.cooling = this.locks.cooling;
+    // **Und ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`).
+    // Gerechnet beim Gastgeber, angewendet über dieselbe Mechanik wie jedes
+    // andere Auffahren: ein Bewohner, der keiner ist. Gesperrte Schotts sind
+    // nicht dabei — der Riegel ist die eine Entscheidung der Tafel.
+    const glitch = this.isHost
+      ? stepGlitch(
+          this.glitch,
+          doors.filter((door) => !shut.has(door.id)).map((door) => door.id),
+          this.state.time,
+          () => this.glitchDice.next(),
+        ).id
+      : '';
+    const occupants = this.doorOccupants();
     for (const door of doors) {
       const at = doorEdge(door);
-      const open = this.automaticDoors.step(door.id, at, shut.has(door.id), occupants, dt);
+      const ghosts = door.id === glitch ? [...occupants, { x: at.x, z: at.z }] : occupants;
+      const open = this.automaticDoors.step(door.id, at, shut.has(door.id), ghosts, dt);
       this.setSlidingGridDoor(door.x, door.z, door.dir, open);
     }
     if (now !== before) this.hearSlam(before, shut);
@@ -2214,6 +2759,7 @@ export class HauntingWorld extends GridWorld {
         monster: this.state.monsterOn ? this.state.monster : null,
         lit: this.state.lit,
         shut: this.state.shut,
+        occupants: this.doorOccupants(),
       },
       dt,
     );
@@ -2434,11 +2980,18 @@ export class HauntingWorld extends GridWorld {
     // Phone dashboards keep their DOM/radar updates, but their optional 3D
     // camera needs at most 15 frames/s. Return before clear to retain the image.
     const now = clock();
-    const view = `${ui.station}:${this.archiveRoom}:${this.spec.seed}`;
+    // **Der Blick des Zuschauers gehört in den Schlüssel.** Ohne ihn blieb das
+    // Bild stehen, wenn er den Platz wechselte: Die Drossel sah dieselbe
+    // Station und dasselbe Zimmer und hielt das alte Bild für frisch.
+    const lens: Readonly<WatchLens> = ui.watchLens;
+    const view = `${ui.station}:${lens.seat}:${lens.follow}:${this.archiveRoom}:${this.spec.seed}`;
     if (view === this.phoneRenderView && now < this.nextPhoneRender) return true;
     this.phoneRenderView = view;
     this.nextPhoneRender = now + 1000 / 15;
-    const station = ui.station;
+    // **Welchen Platz das Bild zeigt** und nicht, an welchem man sitzt: Der
+    // Zuschauer schlüpft in die Rollen der anderen (`watchLens.ts`), und für
+    // die Kamera ist das dieselbe Frage wie bei einem, der wirklich dort sitzt.
+    const station = ui.shownStation;
     const archive = station === 'archive';
     const show = station === 'watch';
     // Die Decke bleibt nur dem Zuschauer weg, und sie geht nur bei Wechsel ab:
@@ -2462,7 +3015,7 @@ export class HauntingWorld extends GridWorld {
     const camera = show ? this.showCam : this.topCam;
     if (!camera) return true;
     if (archive) this.aimArchive(this.archiveRoom, aspect, head);
-    if (show) this.aimShow(aspect, head);
+    if (show) this.aimShow(aspect, head, ui.station === 'watch' ? lens.follow : 'free');
 
     // Der Archivar sieht **keine Lebewesen**: keinen Mitspieler, kein Monster,
     // keine Drohne. Sein Blatt ist ein Grundriss und keine Überwachung.
@@ -2472,6 +3025,13 @@ export class HauntingWorld extends GridWorld {
     if (this.paperSun) this.paperSun.intensity = archive ? 1.4 : 0;
     this.paperMask.visible = archive;
     this.paperDoors.visible = archive;
+    // **Auf dem Blatt brennt kein Licht.** Die Deckenlampen liegen knapp
+    // unter der Schnittebene und standen deshalb als graue Scheiben mitten
+    // in jedem Zimmer — eine Auskunft, die der Archivar gar nicht geben
+    // soll: Ob es hell ist, sieht der Techniker selbst, und der Grundriss
+    // wird davon nur unruhig. Nur ausgeblendet, nicht abgebaut; die anderen
+    // Ansichten brauchen sie unverändert.
+    for (const lamp of this.lamps.values()) lamp.glass.visible = !archive;
     if (archive) this.markDoors(this.archiveRoom);
     this.paperTint(archive);
     // **Der Zuschauer sieht Tag.** Der Nebel gehört zum Grusel derer, die
@@ -2501,6 +3061,7 @@ export class HauntingWorld extends GridWorld {
     ctx.scene.fog = fog;
     this.paperMask.visible = false;
     this.paperDoors.visible = false;
+    for (const lamp of this.lamps.values()) lamp.glass.visible = true;
     return true;
   }
 
@@ -2529,9 +3090,35 @@ export class HauntingWorld extends GridWorld {
    * nach, und die schlimmere der beiden Zahlen gewinnt: Ein hochkantes Handy
    * hat quer zu wenig Platz, ein Fernseher der Länge nach.
    */
-  private aimShow(aspect: number, head: number): void {
+  private aimShow(aspect: number, head: number, follow: WatchFollow = 'free'): void {
     const camera = this.showCam;
     if (!camera) return;
+    const target =
+      follow === 'technician'
+        ? this.technicianFocus()
+        : follow === 'monster'
+          ? this.state.monster
+          : null;
+    if (target) {
+      // **Nachziehen, nicht springen.** Der Stand kommt zehnmal je Sekunde
+      // über die Leitung; eine Kamera, die auf jeden Punkt schnappt, ruckelt
+      // sichtbar — dieselbe Vorsicht wie beim Rumpf der Drohne.
+      this.showFocus.lerp(_showTarget.set(target.x, 0, target.z), this.showAimed ? 0.18 : 1);
+      this.showAimed = true;
+      const rise = Math.tan(((SHOW_FOV / 2) * Math.PI) / 180);
+      const deep = WATCH_FOLLOW_SPAN / Math.max(0.2, 1 - head);
+      const far = Math.max(deep / (2 * rise), WATCH_FOLLOW_SPAN / (2 * rise * aspect));
+      const look = this.showFocus.z - (head / 2) * deep;
+      camera.position.set(
+        this.showFocus.x,
+        Math.sin(SHOW_PITCH) * far,
+        look + Math.cos(SHOW_PITCH) * far,
+      );
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      return;
+    }
+    this.showAimed = false;
     const bounds = stationBounds(this.spec);
     const cx = (bounds.x + bounds.w / 2) * TILE;
     const cz = (bounds.z + bounds.d / 2) * TILE;
@@ -2555,6 +3142,69 @@ export class HauntingWorld extends GridWorld {
     // der Abstand plus die halbe Ausdehnung des Hauses, großzügig.
     camera.far = far + Math.max(deep, wide) + 20;
     camera.updateProjectionMatrix();
+  }
+
+  /**
+   * **Wo der Techniker steht** — aus dem Stand, wenn er in 2D spielt, sonst
+   * aus dem Modelltechniker der Bot-Runde und zuletzt aus der Pose des
+   * Mitspielers im Headset. Drei Quellen für eine Person, weil dieselbe Rolle
+   * an drei Geräten hängen kann; ohne alle drei würde die Kamera des
+   * Zuschauers je nachdem, wer spielt, ins Leere zeigen.
+   */
+  private technicianFocus(): { x: number; z: number } | null {
+    const flat = this.state.technician;
+    if (flat) return { x: flat.x, z: flat.z };
+    const bot = this.experience?.botPose;
+    if (bot) return { x: bot.x, z: bot.z };
+    for (const peer of this.context?.net.peers.values() ?? [])
+      if (peer.world === 'haunting' && peer.role === 'vr' && peer.pose)
+        return { x: peer.pose.head[0]!, z: peer.pose.head[2]! };
+    return null;
+  }
+
+  /**
+   * **Ob gerade jemand zusieht und die Absichten des Monsters sehen will.**
+   *
+   * Es hängt an der Station und nicht an einer Einstellung der Welt: Das
+   * Overlay ist Zuschauerwissen (Paket M4), und wer mitspielt, darf es nie
+   * sehen — ein Techniker mit dem Glaubensbild vor sich weiß, welche Zimmer
+   * gerade sicher sind.
+   */
+  private insightWanted(): boolean {
+    const ui = this.ui;
+    return !!ui && ui.station === 'watch' && ui.watchLens.insight;
+  }
+
+  /**
+   * **Den Techniker aus der 2D-Welt in die 3D-Welt stellen.**
+   *
+   * Er hat kein Rig und keine Avatar-Pose; alles, was von ihm über die
+   * Leitung kommt, ist `HauntState.technician` — Stelle, Blick, und ob er
+   * geht. Genau daraus wird hier ein Körper. Ohne ihn war der Fernseher eine
+   * leere Station, in der Türen von selbst aufgingen, und der Zuschauer
+   * konnte der Runde nicht folgen, obwohl sie vor ihm lief.
+   */
+  private showTechnician(): void {
+    const at = this.state.technician;
+    if (!at) {
+      if (this.technicianArt) this.technicianArt.visible = false;
+      return;
+    }
+    if (!this.technicianArt) {
+      this.technicianArt = buildCrewmate();
+      this.technicianArt.name = 'flat-technician';
+      this.live.add(this.technicianArt);
+    }
+    const body = this.technicianArt;
+    // Im Schrank und im Schacht ist er weg — dasselbe, was die Karte tut.
+    body.visible = !this.state.crew.hidden && this.state.crew.venting <= 0;
+    body.position.set(at.x, 0, at.z);
+    // Der Crewmate schaut nach +z, die Welt rechnet Blickrichtungen nach -z
+    // (`map/mapSnapshot`, Kopf der Datei) — dieselbe halbe Drehung wie beim
+    // Modelltechniker der Bot-Runde (`ShipExperience`).
+    body.rotation.y = at.yaw + Math.PI;
+    if (at.moving) animateCreature(body, this.state.time);
+    else for (const limb of body.children) limb.rotation.x = 0;
   }
 
   /**
@@ -2722,13 +3372,23 @@ export class HauntingWorld extends GridWorld {
       accent: 0x65dce5,
       run,
     });
-    // Dieselbe Einstellung wie die Checkbox im Van — hier für den, der schon
-    // Techniker am Desktop ist und die Runde aus dem Menü startet.
-    const flat = entry(
-      'haunt:flat',
-      `2D-Welt von oben: ${this.flatWanted ? 'an' : 'aus'}`,
-      'Karte statt 3D für Bot-Runde, Mission und Test · Stock und drei Knöpfe',
-      () => this.toggleFlatWanted(),
+    // **Die Ansicht — dieselbe Wahl wie das Segment „2D | 3D" im Van.** Sie
+    // heißt hier nicht mehr „2D-Welt von oben: an/aus": Ein Kästchen, das
+    // aussieht, als starte es etwas, war der Befund; ein Segment mit zwei
+    // Namen sagt, worin man gleich steht. In der Brille steht es fest — die
+    // Karte von oben macht in einer XR-Sitzung nicht auf (`opensFlat`).
+    const immersive = this.context?.renderer.xr.isPresenting ?? false;
+    const view = entry(
+      'haunt:view',
+      `Ansicht: ${VIEW_LABELS[immersive ? '3d' : this.lobbyChoice.view]}`,
+      immersive
+        ? 'In der Brille immer das Schiff · die Karte von oben gibt es nur am Fenster'
+        : 'Antippen wechselt · gilt für Spielen, Zuschauen und Trainieren',
+      () => {
+        if (immersive)
+          this.context?.notify('In der Brille gibt es nur das Schiff — die Karte von oben nicht.');
+        else this.toggleFlatWanted();
+      },
     );
     if (this.context?.role !== 'vr')
       return [
@@ -2740,10 +3400,23 @@ export class HauntingWorld extends GridWorld {
             this.flatTechnician = true;
           },
         ),
-        flat,
+        view,
       ];
     return [
-      ...(!this.context?.renderer.xr.isPresenting
+      // **Was? — dieselben drei Kacheln wie im Van und im Optionsmenü der
+      // 2D-Welt** (`rules/lobby.ts`, gerechnet in `rules/worldMenu.ts`):
+      // Spielen · Zuschauen · Trainieren, in derselben Reihenfolge und mit
+      // denselben Worten. Die aktive ist markiert, und wo gerade keine Runde
+      // losgehen kann, steht der Grund als ganzer Satz an der Stelle, an der
+      // sonst die Erklärung steht — vorher stand dort ein Eintrag, der nichts
+      // tat und nichts sagte.
+      ...startEntries(this.startState()).map((row) =>
+        entry(row.id, `${row.active ? '● ' : ''}${row.label}`, row.sub, () => {
+          if (row.starts && this.context) this.startRound(row.starts, this.context);
+          else if (row.blocked) this.context?.notify(row.blocked);
+        }),
+      ),
+      ...(!immersive
         ? [
             entry(
               'haunt:roles',
@@ -2755,20 +3428,9 @@ export class HauntingWorld extends GridWorld {
                 this.context?.menu.toggle(false);
               },
             ),
-            flat,
           ]
         : []),
-      // Die drei Starts kommen aus einer Rechnung, die ein Test nachrechnet
-      // (`rules/worldMenu.ts`): welche Runde losgeht, in welcher Reihenfolge
-      // die Einträge stehen — und welcher Satz an die Stelle einer Runde
-      // tritt, die gerade nicht möglich ist. Vorher stand dort ein Eintrag,
-      // der nichts tat und nichts sagte.
-      ...startEntries(this.startState()).map((row) =>
-        entry(row.id, row.label, row.sub, () => {
-          if (row.starts && this.context) this.startRound(row.starts, this.context);
-          else if (row.blocked) this.context?.notify(row.blocked);
-        }),
-      ),
+      view,
       entry(
         'haunt:light',
         `Testlicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
@@ -2800,9 +3462,20 @@ export class HauntingWorld extends GridWorld {
       ),
       entry(
         'haunt:setup-technician',
-        `Techniker: ${WHO_LABELS[setup.technician]}`,
+        `Techniker: ${technicianLabel(setup, this.roomHasVr())}`,
         'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen',
-        () => this.applySetup({ ...setup, technician: cycleWho(setup.technician) }),
+        () => {
+          // **Mit Brille im Raum gehört der Techniker der Brille** — der
+          // Eintrag sagt es und tut sonst nichts, statt den Anzug wortlos an
+          // die Zahlen zu geben (`roundSetup.technicianLabel`).
+          if (this.roomHasVr()) {
+            this.context?.notify(
+              'Der Techniker steckt in der Brille — seine Rolle bleibt bei ihm.',
+            );
+            return;
+          }
+          this.applySetup({ ...setup, technician: cycleWho(setup.technician) });
+        },
       ),
       entry(
         'haunt:setup-monster',
@@ -2810,11 +3483,17 @@ export class HauntingWorld extends GridWorld {
         'Aus Zahlen, am Stock (nur 2D) oder aus — der sichere Test',
         () => this.applySetup({ ...setup, monster: cycleMonster(setup.monster) }),
       ),
-      entry(
-        'haunt:setup-seats',
-        `Zentrale: ${setup.seats.length ? setup.seats.map((seat) => WHO_LABELS[seat.who]).join('/') : 'keine Plätze'}`,
-        'Archivar, Schalttafel, Späher · Bot-Plätze geben dem Techniker die Auskunft selbst',
-        () => this.cycleSeats(),
+      // **Drei Einträge statt einem Zykler.** „Zentrale: Bot/Bot/Bot" schaltete
+      // alle drei zugleich weiter und war deshalb genau das, was der Besitzer
+      // nicht mehr wollte: Man konnte nicht mischen. Jede Fähigkeit hat jetzt
+      // ihren eigenen Eintrag mit Bot / Mensch / Aus.
+      ...ABILITIES.map((ability) =>
+        entry(
+          `haunt:setup-${ability}`,
+          `${ABILITY_LABELS[ability]}: ${WHO_LABELS[setup.abilities[ability]]}`,
+          'Bot rechnet · Mensch am Telefon · Aus: niemand hat sie',
+          () => this.cycleSeats(ability),
+        ),
       ),
       entry(
         'haunt:monster-kind',
@@ -2852,6 +3531,7 @@ export class HauntingWorld extends GridWorld {
       me: ctx?.net.localId ?? '',
       phase: this.state.phase,
       flatWanted: this.flatWanted,
+      intent: intentOf(this.setup ?? loadSetup()),
       occupied: ctx ? this.roomOccupied(ctx) : false,
     };
   }
@@ -2869,16 +3549,25 @@ export class HauntingWorld extends GridWorld {
     );
   }
 
-  /** Die Plätze der Zentrale im Menü der Brille: alle Bot → alle Mensch → keine → alle Bot. */
-  private cycleSeats(): void {
-    const seats = this.setup.seats;
-    const allBot = seats.length > 0 && seats.every((seat) => seat.who === 'bot');
-    const next: RoundSetup['seats'] = allBot
-      ? seats.map((seat) => ({ ...seat, who: 'human' }))
-      : seats.length
-        ? []
-        : (['archive', 'panel', 'scout'] as const).map((role) => ({ role, who: 'bot' }));
-    this.applySetup({ ...this.setup, seats: next });
+  /** Eine Fähigkeit der Zentrale im Menü der Brille weiterschalten: Bot → Mensch → Aus. */
+  private cycleSeats(ability: Ability): void {
+    const abilities = { ...this.setup.abilities };
+    abilities[ability] = cycleAbility(abilities[ability]);
+    this.applySetup({ ...this.setup, abilities });
+  }
+
+  /**
+   * Ob jemand mit der Brille im Raum ist — dann trägt er den Anzug. Dieselbe
+   * Frage wie `roomOccupied`, nur ohne den Techniker am Desktop: Der ist ein
+   * Mensch wie jeder andere und darf seine Rolle abgeben.
+   */
+  private roomHasVr(): boolean {
+    const ctx = this.context;
+    if (!ctx) return false;
+    return (
+      ctx.role === 'vr' ||
+      [...ctx.net.peers.values()].some((peer) => peer.world === ctx.net.world && peer.role === 'vr')
+    );
   }
 
   private joinTable(ctx: WorldContext): void {
@@ -2904,16 +3593,36 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Eine Runde starten — in 2D oder 3D, je nach Einstellung.** Die drei
-   * Arten sind dieselben wie im Menü der Brille: Bot-Runde (zusehen),
-   * Mission (mit Monster) und Test (ohne). Steht „2D-Welt von oben", läuft
-   * jede davon als `FlatMode`; sonst wie bisher im Schiff. **In der Brille
-   * immer im Schiff** — die Karte von oben gibt es dort nicht (`opensFlat`).
+   * **Welchen der beiden Plätze dieses Gerät hat** — für `applyIntent`. Wer
+   * in der Zentrale an der Station „Monster" sitzt, ist das Monster; alle
+   * anderen sind der Techniker, wie überall sonst in diesem Spiel.
    */
-  private startRound(kind: RoundKind, ctx: WorldContext): void {
-    // Die drei Kacheln schreiben Techniker und Monster auf die Tafel; die
-    // Plätze der Zentrale bleiben, wie sie verteilt sind (`rules/roundSetup.ts`).
-    this.applySetup(presetFor(kind, this.setup));
+  private myPlace(): 'technician' | 'monster' {
+    const ctx = this.context;
+    return ctx && seatOf(this.currentClaims(), ctx.net.localId) === 'monster'
+      ? 'monster'
+      : 'technician';
+  }
+
+  /**
+   * **Eine Runde starten — in 2D oder 3D, je nach Ansicht.** Herein kommt die
+   * Absicht der Lobby (Spielen · Zuschauen · Trainieren); die alten drei
+   * Namen (`mission`, `test`, `bot`) gehen ebenso, solange sie noch irgendwo
+   * stehen (`asIntent`). Steht die Ansicht auf „2D von oben", läuft jede
+   * davon als `FlatMode`; sonst wie bisher im Schiff. **In der Brille immer
+   * im Schiff** — die Karte von oben gibt es dort nicht (`opensFlat`).
+   */
+  private startRound(what: Intent | RoundKind, ctx: WorldContext): void {
+    // Die Absicht schreibt Techniker und Monster auf die Tafel; die Plätze der
+    // Zentrale bleiben, wie sie verteilt sind (`rules/lobby.applyIntent`).
+    // **Wer selbst am Monster sitzt, bleibt das Monster**: „Zuschauen" darf
+    // ihm die Runde nicht wegnehmen, und „Spielen" heißt für ihn, dass der
+    // Techniker den Zahlen gehört.
+    // **Mit Brille im Raum ist der Techniker ein Mensch** — auch wenn auf der
+    // Tafel noch „Bot" steht, weil sie tagelang so lag (`lockTechnician`).
+    this.applySetup(
+      lockTechnician(applyIntent(this.setup, asIntent(what), this.myPlace()), this.roomHasVr()),
+    );
     const setup = this.setup;
     // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
     // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
@@ -2931,7 +3640,7 @@ export class HauntingWorld extends GridWorld {
         setup,
         powers: powersOf(setup),
         // Wer zusieht, will alles sehen; wer spielt, sieht, was der Techniker sieht.
-        mode: role === 'bot' ? 'omniscient' : 'realistic',
+        mode: role === 'watch' ? 'omniscient' : 'realistic',
       });
       return;
     }
@@ -2968,30 +3677,69 @@ export class HauntingWorld extends GridWorld {
   objectives(): MapGoal[] {
     const state = this.state;
     const layout = stationLayout(this.spec);
+    // **Wie genau ein Ziel benannt werden darf, entscheidet die Verteilung**
+    // (`rules/roundSetup.goalPrecision`): Sitzt ein Mensch am Archiv, bekommt
+    // der Techniker den Raum und nicht die Kiste — sonst läse der Archivar ihm
+    // vor, was er ohnehin vor sich leuchten sieht.
+    const precision = goalPrecision(this.setup);
     const out: MapGoal[] = [];
     for (const repair of repairsFor(this.spec)) {
-      if (state.done.includes(repair.itemId)) continue;
+      // **Beide Schreibweisen von `done`**: Das Schiff schreibt `engine`, die
+      // 2D-Runde `t0` (`rules/archiveGoals.orderDone`). Vorher stand hier nur
+      // die zweite, und im Schiff blieb ein erledigter Auftrag als Ziel stehen.
+      if (orderDone(state, repair)) continue;
       const task = this.spec.tasks.find((t) => t.id === repair.itemId);
       const carried = state.crew.inventory.includes(repair.itemId);
+      // **Ein abgelegtes Teil liegt da, wo es liegt** — und nicht mehr in
+      // seiner Kiste. Der Kompass schickte den Techniker sonst zu einer Kiste,
+      // die er selbst geleert hat. Dieselbe Sichtbarkeitsregel wie beim
+      // Archivar (`DROPPED_SEEN`) gilt hier **nicht**: Wer es abgelegt hat,
+      // weiß, wo — er braucht nicht zu warten, bis es jemand meldet.
+      const lying = state.dropped?.find((one) => one.id === repair.itemId) ?? null;
       // Seit jeder Raum zwei bis drei Kisten hat, heißt die richtige nicht mehr
       // `cargo-<raum>`, sondern steht in der einen Liste (`rules/cargo.ts`).
       // Vorher fand `find` hier nichts, und der Kompass zeigte für ein noch
       // gar nicht geholtes Teil schon auf die Konsole.
       const cargo = task ? layout.find((p) => p.id === taskCargo(this.spec, task.id).id) : null;
       const console = layout.find((p) => p.id === `console-${repair.id}`);
-      if (!carried && cargo)
+      if (!carried && lying) {
         out.push({
-          id: cargo.id,
-          at: { x: cargo.approach.x, z: cargo.approach.z },
+          id: `dropped:${repair.itemId}`,
+          at: { x: lying.x, z: lying.z },
           label: task?.label ?? repair.item,
           next: false,
+          kind: 'crate',
+          precision: 'exact',
         });
-      else if (console)
+      } else if (!carried && cargo) {
+        if (precision === 'crate')
+          out.push({
+            id: cargo.id,
+            at: { x: cargo.approach.x, z: cargo.approach.z },
+            label: task?.label ?? repair.item,
+            next: false,
+            kind: 'crate',
+            precision: 'exact',
+          });
+        else {
+          const centre = stationGraph(this.spec).centre(cargo.roomId);
+          out.push({
+            id: `room:${cargo.roomId}`,
+            at: { x: centre.x, z: centre.z },
+            label: roomOf(this.spec, cargo.roomId)?.name ?? cargo.roomId,
+            next: false,
+            kind: 'room',
+            precision: 'room',
+          });
+        }
+      } else if (console)
         out.push({
           id: console.id,
           at: { x: console.approach.x, z: console.approach.z },
           label: repair.title,
           next: false,
+          kind: 'console',
+          precision: 'exact',
         });
     }
     if (!out.length)
@@ -3000,9 +3748,145 @@ export class HauntingWorld extends GridWorld {
         at: { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
         label: 'Zurück zur Zentrale',
         next: false,
+        kind: 'van',
+        precision: 'exact',
       });
     out[0]!.next = true;
     return out;
+  }
+
+  /**
+   * **Die Ansicht wechseln — mitten in der Runde.**
+   *
+   * Der Wunsch des Besitzers, in einem Satz: „Da wir die Karte ja perfekt für
+   * 2D als auch 3D als Single Source of Truth haben, will ich auch während des
+   * laufenden Spiels zwischen 2D und 3D (als Techniker) wechseln können."
+   * Genau das, und nichts weiter: **kein Neustart, keine neue Station, keine
+   * neue Rolle.**
+   *
+   * Möglich ist es, weil der Stand der Runde ein Datenobjekt ist und kein
+   * Gerät: `HauntState` reist ohnehin über die Leitung, und was nur beim
+   * Gastgeber liegt — Riegel, Lampen, Spuk, Wunde, das Gedächtnis des Monsters
+   * — geht hier als Buchführung (`net.HauntBooks`) von der einen Ansicht in
+   * die andere. Der Wechsel ist deshalb **derselbe Vorgang wie eine Übergabe**,
+   * nur ohne Netz dazwischen.
+   *
+   * - **3D → 2D**: Die 2D-Runde wird aus dem laufenden Stand aufgebaut
+   *   (`FlatRound`, `FlatResume`) statt aus einem frischen. Der Techniker
+   *   steht, wo er stand; das NPC-Monster im Schiff hört auf, das der 2D-Runde
+   *   übernimmt seine Stelle und sein Gedächtnis.
+   * - **2D → 3D**: Der Stand *ist* schon `this.state` (`stepFlat` schreibt ihn
+   *   je Bild), das Schiff wird daraus aufgebaut, und der Techniker landet
+   *   dort, wo `state.technician` ihn zuletzt hingesetzt hat.
+   *
+   * **Nur der Techniker wechselt**, und nur zwischen seinen zwei Ansichten.
+   * Zuschauer und Telefone lesen den Stand ohnehin nur; für sie ändert sich
+   * nichts, und sie merken vom Wechsel auch nichts. **In der Brille gibt es
+   * keine Karte von oben** — dieselbe Wahrheit wie in `opensFlat`, und hier
+   * steht sie als Satz und nicht als stilles Nichtstun.
+   */
+  switchView(view: View): void {
+    const ctx = this.context;
+    if (!ctx || this.flatLoading) return;
+    const now: View = this.flatShared ? '2d' : '3d';
+    if (view === now) return;
+    // Wer in 2D das Monster spielt, ist **kein** Techniker: Im Schiff stünde er
+    // sonst plötzlich als einer da, und die Runde hätte zwei.
+    const technician =
+      now === '2d' ? this.flat?.role === 'technician' : ctx.role === 'vr' || this.flatTechnician;
+    if (!technician) {
+      ctx.notify(NOT_TECHNICIAN);
+      return;
+    }
+    if (view === '2d' && ctx.renderer.xr.isPresenting) {
+      ctx.notify(NO_FLAT_IN_XR);
+      return;
+    }
+    // Die Wahl der Lobby zieht mit: Wer mitten in der Runde umschaltet, will
+    // die nächste nicht wieder in der alten Ansicht anfangen.
+    this.setLobby({ ...this.lobbyChoice, view });
+    if (this.state.phase !== 'running') {
+      // Es läuft nichts, was mitkommen könnte — dann ist der Wechsel nur die
+      // Einstellung, und die steht jetzt.
+      ctx.notify(`Ansicht: ${VIEW_LABELS[view]} — sie gilt ab der nächsten Runde.`);
+      return;
+    }
+    if (view === '2d') this.enterFlat(ctx);
+    else this.leaveFlat(ctx);
+  }
+
+  /**
+   * **Vom Schiff auf die Karte von oben.** Der Stand wandert als `FlatResume`
+   * in die neue Runde; der Techniker bekommt dabei zum ersten Mal eine Stelle
+   * im Stand, denn in 2D hat er kein Rig (`HauntState.technician`).
+   */
+  private enterFlat(ctx: WorldContext): void {
+    // Dieselbe Absage wie beim Start (`openFlat`) — aber **vorher**: Wer erst
+    // das Monster loslässt und dann abgewiesen wird, steht danach in einer
+    // Runde ohne Gegner.
+    if (this.roomOccupied(ctx)) {
+      ctx.notify('2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      return;
+    }
+    // **Erst einpacken, dann loslassen**: `releaseMonster` wirft das Gedächtnis
+    // weg, und danach eingepackt wäre es leer.
+    const books = this.books();
+    ctx.rig.getHeadPosition(_head);
+    ctx.camera.getWorldDirection(_feet);
+    const yaw = Math.atan2(-_feet.x, -_feet.z);
+    this.state.technician = { x: _head.x, z: _head.z, yaw, moving: false };
+    this.releaseMonster();
+    this.openFlat(ctx, {
+      monster: this.state.crew.options.monster,
+      tuning: this.tuning,
+      test: this.state.crew.options.test,
+      role: 'technician',
+      setup: this.setup,
+      powers: powersOf(this.setup),
+      mode: 'realistic',
+      resume: {
+        state: this.state,
+        locks: books.locks,
+        spook: books.spook,
+        trail: books.trail,
+        memory: books.memory,
+        yaw,
+      },
+    });
+  }
+
+  /**
+   * **Von der Karte zurück ins Schiff.** Die 2D-Runde wird geschlossen, ohne
+   * den Stand zurückzusetzen (`closeFlat(true)`) — sonst wäre der Wechsel ein
+   * Rundenabbruch mit Ansage.
+   *
+   * Die Reihenfolge ist die Regel: erst das Monster wieder aufstellen
+   * (`spawnMonster` baut ein frisches Gedächtnis), **dann** die Buchführung
+   * hineingeben. Andersherum schriebe man in ein Gedächtnis, das es noch nicht
+   * gibt.
+   */
+  private leaveFlat(ctx: WorldContext): void {
+    const round = this.flat?.round;
+    if (!round) return;
+    const books = round.books();
+    const at = this.state.technician;
+    this.closeFlat(true);
+    // Im Schiff hat der Techniker wieder ein Rig; seine Stelle im Stand wäre
+    // von jetzt an ein zweiter, gezeichneter Techniker (`showTechnician`).
+    this.state.technician = null;
+    if (at) this.movePlayerTo(ctx, _feet.set(at.x, 0, at.z), at.yaw);
+    this.previousFeet = null;
+    if (this.state.phase === 'running' && this.state.monsterOn && this.state.monster)
+      this.spawnMonster(this.state.monster);
+    // Was in der 2D-Runde repariert wurde, ist repariert — sonst meldete
+    // `noticeRepairs` dem Monster drei alte Konsolen als frische Ereignisse.
+    this.repaired = this.state.done.length;
+    this.loadBooks({ ...books, lamps: this.lampBook });
+    // Wer aus der Zentrale in die 2D-Runde ging, steht jetzt im Schiff — und
+    // ist damit der Techniker am Desktop (`flatTechnician`, `tick`).
+    this.flatTechnician = ctx.role !== 'vr';
+    this.ui?.refresh();
+    ctx.refreshWorldMenu();
   }
 
   /**
@@ -3017,14 +3901,15 @@ export class HauntingWorld extends GridWorld {
   private openFlat(ctx: WorldContext, options: FlatOptions): void {
     if (this.flat) this.closeFlat();
     if (this.flatLoading) return;
-    const shared = options.role !== 'bot';
+    const shared = options.role !== 'watch';
     // Ein Techniker je Raum — dieselbe Regel wie bei der Bot-Runde: Wer 2D
     // spielt, wird Gastgeber der gemeinsamen Runde, und zwei davon gäbe es nicht.
-    const occupied = [...ctx.net.peers.values()].some(
-      (peer) =>
-        peer.world === ctx.net.world &&
-        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
-    );
+    const occupied = this.roomOccupied(ctx);
+    // **Und genau derselbe belegte Raum ist für den Zuschauer die gute
+    // Nachricht.** Spielt im Raum wirklich jemand, sieht er *dieser* Runde zu
+    // (`FlatModeHost.watchSnapshot`) statt einer Vorführung daneben; ist der
+    // Raum leer, bleibt es bei der lokalen Bot-Runde wie bisher.
+    const live = !shared && occupied;
     if (shared && occupied) {
       ctx.notify('2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
       return;
@@ -3048,10 +3933,30 @@ export class HauntingWorld extends GridWorld {
         // Telefone — ein anderer Same wäre eine andere Karte. Die lokale
         // Bot-Runde darf würfeln.
         this.flatShared = shared;
-        this.flat = new mode.FlatMode(shared ? this.spec.seed : rollSeed(), options, {
+        this.flatWatching = live;
+        this.flat = new mode.FlatMode(shared || live ? this.spec.seed : rollSeed(), options, {
           exit: () => this.closeFlat(),
           notify: (text) => ctx.notify(text),
+          // **Der Wechsel steht nur dem Techniker offen.** Wer zusieht,
+          // wechselt nichts — seine Runde ist die eines anderen; und wer das
+          // Monster spielt, hat im Schiff gar keine zweite Ansicht, sondern
+          // wäre dort plötzlich der Techniker.
+          ...(shared && options.role !== 'monster'
+            ? { switchView: (view: View) => this.switchView(view) }
+            : {}),
+          // Nur beim Zusehen am Netz: Szene und Karte kommen aus dem Stand,
+          // den der Gastgeber ansagt. Das `insight` weiß nur, wer das Monster
+          // rechnet — alle anderen bekommen `null` und sehen die Runde ohne
+          // den Kopf des Gegners.
+          ...(live
+            ? {
+                watchSnapshot: (): MapSnapshot => this.worldSnapshot(),
+                insight: () => this.state.insight ?? this.decision?.insight ?? null,
+              }
+            : {}),
+          switchView: (view) => this.switchView(view),
         });
+        if (live) ctx.notify('Zuschauen: Du siehst die Runde, die in diesem Raum läuft.');
         // Die Werkzeuge einmal aus ihren 3D-Modellen rendern und puffern;
         // die 2D-Welt hängt die fertigen Bilder in ihren Knopf (`toolIcons.ts`).
         this.flatIcons ??= new icons.ToolIcons();
@@ -3073,17 +3978,25 @@ export class HauntingWorld extends GridWorld {
    * damit vorbei: ein frischer Stand auf demselben Haus, wie `newRound` ihn
    * baut — und angesagt, damit die Telefone nicht auf einer verwaisten Runde
    * sitzen.
+   *
+   * **Außer beim Ansichtswechsel** (`keepState`, `switchView`): Dann wird nur
+   * das Bild geschlossen und die Runde läuft im Schiff weiter. Denselben Stand
+   * hier zurückzusetzen hieße, dem Techniker beim Umschalten die Runde
+   * wegzunehmen — und den Telefonen gleich mit.
    */
-  private closeFlat(): void {
+  private closeFlat(keepState = false): void {
     if (!this.flat) return;
     this.flat.dispose();
     this.flat = null;
+    this.flatWatching = false;
     if (this.flatShared) {
       this.flatShared = false;
-      this.state = freshState(this.spec.seed, this.state.crew.options);
-      this.rules.reset();
-      this.netMonster.reset();
-      if (this.isHost) this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
+      if (!keepState) {
+        this.state = freshState(this.spec.seed, this.state.crew.options);
+        this.rules.reset();
+        this.netMonster.reset();
+        if (this.isHost) this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
+      }
     }
     this.ui?.refresh();
     this.context?.refreshWorldMenu();
@@ -3091,7 +4004,18 @@ export class HauntingWorld extends GridWorld {
 
   /** Der Stand der Station als Karte — reiner Lesezugriff (`map/extract.ts`). */
   mapSnapshot(): MapSnapshot {
-    if (this.flat) return this.flat.round.snapshot();
+    // Der Zuschauer am Netz rechnet keine Runde — seine eigene steht still,
+    // und ihr Snapshot wäre eine zweite, falsche Station.
+    if (this.flat && !this.flatWatching) return this.flat.round.snapshot();
+    return this.worldSnapshot();
+  }
+
+  /**
+   * **Die 3D-Welt als Karte** — auch dann, wenn eine 2D-Welt darüber liegt.
+   * Der Zuschauer in 2D zeichnet genau das: den Stand, den der Gastgeber
+   * ansagt (`map/worldSource.ts`), und nicht seine eigene stillstehende Runde.
+   */
+  private worldSnapshot(): MapSnapshot {
     return extractMapSnapshot(
       worldMapSource({
         spec: () => this.spec,
@@ -3108,11 +4032,19 @@ export class HauntingWorld extends GridWorld {
         // Wie lange die Sperre noch hält — der Balken über der Tür
         // (`rules/doorLocks.ts`, `map/mapView.ts`).
         doorHold: (id) => {
-          if (!this.state.shut.includes(id)) return null;
-          const until = holdUntil(this.locks, id);
-          if (until === null) return null;
-          const total = isChosen(this.locks, id) ? HOLD_RANGE[1] : SLAM_HOLD;
-          return { left: Math.max(0, until - this.state.time), total };
+          if (this.state.shut.includes(id)) {
+            const until = holdUntil(this.locks, id);
+            if (until === null) return null;
+            const total = isChosen(this.locks, id) ? HOLD_RANGE[1] : SLAM_HOLD;
+            return { left: Math.max(0, until - this.state.time), total };
+          }
+          // Offen und trotzdem eine Uhr: Die Tür kühlt ab und darf so lange
+          // nicht wieder gesperrt werden (`rules/doorLocks.ts`). Gelesen wird
+          // sie aus dem Stand und nicht aus der eigenen Buchführung — die
+          // führt nur der Gastgeber, die Karte hängt aber an jedem Gerät.
+          const warm = this.state.cooling?.find((one) => one.id === id);
+          const left = warm ? warm.until - this.state.time : 0;
+          return left > 0 ? { left, total: LOCK_COOLDOWN, cooling: true } : null;
         },
         player: () => {
           // Der Techniker in der 2D-Welt eines anderen Geräts hat kein Rig:
@@ -3180,7 +4112,10 @@ export class HauntingWorld extends GridWorld {
     this.director?.clear();
     this.monsterNavigator = null;
     this.routine = null;
+    this.brain = null;
+    this.estimator = null;
     this.decision = null;
+    delete this.state.insight;
     this.watchedLocker = '';
     this.monster = null;
     this.npcRide?.reset();
@@ -3237,12 +4172,21 @@ export class HauntingWorld extends GridWorld {
         at: new THREE.Vector3(at.x, 0, at.z),
       }) ?? null;
     this.routine = new MonsterRoutine(this.tuning.monster);
+    // **Die Karte des Monsters** (`roomGraph.monsterGraph`): dieselbe Station
+    // ohne die Einsatzzentrale. Gedächtnis, Reisezeiten und Routine hängen
+    // alle daran — ein Ort, den keine dieser drei kennt, ist ein Ort, an dem
+    // das Vieh weder sucht noch vermutet noch ankommt.
+    this.brain = new MonsterMemory(monsterGraph(this.spec), () =>
+      shutPairs(this.spec.doors, this.state.shut),
+    );
+    this.estimator = graphEstimator(monsterGraph(this.spec));
+    this.repaired = this.state.done.length;
     this.watchedLocker = '';
     // Ein erster Beschluss noch vor dem ersten Bild: Sonst stünde das Monster
     // genau so lange ohne Ziel herum, wie es dauert, bis die Wahrnehmung das
     // erste Mal läuft — und in einer Bot-Runde ohne Techniker wäre das für
     // immer.
-    this.decision = this.routine.step(stationGraph(this.spec), {
+    this.decision = this.routine.step(monsterGraph(this.spec), {
       dt: 0,
       at,
       here: roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE))?.id ?? '',
@@ -3256,6 +4200,11 @@ export class HauntingWorld extends GridWorld {
       const navigator = new StationNpcNavigator(
         () => this.spec,
         () => this.travelGraph(),
+        0.1,
+        // Die Einsatzzentrale ist für das Monster nicht begehbar: Sie steht
+        // nicht in seiner Karte (`roomGraph.monsterGraph`), und seine Wegsuche
+        // führt auch dann nicht dorthin, wenn sein Ziel dort läge.
+        true,
       );
       this.monsterNavigator = navigator;
       // Ein Spieler am Steuer bekommt keinen Weg gesucht: Sein Ziel liegt
@@ -3397,6 +4346,22 @@ function clock(): number {
   return typeof performance === 'undefined' ? Date.now() : performance.now();
 }
 
+/** Wie hoch über dem Boden ein Blutfleck liegt, in Metern — knapp darüber, sonst flimmert er mit ihm. */
+const BLOOD_Y = 0.012;
+/** Die Farbe getrockneten Bluts auf Stationsblech. */
+const BLOOD_COLOR = 0x6b0d13;
+/** Wie deckend ein ganz frischer Fleck ist. */
+const BLOOD_OPACITY = 0.8;
+/** Wie deckend der Ghost höchstens steht — eine Erinnerung ist kein Körper. */
+const GHOST_SOLID = 0.4;
+/** Das kalte Eigenleuchten, an dem man den Ghost auch im Dunkeln als Kopie erkennt. */
+const GHOST_GLOW = 0x4a6a8a;
+
+/** Ein Gedächtnis ohne Inhalt — für eine Runde, in der noch kein Monster steht. */
+function emptyBook(): MonsterBook {
+  return { sightings: [], searched: [] };
+}
+
 function freshState(seed: number, options: StationOptions = stationOptions(null)): HauntState {
   return {
     seed,
@@ -3407,7 +4372,6 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     monster: null,
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],
@@ -3415,6 +4379,7 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     technician: null,
     ride: 'out',
     ghosts: freshGhosts(),
+    blood: [],
   };
 }
 

@@ -19,7 +19,6 @@ function state(seed: number, rooms: number): HauntState {
     monster: null,
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],

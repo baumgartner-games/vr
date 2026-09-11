@@ -1,4 +1,5 @@
-import { generateHouse, type HouseSpec } from './house';
+import { generateHouse, onApron, type HouseSpec } from './house';
+import { TILE } from '../nav/navTile';
 import {
   ENTITY_PROFILES,
   freshThreat,
@@ -7,12 +8,15 @@ import {
   takeAlert,
   type HeardNoise,
 } from './threat';
-import { MONSTERS, repairsFor, type MonsterKind } from './mission';
+import { MONSTERS, STAMINA_REGEN, TROT, repairsFor, type MonsterKind } from './mission';
 import { MonsterRoutine, paceSpeed, type MonsterMode } from './monsterRoutine';
+import { MonsterMemory } from './monster/monsterMemory';
+import { graphEstimator } from './monster/monsterIntercept';
 import { Rng } from './rng';
-import { stationGraph, COMMAND, type StationGraph } from './roomGraph';
+import { monsterGraph, stationGraph, COMMAND, type StationGraph } from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { taskCargo } from './rules/cargo';
+import { freshTrail, sniff, stepTrail, wound, SNIFF_EVERY, type Scent } from './rules/blood';
 import { DEFAULT_TUNING, type BotTuning } from './botTuning';
 import { HEARING, Hearing, reachOf, type HearingWorld } from './audio/hearing';
 import { NOISE } from './audio/cues';
@@ -60,6 +64,17 @@ export interface RoundResult {
   hides: number;
   /** Wie lange das Monster in welcher Haltung war, in Sekunden. */
   modes: Record<MonsterMode, number>;
+  /**
+   * **Wie lange das Monster in der Einsatzzentrale stand**, in Sekunden — und
+   * die Antwort ist immer 0.
+   *
+   * Die Zahl steht hier, damit ein Test sie über hundert Runden nachzählen
+   * kann. Sie ist die Zusicherung des Besitzers („Das Monster kann nie in die
+   * Einsatzzentrale gehen"), und eine Zusicherung, die niemand misst, ist eine
+   * Absichtserklärung: Die Zentrale steht nicht in seiner Karte
+   * (`roomGraph.monsterGraph`), und nichts hier darf sie ihm zurückgeben.
+   */
+  atCommand: number;
 }
 
 export interface RoundOptions {
@@ -148,6 +163,11 @@ type Job =
 export function simulateRound(seed: number, options: RoundOptions = {}): RoundResult {
   const spec = simulationSpec(seed);
   const graph = stationGraph(spec);
+  // **Die Karte des Monsters** (`roomGraph.monsterGraph`): dieselbe Station
+  // ohne die Einsatzzentrale. Routine, Gedächtnis, Reisezeiten und sein
+  // Schritt hängen alle daran — auf dieser Karte gibt es den Ort nicht, also
+  // gibt es auch keinen Weg dorthin und keine Vermutung darüber.
+  const prowl = monsterGraph(spec);
   const tuning = options.tuning ?? DEFAULT_TUNING;
   const kind = options.kind ?? 'stalker';
   const profile = ENTITY_PROFILES[kind];
@@ -166,6 +186,12 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   const start = farthest(graph, home);
   const monster: Actor = { ...graph.centre(start), space: start };
   const routine = new MonsterRoutine(tuning.monster);
+  // **Dasselbe Gedächtnis wie im Headset.** Die Routine schreibt selbst
+  // hinein; die Simulation liefert nur, was sie allein weiß: welche Tür
+  // gerade zu ist (`sealed`) und wann eine Reparatur fertig wurde.
+  let sealedPair = '';
+  const brain = new MonsterMemory(prowl, () => (sealedPair ? [sealedPair] : []));
+  const estimator = graphEstimator(prowl);
 
   const modes = Object.fromEntries(
     (
@@ -175,6 +201,8 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
         'stakeout',
         'search',
         'hunt',
+        'intercept',
+        'ambush',
         'announce',
         'breach',
         'savour',
@@ -192,6 +220,8 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   let caught = '';
   let invulnerable = 0;
   let stamina = tuning.technician.stamina;
+  /** Was dem Techniker bleibt, wenn die Puste weg ist — derselbe Anteil wie beim Menschen. */
+  const trotSpeed = Math.max(tuning.technician.walk, tuning.technician.sprint * TROT);
   let calm = 0;
   let fleeing = false;
   let escape: { at: FloorPoint; space: string; locker: boolean } | null = null;
@@ -203,14 +233,26 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   // bis zwei Sekunden braucht. Für das Monster ist sie so lange keine Kante
   // mehr, wie es im Mittel dauert, sie aufzuziehen.
   const seal = freshSeal();
+  /**
+   * **Die Blutspur** (`rules/blood.ts`). Sie gehört in den Prüfstand und nicht
+   * nur ins Spiel: Ein Treffer, der dem Monster für zwei Minuten eine Fährte
+   * schenkt, verschiebt die Balance — und was die Balance verschiebt, muss
+   * hier ausgespielt werden, sonst trainiert das Training gegen ein Monster,
+   * das es so nicht gibt.
+   */
+  const trail = freshTrail();
+  /** Wann zuletzt geschnüffelt wurde — `SNIFF_EVERY` Sekunden später wieder. */
+  let sniffed = -Infinity;
   let sealed: { pair: string; until: number } | null = null;
   /** Wann die Flucht anläuft — sofort allein, um `commandLag` später im Team. */
   let alarm = Infinity;
   let wasSpace = technician.space;
+  let atCommand = 0;
   let time = 0;
 
   for (; time < limit; time += DT) {
     invulnerable = Math.max(0, invulnerable - DT);
+    stepTrail(trail, technician, time);
     const gap = Math.hypot(technician.x - monster.x, technician.z - monster.z);
     if (technician.space !== wasSpace) {
       if (fleeing) askSeal(seal, pairKey(wasSpace, technician.space), time, players, roll);
@@ -235,6 +277,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     }
     if (sealed && sealed.until <= time) sealed = null;
     const barred = sealed;
+    sealedPair = barred?.pair ?? '';
 
     // --- Wahrnehmung des Monsters: dasselbe Hörmodell und dieselbe
     // Alarmleiter wie im Headset und in der 2D-Runde (`threat.ts`). Kein Weg
@@ -282,27 +325,59 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     );
     if (memory.mode === 'hunt' && before !== 'hunt') contacts++;
 
-    const decision = routine.step(graph, {
+    // Die Fährte unter den Füßen des Monsters — nur, was in seinem Raum und in
+    // Schnüffelweite liegt (`blood.sniff`); alles andere wäre Hellsehen.
+    // Gesucht wird nur, was auch gebraucht wird: Wer eine frische Stelle hat,
+    // schaut nicht auf den Boden (`RoutineInput.scent`), und wer versteckt
+    // ist, riecht nichts.
+    const signal = memory.memory > 0 ? memory.target : null;
+    let scent: Scent | null = null;
+    if (!hidden && !signal && time - sniffed >= SNIFF_EVERY) {
+      sniffed = time;
+      scent = sniff(trail, monster, time, (drop) => prowl.spaceAt(drop) === monster.space);
+    }
+    const decision = routine.step(prowl, {
       dt: DT,
       at: monster,
       here: monster.space,
-      signal: memory.memory > 0 ? memory.target : null,
+      signal,
       seen,
       quarry: technician.space,
       caught,
       rng: roll,
+      memory: brain,
+      scent,
+      estimator,
+      base,
+      time,
+      sprinting: fleeing,
+      // Was das Monster über die Puste des Technikers annimmt: seine eigene
+      // Rechnung, mit denselben Zahlen, mit denen der Techniker unten wirklich
+      // läuft. Es rät nicht — es sieht, ob jemand noch sprintet oder schon trabt.
+      stamina: { left: stamina, trot: trotSpeed },
       ...takeAlert(memory),
     });
     modes[decision.mode] += DT;
+    // Nachgezählt und nicht angenommen: Steht das Vieh in der Zentrale, sagt
+    // es das Ergebnis (`RoundResult.atCommand`). Gefragt wird der Vorplatz
+    // selbst (`onApron`, eine Rechteckprüfung) und nicht die Raumkarte — diese
+    // Zeile läuft sechstausendmal je Runde.
+    if (
+      monster.space === COMMAND ||
+      onApron(Math.floor(monster.x / TILE), Math.floor(monster.z / TILE))
+    )
+      atCommand += DT;
     // Getroffen wird nur, wer in **dieser** Kabine steckt: Das Monster reißt
     // auch leere Kabinen auf (Verdachts-Angriff), und die Simulation führt
     // keine Liste der Wracks — der Techniker darf hier wieder hinein, was
     // ihn etwas besser stellt als im Spiel. Bewusst so gelassen: Balance.
     if (decision.strike && hidden && decision.cabin === hidden) {
       // Die Kabine geht kaputt: ein Treffer, und danach steht er wieder im
-      // Raum — mit dem Vorsprung, den ihm `savour` gewährt.
+      // Raum — mit dem Vorsprung, den ihm `savour` gewährt, und von jetzt an
+      // mit einer Blutspur hinter sich.
       hp--;
       hits++;
+      wound(trail, time);
       hidden = '';
       caught = '';
       invulnerable = 3;
@@ -313,9 +388,14 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     move(
       monster,
       decision.goal,
-      graph,
-      paceSpeed(base, tuning.monster, decision.pace),
+      prowl,
+      paceSpeed(base, tuning.monster, decision.pace, decision.boost),
       barred ? (from, to) => barred.pair === pairKey(from, to) : null,
+      // **Kein Schritt auf einen Ort, den seine Karte nicht kennt.** Die
+      // Zentrale steht nicht in `monsterGraph`; eine erinnerte Stelle, die
+      // dort liegt (der Techniker ist heimgelaufen), ist für das Monster
+      // deshalb kein Ziel, sondern nichts.
+      true,
     );
 
     // --- Der Techniker ------------------------------------------------------
@@ -355,11 +435,24 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     if (gap < CONTACT && invulnerable <= 0 && !decision.strike) {
       hp--;
       hits++;
+      wound(trail, time);
       invulnerable = 3;
       if (hp <= 0)
-        return done(false, 'killed', time, hits, job, contacts, hides, modes, jobs.length);
+        return done(
+          false,
+          'killed',
+          time,
+          hits,
+          job,
+          contacts,
+          hides,
+          modes,
+          jobs.length,
+          atCommand,
+        );
     }
-    if (hp <= 0) return done(false, 'killed', time, hits, job, contacts, hides, modes, jobs.length);
+    if (hp <= 0)
+      return done(false, 'killed', time, hits, job, contacts, hides, modes, jobs.length, atCommand);
 
     if (fleeing) {
       stamina = Math.max(0, stamina - DT);
@@ -369,10 +462,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
       // Techniker, der nach fünf Sekunden auf Arbeitstempo zurückfällt, wird
       // von einem Monster eingeholt, das schneller **geht** als er, und dann
       // entscheidet nicht mehr das Verhalten, sondern eine Stoppuhr.
-      const speed =
-        stamina > 0
-          ? tuning.technician.sprint
-          : Math.max(tuning.technician.walk, tuning.technician.sprint * 0.72);
+      const speed = stamina > 0 ? tuning.technician.sprint : trotSpeed;
       move(technician, escape.at, graph, speed);
       const reached =
         technician.space === escape.space &&
@@ -394,25 +484,59 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
 
     const target = jobs[job];
     if (!target)
-      return done(true, 'repaired', time, hits, job, contacts, hides, modes, jobs.length);
+      return done(
+        true,
+        'repaired',
+        time,
+        hits,
+        job,
+        contacts,
+        hides,
+        modes,
+        jobs.length,
+        atCommand,
+      );
     const there =
       technician.space === target.space &&
       Math.hypot(technician.x - target.at.x, technician.z - target.at.z) < ARRIVED;
     working = there;
     if (!there) {
       move(technician, target.at, graph, tuning.technician.walk);
-      // Nach der Flucht kommt die Puste zurück, aber langsam.
-      stamina = Math.min(tuning.technician.stamina, stamina + DT * 0.4);
+      // Nach der Flucht kommt die Puste zurück, aber langsam — in
+      // `STAMINA_REGEN` Sekunden von leer auf voll, wie beim Menschen.
+      stamina = Math.min(
+        tuning.technician.stamina,
+        stamina + (DT * tuning.technician.stamina) / STAMINA_REGEN,
+      );
       continue;
     }
     work += DT;
     if (work < target.seconds) continue;
     work = 0;
+    // **Eine fertige Reparatur ist laut.** Die Konsole fährt hoch, die
+    // Sicherung fällt, im Modul flackert es — das Monster weiß danach, wo
+    // eben jemand stand, und legt für ein paar Sekunden los
+    // (`MonsterTuning.rush`). Kein Hellsehen: ein Ereignis der Station.
+    if (target.kind === 'console') {
+      brain.disturbed(target.space, target.at, time);
+      routine.hurry(tuning.monster.rush);
+    }
     job++;
     if (job >= jobs.length)
-      return done(true, 'repaired', time, hits, job, contacts, hides, modes, jobs.length);
+      return done(
+        true,
+        'repaired',
+        time,
+        hits,
+        job,
+        contacts,
+        hides,
+        modes,
+        jobs.length,
+        atCommand,
+      );
   }
-  return done(false, 'timeout', limit, hits, job, contacts, hides, modes, jobs.length);
+  return done(false, 'timeout', limit, hits, job, contacts, hides, modes, jobs.length, atCommand);
 }
 
 function done(
@@ -425,6 +549,7 @@ function done(
   hides: number,
   modes: Record<MonsterMode, number>,
   total: number,
+  atCommand: number,
 ): RoundResult {
   return {
     won,
@@ -436,6 +561,7 @@ function done(
     contacts,
     hides,
     modes,
+    atCommand,
   };
 }
 
@@ -536,9 +662,13 @@ function move(
   graph: StationGraph,
   speed: number,
   barred: ((from: string, to: string) => boolean) | null = null,
+  /** Ob ein Ziel außerhalb jedes bekannten Raums verworfen wird statt geradeaus angelaufen. */
+  strict = false,
 ): void {
   if (!goal || speed <= 0) return;
-  const goalSpace = graph.spaceAt(goal) || actor.space;
+  const known = graph.spaceAt(goal);
+  if (!known && strict) return;
+  const goalSpace = known || actor.space;
   if (goalSpace !== actor.space && barred?.(actor.space, graph.next(actor.space, goalSpace)))
     return;
   const step = goalSpace === actor.space ? goal : graph.centre(graph.next(actor.space, goalSpace));

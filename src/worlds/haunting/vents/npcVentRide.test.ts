@@ -47,6 +47,7 @@ function patrolTo(goal: { x: number; z: number }): RoutineOutput {
     strike: false,
     cabin: '',
     label: 'Patrouille',
+    boost: 0,
   };
 }
 

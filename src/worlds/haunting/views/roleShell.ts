@@ -77,11 +77,12 @@ export function quietHost(snapshot: () => MapSnapshot, spec: RoleHost['spec']): 
   return {
     snapshot,
     spec,
+    ledger: () => ({ time: 0, taken: [], done: [], crew: { inventory: [] } }),
     me: () => '',
     nameOf: (peer) => peer,
     door: () => '',
     light: () => '',
-    lure: () => '',
+    switches: () => [],
     notify: () => {},
   };
 }

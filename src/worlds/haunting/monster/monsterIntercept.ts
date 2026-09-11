@@ -24,10 +24,9 @@ import type { FloorPoint } from '../stationLayout';
  * Trainingssimulation (`roundSim.ts`) dieselbe Rechnung hunderte Male je
  * Sekunde ausspielen kann wie das Monster im Headset.
  *
- * **Noch ist nichts davon angeschlossen.** `monsterRoutine.ts` weiß von diesem
- * Modul nichts; die Haltungen `intercept` und `ambush` gibt es dort noch
- * nicht. Das Zusammenhängen ist Paket M2 — bis dahin ist das hier eine
- * Rechnung mit Tests und ohne Wirkung im Spiel.
+ * **Angeschlossen ist es in `monsterRoutine.ts`** (Paket M2): Dort heißen die
+ * Haltungen `intercept` und `ambush`, dort wird `plan()` alle `REPLAN`
+ * Sekunden gestellt, und dort kommt das Ergebnis als Ziel und Tempo heraus.
  *
  * **Das Gedächtnis liegt bewusst nur als Form vor.** `MonsterMemory`
  * (`monster/monsterMemory.ts`, Vertrag 4.3) entsteht parallel; damit dieses
@@ -241,7 +240,7 @@ export function predictPlayer(
     const door =
       step === 0
         ? aimedDoor(graph, here, from, heading, taken)
-        : (likelyDoor(memory, here, graph.doorsOf(here), taken) ??
+        : (likelyDoor(graph, memory, here, graph.doorsOf(here), taken) ??
           aimedDoor(graph, here, from, heading, taken));
     if (!door) break;
     const point = graph.doorPoint(door);
@@ -345,7 +344,7 @@ export function plan(input: {
       Math.max(0, Math.min(1, input.tuning.ambush)) *
       (1 - AMBUSH_JITTER * input.rng());
     if (exits.length > 0 && exits.length <= AMBUSH_EXITS && hold > 0) {
-      const door = likelyDoor(input.memory, room, exits) ?? exits[0]!;
+      const door = likelyDoor(input.graph, input.memory, room, exits) ?? exits[0]!;
       const at = input.graph.doorPoint(door);
       if (at) return { kind: 'ambush', at, door, room, until: input.now + hold };
     }
@@ -402,14 +401,26 @@ function aimedDoor(
 }
 
 /**
- * Die Tür mit dem größten Zufluss aus dem Glaubensbild — `null`, wenn keine
+ * **Die Tür mit dem größten Zufluss aus dem Glaubensbild** — `null`, wenn keine
  * der genannten Türen darin vorkommt.
  *
  * `exits` ist die Antwort auf „wohin fließt der Glaube aus diesem Raum ab";
  * gefiltert wird gegen die Türen, die die Karte diesem Raum wirklich gibt,
  * damit eine veraltete Erinnerung keine Tür erfindet.
+ *
+ * **Zwei Namen für dieselbe Tür, und daran ist das hier schon einmal
+ * gescheitert.** Das Gedächtnis nennt eine Tür nach den beiden Räumen, die sie
+ * verbindet (`monsterMemory.doorKey`, „flur|kombüse"); die Karte nennt sie so,
+ * wie der Bauplan sie nennt (`d7`). Verglichen wurden bis eben die
+ * Zeichenketten — und damit fand dieser Vergleich **nie** eine Tür: Das Lauern
+ * stand immer an der ersten Tür des Raums, und die Prognose lief hinter der
+ * ersten Tür weiter, statt hinter der wahrscheinlichsten. Also wird jetzt
+ * übersetzt: aus dem Raumpaar der Nachbarraum, und aus dem Nachbarraum die
+ * Tür, die beide Räume gemeinsam haben. Wer schon Kartennamen liefert (die
+ * Tests tun es), kommt unverändert durch.
  */
 function likelyDoor(
+  graph: StationGraph,
   memory: MemoryLike,
   room: string,
   among: Iterable<string>,
@@ -419,11 +430,39 @@ function likelyDoor(
   let best: string | null = null;
   let bestShare = -Infinity;
   for (const exit of memory.exits(room)) {
-    if (taken?.has(exit.door) || !here.has(exit.door) || exit.share <= bestShare) continue;
-    best = exit.door;
+    const door = named(graph, room, exit.door, here);
+    if (!door || taken?.has(door) || exit.share <= bestShare) continue;
+    best = door;
     bestShare = exit.share;
   }
   return best;
+}
+
+/**
+ * **Die Tür, an der sich das Lauern lohnt**, mit dem Namen der Karte — für
+ * alle, die dieselbe Frage stellen wie `plan()` selbst (`monsterRoutine.ts`
+ * beim Auflauern). `null`, wenn der Raum keine Tür hat.
+ */
+export function likelyExit(graph: StationGraph, memory: MemoryLike, room: string): string | null {
+  const doors = graph.doorsOf(room);
+  if (!doors.length) return null;
+  return likelyDoor(graph, memory, room, doors) ?? doors[0]!;
+}
+
+/** Aus dem Namen des Gedächtnisses den Namen der Karte machen. */
+function named(
+  graph: StationGraph,
+  room: string,
+  door: string,
+  among: ReadonlySet<string>,
+): string | null {
+  if (among.has(door)) return door;
+  const parts = door.split('|');
+  if (parts.length !== 2) return null;
+  const other = parts[0] === room ? parts[1]! : parts[1] === room ? parts[0]! : '';
+  if (!other) return null;
+  for (const candidate of among) if (graph.doorsOf(other).includes(candidate)) return candidate;
+  return null;
 }
 
 /**

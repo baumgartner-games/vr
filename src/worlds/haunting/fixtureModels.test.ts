@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { MarkId } from './house';
-import { FIXTURE_CATALOG, type FixtureSize } from './fixtureDimensions';
+import { CARGO_BAND_COLORS, FIXTURE_CATALOG, type FixtureSize } from './fixtureDimensions';
 import {
   buildBrokenLocker,
   buildCargoCabinet,
@@ -54,6 +54,26 @@ describe('station fixture placement contract', () => {
       expect(new THREE.Box3().setFromObject(cabinet.door).max.x).toBeLessThan(0);
     },
   );
+
+  test('das Kennzeichen bleibt im Maß der Kiste und färbt sich nach dem Band', () => {
+    const cabinet = buildCargoCabinet({ colour: 'blau', number: 3 });
+    expectInsideDeclaredSize(cabinet.root, cabinet.size);
+    const band = cabinet.root.getObjectByName('cargo-mark')!;
+    expect(band).toBeDefined();
+    const mesh = band.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    expect(mesh.material.color.getHex()).toBe(CARGO_BAND_COLORS.blau);
+    // Drei Punkte für „Kiste 3": mehr Geometrie als dieselbe Kiste mit einem.
+    const one = buildCargoCabinet({ colour: 'blau', number: 1 });
+    const count = (group: THREE.Object3D): number =>
+      (
+        (group.getObjectByName('cargo-mark')!.children[0] as THREE.Mesh).geometry.getAttribute(
+          'position',
+        ) as THREE.BufferAttribute
+      ).count;
+    expect(count(cabinet.root)).toBeGreaterThan(count(one.root));
+    // Ohne Kennzeichen bleibt das Modell, was es war (Testschrank, Lehrdeck).
+    expect(buildCargoCabinet().root.getObjectByName('cargo-mark')).toBeUndefined();
+  });
 
   test('the wrecked locker fills the same footprint as the intact one, glows and has no door to move', () => {
     const wreck = buildBrokenLocker();

@@ -6,7 +6,14 @@ import { HauntingAudio, NOISE, levelLabel } from './audio';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import type { MapGoal } from './map/mapView';
 import { ObjectiveCompass } from './objectiveCompass';
-import { hudTasks, roundHud, taskPips, type HudTask } from './rules/roundHud';
+import { hudTasks, hudTasksVisible, roundHud, taskPips, type HudTask } from './rules/roundHud';
+import {
+  archiveGoals,
+  canCarryPart,
+  carriedPart,
+  fullHandsText,
+  type DroppedPart,
+} from './rules/archiveGoals';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
@@ -27,6 +34,8 @@ import {
 } from './botTuning';
 import { TrainingRun, TRAINING_DEFAULTS, inBand, type TrainingSide } from './botTraining';
 import { simulationSpeedLabel } from './simulationSpeed';
+import { describeSetup, loadSetup, powersOf } from './rules/roundSetup';
+import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
 import {
   APRON,
@@ -42,12 +51,13 @@ import { HauntingDesktopControls } from './desktopControls';
 import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { XrayTool } from '../portal/tools/XrayTool';
+import { addOutline, removeOutline, type OutlineLook } from '../../core/outlineShell';
 import { RadarTool } from '../portal/tools/RadarTool';
 import type { Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
 import { CabinWreck } from './rules/cabinWreck';
-import { cargoKey, cargoLabel, cargoOf } from './rules/cargo';
+import { cargoKey, cargoLabel, cargoOf, type CargoMark } from './rules/cargo';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -85,6 +95,12 @@ interface ShipHost {
   start(): void;
   test(): void;
   stations?(): void;
+  /**
+   * **Die Ansicht wechseln, mitten in der Runde** (`HauntingWorld.switchView`).
+   * Im Schiff gibt es dafür genau einen Knopf — „2D von oben" —, und er steht
+   * nur im Panel des Technikers: Wer nicht spielt, hat nichts zu wechseln.
+   */
+  switchView?(view: '2d' | '3d'): void;
   door(id: string): void;
   doorOpen?(id: string): boolean;
   doorLocked?(id: string): boolean;
@@ -177,6 +193,21 @@ const _head = new THREE.Vector3(),
   _side = new THREE.Vector3(),
   _wish = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+/**
+ * **Der Saum um die Zielkiste** (`core/outlineShell.ts`) — dasselbe Gelb wie
+ * das Randdreieck auf der Karte und der Kompass, damit „das da vorn" und „das
+ * am Bildrand" erkennbar dieselbe Sache sind. Schmal gehalten: Ein breiter
+ * Saum macht aus einer Kiste auf zehn Metern einen gelben Klotz.
+ */
+const GOAL_SEAM: OutlineLook = { width: 0.014, maxGrow: 0.05, color: 0xffd84a };
+/**
+ * Wie weit das Röntgengerät die Kennzeichen einblendet, in Metern.
+ *
+ * Es ist ein Gerät für den Raum, in dem man steht, und keine Stationskarte:
+ * Wer damit von der Tür aus alle vierzig Kisten lesen könnte, bräuchte weder
+ * Archivar noch Suche. Acht Meter sind die lange Seite eines Raums.
+ */
+const XRAY_LABEL_RANGE = 8;
 const PANEL_RANGE = 3.5;
 const HAND_LABEL = {
   off: 'frei',
@@ -184,6 +215,7 @@ const HAND_LABEL = {
   radar: 'Radar',
   xray: 'Röntgengerät',
   medkit: 'Medkit',
+  part: 'Ersatzteil',
 } as const;
 
 /** Station-only interactions. All game state belongs to the VR host snapshot. */
@@ -193,19 +225,47 @@ export class ShipExperience {
   private readonly targets: THREE.Object3D[] = [];
   private readonly screens: Screen[] = [];
   private readonly cabinets: Cabinet[] = [];
+  /**
+   * **Die Kiste, die gerade den Saum trägt**, und die Netze, an denen er hängt
+   * (`core/outlineShell.ts`). Gemerkt wird beides, weil der Durchlauf über die
+   * Szene (`core/graphicsScene.ts`) jede Sekunde seine eigene, schwarze Kontur
+   * darüberlegt: Sie jedes Bild neu einzustellen ist billig, sie jedes Bild an
+   * allen vierzig Kisten abzuräumen wäre es nicht.
+   */
+  private seamOn = '';
+  private readonly seams: THREE.Mesh[] = [];
   private readonly doors: Door[] = [];
   private readonly lockers: Locker[] = [];
   private readonly desktop: HauntingDesktopControls;
   private readonly comfort: HauntingComfort | null;
   private readonly torch = new THREE.Group();
   private readonly heldLamp = new FlashlightTool();
+  /**
+   * **Die zweite Taschenlampe — die in der linken Hand.**
+   *
+   * Am Gürtel hängt sie an beiden Hüften (`HauntingWorld.beltLoadout`), und
+   * am Schirm muss sie deshalb auch in beide Hände passen. Es ist ein zweites
+   * Exemplar und nicht dasselbe umgehängt: Ein Modell kann nur an einer
+   * Stelle im Szenengraph hängen, und „umhängen" wäre genau der Weg, auf dem
+   * eine Lampe verloren geht.
+   */
+  private readonly leftLamp = new FlashlightTool();
   private readonly handheldRadar = new RadarTool();
   private readonly handheldXray = new XrayTool();
   private readonly scanner = new THREE.Group();
   private floatingTorch: FlashlightTool | null = null;
   private interactionCooldown = 0;
   private readonly heldMedkit = new THREE.Group();
-  private rightItem: 'flashlight' | 'medkit' | 'off' = 'flashlight';
+  /** Das Ersatzteil in der Hand — sichtbar, solange der Techniker eines trägt. */
+  private readonly heldPart = new THREE.Group();
+  /**
+   * Die Ersatzteile, die im Gang liegen, als Modelle — je Teil eines, gebaut
+   * beim ersten Ablegen und danach nur noch ein- und ausgeblendet. Was wo
+   * liegt, steht im Stand (`HauntState.dropped`) und nicht hier: Diese Karte
+   * ist die Anzeige dazu und nicht die Wahrheit.
+   */
+  private readonly droppedParts = new Map<string, THREE.Object3D>();
+  private rightItem: 'flashlight' | 'medkit' | 'part' | 'off' = 'flashlight';
   private labMirror: MirrorSurface | null = null;
   private visibleRooms: ReadonlySet<string> | null = null;
   private readonly crosshair = document.createElement('div');
@@ -236,7 +296,7 @@ export class ShipExperience {
   private controls: ShipControls | null = null;
   /** Der Kompass am oberen Bildrand — nur am Desktop; in der Brille gibt es ihn (noch) nicht. */
   private compass: ObjectiveCompass | null = null;
-  private sensorMode: 'off' | 'radar' | 'xray' = 'off';
+  private sensorMode: 'off' | 'flashlight' | 'radar' | 'xray' = 'off';
   private audioOn = true;
   private readonly audio = new ShipAudio();
   private readonly hearingAudio = new HauntingAudio();
@@ -385,6 +445,7 @@ export class ShipExperience {
         this.crew.hp > 0 &&
         (!this.crew.simulation || !this.followBot),
       cycleHand: (hand) => (hand === 'left' ? this.cycleSensor() : this.cycleRight()),
+      drop: () => this.dropPart(),
       interact: () => {
         if (['lost', 'won'].includes(this.host.state().phase)) {
           this.host.start();
@@ -596,6 +657,7 @@ export class ShipExperience {
         at.yaw,
         cargoLabel(slot),
         cargoKey(slot),
+        slot.mark,
       );
     }
     for (const room of spec.rooms) {
@@ -617,13 +679,16 @@ export class ShipExperience {
     yaw = 0,
     mark = 'Fracht',
     key = loot || id,
+    badgeMark?: CargoMark,
   ): void {
-    const { root: g, door: leaf, lootMount, screenMount } = buildCargoCabinet();
+    const { root: g, door: leaf, lootMount, screenMount } = buildCargoCabinet(badgeMark);
     g.position.copy(at);
     g.rotation.y = yaw;
     g.name = id;
-    // Das Kennzeichen steht außen auf dem Blatt: Wer „Kiste 2, blaues Band"
-    // zugerufen bekommt, muss es an der Kiste wiederfinden können.
+    // Das Kennzeichen steht außen auf dem Blatt — als Farbband und Nummer am
+    // Modell (`fixtureModels.buildCargoCabinet`) und hier noch einmal in
+    // Schrift: Wer „Kiste 2, blaues Band" zugerufen bekommt, muss beides an
+    // der Kiste wiederfinden können, im Licht wie im Kegel der Lampe.
     const badge = label(loot === 'test-kit' ? 'TESTAUSRÜSTUNG' : mark.toUpperCase(), 0.65, 0.13);
     badge.position.copy(screenMount).sub(leaf.position);
     leaf.add(badge);
@@ -637,14 +702,13 @@ export class ShipExperience {
           lootMount.z,
         ])
       : null;
-    const lootTag = lootMesh
-      ? label(lootLabel(this.host.spec(), loot), 0.66, 0.16, SHIP.amber)
-      : null;
-    if (lootTag) {
-      lootTag.position.set(0, 0.84, 0.08);
-      g.add(lootTag);
-    }
-    const scanner = label(lootLabel(this.host.spec(), loot) || mark, 0.7, 0.16, SHIP.cyan);
+    // **Hier hing einmal ein amberfarbenes Schild mit dem Inhalt am Schrank**,
+    // dauerhaft sichtbar, quer durch den halben Raum lesbar. Es war das
+    // größte Leck: Solange es hing, war jede Frage an den Archivar überflüssig
+    // — und bei einem Menschen am Archiv wäre es sein ganzer Platz gewesen.
+    // Was drin liegt, sagt jetzt das Röntgengerät (`scanner`) oder die offene
+    // Kiste selbst.
+    const scanner = label(mark, 0.7, 0.16, SHIP.cyan);
     scanner.material.depthTest = false;
     scanner.material.transparent = true;
     scanner.material.opacity = 0.85;
@@ -675,10 +739,6 @@ export class ShipExperience {
       lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
       this.bind(lootMesh, () => this.takeLoot(id));
     }
-    if (lootTag) {
-      lootTag.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
-      this.bind(lootTag, () => this.takeLoot(id));
-    }
   }
   private openCabinet(id: string): void {
     if (!this.active) return;
@@ -703,24 +763,159 @@ export class ShipExperience {
     const c = this.cabinets.find((c) => c.id === id);
     if (!c || !this.active || !this.crew.opened.includes(id) || this.crew.inventory.includes(id))
       return;
+    const spec = this.host.spec();
+    const state = this.host.state();
+    const part = spec.tasks.some((t) => t.id === c.loot);
+    // **Eine Hand, ein Ersatzteil.** Die zweite Kiste geht auf, das Teil darin
+    // bleibt liegen — sonst sammelte man in Ruhe alle drei ein und klapperte
+    // danach die Konsolen ab, und der halbe Weg durch das Schiff fiele weg.
+    // Die Kiste bleibt dabei **offen und unerledigt**: Wer zurückkommt, findet
+    // sie so vor, wie er sie verlassen hat.
+    if (part && !canCarryPart(spec, state)) {
+      this.host.say(fullHandsText(spec, state));
+      this.sound('error');
+      return;
+    }
     if (c.loot === 'test-kit') {
       if (!this.crew.options.test) return;
       for (const item of ['radar', 'xray', 'medkit'])
         if (!this.crew.inventory.includes(item)) this.crew.inventory.push(item);
-      this.host.state().taken = this.host.spec().tasks.map((t) => t.id);
-    } else if (this.host.spec().tasks.some((t) => t.id === c.loot)) {
-      if (!this.host.state().taken.includes(c.loot)) this.host.state().taken.push(c.loot);
+      state.taken = spec.tasks.map((t) => t.id);
+    } else if (part) {
+      // **`taken` sagt „war einmal draußen", `inventory` sagt „ist in der
+      // Hand".** Bis eben kannte das Schiff nur `taken`, und weil das nie
+      // wieder herausgenommen wird, hätte ein abgelegtes Teil die Konsole
+      // weiter aufgesperrt. Die 2D-Runde macht es seit jeher so; jetzt beide.
+      if (!state.taken.includes(c.loot)) state.taken.push(c.loot);
+      this.crew.inventory.push(c.loot);
+      this.forgetDropped(c.loot);
+      this.rightItem = 'part';
     } else this.crew.inventory.push(c.loot);
     this.crew.inventory.push(id);
     if (this.host.ctx.renderer.xr.isPresenting) {
       if (c.loot === 'radar' || c.loot === 'xray') this.host.equip?.(c.loot, 'left');
       else if (c.loot === 'test-kit') this.host.equip?.('radar', 'left');
+      // Die rechte Hand hält jetzt das Teil — die Lampe wandert nach links,
+      // wo die zweite ohnehin am Gürtel hängt.
+      else if (part) this.host.equip?.('flashlight', 'left');
     }
     this.host.say(
-      `${lootLabel(this.host.spec(), c.loot)} aufgenommen · Werkzeuge greifen und seitlich am Gürtel ablegen. Web: 1 / 2 wechseln.`,
+      part
+        ? `${lootLabel(spec, c.loot)} in der Hand. ${this.targetCall(c.loot)}`
+        : `${lootLabel(spec, c.loot)} aufgenommen · Werkzeuge greifen und seitlich am Gürtel ablegen. Web: 1 / 2 wechseln.`,
     );
     this.sound('success');
+    this.paint();
     this.host.ctx.refreshWorldMenu();
+  }
+
+  /**
+   * **Was der Archivar dazu sagt** — und ob er überhaupt jemand ist, der
+   * etwas sagt.
+   *
+   * Sitzt am Archiv ein **Bot**, gibt es niemanden zum Fragen: Dann sagt er
+   * den Zielraum an, sobald das Teil in der Hand ist. Sitzt dort ein
+   * **Mensch**, ist genau das seine Aufgabe — und der Techniker bekommt hier
+   * nur den Hinweis, dass er fragen muss. Dieselbe Regel wie beim HUD-Streifen
+   * (`hudTasksVisible`) und bei der Zielgenauigkeit (`goalPrecision`).
+   */
+  private targetCall(itemId: string): string {
+    const order = archiveGoals(this.host.spec(), this.host.state()).find(
+      (one) => one.itemId === itemId,
+    );
+    if (!powersOf(loadSetup()).archive)
+      return 'Archiv fragen, wohin damit. Ablegen: G / Taste im Panel.';
+    return order?.console
+      ? `Archiv: damit in ${order.console.roomName} — ${order.title}. Ablegen: G.`
+      : 'Ablegen: G.';
+  }
+
+  /**
+   * **Das Ersatzteil aus der Hand legen.**
+   *
+   * Es fällt nicht, es wird abgestellt: Der Gürtel zeigt, dass ein Werkzeug,
+   * das man loslässt, dort liegt, wo man stand — mehr Physik braucht ein
+   * Ersatzteil nicht, und ein Teil, das unter eine Konsole rollt, wäre eine
+   * verlorene Runde. Wo es liegt, geht in den Stand (`HauntState.dropped`);
+   * der Archivar sieht es aber erst, wenn es `DROPPED_SEEN` Sekunden dort
+   * liegt (`rules/archiveGoals.ts`).
+   */
+  dropPart(): void {
+    const spec = this.host.spec();
+    const state = this.host.state();
+    const id = carriedPart(spec, state);
+    // Außerhalb der Runde sagt die Taste gar nichts: Wer im Van auf `G`
+    // kommt, soll keine Meldung bekommen, die er nicht abbestellen kann.
+    if (!this.active) return;
+    if (!id) {
+      this.host.say('Kein Ersatzteil in der Hand.');
+      return;
+    }
+    const held = this.crew.inventory.indexOf(id);
+    if (held >= 0) this.crew.inventory.splice(held, 1);
+    this.host.ctx.rig.getHeadPosition(_head);
+    const dropped: DroppedPart = { id, x: _head.x, z: _head.z, since: state.time };
+    state.dropped = [...(state.dropped ?? []).filter((one) => one.id !== id), dropped];
+    if (this.rightItem === 'part') this.rightItem = 'flashlight';
+    if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.('flashlight', 'right');
+    this.host.say(`${lootLabel(spec, id)} abgelegt. Wieder aufnehmen: E.`);
+    this.sound('door');
+    this.paint();
+    this.host.ctx.refreshWorldMenu();
+  }
+
+  /** Ein liegendes Teil wieder aufnehmen — wenn die Hand frei ist. */
+  private takeDropped(id: string): void {
+    const spec = this.host.spec();
+    const state = this.host.state();
+    if (!this.active) return;
+    if (!canCarryPart(spec, state)) {
+      this.host.say(fullHandsText(spec, state));
+      this.sound('error');
+      return;
+    }
+    this.forgetDropped(id);
+    this.crew.inventory.push(id);
+    this.rightItem = 'part';
+    if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.('flashlight', 'left');
+    this.host.say(`${lootLabel(spec, id)} wieder in der Hand. ${this.targetCall(id)}`);
+    this.sound('success');
+    this.paint();
+    this.host.ctx.refreshWorldMenu();
+  }
+
+  /** Das Teil liegt nicht mehr da — weder im Stand noch als Modell im Gang. */
+  private forgetDropped(id: string): void {
+    const state = this.host.state();
+    if (state.dropped?.length) state.dropped = state.dropped.filter((one) => one.id !== id);
+    const mesh = this.droppedParts.get(id);
+    if (mesh) mesh.visible = false;
+  }
+
+  /**
+   * **Die liegenden Teile im Gang nachführen** — aus dem Stand, nicht aus dem
+   * Gedächtnis dieser Klasse.
+   *
+   * So sieht auch ein Techniker, der mitten in der Runde dazukommt oder dessen
+   * Stand vom Gastgeber kommt, was auf dem Boden liegt. Gebaut wird ein Modell
+   * beim ersten Mal, danach nur noch gestellt und ein- oder ausgeblendet.
+   */
+  private stepDropped(): void {
+    const state = this.host.state();
+    const lying = state.dropped ?? [];
+    for (const [id, mesh] of this.droppedParts) {
+      const part = lying.find((one) => one.id === id);
+      mesh.visible = !!part;
+      if (part) mesh.position.set(part.x, 0.16, part.z);
+    }
+    for (const part of lying) {
+      if (this.droppedParts.has(part.id)) continue;
+      const mesh = this.mesh([0.28, 0.16, 0.22], SHIP.amber, this.root, [part.x, 0.16, part.z]);
+      mesh.name = `dropped-${part.id}`;
+      mesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), part.id)} aufnehmen`;
+      this.droppedParts.set(part.id, mesh);
+      this.bind(mesh, () => this.takeDropped(part.id));
+    }
   }
 
   private locker(id: string, at: THREE.Vector3, yaw: number, code: string): void {
@@ -918,7 +1113,15 @@ export class ShipExperience {
     if (!console.training && this.host.state().done.includes(id)) return;
     const p = console.practice ?? puzzleFor(this.crew, id);
     if (!p.open) {
-      if (!console.training && !this.host.state().taken.includes(repair.itemId)) {
+      // **In der Hand, nicht irgendwo im Schiff.** Vorher stand hier `taken`,
+      // und das wird nie wieder entfernt: Wer das Teil ablegte, konnte die
+      // Konsole trotzdem öffnen. Dieselbe Prüfung wie in der 2D-Runde — nur
+      // der Testschrank bleibt außen vor, der gibt alle drei Teile auf einmal
+      // aus, und ein Test ist keine Runde.
+      const hasPart =
+        this.crew.inventory.includes(repair.itemId) ||
+        (this.crew.options.test && this.host.state().taken.includes(repair.itemId));
+      if (!console.training && !hasPart) {
         this.host.say(`Abdeckung verriegelt: ${repair.item} fehlt. Archiv fragen.`);
         this.burst('sparks', console.at);
         this.sound('error');
@@ -959,6 +1162,11 @@ export class ShipExperience {
         return;
       }
       this.host.state().done.push(id);
+      // **Das Teil ist verbaut** und damit aus der Hand — sonst trüge der
+      // Techniker den ganzen Rest der Runde eine Filterpatrone mit sich
+      // herum, die es nicht mehr gibt, und die nächste Kiste bliebe zu.
+      const used = this.crew.inventory.indexOf(repair.itemId);
+      if (used >= 0) this.crew.inventory.splice(used, 1);
       this.host.state().fuse = true;
       // **Hier geht kein Licht mehr von selbst an.** Eine reparierte Konsole
       // machte früher die Lampe ihres Raums an, und weil das an der Tafel
@@ -1088,12 +1296,20 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.mesh([0.15, 0.2, 0.07], 0xcad8c9, this.heldMedkit, [0, 0, 0]);
     this.mesh([0.035, 0.105, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.041]);
     this.mesh([0.095, 0.033, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.047]);
-    this.torch.add(this.heldLamp, this.heldMedkit);
+    // Das Ersatzteil sieht in der Hand aus wie in der Kiste — derselbe Kasten,
+    // dieselbe Farbe. Wer es aufhebt, soll nicht raten müssen, ob er wirklich
+    // das hat, was er gesucht hat.
+    this.heldPart.name = 'desktop-held-part';
+    this.mesh([0.28, 0.16, 0.22], SHIP.amber, this.heldPart, [0, 0, 0]);
+    this.torch.add(this.heldLamp, this.heldMedkit, this.heldPart);
     this.host.ctx.camera.add(this.torch);
     this.torch.position.set(0.24, -0.24, -0.4);
     this.scanner.name = 'desktop-held-scanner';
     this.scanner.position.set(-0.3, -0.26, -0.52);
-    this.scanner.add(this.handheldRadar, this.handheldXray);
+    this.leftLamp.name = 'desktop-flashlight-left';
+    this.leftLamp.setBeamGuide(false);
+    this.leftLamp.setLit(true);
+    this.scanner.add(this.handheldRadar, this.handheldXray, this.leftLamp);
     this.host.ctx.camera.add(this.scanner);
     this.handheldXray.setSubjects(() => this.scanSubjects);
   }
@@ -1112,24 +1328,40 @@ ANTIPPEN: ZUM SAFE-RAUM`,
             const tool = this.host.carried?.(hand as Handedness);
             return tool instanceof FlashlightTool && tool.lit;
           })
-        : this.rightItem === 'flashlight' && this.heldLamp.lit) &&
+        : (this.rightItem === 'flashlight' && this.heldLamp.lit) ||
+          (this.sensorMode === 'flashlight' && this.leftLamp.lit)) &&
       !this.crew.hidden &&
       !this.crew.simulation
     );
   }
+  /**
+   * **Die rechte Hand durchschalten**: frei, Lampe, Medkit — und das
+   * Ersatzteil, solange er eines trägt.
+   *
+   * Die **Taschenlampe steht immer in der Liste**, auch wenn die Fracht noch
+   * unberührt ist: Sie hängt von Anfang an an beiden Hüften und kann nicht
+   * verloren gehen (`HauntingWorld.beltLoadout`). „Frei" bleibt trotzdem
+   * erreichbar — Dunkelheit ist in diesem Haus eine Entscheidung und kein
+   * Verlust: Wer die Lampe ausmacht, ist für das Monster schwerer zu sehen
+   * (`threat.ts`), und die andere Hand hat ohnehin noch eine.
+   */
   private cycleRight(): void {
+    const carried = !!carriedPart(this.host.spec(), this.host.state());
     const items = [
       'off',
       'flashlight',
       ...(this.crew.inventory.includes('medkit') ? ['medkit'] : []),
-    ] as Array<'off' | 'flashlight' | 'medkit'>;
+      ...(carried ? ['part'] : []),
+    ] as Array<'off' | 'flashlight' | 'medkit' | 'part'>;
     this.rightItem = items[(items.indexOf(this.rightItem) + 1) % items.length]!;
     this.host.say(
       this.rightItem === 'off'
         ? 'Rechte Hand frei.'
         : this.rightItem === 'medkit'
           ? 'Medkit gewählt. E zum Heilen.'
-          : 'Taschenlampe eingeschaltet.',
+          : this.rightItem === 'part'
+            ? `${lootLabel(this.host.spec(), carriedPart(this.host.spec(), this.host.state()))} in der Hand. G legt es ab.`
+            : 'Taschenlampe eingeschaltet.',
     );
     if (this.host.ctx.renderer.xr.isPresenting)
       this.host.equip?.(this.rightItem === 'flashlight' ? 'flashlight' : 'off', 'right');
@@ -1202,8 +1434,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     }
   }
 
+  /**
+   * **Die linke Hand durchschalten** — und auch hier steht die Taschenlampe
+   * in der Liste.
+   *
+   * Sie hängt an **beiden** Hüften (`HauntingWorld.beltLoadout`), seit der
+   * Techniker in der rechten Hand ein Ersatzteil tragen kann: Wer das Teil
+   * hält, hätte sonst genau dann keine Lampe, wenn er quer durch das dunkle
+   * Schiff muss. Zwei Lampen sind zwei Exemplare, keine umgehängte —
+   * Umhängen ist der Weg, auf dem eine verloren geht.
+   */
   private cycleSensor(): void {
-    const modes: Array<typeof this.sensorMode> = ['off'];
+    const modes: Array<typeof this.sensorMode> = ['off', 'flashlight'];
     if (this.crew.inventory.includes('radar')) modes.push('radar');
     if (this.crew.inventory.includes('xray')) modes.push('xray');
     this.sensorMode = modes[(modes.indexOf(this.sensorMode) + 1) % modes.length]!;
@@ -1212,10 +1454,31 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.host.say(
       {
         off: 'Linke Hand frei. Radar und Röntgengerät liegen in der Fracht.',
+        flashlight: 'Taschenlampe links eingeschaltet.',
         radar: 'Bewegungsradar in der Hand · am Gürtel seitlich ablegbar.',
         xray: 'Röntgengerät in der Hand · durch den Rahmen nach Fracht suchen.',
       }[this.sensorMode],
     );
+  }
+
+  /**
+   * **Den Saum auf eine Kiste setzen und von der vorigen abnehmen.**
+   *
+   * Er hängt an den Netzen des Kastens selbst und nicht an einem eigenen Ring
+   * daneben: Wer die Kiste sieht, sieht das Ziel, und wer um die Ecke schaut,
+   * sieht beides nicht. Jedes Bild neu eingestellt, weil der Durchlauf über die
+   * Szene die Kontur sonst binnen einer Sekunde wieder schwarz färbt.
+   */
+  private seam(id: string): void {
+    if (id !== this.seamOn) {
+      for (const mesh of this.seams) removeOutline(mesh);
+      this.seams.length = 0;
+      this.seamOn = id;
+      const cabinet = id ? this.cabinets.find((one) => one.id === id) : undefined;
+      for (const child of cabinet?.group.children ?? [])
+        if ((child as THREE.Mesh).isMesh) this.seams.push(child as THREE.Mesh);
+    }
+    for (const mesh of this.seams) addOutline(mesh, GOAL_SEAM);
   }
 
   private get scanSubjects(): readonly { object: THREE.Object3D }[] {
@@ -1224,17 +1487,51 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       .map((cabinet) => cabinet.scanSubject!);
   }
 
+  /**
+   * **Das Ersatzteil in die Faust der Brille legen** — oder zurück in den
+   * Streifen vor der Kamera.
+   *
+   * In der Brille gehört es an den Griff des rechten Controllers: Dort ist
+   * die Hand, und ein Teil, das vor der Kamera schwebt, wäre in der Brille
+   * ein Aufkleber auf der Scheibe. Am Schirm hängt es dagegen im Streifen mit
+   * Lampe und Medkit, wie jedes andere Ding in der rechten Hand.
+   */
+  private carryInHand(inHand: boolean): void {
+    const grip = this.host.ctx.input.get('right')?.grip;
+    const wanted: THREE.Object3D = inHand && grip ? grip : this.torch;
+    const held = wanted !== this.torch;
+    if (this.heldPart.parent === wanted) return;
+    wanted.add(this.heldPart);
+    this.heldPart.position.set(0, held ? -0.02 : 0, held ? -0.12 : 0);
+  }
+
   private updateTools(dt: number): void {
     const ctx = this.host.ctx;
     const immersive = ctx.renderer.xr.isPresenting;
     const available = this.player && !this.crew.simulation && !this.crew.hidden && this.crew.hp > 0;
+    // **Das Ersatzteil bleibt in der Hand, auch wenn die Hand etwas anderes
+    // zeigt.** `rightItem` sagt nur, was man *sieht*; getragen wird, was im
+    // Inventar steht (`carriedPart`). Sonst wäre ein Umschalten auf die Lampe
+    // ein Weg, das Teil verschwinden zu lassen.
+    const part = carriedPart(this.host.spec(), this.host.state());
+    if (!part && this.rightItem === 'part') this.rightItem = 'flashlight';
     this.torch.visible = available && !immersive && this.rightItem !== 'off';
     this.heldLamp.visible = this.rightItem === 'flashlight';
     this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight');
     this.heldMedkit.visible = this.rightItem === 'medkit';
+    // In der Brille hält die Hand selbst das Teil: Der Griff des rechten
+    // Controllers ist die Hand, und das Modell hängt daran, solange es
+    // getragen wird. Nur beim Wechsel umgehängt — jedes Bild neu einhängen
+    // hieße, den Szenengraph je Bild anzufassen.
+    const inHand = !!part && available && immersive;
+    this.carryInHand(inHand);
+    this.heldPart.visible = inHand || (!immersive && this.rightItem === 'part');
     this.scanner.visible = available && !immersive && this.sensorMode !== 'off';
     this.handheldRadar.visible = this.sensorMode === 'radar';
     this.handheldXray.visible = this.sensorMode === 'xray';
+    this.leftLamp.visible = this.sensorMode === 'flashlight';
+    this.leftLamp.setLit(this.scanner.visible && this.sensorMode === 'flashlight');
+    this.stepDropped();
     ctx.camera.getWorldDirection(_direction);
     this.handheldRadar.setContact(this.crew.options.test ? null : this.host.state().monster);
     if (this.scanner.visible && this.sensorMode === 'radar')
@@ -1321,6 +1618,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           (leaf.position.x = (i ? 1 : -1) * (PLAN_DOOR_W / 4 + (door.amount * PLAN_DOOR_W) / 2)),
       );
     }
+    // **Der Saum sitzt auf der Zielkiste** — aber nur, wenn die Kiste
+    // überhaupt verraten werden darf: Bei einem Menschen am Archiv nennt
+    // `objectives()` den Raum (`rules/roundSetup.goalPrecision`), und dann
+    // leuchtet hier nichts.
+    const goal = this.host.objectives?.()[0];
+    this.seam(goal?.kind === 'crate' ? goal.id : '');
+    // Das Röntgengerät blendet die Kennzeichen der noch vollen Kisten ein —
+    // sein Schild hing hier jahrelang unbenutzt herum, während stattdessen ein
+    // Inhaltsschild dauerhaft am Schrank klebte.
+    const scanning = this.sensorMode === 'xray' && !crew.hidden && crew.hp > 0;
     for (const cabinet of this.cabinets) {
       const opened = crew.opened.includes(cabinet.id);
       const amount = THREE.MathUtils.damp(cabinet.leaf.scale.y, opened ? 0.025 : 1, 8, dt);
@@ -1330,7 +1637,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       cabinet.group.visible =
         (cabinet.id !== 'test-supply' || crew.options.test) &&
         (!cabinet.room || !this.visibleRooms || this.visibleRooms.has(cabinet.room));
-      cabinet.scanner.visible = false;
+      cabinet.scanner.visible =
+        scanning &&
+        cabinet.group.visible &&
+        !!cabinet.scanSubject &&
+        !crew.inventory.includes(cabinet.id) &&
+        cabinet.at.distanceToSquared(_head) < XRAY_LABEL_RANGE * XRAY_LABEL_RANGE;
     }
     for (const locker of this.lockers) {
       // Zerstört ist, was im Stand steht — auch bei einer Runde, die man mit
@@ -1370,7 +1682,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         ctx.rig.frozen = hidden || this.savedRigFrozen;
         this.hiddenWas = hidden;
       }
-      this.dom.hidden = ctx.renderer.xr.isPresenting;
+      // **Das Panel und das Weltmenü teilen sich die linke Bildhälfte** — und
+      // lagen deshalb auf 1280×800 übereinander (Befund: y ≈ 460–590). Wer
+      // das Menü aufmacht, will das Menü; das Panel kommt zurück, sobald es
+      // zu ist. Dieselbe Regel wie beim Fadenkreuz eine Zeile weiter.
+      this.dom.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.paintControls();
       this.stepStick();
@@ -1628,18 +1944,25 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    */
   private paintHud(round: MapRound): void {
     const hud = roundHud(round);
-    const tasks = this.hudTasks();
+    // **Die zweite Zeile gibt es nur, wenn er allein spielt**
+    // (`hudTasksVisible`): Sitzt am Archiv ein Mensch, ist das Wissen dessen
+    // Platz, und der Techniker holt es sich am Funk. Die erste Zeile — Uhr
+    // und Anzug — bleibt in jedem Fall; das ist sein Anzug.
+    const orders = hudTasksVisible(powersOf(loadSetup()));
+    const tasks = orders ? this.hudTasks() : [];
     const pips = taskPips(tasks);
     // Der nächste offene Auftrag ist der, der zählt; sind alle fertig, geht es
     // zurück in die Einsatzzentrale, und genau das steht dann dort.
     const next = tasks.find((task) => task.step < 2);
-    const line = next ? `${next.room}: ${next.title}` : 'Zurück zur Einsatzzentrale';
-    const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${pips}|${line}`;
+    const line = !orders ? '' : next ? `${next.room}: ${next.title}` : 'Zurück zur Einsatzzentrale';
+    const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${pips}|${line}|${orders}`;
     if (this.hud.mesh.userData.paint === key) return;
     this.hud.mesh.userData.paint = key;
     const c = this.hud.ctx;
     const { width: w, height: h } = this.hud.canvas;
-    const top = h * 0.5;
+    // Ohne Auftragszeile ist der Streifen **eine** Zeile hoch und nicht eine
+    // halbleere Tafel: Die Uhr rückt in die Mitte, die Trennlinie fällt weg.
+    const top = orders ? h * 0.5 : h;
     const pad = h * 0.16;
     c.clearRect(0, 0, w, h);
     c.fillStyle = 'rgba(8, 24, 35, 0.78)';
@@ -1656,6 +1979,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     c.font = `${Math.round(top * 0.5)}px system-ui`;
     c.fillStyle = round.suit > 0 ? '#adffe8' : hud.color;
     c.fillText(hud.suit, w - pad, top / 2, w * 0.4);
+    if (!orders) {
+      this.hud.texture.needsUpdate = true;
+      return;
+    }
     // Die Trennlinie macht aus zwei Zeilen zwei Zeilen und nicht einen Absatz.
     c.strokeStyle = '#1e3a4a';
     c.lineWidth = 2;
@@ -1768,6 +2095,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       roles.dataset.action = 'stations';
       this.dom.append(roles);
     }
+    // **Ein Knopf, und zwar genau einer**: dieselbe Runde von oben statt von
+    // innen (`HauntingWorld.switchView`). Er steht oben bei „Rolle wechseln",
+    // weil er dasselbe ist — eine Ansicht und kein Neustart —, und nicht unten
+    // zwischen den Handgriffen, wo man ihn auf der Flucht trifft.
+    if (this.host.switchView && !crew.simulation) {
+      const flat = document.createElement('button');
+      flat.textContent = '2D von oben';
+      flat.dataset.action = 'flat-view';
+      this.dom.append(flat);
+    }
     if (crew.simulation) {
       const camera = document.createElement('button');
       camera.textContent = this.followBot ? 'Freie Kamera' : 'Bot folgen';
@@ -1779,7 +2116,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.dom.append(overview);
       const legend = document.createElement('div');
       legend.textContent =
-        'KI-Wege: Cyan = Techniker · Rot = Monster · Gelb = Drohne · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag';
+        'KI-Wege: Cyan = Techniker · Rot = Monster · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag';
       this.dom.append(legend);
       const intent = document.createElement('div');
       intent.dataset.aiIntent = '';
@@ -1832,8 +2169,24 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       into.append(b);
     };
     if ((!near.room && !crew.simulation) || crew.hp === 0) {
-      button('Mission starten', 'start');
-      button('Test ohne Monster', 'test');
+      // **Dieselben drei Absichten wie im Van und in der Brille**
+      // (`rules/lobby.ts`). Vorher standen hier „Mission starten" und „Test
+      // ohne Monster", daneben in der Brille „TEST / ohne Monster" und im Van
+      // „Test ohne Monster (2D)" — dreimal dasselbe, dreimal anders benannt.
+      // Die Verteilung kommt aus dem Speicher (`loadSetup`), weil sie dort
+      // ohnehin bei jeder Änderung landet: So sagt die Zeile darunter
+      // dasselbe wie die Tafel im Van, ohne einen zweiten Draht dorthin.
+      const setup = loadSetup();
+      const active = intentOf(setup);
+      for (const intent of INTENTS)
+        button(
+          `${intent === active ? '● ' : ''}${INTENT_LABELS[intent]} — ${INTENT_HINTS[intent]}`,
+          `intent:${intent}`,
+        );
+      const line = document.createElement('div');
+      line.className = 'orbital-player__setup';
+      line.textContent = describeSetup(setup);
+      row.append(line);
       button(`Skeld · ${crew.options.rooms} Räume`, 'rooms');
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
@@ -1841,6 +2194,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     button(`Linke Hand: ${HAND_LABEL[this.sensorMode]}`, 'sensor');
     button(`Rechte Hand: ${HAND_LABEL[this.rightItem]}`, 'right');
     button('Medkit', 'heal');
+    // **Ablegen steht nur da, wenn etwas abzulegen ist.** Ein Knopf, der bei
+    // leeren Händen nichts tut, ist einer, den man mitten in der Flucht trifft.
+    if (carriedPart(this.host.spec(), state))
+      button(
+        `${lootLabel(this.host.spec(), carriedPart(this.host.spec(), state))} ablegen (G)`,
+        'drop',
+      );
     if (crew.hidden) button('Schutzschrank verlassen', 'leave');
     if (near.cabinet && !crew.hidden) {
       button(`${near.cabinet.mark} öffnen / schließen`, `open:${near.cabinet.id}`);
@@ -2139,7 +2499,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const [kind, id, a, b] = action.split(':');
     if (kind === 'start') this.host.start();
     else if (kind === 'test') this.host.test();
-    else if (kind === 'stations') this.host.stations?.();
+    // Die drei Kacheln der Lobby, hier als Knöpfe: Spielen ist die Mission,
+    // Trainieren der sichere Test, Zuschauen die Bot-Runde.
+    else if (kind === 'intent') {
+      if (id === 'watch') this.toggleSimulation();
+      else if (id === 'train') this.host.test();
+      else this.host.start();
+    } else if (kind === 'stations') this.host.stations?.();
+    else if (kind === 'flat-view') this.host.switchView?.('2d');
     else if (kind === 'overview') {
       this.followBot = false;
       if (!this.host.ctx.renderer.xr.isPresenting) {
@@ -2154,6 +2521,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else if (kind === 'sensor') this.cycleSensor();
     else if (kind === 'right') this.cycleRight();
     else if (kind === 'heal') this.heal();
+    else if (kind === 'drop') this.dropPart();
     else if (kind === 'leave') this.leaveLocker();
     else if (kind === 'menu') this.host.ctx.menu.toggle();
     else if (kind === 'open') this.openCabinet(id!);
@@ -2310,6 +2678,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     state.time = 0;
     state.done = [];
     state.taken = [];
+    state.dropped = [];
     state.lit = [];
     state.shut = [];
     state.fuse = false;
@@ -2528,6 +2897,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.scanner.removeFromParent();
     this.handheldXray.disposeTool();
     this.handheldRadar.disposeTool();
+    this.leftLamp.disposeTool();
+    // Das Teil in der Hand hängt in der Brille am Controller und nicht am
+    // Streifen — wer nur den Streifen wegräumt, lässt es dort zurück.
+    this.heldPart.removeFromParent();
+    disposeObject(this.heldPart);
     disposeObject(this.heldMedkit);
     this.status.mesh.removeFromParent();
     disposeObject(this.status.mesh);

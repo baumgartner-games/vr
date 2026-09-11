@@ -1,3 +1,4 @@
+import { DOOR_LOSS } from '../audio/hearing';
 import type { RoutineWorld } from '../monsterRoutine';
 import type { FloorPoint } from '../stationLayout';
 
@@ -34,6 +35,12 @@ import type { FloorPoint } from '../stationLayout';
  *   nicht verfällt, macht aus einer alten Sichtung für den Rest der Runde
  *   einen Wegweiser.
  *
+ * Dazu kommen zwei Ereignisse, die die Welt meldet, weil die Routine sie
+ * nicht sehen kann: ein **Aufruhr** (`disturbed`, eine fertig gewordene
+ * Reparatur) und eine **Fährte** (`tracked`, Blut auf dem Boden,
+ * `rules/blood.ts`). Beide schreiben unter `heard` und nicht in die Spur —
+ * sie sagen, wo jemand war, nicht, wohin er in dieser Sekunde läuft.
+ *
  * **Gesperrte Türen halten den Glauben auf.** Was das Monster selbst
  * zugeschlagen oder der Techniker verriegelt hat (`HauntState.shut`, siehe
  * `rules/doorLocks.ts`), lässt keine Masse durch — wer hinter einem Riegel
@@ -46,9 +53,12 @@ import type { FloorPoint } from '../stationLayout';
  * kann das Training (`roundSim.ts`) es hunderte Runden lang mitlaufen lassen,
  * und deshalb kann ein Test es nachrechnen.
  *
- * **Noch nicht angeschlossen.** Die Routine kennt dieses Gedächtnis bisher
- * nicht; das Verdrahten (und die Abfangrechnung darauf) ist ein eigenes
- * Arbeitspaket.
+ * **Angeschlossen ist es in `monsterRoutine.ts`** (Paket M2). Dort wird es
+ * auch gefüttert: Die Routine sieht Sichtung, Geräusch und den eigenen Raum
+ * ohnehin, und ein Gedächtnis, das in 3D, 2D und Simulation von drei
+ * verschiedenen Stellen beschrieben wird, ist nach der ersten Änderung drei
+ * verschiedene Gedächtnisse. Die Welt besitzt es, meldet ihm, was die Routine
+ * nicht sehen kann (`disturbed`), und liest es aus.
  */
 
 /**
@@ -70,6 +80,16 @@ export const TRACK_LENGTH = 6;
 export const SNAPSHOT_MIN = 0.02;
 
 /**
+ * **Wie weit voraus eine Blutspur gelesen wird**, in Metern (`tracked`).
+ *
+ * Drei Meter sind reichlich mehr als der Abstand zweier Tropfen
+ * (`blood.DROP_SPACING`) und weniger als ein halber Raum: weit genug, um über
+ * eine Türschwelle hinauszureichen, kurz genug, um nicht zwei Räume weiter zu
+ * raten. Findet dort kein Raum, bleibt es bei dem, in dem der Tropfen liegt.
+ */
+export const SCENT_LEAD = 3;
+
+/**
  * Der größte Zeitschritt, den eine Diffusion am Stück macht. Explizites Euler
  * mit `DRIFT` je Tür schwingt ins Negative, sobald ein Schritt mehr Masse
  * ausschüttet, als im Raum liegt; ein Bild mit negativen Wahrscheinlichkeiten
@@ -88,12 +108,16 @@ const CARRY = 14;
 /** Die kleinste Likelihood eines Geräuschs — kein Raum fällt an einem Knall ganz aus. */
 const WHISPER = 0.02;
 /**
- * Was eine Tür im Ersatzrechner an Hörweite schluckt (`roomGraph.DOOR_LOSS`
- * ist dieselbe Zahl). Gebraucht wird sie nur, wenn die Welt keine `earshot`
- * mitbringt — der echte `StationGraph` tut es, ein Testaufbau aus fünf
- * Zimmern nicht.
+ * Was eine Tür im Ersatzrechner an Hörweite schluckt. Gebraucht wird die Zahl
+ * nur, wenn die Welt keine `earshot` mitbringt — der echte `StationGraph` tut
+ * es, ein Testaufbau aus fünf Zimmern nicht.
+ *
+ * Sie kommt aus dem Hörmodell (`audio/hearing.ts`) und nicht mehr aus einer
+ * eigenen Konstante: Es gab hier einmal eine 9, weil `roomGraph` damals eine
+ * eigene 9 führte — und die war in Wahrheit die Dämpfung einer **Wand**. Zwei
+ * Wahrheiten über dieselbe Tür sind eine zu viel.
  */
-const MUFFLE = 9;
+const MUFFLE = DOOR_LOSS;
 /** Wie stark eine ältere Sichtung in der geglätteten Geschwindigkeit nachwiegt. */
 const FADE = 0.5;
 
@@ -133,6 +157,28 @@ export interface RoomNote {
  */
 export function doorKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/**
+ * **Aus Türkennungen Raumpaare machen** — die Übersetzung, die der Konstruktor
+ * für `shut` verlangt.
+ *
+ * `HauntState.shut` führt die Türen so, wie der Bauplan sie nennt (`d7`); das
+ * Gedächtnis kennt eine Tür nur als das Paar der Räume, die sie verbindet.
+ * Die Haustür hat keinen zweiten Raum — dahinter liegt die Einsatzzentrale,
+ * und die heißt in der Karte `command` (`roomGraph.COMMAND`, hier als
+ * Vorgabe, damit dieses Modul die Karte nicht importieren muss).
+ */
+export function shutPairs(
+  doors: ReadonlyArray<{ id: string; a: string; b: string | null }>,
+  shut: readonly string[],
+  outside = 'command',
+): string[] {
+  if (!shut.length) return [];
+  const closed = new Set(shut);
+  return doors
+    .filter((door) => closed.has(door.id))
+    .map((door) => doorKey(door.a, door.b ?? outside));
 }
 
 /** Die gedämpfte Hörweite, wie der `StationGraph` sie mitbringt. */
@@ -190,6 +236,78 @@ export class MonsterMemory {
     if (note) note.seen = time;
     if (!this.mass.has(where)) return;
     for (const id of this.spaces) this.mass.set(id, id === where ? 1 : 0);
+  }
+
+  /**
+   * **Da drüben ist gerade etwas passiert.** Die ganze Masse in diesen Raum —
+   * wie bei einer Sichtung, aber ohne Eintrag in der Spur.
+   *
+   * Gemeint ist ein Ereignis, das die Station selbst macht und nicht der
+   * Körper des Technikers: eine fertige Reparatur. Die Konsole fährt hoch, die
+   * Sicherung fällt, im Modul flackert das Licht — das ist über die halbe
+   * Station zu hören und zu sehen, und dass jemand daneben gestanden haben
+   * muss, ist keine Hellsichtigkeit, sondern ein Schluss, den jedes Tier zieht.
+   *
+   * **Warum nicht einfach `seen`.** Weil eine Sichtung zwei Dinge behauptet:
+   * *wo* jemand ist und *wohin* er läuft. Das Zweite steckt in der Spur
+   * (`track`), aus der die Abfangrechnung Richtung und Tempo zieht
+   * (`monster/monsterIntercept.ts`). Ein Aufruhr sagt über die Richtung
+   * nichts. Als `seen` gebucht, hätte er eine erfundene Sichtung an einen Ort
+   * gesetzt, an dem der Techniker im nächsten Moment schon nicht mehr steht —
+   * und die Prognose hätte daraus eine Fahrtrichtung gerechnet, die es nie
+   * gab. Deshalb steht das Ereignis im Notizzettel unter `heard`, wo die
+   * Wahrheit steht: gemerkt, nicht gesehen.
+   */
+  disturbed(room: string, at: FloorPoint, time: number): void {
+    const where = this.mass.has(room) ? room : (this.world.spaceAt?.(at) ?? '');
+    if (!this.mass.has(where)) return;
+    this.trace = time;
+    const note = this.notes.get(where);
+    if (note) note.heard = time;
+    for (const id of this.spaces) this.mass.set(id, id === where ? 1 : 0);
+  }
+
+  /**
+   * **Eine Fährte auf dem Boden** (`rules/blood.ts`) — Blut, über das das
+   * Monster gerade gelaufen ist.
+   *
+   * Sie sagt zwei Dinge, und erst beide zusammen machen sie wertvoll: dass
+   * jemand hier war, und **wohin er weiterging**. Deshalb landet die Masse
+   * nicht in dem Raum, in dem der Tropfen liegt, sondern in dem, auf den die
+   * Spur zeigt (`SCENT_LEAD` Meter voraus, sofern dort überhaupt ein Raum
+   * ist). Ein Monster, das den Tropfen unter den eigenen Füßen für den
+   * Aufenthaltsort des Verfolgten hält, sucht genau dort, wo es schon steht.
+   *
+   * **Sie schiebt den Glauben, sie ersetzt ihn nicht.** `seen` und
+   * `disturbed` legen die ganze Masse in einen Raum, weil es dort gerade
+   * *jetzt* etwas zu sehen oder zu hören gab. Blut ist alt, und wie alt, sagt
+   * `trust` (0 bis 1): Bei 1 käme die Gewissheit einer Sichtung heraus, und
+   * ein einziger Treffer schenkte dem Monster den Rest der Runde. Also wird
+   * gemischt — `trust` Anteil Fährte, der Rest das bisherige Bild.
+   *
+   * **Kein Eintrag in der Spur**, aus demselben Grund wie bei `disturbed`:
+   * Aus einer Fährte eine Fahrtrichtung samt Tempo zu rechnen, wäre eine
+   * erfundene Sichtung — die Prognose der Abfangrechnung
+   * (`monster/monsterIntercept.ts`) hinge dann an einem Tropfen von vor
+   * dreißig Sekunden. Notiert wird unter `heard`: gemerkt, nicht gesehen.
+   */
+  tracked(room: string, at: FloorPoint, dir: FloorPoint | null, trust: number, time: number): void {
+    const here = this.mass.has(room) ? room : (this.world.spaceAt?.(at) ?? '');
+    if (!this.mass.has(here)) return;
+    const weight = Math.max(0, Math.min(1, trust));
+    if (!(weight > 0)) return;
+    let where = here;
+    if (dir) {
+      const ahead =
+        this.world.spaceAt?.({ x: at.x + dir.x * SCENT_LEAD, z: at.z + dir.z * SCENT_LEAD }) ?? '';
+      if (this.mass.has(ahead)) where = ahead;
+    }
+    this.trace = time;
+    const note = this.notes.get(where);
+    if (note) note.heard = time;
+    for (const id of this.spaces)
+      this.mass.set(id, this.mass.get(id)! * (1 - weight) + (id === where ? weight : 0));
+    this.normalize();
   }
 
   /**

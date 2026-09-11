@@ -186,9 +186,21 @@ describe('Der geglättete Weg in der 2D-Welt', () => {
       longest = 0;
     let last = { x: round.monster.x, z: round.monster.z };
     for (let t = 0; t < 30; t += 1 / 30) {
+      // **Der Techniker sitzt im Schutzschrank.** Seit das Monster schneller
+      // geht als ein Spieler geht (Paket M2), steht es nach zwanzig Sekunden
+      // auf dem reglosen Techniker in der Zentrale — und wer sein Ziel
+      // erreicht hat, bewegt sich nicht mehr. Gemeint ist hier aber die
+      // Wegsuche: Es soll herumkommen, nicht jemanden finden.
+      round.state().crew.hidden = round.player.space;
       round.step(1 / 30, { x: 0, z: 0, sprint: false });
       spaces.add(round.monster.space);
-      if (Math.hypot(round.monster.x - last.x, round.monster.z - last.z) < 1e-4) stuck++;
+      // **Gezählt wird nur Stillstand, den es nicht will.** Die Routine hält
+      // absichtlich inne — beim Auflauern so lange, wie sie sonst einen Raum
+      // absucht, an einer Tür beim Abfangen kurz, nach einem Kabinenangriff
+      // ein paar Sekunden. Das ist Verhalten und kein Hänger; gemeint ist
+      // hier eine Wand, an der es klebt, obwohl es laufen will.
+      const willing = round.decided?.pace !== 'still';
+      if (willing && Math.hypot(round.monster.x - last.x, round.monster.z - last.z) < 1e-4) stuck++;
       else stuck = 0;
       longest = Math.max(longest, stuck);
       last = { x: round.monster.x, z: round.monster.z };

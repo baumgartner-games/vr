@@ -43,13 +43,13 @@ describe('Die Schalttafel', () => {
             entry.kind === 'door'
               ? roomName.get(doorRoom.get(entry.target)!)!
               : roomName.get(entry.target)!;
-          const sort = entry.kind === 'light' ? 'Licht' : entry.kind === 'door' ? 'Tür' : 'Radio';
+          const sort = entry.kind === 'light' ? 'Licht' : 'Tür';
 
           for (const name of new Set(roomName.values())) {
             // Steht ein Zimmername darauf, ist es dieses Zimmer.
             if (entry.label.includes(name)) expect(home).toBe(name);
           }
-          for (const other of ['Licht', 'Tür', 'Radio']) {
+          for (const other of ['Licht', 'Tür']) {
             // Und steht eine Sorte darauf, ist es diese Sorte.
             if (entry.label.startsWith(`${other} `)) expect(sort).toBe(other);
           }
@@ -67,6 +67,20 @@ describe('Die Schalttafel', () => {
         const after = visibleSwitches(spec.switches, true).length;
         expect(after).toBeGreaterThan(before);
         expect(after).toBe(spec.switches.length);
+      });
+
+      /**
+       * **Die Schallköder sind weg.** Es gab eine dritte Sorte Schalter, die
+       * das Monster anlockte; sie war der eine direkte Griff der Tafel an das
+       * Vieh und hat es in Ecken geparkt, statt dem Hacker etwas zu erzählen.
+       * Der Test bleibt stehen, nur andersherum: Es darf keine mehr geben.
+       */
+      it('kennt nur noch zwei Sorten Schalter — keine Köder mehr', () => {
+        for (const entry of spec.switches) expect(['light', 'door']).toContain(entry.kind);
+        expect(spec.switches.filter((one) => one.label.includes('Radio'))).toHaveLength(0);
+        expect(spec.switches).toHaveLength(
+          spec.rooms.filter((room) => room.lamp).length + spec.doors.length,
+        );
       });
 
       it('lässt die Türen offen und das Licht aus, wenn es losgeht', () => {

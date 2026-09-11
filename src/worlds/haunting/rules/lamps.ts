@@ -37,8 +37,18 @@
 
 /** Wie viele Lampen der Schalttafel gleichzeitig brennen dürfen. */
 export const LAMP_BUDGET = 2;
-/** Wie lange eine angemachte Lampe hält, in Sekunden: mindestens, höchstens. */
-export const LAMP_RANGE: readonly [number, number] = [40, 60];
+/**
+ * Wie lange eine angemachte Lampe hält, in Sekunden: mindestens, höchstens.
+ *
+ * **„Nach ein paar Sekunden geht das Licht aus."** Eine Minute ist das nicht
+ * — in einer Minute ist der Techniker zwei Räume weiter und hat die Lampe
+ * längst vergessen; sie brannte dann nicht für ihn, sondern nur noch für das
+ * Monster. Fünf Sekunden sind es auch nicht: Ein Licht, das ausgeht, bevor
+ * man den Raum durchquert hat, ist kein Licht, sondern ein Fehler. Fünf
+ * Sekunden davon flackern ohnehin schon (`LAMP_FLICKER`), also bleibt eine
+ * halbe Minute, gewürfelt, damit niemand mitzählt.
+ */
+export const LAMP_RANGE: readonly [number, number] = [25, 35];
 /** Wie viele Sekunden vor dem Ende eine Lampe flackert. */
 export const LAMP_FLICKER = 3;
 

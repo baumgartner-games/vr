@@ -22,7 +22,6 @@
 /* Der Stock und die Knöpfe der 2D-Welt liegen auch über der 3D-Szene
    (`world3d/shipControls.ts`) — dieselbe Datei, einmal gesetzt. */
 @import './map/controls.css';
-
 .haunt {
   --haunt-ink: #e8ecf7;
   --haunt-dim: #97a3bd;
@@ -51,7 +50,6 @@
   color: var(--haunt-ink);
   pointer-events: none;
 }
-
 .haunt > * { pointer-events: auto; }
 
 /* Eine Farbe je Station — dieselben wie auf den Monitoren in der
@@ -64,6 +62,12 @@
 .haunt[data-station="watch"] { --haunt-accent: #b98cff; }
 /* Die Gegenseite: dasselbe Rot wie die Monster-Ansicht selbst (`monster/monster.css`). */
 .haunt[data-station="monster"], .haunt [data-accent="monster"] { --haunt-accent: #ff4d55; }
+/* Die Monster-Ansicht füllt die Seite: kein Rand, kein Rollen — der Stock liegt am Rand. */
+/* Die Monster-Ansicht als Seite der Einsatzzentrale. Sie steht hier **unter**
+   der Kopfzeile und braucht deshalb keinen Abstand zum HUD der Seite — anders
+   als in der 2D-Welt, wo sie über allem liegt (`monster/monster.css`,
+   `--flat-top`). */
+.haunt[data-station="monster"] .haunt__body { position: relative; padding: 0; overflow: hidden; --flat-top: 10px; }
 /* Eine Rolle mit Karte füllt die Seite: kein Rand, kein Rollen — Stock,
    Knöpfe und Anzeigen liegen am Rand ihrer eigenen Fläche. Der Zuschauer
    bekommt dieselbe Fläche, nur ohne Grund: Dort zeichnet die 3D-Welt. */
@@ -74,7 +78,6 @@
    Karte füllt die Fläche absolut — ohne diese Zeile läge das Ergebnis der
    Runde hinter dem Grundriss. */
 .haunt.is-view .haunt__round-result { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 5; width: min(92vw, 400px); box-sizing: border-box; }
-
 .haunt [data-accent="archive"] { --haunt-accent: #ffc857; }
 .haunt [data-accent="scout"] { --haunt-accent: #ff6b6b; }
 .haunt [data-accent="hack"] { --haunt-accent: #4aa8ff; }
@@ -83,6 +86,14 @@
 /* In der Einsatzzentrale wird nicht gelaufen: Der Touch-Stick des Handys hätte hier nichts zu
    steuern und läge quer über der Schalttafel. */
 body.haunt-on .touch { display: none; }
+/* **Das Telefon hat seine eigene Kopfzeile** (`stationUi.writeBar`): die
+   Reiter ganz oben. Die der Seite (`index.html`, `#hud`: Haunting · Menü ·
+   Verbindung · VR) wird deshalb ausgeblendet — zwei Kopfzeilen übereinander
+   waren auf einem 390 Punkte breiten Telefon ein halber Bildschirm. Sie wird
+   nur **versteckt** und nicht abgebaut: Verbindung und VR hängen an ihren
+   Knöpfen (`main.ts`), und die kleinen Knöpfe im Telefon drücken sie
+   stellvertretend. */
+body.haunt-on #hud { display: none; }
 
 /* Ein Doppeltipp auf einem Schalter soll ihn zweimal umlegen und nicht die
    Seite zoomen — und die graue Blitzfläche von Android gehört hier nicht hin.
@@ -101,97 +112,77 @@ body.haunt-on .touch { display: none; }
   -webkit-tap-highlight-color: transparent;
   cursor: pointer;
 }
-
 .haunt button:focus-visible {
   outline: 2px solid var(--haunt-accent);
   outline-offset: 2px;
 }
-
 .haunt button:active { transform: translateY(1px); }
 .haunt button[disabled] { opacity: 0.45; cursor: default; transform: none; }
-
 @media (prefers-reduced-motion: reduce) {
   .haunt *, .haunt *::before, .haunt *::after { transition: none !important; }
 }
 
 /* --- Kopfzeile --- */
 
+/* **Die Kopfzeile ist die Rollenwahl.** Sie fängt oben an — die Kopfzeile der
+   Seite ist ausgeblendet, also braucht es keinen Streifen mehr für sie —, und
+   die Reiter scrollen waagerecht, wenn sieben davon nicht nebeneinander
+   passen. Ein Reiter, der umbricht, verschiebt bei jedem Rollenwechsel alles
+   darunter. */
 .haunt__bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  /* Oben schwebt das HUD der Seite (Menü, Verbindung, VR). Es bekommt seinen
-     Streifen, statt sich mit der Zeile hier zu überlagern. */
-  padding: calc(12px + max(46px, env(safe-area-inset-top))) 12px 10px;
+  gap: 8px;
+  padding: calc(6px + env(safe-area-inset-top)) 8px 6px;
   background: var(--haunt-bar);
   border-bottom: 1px solid var(--haunt-line);
 }
-
-.haunt__where {
+.haunt__roles {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex: 1;
+  gap: 6px;
   min-width: 0;
-  /* Der Punkt in der Farbe der Station, links am Namen. */
-  padding-left: 14px;
-  position: relative;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-
-.haunt__where::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 6px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--haunt-accent);
-  box-shadow: 0 0 10px var(--haunt-accent);
-}
-
-.haunt__where strong { font-size: 16px; letter-spacing: 0.01em; }
-.haunt__where small {
-  font-size: 11px;
-  color: var(--haunt-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
+.haunt__roles::-webkit-scrollbar { display: none; }
+.haunt .haunt__role {
+  flex: none;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--haunt-line);
+  background: transparent;
+  color: var(--haunt-dim);
+  font: inherit;
+  font-size: 13px;
   white-space: nowrap;
 }
 
-.haunt__state {
-  margin-left: auto;
-  flex: none;
-  font-size: 11px;
-  color: var(--haunt-dim);
-  border: 1px solid var(--haunt-line);
-  border-radius: 999px;
-  padding: 5px 9px;
+/* Was ich **halte**, ist gelb umrandet; was gerade **offen** ist, leuchtet in
+   der Farbe der Station. Zwei Auskünfte, zwei Zeichen: Wer die Schalttafel
+   hält, aber das Archiv liest, sieht beides. */
+.haunt .haunt__role.is-mine { border-color: var(--haunt-warn); color: var(--haunt-ink); }
+.haunt .haunt__role[aria-pressed='true'] {
+  border-color: var(--haunt-accent);
+  background: var(--haunt-card-hi);
+  color: var(--haunt-ink);
+  font-weight: 650;
 }
-
-/* Wenn das Monster läuft, ist das die wichtigste Zeile auf dem Schirm. */
-.haunt__state.is-hot {
-  color: #ffd0d0;
-  border-color: rgba(255, 90, 90, 0.55);
-  background: rgba(90, 20, 24, 0.55);
-}
-
-.haunt__back {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.haunt__tools { display: flex; flex: none; gap: 6px; }
+.haunt .haunt__tool {
+  min-width: 40px;
   min-height: 40px;
-  border: 1px solid var(--haunt-line-strong);
-  background: rgba(24, 32, 52, 0.9);
+  padding: 6px 8px;
   border-radius: 10px;
-  padding: 8px 12px;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
+  color: var(--haunt-dim);
+  font: inherit;
   font-size: 13px;
 }
 
-.haunt__back-icon { color: var(--haunt-accent); font-size: 11px; }
-
 /* --- Auftragsstreifen --- */
-
 .haunt__quest {
   display: flex;
   align-items: center;
@@ -203,10 +194,12 @@ body.haunt-on .touch { display: none; }
   color: var(--haunt-faint);
 }
 
+/* `display: flex` schlägt sonst das `hidden`-Attribut: Im Aufbau steht kein
+   Auftragsstreifen, weil dort noch nichts läuft (`stationUi.write`). */
+.haunt__quest[hidden] { display: none; }
 .haunt__quest-label { letter-spacing: 0.1em; text-transform: uppercase; }
 .haunt__quest-count { margin-left: auto; color: var(--haunt-dim); }
 .haunt__pips { display: flex; gap: 4px; flex: 1; max-width: 220px; }
-
 .haunt__pip {
   flex: 1;
   height: 5px;
@@ -236,15 +229,18 @@ body.haunt-on .touch { display: none; }
 .haunt__quest-cabins { color: var(--haunt-warn); }
 .haunt__quest.is-low .haunt__quest-oxygen { color: #ff7a8a; animation: haunt-low-oxygen 1s ease-in-out infinite; }
 .haunt__quest.is-low { border-bottom-color: rgba(255, 82, 103, 0.6); }
-.haunt__round-line { display: flex; gap: 12px; align-items: baseline; margin: 10px 0 0; color: #8eacb5; font-size: 12px; }
-.haunt__round-line strong { font-size: 18px; letter-spacing: 0.08em; }
-.haunt__round-line.is-low strong { color: #ff7a8a; animation: haunt-low-oxygen 1s ease-in-out infinite; }
-
 @keyframes haunt-low-oxygen {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
 
+/* **Die Seite liegt nicht mehr über einem Bild.** Bis eben stand das Bild der
+   Drohne fest im Hintergrund, und Kopfzeile, Auftragsstreifen und Liste lagen
+   darüber — die Liste dabei auf `display: none`, bis ein Menüknopf sie holte.
+   Beides ist weg: Die Rollen sind Karten und füllen die Seite unter der
+   Leiste, und wer ein Bild der Welt braucht, macht sich selbst eines
+   (`RoleView.viewport`). Eine Leiste mit Milchglas über einem Bild, das es
+   nicht mehr gibt, wäre nur noch ein weicher Rand. */
 .haunt__body {
   flex: 1;
   overflow-y: auto;
@@ -274,7 +270,6 @@ body.haunt-on .touch { display: none; }
 .haunt__body > * { flex: none; }
 
 /* --- Hinweiskacheln: drei Töne, nicht fünf --- */
-
 .haunt__note {
   display: flex;
   flex-direction: column;
@@ -288,33 +283,17 @@ body.haunt-on .touch { display: none; }
   line-height: 1.45;
   color: #b9c3da;
 }
-
 .haunt__note strong { font-size: 13px; color: var(--haunt-ink); }
 .haunt__note.is-live { border-left-color: var(--haunt-accent); }
 .haunt__note.is-warn { border-left-color: var(--haunt-warn); }
 .haunt__note.is-warn strong { color: var(--haunt-warn); }
-
 .haunt__tag { font-size: 11px; color: var(--haunt-dim); line-height: 1.4; }
-.haunt__blind { font-size: 11px; color: var(--haunt-faint); line-height: 1.4; }
 
-/* Ein Balken, der sich füllt — Anmarsch, Akku, was auch immer. */
-.haunt__rail {
-  display: block;
-  height: 7px;
-  border-radius: 4px;
-  background: rgba(140, 170, 230, 0.16);
-  overflow: hidden;
-}
-
-.haunt__rail i {
-  display: block;
-  height: 100%;
-  background: var(--haunt-accent);
-  transition: width 0.18s linear;
-}
-
-/* --- die Geräte in der Einsatzzentrale --- */
-
+/* --- die eine Kachel, die noch übrig ist --- */
+/* Die Geräteübersicht ist weg: Gewählt wird über die Reiter oben, und was eine
+   Rolle sieht, steht in der Hilfe des Aufbaus. Geblieben ist `.haunt__tile`
+   für den Notausgang „Als Techniker am Desktop testen" — den gibt es in einer
+   Welt ohne Aufbau-Anschluss, und dort ist er der einzige Weg an den Stock. */
 .haunt__tile {
   display: flex;
   flex-direction: column;
@@ -328,27 +307,7 @@ body.haunt-on .touch { display: none; }
   background: var(--haunt-card);
 }
 
-.haunt__tile-head { display: flex; align-items: center; gap: 8px; }
-.haunt__tile-head strong { font-size: 16px; }
-.haunt__tile.is-mine { background: var(--haunt-card-hi); border-color: var(--haunt-accent); }
-.haunt__tile.is-taken { opacity: 0.6; }
-.haunt__tile.is-coming { opacity: 1; }
-
-.haunt__seat {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--haunt-faint);
-  border: 1px solid var(--haunt-line);
-  border-radius: 999px;
-  padding: 3px 9px;
-  white-space: nowrap;
-}
-
-.haunt__seat.is-mine { color: #06121b; background: var(--haunt-accent); border-color: transparent; }
-.haunt__seat.is-taken { color: var(--haunt-dim); }
-
 /* --- breiter --- */
-
 @media (min-width: 760px) {
   .haunt__body { padding: 16px 24px calc(32px + env(safe-area-inset-bottom)); gap: 10px; }
   .haunt__quest { padding: 8px 24px; }
@@ -362,7 +321,8 @@ body.haunt-on .touch { display: none; }
  * hochkant richtig sitzt, frisst hier die halbe Seite.
  */
 @media (orientation: landscape) and (max-height: 560px) {
-  .haunt__bar { padding-top: calc(8px + max(40px, env(safe-area-inset-top))); }
+  .haunt__bar { padding-top: calc(4px + env(safe-area-inset-top)); }
+  .haunt .haunt__role { min-height: 34px; padding-block: 4px; }
 }
 
 /* ORBITAL: instruments readable on a phone, no blur/post-processing. */
@@ -370,7 +330,6 @@ body.haunt-on .touch { display: none; }
 .haunt[data-station="archive"] { --haunt-accent: #ffc58a; }
 .haunt[data-station="scout"] { --haunt-accent: #7de5cf; }
 .haunt button { touch-action: manipulation; min-height: 44px; }
-.haunt__where small { max-width: 58vw; overflow-wrap: anywhere; }
 .haunt__tile { border-radius: 10px; border-left: 3px solid var(--haunt-accent); }
 .haunt__body { scrollbar-width: thin; scrollbar-color: #375c6b #081823; }
 /* Die Steuerung der 2D-Welt über der 3D-Szene (`world3d/shipControls.ts`):
@@ -392,8 +351,15 @@ body.haunt-on .touch { display: none; }
 .flat.ship3d { pointer-events: none; z-index: 3; }
 .flat.ship3d .flat__stick, .flat.ship3d .flat__buttons { pointer-events: auto; }
 .flat.ship3d .flat__stick { width: min(44vw, 240px); height: 200px; }
-.orbital-player.is-keys { bottom: 212px; max-height: 32vh; }
-.orbital-player { position: fixed; bottom: 16px; left: 16px; z-index: 4; width: min(670px, calc(100vw - 32px)); max-height: 44vh; overflow-y: auto; box-sizing: border-box; border: 1px solid #365565; border-radius: 12px; padding: 14px; background: rgba(7,22,32,.96); color: #e0eff0; font: 12px system-ui, sans-serif; box-shadow: 0 8px 25px #0004; }
+/* Wo der Stock und die Knöpfe der 2D-Bedienung liegen, hört das Panel auf. */
+.orbital-player.is-keys { bottom: 212px; }
+/* **Oben links, unter dem HUD der Seite und unter dem Kompass** — nicht mehr
+   unten links, wo es dem Weltmenü ins Bild lief (Befund 1.1, letzter Punkt).
+   `--flat-top` ist dieselbe Kante, an der auch die 2D-Welt anfängt; die 44 px
+   darunter sind der Kompass (`.orbital-compass`, 38 px hoch). */
+.orbital-player { position: fixed; top: calc(var(--flat-top, calc(max(12px, env(safe-area-inset-top)) + 58px)) + 44px); bottom: 16px; left: 16px; z-index: 4; width: min(420px, calc(100vw - 32px)); overflow-y: auto; box-sizing: border-box; border: 1px solid #365565; border-radius: 12px; padding: 14px; background: rgba(7,22,32,.96); color: #e0eff0; font: 12px system-ui, sans-serif; box-shadow: 0 8px 25px #0004; }
+/* Die Zeile mit der Verteilung unter den drei Absichten (`describeSetup`). */
+.orbital-player__setup { flex-basis: 100%; margin: 4px 3px 2px; color: #9fc4cc; line-height: 1.45; }
 .orbital-player[hidden] { display: none; }
 .orbital-player strong { display: block; letter-spacing: .045em; padding-bottom: 8px; color: #96eddb; }
 .orbital-player button { min-height: 40px; margin: 3px; padding: 8px 11px; border: 1px solid #3d6070; border-radius: 6px; color: #dfeded; background: #172f3d; font: 12px system-ui; cursor: pointer; touch-action: manipulation; }
@@ -403,11 +369,11 @@ body.haunt-on .touch { display: none; }
 .orbital-player details { padding-top: 8px; }
 .orbital-player summary { cursor: pointer; padding-block: 7px; color: #96eddb; }
 @media (min-width: 760px) { .haunt[data-station="scout"] .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }
-@media (max-width: 480px) { .haunt__where strong { font-size: 14px; } .haunt__state { font-size: 10px; } .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } .orbital-player.is-keys { bottom: 212px; max-height: 26vh; } }
+@media (max-width: 480px) { .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } .orbital-player.is-keys { bottom: 212px; } }
 @media (prefers-reduced-motion: reduce) { .haunt *, .orbital-player * { animation: none !important; transition: none !important; } }
 
 /* Compact desktop controls; VR uses only the wrist and physical displays. */
-.orbital-player { width: min(580px, calc(100vw - 32px)); padding: 9px 12px; max-height: 48vh; border-color: #34433f; background: rgba(7,14,16,.88); border-radius: 7px; }
+.orbital-player { width: min(420px, calc(100vw - 32px)); padding: 9px 12px; border-color: #34433f; background: rgba(7,14,16,.88); border-radius: 7px; }
 .orbital-player strong { padding-bottom: 3px; font-size: 11px; }
 .orbital-player__keys { color: #bac8c3; line-height: 1.5; font-size: 11px; }
 .orbital-player details { padding-top: 2px; }
@@ -415,7 +381,6 @@ body.haunt-on .touch { display: none; }
 .orbital-player summary { padding-block: 6px; }
 .orbital-crosshair { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #e4f5eb; box-shadow: 0 0 0 1px #07100c; pointer-events: none; z-index: 3; }
 .orbital-crosshair[hidden] { display: none; }
-
 .orbital-crosshair::after { content: attr(data-label); position: absolute; top: 22px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #e3eee8; font: 12px system-ui,sans-serif; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
 
 /* An ended round needs an explicit state and a large, reachable next action. */
@@ -454,7 +419,6 @@ body.haunt-on .touch { display: none; }
 .orbital-result button:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 @media (max-height: 500px) { .orbital-result { top: 17%; padding: 18px; } }
 
-
 /* Always-visible, local demonstration radio, outside collapsed mission menus. */
 .orbital-radio { position: fixed; top: 82px; right: 16px; width: 280px; max-height: 35vh; overflow: auto; padding: 12px; border: 1px solid #496978; border-radius: 10px; background: #07151ef2; color: #d8f8ff; font-size: 12px; line-height: 1.5; text-align: left; }
 .orbital-radio::before { content: 'FUNK · TECHNIKER / ZENTRALE / ARCHIV'; display: block; color: #77e4f2; font-weight: 700; margin-bottom: 8px; }
@@ -483,13 +447,36 @@ body.haunt-on .touch { display: none; }
 .setup__label strong { font-size: 13px; }
 .setup__label small, .setup__hint { font-size: 11px; color: #97a3bd; line-height: 1.4; }
 .setup__head { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7690; }
-.setup__key, .setup__add { min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.8); color: #e8ecf7; font: inherit; font-size: 13px; touch-action: manipulation; }
-.setup__key--role { flex: 1; text-align: left; }
+.setup__key { min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.8); color: #e8ecf7; font: inherit; font-size: 13px; touch-action: manipulation; }
 .setup__key--who { min-width: 84px; }
 .setup__key--who.is-human { border-color: #8ff0b0; color: #c8ffd9; }
 .setup__key--who.is-bot { border-color: #7ff0ff; color: #d8fbff; }
-.setup__key--remove { min-width: 36px; padding: 6px 0; color: #ff9a9e; border-color: rgba(255, 90, 95, 0.4); }
-.setup__add { font-size: 12px; letter-spacing: 0; text-transform: none; }
+/* „Aus" ist eine Antwort und kein fehlender Eintrag — sie steht grau da und
+   nicht rot: Eine Fähigkeit abzuschalten ist kein Fehler. */
+.setup__key--who.is-off { border-color: rgba(140, 170, 230, 0.25); color: #6b7690; }
+.setup__key--me { min-width: 54px; padding: 6px 10px; color: #97a3bd; border-style: dashed; }
+/* „Ich" leuchtet an genau einem Platz — deshalb darf es kräftig sein. */
+.setup__key--me.is-mine { border-style: solid; border-color: #ffd84a; background: rgba(255, 216, 74, 0.16); color: #ffe8a0; font-weight: 600; }
+.setup__holder { margin: -2px 0 2px 2px; font-size: 11px; color: #6b7690; }
+
+/* --- Der Aufbau: zwei Häkchen, die Verteilung, ein Startknopf (`stationUi.vanPage`) --- */
+.lobby__link { align-self: flex-start; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--haunt-line); font-size: 11px; color: var(--haunt-dim); }
+.lobby__link.is-live { border-color: rgba(143, 240, 176, 0.5); color: #c8ffd9; }
+/* Zwei Häkchen, jedes daumenhoch: ein Kästchen links, Wort und Beisage rechts. */
+.lobby__checks { display: flex; flex-direction: column; gap: 8px; }
+.lobby__check { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--haunt-line-strong); background: var(--haunt-card); color: var(--haunt-dim); font: inherit; text-align: left; }
+.lobby__check.is-on { border-color: var(--haunt-warn); color: var(--haunt-ink); background: var(--haunt-card-hi); }
+.lobby__box { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--haunt-line-strong); font-size: 15px; color: var(--haunt-warn); }
+.lobby__check.is-on .lobby__box { border-color: var(--haunt-warn); }
+.lobby__check-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lobby__check-text strong { font-size: 15px; color: var(--haunt-ink); }
+/* Der eine Startknopf: die größte Fläche der Seite, und er sagt, was gleich passiert. */
+.lobby__start { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 60px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; font: inherit; text-align: left; }
+.lobby__start strong { font-size: 17px; }
+.lobby__help { border-radius: 12px; border: 1px solid var(--haunt-line); background: rgba(12, 17, 30, 0.7); padding: 4px 8px; }
+.lobby__help > summary { padding: 10px 6px; cursor: pointer; font-size: 13px; color: var(--haunt-dim); }
+.lobby__help[open] > summary { border-bottom: 1px solid var(--haunt-line); margin-bottom: 8px; }
+.lobby__help .haunt__note { margin-bottom: 8px; }
 
 /* --- Der Kompass am oberen Bildrand (`objectiveCompass.ts`), unter dem HUD der Seite --- */
 .orbital-compass { position: fixed; left: 50%; top: calc(max(12px, env(safe-area-inset-top)) + 58px); transform: translateX(-50%); width: min(560px, 90vw); height: 38px; z-index: 4; pointer-events: none; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(7, 14, 22, 0.72); overflow: hidden; font: 11px system-ui, sans-serif; color: #dfeded; }

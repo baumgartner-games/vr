@@ -8,7 +8,7 @@ import { COMMAND } from '../roomGraph';
 import { PRY_COOLDOWN, pryTries } from '../rules/doorLocks';
 import type { FloorPoint } from '../stationLayout';
 import { stationRoute } from '../stationNavigation';
-import { pointSegmentDistance, snapshotSegmentClear } from './index';
+import { FlatNavigator, pointSegmentDistance, snapshotSegmentClear } from './index';
 
 /**
  * **Eine Navigation für beide Welten** — das Monster der 2D-Runde geht den
@@ -75,6 +75,14 @@ describe('Das Monster der 2D-Runde geht den Rasterweg der 3D-Welt', () => {
       let plans = 0;
       let followed = 0;
       for (let t = 0; t < 45 && round.phase === 'running'; t += DT) {
+        // **Der Techniker sitzt die ganze Zeit im Schutzschrank.** Geprüft
+        // wird hier die Wegsuche über volle 45 Sekunden, und seit das Monster
+        // schneller geht als ein Spieler geht (Paket M2), findet es einen
+        // reglosen Techniker in der Zentrale nach einer Viertelminute und
+        // steht danach auf ihm: ein Ziel, das sich nicht bewegt, ist genau
+        // eine Route. Versteckt macht er kein Geräusch, wird nicht gesehen und
+        // das Monster tut, was hier interessiert — es läuft die Station ab.
+        round.state().crew.hidden = round.player.space;
         const before = { x: round.monster.x, z: round.monster.z };
         const shutBefore = [...round.haunt.shut];
         const busyBefore = round.ventRide.busy;
@@ -254,5 +262,70 @@ describe('Der Techniker aus Zahlen läuft denselben Weg', () => {
       }
       expect(arrived).toBe(true);
     }
+  });
+});
+
+/**
+ * **Lieber ziehen als laufen.**
+ *
+ * Die Wegsuche umging eine gesperrte Tür, solange es irgendeinen Umweg gab —
+ * daraus wurde das Spiel „ich schließe immer die Tür vor dem Monster", und
+ * weil der Umweg oft eine halbe Minute kostete, war das Vieh damit
+ * festgesetzt. `aim` bekommt deshalb ein `detourLimit` in Metern: Kostet der
+ * Umweg mehr, führt die Route vor die Tür, und dort wird gezogen
+ * (`rules/doorLocks.pryLock`). Ohne Grenze bleibt alles wie zuvor — das ist
+ * der Weg, den der Techniker geht.
+ */
+describe('Das Monster zieht lieber, als einen langen Umweg zu gehen', () => {
+  it.each([1, 2, 3])('Seed %i: dieselbe Tür, zwei Antworten — je nach Geduld', (seed) => {
+    const round = new FlatRound(seed, { test: true });
+    let around = 0;
+    let pried = 0;
+    // Nur Türen, die ihr Raumpaar allein verbinden: Wo eine zweite Tür
+    // danebensteht, ist der „Umweg" ein Schritt zur Seite, und dafür zieht
+    // niemand an einem Riegel.
+    const siblings = new Map<string, number>();
+    for (const door of round.house.doors) {
+      const key = [door.a, door.b ?? ''].sort().join('|');
+      siblings.set(key, (siblings.get(key) ?? 0) + 1);
+    }
+    for (const door of round.house.doors) {
+      if (!door.b || siblings.get([door.a, door.b].sort().join('|')) !== 1) continue;
+      const shut = [door.id];
+      const from = round.prowl.centre(door.a);
+      const to = round.prowl.centre(door.b);
+      // Ohne Grenze: der Umweg, solange es einen gibt (das alte Verhalten).
+      const patient = new FlatNavigator(round.house, round.prowl, MONSTER_RADIUS);
+      const wide = patient.aim(from, to, shut, 0);
+      if (!wide.complete || wide.door) continue;
+      around++;
+      // Mit einem Meter Geduld: an die Tür, und `door` nennt sie.
+      const eager = new FlatNavigator(round.house, round.prowl, MONSTER_RADIUS);
+      const short = eager.aim(from, to, shut, 0, null, 1);
+      expect(short.door?.id).toBe(door.id);
+      pried++;
+      // Und mit unendlich viel Geduld (in Metern) wieder der Umweg.
+      const calm = new FlatNavigator(round.house, round.prowl, MONSTER_RADIUS);
+      expect(calm.aim(from, to, shut, 0, null, 10_000).door).toBeNull();
+    }
+    // Es muss überhaupt Türen mit Umweg geben, sonst misst der Test nichts.
+    expect(around).toBeGreaterThan(3);
+    expect(pried).toBe(around);
+  });
+
+  it('lässt eine Tür in Ruhe, um die herum es ohnehin kurz ist', () => {
+    const round = new FlatRound(1, { test: true });
+    const navigator = new FlatNavigator(round.house, round.prowl, MONSTER_RADIUS);
+    let checked = 0;
+    for (const door of round.house.doors) {
+      if (!door.b) continue;
+      const from = round.prowl.centre(door.a);
+      const to = round.prowl.centre(door.b);
+      // Nichts gesperrt: Es gibt keinen Riegel, an dem sich ziehen ließe.
+      expect(navigator.aim(from, to, [], 0, null, 1).door).toBeNull();
+      navigator.invalidate();
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(3);
   });
 });

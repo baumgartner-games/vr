@@ -6,7 +6,12 @@ import type { ArchiveDesk } from './archiveDesk';
 import { mountArchiveView, type ArchiveRoleView } from './archiveRole';
 import { mountPanelView, type PanelRoleView } from './panelRole';
 import { mountScoutView, PING_PERIOD, type ScoutRoleView } from './scoutRole';
+import { mountWatchView } from './watchRole';
 import { RoleStrip } from './roleStrip';
+import { visibleSwitches } from '../panel';
+import { NOT_IN_CENTRE, switchRights } from '../rules/roundSetup';
+import { DROPPED_SEEN } from '../rules/archiveGoals';
+import { TILE } from '../../nav/navTile';
 import './archive.register';
 import './panel.register';
 import './scout.register';
@@ -70,11 +75,12 @@ function hostFor(round: FlatRound, extra?: unknown): RoleHost & { said: string[]
     said,
     snapshot: () => round.snapshot(),
     spec: () => round.house,
+    ledger: () => round.state(),
     me: () => PLAYER_ID,
     nameOf: (peer) => peer,
     door: (id) => round.lockDoor(id),
     light: (id) => round.switchLight(id),
-    lure: (id) => round.lure(id),
+    switches: () => visibleSwitches(round.house.switches, round.state().fuse),
     notify: (text) => said.push(text),
     ...(extra === undefined ? {} : { extra }),
   };
@@ -143,28 +149,66 @@ describe('Die Schalttafel', () => {
   });
 
   /**
-   * **Der Schallköder hat keinen Ort im Bild** — er ist ein Lautsprecher an
-   * der Decke. Sein Griff ist deshalb der Raum selbst, und was er tut, tut er
-   * über das Hörmodell: Er ruft, solange er läuft.
+   * **Die Tafel gibt es weiterhin** — als Blatt über der Karte. Sie kennt
+   * alle freigegebenen Schalter mit ihrer Beschriftung, auch die in Zimmern,
+   * die gerade nicht im Bild sind; „Tür 3" ist die halbe Sprache dieser Rolle.
    */
-  it('wirft den Schallköder eines Zimmers über einen Tipp auf das Zimmer an', () => {
+  it('schlägt die Schalterliste über der Karte auf und schaltet daraus', () => {
     const { view, round } = open();
-    const room = round.snapshot().rooms.find((one) => !one.circulation && !one.safe)!;
-    // Herangezoomt und neben die Lampe getippt: Sie steht in der Raummitte,
-    // und ein Tipp auf sie ist ein Lichtschalter und kein Köder.
-    view.map.setView({ centreX: room.centre.x, centreZ: room.centre.z, scale: 30 });
+    expect(view.sheetOpen).toBe(false);
+    expect(view.element.querySelector('.role__switch')).toBeNull();
+    view.element.querySelector<HTMLButtonElement>('[data-panel-sheet]')!.click();
+    expect(view.sheetOpen).toBe(true);
+    // Karte weg, Blatt da — auf einem Telefon hochkant ist beides nebeneinander
+    // entweder ein Grundriss von drei Zentimetern oder eine halbe Liste.
+    expect(view.element.classList.contains('is-sheet')).toBe(true);
+    const visible = visibleSwitches(round.house.switches, round.state().fuse);
+    const keys = [...view.element.querySelectorAll<HTMLElement>('[data-switch]')];
+    expect(keys).toHaveLength(visible.length);
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys)
+      expect(key.textContent).toContain(
+        visible.find((one) => one.id === key.dataset['switch'])!.label,
+      );
+
+    const door = visible.find((one) => one.kind === 'door')!;
+    expect(round.state().shut).not.toContain(door.target);
+    view.element.querySelector<HTMLButtonElement>(`[data-switch="${door.id}"]`)!.click();
+    expect(round.state().shut).toContain(door.target);
+    expect(view.element.querySelector('.role__toast')?.textContent).toContain('verriegelt');
+
+    // Und wieder zurück zur Karte.
+    view.element.querySelector<HTMLButtonElement>('[data-close]')!.click();
+    expect(view.sheetOpen).toBe(false);
+  });
+
+  /**
+   * **Ein Schott, das abkühlt, sagt es** (`rules/doorLocks.ts`): Vierzig
+   * Sekunden, in denen ein Schalter wortlos nichts tut, sind für den Hacker
+   * ein kaputter Schalter — und ab da traut er der ganzen Tafel nicht mehr.
+   */
+  it('zeigt an einem abkühlenden Schott die Restzeit und lässt es nicht umlegen', () => {
+    const { view, round } = open();
+    const door = visibleSwitches(round.house.switches, round.state().fuse).find(
+      (one) => one.kind === 'door',
+    )!;
+    round.lockDoor(door.target);
+    round.lockDoor(door.target);
+    round.step(0.1, { x: 0, z: 0, sprint: false });
+    view.element.querySelector<HTMLButtonElement>('[data-panel-sheet]')!.click();
     view.update(0);
-    tapAt(view, beside(room.centre, room.polygon[0]!));
-    expect(round.state().loud).toContain(room.id);
-    expect(view.element.querySelector('.role__toast')?.textContent).toContain('Schallköder an');
-    tapAt(view, beside(room.centre, room.polygon[0]!));
-    expect(round.state().loud).not.toContain(room.id);
+    const key = view.element.querySelector<HTMLButtonElement>(`[data-switch="${door.id}"]`)!;
+    expect(key.className).toContain('is-warm');
+    expect(key.textContent).toContain('noch warm · 40 s');
+    expect(key.disabled).toBe(true);
+    key.click();
+    expect(round.state().shut).not.toContain(door.target);
   });
 });
 
 describe('Der Späher', () => {
   function open(): { view: ScoutRoleView; round: FlatRound } {
-    const round = new FlatRound(21, { role: 'bot' });
+    const round = new FlatRound(21, { role: 'watch' });
     const host = hostFor(round);
     const view = stage(mountScoutView(host));
     return { view, round };
@@ -216,36 +260,82 @@ describe('Der Archivar', () => {
   }
 
   /**
-   * **Von der Kiste zur Konsole.** Die Missionsliste ist weg; was sie
-   * aufzählte, steht als Linie auf der Karte — und sobald der Techniker das
-   * Teil trägt, bleibt nur noch das Ziel.
+   * **Erst die Kiste, dann das Ziel** (`rules/archiveGoals.ts`). Solange die
+   * Karte von jeder Kiste eine Linie zu ihrer Konsole zog, sagte der Archivar
+   * die ganze Runde in einem Satz an und wurde danach nicht mehr gebraucht.
+   * Jetzt gibt es die Linie genau für das Teil, das der Techniker trägt.
    */
-  it('verbindet jede Fracht mit ihrer Konsole und schreibt „hierher" ans Ziel', () => {
+  it('zieht keine Linie, bis der Techniker ein Teil trägt — dann genau eine', () => {
     const { view, round } = open();
-    const lines = view.map.current.snapshot ? routesOf(view) : [];
-    expect(lines.length).toBe(repairsFor(round.house).length);
-    for (const line of lines) expect(line.points).toHaveLength(2);
-    // Das Teil in der Hand: Die Linie verschwindet, das Ziel bleibt.
+    expect(routesOf(view)).toHaveLength(0);
+
     const repair = repairsFor(round.house)[0]!;
-    round.state().crew.inventory.push(repair.itemId);
-    const cargo = round
-      .items()
-      .find(
-        (item) =>
-          item.kind === 'cargo' &&
-          item.label === round.house.tasks.find((task) => task.id === repair.itemId)?.label,
-      );
-    expect(cargo).toBeDefined();
     round.state().taken.push(repair.itemId);
+    round.state().crew.inventory.push(repair.itemId);
     view.update(0);
-    expect(routesOf(view).length).toBeLessThanOrEqual(lines.length);
+    const lines = routesOf(view);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.points).toHaveLength(2);
+
+    // Abgeliefert: Auch die eine Linie ist wieder weg.
+    round.state().crew.inventory.length = 0;
+    round.state().done.push(repair.itemId);
+    view.update(0);
+    expect(routesOf(view)).toHaveLength(0);
   });
 
-  it('zeigt keine Wesen — er weiß, wo etwas liegt, nicht wo jemand ist', () => {
+  it('zeigt keine Wesen und kein Licht — er weiß, wo etwas liegt, nicht wo es hell ist', () => {
     const { view } = open();
     expect(view.map.current.layers.entities).toBe(false);
+    expect(view.map.current.layers.lights).toBe(false);
     expect(view.map.stats.entities).toBe(0);
     expect(view.map.stats.items).toBeGreaterThan(0);
+  });
+
+  /**
+   * **Ein abgelegtes Teil sieht er erst, wenn es liegen bleibt**
+   * (`DROPPED_SEEN`). Wer es im Laufen verliert und wieder aufhebt, hat es
+   * nicht verloren; wer es ablegt und weggeht, schon.
+   */
+  it('meldet ein abgelegtes Teil erst nach DROPPED_SEEN Sekunden', () => {
+    const { view, round } = open();
+    const task = round.house.tasks[0]!;
+    const room = round.house.rooms.find((one) => one.id !== task.roomId)!;
+    const state = round.state();
+    state.time = 100;
+    state.taken.push(task.id);
+    state.dropped = [
+      {
+        id: task.id,
+        x: (room.rect.x + 0.5) * TILE,
+        z: (room.rect.z + 0.5) * TILE,
+        since: 100 - (DROPPED_SEEN - 1),
+      },
+    ];
+    view.open(room.id);
+    expect(view.element.querySelector('.role__sheet')?.textContent).not.toContain('Liegt hier');
+    state.time = 100 + DROPPED_SEEN;
+    view.update(0);
+    expect(view.element.querySelector('.role__sheet')?.textContent).toContain('Liegt hier');
+  });
+
+  /**
+   * **Der Freigabecode steht erst auf dem Blatt, wenn das Teil in der Hand
+   * ist.** Vorher stünde die ganze zweite Hälfte der Runde von Anfang an da.
+   */
+  it('verrät den Code des Reparaturraums erst mit dem Teil in der Hand', () => {
+    const { view, round } = open();
+    const repair = repairsFor(round.house).find((one) => one.puzzle !== 'wires')!;
+    view.open(repair.roomId);
+    expect(view.element.querySelector('.role__sheet')?.textContent).not.toContain(
+      repair.code.split('').join(' '),
+    );
+    round.state().taken.push(repair.itemId);
+    round.state().crew.inventory.push(repair.itemId);
+    view.update(0);
+    expect(view.element.querySelector('.role__sheet')?.textContent).toContain(
+      repair.code.split('').join(' '),
+    );
   });
 
   /**
@@ -259,6 +349,9 @@ describe('Der Archivar', () => {
     expect(view.opened).toBe(room.id);
     const sheet = view.element.querySelector('.role__sheet')!;
     expect((sheet as HTMLElement).hidden).toBe(false);
+    // **Ganzseitig, ohne Karte dahinter** — das war der Befund des Besitzers:
+    // Unter dem Grundriss ließ sich die Akte nicht rollen.
+    expect(view.element.classList.contains('is-sheet')).toBe(true);
     expect(sheet.textContent).toContain(room.name);
     expect(sheet.querySelector('.role__code')?.textContent).toBe(
       lockerCode(round.house.seed, room.id),
@@ -266,6 +359,7 @@ describe('Der Archivar', () => {
     sheet.querySelector<HTMLButtonElement>('[data-close]')!.click();
     expect(view.opened).toBe('');
     expect((sheet as HTMLElement).hidden).toBe(true);
+    expect(view.element.classList.contains('is-sheet')).toBe(false);
   });
 
   /**
@@ -296,6 +390,64 @@ describe('Der Archivar', () => {
     expect(flat.view.viewport()).toBeNull();
     expect(flat.view.element.querySelector('.role__closeup')).not.toBeNull();
     expect(flat.view.element.querySelector('[data-picture]')).toBeNull();
+  });
+});
+
+/**
+ * **Der Fernseher schlüpft in die Rollen der anderen** (`watchLens.ts`). Kein
+ * Nachbau: Er schlägt die angemeldete Ansicht auf — nur mit einem Wirt, der
+ * nichts schaltet.
+ */
+describe('Der Fernseher', () => {
+  function open() {
+    const round = new FlatRound(21, { test: true });
+    const host = hostFor(round);
+    const view = stage(mountWatchView(host));
+    view.update(0);
+    return { view, round, host };
+  }
+
+  it('fängt über dem Deck an und meldet dafür ein Loch für die 3D-Welt', () => {
+    const { view } = open();
+    expect(view.lens.seat).toBe('deck');
+    expect(view.viewport?.()).toEqual({ x: 0, y: 0, w: size.width, h: size.height });
+    expect(view.element.querySelector('.role__stage')?.hasAttribute('hidden')).toBe(true);
+    const seats = [...view.element.querySelectorAll<HTMLElement>('[data-watch-seat]')].map(
+      (key) => key.dataset['watchSeat'],
+    );
+    // Die Drohne ist gestrichen (#93) und steht auch hier nicht mehr.
+    expect(seats).toEqual(['deck', 'archive', 'panel', 'scout', 'monster']);
+  });
+
+  it('schlägt die Ansicht eines Mitspielers auf und lässt sie nichts schalten', () => {
+    const { view, round } = open();
+    view.element.querySelector<HTMLButtonElement>('[data-watch-seat="panel"]')!.click();
+    expect(view.lens.seat).toBe('panel');
+    const panel = view.element.querySelector('.role--panel');
+    expect(panel).not.toBeNull();
+    // Dieselbe Tafel, nur ohne Wirkung: Wer alles sieht und schalten dürfte,
+    // wäre der fünfte Spieler mit den besten Karten.
+    panel!.querySelector<HTMLButtonElement>('[data-panel-sheet]')!.click();
+    const key = panel!.querySelector<HTMLButtonElement>('[data-switch]')!;
+    const shut = [...round.state().shut];
+    key.click();
+    expect(round.state().shut).toEqual(shut);
+    // Und das Deck hat sein Bild verloren, solange ein fremder Platz offen ist.
+    expect(view.element.classList.contains('is-guest')).toBe(true);
+  });
+
+  it('folgt auf Wunsch dem Techniker und gibt das Overlay „KI-Absichten" frei', () => {
+    const { view } = open();
+    expect(view.lens.follow).toBe('free');
+    view.element.querySelector<HTMLButtonElement>('[data-watch-follow="technician"]')!.click();
+    expect(view.lens.follow).toBe('technician');
+    expect(view.lens.insight).toBe(false);
+    view.element.querySelector<HTMLButtonElement>('[data-watch-insight]')!.click();
+    expect(view.lens.insight).toBe(true);
+    // „Wem folgen?" gehört zum Deck: Auf einem fremden Platz führt die Kamera
+    // die Rolle, der er zusieht.
+    view.element.querySelector<HTMLButtonElement>('[data-watch-seat="scout"]')!.click();
+    expect(view.element.querySelector('[data-watch-follow]')).toBeNull();
   });
 });
 
@@ -334,12 +486,42 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
     expect(strip.stage.querySelector('.role--panel')).toBeNull();
     strip.dispose();
   });
-});
 
-/** Ein Punkt im Raum, aber deutlich neben seiner Mitte. */
-function beside(centre: { x: number; z: number }, corner: { x: number; z: number }) {
-  return { x: centre.x + (corner.x - centre.x) * 0.5, z: centre.z + (corner.z - centre.z) * 0.5 };
-}
+  /**
+   * **Mitten in einer Mission wechselt hier niemand die Rolle**
+   * (`rules/roundSetup.switchRights`): Wer in 2D spielt, ist der Techniker und
+   * steht im Anzug. In einer Test-Runde darf er alles — dafür ist sie da.
+   */
+  it('lässt nur in einer Test-Runde wechseln und sagt sonst, warum nicht', () => {
+    const round = new FlatRound(21, { test: false });
+    const host = hostFor(round);
+    const strip = new RoleStrip({
+      roleHost: () => host,
+      homeLabel: () => 'Station',
+      onChange: () => {},
+      rights: () => {
+        const rights = switchRights({
+          test: round.state().crew.options.test,
+          inCentre: false,
+          vrTechnician: false,
+        });
+        return { allowed: rights.abilities, why: rights.why };
+      },
+    });
+    document.body.append(strip.element, strip.stage);
+    expect(strip.rights.allowed).toBe(false);
+    const key = strip.element.querySelector<HTMLButtonElement>('[data-role-strip="hack"]')!;
+    expect(key.disabled).toBe(true);
+    expect(key.title).toBe(NOT_IN_CENTRE);
+    strip.show('hack');
+    expect(strip.active).toBe('');
+
+    round.state().crew.options.test = true;
+    strip.show('hack');
+    expect(strip.active).toBe('hack');
+    strip.dispose();
+  });
+});
 
 /** Die Linien, die der Archivar gerade auf die Karte legt. */
 function routesOf(view: ArchiveRoleView): ReadonlyArray<{ points: unknown[] }> {

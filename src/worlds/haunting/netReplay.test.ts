@@ -28,7 +28,7 @@ test.each(ROOM_COUNTS)(
         monster: { x: -45, z: -65 },
         shut: [...spec.doors.map((door) => door.id), TRAINING_DOOR.id],
         lit: spacesOf(spec).map((space) => space.id),
-        loud: spacesOf(spec).map((space) => space.id),
+        cooling: spec.doors.slice(0, 3).map((door) => ({ id: door.id, until: 55.5 })),
         fuse: false,
         taken: spec.tasks.map((task) => task.id),
         done: spec.tasks.map((task) => task.id),
@@ -40,7 +40,17 @@ test.each(ROOM_COUNTS)(
       const replay = readState(JSON.parse(JSON.stringify(stateMessage(state))))!;
       expect(replay.shut).toEqual(state.shut);
       expect(replay.lit).toEqual(state.lit);
-      expect(replay.loud).toEqual(state.loud);
+      // Die abkühlenden Türen reisen mit (`rules/doorLocks.ts`); die
+      // Schallköder nicht mehr — das Feld `loud` gibt es nicht, und ein
+      // Stand, der es doch mitschickt, bringt es nicht wieder herein.
+      expect(replay.cooling).toEqual(state.cooling);
+      const withBait = {
+        ...(stateMessage(state) as Record<string, unknown>),
+        loud: ['kombuese'],
+      };
+      expect(
+        readState(JSON.parse(JSON.stringify(withBait))) as unknown as Record<string, unknown>,
+      ).not.toHaveProperty('loud');
       expect(replay.taken).toEqual(state.taken);
       expect(replay.done).toEqual(state.done);
       expect(replay.destroyed).toEqual(state.destroyed);

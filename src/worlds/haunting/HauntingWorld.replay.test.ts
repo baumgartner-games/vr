@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { HauntingWorld } from './HauntingWorld';
 import { generateHouse, type HouseSpec } from './house';
-import { freshCrew, stationOptions } from './mission';
+import { freshCrew, freshStamina, stationOptions } from './mission';
 import { AutomaticDoors } from './automaticDoors';
 import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
@@ -11,8 +11,15 @@ import { defaultLobby, type LobbyChoice } from './rules/lobby';
 import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
-import type { HauntState } from './net';
-import { freshGhosts } from './rules/ghosts';
+import { readHandover, stateMessage, type HauntBooks, type HauntState } from './net';
+import { FlatRound } from './map/flatRound';
+import { MonsterMemory } from './monster/monsterMemory';
+import { stationGraph } from './roomGraph';
+import { dropAlpha, freshTrail, type Trail } from './rules/blood';
+import { freshLocks, type DoorLocks } from './rules/doorLocks';
+import { freshLamps, type Lamps } from './rules/lamps';
+import { freshSpook, type Spook } from './haunt';
+import { freshGhosts, GHOST_LIVE, GHOST_TTL } from './rules/ghosts';
 import { HOST_BUSY } from './rules/worldMenu';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
@@ -47,6 +54,27 @@ interface ReplayWorld {
   npcTarget(target: THREE.Vector3): THREE.Vector3 | null;
   monster: unknown;
   monsterArt: THREE.Object3D | null;
+  technicianArt: THREE.Object3D | null;
+  showTechnician(): void;
+  /** Die Blutspur und ihre Flecken auf dem Boden (`rules/blood.ts`). */
+  blood: Trail;
+  /** Das Gedächtnis des Monsters (`monster/monsterMemory.ts`) — beim Gastgeber. */
+  brain: MonsterMemory | null;
+  readonly waitingHandover: boolean;
+  /** Die Buchführung, die nur beim Gastgeber liegt — und beim Wechsel mitreisen muss. */
+  locks: DoorLocks;
+  lampBook: Lamps;
+  spook: Spook;
+  handoverUntil: number;
+  books(): HauntBooks;
+  loadBooks(books: HauntBooks): void;
+  takeHandover(state: HauntState, books: HauntBooks): void;
+  stale(state: HauntState): boolean;
+  bloodArt: THREE.Group | null;
+  paintTrail(): void;
+  /** Und die halbdurchsichtige Kopie an der zuletzt gesehenen Stelle (`rules/ghosts.ts`). */
+  ghostArt: THREE.Object3D | null;
+  paintGhost(): void;
   director: { clear: jest.Mock; spawn: jest.Mock };
 }
 
@@ -60,7 +88,6 @@ function snapshot(seed = 391): HauntState {
     monster: { x: 1, z: 2 },
     shut: [],
     lit: [],
-    loud: [],
     fuse: false,
     taken: [],
     done: [],
@@ -90,12 +117,28 @@ function replay(): ReplayWorld {
     director: { clear: jest.fn(), spawn: jest.fn(() => null) },
     // Felder, die sonst der Konstruktor setzt — der Prototyp-Nachbau hat keinen.
     tuning: DEFAULT_TUNING,
+    // Die Puste des Technikers (`mission.ts`): `stepCrew` rechnet sie in jedem
+    // Bild weiter und setzt daraus `PlayerRig.sprintScale`.
+    stamina: freshStamina(),
+    // Und die Blutspur (`rules/blood.ts`), die `stepCrew` in jedem Bild
+    // fortschreibt — auch wenn niemand blutet.
+    blood: freshTrail(),
+    // Die Buchführung des Gastgebers (`net.HauntBooks`): Riegel, Lampen, Spuk.
+    // Sie geht beim Wechsel des Gastgebers als Übergabe über die Leitung und
+    // beim Ansichtswechsel von der einen Runde in die andere.
+    locks: freshLocks(),
+    lampBook: freshLamps(),
+    spook: freshSpook(),
+    brain: null,
+    handoverUntil: 0,
+    repaired: 0,
     routineDice: new Rng(0x4d4f4e53),
     beacons: [],
     botLighting: { ...DEFAULT_LIGHTING },
     simulationSpeed: 1,
     monster: null,
     monsterArt: null,
+    technicianArt: null,
     flatTechnician: false,
     pendingBotRound: false,
     vents: vents,
@@ -160,6 +203,9 @@ function election(role: 'vr' | 'desktop', remote = false) {
       world: 'haunting',
       peers: new Map(remote ? [['remote', { id: 'remote', world: 'haunting', role: 'vr' }]] : []),
       seniorityOf: () => 5,
+      // Der abtretende Gastgeber schickt eine Übergabe (`handoverMessage`) —
+      // ohne Leitung wäre das ein Absturz und keine Wahl.
+      emit: jest.fn(),
     },
   };
 }
@@ -255,11 +301,18 @@ test('the headset menu leads with the mission and says why a start is refused', 
   world.lobbyChoice = { intent: 'play', view: '2d' };
   world.hostId = 'remote';
   const rounds = world.menu().filter((row) => row.id.startsWith('haunt:'));
+  // Dieselben drei Absichten wie im Van und im Optionsmenü der 2D-Welt
+  // (`rules/lobby.ts`), in derselben Reihenfolge.
   expect(rounds.slice(0, 3).map((row) => row.id)).toEqual([
-    'haunt:start',
-    'haunt:test',
-    'haunt:bot-round',
+    'haunt:play',
+    'haunt:watch',
+    'haunt:train',
   ]);
+  // Die Ansicht steht als eigener Eintrag daneben und heißt nicht mehr
+  // „2D-Welt von oben: an/aus"; in der Brille ist sie fest.
+  const view = world.menu().find((row: { id: string }) => row.id === 'haunt:view')!;
+  expect(view.label).toContain('3D Schiff');
+  expect(world.menu().some((row: { id: string }) => row.id === 'haunt:flat')).toBe(false);
   expect(rounds[0]!.sub).toBe(HOST_BUSY);
   rounds[0]!.run!(null);
   expect(ctx.notify).toHaveBeenCalledWith(HOST_BUSY);
@@ -317,4 +370,244 @@ test('simulation perception reads the bot position and ignores the observer rig'
   expect(getHeadPosition).not.toHaveBeenCalled();
   expect(world.state.crew.threat.target).toEqual({ x: bot.x, z: bot.z });
   expect(world.state.crew.hp).toBe(3);
+});
+
+/**
+ * **Der Zuschauer sieht den Techniker, der in 2D spielt.** Seine Pose steckt
+ * seit `STATION_PROTOCOL` 7 im Stand (`HauntState.technician`) — die 3D-Welt
+ * zeichnete sie nie, und am Fernseher sah man eine leere Station, in der
+ * Türen von selbst aufgingen (Paket U4).
+ */
+test('der 2D-Techniker bekommt einen Körper — und verschwindet im Schutzschrank', () => {
+  const world = replay();
+  // Ohne Pose kein Körper: Wer im Headset spielt, hat einen Avatar.
+  world.showTechnician();
+  expect(world.technicianArt).toBeNull();
+
+  world.state.technician = { x: 4, z: 7, yaw: Math.PI / 2, moving: true };
+  world.showTechnician();
+  const body = world.technicianArt!;
+  expect(body.parent).toBe(world.live);
+  expect(body.visible).toBe(true);
+  expect([body.position.x, body.position.z]).toEqual([4, 7]);
+  // Der Crewmate schaut nach +z, die Welt rechnet Blicke nach -z.
+  expect(body.rotation.y).toBeCloseTo(Math.PI / 2 + Math.PI);
+
+  world.state.crew.hidden = 'raum-1';
+  world.showTechnician();
+  expect(world.technicianArt).toBe(body);
+  expect(body.visible).toBe(false);
+});
+
+/**
+ * **Der Ghost in der Welt** (Paket M3c). Er ist Weltgeometrie und kein
+ * Bildschirmzeichen — nur deshalb steht er auch in der Brille. Sichtbar wird
+ * er erst, wenn der Techniker das echte Monster **nicht** mehr sieht, und er
+ * verschwindet mit der Lebenszeit des Markers.
+ */
+test('der Ghost des Monsters erscheint nach dem Sichtverlust und verfällt mit der TTL', () => {
+  const world = replay();
+  world.state.monsterOn = true;
+  world.state.time = 100;
+  world.state.ghosts.monster = { x: 3, z: -4, yaw: 1, since: 100 };
+  // Gerade eben gesehen: kein Doppelgänger neben dem echten Vieh.
+  world.paintGhost();
+  expect(world.ghostArt?.visible ?? false).toBe(false);
+  // Eine Sekunde später ist es eine Erinnerung.
+  world.state.time = 100 + GHOST_LIVE + 0.5;
+  world.paintGhost();
+  expect(world.ghostArt!.visible).toBe(true);
+  expect(world.ghostArt!.position.x).toBe(3);
+  expect(world.ghostArt!.position.z).toBe(-4);
+  expect(world.ghostArt!.rotation.y).toBe(1);
+  // Und mit `GHOST_TTL` ist sie weg.
+  world.state.time = 100 + GHOST_TTL;
+  world.paintGhost();
+  expect(world.ghostArt!.visible).toBe(false);
+});
+
+test('die Blutflecken liegen flach auf dem Boden und werden wiederverwendet', () => {
+  const world = replay();
+  world.state.time = 50;
+  world.state.blood = [
+    { x: 1, z: 2, since: 49 },
+    { x: 2.5, z: 2, since: 50 },
+  ];
+  world.paintTrail();
+  const spots = world.bloodArt!.children as THREE.Mesh[];
+  expect(spots).toHaveLength(2);
+  expect(spots.every((spot) => spot.visible)).toBe(true);
+  // Flach: um die x-Achse gekippt, ein Fingerbreit über dem Blech.
+  expect(spots[0]!.rotation.x).toBeCloseTo(-Math.PI / 2, 6);
+  expect(spots[0]!.position.y).toBeGreaterThan(0);
+  expect(spots[0]!.position.y).toBeLessThan(0.05);
+  // Der ältere ist blasser als der frische (`dropAlpha`).
+  const opacity = (i: number): number => (spots[i]!.material as THREE.MeshBasicMaterial).opacity;
+  expect(opacity(0)).toBeLessThan(opacity(1));
+  expect(dropAlpha(world.state.blood![0]!, 50)).toBeLessThan(1);
+  // Eine kürzere Spur wirft die Scheiben nicht weg, sie schaltet sie ab.
+  world.state.blood = [{ x: 1, z: 2, since: 50 }];
+  world.paintTrail();
+  expect(world.bloodArt!.children).toHaveLength(2);
+  expect((world.bloodArt!.children[1] as THREE.Mesh).visible).toBe(false);
+});
+
+/**
+ * **Der Ansichtswechsel mitten in der Runde** (`HauntingWorld.switchView`).
+ *
+ * Geprüft wird die Naht, an der er hängt, und zwar mit dem echten Code auf
+ * beiden Seiten: Die Welt packt ihre Buchführung ein (`books`), die 2D-Runde
+ * übernimmt Stand und Buchführung (`FlatResume`), und die Welt nimmt beides
+ * wieder entgegen (`loadBooks`). Was dabei verloren geht, ist genau das, was
+ * ein Spieler beim Umschalten verlöre.
+ */
+describe('Ein Wechsel 3D → 2D → 3D', () => {
+  /** Eine Welt mitten in einer Runde: Uhr, Anzug, Gepäck, Türen, Licht, Monster. */
+  function midRound(): ReplayWorld {
+    const world = replay();
+    const state = world.state;
+    state.time = 96.5;
+    state.crew.hp = 2;
+    state.crew.inventory.push('radar');
+    state.shut = ['d1'];
+    state.lit = ['r1'];
+    state.done = ['t0'];
+    state.monster = { x: 12, z: -30 };
+    state.technician = { x: 6.5, z: -9.5, yaw: 1.2, moving: false };
+    world.locks.chosen = 'd1';
+    world.locks.until = 104;
+    world.lampBook.on.push({ id: 'r1', until: 130, warned: false });
+    world.spook = { room: 'r3', since: 1.5, rest: 4 };
+    world.blood.until = 120;
+    world.blood.drops.push({ x: 6, z: -9, since: 90 });
+    state.blood = world.blood.drops;
+    return world;
+  }
+
+  it('behält Zeit, Sauerstoff, Anzug, Inventar, Türen, Licht und das Monster', () => {
+    const world = midRound();
+    const before = world.state;
+    // --- 3D → 2D: die laufende Runde übernehmen statt eine neue würfeln.
+    const books = world.books();
+    const round = new FlatRound(before.seed, {
+      resume: {
+        state: before,
+        locks: books.locks,
+        spook: books.spook,
+        trail: books.trail,
+        memory: books.memory,
+      },
+    });
+    expect(round.state()).toBe(before);
+    expect(round.player.x).toBeCloseTo(6.5);
+    expect(round.monster.x).toBeCloseTo(12);
+
+    // --- Ein Bild 2D, damit die Runde wirklich gelaufen ist.
+    round.step(1 / 30, { x: 0, z: 0, sprint: false });
+
+    // --- 2D → 3D: Stand und Buchführung zurück in die Welt.
+    const carried = round.books();
+    world.state = round.state();
+    world.loadBooks({ ...carried, lamps: world.lampBook });
+
+    expect(world.state.time).toBeGreaterThanOrEqual(96.5);
+    // Der Sauerstoff *ist* die Uhr (`rules/roundRules.oxygenLeft`) — eine Runde,
+    // die beim Wechsel auf null zurückspränge, gäbe ihn geschenkt.
+    expect(world.state.time).toBeLessThan(97.5);
+    expect(world.state.crew.hp).toBe(2);
+    expect(world.state.crew.inventory).toContain('radar');
+    expect(world.state.shut).toEqual(['d1']);
+    expect(world.state.lit).toEqual(['r1']);
+    expect(world.state.monster).toEqual(expect.objectContaining({ x: expect.any(Number) }));
+    expect(world.locks.chosen).toBe('d1');
+    expect(world.locks.until).toBe(104);
+    // Die Lampe brennt weiter mit ihrer Restzeit — sonst ginge beim Umschalten
+    // von selbst das Licht an oder aus.
+    expect(world.lampBook.on).toEqual([{ id: 'r1', until: 130, warned: false }]);
+    expect(world.blood.until).toBe(120);
+    // Eine Spur, nicht zwei (`rules/blood.ts`).
+    expect(world.blood.drops).toBe(world.state.blood);
+  });
+
+  it('reicht das Gedächtnis des Monsters weiter, statt es zu vergessen', () => {
+    const world = midRound();
+    const graph = stationGraph(world.spec);
+    const room = graph.spaces[3]!;
+    const brain = new MonsterMemory(graph, () => []);
+    brain.seen(room, graph.centre(room), 90);
+    world.brain = brain;
+    const books = world.books();
+    expect(books.memory.sightings).toHaveLength(1);
+    // Und andersherum: Ein frisches Gedächtnis nimmt die Spur wieder an.
+    const next = new MonsterMemory(graph, () => []);
+    expect(next.mostLikely()).not.toBe(room);
+    world.brain = next;
+    world.loadBooks(books);
+    expect(next.mostLikely()).toBe(room);
+  });
+});
+
+/**
+ * **Die Übergabe beim Wechsel des Gastgebers** — und die Sperre dagegen, dass
+ * für einen Augenblick zwei dieselbe Runde rechnen.
+ */
+describe('Der Wechsel des Gastgebers', () => {
+  it('schickt dem Nachfolger den Stand samt Buchführung, bevor es loslässt', () => {
+    const world = replay();
+    world.state.phase = 'running';
+    world.hostId = 'local';
+    world.locks.chosen = 'd1';
+    const ctx = election('desktop', true);
+    world.context = ctx;
+    world.refreshHost(ctx);
+    expect(world.hostId).toBe('remote');
+    const sent = ctx.net.emit.mock.calls.map(([, message]) => message);
+    const handover = sent.map((one) => readHandover(one)).find((one) => one);
+    expect(handover?.to).toBe('remote');
+    // **Erst einpacken, dann loslassen**: `releaseMonster` wirft das Gedächtnis
+    // weg, und danach eingepackt wäre die Buchführung leer.
+    expect(handover?.books.locks.chosen).toBe('d1');
+  });
+
+  it('lässt den neuen Gastgeber warten, statt sofort mitzurechnen', () => {
+    const world = replay();
+    world.state.phase = 'running';
+    world.hostId = 'remote';
+    const ctx = election('vr');
+    world.context = ctx;
+    world.refreshHost(ctx);
+    expect(world.hostId).toBe('local');
+    expect(world.waitingHandover).toBe(true);
+    // Die Übergabe beendet das Warten — und bringt die Buchführung mit.
+    const books: HauntBooks = {
+      locks: { chosen: 'd2', until: 30, slams: [], pries: [], cooling: [] },
+      lamps: { on: [{ id: 'r1', until: 40, warned: false }] },
+      spook: { room: 'r2', since: 1, rest: 2 },
+      trail: { until: 50, from: null, walked: 0 },
+      memory: { sightings: [], searched: [] },
+    };
+    world.takeHandover({ ...world.state, time: 42 }, books);
+    expect(world.waitingHandover).toBe(false);
+    expect(world.locks.chosen).toBe('d2');
+    expect(world.lampBook.on).toHaveLength(1);
+    expect(world.state.time).toBe(42);
+  });
+
+  it('verwirft einen Stand, der hinter dem eigenen zurückliegt', () => {
+    const world = replay();
+    world.state.phase = 'running';
+    world.state.time = 40;
+    world.hostId = 'remote';
+    const ctx = election('desktop', true);
+    world.context = ctx;
+    // Die letzte Ansage des alten Gastgebers, noch unterwegs: Sie würde die
+    // Uhr zurückdrehen und eine reparierte Konsole wieder aufmachen.
+    const late = { ...snapshot(world.spec.seed), time: 12, done: [] };
+    world.receive(JSON.parse(JSON.stringify(stateMessage(late))), 'remote');
+    expect(world.state.time).toBe(40);
+    // Ein neuerer Stand geht durch wie immer.
+    const fresh = { ...snapshot(world.spec.seed), time: 41 };
+    world.receive(JSON.parse(JSON.stringify(stateMessage(fresh))), 'remote');
+    expect(world.state.time).toBe(41);
+  });
 });

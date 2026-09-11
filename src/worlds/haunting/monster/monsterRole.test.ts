@@ -50,11 +50,12 @@ function seat(seed = 2): {
   const host: RoleHost = {
     snapshot: () => round.snapshot(),
     spec: () => round.house,
+    ledger: () => round.state(),
     me: () => 'me',
     nameOf: () => '',
     door: () => '',
     light: () => '',
-    lure: () => '',
+    switches: () => [],
     notify: (text) => notes.push(text),
     extra: { monster: control },
   };
@@ -98,11 +99,12 @@ describe('Die Monster-Rolle in der Registry', () => {
     const bare: RoleHost = {
       snapshot: () => idle.snapshot(),
       spec: () => idle.house,
+      ledger: () => idle.state(),
       me: () => '',
       nameOf: () => '',
       door: () => '',
       light: () => '',
-      lure: () => '',
+      switches: () => [],
       notify: () => {},
     };
     expect(monsterPortOf(bare)).toBeNull();
@@ -233,11 +235,12 @@ describe('Das Steuer des Monsters', () => {
     const host: RoleHost = {
       snapshot: () => round.snapshot(),
       spec: () => round.house,
+      ledger: () => round.state(),
       me: () => 'me',
       nameOf: () => '',
       door: () => '',
       light: () => '',
-      lure: () => '',
+      switches: () => [],
       notify: () => {},
       extra: { monster: control },
     };
@@ -298,6 +301,32 @@ describe('Die Karte aus Monstersicht', () => {
     step(2);
     expect(view.current.field.visibleEntities).toContain(PLAYER_ID);
     expect(view.current.following).toBe(MONSTER_ID);
+    view.dispose();
+  });
+
+  /**
+   * **„Zuletzt gesehen: … · vor 6 s"** (`rules/ghosts.ts`, Paket M3b). Der
+   * Marker steht auf der Karte; die Zeile sagt, **wie alt** er ist — daran
+   * hängt, ob sich das Hinlaufen noch lohnt.
+   */
+  it('schreibt die zuletzt gesehene Stelle mit ihrem Alter in die Kopfzeile', () => {
+    const { round, view, step } = seat(4);
+    round.torch = false;
+    round.haunt.lit.length = 0;
+    step(1);
+    const hud = (): string => view.element.querySelector('.monster__hud')?.textContent ?? '';
+    expect(hud()).toContain('Nichts zu hören');
+    // Es hat ihn gesehen — vor sechs Sekunden.
+    const where = round.graph.centre(round.player.space);
+    round.haunt.ghosts.technician = {
+      x: where.x,
+      z: where.z,
+      yaw: 0,
+      since: round.haunt.time - 6,
+    };
+    step(2);
+    expect(hud()).toContain('Zuletzt gesehen');
+    expect(hud()).toContain('vor 6 s');
     view.dispose();
   });
 });

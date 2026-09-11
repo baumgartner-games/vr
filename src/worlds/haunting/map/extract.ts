@@ -129,10 +129,19 @@ export function fixturesOf(spec: HouseSpec): MapFixture[] {
   return fixtures;
 }
 
-/** Die Restzeit einer Sperre, wenn die Quelle eine Uhr führt. */
-function holdOf(source: MapSource, id: string): { hold?: { left: number; total: number } } {
-  const hold = source.doorHold?.(id);
-  return hold ? { hold } : {};
+/**
+ * Die Restzeit an einer Tür, wenn die Quelle eine Uhr führt — als `hold`,
+ * solange die Sperre hält, und als `cooling`, solange die Tür nach einer
+ * gefallenen Sperre offen bleiben muss (`rules/doorLocks.ts`).
+ */
+function holdOf(
+  source: MapSource,
+  id: string,
+): { hold?: { left: number; total: number }; cooling?: { left: number; total: number } } {
+  const clock = source.doorHold?.(id);
+  if (!clock) return {};
+  const bar = { left: clock.left, total: clock.total };
+  return clock.cooling ? { cooling: bar } : { hold: bar };
 }
 
 export function boundsOf(rooms: readonly MapRoom[]): MapBounds {
@@ -201,5 +210,11 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
     // führt sie, ob 3D-Welt oder 2D-Runde, also braucht es dafür keinen
     // eigenen Getter in `MapSource`.
     ghosts: state.ghosts,
+    // Dasselbe für die Blutspur (`rules/blood.ts`): Sie steht im Stand, also
+    // reicht der Snapshot sie durch — gezeichnet wird sie in 2D, gerochen in
+    // der Routine des Monsters.
+    ...(state.blood?.length ? { blood: state.blood } : {}),
+    // Und die Absichten des Monsters, wenn der Stand sie führt.
+    ...(state.insight ? { insight: state.insight } : {}),
   };
 }

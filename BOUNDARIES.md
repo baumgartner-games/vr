@@ -75,20 +75,30 @@ Gehört ihm:
 
 Andockstellen: `RoleDefinition.mount(host: RoleHost): RoleView`
 (`registry/roles.ts`); die Karte kommt aus `new MapView({...})`, der Stand
-aus `host.snapshot()`, der Grundriss aus `host.spec()`, die drei Griffe der
-Schalttafel aus `host.door/light/lure`. Was eine Rolle darüber hinaus braucht,
-kommt über `host.extra` — das Steuer des Monsters
+aus `host.snapshot()`, der Grundriss aus `host.spec()`, die **zwei** Griffe
+der Schalttafel aus `host.door/light` (der dritte, `lure`, ist mit dem
+Schallköder wieder gestrichen). Dazu zwei Auskünfte, die weder im Grundriss
+noch im Snapshot stehen können: `host.switches()` — die Tafel, so weit der
+Sicherungskasten sie freigibt — und `host.ledger()` — die Buchführung der
+Runde (`rules/archiveGoals.ArchiveState`: Uhr, geholte Teile, erledigte
+Aufträge, was der Techniker trägt, was im Gang liegt). Was eine Rolle darüber
+hinaus braucht, kommt über `host.extra` — das Steuer des Monsters
 (`monster/monsterDriver.monsterPortOf`) und der Tisch des Archivars
 (`views/archiveDesk.archiveDeskOf`).
+
+Der **Fernseher** (`views/watchRole.ts`) ist die einzige Rolle, die selbst
+andere Rollen aufschlägt: Über `watchLens.ts` wählt der Zuschauer einen Platz,
+und die Ansicht dieser Rolle wird aus der Registry gebaut — mit einem Wirt,
+dessen `door`/`light` `''` zurückgeben. Wer eine Rolle anmeldet, steht damit
+auch beim Zuschauer, ohne dort eine Zeile zu schreiben.
 
 **Die Drohne gibt es nicht mehr** (Rolle, Ansicht, Körper, Kamera, Flug,
 Netznachricht, CSS). Ihre Wegtypen leben als `navmesh/route.ts` im Paket
 `nav` weiter und tragen dort Modelltechniker und Monster.
 
-**Hinweis:** Das Paket `map` muss in Phase 1 in `stationUi.ts` **eine**
-Checkbox neben der Kachel „Bot-Runde ansehen" einbauen (Auftrag). Das ist
-die kleinste mögliche Änderung an einer fremden Grenzfall-Datei und steht in
-`HANDOVER.md` des Pakets `map`.
+**Hinweis:** Die Kachel „Bot-Runde ansehen" und die Checkbox daneben gibt es
+nicht mehr — der Aufbau ist heute zwei Häkchen, eine Verteilung und ein
+Startknopf (`rules/lobby.ts`, `roundSetupPanel.ts`).
 
 ### 3. Audio (Paket `audio`)
 
@@ -177,11 +187,15 @@ Klappen als `MapItem` der Sorte `vent` und `MapSnapshot.ventLinks`.
   liest dort (Getter für Fracht/Konsolen/Schränke), Paket `world3d` baut
   dort Modelle um.
 - `src/worlds/haunting/mission.ts`, `net.ts`, `house.ts` — Regeln,
-  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` ist 7:
+  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` ist 8:
   6, seit die zerstörten Kabinen im `HauntState` stehen (`destroyed`); 7,
   seit die Monster-Station übers Netz spielt — Nachricht `monster` (Stock,
   Knöpfe als Zähler, Klappenziel) und die Felder `technician` (der
-  2D-Techniker ohne Rig) und `ride` (Phase der Schachtfahrt) im Stand.
+  2D-Techniker ohne Rig) und `ride` (Phase der Schachtfahrt) im Stand; 8,
+  seit die Ghost-Marker (`ghosts`, „wo jede Seite die andere zuletzt sah")
+  Pflicht im Stand sind. Was seither dazukam — Blutspur, abgelegte Teile,
+  die Absichten des Monsters —, reist als **optionales** Feld und braucht
+  keinen Sprung (AGENTS.md, „Telefone und Netzwerk").
   Leser und Schreiber dafür stehen in `net.ts`; das Steuer dahinter in
   `monster/netMonsterPort.ts` (Telefon) und `monster/netMonsterControl.ts`
   (Gastgeber).

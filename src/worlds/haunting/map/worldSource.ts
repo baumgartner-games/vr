@@ -30,8 +30,8 @@ export interface WorldHandles {
   state(): HauntState;
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;
   doorOpen(id: string): boolean;
-  /** Wie lange die Sperre dieser Tür noch hält (`rules/doorLocks.ts`). */
-  doorHold?(id: string): { left: number; total: number } | null;
+  /** Die Uhr an dieser Tür (`rules/doorLocks.ts`): Sperre oder Abkühlung, siehe `MapSource.doorHold`. */
+  doorHold?(id: string): { left: number; total: number; cooling?: boolean } | null;
   /** Der eigene Kopf — nur in der Technikerrolle; sonst `null`. */
   player(): { x: number; z: number; yaw: number; sprinting: boolean; moving: boolean } | null;
   /** Ob die Taschenlampe brennt und welches Werkzeug gehalten wird. */
@@ -147,18 +147,19 @@ export function worldMapSource(world: WorldHandles): MapSource {
           const taken = task
             ? state.taken.includes(task) || state.done.includes(task)
             : crew.inventory.includes(key);
+          // **Auf der Kiste steht ihr Kennzeichen, nie der Teilename.** Hier
+          // stand einmal „Kühlmittelpumpe", und damit las jedes Telefon in der
+          // Runde aus dem Snapshot ab, was eigentlich der Archivar hätte sagen
+          // sollen.
           out.push({
             id: placement.id,
             kind: 'cargo',
-            label: task
-              ? (spec.tasks.find((t) => t.id === task)?.label ?? 'Fracht')
-              : slot
-                ? cargoLabel(slot)
-                : 'Fracht',
+            label: slot ? cargoLabel(slot) : 'Fracht',
             roomId: placement.roomId,
             at: { x: placement.approach.x, z: placement.approach.z },
             state: taken ? 'taken' : crew.opened.includes(placement.id) ? 'open' : 'closed',
             interactive: !taken,
+            ...(slot ? { mark: { colour: slot.mark.colour, number: slot.mark.number } } : {}),
           });
         } else if (placement.kind === 'locker') {
           out.push({

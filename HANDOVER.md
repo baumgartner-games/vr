@@ -3,6 +3,103 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Auftrag „Einsatzzentrale nach dem Merge von #93"
+
+Branch `claude/3d-lighting-hud-0zbxk7`. Zwei Linien sind hier
+zusammengekommen: die Struktur aus #93 (Rollen-Registry, Karten statt
+Sonderansichten, keine Drohne) und die Wünsche des Besitzers aus dieser
+Session (Lobby als Reiterzeile, Fähigkeiten statt Plätze, Tafel, Zuschauer-
+Linse, Archiv-Ziele erst mit dem Teil in der Hand). **Die Struktur gewinnt,
+die Wünsche gewinnen inhaltlich** — was #93 als Seite gebaut hat, ist
+geblieben; was es weggelassen hat, steht jetzt in der Rolle, zu der es gehört,
+und nicht wieder in `stationUi.ts`.
+
+### Was drin ist
+
+- **`stationUi.ts` bleibt der Rahmen** (699 Zeilen aus `main`, jetzt gut 800):
+  Reiterzeile als Rollenwahl (`writeBar`), Auftragsstreifen, Aufbau-Seite,
+  Endkarte — und ein Platz, in den die Rolle aus der Registry gehängt wird.
+  Zurück kamen aus diesem Branch: die **zwei Häkchen**, die **Verteilung** mit
+  der Spalte „Ich", der **eine Startknopf**, `take`/`choose`/`switchRights`/
+  `NO_ROLE_HINT`, `roleLabel`. Weg blieben: Titel, `.lobby__seats`,
+  Absichts-Kacheln, „Bot-Runde ansehen", „Mission spielen (2D)", „Test ohne
+  Monster (2D)". `StationHost` hat `botRound`, `mission`, `test` und
+  `flatMode` verloren (niemand ruft sie mehr) und `vr`, `switchView`,
+  `archiveDesk` zurückbekommen; `lure` ist weg.
+- **`ABILITY_STATIONS` zeigt jetzt auf drei Rollen** statt auf zwei Geräte:
+  Späher → `scout`, Schalttafel → `hack`, Archiv → `archive`. Seit #93 hat
+  jede Fähigkeit ihre eigene Karte; „Einsatzkontrolle" ist deshalb nur noch
+  der **Name** dafür, Späher und Schalttafel zugleich zu halten, und kein
+  Gerät mit zwei Reitern mehr.
+- **`RoleHost` hat zwei Griffe und zwei neue Auskünfte.** `lure` ist weg
+  (Schallköder gestrichen, `HauntState.loud` gibt es nicht mehr); dafür:
+  - `switches()` — die Tafel, so weit der Sicherungskasten sie freigibt
+    (`visibleSwitches(spec.switches, state.fuse)`). Sie steht beim Wirt und
+    nicht im Grundriss, weil `spec.switches` **alle** kennt und eine Rolle,
+    die sich die Liste selbst zusammensuchte, genau das verriete, was der
+    Kasten verbergen soll.
+  - `ledger()` — die Buchführung der Runde (`rules/archiveGoals.ArchiveState`:
+    Uhr, `taken`, `done`, `crew.inventory`, `dropped`). Sie steht **neben**
+    dem Snapshot, weil der Snapshot das *Bild* der Station ist: Auf einer
+    Kiste steht ihr Kennzeichen und nie der Teilename, und was jemand in der
+    Hand hält, steht dort überhaupt nicht. Ohne sie könnte der Archivar nicht
+    unterscheiden, ob ein Teil getragen wird oder irgendwo liegt — und genau
+    daran hängt, was er verraten darf.
+- **Die Tafel ist zurück, bei der Schalttafel** (`views/panelRole.ts`): ein
+  Blatt über der Karte, das der Knopf „Tafel" oben rechts aufschlägt
+  (`is-sheet`, dieselbe Form wie die Raumakte des Archivars). Eine Zeile je
+  Schalter mit seiner Beschriftung, abkühlende Schotts grün, mit Restzeit und
+  abgeschaltet. **Entschieden**: Blatt statt Streifen unter der Karte — zwölf
+  Schalter unter einem Grundriss sind auf einem Telefon hochkant entweder ein
+  Grundriss von drei Zentimetern oder eine Liste, die man nicht zu Ende rollt.
+  Das CSS ist von `stationDashboard.css` (`.haunt__switch*`) nach
+  `views/views.css` (`.role__switch*`) gewandert: Die Tafel läuft auch über
+  der 2D-Welt, wo es keine Einsatzzentrale gibt.
+- **Das Archiv verrät das Ziel erst mit dem Teil in der Hand**
+  (`rules/archiveGoals.ts` statt eines eigenen `jobs()`): die Kiste immer, mit
+  dem Namen des Teils daran; Linie, „hierher", Reparaturraum und Freigabecode
+  erst, wenn der Techniker trägt; ein abgelegtes Teil nach `DROPPED_SEEN`
+  = 5 s. Die Karte zeigt **keine Lampen** mehr (`lights: false`), und die
+  Raumakte liegt **ganzseitig ohne Karte dahinter** (`is-sheet`) und rollt.
+  Nebenbei behoben: Die Paarung Kiste ↔ Auftrag lief über die **Beschriftung**
+  der Kiste und fand in der 2D-Welt deshalb nie etwas — dort heißt eine Kiste
+  „Kiste 2 · blau" und nicht wie ihr Inhalt. Jetzt über die Kennung aus
+  `rules/cargo.ts`.
+- **Der Zuschauer schlüpft in die Rollen der anderen** (`views/watchRole.ts`,
+  `watchLens.ts`). **Entschieden**: Die Linse gehört der Ansicht, nicht
+  `stationUi.ts` — `StationUi.watchLens` und `shownStation` bleiben als API
+  für die Welt, lesen sie aber aus der Ansicht. Gezeigt wird die **angemeldete
+  Ansicht** der gewählten Rolle aus der Registry, mit einem Wirt, dessen
+  `door`/`light` `''` zurückgeben; es gibt keinen Nachbau, der auseinanderlaufen
+  könnte. `WatchSeat` hat `drone` verloren und `control` in `panel` umbenannt
+  (`seatStation` zeigt jetzt auf Rollenkennungen).
+- **Der Rollenstreifen der 2D-Welt fragt `switchRights`**
+  (`RoleStripHost.rights`, `inCentre: false`): Wer in 2D spielt, ist der
+  Techniker und wechselt nur in einer Test-Runde. Die Knöpfe bleiben stehen
+  und werden abgeschaltet, mit dem Grund als Titel — ein Streifen, der in der
+  einen Runde da ist und in der nächsten fehlt, ist einer, den man sucht.
+- **Aufgeräumt**: der Drohnen-Block, `.haunt__view`/`.haunt__vtools`/
+  `.haunt__vbtn*`, `.haunt__scout`, `.haunt__sheet`, `.haunt__rooms`,
+  `.haunt__tasks`, `.haunt__fact*`, `.haunt__watch-*`, `.haunt__tabs` und die
+  zweispaltige Archivseite sind aus `haunting.css` und
+  `stationDashboard.css` verschwunden (rund 22 KB). **Dabei gefunden**: Der
+  Merge hatte `.haunt.is-view .haunt__body { display: none; }` aus der
+  Drohnenzeit stehen gelassen — das hätte jede Rollenkarte unsichtbar
+  gemacht, sobald das alte Regelwerk wieder gegriffen hätte.
+
+### Was offen bleibt
+
+- **Der Sicherungskasten wirkt in der 2D-Welt nie.** `FlatRound` setzt
+  `fuse: false` und legt ihn nie um; die Tafel zeigt dort also dauerhaft nur
+  die sichtbare Hälfte. In der 3D-Welt gibt es den Kasten als Gegenstand.
+- **Über das Netz sagt ein Telefon weiterhin *eine* Rolle an**
+  (`Claim.station`), nicht seine Fähigkeiten. Wer zwei hält, meldet die des
+  zuletzt gewählten Reiters. Die feinere Ansage gehört in `net.ts`.
+- **Der Zuschauer sieht das Archiv nur, wenn er selbst ein Zimmer aufschlägt.**
+  Das alte „Blatt folgt dem Techniker" (`followArchive`) ist mit der alten
+  Zuschauerseite weggefallen; die aufgeschlagene Rollenansicht hat keinen
+  Grund, dem Techniker zu folgen, und der Zuschauer sieht ihn ja nicht.
+
 ## Auftrag „Rollen aus der Registry, Karten statt Sonderansichten, Drohne gestrichen"
 
 Branch `claude/non-vr-roles-mapview-m0gjby` (Claude Code im Browser).
@@ -20,8 +117,9 @@ Branch `claude/non-vr-roles-mapview-m0gjby` (Claude Code im Browser).
   Linie von der Kiste zur Konsole, „hierher" beim getragenen Teil, Raumakte
   per Tipp auf ein Zimmer (Codes groß, Bild des Raums: in 3D das Loch mit
   Zoom/Wisch, in 2D eine herangezoomte Karte), **keine Missionsliste**.
-  Schalttafel: Karte ohne Wesen, Türen und Lampen per Tipp, Schallköder über
-  einen Tipp auf das Zimmer. Späher: grüner Techniker- und roter
+  Schalttafel: Karte ohne Wesen, Türen und Lampen per Tipp (der Schallköder
+  ist inzwischen wieder gestrichen, siehe „Einsatzzentrale nach dem Merge von
+  #93"). Späher: grüner Techniker- und roter
   Monster-Punkt, neue Peilung alle 3,5 s, dazwischen verblassen, **keine
   Interpolation**.
 - **`stationUi.ts` baut die Seite aus der Registry.** Der `if (station === …)`-
@@ -35,13 +133,16 @@ Branch `claude/non-vr-roles-mapview-m0gjby` (Claude Code im Browser).
   sagt heute `RoleDefinition.surface`). `hack` ist eine echte Station statt
   eines Altnamens für `scout`.
 - **`RoleHost` neu geschnitten**: `snapshot`, `spec`, `me`, `nameOf`,
-  `door`/`light`/`lure` (die drei Griffe der Schalttafel, jeder mit seiner
-  Antwortzeile), `notify`, `extra`. `flip`/`flyTo` sind weg.
+  `door`/`light`/`lure` (die Griffe der Schalttafel, jeder mit seiner
+  Antwortzeile), `notify`, `extra`. `flip`/`flyTo` sind weg. (`lure` ist
+  inzwischen wieder weg, dafür kamen `ledger` und `switches` dazu — siehe
+  „Einsatzzentrale nach dem Merge von #93".)
 - **Rollenwechsel im 2D-Testmodus**: `views/roleStrip.ts` als Streifen über
   der Szene; die Rollen lesen dieselbe laufende `FlatRound`
   (`FlatMode.roleHost()`), nichts wird neu aufgebaut. `FlatRound.lure()` kam
   dazu — ein Schallköder, der über das Hörmodell ruft, solange er läuft
-  (`LURE_PULSE`), statt über eine Sonderregel.
+  (`LURE_PULSE`), statt über eine Sonderregel. (Auch der ist inzwischen wieder
+  weg.)
 - **Die Drohne ist gestrichen**: Rolle, Ansicht, Körper, Kamera, Flug,
   Netznachricht `kind: 'drone'` (`DroneState`, `readDrone`, `droneMessage`),
   `DRONE_HOME`, `DRONE_PROFILE`, Hangar-Ring, `MapEntityKind`/`MapLight`-Sorte
@@ -410,7 +511,8 @@ Nachtrainieren 1,15) schneller als Gehen, der Test verlangt nun > 1,05 statt
 
 ### 5. Netz: Monster-Rolle und 2D-Welt (`monster/`, `net.ts`, `stations.ts`, `HauntingWorld`)
 
-**Was drin ist.** `STATION_PROTOCOL` ist **7**. Neue Nachricht
+**Was drin ist.** `STATION_PROTOCOL` war hier **7** (inzwischen 8, seit die
+Ghost-Marker im Stand stehen — AGENTS.md hat den aktuellen Stand). Neue Nachricht
 `{ kind: 'monster', x, z, sprint, attack, interact, vent }` — Stock auf
 [-1, 1] begrenzt, `attack`/`interact` ganzzahlige **Zähler**, `vent` 0–15;
 Sender ist der Besitzer der neuen Station `monster` (`stations.ts`, fünfte

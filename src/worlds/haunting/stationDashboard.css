@@ -15,29 +15,46 @@
 .haunt[data-station="archive"], .haunt [data-accent="archive"] { --haunt-accent: #78dfe7; }
 .haunt[data-station="scout"], .haunt [data-accent="scout"] { --haunt-accent: #89edbe; }
 .haunt__bar { flex: none; gap: 8px; }
-.haunt__where { flex: 1; }
-.haunt__where strong { font-size: 15px; }
-.haunt__where small { color: #a0bbc8; }
-.haunt__back { min-height: 46px; padding-inline: 14px; font-weight: 650; }
-.haunt__menu { border-color: #456372; background: #112c39; }
-.haunt__state { margin-left: 0; }
 .haunt button:hover:not(:disabled) { border-color: var(--haunt-accent); }
 .haunt__body { min-height: 0; }
 .haunt[data-station="archive"], .haunt[data-station="scout"], .haunt[data-station="hack"] {
   background: #08151e;
 }
+.haunt[data-station="archive"] .haunt__body,
+.haunt[data-station="scout"] .haunt__body,
+.haunt[data-station="hack"] .haunt__body {
+  width: 100%;
+  max-width: 1040px;
+  align-self: center;
+  box-sizing: border-box;
+  padding: 12px 16px max(28px, env(safe-area-inset-bottom));
+  gap: 14px;
+}
+
+.haunt .haunt__chart-key {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 10px 12px;
+  background: #193542;
+  border: 1px solid #527786;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: left;
+}
+
 .haunt__round-result { padding: 18px; border: 1px solid #75d7bb; border-radius: 12px; background: #11362f; line-height: 1.55; }
 .haunt__round-result strong { font-size: 19px; color: #b7ffe9; }
 .haunt__round-result p { margin: 8px 0 14px; }
 .haunt__round-result.is-lost { border-color: #df8b8e; background: #3a232c; }
 .haunt__round-result.is-lost strong { color: #ffc7ca; }
-.haunt__tile--simulation { border-color: #728ed0; background: #15253e; }
-.haunt__tile--simulation strong { font-size: 17px; color: #c5d4ff; }
 
 @media (max-width: 580px) {
-  .haunt__state { display: none; }
-  .haunt__where small { max-width: 45vw; }
-  .haunt__where strong { font-size: 13px; }
-  .haunt__back { padding-inline: 10px; font-size: 13px; }
-  .haunt__bar { padding-inline: 12px; }
+  .haunt .haunt__role { font-size: 12px; padding-inline: 10px; }
+  .haunt__bar { padding-inline: 8px; }
 }
+
+/* **Die zweispaltige Archivseite ist weg.** Sie stammt aus der Zeit, als der
+   Archivar ein Bild *und* eine Liste hatte: links das Zimmer, rechts das
+   Blatt. Heute ist er eine Karte über die ganze Fläche, und seine Akte legt
+   sich ganzseitig darüber (`views/views.css`, `is-sheet`) — ein zweispaltiges
+   Gitter hätte nur noch eine leere Spalte zu verteilen. */

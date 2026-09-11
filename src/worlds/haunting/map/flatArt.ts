@@ -1,4 +1,5 @@
 import {
+  CARGO_BAND_COLORS,
   CARGO_SIZE,
   CONSOLE_SIZE,
   LOCKER_SIZE,
@@ -66,6 +67,9 @@ export const ART = {
   monster: '#160b12',
   monsterEdge: '#3a1a28',
   eye: '#ff3b3b',
+  /** Dasselbe Gelb wie das Randdreieck und der Kompass (`map/mapView.INK.goal`). */
+  goal: '#ffd84a',
+  bandInk: '#141a20',
 };
 
 /** Eine Farbstufe eines Verlaufs: Position in [0, 1] und Farbe. */
@@ -276,35 +280,7 @@ export function drawMonster(
   ctx.fill();
 
   ctx.fillStyle = ART.monster;
-  ctx.beginPath();
-  if (look.kind === 'crawler') {
-    // Flach und lang, mit Zacken auf dem Rücken.
-    ctx.moveTo(-u * 0.6, 0);
-    ctx.lineTo(-u * 0.55, -h * 0.5);
-    ctx.lineTo(-u * 0.35, -h * 0.75);
-    ctx.lineTo(-u * 0.2, -h * 0.5);
-    ctx.lineTo(-u * 0.05, -h);
-    ctx.lineTo(u * 0.1, -h * 0.55);
-    ctx.lineTo(u * 0.3, -h * 0.9);
-    ctx.lineTo(u * 0.45, -h * 0.5);
-    ctx.lineTo(u * 0.65, -h * 0.6);
-    ctx.lineTo(u * 0.6, 0);
-  } else {
-    // Aufrecht: schmaler Rumpf, gezackte Schultern, schiefer Kopf.
-    const w = look.kind === 'sentinel' ? 0.55 : 0.42;
-    ctx.moveTo(-u * w, 0);
-    ctx.lineTo(-u * (w + 0.08), -h * 0.45);
-    ctx.lineTo(-u * (w + 0.18), -h * 0.75);
-    ctx.lineTo(-u * (w - 0.1), -h * 0.7);
-    ctx.lineTo(-u * 0.15, -h * 0.98 - bob);
-    ctx.lineTo(u * 0.08, -h * 0.82 - bob);
-    ctx.lineTo(u * 0.3, -h - bob);
-    ctx.lineTo(u * (w - 0.05), -h * 0.72);
-    ctx.lineTo(u * (w + 0.15), -h * 0.8);
-    ctx.lineTo(u * (w + 0.05), -h * 0.4);
-    ctx.lineTo(u * w, 0);
-  }
-  ctx.closePath();
+  monsterSilhouette(ctx, u, look.kind, bob);
   ctx.fill();
   ctx.stroke();
 
@@ -487,7 +463,7 @@ export function drawProp(
   x: number,
   y: number,
   scale: number,
-  item: Pick<MapItem, 'kind' | 'state' | 'interactive'>,
+  item: Pick<MapItem, 'kind' | 'state' | 'interactive' | 'mark' | 'goal'>,
   time = 0,
 ): void {
   const u = scale;
@@ -498,7 +474,7 @@ export function drawProp(
   ctx.lineJoin = 'round';
   switch (item.kind) {
     case 'cargo':
-      drawCargo(ctx, u, item.state);
+      drawCargo(ctx, u, item, time);
       break;
     case 'console':
       drawConsole(ctx, u, item.state, item.interactive, time);
@@ -521,9 +497,50 @@ export function drawProp(
   ctx.restore();
 }
 
-/** Frachtschrank: ein Kasten mit Deckel; offen steht der Deckel hoch, geleert bleibt er grau. */
-function drawCargo(ctx: CanvasRenderingContext2D, u: number, state: string): void {
+/**
+ * **Frachtkiste: Kasten, Deckel, Kennzeichen — und wenn sie das Ziel ist,
+ * leuchtet sie selbst.**
+ *
+ * Das **Kennzeichen** (Farbband und Nummer) steht immer daran, auch ohne Ziel:
+ * Der Archivar sagt „Kiste 2, blaues Band", und wer das hört, muss es auf dem
+ * Bild wiederfinden können. Früher stand hier stattdessen der Inhalt — und
+ * damit hatte der Archivar nichts mehr zu sagen.
+ *
+ * **Das Ziel ist die Kiste und kein Ring daneben.** Ein Ring am Ort war eine
+ * zweite Marke neben der Sache, um die es geht; hier ist es dieselbe: ein
+ * Schein darunter (Muster `drawLamp`), ein Umriss darum und ein Puls
+ * (Muster `drawConsole`). Steht ein Mensch am Archiv, kommt `goal` nie an —
+ * dann leuchtet keine Kiste, und der Raum ist die ganze Auskunft
+ * (`map/flatScene.ts`).
+ */
+function drawCargo(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  item: Pick<MapItem, 'state' | 'mark' | 'goal'>,
+  time: number,
+): void {
+  const state = item.state;
   const taken = state === 'taken';
+  // Der Umriss der ganzen Kiste, aus Fuß und Deckel — dieselben Ecken, die
+  // unten gezeichnet werden, damit Saum und Kasten zueinander passen.
+  const foot: Array<[number, number]> = [
+    [-u * 0.5, u * 0.06],
+    [u * 0.5, u * 0.06],
+  ];
+  const lid: Array<[number, number]> = [
+    [-u * 0.56, -u * 0.78],
+    [u * 0.56, -u * 0.78],
+  ];
+  if (item.goal && !taken) {
+    const pulse = 0.75 + 0.25 * Math.sin(time * 9);
+    ctx.fillStyle = radialGradient(ctx, 0, -u * 0.35, u * 1.2, [
+      [0, `rgba(255, 216, 74, ${(0.34 * pulse).toFixed(3)})`],
+      [1, 'rgba(255, 216, 74, 0)'],
+    ]);
+    ctx.beginPath();
+    ctx.arc(0, -u * 0.35, u * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.fillStyle = ART.shadow;
   ctx.beginPath();
   ctx.ellipse(0, u * 0.04, u * 0.55, u * 0.14, 0, 0, Math.PI * 2);
@@ -553,6 +570,47 @@ function drawCargo(ctx: CanvasRenderingContext2D, u: number, state: string): voi
     ctx.fillStyle = '#1a1410';
     ctx.fillRect(-u * 0.42, -u * 0.66, u * 0.84, u * 0.1);
   }
+  drawCargoMark(ctx, u, item.mark, taken);
+  if (item.goal && !taken) {
+    const pulse = 0.75 + 0.25 * Math.sin(time * 9);
+    const shape = hull([...foot, ...lid]);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = ART.goal;
+    ctx.lineWidth = Math.max(2, u * 0.07);
+    ctx.beginPath();
+    shape.forEach(([px, py], index) => (index ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = ART.ink;
+  }
+}
+
+/** Farbband und Nummer, quer über die Kiste — das, worüber gesprochen wird. */
+function drawCargoMark(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  mark: MapItem['mark'],
+  taken: boolean,
+): void {
+  if (!mark) return;
+  const colour = `#${CARGO_BAND_COLORS[mark.colour].toString(16).padStart(6, '0')}`;
+  ctx.save();
+  // Eine geleerte Kiste bleibt kenntlich, tritt aber zurück: Sie ist erledigt,
+  // und ein leuchtendes Band an ihr wäre eine Einladung, noch einmal hinzugehen.
+  ctx.globalAlpha = taken ? 0.45 : 1;
+  ctx.fillStyle = colour;
+  ctx.fillRect(-u * 0.48, -u * 0.44, u * 0.96, u * 0.16);
+  ctx.strokeStyle = ART.ink;
+  ctx.lineWidth = Math.max(1, u * 0.02);
+  ctx.strokeRect(-u * 0.48, -u * 0.44, u * 0.96, u * 0.16);
+  ctx.fillStyle = ART.bandInk;
+  ctx.font = `700 ${Math.max(7, u * 0.16).toFixed(1)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(mark.number), 0, -u * 0.35);
+  ctx.restore();
 }
 
 /** Konsole: ein Pult mit schrägem Bildschirm — leuchtet, solange sie etwas will. */
@@ -791,5 +849,165 @@ export function drawName(
   ctx.strokeText(text, x, y);
   ctx.fillStyle = '#ffffff';
   ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+/**
+ * **Der Umriss des Monsters als reiner Pfad** — gemeinsame Sache von
+ * `drawMonster` und `drawGhost`.
+ *
+ * Zwei Umrisse für dasselbe Vieh wären zwei Viecher: Wer die gestrichelte
+ * Erinnerung anders zeichnet als das Original, lässt den Spieler raten, ob er
+ * dieselbe Sorte vor sich hat. Der Pfad wird nur gebaut, gefüllt und gestrichen
+ * wird beim Aufrufer.
+ */
+function monsterSilhouette(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  kind: string,
+  bob: number,
+): void {
+  const h = monsterHeight(kind) * u;
+  ctx.beginPath();
+  if (kind === 'crawler') {
+    // Flach und lang, mit Zacken auf dem Rücken.
+    ctx.moveTo(-u * 0.6, 0);
+    ctx.lineTo(-u * 0.55, -h * 0.5);
+    ctx.lineTo(-u * 0.35, -h * 0.75);
+    ctx.lineTo(-u * 0.2, -h * 0.5);
+    ctx.lineTo(-u * 0.05, -h);
+    ctx.lineTo(u * 0.1, -h * 0.55);
+    ctx.lineTo(u * 0.3, -h * 0.9);
+    ctx.lineTo(u * 0.45, -h * 0.5);
+    ctx.lineTo(u * 0.65, -h * 0.6);
+    ctx.lineTo(u * 0.6, 0);
+  } else {
+    // Aufrecht: schmaler Rumpf, gezackte Schultern, schiefer Kopf.
+    const w = kind === 'sentinel' ? 0.55 : 0.42;
+    ctx.moveTo(-u * w, 0);
+    ctx.lineTo(-u * (w + 0.08), -h * 0.45);
+    ctx.lineTo(-u * (w + 0.18), -h * 0.75);
+    ctx.lineTo(-u * (w - 0.1), -h * 0.7);
+    ctx.lineTo(-u * 0.15, -h * 0.98 - bob);
+    ctx.lineTo(u * 0.08, -h * 0.82 - bob);
+    ctx.lineTo(u * 0.3, -h - bob);
+    ctx.lineTo(u * (w - 0.05), -h * 0.72);
+    ctx.lineTo(u * (w + 0.15), -h * 0.8);
+    ctx.lineTo(u * (w + 0.05), -h * 0.4);
+    ctx.lineTo(u * w, 0);
+  }
+  ctx.closePath();
+}
+
+/** Und derselbe Umriss für einen Crewmate: Bohne, Rucksackbuckel, zwei Beine. */
+function crewSilhouette(ctx: CanvasRenderingContext2D, u: number): void {
+  ctx.beginPath();
+  ctx.moveTo(-u * 0.4, 0);
+  ctx.lineTo(-u * 0.4, -u * 0.8);
+  ctx.quadraticCurveTo(-u * 0.4, -u * 1.2, u * 0.02, -u * 1.2);
+  ctx.quadraticCurveTo(u * 0.42, -u * 1.2, u * 0.42, -u * 0.82);
+  ctx.lineTo(u * 0.42, 0);
+  ctx.closePath();
+}
+
+/** Die Farben der gestrichelten Erinnerung: der Techniker kalt, das Monster rot. */
+export const GHOST_INK: Readonly<Record<'crew' | 'monster', string>> = {
+  crew: '#9fd2ea',
+  monster: '#ff6b6b',
+};
+
+export interface GhostLook {
+  /** Bildpunkte je Meter. */
+  scale: number;
+  /** `'crew'` für den Techniker, sonst die Monstersorte (`MonsterKind`). */
+  kind: string;
+  facing: 1 | -1;
+  /** Deckkraft aus `rules/ghosts.ghostAlpha`. */
+  alpha: number;
+}
+
+/**
+ * **„Hier war er zuletzt"** — die gestrichelte Silhouette
+ * (`rules/ghosts.ts`, Paket M3b).
+ *
+ * Kein Körper, sondern eine Kontur: Ein gefüllter Ghost wäre auf einen Blick
+ * nicht von der echten Figur zu unterscheiden, und genau das darf er nicht
+ * sein. Gestrichelt, halbdurchsichtig, ohne Beine und ohne Augen — was fehlt,
+ * sagt mehr als was da ist.
+ *
+ * Wie kräftig er steht, entscheidet nicht diese Datei, sondern `ghostAlpha`:
+ * Vier Zeichner mit vier Meinungen über das Verblassen wären vier
+ * verschiedene Spiele.
+ */
+export function drawGhost(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  look: GhostLook,
+): void {
+  const u = look.scale;
+  ctx.save();
+  ctx.translate(x, y);
+  if (look.facing < 0) ctx.scale(-1, 1);
+  ctx.globalAlpha = Math.max(0, Math.min(1, look.alpha));
+  ctx.setLineDash([Math.max(3, u * 0.09), Math.max(3, u * 0.07)]);
+  ctx.lineWidth = Math.max(1.5, u * 0.05);
+  ctx.lineJoin = 'round';
+  if (look.kind === 'crew') {
+    ctx.strokeStyle = GHOST_INK.crew;
+    crewSilhouette(ctx, u);
+  } else {
+    ctx.strokeStyle = GHOST_INK.monster;
+    monsterSilhouette(ctx, u, look.kind, 0);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/** Dunkles Blut auf Stationsblech, frisch und getrocknet. */
+export const BLOOD_INK = { fresh: '#7a0f16', dry: '#3d0a10' };
+
+/**
+ * **Ein Tropfen Blut auf dem Boden** (`rules/blood.ts`).
+ *
+ * Er liegt **flach**, anders als alles andere in dieser Datei: Kein Körper,
+ * der nach Norden wächst, sondern ein Fleck auf der Platte, also eine
+ * gedrückte Ellipse genau auf ihrem Punkt. `alpha` kommt aus `dropAlpha` —
+ * frisch ist er fast schwarzrot, alt nur noch ein Schatten.
+ *
+ * Die kleine Nase daneben macht aus dem Kreis einen Spritzer; ihre Richtung
+ * hängt am Zeitstempel und nicht am Zufall, damit jedes Gerät denselben
+ * Boden malt.
+ */
+export function drawBloodDrop(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  scale: number,
+  drop: { since: number },
+  alpha: number,
+): void {
+  const u = scale;
+  const wobble = Math.abs(Math.sin(drop.since * 12.9898));
+  const r = u * (0.07 + 0.05 * wobble);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.fillStyle = alpha > 0.6 ? BLOOD_INK.fresh : BLOOD_INK.dry;
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.62, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const angle = drop.since * 2.4;
+  ctx.beginPath();
+  ctx.ellipse(
+    x + Math.cos(angle) * r * 1.5,
+    y + Math.sin(angle) * r * 0.9,
+    r * 0.4,
+    r * 0.26,
+    0,
+    0,
+    Math.PI * 2,
+  );
+  ctx.fill();
   ctx.restore();
 }

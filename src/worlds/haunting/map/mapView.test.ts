@@ -1,6 +1,9 @@
 /** @jest-environment jsdom */
 import { MapView, PANEL_LAYERS } from './mapView';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
+import { defaultSetup, type RoundSetup } from '../rules/roundSetup';
+import { emptyField } from './visibility';
+import { DROP_FADE } from '../rules/blood';
 
 function fakeContext(): CanvasRenderingContext2D {
   const calls: string[] = [];
@@ -35,6 +38,36 @@ function pointer(view: MapView, type: string, id: number, x: number, y: number):
 }
 
 describe('MapView', () => {
+  it('umrandet bei Kistengenauigkeit die Kiste und bei Raumgenauigkeit den Raum — nie einen Ring', () => {
+    const view = (round: FlatRound): { view: MapView; calls: string[] } => {
+      const one = new MapView({ objectives: () => round.objectives() });
+      one.setSnapshot(round.snapshot());
+      one.setVisibility(round.field);
+      one.setView({ centreX: round.objectives()[0]!.at.x, centreZ: round.objectives()[0]!.at.z });
+      (ctx as unknown as { calls: string[] }).calls.length = 0;
+      one.draw();
+      return { view: one, calls: [...(ctx as unknown as { calls: string[] }).calls] };
+    };
+    const solo = view(new FlatRound(7, { test: true, setup: defaultSetup() }));
+    expect(solo.view.stats.goals).toBe(3);
+    const human: RoundSetup = {
+      ...defaultSetup(),
+      abilities: { scout: 'off', panel: 'off', archive: 'human' },
+    };
+    const crew = view(new FlatRound(7, { test: true, setup: human }));
+    expect(crew.view.stats.goals).toBe(3);
+    // Beide zeichnen dieselbe Zahl Ziele, aber nicht dasselbe Bild: Der
+    // Kistenkasten ist ein abgerundetes Rechteck, der Raum sein Umriss.
+    expect(solo.calls.filter((c) => c === 'quadraticCurveTo').length).toBeGreaterThan(
+      crew.calls.filter((c) => c === 'quadraticCurveTo').length,
+    );
+    // Und keiner der beiden legt dafür einen Ring an: gleich viele Kreise in
+    // beiden Bildern, obwohl das eine drei Kisten und das andere drei Räume
+    // hervorhebt.
+    const rings = (calls: string[]): number => calls.filter((c) => c === 'arc').length;
+    expect(rings(solo.calls)).toBe(rings(crew.calls));
+  });
+
   it('passt die Station beim ersten Bild ins Fenster und rechnet hin und zurück', () => {
     const round = new FlatRound(5, { test: true });
     const view = new MapView();
@@ -90,6 +123,38 @@ describe('MapView', () => {
     view.fit();
     view.draw();
     expect(view.getView().scale).toBeCloseTo(fit);
+  });
+
+  /**
+   * **Ganz heraus heißt nicht festgenagelt.** Passt das Haus ins Bild, stand
+   * es fest in der Mitte — und seine obere Kante lag damit hinter dem, was
+   * oben schwebt. Wer selbst zieht, darf es so weit nach unten holen, wie oben
+   * verdeckt ist; nach oben und aus dem Bild heraus nicht.
+   */
+  it('lässt das ganz herausgezoomte Haus nach unten unter den oberen Rand ziehen', () => {
+    const round = new FlatRound(5, { test: true });
+    const view = new MapView({ minScale: 6, maxScale: 60 });
+    view.setSnapshot(round.snapshot());
+    view.fit();
+    view.draw();
+    const b = round.snapshot().bounds;
+    const middle = view.toScreen(b.minX, b.minZ).y;
+    // Nach unten ziehen: die obere Kante wandert mit.
+    view.panBy(0, 120);
+    view.draw();
+    const down = view.toScreen(b.minX, b.minZ).y;
+    expect(down).toBeGreaterThan(middle + 60);
+    // Aber nicht unbegrenzt: Der Anschlag gibt nur so viel nach, wie oben
+    // verdeckt ist, und hält das Haus damit im Bild.
+    view.panBy(0, 400);
+    view.draw();
+    const limit = view.toScreen(b.minX, b.minZ).y;
+    expect(limit).toBeGreaterThan(down);
+    expect(limit - middle).toBeLessThan(200);
+    // Und nach oben gibt er gar nicht nach.
+    view.panBy(0, -400);
+    view.draw();
+    expect(view.toScreen(b.minX, b.minZ).y).toBeCloseTo(middle);
   });
 
   it('zeichnet für die Schalttafel keine Marker und keine Items', () => {
@@ -235,5 +300,56 @@ describe('MapView', () => {
     view.draw();
     expect(view.stats.noises).toBe(0);
     view.dispose();
+  });
+});
+
+describe('Spur und Erinnerung auf der Karte', () => {
+  /** Eine Runde mit zwei Tropfen und beiden Markern im Stand. */
+  function marked(): FlatRound {
+    // Ohne Testmodus, damit es ein Monster gibt: Wessen Karte das ist, liest
+    // die Ansicht an der Sorte des Betrachters ab.
+    const round = new FlatRound(5);
+    const s = round.state();
+    // In die Liste der Runde hineinschreiben und nicht daneben: `state().blood`
+    // *ist* `round.blood.drops` (`rules/blood.ts`).
+    round.blood.drops.push(
+      { x: round.player.x, z: round.player.z, since: s.time },
+      { x: round.player.x + 1.5, z: round.player.z, since: s.time },
+    );
+    s.ghosts.monster = { x: round.player.x + 3, z: round.player.z, yaw: 0, since: s.time };
+    s.ghosts.technician = { x: round.player.x - 3, z: round.player.z, yaw: 1, since: s.time };
+    // Ein Schritt, damit der Snapshot neu gerechnet wird.
+    round.step(1 / 30, { x: 0, z: 0, sprint: false });
+    return round;
+  }
+
+  function drawn(round: FlatRound, viewerId: string, mode: 'realistic' | 'omniscient'): MapView {
+    const view = new MapView({ mode, viewerId });
+    view.setSnapshot(round.snapshot());
+    // Ein leeres Sichtfeld heißt: Niemand ist gerade zu sehen — genau der
+    // Fall, für den es die Marker gibt.
+    view.setVisibility(emptyField(mode));
+    view.setView({ centreX: round.player.x, centreZ: round.player.z, scale: 20 });
+    view.draw();
+    return view;
+  }
+
+  it('malt die Tropfen der Spur und zählt sie', () => {
+    const round = marked();
+    expect(drawn(round, PLAYER_ID, 'omniscient').stats.drops).toBe(2);
+    // Verblasst ist verblasst: dieselben Tropfen, nur `DROP_FADE` älter.
+    for (const drop of round.blood.drops) drop.since -= DROP_FADE + 1;
+    expect(drawn(round, PLAYER_ID, 'omniscient').stats.drops).toBe(0);
+  });
+
+  /**
+   * Dieselbe Regel wie überall (`rules/ghosts.ghostsToDraw`): „Alles sehen"
+   * zeigt beide Marker, „Realitätsnah" nur den des anderen.
+   */
+  it('zeigt dem Zuschauer beide Marker und jedem Spieler nur den des anderen', () => {
+    const round = marked();
+    expect(drawn(round, PLAYER_ID, 'omniscient').stats.ghosts).toBe(2);
+    expect(drawn(round, MONSTER_ID, 'realistic').stats.ghosts).toBe(1);
+    expect(drawn(round, PLAYER_ID, 'realistic').stats.ghosts).toBe(1);
   });
 });
