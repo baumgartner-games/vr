@@ -7982,14 +7982,28 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 - **Die Steuerung der 2D-Welt gilt auch im Schiff**
   (`world3d/shipControls.ts`): Stock links unten, drei Knöpfe rechts unten,
   dieselbe Klasse und dasselbe CSS wie in 2D (`map/joystick.ts`,
-  `map/flat.css`) — nur ohne den schwarzen Grund und nur dort bedienbar, wo
-  Stock und Knöpfe liegen; dazwischen geht jeder Finger an die Leinwand
+  `map/flat.css`) — nur ohne den schwarzen Grund (`.flat.ship3d { background:
+  none }`; ohne diese Zeile malt `flat.css` die ganze Station zu, sobald
+  jemand die Datei lädt — das Schiff tut das seit dem Optionsmenü selbst) und
+  nur dort bedienbar, wo Stock und Knöpfe liegen; dazwischen geht jeder Finger an die Leinwand
   durch, sonst ließe sich nicht mehr umsehen. Neu ist an den Knöpfen nur der
   Inhalt: Im Schiff hat man **zwei Hände**, also stehen auf den beiden
   kleinen „Linke Hand" (Radar/Röntgen/frei) und „Rechte Hand"
   (Lampe/Medkit/frei) — dieselben zwei Reihen wie auf `1` und `2` —, und der
   große trägt den Namen dessen, worauf man gerade zielt, wie am Desktop das
-  `E`. Der Stock schiebt das Rig mit `PLAYER_WALK_SPEED` und jenseits des
+  `E`. **Und liegt nichts vor einem, ist der große Knopf der Lichtschalter**
+  (`pressUse` → `armUse`/`toggleTorch`): Der Besitzer wollte das Licht ohne
+  Menü umlegen können. Ob wirklich nichts da ist, sagt der Strahl und nicht
+  der gemerkte Hover-Zustand — der hängt am Finger auf der Leinwand und ist
+  nach dem Loslassen leer. Ein Druck wird deshalb **vorgemerkt** und zwei
+  Bilder später abgerechnet: Hat `bind`s `onSelect` in dieser Zeit etwas in
+  Reichweite gefunden (auch etwas, das den Handgriff gerade abweist — eine
+  Tür in der Sperrfrist ist trotzdem eine Tür), war es ein Handgriff; sonst
+  legt er `torchLit` um. Auf den runden Knöpfen heißt die Lampe „Lampe an" /
+  „Lampe aus" und nicht „Taschenlampe": Dort ist Platz für neun Zeichen, und
+  abgeschnitten wurde bisher genau das Wort, um das es geht (`keyLabel`); auf
+  dem großen Knopf steht dafür „Licht an" / „Licht aus" — was er *tun* wird,
+  wenn nichts vor einem liegt. Der Stock schiebt das Rig mit `PLAYER_WALK_SPEED` und jenseits des
   Sprintrings mit `PLAYER_SPRINT_SPEED` — nur solange der Daumen liegt, sonst
   nähme er der Tastatur jedes Bild ihren Wunsch weg. Nicht in der Brille
   (dort ist DOM unsichtbar), nicht in der Simulation, nicht bei offenem Menü.
@@ -7998,7 +8012,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `#touch`) schaltet die Welt dafür ab: `WorldContext.touchStick(false)` beim
   Betreten, `true` beim Verlassen — zwei Stöcke übereinander wären einer zu
   viel.
-- `desktopControls.ts`: E/Klick benutzt denselben Interaktionspfad;
+- `desktopControls.ts`: E/Klick benutzt denselben Interaktionspfad — und im
+  Leeren dasselbe Licht wie der große Knopf;
   1 wechselt Radar/Xray/frei, 2 Lampe/Medkit/frei. Ctrl duckt. Im Simulationsflug
   WASD/Space/Ctrl. Menüs, Texteingaben und Fokusverlust sperren gehaltene Tasten.
 - `MissionBot` führt eine echte, schadensfreie Runde mit aktiver Monster-KI aus: zu Fracht gehen,
@@ -8837,7 +8852,9 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Optionsmenü der 2D-Welt** auf — nur im Browser, nie in der Brille. Das
     Schiff bindet dafür `map/flat.css` selbst ein: Das Menü trägt dessen
     Klassen, und wer im Schiff anfing statt in der 2D-Welt, bekam es sonst als
-    nackte Liste.
+    nackte Liste. Wer diese Datei lädt, lädt auch `.flat { background: #000 }`
+    — die Bedien-Ebene über der Szene muss sie deshalb ausdrücklich wieder
+    abbestellen (`.flat.ship3d`), sonst ist die Station schwarz.
   - **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Was ein
     Optionsmenü *ist* — Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel
     (`OptionItem`) — und wie es gezeichnet wird (`renderOptions`, die Klassen

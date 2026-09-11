@@ -40,6 +40,13 @@ export interface ShipControlsLabels {
   right: string;
   /** Das Ding vor einem — leer, wenn nichts in Reichweite ist. */
   target: string;
+  /**
+   * Was der große Knopf tut, wenn **nichts** vor einem liegt: das Licht
+   * schalten (`ShipExperience.toggleTorch`). Er steht dann klein unter
+   * „Benutzen" — und bleibt matt, denn gelb leuchtet der Knopf nur, wenn
+   * wirklich etwas in Reichweite ist.
+   */
+  idle?: string;
 }
 
 export class ShipControls {
@@ -89,12 +96,12 @@ export class ShipControls {
 
   /** Die Beschriftungen nachziehen — gebaut wird nur, wenn sich der Text ändert. */
   setLabels(labels: ShipControlsLabels): void {
-    const stamp = `${labels.left}|${labels.right}|${labels.target}`;
+    const stamp = `${labels.left}|${labels.right}|${labels.target}|${labels.idle ?? ''}`;
     if (stamp === this.stamp) return;
     this.stamp = stamp;
     fill(this.leftKey, 'Linke Hand', labels.left);
     fill(this.rightKey, 'Rechte Hand', labels.right);
-    this.actKey.replaceChildren(strong('Benutzen'), small(labels.target));
+    this.actKey.replaceChildren(strong('Benutzen'), small(labels.target || (labels.idle ?? '')));
     this.actKey.classList.toggle('is-ready', !!labels.target);
   }
 

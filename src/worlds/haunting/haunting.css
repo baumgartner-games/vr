@@ -368,7 +368,12 @@ body.orbital-on #hud { display: none; }
    Dazu der Gürtel und die Hosenträger: Die Steuerung liegt eine Stufe unter
    der Tafel. Sollte je wieder etwas überlappen, gewinnt die Tafel den Klick
    und nicht der Stock. */
-.flat.ship3d { pointer-events: none; z-index: 3; }
+/* **Und ohne den schwarzen Grund der 2D-Welt** (`flat.css`, `.flat { background: #000 }`).
+   Diese Ebene liegt mit `inset: 0` über der 3D-Szene: Solange `flat.css` nur in
+   der 2D-Welt geladen war, fiel das nicht auf — seit das Schiff die Datei für
+   sein Optionsmenü selbst einbindet, hätte sie die ganze Station schwarz
+   übermalt. Dieselbe Zeile wie bei `.flat.orbital-options` weiter unten. */
+.flat.ship3d { pointer-events: none; background: none; z-index: 3; }
 .flat.ship3d .flat__stick, .flat.ship3d .flat__buttons { pointer-events: auto; }
 /* Das Optionsmenü der 2D-Welt über dem Schiff (`ShipExperience.showOptions`): derselbe Rahmen wie in 2D, nur ohne den schwarzen Grund und über dem Panel des Technikers. */
 .flat.orbital-options { pointer-events: none; background: none; z-index: 5; }
