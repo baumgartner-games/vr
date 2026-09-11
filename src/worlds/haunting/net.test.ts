@@ -106,6 +106,51 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
     return stateMessage(state()) as Record<string, unknown>;
   }
 
+  it('trägt die Absichten des Monsters mit — und stutzt Unsinn zurecht', () => {
+    // Nur der Gastgeber rechnet das Monster; ohne dieses Feld sah der
+    // Zuschauer das Overlay nur auf dem Gerät, das zufällig Gastgeber war.
+    const insight = {
+      mode: 'intercept' as const,
+      label: 'Abfangen',
+      goal: { x: 3, z: -4 },
+      belief: [
+        { roomId: 'r1', p: 0.7 },
+        { roomId: 'r2', p: 0.3 },
+      ],
+      prediction: {
+        path: [
+          { x: 1, z: 1 },
+          { x: 2, z: 2 },
+        ],
+        eta: [1.5, 3],
+      },
+      intercept: { door: 'd3', at: { x: 2, z: 2 }, etaMonster: 3.2, etaPlayer: 4 },
+    };
+    const replay = readState(stateMessage({ ...state(), insight }))!;
+    expect(replay.insight).toEqual(insight);
+    // Fehlt es, fehlt es — kein leeres Bild, kein Fehler.
+    expect(readState(wireOf())!.insight).toBeUndefined();
+    // Eine unbekannte Haltung macht das Ganze zu nichts; halbe Teile werden
+    // zu ganzen ohne die fehlenden Stücke, Zahlen bleiben in Metern.
+    expect(readState({ ...wireOf(), insight: { mode: 'tanzen' } })!.insight).toBeUndefined();
+    const odd = readState({
+      ...wireOf(),
+      insight: {
+        mode: 'search',
+        goal: { x: 1e9, z: 'weit' },
+        belief: [{ roomId: 'r1', p: 7 }, { p: 1 }, 'x'],
+        prediction: { path: [{ x: 1 }], eta: [-2] },
+        intercept: { door: 4, at: { x: 1, z: 1 } },
+      },
+    })!.insight!;
+    expect(odd.mode).toBe('search');
+    expect(odd.label).toBe('Raum absuchen');
+    expect(odd.goal).toBeNull();
+    expect(odd.belief).toEqual([{ roomId: 'r1', p: 1 }]);
+    expect(odd.prediction).toBeNull();
+    expect(odd.intercept).toBeNull();
+  });
+
   it('lässt einen Techniker im Headset ohne Stelle und liest eine fremde Phase als draußen', () => {
     const wire = { ...wireOf(), technician: null, ride: 'flying' };
     const replay = readState(wire)!;

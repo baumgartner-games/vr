@@ -2,6 +2,8 @@ import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission
 import type { DroppedPart } from './rules/archiveGoals';
 import { readDrops, type Drop } from './rules/blood';
 import { freshGhosts, type Ghost, type Ghosts } from './rules/ghosts';
+import type { MapPoint, MonsterInsight } from './map/mapSnapshot';
+import { MODE_LABELS, type MonsterMode } from './monsterRoutine';
 import { isStation, type Claim, type StationId } from './stations';
 import type { VentPhase } from './vents/ventTravel';
 
@@ -139,6 +141,19 @@ export interface HauntState {
    * auszusperren.
    */
   dropped?: DroppedPart[];
+  /**
+   * **Was das Monster glaubt und vorhat** (`MonsterInsight`, aus
+   * `RoutineOutput.insight`) — nur der Gastgeber weiß es, weil nur er das
+   * Monster rechnet. Ohne dieses Feld sah der Zuschauer das KI-Overlay nur,
+   * wenn sein Gerät zufällig selbst der Gastgeber war; alle anderen bekamen
+   * `null` und die Runde ohne den Kopf des Gegners.
+   *
+   * Optional und ohne Protokollsprung (`STATION_PROTOCOL` bleibt 8): Wer es
+   * nicht kennt, zeichnet kein Overlay — es hängt keine Regel daran. Klein
+   * gehalten: nur nennenswerte Anteile des Glaubensbilds, eine kurze
+   * Polyline, eine Tür.
+   */
+  insight?: MonsterInsight;
 }
 
 /**
@@ -284,6 +299,65 @@ function ghost(value: unknown): Ghost | null {
  * Zeit. Alles andere fällt weg — ein halber Eintrag wäre ein Teil, das
  * nirgends liegt, und der Archivar schickte den Techniker dorthin.
  */
+/** Ein Punkt in Metern vom Netz — oder `null`, wenn er keiner ist. */
+function point(value: unknown): MapPoint | null {
+  const it = bag(value);
+  if (!it || typeof it['x'] !== 'number' || typeof it['z'] !== 'number') return null;
+  return { x: metres(it['x']), z: metres(it['z']) };
+}
+
+/**
+ * **Die Absichten des Monsters vom Netz** — zurechtgestutzt wie alles andere:
+ * eine bekannte Haltung, begrenzte Listen, Meter statt beliebiger Zahlen.
+ * Ein halbes Bild ist ein ganzes ohne die fehlenden Teile; nur eine
+ * unbekannte Haltung macht das Ganze zu nichts.
+ */
+function readInsight(value: unknown): MonsterInsight | undefined {
+  const it = bag(value);
+  if (!it || typeof it['mode'] !== 'string' || !(it['mode'] in MODE_LABELS)) return undefined;
+  const mode = it['mode'] as MonsterMode;
+  const belief = Array.isArray(it['belief'])
+    ? it['belief']
+        .map((one) => bag(one))
+        .filter((one): one is Bag => !!one && typeof one['roomId'] === 'string')
+        .slice(0, 32)
+        .map((one) => ({
+          roomId: one['roomId'] as string,
+          p: Math.max(0, Math.min(1, num(one['p']))),
+        }))
+    : [];
+  const prediction = bag(it['prediction']);
+  const path =
+    prediction && Array.isArray(prediction['path'])
+      ? prediction['path']
+          .map(point)
+          .filter((one): one is MapPoint => !!one)
+          .slice(0, 8)
+      : [];
+  const eta =
+    prediction && Array.isArray(prediction['eta'])
+      ? prediction['eta'].map((one) => Math.max(0, num(one))).slice(0, 8)
+      : [];
+  const intercept = bag(it['intercept']);
+  const at = intercept ? point(intercept['at']) : null;
+  return {
+    mode,
+    label: typeof it['label'] === 'string' ? it['label'].slice(0, 40) : MODE_LABELS[mode],
+    goal: point(it['goal']),
+    belief,
+    prediction: path.length ? { path, eta } : null,
+    intercept:
+      intercept && at && typeof intercept['door'] === 'string'
+        ? {
+            door: intercept['door'],
+            at,
+            etaMonster: Math.max(0, num(intercept['etaMonster'])),
+            etaPlayer: Math.max(0, num(intercept['etaPlayer'])),
+          }
+        : null,
+  };
+}
+
 function droppedParts(value: unknown): DroppedPart[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -354,6 +428,8 @@ export function readState(data: unknown): HauntState | null {
     // Und die Tropfen (`rules/blood.ts`): fehlen sie, blutet eben niemand.
     blood: readDrops(it['blood']),
     dropped: droppedParts(it['dropped']),
+    // Und die Absichten des Monsters: fehlen sie, gibt es eben kein Overlay.
+    ...(readInsight(it['insight']) ? { insight: readInsight(it['insight']) } : {}),
   };
 }
 

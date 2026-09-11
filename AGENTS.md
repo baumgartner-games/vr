@@ -7946,8 +7946,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (Szene *und* Kartenübersicht, `FlatMode.drawSceneOverlay` /
   `MapViewOptions.overlay`). **Nur im Modus „Alles sehen"**: Ein Techniker mit
   dem Glaubensbild vor sich weiß, welche Zimmer gerade sicher sind, und die
-  halbe Runde ist vorbei. Wer nicht rechnet, hat es auch nicht — `insight`
-  geht (noch) nicht über die Leitung, siehe `net.ts`. Gehen/Stillstand erzeugen weniger/keinen Schall.
+  halbe Runde ist vorbei. **Über die Leitung geht es als optionales Feld**
+  (`HauntState.insight`, `readState` stutzt Haltung, Listen und Meter zurecht,
+  kein Protokollsprung): Der Gastgeber schreibt seinen Beschluss je Bild in den
+  Stand, und ein Zuschauer, der das Monster nicht selbst rechnet — ein Telefon
+  am Fernseher, ein 2D-Netz-Zuschauer —, liest es von dort
+  (`HauntingWorld.render`, `FlatModeHost.insight`). Gehen/Stillstand erzeugen weniger/keinen Schall.
   Schrittanimation basiert auf Körperseite und Gliedmaßtyp statt Child-Reihenfolge:
   linkes/rechtes Bein gegensinnig, gleichseitiger Arm jeweils entgegengesetzt.
   Freiflug reicht bis 120m, Kartenübersicht setzt den Desktopblick auf 90m.

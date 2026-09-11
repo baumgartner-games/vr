@@ -205,5 +205,7 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
     // reicht der Snapshot sie durch — gezeichnet wird sie in 2D, gerochen in
     // der Routine des Monsters.
     ...(state.blood?.length ? { blood: state.blood } : {}),
+    // Und die Absichten des Monsters, wenn der Stand sie führt.
+    ...(state.insight ? { insight: state.insight } : {}),
   };
 }

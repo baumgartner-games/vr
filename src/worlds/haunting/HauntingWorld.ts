@@ -969,6 +969,9 @@ export class HauntingWorld extends GridWorld {
         ? decision
         : this.npcRide.steer(decision, rider, this.state.time, stationGraph(this.spec));
     this.monsterFace = decision.face;
+    // Die Absichten gehen mit dem Stand auf die Leitung (`HauntState.insight`),
+    // damit ein Zuschauer sie sieht, der das Monster nicht selbst rechnet.
+    this.state.insight = this.decision.insight ?? undefined;
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
     this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace, decision.boost));
     if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
@@ -1986,7 +1989,11 @@ export class HauntingWorld extends GridWorld {
       },
     ]);
 
-    this.navigationOverlay.insight(this.insightWanted() ? (this.decision?.insight ?? null) : null);
+    // Der Gastgeber hat die Absichten aus seinem Beschluss, alle anderen aus
+    // dem Stand, den er ansagt (`HauntState.insight`).
+    this.navigationOverlay.insight(
+      this.insightWanted() ? (this.state.insight ?? this.decision?.insight ?? null) : null,
+    );
     this.perceptionClock -= dt;
     if (overlay && this.perceptionClock <= 0) {
       this.perceptionClock = 0.15;
@@ -4270,7 +4277,7 @@ export class HauntingWorld extends GridWorld {
           ...(live
             ? {
                 watchSnapshot: (): MapSnapshot => this.worldSnapshot(),
-                insight: () => this.decision?.insight ?? null,
+                insight: () => this.state.insight ?? this.decision?.insight ?? null,
               }
             : {}),
           switchView: (view) => this.switchView(view),
@@ -4420,6 +4427,7 @@ export class HauntingWorld extends GridWorld {
     this.brain = null;
     this.estimator = null;
     this.decision = null;
+    delete this.state.insight;
     this.watchedLocker = '';
     this.monster = null;
     this.npcRide?.reset();

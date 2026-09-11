@@ -322,6 +322,12 @@ export interface MapSnapshot {
    * da; ob eine Ansicht es zeigt, entscheidet sie selbst.
    */
   blood?: Drop[];
+  /**
+   * **Was das Monster glaubt und vorhat** (`HauntState.insight`) — für das
+   * Overlay des Zuschauers. Reist mit dem Stand, damit auch ein Gerät, das
+   * das Monster nicht rechnet, den Kopf des Gegners sehen kann.
+   */
+  insight?: MonsterInsight;
 }
 
 /** Ein Snapshot ohne Station — der Anfangswert jeder Ansicht. */
