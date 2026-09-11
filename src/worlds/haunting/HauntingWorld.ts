@@ -131,10 +131,12 @@ import {
   cycleWho,
   flatRoleOf,
   goalPrecision,
+  isWatcher,
   loadSetup,
   lockTechnician,
   powersOf,
   roundKindOf,
+  sameSetup,
   saveSetup,
   SEAT_LABELS,
   SEATS,
@@ -200,7 +202,12 @@ import {
   readFlip,
   readHandover,
   readMonsterInput,
+  readSetupMessage,
+  readSharedSetup,
+  readStart,
   readState,
+  setupMessage,
+  startMessage,
   stateMessage,
   type HauntBooks,
   type HauntState,
@@ -246,6 +253,17 @@ import type { Npc } from '../npc/Npc';
 
 /** Wie oft der Gastgeber den Stand verschickt, und jeder seinen Platz ansagt. */
 const STATE_RATE = 1 / 4;
+/**
+ * Wie lange nach einem eigenen Tipp auf die Tafel der Stand des Gastgebers
+ * sie **nicht** überschreibt, in Millisekunden — genug für Hin- und Rückweg
+ * über die Leitung, kurz genug, dass eine abgewiesene Änderung nicht stehen
+ * bleibt.
+ */
+const SETUP_GRACE = 1500;
+/** Was das Telefon sagt, wenn der Start an den Techniker im Schiff geht. */
+export const START_SENT = 'Start geht an den Techniker im Schiff — die Runde beginnt bei ihm.';
+/** Und was der Gastgeber einem Startwunsch entgegnet, solange seine Runde läuft. */
+export const ROUND_RUNNING = 'Die Runde läuft schon — ein zweiter Start bricht sie nicht ab.';
 /**
  * **Wie lange ein frischer Gastgeber auf die Übergabe des alten wartet**, in
  * Sekunden.
@@ -551,6 +569,16 @@ export class HauntingWorld extends GridWorld {
   private lampBook: Lamps = freshLamps();
   /** Die Verteilung der nächsten Runde: Techniker, Monster, Plätze (`rules/roundSetup.ts`). */
   private setup: RoundSetup = loadSetup();
+  /**
+   * **Wann dieses Gerät die Tafel zuletzt selbst angefasst hat** (`clock()`).
+   *
+   * Die Tafel des Gastgebers kommt viermal je Sekunde mit dem Stand, und die
+   * eigene Änderung ist gerade erst zu ihm unterwegs: Wer den fremden Stand
+   * sofort übernähme, sähe seinen Tipp für einen Augenblick zurückspringen,
+   * bevor er vom Gastgeber wiederkommt. Solange `SETUP_GRACE` läuft, gilt
+   * deshalb die eigene Tafel.
+   */
+  private setupTouchedAt = -Infinity;
   /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
   private blob: THREE.Object3D | null = null;
   /**
@@ -1953,7 +1981,9 @@ export class HauntingWorld extends GridWorld {
       this.sendTimer = STATE_RATE;
       // Der 2D-Spieler ist ein Techniker wie der im Headset (`refreshHost`).
       if (ctx.role === 'vr' || this.flatShared) ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician' });
-      if (this.isHost) ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
+      // Die Tafel reist mit dem Stand: So steht sie auf allen Geräten gleich,
+      // und ein Telefon, das später dazukommt, sieht die Verteilung, die gilt.
+      if (this.isHost) ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state, this.setup));
       if (this.wanted) ctx.net.emit(HAUNT_CHANNEL, claimMessage(this.wanted, this.seated));
     }
     // Das Steuer der Monster-Station — nur solange man die Station besitzt;
@@ -2061,11 +2091,39 @@ export class HauntingWorld extends GridWorld {
     if (state && from !== this.context?.net.localId && from === this.hostId) {
       // In der gemeinsamen 2D-Runde ist der eigene Stand der Stand (`stepFlat`).
       if (!this.flatShared && !this.stale(state)) this.adopt(state);
+      // **Die Tafel des Gastgebers gilt** — außer in der Schonfrist nach einem
+      // eigenen Tipp, der gerade erst zu ihm unterwegs ist.
+      const shared = readSharedSetup(data);
+      if (shared && clock() - this.setupTouchedAt > SETUP_GRACE) this.adoptSetup(shared);
       return;
     }
     const claim = readClaim(data, from);
     if (claim) {
       this.claims.set(from, { ...claim, heardAt: clock() });
+      return;
+    }
+    // **Die Tafel darf jeder im Raum stellen** — angewendet wird sie beim
+    // Gastgeber, und mit dem nächsten Stand steht sie überall. Nur den Anzug
+    // gibt es nicht zu vergeben, solange eine Brille im Raum ist.
+    const wished = readSetupMessage(data);
+    if (wished) {
+      if (this.isHost && from !== this.context?.net.localId)
+        this.applySetup(lockTechnician(wished, this.roomHasVr()), false);
+      return;
+    }
+    // **Und starten darf auch jeder** — der Gastgeber fängt an, mit der
+    // Tafel, die der Wunsch mitbringt. Eine laufende Runde bricht er dafür
+    // nicht ab: Ein Tipp aus der Zentrale ist kein Notschalter.
+    const start = readStart(data);
+    if (start) {
+      const ctx = this.context;
+      if (!this.isHost || !ctx || from === ctx.net.localId) return;
+      if (this.state.phase === 'running') {
+        this.say(ROUND_RUNNING);
+        return;
+      }
+      this.applySetup(lockTechnician(start.setup, this.roomHasVr()), false);
+      this.startRound(start.intent, ctx);
       return;
     }
     const flip = readFlip(data);
@@ -3773,6 +3831,30 @@ export class HauntingWorld extends GridWorld {
       lockTechnician(applyIntent(this.setup, asIntent(what), this.myPlace()), this.roomHasVr()),
     );
     const setup = this.setup;
+    // **Steckt der Techniker in der Brille, startet er — auf Zuruf.** Wer in
+    // der Zentrale sitzt, schickt dem Gastgeber Absicht und Tafel
+    // (`net.startMessage`), und die Runde beginnt bei ihm; das Handgelenk-Menü
+    // braucht er dafür nicht mehr aufzuklappen. Bis hierher endete derselbe
+    // Tipp in `SHIP_OCCUPIED`: „Im Schiff trägt schon jemand anders den Anzug"
+    // — was stimmte und genau der Grund war, warum das Telefon starten sollte.
+    // Ein Zuschauer bekommt danach wie bisher sein Bild von oben; ein Platz
+    // der Zentrale bleibt an seiner Karte.
+    if (!this.isHost && this.roomHasVr() && ctx.role !== 'vr') {
+      ctx.net.emit(HAUNT_CHANNEL, startMessage(asIntent(what), setup));
+      this.say(START_SENT);
+      if (opensFlat(this.startState()) && isWatcher(this.myPlace())) {
+        this.openFlat(ctx, {
+          monster: this.state.crew.options.monster,
+          tuning: this.tuning,
+          test: setup.seats.monster.who === 'off',
+          role: 'watch',
+          setup,
+          powers: powersOf(setup),
+          mode: 'omniscient',
+        });
+      }
+      return;
+    }
     // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
     // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
     // später die Brille aufsetzte, landete hier in `openFlat` — und das steigt
@@ -3876,12 +3958,30 @@ export class HauntingWorld extends GridWorld {
     this.ui?.say(text);
   }
 
-  /** Die Tafel schreiben — und allen Anzeigen sagen, dass sie sich geändert hat. */
-  private applySetup(setup: RoundSetup): void {
+  /**
+   * Die Tafel schreiben — und allen Anzeigen sagen, dass sie sich geändert hat.
+   *
+   * **Wer nicht der Gastgeber ist, schickt sie ihm** (`net.setupMessage`):
+   * Angewendet wird die Tafel dort, wo die Runde gerechnet wird, und der
+   * nächste Stand bringt sie zurück. `mine` sagt, ob der Tipp von diesem
+   * Gerät kam — nur dann läuft die Schonfrist gegen den Stand des Gastgebers,
+   * und nur dann geht etwas hinaus; was vom Netz kam, geht nicht wieder hin.
+   */
+  private applySetup(setup: RoundSetup, mine = true): void {
     this.setup = setup;
     saveSetup(setup);
     this.ui?.refresh();
     this.context?.refreshWorldMenu();
+    if (!mine) return;
+    this.setupTouchedAt = clock();
+    const ctx = this.context;
+    if (ctx && !this.isHost && this.hostId !== '') ctx.net.emit(HAUNT_CHANNEL, setupMessage(setup));
+  }
+
+  /** Die Tafel des Gastgebers übernehmen — nur, wenn sie etwas anderes sagt. */
+  private adoptSetup(setup: RoundSetup): void {
+    if (sameSetup(setup, this.setup)) return;
+    this.applySetup(setup, false);
   }
 
   /**

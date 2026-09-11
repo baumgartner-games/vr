@@ -339,6 +339,17 @@ export class FlashlightTool extends Tool {
     this.beam.distance = beamRange(angle);
     this.beam.intensity = this.on ? beamIntensity(angle) : 0;
     this.glow.intensity = this.on ? 0.35 : 0;
+    // **Eine Lampe, die aus ist, ist auch für den Shader aus.** three.js
+    // rechnet jede *sichtbare* Lichtquelle in jedem Bildpunkt jedes
+    // beleuchteten Materials mit — Stärke null hin oder her. Zwei Lampen an
+    // den Hüften und eine Ersatzlampe an der Wand waren so sechs Lichter, die
+    // in der ganzen Station nichts taten und trotzdem bezahlt wurden, in der
+    // Brille zweimal je Bild. Unsichtbar zählen sie nicht. Der Preis: Wechselt
+    // die Zahl der Lichter, baut three.js die Programme der Materialien einmal
+    // neu — je Kombination genau einmal, danach liegen sie im Speicher des
+    // Materials (`materialProperties.programs`) und werden nur noch gewählt.
+    this.beam.visible = this.on;
+    this.glow.visible = this.on;
     this.lens.material.color.setHex(this.on ? 0xfff4d8 : 0x3a4152);
 
     const radius = Math.tan(radians) * CONE_LENGTH;

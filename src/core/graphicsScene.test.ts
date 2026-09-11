@@ -4,8 +4,8 @@ import { graphicsProfile } from './graphicsSettings';
 import { lookOf } from './materialLook';
 import { denyOutline, isOutline, outlineOf, stripOutlines } from './outlineShell';
 
-const COMIC = graphicsProfile({ mode: 'comic' });
-const SIMPLE = graphicsProfile({ mode: 'simple' });
+const COMIC = graphicsProfile({ mode: 'comic', xrScale: 1 });
+const SIMPLE = graphicsProfile({ mode: 'simple', xrScale: 1 });
 
 interface Built {
   scene: THREE.Scene;

@@ -32,12 +32,16 @@ import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS, type HeadgearKind } fro
 import {
   GRAPHICS_MODE_LABELS,
   GRAPHICS_MODE_SUBS,
+  XR_SCALE_LABELS,
+  XR_SCALE_SUBS,
   clearGraphics,
   graphics,
   graphicsSummary,
   nextGraphicsMode,
+  nextXrScale,
   saveGraphics,
 } from './graphicsSettings';
+import type { FrameSample } from './FrameStats';
 import {
   DEFAULT_EYES,
   EYE_RANGE,
@@ -177,6 +181,8 @@ export class App {
   private role: PlayerRole;
   /** Something changed a menu label or row; the tree is rebuilt next frame. */
   private menuDirty = false;
+  /** Die Bildraten-Zeile des Grafik-Menüs — nachgeschrieben, solange das Menü offen ist. */
+  private fpsEntry: MenuEntry | null = null;
   private spectating = false;
   /**
    * In welcher Welt der Beobachtete zuletzt stand — `''`, solange niemandem
@@ -955,6 +961,16 @@ export class App {
   private graphicsMenu(): MenuEntry {
     const accent = 0xb98bff;
     const settings = graphics();
+    // **Die Bildrate steht im Menü** — auch in der Brille, wo das F3-Feld
+    // unsichtbar ist. Die Zeile wird alle halbe Sekunde nachgeschrieben,
+    // solange das Menü offen ist (`frame`), ohne das ganze Menü neu zu bauen.
+    this.fpsEntry = {
+      id: 'gfx:fps',
+      label: fpsLabel(this.frameStats.latest),
+      sub: 'Mittel der letzten halben Sekunde · CPU misst nur JavaScript',
+      icon: 'settings',
+      accent: 0x6f7d99,
+    };
 
     return {
       id: 'gfx',
@@ -966,6 +982,7 @@ export class App {
       // und was auf einer Quest 2 noch flüssig ist, weiß niemand vorher.
       badge: 'EXP',
       children: [
+        this.fpsEntry,
         {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
@@ -978,6 +995,21 @@ export class App {
             const next = saveGraphics({ mode: nextGraphicsMode(graphics().mode) });
             this.menuDirty = true;
             this.notify(`Grafik: ${GRAPHICS_MODE_LABELS[next.mode]}`);
+          },
+        },
+        {
+          id: 'gfx:xr-scale',
+          label: `Brille: Auflösung ${XR_SCALE_LABELS[settings.xrScale]}`,
+          sub: XR_SCALE_SUBS[settings.xrScale],
+          caption: 'Voll → Mittel → Flüssig · gilt ab der nächsten VR-Sitzung, nur in der Brille',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ xrScale: nextXrScale(graphics().xrScale) });
+            this.menuDirty = true;
+            this.notify(
+              `Brille: Auflösung ${XR_SCALE_LABELS[next.xrScale]} · ab der nächsten Sitzung`,
+            );
           },
         },
         {
@@ -1469,8 +1501,25 @@ export class App {
     this.mirrors.render(this.scene, this.camera);
     const rendered = this.world?.render?.(context) ?? false;
     if (!rendered) this.renderer.render(this.scene, this.camera);
-    this.frameStats.update(time, performance.now() - started, this.renderer.info.render);
+    const sample = this.frameStats.update(
+      time,
+      performance.now() - started,
+      this.renderer.info.render,
+    );
+    // Die Zeile im Grafik-Menü nachschreiben, solange jemand hinsieht — nur
+    // die Zeile, nicht das Menü: Ein Neubau je halbe Sekunde wäre selbst ein
+    // Ruckler.
+    if (sample && this.fpsEntry && this.wristMenu.isOpen) {
+      this.fpsEntry.label = fpsLabel(sample);
+      this.wristMenu.refresh();
+    }
   };
+}
+
+/** Die Bildraten-Zeile des Grafik-Menüs. */
+function fpsLabel(sample: FrameSample | null): string {
+  if (!sample) return 'Bildrate: wird gemessen …';
+  return `Bildrate: ${sample.fps.toFixed(0)} FPS · ${sample.frameMs.toFixed(1)} ms · CPU ${sample.cpuMs.toFixed(1)} ms · ${sample.calls.toFixed(0)} Draws`;
 }
 
 const ROLE_LABELS: Record<PlayerRole, string> = {

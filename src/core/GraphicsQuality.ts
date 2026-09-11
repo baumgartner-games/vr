@@ -59,20 +59,45 @@ export class GraphicsQuality {
     this.profile = graphicsProfile(this.settings);
     this.stopListening = onGraphicsChange(() => this.refresh());
     this.applyRenderer();
+    this.touched = this.profile.outlines || this.profile.toonBands > 0 || this.profile.shadows;
   }
+
+  /** Ob die Szene dieser Welt schon einmal abgelaufen wurde. */
+  private scanned = false;
 
   /** Neue Welt: neue Lichter, alles noch einmal. */
   worldChanged(): void {
     this.sun = null;
     this.since = Number.POSITIVE_INFINITY;
+    this.scanned = false;
   }
+
+  /**
+   * **Ob der Durchlauf überhaupt etwas zu tun hätte.** In der einfachen Stufe
+   * stellt er nur zurück, was der Comic einmal verändert hat — und wo der
+   * Comic in dieser Sitzung nie an war, gibt es nichts zurückzustellen. Der
+   * Durchlauf über ein paar tausend Objekte je Sekunde war dann ein Ruckler
+   * für nichts, in der Brille am deutlichsten. Sobald der Comic einmal an war,
+   * bleibt das Nachsehen an (`touched`): Ein Zombie, der im Käfig einen Saum
+   * bekam und erst nach dem Umschalten herauskommt, soll ihn wieder loswerden.
+   */
+  private get rescans(): boolean {
+    return (
+      this.touched || this.profile.shadows || this.profile.outlines || this.profile.toonBands > 0
+    );
+  }
+
+  /** Ob der Comic in dieser Sitzung je an war. */
+  private touched = false;
 
   /** Läuft in jedem Bild, vor dem Zeichnen. */
   update(dt: number, head: THREE.Vector3): void {
     this.since += dt;
     if (this.since >= GraphicsQuality.RESCAN) {
       this.since = 0;
-      this.sun = applySceneQuality(this.scene, this.profile);
+      // Einmal je Welt in jedem Fall — danach nur, wo es etwas zu tun gibt.
+      if (this.rescans || !this.scanned) this.sun = applySceneQuality(this.scene, this.profile);
+      this.scanned = true;
     }
 
     if (!this.profile.shadows) return;
@@ -94,6 +119,9 @@ export class GraphicsQuality {
     this.applyRenderer();
     this.sun = applySceneQuality(this.scene, this.profile, before.shadows !== this.profile.shadows);
     this.since = 0;
+    this.scanned = true;
+    if (this.profile.outlines || this.profile.toonBands > 0 || this.profile.shadows)
+      this.touched = true;
   }
 
   private applyRenderer(): void {

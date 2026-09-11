@@ -214,6 +214,22 @@ export function cloneSetup(setup: RoundSetup): RoundSetup {
   return { seats };
 }
 
+/**
+ * Ob zwei Tafeln dasselbe sagen — Platz für Platz, Lampe für Lampe.
+ *
+ * Gebraucht, wo die Tafel des Gastgebers viermal je Sekunde ankommt
+ * (`net.readSharedSetup`): Eine Anzeige, die sich bei jedem Stand neu baut,
+ * verschluckt auf dem Telefon jeden Tipp, der zwischen zwei Neubauten fällt.
+ */
+export function sameSetup(a: RoundSetup, b: RoundSetup): boolean {
+  for (const seat of SEATS) {
+    if (a.seats[seat].who !== b.seats[seat].who) return false;
+    for (const ability of ABILITIES)
+      if (a.seats[seat].powers[ability] !== b.seats[seat].powers[ability]) return false;
+  }
+  return true;
+}
+
 /** Denselben Aufbau mit einem anderen Halter auf einem Platz. */
 export function withWho(setup: RoundSetup, seat: SeatId, who: SeatWho): RoundSetup {
   const next = cloneSetup(setup);

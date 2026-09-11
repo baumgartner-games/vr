@@ -13,12 +13,18 @@ import {
   pickGameHost,
   readHandover,
   readMonsterInput,
+  readSetupMessage,
+  readSharedSetup,
+  readStart,
   readState,
+  setupMessage,
+  startMessage,
   stateMessage,
   type HauntBooks,
   type HauntState,
   type MonsterNetInput,
 } from './net';
+import { defaultSetup, withPower, withWho } from './rules/roundSetup';
 
 /**
  * **Alles, was hereinkommt, ist fremder Text.** Die Leser geben `null`
@@ -239,6 +245,77 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
     // Und Unsinn im Tropfen wird auf Meter und Zahlen zurechtgestutzt.
     const odd = readState({ ...wireOf(), blood: [{ x: 1e9, z: 'weit', since: null }] })!;
     expect(odd.blood).toEqual([{ x: 1000, z: 0, since: 0 }]);
+  });
+});
+
+/**
+ * **Die Tafel geht über die Leitung** — als Wunsch an den Gastgeber (`setup`),
+ * als Startwunsch mit Absicht (`start`) und als Feld im Stand des Gastgebers
+ * zurück an alle. Vorher lag sie nur im Browser jedes Geräts, und was ein
+ * Telefon in der Lobby einstellte, sah die Brille nie.
+ */
+describe('Die Tafel auf der Leitung', () => {
+  const table = withPower(
+    withWho(withWho(defaultSetup(), 'red', 'human'), 'monster', 'off'),
+    'red',
+    'panel',
+    true,
+  );
+
+  it('trägt einen Tafelwunsch unverändert hinüber', () => {
+    const wire = JSON.parse(JSON.stringify(setupMessage(table))) as unknown;
+    expect(readSetupMessage(wire)).toEqual(table);
+  });
+
+  it('trägt einen Startwunsch mit Absicht und Tafel hinüber', () => {
+    const wire = JSON.parse(JSON.stringify(startMessage('train', table))) as unknown;
+    expect(readStart(wire)).toEqual({ intent: 'train', setup: table });
+  });
+
+  it('gibt bei Unsinn null zurück und stutzt eine halbe Tafel auf den Anfang', () => {
+    expect(readSetupMessage(null)).toBeNull();
+    expect(readSetupMessage({ kind: 'setup' })).toBeNull();
+    expect(readSetupMessage({ kind: 'flip', seats: {} })).toBeNull();
+    expect(readStart({ kind: 'start', seats: {} })).toBeNull();
+    expect(readStart({ kind: 'start', intent: 'sofort', seats: {} })).toBeNull();
+    // Ein unbekannter Halter fällt auf den Anfangswert zurück, nicht auf Unsinn.
+    const odd = readSetupMessage({ kind: 'setup', seats: { red: { who: 'katze', powers: 7 } } })!;
+    expect(odd.seats.red).toEqual(defaultSetup().seats.red);
+    expect(
+      readStart({ kind: 'start', intent: 'play', seats: { monster: { who: 'off' } } }),
+    ).toEqual({
+      intent: 'play',
+      setup: withWho(defaultSetup(), 'monster', 'off'),
+    });
+  });
+
+  it('reist im Stand des Gastgebers mit — und ein Stand ohne sie ist keiner mit kaputter', () => {
+    const spec = generateHouse(77, 14);
+    const state: HauntState = {
+      seed: spec.seed,
+      crew: freshCrew(),
+      phase: 'briefing',
+      time: 0,
+      monsterOn: false,
+      monster: null,
+      shut: [],
+      lit: [],
+      fuse: false,
+      taken: [],
+      done: [],
+      destroyed: [],
+      technician: null,
+      ride: 'out',
+      ghosts: freshGhosts(),
+    };
+    const wire = JSON.parse(JSON.stringify(stateMessage(state, table))) as Record<string, unknown>;
+    expect(readSharedSetup(wire)).toEqual(table);
+    // Der Stand selbst liest sich wie immer — die Tafel ist kein Feld darin.
+    expect(readState(wire)).not.toHaveProperty('setup');
+    const bare = JSON.parse(JSON.stringify(stateMessage(state))) as unknown;
+    expect(readSharedSetup(bare)).toBeNull();
+    expect(readSharedSetup({ ...wire, version: STATION_PROTOCOL - 1 })).toBeNull();
+    expect(readSharedSetup({ ...wire, setup: 'alle' })).toBeNull();
   });
 });
 
