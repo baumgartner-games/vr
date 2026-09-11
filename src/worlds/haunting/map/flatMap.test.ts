@@ -3,9 +3,8 @@ import { FlatMode, SCOUT_PERIOD } from './flatMode';
 import { FlatRound, PLAYER_ID } from './flatRound';
 import { MapView } from './mapView';
 import { doorCentre } from './geometry';
-import { lockerCode } from '../mission';
 import { HOLD_RANGE, SLAM_HOLD, slamDoor } from '../rules/doorLocks';
-import { defaultSetup, type RoundSetup } from '../rules/roundSetup';
+import { defaultSetup, withPower, withWho } from '../rules/roundSetup';
 
 jest.mock('./flat.css', () => ({}));
 
@@ -144,28 +143,17 @@ describe('Ziele und Wege', () => {
     expect(crate.id).toMatch(/^cargo-/);
     expect(crate).toMatchObject({ kind: 'crate', precision: 'exact' });
 
-    // Mensch am Archiv: nur noch der Raum, mit seinem Namen als Beschriftung.
-    const shared: RoundSetup = {
-      ...defaultSetup(),
-      abilities: { scout: 'off', panel: 'off', archive: 'human' },
-    };
+    // **Ohne eigenes Archiv kein Ziel** (`rules/roundSetup.goalPrecision`) —
+    // kein Raum, keine Kiste, nichts. Es gab dazwischen einmal „nur der Raum";
+    // wer die Fähigkeit nicht hält, hört jetzt, wo es liegt, oder sucht.
+    const shared = withPower(defaultSetup(), 'technician', 'archive', false);
     const crew = new FlatRound(7, { test: true, setup: shared });
-    expect(crew.precision).toBe('room');
-    const goal = crew.objectives()[0]!;
-    const roomId = goal.id.replace('room:', '');
-    expect(goal.id).toMatch(/^room:/);
-    expect(goal).toMatchObject({ kind: 'room', precision: 'room' });
-    const room = crew.snapshot().rooms.find((one) => one.id === roomId)!;
-    expect(goal.label).toBe(room.name);
-    // Und es ist der Raum, in dem die richtige Kiste steht.
-    expect(solo.snapshot().items.find((i) => i.id === crate.id)!.roomId).toBe(roomId);
+    expect(crew.precision).toBe('none');
+    expect(crew.objectives()).toEqual([]);
   });
 
-  it('trägt bei Raumgenauigkeit keinen Teilenamen im Snapshot — und immer das Kennzeichen', () => {
-    const shared: RoundSetup = {
-      ...defaultSetup(),
-      abilities: { scout: 'off', panel: 'off', archive: 'human' },
-    };
+  it('trägt ohne Archiv keinen Teilenamen im Snapshot — und immer das Kennzeichen', () => {
+    const shared = withPower(defaultSetup(), 'technician', 'archive', false);
     const round = new FlatRound(7, { test: true, setup: shared });
     const snapshot = round.snapshot();
     const names = round.house.tasks.map((task) => task.label);
@@ -256,12 +244,14 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     flat.map.tap(p.x, p.y);
     expect(flat.round.haunt.shut).toEqual([door.id]);
     expect(flat.element.querySelector('.flat__toast')?.textContent).toMatch(/Schalttafel/);
-    // Die Akte: ein Tipp auf ein Zimmer zeigt den Schrankcode.
+    // Die Akte: ein Tipp auf ein Zimmer schlägt sie auf — ohne Schrankcode,
+    // den Schutzschrank betritt man ohne einen.
     const room = flat.round.house.rooms[0]!;
     flat.openSheet(room.id);
     const sheet = flat.element.querySelector<HTMLElement>('.flat__sheet')!;
     expect(sheet.hidden).toBe(false);
-    expect(sheet.textContent).toContain(lockerCode(flat.round.house.seed, room.id));
+    expect(sheet.textContent).toContain(room.name);
+    expect(sheet.textContent).not.toMatch(/Code/);
     sheet.querySelector<HTMLButtonElement>('[data-close-sheet]')!.click();
     expect(sheet.hidden).toBe(true);
     // Das Horchbild: eine Probe der Geräusche, und **nicht** die Stelle des
@@ -272,9 +262,15 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     flat.dispose();
   });
 
-  it('nimmt dem Techniker die Fähigkeiten, wenn Menschen sie halten', () => {
-    const setup = defaultSetup();
-    setup.abilities = { scout: 'human', panel: 'human', archive: 'human' };
+  it('nimmt dem Techniker die Fähigkeiten, wenn sie auf anderen Plätzen liegen', () => {
+    // Die drei Fähigkeiten vom Techniker weg auf Rot (Mensch) — er hat dann
+    // keine davon selbst (`rules/roundSetup.powersOf`).
+    let setup = defaultSetup();
+    for (const ability of ['scout', 'panel', 'archive'] as const) {
+      setup = withPower(setup, 'technician', ability, false);
+      setup = withPower(setup, 'red', ability, true);
+    }
+    setup = withWho(setup, 'red', 'human');
     const flat = new FlatMode(7, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     expect(flat.soloPowers).toEqual({ scout: false, panel: false, archive: false });
@@ -292,9 +288,7 @@ describe('Die Zentrale auf der eigenen Karte', () => {
     // (`stationUi.vanPage`): Sie schreibt die Verteilung, und die nächste
     // Runde fängt damit an. Das Optionsmenü zeigt nur noch, was sich *in* der
     // Runde ändert.
-    flat.restart({
-      setup: { ...setup, abilities: { ...setup.abilities, archive: 'bot' } },
-    });
+    flat.restart({ setup: withPower(setup, 'technician', 'archive', true) });
     expect(flat.soloPowers.archive).toBe(true);
     flat.dispose();
   });
@@ -322,8 +316,10 @@ describe('Das Horchbild auf der Kartenübersicht', () => {
    * Zentrale, nicht das eigene Ohr.
    */
   function noisesOnMap(who: 'bot' | 'human'): { sampled: number; drawn: number } {
-    const setup = defaultSetup();
-    setup.abilities = { scout: who, panel: who, archive: who };
+    // Der Späher liegt auf Rot: Ein Bot dort meldet dem Techniker das
+    // Horchbild, ein Mensch ruft es ihm zu — auf der Karte steht dann nichts.
+    let setup = withPower(defaultSetup(), 'technician', 'scout', false);
+    setup = withWho(withPower(setup, 'red', 'scout', true), 'red', who);
     const flat = new FlatMode(9, { setup, role: 'technician' }, { exit: () => {} });
     document.body.append(flat.element);
     flat.showMap(true);

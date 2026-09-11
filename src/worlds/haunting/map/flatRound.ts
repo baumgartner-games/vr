@@ -9,6 +9,7 @@ import {
   PLAYER_WALK_SPEED,
   puzzleFor,
   puzzleSolved,
+  HIT_LULL,
   repairsFor,
   stationOptions,
   stepStamina,
@@ -455,10 +456,13 @@ export class FlatRound implements MapSource {
     this.graph = stationGraph(this.house);
     this.blocks = fixtureBlocks(this.house);
     this.players = options.players ?? (options.setup ? crewSize(options.setup) : CREW_SIZE);
+    // **Ohne Archiv kein Ziel** (`rules/roundSetup.goalPrecision`): kein
+    // Dreieck am Rand, keine Liste. Wer die Fähigkeit nicht hat, hört, wo es
+    // liegt (`rules/archiveRadio.ts`), oder sucht.
     this.precision = options.setup
       ? goalPrecision(options.setup)
       : options.powers && !options.powers.archive
-        ? 'room'
+        ? 'none'
         : 'crate';
     this.tuning = options.tuning ?? DEFAULT_TUNING;
     this.mode = options.mode ?? 'realistic';
@@ -1314,6 +1318,9 @@ export class FlatRound implements MapSource {
     // Monsters absteht. Anderthalb Sekunden Sprint, die keine Puste kosten —
     // gerade genug für eine Tür.
     grantBurst(this.stamina);
+    // **Und das Monster hält inne** (`monsterRoutine.rest`, `mission.HIT_LULL`):
+    // Der Schub nützt nichts, wenn das Vieh den Sprint mitläuft.
+    this.routine.rest(HIT_LULL, { x: this.monster.x, z: this.monster.z }, this.monster.space);
     if (crew.hp <= 0) {
       this.haunt.phase = 'lost';
       this.events.push({ kind: 'bad', text: 'MISSION GESCHEITERT · Anzug zerstört.' });
@@ -1816,23 +1823,20 @@ export class FlatRound implements MapSource {
   objectives(): MapGoal[] {
     const crew = this.haunt.crew;
     const out: MapGoal[] = [];
+    if (this.precision === 'none') return out;
     for (const repair of repairsFor(this.house)) {
       if (this.haunt.done.includes(repair.itemId)) continue;
       const cargo = this.cargo.find((c) => c.loot === repair.itemId);
       const console = this.consoles.find((c) => c.repair.id === repair.id);
       if (cargo && !crew.inventory.includes(repair.itemId))
-        out.push(
-          this.precision === 'crate'
-            ? {
-                id: cargo.id,
-                at: { ...cargo.at },
-                label: cargo.label,
-                next: false,
-                kind: 'crate',
-                precision: 'exact',
-              }
-            : this.roomGoal(cargo.roomId),
-        );
+        out.push({
+          id: cargo.id,
+          at: { ...cargo.at },
+          label: cargo.label,
+          next: false,
+          kind: 'crate',
+          precision: 'exact',
+        });
       else if (console)
         out.push({
           id: console.id,
@@ -1854,23 +1858,6 @@ export class FlatRound implements MapSource {
       });
     out[0]!.next = true;
     return out;
-  }
-
-  /**
-   * **Das Ziel, wenn nur der Raum verraten werden darf**: seine Mitte, sein
-   * Name, seine Kennung. Der Weg dorthin ist derselbe wie zu jeder Kiste darin
-   * — welche es ist, sagt der Archivar.
-   */
-  private roomGoal(roomId: string): MapGoal {
-    const centre = this.graph.centre(roomId);
-    return {
-      id: `room:${roomId}`,
-      at: { x: centre.x, z: centre.z },
-      label: roomName(this.house, roomId),
-      next: false,
-      kind: 'room',
-      precision: 'room',
-    };
   }
 
   /** Der Weg, den das Monster gerade geht — leer, wenn ein Spieler es steuert oder es steht. */

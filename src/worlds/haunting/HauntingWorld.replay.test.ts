@@ -298,7 +298,7 @@ test('the headset menu leads with the mission and says why a start is refused', 
   world.context = ctx;
   // Die Ansicht „2D von oben" darf in der Brille nichts umleiten, und ein
   // fremder Gastgeber darf den Eintrag nicht stumm machen (`rules/worldMenu.ts`).
-  world.lobbyChoice = { intent: 'play', view: '2d' };
+  world.lobbyChoice = { intent: 'play', view: '2d', me: 'technician' };
   world.hostId = 'remote';
   const rounds = world.menu().filter((row) => row.id.startsWith('haunt:'));
   // Dieselben drei Absichten wie im Van und im Optionsmenü der 2D-Welt

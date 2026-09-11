@@ -101,7 +101,9 @@
    nichts davon deckend, denn dahinter zeichnet die 3D-Welt. Ein Grund an
    dieser Stelle wäre ein schwarzes Rechteck statt eines Puppenhauses. */
 .role--watch { background: none; }
-.role--watch .role__hole--full { position: absolute; inset: 0; }
+.role--watch .role__hole--full { position: absolute; inset: 0; touch-action: none; }
+/* Der Stock zum Fliegen — das Bauteil der 2D-Welt (`map/controls.css`), hier über dem Loch. */
+.role--watch .role__watch-stick { z-index: 3; --flat-bottom: max(14px, env(safe-area-inset-bottom)); }
 /* Die fremde Rollenansicht liegt über dem Puppenhaus und deckt es zu: Zwei
    Bilder übereinander wären beide unlesbar. */
 .role__stage { position: absolute; inset: 0; }

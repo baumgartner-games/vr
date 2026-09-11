@@ -18,9 +18,9 @@ const claim = (id: string, station: Claim['station'], seniority: number): Claim 
 
 describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
   it('gibt ein freies Gerät dem, der sich anmeldet', () => {
-    const claims = [claim('a', 'archive', 3)];
-    expect(ownerOf(claims, 'archive')).toBe('a');
-    expect(seatOf(claims, 'a')).toBe('archive');
+    const claims = [claim('a', 'red', 3)];
+    expect(ownerOf(claims, 'red')).toBe('a');
+    expect(seatOf(claims, 'a')).toBe('red');
     expect(shoved(claims, 'a')).toBe(false);
   });
 
@@ -31,8 +31,8 @@ describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
    * keinen Server.
    */
   it('schubst den weg, der später gekommen ist', () => {
-    const claims = [claim('a', 'scout', 30), claim('b', 'scout', 2)];
-    expect(ownerOf(claims, 'scout')).toBe('a');
+    const claims = [claim('a', 'yellow', 30), claim('b', 'yellow', 2)];
+    expect(ownerOf(claims, 'yellow')).toBe('a');
     expect(seatOf(claims, 'b')).toBeNull();
     expect(shoved(claims, 'b')).toBe(true);
     expect(shoved(claims, 'a')).toBe(false);
@@ -41,9 +41,9 @@ describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
   it('entscheidet bei gleicher Dauer immer gleich', () => {
     // Zwei, die im selben Augenblick greifen: Irgendetwas muss entscheiden,
     // und es muss auf beiden Geräten dasselbe sein.
-    const claims = [claim('b', 'hack', 4), claim('a', 'hack', 4)];
-    expect(ownerOf(claims, 'hack')).toBe('a');
-    expect(ownerOf([...claims].reverse(), 'hack')).toBe('a');
+    const claims = [claim('b', 'blue', 4), claim('a', 'blue', 4)];
+    expect(ownerOf(claims, 'blue')).toBe('a');
+    expect(ownerOf([...claims].reverse(), 'blue')).toBe('a');
   });
 
   it('lässt jemanden ohne Anmeldung einfach in der Einsatzzentrale stehen', () => {
@@ -68,10 +68,10 @@ describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
   });
 
   it('zählt an den einzelnen Geräten trotzdem nur einen als Besitzer', () => {
-    const claims = [claim('a', 'scout', 30), claim('b', 'scout', 2)];
+    const claims = [claim('a', 'yellow', 30), claim('b', 'yellow', 2)];
     // Zwei greifen danach — gesessen wird von einem, und die Kachel sagt es.
-    expect(crowdAt(claims, 'scout')).toBe(2);
-    expect(ownerOf(claims, 'scout')).toBe('a');
+    expect(crowdAt(claims, 'yellow')).toBe(2);
+    expect(ownerOf(claims, 'yellow')).toBe('a');
     expect(crowdAt(claims, 'watch')).toBe(0);
   });
 
@@ -85,24 +85,28 @@ describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
 
 describe('Die Stühle der Einsatzzentrale', () => {
   /**
-   * **Die Stationsliste ist nur noch die Sitzordnung.** Wie eine Rolle heißt
-   * und was sie sieht, steht bei der Rolle selbst (`registry/roles.ts`) —
-   * zwei Listen mit denselben Beschriftungen wären zwei Listen, von denen
-   * eine irgendwann falsch ist. Die Drohne ist ganz weg.
+   * **Die Stationsliste ist nur noch die Sitzordnung** — drei Stühle mit
+   * Farben, der Fernseher, das Monster. Welche Karten auf einem Stuhl liegen,
+   * sagt die Tafel (`rules/roundSetup.Seat.powers`), und wie eine Karte
+   * heißt, steht bei der Rolle selbst (`registry/roles.ts`).
    */
   it('führt genau die Geräte, an denen jemand sitzen kann', () => {
     expect(STATIONS.map((station) => station.id)).toEqual([
-      'archive',
-      'scout',
-      'hack',
+      'red',
+      'yellow',
+      'blue',
       'watch',
       'monster',
     ]);
-    expect(isStation('hack')).toBe(true);
+    expect(isStation('blue')).toBe(true);
+    // Die alten Geräte hießen wie die Fähigkeiten — ein Anspruch darauf ist
+    // seit den Farben keiner mehr (`readClaim` lässt ihn fallen).
+    expect(isStation('archive')).toBe(false);
+    expect(isStation('hack')).toBe(false);
     expect(isStation('drone')).toBe(false);
     expect(isStation('unknown')).toBe(false);
     expect(stationFacts('watch').shared).toBe(true);
-    expect(stationFacts('archive').shared).toBeFalsy();
+    expect(stationFacts('red').shared).toBeFalsy();
   });
 
   /**
@@ -114,7 +118,7 @@ describe('Die Stühle der Einsatzzentrale', () => {
   it('seats one monster player and shoves the second like at any device', () => {
     expect(isStation('monster')).toBe(true);
     expect(stationFacts('monster').shared).toBeFalsy();
-    const claims = [claim('a', 'monster', 8), claim('b', 'monster', 1), claim('c', 'scout', 3)];
+    const claims = [claim('a', 'monster', 8), claim('b', 'monster', 1), claim('c', 'yellow', 3)];
     expect(ownerOf(claims, 'monster')).toBe('a');
     expect(seatOf(claims, 'a')).toBe('monster');
     expect(seatOf(claims, 'b')).toBeNull();

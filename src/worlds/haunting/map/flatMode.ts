@@ -1,6 +1,6 @@
 import './flat.css';
 import { MARKS, type HouseRoom } from '../house';
-import { lockerCode, repairsFor, type MonsterKind } from '../mission';
+import { repairsFor, type MonsterKind } from '../mission';
 import { viewModesFor, type ViewMode } from '../registry/viewModes';
 import './mapModes.register';
 import {
@@ -16,6 +16,18 @@ import { Joystick } from './joystick';
 import { FlatScene, scaleForWidth } from './flatScene';
 import { goalRoomId, INK, MapView, type MapGoal, type MapRoute } from './mapView';
 import { PuzzleOverlay, el } from './puzzleOverlay';
+import {
+  head,
+  key,
+  leaveKeys,
+  note,
+  renderOptions,
+  SHARED,
+  soundKeys,
+  switchViewKey,
+  watchKey,
+  type OptionItem,
+} from './optionsMenu';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
 import { VIEW_LABELS, type View } from '../rules/lobby';
@@ -26,6 +38,7 @@ import {
   flatRoleOf,
   powersOf,
   switchRights,
+  withWho,
   type RoundSetup,
   type SoloPowers,
 } from '../rules/roundSetup';
@@ -206,11 +219,9 @@ const ROLE_LABELS: Record<FlatRole, string> = {
 /** Ohne Tafel: die Verteilung, die Rolle und Test der alten Optionen meinen. */
 function setupFromOptions(options: FlatOptions): RoundSetup {
   const role = options.role ?? 'technician';
-  return {
-    ...defaultSetup(),
-    technician: role === 'technician' ? 'human' : 'bot',
-    monster: options.test ? 'off' : role === 'monster' ? 'human' : 'bot',
-  };
+  let setup = withWho(defaultSetup(), 'technician', role === 'technician' ? 'human' : 'bot');
+  setup = withWho(setup, 'monster', options.test ? 'off' : role === 'monster' ? 'human' : 'bot');
+  return setup;
 }
 
 export class FlatMode {
@@ -1116,7 +1127,6 @@ export class FlatMode {
     };
     if (house) {
       line('Darin steht', MARKS[house.signature]);
-      line('Schutzschrank-Code', lockerCode(spec.seed, house.id));
     } else line('Bereich', room.circulation ? 'Gang' : room.safe ? 'sicher' : '');
     const doors = snapshot.doors.filter((d) => d.a === roomId || d.b === roomId);
     const locked = doors.filter((d) => d.locked).length;
@@ -1384,74 +1394,49 @@ export class FlatMode {
    */
   private renderOptions(): void {
     const watching = this.role === 'watch';
-    const parts: HTMLElement[] = [
-      el('strong', '', ROLE_LABELS[this.role]),
-      el('strong', '', 'Ansicht'),
-    ];
+    // **Dasselbe Menü wie im Schiff** (`map/optionsMenu.ts`): dieselben
+    // Überschriften, dieselben Worte, dieselbe Zeichnung. Was hier anders
+    // ist, ist nur, was die 2D-Welt kann und das Schiff nicht — Zielpfade
+    // und die zwei Sichtmodi des Zuschauers.
+    const items: OptionItem[] = [head(ROLE_LABELS[this.role]), head(SHARED.view)];
     if (watching)
-      for (const mode of viewModesFor('flat')) {
-        const key = el('button', 'flat__option');
-        key.dataset['mode'] = mode.id;
-        key.classList.toggle('is-active', mode.id === this.mode.id);
-        key.append(el('strong', '', mode.label), el('small', '', mode.description));
-        parts.push(key);
-      }
-    else
-      parts.push(
-        el(
-          'small',
-          'flat__note',
-          `${this.mode.label} · wer mitspielt, sieht so viel wie sein Anzug hergibt`,
-        ),
-      );
+      for (const mode of viewModesFor('flat'))
+        items.push(
+          key({ mode: mode.id }, mode.label, mode.description, {
+            active: mode.id === this.mode.id,
+          }),
+        );
+    else items.push(note(`${this.mode.label} · ${SHARED.playerView}`));
     if (this.netWatch)
-      parts.push(
-        el(
-          'small',
-          'flat__note',
+      items.push(
+        note(
           'Du siehst die Runde, die im Raum wirklich läuft — Szene und Karte kommen über das Netz. ' +
             'Solange sie läuft, gibt es hier keine Wege und keine neue Runde.',
         ),
       );
     else {
-      const routes = el('button', 'flat__option');
-      routes.dataset['routes'] = '';
-      routes.classList.toggle('is-active', this.routes);
-      routes.append(
-        el('strong', '', `Zielpfade: ${this.routes ? 'an' : 'aus'}`),
-        el('small', '', 'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot'),
+      items.push(
+        key(
+          { routes: '' },
+          `Zielpfade: ${this.routes ? 'an' : 'aus'}`,
+          'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot',
+          { active: this.routes },
+        ),
       );
-      parts.push(routes);
       // **Zuschauen ist keine Rundenart mehr, sondern ein Schalter.** Der
       // Besitzer wollte es ausdrücklich hier haben und „immer" — deshalb steht
       // er zwischen den zwei anderen Dingen, die man mitten in der Runde
       // wirklich braucht, und nicht mehr als Kachel im Aufbau.
-      const watch = el('button', 'flat__option');
-      watch.dataset['watch'] = '';
-      watch.classList.toggle('is-active', watching);
-      watch.setAttribute('aria-pressed', watching ? 'true' : 'false');
-      watch.append(
-        el('strong', '', `Zuschauen: ${watching ? 'an' : 'aus'}`),
-        el(
-          'small',
-          '',
-          watching
-            ? 'Der Techniker aus Zahlen spielt weiter — antippen holt dich zurück an den Stock'
-            : 'Der Techniker aus Zahlen übernimmt, du siehst der Runde zu',
-        ),
-      );
-      parts.push(watch);
+      items.push(watchKey(watching));
     }
     // **Wessen Sicht?** Techniker und Monster hängen an den zwei Sprungknöpfen
     // rechts — die sind während der Runde da und brauchen kein Menü. Die
     // Plätze der Zentrale haben eigene Ansichten (Archiv, Einsatzkontrolle,
     // Drohne), und dorthin führt die Lobby.
     if (watching)
-      parts.push(
-        el('strong', '', 'Wessen Sicht?'),
-        el(
-          'small',
-          'flat__note',
+      items.push(
+        head('Wessen Sicht?'),
+        note(
           'Techniker und Monster: die zwei Sprungknöpfe rechts, mitten in der Runde. ' +
             'Archiv, Schalttafel, Späher und Drohne haben eigene Ansichten — die wählst du in der Lobby.',
         ),
@@ -1462,20 +1447,12 @@ export class FlatMode {
     // Streifen der Seite, und der ist in der 2D-Welt abgeschaltet
     // (`core/pageHud.ts`). Alle drei stehen deshalb hier, wo Platz für eine
     // Zeile Erklärung ist.
-    parts.push(el('strong', '', 'Aufmachen'));
-    const map = el('button', 'flat__option');
-    map.dataset['map'] = '';
-    map.append(
-      el('strong', '', 'Karte'),
-      el('small', '', 'Die Übersicht der Station über der Szene'),
-    );
-    const menu = el('button', 'flat__option');
-    menu.dataset['pagemenu'] = '';
-    menu.append(
-      el('strong', '', 'Menü'),
-      el(
-        'small',
-        '',
+    items.push(
+      head(SHARED.open),
+      key({ map: '' }, 'Karte', 'Die Übersicht der Station über der Szene'),
+      key(
+        { pagemenu: '' },
+        SHARED.menu,
         // Das Menü der Seite ist ein Panel in der 3D-Szene und liegt damit
         // **hinter** der 2D-Welt. Es allein aufzumachen hieße, auf ein
         // schwarzes Bild zu tippen — deshalb kommt der Streifen der Seite
@@ -1484,61 +1461,22 @@ export class FlatMode {
           ? 'Kopfzeile der Seite wieder ausblenden'
           : 'Menü, Verbindung und VR am oberen Rand der Seite',
       ),
+      key({ pagenet: '' }, SHARED.net, SHARED.netHint),
+      ...soundKeys({
+        effects: levelLabel(this.audio.levels.effects),
+        ambient: levelLabel(this.audio.levels.ambient),
+      }),
     );
-    const net = el('button', 'flat__option');
-    net.dataset['pagenet'] = '';
-    net.append(
-      el('strong', '', 'Verbindung'),
-      el('small', '', 'Raum-Code, Mitspieler, Sprache und Chat'),
-    );
-    parts.push(map, menu, net);
-    // Ton: zwei Regler mit drei Stufen (Paket Audio, `audio/settings.ts`).
-    parts.push(el('strong', '', 'Ton'));
-    for (const which of ['effects', 'ambient'] as const) {
-      const key = el('button', 'flat__option');
-      key.dataset['audio'] = which;
-      key.append(
-        el(
-          'strong',
-          '',
-          `${which === 'effects' ? 'Effekte' : 'Ambiente'}: ${levelLabel(this.audio.levels[which])}`,
-        ),
-        el(
-          'small',
-          '',
-          which === 'effects'
-            ? 'Schritte, Monster, Herzschlag'
-            : 'Brummen der Station, Dunkelheit, Knarren',
-        ),
-      );
-      parts.push(key);
-    }
     // **2D ↔ 3D, mitten in der Runde** (`HauntingWorld.switchView`). Kein
     // Neustart und keine neue Rolle: derselbe Stand, dieselbe Uhr, dasselbe
     // Monster — nur von oben statt von innen. Deshalb steht der Eintrag hier
     // und nicht bei „Zurück zur Lobby", wo alles die Runde beendet.
-    if (this.host.switchView) {
-      const swap = el('button', 'flat__option');
-      swap.dataset['switchView'] = '3d';
-      swap.append(
-        el('strong', '', `Ansicht: 2D ↔ 3D — zu „${VIEW_LABELS['3d']}"`),
-        el('small', '', 'Mitten in der Runde · Stand, Uhr, Türen und Monster bleiben'),
-      );
-      parts.push(swap);
-    }
+    if (this.host.switchView) items.push(switchViewKey('3d', VIEW_LABELS['3d']));
     // Zurück zur Lobby: Dort steht, was eine *neue* Runde wird — Was, Wer,
     // Wie. Genau die drei Knöpfe, die hier standen und jedes Mal eine halbe
     // Lobby nachbauten.
-    const leave = el('button', 'flat__option flat__option--leave');
-    leave.dataset['leave'] = '';
-    leave.append(
-      el('strong', '', 'Runde verlassen'),
-      el('small', '', 'Beendet die Runde · zurück zum Aufbau'),
-    );
-    const close = el('button', 'flat__option', 'Weiterspielen');
-    close.dataset['closeOptions'] = '';
-    parts.push(leave, close);
-    this.options.replaceChildren(...parts);
+    items.push(...leaveKeys());
+    renderOptions(this.options, items);
   }
 
   private renderEnding(): void {
@@ -1664,8 +1602,8 @@ export class FlatMode {
       // alten Stand weiter.
       resume: undefined,
       setup,
-      test: setup.monster === 'off',
-      role: flatRoleOf(setup),
+      test: setup.seats.monster.who === 'off',
+      role: flatRoleOf(setup, this.role === 'monster' ? 'monster' : 'technician'),
       powers: powersOf(setup),
       routes: this.routes,
     };

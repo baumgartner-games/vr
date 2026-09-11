@@ -296,7 +296,12 @@ export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId 
     if (still && cache) cache.keep(region, doorsKey);
     field.lit.push(region);
   }
-  if (viewer && !viewer.concealed) {
+  // **Im Schrank versteckt bleibt nur der Lichtkreis um einen herum.** Die
+  // Lampen des Decks sieht man durch die Schlitze nicht mehr — realitätsnah
+  // ist das Bild dann der eigene Kreis und sonst Schwarz. Wer alles sieht
+  // (Zuschauer), behält die Lampen: Für ihn ist der Schrank kein Versteck.
+  if (viewer?.concealed && mode === 'realistic') field.lit.length = 0;
+  if (viewer) {
     field.self = {
       lightId: `self:${viewer.id}`,
       at: viewer.at,
@@ -362,9 +367,14 @@ export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId 
       if (litAt(field, entity.at)) field.visibleEntities.push(entity.id);
       continue;
     }
-    if (viewer.concealed) continue;
     const gap = Math.hypot(entity.at.x - viewer.at.x, entity.at.z - viewer.at.z);
     const inSelf = gap <= SELF_RADIUS;
+    // Durch die Schlitze sieht man, was direkt vor dem Schrank steht — und
+    // sonst nichts.
+    if (viewer.concealed) {
+      if (inSelf) field.visibleEntities.push(entity.id);
+      continue;
+    }
     const inLight = litAt(field, entity.at);
     const inOwnCone = viewer.sense
       ? inCone(

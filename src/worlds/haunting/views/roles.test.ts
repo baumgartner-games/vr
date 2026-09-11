@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { FlatRound, PLAYER_ID } from '../map/flatRound';
-import { lockerCode, repairsFor } from '../mission';
+import { repairsFor } from '../mission';
 import { listRoles, roles, type RoleHost, type RoleView } from '../registry/roles';
 import type { ArchiveDesk } from './archiveDesk';
 import { mountArchiveView, type ArchiveRoleView } from './archiveRole';
@@ -339,8 +339,8 @@ describe('Der Archivar', () => {
   });
 
   /**
-   * **Ein Tipp auf ein Zimmer schlägt die Raumakte auf** — mit dem
-   * Schutzschrank-Code groß, damit man ihn durch den Raum ruft.
+   * **Ein Tipp auf ein Zimmer schlägt die Raumakte auf** — ohne
+   * Schutzschrank-Code: Den Schrank betritt man ohne einen, in beiden Welten.
    */
   it('öffnet die Raumakte mit den Codes und schließt sie wieder', () => {
     const { view, round } = open();
@@ -353,9 +353,7 @@ describe('Der Archivar', () => {
     // Unter dem Grundriss ließ sich die Akte nicht rollen.
     expect(view.element.classList.contains('is-sheet')).toBe(true);
     expect(sheet.textContent).toContain(room.name);
-    expect(sheet.querySelector('.role__code')?.textContent).toBe(
-      lockerCode(round.house.seed, room.id),
-    );
+    expect(sheet.textContent).not.toMatch(/Schutzschrank-Code/);
     sheet.querySelector<HTMLButtonElement>('[data-close]')!.click();
     expect(view.opened).toBe('');
     expect((sheet as HTMLElement).hidden).toBe(true);
@@ -448,6 +446,66 @@ describe('Der Fernseher', () => {
     // die Rolle, der er zusieht.
     view.element.querySelector<HTMLButtonElement>('[data-watch-seat="scout"]')!.click();
     expect(view.element.querySelector('[data-watch-follow]')).toBeNull();
+  });
+
+  /**
+   * **Durch seine Augen** gibt es nur beim Techniker, dem man folgt — und
+   * solange man durch sie sieht, fliegt niemand: Stock und Gesten ruhen.
+   */
+  it('bietet das Live-Bild nur beim Techniker an und legt dabei den Stock weg', () => {
+    const { view } = open();
+    expect(view.element.querySelector('[data-watch-eyes]')).toBeNull();
+    const stick = view.element.querySelector<HTMLElement>('.role__watch-stick')!;
+    expect(stick.hidden).toBe(false);
+    view.element.querySelector<HTMLButtonElement>('[data-watch-follow="technician"]')!.click();
+    const eyes = view.element.querySelector<HTMLButtonElement>('[data-watch-eyes]')!;
+    expect(eyes).not.toBeNull();
+    expect(view.lens.eyes).toBe(false);
+    eyes.click();
+    expect(view.lens.eyes).toBe(true);
+    expect(view.element.querySelector<HTMLElement>('.role__watch-stick')!.hidden).toBe(true);
+    // Zurück über das Deck: Der Stock liegt wieder da.
+    view.element.querySelector<HTMLButtonElement>('[data-watch-eyes]')!.click();
+    expect(view.lens.eyes).toBe(false);
+    expect(view.element.querySelector<HTMLElement>('.role__watch-stick')!.hidden).toBe(false);
+  });
+
+  /**
+   * **Ein Finger fliegt, zwei zoomen, das Rad zoomt** — auf dem Loch, in das
+   * die Welt zeichnet. Und „Zurück über das Deck" vergisst beides.
+   */
+  it('fliegt mit dem Finger, zoomt mit zwei Fingern und dem Rad und findet nach Hause', () => {
+    const { view } = open();
+    const hole = view.element.querySelector<HTMLElement>('.role__hole')!;
+    const pointer = (type: string, id: number, x: number, y: number): void => {
+      const event = new Event(type, { bubbles: true }) as PointerEvent;
+      Object.assign(event, { pointerId: id, clientX: x, clientY: y });
+      hole.dispatchEvent(event);
+    };
+    pointer('pointerdown', 1, 100, 100);
+    pointer('pointermove', 1, 64, 118);
+    pointer('pointerup', 1, 64, 118);
+    // Das Deck folgt dem Finger: nach links gezogen heißt nach Osten geflogen.
+    expect(view.lens.pan.x).toBeCloseTo(2);
+    expect(view.lens.pan.z).toBeCloseTo(-1);
+    // Zwei Finger auseinander: näher heran.
+    pointer('pointerdown', 1, 100, 100);
+    pointer('pointerdown', 2, 200, 100);
+    pointer('pointermove', 2, 300, 100);
+    pointer('pointerup', 1, 100, 100);
+    pointer('pointerup', 2, 300, 100);
+    expect(view.lens.zoom).toBeCloseTo(2);
+    hole.dispatchEvent(new WheelEvent('wheel', { deltaY: -500, bubbles: true, cancelable: true }));
+    expect(view.lens.zoom).toBeGreaterThan(2);
+    view.element.querySelector<HTMLButtonElement>('[data-watch-home]')!.click();
+    expect(view.lens.zoom).toBe(1);
+    expect(view.lens.pan).toEqual({ x: 0, z: 0 });
+    // Auf einem fremden Platz ziehen die Gesten nichts mehr.
+    view.element.querySelector<HTMLButtonElement>('[data-watch-seat="archive"]')!.click();
+    pointer('pointerdown', 3, 100, 100);
+    pointer('pointermove', 3, 50, 100);
+    pointer('pointerup', 3, 50, 100);
+    expect(view.lens.pan).toEqual({ x: 0, z: 0 });
   });
 });
 

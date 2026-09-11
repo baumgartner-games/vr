@@ -241,7 +241,7 @@ export function readCrew(value: unknown): CrewState {
   const v = record(value);
   const c = freshCrew(stationOptions(v.options));
   c.hp = Math.round(bounded(v.hp, 0, 3, 3));
-  c.invulnerable = bounded(v.invulnerable, 0, 4, 0);
+  c.invulnerable = bounded(v.invulnerable, 0, 12, 0);
   c.exertion = bounded(v.exertion, 0, 1, 0);
   c.pulse = Math.round(bounded(v.pulse, 50, 180, 72));
   c.hidden = typeof v.hidden === 'string' ? v.hidden.slice(0, 16) : '';
@@ -344,9 +344,23 @@ export function takeCrewHit(crew: CrewState, running: boolean): boolean {
   )
     return false;
   crew.hp = Math.max(0, crew.hp - 1);
-  crew.invulnerable = 3;
+  crew.invulnerable = HIT_GRACE;
   return true;
 }
+
+/**
+ * **Wie lange der Anzug nach einem Treffer unverwundbar ist**, in Sekunden.
+ *
+ * Es waren drei — und drei Sekunden im Griff eines Monsters, das schneller
+ * ist als man selbst, sind keine Pause, sondern der nächste Treffer mit
+ * Anlauf. Sechs reichen, um sich zu drehen, die Tür zu finden und zwei
+ * Zimmer weit zu kommen; das Monster hält derweil inne (`monsterRoutine.
+ * rest`, `HIT_LULL`), denn eine Unverwundbarkeit, die es nicht merkt, ist
+ * ein Vieh, das einem an den Fersen klebt, bis die Uhr abgelaufen ist.
+ */
+export const HIT_GRACE = 6;
+/** Und so lange steht das Monster nach dem Treffer still — kürzer als die Schonfrist, damit der Techniker geht. */
+export const HIT_LULL = 4;
 
 export function stepVitals(
   crew: CrewState,

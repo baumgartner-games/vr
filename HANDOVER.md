@@ -48,30 +48,49 @@ Grund, warum es nicht nebenbei geht.
 - **„Monster: Mensch" sagt jetzt, wenn niemand am Steuer sitzt.** Die Routine
   weiterzurechnen war richtig; dass es niemand erfuhr, war der Fehler.
 
+- **Die Tafel hat fünf Plätze** (`rules/roundSetup.ts`, zweiter PR dieses
+  Auftrags): Techniker / Rot / Gelb / Blau / Monster, je Mensch · Bot · Aus,
+  die drei Fähigkeiten als Lampen je Platz, und **kein „Ich"** — wer ich
+  bin, ist die Wahl der Lobby (`LobbyChoice.me`, `MyRole`), die Reiterzeile
+  ist diese Wahl (`stationUi.choose`), dazu „Zuschauer: Techniker" und
+  „Zuschauer: Alles". Die Stühle heißen Farben (`stations.StationId`),
+  Archiv / Schalttafel / Späher sind Ansichten, die ein Stuhl je nach Lampen
+  aufschlägt. Das Häkchen „Testen" ist weg (Monster auf „Aus"). Die Brille
+  stellt dieselbe Tafel ein (`haunt:seat-*`, `haunt:powers`).
+- **Ziele nur mit Archiv** (`goalPrecision`): ohne die Fähigkeit kein
+  Kompass, kein Saum, keine Liste — in 2D und 3D. Schalten nur mit
+  Schalttafel (`applyFlip`).
+- **Wer den Platz Monster nimmt, steuert es** — auch der Gastgeber (sein
+  Port speist die eigene Runde); ohne Brille im Raum auf der Karte von oben.
+- **3D:** Schutzschrank ohne Code (ein Tipp), von innen ein Geist mit
+  Lüftungsschlitzen (`ghostLocker`); Farbband der Kiste unter dem Schild
+  (`BAND_AT` 0,4); Atem als weiße Fläche (`helmetCondensation.ts`);
+  Schonfrist sechs Sekunden und das Monster hält vier davon inne
+  (`HIT_GRACE`, `HIT_LULL`, `monsterRoutine.rest`, beide Welten); ein
+  Wiedereinstieg landet auf dem Boden (`movePlayerTo` sucht ihn mit dem
+  eigenen Strahl).
+- **2D:** Im Schrank bleibt nur der Lichtkreis (`map/visibility.ts`).
+- **Zuschauer über dem Deck** (`watchLens.ts`, `views/watchRole.ts`): Stock
+  und Finger fliegen, zwei Finger und Rad zoomen, „Zurück über das Deck";
+  **„Durch seine Augen"** setzt die Kamera in den Kopf des Technikers
+  (Brillenpose mit Drehung, sonst Ort und Gierwinkel in Augenhöhe) —
+  „Zuschauer: Techniker" fängt so an.
+- **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Das Zahnrad
+  der 2D-Welt und „⚙ Optionen" im Schiff (Browser, nie Brille) zeichnen
+  dieselbe Liste mit denselben Worten; „Rolle wechseln", „2D von oben" und
+  „Missionsmenü" sind darin aufgegangen.
+
 ### Was offen bleibt
 
-- **Die Rollenwahl (Techniker / Rot / Gelb / Blau / Monster, je mit
-  Fähigkeiten und Mensch/Bot/Aus, dazu „Zuschauer: Techniker" und „Zuschauer:
-  Alles", ohne „Ich"-Spalte).** Das ist keine Panel-Änderung, sondern ein
-  anderer Sitz-Begriff: Die drei Fähigkeiten *sind* heute die drei Stationen
-  (`stations.StationId` = `archive | scout | hack | watch | monster`), und an
-  denen hängen Sitzordnung, Schubser und `STATION_PROTOCOL`. Farben als Plätze
-  heißen: `StationId` umbenennen, Fähigkeiten von der Station lösen, Protokoll
-  hochzählen, `stationUi` und `net` nachziehen. Dasselbe Paket erledigt zwei
-  weitere Punkte der Liste mit: **das Licht** („der Techniker schaltet nur mit
-  der Fähigkeit Schalter" — heute ist `powersOf` genau andersherum gemeint und
-  hängt an der Verteilung, nicht am Platz des Technikers) und **wer ich bin**
-  (das Monster blieb ein Bot, weil „Mensch" nur sagt, wem der Platz gehört).
-- **Zuschauer: Alles in 3D** — Karte von oben, Stick zum Fliegen, Pinch-Zoom,
-  und beim Zuschauer-Techniker dessen Live-Bild. Die freie Kamera der Bot-Runde
-  (`ShipExperience.stepSimulation`) ist der Anfang; es fehlen die Karten-Höhe,
-  die Gesten und die zweite Kameraquelle.
-- **Im Schrank versteckt** — nur der Lichtkreis um einen herum, in 3D in den
-  Schrank hineinteleportiert, Schrank als Geist mit Lüftungsschlitzen.
-- **Das Menü der 3D-Ansicht von oben soll das der 2D-Welt sein.** Das heißt:
-  `flatMode.renderOptions` als geteilte, datengetriebene Liste herausziehen und
-  `ShipExperience.paintDom` darauf umstellen — und dabei entscheiden, was von
-  „Mission, Ausrüstung & Testdeck" wirklich wegfällt.
+- **Das Live-Bild eines 2D-Technikers** hat keine Neigung: Der Stand trägt
+  nur `{x, z, yaw}` (`HauntState.technician`); die Brille schickt ihre ganze
+  Kopfpose. Wer beim Zuschauen auch das Hoch- und Runterschauen eines
+  Desktop-Technikers will, muss `pose` des Peers lesen statt des Stands —
+  `technicianEyes` nimmt heute die Brillenpose zuerst, dann den Stand.
+- **Das Panel des Desktop-Technikers** hat neben dem Optionsmenü noch seine
+  Handgriffe („Mission, Ausrüstung & Testdeck"): Hände, Medkit, Ablegen, was
+  vor einem liegt, und das Testdeck. Das ist die Steuerung und kein Menü; ob
+  davon noch etwas ins Zahnrad wandern soll, entscheidet der Besitzer.
 
 ## Auftrag „Einsatzzentrale nach dem Merge von #93"
 

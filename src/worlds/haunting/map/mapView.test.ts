@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import { MapView, PANEL_LAYERS } from './mapView';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
-import { defaultSetup, type RoundSetup } from '../rules/roundSetup';
+import { defaultSetup, withPower } from '../rules/roundSetup';
 import { emptyField } from './visibility';
 import { DROP_FADE } from '../rules/blood';
 
@@ -43,29 +43,26 @@ describe('MapView', () => {
       const one = new MapView({ objectives: () => round.objectives() });
       one.setSnapshot(round.snapshot());
       one.setVisibility(round.field);
-      one.setView({ centreX: round.objectives()[0]!.at.x, centreZ: round.objectives()[0]!.at.z });
+      // Ohne Archiv gibt es kein Ziel — dann steht die Karte beim Spieler.
+      const at = round.objectives()[0]?.at ?? round.player;
+      one.setView({ centreX: at.x, centreZ: at.z });
       (ctx as unknown as { calls: string[] }).calls.length = 0;
       one.draw();
       return { view: one, calls: [...(ctx as unknown as { calls: string[] }).calls] };
     };
     const solo = view(new FlatRound(7, { test: true, setup: defaultSetup() }));
     expect(solo.view.stats.goals).toBe(3);
-    const human: RoundSetup = {
-      ...defaultSetup(),
-      abilities: { scout: 'off', panel: 'off', archive: 'human' },
-    };
-    const crew = view(new FlatRound(7, { test: true, setup: human }));
-    expect(crew.view.stats.goals).toBe(3);
-    // Beide zeichnen dieselbe Zahl Ziele, aber nicht dasselbe Bild: Der
-    // Kistenkasten ist ein abgerundetes Rechteck, der Raum sein Umriss.
-    expect(solo.calls.filter((c) => c === 'quadraticCurveTo').length).toBeGreaterThan(
-      crew.calls.filter((c) => c === 'quadraticCurveTo').length,
+    // **Ohne eigenes Archiv kein Ziel** (`rules/roundSetup.goalPrecision`):
+    // Die Kiste leuchtet nur dem, der die Fähigkeit hält; wer sie nicht hat,
+    // hört, wo es liegt, oder sucht. Es gab dazwischen einmal „nur der Raum" —
+    // das ist weg.
+    const crew = view(
+      new FlatRound(7, {
+        test: true,
+        setup: withPower(defaultSetup(), 'technician', 'archive', false),
+      }),
     );
-    // Und keiner der beiden legt dafür einen Ring an: gleich viele Kreise in
-    // beiden Bildern, obwohl das eine drei Kisten und das andere drei Räume
-    // hervorhebt.
-    const rings = (calls: string[]): number => calls.filter((c) => c === 'arc').length;
-    expect(rings(solo.calls)).toBe(rings(crew.calls));
+    expect(crew.view.stats.goals).toBe(0);
   });
 
   it('passt die Station beim ersten Bild ins Fenster und rechnet hin und zurück', () => {

@@ -1,14 +1,25 @@
 import { roles, type RoleHost, type RoleView } from '../registry/roles';
 import {
   defaultLens,
+  FLY_SPEED,
+  homedLens,
+  pannedLens,
   seatStation,
+  throughEyes,
   WATCH_FOLLOWS,
   WATCH_SEATS,
+  zoomedLens,
   type WatchFollow,
   type WatchLens,
   type WatchSeat,
 } from '../watchLens';
+import { Joystick } from '../map/joystick';
 import { el } from './roleShell';
+
+/** Wie viele Bildpunkte ein Meter hat, wenn ein Finger das Deck zieht — grob, aber gleichmäßig. */
+const DRAG_PX_PER_METRE = 18;
+/** Mausrad: so viel Zoom je Rasterschritt des Rads. */
+const WHEEL_RATE = 0.0016;
 
 /**
  * **Der Fernseher** — alles zu sehen, nichts zu bedienen, aber jetzt aus jedem
@@ -48,6 +59,12 @@ export function mountWatchView(host: RoleHost): WatchRoleView {
 export interface WatchRoleView extends RoleView {
   /** Was gerade angesehen wird — die Welt richtet ihre Kamera danach aus. */
   readonly lens: Readonly<WatchLens>;
+  /**
+   * **Die Linse von außen voreinstellen** — der Reiter „Zuschauer: Techniker"
+   * folgt ihm, „Zuschauer: Alles" sieht das Deck (`stationUi.ts`). Die
+   * Ansicht darf sie danach selbst umstellen; das hier ist nur der Anfang.
+   */
+  setLens(lens: Partial<WatchLens>): void;
 }
 
 class WatchView implements WatchRoleView {
@@ -58,11 +75,21 @@ class WatchView implements WatchRoleView {
   private readonly stage = el('div', 'role__stage');
   private readonly notes = el('div', 'role__notes');
   private readonly corner = el('button', 'role__corner');
+  /**
+   * **Der Stock zum Fliegen** — dasselbe Bauteil wie in der 2D-Welt
+   * (`map/joystick.ts`), links unten über dem Loch. Nur über dem Deck: Auf
+   * einem fremden Platz führt die Rolle die Kamera, und durch die Augen des
+   * Technikers fliegt niemand.
+   */
+  private readonly stick = new Joystick();
   private view: RoleView | null = null;
   private shown = '';
   private drawn = '';
   private open = true;
   private state: WatchLens = defaultLens();
+  /** Die Finger auf dem Loch — einer zieht, zwei zoomen. */
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private pinchSpan = 0;
 
   constructor(private readonly host: RoleHost) {
     this.stage.hidden = true;
@@ -73,7 +100,9 @@ class WatchView implements WatchRoleView {
       this.write();
     });
     this.notes.addEventListener('click', (event) => this.click(event));
-    this.element.append(this.hole, this.stage, this.corner, this.notes);
+    this.stick.element.classList.add('role__watch-stick');
+    this.listen();
+    this.element.append(this.hole, this.stage, this.stick.element, this.corner, this.notes);
     this.write();
   }
 
@@ -81,9 +110,87 @@ class WatchView implements WatchRoleView {
     return this.state;
   }
 
+  setLens(lens: Partial<WatchLens>): void {
+    this.state = { ...this.state, ...lens };
+    this.drawn = '';
+    this.write();
+  }
+
   update(dt: number): void {
+    this.fly(dt);
     this.write();
     this.view?.update(dt);
+  }
+
+  // --- Fliegen und Zoomen ---------------------------------------------------------
+
+  /** Ob der Zuschauer die Kamera gerade selbst führt — nur über dem Deck, nicht durch fremde Augen. */
+  private get steers(): boolean {
+    return this.state.seat === 'deck' && !throughEyes(this.state);
+  }
+
+  /** Der Stock verschiebt das Bild — je Takt, so lange der Daumen liegt. */
+  private fly(dt: number): void {
+    const stick = this.stick.value;
+    if (!this.steers || stick.magnitude <= 0) return;
+    const step = Math.min(0.1, Math.max(0, dt)) * FLY_SPEED * (stick.sprint ? 2 : 1);
+    this.state = pannedLens(this.state, stick.x * step, stick.z * step);
+  }
+
+  /**
+   * **Ein Finger zieht, zwei zoomen, das Rad zoomt** — dieselben Gesten wie
+   * auf der Karte (`map/mapView.ts`). Sie liegen auf dem Loch, in das die
+   * Welt zeichnet; die Knöpfe daneben behalten ihre Klicks.
+   */
+  private listen(): void {
+    const hole = this.hole;
+    hole.addEventListener('pointerdown', (event) => {
+      if (!this.steers) return;
+      this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (this.pointers.size === 2) this.pinchSpan = this.span();
+      try {
+        hole.setPointerCapture?.(event.pointerId);
+      } catch {
+        // synthetische Zeiger in Tests
+      }
+    });
+    hole.addEventListener('pointermove', (event) => {
+      const last = this.pointers.get(event.pointerId);
+      if (!last || !this.steers) return;
+      const dx = event.clientX - last.x,
+        dy = event.clientY - last.y;
+      this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (this.pointers.size === 1) {
+        // Ziehen: Das Deck folgt dem Finger, also wandert das Bild gegen ihn.
+        this.state = pannedLens(this.state, -dx / DRAG_PX_PER_METRE, -dy / DRAG_PX_PER_METRE);
+      } else if (this.pointers.size === 2) {
+        const span = this.span();
+        if (this.pinchSpan > 0 && span > 0)
+          this.state = zoomedLens(this.state, span / this.pinchSpan);
+        this.pinchSpan = span;
+      }
+    });
+    const release = (event: PointerEvent): void => {
+      this.pointers.delete(event.pointerId);
+      if (this.pointers.size < 2) this.pinchSpan = 0;
+    };
+    hole.addEventListener('pointerup', release);
+    hole.addEventListener('pointercancel', release);
+    hole.addEventListener(
+      'wheel',
+      (event) => {
+        if (!this.steers) return;
+        event.preventDefault();
+        this.state = zoomedLens(this.state, Math.exp(-event.deltaY * WHEEL_RATE));
+      },
+      { passive: false },
+    );
+  }
+
+  /** Der Abstand der zwei Finger, in Bildpunkten. */
+  private span(): number {
+    const [a, b] = [...this.pointers.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   }
 
   /**
@@ -163,6 +270,9 @@ class WatchView implements WatchRoleView {
       this.state = { ...this.state, follow: key.dataset['watchFollow'] as WatchFollow };
     else if (key.dataset['watchInsight'] !== undefined)
       this.state = { ...this.state, insight: !this.state.insight };
+    else if (key.dataset['watchEyes'] !== undefined)
+      this.state = { ...this.state, eyes: !this.state.eyes };
+    else if (key.dataset['watchHome'] !== undefined) this.state = homedLens(this.state);
     else return;
     this.drawn = '';
     this.write();
@@ -170,7 +280,10 @@ class WatchView implements WatchRoleView {
 
   private write(): void {
     const on = this.host.snapshot().entities.some((entity) => entity.kind === 'monster');
-    const sign = `${this.state.seat}/${this.state.follow}/${this.state.insight}/${on}/${this.open}`;
+    const flown = this.state.zoom !== 1 || this.state.pan.x !== 0 || this.state.pan.z !== 0;
+    const sign = `${this.state.seat}/${this.state.follow}/${this.state.insight}/${this.state.eyes}/${flown}/${on}/${this.open}`;
+    // Der Stock liegt nur da, wo er etwas bewegt.
+    this.stick.element.hidden = !this.steers;
     if (sign === this.drawn) {
       this.mount();
       return;
@@ -209,6 +322,42 @@ class WatchView implements WatchRoleView {
           })),
         ),
       );
+      // **Durch seine Augen** — das Live-Bild des Technikers, dem man folgt.
+      if (this.state.follow === 'technician') {
+        const eyes = el(
+          'button',
+          `role__watch-key role__watch-key--wide${this.state.eyes ? ' is-active' : ''}`,
+        );
+        eyes.dataset['watchEyes'] = '';
+        eyes.setAttribute('aria-pressed', this.state.eyes ? 'true' : 'false');
+        eyes.append(
+          el('strong', '', `Durch seine Augen: ${this.state.eyes ? 'an' : 'aus'}`),
+          el(
+            'small',
+            '',
+            this.state.eyes
+              ? 'Sein Live-Bild, so wie er es sieht — antippen holt dich zurück über das Deck'
+              : 'Die Kamera in seinen Kopf: Brille, Desktop oder Karte, was er gerade hat',
+          ),
+        );
+        parts.push(eyes);
+      }
+      if (this.steers) {
+        const home = el(
+          'button',
+          `role__watch-key role__watch-key--wide${flown ? '' : ' is-active'}`,
+        );
+        home.dataset['watchHome'] = '';
+        home.append(
+          el('strong', '', flown ? 'Zurück über das Deck' : 'Fliegen und Zoomen'),
+          el(
+            'small',
+            '',
+            'Stock links unten oder ein Finger fliegt · zwei Finger oder das Mausrad zoomen',
+          ),
+        );
+        parts.push(home);
+      }
     }
 
     const insight = el(
@@ -247,6 +396,7 @@ class WatchView implements WatchRoleView {
   dispose(): void {
     this.view?.dispose();
     this.view = null;
+    this.stick.dispose();
     this.element.remove();
   }
 }
