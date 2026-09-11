@@ -86,7 +86,12 @@ export interface StationHost {
   state(): HauntState;
   claims(): Claim[];
   me(): string;
-  link(): { peers: number; vr: boolean; room: string };
+  /**
+   * Der Stand der Leitung — und **wer im Anzug steckt**, als Name: ich
+   * selbst (Brille oder Techniker am Bildschirm) oder der Mitspieler mit
+   * Brille oder frischem Herzschlag. `null`, wenn der Anzug niemandem gehört.
+   */
+  link(): { peers: number; vr: boolean; room: string; technician?: string | null };
   /** Diesen Desktop an den Stock des Technikers setzen. */
   technician(): void;
   /**
@@ -780,6 +785,9 @@ export class StationUi {
         humanMonster: () => (this.host.lobby?.().view ?? '2d') === '2d',
         vr: () => this.host.vr?.() ?? this.host.link().vr,
         holder: (seat) => this.holderOf(seat),
+        me: () => this.me,
+        choose: (seat) => this.choose(seat),
+        technician: () => this.host.link().technician ?? null,
       });
       this.setupPanel.render();
       out.push(this.setupPanel.element);

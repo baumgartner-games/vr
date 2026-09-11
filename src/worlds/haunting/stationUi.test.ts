@@ -126,7 +126,12 @@ function crew(
     claims: () => (seat ? [{ id: 'me', station: seat, seniority: 10 }] : []),
     me: () => 'me',
     nameOf: () => 'Mein Gerät',
-    link: () => ({ peers: 2, vr: remoteTechnician, room: 'test-crew' }),
+    link: () => ({
+      peers: 2,
+      vr: remoteTechnician,
+      room: 'test-crew',
+      technician: remoteTechnician ? 'Nils (Brille)' : null,
+    }),
     technician,
     menu,
     restart,
@@ -428,12 +433,10 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(checks.map((key) => key.dataset['check'])).toEqual(['view']);
     expect(checks[0]!.textContent).toContain('2D-Welt von oben');
     expect(document.body.textContent).not.toContain('Testen');
-    for (const gone of [
-      '[data-intent]',
-      '[data-setup-me]',
-      '[data-setup-ability]',
-      '.lobby__seats',
-    ])
+    // Die Kacheln, die alte Fähigkeiten-Spalte und die Geräteliste sind weg;
+    // „Ich" steht wieder auf der Tafel — als Knopf je Zeile, nicht als Spalte
+    // (siehe den eigenen Test dazu).
+    for (const gone of ['[data-intent]', '[data-setup-ability]', '.lobby__seats'])
       expect(document.querySelector(gone)).toBeNull();
 
     const quest = document.querySelector<HTMLElement>('.haunt__quest')!;
@@ -452,6 +455,26 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(game.startSetup).not.toHaveBeenCalled();
     button('[data-start-setup]').click();
     expect(game.startSetup).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **„Ich" auf der Tafel.** Wer im Aufbau liest, wer wer ist, sagt an
+   * derselben Stelle „das bin ich": Der Knopf leuchtet auf der eigenen Zeile,
+   * ein Tipp auf eine andere nimmt den Platz — Lobby und Tafel ziehen nach,
+   * genau wie über den Reiter oben.
+   */
+  it('hat auf jeder Zeile der Tafel einen Knopf „Ich", der den Platz nimmt', () => {
+    const game = crew('red', false);
+    button('[data-tab="setup"]').click();
+    expect(document.querySelectorAll('[data-seat] [data-setup-me]')).toHaveLength(5);
+    expect(button('[data-seat="red"] [data-setup-me]').getAttribute('aria-pressed')).toBe('true');
+    expect(button('[data-seat="blue"] [data-setup-me]').getAttribute('aria-pressed')).toBe('false');
+    button('[data-seat="blue"] [data-setup-me]').click();
+    expect(game.lobby.me).toBe('blue');
+    expect(game.setup.seats.blue.who).toBe('human');
+    expect(game.setup.seats.red.who).toBe('off');
+    // Der Tipp führt zur Karte des Platzes — wie der Reiter oben.
+    expect(document.querySelector('.haunt')?.getAttribute('data-station')).toBe('blue');
   });
 
   it('beschriftet den einen Startknopf ohne Ansicht in Klammern', () => {
@@ -491,24 +514,33 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(game.setup.seats.yellow.who).toBe('bot');
   });
 
-  it('schreibt „VR" in die Zeile des Technikers und lässt sie nicht drücken', () => {
+  /**
+   * **Der Anzug hat einen Namen.** Brille und „Web 3D" kommen als Techniker
+   * herein — die Zeile zeigt dann, wer es ist, und keine Knöpfe mehr: kein
+   * „Ich", kein „Mensch · Bot". Der Platz bleibt auf der Tafel ein Mensch.
+   */
+  it('schreibt den Namen des Menschen im Anzug in die Zeile des Technikers', () => {
     const game = crew('red', true);
     button('[data-tab="setup"]').click();
-    const key = button('[data-seat="technician"] [data-setup-who="human"]');
-    expect(key.textContent).toBe('VR');
-    expect(key.disabled).toBe(true);
-    key.click();
+    const row = document.querySelector<HTMLElement>('[data-seat="technician"]')!;
+    expect(row.querySelector('[data-setup-suit]')?.textContent).toContain('Nils (Brille)');
+    expect(row.querySelector('[data-setup-suit]')?.textContent).toContain('im Anzug');
+    expect(row.querySelectorAll('[data-setup-who]')).toHaveLength(0);
+    expect(row.querySelector('[data-setup-me]')).toBeNull();
+    // Die Lämpchen bleiben: Was der Techniker sieht und schaltet, stellt die Zentrale ein.
+    expect(row.querySelectorAll('[data-setup-power]')).toHaveLength(3);
     expect(game.setup.seats.technician.who).toBe('human');
+    // Ohne Menschen im Anzug stehen die Knöpfe wieder da.
+    expect(document.querySelectorAll('[data-seat="red"] [data-setup-who]')).toHaveLength(3);
   });
 
   /**
    * **Ein Reiter setzt einen wirklich hin.** Wer Rot antippt, hält Rot in der
    * Verteilung als Mensch und sitzt an dessen Gerät; wer weiterzieht, gibt den
-   * alten Stuhl frei. Die Spalte „Ich" ist dafür weg.
+   * alten Stuhl frei. Der Knopf „Ich" auf der Tafel tut dasselbe.
    */
   it('setzt über die Reiter genau einen Platz auf „Mensch" und dieses Gerät an dessen Gerät', () => {
     const game = crew(null, false);
-    expect(document.querySelector('[data-setup-me]')).toBeNull();
     open('red');
     expect(game.setup.seats.red.who).toBe('human');
     expect(game.seat).toBe('red');
