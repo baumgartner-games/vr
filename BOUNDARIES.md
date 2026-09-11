@@ -169,11 +169,15 @@ Klappen als `MapItem` der Sorte `vent` und `MapSnapshot.ventLinks`.
   liest dort (Getter für Fracht/Konsolen/Schränke), Paket `world3d` baut
   dort Modelle um.
 - `src/worlds/haunting/mission.ts`, `net.ts`, `house.ts` — Regeln,
-  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` ist 7:
+  Protokoll, Grundriss. **Nur nach Absprache.** `STATION_PROTOCOL` ist 8:
   6, seit die zerstörten Kabinen im `HauntState` stehen (`destroyed`); 7,
   seit die Monster-Station übers Netz spielt — Nachricht `monster` (Stock,
   Knöpfe als Zähler, Klappenziel) und die Felder `technician` (der
-  2D-Techniker ohne Rig) und `ride` (Phase der Schachtfahrt) im Stand.
+  2D-Techniker ohne Rig) und `ride` (Phase der Schachtfahrt) im Stand; 8,
+  seit die Ghost-Marker (`ghosts`, „wo jede Seite die andere zuletzt sah")
+  Pflicht im Stand sind. Was seither dazukam — Blutspur, abgelegte Teile,
+  die Absichten des Monsters —, reist als **optionales** Feld und braucht
+  keinen Sprung (AGENTS.md, „Telefone und Netzwerk").
   Leser und Schreiber dafür stehen in `net.ts`; das Steuer dahinter in
   `monster/netMonsterPort.ts` (Telefon) und `monster/netMonsterControl.ts`
   (Gastgeber).

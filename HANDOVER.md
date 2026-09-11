@@ -343,7 +343,8 @@ Nachtrainieren 1,15) schneller als Gehen, der Test verlangt nun > 1,05 statt
 
 ### 5. Netz: Monster-Rolle und 2D-Welt (`monster/`, `net.ts`, `stations.ts`, `HauntingWorld`)
 
-**Was drin ist.** `STATION_PROTOCOL` ist **7**. Neue Nachricht
+**Was drin ist.** `STATION_PROTOCOL` war hier **7** (inzwischen 8, seit die
+Ghost-Marker im Stand stehen — AGENTS.md hat den aktuellen Stand). Neue Nachricht
 `{ kind: 'monster', x, z, sprint, attack, interact, vent }` — Stock auf
 [-1, 1] begrenzt, `attack`/`interact` ganzzahlige **Zähler**, `vent` 0–15;
 Sender ist der Besitzer der neuen Station `monster` (`stations.ts`, fünfte
