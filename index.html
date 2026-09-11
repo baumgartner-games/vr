@@ -14,10 +14,20 @@
     <div id="landing" class="landing">
       <div class="landing__inner">
         <p class="eyebrow">Baumgartner Games</p>
-        <h1>VR Spielwiese</h1>
-        <p class="lead">
+        <!--
+          Die Startseite hat zwei Gesichter: die Spielwiese — und unter
+          `#haunting` die Startseite einer Runde. `main.ts` setzt dafür
+          `data-landing="haunting"` auf `#landing`; was nur zum einen gehört,
+          trägt `only-generic` beziehungsweise `only-haunting` (`style.css`).
+        -->
+        <h1 id="landing-title">VR Spielwiese</h1>
+        <p class="lead only-generic">
           Eine WebXR-Basis für Experimente: Hub-Welt mit Händen, Weltenauswahl am linken
           Handgelenk und ein experimenteller Portal-Prototyp.
+        </p>
+        <p class="lead only-haunting">
+          Eine Runde, ein Raum: Brille, Bildschirm und die Handys der Einsatzzentrale
+          tragen denselben Raum-Code ein. Verbinden — und dann den eigenen Weg hinein wählen.
         </p>
 
         <!--
@@ -40,8 +50,55 @@
           </p>
         </fieldset>
 
-        <button id="enter-vr" class="btn btn--primary" disabled>VR wird geprüft …</button>
-        <button id="enter-flat" class="btn btn--ghost">Ohne VR starten (Desktop / Handy)</button>
+        <!--
+          Haunting: erst in die Lobby — Name und Raum-Code, Verbinden —, und erst
+          wer drin ist, sieht, wer noch da ist, und die drei Wege hinein: Brille,
+          Web 3D (Techniker am Bildschirm), 2D Einsatzzentrale. Alle drei bleiben
+          in diesem Raum. Ohne eigenen Code spielen alle im Raum `haunting`
+          (`worlds/haunting/net.ts`); ein eigener Code wandert als `?room=` in
+          die Adresse.
+        -->
+        <div id="haunt-start" class="haunt-start only-haunting">
+          <div class="field">
+            <label for="haunt-name">Dein Name</label>
+            <input id="haunt-name" type="text" autocomplete="nickname" placeholder="Späher" />
+          </div>
+          <div class="field">
+            <label for="haunt-room">Raum-Code</label>
+            <div class="field__row">
+              <input id="haunt-room" type="text" autocapitalize="none" autocorrect="off"
+                     spellcheck="false" placeholder="haunting" />
+              <button type="button" id="haunt-connect" class="btn--mini">Verbinden</button>
+            </div>
+            <p class="field__hint">
+              Alle Geräte einer Runde tragen denselben Code ein. Ohne eigenen Code spielt
+              ihr im Raum <code>haunting</code>.
+            </p>
+          </div>
+          <p id="haunt-status" class="status"></p>
+
+          <div id="haunt-lobby" class="haunt-lobby" hidden>
+            <h2 class="haunt-lobby__title">Lobby</h2>
+            <ul id="haunt-peers" class="haunt-peers" aria-live="polite"></ul>
+            <p class="field__hint">
+              Wer denselben Raum-Code eingibt, steht hier. Dann wählt jeder seinen Weg —
+              alle bleiben in diesem Raum.
+            </p>
+
+            <button id="haunt-vr" class="btn btn--primary" disabled>VR wird geprüft …</button>
+            <p class="haunt-start__hint">Die Brille: der Techniker im Anzug, draußen im Schiff.</p>
+            <button type="button" id="haunt-flat" class="btn btn--ghost">Web 3D</button>
+            <p class="haunt-start__hint">Techniker am Bildschirm, im Schiff — Tastatur und Maus oder Stock.</p>
+            <button type="button" id="haunt-centre" class="btn btn--ghost">2D Einsatzzentrale</button>
+            <p class="haunt-start__hint">
+              Am Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster.
+            </p>
+            <p id="haunt-xr-status" class="status"></p>
+          </div>
+        </div>
+
+        <button id="enter-vr" class="btn btn--primary only-generic" disabled>VR wird geprüft …</button>
+        <button id="enter-flat" class="btn btn--ghost only-generic">Ohne VR starten (Desktop / Handy)</button>
 
         <!--
           Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
@@ -49,11 +106,11 @@
           Hand liegt. Deshalb steht sie hier neben den beiden Knöpfen und nicht
           in einem Menü, das man erst öffnen muss.
         -->
-        <p class="landing__more"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
+        <p class="landing__more only-generic"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
 
-        <p id="xr-status" class="status"></p>
+        <p id="xr-status" class="status only-generic"></p>
 
-        <details id="net-setup" class="net">
+        <details id="net-setup" class="net only-generic">
           <summary class="net__summary">
             Zusammen spielen <span class="net__tag">experimentell</span>
           </summary>
@@ -82,30 +139,18 @@
             </button>
           </div>
           <p id="net-status-landing" class="status"></p>
-
           <!--
-            Haunting braucht keinen Code: Alle spielen im Raum `haunting`, und
-            wer im Van mitspielt, tippt nur seinen Namen. Der Raum-Code oben
-            bleibt für alles andere — zwei Felder für dieselbe Sache wären zwei
-            Namen, die auseinanderlaufen.
+            Haunting steht hier nicht mehr: Wer `#haunting` öffnet, bekommt die
+            Startseite der Runde oben — mit Raum-Code, weil eine zweite Gruppe
+            einen eigenen Raum braucht.
           -->
-          <div class="haunt-join">
-            <h3 class="net__title">Haunting / Orbital · Einsatzkontrolle</h3>
-            <p class="net__lead">
-              Einer setzt die Brille auf und wählt im Hub <strong>Haunting / Orbital</strong>.
-              Alle anderen kommen hier herein — am Handy oder am Laptop — und übernehmen
-              in der Einsatzzentrale eine Rolle: <strong>Archiv</strong> (Aufträge und Codes) oder <strong>Einsatzkontrolle</strong> (Radar, Puls und Schalter). Ideal für ein VR-Headset und zwei Handys.
-            </p>
-            <div class="field">
-              <label for="haunt-name">Dein Name</label>
-              <input id="haunt-name" type="text" autocomplete="nickname" placeholder="Späher" />
-            </div>
-            <button type="button" id="haunt-join" class="btn btn--ghost">In der Zentrale mitspielen</button>
-            <p id="haunt-status" class="status"></p>
-          </div>
+          <p class="net__lead">
+            Für <strong>Haunting / Orbital</strong> gibt es eine eigene Startseite:
+            <a href="#haunting">#haunting</a>.
+          </p>
         </details>
 
-        <ul class="hints">
+        <ul class="hints only-generic">
           <li><strong>Beide Handgelenke:</strong> ein Button öffnet das Menü — offen ist immer nur eins.</li>
           <li><strong>Andere Hand:</strong> Zeigen &amp; Trigger zum Auswählen.</li>
           <li><strong>Portal-Welt:</strong> Werkzeuge hängen am Gürtel — Greifen nimmt sie,

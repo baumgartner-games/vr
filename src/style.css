@@ -268,9 +268,27 @@ h1 {
   border-radius: 999px;
 }
 
-/* Haunting kommt ohne Raum-Code aus: alle spielen im Raum `haunting`. */
-.haunt-join { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
-.net__title { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+/* Zwei Gesichter der Startseite (`index.html`): `main.ts` setzt unter `#haunting`
+   `data-landing="haunting"`, und dann steht dort die Startseite der Runde statt
+   der Spielwiese. Versteckt, nicht abgebaut — `NetPanel` hängt an den Feldern. */
+.landing:not([data-landing="haunting"]) .only-haunting { display: none; }
+.landing[data-landing="haunting"] .only-generic { display: none; }
+
+/* Haunting: Name, Raum-Code, Verbinden — und in der Lobby drei Wege in denselben Raum. */
+.haunt-start { margin: 4px 0 8px; text-align: left; }
+.haunt-start .btn { margin: 14px 0 0; }
+.haunt-lobby { margin-top: 14px; padding: 14px 16px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
+.haunt-lobby[hidden] { display: none; }
+.haunt-lobby__title { margin: 0 0 8px; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.haunt-peers { margin: 0 0 8px; padding: 0; list-style: none; }
+.haunt-peers li { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.haunt-peers li:last-child { border-bottom: 0; }
+.haunt-peers__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; align-self: center; }
+.haunt-peers__role { font-size: 12px; color: var(--muted); }
+.haunt-peers__me { margin-left: auto; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.haunt-start code { font-size: 12px; color: var(--fg); }
+.haunt-start__hint { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }
+.status.is-online { color: #7fe0a8; }
 
 .net__lead {
   margin: 12px 0 16px;

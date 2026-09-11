@@ -1336,7 +1336,13 @@ export class ShipExperience {
       roomAt(this.host.spec(), Math.floor(_head.x / TILE), Math.floor(_head.z / TILE))?.id === id
     );
   }
-  private leaveLocker(): void {
+  /**
+   * Aus dem Schutzschrank heraus — auch von außen gerufen, wenn die Welt den
+   * Spieler aus dem Boden rettet (`HauntingWorld.unstickPlayer`): Wer im
+   * Schrank steckt, ist eingefroren, und ein Versetzen ohne dieses Auftauen
+   * ließe ihn am neuen Ort stehen, als stünde er noch im Schrank.
+   */
+  leaveLocker(): void {
     if (!this.crew.hidden) return;
     if (this.crew.simulation) {
       this.crew.hidden = '';

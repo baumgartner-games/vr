@@ -148,7 +148,10 @@ for (const name of browserNames) {
         url.searchParams.set('room', `smoke-${name}-${Date.now()}`);
         url.hash = 'haunting';
         await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 90000 });
-        await page.locator('#enter-flat').click();
+        // Die Startseite der Runde (`#haunting`): erst in die Lobby (Raum-Code
+        // aus `?room=`, Verbinden), dann der Weg in die 2D Einsatzzentrale.
+        await page.locator('#haunt-connect').click();
+        await page.locator('#haunt-centre').click();
         await page.locator('.haunt').waitFor();
         await shot('roles');
 
@@ -239,6 +242,13 @@ for (const name of browserNames) {
         await page.locator('.role--watch').waitFor();
         await shot('watch');
 
+        // Der Weg „2D Einsatzzentrale" hat die Ansicht auf die Karte von oben
+        // gestellt (`rules/lobby.arriveAs`). Der Techniker soll hier aber ins
+        // Schiff — also erst das Häkchen „2D-Welt von oben" im Aufbau abwählen,
+        // wie es ein Spieler tut, der vom Handy an den Stock will.
+        await page.locator('[data-tab="setup"]').click();
+        const flatCheck = page.locator('[data-check="view"]');
+        if ((await flatCheck.getAttribute('aria-pressed')) === 'true') await flatCheck.click();
         // „Ich bin der Techniker": der Reiter „Techniker" ganz oben — die
         // Spalte „Ich" auf der Tafel ist weg, die Reiterzeile ist die Wahl.
         await page.locator('[data-me="technician"]').click();

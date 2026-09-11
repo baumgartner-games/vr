@@ -194,7 +194,7 @@ import {
   flipMessage,
   handoverMessage,
   HAUNT_CHANNEL,
-  HAUNT_ROOM,
+  hauntRoomFrom,
   loadMemory,
   packMemory,
   pickGameHost,
@@ -3582,6 +3582,18 @@ export class HauntingWorld extends GridWorld {
         else this.toggleFlatWanted();
       },
     );
+    // **Feststecken — und heraus.** Der Wunsch des Besitzers: Wer in der
+    // Brille im Boden steckt (eine Platte, ein Podest, ein Sprung ins Nichts),
+    // soll sich am Handgelenk selbst retten können. Der Eintrag steht in
+    // jeder Lage des Menüs, denn festgesteckt wird nicht nur in der Runde.
+    const rescue = entry(
+      'haunt:rescue',
+      'Feststecken? Zurück auf den Boden',
+      'Setzt dich mitten in dein Zimmer · draußen: in die Zentrale',
+      () => {
+        if (this.context) this.unstickPlayer(this.context);
+      },
+    );
     if (this.context?.role !== 'vr')
       return [
         entry(
@@ -3593,6 +3605,7 @@ export class HauntingWorld extends GridWorld {
           },
         ),
         view,
+        rescue,
       ];
     return [
       // **Was? — dieselben drei Kacheln wie im Van und im Optionsmenü der
@@ -3719,8 +3732,28 @@ export class HauntingWorld extends GridWorld {
               ]!.id,
           }),
       ),
+      rescue,
       ...(this.experience?.menu() ?? []),
     ];
+  }
+
+  /**
+   * **Den Spieler aus dem Boden holen.** Gemessen wird, wo die Füße stehen:
+   * In einem Zimmer der Station geht es in dessen freie Mitte
+   * (`safeRoomSpawn` — dort steht kein Modul), überall sonst — Vorplatz,
+   * Lehrzimmer, irgendwo im Nichts — zurück in die Einsatzzentrale. Die Höhe
+   * misst `movePlayerTo` selbst gegen den Boden; ein Schutzschrank wird
+   * vorher verlassen, sonst bliebe man am neuen Ort eingefroren.
+   */
+  private unstickPlayer(ctx: WorldContext): void {
+    const feet = ctx.rig.position;
+    const here = roomAt(this.spec, Math.floor(feet.x / TILE), Math.floor(feet.z / TILE));
+    const at = here ? safeRoomSpawn(this.spec, here.id) : { x: COMMAND_HOME.x, z: COMMAND_HOME.z };
+    this.experience?.leaveLocker();
+    this.movePlayerTo(ctx, new THREE.Vector3(at.x, 0, at.z));
+    ctx.notify(
+      here ? `Zurück auf den Boden · ${here.name}` : 'Zurück auf den Boden · Einsatzzentrale',
+    );
   }
 
   /**
@@ -3773,9 +3806,14 @@ export class HauntingWorld extends GridWorld {
     );
   }
 
+  /**
+   * Wer noch in keinem Raum ist, kommt in den der Adresse (`hauntRoomFrom`).
+   * Von der Startseite (`#haunting`) kommt man hier schon verbunden an — sie
+   * fragt Name und Raum-Code ab, bevor sie diese Welt überhaupt lädt; der
+   * Weg hier gilt dem, der im Hub die Brille aufhat und die Welt dort wählt.
+   */
   private joinTable(ctx: WorldContext): void {
-    if (!ctx.net.connected)
-      ctx.join(new URLSearchParams(location.search).get('room') || HAUNT_ROOM);
+    if (!ctx.net.connected) ctx.join(hauntRoomFrom(location.search));
   }
 
   /** Die Ansicht umlegen — nur die Einstellung, keine Runde. */

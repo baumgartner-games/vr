@@ -3,6 +3,56 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Auftrag „Startseite der Runde: Lobby, drei Wege, Rettung aus dem Boden"
+
+Branch `claude/haunting-startseite-raum-jo76qa`. Der Wunsch in zwei Sätzen:
+Drei Spieler (Brille, Handy, Handy) geben **Name und denselben Raum-Code** ein
+und stehen dann in **einer Lobby**; erst dort wählt jeder **Enter VR**, **Web
+3D** oder **2D Einsatzzentrale**, und alle bleiben im selben Raum. Dazu soll
+der Brillenspieler sich am Handgelenk aus dem Boden holen können.
+
+### Was drin ist
+
+- **Zwei Gesichter der Startseite** (`index.html`, `style.css`, `main.ts`):
+  `main.ts` setzt unter `#haunting` `data-landing="haunting"` auf `#landing`;
+  `only-generic` versteckt Spielwiese-Knöpfe, „Zusammen spielen" und Hinweise,
+  `only-haunting` zeigt `#haunt-start`. Versteckt, nicht abgebaut — `NetPanel`
+  braucht seine Felder.
+- **Erst die Lobby, dann die Wege** (`#haunt-lobby`, `refreshHaunt`,
+  `renderHauntPeers`): Die Liste der Geräte im Raum (ich zuerst, Name und
+  Gerät, „schon drin") und die drei Knöpfe erscheinen erst mit der
+  Verbindung. Geprüft mit drei Tabs über `?net=local`: Jeder sieht die zwei
+  anderen, alle landen in `crew-test`, der Bildschirm als Techniker (3D), die
+  Handys als Zuschauer des Technikers (2D).
+- **Der Raum aus der Adresse** (`worlds/haunting/net.hauntRoomFrom`, mit
+  Test): `?room=` geputzt, sonst `HAUNT_ROOM`. Seite und Welt
+  (`HauntingWorld.joinTable`) lesen dieselbe Zeile; ein getippter Code geht
+  beim Verbinden als `?room=` in die Adresse zurück.
+- **Die Welt lädt erst mit dem Knopf.** `joinTable` verbindet beim Betreten,
+  wenn keine Verbindung steht; die Seite sammelt jetzt erst alle in der Lobby
+  und lädt dann (`startHaunting`). Für die Brille wird die XR-Sitzung vorher
+  aus dem Klick heraus angefragt.
+- **Was dieses Gerät ist** (`rules/lobby.arriveAs`, mit Test): „Web 3D" →
+  Techniker im Schiff; „2D Einsatzzentrale" → Karte von oben, gemerkter Platz
+  bleibt, nur ein gemerkter Techniker wird Zuschauer des Technikers.
+- **Feststecken? Zurück auf den Boden** (`HauntingWorld.unstickPlayer`,
+  `haunt:rescue`): mitten ins eigene Zimmer (`safeRoomSpawn`), draußen in die
+  Zentrale; `ShipExperience.leaveLocker` ist dafür öffentlich. Geprüft im
+  Browser: aus `y = −2` in der Cafeteria auf deren Mitte, von unter dem
+  Vorplatz auf `COMMAND_HOME`.
+- `App.setPlayerName` ist öffentlich: verbunden und den Namen doch noch
+  geändert heißt umbenennen, nicht neu verbinden.
+- Der Browser-Smoke betritt die Welt über Verbinden → `#haunt-centre`.
+
+### Was offen bleibt
+
+- Die Welt liest die Lobby beim Aufbau aus dem Speicher. Käme sie einmal
+  schon geladen auf die Startseite (heute nicht: sie lädt erst mit dem Knopf),
+  müsste `setupRole` sie noch einmal lesen.
+- „Enter VR" ließ sich nur ohne Brille prüfen (Playwright hat keine): Der Weg
+  fragt die Sitzung aus dem Klick an und verbindet daneben; ob der Quest-Browser
+  die Geste über das `await` hinweg gelten lässt, zeigt erst die Brille.
+
 ## Auftrag „Techniker-Wegsuche, Runden-Kopf, Kisten, Archiv-Funk"
 
 Branch `claude/techniker-bot-routing-ui-eq3tfd`. Eine Liste aus einer Session
