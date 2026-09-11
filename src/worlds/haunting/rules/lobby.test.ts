@@ -3,6 +3,7 @@ import {
   INTENTS,
   LOBBY_STORAGE,
   applyIntent,
+  arriveAs,
   defaultLobby,
   intentOf,
   loadLobby,
@@ -197,6 +198,37 @@ describe('lobby', () => {
  * Zuschauer wurde der Knopf angeboten und dann abgewiesen, und solange die
  * Bot-Runde in 2D lief, hielt die Welt sich für „schon in 3D".
  */
+describe('arriveAs', () => {
+  test('„Web 3D" macht dieses Gerät zum Techniker im Schiff — egal, was es war', () => {
+    expect(arriveAs({ ...defaultLobby('handheld') }, 'technician')).toMatchObject({
+      me: 'technician',
+      view: '3d',
+    });
+    expect(arriveAs({ ...defaultLobby('desktop'), me: 'red' }, 'technician').me).toBe('technician');
+  });
+
+  test('die 2D-Zentrale lässt einen gemerkten Platz stehen — und ist die Karte von oben', () => {
+    expect(arriveAs({ ...defaultLobby('handheld'), me: 'red' }, 'centre').me).toBe('red');
+    expect(arriveAs({ ...defaultLobby('handheld'), me: 'monster' }, 'centre').me).toBe('monster');
+    expect(arriveAs({ ...defaultLobby('desktop'), me: 'watch:all' }, 'centre')).toMatchObject({
+      me: 'watch:all',
+      view: '2d',
+    });
+  });
+
+  test('wer als Techniker gemerkt war, fängt in der Zentrale wie ein Telefon an', () => {
+    const choice = defaultLobby('desktop');
+    expect(choice.me).toBe('technician');
+    expect(arriveAs(choice, 'centre')).toEqual({ ...choice, me: 'watch:technician', view: '2d' });
+  });
+
+  test('die Absicht bleibt, wie sie war', () => {
+    const choice = { ...defaultLobby('desktop'), intent: 'train' as const, view: '2d' as const };
+    expect(arriveAs(choice, 'technician')).toEqual({ ...choice, me: 'technician', view: '3d' });
+    expect(arriveAs(choice, 'centre')).toEqual({ ...choice, me: 'watch:technician' });
+  });
+});
+
 describe('viewSwap', () => {
   const base = {
     now: '2d' as const,

@@ -23,6 +23,8 @@ import {
   type HauntBooks,
   type HauntState,
   type MonsterNetInput,
+  HAUNT_ROOM,
+  hauntRoomFrom,
 } from './net';
 import { defaultSetup, withPower, withWho } from './rules/roundSetup';
 
@@ -31,6 +33,23 @@ import { defaultSetup, withPower, withWho } from './rules/roundSetup';
  * zurück oder begrenzte Werte — nie ein halb gefülltes Objekt, dem der
  * Gastgeber dann vertraut.
  */
+describe('hauntRoomFrom', () => {
+  test('ohne Adresse der gemeinsame Raum', () => {
+    expect(hauntRoomFrom('')).toBe(HAUNT_ROOM);
+    expect(hauntRoomFrom('?net=local')).toBe(HAUNT_ROOM);
+    expect(hauntRoomFrom('?room=')).toBe(HAUNT_ROOM);
+  });
+
+  test('`?room=` gilt — geputzt wie jeder andere Raum-Code', () => {
+    expect(hauntRoomFrom('?room=euer-gruppenname')).toBe('euer-gruppenname');
+    expect(hauntRoomFrom('?net=local&room=Mond%20Riff%2047')).toBe('mond-riff-47');
+  });
+
+  test('ein Code, von dem nach dem Putzen nichts bleibt, ist keiner', () => {
+    expect(hauntRoomFrom('?room=%21%21')).toBe(HAUNT_ROOM);
+  });
+});
+
 describe('Die Nachricht der Monster-Station', () => {
   const input: MonsterNetInput = { x: 0.4, z: -0.9, sprint: true, attack: 3, interact: 7, vent: 1 };
 

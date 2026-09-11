@@ -148,7 +148,10 @@ for (const name of browserNames) {
         url.searchParams.set('room', `smoke-${name}-${Date.now()}`);
         url.hash = 'haunting';
         await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 90000 });
-        await page.locator('#enter-flat').click();
+        // Die Startseite der Runde (`#haunting`): erst in die Lobby (Raum-Code
+        // aus `?room=`, Verbinden), dann der Weg in die 2D Einsatzzentrale.
+        await page.locator('#haunt-connect').click();
+        await page.locator('#haunt-centre').click();
         await page.locator('.haunt').waitFor();
         await shot('roles');
 

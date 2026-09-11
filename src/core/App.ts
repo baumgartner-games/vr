@@ -1238,8 +1238,12 @@ export class App {
     this.hooks.onNetChanged?.();
   }
 
-  /** Der Name, überall zugleich: im Speicher, in der Sitzung, bei den anderen. */
-  private setPlayerName(text: string): void {
+  /**
+   * Der Name, überall zugleich: im Speicher, in der Sitzung, bei den anderen.
+   * Öffentlich, weil auch die Startseite ihn mitten in einer Verbindung
+   * ändern darf (Haunting: verbunden, dann den Namen doch noch korrigiert).
+   */
+  setPlayerName(text: string): void {
     const name = text.trim();
     rememberName(name);
     this.net.name = name || defaultName(this.role);

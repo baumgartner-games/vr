@@ -154,6 +154,32 @@ export function defaultLobby(role: PlayerRole): LobbyChoice {
 }
 
 /**
+ * **Die zwei Web-Wege aus der Lobby der Startseite** (`main.ts`, `#haunting`):
+ * **Web 3D** — der Techniker am Bildschirm, im Schiff — oder die **2D
+ * Einsatzzentrale**. Die Startseite weiß nicht, welchen Platz der Spieler
+ * beim letzten Mal hatte, und soll es auch nicht wissen müssen: Sie sagt nur,
+ * auf welche Seite des Tisches er will — und der Knopf sagt die Ansicht gleich
+ * mit, sein Name steht ja dafür.
+ */
+export type Entry = 'technician' | 'centre';
+
+/**
+ * Die Wahl der Lobby für einen dieser Wege. „Web 3D" ist genau ein Platz, der
+ * Techniker, und das Schiff; „2D Einsatzzentrale" ist die Karte von oben und
+ * jeder andere Platz — wer dort schon einen hatte (Rot, Monster, ein
+ * Zuschauer), behält ihn, und nur wer als Techniker gemerkt war, fängt so an
+ * wie jedes Telefon: als Zuschauer des Technikers (`defaultLobby`).
+ */
+export function arriveAs(choice: LobbyChoice, entry: Entry): LobbyChoice {
+  if (entry === 'technician') return { ...choice, me: 'technician', view: '3d' };
+  return {
+    ...choice,
+    view: '2d',
+    me: choice.me === 'technician' ? 'watch:technician' : choice.me,
+  };
+}
+
+/**
  * Aus fremdem Text (Speicher) eine gültige Wahl — Unbekanntes wird ersetzt.
  *
  * `legacyFlat` ist der Stand der alten Checkbox: Er zählt nur, solange die

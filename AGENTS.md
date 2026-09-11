@@ -668,6 +668,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 ## Was drin ist
 
 - **Startseite** mit großem `Enter VR`-Button (plus Flat-Modus für Desktop/Handy).
+  Unter `#haunting` hat sie ein zweites Gesicht: die **Startseite der Runde**
+  — Name, Raum-Code, Verbinden, und drei Wege in denselben Raum (`main.ts`,
+  `data-landing="haunting"`; siehe [Haunting](#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
 - **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über
@@ -2571,6 +2574,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haunting: linke / rechte Hand | Radar-/Röntgen-/Medkit-Menü; Objekte mit Trigger bedienen | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand | – |
 | Haunting: Medkit | Missionsmenü → Medkit | rechts wählen + `E`, oder Missionsmenü | – |
 | Haunting: Schutzschrank | Tastenfeld antippen = hinein (kein Code); beleuchteter Innenknopf zum Verlassen | `E` oder Klick auf das Tastenfeld; `E` oder Menü zum Verlassen | Kabine antippen, wie in 2D |
+| Haunting: Feststecken | Menü → _Feststecken? Zurück auf den Boden_ — mitten ins eigene Zimmer, draußen in die Zentrale | Menü, derselbe Eintrag | – |
 | Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
 | Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Schalttafel |
 | Haunting: 2D-Welt, Rolle wechseln | – | Streifen über der Szene: Station, Archiv, Schalttafel, Späher, Monster — nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_) | antippen |
@@ -8871,6 +8875,44 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Laden noch einmal gelesen (`'1'` → 2D) und danach nie wieder geschrieben.
   **Alle Oberflächen zeigen denselben Aufbau**, in derselben Reihenfolge und
   mit denselben Worten:
+  - **Startseite der Runde** (`index.html` `#haunt-start`, `main.ts`, unter
+    `#haunting`), in zwei Schritten. **Erst die Lobby**: Name, Raum-Code,
+    **Verbinden** — und dann eine Liste, wer im Raum steht (ich zuerst, dann
+    jeder andere mit Name und Gerät: Brille, Bildschirm, Handy; „schon drin",
+    wer die Welt schon betreten hat). Die drei Wege stehen **nur in der
+    Lobby** (`#haunt-lobby`, sichtbar erst mit der Verbindung): **Enter VR**,
+    **Web 3D** (Techniker am Bildschirm, im Schiff) und **2D Einsatzzentrale**.
+    Alle drei bleiben im Raum: `joinHaunting` läuft vor jedem noch einmal —
+    wer schon im richtigen Raum steht, bekommt höchstens den Namen
+    nachgetragen (`App.setPlayerName`), wer den Code inzwischen geändert hat,
+    zieht um. Der Raum kommt aus der Adresse (`net.hauntRoomFrom`: `?room=`
+    oder `HAUNT_ROOM`), und ein getippter Code wandert beim Verbinden als
+    `?room=` in die Adresse zurück — dieselbe Zeile, die die Welt selbst liest.
+    **Die Welt lädt erst mit dem Knopf**: `joinTable` verbindet beim Betreten,
+    wenn noch keine Verbindung steht, und zwei gleichzeitige
+    Verbindungsaufbauten (Seite und Welt) räumten sich gegenseitig den
+    Transport weg — also sammelt die Seite erst alle in der Lobby und lädt
+    dann. Die zwei Web-Wege sagen der Lobby vor dem Laden, was dieses Gerät
+    ist und wie es sieht (`rules/lobby.arriveAs`): „Web 3D" heißt Techniker
+    und Schiff; „2D Einsatzzentrale" heißt Karte von oben, ein gemerkter Platz
+    bleibt stehen, nur aus einem gemerkten Techniker wird der Zuschauer des
+    Technikers. Für **Enter VR** wird die XR-Sitzung noch aus dem Klick heraus
+    angefragt — ein Browser gibt sie nur auf eine frische Geste. Der Rest der
+    Startseite (Spielwiese-Knöpfe, „Zusammen spielen", Hinweise) ist dann
+    versteckt, nicht abgebaut (`only-generic`/`only-haunting` in `style.css`):
+    `NetPanel` hängt an den Feldern. Der alte Block „In der Zentrale
+    mitspielen" (nur der Name, fester Raum `haunting`) ist damit weg — eine
+    zweite Gruppe braucht einen eigenen Raum, und der Techniker am Bildschirm
+    einen eigenen Knopf.
+  - **Feststecken? Zurück auf den Boden** (`HauntingWorld.unstickPlayer`,
+    Eintrag `haunt:rescue` in jeder Lage des Weltmenüs, Brille wie
+    Bildschirm): misst, wo die Füße stehen — in einem Zimmer der Station geht
+    es in dessen freie Mitte (`safeRoomSpawn`), überall sonst in die
+    Einsatzzentrale (`COMMAND_HOME`); die Höhe misst `movePlayerTo` gegen
+    den Boden, und ein Schutzschrank wird vorher verlassen
+    (`ShipExperience.leaveLocker`, deshalb öffentlich). Die automatische
+    Fallrettung der `PortalWorld` (`rescuePlayer`) bleibt daneben bestehen;
+    dieser Eintrag ist für den Fall, dass man drin steckt, ohne zu fallen.
   - **Van / Telefon** (`stationUi.vanPage`, Hochformat zuerst): ganz oben die
     **Reiterzeile als Rollenwahl** (`stationUi.writeBar`, `[data-me]`) —
     _Aufbau_, dann die fünf Plätze der Tafel (Techniker, Rot, Gelb, Blau,

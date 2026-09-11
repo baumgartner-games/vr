@@ -12,6 +12,7 @@ import { isStation, type Claim, type StationId } from './stations';
 import type { VentPhase } from './vents/ventTravel';
 import { readSetup, type RoundSetup } from './rules/roundSetup';
 import type { Intent } from './rules/lobby';
+import { normalizeRoomCode } from '../../net/room';
 
 /**
  * **Was zwischen Einsatzzentrale und Haus über die Leitung geht** — und wie wenig das ist.
@@ -63,6 +64,16 @@ export const HAUNT_CHANNEL = 'haunting';
 
 /** Der Raum, in dem diese Runde stattfindet — für alle derselbe, mit Absicht. */
 export const HAUNT_ROOM = 'haunting';
+
+/**
+ * **Welcher Raum gemeint ist**, aus der Adresse: `?room=euer-gruppenname` für
+ * eine eigene Gruppe, sonst der gemeinsame. Die Startseite (`main.ts`) und die
+ * Welt (`HauntingWorld.joinTable`) lesen dieselbe Zeile — zwei Leser mit
+ * eigener Rechnung wären zwei Räume, in denen dann jeder allein steht.
+ */
+export function hauntRoomFrom(search: string): string {
+  return normalizeRoomCode(new URLSearchParams(search).get('room') ?? '') || HAUNT_ROOM;
+}
 
 export type RoundPhase = 'briefing' | 'running' | 'won' | 'lost';
 

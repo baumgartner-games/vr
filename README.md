@@ -98,17 +98,27 @@ ohne Karte: Er sieht die Station in 3D, von schräg oben, ohne Decke — und
 sagt dafür nichts. Er kann dabei in jeden anderen Platz hineinsehen, ohne ihn
 zu besetzen.
 
-**Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
-im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
-**In der Zentrale mitspielen** wählen, dann Archiv beziehungsweise
-Schalttafel besetzen. Ein weiteres Telefon kann das **Monster** spielen:
+**Gemeinsam starten:** Auf allen Geräten dieselbe Adresse mit `#haunting`
+öffnen — sie zeigt die **Startseite der Runde**, in zwei Schritten. Erst die
+**Lobby**: Name und Raum-Code eintragen, **Verbinden**; wer denselben Code
+eingibt, steht dann bei allen in der Liste (Name und Gerät). Dann wählt jeder
+seinen Weg, und alle bleiben in diesem Raum: **Enter VR** (die Brille, der
+Techniker im Anzug), **Web 3D** (der Techniker am Bildschirm, im Schiff) und
+**2D Einsatzzentrale** (Handy oder Laptop: Archiv, Schalttafel, Späher,
+Zuschauer oder Monster — die Karte von oben). In der Zentrale dann Archiv
+beziehungsweise Schalttafel besetzen. Wer in der Quest im Hub **Haunting /
+Orbital** wählt, kommt ebenfalls in den Raum der Adresse. Wer in der Brille
+im Boden steckt, holt sich am Handgelenk heraus: Menü → **Feststecken? Zurück
+auf den Boden** setzt einen mitten ins eigene Zimmer, draußen in die Zentrale.
+Ein weiteres Telefon kann das **Monster** spielen:
 Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
 einem Knopf — zugeschlagen wird von selbst, wer in Reichweite steht; der Knopf
 gilt dem nächsten Ding, das die Karte hervorhebt (Klappe, Kabine, gesperrte
 Tür) — auch dann, wenn der Techniker die Station in der 2D-Welt von
-oben spielt. Für eine eigene Gruppe auf allen Geräten denselben
-Link mit `?room=euer-gruppenname#haunting` öffnen; ohne Parameter ist der Raum
-`haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
+oben spielt. Für eine eigene Gruppe auf allen Geräten denselben Raum-Code
+eintragen — oder gleich den Link `?room=euer-gruppenname#haunting` teilen, der
+ihn vorausfüllt; ein getippter Code wandert beim Verbinden selbst in die Adresse.
+Ohne Code ist der Raum `haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
 Update alle Geräte neu laden, damit sie dieselbe Protokollversion verwenden.
 
 Es sind keine Konten erforderlich. WebRTC nutzt öffentliche Signalisierung und
@@ -710,7 +720,7 @@ Konfig-Code steht darunter in einem Feld zum Herauskopieren. Details in
 | --- | --- |
 | `#portal` | startet direkt in dieser Welt (jede Welt-ID funktioniert) |
 | `?world=portal` | dasselbe als Query-Parameter |
-| `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) |
+| `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) — unter `#haunting` in die Startseite der Runde, die ihn beim Verbinden auch selbst hier ablegt |
 | `?net=local` | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner |
 
 Im Browser liegt die App zum Debuggen auf `window.bgvr`.
