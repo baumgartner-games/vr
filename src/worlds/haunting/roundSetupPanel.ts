@@ -13,6 +13,7 @@ import {
   withPower,
   withWho,
   type Ability,
+  type MyRole,
   type RoundSetup,
   type SeatId,
   type SeatWho,
@@ -64,6 +65,15 @@ export interface SetupPanelHost {
    * bleibt: Wer sie liest, weiß, ob schon jemand am Telefon sitzt.
    */
   holder?(seat: SeatId): string | null;
+  /**
+   * **Was dieses Gerät ist** (`rules/lobby.LobbyChoice.me`) — und der Tipp
+   * auf „Ich" in einer Zeile, der es zu diesem Platz macht. Die Reiterzeile
+   * oben tut dasselbe; aber wer auf der Tafel liest, wer wer ist, will an
+   * derselben Stelle sagen können „das bin ich" — der Wunsch des Besitzers,
+   * nachdem die alte Spalte „Ich" gestrichen war.
+   */
+  me?(): MyRole;
+  choose?(seat: SeatId): void;
 }
 
 export class SetupPanel {
@@ -107,6 +117,18 @@ export class SetupPanel {
       el('small', '', name && one.who !== 'off' ? name : SEAT_HINTS[seat]),
     );
     line.append(label);
+
+    // **„Ich"**: dieser Platz ist meiner. Leuchtet auf der Zeile, die dieses
+    // Gerät hält; beim Techniker gesperrt, solange die Brille ihn trägt.
+    if (this.host.choose) {
+      const mine = this.host.me?.() === seat;
+      const me = el('button', `setup__key setup__key--me${mine ? ' is-active' : ''}`, 'Ich');
+      me.dataset['setupMe'] = '';
+      me.setAttribute('aria-pressed', mine ? 'true' : 'false');
+      me.setAttribute('aria-label', `${SEAT_LABELS[seat]}: das bin ich`);
+      if (seat === 'technician' && vr && !mine) me.toggleAttribute('disabled', true);
+      line.append(me);
+    }
 
     // **Drei Knöpfe, nicht ein Zykler.** Ein Knopf, der weiterzählt, ohne zu
     // zeigen, was als Nächstes kommt, war der alte Fehler; drei Knöpfe zeigen
@@ -167,6 +189,13 @@ export class SetupPanel {
     const line = key.closest<HTMLElement>('[data-seat]');
     const seat = line?.dataset['seat'] as SeatId | undefined;
     if (!seat || !SEATS.includes(seat)) return;
+    if (key.dataset['setupMe'] !== undefined) {
+      event.stopPropagation();
+      // Die Wahl schreibt selbst Lobby und Tafel (`stationUi.choose`) und
+      // zeichnet die Seite neu — hier bleibt nichts zu tun.
+      this.host.choose?.(seat);
+      return;
+    }
     const read = this.host.setup();
     let setup: RoundSetup;
     const who = key.dataset['setupWho'] as SeatWho | undefined;

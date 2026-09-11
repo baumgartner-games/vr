@@ -8904,6 +8904,29 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     mitspielen" (nur der Name, fester Raum `haunting`) ist damit weg — eine
     zweite Gruppe braucht einen eigenen Raum, und der Techniker am Bildschirm
     einen eigenen Knopf.
+  - **Wer den Anzug trägt, zählt — auch am Bildschirm** (`HauntingWorld.wearsSuit`,
+    `roomHasTechnician`, `suitPeer`). Bis hierher hieß „ein Mensch ist
+    Techniker" an vier Stellen `peer.role === 'vr'`: Wer über „Web 3D" kam,
+    stand zwar im Schiff, war für die Zentrale aber unsichtbar — ihr Start
+    (`startRound`) fing eine eigene Runde mit einem Techniker aus Zahlen an,
+    die Tafel ließ „Techniker: Bot" stehen, und Späher wie Zuschauer sahen
+    ihn nicht. Jetzt gilt: Brille **oder** frischer Herzschlag
+    (`receive`, `kind: 'technician'`, drei Sekunden). `roomHasTechnician`
+    entscheidet `lockTechnician` und ob der Start zum Gastgeber geht;
+    `suitPeer` liefert die Pose des Technikers für `technicianEyes`,
+    `technicianFocus` und die Karte (`worldSnapshot().player`, mit Gierwinkel
+    aus der Kopfpose). `roomHasVr` bleibt die engere Frage — nur der Brille
+    nimmt niemand den Anzug ab (Sperre der Techniker-Zeile, `switchRights`).
+    **Und „Web 3D" steht sofort am Stock**: `init` setzt `flatTechnician`,
+    wenn die Lobby Techniker + 3D sagt und keine Brille im Raum ist — vorher
+    musste man erst den Reiter „Techniker" antippen, und bis dahin war man
+    ein Telefon mit Schiff im Hintergrund.
+  - **„Ich" auf der Tafel** (`roundSetupPanel.ts`, `[data-setup-me]`,
+    `SetupPanelHost.me/choose`): ein Knopf je Zeile, der leuchtet, wo dieses
+    Gerät sitzt, und ein Tipp nimmt den Platz — derselbe Weg wie der Reiter
+    oben (`stationUi.choose`). Beim Techniker gesperrt, solange die Brille ihn
+    trägt. Die alte Spalte „Ich" war gestrichen; der Besitzer wollte an der
+    Stelle, an der man liest, wer wer ist, auch sagen können „das bin ich".
   - **Feststecken? Zurück auf den Boden** (`HauntingWorld.unstickPlayer`,
     Eintrag `haunt:rescue` in jeder Lage des Weltmenüs, Brille wie
     Bildschirm): misst, wo die Füße stehen — in einem Zimmer der Station geht

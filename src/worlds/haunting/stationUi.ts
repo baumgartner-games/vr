@@ -780,6 +780,8 @@ export class StationUi {
         humanMonster: () => (this.host.lobby?.().view ?? '2d') === '2d',
         vr: () => this.host.vr?.() ?? this.host.link().vr,
         holder: (seat) => this.holderOf(seat),
+        me: () => this.me,
+        choose: (seat) => this.choose(seat),
       });
       this.setupPanel.render();
       out.push(this.setupPanel.element);

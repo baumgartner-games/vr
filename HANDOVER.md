@@ -44,6 +44,24 @@ der Brillenspieler sich am Handgelenk aus dem Boden holen können.
   geändert heißt umbenennen, nicht neu verbinden.
 - Der Browser-Smoke betritt die Welt über Verbinden → `#haunt-centre`.
 
+- **Nachtrag (zweiter PR): Der Techniker am Bildschirm zählt.** Befund des
+  Besitzers: Client 1 „Web 3D", Client 2 „2D Einsatzzentrale" — beim Start aus
+  der Zentrale spielte ein Bot den Techniker, und Client 1 schien nicht in der
+  Lobby zu sein. Zwei Ursachen: „Web 3D" stand erst nach einem Tipp auf den
+  Reiter „Techniker" am Stock (`flatTechnician`), und `startRound`,
+  `lockTechnician`, `technicianEyes`, `technicianFocus` und die Karte kannten
+  nur `peer.role === 'vr'` als Menschen im Anzug. Jetzt: `init` setzt
+  `flatTechnician` aus der Lobby; `wearsSuit`/`roomHasTechnician`/`suitPeer`
+  zählen Brille **oder** Herzschlag. Geprüft mit zwei Tabs (`?net=local`):
+  Client 1 sofort am Stock und Gastgeber, Client 2 sieht „Techniker: Mensch"
+  und Client 1 auf der Karte, der Start aus der Zentrale läuft bei Client 1
+  ohne Bot, Client 2 wird Zuschauer der Netzrunde und sieht 3,2 m Bewegung von
+  Client 1. Dazu **„Ich" auf jeder Zeile der Tafel** (`[data-setup-me]`).
+  Hinweis für Browser-Tests: Zwei SwiftShader-Szenen in einem Headless-Browser
+  lassen die Hintergrundseite fast stehen (ein Bild je Sekunde, dt-Klammer
+  50 ms) — der Herzschlag reißt dann ab. Der Test treibt `App.frame` deshalb
+  per Timer.
+
 ### Was offen bleibt
 
 - Die Welt liest die Lobby beim Aufbau aus dem Speicher. Käme sie einmal

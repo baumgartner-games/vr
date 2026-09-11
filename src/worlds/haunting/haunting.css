@@ -496,6 +496,10 @@ body.orbital-on #hud { display: none; }
 .setup__head { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7690; }
 .setup__key { min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.8); color: #e8ecf7; font: inherit; font-size: 13px; touch-action: manipulation; }
 .setup__key--who { min-width: 84px; }
+/* „Ich": der Platz, den dieses Gerät hält — ein Knopf je Zeile, blau wie der eigene Punkt in der Lobby. */
+.setup__key--me { min-width: 0; padding: 6px 12px; font-size: 12px; opacity: 0.7; }
+.setup__key--me.is-active { opacity: 1; background: rgba(74, 168, 255, 0.18); border-color: #4aa8ff; color: #cfe6ff; font-weight: 600; }
+.setup__key--me:disabled { opacity: 0.35; }
 .setup__key--who.is-human { border-color: #8ff0b0; color: #c8ffd9; }
 .setup__key--who.is-bot { border-color: #7ff0ff; color: #d8fbff; }
 /* „Aus" ist eine Antwort und kein fehlender Eintrag — sie steht grau da und

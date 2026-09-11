@@ -6,6 +6,7 @@ import { DIRS, DIR_E, DIR_N, DIR_S, TILE, dirX, dirZ, tileKey, type Dir } from '
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { pickHost } from '../../net/host';
+import type { Peer } from '../../net/NetSession';
 import {
   generateHouse,
   onApron,
@@ -388,6 +389,8 @@ const _down = new THREE.Vector3(0, -1, 0);
 /** Wie hoch über der Stelle der Bodenstrahl beim Versetzen ansetzt, in Metern. */
 const RESPAWN_PROBE = 3;
 const _size = new THREE.Vector2();
+const _quat = new THREE.Quaternion();
+const _euler = new THREE.Euler();
 /** Die Schnittebene, die dem Zuschauer die Decke abnimmt — einmal gebaut. */
 const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
 const _noLid: THREE.Plane[] = [];
@@ -1056,6 +1059,21 @@ export class HauntingWorld extends GridWorld {
     // einer zu viel.
     ctx.touchStick(false);
     this.joinTable(ctx);
+
+    // **„Web 3D" heißt: am Stock, und zwar sofort.** Die Startseite hat der
+    // Lobby gesagt, dass dieses Gerät der Techniker ist und das Schiff will
+    // (`rules/lobby.arriveAs`). Bis hierher stand er trotzdem erst in der
+    // Zentrale und musste den Reiter „Techniker" antippen, bevor er für die
+    // anderen einer war — bis dahin startete ein Telefon in der Zentrale eine
+    // Runde mit einem Techniker aus Zahlen, während er im Schiff wartete. Mit
+    // Brille im Raum bleibt es beim alten Weg: Sie trägt den Anzug.
+    if (
+      ctx.role !== 'vr' &&
+      this.lobbyChoice.me === 'technician' &&
+      this.lobbyChoice.view === '3d' &&
+      ![...ctx.net.peers.values()].some((peer) => peer.world === 'haunting' && peer.role === 'vr')
+    )
+      this.flatTechnician = true;
 
     this.setupRole(ctx);
     this.applyLights();
@@ -2038,8 +2056,7 @@ export class HauntingWorld extends GridWorld {
       ...here.map((peer) => ({
         id: peer.id,
         seniority: ctx.net.seniorityOf(peer),
-        technician:
-          peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000,
+        technician: this.wearsSuit(peer, ctx.net.world),
       })),
     ];
     const next = pickGameHost(candidates) || pickHost(candidates);
@@ -2107,8 +2124,9 @@ export class HauntingWorld extends GridWorld {
     // gibt es nicht zu vergeben, solange eine Brille im Raum ist.
     const wished = readSetupMessage(data);
     if (wished) {
-      if (this.isHost && from !== this.context?.net.localId)
-        this.applySetup(lockTechnician(wished, this.roomHasVr()), false);
+      const ctx = this.context;
+      if (ctx && this.isHost && from !== ctx.net.localId)
+        this.applySetup(lockTechnician(wished, this.roomHasTechnician(ctx)), false);
       return;
     }
     // **Und starten darf auch jeder** — der Gastgeber fängt an, mit der
@@ -2122,7 +2140,7 @@ export class HauntingWorld extends GridWorld {
         this.say(ROUND_RUNNING);
         return;
       }
-      this.applySetup(lockTechnician(start.setup, this.roomHasVr()), false);
+      this.applySetup(lockTechnician(start.setup, this.roomHasTechnician(ctx)), false);
       this.startRound(start.intent, ctx);
       return;
     }
@@ -3325,13 +3343,13 @@ export class HauntingWorld extends GridWorld {
    * schauen geradeaus. Gibt `false` zurück, wenn niemand da ist.
    */
   private technicianEyes(camera: THREE.PerspectiveCamera): boolean {
-    for (const peer of this.context?.net.peers.values() ?? [])
-      if (peer.world === 'haunting' && peer.role === 'vr' && peer.pose) {
-        const h = peer.pose.head;
-        camera.position.set(h[0], h[1], h[2]);
-        camera.quaternion.set(h[3], h[4], h[5], h[6]);
-        return true;
-      }
+    const suit = this.suitPeer();
+    if (suit?.pose) {
+      const h = suit.pose.head;
+      camera.position.set(h[0], h[1], h[2]);
+      camera.quaternion.set(h[3], h[4], h[5], h[6]);
+      return true;
+    }
     const bot = this.experience?.botPose;
     const flat = this.state.technician;
     const pose = bot ?? flat;
@@ -3348,9 +3366,8 @@ export class HauntingWorld extends GridWorld {
     if (flat) return { x: flat.x, z: flat.z };
     const bot = this.experience?.botPose;
     if (bot) return { x: bot.x, z: bot.z };
-    for (const peer of this.context?.net.peers.values() ?? [])
-      if (peer.world === 'haunting' && peer.role === 'vr' && peer.pose)
-        return { x: peer.pose.head[0]!, z: peer.pose.head[2]! };
+    const suit = this.suitPeer();
+    if (suit?.pose) return { x: suit.pose.head[0]!, z: suit.pose.head[2]! };
     return null;
   }
 
@@ -3785,11 +3802,41 @@ export class HauntingWorld extends GridWorld {
    * gemeldet hat (`receive`, `kind: 'technician'`).
    */
   private roomOccupied(ctx: WorldContext): boolean {
-    return [...ctx.net.peers.values()].some(
-      (peer) =>
-        peer.world === ctx.net.world &&
-        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
+    return [...ctx.net.peers.values()].some((peer) => this.wearsSuit(peer, ctx.net.world));
+  }
+
+  /**
+   * **Ob dieser Mitspieler den Anzug trägt** — in der Brille, oder am
+   * Bildschirm mit frischem Herzschlag (`receive`, `kind: 'technician'`). Die
+   * eine Frage, die vorher an vier Stellen mit `peer.role === 'vr'` beantwortet
+   * wurde: Der Techniker am Desktop („Web 3D") war damit für Zuschauer, Späher
+   * und Start unsichtbar — die Runde lief bei ihm, und die Zentrale sah einen
+   * Bot.
+   */
+  private wearsSuit(peer: Peer, world = 'haunting'): boolean {
+    return (
+      peer.world === world &&
+      (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000)
     );
+  }
+
+  /** Der Mitspieler im Anzug mit bekannter Pose — für Augen und Karte der Zentrale. */
+  private suitPeer(): Peer | null {
+    for (const peer of this.context?.net.peers.values() ?? [])
+      if (this.wearsSuit(peer) && peer.pose) return peer;
+    return null;
+  }
+
+  /**
+   * **Ob ein Mensch den Anzug trägt** — hier oder auf einem anderen Gerät, in
+   * der Brille oder am Bildschirm. Das entscheidet, ob die Tafel „Techniker:
+   * Mensch" festhält und ob ein Start aus der Zentrale zu ihm geschickt wird
+   * statt hier eine Runde mit einem Techniker aus Zahlen anzufangen.
+   * `roomHasVr` bleibt die engere Frage: Nur der Brille nimmt niemand den
+   * Anzug ab.
+   */
+  private roomHasTechnician(ctx: WorldContext): boolean {
+    return ctx.role === 'vr' || this.flatTechnician || this.roomOccupied(ctx);
   }
 
   /**
@@ -3866,7 +3913,10 @@ export class HauntingWorld extends GridWorld {
     // **Mit Brille im Raum ist der Techniker ein Mensch** — auch wenn auf der
     // Tafel noch „Bot" steht, weil sie tagelang so lag (`lockTechnician`).
     this.applySetup(
-      lockTechnician(applyIntent(this.setup, asIntent(what), this.myPlace()), this.roomHasVr()),
+      lockTechnician(
+        applyIntent(this.setup, asIntent(what), this.myPlace()),
+        this.roomHasTechnician(ctx),
+      ),
     );
     const setup = this.setup;
     // **Steckt der Techniker in der Brille, startet er — auf Zuruf.** Wer in
@@ -3877,7 +3927,11 @@ export class HauntingWorld extends GridWorld {
     // — was stimmte und genau der Grund war, warum das Telefon starten sollte.
     // Ein Zuschauer bekommt danach wie bisher sein Bild von oben; ein Platz
     // der Zentrale bleibt an seiner Karte.
-    if (!this.isHost && this.roomHasVr() && ctx.role !== 'vr') {
+    // **Auch ein Techniker am Bildschirm ist einer.** Bis hierher zählte nur
+    // die Brille (`roomHasVr`): Wer „Web 3D" gewählt hatte, wartete im Schiff,
+    // und das Telefon in der Zentrale fing hier eine eigene Runde mit einem
+    // Techniker aus Zahlen an. Jetzt zählt, wer den Anzug trägt (`wearsSuit`).
+    if (!this.isHost && this.roomOccupied(ctx) && ctx.role !== 'vr') {
       ctx.net.emit(HAUNT_CHANNEL, startMessage(asIntent(what), setup));
       this.say(START_SENT);
       if (opensFlat(this.startState()) && isWatcher(this.myPlace())) {
@@ -3904,7 +3958,7 @@ export class HauntingWorld extends GridWorld {
     // nur auf dem Gerät des Technikers. Ein Monster allein im Schiff hätte
     // niemanden zu jagen. Steht eine Brille im Raum, bleibt es beim Steuer
     // übers Netz (`monster/netMonsterPort.ts`).
-    const asMonster = this.myPlace() === 'monster' && !this.roomHasVr();
+    const asMonster = this.myPlace() === 'monster' && !this.roomHasTechnician(ctx);
     if (asMonster && !opensFlat(this.startState()) && !ctx.renderer.xr.isPresenting)
       ctx.notify('Als Monster spielst du auf der Karte von oben.');
     if (opensFlat(this.startState()) || (asMonster && !ctx.renderer.xr.isPresenting)) {
@@ -4457,7 +4511,24 @@ export class HauntingWorld extends GridWorld {
           const technician = this.state.technician;
           if (technician) return { ...technician, sprinting: this.state.crew.exertion > 0.3 };
           const ctx = this.context;
-          if (!ctx || (ctx.role !== 'vr' && !this.flatTechnician)) return null;
+          if (!ctx || (ctx.role !== 'vr' && !this.flatTechnician)) {
+            // **Der Techniker im Schiff eines anderen Geräts** — Brille oder
+            // Bildschirm — steht in seiner Pose auf der Leitung (`Peer.pose`).
+            // Ohne diese Zeile sah die Zentrale ihn nur, wenn er in der Brille
+            // steckte, und einen Desktop-Techniker gar nicht.
+            const suit = this.suitPeer();
+            if (!suit?.pose) return null;
+            const h = suit.pose.head;
+            _quat.set(h[3]!, h[4]!, h[5]!, h[6]!);
+            _euler.setFromQuaternion(_quat, 'YXZ');
+            return {
+              x: h[0]!,
+              z: h[2]!,
+              yaw: _euler.y,
+              moving: false,
+              sprinting: this.state.crew.exertion > 0.3,
+            };
+          }
           ctx.rig.getHeadPosition(_head);
           ctx.camera.getWorldDirection(_feet);
           return {
@@ -4481,7 +4552,7 @@ export class HauntingWorld extends GridWorld {
         },
         peers: () =>
           [...(this.context?.net.peers.values() ?? [])]
-            .filter((peer) => peer.world === 'haunting' && peer.role === 'vr' && peer.pose)
+            .filter((peer) => this.wearsSuit(peer) && peer.pose)
             .map((peer) => ({
               id: peer.id,
               name: peer.name,
