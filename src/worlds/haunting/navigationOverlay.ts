@@ -2,6 +2,12 @@ import * as THREE from 'three';
 import { TILE, tileCentreX, tileCentreZ } from '../nav/navTile';
 import type { HouseSpec } from './house';
 import { label } from './shipArt';
+import type { MonsterInsight } from './map/mapSnapshot';
+// **Tief importiert und nicht über `map/index.ts`.** Die Tür des Kartenpakets
+// exportiert auch `FlatMode` und `MapView`; wer sie hier aufmacht, zieht die
+// ganze 2D-Welt in den 3D-Pfad, den `HauntingWorld` mit Absicht erst auf
+// Wunsch nachlädt. Gebraucht werden zwei reine Funktionen, sonst nichts.
+import { beliefAlpha, BELIEF_MIN, interceptLabel } from './map/insightOverlay';
 
 interface View extends Point {
   yaw: number;
@@ -20,6 +26,12 @@ export interface NavigationTrace {
   points: readonly Point[];
   goal: Point | null;
 }
+
+/**
+ * Wie hoch die Absichten über dem Boden liegen, in Metern — knapp über den
+ * Hörfeld-Kacheln, damit beides nebeneinander lesbar bleibt.
+ */
+const INSIGHT_Y = 0.09;
 
 /** Observes the routes the actors actually consume; never runs a second search. */
 export class NavigationOverlay {
@@ -79,6 +91,29 @@ export class NavigationOverlay {
     1024,
   );
 
+  /**
+   * **Was das Monster glaubt und vorhat, als Weltgeometrie** (Paket M4).
+   *
+   * Alles darin liegt flach auf dem Boden und ist damit auch in der Brille
+   * richtig herum — ein Overlay, das an der Kamera hinge, wäre dort ein
+   * Aufkleber auf der Scheibe. Die Kacheln je Raum sind dieselbe Handschrift
+   * wie das Hörfeld darüber; wer beides sieht, liest „hier hört es hin" und
+   * „hier vermutet es ihn" als zwei Schichten derselben Karte.
+   */
+  private readonly insightRoot = new THREE.Group();
+  /** Je Raum eine Fläche; ihre Deckkraft ist der Glaube an diesen Raum. */
+  private readonly beliefTiles = new Map<
+    string,
+    THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
+  >();
+  private readonly predictionLine: THREE.Line<THREE.BufferGeometry, THREE.LineDashedMaterial>;
+  private readonly interceptRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  /** Die zwei Beschriftungen: Ankunftszeiten an der Tür, Haltung am Ziel. */
+  private interceptSign: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
+  private interceptText = '';
+  private modeSign: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
+  private modeText = '';
+
   constructor() {
     this.root.name = 'ai-navigation-goals';
     this.sound.count = 0;
@@ -87,9 +122,72 @@ export class NavigationOverlay {
     this.root.add(this.sound);
     this.root.visible = false;
     this.root.add(new THREE.HemisphereLight(0xffffff, 0x8198af, 2.5));
+
+    this.insightRoot.name = 'ai-insight';
+    this.insightRoot.visible = false;
+    this.root.add(this.insightRoot);
+    const path = new THREE.BufferGeometry();
+    path.setAttribute('position', new THREE.BufferAttribute(new Float32Array(256 * 3), 3));
+    this.predictionLine = new THREE.Line(
+      path,
+      new THREE.LineDashedMaterial({
+        color: 0x7fe0ff,
+        dashSize: 0.55,
+        gapSize: 0.4,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    this.predictionLine.frustumCulled = false;
+    this.predictionLine.renderOrder = 104;
+    this.interceptRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.55, 0.85, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0xffd84a,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    this.interceptRing.rotation.x = -Math.PI / 2;
+    this.interceptRing.renderOrder = 105;
+    this.insightRoot.add(this.predictionLine, this.interceptRing);
   }
 
   setRooms(spec: HouseSpec): void {
+    for (const [, tile] of this.beliefTiles) {
+      tile.geometry.dispose();
+      tile.material.dispose();
+      tile.removeFromParent();
+    }
+    this.beliefTiles.clear();
+    for (const room of spec.rooms) {
+      // Eine Fläche je Raum, im Maß des Raums: Das Glaubensbild ist eine
+      // Verteilung über **Räume** und nicht über Kacheln — es kachelig zu
+      // malen, hieße eine Genauigkeit zu behaupten, die das Monster nicht hat.
+      const tile = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.rect.w * TILE - 0.2, room.rect.d * TILE - 0.2),
+        new THREE.MeshBasicMaterial({
+          color: 0xff4d55,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+          depthTest: false,
+          depthWrite: false,
+        }),
+      );
+      tile.rotation.x = -Math.PI / 2;
+      tile.position.set(
+        (room.rect.x + room.rect.w / 2) * TILE,
+        INSIGHT_Y - 0.02,
+        (room.rect.z + room.rect.d / 2) * TILE,
+      );
+      tile.renderOrder = 103;
+      tile.name = `belief:${room.id}`;
+      tile.visible = false;
+      this.beliefTiles.set(room.id, tile);
+      this.insightRoot.add(tile);
+    }
     for (const room of spec.rooms) {
       const sign = label(room.name.toUpperCase(), Math.min(9, room.rect.w * TILE - 1), 1.4);
       sign.rotation.x = -Math.PI / 2;
@@ -120,6 +218,97 @@ export class NavigationOverlay {
       line.geometry.setDrawRange(0, count + 1);
       if (trace.goal) ring.position.set(trace.goal.x, 0.28, trace.goal.z);
     });
+  }
+
+  /**
+   * **Die Absichten des Monsters auf den Boden legen** (Paket M4): Raumtönung
+   * nach dem Glaubensbild, die gestrichelte Prognose des Technikerwegs, der
+   * Abfangring mit beiden Ankunftszeiten und der Name der Haltung.
+   *
+   * `null` heißt: nichts davon. Das ist der Normalfall — nur wer am Fernseher
+   * sitzt und den Schalter umgelegt hat, bekommt es zu sehen; für einen
+   * Spieler wäre es der halbe Sieg.
+   */
+  insight(insight: MonsterInsight | null): void {
+    this.insightRoot.visible = !!insight;
+    if (!insight) return;
+    const believed = new Map(insight.belief.map((entry) => [entry.roomId, entry.p]));
+    for (const [id, tile] of this.beliefTiles) {
+      const p = believed.get(id) ?? 0;
+      tile.visible = p >= BELIEF_MIN;
+      tile.material.opacity = beliefAlpha(p);
+    }
+    const path = insight.prediction?.path ?? [];
+    this.predictionLine.visible = path.length > 1;
+    if (path.length > 1) {
+      const position = this.predictionLine.geometry.getAttribute(
+        'position',
+      ) as THREE.BufferAttribute;
+      const count = Math.min(path.length, position.count);
+      for (let i = 0; i < count; i++) position.setXYZ(i, path[i]!.x, INSIGHT_Y, path[i]!.z);
+      position.needsUpdate = true;
+      this.predictionLine.geometry.setDrawRange(0, count);
+      // Ohne die Streckenlängen zeichnet three.js eine durchgezogene Linie —
+      // und genau das Gestrichelte sagt hier „geraten, nicht gesehen".
+      this.predictionLine.computeLineDistances();
+    }
+    const intercept = insight.intercept;
+    this.interceptRing.visible = !!intercept;
+    if (intercept) this.interceptRing.position.set(intercept.at.x, INSIGHT_Y, intercept.at.z);
+    this.interceptSign = this.sign(
+      this.interceptSign,
+      intercept ? interceptLabel(intercept) : '',
+      'interceptText',
+      intercept ? { x: intercept.at.x, z: intercept.at.z + 1.5 } : null,
+      4.4,
+      0xffd84a,
+    );
+    this.modeSign = this.sign(
+      this.modeSign,
+      insight.goal ? insight.label : '',
+      'modeText',
+      insight.goal,
+      3.6,
+      0xff8a8f,
+    );
+  }
+
+  /**
+   * Eine der beiden Beschriftungen setzen. Die Textur wird **nur bei
+   * geändertem Text** neu gebaut: Ein Canvas je Bild kostet mehr als das
+   * ganze Overlay, und „Lauern" steht sekundenlang still.
+   */
+  private sign(
+    current: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null,
+    text: string,
+    slot: 'interceptText' | 'modeText',
+    at: { x: number; z: number } | null,
+    width: number,
+    color: number,
+  ): THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null {
+    if (!text || !at) {
+      if (current) current.visible = false;
+      return current;
+    }
+    let sign = current;
+    if (!sign || this[slot] !== text) {
+      if (sign) {
+        sign.geometry.dispose();
+        sign.material.map?.dispose();
+        sign.material.dispose();
+        sign.removeFromParent();
+      }
+      sign = label(text, width, width / 4.4, color);
+      sign.rotation.x = -Math.PI / 2;
+      sign.material.depthTest = false;
+      sign.material.depthWrite = false;
+      sign.renderOrder = 106;
+      this.insightRoot.add(sign);
+      this[slot] = text;
+    }
+    sign.visible = true;
+    sign.position.set(at.x, INSIGHT_Y + 0.02, at.z);
+    return sign;
   }
 
   /** The same fixed-collider sight test as the actors clips cones at real walls. */
@@ -173,6 +362,23 @@ export class NavigationOverlay {
 
   dispose(): void {
     this.root.removeFromParent();
+    for (const sign of [this.interceptSign, this.modeSign]) {
+      if (!sign) continue;
+      sign.geometry.dispose();
+      sign.material.map?.dispose();
+      sign.material.dispose();
+    }
+    this.interceptSign = null;
+    this.modeSign = null;
+    this.predictionLine.geometry.dispose();
+    this.predictionLine.material.dispose();
+    this.interceptRing.geometry.dispose();
+    this.interceptRing.material.dispose();
+    for (const [, tile] of this.beliefTiles) {
+      tile.geometry.dispose();
+      tile.material.dispose();
+    }
+    this.beliefTiles.clear();
     for (const mesh of [...this.views, this.sound]) {
       mesh.geometry.dispose();
       mesh.material.dispose();

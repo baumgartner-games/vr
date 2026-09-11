@@ -2560,6 +2560,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
 | Haunting: Station wählen | – | Archiv, Einsatzkontrolle, Drohne oder Zuschauer in der Zentrale wählen | antippen |
+| Haunting: Zuschauer — wessen Platz / wem folgen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Einsatzkontrolle, Späher, Drohne, Monster) | antippen |
 | Haunting: Schrank / Gegenstand / Rätsel | anvisieren + Trigger | anvisieren + `E` oder Linksklick | als Techniker über sichtbare Schaltflächen |
 | Haunting: linke / rechte Hand | Radar-/Röntgen-/Medkit-Menü; Objekte mit Trigger bedienen | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand | – |
 | Haunting: Medkit | Missionsmenü → Medkit | rechts wählen + `E`, oder Missionsmenü | – |
@@ -7899,10 +7900,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   menschliche Kommunikation und keine vollständige autonome Dreiercrew.
   Raumwechsel erzeugen lokale Funkmeldungen Techniker → Zentrale.
   `NavigationOverlay` liest echte Route-Cursor von Bot, Monster und Drohne;
-  Cyan/Rot/Gelb und Zielringe sind nur in der Simulation sichtbar. Sichtflächen
+  Cyan/Rot/Gelb und Zielringe sind in der Simulation sichtbar — **und beim
+  Zuschauer**, sobald er im Panel „KI-Absichten" umlegt
+  (`HauntingWorld.insightWanted`). Sichtflächen
   werden gegen feste Collider (inklusive Türblätter/Einrichtung) beschnitten;
   Orange zeigt das maximale akustische Feld für Sprintgeräusche. Legende und
-  KI-Absichten erklären Grenzen. Gehen/Stillstand erzeugen weniger/keinen Schall.
+  KI-Absichten erklären Grenzen.
+  **Das Overlay „KI-Absichten"** (`NavigationOverlay.insight`) legt dazu den
+  Kopf des Monsters auf den Boden: je Raum eine Fläche, so satt wie sein
+  Glaubensbild (`MonsterInsight.belief`, ab 2 %), die gestrichelte Prognose des
+  Technikerwegs, der Abfangring an der Tür mit beiden Ankunftszeiten
+  („M 3,2 s / T 4,0 s") und der Name der Haltung am Ziel. Weltgeometrie, flach
+  auf dem Boden — damit ist es auch in der Brille richtig herum. Die Zahlen
+  kommen aus `RoutineOutput.insight` (`monsterRoutine.ts`) und werden nirgends
+  zweimal gerechnet; gezeichnet wird in 2D dasselbe aus `map/insightOverlay.ts`
+  (Szene *und* Kartenübersicht, `FlatMode.drawSceneOverlay` /
+  `MapViewOptions.overlay`). **Nur im Modus „Alles sehen"**: Ein Techniker mit
+  dem Glaubensbild vor sich weiß, welche Zimmer gerade sicher sind, und die
+  halbe Runde ist vorbei. Wer nicht rechnet, hat es auch nicht — `insight`
+  geht (noch) nicht über die Leitung, siehe `net.ts`. Gehen/Stillstand erzeugen weniger/keinen Schall.
   Schrittanimation basiert auf Körperseite und Gliedmaßtyp statt Child-Reihenfolge:
   linkes/rechtes Bein gegensinnig, gleichseitiger Arm jeweils entgegengesetzt.
   Freiflug reicht bis 120m, Kartenübersicht setzt den Desktopblick auf 90m.
@@ -8426,14 +8442,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     eingebettete Tafel sind dort weg.
   **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
   `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
-  Spieler", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
-  Der Techniker aus Zahlen läuft dabei innen weiter (`rules/technicianBot.ts`)
-  — er ist nur keine Rolle mehr, die jemand wählt. Wessen Sicht ein Zuschauer
-  *sonst* noch haben kann, steht in der Lobby: Archiv, Einsatzkontrolle,
-  Drohne und der Fernseher sind eigene Ansichten und keine Kamerastellung,
-  also führt die Wahl dorthin (Stations-Kacheln unter „Wer?").
-  Diese Runde ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
-  bleibt sie auch dann wählbar, wenn im Raum schon jemand spielt.
+  Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
+  **Was dabei zu sehen ist, hängt am Raum**: Läuft dort wirklich eine Runde
+  (`HauntingWorld.roomOccupied` — ein Mensch im Headset oder ein 2D-Techniker,
+  der sich meldet), sieht der Zuschauer **diese** Runde. Szene und Karte
+  kommen dann aus dem Stand, den der Gastgeber ansagt: `HauntingWorld`
+  reicht `map/worldSource.ts` als `FlatModeHost.watchSnapshot` herein, die
+  2D-Welt rechnet gar nichts mehr (kein Techniker aus Zahlen, keine Wege,
+  keine neue Runde im Endbildschirm) und zeichnet nur noch. Ist der Raum
+  leer, bleibt es bei der **lokalen Bot-Runde** mit dem Techniker aus Zahlen
+  (`rules/technicianBot.ts`) — er ist nur keine Rolle mehr, die jemand wählt.
+  Beides ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
+  bleibt Zuschauen auch dann wählbar, wenn im Raum schon jemand spielt.
   2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers
   Netz (siehe unten) — wer sie spielt, ist der Techniker, und ein zweiter
   Techniker im Raum sperrt sie.
@@ -8478,6 +8498,34 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
   die echten Stationsbounds/Gänge. DOM/Canvas aktualisiert gedrosselt.
+- **Der Zuschauer ist ein Platz und kein Fenster mehr** (`watchLens.ts`,
+  `stationUi.watchPage`). Er war das ganze Deck von schräg oben und sonst
+  nichts; jetzt stehen dort zwei Fragen und ein Schalter:
+  - **Wessen Platz?** — Zuschauer (Deck), Archiv, Einsatzkontrolle, Späher,
+    Drohne, Monster. Gewechselt wird **mitten in der Runde**, und gewechselt
+    wird nur das *Bild*: `StationUi.shownStation` sagt der Welt, welche Kamera
+    das Fenster füllt (`HauntingWorld.render`), der Platz bleibt `watch`.
+    Einsatzkontrolle und Späher sind dasselbe Gerät mit zwei Reitern, die
+    Tafel steht beim Zuschauer als **Auskunft** (`haunt__watch-panel`) und
+    nicht als Schalterwand, und die Monsteransicht bekommt **kein Steuer**
+    (`monsterPage(false)`) — der Gastgeber hörte ohnehin nicht auf sie, aber
+    ein Stock, der nichts bewegt, ist eine Zusage, die das Spiel nicht
+    einhält. Das Archivblatt folgt dem Zimmer, in dem der Techniker steht
+    (`followArchive`); ein Blatt zum Selberblättern wäre ein sechster Satz
+    Knöpfe für eine Rolle, die nichts bedient.
+  - **Wem folgen?** — Frei, Techniker, Monster (`aimShow`,
+    `WATCH_FOLLOW_SPAN` = 9 m). „Frei" ist das ganze Deck wie bisher; sonst
+    zieht die Kamera weich nach (`showFocus`, `lerp` 0,18), weil der Stand nur
+    zehnmal je Sekunde ankommt.
+  - **KI-Absichten** — das Overlay aus M4, siehe oben. Nur hier, nie für einen
+    Spieler.
+  **Der Techniker aus der 2D-Welt bekommt dabei einen Körper**
+  (`HauntingWorld.showTechnician`, `shipArt.buildCrewmate`): Seine Pose steht
+  seit Protokoll 7 im Stand (`HauntState.technician`), gezeichnet wurde sie in
+  3D nie — am Fernseher sah man eine leere Station, in der Türen von selbst
+  aufgingen. Er steht dort, wo der Stand ihn hinsetzt, läuft die
+  Schrittanimation nur bei `moving` und verschwindet im Schutzschrank und im
+  Schacht.
 - **STATION_PROTOCOL=8**: der Stand trägt jetzt die zerstörten Kabinen
   (`destroyed`, seit 6), die Fahrtphase des Monsters (`ride`) und den
   2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`. **Seit 8

@@ -47,6 +47,8 @@ interface ReplayWorld {
   npcTarget(target: THREE.Vector3): THREE.Vector3 | null;
   monster: unknown;
   monsterArt: THREE.Object3D | null;
+  technicianArt: THREE.Object3D | null;
+  showTechnician(): void;
   director: { clear: jest.Mock; spawn: jest.Mock };
 }
 
@@ -100,6 +102,7 @@ function replay(): ReplayWorld {
     simulationSpeed: 1,
     monster: null,
     monsterArt: null,
+    technicianArt: null,
     flatTechnician: false,
     pendingBotRound: false,
     vents: vents,
@@ -328,4 +331,31 @@ test('simulation perception reads the bot position and ignores the observer rig'
   expect(getHeadPosition).not.toHaveBeenCalled();
   expect(world.state.crew.threat.target).toEqual({ x: bot.x, z: bot.z });
   expect(world.state.crew.hp).toBe(3);
+});
+
+/**
+ * **Der Zuschauer sieht den Techniker, der in 2D spielt.** Seine Pose steckt
+ * seit `STATION_PROTOCOL` 7 im Stand (`HauntState.technician`) — die 3D-Welt
+ * zeichnete sie nie, und am Fernseher sah man eine leere Station, in der
+ * Türen von selbst aufgingen (Paket U4).
+ */
+test('der 2D-Techniker bekommt einen Körper — und verschwindet im Schutzschrank', () => {
+  const world = replay();
+  // Ohne Pose kein Körper: Wer im Headset spielt, hat einen Avatar.
+  world.showTechnician();
+  expect(world.technicianArt).toBeNull();
+
+  world.state.technician = { x: 4, z: 7, yaw: Math.PI / 2, moving: true };
+  world.showTechnician();
+  const body = world.technicianArt!;
+  expect(body.parent).toBe(world.live);
+  expect(body.visible).toBe(true);
+  expect([body.position.x, body.position.z]).toEqual([4, 7]);
+  // Der Crewmate schaut nach +z, die Welt rechnet Blicke nach -z.
+  expect(body.rotation.y).toBeCloseTo(Math.PI / 2 + Math.PI);
+
+  world.state.crew.hidden = 'raum-1';
+  world.showTechnician();
+  expect(world.technicianArt).toBe(body);
+  expect(body.visible).toBe(false);
 });

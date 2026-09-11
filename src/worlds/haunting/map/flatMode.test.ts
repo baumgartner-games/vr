@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 import { FlatMode } from './flatMode';
+import { FlatRound } from './flatRound';
 import { puzzleFor, repairsFor } from '../mission';
 import { FlatWalker } from './flatWalk';
 
@@ -352,6 +353,145 @@ describe('Die Sprungknöpfe rechts', () => {
     flat.update(DT);
     expect(flat.scene.current.following).toBe('monster');
     expect(centre.hidden).toBe(false);
+    flat.dispose();
+  });
+});
+
+/**
+ * **Zuschauen übers Netz.** Läuft im Raum eine echte Runde, reicht der Wirt
+ * ihren Stand herein (`FlatModeHost.watchSnapshot`) — dann rechnet die 2D-Welt
+ * gar nichts mehr, sondern zeichnet, was der Gastgeber ansagt.
+ */
+describe('Der Zuschauer am Netz', () => {
+  /** Eine echte Runde als Quelle, ein paar Schritte weit gelaufen. */
+  function liveRound(): FlatRound {
+    const live = new FlatRound(11, { test: true });
+    for (let i = 0; i < 60; i++) live.step(DT, { x: 1, z: 0, sprint: false });
+    return live;
+  }
+
+  it('zeichnet die laufende Runde und lässt keinen Techniker aus Zahlen laufen', () => {
+    const live = liveRound();
+    const flat = new FlatMode(
+      11,
+      { role: 'watch', mode: 'omniscient' },
+      { exit: () => {}, watchSnapshot: () => live.snapshot() },
+    );
+    document.body.append(flat.element);
+    const own = { ...flat.round.player };
+    for (let i = 0; i < 10; i++) flat.update(DT);
+    expect(flat.role).toBe('watch');
+    // Die eigene Runde steht still — sie ist nur noch das Haus zum Snapshot.
+    expect(flat.round.player.x).toBeCloseTo(own.x);
+    expect(flat.round.state().time).toBe(0);
+    // Die Kamera hängt am Techniker **aus dem Netz**, nicht am eigenen.
+    expect(flat.scene.getView().centreX).toBeCloseTo(live.player.x);
+    expect(live.player.x).not.toBeCloseTo(own.x);
+    // Kein Stock, keine Knöpfe — und beide Sprungknöpfe stehen da.
+    expect(flat.element.querySelector<HTMLElement>('.flat__stick')!.hidden).toBe(true);
+    expect(flat.element.querySelector<HTMLElement>('.flat__buttons')!.hidden).toBe(true);
+    expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.textContent).toBe(
+      'Zum Techniker',
+    );
+    flat.dispose();
+  });
+
+  it('bietet am Netz keine neue Runde an, sondern nur den Rückweg', () => {
+    const live = liveRound();
+    live.haunt.phase = 'lost';
+    // Der Snapshot wird einmal je Schritt gerechnet — ohne diesen Schritt
+    // trüge er noch die laufende Runde.
+    live.step(DT, { x: 0, z: 0, sprint: false });
+    const flat = new FlatMode(
+      11,
+      { role: 'watch', mode: 'omniscient' },
+      { exit: () => {}, watchSnapshot: () => live.snapshot() },
+    );
+    document.body.append(flat.element);
+    flat.update(DT);
+    const ending = flat.element.querySelector<HTMLElement>('.flat__ending')!;
+    expect(ending.hidden).toBe(false);
+    expect(ending.querySelector('[data-restart]')).toBeNull();
+    expect(ending.querySelector('[data-leave]')).not.toBeNull();
+    flat.dispose();
+  });
+});
+
+/**
+ * **Das Overlay „KI-Absichten" ist Zuschauerwissen** (Paket M4): Wer mitspielt,
+ * darf das Glaubensbild des Monsters nie sehen — er wüsste sonst, welche Zimmer
+ * gerade sicher sind.
+ */
+describe('Die Absichten des Monsters in der 2D-Welt', () => {
+  const insight = {
+    mode: 'hunt' as const,
+    label: 'Jagd',
+    goal: { x: 6, z: 6 },
+    belief: [{ roomId: 'raum-0', p: 0.9 }],
+    prediction: {
+      path: [
+        { x: 1, z: 1 },
+        { x: 5, z: 4 },
+      ],
+      eta: [0, 2],
+    },
+    intercept: { door: 'd1', at: { x: 4, z: 4 }, etaMonster: 3.2, etaPlayer: 4 },
+  };
+
+  /** Der Kontext schreibt mit, statt zu malen — gezeichnet wird in jsdom nichts. */
+  function watching(mode: 'omniscient' | 'realistic'): {
+    flat: FlatMode;
+    written: () => unknown[];
+  } {
+    const calls: Array<[string, unknown[]]> = [];
+    HTMLCanvasElement.prototype.getContext = jest.fn(
+      () =>
+        new Proxy({} as Record<string, unknown>, {
+          get: (target, key: string) =>
+            key in target ? target[key] : (...args: unknown[]) => calls.push([key, args]),
+          set: (target, key: string, value) => {
+            target[key] = value;
+            return true;
+          },
+        }),
+    ) as never;
+    const flat = new FlatMode(
+      5,
+      { role: 'watch', mode },
+      { exit: () => {}, insight: () => insight },
+    );
+    document.body.append(flat.element);
+    return {
+      flat,
+      written: () => calls.filter(([name]) => name === 'fillText').map(([, args]) => args[0]),
+    };
+  }
+
+  it('schreibt die beiden Ankunftszeiten an die Abfangtür — im Modus „Alles sehen"', () => {
+    const { flat, written } = watching('omniscient');
+    flat.update(DT);
+    expect(written()).toContain('M 3,2 s / T 4,0 s');
+    expect(written()).toContain('Jagd');
+    flat.dispose();
+  });
+
+  /**
+   * Reicht niemand etwas herein, nimmt die 2D-Welt den letzten Beschluss ihrer
+   * **eigenen** Runde — in der Vorführung rechnet sie das Monster ja selbst.
+   */
+  it('nimmt die Absichten aus der eigenen Bot-Runde', () => {
+    const flat = new FlatMode(3, { role: 'watch', mode: 'omniscient' }, { exit: () => {} });
+    document.body.append(flat.element);
+    for (let i = 0; i < 120; i++) flat.update(DT);
+    expect(flat.round.decided?.insight?.label).toBeTruthy();
+    flat.dispose();
+  });
+
+  it('zeigt einem Spieler nichts davon', () => {
+    const { flat, written } = watching('realistic');
+    flat.update(DT);
+    expect(written()).not.toContain('M 3,2 s / T 4,0 s');
+    expect(written()).not.toContain('Jagd');
     flat.dispose();
   });
 });

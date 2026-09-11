@@ -75,7 +75,8 @@ wenn niemand schaltet: Es geht nirgends von selbst Licht an. Die
 Einsatzkontrolle kann höchstens **zwei Lampen gleichzeitig** brennen lassen —
 die dritte macht die älteste aus —, und keine hält länger als etwa eine Minute:
 Sie flackert, sirrt und geht aus. Wer im Dunkeln steht, hat die Taschenlampe. Drohne und Zuschauer sind weitere optionale
-Plätze; die Schalttafel gehört zur Einsatzkontrolle.
+Plätze; die Schalttafel gehört zur Einsatzkontrolle. Der Zuschauerplatz kann
+dabei in jeden anderen hineinsehen, ohne ihn zu besetzen.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Website öffnen. In der Quest
 im Hub **Haunting / Orbital** wählen und VR starten. Auf beiden Handys
@@ -100,8 +101,9 @@ desselben Browsers, keine getrennten Geräte im WLAN.
 Handy, in der Brille und am Bildschirm gleich aus — drei Fragen und ein Knopf:
 
 1. **Was?** _Spielen_ (die Mission mit Monster), _Zuschauen_ (der Runde im Raum
-   folgen; sonst spielt Bot gegen Bot) oder _Trainieren_ (ohne Monster, sicher
-   üben). Eine der drei Kacheln leuchtet — gestartet wird damit noch nichts.
+   folgen — auch in 2D; läuft keine, spielt Bot gegen Bot) oder _Trainieren_
+   (ohne Monster, sicher üben). Eine der drei Kacheln leuchtet — gestartet
+   wird damit noch nichts.
 2. **Wer?** Techniker, Monster und die Plätze der Einsatzzentrale, jeder mit
    einem Menschen oder einem Bot. Ein Tipp auf **Ich** macht einen Platz zu
    deinem und setzt dein Telefon zugleich an das Gerät, das dazugehört.
@@ -286,8 +288,29 @@ separate Räume abseits der Missionskarte:
   Gegnerattrappen, Spiegel, Schacht und Funken-/Rauch-/Feuerprüfung.
 
 Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräumen
-verwenden freie Ankunftsplätze. **Zuschauen** (in der Lobby, in jeder der drei
-Oberflächen) heißt ohne Mitspieler: Ein Techniker aus Zahlen läuft durch die echte Station, öffnet
+verwenden freie Ankunftsplätze.
+
+**Zuschauen** (in der Lobby, in jeder der drei Oberflächen) heißt: der Runde
+folgen, die im Raum wirklich läuft. Spielt jemand — im Schiff oder von einem
+anderen Gerät aus in 2D —, siehst du **ihn**: dieselbe Station, dieselben
+Türen, dasselbe Monster, mit zwei Sprungknöpfen „Zum Techniker" und „Zum
+Monster" und dem Modus „Alles sehen". Eingaben hast du keine; ein Zuruf von
+dir beendet die Runde schneller als das Monster.
+
+Am **Zuschauerplatz der Zentrale** wählst du dazu, **wessen Platz** du gerade
+ansiehst — Zuschauer (das ganze Deck von schräg oben, ohne Decke), Archiv,
+Einsatzkontrolle, Späher, Drohne oder Monster —, und das mitten in der Runde:
+Du siehst das Blatt des Archivars, das Bild der Drohne oder die Station aus
+Monstersicht, aber nie deren Knöpfe. Über dem Deck folgt die Kamera auf Wunsch
+dem **Techniker** oder dem **Monster** oder bleibt frei. Ein Schalter
+**„KI-Absichten"** legt offen, was das Monster denkt: die Zimmer, in denen es
+dich vermutet, eingefärbt nach seiner Sicherheit, der gestrichelte Weg, den es
+dich laufen sieht, und die Tür, an der es dich abfangen will — mit beiden
+Ankunftszeiten („M 3,2 s / T 4,0 s") und dem Namen seiner Haltung. Das gibt es
+**nur beim Zuschauen**; wer mitspielt, sieht davon nie etwas.
+
+Läuft im Raum gar keine Runde, springt „Zuschauen" wie bisher als Vorführung
+ein: Ein Techniker aus Zahlen läuft durch die echte Station, öffnet
 Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
 Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
 halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert
