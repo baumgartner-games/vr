@@ -8722,7 +8722,34 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
      Dieselbe Meldung kommt beim Druck.
   3. **Die falsche Rolle** (`NOT_TECHNICIAN`) und **ein belegter Raum**
      (`ROOM_BUSY`, nur für „Zuschauen" im Schiff: es setzt den Stand zurück).
-     Auch der Startknopf im Van läuft durch dieselbe Prüfung.
+     Auch der Startknopf im Van läuft durch dieselbe Prüfung — **aber erst,
+     nachdem er den Anzug verteilt hat**, siehe den nächsten Absatz.
+
+  **Und der Startknopf im Aufbau ist selbst der Weg an den Stock**
+  (`shipStart`, `HauntingWorld.startRound`, `pendingStart`). Der vierte Befund
+  war: „Der Knopf ‚Mission starten' scheint die Mission nicht zu starten." Er
+  stimmte für **jedes** Gerät, das nicht schon am Stock stand — also für jedes
+  Telefon und für jeden Desktop beim ersten Aufschlagen: `startMission` fragt
+  `startBlocker`, das fragt `ctx.role`, und das ist dort `desktop`. Heraus kam
+  `NOT_TECHNICIAN`, und der Satz dazu ging in die Statuszeile des
+  Handgelenk-Menüs — ein Panel in der 3D-Szene, über dem die Einsatzzentrale
+  liegt. Der Knopf tat also nichts und sagte nichts. Jetzt rechnet
+  `shipStart({atStick, mine, occupied})` vier Fälle:
+  `start` (steht schon am Stock), `stick` (die Tafel sieht dieses Gerät als
+  Techniker: `flatTechnician = true`, die Absicht wartet in `pendingStart`
+  und läuft im nächsten Bild noch einmal durch — dann mit `ctx.role === 'vr'`),
+  `others` (`SHIP_OCCUPIED` — im Schiff gibt es einen Techniker je Raum) und
+  `nobody` (`SHIP_NEEDS_TECHNICIAN` — wer in der Zentrale sitzt, startet keine
+  Schiffsrunde ohne einen Menschen im Anzug; der Satz sagt beide Auswege).
+  Die Bot-Runde geht wie bisher vorher ab (`requestBotRound`): Sie macht das
+  Gerät selbst zum Techniker ihrer Vorführung.
+
+  **Was die Welt sagt, steht auf dem Telefon** (`StationUi.say`,
+  `.haunt__say`, `HauntingWorld.say`): eine Zeile zwischen Auftragsstreifen
+  und Seite, die der nächste Tipp wieder ablöst. `ctx.notify` allein genügte
+  nicht — es schreibt in die Statuszeile des Handgelenk-Menüs, und die liegt
+  hinter der Einsatzzentrale. Jede Absage eines Starts geht deshalb an beide
+  Stellen.
 
   **Die Einträge heißen jetzt überall gleich**: `startEntries` baut aus
   `INTENTS` die drei Zeilen `haunt:play` · `haunt:watch` · `haunt:train` mit

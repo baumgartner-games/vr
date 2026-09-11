@@ -40,6 +40,7 @@ import type { HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
 import { FLAT_CHECK, startLabel, type LobbyChoice, type View } from './rules/lobby';
+import { SHIP_OCCUPIED } from './rules/worldMenu';
 import type { MonsterPort } from './monster/monsterDriver';
 
 /**
@@ -200,6 +201,12 @@ export class StationUi {
   private readonly root = document.createElement('div');
   private readonly bar = document.createElement('header');
   private readonly quest = document.createElement('div');
+  /**
+   * **Die Zeile, in der die Welt dem Telefon antwortet** (`say`). Sie steht
+   * zwischen Auftragsstreifen und Seite und nicht in der rollenden Liste: Eine
+   * Antwort, die man erst suchen muss, ist keine.
+   */
+  private readonly says = document.createElement('div');
   private readonly body = document.createElement('div');
 
   /** Welcher Reiter oben leuchtet — der Anfang ist der Aufbau. */
@@ -237,8 +244,14 @@ export class StationUi {
     this.root.className = 'haunt';
     this.bar.className = 'haunt__bar';
     this.quest.className = 'haunt__quest';
+    this.says.className = 'haunt__say';
+    this.says.hidden = true;
+    // Nur `aria-live` und kein `role="status"`: Die Endkarte der Runde ist die
+    // Statusmeldung dieser Seite (`roundResult`), und zwei davon übereinander
+    // wären für einen Vorleser zwei gleich wichtige Stimmen.
+    this.says.setAttribute('aria-live', 'polite');
     this.body.className = 'haunt__body';
-    this.root.append(this.bar, this.quest, this.body);
+    this.root.append(this.bar, this.quest, this.says, this.body);
     document.body.append(this.root);
     document.body.classList.add('haunt-on');
     this.root.addEventListener('click', (event) => this.onClick(event));
@@ -346,6 +359,21 @@ export class StationUi {
     if (!rect) return 0;
     const box = this.quest.getBoundingClientRect();
     return Math.max(0, Math.min(rect.h, box.bottom - rect.y));
+  }
+
+  /**
+   * **Ein Wort, das man auch sieht.**
+   *
+   * Die Welt antwortet sonst über `ctx.notify`, und das schreibt in die
+   * Statuszeile des Handgelenk-Menüs — ein Panel in der 3D-Szene, über dem
+   * diese Seite liegt (`haunting.css`, `body.haunt-on #hud`). Wer im Aufbau
+   * auf „Mission starten" drückte und abgewiesen wurde, bekam die Begründung
+   * also hinter sein eigenes Telefon geschrieben: ein Knopf, der scheinbar
+   * nichts tut. Hier steht sie, bis der nächste Tipp sie ablöst.
+   */
+  say(text: string): void {
+    this.says.textContent = text;
+    this.says.hidden = !text;
   }
 
   refresh(): void {
@@ -939,6 +967,9 @@ export class StationUi {
       '[data-tab],[data-me],[data-sub],[data-check],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],[data-restart],[data-start-setup]',
     );
     if (!hit) return;
+    // Der nächste Tipp löst die letzte Antwort ab: Ein Satz, der zu einem
+    // Knopf von vorhin gehört, steht sonst noch da, wenn der nächste antwortet.
+    this.say('');
 
     if (hit.dataset['gameMenu'] !== undefined) {
       this.host.menu?.();
@@ -951,7 +982,10 @@ export class StationUi {
       document.getElementById(hit.dataset['pageNet'] !== undefined ? 'hud-net' : 'hud-vr')?.click();
       return;
     } else if (hit.dataset['startSetup'] !== undefined) {
+      // Im Schiff gibt es einen Techniker je Raum; die Karte von oben stört
+      // ihn nicht. Und wo es nicht geht, steht ab jetzt auch, warum.
       if (!this.host.link().vr || this.host.flatWanted?.()) this.host.startSetup?.();
+      else this.say(SHIP_OCCUPIED);
       return;
     } else if (hit.dataset['restart'] !== undefined) {
       this.host.restart?.();

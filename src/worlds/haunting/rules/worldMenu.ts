@@ -157,6 +157,56 @@ export function startBlocker(state: WorldMenuState, what: Intent | RoundKind): s
 }
 
 /**
+ * **Was aus einem Druck auf „Mission starten" im Aufbau wird.**
+ *
+ * Der zweite Befund des Besitzers war: „Der Knopf ‚Mission starten' scheint
+ * die Mission nicht zu starten." Er hatte recht, und der Grund stand eine
+ * Datei weiter: Der Startknopf der Einsatzzentrale ruft `startMission`, und
+ * das fragt zuerst `startBlocker` — wer nicht `role === 'vr'` ist, bekommt
+ * `NOT_TECHNICIAN`. Das ist **jedes** Telefon und jeder Desktop, der nicht
+ * vorher in einem *anderen* Menü „Als Techniker am Desktop testen" gewählt
+ * hatte. Der Satz dazu ging in die Statuszeile des Handgelenk-Menüs, und die
+ * liegt als Panel in der 3D-Szene hinter der Einsatzzentrale
+ * (`haunting.css`, `body.haunt-on`). Übrig blieb ein Knopf, der nichts tut
+ * und nichts sagt — genau die Falle, gegen die dieses Modul gebaut wurde.
+ *
+ * Der Aufbau **ist** der Weg an den Stock: Wer dort startet und den Anzug
+ * tragen soll, bekommt ihn. Diese Zeile rechnet, was aus dem Druck wird:
+ *
+ * - `start` — dieses Gerät steht schon am Stock (Brille oder Techniker am
+ *   Desktop); die Runde geht sofort los.
+ * - `stick` — es soll den Anzug tragen und trägt ihn noch nicht: erst an den
+ *   Stock (`HauntingWorld.flatTechnician`), dann starten.
+ * - `others` — im Raum trägt schon jemand anders den Anzug. Im Schiff gibt es
+ *   einen Techniker je Raum.
+ * - `nobody` — die Tafel will einen Menschen im Anzug, und dieses Gerät hat
+ *   sich einen Platz in der Zentrale genommen. Dann fehlt der Runde einer.
+ */
+export type ShipStart = 'start' | 'stick' | 'others' | 'nobody';
+
+export interface ShipStartState {
+  /** Ob dieses Gerät den Anzug schon trägt — Brille oder Techniker am Desktop. */
+  atStick: boolean;
+  /** Ob dieses Gerät der Techniker dieser Runde ist (`roundSetup.MyRole`). */
+  mine: boolean;
+  /** Ob im Raum schon jemand anders den Anzug trägt. */
+  occupied: boolean;
+}
+
+export function shipStart(state: ShipStartState): ShipStart {
+  if (state.atStick) return 'start';
+  if (state.occupied) return 'others';
+  return state.mine ? 'stick' : 'nobody';
+}
+
+export const SHIP_NEEDS_TECHNICIAN =
+  'Im Schiff braucht die Runde einen Menschen im Anzug. Nimm oben den Reiter „Techniker" — ' +
+  'oder stell auf der Tafel „Techniker: Bot", dann läuft sie als Vorführung.';
+export const SHIP_OCCUPIED =
+  'Im Schiff trägt schon jemand anders den Anzug — es gibt einen Techniker je Raum. ' +
+  'Nimm die Karte von oben oder einen Platz in der Zentrale.';
+
+/**
  * **Die drei Start-Einträge des Brillenmenüs** — dieselben drei Absichten, in
  * derselben Reihenfolge und mit denselben Worten wie die Kacheln im Van
  * (`rules/lobby.INTENTS`). Genau das war vorher nicht so: Die Brille bot

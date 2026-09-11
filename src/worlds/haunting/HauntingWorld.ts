@@ -164,6 +164,9 @@ import {
   NOT_TECHNICIAN,
   opensFlat,
   ROOM_BUSY,
+  SHIP_NEEDS_TECHNICIAN,
+  SHIP_OCCUPIED,
+  shipStart,
   startBlocker,
   startedRound,
   startEntries,
@@ -396,6 +399,14 @@ export class HauntingWorld extends GridWorld {
   private readonly floorRay = new THREE.Raycaster();
   private pendingBotRound = false;
   private pendingRestart = false;
+  /**
+   * **Ein Start, der erst noch in den Anzug steigt.** Wer im Aufbau auf
+   * „Mission starten" drückt und den Anzug tragen soll, steht in diesem Bild
+   * noch am Telefon: Der Stock kommt erst, wenn `update` die Rolle neu
+   * aufbaut (`flatTechnician`). Bis dahin wartet die Absicht hier — vorher
+   * brach der Start an dieser Stelle wortlos ab (`rules/worldMenu.shipStart`).
+   */
+  private pendingStart: Intent | null = null;
   private readonly automaticDoors = new AutomaticDoors();
   private hearing = new Map<number, number>();
   /** Das Hörmodell des Pakets Audio, die Geräusche des Spielers seit dem letzten Horchen und was davon ankam. */
@@ -1047,6 +1058,7 @@ export class HauntingWorld extends GridWorld {
       this.stationTorch?.setLit(true);
     } else {
       this.pendingBotRound = false;
+      this.pendingStart = null;
       this.stationTorch?.setLit(false);
       this.buildStationViews();
       this.netPort = new NetMonsterPort({
@@ -1079,10 +1091,14 @@ export class HauntingWorld extends GridWorld {
         notify: (text) => ctx.notify(text),
         round: () => this.rules.status(this.state),
         restart: () => {
-          if (this.isHost) {
-            this.flatTechnician = true;
-            this.pendingRestart = true;
+          // Auch hier kein stummes `return`: Wer nicht rechnet, startet keine
+          // Runde — und erfährt es, statt einen toten Knopf zu drücken.
+          if (!this.isHost) {
+            this.say(HOST_BUSY);
+            return;
           }
+          this.flatTechnician = true;
+          this.pendingRestart = true;
         },
         link: () => ({
           peers: [...ctx.net.peers.values()].filter((p) => p.world === 'haunting').length,
@@ -1151,6 +1167,7 @@ export class HauntingWorld extends GridWorld {
     this.flatTechnician = false;
     this.pendingBotRound = false;
     this.pendingRestart = false;
+    this.pendingStart = null;
     this.topCam = null;
     this.paperLight = null;
     this.paperSun = null;
@@ -1241,6 +1258,7 @@ export class HauntingWorld extends GridWorld {
       stations: () => {
         this.flatTechnician = false;
         this.pendingBotRound = false;
+        this.pendingStart = null;
         ctx.menu.toggle(false);
       },
       // Der eine Knopf im Panel des Technikers: „2D von oben" (`switchView`).
@@ -1781,6 +1799,14 @@ export class HauntingWorld extends GridWorld {
       this.pendingBotRound = false;
       this.testMission();
       this.experience?.startBotRound();
+    }
+    // **Der Start, der auf den Anzug gewartet hat.** Jetzt steht dieses Gerät
+    // am Stock (`shipStart`, Fall `stick`), und dieselbe Absicht läuft noch
+    // einmal durch — diesmal bis zur Runde.
+    if (this.pendingStart && ctx.role === 'vr') {
+      const wanted = this.pendingStart;
+      this.pendingStart = null;
+      this.startRound(wanted, ctx);
     }
 
     if (this.isHost && !this.waitingHandover) {
@@ -3533,6 +3559,7 @@ export class HauntingWorld extends GridWorld {
               () => {
                 this.flatTechnician = false;
                 this.pendingBotRound = false;
+                this.pendingStart = null;
                 this.context?.menu.toggle(false);
               },
             ),
@@ -3786,7 +3813,7 @@ export class HauntingWorld extends GridWorld {
     // ein Monster aus Zahlen und hielt den Knopf für kaputt. Also steht es
     // jetzt da, und zwar beim Start, wo die Verabredung getroffen wird.
     if (setup.seats.monster.who === 'human' && !ownerOf(this.currentClaims(), 'monster'))
-      ctx.notify(
+      this.say(
         'Monster: Mensch — aber noch niemand am Steuer. Bis sich jemand auf den Platz setzt, rechnet die Routine.',
       );
     // Im Schiff steuert nur der Techniker aus Fleisch; ein Monster aus Fleisch
@@ -3801,8 +3828,52 @@ export class HauntingWorld extends GridWorld {
       this.requestBotRound(ctx);
       return;
     }
+    // **Der Aufbau ist der Weg an den Stock** (`rules/worldMenu.shipStart`).
+    // Bis hierher fragte `startMission` nur `ctx.role`, und das ist am Telefon
+    // und am Desktop nicht `vr`: Der Startknopf der Einsatzzentrale lief für
+    // jeden, der nicht vorher im Brillenmenü „Als Techniker am Desktop testen"
+    // gewählt hatte, in ein stummes `return` — der Grund stand in der
+    // Statuszeile des Handgelenk-Menüs, und die liegt hinter der Zentrale.
+    // Wer im Aufbau startet und den Anzug tragen soll, bekommt ihn jetzt hier.
+    switch (
+      shipStart({
+        atStick: ctx.role === 'vr',
+        mine: this.myPlace() === 'technician',
+        occupied: this.roomOccupied(ctx),
+      })
+    ) {
+      case 'others':
+        this.say(SHIP_OCCUPIED);
+        return;
+      case 'nobody':
+        this.say(SHIP_NEEDS_TECHNICIAN);
+        return;
+      case 'stick':
+        // Der Stock kommt erst im nächsten Bild (`update`): Dort wird die Rolle
+        // neu aufgebaut, und erst danach ist dieses Gerät wirklich Techniker.
+        this.flatTechnician = true;
+        this.pendingStart = asIntent(what);
+        ctx.menu.toggle(false);
+        return;
+      default:
+        break;
+    }
     const started = inShip === 'mission' ? this.startMission() : this.testMission();
     if (started) ctx.menu.toggle(false);
+  }
+
+  /**
+   * **Etwas sagen, das man auch sieht.**
+   *
+   * `ctx.notify` schreibt in die Statuszeile des Handgelenk-Menüs, und das ist
+   * ein Panel in der 3D-Szene. Über dem liegt aber die Einsatzzentrale
+   * (`haunting.css`, `body.haunt-on`) — jede Begründung für einen abgewiesenen
+   * Start landete also hinter dem eigenen Telefon. Deshalb geht sie an beide
+   * Stellen: in die Brille und auf die Seite (`stationUi.say`).
+   */
+  private say(text: string): void {
+    this.context?.notify(text);
+    this.ui?.say(text);
   }
 
   /** Die Tafel schreiben — und allen Anzeigen sagen, dass sie sich geändert hat. */
@@ -4290,7 +4361,7 @@ export class HauntingWorld extends GridWorld {
     // ihn dafür selbst zum Techniker (`flatTechnician`).
     if (this.roomOccupied(ctx)) {
       this.pendingBotRound = false;
-      ctx.notify(ROOM_BUSY);
+      this.say(ROOM_BUSY);
       return;
     }
     this.flatTechnician = true;
@@ -4333,7 +4404,7 @@ export class HauntingWorld extends GridWorld {
     // was fehlt (`rules/worldMenu.ts`).
     const blocked = startBlocker(this.startState(), 'mission') ?? (this.isHost ? null : HOST_BUSY);
     if (blocked) {
-      this.context?.notify(blocked);
+      this.say(blocked);
       return false;
     }
     const start = startedRound('mission');
@@ -4459,7 +4530,7 @@ export class HauntingWorld extends GridWorld {
   private testMission(): boolean {
     const blocked = startBlocker(this.startState(), 'test') ?? (this.isHost ? null : HOST_BUSY);
     if (blocked) {
-      this.context?.notify(blocked);
+      this.say(blocked);
       return false;
     }
     const start = startedRound('test');
