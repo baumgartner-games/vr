@@ -495,3 +495,39 @@ describe('Die Absichten des Monsters in der 2D-Welt', () => {
     flat.dispose();
   });
 });
+
+/**
+ * **Der Eintrag „2D ↔ 3D"** (`FlatModeHost.switchView`) — der Weg zurück ins
+ * Schiff, ohne die Runde zu beenden. Er steht im Optionsmenü und nicht bei
+ * „Zurück zur Lobby": Dort endet alles, hier endet nichts.
+ */
+describe('Der Wechsel der Ansicht im Optionsmenü', () => {
+  function openOptions(flat: FlatMode): HTMLElement {
+    document.body.append(flat.element);
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    // `.flat__panel` tragen zwei Kästen; gemeint ist das Optionsmenü.
+    return flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+  }
+
+  it('reicht den Wunsch an den Wirt weiter und klappt das Menü zu', () => {
+    const switchView = jest.fn();
+    const flat = new FlatMode(5, { test: true }, { exit: () => {}, switchView });
+    const panel = openOptions(flat);
+    const key = panel.querySelector<HTMLButtonElement>('[data-switch-view]')!;
+    expect(key.textContent).toContain('2D ↔ 3D');
+    key.click();
+    expect(switchView).toHaveBeenCalledWith('3d');
+    // Das Panel gehört zu einer Ansicht, die gleich verschwindet.
+    expect(panel.hidden).toBe(true);
+    flat.dispose();
+  });
+
+  it('fehlt, wenn der Wirt gar keinen Wechsel anbietet', () => {
+    // Wer zusieht, sieht der Runde eines anderen zu — ein Knopf, der sie ins
+    // Schiff holte, nähme sie ihm weg.
+    const flat = new FlatMode(5, { test: true }, { exit: () => {} });
+    const panel = openOptions(flat);
+    expect(panel.querySelector('[data-switch-view]')).toBeNull();
+    flat.dispose();
+  });
+});

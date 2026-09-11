@@ -8665,6 +8665,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   nur Ort und Zeit je Tropfen, höchstens `DROP_LIMIT` 48 Stück.
   Alte Clients werden abgewiesen; nach Update **alle Geräte neu laden** —
   ein Telefon der Version 7 sieht sonst gar nichts mehr.
+  **Die Übergabe beim Gastgeberwechsel hat die Version nicht bewegt**
+  (`net.handoverMessage`, siehe „Spielhost"): Sie ist eine eigene
+  Nachrichtensorte und kein Feld im Stand — ein Gerät, das sie nicht kennt,
+  liest sie schlicht nicht und erbt wie bisher eine Runde ohne Buchführung.
+  Das ist eine fehlende Erinnerung, kein Auseinanderlaufen.
   **`dropped` kam ohne Sprung dazu** (`rules/archiveGoals.DroppedPart`): die
   Ersatzteile, die im Gang liegen, je mit Ort und Zeitpunkt. Ein Stand ohne
   das Feld heißt „es liegt nichts" — das ist die Wahrheit, die ein älteres
@@ -8673,8 +8678,30 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   selben Sekunde zum selben Schluss kommen.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
-- Spielhost: VR-Techniker, sonst ältester Peer. Desktop-Techniker meldet sich
-  im Haunt-Channel. `?net=local` ist BroadcastChannel zwischen Tabs; WLAN/
+- **Spielhost: Gastgeber ist, wer Techniker ist** (`net.pickGameHost`) — in der
+  Brille, am Desktop oder auf der Karte von oben, das ist dieselbe Rolle in drei
+  Ansichten; unter mehreren Technikern entscheidet die Standzeit, ohne jeden
+  Techniker der älteste Peer. Die Regel hieß lange „VR-Techniker", weil es ihn
+  nur dort gab; seit er die Ansicht **mitten in der Runde** wechseln darf, wäre
+  ein Gastgeber, der an der Ansicht hängt, einer, der beim Umschalten wegfällt.
+  Desktop-Techniker meldet sich im Haunt-Channel.
+  **Wechselt der Techniker, wird übergeben** (`net.handoverMessage`,
+  `HauntingWorld.handOver` / `takeHandover`): Der alte Gastgeber schickt dem
+  neuen — an ihn gerichtet, `to` — den ganzen Stand **und die Buchführung, die
+  sonst nie auf der Leitung liegt** (`HauntBooks`: `DoorLocks`, `Lamps`, Spuk,
+  die offene Wunde aus `rules/blood.ts` und das Gedächtnis des Monsters als
+  kompaktes `MonsterBook` — die letzten Sichtungen und die abgesuchten Räume,
+  nachgespielt über `loadMemory`, nicht in die Innereien geschrieben). Eine
+  **eigene** Nachricht und kein größeres `state`: Sie geht einmal beim Wechsel
+  und nicht viermal je Sekunde an alle. Der neue Gastgeber rechnet
+  `HANDOVER_WAIT` = 2 s lang **nicht**, bis sie da ist (`waitingHandover`) —
+  sonst rechnen für einen Augenblick beide —, und ein Stand mit **älterer Zeit**
+  als der eigene wird verworfen (`stale`: gleicher Seed, beide `running`).
+  Bleibt die Übergabe aus (zugeklappter Laptop), läuft die Runde nach der Frist
+  trotzdem weiter. **`STATION_PROTOCOL` bleibt 8**: `handover` ist eine neue
+  Nachrichtensorte, die ein älteres Gerät schlicht nicht liest — es erbt dann
+  wie bisher eine Runde ohne Buchführung, läuft aber nicht auseinander.
+  `?net=local` ist BroadcastChannel zwischen Tabs; WLAN/
   Internet verwenden öffentliche Signalisierung/STUN, kein garantierter TURN.
 - **Die 2D-Welt ist netzfähig:** Wer dort Mission oder Training spielt
   (in der Lobby „Wie? 2D von oben", dann der Startknopf), ist
@@ -8687,6 +8714,39 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Spielt schon ein anderer Techniker im Raum, lehnt `openFlat` ab; beim
   Verlassen stellt `closeFlat` einen frischen Stand her und sagt ihn an. Die
   2D-Bot-Runde bleibt lokal.
+- **Der Techniker wechselt die Ansicht mitten in der Runde**
+  (`HauntingWorld.switchView('2d' | '3d')`) — kein Neustart, keine neue
+  Station, keine neue Rolle. Möglich ist es, weil der Stand ein Datenobjekt ist
+  und kein Gerät: `HauntState` reist ohnehin, und was nur beim Gastgeber liegt,
+  geht als dieselbe Buchführung (`HauntBooks`) von der einen Ansicht in die
+  andere — der Wechsel ist derselbe Vorgang wie eine Übergabe, nur ohne Netz
+  dazwischen.
+  - **3D → 2D** (`enterFlat`): Die Stelle des Technikers geht zuerst in den
+    Stand (`HauntState.technician` — in 2D hat er kein Rig), dann wird die
+    2D-Runde aus dem **laufenden** Stand aufgebaut (`FlatRound`, Option
+    `resume: FlatResume`) statt aus einem frischen. Der Stand wird dabei
+    **übernommen, nicht kopiert**: `round.haunt` *ist* `world.state`. Das
+    NPC-Monster im Schiff hört auf (`releaseMonster`), das der 2D-Runde steht
+    an seiner Stelle und erbt sein Gedächtnis. Werkzeuge kommen aus
+    `crew.inventory`, Uhr, Anzug, Sauerstoff, `shut`, `lit` und die Riegel aus
+    Stand und Buchführung.
+  - **2D → 3D** (`leaveFlat`): `FlatRound.books()` gibt die Buchführung als
+    Abschrift heraus, `closeFlat(true)` schließt nur das Bild und setzt den
+    Stand **nicht** zurück, der Techniker landet bei `state.technician`
+    (danach wieder `null`, sonst stünde er als gezeichneter Zweiter daneben),
+    das NPC-Monster wird bei `state.monster` aufgestellt — **erst spawnen,
+    dann `loadBooks`**, sonst schriebe man in ein Gedächtnis, das es noch
+    nicht gibt.
+  - **Nur der Techniker**, und nur zwischen seinen zwei Ansichten. Zuschauer
+    und Telefone lesen den Stand ohnehin nur und merken vom Wechsel nichts;
+    `openFlat` reicht `switchView` nur an eine **geteilte** Runde weiter.
+    **In der Brille gibt es keine Karte von oben** (wie `opensFlat`) — der
+    Eintrag sagt das als Satz, statt wortlos nichts zu tun.
+  - Die Knöpfe: im Optionsmenü der 2D-Welt „Ansicht: 2D ↔ 3D"
+    (`flatMode.renderOptions`, `data-switch-view`) und im Panel des Technikers
+    im Schiff der eine Knopf „2D von oben" (`ShipExperience.paintDom`,
+    `data-action="flat-view"`). Beide legen auch die Ansicht der Lobby um, damit
+    die nächste Runde nicht wieder in der alten anfängt.
 
 **Budget und Prüfung**
 

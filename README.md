@@ -110,7 +110,8 @@ Handy, in der Brille und am Bildschirm gleich aus — drei Fragen und ein Knopf:
    einem Menschen oder einem Bot. Ein Tipp auf **Ich** macht einen Platz zu
    deinem und setzt dein Telefon zugleich an das Gerät, das dazugehört.
 3. **Wie?** _2D von oben_ oder _3D Schiff_. Am Telefon ist 2D voreingestellt,
-   in der Brille gibt es immer das Schiff.
+   in der Brille gibt es immer das Schiff. **Diese eine Frage darfst du dir
+   mitten in der Runde anders beantworten** — siehe unten.
 
 Darunter steht **ein** Knopf, und auf ihm steht, was gleich passiert:
 „Mission starten (2D)", „Zuschauen", „Training starten (3D)". In der Brille
@@ -180,9 +181,25 @@ Anzug-Herzen, darunter **Aufgaben:** mit einem Kreis je Auftrag — voll
 erledigt, halb angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste
 mit den Namen auf, ein zweiter wieder zu. Das **Zahnrad** zeigt nur noch, was
 sich mitten in der Runde ändert — Ansicht, Zielpfade, Ton und **Zurück zur
-Lobby**; wer mitspielt und was die nächste Runde wird, steht dort. **Wer
-zuschaut**, hat keinen Stock, dafür zwei Knöpfe rechts: _Zum Techniker_ und
-_Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Einsatzkontrolle
+Lobby**; wer mitspielt und was die nächste Runde wird, steht dort.
+
+**2D ↔ 3D, mitten im Spiel.** Als Techniker musst du dich nicht vor der Runde
+entscheiden: Im Zahnrad der 2D-Welt steht **„Ansicht: 2D ↔ 3D"**, und im Panel
+des Technikers im Schiff steht der Knopf **„2D von oben"**. Beide schalten
+sofort um, und zwar **dieselbe Runde**: dieselbe Uhr und derselbe Sauerstoff,
+derselbe Anzug, dasselbe Ersatzteil in der Hand, dieselben gesperrten Türen und
+brennenden Lampen — und dasselbe Monster an derselben Stelle, das sich immer
+noch merkt, wo es dich zuletzt gesehen hat. Du stehst danach dort, wo du eben
+standest. Wer zusieht oder in der Zentrale sitzt, merkt von alledem nichts: Der
+Stand ist derselbe, nur das Bild ist ein anderes. **In der Brille gibt es keine
+Karte von oben** — dort bleibt es beim Schiff, und der Eintrag sagt es auch.
+Wandert die Technikerrolle mitten in der Runde zu jemand anderem, übergibt das
+alte Gerät dem neuen die ganze Runde, und zwar mitsamt allem, was sonst nur der
+eine Rechner wusste — Sperrfristen, Lampenrestzeiten und das Gedächtnis des
+Monsters.
+
+**Wer zuschaut**, hat keinen Stock, dafür zwei Knöpfe rechts: _Zum Techniker_
+und _Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Einsatzkontrolle
 oder Drohne wählt man in der Lobby unter „Plätze und Geräte" — auch während
 eine Runde läuft.
 

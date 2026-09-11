@@ -167,10 +167,12 @@ import {
   VIEW_LABELS,
   type Intent,
   type LobbyChoice,
+  type View,
 } from './rules/lobby';
 import {
   asIntent,
   HOST_BUSY,
+  NOT_TECHNICIAN,
   opensFlat,
   ROOM_BUSY,
   startBlocker,
@@ -196,17 +198,23 @@ import {
   claimMessage,
   droneMessage,
   flipMessage,
+  handoverMessage,
   HAUNT_CHANNEL,
   HAUNT_ROOM,
+  loadMemory,
+  packMemory,
   pickGameHost,
   readClaim,
   readDrone,
   readFlip,
+  readHandover,
   readMonsterInput,
   readState,
   stateMessage,
   type DroneState,
+  type HauntBooks,
   type HauntState,
+  type MonsterBook,
 } from './net';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
@@ -250,6 +258,29 @@ import type { Npc } from '../npc/Npc';
 const STATE_RATE = 1 / 4;
 /** Und wie oft der Pilot seine Drohne ansagt. */
 const DRONE_RATE = 1 / 10;
+
+/**
+ * **Wie lange ein frischer Gastgeber auf die Übergabe des alten wartet**, in
+ * Sekunden.
+ *
+ * Solange er wartet, rechnet er nicht: Zwei, die gleichzeitig das Monster
+ * bewegen, ziehen es zwischen sich hin und her, und wer zusieht, sieht ein
+ * zuckendes Vieh. Zwei Sekunden sind acht Ansagen im Stand-Takt — reichlich
+ * Zeit für eine Nachricht, die schon unterwegs ist, und kurz genug, dass eine
+ * Runde nicht stehen bleibt, wenn der alte Gastgeber gar nicht mehr da ist
+ * (zugeklappter Laptop: dann kommt nie eine Übergabe, und die Runde muss
+ * trotzdem weitergehen).
+ */
+const HANDOVER_WAIT = 2;
+
+/**
+ * Was der Wechsel in die Karte von oben sagt, wenn die Brille auf ist. Sie ist
+ * ein Fenster-Ding (`rules/worldMenu.opensFlat`), und ein Eintrag, der in einer
+ * XR-Sitzung wortlos nichts tut, ist genau der Fehler, den die Startknöpfe
+ * schon einmal hatten.
+ */
+const NO_FLAT_IN_XR =
+  'In der Brille gibt es keine Karte von oben — dort bleibt das Schiff. Am Fenster geht der Wechsel.';
 
 /**
  * Wie schnell sich der Rumpf bei den Zuschauern in den angesagten Winkel
@@ -771,6 +802,16 @@ export class HauntingWorld extends GridWorld {
    */
   private seatedAt = clock();
   private hostId = '';
+  /**
+   * **Bis wann auf die Übergabe des alten Gastgebers gewartet wird**, auf der
+   * Uhr dieses Geräts (`clock()`); `0` heißt: es wird nicht gewartet.
+   *
+   * Solange die Frist läuft, rechnet dieses Gerät die Runde **nicht** weiter,
+   * obwohl es schon Gastgeber ist. Das ist der Unterschied zwischen einem
+   * Wechsel und einem Riss: Ohne die Frist rechnen für einen Augenblick beide,
+   * der alte und der neue, und schieben sich zwei Monsterpositionen zu.
+   */
+  private handoverUntil = 0;
   private sendTimer = 0;
   private droneTimer = 0;
   /**
@@ -1285,6 +1326,8 @@ export class HauntingWorld extends GridWorld {
         this.pendingBotRound = false;
         ctx.menu.toggle(false);
       },
+      // Der eine Knopf im Panel des Technikers: „2D von oben" (`switchView`).
+      switchView: (view) => this.switchView(view),
       door: (id) => this.manualDoor(id),
       round: () => this.rules.status(this.state),
       doorOpen: (id) =>
@@ -1866,6 +1909,15 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
+   * **Ob dieses Gerät gerade auf die Übergabe des Vorgängers wartet.** Es ist
+   * schon Gastgeber und rechnet trotzdem noch nicht — genau die Lücke, in der
+   * sonst zwei dieselbe Runde rechnen (`HANDOVER_WAIT`).
+   */
+  private get waitingHandover(): boolean {
+    return this.handoverUntil > clock();
+  }
+
+  /**
    * **Ein Bild — oder bei Zeitraffer mehrere hintereinander.**
    *
    * Die Bot-Runde lässt sich beschleunigen (`simulationSpeed.ts`), und das
@@ -1919,7 +1971,7 @@ export class HauntingWorld extends GridWorld {
       this.experience?.startBotRound();
     }
 
-    if (this.isHost) {
+    if (this.isHost && !this.waitingHandover) {
       this.state.time += dt;
       // Zugefallene Türen gehen von selbst wieder auf (`rules/doorLocks.ts`).
       const locks = stepLocks(this.locks, this.state.shut, this.state.time);
@@ -2096,7 +2148,18 @@ export class HauntingWorld extends GridWorld {
     this.ui?.refresh();
   }
 
-  /** Wer die Runde rechnet — der VR-Spieler, sonst der Älteste. */
+  /**
+   * **Gastgeber ist, wer Techniker ist** (`net.pickGameHost`) — in der Brille,
+   * am Desktop oder auf der Karte von oben, das ist dieselbe Rolle in drei
+   * Ansichten. Spielt niemand, rechnet der Älteste.
+   *
+   * **Und wechselt der Techniker, wird übergeben.** Der alte Gastgeber schickt
+   * dem neuen den ganzen Stand samt der Buchführung, die sonst nie über die
+   * Leitung geht (`net.handoverMessage`); der neue wartet `HANDOVER_WAIT`
+   * Sekunden darauf und rechnet solange nicht. Vorher erbte der Nachfolger
+   * eine Runde mit gesperrten Türen ohne Frist, Lampen ohne Restzeit und einem
+   * Monster, das den Techniker nie gesehen hatte.
+   */
   private refreshHost(ctx: WorldContext): void {
     const here = [...ctx.net.peers.values()].filter((peer) => peer.world === ctx.net.world);
     const candidates = [
@@ -2104,19 +2167,29 @@ export class HauntingWorld extends GridWorld {
       {
         id: ctx.net.localId,
         seniority: ctx.net.localSeniority,
-        vr: ctx.role === 'vr' || this.flatShared,
+        technician: ctx.role === 'vr' || this.flatTechnician || this.flatShared,
       },
       ...here.map((peer) => ({
         id: peer.id,
         seniority: ctx.net.seniorityOf(peer),
-        vr: peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000,
+        technician:
+          peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000,
       })),
     ];
     const next = pickGameHost(candidates) || pickHost(candidates);
     if (next === this.hostId) return;
     const wasHost = this.hostId === ctx.net.localId;
+    const before = this.hostId;
     this.hostId = next;
+    // **Erst übergeben, dann loslassen.** `releaseMonster` wirft das Gedächtnis
+    // weg; wer danach einpackt, schickt eine leere Buchführung.
+    if (wasHost && next !== '' && next !== ctx.net.localId) this.handOver(ctx, next);
     if (wasHost) this.releaseMonster();
+    // Wer einen Gastgeber ablöst, der eben noch da war, wartet auf dessen
+    // Übergabe. Beim ersten Gastgeber einer Runde (`before === ''`) gibt es
+    // nichts zu warten: Da war keiner, der etwas zu übergeben hätte.
+    if (next === ctx.net.localId && before !== '' && this.state.phase === 'running')
+      this.handoverUntil = clock() + HANDOVER_WAIT * 1000;
     if (
       next === ctx.net.localId &&
       !this.flatShared &&
@@ -2137,10 +2210,21 @@ export class HauntingWorld extends GridWorld {
       else this.technicians.set(from, clock());
       return;
     }
+    // **Die Übergabe** (`net.handoverMessage`) — nur an den, für den sie
+    // gedacht ist, nur wenn er die Runde inzwischen wirklich rechnet, und nur,
+    // solange dieses Gerät nicht selbst eine 2D-Runde spielt: Dort *ist* die
+    // eigene Runde der Stand, und ein fremder wäre eine zweite Station unter
+    // derselben Uhr.
+    const handover = readHandover(data);
+    if (handover) {
+      if (handover.to === this.context?.net.localId && this.isHost && !this.flatShared)
+        this.takeHandover(handover.state, handover.books);
+      return;
+    }
     const state = readState(data);
     if (state && from !== this.context?.net.localId && from === this.hostId) {
       // In der gemeinsamen 2D-Runde ist der eigene Stand der Stand (`stepFlat`).
-      if (!this.flatShared) this.adopt(state);
+      if (!this.flatShared && !this.stale(state)) this.adopt(state);
       return;
     }
     const claim = readClaim(data, from);
@@ -2216,6 +2300,98 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     this.state = next;
+  }
+
+  /**
+   * **Ein Stand, der hinter dem eigenen zurückliegt, wird verworfen.**
+   *
+   * Beim Wechsel des Gastgebers überschneiden sich für einen Augenblick zwei
+   * Absender: Die letzte Ansage des alten ist noch unterwegs, während der neue
+   * schon rechnet. Wer sie annimmt, springt in der Zeit zurück — die Uhr läuft
+   * rückwärts, eine eben reparierte Konsole ist wieder offen. Also gilt: Auf
+   * demselben Haus und in derselben laufenden Runde zählt nur, was **neuer**
+   * ist als das, was schon dasteht.
+   *
+   * Für alles andere gilt die Regel nicht: Eine neue Runde fängt bei null an,
+   * und ein `briefing` nach einem `running` ist ein Abbruch und kein Nachzügler.
+   */
+  private stale(next: HauntState): boolean {
+    return (
+      next.seed === this.state.seed &&
+      next.phase === 'running' &&
+      this.state.phase === 'running' &&
+      next.time < this.state.time
+    );
+  }
+
+  /**
+   * **Die Buchführung, die nicht auf der Leitung liegt** (`net.HauntBooks`) —
+   * aus der Runde, die gerade wirklich läuft: der 2D-Runde, solange eine
+   * steht, sonst der eigenen im Schiff.
+   *
+   * Alles geht als **Abschrift** heraus. Wer eine Runde übergibt oder
+   * schließt, gibt keine Listen weiter, in die er selbst noch hineinschreibt.
+   */
+  private books(): HauntBooks {
+    const flat = this.flatShared ? (this.flat?.round.books() ?? null) : null;
+    const locks = flat?.locks ?? this.locks;
+    const graph = stationGraph(this.spec);
+    return {
+      locks: {
+        chosen: locks.chosen,
+        until: locks.until,
+        slams: locks.slams.map((one) => ({ ...one })),
+        pries: locks.pries.map((one) => ({ ...one })),
+        cooling: locks.cooling.map((one) => ({ ...one })),
+      },
+      // Das Lampenbudget führt immer dieser Wirt: Die 2D-Runde kennt es nicht,
+      // ihre Station ist gezeichnet und nicht geschaltet (`rules/lamps.ts`).
+      lamps: { on: this.lampBook.on.map((one) => ({ ...one })) },
+      spook: flat?.spook ?? { ...this.spook },
+      trail: flat?.trail ?? {
+        until: this.blood.until,
+        from: this.blood.from ? { ...this.blood.from } : null,
+        walked: this.blood.walked,
+      },
+      memory: flat?.memory ?? (this.brain ? packMemory(this.brain, graph.spaces) : emptyBook()),
+    };
+  }
+
+  /** Den ganzen Stand samt Buchführung an den neuen Gastgeber schicken. */
+  private handOver(ctx: WorldContext, to: string): void {
+    if (this.state.phase !== 'running') return;
+    ctx.net.emit(HAUNT_CHANNEL, handoverMessage(to, this.state, this.books()));
+  }
+
+  /**
+   * **Und die andere Seite: annehmen und ab jetzt rechnen.**
+   *
+   * Der Stand geht durch denselben Weg wie jeder fremde (`adopt`), damit ein
+   * Hauswechsel auch hier ein Hauswechsel bleibt; die Buchführung kommt
+   * danach, weil `adopt` bei einem neuen Haus den Spuk zurücksetzt.
+   */
+  private takeHandover(state: HauntState, books: HauntBooks): void {
+    if (!this.stale(state)) this.adopt(state);
+    this.loadBooks(books);
+    this.handoverUntil = 0;
+  }
+
+  /** Riegel, Lampen, Spuk, Wunde und Gedächtnis übernehmen. */
+  private loadBooks(books: HauntBooks): void {
+    this.locks = books.locks;
+    this.lampBook = books.lamps;
+    this.spook = books.spook;
+    this.blood.until = books.trail.until;
+    this.blood.from = books.trail.from;
+    this.blood.walked = books.trail.walked;
+    // **Eine Spur, nicht zwei** (wie in `FlatRound`): Die Tropfenliste der
+    // Buchführung *ist* die im Stand.
+    this.blood.drops = this.state.blood ?? [];
+    this.state.blood = this.blood.drops;
+    if (this.brain) {
+      const graph = stationGraph(this.spec);
+      loadMemory(this.brain, books.memory, (point) => graph.spaceAt(point));
+    }
   }
 
   // --- was im Haus passiert -------------------------------------------------
@@ -4165,6 +4341,140 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
+   * **Die Ansicht wechseln — mitten in der Runde.**
+   *
+   * Der Wunsch des Besitzers, in einem Satz: „Da wir die Karte ja perfekt für
+   * 2D als auch 3D als Single Source of Truth haben, will ich auch während des
+   * laufenden Spiels zwischen 2D und 3D (als Techniker) wechseln können."
+   * Genau das, und nichts weiter: **kein Neustart, keine neue Station, keine
+   * neue Rolle.**
+   *
+   * Möglich ist es, weil der Stand der Runde ein Datenobjekt ist und kein
+   * Gerät: `HauntState` reist ohnehin über die Leitung, und was nur beim
+   * Gastgeber liegt — Riegel, Lampen, Spuk, Wunde, das Gedächtnis des Monsters
+   * — geht hier als Buchführung (`net.HauntBooks`) von der einen Ansicht in
+   * die andere. Der Wechsel ist deshalb **derselbe Vorgang wie eine Übergabe**,
+   * nur ohne Netz dazwischen.
+   *
+   * - **3D → 2D**: Die 2D-Runde wird aus dem laufenden Stand aufgebaut
+   *   (`FlatRound`, `FlatResume`) statt aus einem frischen. Der Techniker
+   *   steht, wo er stand; das NPC-Monster im Schiff hört auf, das der 2D-Runde
+   *   übernimmt seine Stelle und sein Gedächtnis.
+   * - **2D → 3D**: Der Stand *ist* schon `this.state` (`stepFlat` schreibt ihn
+   *   je Bild), das Schiff wird daraus aufgebaut, und der Techniker landet
+   *   dort, wo `state.technician` ihn zuletzt hingesetzt hat.
+   *
+   * **Nur der Techniker wechselt**, und nur zwischen seinen zwei Ansichten.
+   * Zuschauer und Telefone lesen den Stand ohnehin nur; für sie ändert sich
+   * nichts, und sie merken vom Wechsel auch nichts. **In der Brille gibt es
+   * keine Karte von oben** — dieselbe Wahrheit wie in `opensFlat`, und hier
+   * steht sie als Satz und nicht als stilles Nichtstun.
+   */
+  switchView(view: View): void {
+    const ctx = this.context;
+    if (!ctx || this.flatLoading) return;
+    const now: View = this.flatShared ? '2d' : '3d';
+    if (view === now) return;
+    // Wer in 2D das Monster spielt, ist **kein** Techniker: Im Schiff stünde er
+    // sonst plötzlich als einer da, und die Runde hätte zwei.
+    const technician =
+      now === '2d' ? this.flat?.role === 'technician' : ctx.role === 'vr' || this.flatTechnician;
+    if (!technician) {
+      ctx.notify(NOT_TECHNICIAN);
+      return;
+    }
+    if (view === '2d' && ctx.renderer.xr.isPresenting) {
+      ctx.notify(NO_FLAT_IN_XR);
+      return;
+    }
+    // Die Wahl der Lobby zieht mit: Wer mitten in der Runde umschaltet, will
+    // die nächste nicht wieder in der alten Ansicht anfangen.
+    this.setLobby({ ...this.lobbyChoice, view });
+    if (this.state.phase !== 'running') {
+      // Es läuft nichts, was mitkommen könnte — dann ist der Wechsel nur die
+      // Einstellung, und die steht jetzt.
+      ctx.notify(`Ansicht: ${VIEW_LABELS[view]} — sie gilt ab der nächsten Runde.`);
+      return;
+    }
+    if (view === '2d') this.enterFlat(ctx);
+    else this.leaveFlat(ctx);
+  }
+
+  /**
+   * **Vom Schiff auf die Karte von oben.** Der Stand wandert als `FlatResume`
+   * in die neue Runde; der Techniker bekommt dabei zum ersten Mal eine Stelle
+   * im Stand, denn in 2D hat er kein Rig (`HauntState.technician`).
+   */
+  private enterFlat(ctx: WorldContext): void {
+    // Dieselbe Absage wie beim Start (`openFlat`) — aber **vorher**: Wer erst
+    // das Monster loslässt und dann abgewiesen wird, steht danach in einer
+    // Runde ohne Gegner.
+    if (this.roomOccupied(ctx)) {
+      ctx.notify('2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      return;
+    }
+    // **Erst einpacken, dann loslassen**: `releaseMonster` wirft das Gedächtnis
+    // weg, und danach eingepackt wäre es leer.
+    const books = this.books();
+    ctx.rig.getHeadPosition(_head);
+    ctx.camera.getWorldDirection(_feet);
+    const yaw = Math.atan2(-_feet.x, -_feet.z);
+    this.state.technician = { x: _head.x, z: _head.z, yaw, moving: false };
+    this.releaseMonster();
+    this.openFlat(ctx, {
+      monster: this.state.crew.options.monster,
+      tuning: this.tuning,
+      test: this.state.crew.options.test,
+      role: 'technician',
+      setup: this.setup,
+      powers: powersOf(this.setup),
+      mode: 'realistic',
+      resume: {
+        state: this.state,
+        locks: books.locks,
+        spook: books.spook,
+        trail: books.trail,
+        memory: books.memory,
+        yaw,
+      },
+    });
+  }
+
+  /**
+   * **Von der Karte zurück ins Schiff.** Die 2D-Runde wird geschlossen, ohne
+   * den Stand zurückzusetzen (`closeFlat(true)`) — sonst wäre der Wechsel ein
+   * Rundenabbruch mit Ansage.
+   *
+   * Die Reihenfolge ist die Regel: erst das Monster wieder aufstellen
+   * (`spawnMonster` baut ein frisches Gedächtnis), **dann** die Buchführung
+   * hineingeben. Andersherum schriebe man in ein Gedächtnis, das es noch nicht
+   * gibt.
+   */
+  private leaveFlat(ctx: WorldContext): void {
+    const round = this.flat?.round;
+    if (!round) return;
+    const books = round.books();
+    const at = this.state.technician;
+    this.closeFlat(true);
+    // Im Schiff hat der Techniker wieder ein Rig; seine Stelle im Stand wäre
+    // von jetzt an ein zweiter, gezeichneter Techniker (`showTechnician`).
+    this.state.technician = null;
+    if (at) this.movePlayerTo(ctx, _feet.set(at.x, 0, at.z), at.yaw);
+    this.previousFeet = null;
+    if (this.state.phase === 'running' && this.state.monsterOn && this.state.monster)
+      this.spawnMonster(this.state.monster);
+    // Was in der 2D-Runde repariert wurde, ist repariert — sonst meldete
+    // `noticeRepairs` dem Monster drei alte Konsolen als frische Ereignisse.
+    this.repaired = this.state.done.length;
+    this.loadBooks({ ...books, lamps: this.lampBook });
+    // Wer aus der Zentrale in die 2D-Runde ging, steht jetzt im Schiff — und
+    // ist damit der Techniker am Desktop (`flatTechnician`, `tick`).
+    this.flatTechnician = ctx.role !== 'vr';
+    this.ui?.refresh();
+    ctx.refreshWorldMenu();
+  }
+
+  /**
    * **Die 2D-Welt öffnen.** Solange sie läuft, rechnet `FlatMode` die Runde
    * selbst (`map/flatRound.ts`) und `tick`/`render` fassen die 3D-Welt nicht
    * an. Mission und Test sind dabei **die gemeinsame Runde**: Wer sie spielt,
@@ -4212,6 +4522,13 @@ export class HauntingWorld extends GridWorld {
         this.flat = new mode.FlatMode(shared || live ? this.spec.seed : rollSeed(), options, {
           exit: () => this.closeFlat(),
           notify: (text) => ctx.notify(text),
+          // **Der Wechsel steht nur dem Techniker offen.** Wer zusieht,
+          // wechselt nichts — seine Runde ist die eines anderen; und wer das
+          // Monster spielt, hat im Schiff gar keine zweite Ansicht, sondern
+          // wäre dort plötzlich der Techniker.
+          ...(shared && options.role !== 'monster'
+            ? { switchView: (view: View) => this.switchView(view) }
+            : {}),
           // Nur beim Zusehen am Netz: Szene und Karte kommen aus dem Stand,
           // den der Gastgeber ansagt. Das `insight` weiß nur, wer das Monster
           // rechnet — alle anderen bekommen `null` und sehen die Runde ohne
@@ -4245,18 +4562,25 @@ export class HauntingWorld extends GridWorld {
    * damit vorbei: ein frischer Stand auf demselben Haus, wie `newRound` ihn
    * baut — und angesagt, damit die Telefone nicht auf einer verwaisten Runde
    * sitzen.
+   *
+   * **Außer beim Ansichtswechsel** (`keepState`, `switchView`): Dann wird nur
+   * das Bild geschlossen und die Runde läuft im Schiff weiter. Denselben Stand
+   * hier zurückzusetzen hieße, dem Techniker beim Umschalten die Runde
+   * wegzunehmen — und den Telefonen gleich mit.
    */
-  private closeFlat(): void {
+  private closeFlat(keepState = false): void {
     if (!this.flat) return;
     this.flat.dispose();
     this.flat = null;
     this.flatWatching = false;
     if (this.flatShared) {
       this.flatShared = false;
-      this.state = freshState(this.spec.seed, this.state.crew.options);
-      this.rules.reset();
-      this.netMonster.reset();
-      if (this.isHost) this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
+      if (!keepState) {
+        this.state = freshState(this.spec.seed, this.state.crew.options);
+        this.rules.reset();
+        this.netMonster.reset();
+        if (this.isHost) this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
+      }
     }
     this.ui?.refresh();
     this.context?.refreshWorldMenu();
@@ -4600,6 +4924,11 @@ const BLOOD_OPACITY = 0.8;
 const GHOST_SOLID = 0.4;
 /** Das kalte Eigenleuchten, an dem man den Ghost auch im Dunkeln als Kopie erkennt. */
 const GHOST_GLOW = 0x4a6a8a;
+
+/** Ein Gedächtnis ohne Inhalt — für eine Runde, in der noch kein Monster steht. */
+function emptyBook(): MonsterBook {
+  return { sightings: [], searched: [] };
+}
 
 function freshState(seed: number, options: StationOptions = stationOptions(null)): HauntState {
   return {

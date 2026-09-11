@@ -95,6 +95,12 @@ interface ShipHost {
   start(): void;
   test(): void;
   stations?(): void;
+  /**
+   * **Die Ansicht wechseln, mitten in der Runde** (`HauntingWorld.switchView`).
+   * Im Schiff gibt es dafür genau einen Knopf — „2D von oben" —, und er steht
+   * nur im Panel des Technikers: Wer nicht spielt, hat nichts zu wechseln.
+   */
+  switchView?(view: '2d' | '3d'): void;
   door(id: string): void;
   doorOpen?(id: string): boolean;
   doorLocked?(id: string): boolean;
@@ -2089,6 +2095,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       roles.dataset.action = 'stations';
       this.dom.append(roles);
     }
+    // **Ein Knopf, und zwar genau einer**: dieselbe Runde von oben statt von
+    // innen (`HauntingWorld.switchView`). Er steht oben bei „Rolle wechseln",
+    // weil er dasselbe ist — eine Ansicht und kein Neustart —, und nicht unten
+    // zwischen den Handgriffen, wo man ihn auf der Flucht trifft.
+    if (this.host.switchView && !crew.simulation) {
+      const flat = document.createElement('button');
+      flat.textContent = '2D von oben';
+      flat.dataset.action = 'flat-view';
+      this.dom.append(flat);
+    }
     if (crew.simulation) {
       const camera = document.createElement('button');
       camera.textContent = this.followBot ? 'Freie Kamera' : 'Bot folgen';
@@ -2490,6 +2506,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       else if (id === 'train') this.host.test();
       else this.host.start();
     } else if (kind === 'stations') this.host.stations?.();
+    else if (kind === 'flat-view') this.host.switchView?.('2d');
     else if (kind === 'overview') {
       this.followBot = false;
       if (!this.host.ctx.renderer.xr.isPresenting) {

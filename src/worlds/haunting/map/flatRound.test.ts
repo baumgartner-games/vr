@@ -437,3 +437,101 @@ describe('Die Puste des Technikers in der 2D-Runde', () => {
     expect(Math.abs(steps * DT - PLAYER_STAMINA)).toBeLessThanOrEqual(DT);
   });
 });
+
+/**
+ * **Eine Runde fortsetzen statt anfangen** (`FlatResume`) — der Weg von 3D
+ * nach 2D mitten im Spiel (`HauntingWorld.switchView`).
+ *
+ * Bis hierher baute der Konstruktor immer eine frische Runde: Techniker an der
+ * Zentrale, Monster am anderen Ende, Uhr auf null. Für eine Runde, die
+ * *anfängt*, ist das richtig — und für die eine, die nur die Ansicht wechselt,
+ * war es ein Neustart mit Ansage.
+ */
+describe('Eine 2D-Runde, die eine laufende übernimmt', () => {
+  /** Eine Runde, in der schon etwas passiert ist: Uhr, Türen, Gepäck, Wunde. */
+  function running(): FlatRound {
+    const round = new FlatRound(11, { test: true });
+    const state = round.state();
+    state.time = 96.5;
+    state.crew.hp = 2;
+    state.crew.inventory.push('radar');
+    state.shut = ['d1'];
+    state.lit = ['r1'];
+    state.done = ['t0'];
+    state.monsterOn = true;
+    // Zwei wirkliche Räume, nicht zwei Zahlen: Die Stelle soll in einem Raum
+    // liegen, sonst prüft der Test nur, dass sich Meter kopieren lassen.
+    const rooms = round.graph.spaces.filter((id) => id !== COMMAND);
+    const here = round.graph.centre(rooms[1]!);
+    const there = round.graph.centre(rooms[rooms.length - 1]!);
+    state.monster = { x: there.x, z: there.z };
+    state.technician = { x: here.x, z: here.z, yaw: 1.2, moving: true };
+    round.locks.chosen = 'd1';
+    round.locks.until = 104;
+    round.blood.until = 120;
+    round.blood.drops.push({ x: 6, z: -9, since: 90 });
+    return round;
+  }
+
+  it('übernimmt den Stand, statt einen frischen zu würfeln', () => {
+    const before = running();
+    const state = before.state();
+    const after = new FlatRound(11, { resume: { state, ...before.books() } });
+    // **Derselbe Stand, nicht eine Abschrift davon**: Der Gastgeber sagt genau
+    // den an, in dem gespielt wird — sonst hätte er nach dem Wechsel zwei.
+    expect(after.state()).toBe(state);
+    expect(after.state().time).toBe(96.5);
+    expect(after.state().crew.hp).toBe(2);
+    expect(after.state().shut).toEqual(['d1']);
+    expect(after.state().lit).toEqual(['r1']);
+    expect(after.state().done).toEqual(['t0']);
+  });
+
+  it('stellt Techniker und Monster dorthin, wo sie standen', () => {
+    const before = running();
+    const state = before.state();
+    const after = new FlatRound(11, { resume: { state, ...before.books() } });
+    expect(after.player.x).toBeCloseTo(state.technician!.x);
+    expect(after.player.z).toBeCloseTo(state.technician!.z);
+    expect(after.player.yaw).toBeCloseTo(1.2);
+    // Und in dem Raum, in dem diese Stelle liegt — nicht in der Zentrale.
+    expect(after.player.space).not.toBe(COMMAND);
+    expect(after.player.space).toBe(after.graph.spaceAt(after.player));
+    expect(after.monster.x).toBeCloseTo(state.monster!.x);
+    expect(after.monster.z).toBeCloseTo(state.monster!.z);
+    expect(after.monster.space).toBe(after.graph.spaceAt(after.monster));
+  });
+
+  it('nimmt Riegel, Wunde und Werkzeuge mit', () => {
+    const before = running();
+    const after = new FlatRound(11, { resume: { state: before.state(), ...before.books() } });
+    expect(after.locks.chosen).toBe('d1');
+    expect(after.locks.until).toBe(104);
+    // Die Sperren kommen als **Abschrift**: Wer weitergibt, gibt keinen Draht
+    // zurück in die Runde, die er gerade schließt.
+    expect(after.locks).not.toBe(before.locks);
+    expect(after.blood.until).toBe(120);
+    // Eine Spur, nicht zwei: Die Tropfenliste des Standes *ist* die der Buchführung.
+    expect(after.blood.drops).toBe(after.state().blood);
+    expect(after.blood.drops).toEqual([{ x: 6, z: -9, since: 90 }]);
+    // Was der Techniker aufgesammelt hat, hat er auch nach dem Wechsel in der Hand.
+    expect(after.tools).toContain('radar');
+  });
+
+  it('würfelt ohne Übernahme weiter eine frische Runde', () => {
+    const fresh = new FlatRound(11, { test: true });
+    expect(fresh.state().time).toBe(0);
+    expect(fresh.player.space).toBe(COMMAND);
+    expect(fresh.tools).toEqual(['flashlight']);
+  });
+
+  it('läuft danach ganz normal weiter', () => {
+    const before = running();
+    const state = before.state();
+    const after = new FlatRound(11, { resume: { state, ...before.books() } });
+    const was = after.state().time;
+    for (let t = 0; t < 1; t += DT) after.step(DT, { x: 0, z: 0, sprint: false });
+    expect(after.state().time).toBeGreaterThan(was);
+    expect(after.state().phase).toBe('running');
+  });
+});
