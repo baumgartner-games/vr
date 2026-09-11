@@ -1,5 +1,5 @@
 import type { HouseSpec } from '../house';
-import type { DroneState, HauntState } from '../net';
+import type { HauntState } from '../net';
 import { ENTITY_PROFILES } from '../threat';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { MONSTERS, repairsFor, puzzleFor, puzzleSolved } from '../mission';
@@ -28,7 +28,6 @@ export interface WorldHandles {
    * eigenen Getter: `map/extract.ts` reicht sie von hier in den Snapshot.
    */
   state(): HauntState;
-  drone(): DroneState | null;
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;
   doorOpen(id: string): boolean;
   /** Die Uhr an dieser Tür (`rules/doorLocks.ts`): Sperre oder Abkühlung, siehe `MapSource.doorHold`. */
@@ -57,7 +56,6 @@ export function worldMapSource(world: WorldHandles): MapSource {
   return {
     spec: () => world.spec(),
     state: () => world.state(),
-    drone: () => world.drone(),
     lamps: () => world.lamps(),
     doorOpen: (id) => world.doorOpen(id),
     doorHold: world.doorHold ? (id) => world.doorHold!(id) : undefined,
@@ -115,20 +113,6 @@ export function worldMapSource(world: WorldHandles): MapSource {
           sense: { fov: MONSTER_FOV, range: profile.vision, hearing: profile.hearing },
         });
       }
-      const drone = world.drone();
-      if (drone)
-        out.push({
-          id: 'drone',
-          kind: 'drone',
-          label: 'Drohne',
-          at: { x: drone.x, z: drone.z },
-          yaw: drone.yaw,
-          roomId: spaceOf(spec, drone),
-          concealed: false,
-          moving: !!drone.target,
-          sprinting: false,
-          held: '',
-        });
       for (const peer of world.peers())
         out.push({
           id: `peer:${peer.id}`,
@@ -232,19 +216,6 @@ export function worldMapSource(world: WorldHandles): MapSource {
           yaw: me.yaw,
           fov: TORCH_FOV,
           color: '#ffe9b0',
-        });
-      const drone = world.drone();
-      if (drone?.light)
-        lights.push({
-          id: 'drone-light',
-          roomId: spaceOf(world.spec(), drone),
-          at: { x: drone.x, z: drone.z },
-          on: true,
-          radius: 9,
-          kind: 'drone',
-          yaw: drone.yaw,
-          fov: (60 * Math.PI) / 180,
-          color: '#e8f4ff',
         });
       return lights;
     },

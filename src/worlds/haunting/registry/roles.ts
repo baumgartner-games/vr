@@ -2,19 +2,20 @@ import type { PlayerRole } from '../../../core/types';
 import { Registry, type Registered } from './registry';
 
 /**
- * **Die Rollen in der Einsatzzentrale** — Archiv, Einsatzkontrolle, Drohne, Zuschauer und
- * was die Nacht noch bringt.
+ * **Die Rollen in der Einsatzzentrale** — Archiv, Schalttafel, Späher,
+ * Zuschauer, Monster und was die Nacht noch bringt.
  *
- * Bis heute stand diese Liste als `StationId`-Union plus `STATIONS`-Array in
- * `stations.ts` und wurde in `stationUi.ts` per `if (station === …)`
- * verteilt. Beides bleibt für die Altrollen bestehen (Grenzfall-Dateien,
- * `BOUNDARIES.md`); **neue** Rollen kommen hierher, aus einer eigenen
- * `*.register.ts`-Datei, und brauchen weder die Union noch den Switch.
+ * Bis vor Kurzem stand diese Liste als `StationId`-Union plus `STATIONS`-Array
+ * in `stations.ts` und wurde in `stationUi.ts` per `if (station === …)`
+ * verteilt. Heute meldet **jede Rolle sich selbst an**, aus einer eigenen
+ * `*.register.ts`-Datei (`views/`, `monster/`); `stations.ts` kennt nur noch
+ * die Stühle, und `stationUi.ts` baut die Seite aus dieser Registry.
  *
  * Eine Rolle ist Fakten plus ein `mount`, das ihre Ansicht baut. Das `mount`
- * bekommt einen `RoleHost` — dieselbe Handvoll Getter und Aktionen, die
- * `StationHost` in `stationUi.ts` heute anbietet, nur ohne die Drohnen- und
- * Archivspezialitäten. Wer die braucht, holt sie sich über `host.extra`.
+ * bekommt einen `RoleHost`: den Stand als Karte, den Grundriss, die drei
+ * Griffe der Schalttafel — und sonst nichts. Wer mehr braucht (das Monster
+ * sein Steuer, der Archivar sein Loch in die 3D-Welt), holt es über
+ * `host.extra`.
  */
 export interface RoleFacts extends Registered {
   readonly id: string;
@@ -43,16 +44,28 @@ export interface RoleFacts extends Registered {
 export interface RoleHost {
   /** Der Stand der Runde, jederzeit frisch. */
   snapshot(): import('../map/mapSnapshot').MapSnapshot;
+  /**
+   * Der Grundriss mit allem, was nicht auf der Karte steht: Codes,
+   * Fundhinweise, Rätsel. Nur der Archivar braucht ihn — und er ist der
+   * Grund, aus dem es die Rolle gibt.
+   */
+  spec(): import('../house').HouseSpec;
   /** Meine Peer-Id. */
   me(): string;
   nameOf(peer: string): string;
-  /** Die Aktionen, die eine Rolle auslösen darf. */
-  flip(switchId: string, on: boolean): void;
-  flyTo(roomId: string): void;
+  /**
+   * **Die drei Griffe der Schalttafel**, jeder mit der Zeile, die er dem
+   * Spieler sagt — `''` heißt: dafür gibt es keinen Schalter (die Hälfte der
+   * Tafel liegt hinter dem Sicherungskasten, `panel.ts`).
+   */
+  door(doorId: string): string;
+  light(roomId: string): string;
+  lure(roomId: string): string;
   notify(message: string): void;
   /**
-   * Was `StationHost` darüber hinaus kann. Bewusst untypisiert an dieser
-   * Stelle: Die Altrollen kennen ihre Extras, neue Rollen sollen keine brauchen.
+   * Was der Wirt darüber hinaus kann. Bewusst untypisiert an dieser Stelle:
+   * Das Monster holt sich hier sein Steuer, der Archivar sein Loch für die
+   * 3D-Welt; wer beides nicht braucht, sieht nichts davon.
    */
   extra?: unknown;
 }
@@ -64,8 +77,14 @@ export interface RoleView {
   update(dt: number): void;
   dispose(): void;
   /**
-   * Nur bei `surface: '3d'`: wohin die Welt zeichnen soll, in Bildpunkten,
-   * oder `null`, wenn gerade keine Kamera gebraucht wird.
+   * **Wohin die Welt ihr Bild zeichnen soll**, in Bildpunkten — oder `null`,
+   * wenn gerade keine Kamera gebraucht wird.
+   *
+   * Nicht nur für `surface: '3d'`: Der Archivar ist eine Karte und macht für
+   * seine Raumakte trotzdem ein Loch auf, durch das die 3D-Welt das
+   * aufgeschlagene Zimmer zeichnet. In der 2D-Welt gibt es diese Kamera nicht;
+   * dort steht dieselbe Akte über einer herangezoomten Karte, und `viewport`
+   * bleibt `null`.
    */
   viewport?(): { x: number; y: number; w: number; h: number } | null;
 }

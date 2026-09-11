@@ -30,10 +30,15 @@ import {
 } from '../rules/roundSetup';
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
+import { RoleStrip } from '../views/roleStrip';
+import '../views/archive.register';
+import '../views/panel.register';
+import '../views/scout.register';
 import { HauntingAudio, levelLabel } from '../audio';
 import type { MapNoise, MapRound, MapSnapshot, MonsterInsight } from './mapSnapshot';
 import { computeVisibility, emptyField, LitCache, type VisibilityField } from './visibility';
 import { drawInsight } from './insightOverlay';
+import type { RoleHost } from '../registry/roles';
 import type { ToolIconSource } from './toolIcons';
 import { pageHudShown, pressPageButton, showPageHud } from '../../../core/pageHud';
 
@@ -231,6 +236,12 @@ export class FlatMode {
     'Zum Monster',
   );
   private readonly optionsKey = el('button', 'flat__corner flat__options', '⚙');
+  /**
+   * **Der Rollenstreifen über der Szene** (`views/roleStrip.ts`): Archiv,
+   * Schalttafel, Späher — jede liest dieselbe laufende Runde, und nichts wird
+   * dafür neu aufgebaut.
+   */
+  private readonly strip: RoleStrip;
   private readonly options = el('div', 'flat__panel');
   private readonly sheet = el('div', 'flat__panel flat__sheet');
   private readonly ending = el('div', 'flat__ending');
@@ -398,6 +409,11 @@ export class FlatMode {
     // liegen auf dem Bild darunter — nicht dahinter.
     this.topRow.append(this.hud, this.optionsKey);
     this.top.append(this.topRow, this.jump);
+    this.strip = new RoleStrip({
+      roleHost: () => this.roleHost(),
+      homeLabel: () => 'Station',
+      onChange: () => this.applyOverlay(),
+    });
     this.element.append(
       this.scene.element,
       this.top,
@@ -405,6 +421,8 @@ export class FlatMode {
       this.stick.element,
       this.buttons,
       this.mapOverlay,
+      this.strip.stage,
+      this.strip.element,
       this.puzzle.element,
       this.sheet,
       this.options,
@@ -455,6 +473,7 @@ export class FlatMode {
     this.applyOverlay();
     this.heard = [];
     this.scoutClock = 0;
+    this.applyOverlay();
     this.refreshCorners();
   }
 
@@ -490,6 +509,10 @@ export class FlatMode {
    */
   private applyOverlay(): void {
     const open = this.overlay !== 'none';
+    // **Eine aufgeschlagene Rolle** (`views/roleStrip.ts`) liegt wie ein
+    // Overlay über der Szene: Wer der Runde beim Archiv zusieht, sieht
+    // nicht daneben noch den Stock.
+    const guest = !!this.strip.active;
     const role = this.role;
     this.element.dataset['overlay'] = this.overlay;
     this.mapOverlay.hidden = this.overlay !== 'map';
@@ -497,13 +520,13 @@ export class FlatMode {
     this.options.hidden = this.overlay !== 'options';
     // Der obere Rand mitsamt Zahnrad: Wer ein Overlay offen hat, schließt es
     // über dessen eigenen Knopf und nicht über das Menü dahinter.
-    this.top.hidden = open;
-    this.hud.hidden = role === 'monster';
-    this.jump.hidden = role === 'monster';
-    this.scene.element.hidden = open || role === 'monster';
-    if (this.session) this.session.element.hidden = open;
+    this.top.hidden = open || guest;
+    this.hud.hidden = role === 'monster' || guest;
+    this.jump.hidden = role === 'monster' || guest;
+    this.scene.element.hidden = open || guest || role === 'monster';
+    if (this.session) this.session.element.hidden = open || guest;
     for (const node of [this.stick.element, this.buttons])
-      node.hidden = open || role !== 'technician';
+      node.hidden = open || guest || role !== 'technician';
   }
 
   /**
@@ -516,6 +539,23 @@ export class FlatMode {
     if (this.round.puzzle) this.setOverlay('puzzle');
     else if (this.overlay === 'puzzle') this.setOverlay('none');
     else this.applyOverlay();
+  }
+
+  /**
+   * **Was eine aufgeschlagene Rolle von der Runde bekommt.** Nur Getter und
+   * die zwei Griffe der Schalttafel; gestartet oder verworfen wird nichts —
+   * die Runde läuft weiter, während jemand ihr beim Archiv zusieht.
+   */
+  private roleHost(): RoleHost {
+    return {
+      snapshot: () => this.round.snapshot(),
+      spec: () => this.round.house,
+      me: () => PLAYER_ID,
+      nameOf: (peer) => peer,
+      door: (id) => this.round.lockDoor(id),
+      light: (id) => this.round.switchLight(id),
+      notify: (text) => this.say(text),
+    };
   }
 
   /** Wer gerade spielt — für Tests und die Anzeige. */
@@ -601,7 +641,8 @@ export class FlatMode {
       this.toast.textContent = '';
       this.toast.className = 'flat__toast';
     }
-    if (!this.session) {
+    this.strip.update(dt);
+    if (!this.session && !this.strip.active) {
       this.stepScout(dt);
       this.followPlayer();
       this.scene.setSnapshot(shown);
@@ -1507,6 +1548,7 @@ export class FlatMode {
     this.ending.hidden = true;
     this.setOverlay('none');
     this.lastAt = { x: this.round.player.x, z: this.round.player.z };
+    this.strip.show('');
     this.scene.follow(PLAYER_ID);
     this.map.fit();
     this.map.follow(PLAYER_ID);
@@ -1524,6 +1566,7 @@ export class FlatMode {
     // (`core/pageHud.ts`) — auch dann, wenn ihn zwischendurch jemand über das
     // Zahnrad wieder hervorgeholt hat.
     showPageHud(true);
+    this.strip.dispose();
     this.session?.dispose();
     this.audio.dispose();
     this.stick.dispose();

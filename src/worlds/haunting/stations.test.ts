@@ -31,8 +31,8 @@ describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
    * keinen Server.
    */
   it('schubst den weg, der später gekommen ist', () => {
-    const claims = [claim('a', 'drone', 30), claim('b', 'drone', 2)];
-    expect(ownerOf(claims, 'drone')).toBe('a');
+    const claims = [claim('a', 'scout', 30), claim('b', 'scout', 2)];
+    expect(ownerOf(claims, 'scout')).toBe('a');
     expect(seatOf(claims, 'b')).toBeNull();
     expect(shoved(claims, 'b')).toBe(true);
     expect(shoved(claims, 'a')).toBe(false);
@@ -68,58 +68,51 @@ describe('Wer in der Einsatzzentrale an welchem Gerät sitzt', () => {
   });
 
   it('zählt an den einzelnen Geräten trotzdem nur einen als Besitzer', () => {
-    const claims = [claim('a', 'drone', 30), claim('b', 'drone', 2)];
+    const claims = [claim('a', 'scout', 30), claim('b', 'scout', 2)];
     // Zwei greifen danach — gesessen wird von einem, und die Kachel sagt es.
-    expect(crowdAt(claims, 'drone')).toBe(2);
-    expect(ownerOf(claims, 'drone')).toBe('a');
+    expect(crowdAt(claims, 'scout')).toBe(2);
+    expect(ownerOf(claims, 'scout')).toBe('a');
     expect(crowdAt(claims, 'watch')).toBe(0);
   });
 
-  it('lässt vier Leute gleichzeitig an vier Geräten arbeiten', () => {
+  it('lässt an jedem Gerät gleichzeitig jemanden arbeiten', () => {
     const claims = STATIONS.map((station, index) => claim(`p${index}`, station.id, 10 - index));
     const seats = seating(claims);
     expect(seats.size).toBe(STATIONS.length);
     for (const station of STATIONS) expect(seats.get(station.id)).toBeDefined();
   });
-
-  it('hält für jede Station bereit, was sie ausdrücklich nicht sieht', () => {
-    // Die Zeile steht in der Oberfläche und ist die halbe Spielregel: Wer
-    // nicht weiß, was er nicht sieht, hält seine Lücke für die Wahrheit.
-    for (const station of STATIONS) expect(station.sees.length).toBeGreaterThan(10);
-  });
 });
 
-describe('Three-person crew devices', () => {
-  it('offers one combined control role while recognizing old switchboard announcements', () => {
+describe('Die Stühle der Einsatzzentrale', () => {
+  /**
+   * **Die Stationsliste ist nur noch die Sitzordnung.** Wie eine Rolle heißt
+   * und was sie sieht, steht bei der Rolle selbst (`registry/roles.ts`) —
+   * zwei Listen mit denselben Beschriftungen wären zwei Listen, von denen
+   * eine irgendwann falsch ist. Die Drohne ist ganz weg.
+   */
+  it('führt genau die Geräte, an denen jemand sitzen kann', () => {
     expect(STATIONS.map((station) => station.id)).toEqual([
       'archive',
       'scout',
-      'drone',
+      'hack',
       'watch',
       'monster',
     ]);
     expect(isStation('hack')).toBe(true);
-    expect(stationFacts('hack').label).toBe('Einsatzkontrolle');
+    expect(isStation('drone')).toBe(false);
     expect(isStation('unknown')).toBe(false);
-  });
-
-  it('uses geometry for the isolated archive room and keeps control as a 2D instrument', () => {
-    expect(stationFacts('archive').view).toBe(true);
-    expect(stationFacts('archive').sees).toContain('ein ausgewählter Raum');
-    expect(stationFacts('scout').view).toBe(false);
-    expect(stationFacts('drone').view).toBe(true);
-    expect(stationFacts('watch').view).toBe(true);
+    expect(stationFacts('watch').shared).toBe(true);
+    expect(stationFacts('archive').shared).toBeFalsy();
   });
 
   /**
-   * **Die fünfte Station ist die Gegenseite.** Sie ist ein Gerät wie die
+   * **Die letzte Station ist die Gegenseite.** Sie ist ein Gerät wie die
    * anderen — einer sitzt, der Rest wird weggeschubst —, nur dass ihr Besitzer
    * gegen die Crew spielt. Der Gastgeber nimmt Stock und Knöpfe nur von dem
    * an, der wirklich sitzt (`HauntingWorld.receive`, wie beim Schalter).
    */
   it('seats one monster player and shoves the second like at any device', () => {
     expect(isStation('monster')).toBe(true);
-    expect(stationFacts('monster').view).toBe(false);
     expect(stationFacts('monster').shared).toBeFalsy();
     const claims = [claim('a', 'monster', 8), claim('b', 'monster', 1), claim('c', 'scout', 3)];
     expect(ownerOf(claims, 'monster')).toBe('a');

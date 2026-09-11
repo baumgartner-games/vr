@@ -7,7 +7,6 @@ import {
   crewColor,
   drawBloodDrop,
   drawCrewmate,
-  drawDrone,
   drawFixture,
   drawGhost,
   drawLamp,
@@ -1077,7 +1076,7 @@ export class FlatScene {
     ctx.fillRect(x, y, w * left, h);
   }
 
-  /** Eine Figur je Sorte: Crewmate, Monster, Drohne. */
+  /** Eine Figur je Sorte: Crewmate und Monster. */
   private drawEntity(
     ctx: CanvasRenderingContext2D,
     entity: MapEntity,
@@ -1085,10 +1084,6 @@ export class FlatScene {
     time: number,
   ): void {
     const u = this.state.scale;
-    if (entity.kind === 'drone') {
-      drawDrone(ctx, p.x, p.y, u);
-      return;
-    }
     const facing = facingOf(entity.yaw, this.facings.get(entity.id) ?? 1);
     this.facings.set(entity.id, facing);
     const phase = walkPhase(time, entity.moving, entity.sprinting);

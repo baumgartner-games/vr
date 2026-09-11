@@ -3,6 +3,73 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Auftrag „Rollen aus der Registry, Karten statt Sonderansichten, Drohne gestrichen"
+
+Branch `claude/non-vr-roles-mapview-m0gjby` (Claude Code im Browser).
+
+### Was drin ist
+
+- **Paket `views/` angelegt** (`BOUNDARIES.md` Abschnitt 2). Je Rolle eine
+  Datei plus `<rolle>.register.ts`: `archiveRole`, `panelRole`, `scoutRole`,
+  `watchRole`, dazu `roleShell.ts` (Kleinkram), `archiveDesk.ts` (der Vertrag
+  für das Loch in die 3D-Welt), `roleStrip.ts` (Rollenwechsel über der
+  2D-Welt) und `views.css`. `registry/legacyRoles.register.ts` ist damit weg —
+  es gibt keine Platzhalter-Rollen mehr.
+- **Die drei Nicht-VR-Rollen zeichnen dieselbe `MapView` wie die 2D-Welt**,
+  jede mit eigenen Schichten. Archiv: ganze Karte mit Fracht und Zielräumen,
+  Linie von der Kiste zur Konsole, „hierher" beim getragenen Teil, Raumakte
+  per Tipp auf ein Zimmer (Codes groß, Bild des Raums: in 3D das Loch mit
+  Zoom/Wisch, in 2D eine herangezoomte Karte), **keine Missionsliste**.
+  Schalttafel: Karte ohne Wesen, Türen und Lampen per Tipp, Schallköder über
+  einen Tipp auf das Zimmer. Späher: grüner Techniker- und roter
+  Monster-Punkt, neue Peilung alle 3,5 s, dazwischen verblassen, **keine
+  Interpolation**.
+- **`stationUi.ts` baut die Seite aus der Registry.** Der `if (station === …)`-
+  Verteiler mit fünf Seitenmethoden (Radarschirm, Aktenblatt, Schalterliste,
+  Cockpit, Zuschauerzeilen), der Späher-Canvas, das EKG, die Reiter, der
+  Raumwähler, die Bild-Werkzeugecke und die Panel-Form sind weg; übrig sind
+  Kopfzeile, Auftragsstreifen, Geräteübersicht und Endkarte. Die Kacheln der
+  Übersicht kommen aus `listRoles()`.
+- **`stations.ts` ist nur noch die Sitzordnung** (`{ id, shared? }`). Name,
+  Zeile und „Sieht:" stehen bei der Rolle; `StationFacts.view` ist weg (das
+  sagt heute `RoleDefinition.surface`). `hack` ist eine echte Station statt
+  eines Altnamens für `scout`.
+- **`RoleHost` neu geschnitten**: `snapshot`, `spec`, `me`, `nameOf`,
+  `door`/`light`/`lure` (die drei Griffe der Schalttafel, jeder mit seiner
+  Antwortzeile), `notify`, `extra`. `flip`/`flyTo` sind weg.
+- **Rollenwechsel im 2D-Testmodus**: `views/roleStrip.ts` als Streifen über
+  der Szene; die Rollen lesen dieselbe laufende `FlatRound`
+  (`FlatMode.roleHost()`), nichts wird neu aufgebaut. `FlatRound.lure()` kam
+  dazu — ein Schallköder, der über das Hörmodell ruft, solange er läuft
+  (`LURE_PULSE`), statt über eine Sonderregel.
+- **Die Drohne ist gestrichen**: Rolle, Ansicht, Körper, Kamera, Flug,
+  Netznachricht `kind: 'drone'` (`DroneState`, `readDrone`, `droneMessage`),
+  `DRONE_HOME`, `DRONE_PROFILE`, Hangar-Ring, `MapEntityKind`/`MapLight`-Sorte
+  `drone`, `flatArt.drawDrone` und das CSS dazu.
+- **`droneRoute.ts` → `navmesh/route.ts`** (Paket `nav`): `RoutePose`,
+  `RoutePath`, `stepAlong`, `routeLength`, `turnTowards`, `wrapAngle`,
+  `shortestTurn`. Die Kachelvariante (`routeTo`, `tiles`, `tileAt`) und alles
+  Drohnen-Eigene (Flughöhe, `droneFov`, Lampenladung, `HOP_TIME`) sind weg;
+  `stationRoute` hat damit auch seinen `height`-Parameter verloren, weil
+  nichts mehr über Möbel hinwegfliegt.
+- **CSS-Importe in Jest**: `moduleNameMapper` auf `tools/cssStub.cjs`. Vorher
+  stand in jeder betroffenen Testdatei ein eigenes `jest.mock('./…css')`, und
+  die vier Suiten, die eine neue Datei mitzogen, fielen mit
+  „Unexpected token '.'" um.
+
+### Was offen bleibt
+
+- **Der Sicherungskasten hat keine Wirkung mehr.** `visibleSwitches` wird in
+  `panelSwitch` mit `state.fuse` gefragt (vorher stand dort hart `true`),
+  also ist die halbe Tafel wieder erst nach dem Kasten schaltbar. Ob das so
+  gewollt ist oder ob die Karte alles schalten darf, entscheidet der
+  Auftraggeber.
+- **`archiveMap.ts`** (Altmodul samt Test) ist weiterhin unbenutzt. Es war
+  schon vorher tot; gelöscht wurde es nicht, weil es außerhalb dieses
+  Auftrags liegt.
+- **Der Fernseher ist unverändert** — ausdrücklich so gewollt („Die Ansicht
+  der Station mag ich aktuell"). Er ist die einzige Rolle mit `surface: '3d'`.
+
 ## Auftrag „Werkzeug-Icons, Möbel in 2D, Schall, Monster-Mechanik"
 
 Branch `claude/3d-tool-rendering-mechanics-1t62ab` (Claude Code im Browser).

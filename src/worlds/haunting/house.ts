@@ -73,36 +73,15 @@ export const APRON: Rect = { x: HOUSE.x, z: HOUSE.z + HOUSE.d, w: HOUSE.w, d: 2 
 
 /** Die Vorplatzreihe an der Fensterfront: Tisch der Einsatzzentrale, Terminal, Rückkehrpunkt. */
 export const APRON_INNER = APRON.z + APRON.d - 1;
-/** Die äußere Reihe mit Hüllenfenstern: Drohnenring und Abendlicht. */
+/** Die äußere Reihe mit Hüllenfenstern: Abendlicht über dem Vorplatz. */
 export const APRON_OUTER = APRON.z;
 /** Der Aufzugsschacht zum Testdeck, in Kacheln. */
 export const COMMAND_LIFT = { x: APRON.x + APRON.w - 2, z: APRON_OUTER } as const;
 /** Die Kachelreihe, in der die Einsatzzentrale steht. */
 export const VAN_Z = APRON_INNER;
 
-/** Die Kennung, unter der die Drohne „zurück zur Einsatzzentrale" fliegt. */
+/** Die Kennung der Einsatzzentrale — kein Zimmer des Hauses, aber ein Ort. */
 export const VAN_ID = 'van';
-
-/**
- * **Wo die Drohne steht, wenn die Runde anfängt**: über der Einsatzzentrale, mit dem Haus
- * im Bild.
- *
- * Nicht im Zimmer hinter der Haustür, wo sie eine Weile parkte: Dort sah der
- * Pilot beim Hinsetzen ein dunkles Zimmer und wusste weder, wo er ist, noch
- * wohin. Hier sieht er den Vorplatz, die Hauswand und die Tür darin — die
- * erste Ansage, die in der Einsatzzentrale fällt.
- *
- * Und die **hintere** der beiden Vorplatzreihen, nicht die vordere: Aus der
- * vorderen steht die Kantinenfront anderthalb Meter vor der Linse, und ein
- * Bild ohne Tiefe ist dasselbe wie kein Bild.
- *
- * **Neben dem Tisch und nicht darüber.** Auf der Kachel daneben schwebte sie
- * dem Tisch und seinen vier Monitoren direkt vor der Linse, und die füllten im
- * ersten Bild des Piloten die halbe untere Hälfte — vier bunte Scheiben statt
- * des Hauses, auf das er schauen soll. Eine Kachel weiter östlich steht der Tisch dort, wo er
- * hingehört: am Rand des Bildes, als das, was hinter einem liegt.
- */
-export const DRONE_HOME = { x: 1, z: APRON_OUTER };
 
 /** Ob eine Kachel auf dem Vorplatz liegt — dort lädt der Scheinwerfer. */
 export function onApron(x: number, z: number): boolean {

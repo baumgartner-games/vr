@@ -32,8 +32,6 @@ Gehört ihm:
   Sichtbarkeitsmodell, Extraktion aus der 3D-Welt, die 2D-Welt selbst
   (Joystick, Buttons, Overlay, Optionsmenü), CSS dazu.
 - `src/worlds/haunting/registry/**` — die Registries und ihre Discovery.
-  **Ausnahme:** `registry/legacyRoles.register.ts` gehört dem Paket
-  Rollenansichten (siehe dort).
 - `BOUNDARIES.md`.
 
 Vertrag nach außen (`map/index.ts`):
@@ -65,10 +63,11 @@ dynamisch neben `flatMode` geladen.
 
 Gehört ihm:
 
-- `src/worlds/haunting/views/**` — **neu anlegen**: eine Datei je Rolle plus
-  `<rolle>.register.ts`, das `registerRole` aus `registry/` ruft.
-- `src/worlds/haunting/registry/legacyRoles.register.ts` — die Anmeldung der
-  vier Altrollen; das Paket ersetzt die Platzhalter-`mount`s durch echte.
+- `src/worlds/haunting/views/**` — eine Datei je Rolle plus
+  `<rolle>.register.ts`, das `registerRole` aus `registry/` ruft. Steht
+  seit dem Auftrag „Rollen aus der Registry": `archiveRole`, `panelRole`,
+  `scoutRole`, `watchRole`, dazu `roleShell.ts`, `archiveDesk.ts`,
+  `roleStrip.ts` und `views.css`.
 - Grenzfall (bestehend, Minimaländerung erlaubt, HANDOVER-Pflicht):
   `stationUi.ts`, `stationUi.test.ts`, `stations.ts`, `stations.test.ts`,
   `stationDashboard.css`, `haunting.css`, `archiveView.ts`, `archiveMap.ts`.
@@ -76,7 +75,15 @@ Gehört ihm:
 
 Andockstellen: `RoleDefinition.mount(host: RoleHost): RoleView`
 (`registry/roles.ts`); die Karte kommt aus `new MapView({...})`, der Stand
-aus `host.snapshot()`.
+aus `host.snapshot()`, der Grundriss aus `host.spec()`, die drei Griffe der
+Schalttafel aus `host.door/light/lure`. Was eine Rolle darüber hinaus braucht,
+kommt über `host.extra` — das Steuer des Monsters
+(`monster/monsterDriver.monsterPortOf`) und der Tisch des Archivars
+(`views/archiveDesk.archiveDeskOf`).
+
+**Die Drohne gibt es nicht mehr** (Rolle, Ansicht, Körper, Kamera, Flug,
+Netznachricht, CSS). Ihre Wegtypen leben als `navmesh/route.ts` im Paket
+`nav` weiter und tragen dort Modelltechniker und Monster.
 
 **Hinweis:** Das Paket `map` muss in Phase 1 in `stationUi.ts` **eine**
 Checkbox neben der Kachel „Bot-Runde ansehen" einbauen (Auftrag). Das ist
@@ -103,9 +110,10 @@ auf three.js-Objekte der Welt.
 
 Gehört ihm:
 
-- `src/worlds/haunting/navmesh/**` — **neu anlegen**.
+- `src/worlds/haunting/navmesh/**` — inklusive `route.ts` (früher
+  `droneRoute.ts`): Bahn, Pose und Weg als Punktkette.
 - Grenzfall: `stationNavigation.ts`, `stationTravelPlan.ts`,
-  `stationNpcNavigator.ts`, `droneRoute.ts`, `roomGraph.ts`,
+  `stationNpcNavigator.ts`, `roomGraph.ts`,
   `navigationOverlay.ts`, `src/worlds/nav/**` und die zugehörigen Tests.
 - Nicht anfassen: `monsterRoutine.ts`, `roundSim.ts`, `botTraining.ts`,
   `botTuning.ts` (Balance; das Training misst 800 Runden nach).
@@ -201,7 +209,9 @@ Markdown-Datei und keine im Code.
 - Wahrnehmung: `perception.ts` (`BOT_FOV`, `MONSTER_FOV`, `BOT_VISION`),
   `threat.ts` (`ENTITY_PROFILES[kind].vision/hearing`).
 - Headless-Runde ohne three.js: `roundSim.ts` + `roomGraph.ts`.
-- Rollen heute: `stations.ts` (`STATIONS`), Oberfläche `stationUi.ts`.
-- Bestehende 2D-Zeichner: `stationUi.drawScout` (Radar), `archiveMap.ts`
-  (Altmodul, nicht wieder einbauen), `portal/tools/mapPlot.ts` (Karte in
-  der Hand, andere Welt).
+- Rollen heute: `registry/roles.ts` (angemeldet aus `views/*.register.ts`
+  und `monster/monster.register.ts`); `stations.ts` ist nur noch die
+  Sitzordnung, `stationUi.ts` nur noch der Rahmen darum.
+- Bestehende 2D-Zeichner: `map/mapView.ts` (die Karte, die alle Rollen
+  zeichnen), `archiveMap.ts` (Altmodul, unbenutzt, nicht wieder einbauen),
+  `portal/tools/mapPlot.ts` (Karte in der Hand, andere Welt).

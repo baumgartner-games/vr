@@ -2,7 +2,7 @@ import { TILE } from '../nav/navTile';
 import type { NavGraph } from '../nav/navGraph';
 import type { NpcNavigationInput } from '../npc/Npc';
 import type { Point } from '../npc/npcBrain';
-import type { DroneRoute } from './droneRoute';
+import type { RoutePath } from './navmesh/route';
 import { onApron, type HouseSpec } from './house';
 import { stationRoute } from './stationNavigation';
 
@@ -21,7 +21,7 @@ import { stationRoute } from './stationNavigation';
  * bleibt stehen, und die Routine sucht sich im nächsten Beschluss ein anderes.
  */
 export class StationNpcNavigator {
-  private route: DroneRoute | null = null;
+  private route: RoutePath | null = null;
   private cursor = 0;
   private timer = 0;
   private version = -1;

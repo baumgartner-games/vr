@@ -380,6 +380,7 @@ export class FlatRound implements MapSource {
   /** Das Hörmodell (`audio/hearing.ts`) und die Geräusche des Spielers seit dem letzten Schritt. */
   private readonly hearing = new Hearing();
   private pendingNoises: NoiseSource[] = [];
+  /** Wann der nächste Ruf eines laufenden Schallköders fällig ist, in Sekunden. */
   /** Die Geräusche der letzten Sekunden, für die Karte (`MapNoise`). */
   private readonly noiseLog: MapNoise[] = [];
   private noiseSerial = 0;
@@ -642,10 +643,6 @@ export class FlatRound implements MapSource {
   }
 
   // --- MapSource ------------------------------------------------------------
-
-  drone(): null {
-    return null;
-  }
 
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; intensity: number }> {
     return spacesOf(this.house).map((room) => {

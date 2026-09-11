@@ -1,6 +1,6 @@
 import type { NavGraph } from '../../nav/navGraph';
 import { TILE, dirX, dirZ } from '../../nav/navTile';
-import type { DroneRoute } from '../droneRoute';
+import type { RoutePath } from './route';
 import type { HouseDoor, HouseSpec } from '../house';
 import { COMMAND, type StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
@@ -81,7 +81,7 @@ export interface FlatLeg {
 
 export class FlatNavigator {
   private readonly travel = new StationTravelPlan();
-  private route: DroneRoute | null = null;
+  private route: RoutePath | null = null;
   private cursor = 0;
   /** Wo die Route anfing — die Strecke zum ersten Wegpunkt beginnt dort. */
   private origin: FloorPoint = { x: 0, z: 0 };
@@ -213,7 +213,6 @@ export class FlatNavigator {
       { x: at.x, z: at.z, yaw: 0 },
       goal,
       this.radius,
-      0,
       true,
       this.avoid,
     );

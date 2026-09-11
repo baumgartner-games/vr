@@ -70,7 +70,7 @@ export interface LitRegion {
   lightId: string;
   at: MapPoint;
   radius: number;
-  /** Nur bei Kegeln (Taschenlampe, Drohne). */
+  /** Nur bei Kegeln (Taschenlampe). */
   yaw?: number;
   fov?: number;
   /** Die sichtbare Fläche als Polygon, gegen Wände beschnitten. */
@@ -336,7 +336,7 @@ export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId 
           radius: entity.sense.hearing,
           cause: 'monster',
         });
-      else if (entity.moving && entity.kind !== 'drone')
+      else if (entity.moving)
         field.noise.push({
           entityId: entity.id,
           at: entity.at,

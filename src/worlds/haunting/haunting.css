@@ -11,11 +11,11 @@
  * Einsatzzentrale — am Tisch wird zugerufen und nicht gelesen, und „ich hab den grünen"
  * ist eine Ansage.
  *
- * `.haunt__view` ist mit Absicht **durchsichtig**: Dort zeichnet die Welt ihr
- * Bild direkt in die Leinwand darunter (`HauntingWorld.render`). Was hier
- * steht, ist nur das Loch. Beide Stationen mit Bild haben dieselbe Form
- * (`.is-view`): Das Bild liegt fest im Hintergrund über dem ganzen Schirm, und
- * die Bedienung kommt auf Zuruf darüber (`.is-panel`).
+ * **Die Rollen bringen ihre eigene Oberfläche mit** (`views/views.css`,
+ * `monster/monster.css`): Was hier steht, ist der Rahmen — Kopfzeile,
+ * Auftragsstreifen, Geräteübersicht. Eine Rolle mit Karte bekommt den ganzen
+ * Platz darunter (`.is-view`), eine ohne (der Fernseher) eine rollende Liste
+ * wie die Übersicht selbst.
  *
  * Handgesetzt wie `style.css` und `tools.css`, deshalb in `.prettierignore`.
  */
@@ -54,12 +54,12 @@
 
 .haunt > * { pointer-events: auto; }
 
-/* Vier Stationen, vier Töne — dieselben wie auf den Monitoren in der Einsatzzentrale. Der
-   Fernseher hat einen fünften: Er ist kein Gerät, aber er steht in derselben
-   Liste, und eine Kachel ohne eigene Farbe sieht aus wie ein Fehler. */
+/* Eine Farbe je Station — dieselben wie auf den Monitoren in der
+   Einsatzzentrale. Der Fernseher hat auch eine: Er ist kein Gerät, aber er
+   steht in derselben Liste, und eine Kachel ohne eigene Farbe sieht aus wie
+   ein Fehler. */
 .haunt[data-station="archive"] { --haunt-accent: #ffc857; }
 .haunt[data-station="scout"] { --haunt-accent: #ff6b6b; }
-.haunt[data-station="drone"] { --haunt-accent: #5ee0a0; }
 .haunt[data-station="hack"] { --haunt-accent: #4aa8ff; }
 .haunt[data-station="watch"] { --haunt-accent: #b98cff; }
 /* Die Gegenseite: dasselbe Rot wie die Monster-Ansicht selbst (`monster/monster.css`). */
@@ -70,10 +70,19 @@
    als in der 2D-Welt, wo sie über allem liegt (`monster/monster.css`,
    `--flat-top`). */
 .haunt[data-station="monster"] .haunt__body { position: relative; padding: 0; overflow: hidden; --flat-top: 10px; }
+/* Eine Rolle mit Karte füllt die Seite: kein Rand, kein Rollen — Stock,
+   Knöpfe und Anzeigen liegen am Rand ihrer eigenen Fläche. Der Zuschauer
+   bekommt dieselbe Fläche, nur ohne Grund: Dort zeichnet die 3D-Welt. */
+.haunt.is-view .haunt__body,
+.haunt[data-station="watch"] .haunt__body { position: relative; padding: 0; overflow: hidden; }
+.haunt[data-station="watch"] .haunt__body { background: none; }
+/* Die Endkarte liegt darüber und nicht darunter: Sie steht im Fluss, die
+   Karte füllt die Fläche absolut — ohne diese Zeile läge das Ergebnis der
+   Runde hinter dem Grundriss. */
+.haunt.is-view .haunt__round-result { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 5; width: min(92vw, 400px); box-sizing: border-box; }
 
 .haunt [data-accent="archive"] { --haunt-accent: #ffc857; }
 .haunt [data-accent="scout"] { --haunt-accent: #ff6b6b; }
-.haunt [data-accent="drone"] { --haunt-accent: #5ee0a0; }
 .haunt [data-accent="hack"] { --haunt-accent: #4aa8ff; }
 .haunt [data-accent="watch"] { --haunt-accent: #b98cff; }
 
@@ -464,26 +473,6 @@ body.haunt-on #hud { display: none; }
  * und ihren Rollbalken.
  */
 .haunt__body > * { flex: none; }
-
-.haunt__h {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 10px 0 0;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--haunt-faint);
-}
-
-.haunt__h-aside {
-  margin-left: auto;
-  letter-spacing: 0;
-  text-transform: none;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--haunt-faint);
-}
 
 /* --- Hinweiskacheln: drei Töne, nicht fünf --- */
 
@@ -887,17 +876,10 @@ body.haunt-on #hud { display: none; }
 }
 
 /*
- * **Quer gehaltenes Telefon.**
- *
- * Nebeneinandergestellt wird hier nichts mehr: Das Bild liegt bei beiden
- * Stationen über dem ganzen Schirm, und die Bedienung darüber — quer wie
- * hochkant dieselbe Form. Vorher standen sie in zwei Spalten, weil unter einem
- * Kinostreifen quer nichts mehr übrig blieb; der Streifen ist weg, und mit ihm
- * das Gitter.
- *
- * Was bleibt, ist die Kopfzeile: Quer ist der Schirm halb so hoch, und ein
- * Rand für die Kamera-Insel, der hochkant richtig sitzt, frisst hier die halbe
- * Seite.
+ * **Quer gehaltenes Telefon.** Nebeneinandergestellt wird nichts: Jede Rolle
+ * füllt die Fläche unter der Leiste selbst. Was bleibt, ist die Kopfzeile —
+ * quer ist der Schirm halb so hoch, und ein Rand für die Kamera-Insel, der
+ * hochkant richtig sitzt, frisst hier die halbe Seite.
  */
 @media (orientation: landscape) and (max-height: 560px) {
   .haunt__bar { padding-top: calc(4px + env(safe-area-inset-top)); }
@@ -910,12 +892,6 @@ body.haunt-on #hud { display: none; }
 .haunt[data-station="scout"] { --haunt-accent: #7de5cf; }
 .haunt button { touch-action: manipulation; min-height: 44px; }
 .haunt__tile { border-radius: 10px; border-left: 3px solid var(--haunt-accent); }
-.haunt__task-row { display: flex; flex-direction: column; gap: .55rem; line-height: 1.5; padding-block: 1rem; }
-.haunt__telemetry { border: 1px solid #28515a; border-radius: 12px; padding: 14px; background: #071b22; }
-.haunt__telemetry strong { color: #81e6bd; font: 600 11px ui-monospace, monospace; letter-spacing: .13em; }
-.haunt__telemetry small { color: #8eacb5; display: block; font-size: 11px; }
-.haunt__ecg { display: block; width: 100%; height: auto; aspect-ratio: 600 / 140; }
-.haunt__radar { max-width: 420px; width: 100%; margin-inline: auto; }
 .haunt__body { scrollbar-width: thin; scrollbar-color: #375c6b #081823; }
 /* Die Steuerung der 2D-Welt über der 3D-Szene (`world3d/shipControls.ts`):
    dieselben Klassen wie dort, nur ohne den schwarzen Grund — hier liegt die

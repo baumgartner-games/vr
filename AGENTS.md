@@ -117,15 +117,13 @@ ist ihre eigene Umkehrung), die **Flugmathematik der Drohne**
 Vorzeichen, die im Headset sonst die halbe Welt verdrehen, und das Tuning aus
 Tempo und Drehrate), die **Drohnen-Einstellungen**
 (`src/worlds/portal/tools/droneSettings.ts` — Rasten, Grenzen und der Fall,
-dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die **Bahn der
-Haunting-Drohne** (`src/worlds/haunting/droneRoute.ts` — und zwar nicht der
-Aufruf der Wegsuche, sondern der **Flug**: Ein Weg wird ganz abgeflogen, und
-dabei darf die Bahn nie eine Wand kreuzen; dazu die Gegenprobe, dass es
-überhaupt ein Zimmer gibt, für das die Luftlinie durch eine Wand ginge — sonst
-wäre der Test auch für eine Drohne grün, die einfach geradeaus fliegt; dazu
-ihre **Flughöhe**, die mit Kuppel und allem unter den Türsturz passen muss und
-trotzdem über Augenhöhe bleibt, und der **Blickwinkel**, der ganz herumgeht
-und dabei im Kreis läuft statt weiterzuwachsen), die **Fenster des
+dass ein alter Konfig-Code diese Felder noch gar nicht kannte), die **Bahn auf
+einem gesuchten Weg** (`src/worlds/haunting/navmesh/route.ts`, früher
+`droneRoute.ts` — nicht der Aufruf der Wegsuche, sondern das **Abfahren**:
+dass ein Bildschritt über dicht gesetzte Stützpunkte hinweg nichts an Strecke
+verliert, dass genau am letzten Punkt gehalten wird und dass vier Bildraten
+dieselbe Strecke ergeben; sie trägt heute den Modelltechniker und das
+Monster), die **Fenster des
 Haunting-Hauses** (`src/worlds/haunting/house.ts` — dass jedes in einer
 Außenwand sitzt und keines in einer Tür oder hinter einem Möbel, und dass es
 im Graphen aufhält wie eine Wand: durch ein Fenster geht niemand nach
@@ -1962,9 +1960,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Nichts draußen aufmachen.
 - **Haunting / Orbital**: eine Raumstation für eine Quest und zwei Telefone.
   Der Außentechniker sucht Gegenstände, löst Reparaturaufträge und kann nach
-  drei Treffern verlieren. Das Archiv führt mit einzelnen Raumakten, Raum-Draufsichten und
-  Codes; die Einsatzkontrolle kombiniert Radar/Anzug und Schalttafel
-  in getrennten Reitern. Drohne und Zuschauer bleiben optional. Wählbar sind
+  drei Treffern verlieren. Die drei Nicht-VR-Rollen zeichnen dieselbe Karte
+  wie die 2D-Welt, jede mit eigenen Schichten (`views/`): das **Archiv** die
+  ganze Station mit Fracht und Zielräumen und einer Raumakte je Zimmer, die
+  **Schalttafel** die Station ohne Wesen mit schaltbaren Türen, Lampen und
+  Ködern, der **Späher** zwei Punkte alle dreieinhalb Sekunden. Zuschauer
+  (3D-Puppenhaus) und Monster bleiben daneben. Wählbar sind
   6/8/10/12 größere Räume mit Gängen und drei Entitäten mit eigener Wahrnehmung. Sichere Tests bleiben bei ausgeschaltetem Licht gegnerfrei;
   vier Lehrzimmer liegen abseits der Missionskarte. Ausführlich:
   _Haunting / Orbital: Raumstation für eine Quest und zwei Mobilgeräte_.
@@ -2559,14 +2560,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Haunting: Station wählen | – | Archiv, Einsatzkontrolle, Drohne oder Zuschauer in der Zentrale wählen | antippen |
-| Haunting: Zuschauer — wessen Platz / wem folgen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Einsatzkontrolle, Späher, Drohne, Monster) | antippen |
+| Haunting: Station wählen | – | Archiv, Schalttafel, Späher, Zuschauer oder Monster in der Zentrale wählen | antippen |
+| Haunting: Archiv | – | Zimmer auf der Karte antippen öffnet die Raumakte; Bild darin ziehen/zoomen | dito |
+| Haunting: Schalttafel | – | Tür oder Lampe antippen schaltet sie; die Tafel darunter ebenso | dito |
+| Haunting: Zuschauer — wessen Platz / wem folgen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Schalttafel, Späher, Monster) | antippen |
 | Haunting: Schrank / Gegenstand / Rätsel | anvisieren + Trigger | anvisieren + `E` oder Linksklick | als Techniker über sichtbare Schaltflächen |
 | Haunting: linke / rechte Hand | Radar-/Röntgen-/Medkit-Menü; Objekte mit Trigger bedienen | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand | – |
 | Haunting: Medkit | Missionsmenü → Medkit | rechts wählen + `E`, oder Missionsmenü | – |
 | Haunting: Schutzschrank | Code am Display eingeben, offenes Display zum Verstecken; beleuchteter Innenknopf zum Verlassen | Code mit `E`/Klick; `E` oder Menü zum Verlassen | – |
 | Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
-| Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Kontrolle |
+| Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Schalttafel |
+| Haunting: 2D-Welt, Rolle wechseln | – | Streifen über der Szene: Station, Archiv, Schalttafel, Späher, Monster | antippen |
 | Haunting: einzelne Lehrzimmer | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum | dito; mit `E` die echten Beispiele bedienen | – |
 | Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
 | Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
@@ -7598,7 +7602,7 @@ am Südrand hinter einem eigenen Andockkorridor. Die Schleuse
 ist Glas (`commandWindows`), und `spec.entryRoom` ist damit ein echter
 Missionsraum statt eines Ganges. `APRON_INNER` ist die Reihe an der
 Fensterfront (Tisch der Einsatzzentrale, Terminal, Rückkehrpunkt), `APRON_OUTER` die Reihe mit den
-Hüllenfenstern (Drohnenring, Abendlicht, Aufzug `COMMAND_LIFT`). Wer eine
+Hüllenfenstern (Abendlicht, Aufzug `COMMAND_LIFT`). Wer eine
 Position auf dem Vorplatz braucht, rechnet sie aus diesen beiden Konstanten
 und nicht aus `APRON.z` plus einer geratenen Zahl.
 
@@ -7652,7 +7656,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 
 - `state.shut` beschreibt **Sperren**. `AutomaticDoors` steuert getrennt davon
   die tatsächliche Näherungsöffnung: von beiden Seiten, für Techniker,
-  Mitspieler, Monster, Drohne und Demo-Bot. Nachlauf verhindert Flattern;
+  Mitspieler, Monster und Demo-Bot. Nachlauf verhindert Flattern;
   ein belegter Durchgang schließt nicht um eine Kapsel herum.
 - **Ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`): alle
   `GLITCH_RANGE` = 35–70 s für `GLITCH_HOLD` = 1,8–3,2 s eine beliebige
@@ -7804,13 +7808,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   weiter als 0,75 m gewandert, von der Route abgekommen, Sperre geändert), wartet
   vor einer gesperrten Tür ohne Umweg 0,9 m davor und splittert Holz nach
   2,5 s; die Fächerindizierung der Wandquader in `segmentClear` hat dabei jeden
-  Weg von ≈ 88 auf ≈ 14 ms gebracht — für 3D-Monster, Bot und Drohne genauso.
+  Weg von ≈ 88 auf ≈ 14 ms gebracht — für 3D-Monster und Bot genauso. Die
+  Bahn darauf (Beschleunigen, Bremsen, Drehen) steht in
+  `navmesh/route.ts` — der Datei, die `droneRoute.ts` hieß, solange es eine
+  Drohne gab.
   **Das Monster wägt dabei ab** (`aim(..., detourLimit)`): Kostet der Umweg um
   eine gesperrte Tür mehr als `FlatRound.PRY_DETOUR` = 4 s Laufzeit, führt die
   Route vor die Tür, und dort wird gezogen statt gelaufen. Der Techniker gibt
   keine Grenze mit und geht weiter jeden Umweg.
-- Drohnen-Netzpositionen werden interpoliert statt je Paket gesetzt.
-  Sanfte Neigung und begrenztes Schweben bleiben unter dem Türsturz.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
   `movePlayerTo`. `haunt.sealsOff` schützt Erreichbarkeit aller `spacesOf`.
   **Schächte sind das Lüftungsnetz** (`vents/ventNet.data.ts`: vierzehn
@@ -7981,8 +7986,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Gesperrte Routen warten statt zu teleportieren. Das ist keine simulierte
   menschliche Kommunikation und keine vollständige autonome Dreiercrew.
   Raumwechsel erzeugen lokale Funkmeldungen Techniker → Zentrale.
-  `NavigationOverlay` liest echte Route-Cursor von Bot, Monster und Drohne;
-  Cyan/Rot/Gelb und Zielringe sind in der Simulation sichtbar — **und beim
+  `NavigationOverlay` liest echte Route-Cursor von Bot und Monster;
+  Cyan/Rot und Zielringe sind in der Simulation sichtbar — **und beim
   Zuschauer**, sobald er im Panel „KI-Absichten" umlegt
   (`HauntingWorld.insightWanted`). Sichtflächen
   werden gegen feste Collider (inklusive Türblätter/Einrichtung) beschnitten;
@@ -8648,7 +8653,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   mit denselben Worten:
   - **Van / Telefon** (`stationUi.vanPage`, Hochformat zuerst): ganz oben die
     **Reiterzeile als Rollenwahl** (`stationUi.writeBar`) — _Aufbau_, die drei
-    Fähigkeiten (`[data-power]`), dann Drohne, Fernseher, Monster
+    Fähigkeiten (`[data-power]`), dann Fernseher, Monster
     (`[data-sit]`) — und rechts daneben drei kleine Knöpfe für Spielmenü,
     Verbindung und VR. Darunter, im Reiter _Aufbau_: ein Statuschip, die zwei
     Häkchen (`[data-check="view"]`, `[data-check="test"]`), die Tafel mit der
@@ -8666,8 +8671,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     der Mischung steht in `StationUi.roleLabel`, und in der Verteilung wird sie
     „Mensch". Mitten in der Runde entscheidet `switchRights`, ob das geht;
     wer nicht darf, bekommt den Grund als Meldung. Wer nichts hält, liest
-    „Bitte wähle über den Tab oben deine Rolle aus." (`NO_ROLE_HINT`). Drohne,
-    Fernseher und Monster sind keine Fähigkeiten — wer dorthin geht, legt die
+    „Bitte wähle über den Tab oben deine Rolle aus." (`NO_ROLE_HINT`). Fernseher und Monster sind keine Fähigkeiten — wer dorthin geht, legt die
     Zentrale ab.
   - **Brille** (`HauntingWorld.menu`): dieselben drei Absichten zuerst, dann
     „Zur Zentrale / Rolle wechseln", dann „Ansicht: 3D Schiff" (fest), dann die
@@ -8701,20 +8705,70 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Aufbau wählt: Angeschaltet wird Zuschauen im Optionsmenü der Runde
   („Zuschauen: an/aus"), und zwar immer. Wessen Sicht ein Zuschauer *sonst*
   noch haben kann, steht in der Reiterzeile des Telefons: Archiv, Schalttafel,
-  Späher, Drohne und der Fernseher sind eigene Ansichten, also führt die Wahl
+  Späher und der Fernseher sind eigene Ansichten, also führt die Wahl
   dorthin.
   Beides ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
   bleibt Zuschauen auch dann wählbar, wenn im Raum schon jemand spielt.
   2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers
   Netz (siehe unten) — wer sie spielt, ist der Techniker, und ein zweiter
   Techniker im Raum sperrt sie.
-- Stationen: Archiv, Einsatzkontrolle (`scout`, Legacy-`hack`), Drohne, Zuschauer
+- **Jede Rolle meldet sich selbst an** (`registry/roles.ts`,
+  `views/*.register.ts`, `monster/monster.register.ts`). `stations.ts` ist
+  seither nur noch die **Sitzordnung** — welche Stühle es gibt, wem einer
+  gehört, wie lange der Weg zum nächsten dauert; Name, Zeile und „Sieht:"
+  stehen bei der Rolle. `stationUi.ts` zeichnet nur den Rahmen (Kopfzeile,
+  Auftragsstreifen, Geräteübersicht) und hängt die Ansicht aus der Registry
+  darunter; ein `if (station === …)` je Rolle gibt es dort nicht mehr. Eine
+  neue Rolle braucht **keine Zeile** in `stationUi.ts`, `stations.ts` oder
+  einer Union — nur eine eigene Datei.
+- **Die drei Nicht-VR-Rollen sind Karten** (`views/`), und zwar dieselbe
+  `MapView` wie die 2D-Welt, jede mit eigenen Schichten. Was eine Rolle
+  **nicht** sieht, steht deshalb nicht in einem Kommentar, sondern in ihren
+  Layern — mit Test:
+  - **Archiv** (`views/archiveRole.ts`): die ganze Station mit Fracht,
+    Konsolen und Möbeln, `entities: false`. Je offener Reparatur eine
+    gestrichelte Linie von der Kiste zu ihrer Konsole; trägt der Techniker das
+    Teil schon, steht am Ziel „hierher". Ein Tipp auf ein Zimmer schlägt die
+    **Raumakte** auf: Codes groß, Fundhinweis, Türen, Licht — dazu ein Bild
+    des Raums. In 3D ist das ein **Loch**, in das `HauntingWorld.render` die
+    Draufsicht der wirklichen Welt zeichnet, mit Zoom und Wisch
+    (`views/archiveDesk.ts` über `RoleHost.extra`, `archiveView.ts` für die
+    Anschläge); in der 2D-Welt steht dort eine zweite, herangezoomte
+    `MapView`, und `RoleView.viewport()` bleibt `null`. Die Missionsliste ist
+    weg: Sie zählte auf, was die Karte zeigt.
+  - **Schalttafel** (`views/panelRole.ts`, Kennung `hack`): der Grundriss
+    ohne Wesen. Tür antippen sperrt oder gibt frei, Lampe antippen schaltet
+    Licht. Einen Schallköder gibt es nicht mehr. Geschaltet
+    wird weiterhin über die Tafel aus `panel.ts` (`HauntingWorld.panelSwitch`
+    sucht den Schalter mit diesem Ziel): Wofür es keinen Schalter gibt, sagt
+    die Ansicht — sie schaltet nicht an der Tafel vorbei.
+  - **Späher** (`views/scoutRole.ts`): alle `PING_PERIOD` = 3,5 s **eine
+    Peilung** — ein grüner Punkt für den Techniker, ein roter für das Monster,
+    genau dort, wo sie in dem Moment waren. Dazwischen verblassen sie und
+    **wandern nicht mit**: Ein interpolierter Punkt wäre eine Verfolgung, und
+    damit wäre Verstecken kein Mittel mehr, sondern ein Umweg. Der alte
+    Radarschirm mit dem laufenden Punkt ist genau deshalb weg.
+  Der **Zuschauer** (`views/watchRole.ts`) ist die einzige Rolle ohne Karte:
+  `surface: '3d'`, sein Bild bleibt das Puppenhaus aus der 3D-Welt.
+- **Rollenwechsel in der 2D-Welt** (`views/roleStrip.ts`): ein Streifen über
+  der Szene. Wer dort eine Rolle aufschlägt, bekommt sie über **dieselbe
+  laufende `FlatRound`** — nichts wird gestartet, nichts verworfen; die Runde
+  rechnet weiter, während jemand ihr beim Archiv zusieht. Der Wirt dafür ist
+  `FlatMode.roleHost()`; die Schalttafel greift über `FlatRound.lockDoor` und
+  `switchLight` in dieselbe Runde.
+- **Die Drohne ist gestrichen** — Rolle, Ansicht, Körper, Kamera, Flug,
+  Netznachricht (`kind: 'drone'`) und CSS. Übrig geblieben sind die
+  **Wegtypen**: `droneRoute.ts` heißt heute `navmesh/route.ts` (Paket `nav`)
+  und trägt `RoutePose`/`RoutePath` samt `stepAlong` für den Modelltechniker
+  und das Monster. Was nur sie hatte — Flughöhe, Öffnungswinkel, Lampenladung,
+  Wechselsperre, `DRONE_PROFILE` —, ist weg.
+- Stationen: Archiv, Schalttafel (`hack`), Späher (`scout`), Zuschauer
   — und **Monster** (`stations.ts`, `monster/`): ein Telefon spielt das
   Monster, egal ob der Techniker in 3D oder in der 2D-Welt spielt. Die Ansicht
   ist `monster/monsterView.ts` (Karte aus Monstersicht, Stock, **ein** Knopf);
   das Telefon schickt `{kind:'monster'}` (Stock, Zähler für Interagieren,
   Klappenziel; das Feld `attack` steht nur noch für alte Gastgeber im
-  Protokoll) im Drohnentakt an den Gastgeber
+  Protokoll) zehnmal je Sekunde an den Gastgeber
   (`monster/netMonsterPort.ts`), der sie über `monster/netMonsterControl.ts`
   als `MonsterDriver` in derselben `decide`-Form wie die Routine ausführt —
   in 3D über `HauntingWorld.monsterDriver` (der NPC läuft dann geradeaus auf
@@ -8845,7 +8899,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`DROPPED_SEEN`) rechnet jedes Gerät selbst aus `state.time`, damit alle zur
   selben Sekunde zum selben Schluss kommen.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
-  Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
+  Schalter nur vom Besitzer der Schalttafel, Monstersteuer nur vom Besitzer
+  der Monster-Station.
 - **Spielhost: Gastgeber ist, wer Techniker ist** (`net.pickGameHost`) — in der
   Brille, am Desktop oder auf der Karte von oben, das ist dieselbe Rolle in drei
   Ansichten; unter mehreren Technikern entscheidet die Standzeit, ohne jeden
@@ -8878,7 +8933,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `flat.round.haunt` als Stand (`adopt`, derselbe Pfad wie bei einem fremden
   Gastgeber, samt Hausneubau bei Seedwechsel), füllt `technician`, `ride` und
   `venting`, und `tickNet` sendet und empfängt weiter — Schalter der
-  Einsatzkontrolle wirken in der 2D-Runde, das Monster-Telefon steuert sie.
+  Schalttafel wirken in der 2D-Runde, das Monster-Telefon steuert sie.
   Spielt schon ein anderer Techniker im Raum, lehnt `openFlat` ab; beim
   Verlassen stellt `closeFlat` einen frischen Stand her und sagt ihn an. Die
   2D-Bot-Runde bleibt lokal.

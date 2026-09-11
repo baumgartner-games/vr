@@ -831,41 +831,6 @@ export function drawLamp(
   ctx.restore();
 }
 
-/** Eine Drohne von oben: Kreuz mit vier Rotoren. */
-export function drawDrone(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  scale: number,
-): void {
-  const u = scale;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.lineWidth = Math.max(1.5, u * 0.05);
-  ctx.strokeStyle = ART.ink;
-  ctx.fillStyle = ART.metalLight;
-  ctx.beginPath();
-  ctx.roundRect(-u * 0.12, -u * 0.12, u * 0.24, u * 0.24, u * 0.04);
-  ctx.fill();
-  ctx.stroke();
-  for (const [dx, dy] of [
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ]) {
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(dx * u * 0.3, dy * u * 0.3);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(200, 210, 220, 0.5)';
-    ctx.beginPath();
-    ctx.arc(dx * u * 0.3, dy * u * 0.3, u * 0.14, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
 /** Ein Name über einer Figur: weiß mit dunklem Rand, wie in der Vorlage. */
 export function drawName(
   ctx: CanvasRenderingContext2D,

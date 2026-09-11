@@ -2,19 +2,7 @@ import { NavigationOverlay } from './navigationOverlay';
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
 import { PLAN_DOOR_H, PLAN_DOOR_W, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import {
-  DIRS,
-  DIR_E,
-  DIR_N,
-  DIR_S,
-  TILE,
-  dirX,
-  dirZ,
-  keyX,
-  keyZ,
-  tileKey,
-  type Dir,
-} from '../nav/navTile';
+import { DIRS, DIR_E, DIR_N, DIR_S, TILE, dirX, dirZ, tileKey, type Dir } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { pickHost } from '../../net/host';
@@ -27,31 +15,15 @@ import {
   spacesOf,
   stationBounds,
   tilesOf,
-  DRONE_HOME,
   APRON_INNER,
   APRON_OUTER,
-  VAN_ID,
   type HouseDoor,
   type HouseRoom,
   type HouseSpec,
   type Rect,
 } from './house';
 import { housePlan } from './plan';
-import {
-  droneFov,
-  lampAfter,
-  routeLength,
-  stepAlong,
-  tileAt,
-  wrapAngle,
-  DRONE_Y,
-  DRONE_CAP,
-  HOP_TIME,
-  LAMP_MIN,
-  type DronePose,
-  type DroneRoute,
-  type DroneStatus,
-} from './droneRoute';
+import { visibleSwitches } from './panel';
 import { flickerLevel, freshSpook, stepHaunt, type Spook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import {
@@ -117,6 +89,7 @@ import {
 } from './mission';
 import { Rng, rollSeed } from './rng';
 import { StationUi } from './stationUi';
+import type { ArchiveDesk } from './views/archiveDesk';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { taskCargo } from './rules/cargo';
@@ -204,7 +177,6 @@ import type { ToolIcons } from './map/toolIcons';
 import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
 import {
   claimMessage,
-  droneMessage,
   flipMessage,
   handoverMessage,
   HAUNT_CHANNEL,
@@ -213,13 +185,11 @@ import {
   packMemory,
   pickGameHost,
   readClaim,
-  readDrone,
   readFlip,
   readHandover,
   readMonsterInput,
   readState,
   stateMessage,
-  type DroneState,
   type HauntBooks,
   type HauntState,
   type MonsterBook,
@@ -264,9 +234,6 @@ import type { Npc } from '../npc/Npc';
 
 /** Wie oft der Gastgeber den Stand verschickt, und jeder seinen Platz ansagt. */
 const STATE_RATE = 1 / 4;
-/** Und wie oft der Pilot seine Drohne ansagt. */
-const DRONE_RATE = 1 / 10;
-
 /**
  * **Wie lange ein frischer Gastgeber auf die Übergabe des alten wartet**, in
  * Sekunden.
@@ -290,35 +257,9 @@ const HANDOVER_WAIT = 2;
 const NO_FLAT_IN_XR =
   'In der Brille gibt es keine Karte von oben — dort bleibt das Schiff. Am Fenster geht der Wechsel.';
 
-/**
- * Wie schnell sich der Rumpf bei den Zuschauern in den angesagten Winkel
- * dreht, als Anteil des Restes je Sekunde. Hoch genug, dass der Lichtkegel dem
- * Piloten folgt, statt hinterherzuschleifen; niedrig genug, dass die zehn
- * Ansagen je Sekunde nicht als zehn Stufen zu sehen sind.
- */
-const DRONE_TURN = 14;
 
-/**
- * Wie weit nach oben oder unten der Pilot schauen darf — 81°, fast senkrecht.
- *
- * Waagerecht dreht er **ganz** herum (der Anschlag bei gut zwei Dritteln einer
- * halben Umdrehung ist weg: Wer wissen will, ob ihm etwas folgt, muss sich
- * umdrehen können, und das Zurückstellen kostet einen Tipp auf den Blickstock).
- * Senkrecht bleibt ein Rest Anschlag, und zwar nicht aus Bequemlichkeit: Über
- * den Scheitel hinaus steht das Bild auf dem Kopf, und ein Lichtkegel, der
- * dabei nach hinten kippt, sagt dem VR-Spieler das Gegenteil von dem, was der
- * Pilot ansagt.
- */
-const TILT_MOST = Math.PI * 0.45;
-
-/**
- * Wie fein das Bild hinter der offenen Bedienung noch ist: ein Bildpunkt je
- * zehn CSS-Punkte. Als **Anteil** und nicht als Kachelgröße, weil die Leinwand
- * damit auf jedem Gerät dieselben Klötzchen zeigt — auf einem Telefon mit
- * dreifacher Dichte wären feste Bildpunkte drittel so groß.
- */
-const VEIL_RATIO = 0.1;
-
+/** Und wie oft das Telefon am Monster seinen Stock ansagt. */
+const MONSTER_RATE = 1 / 10;
 /**
  * Der Raumscan nimmt nur die Decke ab. Ein Schnitt unter Türhöhe würde hohe
  * Server, Reaktoren und Schutzschränke ebenfalls abschneiden. Wandkanten und
@@ -663,81 +604,8 @@ export class HauntingWorld extends GridWorld {
   >();
   /** Der Papierton liegt auf der Leinwand und nicht in der Szene. */
   private tinted = false;
-  /** Und ob das Bild gerade grob gerastert hinter der Bedienung liegt. */
-  private veiled = false;
 
-  private droneBody: THREE.Object3D | null = null;
-  /**
-   * **Die Wiege, in der Kamera, Kuppel und Scheinwerfer hängen.**
-   *
-   * Sie kippt nach oben und unten; nach links und rechts dreht sich der ganze
-   * Rumpf. Getrennt, weil ein Kopter, der sich zum Hochschauen selbst auf den
-   * Rücken legt, für den VR-Spieler nach Absturz aussieht — und seine
-   * Positionslampe mit auf den Kopf stellt.
-   */
-  private droneHead: THREE.Object3D | null = null;
-  private droneCam: THREE.PerspectiveCamera | null = null;
-  /** Der Scheinwerfer, den der Pilot schaltet — und den alle sehen. */
-  private droneLamp: THREE.SpotLight | null = null;
-  /** Die Kuppel darüber: dass sie leuchtet, sieht man auch von hinten. */
-  private droneGlass: THREE.MeshBasicMaterial | null = null;
   private topCam: THREE.OrthographicCamera | null = null;
-  private drone: DroneState = {
-    x: 0,
-    z: 0,
-    yaw: 0,
-    pitch: 0,
-    target: '',
-    hop: 0,
-    lamp: 1,
-    // **Sie fängt mit brennendem Scheinwerfer an**, und das ist keine
-    // Bequemlichkeit: Sie steht an der Einsatzzentrale, dort zehrt der Kegel nichts, und ohne
-    // ihn schaut der Pilot in seinem ersten Bild in eine schwarze Nacht und
-    // hält das Gerät für kaputt. Was er stattdessen sieht, ist die Hauswand
-    // mit der Tür darin — und nebenbei, wozu der Knopf oben rechts gut ist.
-    light: true,
-  };
-  /**
-   * **Wohin der Pilot schaut, wenn er nicht geradeaus schaut.**
-   *
-   * Ein Winkel neben der Flugrichtung, kein zweiter Kurs: Die Drohne fliegt
-   * ihre Bahn weiter, sie **dreht sich nur darauf**. Andersherum wäre das
-   * Wischen eine zweite Steuerung, die gegen die Wegsuche arbeitet — und die
-   * eine Regel, an der hier alles hängt („sie fliegt keine Luftlinie"), wäre
-   * durch eine Fingerbewegung ausgehebelt.
-   *
-   * **Gedreht wird der Rumpf und nicht die Kamera.** Vorher saß der Winkel an
-   * der Kamera allein, und das war eine Bildeinstellung: Der Pilot sah zur
-   * Seite, der Scheinwerfer leuchtete weiter geradeaus, und im Haus stand eine
-   * Drohne, die stur in eine Richtung starrte, während ihr Pilot etwas ganz
-   * anderes ansagte. Der Kegel ist das Einzige, was der Pilot dem VR-Spieler
-   * wirklich geben kann — er muss dorthin zeigen, wo der Pilot hinsieht.
-   */
-  private droneLook = 0;
-  /**
-   * **Und wie weit der Kopf dabei nach oben oder unten sieht** — positiv nach
-   * oben.
-   *
-   * Ein Zimmer hat nicht nur Ecken, sondern auch eine Decke und einen Boden:
-   * Was unter dem Tisch liegt und was über der Tür hängt, findet niemand, der
-   * nur waagerecht schwenken kann. Begrenzt bleibt es trotzdem — eine Drohne,
-   * die senkrecht nach oben starrt, weiß nicht mehr, wo vorn ist, und der
-   * VR-Spieler sähe einen Lichtkegel, der ihm nichts mehr sagt.
-   */
-  private dronePitch = 0;
-  /** Wo sie steht und wohin sie schaut — die Bahn rechnet `droneRoute.ts`. */
-  private dronePose: DronePose = { x: 0, z: 0, yaw: 0 };
-  /** Der Weg, den sie gerade abfliegt, und wie oft er neu gesucht wird. */
-  private droneRoute: DroneRoute = { tiles: [], complete: true, grounded: true };
-  private droneThink = 0;
-  private droneGraphVersion = -1;
-  private droneVisualYaw = Math.PI;
-  /** Ob ich sie gerade selbst fliege — der Wechsel darauf ist die Übergabe. */
-  private piloting = false;
-  /** Woran erkannt wird, dass der Scheinwerfer wirklich umgelegt wurde. */
-  private droneLit = false;
-  /** Die Zimmer, in denen sie schon war — das Einzige, was der Pilot behält. */
-  private readonly droneSeen = new Set<string>();
   /**
    * **Wie der Archivar sein Blatt gerade hält** (`archiveView.ts`).
    *
@@ -758,6 +626,26 @@ export class HauntingWorld extends GridWorld {
    * mit dem Bild, sonst folgt das Blatt dem Finger nicht.
    */
   private archiveFit = { half: 5, sheet: 5, tall: 5 };
+  /** Welches Zimmer der Archivar aufgeschlagen hat — `''` heißt: keine Akte. */
+  private archiveRoom = '';
+  /**
+   * **Der Tisch des Archivars** (`views/archiveDesk.ts`): das Loch, durch das
+   * diese Welt ein einzelnes Zimmer zeichnet, und die zwei Griffe dazu. Er
+   * geht über `RoleHost.extra` an die Rollenansicht; die 2D-Welt hat keinen
+   * und zeigt an derselben Stelle eine herangezoomte Karte.
+   */
+  private readonly desk: ArchiveDesk = {
+    open: (roomId) => {
+      this.archiveRoom = roomOf(this.spec, roomId)?.id ?? '';
+      this.archive = homeView();
+    },
+    view: () => this.archive,
+    zoom: (factor) => this.zoomArchive(factor),
+    pan: (dx, dz) => this.panArchive(dx, dz),
+    home: () => {
+      this.archive = homeView();
+    },
+  };
 
   private ui: StationUi | null = null;
   /** Die laufende 2D-Runde (`map/flatMode.ts`), von „Bot-Runde", „Mission" oder „Test" gestartet. */
@@ -825,7 +713,6 @@ export class HauntingWorld extends GridWorld {
    */
   private handoverUntil = 0;
   private sendTimer = 0;
-  private droneTimer = 0;
   /**
    * Woran erkannt wird, dass sich an den Türen etwas geändert hat — und das
    * Fragezeichen heißt „noch nie gebaut". Es unterscheidet den ersten Aufbau
@@ -905,7 +792,7 @@ export class HauntingWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'HAUNTING / ORBITAL · Sichere Einsatzzentrale. Mission oder Test am Terminal wählen. Archiv + Einsatzkontrolle auf zwei Handys.';
+    return 'HAUNTING / ORBITAL · Sichere Einsatzzentrale. Mission oder Test am Terminal wählen. Archiv + Schalttafel auf zwei Handys.';
   }
 
   /** Man fängt **draußen** an, an der Einsatzzentrale, mit dem Haus vor sich. */
@@ -1071,7 +958,6 @@ export class HauntingWorld extends GridWorld {
     this.root.add(this.vanRig);
     this.buildHouse();
     this.buildVan();
-    this.buildDrone();
   }
 
   override async init(ctx: WorldContext): Promise<void> {
@@ -1129,7 +1015,6 @@ export class HauntingWorld extends GridWorld {
       this.ui = new StationUi({
         spec: () => this.spec,
         state: () => this.state,
-        drone: () => this.drone,
         claims: () => this.currentClaims(),
         me: () => ctx.net.localId,
         technician: () => {
@@ -1167,22 +1052,10 @@ export class HauntingWorld extends GridWorld {
         seat: () => seatOf(this.currentClaims(), ctx.net.localId),
         arriving: () => Math.max(0, MOVE_TIME - this.seated),
         sit: (station) => this.sit(station),
-        flip: (id, on) => this.flip(id, on),
-        flyTo: (roomId) => this.setDroneTarget(roomId),
-        droneStatus: () => this.droneStatus(),
-        droneSeen: () => this.droneSeen,
-        droneLight: () => this.toggleDroneLight(),
-        droneLook: () => this.droneLook,
-        dronePitch: () => this.dronePitch,
-        droneTurn: (radians) => this.turnDroneView(this.droneLook + radians, this.dronePitch),
-        droneTilt: (radians) => this.turnDroneView(this.droneLook, this.dronePitch + radians),
-        droneFace: () => this.turnDroneView(0, 0),
-        archiveView: () => this.archive,
-        archiveZoom: (factor) => this.zoomArchive(factor),
-        archivePan: (dx, dz) => this.panArchive(dx, dz),
-        archiveHome: () => {
-          this.archive = homeView();
-        },
+        door: (id) => this.panelSwitch('door', id),
+        light: (id) => this.panelSwitch('light', id),
+        lure: (id) => this.panelSwitch('radio', id),
+        archiveDesk: () => this.desk,
       });
     }
     this.applyLights();
@@ -1195,7 +1068,6 @@ export class HauntingWorld extends GridWorld {
     ctx.scene.fog = null;
     // Die Leinwand gehört der ganzen Seite und nicht dieser Welt: Was hier an
     // ihr verstellt wurde, geht hier auch wieder ab.
-    this.veilView(false);
     this.paperTint(false);
     // Die Schnittebene gehört dem Renderer und nicht dieser Welt: Wer sie
     // stehen ließe, schnitte der nächsten Welt die Decke ab.
@@ -1235,11 +1107,6 @@ export class HauntingWorld extends GridWorld {
     this.flatTechnician = false;
     this.pendingBotRound = false;
     this.pendingRestart = false;
-    this.droneBody = null;
-    this.droneHead = null;
-    this.droneCam = null;
-    this.droneLamp = null;
-    this.droneGlass = null;
     this.topCam = null;
     this.paperLight = null;
     this.paperSun = null;
@@ -1487,30 +1354,7 @@ export class HauntingWorld extends GridWorld {
       this.vanRig.add(post);
     });
 
-    this.buildPad();
     this.buildDusk();
-  }
-
-  /**
-   * **Der Hangar der Drohne** — ein Ring auf dem Vorplatz, dort, wo sie steht.
-   *
-   * Ohne ihn ist `DRONE_HOME` eine Zahl in einer Datei: Die Drohne schwebt
-   * über einer Stelle, die genauso aussieht wie jede andere, und „zurück zur
-   * Einsatzzentrale" heißt für den, der im Haus steht, nichts. Mit ihr ist es ein Ort, auf
-   * den man zeigen kann.
-   */
-  private buildPad(): void {
-    const x = (DRONE_HOME.x + 0.5) * TILE;
-    const z = (DRONE_HOME.z + 0.5) * TILE;
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.36, 0.46, 24),
-      new THREE.MeshBasicMaterial({ color: 0x5ee0a0, toneMapped: false, side: THREE.DoubleSide }),
-    );
-    ring.rotation.x = -Math.PI / 2;
-    // Einen Zentimeter über dem Boden: In derselben Ebene streiten sich zwei
-    // Flächen um jeden Bildpunkt, und das flimmert.
-    ring.position.set(x, 0.01, z);
-    this.vanRig.add(ring);
   }
 
   /**
@@ -1544,87 +1388,8 @@ export class HauntingWorld extends GridWorld {
     this.commandLight = sun;
   }
 
-  /**
-   * **Die Drohne steht bei allen im Haus** — auch in der Brille.
-   *
-   * Eine Weile gab es sie nur bei den Web-Spielern, weil nur die eine Kamera
-   * daran brauchen. Mit dem Scheinwerfer geht das nicht mehr: Ein Licht, das
-   * der VR-Spieler nicht sieht, ist keine Hilfe, sondern eine
-   * Helligkeitseinstellung — und die halbe Rolle des Piloten wäre weg. Der
-   * Körper kostet nichts, die Kameras kommen weiterhin nur dort dazu, wo eine
-   * Station sie aufmacht.
-   */
-  private buildDrone(): void {
-    const body = new THREE.Group();
-
-    const shell = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, 0.1, 0.3),
-      new THREE.MeshBasicMaterial({ color: 0x5ee0a0, toneMapped: false }),
-    );
-    body.add(shell);
-    // Die Positionslampe: schwach, immer an, und sie sagt nur „hier bin ich".
-    // Kurze Reichweite mit Absicht — eine, die bis an die Decke trägt, färbt
-    // dem Piloten den oberen Bildrand grün und nimmt dem Haus sein Dunkel.
-
-    // **Der Kopf sitzt in einer Wiege.** Kuppel, Scheinwerfer und Kamera hängen
-    // daran; nach oben und unten kippt sie, nach links und rechts dreht sich
-    // der ganze Rumpf. Ein Kopter, der sich zum Hochschauen selbst auf den
-    // Rücken legt, sähe für den VR-Spieler nach Absturz aus — und drehte
-    // nebenbei seine Positionslampe mit.
-    const head = new THREE.Group();
-    body.add(head);
-    this.droneHead = head;
-
-    // Die Kuppel über dem Scheinwerfer. Sie leuchtet mit, damit man von
-    // *überall* sieht, dass das Licht an ist — der Kegel zeigt nach vorn, und
-    // wer hinter der Drohne steht, sähe sonst nichts.
-    const glass = new THREE.MeshBasicMaterial({ color: 0x123024, toneMapped: false });
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 8), glass);
-    dome.position.set(0, 0.05, 0.1);
-    head.add(dome);
-    this.droneGlass = glass;
-
-    // Ein Kegel und kein Punktlicht: Eine Drohne, die rundherum leuchtet,
-    // nimmt dem Haus das Dunkel — mit dem Kegel muss der Pilot **zielen**, und
-    // dafür muss ihm jemand sagen, wohin.
-    const lamp = new THREE.SpotLight(0xdff2ff, 0, 16, 0.42, 0.55, 1.6);
-    lamp.position.set(0, 0.02, 0.1);
-    lamp.target.position.set(0, -0.6, 3);
-    head.add(lamp);
-    head.add(lamp.target);
-    this.droneLamp = lamp;
-
-    this.live.add(body);
-    this.droneBody = body;
-    this.parkDrone();
-    this.applyDroneLight();
-  }
-
   /** Die Kameras, aus denen die Stationen ihr Bild bekommen. */
   private buildStationViews(): void {
-    // Der Öffnungswinkel steht hier nur als Startwert: Was der Pilot wirklich
-    // sieht, hängt an der Form seines Bildes und wird beim Zeichnen gerechnet
-    // (`droneRoute.droneFov`) — ein Kinostreifen und ein hochkantes Vollbild
-    // brauchen zwei verschiedene senkrechte Winkel für denselben Ausblick.
-    const droneCam = new THREE.PerspectiveCamera(droneFov(1), 1, 0.05, 60);
-    droneCam.rotation.order = 'YXZ';
-    // **Sie schaut nach vorn, und „vorn" ist +Z.** Der Gierwinkel der Drohne
-    // ist `atan2(dx, dz)`, damit zeigt ihre lokale +Z-Achse in die
-    // Flugrichtung — eine Kamera von der Stange schaut aber nach −Z. Ohne die
-    // halbe Drehung flog der Pilot rückwärts durch das Haus und der
-    // Scheinwerfer leuchtete hinter ihm her.
-    // Und sie bleibt dort: Was der Pilot wischt, dreht den **Rumpf**, und die
-    // Kamera hängt daran (`turnDroneView`).
-    droneCam.rotation.y = Math.PI;
-    // Und sie sitzt **vor** der Drohne, nicht in ihr: Rumpf und Lampenkuppel
-    // stehen im Weg, sobald die Kamera nach vorn schaut, und eine nahe
-    // Schnittebene löste das nur, indem sie ein Loch in alles andere schnitte.
-    droneCam.position.set(0, 0.03, 0.28);
-    // In die Wiege und nicht an den Rumpf: Der Pilot schaut dorthin, wohin
-    // sein Scheinwerfer leuchtet, und beide kippen deshalb an einem Stück.
-    this.droneHead?.add(droneCam);
-    this.droneCam = droneCam;
-
     // Draw the dossier border last, including over transparent trim above the
     // camera cut. No geometry from neighbouring rooms may reveal the layout.
     const dark = new THREE.MeshBasicMaterial({
@@ -1685,7 +1450,6 @@ export class HauntingWorld extends GridWorld {
   /** Role changes must not leave extra cameras or global lights behind. */
   private clearStationViews(): void {
     for (const object of [
-      this.droneCam,
       this.topCam,
       this.showCam,
       this.paperLight,
@@ -1696,7 +1460,6 @@ export class HauntingWorld extends GridWorld {
       if (object instanceof THREE.DirectionalLight) object.shadow.map?.dispose();
       object?.removeFromParent();
     }
-    this.droneCam = null;
     this.topCam = null;
     this.showCam = null;
     this.paperLight = null;
@@ -1708,7 +1471,6 @@ export class HauntingWorld extends GridWorld {
     this.doorMarks.clear();
     this.roomWalls.clear();
     this.paperTint(false);
-    this.veilView(false);
     this.liftLid(false);
     this.nextPhoneRender = 0;
   }
@@ -2025,7 +1787,6 @@ export class HauntingWorld extends GridWorld {
       animateCreature(this.monsterArt, this.state.time);
     }
     this.showTechnician();
-    this.flyDrone(dt);
     // **Das Overlay läuft auch außerhalb der Simulation** (Paket U4/M4): Es
     // war an die Bot-Runde gebunden, weil es dafür gebaut wurde — der
     // Zuschauer braucht es aber gerade dann, wenn Menschen spielen.
@@ -2033,11 +1794,6 @@ export class HauntingWorld extends GridWorld {
     this.navigationOverlay.update(overlay, [
       this.experience?.botNavigation ?? null,
       this.monsterNavigator?.navigation ?? null,
-      {
-        at: this.dronePose,
-        points: this.droneRoute.points ?? [],
-        goal: this.droneRoute.points?.at(-1) ?? null,
-      },
     ]);
 
     // Der Gastgeber hat die Absichten aus seinem Beschluss, alle anderen aus
@@ -2130,11 +1886,11 @@ export class HauntingWorld extends GridWorld {
       if (this.isHost) ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
       if (this.wanted) ctx.net.emit(HAUNT_CHANNEL, claimMessage(this.wanted, this.seated));
     }
-    // Das Steuer der Monster-Station, im Takt der Drohne — nur solange man
-    // die Station besitzt; der Gastgeber hört nur auf den Besitzer (`receive`).
+    // Das Steuer der Monster-Station — nur solange man die Station besitzt;
+    // der Gastgeber hört nur auf den Besitzer (`receive`).
     this.monsterTimer -= dt;
     if (this.monsterTimer <= 0) {
-      this.monsterTimer = DRONE_RATE;
+      this.monsterTimer = MONSTER_RATE;
       const input = this.netPort?.message();
       if (input) {
         if (this.isHost) this.receive(input, ctx.net.localId);
@@ -2242,21 +1998,6 @@ export class HauntingWorld extends GridWorld {
       this.claims.set(from, { ...claim, heardAt: clock() });
       return;
     }
-    const drone = readDrone(data);
-    if (
-      drone &&
-      from !== this.context?.net.localId &&
-      seatOf(this.currentClaims(), from) === 'drone'
-    ) {
-      // Die Stelle wird gesetzt, der Winkel wird **angefahren**: Er steht in
-      // der Nachricht (`net.DroneState.yaw`), weil eine Drohne, die im Stehen
-      // schwenkt, keinen Weg hinterlässt, aus dem er sich ableiten ließe — und
-      // ein gesetzter Winkel bei zehn Ansagen je Sekunde sichtbar ruckelt.
-      // Remote positions are interpolated in turnDroneBody, never snapped per packet.
-      this.drone = drone;
-      this.applyDroneLight();
-      return;
-    }
     const flip = readFlip(data);
     if (flip && this.isHost && ['hack', 'scout'].includes(seatOf(this.currentClaims(), from) ?? ''))
       this.applyFlip(flip.id, flip.on);
@@ -2306,7 +2047,6 @@ export class HauntingWorld extends GridWorld {
       this.grid?.replaceWith(housePlan(this.spec, new Set(next.shut), next.crew.options.test));
       this.builtDoors = '?';
       this.buildHouse();
-      this.parkDrone();
       return;
     }
     this.state = next;
@@ -2874,7 +2614,38 @@ export class HauntingWorld extends GridWorld {
       : chooseLock(this.locks, this.state.shut, entry.target, this.state.time);
   }
 
-  /** Vom Hacker aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */
+  /**
+   * **Die drei Griffe der Schalttafel**, über die Karte statt über eine Liste
+   * beschrifteter Kippschalter (`views/panelRole.ts`).
+   *
+   * Geschaltet wird nach wie vor über die Tafel aus `panel.ts` und nicht an
+   * ihr vorbei: Wer eine Tür antippt, für die es keinen Schalter gibt, bekommt
+   * `''` zurück und die Ansicht sagt genau das. Damit bleibt die eine Regel,
+   * an der die halbe Rollenverzahnung hängt — nicht jede Tür der Station steht
+   * auf dieser Tafel.
+   *
+   * @returns die Zeile für den Spieler, oder `''`, wenn es dafür keinen
+   *   Schalter gibt.
+   */
+  private panelSwitch(kind: 'door' | 'light' | 'radio', target: string): string {
+    if (this.state.phase !== 'running') return '';
+    const entry = visibleSwitches(this.spec.switches, this.state.fuse).find(
+      (one) => one.kind === kind && one.target === target,
+    );
+    if (!entry) return '';
+    const on =
+      kind === 'door'
+        ? !this.state.shut.includes(target)
+        : kind === 'light'
+          ? this.state.lit.includes(target)
+          : this.state.loud.includes(target);
+    this.flip(entry.id, !on);
+    if (kind === 'door') return on ? 'Schott gesperrt.' : 'Schott freigegeben.';
+    if (kind === 'light') return on ? 'Licht aus.' : 'Licht an.';
+    return on ? 'Schallköder aus.' : 'Schallköder an — das Monster hört ihn.';
+  }
+
+  /** Von der Schalttafel aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */
   private flip(id: string, on: boolean): void {
     if (this.isHost) this.applyFlip(id, on);
     else this.context?.net.emit(HAUNT_CHANNEL, flipMessage(id, on));
@@ -2898,7 +2669,6 @@ export class HauntingWorld extends GridWorld {
     const occupants: Array<{ x: number; y?: number; z: number }> = [];
     if (this.context?.role === 'vr') occupants.push(this.context.rig.getHeadPosition(_head));
     if (this.state.monster) occupants.push(this.state.monster);
-    occupants.push(this.drone);
     const bot = this.experience?.botPosition;
     if (bot) occupants.push(bot);
     for (const peer of this.context?.net.peers.values() ?? []) {
@@ -3030,7 +2800,6 @@ export class HauntingWorld extends GridWorld {
   private applyLights(dt = 1): void {
     const bright = this.state.crew.options.test && this.state.crew.options.bright;
     this.context?.rig.getHeadPosition(_head);
-    if (this.ui?.station === 'drone' && this.droneBody) _head.copy(this.droneBody.position);
     const tileX = Math.floor(_head.x / TILE);
     const tileZ = Math.floor(_head.z / TILE);
     const viewRoom = roomAt(this.spec, tileX, tileZ);
@@ -3163,372 +2932,6 @@ export class HauntingWorld extends GridWorld {
     this.experience?.setVisibleRooms(visible);
   }
 
-  // --- die Drohne -----------------------------------------------------------
-
-  /**
-   * **Die Drohne startet draußen, über ihrem Ring auf dem Vorplatz.**
-   *
-   * Eine Weile parkte sie im Zimmer hinter der Haustür, weil es vor dem Haus
-   * keine Kacheln gab und die Wegsuche mit einem Startpunkt außerhalb des
-   * Graphen nichts anfängt. Seit der Vorplatz zum Gitter gehört (`house.APRON`)
-   * ist das andersherum richtig: Der Pilot setzt sich hin und sieht die Einsatzzentrale,
-   * den Vorplatz und die Hauswand mit der Tür darin — die erste Ansage, die in der
-   * Einsatzzentrale fällt. Vorher sah er ein dunkles Zimmer und wusste weder, wo er ist,
-   * noch wohin.
-   */
-  private parkDrone(): void {
-    const body = this.droneBody;
-    if (!body) return;
-    // **Mit dem Rücken zur Einsatzzentrale und dem Haus im Bild.** Der Gierwinkel ist
-    // `atan2(dx, dz)`, und nach Norden ist das π — wer hier eine Null
-    // hinschreibt, setzt den Piloten in seinem ersten Bild vor eine
-    // Tischplatte.
-    const yaw = Math.PI;
-    this.dronePose = { x: (DRONE_HOME.x + 0.5) * TILE, z: (DRONE_HOME.z + 0.5) * TILE, yaw };
-    body.position.set(this.dronePose.x, DRONE_Y, this.dronePose.z);
-    body.rotation.y = yaw;
-    this.droneLook = 0;
-    this.dronePitch = 0;
-    if (this.droneHead) this.droneHead.rotation.x = 0;
-    this.drone = {
-      x: this.dronePose.x,
-      z: this.dronePose.z,
-      yaw,
-      pitch: 0,
-      target: '',
-      hop: 0,
-      lamp: this.drone.lamp,
-      light: this.drone.light,
-    };
-    this.droneRoute = { tiles: [], complete: true, grounded: true };
-    this.droneSeen.clear();
-    this.droneSeen.add(VAN_ID);
-  }
-
-  /**
-   * **Ein Zimmer antippen heißt: such dir einen Weg dorthin.**
-   *
-   * Nicht „flieg dorthin". Der Unterschied ist der ganze Rest des Spiels — was
-   * dabei herauskommt, hängt an den Türen, und die gehören dem VR-Spieler und
-   * dem Hacker (`droneRoute.ts`). Ein zweites Antippen desselben Zimmers ruft
-   * sie zurück auf der Stelle: Ein Knopf, der nur eine Richtung kennt, ist auf
-   * einem Telefon ein Knopf, den man versehentlich drückt und nicht mehr los
-   * wird.
-   */
-  private setDroneTarget(roomId: string): void {
-    if (this.drone.target === roomId) {
-      // **Abbrechen geht immer.** Die Sperre steht gegen das nächste Zimmer,
-      // nicht gegen die Umkehr — ein Knopf, der eine falsche Eingabe eine ganze
-      // Sperre lang festhält, ist auf einem Telefon eine Strafe fürs
-      // Danebentippen.
-      this.drone.target = '';
-      this.droneRoute = { tiles: [], complete: true, grounded: true };
-      this.droneThink = 0;
-      this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
-      return;
-    }
-    // Und sie fliegt nicht dorthin, wo sie schon schwebt: Das kostete eine
-    // Sperre für einen Flug von null Metern.
-    if (this.drone.hop > 0 || (!this.drone.target && this.droneRoom() === roomId)) return;
-    this.drone.target = roomId;
-    this.drone.hop = HOP_TIME;
-    // **Beim Losfliegen schaut sie wieder nach vorn** — und nur dann.
-    //
-    // Umsehen dreht seit Neuestem ganz herum, und genau deshalb braucht der
-    // Start diese Zeile: Wer gerade nach hinten geschaut hat und dann ein
-    // Zimmer antippt, flöge sonst rückwärts los und sähe von seinem eigenen
-    // Flug die Wand, die hinter ihm wegzieht. Zurückgestellt wird **nur** hier
-    // und nicht laufend: Ein Blick, den die Welt jede Sekunde wieder
-    // geradezieht, ist kein Blick, sondern ein Gummiband — sobald sie fliegt,
-    // gehört der Kopf wieder dem Piloten.
-    this.turnDroneView(0, 0);
-    this.droneRoute = { tiles: [], complete: true, grounded: true };
-    this.droneThink = 0;
-    this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
-  }
-
-  /** Der Scheinwerfer — vom Piloten geschaltet, bei allen im Haus zu sehen. */
-  private toggleDroneLight(): void {
-    // Aus geht immer; an nur, wenn wirklich noch etwas in der Ladung steckt.
-    if (!this.drone.light && this.drone.lamp < LAMP_MIN) return;
-    this.drone.light = !this.drone.light;
-    this.applyDroneLight();
-    playSwitch(this.drone.light);
-    this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
-  }
-
-  /**
-   * **Umsehen, ohne umzukehren** — in beiden Achsen.
-   *
-   * Was der Pilot wischt, ist ihr Kopf und nicht ihr Kurs: Die Bahn kommt
-   * weiter aus der Wegsuche. Waagerecht dreht sich dabei der ganze Rumpf
-   * (`faceDrone`), senkrecht nur die Wiege mit Kamera, Kuppel und
-   * Scheinwerfer — ein Kopter, der sich zum Hochschauen auf den Rücken legt,
-   * sähe im Haus nach Absturz aus.
-   *
-   * **Waagerecht geht es ganz herum** (`wrapAngle`): Der alte Anschlag bei gut
-   * zwei Dritteln einer halben Umdrehung war als Schutz gegen den verlorenen
-   * Horizont gedacht und war in Wahrheit eine Drohne, die sich nicht umsehen
-   * kann — wer hören will, ob hinter ihr etwas steht, dreht sich um. Zurück
-   * geradeaus kommt der Pilot mit einem Tipp auf den Blickstock, und solange
-   * sein Blick daneben steht, leuchtet der. Senkrecht bleibt der Anschlag
-   * (`TILT_MOST`), denn über den Scheitel hinaus steht das Bild auf dem Kopf.
-   */
-  private turnDroneView(yaw: number, pitch: number): void {
-    this.droneLook = wrapAngle(yaw);
-    this.dronePitch = Math.min(TILT_MOST, Math.max(-TILT_MOST, pitch));
-    this.faceDrone();
-  }
-
-  /**
-   * **Den Rumpf dorthin drehen, wo der Pilot hinsieht** — Flugrichtung plus
-   * Blickwinkel, und die Kamera hängt als Kind daran.
-   *
-   * Nur beim Piloten: Bei allen anderen ist der Winkel eine angesagte Zahl, in
-   * die sich der Rumpf hineindreht (`turnDroneBody`). Zwei Stellen, die
-   * denselben Rumpf drehen, drehten ihn gegeneinander.
-   */
-  private faceDrone(): void {
-    const body = this.droneBody;
-    if (!body || !this.piloting) return;
-    body.rotation.y = this.dronePose.yaw + this.droneLook;
-    this.drone.yaw = body.rotation.y;
-    // Nach oben sehen heißt: die Wiege *gegen* die X-Achse kippen. Eine
-    // Drehung um +X legt die Blickachse nach unten — das Vorzeichen sieht man
-    // einer Zahl nicht an, im Bild dafür sofort.
-    if (this.droneHead) this.droneHead.rotation.x = -this.dronePitch;
-    this.drone.pitch = this.dronePitch;
-  }
-
-  /**
-   * **Bei allen anderen dreht sich die Drohne hin, statt zu springen.**
-   *
-   * Der Winkel kommt zehnmal je Sekunde über die Leitung; direkt gesetzt wäre
-   * das ein Ruckeln in zehn Stufen, und ausgerechnet der Lichtkegel im Haus
-   * würde dabei springen. Der Nachlauf ist bildratenunabhängig — bei 45 Hz
-   * dieselbe Zeit wie bei 120 — und nimmt immer den kürzeren Bogen: Ohne das
-   * dreht sich eine Drohne, die über den Vollkreis läuft, einmal komplett
-   * andersherum.
-   */
-  private turnDroneBody(dt: number): void {
-    const body = this.droneBody;
-    if (!body) return;
-    const step = 1 - Math.exp(-Math.max(0, dt) * DRONE_TURN);
-    body.position.x += (this.drone.x - body.position.x) * step;
-    body.position.z += (this.drone.z - body.position.z) * step;
-    body.position.y = DRONE_Y - Math.abs(Math.sin(this.state.time * 1.7)) * 0.025;
-    const gap = Math.atan2(
-      Math.sin(this.drone.yaw - body.rotation.y),
-      Math.cos(this.drone.yaw - body.rotation.y),
-    );
-    body.rotation.y += gap * step;
-    // Die Wiege braucht den kürzeren Bogen nicht: Sie kippt nur zwischen zwei
-    // Anschlägen und kommt nie über den Vollkreis.
-    const head = this.droneHead;
-    if (head) head.rotation.x += (-this.drone.pitch - head.rotation.x) * step;
-  }
-
-  private applyDroneLight(): void {
-    const on =
-      this.drone.light && this.drone.lamp > 0 && !stationLighting(this.state.crew, false).dark;
-    // Nur bei Wechsel: Diese Zeile läuft in jedem Bild, und eine Farbe, die
-    // sechzigmal je Sekunde auf denselben Wert gesetzt wird, ist sechzigmal
-    // je Sekunde ein `needsUpdate` an einem Material, das sich nicht geändert
-    // hat.
-    if (on === this.droneLit) return;
-    this.droneLit = on;
-    if (this.droneLamp) this.droneLamp.intensity = on ? 7 : 0;
-    if (this.droneGlass) this.droneGlass.color.setHex(on ? 0xdff2ff : 0x123024);
-  }
-
-  /**
-   * **Geflogen wird auf Zimmer und nicht auf Punkte.**
-   *
-   * Der Pilot tippt auf die Karte, die Drohne sucht sich den Weg — mit einem
-   * Profil, das über Möbel hinwegfliegt und **keine Tür aufmacht**. Wohin sie
-   * kommt, hängt damit daran, was der VR-Spieler und der Hacker offen gelassen
-   * haben: Abhängigkeit in beide Richtungen, ohne eine einzige Sonderregel.
-   */
-  private flyDrone(dt: number): void {
-    const body = this.droneBody;
-    if (!body) return;
-    // **Sperre und Ladung laufen bei allen mit**, nicht nur beim Piloten. Sonst
-    // stünden beide Uhren still, sobald niemand am Gerät sitzt — und der
-    // Nächste, der sich hinsetzt, erbte eine Sperre von vor drei Minuten und
-    // eine Lampe, die sich in der Zwischenzeit nicht erholt hat.
-    this.drone.hop = Math.max(0, this.drone.hop - dt);
-    this.drone.lamp = lampAfter(this.drone.lamp, dt, this.drone.light, this.droneRoom() === VAN_ID);
-
-    const mine = seatOf(this.currentClaims(), this.context?.net.localId ?? '') === 'drone';
-    if (!mine) {
-      // Bei allen anderen ist sie nur eine angesagte Stelle — die Bahn rechnet
-      // der Pilot, und zweimal gerechnet käme sie zweimal woanders an.
-      this.piloting = false;
-      this.applyDroneLight();
-      this.turnDroneBody(dt);
-      return;
-    }
-
-    if (!this.piloting) {
-      // **Wer sich gerade erst hingesetzt hat, übernimmt sie da, wo sie
-      // steht.** Die eigene Bahn steht noch am Hangar aus `parkDrone`; ohne
-      // diese Zeile springt die Drohne im ersten Bild eines Pilotenwechsels
-      // zurück ins Zimmer hinter der Haustür — und der Vorgänger sieht es.
-      this.piloting = true;
-      this.dronePose = { x: this.drone.x, z: this.drone.z, yaw: body.rotation.y };
-      // **Wer sich hinsetzt, schaut geradeaus.** Der Winkel des Vorgängers
-      // steckt schon in der Drehung des Rumpfes, die hier gerade zur
-      // Flugrichtung erklärt wird; ein zweites Mal daraufgerechnet stünde die
-      // Drohne quer, und der Neue hielte sein erstes Bild für kaputt. Die
-      // Wiege dagegen steht absolut — ihren Winkel übernimmt er, statt ihn zu
-      // vergessen, sonst ruckte das Bild beim Platzwechsel waagerecht.
-      this.droneLook = 0;
-      this.dronePitch = this.drone.pitch;
-      this.droneRoute = { tiles: [], complete: true, grounded: true };
-      this.droneThink = 0;
-    }
-
-    if (this.drone.target) this.stepDrone(dt);
-    this.spendLamp();
-
-    body.position.set(this.dronePose.x, DRONE_Y, this.dronePose.z);
-    this.drone.x = this.dronePose.x;
-    this.drone.z = this.dronePose.z;
-    // Erst die Bahn, dann der Blick darauf: `faceDrone` rechnet beides
-    // zusammen und schreibt den Winkel in die Ansage.
-    this.faceDrone();
-    const yawRate = wrapAngle(this.dronePose.yaw - this.droneVisualYaw) / Math.max(dt, 0.001);
-    this.droneVisualYaw = this.dronePose.yaw;
-    body.rotation.z = THREE.MathUtils.damp(
-      body.rotation.z,
-      Math.max(-0.09, Math.min(0.09, -yawRate * 0.035)),
-      5,
-      dt,
-    );
-    body.position.y = DRONE_Y - Math.abs(Math.sin(this.state.time * 1.7)) * 0.025;
-    this.noteDroneRoom();
-
-    this.droneTimer -= dt;
-    if (this.droneTimer <= 0) {
-      this.droneTimer = DRONE_RATE;
-      this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
-    }
-  }
-
-  /**
-   * Ein Stück des Weges — und der Weg kommt aus dem Navigationsgraphen
-   * (`droneRoute.ts`, mit Test, der einen Weg wirklich abfliegt).
-   *
-   * **Neu gesucht wird zweimal je Sekunde**, nicht nur beim Antippen: Der
-   * Hacker macht Türen zu, während sie unterwegs ist, und eine Drohne, die
-   * ihren Weg beim Start ein für alle Mal berechnet hat, fliegt danach durch
-   * eine geschlossene Tür. Billig ist das, weil ein Haus achtundvierzig
-   * Kacheln hat.
-   *
-   * Findet der Graph keinen Weg, bleibt der beste Teilweg übrig — sie fliegt
-   * also bis vor die verschlossene Tür und bleibt dort. Genau das soll der
-   * Pilot sehen: nicht „Fehler", sondern *hier ist zu*, und die Station sagt
-   * es ihm auch mit Worten (`droneStatus`).
-   */
-  /**
-   * **Die Kachel, auf die sie gerade zufliegt** — Zimmermitte oder Hangar.
-   *
-   * Die Einsatzzentrale ist hier ein Ziel wie jedes andere und kein Sonderfall im Flug:
-   * Was sie unterscheidet, ist nur, dass ihre Kachel nicht aus der
-   * Zimmerliste kommt. Die Wegsuche dahinter ist dieselbe — samt der Haustür,
-   * die zu sein kann.
-   */
-  private droneGoal(): { x: number; z: number } | null {
-    if (this.drone.target === VAN_ID) return DRONE_HOME;
-    const room = roomOf(this.spec, this.drone.target);
-    return room ? roomCentre(room) : null;
-  }
-
-  private stepDrone(dt: number): void {
-    const graph = this.travelGraph();
-    const goal = this.droneGoal();
-    if (!graph || !goal) return;
-
-    this.droneThink -= dt;
-    if (this.droneThink <= 0 || this.droneGraphVersion !== graph.version) {
-      this.droneThink = this.droneRoute.complete ? 30 : 0.5;
-      this.droneGraphVersion = graph.version;
-      this.droneRoute = stationRoute(
-        this.spec,
-        graph,
-        this.dronePose,
-        tileKey(goal.x, goal.z, 0),
-        0.22,
-        DRONE_Y - DRONE_CAP,
-      );
-      if (!this.droneRoute.grounded) {
-        // Kein Startpunkt: Sie schwebt neben dem Gitter — dorthin kommt sie
-        // nur, wenn jemand am Haus etwas geändert hat, während sie flog.
-        this.parkDrone();
-        return;
-      }
-    }
-
-    if (!stepAlong(this.dronePose, this.droneRoute, dt)) {
-      // Angekommen — oder vor einer Tür, die zu ist. Beides heißt: Sie steht.
-      // Das Ziel bleibt stehen, damit der Pilot in der Station sieht, wohin
-      // sie wollte, statt eine Anzeige zu bekommen, die sich selbst löscht.
-      if (this.droneRoute.complete) this.drone.target = '';
-    }
-  }
-
-  /**
-   * **Wenn die Ladung alle ist, geht das Licht von selbst aus** — und zwar
-   * beim Piloten, damit es alle mitbekommen.
-   *
-   * Heruntergezählt hat `flyDrone` schon, bei jedem in der Einsatzzentrale. Hier steht nur der
-   * Schluss daraus: Eine Lampe, die bei null einfach weiterbrennt, wäre eine
-   * Anzeige und keine Ladung — und der Pilot, der sie danach ausschaltet,
-   * bekäme einen Knopf, der nichts tut.
-   */
-  private spendLamp(): void {
-    if (!this.drone.light || this.drone.lamp > 0) return;
-    this.drone.light = false;
-    this.applyDroneLight();
-    playSwitch(false);
-    this.context?.net.emit(HAUNT_CHANNEL, droneMessage(this.drone));
-  }
-
-  /** In welchem Zimmer sie gerade ist — und dass sie dort einmal war. */
-  private droneRoom(): string {
-    const tile = tileAt(this.drone.x, this.drone.z);
-    const x = keyX(tile);
-    const z = keyZ(tile);
-    const room = roomAt(this.spec, x, z);
-    if (room) return room.id;
-    // Der Vorplatz ist für den Piloten ein Ort wie ein Zimmer: Dort steht die
-    // Einsatzzentrale, dort lädt sie, und dorthin schickt er sie zurück.
-    return onApron(x, z) ? VAN_ID : '';
-  }
-
-  private noteDroneRoom(): void {
-    const room = this.droneRoom();
-    if (room) this.droneSeen.add(room);
-  }
-
-  /**
-   * **Was der Pilot über seinen Flug erfährt.**
-   *
-   * Nur so viel, wie eine Drohne wirklich weiß: wo sie ist, wie weit sie noch
-   * zu fliegen hat und ob sie überhaupt hinkommt. Kein Grundriss und keine
-   * Abzweigung — die gehören dem Archivar. Die eine Zeile, auf die es
-   * ankommt, ist `blocked`: Sie ist die Stelle, an der aus einer Wegsuche eine
-   * Ansage an den Rest der Einsatzzentrale wird — „irgendwo dazwischen ist zu, macht
-   * auf".
-   */
-  private droneStatus(): DroneStatus {
-    const here = this.droneRoom();
-    if (!this.drone.target) return { kind: 'idle', here, metres: 0 };
-    const metres = routeLength(this.dronePose, this.droneRoute);
-    if (!this.droneRoute.complete) return { kind: 'blocked', here, metres };
-    return { kind: 'flying', here, metres };
-  }
-
   // --- die Einsatzzentrale ---------------------------------------------------
 
   /** Sich an ein Gerät setzen. Wer schon länger dort sitzt, bleibt sitzen. */
@@ -3583,7 +2986,7 @@ export class HauntingWorld extends GridWorld {
     // Bild stehen, wenn er den Platz wechselte: Die Drossel sah dieselbe
     // Station und dasselbe Zimmer und hielt das alte Bild für frisch.
     const lens: Readonly<WatchLens> = ui.watchLens;
-    const view = `${ui.station}:${lens.seat}:${lens.follow}:${ui.selected}:${this.spec.seed}:${ui.veiled}`;
+    const view = `${ui.station}:${lens.seat}:${lens.follow}:${this.archiveRoom}:${this.spec.seed}`;
     if (view === this.phoneRenderView && now < this.nextPhoneRender) return true;
     this.phoneRenderView = view;
     this.nextPhoneRender = now + 1000 / 15;
@@ -3593,7 +2996,6 @@ export class HauntingWorld extends GridWorld {
     const station = ui.shownStation;
     const archive = station === 'archive';
     const show = station === 'watch';
-    this.veilView(ui.veiled);
     // Die Decke bleibt nur dem Zuschauer weg, und sie geht nur bei Wechsel ab:
     // Eine Schnittebene, die je Bild kommt und geht, baut three.js jedes Mal
     // jeden Shader neu.
@@ -3612,9 +3014,9 @@ export class HauntingWorld extends GridWorld {
     // der Grundriss des Archivars und das Haus des Fernsehers —, lassen den
     // Streifen frei, statt ihre obere Kante darunter zu schieben.
     const head = Math.min(0.5, ui.headroom() / Math.max(1, rect.h));
-    const camera = station === 'drone' ? this.droneCam : show ? this.showCam : this.topCam;
+    const camera = show ? this.showCam : this.topCam;
     if (!camera) return true;
-    if (archive) this.aimArchive(ui.selected, aspect, head);
+    if (archive) this.aimArchive(this.archiveRoom, aspect, head);
     if (show) this.aimShow(aspect, head, ui.station === 'watch' ? lens.follow : 'free');
 
     // Der Archivar sieht **keine Lebewesen**: keinen Mitspieler, kein Monster,
@@ -3632,7 +3034,7 @@ export class HauntingWorld extends GridWorld {
     // wird davon nur unruhig. Nur ausgeblendet, nicht abgebaut; die anderen
     // Ansichten brauchen sie unverändert.
     for (const lamp of this.lamps.values()) lamp.glass.visible = !archive;
-    if (archive) this.markDoors(ui.selected);
+    if (archive) this.markDoors(this.archiveRoom);
     this.paperTint(archive);
     // **Der Zuschauer sieht Tag.** Der Nebel gehört zum Grusel derer, die
     // drinstecken; über dem Puppenhaus wäre er nur eine Milchglasscheibe.
@@ -3647,18 +3049,6 @@ export class HauntingWorld extends GridWorld {
     renderer.setScissorTest(true);
     renderer.setScissor(rect.x, y, rect.w, rect.h);
     renderer.setViewport(rect.x, y, rect.w, rect.h);
-    if (camera instanceof THREE.PerspectiveCamera && !show) {
-      camera.aspect = aspect;
-      // **Der Öffnungswinkel hängt an der Form des Bildes.** Der Pilot zieht
-      // sein Bild vom Kinostreifen aufs Vollbild und zurück; bliebe der
-      // senkrechte Winkel dabei stehen, sähe er im Streifen fast nichts mehr
-      // nach oben und im hochkanten Vollbild fast nichts mehr zur Seite
-      // (`droneRoute.droneFov`). Der Fernseher behält seinen Winkel und rückt
-      // stattdessen ab (`aimShow`): Ein Haus, das man von außen ansieht, soll
-      // nicht mit dem Fenster die Perspektive wechseln.
-      camera.fov = droneFov(camera.aspect);
-      camera.updateProjectionMatrix();
-    }
     renderer.render(ctx.scene, camera);
     if (this.monster && creatureVisible !== undefined)
       this.monster.holder.visible = creatureVisible;
@@ -3747,6 +3137,12 @@ export class HauntingWorld extends GridWorld {
     const look = cz + 1.2 * TILE - (head / 2) * deep;
     camera.position.set(cx, Math.sin(SHOW_PITCH) * far, look + Math.cos(SHOW_PITCH) * far);
     camera.aspect = aspect;
+    // **Die hintere Kappe wandert mit.** Ein hochkant gehaltenes Telefon
+    // schiebt die Kamera weit hinaus (quer ist wenig Platz), und mit einer
+    // festen Kappe lag das ganze Haus dahinter: schwarzes Bild, kein Fehler
+    // im Log. Die Zahl ist deshalb keine Einstellung, sondern eine Rechnung —
+    // der Abstand plus die halbe Ausdehnung des Hauses, großzügig.
+    camera.far = far + Math.max(deep, wide) + 20;
     camera.updateProjectionMatrix();
   }
 
@@ -3811,36 +3207,6 @@ export class HauntingWorld extends GridWorld {
     body.rotation.y = at.yaw + Math.PI;
     if (at.moving) animateCreature(body, this.state.time);
     else for (const limb of body.children) limb.rotation.x = 0;
-  }
-
-  /**
-   * **Das Bild hinter der Bedienung wird grob.**
-   *
-   * Die Schalttafel des Piloten liegt auf durchsichtigem Grund über seinem
-   * Kamerabild — und ein bewegtes Bild unter Knöpfen zieht den Blick immer auf
-   * sich. Statt es zuzudecken (dann wäre der Vollbild-Grund umsonst) wird es
-   * **gerastert**: Man sieht weiter, dass die Drohne fliegt und ob das Licht
-   * brennt, aber nichts mehr, worauf man hinsehen müsste.
-   *
-   * Gerastert wird über die **Auflösung** und nicht über einen Filter: Die
-   * Leinwand bekommt für diese Zeit einen winzigen Bildspeicher, den der
-   * Browser hart hochskaliert (`image-rendering: pixelated`). Das kostet
-   * nichts — es zeichnet weniger, nicht mehr —, es ist wirklich verpixelt und
-   * nicht weichgezeichnet, und es ist genau die Stelle, an der später ein
-   * eigener Filter (CRT, Rauschen) sitzen wird.
-   *
-   * Nur bei Wechsel: `setPixelRatio` legt den Bildspeicher neu an.
-   */
-  private veilView(on: boolean): void {
-    const renderer = this.context?.renderer;
-    if (!renderer || on === this.veiled) return;
-    // In der Brille wird nicht gerastert — dort gibt es diese Bedienung nicht,
-    // und eine halbierte Auflösung im Headset wäre kein Effekt, sondern ein
-    // Fehler.
-    if (renderer.xr.isPresenting) return;
-    this.veiled = on;
-    renderer.setPixelRatio(on ? VEIL_RATIO : Math.min(window.devicePixelRatio, 1.25));
-    renderer.domElement.style.imageRendering = on ? 'pixelated' : '';
   }
 
   /**
@@ -4057,7 +3423,7 @@ export class HauntingWorld extends GridWorld {
             entry(
               'haunt:roles',
               'Zur Zentrale / Rolle wechseln',
-              'Archiv, Einsatzkontrolle, Drohne oder Zuschauer',
+              'Archiv, Schalttafel, Späher, Zuschauer oder Monster',
               () => {
                 this.flatTechnician = false;
                 this.pendingBotRound = false;
@@ -4656,7 +4022,6 @@ export class HauntingWorld extends GridWorld {
       worldMapSource({
         spec: () => this.spec,
         state: () => this.state,
-        drone: () => this.drone,
         lamps: () =>
           [...this.lamps.entries()].map(([id, lamp]) => ({
             id,
@@ -4793,7 +4158,7 @@ export class HauntingWorld extends GridWorld {
     // höchstens zwei Räume gleichzeitig, und nicht für immer (`rules/lamps.ts`).
     this.state.lit = [];
     this.announce(
-      'Mission läuft. Die Station ist dunkel: Taschenlampe an, Licht macht die Einsatzkontrolle. Archiv: Aufträge und Codes. Nach drei Reparaturen zurück zur Zentrale.',
+      'Mission läuft. Die Station ist dunkel: Taschenlampe an, Licht macht die Schalttafel. Archiv: Fracht, Ziele und Codes. Nach drei Reparaturen zurück zur Zentrale.',
     );
     return true;
   }
@@ -4949,7 +4314,6 @@ export class HauntingWorld extends GridWorld {
       this.blob = null;
     }
     this.buildHouse();
-    this.parkDrone();
     if (this.context) this.movePlayerTo(this.context, this.spawnPoint());
     this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
     this.context?.refreshWorldMenu();
